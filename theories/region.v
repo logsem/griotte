@@ -139,7 +139,8 @@ Section region.
     rewrite lookup_app_r region_addrs_aux_length in Hai |- *; last lia.
     rewrite (region_addrs_aux_decomposition n a i) in Haj; last lia.
     rewrite lookup_app_r region_addrs_aux_length in Haj |- *; last lia.
-    rewrite minus_plus in Haj. rewrite Nat.sub_diag in Hai.
+    rewrite Nat.sub_diag in Hai.
+    replace (i + 1 - i) with 1 in Haj by lia.
     eapply region_addrs_aux_next_head; eauto.
   Qed.
 
@@ -260,7 +261,7 @@ Section region.
     intros Hsize. rewrite /region_size in Hsize.
     assert (exists a, (b + n)%a = Some a) as [a Ha].
     { rewrite /incr_addr. destruct (Z.le_dec (b + n)%Z MemNum); [|solve_addr].
-      destruct (Z.le_dec 0 (b + n)%Z); [eauto|solve_addr]. }
+      destruct (Z.le_dec 0%Z (b + n)%Z); [eauto|solve_addr]. }
     exists a. split; [|rewrite /region_size; solve_addr].
     eapply region_addrs_split. split; solve_addr.
   Qed.
@@ -292,7 +293,7 @@ Section region.
     rewrite /region_addrs. destruct (Z.le_dec a b).
     - apply region_addrs_aux_NoDup.
       rewrite incr_addr_region_size; eauto.
-    - rewrite /region_size Z.to_nat_nonpos; [| lia]. by apply NoDup_nil.
+    - rewrite /region_size Z2Nat.nonpos; [| lia]. by apply NoDup_nil.
   Qed.
 
   Lemma region_addrs_cons a e :
@@ -458,7 +459,7 @@ Section region.
       iDestruct (big_sepL2_length with "A") as %Hlen.
       rewrite (region_addrs_decomposition b a e) //.
       assert (Hlnws: n = length (take n ws)).
-      { rewrite length_take. rewrite Min.min_l; auto.
+      { rewrite length_take. rewrite Nat.min_l; auto.
         rewrite <- Hlen. subst n. rewrite !region_addrs_length /region_size.
         solve_addr. }
       generalize (take_drop n ws). intros HWS.
@@ -523,7 +524,7 @@ Section region.
     iDestruct (big_sepL2_length with "Hreg") as %Hlen.
     rewrite (region_addrs_decomposition b a e) //.
     assert (Hlnws: n = length (take n ws)).
-    { rewrite length_take. rewrite Min.min_l; auto.
+    { rewrite length_take. rewrite Nat.min_l; auto.
       rewrite <- Hlen. subst n. rewrite !region_addrs_length /region_size.
       solve_addr. }
     generalize (take_drop n ws). intros HWS.

@@ -90,9 +90,9 @@ Section REL_defs.
   Definition RELS := proj1_sig RELS_aux.
   Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
 
-  Definition rel_def (l : Addr) (φ : ((STS_std_states Addr region_type * (STS_states * STS_rels)) * Word) -> iProp Σ) : iProp Σ :=
+  Definition rel_def (l : Addr) (dq : dfrac) (φ : ((STS_std_states Addr region_type * (STS_states * STS_rels)) * Word) -> iProp Σ) : iProp Σ :=
     (∃ (γpred : gnameO), REL l γpred
-                       ∗ saved_pred_own γpred φ)%I.
+                       ∗ saved_pred_own γpred dq φ)%I.
   Definition rel_aux : { x | x = @rel_def }. by eexists. Qed.
   Definition rel := proj1_sig rel_aux.
   Definition rel_eq : @rel = @rel_def := proj2_sig rel_aux.

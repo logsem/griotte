@@ -142,7 +142,7 @@ Section cap_lang_rules.
    decodeInstrW w = Load r1 r2 →
    isCorrectPC (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
    regs !! PC = Some (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
-   regs_of (Load r1 r2) ⊆ dom _ regs →
+   regs_of (Load r1 r2) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_map_or_true r2 regs mem →
 
@@ -156,14 +156,14 @@ Section cap_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaLoad φ) "(>Hmem & >Hmap) Hφ".
      iApply wp_lift_atomic_base_step_no_fork; auto.
-     iIntros (σ1 l1 l2 n) "[Hr Hm] /=". destruct σ1 as [r m]; simpl.
+     iIntros (σ1 nt l1 l2 n) "[Hr Hm] /=". destruct σ1 as [r m]; simpl.
      iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
 
      (* Derive necessary register values in r *)
      pose proof (lookup_weaken _ _ _ _ HPC Hregs).
      specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri. unfold regs_of in Hri.
-     feed destruct (Hri r2) as [r2v [Hr'2 Hr2]]. by set_solver+.
-     feed destruct (Hri r1) as [r1v [Hr'1 _]]. by set_solver+. clear Hri.
+     odestruct (Hri r2) as [r2v [Hr'2 Hr2]]. by set_solver+.
+     odestruct (Hri r1) as [r1v [Hr'1 _]]. by set_solver+. clear Hri.
      pose proof (regs_lookup_eq _ _ _ Hr'1) as Hr''1.
      pose proof (regs_lookup_eq _ _ _ Hr'2) as Hr''2.
      (* Derive the PC in memory *)
@@ -173,6 +173,7 @@ Section cap_lang_rules.
      iSplitR. by iPureIntro; apply normal_always_base_reducible.
      iNext. iIntros (e2 σ2 efs Hpstep).
      apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+     iIntros "_".
      iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
 
      option_locate_mr m r.
