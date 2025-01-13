@@ -9,10 +9,10 @@ Section cap_lang_rules.
   Context `{MachineParameters}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : cap_lang.expr. 
+  Implicit Types c : cap_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : cap_lang.val. 
+  Implicit Types v : cap_lang.val.
   Implicit Types w : Word.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
@@ -101,7 +101,7 @@ Section cap_lang_rules.
      iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
      iApply (wp_IsPtr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-     (* by rewrite !dom_insert; set_solver+. *)
+     by rewrite !dom_insert; set_solver+.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
      destruct Hspec as [|].
@@ -132,7 +132,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hpc_a ϕ) "(>HPC & >Hpc_a & >Hr & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_IsPtr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    (* by rewrite !dom_insert; set_solver+. *)
+    by rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [|].
@@ -164,7 +164,7 @@ Section cap_lang_rules.
      iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
      iApply (wp_IsPtr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-     (* by rewrite !dom_insert; set_solver+. *)
+     by rewrite !dom_insert; set_solver+.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
      destruct Hspec as [|].

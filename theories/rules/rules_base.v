@@ -2,7 +2,7 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac auth.
-From cap_machine Require Export cap_lang sts iris_extra.
+From cap_machine Require Export cap_lang sts iris_extra stdpp_extra.
 
 (* CMRΑ for memory *)
 Class memG Σ := MemG {

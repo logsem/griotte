@@ -9,10 +9,10 @@ Section cap_lang_rules.
   Context `{MachineParameters}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : cap_lang.expr. 
+  Implicit Types c : cap_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : cap_lang.val. 
+  Implicit Types v : cap_lang.val.
   Implicit Types w : Word.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
@@ -194,7 +194,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a) Hφ".
     iDestruct (map_of_regs_1 with "HPC") as "Hmap".
     iApply (wp_Mov with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    (* by unfold regs_of; rewrite !dom_insert; set_solver+. *)
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [|].
@@ -206,36 +206,6 @@ Section cap_lang_rules.
       incrementPC_inv; simplify_map_eq; eauto. 
       destruct H3; try congruence. inv Hvpc. naive_solver. }
   Qed.
-
-  (*
-  Lemma wp_move_success_reg_toPC E pc_p pc_g pc_b pc_e pc_a w r1 p g b e a a' :
-    decodeInstrW w = Mov PC (inr r1) →
-    isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) →
-    (a + 1)%a = Some a' →
-
-    {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
-        ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ r1 ↦ᵣ inr ((p,g),b,e,a) }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ᵣ inr ((p,g),b,e,a')
-          ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ inr ((p,g),b,e,a) }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
-    iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
-    iApply (wp_Mov with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [|].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      rewrite (insert_commute _ PC r1) // insert_insert insert_commute // insert_insert.
-      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      incrementPC_inv; simplify_map_eq; eauto. congruence. }
-  Qed.*)
 
   Lemma wp_move_success_reg_fromPC E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 :
     decodeInstrW w = Mov r1 (inr PC) →

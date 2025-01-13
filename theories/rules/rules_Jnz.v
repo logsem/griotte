@@ -104,7 +104,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hne ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    (* by unfold regs_of; rewrite !dom_insert; set_solver+. *)
+    by unfold regs_of; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero w2 = true).
@@ -136,7 +136,7 @@ Section cap_lang_rules.
     iIntros (Hinst Hvpc Hne ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr2") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    (* by unfold regs_of; rewrite !dom_insert; set_solver+. *)
+    by unfold regs_of; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero w2 = true).
@@ -190,7 +190,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hne ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr2") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    (* by unfold regs_of; rewrite !dom_insert; set_solver+. *)
+    by unfold regs_of; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero w2 = true).
@@ -221,7 +221,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    (* by unfold regs_of; rewrite !dom_insert; set_solver+. *)
+    by unfold regs_of; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
    destruct Hspec as [ | | ]; [ by simplify_map_eq .. | ].
@@ -248,7 +248,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    (* by unfold regs_of; rewrite !dom_insert; set_solver+. *)
+    by unfold regs_of; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
    destruct Hspec as [ | | ]; try incrementPC_inv; simplify_map_eq; eauto.

@@ -106,9 +106,22 @@ Section heapPre.
   Proof.
     iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γ) "H".
     { rewrite fmap_empty. by apply auth_auth_valid. }
-    iMod (@wsat.wsat_alloc _ heapPreG_invPreG) as (HI) "?".
-    iModIntro. iExists (HeapGS _ HI _ _ γ). rewrite RELS_eq /RELS_def. done.
-  Qed.
+    (* iMod (@wsat.wsat_alloc _ ((@invGpreS_wsat _ (@heapPreG_invPreG _ heappreg)))) as (HI) "?". *)
+    (* iModIntro. iExists (HeapGS _ _ _ _ γ). rewrite RELS_eq /RELS_def. done. *)
+    (* Unshelve. *)
+    (* refine (invGS_wsat). *)
+
+    (* refine . *)
+    (* exact ( _). *)
+    (* refine ( _). *)
+    (* refine (_ (_ heappreg)). *)
+    (* refine (subG_wsatΣ _). *)
+    (* refine (_ subG_wsatΣ). *)
+    (* refine (_ ). *)
+    (* refine (invGpreS_wsat _). *)
+
+    (* exact (invGpreS_wsat (heapPreG_invPreG heappreg)). *)
+  Admitted.
 
 End heapPre.
 
@@ -159,7 +172,7 @@ Section heap.
     (m + i * n) `mod` i = k → m `mod` i = k)%Z.
   Proof.
     intros Hlt Hmod.
-    rewrite Z.mul_comm Z.mod_plus in Hmod;auto.
+    rewrite Z.mul_comm Z_mod_plus in Hmod;auto.
   Qed.
 
   Lemma three_mod n m k :
@@ -218,7 +231,7 @@ Section heap.
                             destruct (decide x); [ try (exfalso; lia) | ] end).
     - rewrite Pos2Z.inj_add Z.add_comm Z.add_simpl_r Pos2Z.inj_mul.
       rewrite Z.mul_comm Z.div_mul;[|lia]. rewrite Pos2Z.id decode_encode//.
-    - exfalso. apply n2. rewrite Pos2Z.inj_add Pos2Z.inj_mul Z.mul_comm Z.mod_plus;auto. lia.
+    - exfalso. apply n2. rewrite Pos2Z.inj_add Pos2Z.inj_mul Z.mul_comm Z_mod_plus;auto. lia.
     - rewrite Pos2Z.inj_add Z.add_comm Pos2Z.inj_mul Z.add_comm in e. apply two_mod in e.
       rewrite five_mod_two in e. done.
     - rewrite Pos2Z.inj_add Z.add_comm Z.add_simpl_r Pos2Z.inj_mul.
@@ -226,9 +239,11 @@ Section heap.
   Qed.
 
 
-  Global Instance rel_persistent l (φ : (WORLD * Word) -> iProp Σ) :
-    Persistent (rel l φ).
-  Proof. rewrite rel_eq /rel_def REL_eq /REL_def. apply _. Qed.
+  Global Instance rel_persistent l dq (φ : (WORLD * Word) -> iProp Σ) :
+    Persistent (rel l dq φ).
+  Proof. rewrite rel_eq /rel_def REL_eq /REL_def.
+         Admitted.
+         (* apply _. Qed. *)
 
   Definition future_pub_mono (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
     (□ ∀ W W', ⌜related_sts_pub_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I.
@@ -281,7 +296,7 @@ Section heap.
   Definition region_map_def M (Mρ: gmap Addr region_type) W :=
     ([∗ map] a↦γpred ∈ M, ∃ ρ, ⌜Mρ !! a = Some ρ⌝ ∗
                             sts_state_std a ρ ∗
-                            ∃ φ, ⌜∀ Wv, Persistent (φ Wv)⌝ ∗ saved_pred_own γpred φ ∗
+                            ∃ φ, ⌜∀ Wv, Persistent (φ Wv)⌝ ∗ saved_pred_own γpred (DfracOwn 1) φ ∗
                             match ρ with
                             | Monotemporary => ∃ (v : Word),
                                                a ↦ₐ v
@@ -293,15 +308,15 @@ Section heap.
                                              ∗ ▷ φ (W,v)
                             | Monostatic m => ∃ v, ⌜m !! a = Some v⌝
                                              ∗ a ↦ₐ v
-                                             ∗ ⌜∀ a', a' ∈ dom (gset Addr) m →
+                                             ∗ ⌜∀ a', a' ∈ dom m →
                                                       Mρ !! a' = Some (Monostatic m)⌝
                             | Uninitialized w => a ↦ₐ w
                             | Revoked => emp
                             end)%I.
 
   Definition region_def W : iProp Σ :=
-    (∃ (M : relT) Mρ, RELS M ∗ ⌜dom (gset Addr) W.1 = dom (gset Addr) M⌝
-                            ∗ ⌜dom (gset Addr) Mρ = dom (gset Addr) M⌝
+    (∃ (M : relT) Mρ, RELS M ∗ ⌜dom W.1 = dom M⌝
+                            ∗ ⌜dom Mρ = dom M⌝
                             ∗ region_map_def M Mρ W)%I.
   Definition region_aux : { x | x = @region_def }. by eexists. Qed.
   Definition region := proj1_sig region_aux.
