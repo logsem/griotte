@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
 From cap_machine Require Export region_invariants.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
@@ -7,7 +7,7 @@ Import uPred.
 
 Section transitions.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ} 
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           `{MachineParameters}.
 
   Implicit Types fsd gsd hsd : STS_std_states Addr region_type.

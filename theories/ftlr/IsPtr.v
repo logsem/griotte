@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel.
@@ -7,7 +7,7 @@ From cap_machine.rules Require Import rules_IsPtr.
 
 Section fundamental.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MachineParameters}.
 

@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
 (* From cap_machine.rules Require Export rules. *)
 From cap_machine Require Export cap_lang region region_invariants.
@@ -24,14 +24,14 @@ Ltac solve_proper ::= (repeat intros ?; simpl; auto_equiv).
 
 Class logrel_na_invs Σ :=
   {
-    logrel_na_invG :> na_invG Σ;
+    logrel_na_invG :: na_invG Σ;
     logrel_nais : na_inv_pool_name;
   }.
 
 (** interp : is a unary logical relation. *)
 Section logrel.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MachineParameters}.
 
@@ -48,7 +48,7 @@ Section logrel.
   (* -------------------------------------------------------------------------------- *)
 
   (* interp expression definitions *)
-  Definition registers_mapsto (r : Reg) : iProp Σ :=
+  Definition registers_pointsto (r : Reg) : iProp Σ :=
     ([∗ map] r↦w ∈ r, r ↦ᵣ w)%I.
 
   Definition full_map (reg : Reg) : iProp Σ := (∀ (r : RegName), ⌜is_Some (reg !! r)⌝)%I.
@@ -59,14 +59,14 @@ Section logrel.
 
   Definition interp_conf W : iProp Σ :=
     (WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ →
-              ∃ r W', full_map r ∧ registers_mapsto r
+              ∃ r W', full_map r ∧ registers_pointsto r
                    ∗ ⌜related_sts_priv_world W W'⌝
                    ∗ na_own logrel_nais ⊤
                    ∗ sts_full_world W'
                    ∗ region W' }})%I.
 
   Program Definition interp_expr (interp : D) r : D :=
-    (λne W w, (interp_reg interp W r ∗ registers_mapsto (<[PC:=w]> r)
+    (λne W w, (interp_reg interp W r ∗ registers_pointsto (<[PC:=w]> r)
                                      ∗ region W
                                      ∗ sts_full_world W
                                      ∗ na_own logrel_nais ⊤ -∗

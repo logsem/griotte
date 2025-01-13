@@ -1,12 +1,12 @@
 From cap_machine.ftlr Require Export Store Jmp StoreU Load Jnz LoadU Get AddSubLt IsPtr Lea Mov Restrict Subseg PromoteU.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel region_invariants.
 
 Section fundamental.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MP: MachineParameters}.
 

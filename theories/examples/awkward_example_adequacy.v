@@ -1,5 +1,5 @@
 From iris.algebra Require Import auth agree excl gmap frac.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 From iris.program_logic Require Import adequacy.
 Require Import Eqdep_dec.
@@ -181,12 +181,12 @@ Qed.
 
 Section Adequacy.
   Context (Σ: gFunctors).
-  Context {inv_preg: invPreG Σ}.
-  Context {mem_preg: gen_heapPreG Addr Word Σ}.
-  Context {reg_preg: gen_heapPreG RegName Word Σ}.
+  Context {inv_preg: invGpreS Σ}.
+  Context {mem_preg: gen_heapGpreS Addr Word Σ}.
+  Context {reg_preg: gen_heapGpreS RegName Word Σ}.
   Context {na_invg: na_invG Σ}.
   Context {sts_preg: STS_preG Addr region_type Σ}.
-  Context {heappreg: heapPreG Σ}.
+  Context {heappreg: heapGpreS Σ}.
   Context `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
@@ -369,7 +369,7 @@ Section Adequacy.
     iDestruct (mkregion_prepare with "[$Hlink_table]") as ">Hlink_table". by apply link_table_size.
     iDestruct (mkregion_prepare with "[$Hfail]") as ">Hfail". by apply fail_size.
     iDestruct (mkregion_prepare with "[$Hmalloc_mem]") as ">Hmalloc_mem".
-    { rewrite replicate_length /region_size. clear.
+    { rewrite length_replicate /region_size. clear.
       generalize malloc_mem_start malloc_end malloc_mem_size. solve_addr. }
     iDestruct (mkregion_prepare with "[$Hmalloc_code]") as ">Hmalloc_code".
       by apply malloc_code_size.
@@ -605,7 +605,7 @@ Section Adequacy.
 
     iSpecialize ("HE" with "[Hreg Hr Hsts Hna]").
     { iFrame. iSplit; cycle 1.
-      { iFrame. rewrite /registers_mapsto. by rewrite insert_id. }
+      { iFrame. rewrite /registers_pointsto. by rewrite insert_id. }
       { iSplit. iPureIntro; intros; by apply initial_registers_full_map.
         (* All capabilities in registers are valid! *)
         iIntros (r HrnPC).
@@ -652,7 +652,7 @@ Section Adequacy.
 
     iModIntro.
     (* Same as the state_interp of [memG_irisG] in rules_base.v *)
-    iExists (fun σ κs _ => ((gen_heap_ctx σ.1) ∗ (gen_heap_ctx σ.2)))%I.
+    iExists (fun σ κs _ => ((gen_heap_interp σ.1) ∗ (gen_heap_interp σ.2)))%I.
     iExists (fun _ => True)%I. cbn. iFrame.
     iSplitL "HWP". { iApply (wp_wand with "HWP"). eauto. }
     iIntros "[Hreg' Hmem']". iExists (⊤ ∖ ↑flagN).

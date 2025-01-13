@@ -2,7 +2,7 @@ From Coq Require Import ssreflect.
 From stdpp Require Import gmap fin_maps list countable.
 From cap_machine Require Export addr_reg.
 
-(* Definitions: capabilities, machine words, machine instructions *)
+(* Definitions: capabilities, machine String.words, machine instructions *)
 
 Inductive Perm: Type :=
 | O
@@ -55,7 +55,7 @@ Inductive instr: Type :=
 (* Promote the uninitialized capability in dst *)
 | PromoteU (dst: RegName).
 
-(* Registers and memory: maps from register names/addresses to words *)
+(* Registers and memory: maps from register names/addresses to String.words *)
 
 Notation Reg := (gmap RegName Word).
 Notation Mem := (gmap Addr Word).

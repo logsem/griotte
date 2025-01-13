@@ -1,11 +1,11 @@
 From iris.algebra Require Import gmap agree auth.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From cap_machine Require Export stdpp_extra iris_extra multiple_updates region_invariants region_invariants_transitions region_invariants_revocation logrel region.
 Import uPred.
 
 Section heap.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MachineParameters}.
 
@@ -124,7 +124,7 @@ Section heap.
   Lemma uninitialize_dom W m :
     dom (gset Addr) (uninitialize W m).1 = dom (gset Addr) W.1.
   Proof.
-    apply set_equiv_spec_L. split.
+    apply set_eq_subseteq. split.
     - apply elem_of_subseteq. intros x Hx.
       apply elem_of_gmap_dom in Hx as [y Hx].
       apply elem_of_gmap_dom. eapply (uninitialize_std_sta_is_Some _ m). eauto.
@@ -235,7 +235,7 @@ Section heap.
       iDestruct (region_map_insert_nonmonostatic (Uninitialized v) with "Hmap") as "Hmap";auto.
       iDestruct (big_sepM_insert _ _ addr_reg.top with "[$Hmap Ha Hstate]") as "Hmap";[apply lookup_delete|..].
       { iExists (Uninitialized v). rewrite lookup_insert. iSplit;auto. iFrame. iExists _. iSplit;eauto. }
-      rewrite insert_delete. rewrite (insert_id M);[|auto]. iModIntro.
+      rewrite insert_delete_insert. rewrite (insert_id M);[|auto]. iModIntro.
       iExists {[addr_reg.top:= v]}. rewrite /uninitialize uninitialize_std_sta_singleton// /=. iFrame.
       iSplit;[iPureIntro|iSplit].
       * split;split.
@@ -317,7 +317,7 @@ Section heap.
         iDestruct (region_map_insert_nonmonostatic (Uninitialized v) with "Hmap") as "Hmap";auto.
         iDestruct (big_sepM_insert _ _ a with "[$Hmap Ha Hstate]") as "Hmap";[apply lookup_delete|..].
         { iExists (Uninitialized v). rewrite lookup_insert. iSplit;auto. iFrame. iExists _. iSplit;eauto. }
-        rewrite insert_delete. rewrite (insert_id M);[|auto]. iModIntro.
+        rewrite insert_delete_insert. rewrite (insert_id M);[|auto]. iModIntro.
         iExists (<[a:=v]> m). rewrite /uninitialize /= uninitialize_std_sta_insert;[|auto]. iFrame.
         iSplit;[iPureIntro|iSplit].
         * intros a'. destruct (decide (a = a'));[subst;rewrite lookup_insert|rewrite lookup_insert_ne//].
@@ -494,7 +494,7 @@ Section heap.
       iDestruct (big_sepM_insert _ _ a with "[$Hmap Ha Hmono Hφ Hstate]") as "Hmap". by simplify_map_eq.
       { iExists Monotemporary. rewrite lookup_insert. iSplit;auto. iFrame "∗ #".
         iExists φ. iFrame "∗ #". repeat (iSplit;[eauto|]). iExists _. iFrame. auto. }
-      rewrite insert_delete. iFrame. iModIntro. iExists _,_. iFrame. iPureIntro.
+      rewrite insert_delete_insert. iFrame. iModIntro. iExists _,_. iFrame. iPureIntro.
       split.
       + rewrite H1 HMeq insert_insert. auto.
       + rewrite !dom_insert_L H2. auto.
@@ -804,9 +804,9 @@ Section heap.
       iDestruct (big_sepM_insert with "[$Hr Hstate]") as "Hr";[apply lookup_delete| |].
       { iExists Revoked. iFrame. iSplit;[iPureIntro;apply lookup_insert|].
         iExists _. iFrame "#". auto. }
-      rewrite insert_delete. inversion Hx. subst.
+      rewrite insert_delete_insert. inversion Hx. subst.
       iModIntro. iFrame. iSplitR "Ha".
-      + iExists _,_. iFrame. rewrite -insert_delete -Heqm. iFrame. iSplit;auto.
+      + iExists _,_. iFrame. rewrite -insert_delete_insert -Heqm. iFrame. iSplit;auto.
         iPureIntro. rewrite -H1. assert (a ∈ dom (gset Addr) Mρ);[apply elem_of_gmap_dom;eauto|].
         rewrite dom_insert_L. set_solver+H2.
       + iExists _. iFrame.
@@ -844,9 +844,9 @@ Section heap.
     iDestruct (big_sepM_insert with "[$Hr Hstate]") as "Hr";[apply lookup_delete| |].
     { iExists Revoked. iFrame. iSplit;[iPureIntro;apply lookup_insert|].
       iExists _. iFrame "#". auto. }
-      rewrite insert_delete. inversion Hx. subst.
+      rewrite insert_delete_insert. inversion Hx. subst.
     iModIntro. iFrame.
-    iExists _,_. iFrame. rewrite -insert_delete -Heqm. iFrame. iSplit;auto.
+    iExists _,_. iFrame. rewrite -insert_delete_insert -Heqm. iFrame. iSplit;auto.
     iPureIntro. rewrite -H1. assert (a ∈ dom (gset Addr) Mρ);[apply elem_of_gmap_dom;eauto|].
     rewrite dom_insert_L. set_solver+H2.
   Qed.

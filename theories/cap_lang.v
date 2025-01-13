@@ -1,4 +1,5 @@
-From iris.algebra Require Import base.
+(* From iris.algebra Require Import base. *)
+From iris.prelude Require Import prelude.
 From iris.program_logic Require Import language ectx_language ectxi_language.
 From stdpp Require Import gmap fin_maps list.
 From cap_machine Require Export addr_reg machine_base machine_parameters.
@@ -657,7 +658,7 @@ Section opsem.
   Instance fill_item_inj Ki : Inj (=) (=) (fill_item Ki).
   Proof. destruct Ki; intros ???; simplify_eq; auto with f_equal. Qed.
 
-  Lemma head_ctx_step_val Ki e σ1 κ e2 σ2 ef :
+  Lemma base_ctx_step_val Ki e σ1 κ e2 σ2 ef :
     prim_step (fill_item Ki e) σ1 κ e2 σ2 ef → is_Some (to_val e).
   Proof. destruct Ki; inversion_clear 1; simplify_option_eq; eauto. Qed.
 
@@ -675,7 +676,7 @@ Section opsem.
   Proof.
     constructor;
     apply _ || eauto using to_of_val, of_to_val, val_stuck,
-           fill_item_val, fill_item_no_val_inj, head_ctx_step_val.
+           fill_item_val, fill_item_no_val_inj, base_ctx_step_val.
   Qed.
 
   Definition is_atomic (e : expr) : Prop :=
@@ -751,18 +752,18 @@ Ltac solve_atomic :=
 Hint Extern 0 (Atomic _ _) => solve_atomic.
 Hint Extern 0 (Atomic _ _) => solve_atomic : typeclass_instances.
 
-Lemma head_reducible_from_step `{MachineParameters} σ1 e2 σ2 :
+Lemma base_reducible_from_step `{MachineParameters} σ1 e2 σ2 :
   step (Executable, σ1) (e2, σ2) →
-  head_reducible (Instr Executable) σ1.
-Proof. intros * HH. rewrite /head_reducible /head_step //=.
+  base_reducible (Instr Executable) σ1.
+Proof. intros * HH. rewrite /base_reducible /base_step //=.
        eexists [], (Instr _), σ2, []. by constructor.
 Qed.
 
-Lemma normal_always_head_reducible `{MachineParameters} σ :
-  head_reducible (Instr Executable) σ.
+Lemma normal_always_base_reducible `{MachineParameters} σ :
+  base_reducible (Instr Executable) σ.
 Proof.
   generalize (normal_always_step σ); intros (?&?&?).
-  eapply head_reducible_from_step. eauto.
+  eapply base_reducible_from_step. eauto.
 Qed.
 
 Definition can_address_only (w: Word) (addrs: gset Addr): Prop :=

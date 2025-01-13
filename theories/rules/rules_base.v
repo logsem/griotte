@@ -1,42 +1,44 @@
 From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac auth.
 From cap_machine Require Export cap_lang sts iris_extra.
 
 (* CMRΑ for memory *)
 Class memG Σ := MemG {
-  mem_invG : invG Σ;
-  mem_gen_memG :> gen_heapG Addr Word Σ}.
+  mem_invG : invGS Σ;
+  mem_gen_memG :: gen_heapGS Addr Word Σ}.
 
 (* CMRA for registers *)
 Class regG Σ := RegG {
-  reg_invG : invG Σ;
-  reg_gen_regG :> gen_heapG RegName Word Σ; }.
+  reg_invG : invGS Σ;
+  reg_gen_regG :: gen_heapGS RegName Word Σ; }.
 
 
 (* invariants for memory, and a state interpretation for (mem,reg) *)
-Instance memG_irisG `{MachineParameters} `{memG Σ, regG Σ} : irisG cap_lang Σ := {
-  iris_invG := mem_invG;
-  state_interp σ κs _ := ((gen_heap_ctx σ.1) ∗ (gen_heap_ctx σ.2))%I;
+Instance memG_irisG `{MachineParameters} `{memG Σ, regG Σ} : irisGS cap_lang Σ := {
+  iris_invGS := mem_invG;
+  state_interp σ _ κs _ := ((gen_heap_interp σ.1) ∗ (gen_heap_interp σ.2))%I;
   fork_post _ := True%I;
+  num_laters_per_step _ := 0;
+  state_interp_mono _ _ _ _ := fupd_intro _ _
 }.
-Global Opaque iris_invG.
+Global Opaque iris_invGS.
 
 (* Points to predicates for registers *)
-Notation "r ↦ᵣ{ q } w" := (mapsto (L:=RegName) (V:=Word) r q w)
+Notation "r ↦ᵣ{ q } w" := (pointsto (L:=RegName) (V:=Word) r q w)
   (at level 20, q at level 50, format "r  ↦ᵣ{ q }  w") : bi_scope.
-Notation "r ↦ᵣ w" := (mapsto (L:=RegName) (V:=Word) r 1 w) (at level 20) : bi_scope.
+Notation "r ↦ᵣ w" := (pointsto (L:=RegName) (V:=Word) r (DfracOwn 1) w) (at level 20) : bi_scope.
 
 (* Points to predicates for memory *)
-Notation "a ↦ₐ { q } w" := (mapsto (L:=Addr) (V:=Word) a q w)
+Notation "a ↦ₐ { q } w" := (pointsto (L:=Addr) (V:=Word) a q w)
   (at level 20, q at level 50, format "a  ↦ₐ { q }  w") : bi_scope.
-Notation "a ↦ₐ w" := (mapsto (L:=Addr) (V:=Word) a 1 w) (at level 20) : bi_scope.
+Notation "a ↦ₐ w" := (pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) w) (at level 20) : bi_scope.
 
 
 (* --------------------------- LTAC DEFINITIONS ----------------------------------- *)
 
-Ltac inv_head_step :=
+Ltac inv_base_step :=
   repeat match goal with
          | _ => progress simplify_map_eq/= (* simplify memory stuff *)
          | H : to_val _ = Some _ |- _ => apply of_to_val in H
@@ -129,8 +131,8 @@ Section cap_lang_rules.
     r ↦ᵣ w1 -∗ r ↦ᵣ w2 -∗ False.
   Proof.
     iIntros "Hr1 Hr2".
-    iDestruct (mapsto_valid_2 with "Hr1 Hr2") as %?.
-    contradiction.
+    iDestruct (pointsto_valid_2 with "Hr1 Hr2") as %?.
+    destruct H2. eapply dfrac_full_exclusive in H2. auto.
   Qed.
 
   Lemma regname_neq r1 r2 w1 w2 :
@@ -142,12 +144,12 @@ Section cap_lang_rules.
   Lemma map_of_regs_1 (r1: RegName) (w1: Word) :
     r1 ↦ᵣ w1 -∗
     ([∗ map] k↦y ∈ {[r1 := w1]}, k ↦ᵣ y).
-  Proof. by rewrite big_sepM_singleton. Qed.
+  Proof. rewrite big_sepM_singleton; auto. Qed.
 
   Lemma regs_of_map_1 (r1: RegName) (w1: Word) :
     ([∗ map] k↦y ∈ {[r1 := w1]}, k ↦ᵣ y) -∗
     r1 ↦ᵣ w1.
-  Proof. by rewrite big_sepM_singleton. Qed.
+  Proof. rewrite big_sepM_singleton; auto. Qed.
 
   Lemma map_of_regs_2 (r1 r2: RegName) (w1 w2: Word) :
     r1 ↦ᵣ w1 -∗ r2 ↦ᵣ w2 -∗
@@ -220,11 +222,11 @@ Section cap_lang_rules.
 
   Lemma gen_heap_valid_inSepM:
     ∀ (L V : Type) (EqDecision0 : EqDecision L) (H : Countable L)
-      (Σ : gFunctors) (gen_heapG0 : gen_heapG L V Σ)
+      (Σ : gFunctors) (gen_heapG0 : gen_heapGS L V Σ)
       (σ σ' : gmap L V) (l : L) (q : Qp) (v : V),
       σ' !! l = Some v →
-      gen_heap_ctx σ -∗
-      ([∗ map] k↦y ∈ σ', mapsto k q y) -∗
+      gen_heap_interp σ -∗
+      ([∗ map] k↦y ∈ σ', pointsto k (DfracOwn q) y) -∗
       ⌜σ !! l = Some v⌝.
   Proof.
     intros * Hσ'.
@@ -234,10 +236,10 @@ Section cap_lang_rules.
 
   Lemma gen_heap_valid_inSepM':
     ∀ (L V : Type) (EqDecision0 : EqDecision L) (H : Countable L)
-      (Σ : gFunctors) (gen_heapG0 : gen_heapG L V Σ)
+      (Σ : gFunctors) (gen_heapG0 : gen_heapGS L V Σ)
       (σ σ' : gmap L V) (q : Qp),
-      gen_heap_ctx σ -∗
-      ([∗ map] k↦y ∈ σ', mapsto k q y) -∗
+      gen_heap_interp σ -∗
+      ([∗ map] k↦y ∈ σ', pointsto k (DfracOwn q) y) -∗
       ⌜forall (l: L) (v: V), σ' !! l = Some v → σ !! l = Some v⌝.
   Proof.
     intros *. iIntros "? Hmap" (l v Hσ').
@@ -247,10 +249,10 @@ Section cap_lang_rules.
 
   Lemma gen_heap_valid_inclSepM:
     ∀ (L V : Type) (EqDecision0 : EqDecision L) (H : Countable L)
-      (Σ : gFunctors) (gen_heapG0 : gen_heapG L V Σ)
+      (Σ : gFunctors) (gen_heapG0 : gen_heapGS L V Σ)
       (σ σ' : gmap L V) (q : Qp),
-      gen_heap_ctx σ -∗
-      ([∗ map] k↦y ∈ σ', mapsto k q y) -∗
+      gen_heap_interp σ -∗
+      ([∗ map] k↦y ∈ σ', pointsto k (DfracOwn q) y) -∗
       ⌜σ' ⊆ σ⌝.
   Proof.
     intros *. iIntros "Hσ Hmap".
@@ -263,11 +265,11 @@ Section cap_lang_rules.
   Lemma gen_heap_valid_allSepM:
     ∀ (L V : Type) (EqDecision0 : EqDecision L) (H : Countable L)
       (EV: Equiv V) (REV: Reflexive EV) (LEV: @LeibnizEquiv V EV)
-      (Σ : gFunctors) (gen_heapG0 : gen_heapG L V Σ)
+      (Σ : gFunctors) (gen_heapG0 : gen_heapGS L V Σ)
       (σ σ' : gmap L V) (q : Qp),
       (forall (l:L), is_Some (σ' !! l)) →
-      gen_heap_ctx σ -∗
-      ([∗ map] k↦y ∈ σ', mapsto k q y) -∗
+      gen_heap_interp σ -∗
+      ([∗ map] k↦y ∈ σ', pointsto k (DfracOwn q) y) -∗
       ⌜ σ = σ' ⌝.
   Proof.
     intros * ? ? * Hσ'. iIntros "A B".
@@ -287,13 +289,13 @@ Section cap_lang_rules.
   Lemma gen_heap_update_inSepM :
     ∀ {L V : Type} {EqDecision0 : EqDecision L}
       {H : Countable L} {Σ : gFunctors}
-      {gen_heapG0 : gen_heapG L V Σ}
+      {gen_heapG0 : gen_heapGS L V Σ}
       (σ σ' : gmap L V) (l : L) (v : V),
       is_Some (σ' !! l) →
-      gen_heap_ctx σ
-      -∗ ([∗ map] k↦y ∈ σ', mapsto k 1 y)
-      ==∗ gen_heap_ctx (<[l:=v]> σ)
-          ∗ [∗ map] k↦y ∈ (<[l:=v]> σ'), mapsto k 1 y.
+      gen_heap_interp σ
+      -∗ ([∗ map] k↦y ∈ σ', pointsto k (DfracOwn 1) y)
+      ==∗ gen_heap_interp (<[l:=v]> σ)
+          ∗ [∗ map] k↦y ∈ (<[l:=v]> σ'), pointsto k (DfracOwn 1) y.
   Proof.
     intros * Hσ'. destruct Hσ'.
     rewrite (big_sepM_delete _ σ' l) //. iIntros "Hh [Hl Hmap]".
@@ -310,7 +312,9 @@ Section cap_lang_rules.
     a ↦ₐ w1 -∗ a ↦ₐ w2 -∗ False.
   Proof.
     iIntros "Ha1 Ha2".
-    iDestruct (mapsto_valid_2 with "Ha1 Ha2") as %?. done.
+    iDestruct (pointsto_valid_2 with "Ha1 Ha2") as %?.
+    destruct H2. eapply dfrac_full_exclusive in H2.
+    done.
   Qed.
 
   (* -------------- predicates on memory maps -------------------------- *)
@@ -442,7 +446,7 @@ Section cap_lang_rules.
   Lemma gen_mem_valid_inSepM:
     ∀ (a : Addr) (r1 r2 : RegName) (w : Word) mem0 (r : Reg) (m : Mem),
       mem0 !! a = Some w →
-      gen_heap_ctx m
+      gen_heap_interp m
                    -∗ ([∗ map] a↦w ∈ mem0, a ↦ₐ w)
                    -∗ ⌜m !! a = Some w⌝.
   Proof.
@@ -455,7 +459,7 @@ Section cap_lang_rules.
     ∀ mem0 (m : Mem) (b e a : Addr) (v : Word),
       mem0 !! a = Some v
       → ([∗ map] a0↦w ∈ mem0, a0 ↦ₐ w)
-          -∗ gen_heap_ctx m -∗ ⌜m !m! a = v⌝.
+          -∗ gen_heap_interp m -∗ ⌜m !m! a = v⌝.
   Proof.
     iIntros (mem0 m b e a p' v) "Hmem Hm".
     iDestruct (memMap_delete a with "Hmem") as "[H_a Hmem]"; eauto.
@@ -464,12 +468,12 @@ Section cap_lang_rules.
   Qed.
 
   Lemma gen_mem_update_inSepM :
-    ∀ {Σ : gFunctors} {gen_heapG0 : gen_heapG Addr Word Σ}
+    ∀ {Σ : gFunctors} {gen_heapG0 : gen_heapGS Addr Word Σ}
       (σ : gmap Addr Word) mem0 (l : Addr) (v' v : Word),
       mem0 !! l = Some v' →
-      gen_heap_ctx σ
+      gen_heap_interp σ
       -∗ ([∗ map] a↦w ∈ mem0, a ↦ₐ w)
-      ==∗ gen_heap_ctx (<[l:=v]> σ)
+      ==∗ gen_heap_interp (<[l:=v]> σ)
           ∗ ([∗ map] a↦w ∈ <[l:=v]> mem0, a ↦ₐ w).
   Proof.
     intros.
@@ -480,7 +484,7 @@ Section cap_lang_rules.
     iSplitL "Hh"; eauto.
     iDestruct (big_sepM_insert _ _ l with "[$Hmap $Hl]") as "H".
     apply lookup_delete.
-    rewrite insert_delete. iFrame.
+    rewrite insert_delete_insert. iFrame.
   Qed.
 
   (* ----------------------------------- FAIL RULES ---------------------------------- *)
@@ -494,18 +498,21 @@ Section cap_lang_rules.
   Proof.
     intros *. intros Hnpc.
     iIntros (ϕ) "HPC Hϕ".
-    iApply wp_lift_atomic_head_step_no_fork; auto.
-    iIntros (σ1 l1 l2 n) "Hσ1 /="; destruct σ1 as [r m]; simpl;
+    iApply wp_lift_atomic_base_step_no_fork; auto.
+    iIntros (σ1 nt l1 l2 ns) "Hσ1 /="; destruct σ1; simpl;
     iDestruct "Hσ1" as "[Hr Hm]".
     iDestruct (@gen_heap_valid with "Hr HPC") as %?.
-    option_locate_mr m r.
-    rewrite -HrPC in Hnpc.
+    (* option_locate_mr m r. *)
+    (* rewrite -HrPC in Hnpc. *)
     iApply fupd_frame_l.
-    iSplit. by iPureIntro; apply normal_always_head_reducible.
+    iSplit. by iPureIntro; apply normal_always_base_reducible.
     iModIntro. iIntros (e1 σ2 efs Hstep).
     apply prim_step_exec_inv in Hstep as (-> & -> & (c & -> & Hstep)).
     eapply step_fail_inv in Hstep as [-> ->]; eauto.
-    iNext. iModIntro. iSplitR; auto. iFrame. cbn. by iApply "Hϕ".
+    iNext. iIntros "_".
+    iModIntro. iSplitR; auto. iFrame. cbn. by iApply "Hϕ".
+    option_locate_mr m r.
+    erewrite regs_lookup_eq; eauto.
   Qed.
 
   (* Subcases for respecitvely permissions and bounds *)
@@ -548,17 +555,18 @@ Section cap_lang_rules.
   Proof.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
-    iApply wp_lift_atomic_head_step_no_fork; auto.
-    iIntros (σ1 l1 l2 n) "Hσ1 /=". destruct σ1 as [r m]; simpl.
+    iApply wp_lift_atomic_base_step_no_fork; auto.
+    iIntros (σ1 nt l1 l2 ns) "Hσ1 /="; destruct σ1; simpl;
     iDestruct "Hσ1" as "[Hr Hm]".
     iDestruct (@gen_heap_valid with "Hr Hpc") as %?.
     iDestruct (@gen_heap_valid with "Hm Hpca") as %?.
     iModIntro.
-    iSplitR. by iPureIntro; apply normal_always_head_reducible.
+    iSplitR. by iPureIntro; apply normal_always_base_reducible.
     iIntros (e2 σ2 efs Hstep).
     eapply prim_step_exec_inv in Hstep as (-> & -> & (c & -> & Hstep)).
     eapply step_exec_inv in Hstep; eauto. cbn in Hstep. simplify_eq.
-    iNext. iModIntro. iSplitR; eauto. iFrame. iApply "Hφ". by iFrame.
+    iNext. iIntros "_".
+    iModIntro. iSplitR; auto. iFrame. cbn. iApply "Hφ"; iFrame.
   Qed.
 
   Lemma wp_fail E pc_p pc_g pc_b pc_e pc_a w :
@@ -571,27 +579,28 @@ Section cap_lang_rules.
   Proof.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
-    iApply wp_lift_atomic_head_step_no_fork; auto.
-    iIntros (σ1 l1 l2 n) "Hσ1 /=". destruct σ1 as [r m]; simpl.
+    iApply wp_lift_atomic_base_step_no_fork; auto.
+    iIntros (σ1 nt l1 l2 ns) "Hσ1 /="; destruct σ1; simpl;
     iDestruct "Hσ1" as "[Hr Hm]".
     iDestruct (@gen_heap_valid with "Hr Hpc") as %?.
     iDestruct (@gen_heap_valid with "Hm Hpca") as %?.
     iModIntro.
-    iSplitR. by iPureIntro; apply normal_always_head_reducible.
+    iSplitR. by iPureIntro; apply normal_always_base_reducible.
     iIntros (e2 σ2 efs Hstep).
     eapply prim_step_exec_inv in Hstep as (-> & -> & (c & -> & Hstep)).
     eapply step_exec_inv in Hstep; eauto. cbn in Hstep. simplify_eq.
-    iNext. iModIntro. iSplitR; eauto. iFrame. iApply "Hφ". by iFrame.
+    iNext. iIntros "_".
+    iModIntro. iSplitR; auto. iFrame. cbn. iApply "Hφ"; iFrame.
    Qed.
 
   (* ----------------------------------- PURE RULES ---------------------------------- *)
 
   Local Ltac solve_exec_safe := intros; subst; do 3 eexists; econstructor; eauto.
-  Local Ltac solve_exec_puredet := simpl; intros; by inv_head_step.
-  Local Ltac solve_exec_pure := intros ?; apply nsteps_once, pure_head_step_pure_step;
+  Local Ltac solve_exec_puredet := simpl; intros; by inv_base_step.
+  Local Ltac solve_exec_pure := intros ?; apply nsteps_once, pure_base_step_pure_step;
                                 constructor; [solve_exec_safe|]; intros;
                                 (match goal with
-                                | H : head_step _ _ _ _ _ _ |- _ => inversion H end).
+                                | H : base_step _ _ _ _ _ _ |- _ => inversion H end).
 
   Global Instance pure_seq_failed :
     PureExec True 1 (Seq (Instr Failed)) (Instr Failed).
@@ -720,7 +729,7 @@ Definition regs_of (i: instr): gset RegName :=
   end.
 
 Lemma indom_regs_incl D (regs regs': Reg) :
-  D ⊆ dom (gset RegName) regs →
+  D ⊆ dom regs →
   regs ⊆ regs' →
   ∀ r, r ∈ D →
        ∃ (w:Word), (regs !! r = Some w) ∧ (regs' !! r = Some w).
@@ -855,97 +864,3 @@ Lemma pair_eq_inv {A B} {y u : A} {z t : B} {x} :
     x = (y, z) -> x = (u, t) ->
     y = u ∧ z = t.
 Proof. intros ->. inversion 1. auto. Qed.
-
-(* TODO: integrate into stdpp? *)
-Tactic Notation "simplify_pair_eq" :=
-  repeat
-    lazymatch goal with
-    | H1 : ?x = (?y, ?z), H2 : ?x = (?u, ?t) |- _ =>
-      assert (y = u ∧ z = t) as [? ?] by (exact (pair_eq_inv H1 H2)); clear H2
-    | H1 : (?y, ?z) = ?x, H2 : ?x = (?u, ?t) |- _ =>
-      assert (y = u ∧ z = t) as [? ?] by (exact (pair_eq_inv (eq_sym H1) H2)); clear H2
-    | H1 : ?x = (?y, ?z), H2 : (?u, ?t) = ?x |- _ =>
-      assert (y = u ∧ z = t) as [? ?] by (exact (pair_eq_inv H1 (eq_sym H2))); clear H2
-    | H1 : (?y, ?z) = ?x, H2 : (?u, ?t) = ?x |- _ =>
-      assert (y = u ∧ z = t) as [? ?] by (exact (pair_eq_inv (eq_sym H1) (eq_sym H2))); clear H2
-    | |- _ => progress simplify_eq
-    end.
-
-(*----------------------- FIXME TEMPORARY ------------------------------------*)
-(* This is a copy-paste from stdpp (fin_maps.v), plus a fix to avoid using
-   "rewrite .. by .." that is not available when using ssreflect's rewrite. *)
-(* TODO: upstream the fix into stdpp, and remove the code below whenever we
-   upgrade to a version of stdpp that includes it *)
-
-Tactic Notation "simpl_map" "by" tactic3(tac) := repeat
-  match goal with
-  | H : context[ ∅ !! _ ] |- _ => rewrite lookup_empty in H
-  | H : context[ (<[_:=_]>_) !! _ ] |- _ =>
-    rewrite lookup_insert in H || (rewrite lookup_insert_ne in H; [| by tac])
-  | H : context[ (alter _ _ _) !! _] |- _ =>
-    rewrite lookup_alter in H || (rewrite lookup_alter_ne in H; [| by tac])
-  | H : context[ (delete _ _) !! _] |- _ =>
-    rewrite lookup_delete in H || (rewrite lookup_delete_ne in H; [| by tac])
-  | H : context[ {[ _ := _ ]} !! _ ] |- _ =>
-    rewrite lookup_singleton in H || (rewrite lookup_singleton_ne in H; [| by tac])
-  | H : context[ (_ <$> _) !! _ ] |- _ => rewrite lookup_fmap in H
-  | H : context[ (omap _ _) !! _ ] |- _ => rewrite lookup_omap in H
-  | H : context[ lookup (A:=?A) ?i (?m1 ∪ ?m2) ] |- _ =>
-    let x := fresh in evar (x:A);
-    let x' := eval unfold x in x in clear x;
-    let E := fresh in
-    assert ((m1 ∪ m2) !! i = Some x') as E by (clear H; by tac);
-    rewrite E in H; clear E
-  | |- context[ ∅ !! _ ] => rewrite lookup_empty
-  | |- context[ (<[_:=_]>_) !! _ ] =>
-    rewrite lookup_insert || (rewrite lookup_insert_ne; [| by tac])
-  | |- context[ (alter _ _ _) !! _ ] =>
-    rewrite lookup_alter || (rewrite lookup_alter_ne; [| by tac])
-  | |- context[ (delete _ _) !! _ ] =>
-    rewrite lookup_delete || (rewrite lookup_delete_ne; [| by tac])
-  | |- context[ {[ _ := _ ]} !! _ ] =>
-    rewrite lookup_singleton || (rewrite lookup_singleton_ne; [| by tac])
-  | |- context[ (_ <$> _) !! _ ] => rewrite lookup_fmap
-  | |- context[ (omap _ _) !! _ ] => rewrite lookup_omap
-  | |- context [ lookup (A:=?A) ?i ?m ] =>
-    let x := fresh in evar (x:A);
-    let x' := eval unfold x in x in clear x;
-    let E := fresh in
-    assert (m !! i = Some x') as E by tac;
-    rewrite E; clear E
-  end.
-
-Tactic Notation "simpl_map" := simpl_map by eauto with simpl_map map_disjoint.
-
-Tactic Notation "simplify_map_eq" "by" tactic3(tac) :=
-  decompose_map_disjoint;
-  repeat match goal with
-  | _ => progress simpl_map by tac
-  | _ => progress simplify_eq/=
-  | _ => progress simpl_option by tac
-  | H : {[ _ := _ ]} !! _ = None |- _ => rewrite lookup_singleton_None in H
-  | H : {[ _ := _ ]} !! _ = Some _ |- _ =>
-    rewrite lookup_singleton_Some in H; destruct H
-  | H1 : ?m1 !! ?i = Some ?x, H2 : ?m2 !! ?i = Some ?y |- _ =>
-    let H3 := fresh in
-    feed pose proof (lookup_weaken_inv m1 m2 i x y) as H3; [done|by tac|done|];
-    clear H2; symmetry in H3
-  | H1 : ?m1 !! ?i = Some ?x, H2 : ?m2 !! ?i = None |- _ =>
-    let H3 := fresh in
-    apply (lookup_weaken _ m2) in H1; [congruence|by tac]
-  | H : ?m ∪ _ = ?m ∪ _ |- _ =>
-    apply map_union_cancel_l in H; [|by tac|by tac]
-  | H : _ ∪ ?m = _ ∪ ?m |- _ =>
-    apply map_union_cancel_r in H; [|by tac|by tac]
-  | H : {[?i := ?x]} = ∅ |- _ => by destruct (map_non_empty_singleton i x)
-  | H : ∅ = {[?i := ?x]} |- _ => by destruct (map_non_empty_singleton i x)
-  | H : ?m !! ?i = Some _, H2 : ?m !! ?j = None |- _ =>
-     unless (i ≠ j) by done;
-     assert (i ≠ j) by (by intros ?; simplify_eq)
-  end.
-Tactic Notation "simplify_map_eq" "/=" "by" tactic3(tac) :=
-  repeat (progress csimpl in * || simplify_map_eq by tac).
-Tactic Notation "simplify_map_eq" :=
-  simplify_map_eq by eauto with simpl_map map_disjoint.
-Tactic Notation "simplify_map_eq" "/=" :=
-  simplify_map_eq/= by eauto with simpl_map map_disjoint.

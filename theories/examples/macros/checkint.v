@@ -1,5 +1,5 @@
 From iris.algebra Require Import frac.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 Require Import Eqdep_dec List.
 From cap_machine Require Import rules.
 From cap_machine Require Export addr_reg_sample region_macros contiguous stack_macros_helpers.
@@ -447,7 +447,7 @@ Section stack_macros.
     (* lea r3 (5 + len checkintsloop) *)
     assert (a1 + (5 + length (checkintsloop_instrs r r1 r2 r3)) = Some link1)%a as Hlea.
     { simpl. apply contiguous_between_middle_to_end with (i:=2) (ai:=a1) (k:=5) in Hcont_code0;auto.
-      apply contiguous_between_length in Hcont_code1. rewrite app_length Hlength1 in Hlength0.
+      apply contiguous_between_length in Hcont_code1. rewrite length_app Hlength1 in Hlength0.
       clear -Hcont_code0 Hcont_code1 Hlength0. solve_addr. }
     iPrologue "Hpre".
     iApply (wp_lea_success_z with "[$HPC $Hi $Hr3]");

@@ -1,5 +1,5 @@
 From iris.algebra Require Import frac.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 Require Import Eqdep_dec List.
 From cap_machine Require Import rules logrel.
 From cap_machine Require Export addr_reg_sample region_invariants_revocation multiple_updates.
@@ -7,7 +7,7 @@ From cap_machine Require Export iris_extra.
 
 Section region_macros.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MP: MachineParameters}.
 
@@ -101,7 +101,7 @@ Section region_macros.
    (* Proof. *)
    (*   rewrite /region_addrs /region_addrs_zeroes. *)
    (*   iApply (big_sepL2_to_big_sepL_r _ _ (region_addrs_zeroes a b)). *)
-   (*   - rewrite region_addrs_aux_length replicate_length //. *)
+   (*   - rewrite region_addrs_aux_length length_replicate //. *)
    (*   - iApply region_addrs_zeroes_valid_aux. *)
    (* Qed. *)
 
