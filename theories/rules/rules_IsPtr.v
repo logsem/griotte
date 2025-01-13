@@ -31,7 +31,7 @@ Section cap_lang_rules.
     decodeInstrW w = IsPtr dst src ->
     isCorrectPC (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
     regs !! PC = Some (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
-    regs_of (IsPtr dst src) ⊆ dom _ regs →
+    regs_of (IsPtr dst src) ⊆ dom regs →
     {{{ ▷ pc_a ↦ₐ w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
@@ -42,7 +42,7 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 l1 l2 n) "Hσ1 /=". destruct σ1 as [r m]; simpl.
+    iIntros (σ1 nt l1 l2 n) "Hσ1 /=". destruct σ1 as [r m]; simpl.
     iDestruct "Hσ1" as "[Hr Hm]".
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have HPC' := regs_lookup_eq _ _ _ HPC.
@@ -50,6 +50,7 @@ Section cap_lang_rules.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
     iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
     iNext. iIntros (e2 σ2 efs Hpstep).
+    iIntros "_".
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
 
@@ -100,7 +101,7 @@ Section cap_lang_rules.
      iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
      iApply (wp_IsPtr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-     by rewrite !dom_insert; set_solver+.
+     (* by rewrite !dom_insert; set_solver+. *)
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
      destruct Hspec as [|].
@@ -131,7 +132,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hpc_a ϕ) "(>HPC & >Hpc_a & >Hr & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_IsPtr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by rewrite !dom_insert; set_solver+.
+    (* by rewrite !dom_insert; set_solver+. *)
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [|].
@@ -163,7 +164,7 @@ Section cap_lang_rules.
      iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
      iApply (wp_IsPtr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-     by rewrite !dom_insert; set_solver+.
+     (* by rewrite !dom_insert; set_solver+. *)
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
      destruct Hspec as [|].

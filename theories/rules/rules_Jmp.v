@@ -32,7 +32,7 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a & >Hr) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 l1 l2 n) "Hσ1 /=". destruct σ1 as [r0 m]; simpl.
+    iIntros (σ1 nt l1 l2 n) "Hσ1 /=". destruct σ1 as [r0 m]; simpl.
     iDestruct "Hσ1" as "[Hr0 Hm]".
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
     iDestruct (@gen_heap_valid with "Hr0 HPC") as %?.
@@ -40,6 +40,7 @@ Section cap_lang_rules.
     iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+    iIntros "_".
     iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
 
     rewrite /update_reg /= in Hstep. simplify_pair_eq. cbn.
@@ -60,13 +61,14 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 l1 l2 n) "Hσ1 /=". destruct σ1 as [r0 m]; cbn.
+    iIntros (σ1 nt l1 l2 n) "Hσ1 /=". destruct σ1 as [r0 m]; cbn.
     iDestruct "Hσ1" as "[Hr0 Hm]".
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
     iDestruct (@gen_heap_valid with "Hr0 HPC") as %Hr_PC.
     iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+    iIntros "_".
     iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
 
     rewrite /update_reg /= in Hstep. simplify_pair_eq. cbn.
