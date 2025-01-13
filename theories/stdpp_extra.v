@@ -692,6 +692,25 @@ Qed.
 (* TODO: upstream the fix into stdpp, and remove the code below whenever we
    upgrade to a version of stdpp that includes it *)
 
+Lemma pair_eq_inv {A B} {y u : A} {z t : B} {x} :
+    x = (y, z) -> x = (u, t) ->
+    y = u ∧ z = t.
+Proof. intros ->. inversion 1. auto. Qed.
+
+Tactic Notation "simplify_pair_eq" :=
+  repeat
+    lazymatch goal with
+    | H1 : ?x = (?y, ?z), H2 : ?x = (?u, ?t) |- _ =>
+      assert (y = u ∧ z = t) as [? ?] by (exact (pair_eq_inv H1 H2)); clear H2
+    | H1 : (?y, ?z) = ?x, H2 : ?x = (?u, ?t) |- _ =>
+      assert (y = u ∧ z = t) as [? ?] by (exact (pair_eq_inv (eq_sym H1) H2)); clear H2
+    | H1 : ?x = (?y, ?z), H2 : (?u, ?t) = ?x |- _ =>
+      assert (y = u ∧ z = t) as [? ?] by (exact (pair_eq_inv H1 (eq_sym H2))); clear H2
+    | H1 : (?y, ?z) = ?x, H2 : (?u, ?t) = ?x |- _ =>
+      assert (y = u ∧ z = t) as [? ?] by (exact (pair_eq_inv (eq_sym H1) (eq_sym H2))); clear H2
+    | |- _ => progress simplify_eq
+    end.
+
 Tactic Notation "simpl_map" "by" tactic3(tac) := repeat
   match goal with
   | H : context[ ∅ !! _ ] |- _ => rewrite lookup_empty in H
