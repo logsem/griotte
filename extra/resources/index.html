@@ -1,0 +1,340 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+    <div id="header">
+        <span class="left">
+            <span class="modulename"> <script> document.write(document.title) </script> </span>
+        </span>
+
+        <span class="button" id="toggle-proofs"></span>
+
+        <span class="right">
+            <a href="./">Project Page</a>
+            <a href="./indexpage.html"> Index </a>
+            <a href="./toc.html"> Table of Contents </a>
+        </span>
+    </div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+        <div id="main">
+            <h1>Le Temps des Cerises: Efficient Temporal Stack Safety on Capability Machines using Directed Capabilities</h1>
+            <h4><a href="https://www.cs.au.dk/~ageorges/">Aïna Linn Georges</a>,
+                <a href="https://alix.trieu.dev/">Alix Trieu</a>,
+                <a href="https://www.cs.au.dk/~birke/">Lars Birkedal</a></h4>
+
+            <p>The complete list of modules in the development can be found in
+                the <a href="toc.html">Table of Contents</a>. We give below an overview of
+                the contents of the formalization.
+            </p>
+
+            <h2>Operational semantics</h2>
+            <ul>
+                <li><a href="cap_machine.addr_reg.html">addr_reg</a>:
+                    Defines registers and the set of (finite) memory addresses.
+                </li>
+
+                <li><a href="cap_machine.machine_base.html">machine_base</a>: Contains
+                    the syntax (permissions, capability, instructions, ...) of the
+                    capability machine (Fig. 2, 4).
+                </li>
+
+                <li><a href="cap_machine.machine_parameters.html">machine_parameters</a>:
+                    Defines a number of "settings" for the machine, that parameterize
+                    the whole development (e.g. the specific encoding scheme for
+                    instructions, etc.).
+                </li>
+
+                <li><a href="cap_machine.cap_lang.html">cap_lang</a>: Defines the
+                    operational semantics of the machine, and the embedding of the capability
+                    machine language into Iris (Fig. 5).
+                </li>
+            </ul>
+
+
+            <h2>Program logic</h2>
+            <ul>
+                <li><a href="cap_machine.region.html">region</a>: Auxiliary definitions
+                    to reason about consecutive range of addresses and memory words.
+                </li>
+
+                <li><a href="cap_machine.rules.rules_base.html">rules.rules_base</a>:
+                    Contains some of the core resource algebras for the program logic,
+                    namely the definition for points to predicates with permissions.
+                </li>
+
+                <li><a href="cap_machine.rules.rules.html">rules</a>: Imports all the Hoare
+                    triple rules for each instruction. These rules are separated into separate
+                    files (located in the <code>rules/</code> folder).
+                </li>
+            </ul>
+
+            <h2>Logical relation (Unary)</h2>
+            <ul>
+                <li><a href="cap_machine.multiple_updates.html">multiple_updates</a>:
+                	  Auxiliary definitions to reason about multiple updates to a world.
+                </li>
+
+                <li><a href="cap_machine.region_invariants_transitions.html">region_invariants_transitions</a>:
+                	  Lemmas about standard transitions.
+                </li>
+
+                <li><a href="cap_machine.region_invariants.html">region_invariants</a>:
+                	  Definitions for standard resources, and the shared resources
+                    map <code>sharedResources</code>. Contains some lemmas for
+                    "opening" and "closing" the map, akin to opening and closing
+                    invariants.
+                </li>
+
+                <li><a href="cap_machine.region_invariants_revocation.html">region_invariants_revocation</a>:
+                    Lemmas for revoking standard resources
+                    (setting <code>Temporary</code> invariants to a
+                    <code>Revoked</code> state).
+                </li>
+
+                <li><a href="cap_machine.region_invariants_static.html">region_invariants_static</a>:
+                    Lemmas for manipulating frozen standard resources.
+                </li>
+
+                <li><a href="cap_machine.region_invariants_batch_uninitialized.html">region_invariants_batch_uninitialized</a>:
+                    Lemmas for manipulating uninitialized standard resources.
+                </li>
+
+                <li><a href="cap_machine.region_invariants_allocation.html">region_invariants_allocation</a>:
+                    Lemmas for allocating a range of standard resources.
+                </li>
+
+                <li><a href="cap_machine.sts.html">sts</a>: The definition of
+                    <code>stsCollection</code>, and associated lemmas. In particular:
+                    priv/pub/temporal future world relations (all these
+                    definitions are parametrized by the standard states and
+                    three relations over them transitions. These are
+                    instantiated in <a href="cap_machine.region_invariants.html">region_invariants</a>)
+                </li>
+
+                <li><a href="cap_machine.logrel.html">logrel</a>: The definition of the
+                    unary logical relation (Fig. 7).
+                </li>
+
+                <li><a href="cap_machine.monotone.html">monotone</a>: Proof of the monotonicity
+                    of the value relation with regards to public future worlds,
+                    and private future worlds for non local words.
+                </li>
+
+                <li><a href="cap_machine.fundamental.html">fundamental</a>:
+                    Contains Theorem 4.1: fundamental theorem of logical
+                    relations. Each case (one for each instruction) is
+                    proved in a separate file (located in the <code>ftlr/</code>
+                    folder), which are all imported and applied in this file.
+
+                    <p>The correspondance between the lemmas used in the proof sketch of the FTLR given in
+                    the paper (Appendix A) and the Coq statements is as follows.
+                    </p>
+                    <table>
+                        <tr>
+                            <th>Paper statement</th>
+                            <th>Coq statement</th>
+                        </tr>
+                        <tr>
+                            <td>Lemma A.1 (address relative monotonicity)</td>
+                            <td><a href="cap_machine.monotone.html#interp_monotone_a">interp_monotone_a</a></td>
+                        </tr>
+                        <tr>
+                            <td>Lemma A.2 (address relative weakening)</td>
+                            <td><a href="cap_machine.sts.html#related_sts_a_weak_world">related_sts_a_weak_world</a></td>
+                        </tr>
+                        <tr>
+                            <td>Lemma A.3 (private monotonicity)</td>
+                            <td><a href="cap_machine.monotone.html#interp_monotone_nm">interp_monotone_nm</a></td>
+                        </tr>
+                        <tr>
+                            <td>Theorem 4.1 (FTLR)</td>
+                            <td><a href="cap_machine.fundamental.html#fundamental_from_interp">fundamental_from_interp</a></td>
+                        </tr>
+                    </table>
+                </li>
+            </ul>
+
+            <h2>Binary model (Appendix C)</h2>
+            <p>
+                The Coq files for the binary model are fully contained in the
+                <code>binary_model</code> folder. The binary model uses the same
+                program logic as in the unary model, and a similar family of
+                rules for the specification part of the refinement. These rules
+                are all in the <code>binary_model/rules_binary</code> folder. In
+                particular, the <a
+                href="cap_machine.binary_model.rules_binary.rules_binary_base.html">rules_binary_base</a>
+                file contains the resource algebra used for the specification part of the refinement.
+            </p>
+            <ul>
+                <li><a href="cap_machine.binary_model.logrel_binary.html">logrel_binary</a>: Contains the definition of the binary logical relation.
+                </li>
+
+                <li><a href="cap_machine.binary_model.fundamental_binary.html">fundamental_binary</a>: Binary fundamental theorem of logical relations.
+                    Each case is proved in a separate file located in the <code>binary_model/ftlr_binary/</code> folder.
+                </li>
+            </ul>
+
+            <h2>Case studies</h2>
+
+            <h3>Integrity</h3>
+            <ul>
+                <li><a href="cap_machine.examples.macros.scall_u.html">scall_u</a>:
+                    Specification of a safe calling convention for a URWLX
+                    Directed stack. The specification is split up into two
+                    parts: the prologue is the specification for the code before
+                    the jump, the epilogue is the specification for the
+                    activation record.
+                </li>
+                <li><a href="cap_machine.examples.macros.malloc.html">malloc</a>:
+                    A simple malloc implementation, its specification, and
+                    a proof that it is valid.
+                </li>
+                <li><a href="cap_machine.examples.downwards_lse.html">downwards_lse</a>:
+                    The assembly definition of Listing 7 in the paper.
+                </li>
+                <li><a href="cap_machine.examples.downwards_lse_preamble.html">downwards_lse_preamble</a>, <a href="cap_machine.examples.downwards_lse_adequacy.html">downwards_lse_adequacy</a>:
+                    The <code>preamble</code> file creates the closure, and the <code>adequacy</code> file
+                    applies the adequacy of Iris weakest preconditions to prove the final theorem,
+                    Theorem 4.2.
+                </li>
+                <li><a href="cap_machine.examples.stack_object.html">stack_object</a>:
+                    The assembly definition of Listing 9 in the paper.
+                </li>
+                <li><a href="cap_machine.examples.stack_object_preamble.html">stack_object_preamble</a>, <a href="cap_machine.examples.stack_object_adequacy.html">stack_object_adequacy</a>:
+                    The <code>preamble</code> file creates the closure, and the <code>adequacy</code> file
+                    applies the adequacy of Iris weakest preconditions to prove the final theorem,
+                    Theorem 4.3.
+                </li>
+                <li><a href="cap_machine.examples.awkward_example_u.html">awkward_example_u</a>:
+                    The assembly definition of Listing 5 in the paper.
+                </li>
+                <li><a href="cap_machine.examples.awkward_example_preamble.html">awkward_example_preamble</a>, <a href="cap_machine.examples.awkward_example_adequacy.html">awkward_example_adequacy</a>:
+                    The <code>preamble</code> file creates the closure, and the <code>adequacy</code> file
+                    applies the adequacy of Iris weakest preconditions to prove the final theorem (not in the paper).
+                </li>
+            </ul>
+
+            <h3>Confidentiality</h3>
+            <ul>
+                <li><a href="cap_machine.binary_model.examples_binary.macros_binary.html">macros_binary</a>:
+                    This file exports all macro specifications for the "spec" side of the
+                    binary logical relation.
+                </li>
+                <li><a href="cap_machine.binary_model.examples_binary.confidentiality.html">confidentiality</a>:
+                    The assembly definition of Listing 8.
+                </li>
+                <li><a href="cap_machine.binary_model.examples_binary.confidentiality_adequacy.html">confidentiality_adequacy</a>, <a href="cap_machine.binary_model.examples_binary.confidentiality_adequacy_theorem.html">confidentiality_adequacy_theorem</a>:
+                    The proof of contextual equivalence of Listing 8. The files contain
+                    the contextual equivalence statements and proofs. They apply the linking definitions
+                    from <a href="cap_machine.linking.html">linking</a>.
+                </li>
+            </ul>
+
+            <h2>Linking</h2>
+            <ul>
+                <li><a href="cap_machine.linking.html">linking</a>: Defines the general theory of components, well-formed components,
+                    linking and contexts as presented in Appendix B.
+                </li>
+            </ul>
+
+            <h2>Overlay semantics</h2>
+            <ul>
+                <li><a href="cap_machine.overlay.lang.html">lang</a>: Defines the
+                    overlay semantics. Note that we use a more restrictive
+                    definition of safe words as explained in Appendix D due to
+                    Coq engineering issues.
+                </li>
+                <li><a href="cap_machine.overlay.call.html">call</a>: Defines the implementation on the base machine of the call instruction.
+                </li>
+            </ul>
+
+            <h2>Full abstraction theorem</h2>
+            <ul>
+                <li><a href="cap_machine.simulation.html">simulation</a>: Defines the general theory of forward simulations and prove
+                    additional corollaries (Definition 6.2, Lemma 6.3)
+                </li>
+                <li><a href="cap_machine.overlay_cap_lang_sim.html">overlay_cap_lang_sim</a>: Proves the forward simulation between the overlay
+                    semantics and the base capability machine. In particular, <a href="cap_machine.overlay_cap_lang_sim.html#sim">sim</a> is the
+                    simulation relation, and <a href="cap_machine.overlay_cap_lang_sim.html#overlay_to_cap_lang_fsim">overlay_to_cap_lang_fsim</a>
+                    is the proof of the forward simulation.
+                </li>
+                <li><a href="cap_machine.full_abstraction.html">full_abstraction</a>: Defines fully abstract compilation, and Theorem
+                    <a href="cap_machine.full_abstraction.html#compile_fully_abstract">compile_fully_abstract</a> proves the full abstraction result of Theorem 6.1 in
+                    the paper.
+                </li>
+            </ul>
+
+            <h2>Differences with the paper</h2>
+            <p>Some definitions have different names in the paper and in the Coq development.</p>
+            <p>In the operational semantics:</p>
+            <table>
+                <tr>
+                    <th>Name in the paper</th>
+                    <th>Name in the mechanization</th>
+                </tr>
+                <tr>
+                    <td>Executable</td>
+                    <td>Instr Executable</td>
+                </tr>
+                <tr>
+                    <td>Halted</td>
+                    <td>Instr Halted</td>
+                </tr>
+                <tr>
+                    <td>Failed</td>
+                    <td>Instr Failed</td>
+                </tr>
+            </table>
+            <p>For technical reasons (so that Iris considers a single
+                instruction as an atomic step), the execution mode is
+                interweaved with the "Instr Next" mode, which reduces to a
+                value. The Seq _ context can then return and continue to the
+                next instruction. The full expression for an executing program
+                is Seq (Instr Executable).
+            </p>
+
+            <p>There are also differences in the model:</p>
+            <table>
+                <tr>
+                    <th>Name in the paper</th>
+                    <th>Name in the mechanization</th>
+                </tr>
+                <tr>
+                    <td>Frozen</td>
+                    <td>Monostatic</td>
+                </tr>
+                <tr>
+                    <td>stsCollection</td>
+                    <td>full_sts_world</td>
+                </tr>
+                <tr>
+                    <td>sharedResources</td>
+                    <td>region</td>
+                </tr>
+                <tr>
+                    <td>Temporary</td>
+                    <td>Monotemporary</td>
+                </tr>
+                <tr>
+                    <td>temporal transition</td>
+                    <td>std_rel_pub_plus</td>
+                </tr>
+            </table>
+
+            <p>In <a href="cap_machine.examples.macros.scall_u.html">scall_u</a>: the
+                scall macro is slightly unfolded, as it does not include the
+                part of the calling convention which stores local state on the
+                stack. That part is inlined into the examples.</p>
+        </div>
+    </div>
+</body>
+
+</html>
