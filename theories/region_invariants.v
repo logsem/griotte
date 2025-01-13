@@ -1,6 +1,6 @@
 From iris.algebra Require Import gmap agree auth.
 From cap_machine Require Export stdpp_extra cap_lang sts rules_base.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 (* import [stdpp.countable] before [cap_machine.lang]; this way [encode] and
    [decode] refer to [countable.encode] and [countable.decode], instead of
@@ -11,7 +11,7 @@ Import uPred.
 (** CMRA for heap and its predicates. Contains: *)
 (* CMRA for relatedness between locations and saved prop names *)
 (* CMRA for saved predicates *)
-Definition relUR : ucmraT := gmapUR Addr (agreeR (leibnizO (gname))).
+Definition relUR : ucmra := gmapUR Addr (agreeR (leibnizO (gname))).
 Definition relT := gmap Addr (leibnizO (gname)).
 
 (* We will first define the standard STS for the shared part of the heap *)
@@ -54,16 +54,16 @@ Global Instance addr_ord : Ord Addr :=
      le_a_decision := le_addr_dec;
      le_a_preorder := le_addr_preorder |}.
 
-Class heapPreG Σ := HeapPreG {
-  heapPreG_invPreG : invPreG Σ;
-  heapPreG_saved_pred :> savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word);
-  heapPreG_rel :> inG Σ (authR relUR);
+Class heapGpreS Σ := HeapGpreS {
+  heapPreG_invPreG : invGpreS Σ;
+  heapPreG_saved_pred :: savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word);
+  heapPreG_rel :: inG Σ (authR relUR);
 }.
 
-Class heapG Σ := HeapG {
-  heapG_invG : invG Σ;
-  heapG_saved_pred :> savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word);
-  heapG_rel :> inG Σ (authR relUR);
+Class heapGS Σ := HeapGS {
+  heapG_invG : invGS Σ;
+  heapG_saved_pred :: savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word);
+  heapG_rel :: inG Σ (authR relUR);
   γrel : gname
 }.
 
@@ -72,13 +72,13 @@ Definition heapPreΣ :=
 
 Instance subG_heapPreΣ {Σ}:
   subG heapPreΣ Σ →
-  invPreG Σ →
+  invGpreS Σ →
   subG (savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word)) Σ →
-  heapPreG Σ.
+  heapGpreS Σ.
 Proof. solve_inG. Qed.
 
 Section REL_defs.
-  Context {Σ:gFunctors} {heapg : heapG Σ}.
+  Context {Σ:gFunctors} {heapg : heapGS Σ}.
 
   Definition REL_def l γ : iProp Σ := own γrel (◯ {[ l := to_agree γ ]}).
   Definition REL_aux : { x | x = @REL_def }. by eexists. Qed.
@@ -99,22 +99,22 @@ Section REL_defs.
 End REL_defs.
 
 Section heapPre.
-  Context {Σ:gFunctors} {heappreg : heapPreG Σ}.
+  Context {Σ:gFunctors} {heappreg : heapGpreS Σ}.
 
   Lemma heap_init :
-    ⊢ |==> ∃ (heapg: heapG Σ), RELS (∅ : relT).
+    ⊢ |==> ∃ (heapg: heapGS Σ), RELS (∅ : relT).
   Proof.
     iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γ) "H".
-    { rewrite map_fmap_empty. by apply auth_auth_valid. }
+    { rewrite fmap_empty. by apply auth_auth_valid. }
     iMod (@wsat.wsat_alloc _ heapPreG_invPreG) as (HI) "?".
-    iModIntro. iExists (HeapG _ HI _ _ γ). rewrite RELS_eq /RELS_def. done.
+    iModIntro. iExists (HeapGS _ HI _ _ γ). rewrite RELS_eq /RELS_def. done.
   Qed.
 
 End heapPre.
 
 Section heap.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           `{MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -159,7 +159,7 @@ Section heap.
     (m + i * n) `mod` i = k → m `mod` i = k)%Z.
   Proof.
     intros Hlt Hmod.
-    rewrite Z.mul_comm Z_mod_plus in Hmod;auto.
+    rewrite Z.mul_comm Z.mod_plus in Hmod;auto.
   Qed.
 
   Lemma three_mod n m k :
@@ -218,7 +218,7 @@ Section heap.
                             destruct (decide x); [ try (exfalso; lia) | ] end).
     - rewrite Pos2Z.inj_add Z.add_comm Z.add_simpl_r Pos2Z.inj_mul.
       rewrite Z.mul_comm Z.div_mul;[|lia]. rewrite Pos2Z.id decode_encode//.
-    - exfalso. apply n2. rewrite Pos2Z.inj_add Pos2Z.inj_mul Z.mul_comm Z_mod_plus;auto. lia.
+    - exfalso. apply n2. rewrite Pos2Z.inj_add Pos2Z.inj_mul Z.mul_comm Z.mod_plus;auto. lia.
     - rewrite Pos2Z.inj_add Z.add_comm Pos2Z.inj_mul Z.add_comm in e. apply two_mod in e.
       rewrite five_mod_two in e. done.
     - rewrite Pos2Z.inj_add Z.add_comm Z.add_simpl_r Pos2Z.inj_mul.
@@ -314,7 +314,7 @@ Section heap.
     iIntros "[H1 H2]".
     iDestruct (own_valid_2 with "H1 H2") as %Hv.
     iPureIntro.
-    apply auth_both_valid in Hv; destruct Hv as [Hv1 Hv2].
+    apply auth_both_valid_discrete in Hv; destruct Hv as [Hv1 Hv2].
     specialize (Hv2 n).
     apply singleton_included_l in Hv1.
     destruct Hv1 as (y & Heq & Hi).
@@ -324,7 +324,7 @@ Section heap.
     revert Hi Heq; rewrite -Hy => Hi Heq.
     apply to_agree_included in Hi; subst.
     revert Heq; rewrite -Hi => Heq.
-    rewrite insert_delete insert_id /leibniz_equiv_iff => //; auto.
+    rewrite insert_delete_insert insert_id /leibniz_equiv_iff => //; auto.
     revert Heq. rewrite lookup_fmap fmap_Some_equiv =>Hx.
     destruct Hx as [x [-> Hrx] ].
     apply to_agree_inj, leibniz_equiv_iff in Hrx as ->.
@@ -340,7 +340,7 @@ Section heap.
     iPureIntro.
     rewrite -auth_frag_op singleton_op in Hval.
     apply singleton_valid in Hval.
-    apply (agree_op_invL' (A:=leibnizO _)) in Hval.
+    apply (to_agree_op_inv_L (A:=leibnizO _)) in Hval.
     by inversion Hval.
   Qed.
 
@@ -799,7 +799,7 @@ Section heap.
     iFrame. iFrame "∗ #".
     iDestruct (reg_in γrel M with "[$HM $Hγpred]") as %HMeq.
     iExists _, _. rewrite -HMeq. iFrame. iSplitR; eauto. iPureIntro.
-    rewrite HMeq !insert_delete !dom_insert_L Hdomρ. set_solver.
+    rewrite HMeq !insert_delete_insert !dom_insert_L Hdomρ. set_solver.
   Qed.
 
   Lemma region_close_mono_uninit_w E W l φ w v `{forall Wv, Persistent (φ Wv)} :
@@ -855,7 +855,7 @@ Section heap.
     iExists _,_. iFrame "∗ #".
     iDestruct (reg_in γrel M with "[$HM $Hγpred]") as %HMeq.
     rewrite -HMeq. iFrame. iSplitR; eauto. iPureIntro.
-    rewrite HMeq !insert_delete !dom_insert_L Hdomρ. set_solver.
+    rewrite HMeq !insert_delete_insert !dom_insert_L Hdomρ. set_solver.
   Qed.
 
   Lemma region_close W l φ v (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
@@ -1096,7 +1096,7 @@ Section heap.
     iExists (<[l:=γpred ]> (delete l M)), (<[l:=Monotemporary]> Mρ). iFrame.
     iDestruct (reg_in γrel M with "[$HM $Hγpred]") as %HMeq.
     rewrite -HMeq. iFrame. iSplitR; eauto. iPureIntro.
-    rewrite HMeq !insert_delete !dom_insert_L Hdomρ. set_solver.
+    rewrite HMeq !insert_delete_insert !dom_insert_L Hdomρ. set_solver.
   Qed.
 
   Lemma region_close_next_mono_uninit_w E W ls l φ w v `{forall Wv, Persistent (φ Wv)} :
@@ -1138,7 +1138,7 @@ Section heap.
       - iPureIntro. rewrite -HMW. set_solver.
       - iPureIntro. rewrite HMρ -HMW.
         set_solver.
-      - repeat rewrite insert_delete. rewrite delete_list_insert; auto.
+      - repeat rewrite insert_delete_insert. rewrite delete_list_insert; auto.
         rewrite insert_insert. rewrite delete_list_insert; auto. }
     iFrame.
   Qed.
@@ -1164,7 +1164,7 @@ Section heap.
     iExists _, _. iFrame.
     iDestruct (reg_in γrel M with "[$HM $Hγpred]") as %HMeq.
     rewrite -HMeq. iFrame. iSplitR; auto. iPureIntro.
-    rewrite HMeq !insert_delete !dom_insert_L Hdomρ. set_solver.
+    rewrite HMeq !insert_delete_insert !dom_insert_L Hdomρ. set_solver.
   Qed.
 
   Definition monotonicity_guarantees_region ρ l w φ :=

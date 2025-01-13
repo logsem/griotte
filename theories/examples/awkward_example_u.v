@@ -1,5 +1,5 @@
 From iris.algebra Require Import frac.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 From cap_machine Require Import
      rules logrel fundamental region_invariants rules_LoadU_derived
@@ -10,7 +10,7 @@ From stdpp Require Import countable.
 
 Section awkward_example.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MP: MachineParameters}.
 
@@ -124,7 +124,7 @@ Section awkward_example.
     }}}
       Seq (Instr Executable)
       {{{ v, RET v; ⌜v = HaltedV⌝ →
-                    ∃ r W', full_map r ∧ registers_mapsto r
+                    ∃ r W', full_map r ∧ registers_pointsto r
                          ∗ ⌜related_sts_priv_world W W'⌝
                          ∗ na_own logrel_nais ⊤
                          ∗ sts_full_world W'
@@ -336,9 +336,9 @@ Section awkward_example.
     { destruct (a_param2 + 1)%a eqn:Hsome;[eauto|clear -Ha_param Ha_param2 Hsize Hsome;solve_addr]. }
     destruct wsstk;[inversion Hframe_length|].
     destruct wsstk;[inversion Hframe_length|].
-    iDestruct (region_mapsto_cons with "Hframe") as "[Ha1 Hframe]";
+    iDestruct (region_pointsto_cons with "Hframe") as "[Ha1 Hframe]";
       [eauto|clear -Hframe_size Ha_param Ha_param2;rewrite /region_size in Hframe_size;solve_addr|].
-    iDestruct (region_mapsto_cons with "Hframe") as "[Ha2 Hframe]";
+    iDestruct (region_pointsto_cons with "Hframe") as "[Ha2 Hframe]";
       [eauto|clear -Hframe_size Ha_param Ha_param2 Ha_param3;rewrite /region_size in Hframe_size;solve_addr|].
 
     iPrologue_multi "Hprog" Hcont Hvpc link2.
@@ -369,20 +369,20 @@ Section awkward_example.
     { clear -Ha_act_final Ha_act_end. solve_addr. }
     assert (a_act_end + 1 = Some frame_end)%a as Ha_act_end_next.
     { clear -Ha_act_end Hframe_size Ha_param Ha_param2 Ha_param3;solve_addr. }
-    rewrite /region_mapsto.
+    rewrite /region_pointsto.
     rewrite (region_addrs_split a_param3 a_act_end);
       [|clear -Hframe_size Ha_act_end Ha_param Ha_param2 Ha_param3;solve_addr].
     assert (∃ wsstk' w, wsstk = wsstk' ++ [w] ∧ length wsstk' = 7) as [wsstk' [wend [-> Hact_length] ] ].
     { repeat (destruct wsstk;[by inversion Hframe_length|]);destruct wsstk;[|inversion Hframe_length].
       exists [w1; w2; w3; w4; w5; w6; w7],w8. split;eauto. }
     rewrite (region_addrs_single a_act_end)//.
-    iDestruct (mapsto_decomposition with "Hframe") as "[Hact [Hparam _] ]".
+    iDestruct (pointsto_decomposition with "Hframe") as "[Hact [Hparam _] ]".
     { rewrite Hact_length region_addrs_length /region_size. clear -Ha_act_end. solve_addr. }
 
     (* reconstruct registers *)
-    iDestruct (big_sepM_insert with "[$Hgen_reg $Hr_t2]") as "Hregs"; [apply lookup_delete|rewrite insert_delete].
+    iDestruct (big_sepM_insert with "[$Hgen_reg $Hr_t2]") as "Hregs"; [apply lookup_delete|rewrite insert_delete_insert].
     rewrite -delete_insert_ne//.
-    iDestruct (big_sepM_insert with "[$Hregs $Hr_t1]") as "Hregs"; [apply lookup_delete|rewrite insert_delete].
+    iDestruct (big_sepM_insert with "[$Hregs $Hr_t1]") as "Hregs"; [apply lookup_delete|rewrite insert_delete_insert].
     iDestruct (big_sepM_insert with "[$Hregs $Hr_env]") as "Hregs".
     { rewrite !lookup_insert_ne// !lookup_delete_ne//. apply not_elem_of_dom. rewrite Hrmap_dom. clear. set_solver. }
 
@@ -654,7 +654,7 @@ Section awkward_example.
       assert (laddrs = lprev ++ (lcur ++ l_rest4)) as ->;[rewrite /laddrs /lprev /lcur;repeat rewrite -app_assoc //|].
       assert (instrs = iprev ++ (icur ++ irest)) as ->;[rewrite /instrs /iprev /lcur /irest;repeat rewrite -app_assoc //|].
       iDestruct (big_sepL2_app' with "Hprog") as "[Hprog_done Hprog]".
-      { by rewrite /lprev /iprev /= !app_length /= Hlength_code Hlength_code0 Hlength_code3 /=. }
+      { by rewrite /lprev /iprev /= !length_app /= Hlength_code Hlength_code0 Hlength_code3 /=. }
       iDestruct (big_sepL2_app' with "Hprog") as "[Hcode Hprog]".
       { by rewrite /lcur /icur /=. }
       do 3 (iDestruct "Hcode" as "[Hi Hcode]";iCombine "Hi" "Hprog_done" as "Hprog_done").
@@ -830,11 +830,11 @@ Section awkward_example.
       iCombine "Hinstr" "Hprog_done" as "Hprog_done".
 
       destruct wsstk;[inversion Hframe_length'|].
-      iDestruct (region_mapsto_cons a_param a_param2 with "Hframe") as "[Ha_param Hframe]";auto.
+      iDestruct (region_pointsto_cons a_param a_param2 with "Hframe") as "[Ha_param Hframe]";auto.
       { clear -Ha_param Ha_param2 Ha_param3 Ha_act_end. solve_addr. }
       assert (is_Some (a_param2 + 6)%a) as [a_act_end' Ha_act_end'].
       { destruct (a_param2 + 6)%a eqn:Hsome;eauto. clear -Ha_act_end Hsome Ha_param2 Ha_param3. solve_addr. }
-      rewrite /region_mapsto.
+      rewrite /region_pointsto.
       assert (a_act_end' + 1 = Some a_act_final)%a as Ha_act_end_next'.
       { clear -Ha_act_end Ha_act_end' Ha_param Ha_param2 Ha_param3 Ha_act_final. solve_addr. }
       rewrite (region_addrs_split a_param2 a_act_final a_act_end).
@@ -847,7 +847,7 @@ Section awkward_example.
       2: clear -Ha_act_end' Ha_act_end Ha_act_final Ha_param2 Ha_param Ha_param3;solve_addr.
       rewrite Hact_boundary (region_addrs_empty a_act_end);[|clear;solve_addr].
       iDestruct (big_sepL2_app' with "Hframe") as "[Hact [Hp1 _] ]".
-      { rewrite /= app_length /= in Hframe_length'.
+      { rewrite /= length_app /= in Hframe_length'.
         assert (length wsstk'' = 7) as Heqlen. clear -Hframe_length';lia.
         rewrite Heqlen region_addrs_length /region_size. clear -Ha_act_final Ha_act_end Ha_param3;solve_addr. }
 
@@ -862,9 +862,9 @@ Section awkward_example.
       iNext. iIntros "(HPC & Hpush1 & Hr_stk & Hr_env & Ha_param)".
 
       (* reconstruct registers *)
-      iDestruct (big_sepM_insert with "[$Hregs $Hr_env]") as "Hregs"; [apply lookup_delete|rewrite insert_delete].
+      iDestruct (big_sepM_insert with "[$Hregs $Hr_env]") as "Hregs"; [apply lookup_delete|rewrite insert_delete_insert].
       rewrite -!(delete_insert_ne _ _ r_env)// !(delete_commute _ _ r_t1)//.
-      iDestruct (big_sepM_insert with "[$Hregs $Hr_t1]") as "Hregs"; [apply lookup_delete|rewrite insert_delete].
+      iDestruct (big_sepM_insert with "[$Hregs $Hr_t1]") as "Hregs"; [apply lookup_delete|rewrite insert_delete_insert].
       assert (is_Some (rmap3 !! r_t0)) as [w0' Hw0'];[apply Hr_all|].
       iDestruct (big_sepM_delete _ _ r_t0 with "Hregs") as "[Hr_t0 Hregs]".
       { rewrite lookup_insert_ne// !lookup_delete_ne// lookup_insert_ne//. }
@@ -1216,7 +1216,7 @@ Section awkward_example.
       assert (laddrs2 = (lprev ++ lcur ++ lprev2) ++ (lcur2 ++ l_rest9)) as ->;[rewrite /laddrs2 /lprev2 /lcur2;repeat rewrite -app_assoc //|].
       assert (instrs2 = (iprev ++ icur ++ iprev2) ++ (icur2 ++ irest2)) as ->;[rewrite /instrs2 /iprev2 /lcur2 /irest2;repeat rewrite -app_assoc //|].
       iDestruct (big_sepL2_app' with "Hprog") as "[Hprog_done Hprog]".
-      { by rewrite /lprev /iprev /lcur /icur /lprev2 /iprev2 /= !app_length /= Hlength_code Hlength_code0 Hlength_code3 Hlength_code8 /=. }
+      { by rewrite /lprev /iprev /lcur /icur /lprev2 /iprev2 /= !length_app /= Hlength_code Hlength_code0 Hlength_code3 Hlength_code8 /=. }
       iDestruct (big_sepL2_app' with "Hprog") as "[Hcode Hprog]".
       { by rewrite /lcur2 /icur2 /=. }
       do 3 (iDestruct "Hcode" as "[Hi Hcode]";iCombine "Hi" "Hprog_done" as "Hprog_done").
@@ -1347,17 +1347,17 @@ Section awkward_example.
 
       (* finally we will clear the register state *)
       iDestruct (big_sepM_insert with "[$Hregs $Hr_t3]") as "Hregs";[apply lookup_delete|].
-      rewrite insert_delete -!(delete_insert_ne _ _ r_t3)//.
+      rewrite insert_delete_insert -!(delete_insert_ne _ _ r_t3)//.
       iDestruct (big_sepM_insert with "[$Hregs $Hr_t2]") as "Hregs";[apply lookup_delete|].
-      rewrite insert_delete -!(delete_insert_ne _ _ r_t2)//.
+      rewrite insert_delete_insert -!(delete_insert_ne _ _ r_t2)//.
       iDestruct (big_sepM_insert with "[$Hregs $Hr_adv]") as "Hregs";[apply lookup_delete|].
-      rewrite insert_delete -!(delete_insert_ne _ _ r_adv)//. rewrite !(delete_commute _ r_t0)//.
+      rewrite insert_delete_insert -!(delete_insert_ne _ _ r_adv)//. rewrite !(delete_commute _ r_t0)//.
       iDestruct (big_sepM_insert with "[$Hregs $Hr_env]") as "Hregs";[apply lookup_delete|].
-      rewrite insert_delete -!(delete_insert_ne _ _ r_env)//.
+      rewrite insert_delete_insert -!(delete_insert_ne _ _ r_env)//.
       iDestruct (big_sepM_insert with "[$Hregs $Hr_stk]") as "Hregs";[apply lookup_delete|].
-      rewrite insert_delete -!(delete_insert_ne _ _ r_stk)//.
+      rewrite insert_delete_insert -!(delete_insert_ne _ _ r_stk)//.
       iDestruct (big_sepM_insert with "[$Hregs $Hr_t1]") as "Hregs";[apply lookup_delete|].
-      rewrite insert_delete -!(delete_insert_ne _ _ r_t1)//.
+      rewrite insert_delete_insert -!(delete_insert_ne _ _ r_t1)//.
 
       iPrologue_multi "Hprog" Hcont Hvpc link13.
       iDestruct (big_sepL2_length with "Hcode") as %Hlength_code13.

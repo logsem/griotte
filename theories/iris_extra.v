@@ -1,13 +1,13 @@
 From iris.algebra Require Import frac.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 From cap_machine Require Import stdpp_extra.
 
 Lemma big_sepM_to_create_gmap_default {Σ : gFunctors} {A B : Type} `{EqDecision A} `{Countable A}
       (rmap rmap' : gmap A B) (φ : A -> B -> iProp Σ ) b :
-  dom (gset A) rmap = dom (gset A) rmap' →
+  dom rmap = dom rmap' →
   ([∗ map] r_i↦_ ∈ rmap, φ r_i b) -∗
-  ([∗ map] r_i↦w_i ∈ create_gmap_default (elements (dom (gset A) rmap')) b, φ r_i w_i).
+  ([∗ map] r_i↦w_i ∈ create_gmap_default (elements (dom rmap')) b, φ r_i w_i).
 Proof.
   iIntros (Hdom) "Hrmap".
   iInduction rmap as [|w b0 rmap] "IH" using map_ind forall (rmap' Hdom).
@@ -15,13 +15,13 @@ Proof.
   - iDestruct (big_sepM_insert with "Hrmap") as "[Hw Hrmap]";auto.
     iDestruct ("IH" $! (delete w rmap') with "[]Hrmap") as "Hrmap'".
     { iPureIntro. rewrite dom_delete_L. rewrite -Hdom. rewrite dom_insert_L.
-      assert (w ∉ dom (gset A) rmap) as Hnin;[apply not_elem_of_dom;auto|].
+      assert (w ∉ dom rmap) as Hnin;[apply not_elem_of_dom;auto|].
       set_solver. }
     rewrite dom_delete_L /=.
-    rewrite (create_gmap_default_Permutation _ (list_difference (elements (dom (gset A) rmap')) [w])).
+    rewrite (create_gmap_default_Permutation _ (list_difference (elements (dom rmap')) [w])).
     + rewrite create_gmap_default_list_difference_singleton.
       iDestruct (big_sepM_insert with "[$Hrmap' $Hw]") as "Hrmap";[rewrite lookup_delete;auto|].
-      rewrite insert_delete. rewrite insert_id. iFrame.
+      rewrite insert_delete_insert. rewrite insert_id. iFrame.
       apply create_gmap_default_lookup. rewrite -Hdom dom_insert_L elements_union_singleton.
       constructor. apply not_elem_of_dom. auto.
     + eapply elements_difference_singleton. apply _.
@@ -41,7 +41,7 @@ Proof.
     iSplitL "Hr0".
     + iExists b. iFrame.
     + iApply ("IHl" with "[] [] [$Hmap]").
-      { iPureIntro. apply NoDup_cons_12 in Hdup. auto. }
+      { iPureIntro. apply NoDup_cons_1_2 in Hdup. auto. }
       iPureIntro.
       intros r1 Hr1.
       destruct (decide (r0 = r1)).
@@ -82,7 +82,7 @@ Proof.
   rewrite -Heqa -Heqb.
   iDestruct (big_sepL2_app_inv with "Hl") as "[Htake Hdrop]".
   { apply lookup_lt_Some in Hsome.
-    do 2 (rewrite take_length_le;[|lia]). done.
+    do 2 (rewrite length_take_le;[|lia]). left ; done.
   }
   apply take_drop_middle in Hsome as Hcons.
   assert (ai :: drop (S i) a = drop i a) as Hh.
@@ -109,7 +109,7 @@ Proof.
   rewrite -Heqa -Heqb.
   iDestruct (big_sepL2_app_inv with "Hl") as "[Htake Hdrop]".
   { apply lookup_lt_Some in Hsome.
-    do 2 (rewrite take_length_le;[|lia]). done.
+    do 2 (rewrite length_take_le;[|lia]). left; done.
   }
   apply take_drop_middle in Hsome as Hcons.
   assert (ai :: drop (S i) a = drop i a) as Hh.
@@ -127,7 +127,7 @@ Proof.
     enough (b0 :: drop (S i) b = b0 :: l) as He by (inversion He; auto).
     eapply (app_inv_head (take i b)). rewrite HH //.
     rewrite -Heqb. apply list_lookup_middle.
-    rewrite take_length_le //. enough (i < length b) by lia.
+    rewrite length_take_le //. enough (i < length b) by lia.
     rewrite -Hlength. apply lookup_lt_is_Some. eauto. }
   rewrite Hb. iFrame.
 Qed.
@@ -144,7 +144,7 @@ Proof.
   rewrite -Heqa -Heqb.
   iDestruct (big_sepL2_app_inv with "Hl") as "[Htake Hdrop]".
   { apply lookup_lt_Some in Hsome.
-    do 2 (rewrite take_length_le;[|lia]). done.
+    do 2 (rewrite length_take_le;[|lia]).  left; done.
   }
   apply take_drop_middle in Hsome as Hcons.
   apply take_drop_middle in Hsome' as Hcons'.
@@ -169,9 +169,9 @@ Proof.
   iDestruct (big_sepL2_length with "Hl") as %Hlength.
   repeat rewrite delete_take_drop.
   apply lookup_lt_Some in Hsome as Hlt.
-  assert (i < strings.length b) as Hlt';[lia|].
+  assert (i < length b) as Hlt';[lia|].
   iDestruct (big_sepL2_app_inv with "Hl") as "[Htake Hdrop]".
-  { repeat rewrite take_length. lia. }
+  { repeat rewrite length_take. lia. }
   apply take_drop_middle in Hsome as Hcons.
   assert (ai :: drop (S i) a = drop i a) as Hh.
   { apply app_inv_head with (take i a). rewrite Hcons. by rewrite take_drop. }
@@ -206,7 +206,7 @@ Proof.
       destruct ws;[by iApply bi.False_elim|].
       iDestruct "Ha" as "[Ha0 Ha]".
       iDestruct ("IHn" with "[Ha]") as "Ha'"; eauto.
-      iFrame. eauto.
+      iFrame.
 Qed.
 
 Lemma region_addrs_exists_zip `{Σ : gFunctors} {A B C: Type} (a : list A) (φ : A → B → C -> iProp Σ) :
@@ -228,7 +228,7 @@ Proof.
       destruct ws;[by iApply bi.False_elim|].
       iDestruct "Ha" as "[Ha0 Ha]".
       iDestruct ("IHn" with "[Ha]") as "Ha'"; eauto.
-      iFrame. eauto.
+      iFrame.
 Qed.
 
 Lemma region_addrs_exists2 `{Σ : gFunctors} {A B C: Type} (a : list A) (b : list B) (φ : A → B → C -> iProp Σ) :
@@ -308,7 +308,7 @@ Lemma big_sepL2_app'
       (l1' l2' : list B) :
   length l1 = length l1' →
   ([∗ list] k↦y1;y2 ∈ l1;l1', Φ k y1 y2)
-   ∗ ([∗ list] k↦y1;y2 ∈ l2;l2', Φ (strings.length l1 + k) y1 y2)
+   ∗ ([∗ list] k↦y1;y2 ∈ l2;l2', Φ (length l1 + k) y1 y2)
    ⊣⊢ ([∗ list] k↦y1;y2 ∈ (l1 ++ l2);(l1' ++ l2'), Φ k y1 y2).
 Proof.
   intros Hlenl1.
@@ -318,7 +318,7 @@ Proof.
     iAssert (∃ l0' l0'' : list A,
                 ⌜(l1 ++ l2) = l0' ++ l0''⌝
                 ∧ ([∗ list] k↦y1;y2 ∈ l0';l1', Φ k y1 y2)
-                    ∗ ([∗ list] k↦y1;y2 ∈ l0'';l2', Φ (strings.length l1' + k) y1 y2))%I
+                    ∗ ([∗ list] k↦y1;y2 ∈ l0'';l2', Φ (length l1' + k) y1 y2))%I
       with "[Happ]" as (l0' l0'') "(% & Happl0' & Happl0'')".
     { by iApply (big_sepL2_app_inv_r with "Happ"). }
     iDestruct (big_sepL2_length with "Happl0'") as %Hlen1.
@@ -338,7 +338,7 @@ Proof.
   iDestruct (big_sepL2_length with "H") as %?.
   rewrite -{1}(take_drop k l1) -{1}(take_drop k l2).
   iDestruct (big_sepL2_app' with "H") as "[? ?]".
-  { rewrite !take_length. lia. }
+  { rewrite !length_take. lia. }
   iFrame.
 Qed.
 
@@ -452,12 +452,11 @@ Proof.
     + done.
     + iDestruct (big_sepM2_dom with "Hmap") as %Hdom.
       assert (is_Some (m' !! a)) as [ρ Hρ].
-      { apply elem_of_gmap_dom. rewrite Hdom dom_insert_L.
+      { apply elem_of_dom. rewrite Hdom dom_insert_L.
         apply elem_of_union_l, elem_of_singleton; auto. }
       rewrite -(insert_id m' a ρ); auto.
-      rewrite -insert_delete.
+      rewrite -insert_delete_insert.
       iDestruct (big_sepM2_insert with "Hmap") as "[Hφ Hmap]";[apply lookup_delete|auto|].
       iApply big_sepM_insert;auto.
       iDestruct ("IH" with "Hmap") as "Hmap". iFrame.
-      iExists ρ. iFrame.
 Qed.

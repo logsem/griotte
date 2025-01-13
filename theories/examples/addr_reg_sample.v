@@ -1,6 +1,6 @@
 From Coq Require Import Eqdep_dec.
 From stdpp Require Import gmap fin_maps list.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From cap_machine Require Export addr_reg cap_lang region.
 
 (* Some addresses *)
@@ -220,5 +220,5 @@ Lemma region_addrs_zeroes_split (b a e: Addr) :
 Proof.
   intros. rewrite /region_addrs_zeroes.
   rewrite (region_size_split a). 2: solve_addr.
-  rewrite replicate_plus //.
+  rewrite replicate_add //.
 Qed.

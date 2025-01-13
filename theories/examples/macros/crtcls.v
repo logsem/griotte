@@ -1,5 +1,5 @@
 From iris.algebra Require Import frac.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 Require Import Eqdep_dec List.
 From cap_machine Require Import rules logrel.
@@ -9,7 +9,7 @@ From cap_machine.rules Require Import rules_StoreU_derived rules_LoadU_derived.
 
 Section stack_macros.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MP: MachineParameters}.
 
@@ -158,15 +158,15 @@ Section stack_macros.
       by rewrite lookup_delete_ne // lookup_delete.
     iDestruct (big_sepM_insert _ _ r_t2 with "[$Hregs $Hr_t2]") as "Hregs".
       by rewrite lookup_insert_ne // lookup_delete_ne // lookup_delete_ne // lookup_delete.
-    rewrite -(delete_insert_ne _ r_t5 r_t3) // insert_delete.
+    rewrite -(delete_insert_ne _ r_t5 r_t3) // insert_delete_insert.
     rewrite -(delete_insert_ne _ r_t5 r_t2) // (insert_commute _ r_t2 r_t3) //.
-    rewrite insert_delete.
+    rewrite insert_delete_insert.
     iDestruct (big_sepM_insert _ _ r_t5 with "[$Hregs $Hr_t5]") as "Hregs".
-      by rewrite lookup_delete. rewrite insert_delete.
+      by rewrite lookup_delete. rewrite insert_delete_insert.
     iApply (wp_wand with "[-]").
     iApply (simple_malloc_subroutine_spec with "[- $Hmalloc $Hna $Hregs $Hr_t0 $HPC $Hr_t1]"); auto.
     { rewrite !dom_insert_L dom_delete_L Hrmap_dom.
-      rewrite !difference_difference_L !singleton_union_difference_L !all_registers_union_l.
+      rewrite !difference_difference_l_L !singleton_union_difference_L !all_registers_union_l.
       f_equal. set_solver-. }
     iNext.
     rewrite updatePcPerm_cap_non_E.
@@ -205,11 +205,11 @@ Section stack_macros.
       repeat (rewrite lookup_insert_ne //;[]).
       rewrite lookup_delete_ne // lookup_delete //.
     repeat (rewrite (insert_commute _ r_t5) //;[]).
-    rewrite insert_delete -(delete_insert_ne _ _ r_t5) //.
+    rewrite insert_delete_insert -(delete_insert_ne _ _ r_t5) //.
     rewrite (insert_commute _ r_t5 r_t2) // (delete_insert_ne _ r_t3 r_t2)//.
     rewrite (insert_commute _ r_t4 r_t2) // insert_insert.
     rewrite (insert_commute _ r_t3 r_t2) //.
-    rewrite -(delete_insert_ne _ r_t3) // insert_delete.
+    rewrite -(delete_insert_ne _ r_t3) // insert_delete_insert.
     iFrame.
     iExists b,e. iFrame. auto. auto.
   Qed.
@@ -341,10 +341,10 @@ Section stack_macros.
     (* we start by putting the registers back together *)
     iDestruct (big_sepM_insert with "[$Hregs $Hr_t6]") as "Hregs".
       by rewrite lookup_delete_ne // lookup_delete.
-      rewrite delete_commute // insert_delete.
+      rewrite delete_commute // insert_delete_insert.
     iDestruct (big_sepM_insert with "[$Hregs $Hr_t7]") as "Hregs".
       by rewrite lookup_insert_ne // lookup_delete.
-      rewrite insert_commute // insert_delete.
+      rewrite insert_commute // insert_delete_insert.
     assert (∀ (r:RegName), r ∈ ({[PC;r_t0;r_t1;r_t2]} : gset RegName) → rmap !! r = None) as Hnotin_rmap.
     { intros r Hr. eapply (@not_elem_of_dom _ _ (gset RegName)). typeclasses eauto.
       rewrite Hrmap_dom. set_solver. }
@@ -375,7 +375,7 @@ Section stack_macros.
     apply contiguous_iff_contiguous_between in Hcontbe'. destruct Hcontbe' as [b' [e' Hcontbe] ].
     assert (exists l, l = region_addrs b e) as [h Heqh];[eauto|].
     rewrite -Heqh in Hcontbe.
-    rewrite /region_mapsto /region_addrs_zeroes -Heqh.
+    rewrite /region_pointsto /region_addrs_zeroes -Heqh.
     assert (region_size b e = 8) as ->.
     { rewrite /region_size. revert Hbe; clear; solve_addr. }
     simpl.
@@ -537,9 +537,9 @@ Section stack_macros.
     iEpilogue "(HPC & Hi & Hr_t7)"; iCombine "Hi" "Hprog_done" as "Hprog_done".
     (* put r_t6 and r_t7 back *)
     iDestruct (big_sepM_insert with "[$Hregs $Hr_t7]") as "Hregs". by rewrite lookup_delete.
-    rewrite insert_delete.
+    rewrite insert_delete_insert.
     iDestruct (big_sepM_insert with "[$Hregs $Hr_t6]") as "Hregs". by rewrite lookup_insert_ne // lookup_delete.
-    rewrite -(delete_insert_ne _ r_t6) // insert_delete.
+    rewrite -(delete_insert_ne _ r_t6) // insert_delete_insert.
     iClear "Hbe".
     (* lea r_t1 -7 *)
     destruct h;[|inversion Hlengthbe]. 
@@ -598,7 +598,7 @@ Section stack_macros.
       WP Seq (Instr Executable) {{ φ }}.
   Proof.
     iIntros (Hrpc Hvpc HnpcE) "(HPC & Hr1 & Hrenv & Hcode & Hcont)".
-    rewrite /region_mapsto.
+    rewrite /region_pointsto.
     iDestruct (big_sepL2_length with "Hcode") as %Hcls_len. simpl in Hcls_len.
     assert (b_cls + 8 = Some e_cls)%a as Hbe.
     { rewrite region_addrs_length /region_size in Hcls_len.

@@ -1,5 +1,5 @@
 From iris.algebra Require Import frac.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 Require Import Eqdep_dec List.
 From cap_machine Require Import rules.
 From cap_machine Require Export iris_extra addr_reg_sample region_macros contiguous stack_macros_helpers.
@@ -64,7 +64,7 @@ Section stack_macros.
 
        destruct (decide (r ∈ r0)).
        { iDestruct (big_sepM_insert with "[$Hreg $Hr]") as "Hreg".
-           by rewrite lookup_delete. rewrite insert_delete.
+           by rewrite lookup_delete. rewrite insert_delete_insert.
          iApply ("IH" with "Hreg HPC Hrclear [Hφ Ha1]"); eauto.
          { iNext. iIntros "(? & Hreg & ?)". iApply "Hφ". iFrame.
            iApply (big_sepM_delete _ _ r). eauto.

@@ -1,5 +1,5 @@
 From cap_machine Require Export stdpp_extra cap_lang rules_base.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From cap_machine Require Import addr_reg. (* Required because of a weird Coq bug related to imports *)
 
 Section region.
@@ -193,7 +193,7 @@ Section region.
       nth_error (region_addrs b e) k = Some (^(b + k)%a).
   Proof.
     intros; unfold region_addrs.
-    destruct (Z_le_dec b e).
+    destruct (Z.le_dec b e).
     - apply region_addrs_aux_spec; auto.
     - elim n. solve_addr.
   Qed.
@@ -259,8 +259,8 @@ Section region.
   Proof.
     intros Hsize. rewrite /region_size in Hsize.
     assert (exists a, (b + n)%a = Some a) as [a Ha].
-    { rewrite /incr_addr. destruct (Z_le_dec (b + n)%Z MemNum); [|solve_addr].
-      destruct (Z_le_dec 0 (b + n)%Z); [eauto|solve_addr]. }
+    { rewrite /incr_addr. destruct (Z.le_dec (b + n)%Z MemNum); [|solve_addr].
+      destruct (Z.le_dec 0 (b + n)%Z); [eauto|solve_addr]. }
     exists a. split; [|rewrite /region_size; solve_addr].
     eapply region_addrs_split. split; solve_addr.
   Qed.
@@ -289,10 +289,10 @@ Section region.
   Lemma region_addrs_NoDup a b :
     NoDup (region_addrs a b).
   Proof.
-    rewrite /region_addrs. destruct (Z_le_dec a b).
+    rewrite /region_addrs. destruct (Z.le_dec a b).
     - apply region_addrs_aux_NoDup.
       rewrite incr_addr_region_size; eauto.
-    - rewrite /region_size Z_to_nat_nonpos; [| lia]. by apply NoDup_nil.
+    - rewrite /region_size Z.to_nat_nonpos; [| lia]. by apply NoDup_nil.
   Qed.
 
   Lemma region_addrs_cons a e :
@@ -425,7 +425,7 @@ Section region.
 
   (*--------------------------------------------------------------------------*)
 
-  Definition region_mapsto (b e : Addr) (ws : list Word) : iProp Σ :=
+  Definition region_pointsto (b e : Addr) (ws : list Word) : iProp Σ :=
     ([∗ list] k↦y1;y2 ∈ (region_addrs b e);ws, y1 ↦ₐ y2)%I.
 
   Definition included (b' e' : Addr) (b e : Addr) : iProp Σ :=
@@ -434,7 +434,7 @@ Section region.
   Definition in_range (a b e : Addr) : Prop :=
     (b <= a)%a ∧ (a < e)%a.
 
-  Lemma mapsto_decomposition:
+  Lemma pointsto_decomposition:
     forall l1 l2 ws1 ws2,
       length l1 = length ws1 ->
       ([∗ list] k ↦ y1;y2 ∈ (l1 ++ l2);(ws1 ++ ws2), y1 ↦ₐ y2)%I ⊣⊢
@@ -444,27 +444,27 @@ Section region.
   Lemma extract_from_region b e a ws φ :
     let n := length (region_addrs b a) in
     (b <= a ∧ a < e)%a →
-    (region_mapsto b e ws ∗ ([∗ list] w ∈ ws, φ w)) ⊣⊢
+    (region_pointsto b e ws ∗ ([∗ list] w ∈ ws, φ w)) ⊣⊢
      (∃ w,
         ⌜ws = take n ws ++ (w::drop (S n) ws)⌝
-        ∗ region_mapsto b a (take n ws)
+        ∗ region_pointsto b a (take n ws)
         ∗ ([∗ list] w ∈ (take n ws), φ w)
         ∗ a ↦ₐ w ∗ φ w
-        ∗ region_mapsto (^(a+1))%a e (drop (S n) ws)
+        ∗ region_pointsto (^(a+1))%a e (drop (S n) ws)
         ∗ ([∗ list] w ∈ (drop (S n) ws), φ w)%I).
   Proof.
     intros. iSplit.
-    - iIntros "[A B]". unfold region_mapsto.
+    - iIntros "[A B]". unfold region_pointsto.
       iDestruct (big_sepL2_length with "A") as %Hlen.
       rewrite (region_addrs_decomposition b a e) //.
       assert (Hlnws: n = length (take n ws)).
-      { rewrite take_length. rewrite Min.min_l; auto.
+      { rewrite length_take. rewrite Min.min_l; auto.
         rewrite <- Hlen. subst n. rewrite !region_addrs_length /region_size.
         solve_addr. }
       generalize (take_drop n ws). intros HWS.
       rewrite <- HWS. simpl.
       iDestruct "B" as "[HB1 HB2]".
-      iDestruct (mapsto_decomposition _ _ _ _ Hlnws with "A") as "[HA1 HA2]".
+      iDestruct (pointsto_decomposition _ _ _ _ Hlnws with "A") as "[HA1 HA2]".
       case_eq (drop n ws); intros.
       + auto.
       + iDestruct "HA2" as "[HA2 HA3]".
@@ -473,7 +473,7 @@ Section region.
         rewrite <- H3. rewrite HWS. rewrite Hdws.
         iExists w. iFrame. by rewrite <- H3.
     - iIntros "A". iDestruct "A" as (w Hws) "[A1 [B1 [A2 [B2 AB]]]]".
-      unfold region_mapsto. rewrite (region_addrs_decomposition b a e) //.
+      unfold region_pointsto. rewrite (region_addrs_decomposition b a e) //.
       iDestruct "AB" as "[A3 B3]".
       rewrite {5}Hws. iFrame. rewrite {3}Hws. iFrame.
   Qed.
@@ -481,13 +481,13 @@ Section region.
   Lemma extract_from_region' b e a ws φ `{!∀ x, Persistent (φ x)}:
     let n := length (region_addrs b a) in
     (b <= a ∧ a < e)%a →
-    (region_mapsto b e ws ∗ ([∗ list] w ∈ ws, φ w)) ⊣⊢
+    (region_pointsto b e ws ∗ ([∗ list] w ∈ ws, φ w)) ⊣⊢
      (∃ w,
         ⌜ws = take n ws ++ (w::drop (S n) ws)⌝
-        ∗ region_mapsto b a (take n ws)
+        ∗ region_pointsto b a (take n ws)
         ∗ ([∗ list] w ∈ ws, φ w)
         ∗ a ↦ₐ w ∗ φ w
-        ∗ region_mapsto (^(a+1))%a e (drop (S n) ws))%I.
+        ∗ region_pointsto (^(a+1))%a e (drop (S n) ws))%I.
   Proof.
     intros. iSplit.
     - iIntros "H".
@@ -523,7 +523,7 @@ Section region.
     iDestruct (big_sepL2_length with "Hreg") as %Hlen.
     rewrite (region_addrs_decomposition b a e) //.
     assert (Hlnws: n = length (take n ws)).
-    { rewrite take_length. rewrite Min.min_l; auto.
+    { rewrite length_take. rewrite Min.min_l; auto.
       rewrite <- Hlen. subst n. rewrite !region_addrs_length /region_size.
       solve_addr. }
     generalize (take_drop n ws). intros HWS.
@@ -536,23 +536,23 @@ Section region.
     iDestruct (big_sepL2_length with "Hl1") as %Hlenl1.
     iDestruct (big_sepL2_length with "Hl2") as %Hlenl2.
     iPureIntro.
-    rewrite take_app_alt //.
+    rewrite take_app_length' //.
     assert (drop n ws = w :: l2) as Heql2.
     { apply app_inj_1 in Hws2 as [_ Heq]; auto.
         by rewrite -Hlnws. }
     rewrite (drop_S' _ (take n ws ++ drop n ws) n w (l2)); try congruence.
   Qed.
 
-  Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_mapsto b e ws)
+  Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_pointsto b e ws)
             (at level 50, format "[[ b , e ]] ↦ₐ [[ ws ]]") : bi_scope.
 
-  Lemma region_mapsto_cons
+  Lemma region_pointsto_cons
       (b b' e : Addr) (w : Word) (ws : list Word) :
     (b + 1)%a = Some b' → (b' <= e)%a →
     [[b, e]] ↦ₐ [[ w :: ws ]] ⊣⊢ b ↦ₐ w ∗ [[b', e]] ↦ₐ [[ ws ]].
   Proof.
     intros Hb' Hb'e.
-    rewrite /region_mapsto.
+    rewrite /region_pointsto.
     rewrite (region_addrs_decomposition b b e).
     2: revert Hb' Hb'e; clear; intros; split; solve_addr.
     rewrite region_addrs_empty /=.
@@ -562,19 +562,19 @@ Section region.
     eauto.
   Qed.
 
-  Lemma region_mapsto_single b e l:
+  Lemma region_pointsto_single b e l:
     (b+1)%a = Some e →
     [[b,e]] ↦ₐ [[l]] -∗
     ∃ v, b ↦ₐ v ∗ ⌜l = [v]⌝.
   Proof.
-    iIntros (Hbe) "H". rewrite /region_mapsto region_addrs_single //.
+    iIntros (Hbe) "H". rewrite /region_pointsto region_addrs_single //.
     iDestruct (big_sepL2_length with "H") as %Hlen.
     cbn in Hlen. destruct l as [|x l']; [by inversion Hlen|].
     destruct l'; [| by inversion Hlen]. iExists x. cbn.
     iDestruct "H" as "(H & _)". eauto.
   Qed.
 
-  Lemma region_mapsto_split  (b e a : Addr) (w1 w2 : list Word) :
+  Lemma region_pointsto_split  (b e a : Addr) (w1 w2 : list Word) :
      (b ≤ a ≤ e)%Z →
      (length w1) = (region_size b a) →
      ([[b,e]]↦ₐ[[w1 ++ w2]] ⊣⊢ [[b,a]]↦ₐ[[w1]] ∗ [[a,e]]↦ₐ[[w2]])%I.
@@ -582,7 +582,7 @@ Section region.
      intros [Hba Hae] Hsize.
      iSplit.
      - iIntros "Hbe".
-       rewrite /region_mapsto /region_addrs.
+       rewrite /region_pointsto /region_addrs.
        rewrite (region_addrs_aux_decomposition _ _ (region_size b a))...
        iDestruct (big_sepL2_app' with "Hbe") as "[Hba Ha'b]".
        + by rewrite region_addrs_aux_length.
@@ -591,7 +591,7 @@ Section region.
          rewrite (_: region_size a e = region_size b e - region_size b a)...
          (* todo: turn these two into lemmas *)
      - iIntros "[Hba Hae]".
-       rewrite /region_mapsto /region_addrs. (* todo: use a proper region splitting lemma *)
+       rewrite /region_pointsto /region_addrs. (* todo: use a proper region splitting lemma *)
        rewrite (region_addrs_aux_decomposition (region_size b e) _ (region_size b a))...
        iApply (big_sepL2_app with "Hba [Hae]"); cbn.
        rewrite (_: ^(b + region_size b a)%a = a)...
@@ -600,7 +600,7 @@ Section region.
 
 End region.
 
-Global Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_mapsto b e ws)
+Global Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_pointsto b e ws)
             (at level 50, format "[[ b , e ]] ↦ₐ [[ ws ]]") : bi_scope.
 
 Global Notation "[[ b , e ]] ⊂ₐ [[ b' , e' ]]" := (included b e b' e')

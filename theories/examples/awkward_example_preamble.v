@@ -1,5 +1,5 @@
 From iris.algebra Require Import frac.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 Require Import Eqdep_dec.
 From cap_machine Require Import
@@ -12,7 +12,7 @@ From stdpp Require Import countable.
 
 Section awkward_example_preamble.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MP: MachineParameters}.
 
@@ -138,7 +138,7 @@ Section awkward_example_preamble.
     (* put the code for the awkward example in an invariant *)
     iDestruct (na_inv_alloc logrel_nais _ awk_codeN with "Hawk") as ">#Hawk".
 
-    rewrite /registers_mapsto.
+    rewrite /registers_pointsto.
     iDestruct (big_sepM_delete _ _ PC with "Hregs") as "[HPC Hregs]".
       by rewrite lookup_insert //. rewrite delete_insert_delete //.
     destruct (Hr_full r_t0) as [r0 Hr0].
@@ -166,10 +166,10 @@ Section awkward_example_preamble.
     iApply (wp_wand with "[-]").
     iApply (malloc_spec with "[- $HPC $Hmalloc $Hpc_b $Ha_entry $Hr0 $Hregs $Hr $Hsts $Hinv_malloc $HnaI]");
       [apply Hvpc1|eapply Hcont_malloc|eapply Hwb_malloc|eapply Ha_entry| |auto|lia|..].
-    { rewrite !dom_delete_L Hdom_r difference_difference_L //. }
+    { rewrite !dom_delete_L Hdom_r difference_difference_l_L //. }
     iNext. iIntros "(HPC & Hmalloc & Hpc_b & Ha_entry & HH & Hr0 & HnaI & Hregs & Hr & Hsts)".
     iDestruct "HH" as (b_cell e_cell Hbe_cell) "(Hr1 & Hcell)".
-    iDestruct (region_mapsto_single with "Hcell") as (cellv) "(Hcell & _)". revert Hbe_cell; clear; solve_addr.
+    iDestruct (region_pointsto_single with "Hcell") as (cellv) "(Hcell & _)". revert Hbe_cell; clear; solve_addr.
     iDestruct (big_sepL2_length with "Hprog") as %Hlength_rest.
     2: { iIntros (?) "[HH | ->]". iApply "HH". iIntros (Hv). inversion Hv. }
 
@@ -228,8 +228,8 @@ Section awkward_example_preamble.
     { eapply isCorrectPC_range_restrict. apply Hvpc2. split; auto.
       eapply contiguous_between_bounds. apply Hcont_rest'. }
     { rewrite dom_delete_L !dom_insert_L !dom_delete_L Hdom_r.
-      rewrite !difference_difference_L singleton_union_difference_L all_registers_union_l.
-      rewrite !singleton_union_difference_L !all_registers_union_l !difference_difference_L.
+      rewrite !difference_difference_l_L singleton_union_difference_L all_registers_union_l.
+      rewrite !singleton_union_difference_L !all_registers_union_l !difference_difference_l_L.
       f_equal. set_solver-. }
     2: { iIntros (?) "[ H | -> ]". iApply "H". iIntros (HC). congruence. }
     iNext. iIntros "(HPC & Hcrtcls & Hpc_b & Ha_entry & HH)".
@@ -271,8 +271,8 @@ Section awkward_example_preamble.
       iDestruct (na_inv_acc with "Hcls_inv HnaI") as ">(>Hcls & Hna & Hcls_close)";
         [auto..|].
 
-      rewrite /registers_mapsto.
-      rewrite -insert_delete.
+      rewrite /registers_pointsto.
+      rewrite -insert_delete_insert.
       iDestruct (big_sepM_insert with "Hregs'") as "[HPC Hregs']". by apply lookup_delete. 
       destruct (Hr'_full r_t1) as [r1v ?].
       iDestruct (big_sepM_delete _ _ r_t1 with "Hregs'") as "[Hr1 Hregs']".
@@ -292,7 +292,7 @@ Section awkward_example_preamble.
 
       iDestruct (big_sepM_insert with "[$Hregs' $Hr1]") as "Hregs'".
         by rewrite lookup_delete_ne // lookup_delete //.
-        rewrite -delete_insert_ne // insert_delete.
+        rewrite -delete_insert_ne // insert_delete_insert.
       destruct (Hr'_full r_adv) as [radvv Hradvv].
       iDestruct (big_sepM_delete _ _ r_adv with "Hregs'") as "[Hradv Hregs']".
         by rewrite !lookup_delete_ne // lookup_insert_ne // lookup_delete_ne //.
@@ -305,7 +305,7 @@ Section awkward_example_preamble.
       { auto. }
       { revert Hbe_cell; clear; solve_addr. }
       { rewrite !dom_delete_L !dom_insert_L !dom_delete_L Hdom_r'.
-        rewrite !singleton_union_difference_L !all_registers_union_l !difference_difference_L.
+        rewrite !singleton_union_difference_L !all_registers_union_l !difference_difference_l_L.
         f_equal. clear. set_solver. }
       { solve_ndisj. }
       iSplitL. iExists awkN; iApply "Hawk_inv".
@@ -356,10 +356,10 @@ Section awkward_example_preamble.
     { repeat (rewrite lookup_insert_ne //;[]). rewrite lookup_delete_ne //.
       repeat (rewrite lookup_insert_ne //;[]). do 2 rewrite lookup_delete_ne //.
       apply lookup_delete. }
-    repeat (rewrite -(delete_insert_ne _ r_t2) //;[]). rewrite insert_delete.
-    repeat (rewrite -(delete_insert_ne _ r_t1) //;[]). rewrite insert_delete.
-    repeat (rewrite -(delete_insert_ne _ r_t0) //;[]). rewrite insert_delete.
-    repeat (rewrite -(delete_insert_ne _ PC) //;[]). rewrite insert_delete.
+    repeat (rewrite -(delete_insert_ne _ r_t2) //;[]). rewrite insert_delete_insert.
+    repeat (rewrite -(delete_insert_ne _ r_t1) //;[]). rewrite insert_delete_insert.
+    repeat (rewrite -(delete_insert_ne _ r_t0) //;[]). rewrite insert_delete_insert.
+    repeat (rewrite -(delete_insert_ne _ PC) //;[]). rewrite insert_delete_insert.
     rewrite -(insert_insert _ PC _ (inl 0%Z)).
     match goal with |- context [ ([∗ map] k↦y ∈ <[PC:=_]> ?r, _)%I ] => set r'' := r end.
     iAssert (full_map r'') as %Hr''_full.

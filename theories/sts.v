@@ -1,6 +1,6 @@
 From iris.algebra Require Import auth agree gmap excl.
 From iris.base_logic Require Export invariants.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From cap_machine Require Import stdpp_extra.
 Import uPred.
 
@@ -37,14 +37,14 @@ Class STS_STD (B : Type) :=
 
 (** The CMRA for the sts collection. *)
 Class STS_preG A B Σ `{EqDecision A, Countable A} :=
-  { sts_pre_state_inG :> inG Σ sts_stateUR;
-    sts_pre_std_state_inG :> inG Σ (sts_std_stateUR A B);
-    sts_pre_rel_inG :> inG Σ sts_relUR; }.
+  { sts_pre_state_inG :: inG Σ sts_stateUR;
+    sts_pre_std_state_inG :: inG Σ (sts_std_stateUR A B);
+    sts_pre_rel_inG :: inG Σ sts_relUR; }.
 
 Class STSG A B Σ `{EqDecision A, Countable A} :=
-  { sts_state_inG :> inG Σ sts_stateUR;
-    sts_std_state_inG :> inG Σ (sts_std_stateUR A B);
-    sts_rel_inG :> inG Σ sts_relUR;
+  { sts_state_inG :: inG Σ sts_stateUR;
+    sts_std_state_inG :: inG Σ (sts_std_stateUR A B);
+    sts_rel_inG :: inG Σ sts_relUR;
     γs_std : gname;
     γs_loc : gname;
     γr_loc : gname;}.
@@ -106,42 +106,42 @@ Section definitionsS.
    *)
 
   Definition related_sts_std_pub (fs gs : STS_std_states A B) : Prop :=
-    dom (gset A) fs ⊆ dom (gset A) gs ∧
+    dom fs ⊆ dom gs ∧
     ∀ i x y, fs !! i = Some x → gs !! i = Some y → rtc (Rpub) x y.
 
   Definition related_sts_std_pub_plus (fs gs : STS_std_states A B) : Prop :=
-    dom (gset A) fs ⊆ dom (gset A) gs ∧
+    dom fs ⊆ dom gs ∧
     ∀ i x y, fs !! i = Some x → gs !! i = Some y → rtc (λ x y, (Rpub x y ∨ Rpubp x y)) x y.
 
   Definition related_sts_std_priv (fs gs : STS_std_states A B) : Prop :=
-    dom (gset A) fs ⊆ dom (gset A) gs ∧
+    dom fs ⊆ dom gs ∧
     ∀ i x y, fs !! i = Some x → gs !! i = Some y → rtc (λ x y, (Rpub x y ∨ Rpubp x y ∨ Rpriv x y)) x y.
 
   Program Definition related_sts_a (fs gs : STS_std_states A B) (a : A) : Prop :=
-    dom (gset A) fs ⊆ dom (gset A) gs ∧
+    dom fs ⊆ dom gs ∧
     ∀ (i : A) (x y : B), fs !! i = Some x → gs !! i = Some y →
                          rtc (λ x y, if (decide(Decision:=le_a_decision a i) (le_a a i))
                                      then (Rpub x y ∨ Rpubp x y)
                                      else (Rpub x y)) x y.
 
   Definition related_sts_pub (fs gs : STS_states) (fr gr : STS_rels) : Prop :=
-    dom (gset positive) fs ⊆ dom (gset positive) gs ∧
-    dom (gset positive) fr ⊆ dom (gset positive) gr ∧
+    dom fs ⊆ dom gs ∧
+    dom fr ⊆ dom gr ∧
     ∀ i (r1 r2 r1' r2' r3 r3' : positive → positive → Prop), fr !! i = Some (r1,r2,r3) → gr !! i = Some (r1',r2',r3') →
                        r1 = r1' ∧ r2 = r2' ∧ r3 = r3' ∧
                        (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc r1 x y)).
 
 
   Definition related_sts_pub_plus (fs gs : STS_states) (fr gr : STS_rels) : Prop :=
-    dom (gset positive) fs ⊆ dom (gset positive) gs ∧
-    dom (gset positive) fr ⊆ dom (gset positive) gr ∧
+    dom fs ⊆ dom gs ∧
+    dom fr ⊆ dom gr ∧
     ∀ i (r1 r2 r1' r2' r3 r3' : positive → positive → Prop), fr !! i = Some (r1,r2,r3) → gr !! i = Some (r1',r2',r3') →
                        r1 = r1' ∧ r2 = r2' ∧ r3 = r3' ∧
                        (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc (λ x y, r1 x y ∨ r2 x y) x y)).
 
   Definition related_sts_priv (fs gs : STS_states) (fr gr : STS_rels) : Prop :=
-    dom (gset positive) fs ⊆ dom (gset positive) gs ∧
-    dom (gset positive) fr ⊆ dom (gset positive) gr ∧
+    dom fs ⊆ dom gs ∧
+    dom fr ⊆ dom gr ∧
     ∀ i (r1 r2 r1' r2' r3 r3' : positive → positive → Prop), fr !! i = Some (r1,r2,r3) → gr !! i = Some (r1',r2',r3') →
                        r1 = r1' ∧ r2 = r2' ∧ r3 = r3' ∧
                        (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc (λ x y, (r1 x y ∨ r2 x y ∨ r3 x y)) x y)).
@@ -213,7 +213,7 @@ Section pre_STS.
     iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr) "Hr". by apply auth_auth_valid.
     iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ γsstd γs γr).
     rewrite /sts_full_world /sts_full_std /sts_full /=.
-    rewrite !map_fmap_empty. iFrame.
+    rewrite !fmap_empty. iFrame.
   Qed.
 
 End pre_STS.
@@ -664,8 +664,8 @@ Section STS.
     related_sts_priv_world W W' -> is_Some ((W.1) !! i) -> is_Some ((W'.1) !! i).
   Proof.
     intros [ [Hdom1 _ ] _] Hsome.
-    apply elem_of_gmap_dom in Hsome.
-    apply elem_of_gmap_dom.
+    rewrite -elem_of_dom.
+    rewrite -elem_of_dom in Hsome.
     apply elem_of_subseteq in Hdom1. auto.
   Qed.
 
@@ -689,7 +689,7 @@ Section STS.
     rewrite /sts_rel_loc /sts_full_world /sts_full.
     destruct W as [Wstd [fs fr]].
     iIntros "[_ [_ H1]] H2 /=".
-    iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid;
+    iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete;
       iPureIntro.
     specialize (Hv i).
     revert HR. rewrite /= singleton_included_l;
@@ -710,7 +710,7 @@ Section STS.
     rewrite /sts_full_world /sts_full /sts_state_std.
     destruct W as [Wsta Wloc].
     iIntros "[H1 _] H2".
-    iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid;
+    iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete;
       iPureIntro.
     specialize (Hv a).
     revert HR; rewrite /= singleton_included_l;
@@ -728,7 +728,7 @@ Section STS.
     rewrite /sts_full_world /sts_full /sts_state_loc.
     destruct W as [Wstd [fs fr] ].
     iIntros "[_ [H1 _]] H2".
-    iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid;
+    iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete;
       iPureIntro.
     specialize (Hv i).
     revert HR; rewrite /= singleton_included_l;
@@ -759,7 +759,7 @@ Section STS.
   Qed.
 
   Lemma sts_alloc_std_i W a b :
-    ⌜a ∉ dom (gset A) W.1⌝ -∗
+    ⌜a ∉ dom W.1⌝ -∗
     sts_full_world W ==∗
     sts_full_world (<[a := b]>W.1,W.2) ∗ sts_state_std a b.
   Proof.
@@ -783,7 +783,7 @@ Section STS.
   Lemma sts_alloc_loc W d Q Q' P:
     sts_full_world W ==∗
              ∃ i, sts_full_world (W.1,((<[i := encode d ]>W.2.1),(<[i := (convert_rel Q,convert_rel Q',convert_rel P) ]>W.2.2)))
-                  ∗ ⌜i ∉ dom (gset positive) W.2.1⌝ ∗ ⌜i ∉ dom (gset positive) W.2.2⌝
+                  ∗ ⌜i ∉ dom W.2.1⌝ ∗ ⌜i ∉ dom W.2.2⌝
                   ∗ sts_state_loc (A:=A) i d ∗ sts_rel_loc (A:=A) i Q Q' P.
   Proof.
     rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc.
@@ -791,16 +791,16 @@ Section STS.
     (* iDestruct "Hd" as %Hd. *)
     destruct W as [Wstd [fs fr]].
     iIntros "[Hstd [H1 H2]] /=".
-    assert (fresh (dom (gset positive) fs ∪ dom (gset positive) fr) ∉
-                    (dom (gset positive) fs ∪ dom (gset positive) fr)) as Hfresh.
+    assert (fresh (dom fs ∪ dom fr) ∉
+                    (dom fs ∪ dom fr)) as Hfresh.
     { apply is_fresh. }
     apply not_elem_of_union in Hfresh as [Hfs Hfr].
     iMod (own_update
             (A := sts_stateUR)
             _ _
             (● (Excl <$>
-                <[fresh (dom (gset positive) fs ∪ dom (gset positive) fr) := encode d]> fs)
-            ⋅ ◯ {[fresh (dom (gset positive) fs ∪ dom (gset positive) fr) := Excl (encode d)]})
+                <[fresh (dom fs ∪ dom fr) := encode d]> fs)
+            ⋅ ◯ {[fresh (dom fs ∪ dom fr) := Excl (encode d)]})
             with "H1") as "[H1 Hs]".
     { apply auth_update_alloc.
       rewrite fmap_insert /=.
@@ -812,8 +812,8 @@ Section STS.
             (A := sts_relUR)
             _ _
             (● (to_agree <$>
-                <[fresh (dom (gset positive) fs ∪ dom (gset positive) fr) := (convert_rel Q,convert_rel Q',convert_rel P)]> fr)
-            ⋅ ◯ {[fresh (dom (gset positive) fs ∪ dom (gset positive) fr) := to_agree (convert_rel Q,convert_rel Q',convert_rel P)]})
+                <[fresh (dom fs ∪ dom fr) := (convert_rel Q,convert_rel Q',convert_rel P)]> fr)
+            ⋅ ◯ {[fresh (dom fs ∪ dom fr) := to_agree (convert_rel Q,convert_rel Q',convert_rel P)]})
             with "H2") as "[H2 Hr]".
     { apply auth_update_alloc.
       rewrite fmap_insert /=.

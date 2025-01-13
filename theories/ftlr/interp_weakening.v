@@ -1,5 +1,5 @@
 From cap_machine Require Export logrel.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Import ftlr_base monotone region.
@@ -7,7 +7,7 @@ From cap_machine Require Import addr_reg.
 
 Section fundamental.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MachineParameters}.
 
@@ -25,7 +25,7 @@ Section fundamental.
     (□ ▷ (∀ (a0 : WORLD) (a1 : leibnizO Reg) (a2 : Perm) (a3 : Locality) (a4 a5 a6 : Addr),
               full_map a1
               -∗ (∀ r0 : RegName, ⌜r0 ≠ PC⌝ → fixpoint interp1 a0 (a1 !r! r0))
-                 -∗ registers_mapsto (<[PC:=inr (a2, a3, a4, a5, a6)]> a1)
+                 -∗ registers_pointsto (<[PC:=inr (a2, a3, a4, a5, a6)]> a1)
                     -∗ region a0
                        -∗ sts_full_world a0
                           -∗ na_own logrel_nais ⊤

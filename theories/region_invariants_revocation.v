@@ -1,11 +1,11 @@
 From iris.algebra Require Import gmap agree auth.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From cap_machine Require Export stdpp_extra iris_extra region_invariants region_invariants_transitions.
 Import uPred.
 
 Section heap.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           `{MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
@@ -749,7 +749,7 @@ Section heap.
     iDestruct (big_sepM2_sep with "Hr") as "[Hstates Hr]".
     iAssert (∀ a ρ, ⌜m' !! a = Some ρ⌝ → ⌜ρ ≠ Monotemporary⌝)%I as %Hmonotemp.
     { iIntros (a ρ Hsome).
-      iDestruct (big_sepM2_lookup_1 _ _ _ a with "Hstates") as (γp) "[Hl Hstate]"; eauto.
+      iDestruct (big_sepM2_lookup_l _ _ _ a with "Hstates") as (γp) "[Hl Hstate]"; eauto.
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hρ.
       iPureIntro.
       eapply revoke_lookup_non_temp; eauto.
@@ -785,7 +785,7 @@ Section heap.
     iAssert (∀ a ρ, ⌜m' !! a = Some ρ⌝ → ⌜ρ ≠ Monotemporary⌝)%I as %Hmonotemp.
     { iIntros (a ρ Hsome).
       iDestruct (big_sepM2_sep with "Hr") as "[Hstates Hr]".
-      iDestruct (big_sepM2_lookup_1 _ _ _ a with "Hstates") as (γp) "[_ Hstate]"; eauto.
+      iDestruct (big_sepM2_lookup_l _ _ _ a with "Hstates") as (γp) "[_ Hstate]"; eauto.
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hρ.
       iPureIntro. intros ->. specialize (Hcond a). done.
     }
@@ -926,7 +926,7 @@ Section heap.
         rewrite region_eq /region_def.
         iMod ("IH" with "[] [] [] [$Hrel $Hfull $Hr]") as "(Hfull & Hr & Hl)"; auto.
         { iPureIntro. apply submseteq_cons_l in Hsub as [k' [Hperm Hsub] ].
-          apply Permutation.Permutation_cons_inv in Hperm. etrans;eauto. rewrite Hperm. done. }
+          apply Permutation.Permutation_cons_inv_r in Hperm. etrans;eauto. rewrite Hperm. done. }
         rewrite /revoke_list /= /std /=.
         rewrite Htemp.
         rewrite rel_eq /rel_def REL_eq RELS_eq /REL_def /RELS_def.

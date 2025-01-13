@@ -1,5 +1,5 @@
 From cap_machine Require Export logrel.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Import ftlr_base monotone region interp_weakening.
@@ -8,7 +8,7 @@ From cap_machine.rules Require Import rules_base rules_Subseg.
 
 Section fundamental.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MachineParameters}.
 
@@ -94,7 +94,7 @@ Section fundamental.
         iApply ("IH" $! _ r with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); try iClear "IH"; eauto.
         iModIntro.
         generalize (isWithin_implies _ _ _ _ H4). intros [A B].
-        destruct (Z_le_dec b'' e'').
+        destruct (Z.le_dec b'' e'').
         + rewrite /region_conditions (isWithin_region_addrs_decomposition b'' e'' b0 e0); auto.
           iDestruct (big_sepL_app with "Hinv") as "[Hinv1 Hinv2]".
           iDestruct (big_sepL_app with "Hinv2") as "[Hinv3 Hinv4]".
@@ -102,7 +102,7 @@ Section fundamental.
         + rewrite /region_conditions.
           replace (region_addrs b'' e'') with (nil: list Addr).
           rewrite big_sepL_nil. auto.
-          unfold region_addrs, region_size. rewrite Z_to_nat_nonpos //; lia. }
+          unfold region_addrs, region_size. rewrite Z.to_nat_nonpos //; lia. }
       { simplify_map_eq.
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|specialize (Hnotmonostatic g)|specialize (Hnotuninitialized w0)];contradiction. }
