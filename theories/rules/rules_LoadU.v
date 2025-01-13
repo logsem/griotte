@@ -67,7 +67,7 @@ Section cap_lang_rules.
    decodeInstrW w = LoadU rdst rsrc offs →
    isCorrectPC (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
    regs !! PC = Some (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
-   regs_of (LoadU rdst rsrc offs) ⊆ dom _ regs →
+   regs_of (LoadU rdst rsrc offs) ⊆ dom regs →
    mem !! pc_a = Some w →
    match regs !! rsrc with
    | None => True
@@ -97,14 +97,14 @@ Section cap_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaLoad φ) "(>Hmem & >Hmap) Hφ".
      iApply wp_lift_atomic_base_step_no_fork; auto.
-     iIntros (σ1 l1 l2 n) "[Hr Hm] /=". destruct σ1 as [r m]; simpl.
+     iIntros (σ1 nt l1 l2 n) "[Hr Hm] /=". destruct σ1 as [r m]; simpl.
      iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
 
      (* Derive necessary register values in r *)
      pose proof (lookup_weaken _ _ _ _ HPC Hregs).
      specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri. unfold regs_of in Hri.
-     feed destruct (Hri rsrc) as [rsrcv [Hrsrc' Hrsrc]]. by set_solver+.
-     feed destruct (Hri rdst) as [rdstv [Hrdst' _]]. by set_solver+.
+     odestruct (Hri rsrc) as [rsrcv [Hrsrc' Hrsrc]]. by set_solver+.
+     odestruct (Hri rdst) as [rdstv [Hrdst' _]]. by set_solver+.
      pose proof (regs_lookup_eq _ _ _ Hrsrc') as Hrsrc''.
      pose proof (regs_lookup_eq _ _ _ Hrdst') as Hrdst''.
      (* Derive the PC in memory *)
@@ -114,6 +114,7 @@ Section cap_lang_rules.
      iSplitR. by iPureIntro; apply normal_always_base_reducible.
      iNext. iIntros (e2 σ2 efs Hpstep).
      apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+     iIntros "_".
      iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
 
      option_locate_mr m r.
@@ -127,7 +128,7 @@ Section cap_lang_rules.
 
      assert (Hzofargeq: z_of_argument r offs = z_of_argument regs offs).
      { rewrite /z_of_argument; destruct offs; auto.
-       feed destruct (Hri r0) as [? [?]]. by set_solver+.
+       odestruct (Hri r0) as [? [?]]. by set_solver+.
        rewrite H2 H3; auto. }
      rewrite Hzofargeq in Hstep.
 

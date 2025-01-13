@@ -161,7 +161,7 @@ Section cap_lang_rules.
    decodeInstrW w = StoreU rdst offs rsrc →
    isCorrectPC (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
    regs !! PC = Some (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
-   regs_of (StoreU rdst offs rsrc) ⊆ dom _ regs →
+   regs_of (StoreU rdst offs rsrc) ⊆ dom regs →
    mem !! pc_a = Some w →
    word_of_argument regs rsrc = Some wsrc ->
    match regs !! rdst with
@@ -192,13 +192,13 @@ Section cap_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc HPC Dregs Hmem_pc Hwsrc HaStore φ) "(>Hmem & >Hmap) Hφ".
      iApply wp_lift_atomic_base_step_no_fork; auto.
-     iIntros (σ1 l1 l2 n) "[Hr Hm] /=". destruct σ1 as [r m]; simpl.
+     iIntros (σ1 nt l1 l2 n) "[Hr Hm] /=". destruct σ1 as [r m]; simpl.
      iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
 
      (* Derive necessary register values in r *)
      pose proof (lookup_weaken _ _ _ _ HPC Hregs).
      specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri. unfold regs_of in Hri.
-     feed destruct (Hri rdst) as [rdstv [Hrdst' Hrdst'']]. by set_solver+.
+     odestruct (Hri rdst) as [rdstv [Hrdst' Hrdst'']]. by set_solver+.
      pose proof (regs_lookup_eq _ _ _ Hrdst') as Hrdst'''.
      (* Derive the PC in memory *)
      iDestruct (gen_mem_valid_inSepM pc_a _ _ _ mem _ m with "Hm Hmem") as %Hma; eauto.
@@ -207,6 +207,7 @@ Section cap_lang_rules.
      iSplitR. by iPureIntro; apply normal_always_base_reducible.
      iNext. iIntros (e2 σ2 efs Hpstep).
      apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+     iIntros "_".
      iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
 
      rewrite /exec /RegLocate in Hstep. rewrite Hrdst'' in Hstep.
@@ -225,7 +226,7 @@ Section cap_lang_rules.
                        end
                      end = wsrc).
      { destruct rsrc; simpl in Hwsrc; inv Hwsrc; auto.
-       simpl. feed destruct (Hri r0) as [aa [HA HB]]. by set_solver+.
+       simpl. odestruct (Hri r0) as [aa [HA HB]]. by set_solver+.
        rewrite HB; congruence. }
      rewrite Hwsrc' in Hstep.
 
@@ -235,7 +236,7 @@ Section cap_lang_rules.
 
      assert (Hzofargeq: z_of_argument r offs = z_of_argument regs offs).
      { rewrite /z_of_argument; destruct offs; auto.
-       feed destruct (Hri r0) as [? [?]]. by set_solver+.
+       odestruct (Hri r0) as [? [?]]. by set_solver+.
        rewrite H3 H4; auto. }
      rewrite Hzofargeq in Hstep.
 
@@ -315,7 +316,7 @@ Section cap_lang_rules.
    decodeInstrW w = StoreU rdst offs rsrc →
    isCorrectPC (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
    regs !! PC = Some (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
-   regs_of (StoreU rdst offs rsrc) ⊆ dom _ regs →
+   regs_of (StoreU rdst offs rsrc) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_storeU_map_or_true rdst rsrc offs regs mem  ->
 
