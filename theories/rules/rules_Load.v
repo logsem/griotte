@@ -1,7 +1,7 @@
 From cap_machine Require Import rules_base.
 From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
 
 Section cap_lang_rules.
@@ -155,7 +155,7 @@ Section cap_lang_rules.
          [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
    Proof.
      iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaLoad φ) "(>Hmem & >Hmap) Hφ".
-     iApply wp_lift_atomic_head_step_no_fork; auto.
+     iApply wp_lift_atomic_base_step_no_fork; auto.
      iIntros (σ1 l1 l2 n) "[Hr Hm] /=". destruct σ1 as [r m]; simpl.
      iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
 
@@ -170,7 +170,7 @@ Section cap_lang_rules.
      iDestruct (gen_mem_valid_inSepM pc_a _ _ _ mem _ m with "Hm Hmem") as %Hma; eauto.
 
      iModIntro.
-     iSplitR. by iPureIntro; apply normal_always_head_reducible.
+     iSplitR. by iPureIntro; apply normal_always_base_reducible.
      iNext. iIntros (e2 σ2 efs Hpstep).
      apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
      iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
@@ -469,7 +469,7 @@ Section cap_lang_rules.
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
        apply isCorrectPC_ra_wb in Hvpc. apply andb_prop_elim in Hvpc as [Hra Hwb].
-       destruct o; apply Is_true_false in H3. all:congruence.
+       destruct o; apply Is_true_false_2 in H3. all:congruence.
      }
   Qed.*)
 

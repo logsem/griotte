@@ -1,5 +1,5 @@
 From iris.algebra Require Import frac.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 Require Import Eqdep_dec List.
 From cap_machine Require Import cap_lang region contiguous.
@@ -245,7 +245,7 @@ End helpers.
   Ltac insert_pointsto_map_del Hmap Hreg :=
     let str_destr := constr:(("[ $" ++ Hmap ++ " $" ++ Hreg ++ "]")%string) in
     iDestruct (big_sepM_insert with str_destr) as Hmap;
-    [by simplify_map_eq | repeat (rewrite -delete_insert_ne //;[]); try rewrite insert_delete].
+    [by simplify_map_eq | repeat (rewrite -delete_insert_ne //;[]); try rewrite insert_delete_insert].
 
    Ltac insert_pointsto_map Hmap Hreg :=
      first [insert_pointsto_map_del Hmap Hreg | insert_pointsto_map_dom Hmap Hreg].

@@ -18,7 +18,7 @@ Inductive RegName: Type :=
 
 Global Instance reg_eq_dec : EqDecision RegName.
 Proof. intros r1 r2.  destruct r1,r2; [by left | by right | by right |].
-       destruct (nat_eq_dec n n0).
+       destruct (Nat.eq_dec n n0).
        + subst n0. left.
          assert (forall (b: bool) (n m: nat) (P1 P2: n <=? m = b), P1 = P2).
          { intros. apply eq_proofs_unicity.
@@ -30,7 +30,7 @@ Defined.
 Lemma reg_eq_sym (r1 r2 : RegName) : r1 ≠ r2 → r2 ≠ r1. Proof. auto. Qed.
 
 Program Definition n_to_regname (n : nat) : option RegName :=
-  if (nat_le_dec n RegNum) then Some (R n _) else None.
+  match Nat.le_dec n RegNum with left _ => Some (R n _) | right _ => None end.
 Next Obligation.
   intros. eapply Nat.leb_le; eauto.
 Defined.
@@ -70,7 +70,7 @@ Proof.
   intro r. destruct r; auto.
   rewrite decode_encode.
   unfold n_to_regname.
-  destruct (nat_le_dec n RegNum).
+  destruct (Nat.le_dec n RegNum).
   - do 2 f_equal. apply eq_proofs_unicity. decide equality.
   - exfalso. by apply (Nat.leb_le n RegNum) in fin.
 Defined.
@@ -110,14 +110,14 @@ Lemma neq_z_of a1 a2 :
 Proof. intros. intros Heq%z_of_eq. congruence. Qed.
 
 Global Instance addr_eq_dec: EqDecision Addr.
-intros x y. destruct x,y. destruct (Z_eq_dec z z0).
+intros x y. destruct x,y. destruct (Z.eq_dec z z0).
 - left. eapply z_of_eq; eauto.
 - right. inversion 1. simplify_eq.
 Defined.
 
 Definition z_to_addr (z : Z) : option Addr.
 Proof.
-  destruct (Z_le_dec z MemNum),(Z_le_dec 0 z).
+  destruct (Z.le_dec z MemNum),(Z.le_dec 0%Z z).
   - apply (Z.leb_le z MemNum) in l.
     apply (Z.leb_le 0 z) in l0.
     exact (Some (A z l l0)).
@@ -135,8 +135,8 @@ Proof.
   generalize (addr_spec a); intros [? ?].
   set (z := (z_of a)) in *.
   unfold z_to_addr.
-  destruct (Z_le_dec z MemNum) eqn:?;
-  destruct (Z_le_dec 0 z) eqn:?.
+  destruct (Z.le_dec z MemNum) eqn:?;
+  destruct (Z.le_dec 0%Z z) eqn:?.
   { f_equal. apply z_of_eq. cbn. lia. }
   all: lia.
 Qed.
@@ -156,7 +156,7 @@ Proof.
   intro r. destruct r; auto.
   rewrite decode_encode.
   unfold z_to_addr. simpl.
-  destruct (Z_le_dec z MemNum),(Z_le_dec 0 z).
+  destruct (Z.le_dec z MemNum),(Z.le_dec 0%Z z).
   - repeat f_equal; apply eq_proofs_unicity; decide equality.
   - exfalso. by apply (Z.leb_le 0 z) in pos.
   - exfalso. by apply (Z.leb_le z MemNum) in fin.
@@ -187,13 +187,13 @@ Notation "a1 =? a2" := (eqb_addr a1 a2): Addr_scope.
 Notation "0" := (za) : Addr_scope.
 
 Global Instance Addr_le_dec : RelDecision le_addr.
-Proof. intros x y. destruct x,y. destruct (Z_le_dec z z0); [by left|by right]. Defined.
+Proof. intros x y. destruct x,y. destruct (Z.le_dec z z0); [by left|by right]. Defined.
 Global Instance Addr_lt_dec : RelDecision lt_addr.
-Proof. intros x y. destruct x,y. destruct (Z_lt_dec z z0); [by left|by right]. Defined.
+Proof. intros x y. destruct x,y. destruct (Z.lt_dec z z0); [by left|by right]. Defined.
 
 Program Definition incr_addr (a: Addr) (z: Z): option Addr :=
-  if (Z_le_dec (a + z)%Z MemNum) then
-    if (Z_le_dec 0 (a + z)%Z) then Some (A (a + z)%Z _ _) else None else None.
+  if (Z.le_dec (a + z)%Z MemNum) then
+    if (Z.le_dec 0%Z (a + z)%Z) then Some (A (a + z)%Z _ _) else None else None.
 Next Obligation.
   intros. apply Z.leb_le; auto.
 Defined.
@@ -252,7 +252,7 @@ Lemma incr_addr_spec (a: Addr) (z: Z) :
   ((a + z)%a = None /\ (a + z > MemNum ∨ a + z < 0))%Z.
 Proof.
   unfold incr_addr.
-  destruct (Z_le_dec (a + z)%Z MemNum),(Z_le_dec 0 (a + z)%Z); [ left | right; split; auto; try lia..].
+  destruct (Z.le_dec (a + z)%Z MemNum),(Z.le_dec 0%Z (a + z)%Z); [ left | right; split; auto; try lia..].
   eexists. repeat split; lia.
 Qed.
 
@@ -425,7 +425,7 @@ Qed.
    been fixed upstream starting from Coq 8.11.
 *)
 
-(* Lemma Z_of_nat_zify : forall x, Z.of_nat (Z.to_nat x) = Z.max 0 x. *)
+(* Lemma Z.of_nat_zify : forall x, Z.of_nat (Z.to_nat x) = Z.max 0 x. *)
 (* Proof. *)
 (*   intros x. destruct x. *)
 (*   - rewrite Z2Nat.id; reflexivity. *)
@@ -435,13 +435,13 @@ Qed.
 
 (* Ltac zify_nat_op_extended := *)
 (*   match goal with *)
-(*   | H : context [ Z.of_nat (Z.to_nat ?a) ] |- _ => rewrite (Z_of_nat_zify a) in H *)
-(*   | |- context [ Z.of_nat (Z.to_nat ?a) ] => rewrite (Z_of_nat_zify a) *)
+(*   | H : context [ Z.of_nat (Z.to_nat ?a) ] |- _ => rewrite (Z.of_nat_zify a) in H *)
+(*   | |- context [ Z.of_nat (Z.to_nat ?a) ] => rewrite (Z.of_nat_zify a) *)
 (*   | _ => zify_nat_op *)
 (*   end. *)
 
 (* Global Ltac zify_nat ::= *)
-(*   repeat zify_nat_rel; repeat zify_nat_op_extended; unfold Z_of_nat' in *. *)
+(*   repeat zify_nat_rel; repeat zify_nat_op_extended; unfold Z.of_nat' in *. *)
 
 (* --------------------------- BASIC LEMMAS --------------------------------- *)
 

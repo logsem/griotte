@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From cap_machine Require Export region_invariants_revocation.
 From cap_machine Require Import logrel.
 Require Import Eqdep_dec List.
@@ -10,7 +10,7 @@ Section std_updates.
   (* ----------------------- UPDATING MULTIPLE REGION STATES ------------------------- *)
 
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}.
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -358,10 +358,10 @@ Section std_updates.
    Proof.
      intros Hsome.
      rewrite /incr_addr in Hsome. rewrite /incr_addr.
-     destruct (Z_le_dec (a + S (S n))%Z MemNum),(Z_le_dec 0 (a + S (S n)))%Z; inversion Hsome; try discriminate.
-     - destruct (Z_le_dec (a + S n)%Z MemNum),(Z_le_dec 0 (a + S n)%Z); eauto;
+     destruct (Z.le_dec (a + S (S n))%Z MemNum),(Z.le_dec 0 (a + S (S n)))%Z; inversion Hsome; try discriminate.
+     - destruct (Z.le_dec (a + S n)%Z MemNum),(Z.le_dec 0 (a + S n)%Z); eauto;
          clear H x Hsome;zify_addr;lia.
-     - destruct (Z_le_dec (a + S n)%Z MemNum),(Z_le_dec 0 (a + S n)%Z); eauto;
+     - destruct (Z.le_dec (a + S n)%Z MemNum),(Z.le_dec 0 (a + S n)%Z); eauto;
          clear H x Hsome;zify_addr;lia.
    Qed.
 

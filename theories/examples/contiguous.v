@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_macros.
 From cap_machine Require Import addr_reg_sample.
 
@@ -40,7 +40,7 @@ Section Contiguous.
     l = [].
   Proof.
     induction 1; eauto.
-    destruct (Z_eq_dec a b).
+    destruct (Z.eq_dec a b).
     { intros. exfalso.
       eapply (contiguous_between_vacuous l a' b). 2: solve_addr. eauto. }
     { intros. exfalso. eapply contiguous_between_vacuous; eauto. solve_addr. }
@@ -127,7 +127,7 @@ Section Contiguous.
     l = region_addrs a b.
   Proof.
     intros.
-    destruct (Z_le_dec a b).
+    destruct (Z.le_dec a b).
     { eapply region_addrs_aux_of_contiguous_between; eauto.
       rewrite /region_size. solve_addr. }
     { rewrite /region_addrs (_: region_size a b = 0) /=.
@@ -141,7 +141,7 @@ Section Contiguous.
   Proof.
     split.
     { intros (a & b & H).
-      destruct (Z_le_dec a b).
+      destruct (Z.le_dec a b).
       { apply contiguous_between_of_region_addrs in H; eauto. }
       { rewrite /region_addrs (_: region_size a b = 0) in H.
         2: unfold region_size; solve_addr. cbn in *. subst l.
@@ -508,7 +508,7 @@ Section Contiguous.
 
 
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}.
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}.
 
   (* Note that we are assuming that both prog1 and prog2 are nonempty *)
   Lemma contiguous_between_program_split prog1 prog2 (φ : Addr → Word → iProp Σ) a i j :
@@ -524,19 +524,19 @@ Section Contiguous.
   Proof.
     iIntros (Ha) "Hprog".
     iDestruct (big_sepL2_length with "Hprog") as %Hlength.
-    rewrite app_length in Hlength.
+    rewrite length_app in Hlength.
     set (n1 := length prog1) in *.
     set (n2 := length prog2) in *.
     rewrite -(take_drop n1 a). set (k := ^(i + n1)%a).
     iExists (take n1 a), (drop n1 a), k.
     iDestruct (big_sepL2_app' with "Hprog") as "[Hprog1 Hprog2]".
-    { subst n1. rewrite take_length. lia. }
+    { subst n1. rewrite length_take. lia. }
     iFrame. iPureIntro.
     pose proof (contiguous_between_length _ _ _ Ha).
     destruct (contiguous_between_app a (take n1 a) (drop n1 a) i j k); auto.
     by rewrite take_drop.
-    { rewrite take_length Hlength. subst k. solve_addr. }
-    rewrite take_length. repeat split; eauto. rewrite Nat.min_l; solve_addr.
+    { rewrite length_take Hlength. subst k. solve_addr. }
+    rewrite length_take. repeat split; eauto. rewrite Nat.min_l; solve_addr.
   Qed.
 
   (* Helper lemma for contiguous lists of size 2: useful for the push macro *)

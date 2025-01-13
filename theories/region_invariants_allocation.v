@@ -1,11 +1,11 @@
 From iris.algebra Require Import gmap agree auth.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From cap_machine Require Export region_invariants region_invariants_static region_invariants_batch_uninitialized.
 Import uPred.
 
 Section region_alloc.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           `{MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
@@ -357,7 +357,7 @@ Section region_alloc.
      dom (gset Addr) (override_uninitialize_std_sta m W.1) =
      dom (gset Addr) m ∪ dom (gset Addr) W.1.
   Proof.
-    rewrite elem_of_equiv_L. intro x.
+    rewrite set_eq. intro x.
     rewrite !elem_of_union. split.
     - intros HH%elem_of_gmap_dom. destruct (decide (x ∈ dom (gset Addr) m));auto. right.
       rewrite override_uninitialize_std_sta_lookup_none in HH.

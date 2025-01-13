@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 Require Import Eqdep_dec.
 From cap_machine Require Import
@@ -29,7 +29,7 @@ Lemma lists_to_static_region_dom l1 l2 :
   length l1 = length l2 →
   dom (gset Addr) (lists_to_static_region l1 l2) = list_to_set l1.
 Proof.
-  intros Hlen. apply elem_of_equiv_L. intros x.
+  intros Hlen. apply set_eq. intros x.
   rewrite /lists_to_static_region elem_of_dom elem_of_list_to_set.
   split. by intros [? ?%elem_of_list_to_map_2%elem_of_zip_l].
   intros Hx.
@@ -61,10 +61,10 @@ Proof.
   { cbn in *. iIntros "_ _". by iApply big_sepM_empty. }
   { iIntros "#Ha H". iDestruct (big_sepL2_cons_inv_l with "H") as (w l2' ->) "[HΦ H]".
     rewrite lists_to_static_region_cons. iApply big_sepM_insert.
-      by apply lists_to_static_region_lookup_None, NoDup_cons_11.
+      by apply lists_to_static_region_lookup_None, NoDup_cons_1_1.
     iSplitL "HΦ". { iApply ("Ha" $! 0); try (iPureIntro; apply cons_lookup); eauto. }
     iApply IHl1; auto.
-    by eauto using NoDup_cons_12.
+    by eauto using NoDup_cons_1_2.
     iModIntro. iIntros. iApply ("Ha" $! (S k)); auto. }
 Qed.
 
@@ -80,15 +80,15 @@ Proof.
     rewrite lists_to_static_region_cons. apply lookup_insert.
     iSplitL "Hψ". { iApply ("Ha" $! 0); try (iPureIntro; constructor). auto. }
     iApply IHl1; auto.
-    by eauto using NoDup_cons_12.
+    by eauto using NoDup_cons_1_2.
     iModIntro. iIntros. iApply ("Ha" $! (S k)); auto; iPureIntro.
     rewrite lists_to_static_region_cons.
-    rewrite delete_insert. auto. by apply lists_to_static_region_lookup_None, NoDup_cons_11. }
+    rewrite delete_insert. auto. by apply lists_to_static_region_lookup_None, NoDup_cons_1_1. }
 Qed.
 
 Section awkward_helpers.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           {nainv: logrel_na_invs Σ}
           `{MP: MachineParameters}.
 

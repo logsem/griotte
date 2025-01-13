@@ -1,5 +1,5 @@
 From iris.algebra Require Import gmap agree auth.
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From cap_machine Require Export stdpp_extra iris_extra region_invariants
      multiple_updates region_invariants_revocation region_invariants_batch_uninitialized sts.
 Require Import stdpp.countable.
@@ -7,7 +7,7 @@ Import uPred.
 
 Section heap.
   Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapG Σ}.
+          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -89,7 +89,7 @@ Section heap.
     dom (gset Addr) (override_uninitialize_std_sta m fs) = dom (gset Addr) fs.
   Proof.
     intros Hsub.
-    apply set_equiv_spec_L. split.
+    apply set_eq_subseteq. split.
     - apply elem_of_subseteq.
       intros x [y Hin]%elem_of_gmap_dom.
       destruct (m !! x) eqn:Hsome.
@@ -425,7 +425,7 @@ Section heap.
     iExists _, _. iFrame.
     iDestruct (reg_in γrel M with "[$HM $Hγpred]") as %HMeq.
     rewrite -HMeq. iFrame. iSplitR; auto. iPureIntro.
-    rewrite HMeq !insert_delete !dom_insert_L Hdomρ. set_solver.
+    rewrite HMeq !insert_delete_insert !dom_insert_L Hdomρ. set_solver.
   Qed.
 
   Lemma region_close_uninitialized_many (m: gmap Addr Word) W:
@@ -906,7 +906,7 @@ Section heap.
       iDestruct "Hrel" as (γpred) "#(Hγpred & Hφ)".
       iDestruct (reg_in γrel (M) with "[$HM $Hγpred]") as %HMeq.
       assert (M ∖∖ m = <[x:=γpred]> (delete x (M ∖∖ m))) as HMeq'.
-      { rewrite HMeq. rewrite insert_delete insert_delete. rewrite difference_het_insert_l; auto.
+      { rewrite HMeq. rewrite insert_delete_insert insert_delete_insert. rewrite difference_het_insert_l; auto.
         by rewrite insert_insert. }
       rewrite HMeq'.
       iDestruct (big_sepM_insert with "Hr") as "[Hxinv Hr]";[by rewrite lookup_delete|].
@@ -1018,7 +1018,7 @@ Section heap.
         - iFrame. iExists _. repeat iSplit;auto.
           iExists w. iFrame. repeat iSplit;auto. iPureIntro. apply Hsame. subst. apply lookup_insert.
       }
-      apply insert_id in HMx. rewrite insert_delete HMx.
+      apply insert_id in HMx. rewrite insert_delete_insert HMx.
       iExists Mρ'. iFrame. repeat iSplit;auto. iPureIntro.
       rewrite Hdom' dom_insert_L.
       assert (x ∈ dom (gset Addr) Mρ) as Hin;[|set_solver].
