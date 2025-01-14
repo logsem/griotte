@@ -75,17 +75,17 @@ Section fundamental.
       [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
     iApply (wp_Subseg with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
-    { rewrite /subseteq /map_subseteq /set_subseteq. intros rr _.
-      apply elem_of_gmap_dom. apply lookup_insert_is_Some'; eauto. }
+    { rewrite /subseteq /map_subseteq. intros rr _.
+      apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
     destruct HSpec; cycle 1.
-    { iApply wp_pure_step_later; auto. iNext.
+    { iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto. iIntros; discriminate. }
     { match goal with
       | H: incrementPC _ = Some _ |- _ => apply incrementPC_Some_inv in H as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs' & XX)
       end. simplify_map_eq.
-      iApply wp_pure_step_later; auto. iNext.
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
       destruct (reg_eq_dec PC dst).
       { subst dst. repeat rewrite insert_insert in HPC |- *. simplify_map_eq.
@@ -102,7 +102,7 @@ Section fundamental.
         + rewrite /region_conditions.
           replace (region_addrs b'' e'') with (nil: list Addr).
           rewrite big_sepL_nil. auto.
-          unfold region_addrs, region_size. rewrite Z.to_nat_nonpos //; lia. }
+          unfold region_addrs, region_size. rewrite Z2Nat.nonpos //; lia. }
       { simplify_map_eq.
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|specialize (Hnotmonostatic g)|specialize (Hnotuninitialized w0)];contradiction. }

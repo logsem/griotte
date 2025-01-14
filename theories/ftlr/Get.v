@@ -35,15 +35,15 @@ Section fundamental.
       [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
     iApply (wp_Get with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
-    { rewrite /subseteq /map_subseteq /set_subseteq. intros rr _.
-      apply elem_of_gmap_dom. apply lookup_insert_is_Some'; eauto. }
+    { rewrite /subseteq /map_subseteq. intros rr _.
+      apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
     destruct HSpec; cycle 1.
-    { iApply wp_pure_step_later; auto. iNext.
+    { iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto. iIntros; discriminate. }
     { incrementPC_inv; simplify_map_eq.
-      iApply wp_pure_step_later; auto. iNext.
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
       destruct c as ((((p1 & g1) & b1) & e1) & a1).
       assert (dst <> PC) as HdstPC by (intros ->; simplify_map_eq).
       simplify_map_eq.

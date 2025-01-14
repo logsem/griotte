@@ -197,8 +197,7 @@ Section region_macros.
          iFrame "Hreg Hsts".
          iDestruct (open_region_many_swap with "Hr") as "$".
          iExists _; iFrame "∗ #".
-       + rewrite Hn0 /=. iFrame.
-         iExists _; iFrame "∗ #".
+       + rewrite Hn0 /=. iFrame "∗#".
          Unshelve.
          apply disjoint_swap; auto.
          apply not_elem_of_region_addrs_aux; [done|].

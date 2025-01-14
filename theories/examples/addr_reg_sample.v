@@ -181,7 +181,7 @@ Qed.
 Lemma all_registers_union_l s :
   s ∪ all_registers_s = all_registers_s.
 Proof.
-  eapply (anti_symm _). 2: set_solver.
+  apply (anti_symm subseteq). 2: set_solver.
   rewrite elem_of_subseteq. intros ? _.
   apply all_registers_s_correct.
 Qed.
@@ -198,11 +198,11 @@ Qed.
 
 Lemma regmap_full_dom (r: gmap RegName Word):
   (∀ x, is_Some (r !! x)) →
-  dom (gset RegName) r = all_registers_s.
+  dom r = all_registers_s.
 Proof.
-  intros Hfull. apply (anti_symm _); rewrite elem_of_subseteq.
+  intros Hfull. apply (anti_symm subseteq); rewrite elem_of_subseteq.
   - intros rr _. apply all_registers_s_correct.
-  - intros rr _. rewrite -elem_of_gmap_dom. apply Hfull.
+  - intros rr _. rewrite elem_of_dom. apply Hfull.
 Qed.
 
 (* Some additional helper lemmas about region_addrs *)

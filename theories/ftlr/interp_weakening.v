@@ -60,7 +60,7 @@ Section fundamental.
         * right. eapply region_state_nwl_monotone_nm_nl;eauto.
           apply related_sts_pub_plus_priv_world.
           eapply related_sts_a_pub_plus_world;eauto.
-        * destruct a0 as [a0 | a0].
+        * destruct H0 as [a0 | a0].
           left. eapply region_state_pwl_monotone_a;eauto.
           right. eapply region_state_nwl_monotone_nm_nl;eauto.
           apply related_sts_pub_plus_priv_world.
@@ -80,7 +80,7 @@ Section fundamental.
     case_eq (pwlU p'); intros.
     - assert (pwlU p = true) as Hpwl.
       { destruct p, p'; simpl in H; try congruence; simpl in Hpflows; try tauto. }
-      rewrite Hpwl in a0, Hloc. subst l.
+      rewrite Hpwl in H0, Hloc. subst l.
       destruct l'; simpl in Hlflows; try tauto.
       simpl; iDestruct "Hfuture" as "%"; iPureIntro.
       eapply region_state_pwl_monotone_a; eauto.

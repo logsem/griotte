@@ -105,7 +105,7 @@ Section fundamental.
          { intros [g1 Hcontr]. specialize (Hnotuninit' g1); contradiction. }
          { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
          iExists w0,interp. iFrame. iSplitR;[iPureIntro;apply _|].
-         rewrite /rcond. iSplit;auto. iExists ρ'. iFrame "%". iFrame. by iFrame "#". iSplit;auto.
+         rewrite /rcond. iSplit;auto. iSplit;auto.
          iNext; iModIntro. iIntros (W1 W2 z) "_"; iClear "#"; rewrite fixpoint_interp1_eq;done.
        + iDestruct "Hrel'" as (P Hpers) "[Hcond Hrel']".
          iDestruct (region_open_next _ _ _ a0 RO ρ' with "[$Hrel' $Hr $Hsts]") as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
@@ -113,7 +113,7 @@ Section fundamental.
          { intros [g1 Hcontr]. specialize (Hnotuninit' g1); contradiction. }
          { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
          iExists w0,P. iFrame. iSplitR;[iPureIntro;apply _|].
-         rewrite /rcond. iSplit;auto. iExists ρ'. iFrame "%". iFrame. by iFrame "#".
+         rewrite /rcond. iSplit;auto.
     - iFrame.
   Qed.
 
@@ -273,15 +273,15 @@ Section fundamental.
 
     iApply (wp_load with "[Hmap HMemRes]"); eauto.
     { by rewrite lookup_insert. }
-    { rewrite /subseteq /map_subseteq /set_subseteq. intros rr _.
-      apply elem_of_gmap_dom. rewrite lookup_insert_is_Some'; eauto. }
+    { rewrite /subseteq /map_subseteq. intros rr _.
+      apply elem_of_dom. rewrite lookup_insert_is_Some'; eauto. }
     { iSplitR "Hmap"; auto. }
     iNext. iIntros (regs' retv). iDestruct 1 as (HSpec) "[Hmem Hmap]".
 
     destruct HSpec as [* ? ? Hincr|].
     { apply incrementPC_Some_inv in Hincr.
       destruct Hincr as (?&?&?&?&?&?&?&?&?&XX).
-      iApply wp_pure_step_later; auto. iNext.
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
       (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)
       iDestruct (mem_map_recover_res with "HLoadMem [] Hmem") as "[Hr [Ha #HLVInterp ] ]"; eauto.
@@ -295,7 +295,7 @@ Section fundamental.
         { subst. by rewrite lookup_insert. }
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC_perm with "[HPC]"); eauto. iIntros "!> _".
-        iApply wp_pure_step_later; auto. iNext. iApply wp_value.
+        iApply wp_pure_step_later; auto. iNext; iIntros "_". iApply wp_value.
         iIntros (a1); inversion a1.
       }
 
@@ -334,7 +334,7 @@ Section fundamental.
          - (* iExists p'. *) simplify_map_eq. auto.
        }
     }
-    { iApply wp_pure_step_later; auto. iNext. iApply wp_value; auto. iIntros; discriminate. }
+    { iApply wp_pure_step_later; auto. iNext; iIntros "_". iApply wp_value; auto. iIntros; discriminate. }
     Unshelve. all: auto.
   Qed.
 
