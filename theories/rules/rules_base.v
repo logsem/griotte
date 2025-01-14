@@ -722,9 +722,6 @@ Definition regs_of (i: instr): gset RegName :=
   | Load r1 r2 => {[ r1; r2 ]}
   | Store r1 arg => {[ r1 ]} ∪ regs_of_argument arg
   | Jnz r1 r2 => {[ r1; r2 ]}
-  | LoadU dst src offs => {[ dst; src ]} ∪ regs_of_argument offs
-  | StoreU dst offs src => {[ dst ]} ∪ regs_of_argument offs  ∪ regs_of_argument src
-  | PromoteU dst => {[ dst ]}
   | _ => ∅
   end.
 
@@ -747,9 +744,9 @@ Definition incrementPC (regs: Reg) : option Reg :=
   match regs !! PC with
   | Some (inr ((p, g), b, e, a)) =>
     match (a + 1)%a with
-    | Some a' => 
+    | Some a' =>
       match p with
-      | E | URWLX | URWX | URWL | URW => None
+      | E => None
       | _ => Some (<[ PC := inr ((p, g), b, e, a') ]> regs)
       end
     | None => None
@@ -763,7 +760,7 @@ Lemma incrementPC_Some_inv regs regs' :
     regs !! PC = Some (inr ((p, g), b, e, a)) ∧
     (a + 1)%a = Some a' ∧
     regs' = <[ PC := inr ((p, g), b, e, a') ]> regs /\
-    (p <> E /\ p <> URWLX /\ p <> URWX /\ p <> URWL /\ p <> URW).
+    (p <> E).
 Proof.
   unfold incrementPC.
   destruct (regs !! PC) as [ [| [ [ [ [? ?] ?] ?] u] ] |];
@@ -774,7 +771,7 @@ Qed.
 Lemma incrementPC_None_inv regs p g b e a :
   incrementPC regs = None ->
   regs !! PC = Some (inr (p, g, b, e, a)) ->
-  (a + 1)%a = None \/ (p = E \/ p = URW \/ p = URWX \/ p = URWLX \/ p = URWL).
+  (a + 1)%a = None \/ (p = E).
 Proof.
   unfold incrementPC.
   destruct (regs !! PC) as [ [| [ [ [ [? ?] ?] ?] u] ] |];
@@ -814,7 +811,7 @@ Lemma incrementPC_success_updatePC regs m regs' :
     (a + 1)%a = Some a' ∧
     updatePC (regs, m) = (NextI, (<[ PC := inr ((p, g), b, e, a') ]> regs, m)) ∧
     regs' = <[ PC := inr ((p, g), b, e, a') ]> regs /\
-    (p <> E /\ p <> URWLX /\ p <> URWX /\ p <> URWL /\ p <> URW).
+    (p <> E).
 Proof.
   rewrite /incrementPC /updatePC /update_reg /RegLocate /=.
   destruct (regs !! PC) as [X|] eqn:?; auto; try congruence; [].

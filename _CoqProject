@@ -22,7 +22,7 @@ theories/multiple_updates.v
 theories/region_invariants.v
 theories/region_invariants_transitions.v
 theories/region_invariants_revocation.v
-theories/region_invariants_batch_uninitialized.v
+# theories/region_invariants_batch_uninitialized.v
 theories/region_invariants_static.v
 theories/region_invariants_allocation.v
 theories/rules/rules_base.v
@@ -37,12 +37,6 @@ theories/rules/rules_IsPtr.v
 theories/rules/rules_Jmp.v
 theories/rules/rules_Jnz.v
 theories/rules/rules_Subseg.v
-theories/rules/rules_LoadU.v
-theories/rules/rules_StoreU.v
-theories/rules/rules_PromoteU.v
-theories/rules/rules_LoadU_derived.v
-theories/rules/rules_StoreU_derived.v
-theories/rules/rules_PromoteU_derived.v
 theories/rules/rules.v
 theories/logrel.v
 theories/monotone.v
@@ -50,7 +44,6 @@ theories/ftlr/ftlr_base.v
 theories/ftlr/interp_weakening.v
 theories/ftlr/Jmp.v
 theories/ftlr/Store.v
-# theories/ftlr/StoreU.v
 theories/ftlr/Load.v
 theories/ftlr/Jnz.v
 theories/ftlr/Get.v
@@ -60,8 +53,6 @@ theories/ftlr/Mov.v
 theories/ftlr/Restrict.v
 theories/ftlr/IsPtr.v
 theories/ftlr/Subseg.v
-# theories/ftlr/LoadU.v
-# theories/ftlr/PromoteU.v
 theories/fundamental.v
 theories/examples/addr_reg_sample.v
 theories/examples/disjoint_regions_tactics.v

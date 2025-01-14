@@ -25,7 +25,7 @@ Section fundamental.
         (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
     ftlr_instr W r p g b e a w (Mov dst src) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hnotuninitialized Hi.
+    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
     iIntros "#IH #Hinv #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     rewrite delete_insert_delete.
@@ -49,7 +49,7 @@ Section fundamental.
         repeat rewrite insert_insert.
         destruct src; simpl in *; try discriminate.
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|specialize (Hnotmonostatic g0)|specialize (Hnotuninitialized w0)];contradiction. }
+        { destruct ρ;auto;[|specialize (Hnotmonostatic g0)];contradiction. }
         destruct (reg_eq_dec PC r0).
         { subst r0. simplify_map_eq.
           iApply ("IH" $! _ r with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); try iClear "IH"; eauto. }
@@ -66,6 +66,7 @@ Section fundamental.
               intros. iIntros "H". iDestruct "H" as (P') "(?&?&?)".
               iApply bi.and_exist_r. iExists _. iFrame.
               destruct g''; auto.
+              admit. (* TODO cf Hr0*)
           - iApply (wp_bind (fill [SeqCtx])).
             iDestruct ((big_sepM_delete _ _ PC) with "Hmap") as "[HPC Hmap]"; [apply lookup_insert|].
             iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; destruct p''; simpl in Hpft; try discriminate; eauto|].
@@ -76,7 +77,7 @@ Section fundamental.
       { rewrite lookup_insert_ne in HPC; auto.
         rewrite lookup_insert in HPC. inv HPC.
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|specialize (Hnotmonostatic g)|specialize (Hnotuninitialized w1)];contradiction. }
+        { destruct ρ;auto;[|specialize (Hnotmonostatic g)];contradiction. }
         iApply ("IH" $! _ (<[dst:=w0]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
         - intros; simpl.
           rewrite lookup_insert_is_Some.
@@ -98,6 +99,8 @@ Section fundamental.
                 intros. iIntros "(H & ?)".
                 simpl. iDestruct "H" as (P') "(?&?&?)".
                 iExists _. iFrame.
+                rewrite /region_conditions //=.
+                admit. (* TODO exists RWLX *)
               }
               simplify_map_eq.
               iDestruct ("Hreg" $! r0 ltac:(auto)) as "Hr0". rewrite H0. auto.
@@ -106,6 +109,6 @@ Section fundamental.
       }
     }
     Unshelve. all: auto.
-  Qed.
+  Admitted.
 
 End fundamental.

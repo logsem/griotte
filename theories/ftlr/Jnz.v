@@ -25,7 +25,7 @@ Section fundamental.
         (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (r1 r2 : RegName) (P:D):
     ftlr_instr W r p g b e a w (Jnz r1 r2) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hnotuninitialized Hi.
+    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
     iIntros "#IH #Hinv #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     rewrite delete_insert_delete.
@@ -45,7 +45,7 @@ Section fundamental.
       end. simplify_map_eq. rewrite insert_insert.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha Hw $Hmono]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotmonostatic g)|specialize (Hnotuninitialized w1)];try contradiction. }
+      { destruct ρ;auto;[|specialize (Hnotmonostatic g)];try contradiction. }
       iApply ("IH" $! _ r with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); try iClear "IH"; eauto. }
     { simplify_map_eq. iApply wp_pure_step_later; auto.
       rewrite !insert_insert.
@@ -63,7 +63,7 @@ Section fundamental.
           destruct_cap c. assert (Heq: (if perm_eq_dec p0 p1 then True else p0 = RX /\ p1 = E) /\ g0 = g1 /\ b0 = b1 /\ e0 = e1 /\ a0 = a1) by (destruct (perm_eq_dec p0 p1); destruct p1; inv Hw; simpl in Hpft; try congruence; auto; repeat split; auto).
           clear Hw. destruct (perm_eq_dec p0 p1); [subst p1; destruct Heq as (_ & -> & -> & -> & ->)| destruct Heq as ((-> & ->) & -> & -> & -> & ->)].
           { iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-            { destruct ρ;auto;[|specialize (Hnotmonostatic g0)|specialize (Hnotuninitialized w1)];contradiction. }
+            { destruct ρ;auto;[|specialize (Hnotmonostatic g0)];contradiction. }
             rewrite /region_conditions.
             iNext; iIntros "_".
             iApply ("IH" $! _ r with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); try iClear "IH"; eauto.
@@ -87,15 +87,15 @@ Section fundamental.
             simplify_map_eq. iDestruct ("Hreg" $! r1 HPCnr1) as "Hr1".
             rewrite /RegLocate H1. rewrite (fixpoint_interp1_eq _ (inr _)) /=.
             iDestruct (region_close with "[Hw $Hstate $Hr $Ha $Hmono]") as "Hr"; eauto.
-            { destruct ρ;auto;[|specialize (Hnotmonostatic g0)|specialize (Hnotuninitialized w1)];contradiction. }
+            { destruct ρ;auto;[|specialize (Hnotmonostatic g0)];contradiction. }
             rewrite /enter_cond.
             rewrite /interp_expr /=.
             iDestruct "Hr1" as "#H".
-            iAssert (future_world g1 e1 W W) as "Hfuture".
+            iAssert (future_world g1 W W) as "Hfuture".
             { destruct g1; iPureIntro.
               - destruct W. apply related_sts_priv_refl_world.
               - destruct W. apply related_sts_priv_refl_world.
-              - destruct W. apply related_sts_a_refl_world. }
+            }
             iSpecialize ("H" $! _ _ with "Hfuture").
             iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "[_ HX]"; auto. } }
         iNext; iIntros "_".

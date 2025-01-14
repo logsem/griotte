@@ -135,40 +135,6 @@ Section cap_lang_rules.
     iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
   Qed.
 
-  (*
-  Lemma wp_restrict_success_reg_PC Ep pc_p pc_g pc_b pc_e pc_a pc_a' w rv z a'  :
-    decodeInstrW w = Restrict PC (inr rv) →
-    isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) →
-    (pc_a + 1)%a = Some pc_a' →
-    PermPairFlowsTo (decodePermPair z) (pc_p,pc_g) = true →
-
-     {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
-         ∗ ▷ pc_a ↦ₐ w
-         ∗ ▷ rv ↦ᵣ inl z }}}
-       Instr Executable @ Ep
-       {{{ RET NextIV;
-           PC ↦ᵣ inr (decodePermPair z,pc_b,pc_e,pc_a')
-           ∗ pc_a ↦ₐ w
-           ∗ rv ↦ᵣ inl z }}}.
-   Proof.
-     iIntros (Hinstr Hvpc Hpca' Hflows ϕ) "(>HPC & >Hpc_a & >Hrv) Hφ".
-     iDestruct (map_of_regs_2 with "HPC Hrv") as "[Hmap %]".
-     iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-     by unfold regs_of; rewrite !dom_insert; set_solver+.
-     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-     assert (pc_p ≠ E).
-     { intros ->. inversion Hvpc; subst. naive_solver. }
-
-     destruct Hspec as [| * Hfail].
-     { (* Success *)
-       iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-       destruct (decodePermPair n); simplify_eq. rewrite !insert_insert.
-       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-     { (* Failure (contradiction) *)
-       destruct Hfail; simplify_map_eq; eauto; try congruence.
-       incrementPC_inv; simplify_map_eq; eauto. destruct e3; try congruence. }
-   Qed.*)
-
    Lemma wp_restrict_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_a' w r1 rv p g b e a z  :
      decodeInstrW w = Restrict r1 (inr rv) →
      isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) →
@@ -205,38 +171,6 @@ Section cap_lang_rules.
       inv Hvpc. naive_solver. }
    Qed.
 
-   (*
-   Lemma wp_restrict_success_z_PC Ep pc_p pc_g pc_b pc_e pc_a pc_a' w z :
-     decodeInstrW w = Restrict PC (inl z) →
-     isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) →
-     (pc_a + 1)%a = Some pc_a' →
-     PermPairFlowsTo (decodePermPair z) (pc_p,pc_g) = true →
-
-     {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
-         ∗ ▷ pc_a ↦ₐ w }}}
-       Instr Executable @ Ep
-     {{{ RET NextIV;
-         PC ↦ᵣ inr (decodePermPair z,pc_b,pc_e,pc_a')
-         ∗ pc_a ↦ₐ w }}}.
-   Proof.
-     iIntros (Hinstr Hvpc Hpca' Hflows ϕ) "(>HPC & >Hpc_a) Hφ".
-     iDestruct (map_of_regs_1 with "HPC") as "Hmap".
-     iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-     by rewrite !dom_insert; set_solver+.
-     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)".
-     iDestruct "Hspec" as %Hspec.
-     assert (pc_p ≠ E).
-     { intros ->. inversion Hvpc; subst. naive_solver. }
-
-     destruct Hspec as [ | * Hfail ].
-     { (* Success *)
-       iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-       rewrite !insert_insert. destruct (decodePermPair n); simplify_eq.
-       iApply (regs_of_map_1 with "Hmap"). }
-     { (* Failure (contradiction) *)
-       destruct Hfail; simplify_map_eq; eauto. congruence.
-       incrementPC_inv; simplify_map_eq; eauto. congruence. }
-   Qed.*)
 
    Lemma wp_restrict_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_a' w r1 p g b e a z :
      decodeInstrW w = Restrict r1 (inl z) →
@@ -271,8 +205,8 @@ Section cap_lang_rules.
        iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       incrementPC_inv; simplify_map_eq; eauto. 
-       destruct e4; try congruence. inv Hvpc. naive_solver. }
+       incrementPC_inv; simplify_map_eq; eauto.
+       destruct e4; try congruence.  }
    Qed.
 
 End cap_lang_rules.
