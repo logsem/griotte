@@ -26,7 +26,7 @@ Section fundamental.
     is_Get ins dst r0 →
     ftlr_instr W r p g b e a w ins ρ P.
   Proof.
-    intros Hinstr Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hnotuninitialized Hi.
+    intros Hinstr Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
     iIntros "#IH #Hinv #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     rewrite delete_insert_delete.
@@ -48,7 +48,7 @@ Section fundamental.
       assert (dst <> PC) as HdstPC by (intros ->; simplify_map_eq).
       simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotmonostatic g)|specialize (Hnotuninitialized w0)];contradiction. }
+      { destruct ρ;auto;[|specialize (Hnotmonostatic g)];contradiction. }
       iApply ("IH" $! _ (<[dst := _]> (<[PC := _]> r)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]");
         try iClear "IH"; eauto.
       { intro. cbn. by repeat (rewrite lookup_insert_is_Some'; right). }

@@ -12,16 +12,11 @@ Inductive Perm: Type :=
 | RX
 | E
 | RWX
-| RWLX
-| URW
-| URWL
-| URWX
-| URWLX.
+| RWLX.
 
 Inductive Locality: Type :=
 | Global
-| Local
-| Directed.
+| Local.
 
 Definition Cap: Type :=
   (Perm * Locality) * Addr * Addr * Addr.
@@ -55,13 +50,7 @@ Inductive instr: Type :=
 | GetE (dst r: RegName)
 | GetA (dst r: RegName)
 | Fail
-| Halt
-(* Load value at src + offs into dst *)
-| LoadU (dst src: RegName) (offs: Z + RegName)
-(* Load value in src to dst + offs *)
-| StoreU (dst: RegName) (offs src: Z + RegName)
-(* Promote the uninitialized capability in dst *)
-| PromoteU (dst: RegName).
+| Halt.
 
 (* Registers and memory: maps from register names/addresses to String.words *)
 
@@ -72,7 +61,7 @@ Notation Mem := (gmap Addr Word).
 
 Definition isLocal (l: Locality): bool :=
   match l with
-  | Local | Directed => true
+  | Local  => true
   | _ => false
   end.
 
@@ -88,7 +77,6 @@ Lemma isLocalWord_cap_isLocal (c0:Cap):
 Proof.
   intros. destruct c0, p, p, p.
   cbv in H. destruct l; try congruence.
-  eexists _, _, _, _, _. split; eauto.
   eexists _, _, _, _, _. split; eauto.
 Qed.
 
@@ -129,21 +117,9 @@ Proof. solve_decision. Defined.
 
 (* Auxiliary definitions to work on permissions *)
 
-Definition isU (p: Perm) :=
-  match p with
-  | URW | URWL | URWX | URWLX => true
-  | _ => false
-  end.
-
 Definition pwl p : bool :=
   match p with
   | RWLX | RWL => true
-  | _ => false
-  end.
-
-Definition pwlU p : bool :=
-  match p with
-  | RWLX | RWL | URWLX | URWL => true
   | _ => false
   end.
 
@@ -166,15 +142,6 @@ Definition writeAllowed (p: Perm): bool :=
   | _ => false
   end.
 
-Definition promote_perm (p: Perm): Perm :=
-  match p with
-  | URW => RW
-  | URWL => RWL
-  | URWX => RWX
-  | URWLX => RWLX
-  | _ => p
-  end.
-
 Lemma writeA_implies_readA p :
   writeAllowed p = true → readAllowed p = true.
 Proof. destruct p; auto. Qed.
@@ -186,33 +153,12 @@ Proof.
   by left. by right.
 Qed.
 
-Definition canReadUpTo (w: Word): Addr :=
-  match w with
-  | inl _ => za
-  | inr ((p, g), b, e, a) => match p with
-                            | O => za
-                            | RO | RW | RWL | RX | RWX | RWLX | E => e
-                            | URW | URWL | URWX | URWLX => a
-                            end
-  end.
-
 Definition canStore (p: Perm) (a: Addr) (w: Word): bool :=
   match w with
   | inl _ => true
   | inr ((_, g), _, _, _) => match g with
                             | Global => true
                             | Local => pwl p
-                            | Directed => pwl p && leb_addr (canReadUpTo w) a
-                            end
-  end.
-
-Definition canStoreU (p: Perm) (a: Addr) (w: Word): bool :=
-  match w with
-  | inl _ => true
-  | inr ((_, g), _, _, _) => match g with
-                            | Global => true
-                            | Local => pwlU p
-                            | Directed => pwlU p && leb_addr (canReadUpTo w) a
                             end
   end.
 
@@ -245,11 +191,7 @@ Qed.
 
 Definition LocalityFlowsTo (l1 l2: Locality): bool :=
   match l1 with
-  | Directed => true
-  | Local => match l2 with
-            | Directed => false
-            | _ => true
-            end
+  | Local => true
   | Global => match l2 with
              | Global => true
              | _ => false
@@ -290,7 +232,7 @@ Definition PermFlowsTo (p1 p2: Perm): bool :=
            | _ => false
            end
   | RO => match p2 with
-         | E | O | URW | URWL | URWX | URWLX => false
+         | E | O => false
          | _ => true
          end
   | RW => match p2 with
@@ -301,22 +243,6 @@ Definition PermFlowsTo (p1 p2: Perm): bool :=
           | RWL | RWLX => true
           | _ => false
           end
-  | URW => match p2 with
-          | URW | URWL | URWX | URWLX | RW | RWX | RWL | RWLX => true
-          | _ => false
-          end
-  | URWL => match p2 with
-           | URWL | RWL | RWLX | URWLX => true
-           | _ => false
-           end
-  | URWX => match p2 with
-           | URWX | RWX | RWLX | URWLX => true
-           | _ => false
-           end
-  | URWLX => match p2 with
-            | URWLX | RWLX => true
-            | _ => false
-            end
   end.
 
 (* Sanity check *)
@@ -606,10 +532,6 @@ Proof.
     | E => 6
     | RWX => 7
     | RWLX => 8
-    | URW => 9
-    | URWL => 10
-    | URWX => 11
-    | URWLX => 12
     end%positive.
   set decode := fun n => match n with
     | 1 => Some O
@@ -620,10 +542,6 @@ Proof.
     | 6 => Some E
     | 7 => Some RWX
     | 8 => Some RWLX
-    | 9 => Some URW
-    | 10 => Some URWL
-    | 11 => Some URWX
-    | 12 => Some URWLX
     | _ => None
     end%positive.
   eapply (Build_Countable _ _ encode decode).
@@ -635,12 +553,10 @@ Proof.
   set encode := fun l => match l with
     | Local => 1
     | Global => 2
-    | Directed => 3
     end%positive.
   set decode := fun n => match n with
     | 1 => Some Local
     | 2 => Some Global
-    | 3 => Some Directed
     | _ => None
     end%positive.
   eapply (Build_Countable _ _ encode decode).
@@ -681,9 +597,6 @@ Proof.
       | GetA dst r => GenNode 16 [GenLeaf (inl dst); GenLeaf (inl r)]
       | Fail => GenNode 17 []
       | Halt => GenNode 18 []
-      | LoadU dst src offs => GenNode 19 [GenLeaf (inl dst); GenLeaf (inl src); GenLeaf (inr offs)]
-      | StoreU dst offs src => GenNode 20 [GenLeaf (inl dst); GenLeaf (inr offs); GenLeaf (inr src)]
-      | PromoteU dst => GenNode 21 [GenLeaf (inl dst)]
       end).
   set (dec := fun e =>
       match e with
@@ -706,9 +619,6 @@ Proof.
       | GenNode 16 [GenLeaf (inl dst); GenLeaf (inl r)] => GetA dst r
       | GenNode 17 [] => Fail
       | GenNode 18 [] => Halt
-      | GenNode 19 [GenLeaf (inl dst); GenLeaf (inl src); GenLeaf (inr offs)] => LoadU dst src offs
-      | GenNode 20 [GenLeaf (inl dst); GenLeaf (inr offs); GenLeaf (inr src)] => StoreU dst offs src
-      | GenNode 21 [GenLeaf (inl dst)] => PromoteU dst
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).

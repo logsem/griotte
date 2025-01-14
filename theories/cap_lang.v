@@ -75,8 +75,8 @@ Definition updatePC (φ: ExecConf): Conf :=
   | inr ((p, g), b, e, a) =>
     match (a + 1)%a with
     | Some a' =>
-      match p with 
-      | E | URWLX | URWX | URWL | URW => (Failed, φ)
+      match p with
+      | E => (Failed, φ)
       | _ => let φ' := (update_reg φ PC (inr ((p, g), b, e, a'))) in
              (NextI, φ')
       end
@@ -87,51 +87,6 @@ Definition updatePC (φ: ExecConf): Conf :=
 
 Definition isWithin (n1 n2 b e: Addr) : bool :=
   ((b <=? n1) && (n2 <=? e))%a.
-
-Inductive access_kind: Type :=
-| LoadU_access (b e a: Addr) (offs: Z): access_kind
-| StoreU_access (b e a: Addr) (offs: Z): access_kind.
-
-Definition verify_access (a: access_kind): option Addr :=
-  match a with
-  | LoadU_access b e a offs =>
-    match (a + offs)%a with
-    | None => None
-    | Some a' => if Addr_le_dec b a' then
-                  if Addr_lt_dec a' a then
-                    if Addr_le_dec a e then
-                      Some a' else None else None else None
-    end
-  | StoreU_access b e a offs =>
-    match (a + offs)%a with
-    | None => None
-    | Some a' => if Addr_le_dec b a' then
-                  if Addr_le_dec a' a then
-                    if Addr_lt_dec a e then
-                      Some a' else None else None else None
-    end
-  end.
-
-Lemma verify_access_spec:
-  forall a a',
-    (verify_access a = Some a') <->
-    (match a with
-     | LoadU_access b e a offs =>
-       (a + offs)%a = Some a' /\ (b <= a')%a /\ (a' < a)%a /\ (a <= e)%a
-     | StoreU_access b e a offs =>
-       (a + offs)%a = Some a' /\ (b <= a')%a /\ (a' <= a)%a /\ (a < e)%a
-     end).
-Proof.
-  intros; split; intros.
-  - destruct a; simpl in H; destruct (a + offs)%a as [a1|] eqn:Ha; intros; try congruence;
-    repeat match goal with
-           | H: context [if ?t then _ else _] |- _ => destruct t
-           end; inv H; auto.
-  - destruct a; destruct H as [Ha [A [B C]]]; simpl; rewrite Ha;
-    repeat match goal with
-           | |- context [if ?t then _ else _] => destruct t
-           end; tauto.
-Qed.
 
 (*--- z_of_argument ---*)
 
@@ -206,13 +161,6 @@ Section opsem.
         match p with
         | E => (Failed, φ)
         (* Make sure that we can only decrease pointer for uninitialized capabilities *)
-        | URW | URWL | URWX | URWLX => match (a + n)%a with
-                                      | Some a' => if Addr_le_dec a' a then
-                                                    let c := ((p, g), b, e, a') in
-                                                    updatePC (update_reg φ dst (inr c))
-                                                  else (Failed, φ)
-                                      | None => (Failed, φ)
-                                      end
         | _ => match (a + n)%a with
                | Some a' => let c := ((p, g), b, e, a') in
                             updatePC (update_reg φ dst (inr c))
@@ -227,17 +175,6 @@ Section opsem.
         match p with
         | E => (Failed, φ)
         (* Make sure that we can only decrease pointer for uninitialized capabilities *)
-        | URW | URWL | URWX | URWLX => match RegLocate (reg φ) r with
-                                      | inr _ => (Failed, φ)
-                                      | inl n => match (a + n)%a with
-                                                | Some a' =>
-                                                  if Addr_le_dec a' a then
-                                                    let c := ((p, g), b, e, a') in
-                                                    updatePC (update_reg φ dst (inr c))
-                                                  else (Failed, φ)
-                                                | None => (Failed, φ)
-                                                end
-                   end
         | _ => match RegLocate (reg φ) r with
               | inr _ => (Failed, φ)
               | inl n => match (a + n)%a with
@@ -453,50 +390,6 @@ Section opsem.
       match RegLocate (reg φ) r with
       | inl _ => updatePC (update_reg φ dst (inl 0%Z))
       | inr _ => updatePC (update_reg φ dst (inl 1%Z))
-      end
-    | LoadU rdst rsrc offs =>
-      match RegLocate (reg φ) rsrc with
-      | inl _ => (Failed, φ)
-      | inr ((p, g), b, e, a) =>
-        if isU p then
-          match z_of_argument (reg φ) offs with
-          | None => (Failed, φ)
-          | Some noffs => match verify_access (LoadU_access b e a noffs) with
-                         | None => (Failed, φ)
-                         | Some a' => updatePC (update_reg φ rdst (MemLocate (mem φ) a'))
-                         end
-          end
-        else (Failed, φ)
-      end
-    | StoreU dst offs src =>
-      let w := match src with
-               | inl n => inl n
-               | inr rsrc => (RegLocate (reg φ) rsrc)
-               end in
-      match RegLocate (reg φ) dst with
-      | inl _ => (Failed, φ)
-      | inr ((p, g), b, e, a) =>
-        match z_of_argument (reg φ) offs with
-        | None => (Failed, φ)
-        | Some noffs => match verify_access (StoreU_access b e a noffs) with
-                       | None => (Failed, φ)
-                       | Some a' => if isU p && canStoreU p a' w then
-                                     if addr_eq_dec a a' then
-                                       match (a + 1)%a with
-                                       | Some a => updatePC (update_reg (update_mem φ a' w) dst (inr ((p, g), b, e, a)))
-                                       | None => (Failed, φ)
-                                       end
-                                     else updatePC (update_mem φ a' w)
-                                   else (Failed, φ)
-                       end
-        end
-      end
-    | PromoteU dst =>
-      match RegLocate (reg φ) dst with
-      | inr ((p, g), b, e, a) =>
-        if perm_eq_dec p E then (Failed, φ)
-        else updatePC (update_reg φ dst (inr ((promote_perm p, g), b, min a e, a)))
-      | inl _ => (Failed, φ)
       end
     end.
 
@@ -715,9 +608,9 @@ Canonical Structure cap_lang `{MachineParameters} := LanguageOfEctx cap_ectx_lan
 #[export] Hint Extern 10 (AsVal _) =>
 eexists; rewrite /IntoVal; eapply of_to_val; rewrite /= !to_of_val /=; solve [ eauto ] : typeclass_instances.
 
-Local Hint Resolve language.val_irreducible.
-Local Hint Resolve to_of_val.
-Local Hint Unfold language.irreducible.
+Local Hint Resolve language.val_irreducible : core.
+Local Hint Resolve to_of_val : core.
+Local Hint Unfold language.irreducible : core.
 
 Global Instance dec_pc c : Decision (isCorrectPC c).
 Proof. apply isCorrectPC_dec. Qed.
@@ -749,7 +642,7 @@ Ltac solve_atomic :=
   apply is_atomic_correct; simpl; repeat split;
     rewrite ?to_of_val; eapply mk_is_Some; fast_done.
 
-#[export] Hint Extern 0 (Atomic _ _) => solve_atomic.
+#[export] Hint Extern 0 (Atomic _ _) => solve_atomic : core.
 #[export] Hint Extern 0 (Atomic _ _) => solve_atomic : typeclass_instances.
 
 Lemma base_reducible_from_step `{MachineParameters} σ1 e2 σ2 :
@@ -773,11 +666,11 @@ Definition can_address_only (w: Word) (addrs: gset Addr): Prop :=
     forall a, (b <= a < e)%a -> a ∈ addrs
   end.
 
-Definition pwlW (w: Word): bool :=
-  match w with
-  | inl _ => false
-  | inr (p, _, _, _, _) => pwlU p
-  end.
+(* Definition pwlW (w: Word): bool := *)
+(*   match w with *)
+(*   | inl _ => false *)
+(*   | inr (p, _, _, _, _) => pwlU p *)
+(*   end. *)
 
 Definition is_global (w: Word): bool :=
   match w with

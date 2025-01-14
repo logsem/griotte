@@ -58,7 +58,6 @@ Section fundamental.
   Proof.
     intros Hne Hb He. iIntros "#IH Hinterp".
     iApply (interp_weakening with "IH Hinterp"); eauto.
-    - destruct (isU p); solve_addr.
     - destruct p; reflexivity.
     - destruct l; reflexivity.
   Qed.
@@ -67,7 +66,7 @@ Section fundamental.
         (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName) (r1 r2 : Z + RegName) (P:D):
     ftlr_instr W r p g b e a w (Subseg dst r1 r2) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hnotuninitialized Hi.
+    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
     iIntros "#IH #Hinv #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     rewrite delete_insert_delete.
@@ -90,7 +89,7 @@ Section fundamental.
       destruct (reg_eq_dec PC dst).
       { subst dst. repeat rewrite insert_insert in HPC |- *. simplify_map_eq.
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|specialize (Hnotmonostatic g)|specialize (Hnotuninitialized w0)];contradiction. }
+        { destruct ρ;auto;[|specialize (Hnotmonostatic g)];contradiction. }
         iApply ("IH" $! _ r with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); try iClear "IH"; eauto.
         iModIntro.
         generalize (isWithin_implies _ _ _ _ H4). intros [A B].
@@ -105,7 +104,7 @@ Section fundamental.
           unfold region_addrs, region_size. rewrite Z2Nat.nonpos //; lia. }
       { simplify_map_eq.
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|specialize (Hnotmonostatic g)|specialize (Hnotuninitialized w0)];contradiction. }
+        { destruct ρ;auto;[|specialize (Hnotmonostatic g)];contradiction. }
         iApply ("IH" $! _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
         - intros; simpl.
           rewrite lookup_insert_is_Some.

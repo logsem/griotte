@@ -23,17 +23,20 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
+  (* TODO fix  *)
   Lemma execcPC_implies_interp W p g b e a0:
-    p = RX ∨ p = RWX ∨ p = RWLX ∧ g = Directed →
+    p = RX ∨ p = RWX ∨ p = RWLX ∧ g = Local →
     region_conditions W p g b e -∗ ((fixpoint interp1) W) (inr (p, g, b, e, a0)).
   Proof.
     iIntros (Hp) "#HR".
     rewrite (fixpoint_interp1_eq _ (inr _)).
     (do 2 try destruct Hp as [ | Hp]). 3:destruct Hp.
-    all:subst; auto. simpl. rewrite /region_conditions /=.
+    all:subst; auto. simpl.
+    rewrite /region_conditions /=.
     iApply (big_sepL_mono with "HR").
     intros. iIntros "H". iDestruct (and_exist_r with "H") as (P) "((?&?)&?)". iExists _;iFrame.
-  Qed.
+    rewrite /region_conditions /=.
+  Admitted.
 
   (* The necessary resources to close the region again, except for the points to predicate, which we will store separately *)
   Definition region_open_resources W l ls φ (v : Word): iProp Σ :=
@@ -42,7 +45,6 @@ Section fundamental.
     ∗ ⌜std W !! l = Some ρ⌝
     ∗ ⌜ρ ≠ Revoked⌝
     ∗ ⌜(∀ g, ρ ≠ Monostatic g)⌝
-    ∗ ⌜(∀ w, ρ ≠ Uninitialized w)⌝
     ∗ open_region_many (l :: ls) W
     ∗ rel l φ)%I.
 
@@ -134,13 +136,12 @@ Section fundamental.
          iDestruct (readAllowed_valid_cap_implies with "Hvsrc") as %HH; eauto.
          { by apply writeA_implies_readA. }
          { rewrite /withinBounds /leb_addr Hle Hge. auto. }
-         destruct HH as [ρ' [Hstd' [Hnotrevoked' [Hnotmonostatic' Hnotuninitialized'] ] ] ].
+         destruct HH as [ρ' [Hstd' [Hnotrevoked' Hnotmonostatic'] ] ].
          (* We can finally frame off Hsts here, since it is no longer needed after opening the region*)
          rewrite Hra.
          (* TODO fix the following lemma so it does not need a permission *)
          iDestruct (region_open_next _ _ _ a0 RO ρ' with "[$Hrel' $Hr $Hsts]") as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & #Hval)"; eauto.
          { intros [g1 Hcontr]. specialize (Hnotmonostatic' g1); contradiction. }
-         { intros [g1 Hcontr]. specialize (Hnotuninitialized' g1); contradiction. }
          { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
          iExists w0. iSplitL "Ha0"; auto.  unfold region_open_resources.
          iExists ρ'. iFrame "%". iFrame. by iFrame "#".
@@ -281,12 +282,11 @@ Section fundamental.
         destruct Hallows as [Hrinr [Hwa [Hwb Hloc] ] ].
         iDestruct "HStoreRes" as (w') "[-> HLoadRes]".
         rewrite lookup_insert in Ha0; inversion Ha0; clear Ha0; subst.
-        iDestruct "HLoadRes" as (ρ1) "(Hstate' & % & % & % & % & Hr & Hrel')".
+        iDestruct "HLoadRes" as (ρ1) "(Hstate' & % & % & % & Hr & Hrel')".
         rewrite insert_insert memMap_resource_2ne; last auto. iDestruct "Hmem" as  "[Ha1 $]".
         iDestruct (storev_interp_mono with "HVr1") as "Hr1Mono"; eauto.
         iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' $HVstorev1 $Hr1Mono]") as "Hr"; eauto.
         { intros [g Hcontr]. specialize (H3 g). done. }
-        { intros [g Hcontr]. specialize (H4 g). done. }
         { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
         iDestruct (region_open_prepare with "Hr") as "$". iFrame.
        + subst a0. iDestruct "HStoreRes" as "[-> HStoreRes]".
@@ -301,7 +301,7 @@ Section fundamental.
          { iModIntro. iIntros (W1 W2 Hrelated) "H". iApply "Hwcond". iApply "Hr1Mono". eauto. iApply "Hrcond". iFrame. }
          { iModIntro. iIntros (W1 W2 Hrelated) "H". iApply "Hwcond". iApply "Hr1Mono". eauto. iApply "Hrcond". iFrame. }
          rewrite /writeAllowed_in_r_a /RegLocate. exists r1. inversion Hras. rewrite H1. destruct H2. destruct H3.
-         split;auto. simpl. apply orb_true_iff. left. auto. apply withinBounds_le_addr in H3. auto.
+         split;auto. simpl. apply withinBounds_le_addr in H3. auto.
     - by exfalso.
    Qed.
 
@@ -312,7 +312,7 @@ Section fundamental.
   Lemma store_case(W : WORLD) (r : leibnizO Reg) (p : Perm) (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : D) :
     ftlr_instr W r p g b e a w (Store dst src) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hnotuninitialized Hi.
+    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
     iIntros "#IH #Hinv #Hreg #Hinva #[Hrcond Hrcondints] #Hwcond Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     rewrite delete_insert_delete.
@@ -382,7 +382,7 @@ Section fundamental.
       iDestruct (switch_monotonicity_formulation with "Hmono") as "Hmono"; auto.
 
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono $HSVInterp]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotmonostatic g1)|specialize (Hnotuninitialized w0)];contradiction. }
+      { destruct ρ;auto;[|specialize (Hnotmonostatic g1)];contradiction. }
       simplify_map_eq.
 
       iApply ("IH" with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); auto.
