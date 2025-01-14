@@ -64,17 +64,17 @@ Section fundamental.
       [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
     iApply (wp_Restrict with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
-    { rewrite /subseteq /map_subseteq /set_subseteq. intros rr _.
-      apply elem_of_gmap_dom. apply lookup_insert_is_Some'; eauto. }
+    { rewrite /subseteq /map_subseteq. intros rr _.
+      apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
     destruct HSpec; cycle 1.
-    { iApply wp_pure_step_later; auto. iNext.
+    { iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto. iIntros; discriminate. }
     { match goal with
       | H: incrementPC _ = Some _ |- _ => apply incrementPC_Some_inv in H as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs' & XX)
       end. simplify_map_eq.
-      iApply wp_pure_step_later; auto. iNext.
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
       assert (HPCr0: match r0 with inl _ => True | inr r0 => PC <> r0 end).
       { destruct r0; auto.
@@ -120,9 +120,9 @@ Section fundamental.
          rewrite H5.
           iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; destruct p''; simpl in Hpft; eauto; discriminate|].
           iNext. iIntros "HPC /=".
-          iApply wp_pure_step_later; auto.
+          iApply wp_pure_step_later; auto; iNext ; iIntros "_".
           iApply wp_value.
-          iNext. iIntros. discriminate. } }
+          iIntros. discriminate. } }
 
       simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.

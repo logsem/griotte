@@ -72,7 +72,7 @@ Proof.
       { intros ? ? ? ?. eapply HInd. apply elem_of_list_further; eassumption.
         auto. }
       specialize (IHll _ _ HI).
-      rewrite elem_of_subseteq in IHll |- * => IHll.
+      rewrite elem_of_subseteq in IHll.
       by apply IHll.
 Qed.
 
@@ -88,8 +88,8 @@ Qed.
 Lemma addr_range_disj_union_empty (l: list Addr) :
   l ## ⋃ [].
 Proof.
-  cbn. unfold empty, Empty_list, disjoint_list, disjoint.
-  unfold set_disjoint. intros * ? ?%elem_of_nil. auto.
+  cbn. unfold empty, Empty_list, disjoint.
+  unfold set_disjoint_instance. intros * ? ?%elem_of_nil. auto.
 Qed.
 Hint Resolve 1 addr_range_disj_union_empty : disj_regions.
 
@@ -102,24 +102,25 @@ Proof.
   intros Hl Hll. unfold ByReflexivity.
   rewrite orb_true_iff /leb_addr !Z.leb_le.
   intros.
-  rewrite AddrRegionRange_iff_incl_region_addrs in Hl |- * => Hl.
+  rewrite AddrRegionRange_iff_incl_region_addrs in Hl |- *.
   eapply disjoint_mono_l; eauto.
   eapply disjoint_mono_r. eapply addr_range_union_incl_range; eauto.
-  unfold disjoint, disjoint_list, set_disjoint.
+  unfold disjoint, set_disjoint_instance.
   intro. rewrite !elem_of_region_addrs. solve_addr.
 Qed.
 Hint Resolve 10 addr_range_disj_range_union : disj_regions.
 
-Lemma addr_disjoint_list_empty : ## ([]: list (list Addr)).
-Proof. constructor. Qed.
-Hint Resolve addr_disjoint_list_empty : disj_regions.
+(* TODO ## (disjoint_list) does not exists anymore *)
+(* Lemma addr_disjoint_list_empty : ## ([]: list (list Addr)). *)
+(* Proof. constructor. Qed. *)
+(* Hint Resolve addr_disjoint_list_empty : disj_regions. *)
 
-Lemma addr_disjoint_list_cons (l: list Addr) ll :
-  l ## ⋃ ll →
-  ## ll →
-  ## (l :: ll).
-Proof. intros. rewrite disjoint_list_cons; auto. Qed.
-Hint Resolve addr_disjoint_list_cons : disj_regions.
+(* Lemma addr_disjoint_list_cons (l: list Addr) ll : *)
+(*   l ## ⋃ ll → *)
+(*   ## ll → *)
+(*   ## (l :: ll). *)
+(* Proof. intros. rewrite disjoint_list_cons; auto. Qed. *)
+(* Hint Resolve addr_disjoint_list_cons : disj_regions. *)
 
 Ltac disj_regions :=
   once (typeclasses eauto with disj_regions).

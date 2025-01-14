@@ -234,7 +234,7 @@ Section fundamental.
   Qed.
 
    Definition wcond' (P : D) p g b e a r : iProp Σ := (if decide (writeAllowed_in_r_a (<[PC:=inr (p, g, b, e, a)]> r) a) then □ (∀ W0 (w : Word), interp W0 w -∗ P W0 w) else emp)%I.
-  Instance wcond'_pers : Persistent (wcond' P p g b e a r).
+  Instance wcond'_pers P p g b e a r: Persistent (wcond' P p g b e a r).
   Proof. intros. rewrite /wcond'. case_decide;apply _. Qed.
   (* Note that we turn in all information that we might have on the monotonicity of the current PC value, so that in the proof of the ftlr case itself, we do not have to worry about whether the PC was written to or not when we close the last location pc_a in the region *)
    Lemma mem_map_recover_res:
@@ -357,8 +357,8 @@ Section fundamental.
 
     iApply (wp_store with "[Hmap HMemRes]"); eauto.
     { by rewrite lookup_insert. }
-    { rewrite /subseteq /map_subseteq /set_subseteq. intros rr _.
-      apply elem_of_gmap_dom. rewrite lookup_insert_is_Some'; eauto. }
+    { rewrite /subseteq /map_subseteq. intros rr _.
+      apply elem_of_dom. rewrite lookup_insert_is_Some'; eauto. }
     { iSplitR "Hmap"; auto. }
     rewrite /wcond.
     iDestruct (if_later with "Hwcond") as "Hwcond'";auto.
@@ -367,7 +367,7 @@ Section fundamental.
     destruct HSpec as [* ? ? ? -> Hincr|].
     { apply incrementPC_Some_inv in Hincr.
       destruct Hincr as (?&?&?&?&?&?&?&?&?&?).
-      iApply wp_pure_step_later; auto. iNext.
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
       (* From this, derive value relation for the current PC*)
       iDestruct (execcPC_implies_interp _ _ _ _ _ a  with "Hinv") as "HVPC"; eauto.
@@ -386,10 +386,9 @@ Section fundamental.
       simplify_map_eq.
 
       iApply ("IH" with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); auto.
-      { cbn. auto. }
       { rewrite insert_insert. iApply "Hmap". }
     }
-    { iApply wp_pure_step_later; auto. iNext. iApply wp_value; auto. iIntros; discriminate. }
+    { iApply wp_pure_step_later; auto. iNext; iIntros "_". iApply wp_value; auto. iIntros; discriminate. }
     Unshelve. all: auto.
   Qed.
 

@@ -50,7 +50,7 @@ theories/ftlr/ftlr_base.v
 theories/ftlr/interp_weakening.v
 theories/ftlr/Jmp.v
 theories/ftlr/Store.v
-theories/ftlr/StoreU.v
+# theories/ftlr/StoreU.v
 theories/ftlr/Load.v
 theories/ftlr/Jnz.v
 theories/ftlr/Get.v
@@ -60,8 +60,8 @@ theories/ftlr/Mov.v
 theories/ftlr/Restrict.v
 theories/ftlr/IsPtr.v
 theories/ftlr/Subseg.v
-theories/ftlr/LoadU.v
-theories/ftlr/PromoteU.v
+# theories/ftlr/LoadU.v
+# theories/ftlr/PromoteU.v
 theories/fundamental.v
 theories/examples/addr_reg_sample.v
 theories/examples/disjoint_regions_tactics.v

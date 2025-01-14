@@ -551,7 +551,7 @@ Section logrel.
   Definition interp_expression r : D := interp_expr interp r.
   Definition interp_registers : R := interp_reg interp.
 
-  Global Instance interp_persistent : Persistent (interp W w).
+  Global Instance interp_persistent W w: Persistent (interp W w).
   Proof. intros. destruct w; simpl; rewrite fixpoint_interp1_eq; simpl.
          apply _.
          destruct c,p,p,p,p; destruct l; repeat (apply exist_persistent; intros); try apply _.
@@ -708,13 +708,13 @@ Section logrel.
                                    (S (S RegNum))).
          - intros x. destruct x;auto.
            unfold n_to_regname.
-           destruct (nat_le_dec n RegNum).
+           destruct (Nat.le_dec n RegNum).
            + do 2 f_equal. apply eq_proofs_unicity. decide equality.
            + exfalso. by apply (Nat.leb_le n RegNum) in fin.
          - intros x.
-           + destruct x;[lia|]. apply leb_le in fin. lia.
+           + destruct x;[lia|]. apply Nat.leb_le in fin. lia.
          - intros i Hlt. unfold n_to_regname.
-           destruct (nat_le_dec i RegNum);auto.
+           destruct (Nat.le_dec i RegNum);auto.
            lia.
   Qed.
 
@@ -783,7 +783,7 @@ Section logrel.
       all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto).
   Qed.
 
-  Global Instance region_conditions_persistent : Persistent (region_conditions W p g b e).
+  Global Instance region_conditions_persistent W p g b e : Persistent (region_conditions W p g b e).
   Proof. intros. rewrite /region_conditions. apply big_sepL_persistent. intros.
          destruct (writeAllowed p),(pwl p);apply _. Qed.
 
