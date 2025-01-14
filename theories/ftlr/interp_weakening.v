@@ -32,41 +32,6 @@ Section fundamental.
                              -∗ ⌜a2 = RX ∨ a2 = RWX ∨ a2 = RWLX ∧ a3 = Directed⌝
                                 → □ region_conditions a0 a2 a3 a4 a5 -∗ interp_conf a0))%I.
 
-  (* TODO: Move in monotone ? *)
-  Lemma region_state_nwl_future W W' l l' p a a':
-    (a < a')%a →
-    LocalityFlowsTo l' l ->
-    (if pwlU p then l = Directed else True) ->
-    (@future_world Σ l' a' W W') -∗
-    ⌜if pwlU p then region_state_pwl_mono W a else region_state_nwl W a l⌝ -∗
-    ⌜region_state_nwl W' a l'⌝.
-  Proof.
-    intros Hlt Hlflows Hloc. iIntros "Hfuture %".
-    destruct l'; simpl; iDestruct "Hfuture" as %Hf; iPureIntro.
-    - assert (l = Global) as -> by (destruct l; simpl in Hlflows; tauto).
-      destruct (pwlU p) eqn:HpwlU; try congruence.
-      eapply region_state_nwl_monotone_nm_nl; eauto.
-    - destruct (pwlU p).
-      + subst l. inversion Hlflows.
-      + eapply region_state_nwl_monotone_nm_nl; eauto.
-        destruct l;inversion Hlflows;auto.
-    - destruct (pwlU p).
-      + subst l. simpl in *.
-        left. eapply region_state_pwl_monotone_a;eauto.
-      + destruct l.
-        * right. eapply region_state_nwl_monotone_nm_nl;eauto.
-          apply related_sts_pub_plus_priv_world.
-          eapply related_sts_a_pub_plus_world;eauto.
-        * right. eapply region_state_nwl_monotone_nm_nl;eauto.
-          apply related_sts_pub_plus_priv_world.
-          eapply related_sts_a_pub_plus_world;eauto.
-        * destruct H0 as [a0 | a0].
-          left. eapply region_state_pwl_monotone_a;eauto.
-          right. eapply region_state_nwl_monotone_nm_nl;eauto.
-          apply related_sts_pub_plus_priv_world.
-          eapply related_sts_a_pub_plus_world;eauto.
-  Qed.
-
   Lemma region_state_future W W' l l' p p' a a':
     (a < a')%a →
     PermFlowsTo p' p ->
@@ -85,14 +50,6 @@ Section fundamental.
       simpl; iDestruct "Hfuture" as "%"; iPureIntro.
       eapply region_state_pwl_monotone_a; eauto.
     - iApply (region_state_nwl_future with "Hfuture"); eauto.
-  Qed.
-
-  (* TODO: Move somewhere ?*)
-  Lemma PermFlowsToPermFlows p p':
-    PermFlowsTo p p' <-> PermFlows p p'.
-  Proof.
-    rewrite /PermFlows; split; intros; auto.
-    destruct (Is_true_reflect (PermFlowsTo p p')); auto.
   Qed.
 
   Lemma localityflowsto_futureworld l l' W W' a a':
@@ -592,6 +549,17 @@ Section fundamental.
       - rewrite /region_conditions (region_addrs_empty b' e'); auto. solve_addr.
     }
     iApply interp_weakeningEO;eauto.
+  Qed.
+
+  Lemma isU_weak_addrs W p g b e a a' :
+    isU p = true -> (a' <= a)%a →
+    interp W (inr (p,g,b,e,a)) -∗ interp W (inr (p,g,b,e,a')).
+  Proof.
+    iIntros (Hu Hle) "#Hv".
+    iApply interp_weakeningEO;eauto.
+    rewrite Hu;auto. 1,2,3,4: destruct p;auto;inversion Hu.
+    solve_addr. solve_addr. apply Is_true_eq_left. apply PermFlows_refl.
+    apply Is_true_eq_left. destruct g;auto.
   Qed.
 
 End fundamental.

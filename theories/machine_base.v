@@ -26,6 +26,14 @@ Inductive Locality: Type :=
 Definition Cap: Type :=
   (Perm * Locality) * Addr * Addr * Addr.
 
+Ltac destruct_cap c :=
+  let p := fresh "p" in
+  let g := fresh "g" in
+  let b := fresh "b" in
+  let e := fresh "e" in
+  let a := fresh "a" in
+  destruct c as ((((p & g) & b) & e) & a).
+
 Definition Word := (Z + Cap)%type.
 
 Inductive instr: Type :=
@@ -345,6 +353,14 @@ Proof.
   destruct P1,P3,P2; simpl; auto; contradiction.
 Qed.
 
+Lemma PermFlowsToPermFlows p p':
+  PermFlowsTo p p' <-> PermFlows p p'.
+Proof.
+  rewrite /PermFlows; split; intros; auto.
+  destruct (Is_true_reflect (PermFlowsTo p p')); auto.
+Qed.
+
+
 Lemma readAllowed_nonO p p' :
   PermFlows p p' → readAllowed p = true → p' ≠ O.
 Proof.
@@ -576,9 +592,6 @@ Ltac destruct_pair_l c n :=
   | _ => let sndn := fresh c in
         destruct c as (c,sndn); destruct_pair_l c (pred n)
   end.
-
-Ltac destruct_cap c :=
-  destruct_pair_l c 4.
 
 (* Useful instances *)
 

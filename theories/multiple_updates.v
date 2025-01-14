@@ -478,7 +478,7 @@ Section std_updates.
 
    (* Helper lemmas about permutation *)
 
-   (* TODO: never used ? *)
+   (* never used ? *)
    (* Lemma elements_permutation A C `{Empty C, Union C, Singleton A C, Elements A C,ElemOf A C, EqDecision A, FinSet A C} (l: list A) : *)
    (*   NoDup l -> *)
    (*   elements (list_to_set l) ≡ₚ l. *)
