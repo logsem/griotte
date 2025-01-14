@@ -109,7 +109,7 @@ Section cap_lang_rules.
        rewrite (insert_commute _ PC dst) // insert_insert insert_commute // insert_insert.
        iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
      { incrementPC_inv; simplify_map_eq; eauto. destruct H4; try congruence.
-       inv Hvpc. destruct H3 as [? | [? | [? | [? | ?]]]]; destruct H10 as [? | [? | ?]]; congruence. }
+       inv Hvpc. destruct H10 as [? | [? | ?]]; congruence. }
    Qed.
 
    Lemma wp_IsPtr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w dst r wr w' :
@@ -143,7 +143,7 @@ Section cap_lang_rules.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       incrementPC_inv; simplify_map_eq; eauto. destruct H6; try congruence.
-      inv Hvpc. destruct H5 as [? | [? | [? | [? | ?]]]]; destruct H12 as [? | [? | ?]]; congruence. }
+      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
    Qed.
 
    Lemma wp_IsPtr_success_dst E pc_p pc_g pc_b pc_e pc_a pc_a' w dst w' :
@@ -172,7 +172,7 @@ Section cap_lang_rules.
        rewrite (insert_commute _ PC dst) // insert_insert insert_commute // insert_insert.
        iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
      { incrementPC_inv; simplify_map_eq; eauto. destruct H4; try congruence.
-     inv Hvpc. destruct H3 as [? | [? | [? | [? | ?]]]]; destruct H10 as [? | [? | ?]]; congruence. }
+     inv Hvpc. destruct H10 as [? | [? | ?]]; congruence. }
    Qed.
 
 End cap_lang_rules.

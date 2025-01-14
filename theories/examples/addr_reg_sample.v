@@ -64,7 +64,6 @@ Section instr_encodings.
   Definition w_3 := encodeInstr (Load r_stk r_t1).
   Definition w_4a := encodeInstr (Sub r_t1 (inl 0%Z) (inl 1%Z)).
   Definition w_4b := encodeInstr (Lea r_stk (inr r_t1)).
-  Definition w_4b_U := encodeInstr (LoadU PC r_stk (inr r_t1)).
   Definition w_4c := encodeInstr (Load PC r_stk).
   (* Instruction encodings *)
   Definition is_ptr r1 r2 := encodeInstrW (IsPtr r1 r2).
@@ -95,18 +94,10 @@ Section instr_encodings.
   Definition halt := encodeInstrW Halt.
   Definition fail_end := encodeInstrW Fail.
 
-  (* instructions for U-rules *)
-  Definition storeU_z_r r1 z r2 := encodeInstrW (StoreU r1 (inl z) (inr r2)).
-  Definition storeU_z_z r z1 z2 := encodeInstrW (StoreU r (inl z1) (inl z2)).
-  Definition loadU_r_z r1 r2 z := encodeInstrW (LoadU r1 r2 (inl z)).
-  Definition promoteU r := encodeInstrW (PromoteU r).
-
   (* encodings of return pointer permission pair *)
   Definition local_e := encodePermPair (E, Local).
   (* encodings of enter capability permission pair *)
   Definition global_e := encodePermPair (E, Global).
-  (* encodings of enter capability permission pair *)
-  Definition monotone_e := encodePermPair (E, Directed).
 End instr_encodings.
 
 Lemma all_registers_NoDup :

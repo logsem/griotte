@@ -6,7 +6,7 @@ Import uPred.
 
 
 Section transitions.
-  Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ} 
+  Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
           {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
           `{MachineParameters}.
 
@@ -14,7 +14,7 @@ Section transitions.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation WORLD := (prodO STS_STD STS).
-  Implicit Types W : WORLD. 
+  Implicit Types W : WORLD.
 
   (* --------------------------------------------------------------------------------- *)
   (* --------------------- TRANSITIVITY LEMMA TO MOVE TO STS.V ----------------------- *)
@@ -388,22 +388,22 @@ Section transitions.
     inversion Hrel. 
   Qed.
 
-  Lemma std_rel_pub_Uninitialized x w :
-    std_rel_pub (Uninitialized w) x → x = Monotemporary.
-  Proof.
-    intros Hrel.
-    inversion Hrel. auto. 
-  Qed.
+  (* Lemma std_rel_pub_Uninitialized x w : *)
+  (*   std_rel_pub (Uninitialized w) x → x = Monotemporary. *)
+  (* Proof. *)
+  (*   intros Hrel. *)
+  (*   inversion Hrel. auto.  *)
+  (* Qed. *)
 
-  Lemma std_rel_pub_rtc_Uninitialized x y w :
-    x = (Uninitialized w) →
-    rtc std_rel_pub x y → y = Monotemporary ∨ y = (Uninitialized w).
-  Proof.
-    intros Hx Hrtc.
-    inversion Hrtc; subst; auto. left.
-    apply std_rel_pub_Uninitialized in H0. 
-    eapply std_rel_pub_rtc_Monotemporary;eauto.
-  Qed.
+  (* Lemma std_rel_pub_rtc_Uninitialized x y w : *)
+  (*   x = (Uninitialized w) → *)
+  (*   rtc std_rel_pub x y → y = Monotemporary ∨ y = (Uninitialized w). *)
+  (* Proof. *)
+  (*   intros Hx Hrtc. *)
+  (*   inversion Hrtc; subst; auto. left. *)
+  (*   apply std_rel_pub_Uninitialized in H0.  *)
+  (*   eapply std_rel_pub_rtc_Monotemporary;eauto. *)
+  (* Qed. *)
 
   Lemma std_rel_pub_rtc_Monostatic x y g :
     x = (Monostatic g) →
@@ -420,71 +420,50 @@ Section transitions.
   Proof.
     intros Hrel; inversion Hrel. auto. Qed.
 
-  Lemma std_rel_pub_plus_Uninitialized x w :
-    std_rel_pub_plus (Uninitialized w) x → x = (Uninitialized w).
-  Proof.
-    intros Hrel; inversion Hrel. Qed.
+  (* Lemma std_rel_pub_plus_Uninitialized x w : *)
+  (*   std_rel_pub_plus (Uninitialized w) x → x = (Uninitialized w). *)
+  (* Proof. *)
+  (*   intros Hrel; inversion Hrel. Qed. *)
 
-  Lemma std_rel_pub_plus_Monotemporary x :
-    std_rel_pub_plus Monotemporary x → ∃ w, x = Uninitialized w.
-  Proof.
-    intros Hrel. inversion Hrel. eauto. Qed. 
+  (* Lemma std_rel_pub_plus_Monotemporary x : *)
+  (*   std_rel_pub_plus Monotemporary x → ∃ w, x = Uninitialized w. *)
+  (* Proof. *)
+  (*   intros Hrel. inversion Hrel. eauto. Qed.  *)
 
-  Lemma std_rel_pub_plus_rtc_Monotemporary_or_Uninitialized x y :
-    x = Monotemporary ∨ (∃ w, x = Uninitialized w) →
-    rtc (λ x0 y0, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0) x y →
-    y = Monotemporary ∨ ∃ w, y = Uninitialized w.
-  Proof.
-    intros Hx Hrtc.
-    induction Hrtc ;[destruct Hx;eauto|].
-    destruct Hx as [-> | [g ->] ].
-    - destruct H0 as [Hpub | Hpubp]. 
-      + apply std_rel_pub_Monotemporary in Hpub. auto. 
-      + apply std_rel_pub_plus_Monotemporary in Hpubp as [g' ->].
-        apply IHHrtc. eauto. 
-    - destruct H0 as [Hpub | Hpubp]. 
-      + apply std_rel_pub_Uninitialized in Hpub. auto. 
-      + apply std_rel_pub_plus_Uninitialized in Hpubp as ->.
-        apply IHHrtc. eauto. 
-  Qed. 
-
-  Lemma std_rel_pub_plus_rtc_Uninitialized x y w :
-    x = Uninitialized w →
-    rtc (λ x0 y0, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0) x y →
-    y = Monotemporary ∨ (∃ w', y = Uninitialized w').
-  Proof.
-    intros Hx Hrtc.
-    eapply std_rel_pub_plus_rtc_Monotemporary_or_Uninitialized;eauto. 
-  Qed. 
-
-  Lemma std_rel_pub_plus_rtc_Monotemporary x y :
-    x = Monotemporary →
-    rtc (λ x0 y0, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0) x y →
-    y = Monotemporary ∨ ∃ w, y = Uninitialized w.
-  Proof.
-    intros Hx Hrtc. subst. 
-    apply (std_rel_pub_plus_rtc_Monotemporary_or_Uninitialized Monotemporary);eauto. 
-  Qed.
-
-  (*
-    this lemma does not how if there is only one revoked state, shared between
-    Temporary and Monotemporary
-   *)
-  (* Lemma std_rel_rtc_Temporary x y : *)
-  (*   x = Temporary → *)
-  (*   rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0 ∨ std_rel_priv x0 y0) x y → *)
-  (*   y = Temporary ∨ y = Revoked ∨ y = Permanent ∨ (∃ g, y = Static g). *)
+  (* Lemma std_rel_pub_plus_rtc_Monotemporary_or_Uninitialized x y : *)
+  (*   x = Monotemporary ∨ (∃ w, x = Uninitialized w) → *)
+  (*   rtc (λ x0 y0, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0) x y → *)
+  (*   y = Monotemporary ∨ ∃ w, y = Uninitialized w. *)
   (* Proof. *)
   (*   intros Hx Hrtc. *)
-  (*   induction Hrtc as [|x y z Hrel];auto. *)
-  (*   subst. destruct Hrel as [Hrel | [Hrel | Hrel] ]. *)
-  (*   - apply std_rel_pub_Temporary in Hrel. auto. *)
-  (*   - apply std_rel_pub_plus_Temporary in Hrel. auto. *)
-  (*   - apply std_rel_priv_Temporary in Hrel as [-> | [-> | [? ->] ] ];eauto. *)
-  (*     + apply std_rel_rtc_Permanent in Hrtc;auto. *)
-  (*     +  *)
+  (*   induction Hrtc ;[destruct Hx;eauto|]. *)
+  (*   destruct Hx as [-> | [g ->] ]. *)
+  (*   - destruct H0 as [Hpub | Hpubp].  *)
+  (*     + apply std_rel_pub_Monotemporary in Hpub. auto.  *)
+  (*     + apply std_rel_pub_plus_Monotemporary in Hpubp as [g' ->]. *)
+  (*       apply IHHrtc. eauto.  *)
+  (*   - destruct H0 as [Hpub | Hpubp].  *)
+  (*     + apply std_rel_pub_Uninitialized in Hpub. auto.  *)
+  (*     + apply std_rel_pub_plus_Uninitialized in Hpubp as ->. *)
+  (*       apply IHHrtc. eauto.  *)
+  (* Qed.  *)
+
+  (* Lemma std_rel_pub_plus_rtc_Uninitialized x y w : *)
+  (*   x = Uninitialized w → *)
+  (*   rtc (λ x0 y0, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0) x y → *)
+  (*   y = Monotemporary ∨ (∃ w', y = Uninitialized w'). *)
+  (* Proof. *)
+  (*   intros Hx Hrtc. *)
+  (*   eapply std_rel_pub_plus_rtc_Monotemporary_or_Uninitialized;eauto.  *)
+  (* Qed.  *)
+
+  (* Lemma std_rel_pub_plus_rtc_Monotemporary x y : *)
+  (*   x = Monotemporary → *)
+  (*   rtc (λ x0 y0, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0) x y → *)
+  (*   y = Monotemporary ∨ ∃ w, y = Uninitialized w. *)
+  (* Proof. *)
+  (*   intros Hx Hrtc. subst.  *)
+  (*   apply (std_rel_pub_plus_rtc_Monotemporary_or_Uninitialized Monotemporary);eauto.  *)
   (* Qed. *)
 
 End transitions.
-
-

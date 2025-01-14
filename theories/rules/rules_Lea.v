@@ -39,15 +39,6 @@ Section cap_lang_rules.
      (a + z)%a = Some a' ->
      incrementPC (<[ r1 := inr ((p, g), b, e, a') ]> regs) = None ->
      Lea_failure regs r1 rv
-  | Lea_fail_overflow_U : forall p g b e a z a',
-      regs !! r1 = Some (inr ((p, g), b, e, a)) ->
-      z_of_argument regs rv = Some z ->
-      (a + z)%a = Some a' ->
-      (match p with
-       | URW | URWL | URWX | URWLX => not (a' <= a)%a
-       | _ => False
-       end) ->
-      Lea_failure regs r1 rv
    .
 
   Inductive Lea_spec
@@ -59,10 +50,6 @@ Section cap_lang_rules.
     p ≠ E ->
     z_of_argument regs rv = Some z ->
     (a + z)%a = Some a' ->
-    (match p with
-     | URW | URWL | URWX | URWLX => (a' <= a)%a
-     | _ => True
-     end) ->
     incrementPC
       (<[ r1 := inr ((p, g), b, e, a') ]> regs) = Some regs' ->
     Lea_spec regs r1 rv regs' NextIV
@@ -143,21 +130,6 @@ Section cap_lang_rules.
            by (destruct p; inversion Hstep; auto).
          iFailWP "Hφ" Lea_fail_overflow. } }
 
-     assert (HU: match p with | URW | URWL | URWX | URWLX => not (a' <= a)%a | _ => False end \/ match p with | URW | URWL | URWX | URWLX => (a' <= a)%a | _ => True end) by (destruct (Addr_le_dec a' a); destruct p; auto).
-
-     destruct HU as [HU | HU].
-     { (* Failure: permission is uninitialized and try to increase reading bound *)
-       assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
-       { unfold z_of_argument in Harg. destruct arg as [ z | r0 ].
-         - inversion Harg; subst z. rewrite Hoffset in Hstep.
-           destruct (Addr_le_dec a' a); destruct p; auto; try tauto; try congruence; inv Hstep; auto.
-         - destruct (Hri r0) as [r0v [Hr'0 Hr0]].
-           by unfold regs_of_argument; set_solver+.
-           rewrite /RegLocate Hr'0 Hr0 in Harg Hstep.
-           destruct r0v; [| congruence]. inversion Harg; subst z.
-           rewrite Hoffset in Hstep.
-           destruct (Addr_le_dec a' a); destruct p; auto; try tauto; try congruence; inv Hstep; auto. }
-       iFailWP "Hφ" Lea_fail_overflow_U. }
 
      assert ((c, σ2) = updatePC (update_reg (r, m) r1 (inr (p, g, b, e, a')))) as HH.
      { unfold z_of_argument in Harg. destruct arg as [ z | r0 ].
@@ -229,9 +201,7 @@ Section cap_lang_rules.
        iApply (regs_of_map_2 with "Hmap"); eauto. }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. 
-       destruct e3; try congruence.
-       inv Hvpc. naive_solver.
-       inv Hvpc. naive_solver. }
+       destruct e3; try congruence. }
    Qed.
 
    Lemma wp_lea_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_a' w r1 rv p g b e a z a' :
@@ -240,11 +210,7 @@ Section cap_lang_rules.
      (pc_a + 1)%a = Some pc_a' →
      (a + z)%a = Some a' →
      p ≠ E →
-     (match p with
-      | URW | URWL | URWX | URWLX => (a' <= a)%a
-      | _ => True
-      end) ->
-     
+
      {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ r1 ↦ᵣ inr ((p,g),b,e,a)
@@ -256,7 +222,7 @@ Section cap_lang_rules.
               ∗ rv ↦ᵣ inl z
               ∗ r1 ↦ᵣ inr ((p,g),b,e,a') }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Ha' Hnep HU ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     iIntros (Hinstr Hvpc Hpca' Ha' Hnep ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
      iDestruct (map_of_regs_3 with "HPC Hrv Hr1") as "[Hmap (%&%&%)]".
      iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      by rewrite !dom_insert; set_solver+.
@@ -273,8 +239,8 @@ Section cap_lang_rules.
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
        destruct e4; try congruence.
-       inv Hvpc. destruct H3 as [? | [? | [? | [? | ?]]]]; destruct H10 as [? | [? | ?]]; congruence.
-       destruct p0; tauto. }
+       inv Hvpc. destruct H10 as [? | [? | ?]]; congruence.
+     }
    Qed.
 
    Lemma wp_lea_success_z_PC Ep pc_p pc_g pc_b pc_e pc_a pc_a' w z a' :
@@ -305,8 +271,7 @@ Section cap_lang_rules.
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
        destruct e3; try congruence.
-       inv Hvpc. naive_solver.
-       inv Hvpc. naive_solver. }
+     }
    Qed.
 
    Lemma wp_lea_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_a' w r1 p g b e a z a' :
@@ -315,10 +280,6 @@ Section cap_lang_rules.
      (pc_a + 1)%a = Some pc_a' →
      (a + z)%a = Some a' →
      p ≠ E →
-     (match p with
-      | URW | URWL | URWX | URWLX => (a' <= a)%a
-      | _ => True
-      end) ->
 
      {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
            ∗ ▷ pc_a ↦ₐ w
@@ -329,7 +290,7 @@ Section cap_lang_rules.
             ∗ pc_a ↦ₐ w
             ∗ r1 ↦ᵣ inr ((p,g),b,e,a') }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Ha' Hnep HU ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+     iIntros (Hinstr Hvpc Hpca' Ha' Hnep ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
      iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      by rewrite !dom_insert; set_solver+.
@@ -343,10 +304,10 @@ Section cap_lang_rules.
        rewrite insert_commute // insert_insert insert_commute // insert_insert.
        iDestruct (regs_of_map_2 with "Hmap") as "[? ?]"; eauto. iFrame. }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. 
+       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
        destruct e4; try congruence.
        inv Hvpc. naive_solver.
-       destruct p0; tauto. }
+       }
    Qed.
 
 End cap_lang_rules.

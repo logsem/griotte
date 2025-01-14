@@ -386,17 +386,17 @@ Section heap.
       eapply map_to_list_fst. eexists; by apply elem_of_map_to_list.
   Qed.
 
-  Lemma revoke_lookup_Uninitialized Wstd_sta i w :
-    (Wstd_sta !! i = Some (Uninitialized w)) →
-    (revoke_std_sta Wstd_sta) !! i = Some (Uninitialized w).
-  Proof.
-    rewrite revoke_list_dom_std_sta. intros Hsome.
-    rewrite revoke_list_std_sta_spec Hsome.
-    destruct (in_dec addr_eq_dec i (map_to_list Wstd_sta).*1) eqn:HH.
-    - rewrite /revoke_i HH. auto.
-    - elim n. eapply elem_of_list_In.
-      eapply map_to_list_fst. eexists; by apply elem_of_map_to_list.
-  Qed.
+  (* Lemma revoke_lookup_Uninitialized Wstd_sta i w : *)
+  (*   (Wstd_sta !! i = Some (Uninitialized w)) → *)
+  (*   (revoke_std_sta Wstd_sta) !! i = Some (Uninitialized w). *)
+  (* Proof. *)
+  (*   rewrite revoke_list_dom_std_sta. intros Hsome. *)
+  (*   rewrite revoke_list_std_sta_spec Hsome. *)
+  (*   destruct (in_dec addr_eq_dec i (map_to_list Wstd_sta).*1) eqn:HH. *)
+  (*   - rewrite /revoke_i HH. auto. *)
+  (*   - elim n. eapply elem_of_list_In. *)
+  (*     eapply map_to_list_fst. eexists; by apply elem_of_map_to_list. *)
+  (* Qed. *)
 
   Lemma revoke_list_lookup_non_temp (Wstd_sta : STS_STD) (l : list Addr) (i : Addr) (ρ : region_type) :
     i ∈ l →
@@ -591,11 +591,11 @@ Section heap.
         apply revoke_lookup_Revoked in Hx as Hxtemp.
         apply revoke_lookup_Perm in Hy as Hyperm.
         simplify_eq. eright;[|left]. left. constructor.
-      + subst. apply std_rel_pub_rtc_Monotemporary in Hrtc; auto. subst.
-        apply revoke_lookup_Uninitialized in Hx as Hxtemp.
-        apply revoke_lookup_Monotemp in Hy as Hyperm.
-        simplify_eq. right with Monotemporary. left;constructor.
-        eright;[|left]. right. right. constructor.
+      (* + subst. apply std_rel_pub_rtc_Monotemporary in Hrtc; auto. subst. *)
+      (*   apply revoke_lookup_Uninitialized in Hx as Hxtemp. *)
+      (*   apply revoke_lookup_Monotemp in Hy as Hyperm. *)
+      (*   simplify_eq. right with Monotemporary. left;constructor. *)
+      (*   eright;[|left]. right. right. constructor. *)
   Qed.
 
   Ltac revoke_i W1 W2 i :=
@@ -607,76 +607,78 @@ Section heap.
        try (apply revoke_lookup_Monotemp in H as Hxtemp);
        try (apply revoke_lookup_Perm in H as Hxtemp);
        try (apply revoke_lookup_Revoked in H as Hxtemp);
-       try (eapply revoke_lookup_Uninitialized in H as Hxtemp);
+       (* try (eapply revoke_lookup_Uninitialized in H as Hxtemp); *)
        try (eapply revoke_lookup_Monostatic in H as Hxtemp);
        try (apply revoke_lookup_Monotemp in H' as Hytemp);
        try (apply revoke_lookup_Perm in H' as Hytemp);
-       try (eapply revoke_lookup_Uninitialized in H' as Hytemp);
+       (* try (eapply revoke_lookup_Uninitialized in H' as Hytemp); *)
        try (eapply revoke_lookup_Monostatic in H' as Hytemp);
        try (apply revoke_lookup_Revoked in H' as Hytemp);simplify_eq
      end).
 
-  Lemma std_rel_monotone x y x' y' Wstd_sta Wstd_sta' i :
-    Wstd_sta !! i = Some x -> Wstd_sta' !! i = Some y ->
-    (revoke_std_sta Wstd_sta) !! i = Some x' → (revoke_std_sta Wstd_sta') !! i = Some y' →
-    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0 ∨ std_rel_priv x0 y0) x y →
-    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0 ∨ std_rel_priv x0 y0) x' y'.
-  Proof.
-    intros Hx Hy Hx' Hy' Hrtc.
-    induction Hrtc as [Hrefl | j k h Hjk].
-    - simplify_eq. rewrite -Hx in Hy.
-      apply revoke_monotone_lookup in Hy.
-      rewrite Hx' Hy' in Hy. inversion Hy. left.
-    - destruct Hjk as [Hjk | [Hjk | Hjk] ].
-      + destruct j,k; inversion Hjk; try discriminate; auto.
-        * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left.
-          eright;[left;constructor|left].
-          right with Monotemporary. left;constructor.
-          eright;[right;right;constructor|left].
-          right with Monotemporary. left;constructor.
-          eright;[right;left;constructor|left].
-        * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left.
-          eright;[left;constructor|left].
-          right with Monotemporary. left;constructor.
-          eright;[right;right;constructor|left].
-          right with Monotemporary. left;constructor.
-          eright;[right;left;constructor|left].
-        * subst. destruct h;revoke_i Wstd_sta Wstd_sta' i;try left;
-                   try (right with Monotemporary;[left;constructor|eright;[right;right;constructor|left]]).
-          right with Monotemporary;[left;constructor|].
-          eright;[right;left;constructor|left].
-      + destruct j,k,h; inversion Hjk; try discriminate; auto;
-          revoke_i Wstd_sta Wstd_sta' i; try left.
-        eright;[left;constructor|left].
-        right with Monotemporary;[left;constructor|eright;[right;right;constructor|left]].
-        right with Monotemporary;[left;constructor|eright;[right;left;constructor|left]].
-        right with Monotemporary;[right;left;constructor|eright;[right;right;constructor|left]].
-        right with Monotemporary;[right;left;constructor|eright;[right;right;constructor|left]].
-        right with Monotemporary;[right;left;constructor|].
-        eright;[right;right;constructor|left].
-        right with Monotemporary;[right;left;constructor|eright;[right;right;constructor|left]].
-        right with Monotemporary;[right;left;constructor|eright;[right;left;constructor|left]].
-      + destruct j,k,h; inversion Hjk; try discriminate; auto;
-          revoke_i Wstd_sta Wstd_sta' i; try left;
-            try (right with Monotemporary;[left;constructor|eright;[right;right;constructor|left]]);
-            try (right with Monotemporary;[left;constructor|eright;[right;left;constructor|left]]).
-  Qed.
+  (* TODO fix *)
+  (* Lemma std_rel_monotone x y x' y' Wstd_sta Wstd_sta' i : *)
+  (*   Wstd_sta !! i = Some x -> Wstd_sta' !! i = Some y -> *)
+  (*   (revoke_std_sta Wstd_sta) !! i = Some x' → (revoke_std_sta Wstd_sta') !! i = Some y' → *)
+  (*   rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0 ∨ std_rel_priv x0 y0) x y → *)
+  (*   rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0 ∨ std_rel_priv x0 y0) x' y'. *)
+  (* Proof. *)
+  (*   intros Hx Hy Hx' Hy' Hrtc. *)
+  (*   induction Hrtc as [Hrefl | j k h Hjk]. *)
+  (*   - simplify_eq. rewrite -Hx in Hy. *)
+  (*     apply revoke_monotone_lookup in Hy. *)
+  (*     rewrite Hx' Hy' in Hy. inversion Hy. left. *)
+  (*   - destruct Hjk as [Hjk | [Hjk | Hjk] ]. *)
+  (*     + destruct j,k; inversion Hjk; try discriminate; auto. *)
+  (*       * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left. *)
+  (*         eright;[left;constructor|left]. *)
+  (*         right with Monotemporary. left;constructor. *)
+  (*         eright;[right;right;constructor|left]. *)
+  (*         right with Monotemporary. left;constructor. *)
+  (*         eright;[right;left;constructor|left]. *)
+  (*       * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left. *)
+  (*         eright;[left;constructor|left]. *)
+  (*         right with Monotemporary. left;constructor. *)
+  (*         eright;[right;right;constructor|left]. *)
+  (*         right with Monotemporary. left;constructor. *)
+  (*         eright;[right;left;constructor|left]. *)
+  (*       * subst. destruct h;revoke_i Wstd_sta Wstd_sta' i;try left; *)
+  (*                  try (right with Monotemporary;[left;constructor|eright;[right;right;constructor|left]]). *)
+  (*         right with Monotemporary;[left;constructor|]. *)
+  (*         eright;[right;left;constructor|left]. *)
+  (*     + destruct j,k,h; inversion Hjk; try discriminate; auto; *)
+  (*         revoke_i Wstd_sta Wstd_sta' i; try left. *)
+  (*       eright;[left;constructor|left]. *)
+  (*       right with Monotemporary;[left;constructor|eright;[right;right;constructor|left]]. *)
+  (*       right with Monotemporary;[left;constructor|eright;[right;left;constructor|left]]. *)
+  (*       right with Monotemporary;[right;left;constructor|eright;[right;right;constructor|left]]. *)
+  (*       right with Monotemporary;[right;left;constructor|eright;[right;right;constructor|left]]. *)
+  (*       right with Monotemporary;[right;left;constructor|]. *)
+  (*       eright;[right;right;constructor|left]. *)
+  (*       right with Monotemporary;[right;left;constructor|eright;[right;right;constructor|left]]. *)
+  (*       right with Monotemporary;[right;left;constructor|eright;[right;left;constructor|left]]. *)
+  (*     + destruct j,k,h; inversion Hjk; try discriminate; auto; *)
+  (*         revoke_i Wstd_sta Wstd_sta' i; try left; *)
+  (*           try (right with Monotemporary;[left;constructor|eright;[right;right;constructor|left]]); *)
+  (*           try (right with Monotemporary;[left;constructor|eright;[right;left;constructor|left]]). *)
+  (* Qed. *)
 
-  Lemma revoke_monotone W W' :
-    related_sts_priv_world W W' → related_sts_priv_world (revoke W) (revoke W').
-  Proof.
-    destruct W as [ Wstd_sta [Wloc_sta Wloc_rel] ].
-    destruct W' as [ Wstd_sta' [Wloc_sta' Wloc_rel'] ];
-    rewrite /revoke /std /=.
-    intros [(Hdom_sta & Htransition) Hrelated_loc].
-    apply revoke_monotone_dom in Hdom_sta.
-    split;[split;[auto|]|auto].
-    intros i x' y' Hx' Hy'.
-    simpl in *.
-    assert (is_Some (Wstd_sta !! i)) as [x Hx]; [apply revoke_std_sta_lookup_Some; eauto|].
-    assert (is_Some (Wstd_sta' !! i)) as [y Hy]; [apply revoke_std_sta_lookup_Some; eauto|].
-    apply std_rel_monotone with x y Wstd_sta Wstd_sta' i; auto. apply Htransition with i;auto.
-  Qed.
+  (* TODO fix *)
+  (* Lemma revoke_monotone W W' : *)
+  (*   related_sts_priv_world W W' → related_sts_priv_world (revoke W) (revoke W'). *)
+  (* Proof. *)
+  (*   destruct W as [ Wstd_sta [Wloc_sta Wloc_rel] ]. *)
+  (*   destruct W' as [ Wstd_sta' [Wloc_sta' Wloc_rel'] ]; *)
+  (*   rewrite /revoke /std /=. *)
+  (*   intros [(Hdom_sta & Htransition) Hrelated_loc]. *)
+  (*   apply revoke_monotone_dom in Hdom_sta. *)
+  (*   split;[split;[auto|]|auto]. *)
+  (*   intros i x' y' Hx' Hy'. *)
+  (*   simpl in *. *)
+  (*   assert (is_Some (Wstd_sta !! i)) as [x Hx]; [apply revoke_std_sta_lookup_Some; eauto|]. *)
+  (*   assert (is_Some (Wstd_sta' !! i)) as [y Hy]; [apply revoke_std_sta_lookup_Some; eauto|]. *)
+    (* apply std_rel_monotone with x y Wstd_sta Wstd_sta' i; auto. apply Htransition with i;auto. *)
+  (* Qed. *)
 
   (* --------------------------------------------------------------------------------- *)
   (* ----------------- REVOKED W IS A PRIVATE FUTURE WORLD TO W ---------------------- *)
@@ -830,15 +832,16 @@ Section heap.
     iApply (monotone_revoke_cond_region_def_mono with "[] [] Hfull Hr");auto.
   Qed.
 
-  Lemma monotone_revoke_list_region_def_mono_same M Mρ W W' :
-    ⌜related_sts_priv_world W W'⌝ -∗
-     sts_full_world (revoke W) -∗ region_map_def M Mρ (revoke W) -∗
-     sts_full_world (revoke W) ∗ region_map_def M Mρ (revoke W').
-  Proof.
-    iIntros (Hrelated) "Hfull Hr".
-    iApply (monotone_revoke_list_region_def_mono with "[] Hfull Hr").
-    iPureIntro. apply revoke_monotone; auto.
-  Qed.
+  (* TODO fix *)
+  (* Lemma monotone_revoke_list_region_def_mono_same M Mρ W W' : *)
+  (*   ⌜related_sts_priv_world W W'⌝ -∗ *)
+  (*    sts_full_world (revoke W) -∗ region_map_def M Mρ (revoke W) -∗ *)
+  (*    sts_full_world (revoke W) ∗ region_map_def M Mρ (revoke W'). *)
+  (* Proof. *)
+  (*   iIntros (Hrelated) "Hfull Hr". *)
+  (*   iApply (monotone_revoke_list_region_def_mono with "[] Hfull Hr"). *)
+  (*   iPureIntro. apply revoke_monotone; auto. *)
+  (* Qed. *)
 
   (* ---------------------------------------------------------------------------------------- *)
   (* ---------------- IF WΕ HAVE THE REGION, THEN WE CAN REVOKE THE FULL STS ---------------- *)
@@ -1531,31 +1534,31 @@ Section heap.
     apply conditional_close_list_std_sta_revoked.
   Qed.
 
-  Lemma std_rel_pub_not_temp_cases x y :
-    std_rel_pub x y ->
-    (x = Revoked ∧ y = Monotemporary) ∨
-    (x = Revoked ∧ y = Permanent) ∨
-    (∃ m, x = (Uninitialized m) ∧ y = Monotemporary).
-  Proof.
-    intros Hpub.
-    inversion Hpub;subst;[left|right;left|right;right];auto. exists w. split;auto.
-  Qed.
+  (* Lemma std_rel_pub_not_temp_cases x y : *)
+  (*   std_rel_pub x y -> *)
+  (*   (x = Revoked ∧ y = Monotemporary) ∨ *)
+  (*   (x = Revoked ∧ y = Permanent) ∨ *)
+  (*   (∃ m, x = (Uninitialized m) ∧ y = Monotemporary). *)
+  (* Proof. *)
+  (*   intros Hpub. *)
+  (*   inversion Hpub;subst;[left|right;left|right;right];auto. exists w. split;auto. *)
+  (* Qed. *)
 
-  Lemma std_rel_pub_rtc_not_temp_cases x y :
-    rtc std_rel_pub x y ->
-    (x = Revoked ∧ y = Monotemporary) ∨
-    (x = Revoked ∧ y = Permanent) ∨
-    (∃ m, x = (Uninitialized m) ∧ y = Monotemporary) ∨
-    x = y.
-  Proof.
-    intros Hrtc.
-    destruct Hrtc as [|ρ y z Hrel].
-    - right. by (repeat right).
-    - apply std_rel_pub_not_temp_cases in Hrel as [ [Heq1 Heq2] | [ [Heq1 Heq2] | [m [Heq1 Heq2] ] ] ]; subst.
-      left. apply std_rel_pub_rtc_Monotemporary in Hrtc; auto.
-      right;left. apply std_rel_pub_rtc_Permanent in Hrtc; auto.
-      right;right;left. apply std_rel_pub_rtc_Monotemporary in Hrtc; eauto.
-  Qed.
+  (* Lemma std_rel_pub_rtc_not_temp_cases x y : *)
+  (*   rtc std_rel_pub x y -> *)
+  (*   (x = Revoked ∧ y = Monotemporary) ∨ *)
+  (*   (x = Revoked ∧ y = Permanent) ∨ *)
+  (*   (∃ m, x = (Uninitialized m) ∧ y = Monotemporary) ∨ *)
+  (*   x = y. *)
+  (* Proof. *)
+  (*   intros Hrtc. *)
+  (*   destruct Hrtc as [|ρ y z Hrel]. *)
+  (*   - right. by (repeat right). *)
+  (*   - apply std_rel_pub_not_temp_cases in Hrel as [ [Heq1 Heq2] | [ [Heq1 Heq2] | [m [Heq1 Heq2] ] ] ]; subst. *)
+  (*     left. apply std_rel_pub_rtc_Monotemporary in Hrtc; auto. *)
+  (*     right;left. apply std_rel_pub_rtc_Permanent in Hrtc; auto. *)
+  (*     right;right;left. apply std_rel_pub_rtc_Monotemporary in Hrtc; eauto. *)
+  (* Qed. *)
 
   Lemma close_list_related_sts_pub_cons W a l :
     related_sts_pub_world W (close_list l W) →
@@ -1830,8 +1833,8 @@ Section heap.
         2: { iDestruct "Hx" as (φ' Hpers') "(_ & Hx)".
              iDestruct "Hx" as (v' Hlookup) "(Hx & _)".
              iApply bi.False_elim. iApply (addr_dupl_false with "Hx' Hx"); auto. }
-        2: { iDestruct "Hx" as (φ' Hpers') "(_ & Hx)".
-             iApply bi.False_elim. iApply (addr_dupl_false with "Hx' Hx"); auto. }
+        (* 2: { iDestruct "Hx" as (φ' Hpers') "(_ & Hx)". *)
+        (*      iApply bi.False_elim. iApply (addr_dupl_false with "Hx' Hx"); auto. } *)
 
         iMod (sts_update_std _ _ _ Monotemporary with "Hsts Hstate") as "[Hsts Hstate]". rewrite HMeq.
         iDestruct (region_map_delete_nonstatic with "Hr") as "Hr";[intros m;by rewrite Hx|].

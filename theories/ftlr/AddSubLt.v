@@ -24,16 +24,15 @@ Section fundamental.
 
   Lemma add_sub_lt_case (W : WORLD) (r : leibnizO Reg) (p : Perm)
         (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName) (r1 r2: Z + RegName) (P:D):
-      p = RX ∨ p = RWX ∨ (p = RWLX /\ g = Directed)
+      p = RX ∨ p = RWX ∨ (p = RWLX /\ g = Local)
     → (∀ x : RegName, is_Some (r !! x))
     → isCorrectPC (inr (p, g, b, e, a))
     → (b <= a)%a ∧ (a < e)%a
     → (∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2))
-    → (if pwl p then region_state_pwl_mono W a else region_state_nwl W a g)
+    → (if pwl p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
     → ρ ≠ Revoked
     → (∀ g : Mem, ρ ≠ Monostatic g)
-    → (∀ w, ρ ≠ Uninitialized w)
     → (decodeInstrW w = Add dst r1 r2 \/
        decodeInstrW w = Sub dst r1 r2 \/
        decodeInstrW w = Lt dst r1 r2)
@@ -44,7 +43,7 @@ Section fundamental.
                     -∗ region a0
                        -∗ sts_full_world a0
                           -∗ na_own logrel_nais ⊤
-                             -∗ ⌜a2 = RX ∨ a2 = RWX ∨ a2 = RWLX ∧ a3 = Directed⌝
+                             -∗ ⌜a2 = RX ∨ a2 = RWX ∨ a2 = RWLX ∧ a3 = Local⌝
                                 → □ region_conditions a0 a2 a3 a4 a5 -∗ interp_conf a0)
     -∗ region_conditions W p g b e
     -∗ (∀ r1 : RegName, ⌜r1 ≠ PC⌝ → ((fixpoint interp1) W) (r !r! r1))
@@ -73,7 +72,7 @@ Section fundamental.
                                            ∗ na_own logrel_nais ⊤
                                            ∗ sts_full_world W' ∗ region W' }} }}.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hnotuninitialized Hi.
+    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
     iIntros "#IH #Hinv #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     rewrite delete_insert_delete.
@@ -93,7 +92,7 @@ Section fundamental.
       assert (dst <> PC) as HdstPC by (intros ->; simplify_map_eq).
       simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotmonostatic g)|specialize (Hnotuninitialized w0)];contradiction. }
+      { destruct ρ;auto;[|specialize (Hnotmonostatic g)];contradiction. }
       iApply ("IH" $! _ (<[dst:=_]> (<[PC:=_]> r)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]");
         try iClear "IH"; eauto.
       { intro. cbn. by repeat (rewrite lookup_insert_is_Some'; right). }

@@ -26,7 +26,7 @@ Section fundamental.
         (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName) (r0 : Z + RegName) (P:D):
     ftlr_instr W r p g b e a w (Lea dst r0) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hnotuninitialized Hi.
+    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
     iIntros "#IH #Hinv #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     rewrite delete_insert_delete.
@@ -38,7 +38,7 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ * Hdst ? Hz Hoffset HUa HincrPC |].
+    destruct HSpec as [ * Hdst ? Hz Hoffset HincrPC |].
     { apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs' & XX).
 
       assert (p'' = p ∧ g'' = g ∧ b'' = b ∧ e'' = e) as (-> & -> & -> & ->).
@@ -46,16 +46,17 @@ Section fundamental.
 
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotmonostatic g1)|specialize (Hnotuninitialized w0)];contradiction. }
+      { destruct ρ;auto;[|specialize (Hnotmonostatic g1)];contradiction. }
       iApply ("IH" $! _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
+      (* Unshelve. *)
       { cbn. intros. subst regs'. by repeat (apply lookup_insert_is_Some'; right). }
       { iIntros (ri Hri). subst regs'.
         erewrite locate_ne_reg; [ | | reflexivity]; auto.
         destruct (decide (ri = dst)).
         { subst ri. unshelve iSpecialize ("Hreg" $! dst _); eauto.
           erewrite locate_eq_reg; [ | reflexivity]; auto. simplify_map_eq.
-          rewrite /RegLocate Hdst. iApply interp_weakening; eauto; try solve_addr.
-          - destruct p0; simpl; auto.
+          rewrite /RegLocate Hdst.
+          iApply (interp_weakening _ p0 p0 g0 g0 b0 b0 e0 e0 _ a') ; eauto; try solve_addr.
           - eapply PermFlowsToReflexive.
           - destruct g0; auto. }
         { repeat (erewrite locate_ne_reg; [ | | reflexivity]; auto).

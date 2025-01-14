@@ -161,7 +161,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
       destruct e0; try congruence.
-      inv Hvpc. destruct H3 as [A | [A | [A | [A | A]]]]; destruct H10 as [B | [B | B]]; congruence. }
+      inv Hvpc. destruct H10 as [B | [B | B]]; congruence. }
   Qed.
 
   Lemma wp_Get_same_success E get_i r pc_p pc_g pc_b pc_e pc_a w (c:Cap) pc_a' :
@@ -193,7 +193,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
       destruct e0; try congruence.
-      inv Hvpc. destruct H3 as [A | [A | [A | [A | A]]]]; destruct H10 as [B | [B | B]]; congruence. }
+      inv Hvpc. destruct H10 as [B | [B | B]]; congruence. }
   Qed.
 
   Lemma wp_Get_success E get_i dst src pc_p pc_g pc_b pc_e pc_a w wdst csrc pc_a' :
@@ -227,7 +227,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
       destruct e0; try congruence.
-      inv Hvpc. destruct H5 as [A | [A | [A | [A | A]]]]; destruct H12 as [B | [B | B]]; congruence. }
+      inv Hvpc. destruct H12 as [B | [B | B]]; congruence. }
   Qed.
 
   Lemma wp_Get_fail E get_i dst src pc_p pc_g pc_b pc_e pc_a w zsrc wdst :

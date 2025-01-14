@@ -22,16 +22,15 @@ Section fundamental.
 
   Definition ftlr_instr (W : WORLD) (r : leibnizO Reg) (p : Perm)
         (g : Locality) (b e a : Addr) (w : Word) (i: instr) (ρ : region_type) (P : D) :=
-    p = RX ∨ p = RWX ∨ (p = RWLX /\ g = Directed)
+    p = RX ∨ p = RWX ∨ (p = RWLX /\ g = Local)
     → (∀ x : RegName, is_Some (r !! x))
     → isCorrectPC (inr (p, g, b, e, a))
     → (b <= a)%a ∧ (a < e)%a
     → (∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2))
-    → (if pwl p then region_state_pwl_mono W a else region_state_nwl W a g)
+    → (if pwl p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
     → ρ ≠ Revoked
     → (∀ g : Mem, ρ ≠ Monostatic g)
-    → (∀ w, ρ ≠ Uninitialized w)
     → decodeInstrW w = i
     -> □ ▷ (∀ (a0 : WORLD) (a1 : leibnizO Reg) (a2 : Perm) (a3 : Locality) (a4 a5 a6 : Addr),
               full_map a1
@@ -40,7 +39,7 @@ Section fundamental.
                     -∗ region a0
                        -∗ sts_full_world a0
                           -∗ na_own logrel_nais ⊤
-                             -∗ ⌜a2 = RX ∨ a2 = RWX ∨ a2 = RWLX ∧ a3 = Directed⌝
+                             -∗ ⌜a2 = RX ∨ a2 = RWX ∨ a2 = RWLX ∧ a3 = Local⌝
                                 → □ region_conditions a0 a2 a3 a4 a5 -∗ interp_conf a0)
     -∗ region_conditions W p g b e
     -∗ (∀ r1 : RegName, ⌜r1 ≠ PC⌝ → ((fixpoint interp1) W) (r !r! r1))

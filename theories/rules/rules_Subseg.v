@@ -139,7 +139,7 @@ Section cap_lang_rules.
                         updatePC (update_reg (r, m) dst (inr (p, g, a1, a2, a))) else
                         (Failed, (r, m)))
       as Hexec.
-    { rewrite -Hstep; clear Hstep. 
+    { rewrite -Hstep; clear Hstep.
       rewrite /= /RegLocate Hdst.
       destruct Hz1' as [ -> | [r1 (-> & Hr1 & Hr1') ] ];
         destruct Hz2' as [ -> | [r2 (-> & Hr2 & Hr2') ] ].
@@ -218,7 +218,7 @@ Section cap_lang_rules.
     p ≠ machine_base.E →
     isWithin a1 a1 b e = true →
     (pc_a + 1)%a = Some pc_a' →
-    
+
     {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ inr ((p,g),b,e,a)
@@ -296,7 +296,7 @@ Section cap_lang_rules.
     p ≠ machine_base.E →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
-    
+
     {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ inr ((p,g),b,e,a)
@@ -399,7 +399,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct H10; try congruence. inv Hvpc. naive_solver. }
+      destruct H10; try congruence.  }
   Qed.
 
   Lemma wp_subseg_success_pc_same E pc_p pc_g pc_b pc_e pc_a w r1 n1 a1 pc_a' :
@@ -409,7 +409,7 @@ Section cap_lang_rules.
     pc_p ≠ machine_base.E →
     isWithin a1 a1 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
-    
+
     {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ r1 ↦ᵣ inl n1 }}}
@@ -434,8 +434,8 @@ Section cap_lang_rules.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence. 
-      destruct H8; try congruence. inv Hvpc. naive_solver. }
+      all: simplify_map_eq; eauto; try congruence.
+      destruct H8; try congruence. }
   Qed.
 
   Lemma wp_subseg_success_pc_l E pc_p pc_g pc_b pc_e pc_a w r2 n1 n2 a1 a2 pc_a' :
@@ -470,8 +470,8 @@ Section cap_lang_rules.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence. 
-      destruct H8; try congruence. inv Hvpc. naive_solver. }
+      all: simplify_map_eq; eauto; try congruence.
+      destruct H8; try congruence. }
   Qed.
 
   Lemma wp_subseg_success_pc_r E pc_p pc_g pc_b pc_e pc_a w r1 n1 n2 a1 a2 pc_a' :
@@ -481,7 +481,7 @@ Section cap_lang_rules.
     pc_p ≠ machine_base.E →
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
-    
+
     {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ r1 ↦ᵣ inl n1 }}}
@@ -507,7 +507,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct H8; try congruence. inv Hvpc. naive_solver. }
+      destruct H8; try congruence. }
   Qed.
 
   Lemma wp_subseg_success_pc_lr E pc_p pc_g pc_b pc_e pc_a w n1 n2 a1 a2 pc_a' :
@@ -517,7 +517,7 @@ Section cap_lang_rules.
     pc_p ≠ machine_base.E →
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
-    
+
     {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
         ∗ ▷ pc_a ↦ₐ w }}}
       Instr Executable @ E
@@ -541,7 +541,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct H7; try congruence. inv Hvpc. naive_solver. }
+      destruct H7; try congruence. }
   Qed.
 
 End cap_lang_rules.

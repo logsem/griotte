@@ -9,10 +9,10 @@ Section cap_lang_rules.
   Context `{MachineParameters}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : cap_lang.expr. 
+  Implicit Types c : cap_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : cap_lang.val. 
+  Implicit Types v : cap_lang.val.
   Implicit Types w : Word.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
@@ -182,7 +182,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
       destruct e1; try congruence.
-      inv Hvpc. destruct H3 as [? | [? | [? | [? | ?]]]]; destruct H10 as [? | [? | ?]]; congruence. }
+      inv Hvpc. destruct H10 as [? | [? | ?]]; congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_r_z E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r1 n1 n2 pc_a' :
@@ -219,7 +219,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
       destruct e1; try congruence.
-      inv Hvpc. destruct H5 as [? | [? | [? | [? | ?]]]]; destruct H12 as [? | [? | ?]]; congruence. }
+      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_z_r E dst pc_p pc_g pc_b pc_e pc_a w wdst ins n1 r2 n2 pc_a' :
@@ -255,8 +255,8 @@ Section cap_lang_rules.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence. 
-      inv Hvpc. destruct H5 as [? | [? | [? | [? | ?]]]]; destruct H12 as [? | [? | ?]]; congruence. }
+      destruct e1; try congruence.
+      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_r_r E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r1 n1 r2 n2 pc_a' :
@@ -294,8 +294,8 @@ Section cap_lang_rules.
       iDestruct (regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence. 
-      inv Hvpc. destruct H8 as [? | [? | [? | [? | ?]]]]; destruct H15 as [? | [? | ?]]; congruence. }
+      destruct e1; try congruence.
+      inv Hvpc. destruct H15 as [? | [? | ?]]; congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_r_r_same E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r n pc_a' :
@@ -331,8 +331,8 @@ Section cap_lang_rules.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence. 
-      inv Hvpc. destruct H5 as [? | [? | [? | [? | ?]]]]; destruct H12 as [? | [? | ?]]; congruence. }
+      destruct e1; try congruence.
+      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_dst_z E dst pc_p pc_g pc_b pc_e pc_a w ins n1 n2 pc_a' :
@@ -365,8 +365,8 @@ Section cap_lang_rules.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence. 
-      inv Hvpc. destruct H3 as [? | [? | [? | [? | ?]]]]; destruct H10 as [? | [? | ?]]; congruence. }
+      destruct e1; try congruence.
+      inv Hvpc. destruct H10 as [? | [? | ?]]; congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_z_dst E dst pc_p pc_g pc_b pc_e pc_a w ins n1 n2 pc_a' :
@@ -400,7 +400,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
       destruct e1; try congruence.
-      inv Hvpc. destruct H3 as [? | [? | [? | [? | ?]]]]; destruct H10 as [? | [? | ?]]; congruence. }
+      inv Hvpc. destruct H10 as [? | [? | ?]]; congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_dst_r E dst pc_p pc_g pc_b pc_e pc_a w ins n1 r2 n2 pc_a' :
@@ -432,12 +432,12 @@ Section cap_lang_rules.
     { (* Success *)
       iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
       rewrite (insert_commute _ PC dst) // insert_insert (insert_commute _ r2 dst) //
-              (insert_commute _ PC dst) // insert_insert. 
+              (insert_commute _ PC dst) // insert_insert.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence. 
-      inv Hvpc. destruct H5 as [? | [? | [? | [? | ?]]]]; destruct H12 as [? | [? | ?]]; congruence. }
+      destruct e1; try congruence.
+      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_r_dst E dst pc_p pc_g pc_b pc_e pc_a w ins r1 n1 n2 pc_a' :
@@ -473,8 +473,8 @@ Section cap_lang_rules.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence. 
-      inv Hvpc. destruct H5 as [? | [? | [? | [? | ?]]]]; destruct H12 as [? | [? | ?]]; congruence. }
+      destruct e1; try congruence.
+      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_dst_dst E dst pc_p pc_g pc_b pc_e pc_a w ins n pc_a' :
@@ -508,7 +508,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
       destruct e1; try congruence.
-      inv Hvpc. destruct H3 as [? | [? | [? | [? | ?]]]]; destruct H10 as [? | [? | ?]]; congruence. }
+      inv Hvpc. destruct H10 as [? | [? | ?]]; congruence. }
   Qed.
 
   Lemma wp_AddSubLt_fail E ins dst n1 r2 w wdst cap pc_p pc_g pc_b pc_e pc_a :
