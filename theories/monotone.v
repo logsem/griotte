@@ -110,13 +110,42 @@ Section monotone.
     apply std_rel_rtc_Permanent in Hrelated; subst; auto.
   Qed.
 
-Lemma region_state_nwl_future W W' l l' p a a':
-  (a < a')%a →
-  LocalityFlowsTo l' l ->
-  (if pwlU p then l = Directed else True) ->
-  (@future_world Σ l' a' W W') -∗
-  ⌜if pwlU p then region_state_pwl_mono W a else region_state_nwl W a l⌝ -∗
-                                                 ⌜region_state_nwl W' a l'⌝.
+  Lemma region_state_pwl_monotone_mono W W' a :
+    related_sts_pub_world W W' →
+    region_state_pwl_mono W a -> region_state_pwl_mono W' a.
+  Proof.
+    rewrite /region_state_pwl_mono /std.
+    intros Hrelated Hstate.
+    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
+    assert (is_Some (W'.1 !! a)) as [y Hy].
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
+    specialize (Hrelated _ Monotemporary y Hstate Hy).
+    apply std_rel_pub_rtc_Monotemporary in Hrelated; subst; auto.
+  Qed.
+
+  Lemma region_state_pwl_monotone_a W W' a a' :
+    (a < a')%a →
+    related_sts_a_world W W' a' →
+    region_state_pwl_mono W a -> region_state_pwl_mono W' a.
+  Proof.
+    rewrite /region_state_pwl_mono /std.
+    intros Hle Hrelated Hstate.
+    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
+    assert (is_Some (W'.1 !! a)) as [y Hy].
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
+    specialize (Hrelated _ Monotemporary y Hstate Hy).
+    eapply rtc_implies in Hrelated.
+    apply std_rel_pub_rtc_Monotemporary in Hrelated; subst; auto.
+    intros r q. rewrite decide_False;auto. solve_addr.
+  Qed.
+
+  Lemma region_state_nwl_future W W' l l' p a a':
+    (a < a')%a →
+    LocalityFlowsTo l' l ->
+    (if pwlU p then l = Directed else True) ->
+    (@future_world Σ l' a' W W') -∗
+    ⌜if pwlU p then region_state_pwl_mono W a else region_state_nwl W a l⌝ -∗
+                                                   ⌜region_state_nwl W' a l'⌝.
   Proof.
     intros Hlt Hlflows Hloc. iIntros "Hfuture %".
     destruct l'; simpl; iDestruct "Hfuture" as %Hf; iPureIntro.
@@ -142,35 +171,6 @@ Lemma region_state_nwl_future W W' l l' p a a':
           right. eapply region_state_nwl_monotone_nm_nl;eauto.
           apply related_sts_pub_plus_priv_world.
           eapply related_sts_a_pub_plus_world;eauto.
-  Qed.
-
-  Lemma region_state_pwl_monotone_mono W W' a :
-    related_sts_pub_world W W' →
-    region_state_pwl_mono W a -> region_state_pwl_mono W' a.
-  Proof.
-    rewrite /region_state_pwl_mono /std.
-    intros Hrelated Hstate.
-    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
-    assert (is_Some (W'.1 !! a)) as [y Hy].
-    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
-    specialize (Hrelated _ Monotemporary y Hstate Hy).
-    apply std_rel_pub_rtc_Monotemporary in Hrelated; subst; auto.
-  Qed.
-
-  Lemma region_state_pwl_monotone_a W W' a a' :
-    (a < a')%a →
-    related_sts_a_world W W' a' →
-    region_state_pwl_mono W a -> region_state_pwl_mono W' a.
-  Proof.
-    rewrite /region_state_pwl_mono /std.
-    intros Hle Hrelated Hstate.
-    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
-    assert (is_Some (W'.1 !! a)) as [y Hy].
-    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
-    specialize (Hrelated _ Monotemporary y Hstate Hy).
-    eapply rtc_implies in Hrelated. 
-    apply std_rel_pub_rtc_Monotemporary in Hrelated; subst; auto.
-    intros r q. rewrite decide_False;auto. solve_addr.
   Qed.
 
   Lemma region_state_U_monotone W W' a :
