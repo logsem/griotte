@@ -99,30 +99,19 @@ Section REL_defs.
 End REL_defs.
 
 Section heapPre.
-  Context {Σ:gFunctors} {heappreg : heapGpreS Σ}.
+  (* TODO wsat_alloc had been changed in Iris 4.0.
+     Fixed using Hc
+   *)
+  Context {Σ:gFunctors} {heappreg : heapGpreS Σ} {Hc : lcGS Σ}.
 
-  (* TODO wsat_alloc had been changed in Iris 4.0, I don't know how to fix it *)
   Lemma heap_init :
     ⊢ |==> ∃ (heapg: heapGS Σ), RELS (∅ : relT).
   Proof.
     iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γ) "H".
     { rewrite fmap_empty. by apply auth_auth_valid. }
-    (* iMod (@wsat.wsat_alloc _ ((@invGpreS_wsat _ (@heapPreG_invPreG _ heappreg)))) as (HI) "?". *)
-    (* iModIntro. iExists (HeapGS _ _ _ _ γ). rewrite RELS_eq /RELS_def. done. *)
-    (* Unshelve. *)
-    (* refine (invGS_wsat). *)
-
-    (* refine . *)
-    (* exact ( _). *)
-    (* refine ( _). *)
-    (* refine (_ (_ heappreg)). *)
-    (* refine (subG_wsatΣ _). *)
-    (* refine (_ subG_wsatΣ). *)
-    (* refine (_ ). *)
-    (* refine (invGpreS_wsat _). *)
-
-    (* exact (invGpreS_wsat (heapPreG_invPreG heappreg)). *)
-  Admitted.
+    iMod (@wsat.wsat_alloc _ (@invGpreS_wsat _ (@heapPreG_invPreG _ heappreg))) as (Hw) "[Hw HE]".
+    iModIntro. iExists (HeapGS _ (InvG HasLc _ Hw _) _ _ γ). rewrite RELS_eq /RELS_def. done.
+  Qed.
 
 End heapPre.
 
@@ -347,7 +336,6 @@ Section heap.
     done.
   Qed.
 
-  (* TODO fix *)
   Lemma rels_agree a γ1 γ2 :
     REL a γ1 ∗ REL a γ2 -∗ ⌜γ1 = γ2⌝.
   Proof.
@@ -357,8 +345,8 @@ Section heap.
     iPureIntro.
     rewrite -auth_frag_op singleton_op in Hval.
     apply (to_agree_op_inv_L (A:=leibnizO _)).
-    (* fail (apply singleton_valid in Hval). *)
-  Admitted.
+    eapply singleton_valid, auth_frag_valid, Hval.
+  Qed.
 
   Lemma rel_agree a φ1 φ2 :
     rel a φ1 ∗ rel a φ2 -∗ (∀ x, ▷ (φ1 x ≡ φ2 x)).
@@ -1252,4 +1240,3 @@ End heap.
 
 Notation "<s[ a := ρ ]s> W" := (std_update W a ρ) (at level 10, format "<s[ a := ρ ]s> W").
 Notation "<l[ a := ρ , r ]l> W" := (loc_update W a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ a := ρ , r ]l> W").
-

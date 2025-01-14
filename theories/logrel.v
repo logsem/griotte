@@ -938,7 +938,7 @@ Section logrel.
     intros. rewrite /interp fixpoint_interp1_eq /=. iIntros "H".
     assert (p = URW \/ p = URWL \/ p = URWX \/ p = URWLX)
       as [-> | [-> | [-> | ->] ] ]
-           by (destruct p; simpl in *; auto); simpl.
+           by (destruct p; simpl in *; auto ; done) ; simpl.
     - destruct g.
       + iDestruct (extract_from_region_inv with "H") as "[C %]";[|iFrame]. solve_addr.
         iPureIntro; auto. rewrite H2. eexists;eauto.
