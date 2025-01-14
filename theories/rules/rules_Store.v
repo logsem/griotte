@@ -253,7 +253,7 @@ Section cap_lang_rules.
 
      assert (isLocalWord storev = false ∨ machine_base.pwl p = true) as HLocal.
      { rewrite /canStore in HcanStore. destruct storev; simpl; auto.
-       destruct_cap c0. destruct c4; auto.
+       destruct_cap c0. destruct g0; auto.
        eapply andb_true_iff in HcanStore. destruct HcanStore; auto. }
      (* apply (not_and_r) in n0. *)
      (* destruct n0 as [Hlw | Hpwl]. *)

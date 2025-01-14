@@ -5,7 +5,7 @@ From stdpp Require Import gmap fin_maps list.
 From cap_machine Require Export addr_reg machine_base machine_parameters.
 Set Warnings "-redundant-canonical-projection".
 
-Ltac inv H := inversion H; clear H; subst.
+(* Ltac inv H := inversion H; clear H; subst. *)
 
 Definition RegLocate (reg : Reg) (r : RegName) :=
   match (reg !! r) with
@@ -705,14 +705,14 @@ Canonical Structure cap_ectxi_lang `{MachineParameters} := EctxiLanguage cap_lan
 Canonical Structure cap_ectx_lang `{MachineParameters} := EctxLanguageOfEctxi cap_ectxi_lang.
 Canonical Structure cap_lang `{MachineParameters} := LanguageOfEctx cap_ectx_lang.
 
-Hint Extern 20 (PureExec _ _ _) => progress simpl : typeclass_instances.
+#[export] Hint Extern 20 (PureExec _ _ _) => progress simpl : typeclass_instances.
 
-Hint Extern 5 (IntoVal _ _) => eapply of_to_val; fast_done : typeclass_instances.
-Hint Extern 10 (IntoVal _ _) =>
+#[export] Hint Extern 5 (IntoVal _ _) => eapply of_to_val; fast_done : typeclass_instances.
+#[export] Hint Extern 10 (IntoVal _ _) =>
   rewrite /IntoVal; eapply of_to_val; rewrite /= !to_of_val /=; solve [ eauto ] : typeclass_instances.
 
-Hint Extern 5 (AsVal _) => eexists; eapply of_to_val; fast_done : typeclass_instances.
-Hint Extern 10 (AsVal _) =>
+#[export] Hint Extern 5 (AsVal _) => eexists; eapply of_to_val; fast_done : typeclass_instances.
+#[export] Hint Extern 10 (AsVal _) =>
 eexists; rewrite /IntoVal; eapply of_to_val; rewrite /= !to_of_val /=; solve [ eauto ] : typeclass_instances.
 
 Local Hint Resolve language.val_irreducible.
@@ -749,8 +749,8 @@ Ltac solve_atomic :=
   apply is_atomic_correct; simpl; repeat split;
     rewrite ?to_of_val; eapply mk_is_Some; fast_done.
 
-Hint Extern 0 (Atomic _ _) => solve_atomic.
-Hint Extern 0 (Atomic _ _) => solve_atomic : typeclass_instances.
+#[export] Hint Extern 0 (Atomic _ _) => solve_atomic.
+#[export] Hint Extern 0 (Atomic _ _) => solve_atomic : typeclass_instances.
 
 Lemma base_reducible_from_step `{MachineParameters} σ1 e2 σ2 :
   step (Executable, σ1) (e2, σ2) →

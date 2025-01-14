@@ -122,37 +122,6 @@ Qed.
 
 (* helper lemmas for the list of all registers *)
 
-(* a typical helper lemma for stack calls *)
-(* TODO: is this still necessary? *)
-Lemma helper1 r1 :
-   r1 ≠ PC ∧ r1 ≠ r_stk ∧ r1 ≠ r_t0 →
-   r1 ∈ all_registers →
-   length (list_difference all_registers [PC; r_stk; r_t0; r1]) = 29.
-Proof.
-  intros (Hne1 & Hne2 & Hne3) Hr1.
-  assert ([PC; r_stk; r_t0; r1] = [PC; r_stk; r_t0] ++ [r1]); first done.
-  rewrite H.
-  rewrite list_difference_app.
-  assert (r1 ∈ (list_difference all_registers [PC; r_stk; r_t0])).
-  { simpl.
-    rewrite /all_registers in Hr1.
-    apply elem_of_cons in Hr1 as [Hcontr | Hr1]; first contradiction.
-    assert
-    ([r_t1; r_t2; r_t3; r_t4; r_t5; r_t6; r_t7; r_t8; r_t9; r_t10; r_t11;
-       r_t12; r_t13; r_t14; r_t15; r_t16; r_t17; r_t18; r_t19; r_t20; r_t21; r_t22;
-       r_t23; r_t24; r_t25; r_t26; r_t27; r_t28; r_t29; r_t30; r_t31; PC] =
-    [r_t1; r_t2; r_t3; r_t4; r_t5; r_t6; r_t7; r_t8; r_t9; r_t10; r_t11;
-       r_t12; r_t13; r_t14; r_t15; r_t16; r_t17; r_t18; r_t19; r_t20; r_t21; r_t22;
-       r_t23; r_t24; r_t25; r_t26; r_t27; r_t28; r_t29; r_t30] ++ [r_t31; PC]); auto.
-    rewrite H0 in Hr1. clear H0.
-    apply elem_of_app in Hr1 as [Hr1 | Hcontr]; auto.
-    apply elem_of_cons in Hcontr as [? | Hcontr]; first contradiction.
-    apply elem_of_list_singleton in Hcontr; contradiction.
-  }
-  rewrite list_difference_length; auto.
-  apply NoDup_list_difference, all_registers_NoDup.
-Qed.
-
 (* Spec for all_registers *)
 
 Lemma all_registers_correct r1 :

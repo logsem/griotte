@@ -91,28 +91,6 @@ Section SimpleMalloc.
     )%I.
 
 
-  (* TODO: move this to the rules_AddSubLt.v file. *)
-  Lemma wp_AddSubLt_fail E ins dst n1 r2 w wdst cap pc_p pc_g pc_b pc_e pc_a :
-    decodeInstrW w = ins
-    → is_AddSubLt ins dst (inl n1) (inr r2)
-      (* → (pc_a + 1)%a = Some pc_a' *)
-        → isCorrectPC (inr (pc_p, pc_g, pc_b, pc_e, pc_a))
-          → {{{ PC ↦ᵣ inr (pc_p, pc_g, pc_b, pc_e, pc_a) ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r2 ↦ᵣ inr cap }}}
-              Instr Executable
-            @ E
-      {{{ RET FailedV; True }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hvpc φ) "(HPC & Hpc_a & Hdst & Hr2) Hφ".
-    iDestruct (rules_base.map_of_regs_3 with "HPC Hdst Hr2") as "[Hmap (%&%&%)]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-      by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [* Hsucc |].
-    { (* Success (contradiction) *) simplify_map_eq. }
-    { (* Failure, done *) by iApply "Hφ". }
-  Qed.
-
-
   Lemma simple_malloc_subroutine_spec (wsize: Word) (cont: Word) b e rmap N E φ :
     dom (gset RegName) rmap = all_registers_s ∖ {[ PC; r_t0; r_t1 ]} →
     (* (size > 0)%Z → *)

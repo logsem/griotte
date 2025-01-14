@@ -16,15 +16,6 @@ Section cap_lang_rules.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
 
-  (* TODO: Move somewhere *)
-  Ltac destruct_cap c :=
-    let p := fresh "p" in
-    let g := fresh "g" in
-    let b := fresh "b" in
-    let e := fresh "e" in
-    let a := fresh "a" in
-    destruct c as ((((p & g) & b) & e) & a).
-
   Inductive Subseg_failure  (regs: Reg) (dst: RegName) (src1 src2: Z + RegName) : Reg → Prop :=
   | Subseg_fail_dst_noncap z :
       regs !! dst = Some (inl z) →

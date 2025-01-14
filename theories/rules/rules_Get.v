@@ -17,16 +17,6 @@ Section cap_lang_rules.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
 
-  (* TODO: move to stdpp *)
-  Tactic Notation "destruct_or" ident(H) :=
-  match type of H with
-  | _ ∨ _ => destruct H as [H|H]
-  | Is_true (_ || _) => apply orb_True in H; destruct H as [H|H]
-  end.
-  Tactic Notation "destruct_or" "?" ident(H) := repeat (destruct_or H).
-  Tactic Notation "destruct_or" "!" ident(H) := hnf in H; destruct_or H; destruct_or? H.
-
-
   Definition denote (i: instr) (c: Cap): Z :=
     match c with
     | (p, g, b, e, a) =>
@@ -238,6 +228,28 @@ Section cap_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
       destruct e0; try congruence.
       inv Hvpc. destruct H5 as [A | [A | [A | [A | A]]]]; destruct H12 as [B | [B | B]]; congruence. }
+  Qed.
+
+  Lemma wp_Get_fail E get_i dst src pc_p pc_g pc_b pc_e pc_a w zsrc wdst :
+    decodeInstrW w = get_i →
+    is_Get get_i dst src →
+    isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) →
+
+    {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+      ∗ ▷ pc_a ↦ₐ w
+      ∗ ▷ dst ↦ᵣ wdst
+      ∗ ▷ src ↦ᵣ inl zsrc }}}
+      Instr Executable @ E
+      {{{ RET FailedV; True }}}.
+  Proof.
+    iIntros (Hdecode Hinstr Hvpc φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
+    iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+      by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+.
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    destruct Hspec as [* Hsucc |].
+    { (* Success (contradiction) *) simplify_map_eq. }
+    { (* Failure, done *) by iApply "Hφ". }
   Qed.
 
 End cap_lang_rules.
