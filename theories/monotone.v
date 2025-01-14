@@ -24,18 +24,18 @@ Section monotone.
     destruct l.
     - destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
       assert (is_Some (W'.1 !! a)) as [y Hy].
-      { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto. }
+      { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
       specialize (Hrelated a Permanent y Hstate Hy).
       apply std_rel_pub_rtc_Permanent in Hrelated; subst; auto.
     - destruct Hrelated as [ [Hdom_sta Hrelated] _]. simpl in *.
       assert (is_Some (W'.1 !! a)) as [y Hy].
-      { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom.
+      { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom.
         eauto. }
       specialize (Hrelated _ Permanent y Hstate Hy).
       apply std_rel_pub_rtc_Permanent in Hrelated; subst; auto.
     - destruct Hrelated as [ [Hdom_sta Hrelated] _]. simpl in *.
       assert (is_Some (W'.1 !! a)) as [y Hy].
-      { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom.
+      { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom.
         destruct Hstate; eauto. }
       destruct Hstate as [Hmono | Hperm].
       + left. specialize (Hrelated _ Monotemporary y Hmono Hy).
@@ -55,14 +55,14 @@ Section monotone.
     destruct l.
     - destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
       assert (is_Some (W'.1 !! a)) as [y Hy].
-      { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto. }
+      { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
       specialize (Hrelated a Permanent y Hstate Hy).
       eapply rtc_implies in Hrelated.
       apply std_rel_pub_plus_rtc_Permanent in Hrelated; subst; auto.
       intros r q. destruct (decide (a' <= a)%a);auto.
     - destruct Hrelated as [ [Hdom_sta Hrelated] _]. simpl in *.
       assert (is_Some (W'.1 !! a)) as [y Hy].
-      { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom.
+      { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom.
         eauto. }
       specialize (Hrelated _ Permanent y Hstate Hy).
       eapply rtc_implies in Hrelated.
@@ -70,7 +70,7 @@ Section monotone.
       intros r q. destruct (decide (a' <= a)%a);auto.
     - destruct Hrelated as [ [Hdom_sta Hrelated] _]. simpl in *.
       assert (is_Some (W'.1 !! a)) as [y Hy].
-      { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom.
+      { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom.
         destruct Hstate; eauto. }
       destruct Hstate as [Hmono | Hperm].
       + specialize (Hrelated _ Monotemporary y Hmono Hy).
@@ -92,7 +92,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _].
     assert (is_Some (W'.1 !! a)) as [y Hy].
-    { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto. }
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Permanent y Hstate Hy).
     apply std_rel_rtc_Permanent in Hrelated; subst; auto.
   Qed.
@@ -105,7 +105,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _].
     assert (is_Some (W'.1 !! a)) as [y Hy].
-    { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto. }
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Permanent y Hstate Hy).
     apply std_rel_rtc_Permanent in Hrelated; subst; auto.
   Qed.
@@ -118,7 +118,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
-    { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto. }
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Monotemporary y Hstate Hy).
     apply std_rel_pub_rtc_Monotemporary in Hrelated; subst; auto.
   Qed.
@@ -132,7 +132,7 @@ Section monotone.
     intros Hle Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
-    { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto. }
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Monotemporary y Hstate Hy).
     eapply rtc_implies in Hrelated. 
     apply std_rel_pub_rtc_Monotemporary in Hrelated; subst; auto.
@@ -147,7 +147,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
-    { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto. }
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Permanent y Hstate Hy).
     apply std_rel_rtc_Permanent in Hrelated; auto. subst y; auto.
   Qed.
@@ -160,7 +160,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
-    { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto.
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto.
       destruct Hstate as [Hstate | [Hstate | [w Hstate] ] ];eauto. }
     destruct Hstate as [Hstate | [Hstate | [w Hstate] ] ].
     - specialize (Hrelated _ _ y Hstate Hy).
@@ -181,7 +181,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
-    { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto.
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto.
       destruct Hstate as [? | [? ?] ]; eauto. }
     destruct Hstate as [Hstate|[? Hstate] ].
     - specialize (Hrelated _ Monotemporary y Hstate Hy).
@@ -199,7 +199,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
-    { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto.
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto.
       destruct Hstate as [? | [? ?] ]; eauto. }
     destruct Hstate as [Hstate|[? Hstate] ].
     - specialize (Hrelated _ Monotemporary y Hstate Hy).
@@ -226,7 +226,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
-    { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto. }
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom ;eauto. }
     specialize (Hrelated _ (Monostatic g) y Hstate Hy).
     eapply std_rel_pub_rtc_Monostatic in Hrelated; eauto. subst. auto.
   Qed.
@@ -242,7 +242,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
-    { apply elem_of_gmap_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. apply elem_of_gmap_dom;eauto. }
+    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom ;eauto. }
     specialize (Hrelated _ Revoked y Hstate Hy).
     apply std_rel_pub_rtc_Revoked in Hrelated; auto.
     destruct Hrelated as [Hperm | [Hmono | Hrev] ]; subst; auto.
@@ -871,7 +871,9 @@ Proof.
     iIntros (W0 W1) "% HIW0".
     destruct g.
     * iApply (interp_monotone_nm with "[] [] HIW0");auto.
-      iPureIntro. apply related_sts_a_pub_plus_world in a3. apply related_sts_pub_plus_priv_world;auto. 
+      iPureIntro.
+      apply related_sts_a_pub_plus_world in H0.
+      apply related_sts_pub_plus_priv_world;auto.
     * iApply (interp_monotone_nm with "[] [] HIW0");auto.
       iPureIntro. apply related_sts_pub_plus_priv_world. apply related_sts_a_pub_plus_world with a0;auto.
     * destruct (decide (p = O)). 
@@ -910,7 +912,7 @@ Proof.
     iIntros (W0 W1) "% HIW0".
     destruct g.
     * iApply (interp_monotone_nm with "[] [] HIW0");auto.
-      iPureIntro. apply related_sts_a_pub_plus_world in a3. apply related_sts_pub_plus_priv_world;auto. 
+      iPureIntro. apply related_sts_a_pub_plus_world in H0. apply related_sts_pub_plus_priv_world;auto.
     * iApply (interp_monotone_nm with "[] [] HIW0");auto.
       iPureIntro. apply related_sts_pub_plus_priv_world. apply related_sts_a_pub_plus_world with a0;auto.
     * destruct (decide (p = O)). 

@@ -124,7 +124,7 @@ Section std_updates.
    Qed.
 
    Lemma remove_dups_swap {A : Type} `{EqDecision A} (l1 : list A) (a : A) (l2 : list A) :
-     remove_dups (l1 ++ a :: l2) ≡ₚremove_dups (a :: l1 ++ l2).
+     remove_dups (l1 ++ a :: l2) ≡ₚ remove_dups (a :: l1 ++ l2).
    Proof.
      induction l1; auto.
      rewrite app_comm_cons remove_dups_swap_head (app_comm_cons l1 l2 a) /=.
@@ -184,8 +184,8 @@ Section std_updates.
 
    (* domains *)
    Lemma std_update_multiple_not_in_sta_i W l ρ i :
-     i ∉ l → i ∈ dom (gset Addr) (std W) ↔
-               i ∈ dom (gset Addr) (std (std_update_multiple W l ρ)).
+     i ∉ l → i ∈ dom (std W) ↔
+               i ∈ dom (std (std_update_multiple W l ρ)).
    Proof.
      intros Hnin. induction l; auto.
      apply not_elem_of_cons in Hnin as [Hneq Hnin].
@@ -193,18 +193,18 @@ Section std_updates.
    Qed.
    Lemma std_update_multiple_in_sta_i W (l: list Addr) ρ i :
      Forall (λ (a:Addr), is_Some (std W !! a)) l →
-     i ∈ dom (gset Addr) (std W) ↔ i ∈ dom (gset Addr) (std (std_update_multiple W l ρ)).
+     i ∈ dom (std W) ↔ i ∈ dom (std (std_update_multiple W l ρ)).
    Proof.
      intros Hl.
      induction l; auto.
      apply Forall_cons_1 in Hl as [Ha Hll].
      cbn. rewrite dom_insert. split; [ set_solver |].
      rewrite elem_of_union elem_of_singleton. intros [-> | Hi]; [| set_solver].
-     rewrite -elem_of_gmap_dom //.
+     rewrite elem_of_dom //.
    Qed.
    Lemma std_update_multiple_not_in_sta W l ρ (a : Addr) :
-     a ∉ l → a ∈ dom (gset Addr) (std W) ↔
-             a ∈ dom (gset Addr) (std (std_update_multiple W l ρ)).
+     a ∉ l → a ∈ dom (std W) ↔
+             a ∈ dom (std (std_update_multiple W l ρ)).
    Proof.
      intros Hnin.
      apply std_update_multiple_not_in_sta_i.
@@ -215,7 +215,7 @@ Section std_updates.
    (* Some helper lemmas for various lemmas about using multiple updates in region *)
 
    Lemma related_sts_pub_update_multiple W l ρ :
-     Forall (λ a, a ∉ dom (gset Addr) (std W)) l →
+     Forall (λ a, a ∉ dom (std W)) l →
      related_sts_pub_world W (std_update_multiple W l ρ).
    Proof.
      intros Hforall. induction l.
@@ -253,8 +253,8 @@ Section std_updates.
 
    (* Multiple updates does not change dom, as long as the updated elements are a subset of original dom *)
    Lemma std_update_multiple_dom_equal W l ρ :
-     (∀ i : Addr, i ∈ l → i ∈ dom (gset Addr) (std W)) ->
-     dom (gset Addr) (std W) = dom (gset Addr) (std (std_update_multiple W l ρ)).
+     (∀ i : Addr, i ∈ l → i ∈ dom (std W)) ->
+     dom (std W) = dom (std (std_update_multiple W l ρ)).
    Proof.
      intros Hsub.
      induction l; auto.
@@ -269,18 +269,18 @@ Section std_updates.
 
    (* In general, the domain is a subset of the updated domain *)
    Lemma std_update_multiple_sta_dom_subseteq W l ρ :
-     dom (gset Addr) (std W) ⊆ dom (gset Addr) (std (std_update_multiple W l ρ)).
+     dom (std W) ⊆ dom (std (std_update_multiple W l ρ)).
    Proof.
      apply elem_of_subseteq. intros x Hx.
      destruct (decide (x ∈ l)).
-     - apply elem_of_gmap_dom. exists ρ.
+     - rewrite elem_of_dom. exists ρ.
        apply std_sta_update_multiple_lookup_in_i; auto.
      - apply std_update_multiple_not_in_sta_i; auto.
    Qed.
 
    Lemma std_update_multiple_std_sta_dom_monotone W W' l ρ :
-     dom (gset Addr) (std W) ⊆ dom (gset Addr) (std W') ->
-     dom (gset Addr) (std (std_update_multiple W l ρ)) ⊆ dom (gset Addr) (std (std_update_multiple W' l ρ)).
+     dom (std W) ⊆ dom (std W') ->
+     dom (std (std_update_multiple W l ρ)) ⊆ dom (std (std_update_multiple W' l ρ)).
    Proof.
      induction l;auto.
      simpl. repeat rewrite dom_insert_L. set_solver.
@@ -311,8 +311,8 @@ Section std_updates.
    (* lemmas for updating a repetition of top *)
    Lemma std_update_multiple_dom_top_sta W n ρ a :
      a ≠ addr_reg.top ->
-     a ∉ dom (gset Addr) (std W) →
-     a ∉ dom (gset Addr) (std (std_update_multiple W (repeat addr_reg.top n) ρ)).
+     a ∉ dom (std W) →
+     a ∉ dom (std (std_update_multiple W (repeat addr_reg.top n) ρ)).
    Proof.
      intros Hne Hnin.
      induction n; auto.
@@ -332,8 +332,8 @@ Section std_updates.
 
    Lemma std_update_multiple_dom_sta_i W n ρ a i :
      a ≠ addr_reg.top → (i > 0)%Z →
-     a ∉ dom (gset Addr) (std W) →
-     a ∉ dom (gset Addr) (std (std_update_multiple W (region_addrs_aux (get_addr_from_option_addr (a + i)%a) n) ρ)).
+     a ∉ dom (std W) →
+     a ∉ dom (std (std_update_multiple W (region_addrs_aux (get_addr_from_option_addr (a + i)%a) n) ρ)).
    Proof.
      intros Hneq Hgt.
      destruct (a + i)%a eqn:Hsome.
@@ -358,10 +358,8 @@ Section std_updates.
    Proof.
      intros Hsome.
      rewrite /incr_addr in Hsome. rewrite /incr_addr.
-     destruct (Z.le_dec (a + S (S n))%Z MemNum),(Z.le_dec 0 (a + S (S n)))%Z; inversion Hsome; try discriminate.
-     - destruct (Z.le_dec (a + S n)%Z MemNum),(Z.le_dec 0 (a + S n)%Z); eauto;
-         clear H x Hsome;zify_addr;lia.
-     - destruct (Z.le_dec (a + S n)%Z MemNum),(Z.le_dec 0 (a + S n)%Z); eauto;
+     destruct (Z.le_dec (a + S (S n))%Z MemNum),(Z.le_dec 0%Z (a + S (S n)))%Z; inversion Hsome; try discriminate.
+     - destruct (Z.le_dec (a + S n)%Z MemNum),(Z.le_dec 0%Z (a + S n)%Z); eauto;
          clear H x Hsome;zify_addr;lia.
    Qed.
 
@@ -393,9 +391,9 @@ Section std_updates.
    Lemma std_update_multiple_dom_insert W (a b a' : Addr) i :
      (a' < a)%a →
      Forall (λ a : Addr,
-                   (a ∉ dom (gset Addr) (std W))) (region_addrs a b) →
+                   (a ∉ dom (std W))) (region_addrs a b) →
      Forall (λ a : Addr,
-                   (a ∉ dom (gset Addr) (<[ a' := i]> W.1))) (region_addrs a b).
+                   (a ∉ dom (<[ a' := i]> W.1))) (region_addrs a b).
    Proof.
      intros Hlt.
      do 2 (rewrite list.Forall_forall). intros Hforall.
@@ -420,12 +418,14 @@ Section std_updates.
      induction l; auto; simpl.
      rewrite IHl.
      rewrite /std_update /revoke /loc /std /=. repeat f_equiv.
-     eapply (map_leibniz (M:=gmap Addr) (A:=region_type)). intros i. apply leibniz_equiv_iff.
+     eapply (map_leibniz (M:=gmap Addr) (A:=region_type)). intros i. eapply leibniz_equiv_iff.
      destruct (decide (a = i)).
      - subst. rewrite lookup_insert revoke_monotone_lookup_same;rewrite lookup_insert; auto.
        all: intros Hcontr; inversion Hcontr as [Hcontr']. all:done.
      - rewrite lookup_insert_ne;auto.
-       apply revoke_monotone_lookup. rewrite lookup_insert_ne;auto. Unshelve. apply _.
+       apply revoke_monotone_lookup. rewrite lookup_insert_ne;auto. Unshelve.
+       apply _.
+       apply option_leibniz.
    Qed.
 
    (* std_update_multiple and app *)
@@ -481,7 +481,7 @@ Section std_updates.
    (* TODO: never used ? *)
    (* Lemma elements_permutation A C `{Empty C, Union C, Singleton A C, Elements A C,ElemOf A C, EqDecision A, FinSet A C} (l: list A) : *)
    (*   NoDup l -> *)
-   (*   elements (list_to_set l) ≡ₚl. *)
+   (*   elements (list_to_set l) ≡ₚ l. *)
    (* Proof. *)
    (*   intros Hdup. *)
    (*   induction l. *)

@@ -16,25 +16,25 @@ Section region_alloc.
   (* Lemmas for extending the region map *)
 
   Lemma static_extend_preserve W (M : relT) (Mρ : gmap Addr region_type) (l : Addr) g ρ :
-    l ∉ dom (gset Addr) (std W) ->
-    dom (gset Addr) (std W) = dom (gset Addr) M ->
-    dom (gset Addr) Mρ = dom (gset Addr) M ->
-    (∀ a' : Addr, a' ∈ dom (gset Addr) g → Mρ !! a' = Some (Monostatic g)) ->
-    ∀ a' : Addr, a' ∈ dom (gset Addr) g → <[l:=ρ]> Mρ !! a' = Some (Monostatic g).
+    l ∉ dom (std W) ->
+    dom (std W) = dom M ->
+    dom Mρ = dom M ->
+    (∀ a' : Addr, a' ∈ dom g → Mρ !! a' = Some (Monostatic g)) ->
+    ∀ a' : Addr, a' ∈ dom g → <[l:=ρ]> Mρ !! a' = Some (Monostatic g).
   Proof.
     intros Hl Hdom1 Hdom2 Hall.
     intros a' Hin. pose proof (Hall _ Hin) as Hcontr.
-    assert (a' ∈ dom (gset Addr) Mρ) as Hincontr;[apply elem_of_gmap_dom;eauto|].
-    rewrite Hdom2 in Hincontr. apply elem_of_gmap_dom in Hincontr. clear Hcontr.
+    assert (a' ∈ dom Mρ) as Hincontr;[apply elem_of_dom;eauto|].
+    rewrite Hdom2 in Hincontr. apply elem_of_dom in Hincontr. clear Hcontr.
     assert (is_Some (std W !! a')) as Hcontr.
-    { apply elem_of_gmap_dom. rewrite Hdom1. apply elem_of_gmap_dom. eauto. }
-    apply elem_of_gmap_dom in Hcontr.
+    { rewrite -elem_of_dom. rewrite Hdom1. rewrite elem_of_dom. eauto. }
+    rewrite -elem_of_dom in Hcontr.
     assert (a' ≠ l) as Hne';[intros Heq;subst;contradiction|].
     rewrite lookup_insert_ne;auto.
   Qed.
 
   Lemma extend_region_temp E W l v φ `{∀ Wv, Persistent (φ Wv)}:
-     l ∉ dom (gset Addr) (std W) →
+     l ∉ dom (std W) →
      future_pub_a_mono l φ v -∗
      sts_full_world W -∗ region W -∗ l ↦ₐ v -∗ φ (W,v) ={E}=∗ region (<s[l := Monotemporary ]s>W)
                                                               ∗ rel l φ
@@ -56,7 +56,7 @@ Section region_alloc.
     }
     (* if not, we need to allocate a new saved pred using φ,
        and extend R with l := pred *)
-    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'".
+    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'". apply dfrac_valid_discarded.
     iMod (own_update _ _ (● (<[l:=to_agree γpred]> (to_agree <$> M : relUR)) ⋅ ◯ ({[l:=to_agree γpred]}))
             with "Hγrel") as "[HR #Hγrel]".
     { apply auth_update_alloc.
@@ -79,8 +79,8 @@ Section region_alloc.
       { iExists Monotemporary. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert|].
         iExists φ. iFrame "∗ #".
-        iSplitR;[auto|]. iExists v. iFrame.
-        iFrame "#". iApply "Hmono"; eauto. iPureIntro.
+        iSplitR;[auto|].
+        iApply "Hmono"; eauto. iPureIntro.
         apply related_sts_pub_a_world. auto.
       }
       iApply (big_sepM_mono with "Hpreds'").
@@ -94,13 +94,12 @@ Section region_alloc.
       iDestruct "Hl" as (v0 Hg) "[Ha #Hall]". iDestruct "Hall" as %Hall.
       iExists _. repeat iSplit;eauto. iExists v0. iFrame. iSplit;auto. iPureIntro.
       eapply static_extend_preserve; eauto.
-    - iExists γpred. iFrame "#".
-      rewrite REL_eq /REL_def.
+    - rewrite REL_eq /REL_def.
       done.
   Qed.
 
   Lemma extend_region_perm E W l v φ `{∀ Wv, Persistent (φ Wv)}:
-     l ∉ dom (gset Addr) (std W) →
+     l ∉ dom (std W) →
      future_priv_mono φ v -∗
      sts_full_world W -∗ region W -∗ l ↦ₐ v -∗ φ (W,v) ={E}=∗ region (<s[l := Permanent ]s>W)
                                                               ∗ rel l φ
@@ -122,7 +121,7 @@ Section region_alloc.
     }
     (* if not, we need to allocate a new saved pred using φ,
        and extend R with l := pred *)
-    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'".
+    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'". apply dfrac_valid_discarded.
     iMod (own_update _ _ (● (<[l:=to_agree γpred]> (to_agree <$> M : relUR)) ⋅ ◯ ({[l:=to_agree γpred]}))
             with "Hγrel") as "[HR #Hγrel]".
     { apply auth_update_alloc.
@@ -145,7 +144,7 @@ Section region_alloc.
       { iExists Permanent. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert|].
         iExists φ. iFrame "∗ #".
-        iSplitR;[done|]. iExists _. iFrame. repeat iSplit;auto.
+        iSplitR;[done|].
         iNext. iApply "Hmono"; eauto.
         iPureIntro. by apply related_sts_pub_priv_world.
       }
@@ -169,7 +168,7 @@ Section region_alloc.
   (* but since a revoked region is empty, there is no need to assume any resources for that region *)
 
   Lemma extend_region_revoked E W l φ `{∀ Wv, Persistent (φ Wv)} :
-     l ∉ dom (gset Addr) (std W) →
+     l ∉ dom (std W) →
      sts_full_world W -∗ region W ={E}=∗ region (<s[l := Revoked ]s>W)
                                                ∗ rel l φ
                                                ∗ sts_full_world (<s[l := Revoked ]s>W).
@@ -190,7 +189,7 @@ Section region_alloc.
     }
     (* if not, we need to allocate a new saved pred using φ,
        and extend R with l := pred *)
-    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'".
+    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'". apply dfrac_valid_discarded.
     iMod (own_update _ _ (● (<[l:=to_agree γpred]> (to_agree <$> M : relUR)) ⋅ ◯ ({[l:=to_agree γpred]}))
             with "Hγrel") as "[HR #Hγrel]".
     { apply auth_update_alloc.
@@ -251,7 +250,7 @@ Section region_alloc.
         assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked) = std_update_multiple W l1 Revoked) as ->;[|by iFrame "∗ #"].
         rewrite /std_update. destruct (std_update_multiple W l1 Revoked) eqn:Heq. f_equiv. simpl. rewrite insert_id//.
         assert (o = (std_update_multiple W l1 Revoked).1) as ->;[rewrite Heq//|].
-        apply std_sta_update_multiple_lookup_in_i;auto. }
+        apply std_sta_update_multiple_lookup_in_i;auto. done. }
       iMod (extend_region_revoked _ _ a with "Hsts Hr") as "(Hr & Hrel & Hsts)".
       { auto. }
       { rewrite -std_update_multiple_not_in_sta; auto.
@@ -291,7 +290,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_uninitialized_single E W l v φ `{∀ Wv, Persistent (φ Wv)}:
-     l ∉ dom (gset Addr) (std W) →
+     l ∉ dom (std W) →
      sts_full_world W -∗ region W -∗ l ↦ₐ v
      ={E}=∗
      region (<s[l := Uninitialized v]s>W)
@@ -314,7 +313,7 @@ Section region_alloc.
     }
     (* if not, we need to allocate a new saved pred using φ,
        and extend R with l := pred *)
-    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'".
+    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'". apply dfrac_valid_discarded.
     iMod (own_update _ _ (● (<[l:=to_agree γpred]> (to_agree <$> M : relUR)) ⋅ ◯ ({[l:=to_agree γpred]}))
             with "Hγrel") as "[HR #Hγrel]".
     { apply auth_update_alloc.
@@ -354,17 +353,18 @@ Section region_alloc.
   Qed.
 
   Lemma override_uninitialize_std_sta_dom' W (m: gmap Addr Word) :
-     dom (gset Addr) (override_uninitialize_std_sta m W.1) =
-     dom (gset Addr) m ∪ dom (gset Addr) W.1.
+     dom (override_uninitialize_std_sta m W.1) =
+     dom m ∪ dom W.1.
   Proof.
     rewrite set_eq. intro x.
     rewrite !elem_of_union. split.
-    - intros HH%elem_of_gmap_dom. destruct (decide (x ∈ dom (gset Addr) m));auto. right.
+    - intros HH. rewrite elem_of_dom in HH.
+      destruct (decide (x ∈ dom m));auto. right.
       rewrite override_uninitialize_std_sta_lookup_none in HH.
-      2: rewrite -not_elem_of_dom//. apply elem_of_gmap_dom;eauto.
-    - intros [ [? HH]%elem_of_gmap_dom | [? HH]%elem_of_gmap_dom].
-      apply elem_of_gmap_dom. erewrite override_uninitialize_std_sta_lookup_some;eauto.
-      destruct (m !! x) eqn:Hsome;auto. 1,2: apply elem_of_gmap_dom.
+      2: rewrite -not_elem_of_dom//. rewrite elem_of_dom;eauto.
+    - intros [ HH | HH ]; rewrite elem_of_dom in HH; destruct HH as [? HH].
+      rewrite elem_of_dom. erewrite override_uninitialize_std_sta_lookup_some;eauto.
+      destruct (m !! x) eqn:Hsome;auto. 1,2: rewrite elem_of_dom.
       erewrite override_uninitialize_std_sta_lookup_some;eauto.
       rewrite override_uninitialize_std_sta_lookup_none;eauto.
   Qed.
@@ -394,7 +394,7 @@ Section region_alloc.
         as ">(Hr & Hrel & Hsts)"; auto.
       { rewrite override_uninitialize_std_sta_dom'.
         rewrite not_elem_of_union !not_elem_of_dom. split; auto.
-        apply HnW. rewrite lookup_insert //. eauto. }
+        apply HnW. rewrite lookup_insert //. }
       iFrame. iModIntro. iApply big_sepM_insert; eauto. }
   Qed.
 

@@ -242,13 +242,14 @@ Section Contiguous.
         destruct l; simpl in Hl; first by apply Nat.lt_irrefl in Hl. auto.
   Qed.
 
-  Lemma last_lookup {A : Type} (l : list A) :
+  Lemma last_lookup' {A : Type} (l : list A) :
     list.last l = l !! (length l - 1).
   Proof.
-    induction l.
-    - done.
-    - simpl. destruct l; auto.
-      rewrite IHl. simpl. rewrite PeanoNat.Nat.sub_0_r. done.
+    rewrite last_lookup //=. by rewrite -Nat.sub_1_r.
+    (* induction l. *)
+    (* - done. *)
+    (* - simpl. destruct l; auto. *)
+    (*   rewrite IHl. simpl. rewrite PeanoNat.Nat.sub_0_r. done. *)
   Qed.
 
   Lemma last_app_iff {A : Type} (l1 l2 : list A) a :
@@ -258,7 +259,7 @@ Section Contiguous.
     - intros Hl2.
       induction l1.
       + destruct l2; inversion Hl2. simpl. split; auto. lia.
-      + destruct IHl1 as [Hlt Hlast]. split; auto. simpl. rewrite Hlast.
+      + destruct IHl1 as [Hlt Hlast]. split; auto. simpl.
         destruct (l1 ++ l2); auto.
         inversion Hlast.
     - generalize l1. induction l2; intros l1' [Hlen Hl].
@@ -574,7 +575,7 @@ Section Contiguous.
   Proof.
     induction l; intros.
     - inv H; inv H0; auto.
-    - inv H; inv H0. rewrite H2 in H3; inv H3.
+    - inv H; inv H0.
       eapply IHl; eauto.
   Qed.
 
