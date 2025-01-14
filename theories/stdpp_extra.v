@@ -689,8 +689,6 @@ Qed.
 (*----------------------- FIXME TEMPORARY ------------------------------------*)
 (* This is a copy-paste from stdpp (fin_maps.v), plus a fix to avoid using
    "rewrite .. by .." that is not available when using ssreflect's rewrite. *)
-(* TODO: upstream the fix into stdpp, and remove the code below whenever we
-   upgrade to a version of stdpp that includes it *)
 
 Lemma pair_eq_inv {A B} {y u : A} {z t : B} {x} :
     x = (y, z) -> x = (u, t) ->

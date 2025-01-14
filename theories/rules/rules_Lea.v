@@ -225,7 +225,7 @@ Section cap_lang_rules.
      destruct Hspec as [ | * Hfail ].
      { (* Success *)
        iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-       rewrite !insert_insert. (* TODO: add to simplify_map_eq via simpl_map? *)
+       rewrite !insert_insert.
        iApply (regs_of_map_2 with "Hmap"); eauto. }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. 

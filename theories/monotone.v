@@ -110,6 +110,40 @@ Section monotone.
     apply std_rel_rtc_Permanent in Hrelated; subst; auto.
   Qed.
 
+Lemma region_state_nwl_future W W' l l' p a a':
+  (a < a')%a →
+  LocalityFlowsTo l' l ->
+  (if pwlU p then l = Directed else True) ->
+  (@future_world Σ l' a' W W') -∗
+  ⌜if pwlU p then region_state_pwl_mono W a else region_state_nwl W a l⌝ -∗
+                                                 ⌜region_state_nwl W' a l'⌝.
+  Proof.
+    intros Hlt Hlflows Hloc. iIntros "Hfuture %".
+    destruct l'; simpl; iDestruct "Hfuture" as %Hf; iPureIntro.
+    - assert (l = Global) as -> by (destruct l; simpl in Hlflows; tauto).
+      destruct (pwlU p) eqn:HpwlU; try congruence.
+      eapply region_state_nwl_monotone_nm_nl; eauto.
+    - destruct (pwlU p).
+      + subst l. inversion Hlflows.
+      + eapply region_state_nwl_monotone_nm_nl; eauto.
+        destruct l;inversion Hlflows;auto.
+    - destruct (pwlU p).
+      + subst l. simpl in *.
+        left. eapply region_state_pwl_monotone_a;eauto.
+      + destruct l.
+        * right. eapply region_state_nwl_monotone_nm_nl;eauto.
+          apply related_sts_pub_plus_priv_world.
+          eapply related_sts_a_pub_plus_world;eauto.
+        * right. eapply region_state_nwl_monotone_nm_nl;eauto.
+          apply related_sts_pub_plus_priv_world.
+          eapply related_sts_a_pub_plus_world;eauto.
+        * destruct H0 as [a0 | a0].
+          left. eapply region_state_pwl_monotone_a;eauto.
+          right. eapply region_state_nwl_monotone_nm_nl;eauto.
+          apply related_sts_pub_plus_priv_world.
+          eapply related_sts_a_pub_plus_world;eauto.
+  Qed.
+
   Lemma region_state_pwl_monotone_mono W W' a :
     related_sts_pub_world W W' →
     region_state_pwl_mono W a -> region_state_pwl_mono W' a.
@@ -954,5 +988,7 @@ Proof.
     all: iIntros (W0 W1) "% HIW0".
     all: rewrite !fixpoint_interp1_eq;done.
 Qed.
+
+
 
 End monotone.

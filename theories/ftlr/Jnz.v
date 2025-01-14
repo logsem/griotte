@@ -21,15 +21,6 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  (* TODO: Move somewhere *)
-  Ltac destruct_cap c :=
-    let p := fresh "p" in
-    let g := fresh "g" in
-    let b := fresh "b" in
-    let e := fresh "e" in
-    let a := fresh "a" in
-    destruct c as ((((p & g) & b) & e) & a).
-
   Lemma jnz_case (W : WORLD) (r : leibnizO Reg) (p : Perm)
         (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (r1 r2 : RegName) (P:D):
     ftlr_instr W r p g b e a w (Jnz r1 r2) ρ P.

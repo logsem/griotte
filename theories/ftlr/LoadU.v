@@ -23,46 +23,6 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  (* TODO: move somewhere *)
-  Lemma isU_inv:
-    ∀ (W : leibnizO WORLD) (a' a b e : Addr) (p : Perm) (g : Locality),
-      (b ≤ a' < addr_reg.min a e)%Z
-      → isU p = true
-      → ⊢ (interp W) (inr (p, g, b, e, a))
-      → read_write_cond a' interp
-                     ∧ ⌜(∃ ρ : region_type, std W !! a' = Some ρ
-                                            ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Monostatic g) ∧ (∀ w, ρ ≠ Uninitialized w))⌝.
-  Proof.
-    intros. rewrite /interp fixpoint_interp1_eq /=. iIntros "H".
-    assert (p = URW \/ p = URWL \/ p = URWX \/ p = URWLX) as [-> | [-> | [-> | ->] ] ] by (destruct p; simpl in H0; auto; congruence); simpl.
-    - destruct g.
-      + iDestruct (extract_from_region_inv with "H") as "[C %]";[|iFrame]. solve_addr.
-        iPureIntro; auto. rewrite H1. eexists;eauto.
-      + iDestruct "H" as "[B C]".
-        iDestruct (extract_from_region_inv with "B") as "[D %]"; try (iFrame); auto.
-        iPureIntro; eauto.
-      + iDestruct "H" as "[B C]".
-        iDestruct (extract_from_region_inv with "B") as "[D %]"; try (iFrame); auto.
-        iPureIntro; auto. destruct H1 as [? | ?]; eexists;eauto.
-    - destruct g; auto.
-      iDestruct "H" as "[B C]".
-      iDestruct (extract_from_region_inv with "B") as "[D %]"; try (iFrame); auto.
-      iPureIntro. eexists;split;eauto.
-    - destruct g.
-      + iDestruct (extract_from_region_inv with "H") as "[D %]"; try (iFrame); auto; [solve_addr|].
-        iPureIntro; auto. eexists; eauto.
-      + iDestruct "H" as "[B C]".
-        iDestruct (extract_from_region_inv with "B") as "[E %]"; try (iFrame); auto.
-        iPureIntro; eauto.
-      + iDestruct "H" as "[B C]".
-        iDestruct (extract_from_region_inv with "B") as  "[E %]"; try (iFrame); auto.
-        iPureIntro; auto. destruct H1 as [? | ?]; eexists;eauto.
-    - destruct g; auto.
-      iDestruct "H" as "[B C]".
-      iDestruct (extract_from_region_inv with "B") as "[D %]"; try (iFrame); auto.
-      iPureIntro; simpl in H1; eexists;eauto.
-  Qed.
-
   Definition region_open_resources W l ls φ v (bl : bool): iProp Σ :=
     (∃ ρ,
      sts_state_std l ρ

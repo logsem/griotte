@@ -1,9 +1,10 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
-(* From cap_machine.rules Require Export rules. *)
+From cap_machine.rules Require Export rules.
 From cap_machine Require Export cap_lang region region_invariants.
 From iris.algebra Require Import gmap agree auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
+From Coq Require Import Eqdep_dec.
 Import uPred.
 
 Ltac auto_equiv :=
@@ -429,7 +430,7 @@ Section logrel.
   Qed.
   Global Instance interp_cap_URW_contractive :
     Contractive (interp_cap_URW).
-  Proof. solve_proper_prepare. destruct x1; auto. destruct_cap c; destruct c; destruct c3; auto.
+  Proof. solve_proper_prepare. destruct x1; auto. destruct_cap c; destruct p; destruct g; auto.
          - apply big_opL_ne; auto. rewrite /pointwise_relation; intros.
            f_equiv.
            rewrite /read_write_cond rel_eq /rel_def /saved_pred_own.
@@ -459,7 +460,7 @@ Section logrel.
   Global Instance interp_cap_URWL_contractive :
     Contractive (interp_cap_URWL).
   Proof. solve_proper_prepare.
-         destruct x1; auto. destruct_cap c. destruct c; auto. destruct c3; auto.
+         destruct x1; auto. destruct_cap c. destruct p; auto. destruct g; auto.
          apply sep_ne; auto.
          apply big_opL_ne; auto. rewrite /pointwise_relation; intros.
          f_equiv. rewrite /read_write_cond rel_eq /rel_def /saved_pred_own.
@@ -476,7 +477,7 @@ Section logrel.
   Proof.
     rewrite /interp_cap_URWX.
     solve_proper_prepare.
-    destruct x1; auto. destruct_cap c; destruct c; destruct c3; auto.
+    destruct x1; auto. destruct_cap c. destruct p; auto. destruct g; auto.
     - rewrite /read_write_cond rel_eq /rel_def /saved_pred_own.
       apply big_opL_ne; auto. intros ? ? ?.
       f_equiv. apply exist_ne. rewrite /pointwise_relation; intros.
@@ -508,7 +509,7 @@ Section logrel.
   Proof.
     rewrite /interp_cap_URWLX.
     solve_proper_prepare.
-    destruct x1; auto. destruct_cap c; destruct c; auto. destruct c3; auto;
+    destruct x1; auto. destruct_cap c. destruct p; auto. destruct g; auto.
     apply sep_ne.
     - rewrite /read_write_cond rel_eq /rel_def /saved_pred_own.
       apply big_opL_ne; auto. intros ? ? ?.
@@ -698,7 +699,6 @@ Section logrel.
     ∃ reg, writeAllowedWord (r !r! reg) ∧ hasValidAddress (r !r! reg) a.
 
 
-  From Coq Require Import Eqdep_dec.
   Global Instance reg_finite : finite.Finite RegName.
   Proof. apply (finite.enc_finite (λ r : RegName, match r with
                                                   | PC => S RegNum
@@ -925,5 +925,47 @@ Section logrel.
       all: iDestruct (and_exist_r with "H") as (P) "((?&?)&?)".
       all: by iExists _;iFrame. }
   Qed.
+
+  Lemma isU_inv:
+    ∀ (W : leibnizO WORLD) (a' a b e : Addr) (p : Perm) (g : Locality),
+      (b ≤ a' < addr_reg.min a e)%Z
+      → isU p = true
+      → ⊢ (interp W) (inr (p, g, b, e, a))
+      → read_write_cond a' interp
+                     ∧ ⌜(∃ ρ : region_type, std W !! a' = Some ρ
+                                            ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Monostatic g) ∧ (∀ w, ρ ≠ Uninitialized w))⌝.
+  Proof.
+    intros. rewrite /interp fixpoint_interp1_eq /=. iIntros "H".
+    assert (p = URW \/ p = URWL \/ p = URWX \/ p = URWLX)
+      as [-> | [-> | [-> | ->] ] ]
+           by (destruct p; simpl in *; auto); simpl.
+    - destruct g.
+      + iDestruct (extract_from_region_inv with "H") as "[C %]";[|iFrame]. solve_addr.
+        iPureIntro; auto. rewrite H2. eexists;eauto.
+      + iDestruct "H" as "[B C]".
+        iDestruct (extract_from_region_inv with "B") as "[D %]"; try (iFrame); auto.
+        iPureIntro; eauto.
+      + iDestruct "H" as "[B C]".
+        iDestruct (extract_from_region_inv with "B") as "[D %]"; try (iFrame); auto.
+        iPureIntro; auto. destruct H2 as [? | ?]; eexists;eauto.
+    - destruct g; auto.
+      iDestruct "H" as "[B C]".
+      iDestruct (extract_from_region_inv with "B") as "[D %]"; try (iFrame); auto.
+      iPureIntro. eexists;split;eauto.
+    - destruct g.
+      + iDestruct (extract_from_region_inv with "H") as "[D %]"; try (iFrame); auto; [solve_addr|].
+        iPureIntro; auto. eexists; eauto.
+      + iDestruct "H" as "[B C]".
+        iDestruct (extract_from_region_inv with "B") as "[E %]"; try (iFrame); auto.
+        iPureIntro; eauto.
+      + iDestruct "H" as "[B C]".
+        iDestruct (extract_from_region_inv with "B") as  "[E %]"; try (iFrame); auto.
+        iPureIntro; auto. destruct H2 as [? | ?]; eexists;eauto.
+    - destruct g; auto.
+      iDestruct "H" as "[B C]".
+      iDestruct (extract_from_region_inv with "B") as "[D %]"; try (iFrame); auto.
+      iPureIntro; simpl in H2; eexists;eauto.
+  Qed.
+
 
 End logrel.

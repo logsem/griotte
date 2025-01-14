@@ -337,18 +337,6 @@ Section fundamental.
       case_decide as Hdec1; last by done. by exfalso.
   Qed.
 
-  (* TODO: prove this using interp_weakening *)
-  Lemma isU_weak_addrs W p g b e a a' :
-    isU p = true -> (a' <= a)%a →
-    interp W (inr (p,g,b,e,a)) -∗ interp W (inr (p,g,b,e,a')).
-  Proof.
-    iIntros (Hu Hle) "#Hv".
-    iApply interp_weakeningEO;eauto.
-    rewrite Hu;auto. 1,2,3,4: destruct p;auto;inversion Hu.
-    solve_addr. solve_addr. apply Is_true_eq_left. apply PermFlows_refl.
-    apply Is_true_eq_left. destruct g;auto.
-  Qed.
-
   Lemma storev_interp_mono W (r : Reg) (r1 : RegName) (r2 : Z + RegName) p g b e a a' ρ storev:
     word_of_argument r r2 = Some storev
      → reg_allows_storeU r r1 p g b e a a' storev
