@@ -207,7 +207,7 @@ Section region_macros.
    Qed.
 
    Lemma region_state_pwl_forall_temp W (l : list Addr) (φ : Addr → iProp Σ) :
-     (([∗ list] a ∈ l, φ a ∧ ⌜region_state_pwl_mono W a⌝) -∗
+     (([∗ list] a ∈ l, φ a ∧ ⌜region_state_pwl W a⌝) -∗
      ⌜Forall (λ a, (std W) !! a = Some Monotemporary) l⌝).
    Proof.
      iIntros "Hl".
@@ -225,7 +225,7 @@ Section region_macros.
      open_region_many l W
      -∗ sts_full_world W
      -∗ ([∗ list] a0 ∈ region_addrs a b, read_write_cond a0 (fixpoint interp1)
-                                         ∧ ⌜region_state_pwl_mono W a0⌝)
+                                         ∧ ⌜region_state_pwl W a0⌝)
      -∗ ([∗ list] a0 ∈ region_addrs a b,
              (∃ w : Word, a0 ↦ₐ w
                          ∗ ▷ (fixpoint interp1) W w
