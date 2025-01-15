@@ -54,7 +54,7 @@ Section fundamental.
   Proof. intros. case_decide;apply _. Qed.
 
   Theorem fundamental W r p g b e (a : Addr) :
-    ⊢ ((⌜p = RX⌝ ∨ ⌜p = RWX⌝ ∨ ⌜p = RWLX ∧ g = Directed⌝) →
+    ⊢ ((⌜p = RX⌝ ∨ ⌜p = RWX⌝ ∨ ⌜p = RWLX ∧ g = Local⌝) →
       region_conditions W p g b e →
       interp_expression r W (inr ((p,g),b,e,a))).
   Proof.
@@ -76,13 +76,13 @@ Section fundamental.
       iDestruct (extract_from_region_inv _ _ a with "Hinv") as "[_ Hstate_a]";auto.
       iDestruct "Hstate_a" as %Hstate_a.
       assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked
-                                   ∧ (∀ g, ρ ≠ Monostatic g) ∧ (∀ w, ρ ≠ Uninitialized w))
-        as [ρ [Hρ [Hne_rev [Hne_mono Hne_uninit] ] ] ].
+                                   ∧ (∀ g, ρ ≠ Monostatic g))
+        as [ρ [Hρ [Hne_rev Hne_mono ] ] ].
       { destruct (pwl p); [rewrite Hstate_a;eexists;eauto|].
-        destruct g; [rewrite Hstate_a|rewrite Hstate_a|destruct Hstate_a as [-> | ->] ];eexists;eauto. }
+        destruct g; [rewrite Hstate_a|rewrite Hstate_a];eexists;eauto. }
       iDestruct (region_open W a with "[$Hinva $Hr $Hsts]")
         as (w) "(Hr & Hsts & Hstate & Ha & #Hmono & Hw) /=";[|apply Hρ|].
-      { destruct ρ;auto;[done|by specialize (Hne_mono g0)|by specialize (Hne_uninit w)]. }
+      { destruct ρ;auto;[done|by specialize (Hne_mono g0)]. }
       iDestruct ((big_sepM_delete _ _ PC) with "Hmreg") as "[HPC Hmap]";
         first apply (lookup_insert _ _ (inr (p, g, b, e, a))).
       destruct (decodeInstrW w) eqn:Hi. (* proof by cases on each instruction *)
@@ -199,7 +199,7 @@ Section fundamental.
         iApply (wp_halt with "[HPC Ha]"); eauto; iFrame.
         iNext. iIntros "[HPC Ha] /=".
         iDestruct (region_close _ _ _ _ ρ with "[$Hr $Ha $Hstate $Hmono Hw]") as "Hr";[auto|iFrame "#"; auto|].
-        { destruct ρ;auto;[|specialize (Hne_mono g0)|specialize (Hne_uninit w0)]; contradiction. }
+        { destruct ρ;auto;[|specialize (Hne_mono g0)]; contradiction. }
         iApply wp_pure_step_later; auto; iNext ; iIntros "_".
         iApply wp_value.
         iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=".
@@ -214,15 +214,6 @@ Section fundamental.
           - subst r0; rewrite lookup_insert; eauto.
           - rewrite lookup_insert_ne; auto. }
         iExact "HA".
-      + (* LoadU *)
-        admit.
-      (* iApply (loadU_case with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmap]"); try iAssumption; eauto. *)
-      + (* StoreU *)
-        admit.
-        (* iApply (storeU_case with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmap]"); try iAssumption; eauto. *)
-      + (* PromoteU *)
-        admit.
-        (* iApply (promoteU_case with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmap]"); try iAssumption; eauto. *)
    - (* Not correct PC *)
      iDestruct ((big_sepM_delete _ _ PC) with "Hmreg") as "[HPC Hmap]";
        first apply (lookup_insert _ _ (inr (p, g, b, e, a))).
@@ -232,8 +223,9 @@ Section fundamental.
      iApply wp_value.
      iIntros (Hcontr); inversion Hcontr.
      Unshelve. apply _.
-  Admitted.
+  Qed.
 
+  (* TODO fix *)
   (* the execute condition can be regained using the FTLR on read allowed permissions *)
   Lemma interp_exec_cond W p g b e a :
     p = RX ∨ p = RWX ∨ p = RWLX ->
@@ -242,22 +234,19 @@ Section fundamental.
     iIntros (Hra) "#Hw".
     iIntros (a0 r W' Hin) "#Hfuture". iModIntro.
     destruct g.
-    + iDestruct (interp_monotone_nm with "Hfuture [] Hw") as "Hw'";[auto|].
+    + iDestruct (interp_monotone_nm_nl with "Hfuture [] Hw") as "Hw'";[auto|].
       iDestruct (readAllowed_implies_region_conditions with "Hw'") as "Hread_cond";[destruct Hra as [-> | [-> | ->] ];auto|].
       iApply fundamental;[|eauto]. destruct Hra as [-> | [-> | ->] ];auto.
       rewrite fixpoint_interp1_eq /=. done.
-    + iDestruct (interp_monotone_nm with "Hfuture [] Hw") as "Hw'";[auto|].
-      iDestruct (readAllowed_implies_region_conditions with "Hw'") as "Hread_cond";[destruct Hra as [-> | [-> | ->] ];auto|].
-      iApply fundamental;[|eauto]. destruct Hra as [-> | [-> | ->] ];auto.
-      rewrite fixpoint_interp1_eq /=. done.
-    + iDestruct (interp_monotone_a with "[Hfuture] Hw") as "Hw'";[auto|].
-      2: iDestruct (readAllowed_implies_region_conditions with "Hw'") as "Hread_cond";[destruct Hra as [-> | [-> | ->] ];auto|].
-      2: iApply fundamental;[|eauto];destruct Hra as [-> | [-> | ->] ];auto.
-      simpl. destruct Hra as [-> | [-> | ->] ];auto.
-  Qed.
+    + admit.
+    (* + iDestruct (interp_monotone_nm with "Hfuture [] Hw") as "Hw'";[auto|]. *)
+    (*   iDestruct (readAllowed_implies_region_conditions with "Hw'") as "Hread_cond";[destruct Hra as [-> | [-> | ->] ];auto|]. *)
+    (*   iApply fundamental;[|eauto]. destruct Hra as [-> | [-> | ->] ];auto. *)
+    (*   rewrite fixpoint_interp1_eq /=. done. *)
+  Admitted.
 
   Lemma fundamental_from_interp_correctPC W p g b e a r :
-    p = RX ∨ p = RWX ∨ (p = RWLX ∧ g = Directed) →
+    p = RX ∨ p = RWX ∨ (p = RWLX ∧ g = Local) →
     ⊢ interp W (inr (p, g, b, e, a)) →
       interp_expression r W (inr (p,g,b,e,a)).
   Proof.
@@ -289,7 +278,7 @@ Section fundamental.
     iIntros "Hinterp".
     destruct (decide (isCorrectPC (inr (p,g,b,e,a)))).
     - assert (p = RX ∨ p = RWX ∨ p = RWLX) as Hp;[inversion i;auto|].
-      iAssert (⌜p = RWLX → g = Directed⌝)%I as %Hmono.
+      iAssert (⌜p = RWLX → g = Local⌝)%I as %Hmono.
       { iIntros (->). iDestruct (writeLocalAllowed_implies_local with "Hinterp") as %Hmono;[auto|destruct g;auto]. }
       iApply (fundamental_from_interp_correctPC with "Hinterp").
       destruct Hp as [-> | [-> | ->] ];auto.
@@ -308,7 +297,7 @@ Section fundamental.
   Lemma exec_wp W p g b e a :
     isCorrectPC (inr (p, g, b, e, a)) ->
     exec_cond W b e g p interp -∗
-    ∀ r W', future_world g e W W' → ▷ ((interp_expr interp r) W') (inr (p, g, b, e, a)).
+    ∀ r W', future_world g W W' → ▷ ((interp_expr interp r) W') (inr (p, g, b, e, a)).
   Proof.
     iIntros (Hvpc) "Hexec".
     rewrite /exec_cond /enter_cond.
@@ -322,9 +311,6 @@ Section fundamental.
     - iIntros (Hrelated).
       iSpecialize ("Hexec" $! a r W' Hin Hrelated).
       iFrame.
-    - iIntros (Hrelated).
-      iSpecialize ("Hexec" $! a r W' Hin Hrelated).
-      iFrame.
   Qed.
 
   (* The following lemma is to assist with a pattern when jumping to unknown valid capablities *)
@@ -332,7 +318,7 @@ Section fundamental.
      (interp W w
     -∗ (if decide (isCorrectPC (updatePcPerm w)) then
           (∃ p g b e a, ⌜w = inr (p,g,b,e,a)⌝
-          ∗ □ ∀ r W', future_world g e W W' → ▷ ((interp_expr interp r) W') (updatePcPerm w))
+          ∗ □ ∀ r W', future_world g W W' → ▷ ((interp_expr interp r) W') (updatePcPerm w))
         else
           φ FailedV ∗ PC ↦ᵣ updatePcPerm w -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.
