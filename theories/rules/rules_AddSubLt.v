@@ -2,11 +2,12 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
-From cap_machine Require Import machine_base rules_base.
+From cap_machine Require Import machine_base.
+From cap_machine Require Export rules_base.
 
 Section cap_lang_rules.
-  Context `{memG Σ, regG Σ}.
-  Context `{MachineParameters}.
+  Context `{MP: MachineParameters}.
+  Context `{ceriseg: ceriseG Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : cap_lang.expr.
@@ -19,14 +20,14 @@ Section cap_lang_rules.
 
   Definition denote (i: instr) (n1 n2: Z): Z :=
     match i with
-    | machine_base.Add _ _ _ => (n1 + n2)%Z
+    | Add _ _ _ => (n1 + n2)%Z
     | Sub _ _ _ => (n1 - n2)%Z
     | Lt _ _ _ => (Z.b2z (n1 <? n2)%Z)
     | _ => 0%Z
     end.
 
   Definition is_AddSubLt (i: instr) (r: RegName) (arg1 arg2: Z + RegName) :=
-    i = machine_base.Add r arg1 arg2 ∨
+    i = Add r arg1 arg2 ∨
     i = Sub r arg1 arg2 ∨
     i = Lt r arg1 arg2.
 
@@ -47,15 +48,14 @@ Section cap_lang_rules.
   | AddSubLt_fail_incrPC n1 n2:
       z_of_argument regs rv1 = Some n1 ->
       z_of_argument regs rv2 = Some n2 ->
-      incrementPC (<[ dst := inl (denote i n1 n2) ]> regs) = None ->
-      regs' = (<[ dst := inl (denote i n1 n2) ]> regs) ->
+      incrementPC (<[ dst := WInt (denote i n1 n2) ]> regs) = None ->
       AddSubLt_failure i regs dst rv1 rv2 regs'.
 
   Inductive AddSubLt_spec (i: instr) (regs: Reg) (dst: RegName) (rv1 rv2: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
   | AddSubLt_spec_success n1 n2:
       z_of_argument regs rv1 = Some n1 ->
       z_of_argument regs rv2 = Some n2 ->
-      incrementPC (<[ dst := inl (denote i n1 n2) ]> regs) = Some regs' ->
+      incrementPC (<[ dst := WInt (denote i n1 n2) ]> regs) = Some regs' ->
       AddSubLt_spec i regs dst rv1 rv2 regs' NextIV
   | AddSubLt_spec_failure:
       AddSubLt_failure i regs dst rv1 rv2 regs' ->
@@ -68,8 +68,8 @@ Section cap_lang_rules.
   Lemma wp_AddSubLt Ep i pc_p pc_g pc_b pc_e pc_a w dst arg1 arg2 regs :
     decodeInstrW w = i →
     is_AddSubLt i dst arg1 arg2 →
-    isCorrectPC (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
-    regs !! PC = Some (inr ((pc_p, pc_g), pc_b, pc_e, pc_a)) →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
     regs_of i ⊆ dom regs →
     {{{ ▷ pc_a ↦ₐ w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
@@ -81,10 +81,9 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 nt l1 l2 n) "Hσ1 /=". destruct σ1 as [r m]; simpl.
+    iIntros (σ1 ns l1 l2 nt) "Hσ1 /=". destruct σ1; simpl.
     iDestruct "Hσ1" as "[Hr Hm]".
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
-    have HPC' := regs_lookup_eq _ _ _ HPC.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
     iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
@@ -92,6 +91,7 @@ Section cap_lang_rules.
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iIntros "_".
     iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
+    unfold exec in Hstep.
 
     specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri.
     erewrite regs_of_is_AddSubLt in Hri, Dregs; eauto.
@@ -102,32 +102,33 @@ Section cap_lang_rules.
     (* Failure: arg1 is not an integer *)
     { unfold z_of_argument in Hn1. destruct arg1 as [| r0]; [ congruence |].
       destruct (Hri r0) as [r0v [Hr'0 Hr0]]. by unfold regs_of_argument; set_solver+.
-      rewrite Hr'0 in Hn1. destruct r0v as [| (([[? ?] ?] & ?) & ?) ]; [ congruence |].
       assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
-      { destruct_or! Hinstr; rewrite Hinstr /= in Hstep.
-        all: rewrite /RegLocate Hr0 in Hstep. all: repeat case_match; simplify_eq; eauto. }
+      { rewrite Hr'0 in Hn1.
+        destruct_word r0v; try congruence.
+        all: destruct_or! Hinstr; rewrite Hinstr /= in Hstep.
+        all: rewrite Hr0 in Hstep. all: repeat case_match; simplify_eq; eauto. }
       iFail "Hφ" AddSubLt_fail_nonconst1. }
+    apply (z_of_arg_mono _ r) in Hn1; auto.
 
     destruct (z_of_argument regs arg2) as [n2|] eqn:Hn2;
       pose proof Hn2 as Hn2'; cycle 1.
     (* Failure: arg2 is not an integer *)
     { unfold z_of_argument in Hn2. destruct arg2 as [| r0]; [ congruence |].
       destruct (Hri r0) as [r0v [Hr'0 Hr0]]. by unfold regs_of_argument; set_solver+.
-      rewrite Hr'0 in Hn2. destruct r0v as [| (([[? ?] ?] & ?) & ?) ]; [ congruence |].
       assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
-      { destruct_or! Hinstr; rewrite Hinstr /= in Hstep.
-        all: rewrite /RegLocate Hr0 in Hstep. all: repeat case_match; simplify_eq; eauto. }
+      {
+        rewrite Hr'0 in Hn2. destruct_word r0v; try congruence.
+        all: destruct_or! Hinstr; rewrite Hinstr /= Hn1 in Hstep; cbn in Hstep.
+        all: rewrite Hr0 in Hstep. all: repeat case_match; simplify_eq; eauto. }
       iFail "Hφ" AddSubLt_fail_nonconst2. }
+    apply (z_of_arg_mono _ r) in Hn2; auto.
 
-    eapply z_of_argument_Some_inv' in Hn1; eapply z_of_argument_Some_inv' in Hn2; eauto.
+    assert (exec_opt i (r, m) = updatePC (update_reg (r, m) dst (WInt (denote i n1 n2)))) as HH.
+    { all: destruct_or! Hinstr; rewrite Hinstr /= /update_reg /= in Hstep |- *; auto.
+      all: by rewrite Hn1 Hn2; cbn. }
+    rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
 
-    assert ((c, σ2) = updatePC (update_reg (r, m) dst (inl (denote i n1 n2)))) as HH.
-    { destruct Hn1 as [ -> | (r1 & -> & _ & Hr1) ]; destruct Hn2 as [ -> | (r2 & -> & _ & Hr2) ].
-      all: destruct_or! Hinstr; rewrite Hinstr /= /RegLocate /update_reg /= in Hstep |- *; auto.
-      all: rewrite ?Hr1 ?Hr2 /= in Hstep; auto. }
-    rewrite /update_reg /= in HH.
-
-    destruct (incrementPC (<[ dst := inl (denote i n1 n2) ]> regs))
+    destruct (incrementPC (<[ dst := WInt (denote i n1 n2) ]> regs))
       as [regs'|] eqn:Hregs'; pose proof Hregs' as H'regs'; cycle 1.
     (* Failure: Cannot increment PC *)
     { apply incrementPC_fail_updatePC with (m:=m) in Hregs'.
@@ -135,14 +136,15 @@ Section cap_lang_rules.
       2: by apply lookup_insert_is_Some'; eauto.
       2: by apply insert_mono; eauto.
       simplify_pair_eq.
-      iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+      rewrite Hregs' in Hstep. inversion Hstep.
       iFail "Hφ" AddSubLt_fail_incrPC. }
+
 
     (* Success *)
 
     eapply (incrementPC_success_updatePC _ m) in Hregs'
-      as (p' & g' & b' & e' & a'' & a_pc' & HPC'' & Ha_pc' & HuPC & -> & X).
-    eapply updatePC_success_incl with (m':=m) in HuPC. 2: by eapply insert_mono; eauto.
+      as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+    eapply updatePC_success_incl with (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
     simplify_pair_eq. iFrame.
     iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
@@ -155,17 +157,17 @@ Section cap_lang_rules.
     decodeInstrW w = ins →
     is_AddSubLt ins dst (inl n1) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
-    {{{ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ pc_a ↦ₐ w
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ inr (pc_p,pc_g,pc_b,pc_e,pc_a')
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ dst ↦ᵣ inl (denote ins n1 n2)
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hdst) Hφ".
@@ -180,28 +182,26 @@ Section cap_lang_rules.
       rewrite insert_commute // insert_insert insert_commute // insert_insert.
       iDestruct (regs_of_map_2 with "Hmap") as "[? ?]"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence.
-      inv Hvpc. destruct H10 as [? | [? | ?]]; congruence. }
+      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_r_z E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r1 n1 n2 pc_a' :
     decodeInstrW w = ins →
     is_AddSubLt ins dst (inr r1) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
-    {{{ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ pc_a ↦ₐ w
-        ∗ r1 ↦ᵣ inl n1
+        ∗ r1 ↦ᵣ WInt n1
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ inr (pc_p,pc_g,pc_b,pc_e,pc_a')
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ inl n1
-          ∗ dst ↦ᵣ inl (denote ins n1 n2)
+          ∗ r1 ↦ᵣ WInt n1
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr1 & Hdst) Hφ".
@@ -217,28 +217,26 @@ Section cap_lang_rules.
               (insert_commute _ dst PC) // insert_insert.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence.
-      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
+      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_z_r E dst pc_p pc_g pc_b pc_e pc_a w wdst ins n1 r2 n2 pc_a' :
     decodeInstrW w = ins →
     is_AddSubLt ins dst (inl n1) (inr r2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
-    {{{ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ pc_a ↦ₐ w
-        ∗ r2 ↦ᵣ inl n2
+        ∗ r2 ↦ᵣ WInt n2
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ inr (pc_p,pc_g,pc_b,pc_e,pc_a')
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ r2 ↦ᵣ inl n2
-          ∗ dst ↦ᵣ inl (denote ins n1 n2)
+          ∗ r2 ↦ᵣ WInt n2
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
@@ -254,30 +252,28 @@ Section cap_lang_rules.
               (insert_commute _ dst PC) // insert_insert.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence.
-      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
+      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_r_r E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r1 n1 r2 n2 pc_a' :
     decodeInstrW w = ins →
     is_AddSubLt ins dst (inr r1) (inr r2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (inr (pc_p,pc_g,pc_b,pc_e,pc_a)) ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
-    {{{ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ pc_a ↦ₐ w
-        ∗ r1 ↦ᵣ inl n1
-        ∗ r2 ↦ᵣ inl n2
+        ∗ r1 ↦ᵣ WInt n1
+        ∗ r2 ↦ᵣ WInt n2
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ inr (pc_p,pc_g,pc_b,pc_e,pc_a')
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ inl n1
-          ∗ r2 ↦ᵣ inl n2
-          ∗ dst ↦ᵣ inl (denote ins n1 n2)
+          ∗ r1 ↦ᵣ WInt n1
+          ∗ r2 ↦ᵣ WInt n2
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr1 & Hr2 & Hdst) Hφ".
@@ -293,28 +289,26 @@ Section cap_lang_rules.
               (insert_commute _ r1 dst) // (insert_commute _ PC dst) // insert_insert.
       iDestruct (regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence.
-      inv Hvpc. destruct H15 as [? | [? | ?]]; congruence. }
+      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_r_r_same E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r n pc_a' :
     decodeInstrW w = ins →
     is_AddSubLt ins dst (inr r) (inr r) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (inr (pc_p,pc_g,pc_b,pc_e,pc_a)) ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
-    {{{ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ pc_a ↦ₐ w
-        ∗ r ↦ᵣ inl n
+        ∗ r ↦ᵣ WInt n
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ inr (pc_p,pc_g,pc_b,pc_e,pc_a')
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ r ↦ᵣ inl n
-          ∗ dst ↦ᵣ inl (denote ins n n)
+          ∗ r ↦ᵣ WInt n
+          ∗ dst ↦ᵣ WInt (denote ins n n)
       }}}.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr & Hdst) Hφ".
@@ -330,26 +324,24 @@ Section cap_lang_rules.
               (insert_commute _ PC dst) // insert_insert.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence.
-      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
+      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_dst_z E dst pc_p pc_g pc_b pc_e pc_a w ins n1 n2 pc_a' :
     decodeInstrW w = ins →
     is_AddSubLt ins dst (inr dst) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
-    {{{ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ pc_a ↦ₐ w
-        ∗ dst ↦ᵣ inl n1
+        ∗ dst ↦ᵣ WInt n1
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ inr (pc_p,pc_g,pc_b,pc_e,pc_a')
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ dst ↦ᵣ inl (denote ins n1 n2)
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hdst) Hφ".
@@ -364,26 +356,24 @@ Section cap_lang_rules.
       rewrite (insert_commute _ PC dst) // insert_insert insert_commute // insert_insert.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence.
-      inv Hvpc. destruct H10 as [? | [? | ?]]; congruence. }
+      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_z_dst E dst pc_p pc_g pc_b pc_e pc_a w ins n1 n2 pc_a' :
     decodeInstrW w = ins →
     is_AddSubLt ins dst (inl n1) (inr dst) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
-    {{{ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ pc_a ↦ₐ w
-        ∗ dst ↦ᵣ inl n2
+        ∗ dst ↦ᵣ WInt n2
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ inr (pc_p,pc_g,pc_b,pc_e,pc_a')
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ dst ↦ᵣ inl (denote ins n1 n2)
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hdst) Hφ".
@@ -398,28 +388,26 @@ Section cap_lang_rules.
       rewrite (insert_commute _ PC dst) // insert_insert insert_commute // insert_insert.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence.
-      inv Hvpc. destruct H10 as [? | [? | ?]]; congruence. }
+      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_dst_r E dst pc_p pc_g pc_b pc_e pc_a w ins n1 r2 n2 pc_a' :
     decodeInstrW w = ins →
     is_AddSubLt ins dst (inr dst) (inr r2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (inr (pc_p,pc_g,pc_b,pc_e,pc_a)) ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
-    {{{ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ pc_a ↦ₐ w
-        ∗ r2 ↦ᵣ inl n2
-        ∗ dst ↦ᵣ inl n1
+        ∗ r2 ↦ᵣ WInt n2
+        ∗ dst ↦ᵣ WInt n1
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ inr (pc_p,pc_g,pc_b,pc_e,pc_a')
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ r2 ↦ᵣ inl n2
-          ∗ dst ↦ᵣ inl (denote ins n1 n2)
+          ∗ r2 ↦ᵣ WInt n2
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
@@ -432,31 +420,29 @@ Section cap_lang_rules.
     { (* Success *)
       iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
       rewrite (insert_commute _ PC dst) // insert_insert (insert_commute _ r2 dst) //
-              (insert_commute _ PC dst) // insert_insert.
+              (insert_commute _ PC dst) // insert_insert. 
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence.
-      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
+      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_r_dst E dst pc_p pc_g pc_b pc_e pc_a w ins r1 n1 n2 pc_a' :
     decodeInstrW w = ins →
     is_AddSubLt ins dst (inr r1) (inr dst) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (inr (pc_p,pc_g,pc_b,pc_e,pc_a)) ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
-    {{{ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ pc_a ↦ₐ w
-        ∗ r1 ↦ᵣ inl n1
-        ∗ dst ↦ᵣ inl n2
+        ∗ r1 ↦ᵣ WInt n1
+        ∗ dst ↦ᵣ WInt n2
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ inr (pc_p,pc_g,pc_b,pc_e,pc_a')
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ inl n1
-          ∗ dst ↦ᵣ inl (denote ins n1 n2)
+          ∗ r1 ↦ᵣ WInt n1
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
@@ -472,26 +458,24 @@ Section cap_lang_rules.
               (insert_commute _ PC dst) // insert_insert.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence.
-      inv Hvpc. destruct H12 as [? | [? | ?]]; congruence. }
+      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
   Lemma wp_add_sub_lt_success_dst_dst E dst pc_p pc_g pc_b pc_e pc_a w ins n pc_a' :
     decodeInstrW w = ins →
     is_AddSubLt ins dst (inr dst) (inr dst) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (inr (pc_p,pc_g,pc_b,pc_e,pc_a)) ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
-    {{{ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ pc_a ↦ₐ w
-        ∗ dst ↦ᵣ inl n
+        ∗ dst ↦ᵣ WInt n
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ inr (pc_p,pc_g,pc_b,pc_e,pc_a')
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ dst ↦ᵣ inl (denote ins n n)
+          ∗ dst ↦ᵣ WInt (denote ins n n)
       }}}.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hdst) Hφ".
@@ -506,28 +490,67 @@ Section cap_lang_rules.
       rewrite (insert_commute _ PC dst) // insert_insert insert_commute // insert_insert.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-      destruct e1; try congruence.
-      inv Hvpc. destruct H10 as [? | [? | ?]]; congruence. }
+      destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_AddSubLt_fail E ins dst n1 r2 w wdst cap pc_p pc_g pc_b pc_e pc_a :
-    decodeInstrW w = ins
-    → is_AddSubLt ins dst (inl n1) (inr r2)
-      (* → (pc_a + 1)%a = Some pc_a' *)
-        → isCorrectPC (inr (pc_p, pc_g, pc_b, pc_e, pc_a))
-          → {{{ PC ↦ᵣ inr (pc_p, pc_g, pc_b, pc_e, pc_a) ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r2 ↦ᵣ inr cap }}}
-              Instr Executable
+  (* Slightly generalized: fails in all cases where r2 does not contain an integer. *)
+  Lemma wp_add_sub_lt_fail_z_r E ins dst n1 r2 w w2 wdst pc_p pc_g pc_b pc_e pc_a :
+    decodeInstrW w = ins →
+    is_AddSubLt ins dst (inl n1) (inr r2) →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    is_z w2 = false →
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r2 ↦ᵣ w2 }}}
+      Instr Executable
             @ E
-      {{{ RET FailedV; True }}}.
+    {{{ RET FailedV; pc_a ↦ₐ w }}}.
   Proof.
-    iIntros (Hdecode Hinstr Hvpc φ) "(HPC & Hpc_a & Hdst & Hr2) Hφ".
-    iDestruct (rules_base.map_of_regs_3 with "HPC Hdst Hr2") as "[Hmap (%&%&%)]".
+    iIntros (Hdecode Hinstr Hvpc Hisnz φ) "(HPC & Hpc_a & Hdst & Hr2) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hdst Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
       by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
     destruct Hspec as [* Hsucc |].
-    { (* Success (contradiction) *) simplify_map_eq. }
+    { (* Success (contradiction) *)  destruct w2; simplify_map_eq. }
+    { (* Failure, done *) by iApply "Hφ". }
+  Qed.
+
+  Lemma wp_add_sub_lt_fail_r_r_1 E ins dst r1 r2 w wdst w1 w2 pc_p pc_g pc_b pc_e pc_a :
+    decodeInstrW w = ins →
+    is_AddSubLt ins dst (inr r1) (inr r2) →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    is_z w1 = false →
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 }}}
+      Instr Executable
+      @ E
+      {{{ RET FailedV; pc_a ↦ₐ w }}}.
+  Proof.
+    iIntros (Hdecode Hinstr Hvpc Hzf φ) "(HPC & Hpc_a & Hdst & Hr1 & Hr2) Hφ".
+    iDestruct (map_of_regs_4 with "HPC Hdst Hr1 Hr2") as "[Hmap (%&%&%&%&%&%)]".
+    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    destruct Hspec as [* Hsucc |].
+    { (* Success (contradiction) *) simplify_map_eq. destruct w1; by exfalso. }
+    { (* Failure, done *) by iApply "Hφ". }
+  Qed.
+
+  Lemma wp_add_sub_lt_fail_r_r_2 E ins dst r1 r2 w wdst w2 w3 pc_p pc_g pc_b pc_e pc_a :
+    decodeInstrW w = ins →
+    is_AddSubLt ins dst (inr r1) (inr r2) →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    is_z w3 = false →
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r1 ↦ᵣ w2 ∗ r2 ↦ᵣ w3}}}
+      Instr Executable
+      @ E
+      {{{ RET FailedV; pc_a ↦ₐ w }}}.
+  Proof.
+    iIntros (Hdecode Hinstr Hvpc Hzf φ) "(HPC & Hpc_a & Hdst & Hr1 & Hr2) Hφ".
+    iDestruct (map_of_regs_4 with "HPC Hdst Hr1 Hr2") as "[Hmap (%&%&%&%&%&%)]".
+    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    destruct Hspec as [* Hsucc |].
+    { (* Success (contradiction) *) simplify_map_eq. destruct w3; by exfalso. }
     { (* Failure, done *) by iApply "Hφ". }
   Qed.
 
@@ -535,7 +558,7 @@ End cap_lang_rules.
 
 (* Hints to automate proofs of is_AddSubLt *)
 Lemma is_AddSubLt_Add dst arg1 arg2 :
-  is_AddSubLt (machine_base.Add dst arg1 arg2) dst arg1 arg2.
+  is_AddSubLt (Add dst arg1 arg2) dst arg1 arg2.
 Proof. intros; unfold is_AddSubLt; eauto. Qed.
 Lemma is_AddSubLt_Sub dst arg1 arg2 :
   is_AddSubLt (Sub dst arg1 arg2) dst arg1 arg2.

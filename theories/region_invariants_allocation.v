@@ -4,14 +4,16 @@ From cap_machine Require Export region_invariants region_invariants_static (* re
 Import uPred.
 
 Section region_alloc.
-  Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-          `{MachineParameters}.
+  Context {Σ:gFunctors} {ceriseg:ceriseG Σ}
+          {stsg : STSG Addr region_type Σ}
+          {heapg : heapGS Σ}
+          `{MP:MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
+
 
   (* Lemmas for extending the region map *)
 
@@ -245,8 +247,8 @@ Section region_alloc.
       simpl. iMod (IHl1 with "Hsts Hr") as "(Hr & #Hrels & Hsts)"; auto.
       destruct (decide (a ∈ l1)).
       { (* if a is already in l1, we are done *)
-        assert (e':=e). apply elem_of_list_lookup in e as [k Hk]. 
-        iDestruct (big_sepL_lookup _ _ k with "Hrels") as "Ha";[eauto|]. 
+        assert (e':=e). apply elem_of_list_lookup in e as [k Hk].
+        iDestruct (big_sepL_lookup _ _ k with "Hrels") as "Ha";[eauto|].
         assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked) = std_update_multiple W l1 Revoked) as ->;[|by iFrame "∗ #"].
         rewrite /std_update. destruct (std_update_multiple W l1 Revoked) eqn:Heq. f_equiv. simpl. rewrite insert_id//.
         assert (o = (std_update_multiple W l1 Revoked).1) as ->;[rewrite Heq//|].

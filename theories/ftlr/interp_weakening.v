@@ -2,14 +2,18 @@ From cap_machine Require Export logrel.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine Require Import ftlr_base monotone region.
-From cap_machine Require Import addr_reg.
+From cap_machine.ftlr Require Import ftlr_base.
+From cap_machine Require Import addr_reg region.
 
 Section fundamental.
-  Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-          {nainv: logrel_na_invs Σ}
-          `{MachineParameters}.
+  Context
+    {Σ : gFunctors}
+      {ceriseg: ceriseG Σ}
+      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+      {sealsg: sealStoreG Σ}
+      {nainv: logrel_na_invs Σ}
+      {MP: MachineParameters}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -21,75 +25,9 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Definition IH: iProp Σ :=
-    (□ ▷ (∀ (a0 : WORLD) (a1 : leibnizO Reg) (a2 : Perm) (a3 : Locality) (a4 a5 a6 : Addr),
-              full_map a1
-              -∗ (∀ r0 : RegName, ⌜r0 ≠ PC⌝ → fixpoint interp1 a0 (a1 !r! r0))
-                 -∗ registers_pointsto (<[PC:=inr (a2, a3, a4, a5, a6)]> a1)
-                    -∗ region a0
-                       -∗ sts_full_world a0
-                          -∗ na_own logrel_nais ⊤
-                             -∗ ⌜a2 = RX ∨ a2 = RWX ∨ a2 = RWLX ∧ a3 = Local⌝
-                                → □ region_conditions a0 a2 a3 a4 a5 -∗ interp_conf a0))%I.
 
-  (* Lemma region_state_future W W' l l' p p' a a': *)
-  (*   (a < a')%a → *)
-  (*   PermFlowsTo p' p -> *)
-  (*   LocalityFlowsTo l' l -> *)
-  (*   (if pwlU p then l = Directed else True) -> *)
-  (*   (@future_world Σ l' a' W W') -∗ *)
-  (*   ⌜if pwlU p then region_state_pwl_mono W a else region_state_nwl W a l⌝ -∗ *)
-  (*   ⌜if pwlU p' then region_state_pwl_mono W' a else region_state_nwl W' a l'⌝. *)
-  (* Proof. *)
-  (*   intros Hlt Hpflows Hlflows Hloc. iIntros "Hfuture %". *)
-  (*   case_eq (pwlU p'); intros. *)
-  (*   - assert (pwlU p = true) as Hpwl. *)
-  (*     { destruct p, p'; simpl in H; try congruence; simpl in Hpflows; try tauto. } *)
-  (*     rewrite Hpwl in H0, Hloc. subst l. *)
-  (*     destruct l'; simpl in Hlflows; try tauto. *)
-  (*     simpl; iDestruct "Hfuture" as "%"; iPureIntro. *)
-  (*     eapply region_state_pwl_monotone_a; eauto. *)
-  (*   - iApply (region_state_nwl_future with "Hfuture"); eauto. *)
-  (* Qed. *)
-
-  (* TODO fix  *)
-  Lemma localityflowsto_futureworld l l' W W' a a':
-    LocalityFlowsTo l' l ->
-    (a' <= a)%a →
-    (@future_world Σ l' W W' -∗
-     @future_world Σ l  W W').
-  Proof.
-    intros; destruct l, l'; auto.
-    (* all: rewrite /future_world; iIntros "%". *)
-    (* all: iPureIntro. *)
-  Qed.
-
-  Lemma futureworld_refl l W :
-    ⊢ @future_world Σ l W W.
-  Proof.
-    rewrite /future_world.
-    destruct l.
-    all: iPureIntro.
-    apply related_sts_priv_refl_world.
-    apply related_sts_priv_refl_world.
-    (* apply related_sts_a_refl_world. *)
-  Qed.
-
-  Instance if_persistent (PROP: bi) (b: bool) (φ1 φ2: PROP) (H1: Persistent φ1) (H2: Persistent φ2):
-    Persistent (if b then φ1 else φ2).
-  Proof.
-    destruct b; auto.
-  Qed.
-
-  Lemma rcond_interp : ⊢ rcond interp interp.
-  Proof.
-    iSplit;[auto|].
-    iNext. iModIntro. iIntros (W1 W2 Hrelated) "_".
-    rewrite fixpoint_interp1_eq. done.
-  Qed.
-
-  (* TODO FIX *)
-  Lemma interp_weakeningEO W p p' l l' b b' e e' a a' :
+   (* TODO FIX *)
+  Lemma interp_weakeningEO W p p' g g' b b' e e' a a' :
     p <> E ->
     p ≠ O →
     p' ≠ E →
@@ -97,9 +35,9 @@ Section fundamental.
     (b <= b')%a ->
     (e' <= e)%a ->
     PermFlowsTo p' p ->
-    LocalityFlowsTo l' l ->
-    (fixpoint interp1) W (inr (p, l, b, e, a)) -∗
-    (fixpoint interp1) W (inr (p', l', b', e', a')).
+    LocalityFlowsTo g' g ->
+    (fixpoint interp1) W (WCap p g b e a) -∗
+    (fixpoint interp1) W (WCap p' g' b' e' a').
   Proof.
     (* intros HpnotE HpnotO HpnotE' HpnotO' Hb He Hp Hl. iIntros "HA". *)
     (* rewrite !fixpoint_interp1_eq !interp1_eq. *)
@@ -475,15 +413,15 @@ Section fundamental.
 
 
   (* TODO FIX *)
-  Lemma interp_weakening W p p' l l' b b' e e' a a' :
+  Lemma interp_weakening W p p' g g' b b' e e' a a' :
       p <> E ->
       (b <= b')%a ->
       (e' <= e)%a ->
       PermFlowsTo p' p ->
-      LocalityFlowsTo l' l ->
-      IH -∗
-      (fixpoint interp1) W (inr (p, l, b, e, a)) -∗
-      (fixpoint interp1) W (inr (p', l', b', e', a')).
+      LocalityFlowsTo g' g ->
+      ftlr_IH -∗
+      (fixpoint interp1) W (WCap p g b e a) -∗
+      (fixpoint interp1) W (WCap p' g' b' e' a').
   Proof.
     (* intros HpnotE Hb He Hp Hl. iIntros "#IH HA". *)
     (* destruct (perm_eq_dec p E); try congruence. *)
@@ -530,5 +468,101 @@ Section fundamental.
     (* } *)
     (* iApply interp_weakeningEO;eauto. *)
   Admitted.
+
+  (* from cerise *)
+  (* Lemma interp_weakening p p' b b' e e' a a': *)
+  (*     p <> E -> *)
+  (*     (b <= b')%a -> *)
+  (*     (e' <= e)%a -> *)
+  (*     PermFlowsTo p' p -> *)
+  (*     IH -∗ *)
+  (*     (fixpoint interp1) (WCap p b e a) -∗ *)
+  (*     (fixpoint interp1) (WCap p' b' e' a'). *)
+  (* Proof. *)
+  (*   intros HpnotE Hb He Hp. iIntros "#IH #HA". *)
+  (*   destruct (decide (b' <= e')%a). *)
+  (*   2: { rewrite !fixpoint_interp1_eq. destruct p'; try done; try (by iClear "HA"; rewrite /= !finz_seq_between_empty;[|solve_addr]). *)
+  (*        iIntros (r). iNext. iModIntro. iIntros "([Hfull Hreg] & Hregs & Hna)". *)
+  (*        iApply ("IH" with "Hfull Hreg Hregs Hna"); auto. iModIntro. *)
+  (*        iClear "HA". by rewrite !fixpoint_interp1_eq /= !finz_seq_between_empty;[|solve_addr]. *)
+  (*   } *)
+  (*   destruct p'. *)
+  (*   - rewrite !fixpoint_interp1_eq. done. *)
+  (*   - rewrite !fixpoint_interp1_eq. *)
+  (*     destruct p;inversion Hp; *)
+  (*     (rewrite /= (isWithin_finz_seq_between_decomposition b' e' b e); [|solve_addr]); *)
+  (*     rewrite !big_sepL_app; iDestruct "HA" as "[A1 [A2 A3]]";iFrame "#". *)
+  (*     + iApply (big_sepL_mono with "A2"). *)
+  (*       iIntros (k y Hsome) "H". iDestruct "H" as (P) "(H1 & H2 & H3)". iExists P. iFrame. *)
+  (*     + iApply (big_sepL_mono with "A2"). *)
+  (*       iIntros (k y Hsome) "H". iDestruct "H" as (P) "(H1 & H2 & H3)". iExists P. iFrame. *)
+  (*   - rewrite !fixpoint_interp1_eq. *)
+  (*     destruct p;inversion Hp; *)
+  (*     (rewrite /= (isWithin_finz_seq_between_decomposition b' e' b e); [|solve_addr]); *)
+  (*     rewrite !big_sepL_app; iDestruct "HA" as "[A1 [A2 A3]]";iFrame "#". *)
+  (*   - rewrite !fixpoint_interp1_eq. *)
+  (*     destruct p;inversion Hp; *)
+  (*     (rewrite /= (isWithin_finz_seq_between_decomposition b' e' b e); [|solve_addr]); *)
+  (*     rewrite !big_sepL_app; iDestruct "HA" as "[A1 [A2 A3]]";iFrame "#". *)
+  (*     iApply (big_sepL_mono with "A2"). *)
+  (*     iIntros (k y Hsome) "H". iDestruct "H" as (P) "(H1 & H2 & H3)". iExists P. iFrame. *)
+  (*   - rewrite !fixpoint_interp1_eq. iIntros (r). iNext. iModIntro. iIntros "([Hfull Hreg] & Hregs & Hna)". *)
+  (*     iApply ("IH" with "Hfull Hreg Hregs Hna"); auto. iModIntro. *)
+  (*     destruct p; inversion Hp; try contradiction. *)
+  (*     + rewrite /= (isWithin_finz_seq_between_decomposition b' e' b e); [|solve_addr]. *)
+  (*       rewrite !fixpoint_interp1_eq !big_sepL_app; iDestruct "HA" as "[A1 [A2 A3]]"; iFrame "#". *)
+  (*     + rewrite /= (isWithin_finz_seq_between_decomposition b' e' b e); [|solve_addr]. *)
+  (*       rewrite !fixpoint_interp1_eq !big_sepL_app; iDestruct "HA" as "[A1 [A2 A3]]". *)
+  (*       iApply (big_sepL_mono with "A2"). *)
+  (*       iIntros (k y Hsome) "H". iDestruct "H" as (P) "(H1 & H2 & H3)". iExists P. iFrame. *)
+  (*   - rewrite !fixpoint_interp1_eq. *)
+  (*     destruct p;inversion Hp; *)
+  (*     (rewrite /= (isWithin_finz_seq_between_decomposition b' e' b e); [|solve_addr]); *)
+  (*     rewrite !big_sepL_app; iDestruct "HA" as "[A1 [A2 A3]]";iFrame "#". *)
+  (* Qed. *)
+
+  Lemma safe_to_unseal_weakening b e b' e':
+    (b <= b')%ot ->
+    (e' <= e)%ot ->
+    safe_to_unseal (fixpoint interp1) b e -∗
+    safe_to_unseal (fixpoint interp1) b' e'.
+  Proof.
+    iIntros (Hb He) "HA".
+    rewrite /safe_to_unseal.
+    destruct (decide (b' <= e')%ot).
+    - rewrite /= (isWithin_finz_seq_between_decomposition b' e' b e); [|solve_addr].
+      rewrite !big_sepL_app; iDestruct "HA" as "[_ [$ _]]".
+    - iClear "HA"; rewrite !finz_seq_between_empty;[done |solve_addr].
+  Qed.
+
+  Lemma safe_to_seal_weakening b e b' e':
+    (b <= b')%ot ->
+    (e' <= e)%ot ->
+    safe_to_seal (fixpoint interp1) b e -∗
+    safe_to_seal (fixpoint interp1) b' e'.
+  Proof.
+    iIntros (Hb He) "HA".
+    rewrite /safe_to_seal.
+    destruct (decide (b' <= e')%ot).
+    - rewrite /= (isWithin_finz_seq_between_decomposition b' e' b e); [|solve_addr].
+      rewrite !big_sepL_app; iDestruct "HA" as "[_ [$ _]]".
+    - iClear "HA"; rewrite !finz_seq_between_empty;[done |solve_addr].
+  Qed.
+
+  Lemma interp_weakening_ot W p p' g g' b b' e e' a a':
+    (b <= b')%ot ->
+    (e' <= e)%ot ->
+    SealPermFlowsTo p' p ->
+    LocalityFlowsTo g' g ->
+    (fixpoint interp1) W (WSealRange p g b e a) -∗
+    (fixpoint interp1) W (WSealRange p' g' b' e' a').
+  Proof.
+  intros Hb He Hp Hg. iIntros "#HA".
+  rewrite !fixpoint_interp1_eq. cbn.
+  destruct (permit_seal p') eqn:Hseal; [eapply (permit_seal_flowsto _ p) in Hseal as ->; auto | ].
+  all: destruct (permit_unseal p') eqn:Hunseal; [eapply (permit_unseal_flowsto _ p) in Hunseal as ->; auto | ]; iDestruct "HA" as "[Hs Hus]".
+  all: iSplitL "Hs";
+  [try iApply (safe_to_seal_weakening with "Hs") | try iApply (safe_to_unseal_weakening with "Hus")]; auto.
+  Qed.
 
 End fundamental.
