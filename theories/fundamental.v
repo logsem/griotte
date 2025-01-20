@@ -215,7 +215,7 @@ Section fundamental.
     iIntros (Hp) "#Hw".
     iIntros (a0 r W' Hin) "#Hfuture". iModIntro.
     destruct g.
-    + iDestruct (interp_monotone_nm_nl with "Hfuture [] Hw") as "Hw'";[auto|].
+    + iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
       iApply fundamental;eauto.
       destruct p ; rewrite !fixpoint_interp1_eq //=.
     (* + rewrite /future_world. *)
