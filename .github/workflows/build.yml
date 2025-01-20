@@ -1,0 +1,39 @@
+name: Test compilation
+
+on: [push, pull_request]
+
+# Prevent parallel CI: Stop every workflow of a branch
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.ref }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: get_branch
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Install OCaml
+        uses: avsm/setup-ocaml@v3
+        with:
+          ocaml-compiler: 4.14
+          opam-repositories: |
+            coq-released: https://coq.inria.fr/opam/released
+            default: https://github.com/ocaml/opam-repository.git
+
+      - name: Install Coq and Iris
+        run: opam install . --deps-only -y
+
+      - name: Build
+        run: |
+            find ./theories -name "*.v" -exec ./disable-qed.sh {} +;
+            opam exec -- make pretty-timed -j2
