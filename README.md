@@ -283,10 +283,8 @@ In the model:
 
 | *name in paper*     | *name in mechanization* |
 |---------------------|-------------------------|
-| Frozen              | Monostatic              |
 | stsCollection       | full_sts_world          |
 | sharedResources     | region                  |
-| Temporary           | Monotemporary           |
 | temporal transition | std_rel_pub_plus        |
 
 In `scall_u.v` : the scall macro is slightly unfolded, as it does not include the part of 

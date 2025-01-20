@@ -25,7 +25,7 @@ Section std_updates.
     | a :: l => std_update (std_update_multiple W l ρ) a ρ
     end.
 
-   Definition std_update_temp_multiple W l := std_update_multiple W l Monotemporary.
+   Definition std_update_temp_multiple W l := std_update_multiple W l Temporary.
 
    Lemma std_update_multiple_loc_sta W l ρ :
      (std_update_multiple W l ρ).2.1 = W.2.1.
@@ -409,7 +409,7 @@ Section std_updates.
    (* commuting updates and revoke *)
 
    Lemma std_update_multiple_revoke_commute W (l: list Addr) ρ :
-     ρ ≠ Monotemporary → ρ ≠ Monotemporary →
+     ρ ≠ Temporary → ρ ≠ Temporary →
      std_update_multiple (revoke W) l ρ = revoke (std_update_multiple W l ρ).
    Proof.
      intros Hne Hne'.
@@ -445,7 +445,7 @@ Section std_updates.
    Qed.
 
    Lemma revoke_condition_std_multiple_updates W l ρ :
-     revoke_condition W → ρ ≠ Monotemporary → revoke_condition (std_update_multiple W l ρ).
+     revoke_condition W → ρ ≠ Temporary → revoke_condition (std_update_multiple W l ρ).
    Proof.
      induction l.
      - auto.
@@ -534,10 +534,10 @@ Section std_updates.
       repeat
         (match goal with
          | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) ?X ?X => left
-         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) Monotemporary ?X => eright; [(left; constructor); right; right; constructor|left]
-         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) Monotemporary ?X => eright; [(left; constructor); right; constructor|left]
-         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) ?X ?Y => try (right with Monotemporary; [(left; constructor); right; constructor|])
-         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) ?X ?Y => try (right with Monotemporary; [(left; constructor); right; constructor|])
+         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) Temporary ?X => eright; [(left; constructor); right; right; constructor|left]
+         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) Temporary ?X => eright; [(left; constructor); right; constructor|left]
+         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) ?X ?Y => try (right with Temporary; [(left; constructor); right; constructor|])
+         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) ?X ?Y => try (right with Temporary; [(left; constructor); right; constructor|])
          | _ => idtac
          end).
   Qed.

@@ -27,13 +27,13 @@ Section heap.
      monotone wrt private future world.
    *)
 
-  (* the revoke condition states that there are no Monotemporary states left *)
-  Definition revoke_condition W := ∀ a, W.1 !! a ≠ Some Monotemporary.
+  (* the revoke condition states that there are no Temporary states left *)
+  Definition revoke_condition W := ∀ a, W.1 !! a ≠ Some Temporary.
 
   (* Revocation only changes the states of the standard STS collection *)
   Definition revoke_std_sta : STS_STD → STS_STD :=
     fmap (λ v, match v with
-               | Monotemporary => Revoked
+               | Temporary => Revoked
                | _ => v
                end).
   Definition revoke W : WORLD := (revoke_std_sta (std W), loc W).
@@ -44,7 +44,7 @@ Section heap.
     | [] => fs
     | i :: l' => match fs !! i with
                | Some j => match j with
-                          | Monotemporary => <[i := Revoked]> (revoke_list_std_sta l' fs)
+                          | Temporary => <[i := Revoked]> (revoke_list_std_sta l' fs)
                           | _ => (revoke_list_std_sta l' fs)
                           end
                | None => (revoke_list_std_sta l' fs)
@@ -116,8 +116,8 @@ Section heap.
 
   Lemma related_sts_pub_world_revoked_monotemp W a :
     (std W) !! a = Some Revoked ∨
-    (std W) !! a = Some Monotemporary →
-    related_sts_pub_world W (<s[a:=Monotemporary]s>W).
+    (std W) !! a = Some Temporary →
+    related_sts_pub_world W (<s[a:=Temporary]s>W).
   Proof.
     intros Ha.
     rewrite /related_sts_pub_world /=.
@@ -130,7 +130,7 @@ Section heap.
         rewrite Hx in Ha.
         destruct Ha as [Ha | Ha]; inversion Ha.
         ++ rewrite lookup_insert in Hy. inversion Hy.
-           right with (Monotemporary);[|left]. constructor.
+           right with (Temporary);[|left]. constructor.
         ++ rewrite lookup_insert in Hy. inversion Hy. left.
       + rewrite lookup_insert_ne in Hy;auto.
         rewrite Hx in Hy.
@@ -146,8 +146,8 @@ Section heap.
     future_pub_a_mono l φ v -∗
     sts_full_world W -∗
     region W -∗
-    l ↦ₐ v -∗ φ (<s[l := Monotemporary ]s>W,v) -∗ rel l φ ={E}=∗ region (<s[l := Monotemporary ]s>W)
-                             ∗ sts_full_world (<s[l := Monotemporary ]s>W).
+    l ↦ₐ v -∗ φ (<s[l := Temporary ]s>W,v) -∗ rel l φ ={E}=∗ region (<s[l := Temporary ]s>W)
+                             ∗ sts_full_world (<s[l := Temporary ]s>W).
   Proof.
     iIntros (Hrev) "#Hmono Hsts Hreg Hl #Hφ #Hrel".
     rewrite region_eq /region_def.
@@ -161,18 +161,18 @@ Section heap.
     iDestruct "Hl'" as (ρ Hl) "[Hstate Hresources]".
     iDestruct (sts_full_state_std with "Hsts Hstate") as %Hρ.
     rewrite Hrev in Hρ. inversion Hρ as [Hρrev]. subst.
-    iMod (sts_update_std _ _ _ Monotemporary with "Hsts Hstate") as "[Hsts Hstate]".
-    assert (related_sts_pub_world W (<s[l := Monotemporary ]s> W)) as Hrelated.
+    iMod (sts_update_std _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
+    assert (related_sts_pub_world W (<s[l := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_world_revoked_monotemp; auto. }
-    assert (related_sts_a_world W (<s[l := Monotemporary ]s> W) l) as Hrelated'.
+    assert (related_sts_a_world W (<s[l := Temporary ]s> W) l) as Hrelated'.
     { apply related_sts_pub_a_world; auto. }
     iDestruct (region_map_monotone _ _ _ _ Hrelated with "Hr") as "Hr".
     assert (is_Some (M !! l)) as [x Hsome].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. eauto. }
     iDestruct (region_map_delete_nonstatic with "Hr") as "Hr"; [intros m;congruence|].
-    iDestruct (region_map_insert_nonmonostatic Monotemporary with "Hr") as "Hr";auto.
+    iDestruct (region_map_insert_nonmonostatic Temporary with "Hr") as "Hr";auto.
     iDestruct (big_sepM_delete _ _ l _ Hsome with "[Hl Hstate $Hr]") as "Hr".
-    { iExists Monotemporary. iFrame. iSplitR;[iPureIntro;apply lookup_insert|].
+    { iExists Temporary. iFrame. iSplitR;[iPureIntro;apply lookup_insert|].
       iExists φ. rewrite HMeq lookup_insert in Hsome.
       inversion Hsome. repeat (iSplit; auto). }
     rewrite /std_update /=. iFrame "Hsts".
@@ -188,13 +188,13 @@ Section heap.
     future_pub_a_mono l φ v -∗
     sts_full_world W -∗
     region W -∗
-    l ↦ₐ v -∗ φ (W,v) -∗ rel l φ ={E}=∗ region (<s[l := Monotemporary ]s>W)
-                             ∗ sts_full_world (<s[l := Monotemporary ]s>W).
+    l ↦ₐ v -∗ φ (W,v) -∗ rel l φ ={E}=∗ region (<s[l := Temporary ]s>W)
+                             ∗ sts_full_world (<s[l := Temporary ]s>W).
   Proof.
     iIntros (Hrev) "#Hmono Hsts Hreg Hl #Hφ #Hrel".
-    assert (related_sts_pub_world W (<s[l := Monotemporary ]s> W)) as Hrelated.
+    assert (related_sts_pub_world W (<s[l := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_world_revoked_monotemp; auto. }
-    assert (related_sts_a_world W (<s[l := Monotemporary ]s> W) l) as Hrelated'.
+    assert (related_sts_a_world W (<s[l := Temporary ]s> W) l) as Hrelated'.
     { apply related_sts_pub_a_world; auto. }
     iDestruct ("Hmono" $! _ _ Hrelated' with "Hφ") as "Hφ'".
     iApply (update_region_revoked_monotemp_updated with "Hmono Hsts Hreg Hl Hφ' Hrel");auto.
@@ -205,7 +205,7 @@ Section heap.
 
   Definition revoke_i i :=
     match i with
-    | Monotemporary => Revoked
+    | Temporary => Revoked
     | _ => i
     end.
 
@@ -227,7 +227,7 @@ Section heap.
             destruct j;[rewrite lookup_insert;auto|rewrite IHl H3; destruct (in_dec finz_eq_dec a l);auto..].
           * simpl.
             case_eq (Wstd_sta !! a); intros.
-            { destruct (decide (Monotemporary = r)).
+            { destruct (decide (Temporary = r)).
               { subst. destruct (decide (i = a)).
                 - subst. rewrite lookup_insert. by simplify_map_eq.
                 - rewrite lookup_insert_ne//. rewrite IHl H3.
@@ -237,7 +237,7 @@ Section heap.
             { rewrite IHl H3.
               destruct (in_dec finz_eq_dec i l); tauto. }
         + simpl. case_eq (Wstd_sta !! a); intros.
-          * destruct (decide (Monotemporary = r)).
+          * destruct (decide (Temporary = r)).
             { subst. destruct (decide (a = i)).
               - subst. elim n. left; auto.
               - rewrite lookup_insert_ne//.
@@ -251,7 +251,7 @@ Section heap.
             elim n; right; auto. }
       { simpl. case_eq (Wstd_sta !! a); intros.
         - destruct (finz_eq_dec i a); try congruence.
-          destruct (decide (Monotemporary = r)); intros.
+          destruct (decide (Temporary = r)); intros.
           + subst. rewrite lookup_insert_ne; auto.
             rewrite IHl H3; auto.
           + destruct r; try contradiction; rewrite IHl H3; auto.
@@ -274,13 +274,13 @@ Section heap.
     eapply (map_leibniz (M:=gmap Addr)). red. red. intros.
     rewrite revoke_list_std_sta_spec /revoke_std_sta lookup_fmap /revoke_i /=.
     destruct (Wstd_sta !! i) as [x|] eqn:Hwstd; rewrite Hwstd /=; auto.
-    destruct (decide (Monotemporary = x)).
+    destruct (decide (Temporary = x)).
     - subst x.
       eapply elem_of_map_to_list in Hwstd as Hx.
       destruct (in_dec finz_eq_dec i (map_to_list Wstd_sta).*1); auto.
       eapply leibniz_equiv_iff. auto.
       elim n. eapply elem_of_list_In.
-      eapply elem_of_list_fmap. exists (i, Monotemporary).
+      eapply elem_of_list_fmap. exists (i, Temporary).
       split; auto.
     - destruct (in_dec finz_eq_dec i (map_to_list Wstd_sta).*1); auto.
       destruct x;auto; try contradiction.
@@ -342,7 +342,7 @@ Section heap.
   Qed.
 
   Lemma revoke_lookup_Monotemp Wstd_sta i :
-    (Wstd_sta !! i = Some Monotemporary) →
+    (Wstd_sta !! i = Some Temporary) →
     (revoke_std_sta Wstd_sta) !! i = Some Revoked.
   Proof.
     rewrite revoke_list_dom_std_sta. intros Hsome.
@@ -377,9 +377,9 @@ Section heap.
       eapply map_to_list_fst. eexists; by apply elem_of_map_to_list.
   Qed.
 
-  Lemma revoke_lookup_Monostatic Wstd_sta i m :
-    (Wstd_sta !! i = Some (Monostatic m)) →
-    (revoke_std_sta Wstd_sta) !! i = Some (Monostatic m).
+  Lemma revoke_lookup_Frozen Wstd_sta i m :
+    (Wstd_sta !! i = Some (Frozen m)) →
+    (revoke_std_sta Wstd_sta) !! i = Some (Frozen m).
   Proof.
     rewrite revoke_list_dom_std_sta. intros Hsome.
     rewrite revoke_list_std_sta_spec Hsome.
@@ -403,7 +403,7 @@ Section heap.
 
   Lemma revoke_list_lookup_non_temp (Wstd_sta : STS_STD) (l : list Addr) (i : Addr) (ρ : region_type) :
     i ∈ l →
-    (revoke_list_std_sta l Wstd_sta) !! i = Some ρ → ρ ≠ Monotemporary.
+    (revoke_list_std_sta l Wstd_sta) !! i = Some ρ → ρ ≠ Temporary.
   Proof.
     intros Hin Hsome.
     rewrite revoke_list_std_sta_spec in Hsome.
@@ -411,13 +411,13 @@ Section heap.
     eapply elem_of_list_In in Hin.
     destruct (in_dec finz_eq_dec i l); try tauto.
     inv Hsome. rewrite /revoke_i.
-    destruct (decide (Monotemporary = r)).
+    destruct (decide (Temporary = r)).
     - destruct r;auto;contradiction.
     - destruct r;[contradiction|auto..].
   Qed.
 
   Lemma revoke_std_sta_lookup_non_temp Wstd_sta (i : Addr) (ρ : region_type) :
-    (revoke_std_sta Wstd_sta) !! i = Some ρ → ρ ≠ Monotemporary.
+    (revoke_std_sta Wstd_sta) !! i = Some ρ → ρ ≠ Temporary.
   Proof.
     intros Hin.
     rewrite revoke_list_dom_std_sta in Hin.
@@ -431,7 +431,7 @@ Section heap.
   Qed.
 
   Lemma revoke_lookup_non_temp W (i : Addr) (ρ : region_type) :
-    (std (revoke W)) !! i = Some ρ → ρ ≠ Monotemporary.
+    (std (revoke W)) !! i = Some ρ → ρ ≠ Temporary.
   Proof.
     intros Hin.
     rewrite revoke_list_dom in Hin.
@@ -486,7 +486,7 @@ Section heap.
   Qed.
 
   Lemma revoke_monotone_lookup_same (Wstd_sta : gmap Addr region_type) i :
-    Wstd_sta !! i ≠ Some Monotemporary →
+    Wstd_sta !! i ≠ Some Temporary →
     revoke_std_sta Wstd_sta !! i = Wstd_sta !! i.
   Proof.
     intros Hneq'.
@@ -503,13 +503,13 @@ Section heap.
   Qed.
 
   Lemma revoke_monotone_lookup_same' (W:WORLD) (i: Addr) :
-    std W !! i ≠ Some Monotemporary ->
+    std W !! i ≠ Some Temporary ->
     std (revoke W) !! i = std W !! i.
   Proof. cbn. eauto using revoke_monotone_lookup_same. Qed.
 
   Lemma anti_revoke_lookup_Revoked Wstd_sta i :
     (revoke_std_sta Wstd_sta) !! i = Some Revoked ->
-    (Wstd_sta !! i = Some Revoked) ∨ (Wstd_sta !! i = Some Monotemporary).
+    (Wstd_sta !! i = Some Revoked) ∨ (Wstd_sta !! i = Some Temporary).
   Proof.
     intros Hrev.
     assert (is_Some (Wstd_sta !! i)) as [x Hx];[apply revoke_std_sta_lookup_Some;eauto|].
@@ -566,10 +566,10 @@ Section heap.
         apply revoke_lookup_Monotemp in Hx as Hxtemp.
         apply revoke_lookup_Revoked in Hy as Hyperm.
         simplify_eq. left.
-      + subst. eapply std_rel_priv_rtc_Monostatic in Hrtc;auto;subst.
+      + subst. eapply std_rel_priv_rtc_Frozen in Hrtc;auto;subst.
         apply revoke_lookup_Monotemp in Hx as Hxtemp.
-        apply revoke_lookup_Monostatic in Hy as Hyperm.
-        simplify_eq. right with Monotemporary.
+        apply revoke_lookup_Frozen in Hy as Hyperm.
+        simplify_eq. right with Temporary.
         left. constructor. eright;[|left].
         right. right. constructor.
   Qed.
@@ -586,7 +586,7 @@ Section heap.
       apply revoke_monotone_lookup in Hy.
       rewrite Hx' Hy' in Hy. inversion Hy. left.
     - destruct j,k; inversion Hjk; try discriminate; auto.
-      + apply std_rel_pub_rtc_Monotemporary in Hrtc; auto. subst.
+      + apply std_rel_pub_rtc_Temporary in Hrtc; auto. subst.
         apply revoke_lookup_Revoked in Hx as Hxtemp.
         apply revoke_lookup_Monotemp in Hy as Hyperm.
         simplify_eq. left.
@@ -605,10 +605,10 @@ Section heap.
        try (apply revoke_lookup_Monotemp in H as Hxtemp);
        try (apply revoke_lookup_Perm in H as Hxtemp);
        try (apply revoke_lookup_Revoked in H as Hxtemp);
-       try (eapply revoke_lookup_Monostatic in H as Hxtemp);
+       try (eapply revoke_lookup_Frozen in H as Hxtemp);
        try (apply revoke_lookup_Monotemp in H' as Hytemp);
        try (apply revoke_lookup_Perm in H' as Hytemp);
-       try (eapply revoke_lookup_Monostatic in H' as Hytemp);
+       try (eapply revoke_lookup_Frozen in H' as Hytemp);
        try (apply revoke_lookup_Revoked in H' as Hytemp);simplify_eq
      end).
 
@@ -627,23 +627,23 @@ Section heap.
       + destruct j,k; inversion Hjk; try discriminate; auto.
         * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left.
           eright;[left;constructor|left].
-          right with Monotemporary. left;constructor.
+          right with Temporary. left;constructor.
           eright;[right;right;constructor|left].
         * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left.
           eright;[left;constructor|left].
-          right with Monotemporary. left;constructor.
+          right with Temporary. left;constructor.
           eright;[right;right;constructor|left].
       + destruct j,k,h; inversion Hjk; try discriminate; auto;
           revoke_i Wstd_sta Wstd_sta' i; try left.
-        right with Monotemporary;[right;left;constructor|eright;[right;right;constructor|left]].
-        right with Monotemporary;[right;left;constructor|eright;[right;right;constructor|left]].
-        right with Monotemporary;[right;left;constructor|].
+        right with Temporary;[right;left;constructor|eright;[right;right;constructor|left]].
+        right with Temporary;[right;left;constructor|eright;[right;right;constructor|left]].
+        right with Temporary;[right;left;constructor|].
         eright;[right;right;constructor|left].
-        right with Monotemporary;[right;left;constructor|eright;[right;right;constructor|left]].
+        right with Temporary;[right;left;constructor|eright;[right;right;constructor|left]].
       + destruct j,k,h; inversion Hjk; try discriminate; auto;
           revoke_i Wstd_sta Wstd_sta' i; try left;
-            try (right with Monotemporary;[left;constructor|eright;[right;right;constructor|left]]);
-            try (right with Monotemporary;[left;constructor|eright;[right;left;constructor|left]]).
+            try (right with Temporary;[left;constructor|eright;[right;right;constructor|left]]);
+            try (right with Temporary;[left;constructor|eright;[right;left;constructor|left]]).
   Qed.
 
   Lemma revoke_monotone W W' :
@@ -737,7 +737,7 @@ Section heap.
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
     iDestruct (big_sepM2_sep with "Hr") as "[Hstates Hr]".
-    iAssert (∀ a ρ, ⌜m' !! a = Some ρ⌝ → ⌜ρ ≠ Monotemporary⌝)%I as %Hmonotemp.
+    iAssert (∀ a ρ, ⌜m' !! a = Some ρ⌝ → ⌜ρ ≠ Temporary⌝)%I as %Hmonotemp.
     { iIntros (a ρ Hsome).
       iDestruct (big_sepM2_lookup_l _ _ _ a with "Hstates") as (γp) "[Hl Hstate]"; eauto.
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hρ.
@@ -772,7 +772,7 @@ Section heap.
     iIntros (Hcond Hrelated) "Hfull Hr".
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
-    iAssert (∀ a ρ, ⌜m' !! a = Some ρ⌝ → ⌜ρ ≠ Monotemporary⌝)%I as %Hmonotemp.
+    iAssert (∀ a ρ, ⌜m' !! a = Some ρ⌝ → ⌜ρ ≠ Temporary⌝)%I as %Hmonotemp.
     { iIntros (a ρ Hsome).
       iDestruct (big_sepM2_sep with "Hr") as "[Hstates Hr]".
       iDestruct (big_sepM2_lookup_l _ _ _ a with "Hstates") as (γp) "[_ Hstate]"; eauto.
@@ -851,7 +851,7 @@ Section heap.
   Qed.
 
   Lemma region_rel_get (W : WORLD) (a : Addr) :
-    (std W) !! a = Some Monotemporary ->
+    (std W) !! a = Some Temporary ->
     region W ∗ sts_full_world W ==∗
      region W ∗ sts_full_world W ∗ ∃ φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ rel a φ.
   Proof.
@@ -870,7 +870,7 @@ Section heap.
     all: iDestruct "Hstate" as (φ Hpers) "(#Hsaved & Ha)".
     all: iDestruct "Ha" as (v) "(Ha & Hmono & #Hφ)".
     all: iDestruct (big_sepM_delete _ _ a with "[Hρ Ha Hmono Hφ $Hr]") as "Hr";[eauto| |].
-    { iExists Monotemporary. iFrame. iSplit;auto.  }
+    { iExists Temporary. iFrame. iSplit;auto.  }
     all: iModIntro.
     all: iSplitL "HM Hr".
     { iExists M. iFrame. auto. }
@@ -880,7 +880,7 @@ Section heap.
 
   Lemma monotone_revoke_list_sts_full_world_keep W (l : list Addr) (l' : list Addr) :
     ⊢ ⌜NoDup l'⌝ → ⌜NoDup l⌝ → ⌜l' ⊆+ l⌝ →
-    ([∗ list] a ∈ l', ⌜(std W) !! a = Some Monotemporary⌝ (* ∧ rel a p φ *))
+    ([∗ list] a ∈ l', ⌜(std W) !! a = Some Temporary⌝ (* ∧ rel a p φ *))
     ∗ sts_full_world W ∗ region W
     ==∗ (sts_full_world (revoke_list l W) ∗ region W
                         ∗ [∗ list] a ∈ l', ∃ φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ ▷ monotemp_resources W φ a ∗ rel a φ).
@@ -963,7 +963,7 @@ Section heap.
         destruct (Wstd_sta !! x) eqn:Hsome.
         2: { iFrame. iModIntro. rewrite Hsome. iFrame. iFrame. auto. }
         rewrite Hsome.
-        destruct (decide (r = Monotemporary)).
+        destruct (decide (r = Temporary)).
         2: { destruct r; try contradiction; iFrame; iModIntro; iFrame; auto. }
         assert (is_Some (M !! x)) as [γp Hsomea].
         { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. eauto. }
@@ -991,7 +991,7 @@ Section heap.
 
   Lemma monotone_revoke_list_sts_full_world_keep_alt W (l : list Addr) (l' : list Addr) φ :
     ⊢ ⌜NoDup l'⌝ → ⌜NoDup l⌝ → ⌜l' ⊆+ l⌝ →
-    ([∗ list] a ∈ l', ⌜(std W) !! a = Some Monotemporary⌝ ∗ rel a φ)
+    ([∗ list] a ∈ l', ⌜(std W) !! a = Some Temporary⌝ ∗ rel a φ)
     ∗ sts_full_world W ∗ region W
     ==∗ (sts_full_world (revoke_list l W) ∗ region W
                         ∗ [∗ list] a ∈ l', ▷ monotemp_resources W φ a ∗ rel a φ).
@@ -1022,7 +1022,7 @@ Section heap.
 
   Lemma monotone_revoke_sts_full_world_keep W (l : list Addr) :
     ⌜NoDup l⌝ -∗
-    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Monotemporary⌝)
+    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝)
     ∗ sts_full_world W ∗ region W
     ==∗ (sts_full_world (revoke W) ∗ region W ∗
                         ([∗ list] a ∈ l, ∃ φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ ▷ monotemp_resources W φ a ∗ rel a φ)).
@@ -1037,7 +1037,7 @@ Section heap.
         iDestruct ("IH" with "[] Hl") as %Hsub; auto.
         iPureIntro.
         assert (x ∈ (map_to_list W.1).*1) as Helem.
-        { apply map_to_list_fst. exists Monotemporary. by apply elem_of_map_to_list. }
+        { apply map_to_list_fst. exists Temporary. by apply elem_of_map_to_list. }
         apply elem_of_Permutation in Helem as [l' Hl']. rewrite Hl'.
         apply submseteq_skip. revert Hsub. rewrite Hl'; intros Hsub.
         apply submseteq_cons_r in Hsub as [Hsub | [l'' [Heq _] ] ]; auto.
@@ -1054,7 +1054,7 @@ Section heap.
 
   Lemma monotone_revoke_sts_full_world_keep_alt W (l : list Addr) φ :
     ⌜NoDup l⌝ -∗
-    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Monotemporary⌝ ∗ rel a φ)
+    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝ ∗ rel a φ)
     ∗ sts_full_world W ∗ region W
     ==∗ (sts_full_world (revoke W) ∗ region W ∗
                         ([∗ list] a ∈ l, ▷ monotemp_resources W φ a ∗ rel a φ)).
@@ -1069,7 +1069,7 @@ Section heap.
         iDestruct ("IH" with "[] Hl") as %Hsub; auto.
         iPureIntro.
         assert (x ∈ (map_to_list W.1).*1) as Helem.
-        { apply map_to_list_fst. exists Monotemporary. by apply elem_of_map_to_list. }
+        { apply map_to_list_fst. exists Temporary. by apply elem_of_map_to_list. }
         apply elem_of_Permutation in Helem as [l' Hl']. rewrite Hl'.
         apply submseteq_skip. revert Hsub. rewrite Hl'; intros Hsub.
         apply submseteq_cons_r in Hsub as [Hsub | [l'' [Heq _] ] ]; auto.
@@ -1146,7 +1146,7 @@ Section heap.
   Qed.
 
   Lemma submseteq_dom (l : list Addr) (Wstd_sta : gmap Addr region_type) :
-    Forall (λ i : Addr, Wstd_sta !! i = Some Monotemporary) l
+    Forall (λ i : Addr, Wstd_sta !! i = Some Temporary) l
     → NoDup l → l ⊆+ (map_to_list Wstd_sta).*1.
   Proof.
     generalize l.
@@ -1202,13 +1202,13 @@ Section heap.
   (* revoke and keep temp resources in list l, with unknown p and φ *)
   Lemma monotone_revoke_keep W l :
     NoDup l ->
-    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Monotemporary⌝)
+    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝)
       ∗ sts_full_world W ∗ region W ==∗ sts_full_world (revoke W) ∗ region (revoke W)
       ∗ [∗ list] a ∈ l, (∃ φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ ▷ monotemp_resources W φ a ∗ rel a φ)
                      ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝.
   Proof.
     iIntros (Hdup) "(Hl & HW & Hr)".
-    iAssert (⌜Forall (λ a, std W !! a = Some Monotemporary) l⌝)%I as %Htemps.
+    iAssert (⌜Forall (λ a, std W !! a = Some Temporary) l⌝)%I as %Htemps.
     { iDestruct (big_sepL_forall with "Hl") as %Htemps.
       iPureIntro. apply Forall_lookup. done. }
     iMod (monotone_revoke_sts_full_world_keep with "[] [$HW $Hr $Hl]") as "(HW & Hr & Hl)"; eauto.
@@ -1225,13 +1225,13 @@ Section heap.
   (* revoke and keep temp resources in list l, with know p and φ *)
   Lemma monotone_revoke_keep_alt W l φ :
     NoDup l ->
-    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Monotemporary⌝ ∗ rel a φ)
+    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝ ∗ rel a φ)
       ∗ sts_full_world W ∗ region W ==∗ sts_full_world (revoke W) ∗ region (revoke W)
       ∗ [∗ list] a ∈ l, (▷ monotemp_resources W φ a ∗ rel a φ)
                      ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝.
   Proof.
     iIntros (Hdup) "(Hl & HW & Hr)".
-    iAssert (⌜Forall (λ a, std W !! a = Some Monotemporary) l⌝)%I as %Htemps.
+    iAssert (⌜Forall (λ a, std W !! a = Some Temporary) l⌝)%I as %Htemps.
     { iDestruct (big_sepL_sep with "Hl") as "[Htemps Hrel]".
       iDestruct (big_sepL_forall with "Htemps") as %Htemps.
       iPureIntro. apply Forall_lookup. done. }
@@ -1250,8 +1250,8 @@ Section heap.
      temp regions are *)
   Lemma monotone_revoke_keep_some W l1 l2 φ :
     NoDup (l1 ++ l2) ->
-    ([∗ list] a ∈ l1, ⌜(std W) !! a = Some Monotemporary⌝) ∗
-    ([∗ list] a ∈ l2, ⌜(std W) !! a = Some Monotemporary⌝ ∗ rel a φ)
+    ([∗ list] a ∈ l1, ⌜(std W) !! a = Some Temporary⌝) ∗
+    ([∗ list] a ∈ l2, ⌜(std W) !! a = Some Temporary⌝ ∗ rel a φ)
       ∗ sts_full_world W ∗ region W ==∗ sts_full_world (revoke W) ∗ region (revoke W)
       ∗ ([∗ list] a ∈ l1, (∃ φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ ▷ monotemp_resources W φ a ∗ rel a φ)
                            ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
@@ -1297,7 +1297,7 @@ Section heap.
      and no other address is temp*)
 
   Lemma extract_temps W :
-    ∃ l, NoDup l ∧ (forall (a : Addr), (std W) !! a = Some Monotemporary <-> a ∈ l).
+    ∃ l, NoDup l ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ l).
   Proof.
     destruct W as [Wstd_sta Wloc ].
     rewrite /std /=.
@@ -1308,7 +1308,7 @@ Section heap.
       { apply elem_of_dom. rewrite lookup_insert; eauto. }
       assert (i ∉ l) as Hnin.
       { intros Hcontr. apply Hiff in Hcontr. simplify_map_eq. }
-      destruct (decide (x = Monotemporary)); subst.
+      destruct (decide (x = Temporary)); subst.
       + exists (i :: l). split;[apply NoDup_cons;split;auto|].
         intros a0. destruct (decide (i = a0)); subst.
         { rewrite lookup_insert. split; auto. intros _. apply elem_of_cons. by left. }
@@ -1329,8 +1329,8 @@ Section heap.
   (* We also want to be able to split the extracted temporary regions into known and unknown *)
   Lemma extract_temps_split W l :
     NoDup l ->
-    Forall (λ (a : Addr), (std W) !! a = Some Monotemporary) l ->
-    ∃ l', NoDup (l' ++ l) ∧ (forall (a : Addr), (std W) !! a = Some Monotemporary <-> a ∈ (l' ++ l)).
+    Forall (λ (a : Addr), (std W) !! a = Some Temporary) l ->
+    ∃ l', NoDup (l' ++ l) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l' ++ l)).
   Proof.
     intros Hdup HForall.
     pose proof (extract_temps W) as [l' [Hdup' Hl'] ].
@@ -1365,10 +1365,10 @@ Section heap.
     | [] => fs
     | i :: l' => match fs !! i with
                | Some j => if (decide (ρ = j))
-                          then <[i := Monotemporary]> (conditional_close_list_std_sta ρ l' fs)
+                          then <[i := Temporary]> (conditional_close_list_std_sta ρ l' fs)
                           else (conditional_close_list_std_sta ρ l' fs)
                  (* match j with *)
-                 (*          | ρ => <[i := Monotemporary]> (conditional_close_list_std_sta ρ l' fs) *)
+                 (*          | ρ => <[i := Temporary]> (conditional_close_list_std_sta ρ l' fs) *)
                  (*          | _ => (conditional_close_list_std_sta ρ l' fs) *)
                  (*          end *)
                | None => (conditional_close_list_std_sta ρ l' fs)
@@ -1481,7 +1481,7 @@ Section heap.
 
   Lemma conditional_close_list_std_sta_revoked Wstd_sta ρ l i :
     i ∈ l -> Wstd_sta !! i = Some ρ →
-    conditional_close_list_std_sta ρ l Wstd_sta !! i = Some Monotemporary.
+    conditional_close_list_std_sta ρ l Wstd_sta !! i = Some Temporary.
   Proof.
     intros Hin Hrev. induction l.
     - inversion Hin.
@@ -1496,16 +1496,16 @@ Section heap.
   Qed.
   Lemma close_list_std_sta_revoked Wstd_sta l i :
     i ∈ l -> Wstd_sta !! i = Some Revoked →
-    close_list_std_sta l Wstd_sta !! i = Some Monotemporary.
+    close_list_std_sta l Wstd_sta !! i = Some Temporary.
   Proof.
     apply conditional_close_list_std_sta_revoked.
   Qed.
 
   (* Lemma std_rel_pub_not_temp_cases x y : *)
   (*   std_rel_pub x y -> *)
-  (*   (x = Revoked ∧ y = Monotemporary) ∨ *)
+  (*   (x = Revoked ∧ y = Temporary) ∨ *)
   (*   (x = Revoked ∧ y = Permanent) ∨ *)
-  (*   (∃ m, x = (Uninitialized m) ∧ y = Monotemporary). *)
+  (*   (∃ m, x = (Uninitialized m) ∧ y = Temporary). *)
   (* Proof. *)
   (*   intros Hpub. *)
   (*   inversion Hpub;subst;[left|right;left|right;right];auto. exists w. split;auto. *)
@@ -1513,18 +1513,18 @@ Section heap.
 
   (* Lemma std_rel_pub_rtc_not_temp_cases x y : *)
   (*   rtc std_rel_pub x y -> *)
-  (*   (x = Revoked ∧ y = Monotemporary) ∨ *)
+  (*   (x = Revoked ∧ y = Temporary) ∨ *)
   (*   (x = Revoked ∧ y = Permanent) ∨ *)
-  (*   (∃ m, x = (Uninitialized m) ∧ y = Monotemporary) ∨ *)
+  (*   (∃ m, x = (Uninitialized m) ∧ y = Temporary) ∨ *)
   (*   x = y. *)
   (* Proof. *)
   (*   intros Hrtc. *)
   (*   destruct Hrtc as [|ρ y z Hrel]. *)
   (*   - right. by (repeat right). *)
   (*   - apply std_rel_pub_not_temp_cases in Hrel as [ [Heq1 Heq2] | [ [Heq1 Heq2] | [m [Heq1 Heq2] ] ] ]; subst. *)
-  (*     left. apply std_rel_pub_rtc_Monotemporary in Hrtc; auto. *)
+  (*     left. apply std_rel_pub_rtc_Temporary in Hrtc; auto. *)
   (*     right;left. apply std_rel_pub_rtc_Permanent in Hrtc; auto. *)
-  (*     right;right;left. apply std_rel_pub_rtc_Monotemporary in Hrtc; eauto. *)
+  (*     right;right;left. apply std_rel_pub_rtc_Temporary in Hrtc; eauto. *)
   (* Qed. *)
 
   Lemma close_list_related_sts_pub_cons W a l :
@@ -1548,7 +1548,7 @@ Section heap.
          +++ apply close_list_std_sta_revoked with _ l _ in Hsome;auto.
              rewrite Hsome in Hx. inversion Hx. left.
          +++ rewrite (close_list_std_sta_same _ l) in Hsome;auto.
-             rewrite Hsome in Hx. inversion Hx. right with Monotemporary;[|left].
+             rewrite Hsome in Hx. inversion Hx. right with Temporary;[|left].
              constructor.
       ++ rewrite lookup_insert_ne in Hy; auto.
          rewrite Hx in Hy. inversion Hy. left.
@@ -1566,7 +1566,7 @@ Section heap.
     i ∉ l → Wstd_sta !! i = Some Revoked ->
     related_sts_pub_world
       (close_list_std_sta l ((std (Wstd_sta,Wloc))), Wloc)
-      (<[i:=Monotemporary]> (close_list_std_sta l Wstd_sta), Wloc).
+      (<[i:=Temporary]> (close_list_std_sta l Wstd_sta), Wloc).
   Proof.
     intros Hnin Hlookup.
     split;[|apply related_sts_pub_refl]; simpl.
@@ -1578,7 +1578,7 @@ Section heap.
       destruct (decide (i = j)); subst.
       * rewrite lookup_insert in Hy. rewrite -(close_list_std_sta_same _ l) in Hx; auto.
         rewrite Hlookup in Hx. inversion Hx; inversion Hy; subst.
-        right with Monotemporary;[|left]. constructor.
+        right with Temporary;[|left]. constructor.
       * rewrite lookup_insert_ne in Hy; auto. rewrite Hx in Hy. inversion Hy. left.
   Qed.
 
@@ -1586,7 +1586,7 @@ Section heap.
     i ∉ l → Wstd_sta !! i = Some Revoked ->
     related_sts_pub_world
       (Wstd_sta, Wloc)
-      (<[i:= Monotemporary]> (close_list_std_sta l Wstd_sta), Wloc).
+      (<[i:= Temporary]> (close_list_std_sta l Wstd_sta), Wloc).
   Proof.
     intros Hnin Hlookup.
     apply related_sts_pub_trans_world with (close_list_std_sta l ((std (Wstd_sta, Wloc))), Wloc).
@@ -1595,7 +1595,7 @@ Section heap.
   Qed.
 
   Lemma close_revoke_iff Wstd_sta (l : list Addr) :
-     (forall (i : Addr), Wstd_sta !! i = Some Monotemporary <-> i ∈ l) ->
+     (forall (i : Addr), Wstd_sta !! i = Some Temporary <-> i ∈ l) ->
      ∀ i, (close_list_std_sta l (revoke_std_sta Wstd_sta)) !! i =
           Wstd_sta !! i.
   Proof.
@@ -1610,7 +1610,7 @@ Section heap.
   Qed.
 
   Lemma close_revoke_eq Wstd_sta (l : list Addr) :
-    (forall (i : Addr), Wstd_sta !! i = Some Monotemporary <-> i ∈ l) ->
+    (forall (i : Addr), Wstd_sta !! i = Some Temporary <-> i ∈ l) ->
     (close_list_std_sta l (revoke_std_sta Wstd_sta)) = Wstd_sta.
   Proof.
     intros Hiff.
@@ -1689,16 +1689,16 @@ Section heap.
       rewrite  Hx''.
       iDestruct "Hrev" as %Hrev. inversion Hrev as [Heq]. subst ρ.
       erewrite decide_True;auto.
-      iMod (sts_update_std _ _ _ Monotemporary with "Hfull Hρ") as "[Hfull Hρ] /=".
+      iMod (sts_update_std _ _ _ Temporary with "Hfull Hρ") as "[Hfull Hρ] /=".
       iFrame "Hfull".
-      iModIntro. iExists M,(<[x:=Monotemporary]> Mρ). rewrite HMeq.
+      iModIntro. iExists M,(<[x:=Temporary]> Mρ). rewrite HMeq.
       iDestruct (region_map_delete_nonstatic with "Hr") as "Hr";[intros m; by rewrite Mx|].
-      iDestruct (region_map_insert_nonmonostatic Monotemporary with "Hr") as "Hr";auto.
+      iDestruct (region_map_insert_nonmonostatic Temporary with "Hr") as "Hr";auto.
       rewrite /region_map_def.
       iDestruct (big_sepM_delete _ _ x with "[Hρ Hr Hx Hmono Hφ]") as "$"; [apply lookup_insert|..].
       { do 2 (rewrite delete_insert;[|apply lookup_delete]).
         iSplitR "Hr".
-        - iExists Monotemporary.
+        - iExists Temporary.
           iAssert (future_pub_mono φ a) as "#Hmono'".
           { iDestruct "Hmono" as "#Hmono".
             iModIntro. iIntros (W' W'' Hrelated) "Hφ". iApply ("Hmono" with "[] Hφ"). auto.
@@ -1801,11 +1801,11 @@ Section heap.
              iDestruct "Hx" as (v' Hlookup) "(Hx & _)".
              iApply bi.False_elim. iApply (addr_dupl_false with "Hx' Hx"); auto. }
 
-        iMod (sts_update_std _ _ _ Monotemporary with "Hsts Hstate") as "[Hsts Hstate]". rewrite HMeq.
+        iMod (sts_update_std _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]". rewrite HMeq.
         iDestruct (region_map_delete_nonstatic with "Hr") as "Hr";[intros m;by rewrite Hx|].
-        iDestruct (region_map_insert_nonmonostatic Monotemporary with "Hr") as "Hr"; auto.
+        iDestruct (region_map_insert_nonmonostatic Temporary with "Hr") as "Hr"; auto.
         iDestruct (big_sepM_delete _ _ x with "[ Hx' Hmono Hφ Hstate $Hr]") as "Hr";[apply lookup_insert|..].
-        { iExists Monotemporary.
+        { iExists Temporary.
           iDestruct "Hmono" as "#Hmono".
           iFrame "∗#".
           rewrite lookup_insert. iSplit;auto. repeat (iSplit;auto).

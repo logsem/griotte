@@ -93,7 +93,7 @@ Section fundamental.
     iDestruct (extract_from_region_inv _ _ a with "Hinv") as "[_ Hstate_a]";auto.
     iDestruct "Hstate_a" as %Hstate_a.
     assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked
-                                 ∧ (∀ g, ρ ≠ Monostatic g) )
+                                 ∧ (∀ g, ρ ≠ Frozen g) )
       as [ρ [Hρ [Hne_rev Hne_mono  ] ] ].
     { destruct (pwl p); [rewrite Hstate_a;eexists;eauto|].
       destruct g; [rewrite Hstate_a|rewrite Hstate_a];eexists;eauto. }

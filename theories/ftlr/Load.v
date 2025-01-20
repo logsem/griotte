@@ -32,7 +32,7 @@ Section fundamental.
   Definition region_open_resources W l ls φ v (bl : bool): iProp Σ :=
     (∃ ρ,
      sts_state_std l ρ
-    ∗ ⌜ρ ≠ Revoked ∧ (∀ g, ρ ≠ Monostatic g)⌝
+    ∗ ⌜ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g)⌝
     ∗ open_region_many (l :: ls) W
     ∗ (if bl then monotonicity_guarantees_region ρ l v φ ∗ φ (W, v)
        else ▷ monotonicity_guarantees_region ρ l v φ ∗  ▷ φ (W, v) )
