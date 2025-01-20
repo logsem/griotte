@@ -78,12 +78,12 @@ Program Definition interp_expr (interp : D) r : D :=
                                      interp_conf W))%I.
   Solve All Obligations with solve_proper.
   (* condition definitions *)
-  Program Definition read_write_cond l (interp : D) : iProp Σ :=
-    rel l (λne Wv, interp Wv.1 Wv.2).
+  Program Definition read_write_cond a p (interp : D) : iProp Σ :=
+    rel a p (λne Wv, interp Wv.1 Wv.2).
   Next Obligation.
   Proof. solve_proper. Qed.
   Global Instance read_write_cond_ne n :
-    Proper ((=) ==> dist n ==> dist n) read_write_cond.
+    Proper ((=) ==> (=) ==> dist n ==> dist n) read_write_cond.
   Proof.
     rewrite /read_write_cond rel_eq /rel. solve_proper_prepare.
     f_equiv =>γ. f_equiv.
@@ -94,12 +94,12 @@ Program Definition interp_expr (interp : D) r : D :=
   Definition rcond (P interp : D) : iProp Σ :=
     (▷ □ ∀ (W: WORLD) (w : Word), P W w -∗ interp W w)
   ∗ (▷ □ ∀ (W1 W2: WORLD) (z : Z), P W1 (WInt z) -∗ P W2 (WInt z)).
-  Program Definition read_cond l (P : D) (interp : D) : iProp Σ :=
-    rcond P interp ∗ rel l (λne Wv, P Wv.1 Wv.2).
+  Program Definition read_cond a p (P : D) (interp : D) : iProp Σ :=
+    rcond P interp ∗ rel a p (λne Wv, P Wv.1 Wv.2).
   Next Obligation.
   Proof. solve_proper. Qed.
   Global Instance read_cond_ne n :
-    Proper ((=) ==> dist n ==> dist n ==> dist n) read_cond.
+    Proper ((=) ==> (=) ==> dist n ==> dist n ==> dist n) read_cond.
   Proof.
     rewrite /read_cond /rcond rel_eq /rel. solve_proper_prepare.
     apply sep_ne.
@@ -116,28 +116,29 @@ Program Definition interp_expr (interp : D) r : D :=
     Proper ((=) ==> dist n ==> dist n) wcond.
   Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
 
-  (* TODO fix  *)
   Definition future_world g W W' : iProp Σ :=
     (match g with
-    (* | Local => ⌜related_sts_pub_plus_world W W'⌝ *)
-    | Local | Global => ⌜related_sts_priv_world W W'⌝
+    | Local => ⌜related_sts_pub_world W W'⌝
+    | Global => ⌜related_sts_priv_world W W'⌝
      end)%I.
 
-  Lemma localityflowsto_futureworld g g' W W' a a':
+  Lemma localityflowsto_futureworld g g' W W':
     LocalityFlowsTo g' g ->
-    (a' <= a)%a →
     (@future_world g' W W' -∗
      @future_world g  W W').
   Proof.
     intros; destruct g, g'; auto.
+    rewrite /future_world; iIntros "%".
+    iPureIntro. eapply related_sts_pub_priv_world; auto.
   Qed.
 
   Lemma futureworld_refl g W :
     ⊢ @future_world g W W.
   Proof.
     rewrite /future_world.
-    destruct g.
-    all: iPureIntro; apply related_sts_priv_refl_world.
+    destruct g; iPureIntro
+    ; [apply related_sts_priv_refl_world
+      | apply related_sts_pub_refl_world].
   Qed.
 
   Global Instance future_world_persistent g W W': Persistent (future_world g W W').
@@ -182,8 +183,7 @@ Program Definition interp_expr (interp : D) r : D :=
 
   Definition region_state_nwl W (a : Addr) (l : Locality) : Prop :=
     match l with
-     | Local => (std W) !! a = Some Permanent
-    (* TODO ∨ (std W) !! a = Some Monotemporary *)
+     | Local => (std W) !! a = Some Permanent ∨ (std W) !! a = Some Temporary
      | Global => (std W) !! a = Some Permanent
     end.
 
@@ -211,9 +211,11 @@ Program Definition interp_expr (interp : D) r : D :=
     λne W w, (match w with
               | WCap RO g b e a =>
                 [∗ list] a ∈ (finz.seq_between b e),
-                  ∃ (P:D), ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
-                           ∧ (read_cond a P interp)
-                           ∧ ⌜region_state_nwl W a g⌝
+                  ∃ (p : Perm) (P:D),
+                    ⌜PermFlows RO p⌝
+                    ∧ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
+                    ∧ (read_cond a p P interp)
+                    ∧ ⌜region_state_nwl W a g⌝
               | _ => False
               end)%I.
   Solve All Obligations with solve_proper.
@@ -222,8 +224,10 @@ Program Definition interp_expr (interp : D) r : D :=
     λne W w, (match w with
               | WCap RW g b e a =>
                 [∗ list] a ∈ (finz.seq_between b e),
-                  (read_write_cond a interp) (* TODO should be wcond and rcond *)
-                  ∧ ⌜region_state_nwl W a g⌝
+                  ∃ (p : Perm),
+                    ⌜PermFlows RW p⌝
+                    ∧ (read_write_cond a p interp) (* TODO should be wcond and rcond *)
+                    ∧ ⌜region_state_nwl W a g⌝
               | _ => False
               end)%I.
   Solve All Obligations with solve_proper.
@@ -232,9 +236,11 @@ Program Definition interp_expr (interp : D) r : D :=
     λne W w, (match w with
               | WCap RX g b e a =>
                 ([∗ list] a ∈ (finz.seq_between b e),
-                   ∃ (P:D), ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
-                            ∧ (read_cond a P interp)
-                            ∧ ⌜region_state_nwl W a g⌝)
+                  ∃ (p : Perm) (P:D),
+                    ⌜PermFlows RX p⌝
+                    ∧ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
+                    ∧ (read_cond a p P interp)
+                    ∧ ⌜region_state_nwl W a g⌝)
              | _ => False end)%I.
   Solve All Obligations with solve_proper.
 
@@ -249,7 +255,9 @@ Program Definition interp_expr (interp : D) r : D :=
     λne W w, (match w with
               | WCap RWX g b e a =>
                 ([∗ list] a ∈ (finz.seq_between b e),
-                   (read_write_cond a interp)
+                  ∃ (p : Perm),
+                    ⌜PermFlows RWX p⌝
+                   ∧ (read_write_cond a p interp)
                    ∧ ⌜region_state_nwl W a g⌝)
               | _ => False end)%I.
   Solve All Obligations with solve_proper.
@@ -259,8 +267,8 @@ Program Definition interp_expr (interp : D) r : D :=
     λne W w, (match w with
               | WCap RWL Local b e a =>
                 [∗ list] a ∈ (finz.seq_between b e),
-                  ∃ p, ⌜PermFlows RWL p⌝ ∗
-                       (read_write_cond a interp)
+                  ∃ p, ⌜PermFlows RWL p⌝
+                       ∧ (read_write_cond a p interp)
                        ∧ ⌜region_state_pwl W a⌝
               | _ => False
               end)%I.
@@ -270,8 +278,8 @@ Program Definition interp_expr (interp : D) r : D :=
     λne W w, (match w with
               | WCap RWLX Local b e a =>
                 [∗ list] a ∈ (finz.seq_between b e),
-                  ∃ p, ⌜PermFlows RWLX p⌝ ∗
-                       (read_write_cond a interp)
+                  ∃ p, ⌜PermFlows RWLX p⌝
+                       ∧ (read_write_cond a p interp)
                        ∧ ⌜region_state_pwl W a⌝
               | _ => False end)%I.
   Solve All Obligations with solve_proper.
@@ -320,12 +328,12 @@ Program Definition interp_expr (interp : D) r : D :=
     Contractive (λ interp, wcond P interp).
   Proof. solve_contractive. Qed.
 
-  Global Instance read_cond_contractive a P :
-    Contractive (λ interp, read_cond a P interp).
+  Global Instance read_cond_contractive a p P :
+    Contractive (λ interp, read_cond a p P interp).
   Proof. solve_contractive. Qed.
 
-  Global Instance read_write_cond_contractive a :
-    Contractive (λ interp, read_write_cond a interp).
+  Global Instance read_write_cond_contractive a p :
+    Contractive (λ interp, read_write_cond a p interp).
   Proof.
     solve_proper_prepare.
     rewrite /read_write_cond rel_eq /rel_def /saved_pred_own.
@@ -470,16 +478,19 @@ Program Definition interp_expr (interp : D) r : D :=
     (b ≤ a' ∧ a' < e)%Z →
     readAllowed p →
     ⊢ (interp W (WCap p g b e a)) →
+    ∃ (p' : Perm),
     if writeAllowed p
-    then read_write_cond a' interp
-    else (∃ (P:D), ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝ ∧ read_cond a' P interp).
+    then read_write_cond a' p' interp
+    else (∃ (P:D), ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝ ∧ read_cond a' p' P interp).
   Proof.
     iIntros (Hin Ra) "Hinterp".
     rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn.
-    destruct p,g; try contradiction;simpl.
-    all: try (iDestruct (extract_from_region_inv with "Hinterp") as (P Hpers) "[Hinv _]";eauto).
-    all: try (iDestruct (extract_from_region_inv with "Hinterp") as "[Hinv _]";eauto).
-    all: done.
+    destruct p,g; try done;cbn.
+    (* try (iDestruct "Hinterp" as "[Hinterp Hinterpe]"); *)
+    all: try (iDestruct (extract_from_region_inv with "Hinterp") as (p P Hfl Hpers) "[Hinv _]"
+              ; eauto ; iExists p,P; iFrame "%∗").
+    all: try (iDestruct (extract_from_region_inv with "Hinterp") as (p Hfl) "[Hinv _]"
+              ; eauto ; iExists p,P; iFrame "%∗").
   Qed.
 
   (* Lemma write_allowed_inv (a' a b e: Addr) p : *)
@@ -527,29 +538,34 @@ Program Definition interp_expr (interp : D) r : D :=
     eapply withinBounds_le_addr in Hb.
     unfold interp; rewrite fixpoint_interp1_eq /=.
     destruct p; simpl in Hp; try congruence.
-    - iDestruct (extract_from_region_inv with "H") as (P Hpers) "[_ H]"; eauto.
-      iDestruct "H" as %HH. iPureIntro. destruct g; eauto;simpl in HH.
-    - iDestruct (extract_from_region_inv with "H") as "[_ H]"; eauto.
-      iDestruct "H" as %HH. iPureIntro. destruct g; eauto; simpl in HH.
+    - iDestruct (extract_from_region_inv with "H") as (p P Hfl Hpers) "[_ H]"; eauto.
+      iDestruct "H" as %HH. iPureIntro.
+      destruct g; eauto;simpl in HH; destruct HH as [HH|HH]; eauto.
+    - iDestruct (extract_from_region_inv with "H") as (p Hfl) "[_ H]"; eauto.
+      iDestruct "H" as %HH. iPureIntro.
+      destruct g; eauto;simpl in HH; destruct HH as [HH|HH]; eauto.
     - destruct g; auto.
       iDestruct (extract_from_region_inv with "H") as (p Hpers) "[_ H]"; eauto.
       iDestruct "H" as %HH. iPureIntro. eauto.
-    - iDestruct (extract_from_region_inv with "H") as (p Hpers) "[_ H]"; eauto.
-      iDestruct "H" as %HH. iPureIntro. destruct g; eauto.
-    - iDestruct (extract_from_region_inv with "H") as "[_ H]"; eauto.
-      iDestruct "H" as %HH. iPureIntro. destruct g; eauto.
-    - destruct g; auto.
-      iDestruct (extract_from_region_inv with "H") as (p Hpers) "[_ H]"; eauto.
+    - iDestruct (extract_from_region_inv with "H") as (p P Hfl Hpers) "[_ H]"; eauto.
+      iDestruct "H" as %HH. iPureIntro.
+      destruct g; eauto;simpl in HH; destruct HH as [HH|HH]; eauto.
+    - iDestruct (extract_from_region_inv with "H") as (p Hfl) "[_ H]"; eauto.
+      iDestruct "H" as %HH. iPureIntro.
+      destruct g; eauto;simpl in HH; destruct HH as [HH|HH]; eauto.
+    - destruct g; eauto.
+      iDestruct (extract_from_region_inv with "H") as (p Hfl) "[_ H]"; eauto.
       iDestruct "H" as %HH. iPureIntro. eauto.
   Qed.
 
   Definition region_conditions W p g b e:=
   ([∗ list] a ∈ (finz.seq_between b e),
-     (if writeAllowed p
-      then read_write_cond a interp
-      else (∃ (P:D), ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
-                     ∧ read_cond a P interp))
-     ∧ ⌜if pwl p then region_state_pwl W a else region_state_nwl W a g⌝)%I.
+     ∃ p', ⌜PermFlows p p'⌝
+           ∗ (if writeAllowed p
+              then read_write_cond a p' interp
+              else (∃ (P:D), ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
+                             ∧ read_cond a p' P interp))
+           ∧ ⌜if pwl p then region_state_pwl W a else region_state_nwl W a g⌝)%I.
 
   Global Instance region_conditions_persistent W p g b e : Persistent (region_conditions W p g b e).
   Proof.
@@ -566,9 +582,8 @@ Program Definition interp_expr (interp : D) r : D :=
     unfold region_conditions.
     destruct p; simpl in *; try congruence; destruct g; simpl; eauto.
     all:iApply (big_sepL_mono with "Hvalid");iIntros (k y Hin) "H".
-    all: try (iApply and_exist_r; iDestruct "H" as (P) "(?&?&?)"; iExists _; iFrame).
-    all: iDestruct "H" as (p _) "H".
-    all: iDestruct "H" as "[H %]" ; iFrame "H%".
+    all: try (iDestruct "H" as (p P) "(%Hfl&%Hpers&[? ?]&?)"; iFrame "∗%").
+    all: try (iDestruct "H" as (p) "(%Hfl&?&?)"; iFrame "∗%").
   Qed.
 
   Lemma execCond_implies_region_conditions W p g b e a:
@@ -580,8 +595,8 @@ Program Definition interp_expr (interp : D) r : D :=
     destruct p; naive_solver.
   Qed.
 
-  Lemma read_write_cond_implies_read_cond a :
-    read_write_cond a interp -∗ ∃ P, read_cond a P interp.
+  Lemma read_write_cond_implies_read_cond a p :
+    read_write_cond a p interp -∗ ∃ P, read_cond a p P interp.
   Proof.
     iIntros "Hread". iExists interp. iFrame. rewrite /rcond. iSplit; auto.
     iNext. iModIntro. iIntros (W1 W2 z) "_". rewrite fixpoint_interp1_eq. done.
@@ -609,110 +624,112 @@ Program Definition interp_expr (interp : D) r : D :=
     all: rewrite /region_conditions /=.
     all: iApply (big_sepL_mono with "HR").
     all: intros;iIntros "H".
-    iDestruct (and_exist_r with "H") as (P) "((?&?)&?)"; eauto.
-    iExists RWLX;iFrame;done.
+    iDestruct "H" as (p' Hfl) "[H %Hstate]" ;iDestruct "H" as (P) "[%Hpers ?]"; iFrame "%∗".
+    all: iDestruct "H" as (p' Hfl) "[H %Hstate]"; iFrame "%∗".
   Qed.
 
+  (* TODO fix *)
   Lemma read_allowed_inv_regs (a' a b e: Addr) p g W r :
     (b ≤ a' ∧ a' < e)%Z →
     readAllowed p →
     ⊢ (interp_registers W r -∗
       interp W (WCap p g b e a) -∗
-      (∃ (P : D), ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
-                  ∗ rel a' (λ Wv, P Wv.1 Wv.2)
-                  ∗ rcond P interp
-                  ∗ if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> r) a')
-                    then wcond P interp
-                    else emp))%I.
+      (∃ (p' : Perm) (P : D),
+          ⌜PermFlows p p'⌝
+          ∗ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
+          ∗ rel a' p' (λ Wv, P Wv.1 Wv.2)
+          ∗ rcond P interp
+          ∗ if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> r) a')
+            then wcond P interp
+            else emp))%I.
   Proof.
-    iIntros (Hin Ra) "#Hregs #Hinterp".
-    rewrite /interp_registers /interp_reg /=.
-    iDestruct "Hregs" as "[Hfull Hregvalid]".
-    case_decide as Hinra.
-    - destruct Hinra as [reg (wa & Hra & Hwa & Ha) ].
-      destruct (decide (reg = PC)).
-      + simplify_map_eq.
-        rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn.
-        destruct p,g
-        ; try contradiction ; try done
-        ; inversion Hwa; try done
-        ; try (iDestruct (extract_from_region_inv with "Hinterp") as "[Hinv Hiff]"; eauto)
-        ; try (iDestruct (extract_from_region_inv with "Hinterp") as (p) "[% [Hinv Hiff]]"; eauto).
-        all: iExists interp;try iFrame "Hinv".
-        all: iSplitR;[iPureIntro;apply _|].
-        all: rewrite /rcond /wcond /=;auto.
-        all: try (iSplit;[iSplit;auto|]).
-        all: try (iNext;iModIntro;try (iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto)).
-        all: auto.
-      + simplify_map_eq.
-        destruct wa; try inv Ha.
-        destruct sb; try inv Ha.
-        iSpecialize ("Hregvalid" $! _ _ n Hra).
-        iClear "Hinterp".
-        rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn.
-        destruct p0,g0; try contradiction; inversion Hwa; try done ; subst.
-        all: try (iDestruct (extract_from_region_inv _ _ a0 with "Hregvalid") as "[Hinv Hiff]";[solve_addr|];iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=;auto).
-        all: try (iDestruct (extract_from_region_inv _ _ a0 with "Hregvalid") as (p0) "[% [Hinv Hiff]]";[solve_addr|];iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=;auto).
-        all: try (iSplitR;[iPureIntro;apply _|auto]).
-        all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto).
-    - rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn.
-      destruct p,g; try contradiction; try done.
-      all: try (iDestruct (extract_from_region_inv with "Hinterp") as (P Hpers) "[ [Hrcond Hinv] Hiff]"; eauto).
-      all: try (iDestruct (extract_from_region_inv with "Hinterp") as "[Hinv Hiff]";eauto;iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=).
-      all: try (iDestruct (extract_from_region_inv with "Hinterp") as (p) "[ % [Hinv Hiff] ]"; eauto).
-      all: try (iExists (fixpoint interp1);iFrame "Hinv").
-      all: try (iSplitR;[iPureIntro;apply _|auto]).
-      all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_"
-                ;rewrite fixpoint_interp1_eq;auto).
-  Qed.
+    (* iIntros (Hin Ra) "#Hregs #Hinterp". *)
+    (* rewrite /interp_registers /interp_reg /=. *)
+    (* iDestruct "Hregs" as "[Hfull Hregvalid]". *)
+    (* case_decide as Hinra. *)
+    (* - destruct Hinra as [reg (wa & Hra & Hwa & Ha) ]. *)
+    (*   destruct (decide (reg = PC)). *)
+    (*   + simplify_map_eq. *)
+    (*     rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn. *)
+        (* destruct p,g *)
+        (* ; try contradiction ; try done *)
+        (* ; inversion Hwa; try done *)
+        (* ; try (iDestruct (extract_from_region_inv with "Hinterp") as "[Hinv Hiff]"; eauto) *)
+        (* ; try (iDestruct (extract_from_region_inv with "Hinterp") as (p) "[% [Hinv Hiff]]"; eauto). *)
+    (*     all: iExists _,interp;iFrame "%";try iFrame "Hinv". *)
+    (*     all: iSplitR;[iPureIntro;apply _|]. *)
+    (*     all: rewrite /rcond /wcond /=;auto. *)
+    (*     all: try (iSplit;[iSplit;auto|]). *)
+    (*     all: try (iNext;iModIntro;try (iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto)). *)
+    (*     all: auto. *)
+    (*   + simplify_map_eq. *)
+    (*     destruct wa; try inv Ha. *)
+    (*     destruct sb; try inv Ha. *)
+    (*     iSpecialize ("Hregvalid" $! _ _ n Hra). *)
+    (*     iClear "Hinterp". *)
+    (*     rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn. *)
+    (*     destruct p0,g0; try contradiction; inversion Hwa; try done ; subst. *)
+    (* - rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn. *)
+    (*   destruct p,g; try contradiction; try done. *)
+    (*   all: try (iDestruct (extract_from_region_inv with "Hinterp") as (P Hpers) "[ [Hrcond Hinv] Hiff]"; eauto). *)
+    (*   all: try (iDestruct (extract_from_region_inv with "Hinterp") as "[Hinv Hiff]";eauto;iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=). *)
+    (*   all: try (iDestruct (extract_from_region_inv with "Hinterp") as (p) "[ % [Hinv Hiff] ]"; eauto). *)
+    (*   all: try (iExists (fixpoint interp1);iFrame "Hinv"). *)
+    (*   all: try (iSplitR;[iPureIntro;apply _|auto]). *)
+    (*   all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_" *)
+    (*             ;rewrite fixpoint_interp1_eq;auto). *)
+  Admitted.
 
+  (* TODO fix *)
   Lemma extract_from_region_inv_regs a (a' b e : Addr) p g W r :
     (b ≤ a' ∧ a' < e)%Z →
     readAllowed p →
     ⊢ (interp_registers W r -∗
        region_conditions W p g b e -∗
-       (∃ (P : D), ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
-                   ∗ rel a' (λ Wv, P Wv.1 Wv.2)
-                   ∗ rcond P interp
-                   ∗ if decide (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> r) a')
-                     then wcond P interp
-                     else emp))%I.
+      (∃ (p' : Perm) (P : D),
+          ⌜PermFlows p p'⌝
+           ∗ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
+           ∗ rel a' p' (λ Wv, P Wv.1 Wv.2)
+           ∗ rcond P interp
+           ∗ if decide (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> r) a')
+             then wcond P interp
+             else emp))%I.
   Proof.
-    iIntros (Hin Ra) "#Hregs #Hinterp".
-    rewrite /interp_registers /interp_reg /=.
-    iDestruct "Hregs" as "[Hfull Hregvalid]".
-    case_decide as Hinra.
-    - destruct Hinra as [reg (wa & Hra & Hwa & Ha) ].
-      destruct (decide (reg = PC)).
-      + simplify_map_eq.
-        rewrite /interp. cbn.
-        destruct p,g; try contradiction; inversion Hwa; try done;
-          try (iDestruct (extract_from_region_inv with "Hinterp") as "[Hinv Hiff]"; eauto).
-        all: iExists interp;iFrame "Hinv".
-        all: rewrite /rcond /wcond /=.
-        all: iSplitR;[iPureIntro;apply _|].
-        all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto).
-      + simplify_map_eq.
-        destruct wa; try inv Ha.
-        destruct sb; try inv Ha.
-        iSpecialize ("Hregvalid" $! _ _ n Hra).
-        iClear "Hinterp".
-        rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn.
-        destruct p0,g0; try contradiction; inversion Hwa; try done ; subst.
-        all: try (iDestruct (extract_from_region_inv with "Hregvalid") as "[Hinv Hiff]";eauto;iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=).
-        all: try (iSplitR;[iPureIntro;apply _|]).
-        all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto).
-        all: iDestruct (extract_from_region_inv with "Hregvalid") as (p' Hp') "[Hinv Hiff]"; eauto
-        ;iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=.
-        all: try (iSplitR;[iPureIntro;apply _|]).
-        all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto).
-    - rewrite /interp. cbn.
-      destruct p,g; try contradiction; try done. all: rewrite /region_conditions /=.
-      all: try (iDestruct (extract_from_region_inv with "Hinterp") as "[Ha _]"; eauto; iDestruct "Ha" as (P Hpers) "[Ha Hcond]";iExists P;iFrame "Ha Hcond").
-      all: try (iDestruct (extract_from_region_inv with "Hinterp") as "[Hinv Hiff]";eauto;iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=).
-      all: iSplitR;[iPureIntro;apply _|].
-      all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto).
-  Qed.
+    (* iIntros (Hin Ra) "#Hregs #Hinterp". *)
+    (* rewrite /interp_registers /interp_reg /=. *)
+    (* iDestruct "Hregs" as "[Hfull Hregvalid]". *)
+    (* case_decide as Hinra. *)
+    (* - destruct Hinra as [reg (wa & Hra & Hwa & Ha) ]. *)
+    (*   destruct (decide (reg = PC)). *)
+    (*   + simplify_map_eq. *)
+    (*     rewrite /interp. cbn. *)
+    (*     destruct p,g; try contradiction; inversion Hwa; try done; *)
+    (*       try (iDestruct (extract_from_region_inv with "Hinterp") as "[Hinv Hiff]"; eauto). *)
+    (*     all: iExists interp;iFrame "Hinv". *)
+    (*     all: rewrite /rcond /wcond /=. *)
+    (*     all: iSplitR;[iPureIntro;apply _|]. *)
+    (*     all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto). *)
+    (*   + simplify_map_eq. *)
+    (*     destruct wa; try inv Ha. *)
+    (*     destruct sb; try inv Ha. *)
+    (*     iSpecialize ("Hregvalid" $! _ _ n Hra). *)
+    (*     iClear "Hinterp". *)
+    (*     rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn. *)
+    (*     destruct p0,g0; try contradiction; inversion Hwa; try done ; subst. *)
+    (*     all: try (iDestruct (extract_from_region_inv with "Hregvalid") as "[Hinv Hiff]";eauto;iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=). *)
+    (*     all: try (iSplitR;[iPureIntro;apply _|]). *)
+    (*     all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto). *)
+    (*     all: iDestruct (extract_from_region_inv with "Hregvalid") as (p' Hp') "[Hinv Hiff]"; eauto *)
+    (*     ;iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=. *)
+    (*     all: try (iSplitR;[iPureIntro;apply _|]). *)
+    (*     all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto). *)
+    (* - rewrite /interp. cbn. *)
+    (*   destruct p,g; try contradiction; try done. all: rewrite /region_conditions /=. *)
+    (*   all: try (iDestruct (extract_from_region_inv with "Hinterp") as "[Ha _]"; eauto; iDestruct "Ha" as (P Hpers) "[Ha Hcond]";iExists P;iFrame "Ha Hcond"). *)
+    (*   all: try (iDestruct (extract_from_region_inv with "Hinterp") as "[Hinv Hiff]";eauto;iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=). *)
+    (*   all: iSplitR;[iPureIntro;apply _|]. *)
+    (*   all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto). *)
+  Admitted.
 
   Lemma writeLocalAllowed_valid_cap_implies W p g b e a:
     pwl p = true ->

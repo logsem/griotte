@@ -554,7 +554,7 @@ Section Adequacy.
       - (* malloc capability *) iFrame "Hmalloc". iSplit.
         2: { iAlways. iIntros (W W' Hrelated) "Hv".
              cbn.
-             iApply interp_monotone_nm_nl;eauto.
+             iApply interp_monotone_nl;eauto.
              admit.
         }
         iApply (simple_malloc_subroutine_valid with "[$Hinv_malloc] [Hrels]").

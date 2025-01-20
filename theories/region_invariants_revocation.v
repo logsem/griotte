@@ -141,13 +141,13 @@ Section heap.
   (* The following lemma takes a revoked region and makes it Temporary. *)
 
   (* In the following variant, we only require monotonicity of the updated world *)
-  Lemma update_region_revoked_monotemp_updated E W l v φ `{∀ Wv, Persistent (φ Wv)} :
-    (std W) !! l = Some Revoked →
-    future_pub_a_mono l φ v -∗
+  Lemma update_region_revoked_monotemp_updated E W a v φ `{∀ Wv, Persistent (φ Wv)} :
+    (std W) !! a = Some Revoked →
+    future_pub_mono φ v -∗
     sts_full_world W -∗
     region W -∗
-    l ↦ₐ v -∗ φ (<s[l := Temporary ]s>W,v) -∗ rel l φ ={E}=∗ region (<s[l := Temporary ]s>W)
-                             ∗ sts_full_world (<s[l := Temporary ]s>W).
+    a ↦ₐ v -∗ φ (<s[a := Temporary ]s>W,v) -∗ rel a φ ={E}=∗ region (<s[a := Temporary ]s>W)
+                             ∗ sts_full_world (<s[a := Temporary ]s>W).
   Proof.
     iIntros (Hrev) "#Hmono Hsts Hreg Hl #Hφ #Hrel".
     rewrite region_eq /region_def.
@@ -162,16 +162,16 @@ Section heap.
     iDestruct (sts_full_state_std with "Hsts Hstate") as %Hρ.
     rewrite Hrev in Hρ. inversion Hρ as [Hρrev]. subst.
     iMod (sts_update_std _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
-    assert (related_sts_pub_world W (<s[l := Temporary ]s> W)) as Hrelated.
+    assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_world_revoked_monotemp; auto. }
-    assert (related_sts_a_world W (<s[l := Temporary ]s> W) l) as Hrelated'.
-    { apply related_sts_pub_a_world; auto. }
+    (* assert (related_sts_a_world W (<s[a := Temporary ]s> W) a) as Hrelated'. *)
+    (* { apply related_sts_pub_a_world; auto. } *)
     iDestruct (region_map_monotone _ _ _ _ Hrelated with "Hr") as "Hr".
-    assert (is_Some (M !! l)) as [x Hsome].
+    assert (is_Some (M !! a)) as [x Hsome].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. eauto. }
     iDestruct (region_map_delete_nonstatic with "Hr") as "Hr"; [intros m;congruence|].
     iDestruct (region_map_insert_nonmonostatic Temporary with "Hr") as "Hr";auto.
-    iDestruct (big_sepM_delete _ _ l _ Hsome with "[Hl Hstate $Hr]") as "Hr".
+    iDestruct (big_sepM_delete _ _ a _ Hsome with "[Hl Hstate $Hr]") as "Hr".
     { iExists Temporary. iFrame. iSplitR;[iPureIntro;apply lookup_insert|].
       iExists φ. rewrite HMeq lookup_insert in Hsome.
       inversion Hsome. repeat (iSplit; auto). }
@@ -183,20 +183,20 @@ Section heap.
     - repeat rewrite dom_insert_L;rewrite Hdom';set_solver.
   Qed.
 
-  Lemma update_region_revoked_monotemp E W l v φ `{∀ Wv, Persistent (φ Wv)} :
-    (std W) !! l = Some Revoked →
-    future_pub_a_mono l φ v -∗
+  Lemma update_region_revoked_monotemp E W a v φ `{∀ Wv, Persistent (φ Wv)} :
+    (std W) !! a = Some Revoked →
+    future_pub_mono φ v -∗
     sts_full_world W -∗
     region W -∗
-    l ↦ₐ v -∗ φ (W,v) -∗ rel l φ ={E}=∗ region (<s[l := Temporary ]s>W)
-                             ∗ sts_full_world (<s[l := Temporary ]s>W).
+    a ↦ₐ v -∗ φ (W,v) -∗ rel a φ ={E}=∗ region (<s[a := Temporary ]s>W)
+                             ∗ sts_full_world (<s[a := Temporary ]s>W).
   Proof.
     iIntros (Hrev) "#Hmono Hsts Hreg Hl #Hφ #Hrel".
-    assert (related_sts_pub_world W (<s[l := Temporary ]s> W)) as Hrelated.
+    assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_world_revoked_monotemp; auto. }
-    assert (related_sts_a_world W (<s[l := Temporary ]s> W) l) as Hrelated'.
-    { apply related_sts_pub_a_world; auto. }
-    iDestruct ("Hmono" $! _ _ Hrelated' with "Hφ") as "Hφ'".
+    (* assert (related_sts_a_world W (<s[a := Temporary ]s> W) a) as Hrelated'. *)
+    (* { apply related_sts_pub_a_world; auto. } *)
+    iDestruct ("Hmono" $! _ _ Hrelated with "Hφ") as "Hφ'".
     iApply (update_region_revoked_monotemp_updated with "Hmono Hsts Hreg Hl Hφ' Hrel");auto.
   Qed.
 
@@ -831,7 +831,7 @@ Section heap.
   Definition monotemp_resources (W : WORLD) φ (a : Addr) : iProp Σ :=
     (∃ (v : Word),
             a ↦ₐ v
-          ∗ future_pub_a_mono a φ v
+          ∗ future_pub_mono φ v
           ∗ φ (W,v))%I.
 
 
@@ -1702,7 +1702,7 @@ Section heap.
           iAssert (future_pub_mono φ a) as "#Hmono'".
           { iDestruct "Hmono" as "#Hmono".
             iModIntro. iIntros (W' W'' Hrelated) "Hφ". iApply ("Hmono" with "[] Hφ"). auto.
-            iPureIntro. apply related_sts_pub_a_world. auto. }
+          }
           iFrame. iSplit;[iPureIntro;apply lookup_insert|].
           rewrite /future_pub_mono.
           repeat (iSplit; auto).
@@ -1718,7 +1718,7 @@ Section heap.
             iAssert (future_pub_mono φ0 v) as "#Hmono'".
             { iDestruct "Hmono" as "#Hmono".
               iModIntro. iIntros (W' W'' Hrelated) "Hφ". iApply ("Hmono" with "[] Hφ"). auto.
-              iPureIntro. apply related_sts_pub_a_world. auto. }
+            }
             iFrame. repeat (iSplit;eauto).
             iNext. iApply ("Hmono'" with "[] Hφ0"). iPureIntro.
             apply close_list_related_sts_pub_insert'; auto.
@@ -1809,8 +1809,8 @@ Section heap.
           iDestruct "Hmono" as "#Hmono".
           iFrame "∗#".
           rewrite lookup_insert. iSplit;auto. repeat (iSplit;auto).
-          iApply ("Hmono" with "[] Hφ"). iPureIntro.
-          apply related_sts_pub_a_world. auto. }
+          iApply ("Hmono" with "[] Hφ"); done.
+        }
         iFrame.
         replace (<[x:=γpred]> (delete x (<[x:=γpred]> (delete x M))))
           with (<[x:=γpred]> (delete x M)).
