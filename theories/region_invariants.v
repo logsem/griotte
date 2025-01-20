@@ -329,13 +329,14 @@ Section heap.
   Qed.
 
   Lemma rel_agree a φ1 φ2 p1 p2 :
-    rel a p1 φ1 ∗ rel a p2 φ2 -∗ (∀ x, ▷ (φ1 x ≡ φ2 x)).
+    rel a p1 φ1 ∗ rel a p2 φ2 -∗ ⌜p1 = p2⌝ ∗ (∀ x, ▷ (φ1 x ≡ φ2 x)).
   Proof.
     iIntros "[Hr1 Hr2]".
     rewrite rel_eq /rel_def.
     iDestruct "Hr1" as (γ1) "[Hrel1 Hpred1]".
     iDestruct "Hr2" as (γ2) "[Hrel2 Hpred2]".
     iDestruct (rels_agree with "[$Hrel1 $Hrel2]") as %[-> ->].
+    iSplit ; first done.
     iIntros (x). iApply (saved_pred_agree with "Hpred1 Hpred2").
   Qed.
 
