@@ -166,17 +166,17 @@ Section heap.
   Lemma region_map_delete_monostatic (M: gmap Addr _) (Mρ: gmap Addr _) W m l γ v:
     dom M ⊆ dom Mρ →
     M !! l = Some γ →
-    Mρ !! l = Some (Monostatic m) →
+    Mρ !! l = Some (Frozen m) →
     m !! l = Some v →
     region_map_def M Mρ W -∗
     region_map_def (delete l M) Mρ W ∗
-    l ↦ₐ v ∗ sts_state_std l (Monostatic m).
+    l ↦ₐ v ∗ sts_state_std l (Frozen m).
   Proof.
     intros Hdom HMl HMρ Hm.
     iIntros "Hr".
     iDestruct (big_sepM_delete _ _ l with "Hr") as "(Hl & Hr)"; eauto; [].
     iFrame. iDestruct "Hl" as (ρ' Hρ') "(? & Hst)".
-    assert (ρ' = Monostatic m) as -> by congruence.
+    assert (ρ' = Frozen m) as -> by congruence.
     iDestruct "Hst" as (?) "(? & ? & H)".
     iDestruct "H" as (v') "(% & ? & _)".
     assert (v' = v) as -> by (congruence). simplify_eq. iFrame.
@@ -187,7 +187,7 @@ Section heap.
 
   Lemma region_map_open_some_monostatic (M: gmap Addr _) Mρ W (m m_all: gmap Addr Word) :
     m ⊆ m_all →
-    (forall a', a' ∈ dom m → Mρ !! a' = Some (Monostatic m_all)) →
+    (forall a', a' ∈ dom m → Mρ !! a' = Some (Frozen m_all)) →
     dom Mρ = dom M →
     region_map_def M Mρ W
     ∗ RELS M
@@ -198,7 +198,7 @@ Section heap.
     ∗ RELS M
     ∗ sts_full_world W
     ∗ static_resources m
-    ∗ sts_state_std_many m (λ _, Monostatic m_all).
+    ∗ sts_state_std_many m (λ _, Frozen m_all).
   Proof.
     pattern m. revert m. refine (map_ind _ _ _).
     - intros **. iIntros "(?&?&?&?)".
@@ -233,7 +233,7 @@ Section heap.
   Qed.
 
   Lemma region_map_open_all_monostatic M Mρ W (m: gmap Addr Word) :
-    (forall a', a' ∈ dom m → Mρ !! a' = Some (Monostatic m)) →
+    (forall a', a' ∈ dom m → Mρ !! a' = Some (Frozen m)) →
     dom Mρ = dom M →
     region_map_def M Mρ W
     ∗ sts_full_world W
@@ -242,7 +242,7 @@ Section heap.
     -∗
     region_map_def (M ∖∖ m) (Mρ ∖∖ m) W
     ∗ sts_full_world W
-    ∗ sts_state_std_many m (λ _, Monostatic m)
+    ∗ sts_state_std_many m (λ _, Frozen m)
     ∗ static_resources m
     ∗ RELS M.
   Proof.
@@ -265,10 +265,10 @@ Section heap.
   Qed.
 
   Lemma region_map_has_monostatic_addr M Mρ W (l: Addr) m :
-    (std W) !! l = Some (Monostatic m) →
+    (std W) !! l = Some (Frozen m) →
     dom (std W) = dom M →
     region_map_def M Mρ W ∗ sts_full_world W -∗
-    ⌜(forall a', a' ∈ dom m → Mρ !! a' = Some (Monostatic m))⌝ ∗
+    ⌜(forall a', a' ∈ dom m → Mρ !! a' = Some (Frozen m))⌝ ∗
     ⌜l ∈ dom m⌝.
   Proof.
     iIntros (HWl Hdom) "(Hr & Hsts)".
@@ -315,7 +315,7 @@ Section heap.
 
   Lemma region_map_has_monostatic_rels W m' m a :
     m' ⊆ m →
-    (std W) !! a = Some (Monostatic m) ->
+    (std W) !! a = Some (Frozen m) ->
     region W ∗ sts_full_world W ==∗
     region W ∗ sts_full_world W ∗ ([∗ map] a↦v ∈ m', ∃ φ, rel a φ).
   Proof.
@@ -339,7 +339,7 @@ Section heap.
   Qed.
 
   Lemma region_map_has_monostatic_rels_all W m a :
-    (std W) !! a = Some (Monostatic m) ->
+    (std W) !! a = Some (Frozen m) ->
     region W ∗ sts_full_world W ==∗
     region W ∗ sts_full_world W ∗ ([∗ map] a↦v ∈ m, ∃ φ, rel a φ).
   Proof.
@@ -348,11 +348,11 @@ Section heap.
   Qed.
 
   Lemma region_open_monostatic W (m: gmap Addr Word) (l: Addr) :
-    (std W) !! l = Some (Monostatic m) →
+    (std W) !! l = Some (Frozen m) →
     region W ∗ sts_full_world W ==∗
     open_region_many (elements (dom m)) W
     ∗ sts_full_world W
-    ∗ sts_state_std_many m (λ _, Monostatic m)
+    ∗ sts_state_std_many m (λ _, Frozen m)
     ∗ static_resources m
     ∗ ⌜l ∈ dom m⌝.
   Proof.
@@ -374,7 +374,7 @@ Section heap.
   (* ------------------ Turn a monostatic region into an uninitialized one ----------- *)
 
   (* Lemma related_sts_pub_world_monostatic_to_uninitialized a m m' W : *)
-  (*   (∀ a', is_Some(m !! a') → W.1 !! a' = Some (Monostatic m')) → *)
+  (*   (∀ a', is_Some(m !! a') → W.1 !! a' = Some (Frozen m')) → *)
   (*   (∀ a', is_Some(m !! a') → a <= a')%a → *)
   (*   related_sts_a_world W (override_uninitialize m W) a. *)
   (* Proof. *)
@@ -385,9 +385,9 @@ Section heap.
   (*     { apply Hcond. simplify_map_eq. eauto. } *)
   (*     assert (∀ a' : Addr, is_Some (m !! a') → (a <= a')%a) as Hnewcond. *)
   (*     { intros. apply Hcond. destruct (decide (i = a')); simplify_map_eq;eauto. } *)
-  (*     assert (W.1 !! i = Some (Monostatic m')) as Hmono. *)
+  (*     assert (W.1 !! i = Some (Frozen m')) as Hmono. *)
   (*     { apply Hforall. simplify_map_eq. eauto. } *)
-  (*     assert (∀ a' : Addr, is_Some (m !! a') → W.1 !! a' = Some (Monostatic m')) as Hnewforall. *)
+  (*     assert (∀ a' : Addr, is_Some (m !! a') → W.1 !! a' = Some (Frozen m')) as Hnewforall. *)
   (*     { intros. apply Hforall. destruct (decide (i = a')); simplify_map_eq;eauto. } *)
 
   (*     specialize (IHm Hnewforall Hnewcond) as IHm. *)
@@ -402,7 +402,7 @@ Section heap.
   (*       inversion Hy';subst. rewrite override_uninitialize_std_sta_lookup_none in Hx';auto. *)
   (*       rewrite Hx' in Hmono. inversion Hmono;subst. *)
   (*       destruct (decide (le_a a a'));try solve_addr. *)
-  (*       right with Monotemporary. right;constructor. *)
+  (*       right with Temporary. right;constructor. *)
   (*       eright;[|left]. right. constructor. *)
   (*     + rewrite override_uninitialize_std_sta_insert lookup_insert_ne// in Hy'. *)
   (*       rewrite Hx' in Hy'. inversion Hy';left. *)
@@ -546,8 +546,8 @@ Section heap.
 
   (* Lemma open_region_world_monostatic_to_uninitialized l m W : *)
   (*   (elements (dom m) ≡ₚ l) → *)
-  (*   (∀ (a : Addr), is_Some (m !! a) → W.1 !! a = Some (Monostatic m)) → *)
-  (*   (∀ (a a' : Addr), is_Some (m !! a) ∧ (a <= a')%a → W.1 !! a' ≠ Some Monotemporary) → *)
+  (*   (∀ (a : Addr), is_Some (m !! a) → W.1 !! a = Some (Frozen m)) → *)
+  (*   (∀ (a a' : Addr), is_Some (m !! a) ∧ (a <= a')%a → W.1 !! a' ≠ Some Temporary) → *)
   (*   sts_full_world (override_uninitialize m W) -∗ *)
   (*   open_region_many l W *)
   (*   -∗ *)
@@ -580,12 +580,12 @@ Section heap.
   (* Qed. *)
 
   (* Lemma region_close_monostatic_to_uninitialized (m: gmap Addr Word) W : *)
-  (*   (∀ a a' : Addr, is_Some (m !! a) ∧ (a <= a')%a → W.1 !! a' ≠ Some Monotemporary) → *)
+  (*   (∀ a a' : Addr, is_Some (m !! a) ∧ (a <= a')%a → W.1 !! a' ≠ Some Temporary) → *)
   (*   open_region_many (elements (dom m)) W *)
   (*   ∗ sts_full_world W *)
   (*   ∗ ([∗ map] a↦v ∈ m, ∃ φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ *)
   (*        a ↦ₐ v ∗ rel a φ) *)
-  (*   ∗ sts_state_std_many m (λ _, Monostatic m) *)
+  (*   ∗ sts_state_std_many m (λ _, Frozen m) *)
   (*   ==∗ *)
   (*   sts_full_world (override_uninitialize m W) *)
   (*   ∗ region (override_uninitialize m W). *)
@@ -607,9 +607,9 @@ Section heap.
      transition, and we have to make sure there are no new monotemporary addresses left. *)
 
   Lemma related_sts_pub_world_monostatic_to_monotemporary a m l W :
-    Forall (λ a', W.1 !! a' = Some (Monostatic m)) l →
+    Forall (λ a', W.1 !! a' = Some (Frozen m)) l →
     Forall (λ a', a <= a')%a l →
-    related_sts_a_world W (std_update_multiple W l Monotemporary) a.
+    related_sts_a_world W (std_update_multiple W l Temporary) a.
   Proof.
     intros Hforall Hcond.
     induction l.
@@ -640,7 +640,7 @@ Section heap.
     open_region_many (elements (dom m)) W
     ∗ ([∗ map] a↦v ∈ m, ∃ φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗
         monotemp_resources W φ a ∗ rel a φ)
-    ∗ sts_state_std_many m (λ _, Monotemporary)
+    ∗ sts_state_std_many m (λ _, Temporary)
     ∗ sts_full_world W
     -∗
     region W ∗ sts_full_world W.
@@ -657,7 +657,7 @@ Section heap.
       iDestruct "Ha" as (? ?) "(Hatmp&?)".
       iDestruct "Hatmp" as (?) "(?&?&?)".
       iApply HInd. iFrame.
-      iApply (region_close_next _ _ _ a _ Monotemporary).
+      iApply (region_close_next _ _ _ a _ Temporary).
       + congruence.
       + intros [? ?]. congruence.
       + intros [? ?]%elem_of_elements%elem_of_dom. congruence.
@@ -672,7 +672,7 @@ Section heap.
     (* NB: only one direction of this assumption is needed, and only for the reverse *)
   (*      direction of the lemma *)
     (* dom Mρ = dom M → *)
-    sts_full_world (std_update_multiple W (elements (dom m)) Monotemporary) -∗
+    sts_full_world (std_update_multiple W (elements (dom m)) Temporary) -∗
     region_map_def (delete_list l M) Mρ W -∗
     ⌜∀ (a:Addr) ρ, (std W) !! a = Some ρ ∧ a ∉ l → Mρ !! a = Some ρ⌝.
   Proof.
@@ -690,7 +690,7 @@ Section heap.
 
   Lemma region_map_uninitialized_monotone W W' M Mρ a :
     related_sts_a_world W W' a →
-    (∀ a'', (a <= a'')%a → Mρ !! a'' ≠ Some Monotemporary) →
+    (∀ a'', (a <= a'')%a → Mρ !! a'' ≠ Some Temporary) →
     region_map_def M Mρ W -∗ region_map_def M Mρ W'.
   Proof.
     iIntros (Hrelated Hcond) "Hr".
@@ -737,13 +737,13 @@ Qed.
 
   Lemma open_region_world_monostatic_to_monotemporary l m W :
     (elements (dom m) ≡ₚ l) →
-    (∀ (a : Addr), is_Some (m !! a) → W.1 !! a = Some (Monostatic m)) →
-    (∀ (a a' : Addr), is_Some (m !! a) ∧ (a <= a')%a → W.1 !! a' ≠ Some Monotemporary) →
-    sts_full_world (std_update_multiple W (elements (dom m)) Monotemporary) -∗
+    (∀ (a : Addr), is_Some (m !! a) → W.1 !! a = Some (Frozen m)) →
+    (∀ (a a' : Addr), is_Some (m !! a) ∧ (a <= a')%a → W.1 !! a' ≠ Some Temporary) →
+    sts_full_world (std_update_multiple W (elements (dom m)) Temporary) -∗
     open_region_many l W
     -∗
-    sts_full_world (std_update_multiple W (elements (dom m)) Monotemporary)
-    ∗ open_region_many l (std_update_multiple W (elements (dom m)) Monotemporary).
+    sts_full_world (std_update_multiple W (elements (dom m)) Temporary)
+    ∗ open_region_many l (std_update_multiple W (elements (dom m)) Temporary).
   Proof.
     intros Heq Hmono Hntemp. iIntros "Hsts Hr".
     rewrite open_region_many_eq /open_region_many_def.
@@ -813,15 +813,15 @@ Qed.
   (* This is indeed the only way to state this lemma! we cannot "address stratify" from static to monotemporary
      Which is why we in the above case go all the way to uninitialized first *)
   Lemma region_close_monostatic_to_monotemporary (m: gmap Addr Word) W :
-    (∀ a a' : Addr, is_Some (m !! a) ∧ (a <= a')%a → W.1 !! a' ≠ Some Monotemporary) →
+    (∀ a a' : Addr, is_Some (m !! a) ∧ (a <= a')%a → W.1 !! a' ≠ Some Temporary) →
     open_region_many (elements (dom m)) W
     ∗ sts_full_world W
     ∗ ([∗ map] a↦v ∈ m, ∃ φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗
-         monotemp_resources (std_update_multiple W (elements (dom m)) Monotemporary) φ a ∗ rel a φ)
-    ∗ sts_state_std_many m (λ _, Monostatic m)
+         monotemp_resources (std_update_multiple W (elements (dom m)) Temporary) φ a ∗ rel a φ)
+    ∗ sts_state_std_many m (λ _, Frozen m)
     ==∗
-    sts_full_world (std_update_multiple W (elements (dom m)) Monotemporary)
-    ∗ region (std_update_multiple W (elements (dom m)) Monotemporary).
+    sts_full_world (std_update_multiple W (elements (dom m)) Temporary)
+    ∗ region (std_update_multiple W (elements (dom m)) Temporary).
   Proof.
     iIntros (Hcond) "(HR & Hsts & Hres & Hst)".
     iDestruct (sts_full_state_std_many with "[Hsts Hst]") as %?. by iFrame.
@@ -836,10 +836,10 @@ Qed.
   (* ------------------ Allocate a Static region from a Revoked one ------------------ *)
 
   Lemma related_sts_pub_a_world_static W W' m i a :
-    (std W !! i) = Some (Monostatic m) ->
+    (std W !! i) = Some (Frozen m) ->
     (i < a)%a →
     related_sts_a_world W W' a ->
-    (std W' !! i) = Some (Monostatic m).
+    (std W' !! i) = Some (Frozen m).
   Proof.
     intros Hsta Hcond [ [Hdom1 Hrelated_std] _].
     assert (is_Some (std W' !! i)) as [y Hy].
@@ -847,12 +847,12 @@ Qed.
     eapply Hrelated_std in Hsta;[|eauto].
     apply rtc_implies with _ Rpub _ _ in Hsta.
     2: { intros. rewrite decide_False in H;auto. rewrite /le_a /=; solve_addr. }
-    eapply std_rel_pub_rtc_Monostatic in Hsta;[|eauto]. subst. auto.
+    eapply std_rel_pub_rtc_Frozen in Hsta;[|eauto]. subst. auto.
   Qed.
 
   Lemma related_sts_priv_world_static W l (m' : gmap Addr Word) :
     Forall (λ a : Addr, (std W) !! a = Some Revoked) l →
-    related_sts_priv_world W (std_update_multiple W l (Monostatic m')).
+    related_sts_priv_world W (std_update_multiple W l (Frozen m')).
   Proof.
     intros Hforall.
     induction l.
@@ -871,15 +871,15 @@ Qed.
                rewrite std_sta_update_multiple_lookup_same_i in Hx0; auto.
                rewrite /revoke /std /= in Hi.
                rewrite Hi in Hx0. inversion Hx0; subst.
-               right with Monotemporary.
+               right with Temporary.
                { left. constructor. }
-               right with (Monostatic m');[|left]. right. right. constructor.
+               right with (Frozen m');[|left]. right. right. constructor.
            +++ rewrite /= lookup_insert_ne in Hy;auto. rewrite Hx0 in Hy; inversion Hy; subst; left.
   Qed.
 
   Lemma related_sts_priv_world_static2 W l (m' : gmap Addr Word) :
     Forall (λ a : Addr, ∃ ρ, (std W) !! a = Some ρ /\ ρ <> Permanent) l →
-    related_sts_priv_world W (std_update_multiple W l (Monostatic m')).
+    related_sts_priv_world W (std_update_multiple W l (Frozen m')).
   Proof.
     intros Hforall.
     induction l.
@@ -902,7 +902,7 @@ Qed.
                destruct x0; try congruence.
                { eright. right. right. constructor.
                  left. }
-               { right with Monotemporary. left; constructor.
+               { right with Temporary. left; constructor.
                  eright. right;right. constructor.
                  left. }
                { eright. right;left;econstructor.
@@ -999,15 +999,15 @@ Qed.
     dom m ⊆ dom m' ->
     (forall a ρ, m !! a = Some ρ -> m' !! a = Some ρ) ->
     (∀ a, is_Some(m !! a) -> is_Some(M !! a)) ->
-    (∀ a' : Addr, a' ∈ dom (m' ∖∖ m) → ((Mρ ∖∖ m) !! a' = Some (Monostatic m'))) ->
+    (∀ a' : Addr, a' ∈ dom (m' ∖∖ m) → ((Mρ ∖∖ m) !! a' = Some (Frozen m'))) ->
     dom M ⊆ dom Mρ ->
     region_map_def (M ∖∖ m) (Mρ ∖∖ m) W
     -∗ RELS M'
-    -∗ ([∗ map] a↦v ∈ m, ∃ φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ a ↦ₐ v ∗ rel a φ ∗ sts_state_std a (Monostatic m'))
+    -∗ ([∗ map] a↦v ∈ m, ∃ φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ a ↦ₐ v ∗ rel a φ ∗ sts_state_std a (Frozen m'))
     -∗ ∃ Mρ', region_map_def M Mρ' W
             ∗ RELS M'
             ∗ ⌜dom Mρ' = dom Mρ⌝
-            ∗ ⌜∀ a' : Addr, a' ∈ dom m' → Mρ' !! a' = Some (Monostatic m')⌝.
+            ∗ ⌜∀ a' : Addr, a' ∈ dom m' → Mρ' !! a' = Some (Frozen m')⌝.
   Proof.
     iIntros (HsubM Hsub Hsame HmM Hmid Hdom) "Hr HM Hmap".
     iRevert (HsubM HmM Hmid Hdom). iInduction (m) as [|x w] "IH" using map_ind forall (M Mρ) .
@@ -1017,7 +1017,7 @@ Qed.
       rewrite !difference_het_insert_r !difference_het_delete_assoc.
       iDestruct (big_sepM_insert with "Hmap") as "[Hx Hmap]";auto.
       iDestruct "Hx" as (φ Hpers) "(Hx & #Hrel & Hstate)".
-      iAssert (region_map_def (delete x M ∖∖ m) (<[x:=Monostatic m']> Mρ ∖∖ m) W) with "[Hr]" as "Hr".
+      iAssert (region_map_def (delete x M ∖∖ m) (<[x:=Frozen m']> Mρ ∖∖ m) W) with "[Hr]" as "Hr".
       { iApply (big_sepM_mono with "Hr").
         iIntros (a y Ha) "Hr".
         iDestruct "Hr" as (ρ Ha') "[Hstate Hρ]".
@@ -1063,7 +1063,7 @@ Qed.
       iDestruct (reg_in γrel M' with "[$HM $HREL]") as %HMeq.
       rewrite HMeq in HM'x. rewrite lookup_insert in HM'x. inversion HM'x.
       iDestruct (big_sepM_insert _ _ x γp with "[$Hr Hx Hstate]") as "Hr";[by rewrite lookup_delete|..].
-      { iExists (Monostatic m').
+      { iExists (Frozen m').
         iSplitR.
         - iPureIntro. apply Hforall. rewrite dom_insert_L in Hsub. set_solver.
         - iFrame. iExists _. repeat iSplit;auto.
@@ -1094,9 +1094,9 @@ Qed.
     dom M = dom Mρ ->
     RELS M
     -∗ region_map_def (M ∖∖ m) (Mρ ∖∖ m) W
-    -∗ ([∗ map] a↦v ∈ m, ∃ φ, ⌜∀ Wv : WORLD * Word, Persistent (φ Wv)⌝ ∗  a ↦ₐ v ∗ rel a φ ∗ sts_state_std a (Monostatic m))
+    -∗ ([∗ map] a↦v ∈ m, ∃ φ, ⌜∀ Wv : WORLD * Word, Persistent (φ Wv)⌝ ∗  a ↦ₐ v ∗ rel a φ ∗ sts_state_std a (Frozen m))
     -∗ RELS M ∗ ∃ Mρ, region_map_def M Mρ W
-                   ∗ ⌜∀ a' : Addr, a' ∈ dom m → Mρ !! a' = Some (Monostatic m)⌝
+                   ∗ ⌜∀ a' : Addr, a' ∈ dom m → Mρ !! a' = Some (Frozen m)⌝
                    ∗ ⌜dom Mρ = dom M⌝.
   Proof.
     iIntros (Hdom) "HM Hr Hmap".
@@ -1115,8 +1115,8 @@ Qed.
     sts_full_world W
     ∗ region W
     ∗ ([∗ map] a↦v ∈ m, ∃ φ, ⌜∀ Wv : WORLD * Word, Persistent (φ Wv)⌝ ∗ a ↦ₐ v ∗ rel a φ)
-    ==∗ (sts_full_world (std_update_multiple W (elements (dom m)) (Monostatic m))
-      ∗ region (std_update_multiple W (elements (dom m)) (Monostatic m))).
+    ==∗ (sts_full_world (std_update_multiple W (elements (dom m)) (Frozen m))
+      ∗ region (std_update_multiple W (elements (dom m)) (Frozen m))).
   Proof.
     iIntros (Hcond) "(Hfull & Hr & Hmap)".
     rewrite region_eq /region_def.
@@ -1163,8 +1163,8 @@ Qed.
     sts_full_world (revoke W)
     ∗ region (revoke W)
     ∗ ([∗ map] a↦v ∈ m, ∃ φ, ⌜∀ Wv : WORLD * Word, Persistent (φ Wv)⌝ ∗ a ↦ₐ v ∗ rel a φ)
-    ==∗ (sts_full_world (std_update_multiple (revoke W) (elements (dom m)) (Monostatic m))
-      ∗ region (std_update_multiple (revoke W) (elements (dom m)) (Monostatic m))).
+    ==∗ (sts_full_world (std_update_multiple (revoke W) (elements (dom m)) (Frozen m))
+      ∗ region (std_update_multiple (revoke W) (elements (dom m)) (Frozen m))).
   Proof.
     iIntros "(Hfull & Hr & Hmap)".
     iApply region_revoked_cond_to_static;[|iFrame].

@@ -96,8 +96,8 @@ Section monotone.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
-    specialize (Hrelated _ Monotemporary y Hstate Hy).
-    apply std_rel_pub_rtc_Monotemporary in Hrelated; subst; auto.
+    specialize (Hrelated _ Temporary y Hstate Hy).
+    apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto.
   Qed.
 
   Lemma region_state_pwl_monotone_a W W' a a' :
@@ -110,9 +110,9 @@ Section monotone.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
-    specialize (Hrelated _ Monotemporary y Hstate Hy).
+    specialize (Hrelated _ Temporary y Hstate Hy).
     eapply rtc_implies in Hrelated.
-    apply std_rel_pub_rtc_Monotemporary in Hrelated; subst; auto.
+    apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto.
     intros r q. rewrite decide_False;auto. solve_addr.
   Qed.
 
@@ -175,7 +175,7 @@ Section monotone.
   (*     destruct Hstate as [Hstate | [Hstate | [w Hstate] ] ];eauto. } *)
   (*   destruct Hstate as [Hstate | [Hstate | [w Hstate] ] ]. *)
   (*   - specialize (Hrelated _ _ y Hstate Hy). *)
-  (*     apply std_rel_pub_plus_rtc_Monotemporary in Hrelated;eauto. *)
+  (*     apply std_rel_pub_plus_rtc_Temporary in Hrelated;eauto. *)
   (*     destruct Hrelated as [-> | [? ->] ];subst;rewrite Hy;eauto. *)
   (*   - specialize (Hrelated _ Permanent y Hstate Hy). *)
   (*     apply std_rel_pub_plus_rtc_Permanent in Hrelated; auto. subst y; auto. *)
@@ -195,9 +195,9 @@ Section monotone.
   (*   { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. *)
   (*     destruct Hstate as [? | [? ?] ]; eauto. } *)
   (*   destruct Hstate as [Hstate|[? Hstate] ]. *)
-  (*   - specialize (Hrelated _ Monotemporary y Hstate Hy). *)
-  (*     destruct (decide (y = Monotemporary)); subst; left; auto. *)
-  (*     apply std_rel_pub_rtc_Monotemporary in Hrelated; auto. contradiction. *)
+  (*   - specialize (Hrelated _ Temporary y Hstate Hy). *)
+  (*     destruct (decide (y = Temporary)); subst; left; auto. *)
+  (*     apply std_rel_pub_rtc_Temporary in Hrelated; auto. contradiction. *)
   (*   - specialize (Hrelated _ (Uninitialized x) y Hstate Hy). *)
   (*     eapply std_rel_pub_rtc_Uninitialized in Hrelated; eauto. destruct Hrelated;subst y; [left | right]; eauto. *)
   (* Qed. *)
@@ -213,13 +213,13 @@ Section monotone.
   (*   { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. *)
   (*     destruct Hstate as [? | [? ?] ]; eauto. } *)
   (*   destruct Hstate as [Hstate|[? Hstate] ]. *)
-  (*   - specialize (Hrelated _ Monotemporary y Hstate Hy). *)
-  (*     destruct (decide (y = Monotemporary)); subst; auto. left;auto. *)
+  (*   - specialize (Hrelated _ Temporary y Hstate Hy). *)
+  (*     destruct (decide (y = Temporary)); subst; auto. left;auto. *)
   (*     destruct (decide (a' <= a)%a). *)
-  (*     + apply std_rel_pub_plus_rtc_Monotemporary in Hrelated; subst;auto. *)
+  (*     + apply std_rel_pub_plus_rtc_Temporary in Hrelated; subst;auto. *)
   (*       destruct Hrelated as [-> | [? ->] ]; *)
   (*         rewrite /region_state_U_pwl_mono;eauto. *)
-  (*     + apply std_rel_pub_rtc_Monotemporary in Hrelated; subst;auto. contradiction. *)
+  (*     + apply std_rel_pub_rtc_Temporary in Hrelated; subst;auto. contradiction. *)
   (*   - specialize (Hrelated _ (Uninitialized x) y Hstate Hy). *)
   (*     destruct (decide (a' <= a)%a). *)
   (*     + eapply std_rel_pub_plus_rtc_Uninitialized in Hrelated; eauto. *)
@@ -231,22 +231,22 @@ Section monotone.
   (* The following lemma is not required for monotonicity, but is interesting for use in examples *)
   Lemma region_state_U_pwl_monotone_same W W' g a :
     related_sts_pub_world W W' →
-    (std W) !! a = Some (Monostatic g) -> (std W') !! a = Some (Monostatic g).
+    (std W) !! a = Some (Frozen g) -> (std W') !! a = Some (Frozen g).
   Proof.
     rewrite /std.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (W'.1 !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom ;eauto. }
-    specialize (Hrelated _ (Monostatic g) y Hstate Hy).
-    eapply std_rel_pub_rtc_Monostatic in Hrelated; eauto. subst. auto.
+    specialize (Hrelated _ (Frozen g) y Hstate Hy).
+    eapply std_rel_pub_rtc_Frozen in Hrelated; eauto. subst. auto.
   Qed.
 
   Lemma region_state_Revoked_monotone (W W' : WORLD) (a : Addr) :
     related_sts_pub_world W W' →
     (std W) !! a = Some Revoked ->
     (std W') !! a = Some Revoked ∨
-    (std W') !! a = Some Monotemporary ∨
+    (std W') !! a = Some Temporary ∨
     (std W') !! a = Some Permanent.
   Proof.
     rewrite /region_state_pwl /std.
@@ -675,7 +675,7 @@ Section monotone.
 
   (*Lemma that allows switching between the two different formulations of monotonicity, to alleviate the effects of inconsistencies*)
   Lemma switch_monotonicity_formulation ρ l w φ:
-      ρ ≠ Revoked → (∀ m, ρ ≠ Monostatic m) ->
+      ρ ≠ Revoked → (∀ m, ρ ≠ Frozen m) ->
       monotonicity_guarantees_region ρ l w φ ≡ monotonicity_guarantees_decide (Σ := Σ) ρ l w φ.
   Proof.
     intros Hrev Hmono.

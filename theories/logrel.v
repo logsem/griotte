@@ -178,7 +178,7 @@ Program Definition interp_expr (interp : D) r : D :=
    *)
 
   Definition region_state_pwl W (a : Addr) : Prop :=
-    (std W) !! a = Some Monotemporary.
+    (std W) !! a = Some Temporary.
 
   Definition region_state_nwl W (a : Addr) (l : Locality) : Prop :=
     match l with
@@ -191,12 +191,12 @@ Program Definition interp_expr (interp : D) r : D :=
   (*   (std W) !! a = Some Permanent. *)
 
   (* Definition region_state_U_mono W (a : Addr) : Prop := *)
-  (*   (std W) !! a = Some Monotemporary *)
+  (*   (std W) !! a = Some Temporary *)
   (*   \/ (std W) !! a = Some Permanent *)
   (*   ∨ (exists w, (std W) !! a = Some (Uninitialized w)). *)
 
   (* Definition region_state_U_pwl_mono W (a : Addr) : Prop := *)
-  (*   (std W) !! a = Some Monotemporary *)
+  (*   (std W) !! a = Some Temporary *)
   (*   ∨ (exists w, (std W) !! a = Some (Uninitialized w)). *)
 
   (* For simplicity we might want to have the following statement in valididy of caps.
@@ -207,7 +207,6 @@ Program Definition interp_expr (interp : D) r : D :=
   Definition interp_z : D := λne _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
   Definition interp_cap_O : D := λne _ _, True%I.
 
-  (* TODO reverse [∗ list] a ∈ (region_addrs b e) if necessary *)
   Program Definition interp_cap_RO (interp : D) : D :=
     λne W w, (match w with
               | WCap RO g b e a =>
@@ -522,7 +521,7 @@ Program Definition interp_expr (interp : D) r : D :=
     readAllowed p = true ->
     withinBounds b e a = true ->
     interp W (WCap p g b e a) -∗
-           ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Monostatic m)⌝.
+           ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
   Proof.
     intros Hp Hb. iIntros "H".
     eapply withinBounds_le_addr in Hb.
@@ -719,7 +718,7 @@ Program Definition interp_expr (interp : D) r : D :=
     pwl p = true ->
     withinBounds b e a = true ->
     interp W (WCap p g b e a) -∗
-           ⌜std W !! a = Some Monotemporary⌝.
+           ⌜std W !! a = Some Temporary⌝.
   Proof.
     intros Hp Hb. iIntros "Hvalid".
     eapply withinBounds_le_addr in Hb.
