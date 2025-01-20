@@ -4,10 +4,14 @@ From stdpp Require Import base.
 From cap_machine Require Export logrel.
 
 Section fundamental.
- Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-          {nainv: logrel_na_invs Σ}
-          `{MachineParameters}.
+  Context
+    {Σ : gFunctors}
+      {ceriseg: ceriseG Σ}
+      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+      {sealsg: sealStoreG Σ}
+      {nainv: logrel_na_invs Σ}
+      {MP: MachineParameters}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -19,12 +23,27 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
+  Definition ftlr_IH: iProp Σ :=
+    (□ ▷ (∀ (W_ih : WORLD) (r_ih : leibnizO Reg)
+            (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr),
+            full_map r_ih
+            -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → fixpoint interp1 W_ih v)
+            -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r_ih)
+            -∗ region W_ih
+            -∗ sts_full_world W_ih
+            -∗ na_own logrel_nais ⊤
+            -∗ ⌜p_ih = RX ∨ p_ih = RWX ∨ p_ih = RWLX ∧ g_ih = Local⌝
+            → □ fixpoint interp1 W_ih (WCap p_ih g_ih b_ih e_ih a_ih)
+              (* □ region_conditions W_ih p_ih g_ih b_ih e_ih *)
+            -∗ interp_conf W_ih))%I.
 
-  Definition ftlr_instr (W : WORLD) (r : leibnizO Reg) (p : Perm)
-        (g : Locality) (b e a : Addr) (w : Word) (i: instr) (ρ : region_type) (P : D) :=
+
+  Definition ftlr_instr (W : WORLD) (regs : leibnizO Reg)
+    (p : Perm) (g : Locality) (b e a : Addr)
+    (w : Word) (i: instr) (ρ : region_type) (P : D) : Prop :=
     p = RX ∨ p = RWX ∨ (p = RWLX /\ g = Local)
-    → (∀ x : RegName, is_Some (r !! x))
-    → isCorrectPC (inr (p, g, b, e, a))
+    → (∀ x : RegName, is_Some (regs !! x))
+    → isCorrectPC (WCap p g b e a)
     → (b <= a)%a ∧ (a < e)%a
     → (∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2))
     → (if pwl p then region_state_pwl W a else region_state_nwl W a g)
@@ -32,20 +51,15 @@ Section fundamental.
     → ρ ≠ Revoked
     → (∀ g : Mem, ρ ≠ Monostatic g)
     → decodeInstrW w = i
-    -> □ ▷ (∀ (a0 : WORLD) (a1 : leibnizO Reg) (a2 : Perm) (a3 : Locality) (a4 a5 a6 : Addr),
-              full_map a1
-              -∗ (∀ r0 : RegName, ⌜r0 ≠ PC⌝ → fixpoint interp1 a0 (a1 !r! r0))
-                 -∗ registers_pointsto (<[PC:=inr (a2, a3, a4, a5, a6)]> a1)
-                    -∗ region a0
-                       -∗ sts_full_world a0
-                          -∗ na_own logrel_nais ⊤
-                             -∗ ⌜a2 = RX ∨ a2 = RWX ∨ a2 = RWLX ∧ a3 = Local⌝
-                                → □ region_conditions a0 a2 a3 a4 a5 -∗ interp_conf a0)
-    -∗ region_conditions W p g b e
-    -∗ (∀ r1 : RegName, ⌜r1 ≠ PC⌝ → ((fixpoint interp1) W) (r !r! r1))
+    -> ftlr_IH
+    -∗ fixpoint interp1 W (WCap p g b e a)
+    (* -∗ region_conditions W p g b e *)
+    -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
     -∗ rel a (λ Wv, P Wv.1 Wv.2)
     -∗ rcond P interp
-    -∗ □ (if decide (writeAllowed_in_r_a (<[PC:=inr (p, g, b, e, a)]> r) a) then wcond P interp else emp)
+    -∗ □ (if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> regs) a)
+          then wcond P interp
+          else emp)
     -∗ (▷ (if decide (ρ = Monotemporary)
            then future_pub_a_mono a (λ Wv, P Wv.1 Wv.2) w
            else future_priv_mono (λ Wv, P Wv.1 Wv.2) w))
@@ -55,17 +69,16 @@ Section fundamental.
     -∗ open_region a W
     -∗ sts_state_std a ρ
     -∗ a ↦ₐ w
-    -∗ PC ↦ᵣ inr (p, g, b, e, a)
-    -∗ ([∗ map] k↦y ∈ delete PC (<[PC:=inr (p, g, b, e, a)]> r), k ↦ᵣ y)
-    -∗
-        WP Instr Executable
+    -∗ PC ↦ᵣ (WCap p g b e a)
+    -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
+    -∗ WP Instr Executable
         {{ v, WP Seq (cap_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝
-                        → ∃ (r1 : Reg) (W' : WORLD),
-                        full_map r1
-                        ∧ registers_pointsto r1
-                                           ∗ ⌜related_sts_priv_world W W'⌝
-                                           ∗ na_own logrel_nais ⊤
-                                           ∗ sts_full_world W' ∗ region W' }} }}.
+                        → ∃ (regs' : Reg) (W' : WORLD),
+                        full_map regs' ∧ registers_pointsto regs'
+                        ∗ ⌜related_sts_priv_world W W'⌝
+                        ∗ na_own logrel_nais ⊤
+                        ∗ sts_full_world W' ∗ region W' }} }}.
+
 
 End fundamental.

@@ -1,8 +1,8 @@
 From iris.algebra Require Import gmap agree auth.
-From cap_machine Require Export stdpp_extra cap_lang sts rules_base.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-(* import [stdpp.countable] before [cap_machine.lang]; this way [encode] and
+From cap_machine Require Export stdpp_extra cap_lang sts rules_base.
+(* import [stdpp.countable] before [griotte.lang]; this way [encode] and
    [decode] refer to [countable.encode] and [countable.decode], instead of
    [cap_lang.encode]/[cap_lang.decode]. *)
 From stdpp Require Import countable.
@@ -36,21 +36,6 @@ Inductive std_rel_pub_plus : region_type → region_type → Prop :=
 Global Instance sts_std : STS_STD region_type :=
   {| Rpub := std_rel_pub; Rpubp := std_rel_pub_plus; Rpriv := std_rel_priv |}.
 
-Global Instance le_addr_dec (a1 a2 : Addr) : Decision (Z.le a1 a2).
-Proof. apply _. Qed.
-
-Global Instance le_addr_preorder : PreOrder le_addr.
-Proof.
-  apply Build_PreOrder.
-  - rewrite /Reflexive. solve_addr.
-  - rewrite /Transitive. solve_addr.
-Qed.
-
-Global Instance addr_ord : Ord Addr :=
-  {| le_a := le_addr;
-     le_a_decision := le_addr_dec;
-     le_a_preorder := le_addr_preorder |}.
-
 Class heapGpreS Σ := HeapGpreS {
   heapPreG_invPreG : invGpreS Σ;
   heapPreG_saved_pred :: savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word);
@@ -58,7 +43,7 @@ Class heapGpreS Σ := HeapGpreS {
 }.
 
 Class heapGS Σ := HeapGS {
-  heapG_invG : invGS Σ;
+  (* heapG_invG : invGS Σ; *)
   heapG_saved_pred :: savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word);
   heapG_rel :: inG Σ (authR relUR);
   γrel : gname
@@ -99,23 +84,25 @@ Section heapPre.
   (* TODO wsat_alloc had been changed in Iris 4.0.
      Fixed using Hc
    *)
-  Context {Σ:gFunctors} {heappreg : heapGpreS Σ} {Hc : lcGS Σ}.
+  Context {Σ:gFunctors} {heappreg : heapGpreS Σ} (* {Hc : lcGS Σ} *).
 
   Lemma heap_init :
     ⊢ |==> ∃ (heapg: heapGS Σ), RELS (∅ : relT).
   Proof.
     iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γ) "H".
     { rewrite fmap_empty. by apply auth_auth_valid. }
-    iMod (@wsat.wsat_alloc _ (@invGpreS_wsat _ (@heapPreG_invPreG _ heappreg))) as (Hw) "[Hw HE]".
-    iModIntro. iExists (HeapGS _ (InvG HasLc _ Hw _) _ _ γ). rewrite RELS_eq /RELS_def. done.
+    iExists (HeapGS _ _ _ γ). rewrite RELS_eq /RELS_def. done.
+    (* iMod (@wsat.wsat_alloc _ (@invGpreS_wsat _ (@heapPreG_invPreG _ heappreg))) as (Hw) "[Hw HE]". *)
+    (* iModIntro. *)
+    (* iExists (HeapGS _ (InvG HasLc _ Hw _) _ _ γ). rewrite RELS_eq /RELS_def. done. *)
   Qed.
 
 End heapPre.
 
 Section heap.
-  Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
+  Context {Σ:gFunctors} {ceriseg:ceriseG Σ}
           {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-          `{MachineParameters}.
+          `{MP: MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation WORLD := (prodO STS_STD STS).
@@ -135,15 +122,15 @@ Section heap.
     (i | (i * n + m))%Z → (i | m)%Z.
   Proof.
     intros Hne [m' Hdiv].
-    assert (((i * n + m) `div` i)%Z = ((m' * i) `div` i)%Z).
+    assert (((i * n + m) `div` i)%Z = ((m' * i) `div` i)%Z) as Hr.
     { rewrite Hdiv. auto. }
-    rewrite Z.div_mul in H0;[|lia].
+    rewrite Z.div_mul in Hr;[|lia].
     assert ((i * n + m) `div` i = ((i * n) `div` i) + (m `div` i))%Z as Heq.
     { rewrite Z.add_comm Z.mul_comm Z.div_add;[|lia].
       rewrite Z.div_mul;[|lia]. rewrite Z.add_comm. auto. }
-    rewrite Heq in H0. rewrite Z.mul_comm Z.div_mul in H0;[|lia].
+    rewrite Heq in Hr. rewrite Z.mul_comm Z.div_mul in Hr;[|lia].
     assert (m `div` i = m' - n)%Z.
-    { rewrite -H0. lia. }
+    { rewrite -Hr. lia. }
     exists (m' - n)%Z. lia.
   Qed.
 
@@ -404,12 +391,15 @@ Section heap.
     - rewrite dom_insert_L. set_solver.
     - intros i x y Hx Hy.
       destruct (decide (i = l)).
-      + subst. simplify_map_eq.
-        rewrite lookup_insert in Hy. inv Hy.
+      + subst. rewrite /std in H.
+        simplify_map_eq. rewrite H in Hx.
+        inv Hx.
+        (* rewrite lookup_insert in Hy. inv Hy. *)
         right with Monotemporary;[|left].
         right. constructor.
-      + simplify_map_eq. rewrite lookup_insert_ne in Hy; auto.
-        simplify_map_eq. left.
+      + simplify_map_eq; auto.
+        rewrite Hx in Hy.
+        simplify_eq. left.
   Qed.
 
   (* Lemma uninitialized_w_mono_related_sts_pub_world l W w : *)
@@ -572,7 +562,7 @@ Section heap.
     - rewrite open_region_eq /open_region_def.
       iExists _. rewrite RELS_eq /RELS_def -HMeq. iFrame "∗ #".
       iExists _. do 2 (iSplitR; eauto).
-      iApply region_map_delete_nonstatic; auto. rewrite Hρ;auto. 
+      iApply region_map_delete_nonstatic; auto. rewrite Hρ;auto.
     - iSplitR.
       + rewrite /future_priv_mono.
         iApply later_intuitionistically_2. iModIntro.
@@ -941,7 +931,7 @@ Section heap.
     iSplitR "Hφv".
     - iExists _. repeat (rewrite -HMeq). iFrame "∗ #".
       do 2 (iSplitR; eauto).
-      iApply region_map_delete_nonstatic; auto. rewrite Hρ;auto. 
+      iApply region_map_delete_nonstatic; auto. rewrite Hρ;auto.
     - iSplitR;[auto|].
       + rewrite /future_pub_mono.
         iApply later_intuitionistically_2. iModIntro.
@@ -1170,7 +1160,7 @@ Section heap.
    Lemma region_open_next
         (W : WORLD)
         (φ : WORLD * Word → iProp Σ)
-        (ls : list Addr) (l : Addr) (p : Perm) (ρ : region_type)
+        (ls : list Addr) (l : Addr) (ρ : region_type)
         (Hρnotrevoked : ρ <> Revoked)
         (Hρnotmonostatic : ¬ exists g, ρ = Monostatic g):
      l ∉ ls →

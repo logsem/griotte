@@ -1,6 +1,12 @@
-From Coq Require Import ssreflect.
+From Coq Require Import ssreflect Eqdep_dec.
 From stdpp Require Import gmap fin_maps list countable.
-From cap_machine Require Export addr_reg.
+From iris.proofmode Require Import proofmode.
+From cap_machine Require Export addr_reg solve_addr machine_utils_extra.
+
+(* Definition and auxiliary facts on capabilities, permissions and addresses.
+
+   The [solve_cap_pure] tactic automates the proof of some of these facts (see
+   solve_cap_pure.v on how to extend it). *)
 
 (* Definitions: capabilities, machine String.words, machine instructions *)
 
@@ -18,18 +24,24 @@ Inductive Locality: Type :=
 | Global
 | Local.
 
-Definition Cap: Type :=
-  (Perm * Locality) * Addr * Addr * Addr.
+Definition SealPerms: Type := bool * bool. (* Permit_Seal x Permit_Unseal *)
+Definition permit_seal (s : SealPerms) :=
+  s.1.
+Definition permit_unseal (s : SealPerms) :=
+  s.2.
 
-Ltac destruct_cap c :=
-  let p := fresh "p" in
-  let g := fresh "g" in
-  let b := fresh "b" in
-  let e := fresh "e" in
-  let a := fresh "a" in
-  destruct c as ((((p & g) & b) & e) & a).
+Inductive Sealable: Type :=
+| SCap (p : Perm) (g : Locality) (b e a : Addr)
+| SSealRange (p : SealPerms) (g : Locality) (b e a : OType).
 
-Definition Word := (Z + Cap)%type.
+(* Having different syntactic categories here simplifies the definition of instructions later, but requires some duplication in defining bounds changes and lea on sealing ranges *)
+Inductive Word: Type :=
+| WInt (z : Z)
+| WSealable (sb : Sealable)
+| WSealed (ot : OType) (sb : Sealable).
+
+Notation WCap p g b e a := (WSealable (SCap p g b e a)).
+Notation WSealRange p g b e a := (WSealable (SSealRange p g b e a)).
 
 Inductive instr: Type :=
 | Jmp (r: RegName)
@@ -43,93 +55,111 @@ Inductive instr: Type :=
 | Lea (dst: RegName) (r: Z + RegName)
 | Restrict (dst: RegName) (r: Z + RegName)
 | Subseg (dst: RegName) (r1 r2: Z + RegName)
-| IsPtr (dst r: RegName)
-| GetL (dst r: RegName)
-| GetP (dst r: RegName)
 | GetB (dst r: RegName)
 | GetE (dst r: RegName)
 | GetA (dst r: RegName)
+| GetP (dst r: RegName)
+| GetL (dst r: RegName)
+| GetWType (dst r : RegName) (* combine IsCap, GetTag, and GetSealed all together into a unique encoding *)
+| GetOType (dst r: RegName)
+| Seal (dst : RegName) (r1 r2: RegName)
+| UnSeal (dst : RegName) (r1 r2: RegName)
 | Fail
 | Halt.
 
+(* Convenient coercion when writing instructions *)
+Definition regn : RegName → (Z+RegName)%type := inr.
+Definition cst : Z → (Z+RegName)%type := inl.
+Coercion regn : RegName >-> sum.
+Coercion cst : Z >-> sum.
+
 (* Registers and memory: maps from register names/addresses to String.words *)
 
-Notation Reg := (gmap RegName Word).
-Notation Mem := (gmap Addr Word).
-
-(* Auxiliary definitions for localities *)
-
-Definition isLocal (l: Locality): bool :=
-  match l with
-  | Local  => true
-  | _ => false
-  end.
-
-Definition isLocalWord (w : Word): bool :=
-  match w with
-  | inl _ => false
-  | inr ((_,l),_,_,_) => isLocal l
-  end.
-
-Lemma isLocalWord_cap_isLocal (c0:Cap):
-  isLocalWord (inr c0) = true →
-  ∃ p g b e a, c0 = (p,g,b,e,a) ∧ isLocal g = true.
-Proof.
-  intros. destruct c0, p, p, p.
-  cbv in H. destruct l; try congruence.
-  eexists _, _, _, _, _. split; eauto.
-Qed.
-
-Definition isGlobal (l: Locality): bool :=
-  match l with
-  | Global => true
-  | _ => false
-  end.
-
-Definition isGlobalWord (w : Word): bool :=
-  match w with
-  | inl _ => false
-  | inr ((_,l),_,_,_) => isGlobal l
-  end.
-
-Lemma isGlobalWord_cap_isGlobal (w0:Word):
-  isGlobalWord w0 = true →
-  ∃ p g b e a, w0 = inr (p,g,b,e,a) ∧ isGlobal g = true.
-Proof.
-  intros. destruct w0;[done|].
-  destruct c, p, p, p.
-  cbv in H. destruct l; try done.
-  eexists _, _, _, _, _. split; eauto.
-Qed.
+Definition Reg := gmap RegName Word.
+Definition Mem := gmap Addr Word.
 
 (* EqDecision instances *)
 
-Instance perm_eq_dec : EqDecision Perm.
+Global Instance perm_eq_dec : EqDecision Perm.
 Proof. solve_decision. Defined.
-Instance local_eq_dec : EqDecision Locality.
+Global Instance loc_eq_dec : EqDecision Locality.
 Proof. solve_decision. Defined.
-Instance cap_eq_dec : EqDecision Cap.
-Proof. solve_decision. Defined.
-Instance word_eq_dec : EqDecision Word.
-Proof. solve_decision. Defined.
-Instance instr_eq_dec : EqDecision instr.
+Global Instance sealb_eq_dec : EqDecision Sealable.
+Proof. solve_decision. Qed.
+Global Instance word_eq_dec : EqDecision Word.
+Proof. solve_decision. Qed.
+Global Instance instr_eq_dec : EqDecision instr.
 Proof. solve_decision. Defined.
 
-(* Auxiliary definitions to work on permissions *)
+Ltac destruct_word w :=
+  let z := fresh "z" in
+  let c := fresh "c" in
+  let sr := fresh "sr" in
+  let sd := fresh "sd" in
+  destruct w as [ z | [c | sr] | sd].
 
-Definition pwl p : bool :=
-  match p with
-  | RWLX | RWL => true
-  | _ => false
+Ltac destruct_sealperm p :=
+  let b := fresh "b" in
+  let b1 := fresh "b1" in
+  destruct p as [b b1]; destruct b, b1.
+
+(***** Identifying parts of String.words *****)
+
+(* Z <-> Word *)
+Definition is_z (w : Word) : bool :=
+  match w with
+  | WInt z => true
+  |  _ => false
   end.
 
+(* Sealable <-> Word *)
+Definition is_sealb (w : Word) : bool :=
+  match w with
+  | WSealable sb => true
+  |  _ => false
+  end.
+
+(* Capability <-> Word *)
+Definition is_cap (w : Word) : bool :=
+  match w with
+  | WCap p g b e a => true
+  |  _ => false
+  end.
+
+(* SealRange <-> Word *)
+Definition is_sealr (w : Word) : bool :=
+  match w with
+  | WSealRange p g b e a => true
+  |  _ => false
+  end.
+
+(* Sealed <-> Word *)
+Definition is_sealed (w : Word) : bool :=
+  match w with
+  | WSealed a sb => true
+  |  _ => false
+  end.
+
+Definition is_sealed_with_o (w : Word) (o : OType) : bool :=
+  match w with
+  | WSealed o' sb => (o =? o')%ot
+  | _ => false end.
+
+
+(* non-E capability or range of seals *)
+Definition is_mutable_range (w : Word) : bool:=
+  match w with
+  | WCap p _ _ _ _ => match p with | E  => false | _ => true end
+  | WSealRange _ _ _ _ _ => true
+  | _ => false end.
+
+(* Auxiliary definitions to work on permissions *)
 Definition executeAllowed (p: Perm): bool :=
   match p with
   | RWX | RWLX | RX | E => true
   | _ => false
   end.
 
-(* Uninitialized capabilities are neither read nor write allowed *)
 Definition readAllowed (p: Perm): bool :=
   match p with
   | RWX | RWLX | RX | RW | RWL | RO => true
@@ -142,6 +172,49 @@ Definition writeAllowed (p: Perm): bool :=
   | _ => false
   end.
 
+Definition pwl p : bool :=
+  match p with
+  | RWLX | RWL => true
+  | _ => false
+  end.
+
+Definition isLocal (l: Locality): bool :=
+  match l with
+  | Local  => true
+  | _ => false
+  end.
+
+Definition isLocalSealable (sb : Sealable): bool :=
+  match sb with
+  | SCap _ l _ _ _ | SSealRange _ l _ _ _ => isLocal l
+  end.
+
+Definition isLocalWord (w : Word): bool :=
+  match w with
+  | WInt _ => false
+  | WSealed _ sb
+  | WSealable sb => isLocalSealable sb
+  end.
+
+Definition isGlobal (l: Locality): bool :=
+  match l with
+  | Global => true
+  | _ => false
+  end.
+
+Definition isGlobalSealable (sb : Sealable): bool :=
+  match sb with
+  | SCap _ l _ _ _ | SSealRange _ l _ _ _ => isGlobal l
+  end.
+
+Definition isGlobalWord (w : Word): bool :=
+  match w with
+  | WInt _ => false
+  | WSealed _ sb
+  | WSealable sb => isGlobalSealable sb
+  end.
+
+
 Lemma writeA_implies_readA p :
   writeAllowed p = true → readAllowed p = true.
 Proof. destruct p; auto. Qed.
@@ -153,14 +226,28 @@ Proof.
   by left. by right.
 Qed.
 
-Definition canStore (p: Perm) (a: Addr) (w: Word): bool :=
+Definition canStore (p: Perm) (w: Word): bool :=
   match w with
-  | inl _ => true
-  | inr ((_, g), _, _, _) => match g with
-                            | Global => true
-                            | Local => pwl p
-                            end
+  | WInt _ => true
+  | _ => if isGlobalWord w then true else pwl p
   end.
+
+
+Definition writeAllowedWord (w : Word) : Prop :=
+  match w with
+  | WCap p _ _ _ _ => writeAllowed p = true
+  | _ => False
+  end.
+
+Definition hasValidAddress (w : Word) (a : Addr) : Prop :=
+  match w with
+  | WCap _ _ b e a' => (b ≤ a' ∧ a' < e)%Z ∧ a = a'
+  | _ => False
+  end.
+
+Definition writeAllowed_in_r_a (r : Reg) a :=
+  ∃ reg (w : Word), r !! reg = Some w ∧ writeAllowedWord w ∧ hasValidAddress w a.
+
 
 Definition isPerm p p' := @bool_decide _ (perm_eq_dec p p').
 
@@ -171,23 +258,18 @@ Proof. intros Hne. destruct p,p'; auto; congruence. Qed.
 
 Definition isPermWord (w : Word) (p : Perm): bool :=
   match w with
-  | inl _ => false
-  | inr ((p',_),_,_,_) => isPerm p p'
+  | WCap p' _ _ _ _  => isPerm p p'
+  | _ => false
   end.
 
 Lemma isPermWord_cap_isPerm (w0:Word) p:
   isPermWord w0 p = true →
-  ∃ p' g b e a, w0 = inr (p',g,b,e,a) ∧ isPerm p p' = true.
+  ∃ p' g b e a, w0 = WCap p' g b e a ∧ isPerm p p' = true.
 Proof.
-  intros. destruct w0;[done|].
-  destruct c,p0,p0,p0.
-  cbv in H. destruct p; try done;
+  intros Hp. rewrite /isPermWord in Hp.
+  destruct_word w0; try congruence.
   eexists _, _, _, _, _; split; eauto.
 Qed.
-
-(* perm-flows-to: the locality and permission lattice.
-   "x flows to y" if x is lower than y in the lattice.
-  *)
 
 Definition LocalityFlowsTo (l1 l2: Locality): bool :=
   match l1 with
@@ -245,6 +327,12 @@ Definition PermFlowsTo (p1 p2: Perm): bool :=
           end
   end.
 
+Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
+  match w with
+  | WCap p' _  _ _ _ => PermFlowsTo p p'
+  | _ => false
+  end.
+
 (* Sanity check *)
 Lemma PermFlowsToTransitive:
   transitive _ PermFlowsTo.
@@ -286,7 +374,6 @@ Proof.
   destruct (Is_true_reflect (PermFlowsTo p p')); auto.
 Qed.
 
-
 Lemma readAllowed_nonO p p' :
   PermFlows p p' → readAllowed p = true → p' ≠ O.
 Proof.
@@ -306,78 +393,122 @@ Proof.
   destruct Hvpc as [Hcontr | [Hcontr | Hcontr]]; inversion Hcontr.
 Qed.
 
+
+Definition ExecPCPerm p :=
+  p = RX ∨ p = RWX \/ p = RWLX.
+
+Lemma ExecPCPerm_RX: ExecPCPerm RX.
+Proof. left; auto. Qed.
+
+Lemma ExecPCPerm_RWX: ExecPCPerm RWX.
+Proof. right; auto. Qed.
+
+Lemma ExecPCPerm_RWLX: ExecPCPerm RWLX.
+Proof. right; auto. Qed.
+
+Lemma ExecPCPerm_flows_to p p':
+  PermFlows p p' →
+  ExecPCPerm p →
+  ExecPCPerm p'.
+Proof.
+  intros H [ -> | [ -> | -> ] ]; cbn in H.
+  { destruct p'; cbn in H; try by inversion H; constructor.
+    apply ExecPCPerm_RWX.
+    apply ExecPCPerm_RWLX.
+  }
+  { destruct p'; try by inversion H; constructor.
+    apply ExecPCPerm_RWX.
+    apply ExecPCPerm_RWLX.
+  }
+  { destruct p'; try by inversion H; constructor.
+    apply ExecPCPerm_RWLX.
+  }
+Qed.
+
+Lemma ExecPCPerm_not_E p :
+  ExecPCPerm p →
+  p ≠ E.
+Proof.
+  intros [ H | [H|H] ] ->; inversion H.
+Qed.
+
+Lemma ExecPCPerm_readAllowed p :
+  ExecPCPerm p →
+  readAllowed p = true.
+Proof.
+  intros [ -> | [ -> | -> ] ]; reflexivity.
+Qed.
+
+Definition SealPermFlowsTo (s1 s2 : SealPerms): bool :=
+  (if permit_seal(s1) then permit_seal(s2) else true) &&
+  (if permit_unseal(s1) then permit_unseal(s2) else true).
+
+(* Sanity check *)
+Lemma SealPermFlowsToTransitive:
+  transitive _ SealPermFlowsTo.
+Proof.
+  red; intros. unfold SealPermFlowsTo in *. repeat destruct (permit_seal _); repeat destruct (permit_unseal _); auto.
+Qed.
+
+(* Sanity check 2 *)
+Lemma SealPermFlowsToReflexive:
+  forall p, SealPermFlowsTo p p.
+Proof.
+  intros; unfold SealPermFlowsTo. destruct (permit_seal _), (permit_unseal _); auto.
+Qed.
+
+(* Sanity check 3 *)
+Lemma SealPermFlows_refl : ∀ p, SealPermFlowsTo p p = true.
+Proof.
+  intros; rewrite /SealPermFlowsTo. destruct (permit_seal _), (permit_unseal _); auto.
+Qed.
+
+Definition SealPermPairFlowsTo (pg1 pg2: SealPerms * Locality): bool :=
+  SealPermFlowsTo (fst pg1) (fst pg2) && LocalityFlowsTo (snd pg1) (snd pg2).
+
+Lemma permit_seal_flowsto p' p:
+  SealPermFlowsTo p' p -> permit_seal p' = true → permit_seal p = true.
+Proof.  destruct_sealperm p; destruct_sealperm p'; done. Qed.
+
+Lemma permit_unseal_flowsto p' p:
+  SealPermFlowsTo p' p -> permit_unseal p' = true → permit_unseal p = true.
+Proof.  destruct_sealperm p; destruct_sealperm p'; done. Qed.
+
 (* Helper definitions for capabilities *)
 
 (* Turn E into RX into PC after a jump *)
 Definition updatePcPerm (w: Word): Word :=
   match w with
-  | inr ((E, g), b, e, a) => inr ((RX, g), b, e, a)
+  | WCap E g b e a => WCap RX g b e a
   | _ => w
   end.
 
 Lemma updatePcPerm_cap_non_E p g b e a :
   p ≠ E →
-  updatePcPerm (inr (p, g, b, e, a)) = inr (p, g, b, e, a).
+  updatePcPerm (WCap p g b e a) = WCap p g b e a.
 Proof.
   intros HnE. cbn. destruct p; auto. contradiction.
 Qed.
 
 Definition nonZero (w: Word): bool :=
   match w with
-  | inr _ => true
-  | inl n => Zneq_bool n 0
+  | WInt n => Zneq_bool n 0
+  | _ => true
   end.
 
 Definition cap_size (w : Word) : Z :=
   match w with
-  | inr (_,_,b,e,_) => (e - b)%Z
+  | WCap _ _ b e _ => (e - b)%Z
   | _ => 0%Z
   end.
 
-Definition is_cap (w: Word): bool :=
-  match w with
-  | inr _ => true
-  | inl _ => false
-  end.
+(* Bound checking for both otypes and addresses *)
 
-(* Bound checking *)
-
-Definition withinBounds (c: Cap): bool :=
+Definition isWithinCap (c: Word) (b e: finz MemNum) : bool :=
   match c with
-  | (_, b, e, a) => (b <=? a)%a && (a <? e)%a
+  | WCap _ _ n1 n2 _ => isWithin n1 n2 b e
+  | _ => false
   end.
-
-Lemma withinBounds_true_iff p g b e a :
-  withinBounds (p, g, b, e, a) = true ↔ (b <= a)%a ∧ (a < e)%a.
-Proof.
-  unfold withinBounds.
-  rewrite /le_addr /lt_addr /leb_addr /ltb_addr.
-  rewrite andb_true_iff Z.leb_le Z.ltb_lt. auto.
-Qed.
-
-Lemma withinBounds_le_addr p l b e a:
-  withinBounds (p, l, b, e, a) = true →
-  (b <= a)%a ∧ (a < e)%a.
-Proof. rewrite withinBounds_true_iff //. Qed.
-
-Lemma isWithinBounds_bounds_alt p g b e (a0 a1 a2 : Addr) :
-  withinBounds (p,g,b,e,a0) = true →
-  withinBounds (p,g,b,e,a2) = true →
-  (a0 ≤ a1)%Z ∧ (a1 ≤ a2)%Z →
-  withinBounds (p,g,b,e,a1) = true.
-Proof. rewrite !withinBounds_true_iff. solve_addr. Qed.
-
-Lemma isWithinBounds_bounds_alt' p g b e (a0 a1 a2 : Addr) :
-  withinBounds (p,g,b,e,a0) = true →
-  withinBounds (p,g,b,e,a2) = true →
-  (a0 ≤ a1)%Z ∧ (a1 < a2)%Z →
-  withinBounds (p,g,b,e,a1) = true.
-Proof. rewrite !withinBounds_true_iff. solve_addr. Qed.
-
-Lemma le_addr_withinBounds p l b e a:
-  (b <= a)%a → (a < e)%a →
-  withinBounds (p, l, b, e, a) = true .
-Proof. rewrite withinBounds_true_iff //. Qed.
 
 
 (* isCorrectPC: valid capabilities for PC *)
@@ -387,39 +518,40 @@ Inductive isCorrectPC: Word → Prop :=
     forall p g (b e a : Addr),
       (b <= a < e)%a →
       p = RX \/ p = RWX \/ p = RWLX →
-      isCorrectPC (inr ((p, g), b, e, a)).
+      isCorrectPC (WCap p g b e a).
 
 Lemma isCorrectPC_dec:
   forall w, { isCorrectPC w } + { not (isCorrectPC w) }.
 Proof.
   destruct w.
   - right. red; intros H. inversion H.
-  - destruct c as ((((p & g) & b) & e) & a).
-    case_eq (match p with RX | RWX | RWLX => true | _ => false end); intros.
-    + destruct (Addr_le_dec b a).
-      * destruct (Addr_lt_dec a e).
-        { left. econstructor; simpl; eauto. by auto.
-          destruct p; naive_solver. }
-        { right. red; intro HH. inversion HH; subst. solve_addr. }
-      * right. red; intros HH; inversion HH; subst. solve_addr.
-    + right. red; intros HH; inversion HH; subst. naive_solver.
+  - destruct sb as [p g b e a | ].
+    -- case_eq (match p with RX | RWX | RWLX => true | _ => false end); intros.
+      + destruct (finz_le_dec b a).
+        * destruct (finz_lt_dec a e).
+          { left. econstructor; simpl; eauto. by auto.
+            destruct p; naive_solver. }
+          { right. red; intro HH. inversion HH; subst. solve_addr. }
+        * right. red; intros HH; inversion HH; subst. solve_addr.
+      + right. red; intros HH; inversion HH; subst. naive_solver.
+    -- right. red; intros H. inversion H.
+ - right. red; intros H. inversion H.
 Qed.
 
 Definition isCorrectPCb (w: Word): bool :=
   match w with
-  | inl _ => false
-  | inr (p, g, b, e, a) =>
+  | WCap p g b e a =>
     (b <=? a)%a && (a <? e)%a &&
     (isPerm p RX || isPerm p RWX || isPerm p RWLX)
+  | _ => false
   end.
 
 Lemma isCorrectPCb_isCorrectPC w :
   isCorrectPCb w = true ↔ isCorrectPC w.
 Proof.
-  rewrite /isCorrectPCb. destruct w.
-  { split; try congruence. inversion 1. }
-  { destruct c as [[[[? ?] ?] ?] ?]. rewrite /leb_addr /ltb_addr.
-    rewrite !andb_true_iff !orb_true_iff !Z.leb_le !Z.ltb_lt.
+  rewrite /isCorrectPCb. destruct_word w.
+  1,3,4 : split; try congruence; inversion 1.
+  { rewrite !andb_true_iff !orb_true_iff !Z.leb_le !Z.ltb_lt.
     rewrite /isPerm !bool_decide_eq_true.
     split.
     { intros [? ?]. constructor. solve_addr. naive_solver. }
@@ -435,7 +567,7 @@ Proof.
 Qed.
 
 Lemma isCorrectPC_ra_wb pc_p pc_g pc_b pc_e pc_a :
-  isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) →
+  isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
   readAllowed pc_p && ((pc_b <=? pc_a)%a && (pc_a <? pc_e)%a).
 Proof.
   intros. inversion H; subst.
@@ -446,7 +578,7 @@ Proof.
 Qed.
 
 Lemma not_isCorrectPC_perm p g b e a :
-  p ≠ RX ∧ p ≠ RWX ∧ p ≠ RWLX → ¬ isCorrectPC (inr ((p,g),b,e,a)).
+  p ≠ RX ∧ p ≠ RWX ∧ p ≠ RWLX → ¬ isCorrectPC (WCap p g b e a).
 Proof.
   intros (Hrx & Hrwx & Hrwlx).
   intros Hvpc. inversion Hvpc;
@@ -454,7 +586,7 @@ Proof.
 Qed.
 
 Lemma not_isCorrectPC_bounds p g b e a :
- ¬ (b <= a < e)%a → ¬ isCorrectPC (inr ((p,g),b,e,a)).
+ ¬ (b <= a < e)%a → ¬ isCorrectPC (WCap p g b e a).
 Proof.
   intros Hbounds.
   intros Hvpc. inversion Hvpc.
@@ -462,9 +594,9 @@ Proof.
 Qed.
 
 Lemma isCorrectPC_bounds p g b e (a0 a1 a2 : Addr) :
-  isCorrectPC (inr (p, g, b, e, a0)) →
-  isCorrectPC (inr (p, g, b, e, a2)) →
-  (a0 ≤ a1 < a2)%Z → isCorrectPC (inr (p, g, b, e, a1)).
+  isCorrectPC (WCap p g b e a0) →
+  isCorrectPC (WCap p g b e a2) →
+  (a0 ≤ a1 < a2)%Z → isCorrectPC (WCap p g b e a1).
 Proof.
   intros Hvpc0 Hvpc2 [Hle Hlt].
   inversion Hvpc0.
@@ -476,33 +608,40 @@ Proof.
 Qed.
 
 Lemma isCorrectPC_bounds_alt p g b e (a0 a1 a2 : Addr) :
-  isCorrectPC (inr (p, g, b, e, a0))
-  → isCorrectPC (inr (p, g, b, e, a2))
+  isCorrectPC (WCap p g b e a0)
+  → isCorrectPC (WCap p g b e a2)
   → (a0 ≤ a1)%Z ∧ (a1 ≤ a2)%Z
-  → isCorrectPC (inr (p, g, b, e, a1)).
+  → isCorrectPC (WCap p g b e a1).
 Proof.
   intros Hvpc0 Hvpc2 [Hle0 Hle2].
   apply Z.lt_eq_cases in Hle2 as [Hlt2 | Heq2].
   - apply isCorrectPC_bounds with a0 a2; auto.
-  - apply z_of_eq in Heq2. rewrite Heq2. auto.
+  - apply finz_to_z_eq in Heq2. rewrite Heq2. auto.
 Qed.
 
-Lemma isCorrectPC_withinBounds p g p' g' b e a :
-  isCorrectPC (inr (p, g, b, e, a)) →
-  withinBounds (p', g', b, e, a) = true.
+Lemma isCorrectPC_withinBounds p g b e a :
+  isCorrectPC (WCap p g b e a) →
+  withinBounds b e a = true.
 Proof.
   intros HH. inversion HH; subst.
   rewrite /withinBounds !andb_true_iff Z.leb_le Z.ltb_lt. auto.
 Qed.
 
+Lemma isCorrectPC_le_addr p g b e a :
+  isCorrectPC (WCap p g b e a) →
+  (b <= a)%a ∧ (a < e)%a.
+Proof.
+  intros HH. by eapply withinBounds_le_addr, isCorrectPC_withinBounds.
+Qed.
+
 Lemma correctPC_nonO p p' g b e a :
-  PermFlows p p' → isCorrectPC (inr (p,g,b,e,a)) → p' ≠ O.
+  PermFlows p p' → isCorrectPC (WCap p g b e a) → p' ≠ O.
 Proof.
   intros Hfl HcPC. inversion HcPC. by apply (PCPerm_nonO p p').
 Qed.
 
-Lemma in_range_is_correctPC p l b e a b' e' :
-  isCorrectPC (inr ((p,l),b,e,a)) →
+Lemma in_range_is_correctPC p g b e a b' e' :
+  isCorrectPC (WCap p g b e a) →
   (b' <= b)%a ∧ (e <= e')%a →
   (b' <= a)%a ∧ (a < e')%a.
 Proof.
@@ -510,18 +649,17 @@ Proof.
   inversion Hvpc; simplify_eq. solve_addr.
 Qed.
 
-(* Helper tactics *)
+Lemma isCorrectPC_ExecPCPerm_InBounds p g b e a :
+  ExecPCPerm p →
+  InBounds b e a →
+  isCorrectPC (WCap p g b e a).
+Proof.
+  unfold ExecPCPerm, InBounds. intros. constructor; eauto.
+Qed.
 
-Ltac destruct_pair_l c n :=
-  match eval compute in n with
-  | 0 => idtac
-  | _ => let sndn := fresh c in
-        destruct c as (c,sndn); destruct_pair_l c (pred n)
-  end.
 
 (* Useful instances *)
-
-Instance perm_countable : Countable Perm.
+Global Instance perm_countable : Countable Perm.
 Proof.
   set encode := fun p => match p with
     | O => 1
@@ -548,7 +686,7 @@ Proof.
   intro p. destruct p; reflexivity.
 Defined.
 
-Instance locality_countable : Countable Locality.
+Global Instance locality_countable : Countable Locality.
 Proof.
   set encode := fun l => match l with
     | Local => 1
@@ -563,19 +701,47 @@ Proof.
   intro l. destruct l; reflexivity.
 Defined.
 
-Instance cap_countable : Countable Cap.
+Global Instance sealable_countable : Countable Sealable.
 Proof.
-  (* NB: this relies on the fact that cap_eq_dec has been Defined, because the
-  eq decision we have for Cap has to match the one used in the conclusion of the
-  lemma... *)
-  apply prod_countable.
+  set (enc := fun sb =>
+       match sb with
+       | SCap p g b e a => inl (p,g,b,e,a)
+       | SSealRange p g b e a => inr (p,g,b,e,a) end
+      ).
+  set (dec := fun e =>
+       match e with
+       | inl (p,g,b,e,a) => SCap p g b e a
+       | inr (p,g,b,e,a) => SSealRange p g b e a end
+      ).
+  refine (inj_countable' enc dec _).
+  intros i. destruct i; simpl; done.
 Defined.
 
-Instance word_countable : Countable Word.
-Proof. apply sum_countable. Defined.
-
-Instance instr_countable : Countable instr.
+Global Instance word_countable : Countable Word.
 Proof.
+  set (enc := fun w =>
+      match w with
+      | WInt z => inl z
+      | WSealable sb => inr (inl sb)
+      | WSealed x x0 => inr (inr (x, x0))
+      end ).
+  set (dec := fun e =>
+      match e with
+      | inl z => WInt z
+      | inr (inl sb) => WSealable sb
+      | inr (inr (x, x0)) => WSealed x x0
+      end ).
+  refine (inj_countable' enc dec _).
+  intros i. destruct i; simpl; done.
+Qed.
+
+Global Instance word_inhabited: Inhabited Word := populate (WInt 0).
+Global Instance addr_inhabited: Inhabited Addr := populate (@finz.FinZ MemNum 0%Z eq_refl eq_refl).
+Global Instance otype_inhabited: Inhabited OType := populate (@finz.FinZ ONum 0%Z eq_refl eq_refl).
+
+Global Instance instr_countable : Countable instr.
+Proof.
+
   set (enc := fun e =>
       match e with
       | Jmp r => GenNode 0 [GenLeaf (inl r)]
@@ -589,14 +755,19 @@ Proof.
       | Lea dst r => GenNode 8 [GenLeaf (inl dst); GenLeaf (inr r)]
       | Restrict dst r => GenNode 9 [GenLeaf (inl dst); GenLeaf (inr r)]
       | Subseg dst r1 r2 => GenNode 10 [GenLeaf (inl dst); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | IsPtr dst r => GenNode 11 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | GetL dst r => GenNode 12 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | GetP dst r => GenNode 13 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | GetB dst r => GenNode 14 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | GetE dst r => GenNode 15 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | GetA dst r => GenNode 16 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | Fail => GenNode 17 []
-      | Halt => GenNode 18 []
+      | GetB dst r => GenNode 11 [GenLeaf (inl dst); GenLeaf (inl r)]
+      | GetE dst r => GenNode 12 [GenLeaf (inl dst); GenLeaf (inl r)]
+      | GetA dst r => GenNode 13 [GenLeaf (inl dst); GenLeaf (inl r)]
+      | GetP dst r => GenNode 14 [GenLeaf (inl dst); GenLeaf (inl r)]
+      | GetL dst r => GenNode 15 [GenLeaf (inl dst); GenLeaf (inl r)]
+
+      | GetOType dst r => GenNode 16 [GenLeaf (inl dst); GenLeaf (inl r)]
+      | GetWType dst r => GenNode 17 [GenLeaf (inl dst); GenLeaf (inl r)]
+
+      | Seal dst r1 r2 => GenNode 18 [GenLeaf (inl dst); GenLeaf (inl r1); GenLeaf (inl r2)]
+      | UnSeal dst r1 r2 => GenNode 19 [GenLeaf (inl dst); GenLeaf (inl r1); GenLeaf (inl r2)]
+      | Fail => GenNode 20 []
+      | Halt => GenNode 21 []
       end).
   set (dec := fun e =>
       match e with
@@ -611,16 +782,55 @@ Proof.
       | GenNode 8 [GenLeaf (inl dst); GenLeaf (inr r)] => Lea dst r
       | GenNode 9 [GenLeaf (inl dst); GenLeaf (inr r)] => Restrict dst r
       | GenNode 10 [GenLeaf (inl dst); GenLeaf (inr r1); GenLeaf (inr r2)] => Subseg dst r1 r2
-      | GenNode 11 [GenLeaf (inl dst); GenLeaf (inl r)] => IsPtr dst r
-      | GenNode 12 [GenLeaf (inl dst); GenLeaf (inl r)] => GetL dst r
-      | GenNode 13 [GenLeaf (inl dst); GenLeaf (inl r)] => GetP dst r
-      | GenNode 14 [GenLeaf (inl dst); GenLeaf (inl r)] => GetB dst r
-      | GenNode 15 [GenLeaf (inl dst); GenLeaf (inl r)] => GetE dst r
-      | GenNode 16 [GenLeaf (inl dst); GenLeaf (inl r)] => GetA dst r
-      | GenNode 17 [] => Fail
-      | GenNode 18 [] => Halt
+      | GenNode 11 [GenLeaf (inl dst); GenLeaf (inl r)] => GetB dst r
+      | GenNode 12 [GenLeaf (inl dst); GenLeaf (inl r)] => GetE dst r
+      | GenNode 13 [GenLeaf (inl dst); GenLeaf (inl r)] => GetA dst r
+      | GenNode 14 [GenLeaf (inl dst); GenLeaf (inl r)] => GetP dst r
+      | GenNode 15 [GenLeaf (inl dst); GenLeaf (inl r)] => GetL dst r
+
+      | GenNode 16 [GenLeaf (inl dst); GenLeaf (inl r)] => GetOType dst r
+      | GenNode 17 [GenLeaf (inl dst); GenLeaf (inl r)] => GetWType dst r
+
+      | GenNode 18 [GenLeaf (inl dst); GenLeaf (inl r1); GenLeaf (inl r2)] => Seal dst r1 r2
+      | GenNode 19 [GenLeaf (inl dst); GenLeaf (inl r1); GenLeaf (inl r2)] => UnSeal dst r1 r2
+      | GenNode 20 [] => Fail
+      |  GenNode 21 [] => Halt
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).
   intros i. destruct i; simpl; done.
 Defined.
+
+Global Instance reg_finite : finite.Finite RegName.
+Proof. apply (finite.enc_finite (λ r : RegName, match r with
+                                                | PC => S RegNum
+                                                | addr_reg.R n fin => n
+                                                end)
+                (λ n : nat, match n_to_regname n with | Some r => r | None => PC end)
+                (S (S RegNum))).
+       - intros x. destruct x;auto.
+         unfold n_to_regname.
+         destruct (Nat.le_dec n RegNum).
+         + do 2 f_equal. apply eq_proofs_unicity. decide equality.
+         + exfalso. by apply (Nat.leb_le n RegNum) in fin.
+       - intros x.
+         + destruct x;[lia|]. apply Nat.leb_le in fin. lia.
+       - intros i Hlt. unfold n_to_regname.
+         destruct (Nat.le_dec i RegNum);auto.
+         lia.
+Defined.
+
+Global Instance writeAllowedWord_dec w: Decision (writeAllowedWord w).
+Proof. destruct_word w; try (right; solve [auto]). destruct c;simpl;apply _. Qed.
+
+Global Instance hasValidAddress_dec w a: Decision (hasValidAddress w a).
+Proof. destruct_word w; try (right; solve [auto]). destruct c;simpl;apply _. Qed.
+
+Global Instance writeAllowed_in_r_a_Decidable r a: Decision (writeAllowed_in_r_a r a).
+Proof.
+  eapply finite.exists_dec.
+  intros x. destruct (r !! x) eqn:Hsome;
+    first destruct (decide (writeAllowedWord w)), (decide (hasValidAddress w a)).
+  left. eexists _; auto.
+  all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
+Qed.

@@ -1,27 +1,27 @@
-From cap_machine Require Import rules_base.
 From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
+From cap_machine Require Export rules_base.
 
 Section cap_lang_rules.
-  Context `{memG Σ, regG Σ}.
-  Context `{MachineParameters}.
+  Context `{MP: MachineParameters}.
+  Context `{ceriseg: ceriseG Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : cap_lang.expr. 
+  Implicit Types c : cap_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : cap_lang.val. 
+  Implicit Types v : cap_lang.val.
   Implicit Types w : Word.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
 
   Lemma wp_jmp_success E pc_p pc_g pc_b pc_e pc_a w r w' :
     decodeInstrW w = Jmp r →
-     isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) →
+     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
 
-     {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
          ∗ ▷ pc_a ↦ₐ w
          ∗ ▷ r ↦ᵣ w' }}}
        Instr Executable @ E
@@ -32,7 +32,7 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a & >Hr) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 nt l1 l2 n) "Hσ1 /=". destruct σ1 as [r0 m]; simpl.
+    iIntros (σ1 ns l1 l2 nt) "Hσ1 /=". destruct σ1; simpl.
     iDestruct "Hσ1" as "[Hr0 Hm]".
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
     iDestruct (@gen_heap_valid with "Hr0 HPC") as %?.
@@ -42,26 +42,26 @@ Section cap_lang_rules.
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iIntros "_".
     iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
+    unfold exec, exec_opt in Hstep. rewrite Hr_r0 /= in Hstep. simplify_pair_eq.
 
-    rewrite /update_reg /= in Hstep. simplify_pair_eq. cbn.
     iMod (@gen_heap_update with "Hr0 HPC") as "[Hr0 HPC]". iFrame.
-    iApply "Hφ". iFrame. rewrite /RegLocate Hr_r0. eauto.
+    iApply "Hφ". by iFrame.
   Qed.
 
   Lemma wp_jmp_successPC E pc_p pc_g pc_b pc_e pc_a w :
     decodeInstrW w = Jmp PC →
-     isCorrectPC (inr ((pc_p,pc_g),pc_b,pc_e,pc_a)) →
+     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
 
-     {{{ ▷ PC ↦ᵣ inr ((pc_p,pc_g),pc_b,pc_e,pc_a)
+     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
          ∗ ▷ pc_a ↦ₐ w }}}
        Instr Executable @ E
        {{{ RET NextIV;
-           PC ↦ᵣ updatePcPerm (inr ((pc_p,pc_g),pc_b,pc_e,pc_a))
+           PC ↦ᵣ updatePcPerm (WCap pc_p pc_g pc_b pc_e pc_a)
            ∗ pc_a ↦ₐ w }}}.
   Proof.
     iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 nt l1 l2 n) "Hσ1 /=". destruct σ1 as [r0 m]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "Hσ1 /=". destruct σ1; cbn.
     iDestruct "Hσ1" as "[Hr0 Hm]".
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
     iDestruct (@gen_heap_valid with "Hr0 HPC") as %Hr_PC.
@@ -70,9 +70,8 @@ Section cap_lang_rules.
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iIntros "_".
     iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
+    unfold exec, exec_opt in Hstep. rewrite Hr_PC /= in Hstep. simplify_pair_eq.
 
-    rewrite /update_reg /= in Hstep. simplify_pair_eq. cbn.
-    rewrite /RegLocate Hr_PC.
     iMod (@gen_heap_update with "Hr0 HPC") as "[Hr0 HPC]". iFrame.
     iApply "Hφ". by iFrame.
   Qed.

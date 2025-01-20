@@ -3,30 +3,6 @@ From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 From cap_machine Require Import stdpp_extra.
 
-Lemma big_sepM_to_create_gmap_default {Σ : gFunctors} {A B : Type} `{EqDecision A} `{Countable A}
-      (rmap rmap' : gmap A B) (φ : A -> B -> iProp Σ ) b :
-  dom rmap = dom rmap' →
-  ([∗ map] r_i↦_ ∈ rmap, φ r_i b) -∗
-  ([∗ map] r_i↦w_i ∈ create_gmap_default (elements (dom rmap')) b, φ r_i w_i).
-Proof.
-  iIntros (Hdom) "Hrmap".
-  iInduction rmap as [|w b0 rmap] "IH" using map_ind forall (rmap' Hdom).
-  - rewrite -Hdom dom_empty_L elements_empty. simpl. done.
-  - iDestruct (big_sepM_insert with "Hrmap") as "[Hw Hrmap]";auto.
-    iDestruct ("IH" $! (delete w rmap') with "[]Hrmap") as "Hrmap'".
-    { iPureIntro. rewrite dom_delete_L. rewrite -Hdom. rewrite dom_insert_L.
-      assert (w ∉ dom rmap) as Hnin;[apply not_elem_of_dom;auto|].
-      set_solver. }
-    rewrite dom_delete_L /=.
-    rewrite (create_gmap_default_Permutation _ (list_difference (elements (dom rmap')) [w])).
-    + rewrite create_gmap_default_list_difference_singleton.
-      iDestruct (big_sepM_insert with "[$Hrmap' $Hw]") as "Hrmap";[rewrite lookup_delete;auto|].
-      rewrite insert_delete_insert. rewrite insert_id. iFrame.
-      apply create_gmap_default_lookup. rewrite -Hdom dom_insert_L elements_union_singleton.
-      constructor. apply not_elem_of_dom. auto.
-    + eapply elements_difference_singleton. apply _.
-Qed.
-
 Lemma big_sepM_to_big_sepL {Σ : gFunctors} {A B : Type} `{EqDecision A} `{Countable A}
       (r : gmap A B) (lr : list A) (φ : A → B → iProp Σ) :
   NoDup lr →
@@ -48,6 +24,22 @@ Proof.
       * subst. apply NoDup_cons in Hdup as [Hnelem Hdup]. contradiction.
       * rewrite lookup_delete_ne;auto. apply Hlookup.
         apply elem_of_cons. by right.
+Qed.
+
+Lemma big_sepM_to_big_sepL2 (PROP : bi) (A B : Type) `{EqDecision A} `{Countable A}
+      (φ: A -> B -> PROP) (l1: list A) (l2: list B):
+      NoDup l1 -> length l1 = length l2 →
+      ⊢ (([∗ map] y1↦y2 ∈ list_to_map (zip l1 l2), φ y1 y2) -∗
+         ([∗ list] y1;y2 ∈ l1;l2, φ y1 y2))%I.
+Proof.
+  revert l2. iInduction (l1) as [|x l1] "IH"; iIntros (l2 Hnd Hlen) "H".
+  - iSimpl. destruct l2;inversion Hlen. done.
+  - destruct l2;inversion Hlen. simpl.
+    inversion Hnd. subst.
+    iDestruct (big_sepM_insert with "H") as "[A B]".
+    + eapply not_elem_of_list_to_map.
+      rewrite fst_zip; auto. lia.
+    + iFrame. iApply ("IH" $! l2 H4 H1 with "B"); auto.
 Qed.
 
 Lemma NoDup_of_sepL2_exclusive {Σ : gFunctors} {A B: Type} (l1: list A) (l2: list B) (Φ: A -> B -> iProp Σ):
@@ -72,8 +64,8 @@ Qed.
 Lemma big_sepL2_extract_l `{Σ : gFunctors} {A B : Type}
       (i : nat) (ai : A) (a : list A) (b : list B) (φ : A -> B -> iProp Σ) :
   a !! i = Some ai ->
-  ⊢ ([∗ list] a_i;b_i ∈ a;b, φ a_i b_i) -∗
-    (∃ b', [∗ list] a_i;b_i ∈ (delete i a);b', φ a_i b_i) ∗ ∃ b, φ ai b.
+  ⊢ (([∗ list] a_i;b_i ∈ a;b, φ a_i b_i) -∗
+    (∃ b', [∗ list] a_i;b_i ∈ (delete i a);b', φ a_i b_i) ∗ ∃ b, φ ai b)%I.
 Proof.
   iIntros (Hsome) "Hl".
   iDestruct (big_sepL2_length with "Hl") as %Hlength.
@@ -82,7 +74,7 @@ Proof.
   rewrite -Heqa -Heqb.
   iDestruct (big_sepL2_app_inv with "Hl") as "[Htake Hdrop]".
   { apply lookup_lt_Some in Hsome.
-    do 2 (rewrite length_take_le;[|lia]). left ; done.
+    do 2 (rewrite length_take_le;[|lia]). left; auto.
   }
   apply take_drop_middle in Hsome as Hcons.
   assert (ai :: drop (S i) a = drop i a) as Hh.
@@ -99,8 +91,8 @@ Qed.
 
 Lemma big_sepL2_extract_l' {Σ : gFunctors} {A B : Type} (i : nat) (ai : A) (a : list A) (b : list B) (φ : A -> B -> iProp Σ) :
     a !! i = Some ai ->
-    ⊢ ([∗ list] a_i;b_i ∈ a;b, φ a_i b_i) -∗
-      ([∗ list] a_i;b_i ∈ (delete i a);(delete i b), φ a_i b_i) ∗ ∃ b, φ ai b.
+    ⊢ (([∗ list] a_i;b_i ∈ a;b, φ a_i b_i) -∗
+     ([∗ list] a_i;b_i ∈ (delete i a);(delete i b), φ a_i b_i) ∗ ∃ b, φ ai b)%I.
 Proof.
   iIntros (Hsome) "Hl".
   iDestruct (big_sepL2_length with "Hl") as %Hlength.
@@ -109,7 +101,7 @@ Proof.
   rewrite -Heqa -Heqb.
   iDestruct (big_sepL2_app_inv with "Hl") as "[Htake Hdrop]".
   { apply lookup_lt_Some in Hsome.
-    do 2 (rewrite length_take_le;[|lia]). left; done.
+    do 2 (rewrite length_take_le;[|lia]). left; auto.
   }
   apply take_drop_middle in Hsome as Hcons.
   assert (ai :: drop (S i) a = drop i a) as Hh.
@@ -134,8 +126,8 @@ Qed.
 
 Lemma big_sepL2_extract' {Σ : gFunctors} {A B : Type} (i : nat) (ai : A) (bi : B) (a : list A) (b : list B) (φ : A -> B -> iProp Σ) :
   a !! i = Some ai -> b !! i = Some bi ->
-  ⊢ ([∗ list] a_i;b_i ∈ a;b, φ a_i b_i) -∗
-    ([∗ list] a_i;b_i ∈ (delete i a);(delete i b), φ a_i b_i) ∗ φ ai bi.
+  ⊢ (([∗ list] a_i;b_i ∈ a;b, φ a_i b_i) -∗
+   ([∗ list] a_i;b_i ∈ (delete i a);(delete i b), φ a_i b_i) ∗ φ ai bi)%I.
 Proof.
   iIntros (Hsome Hsome') "Hl".
   iDestruct (big_sepL2_length with "Hl") as %Hlength.
@@ -144,7 +136,7 @@ Proof.
   rewrite -Heqa -Heqb.
   iDestruct (big_sepL2_app_inv with "Hl") as "[Htake Hdrop]".
   { apply lookup_lt_Some in Hsome.
-    do 2 (rewrite length_take_le;[|lia]).  left; done.
+    do 2 (rewrite length_take_le;[|lia]). auto.
   }
   apply take_drop_middle in Hsome as Hcons.
   apply take_drop_middle in Hsome' as Hcons'.
@@ -162,8 +154,8 @@ Qed.
 Lemma big_sepL2_close_l {Σ : gFunctors} {A B : Type} (i : nat) (ai : A) (bi : B) (a : list A) (b : list B) (φ : A -> B -> iProp Σ) :
   length a = length b ->
   a !! i = Some ai ->
-  ⊢ ([∗ list] a_i;b_i ∈ (delete i a);(delete i b), φ a_i b_i) ∗ φ ai bi -∗
-    ([∗ list] a_i;b_i ∈ a;<[i:= bi]> b, φ a_i b_i).
+  ⊢ (([∗ list] a_i;b_i ∈ (delete i a);(delete i b), φ a_i b_i) ∗ φ ai bi -∗
+                                                             ([∗ list] a_i;b_i ∈ a;<[i:= bi]> b, φ a_i b_i) )%I.
 Proof.
   iIntros (Hlen Hsome) "[Hl Hb]".
   iDestruct (big_sepL2_length with "Hl") as %Hlength.
@@ -184,12 +176,12 @@ Proof.
   assert (<[i:=bi]> b !! i = Some bi) as Hsome'.
   { apply list_lookup_insert. lia. }
   apply take_drop_middle in Hsome'. rewrite -Hsome'.
-  rewrite take_insert;[|lia]. rewrite drop_insert_gt;[|lia]. done.
+  rewrite take_insert;[|lia]. rewrite drop_insert_gt;[|lia]. auto.
 Qed.
 
 Lemma region_addrs_exists `{Σ : gFunctors} {A B: Type} (a : list A) (φ : A → B → iProp Σ) :
-     ⊢ ([∗ list] a0 ∈ a, (∃ b0, φ a0 b0)) ∗-∗
-       (∃ (ws : list B), [∗ list] a0;b0 ∈ a;ws, φ a0 b0).
+     ⊢ (([∗ list] a0 ∈ a, (∃ b0, φ a0 b0)) ∗-∗
+      (∃ (ws : list B), [∗ list] a0;b0 ∈ a;ws, φ a0 b0))%I.
 Proof.
   iSplit.
   - iIntros "Ha".
@@ -210,8 +202,8 @@ Proof.
 Qed.
 
 Lemma region_addrs_exists_zip `{Σ : gFunctors} {A B C: Type} (a : list A) (φ : A → B → C -> iProp Σ) :
-  ⊢ ([∗ list] a0 ∈ a, (∃ b0 c0, φ a0 b0 c0)) ∗-∗
-    (∃ (ws : list (B * C)), [∗ list] a0;bc0 ∈ a;ws, φ a0 bc0.1 bc0.2).
+  ⊢ (([∗ list] a0 ∈ a, (∃ b0 c0, φ a0 b0 c0)) ∗-∗
+  (∃ (ws : list (B * C)), [∗ list] a0;bc0 ∈ a;ws, φ a0 bc0.1 bc0.2))%I.
 Proof.
   iSplit.
   - iIntros "Ha".
@@ -232,8 +224,8 @@ Proof.
 Qed.
 
 Lemma region_addrs_exists2 `{Σ : gFunctors} {A B C: Type} (a : list A) (b : list B) (φ : A → B → C -> iProp Σ) :
-     ⊢ ([∗ list] a0;b0 ∈ a;b, (∃ c0, φ a0 b0 c0)) ∗-∗
-       (∃ (ws : list C), ⌜length ws = length b⌝ ∗ [∗ list] a0;bc0 ∈ a;(zip b ws), φ a0 bc0.1 bc0.2).
+     ⊢ (([∗ list] a0;b0 ∈ a;b, (∃ c0, φ a0 b0 c0)) ∗-∗
+      (∃ (ws : list C), ⌜length ws = length b⌝ ∗ [∗ list] a0;bc0 ∈ a;(zip b ws), φ a0 bc0.1 bc0.2))%I.
 Proof.
   iSplit.
   - iIntros "Ha".
@@ -258,8 +250,8 @@ Qed.
 
 Lemma big_sepL2_to_big_sepL_r `{Σ : gFunctors} {A B : Type} (φ : B → iProp Σ) (l1 : list A) l2 :
   length l1 = length l2 →
-  ⊢ ([∗ list] _;y2 ∈ l1;l2, φ y2) ∗-∗
-    ([∗ list] y ∈ l2, φ y).
+  ⊢ (([∗ list] _;y2 ∈ l1;l2, φ y2) ∗-∗
+                                 ([∗ list] y ∈ l2, φ y))%I.
 Proof.
   iIntros (Hlen).
   iSplit.
@@ -282,8 +274,8 @@ Qed.
 Lemma big_sepL2_to_big_sepL_l `{Σ : gFunctors} {A B : Type} (φ : A → iProp Σ) (l1 : list A)
       (l2 : list B) :
   length l1 = length l2 →
-  ⊢ ([∗ list] y1;_ ∈ l1;l2, φ y1) ∗-∗
-    ([∗ list] y ∈ l1, φ y).
+  ⊢ (([∗ list] y1;_ ∈ l1;l2, φ y1) ∗-∗
+  ([∗ list] y ∈ l1, φ y))%I.
 Proof.
   iIntros (Hlen).
   iSplit.
@@ -306,10 +298,10 @@ Qed.
 Lemma big_sepL2_app'
       (PROP : bi) (A B : Type) (Φ : nat → A → B → PROP) (l1 l2 : list A)
       (l1' l2' : list B) :
-  length l1 = length l1' →
-  ([∗ list] k↦y1;y2 ∈ l1;l1', Φ k y1 y2)
-   ∗ ([∗ list] k↦y1;y2 ∈ l2;l2', Φ (length l1 + k) y1 y2)
-   ⊣⊢ ([∗ list] k↦y1;y2 ∈ (l1 ++ l2);(l1' ++ l2'), Φ k y1 y2).
+  (length l1) = (length l1') →
+  (([∗ list] k↦y1;y2 ∈ l1;l1', Φ k y1 y2)
+     ∗ ([∗ list] k↦y1;y2 ∈ l2;l2', Φ (length l1 + k) y1 y2))%I
+   ≡ ([∗ list] k↦y1;y2 ∈ (l1 ++ l2);(l1' ++ l2'), Φ k y1 y2)%I.
 Proof.
   intros Hlenl1.
   iSplit.
@@ -343,8 +335,8 @@ Proof.
 Qed.
 
 Lemma big_sepL_delete' {PROP: bi} {A: Type} (φ: A -> PROP) (l: list A):
-      forall k, ([∗ list] k0↦y ∈ l, if decide (k0 = k) then emp else φ y) -∗
-           ([∗ list] k0↦x0 ∈ delete k l, (λ (_ : nat) (x1 : A), φ x1) k0 x0).
+      forall k, ⊢ (([∗ list] k0↦y ∈ l, if decide (k0 = k) then emp else φ y) -∗
+           ([∗ list] k0↦x0 ∈ delete k l, (λ (_ : nat) (x1 : A), φ x1) k0 x0))%I.
 Proof.
   iInduction (l) as [|x l] "IH"; simpl; auto; iIntros (k) "H".
   iDestruct "H" as "[H1 H2]".
@@ -358,9 +350,9 @@ Qed.
 
 Lemma big_sepL_merge {PROP: bi} {A: Type} (l: list A) (HNoDup: NoDup l) (φ: A -> PROP) {Haffine: forall a, Affine (φ a)}:
   forall l1 l2, (forall a, a ∈ l -> a ∈ l1 \/ a ∈ l2) ->
-           ⊢ ([∗ list] a ∈ l1, φ a) -∗
-             ([∗ list] a ∈ l2, φ a) -∗
-             ([∗ list] a ∈ l, φ a).
+           ⊢ (([∗ list] a ∈ l1, φ a) -∗
+            ([∗ list] a ∈ l2, φ a) -∗
+            ([∗ list] a ∈ l, φ a))%I.
 Proof.
   iInduction (l) as [|x l] "IH"; iIntros (l1 l2 H) "Hl1 Hl2".
   - iApply big_sepL_nil; auto.
@@ -402,8 +394,8 @@ Qed.
 Lemma big_sepL2_to_big_sepM (PROP : bi) (A B : Type) `{EqDecision A} `{Countable A}
       (φ: A -> B -> PROP) (l1: list A) (l2: list B):
       NoDup l1 ->
-      ⊢ ([∗ list] y1;y2 ∈ l1;l2, φ y1 y2) -∗
-        ([∗ map] y1↦y2 ∈ list_to_map (zip l1 l2), φ y1 y2).
+      ⊢ (([∗ list] y1;y2 ∈ l1;l2, φ y1 y2) -∗
+      ([∗ map] y1↦y2 ∈ list_to_map (zip l1 l2), φ y1 y2))%I.
 Proof.
   revert l2. iInduction (l1) as [|x l1] "IH"; iIntros (l2 Hnd) "H".
   - iSimpl. iDestruct (big_sepL2_length with "H") as "%".
@@ -419,8 +411,8 @@ Proof.
 Qed.
 
 Lemma big_sepL2_bupd
-  : ∀ (PROP : bi) (H : BiBUpd PROP) (A B : Type) (Φ : A → B → PROP) (l1 : list A) (l2: list B),
-    ([∗ list] k;x ∈ l1;l2, |==> Φ k x) -∗ |==> [∗ list] k;x ∈ l1;l2, Φ k x.
+   : ∀ (PROP : bi) (H : BiBUpd PROP) (A B : Type) (Φ : A → B → PROP) (l1 : list A) (l2: list B),
+       ([∗ list] k;x ∈ l1;l2, |==> Φ k x) -∗ |==> [∗ list] k;x ∈ l1;l2, Φ k x.
 Proof.
   intros. revert l2. induction l1 as [| x l1].
   { intros. iIntros "H".
@@ -434,7 +426,7 @@ Qed.
 
 (* Helper lemma for reasoning about the current state of a region map *)
 Lemma big_sepM_exists `{Σ : gFunctors} {A B C : Type} `{EqDecision A, Countable A} (m : gmap A B) (φ : A → C -> B → iProp Σ) :
-  ⊢ ([∗ map] a↦b ∈ m, ∃ c, φ a c b) ∗-∗ (∃ (m' : gmap A C), [∗ map] a↦c;b ∈ m';m, φ a c b).
+  ⊢ (([∗ map] a↦b ∈ m, ∃ c, φ a c b) ∗-∗ (∃ (m' : gmap A C), [∗ map] a↦c;b ∈ m';m, φ a c b))%I.
 Proof.
   iSplit.
   - iIntros "Hmap".
@@ -459,4 +451,48 @@ Proof.
       iDestruct (big_sepM2_insert with "Hmap") as "[Hφ Hmap]";[apply lookup_delete|auto|].
       iApply big_sepM_insert;auto.
       iDestruct ("IH" with "Hmap") as "Hmap". iFrame.
+Qed.
+
+Lemma big_sepL2_to_big_sepL_replicate {Σ : gFunctors} {A B: Type} (l1: list A) (b : B) (Φ: A -> B -> iProp Σ) :
+  ([∗ list] a;b' ∈ l1;replicate (length l1) b, Φ a b')%I -∗
+  ([∗ list] a ∈ l1, Φ a b).
+Proof.
+  iIntros "Hl".
+  iInduction l1 as [|a l1] "IH".
+  - done.
+  - simpl. iDestruct "Hl" as "[$ Hl]".
+    iApply "IH". iFrame.
+Qed.
+
+Lemma big_sepM_to_create_gmap_default {Σ : gFunctors} {A B : Type} `{Countable A} (m m' : gmap A B) (φ : A -> B -> iProp Σ) (b : B) (l : list A) :
+  l ≡ₚ(map_to_list m).*1 →
+  m' = create_gmap_default l b →
+  ([∗ map] a↦_ ∈ m, φ a b) -∗ ([∗ map] a↦b' ∈ m', φ a b').
+Proof.
+  iIntros (Hl Hm) "Hm".
+  iInduction l as [|a l] "IH" forall (m m' Hl Hm).
+  - simpl in Hm. rewrite Hm. done.
+  - assert (NoDup (a :: l)) as Hdup.
+    { rewrite Hl. apply NoDup_map_to_list_fst. done. }
+    assert (a ∈ (map_to_list m).*1) as Hin'.
+    { rewrite -Hl. constructor. }
+    assert (is_Some(m !! a)) as [b' Hsome].
+    { apply elem_of_dom. rewrite -list_to_set_map_to_list. apply elem_of_list_to_set. auto. }
+    iDestruct (big_sepM_delete _ _ a with "Hm") as "[Ha Hm]";eauto.
+    iApply big_sepM_delete;[|iFrame].
+    { rewrite Hm.  apply lookup_insert. }
+    rewrite Hm /= delete_insert_delete.
+    iApply ("IH" $! (delete a m));[..|iFrame].
+    + iPureIntro. rewrite map_to_list_delete_fst;eauto.
+    + iPureIntro. rewrite delete_notin;auto.
+      destruct (create_gmap_default l b !! a) eqn:Hsome';auto.
+      exfalso. apply NoDup_cons in Hdup as [Hnin Hdup].
+      apply Hnin. apply create_gmap_default_lookup_is_Some in Hsome' as [Hin Hsome'].
+      subst. auto.
+Qed.
+
+Global Instance if_persistent (PROP: bi) (b: bool) (φ1 φ2: PROP) (H1: Persistent φ1) (H2: Persistent φ2):
+  Persistent (if b then φ1 else φ2).
+Proof.
+  destruct b; auto.
 Qed.
