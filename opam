@@ -1,4 +1,4 @@
-name: "coq-capability-machine"
+name: "rocq-griotte"
 synopsis: ""
 opam-version: "2.0"
 maintainer: ""
@@ -7,4 +7,5 @@ depends: [
   "coq" {= "8.20.0"}
   "coq-iris" {= "4.3.0"}
   "coq-stdpp" {= "1.11.0"}
+  "coq-equations"
 ]
