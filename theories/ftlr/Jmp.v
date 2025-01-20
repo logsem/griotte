@@ -2,14 +2,16 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel.
-From cap_machine Require Import ftlr_base monotone.
+From cap_machine.ftlr Require Import ftlr_base.
 From cap_machine.rules Require Import rules_Jmp.
 
 Section fundamental.
-  Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-          {nainv: logrel_na_invs Σ}
-          `{MachineParameters}.
+  Context
+    {Σ : gFunctors}
+      {ceriseg: ceriseG Σ} {sealsg: sealStoreG Σ}
+      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+      {nainv: logrel_na_invs Σ}
+      {MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -21,17 +23,18 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  (* TODO fix *)
-  Lemma jmp_case (W : WORLD) (r : leibnizO Reg) (p : Perm)
-        (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (r0 : RegName) (P:D):
-    ftlr_instr W r p g b e a w (Jmp r0) ρ P.
+
+  Lemma jmp_case (W : WORLD) (regs : leibnizO Reg)
+    (p : Perm) (g : Locality) (b e a : Addr)
+    (w : Word) (ρ : region_type) (r0 : RegName) (P:D):
+    ftlr_instr W regs p g b e a w (Jmp r0) ρ P.
   Proof.
     intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
-    iIntros "#IH #Hinv #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    rewrite delete_insert_delete.
-    destruct (reg_eq_dec PC r0).
-    * subst r0.
+    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
+    destruct (decide (r0 = PC)).
+    - subst r0.
       iApply (wp_jmp_successPC with "[HPC Ha]"); eauto; first iFrame.
       iNext. iIntros "[HPC Ha] /=".
       iApply wp_pure_step_later; auto.
@@ -47,10 +50,10 @@ Section fundamental.
       { iPureIntro. apply Hsome. }
       destruct p; iFrame.
       destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; congruence.
-    * specialize Hsome with r0 as Hr0.
+    - specialize Hsome with r0 as Hr0.
       destruct Hr0 as [wsrc Hsomesrc].
       iDestruct ((big_sepM_delete _ _ r0) with "Hmap") as "[Hsrc Hmap]"; eauto.
-      rewrite (lookup_delete_ne r PC r0); eauto.
+      rewrite (lookup_delete_ne regs PC r0); eauto.
       iApply (wp_jmp_success with "[$HPC $Ha $Hsrc]"); eauto.
       iNext. iIntros "[HPC [Ha Hsrc]] /=".
       iApply wp_pure_step_later; auto.
@@ -58,144 +61,97 @@ Section fundamental.
       iDestruct ((big_sepM_delete _ _ r0) with "[Hsrc Hmap]") as "Hmap /=";
         [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
       rewrite -delete_insert_ne; auto.
-      destruct (updatePcPerm wsrc) eqn:Heq.
-      { iNext; iIntros "_".
-        iApply (wp_bind (fill [SeqCtx])).
-        iApply (wp_notCorrectPC with "HPC"); [intro; match goal with H: isCorrectPC (inl _) |- _ => inv H end|].
-        iNext. iIntros "HPC /=".
-        iApply wp_pure_step_later; auto.
-        iNext; iIntros "_".
-        iApply wp_value.
-        iIntros. discriminate. }
-      { destruct c,p0,p0,p0.
+      destruct (updatePcPerm wsrc) eqn:Heq ; [ | destruct sb | ]; cycle 1.
+      { (* TODO simplify using "destruct (PermFlowsTo RX p0) eqn:Hpft; cycle 1." *)
         destruct p0.
         - iNext; iIntros "_".
           iApply (wp_bind (fill [SeqCtx])).
           iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; eauto|].
-          iNext. iIntros "HPC /=".
+          iNext; iIntros "HPC /=".
           iApply wp_pure_step_later; auto; iNext; iIntros "_".
-          iApply wp_value.
-          iIntros. discriminate.
+          iApply wp_value; iIntros; discriminate.
         - iNext; iIntros "_".
           iApply (wp_bind (fill [SeqCtx])).
           iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; eauto|].
-          iNext. iIntros "HPC /=".
+          iNext; iIntros "HPC /=".
           iApply wp_pure_step_later; auto; iNext; iIntros "_".
-          iApply wp_value.
-          iIntros. discriminate.
+          iApply wp_value; iIntros; discriminate.
         - iNext; iIntros "_".
           iApply (wp_bind (fill [SeqCtx])).
           iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; eauto|].
-          iNext. iIntros "HPC /=".
+          iNext; iIntros "HPC /=".
           iApply wp_pure_step_later; auto; iNext; iIntros "_".
-          iApply wp_value.
-          iIntros. discriminate.
+          iApply wp_value; iIntros; discriminate.
         - iNext; iIntros "_".
           iApply (wp_bind (fill [SeqCtx])).
           iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; eauto|].
-          iNext. iIntros "HPC /=".
+          iNext; iIntros "HPC /=".
           iApply wp_pure_step_later; auto; iNext; iIntros "_".
-          iApply wp_value.
-          iIntros. discriminate.
+          iApply wp_value; iIntros; discriminate.
         - iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=".
           apply lookup_insert. rewrite delete_insert_delete. iFrame.
-          rewrite (insert_id r r0); auto.
-          iDestruct ("Hreg" $! r0 ltac:(auto)) as "Hwsrc".
-          rewrite /RegLocate Hsomesrc.
+          rewrite (insert_id regs r0); auto.
+          iDestruct ("Hreg" $! r0 _ n Hsomesrc) as "Hwsrc".
           destruct wsrc; simpl in Heq; try congruence.
-          destruct c,p0,p0,p0,p0; try congruence.
-          + inv Heq. rewrite (fixpoint_interp1_eq _ (inr _)).
-            simpl. rewrite /read_write_cond.
-            (* iDestruct "Hwsrc" as (q) "[% H1]". *)
+          destruct sb, p0; try congruence.
+          + inv Heq. rewrite (fixpoint_interp1_eq _ (WCap _ _ _ _ _)).
+            simpl.
             iNext; iIntros "_".
             iDestruct (region_close with "[$Hstate $Hr Hw $Ha $Hmono]") as "Hr"; eauto.
-            { destruct ρ;auto;[|specialize (Hnotmonostatic g0)];contradiction. }
+            { destruct ρ;auto;[|specialize (Hnotmonostatic g1)];contradiction. }
             iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
-            rewrite /region_conditions. iSimpl.
-            iModIntro. iApply (big_sepL_mono with "Hwsrc").
-            intros. iIntros "H". iDestruct "H" as (P' Hpers') "(((?&?)&?)&?)".
-            iFrame. auto.
-          + inv Heq. rewrite (fixpoint_interp1_eq _ (inr _)).
+          + inv Heq.
+            iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
             simpl. rewrite /enter_cond.
             rewrite /interp_expr /=.
             iDestruct "Hwsrc" as "#H".
-            iAssert (future_world l W W) as "Hfuture".
-            { destruct l; iPureIntro.
-              - apply related_sts_priv_refl_world.
-              - apply related_sts_priv_refl_world.
-            }
-            iSpecialize ("H" $! _ _ with "Hfuture").
-            iNext.
+            iAssert (future_world g0 W W) as "Hfuture".
+            { iApply futureworld_refl. }
+            iSpecialize ("H" with "Hfuture").
             iDestruct (region_close with "[$Hstate $Hr Hw $Ha $Hmono]") as "Hr"; eauto.
-            { destruct ρ;auto;[|specialize (Hnotmonostatic g0)];contradiction. }
-            iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "[_ HA]"; auto.
+            { destruct ρ;auto;[|specialize (Hnotmonostatic g1)];contradiction. }
+            iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; auto.
         - iNext; iIntros "_".
           iApply (wp_bind (fill [SeqCtx])).
           iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; eauto|].
-          iNext. iIntros "HPC /=".
+          iNext; iIntros "HPC /=".
           iApply wp_pure_step_later; auto; iNext; iIntros "_".
-          iApply wp_value.
-          iIntros. discriminate.
+          iApply wp_value; iIntros; discriminate.
         - iNext; iIntros "_".
           iDestruct (region_close with "[$Hstate $Hr Hw $Ha $Hmono]") as "Hr"; eauto.
-          { destruct ρ;auto;[|specialize (Hnotmonostatic g0)];contradiction. }
+          { destruct ρ;auto;[|specialize (Hnotmonostatic g1)];contradiction. }
           iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=".
           apply lookup_insert. rewrite delete_insert_delete. iFrame.
-          rewrite (insert_id r r0); auto.
+          rewrite (insert_id regs r0); auto.
           destruct wsrc; simpl in Heq; try congruence.
-          destruct c,p0,p0,p0,p0; try congruence. inv Heq.
-          iDestruct ("Hreg" $! r0 ltac:(auto)) as "Hwsrc".
-          rewrite /RegLocate Hsomesrc.
-          rewrite (fixpoint_interp1_eq _ (inr _)).
+          destruct sb,p0; try congruence. inv Heq.
+          iDestruct ("Hreg" $! r0 _ n Hsomesrc) as "Hwsrc".
+          rewrite (fixpoint_interp1_eq _ (WCap _ _ _ _ _)).
           simpl.
-          (* iDestruct "Hwsrc" as (p'') "[% H1]". *)
           iClear "Hinv".
           iApply ("IH" with "[] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); iFrame "#"; eauto.
         - iNext; iIntros "_".
           iDestruct (region_close with "[$Hstate $Hr Hw $Ha $Hmono]") as "Hr"; eauto.
-          { destruct ρ;auto;[|specialize (Hnotmonostatic g0)];contradiction. }
+          { destruct ρ;auto;[|specialize (Hnotmonostatic g1)];contradiction. }
           iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=".
           apply lookup_insert. rewrite delete_insert_delete. iFrame.
-          rewrite (insert_id r r0); auto.
+          rewrite (insert_id regs r0); auto.
           destruct wsrc; simpl in Heq; try congruence.
-          destruct c,p0,p0,p0,p0; try congruence. inv Heq.
-          iDestruct ("Hreg" $! r0 ltac:(auto)) as "Hwsrc".
-          rewrite /RegLocate Hsomesrc.
-          rewrite (fixpoint_interp1_eq _ (inr _)).
-          simpl. destruct l; auto. (* iDestruct "Hwsrc" as (p'') "[% H1]". *) iClear "Hinv".
+          destruct sb,p0; try congruence. inv Heq.
+          iDestruct ("Hreg" $! r0 _ n Hsomesrc) as "Hwsrc".
+          destruct g0; try congruence
+          ; first by iEval (rewrite fixpoint_interp1_eq //=) in "Hwsrc".
+          iClear "Hinv_interp".
           iApply ("IH" with "[] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); iFrame "#"; eauto.
-          rewrite /region_conditions //=.
-          admit.
-        (* - iNext; iIntros "_". *)
-        (*   iApply (wp_bind (fill [SeqCtx])). *)
-        (*   iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; eauto|]. *)
-        (*   iNext. iIntros "HPC /=". *)
-        (*   iApply wp_pure_step_later; auto; iNext; iIntros "_". *)
-        (*   iApply wp_value. *)
-        (*   iIntros. discriminate. *)
-        (* - iNext; iIntros "_". *)
-        (*   iApply (wp_bind (fill [SeqCtx])). *)
-        (*   iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; eauto|]. *)
-        (*   iNext. iIntros "HPC /=". *)
-        (*   iApply wp_pure_step_later; auto; iNext; iIntros "_". *)
-        (*   iApply wp_value. *)
-        (*   iIntros. discriminate. *)
-        (* - iNext; iIntros "_". *)
-        (*   iApply (wp_bind (fill [SeqCtx])). *)
-        (*   iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; eauto|]. *)
-        (*   iNext. iIntros "HPC /=". *)
-        (*   iApply wp_pure_step_later; auto; iNext; iIntros "_". *)
-        (*   iApply wp_value. *)
-        (*   iIntros. discriminate. *)
-        (* - iNext; iIntros "_". *)
-        (*   iApply (wp_bind (fill [SeqCtx])). *)
-        (*   iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; eauto|]. *)
-        (*   iNext. iIntros "HPC /=". *)
-        (*   iApply wp_pure_step_later; auto; iNext; iIntros "_". *)
-        (*   iApply wp_value. *)
-        (*   iIntros. discriminate. *)
       }
-      Unshelve. all: auto.
-  Admitted.
+
+      (* Non-capability cases *)
+      all: iNext; iIntros "_".
+      all: iApply (wp_bind (fill [SeqCtx])).
+      all: iApply (wp_notCorrectPC with "HPC"); [intro Hcontra ; inv Hcontra|].
+      all: iNext; iIntros "HPC /=".
+      all: iApply wp_pure_step_later; auto; iNext; iIntros "_".
+      all: iApply wp_value; iIntros; discriminate.
+  Qed.
 
 End fundamental.

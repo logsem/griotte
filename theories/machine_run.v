@@ -14,18 +14,25 @@ Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag
     | (Halted, _) => Some Halted
     | (NextI, φ) => machine_run fuel (Executable, φ)
     | (Executable, (r, m)) =>
-      let pc := r !r! PC in
-      if isCorrectPCb pc then (
-        let a := match pc with
-                 | inl _ => top (* dummy *)
-                 | inr (_, _, _, _, a) => a
-                 end in
-        let i := decodeInstrW (m !m! a) in
-        let c' := exec i (r, m) in
-        machine_run fuel (c'.1, c'.2)
-      ) else (
-        Some Failed
-      )
+      match r !! PC with
+      | None => Some Failed
+      | Some pc =>
+        if isCorrectPCb pc then (
+          let a := match pc with
+                  | WCap _ _ _ _ a => a
+                  | _ => top (* dummy *)
+                  end in
+          match m !! a with
+          | None => Some Failed
+          | Some wa =>
+              let i := decodeInstrW wa in
+              let c' := exec i (r, m) in
+              machine_run fuel (c'.1, c'.2)
+          end
+        ) else (
+          Some Failed
+        )
+      end
     end
   end.
 
@@ -39,21 +46,40 @@ Proof.
   { cbn. done. }
   { cbn. intros ? ? [r m] Hc.
     destruct cf; simplify_eq.
-    destruct (isCorrectPCb (r !r! PC)) eqn:HPC.
+    destruct (r !! PC) as [wpc | ] eqn:HePC.
+    2: {
+      eexists. eapply rtc_l. unfold erased_step. exists [].
+      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+      eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
+      constructor. constructor; auto.
+      eapply rtc_once. exists []. simplify_eq.
+      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+      eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
+      constructor. }
+    destruct (isCorrectPCb wpc) eqn:HPC.
     { apply isCorrectPCb_isCorrectPC in HPC.
-      destruct (r !r! PC) as [|c] eqn:Hr; [by inversion HPC|].
-      destruct_cap c.
+      destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC]. destruct sb as [p g b e a | ]; last by inversion HPC.
+      destruct (m !! a) as [wa | ] eqn:HeMem.
+      2: {
+        eexists. eapply rtc_l. unfold erased_step. exists [].
+        eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+        eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
+        constructor. eapply step_exec_memfail; eauto.
+        eapply rtc_once. exists []. simplify_eq.
+        eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+        eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
+        constructor. }
       eapply IHfuel in Hc as [φ' Hc]. eexists.
       eapply rtc_l. unfold erased_step. exists [].
       eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
       eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity.
-      constructor. eapply step_exec_instr; eauto. rewrite Hr //.
-      apply Hc. }
+      constructor. eapply step_exec_instr; eauto. eapply Hc.
+    }
     { simplify_eq. apply isCorrectPCb_nisCorrectPC in HPC.
       eexists. eapply rtc_l. unfold erased_step. exists [].
       eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
       eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-      constructor. eapply step_exec_fail; eauto.
+      constructor. eapply step_exec_corrfail; eauto.
       eapply rtc_once. exists [].
       eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
       eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
@@ -73,61 +99,3 @@ Proof.
       econstructor. cbn. apply Hc. } }
 Qed.
 
-Fixpoint machine_run_conf `{MachineParameters} (fuel: nat) (c: Conf): Conf :=
-  match fuel with
-  | 0 => c
-  | S fuel =>
-    match c with
-    | (Failed, φ) => c
-    | (Halted, _) => c
-    | (NextI, φ) => machine_run_conf fuel (Executable, φ)
-    | (Executable, (r, m)) =>
-      let pc := r !r! PC in
-      if isCorrectPCb pc then (
-        let a := match pc with
-                 | inl _ => top (* dummy *)
-                 | inr (_, _, _, _, a) => a
-                 end in
-        let i := decodeInstrW (m !m! a) in
-        let c' := exec i (r, m) in
-        machine_run_conf fuel (c'.1, c'.2)
-      ) else (
-        (Failed, (r, m))
-      )
-    end
-  end.
-
-Lemma machine_run_conf_correct `{MachineParameters} fuel cf (φ: ExecConf) cf' φ':
-  machine_run_conf fuel (cf, φ) = (cf', φ') →
-  rtc erased_step
-      ([Seq (Instr cf)], φ)
-      ([Seq (Instr cf')], φ').
-Proof.
-  revert cf cf' φ φ'. induction fuel.
-  { cbn. inversion 1. eapply rtc_refl. }
-  { cbn. intros ? ? [r m] φ' Hc.
-    destruct cf; simplify_eq.
-    destruct (isCorrectPCb (r !r! PC)) eqn:HPC.
-    { apply isCorrectPCb_isCorrectPC in HPC.
-      destruct (r !r! PC) as [|c] eqn:Hr; [by inversion HPC|].
-      destruct_cap c.
-      eapply IHfuel in Hc as Hc.
-      eapply rtc_l. unfold erased_step. exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity.
-      constructor. eapply step_exec_instr; eauto. rewrite Hr //.
-      apply Hc. }
-    { simplify_eq. apply isCorrectPCb_nisCorrectPC in HPC.
-      eapply rtc_l. unfold erased_step. exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-      constructor. eapply step_exec_fail; eauto.
-      eapply rtc_refl. }
-    { eapply rtc_refl. }
-    { eapply rtc_refl. }
-    { apply IHfuel in Hc as Hc.
-      eapply rtc_l. exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-      econstructor. cbn. apply Hc. } }
-Qed.

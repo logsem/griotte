@@ -8,6 +8,13 @@ Directed Capabilities".
 
 ## Installing the dependencies
 
+
+### With Nix:
+```
+TODO
+```
+
+### With opam.
 You need to have [opam](https://opam.ocaml.org/) >= 2.0 installed.
 
 The development is known to compile with Coq 8.12.0 and Iris 3.3.0. To install

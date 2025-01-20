@@ -3,51 +3,6 @@ From stdpp Require Import gmap fin_maps list.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Export addr_reg cap_lang region.
 
-(* Some addresses *)
-Notation "a- z" := (A z eq_refl) (at level 10, format "a- z").
-
-(* Some general purpuse registers *)
-Definition r_t0 : RegName := R 0 eq_refl.
-Definition r_t1 : RegName := R 1 eq_refl.
-Definition r_t2 : RegName := R 2 eq_refl.
-Definition r_t3 : RegName := R 3 eq_refl.
-Definition r_t4 : RegName := R 4 eq_refl.
-Definition r_t5 : RegName := R 5 eq_refl.
-Definition r_t6 : RegName := R 6 eq_refl.
-Definition r_t7 : RegName := R 7 eq_refl.
-Definition r_t8 : RegName := R 8 eq_refl.
-Definition r_t9 : RegName := R 9 eq_refl.
-Definition r_t10 : RegName := R 10 eq_refl.
-Definition r_t11 : RegName := R 11 eq_refl.
-Definition r_t12 : RegName := R 12 eq_refl.
-Definition r_t13 : RegName := R 13 eq_refl.
-Definition r_t14 : RegName := R 14 eq_refl.
-Definition r_t15 : RegName := R 15 eq_refl.
-Definition r_t16 : RegName := R 16 eq_refl.
-Definition r_t17 : RegName := R 17 eq_refl.
-Definition r_t18 : RegName := R 18 eq_refl.
-Definition r_t19 : RegName := R 19 eq_refl.
-Definition r_t20 : RegName := R 20 eq_refl.
-Definition r_t21 : RegName := R 21 eq_refl.
-Definition r_t22 : RegName := R 22 eq_refl.
-Definition r_t23 : RegName := R 23 eq_refl.
-Definition r_t24 : RegName := R 24 eq_refl.
-Definition r_t25 : RegName := R 25 eq_refl.
-Definition r_t26 : RegName := R 26 eq_refl.
-Definition r_t27 : RegName := R 27 eq_refl.
-Definition r_t28 : RegName := R 28 eq_refl.
-Definition r_t29 : RegName := R 29 eq_refl.
-Definition r_t30 : RegName := R 30 eq_refl.
-Definition r_t31 : RegName := R 31 eq_refl.
-
-(* A list of all general purpuse registers (if regnum=31) *)
-Definition all_registers : list RegName :=
-  [r_t0;r_t1;r_t2;r_t3;r_t4;r_t5;r_t6;r_t7;r_t8;r_t9;r_t10;r_t11;r_t12;r_t13;
-     r_t14;r_t15;r_t16;r_t17;r_t18;r_t19;r_t20;r_t21;r_t22;r_t23;r_t24;r_t25;r_t26;
-       r_t27;r_t28;r_t29;r_t30;r_t31;PC].
-
-Definition all_registers_s : gset RegName := list_to_set all_registers.
-
 (* Instructions and their decodings *)
 (* A special register for the stack pointer, different from PC *)
 Definition r_stk : RegName := r_t31.
@@ -66,7 +21,6 @@ Section instr_encodings.
   Definition w_4b := encodeInstr (Lea r_stk (inr r_t1)).
   Definition w_4c := encodeInstr (Load PC r_stk).
   (* Instruction encodings *)
-  Definition is_ptr r1 r2 := encodeInstrW (IsPtr r1 r2).
   Definition lea_z r z := encodeInstrW (Lea r (inl z)).
   Definition lea_r r1 r2 := encodeInstrW (Lea r1 (inr r2)).
   Definition store_z r z := encodeInstrW (Store r (inl z)).
@@ -79,99 +33,36 @@ Section instr_encodings.
   Definition geta r1 r2 := encodeInstrW (GetA r1 r2).
   Definition getb r1 r2 := encodeInstrW (GetB r1 r2).
   Definition gete r1 r2 := encodeInstrW (GetE r1 r2).
-  Definition getl r1 r2 := encodeInstrW (GetL r1 r2).
   Definition getp r1 r2 := encodeInstrW (GetP r1 r2).
-  Definition add_r_z r1 r2 z := encodeInstrW (machine_base.Add r1 (inr r2) (inl z)).
+  Definition add_r_z r1 r2 z := encodeInstrW (Add r1 (inr r2) (inl z)).
+  Definition add_r_r r1 r2 r3 := encodeInstrW (Add r1 (inr r2) (inr r3)).
   Definition sub_r_r r1 r2 r3 := encodeInstrW (Sub r1 (inr r2) (inr r3)).
   Definition sub_r_z r1 r2 z := encodeInstrW (Sub r1 (inr r2) (inl z)).
   Definition sub_z_r r1 z r2 := encodeInstrW (Sub r1 (inl z) (inr r2)).
   Definition sub_z_z r z1 z2 := encodeInstrW (Sub r (inl z1) (inl z2)).
   Definition subseg_r_r r1 r2 r3 := encodeInstrW (Subseg r1 (inr r2) (inr r3)).
+  Definition subseg_z_z r1 z1 z2 := encodeInstrW (Subseg r1 (inl z1) (inl z2)).
   Definition jnz r1 r2 := encodeInstrW (Jnz r1 r2).
   Definition lt_r_r r1 r2 r3 := encodeInstrW (Lt r1 (inr r2) (inr r3)).
   Definition lt_z_r r1 z r2 := encodeInstrW (Lt r1 (inl z) (inr r2)).
+  Definition lt_r_z r1 r2 z := encodeInstrW (Lt r1 (inr r2) (inl z)).
   Definition jmp r := encodeInstrW (Jmp r).
+  Definition get_otype r1 r2 := encodeInstrW (GetOType r1 r2).
+  Definition get_wtype r1 r2 := encodeInstrW (GetWType r1 r2).
   Definition halt := encodeInstrW Halt.
   Definition fail_end := encodeInstrW Fail.
 
   (* encodings of return pointer permission pair *)
-  Definition local_e := encodePermPair (E, Local).
-  (* encodings of enter capability permission pair *)
-  Definition global_e := encodePermPair (E, Global).
+  Definition e := encodePerm E.
 End instr_encodings.
-
-Lemma all_registers_NoDup :
-  NoDup all_registers.
-Proof.
-  rewrite /all_registers.
-  repeat (
-    apply NoDup_cons_2;
-    first (repeat (rewrite not_elem_of_cons; split; [done|]); apply not_elem_of_nil)
-  ).
-  by apply NoDup_nil.
-Qed.
-
-(* helper lemmas for the list of all registers *)
-
-(* Spec for all_registers *)
-
-Lemma all_registers_correct r1 :
-  r1 ∈ all_registers.
-Proof.
-  rewrite /all_registers.
-  destruct r1.
-  - do 32 (apply elem_of_cons; right).
-      by apply elem_of_list_singleton.
-  - induction n.
-    + apply elem_of_cons; left.
-      apply f_equal. apply eq_proofs_unicity. decide equality.
-    + apply elem_of_list_lookup_2 with (S n).
-      repeat (destruct n;
-                first (simpl;do 2 f_equal;apply eq_proofs_unicity;decide equality)).
-      simpl in *. inversion fin.
-Qed.
-
-Lemma all_registers_s_correct r:
-  r ∈ all_registers_s.
-Proof.
-  rewrite /all_registers_s elem_of_list_to_set.
-  apply all_registers_correct.
-Qed.
-
-Lemma all_registers_union_l s :
-  s ∪ all_registers_s = all_registers_s.
-Proof.
-  apply (anti_symm subseteq). 2: set_solver.
-  rewrite elem_of_subseteq. intros ? _.
-  apply all_registers_s_correct.
-Qed.
-
-Lemma all_registers_union_r s :
-  all_registers_s ∪ s = all_registers_s.
-Proof. rewrite union_comm_L. apply all_registers_union_l. Qed.
-
-Lemma all_registers_subseteq s :
-  s ⊆ all_registers_s.
-Proof.
-  rewrite elem_of_subseteq. intros ? _. apply all_registers_s_correct.
-Qed.
-
-Lemma regmap_full_dom (r: gmap RegName Word):
-  (∀ x, is_Some (r !! x)) →
-  dom r = all_registers_s.
-Proof.
-  intros Hfull. apply (anti_symm subseteq); rewrite elem_of_subseteq.
-  - intros rr _. apply all_registers_s_correct.
-  - intros rr _. rewrite elem_of_dom. apply Hfull.
-Qed.
 
 (* Some additional helper lemmas about region_addrs *)
 
 Definition region_addrs_zeroes (b e : Addr) : list Word :=
-  replicate (region_size b e) (inl 0%Z).
+  replicate (finz.dist b e) (WInt 0%Z).
 
 Lemma region_addrs_zeroes_lookup (b e : Addr) i y :
-  region_addrs_zeroes b e !! i = Some y → y = inl 0%Z.
+  region_addrs_zeroes b e !! i = Some y → y = WInt 0%Z.
 Proof. apply lookup_replicate. Qed.
 
 Lemma region_addrs_zeroes_split (b a e: Addr) :
@@ -179,6 +70,6 @@ Lemma region_addrs_zeroes_split (b a e: Addr) :
   region_addrs_zeroes b e = region_addrs_zeroes b a ++ region_addrs_zeroes a e.
 Proof.
   intros. rewrite /region_addrs_zeroes.
-  rewrite (region_size_split a). 2: solve_addr.
+  rewrite (finz_dist_split a). 2: solve_addr.
   rewrite replicate_add //.
 Qed.

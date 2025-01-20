@@ -1,4 +1,4 @@
-From iris.proofmode Require Import proofmode.
+From iris.proofmode Require Import tactics.
 From cap_machine Require Export region_invariants_revocation.
 From cap_machine Require Import logrel.
 Require Import Eqdep_dec List.
@@ -9,8 +9,10 @@ Section std_updates.
   (* --------------------------------------------------------------------------------- *)
   (* ----------------------- UPDATING MULTIPLE REGION STATES ------------------------- *)
 
-  Context {Σ:gFunctors} {memg:memG Σ} {regg:regG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}.
+  Context {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    {stsg : STSG Addr region_type Σ}
+    {heapg : heapGS Σ}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -323,62 +325,57 @@ Section std_updates.
      + apply IHn.
    Qed.
 
-   Lemma region_addrs_aux_top n :
-     region_addrs_aux addr_reg.top n = repeat addr_reg.top n.
-   Proof.
-     induction n; auto.
-     simpl. f_equiv. done.
-   Qed.
-
    Lemma std_update_multiple_dom_sta_i W n ρ a i :
      a ≠ addr_reg.top → (i > 0)%Z →
      a ∉ dom (std W) →
-     a ∉ dom (std (std_update_multiple W (region_addrs_aux (get_addr_from_option_addr (a + i)%a) n) ρ)).
+     a ∉ dom (std (std_update_multiple W (finz.seq ((a ^+ i)%a) n) ρ)).
    Proof.
      intros Hneq Hgt.
      destruct (a + i)%a eqn:Hsome.
      - simpl.
-       assert (a < a0)%a as Hlt;[apply next_lt_i with i; auto|].
+       assert (a < f)%a as Hlt;[apply next_lt_i with i; auto|].
        intros Hnin.
-       revert Hlt Hsome. generalize i a0. induction n; auto; intros j a1 Hlt Hsome.
+       revert Hlt Hsome. generalize i f. induction n; auto; intros j a1 Hlt Hsome.
        simpl. rewrite dom_insert. apply not_elem_of_union.
        split.
        + apply not_elem_of_singleton.
-         intros Hcontr. subst. rewrite /lt_addr in Hlt. lia.
-       + destruct (a1 + 1)%a eqn:Ha2; simpl.
-         ++ apply IHn with (j + 1)%Z.
-            +++ apply next_lt in Ha2. rewrite /lt_addr in Hlt. rewrite /lt_addr. lia.
-            +++ apply (incr_addr_trans a a1 a2 j 1) in Hsome; auto.
-         ++ rewrite region_addrs_aux_top. apply std_update_multiple_dom_top_sta; auto.
-     - simpl. rewrite region_addrs_aux_top. apply std_update_multiple_dom_top_sta; auto.
+         intros Hcontr. subst. solve_addr.
+       + destruct (a1 + 1)%a eqn:Ha2
+         ; simpl
+         ; replace ((a ^+ j) ^+ 1)%a with (a ^+ (j+1))%a by solve_addr.
+         ++ apply (IHn (j+1)%Z f0); solve_addr.
+         ++ replace ((a ^+ j) ^+ 1)%a with (a ^+ (j+1))%a by solve_addr.
+            apply incr_addr_one_none in Ha2.
+            replace (a ^+ (j + 1))%a with (finz.largest 0%a) by solve_addr.
+            rewrite finz_seq_top. apply std_update_multiple_dom_top_sta; auto.
+     - replace (a ^+ i)%a with (finz.largest 0%a) by solve_addr.
+       rewrite finz_seq_top. apply std_update_multiple_dom_top_sta; auto.
    Qed.
 
    Lemma incr_addr_is_Some_weak a n :
      is_Some (a + S (S n))%a → is_Some (a + (S n))%a.
    Proof.
      intros Hsome.
-     rewrite /incr_addr in Hsome. rewrite /incr_addr.
-     destruct (Z.le_dec (a + S (S n))%Z MemNum),(Z.le_dec 0%Z (a + S (S n)))%Z; inversion Hsome; try discriminate.
-     - destruct (Z.le_dec (a + S n)%Z MemNum),(Z.le_dec 0%Z (a + S n)%Z); eauto;
-         clear H x Hsome;zify_addr;lia.
+     solve_addr.
    Qed.
 
    Lemma std_sta_update_multiple_insert W (a b a' l : Addr) ρ i :
      (a' < a)%a →
-     std (std_update_multiple (std_update W a' i) (region_addrs a b) ρ) !! l =
-     std (std_update (std_update_multiple W (region_addrs a b) ρ) a' i) !! l.
+     std (std_update_multiple (std_update W a' i) (finz.seq_between a b) ρ) !! l =
+     std (std_update (std_update_multiple W (finz.seq_between a b) ρ) a' i) !! l.
    Proof.
      intros Hlt.
-     destruct (decide (l ∈ region_addrs a b)).
+     destruct (decide (l ∈ finz.seq_between a b)) as [Hin|Hin].
      - assert (l ≠ a') as Hne.
-       { intros ->. apply region_addrs_not_elem_of with _ (region_size a b) _ in Hlt.
-         rewrite /region_addrs // in e. }
-       apply elem_of_list_lookup in e as [n Hsome].
-       assert (std (std_update_multiple W (region_addrs a b) ρ) !! l = Some ρ) as Hpwl.
-       { apply std_update_multiple_lookup with n. auto. }
-       assert (std (std_update_multiple (std_update W a' i) (region_addrs a b) ρ) !! l = Some ρ) as Hpwl'.
-       { apply std_update_multiple_lookup with n. auto. }
-       (* rewrite /region_state_pwl /= in Hpwl. rewrite /region_state_pwl /= in Hpwl'. *)
+       { intros ->.
+         apply elem_of_finz_seq_between in Hin.
+         solve_addr.
+       }
+       apply elem_of_list_lookup in Hin as [n Hsome].
+       assert (std (std_update_multiple W (finz.seq_between a b) ρ) !! l = Some ρ) as Hpwl.
+       { apply std_update_multiple_lookup with n; auto. }
+       assert (std (std_update_multiple (std_update W a' i) (finz.seq_between a b) ρ) !! l = Some ρ) as Hpwl'.
+       { apply std_update_multiple_lookup with n; auto. }
        rewrite -Hpwl in Hpwl'. rewrite Hpwl'.
        rewrite lookup_insert_ne; auto.
      - rewrite std_sta_update_multiple_lookup_same_i; auto.
@@ -391,17 +388,18 @@ Section std_updates.
    Lemma std_update_multiple_dom_insert W (a b a' : Addr) i :
      (a' < a)%a →
      Forall (λ a : Addr,
-                   (a ∉ dom (std W))) (region_addrs a b) →
+                   (a ∉ dom (std W))) (finz.seq_between a b) →
      Forall (λ a : Addr,
-                   (a ∉ dom (<[ a' := i]> W.1))) (region_addrs a b).
+                   (a ∉ dom (<[ a' := i]> W.1))) (finz.seq_between a b).
    Proof.
      intros Hlt.
      do 2 (rewrite list.Forall_forall). intros Hforall.
      intros x Hin.
      assert (x ≠ a') as Hne.
-     { intros Hcontr; subst.
-       apply region_addrs_not_elem_of with _ (region_size a b) _ in Hlt.
-       rewrite /region_addrs // in Hin. }
+     { intros ->.
+       apply elem_of_finz_seq_between in Hin.
+       solve_addr.
+       }
      apply Hforall with x in Hin.
      rewrite dom_insert. apply not_elem_of_union.
      split;auto. apply not_elem_of_singleton.
@@ -476,6 +474,38 @@ Section std_updates.
          rewrite lookup_insert_ne//. rewrite !std_sta_update_multiple_lookup_same_i// /=.
    Qed.
 
+   Lemma std_update_multiple_insert_commute W a (l: list Addr) ρ ρ' :
+     a ∉ l →
+     std_update_multiple (<s[a:=ρ']s> W) l ρ = <s[a:=ρ']s> (std_update_multiple W l ρ).
+   Proof.
+     intros Hne.
+     induction l; auto; simpl.
+     apply not_elem_of_cons in Hne as [Hne Hnin].
+     rewrite IHl;auto.
+     rewrite /std_update /revoke /loc /std /=. rewrite insert_commute;auto.
+   Qed.
+
+   Lemma related_sts_pub_update_multiple_perm W l :
+     Forall (λ k, std W !! k = Some Revoked) l →
+     related_sts_pub_world W (std_update_multiple W l Permanent).
+   Proof.
+     intros Hforall. induction l.
+     - apply related_sts_pub_refl_world.
+     - simpl.
+       apply list.Forall_cons in Hforall as [ Ha_std Hforall].
+       eapply related_sts_pub_trans_world;[apply IHl; auto|].
+       destruct (decide (a ∈ l)).
+       { rewrite (_: <s[a:=Permanent]s>(std_update_multiple W l Permanent) = std_update_multiple W l Permanent) /=.
+         by apply related_sts_pub_refl_world.
+         rewrite /std_update insert_id /=. by destruct (std_update_multiple W l Permanent).
+         by apply std_sta_update_multiple_lookup_in_i. }
+       destruct W as [Hstd Hloc].
+       apply related_sts_pub_world_revoked_permanent in Ha_std.
+       eapply related_sts_pub_trans_world;[apply std_update_mutiple_related_monotone,Ha_std|].
+       rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.
+   Qed.
+
+
    (* Helper lemmas about permutation *)
 
    (* never used ? *)
@@ -537,5 +567,27 @@ Section std_updates.
                eapply rtc_rel_priv; auto.
            +++ rewrite /= lookup_insert_ne in Hy;auto. rewrite Hx0 in Hy; inversion Hy; subst; left.
   Qed.*)
+
+  (* TODO move in the appropriate section *)
+  Lemma related_sts_pub_world_revoked_permanent W a :
+    (std W) !! a = Some Revoked →
+    related_sts_pub_world W (<s[a:=Permanent]s>W).
+  Proof.
+    intros Ha.
+    rewrite /related_sts_pub_world /=.
+    split;[|apply related_sts_pub_refl].
+    rewrite /related_sts_pub. split.
+    - rewrite dom_insert_L. set_solver.
+    - intros i x y Hx Hy.
+      destruct (decide (a = i)).
+      + subst.
+        rewrite Hx in Ha. inversion Ha.
+        rewrite lookup_insert in Hy. inversion Hy.
+        right with (Permanent);[|left]. constructor.
+      + rewrite lookup_insert_ne in Hy;auto.
+        rewrite Hx in Hy.
+        inversion Hy; subst.
+        left.
+  Qed.
 
 End std_updates.
