@@ -16,22 +16,22 @@ Definition relT := gmap Addr (leibnizO (gname)).
 
 (* We will first define the standard STS for the shared part of the heap *)
 Inductive region_type :=
-| Monotemporary
+| Temporary
 | Permanent
 | Revoked
-| Monostatic of gmap Addr Word.
+| Frozen of gmap Addr Word.
 
 Inductive std_rel_pub : region_type -> region_type -> Prop :=
-| Std_pub_Revoked_Monotemporary : std_rel_pub Revoked Monotemporary
+| Std_pub_Revoked_Temporary : std_rel_pub Revoked Temporary
 | Std_pub_Revoked_Permanent : std_rel_pub Revoked Permanent.
 
 Inductive std_rel_priv : region_type -> region_type -> Prop :=
-| Std_priv_Monotemporary_Monostatic m : std_rel_priv Monotemporary (Monostatic m)
-| Std_priv_Monotemporary_Revoked : std_rel_priv Monotemporary Revoked
-| Std_priv_Monotemporary_Temporary : std_rel_priv Monotemporary Permanent.
+| Std_priv_Temporary_Frozen m : std_rel_priv Temporary (Frozen m)
+| Std_priv_Temporary_Revoked : std_rel_priv Temporary Revoked
+| Std_priv_Temporary_Temporary : std_rel_priv Temporary Permanent.
 
 Inductive std_rel_pub_plus : region_type → region_type → Prop :=
-| Std_pub_plus_Monostatic_Monotemporary m : std_rel_pub_plus (Monostatic m) Monotemporary.
+| Std_pub_plus_Frozen_Temporary m : std_rel_pub_plus (Frozen m) Temporary.
 
 Global Instance sts_std : STS_STD region_type :=
   {| Rpub := std_rel_pub; Rpubp := std_rel_pub_plus; Rpriv := std_rel_priv |}.
@@ -112,8 +112,8 @@ Section heap.
     (fun x y => match x, y with
              | Permanent, Permanent
              | Revoked, Revoked
-             | Monotemporary, Monotemporary => left eq_refl
-             | Monostatic m1, Monostatic m2 => ltac:(solve_decision)
+             | Temporary, Temporary => left eq_refl
+             | Frozen m1, Frozen m2 => ltac:(solve_decision)
              | _, _ => ltac:(right; auto)
              end).
 
@@ -178,18 +178,18 @@ Section heap.
   Global Instance region_type_countable : Countable region_type.
   Proof.
     set encode := fun ty => match ty with
-                         | Monotemporary => 1
+                         | Temporary => 1
                          | Permanent => 2
                          | Revoked => 3
-                         | Monostatic m => 4 + 2 * (encode m)
+                         | Frozen m => 4 + 2 * (encode m)
                          end%positive.
     set decode := (fun n =>
-                     if decide (n = 1) then Some Monotemporary
+                     if decide (n = 1) then Some Temporary
                      else if decide (n = 2) then Some Permanent
                           else if decide (n = 3) then Some Revoked
                                else if decide (Zpos n `mod` 2 = 0)%Z then
                                       match (decode (Z.to_pos (((Zpos n)-4) / 2)%Z)) with
-                                      | Some m => Some (Monostatic m)
+                                      | Some m => Some (Frozen m)
                                       | None => None
                                       end
                                     else None)%positive.
@@ -240,12 +240,12 @@ Section heap.
     end.
   Definition monostatic (W : WORLD) (m: gmap Addr Word) (l : Addr) :=
     match W.1 !! l with
-    | Some ρ => ρ = (Monostatic m)
+    | Some ρ => ρ = (Frozen m)
     | _ => False
     end.
   Definition monotemporary (W : WORLD) (l : Addr) :=
     match W.1 !! l with
-    | Some ρ => ρ = Monotemporary
+    | Some ρ => ρ = Temporary
     | _ => False
     end.
 
@@ -258,7 +258,7 @@ Section heap.
                             sts_state_std a ρ ∗
                             ∃ φ, ⌜∀ Wv, Persistent (φ Wv)⌝ ∗ saved_pred_own γpred DfracDiscarded φ ∗
                             match ρ with
-                            | Monotemporary => ∃ (v : Word),
+                            | Temporary => ∃ (v : Word),
                                                a ↦ₐ v
                                              ∗ future_pub_a_mono a φ v
                                              ∗ ▷ φ (W,v)
@@ -266,10 +266,10 @@ Section heap.
                                                a ↦ₐ v
                                              ∗ future_priv_mono φ v
                                              ∗ ▷ φ (W,v)
-                            | Monostatic m => ∃ v, ⌜m !! a = Some v⌝
+                            | Frozen m => ∃ v, ⌜m !! a = Some v⌝
                                              ∗ a ↦ₐ v
                                              ∗ ⌜∀ a', a' ∈ dom m →
-                                                      Mρ !! a' = Some (Monostatic m)⌝
+                                                      Mρ !! a' = Some (Frozen m)⌝
                             | Revoked => emp
                             end)%I.
 
@@ -383,8 +383,8 @@ Section heap.
   Qed.
 
   Lemma uninitialized_mono_related_sts_pub_plus_world l W w :
-    (std W) !! l = Some (Monostatic {[l:=w]}) ->
-    related_sts_pub_plus_world W (<s[ l := Monotemporary ]s> W).
+    (std W) !! l = Some (Frozen {[l:=w]}) ->
+    related_sts_pub_plus_world W (<s[ l := Temporary ]s> W).
   Proof.
     intros. split;[|apply related_sts_pub_plus_refl].
     split.
@@ -395,7 +395,7 @@ Section heap.
         simplify_map_eq. rewrite H in Hx.
         inv Hx.
         (* rewrite lookup_insert in Hy. inv Hy. *)
-        right with Monotemporary;[|left].
+        right with Temporary;[|left].
         right. constructor.
       + simplify_map_eq; auto.
         rewrite Hx in Hy.
@@ -404,7 +404,7 @@ Section heap.
 
   (* Lemma uninitialized_w_mono_related_sts_pub_world l W w : *)
   (*   (std W) !! l = Some (Uninitialized w) -> *)
-  (*   related_sts_pub_world W (<s[ l := Monotemporary ]s> W). *)
+  (*   related_sts_pub_world W (<s[ l := Temporary ]s> W). *)
   (* Proof. *)
   (*   intros. split;[|apply related_sts_pub_refl]. *)
   (*   split. *)
@@ -413,7 +413,7 @@ Section heap.
   (*     destruct (decide (i = l)). *)
   (*     + subst. simplify_map_eq. *)
   (*       rewrite lookup_insert in Hy. inv Hy. *)
-  (*       right with Monotemporary;[|left]. *)
+  (*       right with Temporary;[|left]. *)
   (*       constructor. *)
   (*     + simplify_map_eq. rewrite lookup_insert_ne in Hy; auto. *)
   (*       simplify_map_eq. left. *)
@@ -447,7 +447,7 @@ Section heap.
   (* ------------------------- LEMMAS FOR OPENING THE REGION MAP ----------------------------------- *)
 
   Lemma region_map_delete_nonstatic M Mρ W l :
-    (forall m, Mρ !! l ≠ Some (Monostatic m)) →
+    (forall m, Mρ !! l ≠ Some (Frozen m)) →
     region_map_def (delete l M) Mρ W -∗
     region_map_def (delete l M) (delete l Mρ) W.
   Proof.
@@ -468,7 +468,7 @@ Section heap.
   Qed.
 
   Lemma region_map_delete_monosingleton M Mρ W l :
-    (∃ w, Mρ !! l = Some (Monostatic {[l:=w]})) ->
+    (∃ w, Mρ !! l = Some (Frozen {[l:=w]})) ->
     region_map_def (delete l M) Mρ W -∗
     region_map_def (delete l M) (delete l Mρ) W.
   Proof.
@@ -491,11 +491,11 @@ Section heap.
   Qed.
 
   Lemma region_open_monotemp W l φ :
-    (std W) !! l = Some Monotemporary →
+    (std W) !! l = Some Temporary →
     rel l φ ∗ region W ∗ sts_full_world W -∗
         ∃ v, open_region l W
            ∗ sts_full_world W
-           ∗ sts_state_std l Monotemporary
+           ∗ sts_state_std l Temporary
            ∗ l ↦ₐ v
            ∗ ▷ future_pub_a_mono l φ v
            ∗ ▷ φ (W,v).
@@ -605,14 +605,14 @@ Section heap.
   (* Qed. *)
 
   Lemma region_open W l φ (ρ : region_type) :
-    ρ = Permanent ∨ ρ = Monotemporary →
+    ρ = Permanent ∨ ρ = Temporary →
     (std W) !! l = Some ρ →
     rel l φ ∗ region W ∗ sts_full_world W -∗
         ∃ v, open_region l W
            ∗ sts_full_world W
            ∗ sts_state_std l ρ
            ∗ l ↦ₐ v
-           ∗ (▷ if (decide (ρ = Monotemporary))
+           ∗ (▷ if (decide (ρ = Temporary))
                 then future_pub_a_mono l φ v
                 else future_priv_mono φ v)
            ∗ ▷ φ (W,v).
@@ -630,7 +630,7 @@ Section heap.
      it's not the case in practice), that it would be incorrect to overwrite
      with a non-static state. *)
   Lemma region_map_undelete_nonmonostatic M Mρ W l :
-    (forall m, Mρ !! l ≠ Some (Monostatic m)) →
+    (forall m, Mρ !! l ≠ Some (Frozen m)) →
     region_map_def (delete l M) (delete l Mρ) W -∗
     region_map_def (delete l M) Mρ W.
   Proof.
@@ -650,7 +650,7 @@ Section heap.
   Qed.
 
   Lemma region_map_insert_nonmonostatic ρ M Mρ W l :
-    (forall m, ρ ≠ Monostatic m) →
+    (forall m, ρ ≠ Frozen m) →
     region_map_def (delete l M) (delete l Mρ) W -∗
     region_map_def (delete l M) (<[ l := ρ ]> Mρ) W.
   Proof.
@@ -663,7 +663,7 @@ Section heap.
 
   (* We can apply the same reasoning to singleton static regions (i.e. uninitialised regions) *)
   Lemma region_map_undelete_monosingleton M Mρ W l :
-    (∃ w, Mρ !! l = Some (Monostatic {[l:=w]})) →
+    (∃ w, Mρ !! l = Some (Frozen {[l:=w]})) →
     region_map_def (delete l M) (delete l Mρ) W -∗
     region_map_def (delete l M) Mρ W.
   Proof.
@@ -683,7 +683,7 @@ Section heap.
   Qed.
 
   Lemma region_map_insert_monosingleton ρ M Mρ W l :
-    (∃ w, ρ = Monostatic {[l:=w]}) →
+    (∃ w, ρ = Frozen {[l:=w]}) →
     region_map_def (delete l M) (delete l Mρ) W -∗
     region_map_def (delete l M) (<[ l := ρ ]> Mρ) W.
   Proof.
@@ -726,7 +726,7 @@ Section heap.
   Qed.
 
   Lemma full_sts_monostatic_all W m (l : Addr) :
-    (std W) !! l = Some (Monostatic m) →
+    (std W) !! l = Some (Frozen m) →
     sts_full_world W -∗
     region W -∗
     ⌜forall a, a ∈ dom m -> monostatic W m a⌝.
@@ -736,7 +736,7 @@ Section heap.
     iDestruct "Hr" as (M Mρ) "(HM & #Hdom1 & #Hdom2 & Hr)".
     iDestruct "Hdom1" as %Hdom1. iDestruct "Hdom2" as %Hdom2.
     iIntros (a Hdom).
-    iDestruct (full_sts_Mρ_agree _ _ _ (Monostatic m) with "Hsts Hr") as "%Hag'"; eauto.
+    iDestruct (full_sts_Mρ_agree _ _ _ (Frozen m) with "Hsts Hr") as "%Hag'"; eauto.
     destruct (Hag' l) as [Hag _]. clear Hag'.
     pose proof (Hag Hstatic) as Hl.
     assert (is_Some (M !! l)) as [γp Hsome].
@@ -749,7 +749,7 @@ Section heap.
     iDestruct "Hl" as (v Hpv') "[Hl #Hall]". iDestruct "Hall" as %Hall.
     iDestruct (big_sepM_delete _ _ l with "[$Hr Hl Hstate]") as "Hr";[eauto|..].
     { iExists ρ. iSplitR;subst;auto. iFrame. iExists _. repeat iSplit;eauto. }
-    iDestruct (full_sts_Mρ_agree _ _ _ (Monostatic m) with "Hsts Hr") as "%Hag'"; auto.
+    iDestruct (full_sts_Mρ_agree _ _ _ (Frozen m) with "Hsts Hr") as "%Hag'"; auto.
     iPureIntro.
     rewrite /monostatic.
     destruct (Hag' a) as [_ Hag2].
@@ -760,7 +760,7 @@ Section heap.
 
   (* Closing the region without updating the sts collection *)
   Lemma region_close_monotemp W l φ v `{forall Wv, Persistent (φ Wv)} :
-    ⊢ sts_state_std l Monotemporary
+    ⊢ sts_state_std l Temporary
       ∗ open_region l W ∗ l ↦ₐ v ∗ future_pub_a_mono l φ v ∗ ▷ φ (W,v) ∗ rel l φ
       -∗ region W.
   Proof.
@@ -769,7 +769,7 @@ Section heap.
     iIntros "(Hstate & Hreg_open & Hl & #Hmono & Hφ & #Hrel)".
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & Hdomρ & Hpreds)". iDestruct "Hdomρ" as %Hdomρ.
-    iDestruct (region_map_insert_nonmonostatic Monotemporary with "Hpreds") as "Hpreds". by congruence.
+    iDestruct (region_map_insert_nonmonostatic Temporary with "Hpreds") as "Hpreds". by congruence.
     iDestruct (big_sepM_insert _ (delete l M) l with "[-HM]") as "test";
       first by rewrite lookup_delete.
     { iFrame. iSplitR; [by simplify_map_eq|].
@@ -788,7 +788,7 @@ Section heap.
   (*   ∗ ▷ φ (W,v) (* Maybe φ (<l[ l := Temporary, (Rpub, Rpriv) ]l> W, v) *) *)
   (*   ∗ rel l φ *)
   (*   ∗ sts_full_world W *)
-  (*   ={E}=∗ region (<s[ l := Monotemporary ]s> W) ∗ sts_full_world (<s[ l := Monotemporary ]s> W). *)
+  (*   ={E}=∗ region (<s[ l := Temporary ]s> W) ∗ sts_full_world (<s[ l := Temporary ]s> W). *)
   (* Proof. *)
   (*   rewrite open_region_eq rel_eq region_eq /open_region_def /rel_def /region_def *)
   (*           REL_eq RELS_eq /RELS_def /REL_def. *)
@@ -800,13 +800,13 @@ Section heap.
   (*   iDestruct (sts_update_std with "Hfull Hstate") as ">[Hfull Hstate]". *)
   (*   iDestruct (reg_in γrel M with "[$HM $Hγpred]") as %HMeq. *)
   (*   iModIntro. iFrame "Hfull". *)
-  (*   iDestruct (region_map_insert_nonmonostatic Monotemporary with "Hpreds") as "Hpreds";[intros;auto|]. *)
+  (*   iDestruct (region_map_insert_nonmonostatic Temporary with "Hpreds") as "Hpreds";[intros;auto|]. *)
   (*   iDestruct (big_sepM_insert _ (delete l M) l with "[-HM]") as "test"; *)
   (*     first by rewrite lookup_delete. *)
   (*   { iFrame. iFrame. *)
   (*     iSplit;[iPureIntro;apply lookup_insert|]. *)
   (*     iExists _. iFrame "∗ #". repeat iSplitR; auto. } *)
-  (*   assert (Hpub: related_sts_pub_world W (<s[l:=Monotemporary ]s>W)). *)
+  (*   assert (Hpub: related_sts_pub_world W (<s[l:=Temporary ]s>W)). *)
   (*   { eapply (uninitialized_w_mono_related_sts_pub_world l W); eauto. } *)
   (*   iDestruct (region_map_monotone _ _ _ _ Hpub with "test") as "HMdef"; eauto. *)
   (*   rewrite -HMeq. iExists M,_; iFrame. iPureIntro. *)
@@ -837,10 +837,10 @@ Section heap.
   Qed.
 
   Lemma region_close W l φ v (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
-    ρ = Permanent ∨ ρ = Monotemporary→
+    ρ = Permanent ∨ ρ = Temporary→
     sts_state_std l ρ
                   ∗ open_region l W ∗ l ↦ₐ v ∗
-                  (if (decide (ρ = Monotemporary))
+                  (if (decide (ρ = Temporary))
                    then future_pub_a_mono l φ v
                    else future_priv_mono φ v) ∗ ▷ φ (W,v) ∗ rel l φ
     -∗ region W.
@@ -901,11 +901,11 @@ Section heap.
 
   Lemma region_open_next_monotemp W φ ls l :
     l ∉ ls →
-    (std W) !! l = Some Monotemporary ->
+    (std W) !! l = Some Temporary ->
     open_region_many ls W ∗ rel l φ ∗ sts_full_world W -∗
                      ∃ v, open_region_many (l :: ls) W
                         ∗ sts_full_world W
-                        ∗ sts_state_std l Monotemporary
+                        ∗ sts_state_std l Temporary
                         ∗ l ↦ₐ v
                         ∗ ▷ future_pub_a_mono l φ v
                         ∗ ▷ φ (W,v).
@@ -993,11 +993,11 @@ Section heap.
 
   Lemma region_open_next_monouninit W w ls l φ :
     l ∉ ls →
-    (std W) !! l = Some (Monostatic {[l:=w]}) →
+    (std W) !! l = Some (Frozen {[l:=w]}) →
     rel l φ ∗ open_region_many ls W ∗ sts_full_world W -∗
         open_region_many (l :: ls) W
         ∗ sts_full_world W
-        ∗ sts_state_std l (Monostatic {[l:=w]})
+        ∗ sts_state_std l (Frozen {[l:=w]})
         ∗ l ↦ₐ w.
   Proof.
     iIntros (Hnin Htemp) "(Hrel & Hreg & Hfull)".
@@ -1053,7 +1053,7 @@ Section heap.
 
   Lemma region_close_next_monotemp W φ ls l v `{forall Wv, Persistent (φ Wv)} :
     l ∉ ls ->
-    ⊢ sts_state_std l Monotemporary ∗
+    ⊢ sts_state_std l Temporary ∗
       open_region_many (l::ls) W ∗ l ↦ₐ v ∗ future_pub_a_mono l φ v ∗ ▷ φ (W,v) ∗ rel l φ
       -∗ open_region_many ls W.
   Proof.
@@ -1062,7 +1062,7 @@ Section heap.
     rewrite rel_eq /rel_def REL_eq RELS_eq /rel /region /RELS /REL.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & Hdomρ & Hpreds)". iDestruct "Hdomρ" as %Hdomρ.
-    iDestruct (region_map_insert_nonmonostatic Monotemporary with "Hpreds") as "Hpreds". congruence.
+    iDestruct (region_map_insert_nonmonostatic Temporary with "Hpreds") as "Hpreds". congruence.
     rewrite -!/delete_list.
     iDestruct (big_sepM_insert _ (delete l (delete_list ls M)) l with "[-HM]") as "test";
       first by rewrite lookup_delete.
@@ -1071,7 +1071,7 @@ Section heap.
     rewrite -(delete_list_delete _ M) //.
     rewrite -(delete_list_insert _ (delete l M)) //.
     rewrite -(delete_list_insert _ Mρ) //.
-    iExists (<[l:=γpred ]> (delete l M)), (<[l:=Monotemporary]> Mρ). iFrame.
+    iExists (<[l:=γpred ]> (delete l M)), (<[l:=Temporary]> Mρ). iFrame.
     iDestruct (reg_in γrel M with "[$HM $Hγpred]") as %HMeq.
     rewrite -HMeq. iFrame. iSplitR; eauto. iPureIntro.
     rewrite HMeq !insert_delete_insert !dom_insert_L Hdomρ. set_solver.
@@ -1086,7 +1086,7 @@ Section heap.
   (*   ∗ ▷ φ (W,v) (* Maybe φ (<l[ l := Temporary, (Rpub, Rpriv) ]l> W, v) *) *)
   (*   ∗ rel l φ *)
   (*   ∗ sts_full_world W *)
-  (*   ={E}=∗ open_region_many ls (<s[ l := Monotemporary ]s> W) ∗ sts_full_world (<s[ l := Monotemporary ]s> W). *)
+  (*   ={E}=∗ open_region_many ls (<s[ l := Temporary ]s> W) ∗ sts_full_world (<s[ l := Temporary ]s> W). *)
   (* Proof. *)
   (*   rewrite open_region_many_eq rel_eq /open_region_many_def /rel_def /region_def *)
   (*           REL_eq RELS_eq /RELS_def /REL_def. *)
@@ -1100,14 +1100,14 @@ Section heap.
   (*   iModIntro. iSplitR "Hfull". *)
   (*   { iDestruct (big_sepM_insert _ (delete l (delete_list ls M)) l with "[-HM]") as "Hmap_def"; *)
   (*       first by rewrite lookup_delete. *)
-  (*     { simpl. iDestruct (region_map_insert_nonmonostatic Monotemporary with "Hpreds") as "Hpreds". by congruence. *)
+  (*     { simpl. iDestruct (region_map_insert_nonmonostatic Temporary with "Hpreds") as "Hpreds". by congruence. *)
   (*       iFrame. *)
   (*       iSplit;[iPureIntro;apply lookup_insert|]. *)
   (*       iExists  _. iFrame "∗ #". repeat iSplitR; auto. } *)
-  (*     assert (Hpub: related_sts_pub_world W (<s[l:=Monotemporary]s>W)). *)
+  (*     assert (Hpub: related_sts_pub_world W (<s[l:=Temporary]s>W)). *)
   (*     { eapply (uninitialized_w_mono_related_sts_pub_world l W); eauto. } *)
   (*     iDestruct (region_map_monotone _ _ _ _ Hpub with "Hmap_def") as "HMdef"; eauto. *)
-  (*     iExists M,(<[l:=Monotemporary]>Mρ); iFrame. rewrite HMeq. *)
+  (*     iExists M,(<[l:=Temporary]>Mρ); iFrame. rewrite HMeq. *)
   (*     repeat rewrite dom_insert_L. rewrite dom_delete_L. *)
   (*     assert (l ∈ dom W.1) as Hin;[rewrite elem_of_dom;eauto|]. *)
   (*     assert ({[l]} ∪ dom (std W) ∖ {[l]} = dom (std W)) as Heq. *)
@@ -1147,13 +1147,13 @@ Section heap.
 
   Definition monotonicity_guarantees_region ρ l w φ :=
     (match ρ with
-     | Monotemporary => future_pub_a_mono l
+     | Temporary => future_pub_a_mono l
      | Permanent => future_priv_mono
-     | Revoked | Monostatic _ => λ (_ : WORLD * Word → iProp Σ) (_ : Word), True
+     | Revoked | Frozen _ => λ (_ : WORLD * Word → iProp Σ) (_ : Word), True
      end φ w)%I.
 
   Definition monotonicity_guarantees_decide ρ l w φ:=
-    (if decide (ρ = Monotemporary)
+    (if decide (ρ = Temporary)
      then future_pub_a_mono l φ w
      else future_priv_mono φ w)%I.
 
@@ -1162,7 +1162,7 @@ Section heap.
         (φ : WORLD * Word → iProp Σ)
         (ls : list Addr) (l : Addr) (ρ : region_type)
         (Hρnotrevoked : ρ <> Revoked)
-        (Hρnotmonostatic : ¬ exists g, ρ = Monostatic g):
+        (Hρnotmonostatic : ¬ exists g, ρ = Frozen g):
      l ∉ ls →
      std W !! l = Some ρ →
      ⊢ open_region_many ls W ∗ rel l φ ∗ sts_full_world W
@@ -1188,7 +1188,7 @@ Section heap.
         `{forall Wv, Persistent (φ Wv)}
         (ls : list Addr) (l : Addr) (v : Word) (ρ : region_type)
         (Hρnotrevoked : ρ <> Revoked)
-        (Hρnotmonostatic : ¬ exists g, ρ = Monostatic g):
+        (Hρnotmonostatic : ¬ exists g, ρ = Frozen g):
     l ∉ ls
     → sts_state_std l ρ
                     ∗ open_region_many (l :: ls) W

@@ -34,7 +34,7 @@ Section fundamental.
         sts_state_std l ρ
         ∗ ⌜std W !! l = Some ρ⌝
         ∗ ⌜ρ ≠ Revoked⌝
-        ∗ ⌜(∀ g, ρ ≠ Monostatic g)⌝
+        ∗ ⌜(∀ g, ρ ≠ Frozen g)⌝
         ∗ open_region_many (l :: ls) W
         ∗ rel l φ)%I.
 

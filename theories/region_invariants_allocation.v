@@ -21,8 +21,8 @@ Section region_alloc.
     l ∉ dom (std W) ->
     dom (std W) = dom M ->
     dom Mρ = dom M ->
-    (∀ a' : Addr, a' ∈ dom g → Mρ !! a' = Some (Monostatic g)) ->
-    ∀ a' : Addr, a' ∈ dom g → <[l:=ρ]> Mρ !! a' = Some (Monostatic g).
+    (∀ a' : Addr, a' ∈ dom g → Mρ !! a' = Some (Frozen g)) ->
+    ∀ a' : Addr, a' ∈ dom g → <[l:=ρ]> Mρ !! a' = Some (Frozen g).
   Proof.
     intros Hl Hdom1 Hdom2 Hall.
     intros a' Hin. pose proof (Hall _ Hin) as Hcontr.
@@ -38,9 +38,9 @@ Section region_alloc.
   Lemma extend_region_temp E W l v φ `{∀ Wv, Persistent (φ Wv)}:
      l ∉ dom (std W) →
      future_pub_a_mono l φ v -∗
-     sts_full_world W -∗ region W -∗ l ↦ₐ v -∗ φ (W,v) ={E}=∗ region (<s[l := Monotemporary ]s>W)
+     sts_full_world W -∗ region W -∗ l ↦ₐ v -∗ φ (W,v) ={E}=∗ region (<s[l := Temporary ]s>W)
                                                               ∗ rel l φ
-                                                              ∗ sts_full_world (<s[l := Monotemporary ]s>W).
+                                                              ∗ sts_full_world (<s[l := Temporary ]s>W).
   Proof.
     iIntros (Hnone1) "#Hmono Hfull Hreg Hl #Hφ".
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -66,9 +66,9 @@ Section region_alloc.
       rewrite lookup_fmap. rewrite HRl. done.
     }
     (* we also need to extend the World with a new temporary region *)
-    iMod (sts_alloc_std_i W l Monotemporary
+    iMod (sts_alloc_std_i W l Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
-    apply (related_sts_pub_world_fresh W l Monotemporary) in Hnone1 as Hrelated; auto.
+    apply (related_sts_pub_world_fresh W l Temporary) in Hnone1 as Hrelated; auto.
     iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     rewrite -fmap_insert.
@@ -78,7 +78,7 @@ Section region_alloc.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
-      { iExists Monotemporary. iFrame.
+      { iExists Temporary. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert|].
         iExists φ. iFrame "∗ #".
         iSplitR;[auto|].

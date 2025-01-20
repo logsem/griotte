@@ -38,7 +38,7 @@ Section fundamental.
     → (if pwl p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
     → ρ ≠ Revoked
-    → (∀ g : Mem, ρ ≠ Monostatic g)
+    → (∀ g : Mem, ρ ≠ Frozen g)
     → (decodeInstrW w = Add dst r1 r2 \/
        decodeInstrW w = Sub dst r1 r2 \/
        decodeInstrW w = Lt dst r1 r2)
@@ -50,7 +50,7 @@ Section fundamental.
     -∗ □ (if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> regs) a)
           then wcond P interp
           else emp)
-    -∗ (▷ (if decide (ρ = Monotemporary)
+    -∗ (▷ (if decide (ρ = Temporary)
            then future_pub_a_mono a (λ Wv, P Wv.1 Wv.2) w
            else future_priv_mono (λ Wv, P Wv.1 Wv.2) w))
     -∗ ▷ P W w
