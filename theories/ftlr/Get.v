@@ -24,13 +24,13 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma get_case (W : WORLD) (regs : leibnizO Reg) (p : Perm)
+  Lemma get_case (W : WORLD) (regs : leibnizO Reg) (p p' : Perm)
         (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst r : RegName) (ins: instr) (P:D) :
     is_Get ins dst r →
-    ftlr_instr W regs p g b e a w ins ρ P.
+    ftlr_instr W regs p p' g b e a w ins ρ P.
   Proof.
-    intros Hinstr Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
+    intros Hinstr Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
     rewrite <- Hi in Hinstr. clear Hi.
@@ -47,11 +47,10 @@ Section fundamental.
       iApply wp_value; auto. iIntros; discriminate.
     - incrementPC_inv; simplify_map_eq.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      (* destruct c as ((((p1 & g1) & b1) & e1) & a1). *)
       assert (dst <> PC) as HdstPC by (intros ->; simplify_map_eq).
       simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotmonostatic g)];contradiction. }
+      { destruct ρ;auto;[|specialize (Hnotfrozen g)];contradiction. }
 
       iApply ("IH" $! _ (<[dst := _]> (<[PC := _]> regs))
                with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]");
