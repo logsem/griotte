@@ -5,6 +5,7 @@ From stdpp Require Import base.
 From cap_machine.ftlr Require Import ftlr_base interp_weakening.
 From cap_machine Require Import addr_reg region map_simpl.
 From cap_machine.rules Require Import rules_base rules_Subseg.
+From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
@@ -40,16 +41,15 @@ Section fundamental.
   Qed.
 
    Lemma subseg_case (W : WORLD) (regs : leibnizO Reg)
-     (p : Perm) (g : Locality) (b e a : Addr) (w : Word)
+     (p p' : Perm) (g : Locality) (b e a : Addr) (w : Word)
      (ρ : region_type) (dst : RegName) (r1 r2 : Z + RegName) (P:D):
-    ftlr_instr W regs p g b e a w (Subseg dst r1 r2) ρ P.
+    ftlr_instr W regs p p' g b e a w (Subseg dst r1 r2) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
+    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
-    iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=";
-      [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
+    iInsert "Hmap" PC.
     iApply (wp_Subseg with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -68,7 +68,7 @@ Section fundamental.
       iApply wp_pure_step_later; auto.
       iNext ; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotmonostatic _)];contradiction. }
+      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       simplify_map_eq; map_simpl "Hmap".
 
 
@@ -109,7 +109,7 @@ Section fundamental.
       iApply wp_pure_step_later; auto.
       iNext ; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotmonostatic _)];contradiction. }
+      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       simplify_map_eq; map_simpl "Hmap".
 
 

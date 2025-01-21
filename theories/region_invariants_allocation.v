@@ -1,6 +1,6 @@
 From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Export region_invariants region_invariants_static (* region_invariants_batch_uninitialized *).
+From cap_machine Require Export region_invariants region_invariants_frozen (* region_invariants_batch_uninitialized *).
 Import uPred.
 
 Section region_alloc.
@@ -17,7 +17,7 @@ Section region_alloc.
 
   (* Lemmas for extending the region map *)
 
-  Lemma static_extend_preserve W (M : relT) (Mρ : gmap Addr region_type) (a : Addr) g ρ :
+  Lemma frozen_extend_preserve W (M : relT) (Mρ : gmap Addr region_type) (a : Addr) g ρ :
     a ∉ dom (std W) ->
     dom (std W) = dom M ->
     dom Mρ = dom M ->
@@ -102,7 +102,7 @@ Section region_alloc.
       iDestruct "Hρ" as (φ0 Hpers) "[Hsaved Hl]".
       iDestruct "Hl" as (v0 Hg) "[Ha #Hall]". iDestruct "Hall" as %Hall.
       iExists _. repeat iSplit;eauto. iExists v0. iFrame. iSplit;auto. iPureIntro.
-      eapply static_extend_preserve; eauto.
+      eapply frozen_extend_preserve; eauto.
     - rewrite REL_eq /REL_def.
       done.
   Qed.
@@ -174,7 +174,7 @@ Section region_alloc.
       iDestruct "Hρ" as (φ0 Hpers) "[Hsaved Hl]".
       iDestruct "Hl" as (v0 Hg) "[Ha #Hall]". iDestruct "Hall" as %Hall.
       iExists _. repeat iSplit;eauto. iExists v0. iFrame. iSplit;auto. iPureIntro.
-      eapply static_extend_preserve; eauto.
+      eapply frozen_extend_preserve; eauto.
     - iExists γpred. iFrame "#".
       rewrite REL_eq /REL_def.
       done.
@@ -243,7 +243,7 @@ Section region_alloc.
       iDestruct "Hρ" as (φ0 Hpers) "[Hsaved Hl]".
       iDestruct "Hl" as (v0 Hg) "[Ha' #Hall]". iDestruct "Hall" as %Hall.
       iExists _. repeat iSplit;eauto. iExists v0. iFrame. iSplit;auto. iPureIntro.
-      eapply static_extend_preserve; eauto.
+      eapply frozen_extend_preserve; eauto.
     - iExists γpred. iFrame "#".
       rewrite REL_eq /REL_def.
       done.
@@ -366,7 +366,7 @@ Section region_alloc.
   (*     iDestruct "Hρ" as (φ0 Hpers) "[Hsaved Hl]". *)
   (*     iDestruct "Hl" as (v0 Hg) "[Ha #Hall]". iDestruct "Hall" as %Hall. *)
   (*     iExists _. repeat iSplit;eauto. iExists v0. iFrame. iSplit;auto. iPureIntro. *)
-  (*     eapply static_extend_preserve; eauto. *)
+  (*     eapply frozen_extend_preserve; eauto. *)
   (*   - iExists γpred. iFrame "#". *)
   (*     rewrite REL_eq /REL_def. *)
   (*     done. *)
@@ -389,7 +389,7 @@ Section region_alloc.
   (*     rewrite override_uninitialize_std_sta_lookup_none;eauto. *)
   (* Qed. *)
 
-  (* Lemma extend_region_static_single_sepM E W (m: gmap Addr Word) φ `{∀ Wv, Persistent (φ Wv)}: *)
+  (* Lemma extend_region_frozen_single_sepM E W (m: gmap Addr Word) φ `{∀ Wv, Persistent (φ Wv)}: *)
   (*    (∀ k, is_Some (m !! k) → std W !! k = None) → *)
   (*    sts_full_world W -∗ region W -∗ *)
   (*    ([∗ map] k↦v ∈ m, k ↦ₐ v) *)

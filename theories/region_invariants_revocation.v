@@ -19,7 +19,7 @@ Section heap.
   (* --------------------------------------------------------------------------------------------------------- *)
 
   (*
-     Revocation turns every temporary/monotemporary location state to revoked.
+     Revocation turns every temporary/temporary location state to revoked.
      Revocation is crucial to privately update state: in general,
      region states are only monotone with regards to public future
      world. To do a private update, we must thus revoke all temp
@@ -638,7 +638,7 @@ Section heap.
     Wstd_sta !! i = Some x -> Wstd_sta' !! i = Some y ->
     (revoke_std_sta Wstd_sta) !! i = Some x' → (revoke_std_sta Wstd_sta') !! i = Some y' →
     rtc (std_rel_priv) x y →
-    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0 ∨ std_rel_priv x0 y0) x' y'.
+    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_pub x0 y0 ∨ std_rel_priv x0 y0) x' y'.
   Proof.
     intros Hx Hy Hx' Hy' Hrtc.
     induction Hrtc as [Hrefl | j k h Hjk].
@@ -668,7 +668,7 @@ Section heap.
     Wstd_sta !! i = Some x -> Wstd_sta' !! i = Some y ->
     (revoke_std_sta Wstd_sta) !! i = Some x' → (revoke_std_sta Wstd_sta') !! i = Some y' →
     rtc std_rel_pub x y →
-    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_pub_plus x0 y0 ∨ std_rel_priv x0 y0) x' y'.
+    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_priv x0 y0) x' y'.
   Proof.
     intros Hx Hy Hx' Hy' Hrtc.
     induction Hrtc as [Hrefl | j k h Hjk].
@@ -684,6 +684,15 @@ Section heap.
         apply revoke_lookup_Revoked in Hx as Hxtemp.
         apply revoke_lookup_Perm in Hy as Hyperm.
         simplify_eq. eright;[|left]. left. constructor.
+      + apply std_rel_pub_rtc_Temporary in Hrtc; auto. subst.
+        apply revoke_lookup_Frozen in Hx as Hxtemp.
+        apply revoke_lookup_Monotemp in Hy as Hyperm.
+        rewrite Hxtemp in Hx'. rewrite Hyperm in Hy'.
+        inversion Hx'; inversion Hy'; simplify_eq.
+        right with Temporary.
+        { left. constructor. }
+        right with Revoked;[|left].
+        right. constructor.
   Qed.
 
   Ltac revoke_i W1 W2 i :=
@@ -702,6 +711,7 @@ Section heap.
        try (apply revoke_lookup_Revoked in H' as Hytemp);simplify_eq
      end).
 
+  (* TODO fix *)
   Lemma std_rel_monotone x y x' y' Wstd_sta Wstd_sta' i :
     Wstd_sta !! i = Some x -> Wstd_sta' !! i = Some y ->
     (revoke_std_sta Wstd_sta) !! i = Some x' → (revoke_std_sta Wstd_sta') !! i = Some y' →
@@ -713,28 +723,26 @@ Section heap.
     - simplify_eq. rewrite -Hx in Hy.
       apply revoke_monotone_lookup in Hy.
       rewrite Hx' Hy' in Hy. inversion Hy. left.
-    - destruct Hjk as [Hjk | [Hjk | Hjk] ].
+    - destruct Hjk as [Hjk | Hjk].
       + destruct j,k; inversion Hjk; try discriminate; auto.
         * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left.
           eright;[left;constructor|left].
           right with Temporary. left;constructor.
-          eright;[right;right;constructor|left].
+          eright; [right;right;constructor|left].
         * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left.
           eright;[left;constructor|left].
           right with Temporary. left;constructor.
-          eright;[right;right;constructor|left].
+          eright; [right;right;constructor|left].
+        * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left.
+          eright;[left;constructor|right with Revoked;[right;right;constructor|constructor]].
+          admit.
+          admit.
+          admit.
       + destruct j,k,h; inversion Hjk; try discriminate; auto;
           revoke_i Wstd_sta Wstd_sta' i; try left.
-        right with Temporary;[right;left;constructor|eright;[right;right;constructor|left]].
-        right with Temporary;[right;left;constructor|eright;[right;right;constructor|left]].
-        right with Temporary;[right;left;constructor|].
-        eright;[right;right;constructor|left].
-        right with Temporary;[right;left;constructor|eright;[right;right;constructor|left]].
-      + destruct j,k,h; inversion Hjk; try discriminate; auto;
-          revoke_i Wstd_sta Wstd_sta' i; try left;
-            try (right with Temporary;[left;constructor|eright;[right;right;constructor|left]]);
-            try (right with Temporary;[left;constructor|eright;[right;left;constructor|left]]).
-  Qed.
+        (* all: try (right with Permanent; [left;constructor|eleft; constructor]). *)
+        (* all: try (right with Temporary; [left;constructor|eright;[right; constructor|]; constructor]). *)
+  Admitted.
 
   Lemma revoke_monotone W W' :
     related_sts_priv_world W W' → related_sts_priv_world (revoke W) (revoke W').

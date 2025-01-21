@@ -4,7 +4,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine.ftlr Require Import ftlr_base interp_weakening.
 From cap_machine.rules Require Import rules_base rules_Restrict.
-From cap_machine Require Import map_simpl.
+From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
@@ -52,22 +52,21 @@ Section fundamental.
       match p with
       | E => a1
       | _ => a2
-      end = if (perm_eq_dec p E) then a1 else a2.
+      end = if (decide (p=E)) then a1 else a2.
   Proof.
-    intros. destruct (perm_eq_dec p E); destruct p; auto; congruence.
+    intros. destruct (decide (p=E)); destruct p; auto; congruence.
   Qed.
 
   Lemma restrict_case (W : WORLD) (regs : leibnizO Reg)
-    (p : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst : RegName) (r0 : Z + RegName) (P:D):
-    ftlr_instr W regs p g b e a w (Restrict dst r0) ρ P.
+    (p p' : Perm) (g : Locality) (b e a : Addr)
+    (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
+    ftlr_instr W regs p p' g b e a w (Restrict dst src) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
+    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
-    iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=";
-      [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
+    iInsert "Hmap" PC.
     iApply (wp_Restrict with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -83,18 +82,16 @@ Section fundamental.
     - apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
-      assert (HPCr0: match r0 with inl _ => True | inr r0 => PC <> r0 end).
-      { destruct r0; auto.
+      assert (HPCsrc: match src with inl _ => True | inr src => PC <> src end).
+      { destruct src; auto.
         intro; subst r. simplify_map_eq. }
 
-      destruct (reg_eq_dec PC dst).
-      { subst dst. repeat rewrite insert_insert.
+      destruct (decide (PC=dst)) as [HdstPC|HdstPC].
+      { subst dst.
         repeat rewrite insert_insert in HPC.
         rewrite lookup_insert in HPC. inv HPC.
-        (* rewrite lookup_insert in H0. inv H0. *)
-        (* rewrite H5 in H3. *)
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|ospecialize (Hnotmonostatic _)];contradiction. }
+        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         destruct (PermFlowsTo RX p'') eqn:Hpft.
         { assert (Hpg: p'' = RX ∨ p'' = RWX ∨ p'' = RWLX ∧ g'' = Local).
           { destruct p''; simpl in Hpft; eauto; try discriminate.
@@ -113,7 +110,7 @@ Section fundamental.
         }
 
         { iApply (wp_bind (fill [SeqCtx])).
-          iDestruct ((big_sepM_delete _ _ PC) with "Hmap") as "[HPC Hmap]"; [apply lookup_insert|].
+          iExtract "Hmap" PC as "HPC".
           iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; destruct p''; simpl in Hpft; eauto; discriminate|].
           iNext. iIntros "HPC /=".
           iApply wp_pure_step_later; auto. iNext ; iIntros "_".
@@ -122,7 +119,7 @@ Section fundamental.
       {
         simplify_map_eq.
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|specialize (Hnotmonostatic g)];contradiction. }
+        { destruct ρ;auto;[|specialize (Hnotfrozen g)];contradiction. }
         iApply ("IH" $! _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
         - intros; simpl. repeat (rewrite lookup_insert_is_Some'; right); eauto.
         - iIntros (ri v Hri Hvs).
@@ -138,19 +135,20 @@ Section fundamental.
     - apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
-      assert (HPCr0: match r0 with inl _ => True | inr r0 => PC <> r0 end).
-      { destruct r0; auto.
+      assert (HPCsrc: match src with inl _ => True | inr src => PC <> src end).
+      { destruct src; auto.
         intro; subst r. simplify_map_eq. }
 
-      destruct (reg_eq_dec PC dst).
+      destruct (decide (PC=dst)) as [HdstPC|HdstPC].
       { subst dst. repeat rewrite insert_insert.
         repeat rewrite insert_insert in HPC.
         rewrite lookup_insert in HPC. inv HPC.
       }
+
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotmonostatic _)];contradiction. }
+      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       simplify_map_eq; map_simpl "Hmap".
-      iApply ("IH" $! _ (<[dst:=WSealRange p' g' b0 e0 a0]> regs) with
+      iApply ("IH" $! _ (<[dst:=WSealRange p'0 g' b0 e0 a0]> regs) with
                "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
       { intros. by rewrite lookup_insert_is_Some' ; right. }
       { iIntros (ri v Hri Hvs).

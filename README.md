@@ -85,7 +85,7 @@ First is a lookup table for the definitions in the paper.
 | Machine words, machine state and instructions (Fig 2)   | machine\_base.v                   |                                                               |
 | Permission hierarchy (Fig 4)                            | machine\_base.v                   | `PermFlowsTo`                                                 |
 | Operational semantics: instruction semantics (Fig 5)    | cap\_lang.v                       | `exec`                                                        |
-| Standard State Transition System (Fig 6)                | region\_invariants.v              | `region_type`/`std_rel_{pub}{priv}{pub_plus}`                 |
+| Standard State Transition System (Fig 6)                | region\_invariants.v              | `region_type`/`std_rel_{pub}{priv}{pub}`                 |
 | Logical relation (Fig 7)                                | logrel.v                          | `interp`/`interp_expression`/`interp_registers`               |
 | Theorem 4.1  (FTLR)                                     | fundamental.v                     | `fundamental_from_interp`                                     |
 | Assembly of Listing 7 (Fig 8)                           | downwards\_lse{\_preamble}.v      | `lse_instrs`/`downwards_lse_preamble_instrs`                  |
@@ -285,7 +285,7 @@ In the model:
 |---------------------|-------------------------|
 | stsCollection       | full_sts_world          |
 | sharedResources     | region                  |
-| temporal transition | std_rel_pub_plus        |
+| temporal transition | std_rel_pub        |
 
 In `scall_u.v` : the scall macro is slightly unfolded, as it does not include the part of 
 the calling convention which stores local state on the stack. That part is inlined into the 
