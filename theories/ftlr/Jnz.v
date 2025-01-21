@@ -40,7 +40,7 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ | wsrc regs' Hrsrc Hnz Hincr |  wsrc wdst Hrsrc Hrdst Hnz Hincr ].
+    destruct HSpec as [ | wsrc regs' Hrsrc Hnz Hincr |  wsrc wdst Hrsrc Hrdst Hnz ].
     {
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto. iIntros; discriminate.

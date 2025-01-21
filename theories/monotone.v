@@ -92,7 +92,7 @@ Section monotone.
     assert (is_Some (W'.1 !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Permanent y Hstate Hy).
-    apply std_rel_rtc_Permanent in Hrelated; subst; auto.
+    eapply std_rel_rtc_Permanent in Hrelated;subst;auto.
   Qed.
 
   Lemma region_state_pwl_monotone W W' a :
@@ -240,18 +240,18 @@ Section monotone.
   (* Qed. *)
 
   (* The following lemma is not required for monotonicity, but is interesting for use in examples *)
-  Lemma region_state_U_pwl_monotone_same W W' g a :
-    related_sts_pub_world W W' →
-    (std W) !! a = Some (Frozen g) -> (std W') !! a = Some (Frozen g).
-  Proof.
-    rewrite /std.
-    intros Hrelated Hstate.
-    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
-    assert (is_Some (W'.1 !! a)) as [y Hy].
-    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom ;eauto. }
-    specialize (Hrelated _ (Frozen g) y Hstate Hy).
-    eapply std_rel_pub_rtc_Frozen in Hrelated; eauto. subst. auto.
-  Qed.
+  (* Lemma region_state_U_pwl_monotone_same W W' g a : *)
+  (*   related_sts_pub_world W W' → *)
+  (*   (std W) !! a = Some (Frozen g) -> (std W') !! a = Some (Frozen g). *)
+  (* Proof. *)
+  (*   rewrite /std. *)
+  (*   intros Hrelated Hstate. *)
+  (*   destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *. *)
+  (*   assert (is_Some (W'.1 !! a)) as [y Hy]. *)
+  (*   { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom ;eauto. } *)
+  (*   specialize (Hrelated _ (Frozen g) y Hstate Hy). *)
+  (*   eapply std_rel_pub_rtc_Frozen in Hrelated; subst; eauto.  *)
+  (* Qed. *)
 
   Lemma region_state_Revoked_monotone (W W' : WORLD) (a : Addr) :
     related_sts_pub_world W W' →
@@ -414,13 +414,6 @@ Section monotone.
     iFrame. iPureIntro.
     apply (region_state_pwl_monotone _ W') in Htemp; auto.
   Qed.
-
-  (* TODO move in logrel *)
-  (* Global Instance interp_ne n : *)
-  (*   Proper (dist n ==> dist n) (λ Wv : WORLD * (leibnizO Word), (interp Wv.1) Wv.2). *)
-  (* Proof. *)
-  (*   solve_proper. *)
-  (* Qed. *)
 
   (* The general monotonicity statement that interp gives you when writing a word into a
      pointer (p0, l, a2, a1, a0) ; simply a bundling of all individual monotonicity statements *)

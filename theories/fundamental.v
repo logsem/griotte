@@ -24,6 +24,71 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
+  Lemma write_allowed_implies_ra
+    W (regs : leibnizO Reg) (p p'' : Perm) (g : Locality) (b e a : Addr):
+    readAllowed p = true ->
+    PermFlows p p'' ->
+    (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)%I -∗
+    (if writeAllowed p
+     then read_write_cond a p'' interp
+     else ∃ P : D,
+         ⌜∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2)⌝
+                                        ∧ read_cond a p'' P interp) -∗
+    ∃ (p' : Perm) (P : D),
+      ⌜PermFlows p p'⌝ ∗
+      ⌜∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2)⌝ ∗
+                                     rel a p''
+                                       (λ Wv : STS_std_states (finz MemNum) region_type * (STS_states * STS_rels) * Word,
+                                          P Wv.1 Wv.2) ∗ rcond P interp ∗
+                                     (if decide (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
+                                      then wcond P interp
+                                      else emp).
+  Proof.
+    intros Hread_p Hflp''.
+    iIntros "#Hreg #H".
+    destruct (writeAllowed p) eqn:Hwa.
+    - iExists p,interp.
+      iSplit; first (iPureIntro ; apply PermFlows_refl).
+      iSplit; first (iPureIntro ; apply _).
+      iFrame "H".
+      iSplit; first iApply rcond_interp.
+      case_decide;auto.
+      iApply wcond_interp.
+    - destruct (decide (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a))
+        as [Hwa'|Hwa']
+      ; cycle 1.
+      { iDestruct "H" as (P Hpers) "[Hrcond Hrel]".
+        iExists p'', P.
+        iSplit; first (by iPureIntro).
+        iSplit; first (by iPureIntro).
+        iFrame "#".
+      }
+      destruct Hwa' as (r & w & Hsome & Hwaw & Hvw).
+      destruct (decide (r = PC)); subst.
+      { rewrite lookup_insert in Hsome; simplify_eq.
+        cbn in *; congruence.
+      }
+      rewrite lookup_insert_ne in Hsome; auto.
+      iDestruct "H" as (P HpersP) "[_ Hrel]".
+      iDestruct ("Hreg" $! r w n Hsome) as "Hinterp_w".
+      destruct_word w; cbn in * ; try done.
+      destruct Hvw as [Hvw ->].
+      iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
+      destruct (perm_eq_dec c O); first (subst; cbn in *;done).
+      destruct (perm_eq_dec c E); first (subst; cbn in *;done).
+      iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
+      rewrite Hwaw.
+      iDestruct (extract_from_region_inv with "Hinterp_w")
+        as (c' Hflc') "[Hrel' %Hstate_c]"; eauto; iClear "Hinterp_w".
+      rewrite /read_write_cond //=.
+      iDestruct (rel_agree a0 _ _ p'' c' with "[$Hrel $Hrel']") as "(-> & _)".
+      iExists c', interp.
+      iSplit; first (by iPureIntro).
+      iSplit; first (by iPureIntro; apply _).
+      iFrame "Hrel'".
+      iSplit; [iApply rcond_interp|iApply wcond_interp].
+  Qed.
+
   Theorem fundamental_cap W regs p g b e (a : Addr) :
     ⊢ interp W (WCap p g b e a) →
       interp_expression regs W (WCap p g b e a).
@@ -90,13 +155,16 @@ Section fundamental.
     iDestruct (readAllowed_implies_region_conditions with "Hinv_interp")
       as "#Hinv"; eauto.
 
-    iDestruct (extract_from_region_inv_regs a a with "[Hmreg] Hinv") as (p' P Hpers) "(#Hinva & #Hrcond & #Hwcond)";auto;[iFrame "# %"|].
-    iDestruct (extract_from_region_inv _ _ a with "Hinv") as (p'' Hflp'') "[H %Hstate_a]";auto.
+    (* iDestruct (extract_from_region_inv_regs a a with "[Hmreg] Hinv") as (p' P Hpers) "(#Hinva & #Hrcond & #Hwcond)";auto;[iFrame "# %"|]. *)
+    iDestruct (extract_from_region_inv _ _ a with "Hinv") as (p'' Hflp'') "[HPcond' %Hstate_a]";auto.
+    iDestruct (write_allowed_implies_ra with "[Hinv] [HPcond']")
+      as (p' P Hflp' Hpers) "(Hinva & Hrcond & Hwcond)"; eauto.
+    iClear "HPcond'".
     assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
-        as [ρ [Hρ [Hne Hne'] ] ].
-      { destruct (pwl p),g; eauto. destruct Hstate_a as [Htemp | Hperm];eauto. }
+      as [ρ [Hρ [Hne Hne'] ] ].
+    { destruct (pwl p),g; eauto. destruct Hstate_a as [Htemp | Hperm];eauto. }
 
-    iDestruct (region_open W a p' with "[$Hinva $Hr $Hsts]")
+    iDestruct (region_open W a p'' with "[$Hinva $Hr $Hsts]")
       as (w) "(Hr & Hsts & Hstate & Ha & % & #Hmono & #Hw) /=";[ |apply Hρ|].
     { destruct ρ;auto;[done|by ospecialize (Hne' _)]. }
     rewrite /registers_pointsto ; iExtract "Hmreg" PC as "HPC".
