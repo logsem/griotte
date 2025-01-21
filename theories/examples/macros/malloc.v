@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel addr_reg_sample fundamental rules proofmode.
-From cap_machine Require Import multiple_updates region_invariants_static.
+From cap_machine Require Import multiple_updates region_invariants_frozen.
 
 (* A toy malloc implementation *)
 

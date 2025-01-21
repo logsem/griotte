@@ -31,11 +31,11 @@ Inductive std_rel_priv : region_type -> region_type -> Prop :=
 | Std_priv_Temporary_Revoked : std_rel_priv Temporary Revoked
 | Std_priv_Temporary_Permanent : std_rel_priv Temporary Permanent.
 
-Inductive std_rel_pub_plus : region_type → region_type → Prop :=.
+(* Inductive std_rel_pub_plus : region_type → region_type → Prop :=. *)
 (* | Std_pub_plus_Frozen_Temporary m : std_rel_pub_plus (Frozen m) Temporary. *)
 
 Global Instance sts_std : STS_STD region_type :=
-  {| Rpub := std_rel_pub; Rpubp := std_rel_pub_plus; Rpriv := std_rel_priv |}.
+  {| Rpub := std_rel_pub; Rpriv := std_rel_priv ; (* Rpubp := std_rel_pub_plus *)|}.
 
 Class heapGpreS Σ := HeapGpreS {
   heapPreG_invPreG : invGpreS Σ;
@@ -216,8 +216,8 @@ Section heap.
   Definition future_pub_mono (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
     (□ ∀ W W', ⌜related_sts_pub_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I.
 
-  Definition future_pub_plus_mono (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
-    (□ ∀ W W', ⌜related_sts_pub_plus_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I.
+  (* Definition future_pub_plus_mono (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ := *)
+  (*   (□ ∀ W W', ⌜related_sts_pub_plus_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I. *)
 
   (* Definition future_pub_a_mono (a : Addr) (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ := *)
   (*   (□ ∀ W W', ⌜related_sts_a_world W W' a⌝ → φ (W,v) -∗ φ (W',v))%I. *)
