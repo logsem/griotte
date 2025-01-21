@@ -86,15 +86,14 @@ Section transitions.
 
   Lemma std_rel_rtc_Permanent x y :
     x = Permanent →
-    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_pub x0 y0 ∨ std_rel_priv x0 y0) x y →
+    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_priv x0 y0) x y →
     y = Permanent.
   Proof.
     intros Hx Hrtc.
     induction Hrtc as [|x y z Hrel];auto.
-    subst. destruct Hrel as [Hrel | [Hrel | Hrel] ].
-    - apply std_rel_pub_Permanent in Hrel. auto.
-    - apply std_rel_pub_Permanent in Hrel. auto.
-    - apply std_rel_priv_Permanent in Hrel. auto.
+    subst. destruct Hrel as [Hrel | Hrel].
+    - apply std_rel_pub_Permanent in Hrel; auto.
+    - apply std_rel_priv_Permanent in Hrel; auto.
   Qed.
 
   Lemma std_rel_pub_Temporary x :
