@@ -1,5 +1,5 @@
-(* From cap_machine.ftlr Require Export Jmp Jnz Mov Load Store AddSubLt Restrict *)
-(*   Subseg Get Lea Seal UnSeal. *)
+From cap_machine.ftlr Require Export Jmp Jnz Mov Load Store AddSubLt Restrict
+  Subseg Get Lea Seal UnSeal.
 From cap_machine.ftlr Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
@@ -90,8 +90,8 @@ Section fundamental.
     iDestruct (readAllowed_implies_region_conditions with "Hinv_interp")
       as "#Hinv"; eauto.
 
-    iDestruct (extract_from_region_inv_regs a a with "[Hmreg] Hinv") as (p' P Hfl' Hpers) "(#Hinva & #Hrcond & #Hwcond)";auto;[iFrame "# %"|].
-    iDestruct (extract_from_region_inv _ _ a with "Hinv") as (p'' _) "[_ %Hstate_a]";auto; clear p''.
+    iDestruct (extract_from_region_inv_regs a a with "[Hmreg] Hinv") as (p' P Hpers) "(#Hinva & #Hrcond & #Hwcond)";auto;[iFrame "# %"|].
+    iDestruct (extract_from_region_inv _ _ a with "Hinv") as (p'' Hflp'') "[H %Hstate_a]";auto.
     assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
         as [ρ [Hρ [Hne Hne'] ] ].
       { destruct (pwl p),g; eauto. destruct Hstate_a as [Htemp | Hperm];eauto. }
@@ -136,25 +136,25 @@ Section fundamental.
       iApply (subseg_case with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
         try iAssumption; eauto.
     + (* GetB *)
-      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ (GetB _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
+      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetB _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
         try iAssumption; eauto.
     + (* GetE *)
-      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ (GetE _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
+      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetE _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
         try iAssumption; eauto.
     + (* GetA *)
-      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ (GetA _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
+      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetA _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
         try iAssumption; eauto.
     + (* GetP *)
-      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ (GetP _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
+      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetP _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
         try iAssumption; eauto.
     + (* GetL *)
-      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ (GetL _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
+      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetL _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
         try iAssumption; eauto.
     + (* GetWType *)
-      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ (GetWType _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
+      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetWType _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
         try iAssumption; eauto.
     + (* GetOType *)
-      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ (GetOType _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
+      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetOType _ _) with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
         try iAssumption; eauto.
     + (* Seal *)
       iApply (seal_case with "[] [] [] [] [Hmono] [] [] [Hw] [Hsts] [Hown] [Hr] [Hstate] [Ha] [HPC] [Hmreg]");
@@ -171,8 +171,8 @@ Section fundamental.
     + (* Halt *)
       iApply (wp_halt with "[HPC Ha]"); eauto; iFrame.
       iNext. iIntros "[HPC Ha] /=".
-      iDestruct (region_close _ _ _ _ ρ with "[$Hr $Ha $Hstate $Hmono Hw]") as "Hr";[auto|iFrame "#"; auto|].
-      { destruct ρ;auto;[|ospecialize (Hne_mono _)]; contradiction. }
+      iDestruct (region_close _ _ _ _ _ ρ with "[$Hr $Ha $Hstate $Hmono Hw]") as "Hr";[auto|iFrame "#"; auto|].
+      { destruct ρ;auto;[|ospecialize (Hne' _)]; contradiction. }
       iApply wp_pure_step_later; auto; iNext ; iIntros "_".
       iApply wp_value.
       iInsert "Hmreg" PC.
@@ -206,25 +206,30 @@ Section fundamental.
 
   (* The fundamental theorem implies the exec_cond *)
 
-  (* TODO fix the model *)
   Lemma interp_exec_cond W p g b e a :
-    p ≠ E ->
+    p = RX ∨ p = RWX ∨ p = RWLX ->
     interp W (WCap p g b e a) -∗ exec_cond W b e g p interp.
   Proof.
     iIntros (Hp) "#Hw".
     iIntros (a0 r W' Hin) "#Hfuture". iModIntro.
     destruct g.
-    + iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
+    - iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
+      iDestruct (readAllowed_implies_region_conditions with "Hw'")
+        as "Hread_cond"; [destruct Hp as [-> | [-> | ->] ];auto|].
       iApply fundamental;eauto.
-      destruct p ; rewrite !fixpoint_interp1_eq //=.
-    (* + rewrite /future_world. *)
-    (*   iDestruct (interp_monotone with "Hfuture Hw") as "Hw'";[auto|]. *)
-    (*   iDestruct (readAllowed_implies_region_conditions with "Hw'") as "Hread_cond";[destruct Hra as [-> | [-> | ->] ];auto|]. *)
-    (*   iApply fundamental;[|eauto]. destruct Hra as [-> | [-> | ->] ];auto. *)
-    (*   rewrite fixpoint_interp1_eq /=. done. *)
-    (* iApply fundamental. *)
-    (* rewrite !fixpoint_interp1_eq /=. destruct p; try done. *)
-  Admitted.
+      destruct Hp as [-> | [-> | ->] ]
+      ; iEval (rewrite fixpoint_interp1_eq /=)
+      ; iEval (rewrite fixpoint_interp1_eq /=) in "Hw'"
+      ; done.
+    - iDestruct (interp_monotone with "Hfuture Hw") as "Hw'".
+      iDestruct (readAllowed_implies_region_conditions with "Hw'")
+        as "Hread_cond"; [destruct Hp as [-> | [-> | ->] ];auto|].
+      iApply fundamental;eauto.
+      destruct Hp as [-> | [-> | ->] ]
+      ; iEval (rewrite fixpoint_interp1_eq /=)
+      ; iEval (rewrite fixpoint_interp1_eq /=) in "Hw'"
+      ; done.
+  Qed.
 
   (* We can use the above fact to create a special "jump or fail pattern" when jumping to an unknown adversary *)
 

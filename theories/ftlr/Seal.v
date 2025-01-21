@@ -4,6 +4,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine.ftlr Require Import ftlr_base interp_weakening.
 From cap_machine.rules Require Import rules_base rules_Seal.
+From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
@@ -44,16 +45,16 @@ Section fundamental.
     by iApply "HWcond".
   Qed.
 
-  Lemma seal_case (W : WORLD) (regs : leibnizO Reg) (p : Perm)
-        (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D):
-    ftlr_instr W regs p g b e a w (Seal dst r1 r2) ρ P.
+  Lemma seal_case (W : WORLD) (regs : leibnizO Reg)
+    (p p' : Perm) (g : Locality) (b e a : Addr)
+    (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D):
+    ftlr_instr W regs p p' g b e a w (Seal dst r1 r2) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
+    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
-    iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=";
-      [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
+    iInsert "Hmap" PC.
     iApply (wp_Seal with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq /set_subseteq_instance. intros rr _.
@@ -78,10 +79,10 @@ Section fundamental.
           destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; subst p; try subst g;
             try (iFrame "Hexec"); try (iFrame "Hinv").
           all: iApply (big_sepL_mono with "Hinv").
-          all: intros; iIntros "(H & ?)".
-          all: simpl; try (iDestruct "H" as (P') "(?&?&?)").
-          iExists _; iFrame.
-          iExists RWLX; iFrame; iPureIntro ; done.
+          all: intros; iIntros "H"; simpl.
+          all: iDestruct "H" as (p Hflp) "[H %Hstate]".
+          1: iDestruct "H" as (P' HpersP') "Hcond".
+          all: iExists p; iFrame "%∗".
         - unshelve iSpecialize ("Hreg" $! r2 _ _ Hr2); eauto.
       }
 
@@ -90,7 +91,7 @@ Section fundamental.
       assert (dst <> PC) as HdstPC by (intros ->; simplify_map_eq).
       simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotmonostatic _)];contradiction. }
+      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
 
       iApply ("IH" $! _ (<[dst := _]> (<[PC := _]> regs))
                with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]");

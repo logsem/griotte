@@ -67,8 +67,8 @@ theories/region_invariants.v
 theories/region_invariants_transitions.v
 theories/region_invariants_revocation.v
 theories/multiple_updates.v
-theories/region_invariants_static.v
-theories/region_invariants_allocation.v
+# theories/region_invariants_frozen.v
+# theories/region_invariants_allocation.v
 theories/monotone.v
 
 

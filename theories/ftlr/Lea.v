@@ -4,6 +4,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine.ftlr Require Import ftlr_base interp_weakening.
 From cap_machine.rules Require Import rules_base rules_Lea.
+From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
@@ -24,16 +25,15 @@ Section fundamental.
   Implicit Types interp : (D).
 
    Lemma lea_case (W : WORLD) (regs : leibnizO Reg)
-     (p : Perm) (g : Locality) (b e a : Addr) (w : Word)
-     (ρ : region_type) (dst : RegName) (r0 : Z + RegName) (P:D):
-    ftlr_instr W regs p g b e a w (Lea dst r0) ρ P.
+     (p p' : Perm) (g : Locality) (b e a : Addr) (w : Word)
+     (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
+    ftlr_instr W regs p p' g b e a w (Lea dst src) ρ P.
     Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
+    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
-    iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=";
-      [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
+    iInsert "Hmap" PC.
     iApply (wp_lea with "[$Ha $Hmap]"); eauto.
     { by rewrite lookup_insert. }
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -53,7 +53,7 @@ Section fundamental.
 
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotmonostatic g1)];contradiction. }
+      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       iApply ("IH" $! _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
       { cbn. intros. subst regs'. by repeat (apply lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
@@ -81,7 +81,7 @@ Section fundamental.
 
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotmonostatic g1)];contradiction. }
+      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       iApply ("IH" $! _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
       { cbn. intros. subst regs'. by repeat (apply lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
