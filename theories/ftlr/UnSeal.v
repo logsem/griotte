@@ -4,7 +4,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine.ftlr Require Import ftlr_base interp_weakening.
 From cap_machine.rules Require Import rules_base rules_UnSeal.
-From cap_machine.proofmode Require Import map_simpl.
+From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
@@ -49,16 +49,16 @@ Section fundamental.
     by iApply "HWcond".
   Qed.
 
-  Lemma unseal_case (W : WORLD) (regs : leibnizO Reg) (p : Perm)
-        (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D):
-    ftlr_instr W regs p g b e a w (UnSeal dst r1 r2) ρ P.
+  Lemma unseal_case (W : WORLD) (regs : leibnizO Reg)
+    (p p' : Perm) (g : Locality) (b e a : Addr)
+    (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D):
+    ftlr_instr W regs p p' g b e a w (UnSeal dst r1 r2) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
+    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
-    iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=";
-      [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
+    iInsert "Hmap" PC.
     iApply (wp_UnSeal with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq /set_subseteq_instance. intros rr _.
@@ -87,14 +87,13 @@ Section fundamental.
 
     iApply wp_pure_step_later; auto; iNext; iIntros "_".
     iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-    { destruct ρ;auto;[|ospecialize (Hnotmonostatic _)];contradiction. }
+    { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
 
     (* If PC=dst and perm of unsealed cap = E -> error! *)
     destruct (decide (PC = dst ∧ p'' = E)) as [ [Herr1 Herr2] | HNoError].
     { (* Error case *)
       simplify_map_eq.
-      iDestruct ((big_sepM_delete _ _ PC) with "Hmap") as "[HPC Hmap]".
-      { subst. by rewrite lookup_insert. }
+      iExtract "Hmap" PC as "HPC".
       iApply (wp_bind (fill [SeqCtx])).
       iApply (wp_notCorrectPC_perm with "[HPC]"); eauto. split; auto.
       iIntros "!> _".
@@ -148,7 +147,7 @@ Section fundamental.
         { iEval (rewrite fixpoint_interp1_eq //=) in "HVsb"; done. }
 
         iApply (wp_bind (fill [SeqCtx])).
-        iDestruct ((big_sepM_delete _ _ PC) with "Hmap") as "[HPC Hmap]"; [apply lookup_insert|].
+        iExtract "Hmap" PC as "HPC".
         iApply (wp_notCorrectPC with "HPC")
         ; [eapply not_isCorrectPC_perm;  simpl in Hp; try discriminate; eauto|].
         iNext. iIntros "HPC /=".

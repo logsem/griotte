@@ -4,7 +4,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine.ftlr Require Import ftlr_base.
 From cap_machine.rules Require Import rules_base rules_Jnz.
-From cap_machine Require Import map_simpl.
+From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
@@ -25,23 +25,22 @@ Section fundamental.
   Implicit Types interp : (D).
 
   Lemma jnz_case (W : WORLD) (regs : leibnizO Reg)
-    (p : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (r1 r2 : RegName) (P:D):
-    ftlr_instr W regs p g b e a w (Jnz r1 r2) ρ P.
+    (p p' : Perm) (g : Locality) (b e a : Addr)
+    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:D):
+    ftlr_instr W regs p p' g b e a w (Jnz rdst rsrc) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hpers Hpwl Hregion Hnotrevoked Hnotmonostatic Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
+    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
-    iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=";
-      [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
+    iInsert "Hmap" PC.
     iApply (wp_Jnz with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec.
+    destruct HSpec as [ | wsrc regs' Hrsrc Hnz Hincr |  wsrc wdst Hrsrc Hrdst Hnz Hincr ].
     {
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto. iIntros; discriminate.
@@ -52,77 +51,72 @@ Section fundamental.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       map_simpl "Hmap".
       iDestruct (region_close with "[$Hstate $Hr $Ha Hw $Hmono]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotmonostatic g)];try contradiction. }
+      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];try contradiction. }
       iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); try iClear "IH"; eauto.
       rewrite !fixpoint_interp1_eq /=.
       destruct Hp as [-> | [  -> | [-> ->] ] ]; rewrite /region_conditions //=.
     }
+
+    map_simpl "Hmap".
     iApply wp_pure_step_later; auto.
-    destruct (updatePcPerm w') eqn:Hw ; [ | destruct sb | ]; cycle 1.
+    destruct (updatePcPerm wdst) eqn:Hwdst ; [ | destruct sb | ]; cycle 1.
     { destruct (PermFlowsTo RX p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
         iApply (wp_bind (fill [SeqCtx])).
-        iDestruct ((big_sepM_delete _ _ PC) with "Hmap") as "[HPC Hmap]"; [apply lookup_insert|].
+        iExtract "Hmap" PC as "HPC".
         iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
         iNext; iIntros "HPC /=".
         iApply wp_pure_step_later; auto; iNext; iIntros "_".
         iApply wp_value; iIntros; discriminate.
       }
 
-      destruct_word w'; cbn in Hw; try discriminate.
+      destruct_word wdst; cbn in Hwdst; try discriminate.
       assert (Heq: (if (decide (p0 = c)) then True else p0 = RX /\ c = E)
                    /\ g0 = g1 /\ b0 = b1 /\ e0 = e1 /\ a0 = a1)
         by (destruct (decide (p0 = c)); destruct c
-            ; inv Hw; simpl in Hpft
+            ; inv Hwdst; simpl in Hpft
             ; try congruence; auto; repeat split; auto
         ).
-      clear Hw.
+      clear Hwdst.
       destruct (decide (p0 = c));
         [subst c; destruct Heq as (_ & -> & -> & -> & ->)
         | destruct Heq as ((-> & ->) & -> & -> & -> & ->)].
       { iNext ; iIntros "_".
-        map_simpl "Hmap".
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|specialize (Hnotmonostatic g0)];contradiction. }
+        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
         ; try iClear "IH"; eauto.
         - destruct p0; simpl in Hpft; auto; try discriminate.
-          destruct (reg_eq_dec r1 PC).
-          + subst r1. simplify_map_eq; auto.
+          destruct (decide (rdst = PC)) as [HrdstPC|HrdstPC].
+          + simplify_map_eq; auto.
           + simplify_map_eq.
-            iDestruct ("Hreg" $! r1 _ n H0) as "Hr1".
+            iDestruct ("Hreg" $! rdst _ HrdstPC Hrdst) as "Hrdst".
             iClear "Hinv_interp".
-            rewrite (fixpoint_interp1_eq _ (WCap _ _ _ _ _)).
+            iEval (rewrite fixpoint_interp1_eq) in "Hrdst".
             simpl; destruct g1; auto.
-        - destruct (reg_eq_dec r1 PC).
-          + subst r1. simplify_map_eq. auto.
+        - destruct (decide (rdst = PC)) as [HrdstPC|HrdstPC].
+          + simplify_map_eq; auto.
           + simplify_map_eq.
-            iDestruct ("Hreg" $! r1 _ n H0) as "Hr1"; eauto.
+            iDestruct ("Hreg" $! rdst _ HrdstPC Hrdst) as "Hrdst"; eauto.
       }
-      { assert (r1 <> PC) as HPCnr1.
-        { intro; subst r1; simplify_map_eq. naive_solver. }
+      { assert (rdst <> PC) as HPCnrdst.
+        { intro; subst rdst; simplify_map_eq. naive_solver. }
         simplify_map_eq.
-        iDestruct ("Hreg" $! r1 _ HPCnr1 H0) as "Hr1".
-        iEval (rewrite fixpoint_interp1_eq //=) in "Hr1".
+        iDestruct ("Hreg" $! rdst _ HPCnrdst Hrdst) as "Hrdst".
+        iEval (rewrite fixpoint_interp1_eq //=) in "Hrdst".
         iDestruct (region_close with "[Hw $Hstate $Hr $Ha $Hmono]") as "Hr"; eauto.
-        { destruct ρ;auto;[|specialize (Hnotmonostatic g0)];contradiction. }
+        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         rewrite /enter_cond.
         rewrite /interp_expr /=.
-        iDestruct "Hr1" as "#H".
+        iDestruct "Hrdst" as "#H".
         iAssert (future_world g1 W W) as "Hfuture". { iApply futureworld_refl. }
         iSpecialize ("H" with "Hfuture").
         iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; auto.
-        iSplit; iNext.
-        { iPureIntro; cbn. intro. destruct (decide (x = PC)) ; simplify_map_eq; auto. }
-        { iIntros (r' w' Hr'pc Hregs') "".
-          simplify_map_eq.
-          iApply ("Hreg" $! r' _ Hr'pc Hregs').
-        }
       }
     }
 
     (* Non-capability cases *)
-    all: iDestruct ((big_sepM_delete _ _ PC) with "Hmap") as "[HPC Hmap]"; [apply lookup_insert|].
+    all: iExtract "Hmap" PC as "HPC".
     all: iNext; iIntros "_".
     all: iApply (wp_bind (fill [SeqCtx])).
     all: iApply (wp_notCorrectPC with "HPC"); [intro Hcontra ; inv Hcontra|].

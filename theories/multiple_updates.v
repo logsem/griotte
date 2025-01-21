@@ -524,7 +524,7 @@ Section std_updates.
    (* Qed. *)
 
    (* multiple updates and private relation *)
-   (* This does not hold anymore, we must also make sure we cannot go from temporary layer to monotemporary layer *)
+   (* This does not hold anymore, we must also make sure we cannot go from temporary layer to temporary layer *)
    (*
    Lemma rtc_rel_priv x y:
     x <> Permanent ->
