@@ -797,4 +797,83 @@ Program Definition interp_expr (interp : D) r : D :=
   (*   by iApply region_seal_pred_interp. *)
   (* Qed. *)
 
+   Lemma interp1_eq interp (W: WORLD) p g b e a:
+    ((interp1 interp W (WCap p g b e a)) ≡
+             (if perm_eq_dec p O
+              then True
+              else
+                if perm_eq_dec p E
+                then □ enter_cond W g b e a interp
+                else ([∗ list] a ∈ finz.seq_between b e,
+                        ∃ p', ⌜PermFlows p p'⌝
+                              ∗ (if writeAllowed p
+                                 then read_write_cond a p' interp
+                                 else (∃ (P:D), ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
+                                                ∧ read_cond a p' P interp))
+                 ∗ ⌜ if pwl p then region_state_pwl W a else region_state_nwl W a g⌝)
+                     ∗ (⌜ if pwl p then g = Local else True⌝))%I).
+  Proof.
+    iSplit.
+    { iIntros "HA".
+      destruct (perm_eq_dec p O); subst; auto.
+      destruct (perm_eq_dec p E); subst; auto.
+      destruct p; simpl; try congruence; auto
+      ; destruct g ;auto
+      ; try (iSplit;eauto)
+      ; iApply (big_sepL_mono with "HA"); intros k a' ?; iIntros "H".
+      - iDestruct "H" as (p' P Hflp' Hpers) "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' P Hflp' Hpers) "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' P Hflp' Hpers) "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' P Hflp' Hpers) "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+    }
+    { iIntros "A".
+      destruct (perm_eq_dec p O); subst; auto.
+      destruct (perm_eq_dec p E); subst; auto.
+      iDestruct "A" as "(A & %)".
+      destruct p eqn:Hp; simpl in *; try congruence; subst; eauto; try (destruct g eqn:Hg); eauto.
+      all: iApply (big_sepL_mono with "A"); intros; iIntros "H".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iDestruct "Hrcond" as (P Hpers) "Hrcond".
+        iExists p',P ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iDestruct "Hrcond" as (P Hpers) "Hrcond".
+        iExists p',P ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iDestruct "Hrcond" as (P Hpers) "Hrcond".
+        iExists p',P ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iDestruct "Hrcond" as (P Hpers) "Hrcond".
+        iExists p',P ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+      - iDestruct "H" as (p' Hflp') "[Hrcond %Hstate_a']".
+        iExists p' ; iFrame "%#∗".
+    }
+  Qed.
+
+
 End logrel.

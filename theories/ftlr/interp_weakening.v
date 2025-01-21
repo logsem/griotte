@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine.ftlr Require Import ftlr_base.
-From cap_machine Require Import addr_reg region.
+From cap_machine Require Import addr_reg region monotone.
 
 Section fundamental.
   Context
@@ -410,9 +410,6 @@ Section fundamental.
     (*       * rewrite (region_addrs_empty (max b' a') e'); auto. solve_addr. } *)
   Admitted.
 
-
-
-  (* TODO FIX *)
   Lemma interp_weakening W p p' g g' b b' e e' a a' :
       p <> E ->
       (b <= b')%a ->
@@ -423,51 +420,55 @@ Section fundamental.
       (fixpoint interp1) W (WCap p g b e a) -∗
       (fixpoint interp1) W (WCap p' g' b' e' a').
   Proof.
-    (* intros HpnotE Hb He Hp Hl. iIntros "#IH HA". *)
-    (* destruct (perm_eq_dec p E); try congruence. *)
-    (* destruct (perm_eq_dec p' O). *)
-    (* { subst. *)
-    (*   rewrite !fixpoint_interp1_eq !interp1_eq. auto. } *)
-    (* destruct (perm_eq_dec p O). *)
-    (* { subst p; destruct p'; simpl in Hp; try tauto. } *)
-    (* destruct (perm_eq_dec p' E). *)
-    (* { rewrite !fixpoint_interp1_eq !interp1_eq. *)
-    (*   destruct (perm_eq_dec p' O);try congruence. *)
-    (*   destruct (perm_eq_dec p' E);try congruence. *)
-    (*   destruct (perm_eq_dec p O);try congruence. *)
-    (*   destruct (perm_eq_dec p E);try congruence. *)
-    (*   iDestruct "HA" as "[#A [% #C]]". *)
-    (*   (* p' = E *) subst p'. iModIntro. *)
-    (*   assert (HisU: isU p = false). *)
-    (*   { destruct p; simpl in Hp; simpl; auto; tauto. } *)
-    (*   rewrite !HisU /enter_cond /interp_expr /=. *)
-    (*   iIntros (r W') "#Hfuture". iNext. *)
-    (*   iIntros "[[Hfull Hmap] [Hreg [Hregion [Hsts Hown]]]]". *)
-    (*   iSplitR; auto. rewrite /interp_conf. *)
-    (*   iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hown"); eauto. *)
-    (*   iModIntro. simpl. destruct (Addr_le_dec b' e'). *)
-    (*   - rewrite (isWithin_region_addrs_decomposition b' e' b e); try solve_addr. *)
-    (*     rewrite !big_sepL_app. iDestruct "A" as "[A1 [A2 A3]]". *)
-    (*     iApply (big_sepL_impl with "A2"); auto. iModIntro; iIntros (k x Hx) "Hw". *)
-    (*     iDestruct "Hw" as "[#X %]". *)
-    (*     simpl. *)
-    (*     destruct (writeAllowed p || readAllowedU p). *)
-    (*     { rewrite bi.and_exist_r. iExists interp. *)
-    (*       iFrame "#". iSplit;[iSplit;[iPureIntro;apply _|iApply rcond_interp]|]. *)
-    (*       iApply (region_state_nwl_future with "Hfuture"); eauto. *)
-    (*       assert (x ∈ region_addrs b' e') as [_ Hin]%elem_of_region_addrs; *)
-    (*         [apply elem_of_list_lookup;eauto|];auto. *)
-    (*       destruct (pwlU p);auto;destruct l;inversion H0;auto. } *)
-    (*     { rewrite bi.and_exist_r. iDestruct "X" as (P) "(? & ?)". *)
-    (*       iExists P;iFrame "#". *)
-    (*       iApply (region_state_nwl_future with "Hfuture"); eauto. *)
-    (*       assert (x ∈ region_addrs b' e') as [_ Hin]%elem_of_region_addrs; *)
-    (*         [apply elem_of_list_lookup;eauto|];auto. *)
-    (*       destruct (pwlU p);auto;destruct l;inversion H0;auto. } *)
-    (*   - rewrite /region_conditions (region_addrs_empty b' e'); auto. solve_addr. *)
-    (* } *)
-    (* iApply interp_weakeningEO;eauto. *)
-  Admitted.
+    intros HpnotE Hb He Hp Hl. iIntros "#IH HA".
+    destruct (perm_eq_dec p E); try congruence.
+    destruct (perm_eq_dec p' O).
+    { subst.
+      rewrite !fixpoint_interp1_eq !interp1_eq. auto. }
+    destruct (perm_eq_dec p O).
+    { subst p; destruct p'; simpl in Hp; try tauto. }
+    destruct (perm_eq_dec p' E).
+    { rewrite !fixpoint_interp1_eq !interp1_eq.
+      destruct (perm_eq_dec p' O);try congruence.
+      destruct (perm_eq_dec p' E);try congruence.
+      destruct (perm_eq_dec p O);try congruence.
+      destruct (perm_eq_dec p E);try congruence.
+      iDestruct "HA" as "[#A %]".
+      (* p' = E *) subst p'. iModIntro.
+      rewrite /enter_cond /interp_expr /=.
+      iIntros (r W') "#Hfuture". iNext.
+      iIntros "[[Hfull Hmap] [Hreg [Hregion [Hsts Hown]]]]".
+      rewrite /interp_conf.
+      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hown"); eauto.
+      iModIntro. rewrite fixpoint_interp1_eq /=.
+      simpl. destruct (decide (b' < e'))%a.
+      - rewrite (isWithin_finz_seq_between_decomposition b' e' b e); try solve_addr.
+        rewrite !big_sepL_app. iDestruct "A" as "[A1 [A2 A3]]".
+        iApply (big_sepL_impl with "A2"); auto.
+        iModIntro; iIntros (k x Hx) "Hw".
+        iDestruct "Hw" as (p' Hflp') "[#X %]".
+        assert (Hflows': PermFlows RX p').
+        { eapply PermFlows_trans; eauto.
+          destruct p; simpl in *; auto; try congruence; try tauto; reflexivity. }
+        destruct (writeAllowed p).
+        { iExists p',interp.
+          iSplitR; auto.
+          iSplitR; first (iPureIntro; by apply _).
+          iFrame "X".
+          iSplitR; first iApply rcond_interp.
+          iApply (region_state_nwl_future with "Hfuture"); eauto.
+        }
+        { iDestruct "X" as (P HpersP) "X".
+          iExists p',P.
+          iSplitR; auto.
+          iSplitR; first (iPureIntro; by apply _).
+          iFrame "X".
+          iApply (region_state_nwl_future with "Hfuture"); eauto.
+        }
+      - rewrite /region_conditions (finz_seq_between_empty b' e'); auto. solve_addr.
+    }
+    iApply (interp_weakeningEO _ p p' g g'); eauto.
+  Qed.
 
   (* from cerise *)
   (* Lemma interp_weakening p p' b b' e e' a a': *)
