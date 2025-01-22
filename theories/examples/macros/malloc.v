@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel addr_reg_sample fundamental rules proofmode.
-From cap_machine Require Import multiple_updates region_invariants_frozen.
+From cap_machine Require Import multiple_updates region_invariants_frozen region_invariants_allocation.
 
 (* A toy malloc implementation *)
 
@@ -87,6 +87,8 @@ Section SimpleMalloc.
           ∗ PC ↦ᵣ updatePcPerm cont
           ∗ (∃ (ba ea : Addr) size,
             ⌜wsize = WInt size⌝
+            ∗ ⌜(b <= ba ∧ ea ≤ e)%Z⌝
+            ∗ ⌜(size > 0)%Z⌝
             ∗ ⌜(ba + size)%a = Some ea⌝
             ∗ r_t1 ↦ᵣ WCap RWX Global ba ea ba
             ∗ [[ba, ea]] ↦ₐ [[region_addrs_zeroes ba ea]])
@@ -216,106 +218,12 @@ Section SimpleMalloc.
       rewrite insert_delete_insert.
       rewrite (insert_commute _ r_t3 r_t2) // (insert_commute _ r_t4 r_t2) //.
       rewrite (insert_commute _ r_t4 r_t3) //. iFrame.
-      iExists size. auto. }
+      iExists size. repeat (iSplit;[iPureIntro|];auto;try solve_addr).
+    }
     { auto. }
   Qed.
 
-  (* TODO move in the appropriate section *)
-  Lemma related_sts_pub_world_revoked_permanent W a :
-    (std W) !! a = Some Revoked →
-    related_sts_pub_world W (<s[a:=Permanent]s>W).
-  Proof.
-    intros Ha.
-    rewrite /related_sts_pub_world /=.
-    split;[|apply related_sts_pub_refl].
-    rewrite /related_sts_pub. split.
-    - rewrite dom_insert_L. set_solver.
-    - intros i x y Hx Hy.
-      destruct (decide (a = i)).
-      + subst.
-        rewrite Hx in Ha. inversion Ha.
-        rewrite lookup_insert in Hy. inversion Hy.
-        right with (Permanent);[|left]. constructor.
-      + rewrite lookup_insert_ne in Hy;auto.
-        rewrite Hx in Hy.
-        inversion Hy; subst.
-        left.
-  Qed.
-
   Context {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}.
-      (* {sealsg: sealStoreG Σ} *)
-
-
-  Lemma update_region_revoked_perm E W l v φ `{∀ Wv, Persistent (φ Wv)} :
-    (std W) !! l = Some Revoked ->
-    future_priv_mono φ v -∗
-    sts_full_world W -∗
-    region W -∗
-    l ↦ₐ v -∗ φ (W,v) -∗ rel l φ ={E}=∗ region (<s[l := Permanent ]s>W)
-                             ∗ sts_full_world (<s[l := Permanent ]s>W).
-  Proof.
-    iIntros (Hrev) "#Hmono Hsts Hreg Hl #Hφ #Hrel".
-    rewrite region_eq /region_def.
-    iDestruct "Hreg" as (M Mρ) "(Hγrel & #Hdom & #Hdom' & Hpreds)".
-    iDestruct "Hdom" as %Hdom. iDestruct "Hdom'" as %Hdom'.
-    rewrite RELS_eq /RELS_def.
-    rewrite rel_eq /rel_def REL_eq /REL_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
-    iDestruct (reg_in γrel (M) with "[$Hγrel $HREL]") as %HMeq.
-    rewrite /region_map_def HMeq big_sepM_insert; [|by rewrite lookup_delete].
-    iDestruct "Hpreds" as "[Hl' Hr]".
-    iDestruct "Hl'" as (ρ Hl) "[Hstate Hresources]".
-    iDestruct (sts_full_state_std with "Hsts Hstate") as %Hρ.
-    rewrite Hrev in Hρ. inversion Hρ as [Hρrev]. subst.
-    iMod (sts_update_std _ _ _ Permanent with "Hsts Hstate") as "[Hsts Hstate]".
-    assert (related_sts_pub_world W (<s[l := Permanent ]s> W)) as Hrelated.
-    { apply related_sts_pub_world_revoked_permanent; auto. }
-    iDestruct (region_map_monotone with "Hr") as "Hr";[apply Hrelated|].
-    pose proof (related_sts_pub_priv_world _ _ Hrelated) as Hrelated'.
-    iDestruct ("Hmono" $! _ _ Hrelated' with "Hφ") as "Hφ'".
-    assert (is_Some (M !! l)) as [x Hsome].
-    { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. eauto. }
-    iDestruct (region_map_delete_nonstatic with "Hr") as "Hr"; [intros m;intros Hcontr;congruence|].
-    iDestruct (region_map_insert_nonmonostatic Permanent with "Hr") as "Hr";auto.
-    iDestruct (big_sepM_delete _ _ l _ Hsome with "[Hl Hstate $Hr]") as "Hr".
-    { iExists Permanent. iFrame. iSplitR;[iPureIntro;apply lookup_insert|].
-      iExists φ. rewrite HMeq lookup_insert in Hsome.
-      inversion Hsome. repeat (iSplit; auto). }
-    rewrite /std_update /=. iFrame "Hsts".
-    iExists M. iFrame. rewrite -HMeq. iFrame.
-    iModIntro. iPureIntro.
-    apply insert_id in Hsome. apply insert_id in Hl. rewrite -Hsome -Hl. split.
-    - repeat rewrite dom_insert_L;rewrite Hdom;set_solver.
-    - repeat rewrite dom_insert_L;rewrite Hdom';set_solver.
-  Qed.
-
-  Lemma extend_region_perm_sepL2_from_rev φ E W l1 l2 `{∀ Wv, Persistent (φ Wv)}:
-    Forall (λ k, std W !! k = Some Revoked) l1 →
-    sts_full_world W -∗ region W -∗
-    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ φ (W, v) ∗ future_priv_mono φ v ∗ rel k φ)
-
-    ={E}=∗
-
-    region (std_update_multiple W l1 Permanent)
-    ∗ ([∗ list] k ∈ l1, rel k φ)
-    ∗ sts_full_world (std_update_multiple W l1 Permanent).
-  Proof.
-    revert l2. induction l1.
-    { cbn. intros. iIntros "? ? ?". iFrame. eauto. }
-    { intros ? [? ?]%Forall_cons_1. iIntros "Hsts Hr Hl".
-      iDestruct (big_sepL2_length with "Hl") as %Hlen.
-      iDestruct (NoDup_of_sepL2_exclusive with "[] Hl") as %[Hal1 ND]%NoDup_cons.
-      { iIntros (? ? ?) "(H1 & ? & ?) (H2 & ? & ?)".
-        iApply (addr_dupl_false with "H1 H2"). }
-      destruct l2; [ by inversion Hlen |].
-      iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf & #Hrel) Hl]".
-      iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto.
-      iMod (update_region_revoked_perm with "Hf Hsts Hr Ha [Hφ] Hrel") as "(? & ?)"; auto.
-      { erewrite std_sta_update_multiple_lookup_same_i;auto. }
-      { iApply ("Hf" with "[] Hφ"). iPureIntro.
-        apply related_sts_pub_priv_world,related_sts_pub_update_multiple_perm. auto. }
-      iFrame "∗ #". done.
-    }
-  Qed.
 
   (* dummy helper to move the later in front of the implication *)
   Lemma helper W' g x :
@@ -338,16 +246,16 @@ Section SimpleMalloc.
     destruct (decide (r1 = r2));[subst;rewrite lookup_insert in H;eauto|rewrite lookup_insert_ne
                                   in H;auto].
 
-  Lemma simple_malloc_subroutine_valid W N g b e :
+  Lemma simple_malloc_subroutine_valid W N b e :
     Forall (λ a, W.1 !! a = Some Revoked) (finz.seq_between b e) →
     na_inv logrel_nais N (malloc_inv b e) -∗
-    ([∗ list] a ∈ finz.seq_between b e, rel a (λne Wv, interp Wv.1 Wv.2)) -∗
-    interp W (WCap E g b e b).
+    ([∗ list] a ∈ finz.seq_between b e, rel a RWX (λne Wv, interp Wv.1 Wv.2)) -∗
+    interp W (WCap E Global b e b).
   Proof.
     iIntros (Hrev) "#Hmalloc #Hrels".
     rewrite fixpoint_interp1_eq /=.
     iModIntro. rewrite /enter_cond.
-    iIntros (r W') "#Hrelated". iNext.
+    iIntros (r W') "%Hrelated". iNext.
     iIntros "(#[% Hregs_valid] & Hregs & Hr & Hsts & Hown)".
 
     rewrite /registers_pointsto.
@@ -365,21 +273,19 @@ Section SimpleMalloc.
     iDestruct "Hcont" as (p' g' b' e' a' Heq) "Hcont"; simplify_eq.
     iDestruct (helper with "Hcont") as "Hcont'".
     iNext. iIntros "((Hown & Hregs) & Hr_t0 & HPC & Hres)".
-    iDestruct "Hres" as (ba ea size Hsizeq Hsize) "[Hr_t1 Hbe]".
+    iDestruct "Hres" as (ba ea size Hsizeq Hsize Hbounds Hpos) "[Hr_t1 Hbe]".
 
     assert (∃ l1 l2, finz.seq_between b e = l1 ++ finz.seq_between ba ea ++ l2) as [l1 [l2 Heqapp] ].
     { exists (finz.seq_between b ba),(finz.seq_between ea e).
-      admit.
-      (* rewrite -finz_seq_between_split. [|solve_addr]. *)
-      (* rewrite -finz_seq_between_split;[auto|solve_addr]. *)
+      rewrite -finz_seq_between_split;[|solve_addr].
+      rewrite -finz_seq_between_split;[auto|solve_addr].
     }
      (* The following lemma can be derived from the fact that we own the resources for ba,ea, which means they cannot
        be in region W' *)
     iAssert (⌜Forall (λ k : Addr, std W' !! k = Some Revoked) (finz.seq_between ba ea)⌝)%I as %Hrev'.
     { rewrite Heqapp in Hrev. apply Forall_app in Hrev as [_ Hrev]. apply Forall_app in Hrev as [Hrev _].
       revert Hrev. rewrite !Forall_forall. iIntros (Hrev x Hin). specialize (Hrev x Hin).
-      opose proof (related_sts_priv_world_std_sta_is_Some W W' x) as [ρ Hρ];[|eauto|].
-      admit.
+      opose proof (related_sts_priv_world_std_sta_is_Some W W' x Hrelated) as [ρ Hρ];[eauto|].
       rewrite /region_pointsto.
       iDestruct (big_sepL_elem_of _ _ x with "Hrels") as "Hrel".
       { rewrite Heqapp. apply elem_of_app. right. apply elem_of_app. by left. }
@@ -387,21 +293,21 @@ Section SimpleMalloc.
       iDestruct (big_sepL2_extract_l with "Hbe") as "[_ Hb]";[eauto|].
       iDestruct "Hb" as (w') "Hw'".
       destruct ρ;auto. (* all the following will lead to duplicate resources for x *)
-      - iDestruct (region_open_monotemp with "[$Hrel $Hr $Hsts]") as (v) "(_ & _ & _ & Hw & _)";[eauto|auto|..].
+      - iDestruct (region_open_temp_nwl with "[$Hrel $Hr $Hsts]") as (v) "(_ & _ & _ & Hw & _)";[eauto|auto|..].
         iDestruct (addr_dupl_false with "Hw' Hw") as "?";auto.
       - iDestruct (region_open_perm with "[$Hrel $Hr $Hsts]") as (v) "(_ & _ & _ & Hw & _)";[eauto|auto|..].
         iDestruct (addr_dupl_false with "Hw' Hw") as "?";auto.
-      - iMod (region_open_monostatic with "[$Hr $Hsts]") as "(_ & _ & ? & H & %Hindom)";[apply Hρ|..].
-        rewrite /region_invariants_static.static_resources.
+      - iMod (region_open_frozen with "[$Hr $Hsts]") as "(_ & _ & ? & H & %Hindom)";[apply Hρ|..].
+        rewrite /frozen_resources.
         apply elem_of_dom in Hindom as [? Hx].
         iDestruct (big_sepM_delete with "H") as "[H ?]";[apply Hx|].
-        iDestruct "H" as (?) "[HH Hw]".
+        iDestruct "H" as (? ?) "[HH Hw]".
         iDestruct (addr_dupl_false with "Hw' Hw") as "?";auto.
     }
     (* Next is the interesting part of the spec: we must allocate the invariants making the malloced region valid *)
     iMod (extend_region_perm_sepL2_from_rev (λ Wv, interp Wv.1 Wv.2) _ _
                                             (finz.seq_between ba ea)
-                                            (region_addrs_zeroes ba ea) with "Hsts Hr [Hbe]") as "(Hr & #Hvalid & Hsts)";auto.
+                                            (region_addrs_zeroes ba ea) RWX with "Hsts Hr [Hbe]") as "(Hr & #Hvalid & Hsts)";auto.
     { rewrite Heqapp.
       iDestruct (big_sepL_app with "Hrels") as "[_ Hrels']".
       iDestruct (big_sepL_app with "Hrels'") as "[Hrels'' _]".
@@ -420,8 +326,9 @@ Section SimpleMalloc.
                                (<[r_t1:=WCap RWX Global ba ea ba]>
                                   (<[r_t2:=WInt 0]> (<[r_t3:=WInt 0]> (<[r_t4:=WInt 0]> r))))).
     iDestruct ("Hcont'" $! regs with "[] [$Hown Hregs $Hr $Hsts]") as "Hcont''".
-    { destruct g'; iPureIntro; apply related_sts_pub_priv_world
-      ; apply related_sts_pub_update_multiple_perm;auto. }
+    { destruct g'; iPureIntro.
+      eapply related_sts_pub_priv_world.
+      all: apply related_sts_pub_update_multiple_perm;auto. }
     { rewrite /regs. iSplitR "Hregs".
       - iSplit.
         + iPureIntro. intros x. consider_next_reg x PC. consider_next_reg x r_t0. consider_next_reg x r_t1.
@@ -436,6 +343,7 @@ Section SimpleMalloc.
           { rewrite !fixpoint_interp1_eq. iApply (big_sepL_mono with "Hvalid").
             iIntros (k y Hky) "Ha". iFrame. iPureIntro. simpl.
             rewrite std_sta_update_multiple_lookup_in_i;auto.
+            naive_solver.
             apply elem_of_list_lookup. exists k. auto.
           }
           consider_next_reg' x r_t2 Hwx; first (inv Hwx; rewrite !fixpoint_interp1_eq //=).
@@ -447,10 +355,10 @@ Section SimpleMalloc.
     }
     iApply (wp_wand with "Hcont''").
     iIntros (v) "HH". iIntros (Hv).
-    iDestruct ("HH" $! Hv) as (? ?) "(Hfull & Hvals & %Hrelated & Hown & Hsts & Hr)".
+    iDestruct ("HH" $! Hv) as (? ?) "(Hfull & Hvals & %Hrelated' & Hown & Hsts & Hr)".
     iExists _,_. iFrame. iPureIntro.
-    eapply related_sts_priv_trans_world;[|apply Hrelated].
+    eapply related_sts_priv_trans_world;[|apply Hrelated'].
     apply related_sts_pub_priv_world. apply related_sts_pub_update_multiple_perm;auto.
-  Admitted.
+  Qed.
 
 End SimpleMalloc.
