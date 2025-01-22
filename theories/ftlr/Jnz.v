@@ -2,7 +2,7 @@ From cap_machine Require Export logrel.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine.ftlr Require Import ftlr_base.
+From cap_machine.ftlr Require Import ftlr_base interp_weakening.
 From cap_machine.rules Require Import rules_base rules_Jnz.
 From cap_machine.proofmode Require Import map_simpl register_tactics.
 
@@ -32,7 +32,7 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
+    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.
     iApply (wp_Jnz with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -52,9 +52,8 @@ Section fundamental.
       map_simpl "Hmap".
       iDestruct (region_close with "[$Hstate $Hr $Ha Hw $Hmono]") as "Hr"; eauto.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];try contradiction. }
-      iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); try iClear "IH"; eauto.
-      rewrite !fixpoint_interp1_eq /=.
-      destruct Hp as [-> | [  -> | [-> ->] ] ]; rewrite /region_conditions //=.
+      iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
+      iApply (interp_next_PC with "IH Hinv_interp"); eauto.
     }
 
     map_simpl "Hmap".
@@ -84,8 +83,7 @@ Section fundamental.
       { iNext ; iIntros "_".
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-        iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
-        ; try iClear "IH"; eauto.
+        iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
         - destruct p0; simpl in Hpft; auto; try discriminate.
           destruct (decide (rdst = PC)) as [HrdstPC|HrdstPC].
           + simplify_map_eq; auto.

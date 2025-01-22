@@ -53,7 +53,7 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
+    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.
     iApply (wp_Seal with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -73,16 +73,18 @@ Section fundamental.
       assert (r1 ≠ PC) as Hne.
       { destruct (decide (PC = r1)); last auto. simplify_map_eq; auto. }
       rewrite lookup_insert_ne in Hr1; auto.
-      iAssert (fixpoint interp1 W (WSealable sb)) as "#HVsb". {
+      iAssert (fixpoint interp1 W (WSealable sb)) as "#HVsb".
+      {
         destruct (decide (r2 = PC)) as [Heq|Heq]; simplify_map_eq.
         - rewrite (fixpoint_interp1_eq _ (WCap p g b e a)) /=.
-          destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; subst p; try subst g;
-            try (iFrame "Hexec"); try (iFrame "Hinv").
-          all: iApply (big_sepL_mono with "Hinv").
+          destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; subst p; try subst g.
+          all: iApply (big_sepL_mono with "Hinv_interp").
           all: intros; iIntros "H"; simpl.
-          all: iDestruct "H" as (p Hflp) "[H %Hstate]".
-          1: iDestruct "H" as (P' HpersP') "Hcond".
-          all: iExists p; iFrame "%∗".
+          all: try( iDestruct "H"
+                   as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)").
+          all: try( iDestruct "H"
+                   as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & %Hstate)").
+          all: iExists p,P'; iFrame "%∗".
         - unshelve iSpecialize ("Hreg" $! r2 _ _ Hr2); eauto.
       }
 
@@ -94,17 +96,16 @@ Section fundamental.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
 
       iApply ("IH" $! _ (<[dst := _]> (<[PC := _]> regs))
-               with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]");
-        try iClear "IH"; eauto.
-      + intro. cbn. by repeat (rewrite lookup_insert_is_Some'; right).
+               with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
+      ; eauto.
+      + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).
         destruct (decide (ri = dst)); simplify_map_eq.
-      { unshelve iDestruct ("Hreg" $! r1 _ _ Hr1) as "HVsr"; eauto.
-        iApply (sealing_preserves_interp with "[HVsb HVsr]"); eauto.
-      }
-      { by iApply "Hreg". }
-      + destruct Hp as [-> | [  -> | [-> ->] ] ]
-          ; rewrite !fixpoint_interp1_eq /region_conditions //=.
+        { unshelve iDestruct ("Hreg" $! r1 _ _ Hr1) as "HVsr"; eauto.
+          iApply (sealing_preserves_interp with "[HVsb HVsr]"); eauto.
+        }
+        { by iApply "Hreg". }
+      + iApply (interp_next_PC with "IH Hinv_interp"); eauto.
   Qed.
 
 End fundamental.

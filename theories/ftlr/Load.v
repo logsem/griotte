@@ -2,7 +2,7 @@ From stdpp Require Import base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From cap_machine Require Export logrel.
-From cap_machine.ftlr Require Import ftlr_base.
+From cap_machine.ftlr Require Import ftlr_base interp_weakening.
 From cap_machine.rules Require Import rules_Load.
 From cap_machine.proofmode Require Import map_simpl register_tactics.
 Import uPred.
@@ -89,47 +89,36 @@ Section fundamental.
     intros W regs p g b e a src p0 g0 b0 e0 a0 HVsrc.
     iIntros "#Hreg Hr Hsts".
     do 5 (iApply sep_exist_r; iExists _). iFrame "%".
-    case_decide as Hdec. 1: destruct Hdec as [Hallows Haeq].
-    -  destruct Hallows as [Hrinr [Hra Hwb] ].
-         apply andb_prop in Hwb as [Hle Hge].
+    case_decide as Hdec; last iFrame.
+    destruct Hdec as [Hallows Haeq].
+    destruct Hallows as [Hrinr [Hra Hwb] ].
+    apply andb_prop in Hwb as [Hle Hge].
 
-         (* Unlike in the old proof, we now go the other way around,
+    (* Unlike in the old proof, we now go the other way around,
             and prove that the source register could not have been the PC,
             since both addresses differ. This saves us some cases.*)
-         assert (src ≠ PC) as n.
-         { refine (addr_ne_reg_ne Hrinr _ Haeq). by rewrite lookup_insert. }
-         simplify_map_eq.
+    assert (src ≠ PC) as n.
+    { refine (addr_ne_reg_ne Hrinr _ Haeq). by rewrite lookup_insert. }
+    simplify_map_eq.
 
-         iDestruct ("Hreg" $! src _ n Hrinr) as "Hvsrc"; eauto.
-         iDestruct (read_allowed_inv _ a0 with "Hvsrc") as (p' Hflp') "Hconds"; auto;
-           first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
-         rewrite /read_write_cond.
-         iDestruct "Hconds" as "Hrel'".
+    iDestruct ("Hreg" $! src _ n Hrinr) as "Hvsrc"; eauto.
+    iDestruct (read_allowed_inv _ a0 with "Hvsrc")
+      as (p' P Hflp' Hcond_pers) "(Hrel & Hzcond & Hrcond & Hwcond)"; auto
+    ; first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
 
-         iDestruct (region_open_prepare with "Hr") as "Hr".
-         iDestruct (readAllowed_valid_cap_implies with "Hvsrc") as %HH; eauto.
-         { rewrite /withinBounds Hle Hge. auto. }
-         destruct HH as [ρ' [Hstd [Hnotrevoked' Hnotfrozen' ] ] ].
-         (* We can finally frame off Hsts here,
+    iDestruct (region_open_prepare with "Hr") as "Hr".
+    iDestruct (readAllowed_valid_cap_implies with "Hvsrc") as %HH; eauto.
+    { rewrite /withinBounds Hle Hge. auto. }
+    destruct HH as [ρ' [Hstd [Hnotrevoked' Hnotfrozen' ] ] ].
+    (* We can finally frame off Hsts here,
             since it is no longer needed after opening the region*)
-         destruct (writeAllowed p0).
-       + iDestruct (region_open_next _ _ _ a0 p' ρ' with "[$Hrel' $Hr $Hsts]") as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
-         { intros [m' Hcontr]. specialize (Hnotfrozen' m'); contradiction. }
-         { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
-         iExists w0,p',interp. iFrame.
-         iSplitR;[iPureIntro ; clear -Hflp' Hra ; destruct p0,p'; done|].
-         iSplitR;[iPureIntro;apply _|].
-         rewrite /rcond. iSplit;auto. iSplit;auto.
-         iNext; iModIntro. iIntros (W1 W2 z) "_"; iClear "#"; rewrite fixpoint_interp1_eq;done.
-       + iDestruct "Hrel'" as (P Hpers) "[Hcond Hrel']".
-         iDestruct (region_open_next _ _ _ a0 p' ρ' with "[$Hrel' $Hr $Hsts]") as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
-         { intros [g1 Hcontr]. specialize (Hnotfrozen' g1); contradiction. }
-         { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
-         iExists w0,p',P. iFrame.
-         iSplitR;[iPureIntro ; clear -Hflp' Hra ; destruct p0,p'; done|].
-         iSplitR;[iPureIntro;apply _|].
-         rewrite /rcond. iSplit;auto.
-    - iFrame.
+    iDestruct (region_open_next _ _ _ a0 p' ρ' with "[$Hrel $Hr $Hsts]") as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
+    { intros [m' Hcontr]. specialize (Hnotfrozen' m'); contradiction. }
+    { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
+    iExists w0,p',P.
+    iFrame "∗#".
+    iSplitR;[iPureIntro ; destruct p0,p'; done|].
+    iSplitR; iPureIntro;done.
   Qed.
 
   Lemma load_res_implies_mem_map:
@@ -137,7 +126,7 @@ Section fundamental.
       (a : Addr) (w : Word) (src : RegName),
     allow_load_res W src regs a
     -∗ a ↦ₐ w
-       -∗ ∃ mem0 : Mem,
+    -∗ ∃ mem0 : Mem,
         allow_load_mem W src regs a w mem0 false
         ∗ ▷ ([∗ map] a0↦w ∈ mem0, a0 ↦ₐ w).
   Proof.
@@ -200,11 +189,10 @@ Section fundamental.
     iIntros (W regs p g b e a w src mem0) "HLoadMem".
     iDestruct "HLoadMem" as (p0 g0 b0 e0 a0) "[% HLoadMem]".
     do 5 (iApply later_exist_2; iExists _). iApply later_sep_2; iSplitR; auto.
-    case_decide.
-    * iDestruct "HLoadMem" as (w0 p' P Hp'O Hpers) "[-> [HLoadMem #[Hrcond _]] ]".
-      do 3 (iApply later_exist_2; iExists _).
-      do 2 (iApply later_sep_2; iSplitR; auto).
-    * iFrame.
+    case_decide; last iFrame.
+    iDestruct "HLoadMem" as (w0 p' P Hp'O Hpers) "(-> & HLoadMem & #Hrcond)".
+    do 3 (iApply later_exist_2; iExists _).
+    do 2 (iApply later_sep_2; iSplitR; auto).
   Qed.
 
   Lemma mem_map_recover_res:
@@ -225,7 +213,7 @@ Section fundamental.
     destruct (load_inr_eq Hrar Hread) as (<- & <- & <- & <- & <-).
     case_decide as Hdec. destruct Hdec as [Hallows Heq].
     -  destruct Hallows as [Hrinr [Hra Hwb] ].
-       iDestruct "HLoadRes" as (w0 p' P Hp'O Hpers) "[-> [HLoadRes #Hrcond] ]".
+       iDestruct "HLoadRes" as (w0 p' P Hp'O Hpers) "(-> & HLoadRes & #Hrcond)".
        iDestruct "HLoadRes" as (ρ1) "(Hstate' & #Hrev & Hr & (Hfuture & #HV) & Hrel')".
        iDestruct "Hrev" as %[Hnotrevoked Hnotfrozen ].
        rewrite memMap_resource_2ne; last auto. iDestruct "Hmem" as  "[Ha1 $]".
@@ -254,7 +242,7 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
+    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.
 
     assert (Persistent (▷ P W w)) as HpersP.
@@ -309,8 +297,7 @@ Section fundamental.
 
       (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)
       iDestruct (mem_map_recover_res with "HLoadMem [] Hmem") as "[Hr [Ha #HLVInterp ] ]"; eauto.
-      { iDestruct "Hrcond" as "[Hrcond'?]".
-        by iApply "Hrcond'". }
+      { by iApply "Hrcond". }
 
       (* Exceptional success case: we do not apply the induction hypothesis in case we have a faulty PC*)
       destruct (decide (x = RX ∨ x = RWX ∨ x = RWLX)) as [Hp'|Hp'].
@@ -351,9 +338,10 @@ Section fundamental.
          - simplify_map_eq; iPureIntro; naive_solver.
        }
        {
-        destruct (decide (PC = dst)); simplify_map_eq.
-        all: rewrite !fixpoint_interp1_eq /=.
-        all: destruct Hp' as [-> | [  -> | -> ] ]; destruct x0 ; rewrite /region_conditions //=.
+        destruct (decide (PC = dst)); simplify_map_eq; cycle 1.
+        iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+        iApply (interp_weakening with "IH HLVInterp"); eauto; try solve_addr; try done.
+        naive_solver.
        }
     }
     { iApply wp_pure_step_later; auto.

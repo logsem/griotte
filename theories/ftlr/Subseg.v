@@ -27,7 +27,6 @@ Section fundamental.
 
   Lemma subseg_interp_preserved W p g b b' e e' a :
       p <> E ->
-
       (b <= b')%a ->
       (e' <= e)%a ->
       ftlr_IH -∗
@@ -48,7 +47,7 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
+    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.
     iApply (wp_Subseg with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -71,14 +70,12 @@ Section fundamental.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       simplify_map_eq; map_simpl "Hmap".
 
-
       iApply ("IH" $! _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
       { cbn. intros. by repeat (rewrite lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         { subst ri.
           rewrite lookup_insert_ne in Hdst; auto; simplify_map_eq.
-
           unshelve iSpecialize ("Hreg" $! dst _ _ Hdst); eauto.
           rewrite /isWithin in Hwi.
           iApply (interp_weakening with "IH Hreg"); auto; try solve_addr.
@@ -95,9 +92,8 @@ Section fundamental.
         destruct Hwi as [Hwi_b Hwi_e].
         destruct (decide (dst = PC))
         ; simplify_map_eq
-        ; [iApply subseg_interp_preserved; eauto|].
-        all: destruct Hp as [-> | [  -> | [-> ->] ] ]
-        ; rewrite !fixpoint_interp1_eq /region_conditions //=.
+        ; [iApply subseg_interp_preserved; eauto|]
+        ; iApply (interp_next_PC with "IH Hinv_interp"); eauto.
       }
     }
 
@@ -111,7 +107,6 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       simplify_map_eq; map_simpl "Hmap".
-
 
       iApply ("IH" $! _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
       { cbn. intros. by repeat (rewrite lookup_insert_is_Some'; right). }
@@ -135,8 +130,7 @@ Section fundamental.
         apply isWithin_implies in Hwi.
         destruct Hwi as [Hwi_b Hwi_e].
         destruct (decide (dst = PC)) ; simplify_map_eq.
-        destruct Hp as [-> | [  -> | [-> ->] ] ]
-        ; rewrite !fixpoint_interp1_eq /region_conditions //=.
+        iApply (interp_next_PC with "IH Hinv_interp"); eauto.
       }
     }
   Qed.

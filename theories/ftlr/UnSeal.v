@@ -40,7 +40,7 @@ Section fundamental.
     iDestruct "HVsr" as "[_ Hss]".
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
-    iDestruct "HSa0" as (P) "[HsealP [ HWcond _  ]]".
+    iDestruct "HSa0" as (P) "[HsealP HWcond]".
     iDestruct "HVsd" as (P') "[% [HsealP' HP']]".
     iDestruct (seal_pred_agree with "HsealP HsealP'") as "Hequiv".
     Unshelve. 2: exact W.
@@ -57,7 +57,7 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
+    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.
     iApply (wp_UnSeal with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -108,34 +108,26 @@ Section fundamental.
       simplify_map_eq; map_simpl "Hmap".
       iApply ("IH" $! _ (<[dst:=WSealable sb]> regs)
                with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
-      ; try (iClear "IH") ; eauto.
-      { cbn. intros.
-        by repeat (rewrite lookup_insert_is_Some'; right).
-      }
-      { iIntros (ri v Hri Hvs).
+      ; eauto.
+      + cbn; intros. by repeat (rewrite lookup_insert_is_Some'; right).
+      + iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         { subst ri.
           rewrite lookup_insert in Hvs;
             inversion Hvs.
-          auto. }
+          auto.
+        }
         { repeat (rewrite lookup_insert_ne in Hvs); auto.
-          iApply "Hreg"; auto. }
-      }
-      {
-        rewrite !fixpoint_interp1_eq /=.
-        destruct Hp as [-> | [  -> | [-> ->] ] ]; rewrite /region_conditions //=.
-      }
+          iApply "Hreg"; auto.
+        }
+      + iApply (interp_next_PC with "IH Hinv_interp"); eauto.
     }
     { (* PC = dst *)
       simplify_map_eq; map_simpl "Hmap".
       destruct (decide (p'' = RX ∨ p'' = RWX ∨ p'' = RWLX ∧ g'' = Local)) as [Hpft|Hpft].
-      - iApply ("IH" $! _ regs
-                 with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
-        ; try (iClear "IH") ; eauto.
-      {
-        rewrite !fixpoint_interp1_eq /=.
-        destruct Hpft as [-> | [  -> | [-> ->] ] ]; rewrite /region_conditions //=.
-      }
+      - iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
+        ; eauto.
+        iApply (interp_weakening with "IH HVsb"); eauto; try solve_addr; try done.
       - (* not eq RX/RWX/RWLX-Local *)
         destruct (decide (p'' = RX)); simplify_eq.
         { destruct (Hpft); by left. }

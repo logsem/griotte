@@ -4,7 +4,8 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine.rules Require Import rules_base.
-From cap_machine Require Import ftlr_base.
+From cap_machine.ftlr Require Import ftlr_base interp_weakening.
+From cap_machine.proofmode Require Import map_simpl register_tactics.
 From cap_machine Require Import machine_base.
 
 Section fundamental.
@@ -75,8 +76,7 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=";
-      [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
+    iInsert "Hmap" PC.
 
     iApply (wp_AddSubLt with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -93,15 +93,14 @@ Section fundamental.
       rewrite lookup_insert_ne in H1; eauto; simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
       { destruct ρ;auto;[|specialize (Hnotfrozen g)];contradiction. }
-      iApply ("IH" $! _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]");
-        try iClear "IH"; eauto.
-      + intro. cbn. by repeat (rewrite lookup_insert_is_Some'; right).
+      iApply ("IH" $! _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
+      ; eauto.
+      + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).
         destruct (decide (ri = dst)); simplify_map_eq.
         { repeat rewrite fixpoint_interp1_eq; auto. }
         { iApply "Hreg"; eauto. }
-      + rewrite !fixpoint_interp1_eq /=.
-        destruct Hp as [-> | [  -> | [-> ->] ] ]; rewrite /region_conditions //=.
+      + iApply (interp_next_PC with "IH Hinv_interp"); eauto.
   Qed.
 
 End fundamental.

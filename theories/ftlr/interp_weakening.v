@@ -39,10 +39,10 @@ Section fundamental.
   Proof.
     intros HpnotE HpnotO HpnotE' HpnotO' Hb He Hp Hl. iIntros "HA".
     rewrite !fixpoint_interp1_eq !interp1_eq.
-    destruct (perm_eq_dec p O) as [|_];try congruence.
-    destruct (perm_eq_dec p E) as [|_];try congruence.
-    destruct (perm_eq_dec p' O) as [|_];try congruence.
-    destruct (perm_eq_dec p' E) as [|_];try congruence.
+    destruct (decide (p = O)) as [|_];try congruence.
+    destruct (decide (p = E)) as [|_];try congruence.
+    destruct (decide (p' = O)) as [|_];try congruence.
+    destruct (decide (p' = E)) as [|_];try congruence.
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iSplit; cycle 1.
     { case_eq (pwl p'); intros Hpwl'; auto.
@@ -64,12 +64,12 @@ Section fundamental.
       rewrite !big_sepL_app; iDestruct "A" as "[_ [A _]]".
       iApply (big_sepL_impl with "A"); auto.
       iModIntro; iIntros (k x Hx) "Hw".
-      iDestruct "Hw" as (p'' Hflp'') "[#X %Hpwl_cond]".
-      rewrite Hpwl in Hpwl_cond.
+      iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
+      rewrite Hpwl in Hstate.
       assert ( PermFlows p' p'')
         as Hflp' by (eapply PermFlowsToPermFlows; eapply PermFlowsToTransitive; eauto).
-      iExists p''; iFrame "%".
-      destruct p,p'; inv Hp; cbn; iFrame "#"; iPureIntro.
+      iExists p'',φ; iFrame "∗%".
+      by destruct p,p'; inv Hp; cbn; iFrame.
     - case_eq (pwl p); intros Hpwl; auto; rewrite Hpwl in Hpwl_cond; simplify_eq.
       + destruct g' ; inv Hl.
         destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
@@ -78,30 +78,69 @@ Section fundamental.
         rewrite !big_sepL_app; iDestruct "A" as "[_ [A _]]".
         iApply (big_sepL_impl with "A"); auto.
         iModIntro; iIntros (k x Hx) "Hw".
-        iDestruct "Hw" as (p'' Hflp'') "[#X %Hstate]".
+        iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
         assert ( PermFlows p' p'')
           as Hflp' by (eapply PermFlowsToPermFlows; eapply PermFlowsToTransitive; eauto).
-        iExists p''; iFrame "%".
         assert (region_state_nwl W x Local)
           as Hstate' by (cbn in * ; naive_solver).
-        destruct p,p'; inv Hp; cbn; iFrame "#"; try done.
-        all: iSplit;[|done].
-        all: iSplit;[iPureIntro;apply _|iApply rcond_interp].
+        iExists p'',φ; iFrame "∗%".
+        by destruct p,p'; inv Hp; cbn; iFrame.
       + destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
         { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
         rewrite (isWithin_finz_seq_between_decomposition b' e' b e); last solve_addr.
         rewrite !big_sepL_app; iDestruct "A" as "[_ [A _]]".
         iApply (big_sepL_impl with "A"); auto.
         iModIntro; iIntros (k x Hx) "Hw".
-        iDestruct "Hw" as (p'' Hflp'') "[#X %Hstate]".
+        iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
         assert ( PermFlows p' p'')
           as Hflp' by (eapply PermFlowsToPermFlows; eapply PermFlowsToTransitive; eauto).
-        iExists p''; iFrame "%".
         assert (region_state_nwl W x g')
           as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver).
-        destruct p,p'; inv Hp; cbn; iFrame "#"; try done.
-        all: iSplit;[|done].
-        all: iSplit;[iPureIntro;apply _|iApply rcond_interp].
+        iExists p'',φ; iFrame "∗%".
+        by destruct p,p'; inv Hp; cbn; iFrame.
+  Qed.
+
+  Lemma interp_weakeningE W p g g' b b' e e' a a' :
+      p <> E ->
+      p <> O ->
+      (b <= b')%a ->
+      (e' <= e)%a ->
+      PermFlowsTo E p ->
+      LocalityFlowsTo g' g ->
+      ftlr_IH -∗
+      (fixpoint interp1) W (WCap p g b e a) -∗
+      (fixpoint interp1) W (WCap E g' b' e' a').
+  Proof.
+    intros HpnotE HpnotO Hb He Hp Hl.
+    iIntros "#IH HA".
+    rewrite !fixpoint_interp1_eq !interp1_eq.
+    destruct (decide (p = O)) as [|_];try congruence.
+    destruct (decide (p = E)) as [|_];try congruence.
+    erewrite decide_False;auto.
+    erewrite decide_True;auto.
+    iDestruct "HA" as "[#A %Hpwl_cond]".
+    iModIntro.
+    rewrite /enter_cond /interp_expr /=.
+    iIntros (r W') "#Hfuture". iNext.
+    iIntros "[[Hfull Hmap] [Hreg [Hregion [Hsts Hown]]]]".
+    rewrite /interp_conf.
+    iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hown"); eauto.
+    iModIntro. rewrite fixpoint_interp1_eq /=.
+    simpl. destruct (decide (b' < e'))%a.
+    - rewrite (isWithin_finz_seq_between_decomposition b' e' b e); try solve_addr.
+      rewrite !big_sepL_app. iDestruct "A" as "[_ [A2 _]]".
+      iApply (big_sepL_impl with "A2"); auto.
+      iModIntro; iIntros (k x Hx) "Hw".
+      iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & #Hzcond & #Hrcond & #Hwcond & %Hstate)".
+      assert (Hflows': PermFlows RX p'').
+      { eapply PermFlows_trans; eauto.
+        destruct p; simpl in *; auto; try congruence; try tauto; reflexivity. }
+
+      iExists p'',φ.
+      iFrame "Hrel".
+      repeat(iSplit; auto).
+      iApply (region_state_nwl_future with "Hfuture"); eauto.
+    - rewrite (finz_seq_between_empty b' e'); auto; solve_addr.
   Qed.
 
   Lemma interp_weakening W p p' g g' b b' e e' a a' :
@@ -115,53 +154,25 @@ Section fundamental.
       (fixpoint interp1) W (WCap p' g' b' e' a').
   Proof.
     intros HpnotE Hb He Hp Hl. iIntros "#IH HA".
-    destruct (perm_eq_dec p E); try congruence.
-    destruct (perm_eq_dec p' O).
-    { subst.
-      rewrite !fixpoint_interp1_eq !interp1_eq. auto. }
-    destruct (perm_eq_dec p O).
+    destruct (decide (p = E)); try congruence.
+    destruct (decide (p' = O)).
+    { subst; rewrite !fixpoint_interp1_eq !interp1_eq; auto. }
+    destruct (decide (p = O)).
     { subst p; destruct p'; simpl in Hp; try tauto. }
-    destruct (perm_eq_dec p' E).
-    { rewrite !fixpoint_interp1_eq !interp1_eq.
-      destruct (perm_eq_dec p' O);try congruence.
-      destruct (perm_eq_dec p' E);try congruence.
-      destruct (perm_eq_dec p O);try congruence.
-      destruct (perm_eq_dec p E);try congruence.
-      iDestruct "HA" as "[#A %]".
-      (* p' = E *) subst p'. iModIntro.
-      rewrite /enter_cond /interp_expr /=.
-      iIntros (r W') "#Hfuture". iNext.
-      iIntros "[[Hfull Hmap] [Hreg [Hregion [Hsts Hown]]]]".
-      rewrite /interp_conf.
-      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hown"); eauto.
-      iModIntro. rewrite fixpoint_interp1_eq /=.
-      simpl. destruct (decide (b' < e'))%a.
-      - rewrite (isWithin_finz_seq_between_decomposition b' e' b e); try solve_addr.
-        rewrite !big_sepL_app. iDestruct "A" as "[A1 [A2 A3]]".
-        iApply (big_sepL_impl with "A2"); auto.
-        iModIntro; iIntros (k x Hx) "Hw".
-        iDestruct "Hw" as (p' Hflp') "[#X %]".
-        assert (Hflows': PermFlows RX p').
-        { eapply PermFlows_trans; eauto.
-          destruct p; simpl in *; auto; try congruence; try tauto; reflexivity. }
-        destruct (writeAllowed p).
-        { iExists p',interp.
-          iSplitR; auto.
-          iSplitR; first (iPureIntro; by apply _).
-          iFrame "X".
-          iSplitR; first iApply rcond_interp.
-          iApply (region_state_nwl_future with "Hfuture"); eauto.
-        }
-        { iDestruct "X" as (P HpersP) "X".
-          iExists p',P.
-          iSplitR; auto.
-          iSplitR; first (iPureIntro; by apply _).
-          iFrame "X".
-          iApply (region_state_nwl_future with "Hfuture"); eauto.
-        }
-      - rewrite /region_conditions (finz_seq_between_empty b' e'); auto. solve_addr.
-    }
-    iApply (interp_weakeningEO _ p p' g g'); eauto.
+    destruct (decide (p' = E)); cycle 1.
+    { iApply (interp_weakeningEO _ p p' g g'); eauto. }
+    { subst p'. iApply (interp_weakeningE _ p g g'); eauto. }
+  Qed.
+
+  Lemma interp_next_PC W p g b e a a' :
+    isCorrectPC (WCap p g b e a) ->
+    ftlr_IH -∗
+    interp W (WCap p g b e a) -∗
+    interp W (WCap p g b e a').
+  Proof.
+    iIntros (HcorrectPC) "#IH #Hinterp".
+    iApply interp_weakening; eauto; try solve_addr; try done.
+    by eapply isCorrectPC_nonE.
   Qed.
 
   Lemma safe_to_unseal_weakening b e b' e':

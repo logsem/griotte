@@ -2,7 +2,7 @@ From cap_machine Require Export logrel.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine.ftlr Require Import ftlr_base.
+From cap_machine.ftlr Require Import ftlr_base interp_weakening.
 From cap_machine.rules Require Import rules_base rules_Mov.
 From cap_machine.proofmode Require Import map_simpl register_tactics.
 From cap_machine Require Import stdpp_extra.
@@ -35,7 +35,7 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
+    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.
     iApply (wp_Mov with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -61,20 +61,20 @@ Section fundamental.
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         destruct (decide (r = PC)).
-        + simplify_map_eq.
-          iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); try iClear "IH"; eauto.
-          rewrite !fixpoint_interp1_eq /=.
-          destruct Hp as [-> | [  -> | [-> ->] ] ]; rewrite /region_conditions //=.
-        + simplify_map_eq.
-          iDestruct ("Hreg" $! r (WCap p0 g0 b0 e0 a0) n H ) as "Hr0".
-          destruct (PermFlowsTo RX p0) eqn:Hpft.
-        - iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); try iClear "IH"; eauto.
+        { simplify_map_eq.
+          iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
+          iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+        }
+        simplify_map_eq.
+        iDestruct ("Hreg" $! r (WCap p0 g0 b0 e0 a0) n H ) as "Hr0".
+        destruct (PermFlowsTo RX p0) eqn:Hpft.
+        - iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
           { destruct p0; simpl in Hpft; auto.
             repeat rewrite fixpoint_interp1_eq; simpl.
             destruct g0; auto.
           }
           { rewrite !fixpoint_interp1_eq /=.
-            destruct p0,g0; try congruence; rewrite /region_conditions //=.
+            destruct p0,g0; try congruence; try done.
           }
         - iApply (wp_bind (fill [SeqCtx])).
           iExtract "Hmap" PC as "HPC".
@@ -83,7 +83,8 @@ Section fundamental.
           iNext. iIntros "HPC /=".
           iApply wp_pure_step_later; auto;iNext; iIntros "_".
           iApply wp_value.
-          iIntros. discriminate. }
+          iIntros. discriminate.
+      }
       { map_simpl "Hmap".
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
@@ -98,19 +99,18 @@ Section fundamental.
             * repeat rewrite fixpoint_interp1_eq; auto.
             * destruct (decide (PC = r)); simplify_map_eq.
               ** rewrite (fixpoint_interp1_eq _ (WCap p0 g0 b0 e0 a0)) /=.
-                 destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; subst p0; try subst g0;
-                   try (iFrame "Hexec"); try (iFrame "Hinv").
-                 all: iApply (big_sepL_mono with "Hinv").
-                 all: intros; iIntros "H".
-                 all: simpl.
-                 all: iDestruct "H" as (p Hfl) "[H %Hstate]".
-                 1: iDestruct "H" as (P' HpersP') "H".
-                 all: iExists p; iFrame "%∗".
+                 destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; subst p0; try subst g0.
+                 all: iApply (big_sepL_mono with "Hinv_interp").
+                 all: intros; iIntros "H"; simpl.
+                 all: try( iDestruct "H"
+                          as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)").
+                 all: try( iDestruct "H"
+                          as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & %Hstate)").
+                 all: iExists p,P'; iFrame "%∗".
               ** iApply ("Hreg" $! r) ; auto.
           }
           { iApply ("Hreg" $! ri) ; auto. }
-        -rewrite !fixpoint_interp1_eq /=.
-         destruct Hp as [-> | [  -> | [-> ->] ] ]; rewrite /region_conditions //=.
+      - iApply (interp_next_PC with "IH Hinv_interp"); eauto.
       }
   Qed.
 
