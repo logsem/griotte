@@ -65,7 +65,7 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
+    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.
     iApply (wp_Restrict with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -102,11 +102,9 @@ Section fundamental.
             destruct g0 ;destruct g''; simpl in *; auto; try discriminate. }
           simplify_map_eq ; map_simpl "Hmap".
           iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
-
           iModIntro.
           iApply (PermPairFlows_interp_preserved); eauto.
-          destruct Hp as [-> | [  -> | [-> ->] ] ]
-          ; rewrite !fixpoint_interp1_eq /region_conditions //=.
+          iApply (interp_next_PC with "IH Hinv_interp"); eauto.
         }
 
         { iApply (wp_bind (fill [SeqCtx])).
@@ -129,8 +127,7 @@ Section fundamental.
             iDestruct ("Hreg" $! dst _ Hri Hdst) as "Hdst".
             iApply PermPairFlows_interp_preserved; eauto.
           + simplify_map_eq. iApply "Hreg"; auto.
-        - destruct Hp as [-> | [  -> | [-> ->] ] ]
-          ; rewrite !fixpoint_interp1_eq /region_conditions //=.
+        - iApply (interp_next_PC with "IH Hinv_interp"); eauto.
       }
     - apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
@@ -150,18 +147,15 @@ Section fundamental.
       simplify_map_eq; map_simpl "Hmap".
       iApply ("IH" $! _ (<[dst:=WSealRange p'0 g' b0 e0 a0]> regs) with
                "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
-      { intros. by rewrite lookup_insert_is_Some' ; right. }
-      { iIntros (ri v Hri Hvs).
+      + intros. by rewrite lookup_insert_is_Some' ; right.
+      + iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
-        + subst ri. simplify_map_eq.
+        * subst ri. simplify_map_eq.
           destruct (decodeSealPermPair n) as (p1 & g1); simplify_eq.
           iDestruct ("Hreg" $! dst _ Hri Hdst) as "Hdst".
           iApply SealPermPairFlows_interp_preserved; eauto.
-        + simplify_map_eq. iApply "Hreg"; auto.
-      }
-      { destruct Hp as [-> | [  -> | [-> ->] ] ]
-          ; rewrite !fixpoint_interp1_eq /region_conditions //=.
-      }
+        * simplify_map_eq. iApply "Hreg"; auto.
+      + iApply (interp_next_PC with "IH Hinv_interp"); eauto.
   Qed.
 
 End fundamental.

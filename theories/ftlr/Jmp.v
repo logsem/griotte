@@ -33,7 +33,7 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
+    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     destruct (decide (rsrc = PC)) as [HrPC|HrPC].
     - subst rsrc.
       iApply (wp_jmp_successPC with "[HPC Ha]"); eauto; first iFrame.
@@ -97,7 +97,6 @@ Section fundamental.
           destruct sb,p0; try congruence; inv Heq.
           iDestruct ("Hreg" $! rsrc _ HrPC Hsomesrc) as "Hwsrc".
           iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
-          iClear "Hinv".
           iApply ("IH" with "[] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); iFrame "#"; eauto.
 
         - iNext; iIntros "_".
