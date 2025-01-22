@@ -32,7 +32,7 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
+    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.
     iApply (wp_lea with "[$Ha $Hmap]"); eauto.
     { by rewrite lookup_insert. }
@@ -55,8 +55,8 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       iApply ("IH" $! _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
-      { cbn. intros. subst regs'. by repeat (apply lookup_insert_is_Some'; right). }
-      { iIntros (ri v Hri Hvs).
+      - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
+      - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         { subst ri. simplify_map_eq.
           unshelve iSpecialize ("Hreg" $! dst _ _ Hdst); eauto.
@@ -64,14 +64,10 @@ Section fundamental.
           - eapply PermFlowsToReflexive.
           - apply LocalityFlowsToReflexive.
         }
-        { iApply "Hreg"; auto.
-          by simplify_map_eq. }
-      }
-      { subst regs'. rewrite insert_insert. iApply "Hmap". }
-      { iPureIntro. tauto. }
-      { rewrite !fixpoint_interp1_eq /=.
-        destruct Hp as [-> | [  -> | [-> ->] ] ]; rewrite /region_conditions //=.
-      }
+        { iApply "Hreg"; auto. by simplify_map_eq. }
+      - subst regs';rewrite insert_insert;iApply "Hmap".
+      - iPureIntro; tauto.
+      - iApply (interp_next_PC with "IH Hinv_interp"); eauto.
     }
 
     { apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs').
@@ -82,9 +78,10 @@ Section fundamental.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+
       iApply ("IH" $! _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
-      { cbn. intros. subst regs'. by repeat (apply lookup_insert_is_Some'; right). }
-      { iIntros (ri v Hri Hvs).
+      - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
+      - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         { subst ri. simplify_map_eq.
           unshelve iSpecialize ("Hreg" $! dst _ _ Hdst); eauto.
@@ -93,12 +90,9 @@ Section fundamental.
           - apply LocalityFlowsToReflexive.
         }
         { iApply "Hreg"; auto. by simplify_map_eq. }
-      }
-      { subst regs'. rewrite insert_insert. iApply "Hmap". }
-      { iPureIntro. tauto. }
-      { rewrite !fixpoint_interp1_eq /=.
-        destruct Hp as [-> | [  -> | [-> ->] ] ]; rewrite /region_conditions //=.
-      }
+      - subst regs';rewrite insert_insert;iApply "Hmap".
+      - iPureIntro; tauto.
+      - iApply (interp_next_PC with "IH Hinv_interp"); eauto.
     }
     Qed.
 

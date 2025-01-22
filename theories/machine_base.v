@@ -281,17 +281,29 @@ Definition LocalityFlowsTo (l1 l2: Locality): bool :=
   end.
 
 (* Sanity check *)
-Lemma LocalityFlowsToTransitive:
+Lemma localityflowsto_trans :
   transitive _ LocalityFlowsTo.
 Proof.
   red; intros; destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
 
+Global Instance LocalityFlowsToTransitive: Transitive LocalityFlowsTo.
+Proof.
+  rewrite /Transitive.
+  apply localityflowsto_trans.
+Qed.
+
 (* Sanity check 2 *)
-Lemma LocalityFlowsToReflexive:
+Lemma localityflowsto_refl:
   forall g, LocalityFlowsTo g g.
 Proof.
   intros; destruct g; auto.
+Qed.
+
+Global Instance LocalityFlowsToReflexive: Reflexive LocalityFlowsTo.
+Proof.
+  rewrite /Reflexive.
+  apply localityflowsto_refl.
 Qed.
 
 Definition PermFlowsTo (p1 p2: Perm): bool :=
@@ -334,22 +346,36 @@ Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
   end.
 
 (* Sanity check *)
-Lemma PermFlowsToTransitive:
+Lemma PermFlowsTo_trans:
   transitive _ PermFlowsTo.
 Proof.
   red; intros; destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
 
+Global Instance PermFlowsToTransitive: Transitive PermFlowsTo.
+Proof.
+  rewrite /Transitive.
+  apply PermFlowsTo_trans.
+Qed.
+
 (* Sanity check 2 *)
-Lemma PermFlowsToReflexive:
+Lemma PermFlowsTo_refl:
   forall p, PermFlowsTo p p.
 Proof.
   intros; destruct p; auto.
 Qed.
 
+Global Instance PermFlowsToReflexive: Reflexive PermFlowsTo.
+Proof.
+  rewrite /Reflexive.
+  apply PermFlowsTo_refl.
+Qed.
+
+(* TODO remove ? unused *)
 Definition PermPairFlowsTo (pg1 pg2: Perm * Locality): bool :=
   PermFlowsTo (fst pg1) (fst pg2) && LocalityFlowsTo (snd pg1) (snd pg2).
 
+(* TODO remove and use PermFlowsTo instead ? *)
 (* perm-flows-to as a predicate *)
 Definition PermFlows : Perm → Perm → Prop :=
   λ p1 p2, PermFlowsTo p1 p2 = true.
@@ -360,12 +386,26 @@ Proof.
   destruct p; auto.
 Qed.
 
+Global Instance PermFlowsReflexive: Reflexive PermFlows.
+Proof.
+  rewrite /Reflexive.
+  apply PermFlows_refl.
+Qed.
+
 Lemma PermFlows_trans P1 P2 P3 :
   PermFlows P1 P2 → PermFlows P2 P3 → PermFlows P1 P3.
 Proof.
   intros Hp1 Hp2. rewrite /PermFlows /PermFlowsTo.
   destruct P1,P3,P2; simpl; auto; contradiction.
 Qed.
+
+Global Instance PermFlowsTransitive: Transitive PermFlows.
+Proof.
+  rewrite /Transitive.
+  apply PermFlows_trans.
+Qed.
+
+
 
 Lemma PermFlowsToPermFlows p p':
   PermFlowsTo p p' <-> PermFlows p p'.
@@ -392,7 +432,6 @@ Proof.
   intros Hfl Hvpc. destruct p'; auto. destruct p; inversion Hfl.
   destruct Hvpc as [Hcontr | [Hcontr | Hcontr]]; inversion Hcontr.
 Qed.
-
 
 Definition ExecPCPerm p :=
   p = RX ∨ p = RWX \/ p = RWLX.
@@ -444,18 +483,31 @@ Definition SealPermFlowsTo (s1 s2 : SealPerms): bool :=
   (if permit_unseal(s1) then permit_unseal(s2) else true).
 
 (* Sanity check *)
-Lemma SealPermFlowsToTransitive:
+Lemma SealPermFlowsTo_trans:
   transitive _ SealPermFlowsTo.
 Proof.
   red; intros. unfold SealPermFlowsTo in *. repeat destruct (permit_seal _); repeat destruct (permit_unseal _); auto.
 Qed.
 
+Global Instance SealPermFlowsToTransitive: Transitive SealPermFlowsTo.
+Proof.
+  rewrite /Transitive.
+  apply SealPermFlowsTo_trans.
+Qed.
+
 (* Sanity check 2 *)
-Lemma SealPermFlowsToReflexive:
+Lemma SealPermFlowsTo_refl:
   forall p, SealPermFlowsTo p p.
 Proof.
   intros; unfold SealPermFlowsTo. destruct (permit_seal _), (permit_unseal _); auto.
 Qed.
+
+Global Instance SealPermFlowsToReflexive: Reflexive SealPermFlowsTo.
+Proof.
+  rewrite /Reflexive.
+  apply SealPermFlowsTo_refl.
+Qed.
+
 
 (* Sanity check 3 *)
 Lemma SealPermFlows_refl : ∀ p, SealPermFlowsTo p p = true.
@@ -463,6 +515,7 @@ Proof.
   intros; rewrite /SealPermFlowsTo. destruct (permit_seal _), (permit_unseal _); auto.
 Qed.
 
+(* TODO remove? unused *)
 Definition SealPermPairFlowsTo (pg1 pg2: SealPerms * Locality): bool :=
   SealPermFlowsTo (fst pg1) (fst pg2) && LocalityFlowsTo (snd pg1) (snd pg2).
 
@@ -634,10 +687,17 @@ Proof.
   intros HH. by eapply withinBounds_le_addr, isCorrectPC_withinBounds.
 Qed.
 
-Lemma correctPC_nonO p p' g b e a :
+Lemma isCorrectPC_nonO p p' g b e a :
   PermFlows p p' → isCorrectPC (WCap p g b e a) → p' ≠ O.
 Proof.
   intros Hfl HcPC. inversion HcPC. by apply (PCPerm_nonO p p').
+Qed.
+
+Lemma isCorrectPC_nonE p g b e a :
+  isCorrectPC (WCap p g b e a) → p ≠ E.
+Proof.
+  intros HcPC; inv HcPC.
+  destruct p; naive_solver.
 Qed.
 
 Lemma in_range_is_correctPC p g b e a b' e' :

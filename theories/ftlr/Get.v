@@ -2,8 +2,9 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel.
-From cap_machine.ftlr Require Export ftlr_base.
+From cap_machine.ftlr Require Import ftlr_base interp_weakening.
 From cap_machine.rules Require Export rules_Get rules_base.
+From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
@@ -32,10 +33,9 @@ Section fundamental.
     intros Hinstr Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto.
-    rewrite <- Hi in Hinstr. clear Hi.
-    iDestruct ((big_sepM_delete _ _ PC) with "[HPC Hmap]") as "Hmap /=";
-      [apply lookup_insert|rewrite delete_insert_delete;iFrame|]. simpl.
+    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
+    rewrite <- Hi in Hinstr; clear Hi.
+    iInsert "Hmap" PC.
     iApply (wp_Get with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -53,15 +53,14 @@ Section fundamental.
       { destruct ρ;auto;[|specialize (Hnotfrozen g)];contradiction. }
 
       iApply ("IH" $! _ (<[dst := _]> (<[PC := _]> regs))
-               with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]");
-        try iClear "IH"; eauto.
-      + intro. cbn. by repeat (rewrite lookup_insert_is_Some'; right).
+               with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
+        ; eauto.
+      + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).
         destruct (decide (ri = dst)); simplify_map_eq.
       { repeat rewrite fixpoint_interp1_eq; auto. }
       { iApply "Hreg"; eauto. }
-      + rewrite !fixpoint_interp1_eq /=.
-        destruct Hp as [-> | [  -> | [-> ->] ] ]; rewrite /region_conditions //=.
+      + iApply (interp_next_PC with "IH Hinv_interp"); eauto.
   Qed.
 
 End fundamental.
