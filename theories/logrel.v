@@ -78,37 +78,45 @@ Program Definition interp_expr (interp : D) r : D :=
                                      interp_conf W))%I.
   Solve All Obligations with solve_proper.
   (* condition definitions *)
-  Program Definition read_write_cond a p (interp : D) : iProp Σ :=
-    rel a p (λne Wv, interp Wv.1 Wv.2).
-  Next Obligation.
-  Proof. solve_proper. Qed.
-  Global Instance read_write_cond_ne n :
-    Proper ((=) ==> (=) ==> dist n ==> dist n) read_write_cond.
-  Proof.
-    rewrite /read_write_cond rel_eq /rel. solve_proper_prepare.
-    f_equiv =>γ. f_equiv.
-    apply saved_anything_ne.
-    solve_proper.
-  Qed.
+  (* Program Definition read_write_cond a p (interp : D) : iProp Σ := *)
+  (*   rel a p (λne Wv, interp Wv.1 Wv.2). *)
+  (* Next Obligation. *)
+  (* Proof. solve_proper. Qed. *)
+  (* Global Instance read_write_cond_ne n : *)
+  (*   Proper ((=) ==> (=) ==> dist n ==> dist n) read_write_cond. *)
+  (* Proof. *)
+  (*   rewrite /read_write_cond rel_eq /rel. solve_proper_prepare. *)
+  (*   f_equiv =>γ. f_equiv. *)
+  (*   apply saved_anything_ne. *)
+  (*   solve_proper. *)
+  (* Qed. *)
+
+  Definition zcond (P interp : D) : iProp Σ :=
+    (▷ □ ∀ (W1 W2: WORLD) (z : Z), P W1 (WInt z) -∗ P W2 (WInt z)).
+  Global Instance zcond_ne n :
+    Proper ((=) ==> dist n ==> dist n) zcond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
 
   Definition rcond (P interp : D) : iProp Σ :=
-    (▷ □ ∀ (W: WORLD) (w : Word), P W w -∗ interp W w)
-  ∗ (▷ □ ∀ (W1 W2: WORLD) (z : Z), P W1 (WInt z) -∗ P W2 (WInt z)).
-  Program Definition read_cond a p (P : D) (interp : D) : iProp Σ :=
-    rcond P interp ∗ rel a p (λne Wv, P Wv.1 Wv.2).
-  Next Obligation.
-  Proof. solve_proper. Qed.
-  Global Instance read_cond_ne n :
-    Proper ((=) ==> (=) ==> dist n ==> dist n ==> dist n) read_cond.
-  Proof.
-    rewrite /read_cond /rcond rel_eq /rel. solve_proper_prepare.
-    apply sep_ne.
-    - repeat f_equiv;auto.
-    - solve_proper_prepare.
-      f_equiv =>γ. f_equiv.
-      apply saved_anything_ne.
-      solve_proper.
-  Qed.
+    (▷ □ ∀ (W: WORLD) (w : Word), P W w -∗ interp W w).
+  Global Instance rcond_ne n :
+    Proper ((=) ==> dist n ==> dist n) rcond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  (* Program Definition read_cond a p (P : D) (interp : D) : iProp Σ := *)
+  (*   rcond P interp ∗ rel a p (λne Wv, P Wv.1 Wv.2). *)
+  (* Next Obligation. *)
+  (* Proof. solve_proper. Qed. *)
+  (* Global Instance read_cond_ne n : *)
+  (*   Proper ((=) ==> (=) ==> dist n ==> dist n ==> dist n) read_cond. *)
+  (* Proof. *)
+  (*   rewrite /read_cond /rcond rel_eq /rel. solve_proper_prepare. *)
+  (*   apply sep_ne. *)
+  (*   - repeat f_equiv;auto. *)
+  (*   - solve_proper_prepare. *)
+  (*     f_equiv =>γ. f_equiv. *)
+  (*     apply saved_anything_ne. *)
+  (*     solve_proper. *)
+  (* Qed. *)
 
   Definition wcond (P interp : D) : iProp Σ :=
     (▷ □ ∀ (W: WORLD) (w : Word), interp W w -∗ P W w).
@@ -214,7 +222,9 @@ Program Definition interp_expr (interp : D) r : D :=
                   ∃ (p : Perm) (P:D),
                     ⌜PermFlows RO p⌝
                     ∧ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
-                    ∧ (read_cond a p P interp)
+                    ∧ rel a p (λne Wv, P Wv.1 Wv.2)
+                    ∧ (zcond P interp)
+                    ∧ (rcond P interp)
                     ∧ ⌜region_state_nwl W a g⌝
               | _ => False
               end)%I.
@@ -224,13 +234,18 @@ Program Definition interp_expr (interp : D) r : D :=
     λne W w, (match w with
               | WCap RW g b e a =>
                 [∗ list] a ∈ (finz.seq_between b e),
-                  ∃ (p : Perm),
+                  ∃ (p : Perm) (P:D),
                     ⌜PermFlows RW p⌝
-                    ∧ (read_write_cond a p interp) (* TODO should be wcond and rcond *)
+                    ∧ rel a p (λne Wv, P Wv.1 Wv.2)
+                    ∧ (zcond P interp)
+                    ∧ (rcond P interp)
+                    ∧ (wcond P interp)
                     ∧ ⌜region_state_nwl W a g⌝
               | _ => False
               end)%I.
   Solve All Obligations with solve_proper.
+
+  (* TODO continue from here *)
 
   Program Definition interp_cap_RX (interp : D) : D :=
     λne W w, (match w with
@@ -239,7 +254,10 @@ Program Definition interp_expr (interp : D) r : D :=
                   ∃ (p : Perm) (P:D),
                     ⌜PermFlows RX p⌝
                     ∧ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
-                    ∧ (read_cond a p P interp)
+                    ∧ rel a p (λne Wv, P Wv.1 Wv.2)
+                    ∧ (zcond P interp)
+                    ∧ (rcond P interp)
+                    (* ∧ (wcond P interp) *)
                     ∧ ⌜region_state_nwl W a g⌝)
              | _ => False end)%I.
   Solve All Obligations with solve_proper.
