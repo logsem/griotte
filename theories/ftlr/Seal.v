@@ -51,7 +51,7 @@ Section fundamental.
     ftlr_instr W regs p p' g b e a w (Seal dst r1 r2) ρ P.
   Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.

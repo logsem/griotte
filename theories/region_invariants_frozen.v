@@ -660,7 +660,7 @@ Section heap.
       iDestruct (sts_full_state_std with "Hsts Hsta") as %HWa.
       iDestruct (big_sepM_insert with "Htmp") as "[Ha Htmp]"; eauto.
       iDestruct "Ha" as (? ? ?) "(Hatmp&?)".
-      iDestruct "Hatmp" as (? ?) "(?&?&?)".
+      iDestruct "Hatmp" as (? ?) "(?&?&?&?)".
       iApply HInd. iFrame.
       iApply (region_close_next _ _ _ a _ _ Temporary).
       + congruence.
@@ -707,20 +707,20 @@ Section heap.
     iExists ρ. iFrame. iSplitR;[auto|].
     destruct ρ.
     - iDestruct "Hm" as (γpred p φ -> Hpers) "(#Hsavedφ & Hl)".
-      iDestruct "Hl" as (v HpO) "(Hl & Hmono & Hφ)".
+      iDestruct "Hl" as (v HpO) "(Hl & #HmonoV & #Hmono & Hφ)".
       iExists _,_,_. do 2 (iSplitR;[eauto|]).
-      iFrame "#". iExists _.
+      iFrame "#".
       iSplitR;[eauto|].
-      iDestruct "Hmono" as "#Hmono"; iFrame "∗ #".
-      destruct (pwl p); iApply "Hmono"; iFrame; auto.
+      iFrame "∗ #".
+      destruct (pwl p); iApply "HmonoV"; iFrame; auto.
       by iPureIntro ; apply related_sts_pub_priv_world.
     - iDestruct "Hm" as (γpred p φ -> Hpers) "(#Hsavedφ & Hl)".
-      iDestruct "Hl" as (v HpO) "(Hl & Hmono & Hφ)".
+      iDestruct "Hl" as (v HpO) "(Hl & #HmonoV & #Hmono & Hφ)".
       iExists _,_,_. do 2 (iSplitR;[eauto|]).
-      iFrame "#". iExists _.
+      iFrame "#".
       iSplitR;[eauto|].
-      iDestruct "Hmono" as "#Hmono"; iFrame "∗ #".
-      iApply "Hmono"; iFrame; auto.
+      iFrame "∗ #".
+      iApply "HmonoV"; iFrame; auto.
       by iPureIntro ; apply related_sts_pub_priv_world.
     - done.
     - done.
@@ -774,14 +774,6 @@ Section heap.
   (*   iIntros (W W' Hrel). iApply "H". iPureIntro. *)
   (*   eauto using related_sts_pub_a_world. *)
   (* Qed. *)
-
-  Lemma future_priv_mono_is_future_pub_mono (φ: _ → iProp Σ) v :
-    future_priv_mono φ v -∗ future_pub_mono φ v.
-  Proof.
-    iIntros "#H". unfold future_pub_mono. iModIntro.
-    iIntros (W W' Hrel). iApply "H". iPureIntro.
-    eauto using related_sts_pub_priv_world.
-  Qed.
 
   (* Lemma future_priv_mono_is_future_a_mono (φ: _ → iProp Σ) v a : *)
   (*   future_priv_mono φ v -∗ future_pub_a_mono a φ v. *)
