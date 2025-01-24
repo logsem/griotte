@@ -249,7 +249,7 @@ Section SimpleMalloc.
   Lemma simple_malloc_subroutine_valid W N b e :
     Forall (λ a, W.1 !! a = Some Revoked) (finz.seq_between b e) →
     na_inv logrel_nais N (malloc_inv b e) -∗
-    ([∗ list] a ∈ finz.seq_between b e, rel a RWX (λne Wv, interp Wv.1 Wv.2)) -∗
+    ([∗ list] a ∈ finz.seq_between b e, rel a RWX interpC) -∗
     interp W (WCap E Global b e b).
   Proof.
     iIntros (Hrev) "#Hmalloc #Hrels".
@@ -316,9 +316,16 @@ Section SimpleMalloc.
       iDestruct (big_sepL2_sep with "[Hrels3 Hbe]") as "Hbe";[iFrame "Hbe"; iFrame "Hrels3"|].
       iApply (big_sepL2_mono with "Hbe").
       iIntros (k a'' w Hin1 Hin2) "(Ha & Hrel)". iFrame.
-      apply region_addrs_zeroes_lookup in Hin2 as ->. iSplit.
+      apply region_addrs_zeroes_lookup in Hin2 as ->. iSplit;[|iSplit].
       - by rewrite fixpoint_interp1_eq /=.
-      - iModIntro. iIntros (W1 W2 Hrelated') "Hv /=". by rewrite !fixpoint_interp1_eq /=.
+      - (* TODO lemma ? *)
+        iModIntro. iIntros (W1 W2 Hrelated') "Hv /=". by rewrite !fixpoint_interp1_eq /=.
+      - (* TODO lemma ? *)
+        iIntros (w HcanStorew).
+        iModIntro; iIntros (W1 W2 Hrelated') "Hv /=".
+        iApply interp_monotone_nl; eauto.
+        destruct w ; cbn in *; try done.
+        all: destruct sb,g ; cbn in *; try done ; try congruence.
     }
     iInsertList "Hregs" [r_t1;r_t0;PC].
     set regs := <[PC:=updatePcPerm (WCap p' g' b' e' a')]>
@@ -341,9 +348,13 @@ Section SimpleMalloc.
             iPureIntro. apply related_sts_pub_update_multiple_perm;auto. }
           consider_next_reg' x r_t1 Hwx; [inv Hwx|].
           { rewrite !fixpoint_interp1_eq. iApply (big_sepL_mono with "Hvalid").
-            iIntros (k y Hky) "Ha". iFrame. iPureIntro. simpl.
+            iIntros (k y Hky) "Ha". iFrame.
+            repeat (iSplit; try done; try iNext; try iPureIntro); simpl.
+            apply persistent_cond_interp.
+            iApply zcond_interp.
+            iApply rcond_interp.
+            iApply wcond_interp.
             rewrite std_sta_update_multiple_lookup_in_i;auto.
-            naive_solver.
             apply elem_of_list_lookup. exists k. auto.
           }
           consider_next_reg' x r_t2 Hwx; first (inv Hwx; rewrite !fixpoint_interp1_eq //=).

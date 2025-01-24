@@ -49,13 +49,16 @@ Section fundamental.
     -∗ fixpoint interp1 W (WCap p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
     -∗ rel a p' (λ Wv, P Wv.1 Wv.2)
-    -∗ rcond P interp
+    -∗ ▷ rcond P interp
     -∗ □ (if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> regs) a)
-          then wcond P interp
+          then ▷ wcond P interp
           else emp)
     -∗ (▷ (if decide (ρ = Temporary /\ pwl p' = true)
-           then future_pub_mono (λ Wv, P Wv.1 Wv.2) w
-           else future_priv_mono (λ Wv, P Wv.1 Wv.2) w))
+           then future_pub_mono (safeC P) w
+           else future_priv_mono (safeC P) w))
+    -∗ (▷ (if decide (ρ = Temporary /\ pwl p' = true)
+           then mono_pub (safeC P)
+           else mono_priv (safeC P) p'))
     -∗ ▷ P W w
     -∗ sts_full_world W
     -∗ na_own logrel_nais ⊤
@@ -74,7 +77,7 @@ Section fundamental.
                         ∗ sts_full_world W' ∗ region W' }} }}.
   Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
 

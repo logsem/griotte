@@ -361,21 +361,6 @@ Section monotone.
       iPureIntro; apply region_state_nwl_monotone_nl with W;auto.
   Qed.
 
-  (*Lemma that allows switching between the two different formulations of monotonicity, to alleviate the effects of inconsistencies*)
-  Lemma switch_monotonicity_formulation ρ w p φ:
-      ρ ≠ Revoked → (∀ m, ρ ≠ Frozen m) ->
-      monotonicity_guarantees_region ρ w p φ ≡ monotonicity_guarantees_decide (Σ := Σ) ρ w p φ.
-  Proof.
-    intros Hrev Hmono.
-    unfold monotonicity_guarantees_region, monotonicity_guarantees_decide.
-    iSplit; iIntros "HH".
-    - destruct ρ;simpl;auto;try done.
-      * destruct (pwl p) ; intros; cbn; done.
-      * specialize (Hmono g); done.
-    - destruct ρ;simpl;auto;try done.
-      destruct (pwl p) ; intros; cbn; done.
-  Qed.
-
   (* The validity of regions are monotone wrt private/public future worlds *)
   (* Lemma adv_monotone W W' b e : *)
   (*   related_sts_priv_world W W' → *)
@@ -417,8 +402,7 @@ Lemma interp_monotone_generalW (W : WORLD)  (ρ : region_type)
   PermFlows p' p'' →
   canStore p' (WCap p g b e a) = true →
   ((fixpoint interp1) W) (WCap p' g' b' e' a') -∗
-  monotonicity_guarantees_region ρ (WCap p g b e a) p''
-    (λne Wv : WORLD * (leibnizO Word), (interp Wv.1) Wv.2).
+  monotonicity_guarantees_region ρ (WCap p g b e a) p'' interpC.
 Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl' Hconds) "#Hvdst".
@@ -445,8 +429,8 @@ Lemma interp_monotone_generalZ (W : WORLD) (ρ : region_type)
   std W !! a = Some ρ →
   withinBounds b e a = true →
   PermFlows p p' →
-  ((fixpoint interp1) W) (WCap p g b e a) -∗
-  monotonicity_guarantees_region ρ (WInt z) p' (λne Wv : WORLD * (leibnizO Word), (interp Wv.1) Wv.2).
+  interp W (WCap p g b e a) -∗
+  monotonicity_guarantees_region ρ (WInt z) p' interpC.
 Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
@@ -464,16 +448,16 @@ Lemma interp_monotone_generalSd (W : WORLD) (ρ : region_type)
   std W !! a = Some ρ →
   withinBounds b e a = true →
   PermFlows p p' →
-  ((fixpoint interp1) W) (WCap p g b e a) -∗
-  monotonicity_guarantees_region ρ (WSealed ot sb) p' (λne Wv : WORLD * (leibnizO Word), (interp Wv.1) Wv.2).
+  interp W (WCap p g b e a) -∗
+  monotonicity_guarantees_region ρ (WSealed ot sb) p' interpC.
 Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
   - destruct (pwl p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    all: rewrite !fixpoint_interp1_eq;done.
+    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
   - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    all: rewrite !fixpoint_interp1_eq;done.
+    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
 Qed.
 
 Lemma interp_monotone_generalSr (W : WORLD) (ρ : region_type)
@@ -482,16 +466,16 @@ Lemma interp_monotone_generalSr (W : WORLD) (ρ : region_type)
   std W !! a = Some ρ →
   withinBounds b e a = true →
   PermFlows p p' →
-  ((fixpoint interp1) W) (WCap p g b e a) -∗
-  monotonicity_guarantees_region ρ (WSealRange sp sg sb se sa) p' (λne Wv : WORLD * (leibnizO Word), (interp Wv.1) Wv.2).
+  interp W (WCap p g b e a) -∗
+  monotonicity_guarantees_region ρ (WSealRange sp sg sb se sa) p' interpC.
 Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
   - destruct (pwl p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    all: rewrite !fixpoint_interp1_eq;done.
+    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
   - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    all: rewrite !fixpoint_interp1_eq;done.
+    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
 Qed.
 
 End monotone.

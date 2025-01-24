@@ -35,10 +35,14 @@ Section fundamental.
      sts_state_std l ρ
     ∗ ⌜ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g)⌝
     ∗ open_region_many (l :: ls) W
-    ∗ (if bl then monotonicity_guarantees_region ρ v p φ ∗ φ (W, v)
-       else ▷ monotonicity_guarantees_region ρ v p φ ∗  ▷ φ (W, v) )
+    ∗ (if bl
+       then monotonicity_guarantees_region ρ v p φ
+            ∗ monotonicity_guarantees_regionFull ρ p φ
+            ∗ φ (W, v)
+       else ▷ monotonicity_guarantees_region ρ v p φ
+            ∗ ▷ monotonicity_guarantees_regionFull ρ p φ
+            ∗  ▷ φ (W, v))
     ∗ rel l p φ)%I.
-
 
   Lemma load_inr_eq {regs r p0 g0 b0 e0 a0 p1 g1 b1 e1 a1}:
     reg_allows_load regs r p0 g0 b0 e0 a0 →
@@ -61,7 +65,7 @@ Section fundamental.
         ∗ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
         ∗ a ↦ₐ w
         ∗ (region_open_resources W a [pc_a] p' (λ Wv, P Wv.1 Wv.2) w false)
-        ∗ rcond P interp
+        ∗ ▷ rcond P interp
     else open_region pc_a W)%I.
 
   Definition allow_load_mem W r (regs : Reg) pc_a pc_w (mem : Mem) (bl: bool):=
@@ -72,7 +76,7 @@ Section fundamental.
         ∗ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
         ∗ ⌜mem = <[a:=w]> (<[pc_a:=pc_w]> ∅)⌝
         ∗ (region_open_resources W a [pc_a] p' (λ Wv, P Wv.1 Wv.2) w bl)
-        ∗ (if bl then □ (∀ W (w : Word), P W w -∗ interp W w) else rcond P interp)
+        ∗ (if bl then rcond P interp else ▷ rcond P interp)
     else  ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region pc_a W)%I.
 
   Lemma create_load_res:
@@ -112,12 +116,14 @@ Section fundamental.
     destruct HH as [ρ' [Hstd [Hnotrevoked' Hnotfrozen' ] ] ].
     (* We can finally frame off Hsts here,
             since it is no longer needed after opening the region*)
-    iDestruct (region_open_next _ _ _ a0 p' ρ' with "[$Hrel $Hr $Hsts]") as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
+    iDestruct (region_open_next _ _ _ a0 p' ρ' with "[$Hrel $Hr $Hsts]")
+      as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & HfutureFull & Hval)"; eauto.
     { intros [m' Hcontr]. specialize (Hnotfrozen' m'); contradiction. }
     { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
     iExists w0,p',P.
     iFrame "∗#".
     iSplitR;[iPureIntro ; destruct p0,p'; done|].
+    rewrite /persistent_cond in Hcond_pers.
     iSplitR; iPureIntro;done.
   Qed.
 
@@ -214,10 +220,11 @@ Section fundamental.
     case_decide as Hdec. destruct Hdec as [Hallows Heq].
     -  destruct Hallows as [Hrinr [Hra Hwb] ].
        iDestruct "HLoadRes" as (w0 p' P Hp'O Hpers) "(-> & HLoadRes & #Hrcond)".
-       iDestruct "HLoadRes" as (ρ1) "(Hstate' & #Hrev & Hr & (Hfuture & #HV) & Hrel')".
+       iDestruct "HLoadRes" as (ρ1) "(Hstate' & #Hrev & Hr & (Hfuture & HfutureFull & #HV) & Hrel')".
        iDestruct "Hrev" as %[Hnotrevoked Hnotfrozen ].
        rewrite memMap_resource_2ne; last auto. iDestruct "Hmem" as  "[Ha1 $]".
-       iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' $Hfuture]") as "Hr"; eauto.
+       iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' $Hfuture $HfutureFull]")
+         as "Hr"; eauto.
        { intros [m' Hm']; specialize (Hnotfrozen m'); contradiction. }
        { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
        iDestruct (region_open_prepare with "Hr") as "$".
@@ -240,7 +247,7 @@ Section fundamental.
     ftlr_instr W regs p p' g b e a w (Load dst src) ρ P.
   Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.

@@ -491,8 +491,20 @@ Proof.
       subst. auto.
 Qed.
 
-Global Instance if_persistent (PROP: bi) (b: bool) (φ1 φ2: PROP) (H1: Persistent φ1) (H2: Persistent φ2):
+Global Instance if_persistent `{PROP:bi} (b: bool) (φ1 φ2: PROP) (H1: Persistent φ1) (H2: Persistent φ2):
   Persistent (if b then φ1 else φ2).
 Proof.
   destruct b; auto.
 Qed.
+
+Definition if_later_P {Σ : gFunctors} (b: bool) (P: iProp Σ) :=
+  (if b then ▷ P else P)%I.
+
+Lemma if_later {Σ : gFunctors} (b : bool) (Q Q' : iProp Σ) :
+  (if b then ▷ Q else Q') -∗ ▷ (if b then Q else Q').
+Proof. iIntros "H". destruct b;auto. Qed.
+
+Lemma if_dec_later {Σ : gFunctors} {C} {eqdec: Decision C} (Q Q' : iProp Σ) :
+  (if (decide C) then ▷ Q else Q') -∗ ▷ (if (decide C) then Q else Q').
+Proof. iIntros "H". destruct (decide C);auto. Qed.
+
