@@ -40,6 +40,7 @@ Section region_alloc.
      a ∉ dom (std W) →
      (pwl p) = true →
      future_pub_mono φ v -∗
+     mono_pub φ -∗
      sts_full_world W -∗
      region W -∗
      a ↦ₐ v -∗
@@ -51,7 +52,7 @@ Section region_alloc.
      ∗ rel a p φ
      ∗ sts_full_world (<s[a := Temporary ]s>W).
   Proof.
-    iIntros (HnpO Hnone1 Hpwl) "#Hmono Hfull Hreg Hl #Hφ".
+    iIntros (HnpO Hnone1 Hpwl) "#HmonoV #Hmono Hfull Hreg Hl #Hφ".
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & HMW & HMρ & Hpreds)".
     iDestruct "HMW" as %HMW. iDestruct "HMρ" as %HMρ.
@@ -93,7 +94,7 @@ Section region_alloc.
         iExists γpred,p,φ. rewrite Hpwl.
         iFrame "∗ #".
         repeat(iSplitR;[auto|]).
-        iApply "Hmono"; eauto.
+        iApply "HmonoV"; eauto.
       }
       iApply (big_sepM_mono with "Hpreds'").
       iIntros (a' x Ha) "Hρ".
@@ -116,6 +117,7 @@ Section region_alloc.
      a ∉ dom (std W) →
      (pwl p) = false →
      future_priv_mono φ v -∗
+     mono_priv φ p -∗
      sts_full_world W -∗
      region W -∗
      a ↦ₐ v -∗
@@ -127,7 +129,7 @@ Section region_alloc.
      ∗ rel a p φ
      ∗ sts_full_world (<s[a := Temporary ]s>W).
   Proof.
-    iIntros (HnpO Hnone1 Hpwl) "#Hmono Hfull Hreg Hl #Hφ".
+    iIntros (HnpO Hnone1 Hpwl) "#HmonoV #Hmono Hfull Hreg Hl #Hφ".
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & HMW & HMρ & Hpreds)".
     iDestruct "HMW" as %HMW. iDestruct "HMρ" as %HMρ.
@@ -169,7 +171,7 @@ Section region_alloc.
         iExists γpred,p,φ. rewrite Hpwl.
         iFrame "∗ #".
         repeat(iSplitR;[auto|]).
-        iApply "Hmono"; eauto.
+        iApply "HmonoV"; eauto.
         by iPureIntro; apply related_sts_pub_priv_world.
       }
       iApply (big_sepM_mono with "Hpreds'").
@@ -192,6 +194,7 @@ Section region_alloc.
      p ≠ O →
      a ∉ dom (std W) →
      future_priv_mono φ v -∗
+     mono_priv φ p -∗
      sts_full_world W -∗
      region W -∗
      a ↦ₐ v -∗
@@ -203,7 +206,7 @@ Section region_alloc.
      ∗ rel a p φ
      ∗ sts_full_world (<s[a := Permanent ]s>W).
   Proof.
-    iIntros (HnpO Hnone1) "#Hmono Hfull Hreg Hl #Hφ".
+    iIntros (HnpO Hnone1) "#HmonoV #Hmono Hfull Hreg Hl #Hφ".
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & HMW & HMρ & Hpreds)".
     iDestruct "HMW" as %HMW. iDestruct "HMρ" as %HMρ.
@@ -244,8 +247,8 @@ Section region_alloc.
         iSplitR;[iPureIntro;apply lookup_insert|].
         iExists γpred,p,φ. iFrame "∗ #".
         repeat (iSplitR;[done|]).
-        iNext. iApply "Hmono"; eauto.
-        iPureIntro. by apply related_sts_pub_priv_world.
+        iNext. iApply "HmonoV"; eauto.
+        iPureIntro; by apply related_sts_pub_priv_world.
       }
       iApply (big_sepM_mono with "Hpreds'").
       iIntros (a' x Ha) "Hρ".
@@ -373,7 +376,11 @@ Section region_alloc.
     Forall (λ k, std W !! k = None) l1 →
     sts_full_world W
     -∗ region W
-    -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ φ (W, v) ∗ future_priv_mono φ v)
+    -∗ ([∗ list] k;v ∈ l1;l2,
+          k ↦ₐ v
+          ∗ φ (W, v)
+          ∗ future_priv_mono φ v
+          ∗ mono_priv φ p)
 
     ={E}=∗
 
@@ -389,9 +396,9 @@ Section region_alloc.
       { iIntros (? ? ?) "(H1 & ? & ?) (H2 & ? & ?)".
         iApply (addr_dupl_false with "H1 H2"). }
       destruct l2; [ by inversion Hlen |].
-      iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf) Hl]".
+      iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf & #Hf') Hl]".
       iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto.
-      iDestruct (extend_region_perm with "Hf Hsts Hr Ha [Hφ]") as ">(? & ? & ?)"; eauto.
+      iDestruct (extend_region_perm with "Hf Hf' Hsts Hr Ha [Hφ]") as ">(? & ? & ?)"; eauto.
       { rewrite -std_update_multiple_not_in_sta; auto.
         rewrite not_elem_of_dom //. }
       { iApply ("Hf" with "[] Hφ"). iPureIntro.
@@ -515,7 +522,12 @@ Section region_alloc.
     Forall (λ k, std W !! k = Some Revoked) l1 →
     sts_full_world W -∗
     region W -∗
-    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ φ (W, v) ∗ future_priv_mono φ v ∗ rel k p φ)
+    ([∗ list] k;v ∈ l1;l2,
+       k ↦ₐ v
+       ∗ φ (W, v)
+       ∗ future_priv_mono φ v
+       ∗ mono_priv φ p
+       ∗ rel k p φ)
 
     ={E}=∗
 
@@ -531,9 +543,9 @@ Section region_alloc.
       { iIntros (? ? ?) "(H1 & ? & ?) (H2 & ? & ?)".
         iApply (addr_dupl_false with "H1 H2"). }
       destruct l2; [ by inversion Hlen |].
-      iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf & #Hrel) Hl]".
+      iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf & #Hf' & #Hrel) Hl]".
       iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto.
-      iMod (update_region_revoked_perm with "Hf Hsts Hr Ha [Hφ] Hrel") as "(? & ?)"; auto.
+      iMod (update_region_revoked_perm with "Hf Hf' Hsts Hr Ha [Hφ] Hrel") as "(? & ?)"; auto.
       { erewrite std_sta_update_multiple_lookup_same_i;auto. }
       { iApply ("Hf" with "[] Hφ"). iPureIntro.
         apply related_sts_pub_priv_world,related_sts_pub_update_multiple_perm. auto. }
