@@ -57,7 +57,6 @@ Section region_alloc.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & HMW & HMρ & Hpreds)".
     iDestruct "HMW" as %HMW. iDestruct "HMρ" as %HMρ.
     rewrite RELS_eq /RELS_def.
-    (* destruct on M !! l *)
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -134,7 +133,6 @@ Section region_alloc.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & HMW & HMρ & Hpreds)".
     iDestruct "HMW" as %HMW. iDestruct "HMρ" as %HMρ.
     rewrite RELS_eq /RELS_def.
-    (* destruct on M !! l *)
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -211,7 +209,6 @@ Section region_alloc.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & HMW & HMρ & Hpreds)".
     iDestruct "HMW" as %HMW. iDestruct "HMρ" as %HMρ.
     rewrite RELS_eq /RELS_def.
-    (* destruct on M !! a *)
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -287,7 +284,6 @@ Section region_alloc.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & HMW & HMρ & Hpreds)".
     iDestruct "HMW" as %HMW. iDestruct "HMρ" as %HMρ.
     rewrite RELS_eq /RELS_def.
-    (* destruct on M !! a *)
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -407,115 +403,6 @@ Section region_alloc.
         intros. by rewrite not_elem_of_dom. }
       iModIntro. cbn. iFrame. }
   Qed.
-
-  (* Lemma extend_region_uninitialized_single E W l v φ `{∀ Wv, Persistent (φ Wv)}: *)
-  (*    l ∉ dom (std W) → *)
-  (*    sts_full_world W -∗ region W -∗ l ↦ₐ v *)
-  (*    ={E}=∗ *)
-  (*    region (<s[l := Uninitialized v]s>W) *)
-  (*    ∗ rel l φ *)
-  (*    ∗ sts_full_world (<s[l := Uninitialized v ]s>W). *)
-  (* Proof. *)
-  (*   iIntros (Hnone1) "Hfull Hreg Hl". *)
-  (*   rewrite region_eq rel_eq /region_def /rel_def. *)
-  (*   iDestruct "Hreg" as (M Mρ) "(Hγrel & HdomM & HdomMρ & Hpreds)". *)
-  (*   iDestruct "HdomM" as %HdomM. iDestruct "HdomMρ" as %HdomMρ. *)
-  (*   rewrite RELS_eq /RELS_def. *)
-  (*   (* destruct on M !! l *) *)
-  (*   destruct (M !! l) eqn:HRl. *)
-  (*   { (* The location is not in the map *) *)
-  (*     iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]". *)
-  (*     iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']". *)
-  (*     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr. *)
-  (*     apply (not_elem_of_dom W.1 l) in Hnone1. *)
-  (*     rewrite Hcontr in Hnone1. done. *)
-  (*   } *)
-  (*   (* if not, we need to allocate a new saved pred using φ, *)
-  (*      and extend R with l := pred *) *)
-  (*   iMod (saved_pred_alloc φ) as (γpred) "#Hφ'". apply dfrac_valid_discarded. *)
-  (*   iMod (own_update _ _ (● (<[l:=to_agree γpred]> (to_agree <$> M : relUR)) ⋅ ◯ ({[l:=to_agree γpred]})) *)
-  (*           with "Hγrel") as "[HR #Hγrel]". *)
-  (*   { apply auth_update_alloc. *)
-  (*     apply (alloc_singleton_local_update (to_agree <$> M)); last done. *)
-  (*     rewrite lookup_fmap. rewrite HRl. done. *)
-  (*   } *)
-  (*   (* we also need to extend the World with a new temporary region *) *)
-  (*   iMod (sts_alloc_std_i W l (Uninitialized v) *)
-  (*           with "[] Hfull") as "(Hfull & Hstate)"; auto. *)
-  (*   eapply (related_sts_pub_world_fresh W l (Uninitialized v)) in Hnone1 as Hrelated; auto. *)
-  (*   iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|]. *)
-  (*   iModIntro. rewrite bi.sep_exist_r. iExists _. *)
-  (*   rewrite -fmap_insert. *)
-  (*   iFrame "HR". iFrame. *)
-  (*   iSplitL;[iExists (<[l:=_]> Mρ);iSplitR;[|iSplitR]|]. *)
-  (*   - iPureIntro. repeat rewrite dom_insert_L. rewrite HdomM. auto. *)
-  (*   - iPureIntro. repeat rewrite dom_insert_L. rewrite HdomMρ. auto. *)
-  (*   - iApply big_sepM_insert; auto. *)
-  (*     iSplitR "Hpreds'". *)
-  (*     { iExists (Uninitialized v). iFrame. *)
-  (*       iSplitR;[iPureIntro;apply lookup_insert|]. *)
-  (*       iExists φ. iSplitR;[auto|]. iFrame "∗ #". } *)
-  (*     iApply (big_sepM_mono with "Hpreds'"). *)
-  (*     iIntros (a x Ha) "Hρ". *)
-  (*     iDestruct "Hρ" as (ρ Hρ) "[Hstate Hρ]". *)
-  (*     iExists ρ. *)
-  (*     assert (a ≠ l) as Hne;[intros Hcontr;subst a;rewrite HRl in Ha; inversion Ha|]. *)
-  (*     rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame. *)
-  (*     destruct ρ; iFrame. *)
-  (*     iDestruct "Hρ" as (φ0 Hpers) "[Hsaved Hl]". *)
-  (*     iDestruct "Hl" as (v0 Hg) "[Ha #Hall]". iDestruct "Hall" as %Hall. *)
-  (*     iExists _. repeat iSplit;eauto. iExists v0. iFrame. iSplit;auto. iPureIntro. *)
-  (*     eapply frozen_extend_preserve; eauto. *)
-  (*   - iExists γpred. iFrame "#". *)
-  (*     rewrite REL_eq /REL_def. *)
-  (*     done. *)
-  (* Qed. *)
-
-  (* Lemma override_uninitialize_std_sta_dom' W (m: gmap Addr Word) : *)
-  (*    dom (override_uninitialize_std_sta m W.1) = *)
-  (*    dom m ∪ dom W.1. *)
-  (* Proof. *)
-  (*   rewrite set_eq. intro x. *)
-  (*   rewrite !elem_of_union. split. *)
-  (*   - intros HH. rewrite elem_of_dom in HH. *)
-  (*     destruct (decide (x ∈ dom m));auto. right. *)
-  (*     rewrite override_uninitialize_std_sta_lookup_none in HH. *)
-  (*     2: rewrite -not_elem_of_dom//. rewrite elem_of_dom;eauto. *)
-  (*   - intros [ HH | HH ]; rewrite elem_of_dom in HH; destruct HH as [? HH]. *)
-  (*     rewrite elem_of_dom. erewrite override_uninitialize_std_sta_lookup_some;eauto. *)
-  (*     destruct (m !! x) eqn:Hsome;auto. 1,2: rewrite elem_of_dom. *)
-  (*     erewrite override_uninitialize_std_sta_lookup_some;eauto. *)
-  (*     rewrite override_uninitialize_std_sta_lookup_none;eauto. *)
-  (* Qed. *)
-
-  (* Lemma extend_region_frozen_single_sepM E W (m: gmap Addr Word) φ `{∀ Wv, Persistent (φ Wv)}: *)
-  (*    (∀ k, is_Some (m !! k) → std W !! k = None) → *)
-  (*    sts_full_world W -∗ region W -∗ *)
-  (*    ([∗ map] k↦v ∈ m, k ↦ₐ v) *)
-
-  (*    ={E}=∗ *)
-
-  (*    region (override_uninitialize m W) *)
-  (*    ∗ ([∗ map] k↦_ ∈ m, rel k φ) *)
-  (*    ∗ sts_full_world (override_uninitialize m W). *)
-  (* Proof. *)
-  (*   induction m using map_ind. *)
-  (*   { intros. rewrite !override_uninitialize_empty !big_sepM_empty. *)
-  (*     iIntros. by iFrame. } *)
-  (*   { iIntros (HnW) "Hsts Hr H". rewrite big_sepM_insert //. *)
-  (*     iDestruct "H" as "(Hk & Hm)". *)
-  (*     rewrite /override_uninitialize. *)
-  (*     rewrite !override_uninitialize_std_sta_insert. *)
-  (*     iMod (IHm with "Hsts Hr Hm") as "(Hr & Hm & Hsts)"; auto. *)
-  (*     { intros. apply HnW. rewrite lookup_insert_is_Some. *)
-  (*       destruct (decide (i = k)); auto. } *)
-  (*     iDestruct (extend_region_uninitialized_single with "Hsts Hr Hk") *)
-  (*       as ">(Hr & Hrel & Hsts)"; auto. *)
-  (*     { rewrite override_uninitialize_std_sta_dom'. *)
-  (*       rewrite not_elem_of_union !not_elem_of_dom. split; auto. *)
-  (*       apply HnW. rewrite lookup_insert //. } *)
-  (*     iFrame. iModIntro. iApply big_sepM_insert; eauto. } *)
-  (* Qed. *)
 
   Lemma extend_region_perm_sepL2_from_rev φ E W l1 l2 p `{∀ Wv, Persistent (φ Wv)}:
     p ≠ O →

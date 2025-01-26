@@ -245,12 +245,12 @@ Section std_updates.
      rewrite /std /=. rewrite lookup_insert. auto.
    Qed.
 
-   (* Lemma std_update_temp_multiple_lookup W l k y : *)
-   (*   l !! k = Some y → *)
-   (*   region_state_pwl (std_update_temp_multiple W l) y. *)
-   (* Proof. *)
-   (*   apply std_update_multiple_lookup. *)
-   (* Qed. *)
+   Lemma std_update_temp_multiple_lookup W l k y :
+     l !! k = Some y →
+     region_state_pwl (std_update_temp_multiple W l) y.
+   Proof.
+     apply std_update_multiple_lookup.
+   Qed.
 
 
    (* Multiple updates does not change dom, as long as the updated elements are a subset of original dom *)
@@ -504,68 +504,5 @@ Section std_updates.
        eapply related_sts_pub_trans_world;[apply std_update_mutiple_related_monotone,Ha_std|].
        rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.
    Qed.
-
-
-   (* Helper lemmas about permutation *)
-
-   (* never used ? *)
-   (* Lemma elements_permutation A C `{Empty C, Union C, Singleton A C, Elements A C,ElemOf A C, EqDecision A, FinSet A C} (l: list A) : *)
-   (*   NoDup l -> *)
-   (*   elements (list_to_set l) ≡ₚ l. *)
-   (* Proof. *)
-   (*   intros Hdup. *)
-   (*   induction l. *)
-   (*   - by rewrite /= elements_empty. *)
-   (*   - apply NoDup_cons_iff in Hdup as [Hnin Hdup]. *)
-   (*     rewrite /= elements_union_singleton; auto. *)
-   (*     apply not_elem_of_list_to_set. *)
-   (*     intros Hcontr. apply elem_of_list_In in Hcontr. *)
-   (*     done. *)
-   (* Qed. *)
-
-   (* multiple updates and private relation *)
-   (* This does not hold anymore, we must also make sure we cannot go from temporary layer to temporary layer *)
-   (*
-   Lemma rtc_rel_priv x y:
-    x <> Permanent ->
-    rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) x y.
-  Proof.
-    intros; destruct x, y; try congruence;
-      repeat
-        (match goal with
-         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) ?X ?X => left
-         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) Temporary ?X => eright; [(left; constructor); right; right; constructor|left]
-         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) Temporary ?X => eright; [(left; constructor); right; constructor|left]
-         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) ?X ?Y => try (right with Temporary; [(left; constructor); right; constructor|])
-         | |- rtc (λ x y : region_type, Rpub x y ∨ Rpubp x y ∨ Rpriv x y) ?X ?Y => try (right with Temporary; [(left; constructor); right; constructor|])
-         | _ => idtac
-         end).
-  Qed.
-
-  Lemma related_sts_priv_world_std_update_multiple W l ρ :
-    Forall (λ a : Addr, ∃ ρ, (std W) !! a = Some ρ /\ ρ <> Permanent) l →
-    related_sts_priv_world W (std_update_multiple W l ρ).
-  Proof.
-    intros Hforall.
-    induction l.
-    - apply related_sts_priv_refl_world.
-    - eapply related_sts_priv_trans_world;[apply IHl|].
-      + apply Forall_cons_1 in Hforall as [_ Hforall]. auto.
-      + split;[|rewrite std_update_multiple_loc_rel;apply related_sts_priv_refl].
-        split.
-        ++ rewrite /std_update dom_insert_L. set_solver.
-        ++ intros j x0 y Hx0 Hy.
-           destruct (decide (a = j)).
-           +++ subst. rewrite lookup_insert in Hy. inversion Hy; subst.
-               apply Forall_cons_1 in Hforall as [Hi _].
-               destruct (decide (j ∈ l)).
-               { rewrite std_sta_update_multiple_lookup_in_i in Hx0; auto. inversion Hx0. left. }
-               rewrite std_sta_update_multiple_lookup_same_i in Hx0; auto.
-               rewrite /revoke /std /= in Hi.
-               destruct Hi as [ρ [Hi Hi'] ].
-               rewrite Hi in Hx0. inversion Hx0; subst.
-               eapply rtc_rel_priv; auto.
-           +++ rewrite /= lookup_insert_ne in Hy;auto. rewrite Hx0 in Hy; inversion Hy; subst; left.
-  Qed.*)
 
 End std_updates.

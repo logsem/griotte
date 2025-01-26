@@ -41,47 +41,6 @@ Section monotone.
         apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto.
   Qed.
 
-  (* Lemma region_state_nwl_monotone_a W W' (a a' : Addr) l : *)
-  (*   (a < a')%a → *)
-  (*   related_sts_a_world W W' a' → *)
-  (*   region_state_nwl W a l -> region_state_nwl W' a l. *)
-  (* Proof. *)
-  (*   rewrite /region_state_nwl /std. *)
-  (*   intros Hlt Hrelated Hstate. *)
-  (*   destruct l. *)
-  (*   - destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *. *)
-  (*     assert (is_Some (W'.1 !! a)) as [y Hy]. *)
-  (*     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. } *)
-  (*     specialize (Hrelated a Permanent y Hstate Hy). *)
-  (*     eapply rtc_implies in Hrelated. *)
-  (*     apply std_rel_pub_rtc_Permanent in Hrelated; subst; auto. *)
-  (*     intros r q. destruct (decide (a' <= a)%a);auto. *)
-  (*   - destruct Hrelated as [ [Hdom_sta Hrelated] _]. simpl in *. *)
-  (*     assert (is_Some (W'.1 !! a)) as [y Hy]. *)
-  (*     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. *)
-  (*       apply Hdom_sta. rewrite elem_of_dom. *)
-  (*       destruct Hstate ; eauto. *)
-  (*     } *)
-  (*     destruct Hstate as [Hstate|Hstate]. *)
-  (*     + specialize (Hrelated _ Permanent y Hstate Hy). *)
-  (*       apply std_rel_pub_rtc_Permanent in Hrelated; subst; auto. *)
-  (*     + specialize (Hrelated _ Temporary y Hstate Hy). *)
-  (*       apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto. *)
-  (* Qed. *)
-
-  (* Lemma region_state_nwl_monotone_nm W W' a : *)
-  (*   related_sts_priv_world W W' → *)
-  (*   region_state_nwl W a Local -> region_state_nwl W' a Local. *)
-  (* Proof. *)
-  (*   rewrite /region_state_nwl /std. *)
-  (*   intros Hrelated Hstate. *)
-  (*   destruct Hrelated as [ [Hdom_sta Hrelated ] _]. *)
-  (*   assert (is_Some (W'.1 !! a)) as [y Hy]. *)
-  (*   { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. } *)
-  (*   specialize (Hrelated _ Permanent y Hstate Hy). *)
-  (*   apply std_rel_rtc_Permanent in Hrelated; subst; auto. *)
-  (* Qed. *)
-
   Lemma region_state_nwl_monotone_nl W W' a :
     related_sts_priv_world W W' →
     region_state_nwl W a Global -> region_state_nwl W' a Global.
@@ -107,22 +66,6 @@ Section monotone.
     specialize (Hrelated _ Temporary y Hstate Hy).
     apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto.
   Qed.
-
-  (* Lemma region_state_pwl_monotone_a W W' a a' : *)
-  (*   (a < a')%a → *)
-  (*   related_sts_a_world W W' a' → *)
-  (*   region_state_pwl W a -> region_state_pwl W' a. *)
-  (* Proof. *)
-  (*   rewrite /region_state_pwl /std. *)
-  (*   intros Hle Hrelated Hstate. *)
-  (*   destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *. *)
-  (*   assert (is_Some (W'.1 !! a)) as [y Hy]. *)
-  (*   { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. } *)
-  (*   specialize (Hrelated _ Temporary y Hstate Hy). *)
-  (*   eapply rtc_implies in Hrelated. *)
-  (*   apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto. *)
-  (*   intros r q. rewrite decide_False;auto. solve_addr. *)
-  (* Qed. *)
 
   Lemma region_state_nwl_future W W' l l' p a:
     LocalityFlowsTo l' l ->
@@ -160,98 +103,6 @@ Section monotone.
       eapply region_state_pwl_monotone; eauto.
     - iApply (region_state_nwl_future with "Hfuture"); eauto.
   Qed.
-
-  (* Lemma region_state_U_monotone W W' a : *)
-  (*   related_sts_priv_world W W' → *)
-  (*   region_state_U W a -> region_state_U W' a. *)
-  (* Proof. *)
-  (*   rewrite /region_state_U /std. *)
-  (*   intros Hrelated Hstate. *)
-  (*   destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *. *)
-  (*   assert (is_Some (W'.1 !! a)) as [y Hy]. *)
-  (*   { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. } *)
-  (*   specialize (Hrelated _ Permanent y Hstate Hy). *)
-  (*   apply std_rel_rtc_Permanent in Hrelated; auto. subst y; auto. *)
-  (* Qed. *)
-
-  (* Lemma region_state_U_monotone_mono W W' a : *)
-  (*   related_sts_pub_world W W' → *)
-  (*   region_state_U_mono W a -> region_state_U_mono W' a. *)
-  (* Proof. *)
-  (*   rewrite /region_state_U_mono /std. *)
-  (*   intros Hrelated Hstate. *)
-  (*   destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *. *)
-  (*   assert (is_Some (W'.1 !! a)) as [y Hy]. *)
-  (*   { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. *)
-  (*     destruct Hstate as [Hstate | [Hstate | [w Hstate] ] ];eauto. } *)
-  (*   destruct Hstate as [Hstate | [Hstate | [w Hstate] ] ]. *)
-  (*   - specialize (Hrelated _ _ y Hstate Hy). *)
-  (*     apply std_rel_pub_rtc_Temporary in Hrelated;eauto. *)
-  (*     destruct Hrelated as [-> | [? ->] ];subst;rewrite Hy;eauto. *)
-  (*   - specialize (Hrelated _ Permanent y Hstate Hy). *)
-  (*     apply std_rel_pub_rtc_Permanent in Hrelated; auto. subst y; auto. *)
-  (*   - specialize (Hrelated _ _ y Hstate Hy). *)
-  (*     eapply std_rel_pub_rtc_Uninitialized in Hrelated; eauto. *)
-  (*     destruct Hrelated as [-> | [? ->] ]; eauto. *)
-  (* Qed. *)
-
-  (* Lemma region_state_U_pwl_monotone_mono W W' a : *)
-  (*   related_sts_pub_world W W' → *)
-  (*   region_state_U_pwl_mono W a -> region_state_U_pwl_mono W' a. *)
-  (* Proof. *)
-  (*   rewrite /region_state_U /std. *)
-  (*   intros Hrelated Hstate. *)
-  (*   destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *. *)
-  (*   assert (is_Some (W'.1 !! a)) as [y Hy]. *)
-  (*   { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. *)
-  (*     destruct Hstate as [? | [? ?] ]; eauto. } *)
-  (*   destruct Hstate as [Hstate|[? Hstate] ]. *)
-  (*   - specialize (Hrelated _ Temporary y Hstate Hy). *)
-  (*     destruct (decide (y = Temporary)); subst; left; auto. *)
-  (*     apply std_rel_pub_rtc_Temporary in Hrelated; auto. contradiction. *)
-  (*   - specialize (Hrelated _ (Uninitialized x) y Hstate Hy). *)
-  (*     eapply std_rel_pub_rtc_Uninitialized in Hrelated; eauto. destruct Hrelated;subst y; [left | right]; eauto. *)
-  (* Qed. *)
-
-  (* Lemma region_state_U_pwl_monotone_mono_a W W' a a' : *)
-  (*   related_sts_a_world W W' a' → *)
-  (*   region_state_U_pwl_mono W a -> region_state_U_pwl_mono W' a. *)
-  (* Proof. *)
-  (*   rewrite /region_state_U /std. *)
-  (*   intros Hrelated Hstate. *)
-  (*   destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *. *)
-  (*   assert (is_Some (W'.1 !! a)) as [y Hy]. *)
-  (*   { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. *)
-  (*     destruct Hstate as [? | [? ?] ]; eauto. } *)
-  (*   destruct Hstate as [Hstate|[? Hstate] ]. *)
-  (*   - specialize (Hrelated _ Temporary y Hstate Hy). *)
-  (*     destruct (decide (y = Temporary)); subst; auto. left;auto. *)
-  (*     destruct (decide (a' <= a)%a). *)
-  (*     + apply std_rel_pub_rtc_Temporary in Hrelated; subst;auto. *)
-  (*       destruct Hrelated as [-> | [? ->] ]; *)
-  (*         rewrite /region_state_U_pwl_mono;eauto. *)
-  (*     + apply std_rel_pub_rtc_Temporary in Hrelated; subst;auto. contradiction. *)
-  (*   - specialize (Hrelated _ (Uninitialized x) y Hstate Hy). *)
-  (*     destruct (decide (a' <= a)%a). *)
-  (*     + eapply std_rel_pub_rtc_Uninitialized in Hrelated; eauto. *)
-  (*       destruct Hrelated as [Hy' | [w' Hy'] ]; subst y; [left | right]; eauto. *)
-  (*     + eapply std_rel_pub_rtc_Uninitialized in Hrelated; eauto. *)
-  (*       destruct Hrelated; subst y; [left | right]; eauto. *)
-  (* Qed. *)
-
-  (* The following lemma is not required for monotonicity, but is interesting for use in examples *)
-  (* Lemma region_state_U_pwl_monotone_same W W' g a : *)
-  (*   related_sts_pub_world W W' → *)
-  (*   (std W) !! a = Some (Frozen g) -> (std W') !! a = Some (Frozen g). *)
-  (* Proof. *)
-  (*   rewrite /std. *)
-  (*   intros Hrelated Hstate. *)
-  (*   destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *. *)
-  (*   assert (is_Some (W'.1 !! a)) as [y Hy]. *)
-  (*   { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom ;eauto. } *)
-  (*   specialize (Hrelated _ (Frozen g) y Hstate Hy). *)
-  (*   eapply std_rel_pub_rtc_Frozen in Hrelated; subst; eauto.  *)
-  (* Qed. *)
 
   Lemma region_state_Revoked_monotone (W W' : WORLD) (a : Addr) :
     related_sts_pub_world W W' →
@@ -399,7 +250,7 @@ Lemma interp_monotone_generalW (W : WORLD)  (ρ : region_type)
   (p p' p'' : Perm) (g g' : Locality) (b e a b' e' a' : Addr) :
   std W !! a' = Some ρ →
   withinBounds b' e' a' = true →
-  PermFlows p' p'' →
+  PermFlowsTo p' p'' →
   canStore p' (WCap p g b e a) = true →
   ((fixpoint interp1) W) (WCap p' g' b' e' a') -∗
   monotonicity_guarantees_region ρ (WCap p g b e a) p'' interpC.
@@ -428,7 +279,7 @@ Lemma interp_monotone_generalZ (W : WORLD) (ρ : region_type)
   (p p' : Perm) (g : Locality) (b e a : Addr) z:
   std W !! a = Some ρ →
   withinBounds b e a = true →
-  PermFlows p p' →
+  PermFlowsTo p p' →
   interp W (WCap p g b e a) -∗
   monotonicity_guarantees_region ρ (WInt z) p' interpC.
 Proof.
@@ -447,7 +298,7 @@ Lemma interp_monotone_generalSd (W : WORLD) (ρ : region_type)
   (ot : OType) (sb : Sealable) :
   std W !! a = Some ρ →
   withinBounds b e a = true →
-  PermFlows p p' →
+  PermFlowsTo p p' →
   interp W (WCap p g b e a) -∗
   monotonicity_guarantees_region ρ (WSealed ot sb) p' interpC.
 Proof.
@@ -465,7 +316,7 @@ Lemma interp_monotone_generalSr (W : WORLD) (ρ : region_type)
   (sp : SealPerms) (sg : Locality) (sb se sa : OType) :
   std W !! a = Some ρ →
   withinBounds b e a = true →
-  PermFlows p p' →
+  PermFlowsTo p p' →
   interp W (WCap p g b e a) -∗
   monotonicity_guarantees_region ρ (WSealRange sp sg sb se sa) p' interpC.
 Proof.

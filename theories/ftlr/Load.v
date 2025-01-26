@@ -30,18 +30,14 @@ Section fundamental.
   (* The necessary resources to close the region again,
      except for the points to predicate, which we will store separately
      The boolean bl can be used to keep track of whether or not we have applied a wp lemma *)
-  Definition region_open_resources W l ls p φ v (bl : bool): iProp Σ :=
+  Definition region_open_resources W l ls p φ v (has_later : bool): iProp Σ :=
     (∃ ρ,
      sts_state_std l ρ
     ∗ ⌜ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g)⌝
     ∗ open_region_many (l :: ls) W
-    ∗ (if bl
-       then monotonicity_guarantees_region ρ v p φ
-            ∗ monotonicity_guarantees_regionFull ρ p φ
-            ∗ φ (W, v)
-       else ▷ monotonicity_guarantees_region ρ v p φ
-            ∗ ▷ monotonicity_guarantees_regionFull ρ p φ
-            ∗  ▷ φ (W, v))
+    ∗ if_later_P has_later (monotonicity_guarantees_region ρ v p φ
+                  ∗ monotonicity_guarantees_regionFull ρ p φ
+                  ∗ φ (W, v))
     ∗ rel l p φ)%I.
 
   Lemma load_inr_eq {regs r p0 g0 b0 e0 a0 p1 g1 b1 e1 a1}:
@@ -64,25 +60,26 @@ Section fundamental.
         ⌜p' ≠ O⌝
         ∗ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
         ∗ a ↦ₐ w
-        ∗ (region_open_resources W a [pc_a] p' (λ Wv, P Wv.1 Wv.2) w false)
+        ∗ (region_open_resources W a [pc_a] p' (λ Wv, P Wv.1 Wv.2) w true)
         ∗ ▷ rcond P interp
     else open_region pc_a W)%I.
 
-  Definition allow_load_mem W r (regs : Reg) pc_a pc_w (mem : Mem) (bl: bool):=
+  Definition allow_load_mem W r (regs : Reg) pc_a pc_w (mem : Mem) (has_later: bool):=
     (∃ p g b e a, ⌜read_reg_inr regs r p g b e a⌝ ∗
     if decide (reg_allows_load regs r p g b e a ∧ a ≠ pc_a)
     then ∃ w p' (P:D),
         ⌜p' ≠ O⌝
         ∗ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
         ∗ ⌜mem = <[a:=w]> (<[pc_a:=pc_w]> ∅)⌝
-        ∗ (region_open_resources W a [pc_a] p' (λ Wv, P Wv.1 Wv.2) w bl)
-        ∗ (if bl then rcond P interp else ▷ rcond P interp)
+        ∗ (region_open_resources W a [pc_a] p' (λ Wv, P Wv.1 Wv.2) w has_later)
+        ∗ if_later_P has_later (rcond P interp)
     else  ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region pc_a W)%I.
 
   Lemma create_load_res:
     ∀ (W : WORLD) (regs : leibnizO Reg)
       (p : Perm) (g : Locality) (b e a : Addr)
-      (src : RegName) (p0 : Perm) (g0 : Locality) (b0 e0 a0 : Addr),
+      (src : RegName)
+      (p0 : Perm) (g0 : Locality) (b0 e0 a0 : Addr),
       read_reg_inr (<[PC:=WCap p g b e a]> regs) src p0 g0 b0 e0 a0
       → (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → ((fixpoint interp1) W) v)
           -∗ open_region a W
@@ -133,7 +130,7 @@ Section fundamental.
     allow_load_res W src regs a
     -∗ a ↦ₐ w
     -∗ ∃ mem0 : Mem,
-        allow_load_mem W src regs a w mem0 false
+        allow_load_mem W src regs a w mem0 true
         ∗ ▷ ([∗ map] a0↦w ∈ mem0, a0 ↦ₐ w).
   Proof.
     intros W regs a w src.
@@ -163,7 +160,7 @@ Section fundamental.
     ∀ (W : WORLD) (regs : leibnizO Reg)
       (a : Addr) (w : Word) (src : RegName)
       (mem0 : Mem),
-    allow_load_mem W src regs a w mem0 false
+    allow_load_mem W src regs a w mem0 true
     -∗ ⌜mem0 !! a = Some w⌝ ∗ ⌜allow_load_map_or_true src regs mem0⌝.
   Proof.
     iIntros (W regs a w src mem0) "HLoadMem".
@@ -189,8 +186,8 @@ Section fundamental.
     ∀ (W : WORLD) (regs : leibnizO Reg)
       (p : Perm) (g : Locality) (b e a : Addr)
       (w : Word) (src : RegName) (mem0 : Mem),
-    allow_load_mem W src regs a w mem0 false
-    -∗ ▷ allow_load_mem W src regs a w mem0 true.
+    allow_load_mem W src regs a w mem0 true
+    -∗ ▷ allow_load_mem W src regs a w mem0 false.
   Proof.
     iIntros (W regs p g b e a w src mem0) "HLoadMem".
     iDestruct "HLoadMem" as (p0 g0 b0 e0 a0) "[% HLoadMem]".
@@ -208,7 +205,7 @@ Section fundamental.
       (mem0 : Mem) (loadv : Word),
     reg_allows_load regs src p0 g0 b0 e0 a0
     → mem0 !! a0 = Some loadv
-    → allow_load_mem W src regs a w mem0 true
+    → allow_load_mem W src regs a w mem0 false
     -∗ ((fixpoint interp1) W) w
     -∗ ([∗ map] a0↦w ∈ mem0, a0 ↦ₐ w)
     -∗ open_region a W ∗ a ↦ₐ w ∗ ((fixpoint interp1) W) loadv.
@@ -238,9 +235,6 @@ Section fundamental.
   Qed.
 
 
-  (* Instance if_Persistent p b e a r src p0 b0 e0 a0 loadv : Persistent (if decide (reg_allows_load (<[PC:=WCap p b e a]> r) src p0 b0 e0 a0 ∧ a0 ≠ a) then interp loadv else emp)%I. *)
-  (* Proof. intros. destruct (decide (reg_allows_load (<[PC:=WCap p b e a]> r) src p0 b0 e0 a0 ∧ a0 ≠ a));apply _. Qed. *)
-
    Lemma load_case (W : WORLD) (regs : leibnizO Reg)
      (p p' : Perm) (g : Locality) (b e a : Addr)
      (w : Word) (ρ : region_type) (dst src : RegName) (P:D) :
@@ -249,7 +243,6 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.
 
     assert (Persistent (▷ P W w)) as HpersP.

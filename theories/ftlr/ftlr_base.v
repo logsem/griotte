@@ -44,7 +44,7 @@ Section fundamental.
     → (∀ x : RegName, is_Some (regs !! x))
     → isCorrectPC (WCap p g b e a)
     → (b <= a)%a ∧ (a < e)%a
-    → PermFlows p p'
+    → PermFlowsTo p p'
     → p' ≠ O
     → (∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2))
     → (if pwl p then region_state_pwl W a else region_state_nwl W a g)
