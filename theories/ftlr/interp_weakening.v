@@ -34,8 +34,8 @@ Section fundamental.
     (e' <= e)%a ->
     PermFlowsTo p' p ->
     LocalityFlowsTo g' g ->
-    (fixpoint interp1) W (WCap p g b e a) -∗
-    (fixpoint interp1) W (WCap p' g' b' e' a').
+    interp W (WCap p g b e a) -∗
+    interp W (WCap p' g' b' e' a').
   Proof.
     intros HpnotE HpnotO HpnotE' HpnotO' Hb He Hp Hl. iIntros "HA".
     rewrite !fixpoint_interp1_eq !interp1_eq.
@@ -68,7 +68,6 @@ Section fundamental.
       assert ( PermFlowsTo p' p'')
         as Hflp' by (eapply PermFlowsToTransitive; eauto).
       iExists p'',φ; iFrame "∗%".
-      by destruct_perm p; destruct_perm p'; inv Hp; cbn; iFrame.
     - case_eq (pwl p); intros Hpwl; auto; rewrite Hpwl in Hpwl_cond; simplify_eq.
       + destruct g' ; inv Hl.
         destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
@@ -83,7 +82,6 @@ Section fundamental.
         assert (region_state_nwl W x Local)
           as Hstate' by (cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%".
-        by destruct_perm p; destruct_perm p'; inv Hp; cbn; iFrame.
       + destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
         { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
         rewrite (isWithin_finz_seq_between_decomposition b' e' b e); last solve_addr.
@@ -96,7 +94,6 @@ Section fundamental.
         assert (region_state_nwl W x g')
           as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%".
-      by destruct_perm p; destruct_perm p'; inv Hp; cbn; iFrame.
   Qed.
 
   Lemma interp_weakeningE W p g g' b b' e e' a a' :
@@ -107,8 +104,8 @@ Section fundamental.
       PermFlowsTo E p ->
       LocalityFlowsTo g' g ->
       ftlr_IH -∗
-      (fixpoint interp1) W (WCap p g b e a) -∗
-      (fixpoint interp1) W (WCap E g' b' e' a').
+      interp W (WCap p g b e a) -∗
+      interp W (WCap E g' b' e' a').
   Proof.
     intros HpnotE HpnotO Hb He Hp Hl.
     iIntros "#IH HA".
@@ -149,8 +146,8 @@ Section fundamental.
     PermFlowsTo p' p ->
     LocalityFlowsTo g' g ->
     ftlr_IH -∗
-    (fixpoint interp1) W (WCap p g b e a) -∗
-    (fixpoint interp1) W (WCap p' g' b' e' a').
+    interp W (WCap p g b e a) -∗
+    interp W (WCap p' g' b' e' a').
   Proof.
     intros HpnotE Hb He Hp Hl. iIntros "#IH HA".
     destruct (decide (p' = O)).
@@ -176,8 +173,8 @@ Section fundamental.
   Lemma safe_to_unseal_weakening b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
-    safe_to_unseal (fixpoint interp1) b e -∗
-    safe_to_unseal (fixpoint interp1) b' e'.
+    safe_to_unseal interp b e -∗
+    safe_to_unseal interp b' e'.
   Proof.
     iIntros (Hb He) "HA".
     rewrite /safe_to_unseal.
@@ -190,8 +187,8 @@ Section fundamental.
   Lemma safe_to_seal_weakening b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
-    safe_to_seal (fixpoint interp1) b e -∗
-    safe_to_seal (fixpoint interp1) b' e'.
+    safe_to_seal interp b e -∗
+    safe_to_seal interp b' e'.
   Proof.
     iIntros (Hb He) "HA".
     rewrite /safe_to_seal.
@@ -206,8 +203,8 @@ Section fundamental.
     (e' <= e)%ot ->
     SealPermFlowsTo p' p ->
     LocalityFlowsTo g' g ->
-    (fixpoint interp1) W (WSealRange p g b e a) -∗
-    (fixpoint interp1) W (WSealRange p' g' b' e' a').
+    interp W (WSealRange p g b e a) -∗
+    interp W (WSealRange p' g' b' e' a').
   Proof.
   intros Hb He Hp Hg. iIntros "#HA".
   rewrite !fixpoint_interp1_eq. cbn.

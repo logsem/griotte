@@ -92,12 +92,12 @@ Section fundamental.
     iDestruct "Hinv" as "[#Hinv %Hpwl_cond]".
 
     iDestruct (extract_from_region_inv _ _ a with "Hinv") as "H";auto.
-    rewrite ExecPCPerm_readAllowed; auto.
-    2: { rewrite /ExecPCPerm; destruct_perm p ; naive_solver. }
 
+    assert (readAllowed p = true) as Hra.
+    { destruct_perm p; naive_solver. }
     iDestruct (write_allowed_implies_ra with "[Hreg] [H]")
       as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & %Hstate_a)"
-    ;auto; iClear "Hinv H".
+    ;eauto ; iClear "Hinv H".
     assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
       as [ρ [Hρ [Hne Hne'] ] ].
     { destruct (pwl p),g; eauto. destruct Hstate_a as [Htemp | Hperm];eauto. }

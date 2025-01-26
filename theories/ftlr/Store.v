@@ -190,14 +190,13 @@ Section fundamental.
       { intros [g1 Hcontr];specialize (Hnotfrozen' g1); contradiction. }
       { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
       iExists p'',P''.
-      (* iAssert ((if writeAllowed p'' then ▷ wcond P'' interp else True)%I) as "Hwcond'". *)
-      (* { destruct (writeAllowed p''); done. } *)
-      (* iAssert ((if readAllowed p'' then  ▷ rcond P'' interp else True)%I) as "Hrcond'". *)
-      (* { destruct p0 ; destruct p'' ; cbn in * ; try done. *)
-      (*   destruct rx eqn:Hrx, rx0 eqn:Hrx0; cbn in * ; try done. *)
-      (*   destruct rx0 eqn:Hrx0; cbn in * ; try done. *)
-      (* } *)
       rewrite Hra.
+      iFrame "∗#".
+      iAssert (if readAllowed p0 then ▷ rcond P'' interp else True)%I as "Hrcond0".
+      { destruct (readAllowed p0) eqn:Hra''; last done.
+        eapply readAllowed_flows in Hflp''; eauto.
+        destruct (readAllowed p''); done.
+      }
       iFrame "∗#".
       iSplitR;[iPureIntro ; destruct p0,p'; done|].
       iSplitR; try (iPureIntro; done).

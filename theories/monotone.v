@@ -146,18 +146,18 @@ Section monotone.
     destruct rx,w; auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hwcond & %Hstate)".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
       iExists p',P. iFrame "∗%".
       iPureIntro; apply region_state_nwl_monotone with W;auto.
     - destruct g; auto.
       iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond  & Hwcond & %Hstate)".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
       iExists p',P. iFrame "∗%".
       iPureIntro; apply region_state_pwl_monotone with W;auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & %Hstate)".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
       iExists p',P. iFrame "∗%".
       iPureIntro; apply region_state_nwl_monotone with W;auto.
     - iApply (big_sepL_mono with "Hw").
@@ -173,7 +173,7 @@ Section monotone.
       iPureIntro; apply region_state_pwl_monotone with W;auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & %Hstate)".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
       iExists p',P. iFrame "∗%".
       iPureIntro; apply region_state_nwl_monotone with W;auto.
     - iApply (big_sepL_mono with "Hw").
@@ -210,12 +210,7 @@ Section monotone.
     destruct rx,w; auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hwcond & %Hstate)".
-      iExists p',P. iFrame "∗%".
-      iPureIntro; apply region_state_nwl_monotone_nl with W;auto.
-    - iApply (big_sepL_mono with "Hw").
-      iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & %Hstate)".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
       iExists p',P. iFrame "∗%".
       iPureIntro; apply region_state_nwl_monotone_nl with W;auto.
     - iApply (big_sepL_mono with "Hw").
@@ -225,7 +220,12 @@ Section monotone.
       iPureIntro; apply region_state_nwl_monotone_nl with W;auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & %Hstate)".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
+      iExists p',P. iFrame "∗%".
+      iPureIntro; apply region_state_nwl_monotone_nl with W;auto.
+    - iApply (big_sepL_mono with "Hw").
+      iIntros (n y Hsome) "Hw".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
       iExists p',P. iFrame "∗%".
       iPureIntro; apply region_state_nwl_monotone_nl with W;auto.
     - iApply (big_sepL_mono with "Hw").
@@ -275,7 +275,7 @@ Lemma interp_monotone_generalW (W : WORLD)  (ρ : region_type)
   withinBounds b' e' a' = true →
   PermFlowsTo p' p'' →
   canStore p' (WCap p g b e a) = true →
-  ((fixpoint interp1) W) (WCap p' g' b' e' a') -∗
+  interp W (WCap p' g' b' e' a') -∗
   monotonicity_guarantees_region ρ (WCap p g b e a) p'' interpC.
 Proof.
   unfold monotonicity_guarantees_region.

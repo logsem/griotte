@@ -404,6 +404,24 @@ Proof.
   apply PermFlowsTo_refl.
 Qed.
 
+Lemma readAllowed_flows (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> readAllowed p1 = true
+  -> readAllowed p2 = true.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
+Lemma writeAllowed_flows (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> writeAllowed p1 = true
+  -> writeAllowed p2 = true.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
 Lemma readAllowed_nonO p p' :
   PermFlowsTo p p' → readAllowed p = true → p' ≠ O.
 Proof.
