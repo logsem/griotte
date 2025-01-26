@@ -66,8 +66,8 @@ Section fundamental.
       iModIntro; iIntros (k x Hx) "Hw".
       iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
       rewrite Hpwl in Hstate.
-      assert ( PermFlows p' p'')
-        as Hflp' by (eapply PermFlowsToPermFlows; eapply PermFlowsToTransitive; eauto).
+      assert ( PermFlowsTo p' p'')
+        as Hflp' by (eapply PermFlowsToTransitive; eauto).
       iExists p'',φ; iFrame "∗%".
       by destruct p,p'; inv Hp; cbn; iFrame.
     - case_eq (pwl p); intros Hpwl; auto; rewrite Hpwl in Hpwl_cond; simplify_eq.
@@ -79,8 +79,8 @@ Section fundamental.
         iApply (big_sepL_impl with "A"); auto.
         iModIntro; iIntros (k x Hx) "Hw".
         iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
-        assert ( PermFlows p' p'')
-          as Hflp' by (eapply PermFlowsToPermFlows; eapply PermFlowsToTransitive; eauto).
+        assert ( PermFlowsTo p' p'')
+          as Hflp' by (eapply PermFlowsToTransitive; eauto).
         assert (region_state_nwl W x Local)
           as Hstate' by (cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%".
@@ -92,8 +92,8 @@ Section fundamental.
         iApply (big_sepL_impl with "A"); auto.
         iModIntro; iIntros (k x Hx) "Hw".
         iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
-        assert ( PermFlows p' p'')
-          as Hflp' by (eapply PermFlowsToPermFlows; eapply PermFlowsToTransitive; eauto).
+        assert ( PermFlowsTo p' p'')
+          as Hflp' by (eapply PermFlowsToTransitive; eauto).
         assert (region_state_nwl W x g')
           as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%".
@@ -132,8 +132,8 @@ Section fundamental.
       iApply (big_sepL_impl with "A2"); auto.
       iModIntro; iIntros (k x Hx) "Hw".
       iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & #Hzcond & #Hrcond & #Hwcond & %Hstate)".
-      assert (Hflows': PermFlows RX p'').
-      { eapply PermFlows_trans; eauto.
+      assert (Hflows': PermFlowsTo RX p'').
+      { eapply PermFlowsTo_trans; eauto.
         destruct p; simpl in *; auto; try congruence; try tauto; reflexivity. }
 
       iExists p'',φ.

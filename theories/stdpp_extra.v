@@ -182,6 +182,19 @@ Proof.
     f_equiv. apply IHl1.
 Qed.
 
+Lemma delete_list_None {K V : Type} `{Countable K, EqDecision K}
+  (ks : list K) (m : gmap K V) (l : K) :
+  l ∈ ks →
+  (delete_list ks m) !! l = None.
+Proof.
+  intros HH;induction ks;[inversion HH|].
+  apply elem_of_cons in HH as [-> | Hin];auto.
+  - simpl. rewrite lookup_delete. auto.
+  - simpl. destruct (decide (a = l));[subst;rewrite lookup_delete;auto|].
+    rewrite lookup_delete_ne// IHks;auto.
+Qed.
+
+
 (* Map difference for heterogeneous maps, and lemmas relating it to delete_list *)
 
 Definition map_difference_het

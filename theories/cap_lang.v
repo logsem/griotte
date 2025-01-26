@@ -4,8 +4,6 @@ From stdpp Require Import gmap fin_maps list.
 From cap_machine Require Export addr_reg machine_base machine_parameters.
 Set Warnings "-redundant-canonical-projection".
 
-(* Ltac inv H := inversion H; clear H; subst. *)
-
 Definition ExecConf := (Reg * Mem)%type.
 
 Inductive ConfFlag : Type :=
