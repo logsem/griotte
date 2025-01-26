@@ -1,6 +1,5 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
-(* From cap_machine.rules Require Export rules. *)
 From cap_machine Require Export cap_lang region seal_store region_invariants.
 From iris.algebra Require Import gmap agree auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
@@ -51,79 +50,7 @@ Section logrel.
 
   (* -------------------------------------------------------------------------------- *)
 
-  (* interp expression definitions *)
-  Definition registers_pointsto (r : Reg) : iProp Σ :=
-    ([∗ map] r↦w ∈ r, r ↦ᵣ w)%I.
-
-  Definition full_map (reg : Reg) : iProp Σ := (∀ (r : RegName), ⌜is_Some (reg !! r)⌝)%I.
-  Program Definition interp_reg (interp : D) : R :=
-   λne (W : WORLD) (reg : leibnizO Reg),
-     (full_map reg ∧
-      ∀ (r : RegName) (v : Word), (⌜r ≠ PC⌝ → ⌜reg !! r = Some v⌝ → interp W v))%I.
-  Solve All Obligations with solve_proper.
-
-  Definition interp_conf W : iProp Σ :=
-    (WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ →
-              ∃ r W', full_map r ∧ registers_pointsto r
-                   ∗ ⌜related_sts_priv_world W W'⌝
-                   ∗ na_own logrel_nais ⊤
-                   ∗ sts_full_world W'
-                   ∗ region W' }})%I.
-
-Program Definition interp_expr (interp : D) r : D :=
-    (λne W w, (interp_reg interp W r ∗ registers_pointsto (<[PC:=w]> r)
-                                     ∗ region W
-                                     ∗ sts_full_world W
-                                     ∗ na_own logrel_nais ⊤ -∗
-                                     interp_conf W))%I.
-  Solve All Obligations with solve_proper.
-  (* condition definitions *)
-  (* Program Definition read_write_cond a p (interp : D) : iProp Σ := *)
-  (*   rel a p (λne Wv, interp Wv.1 Wv.2). *)
-  (* Next Obligation. *)
-  (* Proof. solve_proper. Qed. *)
-  (* Global Instance read_write_cond_ne n : *)
-  (*   Proper ((=) ==> (=) ==> dist n ==> dist n) read_write_cond. *)
-  (* Proof. *)
-  (*   rewrite /read_write_cond rel_eq /rel. solve_proper_prepare. *)
-  (*   f_equiv =>γ. f_equiv. *)
-  (*   apply saved_anything_ne. *)
-  (*   solve_proper. *)
-  (* Qed. *)
-
-  Definition zcond (P : D) : iProp Σ :=
-    (□ ∀ (W1 W2: WORLD) (z : Z), P W1 (WInt z) -∗ P W2 (WInt z)).
-  Global Instance zcond_ne n :
-    Proper ((=) ==> dist n) zcond.
-  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-
-  Definition rcond (P interp : D) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : Word), P W w -∗ interp W w).
-  Global Instance rcond_ne n :
-    Proper ((=) ==> dist n ==> dist n) rcond.
-  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  (* Program Definition read_cond a p (P : D) (interp : D) : iProp Σ := *)
-  (*   rcond P interp ∗ rel a p (λne Wv, P Wv.1 Wv.2). *)
-  (* Next Obligation. *)
-  (* Proof. solve_proper. Qed. *)
-  (* Global Instance read_cond_ne n : *)
-  (*   Proper ((=) ==> (=) ==> dist n ==> dist n ==> dist n) read_cond. *)
-  (* Proof. *)
-  (*   rewrite /read_cond /rcond rel_eq /rel. solve_proper_prepare. *)
-  (*   apply sep_ne. *)
-  (*   - repeat f_equiv;auto. *)
-  (*   - solve_proper_prepare. *)
-  (*     f_equiv =>γ. f_equiv. *)
-  (*     apply saved_anything_ne. *)
-  (*     solve_proper. *)
-  (* Qed. *)
-
-  Definition wcond (P interp : D) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : Word), interp W w -∗ P W w).
-  Global Instance wcond_ne n :
-    Proper ((=) ==> dist n ==> dist n) wcond.
-  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-
+  (* Future world relation *)
   Definition future_world g W W' : iProp Σ :=
     (match g with
     | Local => ⌜related_sts_pub_world W W'⌝
@@ -154,12 +81,72 @@ Program Definition interp_expr (interp : D) r : D :=
     unfold future_world. destruct g; apply bi.pure_persistent.
   Qed.
 
+
+  (* interp expression definitions *)
+  Definition registers_pointsto (r : Reg) : iProp Σ :=
+    ([∗ map] r↦w ∈ r, r ↦ᵣ w)%I.
+
+  Definition full_map (reg : Reg) : iProp Σ := (∀ (r : RegName), ⌜is_Some (reg !! r)⌝)%I.
+  Program Definition interp_reg (interp : D) : R :=
+   λne (W : WORLD) (reg : leibnizO Reg),
+     (full_map reg ∧
+      ∀ (r : RegName) (v : Word), (⌜r ≠ PC⌝ → ⌜reg !! r = Some v⌝ → interp W v))%I.
+  Solve All Obligations with solve_proper.
+
+  Definition interp_conf W : iProp Σ :=
+    (WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ →
+              ∃ r W', full_map r ∧ registers_pointsto r
+                   ∗ ⌜related_sts_priv_world W W'⌝
+                   ∗ na_own logrel_nais ⊤
+                   ∗ sts_full_world W'
+                   ∗ region W' }})%I.
+
+Program Definition interp_expr (interp : D) r : D :=
+    (λne W w, (interp_reg interp W r ∗ registers_pointsto (<[PC:=w]> r)
+                                     ∗ region W
+                                     ∗ sts_full_world W
+                                     ∗ na_own logrel_nais ⊤ -∗
+                                     interp_conf W))%I.
+  Solve All Obligations with solve_proper.
+
+  (* Condition definitions *)
+  Definition zcond (P : D) : iProp Σ :=
+    (□ ∀ (W1 W2: WORLD) (z : Z), P W1 (WInt z) -∗ P W2 (WInt z)).
+  Global Instance zcond_ne n :
+    Proper ((=) ==> dist n) zcond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance zcond_contractive P :
+    Contractive (λ interp, ▷ zcond P)%I.
+  Proof. solve_contractive. Qed.
+
+  Definition rcond (P interp : D) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word), P W w -∗ interp W w).
+  Global Instance rcond_ne n :
+    Proper ((=) ==> dist n ==> dist n) rcond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance rcond_contractive P :
+    Contractive (λ interp, ▷ rcond P interp)%I.
+  Proof. solve_contractive. Qed.
+
+  Definition wcond (P interp : D) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word), interp W w -∗ P W w).
+  Global Instance wcond_ne n :
+    Proper ((=) ==> dist n ==> dist n) wcond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance wcond_contractive P :
+    Contractive (λ interp, ▷ wcond P interp)%I.
+  Proof. solve_contractive. Qed.
+
+
   Definition exec_cond W b e g p (interp : D) : iProp Σ :=
     (∀ a r W', ⌜a ∈ₐ [[ b , e ]]⌝ → future_world g W W' →
             ▷ interp_expr interp r W' (WCap p g b e a))%I.
   Global Instance exec_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
   Proof. unfold exec_cond. solve_proper. Qed.
+  Global Instance exec_cond_contractive W b e g p :
+    Contractive (λ interp, exec_cond W b e g p interp).
+  Proof. solve_contractive. Qed.
 
   Definition enter_cond W g b e a (interp : D) : iProp Σ :=
     (∀ r W', future_world g W W' →
@@ -167,19 +154,22 @@ Program Definition interp_expr (interp : D) r : D :=
   Global Instance enter_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
   Proof. unfold enter_cond. solve_proper. Qed.
+  Global Instance enter_cond_contractive W b e a g :
+    Contractive (λ interp, enter_cond W b e a g interp).
+  Proof.
+    solve_contractive.
+  Qed.
+
+  Definition persistent_cond (P:D) := (∀ Wv, Persistent (P Wv.1 Wv.2)).
 
   (* interp definitions *)
 
 
-  (* TODO update the table *)
   (*
       -------------------------------------------------------------
       |          |         nwl           |          pwl           |
-      |          | - < a    |    a ≤ -   |  - < a    |    a ≤ -   |
       -------------------------------------------------------------
-      | Directed | {M,P}    | {M,P,U}    |    {M}    |    {M,U}   |
-      |-----------------------------------------------------------|
-      | Local    |       {P}             |           N/A          |
+      | Local    |       {P,T}           |           {T}          |
       |-----------------------------------------------------------|
       | Global   |       {P}             |           N/A          |
       -------------------------------------------------------------
@@ -195,34 +185,18 @@ Program Definition interp_expr (interp : D) r : D :=
      | Global => (std W) !! a = Some Permanent
     end.
 
-  (* Definition region_state_U W (a : Addr) : Prop := *)
-  (*   (std W) !! a = Some Permanent. *)
-
-  (* Definition region_state_U_mono W (a : Addr) : Prop := *)
-  (*   (std W) !! a = Some Temporary *)
-  (*   \/ (std W) !! a = Some Permanent *)
-  (*   ∨ (exists w, (std W) !! a = Some (Uninitialized w)). *)
-
-  (* Definition region_state_U_pwl_mono W (a : Addr) : Prop := *)
-  (*   (std W) !! a = Some Temporary *)
-  (*   ∨ (exists w, (std W) !! a = Some (Uninitialized w)). *)
-
   (* For simplicity we might want to have the following statement in valididy of caps.
      However, it is strictly not necessary since it can be derived form full_sts_world *)
-  (* Definition region_std W (a : Addr) : Prop := rel_is_std_i W (countable.encode a). *)
-
 
   Definition interp_z : D := λne _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
   Definition interp_cap_O : D := λne _ _, True%I.
-
-  Definition persistent_cond (P:D) := (∀ Wv, Persistent (P Wv.1 Wv.2)).
 
   Program Definition interp_cap_RO (interp : D) : D :=
     λne W w, (match w with
               | WCap RO g b e a =>
                 [∗ list] a ∈ (finz.seq_between b e),
                   ∃ (p : Perm) (P:D),
-                    ⌜PermFlows RO p⌝
+                    ⌜PermFlowsTo RO p⌝
                     ∧ ⌜persistent_cond P⌝
                     ∧ rel a p (λne Wv, P Wv.1 Wv.2)
                     ∧ ▷ zcond P
@@ -237,7 +211,7 @@ Program Definition interp_expr (interp : D) r : D :=
               | WCap RW g b e a =>
                 [∗ list] a ∈ (finz.seq_between b e),
                   ∃ (p : Perm) (P:D),
-                    ⌜PermFlows RW p⌝
+                    ⌜PermFlowsTo RW p⌝
                     ∧ ⌜persistent_cond P⌝
                     ∧ rel a p (λne Wv, P Wv.1 Wv.2)
                     ∧ ▷ zcond P
@@ -253,7 +227,7 @@ Program Definition interp_expr (interp : D) r : D :=
               | WCap RX g b e a =>
                 ([∗ list] a ∈ (finz.seq_between b e),
                   ∃ (p : Perm) (P:D),
-                    ⌜PermFlows RX p⌝
+                    ⌜PermFlowsTo RX p⌝
                     ∧ ⌜persistent_cond P⌝
                     ∧ rel a p (λne Wv, P Wv.1 Wv.2)
                     ∧ ▷ zcond P
@@ -274,7 +248,7 @@ Program Definition interp_expr (interp : D) r : D :=
               | WCap RWX g b e a =>
                 ([∗ list] a ∈ (finz.seq_between b e),
                   ∃ (p : Perm) (P:D),
-                    ⌜PermFlows RWX p⌝
+                    ⌜PermFlowsTo RWX p⌝
                     ∧ ⌜persistent_cond P⌝
                     ∧ rel a p (λne Wv, P Wv.1 Wv.2)
                     ∧ ▷ zcond P
@@ -290,7 +264,7 @@ Program Definition interp_expr (interp : D) r : D :=
               | WCap RWL Local b e a =>
                 [∗ list] a ∈ (finz.seq_between b e),
                   ∃ (p:Perm) (P :D),
-                    ⌜PermFlows RWL p⌝
+                    ⌜PermFlowsTo RWL p⌝
                     ∧ ⌜persistent_cond P⌝
                     ∧ rel a p (λne Wv, P Wv.1 Wv.2)
                     ∧ ▷ zcond P
@@ -306,7 +280,7 @@ Program Definition interp_expr (interp : D) r : D :=
               | WCap RWLX Local b e a =>
                 [∗ list] a ∈ (finz.seq_between b e),
                   ∃ (p : Perm) (P : D),
-                    ⌜PermFlows RWLX p⌝
+                    ⌜PermFlowsTo RWLX p⌝
                     ∧ ⌜persistent_cond P⌝
                     ∧ rel a p (λne Wv, P Wv.1 Wv.2)
                     ∧ ▷ zcond P
@@ -352,37 +326,6 @@ Program Definition interp_expr (interp : D) r : D :=
     end)%I.
   Solve All Obligations with solve_proper.
 
-  Global Instance rcond_contractive P :
-    Contractive (λ interp, ▷ rcond P interp)%I.
-  Proof. solve_contractive. Qed.
-
-  Global Instance wcond_contractive P :
-    Contractive (λ interp, ▷ wcond P interp)%I.
-  Proof. solve_contractive. Qed.
-
-  (* Global Instance read_cond_contractive a p P : *)
-  (*   Contractive (λ interp, read_cond a p P interp). *)
-  (* Proof. solve_contractive. Qed. *)
-
-  (* Global Instance read_write_cond_contractive a p : *)
-  (*   Contractive (λ interp, read_write_cond a p interp). *)
-  (* Proof. *)
-  (*   solve_proper_prepare. *)
-  (*   rewrite /read_write_cond rel_eq /rel_def /saved_pred_own. *)
-  (*   apply exist_ne =>γ. apply sep_ne; auto. *)
-  (*   f_equiv. solve_contractive. *)
-  (* Qed. *)
-
-  Global Instance exec_cond_contractive W b e g p :
-    Contractive (λ interp, exec_cond W b e g p interp).
-  Proof.
-    solve_contractive.
-  Qed.
-  Global Instance enter_cond_contractive W b e a g :
-    Contractive (λ interp, enter_cond W b e a g interp).
-  Proof.
-    solve_contractive.
-  Qed.
 
   Global Instance interp_cap_O_contractive :
     Contractive (interp_cap_O).
@@ -495,10 +438,6 @@ Program Definition interp_expr (interp : D) r : D :=
            iApply persistently_sep_2; auto.
   Qed.
 
-  (* Global Instance ne_interpC : NonExpansive *)
-  (*                          (λ Wv : (WORLD * (leibnizO Word)), (interp Wv.1) Wv.2). *)
-  (* Proof. intros. solve_proper. Qed. *)
-
   (* Non-curried version of interp *)
   Definition safeC (P : D) :=
     (λ Wv : WORLD * (leibnizO Word), (P Wv.1) Wv.2).
@@ -513,12 +452,12 @@ Program Definition interp_expr (interp : D) r : D :=
           then □ enter_cond W g b e a interp
           else ([∗ list] a ∈ finz.seq_between b e,
                   ∃ (p' : Perm) (P:D),
-                    ⌜PermFlows p p'⌝
+                    ⌜PermFlowsTo p p'⌝
                     ∗ ⌜persistent_cond P⌝
                     ∗ rel a p' (safeC P)
                     ∗ ▷ zcond P
-                    ∗ ▷ rcond P interp
-                    ∗ (if writeAllowed p then (▷ wcond P interp) else True)
+                    ∗ ▷ (rcond P interp)
+                    ∗ (if writeAllowed p then ▷ (wcond P interp) else True)
                     ∗ ⌜ if pwl p then region_state_pwl W a else region_state_nwl W a g⌝)
                ∗ (⌜ if pwl p then g = Local else True⌝))%I).
   Proof.
@@ -553,7 +492,7 @@ Program Definition interp_expr (interp : D) r : D :=
     readAllowed p →
     ⊢ (interp W (WCap p g b e a)) →
     ∃ (p' : Perm) (P:D),
-      ⌜ PermFlows p p'⌝
+      ⌜ PermFlowsTo p p'⌝
       ∗ ⌜persistent_cond P⌝
       ∗ rel a' p' (safeC P)
       ∗ ▷ zcond P
@@ -564,7 +503,6 @@ Program Definition interp_expr (interp : D) r : D :=
     iIntros (Hin Ra) "Hinterp".
     rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn.
     destruct p,g; try done;cbn.
-    (* try (iDestruct "Hinterp" as "[Hinterp Hinterpe]"); *)
     all: try (iDestruct (extract_from_region_inv with "Hinterp")
              as (p P Hfl Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & _)"); eauto.
     all: try (iDestruct (extract_from_region_inv with "Hinterp")
@@ -628,51 +566,6 @@ Program Definition interp_expr (interp : D) r : D :=
     all: try (destruct g; eauto;simpl in Hstate; destruct Hstate as [Hstate|Hstate]; eauto).
   Qed.
 
-  (* Definition region_conditions W p g b e:= *)
-  (* ([∗ list] a ∈ (finz.seq_between b e), *)
-  (*    ∃ p', ⌜PermFlows p p'⌝ *)
-  (*          ∗ (if writeAllowed p *)
-  (*             then read_write_cond a p' interp *)
-  (*             else (∃ (P:D), ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝ *)
-  (*                            ∧ read_cond a p' P interp)) *)
-  (*          ∧ ⌜if pwl p then region_state_pwl W a else region_state_nwl W a g⌝)%I. *)
-
-  (* Global Instance region_conditions_persistent W p g b e : Persistent (region_conditions W p g b e). *)
-  (* Proof. *)
-  (*   intros. rewrite /region_conditions. apply big_sepL_persistent. intros. *)
-  (*   destruct (writeAllowed p),(pwl p);apply _. *)
-  (* Qed. *)
-
-  (* Lemma readAllowed_implies_region_conditions W p g b e a: *)
-  (*   readAllowed p = true -> *)
-  (*   interp W (WCap p g b e a) -∗ region_conditions W p g b e. *)
-  (* Proof. *)
-  (*   intros. iIntros "Hvalid". *)
-  (*   unfold interp; rewrite fixpoint_interp1_eq /=. *)
-  (*   unfold region_conditions. *)
-  (*   destruct p; simpl in *; try congruence; destruct g; simpl; eauto. *)
-  (*   all:iApply (big_sepL_mono with "Hvalid");iIntros (k y Hin) "H". *)
-  (*   all: try (iDestruct "H" as (p P) "(%Hfl&%Hpers&[? ?]&?)"; iFrame "∗%"). *)
-  (*   all: try (iDestruct "H" as (p) "(%Hfl&?&?)"; iFrame "∗%"). *)
-  (* Qed. *)
-
-  (* Lemma execCond_implies_region_conditions W p g b e a: *)
-  (*   p = RX ∨ p = RWX ∨ (p = RWLX /\ g = Local) -> *)
-  (*   interp W (WCap p g b e a) -∗ region_conditions W p g b e. *)
-  (* Proof. *)
-  (*   iIntros (Hp) "Hvalid". *)
-  (*   iApply readAllowed_implies_region_conditions; last done. *)
-  (*   destruct p; naive_solver. *)
-  (* Qed. *)
-
-  (* Lemma read_write_cond_implies_read_cond a p : *)
-  (*   read_write_cond a p interp -∗ ∃ P, read_cond a p P interp. *)
-  (* Proof. *)
-  (*   iIntros "Hread". iExists interp. iFrame. rewrite /rcond. iSplit; auto. *)
-  (*   iNext. iModIntro. iIntros (W1 W2 z) "_". rewrite fixpoint_interp1_eq. done. *)
-  (* Qed. *)
-
-
   Lemma persistent_cond_interp : persistent_cond interp.
   Proof.
     intros W; apply _.
@@ -693,41 +586,6 @@ Program Definition interp_expr (interp : D) r : D :=
     by iModIntro; iIntros (W1 w) "?".
   Qed.
 
-
-  (* Lemma execcPC_implies_interp W p g b e a0: *)
-  (*   p = RX ∨ p = RWX ∨ p = RWLX ∧ g = Local → *)
-  (*   region_conditions W p g b e -∗ ((fixpoint interp1) W) (WCap p g b e a0). *)
-  (* Proof. *)
-  (*   iIntros (Hp) "#HR". *)
-  (*   rewrite (fixpoint_interp1_eq _ (WCap _ _ _ _ _)). *)
-  (*   (do 2 try destruct Hp as [ | Hp]); [| |destruct Hp];subst; auto. *)
-  (*   all: rewrite /region_conditions /=. *)
-  (*   all: iApply (big_sepL_mono with "HR"). *)
-  (*   all: intros;iIntros "H". *)
-  (*   iDestruct "H" as (p' Hfl) "[H %Hstate]" ;iDestruct "H" as (P) "[%Hpers ?]"; iFrame "%∗". *)
-  (*   all: iDestruct "H" as (p' Hfl) "[H %Hstate]"; iFrame "%∗". *)
-  (* Qed. *)
-
-  (* Lemma rwcond_eq_interp (P : D) : *)
-  (*   rcond P interp ∗ wcond P interp *)
-  (*   ⊢ ▷ (P interp). *)
-  (* Proof. *)
-  (*   iIntros "[Hrcond Hwcond]". *)
-  (*   iNext. *)
-  (*   iDestruct "Hrcond" as "#Hrcond". *)
-  (*   iDestruct "Hwcond" as "#Hwcond". *)
-  (*   (* iApply plainly_internal_eq. *) *)
-  (*   Search "_ ∗-∗ _". *)
-  (*   iAssert (■ (interp ∗-∗ interp))%I as "H". *)
-  (*   iApply (prop_ext_2 _ interp). *)
-
-  (*   iApply internal_eq_iff. *)
-  (*   rewrite /internal_eq. *)
-  (*   Unset Printing Notations. *)
-  (*   rewrite /equiv. *)
-  (*   iSplit. *)
-
-
   Lemma read_allowed_inv_regs (a' a b e: Addr) p g W r :
     (b ≤ a' ∧ a' < e)%Z →
     readAllowed p →
@@ -738,9 +596,9 @@ Program Definition interp_expr (interp : D) r : D :=
           ∗ rel a' p' (λ Wv, P Wv.1 Wv.2)
           ∗ ▷ zcond P
           ∗ ▷ rcond P interp
-          ∗ if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> r) a')
+          ∗ (if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> r) a')
             then ▷ wcond P interp
-            else emp))%I.
+            else emp)))%I.
   Proof.
     iIntros (Hin Ra) "#Hregs #Hinterp".
     rewrite /interp_registers /interp_reg /=.
@@ -783,7 +641,7 @@ Program Definition interp_expr (interp : D) r : D :=
     W (regs : leibnizO Reg) (p p' : Perm) (g : Locality) (b e a : Addr):
     (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)%I
     -∗ (∃ (p' : Perm) (P : D),
-        ⌜PermFlows p p'⌝
+        ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
         ∗ rel a p' (λ Wv : prodO WORLD (leibnizO Word), P Wv.1 Wv.2)
         ∗ ▷ zcond P
@@ -792,7 +650,7 @@ Program Definition interp_expr (interp : D) r : D :=
         ∗ ⌜if pwl p then region_state_pwl W a else region_state_nwl W a g⌝
        )
     -∗ (∃ (p' : Perm) (P : D),
-        ⌜PermFlows p p'⌝
+        ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
         ∗ rel a p' (λ Wv : prodO WORLD (leibnizO Word), P Wv.1 Wv.2)
         ∗ ▷ zcond P
@@ -844,62 +702,6 @@ Program Definition interp_expr (interp : D) r : D :=
       iFrame "#".
       auto.
   Qed.
-
-
-  (* TODO fix if necessary *)
-  (* Lemma extract_from_region_inv_regs a (a' b e : Addr) p g W r : *)
-  (*   (b ≤ a' ∧ a' < e)%Z → *)
-  (*   readAllowed p → *)
-  (*   ⊢ (interp_registers W r -∗ *)
-  (*      region_conditions W p g b e -∗ *)
-  (*     (∃ (p' : Perm) (P : D), *)
-  (*          ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝ *)
-  (*          ∗ rel a' p' (λ Wv, P Wv.1 Wv.2) *)
-  (*          ∗ rcond P interp *)
-  (*          ∗ if decide (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> r) a') *)
-  (*            then wcond P interp *)
-  (*            else emp))%I. *)
-  (* Proof. *)
-    (* iIntros (Hin Ra) "#Hregs #Hinterp". *)
-    (* rewrite /interp_registers /interp_reg /=. *)
-    (* iDestruct "Hregs" as "[Hfull Hregvalid]". *)
-    (* case_decide as Hinra. *)
-    (* - destruct Hinra as [reg (wa & Hra & Hwa & Ha) ]. *)
-    (*   destruct (decide (reg = PC)). *)
-    (*   + simplify_map_eq. *)
-    (*     rewrite /interp. *)
-    (*     destruct p,g; try contradiction; inversion Hwa ; try done; subst. *)
-    (*     all: iDestruct (extract_from_region_inv with "Hinterp") as (p' Hp') "[Hinv Hiff]"; eauto; cbn. *)
-    (*     all: rewrite /read_write_cond ; iFrame "#%". *)
-    (*     all: iSplitR;[iPureIntro;apply _|]. *)
-    (*     all: iSplitR;[iApply rcond_interp | iApply wcond_interp ]. *)
-    (*   + simplify_map_eq. *)
-    (*     destruct wa; try inv Ha. *)
-    (*     destruct sb; try inv Ha. *)
-    (*     iSpecialize ("Hregvalid" $! _ _ n Hra). *)
-    (*     iClear "Hinterp". *)
-    (*     rewrite /interp. cbn. rewrite fixpoint_interp1_eq /=; cbn. *)
-    (*     destruct p0,g0; try contradiction; inversion Hwa; try done ; subst. *)
-    (*     all: try (iDestruct (extract_from_region_inv with "Hregvalid") as (p' Hp') "[Hinv Hiff]" ;eauto;cbn). *)
-    (*     all: rewrite /read_write_cond ; iFrame "#%". *)
-    (*     iSplitL; [iPureIntro|]. destruct p,p' ; cbn in * ; inv Hp';try done. *)
-    (*     rewrite /PermFlows //=. *)
-    (*     all: iSplitR;[iPureIntro;apply _|]. *)
-    (*     all: iSplitR;[iApply rcond_interp | iApply wcond_interp ]. *)
-    (*     ;iExists p',interp;iFrame "Hinv";rewrite /rcond /wcond /=). *)
-    (*     all: try (iSplitR;[iPureIntro;apply _|]). *)
-    (*     all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto). *)
-    (*     all: iDestruct (extract_from_region_inv with "Hregvalid") as (p' Hp') "[Hinv Hiff]"; eauto *)
-    (*     ;iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=. *)
-    (*     all: try (iSplitR;[iPureIntro;apply _|]). *)
-    (*     all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto). *)
-    (* - rewrite /interp. cbn. *)
-    (*   destruct p,g; try contradiction; try done. all: rewrite /region_conditions /=. *)
-    (*   all: try (iDestruct (extract_from_region_inv with "Hinterp") as "[Ha _]"; eauto; iDestruct "Ha" as (P Hpers) "[Ha Hcond]";iExists P;iFrame "Ha Hcond"). *)
-    (*   all: try (iDestruct (extract_from_region_inv with "Hinterp") as "[Hinv Hiff]";eauto;iExists interp;iFrame "Hinv";rewrite /rcond /wcond /=). *)
-    (*   all: iSplitR;[iPureIntro;apply _|]. *)
-    (*   all: try (iSplit;[iSplit|];auto;iNext;iModIntro;iIntros (W1 W2 z) "_";rewrite fixpoint_interp1_eq;auto). *)
-  (* Abort. *)
 
   Lemma writeLocalAllowed_valid_cap_implies W p g b e a:
     pwl p = true ->

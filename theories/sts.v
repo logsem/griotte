@@ -98,20 +98,9 @@ Section definitionsS.
     dom fs ⊆ dom gs ∧
     ∀ i x y, fs !! i = Some x → gs !! i = Some y → rtc (Rpub) x y.
 
-  (* Definition related_sts_std_pub_plus (fs gs : STS_std_states A B) : Prop := *)
-  (*   dom fs ⊆ dom gs ∧ *)
-  (*   ∀ i x y, fs !! i = Some x → gs !! i = Some y → rtc (λ x y, (Rpub x y ∨ Rpubp x y)) x y. *)
-
   Definition related_sts_std_priv (fs gs : STS_std_states A B) : Prop :=
     dom fs ⊆ dom gs ∧
     ∀ i x y, fs !! i = Some x → gs !! i = Some y → rtc (λ x y, (Rpub x y ∨ Rpriv x y)) x y.
-
-  (* Program Definition related_sts_a (fs gs : STS_std_states A B) (a : A) : Prop := *)
-  (*   dom fs ⊆ dom gs ∧ *)
-  (*   ∀ (i : A) (x y : B), fs !! i = Some x → gs !! i = Some y → *)
-  (*                        rtc (λ x y, if (decide(Decision:=le_a_decision a i) (le_a a i)) *)
-  (*                                    then (Rpub x y ∨ Rpubp x y) *)
-  (*                                    else (Rpub x y)) x y. *)
 
   Definition related_sts_pub (fs gs : STS_states) (fr gr : STS_rels) : Prop :=
     dom fs ⊆ dom gs ∧
@@ -119,14 +108,6 @@ Section definitionsS.
     ∀ i (r1 r2 r1' r2' r3 r3' : positive → positive → Prop), fr !! i = Some (r1,r2,r3) → gr !! i = Some (r1',r2',r3') →
                        r1 = r1' ∧ r2 = r2' ∧ r3 = r3' ∧
                        (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc r1 x y)).
-
-
-  (* Definition related_sts_pub_plus (fs gs : STS_states) (fr gr : STS_rels) : Prop := *)
-  (*   dom fs ⊆ dom gs ∧ *)
-  (*   dom fr ⊆ dom gr ∧ *)
-  (*   ∀ i (r1 r2 r1' r2' r3 r3' : positive → positive → Prop), fr !! i = Some (r1,r2,r3) → gr !! i = Some (r1',r2',r3') → *)
-  (*                      r1 = r1' ∧ r2 = r2' ∧ r3 = r3' ∧ *)
-  (*                      (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc (λ x y, r1 x y ∨ r2 x y) x y)). *)
 
   Definition related_sts_priv (fs gs : STS_states) (fr gr : STS_rels) : Prop :=
     dom fs ⊆ dom gs ∧
@@ -139,17 +120,9 @@ Section definitionsS.
     related_sts_std_pub W.1 W'.1 ∧
     related_sts_pub W.2.1 W'.2.1 W.2.2 W'.2.2.
 
-  (* Definition related_sts_pub_plus_world W W' := *)
-  (*   related_sts_std_pub_plus W.1 W'.1 ∧ *)
-  (*   related_sts_pub_plus W.2.1 W'.2.1 W.2.2 W'.2.2. *)
-
   Definition related_sts_priv_world W W' :=
     related_sts_std_priv W.1 W'.1 ∧
     related_sts_priv W.2.1 W'.2.1 W.2.2 W'.2.2.
-
-  (* Definition related_sts_a_world W W' a := *)
-  (*   related_sts_a W.1 W'.1 a ∧ *)
-  (*   related_sts_pub_plus W.2.1 W'.2.1 W.2.2 W'.2.2. *)
 
   Global Instance sts_rel_loc_Persistent i R P Q : Persistent (sts_rel_loc i R P Q).
   Proof. apply _. Qed.
@@ -239,14 +212,6 @@ Section STS.
     intros; simplify_eq; eauto using rtc_refl.
   Qed.
 
-  (* Lemma related_sts_pub_plus_refl fs fr : related_sts_pub_plus fs fs fr fr. *)
-  (* Proof. *)
-  (*   split; [|split]; trivial. *)
-  (*   intros; simplify_eq. *)
-  (*   split; [|split]; [..|split]; trivial. *)
-  (*   intros; simplify_eq; eauto using rtc_refl. *)
-  (* Qed. *)
-
   Lemma related_sts_priv_refl fs fr : related_sts_priv fs fs fr fr.
   Proof.
     split; [|split]; trivial.
@@ -263,13 +228,6 @@ Section STS.
     eauto using rtc_refl.
   Qed.
 
-  (* Lemma related_sts_std_pub_plus_refl fsd : related_sts_std_pub_plus fsd fsd. *)
-  (* Proof. *)
-  (*   split; trivial. *)
-  (*   intros; simplify_eq. *)
-  (*   eauto using rtc_refl. *)
-  (* Qed. *)
-
   Lemma related_sts_std_priv_refl fsd : related_sts_std_priv fsd fsd.
   Proof.
     split; trivial.
@@ -279,49 +237,9 @@ Section STS.
 
   Lemma related_sts_pub_refl_world W : related_sts_pub_world W W.
   Proof. split;[apply related_sts_std_pub_refl|apply related_sts_pub_refl]. Qed.
-  (* Lemma related_sts_pub_plus_refl_world W : related_sts_pub_plus_world W W. *)
-  (* Proof. split;[apply related_sts_std_pub_plus_refl|apply related_sts_pub_plus_refl]. Qed. *)
   Lemma related_sts_priv_refl_world W : related_sts_priv_world W W.
   Proof. split;[apply related_sts_std_priv_refl|apply related_sts_priv_refl]. Qed.
 
-
-  (* --------------------- pub ⊆ pub+ ⊆ priv  --------------------- *)
-
-  (* Lemma related_sts_pub_pub_plus fs fr gs gr : *)
-  (*   related_sts_pub fs gs fr gr → related_sts_pub_plus fs gs fr gr. *)
-  (* Proof. *)
-  (*   rewrite /related_sts_pub /related_sts_priv. *)
-  (*   intros [Hf1 [Hf2 Hf3]]. *)
-  (*   do 2 (split; auto). intros. *)
-  (*   specialize (Hf3 i r1 r2 r1' r2' r3 r3' H H0) as (Hr1 & Hr2 & Hr3 & Hrtc); auto. *)
-  (*   subst. repeat (split;auto). intros. *)
-  (*   specialize (Hrtc x y H1 H2). *)
-  (*   inversion Hrtc. *)
-  (*   - left. *)
-  (*   - right with y0; auto. *)
-  (*     apply rtc_or_intro. apply H4. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_pub_plus_priv fs fr gs gr : *)
-  (*   related_sts_pub_plus fs gs fr gr → related_sts_priv fs gs fr gr. *)
-  (* Proof. *)
-  (*   intros [Hf1 [Hf2 Hf3]]. *)
-  (*   do 2 (split; auto). intros. *)
-  (*   specialize (Hf3 i r1 r2 r1' r2' r3 r3' H H0) as (Hr1 & Hr2 & Hr3 & Hrtc); auto. *)
-  (*   subst. repeat (split;auto). intros. *)
-  (*   specialize (Hrtc x y H1 H2). *)
-  (*   inversion Hrtc. *)
-  (*   - left. *)
-  (*   - inversion H3. *)
-  (*     + right with y0; auto. *)
-  (*       apply rtc_implies with (R:=(λ x1 y1, (r1' x1 y1 ∨ r2' x1 y1) ∨ r3' x1 y1)); *)
-  (*         [intros ? ? [[?|?]|?];auto|]. *)
-  (*       apply rtc_or_intro;auto. *)
-  (*     + right with y0; auto. *)
-  (*       apply rtc_implies with (R:=(λ x1 y1, (r1' x1 y1 ∨ r2' x1 y1) ∨ r3' x1 y1)); *)
-  (*         [intros ? ? [[?|?]|?];auto|]. *)
-  (*       apply rtc_or_intro;auto. *)
-  (* Qed. *)
 
   Lemma related_sts_pub_priv fs fr gs gr :
     related_sts_pub fs gs fr gr → related_sts_priv fs gs fr gr.
@@ -338,25 +256,6 @@ Section STS.
       apply rtc_or_intro. apply H4.
   Qed.
 
-  (* Lemma related_sts_std_pub_pub_plus fsd gsd : *)
-  (*   related_sts_std_pub fsd gsd → related_sts_std_pub_plus fsd gsd. *)
-  (* Proof. *)
-  (*   intros [Hf1 Hf2]. *)
-  (*   split;auto. intros i x y Hx Hy. *)
-  (*   specialize (Hf2 i x y Hx Hy). *)
-  (*   apply rtc_or_intro. auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_std_pub_plus_priv fsd gsd : *)
-  (*   related_sts_std_pub_plus fsd gsd → related_sts_std_priv fsd gsd. *)
-  (* Proof. *)
-  (*   intros [Hf1 Hf2]. *)
-  (*   split;auto. intros i x y Hx Hy. *)
-  (*   specialize (Hf2 i x y Hx Hy). *)
-  (*   eapply rtc_implies;[|eauto]. *)
-  (*   intros r q [Hr | Hq];auto. *)
-  (* Qed. *)
-
   Lemma related_sts_std_pub_priv fsd gsd :
     related_sts_std_pub fsd gsd → related_sts_std_priv fsd gsd.
   Proof.
@@ -366,91 +265,12 @@ Section STS.
     apply rtc_or_intro. auto.
   Qed.
 
-  (* Lemma related_sts_pub_pub_plus_world W W' : *)
-  (*   related_sts_pub_world W W' → related_sts_pub_plus_world W W'. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel']. *)
-  (*   split;[apply related_sts_std_pub_pub_plus|apply related_sts_pub_pub_plus];auto. *)
-  (* Qed. *)
-  (* Lemma related_sts_pub_plus_priv_world W W' : *)
-  (*   related_sts_pub_plus_world W W' → related_sts_priv_world W W'. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel']. *)
-  (*   split;[apply related_sts_std_pub_plus_priv|apply related_sts_pub_plus_priv];auto. *)
-  (* Qed. *)
   Lemma related_sts_pub_priv_world W W' :
     related_sts_pub_world W W' → related_sts_priv_world W W'.
   Proof.
     intros [Hrel Hrel'].
     split;[apply related_sts_std_pub_priv|apply related_sts_pub_priv];auto.
   Qed.
-
-  (* --------------------- pub a lemmas --------------------- *)
-
-  (* Lemma related_sts_a_weak fsd gsd a a' : *)
-  (*   le_a a' a → *)
-  (*   related_sts_a fsd gsd a → related_sts_a fsd gsd a'. *)
-  (* Proof. *)
-  (*   intros Hleb [Hdom Ha]. *)
-  (*   split;auto. intros i x y Hx Hy. *)
-  (*   specialize (Ha i x y Hx Hy). *)
-  (*   eapply rtc_implies;[|eauto]. *)
-  (*   intros r q Hr. *)
-  (*   destruct (decide (le_a a' i)). *)
-  (*   - destruct (decide (le_a a i));auto. *)
-  (*   - destruct (decide (le_a a i));auto. *)
-  (*     exfalso. apply n. *)
-  (*     assert (Transitive le_a) as Htrans;[eapply PreOrder_Transitive|trans a;auto]. *)
-  (*     Unshelve. apply compare_a. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_a_weak_world W W' a a' : *)
-  (*   le_a a' a → *)
-  (*   related_sts_a_world W W' a → related_sts_a_world W W' a'. *)
-  (* Proof. *)
-  (*   destruct W,W'. *)
-  (*   intros Hle [Hrel Hrel']. split; simpl in *. *)
-  (*   - by pose proof (related_sts_a_weak _ _ _ _ Hle Hrel). *)
-  (*   - auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_a_pub_plus fsd gsd a : *)
-  (*   related_sts_a fsd gsd a → related_sts_std_pub_plus fsd gsd. *)
-  (* Proof. *)
-  (*   intros [Hdom Hrel]. split;auto. *)
-  (*   intros i x y Hx Hy. *)
-  (*   specialize (Hrel i x y Hx Hy). *)
-  (*   destruct (decide (le_a a i)). *)
-  (*   - auto. *)
-  (*   - apply rtc_or_intro. auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_pub_a fsd gsd a : *)
-  (*   related_sts_std_pub fsd gsd → related_sts_a fsd gsd a. *)
-  (* Proof. *)
-  (*   intros [Hdom Hrel]. *)
-  (*   split;auto. intros i x y Hx Hy. *)
-  (*   specialize (Hrel i x y Hx Hy). *)
-  (*   destruct (decide (le_a a i)). *)
-  (*   - apply rtc_or_intro. auto. *)
-  (*   - auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_a_pub_plus_world W W' a : *)
-  (*   related_sts_a_world W W' a → related_sts_pub_plus_world W W'. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel']. *)
-  (*   apply related_sts_a_pub_plus in Hrel. *)
-  (*   split;auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_pub_a_world W W' a : *)
-  (*   related_sts_pub_world W W' → related_sts_a_world W W' a. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel']. split. *)
-  (*   - apply related_sts_pub_a. auto. *)
-  (*   - apply related_sts_pub_pub_plus. auto. *)
-  (* Qed. *)
 
   (* --------------------- TRANSITIVITY --------------------- *)
 
@@ -582,42 +402,6 @@ Section STS.
     etrans;eauto.
   Qed.
 
-  (* Lemma related_sts_a_trans_left fsd gsd hsd a a' : *)
-  (*   le_a a a' → *)
-  (*   related_sts_a fsd gsd a → related_sts_a gsd hsd a' → *)
-  (*   related_sts_a fsd hsd a. *)
-  (* Proof. *)
-  (*   intros Hle Hrel1 Hrel2. *)
-  (*   apply related_sts_a_weak with (a':=a) in Hrel2;[|auto]. *)
-  (*   destruct Hrel1 as [Hf1 Hf2]; destruct Hrel2 as [Hg1 Hg2]. *)
-  (*   split; try by etrans. *)
-  (*   intros i x y Hx Hy. *)
-  (*   specialize (Hf1 i); *)
-  (*     revert Hf1; rewrite !elem_of_dom; intros Hf1. *)
-  (*   destruct Hf1 as [x0 Hx0]; eauto. *)
-  (*   specialize (Hf2 i x x0 Hx Hx0); simplify_eq. *)
-  (*   specialize (Hg2 i x0 y Hx0 Hy); simplify_eq. *)
-  (*   etrans;eauto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_a_trans_right fsd gsd hsd a a' : *)
-  (*   le_a a a' → *)
-  (*   related_sts_a fsd gsd a' → related_sts_a gsd hsd a → *)
-  (*   related_sts_a fsd hsd a. *)
-  (* Proof. *)
-  (*   intros Hle Hrel1 Hrel2. *)
-  (*   apply related_sts_a_weak with (a':=a) in Hrel1;[|auto]. *)
-  (*   destruct Hrel1 as [Hf1 Hf2]; destruct Hrel2 as [Hg1 Hg2]. *)
-  (*   split; try by etrans. *)
-  (*   intros i x y Hx Hy. *)
-  (*   specialize (Hf1 i); *)
-  (*     revert Hf1; rewrite !elem_of_dom; intros Hf1. *)
-  (*   destruct Hf1 as [x0 Hx0]; eauto. *)
-  (*   specialize (Hf2 i x x0 Hx Hx0); simplify_eq. *)
-  (*   specialize (Hg2 i x0 y Hx0 Hy); simplify_eq. *)
-  (*   etrans;eauto. *)
-  (* Qed. *)
-
   (* Helper functions for transitivity of sts pairs *)
   Lemma related_sts_pub_priv_trans_world W W' W'' :
     related_sts_pub_world W W' -> related_sts_priv_world W' W'' ->
@@ -658,7 +442,6 @@ Section STS.
     - apply related_sts_std_pub_trans with W'.1; auto.
     - apply related_sts_pub_trans with W'.2.1 W'.2.2; auto.
   Qed.
-
 
   Lemma related_sts_priv_world_std_sta_is_Some W W' i :
     related_sts_priv_world W W' -> is_Some ((W.1) !! i) -> is_Some ((W'.1) !! i).
@@ -739,7 +522,7 @@ Section STS.
     apply Some_included_exclusive in HR; auto; last by typeclasses eauto.
     apply leibniz_equiv in HR; simplify_eq; eauto.
   Qed.
- 
+
   Lemma sts_dealloc_std W a b :
     sts_full_world W ∗ sts_state_std a b ==∗ sts_full_world (delete a W.1,W.2).
   Proof.
@@ -787,8 +570,6 @@ Section STS.
                   ∗ sts_state_loc (A:=A) i d ∗ sts_rel_loc (A:=A) i Q Q' P.
   Proof.
     rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc.
-    (* iIntros "[Hd [H1 H2]]". *)
-    (* iDestruct "Hd" as %Hd. *)
     destruct W as [Wstd [fs fr]].
     iIntros "[Hstd [H1 H2]] /=".
     assert (fresh (dom fs ∪ dom fr) ∉
@@ -871,237 +652,5 @@ Section STS.
     rewrite fmap_insert ;
       first iModIntro; iFrame.
   Qed.
-
-  (* Lemma related_sts_pub_pub_plus_trans fs fr gs gr hs hr : *)
-  (*   related_sts_pub fs gs fr gr → related_sts_pub_plus gs hs gr hr → *)
-  (*   related_sts_pub_plus fs hs fr hr. *)
-  (* Proof. *)
-  (*   intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans. *)
-  (*   intros i r1 r2 r1' r2' r3 r3' Hfr Hhr. *)
-  (*   specialize (Hf1 i); specialize (Hf2 i); *)
-  (*     revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2. *)
-  (*   destruct Hf2; eauto. destruct x as [[x1 x2] x3]. *)
-  (*   edestruct Hf3 as [Heq1 [Heq2 [Heq3 Hrtc]] ] ; eauto; simplify_eq. *)
-  (*   edestruct Hg3 as [Heq1 [Heq2 [Heq3 Hrtc']] ] ; eauto; simplify_eq. *)
-  (*   repeat (split;auto). *)
-  (*   intros x y Hx Hy. *)
-  (*   destruct Hf1;eauto. *)
-  (*   etrans;eauto. *)
-  (*   apply rtc_or_intro; auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_std_pub_pub_plus_trans fsd gsd hsd : *)
-  (*   related_sts_std_pub fsd gsd → related_sts_std_pub_plus gsd hsd → *)
-  (*   related_sts_std_pub_plus fsd hsd. *)
-  (* Proof. *)
-  (*   intros [Hf1 Hf2] [Hg1 Hg2]; split; try by etrans. *)
-  (*   intros i x y Hx Hy. *)
-  (*   specialize (Hf1 i); *)
-  (*     revert Hf1; rewrite !elem_of_dom; intros Hf1. *)
-  (*   destruct Hf1 as [x0 Hx0]; eauto. *)
-  (*   specialize (Hf2 i x x0 Hx Hx0); simplify_eq. *)
-  (*   specialize (Hg2 i x0 y Hx0 Hy); simplify_eq. *)
-  (*   etrans;eauto. *)
-  (*   apply rtc_or_intro; auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_pub_pub_plus_trans_world W W' W'' : *)
-  (*   related_sts_pub_world W W' → related_sts_pub_plus_world W' W'' *)
-  (*   → related_sts_pub_plus_world W W''. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel'] [Hrel2 Hrel2']. *)
-  (*   split. *)
-  (*   - apply related_sts_std_pub_pub_plus_trans with W'.1;auto. *)
-  (*   - apply related_sts_pub_pub_plus_trans with W'.2.1 W'.2.2;auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_std_pub_a_trans a fsd gsd hsd : *)
-  (*   related_sts_std_pub fsd gsd → related_sts_a gsd hsd a → *)
-  (*   related_sts_a fsd hsd a. *)
-  (* Proof. *)
-  (*   intros [Hf1 Hf2] [Hg1 Hg2]; split; try by etrans. *)
-  (*   intros i x y Hx Hy. *)
-  (*   specialize (Hf1 i); *)
-  (*     revert Hf1; rewrite !elem_of_dom; intros Hf1. *)
-  (*   destruct Hf1 as [x0 Hx0]; eauto. *)
-  (*   specialize (Hf2 i x x0 Hx Hx0); simplify_eq. *)
-  (*   specialize (Hg2 i x0 y Hx0 Hy); simplify_eq. *)
-  (*   etrans;eauto. eapply rtc_implies;eauto. *)
-  (*   intros r q Hr. destruct (decide (le_a a i));auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_std_a_refl a fsd : *)
-  (*   related_sts_a fsd fsd a. *)
-  (* Proof. *)
-  (*   apply related_sts_pub_a. *)
-  (*   apply related_sts_std_pub_refl. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_std_a_pub_plus_trans a fsd gsd hsd : *)
-  (*   related_sts_a fsd gsd a → related_sts_std_pub_plus gsd hsd → *)
-  (*   related_sts_std_pub_plus fsd hsd. *)
-  (* Proof. *)
-  (*   intros [Hf1 Hf2] [Hg1 Hg2]; split; try by etrans. *)
-  (*   intros i x y Hx Hy. *)
-  (*   specialize (Hf1 i); *)
-  (*     revert Hf1; rewrite !elem_of_dom; intros Hf1. *)
-  (*   destruct Hf1 as [x0 Hx0]; eauto. *)
-  (*   specialize (Hf2 i x x0 Hx Hx0); simplify_eq. *)
-  (*   specialize (Hg2 i x0 y Hx0 Hy); simplify_eq. *)
-  (*   etrans;eauto. eapply rtc_implies;[|apply Hf2]. *)
-  (*   intros r q Hr. destruct (decide (le_a a i));auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_std_a_priv_trans a fsd gsd hsd : *)
-  (*   related_sts_a fsd gsd a → related_sts_std_priv gsd hsd → *)
-  (*   related_sts_std_priv fsd hsd. *)
-  (* Proof. *)
-  (*   intros [Hf1 Hf2] [Hg1 Hg2]; split; try by etrans. *)
-  (*   intros i x y Hx Hy. *)
-  (*   specialize (Hf1 i); *)
-  (*     revert Hf1; rewrite !elem_of_dom; intros Hf1. *)
-  (*   destruct Hf1 as [x0 Hx0]; eauto. *)
-  (*   specialize (Hf2 i x x0 Hx Hx0); simplify_eq. *)
-  (*   specialize (Hg2 i x0 y Hx0 Hy); simplify_eq. *)
-  (*   etrans;eauto. eapply rtc_implies;[|apply Hf2]. *)
-  (*   intros r q. destruct (decide (le_a a i));auto. *)
-  (*   intros [? | ?];auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_std_pub_plus_priv_trans fsd gsd hsd : *)
-  (*   related_sts_std_pub_plus fsd gsd → related_sts_std_priv gsd hsd → *)
-  (*   related_sts_std_priv fsd hsd. *)
-  (* Proof. *)
-  (*   intros [Hf1 Hf2] [Hg1 Hg2]; split; try by etrans. *)
-  (*   intros i x y Hx Hy. *)
-  (*   specialize (Hf1 i); *)
-  (*     revert Hf1; rewrite !elem_of_dom; intros Hf1. *)
-  (*   destruct Hf1 as [x0 Hx0]; eauto. *)
-  (*   specialize (Hf2 i x x0 Hx Hx0); simplify_eq. *)
-  (*   specialize (Hg2 i x0 y Hx0 Hy); simplify_eq. *)
-  (*   etrans;eauto. eapply rtc_implies;[|apply Hf2]. *)
-  (*   intros r q. intros [? | ?];auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_std_pub_plus_trans fsd gsd hsd : *)
-  (*   related_sts_std_pub_plus fsd gsd → related_sts_std_pub_plus gsd hsd → *)
-  (*   related_sts_std_pub_plus fsd hsd. *)
-  (* Proof. *)
-  (*   intros [Hf1 Hf2] [Hg1 Hg2]; split; try by etrans. *)
-  (*   intros i x y Hx Hy. *)
-  (*   specialize (Hf1 i); *)
-  (*     revert Hf1; rewrite !elem_of_dom; intros Hf1. *)
-  (*   destruct Hf1 as [x0 Hx0]; eauto. *)
-  (*   specialize (Hf2 i x x0 Hx Hx0); simplify_eq. *)
-  (*   specialize (Hg2 i x0 y Hx0 Hy); simplify_eq. *)
-  (*   etrans;eauto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_pub_plus_trans fs fr gs gr hs hr : *)
-  (*   related_sts_pub_plus fs gs fr gr → related_sts_pub_plus gs hs gr hr → *)
-  (*   related_sts_pub_plus fs hs fr hr. *)
-  (* Proof. *)
-  (*   intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans. *)
-  (*   intros i r1 r2 r1' r2' r3 r3' Hfr Hhr. *)
-  (*   specialize (Hf1 i); specialize (Hf2 i); *)
-  (*     revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2. *)
-  (*   destruct Hf2; eauto. destruct x as [[x1 x2] x3]. *)
-  (*   edestruct Hf3 as [Heq1 [Heq2 [Heq3 Hrtc]] ] ; eauto; simplify_eq. *)
-  (*   edestruct Hg3 as [Heq1 [Heq2 [Heq3 Hrtc']] ] ; eauto; simplify_eq. *)
-  (*   repeat (split;auto). *)
-  (*   intros x y Hx Hy. *)
-  (*   destruct Hf1;eauto. *)
-  (*   etrans;eauto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_pub_plus_priv_trans fs fr gs gr hs hr : *)
-  (*   related_sts_pub_plus fs gs fr gr → related_sts_priv gs hs gr hr → *)
-  (*   related_sts_priv fs hs fr hr. *)
-  (* Proof. *)
-  (*   intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans. *)
-  (*   intros i r1 r2 r1' r2' r3 r3' Hfr Hhr. *)
-  (*   specialize (Hf1 i); specialize (Hf2 i); *)
-  (*     revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2. *)
-  (*   destruct Hf2; eauto. destruct x as [[x1 x2] x3]. *)
-  (*   edestruct Hf3 as [Heq1 [Heq2 [Heq3 Hrtc]] ] ; eauto; simplify_eq. *)
-  (*   edestruct Hg3 as [Heq1 [Heq2 [Heq3 Hrtc']] ] ; eauto; simplify_eq. *)
-  (*   repeat (split;auto). *)
-  (*   intros x y Hx Hy. *)
-  (*   destruct Hf1;eauto. *)
-  (*   etrans;eauto. eapply rtc_implies;[|apply Hrtc];auto. *)
-  (*   intros r q [Hr | Hr];auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_pub_a_trans_world W W' W'' a : *)
-  (*   related_sts_pub_world W W' → related_sts_a_world W' W'' a *)
-  (*   → related_sts_a_world W W'' a. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel'] [Hrel2 Hrel2']. *)
-  (*   split. *)
-  (*   - apply related_sts_std_pub_a_trans with W'.1;auto. *)
-  (*   - apply related_sts_pub_pub_plus_trans with W'.2.1 W'.2.2;auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_a_pub_plus_trans_world W W' W'' a : *)
-  (*   related_sts_a_world W W' a → related_sts_pub_plus_world W' W'' *)
-  (*   → related_sts_pub_plus_world W W''. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel'] [Hrel2 Hrel2']. *)
-  (*   split. *)
-  (*   - apply related_sts_std_a_pub_plus_trans with a W'.1;auto. *)
-  (*   - apply related_sts_pub_plus_trans with W'.2.1 W'.2.2;auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_a_priv_trans_world W W' W'' a : *)
-  (*   related_sts_a_world W W' a → related_sts_priv_world W' W'' *)
-  (*   → related_sts_priv_world W W''. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel'] [Hrel2 Hrel2']. *)
-  (*   split. *)
-  (*   - apply related_sts_std_a_priv_trans with a W'.1;auto. *)
-  (*   - apply related_sts_pub_plus_priv_trans with W'.2.1 W'.2.2;auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_a_trans_world W W' W'' a : *)
-  (*   related_sts_a_world W W' a → related_sts_a_world W' W'' a → *)
-  (*   related_sts_a_world W W'' a. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel'] [Hrel2 Hrel2']. *)
-  (*   split. *)
-  (*   - apply related_sts_a_trans_left with W'.1 a;auto. *)
-  (*     pose proof le_a_preorder as Hle_a_preorder. *)
-  (*     inversion Hle_a_preorder. *)
-  (*     apply PreOrder_Reflexive. *)
-  (*   - apply related_sts_pub_plus_trans with W'.2.1 W'.2.2;auto. *)
-  (* Qed. *)
-
-
-  (* Lemma related_sts_pub_plus_priv_trans_world W W' W'' : *)
-  (*   related_sts_pub_plus_world W W' → related_sts_priv_world W' W'' → *)
-  (*   related_sts_priv_world W W''. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel'] [Hrel2 Hrel2']. *)
-  (*   split. *)
-  (*   - apply related_sts_std_pub_plus_priv_trans with W'.1;auto. *)
-  (*   - apply related_sts_pub_plus_priv_trans with W'.2.1 W'.2.2;auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_pub_plus_trans_world W W' W'' : *)
-  (*   related_sts_pub_plus_world W W' → related_sts_pub_plus_world W' W'' → *)
-  (*   related_sts_pub_plus_world W W''. *)
-  (* Proof. *)
-  (*   intros [Hrel Hrel'] [Hrel2 Hrel2']. *)
-  (*   split. *)
-  (*   - apply related_sts_std_pub_plus_trans with W'.1;auto. *)
-  (*   - apply related_sts_pub_plus_trans with W'.2.1 W'.2.2;auto. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_a_refl_world W a : *)
-  (*   related_sts_a_world W W a. *)
-  (* Proof. *)
-  (*   split. *)
-  (*   - apply related_sts_std_a_refl. *)
-  (*   - apply related_sts_pub_plus_refl. *)
-  (* Qed. *)
 
 End STS.

@@ -138,23 +138,6 @@ Section transitions.
     auto.
   Qed.
 
-  (* Lemma std_rel_pub_Uninitialized x w : *)
-  (*   std_rel_pub (Uninitialized w) x → x = Temporary. *)
-  (* Proof. *)
-  (*   intros Hrel. *)
-  (*   inversion Hrel. auto.  *)
-  (* Qed. *)
-
-  (* Lemma std_rel_pub_rtc_Uninitialized x y w : *)
-  (*   x = (Uninitialized w) → *)
-  (*   rtc std_rel_pub x y → y = Temporary ∨ y = (Uninitialized w). *)
-  (* Proof. *)
-  (*   intros Hx Hrtc. *)
-  (*   inversion Hrtc; subst; auto. left. *)
-  (*   apply std_rel_pub_Uninitialized in H0.  *)
-  (*   eapply std_rel_pub_rtc_Temporary;eauto. *)
-  (* Qed. *)
-
   Lemma std_rel_pub_rtc_Frozen x y g :
     x = (Frozen g) →
     rtc std_rel_pub x y → (y = Temporary ∨ y = (Frozen g)).
@@ -165,56 +148,5 @@ Section transitions.
     left.
     eapply std_rel_pub_rtc_Temporary; eauto.
   Qed.
-
-  (* Lemma std_rel_pub_Frozen x g : *)
-  (*   std_rel_pub (Frozen g) x → x = Temporary. *)
-  (* Proof. *)
-  (*   intros Hrel; inversion Hrel. auto. Qed. *)
-
-  (* Lemma std_rel_pub_Uninitialized x w : *)
-  (*   std_rel_pub (Uninitialized w) x → x = (Uninitialized w). *)
-  (* Proof. *)
-  (*   intros Hrel; inversion Hrel. Qed. *)
-
-  (* Lemma std_rel_pub_Temporary x : *)
-  (*   std_rel_pub Temporary x → ∃ w, x = Uninitialized w. *)
-  (* Proof. *)
-  (*   intros Hrel. inversion Hrel. eauto. Qed.  *)
-
-  (* Lemma std_rel_pub_rtc_Temporary_or_Uninitialized x y : *)
-  (*   x = Temporary ∨ (∃ w, x = Uninitialized w) → *)
-  (*   rtc (λ x0 y0, std_rel_pub x0 y0 ∨ std_rel_pub x0 y0) x y → *)
-  (*   y = Temporary ∨ ∃ w, y = Uninitialized w. *)
-  (* Proof. *)
-  (*   intros Hx Hrtc. *)
-  (*   induction Hrtc ;[destruct Hx;eauto|]. *)
-  (*   destruct Hx as [-> | [g ->] ]. *)
-  (*   - destruct H0 as [Hpub | Hpubp].  *)
-  (*     + apply std_rel_pub_Temporary in Hpub. auto.  *)
-  (*     + apply std_rel_pub_Temporary in Hpubp as [g' ->]. *)
-  (*       apply IHHrtc. eauto.  *)
-  (*   - destruct H0 as [Hpub | Hpubp].  *)
-  (*     + apply std_rel_pub_Uninitialized in Hpub. auto.  *)
-  (*     + apply std_rel_pub_Uninitialized in Hpubp as ->. *)
-  (*       apply IHHrtc. eauto.  *)
-  (* Qed.  *)
-
-  (* Lemma std_rel_pub_rtc_Uninitialized x y w : *)
-  (*   x = Uninitialized w → *)
-  (*   rtc (λ x0 y0, std_rel_pub x0 y0 ∨ std_rel_pub x0 y0) x y → *)
-  (*   y = Temporary ∨ (∃ w', y = Uninitialized w'). *)
-  (* Proof. *)
-  (*   intros Hx Hrtc. *)
-  (*   eapply std_rel_pub_rtc_Temporary_or_Uninitialized;eauto.  *)
-  (* Qed.  *)
-
-  (* Lemma std_rel_pub_rtc_Temporary x y : *)
-  (*   x = Temporary → *)
-  (*   rtc (λ x0 y0, std_rel_pub x0 y0 ∨ std_rel_pub x0 y0) x y → *)
-  (*   y = Temporary ∨ ∃ w, y = Uninitialized w. *)
-  (* Proof. *)
-  (*   intros Hx Hrtc. subst.  *)
-  (*   apply (std_rel_pub_rtc_Temporary_or_Uninitialized Temporary);eauto.  *)
-  (* Qed. *)
 
 End transitions.

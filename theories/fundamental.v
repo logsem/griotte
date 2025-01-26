@@ -299,16 +299,12 @@ Section fundamental.
     iIntros (a0 r W' Hin) "#Hfuture". iModIntro.
     destruct g.
     - iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
-      (* iDestruct (readAllowed_implies_region_conditions with "Hw'") *)
-      (*   as "Hread_cond"; [destruct Hp as [-> | [-> | ->] ];auto|]. *)
       iApply fundamental;eauto.
       destruct Hp as [-> | [-> | ->] ]
       ; iEval (rewrite fixpoint_interp1_eq /=)
       ; iEval (rewrite fixpoint_interp1_eq /=) in "Hw'"
       ; done.
     - iDestruct (interp_monotone with "Hfuture Hw") as "Hw'".
-      (* iDestruct (readAllowed_implies_region_conditions with "Hw'") *)
-      (*   as "Hread_cond"; [destruct Hp as [-> | [-> | ->] ];auto|]. *)
       iApply fundamental;eauto.
       destruct Hp as [-> | [-> | ->] ]
       ; iEval (rewrite fixpoint_interp1_eq /=)

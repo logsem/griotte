@@ -484,18 +484,6 @@ Section heap.
       eapply map_to_list_fst. eexists; by apply elem_of_map_to_list.
   Qed.
 
-  (* Lemma revoke_lookup_Uninitialized Wstd_sta i w : *)
-  (*   (Wstd_sta !! i = Some (Uninitialized w)) → *)
-  (*   (revoke_std_sta Wstd_sta) !! i = Some (Uninitialized w). *)
-  (* Proof. *)
-  (*   rewrite revoke_list_dom_std_sta. intros Hsome. *)
-  (*   rewrite revoke_list_std_sta_spec Hsome. *)
-  (*   destruct (in_dec finz_eq_dec i (map_to_list Wstd_sta).*1) eqn:HH. *)
-  (*   - rewrite /revoke_i HH. auto. *)
-  (*   - elim n. eapply elem_of_list_In. *)
-  (*     eapply map_to_list_fst. eexists; by apply elem_of_map_to_list. *)
-  (* Qed. *)
-
   Lemma revoke_list_lookup_non_temp (Wstd_sta : STS_STD) (l : list Addr) (i : Addr) (ρ : region_type) :
     i ∈ l →
     (revoke_list_std_sta l Wstd_sta) !! i = Some ρ → ρ ≠ Temporary.
@@ -981,7 +969,7 @@ Section heap.
 
   Lemma monotone_revoke_list_sts_full_world_keep W (l : list Addr) (l' : list Addr) :
     ⊢ ⌜NoDup l'⌝ → ⌜NoDup l⌝ → ⌜l' ⊆+ l⌝ →
-    ([∗ list] a ∈ l', ⌜(std W) !! a = Some Temporary⌝ (* ∧ rel a p φ *))
+    ([∗ list] a ∈ l', ⌜(std W) !! a = Some Temporary⌝)
     ∗ sts_full_world W ∗ region W
     ==∗
     (sts_full_world (revoke_list l W)
@@ -1485,10 +1473,6 @@ Section heap.
                | Some j => if (decide (ρ = j))
                           then <[i := Temporary]> (conditional_close_list_std_sta ρ l' fs)
                           else (conditional_close_list_std_sta ρ l' fs)
-                 (* match j with *)
-                 (*          | ρ => <[i := Temporary]> (conditional_close_list_std_sta ρ l' fs) *)
-                 (*          | _ => (conditional_close_list_std_sta ρ l' fs) *)
-                 (*          end *)
                | None => (conditional_close_list_std_sta ρ l' fs)
                end
     end.
@@ -1618,32 +1602,6 @@ Section heap.
   Proof.
     apply conditional_close_list_std_sta_revoked.
   Qed.
-
-  (* Lemma std_rel_pub_not_temp_cases x y : *)
-  (*   std_rel_pub x y -> *)
-  (*   (x = Revoked ∧ y = Temporary) ∨ *)
-  (*   (x = Revoked ∧ y = Permanent) ∨ *)
-  (*   (∃ m, x = (Uninitialized m) ∧ y = Temporary). *)
-  (* Proof. *)
-  (*   intros Hpub. *)
-  (*   inversion Hpub;subst;[left|right;left|right;right];auto. exists w. split;auto. *)
-  (* Qed. *)
-
-  (* Lemma std_rel_pub_rtc_not_temp_cases x y : *)
-  (*   rtc std_rel_pub x y -> *)
-  (*   (x = Revoked ∧ y = Temporary) ∨ *)
-  (*   (x = Revoked ∧ y = Permanent) ∨ *)
-  (*   (∃ m, x = (Uninitialized m) ∧ y = Temporary) ∨ *)
-  (*   x = y. *)
-  (* Proof. *)
-  (*   intros Hrtc. *)
-  (*   destruct Hrtc as [|ρ y z Hrel]. *)
-  (*   - right. by (repeat right). *)
-  (*   - apply std_rel_pub_not_temp_cases in Hrel as [ [Heq1 Heq2] | [ [Heq1 Heq2] | [m [Heq1 Heq2] ] ] ]; subst. *)
-  (*     left. apply std_rel_pub_rtc_Temporary in Hrtc; auto. *)
-  (*     right;left. apply std_rel_pub_rtc_Permanent in Hrtc; auto. *)
-  (*     right;right;left. apply std_rel_pub_rtc_Temporary in Hrtc; eauto. *)
-  (* Qed. *)
 
   Lemma close_list_related_sts_pub_cons W a l :
     related_sts_pub_world W (close_list l W) →

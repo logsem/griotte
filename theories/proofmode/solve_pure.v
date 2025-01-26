@@ -12,7 +12,7 @@ Ltac solve_pure_addr := solve_pure_finz.
    [solve_pure] already handles):
 
    - ExecPCPerm
-   - PermFlows, PermFlowsTo  (TODO: extend)
+   - PermFlowsTo, PermFlowsTo  (TODO: extend)
    - decodeInstrW w = ?
    - readAllowed p (TODO: extend)
    - writeAllowed p (TODO: extend)
@@ -49,10 +49,10 @@ Proof.
 Qed.
 #[export] Hint Resolve DecodeInstr_prove : solve_pure.
 
-(* ExecPCPerm, PermFlows *)
+(* ExecPCPerm, PermFlowsTo *)
 
 #[export] Hint Mode ExecPCPerm + : solve_pure.
-#[export] Hint Mode PermFlows - + : solve_pure.
+#[export] Hint Mode PermFlowsTo - + : solve_pure.
 
 Lemma ExecPCPerm_InCtx p :
   InCtx (ExecPCPerm p) → ExecPCPerm p.
@@ -70,7 +70,7 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (readAllowed _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (writeAllowed _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (PermFlowsTo _ _ = true) => reflexivity : solve_pure.
-(* Follows the same behavior as the Hint Mode for PermFlows *)
+(* Follows the same behavior as the Hint Mode for PermFlowsTo *)
 #[export] Hint Extern 1 (PermFlowsTo ?p ?p' = true) =>
   (without_evars p'; apply PermFlowsToReflexive): solve_pure.
 

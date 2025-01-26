@@ -33,7 +33,6 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     destruct (decide (rsrc = PC)) as [HrPC|HrPC].
     - subst rsrc.
       iApply (wp_jmp_successPC with "[HPC Ha]"); eauto; first iFrame.

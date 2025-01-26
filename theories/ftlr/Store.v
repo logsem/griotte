@@ -36,7 +36,7 @@ Section fundamental.
   Proof. intros. rewrite /wcond'. case_decide;apply _. Qed.
 
   Lemma storev_interp_mono W (r : Reg) (r1 : RegName) (r2 : Z + RegName) p g b e a p' ρ storev:
-     PermFlows p p'
+     PermFlowsTo p p'
     -> word_of_argument r r2 = Some storev
     → reg_allows_store r r1 p g b e a storev
     → std W !! a = Some ρ
@@ -55,14 +55,13 @@ Section fundamental.
     - iApply (interp_monotone_generalSd with "[HInt]" ); eauto.
   Qed.
 
-
   Lemma interp_hpf_eq (W : WORLD) P (regs : leibnizO Reg) (r1 : RegName)
     p g b e a pc_p pc_g pc_b pc_e pc_p' w storev:
     reg_allows_store (<[PC:=WCap pc_p pc_g pc_b pc_e a]> regs) r1 p g b e a storev
-    → PermFlows pc_p pc_p'
+    → PermFlowsTo pc_p pc_p'
     → (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → ((fixpoint interp1) W) v)
     -∗ rel a pc_p' P
-    -∗ ⌜PermFlows p pc_p'⌝.
+    -∗ ⌜PermFlowsTo p pc_p'⌝.
   Proof.
     destruct (decide (r1 = PC)).
     - subst r1. iIntros ([? ?] ?). simplify_map_eq; auto.
@@ -79,10 +78,9 @@ Section fundamental.
       done.
   Qed.
 
-(* Definition if_later_P' (b: bool) (P :  iProp Σ) := *)
-(*   (if b then ▷ P else P)%I. *)
-
-
+  (* Description of what the resources are supposed to look like
+     after opening the region if we need to,
+     but before closing the region up again*)
   Definition region_open_resources W l ls p φ (v : Word) (P : D) (has_later : bool): iProp Σ :=
     (∃ ρ,
         sts_state_std l ρ
@@ -107,9 +105,6 @@ Section fundamental.
     by inversion H3.
   Qed.
 
-  (* Description of what the resources are supposed to look like
-     after opening the region if we need to,
-     but before closing the region up again*)
   Definition allow_store_res W r1 r2 (regs : Reg) pc_a (pc_p : Perm) (has_later : bool) :=
     (∃ p g b e a storev,
         ⌜read_reg_inr regs r1 p g b e a⌝
@@ -117,7 +112,7 @@ Section fundamental.
         ∗ if decide (reg_allows_store regs r1 p g b e a storev )
           then (if decide (a ≠ pc_a)
                 then ∃ p' (P':D) w,
-                    ⌜PermFlows p p'⌝
+                    ⌜PermFlowsTo p p'⌝
                     ∗ ⌜ persistent_cond P' ⌝
                     ∗ a ↦ₐ w
                     ∗ if_later_P has_later (zcond P')
@@ -128,7 +123,7 @@ Section fundamental.
                        then if_later_P has_later (rcond P' interp)
                        else True)
                     ∗ (region_open_resources W a [pc_a] p' (safeC P') w P' has_later)
-                else open_region pc_a W ∗ ⌜PermFlows p pc_p⌝  )
+                else open_region pc_a W ∗ ⌜PermFlowsTo p pc_p⌝  )
           else open_region pc_a W)%I.
 
   Definition allow_store_mem W r1 r2 (regs : Reg) pc_a (pc_p : Perm) pc_w (mem : Mem)
@@ -139,7 +134,7 @@ Section fundamental.
         ∗ if decide (reg_allows_store regs r1 p g b e a storev)
           then (if decide (a ≠ pc_a)
                 then ∃ p' (P':D) w,
-                    ⌜PermFlows p p'⌝
+                    ⌜PermFlowsTo p p'⌝
                     ∗ ⌜ persistent_cond P' ⌝
                     ∗ if_later_P has_later (zcond P')
                     ∗ (if writeAllowed p'
@@ -150,7 +145,7 @@ Section fundamental.
                        else True)
                     ∗ ⌜mem = <[a:=w]> (<[pc_a:=pc_w]> ∅)⌝
                     ∗ (region_open_resources W a [pc_a] p' (safeC P') w P' has_later)
-                else  ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region pc_a W  ∗ ⌜PermFlows p pc_p⌝)
+                else  ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region pc_a W  ∗ ⌜PermFlowsTo p pc_p⌝)
           else  ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region pc_a W)%I.
 
   Lemma create_store_res:
@@ -160,7 +155,7 @@ Section fundamental.
       (p0 : Perm) (g0 : Locality) (b0 e0 a0 : Addr)
       (storev : Word) (P:D),
     read_reg_inr (<[PC:= WCap p g b e a]> regs) r1 p0 g0 b0 e0 a0
-    → PermFlows p p'
+    → PermFlowsTo p p'
     → word_of_argument (<[PC:=WCap p g b e a]> regs) r2 = Some storev
     → (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → ((fixpoint interp1) W) v)
     -∗ rel a p' (λ Wv : STS_std_states Addr region_type * (STS_states * STS_rels) * Word, P Wv.1 Wv.2)
@@ -414,7 +409,6 @@ Section fundamental.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond HmonoV Hmono Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
-    (* iDestruct (execCond_implies_region_conditions with "Hinv_interp") as "#Hinv"; eauto. *)
     iInsert "Hmap" PC.
 
     (* To read out PC's name later, and needed when calling wp_load *)
@@ -472,9 +466,6 @@ Section fundamental.
     { apply incrementPC_Some_inv in Hincr.
       destruct Hincr as (?&?&?&?&?&?&?&?&?).
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
-
-      (* From this, derive value relation for the current PC*)
-      (* iDestruct (execcPC_implies_interp _ _ _ _ _ a  with "Hinv") as "HVPC"; eauto. *)
 
       iDestruct (switch_monotonicity_formulation with "HmonoV") as "HmonoV"; [eauto..|].
       iDestruct (switch_monotonicityFull_formulation with "Hmono") as "Hmono"; [eauto..|].
