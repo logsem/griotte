@@ -25,7 +25,7 @@ Section fundamental.
   Implicit Types interp : (D).
 
   Lemma PermPairFlows_interp_preserved W p p' g g' b e a :
-    p <> E ->
+    isSentry p = false ->
     PermFlowsTo p' p = true →
     LocalityFlowsTo g' g = true →
     ftlr_IH -∗

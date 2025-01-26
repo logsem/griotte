@@ -44,7 +44,7 @@ Section cap_lang_rules.
       Subseg_failure regs dst src1 src2 regs
   | Subseg_fail_incrPC_cap p g b e a a1 a2 :
       regs !! dst = Some (WCap p g b e a) →
-      p <> E →
+      isSentry p = false ->
       addr_of_argument regs src1 = Some a1 →
       addr_of_argument regs src2 = Some a2 →
       isWithin a1 a2 b e = true →
@@ -67,7 +67,7 @@ Section cap_lang_rules.
   Inductive Subseg_spec (regs: Reg) (dst: RegName) (src1 src2: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
   | Subseg_spec_success_cap p g b e a a1 a2:
       regs !! dst = Some (WCap p g b e a) ->
-      p <> E ->
+      isSentry p = false ->
       addr_of_argument regs src1 = Some a1 ->
       addr_of_argument regs src2 = Some a2 ->
       isWithin a1 a2 b e = true ->
@@ -123,8 +123,8 @@ Section cap_lang_rules.
        assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
        { destruct wdst as [ | [p b e a | ] | ]; try by inversion Hwdst.
          all: try by simplify_pair_eq.
-         destruct p; try congruence.
-         repeat destruct (addr_of_argument r _); cbn in Hstep; simplify_pair_eq; auto. }
+         destruct_perm p; cbn in *; try congruence.
+         all: repeat destruct (addr_of_argument r _); cbn in *; simplify_pair_eq; auto. }
        iFailWP "Hφ" Subseg_fail_allowed. }
 
     (* Now the proof splits depending on the type of value in wdst *)
@@ -132,8 +132,8 @@ Section cap_lang_rules.
     1,4: inversion Hwdst.
 
     (* First, the case where r1v is a capability *)
-    + destruct (perm_eq_dec p E); [ subst p |].
-       { rewrite /is_mutable_range in Hwdst; congruence. }
+    + destruct (isSentry p) eqn:Hsentry; cbn in *.
+      { destruct_perm p ; cbn in *; rewrite /is_mutable_range in Hwdst; try congruence. }
 
       destruct (addr_of_argument regs src1) as [a1|] eqn:Ha1;
         pose proof Ha1 as H'a1; cycle 1.
@@ -194,7 +194,7 @@ Section cap_lang_rules.
         as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
       eapply updatePC_success_incl with (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
-      { destruct p; cbn in Hstep; eauto. congruence. }
+      { destruct_perm p; cbn in Hstep; eauto. }
       simplify_pair_eq. iFrame.
       iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
       iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
@@ -270,7 +270,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg dst (inr r1) (inr r2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
-    p ≠ machine_base.E →
+    isSentry p = false ->
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
 
@@ -306,7 +306,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct p; congruence. }
+      destruct_perm p; cbn in *; congruence. }
     Unshelve. all: auto.
   Qed.
 
@@ -314,7 +314,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg dst (inr r1) (inr r1) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 →
-    p ≠ machine_base.E →
+    isSentry p = false ->
     isWithin a1 a1 b e = true →
     (pc_a + 1)%a = Some pc_a' →
 
@@ -348,7 +348,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct p; congruence. }
+      destruct_perm p; cbn in *; congruence. }
     Unshelve. all: auto.
   Qed.
 
@@ -356,7 +356,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg dst (inl n1) (inr r2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
-    p ≠ machine_base.E →
+    isSentry p = false ->
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
 
@@ -390,7 +390,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct p; congruence. }
+      destruct_perm p; cbn in *; congruence. }
     Unshelve. all: auto.
   Qed.
 
@@ -398,7 +398,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg dst (inr r1) (inl n2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
-    p ≠ machine_base.E →
+    isSentry p = false ->
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
 
@@ -432,7 +432,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct p; congruence. }
+      destruct_perm p; cbn in *; congruence. }
     Unshelve. all: auto.
   Qed.
 
@@ -440,7 +440,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg dst (inl n1) (inl n2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
-    p ≠ machine_base.E →
+    isSentry p = false ->
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
 
@@ -471,7 +471,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct p; congruence. }
+      destruct_perm p; cbn in *; congruence. }
     Unshelve. all: auto.
   Qed.
 
@@ -479,7 +479,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg dst (inl n1) (inl n2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
-    ¬ (p ≠ machine_base.E ∧ isWithin a1 a2 b e = true) →
+    ¬ (isSentry p = false ∧ isWithin a1 a2 b e = true) →
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
           ∗ ▷ dst ↦ᵣ WCap p g b e a }}}
@@ -510,7 +510,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg PC (inr r1) (inr r2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
-    pc_p ≠ machine_base.E →
+    isSentry pc_p = false ->
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
 
@@ -543,7 +543,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct pc_p; congruence. congruence. }
+      all: try destruct_perm pc_p; cbn in *; congruence. }
     Unshelve. all: auto.
   Qed.
 
@@ -551,7 +551,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg PC (inr r1) (inr r1) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 →
-    pc_p ≠ machine_base.E →
+    isSentry pc_p = false ->
     isWithin a1 a1 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
 
@@ -582,7 +582,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct pc_p; congruence. congruence. }
+      all: try destruct_perm pc_p; cbn in *; congruence. }
     Unshelve. all: auto.
   Qed.
 
@@ -590,7 +590,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg PC (inl n1) (inr r2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
-    pc_p ≠ machine_base.E →
+    isSentry pc_p = false ->
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
 
@@ -621,7 +621,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct pc_p; congruence. congruence. }
+      all: try destruct_perm pc_p; cbn in *; congruence. }
     Unshelve. all: auto.
   Qed.
 
@@ -629,7 +629,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg PC (inr r1) (inl n2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
-    pc_p ≠ machine_base.E →
+    isSentry pc_p = false ->
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
 
@@ -660,7 +660,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct pc_p; congruence. congruence. }
+      all: try destruct_perm pc_p; cbn in *; congruence. }
     Unshelve. all: auto.
   Qed.
 
@@ -668,7 +668,7 @@ Section cap_lang_rules.
     decodeInstrW w = Subseg PC (inl n1) (inl n2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
-    pc_p ≠ machine_base.E →
+    isSentry pc_p = false ->
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
 
@@ -696,7 +696,7 @@ Section cap_lang_rules.
     { (* Failure (contradiction) *)
       destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
       all: simplify_map_eq; eauto; try congruence.
-      destruct pc_p; congruence. congruence. }
+      all: try destruct_perm pc_p; cbn in *; congruence. }
     Unshelve. all: auto.
   Qed.
 
