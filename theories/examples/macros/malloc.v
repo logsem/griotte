@@ -190,12 +190,13 @@ Section SimpleMalloc.
       { exfalso. simplify_map_eq. }
       { cbn. wp_pure. wp_end. auto. }
     }
-    do 3 iInstr "Hprog". { transitivity (Some a_m); eauto. solve_addr. }
-    do 3 iInstr "Hprog". { transitivity (Some 0%a); eauto. solve_addr. }
-    do 2 iInstr "Hprog". { transitivity (Some b_m); eauto. solve_addr. }
+    do 3 iInstr "Hprog".
+    { transitivity (Some a_m); eauto. solve_addr. }
+    do 3 iInstr "Hprog".
+    { transitivity (Some 0%a); eauto. solve_addr. }
+    do 2 iInstr "Hprog".
+    { transitivity (Some b_m); eauto. solve_addr. }
     iInstr "Hprog". solve_pure_addr.
-    iGo "Hprog".
-    { by cbn. } (* TODO add a hint somewhere to take care of this proof obligation *)
     iGo "Hprog".
     (* continuation *)
     apply isWithin_implies in Ha_m'_within.

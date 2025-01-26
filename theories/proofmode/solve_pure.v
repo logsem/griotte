@@ -37,7 +37,7 @@ Qed.
 
 #[export] Hint Mode isCorrectPC + : solve_pure.
 
-(* #[export] Hint Resolve isCorrectPC_ExecPCPerm_InBounds : solve_pure. *)
+#[export] Hint Resolve isCorrectPC_ExecPCPerm_InBounds : solve_pure.
 
 (* Proxy lemma for DecodeInstr *)
 
@@ -51,21 +51,21 @@ Qed.
 
 (* ExecPCPerm, PermFlowsTo *)
 
-(* #[export] Hint Mode ExecPCPerm + : solve_pure. *)
+#[export] Hint Mode ExecPCPerm + : solve_pure.
 #[export] Hint Mode PermFlowsTo - + : solve_pure.
 
-(* Lemma ExecPCPerm_InCtx p : *)
-(*   InCtx (ExecPCPerm p) → ExecPCPerm p. *)
-(* Proof. auto. Qed. *)
-(* #[export] Hint Resolve ExecPCPerm_InCtx : solve_pure. *)
+Lemma ExecPCPerm_InCtx p :
+  InCtx (ExecPCPerm p) → ExecPCPerm p.
+Proof. auto. Qed.
+#[export] Hint Resolve ExecPCPerm_InCtx : solve_pure.
 
-(* #[export] Hint Resolve ExecPCPerm_RX : solve_pure. *)
-(* #[export] Hint Resolve ExecPCPerm_RWX : solve_pure. *)
-(* #[export] Hint Resolve ExecPCPerm_not_E : solve_pure. *)
-(* #[export] Hint Resolve ExecPCPerm_flows_to : solve_pure. *)
-(* (* TODO: add a test checking the use of ExecPCPerm_flows_to (if it is still *)
-(*    needed) *) *)
-(* #[export] Hint Resolve ExecPCPerm_readAllowed : solve_pure. *)
+#[export] Hint Resolve ExecPCPerm_RX : solve_pure.
+#[export] Hint Resolve ExecPCPerm_RWX : solve_pure.
+#[export] Hint Resolve ExecPCPerm_not_E : solve_pure.
+#[export] Hint Resolve ExecPCPerm_flows_to : solve_pure.
+(* TODO: add a test checking the use of ExecPCPerm_flows_to (if it is still *)
+(*    needed) *)
+#[export] Hint Resolve ExecPCPerm_readAllowed : solve_pure.
 (* Will only work if arguments are concrete terms *)
 #[export] Hint Extern 1 (readAllowed _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (writeAllowed _ = true) => reflexivity : solve_pure.
@@ -104,6 +104,21 @@ Qed.
 #[export] Hint Extern 1 (is_z _ = false) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (is_z _ = true) => reflexivity : solve_pure.
 
+(* isSentry *)
+#[export] Hint Extern 1 (isSentry (BPerm _ _) = false) => done : solve_pure.
+#[export] Hint Extern 1 (isSentry E = true) => done : solve_pure.
+
+(* canStore *)
+#[export] Hint Extern 1 (canStore WO (WCap _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore WO (WCap _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RW (WCap _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RW (WCap _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWX (WCap _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWX (WCap _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore WLO (WCap _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWL (WCap _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWLX (WCap _ _ _ _ _ ) = true) => done : solve_pure.
+
 (* denote - required for Get *)
 #[export] Hint Extern 1 (denote (GetWType _ _) ?w = Some _) =>
   (eapply getwtype_denote ; reflexivity) : solve_pure.
@@ -116,29 +131,29 @@ Goal forall (r_t1 PC: RegName) `{MachineParameters}, exists r1 r2,
   r1 = r_t1 ∧ r2 = inr PC.
 Proof. do 2 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
 
-(* Goal forall p g b e a, *)
-(*   ExecPCPerm p → *)
-(*   SubBounds b e a (a ^+ 5)%a → *)
-(*   ContiguousRegion a 5 → *)
-(*   isCorrectPC (WCap p g b e a). *)
-(* Proof. intros. solve_pure. Qed. *)
+Goal forall p g b e a,
+  ExecPCPerm p →
+  SubBounds b e a (a ^+ 5)%a →
+  ContiguousRegion a 5 →
+  isCorrectPC (WCap p g b e a).
+Proof. intros. solve_pure. Qed.
 
-(* Goal forall (r_t1 r_t2: RegName), exists r1 r2, *)
-(*   is_Get (GetB r_t2 r_t1) r1 r2 ∧ *)
-(*   r1 = r_t2 ∧ r2 = r_t1. *)
-(* Proof. do 2 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed. *)
+Goal forall (r_t1 r_t2: RegName), exists r1 r2,
+  is_Get (GetB r_t2 r_t1) r1 r2 ∧
+  r1 = r_t2 ∧ r2 = r_t1.
+Proof. do 2 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
 
-(* Goal forall p g b e a, *)
-(*   ExecPCPerm p → *)
-(*   SubBounds b e a (a ^+ 5)%a → *)
-(*   ContiguousRegion a 5 → *)
-(*   isCorrectPC (WCap p g b e (a ^+ 1)%a). *)
-(* Proof. intros. solve_pure. Qed. *)
+Goal forall p g b e a,
+  ExecPCPerm p →
+  SubBounds b e a (a ^+ 5)%a →
+  ContiguousRegion a 5 →
+  isCorrectPC (WCap p g b e (a ^+ 1)%a).
+Proof. intros. solve_pure. Qed.
 
 Goal forall (r_t1 r_t2 r_t3: RegName), exists r1 r2 r3,
   is_AddSubLt (Sub r_t2 r_t2 r_t3) r1 (inr r2) (inr r3) ∧
   r1 = r_t2 ∧ r2 = r_t2 ∧ r3 = r_t3.
 Proof. do 3 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
 
-(* Goal E ≠ RO. solve_pure. Qed. *)
+Goal E ≠ RO. solve_pure. Qed.
 Goal forall (P: Prop), P → P. intros. solve_pure. Qed.

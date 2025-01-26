@@ -93,8 +93,8 @@ Section fundamental.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         destruct (PermFlowsTo RX p'') eqn:Hpft.
         { assert (Hpg: p'' = RX ∨ p'' = RWX ∨ p'' = RWLX ∧ g'' = Local).
-          { destruct p''; simpl in Hpft; eauto; try discriminate.
-            destruct p0; simpl in *; try discriminate.
+          { destruct_perm p''; simpl in Hpft; eauto; try discriminate.
+            destruct_perm p0; simpl in *; try discriminate.
             simplify_map_eq.
             right;right; split;auto.
             destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; try discriminate.
@@ -108,7 +108,7 @@ Section fundamental.
 
         { iApply (wp_bind (fill [SeqCtx])).
           iExtract "Hmap" PC as "HPC".
-          iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; destruct p''; simpl in Hpft; eauto; discriminate|].
+          iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; destruct_perm p''; simpl in Hpft; eauto; discriminate|].
           iNext. iIntros "HPC /=".
           iApply wp_pure_step_later; auto. iNext ; iIntros "_".
           iApply wp_value. iIntros ; discriminate. }

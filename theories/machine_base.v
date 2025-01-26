@@ -22,7 +22,7 @@ Inductive Wperm : Type :=
 
 Inductive Perm: Type :=
 | BPerm (rx: RXperm) (w: Wperm)
-| E (rx: RXperm) (w: Wperm).
+| E.
 
 Notation O := (BPerm Orx Ow).
 
@@ -122,7 +122,7 @@ Ltac destruct_word w :=
 Ltac destruct_perm p :=
   let rx := fresh "rx" in
   let w := fresh "w" in
-  destruct p as [rx w | rx w]; destruct rx, w.
+  destruct p as [rx w |]; [destruct rx, w|].
 
 Ltac destruct_sealperm p :=
   let b := fresh "b" in
@@ -175,7 +175,7 @@ Definition is_sealed_with_o (w : Word) (o : OType) : bool :=
 (* non-E capability or range of seals *)
 Definition is_mutable_range (w : Word) : bool:=
   match w with
-  | WCap p _ _ _ _ => match p with | (E _ _)  => false | _ => true end
+  | WCap p _ _ _ _ => match p with | E => false | _ => true end
   | WSealRange _ _ _ _ _ => true
   | _ => false end.
 
@@ -366,13 +366,10 @@ Definition PermFlowsTo (p1 p2: Perm): bool :=
   | BPerm rx1 w1, BPerm rx2 w2 =>
       RXPermFlowsTo rx1 rx2
       && WPermFlowsTo w1 w2
-  | E rx1 w1, BPerm rx2 w2 =>
-    RXPermFlowsTo rx1 rx2
-    && WPermFlowsTo w1 w2
-    && RXPermFlowsTo X rx2
-  | E rx1 w1, E rx2 w2 =>
-      bool_decide (rx1 = rx2) && bool_decide (w1 = w2)
-  | BPerm _ _, E _ _ => false
+  | E, E => true
+  | E, BPerm rx w =>
+      RXPermFlowsTo X rx
+  | BPerm _ _, E => false
   end.
 
 Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
@@ -426,50 +423,50 @@ Proof.
   destruct Hvpc as [Hcontr | [Hcontr | Hcontr]]; inversion Hcontr.
 Qed.
 
-(* Definition ExecPCPerm p := *)
-(*   p = RX ∨ p = RWX \/ p = RWLX. *)
+Definition ExecPCPerm p :=
+  p = RX ∨ p = RWX \/ p = RWLX.
 
-(* Lemma ExecPCPerm_RX: ExecPCPerm RX. *)
-(* Proof. left; auto. Qed. *)
+Lemma ExecPCPerm_RX: ExecPCPerm RX.
+Proof. left; auto. Qed.
 
-(* Lemma ExecPCPerm_RWX: ExecPCPerm RWX. *)
-(* Proof. right; auto. Qed. *)
+Lemma ExecPCPerm_RWX: ExecPCPerm RWX.
+Proof. right; auto. Qed.
 
-(* Lemma ExecPCPerm_RWLX: ExecPCPerm RWLX. *)
-(* Proof. right; auto. Qed. *)
+Lemma ExecPCPerm_RWLX: ExecPCPerm RWLX.
+Proof. right; auto. Qed.
 
-(* Lemma ExecPCPerm_flows_to p p': *)
-(*   PermFlowsTo p p' → *)
-(*   ExecPCPerm p → *)
-(*   ExecPCPerm p'. *)
-(* Proof. *)
-(*   intros H [ -> | [ -> | -> ] ]; cbn in H. *)
-(*   { destruct_perm p'; cbn in H; try by inversion H; constructor. *)
-(*     apply ExecPCPerm_RWX. *)
-(*     apply ExecPCPerm_RWLX. *)
-(*   } *)
-(*   { destruct_perm p'; try by inversion H; constructor. *)
-(*     apply ExecPCPerm_RWX. *)
-(*     apply ExecPCPerm_RWLX. *)
-(*   } *)
-(*   { destruct_perm p'; try by inversion H; constructor. *)
-(*     apply ExecPCPerm_RWLX. *)
-(*   } *)
-(* Qed. *)
+Lemma ExecPCPerm_flows_to p p':
+  PermFlowsTo p p' →
+  ExecPCPerm p →
+  ExecPCPerm p'.
+Proof.
+  intros H [ -> | [ -> | -> ] ]; cbn in H.
+  { destruct_perm p'; cbn in H; try by inversion H; constructor.
+    apply ExecPCPerm_RWX.
+    apply ExecPCPerm_RWLX.
+  }
+  { destruct_perm p'; try by inversion H; constructor.
+    apply ExecPCPerm_RWX.
+    apply ExecPCPerm_RWLX.
+  }
+  { destruct_perm p'; try by inversion H; constructor.
+    apply ExecPCPerm_RWLX.
+  }
+Qed.
 
-(* Lemma ExecPCPerm_not_E p : *)
-(*   ExecPCPerm p → *)
-(*   p ≠ E. *)
-(* Proof. *)
-(*   intros [ H | [H|H] ] ->; inversion H. *)
-(* Qed. *)
+Lemma ExecPCPerm_not_E p :
+  ExecPCPerm p →
+  p ≠ E.
+Proof.
+  intros [ H | [H|H] ] ->; inversion H.
+Qed.
 
-(* Lemma ExecPCPerm_readAllowed p : *)
-(*   ExecPCPerm p → *)
-(*   readAllowed p = true. *)
-(* Proof. *)
-(*   intros [ -> | [ -> | -> ] ]; reflexivity. *)
-(* Qed. *)
+Lemma ExecPCPerm_readAllowed p :
+  ExecPCPerm p →
+  readAllowed p = true.
+Proof.
+  intros [ -> | [ -> | -> ] ]; reflexivity.
+Qed.
 
 Definition SealPermFlowsTo (s1 s2 : SealPerms): bool :=
   (if permit_seal(s1) then permit_seal(s2) else true) &&
@@ -511,23 +508,16 @@ Proof.  destruct_sealperm p; destruct_sealperm p'; done. Qed.
 
 (* Helper definitions for capabilities *)
 
-Definition jump_sentry_perm (p: Perm) : Perm :=
-  match p with
-  | E rx w
-  | BPerm rx w
-    => BPerm rx w
-  end.
-
 (* Turn E into RX into PC after a jump *)
 Definition updatePcPerm (w: Word): Word :=
   match w with
-  | WCap (E rx w) g b e a => WCap (jump_sentry_perm (E rx w)) g b e a
+  | WCap E g b e a => WCap RX g b e a
   | _ => w
   end.
 
 Definition isSentry (p : Perm) : bool :=
  match p with
-   | E _ _ => true
+   | E => true
    | BPerm _ _ => false
  end.
 
@@ -704,13 +694,13 @@ Proof.
   inversion Hvpc; simplify_eq. solve_addr.
 Qed.
 
-(* Lemma isCorrectPC_ExecPCPerm_InBounds p g b e a : *)
-(*   ExecPCPerm p → *)
-(*   InBounds b e a → *)
-(*   isCorrectPC (WCap p g b e a). *)
-(* Proof. *)
-(*   unfold ExecPCPerm, InBounds. intros. constructor; eauto. *)
-(* Qed. *)
+Lemma isCorrectPC_ExecPCPerm_InBounds p g b e a :
+  ExecPCPerm p →
+  InBounds b e a →
+  isCorrectPC (WCap p g b e a).
+Proof.
+  unfold ExecPCPerm, InBounds. intros. constructor; eauto.
+Qed.
 
 (* Useful instances *)
 
@@ -757,12 +747,12 @@ Proof.
   set encode :=
     fun p => match p with
           | BPerm rx w => inl (rx,w)
-          | E rx w => inr (rx,w)
+          | E => inr ()
           end.
   set decode :=
     fun n => match n with
           | inl (rx,w) => BPerm rx w
-          | inr (rx,w) => E rx w
+          | inr () => E
           end.
   refine (inj_countable' encode decode _).
   intro p. destruct p; reflexivity.

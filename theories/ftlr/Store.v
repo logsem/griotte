@@ -68,12 +68,10 @@ Section fundamental.
     - iIntros ((Hsomer1 & Hwa & Hwb & Hloc) Hfl) "Hreg #Hinva".
       simplify_map_eq.
       iDestruct ("Hreg" $! r1 _ n Hsomer1) as "Hr1"; eauto.
-      iDestruct (read_allowed_inv _ a with "Hr1")
+      iDestruct (write_allowed_inv _ a with "Hr1")
         as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hrcond'' & Hwcond'')"; auto.
       { apply andb_true_iff in Hwb as [Hle Hge].
         split; [apply Zle_is_le_bool | apply Zlt_is_lt_bool]; auto. }
-      { by apply writeA_implies_readA in Hwa as ->. }
-      rewrite Hwa ; simpl.
       iDestruct (rel_agree a _ _ p'' pc_p' with "[$Hinva $Hrel'']") as "[-> _]".
       done.
   Qed.
@@ -116,10 +114,10 @@ Section fundamental.
                     ∗ ⌜ persistent_cond P' ⌝
                     ∗ a ↦ₐ w
                     ∗ if_later_P has_later (zcond P')
-                    ∗ (if writeAllowed p'
+                    ∗ (if writeAllowed p
                        then if_later_P has_later (wcond P' interp)
                        else True)
-                    ∗ (if readAllowed p'
+                    ∗ (if readAllowed p
                        then if_later_P has_later (rcond P' interp)
                        else True)
                     ∗ (region_open_resources W a [pc_a] p' (safeC P') w P' has_later)
@@ -137,10 +135,10 @@ Section fundamental.
                     ⌜PermFlowsTo p p'⌝
                     ∗ ⌜ persistent_cond P' ⌝
                     ∗ if_later_P has_later (zcond P')
-                    ∗ (if writeAllowed p'
+                    ∗ (if writeAllowed p
                        then if_later_P  has_later (wcond P' interp)
                        else True)
-                    ∗ (if readAllowed p'
+                    ∗ (if readAllowed p
                        then if_later_P  has_later (rcond P' interp)
                        else True)
                     ∗ ⌜mem = <[a:=w]> (<[pc_a:=pc_w]> ∅)⌝
@@ -177,17 +175,14 @@ Section fundamental.
 
       simplify_map_eq.
       iDestruct ("Hreg" $! r1 _ n Hrinr) as "Hvsrc"; eauto.
-      iDestruct (read_allowed_inv _ a0 with "Hvsrc")
+      iDestruct (write_allowed_inv _ a0 with "Hvsrc")
         as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hrcond'' & Hwcond'')"; auto
       ; first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
-      { by apply writeA_implies_readA in Hra as ->. }
 
       iDestruct (region_open_prepare with "Hr") as "Hr".
-      iDestruct (readAllowed_valid_cap_implies with "Hvsrc") as %HH; eauto.
-      { by apply writeA_implies_readA. }
+      iDestruct (writeAllowed_valid_cap_implies with "Hvsrc") as %HH; eauto.
       { rewrite /withinBounds Hge; solve_addr. }
 
-      rewrite Hra; simpl.
       destruct HH as [ρ' [Hstd' [Hnotrevoked' Hnotfrozen'] ] ].
       (* We can finally frame off Hsts here, since it is no longer needed after opening the region*)
       iDestruct (region_open_next _ _ _ a0 p'' ρ' with "[$Hrel'' $Hr $Hsts]")
@@ -195,11 +190,14 @@ Section fundamental.
       { intros [g1 Hcontr];specialize (Hnotfrozen' g1); contradiction. }
       { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
       iExists p'',P''.
-      iAssert ((if writeAllowed p'' then ▷ wcond P'' interp else True)%I) as "Hwcond'".
-      { destruct (writeAllowed p''); done. }
-      iAssert ((if readAllowed p'' then  ▷ rcond P'' interp else True)%I) as "Hrcond'".
-      { destruct (readAllowed p''); done. }
-
+      (* iAssert ((if writeAllowed p'' then ▷ wcond P'' interp else True)%I) as "Hwcond'". *)
+      (* { destruct (writeAllowed p''); done. } *)
+      (* iAssert ((if readAllowed p'' then  ▷ rcond P'' interp else True)%I) as "Hrcond'". *)
+      (* { destruct p0 ; destruct p'' ; cbn in * ; try done. *)
+      (*   destruct rx eqn:Hrx, rx0 eqn:Hrx0; cbn in * ; try done. *)
+      (*   destruct rx0 eqn:Hrx0; cbn in * ; try done. *)
+      (* } *)
+      rewrite Hra.
       iFrame "∗#".
       iSplitR;[iPureIntro ; destruct p0,p'; done|].
       iSplitR; try (iPureIntro; done).
@@ -346,13 +344,14 @@ Section fundamental.
       { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
       { iSplit.
         iPureIntro ; clear -Hflp' Hwa; destruct p0,p'; cbn in *; try done.
-        destruct (writeAllowed p') eqn:Hwa'; cycle 1.
+        {  destruct rx, rx0, w, w0 ; cbn in *; try done. }
+        destruct (writeAllowed p0) eqn:Hwa'; cycle 1.
         { destruct p0, p'; cbn in *; try congruence;  inv Hflp'. }
         iDestruct ("Hwcond'" with "HVstorev1") as "HP'storev".
         iFrame "#".
         iApply monotonicity_guarantees_region_canStore ; auto.
-        destruct p0,p',storev; cbn in *; inv Hflp' ; try congruence.
-        all: destruct (isGlobalSealable sb); done.
+        destruct_perm p0; destruct_perm p' ; destruct storev; cbn in *; try congruence.
+        all: destruct (isGlobalSealable sb); try done.
       }
       iDestruct (region_open_prepare with "Hr") as "$".
     + subst a0. iDestruct "HStoreRes" as "[-> [HStoreRes %]]".
