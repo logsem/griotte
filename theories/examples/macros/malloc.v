@@ -317,16 +317,10 @@ Section SimpleMalloc.
       iDestruct (big_sepL2_sep with "[Hrels3 Hbe]") as "Hbe";[iFrame "Hbe"; iFrame "Hrels3"|].
       iApply (big_sepL2_mono with "Hbe").
       iIntros (k a'' w Hin1 Hin2) "(Ha & Hrel)". iFrame.
-      apply region_addrs_zeroes_lookup in Hin2 as ->. iSplit;[|iSplit].
+      apply region_addrs_zeroes_lookup in Hin2 as ->. iSplit.
       - by rewrite fixpoint_interp1_eq /=.
       - (* TODO lemma ? *)
         iModIntro. iIntros (W1 W2 Hrelated') "Hv /=". by rewrite !fixpoint_interp1_eq /=.
-      - (* TODO lemma ? *)
-        iIntros (w HcanStorew).
-        iModIntro; iIntros (W1 W2 Hrelated') "Hv /=".
-        iApply interp_monotone_nl; eauto.
-        destruct w ; cbn in *; try done.
-        all: destruct sb,g ; cbn in *; try done ; try congruence.
     }
     iInsertList "Hregs" [r_t1;r_t0;PC].
     set regs := <[PC:=updatePcPerm (WCap p' g' b' e' a')]>
@@ -355,6 +349,17 @@ Section SimpleMalloc.
             iApply zcond_interp.
             iApply rcond_interp.
             iApply wcond_interp.
+            { (* TODO Lemma: interp always satisfies monoReq  *)
+              rewrite /monoReq //=.
+              rewrite std_sta_update_multiple_lookup_in_i;auto.
+              rewrite /mono_priv.
+              iIntros (w Hcanstore W0 W1 Hrelated').
+              iModIntro ; iIntros "Hinterp".
+              iApply interp_monotone_nl; eauto.
+              cbn.
+              destruct_word w ; try destruct sb ; try destruct g ; cbn in * ; try done.
+              apply elem_of_list_lookup. exists k. auto.
+            }
             rewrite std_sta_update_multiple_lookup_in_i;auto.
             apply elem_of_list_lookup. exists k. auto.
           }

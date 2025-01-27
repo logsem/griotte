@@ -88,8 +88,7 @@ Section fundamental.
         ∗ open_region_many (l :: ls) W
         ∗ if_later_P
             has_later
-            (monotonicity_guarantees_region ρ v p (safeC P)
-             ∗ monotonicity_guarantees_regionFull ρ p (safeC P))
+            (monotonicity_guarantees_region ρ v p (safeC P))
         ∗ rel l p φ)%I.
 
   Lemma store_inr_eq {regs r p0 g0 b0 e0 a0 p1 g1 b1 e1 a1 storev}:
@@ -120,6 +119,7 @@ Section fundamental.
                     ∗ (if readAllowed p
                        then if_later_P has_later (rcond P' interp)
                        else True)
+                    ∗ monoReq W a p' P'
                     ∗ (region_open_resources W a [pc_a] p' (safeC P') w P' has_later)
                 else open_region pc_a W ∗ ⌜PermFlowsTo p pc_p⌝  )
           else open_region pc_a W)%I.
@@ -141,6 +141,7 @@ Section fundamental.
                     ∗ (if readAllowed p
                        then if_later_P  has_later (rcond P' interp)
                        else True)
+                    ∗ monoReq W a p' P'
                     ∗ ⌜mem = <[a:=w]> (<[pc_a:=pc_w]> ∅)⌝
                     ∗ (region_open_resources W a [pc_a] p' (safeC P') w P' has_later)
                 else  ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region pc_a W  ∗ ⌜PermFlowsTo p pc_p⌝)
@@ -176,7 +177,7 @@ Section fundamental.
       simplify_map_eq.
       iDestruct ("Hreg" $! r1 _ n Hrinr) as "Hvsrc"; eauto.
       iDestruct (write_allowed_inv _ a0 with "Hvsrc")
-        as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hrcond'' & Hwcond'')"; auto
+        as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hrcond'' & Hwcond'' & HmonoR'')"; auto
       ; first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
 
       iDestruct (region_open_prepare with "Hr") as "Hr".
@@ -186,7 +187,7 @@ Section fundamental.
       destruct HH as [ρ' [Hstd' [Hnotrevoked' Hnotfrozen'] ] ].
       (* We can finally frame off Hsts here, since it is no longer needed after opening the region*)
       iDestruct (region_open_next _ _ _ a0 p'' ρ' with "[$Hrel'' $Hr $Hsts]")
-        as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & HfutureFull & Hval)"; eauto.
+        as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
       { intros [g1 Hcontr];specialize (Hnotfrozen' g1); contradiction. }
       { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
       iExists p'',P''.
@@ -195,7 +196,7 @@ Section fundamental.
       iAssert (if readAllowed p0 then ▷ rcond P'' interp else True)%I as "Hrcond0".
       { destruct (readAllowed p0) eqn:Hra''; last done.
         eapply readAllowed_flows in Hflp''; eauto.
-        destruct (readAllowed p''); done.
+        destruct (readAllowed p''); try done.
       }
       iFrame "∗#".
       iSplitR;[iPureIntro ; destruct p0,p'; done|].
@@ -221,7 +222,7 @@ Section fundamental.
       + pose(Hallows' := Hallows). destruct Hallows as (Hrinr & Hra & Hwb & HLoc).
         iDestruct "HStoreRes"
           as (p0' P0' w0 Hflp' HpersP0')
-               "(HStoreCh & #Hzcond & #Hwcond & #Hrcond & HStoreRest)".
+               "(HStoreCh & #Hzcond & #Hwcond & #Hrcond & #HmonoR & HStoreRest)".
         iExists _.
         iSplitL "HStoreRest".
         ++ iExists p1,g1,b1,e1,a1,storev. iFrame "%".
@@ -254,7 +255,7 @@ Section fundamental.
     case_decide as Hallows.
     - case_decide as Haeq.
       + pose(Hallows' := Hallows). destruct Hallows' as (Hrinr & Hra & Hwb & HLoc).
-        iDestruct "HStoreRes" as (p0' P0' w0 Hflp' HpersP0') "(_ & _ & _ & % & _)".
+        iDestruct "HStoreRes" as (p0' P0' w0 Hflp' HpersP0') "(_ & _ & _ & _ & % & _)".
         iSplitR. subst. rewrite lookup_insert_ne; auto. by rewrite lookup_insert.
         iExists p1,g1,b1,e1,a1,storev.
         iPureIntro. repeat split; auto.
@@ -271,6 +272,24 @@ Section fundamental.
       case_decide as Hdec1; last by done. by exfalso.
   Qed.
 
+  (* TODO move somewhere *)
+  Lemma monotonicity_guarantees_region_canStore
+    (p : Perm) (w : Word) (P : D)
+    (W : WORLD) (a : Addr)
+    (ρ : region_type)
+    :
+    std W !! a = Some ρ
+    -> ρ ≠ Revoked
+    -> (∀ m, ρ ≠ Frozen m)
+    -> canStore p w = true
+    -> monoReq W a p P
+      -∗ monotonicity_guarantees_region ρ w p (safeC P).
+  Proof.
+    iIntros (Hstda Hrevoked Hfrozen HcanStore) "Hmono".
+    rewrite /monoReq Hstda.
+    destruct ρ; auto; cbn; [destruct (pwl p)|].
+    all: try iApply "Hmono"; auto.
+  Qed.
 
   (* Note that we turn in all information that we might have on the monotonicity of the current PC value, so that in the proof of the ftlr case itself, we do not have to worry about whether the PC was written to or not when we close the last location pc_a in the region *)
    Lemma mem_map_recover_res:
@@ -288,18 +307,17 @@ Section fundamental.
     -∗ P W pc_w
     -∗ if_later_P false (rcond P interp)
     -∗ wcond' P pc_p pc_g pc_b pc_e pc_a regs
+    -∗ monoReq W pc_a pc_p' P
     -∗ monotonicity_guarantees_region ρ pc_w pc_p' (safeC P)
-    -∗ monotonicity_guarantees_regionFull ρ pc_p' (safeC P)
     -∗ ([∗ map] a0↦w0 ∈ <[a0 := storev]> mem0, a0 ↦ₐ w0)
     -∗ ∃ v,
         open_region pc_a W
         ∗ pc_a ↦ₐ v
         ∗ P W v
-        ∗ monotonicity_guarantees_region ρ v pc_p' (safeC P)
-        ∗ monotonicity_guarantees_regionFull ρ pc_p' (safeC P).
+        ∗ monotonicity_guarantees_region ρ v pc_p' (safeC P).
    Proof.
     intros W regs pc_w r1 r2 p0 pc_p pc_p' g0 pc_g b0 e0 a0 pc_b pc_e pc_a mem0 oldv storev ρ P Hwoa Hras Hstdst Ha0.
-    iIntros "HStoreMem #Hreg #HVPCr Hpc_w #Hrcond #Hwcond Hpcmono HpcmonoFull Hmem".
+    iIntros "HStoreMem #Hreg #HVPCr Hpc_w #Hrcond #Hwcond #HpcmonoV #Hpcmono Hmem".
     iDestruct "HStoreMem" as (p1 g1 b1 e1 a1 storev1) "[% [% HStoreRes] ]".
     destruct (store_inr_eq Hras H) as (<- & <- &<- &<- &<-).
     inversion H0; simplify_eq.
@@ -332,13 +350,13 @@ Section fundamental.
     + iExists pc_w.
       destruct Hallows as [Hrinr [Hwa [Hwb Hloc] ] ].
       iDestruct "HStoreRes"
-        as (p' P' w' Hflp' HpersP') "(#Hzcond' & #Hwcond' & #Hrcond' & -> & HStoreRes)".
+        as (p' P' w' Hflp' HpersP') "(#Hzcond' & #Hwcond' & #Hrcond' & #HmonoR' & -> & HStoreRes)".
       rewrite lookup_insert in Ha0; inversion Ha0; clear Ha0; subst.
-      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & % & Hr & [#HmonoV #Hmono] & Hrel')".
+      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & % & Hr & #HmonoV & Hrel')".
       rewrite insert_insert memMap_resource_2ne; last auto.
       iDestruct "Hmem" as  "[Ha1 Hpc_a]".
       iFrame.
-      iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' Hmono HmonoV]") as "Hr"; eauto.
+      iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' HmonoV]") as "Hr"; eauto.
       { intros [g Hcontr]. specialize (H2 g). done. }
       { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
       { iSplit.
@@ -348,11 +366,12 @@ Section fundamental.
         { destruct p0, p'; cbn in *; try congruence;  inv Hflp'. }
         iDestruct ("Hwcond'" with "HVstorev1") as "HP'storev".
         iFrame "#".
-        iApply monotonicity_guarantees_region_canStore ; auto.
+        iApply monotonicity_guarantees_region_canStore ; eauto.
         destruct_perm p0; destruct_perm p' ; destruct storev; cbn in *; try congruence.
         all: destruct (isGlobalSealable sb); try done.
       }
       iDestruct (region_open_prepare with "Hr") as "$".
+      iFrame "#".
     + subst a0. iDestruct "HStoreRes" as "[-> [HStoreRes %]]".
       rewrite insert_insert -memMap_resource_1.
       rewrite lookup_insert in Ha0; inversion Ha0; simplify_eq.
@@ -392,7 +411,7 @@ Section fundamental.
     iApply later_sep_2; iSplitR; auto.
     case_decide; last iFrame.
     case_decide; last iFrame.
-    iDestruct "HStoreRes" as (p0 P w0 Hp'O Hpers) "(#Hzcond & #Hwcond & #Hrcond & -> & HStoreMem)".
+    iDestruct "HStoreRes" as (p0 P w0 Hp'O Hpers) "(#Hzcond & #Hwcond & #Hrcond & #HmonoR & -> & HStoreMem)".
     repeat (iApply later_exist_2; iExists _).
     repeat (iApply later_sep_2; iSplitR; auto).
     iDestruct (if_later with "Hwcond") as "Hwcond'"; eauto.
@@ -405,7 +424,7 @@ Section fundamental.
      ftlr_instr W regs p p' g b e a w (Store dst src) ρ P.
    Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond HmonoV Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -466,20 +485,18 @@ Section fundamental.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
       iDestruct (switch_monotonicity_formulation with "HmonoV") as "HmonoV"; [eauto..|].
-      iDestruct (switch_monotonicityFull_formulation with "Hmono") as "Hmono"; [eauto..|].
 
       (* assert that the PC *)
 
       (* Step 4: return all the resources we had in order to close the second location
          in the region, in the cases where we need to *)
       iDestruct (mem_map_recover_res
-                  with "HStoreMem Hreg Hinv_interp Hw Hrcond [Hwcond] HmonoV Hmono Hmem")
-        as (w') "(Hr & Ha & HSVInterp & HmonoV & Hmono)"; eauto.
+                  with "HStoreMem Hreg Hinv_interp Hw Hrcond [Hwcond] [Hmono] [HmonoV] Hmem")
+        as (w') "(Hr & Ha & HSVInterp & HmonoV)"; eauto.
 
       iDestruct (switch_monotonicity_formulation with "HmonoV") as "HmonoV"; auto.
-      iDestruct (switch_monotonicityFull_formulation with "Hmono") as "Hmono"; auto.
 
-      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV $Hmono $HSVInterp]") as "Hr"; eauto.
+      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV $HSVInterp]") as "Hr"; eauto.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       simplify_map_eq. rewrite insert_insert.
 

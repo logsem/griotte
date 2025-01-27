@@ -96,14 +96,14 @@ Section fundamental.
     assert (readAllowed p = true) as Hra.
     { destruct_perm p; naive_solver. }
     iDestruct (write_allowed_implies_ra with "[Hreg] [H]")
-      as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & %Hstate_a)"
-    ;eauto ; iClear "Hinv H".
+      as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
+    ;eauto ; iClear "Hinv".
     assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
       as [ρ [Hρ [Hne Hne'] ] ].
     { destruct (pwl p),g; eauto. destruct Hstate_a as [Htemp | Hperm];eauto. }
 
     iDestruct (region_open W a p'' with "[$Hrela $Hr $Hsts]")
-      as (w) "(Hr & Hsts & Hstate & Ha & % & #HmonoV & #Hmono & Hw) /=";[ |apply Hρ|].
+      as (w) "(Hr & Hsts & Hstate & Ha & % & #HmonoV & Hw) /=";[ |apply Hρ|].
     { destruct ρ;auto;[done|by ospecialize (Hne' _)]. }
     pose proof (Hperscond_P'' (W,w)) as HpersP''
     ; iDestruct "Hw" as "#Hw".
@@ -113,140 +113,140 @@ Section fundamental.
     + (* Jmp *)
       iApply (jmp_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Jnz *)
       iApply (jnz_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Mov *)
       iApply (mov_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Load *)
       iApply (load_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Store *)
       iApply (store_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Lt *)
       iApply (add_sub_lt_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Add *)
       iApply (add_sub_lt_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Sub *)
       iApply (add_sub_lt_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Lea *)
       iApply (lea_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Restrict *)
       iApply (restrict_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Subseg *)
       iApply (subseg_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* GetB *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetB _ _) with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* GetE *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetE _ _) with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* GetA *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetA _ _) with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* GetP *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetP _ _) with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* GetL *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetL _ _) with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* GetWType *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetWType _ _) with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* GetOType *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ (GetOType _ _) with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Seal *)
       iApply (seal_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* UnSeal *)
       iApply (unseal_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond] [$HmonoV] [$Hmono]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
@@ -259,7 +259,7 @@ Section fundamental.
     + (* Halt *)
       iApply (wp_halt with "[HPC Ha]"); eauto; iFrame.
       iNext. iIntros "[HPC Ha] /=".
-      iDestruct (region_close _ _ _ _ _ ρ with "[$Hr $Ha $Hstate $Hmono Hw]") as "Hr";[auto|iFrame "#"; auto|].
+      iDestruct (region_close _ _ _ _ _ ρ with "[$Hr $Ha $Hstate $HmonoV Hw]") as "Hr";[auto|iFrame "#"; auto|].
       { destruct ρ;auto;[|ospecialize (Hne' _)]; contradiction. }
       iApply wp_pure_step_later; auto; iNext ; iIntros "_".
       iApply wp_value.

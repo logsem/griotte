@@ -63,7 +63,7 @@ Section fundamental.
     ftlr_instr W regs p p' g b e a w (Restrict dst src) ρ P.
   Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Restrict with "[$Ha $Hmap]"); eauto.
@@ -89,7 +89,7 @@ Section fundamental.
       { subst dst.
         repeat rewrite insert_insert in HPC.
         rewrite lookup_insert in HPC. inv HPC.
-        iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
+        iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         destruct (PermFlowsTo RX p'') eqn:Hpft.
         { assert (Hpg: p'' = RX ∨ p'' = RWX ∨ p'' = RWLX ∧ g'' = Local).
@@ -115,7 +115,7 @@ Section fundamental.
       }
       {
         simplify_map_eq.
-        iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
+        iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|specialize (Hnotfrozen g)];contradiction. }
         iApply ("IH" $! _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
         - intros; simpl. repeat (rewrite lookup_insert_is_Some'; right); eauto.
@@ -141,7 +141,7 @@ Section fundamental.
         rewrite lookup_insert in HPC. inv HPC.
       }
 
-      iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
+      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       simplify_map_eq; map_simpl "Hmap".
       iApply ("IH" $! _ (<[dst:=WSealRange p'0 g' b0 e0 a0]> regs) with

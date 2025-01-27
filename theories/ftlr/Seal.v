@@ -51,7 +51,7 @@ Section fundamental.
     ftlr_instr W regs p p' g b e a w (Seal dst r1 r2) ρ P.
   Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Seal with "[$Ha $Hmap]"); eauto.
@@ -80,9 +80,7 @@ Section fundamental.
           all: iApply (big_sepL_mono with "Hinv_interp").
           all: intros; iIntros "H"; simpl.
           all: try( iDestruct "H"
-                   as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)").
-          all: try( iDestruct "H"
-                   as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & %Hstate)").
+                   as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)").
           all: iExists p,P'; iFrame "%∗".
         - unshelve iSpecialize ("Hreg" $! r2 _ _ Hr2); eauto.
       }
@@ -91,7 +89,7 @@ Section fundamental.
 
       assert (dst <> PC) as HdstPC by (intros ->; simplify_map_eq).
       simplify_map_eq.
-      iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
+      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
 
       iApply ("IH" $! _ (<[dst := _]> (<[PC := _]> regs))
