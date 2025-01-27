@@ -337,15 +337,11 @@ Section heap.
                                         ∗ (if pwl p
                                            then future_pub_mono φ v
                                            else future_priv_mono φ v)
-                                        ∗ (if pwl p
-                                           then mono_pub φ
-                                           else mono_priv φ p)
                                         ∗ ▷ φ (W,v)
                       | Permanent =>
                           ∃ (v : Word), ⌜(p ≠ O)⌝
                                         ∗ a ↦ₐ v
                                         ∗ future_priv_mono φ v
-                                        ∗ mono_priv φ p
                                         ∗ ▷ φ (W,v)
                       | Frozen m =>
                           ∃ (v : Word), ⌜(p ≠ O)⌝
@@ -496,13 +492,13 @@ Section heap.
     iExists ρ. iFrame. iSplitR;[auto|].
     destruct ρ.
     - iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
-      iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & #Hmono & Hφ)".
+      iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
       iFrame "%#∗".
       destruct (pwl p);
       (iApply "HmonoV"; eauto; iFrame)
       ; try (iPureIntro; by apply related_sts_pub_priv_world).
     - iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
-      iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & #Hmono & Hφ)".
+      iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
       iFrame "%#∗".
       iApply "HmonoV"; iFrame "∗#"; auto.
       iPureIntro.
@@ -640,7 +636,6 @@ Section heap.
            ∗ l ↦ₐ v
            ∗ ⌜p ≠ O⌝
            ∗ ▷ future_pub_mono φ v
-           ∗ ▷ mono_pub φ
            ∗ ▷ φ (W,v).
   Proof.
     iIntros (Htemp Hpwl) "(Hrel & Hreg & Hfull)".
@@ -655,7 +650,7 @@ Section heap.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH1 Hpers) "(#Hφ' & Hl)".
-    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & #Hmono & Hφv)".
+    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH1; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,v) with "Hφ Hφ'") as "#Hφeq".
     iExists v. iFrame.
@@ -667,7 +662,6 @@ Section heap.
     - repeat (iSplitR).
       + auto.
       + iApply future_pub_mono_eq_pred; auto.
-      + iApply mono_pub_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame "∗ #".
   Qed.
 
@@ -681,7 +675,6 @@ Section heap.
            ∗ l ↦ₐ v
            ∗ ⌜p ≠ O⌝
            ∗ ▷ future_priv_mono φ v
-           ∗ ▷ mono_priv φ p
            ∗ ▷ φ (W,v).
   Proof.
     iIntros (Htemp Hpwl) "(Hrel & Hreg & Hfull)".
@@ -696,7 +689,7 @@ Section heap.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & #Hmono & Hφv)".
+    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,v) with "Hφ Hφ'") as "#Hφeq".
     iExists v. iFrame.
@@ -708,7 +701,6 @@ Section heap.
     - repeat (iSplitR).
       + auto.
       + iApply future_priv_mono_eq_pred; auto.
-      + iApply mono_priv_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame "∗ #".
   Qed.
 
@@ -765,7 +757,6 @@ Section heap.
            ∗ l ↦ₐ v
            ∗ ⌜p ≠ O⌝
            ∗ ▷ future_priv_mono φ v
-           ∗ ▷ mono_priv φ p
            ∗ ▷ φ (W,v).
   Proof.
     iIntros (Htemp) "(Hrel & Hreg & Hfull)".
@@ -780,7 +771,7 @@ Section heap.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & #Hmono & Hφv)".
+    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,v) with "Hφ Hφ'") as "#Hφeq".
     iExists v. iFrame.
@@ -792,7 +783,6 @@ Section heap.
     - repeat (iSplitR).
       + auto.
       + iApply future_priv_mono_eq_pred; auto.
-      + iApply mono_priv_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame "∗ #".
   Qed.
 
@@ -836,9 +826,6 @@ Section heap.
          ∗ (▷ if (decide (ρ = Temporary ∧ pwl p = true))
               then future_pub_mono φ v
               else future_priv_mono φ v)
-         ∗ (▷ if (decide (ρ = Temporary ∧ pwl p = true))
-              then mono_pub φ
-              else mono_priv φ p)
          ∗ ▷ φ (W,v).
   Proof.
     iIntros (Hne Htemp) "(Hrel & Hreg & Hfull)".
@@ -993,14 +980,13 @@ Section heap.
     ∗ a ↦ₐ v
     ∗ ⌜p ≠ O⌝
     ∗ future_pub_mono φ v
-    ∗ mono_pub φ
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
     -∗ region W.
   Proof.
     rewrite open_region_eq rel_eq region_eq /open_region_def /rel_def /region_def
             REL_eq RELS_eq /RELS_def /REL_def.
-    iIntros (Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & #Hmono & Hφ & #Hrel)".
+    iIntros (Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & Hdomρ & Hpreds)". iDestruct "Hdomρ" as %Hdomρ.
     iDestruct (region_map_insert_nonfrozen Temporary with "Hpreds") as "Hpreds". by congruence.
@@ -1022,14 +1008,13 @@ Section heap.
     ∗ a ↦ₐ v
     ∗ ⌜p ≠ O⌝
     ∗ future_priv_mono φ v
-    ∗ mono_priv φ p
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
     -∗ region W.
   Proof.
     rewrite open_region_eq rel_eq region_eq /open_region_def /rel_def /region_def
             REL_eq RELS_eq /RELS_def /REL_def.
-    iIntros (Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & #Hmono & Hφ & #Hrel)".
+    iIntros (Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & Hdomρ & Hpreds)". iDestruct "Hdomρ" as %Hdomρ.
     iDestruct (region_map_insert_nonfrozen Temporary with "Hpreds") as "Hpreds". by congruence.
@@ -1107,14 +1092,13 @@ Section heap.
       ∗ a ↦ₐ v
       ∗ ⌜p ≠ O⌝
       ∗ future_priv_mono φ v
-      ∗ mono_priv φ p
       ∗ ▷ φ (W,v)
       ∗ rel a p φ
       -∗ region W.
   Proof.
     rewrite open_region_eq rel_eq region_eq /open_region_def /rel_def /region_def
             REL_eq RELS_eq /RELS_def /REL_def.
-    iIntros "(Hstate & Hreg_open & Hl & % & #HmonoV & #Hmono & Hφ & #Hrel)".
+    iIntros "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & Hdomρ & Hpreds)". iDestruct "Hdomρ" as %Hdomρ.
     iDestruct (region_map_insert_nonfrozen Permanent with "Hpreds") as "Hpreds". by congruence.
@@ -1137,14 +1121,11 @@ Section heap.
     ∗ (if (decide (ρ = Temporary ∧ pwl p = true))
        then future_pub_mono φ v
        else future_priv_mono φ v)
-    ∗ (if (decide (ρ = Temporary ∧ pwl p = true))
-       then mono_pub φ
-       else mono_priv φ p)
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
       -∗ region W.
   Proof.
-    iIntros (Htp) "(Hstate & Hreg_open & Hl & Hp & HmonoV & Hmono & Hφ & Hrel)".
+    iIntros (Htp) "(Hstate & Hreg_open & Hl & Hp & HmonoV & Hφ & Hrel)".
     destruct ρ; try (destruct Htp; exfalso; congruence).
     - destruct (pwl p) eqn:Hpwl.
       + iApply region_close_temp_pwl; eauto; iFrame.
@@ -1211,7 +1192,6 @@ Section heap.
          ∗ a ↦ₐ v
          ∗ ⌜p ≠ O⌝
          ∗ ▷ future_pub_mono φ v
-         ∗ ▷ mono_pub φ
          ∗ ▷ φ (W,v).
   Proof.
     rewrite open_region_many_eq .
@@ -1229,7 +1209,7 @@ Section heap.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & #Hmono & Hφv)".
+    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,v) with "Hφ Hφ'") as "#Hφeq".
     iFrame.
@@ -1240,7 +1220,6 @@ Section heap.
     - repeat (iSplitR).
       + auto.
       + iApply future_pub_mono_eq_pred; auto.
-      + iApply mono_pub_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame.
   Qed.
 
@@ -1255,7 +1234,6 @@ Section heap.
          ∗ a ↦ₐ v
          ∗ ⌜p ≠ O⌝
          ∗ ▷ future_priv_mono φ v
-         ∗ ▷ mono_priv φ p
          ∗ ▷ φ (W,v).
   Proof.
     rewrite open_region_many_eq .
@@ -1273,7 +1251,7 @@ Section heap.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & #Hmono & Hφv)".
+    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,v) with "Hφ Hφ'") as "#Hφeq".
     iFrame.
@@ -1284,7 +1262,6 @@ Section heap.
     - repeat (iSplitR).
       + auto.
       + iApply future_priv_mono_eq_pred; auto.
-      + iApply mono_priv_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame.
   Qed.
 
@@ -1300,7 +1277,6 @@ Section heap.
         ∗ a ↦ₐ v
         ∗ ⌜p ≠ O⌝
         ∗ ▷ future_priv_mono φ v
-        ∗ ▷ mono_priv φ p
         ∗ ▷ φ (W,v).
   Proof.
     rewrite open_region_many_eq .
@@ -1318,7 +1294,7 @@ Section heap.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & #Hmono & Hφv)".
+    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inv HH.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,v) with "Hφ Hφ'") as "#Hφeq".
     iExists _. iFrame.
@@ -1329,7 +1305,6 @@ Section heap.
     - repeat (iSplitR).
       + auto.
       + iApply future_priv_mono_eq_pred; auto.
-      + iApply mono_priv_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame.
   Qed.
 
@@ -1403,13 +1378,12 @@ Section heap.
     ∗ a ↦ₐ v
     ∗ ⌜p ≠ O⌝
     ∗ future_pub_mono φ v
-    ∗ mono_pub φ
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
       -∗ open_region_many als W.
   Proof.
     rewrite open_region_many_eq /open_region_many_def.
-    iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & #Hmono & Hφ & #Hrel)".
+    iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def REL_eq RELS_eq /rel /region /RELS /REL.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & Hdomρ & Hpreds)". iDestruct "Hdomρ" as %Hdomρ.
@@ -1437,13 +1411,12 @@ Section heap.
     ∗ a ↦ₐ v
     ∗ ⌜p ≠ O⌝
     ∗ future_priv_mono φ v
-    ∗ mono_priv φ p
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
       -∗ open_region_many als W.
   Proof.
     rewrite open_region_many_eq /open_region_many_def.
-    iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & #Hmono & Hφ & #Hrel)".
+    iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def REL_eq RELS_eq /rel /region /RELS /REL.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & Hdomρ & Hpreds)". iDestruct "Hdomρ" as %Hdomρ.
@@ -1514,13 +1487,12 @@ Section heap.
     ∗ a ↦ₐ v
     ∗ ⌜p ≠ O⌝
     ∗ future_priv_mono φ v
-    ∗ mono_priv φ p
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
       -∗ open_region_many als W.
   Proof.
     rewrite open_region_many_eq /open_region_many_def.
-    iIntros (Hnin) "(Hstate & Hreg_open & Hl & % & #HmonoV & #Hmono & Hφ & #Hrel)".
+    iIntros (Hnin) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def REL_eq RELS_eq /rel /region /RELS /REL.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & Hdomρ & Hpreds)". iDestruct "Hdomρ" as %Hdomρ.
@@ -1566,38 +1538,6 @@ Section heap.
       destruct (pwl p) ; intros; cbn; done.
   Qed.
 
-  Definition monotonicity_guarantees_regionFull ρ p φ :=
-    (match ρ with
-     | Temporary => if pwl p then mono_pub φ else mono_priv φ p
-     | Permanent => mono_priv φ p
-     | Revoked | Frozen _ => True
-     end )%I.
-
-  Definition monotonicity_guaranteesFull_decide ρ p φ:=
-    (if decide (ρ = Temporary ∧ pwl p = true)
-     then mono_pub φ
-     else mono_priv φ p )%I.
-
-  Lemma switch_monotonicityFull_formulation ρ p φ:
-    ρ ≠ Revoked → (∀ m, ρ ≠ Frozen m) ->
-    monotonicity_guarantees_regionFull ρ p φ ≡ monotonicity_guaranteesFull_decide ρ p φ.
-  Proof.
-    intros Hrev Hmono.
-    unfold monotonicity_guarantees_regionFull, monotonicity_guaranteesFull_decide.
-    iSplit; iIntros "HH".
-    - destruct ρ;simpl;auto;try done.
-      * destruct (pwl p) ; intros; cbn; done.
-      * specialize (Hmono g); done.
-    - destruct ρ;simpl;auto;try done.
-      destruct (pwl p) ; intros; cbn; done.
-  Qed.
-
-  Global Instance monotonicity_guarantees_regionFull_Persistent ρ p P:
-    Persistent (monotonicity_guarantees_regionFull ρ p P).
-  Proof.
-    destruct ρ; apply _.
-  Qed.
-
   Global Instance monotonicity_guarantees_region_Persistent ρ w p P:
     Persistent (monotonicity_guarantees_region ρ w p P).
   Proof.
@@ -1622,18 +1562,17 @@ Section heap.
         ∗ open_region_many (a :: als) W
         ∗ a ↦ₐ v
         ∗ ▷ monotonicity_guarantees_region ρ v p φ
-        ∗ ▷ monotonicity_guarantees_regionFull ρ p φ
         ∗ ▷ φ (W, v).
   Proof.
-    rewrite /monotonicity_guarantees_region /monotonicity_guarantees_regionFull.
+    rewrite /monotonicity_guarantees_region.
     intros. iIntros "H".
     destruct ρ; try congruence.
     - case_eq (pwl p); intros.
-      + iDestruct (region_open_next_temp_pwl with "H") as (v) "[A [B [C [D [E [F [G H]]]]]]]"
+      + iDestruct (region_open_next_temp_pwl with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
         ; eauto; iFrame.
-      + iDestruct (region_open_next_temp_nwl with "H") as (v) "[A [B [C [D [E [F [G H]]]]]]]"
+      + iDestruct (region_open_next_temp_nwl with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
         ; eauto; iFrame.
-    - iDestruct (region_open_next_perm with "H") as (v) "[A [B [C [D [E [F [G H]]]]]]]"
+    - iDestruct (region_open_next_perm with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
       ; eauto; iFrame.
     - exfalso. apply Hρnotfrozen; eauto.
   Qed.
@@ -1651,12 +1590,11 @@ Section heap.
     ∗ a ↦ₐ v
     ∗ ⌜ p ≠ O ⌝
     ∗ monotonicity_guarantees_region ρ v p φ
-    ∗ monotonicity_guarantees_regionFull ρ p φ
     ∗ ▷ φ (W, v)
     ∗ rel a p φ
       -∗ open_region_many als W.
   Proof.
-    rewrite /monotonicity_guarantees_region /monotonicity_guarantees_regionFull.
+    rewrite /monotonicity_guarantees_region.
     intros. iIntros "[A [B [C [D [E [F G]]]]]]".
     destruct ρ; try congruence.
     - case_eq (pwl p); intros.

@@ -53,12 +53,10 @@ Section fundamental.
     -∗ □ (if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> regs) a)
           then ▷ wcond P interp
           else emp)
+    -∗ monoReq W a p' P
     -∗ (▷ (if decide (ρ = Temporary /\ pwl p' = true)
            then future_pub_mono (safeC P) w
            else future_priv_mono (safeC P) w))
-    -∗ (▷ (if decide (ρ = Temporary /\ pwl p' = true)
-           then mono_pub (safeC P)
-           else mono_priv (safeC P) p'))
     -∗ ▷ P W w
     -∗ sts_full_world W
     -∗ na_own logrel_nais ⊤
@@ -77,7 +75,7 @@ Section fundamental.
                         ∗ sts_full_world W' ∗ region W' }} }}.
   Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -94,7 +92,7 @@ Section fundamental.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       assert (dst <> PC) as HdstPC by (intros ->; rewrite lookup_insert in H1; done).
       rewrite lookup_insert_ne in H1; eauto; simplify_map_eq.
-      iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
+      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;[|specialize (Hnotfrozen g)];contradiction. }
       iApply ("IH" $! _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
       ; eauto.

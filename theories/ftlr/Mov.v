@@ -33,7 +33,7 @@ Section fundamental.
     ftlr_instr W regs p p' g b e a w (Mov dst src) ρ P.
   Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Mov with "[$Ha $Hmap]"); eauto.
@@ -57,7 +57,7 @@ Section fundamental.
       destruct (decide (dst = PC)) as [HdstPC|HdstPC]; simplify_map_eq.
       { map_simpl "Hmap".
         destruct src; simpl in *; try discriminate.
-        iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
+        iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         destruct (decide (r = PC)).
         { simplify_map_eq.
@@ -85,7 +85,7 @@ Section fundamental.
           iIntros. discriminate.
       }
       { map_simpl "Hmap".
-        iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
+        iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         iApply ("IH" $! _ (<[dst:=w0]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
         - intros; simpl.
@@ -102,9 +102,7 @@ Section fundamental.
                  all: iApply (big_sepL_mono with "Hinv_interp").
                  all: intros; iIntros "H"; simpl.
                  all: try( iDestruct "H"
-                          as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)").
-                 all: try( iDestruct "H"
-                          as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & %Hstate)").
+                          as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)").
                  all: iExists p,P'; iFrame "%∗".
               ** iApply ("Hreg" $! r) ; auto.
           }

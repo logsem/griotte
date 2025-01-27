@@ -30,7 +30,7 @@ Section fundamental.
     ftlr_instr W regs p p' g b e a w (Jnz rdst rsrc) ρ P.
   Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Jnz with "[$Ha $Hmap]"); eauto.
@@ -49,7 +49,7 @@ Section fundamental.
       incrementPC_inv; simplify_map_eq.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       map_simpl "Hmap".
-      iDestruct (region_close with "[$Hstate $Hr $Ha Hw $Hmono]") as "Hr"; eauto.
+      iDestruct (region_close with "[$Hstate $Hr $Ha Hw $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];try contradiction. }
       iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
       iApply (interp_next_PC with "IH Hinv_interp"); eauto.
@@ -80,7 +80,7 @@ Section fundamental.
         [subst c; destruct Heq as (_ & -> & -> & -> & ->)
         | destruct Heq as ((-> & ->) & -> & -> & -> & ->)].
       { iNext ; iIntros "_".
-        iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
+        iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
         - destruct_perm p0; simpl in Hpft; auto; try discriminate.
@@ -101,7 +101,7 @@ Section fundamental.
         simplify_map_eq.
         iDestruct ("Hreg" $! rdst _ HPCnrdst Hrdst) as "Hrdst".
         iEval (rewrite fixpoint_interp1_eq //=) in "Hrdst".
-        iDestruct (region_close with "[Hw $Hstate $Hr $Ha $Hmono]") as "Hr"; eauto.
+        iDestruct (region_close with "[Hw $Hstate $Hr $Ha $HmonoV]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         rewrite /enter_cond.
         rewrite /interp_expr /=.

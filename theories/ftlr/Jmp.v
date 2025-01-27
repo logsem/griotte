@@ -31,7 +31,7 @@ Section fundamental.
     ftlr_instr W regs p p' g b e a w (Jmp rsrc) ρ P.
   Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     destruct (decide (rsrc = PC)) as [HrPC|HrPC].
     - subst rsrc.
@@ -42,7 +42,7 @@ Section fundamental.
       iNext; iIntros "_".
       iInsert "Hmap" PC.
       (* close region *)
-      iDestruct (region_close with "[$Hstate $Hr Hw $Ha $Hmono]") as "Hr"; eauto.
+      iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;[|specialize (Hnotfrozen g0)];contradiction. }
       (* apply IH *)
       iApply ("IH" $! _ _ _ g _ _ a with "[] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
@@ -74,7 +74,7 @@ Section fundamental.
           destruct sb, p0; try congruence; inv Heq.
           + iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
             iNext; iIntros "_".
-            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $Hmono]") as "Hr"; eauto.
+            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
             { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
             iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
           + iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
@@ -83,7 +83,7 @@ Section fundamental.
             iAssert (future_world g0 W W) as "Hfuture".
             { iApply futureworld_refl. }
             iSpecialize ("H" with "Hfuture").
-            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $Hmono]") as "Hr"; eauto.
+            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
             { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
             iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; auto.
         - iInsert "Hmap" PC.
@@ -93,7 +93,7 @@ Section fundamental.
           destruct sb, p0; try congruence; inv Heq.
           iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
           iNext; iIntros "_".
-          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $Hmono]") as "Hr"; eauto.
+          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
           { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
           iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
         - iInsert "Hmap" PC.
@@ -104,7 +104,7 @@ Section fundamental.
           destruct g0; first (iEval (rewrite fixpoint_interp1_eq //=) in "Hwsrc"; done).
           iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
           iNext; iIntros "_".
-          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $Hmono]") as "Hr"; eauto.
+          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
           { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
           iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
       }
