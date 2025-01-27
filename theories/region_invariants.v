@@ -332,19 +332,19 @@ Section heap.
                     ∗ saved_pred_own γpred DfracDiscarded φ
                     ∗ match ρ with
                       | Temporary =>
-                          ∃ (v : Word), ⌜(p ≠ O)⌝
+                          ∃ (v : Word), ⌜isO p = false⌝
                                         ∗ a ↦ₐ v
                                         ∗ (if pwl p
                                            then future_pub_mono φ v
                                            else future_priv_mono φ v)
                                         ∗ ▷ φ (W,v)
                       | Permanent =>
-                          ∃ (v : Word), ⌜(p ≠ O)⌝
+                          ∃ (v : Word), ⌜isO p = false⌝
                                         ∗ a ↦ₐ v
                                         ∗ future_priv_mono φ v
                                         ∗ ▷ φ (W,v)
                       | Frozen m =>
-                          ∃ (v : Word), ⌜(p ≠ O)⌝
+                          ∃ (v : Word), ⌜isO p = false⌝
                                         ∗ ⌜m !! a = Some v⌝
                                         ∗ a ↦ₐ v
                                         ∗ ⌜∀ a', a' ∈ dom m → Mρ !! a' = Some (Frozen m)⌝
@@ -634,7 +634,7 @@ Section heap.
            ∗ sts_full_world W
            ∗ sts_state_std l Temporary
            ∗ l ↦ₐ v
-           ∗ ⌜p ≠ O⌝
+           ∗ ⌜isO p = false⌝
            ∗ ▷ future_pub_mono φ v
            ∗ ▷ φ (W,v).
   Proof.
@@ -673,7 +673,7 @@ Section heap.
            ∗ sts_full_world W
            ∗ sts_state_std l Temporary
            ∗ l ↦ₐ v
-           ∗ ⌜p ≠ O⌝
+           ∗ ⌜isO p = false⌝
            ∗ ▷ future_priv_mono φ v
            ∗ ▷ φ (W,v).
   Proof.
@@ -755,7 +755,7 @@ Section heap.
            ∗ sts_full_world W
            ∗ sts_state_std l Permanent
            ∗ l ↦ₐ v
-           ∗ ⌜p ≠ O⌝
+           ∗ ⌜isO p = false⌝
            ∗ ▷ future_priv_mono φ v
            ∗ ▷ φ (W,v).
   Proof.
@@ -822,7 +822,7 @@ Section heap.
          ∗ sts_full_world W
          ∗ sts_state_std a ρ
          ∗ a ↦ₐ v
-         ∗ ⌜p ≠ O⌝
+         ∗ ⌜isO p = false⌝
          ∗ (▷ if (decide (ρ = Temporary ∧ pwl p = true))
               then future_pub_mono φ v
               else future_priv_mono φ v)
@@ -978,7 +978,7 @@ Section heap.
     sts_state_std a Temporary
     ∗ open_region a W
     ∗ a ↦ₐ v
-    ∗ ⌜p ≠ O⌝
+    ∗ ⌜isO p = false⌝
     ∗ future_pub_mono φ v
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
@@ -1006,7 +1006,7 @@ Section heap.
     sts_state_std a Temporary
     ∗ open_region a W
     ∗ a ↦ₐ v
-    ∗ ⌜p ≠ O⌝
+    ∗ ⌜isO p = false⌝
     ∗ future_priv_mono φ v
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
@@ -1090,7 +1090,7 @@ Section heap.
     ⊢ sts_state_std a Permanent
       ∗ open_region a W
       ∗ a ↦ₐ v
-      ∗ ⌜p ≠ O⌝
+      ∗ ⌜isO p = false⌝
       ∗ future_priv_mono φ v
       ∗ ▷ φ (W,v)
       ∗ rel a p φ
@@ -1117,7 +1117,7 @@ Section heap.
     sts_state_std a ρ
     ∗ open_region a W
     ∗ a ↦ₐ v
-    ∗ ⌜p ≠ O⌝
+    ∗ ⌜isO p = false⌝
     ∗ (if (decide (ρ = Temporary ∧ pwl p = true))
        then future_pub_mono φ v
        else future_priv_mono φ v)
@@ -1190,7 +1190,7 @@ Section heap.
          ∗ sts_full_world W
          ∗ sts_state_std a Temporary
          ∗ a ↦ₐ v
-         ∗ ⌜p ≠ O⌝
+         ∗ ⌜isO p = false⌝
          ∗ ▷ future_pub_mono φ v
          ∗ ▷ φ (W,v).
   Proof.
@@ -1232,7 +1232,7 @@ Section heap.
          ∗ sts_full_world W
          ∗ sts_state_std a Temporary
          ∗ a ↦ₐ v
-         ∗ ⌜p ≠ O⌝
+         ∗ ⌜isO p = false⌝
          ∗ ▷ future_priv_mono φ v
          ∗ ▷ φ (W,v).
   Proof.
@@ -1275,7 +1275,7 @@ Section heap.
         ∗ sts_state_std a Permanent
         ∗ open_region_many (a :: als) W
         ∗ a ↦ₐ v
-        ∗ ⌜p ≠ O⌝
+        ∗ ⌜isO p = false⌝
         ∗ ▷ future_priv_mono φ v
         ∗ ▷ φ (W,v).
   Proof.
@@ -1316,7 +1316,7 @@ Section heap.
            ∗ sts_full_world W
            ∗ sts_state_std a (Frozen {[a:=w]})
            ∗ a ↦ₐ w
-           ∗ ⌜p ≠ O⌝.
+           ∗ ⌜isO p = false⌝.
   Proof.
     iIntros (Hnin Htemp) "(Hreg & Hfull)".
     rewrite open_region_many_eq /open_region_many_def /= /region_map_def.
@@ -1376,7 +1376,7 @@ Section heap.
     sts_state_std a Temporary
     ∗ open_region_many (a::als) W
     ∗ a ↦ₐ v
-    ∗ ⌜p ≠ O⌝
+    ∗ ⌜isO p = false⌝
     ∗ future_pub_mono φ v
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
@@ -1409,7 +1409,7 @@ Section heap.
     sts_state_std a Temporary
     ∗ open_region_many (a::als) W
     ∗ a ↦ₐ v
-    ∗ ⌜p ≠ O⌝
+    ∗ ⌜isO p = false⌝
     ∗ future_priv_mono φ v
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
@@ -1485,7 +1485,7 @@ Section heap.
     ⊢ sts_state_std a Permanent
     ∗ open_region_many (a::als) W
     ∗ a ↦ₐ v
-    ∗ ⌜p ≠ O⌝
+    ∗ ⌜isO p = false⌝
     ∗ future_priv_mono φ v
     ∗ ▷ φ (W,v)
     ∗ rel a p φ
@@ -1588,7 +1588,7 @@ Section heap.
     → sts_state_std a ρ
     ∗ open_region_many (a :: als) W
     ∗ a ↦ₐ v
-    ∗ ⌜ p ≠ O ⌝
+    ∗ ⌜isO p = false⌝
     ∗ monotonicity_guarantees_region ρ v p φ
     ∗ ▷ φ (W, v)
     ∗ rel a p φ

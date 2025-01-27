@@ -34,7 +34,7 @@ Section cap_lang_rules.
   | Load_fail_invalid_PC p g b e a loadv:
       regs !! r2 = Some (WCap p g b e a) ->
       mem !! a = Some loadv →
-      incrementPC (<[ r1 := loadv ]> regs) = None ->
+      incrementPC (<[ r1 := (load_word p loadv) ]> regs) = None ->
       Load_failure regs r1 r2 mem
   .
 
@@ -46,7 +46,7 @@ Section cap_lang_rules.
     reg_allows_load regs r2 p g b e a →
     mem !! a = Some loadv →
     incrementPC
-      (<[ r1 := loadv ]> regs) = Some regs' ->
+      (<[ r1 := (load_word p loadv) ]> regs) = Some regs' ->
     Load_spec regs r1 r2 regs' mem NextIV
 
   | Load_spec_failure :
@@ -211,9 +211,9 @@ Section cap_lang_rules.
     iDestruct (gen_mem_valid_inSepM_general (prod_merge dfracs mem) m a loadv with "Hm Hmem" ) as %Hma' ; eauto.
 
     rewrite Hma' /= in Hstep.
-    destruct (incrementPC (<[ r1 := loadv ]> regs)) as  [ regs' |] eqn:Hregs'.
+    destruct (incrementPC (<[ r1 := (load_word p loadv) ]> regs)) as  [ regs' |] eqn:Hregs'.
     2: { (* Failure: the PC could not be incremented correctly *)
-      assert (incrementPC (<[ r1 := loadv]> r) = None).
+      assert (incrementPC (<[ r1 := (load_word p loadv) ]> r) = None).
       { eapply incrementPC_overflow_mono; first eapply Hregs'.
           by rewrite lookup_insert_is_Some'; eauto.
             by apply insert_mono; eauto. }
@@ -280,7 +280,7 @@ Section cap_lang_rules.
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-             ∗ r1 ↦ᵣ (if (eqb_addr a pc_a) then w else w')
+             ∗ r1 ↦ᵣ (if (eqb_addr a pc_a) then (load_word p w) else (load_word p w'))
              ∗ pc_a ↦ₐ{dq} w
              ∗ r2 ↦ᵣ WCap p g b e a
              ∗ (if (eqb_addr a pc_a) then emp else a ↦ₐ{dq'} w') }}}.
@@ -310,7 +310,9 @@ Section cap_lang_rules.
        simplify_map_eq.
        rewrite (insert_commute _ PC r1) // insert_insert (insert_commute _ r1 PC) // insert_insert.
        iDestruct (regs_of_map_3 with "[$Hmap]") as "[HPC [Hr1 Hr2] ]"; eauto.
-       iApply "Hφ". iFrame. }
+       iApply "Hφ". iFrame.
+       by destruct (a0 =? x3)%Z.
+     }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
        destruct o. all: congruence. }
@@ -330,7 +332,7 @@ Section cap_lang_rules.
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-             ∗ r1 ↦ᵣ w'
+             ∗ r1 ↦ᵣ load_word p w'
              ∗ pc_a ↦ₐ{dq} w
              ∗ r2 ↦ᵣ WCap p g b e a
              ∗ a ↦ₐ{dq'} w' }}}.
@@ -363,7 +365,7 @@ Section cap_lang_rules.
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-             ∗ r1 ↦ᵣ w
+             ∗ r1 ↦ᵣ load_word p w
              ∗ pc_a ↦ₐ{dq} w
              ∗ r2 ↦ᵣ WCap p g b e pc_a }}}.
   Proof.
@@ -388,7 +390,7 @@ Section cap_lang_rules.
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-             ∗ r1 ↦ᵣ (if (a =? pc_a)%a then w else w')
+             ∗ r1 ↦ᵣ (if (a =? pc_a)%a then load_word p w else load_word p w')
              ∗ pc_a ↦ₐ{dq} w
              ∗ (if (a =? pc_a)%a then emp else a ↦ₐ{dq'} w') }}}.
   Proof.
@@ -417,7 +419,9 @@ Section cap_lang_rules.
        pose proof (mem_implies_loadv _ _ _ _ _ _ Hmem H1) as Hloadv; eauto.
        simplify_map_eq.
        rewrite (insert_commute _ PC r1) // insert_insert (insert_commute _ r1 PC) // insert_insert.
-       iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hr1]"; eauto. iFrame. }
+       iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hr1]"; eauto. iFrame.
+       by destruct (a0 =? x3)%Z.
+     }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
        destruct o. all: congruence. }
@@ -437,7 +441,7 @@ Section cap_lang_rules.
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-             ∗ r1 ↦ᵣ w'
+             ∗ r1 ↦ᵣ load_word p w'
              ∗ pc_a ↦ₐ{dq} w
              ∗ a ↦ₐ{dq'} w' }}}.
   Proof.
@@ -470,7 +474,7 @@ Section cap_lang_rules.
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-             ∗ r1 ↦ᵣ w
+             ∗ r1 ↦ᵣ load_word p w
              ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     intros. iIntros "(>HPC & >Hpc_a & >Hr1)".
@@ -494,7 +498,7 @@ Section cap_lang_rules.
           ∗ ▷ a ↦ₐ WCap p' g' b' e' a' }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap p' g' b' e' a''
+          PC ↦ᵣ load_word p (WCap p' g' b' e' a'')
              ∗ pc_a ↦ₐ w
              ∗ r2 ↦ᵣ WCap p g b e a
              ∗ a ↦ₐ WCap p' g' b' e' a' }}}.
@@ -518,11 +522,27 @@ Section cap_lang_rules.
        incrementPC_inv.
        simplify_map_eq.
        rewrite insert_insert insert_insert.
-       iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hr2]"; eauto. iFrame. }
+       iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hr2]"; eauto.
+       iFrame.
+       admit. (* it suffices to show that p'=x, g'=x0.... *)
+     }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-       destruct o. all: congruence. }
-  Qed.
+       destruct Hfail.
+       + simplify_map_eq; eauto.
+       + simplify_map_eq; eauto.
+         destruct o ; congruence.
+       + simplify_map_eq; eauto.
+       (*   rewrite /load_word in e3 |- *. *)
+       (*   destruct (isDRO p0) eqn:HDRO, (isDL p0) eqn:HDL; cbn. *)
+       (*   try incrementPC_inv; simplify_map_eq; eauto. *)
+       (*   congruence. *)
+       (*   2: { rewrite /load_word. *)
+       (*   } *)
+       (*   Unshelve. 7: exact a'. congruence. *)
+       (* destruct o. all: try congruence. } *)
+       admit. (* TODO need lemmas about load_word.. *)
+     }
+  Admitted.
 
   Lemma wp_load_success_fromPC E r1 pc_p pc_g pc_b pc_e pc_a pc_a' w w'' dq :
     decodeInstrW w = Load r1 PC →
@@ -536,7 +556,7 @@ Section cap_lang_rules.
       {{{ RET NextIV;
           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
              ∗ pc_a ↦ₐ{dq} w
-             ∗ r1 ↦ᵣ w }}}.
+             ∗ r1 ↦ᵣ load_word pc_p w }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' φ)
             "(>HPC & >Hi & >Hr1) Hφ".
@@ -579,7 +599,7 @@ Section cap_lang_rules.
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-             ∗ r1 ↦ᵣ w'
+             ∗ r1 ↦ᵣ load_word p w'
              ∗ pc_a ↦ₐ w
              ∗ r2 ↦ᵣ WCap p g b e a
              ∗ a ↦ₐ w' }}}.
@@ -603,7 +623,7 @@ Section cap_lang_rules.
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-             ∗ r1 ↦ᵣ w'
+             ∗ r1 ↦ᵣ load_word p w'
              ∗ pc_a ↦ₐ w
              ∗ a ↦ₐ w' }}}.
   Proof.

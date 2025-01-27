@@ -90,9 +90,9 @@ Proof. eapply cancel_inj. Qed.
 
 
 Section word_type_encoding.
-  Definition wt_cap := WCap O Global 0%a 0%a 0%a.
+  Definition wt_cap := WCap (O LG LM) Global 0%a 0%a 0%a.
   Definition wt_sealrange := WSealRange (false, false) Global 0%ot 0%ot 0%ot.
-  Definition wt_sealed := WSealed 0%ot (SCap O Global 0%a 0%a 0%a).
+  Definition wt_sealed := WSealed 0%ot (SCap (O LG LM) Global 0%a 0%a 0%a).
   Definition wt_int := WInt 0.
 End word_type_encoding.
 
