@@ -10,15 +10,32 @@ From cap_machine Require Export addr_reg solve_addr machine_utils_extra.
 
 (* Definitions: capabilities, machine String.words, machine instructions *)
 
+Inductive RXperm : Type :=
+| Orx
+| R
+| X.
+
+Inductive Wperm : Type :=
+| Ow
+| W
+| WL.
+
 Inductive Perm: Type :=
-| O
-| RO
-| RW
-| RWL
-| RX
-| E
-| RWX
-| RWLX.
+| BPerm (rx: RXperm) (w: Wperm)
+| E.
+
+Notation O := (BPerm Orx Ow).
+
+Notation WO := (BPerm Orx W).
+Notation WLO := (BPerm Orx WL).
+
+Notation RO := (BPerm R Ow).
+Notation RW := (BPerm R W).
+Notation RWL := (BPerm R WL).
+
+Notation RX := (BPerm X Ow).
+Notation RWX := (BPerm X W).
+Notation RWLX := (BPerm X WL).
 
 Inductive Locality: Type :=
 | Global
@@ -80,6 +97,10 @@ Definition Mem := gmap Addr Word.
 
 (* EqDecision instances *)
 
+Global Instance rxperm_eq_dec : EqDecision RXperm.
+Proof. solve_decision. Defined.
+Global Instance wperm_eq_dec : EqDecision Wperm.
+Proof. solve_decision. Defined.
 Global Instance perm_eq_dec : EqDecision Perm.
 Proof. solve_decision. Defined.
 Global Instance loc_eq_dec : EqDecision Locality.
@@ -97,6 +118,11 @@ Ltac destruct_word w :=
   let sr := fresh "sr" in
   let sd := fresh "sd" in
   destruct w as [ z | [c | sr] | sd].
+
+Ltac destruct_perm p :=
+  let rx := fresh "rx" in
+  let w := fresh "w" in
+  destruct p as [rx w |]; [destruct rx, w|].
 
 Ltac destruct_sealperm p :=
   let b := fresh "b" in
@@ -149,32 +175,34 @@ Definition is_sealed_with_o (w : Word) (o : OType) : bool :=
 (* non-E capability or range of seals *)
 Definition is_mutable_range (w : Word) : bool:=
   match w with
-  | WCap p _ _ _ _ => match p with | E  => false | _ => true end
+  | WCap p _ _ _ _ => match p with | E => false | _ => true end
   | WSealRange _ _ _ _ _ => true
   | _ => false end.
 
 (* Auxiliary definitions to work on permissions *)
-Definition executeAllowed (p: Perm): bool :=
-  match p with
-  | RWX | RWLX | RX | E => true
-  | _ => false
-  end.
+(* Definition executeAllowed (p: Perm): bool := *)
+(*   match p with *)
+(*   | RWX | RWLX | RX | E => true *)
+(*   | _ => false *)
+(*   end. *)
 
 Definition readAllowed (p: Perm): bool :=
   match p with
-  | RWX | RWLX | RX | RW | RWL | RO => true
+  | BPerm R _
+  | BPerm X _ => true
   | _ => false
   end.
 
 Definition writeAllowed (p: Perm): bool :=
   match p with
-  | RWX | RWLX | RW | RWL => true
+  | BPerm _ W
+  | BPerm _ WL => true
   | _ => false
   end.
 
 Definition pwl p : bool :=
   match p with
-  | RWLX | RWL => true
+  | BPerm _ WL => true
   | _ => false
   end.
 
@@ -215,16 +243,9 @@ Definition isGlobalWord (w : Word): bool :=
   end.
 
 
-Lemma writeA_implies_readA p :
-  writeAllowed p = true → readAllowed p = true.
-Proof. destruct p; auto. Qed.
-
-Lemma pwl_implies_RWL_RWLX p :
-  pwl p = true → p = RWL ∨ p = RWLX.
-Proof.
-  intros. destruct p; try by exfalso.
-  by left. by right.
-Qed.
+(* Lemma writeA_implies_readA p : *)
+(*   writeAllowed p = true → readAllowed p = true. *)
+(* Proof. destruct p; auto. Qed. *)
 
 Definition canStore (p: Perm) (w: Word): bool :=
   match w with
@@ -232,6 +253,11 @@ Definition canStore (p: Perm) (w: Word): bool :=
   | _ => if isGlobalWord w then true else pwl p
   end.
 
+Definition readAllowedWord (w : Word) : Prop :=
+  match w with
+  | WCap p _ _ _ _ => readAllowed p = true
+  | _ => False
+  end.
 
 Definition writeAllowedWord (w : Word) : Prop :=
   match w with
@@ -248,13 +274,15 @@ Definition hasValidAddress (w : Word) (a : Addr) : Prop :=
 Definition writeAllowed_in_r_a (r : Reg) a :=
   ∃ reg (w : Word), r !! reg = Some w ∧ writeAllowedWord w ∧ hasValidAddress w a.
 
+Definition readAllowed_in_r_a (r : Reg) a :=
+  ∃ reg (w : Word), r !! reg = Some w ∧ readAllowedWord w ∧ hasValidAddress w a.
 
 Definition isPerm p p' := @bool_decide _ (perm_eq_dec p p').
 
 Lemma isPerm_refl p : isPerm p p = true.
-Proof. destruct p; auto. Qed.
+Proof. destruct_perm p; auto. Qed.
 Lemma isPerm_ne p p' : p ≠ p' → isPerm p p' = false.
-Proof. intros Hne. destruct p,p'; auto; congruence. Qed.
+Proof. intros Hne. destruct_perm p; destruct_perm p'; auto; congruence. Qed.
 
 Definition isPermWord (w : Word) (p : Perm): bool :=
   match w with
@@ -306,37 +334,42 @@ Proof.
   apply localityflowsto_refl.
 Qed.
 
-Definition PermFlowsTo (p1 p2: Perm): bool :=
-  match p1 with
-  | O => true
-  | E => match p2 with
-        | E | RX | RWX | RWLX => true
+Definition RXPermFlowsTo (rx1 rx2: RXperm): bool :=
+  match rx1 with
+  | Orx => true
+  | R => match rx2 with
+        | R | X => true
         | _ => false
         end
-  | RX => match p2 with
-         | RX | RWX | RWLX => true
+  | X => match rx2 with
+        | X => true
+        | _ => false
+        end
+  end.
+
+Definition WPermFlowsTo (w1 w2 : Wperm) : bool :=
+  match w1 with
+  | Ow => true
+  | W => match w2 with
+        | W | WL => true
+        | _ => false
+        end
+  | WL => match w2 with
+         | WL => true
          | _ => false
          end
-  | RWX => match p2 with
-          | RWX | RWLX => true
-          | _ => false
-          end
-  | RWLX => match p2 with
-           | RWLX => true
-           | _ => false
-           end
-  | RO => match p2 with
-         | E | O => false
-         | _ => true
-         end
-  | RW => match p2 with
-         | RW | RWX | RWL | RWLX => true
-         | _ => false
-         end
-  | RWL => match p2 with
-          | RWL | RWLX => true
-          | _ => false
-          end
+  end.
+
+
+Definition PermFlowsTo (p1 p2: Perm): bool :=
+  match p1,p2 with
+  | BPerm rx1 w1, BPerm rx2 w2 =>
+      RXPermFlowsTo rx1 rx2
+      && WPermFlowsTo w1 w2
+  | E, E => true
+  | E, BPerm rx w =>
+      RXPermFlowsTo X rx
+  | BPerm _ _, E => false
   end.
 
 Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
@@ -349,7 +382,7 @@ Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
 Lemma PermFlowsTo_trans:
   transitive _ PermFlowsTo.
 Proof.
-  red; intros; destruct x; destruct y; destruct z; try congruence; auto.
+  red; intros; destruct_perm x; destruct_perm y; destruct_perm z; try congruence; auto.
 Qed.
 
 Global Instance PermFlowsToTransitive: Transitive PermFlowsTo.
@@ -362,7 +395,7 @@ Qed.
 Lemma PermFlowsTo_refl:
   forall p, PermFlowsTo p p.
 Proof.
-  intros; destruct p; auto.
+  intros; destruct_perm p; auto.
 Qed.
 
 Global Instance PermFlowsToReflexive: Reflexive PermFlowsTo.
@@ -371,22 +404,40 @@ Proof.
   apply PermFlowsTo_refl.
 Qed.
 
+Lemma readAllowed_flows (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> readAllowed p1 = true
+  -> readAllowed p2 = true.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
+Lemma writeAllowed_flows (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> writeAllowed p1 = true
+  -> writeAllowed p2 = true.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
 Lemma readAllowed_nonO p p' :
   PermFlowsTo p p' → readAllowed p = true → p' ≠ O.
 Proof.
-  intros Hfl' Hra. destruct p'; auto. destruct p; inversion Hfl'. inversion Hra.
+  intros Hfl' Hra. destruct_perm p'; auto. destruct_perm p; inversion Hfl'. inversion Hra.
 Qed.
 
 Lemma writeAllowed_nonO p p' :
   PermFlowsTo p p' → writeAllowed p = true → p' ≠ O.
 Proof.
-  intros Hfl' Hra. apply writeA_implies_readA in Hra. by apply (readAllowed_nonO p p').
+  intros Hfl' Hra. destruct_perm p'; auto. destruct_perm p; inversion Hfl'. inversion Hra.
 Qed.
 
 Lemma PCPerm_nonO p p' :
   PermFlowsTo p p' → p = RX ∨ p = RWX ∨ p = RWLX → p' ≠ O.
 Proof.
-  intros Hfl Hvpc. destruct p'; auto. destruct p; inversion Hfl.
+  intros Hfl Hvpc. destruct_perm p'; auto. destruct_perm p; inversion Hfl.
   destruct Hvpc as [Hcontr | [Hcontr | Hcontr]]; inversion Hcontr.
 Qed.
 
@@ -408,15 +459,15 @@ Lemma ExecPCPerm_flows_to p p':
   ExecPCPerm p'.
 Proof.
   intros H [ -> | [ -> | -> ] ]; cbn in H.
-  { destruct p'; cbn in H; try by inversion H; constructor.
+  { destruct_perm p'; cbn in H; try by inversion H; constructor.
     apply ExecPCPerm_RWX.
     apply ExecPCPerm_RWLX.
   }
-  { destruct p'; try by inversion H; constructor.
+  { destruct_perm p'; try by inversion H; constructor.
     apply ExecPCPerm_RWX.
     apply ExecPCPerm_RWLX.
   }
-  { destruct p'; try by inversion H; constructor.
+  { destruct_perm p'; try by inversion H; constructor.
     apply ExecPCPerm_RWLX.
   }
 Qed.
@@ -482,11 +533,17 @@ Definition updatePcPerm (w: Word): Word :=
   | _ => w
   end.
 
+Definition isSentry (p : Perm) : bool :=
+ match p with
+   | E => true
+   | BPerm _ _ => false
+ end.
+
 Lemma updatePcPerm_cap_non_E p g b e a :
-  p ≠ E →
+  isSentry p = false ->
   updatePcPerm (WCap p g b e a) = WCap p g b e a.
 Proof.
-  intros HnE. cbn. destruct p; auto. contradiction.
+  intros HnE. destruct_perm p; cbn in * ; done.
 Qed.
 
 Definition nonZero (w: Word): bool :=
@@ -529,7 +586,7 @@ Proof.
       + destruct (finz_le_dec b a).
         * destruct (finz_lt_dec a e).
           { left. econstructor; simpl; eauto. by auto.
-            destruct p; naive_solver. }
+            destruct_perm p; naive_solver. }
           { right. red; intro HH. inversion HH; subst. solve_addr. }
         * right. red; intros HH; inversion HH; subst. solve_addr.
       + right. red; intros HH; inversion HH; subst. naive_solver.
@@ -571,7 +628,7 @@ Lemma isCorrectPC_ra_wb pc_p pc_g pc_b pc_e pc_a :
 Proof.
   intros. inversion H; subst.
   - destruct H2. apply andb_prop_intro. split.
-    + destruct H6,pc_p; inversion H1; try inversion H2; auto; try congruence.
+    + destruct H6,pc_p; inversion H1; try inversion H2; try inversion H3; auto; try congruence.
     + apply andb_prop_intro.
       split; apply Is_true_eq_left; [apply Z.leb_le | apply Z.ltb_lt]; lia.
 Qed.
@@ -640,10 +697,10 @@ Proof.
 Qed.
 
 Lemma isCorrectPC_nonE p g b e a :
-  isCorrectPC (WCap p g b e a) → p ≠ E.
+  isCorrectPC (WCap p g b e a) → isSentry p = false.
 Proof.
   intros HcPC; inv HcPC.
-  destruct p; naive_solver.
+  destruct_perm p; naive_solver.
 Qed.
 
 Lemma in_range_is_correctPC p g b e a b' e' :
@@ -663,32 +720,59 @@ Proof.
   unfold ExecPCPerm, InBounds. intros. constructor; eauto.
 Qed.
 
-
 (* Useful instances *)
-Global Instance perm_countable : Countable Perm.
+
+Global Instance rxperm_countable : Countable RXperm.
 Proof.
-  set encode := fun p => match p with
-    | O => 1
-    | RO => 2
-    | RW => 3
-    | RWL => 4
-    | RX => 5
-    | E => 6
-    | RWX => 7
-    | RWLX => 8
-    end%positive.
-  set decode := fun n => match n with
-    | 1 => Some O
-    | 2 => Some RO
-    | 3 => Some RW
-    | 4 => Some RWL
-    | 5 => Some RX
-    | 6 => Some E
-    | 7 => Some RWX
-    | 8 => Some RWLX
+  set encode :=
+    fun p => match p with
+          | Orx => 1
+          | R => 2
+          | X => 3
+          end%positive.
+  set decode :=
+    fun n => match n with
+    | 1 => Some Orx
+    | 2 => Some R
+    | 3 => Some X
     | _ => None
     end%positive.
   eapply (Build_Countable _ _ encode decode).
+  intro p. destruct p; reflexivity.
+Defined.
+
+Global Instance wperm_countable : Countable Wperm.
+Proof.
+  set encode :=
+    fun p => match p with
+          | Ow => 1
+          | W => 2
+          | WL => 3
+          end%positive.
+  set decode :=
+    fun n => match n with
+    | 1 => Some Ow
+    | 2 => Some W
+    | 3 => Some WL
+    | _ => None
+    end%positive.
+  eapply (Build_Countable _ _ encode decode).
+  intro p. destruct p; reflexivity.
+Defined.
+
+Global Instance perm_countable : Countable Perm.
+Proof.
+  set encode :=
+    fun p => match p with
+          | BPerm rx w => inl (rx,w)
+          | E => inr ()
+          end.
+  set decode :=
+    fun n => match n with
+          | inl (rx,w) => BPerm rx w
+          | inr () => E
+          end.
+  refine (inj_countable' encode decode _).
   intro p. destruct p; reflexivity.
 Defined.
 
@@ -826,6 +910,9 @@ Proof. apply (finite.enc_finite (λ r : RegName, match r with
          lia.
 Defined.
 
+Global Instance readAllowedWord_dec w: Decision (readAllowedWord w).
+Proof. destruct_word w; try (right; solve [auto]). destruct c;simpl;apply _. Qed.
+
 Global Instance writeAllowedWord_dec w: Decision (writeAllowedWord w).
 Proof. destruct_word w; try (right; solve [auto]). destruct c;simpl;apply _. Qed.
 
@@ -837,6 +924,15 @@ Proof.
   eapply finite.exists_dec.
   intros x. destruct (r !! x) eqn:Hsome;
     first destruct (decide (writeAllowedWord w)), (decide (hasValidAddress w a)).
+  left. eexists _; auto.
+  all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
+Qed.
+
+Global Instance readAllowed_in_r_a_Decidable r a: Decision (readAllowed_in_r_a r a).
+Proof.
+  eapply finite.exists_dec.
+  intros x. destruct (r !! x) eqn:Hsome;
+    first destruct (decide (readAllowedWord w)), (decide (hasValidAddress w a)).
   left. eexists _; auto.
   all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
 Qed.

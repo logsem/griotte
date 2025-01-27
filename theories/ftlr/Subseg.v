@@ -26,7 +26,7 @@ Section fundamental.
   Implicit Types interp : (D).
 
   Lemma subseg_interp_preserved W p g b b' e e' a :
-      p <> E ->
+      isSentry p = false ->
       (b <= b')%a ->
       (e' <= e)%a ->
       ftlr_IH -∗

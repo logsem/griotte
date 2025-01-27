@@ -54,7 +54,7 @@ Section cap_lang_rules.
   :=
   | Lea_spec_success_cap: forall p g b e a z a',
     regs !! r1 = Some (WCap p g b e a) ->
-    p ≠ E ->
+    isSentry p = false ->
     z_of_argument regs rv = Some z ->
     (a + z)%a = Some a' ->
     incrementPC
@@ -121,8 +121,8 @@ Section cap_lang_rules.
        assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
        { destruct r1v as [ | [p b e a | ] | ]; try by inversion Hr1v.
          all: try by simplify_pair_eq.
-         destruct p; try congruence.
-         simplify_pair_eq; auto. }
+         destruct_perm p; cbn in *; try congruence.
+         all: simplify_pair_eq; auto. }
        iFailWP "Hφ" Lea_fail_allowed. }
 
      (* Now the proof splits depending on the type of value in r1v *)
@@ -130,8 +130,9 @@ Section cap_lang_rules.
      1,4: inversion Hr1v.
 
      (* First, the case where r1v is a capability *)
-     + destruct (perm_eq_dec p E); [ subst p |].
-       { rewrite /is_mutable_range in Hr1v; congruence. }
+     + destruct (isSentry p) eqn:Hsentry; cbn in *.
+       { destruct_perm p ; cbn in Hr1v,Hsentry ; rewrite /is_mutable_range in Hr1v; try congruence.
+       }
 
        destruct (a + argz)%a as [ a' |] eqn:Hoffset; cycle 1.
        { (* Failure: offset is too large *)
@@ -158,7 +159,7 @@ Section cap_lang_rules.
        eapply updatePC_success_incl in HuPC. 2: by eapply insert_mono; eauto.
        rewrite HuPC in Hstep; clear HuPC.
        eassert ((c, σ2) = (NextI, _)) as HH.
-       { destruct p; cbn in Hstep; eauto. congruence. }
+       { destruct_perm p; cbn in Hstep; eauto. }
        simplify_pair_eq.
 
        iFrame.
@@ -208,7 +209,7 @@ Section cap_lang_rules.
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      (a' + 1)%a = Some pc_a' →
      (pc_a + z)%a = Some a' →
-     pc_p ≠ E →
+     isSentry pc_p = false ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -235,9 +236,7 @@ Section cap_lang_rules.
        simplify_map_eq. }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-       destruct pc_p; congruence.
-       congruence.
-     }
+       all: try destruct pc_p; cbn in * ; congruence. }
     Unshelve. all: auto.
    Qed.
 
@@ -246,7 +245,7 @@ Section cap_lang_rules.
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (a + z)%a = Some a' →
-     p ≠ E →
+     isSentry p = false ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -277,9 +276,7 @@ Section cap_lang_rules.
        simplify_map_eq. }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-       destruct p; congruence.
-       congruence.
-     }
+       all: try destruct p; cbn in * ; congruence. }
     Unshelve. all: auto.
    Qed.
 
@@ -288,7 +285,7 @@ Section cap_lang_rules.
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      (a' + 1)%a = Some pc_a' →
      (pc_a + z)%a = Some a' →
-     pc_p ≠ E →
+     isSentry pc_p = false ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w }}}
@@ -311,9 +308,7 @@ Section cap_lang_rules.
        simplify_map_eq. }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-       destruct pc_p ; congruence.
-       congruence.
-     }
+       all: try destruct pc_p; cbn in * ; congruence. }
      Unshelve. all: auto.
    Qed.
 
@@ -322,7 +317,7 @@ Section cap_lang_rules.
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (a + z)%a = Some a' →
-     p ≠ E →
+     isSentry p = false ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -350,9 +345,7 @@ Section cap_lang_rules.
        simplify_map_eq. }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-       destruct p; congruence.
-       congruence.
-     }
+       all: try destruct p; cbn in * ; congruence. }
      Unshelve. all:auto.
    Qed.
 
