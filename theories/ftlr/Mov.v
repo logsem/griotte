@@ -68,17 +68,17 @@ Section fundamental.
         iDestruct ("Hreg" $! r (WCap p0 g0 b0 e0 a0) n H ) as "Hr0".
         destruct (PermFlowsTo RX p0) eqn:Hpft.
         - iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
-          { destruct p0; simpl in Hpft; auto.
+          { destruct_perm p0; simpl in Hpft; auto.
             repeat rewrite fixpoint_interp1_eq; simpl.
             destruct g0; auto.
           }
           { rewrite !fixpoint_interp1_eq /=.
-            destruct p0,g0; try congruence; try done.
+            destruct_perm p0; destruct g0; try congruence; try done.
           }
         - iApply (wp_bind (fill [SeqCtx])).
           iExtract "Hmap" PC as "HPC".
           iApply (wp_notCorrectPC with "HPC")
-          ; first (eapply not_isCorrectPC_perm; destruct p0; simpl in Hpft; try discriminate; eauto).
+          ; first (eapply not_isCorrectPC_perm; destruct_perm p0; simpl in Hpft; try discriminate; eauto).
           iNext. iIntros "HPC /=".
           iApply wp_pure_step_later; auto;iNext; iIntros "_".
           iApply wp_value.

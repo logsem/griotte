@@ -32,7 +32,7 @@ Section fundamental.
     iIntros "[[Hfull Hreg] [Hmreg [Hr [Hsts Hown]]]]".
 
     assert ( readAllowed p = true \/ readAllowed p = false )
-      as [Hread_p|Hread_p] by (destruct p ; naive_solver)
+      as [Hread_p|Hread_p] by (destruct_perm p ; naive_solver)
     ; cycle 1.
     { (* if p not readable, then execution will fail *)
       iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".
@@ -88,13 +88,16 @@ Section fundamental.
     iPoseProof "Hinv_interp" as "#Hinv".
     iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv".
     rewrite decide_False; last (destruct p ; naive_solver).
-    rewrite decide_False; last (destruct p ; naive_solver).
+    destruct (isSentry p) eqn:Hsentryp; first (destruct_perm p ; naive_solver).
     iDestruct "Hinv" as "[#Hinv %Hpwl_cond]".
 
     iDestruct (extract_from_region_inv _ _ a with "Hinv") as "H";auto.
+
+    assert (readAllowed p = true) as Hra.
+    { destruct_perm p; naive_solver. }
     iDestruct (write_allowed_implies_ra with "[Hreg] [H]")
       as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & %Hstate_a)"
-    ;auto; iClear "Hinv H".
+    ;eauto ; iClear "Hinv H".
     assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
       as [ρ [Hρ [Hne Hne'] ] ].
     { destruct (pwl p),g; eauto. destruct Hstate_a as [Htemp | Hperm];eauto. }

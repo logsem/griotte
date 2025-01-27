@@ -63,8 +63,8 @@ Proof. auto. Qed.
 #[export] Hint Resolve ExecPCPerm_RWX : solve_pure.
 #[export] Hint Resolve ExecPCPerm_not_E : solve_pure.
 #[export] Hint Resolve ExecPCPerm_flows_to : solve_pure.
-(* TODO: add a test checking the use of ExecPCPerm_flows_to (if it is still
-   needed) *)
+(* TODO: add a test checking the use of ExecPCPerm_flows_to (if it is still *)
+(*    needed) *)
 #[export] Hint Resolve ExecPCPerm_readAllowed : solve_pure.
 (* Will only work if arguments are concrete terms *)
 #[export] Hint Extern 1 (readAllowed _ = true) => reflexivity : solve_pure.
@@ -103,6 +103,21 @@ Proof. auto. Qed.
 (* is_z *)
 #[export] Hint Extern 1 (is_z _ = false) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (is_z _ = true) => reflexivity : solve_pure.
+
+(* isSentry *)
+#[export] Hint Extern 1 (isSentry (BPerm _ _) = false) => done : solve_pure.
+#[export] Hint Extern 1 (isSentry E = true) => done : solve_pure.
+
+(* canStore *)
+#[export] Hint Extern 1 (canStore WO (WCap _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore WO (WCap _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RW (WCap _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RW (WCap _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWX (WCap _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWX (WCap _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore WLO (WCap _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWL (WCap _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWLX (WCap _ _ _ _ _ ) = true) => done : solve_pure.
 
 (* denote - required for Get *)
 #[export] Hint Extern 1 (denote (GetWType _ _) ?w = Some _) =>

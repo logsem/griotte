@@ -127,6 +127,7 @@ Section fundamental.
       - iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
         ; eauto.
         iApply (interp_weakening with "IH HVsb"); eauto; try solve_addr; try done.
+        naive_solver.
       - (* not eq RX/RWX/RWLX-Local *)
         destruct (decide (p'' = RX)); simplify_eq.
         { destruct (Hpft); by left. }

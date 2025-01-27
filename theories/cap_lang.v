@@ -244,8 +244,8 @@ Section opsem.
       wdst ← (reg φ) !! dst;
       match wdst with
       | WCap p g b e a =>
-        match p with
-        | E => None
+        match isSentry p with
+        | true => None
         | _ => match (a + n)%a with
                | Some a' => updatePC (update_reg φ dst (WCap p g b e a'))
                | None => None
@@ -263,8 +263,8 @@ Section opsem.
       wdst ← (reg φ) !! dst;
       match wdst with
       | WCap p g b e a =>
-        match p with
-        | E => None
+        match isSentry p with
+        | true => None
         | _ =>
             let (p',g') := decodePermPair n in
             if PermFlowsTo p' p && LocalityFlowsTo g' g then
@@ -296,8 +296,8 @@ Section opsem.
     | WCap p g b e a =>
       a1 ← addr_of_argument (reg φ) ρ1;
       a2 ← addr_of_argument (reg φ) ρ2;
-      match p with
-      | E => None
+        match isSentry p with
+        | true => None
       | _ =>
         if isWithin a1 a2 b e then
           updatePC (update_reg φ dst (WCap p g a1 a2 a))

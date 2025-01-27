@@ -83,7 +83,7 @@ Section fundamental.
         iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
-        - destruct p0; simpl in Hpft; auto; try discriminate.
+        - destruct_perm p0; simpl in Hpft; auto; try discriminate.
           destruct (decide (rdst = PC)) as [HrdstPC|HrdstPC].
           + simplify_map_eq; auto.
           + simplify_map_eq.
