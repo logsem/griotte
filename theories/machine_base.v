@@ -1210,3 +1210,171 @@ Proof.
   left. eexists _; auto.
   all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
 Qed.
+
+
+  (* TODO re organise *)
+  Lemma load_word_cap (p : Perm) rx pw dl dro g b e a :
+    load_word p (WCap (BPerm rx pw dl dro) g b e a ) =
+    (WCap (BPerm rx
+             (if isDRO p then Ow else pw)
+             (if isDL p then DL else dl)
+             (if isDRO p then DRO else dro))
+       (if isDL p then Local else g)
+       b e a).
+  Proof.
+    rewrite /load_word.
+    by destruct (isDRO p),(isDL p); cbn.
+  Qed.
+
+  Lemma load_word_E (p : Perm) g b e a :
+    load_word p (WCap E g b e a ) = (WCap E g b e a ).
+  Proof.
+    rewrite /load_word.
+    by destruct (isDRO p),(isDL p); cbn.
+  Qed.
+
+  Lemma load_word_int p z :
+    load_word p (WInt z) = WInt z.
+  Proof.
+    rewrite /load_word.
+    by destruct (isDRO p),(isDL p); cbn.
+  Qed.
+
+  Lemma load_word_sealrange p sp b g e a :
+    load_word p (WSealRange sp g b e a) = (WSealRange sp (if isDL p then Local else g) b e a).
+  Proof.
+    rewrite /load_word.
+    by destruct (isDRO p),(isDL p); cbn.
+  Qed.
+
+  Lemma RXPermFlowsTo_refl : forall rx,  RXPermFlowsTo rx rx.
+  Proof.
+    destruct rx; cbn ; done.
+  Qed.
+  Global Instance RXPermFlowsToReflexive: Reflexive RXPermFlowsTo.
+  Proof.
+    rewrite /Reflexive.
+    apply RXPermFlowsTo_refl.
+  Qed.
+
+  Lemma RXPermFlowsTo_trans : transitive _ RXPermFlowsTo.
+  Proof.
+    red; intros.
+    destruct x; destruct y; destruct z; try congruence; auto.
+  Qed.
+  Global Instance RXPermFlowsToTransitive: Transitive RXPermFlowsTo.
+  Proof.
+    rewrite /Transitive.
+    apply RXPermFlowsTo_trans.
+  Qed.
+
+  Lemma WPermFlowsTo_refl : forall rx,  WPermFlowsTo rx rx.
+  Proof.
+    destruct rx; cbn ; done.
+  Qed.
+  Global Instance WPermFlowsToReflexive: Reflexive WPermFlowsTo.
+  Proof.
+    rewrite /Reflexive.
+    apply WPermFlowsTo_refl.
+  Qed.
+
+  Lemma WPermFlowsTo_trans : transitive _ WPermFlowsTo.
+  Proof.
+    red; intros.
+    destruct x; destruct y; destruct z; try congruence; auto.
+  Qed.
+  Global Instance WPermFlowsToTransitive: Transitive WPermFlowsTo.
+  Proof.
+    rewrite /Transitive.
+    apply WPermFlowsTo_trans.
+  Qed.
+
+  Lemma DLPermFlowsTo_refl : forall rx,  DLPermFlowsTo rx rx.
+  Proof.
+    destruct rx; cbn ; done.
+  Qed.
+  Global Instance DLPermFlowsToReflexive: Reflexive DLPermFlowsTo.
+  Proof.
+    rewrite /Reflexive.
+    apply DLPermFlowsTo_refl.
+  Qed.
+
+  Lemma DLPermFlowsTo_trans : transitive _ DLPermFlowsTo.
+  Proof.
+    red; intros.
+    destruct x; destruct y; destruct z; try congruence; auto.
+  Qed.
+  Global Instance DLPermFlowsToTransitive: Transitive DLPermFlowsTo.
+  Proof.
+    rewrite /Transitive.
+    apply DLPermFlowsTo_trans.
+  Qed.
+
+  Lemma DROPermFlowsTo_refl : forall rx,  DROPermFlowsTo rx rx.
+  Proof.
+    destruct rx; cbn ; done.
+  Qed.
+  Global Instance DROPermFlowsToReflexive: Reflexive DROPermFlowsTo.
+  Proof.
+    rewrite /Reflexive.
+    apply DROPermFlowsTo_refl.
+  Qed.
+
+  Lemma DROPermFlowsTo_trans : transitive _ DROPermFlowsTo.
+  Proof.
+    red; intros.
+    destruct x; destruct y; destruct z; try congruence; auto.
+  Qed.
+  Global Instance DROPermFlowsToTransitive: Transitive DROPermFlowsTo.
+  Proof.
+    rewrite /Transitive.
+    apply DROPermFlowsTo_trans.
+  Qed.
+
+
+  Lemma readAllowed_isnot_sentry (p : Perm) :
+    readAllowed p = true -> isSentry p = false.
+  Proof.
+    intros Hexec.
+    destruct_perm p; cbn in *; done.
+  Qed.
+
+  Lemma writeAllowed_isnot_sentry (p : Perm) :
+    writeAllowed p = true -> isSentry p = false.
+  Proof.
+    intros Hexec.
+    destruct_perm p; cbn in *; done.
+  Qed.
+
+  Lemma pwl_flows (p1 p2 : Perm) :
+    PermFlowsTo p1 p2
+    -> pwl p1 = true
+    -> pwl p2 = true.
+  Proof.
+    intros Hfl Hra.
+    destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+  Qed.
+
+  Lemma pwl_nonO p p':
+    PermFlowsTo p p' → pwl p = true → isO p' = false.
+  Proof.
+    intros Hfl' Hra.
+    eapply pwl_flows in Hra; eauto.
+    destruct_perm p'; auto; inversion Hxa ; try congruence.
+  Qed.
+
+  Lemma pwl_isnot_sentry (p : Perm) :
+    pwl p = true -> isSentry p = false.
+  Proof.
+    intros Hexec.
+    destruct_perm p; cbn in *; done.
+  Qed.
+
+  Lemma isnotO_flows (p p' : Perm) :
+    PermFlowsTo p p'
+    -> isO p = false
+    -> isO p' = false.
+  Proof.
+    intros Hfl Hra.
+    destruct_perm p; destruct_perm p' ; cbn in *; done.
+  Qed.

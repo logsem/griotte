@@ -40,12 +40,15 @@ Section fundamental.
   Definition ftlr_instr (W : WORLD) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (i: instr) (ρ : region_type) (P : D) : Prop :=
+    (* TODO which condition do we need instead?
+      executedAllowed p /\ (pwl p -> g = Local) ?
+     *)
     p = RX ∨ p = RWX ∨ (p = RWLX /\ g = Local)
     → (∀ x : RegName, is_Some (regs !! x))
     → isCorrectPC (WCap p g b e a)
     → (b <= a)%a ∧ (a < e)%a
     → PermFlowsTo p p'
-    → p' ≠ O
+    → isO p' = false
     → (∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2))
     → (if pwl p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
@@ -56,7 +59,7 @@ Section fundamental.
     -∗ fixpoint interp1 W (WCap p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
     -∗ rel a p' (λ Wv, P Wv.1 Wv.2)
-    -∗ ▷ rcond P interp
+    -∗ ▷ rcond p' P interp
     -∗ □ (if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> regs) a)
           then ▷ wcond P interp
           else emp)

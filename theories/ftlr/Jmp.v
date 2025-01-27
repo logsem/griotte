@@ -58,7 +58,7 @@ Section fundamental.
       iInsert "Hmap" rsrc;
       rewrite -delete_insert_ne; auto.
       destruct (updatePcPerm wsrc) eqn:Heq ; [ | destruct sb | ]; cycle 1.
-      { destruct (PermFlowsTo RX p0) eqn:Hpft; cycle 1.
+      { destruct (executeAllowed p0) eqn:Hpft; cycle 1.
         { iNext; iIntros "_".
           iApply (wp_bind (fill [SeqCtx])).
           iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].

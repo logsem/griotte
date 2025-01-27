@@ -27,9 +27,9 @@ Section fundamental.
 
   Lemma interp_weakeningEO W p p' g g' b b' e e' a a' :
     isSentry p = false ->
-    p ≠ O →
+    isO p = false →
     isSentry p' = false ->
-    p' ≠ O →
+    isO p' = false →
     (b <= b')%a ->
     (e' <= e)%a ->
     PermFlowsTo p' p ->
@@ -39,9 +39,7 @@ Section fundamental.
   Proof.
     intros HpnotE HpnotO HpnotE' HpnotO' Hb He Hp Hl. iIntros "HA".
     rewrite !fixpoint_interp1_eq !interp1_eq.
-    destruct (decide (p = O)) as [|_];try congruence.
-    destruct (decide (p' = O)) as [|_];try congruence.
-    rewrite HpnotE HpnotE'.
+    rewrite HpnotO HpnotO' HpnotE HpnotE'.
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iSplit; cycle 1.
     { case_eq (pwl p'); intros Hpwl'; auto.
@@ -98,7 +96,7 @@ Section fundamental.
 
   Lemma interp_weakeningE W p g g' b b' e e' a a' :
       isSentry p = false ->
-      p <> O ->
+      isO p = false ->
       (b <= b')%a ->
       (e' <= e)%a ->
       PermFlowsTo E p ->
@@ -110,9 +108,9 @@ Section fundamental.
     intros HpnotE HpnotO Hb He Hp Hl.
     iIntros "#IH HA".
     rewrite !fixpoint_interp1_eq !interp1_eq.
-    destruct (decide (p = O)) as [|_];try congruence.
-    rewrite HpnotE.
-    erewrite decide_False;auto; cbn.
+    rewrite HpnotO HpnotE.
+    replace (isO E) with false ; auto.
+    replace (isSentry E) with true ; auto.
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
@@ -129,7 +127,11 @@ Section fundamental.
       iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & #Hzcond & #Hrcond & #Hwcond & #HmonoR & %Hstate)".
       assert (Hflows': PermFlowsTo RX p'').
       { eapply PermFlowsTo_trans; eauto.
-        destruct p; simpl in *; auto; try congruence; try tauto; reflexivity. }
+        destruct p; cbn in HpnotE ; try done.
+        destruct dl; cbn in Hp; try done.
+        destruct dro; cbn in Hp; try done.
+        destruct rx; cbn in Hp; try done.
+      }
       iExists p'',φ.
       replace (readAllowed p) with true; cycle 1.
       { destruct_perm p ; cbn in *; try done. }
@@ -152,13 +154,15 @@ Section fundamental.
     interp W (WCap p' g' b' e' a').
   Proof.
     intros HpnotE Hb He Hp Hl. iIntros "#IH HA".
-    destruct (decide (p' = O)).
-    { subst; rewrite !fixpoint_interp1_eq !interp1_eq; auto. }
-    destruct (decide (p = O)).
-    { subst p; destruct_perm p'; simpl in Hp; try tauto. }
+    destruct (isO p') eqn:HpO'.
+    { rewrite !fixpoint_interp1_eq !interp1_eq HpO'; auto. }
+    destruct (isO p) eqn:HpO.
+    { eapply isnotO_flows in Hp ; eauto; congruence. }
     destruct (isSentry p') eqn:Hsentryp'; cycle 1.
     { iApply (interp_weakeningEO _ p p' g g'); eauto. }
-    { destruct p, p' ; cbn in * ; try congruence. iApply (interp_weakeningE _ (BPerm rx w) g g'); eauto. }
+    { destruct p, p' ; cbn in * ; try congruence.
+      iApply (interp_weakeningE _ (BPerm rx w dl dro) g g'); eauto.
+    }
   Qed.
 
   Lemma interp_next_PC W p g b e a a' :
@@ -210,10 +214,11 @@ Section fundamental.
   Proof.
   intros Hb He Hp Hg. iIntros "#HA".
   rewrite !fixpoint_interp1_eq. cbn.
-  destruct (permit_seal p') eqn:Hseal; [eapply (permit_seal_flowsto _ p) in Hseal as ->; auto | ].
-  all: destruct (permit_unseal p') eqn:Hunseal; [eapply (permit_unseal_flowsto _ p) in Hunseal as ->; auto | ]; iDestruct "HA" as "[Hs Hus]".
-  all: iSplitL "Hs";
-  [try iApply (safe_to_seal_weakening with "Hs") | try iApply (safe_to_unseal_weakening with "Hus")]; auto.
+  done.
+  (* destruct (permit_seal p') eqn:Hseal; [eapply (permit_seal_flowsto _ p) in Hseal as ->; auto | ]. *)
+  (* all: destruct (permit_unseal p') eqn:Hunseal; [eapply (permit_unseal_flowsto _ p) in Hunseal as ->; auto | ]; iDestruct "HA" as "[Hs Hus]". *)
+  (* all: iSplitL "Hs"; *)
+  (* [try iApply (safe_to_seal_weakening with "Hs") | try iApply (safe_to_unseal_weakening with "Hus")]; auto. *)
   Qed.
 
 End fundamental.

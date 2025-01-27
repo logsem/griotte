@@ -36,7 +36,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_temp_pwl E W a v p φ `{∀ Wv, Persistent (φ Wv)}:
-     p ≠ O →
+    isO p = false ->
      a ∉ dom (std W) →
      (pwl p) = true →
      future_pub_mono φ v -∗
@@ -111,7 +111,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_temp_nwl E W a v p φ `{∀ Wv, Persistent (φ Wv)}:
-     p ≠ O →
+    isO p = false ->
      a ∉ dom (std W) →
      (pwl p) = false →
      future_priv_mono φ v -∗
@@ -187,7 +187,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_perm E W a v p φ `{∀ Wv, Persistent (φ Wv)}:
-     p ≠ O →
+    isO p = false ->
      a ∉ dom (std W) →
      future_priv_mono φ v -∗
      sts_full_world W -∗
@@ -365,7 +365,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_perm_sepL2 E W l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    p ≠ O ->
+    isO p = false ->
     Forall (λ k, std W !! k = None) l1 →
     sts_full_world W
     -∗ region W
@@ -401,7 +401,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_perm_sepL2_from_rev φ E W l1 l2 p `{∀ Wv, Persistent (φ Wv)}:
-    p ≠ O →
+    isO p = false ->
     Forall (λ k, std W !! k = Some Revoked) l1 →
     sts_full_world W -∗
     region W -∗
