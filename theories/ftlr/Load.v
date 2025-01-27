@@ -119,7 +119,7 @@ Section fundamental.
     { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
     iExists w0,p',P.
     iFrame "∗#".
-    iSplitR;[iPureIntro ; destruct p0,p'; done|].
+    iSplitR;[iPureIntro ; destruct_perm p0; destruct_perm p'; done|].
     rewrite /persistent_cond in Hcond_pers.
     iSplitR; iPureIntro;done.
   Qed.

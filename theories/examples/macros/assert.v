@@ -80,9 +80,10 @@ Section Assert.
       iApply "Hφ". iFrame. rewrite Z.eqb_refl //. }
     { (* n1 ≠ n2 *)
       iInstr "Hprog". { assert (n1 - n2 ≠ 0)%Z by lia. congruence. }
-      iInstr "Hprog". rewrite (_: (b ^+ 13)%a = cap_addr). 2: solve_addr.
-      iInstr "Hprog". solve_addr.
-      iInstr "Hprog". solve_addr.
+      iInstr "Hprog".
+      rewrite (_: (b ^+ 13)%a = cap_addr); [|solve_addr].
+      iInstr "Hprog"; first solve_addr.
+      iInstr "Hprog"; first solve_addr.
       iGo "Hprog".
       iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
       { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
