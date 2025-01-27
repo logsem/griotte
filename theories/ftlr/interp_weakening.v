@@ -63,11 +63,11 @@ Section fundamental.
       rewrite !big_sepL_app; iDestruct "A" as "[_ [A _]]".
       iApply (big_sepL_impl with "A"); auto.
       iModIntro; iIntros (k x Hx) "Hw".
-      iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
+      iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
       rewrite Hpwl in Hstate.
       assert ( PermFlowsTo p' p'')
         as Hflp' by (eapply PermFlowsToTransitive; eauto).
-      iExists p'',φ; iFrame "∗%".
+      iExists p'',φ; iFrame "∗%#".
     - case_eq (pwl p); intros Hpwl; auto; rewrite Hpwl in Hpwl_cond; simplify_eq.
       + destruct g' ; inv Hl.
         destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
@@ -76,24 +76,24 @@ Section fundamental.
         rewrite !big_sepL_app; iDestruct "A" as "[_ [A _]]".
         iApply (big_sepL_impl with "A"); auto.
         iModIntro; iIntros (k x Hx) "Hw".
-        iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
+        iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
         assert (region_state_nwl W x Local)
           as Hstate' by (cbn in * ; naive_solver).
-        iExists p'',φ; iFrame "∗%".
+        iExists p'',φ; iFrame "∗%#".
       + destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
         { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
         rewrite (isWithin_finz_seq_between_decomposition b' e' b e); last solve_addr.
         rewrite !big_sepL_app; iDestruct "A" as "[_ [A _]]".
         iApply (big_sepL_impl with "A"); auto.
         iModIntro; iIntros (k x Hx) "Hw".
-        iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & %Hstate)".
+        iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
         assert (region_state_nwl W x g')
           as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver).
-        iExists p'',φ; iFrame "∗%".
+        iExists p'',φ; iFrame "∗%#".
   Qed.
 
   Lemma interp_weakeningE W p g g' b b' e e' a a' :
@@ -126,7 +126,7 @@ Section fundamental.
       rewrite !big_sepL_app. iDestruct "A" as "[_ [A2 _]]".
       iApply (big_sepL_impl with "A2"); auto.
       iModIntro; iIntros (k x Hx) "Hw".
-      iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & #Hzcond & #Hrcond & #Hwcond & %Hstate)".
+      iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & #Hzcond & #Hrcond & #Hwcond & #HmonoR & %Hstate)".
       assert (Hflows': PermFlowsTo RX p'').
       { eapply PermFlowsTo_trans; eauto.
         destruct p; simpl in *; auto; try congruence; try tauto; reflexivity. }
@@ -134,6 +134,8 @@ Section fundamental.
       replace (readAllowed p) with true; cycle 1.
       { destruct_perm p ; cbn in *; try done. }
       iFrame "Hrel".
+      iDestruct ( (monoReq_nwl_future W W' g g' p p'' x φ)
+                  with "[$Hfuture] [] [$HmonoR]") as "HmonoR'"; eauto.
       repeat(iSplit; auto).
       iApply (region_state_nwl_future with "Hfuture"); eauto.
     - rewrite (finz_seq_between_empty b' e'); auto; solve_addr.

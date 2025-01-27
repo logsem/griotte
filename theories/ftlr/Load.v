@@ -36,7 +36,6 @@ Section fundamental.
     ∗ ⌜ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g)⌝
     ∗ open_region_many (l :: ls) W
     ∗ if_later_P has_later (monotonicity_guarantees_region ρ v p φ
-                  ∗ monotonicity_guarantees_regionFull ρ p φ
                   ∗ φ (W, v))
     ∗ rel l p φ)%I.
 
@@ -114,7 +113,7 @@ Section fundamental.
     (* We can finally frame off Hsts here,
             since it is no longer needed after opening the region*)
     iDestruct (region_open_next _ _ _ a0 p' ρ' with "[$Hrel $Hr $Hsts]")
-      as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & HfutureFull & Hval)"; eauto.
+      as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
     { intros [m' Hcontr]. specialize (Hnotfrozen' m'); contradiction. }
     { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
     iExists w0,p',P.
@@ -217,10 +216,10 @@ Section fundamental.
     case_decide as Hdec. destruct Hdec as [Hallows Heq].
     -  destruct Hallows as [Hrinr [Hra Hwb] ].
        iDestruct "HLoadRes" as (w0 p' P Hp'O Hpers) "(-> & HLoadRes & #Hrcond)".
-       iDestruct "HLoadRes" as (ρ1) "(Hstate' & #Hrev & Hr & (Hfuture & HfutureFull & #HV) & Hrel')".
+       iDestruct "HLoadRes" as (ρ1) "(Hstate' & #Hrev & Hr & (Hfuture & #HV) & Hrel')".
        iDestruct "Hrev" as %[Hnotrevoked Hnotfrozen ].
        rewrite memMap_resource_2ne; last auto. iDestruct "Hmem" as  "[Ha1 $]".
-       iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' $Hfuture $HfutureFull]")
+       iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' $Hfuture]")
          as "Hr"; eauto.
        { intros [m' Hm']; specialize (Hnotfrozen m'); contradiction. }
        { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
@@ -241,7 +240,7 @@ Section fundamental.
     ftlr_instr W regs p p' g b e a w (Load dst src) ρ P.
   Proof.
     intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #HmonoV #Hmono Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -311,7 +310,7 @@ Section fundamental.
         iIntros (a1); inversion a1.
       }
 
-      iDestruct (region_close with "[$Hstate $Hr $Ha $Hmono]") as "Hr"; eauto.
+      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;[|specialize (Hnotfrozen g1)];contradiction. }
       iApply ("IH" $! _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
       { cbn. intros. subst regs'.

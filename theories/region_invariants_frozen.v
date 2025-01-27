@@ -382,7 +382,7 @@ Section heap.
       iDestruct (sts_full_state_std with "Hsts Hsta") as %HWa.
       iDestruct (big_sepM_insert with "Htmp") as "[Ha Htmp]"; eauto.
       iDestruct "Ha" as (? ? ?) "(Hatmp&?)".
-      iDestruct "Hatmp" as (? ?) "(?&?&?&?)".
+      iDestruct "Hatmp" as (? ?) "(?&?&?)".
       iApply HInd. iFrame.
       iApply (region_close_next _ _ _ a _ _ Temporary).
       + congruence.
@@ -428,7 +428,7 @@ Section heap.
     iExists ρ. iFrame. iSplitR;[auto|].
     destruct ρ.
     - iDestruct "Hm" as (γpred p φ -> Hpers) "(#Hsavedφ & Hl)".
-      iDestruct "Hl" as (v HpO) "(Hl & #HmonoV & #Hmono & Hφ)".
+      iDestruct "Hl" as (v HpO) "(Hl & #HmonoV & Hφ)".
       iExists _,_,_. do 2 (iSplitR;[eauto|]).
       iFrame "#".
       iSplitR;[eauto|].
@@ -436,7 +436,7 @@ Section heap.
       destruct (pwl p); iApply "HmonoV"; iFrame; auto.
       by iPureIntro ; apply related_sts_pub_priv_world.
     - iDestruct "Hm" as (γpred p φ -> Hpers) "(#Hsavedφ & Hl)".
-      iDestruct "Hl" as (v HpO) "(Hl & #HmonoV & #Hmono & Hφ)".
+      iDestruct "Hl" as (v HpO) "(Hl & #HmonoV & Hφ)".
       iExists _,_,_. do 2 (iSplitR;[eauto|]).
       iFrame "#".
       iSplitR;[eauto|].
