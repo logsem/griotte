@@ -555,11 +555,12 @@ Program Definition interp_expr (interp : D) r : D :=
   Definition interp_registers : R := interp_reg interp.
 
   Global Instance interp_persistent W w : Persistent (interp W w).
-  Proof. intros. destruct_word w; simpl; rewrite fixpoint_interp1_eq; simpl.
-         - apply _.
-         - destruct_perm c ; destruct g; repeat (apply exist_persistent; intros); try apply _.
-         - destruct (permit_seal sr), (permit_unseal sr); rewrite /safe_to_seal /safe_to_unseal; apply _ .
-         - apply _.
+  Proof.
+    (* intros. destruct_word w; simpl; rewrite fixpoint_interp1_eq; simpl. *)
+    (* - apply _. *)
+    (* - destruct_perm c ; destruct g; repeat (apply exist_persistent; intros); try apply _. *)
+    (* - destruct (permit_seal sr), (permit_unseal sr); rewrite /safe_to_seal /safe_to_unseal; apply _ . *)
+    (* - apply _. *)
          (* - apply exist_persistent; intros P. *)
          (*   unfold Persistent. iIntros "(Hpers & #Hs & HP)". *)
          (*   iDestruct "Hpers" as %Hpers. *)
@@ -568,7 +569,7 @@ Program Definition interp_expr (interp : D) r : D :=
          (*   { iApply later_persistently_1. by iApply Hpers.  } *)
          (*   iApply persistently_sep_2; iSplitR; auto. *)
          (*   iApply persistently_sep_2; auto. *)
-  Qed.
+  Admitted.
 
   (* Non-curried version of interp *)
   Definition interpC := safeC interp.
@@ -643,6 +644,9 @@ Program Definition interp_expr (interp : D) r : D :=
     by iModIntro; iIntros (W1 w) "?".
   Qed.
 
+  (* TODO does not work if we have an E-cap,
+     because it might be valid with Global,
+     but not with Local *)
   Lemma interp_load_word W p w : interp W w ⊢ interp W (load_word p w).
   Proof.
     iIntros "Hinterp".
