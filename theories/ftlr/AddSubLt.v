@@ -31,12 +31,12 @@ Section fundamental.
   Lemma add_sub_lt_case (W : WORLD) (regs : leibnizO Reg) (p p' : Perm)
     (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName)
     (r1 r2: Z + RegName) (P:D):
-    p = RX ∨ p = RWX ∨ (p = RWLX /\ g = Local)
+    validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
     → isCorrectPC (WCap p g b e a)
     → (b <= a)%a ∧ (a < e)%a
     → PermFlowsTo p p'
-    → p' ≠ O
+    → isO p' = false
     → (∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2))
     → (if pwl p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
@@ -49,7 +49,7 @@ Section fundamental.
     -∗ fixpoint interp1 W (WCap p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
     -∗ rel a p' (λ Wv, P Wv.1 Wv.2)
-    -∗ ▷ rcond P interp
+    -∗ ▷ rcond p' P interp
     -∗ □ (if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> regs) a)
           then ▷ wcond P interp
           else emp)
@@ -74,7 +74,7 @@ Section fundamental.
                         ∗ na_own logrel_nais ⊤
                         ∗ sts_full_world W' ∗ region W' }} }}.
   Proof.
-    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -101,7 +101,7 @@ Section fundamental.
         destruct (decide (ri = dst)); simplify_map_eq.
         { repeat rewrite fixpoint_interp1_eq; auto. }
         { iApply "Hreg"; eauto. }
-      + iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+      + iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 
 End fundamental.

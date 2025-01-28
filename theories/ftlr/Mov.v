@@ -32,7 +32,7 @@ Section fundamental.
      (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
     ftlr_instr W regs p p' g b e a w (Mov dst src) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -62,27 +62,22 @@ Section fundamental.
         destruct (decide (r = PC)).
         { simplify_map_eq.
           iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
-          iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+          iApply (interp_next_PC with "Hinv_interp"); eauto.
         }
         simplify_map_eq.
         iDestruct ("Hreg" $! r (WCap p0 g0 b0 e0 a0) n H ) as "Hr0".
-        destruct (PermFlowsTo RX p0) eqn:Hpft.
-        - iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
-          { destruct_perm p0; simpl in Hpft; auto.
-            repeat rewrite fixpoint_interp1_eq; simpl.
-            destruct g0; auto.
-          }
-          { rewrite !fixpoint_interp1_eq /=.
-            destruct_perm p0; destruct g0; try congruence; try done.
-          }
-        - iApply (wp_bind (fill [SeqCtx])).
+        destruct (executeAllowed p0) eqn:Hpft; cycle 1.
+        { iApply (wp_bind (fill [SeqCtx])).
           iExtract "Hmap" PC as "HPC".
-          iApply (wp_notCorrectPC with "HPC")
-          ; first (eapply not_isCorrectPC_perm; destruct_perm p0; simpl in Hpft; try discriminate; eauto).
-          iNext. iIntros "HPC /=".
-          iApply wp_pure_step_later; auto;iNext; iIntros "_".
-          iApply wp_value.
-          iIntros. discriminate.
+          iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
+          iNext; iIntros "HPC /=".
+          iApply wp_pure_step_later; auto; iNext; iIntros "_".
+          iApply wp_value; iIntros; discriminate.
+        }
+
+        iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
+        iApply (interp_weakening with "IH Hr0"); eauto; try reflexivity; try solve_addr.
+        by apply executeAllowed_isnot_sentry.
       }
       { map_simpl "Hmap".
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
@@ -93,21 +88,13 @@ Section fundamental.
           destruct (decide (dst = x)); auto; right; split; auto.
         - iIntros (ri wi Hri Hregs_ri).
           destruct (decide (ri = dst)); simplify_map_eq.
-          { (* ri = dst *)
+          + (* ri = dst *)
             destruct src; simplify_map_eq.
             * repeat rewrite fixpoint_interp1_eq; auto.
-            * destruct (decide (PC = r)); simplify_map_eq.
-              ** rewrite (fixpoint_interp1_eq _ (WCap p0 g0 b0 e0 a0)) /=.
-                 destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; subst p0; try subst g0.
-                 all: iApply (big_sepL_mono with "Hinv_interp").
-                 all: intros; iIntros "H"; simpl.
-                 all: try( iDestruct "H"
-                          as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)").
-                 all: iExists p,P'; iFrame "%∗".
-              ** iApply ("Hreg" $! r) ; auto.
-          }
-          { iApply ("Hreg" $! ri) ; auto. }
-      - iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+            * destruct (decide (PC = r)); simplify_map_eq; first done.
+              iApply ("Hreg" $! r) ; auto.
+          + iApply ("Hreg" $! ri) ; auto.
+      - iApply (interp_next_PC with "Hinv_interp"); eauto.
       }
   Qed.
 

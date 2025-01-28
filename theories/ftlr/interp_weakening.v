@@ -167,13 +167,14 @@ Section fundamental.
 
   Lemma interp_next_PC W p g b e a a' :
     isCorrectPC (WCap p g b e a) ->
-    ftlr_IH -∗
     interp W (WCap p g b e a) -∗
     interp W (WCap p g b e a').
   Proof.
-    iIntros (HcorrectPC) "#IH #Hinterp".
-    iApply interp_weakening; eauto; try solve_addr; try done.
-    by eapply isCorrectPC_nonE.
+    iIntros (HcorrectPC) "#Hinterp".
+    inversion HcorrectPC as [p' g' b' e' a'' Hb' Hexec']; subst.
+    assert (isO p = false) by (by eapply executeAllowed_nonO).
+    assert (isSentry p = false) by (by eapply executeAllowed_isnot_sentry).
+    iApply interp_weakeningEO; eauto; try solve_addr; try done.
   Qed.
 
   Lemma safe_to_unseal_weakening b e b' e':

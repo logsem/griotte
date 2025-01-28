@@ -29,7 +29,7 @@ Section fundamental.
      (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
     ftlr_instr W regs p p' g b e a w (Lea dst src) ρ P.
     Proof.
-    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -65,8 +65,7 @@ Section fundamental.
         }
         { iApply "Hreg"; auto. by simplify_map_eq. }
       - subst regs';rewrite insert_insert;iApply "Hmap".
-      - iPureIntro; tauto.
-      - iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+      - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
     { apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs').
@@ -90,8 +89,7 @@ Section fundamental.
         }
         { iApply "Hreg"; auto. by simplify_map_eq. }
       - subst regs';rewrite insert_insert;iApply "Hmap".
-      - iPureIntro; tauto.
-      - iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+      - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     Qed.
 

@@ -34,27 +34,27 @@ Section fundamental.
         ▷ fixpoint interp1 W (WSealable sb).
   Proof.
     iIntros (Hpseal Hwb) "#HVsd #HVsr".
-    rewrite
-      (fixpoint_interp1_eq W (WSealRange _ _ _ _ _))
-      (fixpoint_interp1_eq W (WSealed _ _)) /= Hpseal /interp_sb.
-    iDestruct "HVsr" as "[_ Hss]".
-    apply seq_between_dist_Some in Hwb.
-    iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
-    iDestruct "HSa0" as (P) "[HsealP HWcond]".
-    iDestruct "HVsd" as (P') "[% [HsealP' HP']]".
-    iDestruct (seal_pred_agree with "HsealP HsealP'") as "Hequiv".
-    Unshelve. 2: exact W.
-    iSpecialize ("Hequiv" $! (WSealable sb)).
-    iAssert (▷ P W (WSealable sb))%I as "HP". { iNext; by iRewrite "Hequiv". }
-    by iApply "HWcond".
-  Qed.
+    (* rewrite *)
+    (*   (fixpoint_interp1_eq W (WSealRange _ _ _ _ _)) *)
+    (*   (fixpoint_interp1_eq W (WSealed _ _)) /= Hpseal /interp_sb. *)
+    (* iDestruct "HVsr" as "[_ Hss]". *)
+    (* apply seq_between_dist_Some in Hwb. *)
+    (* iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto. *)
+    (* iDestruct "HSa0" as (P) "[HsealP HWcond]". *)
+    (* iDestruct "HVsd" as (P') "[% [HsealP' HP']]". *)
+    (* iDestruct (seal_pred_agree with "HsealP HsealP'") as "Hequiv". *)
+    (* Unshelve. 2: exact W. *)
+    (* iSpecialize ("Hequiv" $! (WSealable sb)). *)
+    (* iAssert (▷ P W (WSealable sb))%I as "HP". { iNext; by iRewrite "Hequiv". } *)
+    (* by iApply "HWcond". *)
+  Admitted.
 
   Lemma unseal_case (W : WORLD) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D):
     ftlr_instr W regs p p' g b e a w (UnSeal dst r1 r2) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -119,25 +119,16 @@ Section fundamental.
         { repeat (rewrite lookup_insert_ne in Hvs); auto.
           iApply "Hreg"; auto.
         }
-      + iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+      + iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { (* PC = dst *)
       simplify_map_eq; map_simpl "Hmap".
-      destruct (decide (p'' = RX ∨ p'' = RWX ∨ p'' = RWLX ∧ g'' = Local)) as [Hpft|Hpft].
+      destruct (executeAllowed p'') eqn:Hpft.
       - iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
         ; eauto.
         iApply (interp_weakening with "IH HVsb"); eauto; try solve_addr; try done.
-        naive_solver.
-      - (* not eq RX/RWX/RWLX-Local *)
-        destruct (decide (p'' = RX)); simplify_eq.
-        { destruct (Hpft); by left. }
-        destruct (decide (p'' = RWX)); simplify_eq.
-        { destruct (Hpft); by right; left. }
-        destruct (decide (p'' = RWLX )); simplify_eq.
-        destruct g'' ; simplify_eq; cycle 1.
-        { destruct (Hpft); by right; right. }
-        { iEval (rewrite fixpoint_interp1_eq //=) in "HVsb"; done. }
-
+        by apply executeAllowed_isnot_sentry.
+      - (* not executable *)
         iApply (wp_bind (fill [SeqCtx])).
         iExtract "Hmap" PC as "HPC".
         iApply (wp_notCorrectPC with "HPC")

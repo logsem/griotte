@@ -3,6 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine.ftlr Require Import ftlr_base interp_weakening.
+From cap_machine Require Import addr_reg region map_simpl.
 From cap_machine.rules Require Import rules_base rules_Restrict.
 From cap_machine.proofmode Require Import map_simpl register_tactics.
 
@@ -62,7 +63,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
     ftlr_instr W regs p p' g b e a w (Restrict dst src) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -91,24 +92,17 @@ Section fundamental.
         rewrite lookup_insert in HPC. inv HPC.
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-        destruct (PermFlowsTo RX p'') eqn:Hpft.
-        { assert (Hpg: p'' = RX ∨ p'' = RWX ∨ p'' = RWLX ∧ g'' = Local).
-          { destruct_perm p''; simpl in Hpft; eauto; try discriminate.
-            destruct_perm p0; simpl in *; try discriminate.
-            simplify_map_eq.
-            right;right; split;auto.
-            destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; try discriminate.
-            destruct g0 ;destruct g''; simpl in *; auto; try discriminate. }
+        destruct (executeAllowed p'') eqn:Hpft.
+        {
           simplify_map_eq ; map_simpl "Hmap".
           iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
           iModIntro.
           iApply (PermPairFlows_interp_preserved); eauto.
-          iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+          iApply (interp_next_PC with "Hinv_interp"); eauto.
         }
-
         { iApply (wp_bind (fill [SeqCtx])).
           iExtract "Hmap" PC as "HPC".
-          iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; destruct_perm p''; simpl in Hpft; eauto; discriminate|].
+          iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; simpl in Hpft; eauto; discriminate|].
           iNext. iIntros "HPC /=".
           iApply wp_pure_step_later; auto. iNext ; iIntros "_".
           iApply wp_value. iIntros ; discriminate. }
@@ -126,7 +120,7 @@ Section fundamental.
             iDestruct ("Hreg" $! dst _ Hri Hdst) as "Hdst".
             iApply PermPairFlows_interp_preserved; eauto.
           + simplify_map_eq. iApply "Hreg"; auto.
-        - iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+        - iApply (interp_next_PC with "Hinv_interp"); eauto.
       }
     - apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
@@ -154,7 +148,7 @@ Section fundamental.
           iDestruct ("Hreg" $! dst _ Hri Hdst) as "Hdst".
           iApply SealPermPairFlows_interp_preserved; eauto.
         * simplify_map_eq. iApply "Hreg"; auto.
-      + iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+      + iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 
 End fundamental.

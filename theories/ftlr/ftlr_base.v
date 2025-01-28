@@ -23,6 +23,10 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
+  (* TODO move somewhere? logrel? *)
+  Definition validPCperm (p : Perm) (g : Locality) :=
+    executeAllowed p = true ∧ (pwl p = true -> g = Local).
+
   Definition ftlr_IH: iProp Σ :=
     (□ ▷ (∀ (W_ih : WORLD) (r_ih : leibnizO Reg)
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr),
@@ -32,18 +36,14 @@ Section fundamental.
             -∗ region W_ih
             -∗ sts_full_world W_ih
             -∗ na_own logrel_nais ⊤
-            -∗ ⌜p_ih = RX ∨ p_ih = RWX ∨ p_ih = RWLX ∧ g_ih = Local⌝
-            → □ fixpoint interp1 W_ih (WCap p_ih g_ih b_ih e_ih a_ih)
+            -∗ □ fixpoint interp1 W_ih (WCap p_ih g_ih b_ih e_ih a_ih)
             -∗ interp_conf W_ih))%I.
 
 
   Definition ftlr_instr (W : WORLD) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (i: instr) (ρ : region_type) (P : D) : Prop :=
-    (* TODO which condition do we need instead?
-      executedAllowed p /\ (pwl p -> g = Local) ?
-     *)
-    p = RX ∨ p = RWX ∨ (p = RWLX /\ g = Local)
+    validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
     → isCorrectPC (WCap p g b e a)
     → (b <= a)%a ∧ (a < e)%a

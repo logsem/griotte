@@ -29,7 +29,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:D):
     ftlr_instr W regs p p' g b e a w (Jnz rdst rsrc) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -52,13 +52,13 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr $Ha Hw $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];try contradiction. }
       iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
-      iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+      iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
     map_simpl "Hmap".
     iApply wp_pure_step_later; auto.
     destruct (updatePcPerm wdst) eqn:Hwdst ; [ | destruct sb | ]; cycle 1.
-    { destruct (PermFlowsTo RX p0) eqn:Hpft; cycle 1.
+    { destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
         iApply (wp_bind (fill [SeqCtx])).
         iExtract "Hmap" PC as "HPC".
@@ -83,21 +83,18 @@ Section fundamental.
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
-        - destruct_perm p0; simpl in Hpft; auto; try discriminate.
-          destruct (decide (rdst = PC)) as [HrdstPC|HrdstPC].
-          + simplify_map_eq; auto.
-          + simplify_map_eq.
-            iDestruct ("Hreg" $! rdst _ HrdstPC Hrdst) as "Hrdst".
-            iClear "Hinv_interp".
-            iEval (rewrite fixpoint_interp1_eq) in "Hrdst".
-            simpl; destruct g1; auto.
         - destruct (decide (rdst = PC)) as [HrdstPC|HrdstPC].
           + simplify_map_eq; auto.
           + simplify_map_eq.
             iDestruct ("Hreg" $! rdst _ HrdstPC Hrdst) as "Hrdst"; eauto.
       }
       { assert (rdst <> PC) as HPCnrdst.
-        { intro; subst rdst; simplify_map_eq. naive_solver. }
+        { intro; subst rdst; simplify_map_eq.
+          destruct Hp as [Hexec _]
+          ; eapply executeAllowed_isnot_sentry in Hexec
+          ; eauto ; cbn in Hexec
+          ; congruence.
+        }
         simplify_map_eq.
         iDestruct ("Hreg" $! rdst _ HPCnrdst Hrdst) as "Hrdst".
         iEval (rewrite fixpoint_interp1_eq //=) in "Hrdst".

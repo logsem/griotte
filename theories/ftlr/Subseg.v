@@ -44,7 +44,7 @@ Section fundamental.
      (ρ : region_type) (dst : RegName) (r1 r2 : Z + RegName) (P:D):
     ftlr_instr W regs p p' g b e a w (Subseg dst r1 r2) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -92,7 +92,7 @@ Section fundamental.
         destruct (decide (dst = PC))
         ; simplify_map_eq
         ; [iApply subseg_interp_preserved; eauto|]
-        ; iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+        ; iApply (interp_next_PC with "Hinv_interp"); eauto.
       }
     }
 
@@ -129,7 +129,7 @@ Section fundamental.
         apply isWithin_implies in Hwi.
         destruct Hwi as [Hwi_b Hwi_e].
         destruct (decide (dst = PC)) ; simplify_map_eq.
-        iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+        iApply (interp_next_PC with "Hinv_interp"); eauto.
       }
     }
   Qed.
