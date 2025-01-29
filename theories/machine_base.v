@@ -323,6 +323,27 @@ Definition isGlobalWord (w : Word): bool :=
   | WSealable sb => isGlobalSealable sb
   end.
 
+Definition isPerm p p' := @bool_decide _ (perm_eq_dec p p').
+
+Lemma isPerm_refl p : isPerm p p = true.
+Proof. destruct_perm p; auto. Qed.
+Lemma isPerm_ne p p' : p ≠ p' → isPerm p p' = false.
+Proof. intros Hne. destruct_perm p; destruct_perm p'; auto; congruence. Qed.
+
+Definition isPermWord (w : Word) (p : Perm): bool :=
+  match w with
+  | WCap p' _ _ _ _  => isPerm p p'
+  | _ => false
+  end.
+
+Lemma isPermWord_cap_isPerm (w0:Word) p:
+  isPermWord w0 p = true →
+  ∃ p' g b e a, w0 = WCap p' g b e a ∧ isPerm p p' = true.
+Proof.
+  intros Hp. rewrite /isPermWord in Hp.
+  destruct_word w0; try congruence.
+  eexists _, _, _, _, _; split; eauto.
+Qed.
 
 (* Lemma writeA_implies_readA p : *)
 (*   writeAllowed p = true → readAllowed p = true. *)
@@ -355,30 +376,11 @@ Definition hasValidAddress (w : Word) (a : Addr) : Prop :=
 Definition writeAllowed_in_r_a (r : Reg) a :=
   ∃ reg (w : Word), r !! reg = Some w ∧ writeAllowedWord w ∧ hasValidAddress w a.
 
-Definition readAllowed_in_r_a (r : Reg) a :=
-  ∃ reg (w : Word), r !! reg = Some w ∧ readAllowedWord w ∧ hasValidAddress w a.
-
-Definition isPerm p p' := @bool_decide _ (perm_eq_dec p p').
-
-Lemma isPerm_refl p : isPerm p p = true.
-Proof. destruct_perm p; auto. Qed.
-Lemma isPerm_ne p p' : p ≠ p' → isPerm p p' = false.
-Proof. intros Hne. destruct_perm p; destruct_perm p'; auto; congruence. Qed.
-
-Definition isPermWord (w : Word) (p : Perm): bool :=
-  match w with
-  | WCap p' _ _ _ _  => isPerm p p'
-  | _ => false
-  end.
-
-Lemma isPermWord_cap_isPerm (w0:Word) p:
-  isPermWord w0 p = true →
-  ∃ p' g b e a, w0 = WCap p' g b e a ∧ isPerm p p' = true.
-Proof.
-  intros Hp. rewrite /isPermWord in Hp.
-  destruct_word w0; try congruence.
-  eexists _, _, _, _, _; split; eauto.
-Qed.
+Definition readAllowed_in_r_a (r : Reg) a p :=
+  ∃ reg (w : Word), r !! reg = Some w
+                    ∧ readAllowedWord w
+                    ∧ hasValidAddress w a
+                    ∧ isPermWord w p.
 
 Definition LocalityFlowsTo (l1 l2: Locality): bool :=
   match l1 with
@@ -1052,7 +1054,6 @@ Definition readonly_sb (sb : Sealable) :=
 Definition readonly (w : Word) :=
   match w with
   | WSealable sb => WSealable (readonly_sb sb)
-  | WSealed ot sb => WSealed ot (readonly_sb sb)
   | _ => w
   end.
 
@@ -1100,6 +1101,13 @@ Lemma load_word_sealrange p sp b g e a :
 Proof.
   rewrite /load_word.
   by destruct (isDRO p),(isDL p); cbn.
+Qed.
+
+Lemma load_word_sealed p ot sb  :
+  load_word p (WSealed ot sb) = (WSealed ot (if isDL p then borrow_sb sb else sb)).
+Proof.
+  rewrite /load_word /borrow_sb.
+  destruct (isDRO p) eqn:Hdro,(isDL p) eqn:Hdl; cbn; auto.
 Qed.
 
 Lemma load_word_perm_flows (pload p : Perm) :
@@ -1359,13 +1367,15 @@ Proof.
   all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
 Qed.
 
-Global Instance readAllowed_in_r_a_Decidable r a: Decision (readAllowed_in_r_a r a).
+Global Instance readAllowed_in_r_a_Decidable r a p: Decision (readAllowed_in_r_a r a p).
 Proof.
   eapply finite.exists_dec.
-  intros x. destruct (r !! x) eqn:Hsome;
-    first destruct (decide (readAllowedWord w)), (decide (hasValidAddress w a)).
-  left. eexists _; auto.
-  all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
+  intros x.
+  destruct (r !! x) eqn:Hsome;
+    first destruct (decide (readAllowedWord w)), (decide (hasValidAddress w a)), (isPermWord w p) eqn:Hperm.
+  left. eexists _; eauto.
+  all : (right; intros [w1 (Heq & ? & ? & ?)]; inversion Heq; try congruence ).
+  apply Is_true_eq_true in H1; congruence.
 Qed.
 
 
@@ -1460,4 +1470,23 @@ Lemma isnotDL_flows (p p' : Perm) :
 Proof.
   intros Hfl Hra.
   destruct_perm p; destruct_perm p' ; cbn in *; done.
+Qed.
+
+Lemma load_word_perm_load_flows (pload pload' p : Perm) :
+  PermFlowsTo pload pload' ->
+  PermFlowsTo (load_word_perm pload p) (load_word_perm pload' p).
+Proof.
+  intro Hfl.
+  destruct p; cbn; last done.
+  repeat (apply andb_True;split).
+  + reflexivity.
+  + destruct (isDRO pload) eqn:Hdro; first done.
+    apply isnotDRO_flows in Hfl; auto.
+    by rewrite Hfl.
+  + destruct (isDL pload) eqn:Hdl; first done.
+    apply isnotDL_flows in Hfl; auto.
+    by rewrite Hfl.
+  + destruct (isDRO pload) eqn:Hdro; first done.
+    apply isnotDRO_flows in Hfl; auto.
+    by rewrite Hfl.
 Qed.

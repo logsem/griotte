@@ -27,6 +27,13 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
+  Definition rcond' (P : D) p g b e a regs p' : iProp Σ
+    := (if decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a p')
+             then ▷ rcond p' P interp
+             else emp)%I.
+  Instance rcond'_pers P p g b e a regs p': Persistent (rcond' P p g b e a regs p').
+  Proof. intros. rewrite /rcond'. case_decide;apply _. Qed.
+
   (* The necessary resources to close the region again,
      except for the points to predicate, which we will store separately
      The boolean bl can be used to keep track of whether or not we have applied a wp lemma *)
@@ -197,7 +204,9 @@ Section fundamental.
     do 2 (iApply later_sep_2; iSplitR; auto).
   Qed.
 
-  Lemma interp_load_word_flows (W : WORLD) (p p' : Perm) v :
+
+  (* TODO move interp weakening? *)
+  Lemma interp_weakening_word_load (W : WORLD) (p p' : Perm) v :
     PermFlowsTo p p'
     -> ftlr_IH
     -∗ fixpoint interp1 W (load_word p' v)
@@ -207,78 +216,132 @@ Section fundamental.
     destruct v.
     - rewrite !load_word_int; done.
     - destruct sb; cycle 1.
-      { rewrite load_word_sealrange; cbn.
-        by rewrite fixpoint_interp1_eq /=.
+      { rewrite !load_word_sealrange; cbn.
+        by rewrite !fixpoint_interp1_eq /=.
       }
       destruct p0 as [ rx0 w0 dl0 dro0|]; cycle 1.
-      { rewrite !load_word_E ; done. }
-      rewrite !load_word_cap.
-
-      iApply (interp_weakening with "IH Hinterp"); auto; try solve_addr.
-      {
-        repeat (apply andb_True;split).
-        + reflexivity.
-        + destruct (isDRO p) eqn:Hdro; first done.
-          apply isnotDRO_flows in Hfl; auto.
-          by rewrite Hfl.
-        + destruct (isDL p) eqn:Hdl; first done.
-          apply isnotDL_flows in Hfl; auto.
-          by rewrite Hfl.
-        + destruct (isDRO p) eqn:Hdro; first done.
-          apply isnotDRO_flows in Hfl; auto.
-          by rewrite Hfl.
+      { rewrite !load_word_E.
+        destruct (isDL p') eqn:Hdl
+        ; [ eapply isDL_flows in Hfl; eauto ; rewrite Hfl |]
+        ; auto.
+        destruct (isDL p); auto.
+        by iApply interp_weakening_from_E.
       }
-      { destruct (isDL p) eqn:Hdl; first done.
+      rewrite !load_word_cap.
+      iApply (interp_weakening with "IH Hinterp"); auto; try solve_addr.
+      + by apply load_word_perm_load_flows.
+      + destruct (isDL p) eqn:Hdl; first done.
         apply isnotDL_flows in Hfl; auto.
         by rewrite Hfl.
-      }
-    - rewrite /load_word ; destruct (isDRO p'),(isDL p'); cbn.
-      all: by rewrite fixpoint_interp1_eq /=.
+    - rewrite !load_word_sealed.
+      destruct (isDL p') eqn:Hdl'; cbn.
+      + pose proof (isDL_flows p p' Hfl Hdl') as Hdl; rewrite Hdl.
+        done.
+      + iDestruct (interp_borrowed_sealed with "Hinterp") as "Hinterp'".
+        destruct (isDL p); auto.
   Qed.
 
-  Lemma mem_map_recover_res:
+  (* Lemma mem_map_recover_res: *)
+  (*   ∀ (W : WORLD) (regs : leibnizO Reg) *)
+  (*     (pc_a : Addr) (w : Word) (src : RegName) *)
+  (*     (p : Perm) (g : Locality) (b e a : Addr) *)
+  (*     (mem0 : Mem) (loadv : Word), *)
+  (*   reg_allows_load regs src p g b e a *)
+  (*   → mem0 !! a = Some loadv *)
+  (*   -> ftlr_IH *)
+  (*   -∗ (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → interp W v) *)
+  (*   -∗ interp W (WCap p g b e a) *)
+  (*   -∗ rcond' P p g b e a regs p' *)
+  (*   -∗ allow_load_mem W src regs a w mem0 false *)
+  (*   -∗ interp W (load_word pc_p w) *)
+  (*   -∗ ([∗ map] a'↦w ∈ mem0, a' ↦ₐ w) *)
+  (*   -∗ open_region a W ∗ a ↦ₐ w ∗ interp W (load_word pc_p loadv). *)
+
+  (* Lemma mem_map_recover_res: *)
+  (*   ∀ (W : WORLD) (regs : leibnizO Reg) *)
+  (*     (a : Addr) (w : Word) (src : RegName) *)
+  (*     (p0 : Perm) (g0 : Locality) (b0 e0 a0 : Addr) *)
+  (*     (mem0 : Mem) (loadv : Word) (p' : Perm) (P:D), *)
+  (*   reg_allows_load regs src p0 g0 b0 e0 a0 *)
+  (*   → mem0 !! a0 = Some loadv *)
+  (*   -> ftlr_IH *)
+  (*   -∗ allow_load_mem W src regs a w mem0 false *)
+  (*   -∗ rcond' P p0 g0 b0 e0 a0 regs p' *)
+  (*   -∗ P W w *)
+  (*   -∗ ([∗ map] a0↦w ∈ mem0, a0 ↦ₐ w) *)
+  (*   -∗ open_region a W ∗ a ↦ₐ w ∗ interp W (load_word p' loadv). *)
+  (* Proof. *)
+  (*   intros W regs a w src p0 g0 b0 e0 a0 mem0 loadv p' P Hrar Ha0. *)
+  (*   iIntros "#IH HLoadMem #Hrcond Hw Hmem". *)
+  (*   iDestruct "HLoadMem" as (p1 g1 b1 e1 a1) "[%Hread HLoadRes]". *)
+  (*   destruct (load_inr_eq Hrar Hread) as (<- & <- & <- & <- & <-). *)
+  (*   case_decide as Hdec. destruct Hdec as [Hallows Heq]. *)
+  (*   -  destruct Hallows as [Hrinr [Hra Hwb] ]. *)
+  (*      iDestruct "HLoadRes" as (w0 p'' P'' Hfl'' Hpers) "(-> & HLoadRes & #Hrcond')". *)
+  (*      iDestruct "HLoadRes" as (ρ1) "(Hstate' & #Hrev & Hr & (Hfuture & #HV) & Hrel')". *)
+  (*      iDestruct "Hrev" as %[Hnotrevoked Hnotfrozen ]. *)
+  (*      assert (isO p'' = false) as HpO''. *)
+  (*      { eapply readAllowed_flows in Hfl''; auto. *)
+  (*        eapply readAllowed_nonO in Hfl''; eauto. *)
+  (*        reflexivity. *)
+  (*      } *)
+  (*      rewrite memMap_resource_2ne; last auto. iDestruct "Hmem" as  "[Ha1 $]". *)
+  (*      iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' $Hfuture]") *)
+  (*        as "Hr"; eauto. *)
+  (*      { intros [m' Hm']; specialize (Hnotfrozen m'); contradiction. } *)
+  (*      { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. } *)
+  (*      iDestruct (region_open_prepare with "Hr") as "$". *)
+  (*      simplify_map_eq. *)
+  (*      rewrite /rcond'. *)
+  (*      case_decide as Hra'; cycle 1. *)
+  (*      { exfalso. *)
+  (*        apply Hra'. *)
+  (*        (* exists PC. *) *)
+  (*        (* rewrite /readAllowed_in_r_a. *) *)
+  (*        admit. *)
+  (*      } *)
+
+  (*      iApply interp_weakening_word_load ; eauto. *)
+  (*      iApply "Hrcond'". iFrame "#". *)
+  (*   - apply not_and_r in Hdec as [| <-%dec_stable]. *)
+  (*     * by exfalso. *)
+  (*     * iDestruct "HLoadRes" as "[-> $ ]". *)
+  (*       rewrite -memMap_resource_1. *)
+  (*       rewrite lookup_insert in Ha0. inversion Ha0; subst. *)
+  (*       iFrame. *)
+  (*       admit. *)
+  (* Admitted. *)
+
+  Lemma mem_map_recover_res :
     ∀ (W : WORLD) (regs : leibnizO Reg)
-      (a : Addr) (w : Word) (src : RegName)
+      (w : Word) (src : RegName)
+      (p : Perm) (g : Locality) (b e a : Addr)
       (p0 : Perm) (g0 : Locality) (b0 e0 a0 : Addr)
-      (mem0 : Mem) (loadv : Word),
-    reg_allows_load regs src p0 g0 b0 e0 a0
-    → mem0 !! a0 = Some loadv
-    -> ftlr_IH
-    -∗ allow_load_mem W src regs a w mem0 false
-    -∗ interp W (load_word p0 w)
-    -∗ ([∗ map] a0↦w ∈ mem0, a0 ↦ₐ w)
-    -∗ open_region a W ∗ a ↦ₐ w ∗ interp W (load_word p0 loadv).
+      (mem0 : Mem) (loadv : Word) (p' : Perm) (P:D),
+     reg_allows_load (<[PC:=WCap p g b e a]> regs) src p0 g0 b0 e0 a0
+     -> mem0 !! a0 = Some loadv
+     -> ftlr_IH
+     -∗ interp W (WCap p g b e a)
+     -∗ (∀ (r : RegName) (v : leibnizO Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
+     -∗ rcond' P p g b e a regs p0
+     -∗ P W w
+     -∗ ([∗ map] a1↦w0 ∈ mem0, a1 ↦ₐ w0)
+     -∗ allow_load_mem W src (<[PC:=WCap p g b e a]> regs) a w mem0 false
+     -∗ open_region a W ∗ a ↦ₐ w ∗ interp W (load_word p0 loadv).
   Proof.
-    intros W regs a w src p0 g0 b0 e0 a0 mem0 loadv Hrar Ha0.
-    iIntros "#IH HLoadMem Hw Hmem".
+    intros W regs w src p g b e a p0 g0 b0 e0 a0 mem0 loadv p' P Hrar Ha0.
+    iIntros "#IH #Hinterp_pc Hreg #Hrcond Hw Hmem HLoadMem".
     iDestruct "HLoadMem" as (p1 g1 b1 e1 a1) "[%Hread HLoadRes]".
     destruct (load_inr_eq Hrar Hread) as (<- & <- & <- & <- & <-).
     case_decide as Hdec. destruct Hdec as [Hallows Heq].
-    -  destruct Hallows as [Hrinr [Hra Hwb] ].
-       iDestruct "HLoadRes" as (w0 p' P' Hfl' Hpers) "(-> & HLoadRes & #Hrcond')".
-       iDestruct "HLoadRes" as (ρ1) "(Hstate' & #Hrev & Hr & (Hfuture & #HV) & Hrel')".
-       iDestruct "Hrev" as %[Hnotrevoked Hnotfrozen ].
-       assert (isO p' = false) as HpO'.
-       { eapply readAllowed_flows in Hfl'; auto.
-         eapply readAllowed_nonO in Hfl'; eauto.
-         reflexivity.
-       }
-       rewrite memMap_resource_2ne; last auto. iDestruct "Hmem" as  "[Ha1 $]".
-       iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' $Hfuture]")
-         as "Hr"; eauto.
-       { intros [m' Hm']; specialize (Hnotfrozen m'); contradiction. }
-       { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
-       iDestruct (region_open_prepare with "Hr") as "$".
-       simplify_map_eq.
-       iApply interp_load_word_flows ; eauto.
-       iApply "Hrcond'". iFrame "#".
+    - admit.
     - apply not_and_r in Hdec as [| <-%dec_stable].
       * by exfalso.
       * iDestruct "HLoadRes" as "[-> $ ]".
         rewrite -memMap_resource_1.
         rewrite lookup_insert in Ha0. inversion Ha0; subst.
         iFrame.
-  Qed.
+  Admitted.
 
    Lemma load_case (W : WORLD) (regs : leibnizO Reg)
      (p p' : Perm) (g : Locality) (b e a : Addr)
@@ -340,22 +403,6 @@ Section fundamental.
       destruct Hincr as (?&?&?&?&?&?&?&?&XX).
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
-      (* iDestruct ("Hrcond" with "Hw") as "Hw'". *)
-      (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)
-      iDestruct (mem_map_recover_res with "IH HLoadMem [] Hmem") as "[Hr [Ha #HLVInterp ] ]"; eauto.
-      {
-        iDestruct ("Hrcond" with "Hw") as "Hw'".
-        simplify_map_eq.
-        admit.
-        (* TODO I think I need a similar predicate
-           (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
-           that gives me `rcond p0 P interp` here.
-
-            Because the reading permissions given by PC (p') might not be the ones,
-            I actually want (p0)
-         *)
-      }
-
       (* Exceptional success case: we do not apply the induction hypothesis in case we have a faulty PC*)
       destruct (executeAllowed x) eqn:Hp'.
       2 : {
@@ -367,8 +414,43 @@ Section fundamental.
         iIntros (a1); inversion a1.
       }
 
-      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotfrozen g1)];contradiction. }
+
+
+
+      (* destruct (decide (src = PC)); simplify_map_eq. *)
+      (* - (* src = PC *) *)
+      (*   destruct H as (Hpc & Hra_p0 & Hibounds). *)
+      (*   simplify_map_eq. *)
+
+      (*   destruct  *)
+      (*     (decide (readAllowed_in_r_a (<[PC:=WCap p0 g0 b0 e0 a0]> regs) a0 p')). *)
+
+      (* TODO fix:
+         Do I maybe need to show that
+         if decide ....
+         then ▷ rcond p P interp
+         else emp
+         ?
+
+        which mean that we need to show
+        PermFlowsTo p p' -∗ ▷ rcond p' P interp -∗ ▷ rcond p P interp.
+
+        Which means that we need to show
+        PermFlowsTo p p' -∗ interp (load_word p' w) -∗ interp (load_word p w).
+
+        which I believe is true, because
+        using load_word_perm_load_flows, we know that
+        the obtained permission in of
+        (load_word p w) is lower than the permission of
+        (load_word p' w).
+       *)
+      (* iDestruct ("Hrcond" with "Hw") as "Hw'". *)
+      (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)
+      (* iDestruct (mem_map_recover_res with "IH Hinv_interp Hreg Hrcond Hw Hmem HLoadMem") as "[Hr [Ha #HLVInterp ] ]"; eauto. *)
+      (* iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV]") as "Hr"; eauto. *)
+      iDestruct (region_close with "[$Hstate Hmem HLoadMem $HmonoV]") as "Hr"; eauto.
+      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+      iFrame "#%". admit.
       iApply ("IH" $! _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
       { cbn. intros. subst regs'.
         rewrite lookup_insert_is_Some.
@@ -380,18 +462,13 @@ Section fundamental.
        { iIntros (ri wi Hri Hregs_ri).
         subst regs'.
         destruct (decide (ri = dst)).
-        { by simplify_map_eq. }
+        { simplify_map_eq.
+          iApply interp_load_word.
+
+        }
         { simplify_map_eq; iApply "Hreg"; auto. }
        }
        { subst regs'. rewrite insert_insert. iApply "Hmap". }
-       (* { destruct (decide (PC = dst)); simplify_eq. *)
-       (*   - simplify_map_eq. *)
-       (*     rewrite H1. *)
-       (*     iApply (interp_weakening with "IH HLVInterp"); eauto; try solve_addr; try done. *)
-       (*     by apply executeAllowed_isnot_sentry. *)
-       (*   - simplify_map_eq. *)
-       (*     iApply (interp_next_PC with "IH Hinv_interp"); eauto. *)
-       (* } *)
        {
         destruct (decide (PC = dst)); simplify_map_eq; cycle 1.
         + iApply (interp_next_PC with "Hinv_interp"); eauto.

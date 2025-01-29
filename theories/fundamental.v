@@ -116,7 +116,7 @@ Section fundamental.
       destruct Hp as [Hexec _]
       ; by eapply executeAllowed_is_readAllowed.
     }
-    iDestruct (write_allowed_implies_ra with "[Hreg] [H]")
+    iDestruct (interp_in_registers with "[Hreg] [H]")
       as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
     ;eauto ; iClear "Hinv".
     assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))

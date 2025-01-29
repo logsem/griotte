@@ -1,9 +1,8 @@
-From cap_machine Require Export logrel.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine.ftlr Require Import ftlr_base.
 From cap_machine Require Import addr_reg region monotone.
+From cap_machine Require Export logrel ftlr_base.
 
 Section fundamental.
   Context
@@ -114,7 +113,9 @@ Section fundamental.
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
-    iIntros (r W') "#Hfuture". iNext.
+    iIntros (r W') "#Hfuture".
+    iExists g'. iSplit; first done.
+    iNext.
     iIntros "[[Hfull Hmap] [Hreg [Hregion [Hsts Hown]]]]".
     rewrite /interp_conf.
     iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hown"); eauto.
@@ -215,11 +216,10 @@ Section fundamental.
   Proof.
   intros Hb He Hp Hg. iIntros "#HA".
   rewrite !fixpoint_interp1_eq. cbn.
-  done.
-  (* destruct (permit_seal p') eqn:Hseal; [eapply (permit_seal_flowsto _ p) in Hseal as ->; auto | ]. *)
-  (* all: destruct (permit_unseal p') eqn:Hunseal; [eapply (permit_unseal_flowsto _ p) in Hunseal as ->; auto | ]; iDestruct "HA" as "[Hs Hus]". *)
-  (* all: iSplitL "Hs"; *)
-  (* [try iApply (safe_to_seal_weakening with "Hs") | try iApply (safe_to_unseal_weakening with "Hus")]; auto. *)
+  destruct (permit_seal p') eqn:Hseal; [eapply (permit_seal_flowsto _ p) in Hseal as ->; auto | ].
+  all: destruct (permit_unseal p') eqn:Hunseal; [eapply (permit_unseal_flowsto _ p) in Hunseal as ->; auto | ]; iDestruct "HA" as "[Hs Hus]".
+  all: iSplitL "Hs";
+  [try iApply (safe_to_seal_weakening with "Hs") | try iApply (safe_to_unseal_weakening with "Hus")]; auto.
   Qed.
 
 End fundamental.

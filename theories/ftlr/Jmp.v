@@ -81,9 +81,14 @@ Section fundamental.
             iAssert (future_world g0 W W) as "Hfuture".
             { iApply futureworld_refl. }
             iSpecialize ("H" with "Hfuture").
+            iDestruct "H" as (g' Hflg') "H".
             iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
             { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-            iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; auto.
+            admit.
+            (* TODO solve, because maybe earlier...
+               I know that it has to hold for both Global and Local
+             *)
+            (* iDestruct ("H" with "[Hmap $Hr $Hsts $Hown]") as "HA"; auto. *)
           + (* case p1 ≠ E *)
             destruct p1 as [rx1 w1 dl1 dro1|]; simplify_eq.
             iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
@@ -100,6 +105,6 @@ Section fundamental.
       all: iNext; iIntros "HPC /=".
       all: iApply wp_pure_step_later; auto; iNext; iIntros "_".
       all: iApply wp_value; iIntros; discriminate.
-  Qed.
+  Admitted.
 
 End fundamental.
