@@ -57,9 +57,9 @@ Section fundamental.
     -∗ fixpoint interp1 W (WCap p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
     -∗ rel a p' (λ Wv, P Wv.1 Wv.2)
-    -∗ □ (if decide (readAllowed_in_r_a (<[PC:=(WCap p g b e a)]> regs) a p')
-          then ▷ rcond p' P interp
-          else emp)
+    -∗ □ (if decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
+            then ▷ (∃ p'', ⌜ PermFlowsTo p' p'' ⌝ ∗ rcond p'' P interp)
+            else emp)
     -∗ □ (if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> regs) a)
           then ▷ wcond P interp
           else emp)

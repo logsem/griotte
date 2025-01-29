@@ -376,11 +376,8 @@ Definition hasValidAddress (w : Word) (a : Addr) : Prop :=
 Definition writeAllowed_in_r_a (r : Reg) a :=
   ∃ reg (w : Word), r !! reg = Some w ∧ writeAllowedWord w ∧ hasValidAddress w a.
 
-Definition readAllowed_in_r_a (r : Reg) a p :=
-  ∃ reg (w : Word), r !! reg = Some w
-                    ∧ readAllowedWord w
-                    ∧ hasValidAddress w a
-                    ∧ isPermWord w p.
+Definition readAllowed_in_r_a (r : Reg) a :=
+  ∃ reg (w : Word), r !! reg = Some w ∧ readAllowedWord w ∧ hasValidAddress w a.
 
 Definition LocalityFlowsTo (l1 l2: Locality): bool :=
   match l1 with
@@ -1367,15 +1364,14 @@ Proof.
   all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
 Qed.
 
-Global Instance readAllowed_in_r_a_Decidable r a p: Decision (readAllowed_in_r_a r a p).
+Global Instance readAllowed_in_r_a_Decidable r a: Decision (readAllowed_in_r_a r a).
 Proof.
   eapply finite.exists_dec.
   intros x.
   destruct (r !! x) eqn:Hsome;
-    first destruct (decide (readAllowedWord w)), (decide (hasValidAddress w a)), (isPermWord w p) eqn:Hperm.
+    first destruct (decide (readAllowedWord w)), (decide (hasValidAddress w a)).
   left. eexists _; eauto.
-  all : (right; intros [w1 (Heq & ? & ? & ?)]; inversion Heq; try congruence ).
-  apply Is_true_eq_true in H1; congruence.
+  all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
 Qed.
 
 
@@ -1489,4 +1485,12 @@ Proof.
   + destruct (isDRO pload) eqn:Hdro; first done.
     apply isnotDRO_flows in Hfl; auto.
     by rewrite Hfl.
+Qed.
+
+Lemma isO_load_word (pload p : Perm) :
+  isO p = true -> isO (load_word_perm pload p) = true.
+Proof.
+  intros HO.
+  destruct_perm p; cbn in * ; try congruence.
+  all: by rewrite Tauto.if_same.
 Qed.

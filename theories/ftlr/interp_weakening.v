@@ -222,4 +222,62 @@ Section fundamental.
   [try iApply (safe_to_seal_weakening with "Hs") | try iApply (safe_to_unseal_weakening with "Hus")]; auto.
   Qed.
 
+  Lemma interp_weakening_word_load (W : WORLD) (p p' : Perm) v :
+    PermFlowsTo p p'
+    -> fixpoint interp1 W (load_word p' v)
+    -∗ fixpoint interp1 W (load_word p v).
+  Proof.
+    iIntros (Hfl) "#Hinterp".
+    destruct v.
+    - rewrite !load_word_int; done.
+    - destruct sb; cycle 1.
+      { rewrite !load_word_sealrange; cbn.
+        by rewrite !fixpoint_interp1_eq /=.
+      }
+      destruct p0 as [ rx0 w0 dl0 dro0|]; cycle 1.
+      { rewrite !load_word_E.
+        destruct (isDL p') eqn:Hdl
+        ; [ eapply isDL_flows in Hfl; eauto ; rewrite Hfl |]
+        ; auto.
+        destruct (isDL p); auto.
+        by iApply interp_weakening_from_E.
+      }
+      rewrite !load_word_cap.
+      destruct (isO (load_word_perm p (BPerm rx0 w0 dl0 dro0))) eqn:HnO.
+      { rewrite !fixpoint_interp1_eq !interp1_eq.
+        by rewrite HnO.
+      }
+      destruct (isSentry (BPerm rx0 w0 dl0 dro0)) eqn:Hnsentry.
+      { cbn in Hnsentry ; congruence . }
+      iApply (interp_weakeningEO with "Hinterp"); auto; try solve_addr.
+      + eapply isO_flows ; eauto.
+        apply load_word_perm_load_flows;auto.
+      + apply load_word_perm_load_flows;auto.
+      + destruct (isDL p) eqn:Hdl; auto.
+        eapply isnotDL_flows in Hfl; eauto.
+        by rewrite Hfl.
+    - rewrite !load_word_sealed.
+      destruct (isDL p') eqn:Hdl'; cbn.
+      + pose proof (isDL_flows p p' Hfl Hdl') as Hdl; rewrite Hdl.
+        done.
+      + iDestruct (interp_borrowed_sealed with "Hinterp") as "Hinterp'".
+        destruct (isDL p); auto.
+  Qed.
+
+  Lemma rcond_weakening_load (p p' : Perm) (P : D):
+    PermFlowsTo p p'
+    -> ▷ rcond p' P interp
+    -∗ ▷ rcond p P interp.
+  Proof.
+    iIntros (Hfl) "#Hrcond".
+    iNext.
+    rewrite /rcond.
+    iDestruct "Hrcond" as "#Hrcond".
+    iModIntro.
+    iIntros (W w) "HP".
+    iDestruct ("Hrcond" with "HP") as "HP".
+    iApply (interp_weakening_word_load with "HP"); auto.
+  Qed.
+
+
 End fundamental.

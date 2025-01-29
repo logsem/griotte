@@ -676,6 +676,11 @@ Program Definition interp_expr (interp : D) r : D :=
     by rewrite Hp in Hstate.
   Qed.
 
+  Definition readAllowed_in_r_a (r : Reg) a :=
+    ∃ reg (w : Word), r !! reg = Some w
+                         ∧ readAllowedWord w
+                         ∧ hasValidAddress w a.
+
   Lemma interp_in_registers
     W (regs : leibnizO Reg) (p : Perm) (g : Locality) (b e a : Addr):
     (* readAllowed p = true *)
@@ -699,8 +704,8 @@ Program Definition interp_expr (interp : D) r : D :=
         (* ∗ ( (∃ p'', ⌜ PermFlowsTo p' p'' ⌝ *)
         (*             ∗ ⌜ (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a p'')⌝) *)
         (*            -∗ ▷ rcond p' P interp) *)
-        ∗ (if decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a p')
-            then ▷ rcond p' P interp
+        ∗ (if decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
+            then ▷ (∃ p'', ⌜ PermFlowsTo p' p'' ⌝ ∗ rcond p'' P interp)
             else emp)
         ∗ (if decide (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
             then ▷ wcond P interp
@@ -715,10 +720,10 @@ Program Definition interp_expr (interp : D) r : D :=
     iFrame "%#".
     iSplit.
     - (* rcond *)
-      destruct (decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a p0))
+      destruct (decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a))
         as [Hra'|Hra']; auto.
       destruct (readAllowed p0) eqn:Hra; auto.
-      destruct Hra' as (r & w & Hsome & Hrar & Hvw & Hperm).
+      destruct Hra' as (r & w & Hsome & Hrar & Hvw).
       destruct (decide (r = PC)); subst.
       { rewrite lookup_insert in Hsome; simplify_eq.
         eapply readAllowed_flows in Hrar; eauto.
@@ -740,33 +745,6 @@ Program Definition interp_expr (interp : D) r : D :=
       apply readAllowed_flows in Hflc1; auto.
       iDestruct (rel_agree a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
-    (* - (* rcond *) *)
-    (*   iIntros "Hinterp". *)
-    (*   iDestruct "Hinterp" as (p'') "[%Hfl %Hra']". *)
-    (*   destruct (readAllowed p0) eqn:Hra; auto. *)
-    (*   destruct Hra' as (r & w & Hsome & Hwaw & Hvw & Hperm). *)
-    (*   destruct (decide (r = PC)); subst. *)
-    (*   { rewrite lookup_insert in Hsome; simplify_eq. *)
-    (*     cbn in *. *)
-    (*     eapply readAllowed_flows in Hwaw; eauto. *)
-    (*     congruence. *)
-    (*   } *)
-    (*   rewrite lookup_insert_ne in Hsome; auto. *)
-    (*   iDestruct ("Hreg" $! r w n Hsome) as "Hinterp_w". *)
-    (*   destruct_word w; cbn in * ; try done. *)
-    (*   destruct Hvw as [Hvw ->]. *)
-    (*   iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w". *)
-    (*   replace (isO c) with false. *)
-    (*   2: { eapply readAllowed_nonO in Hwaw ;done. } *)
-    (*   replace (isSentry c) with false. *)
-    (*   2: { eapply readAllowed_isnot_sentry in Hwaw ;done. } *)
-    (*   iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]". *)
-    (*   iDestruct (extract_from_region_inv with "Hinterp_w") *)
-    (*     as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)" *)
-    (*   ; eauto; iClear "Hinterp_w". *)
-    (*   apply readAllowed_flows in Hflc1; auto. *)
-    (*   iDestruct (rel_agree a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)". *)
-    (*   congruence. *)
     - (* wcond *)
       destruct (decide (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a))
         as [Hwa'|Hwa']; auto.
@@ -794,8 +772,6 @@ Program Definition interp_expr (interp : D) r : D :=
       iDestruct (rel_agree a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
   Qed.
-
-
 
 
 
