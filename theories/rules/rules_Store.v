@@ -204,6 +204,7 @@ Section cap_lang_rules.
      case_eq (canStore p storev); intro HcanStore.
      2:{ destruct r2.
          - simpl in HSV; inv HSV.
+           rewrite writeAllowed_canStore_int in HcanStore; auto; congruence.
          - assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
            { simpl in HSV; inv HSV. rewrite HcanStore /= in Hstep.
              destruct (r !! r0); try congruence; inv Hstep; auto.
@@ -282,6 +283,7 @@ Section cap_lang_rules.
        destruct X; try incrementPC_inv; simplify_map_eq; eauto.
        apply isCorrectPC_ra_wb in Hvpc. apply andb_prop_elim in Hvpc as [_ Hwb].
        destruct o; last apply Is_true_false in H. all:try congruence. done.
+       rewrite writeAllowed_canStore_int in e2; auto; congruence.
      }
    Qed.
 
@@ -410,7 +412,8 @@ Section cap_lang_rules.
        iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto. iFrame. }
      { (* Failure (contradiction) *)
        destruct X; try incrementPC_inv; simplify_map_eq; eauto.
-       destruct o. all: congruence.
+       destruct o. all: try congruence.
+       rewrite writeAllowed_canStore_int in e3; auto; congruence.
      }
      Qed.
 
@@ -758,6 +761,7 @@ Section cap_lang_rules.
      { (* Failure (contradiction) *)
        destruct X; try incrementPC_inv; simplify_map_eq; eauto.
        destruct o. all: try congruence.
+       rewrite writeAllowed_canStore_int in e3; auto; congruence.
      }
     Qed.
 

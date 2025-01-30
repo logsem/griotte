@@ -345,15 +345,10 @@ Proof.
   eexists _, _, _, _, _; split; eauto.
 Qed.
 
-(* Lemma writeA_implies_readA p : *)
-(*   writeAllowed p = true → readAllowed p = true. *)
-(* Proof. destruct p; auto. Qed. *)
-
 Definition canStore (p: Perm) (w: Word): bool :=
-  match w with
-  | WInt _ => true
-  | _ => if isGlobalWord w then true else pwl p
-  end.
+  if (isLocalWord w)
+  then pwl p
+  else writeAllowed p.
 
 Definition readAllowedWord (w : Word) : Prop :=
   match w with
@@ -1493,4 +1488,54 @@ Proof.
   intros HO.
   destruct_perm p; cbn in * ; try congruence.
   all: by rewrite Tauto.if_same.
+Qed.
+
+Lemma writeAllowed_canStore_int (p : Perm) (z : Z) :
+  writeAllowed p = true ->
+  canStore p (WInt z) = true.
+Proof.
+  intros Hwa.
+  destruct p; first done.
+  apply writeAllowed_isnot_sentry in Hwa ; done.
+Qed.
+
+Lemma canStore_writeAllowed (p : Perm) (w : Word) :
+  canStore p w = true -> writeAllowed p = true.
+Proof.
+  intros HcanStore.
+  rewrite /canStore in HcanStore.
+  destruct p; cbn in *; cycle 1.
+  destruct (isLocalWord w); by cbn in *.
+  destruct w0; cbn in *; try done.
+  by rewrite Tauto.if_same in HcanStore.
+Qed.
+
+Lemma canStore_isnot_sentry (p : Perm) (w : Word) :
+  canStore p w = true -> isSentry p = false.
+Proof.
+  intros HcanStore.
+  by eapply writeAllowed_isnot_sentry, canStore_writeAllowed.
+Qed.
+
+Lemma canStore_local_pwl (p : Perm) (w : Word) :
+  isLocalWord w = true
+  -> canStore p w = true
+  -> pwl p = true.
+Proof.
+  intros Hw HcanStore.
+  destruct p; cycle 1.
+  apply canStore_isnot_sentry in HcanStore; cbn; done.
+  by rewrite /canStore Hw in HcanStore.
+Qed.
+
+Lemma canStore_flows (p p' : Perm) w :
+  PermFlowsTo p p'
+  -> canStore p w = true
+  -> canStore p' w = true.
+Proof.
+  intros Hfl HcanStore.
+  rewrite /canStore in HcanStore |- *.
+  destruct (isLocalWord w).
+  by eapply pwl_flows.
+  by eapply writeAllowed_flows.
 Qed.

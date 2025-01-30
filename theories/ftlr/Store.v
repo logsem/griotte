@@ -369,8 +369,7 @@ Section fundamental.
         iDestruct ("Hwcond'" with "HVstorev1") as "HP'storev".
         iFrame "#".
         iApply monotonicity_guarantees_region_canStore ; eauto.
-        destruct_perm p0; destruct_perm p' ; destruct storev; cbn in *; try congruence.
-        all: destruct (isGlobalSealable sb); try done.
+        by eapply canStore_flows.
       }
       iDestruct (region_open_prepare with "Hr") as "$".
       iFrame "#".
@@ -390,8 +389,7 @@ Section fundamental.
       }
       iSplitR;[iApply "Hwcond";iFrame "#"|].
       iApply monotonicity_guarantees_region_canStore ; eauto.
-      destruct_perm p0; destruct_perm pc_p' ; destruct storev; cbn in *; try congruence.
-      all: destruct (isGlobalSealable sb); try done.
+      by eapply canStore_flows.
    Qed.
 
   Lemma allow_store_mem_later:
