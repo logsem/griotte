@@ -96,16 +96,18 @@ Section fundamental.
           ; congruence.
         }
         simplify_map_eq.
-        iDestruct ("Hreg" $! rdst _ HPCnrdst Hrdst) as "Hrdst".
-        iEval (rewrite fixpoint_interp1_eq //=) in "Hrdst".
-        iDestruct (region_close with "[Hw $Hstate $Hr $Ha $HmonoV]") as "Hr"; eauto.
+        iDestruct ("Hreg" $! rdst _ HPCnrdst Hrdst) as "Hwdst".
+        iEval (rewrite fixpoint_interp1_eq) in "Hwdst".
+        simpl; rewrite /enter_cond.
+        iDestruct "Hwdst" as "#Hinterp_dst".
+        iAssert (future_world g1 W W) as "Hfuture".
+        { iApply futureworld_refl. }
+        iSpecialize ("Hinterp_dst" with "Hfuture").
+        iDestruct "Hinterp_dst" as "[Hinterp_dst _]".
+        iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-        rewrite /enter_cond.
-        rewrite /interp_expr /=.
-        iDestruct "Hrdst" as "#H".
-        iAssert (future_world g1 W W) as "Hfuture". { iApply futureworld_refl. }
-        iSpecialize ("H" with "Hfuture").
-        iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; auto.
+        iDestruct ("Hinterp_dst" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
+        iFrame "#%".
       }
     }
 

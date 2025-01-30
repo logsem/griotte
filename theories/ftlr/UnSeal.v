@@ -34,20 +34,20 @@ Section fundamental.
         ▷ fixpoint interp1 W (WSealable sb).
   Proof.
     iIntros (Hpseal Hwb) "#HVsd #HVsr".
-    (* rewrite *)
-    (*   (fixpoint_interp1_eq W (WSealRange _ _ _ _ _)) *)
-    (*   (fixpoint_interp1_eq W (WSealed _ _)) /= Hpseal /interp_sb. *)
-    (* iDestruct "HVsr" as "[_ Hss]". *)
-    (* apply seq_between_dist_Some in Hwb. *)
-    (* iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto. *)
-    (* iDestruct "HSa0" as (P) "[HsealP HWcond]". *)
-    (* iDestruct "HVsd" as (P') "[% [HsealP' HP']]". *)
-    (* iDestruct (seal_pred_agree with "HsealP HsealP'") as "Hequiv". *)
-    (* Unshelve. 2: exact W. *)
-    (* iSpecialize ("Hequiv" $! (WSealable sb)). *)
-    (* iAssert (▷ P W (WSealable sb))%I as "HP". { iNext; by iRewrite "Hequiv". } *)
-    (* by iApply "HWcond". *)
-  Admitted.
+    rewrite
+      (fixpoint_interp1_eq W (WSealRange _ _ _ _ _))
+      (fixpoint_interp1_eq W (WSealed _ _)) /= Hpseal /interp_sb.
+    iDestruct "HVsr" as "[_ Hss]".
+    apply seq_between_dist_Some in Hwb.
+    iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
+    iDestruct "HSa0" as (P) "[HsealP HWcond]".
+    iDestruct "HVsd" as (P') "[% [HsealP' [HP' HPborrowed' ] ] ]".
+    iDestruct (seal_pred_agree with "HsealP HsealP'") as "Hequiv".
+    Unshelve. 2: exact W.
+    iSpecialize ("Hequiv" $! (WSealable sb)).
+    iAssert (▷ P W (WSealable sb))%I as "HP". { iNext; by iRewrite "Hequiv". }
+    by iApply "HWcond".
+  Qed.
 
   Lemma unseal_case (W : WORLD) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)

@@ -113,7 +113,7 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (is_z _ = true) => reflexivity : solve_pure.
 
 (* isSentry *)
-#[export] Hint Extern 1 (isSentry (BPerm _ _) = false) => done : solve_pure.
+#[export] Hint Extern 1 (isSentry (BPerm _ _ _ _) = false) => done : solve_pure.
 #[export] Hint Extern 1 (isSentry E = true) => done : solve_pure.
 
 (* canStore *)

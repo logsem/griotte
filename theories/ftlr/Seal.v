@@ -31,20 +31,21 @@ Section fundamental.
         permit_seal p0 = true →
         withinBounds b0 e0 a0 = true →
         fixpoint interp1 W (WSealable sb) -∗
+        fixpoint interp1 W (borrow (WSealable sb)) -∗
         fixpoint interp1 W (WSealRange p0 g0 b0 e0 a0) -∗
         fixpoint interp1 W (WSealed a0 sb).
   Proof.
-    (* iIntros (Hpseal Hwb) "#HVsb #HVsr". *)
-    (* rewrite (fixpoint_interp1_eq W (WSealRange _ _ _ _ _)) (fixpoint_interp1_eq W (WSealed _ _)) /= Hpseal /interp_sb. *)
-    (* iDestruct "HVsr" as "[Hss _]". *)
-    (* apply seq_between_dist_Some in Hwb. *)
-    (* iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto. *)
-    (* iDestruct "HSa0" as (P) "[% [HsealP HWcond]]". *)
-    (* iExists (P W). *)
-    (* repeat iSplitR; auto. *)
-    (* by iApply "HWcond". *)
-  (* Qed. *)
-    Admitted.
+    iIntros (Hpseal Hwb) "#HVsb #HVsb_borrowed #HVsr".
+    rewrite (fixpoint_interp1_eq W (WSealRange _ _ _ _ _)) (fixpoint_interp1_eq W (WSealed _ _)) /= Hpseal /interp_sb.
+    iDestruct "HVsr" as "[Hss _]".
+    apply seq_between_dist_Some in Hwb.
+    iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
+    iDestruct "HSa0" as (P) "[% [HsealP HWcond]]".
+    iExists (P W).
+    repeat iSplitR; auto.
+    by iApply "HWcond".
+    by iApply "HWcond".
+  Qed.
 
   Lemma seal_case (W : WORLD) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
@@ -73,18 +74,13 @@ Section fundamental.
       assert (r1 ≠ PC) as Hne.
       { destruct (decide (PC = r1)); last auto. simplify_map_eq; auto. }
       rewrite lookup_insert_ne in Hr1; auto.
-      iAssert (fixpoint interp1 W (WSealable sb)) as "#HVsb".
-      { admit.
-        (* destruct (decide (r2 = PC)) as [Heq|Heq]; simplify_map_eq. *)
-        (* - rewrite (fixpoint_interp1_eq _ (WCap p g b e a)) /=. *)
-        (*   destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; subst p; try subst g. *)
-        (*   all: iApply (big_sepL_mono with "Hinv_interp"). *)
-        (*   all: intros; iIntros "H"; simpl. *)
-        (*   all: try( iDestruct "H" *)
-        (*            as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)"). *)
-        (*   all: iExists p,P'; iFrame "%∗". *)
-        (* - unshelve iSpecialize ("Hreg" $! r2 _ _ Hr2); eauto. *)
+
+      iAssert (interp W (WSealable sb)) as "#HVsb".
+      { destruct (decide (r2 = PC)) as [Heq|Heq]; simplify_map_eq; first done.
+        unshelve iSpecialize ("Hreg" $! r2 _ _ Hr2); eauto.
       }
+      iAssert (interp W (borrow (WSealable sb))) as "#HVsb_borrowed".
+      { by iApply interp_borrow_word. }
 
       iApply wp_pure_step_later; auto; iNext; iIntros "_".
 
@@ -104,6 +100,6 @@ Section fundamental.
         }
         { by iApply "Hreg". }
       + iApply (interp_next_PC with "Hinv_interp"); eauto.
-  Admitted.
+  Qed.
 
 End fundamental.

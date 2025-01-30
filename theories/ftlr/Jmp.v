@@ -66,36 +66,31 @@ Section fundamental.
           iApply wp_pure_step_later; auto; iNext; iIntros "_".
           iApply wp_value; iIntros; discriminate.
         }
-        (* destruct p0; inv Hpft. *)
-        (* - *)
-          iInsert "Hmap" PC.
-          rewrite (insert_id regs rsrc); auto.
-          iDestruct ("Hreg" $! rsrc _ HrPC Hsomesrc) as "Hwsrc".
-          destruct wsrc; simpl in Heq; try congruence.
-          destruct sb as [p1 g1 b1 e1 a1|?]; try congruence.
-          destruct (decide (p1 = E)) as [Hp1|Hp1]; subst; simplify_eq.
-          + (* case p1 = E *)
-            iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
-            simpl; rewrite /enter_cond /interp_expr /=.
-            iDestruct "Hwsrc" as "#H".
-            iAssert (future_world g0 W W) as "Hfuture".
-            { iApply futureworld_refl. }
-            iSpecialize ("H" with "Hfuture").
-            iDestruct "H" as (g' Hflg') "H".
-            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-            { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-            admit.
-            (* TODO solve, because maybe earlier...
-               I know that it has to hold for both Global and Local
-             *)
-            (* iDestruct ("H" with "[Hmap $Hr $Hsts $Hown]") as "HA"; auto. *)
-          + (* case p1 ≠ E *)
-            destruct p1 as [rx1 w1 dl1 dro1|]; simplify_eq.
-            iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
-            iNext; iIntros "_".
-            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-            { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-            iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
+        iInsert "Hmap" PC.
+        rewrite (insert_id regs rsrc); auto.
+        iDestruct ("Hreg" $! rsrc _ HrPC Hsomesrc) as "Hwsrc".
+        destruct wsrc; simpl in Heq; try congruence.
+        destruct sb as [p1 g1 b1 e1 a1|?]; try congruence.
+        destruct (decide (p1 = E)) as [Hp1|Hp1]; subst; simplify_eq.
+        + (* case p1 = E *)
+          iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
+          simpl; rewrite /enter_cond.
+          iDestruct "Hwsrc" as "#H".
+          iAssert (future_world g0 W W) as "Hfuture".
+          { iApply futureworld_refl. }
+          iSpecialize ("H" with "Hfuture").
+          iDestruct "H" as "[H _]".
+          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+          { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+          iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
+          iFrame "#%".
+        + (* case p1 ≠ E *)
+          destruct p1 as [rx1 w1 dl1 dro1|]; simplify_eq.
+          iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
+          iNext; iIntros "_".
+          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+          { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+          iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
       }
 
       (* Non-capability cases *)
@@ -105,6 +100,6 @@ Section fundamental.
       all: iNext; iIntros "HPC /=".
       all: iApply wp_pure_step_later; auto; iNext; iIntros "_".
       all: iApply wp_value; iIntros; discriminate.
-  Admitted.
+  Qed.
 
 End fundamental.

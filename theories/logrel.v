@@ -150,8 +150,9 @@ Program Definition interp_expr (interp : D) r : D :=
 
   Definition enter_cond W p g b e a (interp : D) : iProp Σ :=
     (∀ r W', future_world g W W' →
-             (∃ g', ⌜LocalityFlowsTo g g'⌝ ∗
-                    ▷ interp_expr interp r W' (WCap p g' b e a)))%I.
+             (▷ interp_expr interp r W' (WCap p g b e a))
+               ∗ (▷ interp_expr interp r W' (WCap p Local b e a))
+    )%I.
   Global Instance enter_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
   Proof. unfold enter_cond. solve_proper. Qed.
@@ -396,149 +397,6 @@ Program Definition interp_expr (interp : D) r : D :=
     (* } *)
   Admitted. (* TODO holds, but very long to compile *)
 
-  (* Lemmas about interp  *)
-
-  Lemma interp_int W n : ⊢ interp W (WInt n).
-  Proof. iIntros. rewrite /interp fixpoint_interp1_eq //. Qed.
-
-  Lemma persistent_cond_interp : persistent_cond interp.
-  Proof.
-    intros W; apply _.
-  Qed.
-
-  Lemma zcond_interp : ⊢ zcond interp.
-  Proof.
-    by iModIntro; iIntros (W1 W2 w) "_"; iApply interp_int.
-  Qed.
-
-  Lemma wcond_interp : ⊢ wcond interp interp.
-  Proof.
-    by iModIntro; iIntros (W1 w) "?".
-  Qed.
-
-  Lemma interp_weakening_from_E W g b e a :
-      interp W (WCap E g b e a) -∗
-      interp W (WCap E Local b e a).
-  Proof.
-    iIntros "#Hinterp".
-    rewrite !fixpoint_interp1_eq !interp1_eq.
-    replace (isO E) with false ; auto.
-    replace (isSentry E) with true ; auto.
-    iDestruct "Hinterp" as "#Hinterp".
-    iModIntro.
-    rewrite /enter_cond /interp_expr /=.
-    iIntros (regs W' Hrelated).
-    destruct g.
-    - iAssert (future_world Global W W')%I as "%Hrelated'".
-      { iPureIntro.
-        apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto.
-      }
-      iSpecialize ("Hinterp" $! regs W' Hrelated').
-      iDestruct "Hinterp" as (g' Hflg') "Hinterp".
-      iExists g'. iSplit;first done.
-      iApply "Hinterp".
-    - iAssert (future_world Local W W')%I as "%Hrelated'".
-      { done. }
-      iSpecialize ("Hinterp" $! regs W' Hrelated').
-      iDestruct "Hinterp" as (g' Hflg') "Hinterp".
-      iExists g'. iSplit;first done.
-      iApply "Hinterp".
-  Qed.
-
-  Lemma interp_borrowed_sealed (W : WORLD) (ot : OType) (sb : Sealable) :
-    interp W (WSealed ot sb) -∗ interp W (WSealed ot (borrow_sb sb)).
-  Proof.
-    iIntros "Hinterp".
-    rewrite !fixpoint_interp1_eq /= /interp_sb.
-    iDestruct "Hinterp" as (P HpersP) "(Hsealpred & _ & HPborrowed)".
-    iDestruct "HPborrowed" as "#HPborrowed".
-    replace (borrow (WSealable (borrow_sb sb)))
-      with (WSealable (borrow_sb sb)).
-    iFrame "∗#%".
-    cbn.
-    destruct sb; auto.
-    destruct p; auto.
-  Qed.
-
-  Lemma interp_load_word W p w : interp W w ⊢ interp W (load_word p w).
-  Proof.
-    iIntros "Hinterp".
-    destruct w.
-    - by rewrite load_word_int.
-    - destruct sb; try done; cbn; cycle 1.
-      { rewrite load_word_sealrange.
-        by rewrite !fixpoint_interp1_eq.
-      }
-      {
-        destruct p0; [ rewrite load_word_cap | rewrite load_word_E ];cycle 1.
-        { destruct (isDL p); last done.
-          by iApply interp_weakening_from_E.
-        }
-        rewrite !fixpoint_interp1_eq !interp1_eq.
-
-        destruct (isO (BPerm rx w dl dro)) eqn:HpO.
-        { destruct rx,w; cbn in *; try done.
-          by rewrite Tauto.if_same.
-        }
-        set (w' := (if isDRO p then Ow else w)).
-        set (dl' := (if isDL p then DL else dl)).
-        set (dro' := (if isDRO p then DRO else dro)).
-        destruct (isO (load_word_perm p (BPerm rx w dl dro))); first done.
-        replace (isSentry (BPerm rx w dl dro)) with false; auto.
-        replace (isSentry (load_word_perm p (BPerm rx w dl dro))) with false; auto.
-
-        iDestruct "Hinterp" as "[Hinterp %Hw]".
-        iSplit; cycle 1.
-        iPureIntro.
-        {
-          rewrite /load_word_perm.
-          destruct (isDRO p); subst w'; cbn; try done.
-          destruct w; try done.
-          cbn in Hw.
-          subst; by rewrite Tauto.if_same.
-        }
-        iApply (big_sepL_mono with "Hinterp").
-        iIntros (k y Hky) "Ha".
-        iDestruct "Ha" as
-          (p' P' Hflp' HpersP')
-            "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
-        iExists p',P'.
-        iFrame "∗".
-        iSplit;[iPureIntro|].
-        {
-          transitivity (BPerm rx w dl dro); auto.
-          apply load_word_perm_flows.
-        }
-        iSplit;[iFrame "%"|].
-        iPureIntro.
-        destruct (pwl (BPerm rx w dl dro)) eqn:Hpwl ; simplify_eq.
-        { rewrite /load_word_perm.
-          cbn in Hpwl; destruct w ; try congruence.
-          destruct (isDRO p); subst w'; cbn; auto.
-          rewrite Tauto.if_same; cbn.
-          by right.
-        }
-        { assert (pwl (load_word_perm p (BPerm rx w dl dro)) = false) as ->.
-          { cbn in *.
-            subst w'.
-            destruct (isDRO p); done.
-          }
-          destruct (isDL p); cbn; auto.
-          destruct g; cbn in Hstate; naive_solver.
-        }
-      }
-    - rewrite load_word_sealed.
-      destruct (isDL p); auto.
-      by iApply (interp_borrowed_sealed with "Hinterp").
-  Qed.
-
-  Lemma rcond_interp p : ⊢ rcond p interp interp.
-  Proof.
-    iModIntro; iIntros (W1 w) "?".
-    by iApply interp_load_word.
-  Qed.
-
-
 
   (* Inversion lemmas about interp  *)
   Lemma read_allowed_inv W (a' a b e: Addr) p g :
@@ -676,15 +534,8 @@ Program Definition interp_expr (interp : D) r : D :=
     by rewrite Hp in Hstate.
   Qed.
 
-  Definition readAllowed_in_r_a (r : Reg) a :=
-    ∃ reg (w : Word), r !! reg = Some w
-                         ∧ readAllowedWord w
-                         ∧ hasValidAddress w a.
-
   Lemma interp_in_registers
     W (regs : leibnizO Reg) (p : Perm) (g : Locality) (b e a : Addr):
-    (* readAllowed p = true *)
-    (* -> *)
       (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)%I
     -∗ (∃ (p' : Perm) (P : D),
         ⌜PermFlowsTo p p'⌝
@@ -701,11 +552,8 @@ Program Definition interp_expr (interp : D) r : D :=
         ∗ ⌜persistent_cond P⌝
         ∗ rel a p' (safeC P)
         ∗ ▷ zcond P
-        (* ∗ ( (∃ p'', ⌜ PermFlowsTo p' p'' ⌝ *)
-        (*             ∗ ⌜ (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a p'')⌝) *)
-        (*            -∗ ▷ rcond p' P interp) *)
         ∗ (if decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
-            then ▷ (∃ p'', ⌜ PermFlowsTo p' p'' ⌝ ∗ rcond p'' P interp)
+            then ▷ (rcond p' P interp)
             else emp)
         ∗ (if decide (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
             then ▷ wcond P interp
@@ -773,50 +621,4 @@ Program Definition interp_expr (interp : D) r : D :=
       congruence.
   Qed.
 
-
-
-  (* Lemma region_seal_pred_interp E W (b e a: OType) b1 b2 g : *)
-  (*   ([∗ list] o ∈ finz.seq_between b e, (∀ W, seal_pred o (interp W))) ={E}=∗ *)
-  (*   interp W (WSealRange (b1,b2) g b e a). *)
-  (* Proof. *)
-  (*   remember (finz.seq_between b e) as l eqn:Hgen. rewrite Hgen; revert Hgen. *)
-  (*   generalize b e. clear b e. *)
-  (*   induction l as [|hd tl IH]. *)
-  (*   - iIntros (b e Hfinz) "_ !>". *)
-  (*     rewrite /interp fixpoint_interp1_eq /= /safe_to_seal /safe_to_unseal. *)
-  (*     rewrite -Hfinz. destruct b1, b2; iSplit; done. *)
-  (*   - iIntros (b e Hfinz). *)
-  (*     assert (b < e)%ot as Hlbe. *)
-  (*     {destruct (decide (b < e)%ot) as [|HF]; first auto. rewrite finz_seq_between_empty in Hfinz; [inversion Hfinz | solve_addr  ]. } *)
-  (*     apply finz_cons_tl in Hfinz as (b' & Hplus & Hfinz). *)
-  (*     specialize (IH b' e Hfinz). rewrite (finz_seq_between_split _ b' _). *)
-  (*     2 : split; solve_addr. *)
-  (*     iIntros "[#Hfirst Hca]". *)
-  (*     iMod (IH with "Hca") as "Hca". iModIntro. *)
-  (*     rewrite /interp !fixpoint_interp1_eq /= /safe_to_seal /safe_to_unseal. *)
-  (*     rewrite !(finz_seq_between_split b b' e). 2: { split ; solve_addr. } *)
-  (*     iDestruct "Hca" as "[Hseal Hunseal]". *)
-  (*     iSplitL "Hseal"; [destruct b1| destruct b2]; iFrame. *)
-  (*     all: iApply (big_sepL_mono with "Hfirst"). *)
-  (*     all: iIntros (k a' Hk) "H"; cbn. *)
-  (*     all: iExists _; iFrame; auto. *)
-  (*     iSplit;first (iPureIntro; apply _). *)
-  (*     iApply wcond_interp. *)
-  (*     iApply rcond_interp. *)
-  (* Qed. *)
-
-  (* Get the validity of sealing capabilities if we can allocate an arbitrary predicate,
-     and can hence choose interp itself as the sealing predicate *)
-  (* Lemma region_can_alloc_interp E W (b e a: OType) b1 b2 g: *)
-  (*   ([∗ list] o ∈ finz.seq_between b e, can_alloc_pred o) ={E}=∗ *)
-  (*   interp W (WSealRange (b1,b2) g b e a). *)
-  (* Proof. *)
-  (*   iIntros "Hca". *)
-  (*   iDestruct (big_sepL_mono with "Hca") as "Hca". *)
-  (*   iIntros (k a' Hk) "H". iDestruct (seal_store_update_alloc _ (interp W)  with "H") as "H". iExact "H". *)
-
-  (*   iDestruct (big_sepL_bupd with "Hca") as "Hca". *)
-  (*   iMod "Hca". *)
-  (*   by iApply region_seal_pred_interp. *)
-  (* Qed. *)
 End logrel.

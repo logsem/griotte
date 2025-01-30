@@ -368,6 +368,7 @@ Section fundamental.
       iPoseProof (futureworld_refl g W) as "Hfuture".
       iSpecialize ("Hw" $! W (futureworld_refl g W)).
       iNext. iIntros "(HPC & Hr & ?)".
+      iDestruct "Hw" as "[Hw _]".
       iApply "Hw"; eauto. iFrame.
     }
     { iNext. iIntros (rmap). iApply fundamental; eauto. }
@@ -393,6 +394,10 @@ Section fundamental.
           iApply exec_wp;auto.
         * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
           rewrite /= fixpoint_interp1_eq /=.
+          iDestruct "Hw" as "#Hw".
+          iIntros (regs W') "Hfuture".
+          iSpecialize ("Hw" with "Hfuture").
+          iDestruct "Hw" as "[Hw _]".
           iExact "Hw".
     - iIntros "[Hfailed HPC]".
       iApply (wp_bind (fill [SeqCtx])).
