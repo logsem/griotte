@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
-From cap_machine Require Export logrel region_invariants_transitions.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
+From cap_machine Require Export logrel region_invariants_transitions.
 Import uPred.
 
 Section monotone.

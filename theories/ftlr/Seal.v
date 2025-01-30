@@ -31,10 +31,11 @@ Section fundamental.
         permit_seal p0 = true →
         withinBounds b0 e0 a0 = true →
         fixpoint interp1 W (WSealable sb) -∗
+        fixpoint interp1 W (borrow (WSealable sb)) -∗
         fixpoint interp1 W (WSealRange p0 g0 b0 e0 a0) -∗
         fixpoint interp1 W (WSealed a0 sb).
   Proof.
-    iIntros (Hpseal Hwb) "#HVsb #HVsr".
+    iIntros (Hpseal Hwb) "#HVsb #HVsb_borrowed #HVsr".
     rewrite (fixpoint_interp1_eq W (WSealRange _ _ _ _ _)) (fixpoint_interp1_eq W (WSealed _ _)) /= Hpseal /interp_sb.
     iDestruct "HVsr" as "[Hss _]".
     apply seq_between_dist_Some in Hwb.
@@ -43,6 +44,7 @@ Section fundamental.
     iExists (P W).
     repeat iSplitR; auto.
     by iApply "HWcond".
+    by iApply "HWcond".
   Qed.
 
   Lemma seal_case (W : WORLD) (regs : leibnizO Reg)
@@ -50,7 +52,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D):
     ftlr_instr W regs p p' g b e a w (Seal dst r1 r2) ρ P.
   Proof.
-    intros Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -72,18 +74,13 @@ Section fundamental.
       assert (r1 ≠ PC) as Hne.
       { destruct (decide (PC = r1)); last auto. simplify_map_eq; auto. }
       rewrite lookup_insert_ne in Hr1; auto.
-      iAssert (fixpoint interp1 W (WSealable sb)) as "#HVsb".
-      {
-        destruct (decide (r2 = PC)) as [Heq|Heq]; simplify_map_eq.
-        - rewrite (fixpoint_interp1_eq _ (WCap p g b e a)) /=.
-          destruct Hp as [Hp | [Hp | [Hp Hg] ] ]; subst p; try subst g.
-          all: iApply (big_sepL_mono with "Hinv_interp").
-          all: intros; iIntros "H"; simpl.
-          all: try( iDestruct "H"
-                   as (p P' Hfl HpersP') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)").
-          all: iExists p,P'; iFrame "%∗".
-        - unshelve iSpecialize ("Hreg" $! r2 _ _ Hr2); eauto.
+
+      iAssert (interp W (WSealable sb)) as "#HVsb".
+      { destruct (decide (r2 = PC)) as [Heq|Heq]; simplify_map_eq; first done.
+        unshelve iSpecialize ("Hreg" $! r2 _ _ Hr2); eauto.
       }
+      iAssert (interp W (borrow (WSealable sb))) as "#HVsb_borrowed".
+      { by iApply interp_borrow_word. }
 
       iApply wp_pure_step_later; auto; iNext; iIntros "_".
 
@@ -102,7 +99,7 @@ Section fundamental.
           iApply (sealing_preserves_interp with "[HVsb HVsr]"); eauto.
         }
         { by iApply "Hreg". }
-      + iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+      + iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 
 End fundamental.

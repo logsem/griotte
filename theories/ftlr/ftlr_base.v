@@ -23,6 +23,9 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
+  Definition validPCperm (p : Perm) (g : Locality) :=
+    executeAllowed p = true ∧ (pwl p = true -> g = Local).
+
   Definition ftlr_IH: iProp Σ :=
     (□ ▷ (∀ (W_ih : WORLD) (r_ih : leibnizO Reg)
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr),
@@ -32,20 +35,18 @@ Section fundamental.
             -∗ region W_ih
             -∗ sts_full_world W_ih
             -∗ na_own logrel_nais ⊤
-            -∗ ⌜p_ih = RX ∨ p_ih = RWX ∨ p_ih = RWLX ∧ g_ih = Local⌝
-            → □ fixpoint interp1 W_ih (WCap p_ih g_ih b_ih e_ih a_ih)
+            -∗ □ interp W_ih (WCap p_ih g_ih b_ih e_ih a_ih)
             -∗ interp_conf W_ih))%I.
-
 
   Definition ftlr_instr (W : WORLD) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (i: instr) (ρ : region_type) (P : D) : Prop :=
-    p = RX ∨ p = RWX ∨ (p = RWLX /\ g = Local)
+    validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
     → isCorrectPC (WCap p g b e a)
     → (b <= a)%a ∧ (a < e)%a
     → PermFlowsTo p p'
-    → p' ≠ O
+    → isO p' = false
     → (∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2))
     → (if pwl p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
@@ -56,7 +57,9 @@ Section fundamental.
     -∗ fixpoint interp1 W (WCap p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
     -∗ rel a p' (λ Wv, P Wv.1 Wv.2)
-    -∗ ▷ rcond P interp
+    -∗ □ (if decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
+            then ▷ (rcond p' P interp)
+            else emp)
     -∗ □ (if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> regs) a)
           then ▷ wcond P interp
           else emp)

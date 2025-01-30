@@ -222,7 +222,7 @@ Section opsem.
       | WCap p g b e a =>
         if readAllowed p && withinBounds b e a then
           asrc ← (mem φ) !! a;
-          updatePC (update_reg φ dst asrc)
+          updatePC (update_reg φ dst (load_word p asrc))
         else None
       | _ => None
       end

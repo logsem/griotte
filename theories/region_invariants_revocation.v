@@ -143,7 +143,7 @@ Section heap.
   (* In the following variant, we only require monotonicity of the updated world *)
   Lemma update_region_revoked_temp_pwl_updated E W a p v φ `{∀ Wv, Persistent (φ Wv)} :
     (std W) !! a = Some Revoked →
-    p ≠ O → pwl p = true →
+    isO p = false → pwl p = true →
 
     future_pub_mono φ v -∗
     sts_full_world W -∗
@@ -194,7 +194,7 @@ Section heap.
 
   Lemma update_region_revoked_temp_nwl_updated E W a p v φ `{∀ Wv, Persistent (φ Wv)} :
     (std W) !! a = Some Revoked →
-    p ≠ O → pwl p = false →
+    isO p = false → pwl p = false →
 
     future_priv_mono φ v -∗
     sts_full_world W -∗
@@ -244,7 +244,7 @@ Section heap.
 
   Lemma update_region_revoked_temp_pwl E W a p v φ `{∀ Wv, Persistent (φ Wv)} :
     (std W) !! a = Some Revoked →
-    p ≠ O → pwl p = true →
+    isO p = false → pwl p = true →
 
     future_pub_mono φ v -∗
     sts_full_world W -∗
@@ -267,7 +267,7 @@ Section heap.
 
   Lemma update_region_revoked_temp_nwl E W a p v φ `{∀ Wv, Persistent (φ Wv)} :
     (std W) !! a = Some Revoked →
-    p ≠ O → pwl p = false →
+    isO p = false → pwl p = false →
 
     future_priv_mono φ v -∗
     sts_full_world W -∗
@@ -910,7 +910,7 @@ Section heap.
   (* This matches the temprary resources in the map *)
   Definition temp_resources (W : WORLD) φ (a : Addr) (p : Perm) : iProp Σ :=
     (∃ (v : Word),
-           ⌜p ≠ O⌝
+           ⌜isO p = false⌝
           ∗ a ↦ₐ v
           ∗ (if pwl p
              then future_pub_mono φ v
@@ -1931,7 +1931,7 @@ Section heap.
 
   Lemma update_region_revoked_perm E W l v φ p `{∀ Wv, Persistent (φ Wv)} :
     (std W) !! l = Some Revoked ->
-    p ≠ O →
+    isO p = false →
     future_priv_mono φ v -∗
     sts_full_world W -∗
     region W -∗
