@@ -59,7 +59,7 @@ Section fundamental.
         destruct (decide (ri = dst)); simplify_map_eq.
       { repeat rewrite fixpoint_interp1_eq; auto. }
       { iApply "Hreg"; eauto. }
-      + iApply (interp_next_PC with "IH Hinv_interp"); eauto.
+      + iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 
 End fundamental.

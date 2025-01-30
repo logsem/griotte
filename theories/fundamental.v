@@ -35,12 +35,13 @@ Section fundamental.
       as [Hread_p|Hread_p] by (destruct_perm p ; naive_solver)
     ; cycle 1.
     { (* if p not readable, then execution will fail *)
+      apply notreadAllowed_is_notexecuteAllowed in Hread_p.
       iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".
       iApply (wp_bind (fill [SeqCtx])).
       rewrite /registers_pointsto.
       iExtract "Hmreg" PC as "HPC".
       iApply (wp_notCorrectPC with "HPC"); eauto.
-      intro Hcontra ; destruct p ; inv Hcontra; naive_solver.
+      intro Hcontra ; destruct p ; inv Hcontra; congruence.
       iNext. iIntros "HPC /=".
       iApply wp_pure_step_later; auto.
       iNext ; iIntros "_".
@@ -53,13 +54,13 @@ Section fundamental.
     iLöb as "IH'" forall (W regs p g b e a).
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
-      iIntros (W_ih r_ih p_ig g_ih b_ih e_ih a_ih) "%Hfull #Hregs Hmreg Hr Hsts Hown % Hrcond".
+      iIntros (W_ih r_ih p_ig g_ih b_ih e_ih a_ih) "%Hfull #Hregs Hmreg Hr Hsts Hown Hinterp".
       iApply ("IH'" with "[%] [] [Hmreg] [$Hr] [$Hsts] [$Hown]"); eauto.
     }
     iIntros "#Hinv_interp".
     iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".
     iApply (wp_bind (fill [SeqCtx])).
-    destruct (decide (isCorrectPC (WCap p g b e a))) as [i|] ; cycle 1.
+    destruct (decide (isCorrectPC (WCap p g b e a))) as [HcorrectPC|] ; cycle 1.
     { (* Not correct PC *)
       rewrite /registers_pointsto.
       iExtract "Hmreg" PC as "HPC".
@@ -75,27 +76,47 @@ Section fundamental.
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
     { eapply in_range_is_correctPC; eauto. solve_addr. }
 
-    iAssert (⌜p = RX⌝ ∨ ⌜p = RWX⌝  ∨ ⌜(p = RWLX ∧ g = Local) ⌝)%I as "%Hp".
+
+    iAssert (⌜ validPCperm p g ⌝)%I as "%Hp".
     { (* if not, contradiction by correctPC or validity *)
-      inv i; subst; auto.
-      inv H6; auto.
-      inv H0; auto.
-      iRight; iRight; iSplit; auto.
-      destruct g; auto.
-      rewrite fixpoint_interp1_eq //=.
+      inv HcorrectPC; subst; auto.
+      iSplit; first done.
+      iIntros (Hpwl).
+      destruct p ; cbn in Hpwl ; try congruence.
+      destruct w ; cbn in Hpwl ; try congruence.
+      destruct g; last done.
+      (* Contradiction -- WL and Global are not safe *)
+      rewrite fixpoint_interp1_eq interp1_eq.
+      replace (isO (BPerm _ WL _ _)) with false by (cbn; destruct rx; done).
+      cbn.
+      iDestruct "Hinv_interp" as "[_ Hcontra]"; done.
     }
 
     iPoseProof "Hinv_interp" as "#Hinv".
     iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv".
-    rewrite decide_False; last (destruct p ; naive_solver).
-    destruct (isSentry p) eqn:Hsentryp; first (destruct_perm p ; naive_solver).
+    destruct (isO p) eqn: HnO.
+    {  destruct Hp as [Hexec _]
+      ; eapply executeAllowed_nonO with (p' := p) in Hexec
+      ; eauto.
+      - congruence.
+      - reflexivity.
+    }
+    destruct (isSentry p) eqn:Hnpsentry.
+    {  destruct Hp as [Hexec _]
+      ; eapply executeAllowed_isnot_sentry in Hexec
+      ; eauto
+      ; congruence.
+    }
     iDestruct "Hinv" as "[#Hinv %Hpwl_cond]".
 
     iDestruct (extract_from_region_inv _ _ a with "Hinv") as "H";auto.
 
     assert (readAllowed p = true) as Hra.
-    { destruct_perm p; naive_solver. }
-    iDestruct (write_allowed_implies_ra with "[Hreg] [H]")
+    {
+      destruct Hp as [Hexec _]
+      ; by eapply executeAllowed_is_readAllowed.
+    }
+    iDestruct (interp_in_registers with "[Hreg] [H]")
       as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
     ;eauto ; iClear "Hinv".
     assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
@@ -293,26 +314,21 @@ Section fundamental.
   Qed.
 
   (* The fundamental theorem implies the exec_cond *)
-
   Lemma interp_exec_cond W p g b e a :
-    p = RX ∨ p = RWX ∨ p = RWLX ->
+    executeAllowed p = true ->
     interp W (WCap p g b e a) -∗ exec_cond W b e g p interp.
   Proof.
     iIntros (Hp) "#Hw".
     iIntros (a0 r W' Hin) "#Hfuture". iModIntro.
+    assert (isO p = false) by (by eapply executeAllowed_nonO).
+    assert (isSentry p = false) by (by eapply executeAllowed_isnot_sentry).
     destruct g.
     - iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
       iApply fundamental;eauto.
-      destruct Hp as [-> | [-> | ->] ]
-      ; iEval (rewrite fixpoint_interp1_eq /=)
-      ; iEval (rewrite fixpoint_interp1_eq /=) in "Hw'"
-      ; done.
+      iApply interp_weakening.interp_weakeningEO; eauto; try done.
     - iDestruct (interp_monotone with "Hfuture Hw") as "Hw'".
       iApply fundamental;eauto.
-      destruct Hp as [-> | [-> | ->] ]
-      ; iEval (rewrite fixpoint_interp1_eq /=)
-      ; iEval (rewrite fixpoint_interp1_eq /=) in "Hw'"
-      ; done.
+      iApply interp_weakening.interp_weakeningEO; eauto; try done.
   Qed.
 
   (* We can use the above fact to create a special "jump or fail pattern" when jumping to an unknown adversary *)
@@ -352,6 +368,7 @@ Section fundamental.
       iPoseProof (futureworld_refl g W) as "Hfuture".
       iSpecialize ("Hw" $! W (futureworld_refl g W)).
       iNext. iIntros "(HPC & Hr & ?)".
+      iDestruct "Hw" as "[Hw _]".
       iApply "Hw"; eauto. iFrame.
     }
     { iNext. iIntros (rmap). iApply fundamental; eauto. }
@@ -371,22 +388,17 @@ Section fundamental.
     destruct (decide (isCorrectPC (updatePcPerm w))).
     - inversion i.
       destruct w;inv H. destruct sb; inv H3.
-      destruct H1 as [-> | [-> | ->] ].
       + destruct p0; cbn in * ; simplify_eq.
         * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
           iDestruct (interp_exec_cond with "Hw") as "Hexec";[auto|].
           iApply exec_wp;auto.
         * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
           rewrite /= fixpoint_interp1_eq /=.
+          iDestruct "Hw" as "#Hw".
+          iIntros (regs W') "Hfuture".
+          iSpecialize ("Hw" with "Hfuture").
+          iDestruct "Hw" as "[Hw _]".
           iExact "Hw".
-      + destruct p0; cbn in *; simplify_eq.
-        iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
-        iDestruct (interp_exec_cond with "Hw") as "Hexec";[auto|].
-        iApply exec_wp;auto.
-      + destruct p0; cbn in *; simplify_eq.
-        iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
-        iDestruct (interp_exec_cond with "Hw") as "Hexec";[auto|].
-        iApply exec_wp;auto.
     - iIntros "[Hfailed HPC]".
       iApply (wp_bind (fill [SeqCtx])).
       iApply (wp_notCorrectPC with "HPC");eauto.

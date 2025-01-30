@@ -32,7 +32,7 @@ Section helpers.
   Lemma isCorrectPC_range_perm p g b e a0 an :
     isCorrectPC_range p g b e a0 an →
     (a0 < an)%a →
-    p = RX ∨ p = RWX \/ p = RWLX.
+    executeAllowed p = true.
   Proof.
     intros Hr H0n.
     assert (isCorrectPC (WCap p g b e a0)) as HH by (apply Hr; solve_addr).
@@ -46,7 +46,7 @@ Section helpers.
   Proof.
     intros HH1 HH2.
     pose proof (isCorrectPC_range_perm _ _ _ _ _ _ HH1 HH2).
-    naive_solver.
+    by eapply executeAllowed_isnot_sentry.
   Qed.
 
   Lemma isCorrectPC_range_restrict p g b e a0 an a0' an' :

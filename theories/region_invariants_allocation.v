@@ -1,13 +1,15 @@
 From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Export region_invariants region_invariants_frozen (* region_invariants_batch_uninitialized *).
+From cap_machine Require Import seal_store logrel interp_weakening.
 Import uPred.
 
 Section region_alloc.
-  Context {Σ:gFunctors} {ceriseg:ceriseG Σ}
-          {stsg : STSG Addr region_type Σ}
-          {heapg : heapGS Σ}
-          `{MP:MachineParameters}.
+  Context {Σ:gFunctors}
+    {ceriseg: ceriseG Σ} {sealsg: sealStoreG Σ}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {nainv: logrel_na_invs Σ}
+    `{MP:MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -36,7 +38,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_temp_pwl E W a v p φ `{∀ Wv, Persistent (φ Wv)}:
-     p ≠ O →
+    isO p = false ->
      a ∉ dom (std W) →
      (pwl p) = true →
      future_pub_mono φ v -∗
@@ -111,7 +113,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_temp_nwl E W a v p φ `{∀ Wv, Persistent (φ Wv)}:
-     p ≠ O →
+    isO p = false ->
      a ∉ dom (std W) →
      (pwl p) = false →
      future_priv_mono φ v -∗
@@ -187,7 +189,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_perm E W a v p φ `{∀ Wv, Persistent (φ Wv)}:
-     p ≠ O →
+    isO p = false ->
      a ∉ dom (std W) →
      future_priv_mono φ v -∗
      sts_full_world W -∗
@@ -365,7 +367,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_perm_sepL2 E W l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    p ≠ O ->
+    isO p = false ->
     Forall (λ k, std W !! k = None) l1 →
     sts_full_world W
     -∗ region W
@@ -401,7 +403,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_perm_sepL2_from_rev φ E W l1 l2 p `{∀ Wv, Persistent (φ Wv)}:
-    p ≠ O →
+    isO p = false ->
     Forall (λ k, std W !! k = Some Revoked) l1 →
     sts_full_world W -∗
     region W -∗
@@ -434,5 +436,51 @@ Section region_alloc.
       iFrame "∗ #". done.
     }
   Qed.
+
+  Lemma region_seal_pred_interp E (W : WORLD) (b e a: OType) (b1 b2 : bool) (g : Locality) :
+    ([∗ list] o ∈ finz.seq_between b e, (∀ W, seal_pred o (interp W)))
+    ={E}=∗
+    interp W (WSealRange (b1,b2) g b e a).
+  Proof.
+    remember (finz.seq_between b e) as l eqn:Hgen. rewrite Hgen; revert Hgen.
+    generalize b e. clear b e.
+    induction l as [|hd tl IH].
+    - iIntros (b e Hfinz) "_ !>".
+      rewrite /interp fixpoint_interp1_eq /= /safe_to_seal /safe_to_unseal.
+      rewrite -Hfinz. destruct b1, b2; iSplit; done.
+    - iIntros (b e Hfinz).
+      assert (b < e)%ot as Hlbe.
+      {destruct (decide (b < e)%ot) as [|HF]; first auto. rewrite finz_seq_between_empty in Hfinz; [inversion Hfinz | solve_addr  ]. }
+      apply finz_cons_tl in Hfinz as (b' & Hplus & Hfinz).
+      specialize (IH b' e Hfinz). rewrite (finz_seq_between_split _ b' _).
+      2 : split; solve_addr.
+      iIntros "[#Hfirst Hca]".
+      iMod (IH with "Hca") as "Hca". iModIntro.
+      rewrite /interp !fixpoint_interp1_eq /= /safe_to_seal /safe_to_unseal.
+      rewrite !(finz_seq_between_split b b' e). 2: { split ; solve_addr. }
+      iDestruct "Hca" as "[Hseal Hunseal]".
+      iSplitL "Hseal"; [destruct b1| destruct b2]; iFrame.
+      all: iApply (big_sepL_mono with "Hfirst").
+      all: iIntros (k a' Hk) "H"; cbn.
+      all: iExists _; iFrame; auto.
+      iSplit;first (iPureIntro; apply _).
+      iApply wcond_interp.
+      iApply rcond_interp.
+  Qed.
+
+  (* Get the validity of sealing capabilities if we can allocate an arbitrary predicate,
+     and can hence choose interp itself as the sealing predicate *)
+  (* Lemma region_can_alloc_interp E W (b e a: OType) b1 b2 g: *)
+  (*   ([∗ list] o ∈ finz.seq_between b e, can_alloc_pred o) ={E}=∗ *)
+  (*   interp W (WSealRange (b1,b2) g b e a). *)
+  (* Proof. *)
+  (*   iIntros "Hca". *)
+  (*   iDestruct (big_sepL_mono with "Hca") as "Hca". *)
+  (*   iIntros (k a' Hk) "H". iDestruct (seal_store_update_alloc _ (interp W)  with "H") as "H". iExact "H". *)
+
+  (*   iDestruct (big_sepL_bupd with "Hca") as "Hca". *)
+  (*   iMod "Hca". *)
+  (*   iApply region_seal_pred_interp. *)
+  (* Qed. *)
 
 End region_alloc.

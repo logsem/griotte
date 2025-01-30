@@ -1,6 +1,6 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel addr_reg_sample fundamental rules proofmode.
+From cap_machine Require Import logrel interp_weakening addr_reg_sample fundamental rules proofmode.
 From cap_machine Require Import multiple_updates region_invariants_frozen region_invariants_allocation.
 
 (* A toy malloc implementation *)
@@ -247,18 +247,16 @@ Section SimpleMalloc.
     destruct (decide (r1 = r2));[subst;rewrite lookup_insert in H;eauto|rewrite lookup_insert_ne
                                   in H;auto].
 
-  Lemma simple_malloc_subroutine_valid W N b e :
+  Lemma simple_malloc_subroutine_safe_exec W W' N r g b e :
+    related_sts_priv_world W W' ->
     Forall (λ a, W.1 !! a = Some Revoked) (finz.seq_between b e) →
     na_inv logrel_nais N (malloc_inv b e) -∗
     ([∗ list] a ∈ finz.seq_between b e, rel a RWX interpC) -∗
-    interp W (WCap E Global b e b).
+    ▷ interp_expr interp r W' (WCap RX g b e b).
   Proof.
-    iIntros (Hrev) "#Hmalloc #Hrels".
-    rewrite fixpoint_interp1_eq /=.
-    iModIntro. rewrite /enter_cond.
-    iIntros (r W') "%Hrelated". iNext.
+    iIntros (Hrelated Hrev) "#Hmalloc #Hrels".
+    iNext.
     iIntros "(#[% Hregs_valid] & Hregs & Hr & Hsts & Hown)".
-
     rewrite /registers_pointsto.
     destruct H with r_t0 as [w0 Hr0].
     destruct H with r_t1 as [w1 Hr1].
@@ -349,15 +347,14 @@ Section SimpleMalloc.
             iApply zcond_interp.
             iApply rcond_interp.
             iApply wcond_interp.
-            { (* TODO Lemma: interp always satisfies monoReq  *)
+            { (* TODO Lemma: inTerp always satisfies monoReq  *)
               rewrite /monoReq //=.
               rewrite std_sta_update_multiple_lookup_in_i;auto.
               rewrite /mono_priv.
               iIntros (w Hcanstore W0 W1 Hrelated').
               iModIntro ; iIntros "Hinterp".
-              iApply interp_monotone_nl; eauto.
-              cbn.
-              destruct_word w ; try destruct sb ; try destruct g ; cbn in * ; try done.
+              iApply interp_monotone_nl; eauto; cbn.
+              destruct_word w ; try destruct sb ; try destruct g0 ; cbn in * ; try done.
               apply elem_of_list_lookup. exists k. auto.
             }
             rewrite std_sta_update_multiple_lookup_in_i;auto.
@@ -376,6 +373,20 @@ Section SimpleMalloc.
     iExists _,_. iFrame. iPureIntro.
     eapply related_sts_priv_trans_world;[|apply Hrelated'].
     apply related_sts_pub_priv_world. apply related_sts_pub_update_multiple_perm;auto.
+  Qed.
+
+  Lemma simple_malloc_subroutine_valid W N b e :
+    Forall (λ a, W.1 !! a = Some Revoked) (finz.seq_between b e) →
+    na_inv logrel_nais N (malloc_inv b e) -∗
+    ([∗ list] a ∈ finz.seq_between b e, rel a RWX interpC) -∗
+    interp W (WCap E Global b e b).
+  Proof.
+    iIntros (Hrev) "#Hmalloc #Hrels".
+    rewrite fixpoint_interp1_eq /=.
+    iModIntro. rewrite /enter_cond.
+    iIntros (r W') "%Hrelated".
+    iSplitR;
+    iApply (simple_malloc_subroutine_safe_exec with "Hmalloc Hrels"); eauto.
   Qed.
 
 End SimpleMalloc.

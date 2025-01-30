@@ -592,12 +592,12 @@ Section heap.
   (* (1) assert that the states are all curently Revoked + delete them from the region map *)
   Lemma region_revoked_to_frozen_preamble W M Mρ (m: gmap Addr Word) :
     region_map_def M Mρ W -∗
-    ([∗ map] a↦v ∈ m, ∃ p φ, ⌜ p ≠ O⌝ ∗ a ↦ₐ v ∗ rel a p φ) -∗
+    ([∗ map] a↦v ∈ m, ∃ p φ, ⌜ isO p = false ⌝ ∗ a ↦ₐ v ∗ rel a p φ) -∗
     RELS M -∗
     region_map_def (M ∖∖ m) (Mρ ∖∖ m) W
     ∗ RELS M
     ∗ ([∗ map] a↦v ∈ m,
-         ∃ p φ, ⌜ p ≠ O⌝
+         ∃ p φ, ⌜ isO p = false ⌝
                 ∗ ⌜forall Wv, Persistent (φ Wv)⌝
                 ∗ a ↦ₐ v ∗ rel a p φ ∗ sts_state_std a Revoked).
   Proof.
@@ -659,7 +659,7 @@ Section heap.
     -∗ RELS M'
     -∗ ([∗ map] a↦v ∈ m,
           ∃ p φ,
-            ⌜p ≠ O⌝
+            ⌜isO p = false⌝
             ∗ ⌜forall Wv, Persistent (φ Wv)⌝
             ∗ a ↦ₐ v ∗ rel a p φ ∗ sts_state_std a (Frozen m'))
     -∗ ∃ Mρ', region_map_def M Mρ' W
@@ -754,7 +754,7 @@ Section heap.
     -∗ region_map_def (M ∖∖ m) (Mρ ∖∖ m) W
     -∗ ([∗ map] a↦v ∈ m,
           ∃ p φ,
-            ⌜ p ≠ O⌝
+            ⌜ isO p = false ⌝
             ∗ ⌜∀ Wv : WORLD * Word, Persistent (φ Wv)⌝
             ∗  a ↦ₐ v ∗ rel a p φ ∗ sts_state_std a (Frozen m))
     -∗ RELS M ∗ ∃ Mρ, region_map_def M Mρ W
@@ -778,7 +778,7 @@ Section heap.
     ∗ region W
     ∗ ([∗ map] a↦v ∈ m,
          ∃ p φ,
-           ⌜ p ≠ O⌝
+           ⌜ isO p = false ⌝
            ∗ ⌜∀ Wv : WORLD * Word, Persistent (φ Wv)⌝ ∗ a ↦ₐ v ∗ rel a p φ)
     ==∗
     (sts_full_world (std_update_multiple W (elements (dom m)) (Frozen m))
@@ -794,7 +794,7 @@ Section heap.
       iExists _,_. iFrame "∗%". }
     iAssert ([∗ map] a↦v ∈ m,
                (∃ p φ,
-                   ⌜ p ≠ O ⌝
+                   ⌜ isO p = false ⌝
                    ∗ ⌜∀ Wv : WORLD * Word, Persistent (φ Wv)⌝ ∗ a ↦ₐ v ∗ rel a p φ)
                                  ∗ sts_state_std a Revoked)%I with "[Hmap]" as "Hmap".
     { iApply (big_sepM_mono with "Hmap"). iIntros (a x Hx) "Hx".
@@ -833,7 +833,7 @@ Section heap.
     sts_full_world (revoke W)
     ∗ region (revoke W)
     ∗ ([∗ map] a↦v ∈ m,
-         ∃ p φ, ⌜ p ≠ O ⌝
+         ∃ p φ, ⌜ isO p = false ⌝
                 ∗ ⌜∀ Wv : WORLD * Word, Persistent (φ Wv)⌝
                 ∗ a ↦ₐ v ∗ rel a p φ)
     ==∗

@@ -564,8 +564,8 @@ Section cap_lang_rules.
   (* Subcases for respectively permissions and bounds *)
 
   Lemma wp_notCorrectPC_perm E pc_p pc_g pc_b pc_e pc_a :
-      pc_p ≠ RX ∧ pc_p ≠ RWX ∧ pc_p ≠ RWLX →
-      {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a}}}
+    executeAllowed pc_p = false ->
+    {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a}}}
       Instr Executable @ E
       {{{ RET FailedV; True }}}.
   Proof.
