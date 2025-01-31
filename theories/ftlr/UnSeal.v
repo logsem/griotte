@@ -127,7 +127,7 @@ Section fundamental.
       - iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
         ; eauto.
         iApply (interp_weakening with "IH HVsb"); eauto; try solve_addr; try done.
-        by apply executeAllowed_isnot_sentry.
+        by apply executeAllowed_nonSentry.
       - (* not executable *)
         iApply (wp_bind (fill [SeqCtx])).
         iExtract "Hmap" PC as "HPC".

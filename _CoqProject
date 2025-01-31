@@ -27,7 +27,7 @@ theories/machine_utils_extra.v
 # Capability Machine Model
 theories/machine_base.v
 theories/machine_parameters.v
-# theories/machine_run.v
+theories/machine_run.v
 theories/cap_lang.v
 
 # Misc for automation

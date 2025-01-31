@@ -390,7 +390,7 @@ Section heap.
       + intros [? ?]%elem_of_elements%elem_of_dom. congruence.
       + iFrame.
         iSplit; first done.
-        cbn; destruct (pwl p) ; iFrame.
+        cbn; destruct (isWL p) ; iFrame.
     Unshelve. auto.
   Qed.
 
@@ -433,7 +433,7 @@ Section heap.
       iFrame "#".
       iSplitR;[eauto|].
       iFrame "∗ #".
-      destruct (pwl p); iApply "HmonoV"; iFrame; auto.
+      destruct (isWL p); iApply "HmonoV"; iFrame; auto.
       by iPureIntro ; apply related_sts_pub_priv_world.
     - iDestruct "Hm" as (γpred p φ -> Hpers) "(#Hsavedφ & Hl)".
       iDestruct "Hl" as (v HpO) "(Hl & #HmonoV & Hφ)".

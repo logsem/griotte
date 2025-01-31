@@ -88,17 +88,17 @@ Section monotone.
 
   Lemma region_state_nwl_future W W' l l' p a:
     LocalityFlowsTo l' l ->
-    (if pwl p then l = Local else True) ->
+    (if isWL p then l = Local else True) ->
     (@future_world Σ l' W W') -∗
-    ⌜if pwl p then region_state_pwl W a else region_state_nwl W a l⌝ -∗
+    ⌜if isWL p then region_state_pwl W a else region_state_nwl W a l⌝ -∗
     ⌜region_state_nwl W' a l'⌝.
   Proof.
     intros Hlflows Hloc. iIntros "Hfuture %".
     destruct l'; simpl; iDestruct "Hfuture" as %Hf; iPureIntro.
     - assert (l = Global) as -> by (destruct l; simpl in Hlflows; tauto).
-      destruct (pwl p) eqn:HpwlU; try congruence.
+      destruct (isWL p) eqn:HpwlU; try congruence.
       eapply region_state_nwl_monotone_nl; eauto.
-    - destruct (pwl p).
+    - destruct (isWL p).
       + subst l. right. eapply region_state_pwl_monotone; eauto.
       + generalize (region_state_nwl_monotone _ _ _ _ Hf H).
         destruct l; auto.
@@ -107,14 +107,14 @@ Section monotone.
   Lemma region_state_future W W' l l' p p' a:
     PermFlowsTo p' p ->
     LocalityFlowsTo l' l ->
-    (if pwl p then l = Local else True) ->
+    (if isWL p then l = Local else True) ->
     (@future_world Σ l' W W') -∗
-    ⌜if pwl p then region_state_pwl W a else region_state_nwl W a l⌝ -∗
-    ⌜if pwl p' then region_state_pwl W' a else region_state_nwl W' a l'⌝.
+    ⌜if isWL p then region_state_pwl W a else region_state_nwl W a l⌝ -∗
+    ⌜if isWL p' then region_state_pwl W' a else region_state_nwl W' a l'⌝.
   Proof.
     intros Hpflows Hlflows Hloc. iIntros "Hfuture %Hstate".
-    case_eq (pwl p'); intros Hpwlp'.
-    - assert (pwl p = true) as Hpwl.
+    case_eq (isWL p'); intros Hpwlp'.
+    - assert (isWL p = true) as Hpwl.
       { destruct_perm p; destruct_perm p'; simpl in Hpwlp'; try congruence; simpl in Hpflows; try tauto. }
       rewrite Hpwl in Hstate, Hloc; subst l.
       destruct l'; simpl in Hlflows; try tauto.
@@ -185,15 +185,15 @@ Section monotone.
   Lemma monoReq_nwl_future W W' l l' p p' a P:
     LocalityFlowsTo l' l
     -> PermFlowsTo p p'
-    -> (if pwl p then l = Local else True)
+    -> (if isWL p then l = Local else True)
     -> (@future_world Σ l' W W')
-    -∗ ⌜if pwl p then region_state_pwl W a else region_state_nwl W a l⌝
+    -∗ ⌜if isWL p then region_state_pwl W a else region_state_nwl W a l⌝
     -∗ monoReq W a p' P
     -∗ monoReq W' a p' P.
   Proof.
     intros Hlflows Hflp Hloc. iIntros "Hfuture %Hstate HmonoR".
     destruct l'; simpl; iDestruct "Hfuture" as %Hrelated
-    ; destruct (pwl p) eqn:Hpwl
+    ; destruct (isWL p) eqn:Hpwl
     ; simplify_map_eq
     ; try done.
     - destruct l ; try done.
@@ -375,7 +375,7 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl' Hconds) "#Hvdst".
   destruct ρ;simpl;auto.
-  - destruct (pwl p'') eqn: HpwlP'' ; iModIntro; simpl;auto; iIntros (W0 W1) "% HIW0".
+  - destruct (isWL p'') eqn: HpwlP'' ; iModIntro; simpl;auto; iIntros (W0 W1) "% HIW0".
     * by iApply interp_monotone.
     * destruct g; first by iApply interp_monotone_nl.
     (* The below case is a contradiction, since if g is local,
@@ -403,7 +403,7 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  - destruct (pwl p') eqn: HpwlP1 ; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
+  - destruct (isWL p') eqn: HpwlP1 ; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
     * by iApply interp_monotone.
     * by iApply interp_monotone_nl.
   - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
@@ -422,7 +422,7 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  - destruct (pwl p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
+  - destruct (isWL p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
     all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
   - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
     all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
@@ -440,7 +440,7 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  - destruct (pwl p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
+  - destruct (isWL p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
     all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
   - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
     all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.

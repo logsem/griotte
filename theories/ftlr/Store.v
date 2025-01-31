@@ -29,7 +29,7 @@ Section fundamental.
   Implicit Types interp : (D).
 
   Definition wcond' (P : D) p g b e a r : iProp Σ
-    := (if decide (writeAllowed_in_r_a (<[PC:= WCap p g b e a]> r) a)
+    := (if decide (writeAllowed_a_in_regs (<[PC:= WCap p g b e a]> r) a)
         then □ (∀ W0 (w : Word), interp W0 w -∗ P W0 w)
         else emp)%I.
   Instance wcond'_pers P p g b e a r: Persistent (wcond' P p g b e a r).
@@ -195,7 +195,7 @@ Section fundamental.
       iFrame "∗#".
       iAssert (if readAllowed p0 then ▷ rcond p'' P'' interp else True)%I as "Hrcond0".
       { destruct (readAllowed p0) eqn:Hra''; last done.
-        eapply readAllowed_flows in Hflp''; eauto.
+        eapply readAllowed_flowsto in Hflp''; eauto.
         destruct (readAllowed p''); try done.
       }
       iFrame "∗#".
@@ -287,7 +287,7 @@ Section fundamental.
   Proof.
     iIntros (Hstda Hrevoked Hfrozen HcanStore) "Hmono".
     rewrite /monoReq Hstda.
-    destruct ρ; auto; cbn; [destruct (pwl p)|].
+    destruct ρ; auto; cbn; [destruct (isWL p)|].
     all: try iApply "Hmono"; auto.
   Qed.
 
@@ -369,8 +369,7 @@ Section fundamental.
         iDestruct ("Hwcond'" with "HVstorev1") as "HP'storev".
         iFrame "#".
         iApply monotonicity_guarantees_region_canStore ; eauto.
-        destruct_perm p0; destruct_perm p' ; destruct storev; cbn in *; try congruence.
-        all: destruct (isGlobalSealable sb); try done.
+        by eapply canStore_flowsto.
       }
       iDestruct (region_open_prepare with "Hr") as "$".
       iFrame "#".
@@ -380,7 +379,7 @@ Section fundamental.
       iExists storev. iFrame. rewrite /wcond'.
       rewrite decide_True.
       2:{
-        rewrite /writeAllowed_in_r_a. eexists r1, _. inversion Hras.
+        rewrite /writeAllowed_a_in_regs. eexists r1, _. inversion Hras.
         split. eassumption.
         destruct H1. destruct H2.
         split;auto.
@@ -390,8 +389,7 @@ Section fundamental.
       }
       iSplitR;[iApply "Hwcond";iFrame "#"|].
       iApply monotonicity_guarantees_region_canStore ; eauto.
-      destruct_perm p0; destruct_perm pc_p' ; destruct storev; cbn in *; try congruence.
-      all: destruct (isGlobalSealable sb); try done.
+      by eapply canStore_flowsto.
    Qed.
 
   Lemma allow_store_mem_later:

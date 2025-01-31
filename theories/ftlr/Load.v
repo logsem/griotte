@@ -242,7 +242,7 @@ Section fundamental.
   Qed.
 
   Definition rcond' (P : D) p g b e a regs p' : iProp Σ
-    := (if decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
+    := (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)
              then (rcond p' P interp)
              else emp)%I.
   Instance rcond'_pers P p g b e a regs p' : Persistent (rcond' P p g b e a regs p' ).
@@ -297,9 +297,7 @@ Section fundamental.
       ; cbn.
 
       assert (isO p' = false) as HpO'.
-      { eapply readAllowed_flows in Hflp''; auto.
-        eapply readAllowed_nonO in Hflp''; eauto.
-        reflexivity.
+      { eapply readAllowed_flowsto, readAllowed_nonO in Hflp''; auto.
       }
       iDestruct (region_close_next with "[$Hr $Ha $Hrel' $Hstate' $Hfuture]")
         as "Hr"; eauto.
@@ -410,7 +408,7 @@ Section fundamental.
         + iApply (interp_next_PC with "Hinv_interp"); eauto.
         + rewrite H.
           iApply (interp_weakening with "IH HLVInterp"); eauto; try solve_addr; try done.
-          by apply executeAllowed_isnot_sentry.
+          by apply executeAllowed_nonSentry.
        }
     }
     { iApply wp_pure_step_later; auto.

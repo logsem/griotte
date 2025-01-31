@@ -91,7 +91,7 @@ Section fundamental.
       { assert (rdst <> PC) as HPCnrdst.
         { intro; subst rdst; simplify_map_eq.
           destruct Hp as [Hexec _]
-          ; eapply executeAllowed_isnot_sentry in Hexec
+          ; eapply executeAllowed_nonSentry in Hexec
           ; eauto ; cbn in Hexec
           ; congruence.
         }

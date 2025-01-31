@@ -46,7 +46,7 @@ Section helpers.
   Proof.
     intros HH1 HH2.
     pose proof (isCorrectPC_range_perm _ _ _ _ _ _ HH1 HH2).
-    by eapply executeAllowed_isnot_sentry.
+    by eapply executeAllowed_nonSentry.
   Qed.
 
   Lemma isCorrectPC_range_restrict p g b e a0 an a0' an' :

@@ -143,7 +143,7 @@ Section heap.
   (* In the following variant, we only require monotonicity of the updated world *)
   Lemma update_region_revoked_temp_pwl_updated E W a p v φ `{∀ Wv, Persistent (φ Wv)} :
     (std W) !! a = Some Revoked →
-    isO p = false → pwl p = true →
+    isO p = false → isWL p = true →
 
     future_pub_mono φ v -∗
     sts_full_world W -∗
@@ -194,7 +194,7 @@ Section heap.
 
   Lemma update_region_revoked_temp_nwl_updated E W a p v φ `{∀ Wv, Persistent (φ Wv)} :
     (std W) !! a = Some Revoked →
-    isO p = false → pwl p = false →
+    isO p = false → isWL p = false →
 
     future_priv_mono φ v -∗
     sts_full_world W -∗
@@ -244,7 +244,7 @@ Section heap.
 
   Lemma update_region_revoked_temp_pwl E W a p v φ `{∀ Wv, Persistent (φ Wv)} :
     (std W) !! a = Some Revoked →
-    isO p = false → pwl p = true →
+    isO p = false → isWL p = true →
 
     future_pub_mono φ v -∗
     sts_full_world W -∗
@@ -267,7 +267,7 @@ Section heap.
 
   Lemma update_region_revoked_temp_nwl E W a p v φ `{∀ Wv, Persistent (φ Wv)} :
     (std W) !! a = Some Revoked →
-    isO p = false → pwl p = false →
+    isO p = false → isWL p = false →
 
     future_priv_mono φ v -∗
     sts_full_world W -∗
@@ -912,7 +912,7 @@ Section heap.
     (∃ (v : Word),
            ⌜isO p = false⌝
           ∗ a ↦ₐ v
-          ∗ (if pwl p
+          ∗ (if isWL p
              then future_pub_mono φ v
              else future_priv_mono φ v)
           ∗ φ (W,v))%I.
@@ -1033,7 +1033,7 @@ Section heap.
            iDestruct (saved_pred_agree _ _ _ _ _ (Wstd_sta, Wloc, v) with "Hφ Hsaved") as "#Hφeq". iFrame.
            iDestruct (internal_eq_iff with "Hφeq") as "Hφeq'".
            iSplitL "HmonoV";[|by iNext; iApply "Hφeq'"].
-           all: destruct (pwl p0).
+           all: destruct (isWL p0).
            +++ iApply future_pub_mono_eq_pred; auto.
            +++ iApply future_priv_mono_eq_pred; auto.
       + apply NoDup_cons in Hdup as [Hnin Hdup].
@@ -1095,7 +1095,7 @@ Section heap.
     iFrame "Hr".
     iExists v. iFrame "#∗%".
     repeat iSplitR.
-    - destruct (pwl p');
+    - destruct (isWL p');
       [iApply future_pub_mono_eq_pred_rel|iApply future_priv_mono_eq_pred_rel]; eauto.
     - iNext. iSpecialize ("Hφeq'" $! (W,v)). iRewrite "Hφeq'". iFrame.
   Qed.
@@ -1375,7 +1375,7 @@ Section heap.
     iDestruct (rel_agree _ φ φ' with "[$Hrel $Hrel']") as "[-> #Hφeq]".
     iFrame "Hrel". iApply later_exist_2. iExists (v). iFrame.
     repeat iSplitR.
-    - destruct (pwl p');
+    - destruct (isWL p');
       [iApply future_pub_mono_eq_pred_rel|iApply future_priv_mono_eq_pred_rel]; eauto.
     - iNext. iSpecialize ("Hφeq" $! (W,v)). iRewrite "Hφeq". iFrame.
   Qed.
@@ -1766,7 +1766,7 @@ Section heap.
           iSplit;[iPureIntro;apply lookup_insert|].
           repeat (iSplit; auto).
           iAssert (future_pub_mono φ a) as "#HmonoV'".
-          { destruct (pwl p); [|iApply future_priv_mono_is_future_pub_mono]; done. }
+          { destruct (isWL p); [|iApply future_priv_mono_is_future_pub_mono]; done. }
           iNext. iApply "HmonoV'"; iFrame.
           iPureIntro. apply close_list_related_sts_pub_insert; auto.
         - iApply (big_sepM_mono with "Hr").
@@ -1776,7 +1776,7 @@ Section heap.
             iDestruct "Hρ" as (v) "(HO & Ha' & #HmonoV & Hφ0)".
             iSplit;auto. iExists _,_,_.
             iAssert (future_pub_mono φ0 v) as "#HmonoV'".
-            { destruct (pwl p'); [|iApply future_priv_mono_is_future_pub_mono]; done. }
+            { destruct (isWL p'); [|iApply future_priv_mono_is_future_pub_mono]; done. }
             iFrame "∗#%".
             iNext. iApply ("HmonoV'" with "[] Hφ0"). iPureIntro.
             apply close_list_related_sts_pub_insert'; auto.
@@ -1876,7 +1876,7 @@ Section heap.
         ;[apply lookup_insert|..].
 
         { iExists Temporary. iFrame. rewrite lookup_insert. iSplit;auto. iExists γpred,p,φ. repeat (iSplit;auto).
-          destruct (pwl p).
+          destruct (isWL p).
           - iFrame "∗#"; iApply ("HmonoV" with "[] Hφ"); auto.
           - iFrame "∗#"; iApply ("HmonoV" with "[] Hφ"); auto.
             iPureIntro.

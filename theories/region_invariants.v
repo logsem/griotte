@@ -31,11 +31,8 @@ Inductive std_rel_priv : region_type -> region_type -> Prop :=
 | Std_priv_Temporary_Revoked : std_rel_priv Temporary Revoked
 | Std_priv_Temporary_Permanent : std_rel_priv Temporary Permanent.
 
-(* Inductive std_rel_pub_plus : region_type → region_type → Prop :=. *)
-(* | Std_pub_plus_Frozen_Temporary m : std_rel_pub_plus (Frozen m) Temporary. *)
-
 Global Instance sts_std : STS_STD region_type :=
-  {| Rpub := std_rel_pub; Rpriv := std_rel_priv ; (* Rpubp := std_rel_pub_plus *)|}.
+  {| Rpub := std_rel_pub; Rpriv := std_rel_priv |}.
 
 Class heapGpreS Σ := HeapGpreS {
   heapPreG_invPreG : invGpreS Σ;
@@ -44,7 +41,6 @@ Class heapGpreS Σ := HeapGpreS {
 }.
 
 Class heapGS Σ := HeapGS {
-  (* heapG_invG : invGS Σ; *)
   heapG_saved_pred :: savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word);
   heapG_rel :: inG Σ (authR relUR);
   γrel : gname
@@ -87,7 +83,7 @@ Section heapPre.
   (* TODO wsat_alloc had been changed in Iris 4.0.
      Fixed using Hc
    *)
-  Context {Σ:gFunctors} {heappreg : heapGpreS Σ} (* {Hc : lcGS Σ} *).
+  Context {Σ:gFunctors} {heappreg : heapGpreS Σ}.
 
   Lemma heap_init :
     ⊢ |==> ∃ (heapg: heapGS Σ), RELS (∅ : relT).
@@ -95,9 +91,6 @@ Section heapPre.
     iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γ) "H".
     { rewrite fmap_empty. by apply auth_auth_valid. }
     iExists (HeapGS _ _ _ γ). rewrite RELS_eq /RELS_def. done.
-    (* iMod (@wsat.wsat_alloc _ (@invGpreS_wsat _ (@heapPreG_invPreG _ heappreg))) as (Hw) "[Hw HE]". *)
-    (* iModIntro. *)
-    (* iExists (HeapGS _ (InvG HasLc _ Hw _) _ _ γ). rewrite RELS_eq /RELS_def. done. *)
   Qed.
 
 End heapPre.
@@ -216,12 +209,6 @@ Section heap.
   Definition future_pub_mono (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
     (□ ∀ W W', ⌜related_sts_pub_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I.
 
-  (* Definition future_pub_plus_mono (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ := *)
-  (*   (□ ∀ W W', ⌜related_sts_pub_plus_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I. *)
-
-  (* Definition future_pub_a_mono (a : Addr) (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ := *)
-  (*   (□ ∀ W W', ⌜related_sts_a_world W W' a⌝ → φ (W,v) -∗ φ (W',v))%I. *)
-
   Definition future_priv_mono (φ : (WORLD * Word) -> iProp Σ) v : iProp Σ :=
     (□ ∀ W W', ⌜related_sts_priv_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I.
 
@@ -334,7 +321,7 @@ Section heap.
                       | Temporary =>
                           ∃ (v : Word), ⌜isO p = false⌝
                                         ∗ a ↦ₐ v
-                                        ∗ (if pwl p
+                                        ∗ (if isWL p
                                            then future_pub_mono φ v
                                            else future_priv_mono φ v)
                                         ∗ ▷ φ (W,v)
@@ -494,7 +481,7 @@ Section heap.
     - iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
       iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
       iFrame "%#∗".
-      destruct (pwl p);
+      destruct (isWL p);
       (iApply "HmonoV"; eauto; iFrame)
       ; try (iPureIntro; by apply related_sts_pub_priv_world).
     - iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
@@ -628,7 +615,7 @@ Section heap.
 
    Lemma region_open_temp_pwl W l p φ :
     (std W) !! l = Some Temporary →
-    pwl p = true →
+    isWL p = true →
     rel l p φ ∗ region W ∗ sts_full_world W -∗
         ∃ v, open_region l W
            ∗ sts_full_world W
@@ -667,7 +654,7 @@ Section heap.
 
   Lemma region_open_temp_nwl W l p φ :
     (std W) !! l = Some Temporary →
-    pwl p = false →
+    isWL p = false →
     rel l p φ ∗ region W ∗ sts_full_world W -∗
         ∃ v, open_region l W
            ∗ sts_full_world W
@@ -823,14 +810,14 @@ Section heap.
          ∗ sts_state_std a ρ
          ∗ a ↦ₐ v
          ∗ ⌜isO p = false⌝
-         ∗ (▷ if (decide (ρ = Temporary ∧ pwl p = true))
+         ∗ (▷ if (decide (ρ = Temporary ∧ isWL p = true))
               then future_pub_mono φ v
               else future_priv_mono φ v)
          ∗ ▷ φ (W,v).
   Proof.
     iIntros (Hne Htemp) "(Hrel & Hreg & Hfull)".
     destruct ρ; try (destruct Hne; exfalso; congruence).
-    - destruct (pwl p) eqn:Hpwl.
+    - destruct (isWL p) eqn:Hpwl.
       + iDestruct (region_open_temp_pwl with "[$Hrel $Hreg $Hfull]") as (v) "(Hr & Hfull & Hstate & Hl & Hp & Hmono & φ)"; auto.
         iExists _; iFrame.
       + iDestruct (region_open_temp_nwl with "[$Hrel $Hreg $Hfull]") as (v) "(Hr & Hfull & Hstate & Hl & Hp & Hmono & φ)"; auto.
@@ -974,7 +961,7 @@ Section heap.
 
    (* Closing the region without updating the sts collection *)
   Lemma region_close_temp_pwl W a φ p v `{forall Wv, Persistent (φ Wv)} :
-    pwl p = true →
+    isWL p = true →
     sts_state_std a Temporary
     ∗ open_region a W
     ∗ a ↦ₐ v
@@ -1002,7 +989,7 @@ Section heap.
   Qed.
 
   Lemma region_close_temp_nwl W a φ p v `{forall Wv, Persistent (φ Wv)} :
-    pwl p = false →
+    isWL p = false →
     sts_state_std a Temporary
     ∗ open_region a W
     ∗ a ↦ₐ v
@@ -1118,7 +1105,7 @@ Section heap.
     ∗ open_region a W
     ∗ a ↦ₐ v
     ∗ ⌜isO p = false⌝
-    ∗ (if (decide (ρ = Temporary ∧ pwl p = true))
+    ∗ (if (decide (ρ = Temporary ∧ isWL p = true))
        then future_pub_mono φ v
        else future_priv_mono φ v)
     ∗ ▷ φ (W,v)
@@ -1127,7 +1114,7 @@ Section heap.
   Proof.
     iIntros (Htp) "(Hstate & Hreg_open & Hl & Hp & HmonoV & Hφ & Hrel)".
     destruct ρ; try (destruct Htp; exfalso; congruence).
-    - destruct (pwl p) eqn:Hpwl.
+    - destruct (isWL p) eqn:Hpwl.
       + iApply region_close_temp_pwl; eauto; iFrame.
       + iApply region_close_temp_nwl; eauto; iFrame.
     - iApply region_close_perm; eauto; iFrame.
@@ -1184,7 +1171,7 @@ Section heap.
   Lemma region_open_next_temp_pwl W φ als a p :
     a ∉ als →
     (std W) !! a = Some Temporary ->
-    pwl p = true →
+    isWL p = true →
     open_region_many als W ∗ rel a p φ ∗ sts_full_world W -∗
     ∃ v, open_region_many (a :: als) W
          ∗ sts_full_world W
@@ -1226,7 +1213,7 @@ Section heap.
   Lemma region_open_next_temp_nwl W φ als a p :
     a ∉ als →
     (std W) !! a = Some Temporary ->
-    pwl p = false →
+    isWL p = false →
     open_region_many als W ∗ rel a p φ ∗ sts_full_world W -∗
     ∃ v, open_region_many (a :: als) W
          ∗ sts_full_world W
@@ -1372,7 +1359,7 @@ Section heap.
 
    Lemma region_close_next_temp_pwl W φ als a p v `{forall Wv, Persistent (φ Wv)} :
     a ∉ als ->
-    pwl p = true →
+    isWL p = true →
     sts_state_std a Temporary
     ∗ open_region_many (a::als) W
     ∗ a ↦ₐ v
@@ -1405,7 +1392,7 @@ Section heap.
 
   Lemma region_close_next_temp_nwl W φ als a p v `{forall Wv, Persistent (φ Wv)} :
     a ∉ als ->
-    pwl p = false →
+    isWL p = false →
     sts_state_std a Temporary
     ∗ open_region_many (a::als) W
     ∗ a ↦ₐ v
@@ -1513,13 +1500,13 @@ Section heap.
 
   Definition monotonicity_guarantees_region ρ w p φ :=
     (match ρ with
-     | Temporary => if pwl p then future_pub_mono else future_priv_mono
+     | Temporary => if isWL p then future_pub_mono else future_priv_mono
      | Permanent => future_priv_mono
      | Revoked | Frozen _ => λ (_ : WORLD * Word → iProp Σ) (_ : Word), True
      end φ w)%I.
 
   Definition monotonicity_guarantees_decide ρ w p φ:=
-    (if decide (ρ = Temporary ∧ pwl p = true)
+    (if decide (ρ = Temporary ∧ isWL p = true)
      then future_pub_mono φ w
      else future_priv_mono φ w)%I.
 
@@ -1532,17 +1519,17 @@ Section heap.
     unfold monotonicity_guarantees_region, monotonicity_guarantees_decide.
     iSplit; iIntros "HH".
     - destruct ρ;simpl;auto;try done.
-      * destruct (pwl p) ; intros; cbn; done.
+      * destruct (isWL p) ; intros; cbn; done.
       * specialize (Hmono g); done.
     - destruct ρ;simpl;auto;try done.
-      destruct (pwl p) ; intros; cbn; done.
+      destruct (isWL p) ; intros; cbn; done.
   Qed.
 
   Global Instance monotonicity_guarantees_region_Persistent ρ w p P:
     Persistent (monotonicity_guarantees_region ρ w p P).
   Proof.
     destruct ρ; cbn; try apply _.
-    destruct (pwl p); try apply _.
+    destruct (isWL p); try apply _.
   Qed.
 
   Lemma region_open_next
@@ -1567,7 +1554,7 @@ Section heap.
     rewrite /monotonicity_guarantees_region.
     intros. iIntros "H".
     destruct ρ; try congruence.
-    - case_eq (pwl p); intros.
+    - case_eq (isWL p); intros.
       + iDestruct (region_open_next_temp_pwl with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
         ; eauto; iFrame.
       + iDestruct (region_open_next_temp_nwl with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
@@ -1597,7 +1584,7 @@ Section heap.
     rewrite /monotonicity_guarantees_region.
     intros. iIntros "[A [B [C [D [E [F G]]]]]]".
     destruct ρ; try congruence.
-    - case_eq (pwl p); intros.
+    - case_eq (isWL p); intros.
       + iApply (region_close_next_temp_pwl with "[A B C D E F G]"); eauto; iFrame.
       + iApply (region_close_next_temp_nwl with "[A B C D E F G]"); eauto; iFrame.
     - iApply (region_close_next_perm with "[A B C D E F G]"); eauto; iFrame.

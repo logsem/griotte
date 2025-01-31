@@ -5,6 +5,33 @@ From cap_machine Require Import machine_parameters machine_base cap_lang.
 (* The operational semantics as an interpreter: this effectively "runs" the
    machine until it fails or halts (or we run out of fuel). *)
 
+Definition isCorrectPCb (w: Word): bool :=
+  match w with
+  | WCap p g b e a =>
+    (b <=? a)%a && (a <? e)%a && executeAllowed p
+  | _ => false
+  end.
+
+Lemma isCorrectPCb_isCorrectPC w :
+  isCorrectPCb w = true ↔ isCorrectPC w.
+Proof.
+  rewrite /isCorrectPCb. destruct_word w.
+  1,3,4 : split; try congruence; inversion 1.
+  { rewrite !andb_true_iff !Z.leb_le !Z.ltb_lt.
+    split.
+    { intros [? ?]. constructor. solve_addr. naive_solver. }
+    { inversion 1; subst. split. solve_addr. naive_solver. } }
+Qed.
+
+Lemma isCorrectPCb_nisCorrectPC w :
+  isCorrectPCb w = false ↔ ¬ isCorrectPC w.
+Proof.
+  destruct (isCorrectPCb w) eqn:HH.
+  { apply isCorrectPCb_isCorrectPC in HH. split; congruence. }
+  { split; auto. intros _. intros ?%isCorrectPCb_isCorrectPC. congruence. }
+Qed.
+
+
 Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag :=
   match fuel with
   | 0 => None
@@ -98,4 +125,3 @@ Proof.
       eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
       econstructor. cbn. apply Hc. } }
 Qed.
-
