@@ -246,7 +246,7 @@ Section cap_lang_rules.
      by unfold regs_of; rewrite !dom_insert; set_solver+.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
      assert (isSentry pc_p = false).
-     { inversion Hvpc; subst. eapply executeAllowed_isnot_sentry; eauto. }
+     { inversion Hvpc; subst. eapply executeAllowed_nonSentry; eauto. }
 
      destruct Hspec as [| | * Hfail].
      { (* Success *)
@@ -325,7 +325,7 @@ Section cap_lang_rules.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)".
      iDestruct "Hspec" as %Hspec.
      assert (isSentry pc_p = false).
-     { inversion Hvpc; subst. eapply executeAllowed_isnot_sentry; eauto. }
+     { inversion Hvpc; subst. eapply executeAllowed_nonSentry; eauto. }
 
      destruct Hspec as [ | | * Hfail ].
      { (* Success *)
@@ -363,7 +363,7 @@ Section cap_lang_rules.
      by unfold regs_of; rewrite !dom_insert; set_solver+.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
      assert (isSentry pc_p = false).
-     { inversion Hvpc; subst. eapply executeAllowed_isnot_sentry; eauto. }
+     { inversion Hvpc; subst. eapply executeAllowed_nonSentry; eauto. }
 
      destruct Hspec as [| | * Hfail].
      { (* Success *)
@@ -442,7 +442,7 @@ Section cap_lang_rules.
      by unfold regs_of; rewrite !dom_insert; set_solver+.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
      assert (isSentry pc_p = false).
-     { inversion Hvpc; subst. eapply executeAllowed_isnot_sentry; eauto. }
+     { inversion Hvpc; subst. eapply executeAllowed_nonSentry; eauto. }
 
      destruct Hspec as [| | * Hfail].
      { (* Success with WSealRange (contradiction) *)

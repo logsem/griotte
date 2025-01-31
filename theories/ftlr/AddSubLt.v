@@ -38,7 +38,7 @@ Section fundamental.
     → PermFlowsTo p p'
     → isO p' = false
     → (∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2))
-    → (if pwl p then region_state_pwl W a else region_state_nwl W a g)
+    → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
     → ρ ≠ Revoked
     → (∀ g : Mem, ρ ≠ Frozen g)
@@ -49,14 +49,14 @@ Section fundamental.
     -∗ fixpoint interp1 W (WCap p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
     -∗ rel a p' (λ Wv, P Wv.1 Wv.2)
-    -∗ □ (if decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
+    -∗ □ (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)
           then ▷ (rcond p' P interp)
           else emp)
-    -∗ □ (if decide (writeAllowed_in_r_a (<[PC:=(WCap p g b e a)]> regs) a)
+    -∗ □ (if decide (writeAllowed_a_in_regs (<[PC:=(WCap p g b e a)]> regs) a)
           then ▷ wcond P interp
           else emp)
     -∗ monoReq W a p' P
-    -∗ (▷ (if decide (ρ = Temporary /\ pwl p' = true)
+    -∗ (▷ (if decide (ρ = Temporary /\ isWL p' = true)
            then future_pub_mono (safeC P) w
            else future_priv_mono (safeC P) w))
     -∗ ▷ P W w

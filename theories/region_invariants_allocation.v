@@ -40,7 +40,7 @@ Section region_alloc.
   Lemma extend_region_temp_pwl E W a v p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
      a ∉ dom (std W) →
-     (pwl p) = true →
+     (isWL p) = true →
      future_pub_mono φ v -∗
      sts_full_world W -∗
      region W -∗
@@ -115,7 +115,7 @@ Section region_alloc.
   Lemma extend_region_temp_nwl E W a v p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
      a ∉ dom (std W) →
-     (pwl p) = false →
+     (isWL p) = false →
      future_priv_mono φ v -∗
      sts_full_world W -∗
      region W -∗

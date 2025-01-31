@@ -95,15 +95,12 @@ Section fundamental.
     iPoseProof "Hinv_interp" as "#Hinv".
     iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv".
     destruct (isO p) eqn: HnO.
-    {  destruct Hp as [Hexec _]
-      ; eapply executeAllowed_nonO with (p' := p) in Hexec
-      ; eauto.
-      - congruence.
-      - reflexivity.
+    {  destruct Hp as [Hexec _].
+       eapply executeAllowed_nonO in Hexec; congruence.
     }
     destruct (isSentry p) eqn:Hnpsentry.
     {  destruct Hp as [Hexec _]
-      ; eapply executeAllowed_isnot_sentry in Hexec
+      ; eapply executeAllowed_nonSentry in Hexec
       ; eauto
       ; congruence.
     }
@@ -121,7 +118,7 @@ Section fundamental.
     ;eauto ; iClear "Hinv".
     assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
       as [ρ [Hρ [Hne Hne'] ] ].
-    { destruct (pwl p),g; eauto. destruct Hstate_a as [Htemp | Hperm];eauto. }
+    { destruct (isWL p),g; eauto. destruct Hstate_a as [Htemp | Hperm];eauto. }
 
     iDestruct (region_open W a p'' with "[$Hrela $Hr $Hsts]")
       as (w) "(Hr & Hsts & Hstate & Ha & % & #HmonoV & Hw) /=";[ |apply Hρ|].
@@ -321,7 +318,7 @@ Section fundamental.
     iIntros (Hp) "#Hw".
     iIntros (a0 r W' Hin) "#Hfuture". iModIntro.
     assert (isO p = false) by (by eapply executeAllowed_nonO).
-    assert (isSentry p = false) by (by eapply executeAllowed_isnot_sentry).
+    assert (isSentry p = false) by (by eapply executeAllowed_nonSentry).
     destruct g.
     - iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
       iApply fundamental;eauto.

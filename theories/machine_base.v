@@ -269,7 +269,7 @@ Definition writeAllowed (p: Perm): bool :=
   | _ => false
   end.
 
-Definition pwl p : bool :=
+Definition isWL p : bool :=
   match p with
   | BPerm _ WL _ _ => true
   | _ => false
@@ -286,6 +286,32 @@ Definition isDRO p : bool :=
   | BPerm _ _ _ DRO => true
   | _ => false
   end.
+
+Definition isO (p : Perm) : bool :=
+  match p with
+  | BPerm Orx Ow _ _ => true
+  | _ => false
+  end.
+
+Definition isE (p : Perm) : bool :=
+ match p with
+   | E => true
+   | _ => false
+ end.
+
+(* Definition isESR (p : Perm) : bool := *)
+(*  match p with *)
+(*    | ESR => true *)
+(*    | _ => false *)
+(*  end. *)
+
+Definition isSentry (p : Perm) : bool :=
+ match p with
+   | E
+   (* | ESR *)
+     => true
+   | BPerm _ _ _ _ => false
+ end.
 
 Definition isLocal (l: Locality): bool :=
   match l with
@@ -323,31 +349,10 @@ Definition isGlobalWord (w : Word): bool :=
   | WSealable sb => isGlobalSealable sb
   end.
 
-Definition isPerm p p' := @bool_decide _ (perm_eq_dec p p').
-
-Lemma isPerm_refl p : isPerm p p = true.
-Proof. destruct_perm p; auto. Qed.
-Lemma isPerm_ne p p' : p ≠ p' → isPerm p p' = false.
-Proof. intros Hne. destruct_perm p; destruct_perm p'; auto; congruence. Qed.
-
-Definition isPermWord (w : Word) (p : Perm): bool :=
-  match w with
-  | WCap p' _ _ _ _  => isPerm p p'
-  | _ => false
-  end.
-
-Lemma isPermWord_cap_isPerm (w0:Word) p:
-  isPermWord w0 p = true →
-  ∃ p' g b e a, w0 = WCap p' g b e a ∧ isPerm p p' = true.
-Proof.
-  intros Hp. rewrite /isPermWord in Hp.
-  destruct_word w0; try congruence.
-  eexists _, _, _, _, _; split; eauto.
-Qed.
 
 Definition canStore (p: Perm) (w: Word): bool :=
   if (isLocalWord w)
-  then pwl p
+  then isWL p
   else writeAllowed p.
 
 Definition readAllowedWord (w : Word) : Prop :=
@@ -368,46 +373,92 @@ Definition hasValidAddress (w : Word) (a : Addr) : Prop :=
   | _ => False
   end.
 
-Definition writeAllowed_in_r_a (r : Reg) a :=
+Definition writeAllowed_a_in_regs (r : Reg) (a : Addr) :=
   ∃ reg (w : Word), r !! reg = Some w ∧ writeAllowedWord w ∧ hasValidAddress w a.
 
-Definition readAllowed_in_r_a (r : Reg) a :=
+Definition readAllowed_a_in_regs (r : Reg) (a : Addr) :=
   ∃ reg (w : Word), r !! reg = Some w ∧ readAllowedWord w ∧ hasValidAddress w a.
 
-Definition LocalityFlowsTo (l1 l2: Locality): bool :=
-  match l1 with
-  | Local => true
-  | Global => match l2 with
-             | Global => true
-             | _ => false
-             end
+
+(* Helper definitions for capabilities *)
+
+(* Turn E into RX, and ESR into XSR after a jump *)
+Definition updatePcPerm (w: Word): Word :=
+  match w with
+  | WCap E g b e a => WCap RX g b e a
+  (* | WCap ESR g b e a => WCap XSR_ g b e a *)
+  | _ => w
   end.
 
-(* Sanity check *)
-Lemma localityflowsto_trans :
-  transitive _ LocalityFlowsTo.
-Proof.
-  red; intros; destruct x; destruct y; destruct z; try congruence; auto.
-Qed.
+Definition nonZero (w: Word): bool :=
+  match w with
+  | WInt n => Zneq_bool n 0
+  | _ => true
+  end.
 
-Global Instance LocalityFlowsToTransitive: Transitive LocalityFlowsTo.
-Proof.
-  rewrite /Transitive.
-  apply localityflowsto_trans.
-Qed.
+Definition cap_size (w : Word) : Z :=
+  match w with
+  | WCap _ _ b e _ => (e - b)%Z
+  | _ => 0%Z
+  end.
 
-(* Sanity check 2 *)
-Lemma localityflowsto_refl:
-  forall g, LocalityFlowsTo g g.
-Proof.
-  intros; destruct g; auto.
-Qed.
+Definition borrow_perm (p : Perm) :=
+  match p with
+  | BPerm rx w _ dro => BPerm rx w DL dro
+  | E => E
+  end.
 
-Global Instance LocalityFlowsToReflexive: Reflexive LocalityFlowsTo.
-Proof.
-  rewrite /Reflexive.
-  apply localityflowsto_refl.
-Qed.
+Definition borrow_sb (sb : Sealable) :=
+  match sb with
+  | SSealRange sp _ b e a => SSealRange sp Local b e a
+  | SCap p _ b e a => SCap (borrow_perm p) Local b e a
+  end.
+
+Definition borrow (w : Word) :=
+  match w with
+  | WSealable sb => WSealable (borrow_sb sb)
+  | WSealed ot sb => WSealed ot (borrow_sb sb)
+  | _ => w
+  end.
+
+Definition readonly_perm (p : Perm) :=
+  match p with
+  | BPerm rx _ dl _ => BPerm rx Ow dl DRO
+  | E => E
+  end.
+
+Definition readonly_sb (sb : Sealable) :=
+  match sb with
+  | SCap p g b e a => SCap (readonly_perm p) g b e a
+  | _ => sb
+  end.
+
+Definition readonly (w : Word) :=
+  match w with
+  | WSealable sb => WSealable (readonly_sb sb)
+  | _ => w
+  end.
+
+Definition load_word (p : Perm) (w : Word) :=
+  let borrow_w := (if isDL p then borrow w else w) in
+  let borrow_dro_w := (if isDRO p then readonly borrow_w else borrow_w) in
+  borrow_dro_w.
+
+Definition load_word_perm (pload p : Perm) :=
+  match p with
+  | BPerm rx pw dl dro => (BPerm rx
+                            (if isDRO pload then Ow else pw)
+                            (if isDL pload then DL else dl)
+                            (if isDRO pload then DRO else dro)
+                         )
+  | E => E
+  end.
+
+
+
+
+
+(** FlowsTo relation for capability permissions *)
 
 Definition RXPermFlowsTo (rx1 rx2: RXperm): bool :=
   match rx1 with
@@ -430,60 +481,6 @@ Definition RXPermFlowsTo (rx1 rx2: RXperm): bool :=
   (*       end *)
   end.
 
-Definition WPermFlowsTo (w1 w2 : Wperm) : bool :=
-  match w1 with
-  | Ow => true
-  | W => match w2 with
-        | W | WL => true
-        | _ => false
-        end
-  | WL => match w2 with
-         | WL => true
-         | _ => false
-         end
-  end.
-
-Definition DLPermFlowsTo (dl1 dl2 : DLperm) : bool :=
-  match dl1 with
-  | DL => true
-  | LG => match dl2 with
-             | LG => true
-             | _ => false
-             end
-  end.
-
-Definition DROPermFlowsTo (dro1 dro2 : DROperm) : bool :=
-  match dro1 with
-  | DRO => true
-  | LM => match dro2 with
-             | LM => true
-             | _ => false
-             end
-  end.
-
-Definition PermFlowsTo (p1 p2: Perm): bool :=
-  match p1,p2 with
-  | BPerm rx1 w1 dl1 dro1, BPerm rx2 w2 dl2 dro2 =>
-      RXPermFlowsTo rx1 rx2
-      && WPermFlowsTo w1 w2
-      && DLPermFlowsTo dl1 dl2
-      && DROPermFlowsTo dro1 dro2
-  | E, E => true
-  (* | ESR, ESR => true *)
-  | E, BPerm rx w LG LM =>
-      RXPermFlowsTo X rx
-  (* | ESR, BPerm rx w LG LM => *)
-      (* RXPermFlowsTo XSR rx *)
-  | _, _ => false
-  end.
-
-Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
-  match w with
-  | WCap p' _  _ _ _ => PermFlowsTo p p'
-  | _ => false
-  end.
-
-
 Lemma RXPermFlowsTo_refl : forall rx,  RXPermFlowsTo rx rx.
 Proof.
   destruct rx; cbn ; done.
@@ -504,6 +501,20 @@ Proof.
   rewrite /Transitive.
   apply RXPermFlowsTo_trans.
 Qed.
+
+
+Definition WPermFlowsTo (w1 w2 : Wperm) : bool :=
+  match w1 with
+  | Ow => true
+  | W => match w2 with
+        | W | WL => true
+        | _ => false
+        end
+  | WL => match w2 with
+         | WL => true
+         | _ => false
+         end
+  end.
 
 Lemma WPermFlowsTo_refl : forall rx,  WPermFlowsTo rx rx.
 Proof.
@@ -526,6 +537,16 @@ Proof.
   apply WPermFlowsTo_trans.
 Qed.
 
+
+Definition DLPermFlowsTo (dl1 dl2 : DLperm) : bool :=
+  match dl1 with
+  | DL => true
+  | LG => match dl2 with
+             | LG => true
+             | _ => false
+             end
+  end.
+
 Lemma DLPermFlowsTo_refl : forall rx,  DLPermFlowsTo rx rx.
 Proof.
   destruct rx; cbn ; done.
@@ -546,6 +567,16 @@ Proof.
   rewrite /Transitive.
   apply DLPermFlowsTo_trans.
 Qed.
+
+
+Definition DROPermFlowsTo (dro1 dro2 : DROperm) : bool :=
+  match dro1 with
+  | DRO => true
+  | LM => match dro2 with
+             | LM => true
+             | _ => false
+             end
+  end.
 
 Lemma DROPermFlowsTo_refl : forall rx,  DROPermFlowsTo rx rx.
 Proof.
@@ -569,6 +600,22 @@ Proof.
 Qed.
 
 
+Definition PermFlowsTo (p1 p2: Perm): bool :=
+  match p1,p2 with
+  | BPerm rx1 w1 dl1 dro1, BPerm rx2 w2 dl2 dro2 =>
+      RXPermFlowsTo rx1 rx2
+      && WPermFlowsTo w1 w2
+      && DLPermFlowsTo dl1 dl2
+      && DROPermFlowsTo dro1 dro2
+  | E, E => true
+  (* | ESR, ESR => true *)
+  | E, BPerm rx w LG LM =>
+      RXPermFlowsTo X rx
+  (* | ESR, BPerm rx w LG LM => *)
+      (* RXPermFlowsTo XSR rx *)
+  | _, _ => false
+  end.
+
 (* Sanity check *)
 Lemma PermFlowsTo_trans:
   transitive _ PermFlowsTo.
@@ -576,7 +623,6 @@ Proof.
   red; intros.
   destruct_perm x; destruct_perm y; destruct_perm z; try congruence; auto.
 Qed.
-
 Global Instance PermFlowsToTransitive: Transitive PermFlowsTo.
 Proof.
   rewrite /Transitive.
@@ -589,23 +635,92 @@ Lemma PermFlowsTo_refl:
 Proof.
   intros; destruct_perm p; auto.
 Qed.
-
 Global Instance PermFlowsToReflexive: Reflexive PermFlowsTo.
 Proof.
   rewrite /Reflexive.
   apply PermFlowsTo_refl.
 Qed.
 
-Lemma executeAllowed_flows (p1 p2 : Perm) :
-  PermFlowsTo p1 p2
-  -> executeAllowed p1 = true
-  -> executeAllowed p2 = true.
+Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
+  match w with
+  | WCap p' _  _ _ _ => PermFlowsTo p p'
+  | _ => false
+  end.
+
+
+(** FlowsTo relation for locality *)
+
+Definition LocalityFlowsTo (l1 l2: Locality): bool :=
+  match l1 with
+  | Local => true
+  | Global => match l2 with
+             | Global => true
+             | _ => false
+             end
+  end.
+
+(* Sanity check *)
+Lemma localityflowsto_trans :
+  transitive _ LocalityFlowsTo.
 Proof.
-  intros Hfl Hxa.
-  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+  red; intros; destruct x; destruct y; destruct z; try congruence; auto.
+Qed.
+Global Instance LocalityFlowsToTransitive: Transitive LocalityFlowsTo.
+Proof.
+  rewrite /Transitive.
+  apply localityflowsto_trans.
 Qed.
 
-Lemma readAllowed_flows (p1 p2 : Perm) :
+(* Sanity check 2 *)
+Lemma localityflowsto_refl:
+  forall g, LocalityFlowsTo g g.
+Proof.
+  intros; destruct g; auto.
+Qed.
+Global Instance LocalityFlowsToReflexive: Reflexive LocalityFlowsTo.
+Proof.
+  rewrite /Reflexive.
+  apply localityflowsto_refl.
+Qed.
+
+
+(** FlowsTo relation for sealing permissions *)
+
+Definition SealPermFlowsTo (s1 s2 : SealPerms): bool :=
+  (if permit_seal(s1) then permit_seal(s2) else true) &&
+  (if permit_unseal(s1) then permit_unseal(s2) else true).
+
+(* Sanity check *)
+Lemma SealPermFlowsTo_trans:
+  transitive _ SealPermFlowsTo.
+Proof.
+  red; intros. unfold SealPermFlowsTo in *. repeat destruct (permit_seal _); repeat destruct (permit_unseal _); auto.
+Qed.
+Global Instance SealPermFlowsToTransitive: Transitive SealPermFlowsTo.
+Proof.
+  rewrite /Transitive.
+  apply SealPermFlowsTo_trans.
+Qed.
+
+(* Sanity check 2 *)
+Lemma SealPermFlowsTo_refl:
+  forall p, SealPermFlowsTo p p.
+Proof.
+  intros; unfold SealPermFlowsTo. destruct (permit_seal _), (permit_unseal _); auto.
+Qed.
+Global Instance SealPermFlowsToReflexive: Reflexive SealPermFlowsTo.
+Proof.
+  rewrite /Reflexive.
+  apply SealPermFlowsTo_refl.
+Qed.
+
+
+
+(** Lemmas about permissions *)
+
+(* Lemmas about readAllowed *)
+
+Lemma readAllowed_flowsto (p1 p2 : Perm) :
   PermFlowsTo p1 p2
   -> readAllowed p1 = true
   -> readAllowed p2 = true.
@@ -614,13 +729,97 @@ Proof.
   destruct_perm p1; destruct_perm p2 ; cbn in *; done.
 Qed.
 
-Lemma writeAllowed_flows (p1 p2 : Perm) :
+Lemma notreadAllowed_flowsfrom (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> readAllowed p2 = false
+  -> readAllowed p1 = false.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
+Lemma readAllowed_nonO (p : Perm) :
+  readAllowed p = true → isO p = false.
+Proof.
+  intros Hra.
+  destruct_perm p; auto ; done.
+Qed.
+
+Lemma readAllowed_nonSentry (p : Perm) :
+  readAllowed p = true -> isSentry p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
+Qed.
+
+
+(* Lemmas about writeAllowed *)
+
+Lemma writeAllowed_flowsto (p1 p2 : Perm) :
   PermFlowsTo p1 p2
   -> writeAllowed p1 = true
   -> writeAllowed p2 = true.
 Proof.
   intros Hfl Hra.
   destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
+Lemma notwriteAllowed_flowsfrom (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> writeAllowed p2 = false
+  -> writeAllowed p1 = false.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
+Lemma writeAllowed_nonO (p : Perm):
+  writeAllowed p = true → isO p = false.
+Proof.
+  intros Hwa.
+  destruct_perm p; auto ; try congruence.
+Qed.
+
+Lemma writeAllowed_nonSentry (p : Perm) :
+  writeAllowed p = true -> isSentry p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
+Qed.
+
+
+(* Lemmas about executeAllowed *)
+
+Lemma executeAllowed_flowsto (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> executeAllowed p1 = true
+  -> executeAllowed p2 = true.
+Proof.
+  intros Hfl Hxa.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
+Lemma notexecuteAllowed_flowsfrom (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> executeAllowed p2 = false
+  -> executeAllowed p1 = false.
+Proof.
+  intros Hfl Hxa.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
+Lemma executeAllowed_nonO (p : Perm) :
+  executeAllowed p = true → isO p = false.
+Proof.
+  intros Hxa.
+  destruct_perm p; auto; try congruence.
+Qed.
+
+Lemma executeAllowed_nonSentry (p : Perm) :
+  executeAllowed p = true -> isSentry p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
 Qed.
 
 Lemma executeAllowed_is_readAllowed (p : Perm) :
@@ -640,141 +839,105 @@ Proof.
 Qed.
 
 
-Definition isO (p : Perm) : bool :=
-  match p with
-  | BPerm Orx Ow _ _ => true
-  | _ => false
-  end.
+(* Lemmas about isWL *)
 
-Lemma executeAllowed_nonO p p':
-  PermFlowsTo p p' → executeAllowed p = true → isO p' = false.
+Lemma isWL_flowsto (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> isWL p1 = true
+  -> isWL p2 = true.
 Proof.
-  intros Hfl' Hxa.
-  eapply executeAllowed_flows in Hxa; eauto.
-  destruct_perm p'; auto; inversion Hxa ; try congruence.
+  intros Hfl Hra.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
 Qed.
 
-Lemma readAllowed_nonO p p':
-  PermFlowsTo p p' → readAllowed p = true → isO p' = false.
+Lemma notisWL_flowsfrom (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> isWL p2 = false
+  -> isWL p1 = false.
 Proof.
-  intros Hfl' Hra.
-  eapply readAllowed_flows in Hra; eauto.
-  destruct_perm p'; auto; inversion Hxa ; try congruence.
+  intros Hfl Hra.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
 Qed.
 
-Lemma writeAllowed_nonO p p':
-  PermFlowsTo p p' → writeAllowed p = true → isO p' = false.
+Lemma isWL_nonO p:
+  isWL p = true → isO p = false.
 Proof.
-  intros Hfl' Hwa.
-  eapply writeAllowed_flows in Hwa; eauto.
-  destruct_perm p'; auto; inversion Hxa ; try congruence.
+  intros Hra.
+  destruct_perm p; auto ; try congruence.
 Qed.
 
-(* Definition ExecPCPerm p := *)
-(*   ∃ w dl dro, *)
-(*   p = BPerm X w dl dro \/ p = BPerm XSR w dl dro. *)
-
-(* Lemma X_is_ExecPCPerm p p': *)
-(*    → *)
-(*   ExecPCPerm p → *)
-(*   ExecPCPerm p'. *)
-(* Proof. *)
-(*   intros Hfl Hexec. *)
-(*   destruct Hexec as (w & dl & dro & [Hexec | Hexec] ); subst. *)
-(*   { *)
-(*   destruct_perm p'; cbn in *; try done. *)
-
-
-(* Lemma ExecPCPerm_flows_to p p': *)
-(*   PermFlowsTo p p' → *)
-(*   ExecPCPerm p → *)
-(*   ExecPCPerm p'. *)
-(* Proof. *)
-(*   intros Hfl Hexec. *)
-(*   destruct Hexec as (w & dl & dro & [Hexec | Hexec] ); subst. *)
-(*   { *)
-(*   destruct_perm p'; cbn in *; try done. *)
-
-(*   } *)
-(*   cbn in H. *)
-(*   { destruct_perm p'; cbn in H; try by inversion H; constructor. *)
-(*     apply ExecPCPerm_RWX. *)
-(*     apply ExecPCPerm_RWLX. *)
-(*   } *)
-(*   { destruct_perm p'; try by inversion H; constructor. *)
-(*     apply ExecPCPerm_RWX. *)
-(*     apply ExecPCPerm_RWLX. *)
-(*   } *)
-(*   { destruct_perm p'; try by inversion H; constructor. *)
-(*     apply ExecPCPerm_RWLX. *)
-(*   } *)
-(* Qed. *)
-
-
-(* Lemma PCPerm_nonO p p' dl dro : *)
-(*   PermFlowsTo p p' *)
-(*   → ExecPCPerm p *)
-(*   → p' ≠ (O dl dro). *)
-(* Proof. *)
-(*   intros Hfl Hvpc. *)
-(*   destruct_perm p'; auto. destruct_perm p; inversion Hfl. *)
-(*   destruct Hvpc as [Hcontr | [Hcontr | Hcontr]]; inversion Hcontr. *)
-(* Qed. *)
-
-
-(* Lemma ExecPCPerm_RX: ExecPCPerm RX. *)
-(* Proof. left; auto. Qed. *)
-
-(* Lemma ExecPCPerm_RWX: ExecPCPerm RWX. *)
-(* Proof. right; auto. Qed. *)
-
-(* Lemma ExecPCPerm_RWLX: ExecPCPerm RWLX. *)
-(* Proof. right; auto. Qed. *)
-
-
-(* Lemma ExecPCPerm_not_E p : *)
-(*   ExecPCPerm p → *)
-(*   p ≠ E. *)
-(* Proof. *)
-(*   intros [ H | [H|H] ] ->; inversion H. *)
-(* Qed. *)
-
-(* Lemma ExecPCPerm_readAllowed p : *)
-(*   ExecPCPerm p → *)
-(*   readAllowed p = true. *)
-(* Proof. *)
-(*   intros [ -> | [ -> | -> ] ]; reflexivity. *)
-(* Qed. *)
-
-Definition SealPermFlowsTo (s1 s2 : SealPerms): bool :=
-  (if permit_seal(s1) then permit_seal(s2) else true) &&
-  (if permit_unseal(s1) then permit_unseal(s2) else true).
-
-(* Sanity check *)
-Lemma SealPermFlowsTo_trans:
-  transitive _ SealPermFlowsTo.
+Lemma isWL_nonSentry (p : Perm) :
+  isWL p = true -> isSentry p = false.
 Proof.
-  red; intros. unfold SealPermFlowsTo in *. repeat destruct (permit_seal _); repeat destruct (permit_unseal _); auto.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
 Qed.
 
-Global Instance SealPermFlowsToTransitive: Transitive SealPermFlowsTo.
+
+(* Lemmas about isO *)
+
+Lemma isO_flowsto (p p' : Perm) :
+  PermFlowsTo p p'
+  -> isO p = false
+  -> isO p' = false.
 Proof.
-  rewrite /Transitive.
-  apply SealPermFlowsTo_trans.
+  intros Hfl Hra.
+  destruct_perm p; destruct_perm p' ; cbn in *; done.
 Qed.
 
-(* Sanity check 2 *)
-Lemma SealPermFlowsTo_refl:
-  forall p, SealPermFlowsTo p p.
+Lemma notisO_flowsfrom (p p' : Perm) :
+  PermFlowsTo p p'
+  -> isO p' = true
+  -> isO p = true.
 Proof.
-  intros; unfold SealPermFlowsTo. destruct (permit_seal _), (permit_unseal _); auto.
+  intros Hfl Hra.
+  destruct_perm p; destruct_perm p' ; cbn in *; done.
 Qed.
 
-Global Instance SealPermFlowsToReflexive: Reflexive SealPermFlowsTo.
+
+(* Lemmas about isDL *)
+
+Lemma isDL_flowsto (p p' : Perm) :
+  PermFlowsTo p p' ->
+  isDL p' = true ->
+  isDL p = true.
 Proof.
-  rewrite /Reflexive.
-  apply SealPermFlowsTo_refl.
+  intros Hfl Hra.
+  destruct_perm p; destruct_perm p' ; cbn in *; done.
 Qed.
+
+Lemma notisDL_flowsfrom (p p' : Perm) :
+  PermFlowsTo p p' ->
+  isDL p = false ->
+  isDL p' = false.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p; destruct_perm p' ; cbn in *; done.
+Qed.
+
+
+(* Lemmas about isDRO *)
+
+Lemma isDRO_flowsto (p p' : Perm) :
+  PermFlowsTo p p' ->
+  isDRO p' = true ->
+  isDRO p = true.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p; destruct_perm p' ; cbn in *; done.
+Qed.
+
+Lemma notisDRO_flowsfrom (p p' : Perm) :
+  PermFlowsTo p p' ->
+  isDRO p = false ->
+  isDRO p' = false.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p; destruct_perm p' ; cbn in *; done.
+Qed.
+
+
+(* Lemmas about sealing permissions *)
 
 Lemma permit_seal_flowsto p' p:
   SealPermFlowsTo p' p -> permit_seal p' = true → permit_seal p = true.
@@ -784,61 +947,186 @@ Lemma permit_unseal_flowsto p' p:
   SealPermFlowsTo p' p -> permit_unseal p' = true → permit_unseal p = true.
 Proof.  destruct_sealperm p; destruct_sealperm p'; done. Qed.
 
-(* Helper definitions for capabilities *)
 
-(* Turn E into RX, and ESR into XSR after a jump *)
-Definition updatePcPerm (w: Word): Word :=
-  match w with
-  | WCap E g b e a => WCap RX g b e a
-  (* | WCap ESR g b e a => WCap XSR_ g b e a *)
-  | _ => w
-  end.
+(* Lemmas about canStore *)
 
-Definition isSentry (p : Perm) : bool :=
- match p with
-   | E
-   (* | ESR *)
-     => true
-   | BPerm _ _ _ _ => false
- end.
-
-Lemma executeAllowed_isnot_sentry (p : Perm) :
-  executeAllowed p = true -> isSentry p = false.
+Lemma canStore_flowsto (p p' : Perm) (w : Word) :
+  PermFlowsTo p p'
+  -> canStore p w = true
+  -> canStore p' w = true.
 Proof.
-  intros Hexec.
-  destruct_perm p; cbn in *; done.
+  intros Hfl HcanStore.
+  rewrite /canStore in HcanStore |- *.
+  destruct (isLocalWord w).
+  by eapply isWL_flowsto.
+  by eapply writeAllowed_flowsto.
 Qed.
 
-Definition isE (p : Perm) : bool :=
- match p with
-   | E => true
-   | _ => false
- end.
+Lemma notcanStore_flowsfrom (p p' : Perm) (w : Word) :
+  PermFlowsTo p p'
+  -> canStore p' w = false
+  -> canStore p w = false.
+Proof.
+  intros Hfl HcanStore.
+  rewrite /canStore in HcanStore |- *.
+  destruct (isLocalWord w).
+  by eapply notisWL_flowsfrom.
+  by eapply notwriteAllowed_flowsfrom.
+Qed.
 
-(* Definition isESR (p : Perm) : bool := *)
-(*  match p with *)
-(*    | ESR => true *)
-(*    | _ => false *)
-(*  end. *)
+Lemma canStore_writeAllowed (p : Perm) (w : Word) :
+  canStore p w = true -> writeAllowed p = true.
+Proof.
+  intros HcanStore.
+  rewrite /canStore in HcanStore.
+  destruct p; cbn in *; cycle 1.
+  destruct (isLocalWord w); by cbn in *.
+  destruct w0; cbn in *; try done.
+  by rewrite Tauto.if_same in HcanStore.
+Qed.
 
-Lemma updatePcPerm_cap_non_sentry p g b e a :
+Lemma canStore_nonSentry (p : Perm) (w : Word) :
+  canStore p w = true -> isSentry p = false.
+Proof.
+  intros HcanStore.
+  by eapply writeAllowed_nonSentry, canStore_writeAllowed.
+Qed.
+
+Lemma writeAllowed_canStore_int (p : Perm) (z : Z) :
+  writeAllowed p = true ->
+  canStore p (WInt z) = true.
+Proof.
+  intros Hwa.
+  destruct p; first done.
+  apply writeAllowed_nonSentry in Hwa ; done.
+Qed.
+
+Lemma canStore_local_isWL (p : Perm) (w : Word) :
+  isLocalWord w = true
+  -> canStore p w = true
+  -> isWL p = true.
+Proof.
+  intros Hw HcanStore.
+  destruct p; cycle 1.
+  apply canStore_nonSentry in HcanStore; cbn; done.
+  by rewrite /canStore Hw in HcanStore.
+Qed.
+
+
+(* Lemmas about updatePcPerm *)
+Lemma updatePcPerm_cap_nonSentry
+  (p : Perm) (g : Locality) (b e a : Addr) :
   isSentry p = false ->
   updatePcPerm (WCap p g b e a) = WCap p g b e a.
 Proof.
   intros HnE. destruct_perm p; cbn in *; try done.
 Qed.
 
-Definition nonZero (w: Word): bool :=
+
+(* Lemmas about load_word *)
+Lemma load_word_cap
+  (pload p : Perm) (g : Locality) (b e a : Addr) :
+  load_word pload (WCap p g b e a ) =
+  (WCap (load_word_perm pload p) (if isDL pload then Local else g) b e a).
+Proof.
+  rewrite /load_word /load_word_perm.
+  destruct (isDRO pload) eqn:Hdro,(isDL pload) eqn:Hdl; cbn.
+  all: rewrite /readonly_perm /borrow_perm.
+  all: destruct p; cbn; try done.
+Qed.
+
+Lemma load_word_E (p : Perm) (g : Locality) (b e a : Addr) :
+  load_word p (WCap E g b e a ) = (WCap E (if isDL p then Local else g) b e a ).
+Proof.
+  rewrite /load_word.
+  by destruct (isDRO p),(isDL p); cbn.
+Qed.
+
+Lemma load_word_int (p : Perm) (z : Z) :
+  load_word p (WInt z) = WInt z.
+Proof.
+  rewrite /load_word.
+  by destruct (isDRO p),(isDL p); cbn.
+Qed.
+
+Lemma load_word_sealrange (p : Perm) (sp : SealPerms) (g : Locality) (b e a : OType) :
+  load_word p (WSealRange sp g b e a) = (WSealRange sp (if isDL p then Local else g) b e a).
+Proof.
+  rewrite /load_word.
+  by destruct (isDRO p),(isDL p); cbn.
+Qed.
+
+Lemma load_word_sealed (p : Perm) (ot : OType) (sb : Sealable)  :
+  load_word p (WSealed ot sb) = (WSealed ot (if isDL p then borrow_sb sb else sb)).
+Proof.
+  rewrite /load_word /borrow_sb.
+  destruct (isDRO p) eqn:Hdro,(isDL p) eqn:Hdl; cbn; auto.
+Qed.
+
+Lemma load_word_perm_flows (pload p : Perm) :
+  PermFlowsTo (load_word_perm pload p) p.
+Proof.
+  destruct p; last done.
+  repeat (apply andb_True;split).
+  + reflexivity.
+  + destruct (isDRO pload) eqn:Hdro; done.
+  + destruct (isDL pload) eqn:Hdl; done.
+  + destruct (isDRO pload) eqn:Hdro; done.
+Qed.
+
+Lemma load_word_perm_load_flows (pload pload' p : Perm) :
+  PermFlowsTo pload pload' ->
+  PermFlowsTo (load_word_perm pload p) (load_word_perm pload' p).
+Proof.
+  intro Hfl.
+  destruct p; cbn; last done.
+  repeat (apply andb_True;split).
+  + reflexivity.
+  + destruct (isDRO pload) eqn:Hdro; first done.
+    apply notisDRO_flowsfrom in Hfl; auto.
+    by rewrite Hfl.
+  + destruct (isDL pload) eqn:Hdl; first done.
+    apply notisDL_flowsfrom in Hfl; auto.
+    by rewrite Hfl.
+  + destruct (isDRO pload) eqn:Hdro; first done.
+    apply notisDRO_flowsfrom in Hfl; auto.
+    by rewrite Hfl.
+Qed.
+
+Lemma isO_load_word (pload p : Perm) :
+  isO p = true -> isO (load_word_perm pload p) = true.
+Proof.
+  intros HO.
+  destruct_perm p; cbn in * ; try congruence.
+  all: by rewrite Tauto.if_same.
+Qed.
+
+
+
+(** Helper properties about words *)
+
+(* isPerm: permission of the capability *)
+Definition isPerm p p' := @bool_decide _ (perm_eq_dec p p').
+
+Lemma isPerm_refl p : isPerm p p = true.
+Proof. destruct_perm p; auto. Qed.
+Lemma isPerm_ne p p' : p ≠ p' → isPerm p p' = false.
+Proof. intros Hne. destruct_perm p; destruct_perm p'; auto; congruence. Qed.
+
+Definition isPermWord (w : Word) (p : Perm): bool :=
   match w with
-  | WInt n => Zneq_bool n 0
-  | _ => true
+  | WCap p' _ _ _ _  => isPerm p p'
+  | _ => false
   end.
 
-Definition cap_size (w : Word) : Z :=
-  match w with
-  | WCap _ _ b e _ => (e - b)%Z
-  | _ => 0%Z
-  end.
+Lemma isPermWord_cap_isPerm (w0:Word) p:
+  isPermWord w0 p = true →
+  ∃ p' g b e a, w0 = WCap p' g b e a ∧ isPerm p p' = true.
+Proof.
+  intros Hp. rewrite /isPermWord in Hp.
+  destruct_word w0; try congruence.
+  eexists _, _, _, _, _; split; eauto.
+Qed.
 
 (* Bound checking for both otypes and addresses *)
 
@@ -947,7 +1235,8 @@ Lemma isCorrectPC_nonO p p' g b e a :
   PermFlowsTo p p' → isCorrectPC (WCap p g b e a) → isO p' = false.
 Proof.
   intros Hfl HcPC.
-  inversion HcPC. by apply (executeAllowed_nonO p p').
+  inversion HcPC.
+  by eapply executeAllowed_nonO, executeAllowed_flowsto.
 Qed.
 
 Lemma isCorrectPC_nonE p g b e a :
@@ -974,7 +1263,6 @@ Proof.
   unfold InBounds. intros. constructor; eauto.
 Qed.
 
-
 Lemma isCorrectPC_ExecPCPerm_InBounds p g b e a :
   executeAllowed p = true →
   InBounds b e a →
@@ -984,108 +1272,7 @@ Proof.
 Qed.
 
 
-Definition borrow_perm (p : Perm) :=
-  match p with
-  | BPerm rx w _ dro => BPerm rx w DL dro
-  | E => E
-  end.
-
-Definition borrow_sb (sb : Sealable) :=
-  match sb with
-  | SSealRange sp _ b e a => SSealRange sp Local b e a
-  | SCap p _ b e a => SCap (borrow_perm p) Local b e a
-  end.
-
-Definition borrow (w : Word) :=
-  match w with
-  | WSealable sb => WSealable (borrow_sb sb)
-  | WSealed ot sb => WSealed ot (borrow_sb sb)
-  | _ => w
-  end.
-
-Definition readonly_perm (p : Perm) :=
-  match p with
-  | BPerm rx _ dl _ => BPerm rx Ow dl DRO
-  | E => E
-  end.
-
-Definition readonly_sb (sb : Sealable) :=
-  match sb with
-  | SCap p g b e a => SCap (readonly_perm p) g b e a
-  | _ => sb
-  end.
-
-Definition readonly (w : Word) :=
-  match w with
-  | WSealable sb => WSealable (readonly_sb sb)
-  | _ => w
-  end.
-
-Definition load_word (p : Perm) (w : Word) :=
-  let borrow_w := (if isDL p then borrow w else w) in
-  let borrow_dro_w := (if isDRO p then readonly borrow_w else borrow_w) in
-  borrow_dro_w.
-
-Definition load_word_perm (pload p : Perm) :=
-  match p with
-  | BPerm rx pw dl dro => (BPerm rx
-                            (if isDRO pload then Ow else pw)
-                            (if isDL pload then DL else dl)
-                            (if isDRO pload then DRO else dro)
-                         )
-  | E => E
-  end.
-
-Lemma load_word_cap pload p g b e a :
-  load_word pload (WCap p g b e a ) =
-  (WCap (load_word_perm pload p) (if isDL pload then Local else g) b e a).
-Proof.
-  rewrite /load_word /load_word_perm.
-  destruct (isDRO pload) eqn:Hdro,(isDL pload) eqn:Hdl; cbn.
-  all: rewrite /readonly_perm /borrow_perm.
-  all: destruct p; cbn; try done.
-Qed.
-
-Lemma load_word_E (p : Perm) g b e a :
-  load_word p (WCap E g b e a ) = (WCap E (if isDL p then Local else g) b e a ).
-Proof.
-  rewrite /load_word.
-  by destruct (isDRO p),(isDL p); cbn.
-Qed.
-
-Lemma load_word_int p z :
-  load_word p (WInt z) = WInt z.
-Proof.
-  rewrite /load_word.
-  by destruct (isDRO p),(isDL p); cbn.
-Qed.
-
-Lemma load_word_sealrange p sp b g e a :
-  load_word p (WSealRange sp g b e a) = (WSealRange sp (if isDL p then Local else g) b e a).
-Proof.
-  rewrite /load_word.
-  by destruct (isDRO p),(isDL p); cbn.
-Qed.
-
-Lemma load_word_sealed p ot sb  :
-  load_word p (WSealed ot sb) = (WSealed ot (if isDL p then borrow_sb sb else sb)).
-Proof.
-  rewrite /load_word /borrow_sb.
-  destruct (isDRO p) eqn:Hdro,(isDL p) eqn:Hdl; cbn; auto.
-Qed.
-
-Lemma load_word_perm_flows (pload p : Perm) :
-  PermFlowsTo (load_word_perm pload p) p.
-Proof.
-  destruct p; last done.
-  repeat (apply andb_True;split).
-  + reflexivity.
-  + destruct (isDRO pload) eqn:Hdro; done.
-  + destruct (isDL pload) eqn:Hdl; done.
-  + destruct (isDRO pload) eqn:Hdro; done.
-Qed.
-
-(* Useful instances *)
+(** Useful instances *)
 
 Global Instance rxperm_countable : Countable RXperm.
 Proof.
@@ -1322,7 +1509,9 @@ Proof. destruct_word w; try (right; solve [auto]). destruct c;simpl;apply _. Qed
 Global Instance hasValidAddress_dec w a: Decision (hasValidAddress w a).
 Proof. destruct_word w; try (right; solve [auto]). destruct c;simpl;apply _. Qed.
 
-Global Instance writeAllowed_in_r_a_Decidable r a: Decision (writeAllowed_in_r_a r a).
+Global Instance writeAllowed_a_in_regs_Decidable
+  (r : Reg) (a : Addr) :
+  Decision (writeAllowed_a_in_regs r a).
 Proof.
   eapply finite.exists_dec.
   intros x. destruct (r !! x) eqn:Hsome;
@@ -1331,7 +1520,9 @@ Proof.
   all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
 Qed.
 
-Global Instance readAllowed_in_r_a_Decidable r a: Decision (readAllowed_in_r_a r a).
+Global Instance readAllowed_a_in_regs_Decidable
+  (r : Reg) (a : Addr) :
+  Decision (readAllowed_a_in_regs r a).
 Proof.
   eapply finite.exists_dec.
   intros x.
@@ -1339,175 +1530,4 @@ Proof.
     first destruct (decide (readAllowedWord w)), (decide (hasValidAddress w a)).
   left. eexists _; eauto.
   all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
-Qed.
-
-
-(* TODO re organise *)
-Lemma readAllowed_isnot_sentry (p : Perm) :
-  readAllowed p = true -> isSentry p = false.
-Proof.
-  intros Hexec.
-  destruct_perm p; cbn in *; done.
-Qed.
-
-Lemma writeAllowed_isnot_sentry (p : Perm) :
-  writeAllowed p = true -> isSentry p = false.
-Proof.
-  intros Hexec.
-  destruct_perm p; cbn in *; done.
-Qed.
-
-Lemma pwl_flows (p1 p2 : Perm) :
-  PermFlowsTo p1 p2
-  -> pwl p1 = true
-  -> pwl p2 = true.
-Proof.
-  intros Hfl Hra.
-  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
-Qed.
-
-Lemma pwl_nonO p p':
-  PermFlowsTo p p' → pwl p = true → isO p' = false.
-Proof.
-  intros Hfl' Hra.
-  eapply pwl_flows in Hra; eauto.
-  destruct_perm p'; auto; inversion Hxa ; try congruence.
-Qed.
-
-Lemma pwl_isnot_sentry (p : Perm) :
-  pwl p = true -> isSentry p = false.
-Proof.
-  intros Hexec.
-  destruct_perm p; cbn in *; done.
-Qed.
-
-Lemma isnotO_flows (p p' : Perm) :
-  PermFlowsTo p p'
-  -> isO p' = true
-  -> isO p = true.
-Proof.
-  intros Hfl Hra.
-  destruct_perm p; destruct_perm p' ; cbn in *; done.
-Qed.
-
-Lemma isO_flows (p p' : Perm) :
-  PermFlowsTo p p'
-  -> isO p = false
-  -> isO p' = false.
-Proof.
-  intros Hfl Hra.
-  destruct_perm p; destruct_perm p' ; cbn in *; done.
-Qed.
-
-Lemma isDRO_flows (p p' : Perm) :
-  PermFlowsTo p p' ->
-  isDRO p' = true ->
-  isDRO p = true.
-Proof.
-  intros Hfl Hra.
-  destruct_perm p; destruct_perm p' ; cbn in *; done.
-Qed.
-
-Lemma isDL_flows (p p' : Perm) :
-  PermFlowsTo p p' ->
-  isDL p' = true ->
-  isDL p = true.
-Proof.
-  intros Hfl Hra.
-  destruct_perm p; destruct_perm p' ; cbn in *; done.
-Qed.
-
-Lemma isnotDRO_flows (p p' : Perm) :
-  PermFlowsTo p p' ->
-  isDRO p = false ->
-  isDRO p' = false.
-Proof.
-  intros Hfl Hra.
-  destruct_perm p; destruct_perm p' ; cbn in *; done.
-Qed.
-
-Lemma isnotDL_flows (p p' : Perm) :
-  PermFlowsTo p p' ->
-  isDL p = false ->
-  isDL p' = false.
-Proof.
-  intros Hfl Hra.
-  destruct_perm p; destruct_perm p' ; cbn in *; done.
-Qed.
-
-Lemma load_word_perm_load_flows (pload pload' p : Perm) :
-  PermFlowsTo pload pload' ->
-  PermFlowsTo (load_word_perm pload p) (load_word_perm pload' p).
-Proof.
-  intro Hfl.
-  destruct p; cbn; last done.
-  repeat (apply andb_True;split).
-  + reflexivity.
-  + destruct (isDRO pload) eqn:Hdro; first done.
-    apply isnotDRO_flows in Hfl; auto.
-    by rewrite Hfl.
-  + destruct (isDL pload) eqn:Hdl; first done.
-    apply isnotDL_flows in Hfl; auto.
-    by rewrite Hfl.
-  + destruct (isDRO pload) eqn:Hdro; first done.
-    apply isnotDRO_flows in Hfl; auto.
-    by rewrite Hfl.
-Qed.
-
-Lemma isO_load_word (pload p : Perm) :
-  isO p = true -> isO (load_word_perm pload p) = true.
-Proof.
-  intros HO.
-  destruct_perm p; cbn in * ; try congruence.
-  all: by rewrite Tauto.if_same.
-Qed.
-
-Lemma writeAllowed_canStore_int (p : Perm) (z : Z) :
-  writeAllowed p = true ->
-  canStore p (WInt z) = true.
-Proof.
-  intros Hwa.
-  destruct p; first done.
-  apply writeAllowed_isnot_sentry in Hwa ; done.
-Qed.
-
-Lemma canStore_writeAllowed (p : Perm) (w : Word) :
-  canStore p w = true -> writeAllowed p = true.
-Proof.
-  intros HcanStore.
-  rewrite /canStore in HcanStore.
-  destruct p; cbn in *; cycle 1.
-  destruct (isLocalWord w); by cbn in *.
-  destruct w0; cbn in *; try done.
-  by rewrite Tauto.if_same in HcanStore.
-Qed.
-
-Lemma canStore_isnot_sentry (p : Perm) (w : Word) :
-  canStore p w = true -> isSentry p = false.
-Proof.
-  intros HcanStore.
-  by eapply writeAllowed_isnot_sentry, canStore_writeAllowed.
-Qed.
-
-Lemma canStore_local_pwl (p : Perm) (w : Word) :
-  isLocalWord w = true
-  -> canStore p w = true
-  -> pwl p = true.
-Proof.
-  intros Hw HcanStore.
-  destruct p; cycle 1.
-  apply canStore_isnot_sentry in HcanStore; cbn; done.
-  by rewrite /canStore Hw in HcanStore.
-Qed.
-
-Lemma canStore_flows (p p' : Perm) w :
-  PermFlowsTo p p'
-  -> canStore p w = true
-  -> canStore p' w = true.
-Proof.
-  intros Hfl HcanStore.
-  rewrite /canStore in HcanStore |- *.
-  destruct (isLocalWord w).
-  by eapply pwl_flows.
-  by eapply writeAllowed_flows.
 Qed.

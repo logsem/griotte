@@ -196,7 +196,7 @@ Program Definition interp_expr (interp : D) r : D :=
   Definition monoReq (W : WORLD) (a : Addr) (p : Perm) (P : D) :=
     match (std W) !! a with
     | Some Temporary =>
-        (if pwl p
+        (if isWL p
          then mono_pub (safeC P)
          else mono_priv (safeC P) p)
     | Some Permanent => mono_priv (safeC P) p
@@ -228,7 +228,7 @@ Program Definition interp_expr (interp : D) r : D :=
                       ∧ (if readAllowed p' then ▷ rcond p' P interp else True)
                       ∧ (if writeAllowed p' then ▷ wcond P interp else True)
                       ∧ monoReq W a p' P
-                      ∧ ⌜ if pwl p then region_state_pwl W a else region_state_nwl W a g⌝
+                      ∧ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
               | _ => False
               end)%I.
   Solve All Obligations with auto;solve_proper.
@@ -365,8 +365,8 @@ Program Definition interp_expr (interp : D) r : D :=
                     ∗ (if readAllowed p' then ▷ (rcond p' P interp) else True)
                     ∗ (if writeAllowed p' then ▷ (wcond P interp) else True)
                     ∗ monoReq W a p' P
-                    ∗ ⌜ if pwl p then region_state_pwl W a else region_state_nwl W a g⌝)
-               ∗ (⌜ if pwl p then g = Local else True⌝))%I).
+                    ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
+               ∗ (⌜ if isWL p then g = Local else True⌝))%I).
   Proof.
     (* iSplit. *)
     (* { iIntros "HA". *)
@@ -420,11 +420,11 @@ Program Definition interp_expr (interp : D) r : D :=
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Ra ;done. }
     replace (isSentry p) with false.
-    2: { eapply readAllowed_isnot_sentry in Ra ;done. }
+    2: { eapply readAllowed_nonSentry in Ra ;done. }
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & _)";eauto.
-    pose proof (readAllowed_flows _ _ Hfl' Ra) as Ra'.
+    pose proof (readAllowed_flowsto _ _ Hfl' Ra) as Ra'.
     rewrite Ra'.
     iExists p',P'; iFrame "#∗%"; try done.
   Qed.
@@ -451,11 +451,11 @@ Program Definition interp_expr (interp : D) r : D :=
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Ra ;done. }
     replace (isSentry p) with false.
-    2: { eapply writeAllowed_isnot_sentry in Ra ;done. }
+    2: { eapply writeAllowed_nonSentry in Ra ;done. }
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & _)";eauto.
-    pose proof (writeAllowed_flows _ _ Hfl' Ra) as Ra'.
+    pose proof (writeAllowed_flowsto _ _ Hfl' Ra) as Ra'.
     rewrite Ra'.
     iExists p',P'; iFrame "#∗%"; try done.
   Qed.
@@ -473,12 +473,12 @@ Program Definition interp_expr (interp : D) r : D :=
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Hra ;done. }
     replace (isSentry p) with false.
-    2: { eapply readAllowed_isnot_sentry in Hra ;done. }
+    2: { eapply readAllowed_nonSentry in Hra ;done. }
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
     iPureIntro.
-    destruct (pwl p); simplify_eq.
+    destruct (isWL p); simplify_eq.
     naive_solver.
     destruct g; naive_solver.
   Qed.
@@ -496,18 +496,18 @@ Program Definition interp_expr (interp : D) r : D :=
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Hra ;done. }
     replace (isSentry p) with false.
-    2: { eapply writeAllowed_isnot_sentry in Hra ;done. }
+    2: { eapply writeAllowed_nonSentry in Hra ;done. }
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
     iPureIntro.
-    destruct (pwl p); simplify_eq.
+    destruct (isWL p); simplify_eq.
     naive_solver.
     destruct g; naive_solver.
   Qed.
 
   Lemma writeLocalAllowed_implies_local W p g b e a:
-    pwl p = true ->
+    isWL p = true ->
     interp W (WCap p g b e a) -∗ ⌜ isLocal g = true ⌝.
   Proof.
     intros. iIntros "Hvalid".
@@ -516,7 +516,7 @@ Program Definition interp_expr (interp : D) r : D :=
   Qed.
 
   Lemma writeLocalAllowed_valid_cap_implies W p g b e a:
-    pwl p = true ->
+    isWL p = true ->
     withinBounds b e a = true ->
     interp W (WCap p g b e a) -∗
            ⌜std W !! a = Some Temporary⌝.
@@ -525,9 +525,9 @@ Program Definition interp_expr (interp : D) r : D :=
     eapply withinBounds_le_addr in Hb.
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
-    2: { eapply pwl_nonO in Hp ;done. }
+    2: { eapply isWL_nonO in Hp ;done. }
     replace (isSentry p) with false.
-    2: { eapply pwl_isnot_sentry in Hp ;done. }
+    2: { eapply isWL_nonSentry in Hp ;done. }
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
@@ -545,21 +545,21 @@ Program Definition interp_expr (interp : D) r : D :=
         ∗ (if readAllowed p' then ▷ rcond p' P interp else True)
         ∗ (if writeAllowed p' then ▷ wcond P interp else True)
         ∗ monoReq W a p' P
-        ∗ ⌜if pwl p then region_state_pwl W a else region_state_nwl W a g⌝
+        ∗ ⌜if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
        )
     -∗ (∃ (p' : Perm) (P : D),
         ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
         ∗ rel a p' (safeC P)
         ∗ ▷ zcond P
-        ∗ (if decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
+        ∗ (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)
             then ▷ (rcond p' P interp)
             else emp)
-        ∗ (if decide (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a)
+        ∗ (if decide (writeAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)
             then ▷ wcond P interp
             else emp)
         ∗ monoReq W a p' P
-        ∗ ⌜if pwl p then region_state_pwl W a else region_state_nwl W a g⌝
+        ∗ ⌜if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
        ).
   Proof.
     iIntros "#Hreg #H".
@@ -568,13 +568,13 @@ Program Definition interp_expr (interp : D) r : D :=
     iFrame "%#".
     iSplit.
     - (* rcond *)
-      destruct (decide (readAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a))
+      destruct (decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a))
         as [Hra'|Hra']; auto.
       destruct (readAllowed p0) eqn:Hra; auto.
       destruct Hra' as (r & w & Hsome & Hrar & Hvw).
       destruct (decide (r = PC)); subst.
       { rewrite lookup_insert in Hsome; simplify_eq.
-        eapply readAllowed_flows in Hrar; eauto.
+        eapply readAllowed_flowsto in Hrar; eauto.
         cbn in *; congruence.
       }
       rewrite lookup_insert_ne in Hsome; auto.
@@ -585,22 +585,22 @@ Program Definition interp_expr (interp : D) r : D :=
       replace (isO c) with false.
       2: { eapply readAllowed_nonO in Hrar ;done. }
       replace (isSentry c) with false.
-      2: { eapply readAllowed_isnot_sentry in Hrar ;done. }
+      2: { eapply readAllowed_nonSentry in Hrar ;done. }
       iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
       iDestruct (extract_from_region_inv with "Hinterp_w")
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
       ; eauto; iClear "Hinterp_w".
-      apply readAllowed_flows in Hflc1; auto.
+      apply readAllowed_flowsto in Hflc1; auto.
       iDestruct (rel_agree a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
     - (* wcond *)
-      destruct (decide (writeAllowed_in_r_a (<[PC:=WCap p g b e a]> regs) a))
+      destruct (decide (writeAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a))
         as [Hwa'|Hwa']; auto.
       destruct (writeAllowed p0) eqn:Hwa; auto.
       destruct Hwa' as (r & w & Hsome & Hwaw & Hvw).
       destruct (decide (r = PC)); subst.
       { rewrite lookup_insert in Hsome; simplify_eq.
-        eapply writeAllowed_flows in Hwaw; eauto.
+        eapply writeAllowed_flowsto in Hwaw; eauto.
         cbn in *; congruence.
       }
       rewrite lookup_insert_ne in Hsome; auto.
@@ -611,12 +611,12 @@ Program Definition interp_expr (interp : D) r : D :=
       replace (isO c) with false.
       2: { eapply writeAllowed_nonO in Hwaw ;done. }
       replace (isSentry c) with false.
-      2: { eapply writeAllowed_isnot_sentry in Hwaw ;done. }
+      2: { eapply writeAllowed_nonSentry in Hwaw ;done. }
       iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
       iDestruct (extract_from_region_inv with "Hinterp_w")
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
       ; eauto; iClear "Hinterp_w".
-      apply writeAllowed_flows in Hflc1; auto.
+      apply writeAllowed_flowsto in Hflc1; auto.
       iDestruct (rel_agree a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
   Qed.

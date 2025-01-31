@@ -77,7 +77,7 @@ Section fundamental.
 
         iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
         iApply (interp_weakening with "IH Hr0"); eauto; try reflexivity; try solve_addr.
-        by apply executeAllowed_isnot_sentry.
+        by apply executeAllowed_nonSentry.
       }
       { map_simpl "Hmap".
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
