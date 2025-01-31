@@ -316,93 +316,79 @@ Section fundamental.
     iFrame "∗#%".
     cbn.
     destruct sb; auto.
-    destruct p; auto.
   Qed.
 
-  Lemma interp_load_word W p w : interp W w ⊢ interp W (load_word p w).
+  Lemma DL_flowsto (rx : RXperm) (w : Wperm) dl dro :
+    PermFlowsTo (BPerm rx w DL dro) (BPerm rx w dl dro).
   Proof.
-    iIntros "Hinterp".
-    destruct w.
-    - by rewrite load_word_int.
-    - destruct sb; try done; cbn; cycle 1.
-      { rewrite load_word_sealrange.
-        by rewrite !fixpoint_interp1_eq.
-      }
-      {
-        destruct p0; [ rewrite load_word_cap | rewrite load_word_E ];cycle 1.
-        { destruct (isDL p); last done.
-          by iApply interp_weakening_from_E.
-        }
-        rewrite !fixpoint_interp1_eq !interp1_eq.
+    destruct rx,w,dl,dro; cbn in *; done.
+  Qed.
 
-        destruct (isO (BPerm rx w dl dro)) eqn:HpO.
-        { destruct rx,w; cbn in *; try done.
-          by rewrite Tauto.if_same.
-        }
-        set (w' := (if isDRO p then Ow else w)).
-        set (dl' := (if isDL p then DL else dl)).
-        set (dro' := (if isDRO p then DRO else dro)).
-        destruct (isO (load_word_perm p (BPerm rx w dl dro))); first done.
-        replace (isSentry (BPerm rx w dl dro)) with false; auto.
-        replace (isSentry (load_word_perm p (BPerm rx w dl dro))) with false; auto.
+  Lemma DRO_flowsto (rx : RXperm) (w : Wperm) dl dro :
+    PermFlowsTo (BPerm rx Ow dl DRO) (BPerm rx w dl dro).
+  Proof.
+    destruct rx,w,dl,dro; cbn in *; done.
+  Qed.
 
-        iDestruct "Hinterp" as "[Hinterp %Hw]".
-        iSplit; cycle 1.
-        iPureIntro.
-        {
-          rewrite /load_word_perm.
-          destruct (isDRO p); subst w'; cbn; try done.
-          destruct w; try done.
-          cbn in Hw.
-          subst; by rewrite Tauto.if_same.
-        }
-        iApply (big_sepL_mono with "Hinterp").
-        iIntros (k y Hky) "Ha".
-        iDestruct "Ha" as
-          (p' P' Hflp' HpersP')
-            "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
-        iExists p',P'.
-        iFrame "∗".
-        iSplit;[iPureIntro|].
-        {
-          transitivity (BPerm rx w dl dro); auto.
-          apply load_word_perm_flows.
-        }
-        iSplit;[iFrame "%"|].
-        iPureIntro.
-        destruct (isWL (BPerm rx w dl dro)) eqn:Hpwl ; simplify_eq.
-        { rewrite /load_word_perm.
-          cbn in Hpwl; destruct w ; try congruence.
-          destruct (isDRO p); subst w'; cbn; auto.
-          rewrite Tauto.if_same; cbn.
-          by right.
-        }
-        { assert (isWL (load_word_perm p (BPerm rx w dl dro)) = false) as ->.
-          { cbn in *.
-            subst w'.
-            destruct (isDRO p); done.
-          }
-          destruct (isDL p); cbn; auto.
-          destruct g; cbn in Hstate; naive_solver.
-        }
-      }
-    - rewrite load_word_sealed.
-      destruct (isDL p); auto.
-      by iApply (interp_borrowed_sealed with "Hinterp").
+  Lemma interp_deeplocal_word W w : interp W w ⊢ interp W (deeplocal w).
+  Proof.
+    iIntros "Hw".
+    destruct w; try done.
+    destruct sb; try done; cbn; cycle 1.
+    destruct p;try done; cbn; cycle 1.
+    destruct (isO (BPerm rx w dl dro)) eqn:HpO.
+    { destruct rx,w; cbn in *; try done.
+      rewrite !fixpoint_interp1_eq //=.
+    }
+    iApply interp_weakeningEO; eauto; try done; try solve_addr.
+    apply DL_flowsto.
   Qed.
 
   Lemma interp_borrow_word W w : interp W w ⊢ interp W (borrow w).
   Proof.
     iIntros "Hw".
-    iDestruct (interp_load_word W RO_DL w with "Hw") as "Hw'".
-    by cbn.
+    destruct w; try done.
+    - destruct sb; try done; cbn; cycle 1.
+      { by rewrite !fixpoint_interp1_eq. }
+      {
+        destruct p;cycle 1.
+        { by iApply interp_weakening_from_E. }
+
+        destruct (isO (BPerm rx w dl dro)) eqn:HpO.
+        { destruct rx,w; cbn in *; try done.
+          rewrite !fixpoint_interp1_eq //=.
+        }
+        iApply interp_weakeningEO; eauto; try done; try solve_addr.
+      }
+    - by iApply (interp_borrowed_sealed with "Hw").
   Qed.
 
   Lemma interp_readonly_word W w : interp W w ⊢ interp W (readonly w).
   Proof.
     iIntros "Hw".
-    iDestruct (interp_load_word W RO_DRO w with "Hw") as "Hw'".
-    by cbn.
+    destruct w; try done.
+    destruct sb; try done; cbn; cycle 1.
+    destruct p;try done; cbn; cycle 1.
+    destruct (isO (BPerm rx w dl dro)) eqn:HpO.
+    { destruct rx,w; cbn in *; try done.
+      rewrite !fixpoint_interp1_eq //=.
+    }
+    destruct (isO (BPerm rx Ow dl DRO)) eqn:HpO'.
+    { destruct rx,w; cbn in *; try done.
+      all: rewrite !fixpoint_interp1_eq //=.
+    }
+    iApply (interp_weakeningEO with "Hw"); eauto; try done; try solve_addr.
+    apply DRO_flowsto.
+  Qed.
+
+  Lemma interp_load_word W p w : interp W w ⊢ interp W (load_word p w).
+  Proof.
+    iIntros "Hinterp".
+    rewrite /load_word.
+    destruct (isDRO p),(isDL p); auto.
+    - by iApply interp_readonly_word ; iApply interp_deeplocal_word ; iApply interp_borrow_word.
+    - by iApply interp_readonly_word.
+    - by iApply interp_deeplocal_word ; iApply interp_borrow_word.
   Qed.
 
   Lemma interp_weakening_word_load (W : WORLD) (p p' : Perm) v :

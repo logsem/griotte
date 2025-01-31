@@ -402,22 +402,34 @@ Definition cap_size (w : Word) : Z :=
   | _ => 0%Z
   end.
 
-Definition borrow_perm (p : Perm) :=
+Definition deeplocal_perm (p : Perm) :=
   match p with
   | BPerm rx w _ dro => BPerm rx w DL dro
   | E => E
   end.
 
+Definition deeplocal_sb (sb : Sealable) :=
+  match sb with
+  | SCap p g b e a => SCap (deeplocal_perm p) g b e a
+  | SSealRange sp g b e a => SSealRange sp g b e a
+  end.
+
 Definition borrow_sb (sb : Sealable) :=
   match sb with
   | SSealRange sp _ b e a => SSealRange sp Local b e a
-  | SCap p _ b e a => SCap (borrow_perm p) Local b e a
+  | SCap p _ b e a => SCap p Local b e a
   end.
 
 Definition borrow (w : Word) :=
   match w with
   | WSealable sb => WSealable (borrow_sb sb)
   | WSealed ot sb => WSealed ot (borrow_sb sb)
+  | _ => w
+  end.
+
+Definition deeplocal (w : Word) :=
+  match w with
+  | WSealable sb => WSealable (deeplocal_sb sb)
   | _ => w
   end.
 
@@ -440,7 +452,7 @@ Definition readonly (w : Word) :=
   end.
 
 Definition load_word (p : Perm) (w : Word) :=
-  let borrow_w := (if isDL p then borrow w else w) in
+  let borrow_w := (if isDL p then deeplocal (borrow w) else w) in
   let borrow_dro_w := (if isDRO p then readonly borrow_w else borrow_w) in
   borrow_dro_w.
 
@@ -453,8 +465,6 @@ Definition load_word_perm (pload p : Perm) :=
                          )
   | E => E
   end.
-
-
 
 
 
@@ -1042,7 +1052,7 @@ Lemma load_word_cap
 Proof.
   rewrite /load_word /load_word_perm.
   destruct (isDRO pload) eqn:Hdro,(isDL pload) eqn:Hdl; cbn.
-  all: rewrite /readonly_perm /borrow_perm.
+  all: rewrite /readonly_perm /deeplocal_perm.
   all: destruct p; cbn; try done.
 Qed.
 
