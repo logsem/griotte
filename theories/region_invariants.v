@@ -31,11 +31,8 @@ Inductive std_rel_priv : region_type -> region_type -> Prop :=
 | Std_priv_Temporary_Revoked : std_rel_priv Temporary Revoked
 | Std_priv_Temporary_Permanent : std_rel_priv Temporary Permanent.
 
-(* Inductive std_rel_pub_plus : region_type → region_type → Prop :=. *)
-(* | Std_pub_plus_Frozen_Temporary m : std_rel_pub_plus (Frozen m) Temporary. *)
-
 Global Instance sts_std : STS_STD region_type :=
-  {| Rpub := std_rel_pub; Rpriv := std_rel_priv ; (* Rpubp := std_rel_pub_plus *)|}.
+  {| Rpub := std_rel_pub; Rpriv := std_rel_priv |}.
 
 Class heapGpreS Σ := HeapGpreS {
   heapPreG_invPreG : invGpreS Σ;
@@ -44,7 +41,6 @@ Class heapGpreS Σ := HeapGpreS {
 }.
 
 Class heapGS Σ := HeapGS {
-  (* heapG_invG : invGS Σ; *)
   heapG_saved_pred :: savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word);
   heapG_rel :: inG Σ (authR relUR);
   γrel : gname
@@ -87,7 +83,7 @@ Section heapPre.
   (* TODO wsat_alloc had been changed in Iris 4.0.
      Fixed using Hc
    *)
-  Context {Σ:gFunctors} {heappreg : heapGpreS Σ} (* {Hc : lcGS Σ} *).
+  Context {Σ:gFunctors} {heappreg : heapGpreS Σ}.
 
   Lemma heap_init :
     ⊢ |==> ∃ (heapg: heapGS Σ), RELS (∅ : relT).
@@ -95,9 +91,6 @@ Section heapPre.
     iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γ) "H".
     { rewrite fmap_empty. by apply auth_auth_valid. }
     iExists (HeapGS _ _ _ γ). rewrite RELS_eq /RELS_def. done.
-    (* iMod (@wsat.wsat_alloc _ (@invGpreS_wsat _ (@heapPreG_invPreG _ heappreg))) as (Hw) "[Hw HE]". *)
-    (* iModIntro. *)
-    (* iExists (HeapGS _ (InvG HasLc _ Hw _) _ _ γ). rewrite RELS_eq /RELS_def. done. *)
   Qed.
 
 End heapPre.
@@ -215,12 +208,6 @@ Section heap.
 
   Definition future_pub_mono (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
     (□ ∀ W W', ⌜related_sts_pub_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I.
-
-  (* Definition future_pub_plus_mono (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ := *)
-  (*   (□ ∀ W W', ⌜related_sts_pub_plus_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I. *)
-
-  (* Definition future_pub_a_mono (a : Addr) (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ := *)
-  (*   (□ ∀ W W', ⌜related_sts_a_world W W' a⌝ → φ (W,v) -∗ φ (W',v))%I. *)
 
   Definition future_priv_mono (φ : (WORLD * Word) -> iProp Σ) v : iProp Σ :=
     (□ ∀ W W', ⌜related_sts_priv_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I.
