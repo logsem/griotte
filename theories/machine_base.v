@@ -1008,10 +1008,21 @@ Lemma canStore_local_isWL (p : Perm) (w : Word) :
 Proof.
   intros Hw HcanStore.
   destruct p; cycle 1.
-  apply canStore_nonSentry in HcanStore; cbn; done.
+  { apply canStore_nonSentry in HcanStore; cbn; done. }
   by rewrite /canStore Hw in HcanStore.
 Qed.
 
+Lemma canStore_global_nonisWL (p : Perm) (w : Word) :
+  isWL p = false
+  → canStore p w = true
+  → isLocalWord w = false.
+Proof.
+  intros Hpwl HcanStore.
+  destruct p; cycle 1.
+  { apply canStore_nonSentry in HcanStore; cbn; done. }
+  rewrite /canStore in HcanStore.
+  destruct (isLocalWord w); congruence.
+Qed.
 
 (* Lemmas about updatePcPerm *)
 Lemma updatePcPerm_cap_nonSentry

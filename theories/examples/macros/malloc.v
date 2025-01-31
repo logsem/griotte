@@ -342,23 +342,17 @@ Section SimpleMalloc.
           consider_next_reg' x r_t1 Hwx; [inv Hwx|].
           { rewrite !fixpoint_interp1_eq. iApply (big_sepL_mono with "Hvalid").
             iIntros (k y Hky) "Ha". iFrame.
+            assert
+              (std (std_update_multiple W' (finz.seq_between ba ea) Permanent)
+                 !! y = Some Permanent).
+            { rewrite std_sta_update_multiple_lookup_in_i;auto.
+              apply elem_of_list_lookup. exists k; eauto. }
             repeat (iSplit; try done; try iNext; try iPureIntro); simpl.
-            apply persistent_cond_interp.
-            iApply zcond_interp.
-            iApply rcond_interp.
-            iApply wcond_interp.
-            { (* TODO Lemma: inTerp always satisfies monoReq  *)
-              rewrite /monoReq //=.
-              rewrite std_sta_update_multiple_lookup_in_i;auto.
-              rewrite /mono_priv.
-              iIntros (w Hcanstore W0 W1 Hrelated').
-              iModIntro ; iIntros "Hinterp".
-              iApply interp_monotone_nl; eauto; cbn.
-              destruct_word w ; try destruct sb ; try destruct g0 ; cbn in * ; try done.
-              apply elem_of_list_lookup. exists k. auto.
-            }
-            rewrite std_sta_update_multiple_lookup_in_i;auto.
-            apply elem_of_list_lookup. exists k. auto.
+            + apply persistent_cond_interp.
+            + iApply zcond_interp.
+            + iApply rcond_interp.
+            + iApply wcond_interp.
+            + iApply monoReq_interp; eauto.
           }
           consider_next_reg' x r_t2 Hwx; first (inv Hwx; rewrite !fixpoint_interp1_eq //=).
           consider_next_reg' x r_t3 Hwx; first (inv Hwx; rewrite !fixpoint_interp1_eq //=).

@@ -472,4 +472,29 @@ Section fundamental.
     by iApply interp_load_word.
   Qed.
 
+  Lemma monoReq_interp (W : WORLD) (a : Addr) (p : Perm) (ρ : region_type) :
+    (std W) !! a = Some ρ
+    -> (ρ = Permanent -> isWL p = false)
+    -> ⊢ monoReq W a p interp.
+  Proof.
+    intros Hstd_a Hρ.
+    rewrite /monoReq Hstd_a.
+    destruct ρ; try done.
+    - destruct (isWL p) eqn:Hwl.
+      + iIntros (w W0 W1 Hrelated); iModIntro.
+        iIntros "Hinterp".
+        iApply interp_monotone; eauto.
+      + iIntros (w W0 W1 HcanStore Hrelated); iModIntro.
+        iIntros "Hinterp".
+        iApply interp_monotone_nl; eauto.
+        iPureIntro; cbn.
+        by eapply canStore_global_nonisWL.
+    - ospecialize (Hρ _); first done.
+      iIntros (w W0 W1 HcanStore Hrelated); iModIntro.
+      iIntros "Hinterp".
+      iApply interp_monotone_nl; eauto.
+      iPureIntro; cbn.
+      by eapply canStore_global_nonisWL.
+  Qed.
+
 End fundamental.
