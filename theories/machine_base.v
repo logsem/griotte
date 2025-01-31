@@ -875,34 +875,6 @@ Proof.
  - right. red; intros H. inversion H.
 Qed.
 
-(* Definition isCorrectPCb (w: Word): bool := *)
-(*   match w with *)
-(*   | WCap p g b e a => *)
-(*     (b <=? a)%a && (a <? e)%a && *)
-(*     (isPerm p RX || isPerm p RWX || isPerm p RWLX) *)
-(*   | _ => false *)
-(*   end. *)
-
-(* Lemma isCorrectPCb_isCorrectPC w : *)
-(*   isCorrectPCb w = true ↔ isCorrectPC w. *)
-(* Proof. *)
-(*   rewrite /isCorrectPCb. destruct_word w. *)
-(*   1,3,4 : split; try congruence; inversion 1. *)
-(*   { rewrite !andb_true_iff !orb_true_iff !Z.leb_le !Z.ltb_lt. *)
-(*     rewrite /isPerm !bool_decide_eq_true. *)
-(*     split. *)
-(*     { intros [? ?]. constructor. solve_addr. naive_solver. } *)
-(*     { inversion 1; subst. split. solve_addr. naive_solver. } } *)
-(* Qed. *)
-
-(* Lemma isCorrectPCb_nisCorrectPC w : *)
-(*   isCorrectPCb w = false ↔ ¬ isCorrectPC w. *)
-(* Proof. *)
-(*   destruct (isCorrectPCb w) eqn:HH. *)
-(*   { apply isCorrectPCb_isCorrectPC in HH. split; congruence. } *)
-(*   { split; auto. intros _. intros ?%isCorrectPCb_isCorrectPC. congruence. } *)
-(* Qed. *)
-
 Lemma isCorrectPC_ra_wb pc_p pc_g pc_b pc_e pc_a :
   isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
   readAllowed pc_p && ((pc_b <=? pc_a)%a && (pc_a <? pc_e)%a).
@@ -1003,13 +975,13 @@ Proof.
 Qed.
 
 
-(* Lemma isCorrectPC_ExecPCPerm_InBounds p g b e a : *)
-(*   ExecPCPerm p → *)
-(*   InBounds b e a → *)
-(*   isCorrectPC (WCap p g b e a). *)
-(* Proof. *)
-(*   unfold ExecPCPerm, InBounds. intros. constructor; eauto. *)
-(* Qed. *)
+Lemma isCorrectPC_ExecPCPerm_InBounds p g b e a :
+  executeAllowed p = true →
+  InBounds b e a →
+  isCorrectPC (WCap p g b e a).
+Proof.
+  unfold InBounds. intros. constructor; eauto.
+Qed.
 
 
 Definition borrow_perm (p : Perm) :=
