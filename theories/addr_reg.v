@@ -121,6 +121,40 @@ Definition r_t29 : RegName := R 29 eq_refl.
 Definition r_t30 : RegName := R 30 eq_refl.
 Definition r_t31 : RegName := R 31 eq_refl.
 
+Notation cra  := r_t1. (* link register *)
+Notation csp  := r_t2. (* compartment stack register *)
+Notation cgp  := r_t3. (* global data register *)
+Notation ctp  := r_t4. (* temporary registers *)
+Notation ct0  := r_t5.
+Notation ct1  := r_t6.
+Notation ct2  := r_t7.
+Notation ct3  := r_t28.
+Notation ct4  := r_t29.
+Notation ct5  := r_t30.
+Notation cs0  := r_t8. (* temporary registers ? *)
+Notation cs1  := r_t9.
+Notation cs2  := r_t18.
+Notation cs3  := r_t19.
+Notation cs4  := r_t20.
+Notation cs5  := r_t21.
+Notation cs6  := r_t22.
+Notation cs7  := r_t23.
+Notation cs8  := r_t24.
+Notation cs9  := r_t25.
+Notation cs10 := r_t26.
+Notation cs11 := r_t27.
+Notation ca0  := r_t10. (* arguments registers *)
+Notation ca1  := r_t11.
+Notation ca2  := r_t12.
+Notation ca3  := r_t13.
+Notation ca4  := r_t14.
+Notation ca5  := r_t15.
+Notation ca6  := r_t16.
+Notation ca7  := r_t17.
+
+Notation mtdc := r_t31. (* system register *)
+Notation ct6  := r_t0.
+
 (* A list of all general purpuse registers (if regnum=31) *)
 Definition all_registers : list RegName :=
   [r_t0;r_t1;r_t2;r_t3;r_t4;r_t5;r_t6;r_t7;r_t8;r_t9;r_t10;r_t11;r_t12;r_t13;
