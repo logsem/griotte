@@ -213,9 +213,17 @@ Program Definition interp_expr (interp : D) r : D :=
               end)%I.
   Solve All Obligations with solve_proper.
 
+  Program Definition interp_cap_ESR (interp : D) : D :=
+    λne W w, (match w with
+              | WCap ESR g b e a => (□ enter_cond W XSR_ g b e a interp)
+              | _ => False
+              end)%I.
+  Solve All Obligations with solve_proper.
+
   Program Definition interp_cap (interp : D) : D :=
     λne W w, (match w with
               | WCap E _ _ _ _
+              | WCap ESR _ _ _ _
               | WCap (O _ _) _ _ _ _
               | WCap (BPerm _ WL _ _) Global _ _ _ => False
               | WCap p g b e a =>
@@ -266,6 +274,7 @@ Program Definition interp_expr (interp : D) r : D :=
     | WInt _ => interp_z W w
     | WCap (O _ _) g b e a => interp_cap_O W w
     | WCap E g b e a => interp_cap_E interp W w
+    | WCap ESR g b e a => interp_cap_ESR interp W w
     | WCap _ g b e a => interp_cap interp W w
     | WSealRange p g b e a => interp_sr interp W w
     | WSealed o sb => interp_sb o (WSealable sb)
@@ -278,6 +287,14 @@ Program Definition interp_expr (interp : D) r : D :=
 
   Global Instance interp_cap_E_contractive :
     Contractive (interp_cap_E).
+  Proof.
+    solve_proper_prepare.
+    destruct_word x1; auto. destruct_perm c; auto.
+    all: solve_contractive.
+  Qed.
+
+  Global Instance interp_cap_ESR_contractive :
+    Contractive (interp_cap_ESR).
   Proof.
     solve_proper_prepare.
     destruct_word x1; auto. destruct_perm c; auto.
@@ -312,6 +329,7 @@ Program Definition interp_expr (interp : D) r : D :=
    (*  destruct_word w; [auto|..]. *)
    (*  + destruct c; first auto ; cycle 1. *)
    (*    - by apply interp_cap_E_contractive. *)
+   (*    - by apply interp_cap_ESR_contractive. *)
    (*    - destruct rx,w,dl,dro. *)
    (*      par: try (by apply interp_cap_O_contractive). *)
    (*      par: by apply interp_cap_contractive. *)
@@ -354,24 +372,31 @@ Program Definition interp_expr (interp : D) r : D :=
        (if (isO p)
         then True
         else
-          if (isSentry p)
+          if (isE p)
           then □ enter_cond W RX g b e a interp
-          else ([∗ list] a ∈ finz.seq_between b e,
-                  ∃ (p' : Perm) (P:D),
-                    ⌜PermFlowsTo p p'⌝
-                    ∗ ⌜persistent_cond P⌝
-                    ∗ rel a p' (safeC P)
-                    ∗ ▷ zcond P
-                    ∗ (if readAllowed p' then ▷ (rcond p' P interp) else True)
-                    ∗ (if writeAllowed p' then ▷ (wcond P interp) else True)
-                    ∗ monoReq W a p' P
-                    ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
-               ∗ (⌜ if isWL p then g = Local else True⌝))%I).
+          else
+            if (isESR p)
+            then □ enter_cond W XSR_ g b e a interp
+            else ([∗ list] a ∈ finz.seq_between b e,
+                    ∃ (p' : Perm) (P:D),
+                      ⌜PermFlowsTo p p'⌝
+                      ∗ ⌜persistent_cond P⌝
+                      ∗ rel a p' (safeC P)
+                      ∗ ▷ zcond P
+                      ∗ (if readAllowed p' then ▷ (rcond p' P interp) else True)
+                      ∗ (if writeAllowed p' then ▷ (wcond P interp) else True)
+                      ∗ monoReq W a p' P
+                      ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
+                 ∗ (⌜ if isWL p then g = Local else True⌝))%I).
   Proof.
     (* iSplit. *)
     (* { iIntros "HA". *)
     (*   destruct (isO p) eqn:HnotO; subst; auto. *)
-    (*   destruct (isSentry p) eqn:Hsentry; subst; auto. *)
+    (*   destruct (isE p) eqn:HnotE; subst; auto. *)
+    (*   { destruct p ; cbn in *;auto; congruence. } *)
+    (*   destruct (isESR p) eqn:notESR; subst; auto. *)
+    (*   { destruct p ; cbn in *;auto; congruence. } *)
+    (*   assert (isSentry p = false) as Hsentry. *)
     (*   { destruct p ; cbn in *;auto; congruence. } *)
     (*   destruct p; cbn in Hsentry; try congruence; auto ; clear Hsentry. *)
     (*   cbn. *)
@@ -384,8 +409,12 @@ Program Definition interp_expr (interp : D) r : D :=
     (* { iIntros "A". *)
     (*   destruct (isO p) eqn:HnotO; subst; auto. *)
     (*   { destruct_perm p ; cbn in *;auto;try congruence. } *)
-    (*   destruct (isSentry p) eqn:Hsentry; subst; auto. *)
-    (*   { destruct p ; cbn in *;auto;congruence. } *)
+    (*   destruct (isE p) eqn:HnotE; subst; auto. *)
+    (*   { destruct p ; cbn in *;auto; congruence. } *)
+    (*   destruct (isESR p) eqn:notESR; subst; auto. *)
+    (*   { destruct p ; cbn in *;auto; congruence. } *)
+    (*   assert (isSentry p = false) as Hsentry. *)
+    (*   { destruct p ; cbn in *;auto; congruence. } *)
 
     (*   iDestruct "A" as "(A & %)". *)
     (*   destruct_perm p; cbn in HnotO,Hsentry; try congruence; auto ; clear Hsentry. *)
@@ -419,8 +448,10 @@ Program Definition interp_expr (interp : D) r : D :=
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Ra ;done. }
-    replace (isSentry p) with false.
-    2: { eapply readAllowed_nonSentry in Ra ;done. }
+    replace (isE p) with false.
+    2: { eapply readAllowed_nonE in Ra ;done. }
+    replace (isESR p) with false.
+    2: { eapply readAllowed_nonESR in Ra ;done. }
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & _)";eauto.
@@ -450,8 +481,10 @@ Program Definition interp_expr (interp : D) r : D :=
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Ra ;done. }
-    replace (isSentry p) with false.
-    2: { eapply writeAllowed_nonSentry in Ra ;done. }
+    replace (isE p) with false.
+    2: { eapply writeAllowed_nonE in Ra ;done. }
+    replace (isESR p) with false.
+    2: { eapply writeAllowed_nonESR in Ra ;done. }
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & _)";eauto.
@@ -472,8 +505,10 @@ Program Definition interp_expr (interp : D) r : D :=
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Hra ;done. }
-    replace (isSentry p) with false.
-    2: { eapply readAllowed_nonSentry in Hra ;done. }
+    replace (isE p) with false.
+    2: { eapply readAllowed_nonE in Hra ;done. }
+    replace (isESR p) with false.
+    2: { eapply readAllowed_nonESR in Hra ;done. }
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
@@ -495,8 +530,10 @@ Program Definition interp_expr (interp : D) r : D :=
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Hra ;done. }
-    replace (isSentry p) with false.
-    2: { eapply writeAllowed_nonSentry in Hra ;done. }
+    replace (isE p) with false.
+    2: { eapply writeAllowed_nonE in Hra ;done. }
+    replace (isESR p) with false.
+    2: { eapply writeAllowed_nonESR in Hra ;done. }
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
@@ -526,8 +563,10 @@ Program Definition interp_expr (interp : D) r : D :=
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply isWL_nonO in Hp ;done. }
-    replace (isSentry p) with false.
-    2: { eapply isWL_nonSentry in Hp ;done. }
+    replace (isE p) with false.
+    2: { eapply isWL_nonE in Hp ;done. }
+    replace (isESR p) with false.
+    2: { eapply isWL_nonESR in Hp ;done. }
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
@@ -584,8 +623,10 @@ Program Definition interp_expr (interp : D) r : D :=
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
       replace (isO c) with false.
       2: { eapply readAllowed_nonO in Hrar ;done. }
-      replace (isSentry c) with false.
-      2: { eapply readAllowed_nonSentry in Hrar ;done. }
+      replace (isE c) with false.
+      2: { eapply readAllowed_nonE in Hrar ;done. }
+      replace (isESR c) with false.
+      2: { eapply readAllowed_nonESR in Hrar ;done. }
       iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
       iDestruct (extract_from_region_inv with "Hinterp_w")
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
@@ -610,8 +651,10 @@ Program Definition interp_expr (interp : D) r : D :=
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
       replace (isO c) with false.
       2: { eapply writeAllowed_nonO in Hwaw ;done. }
-      replace (isSentry c) with false.
-      2: { eapply writeAllowed_nonSentry in Hwaw ;done. }
+      replace (isE c) with false.
+      2: { eapply writeAllowed_nonE in Hwaw ;done. }
+      replace (isESR c) with false.
+      2: { eapply writeAllowed_nonESR in Hwaw ;done. }
       iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
       iDestruct (extract_from_region_inv with "Hinterp_w")
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"

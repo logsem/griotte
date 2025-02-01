@@ -296,12 +296,12 @@ Section opsem.
     | WCap p g b e a =>
       a1 ← addr_of_argument (reg φ) ρ1;
       a2 ← addr_of_argument (reg φ) ρ2;
-        match isSentry p with
-        | true => None
+      match isSentry p with
+      | true => None
       | _ =>
-        if isWithin a1 a2 b e then
-          updatePC (update_reg φ dst (WCap p g a1 a2 a))
-        else None
+          if isWithin a1 a2 b e then
+            updatePC (update_reg φ dst (WCap p g a1 a2 a))
+          else None
       end
     | WSealRange p g b e a =>
       o1 ← otype_of_argument (reg φ) ρ1;

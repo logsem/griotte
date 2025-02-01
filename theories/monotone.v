@@ -224,7 +224,39 @@ Section monotone.
         iSpecialize ("Hw" $! r W'' with "Hrelated").
         iApply "Hw".
     }
+    { iModIntro. iIntros (r W'').
+      destruct g; simpl.
+      + iIntros (Hrelated').
+        iAssert (future_world Global W W'')%I as "Hrelated".
+        { iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
+        iSpecialize ("Hw" $! r W'' with "Hrelated").
+        iApply "Hw".
+      + iIntros (Hrelated').
+        iAssert (future_world Local W W'')%I as "Hrelated".
+        { iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
+        iSpecialize ("Hw" $! r W'' with "Hrelated").
+        iApply "Hw".
+    }
     destruct rx,w; auto.
+    - iApply (big_sepL_mono with "Hw").
+      iIntros (n y Hsome) "Hw".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
+      iDestruct (monoReq_mono_pub_nwl with "HmonoR") as "HmonoR'"; eauto.
+      iExists p',P. iFrame "∗%".
+      iPureIntro; apply region_state_nwl_monotone with W;auto.
+    - destruct g; auto.
+      iApply (big_sepL_mono with "Hw").
+      iIntros (n y Hsome) "Hw".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
+      iDestruct (monoReq_mono_pub_pwl with "HmonoR") as "HmonoR'"; eauto.
+      iExists p',P. iFrame "∗%".
+      iPureIntro; apply region_state_pwl_monotone with W;auto.
+    - iApply (big_sepL_mono with "Hw").
+      iIntros (n y Hsome) "Hw".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
+      iDestruct (monoReq_mono_pub_nwl with "HmonoR") as "HmonoR'"; eauto.
+      iExists p',P. iFrame "∗%".
+      iPureIntro; apply region_state_nwl_monotone with W;auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
       iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
@@ -296,7 +328,26 @@ Section monotone.
       iSpecialize ("Hw" $! r W'' with "Hrelated").
       iApply "Hw".
     }
+    { iModIntro. iIntros (r W'').
+      iIntros (Hrelated').
+      iAssert (future_world Global W W'')%I as "Hrelated".
+      { iPureIntro. apply related_sts_priv_trans_world with W'; auto. }
+      iSpecialize ("Hw" $! r W'' with "Hrelated").
+      iApply "Hw".
+    }
     destruct rx,w; auto.
+    - iApply (big_sepL_mono with "Hw").
+      iIntros (n y Hsome) "Hw".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
+      iDestruct (monoReq_mono_priv_nwl with "HmonoR") as "HmonoR'"; eauto.
+      iExists p',P. iFrame "∗%".
+      iPureIntro; apply region_state_nwl_monotone_nl with W;auto.
+    - iApply (big_sepL_mono with "Hw").
+      iIntros (n y Hsome) "Hw".
+      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
+      iDestruct (monoReq_mono_priv_nwl with "HmonoR") as "HmonoR'"; eauto.
+      iExists p',P. iFrame "∗%".
+      iPureIntro; apply region_state_nwl_monotone_nl with W;auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
       iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".

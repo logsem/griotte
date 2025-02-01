@@ -14,7 +14,7 @@ Inductive RXperm : Type :=
 | Orx
 | R
 | X
-(* | XSR (* eXecute with System Access Register, high level of execution *) *)
+| XSR (* eXecute with System Access Register, high level of execution *)
 .
 
 Inductive Wperm : Type :=
@@ -35,7 +35,7 @@ Inductive DROperm : Type :=
 Inductive Perm: Type :=
 | BPerm (rx: RXperm) (w: Wperm) (dl: DLperm) (dro: DROperm)
 | E     (* Sentry, unseals to (BPerm RX Ow LG LM) *)
-(* | ESR   (* Privileged Sentry, unseals to (BPerm XSR Ow LG LM)  *) *)
+| ESR   (* Privileged Sentry, unseals to (BPerm XSR Ow LG LM)  *)
 .
 
 Notation O dl dro := (BPerm Orx Ow dl dro).
@@ -80,20 +80,20 @@ Notation RWLX_DL     := (BPerm X WL DL LM).
 Notation RWLX_DRO    := (BPerm X WL LG DRO).
 Notation RWLX_DL_DRO := (BPerm X WL DL DRO).
 
-(* Notation XSR_       := (BPerm XSR Ow LG LM). *)
-(* Notation XSR_DL     := (BPerm XSR Ow DL LM). *)
-(* Notation XSR_DRO    := (BPerm XSR Ow LG DRO). *)
-(* Notation XSR_DL_DRO := (BPerm XSR Ow DL DRO). *)
+Notation XSR_       := (BPerm XSR Ow LG LM).
+Notation XSR_DL     := (BPerm XSR Ow DL LM).
+Notation XSR_DRO    := (BPerm XSR Ow LG DRO).
+Notation XSR_DL_DRO := (BPerm XSR Ow DL DRO).
 
-(* Notation XSRW_       := (BPerm XSR W LG LM). *)
-(* Notation XSRW_DL     := (BPerm XSR W DL LM). *)
-(* Notation XSRW_DRO    := (BPerm XSR W LG DRO). *)
-(* Notation XSRW_DL_DRO := (BPerm XSR W DL DRO). *)
+Notation XSRW_       := (BPerm XSR W LG LM).
+Notation XSRW_DL     := (BPerm XSR W DL LM).
+Notation XSRW_DRO    := (BPerm XSR W LG DRO).
+Notation XSRW_DL_DRO := (BPerm XSR W DL DRO).
 
-(* Notation XSRWL_       := (BPerm XSR WL LG LM). *)
-(* Notation XSRWL_DL     := (BPerm XSR WL DL LM). *)
-(* Notation XSRWL_DRO    := (BPerm XSR WL LG DRO). *)
-(* Notation XSRWL_DL_DRO := (BPerm XSR WL DL DRO). *)
+Notation XSRWL_       := (BPerm XSR WL LG LM).
+Notation XSRWL_DL     := (BPerm XSR WL DL LM).
+Notation XSRWL_DRO    := (BPerm XSR WL LG DRO).
+Notation XSRWL_DL_DRO := (BPerm XSR WL DL DRO).
 
 Inductive Locality: Type :=
 | Global
@@ -186,8 +186,7 @@ Ltac destruct_perm p :=
   let w := fresh "w" in
   let dl := fresh "dl" in
   let dro := fresh "dro" in
-  (* destruct p as [rx w dl dro | |]; [destruct rx, w, dl, dro| |]. *)
-  destruct p as [rx w dl dro |]; [destruct rx, w, dl, dro|].
+  destruct p as [rx w dl dro | |]; [destruct rx, w, dl, dro| |].
 
 Ltac destruct_sealperm p :=
   let b := fresh "b" in
@@ -240,7 +239,7 @@ Definition is_sealed_with_o (w : Word) (o : OType) : bool :=
 (* non-E capability or range of seals *)
 Definition is_mutable_range (w : Word) : bool:=
   match w with
-  | WCap p _ _ _ _ => match p with | E => false | _ => true end
+  | WCap p _ _ _ _ => match p with | E | ESR => false | _ => true end
   | WSealRange _ _ _ _ _ => true
   | _ => false end.
 
@@ -248,8 +247,7 @@ Definition is_mutable_range (w : Word) : bool:=
 Definition executeAllowed (p: Perm): bool :=
   match p with
   | BPerm X _ _ _
-  (* | BPerm XSR _ _ _ *)
-    => true
+  | BPerm XSR _ _ _ => true
   | _ => false
   end.
 
@@ -257,8 +255,7 @@ Definition readAllowed (p: Perm): bool :=
   match p with
   | BPerm R _ _ _
   | BPerm X _ _ _
-  (* | BPerm XSR _ _ _ *)
-    => true
+  | BPerm XSR _ _ _ => true
   | _ => false
   end.
 
@@ -299,17 +296,15 @@ Definition isE (p : Perm) : bool :=
    | _ => false
  end.
 
-(* Definition isESR (p : Perm) : bool := *)
-(*  match p with *)
-(*    | ESR => true *)
-(*    | _ => false *)
-(*  end. *)
+Definition isESR (p : Perm) : bool :=
+ match p with
+   | ESR => true
+   | _ => false
+ end.
 
 Definition isSentry (p : Perm) : bool :=
  match p with
-   | E
-   (* | ESR *)
-     => true
+   | E | ESR => true
    | BPerm _ _ _ _ => false
  end.
 
@@ -386,7 +381,7 @@ Definition readAllowed_a_in_regs (r : Reg) (a : Addr) :=
 Definition updatePcPerm (w: Word): Word :=
   match w with
   | WCap E g b e a => WCap RX g b e a
-  (* | WCap ESR g b e a => WCap XSR_ g b e a *)
+  | WCap ESR g b e a => WCap XSR_ g b e a
   | _ => w
   end.
 
@@ -406,6 +401,7 @@ Definition deeplocal_perm (p : Perm) :=
   match p with
   | BPerm rx w _ dro => BPerm rx w DL dro
   | E => E
+  | ESR => ESR
   end.
 
 Definition deeplocal_sb (sb : Sealable) :=
@@ -437,6 +433,7 @@ Definition readonly_perm (p : Perm) :=
   match p with
   | BPerm rx _ dl _ => BPerm rx Ow dl DRO
   | E => E
+  | ESR => ESR
   end.
 
 Definition readonly_sb (sb : Sealable) :=
@@ -464,6 +461,7 @@ Definition load_word_perm (pload p : Perm) :=
                             (if isDRO pload then DRO else dro)
                          )
   | E => E
+  | ESR => ESR
   end.
 
 
@@ -474,21 +472,17 @@ Definition RXPermFlowsTo (rx1 rx2: RXperm): bool :=
   match rx1 with
   | Orx => true
   | R => match rx2 with
-        | R | X
-        (* | XSR *)
-          => true
+        | R | X | XSR => true
         | _ => false
         end
   | X => match rx2 with
-        | X
-        (* | XSR *)
-          => true
+        | X | XSR => true
         | _ => false
         end
-  (* | XSR => match rx2 with *)
-  (*       | XSR => true *)
-  (*       | _ => false *)
-  (*       end *)
+  | XSR => match rx2 with
+        | XSR => true
+        | _ => false
+        end
   end.
 
 Lemma RXPermFlowsTo_refl : forall rx,  RXPermFlowsTo rx rx.
@@ -618,11 +612,11 @@ Definition PermFlowsTo (p1 p2: Perm): bool :=
       && DLPermFlowsTo dl1 dl2
       && DROPermFlowsTo dro1 dro2
   | E, E => true
-  (* | ESR, ESR => true *)
+  | ESR, ESR => true
   | E, BPerm rx w LG LM =>
       RXPermFlowsTo X rx
-  (* | ESR, BPerm rx w LG LM => *)
-      (* RXPermFlowsTo XSR rx *)
+  | ESR, BPerm rx w LG LM =>
+      RXPermFlowsTo XSR rx
   | _, _ => false
   end.
 
@@ -755,13 +749,26 @@ Proof.
   destruct_perm p; auto ; done.
 Qed.
 
+Lemma readAllowed_nonE (p : Perm) :
+  readAllowed p = true -> isE p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
+Qed.
+
+Lemma readAllowed_nonESR (p : Perm) :
+  readAllowed p = true -> isESR p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
+Qed.
+
 Lemma readAllowed_nonSentry (p : Perm) :
   readAllowed p = true -> isSentry p = false.
 Proof.
   intros Hexec.
   destruct_perm p; cbn in *; done.
 Qed.
-
 
 (* Lemmas about writeAllowed *)
 
@@ -788,6 +795,20 @@ Lemma writeAllowed_nonO (p : Perm):
 Proof.
   intros Hwa.
   destruct_perm p; auto ; try congruence.
+Qed.
+
+Lemma writeAllowed_nonE (p : Perm) :
+  writeAllowed p = true -> isE p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
+Qed.
+
+Lemma writeAllowed_nonESR (p : Perm) :
+  writeAllowed p = true -> isESR p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
 Qed.
 
 Lemma writeAllowed_nonSentry (p : Perm) :
@@ -823,6 +844,20 @@ Lemma executeAllowed_nonO (p : Perm) :
 Proof.
   intros Hxa.
   destruct_perm p; auto; try congruence.
+Qed.
+
+Lemma executeAllowed_nonE (p : Perm) :
+  executeAllowed p = true -> isE p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
+Qed.
+
+Lemma executeAllowed_nonESR (p : Perm) :
+  executeAllowed p = true -> isESR p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
 Qed.
 
 Lemma executeAllowed_nonSentry (p : Perm) :
@@ -876,11 +911,56 @@ Proof.
   destruct_perm p; auto ; try congruence.
 Qed.
 
+Lemma isWL_nonE (p : Perm) :
+  isWL p = true -> isE p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
+Qed.
+
+Lemma isWL_nonESR (p : Perm) :
+  isWL p = true -> isESR p = false.
+Proof.
+  intros Hexec.
+  destruct_perm p; cbn in *; done.
+Qed.
+
 Lemma isWL_nonSentry (p : Perm) :
   isWL p = true -> isSentry p = false.
 Proof.
   intros Hexec.
   destruct_perm p; cbn in *; done.
+Qed.
+
+
+(* Lemmas about sentrys *)
+
+Lemma isE_isSentry (p : Perm) :
+  isE p = true -> isSentry p = true .
+Proof.
+  intros HE.
+  destruct_perm p; cbn in *; done.
+Qed.
+
+Lemma isESR_isSentry (p : Perm) :
+  isESR p = true -> isSentry p = true .
+Proof.
+  intros HESR.
+  destruct_perm p; cbn in *; done.
+Qed.
+
+Lemma isSentry_isE_ESR (p : Perm) :
+  isSentry p = true -> (isE p = true ) \/ (isESR p = true).
+Proof.
+  intros Hsentry.
+  destruct_perm p; cbn in *; naive_solver.
+Qed.
+
+Lemma isnotSentry_isnotE_ESR (p : Perm) :
+  isSentry p = false -> (isE p = false ) /\ (isESR p = false).
+Proof.
+  intros Hsentry.
+  destruct_perm p; cbn in *; naive_solver.
 Qed.
 
 
@@ -989,10 +1069,25 @@ Lemma canStore_writeAllowed (p : Perm) (w : Word) :
 Proof.
   intros HcanStore.
   rewrite /canStore in HcanStore.
-  destruct p; cbn in *; cycle 1.
-  destruct (isLocalWord w); by cbn in *.
-  destruct w0; cbn in *; try done.
-  by rewrite Tauto.if_same in HcanStore.
+  destruct p; cbn in *.
+  - destruct w0; cbn in *; try done.
+    by rewrite Tauto.if_same in HcanStore.
+  - destruct (isLocalWord w); by cbn in *.
+  - destruct (isLocalWord w); by cbn in *.
+Qed.
+
+Lemma canStore_nonE (p : Perm) (w : Word) :
+  canStore p w = true -> isE p = false.
+Proof.
+  intros HcanStore.
+  by eapply writeAllowed_nonE, canStore_writeAllowed.
+Qed.
+
+Lemma canStore_nonESR (p : Perm) (w : Word) :
+  canStore p w = true -> isESR p = false.
+Proof.
+  intros HcanStore.
+  by eapply writeAllowed_nonESR, canStore_writeAllowed.
 Qed.
 
 Lemma canStore_nonSentry (p : Perm) (w : Word) :
@@ -1008,7 +1103,8 @@ Lemma writeAllowed_canStore_int (p : Perm) (z : Z) :
 Proof.
   intros Hwa.
   destruct p; first done.
-  apply writeAllowed_nonSentry in Hwa ; done.
+  - apply writeAllowed_nonSentry in Hwa ; done.
+  - apply writeAllowed_nonSentry in Hwa ; done.
 Qed.
 
 Lemma canStore_local_isWL (p : Perm) (w : Word) :
@@ -1018,8 +1114,9 @@ Lemma canStore_local_isWL (p : Perm) (w : Word) :
 Proof.
   intros Hw HcanStore.
   destruct p; cycle 1.
-  { apply canStore_nonSentry in HcanStore; cbn; done. }
-  by rewrite /canStore Hw in HcanStore.
+  - apply canStore_nonSentry in HcanStore; cbn; done.
+  - by rewrite /canStore Hw in HcanStore.
+  - by rewrite /canStore Hw in HcanStore.
 Qed.
 
 Lemma canStore_global_nonisWL (p : Perm) (w : Word) :
@@ -1028,10 +1125,11 @@ Lemma canStore_global_nonisWL (p : Perm) (w : Word) :
   → isLocalWord w = false.
 Proof.
   intros Hpwl HcanStore.
-  destruct p; cycle 1.
-  { apply canStore_nonSentry in HcanStore; cbn; done. }
-  rewrite /canStore in HcanStore.
-  destruct (isLocalWord w); congruence.
+  destruct p.
+  - rewrite /canStore in HcanStore.
+    destruct (isLocalWord w); congruence.
+  - apply canStore_nonSentry in HcanStore; cbn; done.
+  - apply canStore_nonSentry in HcanStore; cbn; done.
 Qed.
 
 (* Lemmas about updatePcPerm *)
@@ -1054,6 +1152,13 @@ Proof.
   destruct (isDRO pload) eqn:Hdro,(isDL pload) eqn:Hdl; cbn.
   all: rewrite /readonly_perm /deeplocal_perm.
   all: destruct p; cbn; try done.
+Qed.
+
+Lemma load_word_ESR (p : Perm) (g : Locality) (b e a : Addr) :
+  load_word p (WCap ESR g b e a ) = (WCap ESR (if isDL p then Local else g) b e a ).
+Proof.
+  rewrite /load_word.
+  by destruct (isDRO p),(isDL p); cbn.
 Qed.
 
 Lemma load_word_E (p : Perm) (g : Locality) (b e a : Addr) :
@@ -1087,7 +1192,7 @@ Qed.
 Lemma load_word_perm_flows (pload p : Perm) :
   PermFlowsTo (load_word_perm pload p) p.
 Proof.
-  destruct p; last done.
+  destruct p; [| done | done].
   repeat (apply andb_True;split).
   + reflexivity.
   + destruct (isDRO pload) eqn:Hdro; done.
@@ -1100,7 +1205,7 @@ Lemma load_word_perm_load_flows (pload pload' p : Perm) :
   PermFlowsTo (load_word_perm pload p) (load_word_perm pload' p).
 Proof.
   intro Hfl.
-  destruct p; cbn; last done.
+  destruct p; cbn ; [| done | done].
   repeat (apply andb_True;split).
   + reflexivity.
   + destruct (isDRO pload) eqn:Hdro; first done.
@@ -1260,7 +1365,7 @@ Proof.
   by eapply executeAllowed_nonO, executeAllowed_flowsto.
 Qed.
 
-Lemma isCorrectPC_nonE p g b e a :
+Lemma isCorrectPC_nonSentry p g b e a :
   isCorrectPC (WCap p g b e a) → isSentry p = false.
 Proof.
   intros HcPC; inv HcPC.
@@ -1302,14 +1407,14 @@ Proof.
           | Orx => 1
           | R => 2
           | X => 3
-          (* | XSR => 4 *)
+          | XSR => 4
           end%positive.
   set decode :=
     fun n => match n with
     | 1 => Some Orx
     | 2 => Some R
     | 3 => Some X
-    (* | 4 => Some XSR *)
+    | 4 => Some XSR
     | _ => None
     end%positive.
   eapply (Build_Countable _ _ encode decode).
@@ -1374,14 +1479,14 @@ Proof.
   set encode :=
     fun p => match p with
           | BPerm rx w dl dro=> inl (rx,w,dl,dro)
-          | E => inr ()
-          (* | ESR => inr false *)
+          | E => inr true
+          | ESR => inr false
           end.
   set decode :=
     fun n => match n with
           | inl (rx,w,dl,dro) => BPerm rx w dl dro
-          | inr () => E
-          (* | inr false => ESR *)
+          | inr true => E
+          | inr false => ESR
           end.
   refine (inj_countable' encode decode _).
   intro p. destruct p; reflexivity.
