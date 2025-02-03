@@ -42,8 +42,7 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "Hσ1 /=". destruct σ1; simpl.
-    iDestruct "Hσ1" as "[Hr Hm]".
+    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -63,23 +62,23 @@ Section cap_lang_rules.
 
     pose proof Hwsrc as Hwsrc'. eapply word_of_argument_Some_inv' in Hwsrc; eauto.
 
-    assert (exec_opt (Mov dst src) (r, m) = updatePC (update_reg (r, m) dst wsrc)) as HH.
+    assert (exec_opt (Mov dst src) pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst wsrc)) as HH.
     { destruct Hwsrc as [ [? [? ?] ] | [? (? & ? & Hr') ] ]; simplify_eq; eauto.
       cbn. by rewrite /= Hr'. }
     rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
 
     destruct (incrementPC (<[ dst := wsrc ]> regs)) as [regs'|] eqn:Hregs';
       pose proof Hregs' as H'regs'; cycle 1.
-    { apply incrementPC_fail_updatePC with (m:=m) in Hregs'.
-      eapply updatePC_fail_incl with (m':=m) in Hregs'.
+    { apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) in Hregs'.
+      eapply updatePC_fail_incl with (sregs':=sr) (m':=m) in Hregs'.
       2: by apply lookup_insert_is_Some'; eauto.
       2: by apply insert_mono; eauto.
       rewrite Hregs' in Hstep. simplify_pair_eq.
       iFrame. iApply "Hφ"; iFrame. iPureIntro. econstructor; eauto. }
 
-    eapply (incrementPC_success_updatePC _ m) in Hregs'
+    eapply (incrementPC_success_updatePC _ sr m) in Hregs'
       as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-    eapply updatePC_success_incl with (m':=m) in HuPC. 2: by eapply insert_mono; eauto.
+    eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto.
     rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
     iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.

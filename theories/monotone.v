@@ -289,25 +289,6 @@ Section monotone.
       iDestruct (monoReq_mono_pub_pwl with "HmonoR") as "HmonoR'"; eauto.
       iExists p',P. iFrame "∗%".
       iPureIntro; apply region_state_pwl_monotone with W;auto.
-    - iApply (big_sepL_mono with "Hw").
-      iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
-      iDestruct (monoReq_mono_pub_nwl with "HmonoR") as "HmonoR'"; eauto.
-      iExists p',P. iFrame "∗%".
-      iPureIntro; apply region_state_nwl_monotone with W;auto.
-    - iApply (big_sepL_mono with "Hw").
-      iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
-      iDestruct (monoReq_mono_pub_nwl with "HmonoR") as "HmonoR'"; eauto.
-      iExists p',P. iFrame "∗%".
-      iPureIntro; apply region_state_nwl_monotone with W;auto.
-    - destruct g; auto.
-      iApply (big_sepL_mono with "Hw").
-      iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
-      iDestruct (monoReq_mono_pub_pwl with "HmonoR") as "HmonoR'"; eauto.
-      iExists p',P. iFrame "∗%".
-      iPureIntro; apply region_state_pwl_monotone with W;auto.
   Qed.
 
  Lemma interp_monotone_nl W W' w :
@@ -336,18 +317,6 @@ Section monotone.
       iApply "Hw".
     }
     destruct rx,w; auto.
-    - iApply (big_sepL_mono with "Hw").
-      iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
-      iDestruct (monoReq_mono_priv_nwl with "HmonoR") as "HmonoR'"; eauto.
-      iExists p',P. iFrame "∗%".
-      iPureIntro; apply region_state_nwl_monotone_nl with W;auto.
-    - iApply (big_sepL_mono with "Hw").
-      iIntros (n y Hsome) "Hw".
-      iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
-      iDestruct (monoReq_mono_priv_nwl with "HmonoR") as "HmonoR'"; eauto.
-      iExists p',P. iFrame "∗%".
-      iPureIntro; apply region_state_nwl_monotone_nl with W;auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
       iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".

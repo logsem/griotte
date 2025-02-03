@@ -79,6 +79,25 @@ Section fundamental.
       iSplitL; iFrame "#".
   Qed.
 
+  (* TODO move machine base *)
+  Lemma has_sreg_access_flowsto (p1 p2 : Perm) :
+    PermFlowsTo p1 p2
+    -> has_sreg_access p1 = true
+    -> has_sreg_access p2 = true.
+  Proof.
+    intros Hfl Hra.
+    destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+  Qed.
+
+  Lemma nonhas_sreg_access_flowsfrom (p1 p2 : Perm) :
+    PermFlowsTo p1 p2
+    -> has_sreg_access p2 = false
+    -> has_sreg_access p1 = false.
+  Proof.
+    intros Hfl Hra.
+    destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+  Qed.
+
   Lemma interp_weakeningEO W p p' g g' b b' e e' a a' :
     isSentry p = false ->
     isO p = false →
@@ -96,6 +115,9 @@ Section fundamental.
     destruct (isnotSentry_isnotE_ESR p HpnotSentry) as [HpnotE HpnotESR].
     destruct (isnotSentry_isnotE_ESR p' HpnotSentry') as [HpnotE' HpnotESR'].
     rewrite HpnotO HpnotO' HpnotE HpnotE' HpnotESR HpnotESR'.
+    destruct (has_sreg_access p) eqn:HpXSR; auto.
+    replace (has_sreg_access p')
+      with false by (symmetry; eapply nonhas_sreg_access_flowsfrom; eauto).
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iSplit; cycle 1.
     { case_eq (isWL p'); intros Hpwl'; auto.
@@ -168,6 +190,7 @@ Section fundamental.
     rewrite HpnotO HpnotE HpnotESR.
     replace (isO E) with false ; auto.
     replace (isE E) with true ; auto.
+    destruct (has_sreg_access p) eqn:HpXSR; auto.
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
@@ -273,90 +296,8 @@ Section fundamental.
     replace (isO ESR) with false ; auto.
     replace (isE ESR) with false ; auto.
     replace (isESR ESR) with true ; auto.
-    iDestruct "HA" as "[#A %Hpwl_cond]".
-    iModIntro.
-    rewrite /enter_cond /interp_expr /=.
-    iIntros (r W') "#Hfuture".
-    iSplitR; iNext.
-    - iIntros "[[Hfull Hmap] [Hreg [Hregion [Hsts Hown]]]]".
-      rewrite /interp_conf.
-      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hown"); eauto.
-      iModIntro. rewrite fixpoint_interp1_eq /=.
-      destruct (decide (b' < e'))%a; cycle 1.
-      { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
-      rewrite (isWithin_finz_seq_between_decomposition b' e' b e); try solve_addr.
-      rewrite !big_sepL_app. iDestruct "A" as "[_ [A2 _]]".
-      iApply (big_sepL_impl with "A2"); auto.
-      iModIntro; iIntros (k x Hx) "Hw".
-      iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & #Hzcond & #Hrcond & #Hwcond & #HmonoR & %Hstate)".
-      assert (Hflows': PermFlowsTo XSR_ p'').
-      { eapply PermFlowsTo_trans; eauto.
-        destruct p; cbn in HpnotE,HpnotESR ; try done.
-        destruct dl; cbn in Hp; try done.
-        destruct dro; cbn in Hp; try done.
-        destruct rx; cbn in Hp; try done.
-      }
-      iExists p'',φ.
-      replace (readAllowed p) with true; cycle 1.
-      { destruct_perm p ; cbn in *; try done. }
-      iFrame "Hrel".
-      iDestruct ( (monoReq_nwl_future W W' g g' p p'' x φ)
-                  with "[$Hfuture] [] [$HmonoR]") as "HmonoR'"; eauto.
-      repeat(iSplit; auto).
-      iApply (region_state_nwl_future with "Hfuture"); eauto.
-
-    - iIntros "[[Hfull Hmap] [Hreg [Hregion [Hsts Hown]]]]".
-      rewrite /interp_conf.
-      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hown"); eauto.
-      iModIntro. rewrite fixpoint_interp1_eq /=.
-      destruct (decide (b' < e'))%a; cycle 1.
-      { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
-      rewrite (isWithin_finz_seq_between_decomposition b' e' b e); try solve_addr.
-      rewrite !big_sepL_app. iDestruct "A" as "[_ [A2 _]]".
-      iApply (big_sepL_impl with "A2"); auto.
-      iModIntro; iIntros (k x Hx) "Hw".
-      iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & #Hzcond & #Hrcond & #Hwcond & #HmonoR & %Hstate)".
-      assert (Hflows': PermFlowsTo XSR_ p'').
-      { eapply PermFlowsTo_trans; eauto.
-        destruct p; cbn in HpnotE ; try done.
-        destruct dl; cbn in Hp; try done.
-        destruct dro; cbn in Hp; try done.
-        destruct rx; cbn in Hp; try done.
-      }
-      iExists p'',φ.
-      replace (readAllowed p) with true; cycle 1.
-      { destruct_perm p ; cbn in *; try done. }
-      iFrame "Hrel".
-      destruct (isWL p) eqn: Hpwl; cycle 1.
-      { assert (if isWL p then g = Local else True) as Hpwl_cond' by (rewrite Hpwl //=).
-        assert (
-           if isWL p then region_state_pwl W x else region_state_nwl W x g
-          ) as Hstate' by (rewrite Hpwl //=).
-       iDestruct ( (monoReq_nwl_future W W' g g' p p'' x φ)
-                  with "[$Hfuture] [] [$HmonoR]") as "HmonoR'"; eauto.
-       repeat(iSplit; auto).
-       iDestruct (region_state_nwl_future with "Hfuture") as "Hregion_state" ; eauto.
-       iSpecialize ("Hregion_state" $! Hstate').
-       destruct g'; cbn; [iLeft|]; done.
-      }
-      { assert (if isWL p then g = Local else True) as Hpwl_cond' by (rewrite Hpwl //=).
-        assert (
-           if isWL p then region_state_pwl W x else region_state_nwl W x g
-          ) as Hstate' by (rewrite Hpwl //=).
-        repeat(iSplit; auto).
-        destruct g'; cbn.
-        { (* contradiction *)
-          destruct g; first congruence; done.
-        }
-        iDestruct "Hfuture" as "%Hfuture".
-        iApply monoReq_mono_pub_pwl; eauto.
-        destruct g'; cbn.
-        { (* contradiction *)
-          destruct g; first congruence; done.
-        }
-        iDestruct "Hfuture" as "%Hfuture".
-        eapply region_state_pwl_monotone in Hstate; eauto.
-      }
+    destruct (has_sreg_access p) eqn:HpXSR; auto.
+    destruct_perm p ; cbn in HpXSR,Hp,HpnotSentry,HpnotO;try done.
   Qed.
 
   Lemma interp_weakening W p p' g g' b b' e e' a a' :

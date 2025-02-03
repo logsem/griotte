@@ -139,6 +139,9 @@ Inductive instr: Type :=
 | GetOType (dst r: RegName)
 | Seal (dst : RegName) (r1 r2: RegName)
 | UnSeal (dst : RegName) (r1 r2: RegName)
+(* Separate SpecialRW into 2 instructions *)
+| ReadSR (dst: RegName) (src: SRegName)
+| WriteSR (dst: SRegName) (src: RegName)
 | Fail
 | Halt.
 
@@ -151,6 +154,7 @@ Coercion cst : Z >-> sum.
 (* Registers and memory: maps from register names/addresses to String.words *)
 
 Definition Reg := gmap RegName Word.
+Definition SReg := gmap SRegName Word.
 Definition Mem := gmap Addr Word.
 
 (* EqDecision instances *)
@@ -263,6 +267,12 @@ Definition writeAllowed (p: Perm): bool :=
   match p with
   | BPerm _ W _ _
   | BPerm _ WL _ _=> true
+  | _ => false
+  end.
+
+Definition has_sreg_access (p: Perm): bool :=
+  match p with
+  | BPerm XSR _ _ _ => true
   | _ => false
   end.
 
@@ -1550,80 +1560,65 @@ Proof.
 
   set (enc := fun e =>
       match e with
-      | Jmp r => GenNode 0 [GenLeaf (inl r)]
-      | Jnz r1 r2 => GenNode 1 [GenLeaf (inl r1); GenLeaf (inl r2)]
-      | Mov dst src => GenNode 2 [GenLeaf (inl dst); GenLeaf (inr src)]
-      | Load dst src => GenNode 3 [GenLeaf (inl dst); GenLeaf (inl src)]
-      | Store dst src => GenNode 4 [GenLeaf (inl dst); GenLeaf (inr src)]
-      | Lt dst r1 r2 => GenNode 5 [GenLeaf (inl dst); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | Add dst r1 r2 => GenNode 6 [GenLeaf (inl dst); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | Sub dst r1 r2 => GenNode 7 [GenLeaf (inl dst); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | Lea dst r => GenNode 8 [GenLeaf (inl dst); GenLeaf (inr r)]
-      | Restrict dst r => GenNode 9 [GenLeaf (inl dst); GenLeaf (inr r)]
-      | Subseg dst r1 r2 => GenNode 10 [GenLeaf (inl dst); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | GetB dst r => GenNode 11 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | GetE dst r => GenNode 12 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | GetA dst r => GenNode 13 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | GetP dst r => GenNode 14 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | GetL dst r => GenNode 15 [GenLeaf (inl dst); GenLeaf (inl r)]
+      | Jmp r => GenNode 0 [GenLeaf (inl (inl r))]
+      | Jnz r1 r2 => GenNode 1 [GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))]
+      | Mov dst src => GenNode 2 [GenLeaf (inl (inl dst)); GenLeaf (inr src)]
+      | Load dst src => GenNode 3 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))]
+      | Store dst src => GenNode 4 [GenLeaf (inl (inl dst)); GenLeaf (inr src)]
+      | Lt dst r1 r2 => GenNode 5 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | Add dst r1 r2 => GenNode 6 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | Sub dst r1 r2 => GenNode 7 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | Lea dst r => GenNode 8 [GenLeaf (inl (inl dst)); GenLeaf (inr r)]
+      | Restrict dst r => GenNode 9 [GenLeaf (inl (inl dst)); GenLeaf (inr r)]
+      | Subseg dst r1 r2 => GenNode 10 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | GetB dst r => GenNode 11 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
+      | GetE dst r => GenNode 12 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
+      | GetA dst r => GenNode 13 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
+      | GetP dst r => GenNode 14 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
+      | GetL dst r => GenNode 15 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
 
-      | GetOType dst r => GenNode 16 [GenLeaf (inl dst); GenLeaf (inl r)]
-      | GetWType dst r => GenNode 17 [GenLeaf (inl dst); GenLeaf (inl r)]
+      | GetOType dst r => GenNode 16 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
+      | GetWType dst r => GenNode 17 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))]
 
-      | Seal dst r1 r2 => GenNode 18 [GenLeaf (inl dst); GenLeaf (inl r1); GenLeaf (inl r2)]
-      | UnSeal dst r1 r2 => GenNode 19 [GenLeaf (inl dst); GenLeaf (inl r1); GenLeaf (inl r2)]
-      | Fail => GenNode 20 []
-      | Halt => GenNode 21 []
+      | Seal dst r1 r2 => GenNode 18 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))]
+      | UnSeal dst r1 r2 => GenNode 19 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))]
+      | ReadSR dst src => GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr src))]
+      | WriteSR dst src => GenNode 21 [GenLeaf (inl (inr dst)); GenLeaf (inl (inl src))]
+      | Fail => GenNode 22 []
+      | Halt => GenNode 23 []
       end).
   set (dec := fun e =>
       match e with
-      | GenNode 0 [GenLeaf (inl r)] => Jmp r
-      | GenNode 1 [GenLeaf (inl r1); GenLeaf (inl r2)] => Jnz r1 r2
-      | GenNode 2 [GenLeaf (inl dst); GenLeaf (inr src)] => Mov dst src
-      | GenNode 3 [GenLeaf (inl dst); GenLeaf (inl src)] => Load dst src
-      | GenNode 4 [GenLeaf (inl dst); GenLeaf (inr src)] => Store dst src
-      | GenNode 5 [GenLeaf (inl dst); GenLeaf (inr r1); GenLeaf (inr r2)] => Lt dst r1 r2
-      | GenNode 6 [GenLeaf (inl dst); GenLeaf (inr r1); GenLeaf (inr r2)] => Add dst r1 r2
-      | GenNode 7 [GenLeaf (inl dst); GenLeaf (inr r1); GenLeaf (inr r2)] => Sub dst r1 r2
-      | GenNode 8 [GenLeaf (inl dst); GenLeaf (inr r)] => Lea dst r
-      | GenNode 9 [GenLeaf (inl dst); GenLeaf (inr r)] => Restrict dst r
-      | GenNode 10 [GenLeaf (inl dst); GenLeaf (inr r1); GenLeaf (inr r2)] => Subseg dst r1 r2
-      | GenNode 11 [GenLeaf (inl dst); GenLeaf (inl r)] => GetB dst r
-      | GenNode 12 [GenLeaf (inl dst); GenLeaf (inl r)] => GetE dst r
-      | GenNode 13 [GenLeaf (inl dst); GenLeaf (inl r)] => GetA dst r
-      | GenNode 14 [GenLeaf (inl dst); GenLeaf (inl r)] => GetP dst r
-      | GenNode 15 [GenLeaf (inl dst); GenLeaf (inl r)] => GetL dst r
+      | GenNode 0 [GenLeaf (inl (inl r))] => Jmp r
+      | GenNode 1 [GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))] => Jnz r1 r2
+      | GenNode 2 [GenLeaf (inl (inl dst)); GenLeaf (inr src)] => Mov dst src
+      | GenNode 3 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))] => Load dst src
+      | GenNode 4 [GenLeaf (inl (inl dst)); GenLeaf (inr src)] => Store dst src
+      | GenNode 5 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Lt dst r1 r2
+      | GenNode 6 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Add dst r1 r2
+      | GenNode 7 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Sub dst r1 r2
+      | GenNode 8 [GenLeaf (inl (inl dst)); GenLeaf (inr r)] => Lea dst r
+      | GenNode 9 [GenLeaf (inl (inl dst)); GenLeaf (inr r)] => Restrict dst r
+      | GenNode 10 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Subseg dst r1 r2
+      | GenNode 11 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetB dst r
+      | GenNode 12 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetE dst r
+      | GenNode 13 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetA dst r
+      | GenNode 14 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetP dst r
+      | GenNode 15 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetL dst r
 
-      | GenNode 16 [GenLeaf (inl dst); GenLeaf (inl r)] => GetOType dst r
-      | GenNode 17 [GenLeaf (inl dst); GenLeaf (inl r)] => GetWType dst r
+      | GenNode 16 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetOType dst r
+      | GenNode 17 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r))] => GetWType dst r
 
-      | GenNode 18 [GenLeaf (inl dst); GenLeaf (inl r1); GenLeaf (inl r2)] => Seal dst r1 r2
-      | GenNode 19 [GenLeaf (inl dst); GenLeaf (inl r1); GenLeaf (inl r2)] => UnSeal dst r1 r2
-      | GenNode 20 [] => Fail
-      |  GenNode 21 [] => Halt
+      | GenNode 18 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))] => Seal dst r1 r2
+      | GenNode 19 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))] => UnSeal dst r1 r2
+      | GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr src))] => ReadSR dst src
+      | GenNode 21 [GenLeaf (inl (inr dst)); GenLeaf (inl (inl src))] => WriteSR dst src
+      | GenNode 22 [] => Fail
+      |  GenNode 23 [] => Halt
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).
   intros i. destruct i; simpl; done.
-Defined.
-
-Global Instance reg_finite : finite.Finite RegName.
-Proof. apply (finite.enc_finite (λ r : RegName, match r with
-                                                | PC => S RegNum
-                                                | addr_reg.R n fin => n
-                                                end)
-                (λ n : nat, match n_to_regname n with | Some r => r | None => PC end)
-                (S (S RegNum))).
-       - intros x. destruct x;auto.
-         unfold n_to_regname.
-         destruct (Nat.le_dec n RegNum).
-         + do 2 f_equal. apply eq_proofs_unicity. decide equality.
-         + exfalso. by apply (Nat.leb_le n RegNum) in fin.
-       - intros x.
-         + destruct x;[lia|]. apply Nat.leb_le in fin. lia.
-       - intros i Hlt. unfold n_to_regname.
-         destruct (Nat.le_dec i RegNum);auto.
-         lia.
 Defined.
 
 Global Instance readAllowedWord_dec w: Decision (readAllowedWord w).

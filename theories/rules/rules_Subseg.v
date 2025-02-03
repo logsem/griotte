@@ -100,8 +100,7 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "Hσ1 /=". destruct σ1; simpl.
-    iDestruct "Hσ1" as "[Hr Hm]".
+    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -120,7 +119,7 @@ Section cap_lang_rules.
     destruct (is_mutable_range wdst) eqn:Hwdst.
      2: { (* Failure: wdst is not of the right type *)
        unfold is_mutable_range in Hwdst.
-       assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
        { destruct wdst as [ | [p b e a | ] | ]; try by inversion Hwdst.
          all: try by simplify_pair_eq.
          destruct_perm p; cbn in *; try congruence.
@@ -139,13 +138,13 @@ Section cap_lang_rules.
         pose proof Ha1 as H'a1; cycle 1.
       { destruct src1 as [| r1] eqn:?; cbn in Ha1, Hstep.
         { rewrite Ha1 /= in Hstep.
-          assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { repeat case_match; inv Hstep; auto. }
           iFailWP "Hφ" Subseg_fail_src1_nonaddr. }
         subst src1. destruct (Hri r1) as [r1v [Hr'1 Hr1]].
           by unfold regs_of_argument; set_solver+.
           rewrite /addr_of_argument /= Hr'1 in Ha1.
-          assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { destruct r1v ; simplify_pair_eq.
             all: unfold addr_of_argument, z_of_argument at 2 in Hstep.
             all: rewrite /= Hr1 ?Ha1 /= in Hstep.
@@ -159,13 +158,13 @@ Section cap_lang_rules.
         pose proof Ha2 as H'a2; cycle 1.
       { destruct src2 as [| r2] eqn:?; cbn in Ha2, Hstep.
         { rewrite Ha2 /= in Hstep.
-          assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { repeat case_match; inv Hstep; auto. }
           iFailWP "Hφ" Subseg_fail_src2_nonaddr. }
         subst src2. destruct (Hri r2) as [r2v [Hr'2 Hr2]].
           by unfold regs_of_argument; set_solver+.
           rewrite /addr_of_argument /= Hr'2 in Ha2.
-          assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { destruct r2v ; simplify_pair_eq.
             all: unfold addr_of_argument, z_of_argument  in Hstep.
             all: rewrite /= Hr2 ?Ha2 /= in Hstep.
@@ -185,14 +184,14 @@ Section cap_lang_rules.
         { eapply incrementPC_overflow_mono; first eapply Hregs'.
             by rewrite lookup_insert_is_Some'; eauto.
               by apply insert_mono; eauto. }
-        apply (incrementPC_fail_updatePC _ m) in HH. rewrite HH in Hstep.
-        assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->)
+        apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
+        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
             by (destruct p; inversion Hstep; auto).
         iFailWP "Hφ" Subseg_fail_incrPC_cap. }
 
-      eapply (incrementPC_success_updatePC _ m) in Hregs'
+      eapply (incrementPC_success_updatePC _ sr m) in Hregs'
         as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-      eapply updatePC_success_incl with (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
+      eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
       { destruct_perm p; cbn in Hstep; eauto. }
       simplify_pair_eq. iFrame.
@@ -204,13 +203,13 @@ Section cap_lang_rules.
         pose proof Ha1 as H'a1; cycle 1.
       { destruct src1 as [| r1] eqn:?; cbn in Ha1, Hstep.
         { rewrite Ha1 /= in Hstep.
-          assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { repeat case_match; inv Hstep; auto. }
           iFailWP "Hφ" Subseg_fail_src1_nonotype. }
         subst src1. destruct (Hri r1) as [r1v [Hr'1 Hr1]].
           by unfold regs_of_argument; set_solver+.
           rewrite /otype_of_argument /= Hr'1 in Ha1.
-          assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { destruct r1v ; simplify_pair_eq.
             all: unfold otype_of_argument, z_of_argument at 2 in Hstep.
             all: rewrite /= Hr1 ?Ha1 /= in Hstep.
@@ -224,13 +223,13 @@ Section cap_lang_rules.
         pose proof Ha2 as H'a2; cycle 1.
       { destruct src2 as [| r2] eqn:?; cbn in Ha2, Hstep.
         { rewrite Ha2 /= in Hstep.
-          assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { repeat case_match; inv Hstep; auto. }
           iFailWP "Hφ" Subseg_fail_src2_nonotype. }
         subst src2. destruct (Hri r2) as [r2v [Hr'2 Hr2]].
           by unfold regs_of_argument; set_solver+.
           rewrite /otype_of_argument /= Hr'2 in Ha2.
-          assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { destruct r2v ; simplify_pair_eq.
             all: unfold otype_of_argument, z_of_argument  in Hstep.
             all: rewrite /= Hr2 ?Ha2 /= in Hstep.
@@ -250,14 +249,14 @@ Section cap_lang_rules.
         { eapply incrementPC_overflow_mono; first eapply Hregs'.
             by rewrite lookup_insert_is_Some'; eauto.
               by apply insert_mono; eauto. }
-        apply (incrementPC_fail_updatePC _ m) in HH. rewrite HH in Hstep.
-        assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->)
+        apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
+        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
             by (destruct p; inversion Hstep; auto).
         iFailWP "Hφ" Subseg_fail_incrPC_sr. }
 
-      eapply (incrementPC_success_updatePC _ m) in Hregs'
+      eapply (incrementPC_success_updatePC _ sr m) in Hregs'
         as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-      eapply updatePC_success_incl with (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
+      eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
       { destruct p; cbn in Hstep; eauto. }
       simplify_pair_eq. iFrame.

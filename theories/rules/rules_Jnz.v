@@ -50,8 +50,7 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "Hσ1 /=". destruct σ1; simpl.
-    iDestruct "Hσ1" as "[Hr Hm]".
+    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -74,14 +73,14 @@ Section cap_lang_rules.
       iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor 3; eauto. }
 
     destruct (incrementPC regs) eqn:HX; pose proof HX as H'X; cycle 1.
-    { apply incrementPC_fail_updatePC with (m:=m) in HX.
-      eapply updatePC_fail_incl with (m':=m) in HX; eauto.
+    { apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) in HX.
+      eapply updatePC_fail_incl with (sregs':=sr) (m':=m) in HX; eauto.
       rewrite HX in Hstep. inv Hstep.
       iFrame. iApply "Hφ". iFrame. iPureIntro; econstructor; eauto. }
 
-    destruct (incrementPC_success_updatePC _ m _ HX)
+    destruct (incrementPC_success_updatePC _ sr m _ HX)
       as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-    eapply updatePC_success_incl with (m':=m) in HuPC; eauto. rewrite HuPC in Hstep.
+    eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC; eauto. rewrite HuPC in Hstep.
     simplify_pair_eq.
     iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor 2; eauto.

@@ -225,7 +225,9 @@ Program Definition interp_expr (interp : D) r : D :=
               | WCap E _ _ _ _
               | WCap ESR _ _ _ _
               | WCap (O _ _) _ _ _ _
-              | WCap (BPerm _ WL _ _) Global _ _ _ => False
+              | WCap (BPerm XSR _ _ _) _ _ _ _ (* XRS capabilities are never safe-to-share *)
+              | WCap (BPerm _ WL _ _) Global _ _ _ (* WL Global capabilities are never safe-to-share *)
+                => False
               | WCap p g b e a =>
                   [∗ list] a ∈ (finz.seq_between b e),
                     ∃ (p' : Perm) (P:D),
@@ -240,7 +242,8 @@ Program Definition interp_expr (interp : D) r : D :=
               | _ => False
               end)%I.
   Solve All Obligations with auto;solve_proper.
-
+  Solve All Obligations with cbn; intros; repeat(split; auto).
+  Solve All Obligations with auto;solve_proper.
 
   (* (un)seal permission definitions *)
   (* Note the asymmetry: to seal values, we need to know that we are using a persistent predicate to create a value, whereas we do not need this information when unsealing values (it is provided by the `interp_sb` case). *)
@@ -361,6 +364,7 @@ Program Definition interp_expr (interp : D) r : D :=
     (*   iAssert (<pers> ▷ P (borrow (WSealable sb)))%I with "[ HPborrowed ]" as "HPborrowed". *)
     (*   { iApply later_persistently_1. by iApply Hpers.  } *)
     (*   iApply persistently_sep_2; iSplitR; auto. *)
+    (*   iApply persistently_sep_2; auto; iFrame "Hs". *)
     (*   iApply persistently_sep_2; auto. *)
   Admitted. (* TODO holds, but very loooong *)
 
@@ -377,7 +381,10 @@ Program Definition interp_expr (interp : D) r : D :=
           else
             if (isESR p)
             then □ enter_cond W XSR_ g b e a interp
-            else ([∗ list] a ∈ finz.seq_between b e,
+            else
+              if (has_sreg_access p)
+              then False
+              else ([∗ list] a ∈ finz.seq_between b e,
                     ∃ (p' : Perm) (P:D),
                       ⌜PermFlowsTo p p'⌝
                       ∗ ⌜persistent_cond P⌝
@@ -411,13 +418,13 @@ Program Definition interp_expr (interp : D) r : D :=
     (*   { destruct_perm p ; cbn in *;auto;try congruence. } *)
     (*   destruct (isE p) eqn:HnotE; subst; auto. *)
     (*   { destruct p ; cbn in *;auto; congruence. } *)
-    (*   destruct (isESR p) eqn:notESR; subst; auto. *)
+    (*   destruct (isESR p) eqn:HnotESR; subst; auto. *)
     (*   { destruct p ; cbn in *;auto; congruence. } *)
     (*   assert (isSentry p = false) as Hsentry. *)
     (*   { destruct p ; cbn in *;auto; congruence. } *)
-
+    (*   destruct (has_sreg_access p) eqn:HnotXSR; subst; auto. *)
     (*   iDestruct "A" as "(A & %)". *)
-    (*   destruct_perm p; cbn in HnotO,Hsentry; try congruence; auto ; clear Hsentry. *)
+    (*   destruct_perm p; cbn in HnotO,Hsentry,HnotXSR; try congruence; auto ; clear Hsentry. *)
     (*   all: destruct g eqn:Hg; simplify_eq ; eauto ; cbn. *)
     (*   all: try (iApply (big_sepL_mono with "A"); intros; iIntros "H"). *)
     (*   all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a')"). *)
@@ -452,6 +459,7 @@ Program Definition interp_expr (interp : D) r : D :=
     2: { eapply readAllowed_nonE in Ra ;done. }
     replace (isESR p) with false.
     2: { eapply readAllowed_nonESR in Ra ;done. }
+    destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & _)";eauto.
@@ -485,6 +493,7 @@ Program Definition interp_expr (interp : D) r : D :=
     2: { eapply writeAllowed_nonE in Ra ;done. }
     replace (isESR p) with false.
     2: { eapply writeAllowed_nonESR in Ra ;done. }
+    destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & _)";eauto.
@@ -509,6 +518,7 @@ Program Definition interp_expr (interp : D) r : D :=
     2: { eapply readAllowed_nonE in Hra ;done. }
     replace (isESR p) with false.
     2: { eapply readAllowed_nonESR in Hra ;done. }
+    destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
@@ -534,6 +544,7 @@ Program Definition interp_expr (interp : D) r : D :=
     2: { eapply writeAllowed_nonE in Hra ;done. }
     replace (isESR p) with false.
     2: { eapply writeAllowed_nonESR in Hra ;done. }
+    destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
@@ -567,6 +578,7 @@ Program Definition interp_expr (interp : D) r : D :=
     2: { eapply isWL_nonE in Hp ;done. }
     replace (isESR p) with false.
     2: { eapply isWL_nonESR in Hp ;done. }
+    destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
@@ -627,6 +639,7 @@ Program Definition interp_expr (interp : D) r : D :=
       2: { eapply readAllowed_nonE in Hrar ;done. }
       replace (isESR c) with false.
       2: { eapply readAllowed_nonESR in Hrar ;done. }
+      destruct (has_sreg_access c) eqn:HnXSR; auto.
       iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
       iDestruct (extract_from_region_inv with "Hinterp_w")
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
@@ -655,6 +668,7 @@ Program Definition interp_expr (interp : D) r : D :=
       2: { eapply writeAllowed_nonE in Hwaw ;done. }
       replace (isESR c) with false.
       2: { eapply writeAllowed_nonESR in Hwaw ;done. }
+      destruct (has_sreg_access c) eqn:HnXSR; auto.
       iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
       iDestruct (extract_from_region_inv with "Hinterp_w")
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"

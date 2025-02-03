@@ -40,23 +40,30 @@ Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag
     | (Failed, _) => Some Failed
     | (Halted, _) => Some Halted
     | (NextI, φ) => machine_run fuel (Executable, φ)
-    | (Executable, (r, m)) =>
+    | (Executable, (r, sr, m)) =>
       match r !! PC with
       | None => Some Failed
       | Some pc =>
-        if isCorrectPCb pc then (
-          let a := match pc with
-                  | WCap _ _ _ _ a => a
-                  | _ => top (* dummy *)
-                  end in
-          match m !! a with
-          | None => Some Failed
-          | Some wa =>
-              let i := decodeInstrW wa in
-              let c' := exec i (r, m) in
-              machine_run fuel (c'.1, c'.2)
-          end
-        ) else (
+        if isCorrectPCb pc
+        then (
+            let a := match pc with
+                     | WCap _ _ _ _ a => a
+                     | _ => top (* dummy *)
+                     end
+            in
+            let p := match pc with
+                     | WCap p _ _ _ _ => p
+                     | _ => RWX (* dummy *)
+                     end
+            in
+            match m !! a with
+            | None => Some Failed
+            | Some wa =>
+                let i := decodeInstrW wa in
+                let c' := exec i p (r, sr, m) in
+                machine_run fuel (c'.1,  c'.2)
+            end
+          ) else (
           Some Failed
         )
       end
@@ -71,7 +78,7 @@ Lemma machine_run_correct `{MachineParameters} fuel cf (φ: ExecConf) cf':
 Proof.
   revert cf cf' φ. induction fuel.
   { cbn. done. }
-  { cbn. intros ? ? [r m] Hc.
+  { cbn. intros ? ? [ [r sr] m ] Hc.
     destruct cf; simplify_eq.
     destruct (r !! PC) as [wpc | ] eqn:HePC.
     2: {

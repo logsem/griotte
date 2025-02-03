@@ -1,5 +1,5 @@
 From cap_machine.ftlr Require Export Jmp Jnz Mov Load Store AddSubLt Restrict
-  Subseg Get Lea Seal UnSeal.
+  Subseg Get Lea Seal UnSeal ReadSR WriteSR.
 From cap_machine.ftlr Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
@@ -76,7 +76,6 @@ Section fundamental.
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
     { eapply in_range_is_correctPC; eauto. solve_addr. }
 
-
     iAssert (⌜ validPCperm p g ⌝)%I as "%Hp".
     { (* if not, contradiction by correctPC or validity *)
       inv HcorrectPC; subst; auto.
@@ -89,27 +88,32 @@ Section fundamental.
       rewrite fixpoint_interp1_eq interp1_eq.
       replace (isO (BPerm _ WL _ _)) with false by (cbn; destruct rx; done).
       cbn.
+      destruct rx; auto.
       iDestruct "Hinv_interp" as "[_ Hcontra]"; done.
     }
 
     iPoseProof "Hinv_interp" as "#Hinv".
     iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv".
     destruct (isO p) eqn: HnO.
-    {  destruct Hp as [Hexec _].
-       eapply executeAllowed_nonO in Hexec; congruence.
+    { destruct Hp as [Hexec _]
+      ; eapply executeAllowed_nonO in Hexec
+      ; congruence.
     }
     destruct (isE p) eqn:HpnotE.
-    {  destruct Hp as [Hexec _]
+    { destruct Hp as [Hexec _]
       ; eapply executeAllowed_nonE in Hexec
       ; eauto
       ; congruence.
     }
     destruct (isESR p) eqn:HpnotESR.
-    {  destruct Hp as [Hexec _]
+    { destruct Hp as [Hexec _]
       ; eapply executeAllowed_nonESR in Hexec
       ; eauto
       ; congruence.
     }
+    destruct (has_sreg_access p) eqn:HpXRS; first done.
+
+
     iDestruct "Hinv" as "[#Hinv %Hpwl_cond]".
 
     iDestruct (extract_from_region_inv _ _ a with "Hinv") as "H";auto.
