@@ -27,75 +27,50 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-   Lemma readsr_case (W : WORLD) (regs : leibnizO Reg)
-     (p p' : Perm) (g : Locality) (b e a : Addr)
-     (w : Word) (ρ : region_type) (dst : RegName) (src : SRegName) (P:D):
+  Lemma readsr_case (W : WORLD) (regs : leibnizO Reg)
+    (p p' : Perm) (g : Locality) (b e a : Addr)
+    (w : Word) (ρ : region_type) (dst : RegName) (src : SRegName) (P:D) :
     ftlr_instr W regs p p' g b e a w (ReadSR dst src) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
+    destruct (has_sreg_access p) eqn:HpXRS.
+    { iClear "IH Hreg Hinva Hrcond Hwcond Hmono HmonoV Hw Hsts Hown Hr Hstate Ha Hmap".
+      iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv_interp".
+      destruct (isO p) eqn: HnO.
+      { destruct Hp as [Hexec _]
+        ; eapply executeAllowed_nonO in Hexec
+        ; congruence.
+      }
+      destruct (isE p) eqn:HpnotE.
+      { destruct Hp as [Hexec _]
+        ; eapply executeAllowed_nonE in Hexec
+        ; eauto
+        ; congruence.
+      }
+      destruct (isESR p) eqn:HpnotESR.
+      { destruct Hp as [Hexec _]
+        ; eapply executeAllowed_nonESR in Hexec
+        ; eauto
+        ; congruence.
+      }
+      destruct (has_sreg_access p) eqn:HpXRS'; first done.
+      congruence.
+    }
+
     iApply (wp_ReadSR with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
+    { by rewrite HpXRS. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
     destruct HSpec; cycle 1.
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto. iIntros; discriminate.
-    - incrementPC_inv; simplify_map_eq.
-      rename x into p0
-      ; rename x0 into g0
-      ; rename x1 into b0
-      ; rename x2 into e0
-      ; rename x3 into a0
-      ; rename x4 into a0'.
-      iApply wp_pure_step_later; auto; iNext; iIntros "_".
-
-      destruct (decide (dst = PC)) as [HdstPC|HdstPC]; simplify_map_eq.
-      { map_simpl "Hmap".
-        destruct src; simpl in *; try discriminate.
-        iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-        destruct (decide (r = PC)).
-        { simplify_map_eq.
-          iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
-          iApply (interp_next_PC with "Hinv_interp"); eauto.
-        }
-        simplify_map_eq.
-        iDestruct ("Hreg" $! r (WCap p0 g0 b0 e0 a0) n H ) as "Hr0".
-        destruct (executeAllowed p0) eqn:Hpft; cycle 1.
-        { iApply (wp_bind (fill [SeqCtx])).
-          iExtract "Hmap" PC as "HPC".
-          iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
-          iNext; iIntros "HPC /=".
-          iApply wp_pure_step_later; auto; iNext; iIntros "_".
-          iApply wp_value; iIntros; discriminate.
-        }
-
-        iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
-        iApply (interp_weakening with "IH Hr0"); eauto; try reflexivity; try solve_addr.
-        by apply executeAllowed_nonSentry.
-      }
-      { map_simpl "Hmap".
-        iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-        iApply ("IH" $! _ (<[dst:=w0]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
-        - intros; simpl.
-          rewrite lookup_insert_is_Some.
-          destruct (decide (dst = x)); auto; right; split; auto.
-        - iIntros (ri wi Hri Hregs_ri).
-          destruct (decide (ri = dst)); simplify_map_eq.
-          + (* ri = dst *)
-            destruct src; simplify_map_eq.
-            * repeat rewrite fixpoint_interp1_eq; auto.
-            * destruct (decide (PC = r)); simplify_map_eq; first done.
-              iApply ("Hreg" $! r) ; auto.
-          + iApply ("Hreg" $! ri) ; auto.
-      - iApply (interp_next_PC with "Hinv_interp"); eauto.
-      }
+    - by simplify_map_eq.
   Qed.
 
 End fundamental.

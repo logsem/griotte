@@ -50,7 +50,9 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (WriteSR dst src) ⊆ dom regs →
-    sregs_of (WriteSR dst src) ⊆ dom sregs →
+    (if (has_sreg_access pc_p)
+    then sregs_of (WriteSR dst src) ⊆ dom sregs
+    else True) →
     {{{ ▷ pc_a ↦ₐ w ∗
         ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
         ▷ ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
@@ -80,14 +82,14 @@ Section cap_lang_rules.
     specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri. unfold regs_of in Hri.
     destruct (Hri src) as [wsrc [H'src Hsrc]]. by set_solver+.
 
-    specialize (indom_sregs_incl _ _ _ Dsregs Hsregs) as Hsri. unfold sregs_of in Hsri.
-    destruct (Hsri dst) as [wdst [H'dst Hdst]]. by set_solver+.
-
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep.
       rewrite Hxsr in Hstep; simplify_eq.
       iFailWP "Hφ" WriteSR_fail_nonxrs.
     }
+
+    specialize (indom_sregs_incl _ _ _ Dsregs Hsregs) as Hsri. unfold sregs_of in Hsri.
+    destruct (Hsri dst) as [wdst [H'dst Hdst]]. by set_solver+.
 
     assert (exec_opt (WriteSR dst src) pc_p (r, sr, m) = updatePC (update_sreg (r, sr, m) dst wsrc)) as HH.
     { by cbn; rewrite Hsrc Hxsr /=. }
@@ -134,7 +136,7 @@ Section cap_lang_rules.
     iDestruct (map_of_sregs_1 with "Hdst") as "Hsmap".
     iApply (wp_WriteSR with "[$Hmap $Hsmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     - by unfold regs_of; rewrite !dom_insert; set_solver+.
-    - by unfold sregs_of; rewrite !dom_insert; set_solver+.
+    - by unfold sregs_of; rewrite Hxsr !dom_insert; set_solver+.
     - iNext. iIntros (regs' sregs' retv) "(#Hspec & Hpc_a & Hmap & Hsmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| -> Hfail].
@@ -167,11 +169,11 @@ Section cap_lang_rules.
           ∗ pc_a ↦ₐ w
           ∗ dst ↦ₛᵣ WCap pc_p pc_g pc_b pc_e pc_a }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxrs Hpca' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hpca' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_1 with "HPC") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hdst") as "Hsmap".
     iApply (wp_WriteSR with "[$Hmap $Hsmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold sregs_of; rewrite Hxsr !dom_insert; set_solver+. }
     iNext. iIntros (regs' sregs' retv) "(#Hspec & Hpc_a & Hmap & Hsmap)".
     iDestruct "Hspec" as %Hspec.
 

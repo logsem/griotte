@@ -278,6 +278,20 @@ Section fundamental.
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
+    + (* ReadSR *)
+      iApply (readsr_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto.
+    + (* WriteSR *)
+      iApply (writesr_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto.
     + (* Fail *)
       iApply (wp_fail with "[HPC Ha]"); eauto; iFrame.
       iNext. iIntros "[HPC Ha] /=".

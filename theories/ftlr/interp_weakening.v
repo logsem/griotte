@@ -79,25 +79,6 @@ Section fundamental.
       iSplitL; iFrame "#".
   Qed.
 
-  (* TODO move machine base *)
-  Lemma has_sreg_access_flowsto (p1 p2 : Perm) :
-    PermFlowsTo p1 p2
-    -> has_sreg_access p1 = true
-    -> has_sreg_access p2 = true.
-  Proof.
-    intros Hfl Hra.
-    destruct_perm p1; destruct_perm p2 ; cbn in *; done.
-  Qed.
-
-  Lemma nonhas_sreg_access_flowsfrom (p1 p2 : Perm) :
-    PermFlowsTo p1 p2
-    -> has_sreg_access p2 = false
-    -> has_sreg_access p1 = false.
-  Proof.
-    intros Hfl Hra.
-    destruct_perm p1; destruct_perm p2 ; cbn in *; done.
-  Qed.
-
   Lemma interp_weakeningEO W p p' g g' b b' e e' a a' :
     isSentry p = false ->
     isO p = false →
@@ -117,7 +98,7 @@ Section fundamental.
     rewrite HpnotO HpnotO' HpnotE HpnotE' HpnotESR HpnotESR'.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
-      with false by (symmetry; eapply nonhas_sreg_access_flowsfrom; eauto).
+      with false by (symmetry; eapply nothas_sreg_access_flowsfrom; eauto).
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iSplit; cycle 1.
     { case_eq (isWL p'); intros Hpwl'; auto.

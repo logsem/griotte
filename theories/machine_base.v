@@ -1048,6 +1048,28 @@ Lemma permit_unseal_flowsto p' p:
 Proof.  destruct_sealperm p; destruct_sealperm p'; done. Qed.
 
 
+
+(* Lemmas about has_sreg_access *)
+
+Lemma has_sreg_access_flowsto (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> has_sreg_access p1 = true
+  -> has_sreg_access p2 = true.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
+Lemma nothas_sreg_access_flowsfrom (p1 p2 : Perm) :
+  PermFlowsTo p1 p2
+  -> has_sreg_access p2 = false
+  -> has_sreg_access p1 = false.
+Proof.
+  intros Hfl Hra.
+  destruct_perm p1; destruct_perm p2 ; cbn in *; done.
+Qed.
+
+
 (* Lemmas about canStore *)
 
 Lemma canStore_flowsto (p p' : Perm) (w : Word) :
