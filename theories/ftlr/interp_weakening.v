@@ -31,7 +31,35 @@ Section fundamental.
     iIntros "#Hinterp".
     rewrite !fixpoint_interp1_eq !interp1_eq.
     replace (isO E) with false ; auto.
-    replace (isSentry E) with true ; auto.
+    replace (isE E) with true ; auto.
+    iDestruct "Hinterp" as "#Hinterp".
+    iModIntro.
+    rewrite /enter_cond /interp_expr /=.
+    iIntros (regs W' Hrelated).
+    destruct g.
+    - iAssert (future_world Global W W')%I as "%Hrelated'".
+      { iPureIntro.
+        apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto.
+      }
+      iSpecialize ("Hinterp" $! regs W' Hrelated').
+      iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
+      iSplitL; iFrame "#".
+    - iAssert (future_world Local W W')%I as "%Hrelated'".
+      { done. }
+      iSpecialize ("Hinterp" $! regs W' Hrelated').
+      iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
+      iSplitL; iFrame "#".
+  Qed.
+
+  Lemma interp_weakening_from_ESR W g b e a :
+      interp W (WCap ESR g b e a)
+      -∗ interp W (WCap ESR Local b e a).
+  Proof.
+    iIntros "#Hinterp".
+    rewrite !fixpoint_interp1_eq !interp1_eq.
+    replace (isO ESR) with false ; auto.
+    replace (isE ESR) with false ; auto.
+    replace (isESR ESR) with true ; auto.
     iDestruct "Hinterp" as "#Hinterp".
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
@@ -63,9 +91,14 @@ Section fundamental.
     interp W (WCap p g b e a) -∗
     interp W (WCap p' g' b' e' a').
   Proof.
-    intros HpnotE HpnotO HpnotE' HpnotO' Hb He Hp Hl. iIntros "HA".
+    intros HpnotSentry HpnotO HpnotSentry' HpnotO' Hb He Hp Hl. iIntros "HA".
     rewrite !fixpoint_interp1_eq !interp1_eq.
-    rewrite HpnotO HpnotO' HpnotE HpnotE'.
+    destruct (isnotSentry_isnotE_ESR p HpnotSentry) as [HpnotE HpnotESR].
+    destruct (isnotSentry_isnotE_ESR p' HpnotSentry') as [HpnotE' HpnotESR'].
+    rewrite HpnotO HpnotO' HpnotE HpnotE' HpnotESR HpnotESR'.
+    destruct (has_sreg_access p) eqn:HpXSR; auto.
+    replace (has_sreg_access p')
+      with false by (symmetry; eapply nothas_sreg_access_flowsfrom; eauto).
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iSplit; cycle 1.
     { case_eq (isWL p'); intros Hpwl'; auto.
@@ -131,12 +164,14 @@ Section fundamental.
       interp W (WCap p g b e a) -∗
       interp W (WCap E g' b' e' a').
   Proof.
-    intros HpnotE HpnotO Hb He Hp Hl.
+    intros HpnotSentry HpnotO Hb He Hp Hl.
     iIntros "#IH HA".
     rewrite !fixpoint_interp1_eq !interp1_eq.
-    rewrite HpnotO HpnotE.
+    destruct (isnotSentry_isnotE_ESR p HpnotSentry) as [HpnotE HpnotESR].
+    rewrite HpnotO HpnotE HpnotESR.
     replace (isO E) with false ; auto.
-    replace (isSentry E) with true ; auto.
+    replace (isE E) with true ; auto.
+    destruct (has_sreg_access p) eqn:HpXSR; auto.
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
@@ -191,7 +226,6 @@ Section fundamental.
       replace (readAllowed p) with true; cycle 1.
       { destruct_perm p ; cbn in *; try done. }
       iFrame "Hrel".
-
       destruct (isWL p) eqn: Hpwl; cycle 1.
       { assert (if isWL p then g = Local else True) as Hpwl_cond' by (rewrite Hpwl //=).
         assert (
@@ -209,14 +243,12 @@ Section fundamental.
            if isWL p then region_state_pwl W x else region_state_nwl W x g
           ) as Hstate' by (rewrite Hpwl //=).
         repeat(iSplit; auto).
-
         destruct g'; cbn.
         { (* contradiction *)
           destruct g; first congruence; done.
         }
         iDestruct "Hfuture" as "%Hfuture".
         iApply monoReq_mono_pub_pwl; eauto.
-
         destruct g'; cbn.
         { (* contradiction *)
           destruct g; first congruence; done.
@@ -224,6 +256,29 @@ Section fundamental.
         iDestruct "Hfuture" as "%Hfuture".
         eapply region_state_pwl_monotone in Hstate; eauto.
       }
+  Qed.
+
+  Lemma interp_weakeningESR W p g g' b b' e e' a a' :
+      isSentry p = false ->
+      isO p = false ->
+      (b <= b')%a ->
+      (e' <= e)%a ->
+      PermFlowsTo ESR p ->
+      LocalityFlowsTo g' g ->
+      ftlr_IH -∗
+      interp W (WCap p g b e a) -∗
+      interp W (WCap ESR g' b' e' a').
+  Proof.
+    intros HpnotSentry HpnotO Hb He Hp Hl.
+    iIntros "#IH HA".
+    rewrite !fixpoint_interp1_eq !interp1_eq.
+    destruct (isnotSentry_isnotE_ESR p HpnotSentry) as [HpnotE HpnotESR].
+    rewrite HpnotO HpnotE HpnotESR.
+    replace (isO ESR) with false ; auto.
+    replace (isE ESR) with false ; auto.
+    replace (isESR ESR) with true ; auto.
+    destruct (has_sreg_access p) eqn:HpXSR; auto.
+    destruct_perm p ; cbn in HpXSR,Hp,HpnotSentry,HpnotO;try done.
   Qed.
 
   Lemma interp_weakening W p p' g g' b b' e e' a a' :
@@ -236,15 +291,16 @@ Section fundamental.
     interp W (WCap p g b e a) -∗
     interp W (WCap p' g' b' e' a').
   Proof.
-    intros HpnotE Hb He Hp Hl. iIntros "#IH HA".
+    intros HpnotSentry Hb He Hp Hl. iIntros "#IH HA".
     destruct (isO p') eqn:HpO'.
     { rewrite !fixpoint_interp1_eq !interp1_eq HpO'; auto. }
     destruct (isO p) eqn:HpO.
     { eapply notisO_flowsfrom in Hp ; eauto; congruence. }
-    destruct (isSentry p') eqn:Hsentryp'; cycle 1.
+    destruct (isSentry p') eqn:HpSentry'; cycle 1.
     { iApply (interp_weakeningEO _ p p' g g'); eauto. }
     { destruct p, p' ; cbn in * ; try congruence.
-      iApply (interp_weakeningE _ (BPerm rx w dl dro) g g'); eauto.
+      - iApply (interp_weakeningE _ (BPerm rx w dl dro) g g'); eauto.
+      - iApply (interp_weakeningESR _ (BPerm rx w dl dro) g g'); eauto.
     }
   Qed.
 
@@ -352,12 +408,12 @@ Section fundamental.
       { by rewrite !fixpoint_interp1_eq. }
       {
         destruct p;cycle 1.
-        { by iApply interp_weakening_from_E. }
-
-        destruct (isO (BPerm rx w dl dro)) eqn:HpO.
-        { destruct rx,w; cbn in *; try done.
-          rewrite !fixpoint_interp1_eq //=.
-        }
+        + by iApply interp_weakening_from_E.
+        + by iApply interp_weakening_from_ESR.
+        + destruct (isO (BPerm rx w dl dro)) eqn:HpO.
+          { destruct rx,w; cbn in *; try done.
+            rewrite !fixpoint_interp1_eq //=.
+          }
         iApply interp_weakeningEO; eauto; try done; try solve_addr.
       }
     - by iApply (interp_borrowed_sealed with "Hw").
@@ -403,7 +459,7 @@ Section fundamental.
       { rewrite !load_word_sealrange; cbn.
         by rewrite !fixpoint_interp1_eq /=.
       }
-      destruct p0 as [ rx0 w0 dl0 dro0|]; cycle 1.
+      destruct p0 as [ rx0 w0 dl0 dro0| | ]; cycle 1.
       { rewrite !load_word_E.
         destruct (isDL p') eqn:Hdl
         ; [ eapply isDL_flowsto in Hfl; eauto ; rewrite Hfl |]
@@ -411,6 +467,14 @@ Section fundamental.
         destruct (isDL p); auto.
         by iApply interp_weakening_from_E.
       }
+      { rewrite !load_word_ESR.
+        destruct (isDL p') eqn:Hdl
+        ; [ eapply isDL_flowsto in Hfl; eauto ; rewrite Hfl |]
+        ; auto.
+        destruct (isDL p); auto.
+        by iApply interp_weakening_from_ESR.
+      }
+
       rewrite !load_word_cap.
       destruct (isO (load_word_perm p (BPerm rx0 w0 dl0 dro0))) eqn:HnO.
       { rewrite !fixpoint_interp1_eq !interp1_eq.

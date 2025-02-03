@@ -32,8 +32,7 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a & >Hr) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "Hσ1 /=". destruct σ1; simpl.
-    iDestruct "Hσ1" as "[Hr0 Hm]".
+    iIntros (σ1 ns l1 l2 nt) "[ [Hr0 Hsr] Hm ] /=". destruct σ1 as [ [r0 sr] m]; cbn.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
     iDestruct (@gen_heap_valid with "Hr0 HPC") as %?.
     iDestruct (@gen_heap_valid with "Hr0 Hr") as %Hr_r0.
@@ -61,8 +60,7 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "Hσ1 /=". destruct σ1; cbn.
-    iDestruct "Hσ1" as "[Hr0 Hm]".
+    iIntros (σ1 ns l1 l2 nt) "[ [Hr0 Hsr] Hm ] /=". destruct σ1 as [ [r0 sr] m]; cbn.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
     iDestruct (@gen_heap_valid with "Hr0 HPC") as %Hr_PC.
     iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.

@@ -49,6 +49,8 @@ theories/rules/rules_Jnz.v
 theories/rules/rules_Subseg.v
 theories/rules/rules_Seal.v
 theories/rules/rules_UnSeal.v
+theories/rules/rules_ReadSR.v
+theories/rules/rules_WriteSR.v
 theories/rules.v
 
 # Cerise Proofmode
@@ -89,6 +91,8 @@ theories/ftlr/Jnz.v
 theories/ftlr/Subseg.v
 theories/ftlr/Seal.v
 theories/ftlr/UnSeal.v
+theories/ftlr/ReadSR.v
+theories/ftlr/WriteSR.v
 theories/fundamental.v
 
 # Misc for examples

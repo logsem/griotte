@@ -153,7 +153,7 @@ Section cap_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaStore φ) "(>Hmem & >Hmap) Hφ".
      iApply wp_lift_atomic_base_step_no_fork; auto.
-     iIntros (σ1 ns l1 l2 nt) "[Hr Hm] /=". destruct σ1; simpl.
+     iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
      iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
 
      (* Derive necessary register values in r *)
@@ -184,7 +184,7 @@ Section cap_lang_rules.
 
      destruct (is_cap r1v) eqn:Hr1v.
      2: { (* Failure: r1 is not a capability *)
-       assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
        {
          unfold is_cap in Hr1v.
          destruct_word r1v; by simplify_pair_eq.
@@ -205,7 +205,7 @@ Section cap_lang_rules.
      2:{ destruct r2.
          - simpl in HSV; inv HSV.
            rewrite writeAllowed_canStore_int in HcanStore; auto; congruence.
-         - assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+         - assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
            { simpl in HSV; inv HSV. rewrite HcanStore /= in Hstep.
              destruct (r !! r0); try congruence; inv Hstep; auto.
            }
@@ -233,7 +233,7 @@ Section cap_lang_rules.
 
      (* Success *)
       rewrite /update_mem /= in Hstep.
-      eapply (incrementPC_success_updatePC _ (<[a:=storev]> m)) in Hregs'
+      eapply (incrementPC_success_updatePC _ sr (<[a:=storev]> m)) in Hregs'
         as (p1 & g1 & b1 & e1 & a1 & a'1 & a_pc1 & HPC'' & HuPC & ->).
       eapply (updatePC_success_incl _ (<[a:=storev]> m)) in HuPC. 2: by eauto.
       rewrite HuPC in Hstep; clear HuPC; inversion Hstep; clear Hstep; subst c σ2; cbn in *.

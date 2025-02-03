@@ -4,7 +4,7 @@ From stdpp Require Import gmap fin_maps list.
 From cap_machine Require Export addr_reg machine_base machine_parameters.
 Set Warnings "-redundant-canonical-projection".
 
-Definition ExecConf := (Reg * Mem)%type.
+Definition ExecConf := (Reg * SReg * Mem)%type.
 
 Inductive ConfFlag : Type :=
 | Executable
@@ -14,12 +14,16 @@ Inductive ConfFlag : Type :=
 
 Definition Conf: Type := ConfFlag * ExecConf.
 
-Definition reg (ϕ: ExecConf) := fst ϕ.
-
+Definition reg (ϕ: ExecConf) := (fst (fst ϕ)).
+Definition sreg (ϕ: ExecConf) := (snd (fst ϕ)).
 Definition mem (ϕ: ExecConf) := snd ϕ.
 
-Definition update_reg (φ: ExecConf) (r: RegName) (w: Word): ExecConf := (<[r:=w]>(reg φ),mem φ).
-Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf := (reg φ, <[a:=w]>(mem φ)).
+Definition update_reg (φ: ExecConf) (r: RegName) (w: Word): ExecConf :=
+  (<[r:=w]>(reg φ), sreg φ, mem φ).
+Definition update_sreg (φ: ExecConf) (sr: SRegName) (w: Word): ExecConf :=
+  (reg φ, <[sr:=w]>(sreg φ), mem φ).
+Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
+  (reg φ, sreg φ, <[a:=w]>(mem φ)).
 
 (* Note that the `None` values here also undo any previous changes that were tentatively made in the same step. This is more consistent across the board. *)
 Definition updatePC (φ: ExecConf): option Conf :=
@@ -203,7 +207,7 @@ Qed.
 Section opsem.
   Context `{MachineParameters}.
 
-  Definition exec_opt (i: instr) (φ: ExecConf): option Conf :=
+  Definition exec_opt (i: instr) (plevel : Perm) (φ: ExecConf): option Conf :=
     match i with
     | Fail => Some (Failed, φ)
     | Halt => Some (Halted, φ)
@@ -296,12 +300,12 @@ Section opsem.
     | WCap p g b e a =>
       a1 ← addr_of_argument (reg φ) ρ1;
       a2 ← addr_of_argument (reg φ) ρ2;
-        match isSentry p with
-        | true => None
+      match isSentry p with
+      | true => None
       | _ =>
-        if isWithin a1 a2 b e then
-          updatePC (update_reg φ dst (WCap p g a1 a2 a))
-        else None
+          if isWithin a1 a2 b e then
+            updatePC (update_reg φ dst (WCap p g a1 a2 a))
+          else None
       end
     | WSealRange p g b e a =>
       o1 ← otype_of_argument (reg φ) ρ1;
@@ -376,21 +380,29 @@ Section opsem.
         else None
     | _,_ => None
     end
+  | ReadSR dst src =>
+      if has_sreg_access plevel
+      then tomov ← (sreg φ) !! src; updatePC (update_reg φ dst tomov)
+      else None
+  | WriteSR dst src =>
+      if has_sreg_access plevel
+      then tomov ← (reg φ) !! src; updatePC (update_sreg φ dst tomov)
+      else None
   end.
 
-  Definition exec (i: instr) (φ: ExecConf) : Conf :=
-     match exec_opt i φ with | None => (Failed, φ) | Some conf => conf end .
+  Definition exec (i: instr) (plevel : Perm) (φ: ExecConf) : Conf :=
+     match exec_opt i plevel φ with | None => (Failed, φ) | Some conf => conf end .
 
   Lemma exec_opt_exec_some :
-    forall φ i c,
-      exec_opt i φ = Some c →
-      exec i φ = c.
+    forall φ i plevel c,
+      exec_opt i plevel φ = Some c →
+      exec i plevel φ = c.
   Proof. unfold exec. by intros * ->. Qed.
 
   Lemma exec_opt_exec_none :
-    forall φ i,
-      exec_opt i φ = None →
-      exec i φ = (Failed, φ).
+    forall φ i plevel,
+      exec_opt i plevel φ = None →
+      exec i plevel φ = (Failed, φ).
   Proof. unfold exec. by intros * ->. Qed.
 
   Inductive step: Conf → Conf → Prop :=
@@ -414,7 +426,7 @@ Section opsem.
         (mem φ) !! a = Some wa →
         isCorrectPC (WCap p g b e a) →
         decodeInstrW wa = i →
-        exec i φ = c →
+        exec i p φ = c →
         step (Executable, φ) (c.1, c.2).
 
   Lemma normal_always_step:
@@ -437,20 +449,23 @@ Section opsem.
     intros * H1 H2; split; inv H1; inv H2; auto; try congruence.
   Qed.
 
-  Lemma step_exec_inv (r: Reg) p g b e a m w instr (c: ConfFlag) (σ: ExecConf) :
-    r !! PC = Some (WCap p g b e a) →
+  Lemma step_exec_inv
+    (regs: Reg) (sregs : SReg) (mem : Mem)
+    (p : Perm) (g : Locality) (b e a : Addr) (w : Word)
+    (instr : instr) (c: ConfFlag) (σ: ExecConf) :
+    regs !! PC = Some (WCap p g b e a) →
     isCorrectPC (WCap p g b e a) →
-    m !! a = Some w →
+    mem !! a = Some w →
     decodeInstrW w = instr →
-    step (Executable, (r, m)) (c, σ) →
-    exec instr (r, m) = (c, σ).
+    step (Executable, (regs, sregs, mem)) (c, σ) →
+    exec instr p (regs, sregs, mem) = (c, σ).
   Proof.
     intros HPC Hpc Hm Hinstr. inversion 1; cbn in *.
     1,2,3: congruence.
     simplify_eq. by destruct (exec _ _).
   Qed.
 
-  Lemma step_fail_inv wpc c (σ σ': ExecConf) :
+  Lemma step_fail_inv (wpc : Word) (c : ConfFlag) (σ σ': ExecConf) :
     reg σ !! PC = Some wpc →
     ¬ isCorrectPC wpc →
     step (Executable, σ) (c, σ') →
@@ -592,9 +607,9 @@ Section opsem.
     rewrite /updatePC; repeat case_match; try congruence. inversion 1. eauto.
   Qed.
 
-  Lemma instr_atomic i φ :
-    ∃ φ', (exec i φ = (Failed, φ') ) ∨ (exec i φ = (NextI, φ')) ∨
-          (exec i φ = (Halted, φ')).
+  Lemma instr_atomic i p φ :
+    ∃ φ', (exec i p φ = (Failed, φ') ) ∨ (exec i p φ = (NextI, φ')) ∨
+          (exec i p φ = (Halted, φ')).
   Proof.
     unfold exec, exec_opt.
     repeat case_match; simplify_eq; eauto;rename H0 into Heqo.
@@ -605,6 +620,7 @@ Section opsem.
     ; repeat destruct (z_of_argument (reg φ) _)
     ; cbn in *; try by exfalso.
     all: repeat destruct (reg _ !! _); cbn in *; repeat case_match.
+    all: repeat destruct (sreg _ !! _); cbn in *; repeat case_match.
     all: repeat destruct (mem _ !! _); cbn in *; repeat case_match.
     all: simplify_eq; try by exfalso.
     all: try apply updatePC_some in Heqo as [φ' Heqo]; eauto.
@@ -646,7 +662,7 @@ Proof.
     + destruct c; rewrite /Atomic; intros ????? Hstep;
         inversion Hstep.
       match goal with HH : step _ _ |- _ => inversion HH end; eauto.
-      destruct (instr_atomic i σ) as [σstepped [Hst | [Hst | Hst]]];
+      destruct (instr_atomic i p σ) as [σstepped [Hst | [Hst | Hst]]];
           simplify_eq; rewrite Hst; simpl; eauto.
     + inversion Ha.
   - intros K e' -> Hval%eq_None_not_Some.

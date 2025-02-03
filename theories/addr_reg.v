@@ -24,6 +24,10 @@ Inductive RegName: Type :=
 | PC
 | R (n: nat) (fin: n <=? RegNum = true).
 
+Unset Automatic Proposition Inductives.
+Inductive SRegName : Type :=
+| MTDC.
+
 Global Instance reg_eq_dec : EqDecision RegName.
 Proof. intros r1 r2.  destruct r1,r2; [by left | by right | by right |].
        destruct (Nat.eq_dec n n0).
@@ -61,6 +65,52 @@ Proof.
   destruct (Nat.le_dec n RegNum).
   - do 2 f_equal. apply eq_proofs_unicity. decide equality.
   - exfalso. by apply (Nat.leb_le n RegNum) in fin.
+Defined.
+
+
+Global Instance sreg_eq_dec : EqDecision SRegName.
+Proof. intros r1 r2; destruct r1,r2; by left. Defined.
+
+Global Instance sreg_countable : Countable SRegName.
+Proof.
+  refine {| encode r := encode match r with
+                               | MTDC => Some ()
+                               end ;
+            decode n := match (decode n) with
+                        | Some () => Some MTDC
+                        | None => None
+                        end ;
+            decode_encode := _ |}.
+  intro r. destruct r; auto.
+Defined.
+
+Global Instance reg_finite : finite.Finite RegName.
+Proof. apply (finite.enc_finite (λ r : RegName, match r with
+                                                | PC => S RegNum
+                                                | R n fin => n
+                                                end)
+                (λ n : nat, match n_to_regname n with | Some r => r | None => PC end)
+                (S (S RegNum))).
+       - intros x. destruct x;auto.
+         unfold n_to_regname.
+         destruct (Nat.le_dec n RegNum).
+         + do 2 f_equal. apply eq_proofs_unicity. decide equality.
+         + exfalso. by apply (Nat.leb_le n RegNum) in fin.
+       - intros x.
+         + destruct x;[lia|]. apply Nat.leb_le in fin. lia.
+       - intros i Hlt. unfold n_to_regname.
+         destruct (Nat.le_dec i RegNum);auto.
+         lia.
+Defined.
+
+Global Instance sreg_finite : finite.Finite SRegName.
+Proof.
+ apply (finite.enc_finite (λ r : SRegName, match r with | MTDC => 0%nat end)
+                (λ n : nat, MTDC)
+                1%nat).
+ - by intro sr; destruct sr.
+ - by intro sr; destruct sr.
+ - lia.
 Defined.
 
 (* Instances for [zify]: make [lia] work on registers *)
@@ -120,6 +170,44 @@ Definition r_t28 : RegName := R 28 eq_refl.
 Definition r_t29 : RegName := R 29 eq_refl.
 Definition r_t30 : RegName := R 30 eq_refl.
 Definition r_t31 : RegName := R 31 eq_refl.
+
+Notation cnull := r_t0. (* supposedly null register *)
+Notation cra   := r_t1. (* link register *)
+Notation csp   := r_t2. (* compartment stack register *)
+Notation cgp   := r_t3. (* global data register *)
+
+Notation ctp   := r_t4. (* temporary registers *)
+Notation ct0   := r_t5.
+Notation ct1   := r_t6.
+Notation ct2   := r_t7.
+Notation ct3   := r_t28.
+Notation ct4   := r_t29.
+Notation ct5   := r_t30.
+Notation ct6   := r_t31.
+
+Notation cs0   := r_t8. (* temporary registers ? *) (* also aliased cfp *)
+Notation cs1   := r_t9.
+Notation cs2   := r_t18.
+Notation cs3   := r_t19.
+Notation cs4   := r_t20.
+Notation cs5   := r_t21.
+Notation cs6   := r_t22.
+Notation cs7   := r_t23.
+Notation cs8   := r_t24.
+Notation cs9   := r_t25.
+Notation cs10  := r_t26.
+Notation cs11  := r_t27.
+
+Notation ca0   := r_t10. (* arguments registers *)
+Notation ca1   := r_t11.
+Notation ca2   := r_t12.
+Notation ca3   := r_t13.
+Notation ca4   := r_t14.
+Notation ca5   := r_t15.
+Notation ca6   := r_t16.
+Notation ca7   := r_t17.
+
+Notation mtdc  := MTDC.
 
 (* A list of all general purpuse registers (if regnum=31) *)
 Definition all_registers : list RegName :=

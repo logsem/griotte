@@ -157,7 +157,7 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaLoad Hdomeq φ) "(>Hmem & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[Hr Hm] /=". destruct σ1; simpl.
+    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
 
     (* Derive necessary register values in r *)
@@ -184,7 +184,7 @@ Section cap_lang_rules.
      (* Now we start splitting on the different cases in the Load spec, and prove them one at a time *)
      destruct (is_cap r2v) eqn:Hr2v.
      2:{ (* Failure: r2 is not a capability *)
-       assert (c = Failed ∧ σ2 = (r, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
        {
          unfold is_cap in Hr2v.
          destruct_word r2v; by simplify_pair_eq.
@@ -226,7 +226,7 @@ Section cap_lang_rules.
 
     (* Success *)
     rewrite /update_reg /= in Hstep.
-    eapply (incrementPC_success_updatePC _ m) in Hregs'
+    eapply (incrementPC_success_updatePC _ sr m) in Hregs'
       as (p1 & g1 & b1 & e1 & a1 & a_pc1 & HPC'' & Ha_pc' & HuPC & ->).
     eapply updatePC_success_incl in HuPC. 2: by eapply insert_mono.
     rewrite HuPC in Hstep; clear HuPC; inversion Hstep; clear Hstep; subst c σ2. cbn.

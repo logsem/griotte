@@ -1,5 +1,5 @@
 From cap_machine.ftlr Require Export Jmp Jnz Mov Load Store AddSubLt Restrict
-  Subseg Get Lea Seal UnSeal.
+  Subseg Get Lea Seal UnSeal ReadSR WriteSR.
 From cap_machine.ftlr Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
@@ -76,7 +76,6 @@ Section fundamental.
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
     { eapply in_range_is_correctPC; eauto. solve_addr. }
 
-
     iAssert (⌜ validPCperm p g ⌝)%I as "%Hp".
     { (* if not, contradiction by correctPC or validity *)
       inv HcorrectPC; subst; auto.
@@ -89,21 +88,32 @@ Section fundamental.
       rewrite fixpoint_interp1_eq interp1_eq.
       replace (isO (BPerm _ WL _ _)) with false by (cbn; destruct rx; done).
       cbn.
+      destruct rx; auto.
       iDestruct "Hinv_interp" as "[_ Hcontra]"; done.
     }
 
     iPoseProof "Hinv_interp" as "#Hinv".
     iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv".
     destruct (isO p) eqn: HnO.
-    {  destruct Hp as [Hexec _].
-       eapply executeAllowed_nonO in Hexec; congruence.
+    { destruct Hp as [Hexec _]
+      ; eapply executeAllowed_nonO in Hexec
+      ; congruence.
     }
-    destruct (isSentry p) eqn:Hnpsentry.
-    {  destruct Hp as [Hexec _]
-      ; eapply executeAllowed_nonSentry in Hexec
+    destruct (isE p) eqn:HpnotE.
+    { destruct Hp as [Hexec _]
+      ; eapply executeAllowed_nonE in Hexec
       ; eauto
       ; congruence.
     }
+    destruct (isESR p) eqn:HpnotESR.
+    { destruct Hp as [Hexec _]
+      ; eapply executeAllowed_nonESR in Hexec
+      ; eauto
+      ; congruence.
+    }
+    destruct (has_sreg_access p) eqn:HpXRS; first done.
+
+
     iDestruct "Hinv" as "[#Hinv %Hpwl_cond]".
 
     iDestruct (extract_from_region_inv _ _ a with "Hinv") as "H";auto.
@@ -268,6 +278,20 @@ Section fundamental.
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
+    + (* ReadSR *)
+      iApply (readsr_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto.
+    + (* WriteSR *)
+      iApply (writesr_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto.
     + (* Fail *)
       iApply (wp_fail with "[HPC Ha]"); eauto; iFrame.
       iNext. iIntros "[HPC Ha] /=".
@@ -355,18 +379,29 @@ Section fundamental.
     ⊢ interp W w -∗ ▷ (∀ regs, interp_expression regs W (updatePcPerm w)).
   Proof.
     iIntros "#Hw".
-    assert ((∃ g b e a, w = WCap E g b e a) ∨ updatePcPerm w = w) as [Hw | ->].
-    { destruct w as [ | [ | ] | ]; eauto. unfold updatePcPerm.
-      case_match; eauto; naive_solver.
+    assert ( ( (∃ g b e a, w = WCap E g b e a)
+            \/ (∃ g b e a, w = WCap ESR g b e a))
+            ∨ updatePcPerm w = w)
+      as [ Hw | ->].
+    {
+      destruct w as [ | [ | ] | ]; eauto. unfold updatePcPerm.
+      case_match; eauto; try naive_solver.
     }
-    { destruct Hw as [ g [b [e [a ->] ] ] ].
-      rewrite fixpoint_interp1_eq /=.
-      iIntros (rmap). iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw".
-      iPoseProof (futureworld_refl g W) as "Hfuture".
-      iSpecialize ("Hw" $! W (futureworld_refl g W)).
-      iNext. iIntros "(HPC & Hr & ?)".
-      iDestruct "Hw" as "[Hw _]".
-      iApply "Hw"; eauto. iFrame.
+    { destruct Hw as [ [ g [b [e [a ->] ] ] ]  |  [ g [b [e [a ->] ] ] ] ].
+      - rewrite fixpoint_interp1_eq /=.
+        iIntros (rmap). iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw".
+        iPoseProof (futureworld_refl g W) as "Hfuture".
+        iSpecialize ("Hw" $! W (futureworld_refl g W)).
+        iNext. iIntros "(HPC & Hr & ?)".
+        iDestruct "Hw" as "[Hw _]".
+        iApply "Hw"; eauto. iFrame.
+      - rewrite fixpoint_interp1_eq /=.
+        iIntros (rmap). iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw".
+        iPoseProof (futureworld_refl g W) as "Hfuture".
+        iSpecialize ("Hw" $! W (futureworld_refl g W)).
+        iNext. iIntros "(HPC & Hr & ?)".
+        iDestruct "Hw" as "[Hw _]".
+        iApply "Hw"; eauto. iFrame.
     }
     { iNext. iIntros (rmap). iApply fundamental; eauto. }
   Qed.
@@ -389,6 +424,13 @@ Section fundamental.
         * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
           iDestruct (interp_exec_cond with "Hw") as "Hexec";[auto|].
           iApply exec_wp;auto.
+        * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
+          rewrite /= fixpoint_interp1_eq /=.
+          iDestruct "Hw" as "#Hw".
+          iIntros (regs W') "Hfuture".
+          iSpecialize ("Hw" with "Hfuture").
+          iDestruct "Hw" as "[Hw _]".
+          iExact "Hw".
         * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
           rewrite /= fixpoint_interp1_eq /=.
           iDestruct "Hw" as "#Hw".
