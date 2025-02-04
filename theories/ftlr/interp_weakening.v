@@ -24,7 +24,7 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma interp_weakening_from_E W rx pw dl dro g b e a :
+  Lemma interp_weakening_from_sentry W rx pw dl dro g b e a :
       interp W (WCap (E rx pw dl dro) g b e a)
       -∗ interp W (WCap (E rx pw dl dro) Local b e a).
   Proof.
@@ -125,7 +125,7 @@ Section fundamental.
         iExists p'',φ; iFrame "∗%#".
   Qed.
 
-  Lemma interp_weakeningE W p rx pw dl dro g g' b b' e e' a a' :
+  Lemma interp_weakeningSentry W p rx pw dl dro g g' b b' e e' a a' :
       isSentry p = false ->
       isO p = false ->
       (b <= b')%a ->
@@ -163,7 +163,7 @@ Section fundamental.
         destruct rx,rx0 ; cbn in HpXSR,HpXSR'; try done.
       }
       assert (Hflows': PermFlowsTo (BPerm rx pw dl dro) p).
-      { by eapply E_max_flowsfrom; eauto. }
+      { by eapply sentry_flowsfrom; eauto. }
       iSplit.
       + destruct (decide (b' < e'))%a; cycle 1.
         { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
@@ -204,7 +204,7 @@ Section fundamental.
         destruct rx,rx0 ; cbn in HpXSR,HpXSR'; try done.
       }
       assert (Hflows': PermFlowsTo (BPerm rx pw dl dro) p).
-      { by eapply E_max_flowsfrom; eauto. }
+      { by eapply sentry_flowsfrom; eauto. }
       iSplit; cycle 1.
       { destruct (isWL (BPerm rx pw dl dro)) eqn:Hpwl; auto. }
 
@@ -264,7 +264,7 @@ Section fundamental.
     destruct (isSentry p') eqn:HpSentry'; cycle 1.
     { iApply (interp_weakeningEO _ p p' g g'); eauto. }
     { destruct p, p' ; cbn in * ; try congruence.
-      iApply (interp_weakeningE _ (BPerm rx w dl dro) _ _ _ _ g g'); eauto.
+      iApply (interp_weakeningSentry _ (BPerm rx w dl dro) _ _ _ _ g g'); eauto.
     }
   Qed.
 
@@ -372,7 +372,7 @@ Section fundamental.
       { by rewrite !fixpoint_interp1_eq. }
       {
         destruct p;cycle 1.
-        + by iApply interp_weakening_from_E.
+        + by iApply interp_weakening_from_sentry.
         + destruct (isO (BPerm rx w dl dro)) eqn:HpO.
           { destruct rx,w; cbn in *; try done.
             rewrite !fixpoint_interp1_eq //=.
@@ -428,7 +428,7 @@ Section fundamental.
         ; [ eapply isDL_flowsto in Hfl; eauto ; rewrite Hfl |]
         ; auto.
         destruct (isDL p); auto.
-        by iApply interp_weakening_from_E.
+        by iApply interp_weakening_from_sentry.
       }
 
       rewrite !load_word_cap.

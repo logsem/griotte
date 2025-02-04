@@ -764,7 +764,7 @@ Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
   | _ => false
   end.
 
-Lemma E_max_flowsfrom (rx : RXperm) (w : Wperm) (dl : DLperm) (dro : DROperm) (p : Perm) :
+Lemma sentry_flowsfrom (rx : RXperm) (w : Wperm) (dl : DLperm) (dro : DROperm) (p : Perm) :
   isSentry p = false
   -> PermFlowsTo (E rx w dl dro) p
   -> PermFlowsTo (BPerm rx w dl dro) p.
