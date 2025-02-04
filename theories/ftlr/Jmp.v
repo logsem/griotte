@@ -72,7 +72,7 @@ Section fundamental.
         iDestruct ("Hreg" $! rsrc _ HrPC Hsomesrc) as "Hwsrc".
         destruct wsrc; simpl in Heq; try congruence.
         destruct sb as [p1 g1 b1 e1 a1|?]; try congruence.
-        destruct (decide (p1 = E)) as [Hp1E|Hp1E]; subst; simplify_eq.
+        destruct p1 as [rx pw dl dro | rx pw dl dro] ; cycle 1; simplify_eq.
         + (* case p1 = E *)
           iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
           simpl; rewrite /enter_cond.
@@ -86,26 +86,11 @@ Section fundamental.
           iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
           iFrame "#%".
         + (* case p1 ≠ E *)
-          destruct (decide (p1 = ESR)) as [Hp1ESR|Hp1ESR]; subst; simplify_eq.
-          ++ (* case p1 ≠ ESR *)
-            iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
-            simpl; rewrite /enter_cond.
-            iDestruct "Hwsrc" as "#H".
-            iAssert (future_world g0 W W) as "Hfuture".
-            { iApply futureworld_refl. }
-            iSpecialize ("H" with "Hfuture").
-            iDestruct "H" as "[H _]".
-            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-            { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-            iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
-            iFrame "#%".
-          ++ (* case p1 ≠ ESR *)
-            destruct p1 as [rx1 w1 dl1 dro1| | ]; simplify_eq.
-            iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
-            iNext; iIntros "_".
-            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-            { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-            iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
+          iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
+          iNext; iIntros "_".
+          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+          { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+          iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
       }
 
       (* Non-capability cases *)

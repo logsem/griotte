@@ -224,19 +224,6 @@ Section monotone.
         iSpecialize ("Hw" $! r W'' with "Hrelated").
         iApply "Hw".
     }
-    { iModIntro. iIntros (r W'').
-      destruct g; simpl.
-      + iIntros (Hrelated').
-        iAssert (future_world Global W W'')%I as "Hrelated".
-        { iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
-        iSpecialize ("Hw" $! r W'' with "Hrelated").
-        iApply "Hw".
-      + iIntros (Hrelated').
-        iAssert (future_world Local W W'')%I as "Hrelated".
-        { iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
-        iSpecialize ("Hw" $! r W'' with "Hrelated").
-        iApply "Hw".
-    }
     destruct rx,w; auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
@@ -302,13 +289,6 @@ Section monotone.
     destruct sb; auto.
     destruct g ; cbn in Hnl ; try done.
     destruct p eqn:Hp;auto; cycle 1.
-    { iModIntro. iIntros (r W'').
-      iIntros (Hrelated').
-      iAssert (future_world Global W W'')%I as "Hrelated".
-      { iPureIntro. apply related_sts_priv_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! r W'' with "Hrelated").
-      iApply "Hw".
-    }
     { iModIntro. iIntros (r W'').
       iIntros (Hrelated').
       iAssert (future_world Global W W'')%I as "Hrelated".
