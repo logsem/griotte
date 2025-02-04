@@ -163,5 +163,5 @@ Goal forall (r_t1 r_t2 r_t3: RegName), exists r1 r2 r3,
   r1 = r_t2 ∧ r2 = r_t2 ∧ r3 = r_t3.
 Proof. do 3 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
 
-Goal E ≠ RO. solve_pure. Qed.
+Goal forall rx w dl dro, (E rx w dl dro) ≠ RO. solve_pure. Qed.
 Goal forall (P: Prop), P → P. intros. solve_pure. Qed.

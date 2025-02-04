@@ -373,7 +373,7 @@ Section SimpleMalloc.
     Forall (λ a, W.1 !! a = Some Revoked) (finz.seq_between b e) →
     na_inv logrel_nais N (malloc_inv b e) -∗
     ([∗ list] a ∈ finz.seq_between b e, rel a RWX interpC) -∗
-    interp W (WCap E Global b e b).
+    interp W (WCap E_RX Global b e b).
   Proof.
     iIntros (Hrev) "#Hmalloc #Hrels".
     rewrite fixpoint_interp1_eq /=.

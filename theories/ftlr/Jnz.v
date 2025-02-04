@@ -69,19 +69,7 @@ Section fundamental.
       }
 
       destruct_word wdst; cbn in Hwdst; try discriminate.
-      assert (Heq: (if (decide (p0 = c))
-                    then True
-                    else (p0 = RX /\ c = E) \/ (p0 = XSR_ /\ c = ESR)
-                   )
-                   /\ g0 = g1 /\ b0 = b1 /\ e0 = e1 /\ a0 = a1)
-        by (destruct (decide (p0 = c)); destruct c
-            ; inv Hwdst; simpl in Hpft
-            ; try congruence; auto; repeat split; auto
-        ).
-      clear Hwdst.
-      destruct (decide (p0 = c))
-      ; [subst c; destruct Heq as (_ & -> & -> & -> & ->)
-        | destruct Heq as ( Heq & -> & -> & -> & ->)].
+      destruct c; inv Hwdst.
       { iNext ; iIntros "_".
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
@@ -103,21 +91,14 @@ Section fundamental.
         iEval (rewrite fixpoint_interp1_eq) in "Hwdst".
         simpl; rewrite /enter_cond.
         iDestruct "Hwdst" as "#Hinterp_dst".
-        iAssert (future_world g1 W W) as "Hfuture".
+        iAssert (future_world g0 W W) as "Hfuture".
         { iApply futureworld_refl. }
 
-        destruct Heq as [ [ -> -> ]| [ -> -> ] ].
-        - iSpecialize ("Hinterp_dst" with "Hfuture").
-          iDestruct "Hinterp_dst" as "[Hinterp_dst _]".
-          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-          { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-          iDestruct ("Hinterp_dst" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
-          iFrame "#%".
-        - iSpecialize ("Hinterp_dst" with "Hfuture").
-          iDestruct "Hinterp_dst" as "[Hinterp_dst _]".
-          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-          { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-          iDestruct ("Hinterp_dst" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
+        iSpecialize ("Hinterp_dst" with "Hfuture").
+        iDestruct "Hinterp_dst" as "[Hinterp_dst _]".
+        iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+        iDestruct ("Hinterp_dst" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
           iFrame "#%".
       }
     }
