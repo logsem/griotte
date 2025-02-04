@@ -37,62 +37,119 @@ Inductive Perm: Type :=
 | E (rx: RXperm) (w: Wperm) (dl: DLperm) (dro: DROperm)    (* Sentry, unseals to (BPerm rw w dl dro) *)
 .
 
-Notation O dl dro := (BPerm Orx Ow dl dro).
+Notation O dl dro       := (BPerm Orx Ow dl dro).
 
-Notation WO        := (BPerm Orx W LG LM).
-Notation WO_DL     := (BPerm Orx W DL LM).
-Notation WO_DRO    := (BPerm Orx W LG DRO).
-Notation WO_DL_DRO := (BPerm Orx W DL DRO).
+Notation WO             := (BPerm Orx W LG LM).
+Notation WO_DL          := (BPerm Orx W DL LM).
+Notation WO_DRO         := (BPerm Orx W LG DRO).
+Notation WO_DL_DRO      := (BPerm Orx W DL DRO).
 
-Notation WLO        := (BPerm Orx WL LG LM).
-Notation WLO_DL     := (BPerm Orx WL DL LM).
-Notation WLO_DRO    := (BPerm Orx WL LG DRO).
-Notation WLO_DL_DRO := (BPerm Orx WL DL DRO).
+Notation WLO            := (BPerm Orx WL LG LM).
+Notation WLO_DL         := (BPerm Orx WL DL LM).
+Notation WLO_DRO        := (BPerm Orx WL LG DRO).
+Notation WLO_DL_DRO     := (BPerm Orx WL DL DRO).
 
-Notation RO        := (BPerm R Ow LG LM).
-Notation RO_DL     := (BPerm R Ow DL LM).
-Notation RO_DRO    := (BPerm R Ow LG DRO).
-Notation RO_DL_DRO := (BPerm R Ow DL DRO).
+Notation RO             := (BPerm R Ow LG LM).
+Notation RO_DL          := (BPerm R Ow DL LM).
+Notation RO_DRO         := (BPerm R Ow LG DRO).
+Notation RO_DL_DRO      := (BPerm R Ow DL DRO).
 
-Notation RW        := (BPerm R W LG LM).
-Notation RW_DL     := (BPerm R W DL LM).
-Notation RW_DRO    := (BPerm R W LG DRO).
-Notation RW_DL_DRO := (BPerm R W DL DRO).
+Notation RW             := (BPerm R W LG LM).
+Notation RW_DL          := (BPerm R W DL LM).
+Notation RW_DRO         := (BPerm R W LG DRO).
+Notation RW_DL_DRO      := (BPerm R W DL DRO).
 
-Notation RWL        := (BPerm R WL LG LM).
-Notation RWL_DL     := (BPerm R WL DL LM).
-Notation RWL_DRO    := (BPerm R WL LG DRO).
-Notation RWL_DL_DRO := (BPerm R WL DL DRO).
+Notation RWL            := (BPerm R WL LG LM).
+Notation RWL_DL         := (BPerm R WL DL LM).
+Notation RWL_DRO        := (BPerm R WL LG DRO).
+Notation RWL_DL_DRO     := (BPerm R WL DL DRO).
 
-Notation RX        := (BPerm X Ow LG LM).
-Notation RX_DL     := (BPerm X Ow DL LM).
-Notation RX_DRO    := (BPerm X Ow LG DRO).
-Notation RX_DL_DRO := (BPerm X Ow DL DRO).
+Notation RX             := (BPerm X Ow LG LM).
+Notation RX_DL          := (BPerm X Ow DL LM).
+Notation RX_DRO         := (BPerm X Ow LG DRO).
+Notation RX_DL_DRO      := (BPerm X Ow DL DRO).
 
-Notation RWX        := (BPerm X W LG LM).
-Notation RWX_DL     := (BPerm X W DL LM).
-Notation RWX_DRO    := (BPerm X W LG DRO).
-Notation RWX_DL_DRO := (BPerm X W DL DRO).
+Notation RWX            := (BPerm X W LG LM).
+Notation RWX_DL         := (BPerm X W DL LM).
+Notation RWX_DRO        := (BPerm X W LG DRO).
+Notation RWX_DL_DRO     := (BPerm X W DL DRO).
 
-Notation RWLX        := (BPerm X WL LG LM).
-Notation RWLX_DL     := (BPerm X WL DL LM).
-Notation RWLX_DRO    := (BPerm X WL LG DRO).
-Notation RWLX_DL_DRO := (BPerm X WL DL DRO).
+Notation RWLX           := (BPerm X WL LG LM).
+Notation RWLX_DL        := (BPerm X WL DL LM).
+Notation RWLX_DRO       := (BPerm X WL LG DRO).
+Notation RWLX_DL_DRO    := (BPerm X WL DL DRO).
 
-Notation XSR_       := (BPerm XSR Ow LG LM).
-Notation XSR_DL     := (BPerm XSR Ow DL LM).
-Notation XSR_DRO    := (BPerm XSR Ow LG DRO).
-Notation XSR_DL_DRO := (BPerm XSR Ow DL DRO).
+Notation XSR_           := (BPerm XSR Ow LG LM).
+Notation XSR_DL         := (BPerm XSR Ow DL LM).
+Notation XSR_DRO        := (BPerm XSR Ow LG DRO).
+Notation XSR_DL_DRO     := (BPerm XSR Ow DL DRO).
 
-Notation XSRW_       := (BPerm XSR W LG LM).
-Notation XSRW_DL     := (BPerm XSR W DL LM).
-Notation XSRW_DRO    := (BPerm XSR W LG DRO).
-Notation XSRW_DL_DRO := (BPerm XSR W DL DRO).
+Notation XSRW_          := (BPerm XSR W LG LM).
+Notation XSRW_DL        := (BPerm XSR W DL LM).
+Notation XSRW_DRO       := (BPerm XSR W LG DRO).
+Notation XSRW_DL_DRO    := (BPerm XSR W DL DRO).
 
-Notation XSRWL_       := (BPerm XSR WL LG LM).
-Notation XSRWL_DL     := (BPerm XSR WL DL LM).
-Notation XSRWL_DRO    := (BPerm XSR WL LG DRO).
-Notation XSRWL_DL_DRO := (BPerm XSR WL DL DRO).
+Notation XSRWL_         := (BPerm XSR WL LG LM).
+Notation XSRWL_DL       := (BPerm XSR WL DL LM).
+Notation XSRWL_DRO      := (BPerm XSR WL LG DRO).
+Notation XSRWL_DL_DRO   := (BPerm XSR WL DL DRO).
+
+
+Notation E_WO           := (E Orx W LG LM).
+Notation E_WO_DL        := (E Orx W DL LM).
+Notation E_WO_DRO       := (E Orx W LG DRO).
+Notation E_WO_DL_DRO    := (E Orx W DL DRO).
+
+Notation E_WLO          := (E Orx WL LG LM).
+Notation E_WLO_DL       := (E Orx WL DL LM).
+Notation E_WLO_DRO      := (E Orx WL LG DRO).
+Notation E_WLO_DL_DRO   := (E Orx WL DL DRO).
+
+Notation E_RO           := (E R Ow LG LM).
+Notation E_RO_DL        := (E R Ow DL LM).
+Notation E_RO_DRO       := (E R Ow LG DRO).
+Notation E_RO_DL_DRO    := (E R Ow DL DRO).
+
+Notation E_RW           := (E R W LG LM).
+Notation E_RW_DL        := (E R W DL LM).
+Notation E_RW_DRO       := (E R W LG DRO).
+Notation E_RW_DL_DRO    := (E R W DL DRO).
+
+Notation E_RWL          := (E R WL LG LM).
+Notation E_RWL_DL       := (E R WL DL LM).
+Notation E_RWL_DRO      := (E R WL LG DRO).
+Notation E_RWL_DL_DRO   := (E R WL DL DRO).
+
+Notation E_RX           := (E X Ow LG LM).
+Notation E_RX_DL        := (E X Ow DL LM).
+Notation E_RX_DRO       := (E X Ow LG DRO).
+Notation E_RX_DL_DRO    := (E X Ow DL DRO).
+
+Notation E_RWX          := (E X W LG LM).
+Notation E_RWX_DL       := (E X W DL LM).
+Notation E_RWX_DRO      := (E X W LG DRO).
+Notation E_RWX_DL_DRO   := (E X W DL DRO).
+
+Notation E_RWLX         := (E X WL LG LM).
+Notation E_RWLX_DL      := (E X WL DL LM).
+Notation E_RWLX_DRO     := (E X WL LG DRO).
+Notation E_RWLX_DL_DRO  := (E X WL DL DRO).
+
+Notation E_XSR_         := (E XSR Ow LG LM).
+Notation E_XSR_DL       := (E XSR Ow DL LM).
+Notation E_XSR_DRO      := (E XSR Ow LG DRO).
+Notation E_XSR_DL_DRO   := (E XSR Ow DL DRO).
+
+Notation E_XSRW_        := (E XSR W LG LM).
+Notation E_XSRW_DL      := (E XSR W DL LM).
+Notation E_XSRW_DRO     := (E XSR W LG DRO).
+Notation E_XSRW_DL_DRO  := (E XSR W DL DRO).
+
+Notation E_XSRWL_       := (E XSR WL LG LM).
+Notation E_XSRWL_DL     := (E XSR WL DL LM).
+Notation E_XSRWL_DRO    := (E XSR WL LG DRO).
+Notation E_XSRWL_DL_DRO := (E XSR WL DL DRO).
+
 
 Inductive Locality: Type :=
 | Global
@@ -706,6 +763,17 @@ Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
   | WCap p' _  _ _ _ => PermFlowsTo p p'
   | _ => false
   end.
+
+Lemma E_max_flowsfrom (rx : RXperm) (w : Wperm) (dl : DLperm) (dro : DROperm) (p : Perm) :
+  isSentry p = false
+  -> PermFlowsTo (E rx w dl dro) p
+  -> PermFlowsTo (BPerm rx w dl dro) p.
+Proof.
+  intros Hsentry Hp.
+  destruct p as [rx1 pw1 dl1 dro1|]; try done.
+  cbn in Hp |- *.
+  by apply andb_prop_elim in Hp ; destruct Hp.
+Qed.
 
 (** FlowsTo relation for locality *)
 

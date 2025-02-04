@@ -89,12 +89,13 @@ Section fundamental.
     { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
 
     (* If PC=dst and perm of unsealed cap = E -> error! *)
-    destruct (decide (PC = dst ∧ p'' = E)) as [ [Herr1 Herr2] | HNoError].
+    destruct (decide (PC = dst ∧ isSentry p'' = true)) as [ [Herr1 Herr2] | HNoError].
     { (* Error case *)
       simplify_map_eq.
       iExtract "Hmap" PC as "HPC".
       iApply (wp_bind (fill [SeqCtx])).
-      iApply (wp_notCorrectPC_perm with "[HPC]"); eauto. split; auto.
+      iApply (wp_notCorrectPC_perm with "[HPC]"); eauto.
+      { destruct p'' ; cbn in Herr2 |- *; done. }
       iIntros "!> _".
       iApply wp_pure_step_later; auto.
       iNext; iIntros "_".

@@ -48,16 +48,6 @@ Section fundamental.
     iApply (interp_weakening_ot with "HA");eauto;try solve_addr.
   Qed.
 
-  Lemma match_perm_with_E_rewrite:
-    forall (A: Type) p (a1 a2: A),
-      match p with
-      | E => a1
-      | _ => a2
-      end = if (decide (p=E)) then a1 else a2.
-  Proof.
-    intros. destruct (decide (p=E)); destruct p; auto; congruence.
-  Qed.
-
   Lemma restrict_case (W : WORLD) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
