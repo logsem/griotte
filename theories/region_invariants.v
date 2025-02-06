@@ -8,11 +8,50 @@ From cap_machine Require Export stdpp_extra cap_lang sts rules_base.
 From stdpp Require Import countable.
 Import uPred.
 
+
+(* TODO Abstract with some finite, fixed parameter of the proof, number of cpmt *)
+(* Inductive CmptName : Type := *)
+(* | Cmain *)
+(* | C_A *)
+(* | C_B *)
+(* | C_C. *)
+
+(* Global Instance eq_dec_CmptName : EqDecision CmptName. *)
+(* Proof. solve_decision. Qed. *)
+
+(* Global Instance countable_CmptName : Countable CmptName. *)
+(* Proof. *)
+(*   set encode := fun l => match l with *)
+(*     | Cmain => 1 *)
+(*     | C_A => 2 *)
+(*     | C_B => 3 *)
+(*     | C_C => 4 *)
+(*     end%positive. *)
+(*   set decode := fun n => match n with *)
+(*     | 1 => Some Cmain *)
+(*     | 2 => Some C_A *)
+(*     | 3 => Some C_B *)
+(*     | 4 => Some C_C *)
+(*     | _ => None *)
+(*     end%positive. *)
+(*   eapply (Build_Countable _ _ encode decode). *)
+(*   intro l. destruct l; reflexivity. *)
+(* Qed. *)
+
+Class CmptNameG := CmptNameS {
+  CmptName : Type;
+  CmptName_eq_dec :: EqDecision CmptName;
+  CmptName_countable :: Countable CmptName;
+}.
+
+
 (** CMRA for heap and its predicates. Contains: *)
 (* CMRA for relatedness between locations and saved prop names *)
 (* CMRA for saved predicates *)
-Definition relUR : ucmra := gmapUR Addr (agreeR (leibnizO (gname * Perm))).
-Definition relT := gmap Addr (leibnizO (gname * Perm)).
+Definition relUR {Cname : CmptNameG} : ucmra :=
+  gmapUR CmptName (agreeR (gmapUR Addr (agreeR (leibnizO (gname * Perm))))).
+Definition relT {Cname : CmptNameG} :=
+  gmap CmptName (agreeR (gmap Addr (leibnizO (gname * Perm)))).
 
 (* We will first define the standard STS for the shared part of the heap *)
 Inductive region_type :=
@@ -34,22 +73,22 @@ Inductive std_rel_priv : region_type -> region_type -> Prop :=
 Global Instance sts_std : STS_STD region_type :=
   {| Rpub := std_rel_pub; Rpriv := std_rel_priv |}.
 
-Class heapGpreS Σ := HeapGpreS {
+Class heapGpreS Σ {Cname : CmptNameG} := HeapGpreS {
   heapPreG_invPreG : invGpreS Σ;
   heapPreG_saved_pred :: savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word);
   heapPreG_rel :: inG Σ (authR relUR);
 }.
 
-Class heapGS Σ := HeapGS {
+Class heapGS Σ {Cname : CmptNameG} := HeapGS {
   heapG_saved_pred :: savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word);
   heapG_rel :: inG Σ (authR relUR);
-  γrel : gname
+  γrel : CmptName -> gname
 }.
 
-Definition heapPreΣ :=
+Definition heapPreΣ {Cname : CmptNameG} :=
   #[ GFunctor (authR relUR) ].
 
-Instance subG_heapPreΣ {Σ}:
+Instance subG_heapPreΣ {Σ} {Cname : CmptNameG}:
   subG heapPreΣ Σ →
   invGpreS Σ →
   subG (savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word)) Σ →
@@ -57,22 +96,24 @@ Instance subG_heapPreΣ {Σ}:
 Proof. solve_inG. Qed.
 
 Section REL_defs.
-  Context {Σ:gFunctors} {heapg : heapGS Σ}.
+  Context {Σ:gFunctors} {Cname : CmptNameG} {heapg : heapGS Σ}.
 
-  Definition REL_def a p γ : iProp Σ := own γrel (◯ {[ a := to_agree (γ,p) ]}).
+  Definition REL_def (C : CmptName) (a : Addr) (p : Perm) (γ : gname) : iProp Σ :=
+    own (γrel C) (◯ {[ C := to_agree {[ a := to_agree (γ,p) ]} ]}).
   Definition REL_aux : { x | x = @REL_def }. by eexists. Qed.
   Definition REL := proj1_sig REL_aux.
   Definition REL_eq : @REL = @REL_def := proj2_sig REL_aux.
 
-  Definition RELS_def (M : relT) : iProp Σ := own γrel (● (to_agree <$> M : relUR)).
-  Definition RELS_aux : { x | x = @RELS_def }. by eexists. Qed.
-  Definition RELS := proj1_sig RELS_aux.
-  Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
+  (* Definition RELS_def (M : relT) (C : CmptName) : iProp Σ := *)
+  (*   own (γrel C) (● (to_agree <$> M : relUR)). *)
+  (* Definition RELS_aux : { x | x = @RELS_def }. by eexists. Qed. *)
+  (* Definition RELS := proj1_sig RELS_aux. *)
+  (* Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux. *)
 
-  Definition rel_def (a : Addr) (p : Perm)
+  Definition rel_def (C : CmptName) (a : Addr) (p : Perm)
     (φ : ((STS_std_states Addr region_type * (STS_states * STS_rels)) * Word) -> iProp Σ)
     : iProp Σ :=
-    (∃ (γpred : gnameO), REL a p γpred
+    (∃ (γpred : gnameO), REL C a p γpred
                        ∗ saved_pred_own γpred DfracDiscarded φ)%I.
   Definition rel_aux : { x | x = @rel_def }. by eexists. Qed.
   Definition rel := proj1_sig rel_aux.
@@ -83,26 +124,32 @@ Section heapPre.
   (* TODO wsat_alloc had been changed in Iris 4.0.
      Fixed using Hc
    *)
-  Context {Σ:gFunctors} {heappreg : heapGpreS Σ}.
+  Context {Σ:gFunctors} {Cname : CmptNameG} {heappreg : heapGpreS Σ}.
 
-  Lemma heap_init :
-    ⊢ |==> ∃ (heapg: heapGS Σ), RELS (∅ : relT).
-  Proof.
-    iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γ) "H".
-    { rewrite fmap_empty. by apply auth_auth_valid. }
-    iExists (HeapGS _ _ _ γ). rewrite RELS_eq /RELS_def. done.
-  Qed.
+  (* Lemma heap_init : *)
+  (*   ⊢ |==> ∃ (heapg: heapGS Σ), RELS (∅ : relT). *)
+  (* Proof. *)
+  (*   iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γ) "H". *)
+  (*   { rewrite fmap_empty. by apply auth_auth_valid. } *)
+  (*   iExists (HeapGS _ _ _ γ). rewrite RELS_eq /RELS_def. done. *)
+  (* Qed. *)
 
 End heapPre.
 
 Section heap.
-  Context {Σ:gFunctors} {ceriseg:ceriseG Σ}
-          {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-          `{MP: MachineParameters}.
+
+  Context {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ}
+    {heapg : heapGS Σ}
+    `{MP: MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Implicit Types W : WORLD.
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (leibnizO CmptName -n> CVIEW).
+  Implicit Types W : CVIEW.
+  (* Implicit Types W : WORLD. *)
 
   Global Instance region_type_EqDecision : EqDecision region_type :=
     (fun x y => match x, y with
@@ -200,34 +247,36 @@ Section heap.
   Qed.
 
 
-  Global Instance rel_persistent (a : Addr) (p : Perm) (φ : (WORLD * Word) -> iProp Σ) :
-    Persistent (rel a p φ).
+  Global Instance rel_persistent (C : CmptName) (a : Addr) (p : Perm) (φ : (CVIEW * Word) -> iProp Σ) :
+    Persistent (rel C a p φ).
   Proof. rewrite rel_eq /rel_def REL_eq /REL_def.
          apply _.
   Qed.
 
-  Definition future_pub_mono (φ : (WORLD * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
+  Definition future_pub_mono (C : CmptName) (φ : (CVIEW * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
     (□ ∀ W W', ⌜related_sts_pub_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I.
 
-  Definition future_priv_mono (φ : (WORLD * Word) -> iProp Σ) v : iProp Σ :=
+  Definition future_priv_mono (C : CmptName) (φ : (CVIEW * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
     (□ ∀ W W', ⌜related_sts_priv_world W W'⌝ → φ (W,v) -∗ φ (W',v))%I.
 
-  Lemma future_priv_mono_is_future_pub_mono (φ: _ → iProp Σ) v :
-    future_priv_mono φ v -∗ future_pub_mono φ v.
+  Lemma future_priv_mono_is_future_pub_mono (C : CmptName) (φ: _ → iProp Σ) v :
+    future_priv_mono C φ v -∗ future_pub_mono C φ v.
   Proof.
     iIntros "#H". unfold future_pub_mono. iModIntro.
     iIntros (W W' Hrel). iApply "H". iPureIntro.
     eauto using related_sts_pub_priv_world.
   Qed.
 
-  Definition mono_pub φ := (∀ (w : Word), future_pub_mono φ w)%I.
-  Definition mono_priv φ p := (∀ (w : Word), ⌜canStore p w = true⌝ -∗ future_priv_mono φ w)%I.
+  Definition mono_pub (C : CmptName) (φ : (CVIEW * Word) -> iProp Σ) :=
+    (∀ (w : Word), future_pub_mono C φ w)%I.
+  Definition mono_priv (C : CmptName) (φ : (CVIEW * Word) -> iProp Σ) (p : Perm) :=
+    (∀ (w : Word), ⌜canStore p w = true⌝ -∗ future_priv_mono C φ w)%I.
 
-  Lemma future_pub_mono_eq_pred γ φ φ' w :
+  Lemma future_pub_mono_eq_pred C γ φ φ' w :
     saved_pred_own γ DfracDiscarded φ
     -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ future_pub_mono φ w
-    -∗ ▷ future_pub_mono φ' w.
+    -∗ ▷ future_pub_mono C φ w
+    -∗ ▷ future_pub_mono C φ' w.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
     iIntros (W0 W1 Hrelated).
@@ -239,11 +288,11 @@ Section heap.
     iApply "Hmono"; eauto.
   Qed.
 
-  Lemma mono_pub_eq_pred γ φ φ' :
+  Lemma mono_pub_eq_pred C γ φ φ' :
     saved_pred_own γ DfracDiscarded φ
     -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ mono_pub φ
-    -∗ ▷ mono_pub φ'.
+    -∗ ▷ mono_pub C φ
+    -∗ ▷ mono_pub C φ'.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
     iIntros (w).
@@ -251,11 +300,11 @@ Section heap.
     iApply (future_pub_mono_eq_pred with "Hφ Hφ' Hmono");auto.
   Qed.
 
-  Lemma future_priv_mono_eq_pred γ φ φ' w :
+  Lemma future_priv_mono_eq_pred C γ φ φ' w :
     saved_pred_own γ DfracDiscarded φ
     -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ future_priv_mono φ w
-    -∗ ▷ future_priv_mono φ' w.
+    -∗ ▷ future_priv_mono C φ w
+    -∗ ▷ future_priv_mono C φ' w.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
     iIntros (W0 W1 Hrelated).
@@ -267,11 +316,11 @@ Section heap.
     iApply "Hmono"; eauto.
   Qed.
 
-  Lemma mono_priv_eq_pred γ p φ φ':
+  Lemma mono_priv_eq_pred C γ p φ φ':
     saved_pred_own γ DfracDiscarded φ
     -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ mono_priv φ p
-    -∗ ▷ mono_priv φ' p.
+    -∗ ▷ mono_priv C φ p
+    -∗ ▷ mono_priv C φ' p.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
     iIntros (w Hglobalw).
@@ -285,22 +334,22 @@ Section heap.
 
   (* Asserting that a location is in a specific state in a given World *)
 
-  Definition permanent (W : WORLD) (l : Addr) :=
+  Definition permanent (W : CVIEW) (l : Addr) :=
     match W.1 !! l with
     | Some ρ => ρ = Permanent
     | _ => False
     end.
-  Definition revoked (W : WORLD) (l : Addr) :=
+  Definition revoked (W : CVIEW) (l : Addr) :=
     match W.1 !! l with
     | Some ρ => ρ = Revoked
     | _ => False
     end.
-  Definition frozen (W : WORLD) (m: gmap Addr Word) (l : Addr) :=
+  Definition frozen (W : CVIEW) (m: gmap Addr Word) (l : Addr) :=
     match W.1 !! l with
     | Some ρ => ρ = (Frozen m)
     | _ => False
     end.
-  Definition temporary (W : WORLD) (l : Addr) :=
+  Definition temporary (W : CVIEW) (l : Addr) :=
     match W.1 !! l with
     | Some ρ => ρ = Temporary
     | _ => False
@@ -310,7 +359,7 @@ Section heap.
   (* ------------------------------------------- REGION_MAP ---------------------------------------- *)
   (* ----------------------------------------------------------------------------------------------- *)
 
-  Definition region_map_def M (Mρ: gmap Addr region_type) W :=
+  Definition region_map_def (C : CmptName) M (Mρ: gmap Addr region_type) W :=
     ([∗ map] a↦γp ∈ M,
        ∃ ρ, ⌜Mρ !! a = Some ρ⌝
             ∗ sts_state_std a ρ
@@ -322,13 +371,13 @@ Section heap.
                           ∃ (v : Word), ⌜isO p = false⌝
                                         ∗ a ↦ₐ v
                                         ∗ (if isWL p
-                                           then future_pub_mono φ v
-                                           else future_priv_mono φ v)
+                                           then future_pub_mono C φ v
+                                           else future_priv_mono C φ v)
                                         ∗ ▷ φ (W,v)
                       | Permanent =>
                           ∃ (v : Word), ⌜isO p = false⌝
                                         ∗ a ↦ₐ v
-                                        ∗ future_priv_mono φ v
+                                        ∗ future_priv_mono C φ v
                                         ∗ ▷ φ (W,v)
                       | Frozen m =>
                           ∃ (v : Word), ⌜isO p = false⌝
@@ -338,49 +387,51 @@ Section heap.
                        | Revoked => emp
      end)%I.
 
-  Definition region_def W : iProp Σ :=
-    (∃ (M : relT) Mρ, RELS M ∗ ⌜dom W.1 = dom M⌝
-                            ∗ ⌜dom Mρ = dom M⌝
-                            ∗ region_map_def M Mρ W)%I.
-  Definition region_aux : { x | x = @region_def }. by eexists. Qed.
-  Definition region := proj1_sig region_aux.
-  Definition region_eq : @region = @region_def := proj2_sig region_aux.
+  (* Definition region_def W : iProp Σ := *)
+  (*   (∃ (M : relT) Mρ, RELS M ∗ ⌜dom W.1 = dom M⌝ *)
+  (*                           ∗ ⌜dom Mρ = dom M⌝ *)
+  (*                           ∗ region_map_def M Mρ W)%I. *)
+  (* Definition region_aux : { x | x = @region_def }. by eexists. Qed. *)
+  (* Definition region := proj1_sig region_aux. *)
+  (* Definition region_eq : @region = @region_def := proj2_sig region_aux. *)
 
-  Lemma reg_in γ (R : relT) (n : Addr) (r : leibnizO (gname * Perm)) :
-    own γ (● (to_agree <$> R : relUR)) ∗ own γ (◯ {[n := to_agree r]}) -∗
-        ⌜R = <[n := r]>(delete n R)⌝.
-  Proof.
-    iIntros "[H1 H2]".
-    iDestruct (own_valid_2 with "H1 H2") as %Hv.
-    iPureIntro.
-    apply auth_both_valid_discrete in Hv; destruct Hv as [Hv1 Hv2].
-    specialize (Hv2 n).
-    apply singleton_included_l in Hv1.
-    destruct Hv1 as (y & Heq & Hi).
-    revert Hv2; rewrite Heq => Hv2.
-    revert Hi; rewrite Some_included_total => Hi.
-    apply to_agree_uninj in Hv2 as [y' Hy].
-    revert Hi Heq; rewrite -Hy => Hi Heq.
-    apply to_agree_included in Hi; subst.
-    revert Heq; rewrite -Hi => Heq.
-    rewrite insert_delete_insert insert_id /leibniz_equiv_iff => //; auto.
-    revert Heq. rewrite lookup_fmap fmap_Some_equiv =>Hx.
-    destruct Hx as [x [-> Hrx] ].
-    apply to_agree_inj, leibniz_equiv_iff in Hrx as ->.
-    done.
-  Qed.
+  (* Lemma reg_in γ (R : relT) (n : Addr) (r : leibnizO (gname * Perm)) : *)
+  (*   own γ (● (to_agree <$> R : relUR)) ∗ own γ (◯ {[n := to_agree r]}) -∗ *)
+  (*       ⌜R = <[n := r]>(delete n R)⌝. *)
+  (* Proof. *)
+  (*   iIntros "[H1 H2]". *)
+  (*   iDestruct (own_valid_2 with "H1 H2") as %Hv. *)
+  (*   iPureIntro. *)
+  (*   apply auth_both_valid_discrete in Hv; destruct Hv as [Hv1 Hv2]. *)
+  (*   specialize (Hv2 n). *)
+  (*   apply singleton_included_l in Hv1. *)
+  (*   destruct Hv1 as (y & Heq & Hi). *)
+  (*   revert Hv2; rewrite Heq => Hv2. *)
+  (*   revert Hi; rewrite Some_included_total => Hi. *)
+  (*   apply to_agree_uninj in Hv2 as [y' Hy]. *)
+  (*   revert Hi Heq; rewrite -Hy => Hi Heq. *)
+  (*   apply to_agree_included in Hi; subst. *)
+  (*   revert Heq; rewrite -Hi => Heq. *)
+  (*   rewrite insert_delete_insert insert_id /leibniz_equiv_iff => //; auto. *)
+  (*   revert Heq. rewrite lookup_fmap fmap_Some_equiv =>Hx. *)
+  (*   destruct Hx as [x [-> Hrx] ]. *)
+  (*   apply to_agree_inj, leibniz_equiv_iff in Hrx as ->. *)
+  (*   done. *)
+  (* Qed. *)
 
-  Lemma rels_agree a γ1 γ2 p1 p2 :
-    REL a p1 γ1 ∗ REL a p2 γ2 -∗ ⌜γ1 = γ2⌝ ∧ ⌜p1 = p2⌝.
+  Lemma rels_agree C a γ1 γ2 p1 p2 :
+    REL C a p1 γ1 ∗ REL C a p2 γ2 -∗ ⌜γ1 = γ2⌝ ∧ ⌜p1 = p2⌝.
   Proof.
     rewrite REL_eq /REL_def.
     iIntros "[Hγ1 Hγ2]".
     iDestruct (own_valid_2 with "Hγ1 Hγ2") as %Hval.
     iPureIntro.
     rewrite -auth_frag_op singleton_op in Hval.
+    rewrite auth_frag_valid singleton_valid in Hval.
+    apply to_agree_op_inv_L in Hval.
     apply pair_inj.
     apply (to_agree_op_inv_L (A:=leibnizO _)).
-    eapply singleton_valid, auth_frag_valid, Hval.
+    eapply singleton_valid, auth_frag_valid.
   Qed.
 
   Lemma rel_agree a φ1 φ2 p1 p2 :

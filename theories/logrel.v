@@ -40,35 +40,35 @@ Section logrel.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation WORLD := (leibnizO CmptName -n> prodO STS_STD STS).
   Implicit Types W : WORLD.
 
-  Notation D := (WORLD -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO Reg) -n> iPropO Σ).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
   (* -------------------------------------------------------------------------------- *)
 
   (* Future world relation *)
-  Definition future_world g W W' : iProp Σ :=
+  Definition future_world (g : Locality) (W W' : WORLD) (C : CmptName) : iProp Σ :=
     (match g with
-    | Local => ⌜related_sts_pub_world W W'⌝
-    | Global => ⌜related_sts_priv_world W W'⌝
+    | Local => ⌜related_sts_pub_world (W C) (W' C)⌝
+    | Global => ⌜related_sts_priv_world (W C) (W' C)⌝
      end)%I.
 
-  Lemma localityflowsto_futureworld g g' W W':
+  Lemma localityflowsto_futureworld (g g' : Locality) (W W' : WORLD) (C : CmptName):
     LocalityFlowsTo g' g ->
-    (@future_world g' W W' -∗
-     @future_world g  W W').
+    (@future_world g' W W' C -∗
+     @future_world g  W W' C).
   Proof.
     intros; destruct g, g'; auto.
     rewrite /future_world; iIntros "%".
     iPureIntro. eapply related_sts_pub_priv_world; auto.
   Qed.
 
-  Lemma futureworld_refl g W :
-    ⊢ @future_world g W W.
+  Lemma futureworld_refl (g : Locality) (W : WORLD) (C : CmptName) :
+    ⊢ @future_world g W W C.
   Proof.
     rewrite /future_world.
     destruct g; iPureIntro
@@ -76,7 +76,8 @@ Section logrel.
       | apply related_sts_pub_refl_world].
   Qed.
 
-  Global Instance future_world_persistent g W W': Persistent (future_world g W W').
+  Global Instance future_world_persistent (g : Locality) (W W' : WORLD) (C : CmptName) :
+    Persistent (future_world g W W' C).
   Proof.
     unfold future_world. destruct g; apply bi.pure_persistent.
   Qed.
@@ -88,81 +89,94 @@ Section logrel.
 
   Definition full_map (reg : Reg) : iProp Σ := (∀ (r : RegName), ⌜is_Some (reg !! r)⌝)%I.
   Program Definition interp_reg (interp : D) : R :=
-   λne (W : WORLD) (reg : leibnizO Reg),
-     (full_map reg ∧
-      ∀ (r : RegName) (v : Word), (⌜r ≠ PC⌝ → ⌜reg !! r = Some v⌝ → interp W v))%I.
+    λne (W : WORLD) (C : CmptName) (reg : leibnizO Reg),
+      (full_map reg ∧
+       ∀ (r : RegName) (v : Word), (⌜r ≠ PC⌝ → ⌜reg !! r = Some v⌝ → interp W C v))%I.
   Solve All Obligations with solve_proper.
 
-  Definition interp_conf W : iProp Σ :=
-    (WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ →
-              ∃ r W', full_map r ∧ registers_pointsto r
-                   ∗ ⌜related_sts_priv_world W W'⌝
-                   ∗ na_own logrel_nais ⊤
-                   ∗ sts_full_world W'
-                   ∗ region W' }})%I.
+  Definition interp_conf (W : WORLD) (C : CmptName) : iProp Σ :=
+    (WP Seq (Instr Executable)
+       {{ v, ⌜v = HaltedV⌝ →
+             ∃ regs W', full_map regs ∧ registers_pointsto regs
+                        ∗ ⌜related_sts_priv_world (W C) (W' C)⌝
+                        ∗ na_own logrel_nais ⊤
+                        ∗ sts_full_world (W' C)
+                        ∗ region (W' C)}}
+    )%I.
 
-Program Definition interp_expr (interp : D) r : D :=
-    (λne W w, (interp_reg interp W r ∗ registers_pointsto (<[PC:=w]> r)
-                                     ∗ region W
-                                     ∗ sts_full_world W
-                                     ∗ na_own logrel_nais ⊤ -∗
-                                     interp_conf W))%I.
+  Program Definition interp_expr (interp : D) (regs : Reg) : D :=
+    (λne (W : WORLD) (C : CmptName) (w : Word),
+       (interp_reg interp W C regs
+        ∗ registers_pointsto (<[PC:=w]> regs)
+        ∗ region (W C)
+        ∗ sts_full_world (W C)
+        ∗ na_own logrel_nais ⊤
+          -∗ interp_conf W C)
+    )%I.
   Solve All Obligations with solve_proper.
+  Next Obligation.
+    (* TODO unclear how to represent indexed world *)
+  Admitted.
 
   (* Condition definitions *)
-  Definition zcond (P : D) : iProp Σ :=
-    (□ ∀ (W1 W2: WORLD) (z : Z), P W1 (WInt z) -∗ P W2 (WInt z)).
+  Definition zcond (P : D) (C : CmptName) : iProp Σ :=
+    (□ ∀ (W1 W2: WORLD) (z : Z), P W1 C (WInt z) -∗ P W2 C (WInt z)).
   Global Instance zcond_ne n :
-    Proper ((=) ==> dist n) zcond.
-  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  Global Instance zcond_contractive P :
-    Contractive (λ interp, ▷ zcond P)%I.
+    Proper ((=) ==> (=) ==> dist n) zcond.
+  Proof. solve_proper_prepare.
+         repeat f_equiv;auto. Qed.
+  Global Instance zcond_contractive (P : D) (C : CmptName) :
+    Contractive (λ interp, ▷ zcond P C)%I.
   Proof. solve_contractive. Qed.
 
-  Definition rcond (p : Perm) (P interp : D) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : Word), P W w -∗ interp W (load_word p w)).
+  Definition rcond (P : D) (C : CmptName) (p : Perm) (interp : D) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word), P W C w -∗ interp W C (load_word p w)).
   Global Instance rcond_ne n :
-    Proper ((=) ==> (=) ==> dist n ==> dist n) rcond.
+    Proper ((=) ==> (=) ==> (=) ==> dist n ==> dist n) rcond.
   Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  Global Instance rcond_contractive p P :
-    Contractive (λ interp, ▷ rcond p P interp)%I.
+  Global Instance rcond_contractive (P : D) (C : CmptName) (p : Perm) :
+    Contractive (λ interp, ▷ rcond P C p interp)%I.
   Proof. solve_contractive. Qed.
 
-  Definition wcond (P interp : D) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : Word), interp W w -∗ P W w).
+  Definition wcond (P : D) (C : CmptName) (interp : D) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word), interp W C w -∗ P W C w).
   Global Instance wcond_ne n :
-    Proper ((=) ==> dist n ==> dist n) wcond.
+    Proper ((=) ==> (=)  ==> dist n ==> dist n) wcond.
   Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  Global Instance wcond_contractive P :
-    Contractive (λ interp, ▷ wcond P interp)%I.
+  Global Instance wcond_contractive (P : D) (C : CmptName) :
+    Contractive (λ interp, ▷ wcond P C interp)%I.
   Proof. solve_contractive. Qed.
 
 
-  Definition exec_cond W b e g p (interp : D) : iProp Σ :=
-    (∀ a r W', ⌜a ∈ₐ [[ b , e ]]⌝ → future_world g W W' →
-            ▷ interp_expr interp r W' (WCap p g b e a))%I.
+  Definition exec_cond
+    (W : WORLD) (C : CmptName)
+    (p : Perm) (g : Locality) (b e : Addr)
+    (interp : D) : iProp Σ :=
+    (∀ a regs W', ⌜a ∈ₐ [[ b , e ]]⌝
+               → future_world g W W' C
+               → ▷ interp_expr interp regs W' C (WCap p g b e a))%I.
   Global Instance exec_cond_ne n :
-    Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
+    Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
   Proof. unfold exec_cond. solve_proper. Qed.
-  Global Instance exec_cond_contractive W b e g p :
-    Contractive (λ interp, exec_cond W b e g p interp).
+  Global Instance exec_cond_contractive W C b e g p :
+    Contractive (λ interp, exec_cond W C b e g p interp).
   Proof. solve_contractive. Qed.
 
-  Definition enter_cond W p g b e a (interp : D) : iProp Σ :=
-    (∀ r W', future_world g W W' →
-             (▷ interp_expr interp r W' (WCap p g b e a))
-               ∗ (▷ interp_expr interp r W' (WCap p Local b e a))
+  Definition enter_cond W C p g b e a (interp : D) : iProp Σ :=
+    (∀ r W', future_world g W W' C →
+             (▷ interp_expr interp r W' C (WCap p g b e a))
+               ∗ (▷ interp_expr interp r W' C (WCap p Local b e a))
     )%I.
   Global Instance enter_cond_ne n :
-    Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
+    Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
   Proof. unfold enter_cond. solve_proper. Qed.
-  Global Instance enter_cond_contractive W p g b e a :
-    Contractive (λ interp, enter_cond W p g b e a interp).
+  Global Instance enter_cond_contractive W C p g b e a :
+    Contractive (λ interp, enter_cond W C p g b e a interp).
   Proof.
     solve_contractive.
   Qed.
 
-  Definition persistent_cond (P:D) := (∀ Wv, Persistent (P Wv.1 Wv.2)).
+  Definition persistent_cond (P:D) (C : CmptName) := (∀ Wv, Persistent (P Wv.1 C Wv.2)).
 
   (* interp definitions *)
 
@@ -178,28 +192,28 @@ Program Definition interp_expr (interp : D) r : D :=
 
    *)
 
-  Definition region_state_pwl W (a : Addr) : Prop :=
-    (std W) !! a = Some Temporary.
+  Definition region_state_pwl (W : WORLD) (C : CmptName) (a : Addr) : Prop :=
+    (std (W C)) !! a = Some Temporary.
 
-  Definition region_state_nwl W (a : Addr) (l : Locality) : Prop :=
+  Definition region_state_nwl (W : WORLD) (C : CmptName) (a : Addr) (l : Locality) : Prop :=
     match l with
-     | Local => (std W) !! a = Some Permanent ∨ (std W) !! a = Some Temporary
-     | Global => (std W) !! a = Some Permanent
+     | Local => (std (W C)) !! a = Some Permanent ∨ (std (W C)) !! a = Some Temporary
+     | Global => (std (W C)) !! a = Some Permanent
     end.
 
   (* For simplicity we might want to have the following statement in valididy of caps.
      However, it is strictly not necessary since it can be derived form full_sts_world *)
 
-  Definition safeC (P : D) :=
-    (λ Wv : WORLD * (leibnizO Word), (P Wv.1) Wv.2).
+  Definition safeC (P : D) (C : CmptName) :=
+    (λ Wv : WORLD * (leibnizO Word), (P Wv.1 C) Wv.2).
 
-  Definition monoReq (W : WORLD) (a : Addr) (p : Perm) (P : D) :=
-    match (std W) !! a with
+  Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : D) :=
+    match (std (W C)) !! a with
     | Some Temporary =>
         (if isWL p
-         then mono_pub (safeC P)
-         else mono_priv (safeC P) p)
-    | Some Permanent => mono_priv (safeC P) p
+         then mono_pub (safeC P C)
+         else mono_priv (safeC P C) p)
+    | Some Permanent => mono_priv (safeC P C) p
     | _ => True%I
     end.
 
