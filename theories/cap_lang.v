@@ -290,6 +290,26 @@ Section opsem.
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;
     updatePC (update_reg φ dst (WInt (n1 - n2)%Z))
+    | Mul dst ρ1 ρ2 =>
+    n1 ← z_of_argument (reg φ) ρ1;
+    n2 ← z_of_argument (reg φ) ρ2;
+    updatePC (update_reg φ dst (WInt (n1 * n2)%Z))
+    | LAnd dst ρ1 ρ2 =>
+    n1 ← z_of_argument (reg φ) ρ1;
+    n2 ← z_of_argument (reg φ) ρ2;
+    updatePC (update_reg φ dst (WInt (Z.land n1 n2)))
+    | LOr dst ρ1 ρ2 =>
+    n1 ← z_of_argument (reg φ) ρ1;
+    n2 ← z_of_argument (reg φ) ρ2;
+    updatePC (update_reg φ dst (WInt (Z.lor n1 n2)))
+    | LShiftL dst ρ1 ρ2 =>
+    n1 ← z_of_argument (reg φ) ρ1;
+    n2 ← z_of_argument (reg φ) ρ2;
+    updatePC (update_reg φ dst (WInt (n1 ≪ n2)%Z))
+    | LShiftR dst ρ1 ρ2 =>
+    n1 ← z_of_argument (reg φ) ρ1;
+    n2 ← z_of_argument (reg φ) ρ2;
+    updatePC (update_reg φ dst (WInt (n1 ≫ n2)%Z))
     | Lt dst ρ1 ρ2 =>
     n1 ← z_of_argument (reg φ) ρ1;
     n2 ← z_of_argument (reg φ) ρ2;

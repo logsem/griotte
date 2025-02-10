@@ -2,7 +2,7 @@ From Coq Require Import ZArith Lia ssreflect.
 From stdpp Require Import base.
 From cap_machine Require Import machine_base machine_parameters addr_reg solve_addr.
 From cap_machine Require Export solve_addr_extra classes class_instances.
-From cap_machine.rules Require Import rules_Get rules_AddSubLt.
+From cap_machine.rules Require Import rules_Get rules_BinOp.
 From machine_utils Require Export solve_pure.
 
 Ltac solve_pure_addr := solve_pure_finz.
@@ -18,7 +18,7 @@ Ltac solve_pure_addr := solve_pure_finz.
    - writeAllowed p (TODO: extend)
    - withinBounds (p, b, e, a) = true
    - is_Get
-   - is_AddSubLt
+   - is_BinOp
 
    See the comments in [machine_utils/theories/solve_pure.v] on how to
    extend [solve_pure] with more hints.
@@ -102,11 +102,16 @@ Proof. auto. Qed.
 #[export] Hint Resolve is_Get_GetOType : solve_pure.
 #[export] Hint Resolve is_Get_GetWType : solve_pure.
 
-(* is_AddSubLt *)
-#[export] Hint Mode is_AddSubLt ! - - - : solve_pure.
-#[export] Hint Resolve is_AddSubLt_Add : solve_pure.
-#[export] Hint Resolve is_AddSubLt_Sub : solve_pure.
-#[export] Hint Resolve is_AddSubLt_Lt : solve_pure.
+(* is_BinOp *)
+#[export] Hint Mode is_BinOp ! - - - : solve_pure.
+#[export] Hint Resolve is_BinOp_Add : solve_pure.
+#[export] Hint Resolve is_BinOp_Sub : solve_pure.
+#[export] Hint Resolve is_BinOp_Mul : solve_pure.
+#[export] Hint Resolve is_BinOp_LAnd : solve_pure.
+#[export] Hint Resolve is_BinOp_LOr : solve_pure.
+#[export] Hint Resolve is_BinOp_LShiftL : solve_pure.
+#[export] Hint Resolve is_BinOp_LShiftR : solve_pure.
+#[export] Hint Resolve is_BinOp_Lt : solve_pure.
 
 (* is_z *)
 #[export] Hint Extern 1 (is_z _ = false) => reflexivity : solve_pure.
@@ -159,7 +164,7 @@ Goal forall p g b e a,
 Proof. intros. solve_pure. Qed.
 
 Goal forall (r_t1 r_t2 r_t3: RegName), exists r1 r2 r3,
-  is_AddSubLt (Sub r_t2 r_t2 r_t3) r1 (inr r2) (inr r3) ∧
+  is_BinOp (Sub r_t2 r_t2 r_t3) r1 (inr r2) (inr r3) ∧
   r1 = r_t2 ∧ r2 = r_t2 ∧ r3 = r_t3.
 Proof. do 3 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
 

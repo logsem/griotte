@@ -126,7 +126,7 @@ Section Mclear.
     (* lt rt3 rt2 rt1 *)
     iDestruct "Hprog" as "[Hi Hprog]".
     iApply (wp_bind (fill [SeqCtx])).
-    iApply (wp_add_sub_lt_success_r_r _ rt3 _ _ _ a1 _ _ _ rt2 _ rt1 _ _
+    iApply (wp_binop_success_r_r _ rt3 _ _ _ a1 _ _ _ rt2 _ rt1 _ _
       with "[Hi HPC Hr_t3 Hr_t1 Hr_t2]"); [apply decode_encode_instrW_inv | | | ..]; eauto.
     iFrame.
     iEpilogue "(HPC & Ha1 & Hr_t2 & Hr_t1 & Hr_t3)".
@@ -165,7 +165,7 @@ Section Mclear.
       (* add rt1 rt1 1 *)
       iDestruct "Hprog" as "[Hi Hprog]".
       iApply (wp_bind (fill [SeqCtx])).
-      iApply (wp_add_sub_lt_success_dst_z _ rt1 _ _ _ a5 _ _ _ with "[HPC Hi Hr_t1]"); try iFrame;
+      iApply (wp_binop_success_dst_z _ rt1 _ _ _ a5 _ _ _ with "[HPC Hi Hr_t1]"); try iFrame;
         [ apply decode_encode_instrW_inv | | |..]; eauto.
       iEpilogue "(HPC & Ha5 & Hr_t1)".
       (* jmp rt5 *)
@@ -280,7 +280,7 @@ Section Mclear.
     (* sub r_t2 r_t1 r_t2 *)
     iPrologue "Hprog".
     (* destruct b_r eqn:Hb_r. *)
-    iApply (wp_add_sub_lt_success_r_dst _ _ _ _ _ a2 _ _ r_t1 with "[HPC Hi Hr_t1 Hr_t2]"); try iFrame;
+    iApply (wp_binop_success_r_dst _ _ _ _ _ a2 _ _ r_t1 with "[HPC Hi Hr_t1 Hr_t2]"); try iFrame;
       [ apply decode_encode_instrW_inv | | |..]; eauto. 2: by iCorrectPC a_first a'.
     assert ((a2 + 1) = Some a3)%a as ->. { iContiguous_next Hnext 3. } by eauto.
     iEpilogue "(HPC & Ha2 & Hr_t1 & Hr_t2)".
@@ -306,7 +306,7 @@ Section Mclear.
     iCombine "Ha4 Hprog_done" as "Hprog_done".
     (* sub r_t5 r_t5 1 *)
     iPrologue "Hprog".
-    iApply (wp_add_sub_lt_success_dst_z with "[$HPC $Hi Hr_t5]");
+    iApply (wp_binop_success_dst_z with "[$HPC $Hi Hr_t5]");
       [apply decode_encode_instrW_inv| | |iCorrectPC a_first a'|..]; eauto.
     assert ((a5 + 1)%a = Some a6) as ->. { iContiguous_next Hnext 6. } eauto.
     iEpilogue "(HPC & Ha5 & Hr_t5)".

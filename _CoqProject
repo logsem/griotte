@@ -40,7 +40,7 @@ theories/rules/rules_base.v
 theories/rules/rules_Get.v
 theories/rules/rules_Load.v
 theories/rules/rules_Store.v
-theories/rules/rules_AddSubLt.v
+theories/rules/rules_BinOp.v
 theories/rules/rules_Lea.v
 theories/rules/rules_Mov.v
 theories/rules/rules_Restrict.v
@@ -82,7 +82,7 @@ theories/ftlr/interp_weakening.v
 theories/ftlr/Get.v
 theories/ftlr/Load.v
 theories/ftlr/Store.v
-theories/ftlr/AddSubLt.v
+theories/ftlr/BinOp.v
 theories/ftlr/Lea.v
 theories/ftlr/Mov.v
 theories/ftlr/Restrict.v

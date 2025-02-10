@@ -72,7 +72,7 @@ Section ReqPerm.
 
     iPrologue "Hprog".
     destruct l;[done|].
-    iApply (wp_add_sub_lt_success_dst_z with "[$HPC $Hi $Hr_t1]");
+    iApply (wp_binop_success_dst_z with "[$HPC $Hi $Hr_t1]");
       [apply decode_encode_instrW_inv|auto|iContiguous_next Hcont 1|iCorrectPC a_first a_last|..].
     iEpilogue "(HPC & Hi & Hr_t1)". iCombine "Hi" "Hprog_done" as "Hprog_done".
     iSimpl in "Hr_t1".
@@ -144,7 +144,7 @@ Section ReqPerm.
 
     (* sub r_t1 r_t1 (encodeLoc Global) *)
     iPrologue "Hprog".
-    iApply (wp_add_sub_lt_success_dst_z with "[$HPC $Hi $Hr_t1]");
+    iApply (wp_binop_success_dst_z with "[$HPC $Hi $Hr_t1]");
       [apply decode_encode_instrW_inv|auto|iContiguous_next Hcont 6|iCorrectPC a_first a_last|..].
     iEpilogue "(HPC & Hi & Hr_t1)". iCombine "Hi" "Hprog_done" as "Hprog_done".
     iSimpl in "Hr_t1".
@@ -292,14 +292,14 @@ Section ReqPerm.
     (* sub_r_r r_t1 r_t2 r_t1 *)
     destruct l as [| ? l];[done|].
     iPrologue "Hprog".
-    iApply (wp_add_sub_lt_success_r_dst with "[$HPC $Hi $Hr2 $Hr1]");
+    iApply (wp_binop_success_r_dst with "[$HPC $Hi $Hr2 $Hr1]");
       [apply decode_encode_instrW_inv|done|iContiguous_next Hcont 2|iCorrectPC a_first a_last|..];
       simpl.
     iEpilogue "(HPC & Hi & Hr2 & Hr1)". iCombine "Hi" "Hprog_done" as "Hprog_done".
     (* lt_z_r r_t1 minsize r_t1 *)
     destruct l as [| ? l];[done|].
     iPrologue "Hprog".
-    iApply (wp_add_sub_lt_success_z_dst with "[$HPC $Hi $Hr1]");
+    iApply (wp_binop_success_z_dst with "[$HPC $Hi $Hr1]");
       [apply decode_encode_instrW_inv|done|iContiguous_next Hcont 3|iCorrectPC a_first a_last|..];
       simpl.
     iEpilogue "(HPC & Hi & Hr1)". iCombine "Hi" "Hprog_done" as "Hprog_done".

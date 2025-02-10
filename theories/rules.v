@@ -1,7 +1,7 @@
 (* Program logic rules for machine instructions are split into several files,
    with one file for each instruction, which we import below. *)
 From cap_machine.rules Require Export
-     rules_Get rules_Load rules_Store rules_AddSubLt
+     rules_Get rules_Load rules_Store rules_BinOp
      rules_Lea rules_Mov rules_Restrict
      rules_Jmp rules_Jnz rules_Subseg
      rules_Seal rules_UnSeal

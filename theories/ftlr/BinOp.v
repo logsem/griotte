@@ -1,5 +1,5 @@
 From cap_machine Require Export logrel.
-From cap_machine.rules Require Export rules_AddSubLt.
+From cap_machine.rules Require Export rules_BinOp.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
@@ -28,7 +28,7 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma add_sub_lt_case (W : WORLD) (regs : leibnizO Reg) (p p' : Perm)
+  Lemma binop_case (W : WORLD) (regs : leibnizO Reg) (p p' : Perm)
     (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName)
     (r1 r2: Z + RegName) (P:D):
     validPCperm p g
@@ -44,7 +44,13 @@ Section fundamental.
     → (∀ g : Mem, ρ ≠ Frozen g)
     → (decodeInstrW w = Add dst r1 r2 \/
        decodeInstrW w = Sub dst r1 r2 \/
-       decodeInstrW w = Lt dst r1 r2)
+       decodeInstrW w = Mul dst r1 r2 \/
+       decodeInstrW w = LAnd dst r1 r2 \/
+       decodeInstrW w = LOr dst r1 r2 \/
+       decodeInstrW w = LShiftL dst r1 r2 \/
+       decodeInstrW w = LShiftR dst r1 r2 \/
+       decodeInstrW w = Lt dst r1 r2
+      )
     -> ftlr_IH
     -∗ fixpoint interp1 W (WCap p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
@@ -81,7 +87,7 @@ Section fundamental.
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
 
-    iApply (wp_AddSubLt with "[$Ha $Hmap]"); eauto.
+    iApply (wp_BinOp with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }

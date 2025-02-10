@@ -81,7 +81,7 @@ Section Fetch.
     (* sub r_t2 r_t2 r_t3 *)
     destruct l;[inversion Hlength|].
     iPrologue "Hprog".
-    iApply (wp_add_sub_lt_success_dst_r with "[$HPC $Hi $Hr_t3 $Hr_t2]");
+    iApply (wp_binop_success_dst_r with "[$HPC $Hi $Hr_t3 $Hr_t2]");
       [apply decode_encode_instrW_inv|auto|iContiguous_next Hcont 3|iCorrectPC a_first a_last|..].
     iEpilogue "(HPC & Hi & Hr_t3 & Hr_t2) /="; iCombine "Hi" "Hprog_done" as "Hprog_done".
     (* lea r_t1 r_t2 *)
