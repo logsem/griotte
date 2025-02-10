@@ -137,7 +137,7 @@ Section cap_lang_rules.
      iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
      iFrame. iModIntro. iApply "Hφ". iFrame.
      iPureIntro. eapply Seal_spec_success; eauto.
-     unfold incrementPC. by rewrite HPC'' Ha_pc'.
+     rewrite /incrementPC /incrementPC_gen. by rewrite HPC'' Ha_pc'.
      Unshelve. all: auto.
   Qed.
 

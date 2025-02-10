@@ -237,7 +237,7 @@ Section cap_lang_rules.
     iPureIntro. eapply Load_spec_success; auto.
     * split; eauto.
     * exact Hmema.
-    * unfold incrementPC. by rewrite HPC'' Ha_pc'.
+    * rewrite /incrementPC /incrementPC_gen. by rewrite HPC'' Ha_pc'.
       Unshelve. all: auto.
   Qed.
 
