@@ -10,21 +10,21 @@ Ltac dispatch_Get r1 r2 cont :=
   | _ => cont (@wp_Get_success)
   end.
 
-Ltac dispatch_AddSubLt r1 x1 x2 cont :=
+Ltac dispatch_BinOp r1 x1 x2 cont :=
   let p := constr:((r1, x1, x2)) in
   lazymatch p with
-  | (?r, (inr ?r), (inr ?r)) => cont (@wp_add_sub_lt_success_dst_dst)
-  | (?dst, (inr ?r), (inr ?dst)) => cont (@wp_add_sub_lt_success_r_dst)
-  | (?dst, (inr ?dst), (inr ?r)) => cont (@wp_add_sub_lt_success_dst_r)
-  | (?dst, (inl _), (inr ?dst)) => cont (@wp_add_sub_lt_success_z_dst)
-  | (?dst, (inr ?dst), (inl _)) => cont (@wp_add_sub_lt_success_dst_z)
-  | (?dst, (inr ?r), (inr ?r)) => cont (@wp_add_sub_lt_success_r_r_same)
-  | (?dst, (inr ?r), (inl _)) => cont (@wp_add_sub_lt_success_r_z)
+  | (?r, (inr ?r), (inr ?r)) => cont (@wp_binop_success_dst_dst)
+  | (?dst, (inr ?r), (inr ?dst)) => cont (@wp_binop_success_r_dst)
+  | (?dst, (inr ?dst), (inr ?r)) => cont (@wp_binop_success_dst_r)
+  | (?dst, (inl _), (inr ?dst)) => cont (@wp_binop_success_z_dst)
+  | (?dst, (inr ?dst), (inl _)) => cont (@wp_binop_success_dst_z)
+  | (?dst, (inr ?r), (inr ?r)) => cont (@wp_binop_success_r_r_same)
+  | (?dst, (inr ?r), (inl _)) => cont (@wp_binop_success_r_z)
   | (?dst, (inl _), (inr _)) =>
-    (cont (@wp_add_sub_lt_success_z_r) ||
-     cont (@wp_add_sub_lt_fail_z_r))
-  | (?dst, (inr _), (inr _)) => cont (@wp_add_sub_lt_success_r_r)
-  | (?dst, (inl _), (inl _)) => cont (@wp_add_sub_lt_success_z_z)
+    (cont (@wp_binop_success_z_r) ||
+     cont (@wp_binop_fail_z_r))
+  | (?dst, (inr _), (inr _)) => cont (@wp_binop_success_r_r)
+  | (?dst, (inl _), (inl _)) => cont (@wp_binop_success_z_z)
   end.
 
 Ltac dispatch_instr_rule instr cont :=
@@ -44,10 +44,15 @@ Ltac dispatch_instr_rule instr cont :=
   | GetA ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetOType ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetWType ?r1 ?r2 => dispatch_Get r1 r2 cont
-  (* AddSubLt *)
-  | Add ?x1 ?x2 ?x3 => dispatch_AddSubLt x1 x2 x3 cont
-  | Sub ?x1 ?x2 ?x3 => dispatch_AddSubLt x1 x2 x3 cont
-  | Lt ?x1 ?x2 ?x3 => dispatch_AddSubLt x1 x2 x3 cont
+  (* BinOp *)
+  | Add ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
+  | Sub ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
+  | Mul ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
+  | LAnd ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
+  | LOr ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
+  | LShiftL ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
+  | LShiftR ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
+  | Lt ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   (* Lea *)
   | Lea PC (inr _) => cont (@wp_lea_success_reg_PC)
   | Lea PC (inl _) => cont (@wp_lea_success_z_PC)

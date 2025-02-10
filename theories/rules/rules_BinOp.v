@@ -22,52 +22,62 @@ Section cap_lang_rules.
     match i with
     | Add _ _ _ => (n1 + n2)%Z
     | Sub _ _ _ => (n1 - n2)%Z
+    | Mul _ _ _ => (n1 * n2)%Z
+    | LAnd _ _ _ => (Z.land n1 n2)
+    | LOr _ _ _ => (Z.lor n1 n2)
+    | LShiftL _ _ _ => (n1 ≪ n2)%Z
+    | LShiftR _ _ _ => (n1 ≫ n2)%Z
     | Lt _ _ _ => (Z.b2z (n1 <? n2)%Z)
     | _ => 0%Z
     end.
 
-  Definition is_AddSubLt (i: instr) (r: RegName) (arg1 arg2: Z + RegName) :=
+  Definition is_BinOp (i: instr) (r: RegName) (arg1 arg2: Z + RegName) :=
     i = Add r arg1 arg2 ∨
     i = Sub r arg1 arg2 ∨
+    i = Mul r arg1 arg2 ∨
+    i = LAnd r arg1 arg2 ∨
+    i = LOr r arg1 arg2 ∨
+    i = LShiftL r arg1 arg2 ∨
+    i = LShiftR r arg1 arg2 ∨
     i = Lt r arg1 arg2.
 
-  Lemma regs_of_is_AddSubLt i r arg1 arg2 :
-    is_AddSubLt i r arg1 arg2 →
+  Lemma regs_of_is_BinOp i r arg1 arg2 :
+    is_BinOp i r arg1 arg2 →
     regs_of i = {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2.
   Proof.
     intros HH. destruct_or! HH; subst i; reflexivity.
   Qed.
 
-  Inductive AddSubLt_failure (i: instr) (regs: Reg) (dst: RegName) (rv1 rv2: Z + RegName) (regs': Reg) :=
-  | AddSubLt_fail_nonconst1:
+  Inductive BinOp_failure (i: instr) (regs: Reg) (dst: RegName) (rv1 rv2: Z + RegName) (regs': Reg) :=
+  | BinOp_fail_nonconst1:
       z_of_argument regs rv1 = None ->
-      AddSubLt_failure i regs dst rv1 rv2 regs'
-  | AddSubLt_fail_nonconst2:
+      BinOp_failure i regs dst rv1 rv2 regs'
+  | BinOp_fail_nonconst2:
       z_of_argument regs rv2 = None ->
-      AddSubLt_failure i regs dst rv1 rv2 regs'
-  | AddSubLt_fail_incrPC n1 n2:
+      BinOp_failure i regs dst rv1 rv2 regs'
+  | BinOp_fail_incrPC n1 n2:
       z_of_argument regs rv1 = Some n1 ->
       z_of_argument regs rv2 = Some n2 ->
       incrementPC (<[ dst := WInt (denote i n1 n2) ]> regs) = None ->
-      AddSubLt_failure i regs dst rv1 rv2 regs'.
+      BinOp_failure i regs dst rv1 rv2 regs'.
 
-  Inductive AddSubLt_spec (i: instr) (regs: Reg) (dst: RegName) (rv1 rv2: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
-  | AddSubLt_spec_success n1 n2:
+  Inductive BinOp_spec (i: instr) (regs: Reg) (dst: RegName) (rv1 rv2: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
+  | BinOp_spec_success n1 n2:
       z_of_argument regs rv1 = Some n1 ->
       z_of_argument regs rv2 = Some n2 ->
       incrementPC (<[ dst := WInt (denote i n1 n2) ]> regs) = Some regs' ->
-      AddSubLt_spec i regs dst rv1 rv2 regs' NextIV
-  | AddSubLt_spec_failure:
-      AddSubLt_failure i regs dst rv1 rv2 regs' ->
-      AddSubLt_spec i regs dst rv1 rv2 regs' FailedV.
+      BinOp_spec i regs dst rv1 rv2 regs' NextIV
+  | BinOp_spec_failure:
+      BinOp_failure i regs dst rv1 rv2 regs' ->
+      BinOp_spec i regs dst rv1 rv2 regs' FailedV.
 
   Local Ltac iFail Hcont get_fail_case :=
     cbn; iFrame; iApply Hcont; iFrame; iPureIntro;
     econstructor; eapply get_fail_case; eauto.
 
-  Lemma wp_AddSubLt Ep i pc_p pc_g pc_b pc_e pc_a w dst arg1 arg2 regs :
+  Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a w dst arg1 arg2 regs :
     decodeInstrW w = i →
-    is_AddSubLt i dst arg1 arg2 →
+    is_BinOp i dst arg1 arg2 →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
     regs_of i ⊆ dom regs →
@@ -75,7 +85,7 @@ Section cap_lang_rules.
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ regs' retv, RET retv;
-        ⌜ AddSubLt_spec (decodeInstrW w) regs dst arg1 arg2 regs' retv ⌝ ∗
+        ⌜ BinOp_spec (decodeInstrW w) regs dst arg1 arg2 regs' retv ⌝ ∗
           pc_a ↦ₐ w ∗
           [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
@@ -93,7 +103,7 @@ Section cap_lang_rules.
     unfold exec in Hstep.
 
     specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri.
-    erewrite regs_of_is_AddSubLt in Hri, Dregs; eauto.
+    erewrite regs_of_is_BinOp in Hri, Dregs; eauto.
     destruct (Hri dst) as [wdst [H'dst Hdst]]. by set_solver+.
 
     destruct (z_of_argument regs arg1) as [n1|] eqn:Hn1;
@@ -106,7 +116,7 @@ Section cap_lang_rules.
         destruct_word r0v; try congruence.
         all: destruct_or! Hinstr; rewrite Hinstr /= in Hstep.
         all: rewrite Hr0 in Hstep. all: repeat case_match; simplify_eq; eauto. }
-      iFail "Hφ" AddSubLt_fail_nonconst1. }
+      iFail "Hφ" BinOp_fail_nonconst1. }
     apply (z_of_arg_mono _ r) in Hn1; auto.
 
     destruct (z_of_argument regs arg2) as [n2|] eqn:Hn2;
@@ -119,7 +129,7 @@ Section cap_lang_rules.
         rewrite Hr'0 in Hn2. destruct_word r0v; try congruence.
         all: destruct_or! Hinstr; rewrite Hinstr /= Hn1 in Hstep; cbn in Hstep.
         all: rewrite Hr0 in Hstep. all: repeat case_match; simplify_eq; eauto. }
-      iFail "Hφ" AddSubLt_fail_nonconst2. }
+      iFail "Hφ" BinOp_fail_nonconst2. }
     apply (z_of_arg_mono _ r) in Hn2; auto.
 
     assert (exec_opt i pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst (WInt (denote i n1 n2)))) as HH.
@@ -136,7 +146,7 @@ Section cap_lang_rules.
       2: by apply insert_mono; eauto.
       simplify_pair_eq.
       rewrite Hregs' in Hstep. inversion Hstep.
-      iFail "Hφ" AddSubLt_fail_incrPC. }
+      iFail "Hφ" BinOp_fail_incrPC. }
 
 
     (* Success *)
@@ -153,9 +163,9 @@ Section cap_lang_rules.
 
   (* Derived specifications *)
 
-  Lemma wp_add_sub_lt_success_z_z E dst pc_p pc_g pc_b pc_e pc_a w wdst ins n1 n2 pc_a' :
+  Lemma wp_binop_success_z_z E dst pc_p pc_g pc_b pc_e pc_a w wdst ins n1 n2 pc_a' :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inl n1) (inl n2) →
+    is_BinOp ins dst (inl n1) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
@@ -172,8 +182,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -185,9 +195,9 @@ Section cap_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_add_sub_lt_success_r_z E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r1 n1 n2 pc_a' :
+  Lemma wp_binop_success_r_z E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r1 n1 n2 pc_a' :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inr r1) (inl n2) →
+    is_BinOp ins dst (inr r1) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
@@ -206,8 +216,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr1 & Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -220,9 +230,9 @@ Section cap_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_add_sub_lt_success_z_r E dst pc_p pc_g pc_b pc_e pc_a w wdst ins n1 r2 n2 pc_a' :
+  Lemma wp_binop_success_z_r E dst pc_p pc_g pc_b pc_e pc_a w wdst ins n1 r2 n2 pc_a' :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inl n1) (inr r2) →
+    is_BinOp ins dst (inl n1) (inr r2) →
     (pc_a + 1)%a = Some pc_a' →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
@@ -241,8 +251,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -255,9 +265,9 @@ Section cap_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_add_sub_lt_success_r_r E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r1 n1 r2 n2 pc_a' :
+  Lemma wp_binop_success_r_r E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r1 n1 r2 n2 pc_a' :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inr r1) (inr r2) →
+    is_BinOp ins dst (inr r1) (inr r2) →
     (pc_a + 1)%a = Some pc_a' →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
@@ -278,8 +288,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr1 & Hr2 & Hdst) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -292,9 +302,9 @@ Section cap_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_add_sub_lt_success_r_r_same E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r n pc_a' :
+  Lemma wp_binop_success_r_r_same E dst pc_p pc_g pc_b pc_e pc_a w wdst ins r n pc_a' :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inr r) (inr r) →
+    is_BinOp ins dst (inr r) (inr r) →
     (pc_a + 1)%a = Some pc_a' →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
@@ -313,8 +323,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr & Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr Hdst") as "[Hmap (%&%&%)]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -327,9 +337,9 @@ Section cap_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_add_sub_lt_success_dst_z E dst pc_p pc_g pc_b pc_e pc_a w ins n1 n2 pc_a' :
+  Lemma wp_binop_success_dst_z E dst pc_p pc_g pc_b pc_e pc_a w ins n1 n2 pc_a' :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inr dst) (inl n2) →
+    is_BinOp ins dst (inr dst) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
@@ -346,8 +356,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -359,9 +369,9 @@ Section cap_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_add_sub_lt_success_z_dst E dst pc_p pc_g pc_b pc_e pc_a w ins n1 n2 pc_a' :
+  Lemma wp_binop_success_z_dst E dst pc_p pc_g pc_b pc_e pc_a w ins n1 n2 pc_a' :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inl n1) (inr dst) →
+    is_BinOp ins dst (inl n1) (inr dst) →
     (pc_a + 1)%a = Some pc_a' →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
@@ -378,8 +388,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -391,9 +401,9 @@ Section cap_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_add_sub_lt_success_dst_r E dst pc_p pc_g pc_b pc_e pc_a w ins n1 r2 n2 pc_a' :
+  Lemma wp_binop_success_dst_r E dst pc_p pc_g pc_b pc_e pc_a w ins n1 r2 n2 pc_a' :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inr dst) (inr r2) →
+    is_BinOp ins dst (inr dst) (inr r2) →
     (pc_a + 1)%a = Some pc_a' →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
@@ -412,8 +422,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -426,9 +436,9 @@ Section cap_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_add_sub_lt_success_r_dst E dst pc_p pc_g pc_b pc_e pc_a w ins r1 n1 n2 pc_a' :
+  Lemma wp_binop_success_r_dst E dst pc_p pc_g pc_b pc_e pc_a w ins r1 n1 n2 pc_a' :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inr r1) (inr dst) →
+    is_BinOp ins dst (inr r1) (inr dst) →
     (pc_a + 1)%a = Some pc_a' →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
@@ -447,8 +457,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -461,9 +471,9 @@ Section cap_lang_rules.
       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
   Qed.
 
-  Lemma wp_add_sub_lt_success_dst_dst E dst pc_p pc_g pc_b pc_e pc_a w ins n pc_a' :
+  Lemma wp_binop_success_dst_dst E dst pc_p pc_g pc_b pc_e pc_a w ins n pc_a' :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inr dst) (inr dst) →
+    is_BinOp ins dst (inr dst) (inr dst) →
     (pc_a + 1)%a = Some pc_a' →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) ->
 
@@ -480,8 +490,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hpc_a Hvpc ϕ) "(HPC & Hpc_a & Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -494,9 +504,9 @@ Section cap_lang_rules.
   Qed.
 
   (* Slightly generalized: fails in all cases where r2 does not contain an integer. *)
-  Lemma wp_add_sub_lt_fail_z_r E ins dst n1 r2 w w2 wdst pc_p pc_g pc_b pc_e pc_a :
+  Lemma wp_binop_fail_z_r E ins dst n1 r2 w w2 wdst pc_p pc_g pc_b pc_e pc_a :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inl n1) (inr r2) →
+    is_BinOp ins dst (inl n1) (inr r2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     is_z w2 = false →
     {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r2 ↦ᵣ w2 }}}
@@ -506,17 +516,17 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Hisnz φ) "(HPC & Hpc_a & Hdst & Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hdst Hr2") as "[Hmap (%&%&%)]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-      by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+      by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
     destruct Hspec as [* Hsucc |].
     { (* Success (contradiction) *)  destruct w2; simplify_map_eq. }
     { (* Failure, done *) by iApply "Hφ". }
   Qed.
 
-  Lemma wp_add_sub_lt_fail_r_r_1 E ins dst r1 r2 w wdst w1 w2 pc_p pc_g pc_b pc_e pc_a :
+  Lemma wp_binop_fail_r_r_1 E ins dst r1 r2 w wdst w1 w2 pc_p pc_g pc_b pc_e pc_a :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inr r1) (inr r2) →
+    is_BinOp ins dst (inr r1) (inr r2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     is_z w1 = false →
     {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 }}}
@@ -526,17 +536,17 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Hzf φ) "(HPC & Hpc_a & Hdst & Hr1 & Hr2) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hdst Hr1 Hr2") as "[Hmap (%&%&%&%&%&%)]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
     destruct Hspec as [* Hsucc |].
     { (* Success (contradiction) *) simplify_map_eq. destruct w1; by exfalso. }
     { (* Failure, done *) by iApply "Hφ". }
   Qed.
 
-  Lemma wp_add_sub_lt_fail_r_r_2 E ins dst r1 r2 w wdst w2 w3 pc_p pc_g pc_b pc_e pc_a :
+  Lemma wp_binop_fail_r_r_2 E ins dst r1 r2 w wdst w2 w3 pc_p pc_g pc_b pc_e pc_a :
     decodeInstrW w = ins →
-    is_AddSubLt ins dst (inr r1) (inr r2) →
+    is_BinOp ins dst (inr r1) (inr r2) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     is_z w3 = false →
     {{{ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ w ∗ dst ↦ᵣ wdst ∗ r1 ↦ᵣ w2 ∗ r2 ↦ᵣ w3}}}
@@ -546,8 +556,8 @@ Section cap_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Hzf φ) "(HPC & Hpc_a & Hdst & Hr1 & Hr2) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hdst Hr1 Hr2") as "[Hmap (%&%&%&%&%&%)]".
-    iApply (wp_AddSubLt with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_AddSubLt; eauto; rewrite !dom_insert; set_solver+.
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
     destruct Hspec as [* Hsucc |].
     { (* Success (contradiction) *) simplify_map_eq. destruct w3; by exfalso. }
@@ -556,17 +566,37 @@ Section cap_lang_rules.
 
 End cap_lang_rules.
 
-(* Hints to automate proofs of is_AddSubLt *)
-Lemma is_AddSubLt_Add dst arg1 arg2 :
-  is_AddSubLt (Add dst arg1 arg2) dst arg1 arg2.
-Proof. intros; unfold is_AddSubLt; eauto. Qed.
-Lemma is_AddSubLt_Sub dst arg1 arg2 :
-  is_AddSubLt (Sub dst arg1 arg2) dst arg1 arg2.
-Proof. intros; unfold is_AddSubLt; eauto. Qed.
-Lemma is_AddSubLt_Lt dst arg1 arg2 :
-  is_AddSubLt (Lt dst arg1 arg2) dst arg1 arg2.
-Proof. intros; unfold is_AddSubLt; eauto. Qed.
+(* Hints to automate proofs of is_BinOp *)
+Lemma is_BinOp_Add dst arg1 arg2 :
+  is_BinOp (Add dst arg1 arg2) dst arg1 arg2.
+Proof. intros; unfold is_BinOp; naive_solver. Qed.
+Lemma is_BinOp_Sub dst arg1 arg2 :
+  is_BinOp (Sub dst arg1 arg2) dst arg1 arg2.
+Proof. intros; unfold is_BinOp; naive_solver. Qed.
+Lemma is_BinOp_Mul dst arg1 arg2 :
+  is_BinOp (Mul dst arg1 arg2) dst arg1 arg2.
+Proof. intros; unfold is_BinOp; naive_solver. Qed.
+Lemma is_BinOp_LAnd dst arg1 arg2 :
+  is_BinOp (LAnd dst arg1 arg2) dst arg1 arg2.
+Proof. intros; unfold is_BinOp; naive_solver. Qed.
+Lemma is_BinOp_LOr dst arg1 arg2 :
+  is_BinOp (LOr dst arg1 arg2) dst arg1 arg2.
+Proof. intros; unfold is_BinOp; naive_solver. Qed.
+Lemma is_BinOp_LShiftL dst arg1 arg2 :
+  is_BinOp (LShiftL dst arg1 arg2) dst arg1 arg2.
+Proof. intros; unfold is_BinOp; naive_solver. Qed.
+Lemma is_BinOp_LShiftR dst arg1 arg2 :
+  is_BinOp (LShiftR dst arg1 arg2) dst arg1 arg2.
+Proof. intros; unfold is_BinOp; naive_solver. Qed.
+Lemma is_BinOp_Lt dst arg1 arg2 :
+  is_BinOp (Lt dst arg1 arg2) dst arg1 arg2.
+Proof. intros; unfold is_BinOp; naive_solver. Qed.
 
-Global Hint Resolve is_AddSubLt_Add : core.
-Global Hint Resolve is_AddSubLt_Sub : core.
-Global Hint Resolve is_AddSubLt_Lt : core.
+Global Hint Resolve is_BinOp_Add : core.
+Global Hint Resolve is_BinOp_Sub : core.
+Global Hint Resolve is_BinOp_Mul : core.
+Global Hint Resolve is_BinOp_LAnd : core.
+Global Hint Resolve is_BinOp_LOr : core.
+Global Hint Resolve is_BinOp_LShiftL : core.
+Global Hint Resolve is_BinOp_LShiftR : core.
+Global Hint Resolve is_BinOp_Lt : core.

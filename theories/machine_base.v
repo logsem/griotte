@@ -183,6 +183,11 @@ Inductive instr: Type :=
 | Lt (dst: RegName) (r1 r2: Z + RegName)
 | Add (dst: RegName) (r1 r2: Z + RegName)
 | Sub (dst: RegName) (r1 r2: Z + RegName)
+| Mul (dst: RegName) (r1 r2: Z + RegName)
+| LAnd (dst: RegName) (r1 r2: Z + RegName)
+| LOr (dst: RegName) (r1 r2: Z + RegName)
+| LShiftL (dst: RegName) (r1 r2: Z + RegName)
+| LShiftR (dst: RegName) (r1 r2: Z + RegName)
 | Lea (dst: RegName) (r: Z + RegName)
 | Restrict (dst: RegName) (r: Z + RegName)
 | Subseg (dst: RegName) (r1 r2: Z + RegName)
@@ -1609,6 +1614,11 @@ Proof.
       | WriteSR dst src => GenNode 21 [GenLeaf (inl (inr dst)); GenLeaf (inl (inl src))]
       | Fail => GenNode 22 []
       | Halt => GenNode 23 []
+      | Mul dst r1 r2 => GenNode 24 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | LAnd dst r1 r2 => GenNode 25 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | LOr dst r1 r2 => GenNode 26 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | LShiftL dst r1 r2 => GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | LShiftR dst r1 r2 => GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       end).
   set (dec := fun e =>
       match e with
@@ -1637,7 +1647,12 @@ Proof.
       | GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr src))] => ReadSR dst src
       | GenNode 21 [GenLeaf (inl (inr dst)); GenLeaf (inl (inl src))] => WriteSR dst src
       | GenNode 22 [] => Fail
-      |  GenNode 23 [] => Halt
+      | GenNode 23 [] => Halt
+      | GenNode 24 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Mul dst r1 r2
+      | GenNode 25 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LAnd dst r1 r2
+      | GenNode 26 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LOr dst r1 r2
+      | GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftL dst r1 r2
+      | GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftR dst r1 r2
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).

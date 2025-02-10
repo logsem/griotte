@@ -1,4 +1,4 @@
-From cap_machine.ftlr Require Export Jmp Jnz Mov Load Store AddSubLt Restrict
+From cap_machine.ftlr Require Export Jmp Jnz Mov Load Store BinOp Restrict
   Subseg Get Lea Seal UnSeal ReadSR WriteSR.
 From cap_machine.ftlr Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
@@ -168,26 +168,61 @@ Section fundamental.
                [$Ha] [$HPC] [$Hmreg]")
       ;eauto.
     + (* Lt *)
-      iApply (add_sub_lt_case with
+      iApply (binop_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
-      ;eauto.
+      ;eauto; naive_solver.
     + (* Add *)
-      iApply (add_sub_lt_case with
+      iApply (binop_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
-      ;eauto.
+      ;eauto; naive_solver.
     + (* Sub *)
-      iApply (add_sub_lt_case with
+      iApply (binop_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
                [$Ha] [$HPC] [$Hmreg]")
-      ;eauto.
+      ;eauto; naive_solver.
+    + (* Mul *)
+      iApply (binop_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto; naive_solver.
+    + (* LAnd *)
+      iApply (binop_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto; naive_solver.
+    + (* LOr *)
+      iApply (binop_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto; naive_solver.
+    + (* LShiftL *)
+      iApply (binop_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto; naive_solver.
+    + (* LShiftR *)
+      iApply (binop_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto; naive_solver.
     + (* Lea *)
       iApply (lea_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
