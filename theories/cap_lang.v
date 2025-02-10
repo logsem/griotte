@@ -26,16 +26,18 @@ Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
   (reg φ, sreg φ, <[a:=w]>(mem φ)).
 
 (* Note that the `None` values here also undo any previous changes that were tentatively made in the same step. This is more consistent across the board. *)
-Definition updatePC (φ: ExecConf): option Conf :=
+Definition updatePC_gen (φ: ExecConf) (imm : Z): option Conf :=
   match (reg φ) !! PC with
   | Some (WCap p g b e a) =>
-    match (a + 1)%a with
+    match (a + imm)%a with
     | Some a' => let φ' := (update_reg φ PC (WCap p g b e a')) in
                 Some (NextI, φ')
     | None => None
     end
   | _ => None
   end.
+
+Definition updatePC (φ: ExecConf): option Conf := updatePC_gen φ 1.
 
 (*--- z_of_argument ---*)
 
@@ -203,6 +205,11 @@ Proof.
   eapply lookup_weaken in Heq as ->; auto.
 Qed.
 
+Definition seal_perm_sentry (p : Perm) : Perm :=
+  match p with
+  | BPerm rx w dl dro => E rx w dl dro
+  | _ => p
+  end.
 
 Section opsem.
   Context `{MachineParameters}.
@@ -211,15 +218,30 @@ Section opsem.
     match i with
     | Fail => Some (Failed, φ)
     | Halt => Some (Halted, φ)
-    | Jmp r =>
-      wr ← (reg φ) !! r;
-      let φ' := (update_reg φ PC (updatePcPerm wr)) in Some (NextI, φ') (* Note: allow jumping to integers, sealing ranges etc; machine will crash later *)
-    | Jnz r1 r2 =>
-      wr2 ← (reg φ) !! r2;
-      wr1 ← (reg φ) !! r1;
-      if nonZero wr2 then
-        let φ' := (update_reg φ PC (updatePcPerm wr1)) in Some (NextI, φ')
-      else updatePC φ
+    | Jmp rimm =>
+        imm ← z_of_argument (reg φ) rimm;
+        updatePC_gen φ imm
+    | Jnz rimm rcond =>
+        wcond ← (reg φ) !! rcond;
+        if nonZero wcond
+        then imm ← z_of_argument (reg φ) rimm;
+             updatePC_gen φ imm
+        else updatePC φ
+    | Jalr rdst =>
+        (* Note: allow jumping to integers, sealing ranges etc; machine will crash later *)
+        wrdst ← (reg φ) !! rdst;
+        wpc ← (reg φ) !! PC;
+        match wpc with
+        | (WCap p g b e a) =>
+            match (a + 1)%a with
+            | Some a' =>
+                let φ_cra := (update_reg φ cra (WCap (seal_perm_sentry p) g b e a')) in
+                let φ_next := (update_reg φ_cra PC (updatePcPerm wrdst)) in
+                Some (NextI, φ_next)
+            | None => None
+            end
+        | _ => None
+        end
     | Load dst src =>
       wsrc ← (reg φ) !! src;
       match wsrc with
@@ -621,10 +643,16 @@ Section opsem.
     | _ => False
     end.
 
+  Lemma updatePC_gen_some φ imm c:
+    updatePC_gen φ imm = Some c → ∃ φ', c = (NextI, φ').
+  Proof.
+    rewrite /updatePC_gen; repeat case_match; try congruence. inversion 1. eauto.
+  Qed.
+
   Lemma updatePC_some φ c:
     updatePC φ = Some c → ∃ φ', c = (NextI, φ').
   Proof.
-    rewrite /updatePC; repeat case_match; try congruence. inversion 1. eauto.
+    rewrite /updatePC; apply updatePC_gen_some.
   Qed.
 
   Lemma instr_atomic i p φ :
@@ -644,6 +672,7 @@ Section opsem.
     all: repeat destruct (mem _ !! _); cbn in *; repeat case_match.
     all: simplify_eq; try by exfalso.
     all: try apply updatePC_some in Heqo as [φ' Heqo]; eauto.
+    all: try apply updatePC_gen_some in Heqo as [φ' Heqo]; eauto.
   Qed.
 
 End opsem.
