@@ -17,6 +17,62 @@ Section cap_lang_rules.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
 
+
+  Inductive Jalr_spec (regs: Reg) pc_p pc_g pc_b pc_e pc_a (rdst: RegName) : Reg → cap_lang.val → Prop :=
+  | Jalr_spec_success regs' pc_a' wdst :
+    regs !! rdst = Some wdst ->
+    (pc_a + 1)%a = Some pc_a' ->
+    regs' = (<[PC :=  updatePcPerm wdst ]>
+             (<[cra := (WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a') ]>
+               regs)) →
+    Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst regs' NextIV
+  | Jalr_spec_failure :
+    (pc_a + 1)%a = None ->
+    Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst regs FailedV.
+
+  Lemma wp_Jalr Ep pc_p pc_g pc_b pc_e pc_a w rdst regs :
+    decodeInstrW w = Jalr rdst ->
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    regs_of (Jalr rdst) ∪ {[cra]} ⊆ dom regs →
+
+    {{{ ▷ pc_a ↦ₐ w ∗
+        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ Ep
+    {{{ regs' retv, RET retv;
+        ⌜ Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst regs' retv ⌝ ∗
+        pc_a ↦ₐ w ∗
+        [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
+  Proof.
+    iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
+    iApply wp_lift_atomic_base_step_no_fork; auto.
+    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
+    iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
+    have HrPC := lookup_weaken _ _ _ _ HPC Hregs.
+    iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
+    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iNext. iIntros (e2 σ2 efs Hpstep).
+    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+    iIntros "_".
+    iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
+
+    specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri.
+    unfold regs_of in Hri, Dregs.
+    destruct (Hri rdst) as [wdst [H'rdst Hrdst]]; first by set_solver+.
+    destruct (Hri cra) as [wcra [H'rcra Hrcra]]; first by set_solver+.
+    rewrite /exec in Hstep; cbn in Hstep.
+    rewrite Hrdst HrPC /= in Hstep.
+
+    destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; simplify_pair_eq; cycle 1.
+    { iFailWP "Hφ" Jalr_spec_failure. }
+    iMod ((gen_heap_update_inSepM _ _ cra) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+    iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+    { destruct (decide (rdst = PC)); simplify_map_eq; done. }
+    iFrame.
+    iApply "Hφ"; iFrame.
+    iPureIntro; econstructor; eauto.
+  Qed.
+
   Lemma wp_jalr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w rdst wdst wra :
     decodeInstrW w = Jalr rdst →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
@@ -36,25 +92,17 @@ Section cap_lang_rules.
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrdst & >Hcra) Hφ".
-    iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [Hr0 Hsr] Hm ] /=". destruct σ1 as [ [r0 sr] m]; cbn.
-    iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
-    iDestruct (@gen_heap_valid with "Hr0 HPC") as %?.
-    iDestruct (@gen_heap_valid with "Hr0 Hrdst") as %Hr_rdst.
-    iDestruct (@gen_heap_valid with "Hr0 Hcra") as %Hr_cra.
-    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
-    iNext. iIntros (e2 σ2 efs Hpstep).
-    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
-    iIntros "_".
-    iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
-    unfold exec, exec_opt in Hstep.
-    rewrite Hr_rdst //= H0 //= Hpca' in Hstep.
-    simplify_pair_eq.
+    iDestruct (map_of_regs_3 with "HPC Hrdst Hcra") as "[Hmap (%&%&%)]".
+    iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { set_solver. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    iMod (@gen_heap_update with "Hr0 Hcra") as "[Hr0 Hcra]".
-    iMod (@gen_heap_update with "Hr0 HPC") as "[Hr0 HPC]".
-    iFrame.
-    iApply "Hφ". by iFrame.
+   destruct Hspec as [ | Hfail ]; subst.
+   { iApply "Hφ". iFrame. simplify_map_eq.
+     rewrite (insert_commute _ cra PC) // insert_insert.
+     rewrite (insert_commute _ rdst cra) // insert_insert.
+     iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+   { congruence. }
   Qed.
 
   Lemma wp_jalr_successPC E pc_p pc_g pc_b pc_e pc_a pc_a' w wra :
@@ -74,24 +122,16 @@ Section cap_lang_rules.
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hcra) Hφ".
-    iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [Hr0 Hsr] Hm ] /=". destruct σ1 as [ [r0 sr] m]; cbn.
-    iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
-    iDestruct (@gen_heap_valid with "Hr0 HPC") as %Hr_PC.
-    iDestruct (@gen_heap_valid with "Hr0 Hcra") as %Hr_cra.
-    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
-    iNext. iIntros (e2 σ2 efs Hpstep).
-    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
-    iIntros "_".
-    iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
-    unfold exec, exec_opt in Hstep.
-    rewrite Hr_PC /= Hpca' /= in Hstep.
-    simplify_pair_eq.
+    iDestruct (map_of_regs_2 with "HPC Hcra") as "[Hmap %]".
+    iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    iMod (@gen_heap_update with "Hr0 Hcra") as "[Hr0 Hcra]".
-    iMod (@gen_heap_update with "Hr0 HPC") as "[Hr0 HPC]".
-    iFrame.
-    iApply "Hφ". by iFrame.
+   destruct Hspec as [ | Hfail ]; subst.
+   { iApply "Hφ". iFrame.
+     simplify_map_eq.
+     rewrite (insert_commute _ cra PC) // !insert_insert.
+     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+   { congruence. }
   Qed.
 
   Lemma wp_jalr_success_cra E pc_p pc_g pc_b pc_e pc_a pc_a' w wra :
@@ -111,24 +151,17 @@ Section cap_lang_rules.
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hcra) Hφ".
-    iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [Hr0 Hsr] Hm ] /=". destruct σ1 as [ [r0 sr] m]; cbn.
-    iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
-    iDestruct (@gen_heap_valid with "Hr0 HPC") as %Hr_PC.
-    iDestruct (@gen_heap_valid with "Hr0 Hcra") as %Hr_cra.
-    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
-    iNext. iIntros (e2 σ2 efs Hpstep).
-    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
-    iIntros "_".
-    iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
-    unfold exec, exec_opt in Hstep.
-    rewrite Hr_PC /= Hr_cra /= Hpca' /= in Hstep.
-    simplify_pair_eq.
+    iDestruct (map_of_regs_2 with "HPC Hcra") as "[Hmap %]".
+    iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { set_solver. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    iMod (@gen_heap_update with "Hr0 Hcra") as "[Hr0 Hcra]".
-    iMod (@gen_heap_update with "Hr0 HPC") as "[Hr0 HPC]".
-    iFrame.
-    iApply "Hφ". by iFrame.
+   destruct Hspec as [ | Hfail ]; subst.
+   { iApply "Hφ". iFrame.
+     simplify_map_eq.
+     rewrite (insert_commute _ cra PC) // !insert_insert.
+     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+   { congruence. }
   Qed.
 
 End cap_lang_rules.
