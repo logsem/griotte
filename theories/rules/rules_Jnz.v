@@ -26,6 +26,7 @@ Section cap_lang_rules.
   | Jnz_fail_PC_overflow_jmp imm cond:
       regs !! rcond = Some cond →
       nonZero cond = true →
+      z_of_argument regs rimm = Some imm →
       incrementPC_gen regs imm = None →
       Jnz_failure regs rimm rcond
   | Jnz_fail_no_imm cond:
@@ -135,175 +136,247 @@ Section cap_lang_rules.
   Qed.
 
   (* TODO fix the instantiated rules *)
-  (* Lemma wp_jnz_success_jmp E r1 r2 pc_p pc_g pc_b pc_e pc_a w w1 w2 : *)
-  (*   decodeInstrW w = Jnz r1 r2 → *)
-  (*   isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) → *)
-  (*   w2 ≠ WInt 0%Z → *)
+  Lemma wp_jnz_success_jmp_z E rcond pc_p pc_g pc_b pc_e pc_a pc_a' w imm wcond :
+    decodeInstrW w = Jnz (inl imm) rcond →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    wcond ≠ WInt 0%Z →
+    (pc_a + imm)%a = Some pc_a' ->
 
-  (*   {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a *)
-  (*       ∗ ▷ pc_a ↦ₐ w *)
-  (*       ∗ ▷ r1 ↦ᵣ w1 *)
-  (*       ∗ ▷ r2 ↦ᵣ w2 }}} *)
-  (*     Instr Executable @ E *)
-  (*     {{{ RET NextIV; *)
-  (*         PC ↦ᵣ updatePcPerm w1 *)
-  (*         ∗ pc_a ↦ₐ w *)
-  (*         ∗ r1 ↦ᵣ w1 *)
-  (*         ∗ r2 ↦ᵣ w2 }}}. *)
-  (* Proof. *)
-  (*   iIntros (Hinstr Hvpc Hne ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ". *)
-  (*   iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]". *)
-  (*   iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto. *)
-  (*   by unfold regs_of; rewrite !dom_insert; set_solver+. *)
-  (*   iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec. *)
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ rcond ↦ᵣ wcond
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          ∗ pc_a ↦ₐ w
+          ∗ rcond ↦ᵣ wcond
+          }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hne Hpca' ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hrcond") as "[Hmap %]".
+    iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-  (*   assert (nonZero w2 = true). *)
-  (*   { unfold nonZero, Zneq_bool in *. *)
-  (*     repeat case_match; try congruence; subst. exfalso. *)
-  (*     apply Hne. f_equal. by apply Z.compare_eq. } *)
+    assert (nonZero wcond = true).
+    { unfold nonZero, Zneq_bool in *.
+      repeat case_match; try congruence; subst. exfalso.
+      apply Hne. f_equal. by apply Z.compare_eq. }
 
-  (*  destruct Hspec as [ | | ]. *)
-  (*  { exfalso. simplify_map_eq. congruence. } *)
-  (*  { exfalso. simplify_map_eq. congruence. } *)
-  (*  { iApply "Hφ". iFrame. simplify_map_eq. rewrite insert_insert. *)
-  (*    iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. } *)
-  (* Qed. *)
+   destruct Hspec as [ | | Hfail ].
+   { exfalso; simplify_map_eq; congruence. }
+   { iApply "Hφ". iFrame. simplify_map_eq.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+     rewrite insert_insert.
+     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+   { destruct Hfail; simplify_map_eq; eauto; try congruence.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+   }
+  Qed.
 
-  (* Lemma wp_jnz_success_jmp2 E r2 pc_p pc_g pc_b pc_e pc_a w w2 : *)
-  (*   decodeInstrW w = Jnz r2 r2 → *)
-  (*   isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) → *)
-  (*   w2 ≠ WInt 0%Z → *)
+  Lemma wp_jnz_success_jmp_reg E rcond rimm pc_p pc_g pc_b pc_e pc_a pc_a' w imm wcond :
+    decodeInstrW w = Jnz (inl imm) rcond →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    wcond ≠ WInt 0%Z →
+    (pc_a + imm)%a = Some pc_a' ->
 
-  (*   {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a *)
-  (*       ∗ ▷ pc_a ↦ₐ w *)
-  (*       ∗ ▷ r2 ↦ᵣ w2 }}} *)
-  (*     Instr Executable @ E *)
-  (*     {{{ RET NextIV; *)
-  (*         PC ↦ᵣ updatePcPerm w2 *)
-  (*         ∗ pc_a ↦ₐ w *)
-  (*         ∗ r2 ↦ᵣ w2 }}}. *)
-  (* Proof. *)
-  (*   iIntros (Hinstr Hvpc Hne ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ". *)
-  (*   iDestruct (map_of_regs_2 with "HPC Hr2") as "[Hmap %]". *)
-  (*   iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto. *)
-  (*   by unfold regs_of; rewrite !dom_insert; set_solver+. *)
-  (*   iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec. *)
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ rimm ↦ᵣ WInt imm
+        ∗ ▷ rcond ↦ᵣ wcond
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          ∗ pc_a ↦ₐ w
+          ∗ rimm ↦ᵣ WInt imm
+          ∗ rcond ↦ᵣ wcond
+          }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hne Hpca' ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hrimm Hrcond") as "[Hmap (%&%&%)]".
+    iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-  (*   assert (nonZero w2 = true). *)
-  (*   { unfold nonZero, Zneq_bool in *. *)
-  (*     repeat case_match; try congruence; subst. exfalso. *)
-  (*     apply Hne. f_equal. by apply Z.compare_eq. } *)
+    assert (nonZero wcond = true).
+    { unfold nonZero, Zneq_bool in *.
+      repeat case_match; try congruence; subst. exfalso.
+      apply Hne. f_equal. by apply Z.compare_eq. }
 
-  (*  destruct Hspec as [ | | ]. *)
-  (*  { exfalso. simplify_map_eq. congruence. } *)
-  (*  { exfalso. simplify_map_eq. congruence. } *)
-  (*  { iApply "Hφ". iFrame. simplify_map_eq. rewrite insert_insert. *)
-  (*    iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. } *)
-  (* Qed. *)
+   destruct Hspec as [ | | Hfail ].
+   { exfalso; simplify_map_eq; congruence. }
+   { iApply "Hφ". iFrame. simplify_map_eq.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+     rewrite insert_insert.
+     iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+   { destruct Hfail; simplify_map_eq; eauto; try congruence.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+   }
+  Qed.
 
-  (* Lemma wp_jnz_success_jmpPC E pc_p pc_g pc_b pc_e pc_a w : *)
-  (*   decodeInstrW w = Jnz PC PC → *)
-  (*   isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) → *)
+  Lemma wp_jnz_success_jmp_same E rcond pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
+    decodeInstrW w = Jnz (inr rcond) rcond →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    imm ≠ 0%Z →
+    (pc_a + imm)%a = Some pc_a' ->
 
-  (*   {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a *)
-  (*       ∗ ▷ pc_a ↦ₐ w }}} *)
-  (*     Instr Executable @ E *)
-  (*     {{{ RET NextIV; *)
-  (*         PC ↦ᵣ updatePcPerm (WCap pc_p pc_g pc_b pc_e pc_a) *)
-  (*         ∗ pc_a ↦ₐ w }}}. *)
-  (* Proof. *)
-  (*   iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a) Hφ". *)
-  (*   iDestruct (map_of_regs_1 with "HPC") as "Hmap". *)
-  (*   iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto. *)
-  (*   iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec. *)
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ rcond ↦ᵣ WInt imm
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          ∗ pc_a ↦ₐ w
+        ∗ ▷ rcond ↦ᵣ WInt imm
+          }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hne Hpca' ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hrcond") as "[Hmap %]".
+    iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-  (*  destruct Hspec as [ | | ]; [ by simplify_map_eq .. | ]. *)
-  (*  { iApply "Hφ". iFrame. simplify_map_eq. rewrite insert_insert. *)
-  (*    iDestruct (regs_of_map_1 with "Hmap") as "?"; eauto; iFrame. } *)
-  (* Qed. *)
+    assert (nonZero (WInt imm) = true).
+    { unfold nonZero, Zneq_bool in *.
+      repeat case_match; try congruence; subst. exfalso.
+      apply Hne. f_equal. by apply Z.compare_eq. }
 
-  (* Lemma wp_jnz_success_jmpPC1 E r2 pc_p pc_g pc_b pc_e pc_a w w2 : *)
-  (*   decodeInstrW w = Jnz PC r2 → *)
-  (*   isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) → *)
-  (*   w2 ≠ WInt 0%Z → *)
+   destruct Hspec as [ | | Hfail ].
+   { exfalso; simplify_map_eq; congruence. }
+   { iApply "Hφ". iFrame. simplify_map_eq.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+     rewrite insert_insert.
+     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+   { destruct Hfail; simplify_map_eq; eauto; try congruence.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+   }
+  Qed.
 
-  (*   {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a *)
-  (*       ∗ ▷ pc_a ↦ₐ w *)
-  (*       ∗ ▷ r2 ↦ᵣ w2 }}} *)
-  (*     Instr Executable @ E *)
-  (*     {{{ RET NextIV; *)
-  (*         PC ↦ᵣ updatePcPerm (WCap pc_p pc_g pc_b pc_e pc_a) *)
-  (*         ∗ pc_a ↦ₐ w *)
-  (*         ∗ r2 ↦ᵣ w2 }}}. *)
-  (* Proof. *)
-  (*   iIntros (Hinstr Hvpc Hne ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ". *)
-  (*   iDestruct (map_of_regs_2 with "HPC Hr2") as "[Hmap %]". *)
-  (*   iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto. *)
-  (*   by unfold regs_of; rewrite !dom_insert; set_solver+. *)
-  (*   iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec. *)
+  Lemma wp_jnz_success_jmpPC_z E pc_p pc_g pc_b pc_e pc_a pc_a' w imm:
+    decodeInstrW w = Jnz (inl imm) PC →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + imm)%a = Some pc_a' ->
 
-  (*   assert (nonZero w2 = true). *)
-  (*   { unfold nonZero, Zneq_bool in *. *)
-  (*     repeat case_match; try congruence; subst. exfalso. *)
-  (*     apply Hne. f_equal. by apply Z.compare_eq. } *)
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          ∗ pc_a ↦ₐ w
+          }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a) Hφ".
+    iDestruct (map_of_regs_1 with "HPC") as "Hmap".
+    iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-  (*  destruct Hspec as [ | | ]. *)
-  (*  { exfalso. simplify_map_eq. congruence. } *)
-  (*  { exfalso. simplify_map_eq. congruence. } *)
-  (*  { iApply "Hφ". iFrame. simplify_map_eq. rewrite insert_insert. *)
-  (*    iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. } *)
-  (* Qed. *)
+   destruct Hspec as [ | | Hfail ].
+   { exfalso; simplify_map_eq; congruence. }
+   { iApply "Hφ". iFrame. simplify_map_eq.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+     rewrite insert_insert.
+     iDestruct (regs_of_map_1 with "Hmap") as "?"; eauto; iFrame. }
+   { destruct Hfail; simplify_map_eq; eauto; try congruence.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+   }
+  Qed.
 
-  (* Lemma wp_jnz_success_jmpPC2 E r1 pc_p pc_g pc_b pc_e pc_a w w1 : *)
-  (*   decodeInstrW w = Jnz r1 PC → *)
-  (*   isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) → *)
+  Lemma wp_jnz_success_jmpPC_reg E rimm pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
+    decodeInstrW w = Jnz (inl imm) PC →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + imm)%a = Some pc_a' ->
 
-  (*   {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a *)
-  (*       ∗ ▷ pc_a ↦ₐ w *)
-  (*       ∗ ▷ r1 ↦ᵣ w1 }}} *)
-  (*     Instr Executable @ E *)
-  (*     {{{ RET NextIV; *)
-  (*         PC ↦ᵣ updatePcPerm w1 *)
-  (*         ∗ pc_a ↦ₐ w *)
-  (*         ∗ r1 ↦ᵣ w1 }}}. *)
-  (* Proof. *)
-  (*   iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ". *)
-  (*   iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]". *)
-  (*   iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto. *)
-  (*   by unfold regs_of; rewrite !dom_insert; set_solver+. *)
-  (*   iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec. *)
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ rimm ↦ᵣ WInt imm
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          ∗ pc_a ↦ₐ w
+          ∗ rimm ↦ᵣ WInt imm
+          }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrimm) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hrimm") as "[Hmap %]".
+    iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { set_solver+. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-  (*  destruct Hspec as [ | | ]; [ by simplify_map_eq .. | ]. *)
-  (*  { iApply "Hφ". iFrame. simplify_map_eq. rewrite insert_insert. *)
-  (*    iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. } *)
-  (* Qed. *)
+   destruct Hspec as [ | | Hfail ].
+   { exfalso; simplify_map_eq; congruence. }
+   { iApply "Hφ". iFrame. simplify_map_eq.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+     rewrite insert_insert.
+     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+   { destruct Hfail; simplify_map_eq; eauto; try congruence.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+   }
+  Qed.
 
-  (* Lemma wp_jnz_success_next E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_a' w w1 : *)
-  (*   decodeInstrW w = Jnz r1 r2 → *)
-  (*   isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) → *)
-  (*   (pc_a + 1)%a = Some pc_a' → *)
+  Lemma wp_jnz_success_next_z E rcond pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
+    decodeInstrW w = Jnz (inl imm) rcond →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
 
-  (*   {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a *)
-  (*       ∗ ▷ pc_a ↦ₐ w *)
-  (*       ∗ ▷ r1 ↦ᵣ w1 *)
-  (*       ∗ ▷ r2 ↦ᵣ WInt 0%Z }}} *)
-  (*     Instr Executable @ E *)
-  (*     {{{ RET NextIV; *)
-  (*         PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a' *)
-  (*         ∗ pc_a ↦ₐ w *)
-  (*         ∗ r1 ↦ᵣ w1 *)
-  (*         ∗ r2 ↦ᵣ WInt 0%Z }}}. *)
-  (* Proof. *)
-  (*   iIntros (Hinstr Hvpc Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ". *)
-  (*   iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]". *)
-  (*   iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto. *)
-  (*   by unfold regs_of; rewrite !dom_insert; set_solver+. *)
-  (*   iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec. *)
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ rcond ↦ᵣ WInt 0%Z }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          ∗ pc_a ↦ₐ w
+          ∗ rcond ↦ᵣ WInt 0%Z }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hrcond") as "[Hmap %]".
+    iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-  (*  destruct Hspec as [ | | ]; try incrementPC_inv; simplify_map_eq; eauto. *)
-  (*  { congruence. } *)
-  (*  { iApply "Hφ". iFrame. rewrite insert_insert. *)
-  (*    iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. } *)
-  (* Qed. *)
+   destruct Hspec as [ | | Hfail ]; try incrementPC_inv; simplify_map_eq; eauto.
+   { iApply "Hφ". iFrame.
+     rewrite insert_insert.
+     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+   { destruct Hfail; simplify_map_eq; eauto; try congruence.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+   }
+  Qed.
+
+  (* TODO ideally, I would like to not require the register rimm *)
+  Lemma wp_jnz_success_next_reg E rimm rcond pc_p pc_g pc_b pc_e pc_a pc_a' w wimm :
+    decodeInstrW w = Jnz (inr rimm) rcond →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ rimm ↦ᵣ wimm
+        ∗ ▷ rcond ↦ᵣ WInt 0%Z }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          ∗ pc_a ↦ₐ w
+          ∗ rimm ↦ᵣ wimm
+          ∗ rcond ↦ᵣ WInt 0%Z }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hrcond Hrimm") as "[Hmap (%&%&%)]".
+    iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+
+   destruct Hspec as [ | | Hfail ]; try incrementPC_inv; simplify_map_eq; eauto.
+   { iApply "Hφ". iFrame.
+     rewrite insert_insert.
+     iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+   { destruct Hfail; simplify_map_eq; eauto; try congruence.
+     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+   }
+  Qed.
 
 End cap_lang_rules.
