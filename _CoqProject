@@ -89,6 +89,7 @@ theories/ftlr/Mov.v
 theories/ftlr/Restrict.v
 theories/ftlr/Jmp.v
 theories/ftlr/Jnz.v
+theories/ftlr/Jalr.v
 theories/ftlr/Subseg.v
 theories/ftlr/Seal.v
 theories/ftlr/UnSeal.v
