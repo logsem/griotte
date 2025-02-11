@@ -175,8 +175,9 @@ Notation WCap p g b e a := (WSealable (SCap p g b e a)).
 Notation WSealRange p g b e a := (WSealable (SSealRange p g b e a)).
 
 Inductive instr: Type :=
-| Jmp (r: RegName)
-| Jnz (r1 r2: RegName)
+| Jmp (rimm: Z + RegName)
+| Jnz (rimm : Z + RegName) (rcond: RegName)
+| Jalr (rsrc: RegName)
 | Mov (dst: RegName) (src: Z + RegName)
 | Load (dst src: RegName)
 | Store (dst: RegName) (src: Z + RegName)
@@ -1588,8 +1589,8 @@ Proof.
 
   set (enc := fun e =>
       match e with
-      | Jmp r => GenNode 0 [GenLeaf (inl (inl r))]
-      | Jnz r1 r2 => GenNode 1 [GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))]
+      | Jmp r => GenNode 0 [GenLeaf (inr r)]
+      | Jnz r1 r2 => GenNode 1 [GenLeaf (inr r1); GenLeaf (inl (inl r2))]
       | Mov dst src => GenNode 2 [GenLeaf (inl (inl dst)); GenLeaf (inr src)]
       | Load dst src => GenNode 3 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))]
       | Store dst src => GenNode 4 [GenLeaf (inl (inl dst)); GenLeaf (inr src)]
@@ -1619,11 +1620,12 @@ Proof.
       | LOr dst r1 r2 => GenNode 26 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | LShiftL dst r1 r2 => GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | LShiftR dst r1 r2 => GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | Jalr r => GenNode 29 [GenLeaf (inl (inl r))]
       end).
   set (dec := fun e =>
       match e with
-      | GenNode 0 [GenLeaf (inl (inl r))] => Jmp r
-      | GenNode 1 [GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))] => Jnz r1 r2
+      | GenNode 0 [GenLeaf (inr r) ] => Jmp r
+      | GenNode 1 [GenLeaf (inr r1); GenLeaf (inl (inl r2))] => Jnz r1 r2
       | GenNode 2 [GenLeaf (inl (inl dst)); GenLeaf (inr src)] => Mov dst src
       | GenNode 3 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))] => Load dst src
       | GenNode 4 [GenLeaf (inl (inl dst)); GenLeaf (inr src)] => Store dst src
@@ -1653,6 +1655,7 @@ Proof.
       | GenNode 26 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LOr dst r1 r2
       | GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftL dst r1 r2
       | GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftR dst r1 r2
+      | GenNode 29 [GenLeaf (inl (inl r))] => Jalr r
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).

@@ -243,7 +243,7 @@ Section cap_lang_rules.
       iFrame. iModIntro. iApply "Hφ". iFrame.
       iPureIntro. eapply Store_spec_success; eauto.
         * split; auto. exact Hr'1. all: auto.
-        * unfold incrementPC. rewrite a_pc1 HPC''.
+        * rewrite /incrementPC /incrementPC_gen. rewrite a_pc1 HPC''.
       Unshelve. all: auto.
    Qed.
 

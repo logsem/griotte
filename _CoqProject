@@ -46,6 +46,7 @@ theories/rules/rules_Mov.v
 theories/rules/rules_Restrict.v
 theories/rules/rules_Jmp.v
 theories/rules/rules_Jnz.v
+theories/rules/rules_Jalr.v
 theories/rules/rules_Subseg.v
 theories/rules/rules_Seal.v
 theories/rules/rules_UnSeal.v
@@ -88,6 +89,7 @@ theories/ftlr/Mov.v
 theories/ftlr/Restrict.v
 theories/ftlr/Jmp.v
 theories/ftlr/Jnz.v
+theories/ftlr/Jalr.v
 theories/ftlr/Subseg.v
 theories/ftlr/Seal.v
 theories/ftlr/UnSeal.v
@@ -102,7 +104,7 @@ theories/proofmode/mkregion_helpers.v
 
 # Common Cerise (assembly) macros
 theories/examples/macros/malloc.v
-theories/examples/macros/assert.v
+# theories/examples/macros/assert.v
 # theories/examples/macros/fetch.v
 # theories/examples/macros/rclear.v
 # theories/examples/macros/mclear.v

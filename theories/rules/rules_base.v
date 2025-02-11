@@ -753,7 +753,9 @@ Definition regs_of (i: instr): gset RegName :=
   | Subseg r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Load r1 r2 => {[ r1; r2 ]}
   | Store r1 arg => {[ r1 ]} ∪ regs_of_argument arg
-  | Jnz r1 r2 => {[ r1; r2 ]}
+  | Jnz arg1 r2 => {[ r2 ]} ∪ regs_of_argument arg1
+  | Jmp arg => regs_of_argument arg
+  | Jalr r => {[ r ]}
   | Seal dst r1 r2 => {[dst; r1; r2]}
   | UnSeal dst r1 r2 => {[dst; r1; r2]}
   | ReadSR dst _ => {[ dst ]}
@@ -796,64 +798,101 @@ Qed.
 
 (*--- incrementPC ---*)
 
-Definition incrementPC (regs: Reg) : option Reg :=
+Definition incrementPC_gen (regs: Reg) (n : Z) : option Reg :=
   match regs !! PC with
   | Some (WCap p g b e a) =>
-    match (a + 1)%a with
+    match (a + n)%a with
     | Some a' => Some (<[ PC := WCap p g b e a' ]> regs)
     | None => None
     end
   | _ => None
   end.
 
+Definition incrementPC (regs: Reg) : option Reg := incrementPC_gen regs 1.
+
+Lemma incrementPC_gen_Some_inv regs regs' n :
+  incrementPC_gen regs n = Some regs' ->
+  exists p g b e a a',
+    regs !! PC = Some (WCap p g b e a) ∧
+    (a + n)%a = Some a' ∧
+    regs' = <[ PC := WCap p g  b e a' ]> regs.
+Proof.
+  unfold incrementPC_gen.
+  destruct (regs !! PC) as [ [ | [? ? ? ? u | ] | ] | ];
+    try congruence.
+  case_eq (u+n)%a; try congruence. intros ? ?. inversion 1.
+  do 6 eexists. split; eauto.
+Qed.
 Lemma incrementPC_Some_inv regs regs' :
   incrementPC regs = Some regs' ->
   exists p g b e a a',
     regs !! PC = Some (WCap p g b e a) ∧
     (a + 1)%a = Some a' ∧
     regs' = <[ PC := WCap p g  b e a' ]> regs.
-Proof.
-  unfold incrementPC.
-  destruct (regs !! PC) as [ [ | [? ? ? ? u | ] | ] | ];
-    try congruence.
-  case_eq (u+1)%a; try congruence. intros ? ?. inversion 1.
-  do 6 eexists. split; eauto.
-Qed.
+Proof. apply incrementPC_gen_Some_inv. Qed.
 
+Lemma incrementPC_gen_None_inv regs p g b e a n :
+  incrementPC_gen regs n = None ->
+  regs !! PC = Some (WCap p g b e a) ->
+  (a + n)%a = None.
+Proof.
+  unfold incrementPC_gen.
+  destruct (regs !! PC) as [ [ | [? ? ? ? u | ] | ] |];
+    try congruence.
+  case_eq (u+n)%a; congruence.
+Qed.
 Lemma incrementPC_None_inv regs p g b e a :
   incrementPC regs = None ->
   regs !! PC = Some (WCap p g b e a) ->
   (a + 1)%a = None.
-Proof.
-  unfold incrementPC.
-  destruct (regs !! PC) as [ [ | [? ? ? ? u | ] | ] |];
-    try congruence.
-  case_eq (u+1)%a; congruence.
-Qed.
+Proof. apply incrementPC_gen_None_inv. Qed.
 
+Lemma incrementPC_gen_overflow_mono regs regs' n :
+  incrementPC_gen regs n = None →
+  is_Some (regs !! PC) →
+  regs ⊆ regs' →
+  incrementPC_gen regs' n = None.
+Proof.
+  intros Hi HPC Hincl. unfold incrementPC_gen in *. destruct HPC as [c HPC].
+  pose proof (lookup_weaken _ _ _ _ HPC Hincl) as HPC'.
+  rewrite HPC HPC' in Hi |- *. destruct c as [| [? ? ? ? aa | ] | ]; auto.
+  destruct (aa+n)%a; last by auto. congruence.
+Qed.
 Lemma incrementPC_overflow_mono regs regs' :
   incrementPC regs = None →
   is_Some (regs !! PC) →
   regs ⊆ regs' →
   incrementPC regs' = None.
-Proof.
-  intros Hi HPC Hincl. unfold incrementPC in *. destruct HPC as [c HPC].
-  pose proof (lookup_weaken _ _ _ _ HPC Hincl) as HPC'.
-  rewrite HPC HPC' in Hi |- *. destruct c as [| [? ? ? ? aa | ] | ]; auto.
-  destruct (aa+1)%a; last by auto. congruence.
-Qed.
+Proof. apply incrementPC_gen_overflow_mono. Qed.
 
-(* todo: instead, define updatePC on top of incrementPC *)
+Lemma incrementPC_gen_fail_updatePC_gen regs sregs m n :
+   incrementPC_gen regs n = None ->
+   updatePC_gen (regs, sregs, m) n = None.
+Proof.
+   rewrite /incrementPC_gen /updatePC_gen /=; cbn.
+   destruct (regs !! PC) as [X|]; auto.
+   destruct X as [| [? ? ? ? a' | ] |]; auto.
+   destruct (a' + n)%a; auto. congruence.
+Qed.
 Lemma incrementPC_fail_updatePC regs sregs m :
    incrementPC regs = None ->
    updatePC (regs, sregs, m) = None.
-Proof.
-   rewrite /incrementPC /updatePC /=; cbn.
-   destruct (regs !! PC) as [X|]; auto.
-   destruct X as [| [? ? ? ? a' | ] |]; auto.
-   destruct (a' + 1)%a; auto. congruence.
-Qed.
+Proof. apply incrementPC_gen_fail_updatePC_gen. Qed.
 
+Lemma incrementPC_gen_success_updatePC_gen regs sregs m regs' n :
+  incrementPC_gen regs n = Some regs' ->
+  ∃ p g b e a a',
+    regs !! PC = Some (WCap p g b e a) ∧
+    (a + n)%a = Some a' ∧
+    updatePC_gen (regs, sregs, m) n = Some (NextI, (<[ PC := WCap p g b e a' ]> regs, sregs, m)) ∧
+    regs' = <[ PC := WCap p g b e a' ]> regs.
+Proof.
+  rewrite /incrementPC_gen /updatePC_gen /update_reg /=; cbn.
+  destruct (regs !! PC) as [X|] eqn:?; auto; try congruence; [].
+  destruct X as [| [? ? ? ? a'|]|] eqn:?; try congruence; [].
+  destruct (a' + n)%a eqn:?; [| congruence]. inversion 1; subst regs'.
+  do 6 eexists. repeat split; auto.
+Qed.
 Lemma incrementPC_success_updatePC regs sregs m regs' :
   incrementPC regs = Some regs' ->
   ∃ p g b e a a',
@@ -861,25 +900,19 @@ Lemma incrementPC_success_updatePC regs sregs m regs' :
     (a + 1)%a = Some a' ∧
     updatePC (regs, sregs, m) = Some (NextI, (<[ PC := WCap p g b e a' ]> regs, sregs, m)) ∧
     regs' = <[ PC := WCap p g b e a' ]> regs.
-Proof.
-  rewrite /incrementPC /updatePC /update_reg /=; cbn.
-  destruct (regs !! PC) as [X|] eqn:?; auto; try congruence; [].
-  destruct X as [| [? ? ? ? a'|]|] eqn:?; try congruence; [].
-  destruct (a' + 1)%a eqn:?; [| congruence]. inversion 1; subst regs'.
-  do 6 eexists. repeat split; auto.
-Qed.
+Proof. apply incrementPC_gen_success_updatePC_gen. Qed.
 
-Lemma updatePC_success_incl m m' regs regs' sregs sregs' w :
+Lemma updatePC_gen_success_incl m m' regs regs' sregs sregs' w n :
   regs ⊆ regs' →
-  updatePC (regs, sregs, m) = Some (NextI, (<[ PC := w ]> regs, sregs, m)) →
-  updatePC (regs', sregs', m') = Some (NextI, (<[ PC := w ]> regs', sregs', m')).
+  updatePC_gen (regs, sregs, m) n = Some (NextI, (<[ PC := w ]> regs, sregs, m)) →
+  updatePC_gen (regs', sregs', m') n = Some (NextI, (<[ PC := w ]> regs', sregs', m')).
 Proof.
-  intros * Hincl Hu. rewrite /updatePC /= in Hu |- *.
+  intros * Hincl Hu. rewrite /updatePC_gen /= in Hu |- *.
   cbn in *.
   destruct (regs !! PC) as [ w1 |] eqn:Hrr.
   { pose proof (lookup_weaken _ _ _ _ Hrr Hincl) as Hregs'. rewrite Hregs'.
     destruct w1 as [|[ ? ? ? ? a1|] | ]; simplify_eq.
-    destruct (a1 + 1)%a eqn:Ha1; simplify_eq. rewrite /update_reg /=.
+    destruct (a1 + n)%a eqn:Ha1; simplify_eq. rewrite /update_reg /=.
     f_equal. f_equal.
     assert (HH: forall (reg1 reg2:Reg), reg1 = reg2 -> reg1 !! PC = reg2 !! PC)
       by (intros * ->; auto).
@@ -887,18 +920,31 @@ Proof.
   {  inversion Hu. }
 Qed.
 
+Lemma updatePC_success_incl m m' regs regs' sregs sregs' w :
+  regs ⊆ regs' →
+  updatePC (regs, sregs, m) = Some (NextI, (<[ PC := w ]> regs, sregs, m)) →
+  updatePC (regs', sregs', m') = Some (NextI, (<[ PC := w ]> regs', sregs', m')).
+Proof. apply updatePC_gen_success_incl. Qed.
+
+Lemma updatePC_gen_fail_incl m m' regs regs' sregs sregs' n :
+  is_Some (regs !! PC) →
+  regs ⊆ regs' →
+  updatePC_gen (regs, sregs, m) n = None →
+  updatePC_gen (regs', sregs', m') n = None.
+Proof.
+  intros [w HPC] Hincl Hfail. rewrite /updatePC_gen /= in Hfail |- *.
+  cbn in *.
+  rewrite !HPC in Hfail. have -> := lookup_weaken _ _ _ _ HPC Hincl.
+  destruct w as [| [? ? ? ? a1 | ] |]; simplify_eq; auto;[].
+  destruct (a1 + n)%a; simplify_eq; auto.
+Qed.
+
 Lemma updatePC_fail_incl m m' regs regs' sregs sregs' :
   is_Some (regs !! PC) →
   regs ⊆ regs' →
   updatePC (regs, sregs, m) = None →
   updatePC (regs', sregs', m') = None.
-Proof.
-  intros [w HPC] Hincl Hfail. rewrite /updatePC /= in Hfail |- *.
-  cbn in *.
-  rewrite !HPC in Hfail. have -> := lookup_weaken _ _ _ _ HPC Hincl.
-  destruct w as [| [? ? ? ? a1 | ] |]; simplify_eq; auto;[].
-  destruct (a1 + 1)%a; simplify_eq; auto.
-Qed.
+Proof. apply updatePC_gen_fail_incl. Qed.
 
 Ltac incrementPC_inv :=
   match goal with
@@ -914,4 +960,8 @@ Tactic Notation "incrementPC_inv" "as" simple_intropattern(pat):=
     apply incrementPC_Some_inv in H as pat
   | H : incrementPC _ = None |- _ =>
     eapply incrementPC_None_inv in H
+  | H : incrementPC_gen _ _ = Some _ |- _ =>
+    apply incrementPC_gen_Some_inv in H as pat
+  | H : incrementPC_gen _ _ = None |- _ =>
+    eapply incrementPC_gen_None_inv in H
   end; simplify_eq.

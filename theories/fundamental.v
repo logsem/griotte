@@ -1,4 +1,4 @@
-From cap_machine.ftlr Require Export Jmp Jnz Mov Load Store BinOp Restrict
+From cap_machine.ftlr Require Export Jmp Jnz Jalr Mov Load Store BinOp Restrict
   Subseg Get Lea Seal UnSeal ReadSR WriteSR.
 From cap_machine.ftlr Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
@@ -141,6 +141,13 @@ Section fundamental.
       ;eauto.
     + (* Jnz *)
       iApply (jnz_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto.
+    + (* Jalr *)
+      iApply (jalr_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]

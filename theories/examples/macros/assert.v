@@ -18,20 +18,19 @@ Section Assert.
   Definition assert_subroutine_instrs :=
     encodeInstrsW [
       Sub r_t4 r_t4 r_t5;
-      Mov r_t5 PC;
-      Lea r_t5 6;
-      Jnz r_t5 r_t4;
+      Jnz 4 r_t4;
       (* success case *)
       Mov r_t4 0;
       Mov r_t5 0;
-      Jmp r_t0; (* return *)
+      Jalr r_t0; (* return *)
       (* failure case *)
-      Lea r_t5 6; (* pointer to cap: *)
+      Mov r_t5 PC; (* pointer to cap: *)
+      Lea r_t5 7; (* pointer to cap: *)
       Load r_t5 r_t5;
       Store r_t5 1;
       Mov r_t4 0;
       Mov r_t5 0;
-      Jmp r_t0 (* return *)
+      Jalr r_t0 (* return *)
     ].
   (* followed in memory by:
     cap: (RW, flag, end, flag)
@@ -52,12 +51,14 @@ Section Assert.
     (  na_inv logrel_nais N (assert_inv b a_flag e)
      ∗ na_own logrel_nais E
      ∗ PC ↦ᵣ WCap RX g b e b
+     ∗ (∃ wcra, cra ↦ᵣ wcra)
      ∗ r_t0 ↦ᵣ cont
      ∗ r_t4 ↦ᵣ WInt n1
      ∗ r_t5 ↦ᵣ WInt n2
      ∗ a_flag ↦ₐ WInt flag
      ∗ ▷ (na_own logrel_nais E
           ∗ PC ↦ᵣ updatePcPerm cont
+          ∗ (∃ wcra, cra ↦ᵣ wcra)
           ∗ r_t0 ↦ᵣ cont
           ∗ r_t4 ↦ᵣ WInt 0
           ∗ r_t5 ↦ᵣ WInt 0
@@ -65,12 +66,13 @@ Section Assert.
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
-    iIntros (HNE) "(#Hinv & Hna & HPC & Hr0 & Hr1 & Hr2 & Hflag & Hφ)".
+    iIntros (HNE) "(#Hinv & Hna & HPC & Hcra & Hr0 & Hr1 & Hr2 & Hflag & Hφ)".
+    iDestruct "Hcra" as (wcra) "Hcra".
     iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
     rewrite /assert_subroutine_instrs. codefrag_facts "Hprog".
     assert (SubBounds b e b (b ^+ length assert_subroutine_instrs)%a) by solve_addr.
-    do 3 iInstr "Hprog".
+    iInstr "Hprog".
     destruct (decide (n1 = n2)).
     { (* n1 = n2 *)
       subst n2. rewrite (_: n1 - n1 = 0)%Z; last lia.
@@ -81,7 +83,8 @@ Section Assert.
     { (* n1 ≠ n2 *)
       iInstr "Hprog". { assert (n1 - n2 ≠ 0)%Z by lia. congruence. }
       iInstr "Hprog".
-      rewrite (_: (b ^+ 13)%a = cap_addr); [|solve_addr].
+      iInstr "Hprog".
+      rewrite (_: (b ^+ 12)%a = cap_addr); [|solve_addr].
       iInstr "Hprog"; first solve_addr.
       iInstr "Hprog"; first solve_addr.
       iGo "Hprog".
@@ -97,23 +100,27 @@ Section Assert.
     (  na_inv logrel_nais N (assert_inv b a_flag e)
      ∗ na_own logrel_nais E
      ∗ PC ↦ᵣ WCap RX g b e b
+     ∗ (∃ wcra, cra ↦ᵣ wcra)
      ∗ r_t0 ↦ᵣ cont
      ∗ r_t4 ↦ᵣ WInt n1
      ∗ r_t5 ↦ᵣ WInt n2
      ∗ ▷ (na_own logrel_nais E
           ∗ PC ↦ᵣ updatePcPerm cont
+          ∗ (∃ wcra, cra ↦ᵣ wcra)
           ∗ r_t0 ↦ᵣ cont
           ∗ r_t4 ↦ᵣ WInt 0
           ∗ r_t5 ↦ᵣ WInt 0
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
-    iIntros (HNE Heq) "(#Hinv & Hna & HPC & Hr0 & Hr1 & Hr2 & Hφ)".
+    iIntros (HNE Heq) "(#Hinv & Hna & HPC & Hcra & Hr0 & Hr1 & Hr2 & Hφ)".
+    iDestruct "Hcra" as (wcra) "Hcra".
     iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
     rewrite /assert_subroutine_instrs. codefrag_facts "Hprog".
     assert (SubBounds b e b (b ^+ length assert_subroutine_instrs)%a) by solve_addr.
-    do 3 iInstr "Hprog". rewrite (_: n1 - n2 = 0)%Z; last lia.
+    iInstr "Hprog".
+    rewrite (_: n1 - n2 = 0)%Z; last lia.
     iGo "Hprog".
     iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
     { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
