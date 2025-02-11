@@ -26,8 +26,8 @@ Section fundamental.
 
   Lemma jnz_case (W : WORLD) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:D):
-    ftlr_instr W regs p p' g b e a w (Jnz rdst rsrc) ρ P.
+    (w : Word) (ρ : region_type) (rimm rcond : RegName) (P:D):
+    ftlr_instr W regs p p' g b e a w (Jnz rimm rcond) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
@@ -39,7 +39,7 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ | wsrc regs' Hrsrc Hnz Hincr |  wsrc wdst Hrsrc Hrdst Hnz ].
+    destruct HSpec as [ regs' wcond Hrcond Hnz Hincr | regs' imm wcond Hrcond Hnz Hrimm HincrPC | ]; cycle 2.
     {
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto. iIntros; discriminate.
@@ -56,62 +56,14 @@ Section fundamental.
     }
 
     map_simpl "Hmap".
-    iApply wp_pure_step_later; auto.
-    destruct (updatePcPerm wdst) eqn:Hwdst ; [ | destruct sb | ]; cycle 1.
-    { destruct (executeAllowed p0) eqn:Hpft; cycle 1.
-      { iNext; iIntros "_".
-        iApply (wp_bind (fill [SeqCtx])).
-        iExtract "Hmap" PC as "HPC".
-        iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
-        iNext; iIntros "HPC /=".
-        iApply wp_pure_step_later; auto; iNext; iIntros "_".
-        iApply wp_value; iIntros; discriminate.
-      }
-
-      destruct_word wdst; cbn in Hwdst; try discriminate.
-      destruct c; inv Hwdst.
-      { iNext ; iIntros "_".
-        iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-        iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
-        - destruct (decide (rdst = PC)) as [HrdstPC|HrdstPC].
-          + simplify_map_eq; auto.
-          + simplify_map_eq.
-            iDestruct ("Hreg" $! rdst _ HrdstPC Hrdst) as "Hrdst"; eauto.
-      }
-      { assert (rdst <> PC) as HPCnrdst.
-        { intro; subst rdst; simplify_map_eq.
-          destruct Hp as [Hexec _]
-          ; eapply executeAllowed_nonSentry in Hexec
-          ; eauto ; cbn in Hexec
-          ; naive_solver.
-        }
-        simplify_map_eq.
-        iDestruct ("Hreg" $! rdst _ HPCnrdst Hrdst) as "Hwdst".
-        iEval (rewrite fixpoint_interp1_eq) in "Hwdst".
-        simpl; rewrite /enter_cond.
-        iDestruct "Hwdst" as "#Hinterp_dst".
-        iAssert (future_world g0 W W) as "Hfuture".
-        { iApply futureworld_refl. }
-
-        iSpecialize ("Hinterp_dst" with "Hfuture").
-        iDestruct "Hinterp_dst" as "[Hinterp_dst _]".
-        iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-        iDestruct ("Hinterp_dst" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
-          iFrame "#%".
-      }
-    }
-
-    (* Non-capability cases *)
-    all: iExtract "Hmap" PC as "HPC".
-    all: iNext; iIntros "_".
-    all: iApply (wp_bind (fill [SeqCtx])).
-    all: iApply (wp_notCorrectPC with "HPC"); [intro Hcontra ; inv Hcontra|].
-    all: iNext; iIntros "HPC /=".
-    all: iApply wp_pure_step_later; auto; iNext; iIntros "_".
-    all: iApply wp_value; iIntros; discriminate.
+    incrementPC_inv as (p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
+    rewrite insert_insert.
+    iApply wp_pure_step_later; auto. iNext; iIntros "_".
+    iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
+    { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+    iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
+    iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity.
+    by eapply isCorrectPC_nonSentry.
   Qed.
-
 
 End fundamental.
