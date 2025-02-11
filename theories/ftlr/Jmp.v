@@ -26,8 +26,8 @@ Section fundamental.
 
   Lemma jmp_case (W : WORLD) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rdst : RegName) (P:D):
-    ftlr_instr W regs p p' g b e a w (Jmp rdst) ρ P.
+    (w : Word) (ρ : region_type) (rimm : Z + RegName) (P:D):
+    ftlr_instr W regs p p' g b e a w (Jmp rimm) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".

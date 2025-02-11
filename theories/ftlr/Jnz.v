@@ -26,7 +26,7 @@ Section fundamental.
 
   Lemma jnz_case (W : WORLD) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rimm rcond : RegName) (P:D):
+    (w : Word) (ρ : region_type) (rimm : Z + RegName) (rcond : RegName) (P:D):
     ftlr_instr W regs p p' g b e a w (Jnz rimm rcond) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
