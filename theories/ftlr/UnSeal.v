@@ -40,11 +40,11 @@ Section fundamental.
     iDestruct "HVsr" as "[_ Hss]".
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
-    iDestruct "HSa0" as (P) "[HsealP HWcond]".
-    iDestruct "HVsd" as (P') "[% [HsealP' [HP' HPborrowed' ] ] ]".
+    iDestruct "HSa0" as (P) "( #Hmono & HsealP & HWcond)".
+    iDestruct "HVsd" as (P') "(% & #Hmono' & HsealP' & HP' & HPborrowed')".
     iDestruct (seal_pred_agree with "HsealP HsealP'") as "Hequiv".
-    Unshelve. 2: exact W.
-    iSpecialize ("Hequiv" $! (WSealable sb)).
+    iSpecialize ("Hequiv" $! (W,(WSealable sb))).
+    rewrite /safeC /=.
     iAssert (▷ P W (WSealable sb))%I as "HP". { iNext; by iRewrite "Hequiv". }
     by iApply "HWcond".
   Qed.

@@ -202,16 +202,39 @@ Section monotone.
     - iDestruct (monoReq_mono_pub_nwl with "HmonoR") as "HmonoR'"; eauto.
   Qed.
 
+  Lemma interp_monotone_sd W W' ot sb :
+    ⌜related_sts_priv_world W W'⌝ -∗
+    interp W (WSealed ot sb) -∗ interp W' (WSealed ot sb).
+  Proof.
+    iIntros (Hrelated) "#Hinterp".
+    rewrite !fixpoint_interp1_eq /= /interp_sb.
+    iDestruct "Hinterp" as (P Hpers) "(Hmono & Hseal_pred & HP & HPborrowed)".
+    iFrame "#%".
+    iApply later_sep_1; iNext.
+    iDestruct ("Hmono" $! _ W W' with "[] [$HP]") as "HP'"
+    ; rewrite /safeC /=
+    ; eauto.
+    iDestruct ("Hmono" $! _ W W' with "[] [$HPborrowed]") as "HPborrowed'"
+    ; rewrite /safeC /=
+    ; eauto.
+    iFrame "#".
+  Qed.
+
   Lemma interp_monotone W W' w :
     ⌜related_sts_pub_world W W'⌝ -∗
     interp W w -∗ interp W' w.
   Proof.
     iIntros (Hrelated) "#Hw".
-    rewrite /interp /= fixpoint_interp1_eq /=.
-    destruct w; rewrite fixpoint_interp1_eq /=; auto.
-    destruct sb; auto.
+    destruct w; cycle 2.
+    { apply related_sts_pub_priv_world in Hrelated.
+      iApply (interp_monotone_sd with "[] [$Hw]"); eauto.
+    }
+    { rewrite !fixpoint_interp1_eq /=; auto. }
+    destruct sb; cycle 1.
+    { rewrite !fixpoint_interp1_eq /=; auto. }
     destruct p eqn:Hp;auto; cycle 1.
-    { iModIntro. iIntros (r W'').
+    { rewrite !fixpoint_interp1_eq /=.
+      iModIntro. iIntros (r W'').
       destruct g; simpl.
       + iIntros (Hrelated').
         iAssert (future_world Global W W'')%I as "Hrelated".
@@ -224,7 +247,7 @@ Section monotone.
         iSpecialize ("Hw" $! r W'' with "Hrelated").
         iApply "Hw".
     }
-    destruct rx,w; auto.
+    destruct rx,w; rewrite !fixpoint_interp1_eq /=; auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
       iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
@@ -284,19 +307,22 @@ Section monotone.
     -∗ interp W w -∗ interp W' w.
   Proof.
     iIntros (Hrelated Hnl) "#Hw".
-    rewrite /interp /= fixpoint_interp1_eq /=.
-    destruct w; rewrite fixpoint_interp1_eq /=; auto.
-    destruct sb; auto.
+    destruct w; cycle 2.
+    { iApply (interp_monotone_sd with "[] [$Hw]"); eauto. }
+    { rewrite !fixpoint_interp1_eq /=; auto. }
+    destruct sb; cycle 1.
+    { rewrite !fixpoint_interp1_eq /=; auto. }
     destruct g ; cbn in Hnl ; try done.
     destruct p eqn:Hp;auto; cycle 1.
-    { iModIntro. iIntros (r W'').
+    { rewrite !fixpoint_interp1_eq /=.
+      iModIntro. iIntros (r W'').
       iIntros (Hrelated').
       iAssert (future_world Global W W'')%I as "Hrelated".
       { iPureIntro. apply related_sts_priv_trans_world with W'; auto. }
       iSpecialize ("Hw" $! r W'' with "Hrelated").
       iApply "Hw".
     }
-    destruct rx,w; auto.
+    destruct rx,w; rewrite !fixpoint_interp1_eq /=; auto.
     - iApply (big_sepL_mono with "Hw").
       iIntros (n y Hsome) "Hw".
       iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)".
@@ -410,24 +436,6 @@ Proof.
     by iApply interp_monotone_nl.
 Qed.
 
-Lemma interp_monotone_generalSd (W : WORLD) (ρ : region_type)
-  (p p' : Perm) (g : Locality) (b e a : Addr)
-  (ot : OType) (sb : Sealable) :
-  std W !! a = Some ρ →
-  withinBounds b e a = true →
-  PermFlowsTo p p' →
-  interp W (WCap p g b e a) -∗
-  monotonicity_guarantees_region ρ (WSealed ot sb) p' interpC.
-Proof.
-  unfold monotonicity_guarantees_region.
-  iIntros (Hstd Hwb Hfl') "#Hvdst".
-  destruct ρ;auto.
-  - destruct (isWL p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
-  - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
-Qed.
-
 Lemma interp_monotone_generalSr (W : WORLD) (ρ : region_type)
   (p p' : Perm) (g : Locality) (b e a : Addr)
   (sp : SealPerms) (sg : Locality) (sb se sa : OType) :
@@ -444,6 +452,26 @@ Proof.
     all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
   - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
     all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
+Qed.
+
+Lemma interp_monotone_generalSd (W : WORLD) (ρ : region_type)
+  (p p' : Perm) (g : Locality) (b e a : Addr)
+  (ot : OType) (sb : Sealable) :
+  std W !! a = Some ρ →
+  withinBounds b e a = true →
+  PermFlowsTo p p' →
+  interp W (WCap p g b e a) -∗
+  monotonicity_guarantees_region ρ (WSealed ot sb) p' interpC.
+Proof.
+  unfold monotonicity_guarantees_region.
+  iIntros (Hstd Hwb Hfl') "#Hvdst".
+  destruct ρ;auto.
+  - destruct (isWL p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
+    * apply related_sts_pub_priv_world in Hrelated.
+      iApply interp_monotone_sd; eauto.
+    * iApply interp_monotone_sd; eauto.
+  - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
+    iApply interp_monotone_sd; eauto.
 Qed.
 
 End monotone.

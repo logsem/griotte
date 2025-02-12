@@ -40,8 +40,8 @@ Section fundamental.
     iDestruct "HVsr" as "[Hss _]".
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
-    iDestruct "HSa0" as (P) "[% [HsealP HWcond]]".
-    iExists (P W).
+    iDestruct "HSa0" as (P) "(% & #Hmono & HsealP & HWcond)".
+    iExists P.
     repeat iSplitR; auto.
     by iApply "HWcond".
     by iApply "HWcond".
