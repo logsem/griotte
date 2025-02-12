@@ -40,7 +40,12 @@ Section heap.
                | Temporary => Revoked
                | _ => v
                end).
-  Definition revoke WC : CVIEW := (revoke_std_sta (std WC), loc WC).
+  Definition revoke (WC : CVIEW) : CVIEW := (revoke_std_sta (std WC), loc WC).
+  Definition revoke_C (W : WORLD) (C : CmptName) : WORLD :=
+    match W !! C with
+    | Some WC => <[C := revoke WC]> W
+    | None => W
+    end.
 
   (* A weaker revocation which only revokes elements from a list *)
   Fixpoint revoke_list_std_sta (l : list Addr) (fs : STS_STD) : STS_STD :=
@@ -55,6 +60,11 @@ Section heap.
                end
     end.
   Definition revoke_list l WC : CVIEW := ((revoke_list_std_sta l (std WC)), loc WC).
+  Definition revoke_list_C l (W : WORLD) (C : CmptName) : WORLD :=
+    match W !! C with
+    | Some WC => <[C := revoke_list l WC]> W
+    | None => W
+    end.
 
   Lemma related_sts_pub_world_fresh WC a ρ :
     a ∉ dom (std WC) →
@@ -831,13 +841,15 @@ Section heap.
   (* ------------------- IF THΕ FULL STS IS REVOKED, WΕ CAN REVOKE REGION ------------------- *)
 
   (* Note that Mρ by definition matches up with the full sts. Mρ starts out by being indirectly revoked *)
-  Lemma monotone_revoke_region_def W WC MC Mρ :
-    ⌜dom (std WC) = dom MC⌝ -∗
-     sts_full_world (revoke WC) -∗ region_map_def W C  M Mρ W -∗
-     sts_full_world (revoke W) ∗ region_map_def M Mρ (revoke W).
+  Lemma monotone_revoke_region_def W C WC MC Mρ :
+    ⌜W !! C = Some WC⌝
+    -∗ ⌜dom (std WC) = dom MC⌝
+    -∗ sts_full_world (revoke WC)
+    -∗ region_map_def W C MC Mρ
+    -∗ sts_full_world (revoke WC) ∗ region_map_def (revoke_C W C) C MC Mρ.
   Proof.
-    destruct W as [Wstd_sta Wloc].
-    iIntros (Hdom) "Hfull Hr".
+    destruct WC as [Wstd_sta Wloc].
+    iIntros (HWC Hdom) "Hfull Hr".
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
     iDestruct (big_sepM2_sep with "Hr") as "[Hstates Hr]".
@@ -860,20 +872,28 @@ Section heap.
     iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     iFrame "∗%#".
     iNext. iApply ("HmonoV" with "[] Hφ").
-    iPureIntro. apply revoke_related_sts_priv.
+    iPureIntro. split; eauto.
+    split; last apply revoke_related_sts_priv.
+    by rewrite /revoke_C HWC lookup_insert.
     Unshelve. apply _.
   Qed.
 
   (* ---------------------------------------------------------------------------------------- *)
   (* ------------------- A REVOKED W IS MONOTONE WRT PRIVATE FUTURE WORLD ------------------- *)
 
-  Lemma monotone_revoke_cond_region_def_mono M Mρ W W1 W2 :
-    ⌜revoke_condition W⌝ -∗
-    ⌜related_sts_priv_world W1 W2⌝ -∗
-     sts_full_world W -∗ region_map_def M Mρ W1 -∗
-     sts_full_world W ∗ region_map_def M Mρ W2.
+  Lemma monotone_revoke_cond_region_def_mono
+    (W W1 W2: WORLD) (C : CmptName) (WC WC1 WC2: CVIEW)
+    (MC : gmap Addr (gname * Perm)) (Mρ : gmap Addr region_type) :
+    ⌜W !! C = Some WC⌝
+    -∗ ⌜W1 !! C = Some WC1⌝
+    -∗ ⌜W2 !! C = Some WC2⌝
+    -∗ ⌜revoke_condition WC⌝
+    -∗ ⌜related_sts_priv_world WC1 WC2⌝
+    -∗ sts_full_world WC
+    -∗ region_map_def W1 C MC Mρ
+    -∗ sts_full_world WC ∗ region_map_def W2 C MC Mρ.
   Proof.
-    iIntros (Hcond Hrelated) "Hfull Hr".
+    iIntros (HWC HWC1 HWC2 Hcond Hrelated) "Hfull Hr".
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
     iAssert (∀ a ρ, ⌜m' !! a = Some ρ⌝ → ⌜ρ ≠ Temporary⌝)%I as %Hmonotemp.
@@ -897,48 +917,70 @@ Section heap.
     Unshelve. apply _.
   Qed.
 
-  Lemma monotone_revoke_list_region_def_mono M Mρ W W1 W2 :
-    ⌜related_sts_priv_world W1 W2⌝ -∗
-     sts_full_world (revoke W) -∗ region_map_def M Mρ W1 -∗
-     sts_full_world (revoke W) ∗ region_map_def M Mρ W2.
+  Lemma monotone_revoke_list_region_def_mono
+    (W W1 W2: WORLD) (C : CmptName) (WC WC1 WC2: CVIEW)
+    (MC : gmap Addr (gname * Perm)) (Mρ : gmap Addr region_type) :
+    ⌜W !! C = Some WC⌝
+    -∗ ⌜W1 !! C = Some WC1⌝
+    -∗ ⌜W2 !! C = Some WC2⌝
+    -∗ ⌜related_sts_priv_world WC1 WC2⌝
+    -∗ sts_full_world (revoke WC)
+    -∗ region_map_def W1 C MC Mρ
+    -∗ sts_full_world (revoke WC) ∗ region_map_def W2 C MC Mρ.
   Proof.
-    iIntros (Hrelated) "Hfull Hr".
-    pose proof (revoke_conditions_sat W).
-    iApply (monotone_revoke_cond_region_def_mono with "[] [] Hfull Hr");auto.
+    iIntros (HWC HWC1 HWC2 Hrelated) "Hfull Hr".
+    pose proof (revoke_conditions_sat WC).
+    iApply (monotone_revoke_cond_region_def_mono with "[] [] [] [] [] Hfull Hr");auto.
+    Unshelve. 2: exact (revoke_C W C).
+    iPureIntro. rewrite /revoke_C HWC lookup_insert //.
   Qed.
 
-  Lemma monotone_revoke_cond_region_def_mono_same M Mρ W W' :
-    ⌜revoke_condition W⌝ -∗
-    ⌜related_sts_priv_world W W'⌝ -∗
-     sts_full_world W -∗ region_map_def M Mρ W -∗
-     sts_full_world W ∗ region_map_def M Mρ W'.
+  Lemma monotone_revoke_cond_region_def_mono_same
+    (W W': WORLD) (C : CmptName) (WC WC': CVIEW)
+    (MC : gmap Addr (gname * Perm)) (Mρ : gmap Addr region_type) :
+    ⌜W !! C = Some WC⌝
+    -∗ ⌜W' !! C = Some WC'⌝
+    -∗ ⌜revoke_condition WC⌝
+    -∗ ⌜related_sts_priv_world WC WC'⌝
+    -∗ sts_full_world WC
+    -∗ region_map_def W C MC Mρ
+    -∗ sts_full_world WC ∗ region_map_def W' C MC Mρ.
   Proof.
-    iIntros (Hcond Hrelated) "Hfull Hr".
-    iApply (monotone_revoke_cond_region_def_mono with "[] [] Hfull Hr");auto.
+    iIntros (HWC JWC' Hcond Hrelated) "Hfull Hr".
+    iApply (monotone_revoke_cond_region_def_mono with "[] [] [] [] [] Hfull Hr");auto.
   Qed.
 
-  Lemma monotone_revoke_list_region_def_mono_same M Mρ W W' :
-    ⌜related_sts_priv_world W W'⌝ -∗
-     sts_full_world (revoke W) -∗ region_map_def M Mρ (revoke W) -∗
-     sts_full_world (revoke W) ∗ region_map_def M Mρ (revoke W').
+  Lemma monotone_revoke_list_region_def_mono_same
+    (W W': WORLD) (C : CmptName) (WC WC': CVIEW)
+    (MC : gmap Addr (gname * Perm)) (Mρ : gmap Addr region_type) :
+    ⌜W !! C = Some WC⌝
+    -∗ ⌜W' !! C = Some WC'⌝
+    -∗ ⌜related_sts_priv_world WC WC'⌝
+    -∗ sts_full_world (revoke WC)
+    -∗ region_map_def (revoke_C W C) C MC Mρ
+    -∗ sts_full_world (revoke WC) ∗ region_map_def (revoke_C W' C) C MC Mρ.
   Proof.
-    iIntros (Hrelated) "Hfull Hr".
-    iApply (monotone_revoke_list_region_def_mono with "[] Hfull Hr").
-    iPureIntro. apply revoke_monotone; auto.
+    iIntros (HWC HWC' Hrelated) "Hfull Hr".
+    iApply (monotone_revoke_list_region_def_mono _ _ _ _ _ (revoke WC) (revoke WC')
+             with "[] [] [] [] Hfull Hr")
+    ; first eauto.
+    - iPureIntro;rewrite /revoke_C HWC lookup_insert //.
+    - iPureIntro;rewrite /revoke_C HWC' lookup_insert //.
+    - iPureIntro; apply revoke_monotone; auto.
   Qed.
 
   (* ---------------------------------------------------------------------------------------- *)
   (* ---------------- IF WΕ HAVE THE REGION, THEN WE CAN REVOKE THE FULL STS ---------------- *)
 
   (* This matches the temprary resources in the map *)
-  Definition temp_resources (W : WORLD) φ (a : Addr) (p : Perm) : iProp Σ :=
+  Definition temp_resources (W : WORLD) (C : CmptName) φ (a : Addr) (p : Perm) : iProp Σ :=
     (∃ (v : Word),
            ⌜isO p = false⌝
           ∗ a ↦ₐ v
           ∗ (if isWL p
-             then future_pub_mono φ v
-             else future_priv_mono φ v)
-          ∗ φ (W,v))%I.
+             then future_pub_mono C φ v
+             else future_priv_mono C φ v)
+          ∗ φ (W,C,v))%I.
 
   Lemma reg_get (γ : gname) (R : relT) (n : Addr) (r : leibnizO (gname * Perm)) :
     own γ (● (to_agree <$> R : relUR)) ∧ ⌜R !! n = Some r⌝ ==∗

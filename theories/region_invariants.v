@@ -361,9 +361,9 @@ Section heap.
   Definition region_map_def
     (W : WORLD)
     (C : CmptName)
-    (M : gmap Addr (gname * Perm))
+    (MC : gmap Addr (gname * Perm))
     (Mρ: gmap Addr region_type) :=
-    ([∗ map] a↦γp ∈ M,
+    ([∗ map] a↦γp ∈ MC,
        ∃ ρ, ⌜Mρ !! a = Some ρ⌝
             ∗ sts_state_std a ρ
             ∗ ∃ γpred p φ, ⌜γp = (γpred,p)⌝
