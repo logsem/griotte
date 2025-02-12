@@ -238,26 +238,33 @@ Program Definition interp_expr (interp : D) r : D :=
 
   (* (un)seal permission definitions *)
   (* Note the asymmetry: to seal values, we need to know that we are using a persistent predicate to create a value, whereas we do not need this information when unsealing values (it is provided by the `interp_sb` case). *)
-  Definition safe_to_seal (interp : D) (b e : OType) : iPropO Σ :=
+  Definition safe_to_seal (W : WORLD) (interp : D) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
-       ∃ P : D,  ⌜∀ w W, Persistent (P W w)⌝ ∗ (∀ W, seal_pred a (P W)) ∗ ▷ wcond P interp)%I.
-  Definition safe_to_unseal (interp : D) (b e : OType) : iPropO Σ :=
+       ∃ P : D, ⌜persistent_cond P⌝
+                ∗ (∀ w, future_priv_mono (safeC P) w)
+                ∗ (seal_pred a (safeC P))
+                ∗ ▷ wcond P interp)%I.
+  Definition safe_to_unseal (W : WORLD) (interp : D) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
-       ∃ P : D, (∀ W, seal_pred a (P W)) ∗ ▷ rcond RO P interp)%I.
+       ∃ P : D, (∀ w, future_priv_mono (safeC P) w)
+                ∗ (seal_pred a (safeC P))
+                ∗ ▷ rcond RO P interp)%I.
 
   Program Definition interp_sr (interp : D) : D :=
     λne W w, (match w with
     | WSealRange p g b e a =>
-    (if permit_seal p then safe_to_seal interp b e else True)
-    ∗ (if permit_unseal p then safe_to_unseal interp b e else True)
+    (if permit_seal p then safe_to_seal W interp b e else True)
+    ∗ (if permit_unseal p then safe_to_unseal W interp b e else True)
     | _ => False end ) %I.
   Solve All Obligations with solve_proper.
 
-  Program Definition interp_sb (o : OType) (w : Word) :=
-    (∃ P : Word → iPropI Σ,  ⌜∀ w, Persistent (P w)⌝
-                                   ∗ seal_pred o P
-                                   ∗ ▷ P w
-                                   ∗ ▷ P (borrow w)
+  Program Definition interp_sb (W : WORLD) (o : OType) (w : Word) :=
+    (∃ (P : D) ,
+        ⌜persistent_cond P⌝
+        ∗ (∀ w, future_priv_mono (safeC P) w)
+        ∗ seal_pred o (safeC P)
+        ∗ ▷ P W w
+        ∗ ▷ P W (borrow w)
     )%I.
 
   Definition interp_False : D := λne _ _, False%I.
@@ -270,7 +277,7 @@ Program Definition interp_expr (interp : D) r : D :=
     | WCap (E _ _ _ _) g b e a => interp_cap_E interp W w
     | WCap _ g b e a => interp_cap interp W w
     | WSealRange p g b e a => interp_sr interp W w
-    | WSealed o sb => interp_sb o (WSealable sb)
+    | WSealed o sb => interp_sb W o (WSealable sb)
     end)%I.
   Solve All Obligations with solve_proper.
 
@@ -321,7 +328,7 @@ Program Definition interp_expr (interp : D) r : D :=
         par: by apply interp_cap_contractive.
    + by apply interp_sr_contractive.
    + rewrite /interp_sb; solve_contractive.
-  Admitted. (* TODO holds, but very loooong *)
+  Qed. (* TODO holds, but very loooong *)
 
   Lemma fixpoint_interp1_eq (W : WORLD) (x : leibnizO Word) :
     fixpoint (interp1) W x ≡ interp1 (fixpoint (interp1)) W x.
@@ -339,16 +346,21 @@ Program Definition interp_expr (interp : D) r : D :=
     (* - destruct_perm c ; destruct g; repeat (apply exist_persistent; intros); try apply _. *)
     (* - destruct (permit_seal sr), (permit_unseal sr); rewrite /safe_to_seal /safe_to_unseal; apply _ . *)
     (* - apply exist_persistent; intros P. *)
-    (*   unfold Persistent. iIntros "(Hpers & #Hs & HP & HPborrowed)". *)
-    (*   iDestruct "Hpers" as %Hpers. *)
+    (*   unfold Persistent. iIntros "(%Hpers & #Hmono & #Hs & HP & HPborrowed)". *)
     (*   (* use knowledge about persistence *) *)
-    (*   iAssert (<pers> ▷ P (WSealable sb))%I with "[ HP ]" as "HP". *)
-    (*   { iApply later_persistently_1. by iApply Hpers.  } *)
-    (*   iAssert (<pers> ▷ P (borrow (WSealable sb)))%I with "[ HPborrowed ]" as "HPborrowed". *)
-    (*   { iApply later_persistently_1. by iApply Hpers.  } *)
+    (*   iAssert (<pers> ▷ P W (WSealable sb))%I with "[ HP ]" as "HP". *)
+    (*   { iApply later_persistently_1. *)
+    (*     ospecialize (Hpers (W,_)); cbn in Hpers. *)
+    (*     by iApply persistent_persistently_2. *)
+    (*   } *)
+    (*   iAssert (<pers> ▷ P W (borrow (WSealable sb)))%I with "[ HPborrowed ]" as "HPborrowed". *)
+    (*   { iApply later_persistently_1. *)
+    (*     ospecialize (Hpers (W,_)); cbn in Hpers. *)
+    (*     by iApply persistent_persistently_2. *)
+    (*   } *)
     (*   iApply persistently_sep_2; iSplitR; auto. *)
-    (*   iApply persistently_sep_2; auto; iFrame "Hs". *)
-    (*   iApply persistently_sep_2; auto. *)
+    (*   iApply persistently_sep_2; iSplitR; auto; iFrame "Hs". *)
+    (*   iApply persistently_sep_2;iFrame. *)
   Admitted. (* TODO holds, but very loooong *)
 
   (* Non-curried version of interp *)

@@ -280,11 +280,11 @@ Section fundamental.
     iApply interp_weakeningEO; eauto; try solve_addr; try done.
   Qed.
 
-  Lemma safe_to_unseal_weakening b e b' e':
+  Lemma safe_to_unseal_weakening W b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
-    safe_to_unseal interp b e -∗
-    safe_to_unseal interp b' e'.
+    safe_to_unseal W interp b e -∗
+    safe_to_unseal W interp b' e'.
   Proof.
     iIntros (Hb He) "HA".
     rewrite /safe_to_unseal.
@@ -294,11 +294,11 @@ Section fundamental.
     - iClear "HA"; rewrite !finz_seq_between_empty;[done |solve_addr].
   Qed.
 
-  Lemma safe_to_seal_weakening b e b' e':
+  Lemma safe_to_seal_weakening W b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
-    safe_to_seal interp b e -∗
-    safe_to_seal interp b' e'.
+    safe_to_seal W interp b e -∗
+    safe_to_seal W interp b' e'.
   Proof.
     iIntros (Hb He) "HA".
     rewrite /safe_to_seal.
@@ -322,6 +322,7 @@ Section fundamental.
   all: destruct (permit_unseal p') eqn:Hunseal; [eapply (permit_unseal_flowsto _ p) in Hunseal as ->; auto | ]; iDestruct "HA" as "[Hs Hus]".
   all: iSplitL "Hs";
   [try iApply (safe_to_seal_weakening with "Hs") | try iApply (safe_to_unseal_weakening with "Hus")]; auto.
+  Unshelve. all: exact W.
   Qed.
 
   Lemma interp_borrowed_sealed (W : WORLD) (ot : OType) (sb : Sealable) :
@@ -329,7 +330,8 @@ Section fundamental.
   Proof.
     iIntros "Hinterp".
     rewrite !fixpoint_interp1_eq /= /interp_sb.
-    iDestruct "Hinterp" as (P HpersP) "(Hsealpred & _ & HPborrowed)".
+    iDestruct "Hinterp" as (P HpersP) "(Hmono & Hsealpred & _ & HPborrowed)".
+    opose proof (HpersP (W,_)) as HpersPborrowed; cbn in HpersPborrowed.
     iDestruct "HPborrowed" as "#HPborrowed".
     replace (borrow (WSealable (borrow_sb sb)))
       with (WSealable (borrow_sb sb)).

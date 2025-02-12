@@ -2,6 +2,7 @@ From iris.algebra Require Import gmap auth excl csum.
 From iris.base_logic Require Import lib.own saved_prop.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import cap_lang stdpp_extra.
+From cap_machine Require Export region_invariants.
 
 
 (* No Excl' here: do not want the valid option element, as this disallows us from changing the branch in the sum type *)
@@ -19,16 +20,17 @@ Qed.
 
 Class sealStoreG Σ := SealStoreG { (* Create record constructor for typeclass *)
     SG_sealStore ::  inG Σ (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)));
-    SG_storedPreds ::  savedPredG Σ Word;
+    (* SG_storedPreds ::  savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word); *)
     SG_sealN : gname;
 }.
 
 Definition sealStorePreΣ :=
-  #[ GFunctor (gmapUR OType (csumR (exclR unitO) (agreeR gnameO))); savedPredΣ Word].
+  #[ GFunctor (gmapUR OType (csumR (exclR unitO) (agreeR gnameO))) ].
+     (* ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word)]. *)
 
 Class sealStorePreG Σ := {
     SG_sealStorePre ::  inG Σ (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)));
-    SG_storedPredsPre ::  savedPredG Σ Word;
+    (* SG_storedPredsPre ::  savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word); *)
 }.
 
 Instance sealStoreG_preG `{sealStoreG Σ} : sealStorePreG Σ.
@@ -59,9 +61,14 @@ Proof.
 Qed.
 
 Section Store.
-  Context `{!sealStoreG Σ}.
+  Context `{!sealStoreG Σ}
+      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ} .
+  Notation STS := (leibnizO (STS_states * STS_rels)).
+  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
+  Notation WORLD := (prodO STS_STD STS).
+  Implicit Types W : WORLD.
 
-  Definition seal_pred (o : OType) (P : Word → iProp Σ) :=
+  Definition seal_pred (o : OType) (P : WORLD * Word → iProp Σ) :=
     (∃ γpred: gname, own SG_sealN ({[o := Cinr (to_agree γpred)]})
                      ∗ saved_pred_own γpred DfracDiscarded P)%I.
   Global Instance seal_pred_persistent i P : Persistent (seal_pred i P).
@@ -81,7 +88,7 @@ Section Store.
     iIntros (x). iApply (saved_pred_agree with "Hpred1 Hpred2").
   Qed.
 
-  Lemma seal_store_update_alloc (o : OType) (P : Word → iProp Σ):
+  Lemma seal_store_update_alloc (o : OType) (P : WORLD * Word → iProp Σ):
    can_alloc_pred o ==∗ seal_pred o P.
   Proof.
     rewrite /seal_pred /can_alloc_pred.
@@ -98,13 +105,13 @@ Section Store.
 End Store.
 
 (* Initialize the seal store under an arbitrary name *)
-Lemma seal_store_init `{sealStorePreG Σ'} oset:
+Lemma seal_store_init `{sealStorePreG Σ'}  oset:
  ⊢ (|==> ∃ (_ : sealStoreG Σ'), ([∗ set] o ∈ oset, can_alloc_pred o) : iProp Σ')%I.
 Proof.
   iMod (own_alloc (A:= (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)))) ((gset_to_gmap (Cinl (Excl ())) oset): gmap OType (csumR (exclR unitO) (agreeR gnameO)))) as (γ) "H".
   { intros i. destruct (gset_to_gmap _ _ !! i) eqn:Heq; last done.
     apply lookup_gset_to_gmap_Some in Heq. by destruct Heq as [_ <-]. }
-  iModIntro. iExists (SealStoreG _ _ _ γ).
+  iModIntro. iExists (SealStoreG _ _ γ).
 
   iInduction oset as [| x oset Hni] "IH" using set_ind_L; first done.
   iApply big_sepS_union. set_solver.
