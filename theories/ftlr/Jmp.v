@@ -2,34 +2,39 @@ From cap_machine Require Export logrel.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine.ftlr Require Import ftlr_base interp_weakening.
+From cap_machine.ftlr Require Import ftlr_base.
+  (* interp_weakening. *)
 From cap_machine.rules Require Import rules_base rules_Jmp.
 From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
-    {Σ : gFunctors}
-      {ceriseg: ceriseG Σ} {sealsg: sealStoreG Σ}
-      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-      {nainv: logrel_na_invs Σ}
-      {MP: MachineParameters}.
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {nainv: logrel_na_invs Σ}
+    `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO Reg) -n> iPropO Σ).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma jmp_case (W : WORLD) (regs : leibnizO Reg)
+  Lemma jmp_case (W : WORLD) (C : CmptName) (WC : CVIEW) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (rimm : Z + RegName) (P:D):
-    ftlr_instr W regs p p' g b e a w (Jmp rimm) ρ P.
+    ftlr_instr W C WC regs p p' g b e a w (Jmp rimm) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros HWC Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -42,7 +47,8 @@ Section fundamental.
     destruct HSpec as [ regs' imm Himm Hincr| ]; cycle 1.
     {
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto. iIntros; discriminate.
+      iApply wp_value; auto.
+      (* iIntros; discriminate. *)
     }
 
     incrementPC_inv as (p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
@@ -50,9 +56,10 @@ Section fundamental.
     iApply wp_pure_step_later; auto. iNext; iIntros "_".
     iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
     { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-    iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
-    iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity.
-    by eapply isCorrectPC_nonSentry.
-  Qed.
+    iApply ("IH" $! _ _ _ regs with "[%] [%] [] [Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
+    admit.
+    (* iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity. *)
+    (* by eapply isCorrectPC_nonSentry. *)
+  Admitted.
 
 End fundamental.

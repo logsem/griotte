@@ -545,6 +545,22 @@ Section heap.
   Notation "<s[ a := ρ ]s> WC" := (std_update WC a ρ) (at level 10, format "<s[ a := ρ ]s> WC").
   Notation "<l[ a := ρ , r ]l> WC" := (loc_update WC a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ a := ρ , r ]l> WC").
 
+  Definition std_update_C (W : WORLD) (C : CmptName) (a : Addr) (ρ : region_type) : WORLD :=
+    match W !! C with
+    | Some WC => (<[ C := (<s[a := ρ ]s> WC) ]> W)
+    | None => (<[ C := (<s[a := ρ ]s> (∅,(∅,∅)) ) ]> W)
+    end.
+
+  Definition loc_update_C (W : WORLD) (C : CmptName) (a : Addr) (ρ : region_type)
+    (r1 r2 r3 : region_type → region_type -> Prop) : WORLD :=
+    match W !! C with
+    | Some WC => (<[ C := (<l[ a := ρ , (r1,(r2,r3)) ]l> WC) ]> W)
+    | None => (<[ C := (<l[ a := ρ , (r1,(r2,r3)) ]l> (∅,(∅,∅))) ]> W)
+    end.
+
+  Notation "<s[ ( C , a ) := ρ ]s> W" := (std_update_C W C a ρ) (at level 10, format "<s[ ( C , a ) := ρ ]s> W").
+  Notation "<l[ ( C , a ) := ρ , r ]l> W" := (loc_update W C a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ ( C , a ) := ρ , r ]l> W").
+
   (* ------------------------------------------------------------------- *)
   (* region_map is monotone with regards to public future world relation *)
 
@@ -1744,3 +1760,5 @@ End heap.
 
 Notation "<s[ a := ρ ]s> WC" := (std_update WC a ρ) (at level 10, format "<s[ a := ρ ]s> WC").
 Notation "<l[ a := ρ , r ]l> WC" := (loc_update WC a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ a := ρ , r ]l> WC").
+Notation "<s[ ( C , a ) := ρ ]s> W" := (std_update_C W C a ρ) (at level 10, format "<s[ ( C , a ) := ρ ]s> W").
+Notation "<l[ ( C , a ) := ρ , r ]l> W" := (loc_update W C a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ ( C , a ) := ρ , r ]l> W").

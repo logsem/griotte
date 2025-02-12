@@ -1,5 +1,6 @@
-From cap_machine.ftlr Require Export Jmp Jnz Jalr Mov Load Store BinOp Restrict
-  Subseg Get Lea Seal UnSeal ReadSR WriteSR.
+(* From cap_machine.ftlr Require Export Jmp Jnz Jalr Mov Load Store BinOp Restrict *)
+(*   Subseg Get Lea Seal UnSeal ReadSR WriteSR. *)
+From cap_machine.ftlr Require Import Jmp.
 From cap_machine.ftlr Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
@@ -8,29 +9,35 @@ From cap_machine Require Export logrel register_tactics.
 
 Section fundamental.
   Context
-    {Σ : gFunctors}
-      {ceriseg: ceriseG Σ} {sealsg: sealStoreG Σ}
-      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-      {nainv: logrel_na_invs Σ}
-      {MP: MachineParameters}.
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {nainv: logrel_na_invs Σ}
+    `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO Reg) -n> iPropO Σ).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Theorem fundamental_cap W regs p g b e (a : Addr) :
-    ⊢ interp W (WCap p g b e a) →
-      interp_expression regs W (WCap p g b e a).
+  Theorem fundamental_cap (W : WORLD) (C : CmptName) regs p g b e (a : Addr) :
+    is_Some (W !! C) ->
+    ⊢ interp W C (WCap p g b e a) →
+      interp_expression regs W C (WCap p g b e a).
   Proof.
+    intros [WC HWC].
     iIntros "#Hinv_interp".
-    iIntros "[[Hfull Hreg] [Hmreg [Hr [Hsts Hown]]]]".
-
+    iExists WC.
+    iIntros "[ _ [[Hfull Hreg] [Hmreg [Hr [Hsts Hown]]]]]".
     assert ( readAllowed p = true \/ readAllowed p = false )
       as [Hread_p|Hread_p] by (destruct_perm p ; naive_solver)
     ; cycle 1.
@@ -51,11 +58,11 @@ Section fundamental.
     clear Hread_p.
 
     iRevert "Hinv_interp".
-    iLöb as "IH'" forall (W regs p g b e a).
+    iLöb as "IH'" forall (W C WC regs p g b e a HWC).
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
-      iIntros (W_ih r_ih p_ig g_ih b_ih e_ih a_ih) "%Hfull #Hregs Hmreg Hr Hsts Hown Hinterp".
-      iApply ("IH'" with "[%] [] [Hmreg] [$Hr] [$Hsts] [$Hown]"); eauto.
+      iIntros (W_ih C_ih WC_ih r_ih p_ig g_ih b_ih e_ih a_ih) "%HWC_ih %Hfull #Hregs Hmreg Hr Hsts Hown Hinterp".
+      iApply ("IH'" with "[%] [%] [] [Hmreg] [$Hr] [$Hsts] [$Hown]"); eauto.
     }
     iIntros "#Hinv_interp".
     iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".
@@ -120,14 +127,15 @@ Section fundamental.
     iDestruct (interp_in_registers with "[Hreg] [H]")
       as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
     ;eauto ; iClear "Hinv".
-    assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
+    assert (∃ (ρ : region_type), (std WC) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
       as [ρ [Hρ [Hne Hne'] ] ].
-    { destruct (isWL p),g; eauto. destruct Hstate_a as [Htemp | Hperm];eauto. }
+    { destruct (isWL p),g,Hstate_a as (WC' & HWC' & Hstate_a); simplify_eq ; eauto.
+      destruct Hstate_a as [Htemp | Hperm];eauto. }
 
-    iDestruct (region_open W a p'' with "[$Hrela $Hr $Hsts]")
-      as (w) "(Hr & Hsts & Hstate & Ha & % & #HmonoV & Hw) /=";[ |apply Hρ|].
+    iDestruct (region_open W C WC a p'' with "[$Hrela $Hr $Hsts]")
+      as (w) "(Hr & Hsts & Hstate & Ha & % & #HmonoV & Hw) /="; [assumption | |apply Hρ|].
     { destruct ρ;auto;[done|by ospecialize (Hne' _)]. }
-    pose proof (Hperscond_P'' (W,w)) as HpersP''
+    pose proof (Hperscond_P'' (W,C,w)) as HpersP''
     ; iDestruct "Hw" as "#Hw".
 
     rewrite /registers_pointsto ; iExtract "Hmreg" PC as "HPC".
