@@ -62,8 +62,8 @@ Qed.
 
 Section Store.
   Context `{!sealStoreG Σ}
-      {stsg : STSG Addr region_type Σ}
       {Cname : CmptNameG}
+      {stsg : STSG Addr region_type Σ}
       {heapg : heapGS Σ}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).

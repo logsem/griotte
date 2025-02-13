@@ -55,22 +55,16 @@ Section logrel.
   (* -------------------------------------------------------------------------------- *)
 
   (* Future world relation *)
-  Definition future_cview (g : Locality) (WC WC' : CVIEW) : iProp Σ :=
-    (match g with
-     | Local => ⌜related_sts_pub_world WC WC'⌝
-     | Global => ⌜related_sts_priv_world WC WC'⌝
-     end)%I.
-
   Definition future_world (g : Locality) (W W' : WORLD) (C : CmptName) : iProp Σ :=
-    (match W !! C, W' !! C with
-     | None,_ | _,None => False (* Future world relation only defined when the cview exists in both views *)
-     | Some WC, Some WC' => future_cview g WC WC'
+    (match g with
+     | Local => ⌜related_sts_pub_world W W' C⌝
+     | Global => ⌜related_sts_priv_world W W' C⌝
      end)%I.
 
-  Lemma localityflowsto_futurecview (g g' : Locality) (WC WC' : CVIEW):
+  Lemma localityflowsto_futureworld (g g' : Locality) (W W' : WORLD) (C : CmptName):
     LocalityFlowsTo g' g ->
-    (@future_cview g' WC WC' -∗
-     @future_cview g  WC WC').
+    (@future_world g' W W' C -∗
+     @future_world g  W W' C).
   Proof.
     intros Hflows.
     destruct g, g'; auto.
@@ -78,21 +72,8 @@ Section logrel.
     iPureIntro. eapply related_sts_pub_priv_world; auto.
   Qed.
 
-
-  Lemma localityflowsto_futureworld (g g' : Locality) (W W' : WORLD) (C : CmptName):
-    is_Some (W !! C) ->
-    is_Some (W' !! C) ->
-    LocalityFlowsTo g' g ->
-    (@future_world g' W W' C -∗
-     @future_world g  W W' C).
-  Proof.
-    intros [WC HWC] [WC' HWC'] Hflows.
-    rewrite /future_world HWC HWC'.
-    by apply localityflowsto_futurecview.
-  Qed.
-
-  Lemma futurecview_refl (g : Locality) (WC : CVIEW) :
-    ⊢ @future_cview g WC WC.
+  Lemma futureworld_refl (g : Locality) (W : WORLD) (C : CmptName) :
+    ⊢ @future_world g W W C.
   Proof.
     rewrite /future_world.
     destruct g; iPureIntro
@@ -100,25 +81,10 @@ Section logrel.
       | apply related_sts_pub_refl_world].
   Qed.
 
-  Lemma futureworld_refl (g : Locality) (W : WORLD) (C : CmptName) :
-    is_Some (W !! C) ->
-    ⊢ @future_world g W W C.
-  Proof.
-    intros [WC HWC].
-    rewrite /future_world HWC.
-    apply futurecview_refl.
-  Qed.
-
-  Global Instance future_cview_persistent (g : Locality) (WC WC' : CVIEW) :
-    Persistent (future_cview g WC WC').
-  Proof.
-    unfold future_cview. destruct g; apply bi.pure_persistent.
-  Qed.
-
   Global Instance future_world_persistent (g : Locality) (W W' : WORLD) (C : CmptName) :
     Persistent (future_world g W W' C).
   Proof.
-    unfold future_world; by apply _.
+    unfold future_world. destruct g; apply bi.pure_persistent.
   Qed.
 
 
@@ -150,11 +116,10 @@ Section logrel.
 
   Program Definition interp_expr (interp : D) (regs : Reg) : D :=
     (λne (W : WORLD) (C : CmptName) (w : Word),
-       ( ∃ WC, ⌜W !! C = Some WC⌝
-        ∗ interp_reg interp W C regs
+       ( interp_reg interp W C regs
         ∗ registers_pointsto (<[PC:=w]> regs)
         ∗ region W C
-        ∗ sts_full_world WC
+        ∗ sts_full_world W C
         ∗ na_own logrel_nais ⊤
           -∗ interp_conf W C)
     )%I.
@@ -235,13 +200,12 @@ Section logrel.
    *)
 
   Definition region_state_pwl (W : WORLD) (C : CmptName) (a : Addr) : Prop :=
-    ∃ WC, W !! C = Some WC /\ (std WC) !! a = Some Temporary.
+    (std_C W C) !! a = Some Temporary.
 
   Definition region_state_nwl (W : WORLD) (C : CmptName) (a : Addr) (l : Locality) : Prop :=
-    ∃ WC, W !! C = Some WC /\
     match l with
-     | Local => (std WC) !! a = Some Permanent ∨ (std WC) !! a = Some Temporary
-     | Global => (std WC) !! a = Some Permanent
+     | Local => (std_C W C) !! a = Some Permanent ∨ (std_C W C) !! a = Some Temporary
+     | Global => (std_C W C) !! a = Some Permanent
     end.
 
   (* For simplicity we might want to have the following statement in valididy of caps.
@@ -251,9 +215,7 @@ Section logrel.
     (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
 
   Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : D) :=
-    (∃ WC,
-        ⌜W !! C = Some WC⌝ ∧
-        match (std WC) !! a with
+    (match (std_C W C) !! a with
         | Some Temporary =>
             (if isWL p
              then mono_pub C (safeC P)
@@ -550,9 +512,7 @@ Section logrel.
     readAllowed p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-           ⌜∃ WC ρ, W !! C = Some WC
-                    ∧ std WC !! a = Some ρ
-                    ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
+    ⌜∃ ρ, std_C W C !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -567,7 +527,7 @@ Section logrel.
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
     iPureIntro.
-    destruct (isWL p); simplify_eq;destruct Hstate as [HWC Hstate].
+    destruct (isWL p); simplify_eq.
     + naive_solver.
     + destruct g; naive_solver.
   Qed.
@@ -576,9 +536,7 @@ Section logrel.
     writeAllowed p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-           ⌜∃ WC ρ, W !! C = Some WC
-                    ∧ std WC !! a = Some ρ
-                    ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
+    ⌜∃ ρ, std_C W C !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -593,7 +551,7 @@ Section logrel.
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
     iPureIntro.
-    destruct (isWL p); simplify_eq;destruct Hstate as [HWC Hstate].
+    destruct (isWL p); simplify_eq.
     + naive_solver.
     + destruct g; naive_solver.
   Qed.
@@ -611,7 +569,7 @@ Section logrel.
     isWL p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-           ⌜∃ WC, W !! C = Some WC ∧ std WC !! a = Some Temporary⌝.
+    ⌜std_C W C !! a = Some Temporary⌝.
   Proof.
     intros Hp Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
