@@ -89,15 +89,15 @@ Section definitionsS.
   Definition sts_rel_loc (C : CmptName) (i : positive) (R P Q : D → D → Prop) : iProp Σ :=
     own (γr_loc C) (◯ {[ i := to_agree ((convert_rel R,convert_rel P,convert_rel Q)) ]}).
 
-  Definition sts_full γs γr (fs : STS_states) (fr : STS_rels) : iProp Σ
-    := (own (A := sts_stateUR) γs (● (Excl <$> fs))
-            ∗ own (A := sts_relUR) γr (● (to_agree <$> fr)))%I.
-  Definition sts_full_std γs (fs : STS_std_states A B) : iProp Σ
-    := own (A := sts_std_stateUR A B) γs (● (Excl <$> fs))%I.
+  Definition sts_full C (fs : STS_states) (fr : STS_rels) : iProp Σ
+    := (own (A := sts_stateUR) (γs_loc C) (● (Excl <$> fs))
+            ∗ own (A := sts_relUR) (γr_loc C) (● (to_agree <$> fr)))%I.
+  Definition sts_full_std C (fs : STS_std_states A B) : iProp Σ
+    := own (A := sts_std_stateUR A B) (γs_std C) (● (Excl <$> fs))%I.
   Definition sts_full_world (W : WORLD) (C : CmptName) : iProp Σ :=
     (match W !! C with
-     | Some WC => (sts_full_std (γs_std C) WC.1)
-                 ∗ (sts_full (γs_loc C) (γr_loc C) WC.2.1 WC.2.2)
+     | Some WC => (sts_full_std C WC.1)
+                 ∗ (sts_full C WC.2.1 WC.2.2)
      | None => False
      end
     )%I.
@@ -134,19 +134,14 @@ Section definitionsS.
     related_sts_std_pub WC.1 WC'.1 ∧
     related_sts_pub WC.2.1 WC'.2.1 WC.2.2 WC'.2.2.
   Definition related_sts_pub_world (W W' : WORLD) (C : CmptName) :=
-    match W !! C, W' !! C with
-    | Some WC, Some WC' => related_sts_pub_cview WC WC'
-    | _,_ => False
-    end.
-
+    dom W ⊆ dom W' ∧
+    forall WC WC', W !! C = Some WC -> W' !! C = Some WC' -> related_sts_pub_cview WC WC'.
   Definition related_sts_priv_cview (WC WC' : CVIEW) :=
     related_sts_std_priv WC.1 WC'.1 ∧
     related_sts_priv WC.2.1 WC'.2.1 WC.2.2 WC'.2.2.
   Definition related_sts_priv_world (W W' : WORLD) (C : CmptName) :=
-    match W !! C, W' !! C with
-    | Some WC, Some WC' => related_sts_priv_cview WC WC'
-    | _,_ => False
-    end.
+    dom W ⊆ dom W' ∧
+    forall WC WC', W !! C = Some WC -> W' !! C = Some WC' -> related_sts_priv_cview WC WC'.
 
   Global Instance sts_rel_loc_Persistent C i R P Q : Persistent (sts_rel_loc C i R P Q).
   Proof. apply _. Qed.
@@ -159,7 +154,7 @@ Section definitionsS.
   Global Instance sts_state_loc_Timeless C i x : Timeless (sts_state_loc C i x).
   Proof. apply _. Qed.
 
-  Global Instance sts_full_Timeless γs γr fs fr : Timeless (sts_full γs γr fs fr).
+  Global Instance sts_full_Timeless C fs fr : Timeless (sts_full C fs fr).
   Proof. apply _. Qed.
   Global Instance sts_full_world_Timeless W C : Timeless (sts_full_world W C).
   Proof. apply _. Qed.
@@ -181,37 +176,34 @@ Proof.
   apply encode_inj in HH2. subst; eauto.
 Qed.
 
-(* Section pre_STS. *)
-(*   Context {A B E D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A} *)
-(*           {count: Countable A} *)
-(*           {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E} *)
-(*           {eqd : EqDecision D} {countD: Countable D} {CName : CmptNameG} *)
-(*           {sts_preg: STS_preG A B Σ}. *)
+Section pre_STS.
+  Context {A B E D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
+          {count: Countable A}
+          {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E}
+          {eqd : EqDecision D} {countD: Countable D} {CName : CmptNameG}
+          {sts_preg: STS_preG A B Σ}.
 
-(*   Notation STS := (leibnizO (STS_states * STS_rels)). *)
-(*   Notation STS_STD := (leibnizO (STS_std_states A B)). *)
-(*   Notation CVIEW := (prodO STS_STD STS). *)
-(*   Notation WORLD := (gmapO CmptName CVIEW). *)
-(*   Implicit Types WC : CVIEW. *)
-(*   Implicit Types W : WORLD. *)
+  Notation STS := (leibnizO (STS_states * STS_rels)).
+  Notation STS_STD := (leibnizO (STS_std_states A B)).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
+  Implicit Types W : WORLD.
 
 
-(*   Lemma gen_sts_init (C : CmptName) : *)
-(*     ⊢ |==> ∃ (stsg : STSG A B Σ), sts_full_world (<[C := (∅,(∅,∅))]> ∅ : WORLD) C. *)
-(*   Proof. *)
-(*     iMod (own_alloc (A:=sts_std_stateUR A B) (● (Excl <$> (∅, (∅, ∅)).1))) as (γsstd) "Hstd". by apply auth_auth_valid. *)
-(*     iMod (own_alloc (A:=sts_stateUR) (● ∅)) as (γs) "Hs". by apply auth_auth_valid. *)
-(*     iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr) "Hr". by apply auth_auth_valid. *)
-(*     iModIntro. *)
-(*     iExists _. *)
-(*     rewrite /sts_full_world /sts_full_std /sts_full /=. *)
-(*     rewrite lookup_insert. *)
-(*     iSplitL "Hstd". cbn.  *)
-(*     Unshelve. *)
-(*     rewrite !fmap_empty. iFrame. *)
-(*   Qed. *)
+  Lemma gen_sts_init (C : CmptName) (W : WORLD) :
+    ⊢ |==> ∃ (stsg : STSG A B Σ), sts_full_world (<[ C := (∅,(∅,∅))]> W) C.
+  Proof.
+    iMod (own_alloc (A:=sts_std_stateUR A B) (● ∅)) as (γsstd) "Hstd". by apply auth_auth_valid.
+    iMod (own_alloc (A:=sts_stateUR) (● ∅)) as (γs) "Hs". by apply auth_auth_valid.
+    iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr) "Hr". by apply auth_auth_valid.
+    iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ _ _ _ _).
+    rewrite /sts_full_world /sts_full_std /sts_full /=.
+    rewrite lookup_insert.
+    rewrite !fmap_empty. iFrame.
+  Qed.
 
-(* End pre_STS. *)
+End pre_STS.
 
 Section STS.
   Context {A B E D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
@@ -276,9 +268,16 @@ Section STS.
   Proof. split;[apply related_sts_std_priv_refl|apply related_sts_priv_refl]. Qed.
   Lemma related_sts_pub_refl_world W C : related_sts_pub_world W W C.
   Proof.
-    split;[apply related_sts_std_pub_refl|apply related_sts_pub_refl]. Qed.
-  Lemma related_sts_priv_refl_world W C : related_sts_priv_world WC WC.
-  Proof. split;[apply related_sts_std_priv_refl|apply related_sts_priv_refl]. Qed.
+    split;trivial.
+    intros; simplify_eq.
+    apply related_sts_pub_refl_cview.
+  Qed.
+  Lemma related_sts_priv_refl_world W C : related_sts_priv_world W W C.
+  Proof.
+    split;trivial.
+    intros; simplify_eq.
+    apply related_sts_priv_refl_cview.
+  Qed.
 
   Lemma related_sts_pub_priv fs fr gs gr :
     related_sts_pub fs gs fr gr → related_sts_priv fs gs fr gr.
@@ -304,11 +303,20 @@ Section STS.
     apply rtc_or_intro. auto.
   Qed.
 
-  Lemma related_sts_pub_priv_world W W' :
-    related_sts_pub_world W W' → related_sts_priv_world W W'.
+  Lemma related_sts_pub_priv_cview WC WC' :
+    related_sts_pub_cview WC WC' → related_sts_priv_cview WC WC'.
   Proof.
     intros [Hrel Hrel'].
     split;[apply related_sts_std_pub_priv|apply related_sts_pub_priv];auto.
+  Qed.
+  Lemma related_sts_pub_priv_world W W' C :
+    related_sts_pub_world W W' C → related_sts_priv_world W W' C.
+  Proof.
+    intros [Hdom Hpub].
+    split;trivial.
+    intros WC WC' HWC HWC'.
+    apply related_sts_pub_priv_cview.
+    by apply Hpub.
   Qed.
 
   (* --------------------- TRANSITIVITY --------------------- *)
@@ -442,48 +450,108 @@ Section STS.
   Qed.
 
   (* Helper functions for transitivity of sts pairs *)
-  Lemma related_sts_pub_priv_trans_world W W' W'' :
-    related_sts_pub_world W W' -> related_sts_priv_world W' W'' ->
-    related_sts_priv_world W W''.
+  Lemma related_sts_pub_priv_trans_cview WC WC' WC'' :
+    related_sts_pub_cview WC WC'
+    -> related_sts_priv_cview WC' WC''
+    -> related_sts_priv_cview WC WC''.
   Proof.
     intros [Hpub_std Hpub_loc] [Hpriv_std Hpriv_loc].
     split.
-    - apply related_sts_std_pub_priv_trans with W'.1; auto.
-    - apply related_sts_pub_priv_trans with W'.2.1 W'.2.2; auto.
+    - apply related_sts_std_pub_priv_trans with WC'.1; auto.
+    - apply related_sts_pub_priv_trans with WC'.2.1 WC'.2.2; auto.
+  Qed.
+  Lemma related_sts_pub_priv_trans_world W W' W'' C :
+    related_sts_pub_world W W' C
+    -> related_sts_priv_world W' W'' C
+    -> related_sts_priv_world W W'' C.
+  Proof.
+    intros [Hdom Hpub] [Hdom' Hpriv].
+    split; first (etrans;eauto).
+    intros WC WC'' HWC HWC''.
+    ospecialize (Hdom C _); first (rewrite elem_of_dom; naive_solver).
+    rewrite elem_of_dom in Hdom; destruct Hdom as [WC' HWC'].
+    eapply related_sts_pub_priv_trans_cview with (WC':= WC').
+    + by eapply Hpub.
+    + by eapply Hpriv.
   Qed.
 
-  Lemma related_sts_priv_pub_trans_world W W' W'' :
-    related_sts_priv_world W W' -> related_sts_pub_world W' W'' ->
-    related_sts_priv_world W W''.
+  Lemma related_sts_priv_pub_trans_cview WC WC' WC'' :
+    related_sts_priv_cview WC WC'
+    -> related_sts_pub_cview WC' WC''
+    -> related_sts_priv_cview WC WC''.
   Proof.
     intros [Hpub_std Hpub_loc] [Hpriv_std Hpriv_loc].
     split.
-    - apply related_sts_std_priv_pub_trans with W'.1; auto.
-    - apply related_sts_priv_pub_trans with W'.2.1 W'.2.2; auto.
+    - apply related_sts_std_priv_pub_trans with WC'.1; auto.
+    - apply related_sts_priv_pub_trans with WC'.2.1 WC'.2.2; auto.
+  Qed.
+  Lemma related_sts_priv_pub_trans_world W W' W'' C :
+    related_sts_priv_world W W' C
+    -> related_sts_pub_world W' W'' C
+    -> related_sts_priv_world W W'' C.
+  Proof.
+    intros [Hdom Hpub] [Hdom' Hpriv].
+    split; first (etrans;eauto).
+    intros WC WC'' HWC HWC''.
+    ospecialize (Hdom C _); first (rewrite elem_of_dom; naive_solver).
+    rewrite elem_of_dom in Hdom; destruct Hdom as [WC' HWC'].
+    eapply related_sts_priv_pub_trans_cview with (WC':= WC').
+    + by eapply Hpub.
+    + by eapply Hpriv.
   Qed.
 
-  Lemma related_sts_priv_trans_world W W' W'' :
-    related_sts_priv_world W W' -> related_sts_priv_world W' W'' ->
-    related_sts_priv_world W W''.
+  Lemma related_sts_priv_trans_cview WC WC' WC'' :
+    related_sts_priv_cview WC WC'
+    -> related_sts_priv_cview WC' WC''
+    -> related_sts_priv_cview WC WC''.
   Proof.
     intros [Hpub_std Hpub_loc] [Hpriv_std Hpriv_loc].
     split.
-    - apply related_sts_std_priv_trans with W'.1; auto.
-    - apply related_sts_priv_trans with W'.2.1 W'.2.2; auto.
+    - apply related_sts_std_priv_trans with WC'.1; auto.
+    - apply related_sts_priv_trans with WC'.2.1 WC'.2.2; auto.
+  Qed.
+  Lemma related_sts_priv_trans_world W W' W'' C :
+    related_sts_priv_world W W' C
+    -> related_sts_priv_world W' W'' C
+    -> related_sts_priv_world W W'' C.
+  Proof.
+    intros [Hdom Hpub] [Hdom' Hpriv].
+    split; first (etrans;eauto).
+    intros WC WC'' HWC HWC''.
+    ospecialize (Hdom C _); first (rewrite elem_of_dom; naive_solver).
+    rewrite elem_of_dom in Hdom; destruct Hdom as [WC' HWC'].
+    eapply related_sts_priv_trans_cview with (WC':= WC').
+    + by eapply Hpub.
+    + by eapply Hpriv.
   Qed.
 
-  Lemma related_sts_pub_trans_world W W' W'' :
-    related_sts_pub_world W W' -> related_sts_pub_world W' W'' ->
-    related_sts_pub_world W W''.
+  Lemma related_sts_pub_trans_cview WC WC' WC'' :
+    related_sts_pub_cview WC WC'
+    -> related_sts_pub_cview WC' WC''
+    -> related_sts_pub_cview WC WC''.
   Proof.
     intros [Hpub_std Hpub_loc] [Hpriv_std Hpriv_loc].
     split.
-    - apply related_sts_std_pub_trans with W'.1; auto.
-    - apply related_sts_pub_trans with W'.2.1 W'.2.2; auto.
+    - apply related_sts_std_pub_trans with WC'.1; auto.
+    - apply related_sts_pub_trans with WC'.2.1 WC'.2.2; auto.
+  Qed.
+  Lemma related_sts_pub_trans_world W W' W'' C :
+    related_sts_pub_world W W' C
+    -> related_sts_pub_world W' W'' C
+    -> related_sts_pub_world W W'' C.
+  Proof.
+    intros [Hdom Hpub] [Hdom' Hpriv].
+    split; first (etrans;eauto).
+    intros WC WC'' HWC HWC''.
+    ospecialize (Hdom C _); first (rewrite elem_of_dom; naive_solver).
+    rewrite elem_of_dom in Hdom; destruct Hdom as [WC' HWC'].
+    eapply related_sts_pub_trans_cview with (WC':= WC').
+    + by eapply Hpub.
+    + by eapply Hpriv.
   Qed.
 
-  Lemma related_sts_priv_world_std_sta_is_Some W W' i :
-    related_sts_priv_world W W' -> is_Some ((W.1) !! i) -> is_Some ((W'.1) !! i).
+  Lemma related_sts_priv_cview_std_sta_is_Some WC WC' i :
+    related_sts_priv_cview WC WC' -> is_Some ((WC.1) !! i) -> is_Some ((WC'.1) !! i).
   Proof.
     intros [ [Hdom1 _ ] _] Hsome.
     rewrite -elem_of_dom.
@@ -491,25 +559,27 @@ Section STS.
     apply elem_of_subseteq in Hdom1. auto.
   Qed.
 
-  Lemma related_sts_priv_world_std_sta_region_type W W' i ρ :
-    related_sts_priv_world W W' ->
-    (W.1) !! i = Some ρ ->
-    ∃ ρ', (W'.1) !! i = Some ρ'.
+  Lemma related_sts_priv_cview_std_sta_region_type WC WC' i ρ :
+    related_sts_priv_cview WC WC' ->
+    (WC.1) !! i = Some ρ ->
+    ∃ ρ', (WC'.1) !! i = Some ρ'.
   Proof.
     intros Hrelated Hρ.
-    assert (is_Some ((W'.1) !! i)) as [x Hx].
-    { apply related_sts_priv_world_std_sta_is_Some with W; eauto. }
+    assert (is_Some ((WC'.1) !! i)) as [x Hx].
+    { apply related_sts_priv_cview_std_sta_is_Some with WC; eauto. }
     destruct Hrelated as [ [Hdom1 Hrevoked ] _].
     specialize (Hrevoked _ _ _ Hρ Hx). simplify_eq.
     eauto.
   Qed.
 
-  Lemma sts_full_rel_loc W i Q Q' P :
-    sts_full_world W -∗ sts_rel_loc (A:=A) i Q Q' P  -∗
-                   ⌜W.2.2 !! i = Some (convert_rel Q,convert_rel Q',convert_rel P)⌝.
+  Lemma sts_full_rel_loc W C i Q Q' P :
+    sts_full_world W C
+    -∗ sts_rel_loc C (A:=A) i Q Q' P
+    -∗ ⌜ ∃ WC, W !! C = Some WC /\ WC.2.2 !! i = Some (convert_rel Q,convert_rel Q',convert_rel P)⌝.
   Proof.
     rewrite /sts_rel_loc /sts_full_world /sts_full.
-    destruct W as [Wstd [fs fr]].
+    destruct (W !! C) as [WC|]; last (by iIntros "?").
+    destruct WC as [Wstd [fs fr]].
     iIntros "[_ [_ H1]] H2 /=".
     iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete;
       iPureIntro.
@@ -523,14 +593,17 @@ Section STS.
       simplify_eq.
     inversion Hz as [? ? Hz'|]; simplify_eq.
     revert Hz'; rewrite -Hu. intros Hz'%(to_agree_inj (A:=leibnizO _) p _)%leibniz_equiv.
-    by rewrite Hz'.
+    naive_solver.
   Qed.
 
-  Lemma sts_full_state_std W a b :
-    sts_full_world W -∗ sts_state_std a b -∗ ⌜W.1 !! a = Some b⌝.
+  Lemma sts_full_state_std W C a b :
+    sts_full_world W C
+    -∗ sts_state_std C a b
+    -∗ ⌜∃ WC, W !! C = Some WC /\ WC.1 !! a = Some b⌝.
   Proof.
     rewrite /sts_full_world /sts_full /sts_state_std.
-    destruct W as [Wsta Wloc].
+    destruct (W !! C) as [WC|]; last (by iIntros "?").
+    destruct WC as [Wsta Wloc].
     iIntros "[H1 _] H2".
     iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete;
       iPureIntro.
@@ -544,11 +617,14 @@ Section STS.
     apply leibniz_equiv in HR; simplify_eq; eauto.
   Qed.
 
-  Lemma sts_full_state_loc W i d :
-    sts_full_world W -∗ sts_state_loc (A:=A) i d -∗ ⌜W.2.1 !! i = Some (encode d)⌝.
+  Lemma sts_full_state_loc W C i d :
+    sts_full_world W C
+    -∗ sts_state_loc C (A:=A) i d
+    -∗ ⌜∃ WC, W !! C = Some WC /\ WC.2.1 !! i = Some (encode d)⌝.
   Proof.
     rewrite /sts_full_world /sts_full /sts_state_loc.
-    destruct W as [Wstd [fs fr] ].
+    destruct (W !! C) as [WC|]; last (by iIntros "?").
+    destruct WC as [Wstd [fs fr] ].
     iIntros "[_ [H1 _]] H2".
     iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete;
       iPureIntro.
@@ -562,12 +638,21 @@ Section STS.
     apply leibniz_equiv in HR; simplify_eq; eauto.
   Qed.
 
-  Lemma sts_dealloc_std W a b :
-    sts_full_world W ∗ sts_state_std a b ==∗ sts_full_world (delete a W.1,W.2).
+  Definition delete_std (W : WORLD) (C : CmptName) a : WORLD :=
+    match W !! C with
+    | Some WC => <[ C := (delete a WC.1,WC.2) ]> W
+    | None => W
+    end.
+
+  Lemma sts_dealloc_std W C a b :
+    sts_full_world W C ∗ sts_state_std C a b
+    ==∗
+    sts_full_world (delete_std W C a) C.
   Proof.
-    rewrite /sts_full_world /sts_full /sts_state_std.
-    destruct W as [fs Wloc].
-    iIntros "[ [Hsta Hloc] Hstate] /=".
+    rewrite /sts_full_world /sts_full /sts_state_std /delete_std.
+    destruct (W !! C) as [WC|]; last (by iIntros "[? ?]").
+    destruct WC as [fs Wloc].
+    iIntros "[ [Hsta Hloc] Hstate]".
     iCombine "Hsta" "Hstate" as "H1".
     iMod (own_update
             (A := sts_std_stateUR A B)
@@ -577,16 +662,29 @@ Section STS.
     { apply auth_update_dealloc.
       rewrite fmap_delete /=.
       apply: delete_singleton_local_update. }
+    rewrite lookup_insert.
     iFrame. iModIntro. done.
   Qed.
 
-  Lemma sts_alloc_std_i W a b :
-    ⌜a ∉ dom W.1⌝ -∗
-    sts_full_world W ==∗
-    sts_full_world (<[a := b]>W.1,W.2) ∗ sts_state_std a b.
+  Definition insert_std (W : WORLD) (C : CmptName) a b : WORLD :=
+    match W !! C with
+    | Some WC => <[ C := (<[a := b]>WC.1,WC.2) ]> W
+    | None => W
+    end.
+
+  Definition dom_std (W : WORLD) (C : CmptName) : gset A :=
+    match W !! C with
+    | Some WC => dom WC.1
+    | None => ∅
+    end.
+
+  Lemma sts_alloc_std_i W C a b :
+    ⌜a ∉ dom_std W C⌝ -∗ sts_full_world W C ==∗
+    sts_full_world (insert_std W C a b) C ∗ sts_state_std C a b.
   Proof.
-    rewrite /sts_full_world /sts_full /sts_state_std /=.
-    destruct W as [fsd Wloc]. rewrite /sts_full_std.
+    rewrite /sts_full_world /sts_full /sts_state_std /dom_std /insert_std /=.
+    destruct (W !! C) as [WC|]; last (by iIntros "? ?").
+    destruct WC as [fsd Wloc]. rewrite /sts_full_std.
     iIntros (Hfresh1) "[H1 Hloc] /=".
     iMod (own_update
             (A := sts_std_stateUR A B)
@@ -599,17 +697,48 @@ Section STS.
       apply: alloc_singleton_local_update; last done.
       apply (not_elem_of_dom (D := gset A)).
       rewrite dom_fmap. auto. }
+    rewrite lookup_insert.
     iFrame. done.
   Qed.
 
-  Lemma sts_alloc_loc W d Q Q' P:
-    sts_full_world W ==∗
-             ∃ i, sts_full_world (W.1,((<[i := encode d ]>W.2.1),(<[i := (convert_rel Q,convert_rel Q',convert_rel P) ]>W.2.2)))
-                  ∗ ⌜i ∉ dom W.2.1⌝ ∗ ⌜i ∉ dom W.2.2⌝
-                  ∗ sts_state_loc (A:=A) i d ∗ sts_rel_loc (A:=A) i Q Q' P.
+
+  Definition insert_loc (W : WORLD) (C : CmptName) (i : positive) (d : D) (P Q R : D → D → Prop) :=
+    match W !! C with
+    | Some WC =>
+        <[ C := (WC.1,
+                ( (<[i := encode d ]>WC.2.1),
+                  (<[i := (convert_rel P,convert_rel Q,convert_rel R) ]>WC.2.2))
+                )
+        ]> W
+    | None => W
+    end.
+
+  Definition dom_loc1 (W : WORLD) (C : CmptName) :=
+    match W !! C with
+    | Some WC => dom WC.2.1
+    | None => ∅
+    end.
+  Definition dom_loc2 (W : WORLD) (C : CmptName) :=
+    match W !! C with
+    | Some WC => dom WC.2.2
+    | None => ∅
+    end.
+
+  Definition update_loc (W : WORLD) (C : CmptName) (i : positive) (d : D) : WORLD :=
+    match W !! C with
+    | Some WC => <[ C := (WC.1,((<[i := encode d ]>WC.2.1),WC.2.2)) ]> W
+    | None => W
+    end.
+
+  Lemma sts_alloc_loc W C (d : D) (P Q R : D → D → Prop):
+    sts_full_world W C ==∗
+    ∃ i, sts_full_world (insert_loc W C i d P Q R) C
+         ∗ ⌜i ∉ dom_loc1 W C⌝ ∗ ⌜i ∉ dom_loc2 W C⌝
+         ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i P Q R.
   Proof.
-    rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc.
-    destruct W as [Wstd [fs fr]].
+    rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc /dom_loc1 /dom_loc2 /insert_loc .
+    destruct (W !! C) as [WC|]; last (by iIntros "?").
+    destruct WC as [Wstd [fs fr]].
     iIntros "[Hstd [H1 H2]] /=".
     assert (fresh (dom fs ∪ dom fr) ∉
                     (dom fs ∪ dom fr)) as Hfresh.
@@ -632,8 +761,8 @@ Section STS.
             (A := sts_relUR)
             _ _
             (● (to_agree <$>
-                <[fresh (dom fs ∪ dom fr) := (convert_rel Q,convert_rel Q',convert_rel P)]> fr)
-            ⋅ ◯ {[fresh (dom fs ∪ dom fr) := to_agree (convert_rel Q,convert_rel Q',convert_rel P)]})
+                <[fresh (dom fs ∪ dom fr) := (convert_rel P,convert_rel Q,convert_rel R)]> fr)
+            ⋅ ◯ {[fresh (dom fs ∪ dom fr) := to_agree (convert_rel P,convert_rel Q,convert_rel R)]})
             with "H2") as "[H2 Hr]".
     { apply auth_update_alloc.
       rewrite fmap_insert /=.
@@ -642,18 +771,20 @@ Section STS.
       rewrite dom_fmap.
       auto. }
     iModIntro.
-    iExists _; iFrame.
+    iExists _; rewrite lookup_insert ;iFrame.
     repeat iSplit; auto.
   Qed.
 
-  Lemma sts_update_std W a b b' :
-    sts_full_world W -∗ sts_state_std a b ==∗
-    sts_full_world (<[a := b' ]>W.1,W.2) ∗ sts_state_std a b'.
+  Lemma sts_update_std W C a b b' :
+    sts_full_world W C
+    -∗ sts_state_std C a b
+    ==∗ sts_full_world (insert_std W C a b') C ∗ sts_state_std C a b'.
   Proof.
     iIntros "Hsf Hi".
     iDestruct (sts_full_state_std with "Hsf Hi") as %Hfs.
-    rewrite /sts_full_world /sts_full /sts_state_std.
-    destruct W as [fsd Wloc].
+    destruct Hfs as (WC & HWC & Hfs).
+    rewrite /sts_full_world /sts_full /sts_state_std /insert_std HWC lookup_insert /=.
+    destruct WC as [fsd Wloc].
     iDestruct "Hsf" as "[H1 Hloc] /=".
     iCombine "H1" "Hi" as "H1".
     iMod (own_update (A := sts_std_stateUR A B)
@@ -665,18 +796,19 @@ Section STS.
       apply: singleton_local_update; eauto.
       rewrite lookup_fmap Hfs //=.
       by apply exclusive_local_update. }
-    iFrame. rewrite -fmap_insert;
-              first iModIntro; iFrame.
+    iFrame. rewrite -fmap_insert; first iModIntro; iFrame.
   Qed.
 
-  Lemma sts_update_loc W i d d' :
-    sts_full_world W -∗ sts_state_loc (A:=A) i d ==∗
-    sts_full_world (W.1,((<[i := encode d' ]>W.2.1),W.2.2)) ∗ sts_state_loc (A:=A) i d'.
+  Lemma sts_update_loc W C i d d' :
+    sts_full_world W C
+    -∗ sts_state_loc C (A:=A) i d
+    ==∗ sts_full_world (update_loc W C i d') C ∗ sts_state_loc C (A:=A) i d'.
   Proof.
     iIntros "Hsf Hi".
     iDestruct (sts_full_state_loc with "Hsf Hi") as %Hfs.
-    rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc.
-    destruct W as [Wstd [fs fr]].
+    destruct Hfs as (WC & HWC & Hfs).
+    rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc /update_loc HWC lookup_insert /=.
+    destruct WC as [Wstd [fs fr]].
     iDestruct "Hsf" as "[Hdst [H1 H2]] /=".
     iCombine "H1" "Hi" as "H1".
     iMod (own_update (A := sts_stateUR)
@@ -688,8 +820,7 @@ Section STS.
       apply: singleton_local_update; eauto.
       rewrite lookup_fmap Hfs //=.
       by apply exclusive_local_update. }
-    rewrite fmap_insert ;
-      first iModIntro; iFrame.
+    rewrite fmap_insert ; first iModIntro; iFrame.
   Qed.
 
 End STS.
