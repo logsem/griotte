@@ -4,6 +4,12 @@ From iris.proofmode Require Import proofmode.
 From cap_machine Require Import stdpp_extra.
 Import uPred.
 
+Class CmptNameG := CmptNameS {
+  CmptName : Type;
+  CmptName_eq_dec :: EqDecision CmptName;
+  CmptName_countable :: Countable CmptName;
+}.
+
 (** The CMRA for the heap of STS.
     We distinguish between the standard and owned sts. *)
 
@@ -11,7 +17,6 @@ Import uPred.
 
 Definition sts_std_stateUR (A B : Type) {eqD: EqDecision A} {count: Countable A} := authUR (gmapUR A (exclR (leibnizO B))).
 Definition STS_std_states (A B : Type) {eqD: EqDecision A} {count: Countable A} : Type := gmap A B.
-
 
 (** For owned resources, we register the state and the transition relation. *)
 
@@ -35,20 +40,20 @@ Class STS_preG A B Σ `{EqDecision A, Countable A} :=
     sts_pre_std_state_inG :: inG Σ (sts_std_stateUR A B);
     sts_pre_rel_inG :: inG Σ sts_relUR; }.
 
-Class STSG A B Σ `{EqDecision A, Countable A} :=
+Class STSG A B Σ `{EqDecision A, Countable A} `{CName : CmptNameG} :=
   { sts_state_inG :: inG Σ sts_stateUR;
     sts_std_state_inG :: inG Σ (sts_std_stateUR A B);
     sts_rel_inG :: inG Σ sts_relUR;
-    γs_std : gname;
-    γs_loc : gname;
-    γr_loc : gname;}.
+    γs_std : CmptName -> gname;
+    γs_loc : CmptName -> gname;
+    γr_loc : CmptName -> gname;}.
 
 Definition STS_preΣ A B `{EqDecision A, Countable A} :=
   #[ GFunctor sts_stateUR;
      GFunctor (sts_std_stateUR A B);
      GFunctor sts_relUR ].
 
-Instance subG_STS_preΣ A B `{EqDecision A, Countable A} {Σ} :
+Instance subG_STS_preΣ A B `{EqDecision A, Countable A} {Σ} `{CName : CmptNameG} :
   subG (STS_preΣ A B) Σ → STS_preG A B Σ.
 Proof.
   (* hack: solve_inG does not currently unfold [subG X _] where X has more than
@@ -60,34 +65,42 @@ Qed.
 Section definitionsS.
 
   (* A now needs to be comparable, so we can distinquish between higher and lower a's *)
-  Context {A B C D: Type} {Σ : gFunctors} {eqa: EqDecision A} {a_compare : Ord A}
+  Context {A B E D: Type} {Σ : gFunctors} {eqa: EqDecision A} {a_compare : Ord A}
           {count: Countable A}
-          {sts_std: STS_STD B} {eqc : EqDecision C} {countC: Countable C}
-          {eqd : EqDecision D} {countD: Countable D} {stsg : STSG A B Σ}.
+          {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E}
+          {eqd : EqDecision D} {countD: Countable D}
+          {CName : CmptNameG} {stsg : STSG A B Σ}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
 
-  Program Definition sts_state_std (i : A) (x : B) : iProp Σ
-    := own (γs_std (A:=A)) (◯ {[ i := Excl x ]}).
+  Definition sts_state_std (C : CmptName) (i : A) (x : B) : iProp Σ
+    := own (γs_std C) (◯ {[ i := Excl x ]}).
 
-  Definition sts_state_loc (i : positive) (y : D) : iProp Σ
-    := own (γs_loc (A:=A)) (◯ {[ i := Excl (encode y) ]}).
+  Definition sts_state_loc (C : CmptName) (i : positive) (y : D) : iProp Σ
+    := own (γs_loc C) (◯ {[ i := Excl (encode y) ]}).
 
   Definition convert_rel {D : Type} `{Countable D} (R : D → D → Prop) : positive → positive → Prop :=
     λ x y, ∃ a b, x = encode a ∧ y = encode b ∧ R a b.
 
-  Definition sts_rel_loc (i : positive) (R : D → D → Prop) (P : D → D → Prop) (Q : D → D → Prop) : iProp Σ :=
-    own (γr_loc (A:=A)) (◯ {[ i := to_agree ((convert_rel R,convert_rel P,convert_rel Q)) ]}).
+  Definition sts_rel_loc (C : CmptName) (i : positive) (R P Q : D → D → Prop) : iProp Σ :=
+    own (γr_loc C) (◯ {[ i := to_agree ((convert_rel R,convert_rel P,convert_rel Q)) ]}).
 
-  Program Definition sts_full γs γr (fs : STS_states) (fr : STS_rels) : iProp Σ
+  Definition sts_full γs γr (fs : STS_states) (fr : STS_rels) : iProp Σ
     := (own (A := sts_stateUR) γs (● (Excl <$> fs))
             ∗ own (A := sts_relUR) γr (● (to_agree <$> fr)))%I.
-  Program Definition sts_full_std γs (fs : STS_std_states A B) : iProp Σ
+  Definition sts_full_std γs (fs : STS_std_states A B) : iProp Σ
     := own (A := sts_std_stateUR A B) γs (● (Excl <$> fs))%I.
-  Program Definition sts_full_world W : iProp Σ :=
-    ((sts_full_std (γs_std (A:=A)) W.1) ∗ (sts_full (γs_loc (A:=A)) (γr_loc (A:=A)) W.2.1 W.2.2))%I.
+  Definition sts_full_world (W : WORLD) (C : CmptName) : iProp Σ :=
+    (match W !! C with
+     | Some WC => (sts_full_std (γs_std C) WC.1)
+                 ∗ (sts_full (γs_loc C) (γr_loc C) WC.2.1 WC.2.2)
+     | None => False
+     end
+    )%I.
 
   (* We will have two kinds of future world relation (here in subset order) :
      - public
@@ -116,28 +129,39 @@ Section definitionsS.
                        r1 = r1' ∧ r2 = r2' ∧ r3 = r3' ∧
                        (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc (λ x y, (r1 x y ∨ r2 x y ∨ r3 x y)) x y)).
 
-  Definition related_sts_pub_world W W' :=
-    related_sts_std_pub W.1 W'.1 ∧
-    related_sts_pub W.2.1 W'.2.1 W.2.2 W'.2.2.
+  (* Future world relations are only defined when both world have C *)
+  Definition related_sts_pub_cview (WC WC' : CVIEW) :=
+    related_sts_std_pub WC.1 WC'.1 ∧
+    related_sts_pub WC.2.1 WC'.2.1 WC.2.2 WC'.2.2.
+  Definition related_sts_pub_world (W W' : WORLD) (C : CmptName) :=
+    match W !! C, W' !! C with
+    | Some WC, Some WC' => related_sts_pub_cview WC WC'
+    | _,_ => False
+    end.
 
-  Definition related_sts_priv_world W W' :=
-    related_sts_std_priv W.1 W'.1 ∧
-    related_sts_priv W.2.1 W'.2.1 W.2.2 W'.2.2.
+  Definition related_sts_priv_cview (WC WC' : CVIEW) :=
+    related_sts_std_priv WC.1 WC'.1 ∧
+    related_sts_priv WC.2.1 WC'.2.1 WC.2.2 WC'.2.2.
+  Definition related_sts_priv_world (W W' : WORLD) (C : CmptName) :=
+    match W !! C, W' !! C with
+    | Some WC, Some WC' => related_sts_priv_cview WC WC'
+    | _,_ => False
+    end.
 
-  Global Instance sts_rel_loc_Persistent i R P Q : Persistent (sts_rel_loc i R P Q).
+  Global Instance sts_rel_loc_Persistent C i R P Q : Persistent (sts_rel_loc C i R P Q).
   Proof. apply _. Qed.
 
-  Global Instance sts_rel_loc_Timeless i R P Q : Timeless (sts_rel_loc i R P Q).
+  Global Instance sts_rel_loc_Timeless C i R P Q : Timeless (sts_rel_loc C i R P Q).
   Proof. apply _. Qed.
 
-  Global Instance sts_state_std_Timeless i x : Timeless (sts_state_std i x).
+  Global Instance sts_state_std_Timeless C i x : Timeless (sts_state_std C i x).
   Proof. apply _. Qed.
-  Global Instance sts_state_loc_Timeless i x : Timeless (sts_state_loc i x).
+  Global Instance sts_state_loc_Timeless C i x : Timeless (sts_state_loc C i x).
   Proof. apply _. Qed.
 
   Global Instance sts_full_Timeless γs γr fs fr : Timeless (sts_full γs γr fs fr).
   Proof. apply _. Qed.
-  Global Instance sts_full_world_Timeless W : Timeless (sts_full_world W).
+  Global Instance sts_full_world_Timeless W C : Timeless (sts_full_world W C).
   Proof. apply _. Qed.
 
 End definitionsS.
@@ -157,49 +181,60 @@ Proof.
   apply encode_inj in HH2. subst; eauto.
 Qed.
 
-Section pre_STS.
-  Context {A B C D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
-          {count: Countable A}
-          {sts_std: STS_STD B} {eqc : EqDecision C} {countC: Countable C}
-          {eqd : EqDecision D} {countD: Countable D} {sts_preg: STS_preG A B Σ}.
+(* Section pre_STS. *)
+(*   Context {A B E D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A} *)
+(*           {count: Countable A} *)
+(*           {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E} *)
+(*           {eqd : EqDecision D} {countD: Countable D} {CName : CmptNameG} *)
+(*           {sts_preg: STS_preG A B Σ}. *)
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states A B)).
-  Notation WORLD := (prodO STS_STD STS).
+(*   Notation STS := (leibnizO (STS_states * STS_rels)). *)
+(*   Notation STS_STD := (leibnizO (STS_std_states A B)). *)
+(*   Notation CVIEW := (prodO STS_STD STS). *)
+(*   Notation WORLD := (gmapO CmptName CVIEW). *)
+(*   Implicit Types WC : CVIEW. *)
+(*   Implicit Types W : WORLD. *)
 
-  Lemma gen_sts_init :
-    ⊢ |==> ∃ (stsg : STSG A B Σ), sts_full_world ((∅, (∅, ∅)) : WORLD).
-  Proof.
-    iMod (own_alloc (A:=sts_std_stateUR A B) (● ∅)) as (γsstd) "Hstd". by apply auth_auth_valid.
-    iMod (own_alloc (A:=sts_stateUR) (● ∅)) as (γs) "Hs". by apply auth_auth_valid.
-    iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr) "Hr". by apply auth_auth_valid.
-    iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ γsstd γs γr).
-    rewrite /sts_full_world /sts_full_std /sts_full /=.
-    rewrite !fmap_empty. iFrame.
-  Qed.
 
-End pre_STS.
+(*   Lemma gen_sts_init (C : CmptName) : *)
+(*     ⊢ |==> ∃ (stsg : STSG A B Σ), sts_full_world (<[C := (∅,(∅,∅))]> ∅ : WORLD) C. *)
+(*   Proof. *)
+(*     iMod (own_alloc (A:=sts_std_stateUR A B) (● (Excl <$> (∅, (∅, ∅)).1))) as (γsstd) "Hstd". by apply auth_auth_valid. *)
+(*     iMod (own_alloc (A:=sts_stateUR) (● ∅)) as (γs) "Hs". by apply auth_auth_valid. *)
+(*     iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr) "Hr". by apply auth_auth_valid. *)
+(*     iModIntro. *)
+(*     iExists _. *)
+(*     rewrite /sts_full_world /sts_full_std /sts_full /=. *)
+(*     rewrite lookup_insert. *)
+(*     iSplitL "Hstd". cbn.  *)
+(*     Unshelve. *)
+(*     rewrite !fmap_empty. iFrame. *)
+(*   Qed. *)
+
+(* End pre_STS. *)
 
 Section STS.
-  Context {A B C D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
+  Context {A B E D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
           {count: Countable A}
-          {sts_std: STS_STD B} {eqc : EqDecision C} {countC: Countable C}
-          {eqd : EqDecision D} {countD: Countable D} {stsg : STSG A B Σ}.
+          {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E}
+          {eqd : EqDecision D} {countD: Countable D} {CName : CmptNameG} {stsg : STSG A B Σ}.
   Implicit Types x y : positive.
   Implicit Types a : A.
   Implicit Types b : B.
-  Implicit Types c : C.
+  Implicit Types c : E.
   Implicit Types d : D.
   Implicit Types fs gs : STS_states.
   Implicit Types fsd gsd : STS_std_states A B.
   Implicit Types fr_pub fr_priv gr_pub gr_priv : STS_rels.
-  Implicit Types R : C → C → Prop.
+  Implicit Types R : E → E → Prop.
   Implicit Types Q : D → D → Prop.
   Implicit Types Rp : positive → positive → Prop.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
 
   (* --------------------- REFLEXIVITY --------------------- *)
@@ -235,11 +270,15 @@ Section STS.
     eauto using rtc_refl.
   Qed.
 
-  Lemma related_sts_pub_refl_world W : related_sts_pub_world W W.
+  Lemma related_sts_pub_refl_cview WC : related_sts_pub_cview WC WC.
   Proof. split;[apply related_sts_std_pub_refl|apply related_sts_pub_refl]. Qed.
-  Lemma related_sts_priv_refl_world W : related_sts_priv_world W W.
+  Lemma related_sts_priv_refl_cview WC : related_sts_priv_cview WC WC.
   Proof. split;[apply related_sts_std_priv_refl|apply related_sts_priv_refl]. Qed.
-
+  Lemma related_sts_pub_refl_world W C : related_sts_pub_world W W C.
+  Proof.
+    split;[apply related_sts_std_pub_refl|apply related_sts_pub_refl]. Qed.
+  Lemma related_sts_priv_refl_world W C : related_sts_priv_world WC WC.
+  Proof. split;[apply related_sts_std_priv_refl|apply related_sts_priv_refl]. Qed.
 
   Lemma related_sts_pub_priv fs fr gs gr :
     related_sts_pub fs gs fr gr → related_sts_priv fs gs fr gr.

@@ -34,7 +34,6 @@ Inductive std_rel_priv : region_type -> region_type -> Prop :=
 Global Instance sts_std : STS_STD region_type :=
   {| Rpub := std_rel_pub; Rpriv := std_rel_priv |}.
 
-
 (** CMRA for heap and its predicates. Contains: *)
 (* CMRA for relatedness between locations and saved prop names *)
 (* CMRA for saved predicates *)
@@ -137,6 +136,14 @@ Section heap.
   Notation WORLD := (gmapO CmptName CVIEW).
   Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
+
+  Definition sts_collection (W : WORLD) (C : CmptName) : iProp Σ :=
+    match W !! C with
+    | Some WC => sts_full_world WC
+    | None => False
+    end.
+
+  Notation sts_full_world_C W C := (sts_collection W C).
 
   Global Instance region_type_EqDecision : EqDecision region_type :=
     (fun x y => match x, y with
@@ -243,27 +250,37 @@ Section heap.
          apply _.
   Qed.
 
+  (* TODO move ? *)
+  Definition related_sts_pub_world_C (W W' : WORLD) (C : CmptName) :=
+    ∃ WC WC', W !! C = Some WC /\ W' !! C = Some WC' /\ related_sts_pub_world WC WC'.
+  Definition related_sts_priv_world_C (W W' : WORLD) (C : CmptName) :=
+    ∃ WC WC', W !! C = Some WC /\ W' !! C = Some WC' /\ related_sts_priv_world WC WC'.
+
+  Lemma related_sts_pub_priv_world_C (W W' : WORLD) (C : CmptName) :
+    related_sts_pub_world_C W W' C → related_sts_priv_world_C W W' C.
+  Proof.
+    intros (WC & WC' & HWC & HWC' & Hrel).
+    apply related_sts_pub_priv_world in Hrel.
+    exists WC, WC' ; eauto.
+  Qed.
+
   Definition future_pub_mono (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
-    (□ ∀ (W W' : WORLD) (WC WC': CVIEW),
-        ⌜W !! C = Some WC
-        /\ W' !! C = Some WC'
-        /\ related_sts_pub_world WC WC'⌝
+    (□ ∀ (W W' : WORLD),
+        ⌜ related_sts_pub_world_C W W' C ⌝
         → φ (W,C,v) -∗ φ (W',C,v))%I.
 
   Definition future_priv_mono (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
-    (□ ∀ (W W' : WORLD) (WC WC': CVIEW),
-        ⌜W !! C = Some WC
-        /\ W' !! C = Some WC'
-        /\ related_sts_priv_world WC WC'⌝
+    (□ ∀ (W W' : WORLD),
+        ⌜ related_sts_priv_world_C W W' C⌝
         → φ (W,C,v) -∗ φ (W',C,v))%I.
 
   Lemma future_priv_mono_is_future_pub_mono (C : CmptName) (φ: (WORLD * CmptName * Word) → iProp Σ) v :
     future_priv_mono C φ v -∗ future_pub_mono C φ v.
   Proof.
     iIntros "#H". unfold future_pub_mono. iModIntro.
-    iIntros (W W' WC WC' Hpure) "Hφ"; destruct Hpure as (HWC & HWC' & Hrelated).
-    iApply "H"; eauto. iPureIntro.
-    eauto using related_sts_pub_priv_world.
+    iIntros (W W' Hrelated) "Hφ".
+    iApply "H"; eauto.
+    iPureIntro; eauto using related_sts_pub_priv_world_C.
   Qed.
 
   Definition mono_pub (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) :=
@@ -278,7 +295,7 @@ Section heap.
     -∗ ▷ future_pub_mono C φ' w.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (W0 W1 WC0 WC1 Hpure); destruct Hpure as (HWC & HWC' & Hrelated).
+    iIntros (W0 W1 Hrelated).
     iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
     iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
     iNext; iModIntro.
@@ -306,7 +323,7 @@ Section heap.
     -∗ ▷ future_priv_mono C φ' w.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (W0 W1 WC0 WC1 Hpure); destruct Hpure as (HWC & HWC' & Hrelated).
+    iIntros (W0 W1 Hrelated).
     iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
     iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
     iNext; iModIntro.
@@ -331,6 +348,18 @@ Section heap.
   Definition std (WC : CVIEW) := WC.1.
   Definition loc (WC : CVIEW) := WC.2.
 
+  Definition std_C (W : WORLD) (C : CmptName) :=
+    match W !! C with
+    | Some WC => std WC
+    | None => ∅
+    end.
+
+  Definition loc_C (W : WORLD) (C : CmptName) :=
+    match W !! C with
+    | Some WC => loc WC
+    | None => (∅,∅)
+    end.
+
   (* Asserting that a location is in a specific state in a given World *)
 
   Definition permanent (WC : CVIEW) (a : Addr) :=
@@ -352,6 +381,27 @@ Section heap.
     match (std WC) !! a with
     | Some ρ => ρ = Temporary
     | _ => False
+    end.
+
+  Definition permanent_C (W : WORLD) (C : CmptName) (a : Addr) :=
+    match W !! C with
+    | Some WC => permanent WC a
+    | None => False
+    end.
+  Definition revoked_C (W : WORLD) (C : CmptName) (a : Addr) :=
+    match W !! C with
+    | Some WC => revoked WC a
+    | None => False
+    end.
+  Definition frozen_C (W : WORLD) (C : CmptName) (m: gmap Addr Word) (a : Addr) :=
+    match W !! C with
+    | Some WC => frozen WC m a
+    | None => False
+    end.
+  Definition temporary_C (W : WORLD) (C : CmptName) (a : Addr) :=
+    match W !! C with
+    | Some WC => temporary WC a
+    | None => False
     end.
 
   (* ----------------------------------------------------------------------------------------------- *)
@@ -391,11 +441,10 @@ Section heap.
      end)%I.
 
   Definition region_def (W : WORLD) (C : CmptName) : iProp Σ :=
-    (∃ (M : relT) (Mρ: gmap Addr region_type) (WC : CVIEW) (MC : gmap Addr (gname * Perm)),
+    (∃ (M : relT) (Mρ: gmap Addr region_type) (MC : gmap Addr (gname * Perm)),
         RELS C M
-        ∗ ⌜W !! C = Some WC⌝
         ∗ ⌜M !! C = Some MC⌝
-        ∗ ⌜dom (std WC) = dom MC⌝
+        ∗ ⌜dom (std_C W C) = dom MC⌝
         ∗ ⌜dom Mρ = dom MC⌝
         ∗ region_map_def W C MC Mρ)%I.
   Definition region_aux : { x | x = @region_def }. by eexists. Qed.
@@ -481,7 +530,7 @@ Section heap.
     -∗ ▷ future_pub_mono C φ' w.
   Proof.
     iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (W0 W1 WC0 WC1 Hpure); destruct Hpure as (HWC0 & HWC1 & Hrelated).
+    iIntros (W0 W1 Hrelated).
     iDestruct (rel_agree C _ φ φ' with "[$Hrel $Hrel']") as "[_ #Hφeq]".
     iNext; iModIntro.
     iIntros "Hφv".
@@ -510,7 +559,7 @@ Section heap.
     -∗ ▷ future_priv_mono C φ' w.
   Proof.
     iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (W0 W1 WC0 WC1 Hpure); destruct Hpure as (HWC0 & HWC1 & Hrelated).
+    iIntros (W0 W1 Hrelated).
     iDestruct (rel_agree _ _ φ φ' with "[$Hrel $Hrel']") as "[_ #Hφeq]".
     iNext; iModIntro.
     iIntros "Hφv".
@@ -564,14 +613,13 @@ Section heap.
   (* ------------------------------------------------------------------- *)
   (* region_map is monotone with regards to public future world relation *)
 
-  Lemma region_map_monotone (C : CmptName) (W W' : WORLD) (WC WC' : CVIEW) M Mρ :
-    W !! C = Some WC
-    -> W' !! C = Some WC'
-    -> related_sts_pub_world WC WC'
+  Lemma region_map_monotone (C : CmptName) (W W' : WORLD) M Mρ :
+    related_sts_pub_world_C W W' C
     → region_map_def W C M Mρ
     -∗ region_map_def W' C M Mρ.
   Proof.
-    iIntros (HWC HWC' Hrelated) "Hr".
+    iIntros (Hrelated) "Hr".
+    (* destruct Hrelated as (WC & WC' &) *)
     iApply big_sepM_mono; iFrame.
     iIntros (a γ Hsome) "Hm".
     iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
@@ -582,25 +630,25 @@ Section heap.
       iFrame "%#∗".
       destruct (isWL p);
       (iApply "HmonoV"; eauto; iFrame).
-      iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
+      iPureIntro; apply related_sts_pub_priv_world_C in Hrelated; naive_solver.
     - iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
       iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
       iFrame "%#∗".
       iApply "HmonoV"; iFrame "∗#"; auto.
-      iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
+      iPureIntro; apply related_sts_pub_priv_world_C in Hrelated; naive_solver.
     - done.
     - done.
   Qed.
 
-  Lemma region_monotone C W W' WC WC' :
-    W !! C = Some WC
-    -> W' !! C = Some WC'
-    -> dom (std WC)= dom (std WC')
-    -> related_sts_pub_world WC WC' → region W C -∗ region W' C.
+  Lemma region_monotone C W W':
+    dom (std_C W C)= dom (std_C W' C)
+    -> related_sts_pub_world_C W W' C
+    → region W C
+    -∗ region W' C.
   Proof.
-    iIntros (HWC HWC' Hdomeq Hrelated) "HW". rewrite region_eq.
-    iDestruct "HW" as (M Mρ ? MC) "(HM & % & % & % & % & Hmap)"; simplify_map_eq.
-    iExists M, Mρ, WC', MC. iFrame.
+    iIntros (Hdomeq Hrelated) "HW". rewrite region_eq.
+    iDestruct "HW" as (M Mρ MC) "(HM & % & % & % & Hmap)"; simplify_map_eq.
+    iExists M, Mρ, MC. iFrame.
     repeat(iSplitR; auto).
     - iPureIntro;congruence.
     - iApply region_map_monotone; last eauto;eauto.
@@ -624,6 +672,21 @@ Section heap.
         simplify_eq. left.
   Qed.
 
+  Lemma uninitialized_mono_related_sts_pub_world_C a W C w :
+    (std_C W C) !! a = Some (Frozen {[a:=w]}) ->
+    related_sts_pub_world_C W (<s[ (C,a) := Temporary ]s> W) C.
+  Proof.
+    intros.
+    rewrite /std_C in H.
+    rewrite /related_sts_pub_world_C.
+    destruct (W !! C) as [WC|] eqn:HWC; last done.
+    exists WC, (<s[a:=Temporary]s>WC).
+    split;auto.
+    split.
+    - rewrite /std_update_C HWC lookup_insert //.
+    - by eapply uninitialized_mono_related_sts_pub_world.
+  Qed.
+
   (* Lemma uninitialized_w_mono_related_sts_pub_world l W w : *)
   (*   (std W) !! l = Some (Uninitialized w) -> *)
   (*   related_sts_pub_world W (<s[ l := Temporary ]s> W). *)
@@ -645,11 +708,10 @@ Section heap.
   (* ------------------------------------------- OPEN_REGION --------------------------------------- *)
 
   Definition open_region_def (W : WORLD) (C : CmptName) (a : Addr) : iProp Σ :=
-    (∃ (M : relT) (Mρ: gmap Addr region_type) (WC : CVIEW) (MC : gmap Addr (gname * Perm)),
+    (∃ (M : relT) (Mρ: gmap Addr region_type) (MC : gmap Addr (gname * Perm)),
         RELS C M
-        ∗ ⌜W !! C = Some WC⌝
         ∗ ⌜M !! C = Some MC⌝
-        ∗ ⌜dom (std WC) = dom MC⌝
+        ∗ ⌜dom (std_C W C) = dom MC⌝
         ∗ ⌜dom Mρ = dom MC⌝
         ∗ region_map_def W C (delete a MC) (delete a Mρ))%I.
   Definition open_region_aux : { x | x = @open_region_def }. by eexists. Qed.
@@ -657,15 +719,15 @@ Section heap.
   Definition open_region_eq : @open_region = @open_region_def := proj2_sig open_region_aux.
 
   (* open_region is monotone wrt public future worlds *)
-  Lemma open_region_monotone C W W' WC WC' a :
-    W !! C = Some WC
-    -> W' !! C = Some WC'
-    -> dom (std WC)= dom (std WC')
-    -> related_sts_pub_world WC WC' → open_region W C a -∗ open_region W' C a.
+  Lemma open_region_monotone C W W' a :
+    dom (std_C W C) = dom (std_C W' C)
+    -> related_sts_pub_world_C W W' C
+    → open_region W C a
+    -∗ open_region W' C a.
   Proof.
-    iIntros (HWC HWC' Hdomeq Hrelated) "HW". rewrite open_region_eq /open_region_def.
-    iDestruct "HW" as (M Mρ ? MC) "(HM & % & % & % & % & Hmap)"; simplify_map_eq.
-    iExists M, Mρ, WC', MC. iFrame.
+    iIntros (Hdomeq Hrelated) "HW". rewrite open_region_eq /open_region_def.
+    iDestruct "HW" as (M Mρ MC) "(HM & % & % & % & Hmap)"; simplify_map_eq.
+    iExists M, Mρ, MC. iFrame.
     repeat(iSplitR; auto).
     - iPureIntro;congruence.
     - iApply region_map_monotone; last eauto;eauto.
@@ -718,24 +780,42 @@ Section heap.
       apply Hothers in Ha'. rewrite Hl in Ha'. inversion Ha'. subst. simplify_map_eq. }
     { by simplify_map_eq. }
   Qed.
+  
+  (* TODO move *)
+  (* Lemma sts_full_state_std_C W C a b : *)
+  (*   sts_full_world_C W  -∗ sts_state_std a b -∗ ⌜W.1 !! a = Some b⌝. *)
+  (* Proof. *)
+  (*   rewrite /sts_full_world /sts_full /sts_state_std. *)
+  (*   destruct W as [Wsta Wloc]. *)
+  (*   iIntros "[H1 _] H2". *)
+  (*   iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete; *)
+  (*     iPureIntro. *)
+  (*   specialize (Hv a). *)
+  (*   revert HR; rewrite /= singleton_included_l; *)
+  (*     intros [z [Hz HR]]. *)
+  (*   rewrite lookup_fmap in Hz Hv. *)
+  (*   destruct (Wsta !! a) eqn:Heq; rewrite Heq /= in Hz Hv; last by inversion Hz. *)
+  (*   apply leibniz_equiv in Hz; simplify_eq. *)
+  (*   apply Some_included_exclusive in HR; auto; last by typeclasses eauto. *)
+  (*   apply leibniz_equiv in HR; simplify_eq; eauto. *)
+  (* Qed. *)
 
-  Lemma region_open_temp_pwl W C WC l p φ :
-    W !! C = Some WC →
-    (std WC) !! l = Some Temporary →
+  Lemma region_open_temp_pwl W C l p φ :
+    (std_C W C) !! l = Some Temporary →
     isWL p = true →
-    rel C l p φ ∗ region W C ∗ sts_full_world WC -∗
+    rel C l p φ ∗ region W C ∗ sts_full_world_C W C -∗
     ∃ v, open_region W C l
-         ∗ sts_full_world WC
+         ∗ sts_full_world_C W C
          ∗ sts_state_std l Temporary
          ∗ l ↦ₐ v
          ∗ ⌜isO p = false⌝
          ∗ ▷ future_pub_mono C φ v
          ∗ ▷ φ (W,C,v).
   Proof.
-    iIntros (HWC Htemp Hpwl) "(Hrel & Hreg & Hfull)".
+    iIntros (Htemp Hpwl) "(Hrel & Hreg & Hfull)".
     rewrite rel_eq region_eq /rel_def /region_def REL_eq RELS_eq /REL_def /RELS_def /region_map_def.
     iDestruct "Hrel" as (γpred) "#(Hγpred & Hφ)".
-    iDestruct "Hreg" as (M Mρ ? MC) "(HM & % & % & % & % & Hpreds)"; simplify_map_eq.
+    iDestruct "Hreg" as (M Mρ MC) "(HM & % & % & % & Hpreds)"; simplify_map_eq.
     (* assert that γrel = γrel' *)
     iDestruct ( (reg_in C M) with "[] [HM $Hγpred]") as %HMeq;eauto.
     { by rewrite RELS_eq /REL_def /RELS_def /region_map_def. }
