@@ -32,7 +32,7 @@ Section heap.
    *)
 
   (* the revoke condition states that there are no Temporary states left *)
-  Definition revoke_condition WC := ∀ a, (std WC) !! a ≠ Some Temporary.
+  Definition revoke_condition W C := ∀ a, (std_C W C) !! a ≠ Some Temporary.
 
   (* Revocation only changes the states of the standard STS collection *)
   Definition revoke_std_sta : STS_STD → STS_STD :=
@@ -66,11 +66,20 @@ Section heap.
     | None => W
     end.
 
-  Lemma related_sts_pub_world_fresh WC a ρ :
-    a ∉ dom (std WC) →
-    related_sts_pub_world WC (<s[a:=ρ]s> WC).
+  (* TODO move *)
+  Lemma dom_world_std_update W C a ρ :
+    dom W ⊆ dom (<s[(C,a):=ρ]s>W).
   Proof.
-    rewrite /std. intros Hdom_sta.
+    rewrite /std_update_C.
+    destruct (W !! C); rewrite dom_insert_L; set_solver.
+  Qed.
+
+  Lemma related_sts_pub_cview_fresh WC a ρ :
+    a ∉ dom (std WC) →
+    related_sts_pub_cview WC (<s[a:=ρ]s> WC).
+  Proof.
+    rewrite /std_C.
+    intros Hdom_sta.
     rewrite /related_sts_pub_world /=.
     split;[|apply related_sts_pub_refl].
     rewrite /related_sts_pub. split.
@@ -83,6 +92,20 @@ Section heap.
         rewrite Hx in Hy.
         inversion Hy; subst.
         left.
+  Qed.
+
+  Lemma related_sts_pub_world_fresh W C a ρ :
+    a ∉ dom (std_C W C) →
+    related_sts_pub_world W (<s[(C,a):=ρ]s> W) C.
+  Proof.
+    rewrite /std_C.
+    intros Hdom_sta.
+    rewrite /related_sts_pub_world /=.
+    split;first apply dom_world_std_update.
+    intros WC WC' HWC HWC'.
+    rewrite /std_update_C HWC lookup_insert in HWC'; simplify_eq.
+    rewrite HWC in Hdom_sta.
+    by apply related_sts_pub_cview_fresh.
   Qed.
 
   Lemma related_sts_pub_fresh (W : STS) a ρ i:
@@ -108,10 +131,10 @@ Section heap.
         left.
   Qed.
 
-  Lemma related_sts_pub_world_fresh_loc WC (i x : positive) r1 r2 :
+  Lemma related_sts_pub_cview_fresh_loc WC (i x : positive) r1 r2 :
     i ∉ dom (loc WC).1 →
     i ∉ dom (loc WC).2 →
-    related_sts_pub_world WC (std WC,(<[i:=x]> (loc WC).1, <[i:= (r1,r2)]> (loc WC).2)).
+    related_sts_pub_cview WC (std WC,(<[i:=x]> (loc WC).1, <[i:= (r1,r2)]> (loc WC).2)).
   Proof.
     rewrite /loc. intros Hdom_sta Hdom_rel.
     rewrite /related_sts_pub_world /=.
@@ -128,10 +151,13 @@ Section heap.
         intros x' y Hx' Hy. simplify_map_eq. left.
   Qed.
 
-  Lemma related_sts_pub_world_revoked_temp WC a :
+  (* TODO version with world *)
+  (* Lemma related_sts_pub_world_fresh_loc W C (i x : positive) r1 r2 : *)
+
+  Lemma related_sts_pub_cview_revoked_temp WC a :
     (std WC) !! a = Some Revoked ∨
     (std WC) !! a = Some Temporary →
-    related_sts_pub_world WC (<s[a:=Temporary]s>WC).
+    related_sts_pub_cview WC (<s[a:=Temporary]s>WC).
   Proof.
     intros Ha.
     rewrite /related_sts_pub_world /=.
@@ -152,17 +178,31 @@ Section heap.
         left.
   Qed.
 
+  Lemma related_sts_pub_world_revoked_temp W C a :
+    (std_C W C) !! a = Some Revoked ∨
+    (std_C W C) !! a = Some Temporary →
+    related_sts_pub_world W (<s[(C,a):=Temporary]s>W) C.
+    Proof.
+    rewrite /std_C.
+    intros Hdom_sta.
+    rewrite /related_sts_pub_world /=.
+    split;first apply dom_world_std_update.
+    intros WC WC' HWC HWC'.
+    rewrite /std_update_C HWC lookup_insert in HWC'; simplify_eq.
+    rewrite HWC in Hdom_sta.
+    by apply related_sts_pub_cview_revoked_temp.
+    Qed.
+
   (* The following lemma takes a revoked region and makes it Temporary. *)
 
   (* In the following variant, we only require monotonicity of the updated world *)
-  Lemma update_region_revoked_temp_pwl_updated E W C WC a p v φ `{∀ Wv, Persistent (φ Wv)} :
+  Lemma update_region_revoked_temp_pwl_updated E W C a p v φ `{∀ Wv, Persistent (φ Wv)} :
     let W' := (<s[ (C, a) := Temporary ]s> W) in
-    W !! C = Some WC →
-    (std WC) !! a = Some Revoked →
+    (std_C W C) !! a = Some Revoked →
     isO p = false → isWL p = true →
 
     future_pub_mono C φ v -∗
-    sts_full_world WC -∗
+    sts_full_world W C -∗
     region W C -∗
     a ↦ₐ v -∗
     φ (W',C, v) -∗
@@ -171,14 +211,14 @@ Section heap.
     ={E}=∗
 
     region W' C
-    ∗ sts_full_world (<s[a := Temporary ]s> WC).
+    ∗ sts_full_world W' C.
   Proof.
     intro.
-    iIntros (HWC Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
-    assert (W' !! C = Some (<s[a:=Temporary]s>WC))
-      as HWC' by (by (subst W' ; rewrite /std_update_C HWC lookup_insert)).
+    iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
+    (* assert (W' !! C = Some (<s[a:=Temporary]s>WC)) *)
+    (*   as HWC' by (by (subst W' ; rewrite /std_update_C HWC lookup_insert)). *)
     rewrite region_eq /region_def.
-    iDestruct "Hreg" as (M Mρ ? MC) "(Hγrel & % & %HMC & %Hdom & %Hdom' & Hpreds)";simplify_eq.
+    iDestruct "Hreg" as (M Mρ MC) "(Hγrel & %HMC & %Hdom & %Hdom' & Hpreds)";simplify_eq.
     rewrite RELS_eq /RELS_def.
     rewrite rel_eq /rel_def REL_eq /REL_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
     iDestruct ( (reg_in C M) with "[] [$HREL Hγrel]") as %HMeq;eauto.
@@ -186,14 +226,19 @@ Section heap.
     rewrite /region_map_def HMeq big_sepM_insert; [|by rewrite lookup_delete].
     iDestruct "Hpreds" as "[Hl' Hr]".
     iDestruct "Hl'" as (ρ Hl) "[Hstate Hresources]".
-    iDestruct (sts_full_state_std with "Hsts Hstate") as %Hρ.
+    iDestruct (sts_full_state_std with "Hsts Hstate") as %(WC & HWC & Hρ).
+    rewrite /std_C HWC in Hrev.
     rewrite Hrev in Hρ. inversion Hρ as [Hρrev]. subst.
-    iMod (sts_update_std _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
-    assert (related_sts_pub_world WC (<s[a := Temporary ]s> WC)) as Hrelated.
-    { apply related_sts_pub_world_revoked_temp; auto. }
-    iDestruct (region_map_monotone _ _ _ _ _ _ _ HWC HWC' Hrelated with "Hr") as "Hr".
+    iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
+    assert (related_sts_pub_world W (<s[(C,a) := Temporary ]s> W) C) as Hrelated.
+    { apply related_sts_pub_world_revoked_temp; auto.
+      rewrite /std_C HWC; auto.
+    }
+    iDestruct (region_map_monotone _ _ _ _ _ Hrelated with "Hr") as "Hr".
     assert (is_Some (MC !! a)) as [x Hsome].
-    { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. eauto. }
+    { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom.
+      rewrite /std_C HWC; auto.
+    }
     iDestruct (region_map_delete_nonfrozen with "Hr") as "Hr"; [intros m;congruence|].
     iDestruct (region_map_insert_nonfrozen _ _ _ _ _ Temporary with "Hr") as "Hr";auto.
     iDestruct (big_sepM_delete _ _ a _ Hsome with "[Hl Hstate $Hr]") as "Hr".
@@ -203,11 +248,15 @@ Section heap.
       rewrite Hpwl.
       repeat (iSplit; auto).
     }
-    rewrite /std_update /=. iFrame "Hsts".
+    subst W'.
+    (* TODO insert_std and std_update_C are actually the same..... *)
+    rewrite /insert_std /std_update_C HWC /=; iFrame "Hsts".
     iExists M. iFrame.
-    iExists (<s[a := Temporary ]s> WC). iFrame "%".
+    iFrame "%".
     iModIntro. iPureIntro.
     apply insert_id in Hsome. apply insert_id in Hl. rewrite -Hsome -Hl.
+    rewrite /std_C lookup_insert.
+    rewrite /std_C HWC in Hdom.
     split.
     - repeat rewrite dom_insert_L;rewrite Hdom;set_solver.
     - repeat rewrite dom_insert_L;rewrite Hdom';set_solver.
