@@ -6,14 +6,17 @@ Import uPred.
 
 Section region_alloc.
   Context {Σ:gFunctors}
-    {ceriseg: ceriseG Σ} {sealsg: sealStoreG Σ}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
-    `{MP:MachineParameters}.
+    {ceriseg:ceriseG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ}
+    {heapg : heapGS Σ}
+    `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
 
 
