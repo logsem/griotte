@@ -26,9 +26,9 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma interp_weakening_from_sentry W rx pw dl dro g b e a :
-      interp W (WCap (E rx pw dl dro) g b e a)
-      -∗ interp W (WCap (E rx pw dl dro) Local b e a).
+  Lemma interp_weakening_from_sentry W C rx pw dl dro g b e a :
+      interp W C (WCap (E rx pw dl dro) g b e a)
+      -∗ interp W C (WCap (E rx pw dl dro) Local b e a).
   Proof.
     iIntros "#Hinterp".
     rewrite !fixpoint_interp1_eq !interp1_eq.
@@ -41,21 +41,21 @@ Section fundamental.
     rewrite /enter_cond /interp_expr /=.
     iIntros (regs W' Hrelated).
     destruct g.
-    - iAssert (future_world Global W W')%I as "%Hrelated'".
+    - iAssert (future_world Global W W' C)%I as "%Hrelated'".
       { iPureIntro.
         apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto.
       }
       iSpecialize ("Hinterp" $! regs W' Hrelated').
       iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
       iSplitL; iFrame "#".
-    - iAssert (future_world Local W W')%I as "%Hrelated'".
+    - iAssert (future_world Local W W' C)%I as "%Hrelated'".
       { done. }
       iSpecialize ("Hinterp" $! regs W' Hrelated').
       iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
       iSplitL; iFrame "#".
   Qed.
 
-  Lemma interp_weakeningEO W p p' g g' b b' e e' a a' :
+  Lemma interp_weakeningEO W C p p' g g' b b' e e' a a' :
     isSentry p = false ->
     isO p = false →
     isSentry p' = false ->
@@ -64,8 +64,8 @@ Section fundamental.
     (e' <= e)%a ->
     PermFlowsTo p' p ->
     LocalityFlowsTo g' g ->
-    interp W (WCap p g b e a) -∗
-    interp W (WCap p' g' b' e' a').
+    interp W C (WCap p g b e a) -∗
+    interp W C (WCap p' g' b' e' a').
   Proof.
     intros HpnotSentry HpnotO HpnotSentry' HpnotO' Hb He Hp Hl. iIntros "HA".
     rewrite !fixpoint_interp1_eq !interp1_eq.
@@ -110,7 +110,7 @@ Section fundamental.
         iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
-        assert (region_state_nwl W x Local)
+        assert (region_state_nwl W C x Local)
           as Hstate' by (cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%#".
       + destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
@@ -122,12 +122,12 @@ Section fundamental.
         iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
-        assert (region_state_nwl W x g')
+        assert (region_state_nwl W C x g')
           as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%#".
   Qed.
 
-  Lemma interp_weakeningSentry W p rx pw dl dro g g' b b' e e' a a' :
+  Lemma interp_weakeningSentry W C p rx pw dl dro g g' b b' e e' a a' :
       isSentry p = false ->
       isO p = false ->
       (b <= b')%a ->
@@ -135,8 +135,8 @@ Section fundamental.
       PermFlowsTo (E rx pw dl dro) p ->
       LocalityFlowsTo g' g ->
       ftlr_IH -∗
-      interp W (WCap p g b e a) -∗
-      interp W (WCap (E rx pw dl dro) g' b' e' a').
+      interp W C (WCap p g b e a) -∗
+      interp W C (WCap (E rx pw dl dro) g' b' e' a').
   Proof.
     intros HpnotSentry HpnotO Hb He Hp Hl.
     iIntros "#IH HA".
@@ -182,7 +182,7 @@ Section fundamental.
           all: rewrite andb_false_r in Hp; done.
         }
         iFrame "Hrel".
-        iDestruct ( (monoReq_nwl_future W W' g g' p p'' x φ)
+        iDestruct ( (monoReq_nwl_future W W' C g g' p p'' x φ)
                     with "[$Hfuture] [] [$HmonoR]") as "HmonoR'"; eauto.
         repeat(iSplit; auto).
         clear Hflows''.
@@ -228,7 +228,7 @@ Section fundamental.
 
 
       destruct (isWL (BPerm rx pw dl dro)) eqn: Hpwl; cycle 1.
-      { iDestruct ( (monoReq_nwl_future W W' g g' p p'' x φ)
+      { iDestruct ( (monoReq_nwl_future W W' C g g' p p'' x φ)
                   with "[$Hfuture] [] [$HmonoR]") as "HmonoR'"; eauto.
        repeat(iSplit; auto).
        clear Hflows''.
@@ -248,15 +248,15 @@ Section fundamental.
       }
   Qed.
 
-  Lemma interp_weakening W p p' g g' b b' e e' a a' :
+  Lemma interp_weakening W C p p' g g' b b' e e' a a' :
     isSentry p = false ->
     (b <= b')%a ->
     (e' <= e)%a ->
     PermFlowsTo p' p ->
     LocalityFlowsTo g' g ->
     ftlr_IH -∗
-    interp W (WCap p g b e a) -∗
-    interp W (WCap p' g' b' e' a').
+    interp W C (WCap p g b e a) -∗
+    interp W C (WCap p' g' b' e' a').
   Proof.
     intros HpnotSentry Hb He Hp Hl. iIntros "#IH HA".
     destruct (isO p') eqn:HpO'.
@@ -264,16 +264,16 @@ Section fundamental.
     destruct (isO p) eqn:HpO.
     { eapply notisO_flowsfrom in Hp ; eauto; congruence. }
     destruct (isSentry p') eqn:HpSentry'; cycle 1.
-    { iApply (interp_weakeningEO _ p p' g g'); eauto. }
+    { iApply (interp_weakeningEO _ _ p p' g g'); eauto. }
     { destruct p, p' ; cbn in * ; try congruence.
-      iApply (interp_weakeningSentry _ (BPerm rx w dl dro) _ _ _ _ g g'); eauto.
+      iApply (interp_weakeningSentry _ _ (BPerm rx w dl dro) _ _ _ _ g g'); eauto.
     }
   Qed.
 
-  Lemma interp_next_PC W p g b e a a' :
+  Lemma interp_next_PC W C p g b e a a' :
     isCorrectPC (WCap p g b e a) ->
-    interp W (WCap p g b e a) -∗
-    interp W (WCap p g b e a').
+    interp W C (WCap p g b e a) -∗
+    interp W C (WCap p g b e a').
   Proof.
     iIntros (HcorrectPC) "#Hinterp".
     inversion HcorrectPC as [p' g' b' e' a'' Hb' Hexec']; subst.
@@ -282,11 +282,11 @@ Section fundamental.
     iApply interp_weakeningEO; eauto; try solve_addr; try done.
   Qed.
 
-  Lemma safe_to_unseal_weakening W b e b' e':
+  Lemma safe_to_unseal_weakening W C b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
-    safe_to_unseal W interp b e -∗
-    safe_to_unseal W interp b' e'.
+    safe_to_unseal W C interp b e -∗
+    safe_to_unseal W C interp b' e'.
   Proof.
     iIntros (Hb He) "HA".
     rewrite /safe_to_unseal.
@@ -296,11 +296,11 @@ Section fundamental.
     - iClear "HA"; rewrite !finz_seq_between_empty;[done |solve_addr].
   Qed.
 
-  Lemma safe_to_seal_weakening W b e b' e':
+  Lemma safe_to_seal_weakening W C b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
-    safe_to_seal W interp b e -∗
-    safe_to_seal W interp b' e'.
+    safe_to_seal W C interp b e -∗
+    safe_to_seal W C interp b' e'.
   Proof.
     iIntros (Hb He) "HA".
     rewrite /safe_to_seal.
@@ -310,13 +310,13 @@ Section fundamental.
     - iClear "HA"; rewrite !finz_seq_between_empty;[done |solve_addr].
   Qed.
 
-  Lemma interp_weakening_ot W p p' g g' b b' e e' a a':
+  Lemma interp_weakening_ot W C p p' g g' b b' e e' a a':
     (b <= b')%ot ->
     (e' <= e)%ot ->
     SealPermFlowsTo p' p ->
     LocalityFlowsTo g' g ->
-    interp W (WSealRange p g b e a) -∗
-    interp W (WSealRange p' g' b' e' a').
+    interp W C (WSealRange p g b e a) -∗
+    interp W C (WSealRange p' g' b' e' a').
   Proof.
   intros Hb He Hp Hg. iIntros "#HA".
   rewrite !fixpoint_interp1_eq. cbn.
@@ -327,13 +327,13 @@ Section fundamental.
   Unshelve. all: exact W.
   Qed.
 
-  Lemma interp_borrowed_sealed (W : WORLD) (ot : OType) (sb : Sealable) :
-    interp W (WSealed ot sb) -∗ interp W (WSealed ot (borrow_sb sb)).
+  Lemma interp_borrowed_sealed (W : WORLD) (C : CmptName) (ot : OType) (sb : Sealable) :
+    interp W C (WSealed ot sb) -∗ interp W C (WSealed ot (borrow_sb sb)).
   Proof.
     iIntros "Hinterp".
     rewrite !fixpoint_interp1_eq /= /interp_sb.
     iDestruct "Hinterp" as (P HpersP) "(Hmono & Hsealpred & _ & HPborrowed)".
-    opose proof (HpersP (W,_)) as HpersPborrowed; cbn in HpersPborrowed.
+    opose proof (HpersP (W,C,_)) as HpersPborrowed; cbn in HpersPborrowed.
     iDestruct "HPborrowed" as "#HPborrowed".
     replace (borrow (WSealable (borrow_sb sb)))
       with (WSealable (borrow_sb sb)).
@@ -342,6 +342,7 @@ Section fundamental.
     destruct sb; auto.
   Qed.
 
+  (* TODO move in machine_base *)
   Lemma DL_flowsto (rx : RXperm) (w : Wperm) dl dro :
     PermFlowsTo (BPerm rx w DL dro) (BPerm rx w dl dro).
   Proof.
@@ -354,7 +355,7 @@ Section fundamental.
     destruct rx,w,dl,dro; cbn in *; done.
   Qed.
 
-  Lemma interp_deeplocal_word W w : interp W w ⊢ interp W (deeplocal w).
+  Lemma interp_deeplocal_word W C w : interp W C w ⊢ interp W C (deeplocal w).
   Proof.
     iIntros "Hw".
     destruct w; try done.
@@ -368,7 +369,7 @@ Section fundamental.
     apply DL_flowsto.
   Qed.
 
-  Lemma interp_borrow_word W w : interp W w ⊢ interp W (borrow w).
+  Lemma interp_borrow_word W C w : interp W C w ⊢ interp W C (borrow w).
   Proof.
     iIntros "Hw".
     destruct w; try done.
@@ -386,7 +387,7 @@ Section fundamental.
     - by iApply (interp_borrowed_sealed with "Hw").
   Qed.
 
-  Lemma interp_readonly_word W w : interp W w ⊢ interp W (readonly w).
+  Lemma interp_readonly_word W C w : interp W C w ⊢ interp W C (readonly w).
   Proof.
     iIntros "Hw".
     destruct w; try done.
@@ -404,7 +405,7 @@ Section fundamental.
     apply DRO_flowsto.
   Qed.
 
-  Lemma interp_load_word W p w : interp W w ⊢ interp W (load_word p w).
+  Lemma interp_load_word W C p w : interp W C w ⊢ interp W C (load_word p w).
   Proof.
     iIntros "Hinterp".
     rewrite /load_word.
@@ -414,10 +415,10 @@ Section fundamental.
     - by iApply interp_deeplocal_word ; iApply interp_borrow_word.
   Qed.
 
-  Lemma interp_weakening_word_load (W : WORLD) (p p' : Perm) v :
+  Lemma interp_weakening_word_load (W : WORLD) (C : CmptName) (p p' : Perm) v :
     PermFlowsTo p p'
-    -> fixpoint interp1 W (load_word p' v)
-    -∗ fixpoint interp1 W (load_word p v).
+    -> fixpoint interp1 W C (load_word p' v)
+    -∗ fixpoint interp1 W C (load_word p v).
   Proof.
     iIntros (Hfl) "#Hinterp".
     destruct v.
@@ -459,33 +460,33 @@ Section fundamental.
 
   (* Lemmas about interp  *)
 
-  Lemma interp_int W n : ⊢ interp W (WInt n).
+  Lemma interp_int W C n : ⊢ interp W C (WInt n).
   Proof. iIntros. rewrite /interp fixpoint_interp1_eq //. Qed.
 
   Lemma persistent_cond_interp : persistent_cond interp.
   Proof.
     intros W; apply _.
   Qed.
-  Lemma zcond_interp : ⊢ zcond interp.
+  Lemma zcond_interp C : ⊢ zcond interp C.
   Proof.
     by iModIntro; iIntros (W1 W2 w) "_"; iApply interp_int.
   Qed.
 
-  Lemma wcond_interp : ⊢ wcond interp interp.
+  Lemma wcond_interp C : ⊢ wcond interp C interp.
   Proof.
     by iModIntro; iIntros (W1 w) "?".
   Qed.
 
-  Lemma rcond_interp p : ⊢ rcond p interp interp.
+  Lemma rcond_interp C p : ⊢ rcond interp C p interp.
   Proof.
     iModIntro; iIntros (W1 w) "?".
     by iApply interp_load_word.
   Qed.
 
-  Lemma monoReq_interp (W : WORLD) (a : Addr) (p : Perm) (ρ : region_type) :
-    (std W) !! a = Some ρ
+  Lemma monoReq_interp (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (ρ : region_type) :
+    (std_C W C) !! a = Some ρ
     -> (ρ = Permanent -> isWL p = false)
-    -> ⊢ monoReq W a p interp.
+    -> ⊢ monoReq W C a p interp.
   Proof.
     intros Hstd_a Hρ.
     rewrite /monoReq Hstd_a.

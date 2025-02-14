@@ -29,23 +29,21 @@ Section fundamental.
     executeAllowed p = true ∧ (isWL p = true -> g = Local).
 
   Definition ftlr_IH: iProp Σ :=
-    (□ ▷ (∀ (W_ih : WORLD) (C_ih : CmptName) (WC_ih : CVIEW) (r_ih : leibnizO Reg)
+    (□ ▷ (∀ (W_ih : WORLD) (C_ih : CmptName) (r_ih : leibnizO Reg)
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr),
-            ⌜ W_ih !! C_ih = Some WC_ih ⌝
-            -∗ full_map r_ih
+            full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
             -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r_ih)
             -∗ region W_ih C_ih
-            -∗ sts_full_world WC_ih
+            -∗ sts_full_world W_ih C_ih
             -∗ na_own logrel_nais ⊤
             -∗ □ interp W_ih C_ih (WCap p_ih g_ih b_ih e_ih a_ih)
             -∗ interp_conf W_ih C_ih))%I.
 
-  Definition ftlr_instr (W : WORLD) (C : CmptName) (WC : CVIEW) (regs : leibnizO Reg)
+  Definition ftlr_instr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (i: instr) (ρ : region_type) (P : D) : Prop :=
-    W !! C = Some WC
-    -> validPCperm p g
+    validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
     → isCorrectPC (WCap p g b e a)
     → (b <= a)%a ∧ (a < e)%a
@@ -53,7 +51,7 @@ Section fundamental.
     → isO p' = false
     → (persistent_cond P)
     → (if isWL p then region_state_pwl W C a else region_state_nwl W C a g)
-    → std WC !! a = Some ρ
+    → std_C W C !! a = Some ρ
     → ρ ≠ Revoked
     → (∀ g : Mem, ρ ≠ Frozen g)
     → decodeInstrW w = i
@@ -72,10 +70,10 @@ Section fundamental.
            then future_pub_mono C (safeC P) w
            else future_priv_mono C (safeC P) w))
     -∗ ▷ P W C w
-    -∗ sts_full_world WC
+    -∗ sts_full_world W C
     -∗ na_own logrel_nais ⊤
     -∗ open_region W C a
-    -∗ sts_state_std a ρ
+    -∗ sts_state_std C a ρ
     -∗ a ↦ₐ w
     -∗ PC ↦ᵣ (WCap p g b e a)
     -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)

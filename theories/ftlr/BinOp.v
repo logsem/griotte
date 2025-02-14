@@ -10,25 +10,27 @@ From cap_machine Require Import machine_base.
 
 Section fundamental.
   Context
-    {Σ : gFunctors}
-      {ceriseg: ceriseG Σ}
-      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-      {sealsg: sealStoreG Σ}
-      {nainv: logrel_na_invs Σ}
-      {MP: MachineParameters}
-  .
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {nainv: logrel_na_invs Σ}
+    `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO Reg) -n> iPropO Σ).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma binop_case (W : WORLD) (regs : leibnizO Reg) (p p' : Perm)
+  Lemma binop_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg) (p p' : Perm)
     (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName)
     (r1 r2: Z + RegName) (P:D):
     validPCperm p g
@@ -37,9 +39,9 @@ Section fundamental.
     → (b <= a)%a ∧ (a < e)%a
     → PermFlowsTo p p'
     → isO p' = false
-    → (∀ Wv : WORLD * leibnizO Word, Persistent (P Wv.1 Wv.2))
-    → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
-    → std W !! a = Some ρ
+    → persistent_cond P
+    → (if isWL p then region_state_pwl W C a else region_state_nwl W C a g)
+    → std_C W C !! a = Some ρ
     → ρ ≠ Revoked
     → (∀ g : Mem, ρ ≠ Frozen g)
     → (decodeInstrW w = Add dst r1 r2 \/
@@ -52,35 +54,31 @@ Section fundamental.
        decodeInstrW w = Lt dst r1 r2
       )
     -> ftlr_IH
-    -∗ fixpoint interp1 W (WCap p g b e a)
-    -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
-    -∗ rel a p' (λ Wv, P Wv.1 Wv.2)
+    -∗ fixpoint interp1 W C (WCap p g b e a)
+    -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W C v)
+    -∗ rel C a p' (safeC P)
     -∗ □ (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)
-          then ▷ (rcond p' P interp)
+          then ▷ (rcond P C p' interp)
           else emp)
     -∗ □ (if decide (writeAllowed_a_in_regs (<[PC:=(WCap p g b e a)]> regs) a)
-          then ▷ wcond P interp
+          then ▷ wcond P C interp
           else emp)
-    -∗ monoReq W a p' P
+    -∗ monoReq W C a p' P
     -∗ (▷ (if decide (ρ = Temporary /\ isWL p' = true)
-           then future_pub_mono (safeC P) w
-           else future_priv_mono (safeC P) w))
-    -∗ ▷ P W w
-    -∗ sts_full_world W
+           then future_pub_mono C (safeC P) w
+           else future_priv_mono C (safeC P) w))
+    -∗ ▷ P W C w
+    -∗ sts_full_world W C
     -∗ na_own logrel_nais ⊤
-    -∗ open_region a W
-    -∗ sts_state_std a ρ
+    -∗ open_region W C a
+    -∗ sts_state_std C a ρ
     -∗ a ↦ₐ w
     -∗ PC ↦ᵣ (WCap p g b e a)
     -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
     -∗ WP Instr Executable
         {{ v, WP Seq (cap_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝
-                        → ∃ (regs' : Reg) (W' : WORLD),
-                        full_map regs' ∧ registers_pointsto regs'
-                        ∗ ⌜related_sts_priv_world W W'⌝
-                        ∗ na_own logrel_nais ⊤
-                        ∗ sts_full_world W' ∗ region W' }} }}.
+                        → na_own logrel_nais ⊤}} }}.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
@@ -95,14 +93,14 @@ Section fundamental.
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
     destruct HSpec; cycle 1.
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto. iIntros; discriminate.
+      iApply wp_value; auto.
     - incrementPC_inv; simplify_map_eq.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       assert (dst <> PC) as HdstPC by (intros ->; rewrite lookup_insert in H1; done).
       rewrite lookup_insert_ne in H1; eauto; simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;[|specialize (Hnotfrozen g)];contradiction. }
-      iApply ("IH" $! _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
+      iApply ("IH" $! _ _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
       ; eauto.
       + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).

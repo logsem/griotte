@@ -8,27 +8,30 @@ From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
-    {Σ : gFunctors}
-      {ceriseg: ceriseG Σ} {sealsg: sealStoreG Σ}
-      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-      {nainv: logrel_na_invs Σ}
-      {MP: MachineParameters}.
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {nainv: logrel_na_invs Σ}
+    `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO Reg) -n> iPropO Σ).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-
-  Lemma jalr_case (W : WORLD) (regs : leibnizO Reg)
+  Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:D):
-    ftlr_instr W regs p p' g b e a w (Jalr rdst rsrc) ρ P.
+    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
@@ -43,10 +46,10 @@ Section fundamental.
     destruct HSpec as [ regs' pc_a' wsrc Hrsrc Hpca' ->| Hpca' ]; cycle 1.
     {
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto. iIntros; discriminate.
+      iApply wp_value; auto.
     }
 
-    iAssert (interp W (WCap (seal_perm_sentry p) g b e pc_a')) as "Hinterp_ret".
+    iAssert (interp W C (WCap (seal_perm_sentry p) g b e pc_a')) as "Hinterp_ret".
     { pose proof (isCorrectPC_nonSentry p _ _ _ _ HcorrectPC ) as HpnotSentry.
       iApply (interp_weakening with "IH Hinv_interp");eauto;try solve_addr.
       - rewrite /seal_perm_sentry; destruct p ; cbn in HpnotSentry; try congruence.
@@ -77,7 +80,7 @@ Section fundamental.
         iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
         iNext; iIntros "HPC /=".
         iApply wp_pure_step_later; auto; iNext; iIntros "_".
-        iApply wp_value; iIntros; discriminate.
+        iApply wp_value; auto.
       }
 
 
@@ -87,7 +90,7 @@ Section fundamental.
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         rewrite !insert_insert insert_commute //.
-        iApply ("IH" $! _ (<[rdst:=WCap (seal_perm_sentry p) g b e pc_a']> regs) with
+        iApply ("IH" $! _ _ (<[rdst:=WCap (seal_perm_sentry p) g b e pc_a']> regs) with
                  "[%] [] [$Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
         - intros; cbn.
           rewrite lookup_insert_is_Some.
@@ -113,7 +116,7 @@ Section fundamental.
         iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
         simpl; rewrite /enter_cond.
         iDestruct "Hwsrc" as "#Hinterp_src".
-        iAssert (future_world g0 W W) as "Hfuture".
+        iAssert (future_world g0 W W C) as "Hfuture".
         { iApply futureworld_refl. }
 
         iSpecialize ("Hinterp_src" with "Hfuture").
@@ -141,7 +144,7 @@ Section fundamental.
     all: iApply (wp_notCorrectPC with "HPC"); [intro Hcontra ; inv Hcontra|].
     all: iNext; iIntros "HPC /=".
     all: iApply wp_pure_step_later; auto; iNext; iIntros "_".
-    all: iApply wp_value; iIntros; discriminate.
+    all: iApply wp_value; auto.
   Qed.
 
 End fundamental.
