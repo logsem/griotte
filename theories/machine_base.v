@@ -177,7 +177,7 @@ Notation WSealRange p g b e a := (WSealable (SSealRange p g b e a)).
 Inductive instr: Type :=
 | Jmp (rimm: Z + RegName)
 | Jnz (rimm : Z + RegName) (rcond: RegName)
-| Jalr (rsrc: RegName)
+| Jalr (rdst: RegName) (rsrc: RegName) (* jumps to wsrc, rdst receives return cap *)
 | Mov (dst: RegName) (src: Z + RegName)
 | Load (dst src: RegName)
 | Store (dst: RegName) (src: Z + RegName)
@@ -1620,7 +1620,7 @@ Proof.
       | LOr dst r1 r2 => GenNode 26 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | LShiftL dst r1 r2 => GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | LShiftR dst r1 r2 => GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | Jalr r => GenNode 29 [GenLeaf (inl (inl r))]
+      | Jalr dst src => GenNode 29 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))]
       end).
   set (dec := fun e =>
       match e with
@@ -1655,7 +1655,7 @@ Proof.
       | GenNode 26 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LOr dst r1 r2
       | GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftL dst r1 r2
       | GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftR dst r1 r2
-      | GenNode 29 [GenLeaf (inl (inl r))] => Jalr r
+      | GenNode 29 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))] => Jalr dst src
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).

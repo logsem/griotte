@@ -227,17 +227,17 @@ Section opsem.
         then imm ← z_of_argument (reg φ) rimm;
              updatePC_gen φ imm
         else updatePC φ
-    | Jalr rdst =>
+    | Jalr rdst rsrc =>
         (* Note: allow jumping to integers, sealing ranges etc; machine will crash later *)
-        wrdst ← (reg φ) !! rdst;
+        wrsrc ← (reg φ) !! rsrc;
         wpc ← (reg φ) !! PC;
         match wpc with
         | (WCap p g b e a) =>
             match (a + 1)%a with
             | Some a' =>
-                let φ_cra := (update_reg φ cra (WCap (seal_perm_sentry p) g b e a')) in
-                let φ_next := (update_reg φ_cra PC (updatePcPerm wrdst)) in
-                Some (NextI, φ_next)
+                let φ_next := (update_reg φ PC (updatePcPerm wrsrc)) in
+                let φ_dst := (update_reg φ_next rdst (WCap (seal_perm_sentry p) g b e a')) in
+                Some (NextI, φ_dst)
             | None => None
             end
         | _ => None
