@@ -422,10 +422,10 @@ Section std_updates.
 
    (* TODO update from here if necessary only *)
    (* lemmas for updating a repetition of top *)
-   Lemma std_update_multiple_dom_top_sta W n ρ a :
+   Lemma std_update_multiple_dom_top_sta WC n ρ a :
      a ≠ addr_reg.top ->
-     a ∉ dom (std W) →
-     a ∉ dom (std (std_update_multiple W (repeat addr_reg.top n) ρ)).
+     a ∉ dom (std WC) →
+     a ∉ dom (std (std_update_multiple WC (repeat addr_reg.top n) ρ)).
    Proof.
      intros Hne Hnin.
      induction n; auto.
@@ -436,10 +436,10 @@ Section std_updates.
      + apply IHn.
    Qed.
 
-   Lemma std_update_multiple_dom_sta_i W n ρ a i :
+   Lemma std_update_multiple_dom_sta_i WC n ρ a i :
      a ≠ addr_reg.top → (i > 0)%Z →
-     a ∉ dom (std W) →
-     a ∉ dom (std (std_update_multiple W (finz.seq ((a ^+ i)%a) n) ρ)).
+     a ∉ dom (std WC) →
+     a ∉ dom (std (std_update_multiple WC (finz.seq ((a ^+ i)%a) n) ρ)).
    Proof.
      intros Hneq Hgt.
      destruct (a + i)%a eqn:Hsome.
@@ -470,10 +470,10 @@ Section std_updates.
      solve_addr.
    Qed.
 
-   Lemma std_sta_update_multiple_insert W (a b a' l : Addr) ρ i :
+   Lemma std_sta_update_multiple_insert WC (a b a' l : Addr) ρ i :
      (a' < a)%a →
-     std (std_update_multiple (std_update W a' i) (finz.seq_between a b) ρ) !! l =
-     std (std_update (std_update_multiple W (finz.seq_between a b) ρ) a' i) !! l.
+     std (std_update_multiple (std_update WC a' i) (finz.seq_between a b) ρ) !! l =
+     std (std_update (std_update_multiple WC (finz.seq_between a b) ρ) a' i) !! l.
    Proof.
      intros Hlt.
      destruct (decide (l ∈ finz.seq_between a b)) as [Hin|Hin].
@@ -483,10 +483,10 @@ Section std_updates.
          solve_addr.
        }
        apply elem_of_list_lookup in Hin as [n Hsome].
-       assert (std (std_update_multiple W (finz.seq_between a b) ρ) !! l = Some ρ) as Hpwl.
-       { apply std_update_multiple_lookup with n; auto. }
-       assert (std (std_update_multiple (std_update W a' i) (finz.seq_between a b) ρ) !! l = Some ρ) as Hpwl'.
-       { apply std_update_multiple_lookup with n; auto. }
+       assert (std (std_update_multiple WC (finz.seq_between a b) ρ) !! l = Some ρ) as Hpwl.
+       { apply std_update_multiple_lookup_cview with n; auto. }
+       assert (std (std_update_multiple (std_update WC a' i) (finz.seq_between a b) ρ) !! l = Some ρ) as Hpwl'.
+       { apply std_update_multiple_lookup_cview with n; auto. }
        rewrite -Hpwl in Hpwl'. rewrite Hpwl'.
        rewrite lookup_insert_ne; auto.
      - rewrite std_sta_update_multiple_lookup_same_i; auto.
@@ -496,12 +496,12 @@ Section std_updates.
          rewrite std_sta_update_multiple_lookup_same_i; auto.
    Qed.
 
-   Lemma std_update_multiple_dom_insert W (a b a' : Addr) i :
+   Lemma std_update_multiple_dom_insert WC (a b a' : Addr) i :
      (a' < a)%a →
      Forall (λ a : Addr,
-                   (a ∉ dom (std W))) (finz.seq_between a b) →
+                   (a ∉ dom (std WC))) (finz.seq_between a b) →
      Forall (λ a : Addr,
-                   (a ∉ dom (<[ a' := i]> W.1))) (finz.seq_between a b).
+                   (a ∉ dom (<[ a' := i]> WC.1))) (finz.seq_between a b).
    Proof.
      intros Hlt.
      do 2 (rewrite list.Forall_forall). intros Hforall.
@@ -519,9 +519,9 @@ Section std_updates.
 
    (* commuting updates and revoke *)
 
-   Lemma std_update_multiple_revoke_commute W (l: list Addr) ρ :
+   Lemma std_update_multiple_revoke_commute_cview WC (l: list Addr) ρ :
      ρ ≠ Temporary → ρ ≠ Temporary →
-     std_update_multiple (revoke W) l ρ = revoke (std_update_multiple W l ρ).
+     std_update_multiple (revoke WC) l ρ = revoke (std_update_multiple WC l ρ).
    Proof.
      intros Hne Hne'.
      induction l; auto; simpl.
@@ -537,45 +537,67 @@ Section std_updates.
        apply option_leibniz.
    Qed.
 
+   Lemma std_update_multiple_revoke_commute W C (l: list Addr) ρ :
+     ρ ≠ Temporary → ρ ≠ Temporary →
+     std_update_multiple_C (revoke_C W C) C l ρ = revoke_C (std_update_multiple_C W C l ρ) C.
+   Proof.
+     intros Hne Hne'.
+     rewrite /std_update_multiple_C /revoke_C.
+     destruct (W!!C) as [WC|] eqn:HWC ; [|by rewrite HWC].
+     rewrite !lookup_insert !insert_insert.
+     by rewrite std_update_multiple_revoke_commute_cview.
+   Qed.
    (* std_update_multiple and app *)
 
-   Lemma std_update_multiple_app W (l1 l2 : list Addr) ρ :
-     std_update_multiple W (l1 ++ l2) ρ = std_update_multiple (std_update_multiple W l1 ρ) l2 ρ.
+   Lemma std_update_multiple_app WC (l1 l2 : list Addr) ρ :
+     std_update_multiple WC (l1 ++ l2) ρ = std_update_multiple (std_update_multiple WC l1 ρ) l2 ρ.
    Proof.
      induction l2; auto.
      - by rewrite app_nil_r /=.
      - rewrite std_update_multiple_swap /=. f_equal. auto.
    Qed.
 
-   Lemma std_update_multiple_app_commute W (l1 l2 : list Addr) ρ :
-     std_update_multiple W (l1 ++ l2) ρ = std_update_multiple W (l2 ++ l1) ρ.
+   Lemma std_update_multiple_app_commute WC (l1 l2 : list Addr) ρ :
+     std_update_multiple WC (l1 ++ l2) ρ = std_update_multiple WC (l2 ++ l1) ρ.
    Proof.
      induction l2.
      - by rewrite app_nil_r /=.
      - rewrite std_update_multiple_swap /=. by rewrite IHl2.
    Qed.
 
-   Lemma revoke_condition_std_multiple_updates W l ρ :
-     revoke_condition W → ρ ≠ Temporary → revoke_condition (std_update_multiple W l ρ).
+   Lemma revoke_condition_std_multiple_updates W C l ρ :
+     revoke_condition W C
+     → ρ ≠ Temporary
+     → revoke_condition (std_update_multiple_C W C l ρ) C.
    Proof.
      induction l.
-     - auto.
-     - intros Hrev Hne. simpl. intros a'.
+     - intros Hrev Hne.
+       rewrite /std_update_multiple_C.
+       destruct (W!!C) as [WC|] eqn:HWC; last done.
+       cbn. rewrite insert_id; auto.
+     - simpl. intros Hrev Hne a'.
+       rewrite /std_update_multiple_C.
+       destruct (W!!C) as [WC|] eqn:HWC; last done.
+       rewrite /std_C lookup_insert.
        destruct (decide (a = a')).
-       + simpl. destruct W as [Wstd Wloc].
+       + simpl. destruct WC as [Wstd Wloc].
          rewrite (std_update_multiple_std_sta_eq _ Wloc). subst. rewrite lookup_insert.
          congruence.
-       + simpl. destruct W as [Wstd Wloc].
+       + simpl. destruct WC as [Wstd Wloc].
          rewrite (std_update_multiple_std_sta_eq _ Wloc). rewrite lookup_insert_ne//.
          apply IHl in Hrev;auto.
+         cbn.
+         rewrite /revoke_condition in Hrev.
+         rewrite /std_C /std_update_multiple_C HWC lookup_insert in Hrev.
+         auto.
    Qed.
 
 
-   Lemma std_update_multiple_overlap W l ρ1 ρ2 :
-     std_update_multiple (std_update_multiple W l ρ1) l ρ2 = std_update_multiple W l ρ2.
+   Lemma std_update_multiple_overlap WC l ρ1 ρ2 :
+     std_update_multiple (std_update_multiple WC l ρ1) l ρ2 = std_update_multiple WC l ρ2.
    Proof.
      induction l;auto.
-     simpl. destruct W as [Wstd Wloc]. rewrite /std_update /=. rewrite !std_update_multiple_loc /=. f_equiv.
+     simpl. destruct WC as [Wstd Wloc]. rewrite /std_update /=. rewrite !std_update_multiple_loc /=. f_equiv.
      apply map_eq'. intros k v.
      destruct (decide (a = k)).
      + subst. rewrite !lookup_insert. auto.
@@ -585,9 +607,9 @@ Section std_updates.
          rewrite lookup_insert_ne//. rewrite !std_sta_update_multiple_lookup_same_i// /=.
    Qed.
 
-   Lemma std_update_multiple_insert_commute W a (l: list Addr) ρ ρ' :
+   Lemma std_update_multiple_insert_commute WC a (l: list Addr) ρ ρ' :
      a ∉ l →
-     std_update_multiple (<s[a:=ρ']s> W) l ρ = <s[a:=ρ']s> (std_update_multiple W l ρ).
+     std_update_multiple (<s[a:=ρ']s> WC) l ρ = <s[a:=ρ']s> (std_update_multiple WC l ρ).
    Proof.
      intros Hne.
      induction l; auto; simpl.
@@ -596,24 +618,38 @@ Section std_updates.
      rewrite /std_update /revoke /loc /std /=. rewrite insert_commute;auto.
    Qed.
 
-   Lemma related_sts_pub_update_multiple_perm W l :
-     Forall (λ k, std W !! k = Some Revoked) l →
-     related_sts_pub_world W (std_update_multiple W l Permanent).
+   Lemma related_sts_pub_update_multiple_perm_cview WC l :
+     Forall (λ k, std WC !! k = Some Revoked) l →
+     related_sts_pub_cview WC (std_update_multiple WC l Permanent).
    Proof.
      intros Hforall. induction l.
-     - apply related_sts_pub_refl_world.
+     - apply related_sts_pub_refl_cview.
      - simpl.
        apply list.Forall_cons in Hforall as [ Ha_std Hforall].
-       eapply related_sts_pub_trans_world;[apply IHl; auto|].
+       eapply related_sts_pub_trans_cview;[apply IHl; auto|].
        destruct (decide (a ∈ l)).
-       { rewrite (_: <s[a:=Permanent]s>(std_update_multiple W l Permanent) = std_update_multiple W l Permanent) /=.
-         by apply related_sts_pub_refl_world.
-         rewrite /std_update insert_id /=. by destruct (std_update_multiple W l Permanent).
+       { rewrite (_: <s[a:=Permanent]s>(std_update_multiple WC l Permanent) = std_update_multiple WC l Permanent) /=.
+         by apply related_sts_pub_refl_cview.
+         rewrite /std_update insert_id /=. by destruct (std_update_multiple WC l Permanent).
          by apply std_sta_update_multiple_lookup_in_i. }
-       destruct W as [Hstd Hloc].
-       apply related_sts_pub_world_revoked_permanent in Ha_std.
-       eapply related_sts_pub_trans_world;[apply std_update_mutiple_related_monotone,Ha_std|].
-       rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.
+       destruct WC as [Hstd Hloc].
+       apply related_sts_pub_world_revoked_permanent_cview in Ha_std.
+       eapply related_sts_pub_trans_cview;[apply std_update_mutiple_related_monotone_cview,Ha_std|].
+       rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_cview.
+   Qed.
+
+   Lemma related_sts_pub_update_multiple_perm W C l :
+     Forall (λ k, std_C W C !! k = Some Revoked) l →
+     related_sts_pub_world W (std_update_multiple_C W C l Permanent) C.
+   Proof.
+     intros Hforall.
+     split.
+     - rewrite /std_update_multiple_C.
+       destruct (W!!C) ; [rewrite dom_insert_L|]; set_solver.
+     - intros WC WC' HWC HWC'.
+       rewrite /std_update_multiple_C HWC lookup_insert in HWC'; simplify_eq.
+       rewrite /std_C HWC in Hforall.
+       by apply related_sts_pub_update_multiple_perm_cview.
    Qed.
 
 End std_updates.
