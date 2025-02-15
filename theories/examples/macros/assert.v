@@ -22,7 +22,7 @@ Section Assert.
       (* success case *)
       Mov r_t4 0;
       Mov r_t5 0;
-      Jalr r_t0; (* return *)
+      Jalr cra r_t0; (* return *)
       (* failure case *)
       Mov r_t5 PC; (* pointer to cap: *)
       Lea r_t5 7; (* pointer to cap: *)
@@ -30,7 +30,7 @@ Section Assert.
       Store r_t5 1;
       Mov r_t4 0;
       Mov r_t5 0;
-      Jalr r_t0 (* return *)
+      Jalr cra r_t0 (* return *)
     ].
   (* followed in memory by:
     cap: (RW, flag, end, flag)

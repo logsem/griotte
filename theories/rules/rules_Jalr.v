@@ -18,29 +18,29 @@ Section cap_lang_rules.
   Implicit Types ms : gmap Addr Word.
 
 
-  Inductive Jalr_spec (regs: Reg) pc_p pc_g pc_b pc_e pc_a (rdst: RegName) : Reg → cap_lang.val → Prop :=
-  | Jalr_spec_success regs' pc_a' wdst :
-    regs !! rdst = Some wdst ->
+  Inductive Jalr_spec (regs: Reg) pc_p pc_g pc_b pc_e pc_a (rdst rsrc: RegName) : Reg → cap_lang.val → Prop :=
+  | Jalr_spec_success regs' pc_a' wsrc :
+    regs !! rsrc = Some wsrc ->
     (pc_a + 1)%a = Some pc_a' ->
-    regs' = (<[PC :=  updatePcPerm wdst ]>
-             (<[cra := (WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a') ]>
+    regs' = (<[rdst := (WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a') ]>
+              (<[PC :=  updatePcPerm wsrc ]>
                regs)) →
-    Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst regs' NextIV
+    Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs' NextIV
   | Jalr_spec_failure :
     (pc_a + 1)%a = None ->
-    Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst regs FailedV.
+    Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs FailedV.
 
-  Lemma wp_Jalr Ep pc_p pc_g pc_b pc_e pc_a w rdst regs :
-    decodeInstrW w = Jalr rdst ->
+  Lemma wp_Jalr Ep pc_p pc_g pc_b pc_e pc_a w rdst rsrc regs :
+    decodeInstrW w = Jalr rdst rsrc ->
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs_of (Jalr rdst) ∪ {[cra]} ⊆ dom regs →
+    regs_of (Jalr rdst rsrc) ⊆ dom regs →
 
     {{{ ▷ pc_a ↦ₐ w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ regs' retv, RET retv;
-        ⌜ Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst regs' retv ⌝ ∗
+        ⌜ Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs' retv ⌝ ∗
         pc_a ↦ₐ w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
@@ -59,99 +59,70 @@ Section cap_lang_rules.
     specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri.
     unfold regs_of in Hri, Dregs.
     destruct (Hri rdst) as [wdst [H'rdst Hrdst]]; first by set_solver+.
-    destruct (Hri cra) as [wcra [H'rcra Hrcra]]; first by set_solver+.
+    destruct (Hri rsrc) as [wsrc [H'rsrc Hrsrc]]; first by set_solver+.
     rewrite /exec in Hstep; cbn in Hstep.
-    rewrite Hrdst HrPC /= in Hstep.
+    rewrite Hrsrc HrPC /= in Hstep.
 
     destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; simplify_pair_eq; cycle 1.
     { iFailWP "Hφ" Jalr_spec_failure. }
-    iMod ((gen_heap_update_inSepM _ _ cra) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+    iMod ((gen_heap_update_inSepM _ _ rdst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     { destruct (decide (rdst = PC)); simplify_map_eq; done. }
     iFrame.
     iApply "Hφ"; iFrame.
     iPureIntro; econstructor; eauto.
   Qed.
 
-  Lemma wp_jalr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w rdst wdst wra :
-    decodeInstrW w = Jalr rdst →
+  Lemma wp_jalr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w rsrc wsrc rdst wdst :
+    decodeInstrW w = Jalr rdst rsrc →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ rsrc ↦ᵣ wsrc
         ∗ ▷ rdst ↦ᵣ wdst
-        ∗ ▷ cra ↦ᵣ wra
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ updatePcPerm wdst
+          PC ↦ᵣ updatePcPerm wsrc
           ∗ pc_a ↦ₐ w
-          ∗ rdst ↦ᵣ wdst
-          ∗ cra ↦ᵣ WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a'
+          ∗ rsrc ↦ᵣ wsrc
+          ∗ rdst ↦ᵣ WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrdst & >Hcra) Hφ".
-    iDestruct (map_of_regs_3 with "HPC Hrdst Hcra") as "[Hmap (%&%&%)]".
+    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hrsrc Hrdst") as "[Hmap (%&%&%)]".
     iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { set_solver. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
    destruct Hspec as [ | Hfail ]; subst.
    { iApply "Hφ". iFrame. simplify_map_eq.
-     rewrite (insert_commute _ cra PC) // insert_insert.
-     rewrite (insert_commute _ rdst cra) // insert_insert.
+     rewrite (insert_commute _ rsrc rdst) // insert_insert.
+     rewrite (insert_commute _ rdst PC) // insert_insert.
      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
    { congruence. }
   Qed.
 
-  Lemma wp_jalr_successPC E pc_p pc_g pc_b pc_e pc_a pc_a' w wra :
-    decodeInstrW w = Jalr PC →
+  Lemma wp_jalr_successPC E pc_p pc_g pc_b pc_e pc_a pc_a' w rdst wdst :
+    decodeInstrW w = Jalr rdst PC →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ cra ↦ᵣ wra
+        ∗ ▷ rdst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ updatePcPerm (WCap pc_p pc_g pc_b pc_e pc_a)
           ∗ pc_a ↦ₐ w
-          ∗ cra ↦ᵣ WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a'
+          ∗ rdst ↦ᵣ WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hcra) Hφ".
-    iDestruct (map_of_regs_2 with "HPC Hcra") as "[Hmap %]".
-    iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-   destruct Hspec as [ | Hfail ]; subst.
-   { iApply "Hφ". iFrame.
-     simplify_map_eq.
-     rewrite (insert_commute _ cra PC) // !insert_insert.
-     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-   { congruence. }
-  Qed.
-
-  Lemma wp_jalr_success_cra E pc_p pc_g pc_b pc_e pc_a pc_a' w wra :
-    decodeInstrW w = Jalr cra →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-        ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ cra ↦ᵣ wra
-    }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ᵣ updatePcPerm wra
-          ∗ pc_a ↦ₐ w
-          ∗ cra ↦ᵣ WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a'
-      }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hcra) Hφ".
-    iDestruct (map_of_regs_2 with "HPC Hcra") as "[Hmap %]".
+    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hrdst") as "[Hmap %]".
     iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { set_solver. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
@@ -159,7 +130,37 @@ Section cap_lang_rules.
    destruct Hspec as [ | Hfail ]; subst.
    { iApply "Hφ". iFrame.
      simplify_map_eq.
-     rewrite (insert_commute _ cra PC) // !insert_insert.
+     rewrite insert_insert (insert_commute _ rdst PC) // insert_insert.
+     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+   { congruence. }
+  Qed.
+
+  Lemma wp_jalr_success_rdst E pc_p pc_g pc_b pc_e pc_a pc_a' w wdst rdst :
+    decodeInstrW w = Jalr rdst rdst →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ rdst ↦ᵣ wdst
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ updatePcPerm wdst
+          ∗ pc_a ↦ₐ w
+          ∗ rdst ↦ᵣ WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a'
+      }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hrdst") as "[Hmap %]".
+    iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { set_solver. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+
+   destruct Hspec as [ | Hfail ]; subst.
+   { iApply "Hφ". iFrame.
+     simplify_map_eq.
+     rewrite insert_insert (insert_commute _ rdst PC) // !insert_insert.
      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
    { congruence. }
   Qed.
