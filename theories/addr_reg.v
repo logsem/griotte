@@ -295,6 +295,11 @@ Proof.
   - intros rr _. rewrite elem_of_dom. apply Hfull.
 Qed.
 
+Global Opaque r_t1 r_t2 r_t3 r_t4 r_t5 r_t6 r_t7 r_t8 r_t9
+  r_t10 r_t11 r_t12 r_t13 r_t14 r_t15 r_t16 r_t17 r_t18 r_t19
+  r_t20 r_t21 r_t22 r_t23 r_t24 r_t25 r_t26 r_t27 r_t28 r_t29
+  r_t30 r_t31.
+
 (* -------------------------------- Memory addresses -----------------------------------*)
 
 Notation Addr := (finz MemNum).

@@ -23,6 +23,7 @@ theories/proofmode/map_simpl.v
 theories/addr_reg.v
 theories/proofmode/solve_addr.v
 theories/machine_utils_extra.v
+theories/asm_cerise.v
 
 # Capability Machine Model
 theories/machine_base.v
