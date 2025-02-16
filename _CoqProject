@@ -112,3 +112,7 @@ theories/examples/macros/assert.v
 # theories/examples/macros/reqperm.v
 # theories/examples/macros/salloc.v
 # theories/examples/macros/macros.v
+
+# Griotte case studies
+theories/examples/switcher/switcher.v
+theories/examples/switcher/switcher_spec.v
