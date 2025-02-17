@@ -133,7 +133,6 @@ Section heap.
       iDestruct (big_sepM_insert with "Hrels") as "[Ha Hrels]";auto.
       iDestruct (HI with "[Hr HM Hsts Hrels]") as "(Hr & HM & Hfull & ? & Hmap)"; [by iFrame|..].
       rewrite rel_eq /rel_def. iDestruct "Ha" as (? ? ?) "[HREL ?]".
-      rewrite REL_eq /REL_def.
       iDestruct (reg_in C M with "[] [$HREL $HM]") as %HMeq; eauto.
       apply elem_of_dom in H0. destruct H0.
       iDestruct (region_map_delete_frozen _ _ _ _ m_all a with "Hr") as "(? & ? & ?)".
@@ -143,7 +142,7 @@ Section heap.
       { eapply lookup_weaken; [| apply Hsub_all]. by rewrite lookup_insert. }
       rewrite HMeq in H0. rewrite lookup_insert in H0; inv H0.
       all: iFrame. all: rewrite /frozen_resources /sts_state_std_many !big_sepM_insert //.
-      all: iFrame. all: iExists _. iFrame. rewrite rel_eq /rel_def REL_eq /REL_def. iExists _. iFrame.
+      all: iFrame. all: iExists _. iFrame. rewrite rel_eq /rel_def. iExists _. iFrame.
   Qed.
 
   Lemma region_map_open_all_frozen W C M MC Mρ (m: gmap Addr Word) :
@@ -210,23 +209,23 @@ Section heap.
     rewrite /std_C in Hlookup.
     destruct (W!!C) as [WC|] eqn:HWC; last done.
     rewrite region_eq /region_def.
-    iDestruct "Hr" as (M Mρ MC) "(HM & %HMC & %Hdom & %Hdom' & Hr)".
+    iDestruct "Hr" as (M Mρ MC) "(HM & %HdomM & %HMC & %Hdom & %Hdom' & Hr)".
     rewrite /std_C HWC in Hdom.
-    assert (is_Some (MC !! a)) as [γp Hγp].
+    assert (is_Some (MC !! a)) as [[γ p] Hγp].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. eauto. }
-    rewrite RELS_eq /RELS_def.
     iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].
     iDestruct (big_sepM_delete _ _ a with "Hr") as "[Hstate Hr]";[eauto|].
     iDestruct "Hstate" as (ρ Ha) "[Hρ Hstate]".
     iDestruct (sts_full_state_std with "Hsts Hρ") as %(?&?&Hx''); simplify_eq.
     rewrite Hlookup in Hx''. inversion Hx''. subst.
-    iDestruct "Hstate" as (γ p φ -> Hpers) "(#Hsaved & Ha)".
+    iDestruct "Hstate" as (γ' p' φ Heq Hpers) "(#Hsaved & Ha)".
     iDestruct (big_sepM_delete _ _ a with "[Hρ Ha $Hr]") as "Hr";[eauto| |].
     { iExists ρ. iSplit;auto. iFrame "∗ #". repeat iSplit; auto. }
     iModIntro.
     iSplitL "HM Hr".
     { iExists M,_,_. iFrame "∗%". by rewrite /std_C HWC. }
-    iFrame. iExists p,φ. iSplit;auto. rewrite rel_eq /rel_def REL_eq /REL_def.
+    iFrame. iExists p,φ. iSplit;auto. rewrite rel_eq /rel_def.
+    simplify_eq.
     iFrame "Hsaved Hrel".
   Qed.
 
@@ -282,7 +281,7 @@ Section heap.
     iIntros (HWl) "(Hr & Hsts)".
     iMod (region_map_has_frozen_rels_all with "[$Hr $Hsts]") as "(Hr & Hsts & Hrels)";eauto.
     iModIntro. rewrite region_eq /region_def.
-    iDestruct "Hr" as (M Mρ MC) "(HM & %HMC & % & % & Hr)".
+    iDestruct "Hr" as (M Mρ MC) "(HM & %HdomM & %HMC & % & % & Hr)".
     iDestruct (region_map_has_frozen_addr with "[HM Hr Hsts]")
       as %(Hfrozen & ?); eauto; [by iFrame|].
     iDestruct (region_map_open_all_frozen W C M MC Mρ m with "[HM Hr Hsts Hrels]")
@@ -504,12 +503,17 @@ Section heap.
   Proof.
     intros Heq Hmono . iIntros "Hsts Hr".
     rewrite open_region_many_eq /open_region_many_def.
-    iDestruct "Hr" as (M Mρ MC) "(HR & %HMC & % & % & Hr)".
+    iDestruct "Hr" as (M Mρ MC) "(HR & %HdomM & %HMC & %Hdom & % & Hr)".
     iDestruct (full_sts_Mρ_agree_weaker_delete_list_monotemp with "Hsts Hr") as %Hagree;auto.
     { intros a [Ha Hnin]. apply elem_of_dom. rewrite lookup_delete_list_notin;auto.
-      rewrite H in Ha. apply elem_of_dom in Ha. auto. }
+      rewrite Hdom in Ha. apply elem_of_dom in Ha. auto. }
     iFrame "Hsts". iExists M,Mρ,MC. iFrame. repeat iSplit;auto.
-    - rewrite -H.
+    - iPureIntro.
+      rewrite HdomM.
+      rewrite /std_update_multiple_C.
+      destruct (W!!C) as [WC|] eqn:HWC ; last done.
+      rewrite -(insert_id W C WC) // !dom_insert_L; set_solver.
+    - rewrite -Hdom.
       rewrite /std_C /std_update_multiple_C.
       destruct (W!!C) as [WC|] eqn:HWC ; last by rewrite HWC.
       rewrite lookup_insert.
@@ -704,8 +708,8 @@ Section heap.
     - rewrite difference_het_insert_r difference_het_insert_r.
       iDestruct (big_sepM_insert with "Hmap") as "[Hx Hmap]";auto.
       iDestruct ("IH" with "Hr Hmap HM") as "(Hr & HM & Hmap)". iClear "IH".
-      iDestruct "Hx" as (p φ HpO) "[Hx Hrel]".
-      rewrite rel_eq /rel_def REL_eq /REL_def.
+      iDestruct "Hx" as (p φ HpO) "[Hx #Hrel]".
+      rewrite rel_eq /rel_def.
       iDestruct "Hrel" as (γpred) "#(Hγpred & Hφ)".
       iDestruct (reg_in C M with "[] [$HM $Hγpred]") as %HMeq;eauto.
       assert (MC ∖∖ m = <[x:=(γpred,p)]> (delete x (MC ∖∖ m))) as HMeq'.
@@ -845,9 +849,9 @@ Section heap.
     iIntros (HMC) "HM Hmap".
     iIntros (a [x Hx]).
     iDestruct (big_sepM_delete _ _ a with "Hmap") as "[Ha _]";eauto.
-    iDestruct "Ha" as (p φ) "Hrel".
-    rewrite rel_eq /rel_def REL_eq /REL_def.
-    iDestruct "Hrel" as (γpred) "[Hown _]".
+    iDestruct "Ha" as (p φ) "#Hrel".
+    rewrite rel_eq /rel_def.
+    iDestruct "Hrel" as (γpred) "#[Hown _]".
     iDestruct (reg_in with "[] [$HM $Hown]") as %HMeq; eauto.
     rewrite HMeq. rewrite lookup_insert. eauto.
   Qed.
@@ -891,7 +895,7 @@ Section heap.
   Proof.
     iIntros (Hcond) "(Hfull & Hr & Hmap)".
     rewrite region_eq /region_def.
-    iDestruct "Hr" as (M Mρ MC) "(HM & %HMC & %Hdom & %Hdom' & Hr)".
+    iDestruct "Hr" as (M Mρ MC) "(HM & %HdomM & %HMC & %Hdom & %Hdom' & Hr)".
     iDestruct (region_revoked_to_frozen_preamble with "Hr [Hmap] HM") as "(Hr & HM & Hmap)".
     { auto. }
     { iApply (big_sepM_mono with "Hmap"). iIntros (k x Hk) "Hr".
@@ -931,6 +935,11 @@ Section heap.
     assert (dom m ⊆ dom MC) as Hmsub.
     { apply elem_of_subseteq. intros x Hx. rewrite -HdomMρ'.
       apply elem_of_dom. pose proof (Hforall' _ Hx) as Hx'. eauto. }
+    split; auto.
+    { rewrite /std_update_multiple_C.
+      destruct (W!!C) as [WC|] eqn:HWC;last done.
+      rewrite HdomM -(insert_id W C WC) // !dom_insert_L; set_solver.
+    }
     split; auto.
     split; auto.
     apply std_update_multiple_dom_equal_eq;eauto.
