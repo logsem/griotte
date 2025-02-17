@@ -31,9 +31,12 @@ Section std_updates.
     end.
 
   Definition std_update_multiple_C W C l ρ :=
-    match W !! C with
-    | Some WC => <[C := std_update_multiple WC l ρ]> W
-    | None => W
+    match l with
+    | [] => W
+    | _ => (match W !! C with
+           | Some WC => <[C := std_update_multiple WC l ρ]> W
+           | None => <[C := std_update_multiple (∅,(∅,∅)) l ρ]> W
+           end)
     end.
 
    Definition std_update_temp_multiple WC l := std_update_multiple WC l Temporary.
@@ -110,9 +113,14 @@ Section std_updates.
      std_update_multiple_C W C l1 ρ = std_update_multiple_C W C l2 ρ.
    Proof.
      intros Hperm.
-     rewrite /std_update_multiple_C.
-     destruct (W!!C); last done.
-     erewrite std_update_multiple_permutation; eauto.
+     induction Hperm using Permutation_ind.
+     - done.
+     - rewrite /std_update_multiple_C.
+       destruct (W!!C); erewrite std_update_multiple_permutation; eauto.
+     - rewrite /std_update_multiple_C.
+       destruct (W!!C); erewrite std_update_multiple_permutation; eauto
+       ; apply Permutation_swap.
+     - by rewrite IHHperm1 -IHHperm2.
    Qed.
 
    Global Instance std_update_multiple_Permutation WC ρ :
@@ -266,11 +274,15 @@ Section std_updates.
      intros Hforall.
      rewrite /std_C in Hforall.
      rewrite /std_update_multiple_C.
-     destruct (W!!C) as [WC|] eqn:HWC;last apply related_sts_pub_refl_world.
-     split.
-     - rewrite dom_insert_L ; set_solver.
-     - intros ? WC' ? HWC' ; rewrite lookup_insert in HWC' ; simplify_eq.
-       by apply related_sts_pub_update_multiple_cview.
+     destruct l as [|a l]; first apply related_sts_pub_refl_world.
+     destruct (W!!C) as [WC|] eqn:HWC.
+     - split.
+       + rewrite dom_insert_L ; set_solver.
+       + intros ? WC' ? HWC' ; rewrite lookup_insert in HWC' ; simplify_eq.
+         by apply related_sts_pub_update_multiple_cview.
+     - split.
+       + rewrite dom_insert_L ; set_solver.
+       + intros ? WC' ? HWC' ; rewrite lookup_insert in HWC' ; simplify_eq.
    Qed.
 
    Lemma std_update_multiple_lookup_cview WC l ρ k y :
@@ -291,6 +303,7 @@ Section std_updates.
    Proof.
      intros Helem [WC HWC].
      rewrite /std_C /std_update_multiple_C HWC.
+     destruct l ; first done.
      rewrite lookup_insert. eapply std_update_multiple_lookup_cview; eauto.
    Qed.
 
@@ -347,8 +360,8 @@ Section std_updates.
    Proof.
      rewrite /std_C /std_update_multiple_C.
      intros Hdom_W Hdom.
-     destruct (W !! C) as [WC|] eqn:HWC; last rewrite HWC; eauto; cycle 1.
-     - rewrite dom_empty_L; set_solver.
+     destruct l ; first done.
+     destruct (W !! C) as [WC|] eqn:HWC.
      - rewrite lookup_insert.
        assert (is_Some (W' !! C)) as [WC' HWC'].
        {
@@ -358,6 +371,9 @@ Section std_updates.
        }
        rewrite HWC' lookup_insert.
        rewrite HWC' in Hdom.
+       by eapply std_update_multiple_std_sta_dom_monotone_cview.
+     - rewrite lookup_insert.
+       destruct (W'!!C) as [WC'|] eqn:HWC'; rewrite lookup_insert; auto.
        by eapply std_update_multiple_std_sta_dom_monotone_cview.
    Qed.
 
@@ -389,6 +405,7 @@ Section std_updates.
     Proof.
       intros Hdom.
       rewrite /std_update_multiple_C.
+      destruct l ; first done.
       destruct (W !! C) as [WC|] eqn:HWC; eauto.
       - destruct (W' !! C) as [WC'|] eqn:HWC'; eauto.
         + rewrite !dom_insert_L; set_solver.
@@ -396,7 +413,20 @@ Section std_updates.
           specialize (Hdom _ HWC).
           by eapply (not_elem_of_dom W') in HWC'.
       - destruct (W' !! C) as [WC'|] eqn:HWC'; eauto.
-        rewrite !dom_insert_L; set_solver.
+        + rewrite !dom_insert_L; set_solver.
+        + rewrite !dom_insert_L; set_solver.
+    Qed.
+
+    (* TODO move *)
+    Lemma related_sts_pub_empty_cview WC : related_sts_pub_cview (∅, (∅, ∅)) WC.
+    Proof.
+      split; cbn.
+      - split;auto.
+        + rewrite dom_empty_L; set_solver.
+        + intros ; set_solver.
+      - split;auto.
+        + rewrite dom_empty_L; set_solver.
+        + intros ; set_solver.
     Qed.
 
    Lemma std_update_mutiple_related_monotone W W' C l ρ :
@@ -407,6 +437,7 @@ Section std_updates.
      split.
      - by apply std_update_mutiple_dom_monotone.
      - rewrite /std_update_multiple_C.
+       destruct l ; first done.
        intros WC_upd WC_upd' HWC_upd HWC_upd'.
        destruct (W!!C) as [WC|] eqn:HWC.
        + destruct (W'!!C) as [WC'|] eqn:HWC' ; cycle 1.
@@ -418,6 +449,12 @@ Section std_updates.
          apply std_update_mutiple_related_monotone_cview.
          by apply Hrelated.
        + destruct (W'!!C) as [WC'|] eqn:HWC'; simplify_eq.
+         all: rewrite lookup_insert in HWC_upd.
+         all: rewrite lookup_insert in HWC_upd'.
+         all: simplify_eq.
+         * apply std_update_mutiple_related_monotone_cview.
+           apply related_sts_pub_empty_cview.
+         * by apply std_update_mutiple_related_monotone_cview.
    Qed.
 
    (* TODO update from here if necessary only *)
@@ -543,9 +580,11 @@ Section std_updates.
    Proof.
      intros Hne Hne'.
      rewrite /std_update_multiple_C /revoke_C.
-     destruct (W!!C) as [WC|] eqn:HWC ; [|by rewrite HWC].
-     rewrite !lookup_insert !insert_insert.
-     by rewrite std_update_multiple_revoke_commute_cview.
+     destruct l ; first done.
+     destruct (W!!C) as [WC|] eqn:HWC; [|rewrite HWC]
+     ; rewrite !lookup_insert !insert_insert.
+     - by rewrite std_update_multiple_revoke_commute_cview.
+     - rewrite -std_update_multiple_revoke_commute_cview;auto.
    Qed.
    (* std_update_multiple and app *)
 
@@ -565,19 +604,34 @@ Section std_updates.
      - rewrite std_update_multiple_swap /=. by rewrite IHl2.
    Qed.
 
+  (* TODO move multiple update *)
+  Lemma std_update_multiple_C_empty W C ρ : std_update_multiple_C W C [] ρ = W.
+  Proof.
+    rewrite /std_update_multiple_C ; done.
+  Qed.
+
    Lemma revoke_condition_std_multiple_updates W C l ρ :
      revoke_condition W C
      → ρ ≠ Temporary
      → revoke_condition (std_update_multiple_C W C l ρ) C.
    Proof.
-     induction l.
+     induction l as [|a l IHl].
      - intros Hrev Hne.
-       rewrite /std_update_multiple_C.
-       destruct (W!!C) as [WC|] eqn:HWC; last done.
-       cbn. rewrite insert_id; auto.
+       rewrite /std_update_multiple_C; done.
      - simpl. intros Hrev Hne a'.
-       rewrite /std_update_multiple_C.
-       destruct (W!!C) as [WC|] eqn:HWC; last done.
+       destruct (W!!C) as [WC|] eqn:HWC; cycle 1.
+       { destruct (decide (a = a')); simplify_map_eq.
+         + rewrite /std_C lookup_insert.
+           rewrite lookup_insert. congruence.
+         + apply IHl in Hrev; auto.
+           rewrite /revoke_condition in Hrev.
+           (* rewrite /std_C /std_update_multiple_C HWC in Hrev. *)
+           rewrite /std_C lookup_insert.
+           rewrite lookup_insert_ne; auto.
+           specialize (Hrev a').
+           destruct l; first done.
+           by rewrite /std_C /std_update_multiple_C HWC lookup_insert in Hrev.
+       }
        rewrite /std_C lookup_insert.
        destruct (decide (a = a')).
        + simpl. destruct WC as [Wstd Wloc].
@@ -588,10 +642,12 @@ Section std_updates.
          apply IHl in Hrev;auto.
          cbn.
          rewrite /revoke_condition in Hrev.
-         rewrite /std_C /std_update_multiple_C HWC lookup_insert in Hrev.
-         auto.
+         destruct l.
+         * rewrite /std_C /std_update_multiple_C HWC in Hrev.
+           done.
+         * rewrite /std_C /std_update_multiple_C HWC lookup_insert in Hrev.
+           done.
    Qed.
-
 
    Lemma std_update_multiple_overlap WC l ρ1 ρ2 :
      std_update_multiple (std_update_multiple WC l ρ1) l ρ2 = std_update_multiple WC l ρ2.
@@ -643,9 +699,10 @@ Section std_updates.
      related_sts_pub_world W (std_update_multiple_C W C l Permanent) C.
    Proof.
      intros Hforall.
+     destruct l; first apply related_sts_pub_refl_world.
      split.
      - rewrite /std_update_multiple_C.
-       destruct (W!!C) ; [rewrite dom_insert_L|]; set_solver.
+       destruct (W!!C) ; rewrite dom_insert_L; set_solver.
      - intros WC WC' HWC HWC'.
        rewrite /std_update_multiple_C HWC lookup_insert in HWC'; simplify_eq.
        rewrite /std_C HWC in Hforall.
