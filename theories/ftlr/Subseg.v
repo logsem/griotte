@@ -9,29 +9,33 @@ From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
-    {Σ : gFunctors}
-      {ceriseg: ceriseG Σ} {sealsg: sealStoreG Σ}
-      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-      {nainv: logrel_na_invs Σ}
-      {MP: MachineParameters}.
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {nainv: logrel_na_invs Σ}
+    `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO Reg) -n> iPropO Σ).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma subseg_interp_preserved W p g b b' e e' a :
+  Lemma subseg_interp_preserved W C p g b b' e e' a :
       isSentry p = false ->
       (b <= b')%a ->
       (e' <= e)%a ->
       ftlr_IH -∗
-      (fixpoint interp1) W (WCap p g b e a) -∗
-      (fixpoint interp1) W (WCap p g b' e' a).
+      interp W C (WCap p g b e a) -∗
+      interp W C (WCap p g b' e' a).
   Proof.
     intros Hne Hb He. iIntros "#IH Hinterp".
     iApply (interp_weakening with "IH Hinterp"); eauto.
@@ -39,10 +43,10 @@ Section fundamental.
     - destruct g; reflexivity.
   Qed.
 
-   Lemma subseg_case (W : WORLD) (regs : leibnizO Reg)
+   Lemma subseg_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
      (p p' : Perm) (g : Locality) (b e a : Addr) (w : Word)
      (ρ : region_type) (dst : RegName) (r1 r2 : Z + RegName) (P:D):
-    ftlr_instr W regs p p' g b e a w (Subseg dst r1 r2) ρ P.
+    ftlr_instr W C regs p p' g b e a w (Subseg dst r1 r2) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
@@ -57,7 +61,7 @@ Section fundamental.
     destruct HSpec as [ * Hdst ? Hao1 Hao2 Hwi HincrPC | * Hdst Hoo1 Hoo2 Hwi HincrPC | ]
                         ; cycle 2.
     { iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto. iIntros; discriminate. }
+      iApply wp_value; auto. }
     { apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
 
       assert (a'' = a ∧ p'' = p∧ g'' = g) as (-> & -> & ->).
@@ -69,7 +73,7 @@ Section fundamental.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       simplify_map_eq; map_simpl "Hmap".
 
-      iApply ("IH" $! _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
+      iApply ("IH" $! _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
       { cbn. intros. by repeat (rewrite lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
@@ -107,7 +111,7 @@ Section fundamental.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
       simplify_map_eq; map_simpl "Hmap".
 
-      iApply ("IH" $! _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
+      iApply ("IH" $! _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
       { cbn. intros. by repeat (rewrite lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).

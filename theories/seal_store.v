@@ -62,13 +62,17 @@ Qed.
 
 Section Store.
   Context `{!sealStoreG Σ}
-      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ} .
+      {Cname : CmptNameG}
+      {stsg : STSG Addr region_type Σ}
+      {heapg : heapGS Σ}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
 
-  Definition seal_pred (o : OType) (P : WORLD * Word → iProp Σ) :=
+  Definition seal_pred (o : OType) (P : WORLD * CmptName * Word → iProp Σ) :=
     (∃ γpred: gname, own SG_sealN ({[o := Cinr (to_agree γpred)]})
                      ∗ saved_pred_own γpred DfracDiscarded P)%I.
   Global Instance seal_pred_persistent i P : Persistent (seal_pred i P).
@@ -88,7 +92,7 @@ Section Store.
     iIntros (x). iApply (saved_pred_agree with "Hpred1 Hpred2").
   Qed.
 
-  Lemma seal_store_update_alloc (o : OType) (P : WORLD * Word → iProp Σ):
+  Lemma seal_store_update_alloc (o : OType) (P : WORLD * CmptName * Word → iProp Σ):
    can_alloc_pred o ==∗ seal_pred o P.
   Proof.
     rewrite /seal_pred /can_alloc_pred.

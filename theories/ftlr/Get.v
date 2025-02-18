@@ -8,27 +8,30 @@ From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
-    {Σ : gFunctors}
-      {ceriseg: ceriseG Σ}
-      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-      {sealsg: sealStoreG Σ}
-      {nainv: logrel_na_invs Σ}
-      {MP: MachineParameters}
-  .
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {nainv: logrel_na_invs Σ}
+    `{MP: MachineParameters}.
+
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO Reg) -n> iPropO Σ).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma get_case (W : WORLD) (regs : leibnizO Reg) (p p' : Perm)
+  Lemma get_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg) (p p' : Perm)
         (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst r : RegName) (ins: instr) (P:D) :
     is_Get ins dst r →
-    ftlr_instr W regs p p' g b e a w ins ρ P.
+    ftlr_instr W C regs p p' g b e a w ins ρ P.
   Proof.
     intros Hinstr Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
@@ -43,7 +46,7 @@ Section fundamental.
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
     destruct HSpec; cycle 1.
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto. iIntros; discriminate.
+      iApply wp_value; auto.
     - incrementPC_inv; simplify_map_eq.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       assert (dst <> PC) as HdstPC by (intros ->; simplify_map_eq).
@@ -51,7 +54,7 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;[|specialize (Hnotfrozen g)];contradiction. }
 
-      iApply ("IH" $! _ (<[dst := _]> (<[PC := _]> regs))
+      iApply ("IH" $! _ _ (<[dst := _]> (<[PC := _]> regs))
                with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
         ; eauto.
       + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).

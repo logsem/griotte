@@ -9,34 +9,36 @@ Import uPred.
 
 Section fundamental.
   Context
-    {Σ : gFunctors}
-      {ceriseg: ceriseG Σ}
-      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-      {sealsg: sealStoreG Σ}
-      {nainv: logrel_na_invs Σ}
-      {MP: MachineParameters}
-  .
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {nainv: logrel_na_invs Σ}
+    `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO Reg) -n> iPropO Σ).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
   (* The necessary resources to close the region again,
      except for the points to predicate, which we will store separately
      The boolean bl can be used to keep track of whether or not we have applied a wp lemma *)
-  Definition region_open_resources W a als p φ v (has_later : bool): iProp Σ :=
+  Definition region_open_resources W C a als p φ v (has_later : bool): iProp Σ :=
     (∃ ρ,
-     sts_state_std a ρ
+     sts_state_std C a ρ
     ∗ ⌜ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g)⌝
-    ∗ open_region_many (a :: als) W
-    ∗ if_later_P has_later (monotonicity_guarantees_region ρ v p φ ∗ φ (W, v))
-    ∗ rel a p φ)%I.
+    ∗ open_region_many W C(a :: als)
+    ∗ if_later_P has_later (monotonicity_guarantees_region C φ p v ρ ∗ φ (W,C, v))
+    ∗ rel C a p φ)%I.
 
   Lemma load_inr_eq {regs r p0 g0 b0 e0 a0 p1 g1 b1 e1 a1}:
     reg_allows_load regs r p0 g0 b0 e0 a0 →
@@ -51,25 +53,25 @@ Section fundamental.
   (* Description of what the resources are supposed to look like
      after opening the region if we need to,
      but before closing the region up again*)
-  Definition allow_load_res W r (regs : Reg) pc_a pc_p :=
+  Definition allow_load_res W C r (regs : Reg) pc_a pc_p :=
     (∃ p g b e a, ⌜read_reg_inr regs r p g b e a⌝ ∗
     if decide (reg_allows_load regs r p g b e a)
     then (if decide (a ≠ pc_a)
           then ∃ w p' (P:D),
               ⌜PermFlowsTo p p'⌝
-              ∗ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
+              ∗ ⌜persistent_cond P⌝
               ∗ a ↦ₐ w
-              ∗ (region_open_resources W a [pc_a] p' (λ Wv, P Wv.1 Wv.2) w true)
-              ∗ ▷ rcond p' P interp
-          else open_region pc_a W ∗ ⌜PermFlowsTo p pc_p⌝)
-    else open_region pc_a W)%I.
+              ∗ (region_open_resources W C a [pc_a] p' (safeC P) w true)
+              ∗ ▷ rcond P C p' interp
+          else open_region W C pc_a ∗ ⌜PermFlowsTo p pc_p⌝)
+    else open_region W C pc_a)%I.
 
-   Lemma interp_hpf_eq (W : WORLD) P (regs : leibnizO Reg) (r1 : RegName)
+   Lemma interp_hpf_eq (W : WORLD) (C : CmptName) P (regs : leibnizO Reg) (r1 : RegName)
     p g b e a pc_p pc_g pc_b pc_e pc_p' :
     reg_allows_load (<[PC:=WCap pc_p pc_g pc_b pc_e a]> regs) r1 p g b e a
     → PermFlowsTo pc_p pc_p'
-    → (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → ((fixpoint interp1) W) v)
-    -∗ rel a pc_p' P
+    → (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → (interp W C v))
+    -∗ rel C a pc_p' P
     -∗ ⌜PermFlowsTo p pc_p'⌝.
   Proof.
     destruct (decide (r1 = PC)).
@@ -77,40 +79,40 @@ Section fundamental.
     - iIntros ((Hsomer1 & Hwa & Hwb) Hfl) "Hreg #Hinva".
       simplify_map_eq.
       iDestruct ("Hreg" $! r1 _ n Hsomer1) as "Hr1"; eauto.
-      iDestruct (read_allowed_inv _ a with "Hr1")
+      iDestruct (read_allowed_inv _ _ a with "Hr1")
         as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hrcond'' & Hwcond'')"; auto.
       { apply andb_true_iff in Hwb as [Hle Hge].
         split; [apply Zle_is_le_bool | apply Zlt_is_lt_bool]; auto. }
-      iDestruct (rel_agree a _ _ p'' pc_p' with "[$Hinva $Hrel'']") as "[-> _]".
+      iDestruct (rel_agree _ _ _ _ p'' pc_p' with "[$Hinva $Hrel'']") as "[-> _]".
       done.
   Qed.
 
-  Definition allow_load_mem W r (regs : Reg) pc_a pc_p pc_w (mem : Mem) (has_later: bool):=
+  Definition allow_load_mem W C r (regs : Reg) pc_a pc_p pc_w (mem : Mem) (has_later: bool):=
     (∃ p g b e a, ⌜read_reg_inr regs r p g b e a⌝ ∗
     if decide (reg_allows_load regs r p g b e a)
     then (if decide (a ≠ pc_a)
           then ∃ w p' (P:D),
               ⌜PermFlowsTo p p'⌝
-              ∗ ⌜(∀ Wv, Persistent (P Wv.1 Wv.2))⌝
+              ∗ ⌜persistent_cond P⌝
               ∗ ⌜mem = <[a:=w]> (<[pc_a:=pc_w]> ∅)⌝
-              ∗ (region_open_resources W a [pc_a] p' (λ Wv, P Wv.1 Wv.2) w has_later)
-              ∗ if_later_P has_later (rcond p' P interp)
-          else ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region pc_a W ∗ ⌜PermFlowsTo p pc_p⌝ )
-    else ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region pc_a W)%I.
+              ∗ (region_open_resources W C a [pc_a] p' (safeC P) w has_later)
+              ∗ if_later_P has_later (rcond P C p' interp)
+          else ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region W C pc_a ∗ ⌜PermFlowsTo p pc_p⌝ )
+    else ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region W C pc_a)%I.
 
   Lemma create_load_res
-    (W : WORLD) (regs : leibnizO Reg)
+    (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p_pc p_pc' : Perm) (g_pc : Locality) (b_pc e_pc a_pc : Addr)
     (src : RegName)
     (p : Perm) (g : Locality) (b e a : Addr) (P:D):
     read_reg_inr (<[PC:=WCap p_pc g_pc b_pc e_pc a_pc]> regs) src p g b e a
     → PermFlowsTo p_pc p_pc'
-    → (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W v)
-    -∗ rel a_pc p_pc' (safeC P)
-    -∗ open_region a_pc W
-    -∗ sts_full_world W
-    -∗ (allow_load_res W src (<[PC:= WCap p_pc g_pc b_pc e_pc a_pc]> regs) a_pc p_pc'
-        ∗ sts_full_world W).
+    → (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)
+    -∗ rel C a_pc p_pc' (safeC P)
+    -∗ open_region W C a_pc
+    -∗ sts_full_world W C
+    -∗ (allow_load_res W C src (<[PC:= WCap p_pc g_pc b_pc e_pc a_pc]> regs) a_pc p_pc'
+        ∗ sts_full_world W C).
   Proof.
     iIntros (HVsrc Hfl) "#Hreg #Hinva Hr Hsts".
     do 5 (iApply sep_exist_r; iExists _). iFrame "%".
@@ -130,7 +132,7 @@ Section fundamental.
     simplify_map_eq.
 
     iDestruct ("Hreg" $! src _ n Hrinr) as "Hvsrc"; eauto.
-    iDestruct (read_allowed_inv _ a with "Hvsrc")
+    iDestruct (read_allowed_inv _ _ a with "Hvsrc")
       as (p0 P0 Hflp0 Hcond_pers0) "(Hrel0 & Hzcond0 & Hrcond0 & Hwcond0)"; auto
     ; first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
 
@@ -140,7 +142,7 @@ Section fundamental.
     destruct HH as (ρ0 & Hstd & Hnotrevoked0 & Hnotfrozen0).
     (* We can finally frame off Hsts here,
             since it is no longer needed after opening the region*)
-    iDestruct (region_open_next _ _ _ a p0 ρ0 with "[$Hrel0 $Hr $Hsts]")
+    iDestruct (region_open_next _ _ _ _ a p0 ρ0 with "[$Hrel0 $Hr $Hsts]")
       as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
     { intros [m' Hcontr]. specialize (Hnotfrozen0 m'); contradiction. }
     { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
@@ -150,12 +152,12 @@ Section fundamental.
   Qed.
 
   Lemma load_res_implies_mem_map
-    (W : WORLD) (regs : leibnizO Reg)
+    (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
       (p : Perm) (a : Addr) (w : Word) (src : RegName):
-    allow_load_res W src regs a p
+    allow_load_res W C src regs a p
     -∗ a ↦ₐ w
     -∗ ∃ mem0 : Mem,
-        allow_load_mem W src regs a p w mem0 true
+        allow_load_mem W C src regs a p w mem0 true
         ∗ ▷ ([∗ map] a0↦w ∈ mem0, a0 ↦ₐ w).
   Proof.
     iIntros "HLoadRes Ha".
@@ -190,10 +192,10 @@ Section fundamental.
   Qed.
 
   Lemma mem_map_implies_pure_conds
-    (W : WORLD) (regs : leibnizO Reg)
+    (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
       (p : Perm) (a : Addr) (w : Word) (src : RegName)
       (mem0 : Mem):
-    allow_load_mem W src regs a p w mem0 true
+    allow_load_mem W C src regs a p w mem0 true
     -∗ ⌜mem0 !! a = Some w⌝ ∗ ⌜allow_load_map_or_true src regs mem0⌝.
   Proof.
     iIntros "HLoadMem".
@@ -225,11 +227,11 @@ Section fundamental.
   Qed.
 
   Lemma allow_load_mem_later
-    (W : WORLD) (regs : leibnizO Reg)
+    (W : WORLD) (C :CmptName) (regs : leibnizO Reg)
     (p : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (src : RegName) (mem0 : Mem):
-    allow_load_mem W src regs a p w mem0 true
-    -∗ ▷ allow_load_mem W src regs a p w mem0 false.
+    allow_load_mem W C src regs a p w mem0 true
+    -∗ ▷ allow_load_mem W C src regs a p w mem0 false.
   Proof.
     iIntros "HLoadMem".
     iDestruct "HLoadMem" as (p0 g0 b0 e0 a0) "[% HLoadMem]".
@@ -241,15 +243,15 @@ Section fundamental.
     do 2 (iApply later_sep_2; iSplitR; auto).
   Qed.
 
-  Definition rcond' (P : D) p g b e a regs p' : iProp Σ
+  Definition rcond' (P : D) (C : CmptName) p g b e a regs p' : iProp Σ
     := (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)
-             then (rcond p' P interp)
+             then (rcond P C p' interp)
              else emp)%I.
-  Instance rcond'_pers P p g b e a regs p' : Persistent (rcond' P p g b e a regs p' ).
+  Instance rcond'_pers P C p g b e a regs p' : Persistent (rcond' P C p g b e a regs p' ).
   Proof. intros. rewrite /rcond'. case_decide;apply _. Qed.
 
   Lemma mem_map_recover_res
-    (W : WORLD) (regs : leibnizO Reg)
+    (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (pc_w : Word) (src : RegName)
     (p_pc p_pc' : Perm) (g_pc : Locality) (b_pc e_pc a_pc : Addr)
     (p : Perm) (g : Locality) (b e a : Addr)
@@ -257,13 +259,13 @@ Section fundamental.
     PermFlowsTo p_pc p_pc'
     -> reg_allows_load (<[PC:=WCap p_pc g_pc b_pc e_pc a_pc]> regs) src p g b e a
     -> mem0 !! a = Some loadv
-    -> interp W (WCap p_pc g_pc b_pc e_pc a_pc)
-      -∗ (∀ r v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W v)
-         -∗ rcond' P p_pc g_pc b_pc e_pc a_pc regs p_pc'
-            -∗ P W pc_w
+    -> interp W C (WCap p_pc g_pc b_pc e_pc a_pc)
+      -∗ (∀ r v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)
+         -∗ rcond' P C p_pc g_pc b_pc e_pc a_pc regs p_pc'
+            -∗ P W C pc_w
                -∗ ([∗ map] a1↦w0 ∈ mem0, a1 ↦ₐ w0)
-                  -∗ allow_load_mem W src (<[PC:=WCap p_pc g_pc b_pc e_pc a_pc]> regs) a_pc p_pc' pc_w mem0 false
-                     -∗ open_region a_pc W ∗ a_pc ↦ₐ pc_w ∗ interp W (load_word p loadv).
+                  -∗ allow_load_mem W C src (<[PC:=WCap p_pc g_pc b_pc e_pc a_pc]> regs) a_pc p_pc' pc_w mem0 false
+                     -∗ open_region W C a_pc ∗ a_pc ↦ₐ pc_w ∗ interp W C (load_word p loadv).
   Proof.
     intros Hflpc Hrar Ha.
     iIntros "##Hinterp_pc Hreg #Hrcond Hw Hmem HLoadMem".
@@ -293,6 +295,7 @@ Section fundamental.
       rewrite lookup_insert in Ha; inversion Ha; clear Ha; subst.
       rewrite memMap_resource_2ne; last auto.
       iDestruct "Hmem" as "[Ha Hapc]"; iFrame.
+      rewrite /persistent_cond in HpersP'.
       iDestruct "HLoadRes" as (ρ1) "(Hstate' & [%Hnotrevoked %Hnotfrozen] & Hr & (Hfuture & #HV) & Hrel')"
       ; cbn.
 
@@ -309,10 +312,10 @@ Section fundamental.
       iApply interp_weakening_word_load; eauto.
   Qed.
 
-  Lemma load_case (W : WORLD) (regs : leibnizO Reg)
+  Lemma load_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (dst src : RegName) (P:D) :
-    ftlr_instr W regs p p' g b e a w (Load dst src) ρ P.
+    ftlr_instr W C regs p p' g b e a w (Load dst src) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
@@ -321,8 +324,8 @@ Section fundamental.
     iClear "Hwcond".
     iDestruct (if_dec_later with "Hrcond") as "Hrcond'"; iClear "Hrcond".
 
-    assert (Persistent (▷ P W w)) as HpersP.
-    { apply later_persistent. specialize (Hpers (W,w)). auto. }
+    assert (Persistent (▷ P W C w)) as HpersP.
+    { apply later_persistent. specialize (Hpers (W,C,w)). auto. }
     iDestruct "Hw" as "#Hw".
 
     (* To read out PC's name later, and needed when calling wp_load *)
@@ -388,7 +391,7 @@ Section fundamental.
 
       iDestruct (region_close with "[$Hstate $Ha $Hr $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-      iApply ("IH" $! _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
+      iApply ("IH" $! _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
       { cbn. intros. subst regs'.
         rewrite lookup_insert_is_Some.
         destruct (decide (PC = x5)); [ auto | right; split; auto].
@@ -413,7 +416,7 @@ Section fundamental.
     }
     { iApply wp_pure_step_later; auto.
       iNext; iIntros "_".
-      iApply wp_value; auto. iIntros; discriminate. }
+      iApply wp_value; auto. }
     Unshelve. all: auto.
   Qed.
 

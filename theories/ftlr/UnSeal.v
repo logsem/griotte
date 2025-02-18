@@ -8,51 +8,54 @@ From cap_machine.proofmode Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context
-    {Σ : gFunctors}
-      {ceriseg: ceriseG Σ}
-      {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-      {sealsg: sealStoreG Σ}
-      {nainv: logrel_na_invs Σ}
-      {MP: MachineParameters}
-  .
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {nainv: logrel_na_invs Σ}
+    `{MP: MachineParameters}.
+
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation CVIEW := (prodO STS_STD STS).
+  Notation WORLD := (gmapO CmptName CVIEW).
+  Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO Word) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO Reg) -n> iPropO Σ).
+  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
   (* Proving the meaning of unsealing in the LR sane. Note the use of the later in the result. *)
-  Lemma unsealing_preserves_interp W sb p0 g0 b0 e0 a0:
+  Lemma unsealing_preserves_interp W C sb p0 g0 b0 e0 a0:
         permit_unseal p0 = true →
         withinBounds b0 e0 a0 = true →
-        fixpoint interp1 W (WSealed a0 sb) -∗
-        fixpoint interp1 W (WSealRange p0 g0 b0 e0 a0) -∗
-        ▷ fixpoint interp1 W (WSealable sb).
+        interp W C (WSealed a0 sb) -∗
+        interp W C (WSealRange p0 g0 b0 e0 a0) -∗
+        ▷ interp W C (WSealable sb).
   Proof.
     iIntros (Hpseal Hwb) "#HVsd #HVsr".
     rewrite
-      (fixpoint_interp1_eq W (WSealRange _ _ _ _ _))
-      (fixpoint_interp1_eq W (WSealed _ _)) /= Hpseal /interp_sb.
+      (fixpoint_interp1_eq W C (WSealRange _ _ _ _ _))
+      (fixpoint_interp1_eq W C (WSealed _ _)) /= Hpseal /interp_sb.
     iDestruct "HVsr" as "[_ Hss]".
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
     iDestruct "HSa0" as (P) "( #Hmono & HsealP & HWcond)".
     iDestruct "HVsd" as (P') "(% & #Hmono' & HsealP' & HP' & HPborrowed')".
     iDestruct (seal_pred_agree with "HsealP HsealP'") as "Hequiv".
-    iSpecialize ("Hequiv" $! (W,(WSealable sb))).
+    iSpecialize ("Hequiv" $! (W,C,(WSealable sb))).
     rewrite /safeC /=.
-    iAssert (▷ P W (WSealable sb))%I as "HP". { iNext; by iRewrite "Hequiv". }
+    iAssert (▷ P W C (WSealable sb))%I as "HP". { iNext; by iRewrite "Hequiv". }
     by iApply "HWcond".
   Qed.
 
-  Lemma unseal_case (W : WORLD) (regs : leibnizO Reg)
+  Lemma unseal_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D):
-    ftlr_instr W regs p p' g b e a w (UnSeal dst r1 r2) ρ P.
+    ftlr_instr W C regs p p' g b e a w (UnSeal dst r1 r2) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
@@ -67,7 +70,7 @@ Section fundamental.
     destruct HSpec as [ * Hr1 Hr2 Hunseal Hwb HincrPC | ]; cycle 1.
     {
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value; auto. iIntros; discriminate.
+      iApply wp_value; auto.
     }
 
     apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
@@ -99,14 +102,13 @@ Section fundamental.
       iIntros "!> _".
       iApply wp_pure_step_later; auto.
       iNext; iIntros "_".
-      iApply wp_value.
-      iIntros (a1); inversion a1.
+      iApply wp_value;auto.
     }
 
     destruct (decide (PC = dst)) as [Heq | Hne]; cycle 1.
     { (* PC ≠ dst *)
       simplify_map_eq; map_simpl "Hmap".
-      iApply ("IH" $! _ (<[dst:=WSealable sb]> regs)
+      iApply ("IH" $! _ _ (<[dst:=WSealable sb]> regs)
                with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
       ; eauto.
       + cbn; intros. by repeat (rewrite lookup_insert_is_Some'; right).
@@ -125,7 +127,7 @@ Section fundamental.
     { (* PC = dst *)
       simplify_map_eq; map_simpl "Hmap".
       destruct (executeAllowed p'') eqn:Hpft.
-      - iApply ("IH" $! _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
+      - iApply ("IH" $! _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
         ; eauto.
         iApply (interp_weakening with "IH HVsb"); eauto; try solve_addr; try done.
         by apply executeAllowed_nonSentry.
@@ -136,8 +138,8 @@ Section fundamental.
         ; [eapply not_isCorrectPC_perm;  simpl in Hp; try discriminate; eauto|].
         iNext. iIntros "HPC /=".
         iApply wp_pure_step_later; auto;iNext; iIntros "_".
-        iApply wp_value.
-        iIntros. discriminate. }
+        iApply wp_value;auto.
+    }
     Qed.
 
 End fundamental.
