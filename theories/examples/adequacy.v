@@ -585,7 +585,7 @@ Section Adequacy.
       apply not_elem_of_cons. split;auto. }
     iDestruct "Hadv" as "#Hadv". rewrite -Heq.
 
-    set W1 := (std_update_multiple (std_update_multiple W0 (finz.seq_between malloc_start malloc_end) Revoked) (finz.seq_between adv_start adv_end) Permanent).
+    set W1 := (std_update_multiple_cview (std_update_multiple_cview W0 (finz.seq_between malloc_start malloc_end) Revoked) (finz.seq_between adv_start adv_end) Permanent).
 
     (* iMod (extend_region_static_single_sepM _ _ _ (λ Wv, interp Wv.1 Wv.2) *)
     (*         with "Hsts Hr Hstack") as "(Hr & Hstack & Hsts)"; auto. *)

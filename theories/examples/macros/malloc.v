@@ -281,7 +281,7 @@ Section SimpleMalloc.
     }
      (* The following lemma can be derived from the fact that we own the resources for ba,ea, which means they cannot
        be in region W' *)
-    iAssert (⌜Forall (λ k : Addr, std W' !! k = Some Revoked) (finz.seq_between ba ea)⌝)%I as %Hrev'.
+    iAssert (⌜Forall (λ k : Addr, std_view W' !! k = Some Revoked) (finz.seq_between ba ea)⌝)%I as %Hrev'.
     { rewrite Heqapp in Hrev. apply Forall_app in Hrev as [_ Hrev]. apply Forall_app in Hrev as [Hrev _].
       revert Hrev. rewrite !Forall_forall. iIntros (Hrev x Hin). specialize (Hrev x Hin).
       opose proof (related_sts_priv_world_std_sta_is_Some W W' x Hrelated) as [ρ Hρ];[eauto|].
@@ -343,7 +343,7 @@ Section SimpleMalloc.
           { rewrite !fixpoint_interp1_eq. iApply (big_sepL_mono with "Hvalid").
             iIntros (k y Hky) "Ha". iFrame.
             assert
-              (std (std_update_multiple W' (finz.seq_between ba ea) Permanent)
+              (std_view (std_update_multiple_cview W' (finz.seq_between ba ea) Permanent)
                  !! y = Some Permanent).
             { rewrite std_sta_update_multiple_lookup_in_i;auto.
               apply elem_of_list_lookup. exists k; eauto. }

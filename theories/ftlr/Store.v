@@ -41,7 +41,7 @@ Section fundamental.
      PermFlowsTo p p'
     -> word_of_argument r r2 = Some storev
     → reg_allows_store r r1 p g b e a storev
-    → std_C W C !! a = Some ρ
+    → std W C !! a = Some ρ
     → interp W C (WCap p g b e a)
     -∗ monotonicity_guarantees_region C interpC p' storev ρ.
   Proof.
@@ -83,7 +83,7 @@ Section fundamental.
   Definition region_open_resources W C l ls p φ (v : Word) (P : D) (has_later : bool): iProp Σ :=
     (∃ ρ,
         sts_state_std C l ρ
-        ∗ ⌜std_C W C !! l = Some ρ⌝
+        ∗ ⌜std W C !! l = Some ρ⌝
         ∗ ⌜ρ ≠ Revoked⌝
         ∗ ⌜(∀ g, ρ ≠ Frozen g)⌝
         ∗ open_region_many W C (l :: ls)
@@ -275,7 +275,7 @@ Section fundamental.
     (W : WORLD) (C : CmptName)
     (p : Perm) (w : Word) (P : D)
     (a : Addr) (ρ : region_type) :
-    std_C W C !! a = Some ρ
+    std W C !! a = Some ρ
     -> ρ ≠ Revoked
     -> (∀ m, ρ ≠ Frozen m)
     -> canStore p w = true
@@ -296,7 +296,7 @@ Section fundamental.
      (mem0 : Mem) (oldv storev : Word) (ρ : region_type) (P:D):
      word_of_argument (<[PC:= WCap pc_p pc_g pc_b pc_e pc_a]> regs) r2 = Some storev
     → reg_allows_store (<[PC:= WCap pc_p pc_g pc_b pc_e pc_a]> regs) r1 p0 g0 b0 e0 a0 storev
-    → std_C W C !! pc_a = Some ρ
+    → std W C !! pc_a = Some ρ
     → mem0 !! a0 = Some oldv (*?*)
     -> ρ ≠ Revoked
     -> (∀ m, ρ ≠ Frozen m)

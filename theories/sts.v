@@ -572,6 +572,28 @@ Section STS.
     eauto.
   Qed.
 
+  Lemma related_sts_pub_empty_cview WC : related_sts_pub_cview (∅, (∅, ∅)) WC.
+  Proof.
+    split; cbn.
+    - split;auto.
+      + rewrite dom_empty_L; set_solver.
+      + intros ; set_solver.
+    - split;auto.
+      + rewrite dom_empty_L; set_solver.
+      + intros ; set_solver.
+  Qed.
+
+  Lemma related_sts_priv_empty_cview WC : related_sts_priv_cview (∅, (∅, ∅)) WC.
+  Proof.
+    split; cbn.
+    - split;auto.
+      + rewrite dom_empty_L; set_solver.
+      + intros ; set_solver.
+    - split;auto.
+      + rewrite dom_empty_L; set_solver.
+      + intros ; set_solver.
+  Qed.
+
   Lemma sts_full_rel_loc W C i Q Q' P :
     sts_full_world W C
     -∗ sts_rel_loc C (A:=A) i Q Q' P
@@ -640,73 +662,73 @@ Section STS.
 
 
   (* Definition and notation for updating a standard or local state in the STS collection *)
-  Definition std_update (WC : CVIEW) (a : A) (b : B) : CVIEW :=
+  Definition std_update_cview (WC : CVIEW) (a : A) (b : B) : CVIEW :=
     (<[ a := b]>WC.1, WC.2).
-  Definition loc_alloc (WC : CVIEW) (i : positive) (d : D)
+  Definition loc_alloc_cview (WC : CVIEW) (i : positive) (d : D)
     (r1 r2 r3 : D → D -> Prop) : CVIEW :=
     (WC.1,(<[ i := encode d]>WC.2.1,
           <[ i := (convert_rel r1,convert_rel r2,convert_rel r3)]>WC.2.2)).
-  Definition loc_update (WC : CVIEW) (i : positive) (d : D) :=
+  Definition loc_update_cview (WC : CVIEW) (i : positive) (d : D) :=
     (WC.1, ( (<[i := encode d ]>WC.2.1), WC.2.2)).
 
-  Notation "<s[ a := ρ ]s> WC" := (std_update WC a ρ) (at level 10, format "<s[ a := ρ ]s> WC").
-  Notation "<l[ a := ρ , r ]l> WC" := (loc_alloc WC a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ a := ρ , r ]l> WC").
-  Notation "<l[ a := ρ ]l> WC" := (loc_update WC a ρ) (at level 10, format "<l[ a := ρ ]l> WC").
+  Notation "<s[ a := ρ ]s> WC" := (std_update_cview WC a ρ) (at level 10, format "<s[ a := ρ ]s> WC").
+  Notation "<l[ a := ρ , r ]l> WC" := (loc_alloc_cview WC a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ a := ρ , r ]l> WC").
+  Notation "<l[ a := ρ ]l> WC" := (loc_update_cview WC a ρ) (at level 10, format "<l[ a := ρ ]l> WC").
 
-  Definition std_update_C (W : WORLD) (C : CmptName) (a : A) (b : B) : WORLD :=
+  Definition std_update (W : WORLD) (C : CmptName) (a : A) (b : B) : WORLD :=
     match W !! C with
     | Some WC => (<[ C := (<s[a := b ]s> WC) ]> W)
     | None => (<[ C := (<s[a := b ]s> (∅,(∅,∅)) ) ]> W)
     end.
 
-  Definition loc_alloc_C (W : WORLD) (C : CmptName) (a : positive) (d : D)
+  Definition loc_alloc (W : WORLD) (C : CmptName) (a : positive) (d : D)
     (r1 r2 r3 : D → D -> Prop) : WORLD :=
     match W !! C with
     | Some WC => (<[ C := (<l[ a := d , (r1,(r2,r3)) ]l> WC) ]> W)
     | None => (<[ C := (<l[ a := d , (r1,(r2,r3)) ]l> (∅,(∅,∅))) ]> W)
     end.
 
-  Definition loc_update_C (W : WORLD) (C : CmptName) (a : positive) (d : D) : WORLD :=
+  Definition loc_update (W : WORLD) (C : CmptName) (a : positive) (d : D) : WORLD :=
     match W !! C with
     | Some WC => (<[ C := (<l[ a := d ]l> WC) ]> W)
     | None => (<[ C := (<l[ a := d ]l> (∅,(∅,∅))) ]> W)
     end.
 
-  Notation "<s[ ( C , a ) := ρ ]s> W" := (std_update_C W C a ρ) (at level 10, format "<s[ ( C , a ) := ρ ]s> W").
-  Notation "<l[ ( C , a ) := ρ , r ]l> W" := (loc_alloc_C W C a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ ( C , a ) := ρ , r ]l> W").
-  Notation "<l[ ( C , a ) := ρ ]l> W" := (loc_update_C W C a ρ) (at level 10, format "<l[ ( C , a ) := ρ ]l> W").
+  Notation "<s[ ( C , a ) := ρ ]s> W" := (std_update W C a ρ) (at level 10, format "<s[ ( C , a ) := ρ ]s> W").
+  Notation "<l[ ( C , a ) := ρ , r ]l> W" := (loc_alloc W C a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ ( C , a ) := ρ , r ]l> W").
+  Notation "<l[ ( C , a ) := ρ ]l> W" := (loc_update W C a ρ) (at level 10, format "<l[ ( C , a ) := ρ ]l> W").
 
-  Definition delete_std (WC : CVIEW) a : CVIEW := (delete a WC.1,WC.2).
-  Definition delete_std_C (W : WORLD) (C : CmptName) a : WORLD :=
+  Definition delete_std_cview (WC : CVIEW) a : CVIEW := (delete a WC.1,WC.2).
+  Definition delete_std (W : WORLD) (C : CmptName) a : WORLD :=
     match W !! C with
-    | Some WC => <[ C := delete_std WC a ]> W
+    | Some WC => <[ C := delete_std_cview WC a ]> W
     | None => W
     end.
 
   (* Some practical shorthands for projections *)
-  Definition std (WC : CVIEW) := WC.1.
+  Definition std_cview (WC : CVIEW) := WC.1.
   Definition loc (WC : CVIEW) := WC.2.
   Definition loc1 (WC : CVIEW) := (loc WC).1.
   Definition loc2 (WC : CVIEW) := (loc WC).2.
 
-  Definition std_C (W : WORLD) (C : CmptName) :=
+  Definition std (W : WORLD) (C : CmptName) :=
     match W !! C with
-    | Some WC => std WC
+    | Some WC => std_cview WC
     | None => ∅
     end.
 
-  Definition loc_C (W : WORLD) (C : CmptName) :=
+  Definition locWORLD (W : WORLD) (C : CmptName) :=
     match W !! C with
     | Some WC => loc WC
     | None => (∅,∅)
     end.
 
-  Definition loc1_C (W : WORLD) (C : CmptName) :=
+  Definition loc1WORLD (W : WORLD) (C : CmptName) :=
     match W !! C with
     | Some WC => loc1 WC
     | None => ∅
     end.
-  Definition loc2_C (W : WORLD) (C : CmptName) :=
+  Definition loc2WORLD (W : WORLD) (C : CmptName) :=
     match W !! C with
     | Some WC => loc2 WC
     | None => ∅
@@ -715,9 +737,9 @@ Section STS.
   Lemma sts_dealloc_std W C a b :
     sts_full_world W C ∗ sts_state_std C a b
     ==∗
-    sts_full_world (delete_std_C W C a) C.
+    sts_full_world (delete_std W C a) C.
   Proof.
-    rewrite /sts_full_world /sts_full /sts_state_std /delete_std_C.
+    rewrite /sts_full_world /sts_full /sts_state_std /delete_std.
     destruct (W !! C) as [WC|]; last (by iIntros "[? ?]").
     destruct WC as [fs Wloc].
     iIntros "[ [Hsta Hloc] Hstate]".
@@ -735,10 +757,10 @@ Section STS.
   Qed.
 
   Lemma sts_alloc_std_i W C (a : A) b :
-    ⌜a ∉ dom (std_C W C)⌝ -∗ sts_full_world W C ==∗
+    ⌜a ∉ dom (std W C)⌝ -∗ sts_full_world W C ==∗
     sts_full_world (<s[ ( C , a ) := b ]s> W) C ∗ sts_state_std C a b.
   Proof.
-    rewrite /sts_full_world /sts_full /sts_state_std /std_C /std_update_C /=.
+    rewrite /sts_full_world /sts_full /sts_state_std /std /std_update /=.
     destruct (W !! C) as [WC|]; last (by iIntros "? ?").
     destruct WC as [fsd Wloc]. rewrite /sts_full_std.
     iIntros (Hfresh1) "[H1 Hloc] /=".
@@ -760,10 +782,10 @@ Section STS.
   Lemma sts_alloc_loc W C (d : D) (P Q R : D → D → Prop):
     sts_full_world W C ==∗
     ∃ i, sts_full_world (<l[ (C,i) := d , (P,(Q,R)) ]l> W) C
-         ∗ ⌜i ∉ dom (loc1_C W C)⌝ ∗ ⌜i ∉ dom (loc2_C W C)⌝
+         ∗ ⌜i ∉ dom (loc1WORLD W C)⌝ ∗ ⌜i ∉ dom (loc2WORLD W C)⌝
          ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i P Q R.
   Proof.
-    rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc /loc_alloc_C /loc1_C /loc2_C.
+    rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc /loc_alloc /loc1WORLD /loc2WORLD.
     destruct (W !! C) as [WC|]; last (by iIntros "?").
     destruct WC as [Wstd [fs fr]].
     iIntros "[Hstd [H1 H2]] /=".
@@ -810,7 +832,7 @@ Section STS.
     iIntros "Hsf Hi".
     iDestruct (sts_full_state_std with "Hsf Hi") as %Hfs.
     destruct Hfs as (WC & HWC & Hfs).
-    rewrite /sts_full_world /sts_full /sts_state_std /std_update_C HWC lookup_insert /=.
+    rewrite /sts_full_world /sts_full /sts_state_std /std_update HWC lookup_insert /=.
     destruct WC as [fsd Wloc].
     iDestruct "Hsf" as "[H1 Hloc] /=".
     iCombine "H1" "Hi" as "H1".
@@ -834,7 +856,7 @@ Section STS.
     iIntros "Hsf Hi".
     iDestruct (sts_full_state_loc with "Hsf Hi") as %Hfs.
     destruct Hfs as (WC & HWC & Hfs).
-    rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc /loc_update_C HWC lookup_insert /=.
+    rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc /loc_update HWC lookup_insert /=.
     destruct WC as [Wstd [fs fr]].
     iDestruct "Hsf" as "[Hdst [H1 H2]] /=".
     iCombine "H1" "Hi" as "H1".
@@ -850,24 +872,24 @@ Section STS.
     rewrite fmap_insert ; first iModIntro; iFrame.
   Qed.
 
-  Lemma dom_world_std_update W C a ρ :
+  Lemma dom_std_update W C a ρ :
     dom W ⊆ dom (<s[(C,a):=ρ]s>W).
   Proof.
-    rewrite /std_update_C.
+    rewrite /std_update.
     destruct (W !! C); rewrite dom_insert_L; set_solver.
   Qed.
 
   Lemma related_sts_pub_cview_fresh WC a ρ :
-    a ∉ dom (std WC) →
+    a ∉ dom (std_cview WC) →
     related_sts_pub_cview WC (<s[a:=ρ]s> WC).
   Proof.
-    rewrite /std_C.
+    rewrite /std.
     intros Hdom_sta.
     rewrite /related_sts_pub_world /=.
     split;[|apply related_sts_pub_refl].
     rewrite /related_sts_pub. split.
     - rewrite dom_insert_L. set_solver.
-    - apply (not_elem_of_dom (std WC) a) in Hdom_sta.
+    - apply (not_elem_of_dom (std_cview WC) a) in Hdom_sta.
       intros i x y Hx Hy.
       destruct (decide (a = i)).
       + subst. rewrite Hdom_sta in Hx. inversion Hx.
@@ -878,15 +900,15 @@ Section STS.
   Qed.
 
   Lemma related_sts_pub_world_fresh W C a ρ :
-    a ∉ dom (std_C W C) →
+    a ∉ dom (std W C) →
     related_sts_pub_world W (<s[(C,a):=ρ]s> W) C.
   Proof.
-    rewrite /std_C.
+    rewrite /std.
     intros Hdom_sta.
     rewrite /related_sts_pub_world /=.
-    split;first apply dom_world_std_update.
+    split;first apply dom_std_update.
     intros WC WC' HWC HWC'.
-    rewrite /std_update_C HWC lookup_insert in HWC'; simplify_eq.
+    rewrite /std_update HWC lookup_insert in HWC'; simplify_eq.
     rewrite HWC in Hdom_sta.
     by apply related_sts_pub_cview_fresh.
   Qed.
@@ -917,7 +939,7 @@ Section STS.
   Lemma related_sts_pub_cview_fresh_loc WC (i x : positive) r1 r2 :
     i ∉ dom (loc WC).1 →
     i ∉ dom (loc WC).2 →
-    related_sts_pub_cview WC (std WC,(<[i:=x]> (loc WC).1, <[i:= (r1,r2)]> (loc WC).2)).
+    related_sts_pub_cview WC (std_cview WC,(<[i:=x]> (loc WC).1, <[i:= (r1,r2)]> (loc WC).2)).
   Proof.
     rewrite /loc. intros Hdom_sta Hdom_rel.
     rewrite /related_sts_pub_world /=.
@@ -934,13 +956,11 @@ Section STS.
         intros x' y Hx' Hy. simplify_map_eq. left.
   Qed.
 
-  (* TODO version with world *)
-  (* Lemma related_sts_pub_world_fresh_loc W C (i x : positive) r1 r2 : *)
 End STS.
 
-Notation "<s[ a := ρ ]s> WC" := (std_update WC a ρ) (at level 10, format "<s[ a := ρ ]s> WC").
-Notation "<l[ a := ρ , r ]l> WC" := (loc_alloc WC a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ a := ρ , r ]l> WC").
-Notation "<l[ a := ρ ]l> WC" := (loc_update WC a ρ) (at level 10, format "<l[ a := ρ ]l> WC").
-Notation "<s[ ( C , a ) := ρ ]s> W" := (std_update_C W C a ρ) (at level 10, format "<s[ ( C , a ) := ρ ]s> W").
-Notation "<l[ ( C , a ) := ρ , r ]l> W" := (loc_alloc_C W C a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ ( C , a ) := ρ , r ]l> W").
-Notation "<l[ ( C , a ) := ρ ]l> W" := (loc_update_C W C a ρ) (at level 10, format "<l[ ( C , a ) := ρ ]l> W").
+Notation "<s[ a := ρ ]s> WC" := (std_update_cview WC a ρ) (at level 10, format "<s[ a := ρ ]s> WC").
+Notation "<l[ a := ρ , r ]l> WC" := (loc_alloc_cview WC a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ a := ρ , r ]l> WC").
+Notation "<l[ a := ρ ]l> WC" := (loc_update_cview WC a ρ) (at level 10, format "<l[ a := ρ ]l> WC").
+Notation "<s[ ( C , a ) := ρ ]s> W" := (std_update W C a ρ) (at level 10, format "<s[ ( C , a ) := ρ ]s> W").
+Notation "<l[ ( C , a ) := ρ , r ]l> W" := (loc_alloc W C a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ ( C , a ) := ρ , r ]l> W").
+Notation "<l[ ( C , a ) := ρ ]l> W" := (loc_update W C a ρ) (at level 10, format "<l[ ( C , a ) := ρ ]l> W").

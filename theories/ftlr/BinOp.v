@@ -41,7 +41,7 @@ Section fundamental.
     → isO p' = false
     → persistent_cond P
     → (if isWL p then region_state_pwl W C a else region_state_nwl W C a g)
-    → std_C W C !! a = Some ρ
+    → std W C !! a = Some ρ
     → ρ ≠ Revoked
     → (∀ g : Mem, ρ ≠ Frozen g)
     → (decodeInstrW w = Add dst r1 r2 \/

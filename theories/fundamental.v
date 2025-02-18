@@ -123,7 +123,7 @@ Section fundamental.
     iDestruct (interp_in_registers with "[Hreg] [H]")
       as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
     ;eauto ; iClear "Hinv".
-    assert (∃ (ρ : region_type), (std_C W C) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
+    assert (∃ (ρ : region_type), (std W C) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
       as [ρ [Hρ [Hne Hne'] ] ].
     { destruct (isWL p),g; simplify_eq ; eauto.
       destruct Hstate_a as [Htemp | Hperm];eauto. }

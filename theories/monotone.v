@@ -28,12 +28,12 @@ Section monotone.
 
   Lemma region_state_pub_perm_cview WC WC' a :
     related_sts_pub_cview WC WC'
-    → (std WC) !! a = Some Permanent
-    -> (std WC') !! a = Some Permanent.
+    → (std_cview WC) !! a = Some Permanent
+    -> (std_cview WC') !! a = Some Permanent.
   Proof.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
-    assert (is_Some ((std WC') !! a)) as [y Hy].
+    assert (is_Some ((std_cview WC') !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated a Permanent y Hstate Hy).
     apply std_rel_pub_rtc_Permanent in Hrelated; subst; auto.
@@ -41,10 +41,10 @@ Section monotone.
 
   Lemma region_state_pub_perm W W' C a :
     related_sts_pub_world W W' C
-    → (std_C W C) !! a = Some Permanent
-    -> (std_C W' C) !! a = Some Permanent.
+    → (std W C) !! a = Some Permanent
+    -> (std W' C) !! a = Some Permanent.
   Proof.
-    rewrite /std_C.
+    rewrite /std.
     intros Hrelated Hstate.
     destruct (W !! C) as [WC|] eqn:HWC; last done.
     destruct Hrelated as [Hdom_W Hrelated ].
@@ -57,12 +57,12 @@ Section monotone.
 
   Lemma region_state_pub_temp_cview WC WC' a :
     related_sts_pub_cview WC WC'
-    → (std WC) !! a = Some Temporary
-    -> (std WC') !! a = Some Temporary.
+    → (std_cview WC) !! a = Some Temporary
+    -> (std_cview WC') !! a = Some Temporary.
   Proof.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
-    assert (is_Some ((std WC') !! a)) as [y Hy].
+    assert (is_Some ((std_cview WC') !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Temporary y Hstate Hy).
     apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto.
@@ -70,10 +70,10 @@ Section monotone.
 
   Lemma region_state_pub_temp W W' C a :
     related_sts_pub_world W W' C
-    → (std_C W C) !! a = Some Temporary
-    -> (std_C W' C) !! a = Some Temporary.
+    → (std W C) !! a = Some Temporary
+    -> (std W' C) !! a = Some Temporary.
   Proof.
-    rewrite /std_C.
+    rewrite /std.
     intros Hrelated Hstate.
     destruct (W !! C) as [WC|] eqn:HWC; last done.
     destruct Hrelated as [Hdom_W Hrelated ].
@@ -86,12 +86,12 @@ Section monotone.
 
   Lemma region_state_priv_perm_cview WC WC' a :
     related_sts_priv_cview WC WC'
-    → (std WC) !! a = Some Permanent
-    -> (std WC') !! a = Some Permanent.
+    → (std_cview WC) !! a = Some Permanent
+    -> (std_cview WC') !! a = Some Permanent.
   Proof.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
-    assert (is_Some ((std WC') !! a)) as [y Hy].
+    assert (is_Some ((std_cview WC') !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated a Permanent y Hstate Hy).
     eapply std_rel_rtc_Permanent in Hrelated;subst;auto.
@@ -99,10 +99,10 @@ Section monotone.
 
   Lemma region_state_priv_perm W W' C a :
     related_sts_priv_world W W' C
-    → (std_C W C) !! a = Some Permanent
-    -> (std_C W' C) !! a = Some Permanent.
+    → (std W C) !! a = Some Permanent
+    -> (std W' C) !! a = Some Permanent.
   Proof.
-    rewrite /std_C.
+    rewrite /std.
     intros Hrelated Hstate.
     destruct (W !! C) as [WC|] eqn:HWC; last done.
     destruct Hrelated as [Hdom_W Hrelated ].
@@ -187,12 +187,12 @@ Section monotone.
 
   Lemma region_state_Revoked_monotone_cview (WC WC' : CVIEW) (a : Addr) :
     related_sts_pub_cview WC WC' →
-    (std WC) !! a = Some Revoked ->
-    (std WC') !! a = Some Revoked ∨
-    (std WC') !! a = Some Temporary ∨
-    (std WC') !! a = Some Permanent.
+    (std_cview WC) !! a = Some Revoked ->
+    (std_cview WC') !! a = Some Revoked ∨
+    (std_cview WC') !! a = Some Temporary ∨
+    (std_cview WC') !! a = Some Permanent.
   Proof.
-    rewrite /region_state_pwl /std.
+    rewrite /region_state_pwl /std_cview.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (WC'.1 !! a)) as [y Hy].
@@ -204,12 +204,12 @@ Section monotone.
 
   Lemma region_state_Revoked_monotone (W W' : WORLD) (C : CmptName) (a : Addr) :
     related_sts_pub_world W W' C →
-    (std_C W C) !! a = Some Revoked ->
-    (std_C W' C) !! a = Some Revoked ∨
-    (std_C W' C) !! a = Some Temporary ∨
-    (std_C W' C) !! a = Some Permanent.
+    (std W C) !! a = Some Revoked ->
+    (std W' C) !! a = Some Revoked ∨
+    (std W' C) !! a = Some Temporary ∨
+    (std W' C) !! a = Some Permanent.
   Proof.
-    rewrite /region_state_pwl /std_C.
+    rewrite /region_state_pwl /std.
     intros [Hdom_W Hrelated] Hstate.
     destruct (W!!C) as [WC|] eqn:HWC; last done.
     assert (is_Some (W' !! C)) as [WC' HWC'].
@@ -481,7 +481,7 @@ Section monotone.
      pointer (p0, l, a2, a1, a0) ; simply a bundling of all individual monotonicity statements *)
 Lemma interp_monotone_generalW (W : WORLD) (C : CmptName) (ρ : region_type)
   (p p' p'' : Perm) (g g' : Locality) (b e a b' e' a' : Addr) :
-  std_C W C !! a' = Some ρ →
+  std W C !! a' = Some ρ →
   withinBounds b' e' a' = true →
   PermFlowsTo p' p'' →
   canStore p' (WCap p g b e a) = true →
@@ -512,7 +512,7 @@ Qed.
 (* Analogous, but now we have the general monotonicity statement in case an integer z is written *)
 Lemma interp_monotone_generalZ (W : WORLD) (C : CmptName) (ρ : region_type)
   (p p' : Perm) (g : Locality) (b e a : Addr) z:
-  std_C W C !! a = Some ρ →
+  std W C !! a = Some ρ →
   withinBounds b e a = true →
   PermFlowsTo p p' →
   interp W C (WCap p g b e a) -∗
@@ -531,7 +531,7 @@ Qed.
 Lemma interp_monotone_generalSr (W : WORLD) (C : CmptName) (ρ : region_type)
   (p p' : Perm) (g : Locality) (b e a : Addr)
   (sp : SealPerms) (sg : Locality) (sb se sa : OType) :
-  std_C W C !! a = Some ρ →
+  std W C !! a = Some ρ →
   withinBounds b e a = true →
   PermFlowsTo p p' →
   interp W C (WCap p g b e a) -∗
@@ -549,7 +549,7 @@ Qed.
 Lemma interp_monotone_generalSd (W : WORLD) (C : CmptName) (ρ : region_type)
   (p p' : Perm) (g : Locality) (b e a : Addr)
   (ot : OType) (sb : Sealable) :
-  std_C W C !! a = Some ρ →
+  std W C !! a = Some ρ →
   withinBounds b e a = true →
   PermFlowsTo p p' →
   interp W C (WCap p g b e a) -∗

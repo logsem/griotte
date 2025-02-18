@@ -484,7 +484,7 @@ Section fundamental.
   Qed.
 
   Lemma monoReq_interp (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (ρ : region_type) :
-    (std_C W C) !! a = Some ρ
+    (std W C) !! a = Some ρ
     -> (ρ = Permanent -> isWL p = false)
     -> ⊢ monoReq W C a p interp.
   Proof.

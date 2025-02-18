@@ -200,12 +200,12 @@ Section logrel.
    *)
 
   Definition region_state_pwl (W : WORLD) (C : CmptName) (a : Addr) : Prop :=
-    (std_C W C) !! a = Some Temporary.
+    (std W C) !! a = Some Temporary.
 
   Definition region_state_nwl (W : WORLD) (C : CmptName) (a : Addr) (l : Locality) : Prop :=
     match l with
-     | Local => (std_C W C) !! a = Some Permanent ∨ (std_C W C) !! a = Some Temporary
-     | Global => (std_C W C) !! a = Some Permanent
+     | Local => (std W C) !! a = Some Permanent ∨ (std W C) !! a = Some Temporary
+     | Global => (std W C) !! a = Some Permanent
     end.
 
   (* For simplicity we might want to have the following statement in valididy of caps.
@@ -215,7 +215,7 @@ Section logrel.
     (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
 
   Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : D) :=
-    (match (std_C W C) !! a with
+    (match (std W C) !! a with
         | Some Temporary =>
             (if isWL p
              then mono_pub C (safeC P)
@@ -512,7 +512,7 @@ Section logrel.
     readAllowed p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-    ⌜∃ ρ, std_C W C !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
+    ⌜∃ ρ, std W C !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -536,7 +536,7 @@ Section logrel.
     writeAllowed p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-    ⌜∃ ρ, std_C W C !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
+    ⌜∃ ρ, std W C !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -569,7 +569,7 @@ Section logrel.
     isWL p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-    ⌜std_C W C !! a = Some Temporary⌝.
+    ⌜std W C !! a = Some Temporary⌝.
   Proof.
     intros Hp Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
