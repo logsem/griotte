@@ -52,10 +52,8 @@ Section Switcher.
       load cs0 cs0;
       unseal ct1 cs0 ct1;
       load cs0 ct1;
-      (* TODO use land and lshilftl*)
-      (* rem ct2 cs0 10%Z *)
-      sub cs0 cs0 ct2;
-      (* div cs0 cs0 10%Z *)
+      land ct2 cs0 7%Z;
+      lshiftr cs0 cs0 3%Z;
       getb cgp ct1;
       geta cs1 ct1;
       sub cs1 cgp cs1;
@@ -157,4 +155,10 @@ Section Switcher.
     Eval cbv in (fmap revert_regs_instr assembled_switcher').
 
   Definition switcher_code := encodeInstrsW assembled_switcher.
+
+  Definition encode_entry_point (nargs : nat) (entry_point_offset : Z) :=
+    let args := Z.land nargs 7 in
+    let off := Z.shiftl entry_point_offset 3 in
+    WInt (Z.lor off args).
+
 End Switcher.
