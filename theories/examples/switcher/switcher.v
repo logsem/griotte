@@ -154,7 +154,7 @@ Section Switcher.
   Definition assembled_switcher :=
     Eval cbv in (fmap revert_regs_instr assembled_switcher').
 
-  Definition switcher_code := encodeInstrsW assembled_switcher.
+  Definition switcher_instrs := encodeInstrsW assembled_switcher.
 
   Definition encode_entry_point (nargs entry_point_offset : Z) : Z :=
     let args := Z.land nargs 7 in
