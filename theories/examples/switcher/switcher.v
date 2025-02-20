@@ -156,9 +156,12 @@ Section Switcher.
 
   Definition switcher_code := encodeInstrsW assembled_switcher.
 
-  Definition encode_entry_point (nargs : nat) (entry_point_offset : Z) :=
+  Definition encode_entry_point (nargs entry_point_offset : Z) : Z :=
     let args := Z.land nargs 7 in
     let off := Z.shiftl entry_point_offset 3 in
-    WInt (Z.lor off args).
+    (Z.lor off args).
+
+  Definition decode_entry_point (entry_point : Z) : (Z * Z) :=
+    ( Z.land entry_point 7, Z.shiftr entry_point 3).
 
 End Switcher.
