@@ -164,7 +164,7 @@ Section Switcher.
       mov cs10 0%Z;
       mov cs11 0%Z;
       (* Jump back to caller *)
-      jalr cra cra;
+      jmpcap cra;
       #"switcher_end:"
     ].
 

@@ -242,6 +242,11 @@ Section opsem.
             end
         | _ => None
         end
+    (* TODO TEMPORARY *)
+    | JmpCap rsrc =>
+        (* Note: allow jumping to integers, sealing ranges etc; machine will crash later *)
+        wrsrc ← (reg φ) !! rsrc;
+        Some (NextI, (update_reg φ PC (updatePcPerm wrsrc)))
     | Load dst src =>
       wsrc ← (reg φ) !! src;
       match wsrc with

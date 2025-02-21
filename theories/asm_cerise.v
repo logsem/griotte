@@ -13,6 +13,7 @@ Module Asm_Cerise.
   | Jmp (rimm: asm_expr + RegName)
   | Jnz (rimm : asm_expr + RegName) (rcond: RegName)
   | Jalr (rdst: RegName) (rsrc: RegName)
+  | JmpCap (rsrc: RegName) (* TODO temporary *)
   | Mov (dst: RegName) (src: asm_expr + RegName)
   | Load (dst src: RegName)
   | Store (dst: RegName) (src: asm_expr + RegName)
@@ -89,6 +90,8 @@ Module Asm_Cerise.
         Some (machine_base.Jnz rimm' rcond)
     | Jalr rdst rsrc =>
         Some (machine_base.Jalr rdst rsrc)
+    | JmpCap rsrc =>
+        Some (machine_base.JmpCap rsrc)
     | Mov dst src  =>
         src ← assemble_arg src env;
         Some (machine_base.Mov dst src)
@@ -248,6 +251,9 @@ Module Asm_Cerise.
         let rdst := revert_regs rdst in
         let rsrc := revert_regs rsrc in
         (machine_base.Jalr rdst rsrc)
+    | machine_base.JmpCap rsrc =>
+        let rsrc := revert_regs rsrc in
+        (machine_base.JmpCap rsrc)
     | machine_base.Mov dst src  =>
         let dst := revert_regs dst in
         let src := revert_regs_arg src in
@@ -386,6 +392,7 @@ Module Asm_Cerise.
   Definition jmp r := (ASM_Instr (Jmp r)).
   Definition jnz rimm rcond := (ASM_Instr (Jnz rimm rcond)).
   Definition jalr rdst rsrc := (ASM_Instr (Jalr rdst rsrc)).
+  Definition jmpcap rsrc := (ASM_Instr (JmpCap rsrc)). (* TEMPORARY *)
   Definition mov dst src  := (ASM_Instr (Mov dst src)).
   Definition load dst src := (ASM_Instr (Load dst src)).
   Definition store dst src := (ASM_Instr (Store dst src)).

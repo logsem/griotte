@@ -178,6 +178,9 @@ Inductive instr: Type :=
 | Jmp (rimm: Z + RegName)
 | Jnz (rimm : Z + RegName) (rcond: RegName)
 | Jalr (rdst: RegName) (rsrc: RegName) (* jumps to wsrc, rdst receives return cap *)
+(* TODO temporary instruction, waiting for CNULL.
+   Jumps to wsrc, similar to jalr, but does not create a return cap *)
+| JmpCap (rsrc: RegName)
 | Mov (dst: RegName) (src: Z + RegName)
 | Load (dst src: RegName)
 | Store (dst: RegName) (src: Z + RegName)
@@ -1621,6 +1624,7 @@ Proof.
       | LShiftL dst r1 r2 => GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | LShiftR dst r1 r2 => GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | Jalr dst src => GenNode 29 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))]
+      | JmpCap src => GenNode 30 [GenLeaf (inl (inl src))]
       end).
   set (dec := fun e =>
       match e with
@@ -1656,6 +1660,7 @@ Proof.
       | GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftL dst r1 r2
       | GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftR dst r1 r2
       | GenNode 29 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))] => Jalr dst src
+      | GenNode 30 [GenLeaf (inl (inl src))] => JmpCap src
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).

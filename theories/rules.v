@@ -6,6 +6,7 @@ From cap_machine.rules Require Export
      rules_Jmp rules_Jnz rules_Jalr
      rules_Seal rules_UnSeal
      rules_ReadSR rules_WriteSR.
+From cap_machine.rules Require Export rules_JmpCap.
 
 (* Program specifications
 

@@ -1,5 +1,6 @@
 From cap_machine.ftlr Require Export Jmp Jnz Jalr Mov Load Store BinOp Restrict
   Subseg Get Lea Seal UnSeal ReadSR WriteSR.
+From cap_machine.ftlr Require Export JmpCap.
 From cap_machine.ftlr Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
@@ -152,6 +153,13 @@ Section fundamental.
       ;eauto.
     + (* Jalr *)
       iApply (jalr_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
+               [$Ha] [$HPC] [$Hmreg]")
+      ;eauto.
+    + (* JmpCap *)
+      iApply (jmpcap_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hsts] [$Hown] [$Hr] [$Hstate]
