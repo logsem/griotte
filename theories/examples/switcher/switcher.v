@@ -9,23 +9,27 @@ Section Switcher.
       #"switcher";
       (* #[SU, Global, 9, 10, 9] *)
       #"switcher_cc";
+      (* Save the callee registers *)
       store csp cs0;
-      lea csp (-1)%Z;
+      lea csp 1%Z;
       store csp cs1;
-      lea csp (-1)%Z;
+      lea csp 1%Z;
       store csp cra;
-      lea csp (-1)%Z;
+      lea csp 1%Z;
       store csp cgp;
+      (* Check permissions of the stack *)
       getp ct2 csp;
-      mov ctp (encodePerm (BPerm R WL LG LM));
+      mov ctp (encodePerm RWL);
       sub ct2 ct2 ctp;
       jnz 2%Z ct2;
       jmp 2%Z;
       fail;
+      (* Save the caller's stack pointer in the trusted stack *)
       readsr ct2 mtdc;
-      lea ct2 (-1)%Z;
+      lea ct2 1%Z;
       store ct2 csp;
       writesr mtdc ct2;
+      (* Zero out the callee's stack frame *)
       geta cs0 csp;
       getb cs1 csp;
       subseg csp cs1 cs0;
@@ -43,6 +47,7 @@ Section Switcher.
       jmp ("switcher_zero_stk_loop_pre" - "switcher_zero_stk_loop_end_pre")%asm;
       #"switcher_zero_stk_end_pre";
       lea csp (-1)%Z;
+      (* Fetch (un)sealing capability and unseal entry point *)
       getb cs1 PC;
       geta cs0 PC;
       sub cs1 cs1 cs0;
@@ -51,9 +56,11 @@ Section Switcher.
       lea cs0 (-2)%Z;
       load cs0 cs0;
       unseal ct1 cs0 ct1;
+      (* Load and decode entry point nargs and offset *)
       load cs0 ct1;
       land ct2 cs0 7%Z;
       lshiftr cs0 cs0 3%Z;
+      (* Prepare callee's PCC in cra, and callee's CGP in cgp *)
       getb cgp ct1;
       geta cs1 ct1;
       sub cs1 cgp cs1;
@@ -63,47 +70,54 @@ Section Switcher.
       load cgp ct1;
       lea cra cs0;
       add ct2 ct2 1%Z;
+      (* clear registers, skipping arguments *)
       jmp ct2;
-      mov r_t10 0%Z;
-      mov r_t11 0%Z;
-      mov r_t12 0%Z;
-      mov r_t13 0%Z;
-      mov r_t14 0%Z;
-      mov r_t15 0%Z;
-      mov r_t5 0%Z;
-      mov r_t0 0%Z;
-      mov r_t4 0%Z;
-      mov r_t6 0%Z;
-      mov r_t7 0%Z;
-      mov r_t8 0%Z;
-      mov r_t9 0%Z;
-      mov r_t16 0%Z;
-      mov r_t17 0%Z;
-      mov r_t18 0%Z;
-      mov r_t19 0%Z;
-      mov r_t20 0%Z;
-      mov r_t21 0%Z;
-      mov r_t22 0%Z;
-      mov r_t23 0%Z;
-      mov r_t24 0%Z;
-      mov r_t25 0%Z;
-      mov r_t26 0%Z;
-      mov r_t27 0%Z;
-      mov r_t28 0%Z;
-      mov r_t29 0%Z;
-      mov r_t30 0%Z;
+      mov ca0 0%Z;
+      mov ca1 0%Z;
+      mov ca2 0%Z;
+      mov ca3 0%Z;
+      mov ca4 0%Z;
+      mov ca5 0%Z;
+      mov ct0 0%Z;
+      mov cnull 0%Z;
+      mov ctp 0%Z;
+      mov ct1 0%Z;
+      mov ct2 0%Z;
+      mov cs0 0%Z;
+      mov cs1 0%Z;
+      mov ca6 0%Z;
+      mov ca7 0%Z;
+      mov cs2 0%Z;
+      mov cs3 0%Z;
+      mov cs4 0%Z;
+      mov cs5 0%Z;
+      mov cs6 0%Z;
+      mov cs7 0%Z;
+      mov cs8 0%Z;
+      mov cs9 0%Z;
+      mov cs10 0%Z;
+      mov cs11 0%Z;
+      mov ct3 0%Z;
+      mov ct4 0%Z;
+      mov ct5 0%Z;
+      mov ct6 0%Z;
+      (* Jump to callee *)
       jalr cra cra;
+      (* --- Callback --- *)
+      (* Restores caller's stack frame *)
       readsr ctp mtdc;
       load csp ctp;
-      lea ctp 1%Z;
+      lea ctp (-1)%Z;
       writesr mtdc ctp;
+      (* Restores the caller's saved registers *)
       load cgp csp;
-      lea csp 1%Z;
+      lea csp (-1)%Z;
       load ca2 csp;
-      lea csp 1%Z;
+      lea csp (-1)%Z;
       load cs1 csp;
-      lea csp 1%Z;
+      lea csp (-1)%Z;
       load cs0 csp;
+      (* Zero out the callee stack frame *)
       #"switcher_zero_stk_init_post";
       geta ct0 csp;
       getb ct1 csp;
@@ -119,31 +133,37 @@ Section Switcher.
       #"switcher_zero_stk_loop_end_post";
       jmp ("switcher_zero_stk_loop_post" - "switcher_zero_stk_loop_end_post")%asm;
       #"switcher_zero_stk_end_post";
+      (* Restores the return pointer to caller  *)
       mov cra ca2;
-      mov r_t0 0%Z;
-      mov r_t4 0%Z;
-      mov r_t5 0%Z;
-      mov r_t6 0%Z;
-      mov r_t7 0%Z;
-      mov r_t12 0%Z;
-      mov r_t13 0%Z;
-      mov r_t14 0%Z;
-      mov r_t15 0%Z;
-      mov r_t16 0%Z;
-      mov r_t17 0%Z;
-      mov r_t18 0%Z;
-      mov r_t19 0%Z;
-      mov r_t20 0%Z;
-      mov r_t21 0%Z;
-      mov r_t22 0%Z;
-      mov r_t23 0%Z;
-      mov r_t24 0%Z;
-      mov r_t25 0%Z;
-      mov r_t26 0%Z;
-      mov r_t27 0%Z;
-      mov r_t28 0%Z;
-      mov r_t29 0%Z;
-      mov r_t30 0%Z;
+      (* Clear registers *)
+      mov ct0 0%Z;
+      mov cnull 0%Z;
+      mov ctp 0%Z;
+      mov ct1 0%Z;
+      mov ct2 0%Z;
+      mov ct3 0%Z;
+      mov ct4 0%Z;
+      mov ct5 0%Z;
+      mov ct6 0%Z;
+      mov ca2 0%Z;
+      mov ca3 0%Z;
+      mov ca4 0%Z;
+      mov ca5 0%Z;
+      mov ca6 0%Z;
+      mov ca7 0%Z;
+      mov cs0 0%Z;
+      mov cs1 0%Z;
+      mov cs2 0%Z;
+      mov cs3 0%Z;
+      mov cs4 0%Z;
+      mov cs5 0%Z;
+      mov cs6 0%Z;
+      mov cs7 0%Z;
+      mov cs8 0%Z;
+      mov cs9 0%Z;
+      mov cs10 0%Z;
+      mov cs11 0%Z;
+      (* Jump back to caller *)
       jalr cra cra;
       #"switcher_end:"
     ].
