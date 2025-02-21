@@ -57,7 +57,14 @@ Section Switcher.
     (stk_mem : list Word)
     (arg_rmap rmap : Reg)
     (φ : val -> iPropI Σ) :
+
+    (* cs0 must contain the target entry points, which needs to be sealed with ot_switcher *)
     let wcs0_caller := WSealed ot_switcher w_entry_point in
+    (* the state of the stack before the jump  *)
+    let stk_pre_jmp :=
+      [wcs0_caller;wcs1_caller;wcra_caller;wcgp_caller] ++
+        (region_addrs_zeroes (a_stk ^+4)%a e_stk)
+    in
 
     is_arg_rmap arg_rmap ->
     dom rmap = all_registers_s ∖ ((dom arg_rmap) ∪ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ]} ) ->
@@ -65,29 +72,41 @@ Section Switcher.
 
     ( na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher)
       ∗ na_own logrel_nais E
+      (* Registers *)
       ∗ PC ↦ᵣ WCap XSRW_ g_switcher b_switcher e_switcher a_switcher_cc
       ∗ cgp ↦ᵣ wcgp_caller
       ∗ cra ↦ᵣ wcra_caller
+      (* Stack register *)
       ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+      (* Entry point of the target compartment *)
       ∗ cs0 ↦ᵣ wcs0_caller ∗ interp W1 C wcs0_caller
       ∗ cs1 ↦ᵣ wcs1_caller
+      (* Argument registers, need to be safe-to-share *)
       ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W1 C warg )
+      (* All the other registers *)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
+      (* Stack frame *)
       ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
 
+      (* Interpretation of the world, at the moment of the switcher_call *)
       ∗ region W0 C ∗ sts_full_world W0 C
 
-      ∗ ( [[ a_stk , e_stk ]] ↦ₐ
-            [[ [wcs0_caller;wcs1_caller;wcra_caller;wcgp_caller]++region_addrs_zeroes a_stk e_stk ]]
+      (* Transformation of the world, before the jump to the adversary *)
+      ∗ ( [[ a_stk , e_stk ]] ↦ₐ [[ stk_pre_jmp ]]
           ∗ region W0 C ∗ sts_full_world W0 C
-          -∗ region W1 C ∗ sts_full_world W1 C)
+          ==∗ region W1 C ∗ sts_full_world W1 C)
+
+      (* POST-CONDITION *)
       ∗ ▷ ( ∃ (W2 : WORLD) (rmap' : Reg),
-              ⌜ related_sts_pub_world W1 W2 C ⌝
+              (* We receive a public future world of the world pre switcher call *)
+              ⌜ related_sts_pub_world W0 W2 C ⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ]} ⌝
               ∗ na_own logrel_nais E
+              (* Interpretation of the world *)
               ∗ region W2 C ∗ sts_full_world W2 C
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
+              (* cgp is restored, cra points to the next  *)
               ∗ cgp ↦ᵣ wcgp_caller ∗ (∃ wret, cra ↦ᵣ wret)
               ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
               ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
