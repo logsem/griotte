@@ -1,0 +1,77 @@
+From iris.base_logic Require Export invariants gen_heap.
+From iris.program_logic Require Export weakestpre ectx_lifting.
+From iris.proofmode Require Import proofmode.
+From iris.algebra Require Import frac.
+From cap_machine Require Export rules_base.
+
+Section cap_lang_rules.
+  Context `{MP: MachineParameters}.
+  Context `{ceriseg: ceriseG Σ}.
+  Implicit Types P Q : iProp Σ.
+  Implicit Types σ : ExecConf.
+  Implicit Types c : cap_lang.expr.
+  Implicit Types a b : Addr.
+  Implicit Types r : RegName.
+  Implicit Types v : cap_lang.val.
+  Implicit Types w : Word.
+  Implicit Types reg : gmap RegName Word.
+  Implicit Types ms : gmap Addr Word.
+
+  Lemma wp_jmpcap_success E pc_p pc_g pc_b pc_e pc_a w r w' :
+    decodeInstrW w = JmpCap r →
+     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+
+     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+         ∗ ▷ pc_a ↦ₐ w
+         ∗ ▷ r ↦ᵣ w' }}}
+       Instr Executable @ E
+       {{{ RET NextIV;
+           PC ↦ᵣ updatePcPerm w'
+           ∗ pc_a ↦ₐ w
+           ∗ r ↦ᵣ w' }}}.
+  Proof.
+    iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a & >Hr) Hφ".
+    iApply wp_lift_atomic_base_step_no_fork; auto.
+    iIntros (σ1 ns l1 l2 nt) "[ [Hr0 Hsr] Hm ] /=". destruct σ1 as [ [r0 sr] m]; cbn.
+    iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
+    iDestruct (@gen_heap_valid with "Hr0 HPC") as %?.
+    iDestruct (@gen_heap_valid with "Hr0 Hr") as %Hr_r0.
+    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iNext. iIntros (e2 σ2 efs Hpstep).
+    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+    iIntros "_".
+    iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
+    unfold exec, exec_opt in Hstep. rewrite Hr_r0 /= in Hstep. simplify_pair_eq.
+
+    iMod (@gen_heap_update with "Hr0 HPC") as "[Hr0 HPC]". iFrame.
+    iApply "Hφ". by iFrame.
+  Qed.
+
+  Lemma wp_jmpcap_successPC E pc_p pc_g pc_b pc_e pc_a w :
+    decodeInstrW w = JmpCap PC →
+     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+
+     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+         ∗ ▷ pc_a ↦ₐ w }}}
+       Instr Executable @ E
+       {{{ RET NextIV;
+           PC ↦ᵣ updatePcPerm (WCap pc_p pc_g pc_b pc_e pc_a)
+           ∗ pc_a ↦ₐ w }}}.
+  Proof.
+    iIntros (Hinstr Hvpc ϕ) "(>HPC & >Hpc_a) Hφ".
+    iApply wp_lift_atomic_base_step_no_fork; auto.
+    iIntros (σ1 ns l1 l2 nt) "[ [Hr0 Hsr] Hm ] /=". destruct σ1 as [ [r0 sr] m]; cbn.
+    iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
+    iDestruct (@gen_heap_valid with "Hr0 HPC") as %Hr_PC.
+    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iNext. iIntros (e2 σ2 efs Hpstep).
+    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+    iIntros "_".
+    iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
+    unfold exec, exec_opt in Hstep. rewrite Hr_PC /= in Hstep. simplify_pair_eq.
+
+    iMod (@gen_heap_update with "Hr0 HPC") as "[Hr0 HPC]". iFrame.
+    iApply "Hφ". by iFrame.
+  Qed.
+
+End cap_lang_rules.

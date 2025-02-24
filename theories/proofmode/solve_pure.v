@@ -131,6 +131,7 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (canStore WLO (WCap _ _ _ _ _ ) = true) => done : solve_pure.
 #[export] Hint Extern 1 (canStore RWL (WCap _ _ _ _ _ ) = true) => done : solve_pure.
 #[export] Hint Extern 1 (canStore RWLX (WCap _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Resolve canStoreRWL : solve_pure.
 
 (* denote - required for Get *)
 #[export] Hint Extern 1 (denote (GetWType _ _) ?w = Some _) =>
@@ -170,3 +171,5 @@ Proof. do 3 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
 
 Goal forall rx w dl dro, (E rx w dl dro) ≠ RO. solve_pure. Qed.
 Goal forall (P: Prop), P → P. intros. solve_pure. Qed.
+
+Goal forall w, canStore RWL w = true. Proof. intros. solve_pure. Qed.
