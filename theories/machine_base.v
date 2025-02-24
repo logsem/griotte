@@ -1181,6 +1181,12 @@ Proof.
   - apply canStore_nonSentry in HcanStore; cbn; done.
 Qed.
 
+Lemma canStoreRWL (w : Word) : canStore RWL w = true.
+Proof.
+  rewrite /canStore.
+  destruct (isLocalWord w); done.
+Qed.
+
 (* Lemmas about updatePcPerm *)
 Lemma updatePcPerm_cap_nonSentry
   (p : Perm) (g : Locality) (b e a : Addr) :

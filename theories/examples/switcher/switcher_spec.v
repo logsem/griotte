@@ -118,7 +118,7 @@ Section Switcher.
     )
     ⊢ (WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }})%I.
   Proof.
-    intros Hwcs0_caller Harg_map Hrmap HNE.
+    intros Hwcs0_caller Hstk_pre_jmp Harg_map Hrmap HNE.
     iIntros "(#Hinv_switcher & Hna
               & HPC & Hcgp & Hcra & Hcsp & Hcs0 & #Hinterp_cs0 & Hcs1 & Hargmap & Hrmap
               & Hstk & Hregion & Hworld & Hnext_world & Hcont)".
@@ -179,8 +179,6 @@ Section Switcher.
     { solve_addr. }
     iInstr "Hcode".
     { apply withinBounds_true_iff; split;solve_addr. }
-    { admit. (* TODO RWL can store everything, make a lemma and add it as a hint *) }
-
 
     (* ---- lea csp 1 ---- *)
     iInstr "Hcode".
@@ -192,7 +190,6 @@ Section Switcher.
     { solve_addr. }
     iInstr "Hcode".
     { apply withinBounds_true_iff; split;solve_addr. }
-    { admit. (* TODO RWL can store everything, make a lemma and add it as a hint *) }
 
     (* ---- lea csp 1 ---- *)
     iInstr "Hcode".
@@ -204,7 +201,6 @@ Section Switcher.
     { solve_addr. }
     iInstr "Hcode".
     { apply withinBounds_true_iff; split;solve_addr. }
-    { admit. (* TODO RWL can store everything, make a lemma and add it as a hint *) }
 
     (* ---- lea csp 1 ---- *)
     iInstr "Hcode".
@@ -216,7 +212,6 @@ Section Switcher.
     { solve_addr. }
     iInstr "Hcode".
     { apply withinBounds_true_iff; split;solve_addr. }
-    { admit. (* TODO RWL can store everything, make a lemma and add it as a hint *) }
 
     (* --- getp ct2 csp --- *)
     iInstr "Hcode".
@@ -240,6 +235,7 @@ Section Switcher.
     iInstr "Hcode".
 
     (* --- readsr ct2 mtdc --- *)
+    (* TODO add ReadSR and WriteSR to iInstr *)
     (* iInstr "Hcode". *)
   Admitted.
 
