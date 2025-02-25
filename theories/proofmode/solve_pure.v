@@ -78,6 +78,11 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (readAllowed _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (writeAllowed _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (PermFlowsTo _ _ = true) => reflexivity : solve_pure.
+(* Permissions allowed *)
+#[export] Hint Resolve executeAllowed_nonSentry : solve_pure.
+#[export] Hint Resolve writeAllowed_nonSentry : solve_pure.
+#[export] Hint Resolve readAllowed_nonSentry : solve_pure.
+#[export] Hint Resolve executeAllowed_is_readAllowed : solve_pure.
 (* Follows the same behavior as the Hint Mode for PermFlowsTo *)
 #[export] Hint Extern 1 (PermFlowsTo ?p ?p' = true) =>
   (without_evars p'; apply PermFlowsToReflexive): solve_pure.
