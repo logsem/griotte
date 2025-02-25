@@ -175,7 +175,7 @@ Section Assert.
     (n : Z) (rdst rscratch1 rscratch2 rsrc1 rsrc2 : RegName)
     (pc_g : Locality) (pc_p : Perm) (pc_b pc_e pc_a : Addr)
     (g_assert : Locality) (b_assert e_assert a_flag : Addr)
-    (n1 n2 flag : Z) (wdst w1 w2 : Word)
+    (n1 n2 : Z) (wdst w1 w2 : Word)
     (N : namespace) (E : coPset) (φ : language.val cap_lang -> iProp Σ) :
 
     let assert_macro := assert_instrs n rdst rscratch1 rscratch2 rsrc1 rsrc2 in
@@ -191,7 +191,7 @@ Section Assert.
      ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
      ∗ rdst ↦ᵣ wdst
      ∗ rscratch1 ↦ᵣ w1
-     ∗ rscratch2 ↦ᵣ w1
+     ∗ rscratch2 ↦ᵣ w2
      ∗ rsrc1 ↦ᵣ WInt n1
      ∗ rsrc2 ↦ᵣ WInt n2
      ∗ codefrag pc_a assert_macro
@@ -204,6 +204,7 @@ Section Assert.
           ∗ rsrc1 ↦ᵣ WInt 0
           ∗ rsrc2 ↦ᵣ WInt 0
           ∗ codefrag pc_a assert_macro
+          ∗ (pc_b ^+ n)%a ↦ₐ (WCap E_RX g_assert b_assert e_assert b_assert)
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.

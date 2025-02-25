@@ -98,7 +98,7 @@ Section Switcher.
           ==∗ region W1 C ∗ sts_full_world W1 C)
 
       (* POST-CONDITION *)
-      ∗ ▷ ( ∃ (W2 : WORLD) (rmap' : Reg),
+      ∗ ▷ ( (∃ (W2 : WORLD) (rmap' : Reg),
               (* We receive a public future world of the world pre switcher call *)
               ⌜ related_sts_pub_world W0 W2 C ⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ]} ⌝
@@ -112,7 +112,7 @@ Section Switcher.
               ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
               ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ WInt 0 )
-              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ region_addrs_zeroes a_stk e_stk ]]
+              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ region_addrs_zeroes a_stk e_stk ]])
             -∗ WP Seq (Instr Executable) {{ φ }}
           )
     )
