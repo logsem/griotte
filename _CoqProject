@@ -108,7 +108,7 @@ theories/proofmode/mkregion_helpers.v
 # Common Cerise (assembly) macros
 # theories/examples/macros/malloc.v
 theories/examples/macros/assert.v
-# theories/examples/macros/fetch.v
+theories/examples/macros/fetch.v
 # theories/examples/macros/rclear.v
 # theories/examples/macros/mclear.v
 # theories/examples/macros/reqperm.v

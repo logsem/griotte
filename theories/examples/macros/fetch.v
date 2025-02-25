@@ -30,7 +30,7 @@ Section Fetch.
     ].
 
   Lemma fetch_spec
-    (n : Z) (rdst rscratch1 rscratch2 : RegName) (la : list Addr)
+    (n : Z) (rdst rscratch1 rscratch2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (wentry wdst w1 w2 : Word)
     (φ : language.val cap_lang → iPropI Σ) :
