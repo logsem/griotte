@@ -44,9 +44,9 @@ Section Assert_subroutine.
     (∃ cap_addr,
        codefrag b_assert (assert_subroutine_instrs rret rsrc1 rsrc2) ∗
        ⌜(b_assert + length (assert_subroutine_instrs rret rsrc1 rsrc2))%a = Some cap_addr⌝ ∗
-       ⌜(cap_addr + 1)%a = Some a_flag⌝ ∗
-       ⌜(a_flag + 1)%a = Some e_assert⌝ ∗
-       cap_addr ↦ₐ WCap RW Global a_flag e_assert a_flag).
+       ⌜(cap_addr + 1)%a = Some e_assert⌝ ∗
+       ⌜is_Some (a_flag + 1)%a⌝ ∗
+       cap_addr ↦ₐ WCap RW Global a_flag (a_flag ^+1)%a a_flag).
 
   Lemma assert_subroutine_spec
     (rret rsrc1 rsrc2 : RegName)
@@ -72,7 +72,8 @@ Section Assert_subroutine.
   Proof.
     iIntros (HNE) "(#Hinv & Hna & HPC & Hrdst & Hrsrc1 & Hrsrc2 & Hflag & Hφ)".
     iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
-    iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
+    iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hpc_e & %He_flag & Hcap)".
+    destruct He_flag as [e_flag He_flag].
     rewrite /assert_subroutine_instrs.
     codefrag_facts "Hprog". rename H into HcontProg.
     assert (SubBounds pc_b pc_e
