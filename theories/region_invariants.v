@@ -1801,4 +1801,18 @@ Section heap.
     rewrite lookup_insert_ne;auto.
   Qed.
 
+  Lemma related_sts_priv_world_fresh_Permanent W C a :
+    related_sts_priv_world W (<s[(C,a):=Permanent]s> W) C.
+  Proof.
+    apply related_sts_priv_world_fresh.
+    intros ρ'; destruct ρ'.
+    + eright;[right;constructor|left].
+    + left.
+    + eright;[left;constructor|].
+      eright;[right;constructor|left].
+    + eright;[left;constructor|].
+      eright;[right;constructor|left].
+  Qed.
+
+
 End heap.

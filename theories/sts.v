@@ -899,6 +899,27 @@ Section STS.
         left.
   Qed.
 
+  Lemma related_sts_priv_cview_fresh WC a ρ :
+    (forall ρ', rtc (λ x0 y0 : B, Rpub x0 y0 ∨ Rpriv x0 y0) ρ' ρ) ->
+    related_sts_priv_cview WC (<s[a:=ρ]s> WC).
+  Proof.
+    intros Hdom_sta.
+    rewrite /related_sts_priv_world /=.
+    split;[|apply related_sts_priv_refl].
+    rewrite /related_sts_std_priv. split.
+    - rewrite dom_insert_L. set_solver.
+    -
+      (* apply (not_elem_of_dom (std_cview WC) a) in Hdom_sta. *)
+      intros i x y Hx Hy.
+      destruct (decide (a = i)).
+      + subst. rewrite lookup_insert in Hy; simplify_eq.
+        apply Hdom_sta.
+      + rewrite lookup_insert_ne in Hy;auto.
+        rewrite Hx in Hy.
+        inversion Hy; subst.
+        left.
+  Qed.
+
   Lemma related_sts_pub_world_fresh W C a ρ :
     a ∉ dom (std W C) →
     related_sts_pub_world W (<s[(C,a):=ρ]s> W) C.
@@ -911,6 +932,19 @@ Section STS.
     rewrite /std_update HWC lookup_insert in HWC'; simplify_eq.
     rewrite HWC in Hdom_sta.
     by apply related_sts_pub_cview_fresh.
+  Qed.
+
+  Lemma related_sts_priv_world_fresh W C a ρ :
+    (forall ρ', rtc (λ x0 y0 : B, Rpub x0 y0 ∨ Rpriv x0 y0) ρ' ρ) ->
+    related_sts_priv_world W (<s[(C,a):=ρ]s> W) C.
+  Proof.
+    rewrite /std.
+    intros Hdom_sta.
+    rewrite /related_sts_priv_world /=.
+    split;first apply dom_std_update.
+    intros WC WC' HWC HWC'.
+    rewrite /std_update HWC lookup_insert in HWC'; simplify_eq.
+    by apply related_sts_priv_cview_fresh.
   Qed.
 
   Lemma related_sts_pub_fresh (W : STS) i k k':

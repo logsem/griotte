@@ -508,4 +508,20 @@ Section fundamental.
       by eapply canStore_global_nonisWL.
   Qed.
 
+  Lemma future_priv_mono_interp_z (C : CmptName) (z : Z) :
+    ⊢ future_priv_mono C interpC (WInt z).
+  Proof.
+    iModIntro.
+    iIntros (W W') "%Hrelated Hinterp".
+    cbn; iEval (rewrite fixpoint_interp1_eq); done.
+  Qed.
+
+  Lemma future_pub_mono_interp_z (C : CmptName) (z : Z) :
+    ⊢ future_pub_mono C interpC (WInt z).
+  Proof.
+    iModIntro.
+    iIntros (W W') "%Hrelated Hinterp".
+    cbn; iEval (rewrite fixpoint_interp1_eq); done.
+  Qed.
+
 End fundamental.
