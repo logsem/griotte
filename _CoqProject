@@ -121,3 +121,4 @@ theories/examples/switcher/switcher_spec.v
 
 theories/examples/cmdc/cmdc.v
 theories/examples/cmdc/cmdc_spec.v
+theories/examples/compartment_layout.v
