@@ -41,7 +41,7 @@ Section CMDC_Main.
       Load ct0 cgp; (* ct0 -> c *)
       Mov ct1 0%Z
     ]
-    ++ assert_instrs 1 ct2 ct3 ct4 ct0 ct1 (* asserts that ( *ct0 = *ct1 ) *)
+    ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
     ++
     encodeInstrsW [
       (* prepare for later *)
@@ -66,7 +66,7 @@ Section CMDC_Main.
       Load ct0 cgp; (* ct0 -> c *)
       Mov ct1 42%Z
     ]
-    ++ assert_instrs 1 ct2 ct3 ct4 ct0 ct1 (* asserts that ( *ct0 = *ct1 ) *)
+    ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
     ++ encodeInstrsW [
       Halt
       (* #"main_e" *)
