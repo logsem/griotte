@@ -103,14 +103,33 @@ Section heapPre.
    *)
   Context {Σ:gFunctors} {Cname : CmptNameG} {heappreg : heapGpreS Σ}.
 
+
+  Lemma heap_rel_init :
+    ⊢ |==> (∃ γrelC, ([∗ set] C ∈ CNames, own (γrelC C) (● (to_agree <$> ∅)))).
+  Proof.
+    induction CNames using set_ind_L.
+    - iModIntro.
+      iExists ( λ C, encode C).
+      by iApply big_sepS_empty.
+    - iMod IHg as (?) "IH".
+      iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γrel') "Hrel"
+      ; first by apply auth_auth_valid.
+      iModIntro.
+      iExists (λ C, if (bool_decide (C = x)) then γrel' else γrelC C).
+      iApply (big_sepS_union_2 with "[Hrel]").
+      + iApply (big_sepS_singleton).
+        by rewrite bool_decide_eq_true_2.
+      + iApply (big_sepS_mono with "IH").
+        iIntros (C HC) "Hr".
+        rewrite bool_decide_eq_false_2; [done|set_solver].
+  Qed.
+
   Lemma heap_init :
     ⊢ |==> ∃ (heapg: heapGS Σ), [∗ set] C ∈ CNames, RELS C (∅ : relT).
   Proof.
-    (* iMod (own_alloc (A:= (authR relUR)) (● (_ <$> (∅: relT) : relUR))) as (γ) "H". *)
-    (* { rewrite fmap_empty. by apply auth_auth_valid. } *)
-    (* iExists (HeapGS _ _ _ _ _). rewrite RELS_eq /RELS_def. done. *)
-  (* Qed. *)
-  Admitted.
+    iMod heap_rel_init as (γ) "H".
+    iExists (HeapGS _ _ _ _ _). rewrite RELS_eq /RELS_def. done.
+  Qed.
 
 End heapPre.
 

@@ -194,24 +194,82 @@ Section pre_STS.
   Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
 
+  Lemma gen_sts_std_init :
+    ⊢ |==> (∃ γsstd, ([∗ set] C ∈ CNames, own (γsstd C) (● ∅ : sts_std_stateUR A B))).
+  Proof.
+    induction CNames using set_ind_L.
+    iModIntro.
+    iExists ( λ C, encode C).
+    by iApply big_sepS_empty.
+    iMod IHg as (?) "IH".
+    iMod (own_alloc (A:=sts_std_stateUR A B) (● ∅)) as (γsstd') "Hstd"
+    ; first by apply auth_auth_valid.
+    iModIntro.
+    iExists (λ C, if (bool_decide (C = x)) then γsstd' else γsstd C).
+    iApply (big_sepS_union_2 with "[Hstd]").
+    - iApply (big_sepS_singleton).
+      by rewrite bool_decide_eq_true_2.
+    - iApply (big_sepS_mono with "IH").
+      iIntros (C HC) "Hstd".
+      rewrite bool_decide_eq_false_2; [done|set_solver].
+  Qed.
+
+  Lemma gen_sts_state_init :
+    ⊢ |==> (∃ γs, ([∗ set] C ∈ CNames, own (γs C) (● ∅ : sts_stateUR))).
+  Proof.
+    induction CNames using set_ind_L.
+    iModIntro.
+    iExists ( λ C, encode C).
+    by iApply big_sepS_empty.
+    iMod IHg as (?) "IH".
+    iMod (own_alloc (A:=sts_stateUR) (● ∅)) as (γs') "Hs"
+    ; first by apply auth_auth_valid.
+    iModIntro.
+    iExists (λ C, if (bool_decide (C = x)) then γs' else γs C).
+    iApply (big_sepS_union_2 with "[Hs]").
+    - iApply (big_sepS_singleton).
+      by rewrite bool_decide_eq_true_2.
+    - iApply (big_sepS_mono with "IH").
+      iIntros (C HC) "Hs".
+      rewrite bool_decide_eq_false_2; [done|set_solver].
+  Qed.
+
+  Lemma gen_sts_rel_init :
+    ⊢ |==> (∃ γr, ([∗ set] C ∈ CNames, own (γr C) (● ∅ : sts_relUR))).
+  Proof.
+    induction CNames using set_ind_L.
+    iModIntro.
+    iExists ( λ C, encode C).
+    by iApply big_sepS_empty.
+    iMod IHg as (?) "IH".
+    iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr') "Hr"
+    ; first by apply auth_auth_valid.
+    iModIntro.
+    iExists (λ C, if (bool_decide (C = x)) then γr' else γr C).
+    iApply (big_sepS_union_2 with "[Hr]").
+    - iApply (big_sepS_singleton).
+      by rewrite bool_decide_eq_true_2.
+    - iApply (big_sepS_mono with "IH").
+      iIntros (C HC) "Hr".
+      rewrite bool_decide_eq_false_2; [done|set_solver].
+  Qed.
+
   Lemma gen_sts_init :
     ⊢ |==> ∃ (stsg : STSG A B Σ), ([∗ set] C ∈ CNames, sts_full_world {[C := (∅,(∅,∅))]} C) .
   Proof.
-    iAssert ([∗ set] C ∈ CNames, ∃ γsstd, own γsstd (● ∅ : sts_std_stateUR A B))%I as "Hstd".
-    admit.
-    iAssert ([∗ set] C ∈ CNames, ∃ γs, own γsstd (● ∅ : sts_std_stateUR A B))%I as "Hstd".
-    admit.
-    (* iAssert ([∗ set] C ∈ CNames, ∃ γsstd, own γsstd (● ∅))%I as "Hstd". *)
-    (* admit. *)
-    iMod (own_alloc (A:=sts_std_stateUR A B) (● ∅)) as (γsstd) "Hstd". by apply auth_auth_valid.
-    (* iMod (own_alloc (A:=sts_stateUR) (● ∅)) as (γs) "Hs". by apply auth_auth_valid. *)
-    (* iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr) "Hr". by apply auth_auth_valid. *)
-    (* iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ _ _ _ _). *)
-    (* rewrite /sts_full_world /sts_full_std /sts_full /=. *)
-    (* rewrite lookup_insert. *)
-    (* rewrite !fmap_empty. iFrame. *)
-  Admitted.
-  (* Qed. *)
+    iMod gen_sts_std_init as (γsstd) "Hstd".
+    iMod gen_sts_state_init as (γs) "Hs".
+    iMod gen_sts_rel_init as (γr) "Hr".
+    iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ _ γsstd γs γr).
+    rewrite /sts_full_world /sts_full_std /sts_full /=.
+    iDestruct (big_sepS_sep with "[$Hstd $Hs]") as "H".
+    iDestruct (big_sepS_sep with "[$Hr $H]") as "H".
+    iApply (big_sepS_mono with "H").
+    iIntros (C HC) "(Hstd & Hs & Hr)".
+    rewrite (lookup_singleton C).
+    rewrite !fmap_empty.
+    iFrame.
+  Qed.
 
 End pre_STS.
 
