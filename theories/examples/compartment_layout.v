@@ -177,20 +177,27 @@ Section CmptLayout.
       }.
 
   Definition cmpt_assert_code_region `{MachineParameters} (Cassert : cmptAssert) :=
-    (finz.seq_between (b_assert Cassert) (e_assert Cassert)).
+    (finz.seq_between (b_assert Cassert) (cap_assert Cassert)).
+  Definition cmpt_assert_cap_region `{MachineParameters} (Cassert : cmptAssert) :=
+    (finz.seq_between (cap_assert Cassert) (e_assert Cassert)).
   Definition cmpt_assert_flag_region `{MachineParameters} (Cassert : cmptAssert) :=
     (finz.seq_between (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a).
   Definition cmpt_assert_region `{MachineParameters} (Cassert : cmptAssert) : list Addr :=
     (cmpt_assert_code_region Cassert) ∪
+    (cmpt_assert_cap_region Cassert) ∪
     (cmpt_assert_flag_region Cassert).
 
   Definition cmpt_assert_code_mregion `{MachineParameters} (Cassert : cmptAssert) :=
-    mkregion (b_assert Cassert) (e_assert Cassert) assert_subroutine_instrs.
+    mkregion (b_assert Cassert) (cap_assert Cassert) assert_subroutine_instrs.
+  Definition cmpt_assert_cap_mregion `{MachineParameters} (Cassert : cmptAssert) :=
+    mkregion (cap_assert Cassert) (e_assert Cassert)
+      [WCap RW Global (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a (flag_assert Cassert)].
   Definition cmpt_assert_flag_mregion `{MachineParameters} (Cassert : cmptAssert) :=
     mkregion (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a [WInt 0].
 
   Definition mk_initial_assert `{MachineParameters} (Cassert : cmptAssert) : gmap Addr Word :=
     cmpt_assert_code_mregion Cassert ∪
+    cmpt_assert_cap_mregion Cassert ∪
     cmpt_assert_flag_mregion Cassert.
 
   Definition assert_cmpt_disjoint

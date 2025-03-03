@@ -701,4 +701,88 @@ Section CMDC.
     subst hφ; iApply ("Hφ" with "[$]").
   Qed.
 
+  Lemma cmdc_spec_full
+
+    (pc_b pc_e pc_a : Addr)
+    (cgp_b cgp_e : Addr)
+    (csp_b csp_e : Addr)
+    (rmap : Reg)
+
+    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
+    (b_assert e_assert : Addr) (a_flag : Addr)
+    (B_f C_g : Sealable)
+
+    (W_init_B : WORLD)
+    (W_init_C : WORLD)
+
+    (φ : language.val cap_lang -> iProp Σ)
+    (Nassert Nswitcher : namespace)
+    (E : coPset)
+    :
+
+    let imports :=
+     cmdc_main_imports b_switcher e_switcher a_cc_switcher ot_switcher b_assert e_assert B_f C_g
+    in
+
+    ↑Nswitcher ⊆ E ->
+    ↑Nassert ⊆ E ->
+
+    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
+    (forall r, r ∈ dom rmap -> rmap !! r = Some (WInt 0) ) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
+
+    (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
+    (pc_b + length imports)%a = Some pc_a ->
+
+    cgp_b ∉ dom (std W_init_B B) ->
+    (cgp_b ^+ 1)%a ∉ dom (std W_init_C C) ->
+
+    (
+      na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
+      ∗ na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_cc_switcher ot_switcher)
+      ∗ na_own logrel_nais E
+
+      (* initial register file *)
+      ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+
+      (* initial memory layout *)
+      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
+      ∗ codefrag pc_a cmdc_main_code
+      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ cmdc_main_data ]]
+      ∗ [[ csp_b , csp_e ]] ↦ₐ [[ region_addrs_zeroes csp_b csp_e ]]
+
+      ∗ region W_init_B B ∗ sts_full_world W_init_B B
+      ∗ region W_init_C C ∗ sts_full_world W_init_C C
+
+      ∗ interp W_init_B B (WSealed ot_switcher B_f)
+      ∗ interp W_init_C C (WSealed ot_switcher C_g)
+
+      ∗ ▷ (
+            na_own logrel_nais E
+              -∗ WP Instr Halted {{ λ v, φ v ∨ ⌜v = FailedV⌝ }})
+      ⊢ WP Seq (Instr Executable) {{ λ v, True }})%I.
+  Proof.
+    intros imports; subst imports.
+    iIntros (HNswitcherE HNassertE Hrmap_dom Hrmap_init HsubBounds
+               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c)
+      "(#Hassert & #Hswitcher & Hna
+      & HPC & Hcgp & Hcsp & Hrmap
+      & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
+      & HWreg_B & HWstd_full_B
+      & HWreg_C & HWstd_full_C
+      & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
+      & Hφ)".
+    iApply (wp_wand with "[-]").
+    { iApply (cmdc_spec
+                pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
+                b_switcher e_switcher a_cc_switcher ot_switcher
+                b_assert e_assert a_flag B_f C_g W_init_B W_init_C φ
+                Nassert Nswitcher E); eauto; iFrame "#∗".
+    }
+    by iIntros (v) "?".
+  Qed.
+
 End CMDC.
