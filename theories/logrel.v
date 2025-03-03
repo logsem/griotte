@@ -169,7 +169,7 @@ Section logrel.
     Contractive (λ interp, exec_cond W C b e g p interp).
   Proof. solve_contractive. Qed.
 
-  Definition enter_cond W C p g b e a (interp : D) : iProp Σ :=
+  Definition enter_cond (W : WORLD) (C : CmptName) (p : Perm) (g : Locality) (b e a : Addr) (interp : D) : iProp Σ :=
     (∀ r W', future_world g W W' C →
              (▷ interp_expr interp r W' C (WCap p g b e a))
                ∗ (▷ interp_expr interp r W' C (WCap p Local b e a))
@@ -357,7 +357,7 @@ Section logrel.
 
   Program Definition interp : D := λne W C w, (fixpoint (interp1)) W C w.
   Solve All Obligations with solve_proper.
-  Definition interp_expression r : D := interp_expr interp r.
+  Definition interp_expression (r : Reg) : D := interp_expr interp r.
   Definition interp_registers : R := interp_reg interp.
 
   Global Instance interp_persistent W C w : Persistent (interp W C w).

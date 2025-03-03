@@ -131,7 +131,9 @@ Section Adequacy.
   Context {cname : CmptNameG}.
   Context {heappreg: heapGpreS Σ}.
   Context `{MP: MachineParameters}.
-  Context {B C: CmptName}.
+  Context {B C : CmptName}.
+  Context { HCNames : CNames = (list_to_set [B;C]) }.
+  Context { HCNamesNoDup : NoDup [B;C] }.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -167,11 +169,21 @@ Section Adequacy.
     iMod (seal_store_init) as (seal_storeg) "Hseal_store".
 
     (* TODO something seems wrong, why do I allocate 2 STS ? *)
-    set W0 := (∅ : WORLD).
-    unshelve iMod (gen_sts_init B W0) as (stsg_B) "Hsts_B"; eauto. (*XX*)
-    unshelve iMod (gen_sts_init C W0) as (stsg_C) "Hsts_C"; eauto. (*XX*)
-    iMod (heap_init B) as (heapg_B) "HRELS_B".
-    iMod (heap_init C) as (heapg_C) "HRELS_C".
+    unshelve iMod gen_sts_init as (stsg) "Hsts"; eauto. (*XX*)
+    exact Addr.
+    exact Addr.
+    all: try (typeclasses eauto).
+    iMod (heap_init) as (heapg) "HRELS".
+    rewrite HCNames.
+    iDestruct (big_sepS_elements with "Hsts") as "Hsts".
+    iDestruct (big_sepS_elements with "HRELS") as "HRELS".
+    setoid_rewrite elements_list_to_set; auto.
+
+    iDestruct (big_sepL_cons with "Hsts") as "[Hsts_B Hsts_C]".
+    iDestruct (big_sepL_cons with "Hsts_C") as "[Hsts_C _]".
+    iDestruct (big_sepL_cons with "HRELS") as "[HRELS_B HRELS_C]".
+    iDestruct (big_sepL_cons with "HRELS_C") as "[HRELS_C _]".
+
     iMod (@na_alloc Σ na_invg) as (logrel_nais) "Hna".
 
     pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg.
@@ -209,8 +221,13 @@ Section Adequacy.
 
     (* Switcher *)
 
-    iAssert (region W0 C) with "[HRELS_C]" as "Hr".
+    iAssert (region ∅ C) with "[HRELS_C]" as "Hr_C".
     { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
+    iAssert (region ∅ B) with "[HRELS_B]" as "Hr_B".
+    { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
+      rewrite /= !dom_empty_L //. repeat iSplit; eauto.
+      rewrite /region_map_def. by rewrite big_sepM_empty. }
+
   Admitted.

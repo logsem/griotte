@@ -39,7 +39,8 @@ Section CMDC.
     (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f C_g : Sealable)
 
-    (W_init : WORLD)
+    (W_init_B : WORLD)
+    (W_init_C : WORLD)
 
     (φ : language.val cap_lang -> iProp Σ)
     (Nassert Nswitcher : namespace)
@@ -60,8 +61,8 @@ Section CMDC.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    cgp_b ∉ dom (std W_init B) ->
-    (cgp_b ^+ 1)%a ∉ dom (std W_init C) ->
+    cgp_b ∉ dom (std W_init_B B) ->
+    (cgp_b ^+ 1)%a ∉ dom (std W_init_C C) ->
 
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
@@ -80,11 +81,11 @@ Section CMDC.
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ cmdc_main_data ]]
       ∗ [[ csp_b , csp_e ]] ↦ₐ [[ region_addrs_zeroes csp_b csp_e ]]
 
-      ∗ region W_init B ∗ sts_full_world W_init B
-      ∗ region W_init C ∗ sts_full_world W_init C
+      ∗ region W_init_B B ∗ sts_full_world W_init_B B
+      ∗ region W_init_C C ∗ sts_full_world W_init_C C
 
-      ∗ interp W_init B (WSealed ot_switcher B_f)
-      ∗ interp W_init C (WSealed ot_switcher C_g)
+      ∗ interp W_init_B B (WSealed ot_switcher B_f)
+      ∗ interp W_init_C C (WSealed ot_switcher C_g)
 
       ∗ ▷ (
             na_own logrel_nais E
@@ -283,8 +284,8 @@ Section CMDC.
     { iApply future_priv_mono_interp_z. }
     { cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
-    set (W1 := <s[(B,cgp_b):=Permanent]s>W_init).
-    assert (related_sts_priv_world W_init W1 B) as HWinit_privB_W1.
+    set (W1 := <s[(B,cgp_b):=Permanent]s>W_init_B).
+    assert (related_sts_priv_world W_init_B W1 B) as HWinit_privB_W1.
     { subst W1; by eapply related_sts_priv_world_fresh_Permanent. }
 
     iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
@@ -307,10 +308,10 @@ Section CMDC.
       iSplit.
       + iApply monoReq_interp; last done.
         rewrite /std_update /std_update_cview /std /std_cview.
-        destruct (W_init !! B); rewrite !lookup_insert; done.
+        destruct (W_init_B !! B); rewrite !lookup_insert; done.
       + iPureIntro.
         rewrite /std_update /std_update_cview /std /std_cview.
-        destruct (W_init !! B); rewrite !lookup_insert; done.
+        destruct (W_init_B !! B); rewrite !lookup_insert; done.
     }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W1 B warg )%I
@@ -437,7 +438,7 @@ Section CMDC.
       subst W1.
       (* TODO lemma *)
       rewrite /std_update /std_update_cview /std /std_cview.
-      destruct (W_init !! B); rewrite !lookup_insert; done.
+      destruct (W_init_B !! B); rewrite !lookup_insert; done.
     }
     iDestruct (region_open with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]")
       as (wcgp_b) "(HWreg_B & HWsts_full_B & HWstd_full_B & Hcpg_b & _ & HmonoR & #Hinterp_wcpgb)"
@@ -552,8 +553,8 @@ Section CMDC.
     { iApply future_priv_mono_interp_z. }
     { cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
-    set (W3 := <s[(C,cgp_c):=Permanent]s>W_init).
-    assert (related_sts_priv_world W_init W3 C) as HWinit_privC_W3.
+    set (W3 := <s[(C,cgp_c):=Permanent]s>W_init_C).
+    assert (related_sts_priv_world W_init_C W3 C) as HWinit_privC_W3.
     { subst W3; by eapply related_sts_priv_world_fresh_Permanent. }
 
     iAssert (interp W3 C (WSealed ot_switcher C_g)) as "#Hinterp_W3_C_g".
@@ -577,10 +578,10 @@ Section CMDC.
       iSplit.
       + iApply monoReq_interp; last done.
         rewrite /std_update /std_update_cview /std /std_cview.
-        destruct (W_init !! C); rewrite !lookup_insert; done.
+        destruct (W_init_C !! C); rewrite !lookup_insert; done.
       + iPureIntro.
         rewrite /std_update /std_update_cview /std /std_cview.
-        destruct (W_init !! C); rewrite !lookup_insert; done.
+        destruct (W_init_C !! C); rewrite !lookup_insert; done.
     }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W3 C warg )%I

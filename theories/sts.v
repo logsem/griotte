@@ -1,13 +1,15 @@
 From iris.algebra Require Import auth agree gmap excl.
 From iris.base_logic Require Export invariants.
 From iris.proofmode Require Import proofmode.
+From stdpp Require Import finite.
 From cap_machine Require Import stdpp_extra.
 Import uPred.
 
 Class CmptNameG := CmptNameS {
   CmptName : Type;
   CmptName_eq_dec :: EqDecision CmptName;
-  CmptName_countable :: Countable CmptName;
+  CmptName_countable :: Finite CmptName;
+  CNames : gset CmptName;
 }.
 
 (** The CMRA for the heap of STS.
@@ -180,8 +182,10 @@ Section pre_STS.
   Context {A B E D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
           {count: Countable A}
           {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E}
-          {eqd : EqDecision D} {countD: Countable D} {CName : CmptNameG}
-          {sts_preg: STS_preG A B Σ}.
+          {eqd : EqDecision D} {countD: Countable D}
+          {CName : CmptNameG}
+          {sts_preg: STS_preG A B Σ}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
@@ -190,18 +194,24 @@ Section pre_STS.
   Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
 
-
-  Lemma gen_sts_init (C : CmptName) (W : WORLD) :
-    ⊢ |==> ∃ (stsg : STSG A B Σ), sts_full_world (<[ C := (∅,(∅,∅))]> W) C.
+  Lemma gen_sts_init :
+    ⊢ |==> ∃ (stsg : STSG A B Σ), ([∗ set] C ∈ CNames, sts_full_world {[C := (∅,(∅,∅))]} C) .
   Proof.
+    iAssert ([∗ set] C ∈ CNames, ∃ γsstd, own γsstd (● ∅ : sts_std_stateUR A B))%I as "Hstd".
+    admit.
+    iAssert ([∗ set] C ∈ CNames, ∃ γs, own γsstd (● ∅ : sts_std_stateUR A B))%I as "Hstd".
+    admit.
+    (* iAssert ([∗ set] C ∈ CNames, ∃ γsstd, own γsstd (● ∅))%I as "Hstd". *)
+    (* admit. *)
     iMod (own_alloc (A:=sts_std_stateUR A B) (● ∅)) as (γsstd) "Hstd". by apply auth_auth_valid.
-    iMod (own_alloc (A:=sts_stateUR) (● ∅)) as (γs) "Hs". by apply auth_auth_valid.
-    iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr) "Hr". by apply auth_auth_valid.
-    iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ _ _ _ _).
-    rewrite /sts_full_world /sts_full_std /sts_full /=.
-    rewrite lookup_insert.
-    rewrite !fmap_empty. iFrame.
-  Qed.
+    (* iMod (own_alloc (A:=sts_stateUR) (● ∅)) as (γs) "Hs". by apply auth_auth_valid. *)
+    (* iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr) "Hr". by apply auth_auth_valid. *)
+    (* iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ _ _ _ _). *)
+    (* rewrite /sts_full_world /sts_full_std /sts_full /=. *)
+    (* rewrite lookup_insert. *)
+    (* rewrite !fmap_empty. iFrame. *)
+  Admitted.
+  (* Qed. *)
 
 End pre_STS.
 

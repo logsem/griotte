@@ -103,13 +103,14 @@ Section heapPre.
    *)
   Context {Σ:gFunctors} {Cname : CmptNameG} {heappreg : heapGpreS Σ}.
 
-  Lemma heap_init C :
-    ⊢ |==> ∃ (heapg: heapGS Σ), RELS C (∅ : relT).
+  Lemma heap_init :
+    ⊢ |==> ∃ (heapg: heapGS Σ), [∗ set] C ∈ CNames, RELS C (∅ : relT).
   Proof.
-    iMod (own_alloc (A:= (authR relUR)) (● (_ <$> (∅: relT) : relUR))) as (γ) "H".
-    { rewrite fmap_empty. by apply auth_auth_valid. }
-    iExists (HeapGS _ _ _ _ _). rewrite RELS_eq /RELS_def. done.
-  Qed.
+    (* iMod (own_alloc (A:= (authR relUR)) (● (_ <$> (∅: relT) : relUR))) as (γ) "H". *)
+    (* { rewrite fmap_empty. by apply auth_auth_valid. } *)
+    (* iExists (HeapGS _ _ _ _ _). rewrite RELS_eq /RELS_def. done. *)
+  (* Qed. *)
+  Admitted.
 
 End heapPre.
 
@@ -117,7 +118,7 @@ Section heap.
 
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
-    {Cname : CmptNameG}
+    {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Addr region_type Σ}
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.

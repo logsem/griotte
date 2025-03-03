@@ -80,7 +80,10 @@ Section fundamental.
   (* Description of what the resources are supposed to look like
      after opening the region if we need to,
      but before closing the region up again*)
-  Definition region_open_resources W C l ls p φ (v : Word) (P : D) (has_later : bool): iProp Σ :=
+  Definition region_open_resources
+    (W : WORLD) (C : CmptName)
+    (l : Addr) (ls : list Addr) (p : Perm) (φ: _ -> iProp Σ)
+    (v : Word) (P : D) (has_later : bool): iProp Σ :=
     (∃ ρ,
         sts_state_std C l ρ
         ∗ ⌜std W C !! l = Some ρ⌝

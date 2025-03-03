@@ -59,8 +59,8 @@ Section heap.
                | None => (revoke_list_std_sta l' fs)
                end
     end.
-  Definition revoke_list_cview l WC : CVIEW := ((revoke_list_std_sta l (std_cview WC)), loc WC).
-  Definition revoke_list l (W : WORLD) (C : CmptName) : WORLD :=
+  Definition revoke_list_cview (l : list Addr) (WC : CVIEW) : CVIEW := ((revoke_list_std_sta l (std_cview WC)), loc WC).
+  Definition revoke_list (l : list Addr) (W : WORLD) (C : CmptName) : WORLD :=
     match W !! C with
     | Some WC => <[C := revoke_list_cview l WC]> W
     | None => W
@@ -1579,8 +1579,8 @@ Section heap.
                end
     end.
   Definition close_list_std_sta (l : list Addr) (fs : STS_STD) : STS_STD := conditional_close_list_std_sta Revoked l fs.
-  Definition close_list_cview l WC : CVIEW := (close_list_std_sta l (std_cview WC), loc WC).
-  Definition close_list l W C : WORLD :=
+  Definition close_list_cview (l : list Addr) (WC : CVIEW) : CVIEW := (close_list_std_sta l (std_cview WC), loc WC).
+  Definition close_list (l : list Addr) (W : WORLD) (C : CmptName) : WORLD :=
     match W !! C with
     | Some WC => <[C := close_list_cview l WC ]> W
     | None => W
