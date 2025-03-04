@@ -5,6 +5,8 @@ From cap_machine Require Import cmdc cmdc_spec.
 From cap_machine Require Import switcher switcher_spec assert logrel.
 From cap_machine Require Import mkregion_helpers.
 From cap_machine Require Import region_invariants_allocation.
+From iris.program_logic Require Import adequacy.
+From iris.base_logic Require Import invariants.
 
 Class memory_layout `{MachineParameters} := {
 
@@ -94,13 +96,13 @@ Definition is_initial_memory `{memory_layout} (mem: Mem) :=
   ∧ (cmpt_exp_tbl_entries main_cmpt) = []
 
   (* instantiating B *)
-  ∧ (cmpt_imports B_cmpt) = [] (* TODO imports !! *)
+  ∧ (cmpt_imports B_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code B_cmpt) (* only instructions *)
   ∧ Forall is_z (cmpt_data B_cmpt) (* TODO generalise: either z or in_region *)
   ∧ (cmpt_exp_tbl_entries B_cmpt) = [WInt (switcher.encode_entry_point 1 0)]
 
   (* instantiating C *)
-  ∧ (cmpt_imports C_cmpt) = [] (* TODO imports !! *)
+  ∧ (cmpt_imports C_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall is_z (cmpt_data C_cmpt) (* TODO generalise: either z or in_region *)
   ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (switcher.encode_entry_point 1 0)]
@@ -162,8 +164,6 @@ Proof.
   - symmetry; apply disjoint_assert_cmpts_mkinitial; done.
 Qed.
 
-From iris.program_logic Require Import adequacy.
-From iris.base_logic Require Import invariants.
 Section Adequacy.
   Context (Σ: gFunctors).
   Context {inv_preg: invGpreS Σ}.
@@ -355,7 +355,12 @@ Section Adequacy.
     rewrite /cmpt_pcc_mregion.
     iDestruct (big_sepM_union with "HB_code") as "[HB_imports HB_code]".
     { admit. }
-    rewrite B_imports. iClear "HB_imports".
+    rewrite B_imports.
+    iEval (rewrite /mkregion) in "HB_imports".
+    rewrite finz_seq_between_singleton.
+    2: { admit. }
+    cbn.
+    iDestruct (big_sepM_insert with "HB_imports") as "[HB_imports _]"; first done.
     rewrite /cmpt_cgp_mregion.
     iDestruct (mkregion_prepare with "[HB_code]") as ">HB_code"; auto.
     { admit. }
@@ -368,7 +373,6 @@ Section Adequacy.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
       - by rewrite /std /std_cview lookup_insert.
       - rewrite /region_map_def. by rewrite big_sepM_empty. }
-
     iMod (extend_region_perm_sepL2 _ {[B := (∅, (∅, ∅))]} B
             (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))
             (cmpt_code B_cmpt)
@@ -389,6 +393,7 @@ Section Adequacy.
         iApply interp_weakening.future_priv_mono_interp_z.
       - iFrame.
     }
+
     iMod (extend_region_perm_sepL2 _ _ B
             (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt))
             (cmpt_data B_cmpt)
@@ -406,6 +411,20 @@ Section Adequacy.
         iSplit; eauto.
         iApply interp_weakening.future_priv_mono_interp_z.
       - iFrame.
+    }
+
+    iMod (extend_region_perm_sepL2 _ _ B
+            [cmpt_b_pcc B_cmpt]
+            (cmpt_imports B_cmpt)
+            RX interpC
+           with "Hsts_B Hr_B [HB_imports]") as "(Hr_B & HB_imports & Hsts_B)".
+    { done. }
+    { admit. }
+    {
+      iDestruct (switcher_interp with "[$Hswitcher]") as "#Hswitcher_interp".
+      iDestruct (future_priv_mono_interp_switcher with "[$Hswitcher]") as "#Hswitcher_mono".
+      rewrite B_imports /=.
+      iFrame "#∗".
     }
     match goal with
     | H: _ |- context [  (sts_full_world ?W B) ] => set (Winit_B := W)
@@ -425,7 +444,12 @@ Section Adequacy.
     rewrite /cmpt_pcc_mregion.
     iDestruct (big_sepM_union with "HC_code") as "[HC_imports HC_code]".
     { admit. }
-    rewrite C_imports. iClear "HC_imports".
+    rewrite C_imports.
+    iEval (rewrite /mkregion) in "HC_imports".
+    rewrite finz_seq_between_singleton.
+    2: { admit. }
+    cbn.
+    iDestruct (big_sepM_insert with "HC_imports") as "[HC_imports _]"; first done.
     rewrite /cmpt_cgp_mregion.
     iDestruct (mkregion_prepare with "[HC_code]") as ">HC_code"; auto.
     { admit. }
@@ -476,6 +500,20 @@ Section Adequacy.
         iSplit; eauto.
         iApply interp_weakening.future_priv_mono_interp_z.
       - iFrame.
+    }
+
+    iMod (extend_region_perm_sepL2 _ _ C
+            [cmpt_b_pcc C_cmpt]
+            (cmpt_imports C_cmpt)
+            RX interpC
+           with "Hsts_C Hr_C [HC_imports]") as "(Hr_C & HC_imports & Hsts_C)".
+    { done. }
+    { admit. }
+    {
+      iDestruct (switcher_interp with "[$Hswitcher]") as "#Hswitcher_interp".
+      iDestruct (future_priv_mono_interp_switcher with "[$Hswitcher]") as "#Hswitcher_mono".
+      rewrite C_imports /=.
+      iFrame "#∗".
     }
     match goal with
     | H: _ |- context [  (sts_full_world ?W C) ] => set (Winit_C := W)
@@ -626,3 +664,4 @@ Section Adequacy.
     iDestruct (gen_heap_valid with "Hmem' Hflag") as %Hm'_flag.
     iModIntro. iPureIntro. rewrite /state_is_good //=.
   Admitted.
+End Adequacy.

@@ -1,7 +1,6 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel interp_weakening addr_reg_sample rules proofmode.
-(* From cap_machine Require Import multiple_updates region_invariants_frozen region_invariants_allocation. *)
 From cap_machine Require Import switcher.
 
 Section Switcher.
@@ -41,8 +40,6 @@ Section Switcher.
   (* TODO:
      - How to encode the number of registers to pass as arguments?
        A possibility is to use a resource that encodes it.
-     - We will need a more general statement,
-       that also work when an adversary calls
    *)
   Lemma switcher_cc_specification
     (E : coPset) (N : namespace)
@@ -238,5 +235,20 @@ Section Switcher.
     (* TODO add ReadSR and WriteSR to iInstr *)
     (* iInstr "Hcode". *)
   Admitted.
+
+  Lemma switcher_interp (W : WORLD) (C : CmptName) (N : namespace)
+    (b_switcher e_switcher a_switcher_cc : Addr) (ot_switcher : OType) :
+    na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher) -∗
+    interp W C (WCap E_XSRW_ Global b_switcher e_switcher a_switcher_cc).
+  Proof.
+  Admitted.
+
+  Lemma future_priv_mono_interp_switcher (C : CmptName) (N : namespace)
+    (b_switcher e_switcher a_switcher_cc : Addr) (ot_switcher : OType) :
+    na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher) -∗
+    future_priv_mono C interpC (WCap E_XSRW_ Global b_switcher e_switcher a_switcher_cc).
+  Proof.
+  Admitted.
+
 
 End Switcher.
