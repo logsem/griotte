@@ -367,5 +367,48 @@ Section CmptLayout.
     set_solver.
   Qed.
 
+  Lemma cmpt_assert_flag_mregion_disjoint (assert_cmpt : cmptAssert) :
+    cmpt_assert_code_mregion assert_cmpt ∪ cmpt_assert_cap_mregion assert_cmpt
+      ##ₘ cmpt_assert_flag_mregion assert_cmpt.
+  Proof.
+  Admitted.
+
+  Lemma cmpt_assert_cap_mregion_disjoint (assert_cmpt : cmptAssert) :
+    cmpt_assert_code_mregion assert_cmpt ##ₘ cmpt_assert_cap_mregion assert_cmpt.
+  Proof.
+  Admitted.
+
+  Lemma cmpt_switcher_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
+    cmpt_switcher_code_mregion switcher_cmpt ∪ cmpt_switcher_trusted_stack_mregion switcher_cmpt
+      ##ₘ cmpt_switcher_stack_mregion switcher_cmpt.
+  Proof.
+  Admitted.
+  Lemma cmpt_switcher_trusted_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
+    cmpt_switcher_code_mregion switcher_cmpt
+      ##ₘ cmpt_switcher_trusted_stack_mregion switcher_cmpt.
+  Proof.
+  Admitted.
+
+  Lemma cmpt_switcher_code_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
+    mkregion (b_switcher switcher_cmpt) (a_switcher_cc switcher_cmpt)
+      [WSealRange (true, true) Global (ot_switcher switcher_cmpt)
+         (ot_switcher switcher_cmpt ^+ 1)%f (ot_switcher switcher_cmpt)]
+      ##ₘ mkregion (a_switcher_cc switcher_cmpt) (e_switcher switcher_cmpt) switcher_instrs.
+  Proof.
+  Admitted.
+
+  Lemma cmpt_exp_tbl_disjoint (B_cmpt : cmpt) :
+    cmpt_pcc_mregion B_cmpt ∪ cmpt_cgp_mregion B_cmpt ##ₘ cmpt_exp_tbl_mregion B_cmpt.
+  Proof.
+  Admitted.
+  Lemma cmpt_cgp_disjoint (B_cmpt : cmpt) :
+    cmpt_pcc_mregion B_cmpt ##ₘ cmpt_cgp_mregion B_cmpt .
+  Proof.
+  Admitted.
+  Lemma cmpt_code_disjoint (B_cmpt : cmpt) :
+    mkregion (cmpt_b_pcc B_cmpt) (cmpt_a_code B_cmpt) (cmpt_imports B_cmpt)
+      ##ₘ mkregion (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_code B_cmpt).
+  Proof.
+  Admitted.
 
 End CmptLayout.

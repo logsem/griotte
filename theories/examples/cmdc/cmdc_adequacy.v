@@ -185,6 +185,7 @@ Section Adequacy.
   Notation CVIEW := (prodO STS_STD STS).
   Notation WORLD := (gmapO CmptName CVIEW).
 
+  (* TODO move *)
   Lemma elem_of_dom_std_multiple_update (W : WORLD) (A : CmptName) (a : Addr) (l : list Addr)
     (ρ: region_type) :
     is_Some (W !! A) ->
@@ -205,7 +206,6 @@ Section Adequacy.
     }
     apply IHl in H. destruct H; done.
   Qed.
-
 
   Definition flagN : namespace := nroot .@ "cmdc" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "cmdc" .@ "switcher_flag".
@@ -276,13 +276,13 @@ Section Adequacy.
     (* Assert *)
     rewrite /mk_initial_assert.
     iDestruct (big_sepM_union with "Hcmpt_assert") as "[Hassert Hassert_flag]".
-    { admit. }
+    { eapply cmpt_assert_flag_mregion_disjoint ; eauto. }
     iDestruct (big_sepM_union with "Hassert") as "[Hassert Hassert_cap]".
-    { admit. }
+    { eapply cmpt_assert_cap_mregion_disjoint ; eauto. }
     rewrite /cmpt_assert_flag_mregion.
     rewrite /mkregion.
     rewrite finz_seq_between_singleton.
-    2: { admit. }
+    2: { pose proof (assert_flag_size assert_cmpt) as H; solve_addr+H. }
     cbn.
     iDestruct (big_sepM_insert with "Hassert_flag") as "[Hassert_flag _]"; first done.
     iMod (inv_alloc flagN ⊤ (flag_assert assert_cmpt ↦ₐ WInt 0%Z) with "Hassert_flag")%I
@@ -290,13 +290,13 @@ Section Adequacy.
     rewrite /cmpt_assert_cap_mregion.
     rewrite /mkregion.
     rewrite finz_seq_between_singleton.
-    2: { admit. }
+    2: { pose proof (assert_cap_size assert_cmpt) as H; solve_addr+H. }
     cbn.
     iDestruct (big_sepM_insert with "Hassert_cap") as "[Hassert_cap _]"; first done.
 
     rewrite /cmpt_assert_code_mregion.
     iDestruct (mkregion_prepare with "[Hassert]") as ">Hassert"; auto.
-    { admit. }
+    { apply (assert_code_size assert_cmpt). }
     iAssert (assert.assert_inv
                (b_assert assert_cmpt)
                (e_assert assert_cmpt)
@@ -305,32 +305,36 @@ Section Adequacy.
     { rewrite /assert.assert_inv. iExists (cap_assert assert_cmpt).
       rewrite /codefrag /region_pointsto.
       replace (b_assert assert_cmpt ^+ length assert_subroutine_instrs)%a
-        with (cap_assert assert_cmpt) by admit.
+        with (cap_assert assert_cmpt).
+      2: { pose proof (assert_code_size assert_cmpt); solve_addr+H. }
       iFrame.
-      admit.
+      iSplit; first (iPureIntro ; apply (assert_code_size assert_cmpt)).
+      iSplit; iPureIntro.
+      + apply (assert_cap_size assert_cmpt).
+      + by rewrite (assert_flag_size assert_cmpt).
     }
     iMod (na_inv_alloc logrel.logrel_nais _ assertN _ with "Hassert") as "#Hassert".
 
     (* Switcher *)
     rewrite /mk_initial_switcher.
     iDestruct (big_sepM_union with "Hcmpt_switcher") as "[Hswitcher Hstack]".
-    { admit. }
+    { eapply cmpt_switcher_stack_mregion_disjoint ; eauto. }
     iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher Htrusted_stack]".
-    { admit. }
+    { eapply cmpt_switcher_trusted_stack_mregion_disjoint ; eauto. }
 
     rewrite /cmpt_switcher_code_mregion.
     iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher_sealing Hswitcher]".
-    { admit. }
+    { eapply cmpt_switcher_code_stack_mregion_disjoint ; eauto. }
     iEval (rewrite /mkregion) in "Hswitcher_sealing".
     rewrite finz_seq_between_singleton.
-    2: { admit. }
+    2: { apply (switcher_cc_entry_point switcher_cmpt). }
     iEval (cbn) in "Hswitcher_sealing".
     iDestruct (big_sepM_insert with "Hswitcher_sealing") as "[Hswitcher_sealing _]"; first done.
     iDestruct (mkregion_prepare with "[Hswitcher]") as ">Hswitcher"; auto.
-    { admit. }
+    { apply (switcher_size switcher_cmpt). }
     rewrite /cmpt_switcher_trusted_stack_mregion.
     iDestruct (mkregion_prepare with "[Htrusted_stack]") as ">Htrusted_stack"; auto.
-    { admit. }
+    { apply (trusted_stack_size switcher_cmpt). }
     iAssert (switcher_spec.switcher_inv
                (b_switcher switcher_cmpt)
                (e_switcher switcher_cmpt)
@@ -340,9 +344,15 @@ Section Adequacy.
     {
       rewrite /switcher_spec.switcher_inv /codefrag /region_pointsto.
       replace (a_switcher_cc switcher_cmpt ^+ length switcher_instrs)%a
-        with (e_switcher switcher_cmpt) by admit.
+        with (e_switcher switcher_cmpt).
+      2: { pose proof (switcher_size switcher_cmpt) as H ; solve_addr+H. }
       iFrame.
-      admit.
+      iPureIntro.
+      rewrite /SubBounds.
+      clear.
+      pose proof (switcher_size switcher_cmpt).
+      pose proof (switcher_cc_entry_point switcher_cmpt).
+      solve_addr.
     }
     iMod (na_inv_alloc logrel.logrel_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
 
@@ -354,12 +364,12 @@ Section Adequacy.
 
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_B".
     iDestruct (big_sepM_union with "Hcmpt_B") as "[HB HB_etbl]".
-    { admit. }
+    { eapply cmpt_exp_tbl_disjoint ; eauto. }
     iDestruct (big_sepM_union with "HB") as "[HB_code HB_data]".
-    { admit. }
+    { eapply cmpt_cgp_disjoint ; eauto. }
     rewrite /cmpt_pcc_mregion.
     iDestruct (big_sepM_union with "HB_code") as "[HB_imports HB_code]".
-    { admit. }
+    { eapply cmpt_code_disjoint ; eauto. }
     rewrite B_imports.
     iEval (rewrite /mkregion) in "HB_imports".
     rewrite finz_seq_between_singleton.
@@ -368,9 +378,9 @@ Section Adequacy.
     iDestruct (big_sepM_insert with "HB_imports") as "[HB_imports _]"; first done.
     rewrite /cmpt_cgp_mregion.
     iDestruct (mkregion_prepare with "[HB_code]") as ">HB_code"; auto.
-    { admit. }
+    { apply (cmpt_code_size B_cmpt). }
     iDestruct (mkregion_prepare with "[HB_data]") as ">HB_data"; auto.
-    { admit. }
+    { apply (cmpt_data_size B_cmpt). }
 
     (* Initialises the world for B *)
     iAssert (region {[B := (∅, (∅, ∅))]} B) with "[HRELS_B]" as "Hr_B".
@@ -447,12 +457,12 @@ Section Adequacy.
     { admit. }
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_C".
     iDestruct (big_sepM_union with "Hcmpt_C") as "[HC HC_etbl]".
-    { admit. }
+    { eapply cmpt_exp_tbl_disjoint ; eauto. }
     iDestruct (big_sepM_union with "HC") as "[HC_code HC_data]".
-    { admit. }
+    { eapply cmpt_cgp_disjoint ; eauto. }
     rewrite /cmpt_pcc_mregion.
     iDestruct (big_sepM_union with "HC_code") as "[HC_imports HC_code]".
-    { admit. }
+    { eapply cmpt_code_disjoint ; eauto. }
     rewrite C_imports.
     iEval (rewrite /mkregion) in "HC_imports".
     rewrite finz_seq_between_singleton.
@@ -460,9 +470,9 @@ Section Adequacy.
     iDestruct (big_sepM_insert with "HC_imports") as "[HC_imports _]"; first done.
     rewrite /cmpt_cgp_mregion.
     iDestruct (mkregion_prepare with "[HC_code]") as ">HC_code"; auto.
-    { admit. }
+    { apply (cmpt_code_size C_cmpt). }
     iDestruct (mkregion_prepare with "[HC_data]") as ">HC_data"; auto.
-    { admit. }
+    { apply (cmpt_data_size C_cmpt). }
 
     (* Initialises the world for C *)
     iAssert (region {[C := (∅, (∅, ∅))]} C) with "[HRELS_C]" as "Hr_C".
@@ -536,19 +546,19 @@ Section Adequacy.
     (* CMPT MAIN *)
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_main".
     iDestruct (big_sepM_union with "Hcmpt_main") as "[Hmain Hmain_etbl]".
-    { admit. }
+    { eapply cmpt_exp_tbl_disjoint ; eauto. }
     iDestruct (big_sepM_union with "Hmain") as "[Hmain_code Hmain_data]".
-    { admit. }
+    { eapply cmpt_cgp_disjoint ; eauto. }
     rewrite /cmpt_pcc_mregion.
     iDestruct (big_sepM_union with "Hmain_code") as "[Hmain_imports Hmain_code]".
     { admit. }
     rewrite /cmpt_cgp_mregion.
     iDestruct (mkregion_prepare with "[Hmain_imports]") as ">Hmain_imports"; auto.
-    { admit. }
+    { apply (cmpt_import_size main_cmpt). }
     iDestruct (mkregion_prepare with "[Hmain_code]") as ">Hmain_code"; auto.
-    { admit. }
+    { apply (cmpt_code_size main_cmpt). }
     iDestruct (mkregion_prepare with "[Hmain_data]") as ">Hmain_data"; auto.
-    { admit. }
+    { apply (cmpt_data_size main_cmpt). }
     iAssert (
        [[(cmpt_b_pcc main_cmpt),(cmpt_a_code main_cmpt)]]↦ₐ[[cmpt_imports main_cmpt]]
      )%I with "[Hmain_imports]" as "Hmain_imports"; first done.
@@ -560,7 +570,8 @@ Section Adequacy.
      )%I with "[Hmain_code]" as "Hmain_code".
     { rewrite /codefrag.
       replace (cmpt_a_code main_cmpt ^+ length (cmpt_code main_cmpt))%a
-        with (cmpt_e_pcc main_cmpt) by admit.
+        with (cmpt_e_pcc main_cmpt).
+      2: { pose proof (cmpt_code_size main_cmpt) as H ; solve_addr+H. }
       done.
     }
     rewrite main_imports main_code main_data.
@@ -568,7 +579,7 @@ Section Adequacy.
     (* Compartment's stack *)
     rewrite /cmpt_switcher_stack_mregion.
     iDestruct (mkregion_prepare with "[Hstack]") as ">Hstack"; auto.
-    { admit. }
+    { apply (stack_size switcher_cmpt). }
     iAssert (
         [[(b_stack switcher_cmpt), (e_stack switcher_cmpt)]]↦ₐ[[(stack_content switcher_cmpt)]]
       )%I with "[Hstack]" as "Hstack"; first done.
