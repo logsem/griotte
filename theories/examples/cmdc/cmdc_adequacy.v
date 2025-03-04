@@ -347,6 +347,11 @@ Section Adequacy.
     iMod (na_inv_alloc logrel.logrel_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
 
     (* CMPT B *)
+    assert (
+       (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))  = [cmpt_a_code B_cmpt]
+      ) as Himport_B_size.
+    { admit. }
+
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_B".
     iDestruct (big_sepM_union with "Hcmpt_B") as "[HB HB_etbl]".
     { admit. }
@@ -436,6 +441,10 @@ Section Adequacy.
     iClear "HB_etbl HB_code HB_data".
 
     (* CMPT C *)
+    assert (
+       (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt)) = [cmpt_a_code C_cmpt]
+      ) as Himport_C_size.
+    { admit. }
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_C".
     iDestruct (big_sepM_union with "Hcmpt_C") as "[HC HC_etbl]".
     { admit. }
@@ -448,7 +457,6 @@ Section Adequacy.
     iEval (rewrite /mkregion) in "HC_imports".
     rewrite finz_seq_between_singleton.
     2: { admit. }
-    cbn.
     iDestruct (big_sepM_insert with "HC_imports") as "[HC_imports _]"; first done.
     rewrite /cmpt_cgp_mregion.
     iDestruct (mkregion_prepare with "[HC_code]") as ">HC_code"; auto.
@@ -621,30 +629,52 @@ Section Adequacy.
       apply elem_of_dom_std_multiple_update in Hcontra.
       2:{
         rewrite /std_multiple_update.
-        destruct (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))
-        ; rewrite lookup_singleton; [done|by rewrite lookup_insert].
+        destruct (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt)),
+                   (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt))
+                   ; rewrite lookup_singleton ; try done
+                   ; rewrite !lookup_insert ; try done.
       }
       destruct Hcontra as [Hcontra|Hcontra].
       - admit.
-      - apply elem_of_dom_std_multiple_update in Hcontra; last by rewrite lookup_singleton.
+      - apply elem_of_dom_std_multiple_update in Hcontra.
+        2: {
+          rewrite /std_multiple_update.
+          destruct (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))
+            ; rewrite !lookup_singleton ; try done
+            ; rewrite !lookup_insert ; try done.
+        }
         destruct Hcontra as [Hcontra|Hcontra].
         + admit.
-        + rewrite /std lookup_insert /std_cview /= dom_empty_L in Hcontra; set_solver+Hcontra.
+        + apply elem_of_dom_std_multiple_update in Hcontra; last by rewrite lookup_singleton.
+          destruct Hcontra as [Hcontra|Hcontra].
+          * admit.
+          * rewrite /std lookup_insert /std_cview /= dom_empty_L in Hcontra; set_solver+Hcontra.
     }
     { subst Winit_C.
       intro Hcontra.
       apply elem_of_dom_std_multiple_update in Hcontra.
       2:{
         rewrite /std_multiple_update.
-        destruct (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
-        ; rewrite lookup_singleton; [done|by rewrite lookup_insert].
+        destruct (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt)),
+                   (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt))
+                   ; rewrite lookup_singleton ; try done
+                   ; rewrite !lookup_insert ; try done.
       }
       destruct Hcontra as [Hcontra|Hcontra].
       - admit.
-      - apply elem_of_dom_std_multiple_update in Hcontra; last by rewrite lookup_singleton.
+      - apply elem_of_dom_std_multiple_update in Hcontra.
+        2: {
+          rewrite /std_multiple_update.
+          destruct (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
+            ; rewrite !lookup_singleton ; try done
+            ; rewrite !lookup_insert ; try done.
+        }
         destruct Hcontra as [Hcontra|Hcontra].
         + admit.
-        + rewrite /std lookup_insert /std_cview /= dom_empty_L in Hcontra; set_solver+Hcontra.
+        + apply elem_of_dom_std_multiple_update in Hcontra; last by rewrite lookup_singleton.
+          destruct Hcontra as [Hcontra|Hcontra].
+          * admit.
+          * rewrite /std lookup_insert /std_cview /= dom_empty_L in Hcontra; set_solver+Hcontra.
     }
     { clear.
       pose proof (stack_size switcher_cmpt) as Hstacksize.
