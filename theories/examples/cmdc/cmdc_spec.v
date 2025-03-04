@@ -42,6 +42,8 @@ Section CMDC.
     (W_init_B : WORLD)
     (W_init_C : WORLD)
 
+    (csp_content : list Word)
+
     (φ : language.val cap_lang -> iProp Σ)
     (Nassert Nswitcher : namespace)
     (E : coPset)
@@ -64,6 +66,8 @@ Section CMDC.
     cgp_b ∉ dom (std W_init_B B) ->
     (cgp_b ^+ 1)%a ∉ dom (std W_init_C C) ->
 
+    length csp_content = finz.dist csp_b csp_e ->
+
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
       ∗ na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_cc_switcher ot_switcher)
@@ -79,7 +83,7 @@ Section CMDC.
       ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
       ∗ codefrag pc_a cmdc_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ cmdc_main_data ]]
-      ∗ [[ csp_b , csp_e ]] ↦ₐ [[ region_addrs_zeroes csp_b csp_e ]]
+      ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
 
       ∗ region W_init_B B ∗ sts_full_world W_init_B B
       ∗ region W_init_C C ∗ sts_full_world W_init_C C
@@ -94,7 +98,7 @@ Section CMDC.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcherE HNassertE Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c)
+               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c Hlen_stack)
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
@@ -715,6 +719,8 @@ Section CMDC.
     (W_init_B : WORLD)
     (W_init_C : WORLD)
 
+    (csp_content : list Word)
+
     (φ : language.val cap_lang -> iProp Σ)
     (Nassert Nswitcher : namespace)
     (E : coPset)
@@ -737,6 +743,8 @@ Section CMDC.
     cgp_b ∉ dom (std W_init_B B) ->
     (cgp_b ^+ 1)%a ∉ dom (std W_init_C C) ->
 
+    length csp_content = finz.dist csp_b csp_e ->
+
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
       ∗ na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_cc_switcher ot_switcher)
@@ -752,7 +760,7 @@ Section CMDC.
       ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
       ∗ codefrag pc_a cmdc_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ cmdc_main_data ]]
-      ∗ [[ csp_b , csp_e ]] ↦ₐ [[ region_addrs_zeroes csp_b csp_e ]]
+      ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
 
       ∗ region W_init_B B ∗ sts_full_world W_init_B B
       ∗ region W_init_C C ∗ sts_full_world W_init_C C
@@ -767,7 +775,7 @@ Section CMDC.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcherE HNassertE Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c)
+               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c Hlen_stack)
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
@@ -779,8 +787,8 @@ Section CMDC.
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
                 b_switcher e_switcher a_cc_switcher ot_switcher
-                b_assert e_assert a_flag B_f C_g W_init_B W_init_C φ
-                Nassert Nswitcher E); eauto; iFrame "#∗".
+                b_assert e_assert a_flag B_f C_g W_init_B W_init_C
+                csp_content φ Nassert Nswitcher E); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".
   Qed.

@@ -1,8 +1,7 @@
 From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Export stdpp_extra iris_extra region_invariants
-     multiple_updates region_invariants_revocation sts.
-Require Import stdpp.countable.
+From cap_machine Require Export stdpp_extra iris_extra sts region_invariants multiple_updates.
+From stdpp Require Import countable.
 Import uPred.
 
 Section heap.

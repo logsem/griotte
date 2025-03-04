@@ -348,6 +348,32 @@ Section CmptLayout.
 (*     }. *)
 
 
+Lemma disjoint_cmpts_mkinitial (A_cmpt B_cmpt : cmpt) :
+  A_cmpt ## B_cmpt -> (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_cmpt B_cmpt).
+Proof.
+  intros Hdis.
+  rewrite /mk_initial_cmpt.
+  rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdis.
+Admitted.
+
+Lemma disjoint_switcher_cmpts_mkinitial (A_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) :
+  switcher_cmpt_disjoint A_cmpt switcher_cmpt ->
+  (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_switcher switcher_cmpt).
+Proof.
+Admitted.
+
+Lemma disjoint_assert_cmpts_mkinitial (A_cmpt : cmpt) (assert_cmpt : cmptAssert) :
+  assert_cmpt_disjoint A_cmpt assert_cmpt ->
+  (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_assert assert_cmpt).
+Proof.
+Admitted.
+
+Lemma disjoint_assert_switcher_mkinitial (assert_cmpt : cmptAssert) (switcher_cmpt : cmptSwitcher) :
+  assert_switcher_disjoint assert_cmpt (switcher_cmpt : cmptSwitcher) ->
+  (mk_initial_assert assert_cmpt) ##ₘ (mk_initial_switcher switcher_cmpt).
+Proof.
+Admitted.
+
 
 
 End CmptLayout.

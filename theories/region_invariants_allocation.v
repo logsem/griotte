@@ -1,6 +1,6 @@
 From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Export region_invariants region_invariants_frozen (* region_invariants_batch_uninitialized *).
+From cap_machine Require Export region_invariants multiple_updates.
 From cap_machine Require Import seal_store logrel interp_weakening.
 Import uPred.
 
