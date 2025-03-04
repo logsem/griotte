@@ -29,7 +29,7 @@ Section CmptLayout.
         cmpt_data_size : (cmpt_b_cgp + length cmpt_data)%a = Some cmpt_e_cgp;
         cmpt_exp_tbl_pcc_size : (cmpt_exp_tbl_pcc + 1)%a = Some cmpt_exp_tbl_cgp;
         cmpt_exp_tbl_cgp_size : (cmpt_exp_tbl_cgp + 1)%a = Some cmpt_exp_tbl_entries_start;
-        cmpt_exp_tbl_entries_size : (cmpt_exp_tbl_entries_end + length cmpt_exp_tbl_entries)%a = Some cmpt_exp_tbl_entries_end;
+        cmpt_exp_tbl_entries_size : (cmpt_exp_tbl_entries_start + length cmpt_exp_tbl_entries)%a = Some cmpt_exp_tbl_entries_end;
 
         cmpt_disjointness :
         ## [
@@ -43,7 +43,7 @@ Section CmptLayout.
     (finz.seq_between (cmpt_b_pcc C) (cmpt_e_pcc C)).
 
   Definition cmpt_cgp_region (C : cmpt) : list Addr :=
-    (finz.seq_between (cmpt_b_pcc C) (cmpt_e_pcc C)).
+    (finz.seq_between (cmpt_b_cgp C) (cmpt_e_cgp C)).
 
   Definition cmpt_exp_tbl_region (C : cmpt) : list Addr :=
     (finz.seq_between (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)).
@@ -82,7 +82,7 @@ Section CmptLayout.
         ot_switcher : OType ;
 
         switcher_size :
-        (b_switcher + length switcher_instrs)%a = Some e_switcher ;
+        (a_switcher_cc + length switcher_instrs)%a = Some e_switcher ;
 
         switcher_cc_entry_point :
         (b_switcher + 1)%a = Some a_switcher_cc ;
@@ -192,32 +192,180 @@ Section CmptLayout.
     `{MachineParameters} (Cassert : cmptAssert) (Cswitcher : cmptSwitcher) : Prop :=
     (cmpt_assert_region Cassert) ## (cmpt_switcher_region Cswitcher).
 
-Lemma disjoint_cmpts_mkinitial (A_cmpt B_cmpt : cmpt) :
-  A_cmpt ## B_cmpt -> (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_cmpt B_cmpt).
-Proof.
-  intros Hdis.
-  rewrite /mk_initial_cmpt.
-  rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdis.
-Admitted.
+  Lemma dom_cmpt_pcc_mregion (A_cmpt : cmpt) :
+    dom (cmpt_pcc_mregion A_cmpt) = list_to_set (cmpt_pcc_region A_cmpt).
+  Proof.
+    pose proof (cmpt_import_size A_cmpt).
+    pose proof (cmpt_code_size A_cmpt).
 
-Lemma disjoint_switcher_cmpts_mkinitial (A_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) :
-  switcher_cmpt_disjoint A_cmpt switcher_cmpt ->
-  (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_switcher switcher_cmpt).
-Proof.
-Admitted.
+    rewrite /cmpt_pcc_mregion /cmpt_pcc_region.
+    rewrite !dom_union_L.
+    repeat rewrite dom_mkregion_eq; try solve_addr.
+    rewrite (finz_seq_between_split
+               (cmpt_b_pcc A_cmpt)
+               (cmpt_a_code A_cmpt)
+               (cmpt_e_pcc A_cmpt)); last solve_addr.
+    set_solver.
+  Qed.
+  Lemma dom_cmpt_cgp_mregion (A_cmpt : cmpt) :
+    dom (cmpt_cgp_mregion A_cmpt) = list_to_set (cmpt_cgp_region A_cmpt).
+  Proof.
+    pose proof (cmpt_data_size A_cmpt).
+    rewrite /cmpt_cgp_mregion /cmpt_cgp_region.
+    repeat rewrite dom_mkregion_eq; try solve_addr.
+  Qed.
+  Lemma dom_cmpt_exp_tbl_mregion (A_cmpt : cmpt) :
+    dom (cmpt_exp_tbl_mregion A_cmpt) = list_to_set (cmpt_exp_tbl_region A_cmpt).
+  Proof.
+    pose proof (cmpt_exp_tbl_pcc_size A_cmpt).
+    pose proof (cmpt_exp_tbl_cgp_size A_cmpt).
+    pose proof (cmpt_exp_tbl_entries_size A_cmpt).
+    rewrite /cmpt_exp_tbl_mregion /cmpt_exp_tbl_region.
+    rewrite !dom_union_L.
+    repeat rewrite dom_mkregion_eq; try solve_addr.
+    rewrite (finz_seq_between_split
+               (cmpt_exp_tbl_pcc A_cmpt)
+               (cmpt_exp_tbl_cgp A_cmpt)
+               (cmpt_exp_tbl_entries_end A_cmpt)); last solve_addr.
+    rewrite (finz_seq_between_split
+               (cmpt_exp_tbl_cgp A_cmpt)
+               (cmpt_exp_tbl_entries_start A_cmpt)
+               (cmpt_exp_tbl_entries_end A_cmpt)); last solve_addr.
+    set_solver.
+  Qed.
 
-Lemma disjoint_assert_cmpts_mkinitial (A_cmpt : cmpt) (assert_cmpt : cmptAssert) :
-  assert_cmpt_disjoint A_cmpt assert_cmpt ->
-  (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_assert assert_cmpt).
-Proof.
-Admitted.
+  Lemma disjoint_cmpts_mkinitial (A_cmpt B_cmpt : cmpt) :
+    A_cmpt ## B_cmpt -> (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_cmpt B_cmpt).
+  Proof.
+    intros Hdis.
+    apply map_disjoint_dom_2.
+    rewrite /mk_initial_cmpt.
+    rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdis.
+    apply list_to_set_disj in Hdis.
+    repeat rewrite list_to_set_app_L in Hdis.
+    do 4 rewrite dom_union_L.
+    rewrite !dom_cmpt_pcc_mregion.
+    rewrite !dom_cmpt_cgp_mregion.
+    rewrite !dom_cmpt_exp_tbl_mregion.
+    done.
+  Qed.
 
-Lemma disjoint_assert_switcher_mkinitial (assert_cmpt : cmptAssert) (switcher_cmpt : cmptSwitcher) :
-  assert_switcher_disjoint assert_cmpt (switcher_cmpt : cmptSwitcher) ->
-  (mk_initial_assert assert_cmpt) ##ₘ (mk_initial_switcher switcher_cmpt).
-Proof.
-Admitted.
+  Lemma dom_switcher_code_mregion (switcher_cmpt : cmptSwitcher) :
+    dom (cmpt_switcher_code_mregion switcher_cmpt) =
+    list_to_set (cmpt_switcher_code_region switcher_cmpt).
+  Proof.
+    pose proof (switcher_size switcher_cmpt).
+    pose proof (switcher_cc_entry_point switcher_cmpt).
+    rewrite /cmpt_switcher_code_mregion /cmpt_switcher_code_region.
+    rewrite !dom_union_L.
+    repeat rewrite dom_mkregion_eq; try solve_addr.
+    rewrite (finz_seq_between_split
+               (b_switcher switcher_cmpt)
+               (a_switcher_cc switcher_cmpt)
+               (e_switcher switcher_cmpt)); last solve_addr.
+    set_solver.
+  Qed.
+  Lemma dom_switcher_trusted_stack_mregion (switcher_cmpt : cmptSwitcher) :
+    dom (cmpt_switcher_trusted_stack_mregion switcher_cmpt) =
+    list_to_set (cmpt_switcher_trusted_stack_region switcher_cmpt).
+  Proof.
+    pose proof (trusted_stack_size switcher_cmpt).
+    rewrite /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_trusted_stack_region.
+    repeat rewrite dom_mkregion_eq; try solve_addr.
+  Qed.
+  Lemma dom_switcher_stack_mregion (switcher_cmpt : cmptSwitcher) :
+    dom (cmpt_switcher_stack_mregion switcher_cmpt) =
+    list_to_set (cmpt_switcher_stack_region switcher_cmpt).
+  Proof.
+    pose proof (stack_size switcher_cmpt).
+    rewrite /cmpt_switcher_stack_mregion /cmpt_switcher_stack_region.
+    repeat rewrite dom_mkregion_eq; try solve_addr.
+  Qed.
 
+  Lemma dom_assert_code_mregion (assert_cmpt : cmptAssert) :
+    dom (cmpt_assert_code_mregion assert_cmpt) = list_to_set (cmpt_assert_code_region assert_cmpt).
+  Proof.
+    pose proof (assert_code_size assert_cmpt).
+    rewrite /cmpt_assert_code_mregion /cmpt_assert_code_region.
+    repeat rewrite dom_mkregion_eq; try solve_addr.
+  Qed.
+  Lemma dom_assert_cap_mregion (assert_cmpt : cmptAssert) :
+    dom (cmpt_assert_cap_mregion assert_cmpt) = list_to_set (cmpt_assert_cap_region assert_cmpt).
+  Proof.
+    pose proof (assert_cap_size assert_cmpt).
+    rewrite /cmpt_assert_cap_mregion /cmpt_assert_cap_region.
+    repeat rewrite dom_mkregion_eq; try solve_addr.
+  Qed.
+  Lemma dom_assert_flag_mregion (assert_cmpt : cmptAssert) :
+    dom (cmpt_assert_flag_mregion assert_cmpt) = list_to_set (cmpt_assert_flag_region assert_cmpt).
+  Proof.
+    pose proof (assert_flag_size assert_cmpt).
+    rewrite /cmpt_assert_flag_mregion /cmpt_assert_flag_region.
+    repeat rewrite dom_mkregion_eq; try solve_addr.
+  Qed.
+
+  Lemma disjoint_switcher_cmpts_mkinitial (A_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) :
+    switcher_cmpt_disjoint A_cmpt switcher_cmpt ->
+    (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_switcher switcher_cmpt).
+  Proof.
+    intros Hdis.
+    apply map_disjoint_dom_2.
+    rewrite /switcher_cmpt_disjoint /cmpt_switcher_region /cmpt_region in Hdis.
+    apply list_to_set_disj in Hdis.
+    repeat rewrite list_to_set_app_L in Hdis.
+
+    rewrite /mk_initial_cmpt /mk_initial_switcher.
+    do 4 rewrite dom_union_L.
+    rewrite !dom_cmpt_pcc_mregion.
+    rewrite !dom_cmpt_cgp_mregion.
+    rewrite !dom_cmpt_exp_tbl_mregion.
+    rewrite !dom_switcher_code_mregion.
+    rewrite !dom_switcher_trusted_stack_mregion.
+    rewrite !dom_switcher_stack_mregion.
+    set_solver.
+  Qed.
+
+  Lemma disjoint_assert_cmpts_mkinitial (A_cmpt : cmpt) (assert_cmpt : cmptAssert) :
+    assert_cmpt_disjoint A_cmpt assert_cmpt ->
+    (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_assert assert_cmpt).
+  Proof.
+    intros Hdis.
+    apply map_disjoint_dom_2.
+    rewrite /assert_cmpt_disjoint /cmpt_assert_region /cmpt_region in Hdis.
+    apply list_to_set_disj in Hdis.
+    repeat rewrite list_to_set_app_L in Hdis.
+
+    rewrite /mk_initial_cmpt /mk_initial_assert.
+    do 4 rewrite dom_union_L.
+    rewrite !dom_cmpt_pcc_mregion.
+    rewrite !dom_cmpt_cgp_mregion.
+    rewrite !dom_cmpt_exp_tbl_mregion.
+    rewrite !dom_assert_code_mregion.
+    rewrite !dom_assert_cap_mregion.
+    rewrite !dom_assert_flag_mregion.
+    set_solver.
+  Qed.
+
+  Lemma disjoint_assert_switcher_mkinitial (assert_cmpt : cmptAssert) (switcher_cmpt : cmptSwitcher) :
+    assert_switcher_disjoint assert_cmpt (switcher_cmpt : cmptSwitcher) ->
+    (mk_initial_assert assert_cmpt) ##ₘ (mk_initial_switcher switcher_cmpt).
+  Proof.
+    intros Hdis.
+    apply map_disjoint_dom_2.
+    rewrite /assert_switcher_disjoint /cmpt_assert_region /cmpt_switcher_region in Hdis.
+    apply list_to_set_disj in Hdis.
+    repeat rewrite list_to_set_app_L in Hdis.
+
+    rewrite /mk_initial_switcher /mk_initial_assert.
+    do 4 rewrite dom_union_L.
+    rewrite !dom_assert_code_mregion.
+    rewrite !dom_assert_cap_mregion.
+    rewrite !dom_assert_flag_mregion.
+    rewrite !dom_switcher_code_mregion.
+    rewrite !dom_switcher_trusted_stack_mregion.
+    rewrite !dom_switcher_stack_mregion.
+    set_solver.
+  Qed.
 
 
 End CmptLayout.
