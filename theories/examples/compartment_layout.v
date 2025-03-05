@@ -158,6 +158,10 @@ Section CmptLayout.
 
         assert_flag_size :
         (flag_assert + 1)%a = Some (flag_assert ^+ 1)%a;
+
+        assert_flag_disjoint :
+        (finz.seq_between b_assert e_assert) ##
+        (finz.seq_between flag_assert (flag_assert ^+ 1)%a)
       }.
 
   Definition cmpt_assert_code_region `{MachineParameters} (Cassert : cmptAssert) :=
@@ -371,23 +375,87 @@ Section CmptLayout.
     cmpt_assert_code_mregion assert_cmpt ∪ cmpt_assert_cap_mregion assert_cmpt
       ##ₘ cmpt_assert_flag_mregion assert_cmpt.
   Proof.
-  Admitted.
+    apply map_disjoint_dom_2.
+    rewrite dom_union_L.
+    pose proof (assert_flag_disjoint assert_cmpt).
+    pose proof (assert_code_size assert_cmpt).
+    pose proof (assert_cap_size assert_cmpt).
+    pose proof (assert_flag_size assert_cmpt).
+    rewrite /cmpt_assert_code_mregion /cmpt_assert_cap_mregion.
+    repeat rewrite dom_mkregion_eq; try (solve_addr).
+    rewrite (finz_seq_between_split
+               (b_assert assert_cmpt)
+               (cap_assert assert_cmpt)
+               (e_assert assert_cmpt)) in H ; last solve_addr.
+    set_solver.
+  Qed.
 
   Lemma cmpt_assert_cap_mregion_disjoint (assert_cmpt : cmptAssert) :
     cmpt_assert_code_mregion assert_cmpt ##ₘ cmpt_assert_cap_mregion assert_cmpt.
   Proof.
-  Admitted.
+    apply map_disjoint_dom_2.
+    pose proof (assert_code_size assert_cmpt).
+    pose proof (assert_cap_size assert_cmpt).
+    rewrite /cmpt_assert_code_mregion /cmpt_assert_cap_mregion.
+    repeat rewrite dom_mkregion_eq; try (solve_addr).
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite !elem_of_list_to_set in Ha,Ha'.
+    rewrite !elem_of_finz_seq_between in Ha,Ha'.
+    solve_addr.
+  Qed.
 
   Lemma cmpt_switcher_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
     cmpt_switcher_code_mregion switcher_cmpt ∪ cmpt_switcher_trusted_stack_mregion switcher_cmpt
       ##ₘ cmpt_switcher_stack_mregion switcher_cmpt.
   Proof.
-  Admitted.
+    apply map_disjoint_dom_2.
+    pose proof (switcher_disjointness switcher_cmpt) as (_ & ? & ?).
+    pose proof (switcher_cc_entry_point switcher_cmpt).
+    pose proof (switcher_size switcher_cmpt).
+    pose proof (trusted_stack_size switcher_cmpt).
+    pose proof (stack_size switcher_cmpt).
+    rewrite /cmpt_switcher_code_mregion /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_stack_mregion.
+    rewrite !dom_union_L.
+    repeat rewrite dom_mkregion_eq; try (solve_addr).
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite !elem_of_union in Ha.
+    rewrite !elem_of_list_to_set in Ha,Ha'.
+    destruct Ha as [ [Ha | Ha] | Ha].
+    - rewrite elem_of_disjoint in H; eapply H; eauto.
+      rewrite !elem_of_finz_seq_between in Ha,Ha' |- *.
+      solve_addr.
+    - rewrite elem_of_disjoint in H; eapply H; eauto.
+      rewrite !elem_of_finz_seq_between in Ha,Ha' |- *.
+      solve_addr.
+    - rewrite elem_of_disjoint in H0; eapply H0; eauto.
+  Qed.
+
   Lemma cmpt_switcher_trusted_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
     cmpt_switcher_code_mregion switcher_cmpt
       ##ₘ cmpt_switcher_trusted_stack_mregion switcher_cmpt.
   Proof.
-  Admitted.
+    apply map_disjoint_dom_2.
+    pose proof (switcher_disjointness switcher_cmpt) as (? & _ & _).
+    pose proof (switcher_cc_entry_point switcher_cmpt).
+    pose proof (switcher_size switcher_cmpt).
+    pose proof (trusted_stack_size switcher_cmpt).
+    rewrite /cmpt_switcher_code_mregion /cmpt_switcher_trusted_stack_mregion.
+    rewrite !dom_union_L.
+    repeat rewrite dom_mkregion_eq; try (solve_addr).
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite !elem_of_union in Ha.
+    rewrite !elem_of_list_to_set in Ha,Ha'.
+    destruct Ha as [ Ha | Ha].
+    - rewrite elem_of_disjoint in H; eapply H; eauto.
+      rewrite !elem_of_finz_seq_between in Ha,Ha' |- *.
+      solve_addr.
+    - rewrite elem_of_disjoint in H; eapply H; eauto.
+      rewrite !elem_of_finz_seq_between in Ha,Ha' |- *.
+      solve_addr.
+  Qed.
 
   Lemma cmpt_switcher_code_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
     mkregion (b_switcher switcher_cmpt) (a_switcher_cc switcher_cmpt)
@@ -395,20 +463,97 @@ Section CmptLayout.
          (ot_switcher switcher_cmpt ^+ 1)%f (ot_switcher switcher_cmpt)]
       ##ₘ mkregion (a_switcher_cc switcher_cmpt) (e_switcher switcher_cmpt) switcher_instrs.
   Proof.
-  Admitted.
+    apply map_disjoint_dom_2.
+    pose proof (switcher_size switcher_cmpt).
+    pose proof (switcher_cc_entry_point switcher_cmpt).
+    repeat rewrite dom_mkregion_eq; try (solve_addr).
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite !elem_of_list_to_set in Ha,Ha'.
+    rewrite !elem_of_finz_seq_between in Ha,Ha'.
+    solve_addr.
+  Qed.
 
   Lemma cmpt_exp_tbl_disjoint (B_cmpt : cmpt) :
     cmpt_pcc_mregion B_cmpt ∪ cmpt_cgp_mregion B_cmpt ##ₘ cmpt_exp_tbl_mregion B_cmpt.
   Proof.
-  Admitted.
+    apply map_disjoint_dom_2.
+    pose proof (cmpt_disjointness B_cmpt) as Hdis.
+    rewrite !disjoint_list_cons in Hdis.
+    destruct Hdis as (?&?&_&_).
+    rewrite !union_list_cons in H,H0.
+    rewrite union_list_nil in H,H0.
+    rewrite /union /Union_list in H,H0.
+    rewrite /empty /Empty_list in H,H0.
+    rewrite app_nil_r in H,H0.
+    rewrite /cmpt_pcc_mregion /cmpt_cgp_mregion /cmpt_exp_tbl_mregion.
+
+    pose proof (cmpt_import_size B_cmpt).
+    pose proof (cmpt_code_size B_cmpt).
+    pose proof (cmpt_data_size B_cmpt).
+    pose proof (cmpt_exp_tbl_pcc_size B_cmpt).
+    pose proof (cmpt_exp_tbl_cgp_size B_cmpt).
+    pose proof (cmpt_exp_tbl_entries_size B_cmpt).
+
+    rewrite !dom_union_L.
+    repeat rewrite dom_mkregion_eq; try (solve_addr).
+    rewrite -(list_to_set_app_L
+                (finz.seq_between (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_cgp B_cmpt)) _).
+    rewrite -(list_to_set_app_L _
+                (finz.seq_between (cmpt_exp_tbl_entries_start B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt))
+             ).
+    rewrite -(list_to_set_app_L (finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_a_code B_cmpt)) _).
+    rewrite -!finz_seq_between_split; try solve_addr.
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite !elem_of_union in Ha.
+    rewrite !elem_of_list_to_set in Ha,Ha'.
+    destruct Ha as [ Ha | Ha].
+    - rewrite elem_of_disjoint in H; eapply H; eauto.
+      rewrite !elem_of_app. by right.
+    - rewrite elem_of_disjoint in H0; eapply H0; eauto.
+  Qed.
   Lemma cmpt_cgp_disjoint (B_cmpt : cmpt) :
     cmpt_pcc_mregion B_cmpt ##ₘ cmpt_cgp_mregion B_cmpt .
   Proof.
-  Admitted.
+    apply map_disjoint_dom_2.
+    pose proof (cmpt_disjointness B_cmpt) as Hdis.
+    rewrite !disjoint_list_cons in Hdis.
+    destruct Hdis as (?&?&_&_).
+    rewrite !union_list_cons in H,H0.
+    rewrite union_list_nil in H,H0.
+    rewrite /union /Union_list in H,H0.
+    rewrite /empty /Empty_list in H,H0.
+    rewrite app_nil_r in H,H0.
+    rewrite /cmpt_pcc_mregion /cmpt_cgp_mregion.
+
+    pose proof (cmpt_import_size B_cmpt).
+    pose proof (cmpt_code_size B_cmpt).
+    pose proof (cmpt_data_size B_cmpt).
+
+    rewrite !dom_union_L.
+    repeat rewrite dom_mkregion_eq; try (solve_addr).
+    rewrite -(list_to_set_app_L (finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_a_code B_cmpt)) _).
+    rewrite -!finz_seq_between_split; try solve_addr.
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite !elem_of_list_to_set in Ha,Ha'.
+    rewrite elem_of_disjoint in H; eapply H; eauto.
+    rewrite !elem_of_app. by left.
+  Qed.
   Lemma cmpt_code_disjoint (B_cmpt : cmpt) :
     mkregion (cmpt_b_pcc B_cmpt) (cmpt_a_code B_cmpt) (cmpt_imports B_cmpt)
       ##ₘ mkregion (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_code B_cmpt).
   Proof.
-  Admitted.
+    apply map_disjoint_dom_2.
+    pose proof (cmpt_import_size B_cmpt).
+    pose proof (cmpt_code_size B_cmpt).
+    repeat rewrite dom_mkregion_eq; try (solve_addr).
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite !elem_of_list_to_set in Ha,Ha'.
+    rewrite !elem_of_finz_seq_between in Ha,Ha'.
+    solve_addr.
+  Qed.
 
 End CmptLayout.
