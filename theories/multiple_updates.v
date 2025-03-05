@@ -690,4 +690,25 @@ Section std_updates.
        by apply related_sts_pub_update_multiple_perm_cview.
    Qed.
 
+  Lemma elem_of_dom_std_multiple_update (W : WORLD) (A : CmptName) (a : Addr) (l : list Addr)
+    (ρ: region_type) :
+    is_Some (W !! A) ->
+    a ∈ (dom (std (std_multiple_update W A l ρ) A)) ->
+    a ∈ l \/ a ∈ (dom (std W A)).
+  Proof.
+    intros [WA HWA].
+    induction l as [|a' l] ; intros Ha; first naive_solver.
+    destruct (decide (a = a')) as [|Hna]; simplify_eq; first (left; set_solver).
+    destruct (decide (a ∈ l)) as [|Hnl]; first (left; set_solver).
+    right.
+    rewrite /= HWA /std lookup_insert /std_cview dom_insert_L elem_of_union in Ha.
+    destruct Ha as [Ha|Ha] ; first ( rewrite elem_of_singleton in Ha ; set_solver ).
+    assert (a ∈ dom (std (std_multiple_update W A l ρ) A)).
+    { rewrite /std /std_multiple_update.
+      destruct l; first (rewrite HWA; done).
+      rewrite HWA lookup_insert /std_cview; done.
+    }
+    apply IHl in H. destruct H; done.
+  Qed.
+
 End std_updates.
