@@ -103,11 +103,31 @@ Section heapPre.
    *)
   Context {Σ:gFunctors} {Cname : CmptNameG} {heappreg : heapGpreS Σ}.
 
-  Lemma heap_init C :
-    ⊢ |==> ∃ (heapg: heapGS Σ), RELS C (∅ : relT).
+
+  Lemma heap_rel_init :
+    ⊢ |==> (∃ γrelC, ([∗ set] C ∈ CNames, own (γrelC C) (● (to_agree <$> ∅)))).
   Proof.
-    iMod (own_alloc (A:= (authR relUR)) (● (_ <$> (∅: relT) : relUR))) as (γ) "H".
-    { rewrite fmap_empty. by apply auth_auth_valid. }
+    induction CNames using set_ind_L.
+    - iModIntro.
+      iExists ( λ C, encode C).
+      by iApply big_sepS_empty.
+    - iMod IHg as (?) "IH".
+      iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γrel') "Hrel"
+      ; first by apply auth_auth_valid.
+      iModIntro.
+      iExists (λ C, if (bool_decide (C = x)) then γrel' else γrelC C).
+      iApply (big_sepS_union_2 with "[Hrel]").
+      + iApply (big_sepS_singleton).
+        by rewrite bool_decide_eq_true_2.
+      + iApply (big_sepS_mono with "IH").
+        iIntros (C HC) "Hr".
+        rewrite bool_decide_eq_false_2; [done|set_solver].
+  Qed.
+
+  Lemma heap_init :
+    ⊢ |==> ∃ (heapg: heapGS Σ), [∗ set] C ∈ CNames, RELS C (∅ : relT).
+  Proof.
+    iMod heap_rel_init as (γ) "H".
     iExists (HeapGS _ _ _ _ _). rewrite RELS_eq /RELS_def. done.
   Qed.
 
@@ -117,7 +137,7 @@ Section heap.
 
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
-    {Cname : CmptNameG}
+    {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Addr region_type Σ}
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
@@ -1800,5 +1820,19 @@ Section heap.
     assert (a' ≠ a) as Hne';[intros Heq;subst;contradiction|].
     rewrite lookup_insert_ne;auto.
   Qed.
+
+  Lemma related_sts_priv_world_fresh_Permanent W C a :
+    related_sts_priv_world W (<s[(C,a):=Permanent]s> W) C.
+  Proof.
+    apply related_sts_priv_world_fresh.
+    intros ρ'; destruct ρ'.
+    + eright;[right;constructor|left].
+    + left.
+    + eright;[left;constructor|].
+      eright;[right;constructor|left].
+    + eright;[left;constructor|].
+      eright;[right;constructor|left].
+  Qed.
+
 
 End heap.

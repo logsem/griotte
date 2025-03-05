@@ -1,13 +1,15 @@
 From iris.algebra Require Import auth agree gmap excl.
 From iris.base_logic Require Export invariants.
 From iris.proofmode Require Import proofmode.
+From stdpp Require Import finite.
 From cap_machine Require Import stdpp_extra.
 Import uPred.
 
 Class CmptNameG := CmptNameS {
   CmptName : Type;
   CmptName_eq_dec :: EqDecision CmptName;
-  CmptName_countable :: Countable CmptName;
+  CmptName_countable :: Finite CmptName;
+  CNames : gset CmptName;
 }.
 
 (** The CMRA for the heap of STS.
@@ -180,8 +182,10 @@ Section pre_STS.
   Context {A B E D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
           {count: Countable A}
           {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E}
-          {eqd : EqDecision D} {countD: Countable D} {CName : CmptNameG}
-          {sts_preg: STS_preG A B Σ}.
+          {eqd : EqDecision D} {countD: Countable D}
+          {CName : CmptNameG}
+          {sts_preg: STS_preG A B Σ}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
@@ -190,17 +194,81 @@ Section pre_STS.
   Implicit Types WC : CVIEW.
   Implicit Types W : WORLD.
 
-
-  Lemma gen_sts_init (C : CmptName) (W : WORLD) :
-    ⊢ |==> ∃ (stsg : STSG A B Σ), sts_full_world (<[ C := (∅,(∅,∅))]> W) C.
+  Lemma gen_sts_std_init :
+    ⊢ |==> (∃ γsstd, ([∗ set] C ∈ CNames, own (γsstd C) (● ∅ : sts_std_stateUR A B))).
   Proof.
-    iMod (own_alloc (A:=sts_std_stateUR A B) (● ∅)) as (γsstd) "Hstd". by apply auth_auth_valid.
-    iMod (own_alloc (A:=sts_stateUR) (● ∅)) as (γs) "Hs". by apply auth_auth_valid.
-    iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr) "Hr". by apply auth_auth_valid.
-    iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ _ _ _ _).
+    induction CNames using set_ind_L.
+    iModIntro.
+    iExists ( λ C, encode C).
+    by iApply big_sepS_empty.
+    iMod IHg as (?) "IH".
+    iMod (own_alloc (A:=sts_std_stateUR A B) (● ∅)) as (γsstd') "Hstd"
+    ; first by apply auth_auth_valid.
+    iModIntro.
+    iExists (λ C, if (bool_decide (C = x)) then γsstd' else γsstd C).
+    iApply (big_sepS_union_2 with "[Hstd]").
+    - iApply (big_sepS_singleton).
+      by rewrite bool_decide_eq_true_2.
+    - iApply (big_sepS_mono with "IH").
+      iIntros (C HC) "Hstd".
+      rewrite bool_decide_eq_false_2; [done|set_solver].
+  Qed.
+
+  Lemma gen_sts_state_init :
+    ⊢ |==> (∃ γs, ([∗ set] C ∈ CNames, own (γs C) (● ∅ : sts_stateUR))).
+  Proof.
+    induction CNames using set_ind_L.
+    iModIntro.
+    iExists ( λ C, encode C).
+    by iApply big_sepS_empty.
+    iMod IHg as (?) "IH".
+    iMod (own_alloc (A:=sts_stateUR) (● ∅)) as (γs') "Hs"
+    ; first by apply auth_auth_valid.
+    iModIntro.
+    iExists (λ C, if (bool_decide (C = x)) then γs' else γs C).
+    iApply (big_sepS_union_2 with "[Hs]").
+    - iApply (big_sepS_singleton).
+      by rewrite bool_decide_eq_true_2.
+    - iApply (big_sepS_mono with "IH").
+      iIntros (C HC) "Hs".
+      rewrite bool_decide_eq_false_2; [done|set_solver].
+  Qed.
+
+  Lemma gen_sts_rel_init :
+    ⊢ |==> (∃ γr, ([∗ set] C ∈ CNames, own (γr C) (● ∅ : sts_relUR))).
+  Proof.
+    induction CNames using set_ind_L.
+    iModIntro.
+    iExists ( λ C, encode C).
+    by iApply big_sepS_empty.
+    iMod IHg as (?) "IH".
+    iMod (own_alloc (A:=sts_relUR) (● ∅)) as (γr') "Hr"
+    ; first by apply auth_auth_valid.
+    iModIntro.
+    iExists (λ C, if (bool_decide (C = x)) then γr' else γr C).
+    iApply (big_sepS_union_2 with "[Hr]").
+    - iApply (big_sepS_singleton).
+      by rewrite bool_decide_eq_true_2.
+    - iApply (big_sepS_mono with "IH").
+      iIntros (C HC) "Hr".
+      rewrite bool_decide_eq_false_2; [done|set_solver].
+  Qed.
+
+  Lemma gen_sts_init :
+    ⊢ |==> ∃ (stsg : STSG A B Σ), ([∗ set] C ∈ CNames, sts_full_world {[C := (∅,(∅,∅))]} C) .
+  Proof.
+    iMod gen_sts_std_init as (γsstd) "Hstd".
+    iMod gen_sts_state_init as (γs) "Hs".
+    iMod gen_sts_rel_init as (γr) "Hr".
+    iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ _ γsstd γs γr).
     rewrite /sts_full_world /sts_full_std /sts_full /=.
-    rewrite lookup_insert.
-    rewrite !fmap_empty. iFrame.
+    iDestruct (big_sepS_sep with "[$Hstd $Hs]") as "H".
+    iDestruct (big_sepS_sep with "[$Hr $H]") as "H".
+    iApply (big_sepS_mono with "H").
+    iIntros (C HC) "(Hstd & Hs & Hr)".
+    rewrite (lookup_singleton C).
+    rewrite !fmap_empty.
+    iFrame.
   Qed.
 
 End pre_STS.
@@ -899,6 +967,27 @@ Section STS.
         left.
   Qed.
 
+  Lemma related_sts_priv_cview_fresh WC a ρ :
+    (forall ρ', rtc (λ x0 y0 : B, Rpub x0 y0 ∨ Rpriv x0 y0) ρ' ρ) ->
+    related_sts_priv_cview WC (<s[a:=ρ]s> WC).
+  Proof.
+    intros Hdom_sta.
+    rewrite /related_sts_priv_world /=.
+    split;[|apply related_sts_priv_refl].
+    rewrite /related_sts_std_priv. split.
+    - rewrite dom_insert_L. set_solver.
+    -
+      (* apply (not_elem_of_dom (std_cview WC) a) in Hdom_sta. *)
+      intros i x y Hx Hy.
+      destruct (decide (a = i)).
+      + subst. rewrite lookup_insert in Hy; simplify_eq.
+        apply Hdom_sta.
+      + rewrite lookup_insert_ne in Hy;auto.
+        rewrite Hx in Hy.
+        inversion Hy; subst.
+        left.
+  Qed.
+
   Lemma related_sts_pub_world_fresh W C a ρ :
     a ∉ dom (std W C) →
     related_sts_pub_world W (<s[(C,a):=ρ]s> W) C.
@@ -911,6 +1000,19 @@ Section STS.
     rewrite /std_update HWC lookup_insert in HWC'; simplify_eq.
     rewrite HWC in Hdom_sta.
     by apply related_sts_pub_cview_fresh.
+  Qed.
+
+  Lemma related_sts_priv_world_fresh W C a ρ :
+    (forall ρ', rtc (λ x0 y0 : B, Rpub x0 y0 ∨ Rpriv x0 y0) ρ' ρ) ->
+    related_sts_priv_world W (<s[(C,a):=ρ]s> W) C.
+  Proof.
+    rewrite /std.
+    intros Hdom_sta.
+    rewrite /related_sts_priv_world /=.
+    split;first apply dom_std_update.
+    intros WC WC' HWC HWC'.
+    rewrite /std_update HWC lookup_insert in HWC'; simplify_eq.
+    by apply related_sts_priv_cview_fresh.
   Qed.
 
   Lemma related_sts_pub_fresh (W : STS) i k k':

@@ -1,7 +1,6 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel interp_weakening addr_reg_sample rules proofmode.
-(* From cap_machine Require Import multiple_updates region_invariants_frozen region_invariants_allocation. *)
 From cap_machine Require Import switcher.
 
 Section Switcher.
@@ -41,8 +40,6 @@ Section Switcher.
   (* TODO:
      - How to encode the number of registers to pass as arguments?
        A possibility is to use a resource that encodes it.
-     - We will need a more general statement,
-       that also work when an adversary calls
    *)
   Lemma switcher_cc_specification
     (E : coPset) (N : namespace)
@@ -98,7 +95,7 @@ Section Switcher.
           ==∗ region W1 C ∗ sts_full_world W1 C)
 
       (* POST-CONDITION *)
-      ∗ ▷ ( ∃ (W2 : WORLD) (rmap' : Reg),
+      ∗ ▷ ( (∃ (W2 : WORLD) (rmap' : Reg),
               (* We receive a public future world of the world pre switcher call *)
               ⌜ related_sts_pub_world W0 W2 C ⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ]} ⌝
@@ -111,9 +108,9 @@ Section Switcher.
               ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
               ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
               ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ WInt 0 )
-              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ region_addrs_zeroes a_stk e_stk ]]
-            -∗ WP Seq (Instr Executable) {{ φ }}
+              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ region_addrs_zeroes a_stk e_stk ]])
+            -∗ WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }}
           )
     )
     ⊢ (WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }})%I.
@@ -238,5 +235,20 @@ Section Switcher.
     (* TODO add ReadSR and WriteSR to iInstr *)
     (* iInstr "Hcode". *)
   Admitted.
+
+  Lemma switcher_interp (W : WORLD) (C : CmptName) (N : namespace)
+    (b_switcher e_switcher a_switcher_cc : Addr) (ot_switcher : OType) :
+    na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher) -∗
+    interp W C (WCap E_XSRW_ Global b_switcher e_switcher a_switcher_cc).
+  Proof.
+  Admitted.
+
+  Lemma future_priv_mono_interp_switcher (C : CmptName) (N : namespace)
+    (b_switcher e_switcher a_switcher_cc : Addr) (ot_switcher : OType) :
+    na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher) -∗
+    future_priv_mono C interpC (WCap E_XSRW_ Global b_switcher e_switcher a_switcher_cc).
+  Proof.
+  Admitted.
+
 
 End Switcher.

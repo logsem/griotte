@@ -118,3 +118,9 @@ theories/examples/macros/fetch.v
 # Griotte case studies
 theories/examples/switcher/switcher.v
 theories/examples/switcher/switcher_spec.v
+
+theories/examples/compartment_layout.v
+
+theories/examples/cmdc/cmdc.v
+theories/examples/cmdc/cmdc_spec.v
+theories/examples/cmdc/cmdc_adequacy.v
