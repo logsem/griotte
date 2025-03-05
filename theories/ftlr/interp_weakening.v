@@ -15,9 +15,7 @@ Section fundamental.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
-  Implicit Types WC : CVIEW.
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -41,14 +39,14 @@ Section fundamental.
     rewrite /enter_cond /interp_expr /=.
     iIntros (regs W' Hrelated).
     destruct g.
-    - iAssert (future_world Global W W' C)%I as "%Hrelated'".
+    - iAssert (future_world Global W W')%I as "%Hrelated'".
       { iPureIntro.
         apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto.
       }
       iSpecialize ("Hinterp" $! regs W' Hrelated').
       iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
       iSplitL; iFrame "#".
-    - iAssert (future_world Local W W' C)%I as "%Hrelated'".
+    - iAssert (future_world Local W W')%I as "%Hrelated'".
       { done. }
       iSpecialize ("Hinterp" $! regs W' Hrelated').
       iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
@@ -110,7 +108,7 @@ Section fundamental.
         iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
-        assert (region_state_nwl W C x Local)
+        assert (region_state_nwl W x Local)
           as Hstate' by (cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%#".
       + destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
@@ -122,7 +120,7 @@ Section fundamental.
         iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
-        assert (region_state_nwl W C x g')
+        assert (region_state_nwl W x g')
           as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver).
         iExists p'',φ; iFrame "∗%#".
   Qed.
@@ -484,7 +482,7 @@ Section fundamental.
   Qed.
 
   Lemma monoReq_interp (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (ρ : region_type) :
-    (std W C) !! a = Some ρ
+    (std W) !! a = Some ρ
     -> (ρ = Permanent -> isWL p = false)
     -> ⊢ monoReq W C a p interp.
   Proof.

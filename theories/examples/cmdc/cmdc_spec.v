@@ -15,8 +15,7 @@ Section CMDC.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
+  Notation WORLD := (prodO STS_STD STS).
 
   Ltac iHide0 irisH coqH :=
     let coqH := fresh coqH in
@@ -63,8 +62,8 @@ Section CMDC.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    cgp_b ∉ dom (std W_init_B B) ->
-    (cgp_b ^+ 1)%a ∉ dom (std W_init_C C) ->
+    cgp_b ∉ dom (std W_init_B) ->
+    (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
 
     length csp_content = finz.dist csp_b csp_e ->
 
@@ -288,8 +287,8 @@ Section CMDC.
     { iApply future_priv_mono_interp_z. }
     { cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
-    set (W1 := <s[(B,cgp_b):=Permanent]s>W_init_B).
-    assert (related_sts_priv_world W_init_B W1 B) as HWinit_privB_W1.
+    set (W1 := <s[cgp_b:=Permanent]s>W_init_B).
+    assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1.
     { subst W1; by eapply related_sts_priv_world_fresh_Permanent. }
 
     iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
@@ -311,11 +310,11 @@ Section CMDC.
       subst W1.
       iSplit.
       + iApply monoReq_interp; last done.
-        rewrite /std_update /std_update_cview /std /std_cview.
-        destruct (W_init_B !! B); rewrite !lookup_insert; done.
+        rewrite /std_update /std.
+        rewrite !lookup_insert; done.
       + iPureIntro.
-        rewrite /std_update /std_update_cview /std /std_cview.
-        destruct (W_init_B !! B); rewrite !lookup_insert; done.
+        rewrite /std_update /std.
+        rewrite !lookup_insert; done.
     }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W1 B warg )%I
@@ -437,12 +436,12 @@ Section CMDC.
     iInstr "Hcode".
     { transitivity (Some cgp_b%a); auto; subst cgp_c; solve_addr. }
 
-    assert (std W2 B !! cgp_b = Some Permanent) as HW2_B_cpg_b.
+    assert (std W2 !! cgp_b = Some Permanent) as HW2_B_cpg_b.
     { eapply monotone.region_state_pub_perm in HW1_pubB_W2; eauto.
       subst W1.
       (* TODO lemma *)
-      rewrite /std_update /std_update_cview /std /std_cview.
-      destruct (W_init_B !! B); rewrite !lookup_insert; done.
+      rewrite /std_update /std.
+      rewrite !lookup_insert; done.
     }
     iDestruct (region_open with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]")
       as (wcgp_b) "(HWreg_B & HWsts_full_B & HWstd_full_B & Hcpg_b & _ & HmonoR & #Hinterp_wcpgb)"
@@ -557,8 +556,8 @@ Section CMDC.
     { iApply future_priv_mono_interp_z. }
     { cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
-    set (W3 := <s[(C,cgp_c):=Permanent]s>W_init_C).
-    assert (related_sts_priv_world W_init_C W3 C) as HWinit_privC_W3.
+    set (W3 := <s[cgp_c :=Permanent]s>W_init_C).
+    assert (related_sts_priv_world W_init_C W3) as HWinit_privC_W3.
     { subst W3; by eapply related_sts_priv_world_fresh_Permanent. }
 
     iAssert (interp W3 C (WSealed ot_switcher C_g)) as "#Hinterp_W3_C_g".
@@ -581,11 +580,11 @@ Section CMDC.
       subst W3.
       iSplit.
       + iApply monoReq_interp; last done.
-        rewrite /std_update /std_update_cview /std /std_cview.
-        destruct (W_init_C !! C); rewrite !lookup_insert; done.
+        rewrite /std_update /std.
+        rewrite !lookup_insert; done.
       + iPureIntro.
-        rewrite /std_update /std_update_cview /std /std_cview.
-        destruct (W_init_C !! C); rewrite !lookup_insert; done.
+        rewrite /std_update /std.
+        rewrite !lookup_insert; done.
     }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W3 C warg )%I
@@ -740,8 +739,8 @@ Section CMDC.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    cgp_b ∉ dom (std W_init_B B) ->
-    (cgp_b ^+ 1)%a ∉ dom (std W_init_C C) ->
+    cgp_b ∉ dom (std W_init_B) ->
+    (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
 
     length csp_content = finz.dist csp_b csp_e ->
 

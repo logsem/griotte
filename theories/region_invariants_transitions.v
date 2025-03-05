@@ -16,10 +16,9 @@ Section transitions.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
-  Implicit Types WC : CVIEW.
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
   Implicit Types fsd gsd hsd : STS_std_states Addr region_type.
 
   (* --------------------------------------------------------------------------------- *)

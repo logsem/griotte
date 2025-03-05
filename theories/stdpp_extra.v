@@ -1,5 +1,64 @@
-From Coq Require Import ssreflect.
+From stdpp Require Import ssreflect.
 From stdpp Require Import countable gmap list.
+
+Local Coercion Z.of_nat : nat >-> Z.
+Lemma i_div i n m :
+  i ≠ 0 ->
+  (i | (i * n + m))%Z → (i | m)%Z.
+Proof.
+  intros Hne [m' Hdiv].
+  assert (((i * n + m) `div` i)%Z = ((m' * i) `div` i)%Z) as Hr.
+  { rewrite Hdiv. auto. }
+  rewrite Z.div_mul in Hr;[|lia].
+  assert ((i * n + m) `div` i = ((i * n) `div` i) + (m `div` i))%Z as Heq.
+  { rewrite Z.add_comm Z.mul_comm Z.div_add;[|lia].
+    rewrite Z.div_mul;[|lia]. rewrite Z.add_comm. auto. }
+  rewrite Heq in Hr. rewrite Z.mul_comm Z.div_mul in Hr;[|lia].
+  assert (m `div` i = m' - n)%Z.
+  { rewrite -Hr. lia. }
+  exists (m' - n)%Z. lia.
+Qed.
+
+Lemma two_div_odd n m :
+  (2 | (2 * n + m))%Z → (2 | m)%Z.
+Proof.
+  intros Hdiv. apply (i_div 2 n);auto.
+Qed.
+
+Lemma i_mod i n m k :
+  (i > 0 ->
+   (m + i * n) `mod` i = k → m `mod` i = k)%Z.
+Proof.
+  intros Hlt Hmod.
+  rewrite Z.mul_comm Z_mod_plus in Hmod;auto.
+Qed.
+
+Lemma three_mod n m k :
+  ((m + 3 * n) `mod` 3 = k → m `mod` 3 = k)%Z.
+Proof.
+  apply i_mod. lia.
+Qed.
+
+Lemma two_mod n m k :
+  ((m + 2 * n) `mod` 2 = k → m `mod` 2 = k)%Z.
+Proof.
+  apply i_mod. lia.
+Qed.
+
+Lemma four_mod_two :
+  (4 `mod` 2 = 0)%Z.
+Proof. auto. Qed.
+Lemma five_mod_two :
+  (5 `mod` 2 = 1)%Z.
+Proof. auto. Qed.
+
+Global Instance divide_dec : forall p1 p2, Decision (Pos.divide p1 p2).
+Proof.
+  intros p1 p2.
+  destruct (Znumtheory.Zdivide_dec (Z.pos p1) (Z.pos p2)).
+  - left. by apply Pos2Z.inj_divide.
+  - right. intros Hcontr. apply Pos2Z.inj_divide in Hcontr. done.
+Qed.
 
 
 Lemma list_to_map_lookup_is_Some {A B} `{Countable A, EqDecision A} (l: list (A * B)) (a: A) :
@@ -322,11 +381,11 @@ Proof.
     rewrite difference_het_insert_r.
     rewrite dom_insert in Hm1l *.
     move: Hm1l. rewrite elements_union_singleton.
-    rewrite elem_of_dom; intros [? ?]; congruence.
     intros Hm1l.
     transitivity (delete k (delete_list (elements (dom m2)) m1)).
     { erewrite delete_list_permutation. 2: eauto. reflexivity. }
     { rewrite HI//. }
+    rewrite elem_of_dom; intros [? ?]; congruence.
 Qed.
 
 (* rtc *)
@@ -542,15 +601,15 @@ Proof.
         exfalso. by apply Hnin. }
       apply list_difference_Permutation with (l:=l1) in Hperm as Heq. rewrite Heq.
       apply NoDup_cons in Hdup1 as [Hnin ?].
-      rewrite list_difference_skip; [intros Hcontr;by apply Hnin|].
+      rewrite list_difference_skip; [|intros Hcontr;by apply Hnin].
       rewrite IHl1;auto.
-      revert Hdup2. rewrite Hperm =>Hdup2. by apply NoDup_cons in Hdup2 as [? ?].
       rewrite Hperm /=. auto.
+      revert Hdup2. rewrite Hperm =>Hdup2. by apply NoDup_cons in Hdup2 as [? ?].
     + simpl. apply submseteq_cons_r in Hsub as [Hsub | Hcontr].
       rewrite IHl1;auto. assert (length l2 ≤ length l1).
       { apply submseteq_length. auto. }
-      by apply NoDup_cons in Hdup1 as [? ?]; auto.
       by apply submseteq_length in Hsub; lia.
+      by apply NoDup_cons in Hdup1 as [? ?]; auto.
       destruct Hcontr as [l' [Hperm Hl'] ].
       exfalso. apply n. rewrite Hperm. constructor.
 Qed.
@@ -808,17 +867,18 @@ Proof.
   - inversion Hin1.
   - simpl. destruct (decide_rel elem_of a l2).
     + assert (a ≠ a') as Hne; [intros Hcontr;subst;contradiction|].
-      rewrite decide_True. { apply elem_of_cons. right;auto. }
+      rewrite decide_True.
       apply IHl1;auto. apply NoDup_cons in Hdup as [? ?];auto.
       apply elem_of_cons in Hin1 as [? | ?];[congruence|auto].
+      { apply elem_of_cons. right;auto. }
     + destruct (decide (a = a'));subst.
       * apply NoDup_cons in Hdup as [Hnin Hdup].
-        f_equiv. rewrite decide_True;[constructor|].
+        f_equiv. rewrite decide_True;[|constructor].
         rewrite list_difference_skip;auto.
       * apply NoDup_cons in Hdup as [Hnin Hdup].
         apply elem_of_cons in Hin1 as [? | ?];[congruence|auto].
         erewrite IHl1;eauto. rewrite decide_False.
-        apply not_elem_of_cons;auto. apply Permutation_swap.
+        apply Permutation_swap. apply not_elem_of_cons;auto.
 Qed.
 
 Lemma list_to_set_map_to_list {K V : Type} `{EqDecision K} `{Countable K}
@@ -878,7 +938,7 @@ Proof.
   - inversion Hlen.
   - destruct l2.
     + rewrite last_snoc. done.
-    + rewrite cons_middle app_assoc -(IHl2 (l1 ++ [a]));[simpl;lia|auto].
+    + rewrite cons_middle app_assoc -(IHl2 (l1 ++ [a]));[auto|simpl;lia].
 Qed.
 
 Lemma rev_nil_inv {A} (l : list A) :
@@ -912,13 +972,13 @@ Proof.
     + inversion Hl.
     + simpl in Hl. simpl. destruct l.
       { simpl in Hl. inversion Hl. auto. }
-      { apply IHl. rewrite lookup_app_l in Hl;[simpl;rewrite length_app /=;lia|]. auto. }
+      { apply IHl. rewrite lookup_app_l in Hl;[|simpl;rewrite length_app /=;lia]. auto. }
   - rewrite -last_lookup in Hl.
     induction l.
     + inversion Hl.
     + simpl. destruct l.
       { simpl. inversion Hl. auto. }
-      { rewrite lookup_app_l;[simpl;rewrite length_app /=;lia|]. apply IHl. auto. }
+      { rewrite lookup_app_l;[|simpl;rewrite length_app /=;lia]. apply IHl. auto. }
 Qed.
 
 Lemma rev_cons_inv {A} (l l' : list A) (a : A) :

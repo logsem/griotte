@@ -67,9 +67,7 @@ Section Store.
       {heapg : heapGS Σ}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
-  Implicit Types WC : CVIEW.
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
 
   Definition seal_pred (o : OType) (P : WORLD * CmptName * Word → iProp Σ) :=
