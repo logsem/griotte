@@ -182,30 +182,7 @@ Section Adequacy.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
-
-  (* TODO move *)
-  Lemma elem_of_dom_std_multiple_update (W : WORLD) (A : CmptName) (a : Addr) (l : list Addr)
-    (ρ: region_type) :
-    is_Some (W !! A) ->
-    a ∈ (dom (std (std_multiple_update W A l ρ) A)) ->
-    a ∈ l \/ a ∈ (dom (std W A)).
-  Proof.
-    intros [WA HWA].
-    induction l as [|a' l] ; intros Ha; first naive_solver.
-    destruct (decide (a = a')) as [|Hna]; simplify_eq; first (left; set_solver).
-    destruct (decide (a ∈ l)) as [|Hnl]; first (left; set_solver).
-    right.
-    rewrite /= HWA /std lookup_insert /std_cview dom_insert_L elem_of_union in Ha.
-    destruct Ha as [Ha|Ha] ; first ( rewrite elem_of_singleton in Ha ; set_solver ).
-    assert (a ∈ dom (std (std_multiple_update W A l ρ) A)).
-    { rewrite /std /std_multiple_update.
-      destruct l; first (rewrite HWA; done).
-      rewrite HWA lookup_insert /std_cview; done.
-    }
-    apply IHl in H. destruct H; done.
-  Qed.
+  Notation WORLD := (prodO STS_STD STS).
 
   Definition flagN : namespace := nroot .@ "cmdc" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "cmdc" .@ "switcher_flag".
@@ -357,10 +334,10 @@ Section Adequacy.
     iMod (na_inv_alloc logrel.logrel_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
 
     (* CMPT B *)
-    assert (
-       (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))  = [cmpt_a_code B_cmpt]
-      ) as Himport_B_size.
-    { admit. }
+    (* assert ( *)
+    (*    (finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_a_code B_cmpt))  = [cmpt_a_code B_cmpt] *)
+    (*   ) as Himport_B_size. *)
+    (* { admit. } *)
 
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_B".
     iDestruct (big_sepM_union with "Hcmpt_B") as "[HB HB_etbl]".
@@ -373,7 +350,9 @@ Section Adequacy.
     rewrite B_imports.
     iEval (rewrite /mkregion) in "HB_imports".
     rewrite finz_seq_between_singleton.
-    2: { admit. }
+    2: { pose proof (cmpt_import_size B_cmpt) as HB_import_size.
+         by rewrite B_imports /= in HB_import_size.
+    }
     cbn.
     iDestruct (big_sepM_insert with "HB_imports") as "[HB_imports _]"; first done.
     rewrite /cmpt_cgp_mregion.
@@ -383,19 +362,18 @@ Section Adequacy.
     { apply (cmpt_data_size B_cmpt). }
 
     (* Initialises the world for B *)
-    iAssert (region {[B := (∅, (∅, ∅))]} B) with "[HRELS_B]" as "Hr_B".
+    iAssert (region (∅, (∅, ∅)) B) with "[HRELS_B]" as "Hr_B".
     { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
-      - by rewrite /std /std_cview lookup_insert.
-      - rewrite /region_map_def. by rewrite big_sepM_empty. }
-    iMod (extend_region_perm_sepL2 _ {[B := (∅, (∅, ∅))]} B
+      rewrite /region_map_def. by rewrite big_sepM_empty. }
+    iMod (extend_region_perm_sepL2 _ (∅, (∅, ∅)) B
             (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))
             (cmpt_code B_cmpt)
             RX interpC
            with "Hsts_B Hr_B [HB_code]") as "(Hr_B & HB_code & Hsts_B)".
     { done. }
     { apply Forall_true. intros.
-      by rewrite /std /std_cview lookup_singleton /= lookup_empty.
+      by rewrite /std lookup_empty.
     }
     {
       iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
@@ -451,10 +429,10 @@ Section Adequacy.
     iClear "HB_etbl HB_code HB_data".
 
     (* CMPT C *)
-    assert (
-       (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt)) = [cmpt_a_code C_cmpt]
-      ) as Himport_C_size.
-    { admit. }
+    (* assert ( *)
+    (*    (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt)) = [cmpt_a_code C_cmpt] *)
+    (*   ) as Himport_C_size. *)
+    (* { admit. } *)
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_C".
     iDestruct (big_sepM_union with "Hcmpt_C") as "[HC HC_etbl]".
     { eapply cmpt_exp_tbl_disjoint ; eauto. }
@@ -466,7 +444,9 @@ Section Adequacy.
     rewrite C_imports.
     iEval (rewrite /mkregion) in "HC_imports".
     rewrite finz_seq_between_singleton.
-    2: { admit. }
+    2: { pose proof (cmpt_import_size C_cmpt) as HC_import_size.
+         by rewrite C_imports /= in HC_import_size.
+    }
     iDestruct (big_sepM_insert with "HC_imports") as "[HC_imports _]"; first done.
     rewrite /cmpt_cgp_mregion.
     iDestruct (mkregion_prepare with "[HC_code]") as ">HC_code"; auto.
@@ -475,20 +455,19 @@ Section Adequacy.
     { apply (cmpt_data_size C_cmpt). }
 
     (* Initialises the world for C *)
-    iAssert (region {[C := (∅, (∅, ∅))]} C) with "[HRELS_C]" as "Hr_C".
+    iAssert (region (∅, (∅, ∅)) C) with "[HRELS_C]" as "Hr_C".
     { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
-      - by rewrite /std /std_cview lookup_insert.
-      - rewrite /region_map_def. by rewrite big_sepM_empty. }
+      rewrite /region_map_def. by rewrite big_sepM_empty. }
 
-    iMod (extend_region_perm_sepL2 _ {[C := (∅, (∅, ∅))]} C
+    iMod (extend_region_perm_sepL2 _ (∅, (∅, ∅)) C
             (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
             (cmpt_code C_cmpt)
             RX interpC
            with "Hsts_C Hr_C [HC_code]") as "(Hr_C & HC_code & Hsts_C)".
     { done. }
     { apply Forall_true. intros.
-      by rewrite /std /std_cview lookup_singleton /= lookup_empty.
+      by rewrite /std lookup_empty.
     }
     {
       iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
@@ -551,7 +530,7 @@ Section Adequacy.
     { eapply cmpt_cgp_disjoint ; eauto. }
     rewrite /cmpt_pcc_mregion.
     iDestruct (big_sepM_union with "Hmain_code") as "[Hmain_imports Hmain_code]".
-    { admit. }
+    { eapply cmpt_code_disjoint ; eauto. }
     rewrite /cmpt_cgp_mregion.
     iDestruct (mkregion_prepare with "[Hmain_imports]") as ">Hmain_imports"; auto.
     { apply (cmpt_import_size main_cmpt). }
@@ -638,54 +617,28 @@ Section Adequacy.
     { subst Winit_B.
       intro Hcontra.
       apply elem_of_dom_std_multiple_update in Hcontra.
-      2:{
-        rewrite /std_multiple_update.
-        destruct (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt)),
-                   (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt))
-                   ; rewrite lookup_singleton ; try done
-                   ; rewrite !lookup_insert ; try done.
-      }
       destruct Hcontra as [Hcontra|Hcontra].
       - admit.
       - apply elem_of_dom_std_multiple_update in Hcontra.
-        2: {
-          rewrite /std_multiple_update.
-          destruct (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))
-            ; rewrite !lookup_singleton ; try done
-            ; rewrite !lookup_insert ; try done.
-        }
         destruct Hcontra as [Hcontra|Hcontra].
         + admit.
-        + apply elem_of_dom_std_multiple_update in Hcontra; last by rewrite lookup_singleton.
+        + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
           * admit.
-          * rewrite /std lookup_insert /std_cview /= dom_empty_L in Hcontra; set_solver+Hcontra.
+          * rewrite /std /= dom_empty_L in Hcontra; set_solver+Hcontra.
     }
     { subst Winit_C.
       intro Hcontra.
       apply elem_of_dom_std_multiple_update in Hcontra.
-      2:{
-        rewrite /std_multiple_update.
-        destruct (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt)),
-                   (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt))
-                   ; rewrite lookup_singleton ; try done
-                   ; rewrite !lookup_insert ; try done.
-      }
       destruct Hcontra as [Hcontra|Hcontra].
       - admit.
       - apply elem_of_dom_std_multiple_update in Hcontra.
-        2: {
-          rewrite /std_multiple_update.
-          destruct (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
-            ; rewrite !lookup_singleton ; try done
-            ; rewrite !lookup_insert ; try done.
-        }
         destruct Hcontra as [Hcontra|Hcontra].
         + admit.
-        + apply elem_of_dom_std_multiple_update in Hcontra; last by rewrite lookup_singleton.
+        + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
           * admit.
-          * rewrite /std lookup_insert /std_cview /= dom_empty_L in Hcontra; set_solver+Hcontra.
+          * rewrite /std /= dom_empty_L in Hcontra; set_solver+Hcontra.
     }
     { clear.
       pose proof (stack_size switcher_cmpt) as Hstacksize.

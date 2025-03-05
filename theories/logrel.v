@@ -41,9 +41,7 @@ Section logrel.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
-  Implicit Types WC : CVIEW.
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -55,16 +53,16 @@ Section logrel.
   (* -------------------------------------------------------------------------------- *)
 
   (* Future world relation *)
-  Definition future_world (g : Locality) (W W' : WORLD) (C : CmptName) : iProp Σ :=
+  Definition future_world (g : Locality) (W W' : WORLD) : iProp Σ :=
     (match g with
-     | Local => ⌜related_sts_pub_world W W' C⌝
-     | Global => ⌜related_sts_priv_world W W' C⌝
+     | Local => ⌜related_sts_pub_world W W'⌝
+     | Global => ⌜related_sts_priv_world W W'⌝
      end)%I.
 
-  Lemma localityflowsto_futureworld (g g' : Locality) (W W' : WORLD) (C : CmptName):
+  Lemma localityflowsto_futureworld (g g' : Locality) (W W' : WORLD):
     LocalityFlowsTo g' g ->
-    (@future_world g' W W' C -∗
-     @future_world g  W W' C).
+    (@future_world g' W W' -∗
+     @future_world g  W W').
   Proof.
     intros Hflows.
     destruct g, g'; auto.
@@ -72,8 +70,8 @@ Section logrel.
     iPureIntro. eapply related_sts_pub_priv_world; auto.
   Qed.
 
-  Lemma futureworld_refl (g : Locality) (W : WORLD) (C : CmptName) :
-    ⊢ @future_world g W W C.
+  Lemma futureworld_refl (g : Locality) (W : WORLD) :
+    ⊢ @future_world g W W.
   Proof.
     rewrite /future_world.
     destruct g; iPureIntro
@@ -81,8 +79,8 @@ Section logrel.
       | apply related_sts_pub_refl_world].
   Qed.
 
-  Global Instance future_world_persistent (g : Locality) (W W' : WORLD) (C : CmptName) :
-    Persistent (future_world g W W' C).
+  Global Instance future_world_persistent (g : Locality) (W W' : WORLD) :
+    Persistent (future_world g W W').
   Proof.
     unfold future_world. destruct g; apply bi.pure_persistent.
   Qed.
@@ -160,7 +158,7 @@ Section logrel.
     (p : Perm) (g : Locality) (b e : Addr)
     (interp : D) : iProp Σ :=
     (∀ a regs W', ⌜a ∈ₐ [[ b , e ]]⌝
-               → future_world g W W' C
+               → future_world g W W'
                → ▷ interp_expr interp regs W' C (WCap p g b e a))%I.
   Global Instance exec_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
@@ -170,7 +168,7 @@ Section logrel.
   Proof. solve_contractive. Qed.
 
   Definition enter_cond (W : WORLD) (C : CmptName) (p : Perm) (g : Locality) (b e a : Addr) (interp : D) : iProp Σ :=
-    (∀ r W', future_world g W W' C →
+    (∀ r W', future_world g W W' →
              (▷ interp_expr interp r W' C (WCap p g b e a))
                ∗ (▷ interp_expr interp r W' C (WCap p Local b e a))
     )%I.
@@ -199,13 +197,13 @@ Section logrel.
 
    *)
 
-  Definition region_state_pwl (W : WORLD) (C : CmptName) (a : Addr) : Prop :=
-    (std W C) !! a = Some Temporary.
+  Definition region_state_pwl (W : WORLD) (a : Addr) : Prop :=
+    (std W) !! a = Some Temporary.
 
-  Definition region_state_nwl (W : WORLD) (C : CmptName) (a : Addr) (l : Locality) : Prop :=
+  Definition region_state_nwl (W : WORLD) (a : Addr) (l : Locality) : Prop :=
     match l with
-     | Local => (std W C) !! a = Some Permanent ∨ (std W C) !! a = Some Temporary
-     | Global => (std W C) !! a = Some Permanent
+     | Local => (std W) !! a = Some Permanent ∨ (std W) !! a = Some Temporary
+     | Global => (std W) !! a = Some Permanent
     end.
 
   (* For simplicity we might want to have the following statement in valididy of caps.
@@ -215,7 +213,7 @@ Section logrel.
     (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
 
   Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : D) :=
-    (match (std W C) !! a with
+    (match (std W) !! a with
         | Some Temporary =>
             (if isWL p
              then mono_pub C (safeC P)
@@ -252,7 +250,7 @@ Section logrel.
                       ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
                       ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
                       ∧ monoReq W C a p' P
-                      ∧ ⌜ if isWL p then region_state_pwl W C a else region_state_nwl W C a g⌝
+                      ∧ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
               | _ => False
               end)%I.
   Solve All Obligations with auto;solve_proper.
@@ -408,7 +406,7 @@ Section logrel.
                       ∗ (if readAllowed p' then ▷ (rcond P C p' interp) else True)
                       ∗ (if writeAllowed p' then ▷ (wcond P C interp) else True)
                       ∗ monoReq W C a p' P
-                      ∗ ⌜ if isWL p then region_state_pwl W C a else region_state_nwl W C a g⌝)
+                      ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
                  ∗ (⌜ if isWL p then g = Local else True⌝))%I).
   Proof.
     (* iSplit. *)
@@ -512,7 +510,7 @@ Section logrel.
     readAllowed p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-    ⌜∃ ρ, std W C !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
+    ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -536,7 +534,7 @@ Section logrel.
     writeAllowed p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-    ⌜∃ ρ, std W C !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
+    ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -569,7 +567,7 @@ Section logrel.
     isWL p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-    ⌜std W C !! a = Some Temporary⌝.
+    ⌜std W !! a = Some Temporary⌝.
   Proof.
     intros Hp Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -597,7 +595,7 @@ Section logrel.
         ∗ (if readAllowed p' then ▷ rcond P C p' interp else True)
         ∗ (if writeAllowed p' then ▷ wcond P C interp else True)
         ∗ monoReq W C a p' P
-        ∗ ⌜if isWL p then region_state_pwl W C a else region_state_nwl W C a g⌝
+        ∗ ⌜if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
        )
     -∗ (∃ (p' : Perm) (P : D),
         ⌜PermFlowsTo p p'⌝
@@ -611,7 +609,7 @@ Section logrel.
             then ▷ wcond P C interp
             else emp)
         ∗ monoReq W C a p' P
-        ∗ ⌜if isWL p then region_state_pwl W C a else region_state_nwl W C a g⌝
+        ∗ ⌜if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
        ).
   Proof.
     iIntros "#Hreg #H".

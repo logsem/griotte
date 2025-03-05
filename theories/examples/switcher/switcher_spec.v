@@ -14,9 +14,7 @@ Section Switcher.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
-  Implicit Types WC : CVIEW.
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -97,7 +95,7 @@ Section Switcher.
       (* POST-CONDITION *)
       ∗ ▷ ( (∃ (W2 : WORLD) (rmap' : Reg),
               (* We receive a public future world of the world pre switcher call *)
-              ⌜ related_sts_pub_world W0 W2 C ⌝
+              ⌜ related_sts_pub_world W0 W2 ⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ]} ⌝
               ∗ na_own logrel_nais E
               (* Interpretation of the world *)

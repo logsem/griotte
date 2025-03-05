@@ -17,9 +17,7 @@ Section fundamental.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
-  Implicit Types WC : CVIEW.
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -116,7 +114,7 @@ Section fundamental.
         iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
         simpl; rewrite /enter_cond.
         iDestruct "Hwsrc" as "#Hinterp_src".
-        iAssert (future_world g0 W W C) as "Hfuture".
+        iAssert (future_world g0 W W) as "Hfuture".
         { iApply futureworld_refl. }
 
         iSpecialize ("Hinterp_src" with "Hfuture").

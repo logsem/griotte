@@ -18,9 +18,7 @@ Section fundamental.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
-  Implicit Types WC : CVIEW.
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -124,7 +122,7 @@ Section fundamental.
     iDestruct (interp_in_registers with "[Hreg] [H]")
       as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
     ;eauto ; iClear "Hinv".
-    assert (∃ (ρ : region_type), (std W C) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
+    assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
       as [ρ [Hρ [Hne Hne'] ] ].
     { destruct (isWL p),g; simplify_eq ; eauto.
       destruct Hstate_a as [Htemp | Hperm];eauto. }
@@ -405,7 +403,7 @@ Section fundamental.
   Lemma exec_wp W C p g b e a :
     isCorrectPC (WCap p g b e a) ->
     exec_cond W C p g b e interp -∗
-    ∀ r W', future_world g W W' C → ▷ (interp_expr interp r W' C (WCap p g b e a)).
+    ∀ r W', future_world g W W' → ▷ (interp_expr interp r W' C (WCap p g b e a)).
   Proof.
     iIntros (Hvpc) "Hexec".
     rewrite /exec_cond /enter_cond.
@@ -437,8 +435,8 @@ Section fundamental.
     { destruct Hw as (rw & pw & dl & dro & g & b & e & a & ->).
       rewrite fixpoint_interp1_eq /=.
       iIntros (rmap). iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw".
-      iPoseProof (futureworld_refl g W C) as "Hfuture".
-      iSpecialize ("Hw" $! W (futureworld_refl g W C)).
+      iPoseProof (futureworld_refl g W) as "Hfuture".
+      iSpecialize ("Hw" $! W (futureworld_refl g W)).
       iNext. iIntros "(HPC & Hr & ?)".
       iDestruct "Hw" as "[Hw _]".
       iApply "Hw"; eauto. iFrame.
@@ -451,7 +449,7 @@ Section fundamental.
      -∗ (if decide (isCorrectPC (updatePcPerm w))
          then (∃ p g b e a,
                   ⌜w = WCap p g b e a⌝
-                  ∗ □ ∀ regs W', future_world g W W' C
+                  ∗ □ ∀ regs W', future_world g W W'
                               → ▷ (interp_expr interp regs W' C) (updatePcPerm w))
          else φ FailedV ∗ PC ↦ᵣ updatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).

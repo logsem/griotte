@@ -14,16 +14,14 @@ Section region_alloc.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
-  Implicit Types WC : CVIEW.
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
   (* Lemmas for extending the region map *)
   Lemma extend_region_temp_pwl E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-     a ∉ dom (std W C) →
+     a ∉ dom (std W) →
      (isWL p) = true →
      future_pub_mono C φ v -∗
      sts_full_world W C -∗
@@ -33,9 +31,9 @@ Section region_alloc.
 
      ={E}=∗
 
-     region (<s[(C,a) := Temporary ]s>W) C
+     region (<s[ a:= Temporary ]s>W) C
      ∗ rel C a p φ
-     ∗ sts_full_world (<s[(C,a) := Temporary ]s>W) C.
+     ∗ sts_full_world (<s[ a := Temporary ]s>W) C.
   Proof.
     iIntros (HnpO Hnone1 Hpwl) "#HmonoV Hfull Hreg Hl #Hφ".
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -44,9 +42,9 @@ Section region_alloc.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
-      iDestruct (sts_full_state_std with "Hfull Hstate") as %(WC & HWC & Hcontr).
-      apply (not_elem_of_dom (std W C) a) in Hnone1.
-      rewrite /std HWC Hcontr in Hnone1. done.
+      iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
+      apply (not_elem_of_dom (std W) a) in Hnone1.
+      rewrite Hcontr in Hnone1; done.
     }
     (* if not, we need to allocate a new saved pred using φ,
        and extend R with l := pred *)
@@ -54,14 +52,13 @@ Section region_alloc.
     iMod (update_RELS _ _ _ a γpred p with "Hγrel") as "[HR Hγrel]"; auto.
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
-    apply (related_sts_pub_world_fresh W C a Temporary) in Hnone1 as Hrelated; auto.
+    apply (related_sts_pub_world_fresh W a Temporary) in Hnone1 as Hrelated; auto.
     iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std /std_update in HMW |- *.
-      destruct (W!!C) as [WC|] eqn:HWC.
-      all: rewrite lookup_insert; repeat rewrite dom_insert_L; rewrite HMW; auto.
+      repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
@@ -88,7 +85,7 @@ Section region_alloc.
 
   Lemma extend_region_temp_nwl E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-     a ∉ dom (std W C) →
+     a ∉ dom (std W) →
      (isWL p) = false →
      future_priv_mono C φ v -∗
      sts_full_world W C -∗
@@ -98,9 +95,9 @@ Section region_alloc.
 
      ={E}=∗
 
-     region (<s[(C,a) := Temporary ]s>W) C
+     region (<s[a := Temporary ]s>W) C
      ∗ rel C a p φ
-     ∗ sts_full_world (<s[(C,a) := Temporary ]s>W) C.
+     ∗ sts_full_world (<s[a := Temporary ]s>W) C.
   Proof.
     iIntros (HnpO Hnone1 Hpwl) "#HmonoV Hfull Hreg Hl #Hφ".
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -109,9 +106,9 @@ Section region_alloc.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
-      iDestruct (sts_full_state_std with "Hfull Hstate") as %(WC & HWC & Hcontr).
-      apply (not_elem_of_dom (std W C) a) in Hnone1.
-      rewrite /std HWC Hcontr in Hnone1. done.
+      iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
+      apply (not_elem_of_dom (std W) a) in Hnone1.
+      rewrite Hcontr in Hnone1. done.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
   (*      and extend R with l := pred *)
@@ -120,14 +117,13 @@ Section region_alloc.
     (* we also need to extend the World with a new temporary region *)
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
-    apply (related_sts_pub_world_fresh W C a Temporary) in Hnone1 as Hrelated; auto.
+    apply (related_sts_pub_world_fresh W a Temporary) in Hnone1 as Hrelated; auto.
     iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std /std_update in HMW |- *.
-      destruct (W!!C) as [WC|] eqn:HWC.
-      all: rewrite lookup_insert; repeat rewrite dom_insert_L; rewrite HMW; auto.
+      repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
@@ -155,7 +151,7 @@ Section region_alloc.
 
   Lemma extend_region_perm E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-     a ∉ dom (std W C) →
+     a ∉ dom (std W) →
      future_priv_mono C φ v -∗
      sts_full_world W C -∗
      region W C -∗
@@ -164,9 +160,9 @@ Section region_alloc.
 
      ={E}=∗
 
-     region (<s[(C,a) := Permanent ]s>W) C
+     region (<s[a := Permanent ]s>W) C
      ∗ rel C a p φ
-     ∗ sts_full_world (<s[(C,a) := Permanent ]s>W) C.
+     ∗ sts_full_world (<s[a := Permanent ]s>W) C.
   Proof.
     iIntros (HnpO Hnone1) "#HmonoV Hfull Hreg Hl #Hφ".
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -175,9 +171,9 @@ Section region_alloc.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
-      iDestruct (sts_full_state_std with "Hfull Hstate") as %(WC & HWC & Hcontr).
-      apply (not_elem_of_dom (std W C) a) in Hnone1.
-      rewrite /std HWC Hcontr in Hnone1. done.
+      iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
+      apply (not_elem_of_dom (std W) a) in Hnone1.
+      rewrite Hcontr in Hnone1. done.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
   (*      and extend R with l := pred *)
@@ -186,14 +182,13 @@ Section region_alloc.
     (* we also need to extend the World with a new temporary region *)
     iMod (sts_alloc_std_i W C a Permanent
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
-    apply (related_sts_pub_world_fresh W C a Permanent) in Hnone1 as Hrelated; auto.
+    apply (related_sts_pub_world_fresh W a Permanent) in Hnone1 as Hrelated; auto.
     iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std /std_update in HMW |- *.
-      destruct (W!!C) as [WC|] eqn:HWC.
-      all: rewrite lookup_insert; repeat rewrite dom_insert_L; rewrite HMW; auto.
+      repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
@@ -223,15 +218,15 @@ Section region_alloc.
   (* but since a revoked region is empty, there is no need to assume any resources for that region *)
 
   Lemma extend_region_revoked E W C a p φ `{∀ Wv, Persistent (φ Wv)} :
-     a ∉ dom (std W C) →
+     a ∉ dom (std W) →
      sts_full_world W C
      -∗ region W C
 
      ={E}=∗
 
-     region (<s[(C,a) := Revoked ]s>W) C
+     region (<s[a := Revoked ]s>W) C
      ∗ rel C a p φ
-     ∗ sts_full_world (<s[(C,a) := Revoked ]s>W) C.
+     ∗ sts_full_world (<s[a := Revoked ]s>W) C.
   Proof.
     iIntros (Hnone1) "Hfull Hreg".
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -240,9 +235,9 @@ Section region_alloc.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
-      iDestruct (sts_full_state_std with "Hfull Hstate") as %(WC & HWC & Hcontr).
-      apply (not_elem_of_dom (std W C) a) in Hnone1.
-      rewrite /std HWC Hcontr in Hnone1. done.
+      iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
+      apply (not_elem_of_dom (std W) a) in Hnone1.
+      rewrite Hcontr in Hnone1. done.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
   (*      and extend R with a := pred *)
@@ -251,14 +246,13 @@ Section region_alloc.
     (* we also need to extend the World with a new temporary region *)
     iMod (sts_alloc_std_i W C a Revoked
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
-    apply (related_sts_pub_world_fresh W C a Revoked) in Hnone1 as Hrelated; auto.
+    apply (related_sts_pub_world_fresh W a Revoked) in Hnone1 as Hrelated; auto.
     iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std /std_update in HMW |- *.
-      destruct (W!!C) as [WC|] eqn:HWC.
-      all: rewrite lookup_insert; repeat rewrite dom_insert_L; rewrite HMW; auto.
+      repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
@@ -282,18 +276,16 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_revoked_sepL2 E W C l1 p φ `{∀ Wv, Persistent (φ Wv)}:
-    is_Some (W!!C) ->
-    Forall (λ k, std W C !! k = None) l1 →
+    Forall (λ k, std W !! k = None) l1 →
     sts_full_world W C
     -∗ region W C
 
      ={E}=∗
 
-     region (std_multiple_update W C l1 Revoked) C
+     region (std_update_multiple W l1 Revoked) C
      ∗ ([∗ list] k ∈ l1, rel C k p φ)
-     ∗ sts_full_world (std_multiple_update W C l1 Revoked) C.
+     ∗ sts_full_world (std_update_multiple W l1 Revoked) C.
   Proof.
-    intros [WC HWC].
     induction l1.
     - cbn. intros. iIntros "? ?". iFrame. eauto.
     - intros [? ?]%Forall_cons_1. iIntros "Hsts Hr".
@@ -302,39 +294,33 @@ Section region_alloc.
       + (* if a is already in l1, we are done *)
         assert (e':=e). apply elem_of_list_lookup in e as [k Hk].
         iDestruct (big_sepL_lookup _ _ k with "Hrels") as "Ha";[eauto|].
-        rewrite /std_multiple_update HWC; cbn.
-        assert (<s[a:=Revoked]s>(std_update_multiple_cview WC l1 Revoked)
-                = std_update_multiple_cview WC l1 Revoked) as ->.
-        { rewrite /std_update_cview.
-          destruct (std_update_multiple_cview WC l1 Revoked) eqn:Heq.
+        (* rewrite /std_multiple_update HWC; cbn. *)
+        assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked)
+                = std_update_multiple W l1 Revoked) as ->.
+        { rewrite /std_update.
+          destruct (std_update_multiple W l1 Revoked) eqn:Heq.
           f_equiv; last done.
           simpl. rewrite insert_id//.
-          assert (o = (std_update_multiple_cview WC l1 Revoked).1) as ->;[rewrite Heq//|].
+          assert (o = (std_update_multiple W l1 Revoked).1) as ->;[rewrite Heq//|].
           apply std_sta_update_multiple_lookup_in_i;auto.
         }
-        destruct (std_update_multiple_cview WC l1 Revoked) as [Wstd_sta Wloc] eqn:Heq.
+        destruct (std_update_multiple W l1 Revoked) as [Wstd_sta Wloc] eqn:Heq.
         destruct l1; first by rewrite lookup_nil in Hk.
         by iFrame "#∗".
       + iMod (extend_region_revoked _ _ _ a with "Hsts Hr") as "(Hr & Hrel & Hsts)"; auto.
         { rewrite /std in H0.
-          rewrite /std /std_multiple_update.
-          destruct l1; rewrite HWC in H0 |- *.
+          destruct l1.
           { rewrite not_elem_of_dom //. }
-          rewrite lookup_insert.
-          rewrite -std_update_multiple_cview_not_in_sta; auto.
+          rewrite -std_update_multiple_not_in_sta; auto.
           rewrite not_elem_of_dom //.
         }
         rewrite /std in H0.
-        rewrite /std /std_multiple_update /std_update HWC.
-        destruct l1; rewrite HWC in H0 |- *.
-        * by iFrame "#∗".
-        * rewrite lookup_insert insert_insert.
-          by iFrame "#∗".
+        by iFrame "#∗".
   Qed.
 
   Lemma extend_region_perm_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-    Forall (λ k, std W C !! k = None) l1 →
+    Forall (λ k, std W !! k = None) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2,
@@ -344,9 +330,9 @@ Section region_alloc.
 
     ={E}=∗
 
-    region (std_multiple_update W C l1 Permanent) C
+    region (std_update_multiple W l1 Permanent) C
     ∗ ([∗ list] k ∈ l1, rel C k p φ)
-    ∗ sts_full_world (std_multiple_update W C l1 Permanent) C.
+    ∗ sts_full_world (std_update_multiple W l1 Permanent) C.
   Proof.
   (*   revert l2. induction l1. *)
   (*   { cbn. intros. iIntros "? ? ?". iFrame. eauto. } *)
@@ -371,7 +357,7 @@ Section region_alloc.
 
   Lemma extend_region_perm_sepL2_from_rev φ E W C l1 l2 p `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-    Forall (λ k, std W C !! k = Some Revoked) l1 →
+    Forall (λ k, std W !! k = Some Revoked) l1 →
     sts_full_world W C -∗
     region W C -∗
     ([∗ list] k;v ∈ l1;l2,
@@ -382,9 +368,9 @@ Section region_alloc.
 
     ={E}=∗
 
-    region (std_multiple_update W C l1 Permanent) C
+    region (std_update_multiple W l1 Permanent) C
     ∗ ([∗ list] k ∈ l1, rel C k p φ)
-    ∗ sts_full_world (std_multiple_update W C l1 Permanent) C.
+    ∗ sts_full_world (std_update_multiple W l1 Permanent) C.
   Proof.
   (*   revert l2. induction l1. *)
   (*   { cbn. intros. iIntros "? ? ?". iFrame. eauto. } *)
@@ -406,10 +392,13 @@ Section region_alloc.
     Admitted.
 
   (* TODO fix this *)
-  (* Lemma region_seal_pred_interp E (W : WORLD) (b e a: OType) (b1 b2 : bool) (g : Locality) : *)
+  (* Context {sealsg: sealStoreG Σ} *)
+  (*   {nainv: logrel_na_invs Σ} *)
+  (* . *)
+  (* Lemma region_seal_pred_interp E (W : WORLD) (C : CmptName) (b e a: OType) (b1 b2 : bool) (g : Locality) : *)
   (*   ([∗ list] o ∈ finz.seq_between b e, seal_pred o (safeC interp)) *)
   (*   ={E}=∗ *)
-  (*   interp W (WSealRange (b1,b2) Global b e a). *)
+  (*   interp W C (WSealRange (b1,b2) Global b e a). *)
   (* Proof. *)
   (*   remember (finz.seq_between b e) as l eqn:Hgen. rewrite Hgen; revert Hgen. *)
   (*   generalize b e. clear b e. *)
@@ -437,21 +426,20 @@ Section region_alloc.
   (*     2:iSplit;last iApply rcond_interp. *)
   (*     all: iIntros (w W0 W1 Hrelated); iModIntro ; iIntros "Hsafe" ; cbn. *)
   (*     all:iApply monotone.interp_monotone_nl;eauto. *)
-  (*       first(iPureIntro; apply _). *)
-  (*     iSplit;first (iPureIntro; apply _). *)
+  (*     iPureIntro; apply _. *)
   (*     iSplit;first (iPureIntro; apply _). *)
   (*     iApply rcond_interp. *)
   (* Qed. *)
 
   (* Get the validity of sealing capabilities if we can allocate an arbitrary predicate,
      and can hence choose interp itself as the sealing predicate *)
-  (* Lemma region_can_alloc_interp E W (b e a: OType) b1 b2 g: *)
+  (* Lemma region_can_alloc_interp E W C (b e a: OType) b1 b2 g: *)
   (*   ([∗ list] o ∈ finz.seq_between b e, can_alloc_pred o) ={E}=∗ *)
-  (*   interp W (WSealRange (b1,b2) g b e a). *)
+  (*   interp W C (WSealRange (b1,b2) g b e a). *)
   (* Proof. *)
   (*   iIntros "Hca". *)
   (*   iDestruct (big_sepL_mono with "Hca") as "Hca". *)
-  (*   iIntros (k a' Hk) "H". iDestruct (seal_store_update_alloc _ (interp W)  with "H") as "H". iExact "H". *)
+  (*   iIntros (k a' Hk) "H". iDestruct (seal_store_update_alloc _ (safeC interp)  with "H") as "H". iExact "H". *)
 
   (*   iDestruct (big_sepL_bupd with "Hca") as "Hca". *)
   (*   iMod "Hca". *)

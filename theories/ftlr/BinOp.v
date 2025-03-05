@@ -19,9 +19,7 @@ Section fundamental.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation CVIEW := (prodO STS_STD STS).
-  Notation WORLD := (gmapO CmptName CVIEW).
-  Implicit Types WC : CVIEW.
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -40,8 +38,8 @@ Section fundamental.
     → PermFlowsTo p p'
     → isO p' = false
     → persistent_cond P
-    → (if isWL p then region_state_pwl W C a else region_state_nwl W C a g)
-    → std W C !! a = Some ρ
+    → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
+    → std W !! a = Some ρ
     → ρ ≠ Revoked
     → (∀ g : Mem, ρ ≠ Frozen g)
     → (decodeInstrW w = Add dst r1 r2 \/
