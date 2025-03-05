@@ -157,64 +157,6 @@ Section heap.
              | _, _ => ltac:(right; auto)
              end).
 
-  Lemma i_div i n m :
-    i ≠ 0 ->
-    (i | (i * n + m))%Z → (i | m)%Z.
-  Proof.
-    intros Hne [m' Hdiv].
-    assert (((i * n + m) `div` i)%Z = ((m' * i) `div` i)%Z) as Hr.
-    { rewrite Hdiv. auto. }
-    rewrite Z.div_mul in Hr;[|lia].
-    assert ((i * n + m) `div` i = ((i * n) `div` i) + (m `div` i))%Z as Heq.
-    { rewrite Z.add_comm Z.mul_comm Z.div_add;[|lia].
-      rewrite Z.div_mul;[|lia]. rewrite Z.add_comm. auto. }
-    rewrite Heq in Hr. rewrite Z.mul_comm Z.div_mul in Hr;[|lia].
-    assert (m `div` i = m' - n)%Z.
-    { rewrite -Hr. lia. }
-    exists (m' - n)%Z. lia.
-  Qed.
-
-  Lemma two_div_odd n m :
-    (2 | (2 * n + m))%Z → (2 | m)%Z.
-  Proof.
-    intros Hdiv. apply (i_div 2 n);auto.
-  Qed.
-
-  Lemma i_mod i n m k :
-    (i > 0 ->
-    (m + i * n) `mod` i = k → m `mod` i = k)%Z.
-  Proof.
-    intros Hlt Hmod.
-    rewrite Z.mul_comm Z_mod_plus in Hmod;auto.
-  Qed.
-
-  Lemma three_mod n m k :
-    ((m + 3 * n) `mod` 3 = k → m `mod` 3 = k)%Z.
-  Proof.
-    apply i_mod. lia.
-  Qed.
-
-  Lemma two_mod n m k :
-    ((m + 2 * n) `mod` 2 = k → m `mod` 2 = k)%Z.
-  Proof.
-    apply i_mod. lia.
-  Qed.
-
-  Lemma four_mod_two :
-    (4 `mod` 2 = 0)%Z.
-  Proof. auto. Qed.
-  Lemma five_mod_two :
-    (5 `mod` 2 = 1)%Z.
-  Proof. auto. Qed.
-
-  Global Instance divide_dec : forall p1 p2, Decision (Pos.divide p1 p2).
-  Proof.
-    intros p1 p2.
-    destruct (Znumtheory.Zdivide_dec (Z.pos p1) (Z.pos p2)).
-    - left. by apply Pos2Z.inj_divide.
-    - right. intros Hcontr. apply Pos2Z.inj_divide in Hcontr. done.
-  Qed.
-
   Global Instance region_type_countable : Countable region_type.
   Proof.
     set encode := fun ty => match ty with
