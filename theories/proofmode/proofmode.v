@@ -332,12 +332,18 @@ Qed.
    [FramableMachineResource] from [machine_utils/tactics.v]
 *)
 
+Class FramableSRegisterPointsto (sr: SRegName) (w: Word) := {}.
+#[export] Hint Mode FramableSRegisterPointsto + - : typeclass_instances.
 Class FramableRegisterPointsto (r: RegName) (w: Word) := {}.
 #[export] Hint Mode FramableRegisterPointsto + - : typeclass_instances.
 Class FramableMemoryPointsto (a: Addr) (dq: dfrac) (w: Word) := {}.
 #[export] Hint Mode FramableMemoryPointsto + - - : typeclass_instances.
 Class FramableCodefrag (a: Addr) (l: list Word) := {}.
 #[export] Hint Mode FramableCodefrag + - : typeclass_instances.
+
+Instance FramableSRegisterPointsto_default sr w :
+  FramableSRegisterPointsto sr w
+| 100. Qed.
 
 Instance FramableRegisterPointsto_default r w :
   FramableRegisterPointsto r w
@@ -350,6 +356,11 @@ Instance FramableMemoryPointsto_default a dq w :
 Instance FramableCodefrag_default a l :
   FramableCodefrag a l
 | 100. Qed.
+
+Instance FramableMachineResource_sreg `{ceriseG Σ} sr w :
+  FramableSRegisterPointsto sr w →
+  FramableMachineResource (sr ↦ₛᵣ w).
+Qed.
 
 Instance FramableMachineResource_reg `{ceriseG Σ} r w :
   FramableRegisterPointsto r w →
@@ -369,7 +380,7 @@ Qed.
 
 (* remembering names after auto-framing done by iFrameAuto *)
 
-Ltac2 Type hyp_table_kind := [ Reg | Mem | Codefrag ].
+Ltac2 Type hyp_table_kind := [ Reg | SReg | Mem | Codefrag ].
 
 Ltac2 record_framed
       (table: (constr * constr * hyp_table_kind) list ref)
@@ -379,6 +390,7 @@ Ltac2 record_framed
   let (lhs, kind) :=
     lazy_match! hh with
     | (?r ↦ᵣ _)%I => (r, Reg)
+    | (?sr ↦ₛᵣ _)%I => (sr, SReg)
     | (?a ↦ₐ{_} _)%I => (a, Mem)
     | (codefrag ?a _) => (a, Codefrag)
     end in
@@ -470,6 +482,12 @@ Definition check_addr_eq (a b: Addr) `{FinZEq _ a b res} := res.
 
 Ltac2 name_cap_resource (name, lhs, kind) :=
   match kind with
+  | SReg =>
+    match! goal with [ |- context [ (?sr ↦ₛᵣ ?x)%I ] ] =>
+      assert_constr_eq sr lhs;
+      ltac1:(x sr name |- change (sr ↦ₛᵣ x)%I with (name ∷ (sr ↦ₛᵣ x))%I)
+        (Ltac1.of_constr x) (Ltac1.of_constr sr) (Ltac1.of_constr name)
+    end
   | Reg =>
     match! goal with [ |- context [ (?r ↦ᵣ ?x)%I ] ] =>
       assert_constr_eq r lhs;
