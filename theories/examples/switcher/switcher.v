@@ -5,19 +5,17 @@ From cap_machine Require Import rules proofmode.
 Section Switcher.
   Context `{MP: MachineParameters}.
 
-  (* Expects r1 := a_stk ; r2 := b_stk *)
+  (* Expects r1 := e_stk ; r2 := a_stk *)
   Definition clear_stack_instrs (r1 r2 : RegName) : list Word :=
     encodeInstrsW [
         Sub r1 r2 r1;
         Mov r2 csp;
-        Lea r2 r1;
         Jnz 2%Z r1;
         Jmp 5%Z;
         Store r2 0%Z;
         Lea r2 1%Z;
         Add r1 r1 1%Z;
-        Jmp (-5)%Z;
-        Lea csp (-1)%Z
+        Jmp (-5)%Z
       ].
 
   Definition clear_registers_skip_instrs : list Word :=
@@ -111,8 +109,8 @@ Section Switcher.
         WriteSR mtdc ct2;
 
       (* Zero out the callee's stack frame *)
-        GetA cs0 csp;
-        GetB cs1 csp;
+        GetE cs0 csp;
+        GetA cs1 csp;
         Subseg csp cs1 cs0
       ]
       ++ clear_stack_instrs cs0 cs1
@@ -166,8 +164,8 @@ Section Switcher.
         Load cs0 csp;
 
         (* Zero out the callee stack frame *)
-        GetA ct0 csp;
-        GetB ct1 csp]
+        GetE ct0 csp;
+        GetA ct1 csp]
       ++ clear_stack_instrs ct0 ct1
       ++ encodeInstrsW[
 
