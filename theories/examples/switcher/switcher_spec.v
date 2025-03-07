@@ -18,10 +18,20 @@ Section Switcher.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
+  Ltac iHide0 irisH coqH :=
+    let coqH := fresh coqH in
+    match goal with
+    | h: _ |- context [ environments.Esnoc _ (INamed irisH) ?prop ] =>
+        set (coqH := prop)
+    end.
+
+  Tactic Notation "iHide" constr(irisH) "as" ident(coqH) :=
+    iHide0 irisH coqH.
+
   (* Lemma clear_stack_spec_iter *)
   (*   (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr) *)
   (*   (csp_b csp_e csp_a : Addr) *)
-  (*   (r1 r2 : RegName) (w1 w2 : Word) (ws : list Word) *)
+  (*   (r1 r2 : RegName) (ws : list Word) *)
   (*   φ : *)
   (*   executeAllowed pc_p = true -> *)
   (*   SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a -> *)
@@ -101,7 +111,7 @@ Section Switcher.
   Lemma clear_stack_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (csp_b csp_e csp_a : Addr)
-    (r1 r2 : RegName) (w1 w2 : Word) (ws : list Word)
+    (r1 r2 : RegName) (ws : list Word)
     φ :
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a ->
@@ -189,6 +199,22 @@ Section Switcher.
   Definition is_arg_rmap (rmap : Reg) :=
     dom rmap = {[ ca0 ; ca1 ; ca2 ; ca3 ; ca4 ; ca5 ; ca5 ; ct0 ]}.
 
+  Definition ot_switcher_prop : (WORLD * CmptName * Word) → iPropI Σ :=
+    (fun (WCw : (WORLD * CmptName * Word) ) =>
+       let W := WCw.1.1 in
+       let C := WCw.1.2 in
+       let w := WCw.2 in
+         ∃ (b_tbl e_tbl a_tbl : Addr),
+        ⌜ w = WCap RO Global b_tbl e_tbl a_tbl ⌝
+        ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
+        ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝
+        ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
+        ∗ interp W C w
+        ∗ rel C b_tbl RO (fun WCv => ∃ bpcc epcc apcc, ⌜ WCv.2 = WCap RX Global bpcc epcc apcc ⌝ ∗ interp W C WCv.2 )
+        ∗ rel C (b_tbl ^+ 1)%a RO (fun WCv => ∃ bcgp ecgp, ⌜ WCv.2 = WCap RX Global bcgp ecgp bcgp ⌝ ∗ interp W C WCv.2 )
+        ∗ rel C a_tbl RO (fun WCv => ∃ (nargs off : Z), ⌜ WCv.2 = WInt (encode_entry_point nargs off) ⌝ ∗ ⌜ (0 <= nargs < 7 )%Z ⌝)
+    )%I.
+
   Definition switcher_inv
     (b_switcher e_switcher a_switcher_cc : Addr)
     (ot_switcher : OType) : iProp Σ :=
@@ -199,7 +225,8 @@ Section Switcher.
          a_switcher_cc (a_switcher_cc ^+ length switcher_instrs)%a ⌝
      ∗ codefrag a_switcher_cc switcher_instrs
      ∗ b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
-     ∗ [[ a_tstk, e_tstk ]] ↦ₐ [[ tstk ]]
+     ∗ [[ (a_tstk ^+1)%a, e_tstk ]] ↦ₐ [[ tstk ]]
+     ∗ seal_pred ot_switcher ot_switcher_prop
   .
 
   (* TODO:
@@ -214,14 +241,14 @@ Section Switcher.
     (b_switcher e_switcher a_switcher_cc : Addr)
     (b_stk e_stk a_stk : Addr)
     (ot_switcher : OType)
-    (wcgp_caller wcra_caller wcs1_caller : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
     (w_entry_point : Sealable)
     (stk_mem : list Word)
     (arg_rmap rmap : Reg)
     (φ : val -> iPropI Σ) :
 
-    (* cs0 must contain the target entry points, which needs to be sealed with ot_switcher *)
-    let wcs0_caller := WSealed ot_switcher w_entry_point in
+    (* ct1 must contain the target entry points, which needs to be sealed with ot_switcher *)
+    let wct1_caller := WSealed ot_switcher w_entry_point in
     (* the state of the stack before the jump  *)
     let stk_pre_jmp :=
       [wcs0_caller;wcs1_caller;wcra_caller;wcgp_caller] ++
@@ -229,7 +256,7 @@ Section Switcher.
     in
 
     is_arg_rmap arg_rmap ->
-    dom rmap = all_registers_s ∖ ((dom arg_rmap) ∪ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ]} ) ->
+    dom rmap = all_registers_s ∖ ((dom arg_rmap) ∪ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ct1 ]} ) ->
     ↑N ⊆ E →
 
     ( na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher)
@@ -241,7 +268,8 @@ Section Switcher.
       (* Stack register *)
       ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
       (* Entry point of the target compartment *)
-      ∗ cs0 ↦ᵣ wcs0_caller ∗ interp W1 C wcs0_caller
+      ∗ ct1 ↦ᵣ wct1_caller ∗ interp W1 C wct1_caller
+      ∗ cs0 ↦ᵣ wcs0_caller
       ∗ cs1 ↦ᵣ wcs1_caller
       (* Argument registers, need to be safe-to-share *)
       ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W1 C warg )
@@ -280,10 +308,10 @@ Section Switcher.
     )
     ⊢ (WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }})%I.
   Proof.
-    intros Hwcs0_caller Hstk_pre_jmp Harg_map Hrmap HNE.
+    intros Hwct1_caller Hstk_pre_jmp Harg_map Hrmap HNE.
     iIntros "(#Hinv_switcher & Hna
-              & HPC & Hcgp & Hcra & Hcsp & Hcs0 & #Hinterp_cs0 & Hcs1 & Hargmap & Hrmap
-              & Hstk & Hregion & Hworld & Hnext_world & Hcont)".
+              & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Hinterp_ct1 & Hcs0 & Hcs1 & Hargmap & Hrmap
+              & Hstk & Hregion & Hworld & Hnext_world & Hφ)".
 
     (* ------------------------------------------------ *)
     (* -------- Prepare resources for the proof ------- *)
@@ -294,9 +322,12 @@ Section Switcher.
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
     rewrite /switcher_inv.
     iDestruct "Hswitcher_inv"
-      as (b_tstk e_tstk a_tstk tstk) ">(Hmtdc & %Hbounds & Hcode & Hb_switcher & Htstk)".
+      as (b_tstk e_tstk a_tstk tstk) "(>Hmtdc & >%Hbounds & >Hcode & >Hb_switcher & >Htstk & #Hp_ot_switcher)".
     codefrag_facts "Hcode".
     rename H into Hcont_switcher_region; clear H0.
+    iHide "Hclose_switcher_inv" as hclose_switcher_inv.
+    iHide "Hinv_switcher" as hinv_switcher.
+    iHide "Hφ" as hφ.
 
     (* --- Extract scratch registers ct2 ctp --- *)
     (* TODO *)
@@ -334,6 +365,8 @@ Section Switcher.
       destruct stk_mem3 as [|stk_wa4 stk_mem4]; first (cbn in Hlen_stk; lia).
       eexists _,_,_,_,_; done.
     }
+
+    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
 
     (* ---- store csp cs0 ---- *)
     iDestruct (region_pointsto_cons with "Hstk") as "[Ha1_stk Hstk]".
@@ -375,16 +408,15 @@ Section Switcher.
     iInstr "Hcode".
     { apply withinBounds_true_iff; split;solve_addr. }
 
+    (* ---- lea csp 1 ---- *)
+    iInstr "Hcode".
+    { transitivity (Some (a_stk ^+ 4%Z)%a); auto;solve_addr. }
+
     (* --- getp ct2 csp --- *)
     iInstr "Hcode".
 
     (* --- mov ctp (encodePerm RWL) --- *)
     iInstr "Hcode".
-    replace (
-        match MP with
-        | {| encodePerm := encodePerm |} => encodePerm
-        end
-      ) with encodePerm by ( by destruct MP ).
 
     (* --- sub ct2 ct2 ctp --- *)
     iInstr "Hcode".
@@ -399,18 +431,220 @@ Section Switcher.
     (* --- readsr ct2 mtdc --- *)
     iInstr "Hcode".
     { done. (* TODO add to solve_pure *) }
+
+    destruct (decide ((a_tstk ^+ 2) < e_tstk))%a as [Htstk_ae|Htstk_ae]; cycle 1.
+    { admit. (* will fail in the next upcoming instructions *) }
+    destruct (decide (b_tstk <= a_tstk))%a as [Htstk_ba|Htstk_ba]; cycle 1.
+    { admit. (* will fail in the next upcoming instructions *) }
+    iAssert (⌜ exists tstk_a1 tstk', (tstk = tstk_a1 :: tstk')⌝)%I
+      as %(tstk_a1 & tstk' & ->).
+    { iEval (rewrite /region_pointsto) in "Htstk".
+      iDestruct (big_sepL2_length with "Htstk") as %Hlen_tstk.
+      iPureIntro.
+      assert (1 < length (finz.seq_between (a_tstk ^+ 1)%a e_tstk)) as Hlen_tstk_ae.
+      { rewrite finz_seq_between_length.
+        assert (a_tstk^+2 < e_tstk)%a by solve_addr.
+        rewrite finz_dist_S; last solve_addr.
+        admit.
+      }
+      destruct tstk as [|stk_a1 tstk]; first (cbn in Hlen_tstk; lia).
+      exists stk_a1, tstk; done.
+    }
+    iDestruct (region_pointsto_cons with "Htstk") as "[Ha1_tstk Htstk]".
+    { transitivity (Some (a_tstk ^+ 2)%a); auto; solve_addr. }
+    { solve_addr. }
+
     (* Lea ct2 1%Z; *)
     iInstr "Hcode".
-    {  transitivity (Some (a_tstk ^+1)%a); last solve_addr. admit. }
-    (* Store ct2 csp; *)
-    iAssert (∃ w, (a_tstk ^+1)%a ↦ₐ w)%I as (w) "Htstk_a".
-    { admit. }
-    (* WriteSR mtdc ct2; *)
+    {  transitivity (Some (a_tstk ^+1)%a); solve_addr. }
 
-      (* Zero out the callee's stack frame *)
+    (* Store ct2 csp; *)
+    iInstr "Hcode".
+    { solve_addr. }
+
+    (* WriteSR mtdc ct2; *)
+    iInstr "Hcode".
+    { done. (* TODO add to solve_pure *) }
+
+    (* Zero out the callee's stack frame *)
     (* GetE cs0 csp; *)
+    iInstr "Hcode".
+
     (* GetA cs1 csp; *)
+    iInstr "Hcode".
+
     (* Subseg csp cs1 cs0 *)
+    iInstr "Hcode".
+    { solve_addr. }
+
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+    focus_block 1 "Hcode" as a_clear_stk1 Ha_clear_stk1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hcs0 $Hcs1 $Hcode $Hstk]"); eauto.
+    { done. }
+    { solve_addr. }
+    { admit. }
+    iNext ; iIntros "(HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
+    iMod ("Hnext_world" with "[Ha1_stk Ha2_stk Ha3_stk Ha4_stk Hstk $Hregion $Hworld]")
+           as "[Hregion Hworld]".
+    { subst Hstk_pre_jmp. admit. }
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+
+    focus_block 2 "Hcode" as a_unseal Ha_unseal "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* GetB cs1 PC *)
+    iInstr "Hcode".
+
+    (* GetA cs0 PC *)
+    iInstr "Hcode".
+
+    (* Sub cs1 cs1 cs0 *)
+    iInstr "Hcode".
+    (* Mov cs0 PC *)
+    iInstr "Hcode".
+    (* Lea cs0 cs1 *)
+    assert ( (a_unseal ^+ 3 + (b_switcher - (a_unseal ^+ 1)))%a = Some ( (b_switcher ^+ 2%Z)%a ))
+    as ?.
+    { solve_addr. }
+    iInstr "Hcode".
+
+    (* Lea cs0 (-2)%Z *)
+    iInstr "Hcode".
+    { transitivity (Some b_switcher); solve_addr. }
+
+    iEval (rewrite fixpoint_interp1_eq /= /interp_sb) in "Hinterp_ct1".
+    iDestruct "Hinterp_ct1"
+      as (Pct1 Hpers_Pct1) "(HmonoReq & Hseal_pred_Pct1 & HPct1 & HPct1_borrow)".
+    iDestruct (seal_pred_agree with "Hseal_pred_Pct1 Hp_ot_switcher") as "Hot_switcher_agree".
+    iSpecialize ("Hot_switcher_agree" $! (W1,C,WSealable w_entry_point)).
+
+    (* Load cs0 cs0 *)
+    iInstr "Hcode".
+    iEval (cbn) in "Hcs0".
+
+
+    rewrite /ot_switcher_prop.
+    iEval (rewrite /safeC /=) in "Hot_switcher_agree".
+    iRewrite "Hot_switcher_agree" in "HPct1".
+    iDestruct "HPct1" as (b_tbl e_tbl a_tbl Heq_entry_point Hatbl Hbtbl Hbtbl1)
+                           "(#Hinterp_tbl & #Hrel_btbl & #Hrel_btbl1 & Hrel_atbl)".
+    iClear "Hot_switcher_agree Hp_ot_switcher".
+    rewrite !Heq_entry_point.
+    iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_tbl".
+    rewrite finz_seq_between_cons; last solve_addr.
+    iEval (cbn) in "Hinterp_tbl".
+    iDestruct "Hinterp_tbl" as "[Hinterp_btbl Hinterp_tbl]".
+    rewrite finz_seq_between_cons; last solve_addr.
+    iEval (cbn) in "Hinterp_tbl".
+    iDestruct "Hinterp_tbl" as "[Hinterp_btbl1 Hinterp_tbl]".
+    assert ( a_tbl ∈ finz.seq_between ((b_tbl ^+ 1) ^+ 1)%a e_tbl) as Ha_tbl_in.
+    { apply elem_of_finz_seq_between; solve_addr. }
+    apply elem_of_list_lookup_1 in Ha_tbl_in.
+    destruct Ha_tbl_in as [i_a_tbl Ha_tbl_in].
+    iDestruct (big_sepL_take_drop _ _ i_a_tbl with "Hinterp_tbl") as "[_ Hinterp_tbl2]".
+    iClear "Hinterp_tbl".
+    replace (drop i_a_tbl (finz.seq_between ((b_tbl ^+ 1) ^+ 1)%a e_tbl))
+              with (finz.seq_between a_tbl e_tbl) by admit.
+    rewrite finz_seq_between_cons; last solve_addr.
+    iEval (cbn) in "Hinterp_tbl2".
+    iDestruct "Hinterp_tbl2" as "[Hinterp_atbl _]".
+    iDestruct "Hinterp_btbl" as (pbtbl Pbtbl _ _) "(_ & _ & _ & _ & _ & %Hstd_btbl)"; clear pbtbl Pbtbl.
+    iDestruct "Hinterp_btbl1" as (pbtbl1 Pbtbl1 _ _) "(_ & _ & _ & _ & _ & %Hstd_btbl1)"; clear pbtbl1 Pbtbl1.
+    iDestruct "Hinterp_atbl" as (patbl Patbl _ _) "(_ & _ & _ & _ & _ & %Hstd_atbl)"; clear patbl Patbl.
+
+    (* UnSeal ct1 cs0 ct1 *)
+    assert ( ot_switcher < (ot_switcher ^+1) )%ot as Hot_switcher.
+    { admit. (* TODO add hyp *) }
+
+    subst Hwct1_caller.
+    iInstr "Hcode".
+    { done. (* TODO solve_pure *) }
+    { solve_addr. (* TODO solve_pure *) }
+    rewrite Heq_entry_point.
+
+
+
+    (* Load cs0 ct1 *)
+    iDestruct (region_open_perm with "[$Hrel_atbl $Hregion $Hworld]")
+      as (watbl) "(Hregion & Hworld & Hstd_atbl & Ha_tbl & _ & HmonoReq_atbl & #HPatbl)"
+    ; first done.
+    iInstr "Hcode".
+    { split ; first solve_pure; last solve_addr. }
+    iDestruct "HPatbl" as (nargs off_entry Hwatbl) "%Hnargs".
+    cbn in Hwatbl ; subst watbl.
+    iEval (cbn) in "Hcs0".
+    iDestruct (region_close_perm
+                with "[$Hregion $Hstd_atbl $Ha_tbl $HmonoReq_atbl $Hrel_atbl]")
+                as "Hregion"; eauto.
+
+    (* LAnd ct2 cs0 7%Z *)
+    iInstr "Hcode".
+
+    (* ShiftR cs0 cs0 3%Z *)
+    iInstr "Hcode".
+
+    replace ( (Z.land (encode_entry_point nargs off_entry) 7)) with nargs by admit.
+    replace ( (encode_entry_point nargs off_entry ≫ 3)%Z) with off_entry by admit.
+    (* GetB cgp ct1 *)
+    iInstr "Hcode".
+
+    (* GetA cs1 ct1 *)
+    iInstr "Hcode".
+
+    (* Sub cs1 cgp cs1 *)
+    iInstr "Hcode".
+
+    (* Lea ct1 cs1 *)
+    iInstr "Hcode".
+    { transitivity (Some b_tbl); solve_addr. }
+
+    (* Load cra ct1 *)
+    iDestruct (region_open_perm with "[$Hrel_btbl $Hregion $Hworld]")
+      as (wbtbl) "(Hregion & Hworld & Hstd_btbl & Ha_tbl & _ & HmonoReq_btbl & #HPbtbl)"
+    ; first done.
+    iInstr "Hcode".
+    { split ; first solve_pure; last solve_addr. }
+    iDestruct "HPbtbl" as (bpcc epcc apcc) "[%Hwbtbl #Hinterp_wbtbl]".
+    cbn in Hwbtbl ; subst wbtbl.
+    iEval (cbn) in "Hcra".
+    iDestruct (region_close_perm
+                with "[$Hregion $Hstd_btbl $Ha_tbl $HmonoReq_btbl $Hrel_btbl]")
+                as "Hregion"; eauto.
+    { iSplit; auto. iNext; eauto. }
+
+    (* Lea ct1 1%Z *)
+    iInstr "Hcode".
+    { transitivity (Some (b_tbl ^+ 1)%a); solve_addr. }
+
+    (* Load cgp ct1 *)
+    iDestruct (region_open_perm with "[$Hrel_btbl1 $Hregion $Hworld]")
+      as (wbtbl1) "(Hregion & Hworld & Hstd_btbl1 & Ha_tbl & _ & HmonoReq_btbl1 & #HPbtbl1)"
+    ; first done.
+    iInstr "Hcode".
+    { split ; first solve_pure; last solve_addr. }
+    iDestruct "HPbtbl1" as (bcgp ecgp) "[%Hwbtbl1 #Hinterp_wbtbl1]".
+    cbn in Hwbtbl1 ; subst wbtbl1.
+    iEval (cbn) in "Hcra".
+    iDestruct (region_close_perm
+                with "[$Hregion $Hstd_btbl1 $Ha_tbl $HmonoReq_btbl1 $Hrel_btbl1]")
+                as "Hregion"; eauto.
+    { iSplit; auto. }
+
+    (* Lea cra cs0 *)
+    iInstr "Hcode".
+    { transitivity (Some (bpcc ^+ off_entry)%a); admit. }
+    (* TODO actually, it's fine if the offset fail, the machine fails...
+       we just need not to use iInstr, but instead manually choose the wp rule
+     *)
+
+    (* Add ct2 ct2 1%Z *)
+    iInstr "Hcode".
+
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+    focus_block 3 "Hcode" as a_clear_reg1 Ha_clear_reg2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+
+
   Admitted.
 
   Lemma switcher_interp (W : WORLD) (C : CmptName) (N : namespace)

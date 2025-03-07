@@ -93,6 +93,7 @@ Section Switcher.
         Store csp cra;
         Lea csp 1%Z;
         Store csp cgp;
+        Lea csp 1%Z;
 
         (* Check permissions of the stack *)
         GetP ct2 csp;
