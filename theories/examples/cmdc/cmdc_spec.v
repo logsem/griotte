@@ -215,9 +215,9 @@ Section CMDC.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hcs0 $Hct0 $Hct1 $Hcode $Himport_B_f]"); eauto.
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_B_f]"); eauto.
     { solve_addr. }
-    iNext ; iIntros "(HPC & Hcs0 & Hct0 & Hct1 & Hcode & Himport_B_f)".
+    iNext ; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_B_f)".
     iEval (cbn) in "Hcs0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -268,10 +268,6 @@ Section CMDC.
            ]} : Reg
         ).
 
-    rewrite !(delete_commute _ _ ct1).
-    iDestruct (big_sepM_insert _ _ ct1 with "[$Hrmap $Hct1]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
-    repeat (rewrite -delete_insert_ne //).
     rewrite !(delete_commute _ _ ctp).
     iDestruct (big_sepM_insert _ _ ctp with "[$Hrmap $Hctp]") as "Hrmap"; first by simplify_map_eq.
     rewrite insert_delete_insert.
@@ -328,7 +324,7 @@ Section CMDC.
 
     iApply (switcher_cc_specification _ _ W1 W1 with
              "[- $Hswitcher $Hna
-              $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
+              $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hct1 $Hrmap_arg $Hrmap
               $Hcsp_stk $HWreg_B $HWstd_full_B
               $Hinterp_W1_B_f]"); auto.
     { set_solver. }
@@ -478,7 +474,7 @@ Section CMDC.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     focus_block 7 "Hcode_main" as a_fetch4 Ha_fetch4 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hcs0 $Hct0 $Hct1 $Hcode $Himport_C_g]"); eauto.
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_C_g]"); eauto.
     { solve_addr. }
     iNext ; iIntros "(HPC & Hcs0 & Hct0 & Hct1 & Hcode & Himport_C_g)".
     iEval (cbn) in "Hcs0".
@@ -535,10 +531,6 @@ Section CMDC.
     repeat (rewrite -delete_insert_ne //).
     rewrite !(delete_commute _ _ ct2).
     iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
-    repeat (rewrite -delete_insert_ne //).
-    rewrite !(delete_commute _ _ ct1).
-    iDestruct (big_sepM_insert _ _ ct1 with "[$Hrmap $Hct1]") as "Hrmap"; first by simplify_map_eq.
     rewrite insert_delete_insert.
     repeat (rewrite -delete_insert_ne //).
     rewrite !(delete_commute _ _ ctp).
@@ -598,7 +590,7 @@ Section CMDC.
 
     iApply (switcher_cc_specification _ _ W3 W3 with
              "[- $Hswitcher $Hna
-              $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
+              $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hct1 $Hrmap_arg $Hrmap
               $Hcsp_stk $HWreg_C $HWstd_full_C
               $Hinterp_W3_C_g]"); auto.
     { set_solver. }
