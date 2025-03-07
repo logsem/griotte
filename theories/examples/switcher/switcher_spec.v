@@ -28,176 +28,6 @@ Section Switcher.
   Tactic Notation "iHide" constr(irisH) "as" ident(coqH) :=
     iHide0 irisH coqH.
 
-  (* Lemma clear_stack_spec_iter *)
-  (*   (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr) *)
-  (*   (csp_b csp_e csp_a : Addr) *)
-  (*   (r1 r2 : RegName) (ws : list Word) *)
-  (*   φ : *)
-  (*   executeAllowed pc_p = true -> *)
-  (*   SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a -> *)
-  (*   (csp_b <= csp_a)%a -> (csp_a <= csp_e)%a -> *)
-  (*   length ws = finz.dist csp_a csp_e -> *)
-  (*   ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ 2)%a *)
-  (*     ∗ r1 ↦ᵣ WInt (csp_a - csp_e)%Z ∗ r2 ↦ᵣ WCap RWL Local csp_b csp_e csp_a *)
-  (*     ∗ codefrag pc_a (clear_stack_instrs r1 r2) *)
-  (*     ∗ ([[ csp_a , csp_e ]] ↦ₐ [[ ws ]]) *)
-  (*     ∗ ▷ ( (PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a *)
-  (*            ∗ ([[ csp_a , csp_e ]] ↦ₐ [[region_addrs_zeroes csp_a csp_e]]) *)
-  (*            ∗ (∃ csp_a, r2 ↦ᵣ WCap RWL Local csp_b csp_e csp_a *)
-  (*                        ∗ r1 ↦ᵣ WInt (csp_a - csp_e)%Z ∗ ⌜ (csp_a - csp_e)%Z = 0 ⌝ *)
-  (*              ) *)
-  (*            ∗ codefrag pc_a (clear_stack_instrs r1 r2)) *)
-  (*       -∗ WP Seq (Instr Executable) {{ φ }}) *)
-  (*   ) *)
-  (*     ⊢ WP Seq (Instr Executable) {{ φ }}%I. *)
-  (* Proof. *)
-  (*   iIntros (Hpc_exec Hbounds Hstk_bounds1 Hstk_bounds2 Hlen_stack) *)
-  (*     "(HPC & Hr1 & Hr2 & Hcode & Hstack & Hφ)". *)
-  (*   codefrag_facts "Hcode". *)
-
-  (*   iRevert (Hlen_stack Hstk_bounds1 Hstk_bounds2). *)
-  (*   iLöb as "IH" forall (csp_a ws); iIntros (Hlen_stack Hstl_bounds1 Hstk_bounds2). *)
-  (*   destruct (decide (csp_a = csp_e) )%Z as [Heq|Hneq]. *)
-  (*   - subst csp_a. *)
-  (*     rewrite (_: csp_e - csp_e = 0)%Z; last lia. *)
-  (*     (* Jnz 2%Z r1; *) *)
-  (*     iInstr "Hcode". *)
-  (*     (* Jmp 5%Z; *) *)
-  (*     iInstr "Hcode". *)
-  (*     iApply "Hφ". *)
-  (*     iFrame. *)
-  (*     rewrite (_: csp_e - csp_e = 0)%Z; last lia. *)
-  (*     iFrame. iSplit ; last done. *)
-  (*     rewrite /region_pointsto. *)
-  (*     rewrite finz_seq_between_empty; last done. *)
-  (*     rewrite /region_addrs_zeroes finz_dist_0; last done. *)
-  (*     done. *)
-  (*   - assert (csp_a < csp_e)%a as Hstk_bounds2' by solve_addr. *)
-  (*     (* Jnz 2%Z r1; *) *)
-  (*     iInstr "Hcode". *)
-  (*     { assert (csp_a - csp_e ≠ 0)%Z by solve_addr. congruence. } *)
-  (*     (* Store r2 0%Z; *) *)
-  (*     rewrite finz_dist_S in Hlen_stack; last done. *)
-  (*     destruct ws as [|w' ws]; first by cbn in *. *)
-  (*     iDestruct (region_pointsto_cons with "Hstack") as "[Hcsp_a Hstack]". *)
-  (*     { transitivity (Some (csp_a ^+ 1)%a); solve_addr. } *)
-  (*     { solve_addr. } *)
-  (*     iInstr "Hcode". *)
-  (*     { solve_addr. } *)
-  (*     (* Lea r2 1%Z; *) *)
-  (*     iInstr_lookup "Hcode" as "Hi" "Hcont". *)
-  (*     wp_instr. *)
-  (*     iApply (wp_lea_success_z with "[HPC Hr2 Hi]"); try iFrame; try solve_pure. *)
-  (*     { transitivity (Some (csp_a ^+ 1)%a); solve_addr. } *)
-  (*     iNext. *)
-  (*     iIntros "(HPC & Hi & Hr2)". *)
-  (*     iDestruct ("Hcont" with "Hi") as "Hcode"; wp_pure. *)
-
-  (*     (* Add r1 r1 1%Z; *) *)
-  (*     iInstr "Hcode". *)
-  (*     (* Jmp (-5)%Z; *) *)
-  (*     iInstr "Hcode". *)
-  (*     { transitivity (Some (pc_a ^+2)%a); solve_addr. } *)
-  (*     replace (csp_a - csp_e + 1)%Z with ((csp_a ^+ 1)%a - csp_e)%Z by solve_addr. *)
-  (*     iApply ("IH" with "[$] [$] [$] [$] [$] [Hφ]"). *)
-  (*     + iNext. iIntros "(HPC & Hstack & H & Hcode)". *)
-  (*       iApply "Hφ"; iFrame. *)
-  (*     + iPureIntro. cbn in Hlen_stack; lia. *)
-  (*     + iPureIntro ; solve_addr. *)
-  (*     + iPureIntro ; solve_addr. *)
-  (* Qed. *)
-
-
-  Lemma clear_stack_spec
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (csp_b csp_e csp_a : Addr)
-    (r1 r2 : RegName) (ws : list Word)
-    φ :
-    executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a ->
-    (csp_b <= csp_a)%a -> (csp_a <= csp_e)%a ->
-    length ws = finz.dist csp_a csp_e ->
-    ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_a
-      ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
-      ∗ codefrag pc_a (clear_stack_instrs r1 r2)
-      ∗ ([[ csp_a , csp_e ]] ↦ₐ [[ ws ]])
-      ∗ ▷ ( (PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
-             ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_a
-             ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap RWL Local csp_b csp_e csp_a
-             ∗ codefrag pc_a (clear_stack_instrs r1 r2)
-             ∗ ([[ csp_a , csp_e ]] ↦ₐ [[region_addrs_zeroes csp_a csp_e]]))
-        -∗ WP Seq (Instr Executable) {{ φ }})
-    )
-      ⊢ WP Seq (Instr Executable) {{ φ }}%I.
-  Proof.
-    (* iIntros (Hpc_exec Hbounds Hstk_bounds1 Hstk_bounds2 Hlen_stack) *)
-    (*   "(HPC & Hcsp & Hr1 & Hr2 & Hcode & Hstack & Hφ)". *)
-    (* codefrag_facts "Hcode". *)
-
-    (* (* Sub r1 r2 r1; *) *)
-    (* iInstr "Hcode". *)
-    (* (* Mov r2 csp; *) *)
-    (* iInstr "Hcode". *)
-    (* iApply (clear_stack_spec_iter with "[Hcsp Hφ $HPC $Hcode $Hr1 $Hr2 $Hstack]"); eauto. *)
-    (* iNext. *)
-    (* iIntros "(HPC & H & Hcode)". *)
-    (* iDestruct "H" as (cps_a0) "(Hr2 & Hr1 & %Hprogress & Hstack)". *)
-    (* rewrite Hprogress. *)
-    (* iApply "Hφ"; iFrame. *)
-
-    (* iRevert (Hlen_stack Hstk_bounds1 Hstk_bounds2). *)
-    (* iLöb as "IH" forall (csp_a ws); iIntros (Hlen_stack Hstl_bounds1 Hstk_bounds2). *)
-    (* destruct (decide (csp_a = csp_e) )%Z as [Heq|Hneq]. *)
-    (* - subst csp_a. rewrite (_: csp_e - csp_e = 0)%Z; last lia. *)
-    (*   (* Jnz 2%Z r1; *) *)
-    (*   iInstr "Hcode". *)
-    (*   (* Jmp 5%Z; *) *)
-    (*   iInstr "Hcode". *)
-    (*   iApply "Hφ". *)
-    (*   iFrame. *)
-    (*   rewrite /region_pointsto. *)
-    (*   rewrite finz_seq_between_empty; last done. *)
-    (*   rewrite /region_addrs_zeroes finz_dist_0; last done. *)
-    (*   done. *)
-    (* - assert (csp_a < csp_e)%a as Hstk_bounds2' by solve_addr. *)
-    (*   (* Jnz 2%Z r1; *) *)
-    (*   iInstr "Hcode". *)
-    (*   { assert (csp_a - csp_e ≠ 0)%Z by solve_addr. congruence. } *)
-    (*   (* Store r2 0%Z; *) *)
-    (*   rewrite finz_dist_S in Hlen_stack; last done. *)
-    (*   destruct ws as [|w' ws]; first by cbn in *. *)
-    (*   iDestruct (region_pointsto_cons with "Hstack") as "[Hcsp_a Hstack]". *)
-    (*   { transitivity (Some (csp_a ^+ 1)%a); solve_addr. } *)
-    (*   { solve_addr. } *)
-    (*   iInstr "Hcode". *)
-    (*   { solve_addr. } *)
-    (*   (* Lea r2 1%Z; *) *)
-    (*   iInstr_lookup "Hcode" as "Hi" "Hcont". *)
-    (*   wp_instr. *)
-    (*   iApply (wp_lea_success_z with "[HPC Hr2 Hi]"); try iFrame; try solve_pure. *)
-    (*   { transitivity (Some (csp_a ^+ 1)%a); solve_addr. } *)
-    (*   iNext. *)
-    (*   iIntros "(HPC & Hi & Hr2)". *)
-    (*   iDestruct ("Hcont" with "Hi") as "Hcode"; wp_pure. *)
-
-    (*   (* Add r1 r1 1%Z; *) *)
-    (*   iInstr "Hcode". *)
-    (*   (* Jmp (-5)%Z; *) *)
-    (*   iInstr "Hcode". *)
-    (*   { transitivity (Some (pc_a ^+2)%a); solve_addr. } *)
-    (*   replace (csp_a - csp_e + 1)%Z with ((csp_a ^+ 1)%a - csp_e)%Z by solve_addr. *)
-    (*   iApply ("IH" with "[$] [] [$] [$] [$] [$] [Hcsp]"). *)
-    (*   + admit. *)
-    (*   + *)
-    (*   + admit. *)
-    (*   + admit. *)
-    (*   + admit. *)
-  Admitted.
-
-  (* TODO should depend on the number of registers used by entry point. *)
-  Definition is_arg_rmap (rmap : Reg) :=
-    dom rmap = {[ ca0 ; ca1 ; ca2 ; ca3 ; ca4 ; ca5 ; ca5 ; ct0 ]}.
 
   Definition ot_switcher_prop : (WORLD * CmptName * Word) → iPropI Σ :=
     (fun (WCw : (WORLD * CmptName * Word) ) =>
@@ -212,7 +42,7 @@ Section Switcher.
         ∗ interp W C w
         ∗ rel C b_tbl RO (fun WCv => ∃ bpcc epcc apcc, ⌜ WCv.2 = WCap RX Global bpcc epcc apcc ⌝ ∗ interp W C WCv.2 )
         ∗ rel C (b_tbl ^+ 1)%a RO (fun WCv => ∃ bcgp ecgp, ⌜ WCv.2 = WCap RX Global bcgp ecgp bcgp ⌝ ∗ interp W C WCv.2 )
-        ∗ rel C a_tbl RO (fun WCv => ∃ (nargs off : Z), ⌜ WCv.2 = WInt (encode_entry_point nargs off) ⌝ ∗ ⌜ (0 <= nargs < 7 )%Z ⌝)
+        ∗ rel C a_tbl RO (fun WCv => ∃ (nargs off : Z), ⌜ WCv.2 = WInt (encode_entry_point nargs off) ⌝ ∗ ⌜ (0 <= nargs <= 7 )%Z ⌝)
     )%I.
 
   Definition switcher_inv
@@ -642,7 +472,55 @@ Section Switcher.
 
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-    focus_block 3 "Hcode" as a_clear_reg1 Ha_clear_reg2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 3 "Hcode" as a_clear_pre_reg1 Ha_clear_pre_reg1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (clear_registers_pre_call_skip_spec with "[- $HPC $Hargmap $Hct2 $Hcode]"); try solve_pure.
+    { solve_addr. }
+    iNext; iIntros "H".
+    iDestruct "H" as (arg_rmap') "(%Harg_rmap' & HPC & Hct2 & Harg_rmap' & Hcode)".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+    focus_block 4 "Hcode" as a_clear_pre_reg2 Ha_clear_pre_reg2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+
+    iDestruct (big_sepM_insert _ _ ctp with "[$Hrmap $Hctp]") as "Hrmap"; first by simplify_map_eq.
+    rewrite insert_delete_insert.
+    repeat (rewrite -delete_insert_ne //).
+    iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap"; first by simplify_map_eq.
+    rewrite insert_delete_insert.
+
+    iDestruct (big_sepM_insert _ _ ct1 with "[$Hrmap $Hct1]") as "Hrmap".
+    { simplify_map_eq. apply not_elem_of_dom.
+      rewrite Hrmap; set_solver+.
+    }
+    iDestruct (big_sepM_insert _ _ cs0 with "[$Hrmap $Hcs0]") as "Hrmap".
+    { simplify_map_eq. apply not_elem_of_dom.
+      rewrite Hrmap; set_solver+.
+    }
+    iDestruct (big_sepM_insert _ _ cs1 with "[$Hrmap $Hcs1]") as "Hrmap".
+    { simplify_map_eq. apply not_elem_of_dom.
+      rewrite Hrmap; set_solver+.
+    }
+    iApply (clear_registers_pre_call_spec with "[- $HPC $Hrmap $Hcode]"); try solve_pure.
+    { rewrite !dom_insert_L.
+      rewrite Hrmap.
+      admit.
+      (* set_solver+. *)
+    }
+    iNext; iIntros "H".
+    iDestruct "H" as (rmap') "(%Hrmap' & HPC & Hrmap' & Hcode)".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+
+    focus_block 5 "Hcode" as a_jmp Ha_jmp "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Jalr cra cra *)
+    iInstr "Hcode".
+    (* TODO that's the interesting part !!!!
+
+      - show that rmap' is safe to share
+      - show that cra is safe to share
+      - show that csp is safe to share
+      - close the switcher's invariant
+      - how do we keep track of Ha1_tstk ??? Frozen, then we revoke it?
+     *)
 
 
   Admitted.

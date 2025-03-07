@@ -114,6 +114,8 @@ theories/examples/macros/fetch.v
 # theories/examples/macros/reqperm.v
 # theories/examples/macros/salloc.v
 # theories/examples/macros/macros.v
+theories/examples/switcher/clear_stack.v
+theories/examples/switcher/clear_registers.v
 
 # Griotte case studies
 theories/examples/switcher/switcher.v

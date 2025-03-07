@@ -1,87 +1,10 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import rules proofmode.
+From cap_machine Require Export clear_stack clear_registers.
 
 Section Switcher.
   Context `{MP: MachineParameters}.
-
-  (* Expects r1 := e_stk ; r2 := a_stk *)
-  Definition clear_stack_instrs (r1 r2 : RegName) : list Word :=
-    encodeInstrsW [
-        Sub r1 r2 r1;
-        Mov r2 csp;
-        Jnz 2%Z r1;
-        Jmp 5%Z;
-        Store r2 0%Z;
-        Lea r2 1%Z;
-        Add r1 r1 1%Z;
-        Jmp (-5)%Z
-      ].
-
-  Definition clear_registers_skip_instrs : list Word :=
-    encodeInstrsW [
-        Jmp ct2;
-        Mov ca0 0%Z;
-        Mov ca1 0%Z;
-        Mov ca2 0%Z;
-        Mov ca3 0%Z;
-        Mov ca4 0%Z;
-        Mov ca5 0%Z;
-        Mov ct0 0%Z;
-        Mov cnull 0%Z;
-        Mov ctp 0%Z;
-        Mov ct1 0%Z;
-        Mov ct2 0%Z;
-        Mov cs0 0%Z;
-        Mov cs1 0%Z;
-        Mov ca6 0%Z;
-        Mov ca7 0%Z;
-        Mov cs2 0%Z;
-        Mov cs3 0%Z;
-        Mov cs4 0%Z;
-        Mov cs5 0%Z;
-        Mov cs6 0%Z;
-        Mov cs7 0%Z;
-        Mov cs8 0%Z;
-        Mov cs9 0%Z;
-        Mov cs10 0%Z;
-        Mov cs11 0%Z;
-        Mov ct3 0%Z;
-        Mov ct4 0%Z;
-        Mov ct5 0%Z;
-        Mov ct6 0%Z
-      ].
-
-  Definition clear_registers_instrs : list Word :=
-    encodeInstrsW [
-        Mov ct0 0%Z;
-        Mov cnull 0%Z;
-        Mov ctp 0%Z;
-        Mov ct1 0%Z;
-        Mov ct2 0%Z;
-        Mov ct3 0%Z;
-        Mov ct4 0%Z;
-        Mov ct5 0%Z;
-        Mov ct6 0%Z;
-        Mov ca2 0%Z;
-        Mov ca3 0%Z;
-        Mov ca4 0%Z;
-        Mov ca5 0%Z;
-        Mov ca6 0%Z;
-        Mov ca7 0%Z;
-        Mov cs0 0%Z;
-        Mov cs1 0%Z;
-        Mov cs2 0%Z;
-        Mov cs3 0%Z;
-        Mov cs4 0%Z;
-        Mov cs5 0%Z;
-        Mov cs6 0%Z;
-        Mov cs7 0%Z;
-        Mov cs8 0%Z;
-        Mov cs9 0%Z;
-        Mov cs10 0%Z;
-        Mov cs11 0%Z
-      ].
 
   Definition switcher_instrs : list Word :=
     encodeInstrsW [
@@ -142,7 +65,8 @@ Section Switcher.
         Lea cra cs0;
         Add ct2 ct2 1%Z]
       (* clear registers, skipping arguments *)
-      ++ clear_registers_skip_instrs
+      ++ clear_registers_pre_call_skip_instrs
+      ++ clear_registers_pre_call_instrs
       ++ encodeInstrsW [
 
         (* Jump to callee *)
@@ -183,7 +107,7 @@ Section Switcher.
         (* Restores the return pointer to caller  *)
         Mov cra ca2]
       (* Clear registers *)
-      ++ clear_registers_instrs
+      ++ clear_registers_post_call_instrs
       ++ encodeInstrsW [
         (* Jump back to caller *)
         JmpCap cra
