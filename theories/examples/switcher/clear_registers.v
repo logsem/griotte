@@ -92,7 +92,7 @@ Section ClearRegistersMacro.
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_instrs)%a ->
 
-    dom rmap = all_registers_s ∖ (dom_arg_rmap ∪ {[ PC ; cra ; cgp ]}) ->
+    dom rmap = all_registers_s ∖ (dom_arg_rmap ∪ {[ PC ; cra ; cgp ; csp ]}) ->
 
     ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
@@ -146,7 +146,7 @@ Section ClearRegistersMacro.
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_instrs)%a ->
 
-    dom rmap = all_registers_s ∖ {[ PC ; cra ; cgp ; ca0 ; ca1 ]} ->
+    dom rmap = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; ca0 ; ca1 ]} ->
 
     ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )

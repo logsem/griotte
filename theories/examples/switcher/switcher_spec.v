@@ -500,10 +500,35 @@ Section Switcher.
       rewrite Hrmap; set_solver+.
     }
     iApply (clear_registers_pre_call_spec with "[- $HPC $Hrmap $Hcode]"); try solve_pure.
-    { rewrite !dom_insert_L.
+    { clear -Harg_map Hrmap.
+      rewrite !dom_insert_L.
       rewrite Hrmap.
-      admit.
-      (* set_solver+. *)
+
+      rewrite -difference_difference_l_L.
+      do 4 rewrite union_assoc_L.
+      rewrite union_comm_L.
+      replace {[cs1; cs0; ct1; ct2; ctp]}
+        with ({[cs1; cs0; ct1]} ∪ {[ct2; ctp]} : gset _) by set_solver.
+      replace ( (all_registers_s ∖ dom arg_rmap ∖ {[PC; cgp; cra; csp; cs0; cs1; ct1]})
+                 ∪ ({[cs1; cs0; ct1]} ∪ {[ct2; ctp]}))
+        with ( (all_registers_s ∖ dom arg_rmap ∖ {[PC; cgp; cra; csp; cs0; cs1; ct1]}
+                  ∪ {[cs1; cs0; ct1]}) ∪ {[ct2; ctp]}) by set_solver.
+      rewrite union_comm_L.
+      replace (
+         (all_registers_s ∖ dom arg_rmap ∖ {[PC; cgp; cra; csp; cs0; cs1; ct1]} ∪ {[cs1; cs0; ct1]})
+        )
+        with (
+         all_registers_s ∖ dom arg_rmap ∖ {[PC; cgp; cra; csp]}
+        ).
+      2:{
+        replace {[PC; cgp; cra; csp; cs0; cs1; ct1]}
+        with ( {[PC; cgp; cra; csp]} ∪ {[cs1; cs0; ct1]} : gset _)
+             by set_solver.
+      rewrite -(difference_difference_l_L  _ _ {[cs1; cs0; ct1]}).
+      rewrite difference_union_L.
+      set_solver.
+      }
+      rewrite subseteq_union_1_L; set_solver.
     }
     iNext; iIntros "H".
     iDestruct "H" as (rmap') "(%Hrmap' & HPC & Hrmap' & Hcode)".
