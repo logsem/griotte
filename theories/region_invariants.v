@@ -12,16 +12,10 @@ Class switcherG := MkSwitcher
   {
     switcher_base : Addr;
     switcher_end : Addr;
-    switcher_call_addr : Addr;
     switcher_ret_addr : Addr;
-
     switcher_ret_entry_point : Word;
-    switcher_call_entry_point : Word;
-
     switcher_ret_correct :
     switcher_ret_entry_point = WCap E_XSRW_ Global switcher_base switcher_end switcher_ret_addr;
-    switcher_call_correct :
-    switcher_call_entry_point = WCap E_XSRW_ Global switcher_base switcher_end switcher_call_addr
   }.
 
 (* We will first define the standard STS for the shared part of the heap *)
@@ -1796,6 +1790,27 @@ Section heap.
       eright;[right;constructor|left].
     + eright;[left;constructor|].
       eright;[right;constructor|left].
+  Qed.
+
+  Lemma related_sts_pub_world_revoked_permanent W a :
+    (std W) !! a = Some Revoked →
+    related_sts_pub_world W (<s[a:=Permanent]s>W).
+  Proof.
+    intros Ha.
+    rewrite /related_sts_pub_world /=.
+    split;[|apply related_sts_pub_refl].
+    rewrite /related_sts_pub. split.
+    - rewrite dom_insert_L. set_solver.
+    - intros i x y Hx Hy.
+      destruct (decide (a = i)).
+      + subst.
+        rewrite Hx in Ha. inversion Ha.
+        rewrite lookup_insert in Hy. inversion Hy.
+        right with (Permanent);[|left]. constructor.
+      + rewrite lookup_insert_ne in Hy;auto.
+        rewrite Hx in Hy.
+        inversion Hy; subst.
+        left.
   Qed.
 
 
