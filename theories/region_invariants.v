@@ -8,6 +8,22 @@ From cap_machine Require Export stdpp_extra cap_lang sts rules_base.
 From stdpp Require Import countable.
 Import uPred.
 
+Class switcherG := MkSwitcher
+  {
+    switcher_base : Addr;
+    switcher_end : Addr;
+    switcher_call_addr : Addr;
+    switcher_ret_addr : Addr;
+
+    switcher_ret_entry_point : Word;
+    switcher_call_entry_point : Word;
+
+    switcher_ret_correct :
+    switcher_ret_entry_point = WCap E_XSRW_ Global switcher_base switcher_end switcher_ret_addr;
+    switcher_call_correct :
+    switcher_call_entry_point = WCap E_XSRW_ Global switcher_base switcher_end switcher_call_addr
+  }.
+
 (* We will first define the standard STS for the shared part of the heap *)
 Inductive region_type :=
 | Temporary
@@ -139,7 +155,7 @@ Section heap.
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Addr region_type Σ}
-    {heapg : heapGS Σ}
+    {heapg : heapGS Σ} {switcherg :switcherG}
     `{MP: MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -195,24 +211,44 @@ Section heap.
         ⌜ related_sts_pub_world W W'⌝
         → φ (W,C,v) -∗ φ (W',C,v))%I.
 
-  Definition future_priv_mono (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
+  Definition future_priv_mono_pre (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
     (□ ∀ (W W' : WORLD),
-        ⌜ related_sts_priv_world W W'⌝
-        → φ (W,C,v) -∗ φ (W',C,v))%I.
+       ⌜v ≠ switcher_ret_entry_point ⌝
+       → ⌜ related_sts_priv_world W W'⌝
+       → φ (W,C,v) -∗ φ (W',C,v))%I.
 
-  Lemma future_priv_mono_is_future_pub_mono (C : CmptName) (φ: (WORLD * CmptName * Word) → iProp Σ) v :
-    future_priv_mono C φ v -∗ future_pub_mono C φ v.
+  Definition future_priv_mono (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v : Word) : iProp Σ:=
+    ( if (decide (v = switcher_ret_entry_point))
+      then future_pub_mono
+      else future_priv_mono_pre) C φ v.
+
+  Global Instance future_priv_mono_pers C φ v : Persistent (future_priv_mono C φ v).
   Proof.
-    iIntros "#H". unfold future_pub_mono. iModIntro.
-    iIntros (W W' Hrelated) "Hφ".
-    iApply "H"; eauto.
-    iPureIntro; eauto using related_sts_pub_priv_world.
-  Qed.
+    rewrite /future_priv_mono.
+    destruct (decide (v = switcher_ret_entry_point)); apply _.
+  Defined.
+
+
+  (* Lemma future_priv_mono_is_future_pub_mono (C : CmptName) (φ: (WORLD * CmptName * Word) → iProp Σ) v : *)
+  (*   future_priv_mono C φ v -∗ future_pub_mono C φ v. *)
+  (* Proof. *)
+  (*   iIntros "#H". unfold future_pub_mono. iModIntro. *)
+  (*   iIntros (W W' Hrelated) "Hφ". *)
+  (*   iApply "H"; eauto. *)
+  (*   IPureIntro; eauto using related_sts_pub_priv_world. *)
+  (* Qed. *)
 
   Definition mono_pub (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) :=
     (∀ (w : Word), future_pub_mono C φ w)%I.
+  (* Definition mono_priv_pre (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (p : Perm) := *)
+  (*   (∀ (w : Word), ⌜canStore p w = true ∧ w ≠ switcher_ret_entry_point⌝ -∗ future_priv_mono C φ w)%I. *)
   Definition mono_priv (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (p : Perm) :=
-    (∀ (w : Word), ⌜canStore p w = true⌝ -∗ future_priv_mono C φ w)%I.
+    (∀ (w : Word),
+       if (decide (w = switcher_ret_entry_point))
+       then future_pub_mono C φ w
+       else ( ⌜canStore p w = true ∧ w ≠ switcher_ret_entry_point⌝ -∗ future_priv_mono C φ w ))%I.
+
+
 
   Lemma future_pub_mono_eq_pred C γ φ φ' w :
     saved_pred_own γ DfracDiscarded φ
@@ -242,6 +278,22 @@ Section heap.
     iApply (future_pub_mono_eq_pred with "Hφ Hφ' Hmono");auto.
   Qed.
 
+  Lemma future_priv_mono_pre_eq_pred C γ φ φ' w :
+    saved_pred_own γ DfracDiscarded φ
+    -∗ saved_pred_own γ DfracDiscarded φ'
+    -∗ ▷ future_priv_mono_pre C φ w
+    -∗ ▷ future_priv_mono_pre C φ' w.
+  Proof.
+    iIntros "#Hφ #Hφ' #Hmono".
+    iIntros (W0 W1 Hnot_switcher Hrelated).
+    iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
+    iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
+    iNext; iModIntro.
+    iIntros "Hφv".
+    iRewrite - "Hφeq0" in "Hφv"; iRewrite - "Hφeq1".
+    iApply "Hmono"; eauto.
+  Qed.
+
   Lemma future_priv_mono_eq_pred C γ φ φ' w :
     saved_pred_own γ DfracDiscarded φ
     -∗ saved_pred_own γ DfracDiscarded φ'
@@ -249,13 +301,10 @@ Section heap.
     -∗ ▷ future_priv_mono C φ' w.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (W0 W1 Hrelated).
-    iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
-    iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
-    iNext; iModIntro.
-    iIntros "Hφv".
-    iRewrite - "Hφeq0" in "Hφv"; iRewrite - "Hφeq1".
-    iApply "Hmono"; eauto.
+    rewrite /future_priv_mono.
+    destruct ( decide (w = switcher_ret_entry_point) ).
+    - by iApply (future_pub_mono_eq_pred with "[$Hφ] [$Hφ']"); iFrame.
+    - by iApply (future_priv_mono_pre_eq_pred with "[$Hφ] [$Hφ']"); iFrame.
   Qed.
 
   Lemma mono_priv_eq_pred C γ p φ φ':
@@ -265,9 +314,14 @@ Section heap.
     -∗ ▷ mono_priv C φ' p.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (w Hglobalw).
-    iSpecialize ("Hmono" $! w Hglobalw).
-    iApply (future_priv_mono_eq_pred with "Hφ Hφ' Hmono");auto.
+    rewrite /mono_priv.
+    iIntros (w).
+    iSpecialize ("Hmono" $! w).
+    destruct (decide (w = switcher_ret_entry_point)).
+    - by iApply (future_pub_mono_eq_pred with "[$Hφ] [$Hφ']"); iFrame.
+    - iIntros (Hglobalw).
+      iSpecialize ("Hmono" $! Hglobalw).
+      iApply (future_priv_mono_eq_pred with "Hφ Hφ' Hmono");auto.
   Qed.
 
   (* Asserting that a location is in a specific state in a given World *)
@@ -501,14 +555,14 @@ Section heap.
     iApply (future_pub_mono_eq_pred_rel with "Hrel Hrel' Hmono"); eauto.
   Qed.
 
-  Lemma future_priv_mono_eq_pred_rel C γ p p' φ φ' w :
+  Lemma future_priv_mono_pre_eq_pred_rel C γ p p' φ φ' w :
     rel C γ p φ
     -∗ rel C γ p' φ'
-    -∗ ▷ future_priv_mono C φ w
-    -∗ ▷ future_priv_mono C φ' w.
+    -∗ ▷ future_priv_mono_pre C φ w
+    -∗ ▷ future_priv_mono_pre C φ' w.
   Proof.
     iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (W0 W1 Hrelated).
+    iIntros (W0 W1 Hnot_switcher Hrelated).
     iDestruct (rel_agree _ _ φ φ' with "[$Hrel $Hrel']") as "[_ #Hφeq]".
     iNext; iModIntro.
     iIntros "Hφv".
@@ -518,6 +572,19 @@ Section heap.
     iApply "Hmono"; eauto.
   Qed.
 
+  Lemma future_priv_mono_eq_pred_rel C γ p p' φ φ' w :
+    rel C γ p φ
+    -∗ rel C γ p' φ'
+    -∗ ▷ future_priv_mono C φ w
+    -∗ ▷ future_priv_mono C φ' w.
+    Proof.
+      iIntros "#Hrel #Hrel' #Hmono".
+      rewrite /future_priv_mono.
+      destruct (decide (w = switcher_ret_entry_point)).
+      - iApply (future_pub_mono_eq_pred_rel with "[$Hrel] [$Hrel']"); iFrame "#".
+      - iApply (future_priv_mono_pre_eq_pred_rel with "[$Hrel] [$Hrel']"); iFrame "#".
+    Qed.
+
   Lemma mono_priv_eq_pred_rel C γ p p' φ φ' :
     rel C γ p φ
     -∗ rel C γ p' φ'
@@ -525,12 +592,14 @@ Section heap.
     -∗ ▷ mono_priv C φ' p.
   Proof.
     iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (w Hglobalw).
-    iSpecialize ("Hmono" $! w Hglobalw).
-    iApply (future_priv_mono_eq_pred_rel with "Hrel Hrel' Hmono"); eauto.
+    iIntros (w).
+    iSpecialize ("Hmono" $! w).
+    destruct (decide (w = switcher_ret_entry_point)).
+    - by iApply (future_pub_mono_eq_pred_rel with "[$Hrel] [$Hrel']"); iFrame.
+    - iIntros (Hglobalw).
+      iSpecialize ("Hmono" $! Hglobalw).
+      iApply (future_priv_mono_eq_pred_rel with "Hrel Hrel' Hmono");auto.
   Qed.
-
-
 
   (* ------------------------------------------------------------------- *)
   (* region_map is monotone with regards to public future world relation *)
@@ -550,13 +619,17 @@ Section heap.
     - iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
       iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
       iFrame "%#∗".
-      destruct (isWL p);
-      (iApply "HmonoV"; eauto; iFrame).
+      destruct (isWL p); first iApply "HmonoV"; eauto; iFrame.
+      rewrite /future_priv_mono.
+      destruct (decide (v = switcher_ret_entry_point))
+      ; iApply "HmonoV"; eauto; iFrame.
       iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
     - iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
       iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
       iFrame "%#∗".
-      iApply "HmonoV"; iFrame "∗#"; auto.
+      rewrite /future_priv_mono.
+      destruct (decide (v = switcher_ret_entry_point))
+      ; iApply "HmonoV"; eauto; iFrame.
       iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
     - done.
     - done.
