@@ -205,12 +205,6 @@ Proof.
   eapply lookup_weaken in Heq as ->; auto.
 Qed.
 
-(* Definition seal_perm_sentry (p : Perm) : Perm := *)
-(*   match p with *)
-(*   | BPerm rx w dl dro => E rx w dl dro *)
-(*   | _ => p *)
-(*   end. *)
-
 Section opsem.
   Context `{MachineParameters}.
 

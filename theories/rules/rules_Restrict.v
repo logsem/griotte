@@ -26,21 +26,18 @@ Section cap_lang_rules.
       Restrict_failure regs dst src
   | Restrict_fail_invalid_perm_cap p g b e a n p' g':
       regs !! dst = Some (WCap p g b e a) →
-      (* isSentry p = false -> *)
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       PermFlowsTo p' p = false →
       Restrict_failure regs dst src
   | Restrict_fail_invalid_loc_cap p g b e a n p' g':
       regs !! dst = Some (WCap p g b e a) →
-      (* isSentry p = false -> *)
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       LocalityFlowsTo g' g = false →
       Restrict_failure regs dst src
   | Restrict_fail_PC_overflow_cap p g b e a n p' g':
       regs !! dst = Some (WCap p g b e a) →
-      (* isSentry p = false -> *)
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       PermFlowsTo p' p = true →
@@ -71,7 +68,6 @@ Section cap_lang_rules.
   Inductive Restrict_spec (regs: Reg) (dst: RegName) (src: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
   | Restrict_spec_success_cap p g b e a n p' g':
       regs !! dst = Some (WCap p g b e a) →
-      (* isSentry p = false -> *)
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       PermFlowsTo p' p = true →

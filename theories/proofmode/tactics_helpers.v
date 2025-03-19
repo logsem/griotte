@@ -39,16 +39,6 @@ Section helpers.
     inversion HH; auto.
   Qed.
 
-  (* Lemma isCorrectPC_range_perm_non_E p g b e a0 an : *)
-  (*   isCorrectPC_range p g b e a0 an → *)
-  (*   (a0 < an)%a → *)
-  (*   isSentry p = false. *)
-  (* Proof. *)
-  (*   intros HH1 HH2. *)
-  (*   pose proof (isCorrectPC_range_perm _ _ _ _ _ _ HH1 HH2). *)
-  (*   by eapply executeAllowed_nonSentry. *)
-  (* Qed. *)
-
   Lemma isCorrectPC_range_restrict p g b e a0 an a0' an' :
     isCorrectPC_range p g b e a0 an →
     (a0 <= a0')%a ∧ (an' <= an)%a →

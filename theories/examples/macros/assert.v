@@ -162,15 +162,6 @@ Section Assert.
       Mov rdst 0%Z
     ].
 
-  (* Lemma updatePcPerm_seal_perm_sentry (p : Perm) (g : Locality) (b e a : Addr) : *)
-  (*   isSentry p = false -> *)
-  (*   updatePcPerm (WCap (seal_perm_sentry p) g b e a) = WCap p g b e a. *)
-  (* Proof. *)
-  (*   intros Hsentry. *)
-  (*   destruct p; auto. *)
-  (*   by cbn in Hsentry. *)
-  (* Qed. *)
-
   Lemma assert_success_spec
     (n : Z) (rdst rscratch1 rscratch2 : RegName)
     (pc_g : Locality) (pc_p : Perm) (pc_b pc_e pc_a : Addr)

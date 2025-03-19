@@ -664,16 +664,6 @@ Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
   | _ => false
   end.
 
-(* Lemma sentry_flowsfrom (rx : RXperm) (w : Wperm) (dl : DLperm) (dro : DROperm) (p : Perm) : *)
-(*   isSentry p = false *)
-(*   -> PermFlowsTo (E rx w dl dro) p *)
-(*   -> PermFlowsTo (BPerm rx w dl dro) p. *)
-(* Proof. *)
-(*   intros Hsentry Hp. *)
-(*   destruct p as [rx1 pw1 dl1 dro1|]; try done. *)
-(*   cbn in Hp |- *. *)
-(*   by apply andb_prop_elim in Hp ; destruct Hp. *)
-(* Qed. *)
 
 (** FlowsTo relation for locality *)
 
@@ -772,12 +762,6 @@ Proof.
   destruct_perm p; auto ; done.
 Qed.
 
-(* Lemma readAllowed_nonSentry (p : Perm) : *)
-(*   readAllowed p = true -> isSentry p = false. *)
-(* Proof. *)
-(*   intros Hexec. *)
-(*   destruct_perm p; cbn in *; done. *)
-(* Qed. *)
 
 (* Lemmas about writeAllowed *)
 
@@ -806,13 +790,6 @@ Proof.
   destruct_perm p; auto ; try congruence.
 Qed.
 
-(* Lemma writeAllowed_nonSentry (p : Perm) : *)
-(*   writeAllowed p = true -> isSentry p = false. *)
-(* Proof. *)
-(*   intros Hexec. *)
-(*   destruct_perm p; cbn in *; done. *)
-(* Qed. *)
-
 
 (* Lemmas about executeAllowed *)
 
@@ -840,13 +817,6 @@ Proof.
   intros Hxa.
   destruct_perm p; auto; try congruence.
 Qed.
-
-(* Lemma executeAllowed_nonSentry (p : Perm) : *)
-(*   executeAllowed p = true -> isSentry p = false. *)
-(* Proof. *)
-(*   intros Hexec. *)
-(*   destruct_perm p; cbn in *; done. *)
-(* Qed. *)
 
 Lemma executeAllowed_is_readAllowed (p : Perm) :
   executeAllowed p = true
@@ -891,13 +861,6 @@ Proof.
   intros Hra.
   destruct_perm p; auto ; try congruence.
 Qed.
-
-(* Lemma isWL_nonSentry (p : Perm) : *)
-(*   isWL p = true -> isSentry p = false. *)
-(* Proof. *)
-(*   intros Hexec. *)
-(*   destruct_perm p; cbn in *; done. *)
-(* Qed. *)
 
 
 (* Lemmas about isO *)
@@ -1032,13 +995,6 @@ Proof.
   by rewrite Tauto.if_same in HcanStore.
 Qed.
 
-(* Lemma canStore_nonSentry (p : Perm) (w : Word) : *)
-(*   canStore p w = true -> isSentry p = false. *)
-(* Proof. *)
-(*   intros HcanStore. *)
-(*   by eapply writeAllowed_nonSentry, canStore_writeAllowed. *)
-(* Qed. *)
-
 Lemma writeAllowed_canStore_int (p : Perm) (z : Z) :
   writeAllowed p = true ->
   canStore p (WInt z) = true.
@@ -1066,7 +1022,6 @@ Proof.
   destruct p.
   - rewrite /canStore in HcanStore.
     destruct (isLocalWord w); congruence.
-  (* - apply canStore_nonSentry in HcanStore; cbn; done. *)
 Qed.
 
 Lemma canStoreRWL (w : Word) : canStore RWL w = true.
@@ -1074,16 +1029,6 @@ Proof.
   rewrite /canStore.
   destruct (isLocalWord w); done.
 Qed.
-
-(* Lemmas about updatePcPerm *)
-(* Lemma updatePcPerm_cap_nonSentry *)
-(*   (p : Perm) (g : Locality) (b e a : Addr) : *)
-(*   isSentry p = false -> *)
-(*   updatePcPerm (WCap p g b e a) = WCap p g b e a. *)
-(* Proof. *)
-(*   intros HnE. destruct_perm p; cbn in *; try done. *)
-(* Qed. *)
-
 
 (* Lemmas about load_word *)
 Lemma load_word_cap
@@ -1302,13 +1247,6 @@ Proof.
   inversion HcPC.
   by eapply executeAllowed_nonO, executeAllowed_flowsto.
 Qed.
-
-(* Lemma isCorrectPC_nonSentry p g b e a : *)
-(*   isCorrectPC (WCap p g b e a) → isSentry p = false. *)
-(* Proof. *)
-(*   intros HcPC; inv HcPC. *)
-(*   destruct_perm p; naive_solver. *)
-(* Qed. *)
 
 Lemma in_range_is_correctPC p g b e a b' e' :
   isCorrectPC (WCap p g b e a) →
