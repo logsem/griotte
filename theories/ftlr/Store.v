@@ -13,6 +13,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
+    {switcherg :switcherG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
@@ -286,6 +287,10 @@ Section fundamental.
     iIntros (Hstda Hrevoked Hfrozen HcanStore) "Hmono".
     rewrite /monoReq Hstda.
     destruct ρ; auto; cbn; [destruct (isWL p)|].
+    all: try iApply "Hmono"; auto.
+    all: iSpecialize ("Hmono" $! w).
+    all: rewrite /future_priv_mono.
+    all: destruct ( decide (w = switcher_ret_entry_point) ); auto.
     all: try iApply "Hmono"; auto.
   Qed.
 

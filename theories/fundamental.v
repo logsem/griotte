@@ -12,6 +12,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
+    {switcherg :switcherG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
@@ -390,7 +391,10 @@ Section fundamental.
     assert (isO p = false) by (by eapply executeAllowed_nonO).
     assert (isSentry p = false) by (by eapply executeAllowed_nonSentry).
     destruct g.
-    - iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
+    - iDestruct (interp_monotone_nl with "Hfuture [] [] Hw") as "Hw'";[auto| |].
+      { iPureIntro. rewrite switcher_ret_correct.
+        intro; simplify_eq.
+      }
       iApply fundamental;eauto.
       iApply interp_weakening.interp_weakeningEO; eauto; try done.
     - iDestruct (interp_monotone with "Hfuture Hw") as "Hw'".
@@ -434,12 +438,25 @@ Section fundamental.
     }
     { destruct Hw as (rw & pw & dl & dro & g & b & e & a & ->).
       rewrite fixpoint_interp1_eq /=.
-      iIntros (rmap). iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw".
-      iPoseProof (futureworld_refl g W) as "Hfuture".
-      iSpecialize ("Hw" $! W (futureworld_refl g W)).
-      iNext. iIntros "(HPC & Hr & ?)".
-      iDestruct "Hw" as "[Hw _]".
-      iApply "Hw"; eauto. iFrame.
+      iIntros (rmap).
+      destruct (
+         decide (WCap (E rw pw dl dro) g b e a = switcher_ret_entry_point)
+        ); cycle 1.
+      - rewrite decide_False //.
+        iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw".
+        iPoseProof (futureworld_refl g W) as "Hfuture".
+        iSpecialize ("Hw" $! W (futureworld_refl g W)).
+        iNext. iIntros "(HPC & Hr & ?)".
+        iDestruct "Hw" as "[Hw _]".
+        iApply "Hw"; eauto. iFrame.
+      - rewrite decide_True //.
+        rewrite switcher_ret_correct in e0; simplify_eq.
+        iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw".
+        iPoseProof (futureworld_refl Local W) as "Hfuture".
+        iSpecialize ("Hw" $! W with "Hfuture").
+        iNext. iIntros "(HPC & Hr & ?)".
+        iDestruct "Hw" as "[Hw _]".
+        iApply "Hw"; eauto. iFrame.
     }
     { iNext. iIntros (rmap). iApply fundamental; eauto. }
   Qed.
@@ -449,26 +466,43 @@ Section fundamental.
      -∗ (if decide (isCorrectPC (updatePcPerm w))
          then (∃ p g b e a,
                   ⌜w = WCap p g b e a⌝
-                  ∗ □ ∀ regs W', future_world g W W'
-                              → ▷ (interp_expr interp regs W' C) (updatePcPerm w))
+                  ∗ □ ∀ regs W',
+                 future_world
+                   (if decide (w = switcher_ret_entry_point) then Local else g)
+                   W W'
+                 → ▷ (interp_expr interp regs W' C) (updatePcPerm w))
          else φ FailedV ∗ PC ↦ᵣ updatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.
     iIntros "#Hw".
+    rewrite switcher_ret_correct.
     destruct (decide (isCorrectPC (updatePcPerm w))).
     - inversion i.
       destruct w;inv H. destruct sb; inv H3.
       + destruct p0; cbn in * ; simplify_eq.
         * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
           iDestruct (interp_exec_cond with "Hw") as "Hexec";[auto|].
+          rewrite decide_False //.
           iApply exec_wp;auto.
         * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
           rewrite /= fixpoint_interp1_eq /=.
           iDestruct "Hw" as "#Hw".
           iIntros (regs W') "Hfuture".
-          iSpecialize ("Hw" with "Hfuture").
-          iDestruct "Hw" as "[Hw _]".
-          iExact "Hw".
+          destruct (decide (WCap (E rx w dl dro) g0 b0 e0 a0 = switcher_ret_entry_point))
+            as [Hswitcher|Hswitcher]
+          ; rewrite switcher_ret_correct in Hswitcher ; simplify_eq ; cycle 1.
+          ** rewrite switcher_ret_correct.
+             rewrite decide_False //.
+             rewrite decide_False //.
+             iSpecialize ("Hw" with "Hfuture").
+             iDestruct "Hw" as "[Hw _]".
+             iExact "Hw".
+          ** rewrite switcher_ret_correct.
+             rewrite decide_True //.
+             rewrite decide_True //.
+             iSpecialize ("Hw" with "Hfuture").
+             iDestruct "Hw" as "[Hw _]".
+             iExact "Hw".
     - iIntros "[Hfailed HPC]".
       iApply (wp_bind (fill [SeqCtx])).
       iApply (wp_notCorrectPC with "HPC");eauto.

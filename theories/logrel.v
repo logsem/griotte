@@ -35,6 +35,7 @@ Section logrel.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
+    {switcherg :switcherG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
@@ -181,6 +182,20 @@ Section logrel.
     solve_contractive.
   Qed.
 
+  Definition switcher_cond (W : WORLD) (C : CmptName) (p : Perm) (g : Locality) (b e a : Addr) (interp : D) : iProp Σ :=
+    (∀ r W', future_world Local W W' →
+             (▷ interp_expr interp r W' C (WCap p g b e a))
+               ∗ (▷ interp_expr interp r W' C (WCap p Local b e a))
+    )%I.
+  Global Instance switcher_cond_ne n :
+    Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) switcher_cond.
+  Proof. unfold switcher_cond. solve_proper. Qed.
+  Global Instance switcher_cond_contractive W C p g b e a :
+    Contractive (λ interp, switcher_cond W C p g b e a interp).
+  Proof.
+    solve_contractive.
+  Qed.
+
   Definition persistent_cond (P:D) := (∀ WCv, Persistent (P WCv.1.1 WCv.1.2  WCv.2)).
 
   (* interp definitions *)
@@ -228,7 +243,9 @@ Section logrel.
   Program Definition interp_cap_E (interp : D) : D :=
     λne W C w, (match w with
                 | WCap (E rx pw dl dro) g b e a =>
-                    (□ enter_cond W C (BPerm rx pw dl dro) g b e a interp)
+                    if (decide (w = switcher_ret_entry_point))
+                    then (□ switcher_cond W C XSRW_ Global switcher_base switcher_end switcher_ret_addr interp)
+                    else (□ enter_cond W C (BPerm rx pw dl dro) g b e a interp)
                 | _ => False
                 end)%I.
   Solve All Obligations with solve_proper.
@@ -393,7 +410,9 @@ Section logrel.
           if (isSentry p)
           then ∃ rx pw dl dro,
               ⌜ p = (E rx pw dl dro)⌝
-              ∗ □ enter_cond W C (BPerm rx pw dl dro) g b e a interp
+              ∗ if (decide ((WCap p g b e a) = switcher_ret_entry_point))
+                then (□ switcher_cond W C XSRW_ Global switcher_base switcher_end switcher_ret_addr interp)
+                else (□ enter_cond W C (BPerm rx pw dl dro) g b e a interp)
           else
             if (has_sreg_access p)
             then False
