@@ -48,13 +48,11 @@ Section fundamental.
       iApply wp_value; auto.
     }
 
-    iAssert (interp W C (WCap (seal_perm_sentry p) g b e pc_a')) as "Hinterp_ret".
-    { pose proof (isCorrectPC_nonSentry p _ _ _ _ HcorrectPC ) as HpnotSentry.
-      iApply (interp_weakening with "IH Hinv_interp");eauto;try solve_addr.
-      - rewrite /seal_perm_sentry; destruct p ; cbn in HpnotSentry; try congruence.
-        repeat (apply andb_True;split; try reflexivity).
-        destruct Hp as [Hexec _].
-        destruct rx; cbn in Hexec ; try congruence;done.
+    iAssert (interp W C (WSentry p g b e pc_a')) as "Hinterp_ret".
+    {
+      iApply (interp_weakeningSentry with "IH Hinv_interp");eauto;try solve_addr.
+      - destruct Hp as [Hexec _].
+        by apply executeAllowed_nonO.
       - reflexivity.
     }
 
@@ -64,14 +62,13 @@ Section fundamental.
     { iNext; iIntros "_".
       iApply (wp_bind (fill [SeqCtx])).
       iExtract "Hmap" PC as "HPC".
-      iApply (wp_notCorrectPC with "HPC") ; [eapply not_isCorrectPC_perm|].
-      { rewrite /seal_perm_sentry ; by destruct p. }
+      iApply (wp_notCorrectPC with "HPC"); first by inversion 1.
       iNext; iIntros "HPC /=".
       iApply wp_pure_step_later; auto; iNext; iIntros "_".
       iApply wp_value; iIntros; discriminate.
     }
 
-    destruct (updatePcPerm wsrc) eqn:Hwsrc ; [ | destruct sb | ]; cycle 1.
+    destruct (updatePcPerm wsrc) eqn:Hwsrc ; [ | destruct sb | | ]; cycle 1.
     { destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
         iApply (wp_bind (fill [SeqCtx])).
@@ -89,7 +86,7 @@ Section fundamental.
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
         rewrite !insert_insert insert_commute //.
-        iApply ("IH" $! _ _ (<[rdst:=WCap (seal_perm_sentry p) g b e pc_a']> regs) with
+        iApply ("IH" $! _ _ (<[rdst:=WSentry p g b e pc_a']> regs) with
                  "[%] [] [$Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
         - intros; cbn.
           rewrite lookup_insert_is_Some.
@@ -104,19 +101,14 @@ Section fundamental.
             iDestruct ("Hreg" $! rsrc _ HrsrcPC Hrsrc) as "Hrsrc"; eauto.
       }
       { assert (rsrc <> PC) as HPCnrsrc.
-        { intro; subst rsrc; simplify_map_eq.
-          destruct Hp as [Hexec _]
-          ; eapply executeAllowed_nonSentry in Hexec
-          ; eauto ; cbn in Hexec
-          ; naive_solver.
-        }
+        { intro; subst rsrc; simplify_map_eq. }
         simplify_map_eq.
         iDestruct ("Hreg" $! rsrc _ HPCnrsrc Hrsrc) as "Hwsrc".
         iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
         simpl; rewrite /enter_cond.
         iDestruct "Hwsrc" as "#Hinterp_src".
 
-        destruct ( decide (WCap (E rx w0 dl dro) g0 b0 e0 a0 = switcher_ret_entry_point) ) as [? |?].
+        destruct ( decide (WSentry p0 g0 b0 e0 a0 = switcher_ret_entry_point) ) as [? |?].
         - rewrite (decide_True ( P:= (_ = switcher_ret_entry_point))); last done.
           rewrite switcher_ret_correct in e1; simplify_eq.
           iAssert (future_world Local W W) as "Hfuture".

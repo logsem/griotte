@@ -92,7 +92,7 @@ Section cap_lang_rules.
        }
         iFailWP "Hφ" UnSeal_fail_sealr.
      }
-     destruct r1v as [ | [ | p g b e a ] | ]; try inversion Hr1v. clear Hr1v.
+     destruct r1v as [ | [ | p g b e a ] | | ]; try inversion Hr1v. clear Hr1v.
 
      destruct (is_sealed r2v) eqn:Hr2v.
      2:{ (* Failure: r2 is not a sealrange *)
@@ -103,7 +103,7 @@ Section cap_lang_rules.
        }
         iFailWP "Hφ" UnSeal_fail_sealed.
      }
-     destruct r2v as [ | [ | ]  | a' sb ]; try inversion Hr2v. clear Hr2v.
+     destruct r2v as [ | [ | ] | | a' sb ]; try inversion Hr2v. clear Hr2v.
 
      destruct (decide (permit_unseal p = true ∧ withinBounds b e a = true ∧ a' = a)) as [ [ Hpu [Hwb ->] ] | HFalse].
      2 : { (* Failure: one of the side conditions failed *)
@@ -320,7 +320,7 @@ Section cap_lang_rules.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | ]; last by iApply "Hφ".
-    { destruct wsealed as [| | o' sb']; try by simplify_map_eq.
+    { destruct wsealed as [| | | o' sb' ]; try by simplify_map_eq.
       exfalso.
       rewrite /is_sealed_with_o //= in Hfalse.
       destruct (decide (o' = a)) as [->| Hne]; [solve_addr | simplify_map_eq]. }

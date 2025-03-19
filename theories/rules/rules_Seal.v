@@ -92,7 +92,7 @@ Section cap_lang_rules.
        }
         iFailWP "Hφ" Seal_fail_sealr.
      }
-     destruct r1v as [ | [ | p g b e a ] | ]; try inversion Hr1v. clear Hr1v.
+     destruct r1v as [ | [ | p g b e a ] | | ]; try inversion Hr1v. clear Hr1v.
 
      destruct (is_sealb r2v) eqn:Hr2v.
      2:{ (* Failure: r2 is not a sealrange *)
@@ -103,7 +103,7 @@ Section cap_lang_rules.
        }
         iFailWP "Hφ" Seal_fail_sealb.
      }
-     destruct r2v as [ | sb | ]; try inversion Hr2v. clear Hr2v.
+     destruct r2v as [ | sb | | ]; try inversion Hr2v. clear Hr2v.
 
      destruct (permit_seal p && withinBounds b e a) eqn:HSA.
      2 : { (* Failure: r2 is either not within bounds or doesnt allow sealing *)

@@ -79,9 +79,6 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (writeAllowed _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (PermFlowsTo _ _ = true) => reflexivity : solve_pure.
 (* Permissions allowed *)
-#[export] Hint Resolve executeAllowed_nonSentry : solve_pure.
-#[export] Hint Resolve writeAllowed_nonSentry : solve_pure.
-#[export] Hint Resolve readAllowed_nonSentry : solve_pure.
 #[export] Hint Resolve executeAllowed_is_readAllowed : solve_pure.
 (* Follows the same behavior as the Hint Mode for PermFlowsTo *)
 #[export] Hint Extern 1 (PermFlowsTo ?p ?p' = true) =>
@@ -121,10 +118,6 @@ Proof. auto. Qed.
 (* is_z *)
 #[export] Hint Extern 1 (is_z _ = false) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (is_z _ = true) => reflexivity : solve_pure.
-
-(* isSentry *)
-#[export] Hint Extern 1 (isSentry (BPerm _ _ _ _) = false) => done : solve_pure.
-#[export] Hint Extern 1 (isSentry E = true) => done : solve_pure.
 
 (* canStore *)
 #[export] Hint Extern 1 (canStore WO (WCap _ Global _ _ _ ) = true) => done : solve_pure.
@@ -174,7 +167,6 @@ Goal forall (r_t1 r_t2 r_t3: RegName), exists r1 r2 r3,
   r1 = r_t2 ∧ r2 = r_t2 ∧ r3 = r_t3.
 Proof. do 3 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
 
-Goal forall rx w dl dro, (E rx w dl dro) ≠ RO. solve_pure. Qed.
 Goal forall (P: Prop), P → P. intros. solve_pure. Qed.
 
 Goal forall w, canStore RWL w = true. Proof. intros. solve_pure. Qed.

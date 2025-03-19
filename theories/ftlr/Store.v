@@ -46,12 +46,13 @@ Section fundamental.
   Proof.
     iIntros (Hflp Hwoa Hras Hststd) "HInt".
     destruct Hras as (Hrir & Hwa & Hwb & Hloc).
-    destruct storev as [z | sb | ot sb ].
+    destruct storev as [z | sb | | ot sb ].
     - iApply (interp_monotone_generalZ with "[HInt]" ); eauto.
     - destruct sb ;
         [ iApply (interp_monotone_generalW with "[HInt]" )
         | iApply (interp_monotone_generalSr with "[HInt]" )]
       ; eauto.
+    - iApply (interp_monotone_generalSentry with "[HInt]"); eauto.
     - iApply (interp_monotone_generalSd with "[HInt]" ); eauto.
   Qed.
 
@@ -349,6 +350,13 @@ Section fundamental.
         + simplify_map_eq.
           iSpecialize ("Hreg" $! r _ n Hwoa).
           done.
+      - destruct r2. cbn in Hwoa; inversion Hwoa; by exfalso.
+        cbn in Hwoa.
+        destruct (decide (r = PC)).
+        + subst r; simplify_map_eq.
+        + simplify_map_eq.
+          iSpecialize ("Hreg" $! r _ n Hwoa).
+          done.
     }
     destruct Hallows as [Hrinr [Hwa [Hwb Hloc] ] ].
     case_decide as Haeq.
@@ -439,7 +447,7 @@ Section fundamental.
       specialize Hsome' with dst as Hdst.
       destruct Hdst as [wdst Hsomedst].
       unfold read_reg_inr. rewrite Hsomedst.
-      destruct wdst as [|[ p0 g0 b0 e0 a0|] | ]; try done.
+      destruct wdst as [|[ p0 g0 b0 e0 a0|] | | ]; try done.
       by repeat eexists.
     }
 

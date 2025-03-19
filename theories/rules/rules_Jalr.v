@@ -22,7 +22,7 @@ Section cap_lang_rules.
   | Jalr_spec_success regs' pc_a' wsrc :
     regs !! rsrc = Some wsrc ->
     (pc_a + 1)%a = Some pc_a' ->
-    regs' = (<[rdst := (WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a') ]>
+    regs' = (<[rdst := (WSentry pc_p pc_g pc_b pc_e pc_a') ]>
               (<[PC :=  updatePcPerm wsrc ]>
                regs)) →
     Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs' NextIV
@@ -88,7 +88,7 @@ Section cap_lang_rules.
           PC ↦ᵣ updatePcPerm wsrc
           ∗ pc_a ↦ₐ w
           ∗ rsrc ↦ᵣ wsrc
-          ∗ rdst ↦ᵣ WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a'
+          ∗ rdst ↦ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
@@ -118,7 +118,7 @@ Section cap_lang_rules.
       {{{ RET NextIV;
           PC ↦ᵣ updatePcPerm (WCap pc_p pc_g pc_b pc_e pc_a)
           ∗ pc_a ↦ₐ w
-          ∗ rdst ↦ᵣ WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a'
+          ∗ rdst ↦ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".
@@ -148,7 +148,7 @@ Section cap_lang_rules.
       {{{ RET NextIV;
           PC ↦ᵣ updatePcPerm wdst
           ∗ pc_a ↦ₐ w
-          ∗ rdst ↦ᵣ WCap (seal_perm_sentry pc_p) pc_g pc_b pc_e pc_a'
+          ∗ rdst ↦ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".

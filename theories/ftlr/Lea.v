@@ -42,7 +42,7 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ * Hdst ? Hz Hoffset HincrPC | * Hdst Hz Hoffset HincrPC | ]
+    destruct HSpec as [ * Hdst Hz Hoffset HincrPC | * Hdst Hz Hoffset HincrPC | ]
     ; cycle 2.
     { iApply wp_pure_step_later; auto.
       iNext; iIntros "_".

@@ -240,19 +240,18 @@ Section logrel.
   Definition interp_z : D := λne _ _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
   Definition interp_cap_O : D := λne _ _ _, True%I.
 
-  Program Definition interp_cap_E (interp : D) : D :=
+  Program Definition interp_sentry (interp : D) : D :=
     λne W C w, (match w with
-                | WCap (E rx pw dl dro) g b e a =>
+                | WSentry p g b e a =>
                     if (decide (w = switcher_ret_entry_point))
                     then (□ switcher_cond W C XSRW_ Global switcher_base switcher_end switcher_ret_addr interp)
-                    else (□ enter_cond W C (BPerm rx pw dl dro) g b e a interp)
+                    else (□ enter_cond W C p g b e a interp)
                 | _ => False
                 end)%I.
   Solve All Obligations with solve_proper.
 
   Program Definition interp_cap (interp : D) : D :=
     λne W C w, (match w with
-              | WCap (E _ _ _ _) _ _ _ _
               | WCap (O _ _) _ _ _ _
               | WCap (BPerm XSR _ _ _) _ _ _ _ (* XRS capabilities are never safe-to-share *)
               | WCap (BPerm _ WL _ _) Global _ _ _ (* WL Global capabilities are never safe-to-share *)
@@ -310,8 +309,8 @@ Section logrel.
     match w return _ with
     | WInt _ => interp_z W C w
     | WCap (O _ _) g b e a => interp_cap_O W C w
-    | WCap (E _ _ _ _) g b e a => interp_cap_E interp W C w
     | WCap _ g b e a => interp_cap interp W C w
+    | WSentry p g b e a => interp_sentry interp W C w
     | WSealRange p g b e a => interp_sr interp W C w
     | WSealed o sb => interp_sb W C o (WSealable sb)
     end)%I.
@@ -321,12 +320,12 @@ Section logrel.
     Contractive (interp_cap_O).
   Proof. solve_contractive. Qed.
 
-  Global Instance interp_cap_E_contractive :
-    Contractive (interp_cap_E).
+  Global Instance interp_sentry_contractive :
+    Contractive (interp_sentry).
   Proof.
     solve_proper_prepare.
     destruct_word x2; auto.
-    destruct c ; auto.
+    destruct sd ; auto.
     destruct rx,w,g; auto.
     all: solve_contractive.
   Qed.
@@ -354,16 +353,16 @@ Section logrel.
   Global Instance interp1_contractive :
     Contractive (interp1).
   Proof.
-   (*  intros n x y Hdistn W C w. *)
-   (*  rewrite /interp1. *)
-   (*  destruct_word w; [auto|..]. *)
-   (*  + destruct c; first auto ; cycle 1. *)
-   (*    - by apply interp_cap_E_contractive. *)
-   (*    - destruct rx,w,dl,dro. *)
-   (*      par: try (by apply interp_cap_O_contractive). *)
-   (*      par: by apply interp_cap_contractive. *)
-   (* + by apply interp_sr_contractive. *)
-   (* + rewrite /interp_sb; solve_contractive. *)
+    (* intros n x y Hdistn W C w. *)
+    (* rewrite /interp1. *)
+    (* destruct_word w; [auto|..]. *)
+    (* + destruct c; first auto. *)
+    (*   destruct rx,w,dl,dro. *)
+    (*   par: try (by apply interp_cap_O_contractive). *)
+    (*   par: by apply interp_cap_contractive. *)
+    (* + by apply interp_sr_contractive. *)
+    (* + by apply interp_sentry_contractive. *)
+    (* + rewrite /interp_sb; solve_contractive. *)
   Admitted. (* TODO holds, but very loooong *)
 
   Lemma fixpoint_interp1_eq (W : WORLD) (C : CmptName) (w : leibnizO Word) :
@@ -381,6 +380,7 @@ Section logrel.
     (* - apply _. *)
     (* - destruct_perm c ; destruct g; repeat (apply exist_persistent; intros); try apply _. *)
     (* - destruct (permit_seal sr), (permit_unseal sr); rewrite /safe_to_seal /safe_to_unseal; apply _ . *)
+    (* - apply _. *)
     (* - apply exist_persistent; intros P. *)
     (*   unfold Persistent. iIntros "(%Hpers & #Hmono & #Hs & HP & HPborrowed)". *)
     (*   (* use knowledge about persistence *) *)
@@ -407,34 +407,24 @@ Section logrel.
        (if (isO p)
         then True
         else
-          if (isSentry p)
-          then ∃ rx pw dl dro,
-              ⌜ p = (E rx pw dl dro)⌝
-              ∗ if (decide ((WCap p g b e a) = switcher_ret_entry_point))
-                then (□ switcher_cond W C XSRW_ Global switcher_base switcher_end switcher_ret_addr interp)
-                else (□ enter_cond W C (BPerm rx pw dl dro) g b e a interp)
-          else
-            if (has_sreg_access p)
-            then False
-            else ([∗ list] a ∈ finz.seq_between b e,
-                    ∃ (p' : Perm) (P:D),
-                      ⌜PermFlowsTo p p'⌝
-                      ∗ ⌜persistent_cond P⌝
-                      ∗ rel C a p' (safeC P)
-                      ∗ ▷ zcond P C
-                      ∗ (if readAllowed p' then ▷ (rcond P C p' interp) else True)
-                      ∗ (if writeAllowed p' then ▷ (wcond P C interp) else True)
-                      ∗ monoReq W C a p' P
-                      ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
-                 ∗ (⌜ if isWL p then g = Local else True⌝))%I).
+          if (has_sreg_access p)
+          then False
+          else ([∗ list] a ∈ finz.seq_between b e,
+                  ∃ (p' : Perm) (P:D),
+                    ⌜PermFlowsTo p p'⌝
+                    ∗ ⌜persistent_cond P⌝
+                    ∗ rel C a p' (safeC P)
+                    ∗ ▷ zcond P C
+                    ∗ (if readAllowed p' then ▷ (rcond P C p' interp) else True)
+                    ∗ (if writeAllowed p' then ▷ (wcond P C interp) else True)
+                    ∗ monoReq W C a p' P
+                    ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
+               ∗ (⌜ if isWL p then g = Local else True⌝))%I).
   Proof.
     (* iSplit. *)
     (* { iIntros "HA". *)
     (*   destruct (isO p) eqn:HnotO; subst; auto. *)
-    (*   destruct (isSentry p) eqn:Hsentry. *)
-    (*   { destruct p; cbn in Hsentry; [congruence| by iFrame]. } *)
-    (*   destruct p; cbn in Hsentry; try congruence; auto ; clear Hsentry. *)
-    (*   cbn. *)
+    (*   destruct p; cbn. *)
     (*   destruct rx ; destruct w ; try (cbn in HnotO ; congruence); auto. *)
     (*   all: destruct g ;auto ; try (iSplit;eauto). *)
     (*   all: try (iApply (big_sepL_mono with "HA"); intros k a' ?; iIntros "H"). *)
@@ -444,19 +434,13 @@ Section logrel.
     (* { iIntros "A". *)
     (*   destruct (isO p) eqn:HnotO; subst; auto. *)
     (*   { destruct_perm p ; cbn in *;auto;try congruence. } *)
-    (*   destruct (isSentry p) eqn:Hsentry. *)
-    (*   { destruct p; cbn in Hsentry; [congruence|]. *)
-    (*     iDestruct "A" as (rx' pw' dl' dro') "[%Hpeq A]". *)
-    (*     by inv Hpeq. *)
-    (*   } *)
     (*   destruct (has_sreg_access p) eqn:HnotXSR; subst; auto. *)
     (*   iDestruct "A" as "(A & %)". *)
-    (*   destruct_perm p; cbn in HnotO,Hsentry,HnotXSR; try congruence; auto ; clear Hsentry. *)
+    (*   destruct_perm p; cbn in HnotO,HnotXSR; try congruence; auto. *)
     (*   all: destruct g eqn:Hg; simplify_eq ; eauto ; cbn. *)
     (*   all: try (iApply (big_sepL_mono with "A"); intros; iIntros "H"). *)
     (*   all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a')"). *)
     (*   all: try (iExists p',P ; iFrame "#∗"; repeat (iSplit;[done|];done)). *)
-    (*   all: try (iApply (big_sepL_mono with "A"); intros; iIntros "H"). *)
     (* } *)
   Admitted. (* TODO holds, but very long to compile *)
 
@@ -482,8 +466,6 @@ Section logrel.
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Ra ;done. }
-    replace (isSentry p) with false.
-    2: { eapply readAllowed_nonSentry in Ra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
@@ -514,8 +496,6 @@ Section logrel.
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Ra ;done. }
-    replace (isSentry p) with false.
-    2: { eapply writeAllowed_nonSentry in Ra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
@@ -537,8 +517,6 @@ Section logrel.
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Hra ;done. }
-    replace (isSentry p) with false.
-    2: { eapply readAllowed_nonSentry in Hra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
@@ -561,8 +539,6 @@ Section logrel.
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Hra ;done. }
-    replace (isSentry p) with false.
-    2: { eapply writeAllowed_nonSentry in Hra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
@@ -593,8 +569,6 @@ Section logrel.
     rewrite fixpoint_interp1_eq interp1_eq; cbn.
     replace (isO p) with false.
     2: { eapply isWL_nonO in Hp ;done. }
-    replace (isSentry p) with false.
-    2: { eapply isWL_nonSentry in Hp ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
@@ -653,8 +627,6 @@ Section logrel.
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
       replace (isO c) with false.
       2: { eapply readAllowed_nonO in Hrar ;done. }
-      replace (isSentry c) with false.
-      2: { eapply readAllowed_nonSentry in Hrar ;done. }
       destruct (has_sreg_access c) eqn:HnXSR; auto.
       iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
       iDestruct (extract_from_region_inv with "Hinterp_w")
@@ -680,8 +652,6 @@ Section logrel.
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
       replace (isO c) with false.
       2: { eapply writeAllowed_nonO in Hwaw ;done. }
-      replace (isSentry c) with false.
-      2: { eapply writeAllowed_nonSentry in Hwaw ;done. }
       destruct (has_sreg_access c) eqn:HnXSR; auto.
       iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
       iDestruct (extract_from_region_inv with "Hinterp_w")

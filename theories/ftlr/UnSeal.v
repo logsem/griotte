@@ -90,20 +90,6 @@ Section fundamental.
     iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
     { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
 
-    (* If PC=dst and perm of unsealed cap = E -> error! *)
-    destruct (decide (PC = dst ∧ isSentry p'' = true)) as [ [Herr1 Herr2] | HNoError].
-    { (* Error case *)
-      simplify_map_eq.
-      iExtract "Hmap" PC as "HPC".
-      iApply (wp_bind (fill [SeqCtx])).
-      iApply (wp_notCorrectPC_perm with "[HPC]"); eauto.
-      { destruct p'' ; cbn in Herr2 |- *; done. }
-      iIntros "!> _".
-      iApply wp_pure_step_later; auto.
-      iNext; iIntros "_".
-      iApply wp_value;auto.
-    }
-
     destruct (decide (PC = dst)) as [Heq | Hne]; cycle 1.
     { (* PC ≠ dst *)
       simplify_map_eq; map_simpl "Hmap".
@@ -129,7 +115,6 @@ Section fundamental.
       - iApply ("IH" $! _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
         ; eauto.
         iApply (interp_weakening with "IH HVsb"); eauto; try solve_addr; try done.
-        by apply executeAllowed_nonSentry.
       - (* not executable *)
         iApply (wp_bind (fill [SeqCtx])).
         iExtract "Hmap" PC as "HPC".

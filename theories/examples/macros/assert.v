@@ -162,14 +162,14 @@ Section Assert.
       Mov rdst 0%Z
     ].
 
-  Lemma updatePcPerm_seal_perm_sentry (p : Perm) (g : Locality) (b e a : Addr) :
-    isSentry p = false ->
-    updatePcPerm (WCap (seal_perm_sentry p) g b e a) = WCap p g b e a.
-  Proof.
-    intros Hsentry.
-    destruct p; auto.
-    by cbn in Hsentry.
-  Qed.
+  (* Lemma updatePcPerm_seal_perm_sentry (p : Perm) (g : Locality) (b e a : Addr) : *)
+  (*   isSentry p = false -> *)
+  (*   updatePcPerm (WCap (seal_perm_sentry p) g b e a) = WCap p g b e a. *)
+  (* Proof. *)
+  (*   intros Hsentry. *)
+  (*   destruct p; auto. *)
+  (*   by cbn in Hsentry. *)
+  (* Qed. *)
 
   Lemma assert_success_spec
     (n : Z) (rdst rscratch1 rscratch2 : RegName)
@@ -196,7 +196,7 @@ Section Assert.
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
      ∗ codefrag pc_a assert_macro
-     ∗ (pc_b ^+ n)%a ↦ₐ (WCap E_RX g_assert b_assert e_assert b_assert)
+     ∗ (pc_b ^+ n)%a ↦ₐ (WSentry RX g_assert b_assert e_assert b_assert)
      ∗ ▷ (na_own logrel_nais E
           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
           ∗ rdst ↦ᵣ WInt 0
@@ -206,7 +206,7 @@ Section Assert.
           ∗ ct0 ↦ᵣ WInt 0
           ∗ ct1 ↦ᵣ WInt 0
           ∗ codefrag pc_a assert_macro
-          ∗ (pc_b ^+ n)%a ↦ₐ (WCap E_RX g_assert b_assert e_assert b_assert)
+          ∗ (pc_b ^+ n)%a ↦ₐ (WSentry RX g_assert b_assert e_assert b_assert)
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
@@ -225,7 +225,7 @@ Section Assert.
     iEval (cbn) in "HPC".
     iApply (assert_subroutine_success_spec with "[-]"); eauto; iFrame "#∗".
     iNext; iIntros "(Hna & HPC & Hcra & Hct0 & Hct1)".
-    rewrite updatePcPerm_seal_perm_sentry; last solve_pure.
+    iEval (cbn) in "HPC".
     iGo "Hassert".
     unfocus_block "Hassert" "Hcont" as "Hcode".
     replace (a_assert ^+ 5)%a with (pc_a ^+ 14)%a by solve_addr.

@@ -66,7 +66,6 @@ Section fundamental.
     { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
     iApply ("IH" $! _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
     iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity.
-    by eapply isCorrectPC_nonSentry.
   Qed.
 
 End fundamental.

@@ -15,7 +15,7 @@ Class switcherG := MkSwitcher
     switcher_ret_addr : Addr;
     switcher_ret_entry_point : Word;
     switcher_ret_correct :
-    switcher_ret_entry_point = WCap E_XSRW_ Global switcher_base switcher_end switcher_ret_addr;
+    switcher_ret_entry_point = WSentry XSRW_ Global switcher_base switcher_end switcher_ret_addr;
   }.
 
 (* We will first define the standard STS for the shared part of the heap *)
