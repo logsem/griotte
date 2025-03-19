@@ -29,14 +29,13 @@ Section fundamental.
   Implicit Types interp : (D).
 
   Lemma subseg_interp_preserved W C p g b b' e e' a :
-      isSentry p = false ->
       (b <= b')%a ->
       (e' <= e)%a ->
       ftlr_IH -∗
       interp W C (WCap p g b e a) -∗
       interp W C (WCap p g b' e' a).
   Proof.
-    intros Hne Hb He. iIntros "#IH Hinterp".
+    intros Hb He. iIntros "#IH Hinterp".
     iApply (interp_weakening with "IH Hinterp"); eauto.
     - destruct p; reflexivity.
     - destruct g; reflexivity.
@@ -57,7 +56,7 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ * Hdst ? Hao1 Hao2 Hwi HincrPC | * Hdst Hoo1 Hoo2 Hwi HincrPC | ]
+    destruct HSpec as [ * Hdst Hao1 Hao2 Hwi HincrPC | * Hdst Hoo1 Hoo2 Hwi HincrPC | ]
                         ; cycle 2.
     { iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto. }

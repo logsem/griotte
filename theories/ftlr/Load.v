@@ -343,7 +343,7 @@ Section fundamental.
       specialize Hsome' with src as Hsrc.
       destruct Hsrc as [wsrc Hsomesrc].
       unfold read_reg_inr. rewrite Hsomesrc.
-      destruct wsrc as [|[ p0 g0 b0 e0 a0|] | ]; try done.
+      destruct wsrc as [|[ p0 g0 b0 e0 a0|] | | ]; try done.
       by repeat eexists.
     }
 
@@ -410,7 +410,6 @@ Section fundamental.
         + iApply (interp_next_PC with "Hinv_interp"); eauto.
         + rewrite H.
           iApply (interp_weakening with "IH HLVInterp"); eauto; try solve_addr; try done.
-          by apply executeAllowed_nonSentry.
        }
     }
     { iApply wp_pure_step_later; auto.

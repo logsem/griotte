@@ -9,8 +9,8 @@ Section CMDC_Main.
   (* Expect:
      pc := (RX, Global, b_main, e_main, b_main_code )
 
-     b_main + 0 : WCap E_XSRW_ b_switcher e_switcher a_cc_switcher
-     b_main + 1 : WCap E_RX b_assert e_assert a_assert
+     b_main + 0 : WSentry XSRW_ b_switcher e_switcher a_cc_switcher
+     b_main + 1 : WSentry RX b_assert e_assert a_assert
      b_main + 2 : WSealed ot_switcher B.f
      b_main + 3 : WSealed ot_switcher C.g
 
@@ -79,8 +79,8 @@ Section CMDC_Main.
     (b_assert e_assert : Addr)
     (B_f C_g : Sealable) : list Word :=
     [
-      WCap E_XSRW_ Global b_switcher e_switcher a_cc_switcher;
-      WCap E_RX Global b_assert e_assert b_assert;
+      WSentry XSRW_ Global b_switcher e_switcher a_cc_switcher;
+      WSentry RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_f;
       WSealed ot_switcher C_g
     ].

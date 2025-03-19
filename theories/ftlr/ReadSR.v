@@ -45,12 +45,6 @@ Section fundamental.
         ; eapply executeAllowed_nonO in Hexec
         ; congruence.
       }
-      destruct (isSentry p) eqn:HpnotSentry.
-      { destruct Hp as [Hexec _]
-        ; eapply executeAllowed_nonSentry in Hexec
-        ; eauto
-        ; congruence.
-      }
       destruct (has_sreg_access p) eqn:HpXRS'; first done.
       congruence.
     }

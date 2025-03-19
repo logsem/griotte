@@ -205,12 +205,6 @@ Proof.
   eapply lookup_weaken in Heq as ->; auto.
 Qed.
 
-Definition seal_perm_sentry (p : Perm) : Perm :=
-  match p with
-  | BPerm rx w dl dro => E rx w dl dro
-  | _ => p
-  end.
-
 Section opsem.
   Context `{MachineParameters}.
 
@@ -236,7 +230,7 @@ Section opsem.
             match (a + 1)%a with
             | Some a' =>
                 let φ_next := (update_reg φ PC (updatePcPerm wrsrc)) in
-                let φ_dst := (update_reg φ_next rdst (WCap (seal_perm_sentry p) g b e a')) in
+                let φ_dst := (update_reg φ_next rdst (WSentry p g b e a')) in
                 Some (NextI, φ_dst)
             | None => None
             end
@@ -275,13 +269,10 @@ Section opsem.
       wdst ← (reg φ) !! dst;
       match wdst with
       | WCap p g b e a =>
-        match isSentry p with
-        | true => None
-        | _ => match (a + n)%a with
-               | Some a' => updatePC (update_reg φ dst (WCap p g b e a'))
-               | None => None
-               end
-        end
+          match (a + n)%a with
+          | Some a' => updatePC (update_reg φ dst (WCap p g b e a'))
+          | None => None
+          end
       | WSealRange p g b e a =>
          match (a + n)%ot with
           | Some a' => updatePC (update_reg φ dst (WSealRange p g b e a'))
@@ -294,14 +285,10 @@ Section opsem.
       wdst ← (reg φ) !! dst;
       match wdst with
       | WCap p g b e a =>
-        match isSentry p with
-        | true => None
-        | _ =>
-            let (p',g') := decodePermPair n in
-            if PermFlowsTo p' p && LocalityFlowsTo g' g then
-                updatePC (update_reg φ dst (WCap p' g' b e a))
-              else None
-        end
+          let (p',g') := decodePermPair n in
+          if PermFlowsTo p' p && LocalityFlowsTo g' g then
+            updatePC (update_reg φ dst (WCap p' g' b e a))
+          else None
       | WSealRange p g b e a =>
             let (p',g') := decodeSealPermPair n in
             if SealPermFlowsTo p' p && LocalityFlowsTo g' g  then
@@ -347,13 +334,9 @@ Section opsem.
     | WCap p g b e a =>
       a1 ← addr_of_argument (reg φ) ρ1;
       a2 ← addr_of_argument (reg φ) ρ2;
-      match isSentry p with
-      | true => None
-      | _ =>
-          if isWithin a1 a2 b e then
-            updatePC (update_reg φ dst (WCap p g a1 a2 a))
-          else None
-      end
+      if isWithin a1 a2 b e then
+        updatePC (update_reg φ dst (WCap p g a1 a2 a))
+      else None
     | WSealRange p g b e a =>
       o1 ← otype_of_argument (reg φ) ρ1;
       o2 ← otype_of_argument (reg φ) ρ2;
@@ -365,35 +348,40 @@ Section opsem.
   | GetA dst r =>
     wr ← (reg φ) !! r;
     match wr with
-    | WCap _ _ _ _ a => updatePC (update_reg φ dst (WInt a))
+    | WCap _ _ _ _ a
+    | WSentry _ _ _ _ a
     | WSealRange _ _ _ _ a => updatePC (update_reg φ dst (WInt a))
     | _ => None
     end
   | GetB dst r =>
     wr ← (reg φ) !! r;
     match wr with
-    | WCap _ _ b _ _ => updatePC (update_reg φ dst (WInt b))
+    | WCap _ _ b _ _
+    | WSentry _ _ b _ _
     | WSealRange _ _ b _ _ => updatePC (update_reg φ dst (WInt b))
     | _ => None
     end
   | GetE dst r =>
     wr ← (reg φ) !! r;
     match wr with
-    | WCap _ _ _ e _ => updatePC (update_reg φ dst (WInt e))
+    | WCap _ _ _ e _
+    | WSentry _ _ _ e _
     | WSealRange _ _ _ e _ => updatePC (update_reg φ dst (WInt e))
     | _ => None
     end
   | GetP dst r =>
     wr ← (reg φ) !! r;
     match wr with
-    | WCap p _ _ _ _ => updatePC (update_reg φ dst (WInt (encodePerm p)))
+    | WCap p _ _ _ _
+    | WSentry p _ _ _ _ => updatePC (update_reg φ dst (WInt (encodePerm p)))
     | WSealRange p _ _ _ _ => updatePC (update_reg φ dst (WInt (encodeSealPerms p)))
     | _ => None
     end
   | GetL dst r =>
     wr ← (reg φ) !! r;
     match wr with
-    | WCap _ l _ _ _ => updatePC (update_reg φ dst (WInt (encodeLoc l)))
+    | WCap _ l _ _ _
+    | WSentry _ l _ _ _
     | WSealRange _ l _ _ _ => updatePC (update_reg φ dst (WInt (encodeLoc l)))
     | _ => None
     end

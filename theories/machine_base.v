@@ -34,7 +34,6 @@ Inductive DROperm : Type :=
 
 Inductive Perm: Type :=
 | BPerm (rx: RXperm) (w: Wperm) (dl: DLperm) (dro: DROperm)
-| E (rx: RXperm) (w: Wperm) (dl: DLperm) (dro: DROperm)    (* Sentry, unseals to (BPerm rw w dl dro) *)
 .
 
 Notation O dl dro       := (BPerm Orx Ow dl dro).
@@ -94,63 +93,6 @@ Notation XSRWL_DL       := (BPerm XSR WL DL LM).
 Notation XSRWL_DRO      := (BPerm XSR WL LG DRO).
 Notation XSRWL_DL_DRO   := (BPerm XSR WL DL DRO).
 
-
-Notation E_WO           := (E Orx W LG LM).
-Notation E_WO_DL        := (E Orx W DL LM).
-Notation E_WO_DRO       := (E Orx W LG DRO).
-Notation E_WO_DL_DRO    := (E Orx W DL DRO).
-
-Notation E_WLO          := (E Orx WL LG LM).
-Notation E_WLO_DL       := (E Orx WL DL LM).
-Notation E_WLO_DRO      := (E Orx WL LG DRO).
-Notation E_WLO_DL_DRO   := (E Orx WL DL DRO).
-
-Notation E_RO           := (E R Ow LG LM).
-Notation E_RO_DL        := (E R Ow DL LM).
-Notation E_RO_DRO       := (E R Ow LG DRO).
-Notation E_RO_DL_DRO    := (E R Ow DL DRO).
-
-Notation E_RW           := (E R W LG LM).
-Notation E_RW_DL        := (E R W DL LM).
-Notation E_RW_DRO       := (E R W LG DRO).
-Notation E_RW_DL_DRO    := (E R W DL DRO).
-
-Notation E_RWL          := (E R WL LG LM).
-Notation E_RWL_DL       := (E R WL DL LM).
-Notation E_RWL_DRO      := (E R WL LG DRO).
-Notation E_RWL_DL_DRO   := (E R WL DL DRO).
-
-Notation E_RX           := (E X Ow LG LM).
-Notation E_RX_DL        := (E X Ow DL LM).
-Notation E_RX_DRO       := (E X Ow LG DRO).
-Notation E_RX_DL_DRO    := (E X Ow DL DRO).
-
-Notation E_RWX          := (E X W LG LM).
-Notation E_RWX_DL       := (E X W DL LM).
-Notation E_RWX_DRO      := (E X W LG DRO).
-Notation E_RWX_DL_DRO   := (E X W DL DRO).
-
-Notation E_RWLX         := (E X WL LG LM).
-Notation E_RWLX_DL      := (E X WL DL LM).
-Notation E_RWLX_DRO     := (E X WL LG DRO).
-Notation E_RWLX_DL_DRO  := (E X WL DL DRO).
-
-Notation E_XSR_         := (E XSR Ow LG LM).
-Notation E_XSR_DL       := (E XSR Ow DL LM).
-Notation E_XSR_DRO      := (E XSR Ow LG DRO).
-Notation E_XSR_DL_DRO   := (E XSR Ow DL DRO).
-
-Notation E_XSRW_        := (E XSR W LG LM).
-Notation E_XSRW_DL      := (E XSR W DL LM).
-Notation E_XSRW_DRO     := (E XSR W LG DRO).
-Notation E_XSRW_DL_DRO  := (E XSR W DL DRO).
-
-Notation E_XSRWL_       := (E XSR WL LG LM).
-Notation E_XSRWL_DL     := (E XSR WL DL LM).
-Notation E_XSRWL_DRO    := (E XSR WL LG DRO).
-Notation E_XSRWL_DL_DRO := (E XSR WL DL DRO).
-
-
 Inductive Locality: Type :=
 | Global
 | Local.
@@ -169,7 +111,9 @@ Inductive Sealable: Type :=
 Inductive Word: Type :=
 | WInt (z : Z)
 | WSealable (sb : Sealable)
-| WSealed (ot : OType) (sb : Sealable).
+| WSentry (p : Perm) (g : Locality) (b e a : Addr)
+| WSealed (ot : OType) (sb : Sealable)
+.
 
 Notation WCap p g b e a := (WSealable (SCap p g b e a)).
 Notation WSealRange p g b e a := (WSealable (SSealRange p g b e a)).
@@ -248,14 +192,15 @@ Ltac destruct_word w :=
   let c := fresh "c" in
   let sr := fresh "sr" in
   let sd := fresh "sd" in
-  destruct w as [ z | [c | sr] | sd].
+  let e := fresh "e" in
+  destruct w as [ z | [c | sr] | sd | e].
 
 Ltac destruct_perm p :=
   let rx := fresh "rx" in
   let w := fresh "w" in
   let dl := fresh "dl" in
   let dro := fresh "dro" in
-  destruct p as [rx w dl dro | rx w dl dro ]; destruct rx, w, dl, dro.
+  destruct p as [rx w dl dro]; destruct rx, w, dl, dro.
 
 Ltac destruct_sealperm p :=
   let b := fresh "b" in
@@ -299,6 +244,13 @@ Definition is_sealed (w : Word) : bool :=
   |  _ => false
   end.
 
+(* Sealed <-> Word *)
+Definition is_sentry (w : Word) : bool :=
+  match w with
+  | WSentry _ _ _ _ _ => true
+  |  _ => false
+  end.
+
 Definition is_sealed_with_o (w : Word) (o : OType) : bool :=
   match w with
   | WSealed o' sb => (o =? o')%ot
@@ -308,7 +260,7 @@ Definition is_sealed_with_o (w : Word) (o : OType) : bool :=
 (* non-E capability or range of seals *)
 Definition is_mutable_range (w : Word) : bool:=
   match w with
-  | WCap p _ _ _ _ => match p with | E _ _ _ _ => false | _ => true end
+  | WCap p _ _ _ _ => true
   | WSealRange _ _ _ _ _ => true
   | _ => false end.
 
@@ -350,14 +302,12 @@ Definition isWL p : bool :=
 Definition isDL p : bool :=
   match p with
   | BPerm _ _ DL _
-  | E _ _ DL _ => true
   | _ => false
   end.
 
 Definition isDRO p : bool :=
   match p with
   | BPerm _ _ _ DRO
-  | E _ _ _ DRO => true
   | _ => false
   end.
 
@@ -366,12 +316,6 @@ Definition isO (p : Perm) : bool :=
   | BPerm Orx Ow _ _ => true
   | _ => false
   end.
-
-Definition isSentry (p : Perm) : bool :=
- match p with
-   | E _ _ _ _ => true
-   | BPerm _ _ _ _ => false
- end.
 
 Definition isLocal (l: Locality): bool :=
   match l with
@@ -387,6 +331,7 @@ Definition isLocalSealable (sb : Sealable): bool :=
 Definition isLocalWord (w : Word): bool :=
   match w with
   | WInt _ => false
+  | WSentry _ l _ _ _ => isLocal l
   | WSealed _ sb
   | WSealable sb => isLocalSealable sb
   end.
@@ -405,6 +350,7 @@ Definition isGlobalSealable (sb : Sealable): bool :=
 Definition isGlobalWord (w : Word): bool :=
   match w with
   | WInt _ => false
+  | WSentry _ l _ _ _ => isGlobal l
   | WSealed _ sb
   | WSealable sb => isGlobalSealable sb
   end.
@@ -445,7 +391,7 @@ Definition readAllowed_a_in_regs (r : Reg) (a : Addr) :=
 (* Turn E into RX, and ESR into XSR after a jump *)
 Definition updatePcPerm (w: Word): Word :=
   match w with
-  | WCap (E rx pw dl dro) g b e a => WCap (BPerm rx pw dl dro) g b e a
+  | WSentry p g b e a => WCap p g b e a
   | _ => w
   end.
 
@@ -464,13 +410,18 @@ Definition cap_size (w : Word) : Z :=
 Definition deeplocal_perm (p : Perm) :=
   match p with
   | BPerm rx w _ dro => BPerm rx w DL dro
-  | E rx w dl dro => E rx w dl dro
   end.
 
 Definition deeplocal_sb (sb : Sealable) :=
   match sb with
   | SCap p g b e a => SCap (deeplocal_perm p) g b e a
   | SSealRange sp g b e a => SSealRange sp g b e a
+  end.
+
+Definition deeplocal (w : Word) :=
+  match w with
+  | WSealable sb => WSealable (deeplocal_sb sb)
+  | _ => w
   end.
 
 Definition borrow_sb (sb : Sealable) :=
@@ -482,20 +433,14 @@ Definition borrow_sb (sb : Sealable) :=
 Definition borrow (w : Word) :=
   match w with
   | WSealable sb => WSealable (borrow_sb sb)
+  | WSentry p _ b e a => WSentry p Local b e a
   | WSealed ot sb => WSealed ot (borrow_sb sb)
-  | _ => w
-  end.
-
-Definition deeplocal (w : Word) :=
-  match w with
-  | WSealable sb => WSealable (deeplocal_sb sb)
   | _ => w
   end.
 
 Definition readonly_perm (p : Perm) :=
   match p with
   | BPerm rx _ dl _ => BPerm rx Ow dl DRO
-  | E rx w dl dro => E rx w dl dro
   end.
 
 Definition readonly_sb (sb : Sealable) :=
@@ -522,7 +467,6 @@ Definition load_word_perm (pload p : Perm) :=
                             (if isDL pload then DL else dl)
                             (if isDRO pload then DRO else dro)
                          )
-  | E rx pw dl dro => E rx pw dl dro
   end.
 
 
@@ -672,18 +616,6 @@ Definition PermFlowsTo (p1 p2: Perm): bool :=
       && WPermFlowsTo w1 w2
       && DLPermFlowsTo dl1 dl2
       && DROPermFlowsTo dro1 dro2
-  | E rx1 w1 dl1 dro1, E rx2 w2 dl2 dro2 =>
-      bool_decide (rx1 = rx2)
-      && bool_decide (w1 = w2)
-      && bool_decide (dl1 = dl2)
-      && bool_decide (dro1 = dro2)
-  | E rx1 w1 dl1 dro1, BPerm rx2 w2 dl2 dro2 =>
-      RXPermFlowsTo rx1 rx2
-      && WPermFlowsTo w1 w2
-      && DLPermFlowsTo dl1 dl2
-      && DROPermFlowsTo dro1 dro2
-      && RXPermFlowsTo X rx1
-  | _, _ => false
   end.
 
 (* Sanity check *)
@@ -691,11 +623,11 @@ Lemma PermFlowsTo_trans:
   transitive _ PermFlowsTo.
 Proof.
   red. intros p1 p2 p3 Hp12 Hp23.
-  destruct p1 as [rx1 w1 dl1 dro1|rx1 w1 dl1 dro1]
-           , p2 as [rx2 w2 dl2 dro2|rx2 w2 dl2 dro2]
-           , p3  as [rx3 w3 dl3 dro3|rx3 w3 dl3 dro3]
+  destruct p1 as [rx1 w1 dl1 dro1]
+           , p2 as [rx2 w2 dl2 dro2]
+           , p3  as [rx3 w3 dl3 dro3]
              ; try done.
-  - cbn in *.
+  cbn in *.
     apply andb_prop_elim in Hp12,Hp23
     ; destruct Hp12 as [Hp12 Hdro12]
     ; destruct Hp23 as [Hp23 Hdro23].
@@ -706,47 +638,6 @@ Proof.
     ; destruct Hp12 as [Hrx12 Hw12]
     ; destruct Hp23 as [Hrx23 Hw23].
     repeat (apply andb_prop_intro;split;try by etransitivity).
-  - cbn in *.
-    apply andb_prop_elim in Hp12
-    ; destruct Hp12 as [Hp12 HX12].
-    apply andb_prop_elim in Hp12,Hp23
-    ; destruct Hp12 as [Hp12 Hdro12]
-    ; destruct Hp23 as [Hp23 Hdro23].
-    apply andb_prop_elim in Hp12,Hp23
-    ; destruct Hp12 as [Hp12 Hdl12]
-    ; destruct Hp23 as [Hp23 Hdl23].
-    apply andb_prop_elim in Hp12,Hp23
-    ; destruct Hp12 as [Hrx12 Hw12]
-    ; destruct Hp23 as [Hrx23 Hw23].
-    repeat (apply andb_prop_intro;split;try by etransitivity).
-    done.
-  - cbn in *.
-    apply andb_prop_elim in Hp23
-    ; destruct Hp23 as [Hp23 HX23].
-    apply andb_prop_elim in Hp12,Hp23
-    ; destruct Hp12 as [Hp12 Hdro12%bool_decide_spec]
-    ; destruct Hp23 as [Hp23 Hdro23].
-    apply andb_prop_elim in Hp12,Hp23
-    ; destruct Hp12 as [Hp12 Hdl12%bool_decide_spec]
-    ; destruct Hp23 as [Hp23 Hdl23].
-    apply andb_prop_elim in Hp12,Hp23
-    ; destruct Hp12 as [Hrx12%bool_decide_spec Hw12%bool_decide_spec]
-    ; destruct Hp23 as [Hrx23 Hw23].
-    simplify_eq.
-    repeat (apply andb_prop_intro;split;try by etransitivity).
-    done.
-  - cbn in *.
-    apply andb_prop_elim in Hp12,Hp23
-    ; destruct Hp12 as [Hp12 Hdro12%bool_decide_spec]
-    ; destruct Hp23 as [Hp23 Hdro23%bool_decide_spec].
-    apply andb_prop_elim in Hp12,Hp23
-    ; destruct Hp12 as [Hp12 Hdl12%bool_decide_spec]
-    ; destruct Hp23 as [Hp23 Hdl23%bool_decide_spec].
-    apply andb_prop_elim in Hp12,Hp23
-    ; destruct Hp12 as [Hrx12%bool_decide_spec Hw12%bool_decide_spec]
-    ; destruct Hp23 as [Hrx23%bool_decide_spec Hw23%bool_decide_spec].
-    simplify_eq.
-    repeat (apply andb_prop_intro;split; try by apply bool_decide_spec).
 Qed.
 
 Global Instance PermFlowsToTransitive: Transitive PermFlowsTo.
@@ -773,16 +664,6 @@ Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
   | _ => false
   end.
 
-Lemma sentry_flowsfrom (rx : RXperm) (w : Wperm) (dl : DLperm) (dro : DROperm) (p : Perm) :
-  isSentry p = false
-  -> PermFlowsTo (E rx w dl dro) p
-  -> PermFlowsTo (BPerm rx w dl dro) p.
-Proof.
-  intros Hsentry Hp.
-  destruct p as [rx1 pw1 dl1 dro1|]; try done.
-  cbn in Hp |- *.
-  by apply andb_prop_elim in Hp ; destruct Hp.
-Qed.
 
 (** FlowsTo relation for locality *)
 
@@ -881,12 +762,6 @@ Proof.
   destruct_perm p; auto ; done.
 Qed.
 
-Lemma readAllowed_nonSentry (p : Perm) :
-  readAllowed p = true -> isSentry p = false.
-Proof.
-  intros Hexec.
-  destruct_perm p; cbn in *; done.
-Qed.
 
 (* Lemmas about writeAllowed *)
 
@@ -915,13 +790,6 @@ Proof.
   destruct_perm p; auto ; try congruence.
 Qed.
 
-Lemma writeAllowed_nonSentry (p : Perm) :
-  writeAllowed p = true -> isSentry p = false.
-Proof.
-  intros Hexec.
-  destruct_perm p; cbn in *; done.
-Qed.
-
 
 (* Lemmas about executeAllowed *)
 
@@ -948,13 +816,6 @@ Lemma executeAllowed_nonO (p : Perm) :
 Proof.
   intros Hxa.
   destruct_perm p; auto; try congruence.
-Qed.
-
-Lemma executeAllowed_nonSentry (p : Perm) :
-  executeAllowed p = true -> isSentry p = false.
-Proof.
-  intros Hexec.
-  destruct_perm p; cbn in *; done.
 Qed.
 
 Lemma executeAllowed_is_readAllowed (p : Perm) :
@@ -999,13 +860,6 @@ Lemma isWL_nonO p:
 Proof.
   intros Hra.
   destruct_perm p; auto ; try congruence.
-Qed.
-
-Lemma isWL_nonSentry (p : Perm) :
-  isWL p = true -> isSentry p = false.
-Proof.
-  intros Hexec.
-  destruct_perm p; cbn in *; done.
 Qed.
 
 
@@ -1137,16 +991,8 @@ Proof.
   intros HcanStore.
   rewrite /canStore in HcanStore.
   destruct p; cbn in *.
-  - destruct w0; cbn in *; try done.
-    by rewrite Tauto.if_same in HcanStore.
-  - destruct (isLocalWord w); by cbn in *.
-Qed.
-
-Lemma canStore_nonSentry (p : Perm) (w : Word) :
-  canStore p w = true -> isSentry p = false.
-Proof.
-  intros HcanStore.
-  by eapply writeAllowed_nonSentry, canStore_writeAllowed.
+  destruct w0; cbn in *; try done.
+  by rewrite Tauto.if_same in HcanStore.
 Qed.
 
 Lemma writeAllowed_canStore_int (p : Perm) (z : Z) :
@@ -1155,7 +1001,6 @@ Lemma writeAllowed_canStore_int (p : Perm) (z : Z) :
 Proof.
   intros Hwa.
   destruct p; first done.
-  - apply writeAllowed_nonSentry in Hwa ; done.
 Qed.
 
 Lemma canStore_local_isWL (p : Perm) (w : Word) :
@@ -1164,9 +1009,8 @@ Lemma canStore_local_isWL (p : Perm) (w : Word) :
   -> isWL p = true.
 Proof.
   intros Hw HcanStore.
-  destruct p; cycle 1.
-  - apply canStore_nonSentry in HcanStore; cbn; done.
-  - by rewrite /canStore Hw in HcanStore.
+  destruct p.
+  by rewrite /canStore Hw in HcanStore.
 Qed.
 
 Lemma canStore_global_nonisWL (p : Perm) (w : Word) :
@@ -1178,7 +1022,6 @@ Proof.
   destruct p.
   - rewrite /canStore in HcanStore.
     destruct (isLocalWord w); congruence.
-  - apply canStore_nonSentry in HcanStore; cbn; done.
 Qed.
 
 Lemma canStoreRWL (w : Word) : canStore RWL w = true.
@@ -1186,16 +1029,6 @@ Proof.
   rewrite /canStore.
   destruct (isLocalWord w); done.
 Qed.
-
-(* Lemmas about updatePcPerm *)
-Lemma updatePcPerm_cap_nonSentry
-  (p : Perm) (g : Locality) (b e a : Addr) :
-  isSentry p = false ->
-  updatePcPerm (WCap p g b e a) = WCap p g b e a.
-Proof.
-  intros HnE. destruct_perm p; cbn in *; try done.
-Qed.
-
 
 (* Lemmas about load_word *)
 Lemma load_word_cap
@@ -1210,12 +1043,12 @@ Proof.
 Qed.
 
 Lemma load_word_sentry
-  (p : Perm) (rx : RXperm) (w : Wperm) (dl : DLperm) (dro : DROperm)
+  (p' : Perm) (p : Perm)
   (g : Locality) (b e a : Addr) :
-  load_word p (WCap (E rx w dl dro) g b e a ) = (WCap (E rx w dl dro) (if isDL p then Local else g) b e a ).
+  load_word p' (WSentry p g b e a ) = (WSentry p (if isDL p' then Local else g) b e a ).
 Proof.
   rewrite /load_word.
-  by destruct (isDRO p),(isDL p); cbn.
+  by destruct (isDRO p'),(isDL p'); cbn.
 Qed.
 
 Lemma load_word_int (p : Perm) (z : Z) :
@@ -1242,7 +1075,7 @@ Qed.
 Lemma load_word_perm_flows (pload p : Perm) :
   PermFlowsTo (load_word_perm pload p) p.
 Proof.
-  destruct p; [| done].
+  destruct p.
   repeat (apply andb_True;split).
   + reflexivity.
   + destruct (isDRO pload) eqn:Hdro; done.
@@ -1255,8 +1088,7 @@ Lemma load_word_perm_load_flows (pload pload' p : Perm) :
   PermFlowsTo (load_word_perm pload p) (load_word_perm pload' p).
 Proof.
   intro Hfl.
-  destruct p; cbn; cycle 1.
-  { repeat (apply andb_prop_intro; split; try by apply bool_decide_spec). }
+  destruct p; cbn.
   repeat (apply andb_True;split).
   + reflexivity.
   + destruct (isDRO pload) eqn:Hdro; first done.
@@ -1337,6 +1169,7 @@ Proof.
       + right. red; intros HH; inversion HH; subst. congruence.
     -- right. red; intros H. inversion H.
  - right. red; intros H. inversion H.
+ - right. red; intros H. inversion H.
 Qed.
 
 Lemma isCorrectPC_ra_wb pc_p pc_g pc_b pc_e pc_a :
@@ -1413,13 +1246,6 @@ Proof.
   intros Hfl HcPC.
   inversion HcPC.
   by eapply executeAllowed_nonO, executeAllowed_flowsto.
-Qed.
-
-Lemma isCorrectPC_nonSentry p g b e a :
-  isCorrectPC (WCap p g b e a) → isSentry p = false.
-Proof.
-  intros HcPC; inv HcPC.
-  destruct_perm p; naive_solver.
 Qed.
 
 Lemma in_range_is_correctPC p g b e a b' e' :
@@ -1527,14 +1353,12 @@ Defined.
 Global Instance perm_countable : Countable Perm.
 Proof.
   set encode :=
-    fun p => match p with
-          | BPerm rx w dl dro => inl (rx,w,dl,dro)
-          | E rx w dl dro => inr (rx,w,dl,dro)
+    fun (p : Perm) => match p with
+          | BPerm rx w dl dro => (rx,w,dl,dro)
           end.
   set decode :=
     fun n => match n with
-          | inl (rx,w,dl,dro) => BPerm rx w dl dro
-          | inr (rx,w,dl,dro) => E rx w dl dro
+          | (rx,w,dl,dro) => BPerm rx w dl dro
           end.
   refine (inj_countable' encode decode _).
   intro p. destruct p; reflexivity.
@@ -1575,13 +1399,15 @@ Global Instance word_countable : Countable Word.
 Proof.
   set (enc := fun w =>
       match w with
-      | WInt z => inl z
+      | WInt z => inl (inl z)
+      | WSentry p g b e a => inl (inr (p,g,b,e,a))
       | WSealable sb => inr (inl sb)
       | WSealed x x0 => inr (inr (x, x0))
       end ).
   set (dec := fun e =>
       match e with
-      | inl z => WInt z
+      | inl (inl z) => WInt z
+      | inl (inr (p,g,b,e,a)) => WSentry p g b e a
       | inr (inl sb) => WSealable sb
       | inr (inr (x, x0)) => WSealed x x0
       end ).

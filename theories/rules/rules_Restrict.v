@@ -26,21 +26,18 @@ Section cap_lang_rules.
       Restrict_failure regs dst src
   | Restrict_fail_invalid_perm_cap p g b e a n p' g':
       regs !! dst = Some (WCap p g b e a) →
-      isSentry p = false ->
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       PermFlowsTo p' p = false →
       Restrict_failure regs dst src
   | Restrict_fail_invalid_loc_cap p g b e a n p' g':
       regs !! dst = Some (WCap p g b e a) →
-      isSentry p = false ->
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       LocalityFlowsTo g' g = false →
       Restrict_failure regs dst src
   | Restrict_fail_PC_overflow_cap p g b e a n p' g':
       regs !! dst = Some (WCap p g b e a) →
-      isSentry p = false ->
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       PermFlowsTo p' p = true →
@@ -71,7 +68,6 @@ Section cap_lang_rules.
   Inductive Restrict_spec (regs: Reg) (dst: RegName) (src: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
   | Restrict_spec_success_cap p g b e a n p' g':
       regs !! dst = Some (WCap p g b e a) →
-      isSentry p = false ->
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       PermFlowsTo p' p = true →
@@ -138,22 +134,18 @@ Section cap_lang_rules.
      2: { (* Failure: wdst is not of the right type *)
        unfold is_mutable_range in Hwdst.
        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-       { destruct wdst as [ | [p b e a | ] | ]; try by inversion Hwdst.
+       { destruct wdst as [ | [p b e a | ] | | ]; try by inversion Hwdst.
          all: try by simplify_pair_eq.
-         destruct_perm p; cbn in *; try congruence.
-         all: simplify_pair_eq; auto. }
+       }
        iFailWP "Hφ" Restrict_fail_allowed. }
 
     (* Now the proof splits depending on the type of value in wdst *)
-    destruct wdst as [ | [p g b e a | p g b e a] | ].
-    1,4: inversion Hwdst.
+    destruct wdst as [ | [p g b e a | p g b e a] | | ].
+    1,4,5: inversion Hwdst.
     destruct (decodePermPair wsrc) as [p' g'] eqn:HdecPair.
 
      (* First, the case where r1v is a capability *)
-     + destruct (isSentry p) eqn:Hsentry; cbn in *.
-       { destruct_perm p ; cbn in *; rewrite /is_mutable_range in Hwdst; try congruence. }
-
-       destruct (PermFlowsTo p' p) eqn:HPflows; cycle 1.
+     + destruct (PermFlowsTo p' p) eqn:HPflows; cycle 1.
        { destruct p; try congruence; inv Hstep
          ; iFailWP "Hφ" Restrict_fail_invalid_perm_cap. }
 
@@ -244,8 +236,6 @@ Section cap_lang_rules.
      iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      by unfold regs_of; rewrite !dom_insert; set_solver+.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-     assert (isSentry pc_p = false).
-     { inversion Hvpc; subst. eapply executeAllowed_nonSentry; eauto. }
 
      destruct Hspec as [| | * Hfail].
      { (* Success *)
@@ -258,7 +248,6 @@ Section cap_lang_rules.
        simplify_map_eq. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       destruct_perm pc_p; cbn in * ; try congruence.
        incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
 
@@ -269,7 +258,6 @@ Section cap_lang_rules.
      (p',g') = (decodePermPair z) ->
      PermFlowsTo p' p = true →
      LocalityFlowsTo g' g = true →
-     isSentry p = false ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
          ∗ ▷ pc_a ↦ₐ w
@@ -282,7 +270,7 @@ Section cap_lang_rules.
            ∗ rv ↦ᵣ WInt z
            ∗ r1 ↦ᵣ WCap p' g' b e a }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' HdecPair HPflows HLflows Hnp ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+     iIntros (Hinstr Hvpc Hpca' HdecPair HPflows HLflows ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
      iDestruct (map_of_regs_3 with "HPC Hr1 Hrv") as "[Hmap (%&%&%)]".
      iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      by unfold regs_of; rewrite !dom_insert; set_solver+.
@@ -299,7 +287,6 @@ Section cap_lang_rules.
        simplify_map_eq. }
     { (* Failure (contradiction) *)
       destruct Hfail; simplify_map_eq; eauto; try congruence.
-      destruct_perm p; cbn in *; congruence.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
 
@@ -323,8 +310,6 @@ Section cap_lang_rules.
      iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)".
      iDestruct "Hspec" as %Hspec.
-     assert (isSentry pc_p = false).
-     { inversion Hvpc; subst. eapply executeAllowed_nonSentry; eauto. }
 
      destruct Hspec as [ | | * Hfail ].
      { (* Success *)
@@ -335,7 +320,6 @@ Section cap_lang_rules.
        simplify_map_eq. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       destruct_perm pc_p; cbn in *; congruence.
        incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
 
@@ -346,7 +330,7 @@ Section cap_lang_rules.
      (p',g') = (decodePermPair z) ->
      PermFlowsTo p' p = true →
      LocalityFlowsTo g' g = true →
-     isSentry p = false ->
+
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
          ∗ ▷ pc_a ↦ₐ w
          ∗ ▷ r1 ↦ᵣ WCap p g b e a }}}
@@ -356,13 +340,11 @@ Section cap_lang_rules.
          ∗ pc_a ↦ₐ w
          ∗ r1 ↦ᵣ WCap p' g' b e a }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' HdecPair HPflows HLflows HpE ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+     iIntros (Hinstr Hvpc Hpca' HdecPair HPflows HLflows ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
      iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      by unfold regs_of; rewrite !dom_insert; set_solver+.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-     assert (isSentry pc_p = false).
-     { inversion Hvpc; subst. eapply executeAllowed_nonSentry; eauto. }
 
      destruct Hspec as [| | * Hfail].
      { (* Success *)
@@ -374,7 +356,6 @@ Section cap_lang_rules.
        simplify_map_eq. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       destruct_perm p; cbn in *; congruence.
        incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
 
@@ -440,8 +421,6 @@ Section cap_lang_rules.
      iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      by unfold regs_of; rewrite !dom_insert; set_solver+.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-     assert (isSentry pc_p = false).
-     { inversion Hvpc; subst. eapply executeAllowed_nonSentry; eauto. }
 
      destruct Hspec as [| | * Hfail].
      { (* Success with WSealRange (contradiction) *)

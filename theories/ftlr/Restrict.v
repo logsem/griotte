@@ -29,14 +29,13 @@ Section fundamental.
   Implicit Types interp : (D).
 
   Lemma PermPairFlows_interp_preserved W C p p' g g' b e a :
-    isSentry p = false ->
     PermFlowsTo p' p = true →
     LocalityFlowsTo g' g = true →
     ftlr_IH -∗
     interp W C (WCap p g b e a) -∗
     interp W C (WCap p' g' b e a).
   Proof.
-    intros HpnotE Hp Hg. iIntros "#IH HA".
+    intros Hp Hg. iIntros "#IH HA".
     iApply (interp_weakening with "IH HA");eauto;try solve_addr.
   Qed.
 
@@ -66,7 +65,7 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ * Hdst ? Hz Hpair HPfl HLfl HincrPC
+    destruct HSpec as [ * Hdst Hz Hpair HPfl HLfl HincrPC
                       | * Hdst Hz Hpair HPfl HLfl  HincrPC
                       | ]
     ; cycle 2.

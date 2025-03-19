@@ -102,12 +102,6 @@ Section fundamental.
       ; eapply executeAllowed_nonO in Hexec
       ; congruence.
     }
-    destruct (isSentry p) eqn:HpnotE.
-    { destruct Hp as [Hexec _]
-      ; eapply executeAllowed_nonSentry in Hexec
-      ; eauto
-      ; congruence.
-    }
     destruct (has_sreg_access p) eqn:HpXRS; first done.
 
 
@@ -369,7 +363,7 @@ Section fundamental.
   Theorem fundamental W C w regs :
     ⊢ interp W C w -∗ interp_expression regs W C w.
   Proof.
-    iIntros "Hw". destruct w as [| [c | ] | ].
+    iIntros "Hw". destruct w as [| [c | ] | | ].
     2: { iApply fundamental_cap. done. }
     all: iClear "Hw"; iIntros "(? & Hreg & ?)"; unfold interp_conf.
     all: iApply (wp_wand with "[-]"); [ | iIntros (?) "H"; iApply "H"].
@@ -389,7 +383,6 @@ Section fundamental.
     iIntros (Hp) "#Hw".
     iIntros (a0 r W' Hin) "#Hfuture". iModIntro.
     assert (isO p = false) by (by eapply executeAllowed_nonO).
-    assert (isSentry p = false) by (by eapply executeAllowed_nonSentry).
     destruct g.
     - iDestruct (interp_monotone_nl with "Hfuture [] [] Hw") as "Hw'";[auto| |].
       { iPureIntro. rewrite switcher_ret_correct.
@@ -429,18 +422,18 @@ Section fundamental.
     ⊢ interp W C w -∗ ▷ (∀ regs, interp_expression regs W C (updatePcPerm w)).
   Proof.
     iIntros "#Hw".
-    assert ( ( (∃ rx pw dl dro g b e a, w = WCap (E rx pw dl dro) g b e a))
+    assert ( ( (∃ p g b e a, w = WSentry p g b e a))
             ∨ updatePcPerm w = w)
       as [ Hw | ->].
     {
-      destruct w as [ | [ | ] | ]; eauto. unfold updatePcPerm.
-      case_match; eauto; try naive_solver.
+      destruct w as [ | [ | ] | | ]; eauto. unfold updatePcPerm.
+      eauto; try naive_solver.
     }
-    { destruct Hw as (rw & pw & dl & dro & g & b & e & a & ->).
+    { destruct Hw as (p & g & b & e & a & ->).
       rewrite fixpoint_interp1_eq /=.
       iIntros (rmap).
       destruct (
-         decide (WCap (E rw pw dl dro) g b e a = switcher_ret_entry_point)
+         decide (WSentry p g b e a = switcher_ret_entry_point)
         ); cycle 1.
       - rewrite decide_False //.
         iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw".
@@ -465,7 +458,7 @@ Section fundamental.
     (interp W C w
      -∗ (if decide (isCorrectPC (updatePcPerm w))
          then (∃ p g b e a,
-                  ⌜w = WCap p g b e a⌝
+                  ⌜w = WCap p g b e a ∨ w = WSentry p g b e a ⌝
                   ∗ □ ∀ regs W',
                  future_world
                    (if decide (w = switcher_ret_entry_point) then Local else g)
@@ -478,17 +471,18 @@ Section fundamental.
     rewrite switcher_ret_correct.
     destruct (decide (isCorrectPC (updatePcPerm w))).
     - inversion i.
-      destruct w;inv H. destruct sb; inv H3.
+      destruct w;inv H.
+      + destruct p; cbn in * ; simplify_eq.
+        iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
+        iDestruct (interp_exec_cond with "Hw") as "Hexec";[auto|].
+        rewrite decide_False //.
+        iApply exec_wp;auto.
       + destruct p0; cbn in * ; simplify_eq.
-        * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
-          iDestruct (interp_exec_cond with "Hw") as "Hexec";[auto|].
-          rewrite decide_False //.
-          iApply exec_wp;auto.
         * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
           rewrite /= fixpoint_interp1_eq /=.
           iDestruct "Hw" as "#Hw".
           iIntros (regs W') "Hfuture".
-          destruct (decide (WCap (E rx w dl dro) g0 b0 e0 a0 = switcher_ret_entry_point))
+          destruct (decide (WSentry (BPerm rx w dl dro) g0 b0 e0 a0 = switcher_ret_entry_point))
             as [Hswitcher|Hswitcher]
           ; rewrite switcher_ret_correct in Hswitcher ; simplify_eq ; cycle 1.
           ** rewrite switcher_ret_correct.

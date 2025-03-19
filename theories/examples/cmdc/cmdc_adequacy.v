@@ -65,7 +65,7 @@ Definition is_initial_sregisters `{memory_layout} (sreg : SReg) :=
 
 Definition is_initial_memory `{memory_layout} (mem: Mem) :=
   let switcher_entry :=
-    WCap E_XSRW_ Global
+    WSentry XSRW_ Global
       (b_switcher switcher_cmpt)
       (e_switcher switcher_cmpt)
       (a_switcher_cc switcher_cmpt)

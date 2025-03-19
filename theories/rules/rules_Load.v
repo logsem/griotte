@@ -191,7 +191,7 @@ Section cap_lang_rules.
        }
         iFailWP "Hφ" Load_fail_const.
      }
-     destruct r2v as [ | [p g b e a | ] | ]; try inversion Hr2v. clear Hr2v.
+     destruct r2v as [ | [p g b e a | ] | | ]; try inversion Hr2v. clear Hr2v.
 
     destruct (readAllowed p && withinBounds b e a) eqn:HRA.
     2 : { (* Failure: r2 is either not within bounds or doesnt allow reading *)

@@ -16,7 +16,7 @@ Lemma isCorrectPCb_isCorrectPC w :
   isCorrectPCb w = true ↔ isCorrectPC w.
 Proof.
   rewrite /isCorrectPCb. destruct_word w.
-  1,3,4 : split; try congruence; inversion 1.
+  1,3,4,5 : split; try congruence; inversion 1.
   { rewrite !andb_true_iff !Z.leb_le !Z.ltb_lt.
     split.
     { intros [? ?]. constructor. solve_addr. naive_solver. }
@@ -92,7 +92,7 @@ Proof.
       constructor. }
     destruct (isCorrectPCb wpc) eqn:HPC.
     { apply isCorrectPCb_isCorrectPC in HPC.
-      destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC]. destruct sb as [p g b e a | ]; last by inversion HPC.
+      destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC | by inversion HPC]. destruct sb as [p g b e a | ]; last by inversion HPC.
       destruct (m !! a) as [wa | ] eqn:HeMem.
       2: {
         eexists. eapply rtc_l. unfold erased_step. exists [].

@@ -32,6 +32,17 @@ Section cap_lang_rules.
         | GetWType _ _ => Some (encodeWordType w)
         | _ => None
         end
+    | WSentry p g b e a =>
+        match i with
+        | GetP _ _ => Some (encodePerm p)
+        | GetL _ _ => Some (encodeLoc g)
+        | GetB _ _ => Some (b:Z)
+        | GetE _ _ => Some (e:Z)
+        | GetA _ _ => Some (a:Z)
+        | GetOType _ _ => Some (-1)%Z
+        | GetWType _ _ => Some (encodeWordType w)
+        | _ => None
+        end
     | WSealRange p g b e a =>
         match i with
         | GetP _ _ => Some (encodeSealPerms p)
@@ -173,14 +184,14 @@ Section cap_lang_rules.
       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
       { destruct_or! Hinstr; rewrite Hinstr in Hstep; cbn in Hstep.
         all: rewrite Hsrc /= in Hstep.
-        all : destruct wsrc as [ | [  |  ] | ]; try (inversion Hstep; auto);
+        all : destruct wsrc as [ | [  |  ] | | ]; try (inversion Hstep; auto);
           rewrite /denote /= in Hwsrc; rewrite Hinstr in Hwsrc; congruence. }
       rewrite Hdecode. iFailWP "Hφ" Get_fail_src_denote. }
 
     assert (exec_opt get_i pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst (WInt z))) as HH.
     { destruct_or! Hinstr; clear Hdecode; subst get_i; cbn in Hstep |- *.
       all: rewrite /update_reg Hsrc /= in Hstep |-*; auto.
-      all : destruct wsrc as [ | [  |  ] | ]; inversion Hwsrc; auto.
+      all : destruct wsrc as [ | [  |  ] | | ]; inversion Hwsrc; auto.
     }
     rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
 
