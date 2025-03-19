@@ -496,13 +496,18 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  (* - destruct (isWL p') eqn: HpwlP1 ; iModIntro; simpl ; iIntros (W0 W1) "(%&%) HIW0". *)
-  (*   + iApply interp_monotone; last eauto; eauto. *)
-  (*   + iApply interp_monotone_nl; last eauto; eauto. *)
-  (* - iModIntro; simpl; iIntros (W0 W1) "(%&%) HIW0". *)
-  (*   iApply interp_monotone_nl; last eauto; eauto. *)
-Admitted.
-(* Qed. *)
+  - destruct (isWL p') eqn: HpwlP1.
+    + iModIntro; simpl ; iIntros (W0 W1) "(%&%) HIW0".
+      iApply interp_monotone; last eauto; eauto.
+    + rewrite /future_priv_mono switcher_ret_correct.
+      rewrite decide_False //.
+      iModIntro; simpl ; iIntros (W0 W1) "% % HIW0".
+      iApply interp_monotone_nl; last eauto; eauto.
+  - rewrite /future_priv_mono switcher_ret_correct.
+    rewrite decide_False //.
+    iModIntro; simpl ; iIntros (W0 W1) "% % HIW0".
+    iApply interp_monotone_nl; last eauto; eauto.
+Qed.
 
 Lemma interp_monotone_generalSr (W : WORLD) (C : CmptName) (ρ : region_type)
   (p p' : Perm) (g : Locality) (b e a : Addr)
@@ -516,12 +521,18 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  (* - destruct (isWL p') eqn: HpwlP1 ; iModIntro; simpl ; iIntros (W0 W1) "(%&%) HIW0". *)
-  (*   all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done. *)
-  (* - iModIntro; simpl; iIntros (W0 W1) "(%&%) HIW0". *)
-  (*   all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done. *)
-Admitted.
-(* Qed. *)
+  - destruct (isWL p') eqn: HpwlP1.
+    + iModIntro; simpl ; iIntros (W0 W1) "(%&%) HIW0".
+      rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
+    + rewrite /future_priv_mono switcher_ret_correct.
+      rewrite decide_False //.
+      iModIntro; simpl ; iIntros (W0 W1) "% % HIW0".
+      rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
+  - rewrite /future_priv_mono switcher_ret_correct.
+    rewrite decide_False //.
+    iModIntro; simpl ; iIntros (W0 W1) "% % HIW0".
+    rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
+Qed.
 
 Lemma interp_monotone_generalSd (W : WORLD) (C : CmptName) (ρ : region_type)
   (p p' : Perm) (g : Locality) (b e a : Addr)
@@ -535,13 +546,18 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  (* - destruct (isWL p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0". *)
-  (*   * iApply interp_monotone_sd; last eauto; eauto. *)
-  (*     by apply related_sts_pub_priv_world in Hrelated. *)
-  (*   * iApply interp_monotone_sd; last eauto; eauto. *)
-  (* - iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0". *)
-  (*   iApply interp_monotone_sd; last eauto; eauto. *)
-Admitted.
-(* Qed. *)
+  - destruct (isWL p') eqn: Hpwlp'.
+    + iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
+      iApply interp_monotone_sd; last eauto; eauto.
+      by apply related_sts_pub_priv_world in Hrelated.
+    + rewrite /future_priv_mono switcher_ret_correct.
+      rewrite decide_False //.
+      iModIntro; simpl; iIntros (W0 W1) "%Hrelated % HIW0".
+      iApply interp_monotone_sd; last eauto; eauto.
+  - rewrite /future_priv_mono switcher_ret_correct.
+    rewrite decide_False //.
+    iModIntro; simpl; iIntros (W0 W1) "%Hrelated % HIW0".
+    iApply interp_monotone_sd; last eauto; eauto.
+Qed.
 
 End monotone.
