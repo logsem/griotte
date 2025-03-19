@@ -619,7 +619,7 @@ Section CMDC.
                       & Hrmap & Hcsp_stk)".
     iDestruct "Hca0" as (warg0') "[Hca0 _]".
     iDestruct "Hca1" as (warg1') "[Hca1 _]".
-    rewrite updatePcPerm_seal_perm_sentry; last solve_pure.
+    iEval (cbn) in "HPC".
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero'".
