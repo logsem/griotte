@@ -231,19 +231,8 @@ Section Adequacy.
 
     pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
-    (* TODO fix, with the right value! *)
-    set (switcher_ret_addr :=
-        ((a_switcher_cc switcher_cmpt) ^+ length switcher)%a).
-    pose switcherG :=
-      MkSwitcher
-        (b_switcher switcher_cmpt)
-        (e_switcher switcher_cmpt)
-        switcher_ret_addr
-        _ eq_refl
-    .
-
     pose proof (
-        @cmdc_spec_full Σ ceriseg seal_storeg _ _ _ _ logrel_na_invs MP B C
+        @cmdc_spec_full Σ ceriseg seal_storeg _ _ _ logrel_na_invs MP B C
       ) as Spec.
 
     (* Get initial sregister mtdc *)

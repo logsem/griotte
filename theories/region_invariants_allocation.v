@@ -8,7 +8,6 @@ Section region_alloc.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {switcherg :switcherG}
     {stsg : STSG Addr region_type Σ}
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
@@ -133,9 +132,7 @@ Section region_alloc.
         iExists γpred,p,φ. rewrite Hpwl.
         iFrame "∗ #".
         repeat(iSplitR;[auto|]).
-        rewrite /future_priv_mono.
-        destruct ( decide (v = switcher_ret_entry_point)) as [ -> |Hneq ]
-        ; iApply "HmonoV"; eauto.
+        iApply "HmonoV"; eauto.
         by iPureIntro; apply related_sts_pub_priv_world.
       }
       iApply (big_sepM_mono with "Hpreds'").
@@ -199,11 +196,8 @@ Section region_alloc.
         iSplitR;[iPureIntro;apply lookup_insert|].
         iExists γpred,p,φ. iFrame "∗ #".
         repeat (iSplitR;[done|]).
-        iNext.
-        rewrite /future_priv_mono.
-        destruct ( decide (v = switcher_ret_entry_point)) as [ -> |Hneq ]
-        ; iApply "HmonoV"; eauto.
-        by iPureIntro; apply related_sts_pub_priv_world.
+        iNext. iApply "HmonoV"; eauto.
+        iPureIntro; by apply related_sts_pub_priv_world.
       }
       iApply (big_sepM_mono with "Hpreds'").
       iIntros (a' x Ha) "Hρ".

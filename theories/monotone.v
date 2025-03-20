@@ -9,7 +9,6 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {switcherg :switcherG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
@@ -226,23 +225,10 @@ Section monotone.
     iDestruct "Hinterp" as (P Hpers) "(Hmono & Hseal_pred & HP & HPborrowed)".
     iFrame "#%".
     iApply later_sep_1; iNext.
-    rewrite /future_priv_mono.
-    iPoseProof "Hmono" as "Hmono'".
-    iSpecialize ("Hmono" $! (WSealable sb)).
-    iSpecialize ("Hmono'" $! (borrow (WSealable sb))).
-    destruct (decide (borrow (WSealable sb) = switcher_ret_entry_point)).
-    { exfalso. cbn in e.
-      rewrite switcher_ret_correct in e.
-      destruct sb ; cbn in e; congruence.
-    }
-    destruct (decide (WSealable sb = switcher_ret_entry_point)).
-    { exfalso.
-      by rewrite switcher_ret_correct in e.
-    }
-    iDestruct ("Hmono" $! W W' with "[] [] [$HP]") as "HP'"
+    iDestruct ("Hmono" $! _ W W' with "[] [$HP]") as "HP'"
     ; rewrite /safeC /=
     ; eauto.
-    iDestruct ("Hmono'" $! W W' with "[] [] [HPborrowed]") as "HPborrowed'"
+    iDestruct ("Hmono" $! _ W W' with "[] [$HPborrowed]") as "HPborrowed'"
     ; rewrite /safeC /=
     ; eauto.
     iFrame "#".
@@ -256,11 +242,17 @@ Section monotone.
     destruct w; [ | shelve | | ].
     { rewrite !fixpoint_interp1_eq /=; auto. }
     { rewrite !fixpoint_interp1_eq /=.
-      destruct (decide (WSentry p g b e a = switcher_ret_entry_point)).
-      + rewrite decide_True; last done.
-        rewrite decide_True; last done.
-        iModIntro. iIntros (r W'').
-        iIntros "#Hrelated'".
+      iModIntro. iIntros (r W'').
+      destruct g.
+      + iIntros "#Hrelated'".
+        rewrite /future_world.
+        iDestruct "Hrelated'" as "%Hrelated'".
+        iAssert (future_world Global W W'')%I as "Hrelated".
+        { rewrite /future_world.
+          iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
+        iSpecialize ("Hw" $! r W'' with "Hrelated").
+        iApply "Hw".
+      + iIntros "#Hrelated'".
         rewrite /future_world.
         iDestruct "Hrelated'" as "%Hrelated'".
         iAssert (future_world Local W W'')%I as "Hrelated".
@@ -268,26 +260,6 @@ Section monotone.
           iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
         iSpecialize ("Hw" $! r W'' with "Hrelated").
         iApply "Hw".
-      + rewrite decide_False; last done.
-        rewrite decide_False; last done.
-        iModIntro. iIntros (r W'').
-        destruct g.
-        * iIntros "#Hrelated'".
-          rewrite /future_world.
-          iDestruct "Hrelated'" as "%Hrelated'".
-          iAssert (future_world Global W W'')%I as "Hrelated".
-          { rewrite /future_world.
-            iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
-          iSpecialize ("Hw" $! r W'' with "Hrelated").
-          iApply "Hw".
-        * iIntros "#Hrelated'".
-          rewrite /future_world.
-          iDestruct "Hrelated'" as "%Hrelated'".
-          iAssert (future_world Local W W'')%I as "Hrelated".
-          { rewrite /future_world.
-            iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
-          iSpecialize ("Hw" $! r W'' with "Hrelated").
-          iApply "Hw".
     }
     { apply related_sts_pub_priv_world in Hrelated.
       iApply (interp_monotone_sd with "[] [$Hw]"); eauto.
@@ -353,15 +325,12 @@ Section monotone.
  Lemma interp_monotone_nl W W' C w :
     ⌜related_sts_priv_world W W'⌝
     -∗ ⌜isLocalWord w = false⌝
-    -∗ ⌜w ≠ switcher_ret_entry_point⌝
     -∗ interp W C w -∗ interp W' C w.
   Proof.
-    iIntros (Hrelated Hnl Hneq_switcher) "#Hw".
+    iIntros (Hrelated Hnl) "#Hw".
     destruct w; [ | shelve | | ].
     { rewrite !fixpoint_interp1_eq /=; auto. }
     { rewrite !fixpoint_interp1_eq /=.
-      rewrite decide_False ; last done.
-      rewrite decide_False ; last done.
       destruct g ; cbn in Hnl ; try done.
       iModIntro. iIntros (r W'').
       iIntros "#Hrelated'".
@@ -458,28 +427,19 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl' Hconds) "#Hvdst".
   destruct ρ;simpl;auto.
-  - destruct (isWL p'') eqn: HpwlP''.
-    + iModIntro; simpl;auto ; iIntros (W0 W1) "(%&%) HIW0".
-      iApply interp_monotone; last eauto; eauto.
-    + rewrite /future_priv_mono.
-      destruct ( decide (WCap p g b e a = switcher_ret_entry_point) ); cycle 1.
-      * iModIntro; simpl;auto ; iIntros (W0 W1) "_ %HIW0".
-        destruct g.
-        ** iApply interp_monotone_nl; last eauto; eauto.
-      (* The below case is a contradiction, since if g is local,
-      p' must be WL and p' flows into the non-WL p''*)
-        ** destruct_perm p' ; try (simpl in Hconds; by exfalso).
-           all:destruct_perm p''; (by exfalso).
-      * iModIntro; simpl;auto ; iIntros (W0 W1) "(%&%) HIW0".
-        iApply interp_monotone; last eauto; eauto.
-  - rewrite /future_priv_mono.
-    destruct ( decide (WCap p g b e a = switcher_ret_entry_point) ).
-    + iModIntro; iIntros (W0 W1) "(%&%) HIW0".
-      iApply interp_monotone; last eauto; eauto.
-    + iModIntro; iIntros (W0 W1) "_ %HIW0".
-      destruct g.
+  - destruct (isWL p'') eqn: HpwlP'' ; iModIntro; simpl;auto
+    ; iIntros (W0 W1) "(%&%) HIW0".
+    + iApply interp_monotone; last eauto; eauto.
+    + destruct g.
       * iApply interp_monotone_nl; last eauto; eauto.
-      * (*Trick here: value relation leads to a contradiction if p' is WL,
+    (* The below case is a contradiction, since if g is local,
+      p' must be WL and p' flows into the non-WL p''*)
+      * destruct_perm p' ; try (simpl in Hconds; by exfalso).
+      all:destruct_perm p''; (by exfalso).
+  - iModIntro; iIntros (W0 W1) "(%&%) HIW0".
+    destruct g.
+    + iApply interp_monotone_nl; last eauto; eauto.
+    + (*Trick here: value relation leads to a contradiction if p' is WL,
         since then its region cannot be permanent *)
       iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
       simplify_eq.
@@ -501,24 +461,18 @@ Proof.
     + iModIntro; simpl;auto ; iIntros (W0 W1) "(%&%) HIW0".
       iApply interp_monotone; last eauto; eauto.
     + rewrite /future_priv_mono.
-      destruct ( decide (WSentry p g b e a = switcher_ret_entry_point) ); cycle 1.
-      * iModIntro; simpl;auto ; iIntros (W0 W1) "_ %HIW0".
-        destruct g.
-        ** iApply interp_monotone_nl; last eauto; eauto.
+      iModIntro; simpl;auto ; iIntros (W0 W1) "% HIW0".
+      destruct g.
+      ** iApply interp_monotone_nl; last eauto; eauto.
       (* The below case is a contradiction, since if g is local,
       p' must be WL and p' flows into the non-WL p''*)
-        ** destruct_perm p' ; try (simpl in Hconds; by exfalso).
+      ** destruct_perm p' ; try (simpl in Hconds; by exfalso).
            all:destruct_perm p''; (by exfalso).
-      * iModIntro; simpl;auto ; iIntros (W0 W1) "(%&%) HIW0".
-        iApply interp_monotone; last eauto; eauto.
   - rewrite /future_priv_mono.
-    destruct ( decide (WSentry p g b e a = switcher_ret_entry_point) ).
-    + iModIntro; iIntros (W0 W1) "(%&%) HIW0".
-      iApply interp_monotone; last eauto; eauto.
-    + iModIntro; iIntros (W0 W1) "_ %HIW0".
-      destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-      * (*Trick here: value relation leads to a contradiction if p' is WL,
+    iModIntro; iIntros (W0 W1) "% HIW0".
+    destruct g.
+    * iApply interp_monotone_nl; last eauto; eauto.
+    * (*Trick here: value relation leads to a contradiction if p' is WL,
         since then its region cannot be permanent *)
       iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
       simplify_eq.
@@ -538,16 +492,10 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  - destruct (isWL p') eqn: HpwlP1.
-    + iModIntro; simpl ; iIntros (W0 W1) "(%&%) HIW0".
-      iApply interp_monotone; last eauto; eauto.
-    + rewrite /future_priv_mono switcher_ret_correct.
-      rewrite decide_False //.
-      iModIntro; simpl ; iIntros (W0 W1) "% % HIW0".
-      iApply interp_monotone_nl; last eauto; eauto.
-  - rewrite /future_priv_mono switcher_ret_correct.
-    rewrite decide_False //.
-    iModIntro; simpl ; iIntros (W0 W1) "% % HIW0".
+  - destruct (isWL p') eqn: HpwlP1 ; iModIntro; simpl ; iIntros (W0 W1) "(%&%) HIW0".
+    + iApply interp_monotone; last eauto; eauto.
+    + iApply interp_monotone_nl; last eauto; eauto.
+  - iModIntro; simpl; iIntros (W0 W1) "(%&%) HIW0".
     iApply interp_monotone_nl; last eauto; eauto.
 Qed.
 
@@ -563,17 +511,10 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  - destruct (isWL p') eqn: HpwlP1.
-    + iModIntro; simpl ; iIntros (W0 W1) "(%&%) HIW0".
-      rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
-    + rewrite /future_priv_mono switcher_ret_correct.
-      rewrite decide_False //.
-      iModIntro; simpl ; iIntros (W0 W1) "% % HIW0".
-      rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
-  - rewrite /future_priv_mono switcher_ret_correct.
-    rewrite decide_False //.
-    iModIntro; simpl ; iIntros (W0 W1) "% % HIW0".
-    rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
+  - destruct (isWL p') eqn: HpwlP1 ; iModIntro; simpl ; iIntros (W0 W1) "(%&%) HIW0".
+    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
+  - iModIntro; simpl; iIntros (W0 W1) "(%&%) HIW0".
+    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
 Qed.
 
 Lemma interp_monotone_generalSd (W : WORLD) (C : CmptName) (ρ : region_type)
@@ -588,17 +529,11 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  - destruct (isWL p') eqn: Hpwlp'.
-    + iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
-      iApply interp_monotone_sd; last eauto; eauto.
+  - destruct (isWL p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
+    * iApply interp_monotone_sd; last eauto; eauto.
       by apply related_sts_pub_priv_world in Hrelated.
-    + rewrite /future_priv_mono switcher_ret_correct.
-      rewrite decide_False //.
-      iModIntro; simpl; iIntros (W0 W1) "%Hrelated % HIW0".
-      iApply interp_monotone_sd; last eauto; eauto.
-  - rewrite /future_priv_mono switcher_ret_correct.
-    rewrite decide_False //.
-    iModIntro; simpl; iIntros (W0 W1) "%Hrelated % HIW0".
+    * iApply interp_monotone_sd; last eauto; eauto.
+  - iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
     iApply interp_monotone_sd; last eauto; eauto.
 Qed.
 

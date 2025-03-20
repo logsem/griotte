@@ -11,7 +11,6 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {switcherg :switcherG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
@@ -81,26 +80,52 @@ Section fundamental.
           iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
           simpl; rewrite /enter_cond.
           iDestruct "Hwsrc" as "#H".
-          destruct ( decide (WSentry p0 g0 b0 e0 a0 = switcher_ret_entry_point) ) as [? |?].
-          * rewrite (decide_True ( P:= (_ = switcher_ret_entry_point))); last done.
-            rewrite switcher_ret_correct in e1; simplify_eq.
-            iAssert (future_world Local W W) as "Hfuture".
-            { iApply futureworld_refl. }
-            iSpecialize ("H" with "Hfuture").
-            iDestruct "H" as "[H _]".
-            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-            { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-            iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
-            iFrame "#%".
-          * rewrite (decide_False ( P:= (_ = switcher_ret_entry_point))); last done.
-            iAssert (future_world g0 W W) as "Hfuture".
-            { iApply futureworld_refl. }
-            iSpecialize ("H" with "Hfuture").
-            iDestruct "H" as "[H _]".
-            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-            { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
-            iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
-            iFrame "#%".
+          iAssert (future_world g0 W W) as "Hfuture".
+          { iApply futureworld_refl. }
+          iSpecialize ("H" with "Hfuture").
+          iDestruct "H" as "[H _]".
+          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+          { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+          iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
+          iFrame "#%".
+
+(* <<<<<<< HEAD *)
+(*           destruct ( decide (WSentry p0 g0 b0 e0 a0 = switcher_ret_entry_point) ) as [? |?]. *)
+(*           * rewrite (decide_True ( P:= (_ = switcher_ret_entry_point))); last done. *)
+(*             rewrite switcher_ret_correct in e1; simplify_eq. *)
+(*             iAssert (future_world Local W W) as "Hfuture". *)
+(*             { iApply futureworld_refl. } *)
+(*             iSpecialize ("H" with "Hfuture"). *)
+(*             iDestruct "H" as "[H _]". *)
+(*             iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto. *)
+(*             { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. } *)
+(*             iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto. *)
+(*             iFrame "#%". *)
+(*           * rewrite (decide_False ( P:= (_ = switcher_ret_entry_point))); last done. *)
+(*             iAssert (future_world g0 W W) as "Hfuture". *)
+(*             { iApply futureworld_refl. } *)
+(*             iSpecialize ("H" with "Hfuture"). *)
+(*             iDestruct "H" as "[H _]". *)
+(*             iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto. *)
+(*             { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. } *)
+(*             iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto. *)
+(*             iFrame "#%". *)
+(* ======= *)
+(*           iAssert (future_world g0 W W) as "Hfuture". *)
+(*           { iApply futureworld_refl. } *)
+(*           iSpecialize ("H" with "Hfuture"). *)
+(*           iDestruct "H" as "[H _]". *)
+(*           iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto. *)
+(*           { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. } *)
+(*           iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto. *)
+(*           iFrame "#%". *)
+(*         + (* case p1 ≠ E *) *)
+(*           iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp". *)
+(*           iNext; iIntros "_". *)
+(*           iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto. *)
+(*           { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. } *)
+(*           iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Hown]"); eauto. *)
+(* >>>>>>> parent of 5b36f75 (Switcher return in model (#15)) *)
       }
 
       (* Non-capability cases *)

@@ -9,7 +9,6 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {switcherg :switcherG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
@@ -31,22 +30,6 @@ Section fundamental.
   Proof.
     iIntros "#Hinterp".
     rewrite !fixpoint_interp1_eq /=.
-    rewrite (decide_False (P := WSentry _ Local _ _ _ = _)).
-    2:{ rewrite switcher_ret_correct; intros; congruence. }
-
-    destruct (decide (WSentry p g b e a = switcher_ret_entry_point)).
-    - rewrite decide_True //.
-      rewrite switcher_ret_correct in e0 ; simplify_eq.
-      iModIntro.
-      iDestruct "Hinterp" as "#Hinterp".
-      rewrite /enter_cond /switcher_cond /interp_expr /=.
-      iIntros (regs W' Hrelated).
-      iAssert (future_world Local W W')%I as "%Hrelated'".
-      { done. }
-      iSpecialize ("Hinterp" $! regs W' Hrelated').
-      iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
-      iSplitL; iFrame "#".
-    - rewrite decide_False //.
       iModIntro.
       iDestruct "Hinterp" as "#Hinterp".
       rewrite /enter_cond /interp_expr /=.
@@ -92,7 +75,7 @@ Section fundamental.
     }
 
     case_eq (isWL p'); intros Hpwl'; auto.
-    - assert (isWL p = true) as Hpwl by (clear -Hpwl' Hpwl_cond Hp ; destruct_perm p; destruct_perm p'; naive_solver).
+    - assert (isWL p = true) as Hpwl by (destruct_perm p; destruct_perm p'; naive_solver).
       rewrite Hpwl in Hpwl_cond.
       destruct g; try congruence.
       destruct g'; simpl in Hl; try tauto.
@@ -148,12 +131,9 @@ Section fundamental.
     intros HpnotO Hb He Hl.
     iIntros "#IH HA".
     rewrite !fixpoint_interp1_eq !interp1_eq /=.
-    destruct (decide (WSentry p g' b' e' a' = switcher_ret_entry_point) ).
-    { by rewrite switcher_ret_correct in e0; simplify_eq. }
     rewrite HpnotO.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     iDestruct "HA" as "[#A %Hpwl_cond]".
-    rewrite decide_False ; last done.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (r W') "#Hfuture".
@@ -309,9 +289,10 @@ Section fundamental.
     opose proof (HpersP (W,C,_)) as HpersPborrowed; cbn in HpersPborrowed.
     iDestruct "HPborrowed" as "#HPborrowed".
     replace (borrow (WSealable (borrow_sb sb)))
-      with (WSealable (borrow_sb sb))
-           by (cbn; destruct sb; auto).
+      with (WSealable (borrow_sb sb)).
     iFrame "∗#%".
+    cbn.
+    destruct sb; auto.
   Qed.
 
   (* TODO move in machine_base *)
@@ -464,42 +445,24 @@ Section fundamental.
       + iIntros (w W0 W1 Hrelated); iModIntro.
         iIntros "Hinterp".
         iApply interp_monotone; eauto.
-      + iIntros (w).
-        destruct (decide (w = switcher_ret_entry_point)) as [-> | Hneq_switcher]; cycle 1.
-        * iIntros ([HcanStore _]).
-          rewrite /future_priv_mono.
-          rewrite decide_False //.
-          iIntros (W0 W1 _ Hrelated); iModIntro.
-          iIntros "Hinterp".
-          iApply interp_monotone_nl; eauto.
-          iPureIntro; cbn.
-          by eapply canStore_global_nonisWL.
-        * iIntros (W0 W1 Hrelated); iModIntro.
-          iIntros "Hinterp".
-          iApply interp_monotone; eauto.
-    - ospecialize (Hρ _); first done.
-      iIntros (w).
-      destruct (decide (w = switcher_ret_entry_point)) as [-> | Hneq_switcher]; cycle 1.
-      * iIntros ([HcanStore _]).
-        rewrite /future_priv_mono.
-        rewrite decide_False //.
-        iIntros (W0 W1 _ Hrelated); iModIntro.
+      + iIntros (w W0 W1 HcanStore Hrelated); iModIntro.
         iIntros "Hinterp".
         iApply interp_monotone_nl; eauto.
         iPureIntro; cbn.
         by eapply canStore_global_nonisWL.
-      * iIntros (W0 W1 Hrelated); iModIntro.
-        iIntros "Hinterp".
-        iApply interp_monotone; eauto.
+    - ospecialize (Hρ _); first done.
+      iIntros (w W0 W1 HcanStore Hrelated); iModIntro.
+      iIntros "Hinterp".
+      iApply interp_monotone_nl; eauto.
+      iPureIntro; cbn.
+      by eapply canStore_global_nonisWL.
   Qed.
 
   Lemma future_priv_mono_interp_z (C : CmptName) (z : Z) :
     ⊢ future_priv_mono C interpC (WInt z).
   Proof.
-    rewrite /future_priv_mono switcher_ret_correct.
-    rewrite decide_False //.
     iModIntro.
-    iIntros (W W' _) "%Hrelated Hinterp".
+    iIntros (W W') "%Hrelated Hinterp".
     cbn; iEval (rewrite fixpoint_interp1_eq); done.
   Qed.
 
