@@ -553,14 +553,14 @@ Section Switcher.
   Lemma switcher_interp (W : WORLD) (C : CmptName) (N : namespace)
     (b_switcher e_switcher a_switcher_cc : Addr) (ot_switcher : OType) :
     na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher) -∗
-    interp W C (WSentry XSRW_ Global b_switcher e_switcher a_switcher_cc).
+    interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_cc).
   Proof.
   Admitted.
 
   Lemma future_priv_mono_interp_switcher (C : CmptName) (N : namespace)
     (b_switcher e_switcher a_switcher_cc : Addr) (ot_switcher : OType) :
     na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher) -∗
-    future_priv_mono C interpC (WSentry XSRW_ Global b_switcher e_switcher a_switcher_cc).
+    future_priv_mono C interpC (WSentry XSRW_ Local b_switcher e_switcher a_switcher_cc).
   Proof.
   Admitted.
 

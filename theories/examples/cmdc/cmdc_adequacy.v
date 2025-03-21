@@ -65,7 +65,7 @@ Definition is_initial_sregisters `{memory_layout} (sreg : SReg) :=
 
 Definition is_initial_memory `{memory_layout} (mem: Mem) :=
   let switcher_entry :=
-    WSentry XSRW_ Global
+    WSentry XSRW_ Local
       (b_switcher switcher_cmpt)
       (e_switcher switcher_cmpt)
       (a_switcher_cc switcher_cmpt)
@@ -213,7 +213,7 @@ Section Adequacy.
     iMod (gen_heap_init (reg:Reg)) as (reg_heapg) "(Hreg_ctx & Hreg & _)".
     iMod (gen_heap_init (sreg:SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
     iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
-    iMod (seal_store_init) as (seal_storeg) "Hseal_store".
+    iMod (seal_store_init ({[ (ot_switcher switcher_cmpt) ]} : gset _)) as (seal_storeg) "Hseal_store".
 
     unshelve iMod gen_sts_init as (stsg) "Hsts"; eauto. (*XX*)
     iMod (heap_init) as (heapg) "HRELS".
@@ -312,11 +312,13 @@ Section Adequacy.
     rewrite /cmpt_switcher_trusted_stack_mregion.
     iDestruct (mkregion_prepare with "[Htrusted_stack]") as ">Htrusted_stack"; auto.
     { apply (trusted_stack_size switcher_cmpt). }
-    iAssert (switcher_spec.switcher_inv
+    rewrite  big_sepS_singleton.
+    iMod (seal_store_update_alloc _ ( ot_switcher_prop ) with "Hseal_store") as "#Hsealed_pred_ot_switcher".
+    iAssert ( switcher_spec.switcher_inv
                (b_switcher switcher_cmpt)
                (e_switcher switcher_cmpt)
                (a_switcher_cc switcher_cmpt)
-               (ot_switcher switcher_cmpt))
+               (ot_switcher switcher_cmpt))%I
       with "[Hswitcher Hswitcher_sealing Htrusted_stack Hmtdc]" as "Hswitcher".
     {
       rewrite /switcher_spec.switcher_inv /codefrag /region_pointsto.
@@ -324,12 +326,18 @@ Section Adequacy.
         with (e_switcher switcher_cmpt).
       2: { pose proof (switcher_size switcher_cmpt) as H ; solve_addr+H. }
       iFrame.
-      iPureIntro.
-      rewrite /SubBounds.
-      clear.
-      pose proof (switcher_size switcher_cmpt).
-      pose proof (switcher_cc_entry_point switcher_cmpt).
-      solve_addr.
+      iExists (tl (trusted_stack_content switcher_cmpt)).
+      iSplitR.
+      + iPureIntro.
+        rewrite /SubBounds.
+        clear.
+        pose proof (switcher_size switcher_cmpt).
+        pose proof (switcher_cc_entry_point switcher_cmpt).
+        solve_addr.
+      + destruct (trusted_stack_content switcher_cmpt); cbn;
+        iDestruct (big_sepL2_alt with "Htrusted_stack") as "[%Hlen Htrusted_stack]".
+        admit.
+        admit.
     }
     iMod (na_inv_alloc logrel.logrel_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
 
