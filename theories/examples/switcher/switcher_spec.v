@@ -1,6 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel interp_weakening addr_reg_sample rules proofmode.
+From cap_machine Require Import multiple_updates.
 From cap_machine Require Import switcher.
 
 Section Switcher.
@@ -59,13 +60,113 @@ Section Switcher.
      ∗ seal_pred ot_switcher ot_switcher_prop
   .
 
+  (* TODO move *)
+  Definition list_max_positive (l : list positive) := fold_right Pos.max xH l.
+  Lemma fresh_max (l : list positive) (i : positive) :
+    ( (list_max_positive l) < i )%positive -> i ∉ l.
+  Proof.
+    induction l; intros Hle.
+    - apply not_elem_of_nil.
+    - assert ( (list_max_positive l < i)%positive ∧ (a < i)%positive ) as [Hle_l Hle_a].
+      {
+        cbn in Hle.
+        apply Pos.max_lub_lt_iff in Hle.
+        destruct Hle as [Hle_l Hle_a]; auto.
+      }
+      apply not_elem_of_cons.
+      split; [lia | by apply IHl].
+  Qed.
+
+  (* Definition max_sts_name1 (W : WORLD) := *)
+  (*   list_max_positive *)
+  (*   (fst <$> (map_to_list (gset_to_gmap 0 (dom (loc1 W))))). *)
+  (* Definition max_sts_name2 (W : WORLD) := *)
+  (*   list_max_positive *)
+  (*   (fst <$> (map_to_list (gset_to_gmap 0 (dom (loc2 W))))). *)
+
+  Definition gset_to_list {A : Type} `{Countable A} (g : gset A) :=
+   (fst <$> (map_to_list (gset_to_gmap 0 g))).
+
+  Definition fresh_cus_name (W : WORLD) : positive :=
+    let WL1 := list_max_positive (gset_to_list (dom (loc1 W))) in
+    let WL2 := list_max_positive (gset_to_list (dom (loc2 W))) in
+    (Pos.succ ( WL1 `max` WL2 )%positive).
+
+  Lemma elem_of_gset_to_list_iff {A : Type} `{Countable A} (x : A) (g : gset A) :
+    x ∈ gset_to_list g <-> x ∈ g.
+  Proof.
+    rewrite /gset_to_list.
+    induction g using set_ind_L.
+    - rewrite gset_to_gmap_empty map_to_list_empty //=.
+      set_solver.
+    - rewrite gset_to_gmap_union_singleton map_to_list_insert /=.
+      2: { by apply lookup_gset_to_gmap_None. }
+      rewrite elem_of_cons elem_of_union elem_of_singleton.
+      naive_solver.
+  Qed.
+
+  Lemma not_elem_of_gset_to_list_iff {A : Type} `{Countable A} (x : A) (g : gset A) :
+    x ∉ gset_to_list g <-> x ∉ g.
+  Proof.
+    apply not_iff_compat.
+    apply elem_of_gset_to_list_iff.
+  Qed.
+
+
+  Lemma fresh_cus_name_fresh1 (W : WORLD) :
+    fresh_cus_name W ∉ (dom (loc1 W)).
+  Proof.
+    rewrite /fresh_cus_name.
+    set ( n1 :=  list_max_positive (gset_to_list (dom (loc1 W)))).
+    set ( n2 :=  list_max_positive (gset_to_list (dom (loc2 W)))).
+    destruct (Pos.max_dec n1 n2) as [Hmax | Hmax].
+    - rewrite Hmax.
+      apply not_elem_of_gset_to_list_iff.
+      apply fresh_max.
+      subst n1; lia.
+    - assert (n1 <= n2)%positive as H2_le_1 by (by apply Pos.max_r_iff).
+      rewrite Hmax.
+      apply not_elem_of_gset_to_list_iff.
+      apply fresh_max.
+      subst n1; lia.
+  Qed.
+
+  Lemma fresh_cus_name_fresh2 (W : WORLD) :
+    fresh_cus_name W ∉ (dom (loc2 W)).
+  Proof.
+    rewrite /fresh_cus_name.
+    set ( n1 :=  list_max_positive (gset_to_list (dom (loc1 W)))).
+    set ( n2 :=  list_max_positive (gset_to_list (dom (loc2 W)))).
+    destruct (Pos.max_dec n1 n2) as [Hmax | Hmax].
+    - assert (n2 <= n1)%positive as H1_le_2 by (by apply Pos.max_l_iff).
+      rewrite Hmax.
+      apply not_elem_of_gset_to_list_iff.
+      apply fresh_max.
+      subst n2; lia.
+    - rewrite Hmax.
+      apply not_elem_of_gset_to_list_iff.
+      apply fresh_max.
+      subst n2; lia.
+  Qed.
+
+   (* Definition frame_inv (C : CmptName) (i : positive) (P : iProp Σ) := *)
+   (*   (∃ x:bool, sts_state_loc C i x *)
+   (*         ∗ if x then P else emp)%I. *)
+
+   Definition frame_rel_pub := λ (a b : bool), False.
+   Definition frame_rel_priv := λ (a b : bool), True.
+   (* Definition awk_W W i : WORLD := *)
+   (*   (W.1,(<[i:=encode false]>W.2.1, <[i:=(convert_rel frame_rel_pub,convert_rel frame_rel_pub,convert_rel frame_rel_priv)]>W.2.2)). *)
+
+
+  Definition aaa (W : WORLD) := fst (loc W).
   (* TODO:
      - How to encode the number of registers to pass as arguments?
        A possibility is to use a resource that encodes it.
    *)
   Lemma switcher_cc_specification
     (E : coPset) (N : namespace)
-    (W0 W1 : WORLD)
+    (W0 : WORLD)
     (C : CmptName)
     (g_switcher : Locality)
     (b_switcher e_switcher a_switcher_cc : Addr)
@@ -80,16 +181,49 @@ Section Switcher.
     (* ct1 must contain the target entry points, which needs to be sealed with ot_switcher *)
     let wct1_caller := WSealed ot_switcher w_entry_point in
     (* the state of the stack before the jump  *)
-    let stk_pre_jmp :=
-      [wcs0_caller;wcs1_caller;wcra_caller;wcgp_caller] ++
+    let stk_caller_save_area :=
+      [wcs0_caller;wcs1_caller;wcra_caller;wcgp_caller]
+    in
+    let stk_callee_frame_pre_jmp :=
         (region_addrs_zeroes (a_stk ^+4)%a e_stk)
     in
+    let stk_pre_jmp :=
+     stk_caller_save_area ++ stk_callee_frame_pre_jmp
+    in
 
-    is_arg_rmap arg_rmap ->
-    dom rmap = all_registers_s ∖ ((dom arg_rmap) ∪ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ct1 ]} ) ->
-    ↑N ⊆ E →
+    let POST_COND_SWITCHER :=
+      (▷ ( (∃ (W2 : WORLD) (rmap' : Reg),
+              (* We receive a public future world of the world pre switcher call *)
+              ⌜ related_sts_pub_world W0 W2 ⌝
+              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ]} ⌝
+              ∗ na_own logrel_nais E
+              (* Interpretation of the world *)
+              ∗ region W2 C ∗ sts_full_world W2 C
+              ∗ PC ↦ᵣ updatePcPerm wcra_caller
+              (* cgp is restored, cra points to the next  *)
+              ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller
+              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+              ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
+              ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
+              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ region_addrs_zeroes a_stk e_stk ]])
+          -∗ WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }}
+        ))%I
+    in
 
-    ( na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher)
+    let W0' :=
+      std_update_multiple W0 (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary
+    in
+    let fresh_sts :=
+      (dom (loc1 W0'))
+    in
+    let W1 :=
+      <l[ fresh_cus_name W0' := false , ( frame_rel_pub, (frame_rel_pub, frame_rel_priv)) ]l> W0'
+    in
+
+
+    let PRE_COND_SWITCHER :=
+      (na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher)
       ∗ na_own logrel_nais E
       (* Registers *)
       ∗ PC ↦ᵣ WCap XSRW_ g_switcher b_switcher e_switcher a_switcher_cc
@@ -115,30 +249,31 @@ Section Switcher.
       (* Transformation of the world, before the jump to the adversary *)
       ∗ ( [[ a_stk , e_stk ]] ↦ₐ [[ stk_pre_jmp ]]
           ∗ region W0 C ∗ sts_full_world W0 C
-          ==∗ region W1 C ∗ sts_full_world W1 C)
+          ==∗
+          (*
+            if the user wants to share capabilities pointing in the callee's frame,
+            we need to relinquish the points-to predicates.
+            Which means that the user needs to show safe-to-share.
+           *)
+          interp W1 C (WCap RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a)
+          (* we forbid the user to share access to caller_save_area *)
+          ∗ [[ a_stk , (a_stk ^+4)%a ]] ↦ₐ [[ stk_caller_save_area ]]
+          ∗ region W1 C ∗ sts_full_world W1 C)
+          )%I
+    in
 
+
+    is_arg_rmap arg_rmap ->
+    dom rmap = all_registers_s ∖ ((dom arg_rmap) ∪ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ct1 ]} ) ->
+    ↑N ⊆ E →
+
+    ( PRE_COND_SWITCHER
       (* POST-CONDITION *)
-      ∗ ▷ ( (∃ (W2 : WORLD) (rmap' : Reg),
-              (* We receive a public future world of the world pre switcher call *)
-              ⌜ related_sts_pub_world W0 W2 ⌝
-              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ]} ⌝
-              ∗ na_own logrel_nais E
-              (* Interpretation of the world *)
-              ∗ region W2 C ∗ sts_full_world W2 C
-              ∗ PC ↦ᵣ updatePcPerm wcra_caller
-              (* cgp is restored, cra points to the next  *)
-              ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller
-              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
-              ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
-              ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ region_addrs_zeroes a_stk e_stk ]])
-            -∗ WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }}
-          )
+      ∗ POST_COND_SWITCHER
     )
     ⊢ (WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }})%I.
   Proof.
-    intros Hwct1_caller Hstk_pre_jmp Harg_map Hrmap HNE.
+    intros Hwct1_caller Hstk_caller_save_area Hstk_caller_frm_pre Hstk_pre_jmp Harg_map Hrmap HNE.
     iIntros "(#Hinv_switcher & Hna
               & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Hinterp_ct1 & Hcs0 & Hcs1 & Hargmap & Hrmap
               & Hstk & Hregion & Hworld & Hnext_world & Hφ)".
@@ -315,9 +450,6 @@ Section Switcher.
     { solve_addr. }
     { admit. }
     iNext ; iIntros "(HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
-    iMod ("Hnext_world" with "[Ha1_stk Ha2_stk Ha3_stk Ha4_stk Hstk $Hregion $Hworld]")
-           as "[Hregion Hworld]".
-    { subst Hstk_pre_jmp. admit. }
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
 
@@ -346,7 +478,7 @@ Section Switcher.
     iDestruct "Hinterp_ct1"
       as (Pct1 Hpers_Pct1) "(HmonoReq & Hseal_pred_Pct1 & HPct1 & HPct1_borrow)".
     iDestruct (seal_pred_agree with "Hseal_pred_Pct1 Hp_ot_switcher") as "Hot_switcher_agree".
-    iSpecialize ("Hot_switcher_agree" $! (W1,C,WSealable w_entry_point)).
+    iSpecialize ("Hot_switcher_agree" $! (W0,C,WSealable w_entry_point)).
 
     (* Load cs0 cs0 *)
     iInstr "Hcode".
@@ -538,6 +670,17 @@ Section Switcher.
     focus_block 5 "Hcode" as a_jmp Ha_jmp "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Jalr cra cra *)
     iInstr "Hcode".
+
+    iEval (cbn) in "Hcgp".
+    iEval (cbn) in "Hinterp_wbtbl".
+    iEval (cbn) in "Hinterp_wbtbl1".
+
+    iAssert ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ interp W1 C w)%I with "[Hrmap']" as "Hrmap'".
+    {
+      iApply (big_sepM_impl with "[$]").
+      iModIntro ; iIntros (r w Hr) "[$ ->]".
+      iEval (rewrite !fixpoint_interp1_eq) ; done.
+    }
     (* TODO that's the interesting part !!!!
 
       - show that rmap' is safe to share
