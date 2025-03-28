@@ -62,8 +62,10 @@ Section fundamental.
           then ▷ wcond P C interp
           else emp)
     -∗ monoReq W C a p' P
-    -∗ (▷ (if decide (ρ = Temporary /\ isWL p' = true)
-           then future_pub_mono C (safeC P) w
+    -∗ (▷ (if decide (ρ = Temporary)
+           then (if isWL p'
+                 then future_pub_mono C (safeC P) w
+                 else (if isDL p' then future_special_mono C (safeC P) w else future_priv_mono C (safeC P) w))
            else future_priv_mono C (safeC P) w))
     -∗ ▷ P W C w
     -∗ sts_full_world W C
