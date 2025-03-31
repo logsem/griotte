@@ -458,11 +458,18 @@ Section fundamental.
           iPureIntro; cbn.
           by eapply canStore_global_nonisWL.
     - ospecialize (Hρ _); first done.
-      iIntros (w W0 W1 HcanStore Hrelated); iModIntro.
-      iIntros "Hinterp".
-      iApply interp_monotone_nl; eauto.
-      iPureIntro; cbn.
-      by eapply canStore_global_nonisWL.
+      destruct (isDL p) eqn:Hd.
+      + iIntros (w W0 W1 HcanStore Hrelated); iModIntro.
+        iIntros "Hinterp".
+        apply related_sts_special_priv_world in Hrelated.
+        iApply interp_monotone_nl; eauto.
+        iPureIntro; cbn.
+        by eapply canStore_global_nonisWL.
+      + iIntros (w HcanStore W0 W1 Hrelated); iModIntro.
+        iIntros "Hinterp".
+        iApply interp_monotone_nl; eauto.
+        iPureIntro; cbn.
+        by eapply canStore_global_nonisWL.
   Qed.
 
   Lemma future_priv_mono_interp_z (C : CmptName) (z : Z) :

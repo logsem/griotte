@@ -444,11 +444,17 @@ Proof.
       p' must be WL and p' flows into the non-WL p''*)
       * destruct_perm p' ; try (simpl in Hconds; by exfalso).
       all:destruct_perm p''; (by exfalso).
-  - iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
-    destruct g.
-    + iApply interp_monotone_nl; last eauto; eauto.
-    + iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
-      simplify_eq.
+  - destruct (isDL p'') eqn:HpdlP''
+    ; iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
+    + destruct g.
+      * iApply interp_monotone_nl; last eauto; eauto.
+        by eapply related_sts_special_priv_world in Hrelated.
+      * iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
+        simplify_eq.
+    + destruct g.
+      * iApply interp_monotone_nl; last eauto; eauto.
+      * iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
+        simplify_eq.
 Qed.
 
 Lemma interp_monotone_generalSentry (W : WORLD) (C : CmptName) (ρ : region_type)
@@ -479,13 +485,17 @@ Proof.
       p' must be WL and p' flows into the non-WL p''*)
       * destruct_perm p' ; try (simpl in Hconds; by exfalso).
         all:destruct_perm p''; (by exfalso).
-  - iModIntro; iIntros (W0 W1) "% HIW0".
-    destruct g.
-    * iApply interp_monotone_nl; last eauto; eauto.
-    * (*Trick here: value relation leads to a contradiction if p' is WL,
-        since then its region cannot be permanent *)
-      iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
-      simplify_eq.
+  - destruct (isDL p'') eqn:HpdlP''
+    ; iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
+    + destruct g.
+      * iApply interp_monotone_nl; last eauto; eauto.
+        by eapply related_sts_special_priv_world in Hrelated.
+      * iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
+        simplify_eq.
+    + destruct g.
+      * iApply interp_monotone_nl; last eauto; eauto.
+      * iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
+        simplify_eq.
 Qed.
 
 
@@ -508,8 +518,10 @@ Proof.
     + iApply interp_monotone_nl; last eauto; eauto.
       by eapply related_sts_special_priv_world in Hrelated.
     + iApply interp_monotone_nl; last eauto; eauto.
-  - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    iApply interp_monotone_nl; last eauto; eauto.
+  - destruct (isDL p') eqn:HpdlP' ; iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
+    + iApply interp_monotone_nl; last eauto; eauto.
+      by eapply related_sts_special_priv_world in Hrelated.
+    + iApply interp_monotone_nl; last eauto; eauto.
 Qed.
 
 Lemma interp_monotone_generalSr (W : WORLD) (C : CmptName) (ρ : region_type)
@@ -527,7 +539,7 @@ Proof.
   - destruct (isWL p') eqn: HpwlP1 ; [|destruct (isDL p') eqn:HdwlP1]
     ; iModIntro; simpl ; iIntros (W0 W1) "% HIW0".
     all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
-  - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
+  - destruct (isDL p') eqn:HdwlP1; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
     all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
 Qed.
 
@@ -550,8 +562,10 @@ Proof.
     * iApply interp_monotone_sd; last eauto; eauto.
       by eapply related_sts_special_priv_world in Hrelated.
     * iApply interp_monotone_sd; last eauto; eauto.
-  - iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
-    iApply interp_monotone_sd; last eauto; eauto.
+  - destruct (isDL p') eqn:HdwlP1; iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
+    + iApply interp_monotone_sd; last eauto; eauto.
+      by eapply related_sts_special_priv_world in Hrelated.
+    + iApply interp_monotone_sd; last eauto; eauto.
 Qed.
 
 End monotone.

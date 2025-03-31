@@ -375,7 +375,9 @@ Section heap.
                       | Permanent =>
                           ∃ (v : Word), ⌜isO p = false⌝
                                         ∗ a ↦ₐ v
-                                        ∗ future_priv_mono C φ v
+                                        ∗ (if isDL p
+                                                 then future_special_mono C φ v
+                                                 else future_priv_mono C φ v)
                                         ∗ ▷ φ (W,C,v)
                       | Frozen m =>
                           ∃ (v : Word), ⌜isO p = false⌝
@@ -639,8 +641,10 @@ Section heap.
     - iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
       iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
       iFrame "%#∗".
+      destruct (isDL p);
       iApply "HmonoV"; iFrame "∗#"; auto.
-      iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
+      + iPureIntro; apply related_sts_pub_special_world in Hrelated; naive_solver.
+      + iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
     - done.
     - done.
   Qed.
@@ -906,7 +910,7 @@ Section heap.
            ∗ sts_state_std C l Permanent
            ∗ l ↦ₐ v
            ∗ ⌜isO p = false⌝
-           ∗ ▷ future_priv_mono C φ v
+           ∗ ▷ (if isDL p then future_special_mono C φ v else future_priv_mono C φ v)
            ∗ ▷ φ (W,C,v).
   Proof.
     iIntros (Htemp) "(#Hrel & Hreg & Hfull)".
@@ -933,7 +937,9 @@ Section heap.
       iApply region_map_delete_nonfrozen; auto. by congruence.
     - repeat (iSplitR).
       + auto.
-      + iApply future_priv_mono_eq_pred; auto.
+      + destruct (isDL p').
+        * iApply future_special_mono_eq_pred; auto.
+        * iApply future_priv_mono_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame "∗ #".
   Qed.
 
@@ -978,7 +984,7 @@ Section heap.
               then ( if isWL p
                      then future_pub_mono C φ v
                      else (if isDL p then future_special_mono C φ v else future_priv_mono C φ v))
-              else future_priv_mono C φ v)
+              else (if isDL p then future_special_mono C φ v else future_priv_mono C φ v))
          ∗ ▷ φ (W,C,v).
   Proof.
     iIntros (Hne Htemp) "(Hrel & Hreg & Hfull)".
@@ -1248,7 +1254,7 @@ Section heap.
       ∗ open_region W C a
       ∗ a ↦ₐ v
       ∗ ⌜isO p = false⌝
-      ∗ future_priv_mono C φ v
+      ∗ (if isDL p then future_special_mono C φ v else future_priv_mono C φ v)
       ∗ ▷ φ (W,C,v)
       ∗ rel C a p φ
       -∗ region W C.
@@ -1280,7 +1286,7 @@ Section heap.
        then ( if isWL p
               then future_pub_mono C φ v
               else (if isDL p then future_special_mono C φ v else future_priv_mono C φ v))
-       else future_priv_mono C φ v)
+       else (if isDL p then future_special_mono C φ v else future_priv_mono C φ v))
     ∗ ▷ φ (W,C,v)
     ∗ rel C a p φ
       -∗ region W C.
@@ -1441,7 +1447,7 @@ Section heap.
         ∗ open_region_many W C (a :: als)
         ∗ a ↦ₐ v
         ∗ ⌜isO p = false⌝
-        ∗ ▷ (future_priv_mono C φ v)
+        ∗ ▷ (if isDL p then future_special_mono C φ v else future_priv_mono C φ v)
         ∗ ▷ φ (W,C,v).
   Proof.
     rewrite open_region_many_eq .
@@ -1470,7 +1476,9 @@ Section heap.
       iApply region_map_delete_nonfrozen; auto. by congruence.
     - repeat (iSplitR).
       + auto.
-      + iApply future_priv_mono_eq_pred; auto.
+      + destruct (isDL p').
+        * iApply future_special_mono_eq_pred; auto.
+        * iApply future_priv_mono_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame.
   Qed.
 
@@ -1658,7 +1666,7 @@ Section heap.
     ∗ open_region_many W C (a::als)
     ∗ a ↦ₐ v
     ∗ ⌜isO p = false⌝
-    ∗ future_priv_mono C φ v
+    ∗ (if isDL p then future_special_mono C φ v else future_priv_mono C φ v)
     ∗ ▷ φ (W,C,v)
     ∗ rel C a p φ
       -∗ open_region_many W C als.
@@ -1691,7 +1699,7 @@ Section heap.
     (p : Perm) (w : Word) (ρ : region_type) :=
     (match ρ with
      | Temporary => (if isWL p then future_pub_mono else (if isDL p then future_special_mono else future_priv_mono))
-     | Permanent => future_priv_mono
+     | Permanent => (if isDL p then future_special_mono else future_priv_mono)
      | Revoked | Frozen _ => λ _ _ _, True
      end C φ w)%I.
 
@@ -1700,7 +1708,7 @@ Section heap.
     (p : Perm) (w : Word) (ρ : region_type) :=
     (if decide (ρ = Temporary)
      then (if isWL p then future_pub_mono C φ w else (if isDL p then future_special_mono C φ w else future_priv_mono C φ w))
-     else future_priv_mono C φ w )%I.
+     else (if isDL p then future_special_mono C φ w else future_priv_mono C φ w) )%I.
 
   (*Lemma that allows switching between the two different formulations of monotonicity, to alleviate the effects of inconsistencies*)
   Lemma switch_monotonicity_formulation
@@ -1714,9 +1722,11 @@ Section heap.
     iSplit; iIntros "HH".
     - destruct ρ;simpl;auto;try done.
       * destruct (isWL p), (isDL p);done.
+      * destruct (isWL p), (isDL p);done.
       * specialize (Hmono g); done.
     - destruct ρ;simpl;auto;try done.
-      destruct (isWL p), (isDL p); done.
+      * destruct (isWL p), (isDL p); done.
+      * destruct (isWL p), (isDL p); done.
   Qed.
 
   Global Instance monotonicity_guarantees_region_Persistent C P p w ρ :
@@ -1756,6 +1766,7 @@ Section heap.
         destruct (isDL p); eauto.
     - iDestruct (region_open_next_perm with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
       ; eauto; iFrame.
+      destruct (isDL p); done.
     - exfalso. apply Hρnotfrozen; eauto.
   Qed.
 
@@ -1784,6 +1795,7 @@ Section heap.
       + iApply (region_close_next_temp_nwl with "[A B C D E F G]"); eauto; iFrame.
         destruct (isDL p); eauto.
     - iApply (region_close_next_perm with "[A B C D E F G]"); eauto; iFrame.
+      destruct (isDL p); done.
     - exfalso. apply Hρnotfrozen. eauto.
   Qed.
 
