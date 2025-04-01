@@ -433,7 +433,7 @@ Proof.
     + iApply interp_monotone; last eauto; eauto.
     + destruct g.
       * iApply interp_monotone_nl; last eauto; eauto.
-        by eapply related_sts_special_priv_world in Hrelated.
+        by eapply related_sts_borrow_priv_world in Hrelated.
     (* The below case is a contradiction, since if g is local,
       p' must be WL and p' flows into the non-WL p''*)
       * destruct_perm p' ; try (simpl in Hconds; by exfalso).
@@ -448,7 +448,7 @@ Proof.
     ; iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
     + destruct g.
       * iApply interp_monotone_nl; last eauto; eauto.
-        by eapply related_sts_special_priv_world in Hrelated.
+        by eapply related_sts_borrow_priv_world in Hrelated.
       * iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
         simplify_eq.
     + destruct g.
@@ -474,7 +474,7 @@ Proof.
     + iApply interp_monotone; last eauto; eauto.
     + destruct g.
       * iApply interp_monotone_nl; last eauto; eauto.
-        by eapply related_sts_special_priv_world in Hrelated.
+        by eapply related_sts_borrow_priv_world in Hrelated.
       (* The below case is a contradiction, since if g is local,
       p' must be WL and p' flows into the non-WL p''*)
       * destruct_perm p' ; try (simpl in Hconds; by exfalso).
@@ -489,7 +489,7 @@ Proof.
     ; iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
     + destruct g.
       * iApply interp_monotone_nl; last eauto; eauto.
-        by eapply related_sts_special_priv_world in Hrelated.
+        by eapply related_sts_borrow_priv_world in Hrelated.
       * iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
         simplify_eq.
     + destruct g.
@@ -516,11 +516,11 @@ Proof.
     ; iModIntro; simpl ; iIntros (W0 W1) "%Hrelated HIW0".
     + iApply interp_monotone; last eauto; eauto.
     + iApply interp_monotone_nl; last eauto; eauto.
-      by eapply related_sts_special_priv_world in Hrelated.
+      by eapply related_sts_borrow_priv_world in Hrelated.
     + iApply interp_monotone_nl; last eauto; eauto.
   - destruct (isDL p') eqn:HpdlP' ; iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
     + iApply interp_monotone_nl; last eauto; eauto.
-      by eapply related_sts_special_priv_world in Hrelated.
+      by eapply related_sts_borrow_priv_world in Hrelated.
     + iApply interp_monotone_nl; last eauto; eauto.
 Qed.
 
@@ -560,11 +560,11 @@ Proof.
     * iApply interp_monotone_sd; last eauto; eauto.
       by apply related_sts_pub_priv_world in Hrelated.
     * iApply interp_monotone_sd; last eauto; eauto.
-      by eapply related_sts_special_priv_world in Hrelated.
+      by eapply related_sts_borrow_priv_world in Hrelated.
     * iApply interp_monotone_sd; last eauto; eauto.
   - destruct (isDL p') eqn:HdwlP1; iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
     + iApply interp_monotone_sd; last eauto; eauto.
-      by eapply related_sts_special_priv_world in Hrelated.
+      by eapply related_sts_borrow_priv_world in Hrelated.
     + iApply interp_monotone_sd; last eauto; eauto.
 Qed.
 

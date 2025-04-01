@@ -65,8 +65,8 @@ Section fundamental.
     -∗ (▷ (if decide (ρ = Temporary)
            then (if isWL p'
                  then future_pub_mono C (safeC P) w
-                 else (if isDL p' then future_special_mono C (safeC P) w else future_priv_mono C (safeC P) w))
-           else (if isDL p' then future_special_mono C (safeC P) w else future_priv_mono C (safeC P) w)))
+                 else (if isDL p' then future_borrow_mono C (safeC P) w else future_priv_mono C (safeC P) w))
+           else (if isDL p' then future_borrow_mono C (safeC P) w else future_priv_mono C (safeC P) w)))
     -∗ ▷ P W C w
     -∗ sts_full_world W C
     -∗ na_own logrel_nais ⊤

@@ -132,7 +132,7 @@ Section definitionsS.
     related_sts_std_priv W.1 W'.1 ∧
     related_sts_priv W.2.1 W'.2.1 W.2.2 W'.2.2.
   (* NOTE new relation, that is public for standard, but private for custom *)
-  Definition related_sts_special_world (W W' : WORLD) :=
+  Definition related_sts_borrow_world (W W' : WORLD) :=
     related_sts_std_pub W.1 W'.1 ∧
     related_sts_priv W.2.1 W'.2.1 W.2.2 W'.2.2.
 
@@ -320,7 +320,7 @@ Section STS.
   Proof. split;[apply related_sts_std_pub_refl|apply related_sts_pub_refl]. Qed.
   Lemma related_sts_priv_refl_world W : related_sts_priv_world W W.
   Proof. split;[apply related_sts_std_priv_refl|apply related_sts_priv_refl]. Qed.
-  Lemma related_sts_special_refl_world W : related_sts_special_world W W.
+  Lemma related_sts_borrow_refl_world W : related_sts_borrow_world W W.
   Proof. split;[apply related_sts_std_pub_refl|apply related_sts_priv_refl]. Qed.
 
   Lemma related_sts_pub_priv fs fr gs gr :
@@ -354,15 +354,15 @@ Section STS.
     split;[apply related_sts_std_pub_priv|apply related_sts_pub_priv];auto.
   Qed.
 
-  Lemma related_sts_pub_special_world W W' :
-    related_sts_pub_world W W' → related_sts_special_world W W'.
+  Lemma related_sts_pub_borrow_world W W' :
+    related_sts_pub_world W W' → related_sts_borrow_world W W'.
   Proof.
     intros [Hrel Hrel'].
     split;[done|apply related_sts_pub_priv];auto.
   Qed.
 
-  Lemma related_sts_special_priv_world W W' :
-    related_sts_special_world W W' → related_sts_priv_world W W'.
+  Lemma related_sts_borrow_priv_world W W' :
+    related_sts_borrow_world W W' → related_sts_priv_world W W'.
   Proof.
     intros [Hrel Hrel'].
     split;[apply related_sts_std_pub_priv|done];auto.
@@ -587,7 +587,7 @@ Section STS.
       + intros ; set_solver.
   Qed.
 
-  Lemma related_sts_special_empty_world W : related_sts_special_world (∅, (∅, ∅)) W.
+  Lemma related_sts_borrow_empty_world W : related_sts_borrow_world (∅, (∅, ∅)) W.
   Proof.
     split; cbn.
     - split;auto.

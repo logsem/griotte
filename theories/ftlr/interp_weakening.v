@@ -447,7 +447,7 @@ Section fundamental.
         iApply interp_monotone; eauto.
       + destruct (isDL p) eqn:Hdl.
         * iIntros (w W0 W1 HcanStore Hrelated); iModIntro.
-          eapply related_sts_special_priv_world in Hrelated.
+          eapply related_sts_borrow_priv_world in Hrelated.
           iIntros "Hinterp".
           iApply interp_monotone_nl; eauto.
           iPureIntro; cbn.
@@ -461,7 +461,7 @@ Section fundamental.
       destruct (isDL p) eqn:Hd.
       + iIntros (w W0 W1 HcanStore Hrelated); iModIntro.
         iIntros "Hinterp".
-        apply related_sts_special_priv_world in Hrelated.
+        apply related_sts_borrow_priv_world in Hrelated.
         iApply interp_monotone_nl; eauto.
         iPureIntro; cbn.
         by eapply canStore_global_nonisWL.
