@@ -176,6 +176,12 @@ Section Switcher.
      let ι := fresh_cus_name W in
       <l[ ι := false , ( frame_rel_pub, (frame_rel_pub, frame_rel_priv)) ]l> W.
 
+   (* TODO move to machine base *)
+   Definition isWLword (w : Word) : bool :=
+     match w with
+     | WCap p _ _ _ _ => isWL p
+     | _ => false
+     end.
 
   (* TODO:
      - How to encode the number of registers to pass as arguments?
@@ -183,7 +189,7 @@ Section Switcher.
    *)
   Lemma switcher_cc_specification
     (E : coPset) (N : namespace)
-    (W0 : WORLD)
+    (W0 W1 : WORLD)
     (C : CmptName)
     (g_switcher : Locality)
     (b_switcher e_switcher a_switcher_cc : Addr)
@@ -208,31 +214,17 @@ Section Switcher.
      stk_caller_save_area ++ stk_callee_frame_pre_jmp
     in
 
-    let POST_COND_SWITCHER :=
-      ( ( (∃ (W2 : WORLD) (rmap' : Reg),
-              (* We receive a public future world of the world pre switcher call *)
-              ⌜ related_sts_pub_world W0 W2 ⌝
-              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ]} ⌝
-              ∗ na_own logrel_nais E
-              (* Interpretation of the world *)
-              ∗ region W2 C ∗ sts_full_world W2 C
-              ∗ PC ↦ᵣ updatePcPerm wcra_caller
-              (* cgp is restored, cra points to the next  *)
-              ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller
-              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
-              ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
-              ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ region_addrs_zeroes a_stk e_stk ]])
-          -∗ WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }}
-        ))%I
-    in
+    let W0' := frame_W (std_update_multiple (revoke W0) (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) in
+    (* let W1 := frame_W (std_update_multiple W0 (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) in *)
 
-    let W1 := frame_W (std_update_multiple W0 (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) in
+    is_arg_rmap arg_rmap ->
+    dom rmap = all_registers_s ∖ ((dom arg_rmap) ∪ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ct1 ]} ) ->
+    ↑N ⊆ E →
 
-    let PRE_COND_SWITCHER :=
-      (
-      na_own logrel_nais E
+    ( na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher)
+
+      (* PRE-CONDITION *)
+      ∗ na_own logrel_nais E
       (* Registers *)
       ∗ PC ↦ᵣ WCap XSRW_ g_switcher b_switcher e_switcher a_switcher_cc
       ∗ cgp ↦ᵣ wcgp_caller
@@ -244,7 +236,7 @@ Section Switcher.
       ∗ cs0 ↦ᵣ wcs0_caller
       ∗ cs1 ↦ᵣ wcs1_caller
       (* Argument registers, need to be safe-to-share *)
-      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W1 C warg )
+      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W1 C warg ∗ ⌜ isLocal warg ⌝ )
       (* All the other registers *)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
@@ -252,32 +244,38 @@ Section Switcher.
       ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
 
       (* Interpretation of the world, at the moment of the switcher_call *)
-      ∗ region W0 C ∗ sts_full_world W0 C
+      ∗ region W0 C
+      ∗ sts_full_world W0 C
 
-      (* (* Transformation of the world, before the jump to the adversary *) *)
-      (* ∗ ( [[ a_stk , e_stk ]] ↦ₐ [[ stk_pre_jmp ]] *)
-      (*     ∗ region W0 C ∗ sts_full_world W0 C *)
-      (*     ==∗ *)
-      (*     (* *)
-      (*       if the user wants to share capabilities pointing in the callee's frame, *)
-      (*       we need to relinquish the points-to predicates. *)
-      (*       Which means that the user needs to show safe-to-share. *)
-      (*      *) *)
-      (*     interp W1 C (WCap RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a) *)
-      (*     (* we forbid the user to share access to caller_save_area *) *)
-      (*     ∗ [[ a_stk , (a_stk ^+4)%a ]] ↦ₐ [[ stk_caller_save_area ]] *)
-      (*     ∗ region W1 C ∗ sts_full_world W1 C) *)
-          )%I
-    in
+      (* Transformation of the world, before the jump to the adversary *)
+      ∗ ( [[ a_stk , e_stk ]] ↦ₐ [[ stk_pre_jmp ]]
+          ∗ region W0 C ∗ sts_full_world W0 C
+          ==∗
+          interp W1 C (WCap RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a)
+          (* we forbid the user to share access to caller_save_area *)
+          ∗ [[ a_stk , (a_stk ^+4)%a ]] ↦ₐ [[ stk_caller_save_area ]]
+          ∗ region W1 C ∗ sts_full_world W1 C)
 
 
-    is_arg_rmap arg_rmap ->
-    dom rmap = all_registers_s ∖ ((dom arg_rmap) ∪ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ct1 ]} ) ->
-    ↑N ⊆ E →
-
-    ( na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher)
-       ∗ PRE_COND_SWITCHER
-       ∗ ▷ POST_COND_SWITCHER )
+      (* POST-CONDITION *)
+      ∗ ▷ ( (∃ (W2 : WORLD) (rmap' : Reg),
+                (* We receive a public future world of the world pre switcher call *)
+                ⌜ related_sts_pub_world W0 W2 ⌝
+                ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ]} ⌝
+                ∗ na_own logrel_nais E
+                (* Interpretation of the world *)
+                ∗ region W2 C ∗ sts_full_world W2 C
+                ∗ PC ↦ᵣ updatePcPerm wcra_caller
+                (* cgp is restored, cra points to the next  *)
+                ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller
+                ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+                ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
+                ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
+                ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+                ∗ [[ a_stk , e_stk ]] ↦ₐ [[ region_addrs_zeroes a_stk e_stk ]])
+            -∗ WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }}
+          )
+    )
     ⊢ (WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }})%I.
   Proof.
     intros Hwct1_caller Hstk_caller_save_area Hstk_caller_frm_pre Hstk_pre_jmp
