@@ -87,7 +87,7 @@ Section region_alloc.
     isO p = false ->
      a ∉ dom (std W) →
      (isWL p) = false →
-     (if isDL p then future_special_mono C φ v else future_priv_mono C φ v) -∗
+     (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v) -∗
      sts_full_world W C -∗
      region W C -∗
      a ↦ₐ v -∗
@@ -133,7 +133,7 @@ Section region_alloc.
         iFrame "∗ #".
         repeat(iSplitR;[auto|]).
         destruct (isDL p); iApply "HmonoV"; eauto.
-        + by iPureIntro; apply related_sts_pub_special_world.
+        + by iPureIntro; apply related_sts_pub_borrow_world.
         + by iPureIntro; apply related_sts_pub_priv_world.
       }
       iApply (big_sepM_mono with "Hpreds'").
