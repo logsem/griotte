@@ -1,5 +1,4 @@
 From iris.proofmode Require Import tactics.
-From cap_machine Require Export region_invariants_revocation.
 From cap_machine Require Import logrel.
 Require Import Eqdep_dec List.
 From stdpp Require Import countable.
@@ -401,26 +400,6 @@ Section std_updates.
      intros Hcontr. contradiction.
    Qed.
 
-   (* commuting updates and revoke *)
-
-   Lemma std_update_multiple_revoke_commute W (l: list Addr) ρ :
-     ρ ≠ Temporary → ρ ≠ Temporary →
-     std_update_multiple (revoke W) l ρ = revoke (std_update_multiple W l ρ).
-   Proof.
-     intros Hne Hne'.
-     induction l; auto; simpl.
-     rewrite IHl.
-     rewrite /std_update /revoke /loc /std /=. repeat f_equiv.
-     eapply (map_leibniz (M:=gmap Addr) (A:=region_type)). intros i. eapply leibniz_equiv_iff.
-     destruct (decide (a = i)).
-     - subst. rewrite lookup_insert revoke_monotone_lookup_same;rewrite lookup_insert; auto.
-       all: intros Hcontr; inversion Hcontr as [Hcontr']. all:done.
-     - rewrite lookup_insert_ne;auto.
-       apply revoke_monotone_lookup. rewrite lookup_insert_ne;auto. Unshelve.
-       apply _.
-       apply option_leibniz.
-   Qed.
-
    Lemma std_update_multiple_app W (l1 l2 : list Addr) ρ :
      std_update_multiple W (l1 ++ l2) ρ = std_update_multiple (std_update_multiple W l1 ρ) l2 ρ.
    Proof.
@@ -459,8 +438,29 @@ Section std_updates.
      induction l; auto; simpl.
      apply not_elem_of_cons in Hne as [Hne Hnin].
      rewrite IHl;auto.
-     rewrite /std_update /revoke /loc /std /=. rewrite insert_commute;auto.
+     rewrite /std_update /loc /std /=. rewrite insert_commute;auto.
    Qed.
+
+   Lemma related_sts_pub_world_revoked_permanent W a :
+    (std W) !! a = Some Revoked →
+    related_sts_pub_world W (<s[a:=Permanent]s>W).
+  Proof.
+    intros Ha.
+    rewrite /related_sts_pub_world /=.
+    split;[|apply related_sts_pub_refl].
+    rewrite /related_sts_pub. split.
+    - rewrite dom_insert_L. set_solver.
+    - intros i x y Hx Hy.
+      destruct (decide (a = i)).
+      + subst.
+        rewrite Hx in Ha. inversion Ha.
+        rewrite lookup_insert in Hy. inversion Hy.
+        right with (Permanent);[|left]. constructor.
+      + rewrite lookup_insert_ne in Hy;auto.
+        rewrite Hx in Hy.
+        inversion Hy; subst.
+        left.
+  Qed.
 
    Lemma related_sts_pub_update_multiple_perm W l :
      Forall (λ k, std W !! k = Some Revoked) l →

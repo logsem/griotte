@@ -1,6 +1,6 @@
 From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import tactics.
-From cap_machine Require Export stdpp_extra iris_extra region_invariants region_invariants.
+From cap_machine Require Export stdpp_extra iris_extra region_invariants multiple_updates.
 Import uPred.
 
 Section heap.
@@ -1872,27 +1872,6 @@ Section heap.
     iMod (close_list_consolidate _ _ _ l with "[] [] [$Hr $Hsts $Htemp]") as "[Hsts Hr]";[auto|eauto|iFrame;done].
   Qed.
 
-   Lemma related_sts_pub_world_revoked_permanent W a :
-    (std W) !! a = Some Revoked →
-    related_sts_pub_world W (<s[a:=Permanent]s>W).
-  Proof.
-    intros Ha.
-    rewrite /related_sts_pub_world /=.
-    split;[|apply related_sts_pub_refl].
-    rewrite /related_sts_pub. split.
-    - rewrite dom_insert_L. set_solver.
-    - intros i x y Hx Hy.
-      destruct (decide (a = i)).
-      + subst.
-        rewrite Hx in Ha. inversion Ha.
-        rewrite lookup_insert in Hy. inversion Hy.
-        right with (Permanent);[|left]. constructor.
-      + rewrite lookup_insert_ne in Hy;auto.
-        rewrite Hx in Hy.
-        inversion Hy; subst.
-        left.
-  Qed.
-
   Lemma update_region_revoked_perm E W C a v φ p `{∀ Wv, Persistent (φ Wv)} :
     (std W) !! a = Some Revoked ->
     isO p = false →
@@ -1944,5 +1923,26 @@ Section heap.
     - repeat rewrite dom_insert_L;rewrite Hdom;set_solver.
     - repeat rewrite dom_insert_L;rewrite Hdom';set_solver.
   Qed.
+
+   (* commuting updates and revoke *)
+
+   Lemma std_update_multiple_revoke_commute W (l: list Addr) ρ :
+     ρ ≠ Temporary → ρ ≠ Temporary →
+     std_update_multiple (revoke W) l ρ = revoke (std_update_multiple W l ρ).
+   Proof.
+     intros Hne Hne'.
+     induction l; auto; simpl.
+     rewrite IHl.
+     rewrite /std_update /revoke /loc /std /=. repeat f_equiv.
+     eapply (map_leibniz (M:=gmap Addr) (A:=region_type)). intros i. eapply leibniz_equiv_iff.
+     destruct (decide (a = i)).
+     - subst. rewrite lookup_insert revoke_monotone_lookup_same;rewrite lookup_insert; auto.
+       all: intros Hcontr; inversion Hcontr as [Hcontr']. all:done.
+     - rewrite lookup_insert_ne;auto.
+       apply revoke_monotone_lookup. rewrite lookup_insert_ne;auto. Unshelve.
+       apply _.
+       apply option_leibniz.
+   Qed.
+
 
 End heap.

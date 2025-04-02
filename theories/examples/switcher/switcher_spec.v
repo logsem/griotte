@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel interp_weakening addr_reg_sample rules proofmode.
-From cap_machine Require Import multiple_updates.
+From cap_machine Require Import multiple_updates region_invariants_revocation.
 From cap_machine Require Import switcher.
 
 Section TStack.
@@ -183,6 +183,91 @@ Section Switcher.
      | _ => false
      end.
 
+   Set Nested Proofs Allowed.
+   (* not really generic, only closing when stack is cleared out *)
+   Lemma region_close_many_temp_pwl W C als als' :
+     NoDup als ->
+     NoDup als' ->
+     als' ⊆ als ->
+     ([∗ list] a ∈ als',
+        sts_state_std C a Temporary
+        ∗ rel C a RWL interpC
+        ∗ a ↦ₐ WInt 0
+        ∗ ▷ interp W C (WInt 0))
+     -∗ open_region_many W C als
+        -∗ open_region_many W C (list_difference als als').
+   Proof.
+     revert als'.
+     induction als; intros als' ; iIntros (HNoDup_als HNoDup_als' Hals') "Hres Hregion".
+     - by apply list_nil_subseteq in Hals'; rewrite Hals'.
+     - rewrite NoDup_cons in HNoDup_als; destruct HNoDup_als as [Ha_notin HNoDup_als].
+       iEval (cbn) in "Hres".
+       destruct (decide_rel elem_of a als') as [Ha_in|Ha_in]; cycle 1.
+   Admitted.
+
+   Lemma big_sepL_region_mapsto_zeroes a e :
+     [[a,e]]↦ₐ[[region_addrs_zeroes a e]] ⊣⊢
+     [∗ list] a' ∈ finz.seq_between a e, a' ↦ₐ WInt 0.
+   Admitted.
+
+    Lemma region_close_revoked W C a p φ  `{forall Wv, Persistent (φ Wv)}:
+      ⊢ sts_state_std C a Revoked
+      ∗ open_region W C a
+      ∗ rel C a p φ
+        -∗ region W C.
+    Proof.
+      iIntros "(Hstate & Hreg_open & #Hrel)".
+      rewrite open_region_eq region_eq rel_eq /open_region_def /region_def /rel_def.
+      iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
+      iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
+      iDestruct (region_map_insert_nonfrozen _ _ _ _ _ Revoked  with "Hpreds") as "Hpreds".
+      { by congruence. }
+      iDestruct ( (big_sepM_insert _ (delete a M) a (γpred,p)) with "[-HM]") as "test";
+        first by rewrite lookup_delete.
+      { iFrame "∗ #". iSplitR; [by simplify_map_eq|].
+        iExists p.
+        repeat (iSplitR;[eauto|]). done.  }
+      iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
+      rewrite -HMeq.
+      iFrame "∗ # %".
+      iPureIntro.
+      by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+    Qed.
+
+   Lemma region_close_many_revoked W C als als' :
+     NoDup als ->
+     NoDup als' ->
+     als' ⊆ als ->
+     ([∗ list] a ∈ als', sts_state_std C a Revoked ∗ rel C a RWL interpC)
+     -∗ open_region_many W C als
+        -∗ open_region_many W C (list_difference als als').
+   Proof.
+     revert als'.
+     induction als; intros als' ; iIntros (HNoDup_als HNoDup_als' Hals') "Hres Hregion".
+     - by apply list_nil_subseteq in Hals'; rewrite Hals'.
+     - rewrite NoDup_cons in HNoDup_als; destruct HNoDup_als as [Ha_notin HNoDup_als].
+       iEval (cbn) in "Hres".
+       destruct (decide_rel elem_of a als') as [Ha_in|Ha_in]; cycle 1.
+   Admitted.
+
+
+  Lemma sts_update_std_multiple W C la b b' :
+    sts_full_world W C
+    -∗ ([∗ list] a ∈ la, sts_state_std C a b)
+    ==∗ sts_full_world (std_update_multiple W la b') C
+    ∗ ([∗ list] a ∈ la, sts_state_std C a b').
+  Proof.
+    revert W.
+    induction la; iIntros (W) "Hsts Hstd"; cbn.
+    - cbn; iFrame; done.
+    - cbn.
+      iDestruct "Hstd" as "[Hstd_a Hstd]".
+      iMod (IHla with "Hsts Hstd") as "[Hsts Hstd]".
+      iMod (sts_update_std _ _ _ _ b' with "Hsts Hstd_a") as "[Hsts Hstd_a]".
+      iModIntro; iFrame.
+  Qed.
+
+
   (* TODO:
      - How to encode the number of registers to pass as arguments?
        A possibility is to use a resource that encodes it.
@@ -236,7 +321,7 @@ Section Switcher.
       ∗ cs0 ↦ᵣ wcs0_caller
       ∗ cs1 ↦ᵣ wcs1_caller
       (* Argument registers, need to be safe-to-share *)
-      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W1 C warg ∗ ⌜ isLocal warg ⌝ )
+      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W1 C warg ∗ ⌜ isWLword warg ⌝ )
       (* All the other registers *)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
@@ -244,17 +329,17 @@ Section Switcher.
       ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
 
       (* Interpretation of the world, at the moment of the switcher_call *)
-      ∗ region W0 C
       ∗ sts_full_world W0 C
+      ∗ open_region_many W0 C (finz.seq_between a_stk e_stk)
+      ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), rel C a RWL interpC ∗ sts_state_std C a Temporary)
+      (* ∗ (⌜ forall a, a ∈ (finz.seq_between a_stk e_stk) -> (std W0) !! a = Some Temporary ⌝) *)
+        (* region W0 C *)
+      ∗ (⌜ related_sts_pub_world W0' W1 ⌝)
 
       (* Transformation of the world, before the jump to the adversary *)
-      ∗ ( [[ a_stk , e_stk ]] ↦ₐ [[ stk_pre_jmp ]]
-          ∗ region W0 C ∗ sts_full_world W0 C
+      ∗ ( region W0' C ∗ sts_full_world W0' C
           ==∗
-          interp W1 C (WCap RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a)
-          (* we forbid the user to share access to caller_save_area *)
-          ∗ [[ a_stk , (a_stk ^+4)%a ]] ↦ₐ [[ stk_caller_save_area ]]
-          ∗ region W1 C ∗ sts_full_world W1 C)
+          region W1 C ∗ sts_full_world W1 C)
 
 
       (* POST-CONDITION *)
@@ -264,7 +349,10 @@ Section Switcher.
                 ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ]} ⌝
                 ∗ na_own logrel_nais E
                 (* Interpretation of the world *)
-                ∗ region W2 C ∗ sts_full_world W2 C
+                ∗ sts_full_world W2 C
+                ∗ open_region_many W2 C (finz.seq_between a_stk e_stk)
+                ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), rel C a RWL interpC )
+                (* ∗  *)
                 ∗ PC ↦ᵣ updatePcPerm wcra_caller
                 (* cgp is restored, cra points to the next  *)
                 ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller
@@ -278,13 +366,13 @@ Section Switcher.
     )
     ⊢ (WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }})%I.
   Proof.
-    intros Hwct1_caller Hstk_caller_save_area Hstk_caller_frm_pre Hstk_pre_jmp
-      HPRE W1 HPOST Harg_map Hrmap HNE; subst HPRE HPOST.
-    iIntros "[ #Hinv_switcher
-              [ (Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Hinterp_ct1 & Hcs0 & Hcs1
-                & Hargmap & Hrmap & Hstk & Hregion & Hworld)
-              Hφ
-              ] ]".
+    intros Hwct1_caller Hstk_caller_save_area Hstk_caller_frm_pre Hstk_pre_jmp W0'
+      Harg_map Hrmap HNE.
+    iIntros "(#Hinv_switcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Hinterp_ct1 & Hcs0 & Hcs1
+                & Hargmap & Hrmap & Hstk & Hworld & Hregion & Hstd_stk & %Hrelated_W1
+                & Hnext_world & Hφ)".
+    iEval (rewrite big_sepL_sep) in "Hstd_stk".
+    iDestruct "Hstd_stk" as "[#Hrel_stk Hstd_state_stk]".
 
     (* ------------------------------------------------ *)
     (* -------- Prepare resources for the proof ------- *)
@@ -461,9 +549,67 @@ Section Switcher.
     iNext ; iIntros "(HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
+    (* UPDATING THE WORLD NOW *)
+    rewrite {1 3}(finz_seq_between_split _ (a_stk^+4)%a e_stk).
+    rewrite big_sepL_app;
+    iDestruct "Hrel_stk" as "[Hrel_reg_saved Hrel_callee_frm]".
+    rewrite big_sepL_app;
+    iDestruct "Hstd_state_stk" as "[Hstd_state_reg_saved Hstd_state_callee_frm]".
+
+
+    (* first, we revoke the world *)
+
+    (* 1) close the callee stack frame *)
+    iDestruct (region_close_many_temp_pwl _ _ _ (finz.seq_between (a_stk ^+ 4)%a e_stk)
+                with "[Hstk Hrel_callee_frm Hstd_state_callee_frm] [$Hregion]") as "Hregion".
+    { by apply finz_seq_between_NoDup. }
+    { by apply finz_seq_between_NoDup. }
+    { admit. }
+    {
+      rewrite big_sepL_region_mapsto_zeroes.
+      rewrite !big_sepL_sep.
+      (* iDestruct "Hrel_callee_frm" as "[$ $]". *)
+      iFrame "∗ #".
+      iApply big_sepL_intro.
+      iModIntro; iIntros (? ? ?).
+      iNext. iApply interp_int.
+    }
+    replace (list_difference (finz.seq_between a_stk e_stk) (finz.seq_between (a_stk ^+ 4)%a e_stk))
+      with (finz.seq_between a_stk (a_stk ^+ 4)%a).
+    2:{ admit. }
+
+    (* 2) revoke the register save area *)
+    iAssert (⌜ forall a, a ∈ finz.seq_between a_stk (a_stk ^+ 4)%a -> (std W0) !! a = Some Temporary ⌝)%I as "%Hregister_saved_area".
+    { admit. }
+
+    (* TODO here *)
+    (* iMod (sts_update_std_multiple with "[Hstd_state_reg_saved Hworld]") as "H". *)
+
+
+
+    (* 3) close the register save area *)
+    iDestruct (region_close_many_revoked _ _ _ (finz.seq_between a_stk (a_stk ^+ 4)%a)
+                with "[Hrel_reg_saved Hstd_state_reg_saved] [$Hregion]") as "Hregion".
+    { by apply finz_seq_between_NoDup. }
+    { by apply finz_seq_between_NoDup. }
+    { set_solver. }
+    {
+      rewrite !big_sepL_sep.
+      iFrame "∗ #".
+      iApply big_sepL_intro.
+      iModIntro; iIntros (? ? ?).
+      iNext. iApply interp_int.
+
+    }
+
+    (* 4) revoke the world *)
+
+    (* 5) revoke ( <[ a := Revoked ]> W ) = revoke W, if W(a) = Temporary *)
+
 
     (* TODO from here *)
     (* revoke the world: all temporary invariant will be "frozen" *)
+
 
 
 
@@ -535,12 +681,17 @@ Section Switcher.
     subst Hwct1_caller.
     iInstr "Hcode".
     { done. (* TODO solve_pure *) }
-    { solve_addr. (* TODO solve_pure *) }
+    { apply withinBounds_true_iff; solve_addr. (* TODO solve_pure *) }
     rewrite Heq_entry_point.
 
 
 
     (* Load cs0 ct1 *)
+    iDestruct (region_open_next_perm with "[$Hrel_atbl $Hregion $Hworld]") as "H".
+    { admit. (* is it derivable? *) }
+    { done.
+
+    }
     iDestruct (region_open_perm with "[$Hrel_atbl $Hregion $Hworld]")
       as (watbl) "(Hregion & Hworld & Hstd_atbl & Ha_tbl & _ & HmonoReq_atbl & #HPatbl)"
     ; first done.
