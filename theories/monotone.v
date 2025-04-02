@@ -427,34 +427,22 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl' Hconds) "#Hvdst".
   destruct ρ;simpl;auto.
-  - destruct (isWL p'') eqn: HpwlP''; [| destruct (isDL p'') eqn: HpdlP'']
-    ; iModIntro; simpl;auto
-    ; iIntros (W0 W1) "%Hrelated HIW0".
+  - destruct (isWL p'') eqn: HpwlP'' ; iModIntro; simpl;auto
+    ; iIntros (W0 W1) "(%&%) HIW0".
     + iApply interp_monotone; last eauto; eauto.
     + destruct g.
       * iApply interp_monotone_nl; last eauto; eauto.
-        by eapply related_sts_borrow_priv_world in Hrelated.
     (* The below case is a contradiction, since if g is local,
       p' must be WL and p' flows into the non-WL p''*)
       * destruct_perm p' ; try (simpl in Hconds; by exfalso).
       all:destruct_perm p''; (by exfalso).
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-    (* The below case is a contradiction, since if g is local,
-      p' must be WL and p' flows into the non-WL p''*)
-      * destruct_perm p' ; try (simpl in Hconds; by exfalso).
-      all:destruct_perm p''; (by exfalso).
-  - destruct (isDL p'') eqn:HpdlP''
-    ; iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-        by eapply related_sts_borrow_priv_world in Hrelated.
-      * iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
-        simplify_eq.
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-      * iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
-        simplify_eq.
+  - iModIntro; iIntros (W0 W1) "(%&%) HIW0".
+    destruct g.
+    + iApply interp_monotone_nl; last eauto; eauto.
+    + (*Trick here: value relation leads to a contradiction if p' is WL,
+        since then its region cannot be permanent *)
+      iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
+      simplify_eq.
 Qed.
 
 Lemma interp_monotone_generalSentry (W : WORLD) (C : CmptName) (ρ : region_type)
@@ -469,33 +457,25 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl' Hconds) "#Hvdst".
   destruct ρ;simpl;auto.
-  - destruct (isWL p'') eqn: HpwlP''; [| destruct (isDL p'') eqn: HpdlP'']
-    ;iModIntro; simpl;auto ; iIntros (W0 W1) "%Hrelated HIW0".
-    + iApply interp_monotone; last eauto; eauto.
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-        by eapply related_sts_borrow_priv_world in Hrelated.
+  - destruct (isWL p'') eqn: HpwlP''.
+    + iModIntro; simpl;auto ; iIntros (W0 W1) "(%&%) HIW0".
+      iApply interp_monotone; last eauto; eauto.
+    + rewrite /future_priv_mono.
+      iModIntro; simpl;auto ; iIntros (W0 W1) "% HIW0".
+      destruct g.
+      ** iApply interp_monotone_nl; last eauto; eauto.
       (* The below case is a contradiction, since if g is local,
       p' must be WL and p' flows into the non-WL p''*)
-      * destruct_perm p' ; try (simpl in Hconds; by exfalso).
-        all:destruct_perm p''; (by exfalso).
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-      (* The below case is a contradiction, since if g is local,
-      p' must be WL and p' flows into the non-WL p''*)
-      * destruct_perm p' ; try (simpl in Hconds; by exfalso).
-        all:destruct_perm p''; (by exfalso).
-  - destruct (isDL p'') eqn:HpdlP''
-    ; iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-        by eapply related_sts_borrow_priv_world in Hrelated.
-      * iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
-        simplify_eq.
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-      * iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
-        simplify_eq.
+      ** destruct_perm p' ; try (simpl in Hconds; by exfalso).
+           all:destruct_perm p''; (by exfalso).
+  - rewrite /future_priv_mono.
+    iModIntro; iIntros (W0 W1) "% HIW0".
+    destruct g.
+    * iApply interp_monotone_nl; last eauto; eauto.
+    * (*Trick here: value relation leads to a contradiction if p' is WL,
+        since then its region cannot be permanent *)
+      iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
+      simplify_eq.
 Qed.
 
 
@@ -512,16 +492,11 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  - destruct (isWL p') eqn: HpwlP1 ; [|destruct (isDL p') eqn:HdwlP1]
-    ; iModIntro; simpl ; iIntros (W0 W1) "%Hrelated HIW0".
+  - destruct (isWL p') eqn: HpwlP1 ; iModIntro; simpl ; iIntros (W0 W1) "(%&%) HIW0".
     + iApply interp_monotone; last eauto; eauto.
     + iApply interp_monotone_nl; last eauto; eauto.
-      by eapply related_sts_borrow_priv_world in Hrelated.
-    + iApply interp_monotone_nl; last eauto; eauto.
-  - destruct (isDL p') eqn:HpdlP' ; iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
-    + iApply interp_monotone_nl; last eauto; eauto.
-      by eapply related_sts_borrow_priv_world in Hrelated.
-    + iApply interp_monotone_nl; last eauto; eauto.
+  - iModIntro; simpl; iIntros (W0 W1) "(%&%) HIW0".
+    iApply interp_monotone_nl; last eauto; eauto.
 Qed.
 
 Lemma interp_monotone_generalSr (W : WORLD) (C : CmptName) (ρ : region_type)
@@ -536,10 +511,9 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  - destruct (isWL p') eqn: HpwlP1 ; [|destruct (isDL p') eqn:HdwlP1]
-    ; iModIntro; simpl ; iIntros (W0 W1) "% HIW0".
+  - destruct (isWL p') eqn: HpwlP1 ; iModIntro; simpl ; iIntros (W0 W1) "(%&%) HIW0".
     all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
-  - destruct (isDL p') eqn:HdwlP1; iModIntro; simpl; iIntros (W0 W1) "% HIW0".
+  - iModIntro; simpl; iIntros (W0 W1) "(%&%) HIW0".
     all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
 Qed.
 
@@ -555,17 +529,12 @@ Proof.
   unfold monotonicity_guarantees_region.
   iIntros (Hstd Hwb Hfl') "#Hvdst".
   destruct ρ;auto.
-  - destruct (isWL p') eqn: HpwlP1 ; [|destruct (isDL p') eqn:HdwlP1]
-    ; iModIntro; simpl ; iIntros (W0 W1) "%Hrelated HIW0".
+  - destruct (isWL p') eqn: Hpwlp' ; iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
     * iApply interp_monotone_sd; last eauto; eauto.
       by apply related_sts_pub_priv_world in Hrelated.
     * iApply interp_monotone_sd; last eauto; eauto.
-      by eapply related_sts_borrow_priv_world in Hrelated.
-    * iApply interp_monotone_sd; last eauto; eauto.
-  - destruct (isDL p') eqn:HdwlP1; iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
-    + iApply interp_monotone_sd; last eauto; eauto.
-      by eapply related_sts_borrow_priv_world in Hrelated.
-    + iApply interp_monotone_sd; last eauto; eauto.
+  - iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
+    iApply interp_monotone_sd; last eauto; eauto.
 Qed.
 
 End monotone.

@@ -217,8 +217,8 @@ Section logrel.
         | Some Temporary =>
             (if isWL p
              then mono_pub C (safeC P)
-             else (if isDL p then mono_borrow C (safeC P) p else mono_priv C (safeC P) p))
-        | Some Permanent => (if isDL p then mono_borrow C (safeC P) p else mono_priv C (safeC P) p)
+             else mono_priv C (safeC P) p)
+        | Some Permanent => mono_priv C (safeC P) p
         | _ => True
         end)%I.
 

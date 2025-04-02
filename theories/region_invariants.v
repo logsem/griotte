@@ -200,11 +200,6 @@ Section heap.
         ⌜ related_sts_priv_world W W'⌝
         → φ (W,C,v) -∗ φ (W',C,v))%I.
 
-  Definition future_borrow_mono (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
-    (□ ∀ (W W' : WORLD),
-        ⌜ related_sts_borrow_world W W'⌝
-        → φ (W,C,v) -∗ φ (W',C,v))%I.
-
   Lemma future_priv_mono_is_future_pub_mono (C : CmptName) (φ: (WORLD * CmptName * Word) → iProp Σ) v :
     future_priv_mono C φ v -∗ future_pub_mono C φ v.
   Proof.
@@ -214,28 +209,8 @@ Section heap.
     iPureIntro; eauto using related_sts_pub_priv_world.
   Qed.
 
-  Lemma future_priv_mono_is_future_borrow_mono (C : CmptName) (φ: (WORLD * CmptName * Word) → iProp Σ) v :
-    future_priv_mono C φ v -∗ future_borrow_mono C φ v.
-  Proof.
-    iIntros "#H". unfold future_borrow_mono. iModIntro.
-    iIntros (W W' Hrelated) "Hφ".
-    iApply "H"; eauto.
-    iPureIntro; eauto using related_sts_borrow_priv_world.
-  Qed.
-
-  Lemma future_borrow_mono_is_future_pub_mono (C : CmptName) (φ: (WORLD * CmptName * Word) → iProp Σ) v :
-    future_borrow_mono C φ v -∗ future_pub_mono C φ v.
-  Proof.
-    iIntros "#H". unfold future_pub_mono. iModIntro.
-    iIntros (W W' Hrelated) "Hφ".
-    iApply "H"; eauto.
-    iPureIntro; eauto using related_sts_pub_borrow_world.
-  Qed.
-
   Definition mono_pub (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) :=
     (∀ (w : Word), future_pub_mono C φ w)%I.
-  Definition mono_borrow (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (p : Perm) :=
-    (∀ (w : Word), ⌜canStore p w = true⌝ -∗ future_borrow_mono C φ w)%I.
   Definition mono_priv (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (p : Perm) :=
     (∀ (w : Word), ⌜canStore p w = true⌝ -∗ future_priv_mono C φ w)%I.
 
@@ -295,34 +270,6 @@ Section heap.
     iApply (future_priv_mono_eq_pred with "Hφ Hφ' Hmono");auto.
   Qed.
 
-  Lemma future_borrow_mono_eq_pred C γ φ φ' w :
-    saved_pred_own γ DfracDiscarded φ
-    -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ future_borrow_mono C φ w
-    -∗ ▷ future_borrow_mono C φ' w.
-  Proof.
-    iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (W0 W1 Hrelated).
-    iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
-    iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
-    iNext; iModIntro.
-    iIntros "Hφv".
-    iRewrite - "Hφeq0" in "Hφv"; iRewrite - "Hφeq1".
-    iApply "Hmono"; eauto.
-  Qed.
-
-  Lemma mono_borrow_eq_pred C γ p φ φ':
-    saved_pred_own γ DfracDiscarded φ
-    -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ mono_borrow C φ p
-    -∗ ▷ mono_borrow C φ' p.
-  Proof.
-    iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (w Hglobalw).
-    iSpecialize ("Hmono" $! w Hglobalw).
-    iApply (future_borrow_mono_eq_pred with "Hφ Hφ' Hmono");auto.
-  Qed.
-
   (* Asserting that a location is in a specific state in a given World *)
 
   Definition permanent (W : WORLD) (a : Addr) :=
@@ -367,17 +314,12 @@ Section heap.
                                         ∗ a ↦ₐ v
                                         ∗ (if isWL p
                                            then future_pub_mono C φ v
-                                           else (if isDL p
-                                                 then future_borrow_mono C φ v
-                                                 else future_priv_mono C φ v)
-                                          )
+                                           else future_priv_mono C φ v)
                                         ∗ ▷ φ (W,C,v)
                       | Permanent =>
                           ∃ (v : Word), ⌜isO p = false⌝
                                         ∗ a ↦ₐ v
-                                        ∗ (if isDL p
-                                                 then future_borrow_mono C φ v
-                                                 else future_priv_mono C φ v)
+                                        ∗ future_priv_mono C φ v
                                         ∗ ▷ φ (W,C,v)
                       | Frozen m =>
                           ∃ (v : Word), ⌜isO p = false⌝
@@ -588,38 +530,11 @@ Section heap.
     iApply (future_priv_mono_eq_pred_rel with "Hrel Hrel' Hmono"); eauto.
   Qed.
 
-  Lemma future_borrow_mono_eq_pred_rel C γ p p' φ φ' w :
-    rel C γ p φ
-    -∗ rel C γ p' φ'
-    -∗ ▷ future_borrow_mono C φ w
-    -∗ ▷ future_borrow_mono C φ' w.
-  Proof.
-    iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (W0 W1 Hrelated).
-    iDestruct (rel_agree _ _ φ φ' with "[$Hrel $Hrel']") as "[_ #Hφeq]".
-    iNext; iModIntro.
-    iIntros "Hφv".
-    iDestruct ("Hφeq" $! (W0,C,w)) as "Hφeq0" .
-    iDestruct ("Hφeq" $! (W1,C,w)) as "Hφeq1" .
-    iRewrite - "Hφeq0" in "Hφv"; iRewrite - "Hφeq1".
-    iApply "Hmono"; eauto.
-  Qed.
-
-  Lemma mono_borrow_eq_pred_rel C γ p p' φ φ' :
-    rel C γ p φ
-    -∗ rel C γ p' φ'
-    -∗ ▷ mono_borrow C φ p
-    -∗ ▷ mono_borrow C φ' p.
-  Proof.
-    iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (w Hglobalw).
-    iSpecialize ("Hmono" $! w Hglobalw).
-    iApply (future_borrow_mono_eq_pred_rel with "Hrel Hrel' Hmono"); eauto.
-  Qed.
 
 
   (* ------------------------------------------------------------------- *)
   (* region_map is monotone with regards to public future world relation *)
+
   Lemma region_map_monotone (C : CmptName) (W W' : WORLD) M Mρ :
     related_sts_pub_world W W'
     → region_map_def W C M Mρ
@@ -635,16 +550,14 @@ Section heap.
     - iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
       iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
       iFrame "%#∗".
-      destruct (isWL p); [| destruct (isDL p)]; (iApply "HmonoV"; eauto; iFrame).
-      + iPureIntro; apply related_sts_pub_borrow_world in Hrelated; naive_solver.
-      + iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
+      destruct (isWL p);
+      (iApply "HmonoV"; eauto; iFrame).
+      iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
     - iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
       iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
       iFrame "%#∗".
-      destruct (isDL p);
       iApply "HmonoV"; iFrame "∗#"; auto.
-      + iPureIntro; apply related_sts_pub_borrow_world in Hrelated; naive_solver.
-      + iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
+      iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
     - done.
     - done.
   Qed.
@@ -825,7 +738,7 @@ Section heap.
            ∗ sts_state_std C l Temporary
            ∗ l ↦ₐ v
            ∗ ⌜isO p = false⌝
-           ∗ ▷ (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)
+           ∗ ▷ future_priv_mono C φ v
            ∗ ▷ φ (W,C,v).
   Proof.
     iIntros (Htemp Hpwl) "(#Hrel & Hreg & Hfull)".
@@ -852,9 +765,7 @@ Section heap.
       iApply region_map_delete_nonfrozen; auto. by congruence.
     - repeat (iSplitR).
       + auto.
-      + destruct (isDL p').
-        * iApply future_borrow_mono_eq_pred; auto.
-        * iApply future_priv_mono_eq_pred; auto.
+      + iApply future_priv_mono_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame "∗ #".
   Qed.
 
@@ -910,7 +821,7 @@ Section heap.
            ∗ sts_state_std C l Permanent
            ∗ l ↦ₐ v
            ∗ ⌜isO p = false⌝
-           ∗ ▷ (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)
+           ∗ ▷ future_priv_mono C φ v
            ∗ ▷ φ (W,C,v).
   Proof.
     iIntros (Htemp) "(#Hrel & Hreg & Hfull)".
@@ -937,9 +848,7 @@ Section heap.
       iApply region_map_delete_nonfrozen; auto. by congruence.
     - repeat (iSplitR).
       + auto.
-      + destruct (isDL p').
-        * iApply future_borrow_mono_eq_pred; auto.
-        * iApply future_priv_mono_eq_pred; auto.
+      + iApply future_priv_mono_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame "∗ #".
   Qed.
 
@@ -980,11 +889,9 @@ Section heap.
          ∗ sts_state_std C a ρ
          ∗ a ↦ₐ v
          ∗ ⌜isO p = false⌝
-         ∗ (▷ if (decide (ρ = Temporary))
-              then ( if isWL p
-                     then future_pub_mono C φ v
-                     else (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v))
-              else (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v))
+         ∗ (▷ if (decide (ρ = Temporary ∧ isWL p = true))
+              then future_pub_mono C φ v
+              else future_priv_mono C φ v)
          ∗ ▷ φ (W,C,v).
   Proof.
     iIntros (Hne Htemp) "(Hrel & Hreg & Hfull)".
@@ -1168,7 +1075,7 @@ Section heap.
     ∗ open_region W C a
     ∗ a ↦ₐ v
     ∗ ⌜isO p = false⌝
-    ∗ (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)
+    ∗ future_priv_mono C φ v
     ∗ ▷ φ (W,C,v)
     ∗ rel C a p φ
     -∗ region W C.
@@ -1254,7 +1161,7 @@ Section heap.
       ∗ open_region W C a
       ∗ a ↦ₐ v
       ∗ ⌜isO p = false⌝
-      ∗ (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)
+      ∗ future_priv_mono C φ v
       ∗ ▷ φ (W,C,v)
       ∗ rel C a p φ
       -∗ region W C.
@@ -1282,11 +1189,9 @@ Section heap.
     ∗ open_region W C a
     ∗ a ↦ₐ v
     ∗ ⌜isO p = false⌝
-    ∗ (if (decide (ρ = Temporary))
-       then ( if isWL p
-              then future_pub_mono C φ v
-              else (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v))
-       else (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v))
+    ∗ (if (decide (ρ = Temporary ∧ isWL p = true))
+       then future_pub_mono C φ v
+       else future_priv_mono C φ v)
     ∗ ▷ φ (W,C,v)
     ∗ rel C a p φ
       -∗ region W C.
@@ -1402,7 +1307,7 @@ Section heap.
          ∗ sts_state_std C a Temporary
          ∗ a ↦ₐ v
          ∗ ⌜isO p = false⌝
-         ∗ ▷ (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)
+         ∗ ▷ future_priv_mono C φ v
          ∗ ▷ φ (W,C,v).
   Proof.
     rewrite open_region_many_eq .
@@ -1430,9 +1335,7 @@ Section heap.
       iApply region_map_delete_nonfrozen; auto. by congruence.
     - repeat (iSplitR).
       + auto.
-      + destruct (isDL p').
-        * iApply future_borrow_mono_eq_pred; auto.
-        * iApply future_priv_mono_eq_pred; auto.
+      + iApply future_priv_mono_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame.
   Qed.
 
@@ -1447,7 +1350,7 @@ Section heap.
         ∗ open_region_many W C (a :: als)
         ∗ a ↦ₐ v
         ∗ ⌜isO p = false⌝
-        ∗ ▷ (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)
+        ∗ ▷ future_priv_mono C φ v
         ∗ ▷ φ (W,C,v).
   Proof.
     rewrite open_region_many_eq .
@@ -1476,9 +1379,7 @@ Section heap.
       iApply region_map_delete_nonfrozen; auto. by congruence.
     - repeat (iSplitR).
       + auto.
-      + destruct (isDL p').
-        * iApply future_borrow_mono_eq_pred; auto.
-        * iApply future_priv_mono_eq_pred; auto.
+      + iApply future_priv_mono_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame.
   Qed.
 
@@ -1587,7 +1488,7 @@ Section heap.
     ∗ open_region_many W C (a::als)
     ∗ a ↦ₐ v
     ∗ ⌜isO p = false⌝
-    ∗ (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)
+    ∗ future_priv_mono C φ v
     ∗ ▷ φ (W,C,v)
     ∗ rel C a p φ
       -∗ open_region_many W C als.
@@ -1666,7 +1567,7 @@ Section heap.
     ∗ open_region_many W C (a::als)
     ∗ a ↦ₐ v
     ∗ ⌜isO p = false⌝
-    ∗ (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)
+    ∗ future_priv_mono C φ v
     ∗ ▷ φ (W,C,v)
     ∗ rel C a p φ
       -∗ open_region_many W C als.
@@ -1698,17 +1599,17 @@ Section heap.
     (C : CmptName) (φ : WORLD * CmptName * Word → iProp Σ)
     (p : Perm) (w : Word) (ρ : region_type) :=
     (match ρ with
-     | Temporary => (if isWL p then future_pub_mono else (if isDL p then future_borrow_mono else future_priv_mono))
-     | Permanent => (if isDL p then future_borrow_mono else future_priv_mono)
+     | Temporary => if isWL p then future_pub_mono else future_priv_mono
+     | Permanent => future_priv_mono
      | Revoked | Frozen _ => λ _ _ _, True
      end C φ w)%I.
 
   Definition monotonicity_guarantees_decide
     (C : CmptName) (φ : WORLD * CmptName * Word → iProp Σ)
     (p : Perm) (w : Word) (ρ : region_type) :=
-    (if decide (ρ = Temporary)
-     then (if isWL p then future_pub_mono C φ w else (if isDL p then future_borrow_mono C φ w else future_priv_mono C φ w))
-     else (if isDL p then future_borrow_mono C φ w else future_priv_mono C φ w) )%I.
+    (if decide (ρ = Temporary ∧ isWL p = true)
+     then future_pub_mono C φ w
+     else future_priv_mono C φ w)%I.
 
   (*Lemma that allows switching between the two different formulations of monotonicity, to alleviate the effects of inconsistencies*)
   Lemma switch_monotonicity_formulation
@@ -1721,19 +1622,17 @@ Section heap.
     unfold monotonicity_guarantees_region, monotonicity_guarantees_decide.
     iSplit; iIntros "HH".
     - destruct ρ;simpl;auto;try done.
-      * destruct (isWL p), (isDL p);done.
-      * destruct (isWL p), (isDL p);done.
+      * destruct (isWL p) ; intros; cbn; done.
       * specialize (Hmono g); done.
     - destruct ρ;simpl;auto;try done.
-      * destruct (isWL p), (isDL p); done.
-      * destruct (isWL p), (isDL p); done.
+      destruct (isWL p) ; intros; cbn; done.
   Qed.
 
   Global Instance monotonicity_guarantees_region_Persistent C P p w ρ :
     Persistent (monotonicity_guarantees_region C P p w ρ).
   Proof.
     destruct ρ; cbn; try apply _.
-    all: destruct (isWL p), (isDL p); try apply _.
+    destruct (isWL p); try apply _.
   Qed.
 
   Lemma region_open_next
@@ -1763,10 +1662,8 @@ Section heap.
         ; eauto; iFrame.
       + iDestruct (region_open_next_temp_nwl with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
         ; eauto; iFrame.
-        destruct (isDL p); eauto.
     - iDestruct (region_open_next_perm with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
       ; eauto; iFrame.
-      destruct (isDL p); done.
     - exfalso. apply Hρnotfrozen; eauto.
   Qed.
 
@@ -1793,9 +1690,7 @@ Section heap.
     - case_eq (isWL p); intros.
       + iApply (region_close_next_temp_pwl with "[A B C D E F G]"); eauto; iFrame.
       + iApply (region_close_next_temp_nwl with "[A B C D E F G]"); eauto; iFrame.
-        destruct (isDL p); eauto.
     - iApply (region_close_next_perm with "[A B C D E F G]"); eauto; iFrame.
-      destruct (isDL p); done.
     - exfalso. apply Hρnotfrozen. eauto.
   Qed.
 

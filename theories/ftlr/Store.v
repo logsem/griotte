@@ -286,7 +286,7 @@ Section fundamental.
   Proof.
     iIntros (Hstda Hrevoked Hfrozen HcanStore) "Hmono".
     rewrite /monoReq Hstda.
-    destruct ρ; auto; cbn; [destruct (isWL p) ; [ | destruct (isDL p)]| destruct (isDL p) ].
+    destruct ρ; auto; cbn; [destruct (isWL p)|].
     all: try iApply "Hmono"; auto.
   Qed.
 
