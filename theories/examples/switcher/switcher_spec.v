@@ -234,38 +234,123 @@ Section Switcher.
       by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
     Qed.
 
-   Lemma region_close_many_revoked W C als als' :
-     NoDup als ->
-     NoDup als' ->
-     als' ⊆ als ->
-     ([∗ list] a ∈ als', sts_state_std C a Revoked ∗ rel C a RWL interpC)
-     -∗ open_region_many W C als
-        -∗ open_region_many W C (list_difference als als').
-   Proof.
-     revert als'.
-     induction als; intros als' ; iIntros (HNoDup_als HNoDup_als' Hals') "Hres Hregion".
-     - by apply list_nil_subseteq in Hals'; rewrite Hals'.
-     - rewrite NoDup_cons in HNoDup_als; destruct HNoDup_als as [Ha_notin HNoDup_als].
-       iEval (cbn) in "Hres".
-       destruct (decide_rel elem_of a als') as [Ha_in|Ha_in]; cycle 1.
-   Admitted.
+    Lemma region_close_revoked_next W C a als p φ  `{forall Wv, Persistent (φ Wv)}:
+      a ∉ als ->
+      ⊢ sts_state_std C a Revoked
+      ∗ open_region_many W C (a::als)
+      ∗ rel C a p φ
+        -∗ open_region_many W C als.
+    Proof.
+      rewrite open_region_many_eq /open_region_many_def.
+      iIntros (Hnin) "(Hstate & Hreg_open & #Hrel)".
+      rewrite rel_eq /rel_def /rel /region.
+      iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
+      iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
+      iDestruct (region_map_insert_nonfrozen _ _ _ _ _ Revoked with "Hpreds") as "Hpreds".
+      { congruence. }
+      iDestruct ( (big_sepM_insert _ (delete a (delete_list als M)) a (γpred,p)) with "[-HM]") as "test";
+        first by rewrite lookup_delete.
+      { iFrame "∗ #". iSplitR; [by simplify_map_eq|].
+        iExists p.
+        repeat (iSplitR;[eauto|]). done.  }
+      rewrite -(delete_list_delete _ M) // -(delete_list_insert _ (delete _ M)) //.
+      rewrite -(delete_list_insert _ Mρ) //.
+      iExists M, (<[a:=Revoked]> Mρ).
+      iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
+      rewrite -HMeq.
+      iFrame "∗ # %".
+      repeat(iSplitR; eauto).
+      by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+    Qed.
 
+    Lemma list_difference_same {A : Type} `{EqDecision A} (l : list A) :
+      NoDup l ->
+      list_difference l l = [].
+    Proof.
+      induction l; intros Hnodup; cbn; first done.
+      destruct (decide_rel elem_of a (a :: l)) ; last set_solver.
+      rewrite NoDup_cons in Hnodup; destruct Hnodup as [Ha Hnodup].
+      rewrite list_difference_skip; auto.
+    Qed.
+
+    Lemma region_close_many_revoked W C als als' p φ  `{forall Wv, Persistent (φ Wv)} :
+      NoDup als ->
+      NoDup als' ->
+      als' ⊆ als ->
+      ([∗ list] a ∈ als',rel C a p φ ∗ sts_state_std C a Revoked)
+      -∗ open_region_many W C als
+         -∗ open_region_many W C (list_difference als als').
+    Proof.
+      revert als'.
+      induction als; intros als' ; iIntros (HNoDup_als HNoDup_als' Hals') "Hres Hregion".
+      - by apply list_nil_subseteq in Hals'; rewrite Hals'.
+      - rewrite NoDup_cons in HNoDup_als; destruct HNoDup_als as [Ha_notin HNoDup_als].
+        iEval (cbn) in "Hres".
+        destruct (decide_rel elem_of a als') as [Ha_in|Ha_in]; cycle 1.
+    Admitted.
+
+
+    Lemma region_close_revoked_many W C als p φ  `{forall Wv, Persistent (φ Wv)}:
+      NoDup als ->
+      ⊢ ([∗ list] a ∈ als, rel C a p φ ∗ sts_state_std C a Revoked)
+      ∗ open_region_many W C als
+        -∗ region W C.
+    Proof.
+      iIntros (HnoDup) "(Hstd & Hregion)".
+      iApply region_open_nil.
+      replace [] with (list_difference als als) by (by apply list_difference_same).
+      iApply (region_close_many_revoked with "[Hstd] [$Hregion]"); eauto.
+    Qed.
 
   Lemma sts_update_std_multiple W C la b b' :
-    sts_full_world W C
-    -∗ ([∗ list] a ∈ la, sts_state_std C a b)
+    (sts_full_world W C
+    ∗ ([∗ list] a ∈ la, sts_state_std C a b))
     ==∗ sts_full_world (std_update_multiple W la b') C
     ∗ ([∗ list] a ∈ la, sts_state_std C a b').
   Proof.
     revert W.
-    induction la; iIntros (W) "Hsts Hstd"; cbn.
+    induction la; iIntros (W) "[Hsts Hstd]"; cbn.
     - cbn; iFrame; done.
     - cbn.
       iDestruct "Hstd" as "[Hstd_a Hstd]".
-      iMod (IHla with "Hsts Hstd") as "[Hsts Hstd]".
+      iMod (IHla with "[$]") as "[Hsts Hstd]".
       iMod (sts_update_std _ _ _ _ b' with "Hsts Hstd_a") as "[Hsts Hstd_a]".
       iModIntro; iFrame.
   Qed.
+
+  Lemma monotone_revoke_keep_some_open_many W C (ltemp_unknown ltemp_known ltemp_opened : list Addr) (p : Perm) φ:
+    NoDup (ltemp_unknown ++ ltemp_known ++ ltemp_opened ) →
+    (* unknown Temporary *)
+    ([∗ list] a ∈ ltemp_unknown, ⌜(std W) !! a = Some Temporary⌝)
+    (* known Temporary *)
+    ∗ ([∗ list] a ∈ ltemp_known, ⌜(std W) !! a = Some Temporary⌝ ∗ rel C a p φ)
+    (* opened Temporary *)
+    ∗ ([∗ list] a ∈ ltemp_opened, ⌜(std W) !! a = Some Temporary⌝ ∗ rel C a p φ ∗ sts_state_std C a Temporary)
+
+    ∗ sts_full_world W C
+    ∗ open_region_many W C ltemp_opened
+
+    ==∗
+
+    sts_full_world (revoke W) C
+    ∗ open_region_many (revoke W) C ltemp_opened
+
+    (* unknown Revoked *)
+    ∗ ([∗ list] a ∈ ltemp_unknown,
+         (∃ p' φ', ⌜forall Wv, Persistent (φ' Wv)⌝
+                               ∗ ▷ temp_resources W C φ' a p'
+                               ∗ rel C a p' φ')
+         ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
+    (* known Revoked *)
+    ∗ ([∗ list] a ∈ ltemp_known,
+         (▷ temp_resources W C φ a p ∗ rel C a p φ)
+         ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
+    (* opened Revoked *)
+    ∗ ([∗ list] a ∈ ltemp_opened,
+         (rel C a p φ ∗ sts_state_std C a Revoked )
+         ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝).
+  Admitted.
+
 
 
   (* TODO:
@@ -549,13 +634,15 @@ Section Switcher.
     iNext ; iIntros "(HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
+
+    iHide "Hcode" as hcode.
+    iHide "Hφ" as hφ.
     (* UPDATING THE WORLD NOW *)
-    rewrite {1 3}(finz_seq_between_split _ (a_stk^+4)%a e_stk).
+    rewrite {1 3}(finz_seq_between_split _ (a_stk^+4)%a e_stk) ; last solve_addr.
     rewrite big_sepL_app;
     iDestruct "Hrel_stk" as "[Hrel_reg_saved Hrel_callee_frm]".
     rewrite big_sepL_app;
     iDestruct "Hstd_state_stk" as "[Hstd_state_reg_saved Hstd_state_callee_frm]".
-
 
     (* first, we revoke the world *)
 
@@ -574,6 +661,7 @@ Section Switcher.
       iModIntro; iIntros (? ? ?).
       iNext. iApply interp_int.
     }
+
     replace (list_difference (finz.seq_between a_stk e_stk) (finz.seq_between (a_stk ^+ 4)%a e_stk))
       with (finz.seq_between a_stk (a_stk ^+ 4)%a).
     2:{ admit. }
@@ -582,29 +670,24 @@ Section Switcher.
     iAssert (⌜ forall a, a ∈ finz.seq_between a_stk (a_stk ^+ 4)%a -> (std W0) !! a = Some Temporary ⌝)%I as "%Hregister_saved_area".
     { admit. }
 
-    (* TODO here *)
-    (* iMod (sts_update_std_multiple with "[Hstd_state_reg_saved Hworld]") as "H". *)
-
-
-
-    (* 3) close the register save area *)
-    iDestruct (region_close_many_revoked _ _ _ (finz.seq_between a_stk (a_stk ^+ 4)%a)
-                with "[Hrel_reg_saved Hstd_state_reg_saved] [$Hregion]") as "Hregion".
+    opose proof (extract_temps_split_world W0 (finz.seq_between a_stk e_stk) _ _) as (ltemp_unknown & Hnodupl & W_temps).
     { by apply finz_seq_between_NoDup. }
+    { admit. }
+
+    (* 3) revoke the world *)
+
+    iMod (monotone_revoke_keep_some_open_many
+            _ C  ltemp_unknown (finz.seq_between (a_stk ^+ 4)%a e_stk) _ RWL interpC
+           with "[$Hworld $Hregion Hstd_state_reg_saved]") as
+      "(Hworld & Hregion & Htemp_unknown & Htemp_known & Htemp_opened)".
+    { admit. }
+    { admit. }
+
+    (* 4) close the world *)
+    iDestruct (big_sepL_sep with "Htemp_opened") as "[Htemp_opened #Htemp_opened_revoked]".
+    iDestruct (region_close_revoked_many with "[$Hregion $Htemp_opened]") as "H".
     { by apply finz_seq_between_NoDup. }
-    { set_solver. }
-    {
-      rewrite !big_sepL_sep.
-      iFrame "∗ #".
-      iApply big_sepL_intro.
-      iModIntro; iIntros (? ? ?).
-      iNext. iApply interp_int.
 
-    }
-
-    (* 4) revoke the world *)
-
-    (* 5) revoke ( <[ a := Revoked ]> W ) = revoke W, if W(a) = Temporary *)
 
 
     (* TODO from here *)
