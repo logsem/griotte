@@ -99,73 +99,9 @@ Section Switcher.
      ∗ [[ b_tstk, (a_tstk ^+1)%a ]] ↦ₐ [[ tstk_prev ]]
      ∗ [[ (a_tstk ^+1)%a, e_tstk ]] ↦ₐ [[ tstk_next ]]
      ∗ tstack_full (tstk_prev ++ tstk_next)
-     ∗ tstack_frag tstk_next (finz.dist (a_tstk ^+1)%a e_tstk)
+     ∗ tstack_frag tstk_next (finz.dist b_tstk (a_tstk ^+1)%a)
      ∗ seal_pred ot_switcher ot_switcher_prop
   .
-
-  (* TODO move *)
-  Definition list_max_positive (l : list positive) := fold_right Pos.max xH l.
-  Lemma fresh_list_max (l : list positive) (i : positive) :
-    ( (list_max_positive l) < i )%positive -> i ∉ l.
-  Proof.
-    induction l; intros Hle.
-    - apply not_elem_of_nil.
-    - assert ( (list_max_positive l < i)%positive ∧ (a < i)%positive ) as [Hle_l Hle_a].
-      {
-        cbn in Hle.
-        apply Pos.max_lub_lt_iff in Hle.
-        destruct Hle as [Hle_l Hle_a]; auto.
-      }
-      apply not_elem_of_cons.
-      split; [lia | by apply IHl].
-  Qed.
-
-  Definition gset_max_positive (g : gset positive) := list_max_positive (elements g).
-  Lemma fresh_gset_max (g : gset positive) (i : positive) :
-    ( (gset_max_positive g) < i )%positive -> i ∉ g.
-  Proof.
-    intros Hmax.
-    rewrite /gset_max_positive in Hmax.
-    apply fresh_list_max in Hmax.
-    set_solver.
-  Qed.
-
-  Definition fresh_cus_name (W : WORLD) : positive :=
-    let WL1 := gset_max_positive (dom (loc1 W)) in
-    let WL2 := gset_max_positive (dom (loc2 W)) in
-    (Pos.succ ( WL1 `max` WL2 )%positive).
-
-  Lemma fresh_cus_name_fresh1 (W : WORLD) :
-    fresh_cus_name W ∉ (dom (loc1 W)).
-  Proof.
-    rewrite /fresh_cus_name.
-    set ( n1 := gset_max_positive (dom (loc1 W))).
-    set ( n2 := gset_max_positive (dom (loc2 W))).
-    destruct (Pos.max_dec n1 n2) as [Hmax | Hmax].
-    - rewrite Hmax.
-      assert (n1 < Pos.succ n1)%positive as Hn1 by lia.
-      by apply fresh_gset_max in Hn1.
-    - assert (n1 <= n2)%positive as H2_le_1 by (by apply Pos.max_r_iff).
-      rewrite Hmax.
-      assert (n1 < Pos.succ n2)%positive as Hn1 by lia.
-      by apply fresh_gset_max in Hn1.
-  Qed.
-
-  Lemma fresh_cus_name_fresh2 (W : WORLD) :
-    fresh_cus_name W ∉ (dom (loc2 W)).
-  Proof.
-    rewrite /fresh_cus_name.
-    set ( n1 := gset_max_positive (dom (loc1 W))).
-    set ( n2 := gset_max_positive (dom (loc2 W))).
-    destruct (Pos.max_dec n1 n2) as [Hmax | Hmax].
-    - assert (n2 <= n1)%positive as H2_le_1 by (by apply Pos.max_l_iff).
-      rewrite Hmax.
-      assert (n2 < Pos.succ n1)%positive as Hn1 by lia.
-      by apply fresh_gset_max in Hn1.
-    - rewrite Hmax.
-      assert (n2 < Pos.succ n2)%positive as Hn1 by lia.
-      by apply fresh_gset_max in Hn1.
-  Qed.
 
    Definition frame_inv (C : CmptName) (i : positive) (P : iProp Σ) :=
      (∃ x:bool, sts_state_loc C i x ∗ if x then P else emp)%I.
@@ -174,7 +110,15 @@ Section Switcher.
    Definition frame_rel_priv := λ (a b : bool), True.
    Definition frame_W (W : WORLD) : WORLD :=
      let ι := fresh_cus_name W in
-      <l[ ι := false , ( frame_rel_pub, (frame_rel_pub, frame_rel_priv)) ]l> W.
+      <l[ ι := true , ( frame_rel_pub, (frame_rel_pub, frame_rel_priv)) ]l> W.
+
+   Lemma frame_W_related_sts_pub_world (W : WORLD) : related_sts_pub_world W (frame_W W).
+   Proof.
+     rewrite /frame_W.
+     destruct W as [Wstd [fs fr] ].
+     assert (fresh (dom fs ∪ dom fr) ∉ (dom fs ∪ dom fr)) as Hfresh by apply is_fresh.
+     apply related_sts_pub_world_fresh_loc; set_solver.
+   Qed.
 
    (* TODO move to machine base *)
    Definition isWLword (w : Word) : bool :=
@@ -351,6 +295,26 @@ Section Switcher.
          ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝).
   Admitted.
 
+  Lemma update_region_revoked_temp_pwl_multiple E W C la lv p φ `{∀ Wv, Persistent (φ Wv)} :
+    isO p = false → isWL p = true →
+
+    sts_full_world W C -∗
+    region W C -∗
+    ([∗ list] a;v ∈ la;lv ,
+       a ↦ₐ v
+       ∗ φ (W,C,v)
+       ∗ rel C a p φ
+       ∗ future_pub_mono C φ v
+       ∗ ⌜(std W) !! a = Some Revoked ⌝
+    )
+
+    ={E}=∗
+
+    region (std_update_multiple W la Temporary) C
+    ∗ sts_full_world (std_update_multiple W la Temporary) C.
+  Proof.
+  Admitted.
+
 
 
   (* TODO:
@@ -406,7 +370,7 @@ Section Switcher.
       ∗ cs0 ↦ᵣ wcs0_caller
       ∗ cs1 ↦ᵣ wcs1_caller
       (* Argument registers, need to be safe-to-share *)
-      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W1 C warg ∗ ⌜ isWLword warg ⌝ )
+      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W1 C warg (* ∗ ⌜ isWLword warg ⌝ *) )
       (* All the other registers *)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
@@ -637,64 +601,55 @@ Section Switcher.
 
     iHide "Hcode" as hcode.
     iHide "Hφ" as hφ.
+
     (* UPDATING THE WORLD NOW *)
-    rewrite {1 3}(finz_seq_between_split _ (a_stk^+4)%a e_stk) ; last solve_addr.
-    rewrite big_sepL_app;
-    iDestruct "Hrel_stk" as "[Hrel_reg_saved Hrel_callee_frm]".
-    rewrite big_sepL_app;
-    iDestruct "Hstd_state_stk" as "[Hstd_state_reg_saved Hstd_state_callee_frm]".
-
-    (* first, we revoke the world *)
-
-    (* 1) close the callee stack frame *)
-    iDestruct (region_close_many_temp_pwl _ _ _ (finz.seq_between (a_stk ^+ 4)%a e_stk)
-                with "[Hstk Hrel_callee_frm Hstd_state_callee_frm] [$Hregion]") as "Hregion".
-    { by apply finz_seq_between_NoDup. }
-    { by apply finz_seq_between_NoDup. }
-    { admit. }
-    {
-      rewrite big_sepL_region_mapsto_zeroes.
-      rewrite !big_sepL_sep.
-      (* iDestruct "Hrel_callee_frm" as "[$ $]". *)
-      iFrame "∗ #".
-      iApply big_sepL_intro.
-      iModIntro; iIntros (? ? ?).
-      iNext. iApply interp_int.
-    }
-
-    replace (list_difference (finz.seq_between a_stk e_stk) (finz.seq_between (a_stk ^+ 4)%a e_stk))
-      with (finz.seq_between a_stk (a_stk ^+ 4)%a).
-    2:{ admit. }
-
-    (* 2) revoke the register save area *)
-    iAssert (⌜ forall a, a ∈ finz.seq_between a_stk (a_stk ^+ 4)%a -> (std W0) !! a = Some Temporary ⌝)%I as "%Hregister_saved_area".
-    { admit. }
-
     opose proof (extract_temps_split_world W0 (finz.seq_between a_stk e_stk) _ _) as (ltemp_unknown & Hnodupl & W_temps).
     { by apply finz_seq_between_NoDup. }
     { admit. }
 
-    (* 3) revoke the world *)
-
+    (* 1) revoke the world *)
     iMod (monotone_revoke_keep_some_open_many
-            _ C  ltemp_unknown (finz.seq_between (a_stk ^+ 4)%a e_stk) _ RWL interpC
-           with "[$Hworld $Hregion Hstd_state_reg_saved]") as
-      "(Hworld & Hregion & Htemp_unknown & Htemp_known & Htemp_opened)".
+            _ C  ltemp_unknown [] _ RWL interpC
+           with "[$Hworld $Hregion Hstd_state_stk]") as
+      "(Hworld & Hregion & Htemp_unknown & _ & Htemp_opened)".
     { admit. }
     { admit. }
 
-    (* 4) close the world *)
+    (* 2) close the world *)
     iDestruct (big_sepL_sep with "Htemp_opened") as "[Htemp_opened #Htemp_opened_revoked]".
-    iDestruct (region_close_revoked_many with "[$Hregion $Htemp_opened]") as "H".
+    iDestruct (region_close_revoked_many with "[$Hregion $Htemp_opened]") as "Hregion".
     { by apply finz_seq_between_NoDup. }
 
 
+    (* 3) update the callee stack frame as Temporary *)
+    rewrite {1}(finz_seq_between_split _ (a_stk^+4)%a e_stk) ; last solve_addr.
+    rewrite big_sepL_app;
+    iDestruct "Hrel_stk" as "[Hrel_reg_saved Hrel_callee_frm]".
+    subst W0'.
+    set ( callee_stk_frm_addr := finz.seq_between (a_stk ^+ 4)%a e_stk ).
 
-    (* TODO from here *)
-    (* revoke the world: all temporary invariant will be "frozen" *)
+    iMod (update_region_revoked_temp_pwl_multiple ⊤ _ _
+                 callee_stk_frm_addr (region_addrs_zeroes (a_stk ^+ 4)%a e_stk) RWL interpC
+                with "[$] [$] [Hstk]") as "[Hregion Hworld]".
+    { done. }
+    { done. }
+    { admit. }
 
+    (* 4) add the custom sts for the frame *)
+    iMod ( sts_alloc_loc _ C true frame_rel_pub frame_rel_pub frame_rel_priv with "Hworld")
+      as "(Hworld & %Hfresh_ι & %Hfresh_ι' & Hsts_loc_ι & #Hsts_rel_ι)".
+    rewrite -/(frame_W (std_update_multiple (revoke W0) callee_stk_frm_addr Temporary)).
 
+    set (W0' := (frame_W (std_update_multiple (revoke W0) callee_stk_frm_addr Temporary))).
+    set (ι := fresh_cus_name (std_update_multiple (revoke W0) callee_stk_frm_addr Temporary)).
 
+    iDestruct (region_monotone _ _ W0' with "Hregion") as "Hregion".
+    { subst W0'. rewrite /frame_W //=. }
+    { apply frame_W_related_sts_pub_world. }
+
+    (* 5) get the final world given by the caller *)
+    iMod ("Hnext_world" with "[$Hregion $Hworld]") as "[Hregion Hworld ]".
+    subst hcode.
 
     focus_block 2 "Hcode" as a_unseal Ha_unseal "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* GetB cs1 PC *)
@@ -721,7 +676,7 @@ Section Switcher.
     iDestruct "Hinterp_ct1"
       as (Pct1 Hpers_Pct1) "(HmonoReq & Hseal_pred_Pct1 & HPct1 & HPct1_borrow)".
     iDestruct (seal_pred_agree with "Hseal_pred_Pct1 Hp_ot_switcher") as "Hot_switcher_agree".
-    iSpecialize ("Hot_switcher_agree" $! (W0,C,WSealable w_entry_point)).
+    iSpecialize ("Hot_switcher_agree" $! (W1,C,WSealable w_entry_point)).
 
     (* Load cs0 cs0 *)
     iInstr "Hcode".
@@ -733,7 +688,7 @@ Section Switcher.
     iRewrite "Hot_switcher_agree" in "HPct1".
     iDestruct "HPct1" as (b_tbl e_tbl a_tbl Heq_entry_point Hatbl Hbtbl Hbtbl1)
                            "(#Hinterp_tbl & #Hrel_btbl & #Hrel_btbl1 & Hrel_atbl)".
-    iClear "Hot_switcher_agree Hp_ot_switcher".
+    iClear "Hot_switcher_agree".
     rewrite !Heq_entry_point.
     iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_tbl".
     rewrite finz_seq_between_cons; last solve_addr.
@@ -750,7 +705,7 @@ Section Switcher.
     iClear "Hinterp_tbl".
     replace (drop i_a_tbl (finz.seq_between ((b_tbl ^+ 1) ^+ 1)%a e_tbl))
               with (finz.seq_between a_tbl e_tbl) by admit.
-    rewrite finz_seq_between_cons; last solve_addr.
+    rewrite (finz_seq_between_cons a_tbl e_tbl); last solve_addr.
     iEval (cbn) in "Hinterp_tbl2".
     iDestruct "Hinterp_tbl2" as "[Hinterp_atbl _]".
     iDestruct "Hinterp_btbl" as (pbtbl Pbtbl _ _) "(_ & _ & _ & _ & _ & %Hstd_btbl)"; clear pbtbl Pbtbl.
@@ -770,16 +725,12 @@ Section Switcher.
 
 
     (* Load cs0 ct1 *)
-    iDestruct (region_open_next_perm with "[$Hrel_atbl $Hregion $Hworld]") as "H".
-    { admit. (* is it derivable? *) }
-    { done.
-
-    }
     iDestruct (region_open_perm with "[$Hrel_atbl $Hregion $Hworld]")
       as (watbl) "(Hregion & Hworld & Hstd_atbl & Ha_tbl & _ & HmonoReq_atbl & #HPatbl)"
     ; first done.
     iInstr "Hcode".
-    { split ; first solve_pure; last solve_addr. }
+    { split ; first solve_pure.
+      rewrite /withinBounds; solve_addr. }
     iDestruct "HPatbl" as (nargs off_entry Hwatbl) "%Hnargs".
     cbn in Hwatbl ; subst watbl.
     iEval (cbn) in "Hcs0".
@@ -813,7 +764,8 @@ Section Switcher.
       as (wbtbl) "(Hregion & Hworld & Hstd_btbl & Ha_tbl & _ & HmonoReq_btbl & #HPbtbl)"
     ; first done.
     iInstr "Hcode".
-    { split ; first solve_pure; last solve_addr. }
+    { split ; first solve_pure.
+      rewrite /withinBounds; solve_addr. }
     iDestruct "HPbtbl" as (bpcc epcc apcc) "[%Hwbtbl #Hinterp_wbtbl]".
     cbn in Hwbtbl ; subst wbtbl.
     iEval (cbn) in "Hcra".
@@ -831,7 +783,8 @@ Section Switcher.
       as (wbtbl1) "(Hregion & Hworld & Hstd_btbl1 & Ha_tbl & _ & HmonoReq_btbl1 & #HPbtbl1)"
     ; first done.
     iInstr "Hcode".
-    { split ; first solve_pure; last solve_addr. }
+    { split ; first solve_pure.
+      rewrite /withinBounds; solve_addr. }
     iDestruct "HPbtbl1" as (bcgp ecgp) "[%Hwbtbl1 #Hinterp_wbtbl1]".
     cbn in Hwbtbl1 ; subst wbtbl1.
     iEval (cbn) in "Hcra".
@@ -918,6 +871,7 @@ Section Switcher.
     focus_block 5 "Hcode" as a_jmp Ha_jmp "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Jalr cra cra *)
     iInstr "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
     iEval (cbn) in "Hcgp".
     iEval (cbn) in "Hinterp_wbtbl".
@@ -929,13 +883,72 @@ Section Switcher.
       iModIntro ; iIntros (r w Hr) "[$ ->]".
       iEval (rewrite !fixpoint_interp1_eq) ; done.
     }
-    (* TODO that's the interesting part !!!!
 
+    (* show that csp in safe-to-share *)
+    iAssert ( interp W1 C (WCap RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a)) as "Hinterp_csp".
+    { iEval (rewrite fixpoint_interp1_eq); cbn.
+      subst callee_stk_frm_addr.
+      iApply big_sepL_intro.
+      iModIntro. iIntros (? astk Hastk).
+      assert ( (std W1) !! astk = Some Temporary) as Hastk_temporary.
+      { apply (monotone.region_state_pub_temp W0'); first by apply Hrelated_W1.
+        eapply std_update_multiple_lookup; eauto.
+      }
+      iExists RWL, interp; cbn.
+      iSplit; first done.
+      iSplit; first (iPureIntro; apply persistent_cond_interp).
+      iSplit; first (iDestruct (big_sepL_lookup with "Hrel_callee_frm") as "?"; eauto).
+      iSplit; first (iNext; iApply zcond_interp).
+      iSplit; first (iNext; iApply rcond_interp).
+      iSplit; first (iNext; iApply wcond_interp).
+      iSplit; first (iApply monoReq_interp; done).
+      by rewrite /region_state_pwl.
+    }
+
+    (* allocate frame invariant *)
+    rewrite tstack_frag_combine_cons.
+    iDestruct "Hstack_frag_next" as "[Hstack_frag_current Hstack_frag_next]".
+    set (Pframe := (hφ0
+                    ∗ tstack_frag [tstk_a1] (finz.dist b_stk (a_tstk ^+ 1)%a)
+                    ∗ [[a_stk,(a_tstk ^+ 4)%a]]↦ₐ[[Hstk_caller_save_area]]
+                   )%I).
+    iMod (na_inv_alloc
+            logrel_nais
+            ⊤ (nroot .@ "frame")
+            (frame_inv C ι Pframe)
+           with "[$Hsts_loc_ι Hφ Hstack_frag_current Ha1_stk Ha2_stk Ha3_stk Ha4_stk ]") as "#Hinv_frame".
+    { iNext; iFrame.
+      rewrite /Hstk_caller_save_area.
+      admit.
+    }
+
+    replace (tstk_prev ++ tstk_a1 :: tstk_next') with
+      ((tstk_prev ++ [tstk_a1]) ++ tstk_next').
+    2: { admit. }
+    (* close switcher invariant *)
+    iMod ("Hclose_switcher_inv" with
+           "[$Hna Hmtdc Hcode Hb_switcher Htstk_prev Ha1_tstk Htstk Hstack_full Hstack_frag_next]")
+    .
+    { iNext; iFrame "Hmtdc Hstack_full".
+      iSplit; first done.
+      iFrame.
+      replace (finz.dist b_tstk (a_tstk ^+ 1)%a + 1)
+                with (finz.dist b_tstk ((a_tstk ^+ 1) ^+ 1)%a).
+      2:{ admit. }
+      replace ((a_tstk ^+ 1) ^+ 1)%a with (a_tstk ^+ 2)%a.
+      2:{ admit. }
+      iFrame.
+      iSplitL "Htstk_prev Ha1_tstk"; last iFrame "#".
+      admit.
+    }
+
+    iAssert (interp W1 C (WSentry XSRW_ g_switcher b_switcher e_switcher (a_jmp ^+ 1)%a)) as "Hinterp_return".
+    { shelve. }
+
+
+    (* TODO that's the interesting part !!!!
       - show that rmap' is safe to share
       - show that cra is safe to share
-      - show that csp is safe to share
-      - close the switcher's invariant
-      - how do we keep track of Ha1_tstk ??? Frozen, then we revoke it?
      *)
 
 

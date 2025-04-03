@@ -784,17 +784,20 @@ Section STS.
     iFrame. done.
   Qed.
 
+  Definition fresh_cus_name (W : WORLD) :=
+    match W with | (_, (fs, fr) ) => fresh (dom fs ∪ dom fr) end.
+
   Lemma sts_alloc_loc W C (d : D) (P Q R : D → D → Prop):
+    let i := fresh_cus_name W in
     sts_full_world W C ==∗
-    ∃ i, sts_full_world (<l[ i := d , (P,(Q,R)) ]l> W) C
-         ∗ ⌜i ∉ dom (loc1 W)⌝ ∗ ⌜i ∉ dom (loc2 W)⌝
-         ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i P Q R.
+    sts_full_world (<l[ i := d , (P,(Q,R)) ]l> W) C
+    ∗ ⌜i ∉ dom (loc1 W)⌝ ∗ ⌜i ∉ dom (loc2 W)⌝
+    ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i P Q R.
   Proof.
     rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc /loc_alloc.
     destruct W as [Wstd [fs fr]].
     iIntros "[Hstd [H1 H2]] /=".
-    assert (fresh (dom fs ∪ dom fr) ∉
-                    (dom fs ∪ dom fr)) as Hfresh.
+    assert (fresh (dom fs ∪ dom fr) ∉ (dom fs ∪ dom fr)) as Hfresh.
     { apply is_fresh. }
     apply not_elem_of_union in Hfresh as [Hfs Hfr].
     iMod (own_update
@@ -802,8 +805,8 @@ Section STS.
             _ _
             (● (Excl <$>
                 <[fresh (dom fs ∪ dom fr) := encode d]> fs)
-            ⋅ ◯ {[fresh (dom fs ∪ dom fr) := Excl (encode d)]})
-            with "H1") as "[H1 Hs]".
+             ⋅ ◯ {[fresh (dom fs ∪ dom fr) := Excl (encode d)]})
+           with "H1") as "[H1 Hs]".
     { apply auth_update_alloc.
       rewrite fmap_insert /=.
       apply: alloc_singleton_local_update; last done.
@@ -815,8 +818,8 @@ Section STS.
             _ _
             (● (to_agree <$>
                 <[fresh (dom fs ∪ dom fr) := (convert_rel P,convert_rel Q,convert_rel R)]> fr)
-            ⋅ ◯ {[fresh (dom fs ∪ dom fr) := to_agree (convert_rel P,convert_rel Q,convert_rel R)]})
-            with "H2") as "[H2 Hr]".
+             ⋅ ◯ {[fresh (dom fs ∪ dom fr) := to_agree (convert_rel P,convert_rel Q,convert_rel R)]})
+           with "H2") as "[H2 Hr]".
     { apply auth_update_alloc.
       rewrite fmap_insert /=.
       apply: alloc_singleton_local_update; last done.
@@ -824,8 +827,19 @@ Section STS.
       rewrite dom_fmap.
       auto. }
     iModIntro.
-    iExists _ ;iFrame.
+    iFrame.
     repeat iSplit; auto.
+  Qed.
+
+  Lemma sts_alloc_loc_alt W C (d : D) (P Q R : D → D → Prop):
+    sts_full_world W C ==∗
+    ∃ i, sts_full_world (<l[ i := d , (P,(Q,R)) ]l> W) C
+         ∗ ⌜i ∉ dom (loc1 W)⌝ ∗ ⌜i ∉ dom (loc2 W)⌝
+         ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i P Q R.
+  Proof.
+    iIntros "Hstd".
+    iMod (sts_alloc_loc with "Hstd") as "Hstd".
+    iModIntro; iFrame.
   Qed.
 
   Lemma sts_update_std W C a b b' :
