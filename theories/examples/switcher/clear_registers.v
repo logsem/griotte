@@ -98,7 +98,7 @@ Section ClearRegistersMacro.
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag pc_a clear_registers_pre_call_instrs
       ∗ ▷ ( (∃ (rmap' : Reg),
-              ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap ∪ {[ PC ; cra ; cgp ]}) ⌝
+              ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝
               ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag pc_a clear_registers_pre_call_instrs)
