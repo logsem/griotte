@@ -25,8 +25,19 @@ Inductive std_rel_priv : region_type -> region_type -> Prop :=
 | Std_priv_Temporary_Revoked : std_rel_priv Temporary Revoked
 | Std_priv_Temporary_Permanent : std_rel_priv Temporary Permanent.
 
+Definition state_permanent_std (ρ : region_type) := ρ = Permanent.
+Global Instance state_permanent_std_dec (ρ : region_type) : Decision (state_permanent_std ρ).
+Proof.
+  destruct ρ; rewrite /state_permanent_std ; cbn; solve_decision.
+Qed.
+
 Global Instance sts_std : STS_STD region_type :=
-  {| Rpub := std_rel_pub; Rpriv := std_rel_priv |}.
+  {|
+    Rpub := std_rel_pub;
+    Rpriv := std_rel_priv;
+    state_permanent := (fun ρ => ρ = Permanent);
+    dec_state_permanent := state_permanent_std_dec
+  |}.
 
 (** CMRA for heap and its predicates. Contains: *)
 (* CMRA for relatedness between locations and saved prop names *)
