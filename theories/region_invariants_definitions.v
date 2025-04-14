@@ -1,28 +1,27 @@
-From iris.algebra Require Import gmap agree auth.
-From iris.proofmode Require Import proofmode.
-From iris.program_logic Require Export weakestpre.
-From cap_machine Require Export region_invariants.
-From iris.base_logic Require Export invariants na_invariants saved_prop.
-Import uPred.
+From cap_machine Require Export cap_lang sts.
 
+Section region_invariants_definitions.
 
-Section transitions.
-  Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ}
-    {heapg : heapGS Σ}
-    `{MP: MachineParameters}.
+  (* We will first define the standard STS for the shared part of the heap *)
+  Inductive region_type :=
+  | Temporary
+  | Permanent
+  | Revoked
+  | Frozen of gmap Addr Word.
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Implicit Types W : WORLD.
-  Implicit Types C : CmptName.
-  Implicit Types fsd gsd hsd : STS_std_states Addr region_type.
+  Inductive std_rel_pub : region_type -> region_type -> Prop :=
+  | Std_pub_Revoked_Temporary : std_rel_pub Revoked Temporary
+  | Std_pub_Revoked_Permanent : std_rel_pub Revoked Permanent
+  | Std_pub_Frozen_Temporary m : std_rel_pub (Frozen m) Temporary .
+
+  Inductive std_rel_priv : region_type -> region_type -> Prop :=
+  | Std_priv_Temporary_Frozen m : std_rel_priv Temporary (Frozen m)
+  | Std_priv_Temporary_Revoked : std_rel_priv Temporary Revoked
+  | Std_priv_Temporary_Permanent : std_rel_priv Temporary Permanent.
 
   (* --------------------------------------------------------------------------------- *)
   (* ------------------------- LEMMAS ABOUT STD TRANSITIONS -------------------------- *)
+  (* --------------------------------------------------------------------------------- *)
 
   Lemma std_rel_pub_Permanent (ρ : region_type) :
     std_rel_pub Permanent ρ → ρ = Permanent.
@@ -54,6 +53,24 @@ Section transitions.
     intros Hρ1 Hrtc.
     induction Hrtc;auto.
     subst. apply IHHrtc. apply std_rel_priv_Permanent; auto.
+  Qed.
+
+  Lemma std_rel_Permanent (ρ : region_type) :
+    (std_rel_pub Permanent ρ ∨ std_rel_priv Permanent ρ) → ρ = Permanent.
+  Proof.
+    intros Hrel.
+    destruct Hrel.
+    + by apply std_rel_pub_Permanent.
+    + by apply std_rel_priv_Permanent.
+  Qed.
+
+  Lemma std_rtc_Permanent (ρ1 ρ2 : region_type) :
+    ρ1 = Permanent →
+    rtc (λ x y : region_type, std_rel_pub x y ∨ std_rel_priv x y) ρ1 ρ2 → ρ2 = Permanent.
+  Proof.
+    intros Hρ1 Hrtc.
+    induction Hrtc;auto.
+    subst. apply IHHrtc. apply std_rel_Permanent; auto.
   Qed.
 
   Lemma std_rel_priv_Revoked (ρ : region_type) :
@@ -153,4 +170,56 @@ Section transitions.
     eapply std_rel_pub_rtc_Temporary; eauto.
   Qed.
 
-End transitions.
+  (* ------------------------- DEFINITION STD STS CLASS -------------------------- *)
+  Definition state_permanent_std (ρ : region_type) := ρ = Permanent.
+  Global Instance state_permanent_std_dec (ρ : region_type) : Decision (state_permanent_std ρ).
+  Proof.
+    destruct ρ; rewrite /state_permanent_std ; cbn; solve_decision.
+  Qed.
+
+
+  Lemma state_permanent_reachable_std :
+    forall (ρ ρ' : region_type), ¬ (state_permanent_std ρ) -> rtc (λ x y, (std_rel_pub x y ∨ std_rel_priv x y)) ρ ρ'.
+  Proof.
+    intros ρ ρ' Hρ.
+    destruct ρ; rewrite /state_permanent_std in Hρ ; try congruence.
+    - destruct ρ'; try apply rtc_refl ; try (apply rtc_once; right; constructor).
+    - destruct ρ'
+      ; try apply rtc_refl
+      ; try (apply rtc_once; right; constructor)
+      ; try (apply rtc_once; left; constructor).
+      apply rtc_transitive with (y := Temporary).
+      + apply rtc_once; left; constructor.
+      + apply rtc_once; right; constructor.
+    - destruct ρ'
+      ; try apply rtc_refl
+      ; try (apply rtc_once; left; constructor)
+      ; try (apply rtc_once; right; constructor).
+      all:
+        apply rtc_transitive with (y := Temporary)
+      ; try (apply rtc_once; left; constructor)
+      ; try (apply rtc_once; right; constructor).
+  Qed.
+
+  Lemma state_permanent_inv_std :
+    forall (ρ ρ' : region_type),
+    (state_permanent_std ρ) ->
+    rtc (λ x y, (std_rel_pub x y ∨ std_rel_priv x y)) ρ ρ' ->
+    (state_permanent_std ρ').
+  Proof.
+    intros ρ ρ' Hρ Hrtc.
+    destruct ρ, ρ'; rewrite /state_permanent_std in Hρ ; try congruence.
+    all: by pose proof (std_rel_rtc_Permanent Permanent _ Hρ Hrtc).
+  Qed.
+
+  Global Program Instance sts_std : STS_STD region_type :=
+    {|
+      Rpub := std_rel_pub;
+      Rpriv := std_rel_priv;
+      state_permanent := (fun ρ => ρ = Permanent);
+      dec_state_permanent := state_permanent_std_dec;
+      state_permanent_reachable := state_permanent_reachable_std;
+      state_permanent_inv := state_permanent_inv_std;
+    |}.
+
+End region_invariants_definitions.

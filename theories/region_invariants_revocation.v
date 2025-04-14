@@ -1,6 +1,6 @@
 From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import tactics.
-From cap_machine Require Export stdpp_extra iris_extra region_invariants region_invariants_transitions.
+From cap_machine Require Export stdpp_extra iris_extra region_invariants region_invariants.
 Import uPred.
 
 Section heap.
@@ -746,8 +746,8 @@ Section heap.
       simpl in *.
       split.
       + intros a ρ Hρ ->.
-        destruct (decide (i = a)); simplify_map_eq.
-        rewrite lookup_insert_ne; auto.
+        destruct (decide (i = a)); simplify_map_eq; first done.
+        (* rewrite lookup_insert_ne; auto. *)
         eapply Hdoms; eauto.
       + intros j x y Hx Hy.
         destruct (decide (i = j)).

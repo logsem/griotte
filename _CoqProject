@@ -68,8 +68,8 @@ theories/proofmode/register_tactics.v
 
 # MCerise
 theories/sts.v
+theories/region_invariants_definitions.v
 theories/region_invariants.v
-theories/region_invariants_transitions.v
 theories/region_invariants_revocation.v
 theories/multiple_updates.v
 # theories/region_invariants_frozen.v

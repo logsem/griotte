@@ -1,43 +1,13 @@
 From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
+From cap_machine Require Export region_invariants_definitions.
 From cap_machine Require Export stdpp_extra cap_lang sts rules_base.
 (* import [stdpp.countable] before [cap_machine.cap_lang]; this way [encode] and
    [decode] refer to [countable.encode] and [countable.decode], instead of
    [cap_lang.encode]/[cap_lang.decode]. *)
 From stdpp Require Import countable.
 Import uPred.
-
-(* We will first define the standard STS for the shared part of the heap *)
-Inductive region_type :=
-| Temporary
-| Permanent
-| Revoked
-| Frozen of gmap Addr Word.
-
-Inductive std_rel_pub : region_type -> region_type -> Prop :=
-| Std_pub_Revoked_Temporary : std_rel_pub Revoked Temporary
-| Std_pub_Revoked_Permanent : std_rel_pub Revoked Permanent
-| Std_pub_Frozen_Temporary m : std_rel_pub (Frozen m) Temporary .
-
-Inductive std_rel_priv : region_type -> region_type -> Prop :=
-| Std_priv_Temporary_Frozen m : std_rel_priv Temporary (Frozen m)
-| Std_priv_Temporary_Revoked : std_rel_priv Temporary Revoked
-| Std_priv_Temporary_Permanent : std_rel_priv Temporary Permanent.
-
-Definition state_permanent_std (ρ : region_type) := ρ = Permanent.
-Global Instance state_permanent_std_dec (ρ : region_type) : Decision (state_permanent_std ρ).
-Proof.
-  destruct ρ; rewrite /state_permanent_std ; cbn; solve_decision.
-Qed.
-
-Global Instance sts_std : STS_STD region_type :=
-  {|
-    Rpub := std_rel_pub;
-    Rpriv := std_rel_priv;
-    state_permanent := (fun ρ => ρ = Permanent);
-    dec_state_permanent := state_permanent_std_dec
-  |}.
 
 (** CMRA for heap and its predicates. Contains: *)
 (* CMRA for relatedness between locations and saved prop names *)
@@ -1829,5 +1799,29 @@ Section heap.
       eright;[right;constructor|left].
   Qed.
 
+  (* TODO move somewhere, but I don't know where/when it will be useful yet exactly *)
+  Lemma delete_std_related_sts_priv_world_not_perma W a ρ :
+    (std W) !! a = Some ρ ->
+    ρ ≠ Permanent ->
+    related_sts_priv_world W (delete_std W a).
+  Proof.
+    intros HWa.
+    rewrite /delete_std ; cbn.
+    destruct W as [Wstd Wcus]; cbn.
+    split; cbn in *.
+    - split; cbn.
+      + intros i x Hx Hperma; simplify_eq.
+        rewrite lookup_delete_ne; first done.
+        intro Hcontra ; simplify_eq.
+        rewrite Hx in HWa; simplify_eq.
+      + intros i x y Hx Hy; simplify_eq.
+        assert (is_Some ( delete a Wstd !! i )) as Hsome by done.
+        rewrite lookup_delete_is_Some in Hsome.
+        destruct Hsome as [Hai _].
+        rewrite lookup_delete_ne in Hy; last done.
+        rewrite Hx in Hy ; simplify_eq.
+        apply rtc_refl.
+    - apply related_sts_priv_refl.
+  Qed.
 
 End heap.
