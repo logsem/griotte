@@ -45,7 +45,7 @@ Section fundamental.
      (ρ : region_type) (dst : RegName) (r1 r2 : Z + RegName) (P:D):
     ftlr_instr W C regs p p' g b e a w (Subseg dst r1 r2) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -67,7 +67,7 @@ Section fundamental.
       iApply wp_pure_step_later; auto.
       iNext ; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+      { destruct ρ;auto;contradiction. }
       simplify_map_eq; map_simpl "Hmap".
 
       iApply ("IH" $! _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
@@ -105,7 +105,7 @@ Section fundamental.
       iApply wp_pure_step_later; auto.
       iNext ; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+      { destruct ρ;auto;contradiction. }
       simplify_map_eq; map_simpl "Hmap".
 
       iApply ("IH" $! _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.

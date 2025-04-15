@@ -31,7 +31,7 @@ Section fundamental.
     is_Get ins dst r →
     ftlr_instr W C regs p p' g b e a w ins ρ P.
   Proof.
-    intros Hinstr Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hinstr Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     rewrite <- Hi in Hinstr; clear Hi.
@@ -50,7 +50,7 @@ Section fundamental.
       assert (dst <> PC) as HdstPC by (intros ->; simplify_map_eq).
       simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotfrozen g)];contradiction. }
+      { destruct ρ;auto;contradiction. }
 
       iApply ("IH" $! _ _ (<[dst := _]> (<[PC := _]> regs))
                with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")

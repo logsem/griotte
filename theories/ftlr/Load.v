@@ -33,7 +33,7 @@ Section fundamental.
   Definition region_open_resources W C a als p φ v (has_later : bool): iProp Σ :=
     (∃ ρ,
      sts_state_std C a ρ
-    ∗ ⌜ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g)⌝
+    ∗ ⌜ρ ≠ Revoked⌝
     ∗ open_region_many W C(a :: als)
     ∗ if_later_P has_later (monotonicity_guarantees_region C φ p v ρ ∗ φ (W,C, v))
     ∗ rel C a p φ)%I.
@@ -137,16 +137,14 @@ Section fundamental.
     iDestruct (region_open_prepare with "Hr") as "Hr".
     iDestruct (readAllowed_valid_cap_implies with "Hvsrc") as %HH; eauto.
     { rewrite /withinBounds Hle Hge. auto. }
-    destruct HH as (ρ0 & Hstd & Hnotrevoked0 & Hnotfrozen0).
+    destruct HH as (ρ0 & Hstd & Hnotrevoked).
     (* We can finally frame off Hsts here,
             since it is no longer needed after opening the region*)
     iDestruct (region_open_next _ _ _ _ a p0 ρ0 with "[$Hrel0 $Hr $Hsts]")
       as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
-    { intros [m' Hcontr]. specialize (Hnotfrozen0 m'); contradiction. }
     { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
     iExists w0,p0,P0.
     iFrame "∗#%".
-    iSplitR; iPureIntro;done.
   Qed.
 
   Lemma load_res_implies_mem_map
@@ -294,7 +292,7 @@ Section fundamental.
       rewrite memMap_resource_2ne; last auto.
       iDestruct "Hmem" as "[Ha Hapc]"; iFrame.
       rewrite /persistent_cond in HpersP'.
-      iDestruct "HLoadRes" as (ρ1) "(Hstate' & [%Hnotrevoked %Hnotfrozen] & Hr & (Hfuture & #HV) & Hrel')"
+      iDestruct "HLoadRes" as (ρ1) "(Hstate' & %Hnotrevoked & Hr & (Hfuture & #HV) & Hrel')"
       ; cbn.
 
       assert (isO p' = false) as HpO'.
@@ -302,7 +300,6 @@ Section fundamental.
       }
       iDestruct (region_close_next with "[$Hr $Ha $Hrel' $Hstate' $Hfuture]")
         as "Hr"; eauto.
-      { intros [m' Hm']; specialize (Hnotfrozen m'); contradiction. }
       { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
       iFrame.
       iDestruct (region_open_prepare with "Hr") as "$".
@@ -315,7 +312,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (dst src : RegName) (P:D) :
     ftlr_instr W C regs p p' g b e a w (Load dst src) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -388,7 +385,7 @@ Section fundamental.
       }
 
       iDestruct (region_close with "[$Hstate $Ha $Hr $HmonoV]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+      { destruct ρ;auto;contradiction. }
       iApply ("IH" $! _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
       { cbn. intros. subst regs'.
         rewrite lookup_insert_is_Some.

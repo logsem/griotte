@@ -31,7 +31,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:D):
     ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -83,7 +83,7 @@ Section fundamental.
       destruct c; inv Hwsrc.
       { iNext ; iIntros "_".
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+        { destruct ρ;auto;contradiction. }
         rewrite !insert_insert insert_commute //.
         iApply ("IH" $! _ _ (<[rdst:=WSentry p g b e pc_a']> regs) with
                  "[%] [] [$Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
@@ -111,7 +111,7 @@ Section fundamental.
         iSpecialize ("Hinterp_src" with "Hfuture").
         iDestruct "Hinterp_src" as "[Hinterp_src _]".
         iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+        { destruct ρ;auto;contradiction. }
         rewrite !insert_insert insert_commute //.
         iDestruct ("Hinterp_src" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
         iNext.

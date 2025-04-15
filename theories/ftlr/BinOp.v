@@ -41,7 +41,6 @@ Section fundamental.
     → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
     → ρ ≠ Revoked
-    → (∀ g : Mem, ρ ≠ Frozen g)
     → (decodeInstrW w = Add dst r1 r2 \/
        decodeInstrW w = Sub dst r1 r2 \/
        decodeInstrW w = Mul dst r1 r2 \/
@@ -80,7 +79,7 @@ Section fundamental.
                  {{ v0, ⌜v0 = HaltedV⌝
                         → na_own logrel_nais ⊤}} }}.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -99,7 +98,7 @@ Section fundamental.
       assert (dst <> PC) as HdstPC by (intros ->; rewrite lookup_insert in H1; done).
       rewrite lookup_insert_ne in H1; eauto; simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|specialize (Hnotfrozen g)];contradiction. }
+      { destruct ρ;auto;contradiction. }
       iApply ("IH" $! _ _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
       ; eauto.
       + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).

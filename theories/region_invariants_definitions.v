@@ -6,16 +6,13 @@ Section region_invariants_definitions.
   Inductive region_type :=
   | Temporary
   | Permanent
-  | Revoked
-  | Frozen of gmap Addr Word.
+  | Revoked.
 
   Inductive std_rel_pub : region_type -> region_type -> Prop :=
   | Std_pub_Revoked_Temporary : std_rel_pub Revoked Temporary
-  | Std_pub_Revoked_Permanent : std_rel_pub Revoked Permanent
-  | Std_pub_Frozen_Temporary m : std_rel_pub (Frozen m) Temporary .
+  | Std_pub_Revoked_Permanent : std_rel_pub Revoked Permanent.
 
   Inductive std_rel_priv : region_type -> region_type -> Prop :=
-  | Std_priv_Temporary_Frozen m : std_rel_priv Temporary (Frozen m)
   | Std_priv_Temporary_Revoked : std_rel_priv Temporary Revoked
   | Std_priv_Temporary_Permanent : std_rel_priv Temporary Permanent.
 
@@ -89,22 +86,6 @@ Section region_invariants_definitions.
     subst. apply IHHrtc. apply std_rel_priv_Revoked; auto.
   Qed.
 
-  Lemma std_rel_priv_Frozen (ρ : region_type) (m : Mem):
-    std_rel_priv (Frozen m) ρ → ρ = Frozen m.
-  Proof.
-    intros Hrel.
-    inversion Hrel; done.
-  Qed.
-
-  Lemma std_rel_priv_rtc_Frozen (ρ1 ρ2 : region_type) (m : Mem) :
-    ρ1 = Frozen m →
-    rtc std_rel_priv ρ1 ρ2 → ρ2 = Frozen m.
-  Proof.
-    intros Hρ1 Hrtc.
-    induction Hrtc;auto.
-    subst. apply IHHrtc. apply std_rel_priv_Frozen; auto.
-  Qed.
-
   Lemma std_rel_rtc_Permanent (ρ1 ρ2 : region_type) :
     ρ1 = Permanent →
     rtc (λ ρ0 ρ0' : region_type, std_rel_pub ρ0 ρ0' ∨ std_rel_priv ρ0 ρ0') ρ1 ρ2 →
@@ -151,25 +132,6 @@ Section region_invariants_definitions.
     - right. left. eapply std_rel_pub_rtc_Temporary;eauto.
   Qed.
 
-  Lemma std_rel_pub_Frozen (ρ : region_type) (m : Mem) :
-    std_rel_pub (Frozen m) ρ → ρ = Temporary.
-  Proof.
-    intros Hrel.
-    inversion Hrel.
-    auto.
-  Qed.
-
-  Lemma std_rel_pub_rtc_Frozen (ρ1 ρ2 : region_type) (m : Mem) :
-    ρ1 = (Frozen m) →
-    rtc std_rel_pub ρ1 ρ2 → (ρ2 = Temporary ∨ ρ2 = (Frozen m)).
-  Proof.
-    intros Hρ1 Hrtc.
-    inversion Hrtc; subst; auto.
-    eapply std_rel_pub_Frozen in H; simplify_eq.
-    left.
-    eapply std_rel_pub_rtc_Temporary; eauto.
-  Qed.
-
   (* ------------------------- DEFINITION STD STS CLASS -------------------------- *)
   Definition state_permanent_std (ρ : region_type) := ρ = Permanent.
   Global Instance state_permanent_std_dec (ρ : region_type) : Decision (state_permanent_std ρ).
@@ -188,17 +150,6 @@ Section region_invariants_definitions.
       ; try apply rtc_refl
       ; try (apply rtc_once; right; constructor)
       ; try (apply rtc_once; left; constructor).
-      apply rtc_transitive with (y := Temporary).
-      + apply rtc_once; left; constructor.
-      + apply rtc_once; right; constructor.
-    - destruct ρ'
-      ; try apply rtc_refl
-      ; try (apply rtc_once; left; constructor)
-      ; try (apply rtc_once; right; constructor).
-      all:
-        apply rtc_transitive with (y := Temporary)
-      ; try (apply rtc_once; left; constructor)
-      ; try (apply rtc_once; right; constructor).
   Qed.
 
   Lemma state_permanent_inv_std :

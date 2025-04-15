@@ -663,7 +663,7 @@ Section heap.
       }
       subst ρ.
       iDestruct "Hinv" as (γpred' p' φ' Heqγ Hpers) "[#Hsaved _]"; simplify_eq.
-      iDestruct (region_map_delete_nonfrozen with "Hr") as "Hr";[intros;by rewrite Hρ|].
+      iDestruct (region_map_delete with "Hr") as "Hr";[intros;by rewrite Hρ|].
       iFrame. iSplitL "Hr".
       { rewrite delete_insert;[|by rewrite lookup_delete]. iFrame. }
       iApply big_sepM_insert;auto. iFrame. iExists p',φ'. simplify_eq. repeat iSplit;auto.
