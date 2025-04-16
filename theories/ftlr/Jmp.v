@@ -31,7 +31,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (rimm : Z + RegName) (P:D):
     ftlr_instr W C regs p p' g b e a w (Jmp rimm) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -51,7 +51,7 @@ Section fundamental.
     rewrite insert_insert.
     iApply wp_pure_step_later; auto. iNext; iIntros "_".
     iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-    { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+    { destruct ρ;auto;contradiction. }
     iApply ("IH" $! _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
     iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity.
   Qed.

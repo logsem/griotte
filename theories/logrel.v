@@ -492,7 +492,7 @@ Section logrel.
     readAllowed p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-    ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
+    ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -514,7 +514,7 @@ Section logrel.
     writeAllowed p = true ->
     withinBounds b e a = true ->
     interp W C (WCap p g b e a) -∗
-    ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked ∧ (∀ m, ρ ≠ Frozen m)⌝.
+    ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.

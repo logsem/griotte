@@ -32,7 +32,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (dst : RegName) (src : SRegName) (P:D) :
     ftlr_instr W C regs p p' g b e a w (ReadSR dst src) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.

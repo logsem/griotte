@@ -116,14 +116,14 @@ Section fundamental.
     iDestruct (interp_in_registers with "[Hreg] [H]")
       as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
     ;eauto ; iClear "Hinv".
-    assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked ∧ (∀ g, ρ ≠ Frozen g))
-      as [ρ [Hρ [Hne Hne'] ] ].
+    assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked)
+      as [ρ [Hρ Hne ] ].
     { destruct (isWL p),g; simplify_eq ; eauto.
       destruct Hstate_a as [Htemp | Hperm];eauto. }
 
     iDestruct (region_open W C a p'' with "[$Hrela $Hr $Hsts]")
       as (w) "(Hr & Hsts & Hstate & Ha & % & #HmonoV & Hw) /="; [ |apply Hρ|].
-    { destruct ρ;auto;[done|by ospecialize (Hne' _)]. }
+    { destruct ρ;auto;done. }
     pose proof (Hperscond_P'' (W,C,w)) as HpersP''
     ; iDestruct "Hw" as "#Hw".
 
@@ -342,20 +342,9 @@ Section fundamental.
       iApply (wp_halt with "[HPC Ha]"); eauto; iFrame.
       iNext. iIntros "[HPC Ha] /=".
       iDestruct (region_close _ _ _ _ _ _ ρ with "[$Hr $Ha $Hstate $HmonoV Hw]") as "Hr";[auto|iFrame "#"; auto|].
-      { destruct ρ;auto;[|ospecialize (Hne' _)]; contradiction. }
+      { destruct ρ;auto; contradiction. }
       iApply wp_pure_step_later; auto; iNext ; iIntros "_".
       iApply wp_value; auto.
-      (* iInsert "Hmreg" PC. *)
-      (* iIntros (_). *)
-      (* iExists (<[PC:=WCap p g b e a]> regs),W. iFrame. *)
-      (* iAssert (⌜related_sts_priv_world W W⌝)%I as "#Hrefl". *)
-      (* { iPureIntro. apply related_sts_priv_refl_world. } *)
-      (* iFrame "#". *)
-      (* iAssert (∀ r0 : RegName, ⌜is_Some (<[PC:=WCap p g b e a]> regs !! r0)⌝)%I as "HA". *)
-      (* { iIntros. destruct (reg_eq_dec PC r0). *)
-      (*   - subst r0; rewrite lookup_insert; eauto. *)
-      (*   - rewrite lookup_insert_ne; auto. } *)
-      (* iExact "HA". *)
       Unshelve. rewrite /persistent_cond in Hperscond_P''; apply _.
   Qed.
 
