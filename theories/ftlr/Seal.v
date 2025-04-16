@@ -54,7 +54,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D):
     ftlr_instr W C regs p p' g b e a w (Seal dst r1 r2) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -89,7 +89,7 @@ Section fundamental.
       assert (dst <> PC) as HdstPC by (intros ->; simplify_map_eq).
       simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+      { destruct ρ;auto;contradiction. }
 
       iApply ("IH" $! _ _ (<[dst := _]> (<[PC := _]> regs))
                with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")

@@ -51,7 +51,6 @@ Section fundamental.
     → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
     → ρ ≠ Revoked
-    → (∀ g : Mem, ρ ≠ Frozen g)
     → decodeInstrW w = i
     -> ftlr_IH
     -∗ fixpoint interp1 W C (WCap p g b e a)

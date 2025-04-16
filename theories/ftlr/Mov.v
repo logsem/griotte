@@ -32,7 +32,7 @@ Section fundamental.
      (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
     ftlr_instr W C regs p p' g b e a w (Mov dst src) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -58,7 +58,7 @@ Section fundamental.
       { map_simpl "Hmap".
         destruct src; simpl in *; try discriminate.
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+        { destruct ρ;auto;contradiction. }
         destruct (decide (r = PC)).
         { simplify_map_eq.
           iApply ("IH" $! _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
@@ -80,7 +80,7 @@ Section fundamental.
       }
       { map_simpl "Hmap".
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-        { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+        { destruct ρ;auto;contradiction. }
         iApply ("IH" $! _ _ (<[dst:=w0]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
         - intros; simpl.
           rewrite lookup_insert_is_Some.

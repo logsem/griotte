@@ -75,12 +75,6 @@ Section region_alloc.
       iExists ρ.
       assert (a' ≠ a) as Hne;[intros Hcontr;subst a';rewrite HRl in Ha; inversion Ha|].
       rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame.
-      destruct ρ; iFrame.
-      iDestruct "Hρ" as (γpred0 p0 φ0 Hγ Hpers) "[Hsaved Hl]".
-      iDestruct "Hl" as (v0 Hnp0O Hg) "[Ha #Hall]". iDestruct "Hall" as %Hall.
-      iExists _. repeat iSplit;eauto. iExists p0,φ0. iFrame.
-      repeat (iSplit;auto). iPureIntro.
-      eapply frozen_extend_preserve; eauto.
   Qed.
 
   Lemma extend_region_temp_nwl E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
@@ -142,12 +136,6 @@ Section region_alloc.
       iExists ρ.
       assert (a' ≠ a) as Hne;[intros Hcontr;subst a';rewrite HRl in Ha; inversion Ha|].
       rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame.
-      destruct ρ; iFrame.
-      iDestruct "Hρ" as (γpred0 p0 φ0 Hγ Hpers) "[Hsaved Hl]".
-      iDestruct "Hl" as (v0 Hnp0O Hg) "[Ha #Hall]". iDestruct "Hall" as %Hall.
-      iExists _. repeat iSplit;eauto. iExists p0,φ0. iFrame.
-      repeat (iSplit;auto). iPureIntro.
-      eapply frozen_extend_preserve; eauto.
   Qed.
 
   Lemma extend_region_perm E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
@@ -206,13 +194,6 @@ Section region_alloc.
       iExists ρ.
       assert (a' ≠ a) as Hne;[intros Hcontr;subst a';rewrite HRl in Ha; inversion Ha|].
       rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame.
-      destruct ρ; iFrame.
-      iDestruct "Hρ" as (γpred0 p0 φ0 Hγ Hpers) "[Hsaved Hl]".
-      iDestruct "Hl" as (v0 Hnp0O Hg) "[Ha #Hall]". iDestruct "Hall" as %Hall.
-      iExists _,_,_. repeat iSplit;eauto.
-      iExists v0; iFrame.
-      repeat (iSplit;auto).
-      iPureIntro; eapply frozen_extend_preserve; eauto.
   Qed.
 
   (* The following allocates a Revoked region. This allocates the saved predicate and the region state, *)
@@ -267,13 +248,6 @@ Section region_alloc.
       iExists ρ.
       assert (a' ≠ a) as Hne;[intros Hcontr;subst a;rewrite HRl in Ha'; inversion Ha'|].
       rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame.
-      destruct ρ; iFrame.
-      iDestruct "Hρ" as (γpred0 p0 φ0 Hγ Hpers) "[Hsaved Hl]".
-      iDestruct "Hl" as (v0 Hnp0O Hg) "[Ha #Hall]". iDestruct "Hall" as %Hall.
-      iExists _,_,_. repeat iSplit;eauto.
-      iExists v0; iFrame.
-      repeat (iSplit;auto).
-      iPureIntro; eapply frozen_extend_preserve; eauto.
   Qed.
 
   Lemma extend_region_revoked_sepL2 E W C l1 p φ `{∀ Wv, Persistent (φ Wv)}:

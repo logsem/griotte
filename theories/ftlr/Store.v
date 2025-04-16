@@ -87,7 +87,6 @@ Section fundamental.
         sts_state_std C l ρ
         ∗ ⌜std W !! l = Some ρ⌝
         ∗ ⌜ρ ≠ Revoked⌝
-        ∗ ⌜(∀ g, ρ ≠ Frozen g)⌝
         ∗ open_region_many W C (l :: ls)
         ∗ if_later_P
             has_later
@@ -186,11 +185,10 @@ Section fundamental.
       iDestruct (writeAllowed_valid_cap_implies with "Hvsrc") as %HH; eauto.
       { rewrite /withinBounds Hge; solve_addr. }
 
-      destruct HH as [ρ' [Hstd' [Hnotrevoked' Hnotfrozen'] ] ].
+      destruct HH as [ρ' [Hstd' Hnotrevoked'] ].
       (* We can finally frame off Hsts here, since it is no longer needed after opening the region*)
       iDestruct (region_open_next _ _ _ _ a0 p'' ρ' with "[$Hrel'' $Hr $Hsts]")
         as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
-      { intros [g1 Hcontr];specialize (Hnotfrozen' g1); contradiction. }
       { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
       iExists p'',P''.
       rewrite Hra.
@@ -279,12 +277,11 @@ Section fundamental.
     (a : Addr) (ρ : region_type) :
     std W !! a = Some ρ
     -> ρ ≠ Revoked
-    -> (∀ m, ρ ≠ Frozen m)
     -> canStore p w = true
     -> monoReq W C a p P
     -∗ monotonicity_guarantees_region C (safeC P) p w ρ.
   Proof.
-    iIntros (Hstda Hrevoked Hfrozen HcanStore) "Hmono".
+    iIntros (Hstda Hrevoked HcanStore) "Hmono".
     rewrite /monoReq Hstda.
     destruct ρ; auto; cbn; [destruct (isWL p) ; [ | destruct (isDL p)]|].
     all: try iApply "Hmono"; auto.
@@ -301,7 +298,6 @@ Section fundamental.
     → std W !! pc_a = Some ρ
     → mem0 !! a0 = Some oldv (*?*)
     -> ρ ≠ Revoked
-    -> (∀ m, ρ ≠ Frozen m)
     → allow_store_mem W C r1 r2 (<[PC:=WCap pc_p pc_g pc_b pc_e pc_a]> regs) pc_a pc_p'  pc_w mem0 false
     -∗ (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → interp W C v)
     -∗ interp W C (WCap pc_p pc_g pc_b pc_e pc_a)
@@ -316,7 +312,7 @@ Section fundamental.
         ∗ P W C v
         ∗ monotonicity_guarantees_region C (safeC P) pc_p' v ρ.
    Proof.
-    iIntros (Hwoa Hras Hstdst Ha0 Hρnrevoked Hρnfrozen)
+    iIntros (Hwoa Hras Hstdst Ha0 Hρnrevoked)
       "HStoreMem #Hreg #HVPCr Hpc_w #Hwcond #HpcmonoV #Hpcmono Hmem".
     iDestruct "HStoreMem" as (p1 g1 b1 e1 a1 storev1) "[% [% HStoreRes] ]".
     destruct (store_inr_eq Hras H) as (<- & <- &<- &<- &<-).
@@ -359,12 +355,11 @@ Section fundamental.
       iDestruct "HStoreRes"
         as (p' P' w' Hflp' HpersP') "(#Hzcond' & #Hwcond' & #Hrcond' & #HmonoR' & -> & HStoreRes)".
       rewrite lookup_insert in Ha0; inversion Ha0; clear Ha0; subst.
-      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & % & Hr & #HmonoV & Hrel')".
+      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & Hr & #HmonoV & Hrel')".
       rewrite insert_insert memMap_resource_2ne; last auto.
       iDestruct "Hmem" as  "[Ha1 Hpc_a]".
       iFrame.
       iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' HmonoV]") as "Hr"; eauto.
-      { intros [g Hcontr]. specialize (H2 g). done. }
       { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
       { iSplit.
         iPureIntro ; clear -Hflp' Hwa; destruct p0,p'; cbn in *; try done.
@@ -422,7 +417,7 @@ Section fundamental.
      (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : D) :
      ftlr_instr W C regs p p' g b e a w (Store dst src) ρ P.
    Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -496,7 +491,7 @@ Section fundamental.
       iDestruct (switch_monotonicity_formulation with "HmonoV") as "HmonoV"; auto.
 
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV $HSVInterp]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+      { destruct ρ;auto;contradiction. }
       simplify_map_eq. rewrite insert_insert.
 
       iApply ("IH" with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); auto.

@@ -31,7 +31,7 @@ Section fundamental.
     (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
     ftlr_instr W C regs p p' g b e a w (Lea dst src) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hnotfrozen Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
@@ -54,7 +54,7 @@ Section fundamental.
 
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+      { destruct ρ;auto;contradiction. }
       iApply ("IH" $! _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
       - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
       - iIntros (ri v Hri Hvs).
@@ -77,7 +77,7 @@ Section fundamental.
 
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
-      { destruct ρ;auto;[|ospecialize (Hnotfrozen _)];contradiction. }
+      { destruct ρ;auto;contradiction. }
 
       iApply ("IH" $! _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
       - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
