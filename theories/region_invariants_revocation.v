@@ -680,25 +680,6 @@ Section heap.
       destruct x ; congruence.
   Qed.
 
-  Lemma revoke_private_monotone_dom (Wstd_sta Wstd_sta' : gmap Addr region_type) :
-    (∀ (i : finz MemNum) (x : region_type), Wstd_sta !! i = Some x → x = Permanent → is_Some (Wstd_sta' !! i))
-    -> ( ∀ (i : finz MemNum) (x : region_type), (revoke_std_sta Wstd_sta) !! i = Some x → x = Permanent → is_Some ((revoke_std_sta Wstd_sta') !! i) ).
-  Proof.
-    intros Hmono a ρ Hρ ->.
-    assert (Wstd_sta !! a = Some Permanent).
-    { rewrite /revoke_std_sta lookup_fmap in Hρ.
-      destruct (Wstd_sta !! a); cbn in Hρ; last done.
-      destruct r;  congruence.
-    }
-    specialize (Hmono _ _ H eq_refl).
-    destruct Hmono.
-    rewrite /revoke_std_sta lookup_fmap H0.
-    destruct (decide (x = Temporary)); simplify_eq.
-    + by exists Revoked; cbn.
-    + exists x; cbn.
-      destruct x ; congruence.
-  Qed.
-
   Lemma revoke_monotone (W W' : WORLD) :
     related_sts_priv_world W W' → related_sts_priv_world (revoke W) (revoke W').
   Proof.
