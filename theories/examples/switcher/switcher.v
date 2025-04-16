@@ -95,15 +95,15 @@ Section Switcher.
       ++ clear_stack_instrs ct0 ct1
       ++ encodeInstrsW[
 
-        Sub ct0 ct1 ct0;
-        Mov ct1 csp;
-        Lea ct1 ct0;
-        Jnz 2%Z ct0;
-        Jmp 5%Z;
-        Store ct1 0%Z;
-        Lea ct1 1%Z;
-        Add ct0 ct0 1%Z;
-        Jmp (-5)%Z;
+        (* Sub ct0 ct1 ct0; *)
+        (* Mov ct1 csp; *)
+        (* Lea ct1 ct0; *)
+        (* Jnz 2%Z ct0; *)
+        (* Jmp 5%Z; *)
+        (* Store ct1 0%Z; *)
+        (* Lea ct1 1%Z; *)
+        (* Add ct0 ct0 1%Z; *)
+        (* Jmp (-5)%Z; *)
 
         (* Restores the return pointer to caller  *)
         Mov cra ca2]

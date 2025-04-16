@@ -144,7 +144,7 @@ Section ClearRegistersMacro.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (rmap : Reg) φ :
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_instrs)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_post_call_instrs)%a ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; ca0 ; ca1 ]} ->
 
@@ -152,8 +152,8 @@ Section ClearRegistersMacro.
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag pc_a clear_registers_post_call_instrs
       ∗ ▷ ( (∃ (rmap' : Reg),
-              ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; ca0 ; ca1 ]} ⌝
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
+              ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; ca0 ; ca1 ]} ⌝
+              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_post_call_instrs)%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag pc_a clear_registers_post_call_instrs)
                -∗ WP Seq (Instr Executable) {{ φ }})
