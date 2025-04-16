@@ -321,226 +321,322 @@ Section Switcher.
   Proof.
   Admitted.
 
-Ltac focus_block' n h a_base Ha_base hi hcont :=
-  let h := constr:(h:ident) in
-  let hi := constr:(hi:ident) in
-  let hcont := constr:(hcont:ident) in
-  let x := iFresh in
-  match goal with |- context [ environments.Esnoc _ h (codefrag ?a0 _) ] =>
-    iPoseProof ((codefrag_block_acc n) with h) as (a_base) x;
-      [ once (typeclasses eauto with proofmode_focus) | ];
-    let xbase := iFresh in
-    let y := iFresh in
-    eapply coq_tactics.tac_and_destruct with x _ xbase y _ _ _;
-      [reduction.pm_reflexivity|reduction.pm_reduce;tc_solve|reduction.pm_reduce];
-    iPure xbase as Ha_base;
-    eapply coq_tactics.tac_and_destruct with y _ hi hcont _ _ _;
-      [reduction.pm_reflexivity|reduction.pm_reduce;tc_solve|reduction.pm_reduce];
-    focus_block_codefrag_facts hi a0 Ha_base
-    (* changePC_next_block a_base *)
-  end.
-Tactic Notation "focus_block'" constr(n) constr(h) "as"
-       ident(a_base) simple_intropattern(Ha_base) constr(hi) constr(hcont) :=
-  focus_block' n h a_base Ha_base hi hcont.
+  Ltac focus_block' n h a_base Ha_base hi hcont :=
+    let h := constr:(h:ident) in
+    let hi := constr:(hi:ident) in
+    let hcont := constr:(hcont:ident) in
+    let x := iFresh in
+    match goal with |- context [ environments.Esnoc _ h (codefrag ?a0 _) ] =>
+                      iPoseProof ((codefrag_block_acc n) with h) as (a_base) x;
+                      [ once (typeclasses eauto with proofmode_focus) | ];
+                      let xbase := iFresh in
+                      let y := iFresh in
+                      eapply coq_tactics.tac_and_destruct with x _ xbase y _ _ _;
+                      [reduction.pm_reflexivity|reduction.pm_reduce;tc_solve|reduction.pm_reduce];
+                      iPure xbase as Ha_base;
+                      eapply coq_tactics.tac_and_destruct with y _ hi hcont _ _ _;
+                      [reduction.pm_reflexivity|reduction.pm_reduce;tc_solve|reduction.pm_reduce];
+                      focus_block_codefrag_facts hi a0 Ha_base
+                                                 (* changePC_next_block a_base *)
+    end.
+  Tactic Notation "focus_block'" constr(n) constr(h) "as"
+    ident(a_base) simple_intropattern(Ha_base) constr(hi) constr(hcont) :=
+    focus_block' n h a_base Ha_base hi hcont.
 
-  (* Lemma switcher_ret_specification *)
-  (*   (N : namespace) *)
-  (*   (W0 W1 : WORLD) *)
-  (*   (C : CmptName) *)
-  (*   (b_switcher e_switcher a_switcher_cc : Addr) *)
-  (*   (b_stk e_stk a_stk : Addr) *)
-  (*   (ot_switcher : OType) *)
-  (*   (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word) *)
-  (*   (w_entry_point : Sealable) *)
-  (*   (stk_mem : list Word) *)
-  (*   (arg_rmap rmap : Reg) *)
-  (*   (ltemp_unknown : list Addr) *)
-  (*   ( b_tstk a_tstk e_tstk a_jmp : Addr ) *)
-  (*   (tstk_a1 : Word) *)
-  (*   (φ : val -> iPropI Σ) : *)
+  Lemma frame_W_lookup_std (W : WORLD) (a : Addr) :
+    std (frame_W W) !! a = (std W) !!a.
+  Proof.
+    rewrite /frame_W.
+    by cbn.
+  Qed.
 
-  (*   let stk_caller_save_area := *)
-  (*     [wcs0_caller;wcs1_caller;wcra_caller;wcgp_caller] *)
-  (*   in *)
-  (*   let callee_stk_frm_addr := *)
-  (*     finz.seq_between (a_stk ^+ 4)%a e_stk *)
-  (*   in *)
+  Lemma switcher_ret_specification
+    (N : namespace)
+    (W0 : WORLD)
+    (C : CmptName)
+    (b_switcher e_switcher a_switcher_cc : Addr)
+    (b_stk e_stk a_stk : Addr)
+    (ot_switcher : OType)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (stk_mem : list Word)
+    (arg_rmap rmap : Reg)
+    (ltemp_unknown : list Addr)
+    ( b_tstk a_tstk e_tstk a_jmp : Addr )
+    (tstk_a1 : Word)
+    (ι0 : positive) (Pframe0 : iProp Σ)
+    (a_local_args : list Addr)
+    (φ : val -> iPropI Σ) :
 
-  (*   let W0' := frame_W (std_update_multiple (revoke W0) (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) in *)
+    let stk_caller_save_area :=
+      [wcs0_caller;wcs1_caller;wcra_caller;wcgp_caller]
+    in
+    let callee_stk_frm_addr :=
+      finz.seq_between (a_stk ^+ 4)%a e_stk
+    in
 
-  (*   let Hφ : iPropI Σ := *)
-  (*     ((∃ W2 (rmap' : Reg), ⌜related_sts_pub_world W0 W2⌝ ∗ ⌜dom rmap' = all_registers_s ∖ {[PC; cgp; cra; csp; ca0; ca1]}⌝ ∗ *)
-  (*                           na_own logrel_nais ⊤ ∗ sts_full_world W2 C ∗ open_region_many W2 C (finz.seq_between a_stk e_stk) ∗ *)
-  (*                           ([∗ list] a ∈ finz.seq_between a_stk e_stk, rel C a RWL interpC) ∗ PC ↦ᵣ updatePcPerm wcra_caller ∗ cgp ↦ᵣ wcgp_caller ∗ *)
-  (*                           cra ↦ᵣ wcra_caller ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗ (∃ warg0 : Word, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0) ∗ *)
-  (*                           (∃ warg1 : Word, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1) ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝) ∗ *)
-  (*                           [[a_stk,e_stk]]↦ₐ[[region_addrs_zeroes a_stk e_stk]]) -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I *)
-  (*   in *)
-  (*   let htemp_unknown := *)
-  (*    ([∗ list] x ∈ ltemp_unknown, (∃ (x0 : Perm) (x1 : WORLD * CmptName * Word → iPropI Σ), *)
-  (*                                   ⌜∀ Wv : WORLD * CmptName * Word, Persistent (x1 Wv)⌝ ∗ temp_resources W0 C x1 x x0 ∗ *)
-  (*                                   rel C x x0 x1) ∗ ⌜std (revoke W0) !! x = Some Revoked⌝)%I *)
-  (*   in *)
-  (*   let Pframe := *)
-  (*    (Hφ ∗ tstack_frag [tstk_a1] (finz.dist b_tstk (a_tstk ^+ 1)%a) *)
-  (*     ∗ [[a_stk,(a_tstk ^+ 4)%a]]↦ₐ[[stk_caller_save_area]] ∗ htemp_unknown)%I *)
-  (*   in *)
-  (*   let ι := fresh_cus_name (std_update_multiple (revoke W0) callee_stk_frm_addr Temporary) *)
-  (*   in *)
+    let W1 :=
+      std_update_multiple
+        (frame_W
+           (std_update_multiple (<l[ι0:=encode false]l>(revoke W0))
+              (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary)) a_local_args Temporary
+    in
 
-  (*   related_sts_pub_world W0' W1 -> *)
-  (*   (a_switcher_cc + 79%nat)%a = Some a_jmp -> *)
-  (*   (a_stk ^+ 4 < e_stk)%a -> *)
-  (*   (b_stk <= a_stk)%a -> *)
-  (*   (a_tstk ^+ 2 < e_tstk)%a -> *)
-  (*   (b_tstk <= a_tstk)%a  -> *)
-  (*   NoDup (ltemp_unknown ++ finz.seq_between a_stk e_stk) -> *)
-  (*   (∀ a : finz MemNum, std W0 !! a = Some Temporary ↔ a ∈ ltemp_unknown ++ finz.seq_between a_stk e_stk) -> *)
+    let Hφ : iPropI Σ :=
+      ((∃ W2 (rmap' : Reg), ⌜related_sts_pub_world W0 W2⌝ ∗
+        ⌜dom rmap' = all_registers_s ∖ {[PC; cgp; cra; csp; ca0; ca1]}⌝ ∗
+        na_own logrel_nais ⊤ ∗ sts_full_world W2 C ∗
+        open_region_many W2 C (finz.seq_between a_stk e_stk) ∗
+        ([∗ list] a ∈ finz.seq_between a_stk e_stk, rel C a RWL interpC) ∗
+        PC ↦ᵣ updatePcPerm wcra_caller ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller ∗
+        csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+        (∃ warg0 : Word, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0) ∗
+        (∃ warg1 : Word, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1) ∗
+        ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝) ∗
+        ([∗ list] a ∈ a_local_args, ∃ w : Word, a ↦ₐ w ∗ ⌜a ∉ dom (std W2)⌝) ∗
+        [[a_stk,e_stk]]↦ₐ[[region_addrs_zeroes a_stk e_stk]]) -∗
+     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I
+    in
+    let htemp_unknown :=
+     ([∗ list] x ∈ ltemp_unknown, (∃ (x0 : Perm) (x1 : WORLD * CmptName * Word → iPropI Σ),
+                                    ⌜∀ Wv : WORLD * CmptName * Word, Persistent (x1 Wv)⌝ ∗ temp_resources W0 C x1 x x0 ∗
+                                    rel C x x0 x1) ∗ ⌜std (revoke W0) !! x = Some Revoked⌝)%I
+    in
+    let Pframe :=
+     (Hφ ∗ Pframe0 ∗ (a_tstk ^+ 1)%a ↦ₐ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+     [[a_stk,(a_stk ^+ 4)%a]]↦ₐ[[stk_caller_save_area]] ∗ htemp_unknown)%I
+    in
+    let ι := fresh_cus_name (std_update_multiple (<l[ι0:=false]l>(revoke W0)) callee_stk_frm_addr Temporary)
+    in
 
-  (*   ( na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc b_tstk e_tstk ot_switcher ) *)
-  (*     ∗ ([∗ list] y ∈ finz.seq_between a_stk (a_stk ^+ 4)%a, rel C y RWL interpC) *)
-  (*     ∗ ([∗ list] y ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, rel C y RWL interpC) *)
-  (*     ∗ ([∗ list] x ∈ finz.seq_between a_stk e_stk, ⌜std (revoke W0) !! x = Some Revoked⌝) *)
-  (*     ∗ sts_rel_loc C ι frame_rel_pub frame_rel_pub frame_rel_priv *)
-  (*     ∗ na_inv logrel_nais (nroot.@"frame".@ι) (frame_inv C ι Pframe) *)
-  (*     -∗ interp W1 C (WSentry XSRW_ Local b_switcher e_switcher (a_jmp ^+ 1)%a) *)
-  (*   ). *)
-  (* Proof. *)
-  (*   intros stk_caller_save_area callee_stk_frm_addr W0' Hφ htemp_unknown Pframe ι *)
-  (*     Ha_related_W0'_W1 Ha_jmp Hstk_ae Hstk_ba Htstk_ae Htstk_ba Hnodupl W_temps. *)
-  (*   iIntros "#(Hinv_switcher & Hrel_reg_saved & Hrel_callee_frm & Htemp_opened_revoked *)
-  (*             & Hsts_rel_ι & Hinv_frame)". *)
+    (a_switcher_cc + 79%nat)%a = Some a_jmp ->
+    (a_stk ^+ 4 < e_stk)%a ->
+    (b_stk <= a_stk)%a ->
+    (a_tstk ^+ 2 < e_tstk)%a ->
+    (b_tstk <= a_tstk)%a  ->
+    NoDup (ltemp_unknown ++ finz.seq_between a_stk e_stk) ->
+    (∀ a : finz MemNum, std W0 !! a = Some Temporary ↔ a ∈ ltemp_unknown ++ finz.seq_between a_stk e_stk) ->
+    (loc1 W0) !! ι0 = Some (encode true) ->
+    loc2 W0 !! ι0 =
+    Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv) ->
+    Forall (λ a : finz MemNum, a ∉ dom (std W0)) a_local_args ->
 
-  (*   iEval (rewrite fixpoint_interp1_eq //=). *)
-  (*   iModIntro; iIntros (rmap' W2 Hrelated_W1_W2). *)
-  (*   iAssert (interp_expr interp rmap' W2 C *)
-  (*              (WCap XSRW_ Local b_switcher e_switcher (a_jmp ^+ 1)%a)) *)
-  (*             as "Hinterp_expr" ; last iFrame "Hinterp_expr". *)
+    ( na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc b_tstk e_tstk ot_switcher )
+      ∗ na_inv logrel_nais (nroot.@"frame".@ι0) (frame_inv C ι0 Pframe0 a_tstk)
+      ∗ ([∗ list] y ∈ finz.seq_between a_stk (a_stk ^+ 4)%a, rel C y RWL interpC)
+      ∗ ([∗ list] y ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, rel C y RWL interpC)
+      ∗ ([∗ list] x ∈ finz.seq_between a_stk e_stk, ⌜std (revoke W0) !! x = Some Revoked⌝)
+      ∗ sts_rel_loc C ι frame_rel_pub frame_rel_pub frame_rel_priv
+      ∗ na_inv logrel_nais (nroot.@"frame".@ι) (frame_inv C ι Pframe (a_tstk ^+ 1)%a)
+      -∗ interp W1 C (WSentry XSRW_ Local b_switcher e_switcher (a_jmp ^+ 1)%a)
+    ).
+  Proof.
+    intros stk_caller_save_area callee_stk_frm_addr W1 Hφ htemp_unknown Pframe ι
+      Ha_jmp Hstk_ae Hstk_ba Htstk_ae Htstk_ba Hnodupl W_temps
+      Hι0_loc Hι0_sts Ha_args_locals.
+    iIntros "#(Hinv_switcher & #Hinv_frame0 & Hrel_reg_saved & Hrel_callee_frm
+    & Htemp_opened_revoked & Hsts_rel_ι & #Hinv_frame)".
 
-  (*   iIntros "([%Hfull_rmap #Hinterp_rmap] & Hrmap & Hregion & Hworld & Hna)". *)
-  (*   rewrite /interp_conf /registers_pointsto. *)
-  (*   iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by rewrite lookup_insert. *)
-  (*   rewrite delete_insert_delete. *)
+    iEval (rewrite fixpoint_interp1_eq //=).
+    iModIntro; iIntros (rmap' W2 Hrelated_W1_W2).
+    iAssert (interp_expr interp rmap' W2 C
+               (WCap XSRW_ Local b_switcher e_switcher (a_jmp ^+ 1)%a))
+              as "Hinterp_expr" ; last iFrame "Hinterp_expr".
 
-  (*   (* extract register points-to *) *)
-  (*   assert (exists wctp, rmap' !! ctp = Some wctp) as [wctp Hwctp]. *)
-  (*   { admit. } *)
-  (*   iDestruct (big_sepM_delete _ _ ctp with "Hrmap") as "[Hctp Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wcsp, rmap' !! csp = Some wcsp) as [wcsp Hwcsp]. *)
-  (*   { admit. } *)
-  (*   iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wcgp, rmap' !! cgp = Some wcgp) as [wcgp Hwcgp]. *)
-  (*   { admit. } *)
-  (*   iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wca2, rmap' !! ca2 = Some wca2) as [wca2 Hwca2]. *)
-  (*   { admit. } *)
-  (*   iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wcs1, rmap' !! cs1 = Some wcs1) as [wcs1 Hwcs1]. *)
-  (*   { admit. } *)
-  (*   iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wcs0, rmap' !! cs0 = Some wcs0) as [wcs0 Hwcs0]. *)
-  (*   { admit. } *)
-  (*   iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wct0, rmap' !! ct0 = Some wct0) as [wct0 Hwct0]. *)
-  (*   { admit. } *)
-  (*   iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wct1, rmap' !! ct1 = Some wct1) as [wct1 Hwct1]. *)
-  (*   { admit. } *)
-  (*   iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq. *)
+    iIntros "([%Hfull_rmap #Hinterp_rmap] & Hrmap & Hregion & Hworld & Hna)".
+    rewrite /interp_conf /registers_pointsto.
+    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by rewrite lookup_insert.
+    rewrite delete_insert_delete.
 
-  (*   (* open switcher invariant *) *)
-  (*   iMod (na_inv_acc with "Hinv_switcher Hna") *)
-  (*     as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto. *)
-  (*   rewrite /switcher_inv. *)
-  (*   iDestruct "Hswitcher_inv" *)
-  (*     as (a_tstk' tstk_prev' tstk_next') *)
-  (*          "(>Hmtdc & >%Hbounds & >Hcode & >Hb_switcher & >Htstk_prev & >Htstk & Hstack_full & Hstack_frag_next & #Hp_ot_switcher)". *)
-  (*   codefrag_facts "Hcode". *)
-  (*   rename H into Hcont_switcher_region; clear H0. *)
-  (*   iHide "Hclose_switcher_inv" as hclose_switcher_inv. *)
-  (*   iHide "Hinv_switcher" as hinv_switcher. *)
+    (* extract register points-to *)
+    assert (exists wctp, rmap' !! ctp = Some wctp) as [wctp Hwctp].
+    { admit. }
+    iDestruct (big_sepM_delete _ _ ctp with "Hrmap") as "[Hctp Hrmap]"; first by simplify_map_eq.
+    assert (exists wcsp, rmap' !! csp = Some wcsp) as [wcsp Hwcsp].
+    { admit. }
+    iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
+    assert (exists wcgp, rmap' !! cgp = Some wcgp) as [wcgp Hwcgp].
+    { admit. }
+    iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
+    assert (exists wca2, rmap' !! ca2 = Some wca2) as [wca2 Hwca2].
+    { admit. }
+    iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq.
+    assert (exists wcs1, rmap' !! cs1 = Some wcs1) as [wcs1 Hwcs1].
+    { admit. }
+    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
+    assert (exists wcs0, rmap' !! cs0 = Some wcs0) as [wcs0 Hwcs0].
+    { admit. }
+    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
+    assert (exists wct0, rmap' !! ct0 = Some wct0) as [wct0 Hwct0].
+    { admit. }
+    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
+    assert (exists wct1, rmap' !! ct1 = Some wct1) as [wct1 Hwct1].
+    { admit. }
+    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
 
-  (*   (* open frame invariant *) *)
-  (*   iMod (na_inv_acc with "Hinv_frame Hna") *)
-  (*     as "(Hframe & Hna & Hclose_frame_inv)" ; auto. *)
-  (*   { admit. } *)
-  (*   iEval (rewrite /frame_inv) in "Hframe". *)
-  (*   iDestruct "Hframe" as (x) "[Hsts_state_frame Hframe]". *)
+    (* open switcher invariant *)
+    iMod (na_inv_acc with "Hinv_switcher Hna")
+      as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
+    rewrite /switcher_inv.
+    iDestruct "Hswitcher_inv"
+      as (a_tstk' tstk_next')
+           "(>Hmtdc & >%Hbounds & >Hcode & >Hb_switcher & >Htstk & Htstk_addr_full & #Hp_ot_switcher)".
+    codefrag_facts "Hcode".
+    rename H into Hcont_switcher_region; clear H0.
+    iHide "Hclose_switcher_inv" as hclose_switcher_inv.
+    iHide "Hinv_switcher" as hinv_switcher.
 
-
-
-  (*   (* focus_block 6 "Hcode" as a_jmp' Ha_jmp' "Hcode" "Hcont"; iHide "Hcont" as hcont. *) *)
-  (*   (* rewrite /switcher_instrs. *) *)
-  (*   focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
-  (*   unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont. *)
-  (*   focus_block' 5 "Hcode" as a5 Ha5 "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
-  (*   assert (a5 = a_jmp) by solve_addr ; simplify_eq. *)
-
-
-  (*   (* ReadSR ctp mtdc *) *)
-  (*   iInstr "Hcode". *)
-  (*   { done. } *)
-
-  (*   (* TODO extract as lemma about frame_W *) *)
-  (*   iDestruct (sts_full_state_loc with "[$] [$]") as "%Hx". *)
-  (*   iDestruct (sts_full_rel_loc with "[$] [$]") as "%Hxrel". *)
-  (*   assert (x = true) as ->. *)
-  (*   { *)
-  (*     assert (W0'.2.1 !! ι = Some (encode true)) by (by rewrite /W0' /frame_W /ι lookup_insert). *)
-  (*     assert (W0'.2.2 !! ι = Some ( convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv)) *)
-  (*       by (by rewrite /W0' /frame_W /ι lookup_insert). *)
-  (*     assert (related_sts_pub_world W0' W2) as Hrelated by (eapply related_sts_pub_trans_world; eauto). *)
-
-  (*     destruct Hrelated as [ _ [_ [_ Hrelated ] ] ]. *)
-  (*     specialize (Hrelated ι _ _ _ _ _ _ H2 Hxrel). *)
-  (*     destruct Hrelated as (_ & _ & _ & Hrelated). *)
-  (*     specialize (Hrelated _ _ H1 Hx). *)
-  (*     rewrite /convert_rel /frame_rel_pub /= in Hrelated. *)
-  (*     apply rtc_inv in Hrelated. *)
-  (*     destruct Hrelated. *)
-  (*     + by inv H3. *)
-  (*     + destruct H3 as (? & (? & ? & Hcontra) & _). *)
-  (*       naive_solver. *)
-  (*   } *)
-
-  (*   iDestruct "Hframe" as "(Hφ & Hstack_frag & tstk & Htemp_unknown)". *)
-  (*   assert (a_tstk' = (a_tstk^+1)%a ) as ->. *)
-  (*   { (* TODO I should be able to derive this information from the tstack resources, somehow *) admit. } *)
-  (*   replace (finz.dist b_tstk ((a_tstk ^+ 1) ^+ 1)%a) with ((finz.dist b_tstk (a_tstk ^+ 1)%a) + 1). *)
-  (*   2:{ admit. } *)
-
-  (*   iCombine "Hstack_frag Hstack_frag_next" as "Hstack_frag". *)
-  (*   rewrite -tstack_frag_combine_cons. *)
-  (*   iDestruct (tstack_agree with "[$] [$Hstack_frag]") as "%Htstack_cur". *)
-  (*   destruct (Htstack_cur) as (l0' & l1' & Hlen_l0' & Htstks1'). *)
-  (*   assert ( l1' = [] ∧ tstk_prev' = l0'++[tstk_a1] ) as [-> ->]. *)
-  (*   { admit. } *)
-  (*   rewrite (region_pointsto_split _ _ (a_tstk ^+ 1)%a); [ | solve_addr | auto]. *)
-  (*   iDestruct "Htstk_prev" as "[Htstk_prev Htstk_cur]". *)
-  (*   iDestruct (region_pointsto_single with "Htstk_cur") as (v) "[Htstk_cur ->]"; first solve_addr. *)
+    (* open frame invariant *)
+    iMod (na_inv_acc with "Hinv_frame Hna")
+      as "(Hframe & Hna & Hclose_frame_inv)" ; auto.
+    { admit. }
+    iEval (rewrite /frame_inv) in "Hframe".
+    iDestruct "Hframe" as (x) "[Hι_loc Hframe]".
 
 
-  (*   (* Load csp ctp *) *)
-  (*   iInstr "Hcode". *)
-  (*   { admit. } *)
-
-  (*   (* Lea ctp (-1)%Z *) *)
-  (*   (* WriteSR mtdc ctp *) *)
-  (*   (* Load cgp csp *) *)
-  (*   (* Lea csp (-1)%Z *) *)
-  (*   (* Load ca2 csp *) *)
-  (*   (* Lea csp (-1)%Z *) *)
-  (*   (* Load cs1 csp *) *)
-  (*   (* Lea csp (-1)%Z *) *)
-  (*   (* Load cs0 csp *) *)
-  (*   (* GetE ct0 csp *) *)
-  (*   (* GetA ct1 csp *) *)
-  (*   (* iInstr "Hcode". *) *)
+    (* focus_block 6 "Hcode" as a_jmp' Ha_jmp' "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
+    (* rewrite /switcher_instrs. *)
+    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+    focus_block' 5 "Hcode" as a5 Ha5 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    assert (a5 = a_jmp) by solve_addr ; simplify_eq.
 
 
+    (* ReadSR ctp mtdc *)
+    iInstr "Hcode".
+    { done. }
+
+    (* TODO extract as lemma about frame_W *)
+    iDestruct (sts_full_state_loc with "[$] [$]") as "%Hx".
+    iDestruct (sts_full_rel_loc with "[$] [$]") as "%Hxrel".
+    assert (x = true) as ->.
+    {
+      assert (W1.2.1 !! ι = Some (encode true))
+        by (by rewrite /W1 std_update_multiple_loc_sta /frame_W /ι lookup_insert).
+      assert (W1.2.2 !! ι = Some ( convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv))
+        by (by rewrite /W1 std_update_multiple_loc_rel /frame_W /ι lookup_insert).
+      assert (related_sts_pub_world W1 W2) as Hrelated by done.
+
+      destruct Hrelated as [ _ [_ [_ Hrelated ] ] ].
+      specialize (Hrelated ι _ _ _ _ _ _ H2 Hxrel).
+      destruct Hrelated as (_ & _ & _ & Hrelated).
+      specialize (Hrelated _ _ H1 Hx).
+      rewrite /convert_rel /frame_rel_pub /= in Hrelated.
+      apply rtc_inv in Hrelated.
+      destruct Hrelated.
+      + by inv H3.
+      + destruct H3 as (? & (? & ? & Hcontra) & _).
+        naive_solver.
+    }
+
+    iDestruct "Hframe" as "(Hframe & Htstk_addr_frag)".
+    iDestruct "Hframe" as "(Hφ & HPframe0 & tstk & Hsaved_register_area & Htemp_unknown)".
+    iDestruct (tstk_addr_agree with "[$] [$]") as "->".
+    rewrite /stk_caller_save_area.
+    iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha0_stk Hsaved_register_area]".
+    { transitivity (Some (a_stk ^+ 1)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha1_stk Hsaved_register_area]".
+    { transitivity (Some (a_stk ^+ 2)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha2_stk Hsaved_register_area]".
+    { transitivity (Some (a_stk ^+ 3)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha3_stk _]".
+    { transitivity (Some (a_stk ^+ 4)%a); auto; solve_addr. }
+    { solve_addr. }
+    (* iCombine "Hstack_frag Hstack_frag_next" as "Hstack_frag". *)
+    (* rewrite -tstack_frag_combine_cons. *)
+    (* iDestruct (tstack_agree with "[$] [$Hstack_frag]") as "%Htstack_cur". *)
+    (* destruct (Htstack_cur) as (l0' & l1' & Hlen_l0' & Htstks1'). *)
+    (* assert ( l1' = [] ∧ tstk_prev' = l0'++[tstk_a1] ) as [-> ->]. *)
+    (* { admit. } *)
+    (* rewrite (region_pointsto_split _ _ (a_tstk ^+ 1)%a); [ | solve_addr | auto]. *)
+    (* iDestruct "Htstk_prev" as "[Htstk_prev Htstk_cur]". *)
+    (* iDestruct (region_pointsto_single with "Htstk_cur") as (v) "[Htstk_cur ->]"; first solve_addr. *)
 
 
-  (* Admitted. *)
+    (* Load csp ctp *)
+    iInstr "Hcode".
+    { admit. }
+
+    (* Lea ctp (-1)%Z *)
+    iInstr "Hcode".
+    { by transitivity (Some a_tstk); solve_addr. }
+    (* WriteSR mtdc ctp *)
+    iInstr "Hcode".
+    { done. }
+    (* Lea csp (-1)%Z *)
+    iInstr "Hcode".
+    { by transitivity (Some (a_stk ^+ 3)%a); solve_addr. }
+    (* Load cgp csp *)
+    iInstr "Hcode".
+    { admit. }
+    (* Lea csp (-1)%Z *)
+    iInstr "Hcode".
+    { by transitivity (Some (a_stk ^+ 2)%a); solve_addr. }
+    (* Load ca2 csp *)
+    iInstr "Hcode".
+    { admit. }
+    (* Lea csp (-1)%Z *)
+    iInstr "Hcode".
+    { by transitivity (Some (a_stk ^+ 1)%a); solve_addr. }
+    (* Load cs1 csp *)
+    iInstr "Hcode".
+    { admit. }
+    (* Lea csp (-1)%Z *)
+    iInstr "Hcode".
+    { by transitivity (Some a_stk); solve_addr. }
+    (* Load cs0 csp *)
+    iInstr "Hcode".
+    { admit. }
+    (* GetE ct0 csp *)
+    iInstr "Hcode".
+    (* GetA ct1 csp *)
+    iInstr "Hcode".
+
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+    assert (Forall (fun a => (std W2) !! a = Some Temporary) (finz.seq_between (a_stk ^+4)%a e_stk ))
+      as Hcallee_stk_temporary.
+    { clear -W1 Hrelated_W1_W2.
+      apply Forall_forall.
+      intros a Ha.
+      eapply region_state_pub_temp; eauto.
+      subst W1.
+      cbn.
+      destruct (decide (a ∈ a_local_args)).
+      - by apply std_sta_update_multiple_lookup_in_i.
+      - rewrite std_sta_update_multiple_lookup_same_i; last done.
+        rewrite frame_W_lookup_std.
+        by apply std_sta_update_multiple_lookup_in_i.
+    }
+    assert (Forall (fun a => (std W2) !! a = Some Temporary) a_local_args)
+      as Hlocal_args_temporary.
+    { clear -W1 Hrelated_W1_W2.
+      apply Forall_forall.
+      intros a Ha.
+      eapply region_state_pub_temp; eauto.
+      subst W1.
+      by apply std_sta_update_multiple_lookup_in_i.
+    }
+
+
+    iMod ( monotone_revoke_keep _ _
+             ( (finz.seq_between (a_stk ^+ 4)%a e_stk) ++ a_local_args)
+           with "[ $Hworld $Hregion ]") as "(Hworld & Hregion & Hstk)".
+    { admit. (* should be an hypothesis *) }
+    { admit. (* easy with the above assert *) }
+
+    focus_block 6 "Hcode" as a6 Ha6 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto.
+    { done. }
+    { solve_addr. }
+    { admit. }
+    iNext ; iIntros "(HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+
+  Admitted.
 
   Lemma monotone_revoke_region_def_update_loc { D : Type } `{ Countable D } W C MC Mρ ι (ι_state : D) :
     let W' := <l[ι:=ι_state]l> (revoke W) in
@@ -1262,16 +1358,16 @@ Tactic Notation "focus_block'" constr(n) constr(h) "as"
 
 
     set (Pframe := (hφ0
-                    ∗ tstk_addr_frag (a_tstk ^+ 1)%a
                     ∗ Pframe0
-                    ∗ [[a_stk,(a_tstk ^+ 4)%a]]↦ₐ[[Hstk_caller_save_area]]
+                    ∗ (a_tstk ^+ 1)%a ↦ₐ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a
+                    ∗ [[a_stk,(a_stk ^+ 4)%a]]↦ₐ[[Hstk_caller_save_area]]
                     ∗ htemp_unknown
                    )%I).
     iMod (na_inv_alloc
             logrel_nais
-            ⊤ (nroot .@ "frame")
+            ⊤ (nroot .@ "frame" .@ ι)
             (frame_inv C ι Pframe (a_tstk ^+ 1)%a)
-           with "[$Hsts_loc_ι $Hφ $Htemp_unknown $Htstk_addr_frag $HPframe0 Ha1_stk Ha2_stk Ha3_stk Ha4_stk ]") as "#Hinv_frame".
+           with "[$Hsts_loc_ι $Ha1_tstk $Hφ $Htemp_unknown $Htstk_addr_frag $HPframe0 Ha1_stk Ha2_stk Ha3_stk Ha4_stk ]") as "#Hinv_frame".
     { iNext; iFrame.
       rewrite /Hstk_caller_save_area.
       admit.
@@ -1281,7 +1377,7 @@ Tactic Notation "focus_block'" constr(n) constr(h) "as"
     iMod ("Hclose_ι0_inv" with "[$Hna $Hι0_loc]") as "Hna".
     (* close switcher invariant *)
     iMod ("Hclose_switcher_inv" with
-           "[$Hna Hmtdc Hcode Hb_switcher Ha1_tstk Htstk Htstk_addr_full]")
+           "[$Hna Hmtdc Hcode Hb_switcher Htstk Htstk_addr_full]")
       as "Hna"
     .
     { iNext; iFrame "Hmtdc".
@@ -1406,8 +1502,13 @@ Tactic Notation "focus_block'" constr(n) constr(h) "as"
     clear Hnargs arg_rmap' nargs off_entry Hot_switcher Hstd_atbl Hstd_btbl1 Hstd_btbl Ha_tbl_in i_a_tbl.
     clear Hatbl Hbtbl Hbtbl1.
     clear wct2 wctp stk_wa stk_wa1 stk_wa2 stk_wa3 stk_mem' tstk_next'.
+    subst W0' W1; cbn.
+    match goal with
+      | _ : _ |- context [ std_update_multiple ?W a_local_args Temporary ]
+        => set (W1 := std_update_multiple W a_local_args Temporary)
+    end.
 
-  iApply switcher_cc_specification; eauto.
+  iApply switcher_ret_specification ; eauto.
   iFrame "#".
 
   Admitted.

@@ -80,6 +80,7 @@ Section Switcher.
         WriteSR mtdc ctp;
 
         (* Restores the caller's saved registers *)
+        Lea csp (-1)%Z;
         Load cgp csp;
         Lea csp (-1)%Z;
         Load ca2 csp;
