@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-From cap_machine Require Export logrel region_invariants_transitions.
+From cap_machine Require Export logrel region_invariants.
 Import uPred.
 
 Section monotone.
@@ -58,7 +58,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some ((std W') !! a)) as [y Hy].
-    { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
+    { apply Hdom_sta in Hstate; auto. }
     specialize (Hrelated a Permanent y Hstate Hy).
     eapply std_rel_rtc_Permanent in Hrelated;subst;auto.
   Qed.
@@ -234,7 +234,7 @@ Section monotone.
     iFrame "#".
   Qed.
 
-  Lemma interp_monotone W W' C w :
+  Lemma interp_monotone (W W' : WORLD) C w :
     ⌜related_sts_pub_world W W'⌝
     -∗ interp W C w -∗ interp W' C w.
   Proof.
