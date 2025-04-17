@@ -700,6 +700,22 @@ Section STS.
     apply leibniz_equiv in HR; simplify_eq; eauto.
   Qed.
 
+  Lemma big_sepL_sts_full_state_std (W : WORLD) (C : CmptName) (la : list A) (b : B) :
+    sts_full_world W C  -∗
+    ([∗ list] a ∈ la, sts_state_std C a b) -∗
+    ⌜ Forall (λ a : A, W.1 !! a = Some b) la ⌝.
+  Proof.
+    iIntros "Hworld Hsts".
+    iInduction la as [|].
+    - iPureIntro ; done.
+    - rewrite big_sepL_cons.
+      iDestruct "Hsts" as "[Ha Hsts]".
+      iDestruct (sts_full_state_std with "Hworld Ha") as "%Ha".
+      rewrite Forall_cons_iff.
+      iSplit ; first done.
+      iApply ("IHla" with "[$] [$]").
+  Qed.
+
   Lemma sts_full_state_loc W C i d :
     sts_full_world W C
     -∗ sts_state_loc C (A:=A) i d
@@ -786,6 +802,16 @@ Section STS.
 
   Definition fresh_cus_name (W : WORLD) :=
     match W with | (_, (fs, fr) ) => fresh (dom fs ∪ dom fr) end.
+
+  Lemma fresh_name_notin (W : WORLD) (ι : positive) :
+    ι ∈ dom (loc1 W) ∨ ι ∈ dom (loc2 W)
+    -> ι ≠ fresh_cus_name W.
+  Proof.
+    intros Hι.
+    destruct W as [ Wsta [ Wcus_loc Wcus_rel ] ]; cbn in *.
+    pose proof ( is_fresh ( (dom Wcus_loc ∪ dom Wcus_rel) ) ).
+    set_solver.
+  Qed.
 
   Lemma sts_alloc_loc W C (d : D) (P Q R : D → D → Prop):
     let i := fresh_cus_name W in
@@ -970,6 +996,35 @@ Section STS.
       + subst. rewrite Hdom_rel in Hr'. inversion Hr'.
       + simplify_map_eq. repeat split;auto.
         intros x' y Hx' Hy. simplify_map_eq. left.
+  Qed.
+
+
+  Lemma related_sts_priv_rel
+    (W1 W2 : WORLD) (ι : positive) (R : (positive → positive → Prop) * (positive → positive → Prop) * (positive → positive → Prop)) :
+    related_sts_priv_world W1 W2 ->
+    (loc2 W1) !! ι = Some R ->
+    (loc2 W2) !! ι = Some R.
+  Proof.
+    intros Hrelated HW1.
+    destruct Hrelated as [_ [ _ [ Hdom Hrelated_rel ] ] ] .
+    destruct W1 as [ ? [ W1loc W1rel ] ]; cbn in *.
+    destruct W2 as [ ? [ W2loc W2rel ] ]; cbn in *.
+    assert ( ι ∈ dom W1rel ) as Hι by (by rewrite elem_of_dom).
+    apply Hdom in Hι.
+    rewrite elem_of_dom in Hι ; destruct Hι as [R' HW2].
+    destruct R as [ [r1 r2] r3], R' as [ [r1' r2'] r3'].
+    specialize (Hrelated_rel ι _ _ _ _ _ _ HW1 HW2).
+    by destruct Hrelated_rel as ( -> & -> & -> & _ ).
+  Qed.
+
+  Lemma related_sts_pub_rel (W1 W2 : WORLD) (ι : positive) (R : (positive → positive → Prop) * (positive → positive → Prop) * (positive → positive → Prop)) :
+    related_sts_pub_world W1 W2 ->
+    (loc2 W1) !! ι = Some R ->
+    (loc2 W2) !! ι = Some R.
+  Proof.
+    intros Hrelated HW1.
+    apply related_sts_pub_priv_world in Hrelated.
+    by eapply related_sts_priv_rel.
   Qed.
 
 End STS.

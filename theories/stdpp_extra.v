@@ -60,7 +60,6 @@ Proof.
   - right. intros Hcontr. apply Pos2Z.inj_divide in Hcontr. done.
 Qed.
 
-
 Lemma list_to_map_lookup_is_Some {A B} `{Countable A, EqDecision A} (l: list (A * B)) (a: A) :
   is_Some ((list_to_map l : gmap A B) !! a) ↔ a ∈ l.*1.
 Proof.
@@ -470,6 +469,16 @@ Proof.
     destruct (decide_rel elem_of a l2); first contradiction.
     f_equal.
       by apply IHl1.
+Qed.
+
+Lemma list_difference_same {A : Type} `{EqDecision A} (l : list A) :
+  NoDup l ->
+  list_difference l l = [].
+Proof.
+  induction l; intros Hnodup; cbn; first done.
+  destruct (decide_rel elem_of a (a :: l)) ; last set_solver.
+  rewrite NoDup_cons in Hnodup; destruct Hnodup as [Ha Hnodup].
+  rewrite list_difference_skip; auto.
 Qed.
 
 Lemma list_difference_nested {A : Type} `{EqDecision A}

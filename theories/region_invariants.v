@@ -1083,6 +1083,29 @@ Section heap.
     by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
   Qed.
 
+  Lemma region_close_revoked W C a p φ  `{forall Wv, Persistent (φ Wv)}:
+    ⊢ sts_state_std C a Revoked
+    ∗ open_region W C a
+    ∗ rel C a p φ
+      -∗ region W C.
+  Proof.
+    iIntros "(Hstate & Hreg_open & #Hrel)".
+    rewrite open_region_eq region_eq rel_eq /open_region_def /region_def /rel_def.
+    iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
+    iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
+    iDestruct (region_map_insert _ _ _ _ _ Revoked  with "Hpreds") as "Hpreds".
+    iDestruct ( (big_sepM_insert _ (delete a M) a (γpred,p)) with "[-HM]") as "test";
+      first by rewrite lookup_delete.
+    { iFrame "∗ #". iSplitR; [by simplify_map_eq|].
+      iExists p.
+      repeat (iSplitR;[eauto|]). done.  }
+    iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
+    rewrite -HMeq.
+    iFrame "∗ # %".
+    iPureIntro.
+    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+  Qed.
+
   Lemma region_close W C a φ p v (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
     ρ = Temporary ∨ ρ = Permanent →
     sts_state_std C a ρ
@@ -1427,6 +1450,34 @@ Section heap.
     rewrite -(delete_list_delete _ M) // -(delete_list_insert _ (delete _ M)) //.
     rewrite -(delete_list_insert _ Mρ) //.
     iExists M, (<[a:=Permanent]> Mρ).
+    iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
+    rewrite -HMeq.
+    iFrame "∗ # %".
+    repeat(iSplitR; eauto).
+    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+  Qed.
+
+  Lemma region_close_revoked_next W C a als p φ  `{forall Wv, Persistent (φ Wv)}:
+    a ∉ als ->
+    ⊢ sts_state_std C a Revoked
+    ∗ open_region_many W C (a::als)
+    ∗ rel C a p φ
+      -∗ open_region_many W C als.
+  Proof.
+    rewrite open_region_many_eq /open_region_many_def.
+    iIntros (Hnin) "(Hstate & Hreg_open & #Hrel)".
+    rewrite rel_eq /rel_def /rel /region.
+    iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
+    iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
+    iDestruct (region_map_insert _ _ _ _ _ Revoked with "Hpreds") as "Hpreds".
+    iDestruct ( (big_sepM_insert _ (delete a (delete_list als M)) a (γpred,p)) with "[-HM]") as "test";
+      first by rewrite lookup_delete.
+    { iFrame "∗ #". iSplitR; [by simplify_map_eq|].
+      iExists p.
+      repeat (iSplitR;[eauto|]). done.  }
+    rewrite -(delete_list_delete _ M) // -(delete_list_insert _ (delete _ M)) //.
+    rewrite -(delete_list_insert _ Mρ) //.
+    iExists M, (<[a:=Revoked]> Mρ).
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite -HMeq.
     iFrame "∗ # %".

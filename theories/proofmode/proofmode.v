@@ -272,6 +272,28 @@ Tactic Notation "focus_block" constr(n) constr(h) "as"
        ident(a_base) simple_intropattern(Ha_base) constr(hi) constr(hcont) :=
   focus_block n h a_base Ha_base hi hcont.
 
+Ltac focus_block_nochangePC n h a_base Ha_base hi hcont :=
+  let h := constr:(h:ident) in
+  let hi := constr:(hi:ident) in
+  let hcont := constr:(hcont:ident) in
+  let x := iFresh in
+  match goal with |- context [ environments.Esnoc _ h (codefrag ?a0 _) ] =>
+                    iPoseProof ((codefrag_block_acc n) with h) as (a_base) x;
+                    [ once (typeclasses eauto with proofmode_focus) | ];
+                    let xbase := iFresh in
+                    let y := iFresh in
+                    eapply coq_tactics.tac_and_destruct with x _ xbase y _ _ _;
+                    [reduction.pm_reflexivity|reduction.pm_reduce;tc_solve|reduction.pm_reduce];
+                    iPure xbase as Ha_base;
+                    eapply coq_tactics.tac_and_destruct with y _ hi hcont _ _ _;
+                    [reduction.pm_reflexivity|reduction.pm_reduce;tc_solve|reduction.pm_reduce];
+                    focus_block_codefrag_facts hi a0 Ha_base
+  end.
+Tactic Notation "focus_block_nochangePC" constr(n) constr(h) "as"
+  ident(a_base) simple_intropattern(Ha_base) constr(hi) constr(hcont) :=
+  focus_block_nochangePC n h a_base Ha_base hi hcont.
+
+
 Ltac unfocus_block hi hcont h :=
   let hi := constr:(hi:ident) in
   let hcont := constr:(hcont:ident) in

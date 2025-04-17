@@ -506,3 +506,12 @@ Lemma if_dec_later {Σ : gFunctors} {C} {eqdec: Decision C} (Q Q' : iProp Σ) :
   (if (decide C) then ▷ Q else Q') -∗ ▷ (if (decide C) then Q else Q').
 Proof. iIntros "H". destruct (decide C);auto. Qed.
 
+Ltac iHide0 irisH coqH :=
+  let coqH := fresh coqH in
+  match goal with
+  | h: _ |- context [ environments.Esnoc _ (INamed irisH) ?prop ] =>
+      set (coqH := prop)
+  end.
+
+Tactic Notation "iHide" constr(irisH) "as" ident(coqH) :=
+  iHide0 irisH coqH.

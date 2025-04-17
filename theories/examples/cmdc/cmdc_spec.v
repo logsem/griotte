@@ -17,16 +17,6 @@ Section CMDC.
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation WORLD := (prodO STS_STD STS).
 
-  Ltac iHide0 irisH coqH :=
-    let coqH := fresh coqH in
-    match goal with
-    | h: _ |- context [ environments.Esnoc _ (INamed irisH) ?prop ] =>
-        set (coqH := prop)
-    end.
-
-  Tactic Notation "iHide" constr(irisH) "as" ident(coqH) :=
-    iHide0 irisH coqH.
-
   Lemma cmdc_spec
 
     (pc_b pc_e pc_a : Addr)
