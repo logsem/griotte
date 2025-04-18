@@ -124,6 +124,137 @@ Section Switcher.
      apply related_sts_pub_world_fresh_loc; set_solver.
    Qed.
 
+   Lemma revoked_by_separation
+     (W : WORLD) (C : CmptName)
+     (a : Addr) (w : Word) (ρ : region_type) :
+     std W !! a = Some ρ →
+     region W C
+     ∗ sts_full_world W C
+     ∗ a ↦ₐ w
+     ==∗
+     region W C
+     ∗ sts_full_world W C
+     ∗ a ↦ₐ w
+     ∗ ⌜ ρ = Revoked ⌝
+   .
+   Proof.
+     iIntros (Hstd_a) "(Hregion & Hworld & Ha)".
+     rewrite region_eq /region_def.
+     iDestruct "Hregion" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
+     rewrite /region_map_def.
+     assert (is_Some (M !! a)) as [ [γ p] Hγp].
+     { apply elem_of_dom. rewrite /std in Hstd_a,Hdom'.
+       rewrite -Hdom. rewrite elem_of_dom; eauto.
+     }
+     iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].
+     iDestruct (big_sepM_delete _ _ a with "Hr") as "[Hstate Hr]";[eauto|].
+     iDestruct "Hstate" as (ρ' Ha) "[Hρ Hstate]".
+     iDestruct (sts_full_state_std with "Hworld Hρ") as %Hx''; simplify_eq.
+     rewrite Hx'' in Hstd_a ; simplify_eq.
+     iDestruct "Hstate" as (γ' p' φ) "(% & % & Hφ & Hstate)"; simplify_eq.
+     iFrame "Hworld".
+     iAssert ( ⌜ ρ = Revoked ⌝ )%I as "%" ; last iFrame "%".
+     {
+       destruct ρ; last done; iExFalso.
+       - iDestruct "Hstate" as (v) "(% & Ha' & _)"; simplify_eq.
+         iApply (addr_dupl_false with "[$] [$]"); eauto.
+       - iDestruct "Hstate" as (v) "(% & Ha' & _)"; simplify_eq.
+         iApply (addr_dupl_false with "[$] [$]"); eauto.
+     }
+     iDestruct (big_sepM_delete _ _ a with "[Hρ Hφ Hstate $Hr]") as "Hr";[eauto| |].
+     { iFrame "∗%"; done. }
+     by iFrame.
+   Qed.
+
+   Lemma revoked_by_separation_many
+     (W : WORLD) (C : CmptName)
+     (la : list Addr) (lw : list Word) :
+     Forall (λ a, a ∈ dom (std W)) la →
+     region W C
+     ∗ sts_full_world W C
+     ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
+     ==∗
+     region W C
+     ∗ sts_full_world W C
+     ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
+     ∗ ⌜ Forall (λ a, std W !! a = Some Revoked) la⌝
+   .
+   Proof.
+     generalize dependent lw.
+     induction la; iIntros (lw Hla) "(Hregion & Hworld & Hla)".
+     - iFrame; done.
+     - iDestruct (big_sepL2_length with "Hla") as "%Hlen_lw".
+       destruct lw as [|w lw]; first (cbn in Hlen_lw ; congruence).
+       rewrite big_sepL2_cons.
+       iDestruct "Hla" as "[Ha Hla]".
+       apply Forall_cons_iff in Hla.
+       destruct Hla as [Ha Hla].
+       iMod (IHla with "[$Hregion $Hworld $Hla]")
+         as "(Hregion & Hworld & Hla & %Hforall_la)"; eauto.
+       rewrite elem_of_dom in Ha.
+       destruct Ha as [ρ Ha].
+       iMod (revoked_by_separation with "[$Hregion $Hworld $Ha]")
+         as "(Hregion & Hworld & Ha & %Hforall_a)"; eauto; simplify_eq.
+       rewrite Forall_cons_iff.
+       iFrame; done.
+   Qed.
+
+   Lemma revoked_by_revoked_resources
+     (W W' : WORLD) (C : CmptName) (la : list Addr) :
+     Forall (λ a : finz MemNum, a ∈ dom (std W)) la ->
+     region W C
+     ∗ sts_full_world W C
+     ∗ ([∗ list] a ∈ la,
+          (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+              ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                               ∗ temp_resources W' C φ a p ∗ rel C a p φ)
+          ∗ ⌜std (revoke W') !! a = Some Revoked⌝)
+     ==∗
+     region W C
+     ∗ sts_full_world W C
+     ∗ ([∗ list] a ∈ la,
+          (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+              ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                               ∗ temp_resources W' C φ a p ∗ rel C a p φ)
+          ∗ ⌜std (revoke W') !! a = Some Revoked⌝)
+     ∗ ⌜ Forall (λ a, std W !! a = Some Revoked) la⌝.
+   Proof.
+     iIntros (Hla) "(Hregion & Hworld & Hla)".
+     rewrite big_sepL_sep.
+     iDestruct "Hla" as "[Hla Hla']"; iFrame "Hla'".
+     rewrite region_addrs_exists.
+     iDestruct "Hla" as (ps) "Hla".
+     rewrite region_addrs_exists2.
+     iDestruct "Hla" as (φs) "[%Hlen_φs Hla]".
+     rewrite big_sepL2_sep.
+     iDestruct "Hla" as "[Hla_φ Hla]".
+     rewrite big_sepL2_sep.
+     iDestruct "Hla" as "[Hla Hla_rel]".
+     rewrite /temp_resources.
+     rewrite region_addrs_exists2.
+     iDestruct "Hla" as (lw) "[%Hlen_lw Hla]".
+     rewrite big_sepL2_sep.
+     iDestruct "Hla" as "[Hla_isO Hla]".
+     rewrite big_sepL2_sep.
+     iDestruct "Hla" as "[Hla Hla_rest]".
+     iAssert (  [∗ list] y1;y2 ∈ la;lw, y1 ↦ₐ y2 )%I with "[Hla]" as "Hla".
+     { admit. (* NOTE iris manipulations *) }
+     iMod (revoked_by_separation_many with "[$Hregion $Hworld $Hla]")
+       as "(Hregion & Hworld & Hla & %Hrevoked)"; eauto.
+     iFrame "∗%".
+     iModIntro.
+     iExists ps.
+     rewrite region_addrs_exists2.
+     iExists φs; iFrame "%".
+     iEval (rewrite big_sepL2_sep); iFrame.
+     iEval (rewrite big_sepL2_sep); iFrame.
+     rewrite region_addrs_exists2.
+     iExists lw; iFrame "%".
+     iEval (rewrite big_sepL2_sep); iFrame.
+     iEval (rewrite big_sepL2_sep); iFrame.
+     admit. (* NOTE iris manipulations *)
+   Admitted.
+
    Set Nested Proofs Allowed.
    Lemma region_close_many_revoked W C als als' p φ  `{forall Wv, Persistent (φ Wv)} :
      NoDup als ->
@@ -251,7 +382,7 @@ Section Switcher.
   Qed.
 
   Lemma helper_switcher_final_pub
-    (W0 W2 : WORLD) (ltemp_unknown a_local_args : list Addr) (ι ι0 : positive)
+    (W0 W2 : WORLD) (ltemp_unknown a_local_args : list Addr) (ι0 : positive)
     (a_stk e_stk : Addr) :
     let callee_stk_frm_addr :=
       finz.seq_between (a_stk ^+ 4)%a e_stk
@@ -267,12 +398,18 @@ Section Switcher.
         (std_update_multiple (<l[ι0:=false]l>(revoke W0)) callee_stk_frm_addr Temporary)
     in
 
+    (a_stk ^+ 4 < e_stk)%a ->
+
     NoDup (ltemp_unknown ++ finz.seq_between a_stk e_stk) ->
-    (∀ a : finz MemNum,
+    (* we know that it's true, by separation! *)
+    a_local_args ## ltemp_unknown ->
+    (∀ a : Addr,
        std W0 !! a = Some Temporary ↔ a ∈ ltemp_unknown ++ finz.seq_between a_stk e_stk) ->
     loc1 W0 !! ι0 = Some (encode true) ->
     loc1 W2 !! ι0 = Some (encode false) ->
     loc2 W0 !! ι0 =
+    Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv) ->
+    loc2 W2 !! ι0 =
     Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv) ->
     ι0 ≠ ι ->
     related_sts_pub_world W1 W2 ->
@@ -280,15 +417,227 @@ Section Switcher.
     loc2 W2 !! ι =
     Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv) ->
 
-    Forall (λ a : finz MemNum, std W2 !! a = Some Temporary)
+    Forall (λ a : Addr, std W2 !! a = Some Temporary)
       (finz.seq_between (a_stk ^+ 4)%a e_stk) ->
-    Forall (λ a : finz MemNum, std W2 !! a = Some Temporary) a_local_args ->
+    Forall (λ a : Addr, std W2 !! a = Some Temporary) a_local_args ->
+    (* we know that it's true, by separation! *)
+    Forall (λ a : Addr , std W2 !! a = Some Revoked ) ltemp_unknown ->
+    (* requirement on a_local_args *)
+    Forall (λ a : Addr,  a ∉ dom (std W0)) a_local_args ->
 
     related_sts_pub_world W0
       (close_list ltemp_unknown
          (std_update_multiple (<l[ι:=false]l>(<l[ι0:=true]l>(revoke W2)))
             (finz.seq_between a_stk e_stk) Temporary)).
-  Admitted.
+  Proof.
+    intros callee_stk_frm_addr W1 ι
+      Haestk HNoDup Hdis_locals_unkw W_temps
+      Hι0_loc_W0 Hι0_loc_W2 Hι0_rel_W1 Hι0_rel_W2 Hι0_ι Hrelated_W1_W2
+      Hι_loc_W2 Hι_rel_W2 Hcallee_frame_W2_temporary Hlocal_args_W2_temporary
+      Hunknown_W2_revoked Hlocal_notin_W0.
+    destruct W0 as [Wstd0 [ Wloc0 Wrel0 ] ]; cbn in *.
+    destruct W2 as [Wstd2 [ Wloc2 Wrel2 ] ]; cbn in *.
+    split ; cycle 1; cbn.
+
+    (* --- CUSTOM WORLD ---*)
+    - (* Show that the custom world is a public transition*)
+      rewrite std_update_multiple_loc_sta std_update_multiple_loc_rel /=.
+      split; [|split].
+      + assert (dom Wloc0 ⊆ dom (loc1 W1)) as Hdom_loc_W0_W1.
+        { subst W1.
+          rewrite /loc1 std_update_multiple_loc_sta dom_insert_L.
+          rewrite std_update_multiple_loc_sta dom_insert_L.
+          set_solver.
+        }
+        assert (dom (loc1 W1) ⊆ dom (<[ι:=encode false]> (<[ι0:=encode true]> Wloc2)))
+          as Hdom_loc_W0_WF.
+        { rewrite 2!dom_insert_L.
+          destruct Hrelated_W1_W2 as [? [? ?] ] ; cbn in *.
+          set_solver.
+        }
+        set_solver.
+      + assert (dom Wrel0 ⊆ dom (loc2 W1)) as Hdom_rel_W0_W1.
+        { subst W1.
+          rewrite /loc2 std_update_multiple_loc_rel dom_insert_L.
+          rewrite std_update_multiple_loc_rel.
+          set_solver.
+        }
+        assert (dom (loc2 W1) ⊆ dom Wrel2) as Hdom_rel_W0_WF.
+        { destruct Hrelated_W1_W2 as [? [? [? ?] ] ] ; cbn in *.
+          set_solver.
+        }
+        set_solver.
+      + intros ι' r1 r2 r1' r2' r3 r3' HWrel0_ι' HWrel2_ι'.
+        assert (ι' ≠ ι) as Hι_ι'.
+        { apply fresh_name_notin.
+          right.
+          rewrite /loc2 std_update_multiple_loc_rel.
+          destruct (decide (ι' = ι0)); simplify_map_eq; by rewrite elem_of_dom.
+        }
+        assert ((loc2 W1) !! ι' = Some (r1, r2, r3)) as HWrel1_ι'.
+        { subst W1.
+          rewrite /loc2 std_update_multiple_loc_rel.
+          rewrite lookup_insert_ne //.
+          rewrite std_update_multiple_loc_rel.
+          destruct (decide (ι' = ι0)); simplify_map_eq; done.
+        }
+        destruct Hrelated_W1_W2 as [_ [_ [_ Hrelated_rel_W1_W2] ] ] ; cbn in *.
+        specialize (Hrelated_rel_W1_W2 _ _ _ _ _ _ _ HWrel1_ι' HWrel2_ι').
+        destruct Hrelated_rel_W1_W2 as (-> & -> & -> & Hrtc).
+        repeat (split ; first done).
+
+        intros b0 b2 Hloc0_ι' Hloc2_ι'.
+        destruct (decide (ι' = ι0)); simplify_eq.
+        * (* case ι' = ι0 *)
+          rewrite lookup_insert_ne // lookup_insert in Hloc2_ι'; simplify_eq.
+          apply rtc_refl.
+        *(* case ι' ≠ ι0 *)
+          assert ((loc1 W1) !! ι' = Some b0) as HWloc1_ι'.
+          { subst W1.
+            rewrite /loc1 std_update_multiple_loc_sta.
+            rewrite lookup_insert_ne //.
+            rewrite std_update_multiple_loc_sta.
+            destruct (decide (ι' = ι0)); simplify_map_eq; try done.
+          }
+          do 2 (rewrite lookup_insert_ne // in Hloc2_ι').
+          by apply Hrtc.
+
+    (* --- STANDARD WORLD ---*)
+    - assert ( dom Wstd0 ⊆ dom (std W1) ) as Hdom_std_W0_W1.
+      { subst W1.
+        etransitivity ; last apply std_update_multiple_sta_dom_subseteq.
+        cbn.
+        etransitivity ; last apply std_update_multiple_sta_dom_subseteq.
+        cbn.
+        by rewrite -revoke_dom_eq.
+      }
+      split.
+      + (* monotonic domains *)
+        rewrite -close_list_dom_eq.
+        etransitivity; last apply std_update_multiple_sta_dom_subseteq.
+        cbn.
+        rewrite -revoke_dom_eq.
+        destruct Hrelated_W1_W2 as [ [? _] _] ; cbn in *.
+        set_solver.
+      + (* each address has public transition*)
+        clear Hι0_loc_W0 Hι0_loc_W2 Hι0_rel_W1 Hι0_rel_W2 Hι0_ι Hι_loc_W2 Hι_rel_W2.
+        intros a ρ0 ρF Hstd0_a HstdF_a.
+
+        assert (is_Some (std W1 !! a)) as [ρ1 Hstd1_a].
+        {
+          rewrite -elem_of_dom.
+          apply Hdom_std_W0_W1.
+          by rewrite elem_of_dom.
+        }
+        assert (is_Some (Wstd2 !! a)) as [ρ2 Hstd2_a].
+        {
+          destruct Hrelated_W1_W2 as [ [Hdom _] _] ; cbn in *.
+          rewrite -elem_of_dom.
+          apply Hdom.
+          by rewrite elem_of_dom.
+        }
+
+        destruct (decide (a ∈ ltemp_unknown)) as [Ha_temps_unknown | Ha_temps_unknown].
+        { rewrite close_list_std_sta_revoked in HstdF_a; eauto.
+          + simplify_eq.
+            specialize (W_temps a).
+            destruct W_temps as [_ W_temps].
+            ospecialize (W_temps _); first set_solver.
+            rewrite Hstd0_a in W_temps; simplify_eq.
+            by apply rtc_refl.
+          + rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+            { apply NoDup_app in HNoDup ; destruct HNoDup as [_  [HNoDup _] ].
+              by apply HNoDup.
+            }
+            assert ( (std W1) !! a = Some Revoked) as Hstd1'_a.
+            {
+              subst W1.
+              rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+              { eapply elem_of_disjoint in Ha_temps_unknown; eauto. }
+              cbn.
+              rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+              { apply NoDup_app in HNoDup ; destruct HNoDup as [_  [HNoDup _] ].
+                apply HNoDup in Ha_temps_unknown.
+                rewrite (finz_seq_between_split  a_stk (a_stk ^+ 4)%a)
+                  in Ha_temps_unknown ; last by solve_addr.
+                apply not_elem_of_app in Ha_temps_unknown; naive_solver.
+              }
+              cbn.
+              apply revoke_lookup_Monotemp.
+              apply W_temps. apply elem_of_app; naive_solver.
+            }
+            apply revoke_lookup_Revoked; cbn.
+            apply elem_of_list_lookup_1 in Ha_temps_unknown.
+            destruct Ha_temps_unknown as [? ?].
+            eapply Forall_lookup_1 in Hunknown_W2_revoked; eauto.
+        }
+
+        rewrite -close_list_std_sta_same in HstdF_a; last done.
+        destruct (decide (a ∈ (finz.seq_between a_stk e_stk))) as [Ha_stk | Ha_stk].
+        { rewrite std_sta_update_multiple_lookup_in_i in HstdF_a; simplify_eq; auto.
+          assert ( a ∈ ltemp_unknown ++ finz.seq_between a_stk e_stk) as Ha_stk'.
+          { apply elem_of_app; naive_solver. }
+          apply W_temps in Ha_stk'.
+          rewrite Hstd0_a in Ha_stk'; simplify_eq.
+          apply rtc_refl.
+        }
+
+        rewrite std_sta_update_multiple_lookup_same_i in HstdF_a; last done.
+        cbn in HstdF_a.
+        assert (a ∉ a_local_args) as Ha_local.
+        { intro Hcontra.
+          apply elem_of_list_lookup_1 in Hcontra.
+          destruct Hcontra as [k Hcontra].
+          eapply Forall_lookup_1 in Hlocal_notin_W0; eauto.
+          rewrite not_elem_of_dom in Hlocal_notin_W0.
+          rewrite Hlocal_notin_W0 in Hstd0_a ; simplify_eq.
+        }
+
+        destruct ρ0.
+        * (* Case ρ0 = Temporary --- not possible *)
+          apply W_temps in Hstd0_a.
+          apply elem_of_app in Hstd0_a.
+          destruct Hstd0_a ; done.
+        * (* Case ρ0 = Permanent --- ρF Permanent *)
+          destruct Hrelated_W1_W2 as [ [_ Hrelated] _] ; cbn in *.
+          specialize (Hrelated _ _ _ Hstd1_a Hstd2_a).
+          subst W1.
+          rewrite std_sta_update_multiple_lookup_same_i in Hstd1_a; last done.
+          cbn in Hstd1_a.
+          rewrite std_sta_update_multiple_lookup_same_i in Hstd1_a.
+          2: {
+            rewrite (finz_seq_between_split  a_stk (a_stk ^+ 4)%a)
+            in Ha_stk ; last by solve_addr.
+            apply not_elem_of_app in Ha_stk; naive_solver.
+          }
+          cbn in Hstd1_a.
+          rewrite revoke_lookup_Perm in Hstd1_a ; eauto; simplify_eq.
+          eapply std_rel_pub_rtc_Permanent in Hrelated; eauto; simplify_eq.
+          rewrite revoke_lookup_Perm in HstdF_a ; eauto; simplify_eq.
+          apply rtc_refl.
+        * (* Case ρ0 = Revoked --- ρF Revoked *)
+          destruct Hrelated_W1_W2 as [ [_ Hrelated] _] ; cbn in *.
+          specialize (Hrelated _ _ _ Hstd1_a Hstd2_a).
+          subst W1.
+          rewrite std_sta_update_multiple_lookup_same_i in Hstd1_a; last done.
+          cbn in Hstd1_a.
+          rewrite std_sta_update_multiple_lookup_same_i in Hstd1_a.
+          2: {
+            rewrite (finz_seq_between_split  a_stk (a_stk ^+ 4)%a)
+            in Ha_stk ; last by solve_addr.
+            apply not_elem_of_app in Ha_stk; naive_solver.
+          }
+          cbn in Hstd1_a.
+          rewrite revoke_lookup_Revoked in Hstd1_a ; eauto; simplify_eq.
+          eapply std_rel_pub_rtc_Revoked in Hrelated; eauto; simplify_eq.
+          destruct Hrelated as [ -> | [  -> | -> ] ].
+          ** rewrite revoke_lookup_Perm in HstdF_a ; eauto; simplify_eq.
+             apply rtc_once; constructor.
+          ** rewrite revoke_lookup_Monotemp in HstdF_a ; eauto; simplify_eq.
+             apply rtc_refl.
+          ** rewrite revoke_lookup_Revoked in HstdF_a ; eauto; simplify_eq.
+             apply rtc_refl.
+  Qed.
 
   Lemma switcher_ret_specification
     (Nswitcher Nframes : namespace)
@@ -361,6 +710,7 @@ Section Switcher.
     loc2 W0 !! ι0 =
     Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv) ->
     Forall (λ a : finz MemNum, a ∉ dom (std W0)) a_local_args ->
+    a_local_args ## ltemp_unknown ->
 
     ( na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_switcher_cc b_tstk e_tstk ot_switcher )
       ∗ na_inv logrel_nais (Nframes.@ι0) (frame_inv C ι0 Pframe0 a_tstk)
@@ -374,7 +724,7 @@ Section Switcher.
   Proof.
     intros stk_caller_save_area callee_stk_frm_addr W1 Hφ htemp_unknown Pframe ι
       HN Ha_jmp Hstk_ae Hstk_ba Htstk_ae Htstk_ba HNoDup_temps HNoDup_local W_temps
-      Hι0_loc Hι0_sts Ha_args_locals.
+      Hι0_loc Hι0_sts Ha_args_locals Hdis_locals_unk.
     iIntros "#(Hinv_switcher & #Hinv_frame0 & Hrel_reg_saved & Hrel_callee_frm
     & Htemp_opened_revoked & Hsts_rel_ι & #Hinv_frame)".
 
@@ -598,6 +948,13 @@ Section Switcher.
       by apply std_sta_update_multiple_lookup_in_i.
     }
 
+    iMod ( revoked_by_revoked_resources with "[$Hworld $Hregion $Htemp_unknown]")
+      as "(Hworld & Hregion & Htemp_unknown & %Hstd2_unknown)".
+    { apply Forall_forall.
+      intros a Ha.
+      (* NOTE: true because a ∈ ltemp_unknown, and so it's Temporary in WO *)
+      admit. }
+
     iMod ( monotone_revoke_keep _ _
              ( (finz.seq_between (a_stk ^+ 4)%a e_stk) ++ a_local_args)
            with "[ $Hworld $Hregion ]") as "(Hworld & Hregion & Hstk)".
@@ -759,13 +1116,18 @@ Section Switcher.
         admit. (* TODO see Hcallee_stk_temporary *)
     }
 
-    subst htemp_unknown.
+    assert
+      (loc2 W2 !! ι0 =
+        Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv))
+      as Hrel2_ι0.
+    { admit. (* NOTE easy, it doesnt change *) }
+
     iDestruct (big_sepL_sep with "Htemp_unknown") as "[Htemp_unknown %Hunknown_revoked]".
     iMod (monotone_close_list_region W0 _ _ ltemp_unknown
                 with "[] [$Hworld $Hregion $Htemp_unknown]") as "[Hworld Hregion]".
     { iPureIntro; eapply helper_switcher_final_pub; eauto. }
 
-   (* TODO we need to re-open region the stack *)
+    (* TODO we need to re-open region the stack *)
     iApply ("Hφ" with "[-]"); iFrame "∗#".
     iSplit.
     { iPureIntro; eapply helper_switcher_final_pub; eauto. }
@@ -1124,8 +1486,6 @@ Section Switcher.
     { by apply finz_seq_between_NoDup. }
     { done. }
 
-
-
     (* 1) revoke the world *)
     iMod (monotone_revoke_keep_some_open_many
             _ C  ltemp_unknown [] _ RWL interpC
@@ -1161,6 +1521,10 @@ Section Switcher.
     { done. }
     { done. }
     { admit. (* NOTE easy, but tedious -- see what was done in the return *) }
+
+    iAssert (⌜ a_local_args ## ltemp_unknown ⌝)%I as "%Hdis_local_unknown".
+    { admit. (* NOTE just by separation between Htemp_unknown and Hlocal_args *)
+    }
 
     (* 4) add the custom sts for the frame *)
     iMod ( sts_alloc_loc _ C true frame_rel_pub frame_rel_pub frame_rel_priv with "Hworld")
