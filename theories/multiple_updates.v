@@ -482,18 +482,59 @@ Section std_updates.
        rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.
    Qed.
 
-  Lemma elem_of_dom_std_multiple_update (W : WORLD) (a : Addr) (l : list Addr)
-    (ρ: region_type) :
-    a ∈ (dom (std (std_update_multiple W l ρ))) ->
-    a ∈ l \/ a ∈ (dom (std W)).
-  Proof.
-    induction l as [|a' l] ; intros Ha; first naive_solver.
-    destruct (decide (a = a')) as [|Hna]; simplify_eq; first (left; set_solver).
-    destruct (decide (a ∈ l)) as [|Hnl]; first (left; set_solver).
-    right.
-    rewrite /= /std dom_insert_L elem_of_union in Ha.
-    destruct Ha as [Ha|Ha] ; first ( rewrite elem_of_singleton in Ha ; set_solver ).
-    apply IHl in Ha. destruct Ha; done.
-  Qed.
+   Lemma related_sts_pub_world_revoked_temporary W a :
+     (std W) !! a = Some Revoked →
+     related_sts_pub_world W (<s[a:=Temporary]s>W).
+   Proof.
+     intros Ha.
+     rewrite /related_sts_pub_world /=.
+     split;[|apply related_sts_pub_refl].
+     rewrite /related_sts_pub. split.
+     - rewrite dom_insert_L. set_solver.
+     - intros i x y Hx Hy.
+       destruct (decide (a = i)).
+       + subst.
+         rewrite Hx in Ha. inversion Ha.
+         rewrite lookup_insert in Hy. inversion Hy.
+         right with (Temporary);[|left]. constructor.
+       + rewrite lookup_insert_ne in Hy;auto.
+         rewrite Hx in Hy.
+         inversion Hy; subst.
+         left.
+   Qed.
+
+   Lemma related_sts_pub_update_multiple_temp W l :
+     Forall (λ k, std W !! k = Some Revoked) l →
+     related_sts_pub_world W (std_update_multiple W l Temporary).
+   Proof.
+     intros Hforall. induction l.
+     - apply related_sts_pub_refl_world.
+     - simpl.
+       apply list.Forall_cons in Hforall as [ Ha_std Hforall].
+       eapply related_sts_pub_trans_world;[apply IHl; auto|].
+       destruct (decide (a ∈ l)).
+       { rewrite (_: <s[a:=Temporary]s>(std_update_multiple W l Temporary) = std_update_multiple W l Temporary) /=.
+         by apply related_sts_pub_refl_world.
+         rewrite /std_update insert_id /=. by destruct (std_update_multiple W l Temporary).
+         by apply std_sta_update_multiple_lookup_in_i. }
+       destruct W as [Hstd Hloc].
+       apply related_sts_pub_world_revoked_temporary in Ha_std.
+       eapply related_sts_pub_trans_world;[apply std_update_multiple_related_monotone,Ha_std|].
+       rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.
+   Qed.
+
+   Lemma elem_of_dom_std_multiple_update (W : WORLD) (a : Addr) (l : list Addr)
+     (ρ: region_type) :
+     a ∈ (dom (std (std_update_multiple W l ρ))) ->
+     a ∈ l \/ a ∈ (dom (std W)).
+   Proof.
+     induction l as [|a' l] ; intros Ha; first naive_solver.
+     destruct (decide (a = a')) as [|Hna]; simplify_eq; first (left; set_solver).
+     destruct (decide (a ∈ l)) as [|Hnl]; first (left; set_solver).
+     right.
+     rewrite /= /std dom_insert_L elem_of_union in Ha.
+     destruct Ha as [Ha|Ha] ; first ( rewrite elem_of_singleton in Ha ; set_solver ).
+     apply IHl in Ha. destruct Ha; done.
+   Qed.
 
 End std_updates.
