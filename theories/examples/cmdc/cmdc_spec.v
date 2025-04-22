@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_allocation interp_weakening.
+From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
 From cap_machine Require Import logrel rules proofmode.
 From cap_machine Require Import fetch assert switcher_spec cmdc.
 
@@ -9,6 +9,7 @@ Section CMDC.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {tstk_addrg : TSTK_ADDRG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
   Context {B C : CmptName}.
@@ -24,7 +25,7 @@ Section CMDC.
     (csp_b csp_e : Addr)
     (rmap : Reg)
 
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
+    (b_switcher e_switcher a_cc_switcher b_tstk e_tstk : Addr) (ot_switcher : OType)
     (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f C_g : Sealable)
 
@@ -34,16 +35,22 @@ Section CMDC.
     (csp_content : list Word)
 
     (φ : language.val cap_lang -> iProp Σ)
-    (Nassert Nswitcher : namespace)
-    (E : coPset)
+    (Nassert Nswitcher Nframe : namespace)
+
+    (ι_prev_B : positive) (Pframe_prev_B : iProp Σ)
+    (ι_prev_C : positive) (Pframe_prev_C : iProp Σ)
+    (a_prev : Addr)
     :
 
     let imports :=
      cmdc_main_imports b_switcher e_switcher a_cc_switcher ot_switcher b_assert e_assert B_f C_g
     in
 
-    ↑Nswitcher ⊆ E ->
-    ↑Nassert ⊆ E ->
+    Nswitcher ## Nframe ->
+    Nassert ## Nframe ->
+    Nswitcher ## Nassert ->
+    (* ↑Nswitcher ⊆ E -> *)
+    (* ↑Nassert ⊆ E -> *)
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (WInt 0) ) ->
@@ -57,10 +64,17 @@ Section CMDC.
 
     length csp_content = finz.dist csp_b csp_e ->
 
+    (* we suppose that for each initial world, there is no Temporary *)
+    (* NOTE: this is solely because I don't want to bother revoking the worlds myself in the proof,
+     but I could simply do it in the proof here.
+     The revoked world allow me to close the stack invariant (i.e., private transitions) *)
+    revoke_condition W_init_B ->
+    revoke_condition W_init_C ->
+
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_cc_switcher ot_switcher)
-      ∗ na_own logrel_nais E
+      ∗ na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_cc_switcher b_tstk e_tstk ot_switcher)
+      ∗ na_own logrel_nais ⊤
 
       (* initial register file *)
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
@@ -80,20 +94,47 @@ Section CMDC.
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
 
-      ∗ ▷ (
-            na_own logrel_nais E
-              -∗ WP Instr Halted {{ λ v, φ v ∨ ⌜v = FailedV⌝ }})
-      ⊢ WP Seq (Instr Executable) {{ λ v, φ v ∨ ⌜v = FailedV⌝ }})%I.
+      (* information about the previous frame for B *)
+      ∗ ⌜ (loc1 W_init_B) !! ι_prev_B = Some (encode false) ⌝
+      ∗ ⌜ (loc2 W_init_B) !! ι_prev_B = Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub , convert_rel frame_rel_priv)  ⌝
+      ∗ na_inv logrel_nais (Nframe.@ι_prev_B) (frame_inv B ι_prev_B Pframe_prev_B a_prev)
+
+      (* information about the previous frame for C *)
+      ∗ ⌜ (loc1 W_init_C) !! ι_prev_C = Some (encode false) ⌝
+      ∗ ⌜ (loc2 W_init_C) !! ι_prev_C = Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub , convert_rel frame_rel_priv)  ⌝
+      ∗ na_inv logrel_nais (Nframe.@ι_prev_C) (frame_inv C ι_prev_C Pframe_prev_C a_prev)
+
+      (* TODO considering that, in this case,
+         I have the tstk_addr_frag resource, because I CANNOT have it in both ι_prev_X,
+         maybe the switcher's spec can just have it passed directly *)
+
+      (* Both stack invariants are open, therefore, we have access to both frames and the token.
+         That way, we can pass the token to the right invariant when calling each compartment. *)
+      ∗ Pframe_prev_B
+      ∗ Pframe_prev_C
+      ∗ tstk_addr_frag a_prev
+
+      (* initial stack are revoked in both worlds *)
+      ∗ ([∗ list] a ∈ (finz.seq_between csp_b csp_e), rel B a RWL interpC ∗ ⌜ std W_init_B !! a = Some Revoked ⌝ )
+      ∗ ([∗ list] a ∈ (finz.seq_between csp_b csp_e), rel C a RWL interpC ∗ ⌜ std W_init_C !! a = Some Revoked ⌝ )
+
+      ∗ ▷ (na_own logrel_nais ⊤
+              -∗ WP Instr Halted {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcherE HNassertE Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c Hlen_stack)
+    iIntros (HNswitcher_frame HNassert_frame HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c Hlen_stack Hrevoke_cond_B Hrevoke_cond_C)
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & HWreg_B & HWstd_full_B
       & HWreg_C & HWstd_full_C
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
+      & %HιB_loc & %HιB_rel & #HιB_inv
+      & %HιC_loc & %HιC_rel & #HιC_inv
+      & HPframeB & HPframeC &Htstk_addr_frag
+      & Hrel_stk_B & Hrel_stk_C
       & Hφ)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
@@ -162,7 +203,8 @@ Section CMDC.
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
 
-
+    iMod (na_inv_acc with "HιB_inv Hna")
+      as "(HιB_inv_open & Hna & Hclose_ιB_inv)" ; auto.
 
     (* --------------------------------------------------- *)
     (* ----------------- BLOCK 0 : INIT ------------------ *)
@@ -273,6 +315,17 @@ Section CMDC.
     { iApply future_priv_mono_interp_z. }
     { cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
+    (* Update the frame invariant of B *)
+    iDestruct "HιB_inv_open" as (ιB_loc) "[HιB_loc _]".
+    iDestruct (sts_full_state_loc with "[$HWstd_full_B] [$HιB_loc]") as "%HιB'".
+    rewrite HιB_loc in HιB'; simplify_eq.
+    iDestruct (sts_update_loc _ _ _ _ true with "[$HWstd_full_B] [$HιB_loc]") as ">[HWstd_full_B HιB_loc]".
+    iMod ("Hclose_ιB_inv" with "[$HιB_loc $Htstk_addr_frag $HPframeB $Hna]") as "Hna".
+    (* TODO I need to update HWreg_B so that
+       region (<l[ι_prev_B:=true]l>(<s[cgp_b:=Permanent]s>W_init_B)) B,
+       which is fine, because it's a private transition, and the world does not contain any Temporary
+     *)
+
     set (W1 := <s[cgp_b:=Permanent]s>W_init_B).
     assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1.
     { subst W1; by eapply related_sts_priv_world_fresh_Permanent. }
@@ -312,10 +365,16 @@ Section CMDC.
       done.
     }
 
-    iApply (switcher_cc_specification _ _ W1 W1 with
+    iApply (switcher_cc_specification _ _ W1 with
              "[- $Hswitcher $Hna
-              $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hct1 $Hrmap_arg $Hrmap
-              $Hcsp_stk $HWreg_B $HWstd_full_B
+              HPC Hcgp Hcra Hcsp Hcs0 Hcs1 Hct1 Hrmap_arg Hrmap
+              Hcsp_stk HWreg_B HWstd_full_B
+              Hinterp_W1_B_f]"); auto.
+
+    iApply (switcher_cc_specification _ _ W1 with
+             "[- $Hswitcher $Hna
+              $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hct1 Hrmap_arg Hrmap
+              Hcsp_stk HWreg_B HWstd_full_B
               $Hinterp_W1_B_f]"); auto.
     { set_solver. }
     { subst rmap'.
