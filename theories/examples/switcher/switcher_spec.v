@@ -256,70 +256,7 @@ Section Switcher.
    Admitted.
 
    Set Nested Proofs Allowed.
-  (*  Lemma region_close_many_revoked W C als als' p φ  `{forall Wv, Persistent (φ Wv)} : *)
-  (*    NoDup als -> *)
-  (*    NoDup als' -> *)
-  (*    als' ⊆ als -> *)
-  (*    ([∗ list] a ∈ als',rel C a p φ ∗ sts_state_std C a Revoked) *)
-  (*    -∗ open_region_many W C als *)
-  (*       -∗ open_region_many W C (list_difference als als'). *)
-  (*  Proof. *)
-  (*    revert als'. *)
-  (*    induction als; intros als' ; iIntros (HNoDup_als HNoDup_als' Hals') "Hres Hregion". *)
-  (*    - by apply list_nil_subseteq in Hals'; rewrite Hals'. *)
-  (*    - rewrite NoDup_cons in HNoDup_als; destruct HNoDup_als as [Ha_notin HNoDup_als]. *)
-  (*      iEval (cbn) in "Hres". *)
-  (*      destruct (decide_rel elem_of a als') as [Ha_in|Ha_in]; cycle 1. *)
-  (*  Admitted. *)
-
-
-  (*  Lemma region_close_revoked_many W C als p φ  `{forall Wv, Persistent (φ Wv)}: *)
-  (*    NoDup als -> *)
-  (*    ⊢ ([∗ list] a ∈ als, rel C a p φ ∗ sts_state_std C a Revoked) *)
-  (*    ∗ open_region_many W C als *)
-  (*      -∗ region W C. *)
-  (*  Proof. *)
-  (*    iIntros (HnoDup) "(Hstd & Hregion)". *)
-  (*    iApply region_open_nil. *)
-  (*    replace [] with (list_difference als als) by (by apply list_difference_same). *)
-  (*    iApply (region_close_many_revoked with "[Hstd] [$Hregion]"); eauto. *)
-  (*  Qed. *)
-
-
-  (* Lemma monotone_revoke_keep_some_open_many W C (ltemp_unknown ltemp_known ltemp_opened : list Addr) (p : Perm) φ: *)
-  (*   NoDup (ltemp_unknown ++ ltemp_known ++ ltemp_opened ) → *)
-  (*   (* unknown Temporary *) *)
-  (*   ([∗ list] a ∈ ltemp_unknown, ⌜(std W) !! a = Some Temporary⌝) *)
-  (*   (* known Temporary *) *)
-  (*   ∗ ([∗ list] a ∈ ltemp_known, ⌜(std W) !! a = Some Temporary⌝ ∗ rel C a p φ) *)
-  (*   (* opened Temporary *) *)
-  (*   ∗ ([∗ list] a ∈ ltemp_opened, ⌜(std W) !! a = Some Temporary⌝ ∗ rel C a p φ ∗ sts_state_std C a Temporary) *)
-
-  (*   ∗ sts_full_world W C *)
-  (*   ∗ open_region_many W C ltemp_opened *)
-
-  (*   ==∗ *)
-
-  (*   sts_full_world (revoke W) C *)
-  (*   ∗ open_region_many (revoke W) C ltemp_opened *)
-
-  (*   (* unknown Revoked *) *)
-  (*   ∗ ([∗ list] a ∈ ltemp_unknown, *)
-  (*        (∃ p' φ', ⌜forall Wv, Persistent (φ' Wv)⌝ *)
-  (*                              ∗ ▷ temp_resources W C φ' a p' *)
-  (*                              ∗ rel C a p' φ') *)
-  (*        ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝) *)
-  (*   (* known Revoked *) *)
-  (*   ∗ ([∗ list] a ∈ ltemp_known, *)
-  (*        (▷ temp_resources W C φ a p ∗ rel C a p φ) *)
-  (*        ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝) *)
-  (*   (* opened Revoked *) *)
-  (*   ∗ ([∗ list] a ∈ ltemp_opened, *)
-  (*        (rel C a p φ ∗ sts_state_std C a Revoked ) *)
-  (*        ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝). *)
-  (* Admitted. *)
-
-  Lemma update_region_revoked_temp_pwl_multiple E W C la lv p φ `{∀ Wv, Persistent (φ Wv)} :
+   Lemma update_region_revoked_temp_pwl_multiple E W C la lv p φ `{∀ Wv, Persistent (φ Wv)} :
     isO p = false → isWL p = true →
 
     sts_full_world W C -∗
@@ -338,7 +275,6 @@ Section Switcher.
     ∗ sts_full_world (std_update_multiple W la Temporary) C.
   Proof.
   Admitted.
-
 
   Lemma frame_W_lookup_std (W : WORLD) (a : Addr) :
     std (frame_W W) !! a = (std W) !!a.
@@ -402,7 +338,6 @@ Section Switcher.
 
     NoDup ltemp_unknown ->
     NoDup a_local_args ->
-    (* we know that it's true, by separation! *)
     ltemp_unknown ## a_local_args ->
     ltemp_unknown ## finz.seq_between a_stk e_stk ->
     a_local_args ## finz.seq_between a_stk e_stk ->
@@ -422,10 +357,7 @@ Section Switcher.
     Forall (λ a : Addr, std W2 !! a = Some Temporary)
       (finz.seq_between (a_stk ^+ 4)%a e_stk) ->
     Forall (λ a : Addr, std W2 !! a = Some Temporary) a_local_args ->
-    (* we know that it's true, by separation! *)
     Forall (λ a : Addr , std W2 !! a = Some Revoked ) ltemp_unknown ->
-    (* requirement on a_local_args *)
-    (* Forall (λ a : Addr,  a ∉ dom (std W0)) a_local_args -> *)
     Forall (λ a : Addr, (std W0) !! a = Some Revoked) a_local_args ->
     Forall (λ a : Addr, (std W0) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ->
 
@@ -517,7 +449,6 @@ Section Switcher.
       split.
       + (* monotonic domains *)
         rewrite -close_list_dom_eq.
-        (* etransitivity; last apply std_update_multiple_sta_dom_subseteq. *)
         cbn.
         rewrite -revoke_dom_eq.
         destruct Hrelated_W1_W2 as [ [? _] _] ; cbn in *.
@@ -548,10 +479,7 @@ Section Switcher.
             ospecialize (W_temps _); first set_solver.
             rewrite Hstd0_a in W_temps; simplify_eq.
             by apply rtc_refl.
-          +
-            (* rewrite std_sta_update_multiple_lookup_same_i; cycle 1. *)
-            (* { intro Hcontra; eapply elem_of_disjoint;eauto. } *)
-            assert ( (std W1) !! a = Some Revoked) as Hstd1'_a.
+          + assert ( (std W1) !! a = Some Revoked) as Hstd1'_a.
             {
               subst W1.
               rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
@@ -575,7 +503,6 @@ Section Switcher.
         rewrite -close_list_std_sta_same in HstdF_a; last done.
         destruct (decide (a ∈ (finz.seq_between a_stk e_stk))) as [Ha_stk | Ha_stk].
         {
-          (* rewrite std_sta_update_multiple_lookup_in_i in HstdF_a; simplify_eq; auto. *)
           rewrite elem_of_list_lookup in Ha_stk.
           destruct Ha_stk as [k Ha_stk].
           eapply Forall_lookup in Hcalle_frame_W0_temporary; eauto.
@@ -610,8 +537,6 @@ Section Switcher.
               rewrite Hstd1'_a in HstdF_a; simplify_eq.
               apply rtc_once; cbn; constructor.
         }
-        (* rewrite std_sta_update_multiple_lookup_same_i in HstdF_a; last done. *)
-        (* cbn in HstdF_a. *)
 
         destruct (decide (a ∈ a_local_args)) as [Ha_local_args | Ha_local_args].
         { replace ρ0 with Revoked; cycle 1.
@@ -741,20 +666,15 @@ Section Switcher.
     (b_tstk <= a_tstk)%a  ->
     NoDup ltemp_unknown ->
     NoDup a_local_args ->
-    (* we know that it's true, by separation! *)
     ltemp_unknown ## a_local_args ->
     ltemp_unknown ## finz.seq_between a_stk e_stk ->
     a_local_args ## finz.seq_between a_stk e_stk ->
-    (* NoDup (ltemp_unknown ++ finz.seq_between a_stk e_stk) -> *)
-    (* NoDup (finz.seq_between (a_stk ^+ 4)%a e_stk ++ a_local_args) -> *)
-    (* (∀ a : finz MemNum, std W0 !! a = Some Temporary ↔ a ∈ ltemp_unknown ++ finz.seq_between a_stk e_stk) -> *)
     (∀ a : finz MemNum, std W0 !! a = Some Temporary ↔ a ∈ ltemp_unknown) ->
     (loc1 W0) !! ι0 = Some (encode true) ->
     loc2 W0 !! ι0 =
     Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv) ->
     Forall (λ a : Addr, (std W0) !! a = Some Revoked) a_local_args ->
     Forall (λ a : Addr, (std W0) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ->
-    (* a_local_args ## ltemp_unknown -> *)
 
     ( na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_switcher_cc b_tstk e_tstk ot_switcher )
       ∗ na_inv logrel_nais (Nframes.@ι0) (frame_inv C ι0 Pframe0 a_tstk)
@@ -1124,50 +1044,6 @@ Section Switcher.
       as "Hrel_stk".
     rewrite -finz_seq_between_split; last solve_addr.
 
-    (* iMod (update_region_revoked_temp_pwl_multiple ⊤ _ _ *)
-    (*              (finz.seq_between a_stk e_stk) (region_addrs_zeroes a_stk e_stk) RWL interpC *)
-    (*             with "[$] [$] [Hstk]") as "[Hregion Hworld]". *)
-    (* { done. } *)
-    (* { done. } *)
-    (* { assert ( *)
-    (*       length (finz.seq_between a_stk e_stk) = length (region_addrs_zeroes a_stk e_stk) *)
-    (*     ) *)
-    (*     by (by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length). *)
-    (*   rewrite big_sepL2_sep; iFrame. *)
-    (*   rewrite big_sepL2_sep; iSplit. *)
-    (*   { rewrite big_sepL2_const_sepL_r. *)
-    (*     iSplit; first done. *)
-    (*     iApply big_sepL_intro. *)
-    (*     iModIntro ; iIntros (k w Hw). *)
-    (*     apply region_addrs_zeroes_lookup in Hw; simplify_eq. *)
-    (*     rewrite /interpC; cbn. *)
-    (*     by rewrite fixpoint_interp1_eq; cbn. *)
-    (*   } *)
-    (*   rewrite big_sepL2_sep; iSplit. *)
-    (*   { rewrite big_sepL2_const_sepL_l. *)
-    (*     iSplit ; done. *)
-    (*   } *)
-    (*   rewrite big_sepL2_sep; iSplit. *)
-    (*   { rewrite big_sepL2_const_sepL_r. *)
-    (*     iSplit ; first done. *)
-    (*     iApply big_sepL_intro. *)
-    (*     iModIntro ; iIntros (k w Hw). *)
-    (*     apply region_addrs_zeroes_lookup in Hw; simplify_eq. *)
-    (*     iApply future_pub_mono_interp_z. *)
-    (*   } *)
-    (*   rewrite big_sepL2_const_sepL_l. *)
-    (*   iSplit ; first done. *)
-    (*   iApply big_sepL_pure. *)
-    (*   iPureIntro ; intros k a Ha. *)
-    (*   cbn. *)
-    (*   destruct (decide (a < (a_stk ^+4))%a) as [Halt | Halt]. *)
-    (*   - apply revoke_lookup_Revoked. *)
-    (*     admit. (* TODO should be Revoked, by separation and public transition *) *)
-    (*   - apply revoke_lookup_Monotemp. *)
-    (*     assert ( (a_stk ^+4) <= a)%a as Hage by solve_addr. *)
-    (*     admit. (* TODO see Hcallee_stk_temporary *) *)
-    (* } *)
-
     assert
       (loc2 W2 !! ι0 =
         Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv))
@@ -1184,24 +1060,17 @@ Section Switcher.
     { iPureIntro; eapply helper_switcher_final_pub; eauto. }
     iSplit.
     { by rewrite Harg_rmap'. }
-    (* iSplitL "Hregion". *)
-    (* { admit. (* TODO easy, once open *) } *)
     iSplitR "Hargs_locals".
     { rewrite big_sepL_sep; iFrame "#".
       iPureIntro. intros k' a' Ha'; cbn.
       rewrite -close_list_std_sta_same; cycle 1.
       { admit. (*NOTE disjoint by Hdis_unkw_stk *) }
-      admit. (* true, because by Ha',
+      admit. (* NOTE true, because by Ha',
                 either it was Revoked (register_save_area),
                 or it was Temporary
               *)
     }
     { rewrite region_addrs_exists; iFrame. }
-    (* { admit. (* TODO if I close the world when it's *)
-    (*               Temporary, I lose the information that it actually was zeroes. *)
-    (*               Does it means that I need to open the world before? *)
-    (*           *) *)
-    (* } *)
   Admitted.
 
 
@@ -1325,12 +1194,6 @@ Section Switcher.
     intros Hwct1_caller Hstk_caller_save_area Hstk_caller_frm_pre Hstk_pre_jmp W0' W1
       HN Harg_map Hrmap Hlocal_args_revoked.
     iIntros "HPRE".
-    (* iDestruct "HPRE" *)
-    (*   as (ι0 Pframe0 a0) *)
-    (*        "(#Hinv_switcher & Hna & %Hι0_state & %Hι0_sts & #Hι0_inv *)
-    (*        & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Hinterp_ct1 & Hcs0 & Hcs1 *)
-    (*        & Hargmap & Hlocal_args & Hstd_local_args & Hrmap & Hstk & Hworld & Hregion *)
-    (*        & Hstd_stk  & Hnext_world & Hφ)". *)
     iDestruct "HPRE"
       as (ι0 Pframe0 a0)
            "(#Hinv_switcher & Hna & %Hι0_state & %Hι0_sts & #Hι0_inv
@@ -1384,8 +1247,6 @@ Section Switcher.
     { rewrite /region_pointsto.
       rewrite region_addrs_exists.
       iDestruct "Hlocal_args" as (ws) "Hlocal_args".
-      (* rewrite big_sepL2_sep. *)
-      (* iDestruct "Hlocal_args" as  "[Hlocal_args _]". *)
       iClear "#"; clear.
       iApply big_sepL2_disjoint; eauto; iFrame.
     }
@@ -1393,8 +1254,6 @@ Section Switcher.
       with "[Hlocal_args]" as "%HNoDup_locals".
     { rewrite region_addrs_exists.
       iDestruct "Hlocal_args" as (ws) "Hlocal_args".
-      (* rewrite big_sepL2_sep. *)
-      (* iDestruct "Hlocal_args" as  "[Hlocal_args _]". *)
       by iApply big_sepL2_nodup. }
 
     iDestruct (big_sepL2_length with "Hstk") as %Hlen_stk.
@@ -1549,15 +1408,10 @@ Section Switcher.
     iHide "Hφ" as hφ.
 
     iDestruct "Hstd_state_stk" as "%Hstk_revoked".
-    (* iDestruct (big_sepL_sts_full_state_std with "[$] [$]") as "%Hstk_revoked". *)
+
     (* UPDATING THE WORLD NOW *)
     opose proof ( extract_temps W0 ) as (ltemp_unknown & HNoDup_unk & W_temps).
-    (* opose proof (extract_temps_split_world W0 (finz.seq_between a_stk e_stk) _ _) as (ltemp_unknown & Hnodupl & W_temps). *)
-    (* { by apply finz_seq_between_NoDup. } *)
-    (* { done. } *)
-
     (* 1) revoke the world *)
-
     iMod ( monotone_revoke_keep _ C ltemp_unknown with "[$Hworld $Hregion]") as "(Hworld & Hregion & Htemp_unknown)".
     { by cbn. }
     { iPureIntro.
