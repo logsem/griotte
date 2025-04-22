@@ -1996,15 +1996,15 @@ Section Switcher.
 
 
   Lemma switcher_interp (W : WORLD) (C : CmptName) (N : namespace)
-    (b_switcher e_switcher a_switcher_cc : Addr) (ot_switcher : OType) :
-    na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher) -∗
+    (b_switcher e_switcher a_switcher_cc b_tstk e_tstk : Addr) (ot_switcher : OType) :
+    na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc b_tstk e_tstk ot_switcher) -∗
     interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_cc).
   Proof.
   Admitted.
 
-  Lemma future_priv_mono_interp_switcher (C : CmptName) (N : namespace)
-    (b_switcher e_switcher a_switcher_cc : Addr) (ot_switcher : OType) :
-    na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc ot_switcher) -∗
+  Lemma future_priv_mono_interp_switcher (C : CmptName) (Nswitcher : namespace)
+    (b_switcher e_switcher a_switcher_cc b_tstk e_tstk : Addr) (ot_switcher : OType) :
+    na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_switcher_cc b_tstk e_tstk ot_switcher) -∗
     future_priv_mono C interpC (WSentry XSRW_ Local b_switcher e_switcher a_switcher_cc).
   Proof.
   Admitted.
