@@ -2111,15 +2111,16 @@ Section heap.
 
 
   (* TODO @June is there a better formulation than the below ones? *)
-  Lemma monotone_revoke_region_def_update_loc { D : Type } `{ Countable D } W C MC Mρ ι (ι_state : D) :
-    let W' := <l[ι:=ι_state]l> (revoke W) in
-    ⌜dom (std (revoke W)) = dom MC⌝
-    -∗ ⌜ related_sts_priv_world (revoke W) W' ⌝
+  Lemma monotone_revoke_region_def_update_loc W W' C MC Mρ :
+    ⌜revoke_condition W⌝
+    -∗ ⌜dom (std W) = dom MC⌝
+    -∗ ⌜std W = std W'⌝
+    -∗ ⌜related_sts_priv_world W W' ⌝
     -∗ sts_full_world W' C
-    -∗ region_map_def (revoke W) C MC Mρ
+    -∗ region_map_def W C MC Mρ
     -∗ sts_full_world W' C ∗ region_map_def W' C MC Mρ.
   Proof.
-    iIntros (W' Hdom Hrelated) "Hfull Hr"; subst W'.
+    iIntros (Hrevoked Hdom Hstd Hrelated) "Hfull Hr".
     rewrite /revoke in Hdom |- *.
     destruct W as [Wstd_sta Wloc].
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
@@ -2130,8 +2131,10 @@ Section heap.
       iDestruct (big_sepM2_lookup_l _ _ _ a with "Hstates") as (γp) "[Hl Hstate]"; eauto.
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hρ.
       iPureIntro.
-      cbn in Hρ.
-      eapply revoke_std_sta_lookup_non_temp; eauto.
+      cbn in *; simplify_eq.
+      rewrite /revoke_condition /= in Hrevoked.
+      specialize (Hrevoked a); rewrite Hρ in Hrevoked.
+      by intros ->.
     }
     iFrame.
     iApply big_sepM_exists. iExists m'.
@@ -2149,88 +2152,26 @@ Section heap.
     apply Hrelated.
     Unshelve. apply _.
   Qed.
-  Lemma update_region_revoked { D : Type } `{ Countable D } E W C ι (ι_state : D) :
-    let W' := <l[ι:=ι_state]l> (revoke W) in
-    (related_sts_priv_world (revoke W) W') →
+  Lemma update_region_revoked_update_loc E W W' C :
+    revoke_condition W →
+    std W = std W' →
+    (related_sts_priv_world W W') →
     sts_full_world W' C -∗
-    region (revoke W) C
+    region W C
 
     ={E}=∗
 
     region W' C
     ∗ sts_full_world W' C.
   Proof.
-    intros W' Hrelated; subst W'.
+    intros Hrevoked Hstd Hrelated.
     iIntros "Hsts Hreg".
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
-    iDestruct (monotone_revoke_region_def_update_loc _ _ _ _ with "[] [] [$] [$]") as "[Hsts Hpreds]"; eauto.
+    iDestruct (monotone_revoke_region_def_update_loc _ _ _ _ with "[] [] [] [] [$] [$]") as "[Hsts Hpreds]"; eauto.
+    rewrite Hstd in Hdom.
     iFrame; eauto.
   Qed.
-
-  Lemma monotone_revoke_region_def_update_loc' { D : Type } `{ Countable D } W C MC Mρ
-    ι (ι_state : D)
-    ι' (ι'_state : D)
-    :
-    let W' := <l[ι':=ι'_state]l> (<l[ι:=ι_state]l> (revoke W)) in
-    ⌜dom (std (revoke W)) = dom MC⌝
-    -∗ ⌜ related_sts_priv_world (<l[ι:=ι_state]l> (revoke W)) W' ⌝
-    -∗ sts_full_world W' C
-    -∗ region_map_def (<l[ι:=ι_state]l> (revoke W)) C MC Mρ
-    -∗ sts_full_world W' C ∗ region_map_def W' C MC Mρ.
-  Proof.
-    iIntros (W' Hdom Hrelated) "Hfull Hr"; subst W'.
-    rewrite /revoke in Hdom |- *.
-    destruct W as [Wstd_sta Wloc].
-    iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
-    iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
-    iDestruct (big_sepM2_sep with "Hr") as "[Hstates Hr]".
-    iAssert (∀ a ρ, ⌜m' !! a = Some ρ⌝ → ⌜ρ ≠ Temporary⌝)%I as %Hmonotemp.
-    { iIntros (a ρ Hsome).
-      iDestruct (big_sepM2_lookup_l _ _ _ a with "Hstates") as (γp) "[Hl Hstate]"; eauto.
-      iDestruct (sts_full_state_std with "Hfull Hstate") as %Hρ.
-      iPureIntro.
-      cbn in Hρ.
-      eapply revoke_std_sta_lookup_non_temp; eauto.
-    }
-    iFrame.
-    iApply big_sepM_exists. iExists m'.
-    iApply big_sepM2_sep. iFrame.
-    iDestruct (big_sepM2_sep with "[$Hstates $Hr]") as "Hr".
-    iApply (big_sepM2_mono with "Hr").
-    iIntros (a ρ γp Hm' HM) "/= [Hstate Ha]".
-    specialize (Hmonotemp a ρ Hm').
-    destruct ρ;iFrame;[contradiction|].
-    iDestruct "Ha" as (γpred p φ) "(%Hγp & % & Hpred & Ha)".
-    iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
-    iFrame "∗%#".
-    iNext. iApply ("HmonoV" with "[] Hφ").
-    iPureIntro.
-    apply Hrelated.
-    Unshelve. apply _.
-  Qed.
-  Lemma update_region_revoked' { D : Type } `{ Countable D } E W C
-    ι (ι_state : D)
-    ι' (ι'_state : D)
-    :
-    let W' := <l[ι':=ι'_state]l> (<l[ι:=ι_state]l> (revoke W)) in
-    (related_sts_priv_world (<l[ι:=ι_state]l> (revoke W)) W') →
-    sts_full_world W' C -∗
-    region (<l[ι:=ι_state]l> (revoke W)) C
-
-    ={E}=∗
-
-    region W' C
-    ∗ sts_full_world W' C.
-  Proof.
-    intros W' Hrelated; subst W'.
-    iIntros "Hsts Hreg".
-    rewrite region_eq /region_def.
-    iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
-    iDestruct (monotone_revoke_region_def_update_loc' _ _ _ _ with "[] [] [$] [$]") as "[Hsts Hpreds]"; eauto.
-    iFrame; eauto.
-  Qed.
-
 
    (* commuting updates and revoke *)
 

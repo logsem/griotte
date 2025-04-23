@@ -124,6 +124,7 @@ Section Switcher.
      apply related_sts_pub_world_fresh_loc; set_solver.
    Qed.
 
+   (* TODO move *)
    Lemma revoked_by_separation
      (W : WORLD) (C : CmptName)
      (a : Addr) (w : Word) (ρ : region_type) :
@@ -316,6 +317,14 @@ Section Switcher.
     apply fresh_name_notin. left.
     apply ι0_in_Wloc_helper.
   Qed.
+
+  (* Definition switcher_world_upon_jmp (W_init : WORLD) *)
+  (*   (a_local_args : list Addr) *)
+  (*   (a_stk e_stk : Addr) (ι0 : positive) := *)
+  (*   std_update_multiple *)
+  (*     (frame_W *)
+  (*        (std_update_multiple (<l[ι0:=encode false]l>(revoke W_init)) *)
+  (*           (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary)) a_local_args Temporary. *)
 
   Lemma helper_switcher_final_pub
     (W0 W2 : WORLD) (ltemp_unknown a_local_args : list Addr) (ι0 : positive)
@@ -1030,12 +1039,16 @@ Section Switcher.
 
     iMod (sts_update_loc _ _ _ _ true with "[$Hworld] [$Hι0_loc]") as "[Hworld Hι0_loc]".
     iMod ("Hclose_frame0_inv" with "[$Hna $Hι0_loc $HPframe0 $Htstk_addr_frag]") as "Hna".
-    iMod (update_region_revoked with "[$] [$]") as "[Hregion Hworld]".
+    iMod (update_region_revoked_update_loc with "[$] [$]") as "[Hregion Hworld]".
+    { apply revoke_conditions_sat.  }
+    { by cbn. }
     { admit. (* NOTE by definition of Hι0_sts *) }
 
     iMod (sts_update_loc _ _ _ _ false with "[$Hworld] [$Hι_loc]") as "[Hworld Hι_loc]".
     iMod ("Hclose_frame_inv" with "[$Hna $Hι_loc]") as "Hna".
-    iMod (update_region_revoked' with "[$] [$]") as "[Hregion Hworld]".
+    iMod (update_region_revoked_update_loc with "[$] [$]") as "[Hregion Hworld]".
+    { apply revoke_conditions_sat. }
+    { by cbn. }
     { admit. (* NOTE by definition of Hι0_sts *) }
 
     iDestruct (big_sepL_app _ (finz.seq_between a_stk (a_stk ^+ 4)%a)
@@ -1442,7 +1455,9 @@ Section Switcher.
     iDestruct "Hrel_stk" as "[Hrel_reg_saved Hrel_callee_frm]".
     subst W0'.
     set ( callee_stk_frm_addr := finz.seq_between (a_stk ^+ 4)%a e_stk ).
-    iMod (update_region_revoked with "[$] [$]") as "[Hworld Hregion]".
+    iMod (update_region_revoked_update_loc with "[$] [$]") as "[Hworld Hregion]".
+    { apply revoke_conditions_sat. }
+    { by cbn. }
     { admit. (* NOTE by definition of Hι0_sts *) }
 
     iMod (update_region_revoked_temp_pwl_multiple ⊤ _ _

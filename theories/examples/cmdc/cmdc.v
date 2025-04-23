@@ -79,7 +79,7 @@ Section CMDC_Main.
     (b_assert e_assert : Addr)
     (B_f C_g : Sealable) : list Word :=
     [
-      WSentry XSRW_ Global b_switcher e_switcher a_cc_switcher;
+      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
       WSentry RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_f;
       WSealed ot_switcher C_g
