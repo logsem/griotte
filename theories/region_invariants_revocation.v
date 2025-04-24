@@ -7,14 +7,16 @@ Section heap.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ}
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
   (* --------------------------------------------------------------------------------------------------------- *)
   (* --------------------------------------------- REVOCATION ------------------------------------------------ *)
@@ -38,7 +40,7 @@ Section heap.
                | Temporary => Revoked
                | _ => v
                end).
-  Definition revoke (W : WORLD) : WORLD := (revoke_std_sta (std W), loc W).
+  Definition revoke (W : WORLD) : WORLD := (revoke_std_sta (std W), cus W, frm W).
 
   (* A weaker revocation which only revokes elements from a list *)
   Fixpoint revoke_list_std_sta (l : list Addr) (fs : STS_STD) : STS_STD :=
@@ -52,13 +54,14 @@ Section heap.
                | None => (revoke_list_std_sta l' fs)
                end
     end.
-  Definition revoke_list (l : list Addr) (W : WORLD) : WORLD := ((revoke_list_std_sta l (std W)), loc W).
+  Definition revoke_list (l : list Addr) (W : WORLD) : WORLD
+    := ((revoke_list_std_sta l (std W)), cus W, frm W).
 
   Lemma revoke_list_empty W :
     (revoke_list [] W) = W.
   Proof.
     rewrite /revoke_list.
-    by rewrite -surjective_pairing.
+    destruct W; by rewrite -surjective_pairing.
   Qed.
 
   Lemma related_sts_pub_revoked_temp W a :
@@ -68,7 +71,7 @@ Section heap.
   Proof.
     intros Ha.
     rewrite /related_sts_pub_world /=.
-    split;[|apply related_sts_pub_refl].
+    split;[split|];[|apply related_sts_pub_refl|apply related_tframe_pub_refl].
     rewrite /related_sts_pub. split.
     - rewrite dom_insert_L. set_solver.
     - intros i x y Hx Hy.
@@ -137,7 +140,6 @@ Section heap.
     rewrite -HMeq.
     iFrame "∗%".
     iPureIntro.
-    rewrite /std.
     apply insert_id in Hsome; rewrite -Hsome.
     apply insert_id in Hl; rewrite -Hl.
     split.
@@ -193,7 +195,6 @@ Section heap.
     rewrite -HMeq.
     iFrame "∗%".
     iPureIntro.
-    rewrite /std.
     apply insert_id in Hsome; rewrite -Hsome.
     apply insert_id in Hl; rewrite -Hl.
     split.
@@ -390,12 +391,12 @@ Section heap.
     is_Some (Wstd_sta !! i) ↔ is_Some (revoke_std_sta Wstd_sta !! i).
   Proof.
     split; intros Hi.
-    - assert (std (Wstd_sta, (∅,∅)) = Wstd_sta) as Heq;auto.
+    - assert (std ((Wstd_sta, (∅,∅), 0) : WORLD) = Wstd_sta) as Heq;auto.
       rewrite -Heq in Hi.
-      apply (revoke_lookup_Some ((Wstd_sta),∅) i) in Hi.
+      apply (revoke_lookup_Some ((Wstd_sta, (∅,∅), 0) : WORLD) i) in Hi.
       auto.
-    - assert (std (Wstd_sta, (∅,∅)) = Wstd_sta) as <-;auto.
-      apply (revoke_lookup_Some ((Wstd_sta),∅) i).
+    - assert (std ((Wstd_sta, (∅,∅), 0) : WORLD) = Wstd_sta) as <-;auto.
+      apply (revoke_lookup_Some ((Wstd_sta, (∅,∅), 0) : WORLD) i).
       auto.
   Qed.
 
@@ -456,7 +457,7 @@ Section heap.
     intros Hin.
     rewrite revoke_list_dom_std_sta in Hin.
     apply revoke_list_lookup_non_temp with Wstd_sta ((map_to_list Wstd_sta).*1) i; auto.
-    rewrite /std /= in Hin.
+    rewrite /= in Hin.
     assert (is_Some (Wstd_sta !! i)) as [x Hsome].
     { rewrite revoke_list_std_sta_spec in Hin.
       destruct (Wstd_sta !! i); eauto. }
@@ -470,7 +471,7 @@ Section heap.
     intros Hin.
     rewrite revoke_list_dom in Hin.
     apply revoke_list_lookup_non_temp with (std W) ((map_to_list (std W)).*1) i; auto.
-    rewrite /std /= in Hin.
+    rewrite /= in Hin.
     assert (is_Some ((std W) !! i)) as [x Hsome].
     { rewrite revoke_list_lookup_Some. eauto. }
     apply map_to_list_fst. exists x.
@@ -571,7 +572,7 @@ Section heap.
   Proof.
     intros a. destruct ((std (revoke W)) !! a) eqn:Hsome;auto.
     intros Hcontr;simplify_eq.
-    rewrite /std /revoke in Hsome.
+    rewrite /revoke in Hsome.
     apply revoke_lookup_non_temp in Hsome. done.
   Qed.
 
@@ -683,8 +684,8 @@ Section heap.
   Lemma revoke_monotone (W W' : WORLD) :
     related_sts_priv_world W W' → related_sts_priv_world (revoke W) (revoke W').
   Proof.
-    destruct W as [ Wstd_sta [Wloc_sta Wloc_rel] ].
-    destruct W' as [ Wstd_sta' [Wloc_sta' Wloc_rel'] ].
+    destruct W as [ [ Wstd_sta [Wloc_sta Wloc_rel] ] Wfrm].
+    destruct W' as [ [ Wstd_sta' [Wloc_sta' Wloc_rel'] ] Wfrm' ].
     intros [(Hdom_sta & Htransition) Hrelated_loc].
     pose proof (revoke_private_monotone_dom _ _ Hdom_sta) as Hdom_sta'.
     split;[split;[auto|]|auto].
@@ -731,7 +732,7 @@ Section heap.
     related_sts_priv_world W (revoke_list l W).
   Proof.
     induction l.
-    - destruct W. rewrite /revoke_list /=. apply related_sts_priv_refl_world.
+    - destruct W as [ [] ]. rewrite /revoke_list /=. apply related_sts_priv_refl_world.
     - split;[|apply related_sts_priv_refl].
       apply revoke_list_related_sts_priv_cons_world; auto.
   Qed.
@@ -812,7 +813,7 @@ Section heap.
     -∗ sts_full_world W C ∗ region_map_def W2 C MC Mρ.
   Proof.
     iIntros (Hcond Hrelated) "Hfull Hr".
-    rewrite /revoke_condition /std in Hcond.
+    rewrite /revoke_condition in Hcond.
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
     iAssert (∀ a ρ, ⌜m' !! a = Some ρ⌝ → ⌜ρ ≠ Temporary⌝)%I as %Hmonotemp.
@@ -903,7 +904,7 @@ Section heap.
                           ∗ ▷ temp_resources W C φ a p
                           ∗ rel C a p φ).
   Proof.
-   rewrite /std region_eq /region_def /=.
+   rewrite region_eq /region_def /=.
     iInduction (l) as [|x l] "IH" forall (l');
     iIntros (Hdup' Hdup Hsub) "(#Hrel & Hfull & Hr)".
     - iFrame. apply submseteq_nil_r in Hsub as ->. repeat rewrite big_sepL_nil. done.
@@ -924,7 +925,7 @@ Section heap.
         iMod ("IH" with "[] [] [] [$Hrel $Hfull $Hr]") as "(Hfull & Hr & Hl)"; auto.
         { iPureIntro. apply submseteq_cons_l in Hsub as [k' [Hperm Hsub] ].
           apply Permutation.Permutation_cons_inv in Hperm. etrans;eauto. rewrite Hperm. done. }
-        rewrite /revoke_list /= /std /=.
+        rewrite /revoke_list /= /=.
         rewrite Htemp.
         rewrite rel_eq /rel_def.
         iDestruct "Hr" as (M Mρ) "(HM & % & #Hdom & Hpreds)".
@@ -960,8 +961,8 @@ Section heap.
            iDestruct "Ha" as (γpred0 p0 φ0 Heq0 Hpers0) "(#Hsaved & Ha)".
            iDestruct "Ha" as (v Hne0) "(Hx & #HmonoV & #Hφ0)"; simplify_eq.
            iExists v; iFrame "%∗".
-           destruct W as [ Wstd_sta Wloc].
-           iDestruct (saved_pred_agree _ _ _ _ _ (Wstd_sta, Wloc,C, v) with "Hφ Hsaved") as "#Hφeq". iFrame.
+           destruct W as [ [ Wstd_sta Wloc] Wfrm].
+           iDestruct (saved_pred_agree _ _ _ _ _ (Wstd_sta, Wloc, Wfrm, C, v) with "Hφ Hsaved") as "#Hφeq". iFrame.
            iDestruct (internal_eq_iff with "Hφeq") as "Hφeq'".
            iSplitL "HmonoV";[|by iNext; iApply "Hφeq'"].
            all: destruct (isWL p0).
@@ -975,7 +976,7 @@ Section heap.
         iMod ("IH" with "[] [] [] [$Hrel $Hfull $Hr]") as "(Hfull & Hr & Hl)"; auto.
         iDestruct "Hr" as (M Mρ) "(HM & #Hdom & #Hdom' & Hr)".
         iDestruct "Hdom" as %Hdom. iDestruct "Hdom'" as %Hdom'. iClear "IH".
-        rewrite /revoke_list /std /=. destruct W as [ Wstd_sta Wloc].
+        rewrite /revoke_list /=. destruct W as [ [ Wstd_sta Wloc] Wfrm].
         destruct (Wstd_sta !! x) eqn:Hsome.
         2: { iFrame. iModIntro. rewrite Hsome. iFrame. iFrame. auto. }
         rewrite Hsome.
@@ -1016,14 +1017,11 @@ Section heap.
     rewrite open_region_eq /open_region_def.
     iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
     assert (is_Some (M !! a)) as [ [γ p] Hγp].
-    { apply elem_of_dom. rewrite /std in Hlookup,Hdom'.
-      rewrite -Hdom. rewrite elem_of_dom; eauto.
-    }
+    { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom; eauto. }
     iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].
     iDestruct (big_sepM_delete _ _ a with "Hr") as "[Hstate Hr]";[rewrite lookup_delete_ne; eauto|].
     iDestruct "Hstate" as (ρ Ha) "[Hρ Hstate]".
     iDestruct (sts_full_state_std with "Hsts Hρ") as %Hx''; simplify_eq.
-    all: rewrite Hlookup in Hx'';inversion Hx'';subst.
     all: iDestruct "Hstate" as (γpred p' φ Heq Hpers) "(#Hsaved & Ha)".
     all: iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     all: iDestruct (big_sepM_delete _ _ a with "[Hρ Ha HmonoV Hφ $Hr]") as "Hr";[rewrite lookup_delete_ne; eauto| |].
@@ -1046,14 +1044,11 @@ Section heap.
     rewrite open_region_many_eq /open_region_many_def.
     iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
     assert (is_Some (M !! a)) as [ [γ p] Hγp].
-    { apply elem_of_dom. rewrite /std in Hlookup,Hdom'.
-      rewrite -Hdom. rewrite elem_of_dom; eauto.
-    }
+    { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom; eauto. }
     iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].
     iDestruct (big_sepM_delete _ _ a with "Hr") as "[Hstate Hr]";[rewrite lookup_delete_list_notin; eauto|].
     iDestruct "Hstate" as (ρ Ha) "[Hρ Hstate]".
     iDestruct (sts_full_state_std with "Hsts Hρ") as %Hx''; simplify_eq.
-    all: rewrite Hlookup in Hx'';inversion Hx'';subst.
     all: iDestruct "Hstate" as (γpred p' φ Heq Hpers) "(#Hsaved & Ha)".
     all: iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     all: iDestruct (big_sepM_delete _ _ a with "[Hρ Ha HmonoV Hφ $Hr]") as "Hr"
@@ -1305,7 +1300,7 @@ Section heap.
       iMod ("IH" with "[] [] Hfull Hr") as (Mρ' Hdom_new) "[Hfull Hr]"; auto.
       { iPureIntro. intros a Ha. apply Hin. apply elem_of_cons. by right. }
       rewrite /revoke_list /=.
-      destruct W as [Wstd_sta Wloc].
+      destruct W as [ [Wstd_sta Wloc] Wfrm].
       destruct (Wstd_sta !! x) eqn:Hsome;[|iExists _; cbn; rewrite Hsome ; by iFrame "%∗"].
       destruct r;[|iExists _; cbn; rewrite Hsome; by iFrame..].
       destruct Hin with x as [γp Hsomea];[apply elem_of_list_here|].
@@ -1409,7 +1404,7 @@ Section heap.
     iDestruct (monotone_revoke_region_def with "[] [$HW] [$Hpreds]") as "[Hpreds HW]"; auto.
     iModIntro. iFrame.
     iPureIntro.
-    rewrite /std /revoke in Hdom |- *.
+    rewrite /revoke in Hdom |- *.
     repeat (split;auto).
     by rewrite -revoke_dom_eq.
   Qed.
@@ -1437,13 +1432,13 @@ Section heap.
     iDestruct (monotone_revoke_region_def with "[] [$HW] [$Hpreds]") as "[Hpreds HW]"; auto.
     iModIntro. iFrame. iSplitR.
     - iPureIntro.
-      rewrite /std /revoke in Hdom |- *.
+      rewrite /revoke in Hdom |- *.
       repeat (split;auto).
       by rewrite -revoke_dom_eq.
     - iApply big_sepL_sep. iFrame. iApply big_sepL_forall. iPureIntro.
       revert Htemps. rewrite (Forall_lookup _ l). intros Hl i a Ha; auto.
       specialize (Hl i a Ha).
-      rewrite /std /revoke in Hdom, Hl |- *.
+      rewrite /revoke in Hdom, Hl |- *.
       by apply revoke_lookup_Monotemp.
   Qed.
 
@@ -1470,13 +1465,13 @@ Section heap.
     iDestruct (monotone_revoke_region_def with "[] [$HW] [$Hpreds]") as "[Hpreds HW]"; auto.
     iModIntro. iFrame. iSplitR.
     - iPureIntro.
-      rewrite /std /revoke in Hdom |- *.
+      rewrite /revoke in Hdom |- *.
       repeat (split;auto).
       by rewrite -revoke_dom_eq.
     - iApply big_sepL_sep. iFrame. iApply big_sepL_forall. iPureIntro.
       revert Htemps. rewrite (Forall_lookup _ l). intros Hl i a Ha; auto.
       specialize (Hl i a Ha).
-      rewrite /std /revoke in Hdom, Hl |- *.
+      rewrite /revoke in Hdom, Hl |- *.
       by apply revoke_lookup_Monotemp.
   Qed.
 
@@ -1531,7 +1526,7 @@ Section heap.
   Lemma extract_temps W :
     ∃ l, NoDup l ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ l).
   Proof.
-    destruct W as [Wstd_sta Wloc].
+    destruct W as [ [Wstd_sta Wloc] Wfrm].
     induction Wstd_sta using (map_ind (M:=gmap Addr) (A:=region_type)).
     - exists []. split;[by apply NoDup_nil|]. intros a. split; intros Hcontr; inversion Hcontr.
     - destruct IHWstd_sta as [l [Hdup Hiff] ].
@@ -1601,7 +1596,7 @@ Section heap.
                end
     end.
   Definition close_list_std_sta (l : list Addr) (fs : STS_STD) : STS_STD := conditional_close_list_std_sta Revoked l fs.
-  Definition close_list (l : list Addr) (W : WORLD) : WORLD := (close_list_std_sta l (std W), loc W).
+  Definition close_list (l : list Addr) (W : WORLD) : WORLD := (close_list_std_sta l (std W), cus W, frm W).
 
   Lemma conditional_close_list_std_sta_is_Some Wstd_sta ρ l i :
     is_Some (Wstd_sta !! i) <-> is_Some (conditional_close_list_std_sta ρ l Wstd_sta !! i).
@@ -1729,13 +1724,13 @@ Section heap.
 
   Lemma close_list_related_sts_pub_cons_world W a l :
     related_sts_pub_world W (close_list l W) →
-    related_sts_pub_world W (close_list_std_sta (a :: l) (std W), loc W).
+    related_sts_pub_world W (close_list_std_sta (a :: l) (std W), cus W, frm W).
   Proof.
     rewrite /close_list /close_list_std_sta /=. intros IHl.
     destruct (std W !! a) eqn:Hsome; eauto.
     destruct r;simpl;auto.
     apply related_sts_pub_trans_world with (close_list l W); auto.
-    split;[|apply related_sts_pub_refl].
+    split;[split|];[|apply related_sts_pub_refl|apply related_tframe_pub_refl].
     split.
     + simpl. rewrite dom_insert /close_list /=.
       apply union_subseteq_r.
@@ -1758,18 +1753,18 @@ Section heap.
     related_sts_pub_world W (close_list l W).
   Proof.
     induction l.
-    - rewrite /close_list /=. destruct W. apply related_sts_pub_refl_world.
+    - rewrite /close_list /=. destruct W as [ [] ]. apply related_sts_pub_refl_world.
     - apply close_list_related_sts_pub_cons_world; auto.
   Qed.
 
-  Lemma close_list_related_sts_pub_insert' Wstd_sta Wloc i l :
+  Lemma close_list_related_sts_pub_insert' Wstd_sta Wloc Wfrm i l :
     i ∉ l → Wstd_sta !! i = Some Revoked ->
     related_sts_pub_world
-      (close_list_std_sta l ((std (Wstd_sta,Wloc))), Wloc)
-      (<[i:=Temporary]> (close_list_std_sta l Wstd_sta), Wloc).
+      (close_list_std_sta l ((std (Wstd_sta,Wloc,Wfrm))), Wloc, Wfrm)
+      (<[i:=Temporary]> (close_list_std_sta l Wstd_sta), Wloc, Wfrm).
   Proof.
     intros Hnin Hlookup.
-    split;[|apply related_sts_pub_refl]; simpl.
+    split;[split|];[|apply related_sts_pub_refl|apply related_tframe_pub_refl]; simpl.
     split;auto.
     + apply elem_of_subseteq. intros j Hj.
       rewrite dom_insert_L. apply elem_of_union. right.
@@ -1782,14 +1777,14 @@ Section heap.
       * rewrite lookup_insert_ne in Hy; auto. rewrite Hx in Hy. inversion Hy. left.
   Qed.
 
-  Lemma close_list_related_sts_pub_insert Wstd_sta Wloc i l :
+  Lemma close_list_related_sts_pub_insert Wstd_sta Wloc Wfrm i l :
     i ∉ l → Wstd_sta !! i = Some Revoked ->
     related_sts_pub_world
-      (Wstd_sta, Wloc)
-      (<[i:= Temporary]> (close_list_std_sta l Wstd_sta), Wloc).
+      (Wstd_sta, Wloc, Wfrm)
+      (<[i:= Temporary]> (close_list_std_sta l Wstd_sta), Wloc, Wfrm).
   Proof.
     intros Hnin Hlookup.
-    apply related_sts_pub_trans_world with (close_list_std_sta l ((std (Wstd_sta, Wloc))), Wloc).
+    apply related_sts_pub_trans_world with (close_list_std_sta l ((std (Wstd_sta, Wloc, Wfrm))), Wloc, Wfrm).
     - apply close_list_related_sts_pub.
     - apply close_list_related_sts_pub_insert'; auto.
   Qed.
@@ -1849,7 +1844,7 @@ Section heap.
   Lemma close_list_empty W : (close_list [] W) = W.
   Proof.
     rewrite /close_list.
-    by rewrite -surjective_pairing.
+    by destruct W as [ [] ]; rewrite -surjective_pairing.
   Qed.
 
   (* The following closes resources that are valid in the current world *)
@@ -1880,8 +1875,7 @@ Section heap.
     - iFrame. rewrite close_list_empty. iFrame; done.
     - apply NoDup_cons in Hdup as [Hdup Hnin].
       iDestruct "Hl" as "[ [Hx #[Hrel %Hrev] ] Hl]".
-      rewrite /std in Hrev.
-      rewrite /close_list /close_list_std_sta region_eq /region_def /std /=.
+      rewrite /close_list /close_list_std_sta region_eq /region_def /=.
       iMod ("IH" $! Hnin with "Hl Hfull Hr") as "(Hfull & Hr)"; auto.
       iClear "IH".
       iDestruct "Hx" as (a HO) "(Hx & #HmonoV & Hφ)".
@@ -2027,7 +2021,7 @@ Section heap.
               iPureIntro; apply related_sts_pub_priv_world; auto.
         }
         iFrame.
-        rewrite -!HMeq /std /std_update /=.
+        rewrite -!HMeq /std_update /=.
         iFrame.
         iModIntro.
         repeat (iSplit; auto).
@@ -2051,7 +2045,7 @@ Section heap.
     assert (related_sts_pub_world W' (close_list l W')) as Hrelated'.
     { apply close_list_related_sts_pub; auto. }
     assert (dom (std W') = dom (std (close_list l W'))) as Heq.
-    { rewrite /std /close_list.
+    { rewrite /close_list.
       apply close_list_dom_eq. }
     iDestruct (region_monotone with "Hr") as "Hr";[apply Heq|apply Hrelated'| ].
     iMod (close_list_consolidate _ _ _ l with "[] [] [$Hr $Hsts $Htemp]") as "[Hsts Hr]";[auto|eauto|iFrame;done].
@@ -2075,7 +2069,6 @@ Section heap.
     iIntros (Hrev HpO) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)".
-    rewrite /std in Hdom,Hrev.
     rewrite rel_eq /rel_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
     iDestruct (reg_in C M with "[$Hγrel $HREL]") as %HMeq; eauto.
     rewrite /region_map_def HMeq big_sepM_insert; [|by rewrite lookup_delete].
@@ -2103,7 +2096,7 @@ Section heap.
     iFrame "∗%".
     iModIntro.
     rewrite HMeq insert_delete_insert.
-    rewrite /std /std_update /=.
+    rewrite /std_update /=.
     iSplit ; eauto.
     - repeat rewrite dom_insert_L;rewrite Hdom;set_solver.
     - repeat rewrite dom_insert_L;rewrite Hdom';set_solver.
@@ -2122,7 +2115,7 @@ Section heap.
   Proof.
     iIntros (Hrevoked Hdom Hstd Hrelated) "Hfull Hr".
     rewrite /revoke in Hdom |- *.
-    destruct W as [Wstd_sta Wloc].
+    destruct W as [ [Wstd_sta Wloc] Wfrm].
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
     iDestruct (big_sepM2_sep with "Hr") as "[Hstates Hr]".
@@ -2182,7 +2175,7 @@ Section heap.
      intros Hne Hne'.
      induction l; auto; simpl.
      rewrite IHl.
-     rewrite /std_update /revoke /loc /std /=. repeat f_equiv.
+     rewrite /std_update /revoke /=. repeat f_equiv.
      eapply (map_leibniz (M:=gmap Addr) (A:=region_type)). intros i. eapply leibniz_equiv_iff.
      destruct (decide (a = i)).
      - subst. rewrite lookup_insert revoke_monotone_lookup_same;rewrite lookup_insert; auto.

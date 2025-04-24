@@ -1,4 +1,4 @@
-From iris.algebra Require Import gmap agree auth.
+From iris.algebra Require Import gmap agree auth excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine Require Export region_invariants_definitions.
@@ -22,7 +22,7 @@ Class heapGpreS Σ {Cname : CmptNameG} := HeapGpreS {
   heapPreG_invPreG : invGpreS Σ;
   heapPreG_saved_pred ::
     savedPredG Σ (
-      ((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
+      ((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
         CmptName *
         Word);
   heapPreG_rel :: inG Σ (authR relUR);
@@ -31,7 +31,7 @@ Class heapGpreS Σ {Cname : CmptNameG} := HeapGpreS {
 Class heapGS Σ {Cname : CmptNameG} := HeapGS {
   heapG_saved_pred ::
     savedPredG Σ (
-      ((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
+      ((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
         CmptName *
         Word);
   heapG_rel :: inG Σ (authR relUR);
@@ -45,7 +45,7 @@ Instance subG_heapPreΣ {Σ} {Cname : CmptNameG}:
   subG heapPreΣ Σ →
   invGpreS Σ →
   subG (savedPredΣ
-          ((((STS_std_states Addr region_type) * (STS_states * STS_rels))) *
+          ((((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat)) *
         CmptName *
         Word)) Σ →
   heapGpreS Σ.
@@ -67,7 +67,7 @@ Section REL_defs.
   Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
 
   Definition rel_def (C : CmptName) (a : Addr) (p : Perm)
-    (φ : (((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
+    (φ : (((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
         CmptName *
         Word) -> iProp Σ)
     : iProp Σ :=
@@ -120,11 +120,12 @@ Section heap.
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Addr region_type Σ}
-    {heapg : heapGS Σ}
+    {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     `{MP: MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
 
   Global Instance region_type_EqDecision : EqDecision region_type :=
@@ -412,14 +413,14 @@ Section heap.
     rewrite region_eq /region_def.
     iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
     assert (is_Some (M !! a)) as [ [γ p] Hγp].
-    { apply elem_of_dom. rewrite /std in Hlookup,Hdom'.
+    { apply elem_of_dom.
       rewrite -Hdom. rewrite elem_of_dom; eauto.
     }
     iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].
     iDestruct (big_sepM_delete _ _ a with "Hr") as "[Hstate Hr]";[eauto|].
     iDestruct "Hstate" as (ρ Ha) "[Hρ Hstate]".
     iDestruct (sts_full_state_std with "Hsts Hρ") as %Hx''; simplify_eq.
-    all: rewrite Hlookup in Hx'';inversion Hx'';subst.
+    (* all: rewrite Hlookup in Hx'';inversion Hx'';subst. *)
     all: iDestruct "Hstate" as (γpred p' φ Heq Hpers) "(#Hsaved & Ha)".
     all: iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     all: iDestruct (big_sepM_delete _ _ a with "[Hρ Ha HmonoV Hφ $Hr]") as "Hr";[eauto| |].
@@ -1600,7 +1601,7 @@ Section heap.
   Proof.
     intros HWa.
     rewrite /delete_std ; cbn.
-    destruct W as [Wstd Wcus]; cbn.
+    destruct W as [[Wstd Wcus] Wfrm];cbn.
     split; cbn in *.
     - split; cbn.
       + intros i x Hx Hperma; simplify_eq.

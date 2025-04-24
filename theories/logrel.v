@@ -35,13 +35,14 @@ Section logrel.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -118,6 +119,7 @@ Section logrel.
         ∗ registers_pointsto (<[PC:=w]> regs)
         ∗ region W C
         ∗ sts_full_world W C
+        ∗ tframe_frag (frm W)
         ∗ na_own logrel_nais ⊤
           -∗ interp_conf W C)
     )%I.

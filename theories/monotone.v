@@ -9,13 +9,14 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -30,7 +31,7 @@ Section monotone.
     -> (std W') !! a = Some Permanent.
   Proof.
     intros Hrelated Hstate.
-    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
+    destruct Hrelated as [ [ [Hdom_sta Hrelated ] _ ] _]. simpl in *.
     assert (is_Some ((std W') !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated a Permanent y Hstate Hy).
@@ -43,7 +44,7 @@ Section monotone.
     -> (std W') !! a = Some Temporary.
   Proof.
     intros Hrelated Hstate.
-    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
+    destruct Hrelated as [ [ [Hdom_sta Hrelated ] _ ] _]. simpl in *.
     assert (is_Some ((std W') !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Temporary y Hstate Hy).
@@ -142,10 +143,10 @@ Section monotone.
     (std W') !! a = Some Temporary ∨
     (std W') !! a = Some Permanent.
   Proof.
-    rewrite /region_state_pwl /std.
+    rewrite /region_state_pwl.
     intros Hrelated Hstate.
-    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
-    assert (is_Some (W'.1 !! a)) as [y Hy].
+    destruct Hrelated as [ [ [Hdom_sta Hrelated ] _ ] _]. simpl in *.
+    assert (is_Some (std W' !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom ;eauto. }
     specialize (Hrelated _ Revoked y Hstate Hy).
     apply std_rel_pub_rtc_Revoked in Hrelated; auto.

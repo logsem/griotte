@@ -133,13 +133,13 @@ Proof.
     + simpl in HH. eapply IHl; eauto.
 Qed.
 
-Lemma disjoint_nil_l {A : Type} `{EqDecision A} (a : A) (l2 : list A) :
+Lemma disjoint_nil_l {A : Type} `{EqDecision A} (l2 : list A) :
   [] ## l2.
 Proof.
   apply elem_of_disjoint. intros x Hcontr. inversion Hcontr.
 Qed.
 
-Lemma disjoint_nil_r {A : Type} `{EqDecision A} (a : A) (l2 : list A) :
+Lemma disjoint_nil_r {A : Type} `{EqDecision A} (l2 : list A) :
   l2 ## [].
 Proof.
   apply elem_of_disjoint. intros x Hl Hcontr. inversion Hcontr.

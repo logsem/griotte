@@ -9,14 +9,15 @@ Section CMDC.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {tstk_addrg : TSTK_ADDRG Σ}
+    {tframeg : TFRAMEG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
   Context {B C : CmptName}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
 
   Lemma cmdc_spec
 
@@ -37,9 +38,7 @@ Section CMDC.
     (φ : language.val cap_lang -> iProp Σ)
     (Nassert Nswitcher Nframe : namespace)
 
-    (ι_prev_B : positive) (Pframe_prev_B : iProp Σ)
-    (ι_prev_C : positive) (Pframe_prev_C : iProp Σ)
-    (a_prev : Addr)
+    (frm_init : nat)
     :
 
     let imports :=
@@ -49,8 +48,6 @@ Section CMDC.
     Nswitcher ## Nframe ->
     Nassert ## Nframe ->
     Nswitcher ## Nassert ->
-    (* ↑Nswitcher ⊆ E -> *)
-    (* ↑Nassert ⊆ E -> *)
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (WInt 0) ) ->
@@ -70,6 +67,8 @@ Section CMDC.
      The revoked world allow me to close the stack invariant (i.e., private transitions) *)
     revoke_condition W_init_B ->
     revoke_condition W_init_C ->
+    (frm W_init_B) = frm_init ->
+    (frm W_init_C) = frm_init ->
 
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
@@ -91,28 +90,10 @@ Section CMDC.
       ∗ region W_init_B B ∗ sts_full_world W_init_B B
       ∗ region W_init_C C ∗ sts_full_world W_init_C C
 
+      ∗ tframe_frag frm_init
+
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
-
-      (* information about the previous frame for B *)
-      ∗ ⌜ (loc1 W_init_B) !! ι_prev_B = Some (encode false) ⌝
-      ∗ ⌜ (loc2 W_init_B) !! ι_prev_B = Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub , convert_rel frame_rel_priv)  ⌝
-      ∗ na_inv logrel_nais (Nframe.@ι_prev_B) (frame_inv B ι_prev_B Pframe_prev_B a_prev)
-
-      (* information about the previous frame for C *)
-      ∗ ⌜ (loc1 W_init_C) !! ι_prev_C = Some (encode false) ⌝
-      ∗ ⌜ (loc2 W_init_C) !! ι_prev_C = Some (convert_rel frame_rel_pub, convert_rel frame_rel_pub , convert_rel frame_rel_priv)  ⌝
-      ∗ na_inv logrel_nais (Nframe.@ι_prev_C) (frame_inv C ι_prev_C Pframe_prev_C a_prev)
-
-      (* TODO considering that, in this case,
-         I have the tstk_addr_frag resource, because I CANNOT have it in both ι_prev_X,
-         maybe the switcher's spec can just have it passed directly *)
-
-      (* Both stack invariants are open, therefore, we have access to both frames and the token.
-         That way, we can pass the token to the right invariant when calling each compartment. *)
-      ∗ Pframe_prev_B
-      ∗ Pframe_prev_C
-      ∗ tstk_addr_frag a_prev
 
       (* initial stack are revoked in both worlds *)
       ∗ ([∗ list] a ∈ (finz.seq_between csp_b csp_e), rel B a RWL interpC ∗ ⌜ std W_init_B !! a = Some Revoked ⌝ )
@@ -124,16 +105,15 @@ Section CMDC.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_frame HNassert_frame HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c Hlen_stack Hrevoke_cond_B Hrevoke_cond_C)
+               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c Hlen_stack
+               Hrevoke_cond_B Hrevoke_cond_C Hfrm_B_init Hfrm_C_init)
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & HWreg_B & HWstd_full_B
       & HWreg_C & HWstd_full_C
+      & Htframe_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
-      & %HιB_loc & %HιB_rel & #HιB_inv
-      & %HιC_loc & %HιC_rel & #HιC_inv
-      & HPframeB & HPframeC &Htstk_addr_frag
       & Hrel_stk_B & Hrel_stk_C
       & Hφ)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
@@ -202,9 +182,6 @@ Section CMDC.
     (* --------------------------------------------------- *)
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
-
-    iMod (na_inv_acc with "HιB_inv Hna")
-      as "(HιB_inv_open & Hna & Hclose_ιB_inv)" ; auto.
 
     (* --------------------------------------------------- *)
     (* ----------------- BLOCK 0 : INIT ------------------ *)
@@ -307,16 +284,12 @@ Section CMDC.
 
     set (rmap' := (delete ca5 _)).
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_b]") as "%Hcgp_b_stk".
-
-    iDestruct "HιB_inv_open" as (ιB_loc) "[HιB_loc _]".
-    iDestruct (sts_full_state_loc with "[$HWstd_full_B] [$HιB_loc]") as "%HιB'".
-    rewrite HιB_loc in HιB'; simplify_eq.
-    iDestruct (sts_update_loc _ _ _ _ true with "[$HWstd_full_B] [$HιB_loc]") as ">[HWstd_full_B HιB_loc]".
-    iMod ("Hclose_ιB_inv" with "[$HιB_loc $Htstk_addr_frag $HPframeB $Hna]") as "Hna".
-    iMod (update_region_revoked_update_loc with "[$] [$]") as "[HWreg_B HWstd_full_B]".
-    { done. }
-    { by cbn. }
-    { admit. (* NOTE by definition of HιB_sts *) }
+    assert ( cgp_b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_b_stk'.
+    { clear -Hcgp_b_stk.
+      apply not_elem_of_finz_seq_between.
+      apply not_elem_of_finz_seq_between in Hcgp_b_stk.
+      destruct Hcgp_b_stk; [left|right]; solve_addr.
+    }
 
     iMod (extend_region_perm _ _ _ _ _ RW interpC
         with "[] [$HWstd_full_B] [$HWreg_B] [$Hcgp_b] []")
@@ -327,15 +300,46 @@ Section CMDC.
     { cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
     (* Update the frame invariant of B *)
-    set (W1 := (<s[cgp_b:=Permanent]s>(<l[ι_prev_B:=true]l>W_init_B))).
-    set (W1' :=
-           (std_update_multiple
-              (frame_W (std_update_multiple (<l[ι_prev_B:=encode false]l>(revoke W1)) (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary)) []
-              Temporary)).
-    assert (related_sts_priv_world W_init_B W1') as HWinit_privB_W1.
-    { subst W1' W1.
-      admit.
-      (* by eapply related_sts_priv_world_fresh_Permanent. } *)
+    set (W1 := (<s[cgp_b:=Permanent]s>W_init_B)).
+    set (W1' := switcher_world_upon_jmp W1 [] (finz.seq_between (csp_b ^+ 4)%a csp_e) ).
+    assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1.
+    { subst W1.
+      by eapply related_sts_priv_world_fresh_Permanent.
+    }
+    iAssert ( ⌜ Forall (fun a => std W_init_B !! a = Some Revoked) (finz.seq_between csp_b csp_e) ⌝ )%I
+      as "%Hrevoked_stack_B".
+    {
+      iDestruct (big_sepL_sep with "Hrel_stk_B") as "[ _ %Hstk ]".
+      iPureIntro.
+      apply Forall_forall.
+      intros a Ha.
+      rewrite elem_of_list_lookup in Ha.
+      destruct Ha as [? Ha].
+      eapply Hstk; eauto.
+    }
+    assert (Forall (fun a => std W1 !! a = Some Revoked) (finz.seq_between csp_b csp_e) ).
+    { eapply Forall_forall; eauto.
+      intros a Ha; cbn in *.
+      rewrite lookup_insert_ne; last (intros ->; set_solver+Hcgp_b_stk Ha).
+      rewrite elem_of_list_lookup in Ha.
+      destruct Ha as [? Ha].
+      eapply Forall_lookup_1 in Hrevoked_stack_B; eauto.
+    }
+    assert (Forall (fun a => std W1 !! a = Some Revoked) (finz.seq_between (csp_b ^+ 4)%a csp_e) ).
+    {
+      apply Forall_forall.
+      intros a Ha.
+      eapply Forall_forall in H1; eauto.
+      apply elem_of_finz_seq_between.
+      apply elem_of_finz_seq_between in Ha.
+      solve_addr.
+    }
+
+    assert (related_sts_priv_world W_init_B W1') as HWinit_privB_W1'.
+    { subst W1'.
+      eapply related_sts_priv_trans_world; eauto.
+      eapply related_sts_priv_world_switcher_upon_jmp ; eauto.
+      apply disjoint_nil_l.
     }
 
     iAssert (interp W1' B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
@@ -357,30 +361,12 @@ Section CMDC.
       subst W1' W1.
       iSplit.
       + iApply (monoReq_interp _ _ _ _  Permanent); last done.
-        rewrite /std_update /std frame_W_lookup_std.
-        rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
-        { rewrite (finz_seq_between_split _ (csp_b ^+ 4)%a) in Hcgp_b_stk.
-          + rewrite not_elem_of_app in Hcgp_b_stk; naive_solver.
-          + split;try solve_addr.
-            admit.
-            (* TODO should probably be an hypothesis?
-               Does the previous works if this doesn't hold?
-               I think it does. *)
-        }
-        cbn.
+        rewrite /std_update frame_W_lookup_std.
+        rewrite std_sta_update_multiple_lookup_same_i; last done.
         apply revoke_lookup_Perm.
         by rewrite lookup_insert.
       + iPureIntro.
-        rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
-        { rewrite (finz_seq_between_split _ (csp_b ^+ 4)%a) in Hcgp_b_stk.
-          + rewrite not_elem_of_app in Hcgp_b_stk; naive_solver.
-          + split;try solve_addr.
-            admit.
-            (* TODO should probably be an hypothesis?
-               Does the previous works if this doesn't hold?
-               I think it does. *)
-        }
-        cbn.
+        rewrite std_sta_update_multiple_lookup_same_i; last done.
         apply revoke_lookup_Perm.
         by rewrite lookup_insert.
     }
@@ -407,20 +393,17 @@ Section CMDC.
       by eexists.
     }
 
+    replace frm_init with (frm W1).
     iApply (switcher_cc_specification _ _ W1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ [] [] with
-             "[- $Hswitcher $Hna $HιB_inv
+             "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hct1 $Hrmap_arg $Hrmap
-              $Hcsp_stk $HWreg_B $HWstd_full_B $Hrel_stk_B
-              $Hinterp_W1_B_f]"); auto.
+              $Hcsp_stk $HWreg_B $HWstd_full_B $Hrel_stk_B $Htframe_frag
+              $Hinterp_W1_B_f]"); eauto.
     { set_solver. }
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hrmap_dom; set_solver.
     }
-    iSplit; first iPureIntro.
-    { by subst W1; cbn; rewrite lookup_insert. }
-    iSplit; first iPureIntro.
-    { by subst W1; cbn. }
     iSplit; first done.
     iSplitR.
     { iIntros "(Hregion & Hworld & _)".
@@ -431,12 +414,18 @@ Section CMDC.
     iIntros "H".
     iDestruct "H"
       as (W2_B rmap') "(%HW1_pubB_W2 & %Hdom_rmap'
-                      & Hna & HWreg_B & HWstd_full_B & Hrel_stk_B
+                      & Hna & HWreg_B & HWstd_full_B & Htframe_frag & Hrel_stk_B
                       & HPC & Hcgp & Hcra & Hcsp & Hca0 & Hca1
                       & Hrmap & _ & Hcsp_stk)".
     iDestruct "Hca0" as (warg0) "Hca0".
     iDestruct "Hca1" as (warg1) "Hca1".
     iEval (cbn) in "HPC".
+    replace (frm W2_B) with frm_init.
+    2: { destruct HW1_pubB_W2 as [ [_ _] HW1_pubB_W2].
+         rewrite /related_tframe_pub in HW1_pubB_W2.
+         rewrite -HW1_pubB_W2.
+         done.
+    }
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
@@ -514,11 +503,6 @@ Section CMDC.
     (* --------------------------------------------------- *)
     (* --------------- BLOCK 5: PREP CALL ---------------- *)
     (* --------------------------------------------------- *)
-    iMod (na_inv_acc with "HιC_inv Hna")
-      as "(HιC_inv_open & Hna & Hclose_ιC_inv)" ; auto.
-    iMod (na_inv_acc with "HιB_inv Hna")
-      as "(HιB_inv_open & Hna & Hclose_ιB_inv)" ; auto.
-    { admit. (* NOTE assumption *) }
 
     set (cgp_c := (cgp_b ^+ 1)%a).
     focus_block 5 "Hcode_main" as a_prepC Ha_prepC "Hcode" "Hcont"; iHide "Hcont" as hcont.
@@ -534,26 +518,14 @@ Section CMDC.
     { eapply monotone.region_state_pub_perm in HW1_pubB_W2; eauto.
       subst W1.
       (* TODO lemma *)
-      rewrite /std_update /std.
+      rewrite /std_update.
       rewrite !lookup_insert; done.
     }
 
-    (* We revoke the world in order to get access to the tstk_address_frag *)
-    opose proof ( extract_temps W2_B ) as (ltemp_unknown_W2_B & HNoDup_unk_W2_B & W2_temps_B).
-    iMod ( monotone_revoke_keep _ B ltemp_unknown_W2_B with "[$HWstd_full_B $HWreg_B]")
-      as "(HWstd_full_B & HWreg_B & Htemp_unknown_W2_B)".
-    { by cbn. }
-    { iPureIntro.
-      intros k' a' Hk'; cbn.
-      apply W2_temps_B.
-      apply elem_of_list_lookup.
-      by eexists.
-    }
     (* we open the world to get the points-to predicate *)
     iDestruct (region_open with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]")
       as (wcgp_b) "(HWreg_B & HWsts_full_B & HWstd_full_B & Hcpg_b & _ & HmonoR & #Hinterp_wcpgb)"
     ; auto.
-    { cbn; apply revoke_lookup_Perm; auto. }
     destruct (decide (Permanent = Temporary ∧ isWL RW = true)) as [ [? ?] | _ ]; first congruence.
 
     (* Store cgp 42%Z *)
@@ -652,26 +624,12 @@ Section CMDC.
 
     set (rmap'' := (delete ca5 _)).
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_c]") as "%Hcgp_c_stk".
-
-    (* we do a private transition in B to transfer tstk_address_frag in C *)
-    iDestruct "HιB_inv_open" as (ιB_state) "[HιB_loc HιB_Pframe]".
-    iDestruct (sts_full_state_loc with "[$] [$]") as "%HιB_state'".
-    cbn in HιB_state'.
-    assert ( ιB_state = true ) as ->.
-    { admit. (* NOTE from HW1_pubB_W2, *) }
-    iDestruct "HιB_Pframe" as "[HιB_Pframe Htstk_addr_frag]".
-    iDestruct (sts_update_loc _ _ _ _ false with "[$HWsts_full_B] [$HιB_loc]") as ">[HWsts_full_B HιB_loc]".
-    iMod ("Hclose_ιB_inv" with "[$HιB_loc $Hna]") as "Hna".
-    (* we do a private transition in C to transfer tstk_address_frag *)
-    iDestruct "HιC_inv_open" as (ιC_loc) "[HιC_loc _]".
-    iDestruct (sts_full_state_loc with "[$HWstd_full_C] [$HιC_loc]") as "%HιC'".
-    rewrite HιC_loc in HιC'; simplify_eq.
-    iDestruct (sts_update_loc _ _ _ _ true with "[$HWstd_full_C] [$HιC_loc]") as ">[HWstd_full_C HιC_loc]".
-    iMod ("Hclose_ιC_inv" with "[$HιC_loc $Htstk_addr_frag $HPframeC $Hna]") as "Hna".
-    iMod (update_region_revoked_update_loc with "[$] [$]") as "[HWreg_C HWstd_full_C]".
-    { done. }
-    { by cbn. }
-    { admit. (* NOTE by definition of HιB_sts *) }
+    assert ( cgp_c ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_c_stk'.
+    { clear -Hcgp_c_stk.
+      apply not_elem_of_finz_seq_between.
+      apply not_elem_of_finz_seq_between in Hcgp_c_stk.
+      destruct Hcgp_c_stk; [left|right]; solve_addr.
+    }
 
     (* We add the newly shared address in the world of C *)
     iMod (extend_region_perm _ _ _ _ _ RW interpC
@@ -682,15 +640,45 @@ Section CMDC.
     { iApply future_priv_mono_interp_z. }
     { cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
-    set (W3 := (<s[cgp_c:=Permanent]s>(<l[ι_prev_C:=true]l>W_init_C))).
-    set (W3' :=
-           (std_update_multiple
-              (frame_W (std_update_multiple (<l[ι_prev_C:=encode false]l>(revoke W3)) (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary)) []
-              Temporary)).
-    assert (related_sts_priv_world W_init_C W3') as HWinit_privC_W3.
-    { subst W3' W3.
-      admit.
-      (* by eapply related_sts_priv_world_fresh_Permanent. } *)
+    set (W3 := (<s[cgp_c:=Permanent]s>W_init_C)).
+    set (W3' := switcher_world_upon_jmp W3 [] (finz.seq_between (csp_b ^+ 4)%a csp_e) ).
+    assert (related_sts_priv_world W_init_C W3) as HWinit_privC_W3.
+    { subst W3.
+      by eapply related_sts_priv_world_fresh_Permanent.
+    }
+    iAssert ( ⌜ Forall (fun a => std W_init_C !! a = Some Revoked) (finz.seq_between csp_b csp_e) ⌝ )%I
+      as "%Hrevoked_stack_C".
+    {
+      iDestruct (big_sepL_sep with "Hrel_stk_C") as "[ _ %Hstk ]".
+      iPureIntro.
+      apply Forall_forall.
+      intros a Ha.
+      rewrite elem_of_list_lookup in Ha.
+      destruct Ha as [? Ha].
+      eapply Hstk; eauto.
+    }
+    assert (Forall (fun a => std W3 !! a = Some Revoked) (finz.seq_between csp_b csp_e) ).
+    { eapply Forall_forall; eauto.
+      intros a Ha; cbn in *.
+      rewrite lookup_insert_ne; last (intros ->; set_solver+Hcgp_b_stk Ha).
+      rewrite elem_of_list_lookup in Ha.
+      destruct Ha as [? Ha].
+      eapply Forall_lookup_1 in Hrevoked_stack_C; eauto.
+    }
+    assert (Forall (fun a => std W3 !! a = Some Revoked) (finz.seq_between (csp_b ^+ 4)%a csp_e) ).
+    {
+      apply Forall_forall.
+      intros a Ha.
+      eapply Forall_forall in H1; eauto.
+      apply elem_of_finz_seq_between.
+      apply elem_of_finz_seq_between in Ha.
+      solve_addr.
+    }
+    assert (related_sts_priv_world W_init_C W3') as HWinit_privC_W3'.
+    { subst W3'.
+      eapply related_sts_priv_trans_world; eauto.
+      eapply related_sts_priv_world_switcher_upon_jmp ; eauto.
+      apply disjoint_nil_l.
     }
 
     iAssert (interp W3' C (WSealed ot_switcher C_g)) as "#Hinterp_W3_C_g".
@@ -713,13 +701,14 @@ Section CMDC.
       subst W3.
       iSplit.
       + iApply (monoReq_interp _ _ _ _  Permanent); last done.
-        rewrite /std_update /std.
-        admit.
-        (* rewrite !lookup_insert; done. *)
+        rewrite /std_update frame_W_lookup_std.
+        rewrite std_sta_update_multiple_lookup_same_i; last done.
+        apply revoke_lookup_Perm.
+        by rewrite lookup_insert.
       + iPureIntro.
-        rewrite /std_update /std.
-        admit.
-        (* rewrite !lookup_insert; done. *)
+        rewrite std_sta_update_multiple_lookup_same_i; last done.
+        apply revoke_lookup_Perm.
+        by rewrite lookup_insert.
     }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W3' C warg )%I
@@ -744,20 +733,17 @@ Section CMDC.
       by eexists.
     }
 
+    replace frm_init with (frm W3).
     iApply (switcher_cc_specification _ _ W3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ [] [] with
-             "[- $Hswitcher $Hna $HιC_inv
+             "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hct1 $Hrmap_arg $Hrmap
-              $Hcsp_stk $HWreg_C $HWstd_full_C $Hrel_stk_C
-              $Hinterp_W3_C_g]"); auto.
+              $Hcsp_stk $HWreg_C $HWstd_full_C $Hrel_stk_C $Htframe_frag
+              $Hinterp_W3_C_g]"); eauto.
     { set_solver. }
     { subst rmap''.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hdom_rmap'; set_solver.
     }
-    iSplit; first iPureIntro.
-    { by subst W3; cbn; rewrite lookup_insert. }
-    iSplit; first iPureIntro.
-    { by subst W3; cbn. }
     iSplit; first done.
     iSplitR.
     { iIntros "(Hregion & Hworld & _)".
@@ -767,7 +753,7 @@ Section CMDC.
     iIntros "H".
     iDestruct "H"
       as (W4_C rmap'') "(%HW1_pubB_W4 & %Hdom_rmap''
-                      & Hna & HWreg_C & HWstd_full_C &Hrel_stk_C
+                      & Hna & HWreg_C & HWstd_full_C & Htframe_frag & Hrel_stk_C
                       & HPC & Hcgp & Hcra & Hcsp & Hca0 & Hca1
                       & Hrmap & _ & Hcsp_stk)".
     iDestruct "Hca0" as (warg0') "Hca0".
