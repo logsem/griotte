@@ -36,7 +36,7 @@ Section CMDC.
     (csp_content : list Word)
 
     (φ : language.val cap_lang -> iProp Σ)
-    (Nassert Nswitcher Nframe : namespace)
+    (Nassert Nswitcher : namespace)
 
     (frm_init : nat)
     :
@@ -45,8 +45,6 @@ Section CMDC.
      cmdc_main_imports b_switcher e_switcher a_cc_switcher ot_switcher b_assert e_assert B_f C_g
     in
 
-    Nswitcher ## Nframe ->
-    Nassert ## Nframe ->
     Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
@@ -58,8 +56,6 @@ Section CMDC.
 
     cgp_b ∉ dom (std W_init_B) ->
     (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
-
-    length csp_content = finz.dist csp_b csp_e ->
 
     (* we suppose that for each initial world, there is no Temporary *)
     (* NOTE: this is solely because I don't want to bother revoking the worlds myself in the proof,
@@ -104,8 +100,8 @@ Section CMDC.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_frame HNassert_frame HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c Hlen_stack
+    iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
                Hrevoke_cond_B Hrevoke_cond_C Hfrm_B_init Hfrm_C_init)
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
@@ -117,6 +113,7 @@ Section CMDC.
       & Hrel_stk_B & Hrel_stk_C
       & Hφ)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
+    iDestruct (big_sepL2_length with "Hcsp_stk") as "%Hlen_stack".
 
     (* TODO tactic for extracting register.... *)
     (* --- Extract registers ca0 ctp ct0 ct1 cs0 cs1 cra --- *)
@@ -660,7 +657,7 @@ Section CMDC.
     assert (Forall (fun a => std W3 !! a = Some Revoked) (finz.seq_between csp_b csp_e) ).
     { eapply Forall_forall; eauto.
       intros a Ha; cbn in *.
-      rewrite lookup_insert_ne; last (intros ->; set_solver+Hcgp_b_stk Ha).
+      rewrite lookup_insert_ne; last (intros ->; set_solver+Hcgp_c_stk Ha).
       rewrite elem_of_list_lookup in Ha.
       destruct Ha as [? Ha].
       eapply Forall_lookup_1 in Hrevoked_stack_C; eauto.
@@ -669,7 +666,7 @@ Section CMDC.
     {
       apply Forall_forall.
       intros a Ha.
-      eapply Forall_forall in H1; eauto.
+      eapply Forall_forall in H3; eauto.
       apply elem_of_finz_seq_between.
       apply elem_of_finz_seq_between in Ha.
       solve_addr.
@@ -851,7 +848,7 @@ Section CMDC.
     (csp_b csp_e : Addr)
     (rmap : Reg)
 
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
+    (b_switcher e_switcher a_cc_switcher b_tstk e_tstk : Addr) (ot_switcher : OType)
     (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f C_g : Sealable)
 
@@ -862,15 +859,15 @@ Section CMDC.
 
     (φ : language.val cap_lang -> iProp Σ)
     (Nassert Nswitcher : namespace)
-    (E : coPset)
+
+    (frm_init : nat)
     :
 
     let imports :=
      cmdc_main_imports b_switcher e_switcher a_cc_switcher ot_switcher b_assert e_assert B_f C_g
     in
 
-    ↑Nswitcher ⊆ E ->
-    ↑Nassert ⊆ E ->
+    Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (WInt 0) ) ->
@@ -882,12 +879,15 @@ Section CMDC.
     cgp_b ∉ dom (std W_init_B) ->
     (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
 
-    length csp_content = finz.dist csp_b csp_e ->
+    revoke_condition W_init_B ->
+    revoke_condition W_init_C ->
+    (frm W_init_B) = frm_init ->
+    (frm W_init_C) = frm_init ->
 
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_cc_switcher ot_switcher)
-      ∗ na_own logrel_nais E
+      ∗ na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_cc_switcher b_tstk e_tstk ot_switcher)
+      ∗ na_own logrel_nais ⊤
 
       (* initial register file *)
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
@@ -904,30 +904,38 @@ Section CMDC.
       ∗ region W_init_B B ∗ sts_full_world W_init_B B
       ∗ region W_init_C C ∗ sts_full_world W_init_C C
 
+      ∗ tframe_frag frm_init
+
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
 
-      ∗ ▷ (
-            na_own logrel_nais E
-              -∗ WP Instr Halted {{ λ v, φ v ∨ ⌜v = FailedV⌝ }})
+      (* initial stack are revoked in both worlds *)
+      ∗ ([∗ list] a ∈ (finz.seq_between csp_b csp_e), rel B a RWL interpC ∗ ⌜ std W_init_B !! a = Some Revoked ⌝ )
+      ∗ ([∗ list] a ∈ (finz.seq_between csp_b csp_e), rel C a RWL interpC ∗ ⌜ std W_init_C !! a = Some Revoked ⌝ )
+
+      ∗ ▷ ( na_own logrel_nais ⊤
+              -∗ WP Instr Halted {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
       ⊢ WP Seq (Instr Executable) {{ λ v, True }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcherE HNassertE Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c Hlen_stack)
+    iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
+               Hrevoke_cond_B Hrevoke_cond_C Hfrm_B_init Hfrm_C_init)
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & HWreg_B & HWstd_full_B
       & HWreg_C & HWstd_full_C
+      & Htframe_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
+      & Hrel_stk_B & Hrel_stk_C
       & Hφ)".
     iApply (wp_wand with "[-]").
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
-                b_switcher e_switcher a_cc_switcher ot_switcher
+                b_switcher e_switcher a_cc_switcher _ _ ot_switcher
                 b_assert e_assert a_flag B_f C_g W_init_B W_init_C
-                csp_content φ Nassert Nswitcher E); eauto; iFrame "#∗".
+                csp_content φ Nassert Nswitcher); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".
   Qed.
