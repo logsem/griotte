@@ -183,7 +183,8 @@ Section Adequacy.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
 
   Definition flagN : namespace := nroot .@ "cmdc" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "cmdc" .@ "switcher_flag".
@@ -316,7 +317,7 @@ Section Adequacy.
     iDestruct (mkregion_prepare with "[Htrusted_stack]") as ">Htrusted_stack"; auto.
     { apply (trusted_stack_size switcher_cmpt). }
     rewrite  big_sepS_singleton.
-    iMod (seal_store_update_alloc _ ( ot_switcher_prop ) with "Hseal_store") as "#Hsealed_pred_ot_switcher".
+    iMod (seal_store_update_alloc _ ( ot_switcher_propC ) with "Hseal_store") as "#Hsealed_pred_ot_switcher".
     iAssert ( switcher_spec.switcher_inv
                (b_switcher switcher_cmpt)
                (e_switcher switcher_cmpt)
@@ -445,14 +446,92 @@ Section Adequacy.
     match goal with
     | H: _ |- context [  (sts_full_world ?W B) ] => set (Winit_B := W)
     end.
-    set (B_f := (SCap RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt))).
+    set (B_f := (SCap RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
+                   (cmpt_exp_tbl_entries_start B_cmpt))).
+
+    iEval (rewrite /cmpt_exp_tbl_mregion) in "HB_etbl".
+    iDestruct (big_sepM_union with "HB_etbl") as "[HB_etbl HB_etbl_entries]".
+    { admit. }
+    iDestruct (big_sepM_union with "HB_etbl") as "[HB_etbl_pcc HB_etbl_cgp]".
+    { admit. }
+    iDestruct (mkregion_prepare with "[HB_etbl_entries]") as ">HB_etbl_entries"; auto.
+    { apply cmpt_exp_tbl_entries_size. }
+    iDestruct (mkregion_prepare with "[HB_etbl_pcc]") as ">HB_etbl_pcc"; auto.
+    { cbn; apply cmpt_exp_tbl_pcc_size. }
+    iDestruct (mkregion_prepare with "[HB_etbl_cgp]") as ">HB_etbl_cgp"; auto.
+    { cbn; apply cmpt_exp_tbl_cgp_size. }
+    iEval (rewrite B_exp_tbl) in "HB_etbl_entries".
+    rewrite (finz_seq_between_singleton (cmpt_exp_tbl_entries_start B_cmpt)).
+    2: {
+      pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
+      by rewrite B_exp_tbl in H1; cbn in H1.
+    }
+    rewrite (finz_seq_between_singleton (cmpt_exp_tbl_pcc B_cmpt))
+    ; last (apply cmpt_exp_tbl_pcc_size).
+    rewrite (finz_seq_between_singleton (cmpt_exp_tbl_cgp B_cmpt))
+    ; last (apply cmpt_exp_tbl_cgp_size).
+    rewrite !big_sepL2_singleton.
+
+    iMod (inv_alloc (switcher_spec.export_table_PCCN B) ⊤ _
+           with "HB_etbl_pcc")%I as "#HB_etbl_pcc".
+    iMod (inv_alloc (switcher_spec.export_table_CGPN B) ⊤ _
+           with "HB_etbl_cgp")%I as "#HB_etbl_cgp".
+    iMod (inv_alloc (switcher_spec.export_table_entryN B (cmpt_exp_tbl_entries_start B_cmpt)) ⊤ _
+           with "HB_etbl_entries")%I as "#HB_etbl_entries".
+
     iAssert ( interp Winit_B B (WSealed (ot_switcher switcher_cmpt) B_f)) with
-      "[HB_etbl HB_code Hr_B HB_data Hsts_B]" as "#Hinterp_B".
+      "[HB_code Hr_B HB_data Hsts_B]" as "#Hinterp_B".
     { rewrite fixpoint_interp1_eq; iEval (cbn).
       rewrite /interp_sb.
-      
-      iExists (safeC ot_switcher_prop).
-      admit. } (* TODO we need to define what it means to be safe to share for entry point*)
+      iFrame "Hsealed_pred_ot_switcher".
+      iSplit; first (iPureIntro ; apply persistent_cond_ot_switcher).
+      iSplit; first (iIntros (w) ; iApply mono_priv_ot_switcher).
+      iSplit.
+      (* TODO make lemma for this *)
+      { iNext.
+        subst B_f.
+        iEval (cbn).
+        iExists _,_,_,
+                  (cmpt_b_pcc B_cmpt), (cmpt_e_pcc B_cmpt),
+                  (cmpt_b_cgp B_cmpt), (cmpt_e_cgp B_cmpt),
+                    1,0.
+        iFrame "#".
+        iSplit ; first (by iPureIntro).
+        iSplit.
+        { iPureIntro.
+          pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
+          pose proof (cmpt_exp_tbl_cgp_size B_cmpt) as H2.
+          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H3.
+          rewrite B_exp_tbl in H1.
+          split ; try solve_addr+H1 H2 H3.
+        }
+        iSplit.
+        { iPureIntro.
+          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as Hsize.
+          solve_addr+Hsize.
+        }
+        iSplit.
+        { iPureIntro.
+          pose proof (cmpt_exp_tbl_cgp_size B_cmpt) as H2.
+          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H3.
+          solve_addr+H2 H3.
+        }
+        iSplit; first (iPureIntro ; lia).
+        iSplit. { admit. }
+        (* TODO FIX the issue in the hypothesis:
+           initial PCC in the etbl should point to base...! not arbitrary a *)
+        iSplit. {
+          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H.
+          replace ((cmpt_exp_tbl_pcc B_cmpt ^+ 1)%a) with
+            (cmpt_exp_tbl_cgp B_cmpt) by solve_addr+H.
+          iFrame "#".
+          }
+          admit. (* TODO should be fine, because we have safe-to-share... *)
+      }
+      { admit. (* TODO idk... I supposed we don't care whether it's local or global.
+                 change in the def *)
+      }
+    }
     iClear "HB_etbl HB_code HB_data".
 
     iAssert ([∗ list] a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ,

@@ -38,8 +38,8 @@ Section Switcher.
        (∀ (wstk : Word), (⌜reg !! csp = Some wstk⌝ → interp W C wstk)) ∧
        (∀ (wret : Word), (⌜reg !! cra = Some wret⌝ → interp W C wret)) ∧
        (∀ (r : RegName) (v : Word), (⌜r ∈ dom_arg_rmap⌝ → ⌜reg !! r = Some v⌝ → interp W C v)) ∧
-       (∀ (r : RegName) (v : Word),
-          (⌜r ≠ PC⌝ → ⌜r ≠ cgp⌝  → ⌜r ∉ dom_arg_rmap⌝ →  ⌜reg !! r = Some (WInt 0)⌝)))%I.
+       (∀ (r : RegName),
+          (⌜r ∉ (dom_arg_rmap ∪ {[PC; cra; cgp; csp]})⌝ →  ⌜reg !! r = Some (WInt 0)⌝)))%I.
   Solve All Obligations with solve_proper.
 
   Program Definition execute_entry_point (wpcc wcgp : Word) (regs : Reg) : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
@@ -54,38 +54,57 @@ Section Switcher.
     )%I.
   Solve All Obligations with solve_proper.
 
-  Definition ot_switcher_prop (W : WORLD) (C : CmptName) (w : Word) : iPropO Σ :=
-    (∃ (b_tbl e_tbl a_tbl : Addr)
-       (bpcc epcc : Addr)
-       (bcgp ecgp : Addr)
-       (nargs off : Z),
-        ⌜ w = WCap RO Global b_tbl e_tbl a_tbl ⌝
-        ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
-        ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝
-        ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
-        ∗ ⌜ (0 <= nargs <= 7 )%Z ⌝
-        ∗ inv (export_table_PCCN C) ( b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc)
-        ∗ inv (export_table_CGPN C) ( (b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp)
-        ∗ inv (export_table_entryN C a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point nargs off))
-        ∗ ▷ ( ∀ regs, (execute_entry_point
-                         (WCap RX Global bpcc epcc (bpcc ^+ off)%a)
-                         (WCap RW Global bcgp ecgp bcgp)
-                         regs W C))
-    ) %I.
-
-  (* Definition ot_switcher_prop (W : WORLD) (C : CmptName) (w : Word) : iPropI Σ := *)
-  (*   (∃ (b_tbl e_tbl a_tbl : Addr), *)
-  (*       ⌜ w = WCap RO Global b_tbl e_tbl a_tbl ⌝ *)
-  (*       ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝ *)
-  (*       ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝ *)
-  (*       ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝ *)
-  (*       ∗ interp W C w *)
-  (*       ∗ rel C b_tbl RO (fun WCv => ∃ bpcc epcc apcc, ⌜ WCv.2 = WCap RX Global bpcc epcc apcc ⌝ ∗ interp W C WCv.2 ) *)
-  (*       ∗ rel C (b_tbl ^+ 1)%a RO (fun WCv => ∃ bcgp ecgp, ⌜ WCv.2 = WCap RX Global bcgp ecgp bcgp ⌝ ∗ interp W C WCv.2 ) *)
-  (*       ∗ rel C a_tbl RO (fun WCv => ∃ (nargs off : Z), ⌜ WCv.2 = WInt (encode_entry_point nargs off) ⌝ ∗ ⌜ (0 <= nargs <= 7 )%Z ⌝))%I. *)
+  Program Definition ot_switcher_prop :
+    (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
+    λne (W : WORLD) (C : CmptName) (w : Word),
+       (∃ (b_tbl e_tbl a_tbl : Addr)
+          (bpcc epcc : Addr)
+          (bcgp ecgp : Addr)
+          (nargs off : Z),
+           ⌜ w = WCap RO Global b_tbl e_tbl a_tbl ⌝
+           ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
+           ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝
+           ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
+           ∗ ⌜ (0 <= nargs <= 7 )%Z ⌝
+           ∗ inv (export_table_PCCN C) ( b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc)
+           ∗ inv (export_table_CGPN C) ( (b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp)
+           ∗ inv (export_table_entryN C a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point nargs off))
+           ∗ □ ( ∀ W' regs, ⌜related_sts_priv_world W W'⌝ →
+                   ▷ (execute_entry_point
+                            (WCap RX Global bpcc epcc (bpcc ^+ off)%a)
+                            (WCap RW Global bcgp ecgp bcgp)
+                            regs W' C))
+      )%I.
+  Solve All Obligations with solve_proper.
 
   Definition ot_switcher_propC : (WORLD * CmptName * Word) -> iPropI Σ :=
-   (λ WCv : WORLD * CmptName * Word, ot_switcher_prop WCv.1.1 WCv.1.2 WCv.2).
+    safeC ot_switcher_prop.
+
+  Lemma persistent_cond_ot_switcher :
+    persistent_cond ot_switcher_prop.
+  Proof. intros [ [] ] ; cbn ; apply _. Qed.
+
+  Lemma mono_priv_ot_switcher (C : CmptName) (w : Word) :
+    ⊢ future_priv_mono C ot_switcher_propC w.
+  Proof.
+    iIntros (W W' Hrelated_W_W').
+    iModIntro.
+    iIntros "Hot_switcher".
+    iEval (cbn) in "Hot_switcher".
+    iEval (cbn).
+    iDestruct "Hot_switcher" as
+      (b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off ->
+       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hcont)".
+    iFrame "Hinvpcc Hinvcgp Hinventry".
+    iExists _.
+    repeat (iSplit ; first done).
+    iModIntro.
+    iIntros (W'' regs Hrelated_W'_W'').
+    iSpecialize ("Hcont" $! W'' regs).
+    iApply "Hcont".
+    iPureIntro.
+    by eapply related_sts_priv_trans_world.
+  Qed.
 
   Definition switcher_inv
     (b_switcher e_switcher a_switcher_cc b_tstk e_tstk : Addr)
@@ -724,359 +743,358 @@ Section Switcher.
       ∗ na_inv logrel_nais (Nframes.@ι) (frame_inv C ι Pframe)
       -∗ interp W1 C (WSentry XSRW_ Local b_switcher e_switcher (a_jmp ^+ 1)%a)
     ).
-  (* Proof. *)
-  (*   intros stk_caller_save_area callee_stk_frm_addr W1 Hφ htemp_unknown Pframe ι *)
-  (*     HN Ha_jmp Hstk_ae Hstk_ba Htstk_ae Htstk_ba Hatstk *)
-  (*     HNoDup_temp_unknown HNoDup_local_args Hdis_unkw_locals Hdis_unkw_stk Hdis_local_stk W_temps *)
-  (*     Ha_args_locals_revoked Hstk_revoked. *)
-  (*   iIntros "#(Hinv_switcher & Hrel_reg_saved & Hrel_callee_frm *)
-  (*   & Htemp_opened_revoked & Hsts_rel_ι & #Hinv_frame)". *)
+  Proof.
+    intros stk_caller_save_area callee_stk_frm_addr W1 Hφ htemp_unknown Pframe ι
+      HN Ha_jmp Hstk_ae Hstk_ba Htstk_ae Htstk_ba Hatstk
+      HNoDup_temp_unknown HNoDup_local_args Hdis_unkw_locals Hdis_unkw_stk Hdis_local_stk W_temps
+      Ha_args_locals_revoked Hstk_revoked.
+    iIntros "#(Hinv_switcher & Hrel_reg_saved & Hrel_callee_frm
+    & Htemp_opened_revoked & Hsts_rel_ι & #Hinv_frame)".
 
-  (*   iEval (rewrite fixpoint_interp1_eq //=). *)
-  (*   iModIntro; iIntros (rmap' W2 Hrelated_W1_W2). *)
-  (*   iAssert (interp_expr interp rmap' W2 C *)
-  (*              (WCap XSRW_ Local b_switcher e_switcher (a_jmp ^+ 1)%a)) *)
-  (*             as "Hinterp_expr" ; last iFrame "Hinterp_expr". *)
+    iEval (rewrite fixpoint_interp1_eq //=).
+    iModIntro; iIntros (rmap' W2 Hrelated_W1_W2).
+    iAssert (interp_expr interp rmap' W2 C
+               (WCap XSRW_ Local b_switcher e_switcher (a_jmp ^+ 1)%a))
+              as "Hinterp_expr" ; last iFrame "Hinterp_expr".
 
-  (*   iIntros "([%Hfull_rmap #Hinterp_rmap] & Hrmap & Hregion & Hworld & Htframe_frag & Hna)". *)
-  (*   rewrite /interp_conf /registers_pointsto. *)
-  (*   iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by rewrite lookup_insert. *)
-  (*   rewrite delete_insert_delete. *)
+    iIntros "([%Hfull_rmap #Hinterp_rmap] & Hrmap & Hregion & Hworld & Htframe_frag & Hna)".
+    rewrite /interp_conf /registers_pointsto.
+    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by rewrite lookup_insert.
+    rewrite delete_insert_delete.
 
-  (*   (* extract register points-to *) *)
-  (*   assert (exists wcra, rmap' !! cra = Some wcra) *)
-  (*     as [wcra Hwcra] by (by specialize (Hfull_rmap cra)). *)
-  (*   iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wcsp, rmap' !! csp = Some wcsp) *)
-  (*     as [wcsp Hwcsp] by (by specialize (Hfull_rmap csp)). *)
-  (*   iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wcgp, rmap' !! cgp = Some wcgp) *)
-  (*     as [wcgp Hwcgp] by (by specialize (Hfull_rmap cgp)). *)
-  (*   iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wca0, rmap' !! ca0 = Some wca0) *)
-  (*     as [wca0 Hwca0] by (by specialize (Hfull_rmap ca0)). *)
-  (*   iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wca1, rmap' !! ca1 = Some wca1) *)
-  (*     as [wca1 Hwca1] by (by specialize (Hfull_rmap ca1)). *)
-  (*   iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wctp, rmap' !! ctp = Some wctp) *)
-  (*     as [wctp Hwctp] by (by specialize (Hfull_rmap ctp)). *)
-  (*   iDestruct (big_sepM_delete _ _ ctp with "Hrmap") as "[Hctp Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wca2, rmap' !! ca2 = Some wca2) *)
-  (*     as [wca2 Hwca2] by (by specialize (Hfull_rmap ca2)). *)
-  (*   iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wcs1, rmap' !! cs1 = Some wcs1) *)
-  (*     as [wcs1 Hwcs1] by (by specialize (Hfull_rmap cs1)). *)
-  (*   iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wcs0, rmap' !! cs0 = Some wcs0) *)
-  (*     as [wcs0 Hwcs0] by (by specialize (Hfull_rmap cs0)). *)
-  (*   iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wct0, rmap' !! ct0 = Some wct0) *)
-  (*     as [wct0 Hwct0] by (by specialize (Hfull_rmap ct0)). *)
-  (*   iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq. *)
-  (*   assert (exists wct1, rmap' !! ct1 = Some wct1) *)
-  (*     as [wct1 Hwct1] by (by specialize (Hfull_rmap ct1)). *)
-  (*   iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq. *)
+    (* extract register points-to *)
+    assert (exists wcra, rmap' !! cra = Some wcra)
+      as [wcra Hwcra] by (by specialize (Hfull_rmap cra)).
+    iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
+    assert (exists wcsp, rmap' !! csp = Some wcsp)
+      as [wcsp Hwcsp] by (by specialize (Hfull_rmap csp)).
+    iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
+    assert (exists wcgp, rmap' !! cgp = Some wcgp)
+      as [wcgp Hwcgp] by (by specialize (Hfull_rmap cgp)).
+    iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
+    assert (exists wca0, rmap' !! ca0 = Some wca0)
+      as [wca0 Hwca0] by (by specialize (Hfull_rmap ca0)).
+    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
+    assert (exists wca1, rmap' !! ca1 = Some wca1)
+      as [wca1 Hwca1] by (by specialize (Hfull_rmap ca1)).
+    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
+    assert (exists wctp, rmap' !! ctp = Some wctp)
+      as [wctp Hwctp] by (by specialize (Hfull_rmap ctp)).
+    iDestruct (big_sepM_delete _ _ ctp with "Hrmap") as "[Hctp Hrmap]"; first by simplify_map_eq.
+    assert (exists wca2, rmap' !! ca2 = Some wca2)
+      as [wca2 Hwca2] by (by specialize (Hfull_rmap ca2)).
+    iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq.
+    assert (exists wcs1, rmap' !! cs1 = Some wcs1)
+      as [wcs1 Hwcs1] by (by specialize (Hfull_rmap cs1)).
+    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
+    assert (exists wcs0, rmap' !! cs0 = Some wcs0)
+      as [wcs0 Hwcs0] by (by specialize (Hfull_rmap cs0)).
+    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
+    assert (exists wct0, rmap' !! ct0 = Some wct0)
+      as [wct0 Hwct0] by (by specialize (Hfull_rmap ct0)).
+    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
+    assert (exists wct1, rmap' !! ct1 = Some wct1)
+      as [wct1 Hwct1] by (by specialize (Hfull_rmap ct1)).
+    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
 
-  (*   (* open frame invariant *) *)
-  (*   iMod (na_inv_acc with "Hinv_frame Hna") *)
-  (*     as "(Hframe & Hna & Hclose_frame_inv)" ; auto. *)
-  (*   iEval (rewrite /frame_inv) in "Hframe". *)
-  (*   iDestruct "Hframe" as (ι_state) "[Hι_loc Hframe]". *)
+    (* open frame invariant *)
+    iMod (na_inv_acc with "Hinv_frame Hna")
+      as "(Hframe & Hna & Hclose_frame_inv)" ; auto.
+    iEval (rewrite /frame_inv) in "Hframe".
+    iDestruct "Hframe" as (ι_state) "[Hι_loc Hframe]".
 
-  (*   (* open switcher invariant *) *)
-  (*   iMod (na_inv_acc with "Hinv_switcher Hna") *)
-  (*     as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto. *)
-  (*   { solve_ndisj. } *)
-  (*   rewrite /switcher_inv. *)
-  (*   iDestruct "Hswitcher_inv" *)
-  (*     as (a_tstk' d tstk_next') *)
-  (*          "(>Hmtdc & >%Hbounds & >Hcode & >Hb_switcher & >Htstk & Htframe_full & >%H_tstk_frame & #Hp_ot_switcher)". *)
-  (*   codefrag_facts "Hcode". *)
-  (*   rename H into Hcont_switcher_region; clear H0. *)
-  (*   iHide "Hclose_switcher_inv" as hclose_switcher_inv. *)
-  (*   iHide "Hinv_switcher" as hinv_switcher. *)
+    (* open switcher invariant *)
+    iMod (na_inv_acc with "Hinv_switcher Hna")
+      as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
+    { solve_ndisj. }
+    rewrite /switcher_inv.
+    iDestruct "Hswitcher_inv"
+      as (a_tstk' d tstk_next')
+           "(>Hmtdc & >%Hbounds & >Hcode & >Hb_switcher & >Htstk & Htframe_full & >%H_tstk_frame & #Hp_ot_switcher)".
+    codefrag_facts "Hcode".
+    rename H into Hcont_switcher_region; clear H0.
+    iHide "Hclose_switcher_inv" as hclose_switcher_inv.
+    iHide "Hinv_switcher" as hinv_switcher.
 
-  (*   focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
-  (*   unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont. *)
-  (*   focus_block_nochangePC 5 "Hcode" as a5 Ha5 "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
-  (*   assert (a5 = a_jmp) by solve_addr ; simplify_eq. *)
+    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+    focus_block_nochangePC 5 "Hcode" as a5 Ha5 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    assert (a5 = a_jmp) by solve_addr ; simplify_eq.
 
 
-  (*   (* ReadSR ctp mtdc *) *)
-  (*   iInstr "Hcode". *)
-  (*   { done. } *)
+    (* ReadSR ctp mtdc *)
+    iInstr "Hcode".
+    { done. }
 
-  (*   (* TODO extract as lemma about frame_W *) *)
-  (*   iDestruct (sts_full_state_loc with "[$] [$Hι_loc]") as "%Hι_state". *)
-  (*   iDestruct (sts_full_rel_loc with "[$] [$Hsts_rel_ι]") as "%Hι_rel". *)
-  (*   assert (ι_state = true) as ->. *)
-  (*   { *)
-  (*     assert ( loc W1 !! ι = Some (encode true)) *)
-  (*       by (by rewrite /W1 std_update_multiple_loc_sta /frame_W /ι lookup_insert). *)
-  (*     assert ( wrel W1 !! ι = Some ( convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv)) *)
-  (*       by (by rewrite /W1 std_update_multiple_loc_rel /frame_W /ι lookup_insert). *)
-  (*     assert (related_sts_pub_world W1 W2) as Hrelated by done. *)
+    (* TODO extract as lemma about frame_W *)
+    iDestruct (sts_full_state_loc with "[$] [$Hι_loc]") as "%Hι_state".
+    iDestruct (sts_full_rel_loc with "[$] [$Hsts_rel_ι]") as "%Hι_rel".
+    assert (ι_state = true) as ->.
+    {
+      assert ( loc W1 !! ι = Some (encode true))
+        by (by rewrite /W1 std_update_multiple_loc_sta /frame_W /ι lookup_insert).
+      assert ( wrel W1 !! ι = Some ( convert_rel frame_rel_pub, convert_rel frame_rel_pub, convert_rel frame_rel_priv))
+        by (by rewrite /W1 std_update_multiple_loc_rel /frame_W /ι lookup_insert).
+      assert (related_sts_pub_world W1 W2) as Hrelated by done.
 
-  (*     destruct Hrelated as [ [ _ [_ [_ Hrelated ] ] ] _]. *)
-  (*     specialize (Hrelated ι _ _ _ _ _ _ H2 Hι_rel). *)
-  (*     destruct Hrelated as (_ & _ & _ & Hrelated). *)
-  (*     specialize (Hrelated _ _ H1 Hι_state). *)
-  (*     rewrite /convert_rel /frame_rel_pub /= in Hrelated. *)
-  (*     apply rtc_inv in Hrelated. *)
-  (*     destruct Hrelated. *)
-  (*     + by inv H3. *)
-  (*     + destruct H3 as (? & (? & ? & Hcontra) & _). *)
-  (*       naive_solver. *)
-  (*   } *)
+      destruct Hrelated as [ [ _ [_ [_ Hrelated ] ] ] _].
+      specialize (Hrelated ι _ _ _ _ _ _ H2 Hι_rel).
+      destruct Hrelated as (_ & _ & _ & Hrelated).
+      specialize (Hrelated _ _ H1 Hι_state).
+      rewrite /convert_rel /frame_rel_pub /= in Hrelated.
+      apply rtc_inv in Hrelated.
+      destruct Hrelated.
+      + by inv H3.
+      + destruct H3 as (? & (? & ? & Hcontra) & _).
+        naive_solver.
+    }
 
-  (*   iDestruct "Hframe" as "(Hφ & tstk & Hsaved_register_area & Htemp_unknown)". *)
-  (*   iDestruct (tframe_agree with "[$] [$]") as "->". *)
-  (*   assert ( frm W2 = frm W0 + 1 ) as Hfrm_W2. *)
-  (*   { admit. (* NOTE true, because W2 pub of W1, where (frm W1) = (frm W0 +1) *) *)
-  (*   } *)
-  (*   rewrite !Hfrm_W2 in H_tstk_frame |- *. *)
-  (*   rewrite /stk_caller_save_area. *)
-  (*   iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha0_stk Hsaved_register_area]". *)
-  (*   { transitivity (Some (a_stk ^+ 1)%a); auto; solve_addr. } *)
-  (*   { solve_addr. } *)
-  (*   iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha1_stk Hsaved_register_area]". *)
-  (*   { transitivity (Some (a_stk ^+ 2)%a); auto; solve_addr. } *)
-  (*   { solve_addr. } *)
-  (*   iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha2_stk Hsaved_register_area]". *)
-  (*   { transitivity (Some (a_stk ^+ 3)%a); auto; solve_addr. } *)
-  (*   { solve_addr. } *)
-  (*   iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha3_stk _]". *)
-  (*   { transitivity (Some (a_stk ^+ 4)%a); auto; solve_addr. } *)
-  (*   { solve_addr. } *)
-  (*   replace a_tstk' with ( (a_tstk ^+ 1)%a ) by ( solve_addr+H_tstk_frame Htstk_ae Htstk_ba Hatstk ). *)
+    iDestruct "Hframe" as "(Hφ & tstk & Hsaved_register_area & Htemp_unknown)".
+    iDestruct (tframe_agree with "[$] [$]") as "->".
+    assert ( frm W2 = frm W0 + 1 ) as Hfrm_W2.
+    { admit. (* NOTE true, because W2 pub of W1, where (frm W1) = (frm W0 +1) *)
+    }
+    rewrite !Hfrm_W2 in H_tstk_frame |- *.
+    rewrite /stk_caller_save_area.
+    iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha0_stk Hsaved_register_area]".
+    { transitivity (Some (a_stk ^+ 1)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha1_stk Hsaved_register_area]".
+    { transitivity (Some (a_stk ^+ 2)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha2_stk Hsaved_register_area]".
+    { transitivity (Some (a_stk ^+ 3)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Hsaved_register_area") as "[Ha3_stk _]".
+    { transitivity (Some (a_stk ^+ 4)%a); auto; solve_addr. }
+    { solve_addr. }
+    replace a_tstk' with ( (a_tstk ^+ 1)%a ) by ( solve_addr+H_tstk_frame Htstk_ae Htstk_ba Hatstk ).
 
-  (*   (* Load csp ctp *) *)
-  (*   iInstr "Hcode". *)
-  (*   { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. } *)
+    (* Load csp ctp *)
+    iInstr "Hcode".
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
 
-  (*   (* Lea ctp (-1)%Z *) *)
-  (*   iInstr "Hcode". *)
-  (*   { by transitivity (Some a_tstk); solve_addr. } *)
-  (*   (* WriteSR mtdc ctp *) *)
-  (*   iInstr "Hcode". *)
-  (*   { done. } *)
-  (*   (* Lea csp (-1)%Z *) *)
-  (*   iInstr "Hcode". *)
-  (*   { by transitivity (Some (a_stk ^+ 3)%a); solve_addr. } *)
-  (*   (* Load cgp csp *) *)
-  (*   iInstr "Hcode". *)
-  (*   { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. } *)
-  (*   iEval (cbn) in "Hcgp". *)
-  (*   (* Lea csp (-1)%Z *) *)
-  (*   iInstr "Hcode". *)
-  (*   { by transitivity (Some (a_stk ^+ 2)%a); solve_addr. } *)
-  (*   (* Load ca2 csp *) *)
-  (*   iInstr "Hcode". *)
-  (*   { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. } *)
-  (*   iEval (cbn) in "Hca2". *)
-  (*   (* Lea csp (-1)%Z *) *)
-  (*   iInstr "Hcode". *)
-  (*   { by transitivity (Some (a_stk ^+ 1)%a); solve_addr. } *)
-  (*   (* Load cs1 csp *) *)
-  (*   iInstr "Hcode". *)
-  (*   { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. } *)
-  (*   iEval (cbn) in "Hcs1". *)
-  (*   (* Lea csp (-1)%Z *) *)
-  (*   iInstr "Hcode". *)
-  (*   { by transitivity (Some a_stk); solve_addr. } *)
-  (*   (* Load cs0 csp *) *)
-  (*   iInstr "Hcode". *)
-  (*   { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. } *)
-  (*   iEval (cbn) in "Hcs0". *)
-  (*   (* GetE ct0 csp *) *)
-  (*   iInstr "Hcode". *)
-  (*   (* GetA ct1 csp *) *)
-  (*   iInstr "Hcode". *)
+    (* Lea ctp (-1)%Z *)
+    iInstr "Hcode".
+    { by transitivity (Some a_tstk); solve_addr. }
+    (* WriteSR mtdc ctp *)
+    iInstr "Hcode".
+    { done. }
+    (* Lea csp (-1)%Z *)
+    iInstr "Hcode".
+    { by transitivity (Some (a_stk ^+ 3)%a); solve_addr. }
+    (* Load cgp csp *)
+    iInstr "Hcode".
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
+    iEval (cbn) in "Hcgp".
+    (* Lea csp (-1)%Z *)
+    iInstr "Hcode".
+    { by transitivity (Some (a_stk ^+ 2)%a); solve_addr. }
+    (* Load ca2 csp *)
+    iInstr "Hcode".
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
+    iEval (cbn) in "Hca2".
+    (* Lea csp (-1)%Z *)
+    iInstr "Hcode".
+    { by transitivity (Some (a_stk ^+ 1)%a); solve_addr. }
+    (* Load cs1 csp *)
+    iInstr "Hcode".
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
+    iEval (cbn) in "Hcs1".
+    (* Lea csp (-1)%Z *)
+    iInstr "Hcode".
+    { by transitivity (Some a_stk); solve_addr. }
+    (* Load cs0 csp *)
+    iInstr "Hcode".
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
+    iEval (cbn) in "Hcs0".
+    (* GetE ct0 csp *)
+    iInstr "Hcode".
+    (* GetA ct1 csp *)
+    iInstr "Hcode".
 
-  (*   unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont. *)
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-  (*   assert (Forall (fun a => (std W2) !! a = Some Temporary) (finz.seq_between (a_stk ^+4)%a e_stk )) *)
-  (*     as Hcallee_stk_temporary. *)
-  (*   { clear -W1 Hrelated_W1_W2. *)
-  (*     apply Forall_forall. *)
-  (*     intros a Ha. *)
-  (*     eapply region_state_pub_temp; eauto. *)
-  (*     subst W1. *)
-  (*     cbn. *)
-  (*     destruct (decide (a ∈ a_local_args)). *)
-  (*     - by apply std_sta_update_multiple_lookup_in_i. *)
-  (*     - rewrite std_sta_update_multiple_lookup_same_i; last done. *)
-  (*       rewrite frame_W_lookup_std. *)
-  (*       by apply std_sta_update_multiple_lookup_in_i. *)
-  (*   } *)
-  (*   assert (Forall (fun a => (std W2) !! a = Some Temporary) a_local_args) *)
-  (*     as Hlocal_args_temporary. *)
-  (*   { clear -W1 Hrelated_W1_W2. *)
-  (*     apply Forall_forall. *)
-  (*     intros a Ha. *)
-  (*     eapply region_state_pub_temp; eauto. *)
-  (*     subst W1. *)
-  (*     by apply std_sta_update_multiple_lookup_in_i. *)
-  (*   } *)
+    assert (Forall (fun a => (std W2) !! a = Some Temporary) (finz.seq_between (a_stk ^+4)%a e_stk ))
+      as Hcallee_stk_temporary.
+    { clear -W1 Hrelated_W1_W2.
+      apply Forall_forall.
+      intros a Ha.
+      eapply region_state_pub_temp; eauto.
+      subst W1.
+      cbn.
+      destruct (decide (a ∈ a_local_args)).
+      - by apply std_sta_update_multiple_lookup_in_i.
+      - rewrite std_sta_update_multiple_lookup_same_i; last done.
+        rewrite frame_W_lookup_std.
+        by apply std_sta_update_multiple_lookup_in_i.
+    }
+    assert (Forall (fun a => (std W2) !! a = Some Temporary) a_local_args)
+      as Hlocal_args_temporary.
+    { clear -W1 Hrelated_W1_W2.
+      apply Forall_forall.
+      intros a Ha.
+      eapply region_state_pub_temp; eauto.
+      subst W1.
+      by apply std_sta_update_multiple_lookup_in_i.
+    }
 
-  (*   iMod ( revoked_by_revoked_resources with "[$Hworld $Hregion $Htemp_unknown]") *)
-  (*     as "(Hworld & Hregion & Htemp_unknown & %Hstd2_unknown)". *)
-  (*   { apply Forall_forall. *)
-  (*     intros a Ha. *)
-  (*     (* NOTE: true because a ∈ ltemp_unknown, and so it's Temporary in WO *) *)
-  (*     admit. } *)
+    iMod ( revoked_by_revoked_resources with "[$Hworld $Hregion $Htemp_unknown]")
+      as "(Hworld & Hregion & Htemp_unknown & %Hstd2_unknown)".
+    { apply Forall_forall.
+      intros a Ha.
+      (* NOTE: true because a ∈ ltemp_unknown, and so it's Temporary in WO *)
+      admit. }
 
-  (*   iMod ( monotone_revoke_keep _ _ *)
-  (*            ( (finz.seq_between (a_stk ^+ 4)%a e_stk) ++ a_local_args) *)
-  (*          with "[ $Hworld $Hregion ]") as "(Hworld & Hregion & Hstk)". *)
-  (*   { apply NoDup_app. *)
-  (*     split ; [|split]; auto; first by apply finz_seq_between_NoDup. *)
-  (*     intros a Ha. *)
-  (*     intro Ha'. *)
-  (*     eapply elem_of_disjoint; eauto. *)
-  (*     rewrite (finz_seq_between_split a_stk (a_stk ^+ 4)%a); last by solve_addr. *)
-  (*     apply elem_of_app; naive_solver. *)
-  (*   } *)
-  (*   { iApply big_sepL_pure; iPureIntro. *)
-  (*     intros k a Ha. *)
-  (*     apply lookup_app_Some in Ha. *)
-  (*     destruct Ha as [ Ha | [ _ Ha] ]. *)
-  (*     - eapply Forall_lookup_1 in Hcallee_stk_temporary; eauto. *)
-  (*     - eapply Forall_lookup_1 in Hlocal_args_temporary; eauto. *)
-  (*   } *)
-  (*   iEval (rewrite big_sepL_sep) in "Hstk" *)
-  (*   ; iDestruct "Hstk" as "[Hstk %Htemporary_revoked]". *)
-  (*   iEval (rewrite region_addrs_exists) in "Hstk"; iDestruct "Hstk" as (pl) "Hstk". *)
-  (*   iEval (rewrite region_addrs_exists2) in "Hstk"; iDestruct "Hstk" as (φl) "[%Hlen Hstk]". *)
-  (*   iEval (rewrite big_sepL2_sep) in "Hstk" *)
-  (*   ; iDestruct "Hstk" as "[_ Htemp_res]". *)
-  (*   iEval (rewrite big_sepL2_sep) in "Htemp_res" *)
-  (*   ; iDestruct "Htemp_res" as "[Htemp_res _]". *)
-  (*   iEval (rewrite /temp_resources) in "Htemp_res". *)
-  (*   iEval (rewrite big_sepL2_later_2) in "Htemp_res". *)
-  (*   iEval (rewrite region_addrs_exists2) in "Htemp_res"; iDestruct "Htemp_res" as (wl) "[>%Hlen2 Htemp_res]". *)
-  (*   iEval (rewrite big_sepL2_sep) in "Htemp_res" *)
-  (*   ; iDestruct "Htemp_res" as "[_ Htemp_res]". *)
-  (*   iEval (rewrite big_sepL2_sep) in "Htemp_res" *)
-  (*   ; iDestruct "Htemp_res" as "[>Htemp_res _]". *)
+    iMod ( monotone_revoke_keep _ _
+             ( (finz.seq_between (a_stk ^+ 4)%a e_stk) ++ a_local_args)
+           with "[ $Hworld $Hregion ]") as "(Hworld & Hregion & Hstk)".
+    { apply NoDup_app.
+      split ; [|split]; auto; first by apply finz_seq_between_NoDup.
+      intros a Ha.
+      intro Ha'.
+      eapply elem_of_disjoint; eauto.
+      rewrite (finz_seq_between_split a_stk (a_stk ^+ 4)%a); last by solve_addr.
+      apply elem_of_app; naive_solver.
+    }
+    { iApply big_sepL_pure; iPureIntro.
+      intros k a Ha.
+      apply lookup_app_Some in Ha.
+      destruct Ha as [ Ha | [ _ Ha] ].
+      - eapply Forall_lookup_1 in Hcallee_stk_temporary; eauto.
+      - eapply Forall_lookup_1 in Hlocal_args_temporary; eauto.
+    }
+    iEval (rewrite big_sepL_sep) in "Hstk"
+    ; iDestruct "Hstk" as "[Hstk %Htemporary_revoked]".
+    iEval (rewrite region_addrs_exists) in "Hstk"; iDestruct "Hstk" as (pl) "Hstk".
+    iEval (rewrite region_addrs_exists2) in "Hstk"; iDestruct "Hstk" as (φl) "[%Hlen Hstk]".
+    iEval (rewrite big_sepL2_sep) in "Hstk"
+    ; iDestruct "Hstk" as "[_ Htemp_res]".
+    iEval (rewrite big_sepL2_sep) in "Htemp_res"
+    ; iDestruct "Htemp_res" as "[Htemp_res _]".
+    iEval (rewrite /temp_resources) in "Htemp_res".
+    iEval (rewrite big_sepL2_later_2) in "Htemp_res".
+    iEval (rewrite region_addrs_exists2) in "Htemp_res"; iDestruct "Htemp_res" as (wl) "[>%Hlen2 Htemp_res]".
+    iEval (rewrite big_sepL2_sep) in "Htemp_res"
+    ; iDestruct "Htemp_res" as "[_ Htemp_res]".
+    iEval (rewrite big_sepL2_sep) in "Htemp_res"
+    ; iDestruct "Htemp_res" as "[>Htemp_res _]".
 
-  (*   iAssert ( *)
-  (*       [∗ list] a;w ∈ (finz.seq_between (a_stk ^+ 4)%a e_stk ++ a_local_args); *)
-  (*        wl, a ↦ₐ w *)
-  (*     )%I with "[Htemp_res]" as "Htemp_res". *)
-  (*   { admit. (* TODO just Iris manipulation *) } *)
-  (*   iEval (rewrite big_sepL2_app_inv_l) in "Htemp_res" *)
-  (*   ; iDestruct "Htemp_res" as (stk arg_locals) "(%Hwl & Hstk & Hargs_locals)". *)
-  (*   rewrite -/(region_pointsto (a_stk ^+ 4)%a e_stk stk). *)
-  (*   iDestruct (region_pointsto_cons with "[$Ha3_stk $Hstk]") as "Hstk". *)
-  (*   { solve_addr. } *)
-  (*   { solve_addr. } *)
-  (*   iDestruct (region_pointsto_cons with "[$Ha2_stk $Hstk]") as "Hstk". *)
-  (*   { solve_addr. } *)
-  (*   { solve_addr. } *)
-  (*   iDestruct (region_pointsto_cons with "[$Ha1_stk $Hstk]") as "Hstk". *)
-  (*   { solve_addr. } *)
-  (*   { solve_addr. } *)
-  (*   iDestruct (region_pointsto_cons with "[$Ha0_stk $Hstk]") as "Hstk". *)
-  (*   { solve_addr. } *)
-  (*   { solve_addr. } *)
+    iAssert (
+        [∗ list] a;w ∈ (finz.seq_between (a_stk ^+ 4)%a e_stk ++ a_local_args);
+         wl, a ↦ₐ w
+      )%I with "[Htemp_res]" as "Htemp_res".
+    { admit. (* TODO just Iris manipulation *) }
+    iEval (rewrite big_sepL2_app_inv_l) in "Htemp_res"
+    ; iDestruct "Htemp_res" as (stk arg_locals) "(%Hwl & Hstk & Hargs_locals)".
+    rewrite -/(region_pointsto (a_stk ^+ 4)%a e_stk stk).
+    iDestruct (region_pointsto_cons with "[$Ha3_stk $Hstk]") as "Hstk".
+    { solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "[$Ha2_stk $Hstk]") as "Hstk".
+    { solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "[$Ha1_stk $Hstk]") as "Hstk".
+    { solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "[$Ha0_stk $Hstk]") as "Hstk".
+    { solve_addr. }
+    { solve_addr. }
 
-  (*   focus_block 6 "Hcode" as a6 Ha6 "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
-  (*   iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto. *)
-  (*   { solve_addr. } *)
-  (*   { admit. (* TODO not entirely clear how to get that, but seems reasonable *) } *)
-  (*   iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)". *)
-  (*   unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont. *)
+    focus_block 6 "Hcode" as a6 Ha6 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto.
+    { solve_addr. }
+    { admit. (* TODO not entirely clear how to get that, but seems reasonable *) }
+    iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-  (*   focus_block 7 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
-  (*   (* Mov cra ca2 *) *)
-  (*   iInstr "Hcode". *)
-  (*   unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont. *)
+    focus_block 7 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Mov cra ca2 *)
+    iInstr "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-  (*   focus_block 8 "Hcode" as a8 Ha8 "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
-  (*   iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct1]") as "Hrmap". *)
-  (*   rewrite -delete_insert_ne //. *)
-  (*   iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct0]") as "Hrmap". *)
-  (*   do 2 (rewrite -delete_insert_ne //). *)
-  (*   iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs0]") as "Hrmap". *)
-  (*   do 3 (rewrite -delete_insert_ne //). *)
-  (*   iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs1]") as "Hrmap". *)
-  (*   do 4 (rewrite -delete_insert_ne //). *)
-  (*   iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca2]") as "Hrmap". *)
-  (*   do 5 (rewrite -delete_insert_ne //). *)
-  (*   iDestruct (big_sepM_insert_delete with "[$Hrmap $Hctp]") as "Hrmap". *)
+    focus_block 8 "Hcode" as a8 Ha8 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct1]") as "Hrmap".
+    rewrite -delete_insert_ne //.
+    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct0]") as "Hrmap".
+    do 2 (rewrite -delete_insert_ne //).
+    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs0]") as "Hrmap".
+    do 3 (rewrite -delete_insert_ne //).
+    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs1]") as "Hrmap".
+    do 4 (rewrite -delete_insert_ne //).
+    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca2]") as "Hrmap".
+    do 5 (rewrite -delete_insert_ne //).
+    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hctp]") as "Hrmap".
 
-  (*   iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]"); try solve_pure. *)
-  (*   { clear -Hfull_rmap. *)
-  (*     repeat (rewrite -delete_insert_ne //). *)
-  (*     repeat (rewrite dom_delete_L). *)
-  (*     repeat (rewrite dom_insert_L). *)
-  (*     apply regmap_full_dom in Hfull_rmap. *)
-  (*     rewrite Hfull_rmap. *)
-  (*     set_solver. *)
-  (*   } *)
-  (*   iNext; iIntros "H". *)
-  (*   iDestruct "H" as (arg_rmap') "(%Harg_rmap' & HPC & Harg_rmap' & Hcode)". *)
-  (*   unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont. *)
+    iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]"); try solve_pure.
+    { clear -Hfull_rmap.
+      repeat (rewrite -delete_insert_ne //).
+      repeat (rewrite dom_delete_L).
+      repeat (rewrite dom_insert_L).
+      apply regmap_full_dom in Hfull_rmap.
+      rewrite Hfull_rmap.
+      set_solver.
+    }
+    iNext; iIntros "H".
+    iDestruct "H" as (arg_rmap') "(%Harg_rmap' & HPC & Harg_rmap' & Hcode)".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-  (*   focus_block 9 "Hcode" as a9 Ha9 "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
-  (*   iInstr "Hcode". *)
-  (*   unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont. *)
+    focus_block 9 "Hcode" as a9 Ha9 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iInstr "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-  (*   (* close switcher invariant *) *)
-  (*   iDestruct (tframe_update _ _ (frm W0) with "Htframe_full Htframe_frag") *)
-  (*               as ">[Htframe_full Htframe_frag]". *)
-  (*   iDestruct (region_pointsto_cons with "[$tstk $Htstk]") as "Htstk". *)
-  (*   { solve_addr. } *)
-  (*   { solve_addr. } *)
-  (*   iMod ("Hclose_switcher_inv" with *)
-  (*          "[$Hna $Hmtdc $Hcode $Hb_switcher $Htstk $Htframe_full $Hp_ot_switcher]") *)
-  (*     as "Hna"; first done. *)
+    (* close switcher invariant *)
+    iDestruct (tframe_update _ _ (frm W0) with "Htframe_full Htframe_frag")
+                as ">[Htframe_full Htframe_frag]".
+    iDestruct (region_pointsto_cons with "[$tstk $Htstk]") as "Htstk".
+    { solve_addr. }
+    { solve_addr. }
+    iMod ("Hclose_switcher_inv" with
+           "[$Hna $Hmtdc $Hcode $Hb_switcher $Htstk $Htframe_full $Hp_ot_switcher]")
+      as "Hna"; first done.
 
-  (*   iMod (sts_update_loc _ _ _ _ false with "[$Hworld] [$Hι_loc]") as "[Hworld Hι_loc]". *)
-  (*   iMod ("Hclose_frame_inv" with "[$Hna $Hι_loc]") as "Hna". *)
-  (*   iMod (update_region_revoked_update_loc with "[$] [$]") as "[Hregion Hworld]". *)
-  (*   { rewrite /revoke_condition. *)
-  (*     simpl; apply revoke_conditions_sat. *)
-  (*   } *)
-  (*   { by cbn. } *)
-  (*   { admit. (* NOTE by definition of Hι_sts *) } *)
+    iMod (sts_update_loc _ _ _ _ false with "[$Hworld] [$Hι_loc]") as "[Hworld Hι_loc]".
+    iMod ("Hclose_frame_inv" with "[$Hna $Hι_loc]") as "Hna".
+    iMod (update_region_revoked_update_loc with "[$] [$]") as "[Hregion Hworld]".
+    { rewrite /revoke_condition.
+      simpl; apply revoke_conditions_sat.
+    }
+    { by cbn. }
+    { admit. (* NOTE by definition of Hι_sts *) }
 
-  (*   iDestruct (sts_update_frm _ _ (frm W0) with "Hworld") as ">Hworld". *)
-  (*   iMod (update_region_revoked_update_loc with "[$] [$]") as "[Hregion Hworld]". *)
-  (*   { apply revoke_conditions_sat. } *)
-  (*   { by cbn. } *)
-  (*   { apply related_sts_priv_world_update_frm. } *)
+    iDestruct (sts_update_frm _ _ (frm W0) with "Hworld") as ">Hworld".
+    iMod (update_region_revoked_update_loc with "[$] [$]") as "[Hregion Hworld]".
+    { apply revoke_conditions_sat. }
+    { by cbn. }
+    { apply related_sts_priv_world_update_frm. }
 
-  (*   iDestruct (big_sepL_app _ (finz.seq_between a_stk (a_stk ^+ 4)%a) *)
-  (*                          (finz.seq_between (a_stk ^+ 4)%a e_stk) *)
-  (*               with "[$Hrel_reg_saved $Hrel_callee_frm]") *)
-  (*     as "Hrel_stk". *)
-  (*   rewrite -finz_seq_between_split; last solve_addr. *)
+    iDestruct (big_sepL_app _ (finz.seq_between a_stk (a_stk ^+ 4)%a)
+                           (finz.seq_between (a_stk ^+ 4)%a e_stk)
+                with "[$Hrel_reg_saved $Hrel_callee_frm]")
+      as "Hrel_stk".
+    rewrite -finz_seq_between_split; last solve_addr.
 
-  (*   iDestruct (big_sepL_sep with "Htemp_unknown") as "[Htemp_unknown %Hunknown_revoked]". *)
-  (*   iMod (monotone_close_list_region W0 _ _ ltemp_unknown *)
-  (*               with "[] [$Hworld $Hregion $Htemp_unknown]") as "[Hworld Hregion]". *)
-  (*   { iPureIntro; eapply helper_switcher_final_pub; eauto. } *)
+    iDestruct (big_sepL_sep with "Htemp_unknown") as "[Htemp_unknown %Hunknown_revoked]".
+    iMod (monotone_close_list_region W0 _ _ ltemp_unknown
+                with "[] [$Hworld $Hregion $Htemp_unknown]") as "[Hworld Hregion]".
+    { iPureIntro; eapply helper_switcher_final_pub; eauto. }
 
-  (*   iApply ("Hφ" with "[-]"); iFrame "∗#". *)
-  (*   iSplit. *)
-  (*   { iPureIntro; eapply helper_switcher_final_pub; eauto. } *)
-  (*   iSplit. *)
-  (*   { by rewrite Harg_rmap'. } *)
-  (*   iSplitR "Hargs_locals". *)
-  (*   { rewrite big_sepL_sep; iFrame "#". *)
-  (*     iPureIntro. intros k' a' Ha'; cbn. *)
-  (*     rewrite -close_list_std_sta_same; cycle 1. *)
-  (*     { admit. (*NOTE disjoint by Hdis_unkw_stk *) } *)
-  (*     admit. (* NOTE true, because by Ha', *) *)
-  (* (*               either it was Revoked (register_save_area), *) *)
-  (* (*               or it was Temporary *) *)
-  (* (*             *) *)
-  (*   } *)
-  (*   { rewrite region_addrs_exists; iFrame. } *)
-  (* Admitted. *)
+    iApply ("Hφ" with "[-]"); iFrame "∗#".
+    iSplit.
+    { iPureIntro; eapply helper_switcher_final_pub; eauto. }
+    iSplit.
+    { by rewrite Harg_rmap'. }
+    iSplitR "Hargs_locals".
+    { rewrite big_sepL_sep; iFrame "#".
+      iPureIntro. intros k' a' Ha'; cbn.
+      rewrite -close_list_std_sta_same; cycle 1.
+      { admit. (* NOTE disjoint by Hdis_unkw_stk *) }
+      admit. (* NOTE true, because by Ha',
+                either it was Revoked (register_save_area),
+                or it was Temporary *)
+    }
+    { rewrite region_addrs_exists; iFrame. }
+  Admitted.
 
 
 
@@ -1430,12 +1448,6 @@ Section Switcher.
     { by cbn. }
     { apply related_sts_priv_world_update_frm. }
 
-    (* iDestruct "Hι0_inv_open" as (ι0_state) "[Hι0_loc Hι0_Pframe]". *)
-    (* iDestruct (sts_full_state_loc with "[$] [$]") as "%Hι0_state'". *)
-    (* cbn in Hι0_state'. *)
-    (* rewrite Hι0_state' in Hι0_state; simplify_eq. *)
-    (* iDestruct (sts_update_loc _ _ _ _ false with "[$Hworld] [$Hι0_loc]") as ">[Hworld Hι0_loc]". *)
-
     (* 3) update the callee stack frame as Temporary *)
     rewrite {1}(finz_seq_between_split _ (a_stk^+4)%a e_stk) ; last solve_addr.
     rewrite big_sepL_app;
@@ -1505,32 +1517,10 @@ Section Switcher.
     iDestruct "HPct1" as (b_tbl e_tbl a_tbl
                          bpcc epcc bcgp ecgp nargs off_entry
                             Heq_entry_point Hatbl Hbtbl Hbtbl1 Hnargs)
-                           "(#Hinv_pcc_B & #Hinv_cgp_B & #Hinv_entry_B_f & #Hexec_B)".
+                           "(#Hinv_pcc_B & #Hinv_cgp_B & #Hinv_entry_B_f & #Hjmp_callee_pc)".
     iClear "Hot_switcher_agree".
     cbn in Heq_entry_point.
     rewrite !Heq_entry_point.
-
-    (* iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_tbl". *)
-    (* rewrite finz_seq_between_cons; last solve_addr. *)
-    (* iEval (cbn) in "Hinterp_tbl". *)
-    (* iDestruct "Hinterp_tbl" as "[Hinterp_btbl Hinterp_tbl]". *)
-    (* rewrite finz_seq_between_cons; last solve_addr. *)
-    (* iEval (cbn) in "Hinterp_tbl". *)
-    (* iDestruct "Hinterp_tbl" as "[Hinterp_btbl1 Hinterp_tbl]". *)
-    (* assert ( a_tbl ∈ finz.seq_between ((b_tbl ^+ 1) ^+ 1)%a e_tbl) as Ha_tbl_in. *)
-    (* { apply elem_of_finz_seq_between; solve_addr. } *)
-    (* apply elem_of_list_lookup_1 in Ha_tbl_in. *)
-    (* destruct Ha_tbl_in as [i_a_tbl Ha_tbl_in]. *)
-    (* iDestruct (big_sepL_take_drop _ _ i_a_tbl with "Hinterp_tbl") as "[_ Hinterp_tbl2]". *)
-    (* iClear "Hinterp_tbl". *)
-    (* replace (drop i_a_tbl (finz.seq_between ((b_tbl ^+ 1) ^+ 1)%a e_tbl)) *)
-    (*           with (finz.seq_between a_tbl e_tbl) by admit. (* TODO unclear why it's true *) *)
-    (* rewrite (finz_seq_between_cons a_tbl e_tbl); last solve_addr. *)
-    (* iEval (cbn) in "Hinterp_tbl2". *)
-    (* iDestruct "Hinterp_tbl2" as "[Hinterp_atbl _]". *)
-    (* iDestruct "Hinterp_btbl" as (pbtbl Pbtbl _ _) "(_ & _ & _ & _ & _ & %Hstd_btbl)"; clear pbtbl Pbtbl. *)
-    (* iDestruct "Hinterp_btbl1" as (pbtbl1 Pbtbl1 _ _) "(_ & _ & _ & _ & _ & %Hstd_btbl1)"; clear pbtbl1 Pbtbl1. *)
-    (* iDestruct "Hinterp_atbl" as (patbl Patbl _ _) "(_ & _ & _ & _ & _ & %Hstd_atbl)"; clear patbl Patbl. *)
 
     (* UnSeal ct1 cs0 ct1 *)
     assert ( ot_switcher < (ot_switcher ^+1) )%ot as Hot_switcher.
@@ -1546,20 +1536,12 @@ Section Switcher.
     (* Load cs0 ct1 *)
     wp_instr.
     iInv "Hinv_entry_B_f" as ">Hatbl" "Hcls_atbl".
-    (* iDestruct (region_open_perm with "[$Hrel_atbl $Hregion $Hworld]") *)
-    (*   as (watbl) "(Hregion & Hworld & Hstd_atbl & Ha_tbl & _ & HmonoReq_atbl & #HPatbl)" *)
-    (* ; first done. *)
     iInstr "Hcode".
     { split ; first solve_pure.
       rewrite /withinBounds; solve_addr. }
-    (* iDestruct "HPatbl" as (nargs off_entry Hwatbl) "%Hnargs". *)
-    (* cbn in Hwatbl ; subst watbl. *)
     iEval (cbn) in "Hcs0".
     iMod ("Hcls_atbl" with "Hatbl") as "_"; iModIntro.
     wp_pure.
-    (* iDestruct (region_close_perm *)
-    (*             with "[$Hregion $Hstd_atbl $Ha_tbl $HmonoReq_atbl $Hrel_atbl]") *)
-    (*             as "Hregion"; eauto. *)
 
     (* LAnd ct2 cs0 7%Z *)
     iInstr "Hcode".
@@ -1586,24 +1568,12 @@ Section Switcher.
     (* Load cra ct1 *)
     wp_instr.
     iInv "Hinv_pcc_B" as ">Hbtbl" "Hcls_btbl".
-    (* iDestruct (region_open_perm with "[$Hrel_btbl $Hregion $Hworld]") *)
-    (*   as (wbtbl) "(Hregion & Hworld & Hstd_btbl & Ha_tbl & _ & HmonoReq_btbl & #HPbtbl)" *)
-    (* ; first done. *)
     iInstr "Hcode".
     { split ; first solve_pure.
       rewrite /withinBounds; solve_addr. }
-    (* iDestruct "HPbtbl" as (bpcc epcc apcc) "[%Hwbtbl #Hinterp_wbtbl]". *)
-    (* cbn in Hwbtbl ; subst wbtbl. *)
     iEval (cbn) in "Hcra".
     iMod ("Hcls_btbl" with "Hbtbl") as "_"; iModIntro.
     wp_pure.
-    (* iDestruct (region_close_perm *)
-    (*             with "[$Hregion $Hstd_btbl $Ha_tbl $HmonoReq_btbl $Hrel_btbl]") *)
-    (*             as "Hregion"; eauto. *)
-    (* { iSplit; auto. iNext; eauto. } *)
-
-    (* iEval (cbn) in "Hinterp_wbtbl". *)
-    (* iDestruct (interp_updatePcPerm with "Hinterp_wbtbl") as "Hjmp_callee_pc". *)
 
     (* Lea ct1 1%Z *)
     iInstr "Hcode".
@@ -1612,21 +1582,12 @@ Section Switcher.
     (* Load cgp ct1 *)
     wp_instr.
     iInv "Hinv_cgp_B" as ">Hbtbl1" "Hcls_btbl1".
-    (* iDestruct (region_open_perm with "[$Hrel_btbl1 $Hregion $Hworld]") *)
-    (*   as (wbtbl1) "(Hregion & Hworld & Hstd_btbl1 & Ha_tbl & _ & HmonoReq_btbl1 & #HPbtbl1)" *)
-    (* ; first done. *)
     iInstr "Hcode".
     { split ; first solve_pure.
       rewrite /withinBounds; solve_addr. }
-    (* iDestruct "HPbtbl1" as (bcgp ecgp) "[%Hwbtbl1 #Hinterp_wbtbl1]". *)
-    (* cbn in Hwbtbl1 ; subst wbtbl1. *)
     iEval (cbn) in "Hcra".
     iMod ("Hcls_btbl1" with "Hbtbl1") as "_"; iModIntro.
     wp_pure.
-    (* iDestruct (region_close_perm *)
-    (*             with "[$Hregion $Hstd_btbl1 $Ha_tbl $HmonoReq_btbl1 $Hrel_btbl1]") *)
-    (*             as "Hregion"; eauto. *)
-    (* { iSplit; auto. } *)
 
     (* Lea cra cs0 *)
     iInstr "Hcode".
@@ -1702,22 +1663,20 @@ Section Switcher.
     iDestruct "H" as (rmap') "(%Hrmap' & HPC & Hrmap' & Hcode)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-
     focus_block 5 "Hcode" as a_jmp Ha_jmp "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    set (
+        rmap'' :=
+       <[PC:=WCap RX Global bpcc epcc (bpcc ^+ off_entry)%a]>
+      (<[csp:=WCap RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a]>
+         (<[cra:=WSentry XSRW_ Local b_switcher e_switcher (a_jmp ^+ 1)%a]>
+            (<[cgp:=WCap RW Global bcgp ecgp bcgp]> (arg_rmap' ∪ rmap'))))
+      ).
+    iSpecialize ("Hjmp_callee_pc" $! W1 rmap'' (related_sts_priv_refl_world W1)).
+
     (* Jalr cra cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
-
     iEval (cbn) in "Hcgp".
-    (* iEval (cbn) in "Hinterp_wbtbl". *)
-    (* iEval (cbn) in "Hinterp_wbtbl1". *)
-
-    (* iAssert ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ interp W1 C w)%I with "[Hrmap']" as "Hrmap'". *)
-    (* { *)
-    (*   iApply (big_sepM_impl with "[$]"). *)
-    (*   iModIntro ; iIntros (r w Hr) "[$ ->]". *)
-    (*   iEval (rewrite !fixpoint_interp1_eq) ; done. *)
-    (* } *)
 
     (* show that csp in safe-to-share *)
     iAssert ( interp W1 C (WCap RWL Local (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a)) as "Hinterp_csp".
@@ -1797,8 +1756,8 @@ Section Switcher.
     iAssert (interp W1 C (WSentry XSRW_ Local b_switcher e_switcher (a_jmp ^+ 1)%a)) as "Hinterp_return".
     { shelve. }
 
-    iDestruct (big_sepM_sep with "Harg_rmap'") as "[Harg_rmap' Harg_rmap'_interp]".
-    iDestruct (big_sepM_sep with "Hrmap'") as "[Hrmap' Hrmap'_zero]".
+    iDestruct (big_sepM_sep with "Harg_rmap'") as "[Harg_rmap' #Harg_rmap'_interp]".
+    iDestruct (big_sepM_sep with "Hrmap'") as "[Hrmap' %Hrmap'_zero]".
     iCombine "Harg_rmap' Hrmap'" as "Hrmap'".
 
     rewrite -(big_sepM_union _ arg_rmap' rmap').
@@ -1845,24 +1804,21 @@ Section Switcher.
 
     match goal with
     | _ : _ |- context [<[PC:=?w]> ?m] =>
-        set (rmap'' := <[PC:=w]> m)
+        subst rmap'' ; set (rmap'' := <[PC:=w]> m)
     end.
-    rewrite -(insert_id rmap'' PC (WCap RX Global bpcc epcc (bpcc ^+ off_entry)%a)).
-    2: { by subst rmap'' ; rewrite lookup_insert. }
-    (* iEval (rewrite big_sepM_sep) in "Hrmap'". *)
-    (* iDestruct "Hrmap'" as "[Hrmap_mapsto Hrmap_interp]". *)
-    iApply "Hexec_B"; iFrame.
+    (* rewrite -(insert_id rmap'' PC (WCap RX Global bpcc epcc (bpcc ^+ off_entry)%a)). *)
+    (* 2: { by subst rmap'' ; rewrite lookup_insert. } *)
+    iApply "Hjmp_callee_pc"; iFrame.
     iSplitR "Htframe_frag"; cycle 1.
     { subst W1. rewrite std_update_multiple_frm frame_W_lookup_frm std_update_multiple_frm //=. }
     { rewrite /execute_entry_point_register; cbn.
       iSplitR.
       {
         clear -Hrmap' Harg_rmap'.
-        subst hinv_switcher hφ0 htemp_unknown Pframe rmap''.
+        subst hinv_switcher hφ0 htemp_unknown Pframe.
         iPureIntro.
         intros r; cbn.
         destruct (decide (r = PC)) as [Hrpc | Hrpc]; simplify_eq; first by rewrite lookup_insert.
-        rewrite lookup_insert_ne //.
         rewrite lookup_insert_ne //.
         destruct (decide (r = csp)) as [Hrcsp | Hrcsp]; simplify_eq; first by rewrite lookup_insert.
         rewrite lookup_insert_ne //.
@@ -1887,74 +1843,87 @@ Section Switcher.
       { iPureIntro. by rewrite lookup_insert. }
       iSplitR.
       { iPureIntro.
-        rewrite lookup_insert_ne //.
         subst rmap''.
-        rewrite lookup_insert_ne //.
-        rewrite lookup_insert_ne //.
-        rewrite lookup_insert_ne //.
+        do 3 (rewrite lookup_insert_ne //).
         by rewrite lookup_insert.
       }
       iSplitR.
-      { iPureIntro.
-        rewrite lookup_insert_ne //.
+      { iIntros (wstk Hcsp).
         subst rmap''.
-        rewrite lookup_insert_ne //.
-        rewrite lookup_insert_ne //.
-        rewrite lookup_insert_ne //.
-        by rewrite lookup_insert.
+        rewrite lookup_insert_ne // in Hcsp.
+        rewrite lookup_insert in Hcsp; simplify_eq.
+        iFrame "#".
       }
+      iSplitR.
+      { iIntros (wret Hcra).
+        subst rmap''.
+        do 2 (rewrite lookup_insert_ne // in Hcra).
+        rewrite lookup_insert in Hcra; simplify_eq.
+        iFrame "#".
+      }
+      iSplitR.
+      { iIntros (r wr Hr_arg Hr).
+        subst rmap''.
+        iClear "Hjmp_callee_pc Hp_ot_switcher".
+        clear -Hr_arg Hr Harg_rmap' Hrmap'.
 
+        rewrite /dom_arg_rmap in Hr_arg.
+        destruct (decide (r = PC)) as [Hrpc|Hrpc]
+        ; first (exfalso ; set_solver+Hr_arg Hrpc).
+        destruct (decide (r = csp)) as [Hrcsp|Hrcsp]
+        ; first (exfalso ; set_solver+Hr_arg Hrcsp).
+        destruct (decide (r = cra)) as [Hrcra|Hrcra]
+        ; first (exfalso ; set_solver+Hr_arg Hrcra).
+        destruct (decide (r = cgp)) as [Hrcgp|Hrcgp]
+        ; first (exfalso ; set_solver+Hr_arg Hrcgp).
+        do 4 (rewrite lookup_insert_ne // in Hr).
+        rewrite lookup_union in Hr.
+        rewrite union_Some in Hr.
+        destruct Hr as [Hr | Hr]; cycle 1.
+        { exfalso.
+          destruct Hr as [Hcontra _].
+          rewrite /is_arg_rmap /dom_arg_rmap in Harg_rmap'.
+          rewrite -Harg_rmap' in Hr_arg.
+          apply lookup_lookup_total_dom in Hr_arg.
+          congruence.
+        }
+        rewrite big_sepM_lookup; eauto.
+      }
+      {
+        iIntros (r Hr); iPureIntro.
+        clear -Hr Harg_rmap' Hrmap' Hrmap'_zero.
 
+        rewrite not_elem_of_union in Hr.
+        destruct Hr as [Hr1 Hr2].
+        repeat (rewrite not_elem_of_union in Hr2).
+        repeat (rewrite not_elem_of_singleton in Hr2).
+        destruct Hr2 as [ [ [Hrpc Hrcra ] Hrcgp] Hrcsp] .
+        do 4 (rewrite lookup_insert_ne //).
+        rewrite lookup_union.
+        rewrite union_Some.
+        right.
+        split.
+        {
+        rewrite /is_arg_rmap in Harg_rmap'.
+        rewrite -Harg_rmap' not_elem_of_dom in Hr1.
+        done.
+        }
+        assert (is_Some (rmap' !! r)) as [wr Hr].
+        { rewrite -elem_of_dom.
+          rewrite Hrmap'.
+          rewrite elem_of_difference.
+          split ; first apply all_registers_s_correct.
+          set_solver.
+        }
+        eapply map_Forall_lookup_1 in Hrmap'_zero; eauto.
+        by simplify_eq.
     }
-
-      Unshelve.
-      admit.
-
-    [iSplitR "Hrmap_interp"|].
-    {
-      admit. }
-    Am
-    (* iApply "Hjmp_callee_pc"; iFrame. *)
-    rewrite /interp_reg //=.
-
-    iSplitR "Htframe_frag"; [iSplitR "Hrmap_interp"|].
-    + clear -Hrmap' Harg_rmap'.
-      subst hinv_switcher hφ0 htemp_unknown Pframe rmap''.
-      iPureIntro.
-      intros r; cbn.
-      destruct (decide (r = PC)) as [Hrpc | Hrpc]; simplify_eq; first by rewrite lookup_insert.
-      rewrite lookup_insert_ne //.
-      destruct (decide (r = csp)) as [Hrcsp | Hrcsp]; simplify_eq; first by rewrite lookup_insert.
-      rewrite lookup_insert_ne //.
-      destruct (decide (r = cra)) as [Hrcra | Hrcra]; simplify_eq; first by rewrite lookup_insert.
-      rewrite lookup_insert_ne //.
-      destruct (decide (r = cgp)) as [Hrcgp | Hrcgp]; simplify_eq; first by rewrite lookup_insert.
-      rewrite lookup_insert_ne //.
-      apply elem_of_dom.
-      rewrite dom_union.
-      rewrite elem_of_union.
-      destruct (decide (r ∈ dom arg_rmap')); first by left.
-      right.
-      rewrite Harg_rmap' in n.
-      assert (r ∉ ({[PC; cra; cgp; csp]} : gset RegName)).
-      { set_solver.  }
-      rewrite Hrmap'.
-      rewrite elem_of_difference.
-      split; first by apply all_registers_s_correct.
-      set_solver.
-    + iIntros (r w HrPC Hr).
-      subst rmap''.
-      admit. (* NOTE easy, just boring stuff *)
-    + subst W1. rewrite std_update_multiple_frm frame_W_lookup_frm std_update_multiple_frm //=.
-
-
 
     (* Proof of the return *)
     Unshelve.
 
-    iClear
-      "Hp_ot_switcher HmonoReq Hseal_pred_Pct1 Hrel_btbl Hrel_btbl1 Hrel_atbl
-      HPct1_borrow Hjmp_callee_pc Hinterp_wbtbl1 Hinterp_csp Hinterp_wbtbl".
+    iClear "Hp_ot_switcher HmonoReq Hseal_pred_Pct1
+    HPct1_borrow Hjmp_callee_pc Hinterp_csp".
     clear
       (* Ha_jmp a_jmp *)
       Hrmap' Harg_rmap'
@@ -1962,12 +1931,12 @@ Section Switcher.
       Ha_clear_pre_reg1 a_clear_pre_reg1
       H1 Ha_unseal a_unseal
       Ha_clear_stk1 a_clear_stk1.
-    clear Hwctp Hwct2 Hrmap rmap rmap'.
+    clear Hwctp Hwct2 Hrmap rmap rmap' rmap''.
     subst hclose_switcher_inv hφ.
     clear Hstk_pre_jmp.
     cbn in Ha_jmp.
     clear Harg_map.
-    clear Hnargs arg_rmap' nargs off_entry Hot_switcher Hstd_atbl Hstd_btbl1 Hstd_btbl Ha_tbl_in i_a_tbl.
+    clear Hnargs arg_rmap' Hot_switcher.
     clear Hatbl Hbtbl Hbtbl1.
     clear Hlen_stk wct2 wctp stk_wa stk_wa1 stk_wa2 stk_wa3 stk_mem' tstk_next'.
     subst W0' ; cbn.
