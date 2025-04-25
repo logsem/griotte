@@ -448,7 +448,11 @@ Section Adequacy.
     set (B_f := (SCap RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt))).
     iAssert ( interp Winit_B B (WSealed (ot_switcher switcher_cmpt) B_f)) with
       "[HB_etbl HB_code Hr_B HB_data Hsts_B]" as "#Hinterp_B".
-    { admit. } (* TODO we need to define what it means to be safe to share for entry point*)
+    { rewrite fixpoint_interp1_eq; iEval (cbn).
+      rewrite /interp_sb.
+      
+      iExists (safeC ot_switcher_prop).
+      admit. } (* TODO we need to define what it means to be safe to share for entry point*)
     iClear "HB_etbl HB_code HB_data".
 
     iAssert ([∗ list] a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ,
