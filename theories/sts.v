@@ -92,10 +92,10 @@ Section TStack.
   Context {Σ : gFunctors} {tframeg : TFRAMEG Σ} .
 
   Definition tframe_full (a : nat) : iProp Σ
-    := own γtframe (@excl_auth_auth (leibnizO nat) a).
+    := own γtframe (●E a : tframeUR).
 
   Definition tframe_frag (a : nat) : iProp Σ
-    := own γtframe (@excl_auth_frag (leibnizO nat) a).
+    := own γtframe (◯E a : tframeUR).
 
   Lemma tframe_agree (a a' : nat) :
    tframe_full a -∗
@@ -251,14 +251,27 @@ Proof.
   apply encode_inj in HH2. subst; eauto.
 Qed.
 
+Section pre_TFRAME.
+  Context {Σ : gFunctors} {tframeg : TFRAME_preG Σ}.
+
+  Lemma gen_tframe_init (n : nat) :
+    ⊢ |==> (∃ (tframeg : TFRAMEG Σ), tframe_full n ∗ tframe_frag n).
+  Proof.
+    iMod (own_alloc (A:=tframeUR) (●E n ⋅ ◯E n )) as (γtframe) "Htframe"
+    ; first by apply excl_auth_valid.
+    iModIntro. iExists (Build_TFRAMEG _ _ γtframe).
+    by rewrite own_op.
+  Qed.
+
+End pre_TFRAME.
+
 Section pre_STS.
   Context {A B E D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
           {count: Countable A}
           {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E}
           {eqd : EqDecision D} {countD: Countable D}
           {CName : CmptNameG}
-          {sts_preg: STS_preG A B Σ}
-          {tframeg : TFRAMEG Σ}.
+          {sts_preg: STS_preG A B Σ}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
   Notation TFRAME := (leibnizO nat).

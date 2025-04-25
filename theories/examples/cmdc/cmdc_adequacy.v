@@ -173,6 +173,7 @@ Section Adequacy.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_invg: na_invG Σ}.
   Context {sts_preg: STS_preG Addr region_type Σ}.
+  Context {tframe_preg: TFRAME_preG Σ }.
   Context {cname : CmptNameG}.
   Context {heappreg: heapGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -187,6 +188,7 @@ Section Adequacy.
   Definition flagN : namespace := nroot .@ "cmdc" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "cmdc" .@ "switcher_flag".
   Definition assertN : namespace := nroot .@ "cmdc" .@ "assert_flag".
+
 
   Lemma mcdc_adequacy' `{Layout: @memory_layout MP}
     (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
@@ -215,7 +217,8 @@ Section Adequacy.
     iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
     iMod (seal_store_init ({[ (ot_switcher switcher_cmpt) ]} : gset _)) as (seal_storeg) "Hseal_store".
 
-    unshelve iMod gen_sts_init as (stsg) "Hsts"; eauto. (*XX*)
+    unshelve iMod (gen_sts_init 0) as (stsg) "Hsts"; eauto. (*XX*)
+    iMod (gen_tframe_init 0) as (tframeg) "[Htframe_full Htframe_frag]".
     iMod (heap_init) as (heapg) "HRELS".
     rewrite HCNames.
     iDestruct (big_sepS_elements with "Hsts") as "Hsts".
@@ -232,7 +235,7 @@ Section Adequacy.
     pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
     pose proof (
-        @cmdc_spec_full Σ ceriseg seal_storeg _ _ _ logrel_na_invs MP B C
+        @cmdc_spec_full Σ ceriseg seal_storeg _ _ _ _ logrel_na_invs MP B C
       ) as Spec.
 
     (* Get initial sregister mtdc *)
@@ -318,26 +321,31 @@ Section Adequacy.
                (b_switcher switcher_cmpt)
                (e_switcher switcher_cmpt)
                (a_switcher_cc switcher_cmpt)
+               (b_trusted_stack switcher_cmpt)
+               (e_trusted_stack switcher_cmpt)
                (ot_switcher switcher_cmpt))%I
-      with "[Hswitcher Hswitcher_sealing Htrusted_stack Hmtdc]" as "Hswitcher".
+      with "[Hswitcher Hswitcher_sealing Htrusted_stack Htframe_full Hmtdc]" as "Hswitcher".
     {
       rewrite /switcher_spec.switcher_inv /codefrag /region_pointsto.
       replace (a_switcher_cc switcher_cmpt ^+ length switcher_instrs)%a
         with (e_switcher switcher_cmpt).
       2: { pose proof (switcher_size switcher_cmpt) as H ; solve_addr+H. }
-      iFrame.
+      iFrame "∗#".
       iExists (tl (trusted_stack_content switcher_cmpt)).
       iSplitR.
-      + iPureIntro.
+      { iPureIntro.
         rewrite /SubBounds.
         clear.
         pose proof (switcher_size switcher_cmpt).
         pose proof (switcher_cc_entry_point switcher_cmpt).
         solve_addr.
-      + destruct (trusted_stack_content switcher_cmpt); cbn;
-        iDestruct (big_sepL2_alt with "Htrusted_stack") as "[%Hlen Htrusted_stack]".
-        admit.
-        admit.
+      }
+      iSplitL; last (iPureIntro ; by rewrite finz_add_0).
+      destruct (trusted_stack_content switcher_cmpt); cbn
+      ; iDestruct (big_sepL2_alt with "Htrusted_stack") as "[%Hlen Htrusted_stack]".
+      - admit.
+      - admit.
+      (* NOTE just iris manipulation *)
     }
     iMod (na_inv_alloc logrel.logrel_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
 
@@ -370,18 +378,18 @@ Section Adequacy.
     { apply (cmpt_data_size B_cmpt). }
 
     (* Initialises the world for B *)
-    iAssert (region (∅, (∅, ∅)) B) with "[HRELS_B]" as "Hr_B".
+    iAssert (region (∅, (∅, ∅), 0) B) with "[HRELS_B]" as "Hr_B".
     { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
-    iMod (extend_region_perm_sepL2 _ (∅, (∅, ∅)) B
+    iMod (extend_region_perm_sepL2 _ (∅, (∅, ∅), 0) B
             (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))
             (cmpt_code B_cmpt)
             RX interpC
            with "Hsts_B Hr_B [HB_code]") as "(Hr_B & HB_code & Hsts_B)".
     { done. }
     { apply Forall_true. intros.
-      by rewrite /std lookup_empty.
+      by rewrite lookup_empty.
     }
     {
       iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
@@ -401,7 +409,7 @@ Section Adequacy.
             RW interpC
            with "Hsts_B Hr_B [HB_data]") as "(Hr_B & HB_data & Hsts_B)".
     { done. }
-    { admit. }
+    { admit. (* NOTE easy *) }
     {
       iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
                                  pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "[HB_data]").
@@ -420,13 +428,20 @@ Section Adequacy.
             RX interpC
            with "Hsts_B Hr_B [HB_imports]") as "(Hr_B & HB_imports & Hsts_B)".
     { done. }
-    { admit. }
+    { admit. (* NOTE OK but annoying *)  }
     {
       iDestruct (switcher_interp with "[$Hswitcher]") as "#Hswitcher_interp".
       iDestruct (future_priv_mono_interp_switcher with "[$Hswitcher]") as "#Hswitcher_mono".
       rewrite B_imports /=.
       iFrame "#∗".
     }
+
+    iMod ( extend_region_revoked_sepL2 _ _ _
+             (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
+             RWL interpC
+           with "[$Hsts_B] [$Hr_B]")
+           as "(Hr_B & Hrel_stk_B & Hsts_B)".
+    { admit. (* NOTE OK but annoying *)  }
     match goal with
     | H: _ |- context [  (sts_full_world ?W B) ] => set (Winit_B := W)
     end.
@@ -435,6 +450,18 @@ Section Adequacy.
       "[HB_etbl HB_code Hr_B HB_data Hsts_B]" as "#Hinterp_B".
     { admit. } (* TODO we need to define what it means to be safe to share for entry point*)
     iClear "HB_etbl HB_code HB_data".
+
+    iAssert ([∗ list] a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ,
+               rel B a RWL interpC ∗ ⌜ std Winit_B !! a = Some Revoked ⌝ )%I with "[Hrel_stk_B]"
+    as "Hrel_stk_B".
+    { rewrite big_sepL_sep; iFrame.
+      iPureIntro.
+      intros k a Ha ; cbn.
+      subst Winit_B ; clear -Ha.
+      apply std_sta_update_multiple_lookup_in_i.
+      rewrite elem_of_list_lookup; naive_solver.
+    }
+
 
     (* CMPT C *)
     (* assert ( *)
@@ -451,7 +478,7 @@ Section Adequacy.
     { eapply cmpt_code_disjoint ; eauto. }
     rewrite C_imports.
     iEval (rewrite /mkregion) in "HC_imports".
-    rewrite finz_seq_between_singleton.
+    rewrite (finz_seq_between_singleton (cmpt_b_pcc C_cmpt)).
     2: { pose proof (cmpt_import_size C_cmpt) as HC_import_size.
          by rewrite C_imports /= in HC_import_size.
     }
@@ -463,19 +490,19 @@ Section Adequacy.
     { apply (cmpt_data_size C_cmpt). }
 
     (* Initialises the world for C *)
-    iAssert (region (∅, (∅, ∅)) C) with "[HRELS_C]" as "Hr_C".
+    iAssert (region (∅, (∅, ∅), 0) C) with "[HRELS_C]" as "Hr_C".
     { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
 
-    iMod (extend_region_perm_sepL2 _ (∅, (∅, ∅)) C
+    iMod (extend_region_perm_sepL2 _ (∅, (∅, ∅), 0) C
             (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
             (cmpt_code C_cmpt)
             RX interpC
            with "Hsts_C Hr_C [HC_code]") as "(Hr_C & HC_code & Hsts_C)".
     { done. }
     { apply Forall_true. intros.
-      by rewrite /std lookup_empty.
+      by rewrite lookup_empty.
     }
     {
       iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
@@ -494,7 +521,7 @@ Section Adequacy.
             RW interpC
            with "Hsts_C Hr_C [HC_data]") as "(Hr_C & HC_data & Hsts_C)".
     { done. }
-    { admit. }
+    { admit. (* NOTE easy but tedious *) }
     {
       iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
                                  pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "[HC_data]").
@@ -513,13 +540,20 @@ Section Adequacy.
             RX interpC
            with "Hsts_C Hr_C [HC_imports]") as "(Hr_C & HC_imports & Hsts_C)".
     { done. }
-    { admit. }
+    { admit. (* NOTE easy but tedious *) }
     {
       iDestruct (switcher_interp with "[$Hswitcher]") as "#Hswitcher_interp".
       iDestruct (future_priv_mono_interp_switcher with "[$Hswitcher]") as "#Hswitcher_mono".
       rewrite C_imports /=.
       iFrame "#∗".
     }
+
+    iMod ( extend_region_revoked_sepL2 _ _ _
+             (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
+             RWL interpC
+           with "[$Hsts_C] [$Hr_C]")
+           as "(Hr_C & Hrel_stk_C & Hsts_C)".
+    { admit. (* NOTE OK but annoying *)  }
     match goal with
     | H: _ |- context [  (sts_full_world ?W C) ] => set (Winit_C := W)
     end.
@@ -529,6 +563,17 @@ Section Adequacy.
       "[HC_etbl HC_code Hr_C HC_data Hsts_C]" as "#Hinterp_C".
     { admit. } (* TODO we need to define what it means to be safe to share for entry point*)
     iClear "HC_etbl HC_code HC_data".
+
+    iAssert ([∗ list] a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ,
+               rel C a RWL interpC ∗ ⌜ std Winit_C !! a = Some Revoked ⌝ )%I with "[Hrel_stk_C]"
+    as "Hrel_stk_C".
+    { rewrite big_sepL_sep; iFrame.
+      iPureIntro.
+      intros k a Ha ; cbn.
+      subst Winit_C ; clear -Ha.
+      apply std_sta_update_multiple_lookup_in_i.
+      rewrite elem_of_list_lookup; naive_solver.
+    }
 
     (* CMPT MAIN *)
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_main".
@@ -577,14 +622,15 @@ Section Adequacy.
     iDestruct (big_sepM_delete _ _ cgp with "Hreg") as "[Hcgp Hreg]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[Hcsp Hreg]"; first by simplify_map_eq.
 
-    iPoseProof (Spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-                  _ _ _ _ _ (fun _ => True)%I assertN switcherN
+    iPoseProof (Spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+                  _ _ _ _ _ (fun _ => True)%I assertN switcherN 0
                  with "[ $Hassert $Hswitcher $Hna
                         $Hr_B $Hr_C $Hsts_B $Hsts_C
                         $HPC $Hcgp $Hcsp $Hreg
                         $Hmain_imports $Hmain_code $Hmain_data $Hstack
-                        $Hinterp_B $Hinterp_C
+                        $Hinterp_B $Hinterp_C $Htframe_frag $Hrel_stk_B $Hrel_stk_C
                         ]") as "Hspec"; eauto.
+    { solve_ndisj. }
     { rewrite !dom_delete_L.
       rewrite regmap_full_dom; first done.
       intros r.
@@ -633,7 +679,10 @@ Section Adequacy.
         + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
           * admit.
-          * rewrite /std /= dom_empty_L in Hcontra; set_solver+Hcontra.
+          * apply elem_of_dom_std_multiple_update in Hcontra.
+            destruct Hcontra as [Hcontra|Hcontra].
+            ** admit.
+            ** rewrite /= dom_empty_L in Hcontra; set_solver+Hcontra.
     }
     { subst Winit_C.
       intro Hcontra.
@@ -646,16 +695,48 @@ Section Adequacy.
         + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
           * admit.
-          * rewrite /std /= dom_empty_L in Hcontra; set_solver+Hcontra.
+          * apply elem_of_dom_std_multiple_update in Hcontra.
+          destruct Hcontra as [Hcontra|Hcontra].
+          ** admit.
+          ** rewrite /= dom_empty_L in Hcontra; set_solver+Hcontra.
     }
-    { clear.
-      pose proof (stack_size switcher_cmpt) as Hstacksize.
-      replace (e_stack switcher_cmpt) with ( (b_stack switcher_cmpt) ^+ length
-                                               (stack_content switcher_cmpt))%a
-      by (by apply finz_incr_eq).
-      rewrite /finz.dist; solve_addr.
+    { rewrite /region_invariants_revocation.revoke_condition.
+      intros a.
+      subst Winit_B.
+      clear.
+      destruct (decide ( a ∈ (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)))).
+      { rewrite std_sta_update_multiple_lookup_in_i //. }
+      rewrite std_sta_update_multiple_lookup_same_i //.
+      destruct (decide ( a ∈ [cmpt_b_pcc B_cmpt])).
+      { rewrite std_sta_update_multiple_lookup_in_i //. }
+      rewrite std_sta_update_multiple_lookup_same_i //.
+      destruct (decide ( a ∈ (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)))).
+      { rewrite std_sta_update_multiple_lookup_in_i //. }
+      rewrite std_sta_update_multiple_lookup_same_i //.
+      destruct (decide ( a ∈ (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt)))).
+      { rewrite std_sta_update_multiple_lookup_in_i //. }
+      rewrite std_sta_update_multiple_lookup_same_i //.
     }
-    { iNext; iIntros "H". proofmode.wp_end; by iLeft. }
+    { rewrite /region_invariants_revocation.revoke_condition.
+      intros a.
+      subst Winit_C.
+      clear.
+      destruct (decide ( a ∈ (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)))).
+      { rewrite std_sta_update_multiple_lookup_in_i //. }
+      rewrite std_sta_update_multiple_lookup_same_i //.
+      destruct (decide ( a ∈ [cmpt_b_pcc C_cmpt])).
+      { rewrite std_sta_update_multiple_lookup_in_i //. }
+      rewrite std_sta_update_multiple_lookup_same_i //.
+      destruct (decide ( a ∈ (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)))).
+      { rewrite std_sta_update_multiple_lookup_in_i //. }
+      rewrite std_sta_update_multiple_lookup_same_i //.
+      destruct (decide ( a ∈ (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt)))).
+      { rewrite std_sta_update_multiple_lookup_in_i //. }
+      rewrite std_sta_update_multiple_lookup_same_i //.
+    }
+    { by rewrite !std_update_multiple_frm. }
+    { by rewrite !std_update_multiple_frm. }
+    { iNext; iIntros "H". proofmode.wp_end; by iIntros. }
 
     iModIntro.
     iExists (fun σ _ _ => ( ((gen_heap_interp σ.1.1) ∗ (gen_heap_interp σ.1.2)) ∗ (gen_heap_interp σ.2)))%I.
