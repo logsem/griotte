@@ -584,8 +584,6 @@ Section Adequacy.
           solve_addr+H2 H3.
         }
         iSplit; first (iPureIntro ; lia).
-        (* TODO FIX the issue in the hypothesis:
-           initial PCC in the etbl should point to base...! not arbitrary a *)
         iSplit. {
           pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H.
           replace ((cmpt_exp_tbl_pcc B_cmpt ^+ 1)%a) with
@@ -593,11 +591,43 @@ Section Adequacy.
           iFrame "#".
         }
 
+        iAssert (interp Winit_B B
+                   (WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)
+                      (cmpt_b_pcc B_cmpt ^+ 1%nat)%a)
+                )%I as "Hinterp_Bf".
+        { iApply interp_weakening.interp_weakeningEO;
+            last iApply "Hinterp_pcc_B"; eauto; try solve_addr.
+        }
         iIntros (W' regs Hrelared).
-        iDestruct (fundamental.interp_exec_cond with "Hinterp_pcc_B")
-          as "H_jmp_B"; first done.
-        rewrite /exec_cond.
-        admit. (* TODO should be fine, because we have safe-to-share... *)
+        iDestruct (monotone.interp_monotone_nl with "[] [] [$Hinterp_Bf]")
+                    as "Hinterp_Bf'"; eauto.
+        iDestruct (fundamental.fundamental _ _ _ regs with "Hinterp_Bf'")
+          as "H_jmp_B".
+        iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp_B".
+        iModIntro; iNext.
+        iIntros "( ( Hfullmap & %Hregs_pc & %Hregs_cgp & Hregs_csp
+                     & Hregs_cra & Hregs_args & Hregs_interp)
+                     & Hrmap & Hregion & Hworld & Htframe & Hna)".
+        iApply "H_jmp_B".
+        rewrite insert_id; last done.
+        iFrame.
+        iIntros (r v Hrpc Hr).
+        destruct (decide (r = cgp)) as [-> | Hrcgp].
+        { rewrite Hregs_cgp in Hr ; simplify_eq.
+          iApply monotone.interp_monotone_nl; eauto.
+        }
+        destruct (decide (r = csp)) as [-> | Hrcsp].
+        { iApply "Hregs_csp"; eauto. }
+        destruct (decide (r = cra)) as [-> | Hrcra].
+        { iApply "Hregs_cra"; eauto. }
+        destruct (decide (r ∈ dom_arg_rmap)) as [Hargs | Hrarg].
+        { iApply "Hregs_args" ; eauto. }
+        assert (r ∉ dom_arg_rmap ∪ {[PC; cra; cgp; csp]}) as Hrr.
+        { set_solver+Hrpc Hrcgp Hrcsp Hrcra Hrarg. }
+        iSpecialize ("Hregs_interp" $! r Hrr).
+        iDestruct "Hregs_interp" as "%Hregs_interp"
+        ; rewrite Hregs_interp in Hr ; simplify_eq.
+        by iApply interp_weakening.interp_int.
       }
       { iNext.
         subst B_f.
@@ -628,8 +658,6 @@ Section Adequacy.
           solve_addr+H2 H3.
         }
         iSplit; first (iPureIntro ; lia).
-        (* TODO FIX the issue in the hypothesis:
-           initial PCC in the etbl should point to base...! not arbitrary a *)
         iSplit. {
           pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H.
           replace ((cmpt_exp_tbl_pcc B_cmpt ^+ 1)%a) with
@@ -638,11 +666,43 @@ Section Adequacy.
         }
 
         iIntros (W' regs Hrelared).
-        iEval (rewrite interp_weakening.interp_borrow_word) in "Hinterp_pcc_B".
-        iDestruct (fundamental.interp_exec_cond with "Hinterp_pcc_B")
-          as "H_jmp_B"; first done.
-        rewrite /exec_cond.
-        admit. (* TODO should be fine, because we have safe-to-share... *)
+        iDestruct (monotone.interp_monotone_nl with "[] [] [$Hinterp_pcc_B]")
+                    as "Hinterp_pcc_B'"; eauto.
+
+        iAssert (interp W' B
+                   (WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)
+                      (cmpt_b_pcc B_cmpt ^+ 1%nat)%a)
+                )%I as "Hinterp_Bf".
+        { iApply interp_weakening.interp_weakeningEO;
+            last iApply "Hinterp_pcc_B'"; eauto; try solve_addr.
+        }
+        iDestruct (fundamental.fundamental _ _ _ regs with "Hinterp_Bf")
+          as "H_jmp_B".
+        iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp_B".
+        iModIntro; iNext.
+        iIntros "( ( Hfullmap & %Hregs_pc & %Hregs_cgp & Hregs_csp
+                     & Hregs_cra & Hregs_args & Hregs_interp)
+                     & Hrmap & Hregion & Hworld & Htframe & Hna)".
+        iApply "H_jmp_B".
+        rewrite insert_id; last done.
+        iFrame.
+        iIntros (r v Hrpc Hr).
+        destruct (decide (r = cgp)) as [-> | Hrcgp].
+        { rewrite Hregs_cgp in Hr ; simplify_eq.
+          iApply monotone.interp_monotone_nl; eauto.
+        }
+        destruct (decide (r = csp)) as [-> | Hrcsp].
+        { iApply "Hregs_csp"; eauto. }
+        destruct (decide (r = cra)) as [-> | Hrcra].
+        { iApply "Hregs_cra"; eauto. }
+        destruct (decide (r ∈ dom_arg_rmap)) as [Hargs | Hrarg].
+        { iApply "Hregs_args" ; eauto. }
+        assert (r ∉ dom_arg_rmap ∪ {[PC; cra; cgp; csp]}) as Hrr.
+        { set_solver+Hrpc Hrcgp Hrcsp Hrcra Hrarg. }
+        iSpecialize ("Hregs_interp" $! r Hrr).
+        iDestruct "Hregs_interp" as "%Hregs_interp"
+        ; rewrite Hregs_interp in Hr ; simplify_eq.
+        by iApply interp_weakening.interp_int.
       }
     }
     iClear "HB_etbl_pcc HB_etbl_cgp HB_etbl_entries HB_code HB_data Hinterp_pcc_B Hinterp_cgp_B".
