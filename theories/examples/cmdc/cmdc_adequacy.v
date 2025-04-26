@@ -1,10 +1,10 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel.
+From cap_machine Require Import logrel interp_weakening monotone.
 From cap_machine Require Import compartment_layout.
 From cap_machine Require Import cmdc cmdc_spec.
 From cap_machine Require Import switcher switcher_spec assert logrel.
 From cap_machine Require Import mkregion_helpers.
-From cap_machine Require Import region_invariants_allocation.
+From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 
@@ -163,6 +163,148 @@ Proof.
   - symmetry; apply disjoint_switcher_cmpts_mkinitial; done.
   - symmetry; apply disjoint_assert_cmpts_mkinitial; done.
 Qed.
+
+Section helpers_cmdc_adequacy.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {nainv: logrel_na_invs Σ}
+    `{MP: MachineParameters}.
+
+  Notation STS := (leibnizO (STS_states * STS_rels)).
+  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+
+  Lemma ot_switcher_interp
+    (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
+    (g_etbl : Locality) (a_etbl: Addr)
+    (args off : nat) (ot : OType) :
+    let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
+    let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
+    let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
+    let entries_etbl := (cmpt_exp_tbl_entries_start C_cmpt) in
+    let b_pcc := (cmpt_b_pcc C_cmpt) in
+    let e_pcc := (cmpt_e_pcc C_cmpt) in
+    let b_cgp := (cmpt_b_cgp C_cmpt) in
+    let e_cgp := (cmpt_e_cgp C_cmpt) in
+    (entries_etbl <= a_etbl < e_etbl)%a
+    → 0 <= args < 7
+    → inv (export_table_PCCN C) (b_etbl ↦ₐ WCap RX Global b_pcc e_pcc b_pcc)
+    -∗ inv (export_table_CGPN C) (b_etbl1 ↦ₐ WCap RW Global b_cgp e_cgp b_cgp)
+    -∗ inv (export_table_entryN C a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
+    -∗ interp W C (WCap RX Global b_pcc e_pcc b_pcc)
+    -∗ interp W C (WCap RW Global b_cgp e_cgp b_cgp)
+    -∗ ot_switcher_prop W C (WCap RO g_etbl b_etbl e_etbl a_etbl).
+  Proof.
+    intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp Ha_etbl Hargs.
+    iIntros "#Hinv_pcc #Hinv_cgp #Hinv_entry #Hinterp_pcc #Hinterp_cgp".
+    iEval (cbn).
+    iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, off.
+    iFrame "#".
+    iSplit ; first (by iPureIntro).
+    iSplit.
+    { iPureIntro. subst b_etbl e_etbl entries_etbl.
+      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
+      pose proof (cmpt_exp_tbl_cgp_size C_cmpt) as H2.
+      pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as H3.
+      split ; try solve_addr.
+    }
+    iSplit.
+    { iPureIntro. subst b_etbl.
+      pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as Hsize.
+      solve_addr+Hsize.
+    }
+    iSplit.
+    { iPureIntro. subst b_etbl e_etbl entries_etbl.
+      pose proof (cmpt_exp_tbl_cgp_size C_cmpt) as H2.
+      pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as H3.
+      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
+      solve_addr.
+    }
+    iSplit; first (iPureIntro ; lia).
+    iSplit.
+    { subst b_etbl1 b_etbl.
+      replace (cmpt_exp_tbl_cgp C_cmpt ) with (cmpt_exp_tbl_pcc C_cmpt ^+ 1)%a; auto.
+      pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
+      solve_addr.
+    }
+
+    iIntros (W' regs Hrelared).
+    iDestruct (interp_monotone_nl with "[] [] [$Hinterp_pcc]")
+      as "Hinterp_pcc'"; eauto.
+    iDestruct (interp_monotone_nl with "[] [] [$Hinterp_cgp]")
+      as "Hinterp_cgp'"; eauto.
+    iDestruct (interp_weakeningEO W' C
+                 RX RX Global Global b_pcc b_pcc e_pcc e_pcc b_pcc (b_pcc ^+ off%nat)%a
+                with "Hinterp_pcc'") as "Hinterp_PCC"; eauto; try solve_addr.
+
+    iDestruct (fundamental.fundamental _ _ _ regs with "Hinterp_PCC") as "H_jmp".
+    iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
+    iModIntro; iNext.
+    iIntros "( ( Hfullmap & %Hregs_pc & %Hregs_cgp & Hregs_csp
+                     & Hregs_cra & Hregs_args & Hregs_interp)
+                     & Hrmap & Hregion & Hworld & Htframe & Hna)".
+    iApply "H_jmp".
+    rewrite insert_id ; last done.
+    iFrame.
+    iIntros (r v Hrpc Hr).
+    destruct (decide (r = cgp)) as [-> | Hrcgp].
+    { rewrite Hregs_cgp in Hr ; simplify_eq.
+      iApply interp_monotone_nl; eauto.
+    }
+    destruct (decide (r = csp)) as [-> | Hrcsp].
+    { iApply "Hregs_csp"; eauto. }
+    destruct (decide (r = cra)) as [-> | Hrcra].
+    { iApply "Hregs_cra"; eauto. }
+    destruct (decide (r ∈ dom_arg_rmap)) as [Hargs' | Hrarg'].
+    { iApply "Hregs_args" ; eauto. }
+    assert (r ∉ dom_arg_rmap ∪ {[PC; cra; cgp; csp]}) as Hrr.
+    { set_solver+Hrpc Hrcgp Hrcsp Hrcra Hrarg'. }
+    iSpecialize ("Hregs_interp" $! r Hrr).
+    iDestruct "Hregs_interp" as "%Hregs_interp"
+    ; rewrite Hregs_interp in Hr ; simplify_eq.
+    by iApply interp_int.
+  Qed.
+
+  Lemma ot_switcher_interp_entry
+    (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
+    (a_etbl: Addr)
+    (args off : nat) (ot : OType) :
+    let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
+    let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
+    let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
+    let entries_etbl := (cmpt_exp_tbl_entries_start C_cmpt) in
+    let b_pcc := (cmpt_b_pcc C_cmpt) in
+    let e_pcc := (cmpt_e_pcc C_cmpt) in
+    let b_cgp := (cmpt_b_cgp C_cmpt) in
+    let e_cgp := (cmpt_e_cgp C_cmpt) in
+    (entries_etbl <= a_etbl < e_etbl)%a
+    → 0 <= args < 7
+    → inv (export_table_PCCN C) (b_etbl ↦ₐ WCap RX Global b_pcc e_pcc b_pcc)
+    -∗ inv (export_table_CGPN C) (b_etbl1 ↦ₐ WCap RW Global b_cgp e_cgp b_cgp)
+    -∗ inv (export_table_entryN C a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
+    -∗ seal_pred ot ot_switcher_propC
+    -∗ interp W C (WCap RX Global b_pcc e_pcc b_pcc)
+    -∗ interp W C (WCap RW Global b_cgp e_cgp b_cgp)
+    -∗ interp W C (WSealed ot (SCap RO Global b_etbl e_etbl a_etbl)).
+  Proof.
+    intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp Ha_etbl Hargs.
+    iIntros "#Hinv_pcc #Hinv_cgp #Hinv_entry
+    #Hsealed_pred_ot_switcher #Hinterp_pcc #Hinterp_cgp".
+
+    iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
+    rewrite /interp_sb.
+    iFrame "Hsealed_pred_ot_switcher".
+    iSplit; first (iPureIntro ; apply persistent_cond_ot_switcher).
+    iSplit; first (iIntros (w) ; iApply mono_priv_ot_switcher).
+    iSplit; iApply (ot_switcher_interp with "[$] [$] [$] [$] [$]"); eauto.
+  Qed.
+
+End helpers_cmdc_adequacy.
+
 
 Section Adequacy.
   Context (Σ: gFunctors).
@@ -400,7 +542,7 @@ Section Adequacy.
         destruct v2; [| by inversion Hncap..].
         rewrite fixpoint_interp1_eq /=.
         iSplit; eauto.
-        iApply interp_weakening.future_priv_mono_interp_z.
+        iApply future_priv_mono_interp_z.
       - iFrame.
     }
 
@@ -419,7 +561,7 @@ Section Adequacy.
         destruct v2; [| by inversion Hncap..].
         rewrite fixpoint_interp1_eq /=.
         iSplit; eauto.
-        iApply interp_weakening.future_priv_mono_interp_z.
+        iApply future_priv_mono_interp_z.
       - iFrame.
     }
 
@@ -499,18 +641,18 @@ Section Adequacy.
       iExists RX, interp.
       iEval (cbn).
       iSplit; first done.
-      iSplit; first (iPureIntro ; by apply interp_weakening.persistent_cond_interp).
+      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
       iSplit.
       { destruct k; cbn in Ha ; simplify_eq.
         iFrame "HB_imports".
         rewrite (big_sepL_lookup _ _ _ a); eauto.
       }
-      iSplit; first (iNext ; by iApply interp_weakening.zcond_interp).
-      iSplit; first (iNext ; by iApply interp_weakening.rcond_interp).
+      iSplit; first (iNext ; by iApply zcond_interp).
+      iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first done.
       subst Winit_B.
       iSplit.
-      + iApply interp_weakening.monoReq_interp; last done.
+      + iApply (monoReq_interp _ _ _ _ Permanent); last done.
         admit. (* TODO easy but tedious *)
       + iPureIntro.
         admit. (* TODO easy but tedious *)
@@ -525,16 +667,16 @@ Section Adequacy.
       iExists RW, interp.
       iEval (cbn).
       iSplit; first done.
-      iSplit; first (iPureIntro ; by apply interp_weakening.persistent_cond_interp).
+      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
       rewrite (big_sepL_lookup _ (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt))
                  k a); eauto.
       iFrame "HB_data".
-      iSplit; first (iNext ; by iApply interp_weakening.zcond_interp).
-      iSplit; first (iNext ; by iApply interp_weakening.rcond_interp).
-      iSplit; first (iNext ; by iApply interp_weakening.wcond_interp).
+      iSplit; first (iNext ; by iApply zcond_interp).
+      iSplit; first (iNext ; by iApply rcond_interp).
+      iSplit; first (iNext ; by iApply wcond_interp).
       subst Winit_B.
       iSplit.
-      + iApply interp_weakening.monoReq_interp; last done.
+      + iApply (monoReq_interp _ _ _ _ Permanent); last done.
         admit. (* TODO easy but tedious *)
       + iPureIntro.
         admit. (* TODO easy but tedious *)
@@ -542,168 +684,12 @@ Section Adequacy.
 
     iAssert ( interp Winit_B B (WSealed (ot_switcher switcher_cmpt) B_f)) with
       "[HB_code Hr_B HB_data Hsts_B]" as "#Hinterp_B".
-    { iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
-      rewrite /interp_sb.
-      iFrame "Hsealed_pred_ot_switcher".
-      iSplit; first (iPureIntro ; apply persistent_cond_ot_switcher).
-      iSplit; first (iIntros (w) ; iApply mono_priv_ot_switcher).
-      iSplit.
-      Set Nested Proofs Allowed.
-      (* Lemma ot_switcher_interp *)
-      (*   (W : WORLD) (C : CmptName) (g_etbl : Locality) *)
-      (*                   (b_ebtl e_etbl a_ebtl: Addr) : *)
-      (*   ⊢ ot_switcher_prop W C (WCap RO g_etbl b_ebtl e_etbl a_ebtl). *)
-
-      (* TODO make lemma for this *)
-      { iNext.
-        subst B_f.
-        iEval (cbn).
-        iExists _,_,_,_,
-                  (cmpt_b_pcc B_cmpt), (cmpt_e_pcc B_cmpt),
-                  (cmpt_b_cgp B_cmpt), (cmpt_e_cgp B_cmpt),
-                    1,1.
-        iFrame "#".
-        iSplit ; first (by iPureIntro).
-        iSplit.
-        { iPureIntro.
-          pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
-          pose proof (cmpt_exp_tbl_cgp_size B_cmpt) as H2.
-          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H3.
-          rewrite B_exp_tbl in H1.
-          split ; try solve_addr+H1 H2 H3.
-        }
-        iSplit.
-        { iPureIntro.
-          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as Hsize.
-          solve_addr+Hsize.
-        }
-        iSplit.
-        { iPureIntro.
-          pose proof (cmpt_exp_tbl_cgp_size B_cmpt) as H2.
-          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H3.
-          solve_addr+H2 H3.
-        }
-        iSplit; first (iPureIntro ; lia).
-        iSplit. {
-          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H.
-          replace ((cmpt_exp_tbl_pcc B_cmpt ^+ 1)%a) with
-            (cmpt_exp_tbl_cgp B_cmpt) by solve_addr+H.
-          iFrame "#".
-        }
-
-        iAssert (interp Winit_B B
-                   (WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)
-                      (cmpt_b_pcc B_cmpt ^+ 1%nat)%a)
-                )%I as "Hinterp_Bf".
-        { iApply interp_weakening.interp_weakeningEO;
-            last iApply "Hinterp_pcc_B"; eauto; try solve_addr.
-        }
-        iIntros (W' regs Hrelared).
-        iDestruct (monotone.interp_monotone_nl with "[] [] [$Hinterp_Bf]")
-                    as "Hinterp_Bf'"; eauto.
-        iDestruct (fundamental.fundamental _ _ _ regs with "Hinterp_Bf'")
-          as "H_jmp_B".
-        iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp_B".
-        iModIntro; iNext.
-        iIntros "( ( Hfullmap & %Hregs_pc & %Hregs_cgp & Hregs_csp
-                     & Hregs_cra & Hregs_args & Hregs_interp)
-                     & Hrmap & Hregion & Hworld & Htframe & Hna)".
-        iApply "H_jmp_B".
-        rewrite insert_id; last done.
-        iFrame.
-        iIntros (r v Hrpc Hr).
-        destruct (decide (r = cgp)) as [-> | Hrcgp].
-        { rewrite Hregs_cgp in Hr ; simplify_eq.
-          iApply monotone.interp_monotone_nl; eauto.
-        }
-        destruct (decide (r = csp)) as [-> | Hrcsp].
-        { iApply "Hregs_csp"; eauto. }
-        destruct (decide (r = cra)) as [-> | Hrcra].
-        { iApply "Hregs_cra"; eauto. }
-        destruct (decide (r ∈ dom_arg_rmap)) as [Hargs | Hrarg].
-        { iApply "Hregs_args" ; eauto. }
-        assert (r ∉ dom_arg_rmap ∪ {[PC; cra; cgp; csp]}) as Hrr.
-        { set_solver+Hrpc Hrcgp Hrcsp Hrcra Hrarg. }
-        iSpecialize ("Hregs_interp" $! r Hrr).
-        iDestruct "Hregs_interp" as "%Hregs_interp"
-        ; rewrite Hregs_interp in Hr ; simplify_eq.
-        by iApply interp_weakening.interp_int.
-      }
-      { iNext.
-        subst B_f.
-        iEval (cbn).
-        iExists _,_,_,_,
-                  (cmpt_b_pcc B_cmpt), (cmpt_e_pcc B_cmpt),
-                  (cmpt_b_cgp B_cmpt), (cmpt_e_cgp B_cmpt),
-                    1,1.
-        iFrame "#".
-        iSplit ; first (by iPureIntro).
-        iSplit.
-        { iPureIntro.
-          pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
-          pose proof (cmpt_exp_tbl_cgp_size B_cmpt) as H2.
-          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H3.
-          rewrite B_exp_tbl in H1.
-          split ; try solve_addr+H1 H2 H3.
-        }
-        iSplit.
-        { iPureIntro.
-          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as Hsize.
-          solve_addr+Hsize.
-        }
-        iSplit.
-        { iPureIntro.
-          pose proof (cmpt_exp_tbl_cgp_size B_cmpt) as H2.
-          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H3.
-          solve_addr+H2 H3.
-        }
-        iSplit; first (iPureIntro ; lia).
-        iSplit. {
-          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H.
-          replace ((cmpt_exp_tbl_pcc B_cmpt ^+ 1)%a) with
-            (cmpt_exp_tbl_cgp B_cmpt) by solve_addr+H.
-          iFrame "#".
-        }
-
-        iIntros (W' regs Hrelared).
-        iDestruct (monotone.interp_monotone_nl with "[] [] [$Hinterp_pcc_B]")
-                    as "Hinterp_pcc_B'"; eauto.
-
-        iAssert (interp W' B
-                   (WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)
-                      (cmpt_b_pcc B_cmpt ^+ 1%nat)%a)
-                )%I as "Hinterp_Bf".
-        { iApply interp_weakening.interp_weakeningEO;
-            last iApply "Hinterp_pcc_B'"; eauto; try solve_addr.
-        }
-        iDestruct (fundamental.fundamental _ _ _ regs with "Hinterp_Bf")
-          as "H_jmp_B".
-        iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp_B".
-        iModIntro; iNext.
-        iIntros "( ( Hfullmap & %Hregs_pc & %Hregs_cgp & Hregs_csp
-                     & Hregs_cra & Hregs_args & Hregs_interp)
-                     & Hrmap & Hregion & Hworld & Htframe & Hna)".
-        iApply "H_jmp_B".
-        rewrite insert_id; last done.
-        iFrame.
-        iIntros (r v Hrpc Hr).
-        destruct (decide (r = cgp)) as [-> | Hrcgp].
-        { rewrite Hregs_cgp in Hr ; simplify_eq.
-          iApply monotone.interp_monotone_nl; eauto.
-        }
-        destruct (decide (r = csp)) as [-> | Hrcsp].
-        { iApply "Hregs_csp"; eauto. }
-        destruct (decide (r = cra)) as [-> | Hrcra].
-        { iApply "Hregs_cra"; eauto. }
-        destruct (decide (r ∈ dom_arg_rmap)) as [Hargs | Hrarg].
-        { iApply "Hregs_args" ; eauto. }
-        assert (r ∉ dom_arg_rmap ∪ {[PC; cra; cgp; csp]}) as Hrr.
-        { set_solver+Hrpc Hrcgp Hrcsp Hrcra Hrarg. }
-        iSpecialize ("Hregs_interp" $! r Hrr).
-        iDestruct "Hregs_interp" as "%Hregs_interp"
-        ; rewrite Hregs_interp in Hr ; simplify_eq.
-        by iApply interp_weakening.interp_int.
-      }
+    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1
+               with "[$] [$] [$] [$] [$] [$]"); eauto; last lia.
+      pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
+      pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H2.
+      rewrite B_exp_tbl in H2.
+      solve_addr+H1 H2.
     }
     iClear "HB_etbl_pcc HB_etbl_cgp HB_etbl_entries HB_code HB_data Hinterp_pcc_B Hinterp_cgp_B".
 
@@ -755,7 +741,7 @@ Section Adequacy.
             (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
             (cmpt_code C_cmpt)
             RX interpC
-           with "Hsts_C Hr_C [HC_code]") as "(Hr_C & HC_code & Hsts_C)".
+           with "Hsts_C Hr_C [HC_code]") as "(Hr_C & #HC_code & Hsts_C)".
     { done. }
     { apply Forall_true. intros.
       by rewrite lookup_empty.
@@ -768,14 +754,14 @@ Section Adequacy.
         destruct v2; [| by inversion Hncap..].
         rewrite fixpoint_interp1_eq /=.
         iSplit; eauto.
-        iApply interp_weakening.future_priv_mono_interp_z.
+        iApply future_priv_mono_interp_z.
       - iFrame.
     }
     iMod (extend_region_perm_sepL2 _ _ C
             (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt))
             (cmpt_data C_cmpt)
             RW interpC
-           with "Hsts_C Hr_C [HC_data]") as "(Hr_C & HC_data & Hsts_C)".
+           with "Hsts_C Hr_C [HC_data]") as "(Hr_C & #HC_data & Hsts_C)".
     { done. }
     { admit. (* NOTE easy but tedious *) }
     {
@@ -786,7 +772,7 @@ Section Adequacy.
         destruct v2; [| by inversion Hncap..].
         rewrite fixpoint_interp1_eq /=.
         iSplit; eauto.
-        iApply interp_weakening.future_priv_mono_interp_z.
+        iApply future_priv_mono_interp_z.
       - iFrame.
     }
 
@@ -794,9 +780,9 @@ Section Adequacy.
             [cmpt_b_pcc C_cmpt]
             (cmpt_imports C_cmpt)
             RX interpC
-           with "Hsts_C Hr_C [HC_imports]") as "(Hr_C & HC_imports & Hsts_C)".
+           with "Hsts_C Hr_C [HC_imports]") as "(Hr_C & [#HC_imports _] & Hsts_C)".
     { done. }
-    { admit. (* NOTE easy but tedious *) }
+    { admit. (* NOTE OK but annoying *)  }
     {
       iDestruct (switcher_interp with "[$Hswitcher]") as "#Hswitcher_interp".
       iDestruct (future_priv_mono_interp_switcher with "[$Hswitcher]") as "#Hswitcher_mono".
@@ -815,10 +801,109 @@ Section Adequacy.
     end.
     set (C_g := (SCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
                    (cmpt_exp_tbl_entries_start C_cmpt))).
+
+
+    iEval (rewrite /cmpt_exp_tbl_mregion) in "HC_etbl".
+    iDestruct (big_sepM_union with "HC_etbl") as "[HC_etbl HC_etbl_entries]".
+    { admit. }
+    iDestruct (big_sepM_union with "HC_etbl") as "[HC_etbl_pcc HC_etbl_cgp]".
+    { admit. }
+    iDestruct (mkregion_prepare with "[HC_etbl_entries]") as ">HC_etbl_entries"; auto.
+    { apply cmpt_exp_tbl_entries_size. }
+    iDestruct (mkregion_prepare with "[HC_etbl_pcc]") as ">HC_etbl_pcc"; auto.
+    { cbn; apply cmpt_exp_tbl_pcc_size. }
+    iDestruct (mkregion_prepare with "[HC_etbl_cgp]") as ">HC_etbl_cgp"; auto.
+    { cbn; apply cmpt_exp_tbl_cgp_size. }
+    iEval (rewrite C_exp_tbl) in "HC_etbl_entries".
+    rewrite (finz_seq_between_singleton (cmpt_exp_tbl_entries_start C_cmpt)).
+    2: {
+      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
+      by rewrite C_exp_tbl in H1; cbn in H1.
+    }
+    rewrite (finz_seq_between_singleton (cmpt_exp_tbl_pcc C_cmpt))
+    ; last (apply cmpt_exp_tbl_pcc_size).
+    rewrite (finz_seq_between_singleton (cmpt_exp_tbl_cgp C_cmpt))
+    ; last (apply cmpt_exp_tbl_cgp_size).
+    rewrite !big_sepL2_singleton.
+
+    iMod (inv_alloc (switcher_spec.export_table_PCCN C) ⊤ _
+           with "HC_etbl_pcc")%I as "#HC_etbl_pcc".
+    iMod (inv_alloc (switcher_spec.export_table_CGPN C) ⊤ _
+           with "HC_etbl_cgp")%I as "#HC_etbl_cgp".
+    iMod (inv_alloc (switcher_spec.export_table_entryN C (cmpt_exp_tbl_entries_start C_cmpt)) ⊤ _
+           with "HC_etbl_entries")%I as "#HC_etbl_entries".
+
+    iAssert (interp Winit_C C
+               (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a)
+            )%I as "#Hinterp_pcc_C".
+    { iEval (rewrite fixpoint_interp1_eq /=).
+      iApply big_sepL_intro; iModIntro.
+      iIntros (k a Ha).
+      rewrite finz_seq_between_cons in Ha.
+      2: {
+        pose proof (cmpt_import_size C_cmpt) as H1.
+        pose proof (cmpt_code_size C_cmpt) as H2.
+        rewrite C_imports /= in H1.
+        solve_addr.
+      }
+      pose proof (cmpt_import_size C_cmpt) as Himport_C.
+      rewrite C_imports /= in Himport_C.
+      replace (cmpt_b_pcc C_cmpt ^+ 1)%a with
+        (cmpt_a_code C_cmpt) in Ha by solve_addr+Himport_C.
+      iExists RX, interp.
+      iEval (cbn).
+      iSplit; first done.
+      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
+      iSplit.
+      { destruct k; cbn in Ha ; simplify_eq.
+        iFrame "HC_imports".
+        rewrite (big_sepL_lookup _ _ _ a); eauto.
+      }
+      iSplit; first (iNext ; by iApply zcond_interp).
+      iSplit; first (iNext ; by iApply rcond_interp).
+      iSplit; first done.
+      subst Winit_C.
+      iSplit.
+      + iApply (monoReq_interp _ _ _ _ Permanent); last done.
+        admit. (* TODO easy but tedious *)
+      + iPureIntro.
+        admit. (* TODO easy but tedious *)
+    }
+
+    iAssert (interp Winit_C C
+               (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a)
+            )%I as "#Hinterp_cgp_C".
+    { iEval (rewrite fixpoint_interp1_eq /=).
+      iApply big_sepL_intro; iModIntro.
+      iIntros (k a Ha).
+      iExists RW, interp.
+      iEval (cbn).
+      iSplit; first done.
+      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
+      rewrite (big_sepL_lookup _ (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt))
+                 k a); eauto.
+      iFrame "HC_data".
+      iSplit; first (iNext ; by iApply zcond_interp).
+      iSplit; first (iNext ; by iApply rcond_interp).
+      iSplit; first (iNext ; by iApply wcond_interp).
+      subst Winit_C.
+      iSplit.
+      + iApply (monoReq_interp _ _ _ _ Permanent); last done.
+        admit. (* TODO easy but tedious *)
+      + iPureIntro.
+        admit. (* TODO easy but tedious *)
+    }
+
     iAssert ( interp Winit_C C (WSealed (ot_switcher switcher_cmpt) C_g)) with
-      "[HC_etbl HC_code Hr_C HC_data Hsts_C]" as "#Hinterp_C".
-    { admit. } (* TODO we need to define what it means to be safe to share for entry point*)
-    iClear "HC_etbl HC_code HC_data".
+      "[HC_code Hr_C HC_data Hsts_C]" as "#Hinterp_C".
+    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1
+               with "[$] [$] [$] [$] [$] [$]"); eauto; last lia.
+      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
+      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
+      rewrite C_exp_tbl in H2.
+      solve_addr+H1 H2.
+    }
+    iClear "HC_etbl_pcc HC_etbl_cgp HC_etbl_entries HC_code HC_data Hinterp_pcc_C Hinterp_cgp_C".
 
     iAssert ([∗ list] a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ,
                rel C a RWL interpC ∗ ⌜ std Winit_C !! a = Some Revoked ⌝ )%I with "[Hrel_stk_C]"
@@ -956,7 +1041,7 @@ Section Adequacy.
           ** admit.
           ** rewrite /= dom_empty_L in Hcontra; set_solver+Hcontra.
     }
-    { rewrite /region_invariants_revocation.revoke_condition.
+    { rewrite /revoke_condition.
       intros a.
       subst Winit_B.
       clear.
@@ -973,7 +1058,7 @@ Section Adequacy.
       { rewrite std_sta_update_multiple_lookup_in_i //. }
       rewrite std_sta_update_multiple_lookup_same_i //.
     }
-    { rewrite /region_invariants_revocation.revoke_condition.
+    { rewrite /revoke_condition.
       intros a.
       subst Winit_C.
       clear.
