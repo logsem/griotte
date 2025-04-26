@@ -62,7 +62,7 @@ Section CmptLayout.
   Definition cmpt_cgp_mregion (C: cmpt) : gmap Addr Word :=
     mkregion (cmpt_b_cgp C) (cmpt_e_cgp C) (cmpt_data C).
   Definition cmpt_exp_tbl_mregion (C: cmpt) : gmap Addr Word :=
-    let pcc_word := WCap RX Global (cmpt_b_pcc C) (cmpt_e_pcc C) (cmpt_a_code C) in
+    let pcc_word := WCap RX Global (cmpt_b_pcc C) (cmpt_e_pcc C) (cmpt_b_pcc C) in
     let cgp_word := WCap RW Global (cmpt_b_cgp C) (cmpt_e_cgp C) (cmpt_b_cgp C) in
     mkregion (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_cgp C) [pcc_word] ∪
       mkregion (cmpt_exp_tbl_cgp C) (cmpt_exp_tbl_entries_start C) [cgp_word] ∪

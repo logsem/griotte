@@ -57,11 +57,11 @@ Section Switcher.
   Program Definition ot_switcher_prop :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
     λne (W : WORLD) (C : CmptName) (w : Word),
-       (∃ (b_tbl e_tbl a_tbl : Addr)
+       (∃ (g_tbl : Locality) (b_tbl e_tbl a_tbl : Addr)
           (bpcc epcc : Addr)
           (bcgp ecgp : Addr)
           (nargs off : Z),
-           ⌜ w = WCap RO Global b_tbl e_tbl a_tbl ⌝
+           ⌜ w = WCap RO g_tbl b_tbl e_tbl a_tbl ⌝
            ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
            ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝
            ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
@@ -93,10 +93,10 @@ Section Switcher.
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
     iDestruct "Hot_switcher" as
-      (b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off ->
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off ->
        Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hcont)".
     iFrame "Hinvpcc Hinvcgp Hinventry".
-    iExists _.
+    iExists _,_.
     repeat (iSplit ; first done).
     iModIntro.
     iIntros (W'' regs Hrelated_W'_W'').
@@ -1514,7 +1514,7 @@ Section Switcher.
     iEval (rewrite /safeC /=) in "Hot_switcher_agree".
     iRewrite "Hot_switcher_agree" in "HPct1".
     rewrite /ot_switcher_propC /ot_switcher_prop.
-    iDestruct "HPct1" as (b_tbl e_tbl a_tbl
+    iDestruct "HPct1" as (g_tbl b_tbl e_tbl a_tbl
                          bpcc epcc bcgp ecgp nargs off_entry
                             Heq_entry_point Hatbl Hbtbl Hbtbl1 Hnargs)
                            "(#Hinv_pcc_B & #Hinv_cgp_B & #Hinv_entry_B_f & #Hjmp_callee_pc)".

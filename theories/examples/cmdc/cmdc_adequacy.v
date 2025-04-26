@@ -99,13 +99,13 @@ Definition is_initial_memory `{memory_layout} (mem: Mem) :=
   ∧ (cmpt_imports B_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code B_cmpt) (* only instructions *)
   ∧ Forall is_z (cmpt_data B_cmpt) (* TODO generalise: either z or in_region *)
-  ∧ (cmpt_exp_tbl_entries B_cmpt) = [WInt (switcher.encode_entry_point 1 0)]
+  ∧ (cmpt_exp_tbl_entries B_cmpt) = [WInt (switcher.encode_entry_point 1 1)]
 
   (* instantiating C *)
   ∧ (cmpt_imports C_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall is_z (cmpt_data C_cmpt) (* TODO generalise: either z or in_region *)
-  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (switcher.encode_entry_point 1 0)]
+  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (switcher.encode_entry_point 1 1)]
 .
 
 Lemma mk_initial_cmpt_C_disjoint `{Layout: @memory_layout MP} (m : Mem) :
@@ -387,7 +387,7 @@ Section Adequacy.
             (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))
             (cmpt_code B_cmpt)
             RX interpC
-           with "Hsts_B Hr_B [HB_code]") as "(Hr_B & HB_code & Hsts_B)".
+           with "Hsts_B Hr_B [HB_code]") as "(Hr_B & #HB_code & Hsts_B)".
     { done. }
     { apply Forall_true. intros.
       by rewrite lookup_empty.
@@ -408,7 +408,7 @@ Section Adequacy.
             (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt))
             (cmpt_data B_cmpt)
             RW interpC
-           with "Hsts_B Hr_B [HB_data]") as "(Hr_B & HB_data & Hsts_B)".
+           with "Hsts_B Hr_B [HB_data]") as "(Hr_B & #HB_data & Hsts_B)".
     { done. }
     { admit. (* NOTE easy *) }
     {
@@ -427,7 +427,7 @@ Section Adequacy.
             [cmpt_b_pcc B_cmpt]
             (cmpt_imports B_cmpt)
             RX interpC
-           with "Hsts_B Hr_B [HB_imports]") as "(Hr_B & HB_imports & Hsts_B)".
+           with "Hsts_B Hr_B [HB_imports]") as "(Hr_B & [#HB_imports _] & Hsts_B)".
     { done. }
     { admit. (* NOTE OK but annoying *)  }
     {
@@ -479,22 +479,89 @@ Section Adequacy.
     iMod (inv_alloc (switcher_spec.export_table_entryN B (cmpt_exp_tbl_entries_start B_cmpt)) ⊤ _
            with "HB_etbl_entries")%I as "#HB_etbl_entries".
 
+    iAssert (interp Winit_B B
+               (WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)%a)
+            )%I as "#Hinterp_pcc_B".
+    { rewrite fixpoint_interp1_eq /=.
+      iApply big_sepL_intro; iModIntro.
+      iIntros (k a Ha).
+      rewrite finz_seq_between_cons in Ha.
+      2: {
+        pose proof (cmpt_import_size B_cmpt) as H1.
+        pose proof (cmpt_code_size B_cmpt) as H2.
+        rewrite B_imports /= in H1.
+        solve_addr.
+      }
+      pose proof (cmpt_import_size B_cmpt) as Himport_B.
+      rewrite B_imports /= in Himport_B.
+      replace (cmpt_b_pcc B_cmpt ^+ 1)%a with
+        (cmpt_a_code B_cmpt) in Ha by solve_addr+Himport_B.
+      iExists RX, interp.
+      iEval (cbn).
+      iSplit; first done.
+      iSplit; first (iPureIntro ; by apply interp_weakening.persistent_cond_interp).
+      iSplit.
+      { destruct k; cbn in Ha ; simplify_eq.
+        iFrame "HB_imports".
+        rewrite (big_sepL_lookup _ _ _ a); eauto.
+      }
+      iSplit; first (iNext ; by iApply interp_weakening.zcond_interp).
+      iSplit; first (iNext ; by iApply interp_weakening.rcond_interp).
+      iSplit; first done.
+      subst Winit_B.
+      iSplit.
+      + iApply interp_weakening.monoReq_interp; last done.
+        admit. (* TODO easy but tedious *)
+      + iPureIntro.
+        admit. (* TODO easy but tedious *)
+    }
+
+    iAssert (interp Winit_B B
+               (WCap RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)%a)
+            )%I as "#Hinterp_cgp_B".
+    { iEval (rewrite fixpoint_interp1_eq /=).
+      iApply big_sepL_intro; iModIntro.
+      iIntros (k a Ha).
+      iExists RW, interp.
+      iEval (cbn).
+      iSplit; first done.
+      iSplit; first (iPureIntro ; by apply interp_weakening.persistent_cond_interp).
+      rewrite (big_sepL_lookup _ (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt))
+                 k a); eauto.
+      iFrame "HB_data".
+      iSplit; first (iNext ; by iApply interp_weakening.zcond_interp).
+      iSplit; first (iNext ; by iApply interp_weakening.rcond_interp).
+      iSplit; first (iNext ; by iApply interp_weakening.wcond_interp).
+      subst Winit_B.
+      iSplit.
+      + iApply interp_weakening.monoReq_interp; last done.
+        admit. (* TODO easy but tedious *)
+      + iPureIntro.
+        admit. (* TODO easy but tedious *)
+    }
+
     iAssert ( interp Winit_B B (WSealed (ot_switcher switcher_cmpt) B_f)) with
       "[HB_code Hr_B HB_data Hsts_B]" as "#Hinterp_B".
-    { rewrite fixpoint_interp1_eq; iEval (cbn).
+    { iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
       rewrite /interp_sb.
       iFrame "Hsealed_pred_ot_switcher".
       iSplit; first (iPureIntro ; apply persistent_cond_ot_switcher).
       iSplit; first (iIntros (w) ; iApply mono_priv_ot_switcher).
       iSplit.
+      Set Nested Proofs Allowed.
+      (* Lemma ot_switcher_interp *)
+      (*   (W : WORLD) (C : CmptName) (g_etbl : Locality) *)
+      (*                   (b_ebtl e_etbl a_ebtl: Addr) : *)
+      (*   ⊢ ot_switcher_prop W C (WCap RO g_etbl b_ebtl e_etbl a_ebtl). *)
+
       (* TODO make lemma for this *)
       { iNext.
         subst B_f.
         iEval (cbn).
-        iExists _,_,_,
+        iExists _,_,_,_,
                   (cmpt_b_pcc B_cmpt), (cmpt_e_pcc B_cmpt),
                   (cmpt_b_cgp B_cmpt), (cmpt_e_cgp B_cmpt),
-                    1,0.
+                    1,1.
         iFrame "#".
         iSplit ; first (by iPureIntro).
         iSplit.
@@ -517,7 +584,6 @@ Section Adequacy.
           solve_addr+H2 H3.
         }
         iSplit; first (iPureIntro ; lia).
-        iSplit. { admit. }
         (* TODO FIX the issue in the hypothesis:
            initial PCC in the etbl should point to base...! not arbitrary a *)
         iSplit. {
@@ -525,14 +591,61 @@ Section Adequacy.
           replace ((cmpt_exp_tbl_pcc B_cmpt ^+ 1)%a) with
             (cmpt_exp_tbl_cgp B_cmpt) by solve_addr+H.
           iFrame "#".
-          }
-          admit. (* TODO should be fine, because we have safe-to-share... *)
+        }
+
+        iIntros (W' regs Hrelared).
+        iDestruct (fundamental.interp_exec_cond with "Hinterp_pcc_B")
+          as "H_jmp_B"; first done.
+        rewrite /exec_cond.
+        admit. (* TODO should be fine, because we have safe-to-share... *)
       }
-      { admit. (* TODO idk... I supposed we don't care whether it's local or global.
-                 change in the def *)
+      { iNext.
+        subst B_f.
+        iEval (cbn).
+        iExists _,_,_,_,
+                  (cmpt_b_pcc B_cmpt), (cmpt_e_pcc B_cmpt),
+                  (cmpt_b_cgp B_cmpt), (cmpt_e_cgp B_cmpt),
+                    1,1.
+        iFrame "#".
+        iSplit ; first (by iPureIntro).
+        iSplit.
+        { iPureIntro.
+          pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
+          pose proof (cmpt_exp_tbl_cgp_size B_cmpt) as H2.
+          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H3.
+          rewrite B_exp_tbl in H1.
+          split ; try solve_addr+H1 H2 H3.
+        }
+        iSplit.
+        { iPureIntro.
+          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as Hsize.
+          solve_addr+Hsize.
+        }
+        iSplit.
+        { iPureIntro.
+          pose proof (cmpt_exp_tbl_cgp_size B_cmpt) as H2.
+          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H3.
+          solve_addr+H2 H3.
+        }
+        iSplit; first (iPureIntro ; lia).
+        (* TODO FIX the issue in the hypothesis:
+           initial PCC in the etbl should point to base...! not arbitrary a *)
+        iSplit. {
+          pose proof (cmpt_exp_tbl_pcc_size B_cmpt) as H.
+          replace ((cmpt_exp_tbl_pcc B_cmpt ^+ 1)%a) with
+            (cmpt_exp_tbl_cgp B_cmpt) by solve_addr+H.
+          iFrame "#".
+        }
+
+        iIntros (W' regs Hrelared).
+        iEval (rewrite interp_weakening.interp_borrow_word) in "Hinterp_pcc_B".
+        iDestruct (fundamental.interp_exec_cond with "Hinterp_pcc_B")
+          as "H_jmp_B"; first done.
+        rewrite /exec_cond.
+        admit. (* TODO should be fine, because we have safe-to-share... *)
       }
     }
-    iClear "HB_etbl HB_code HB_data".
+    iClear "HB_etbl_pcc HB_etbl_cgp HB_etbl_entries HB_code HB_data Hinterp_pcc_B Hinterp_cgp_B".
 
     iAssert ([∗ list] a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ,
                rel B a RWL interpC ∗ ⌜ std Winit_B !! a = Some Revoked ⌝ )%I with "[Hrel_stk_B]"
