@@ -266,25 +266,6 @@ Section Switcher.
    Admitted.
 
    Set Nested Proofs Allowed.
-   Lemma update_region_revoked_temp_pwl_multiple E W C la lv p φ `{∀ Wv, Persistent (φ Wv)} :
-    isO p = false → isWL p = true →
-
-    sts_full_world W C -∗
-    region W C -∗
-    ([∗ list] a;v ∈ la;lv ,
-       a ↦ₐ v
-       ∗ φ (W,C,v)
-       ∗ rel C a p φ
-       ∗ future_pub_mono C φ v
-       ∗ ⌜(std W) !! a = Some Revoked ⌝
-    )
-
-    ={E}=∗
-
-    region (std_update_multiple W la Temporary) C
-    ∗ sts_full_world (std_update_multiple W la Temporary) C.
-  Proof.
-  Admitted.
 
   Lemma frame_W_lookup_std (W : WORLD) (a : Addr) :
     std (frame_W W) !! a = (std W) !!a.
@@ -1460,6 +1441,7 @@ Section Switcher.
                 with "[$] [$] [Hstk]") as "[Hregion Hworld]".
     { done. }
     { done. }
+    { apply finz_seq_between_NoDup. }
     { admit. (* NOTE easy, but tedious -- see what was done in the return *) }
 
     (* 4) add the custom sts for the frame *)

@@ -2186,5 +2186,48 @@ Section heap.
        apply option_leibniz.
    Qed.
 
+   Lemma update_region_revoked_temp_pwl_multiple E W C la lv p φ `{∀ Wv, Persistent (φ Wv)} :
+     isO p = false → isWL p = true →
+     NoDup la →
+
+     sts_full_world W C -∗
+     region W C -∗
+     ([∗ list] a;v ∈ la;lv ,
+        a ↦ₐ v
+        ∗ φ (W,C,v)
+        ∗ rel C a p φ
+        ∗ future_pub_mono C φ v
+        ∗ ⌜(std W) !! a = Some Revoked ⌝
+     )
+
+     ={E}=∗
+
+     region (std_update_multiple W la Temporary) C
+     ∗ sts_full_world (std_update_multiple W la Temporary) C.
+   Proof.
+     generalize dependent lv; induction la
+     ; iIntros (lv HnO HnWL HNoDup) "Hworld Hregion Hl"; cbn.
+     - by iFrame.
+     - iDestruct (big_sepL2_length with "Hl") as "%Hlen_lv".
+       destruct lv as [|v lv] ; first (by cbn in Hlen_lv).
+       apply NoDup_cons in HNoDup; destruct HNoDup as [Ha_la HNoDup].
+       iDestruct (big_sepL2_cons with "Hl") as "[ (Ha & Hφ & Hrel & #Hmono & %Hstd_a) Hl]".
+       iAssert (⌜ Forall (λ k : finz MemNum, std W !! k = Some Revoked) la ⌝)%I
+         with "[Hl]" as "%Hrevoked".
+       { rewrite !big_sepL2_sep.
+         iDestruct "Hl" as "(_&_&_&_&Hl)".
+         rewrite big_sepL2_const_sepL_l.
+         iDestruct "Hl" as "[_ %]".
+         iPureIntro.
+         by apply Forall_lookup.
+       }
+       pose proof (related_sts_pub_update_multiple_temp W la Hrevoked) as Hrelated.
+       iDestruct ("Hmono" with "[] [$]") as "Hφ"; eauto.
+       iMod (IHla with "Hworld Hregion Hl") as "[Hregion Hworld]"; eauto.
+       iMod (update_region_revoked_temp_pwl with "Hmono Hworld Hregion Ha Hφ Hrel")
+         as "[Hregion Hworld]" ;auto.
+       { rewrite std_sta_update_multiple_lookup_same_i; auto. }
+       by iFrame.
+   Qed.
 
 End heap.
