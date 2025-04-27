@@ -483,12 +483,26 @@ Section Adequacy.
         pose proof (switcher_cc_entry_point switcher_cmpt).
         solve_addr.
       }
+      iSplitR; first (iPureIntro; apply ot_switcher_size).
       iSplitL; last (iPureIntro ; by rewrite finz_add_0).
-      destruct (trusted_stack_content switcher_cmpt); cbn
-      ; iDestruct (big_sepL2_alt with "Htrusted_stack") as "[%Hlen Htrusted_stack]".
-      - admit.
-      - admit.
-      (* NOTE just iris manipulation *)
+      clear.
+      destruct (trusted_stack_content switcher_cmpt) eqn:Htstack.
+      - iDestruct (big_sepL2_length with "Htrusted_stack") as "%Hlen_tstack".
+        rewrite finz_seq_between_length /= in Hlen_tstack.
+        apply finz_0_dist in Hlen_tstack.
+        pose proof (trusted_stack_size switcher_cmpt) as Hsize_tstk.
+        rewrite Htstack in Hsize_tstk; cbn in *.
+        replace (e_trusted_stack switcher_cmpt) with (b_trusted_stack switcher_cmpt)
+                                                     by solve_addr.
+        rewrite finz_seq_between_empty; last solve_addr.
+        by rewrite finz_seq_between_empty; last solve_addr.
+      - iDestruct (big_sepL2_length with "Htrusted_stack") as "%Hlen_tstack".
+        cbn in *.
+        rewrite finz_seq_between_length /= in Hlen_tstack.
+        pose proof (trusted_stack_size switcher_cmpt) as Hsize_tstk.
+        rewrite Htstack in Hsize_tstk; cbn in *.
+        rewrite finz_seq_between_cons; last solve_addr.
+        iDestruct (big_sepL2_cons with "Htrusted_stack") as "[_ $]".
     }
     iMod (na_inv_alloc logrel.logrel_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
 

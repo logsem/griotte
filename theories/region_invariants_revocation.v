@@ -2357,4 +2357,45 @@ Section heap.
      rewrite (big_sepL2_zip_snd_1 la (zip ps φs) lw (λ a w, a ↦ₐ w)%I); done.
    Qed.
 
+   Lemma revoke_resources_later W C l :
+     ([∗ list] a ∈ l,
+        (∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ ▷ temp_resources W C φ a p ∗ rel C a p φ)
+        ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
+     ⊢ ▷ ([∗ list] a ∈ l,
+            (∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ temp_resources W C φ a p ∗ rel C a p φ)
+            ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝).
+   Proof. by iIntros "H"; iNext. Qed.
+
+   Lemma revoked_resources_pointsto (W : WORLD) (C : CmptName) (la : list Addr) :
+     ([∗ list] a ∈ la,
+        (∃ (p : Perm) (φ0 : WORLD * CmptName * Word → iPropI Σ),
+            ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ0 Wv)⌝
+                                             ∗ temp_resources W C φ0 a p
+                                             ∗ rel C a p φ0)
+        ∗ ⌜std (revoke W) !! a = Some Revoked⌝)
+     ⊢ ∃ (ws : list Word), ⌜ length la = length ws ⌝ ∗ [∗ list] a;w ∈ la;ws, a ↦ₐ w.
+  Proof.
+    iIntros "Hla".
+    rewrite big_sepL_sep.
+    iDestruct "Hla" as "[Hla _]".
+    rewrite region_addrs_exists.
+    iDestruct "Hla" as (ps) "Hla".
+    rewrite region_addrs_exists2.
+    iDestruct "Hla" as (φs) "[%Hlen_φs Hla]".
+    rewrite big_sepL2_sep.
+    iDestruct "Hla" as "[_ Hla]".
+    rewrite big_sepL2_sep.
+    iDestruct "Hla" as "[Hla _]".
+    rewrite /temp_resources.
+    rewrite region_addrs_exists2.
+    iDestruct "Hla" as (lw) "[%Hlen_lw Hla]".
+    rewrite big_sepL2_sep.
+    iDestruct "Hla" as "[_ Hla]".
+    rewrite big_sepL2_sep.
+    iDestruct "Hla" as "[Hla _]".
+    iExists lw.
+    rewrite (big_sepL2_zip_snd_2 la (zip ps φs) lw (λ a w, a ↦ₐ w)%I); last done.
+    iDestruct (big_sepL2_length with "Hla") as "%Hlen"; iFrame "%∗".
+  Qed.
+
 End heap.

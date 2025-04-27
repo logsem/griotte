@@ -105,7 +105,10 @@ Section CmptLayout.
         switcher_disjointness :
         (finz.seq_between b_switcher e_switcher) ## (finz.seq_between b_trusted_stack e_trusted_stack)
         ∧ (finz.seq_between b_switcher e_switcher) ## (finz.seq_between b_stack e_stack)
-        ∧ (finz.seq_between b_trusted_stack e_trusted_stack) ## (finz.seq_between b_stack e_stack)
+        ∧ (finz.seq_between b_trusted_stack e_trusted_stack) ## (finz.seq_between b_stack e_stack);
+
+        ot_switcher_size :
+        (ot_switcher < ot_switcher ^+ 1)%ot;
       }.
 
   Definition cmpt_switcher_code_region `{MachineParameters} (Cswitcher : cmptSwitcher) :=

@@ -110,7 +110,6 @@ Section ClearStackMacro.
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a ->
     (csp_b <= csp_a)%a -> (csp_a <= csp_e)%a ->
-    length ws = finz.dist csp_a csp_e ->
     ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
       ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_a
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
@@ -125,8 +124,9 @@ Section ClearStackMacro.
     )
       ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    (* iIntros (Hpc_exec Hbounds Hstk_bounds1 Hstk_bounds2 Hlen_stack) *)
+    (* iIntros (Hpc_exec Hbounds Hstk_bounds1 Hstk_bounds2) *)
     (*   "(HPC & Hcsp & Hr1 & Hr2 & Hcode & Hstack & Hφ)". *)
+    (* iDestruct (big_sepL2_length with "Hstack") as "%Hlen_stk". *)
     (* codefrag_facts "Hcode". *)
 
     (* (* Sub r1 r2 r1; *) *)

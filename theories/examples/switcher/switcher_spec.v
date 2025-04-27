@@ -114,6 +114,7 @@ Section Switcher.
      ∗ ⌜ SubBounds
          b_switcher e_switcher
          a_switcher_cc (a_switcher_cc ^+ length switcher_instrs)%a ⌝
+     ∗ ⌜ (ot_switcher < (ot_switcher ^+1) )%ot ⌝
      ∗ codefrag a_switcher_cc switcher_instrs
      ∗ b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
      ∗ [[ (a_tstk ^+1)%a, e_tstk ]] ↦ₐ [[ tstk_next ]]
@@ -135,135 +136,6 @@ Section Switcher.
      assert (fresh (dom fs ∪ dom fr) ∉ (dom fs ∪ dom fr)) as Hfresh by apply is_fresh.
      apply related_sts_pub_world_fresh_loc; set_solver.
    Qed.
-
-   (* TODO move *)
-   Lemma revoked_by_separation
-     (W : WORLD) (C : CmptName)
-     (a : Addr) (w : Word) (ρ : region_type) :
-     std W !! a = Some ρ →
-     region W C
-     ∗ sts_full_world W C
-     ∗ a ↦ₐ w
-     ==∗
-     region W C
-     ∗ sts_full_world W C
-     ∗ a ↦ₐ w
-     ∗ ⌜ ρ = Revoked ⌝
-   .
-   Proof.
-     iIntros (Hstd_a) "(Hregion & Hworld & Ha)".
-     rewrite region_eq /region_def.
-     iDestruct "Hregion" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
-     rewrite /region_map_def.
-     assert (is_Some (M !! a)) as [ [γ p] Hγp].
-     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom; eauto. }
-     iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].
-     iDestruct (big_sepM_delete _ _ a with "Hr") as "[Hstate Hr]";[eauto|].
-     iDestruct "Hstate" as (ρ' Ha) "[Hρ Hstate]".
-     iDestruct (sts_full_state_std with "Hworld Hρ") as %Hx''; simplify_eq.
-     iDestruct "Hstate" as (γ' p' φ) "(% & % & Hφ & Hstate)"; simplify_eq.
-     iFrame "Hworld".
-     iAssert ( ⌜ ρ = Revoked ⌝ )%I as "%" ; last iFrame "%".
-     {
-       destruct ρ; last done; iExFalso.
-       - iDestruct "Hstate" as (v) "(% & Ha' & _)"; simplify_eq.
-         iApply (addr_dupl_false with "[$] [$]"); eauto.
-       - iDestruct "Hstate" as (v) "(% & Ha' & _)"; simplify_eq.
-         iApply (addr_dupl_false with "[$] [$]"); eauto.
-     }
-     iDestruct (big_sepM_delete _ _ a with "[Hρ Hφ Hstate $Hr]") as "Hr";[eauto| |].
-     { iFrame "∗%"; done. }
-     by iFrame.
-   Qed.
-
-   Lemma revoked_by_separation_many
-     (W : WORLD) (C : CmptName)
-     (la : list Addr) (lw : list Word) :
-     Forall (λ a, a ∈ dom (std W)) la →
-     region W C
-     ∗ sts_full_world W C
-     ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-     ==∗
-     region W C
-     ∗ sts_full_world W C
-     ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-     ∗ ⌜ Forall (λ a, std W !! a = Some Revoked) la⌝
-   .
-   Proof.
-     generalize dependent lw.
-     induction la; iIntros (lw Hla) "(Hregion & Hworld & Hla)".
-     - iFrame; done.
-     - iDestruct (big_sepL2_length with "Hla") as "%Hlen_lw".
-       destruct lw as [|w lw]; first (cbn in Hlen_lw ; congruence).
-       rewrite big_sepL2_cons.
-       iDestruct "Hla" as "[Ha Hla]".
-       apply Forall_cons_iff in Hla.
-       destruct Hla as [Ha Hla].
-       iMod (IHla with "[$Hregion $Hworld $Hla]")
-         as "(Hregion & Hworld & Hla & %Hforall_la)"; eauto.
-       rewrite elem_of_dom in Ha.
-       destruct Ha as [ρ Ha].
-       iMod (revoked_by_separation with "[$Hregion $Hworld $Ha]")
-         as "(Hregion & Hworld & Ha & %Hforall_a)"; eauto; simplify_eq.
-       rewrite Forall_cons_iff.
-       iFrame; done.
-   Qed.
-
-   Lemma revoked_by_revoked_resources
-     (W W' : WORLD) (C : CmptName) (la : list Addr) :
-     Forall (λ a : finz MemNum, a ∈ dom (std W)) la ->
-     region W C
-     ∗ sts_full_world W C
-     ∗ ([∗ list] a ∈ la,
-          (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-              ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                               ∗ temp_resources W' C φ a p ∗ rel C a p φ)
-          ∗ ⌜std (revoke W') !! a = Some Revoked⌝)
-     ==∗
-     region W C
-     ∗ sts_full_world W C
-     ∗ ([∗ list] a ∈ la,
-          (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-              ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                               ∗ temp_resources W' C φ a p ∗ rel C a p φ)
-          ∗ ⌜std (revoke W') !! a = Some Revoked⌝)
-     ∗ ⌜ Forall (λ a, std W !! a = Some Revoked) la⌝.
-   Proof.
-     iIntros (Hla) "(Hregion & Hworld & Hla)".
-     rewrite big_sepL_sep.
-     iDestruct "Hla" as "[Hla Hla']"; iFrame "Hla'".
-     rewrite region_addrs_exists.
-     iDestruct "Hla" as (ps) "Hla".
-     rewrite region_addrs_exists2.
-     iDestruct "Hla" as (φs) "[%Hlen_φs Hla]".
-     rewrite big_sepL2_sep.
-     iDestruct "Hla" as "[Hla_φ Hla]".
-     rewrite big_sepL2_sep.
-     iDestruct "Hla" as "[Hla Hla_rel]".
-     rewrite /temp_resources.
-     rewrite region_addrs_exists2.
-     iDestruct "Hla" as (lw) "[%Hlen_lw Hla]".
-     rewrite big_sepL2_sep.
-     iDestruct "Hla" as "[Hla_isO Hla]".
-     rewrite big_sepL2_sep.
-     iDestruct "Hla" as "[Hla Hla_rest]".
-     iAssert (  [∗ list] y1;y2 ∈ la;lw, y1 ↦ₐ y2 )%I with "[Hla]" as "Hla".
-     { admit. (* NOTE iris manipulations *) }
-     iMod (revoked_by_separation_many with "[$Hregion $Hworld $Hla]")
-       as "(Hregion & Hworld & Hla & %Hrevoked)"; eauto.
-     iFrame "∗%".
-     iModIntro.
-     iExists ps.
-     rewrite region_addrs_exists2.
-     iExists φs; iFrame "%".
-     iEval (rewrite big_sepL2_sep); iFrame.
-     iEval (rewrite big_sepL2_sep); iFrame.
-     rewrite region_addrs_exists2.
-     iExists lw; iFrame "%".
-     iEval (rewrite big_sepL2_sep); iFrame.
-     iEval (rewrite big_sepL2_sep); iFrame.
-     admit. (* NOTE iris manipulations *)
-   Admitted.
 
    Set Nested Proofs Allowed.
 
@@ -791,7 +663,7 @@ Section Switcher.
     rewrite /switcher_inv.
     iDestruct "Hswitcher_inv"
       as (a_tstk' d tstk_next')
-           "(>Hmtdc & >%Hbounds & >Hcode & >Hb_switcher & >Htstk & Htframe_full & >%H_tstk_frame & #Hp_ot_switcher)".
+           "(>Hmtdc & >%Hbounds & >%Hot_bounds & >Hcode & >Hb_switcher & >Htstk & Htframe_full & >%H_tstk_frame & #Hp_ot_switcher)".
     codefrag_facts "Hcode".
     rename H into Hcont_switcher_region; clear H0.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
@@ -801,7 +673,6 @@ Section Switcher.
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
     focus_block_nochangePC 5 "Hcode" as a5 Ha5 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     assert (a5 = a_jmp) by solve_addr ; simplify_eq.
-
 
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
@@ -961,11 +832,7 @@ Section Switcher.
     iEval (rewrite big_sepL2_sep) in "Htemp_res"
     ; iDestruct "Htemp_res" as "[>Htemp_res _]".
 
-    iAssert (
-        [∗ list] a;w ∈ (finz.seq_between (a_stk ^+ 4)%a e_stk ++ a_local_args);
-         wl, a ↦ₐ w
-      )%I with "[Htemp_res]" as "Htemp_res".
-    { admit. (* TODO just Iris manipulation *) }
+    rewrite (big_sepL2_zip_snd_2 _ (zip pl φl) wl (λ a w, a ↦ₐ w)%I); last done.
     iEval (rewrite big_sepL2_app_inv_l) in "Htemp_res"
     ; iDestruct "Htemp_res" as (stk arg_locals) "(%Hwl & Hstk & Hargs_locals)".
     rewrite -/(region_pointsto (a_stk ^+ 4)%a e_stk stk).
@@ -985,7 +852,6 @@ Section Switcher.
     focus_block 6 "Hcode" as a6 Ha6 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto.
     { solve_addr. }
-    { admit. (* TODO not entirely clear how to get that, but seems reasonable *) }
     iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
@@ -1208,7 +1074,7 @@ Section Switcher.
     rewrite /switcher_inv.
     iDestruct "Hswitcher_inv"
       as (a_tstk d tstk_next)
-           "(>Hmtdc & >%Hbounds & >Hcode & >Hb_switcher & >Htstk & Htframe_full & >%H_tstk_frame & #Hp_ot_switcher)".
+           "(>Hmtdc & >%Hbounds & >%Hot_bounds & >Hcode & >Hb_switcher & >Htstk & Htframe_full & >%H_tstk_frame & #Hp_ot_switcher)".
     codefrag_facts "Hcode".
     rename H into Hcont_switcher_region; clear H0.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
@@ -1373,7 +1239,7 @@ Section Switcher.
     iInstr "Hcode".
 
     (* Subseg csp cs1 cs0 *)
-    iInstr "Hcode".
+    iInstr "Hcode" with "Hlc".
     { rewrite /isWithin andb_true_iff; solve_addr. }
 
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
@@ -1382,14 +1248,6 @@ Section Switcher.
     iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hcs0 $Hcs1 $Hcode $Hstk]"); eauto.
     { done. }
     { solve_addr. }
-    { clear -Hlen_stk Hstk_ae.
-      cbn in Hlen_stk.
-      rewrite finz_seq_between_length in Hlen_stk.
-      do 4 (rewrite finz_dist_S in Hlen_stk; last solve_addr).
-      replace (((((a_stk ^+ 1) ^+ 1) ^+ 1) ^+ 1)%a) with
-        (a_stk ^+ 4)%a in Hlen_stk by solve_addr.
-      by injection Hlen_stk.
-    }
     iNext ; iIntros "(HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
@@ -1398,6 +1256,7 @@ Section Switcher.
     iHide "Hφ" as hφ.
 
     iDestruct "Hstd_state_stk" as "%Hstk_revoked".
+
 
     (* UPDATING THE WORLD NOW *)
     opose proof ( extract_temps W0 ) as (ltemp_unknown & HNoDup_unk & W_temps).
@@ -1410,13 +1269,38 @@ Section Switcher.
       apply elem_of_list_lookup.
       by eexists.
     }
+    rewrite revoke_resources_later
+    ; iMod (lc_fupd_elim_later with "Hlc Htemp_unknown") as "Htemp_unknown".
 
     iAssert (⌜ ltemp_unknown ## a_local_args  ⌝)%I as "%Hdis_unk_locals".
-    { admit. (* NOTE just by separation between Htemp_unknown and Hlocal_args *)
+    {
+      rewrite revoked_resources_pointsto.
+      iDestruct "Htemp_unknown" as (ws) "[%Hlen_ltemp Hltemp_unknown]".
+      iDestruct (region_addrs_exists with "Hlocal_args") as (lw_args) "Hlocal_args".
+      iApply big_sepL2_disjoint; iFrame.
     }
 
-    iAssert (⌜ ltemp_unknown ## finz.seq_between a_stk e_stk  ⌝)%I as "%Hdis_unk_stk".
-    { admit. (* NOTE just by separation between Htemp_unknown and Hstk etc *)
+    iAssert (⌜ ltemp_unknown ## finz.seq_between a_stk e_stk⌝)%I as "%Hdis_unk_stk".
+    {
+      rewrite revoked_resources_pointsto.
+      iDestruct "Htemp_unknown" as (ws) "[%Hlen_ltemp Hltemp_unknown]".
+      iDestruct (big_sepL2_disjoint_pointsto with "[$Hltemp_unknown $Ha1_stk]") as "%Ha1_stk".
+      iDestruct (big_sepL2_disjoint_pointsto with "[$Hltemp_unknown $Ha2_stk]") as "%Ha2_stk".
+      iDestruct (big_sepL2_disjoint_pointsto with "[$Hltemp_unknown $Ha3_stk]") as "%Ha3_stk".
+      iDestruct (big_sepL2_disjoint_pointsto with "[$Hltemp_unknown $Ha4_stk]") as "%Ha4_stk".
+      iDestruct (big_sepL2_disjoint with "[$Hltemp_unknown $Hstk]") as "%Hstk"; iFrame.
+      iPureIntro.
+      clear -Ha1_stk Ha2_stk Ha3_stk Ha4_stk Hstk Hstk_ae Hstk_ba.
+      do 4 (rewrite finz_seq_between_cons; last solve_addr).
+      intros a Ha Ha'.
+      rewrite elem_of_cons in Ha'; destruct Ha' as [-> | Ha']; first set_solver.
+      rewrite elem_of_cons in Ha'; destruct Ha' as [-> | Ha']; first set_solver.
+      replace ((a_stk ^+ 1) ^+1)%a with (a_stk ^+ 2)%a in Ha'; last solve_addr.
+      rewrite elem_of_cons in Ha'; destruct Ha' as [-> | Ha']; first set_solver.
+      replace ((a_stk ^+ 2) ^+1)%a with (a_stk ^+ 3)%a in Ha'; last solve_addr.
+      rewrite elem_of_cons in Ha'; destruct Ha' as [-> | Ha']; first set_solver.
+      replace ((a_stk ^+ 3) ^+1)%a with (a_stk ^+ 4)%a in Ha'; last solve_addr.
+      set_solver.
     }
 
     (* 2) update the frame number *)
@@ -1726,6 +1610,7 @@ Section Switcher.
     .
     { iNext; iFrame "Hmtdc".
       iExists (frm W0 + 1),tstk_next'.
+      iSplit; first done.
       iSplit; first done.
       iFrame.
       replace ((a_tstk ^+ 1) ^+ 1)%a with (a_tstk ^+ 2)%a by solve_addr+Htstk_ae.

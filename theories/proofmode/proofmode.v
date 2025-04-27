@@ -37,6 +37,7 @@ End codefrag.
 
 (* Administrative reduction steps *)
 Ltac wp_pure := iApply wp_pure_step_later; [ by auto | iNext ; iIntros "_" ].
+Ltac wp_pure_lc hlc := iApply wp_pure_step_later; [ by auto | iNext ; iIntros hlc ].
 (* NOTE the last `iIntros "_"` fixes the later 1 introduceed in Iris 4.0.0.
    Remove it from the tactic if necessary. *)
 Ltac wp_end := iApply wp_value.
@@ -638,18 +639,50 @@ Ltac iInstr_close hprog :=
     iRename hcont into hprog
   end end.
 
+(* NOTE: iCombine doesn't allow to pass IAnon, so here it is *)
+Tactic Notation "iCombine_ident" constr(Hs) "as" constr(pat) :=
+  let H := iFresh in
+  let Δ := iGetCtx in
+  notypeclasses refine (tac_combine_as _ _ _ Hs _ _ H _ _ _ _ _ _);
+  [pm_reflexivity ||
+     let Hs := iMissingHypsCore Δ Hs in
+     fail "iCombine: hypotheses" Hs "not found"
+  |tc_solve
+  |pm_reflexivity ||
+     let H := pretty_ident H in
+     fail "iCombine:" H "not fresh"
+  (* should never happen in normal usage, since [H := iFresh]
+     FIXME: improve once consistent error messages are added,
+     see https://gitlab.mpi-sws.org/iris/iris/-/issues/499 *)
+  |iDestructHyp H as pat].
+
+Tactic Notation "iCombine_ident" constr(H1) constr(H2) "as" constr(pat) :=
+  iCombine_ident [H1;H2] as pat.
+
+
 (* TODO: find a way of displaying an error message if iApplyCapAuto fails,
    displaying the rule it was called on, and without silencing iApplyCapAuto's
    own error messages? *)
-Ltac iInstr hprog :=
+Ltac iInstr_lc hprog hlc:=
   let hi := iFresh in
   let hcont := iFresh in
+  let hlc' :=
+    match goal with
+    | |- context [ Esnoc _ (INamed hlc) (£ ?n)%I ] => iFresh
+    | _  => hlc
+    end
+  in
   iInstr_lookup hprog as hi hcont;
   try wp_instr;
   iInstr_get_rule hi ltac:(fun rule =>
-    iApplyCapAuto rule;
-    [ .. | iInstr_close hprog; try wp_pure]
-  ).
+                             iApplyCapAuto rule;
+                             [ .. | iInstr_close hprog
+                                    ; try wp_pure_lc hlc'
+                                    ; try (iCombine_ident (INamed hlc) hlc' as (INamed hlc))
+                          ])
+.
+Tactic Notation "iInstr" constr(H):= iInstr_lc H "_".
+Tactic Notation "iInstr" constr(H) "with" constr(Hlc):= iInstr_lc H Hlc.
 
 Ltac2 rec iGo hprog :=
   let stop_if_at_least_two_goals () :=
