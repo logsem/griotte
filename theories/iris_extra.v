@@ -489,6 +489,60 @@ Proof.
       subst. auto.
 Qed.
 
+Lemma big_sepL2_zip_snd_2 {PROP : bi} {T1 : Type} {T2 : Type} {T3 : Type}
+  (l1 : list T1) (l2 : list T2) (l2' : list T3)
+  (ϕ : T1 -> T3 -> PROP) :
+  length l2 = length l2' ->
+  ([∗ list] y1;y2 ∈ l1;zip l2 l2', ϕ y1 y2.2)
+  ⊢ [∗ list] y1;y2 ∈ l1;l2', ϕ y1 y2.
+Proof.
+  generalize dependent l2'.
+  generalize dependent l2.
+  induction l1; cbn; iIntros (l2 l2' Hlen_l2) "Hl"
+  ; iDestruct (big_sepL2_length with "Hl") as "%Hlen_l1".
+  - destruct l2' ; destruct l2; cbn in *; try congruence; done.
+  - destruct l2' ; auto; cbn in *.
+    + destruct l2; cbn in *; try congruence; done.
+    + destruct l2; cbn in *; try congruence.
+      injection Hlen_l2 as Hlen_l2.
+      injection Hlen_l1 as Hlen_l1.
+      iDestruct "Hl" as "[$ Hl]".
+      by iApply (IHl1 with "Hl").
+Qed.
+
+Lemma big_sepL2_zip_snd_1 {PROP : bi} {T1 : Type} {T2 : Type} {T3 : Type}
+  (l1 : list T1) (l2 : list T2) (l2' : list T3)
+  (ϕ : T1 -> T3 -> PROP) :
+  length l2 = length l2' ->
+  ([∗ list] y1;y2 ∈ l1;l2', ϕ y1 y2)
+  ⊢ [∗ list] y1;y2 ∈ l1;zip l2 l2', ϕ y1 y2.2.
+Proof.
+  generalize dependent l2'.
+  generalize dependent l2.
+  induction l1; cbn; iIntros (l2 l2' Hlen_l2) "Hl"
+  ; iDestruct (big_sepL2_length with "Hl") as "%Hlen_l1".
+  - destruct l2' ; auto.
+    destruct l2; cbn in *; done.
+  - destruct l2' ; auto; cbn in *.
+    destruct l2; cbn in *; try congruence.
+    injection Hlen_l2 as Hlen_l2.
+    injection Hlen_l1 as Hlen_l1.
+    iDestruct "Hl" as "[$ Hl]".
+    by iApply (IHl1 with "Hl").
+Qed.
+
+Lemma big_sepL2_zip_snd {PROP : bi} {T1 : Type} {T2 : Type} {T3 : Type}
+  (l1 : list T1) (l2 : list T2) (l2' : list T3) (ϕ : T1 -> T3 -> PROP) :
+  length l2 = length l2' ->
+  ([∗ list] y1;y2 ∈ l1;l2', ϕ y1 y2)
+  ⊣⊢ [∗ list] y1;y2 ∈ l1;zip l2 l2', ϕ y1 y2.2.
+Proof.
+  intros Hlen.
+  iSplit; iIntros "Hl"
+  ; [ iApply (big_sepL2_zip_snd_1 with "Hl") | iApply (big_sepL2_zip_snd_2 with "Hl")]
+  ; done.
+Qed.
+
 Global Instance if_persistent `{PROP:bi} (b: bool) (φ1 φ2: PROP) (H1: Persistent φ1) (H2: Persistent φ2):
   Persistent (if b then φ1 else φ2).
 Proof.
