@@ -99,11 +99,26 @@ Lemma dom_list_to_map_singleton {K V: Type} `{EqDecision K, Countable K} (x:K) (
   dom (list_to_map [(x, y)] : gmap K V) = list_to_set [x].
 Proof. rewrite dom_insert_L /= dom_empty_L. set_solver. Qed.
 
-Lemma list_to_set_disj {A} `{Countable A, EqDecision A} (l1 l2: list A) :
+Lemma list_to_set_disj_1 {A} `{Countable A, EqDecision A} (l1 l2: list A) :
   l1 ## l2 → (list_to_set l1: gset A) ## list_to_set l2.
 Proof.
   intros * HH. rewrite elem_of_disjoint. intros x.
   rewrite !elem_of_list_to_set. rewrite elem_of_disjoint in HH |- *. eauto.
+Qed.
+
+Lemma list_to_set_disj_2 {A} `{Countable A, EqDecision A} (l1 l2: list A) :
+  (list_to_set l1: gset A) ## list_to_set l2 -> l1 ## l2.
+Proof.
+  intros * HH. rewrite elem_of_disjoint. intros x.
+  rewrite elem_of_disjoint in HH |- *.
+  specialize (HH x).
+  by rewrite !elem_of_list_to_set in HH.
+Qed.
+
+Lemma list_to_set_disj {A} `{Countable A, EqDecision A} (l1 l2: list A) :
+  l1 ## l2 <-> (list_to_set l1: gset A) ## list_to_set l2.
+Proof.
+  split; [apply list_to_set_disj_1 | apply list_to_set_disj_2].
 Qed.
 
 Lemma map_to_list_fst {A B : Type} `{EqDecision A, Countable A} (m : gmap A B) i :

@@ -566,7 +566,21 @@ Section Adequacy.
             RW interpC
            with "Hsts_B Hr_B [HB_data]") as "(Hr_B & #HB_data & Hsts_B)".
     { done. }
-    { admit. (* NOTE easy *) }
+    { apply Forall_forall. intros a Ha.
+      rewrite std_sta_update_multiple_lookup_same_i; auto.
+      pose proof (cmpt_cgp_disjoint B_cmpt) as Hdisjoint.
+      apply map_disjoint_dom_1 in Hdisjoint.
+      rewrite /cmpt_pcc_mregion dom_union_L in Hdisjoint.
+      rewrite disjoint_union_l in Hdisjoint.
+      destruct Hdisjoint as [_ Hdisjoint].
+      pose proof (cmpt_data_size B_cmpt) as Hsize_data.
+      pose proof (cmpt_code_size B_cmpt) as Hsize_code.
+      rewrite !dom_mkregion_eq in Hdisjoint; auto.
+      apply list_to_set_disj_2 in Hdisjoint.
+      rewrite /disjoint /set_disjoint_instance in Hdisjoint.
+      intro Ha'.
+      apply (Hdisjoint a); auto.
+    }
     {
       iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
                                  pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "[HB_data]").
@@ -585,7 +599,11 @@ Section Adequacy.
             RX interpC
            with "Hsts_B Hr_B [HB_imports]") as "(Hr_B & [#HB_imports _] & Hsts_B)".
     { done. }
-    { admit. (* NOTE OK but annoying *)  }
+    { apply Forall_forall.
+      intros a Ha.
+      apply elem_of_list_singleton in Ha; simplify_eq.
+      rewrite std_sta_update_multiple_lookup_same_i; auto.
+      admit. (* NOTE OK but annoying *)  }
     {
       iDestruct (switcher_interp with "[$Hswitcher]") as "#Hswitcher_interp".
       iDestruct (future_priv_mono_interp_switcher with "[$Hswitcher]") as "#Hswitcher_mono".
