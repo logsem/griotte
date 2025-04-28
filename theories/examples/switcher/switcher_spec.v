@@ -23,6 +23,7 @@ Section Switcher.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
+  (** Property of capability sealed by the switcher's otype *)
   Definition export_tableN (C : CmptName) : namespace := nroot .@ "export_tableN" .@ C.
   Definition export_table_PCCN (C : CmptName) : namespace := (export_tableN C) .@ "PCC".
   Definition export_table_CGPN (C : CmptName) : namespace := (export_tableN C) .@ "CGP".
@@ -106,22 +107,7 @@ Section Switcher.
     by eapply related_sts_priv_trans_world.
   Qed.
 
-  Definition switcher_inv
-    (b_switcher e_switcher a_switcher_cc b_tstk e_tstk : Addr)
-    (ot_switcher : OType) : iProp Σ :=
-    ∃ (a_tstk : Addr) (d : nat) (tstk_next : list Word),
-     mtdc ↦ₛᵣ WCap RWL Local b_tstk e_tstk a_tstk
-     ∗ ⌜ SubBounds
-         b_switcher e_switcher
-         a_switcher_cc (a_switcher_cc ^+ length switcher_instrs)%a ⌝
-     ∗ ⌜ (ot_switcher < (ot_switcher ^+1) )%ot ⌝
-     ∗ codefrag a_switcher_cc switcher_instrs
-     ∗ b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
-     ∗ [[ (a_tstk ^+1)%a, e_tstk ]] ↦ₐ [[ tstk_next ]]
-     ∗ ⌜ (b_tstk <= a_tstk)%a ∧ (a_tstk <= e_tstk)%a ⌝
-     ∗ tframe_full d ∗ ⌜ (b_tstk + d)%a = Some a_tstk  ⌝
-     ∗ seal_pred ot_switcher ot_switcher_propC.
-
+  (** Custom invariant used by the switcher to store the frame  *)
    Definition frame_inv (C : CmptName) (i : positive) (P : iProp Σ) :=
      (∃ x:bool, sts_state_loc C i x ∗ if x then P else emp)%I.
    Definition frame_rel_pub := λ (a b : bool), False.
@@ -181,6 +167,8 @@ Section Switcher.
     apply ι0_in_Wloc_helper.
   Qed.
 
+
+  (** Evolution of the world in the switcher *)
   Definition switcher_world_pre_frame (W_init : WORLD) (callee_stk_frm_addr : list Addr) :=
     (std_update_multiple (<d[ frm W_init + 1]d>(revoke W_init)) callee_stk_frm_addr Temporary).
 
@@ -521,6 +509,22 @@ Section Switcher.
           ** rewrite revoke_lookup_Revoked in HstdF_a ; eauto; simplify_eq.
              apply rtc_refl.
   Qed.
+
+  Definition switcher_inv
+    (b_switcher e_switcher a_switcher_cc b_tstk e_tstk : Addr)
+    (ot_switcher : OType) : iProp Σ :=
+    ∃ (a_tstk : Addr) (d : nat) (tstk_next : list Word),
+     mtdc ↦ₛᵣ WCap RWL Local b_tstk e_tstk a_tstk
+     ∗ ⌜ SubBounds
+         b_switcher e_switcher
+         a_switcher_cc (a_switcher_cc ^+ length switcher_instrs)%a ⌝
+     ∗ ⌜ (ot_switcher < (ot_switcher ^+1) )%ot ⌝
+     ∗ codefrag a_switcher_cc switcher_instrs
+     ∗ b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
+     ∗ [[ (a_tstk ^+1)%a, e_tstk ]] ↦ₐ [[ tstk_next ]]
+     ∗ ⌜ (b_tstk <= a_tstk)%a ∧ (a_tstk <= e_tstk)%a ⌝
+     ∗ tframe_full d ∗ ⌜ (b_tstk + d)%a = Some a_tstk  ⌝
+     ∗ seal_pred ot_switcher ot_switcher_propC.
 
   Lemma switcher_ret_specification
     (Nswitcher Nframes : namespace)
@@ -1948,21 +1952,5 @@ Section Switcher.
       by apply Hstk_revoked in Ha.
     }
   Admitted.
-
-
-  Lemma switcher_interp (W : WORLD) (C : CmptName) (N : namespace)
-    (b_switcher e_switcher a_switcher_cc b_tstk e_tstk : Addr) (ot_switcher : OType) :
-    na_inv logrel_nais N (switcher_inv b_switcher e_switcher a_switcher_cc b_tstk e_tstk ot_switcher) -∗
-    interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_cc).
-  Proof.
-  Admitted.
-
-  Lemma future_priv_mono_interp_switcher (C : CmptName) (Nswitcher : namespace)
-    (b_switcher e_switcher a_switcher_cc b_tstk e_tstk : Addr) (ot_switcher : OType) :
-    na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_switcher_cc b_tstk e_tstk ot_switcher) -∗
-    future_priv_mono C interpC (WSentry XSRW_ Local b_switcher e_switcher a_switcher_cc).
-  Proof.
-  Admitted.
-
 
 End Switcher.

@@ -647,4 +647,27 @@ Section logrel.
       congruence.
   Qed.
 
+  Lemma writeAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a':
+    writeAllowed p = true ->
+    interp W C (WCap p g b e a') -∗
+    ⌜Forall (fun a => ∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
+  Proof.
+    iIntros (Hwa) "Hinterp".
+    rewrite Forall_forall.
+    iIntros (a Ha).
+    apply elem_of_finz_seq_between in Ha.
+    rewrite /interp; cbn.
+    rewrite fixpoint_interp1_eq interp1_eq; cbn.
+    replace (isO p) with false.
+    2: { eapply writeAllowed_nonO in Hwa ;done. }
+    destruct (has_sreg_access p) eqn:HnXSR; auto.
+    iDestruct "Hinterp" as "[Hinterp %Hloc]".
+    iDestruct (extract_from_region_inv with "Hinterp")
+             as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
+    iPureIntro.
+    destruct (isWL p); simplify_eq.
+    + naive_solver.
+    + destruct g; naive_solver.
+  Qed.
+
 End logrel.

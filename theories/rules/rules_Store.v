@@ -822,4 +822,134 @@ Section cap_lang_rules.
      }
     Qed.
 
+   Lemma wp_store_fail_reg_not_cap E pc_p pc_g pc_b pc_e pc_a w
+     dst src wdst wstore :
+      decodeInstrW w = Store dst (inr src) →
+     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     is_cap wdst = false ->
+
+     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ src ↦ᵣ wstore
+           ∗ ▷ dst ↦ᵣ wdst
+     }}}
+       Instr Executable @ E
+       {{{ RET FailedV; True}}}.
+    Proof.
+      iIntros (Hinstr Hvpc Hnot_cap φ)
+             "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
+    iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
+
+    iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
+    { by rewrite !dom_insert; set_solver+. }
+    Admitted.
+
+   Lemma wp_store_fail_reg_perm E pc_p pc_g pc_b pc_e pc_a pc_a' w dst src
+         p g b e a w'' :
+      decodeInstrW w = Store dst (inr src) →
+     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     (pc_a + 1)%a = Some pc_a' →
+     canStore p w'' = false ->
+
+     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ src ↦ᵣ w''
+           ∗ ▷ dst ↦ᵣ WCap p g b e a
+     }}}
+       Instr Executable @ E
+       {{{ RET FailedV; True}}}.
+    Proof.
+      iIntros (Hinstr Hvpc Hpca' HcanStore φ)
+             "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
+    iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
+
+    iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
+    { by rewrite !dom_insert; set_solver+. }
+    { rewrite /allow_store_map_or_true.
+      eexists p,g,b,e,a,w''.
+      split.
+      { rewrite /read_reg_inr.
+        by rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert.
+      }
+      split.
+      { rewrite /word_of_argument.
+        by rewrite lookup_insert_ne // lookup_insert.
+      }
+      rewrite /reg_allows_store.
+      rewrite HcanStore.
+      rewrite decide_False; auto.
+      intro; naive_solver.
+      }
+    iNext. iIntros (regs' mem' retv) "(#Hspec & Hmem & Hmap)".
+    iDestruct "Hspec" as %Hspec.
+
+    destruct Hspec.
+     { (* Success (contradiction) *)
+       exfalso.
+       rewrite /reg_allows_store in H3.
+       destruct H3 as (?&?&?&Hcontra); simplify_map_eq.
+       by rewrite Hcontra in HcanStore.
+     }
+     { (* Failure (contradiction) *)
+       destruct X; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct o. all: try congruence.
+       all: by iApply "Hφ".
+     }
+    Qed.
+
+   Lemma wp_store_fail_reg E pc_p pc_g pc_b pc_e pc_a w dst src
+         p g b e a w'' :
+      decodeInstrW w = Store dst (inr src) →
+     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     withinBounds b e a = false →
+
+     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ src ↦ᵣ w''
+           ∗ ▷ dst ↦ᵣ WCap p g b e a
+     }}}
+       Instr Executable @ E
+       {{{ RET FailedV; True}}}.
+    Proof.
+      iIntros (Hinstr Hvpc Hwb φ)
+             "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
+    iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
+
+    iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
+    { by rewrite !dom_insert; set_solver+. }
+    { rewrite /allow_store_map_or_true.
+      eexists p,g,b,e,a,w''.
+      split.
+      { rewrite /read_reg_inr.
+        by rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert.
+      }
+      split.
+      { rewrite /word_of_argument.
+        by rewrite lookup_insert_ne // lookup_insert.
+      }
+      rewrite /reg_allows_store.
+      rewrite Hwb.
+      rewrite decide_False; auto.
+      intro; naive_solver.
+      }
+    iNext. iIntros (regs' mem' retv) "(#Hspec & Hmem & Hmap)".
+    iDestruct "Hspec" as %Hspec.
+
+    destruct Hspec.
+     { (* Success (contradiction) *)
+       exfalso.
+       rewrite /reg_allows_store in H3.
+       destruct H3 as (?&?&Hcontra&?); simplify_map_eq.
+       by rewrite Hcontra in Hwb.
+     }
+     { (* Failure (contradiction) *)
+       destruct X; try incrementPC_inv; simplify_map_eq; eauto.
+       destruct o. all: try congruence.
+       all: by iApply "Hφ".
+     }
+    Qed.
+
  End cap_lang_rules.
