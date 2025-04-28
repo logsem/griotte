@@ -60,7 +60,6 @@ Proof.
   - right. intros Hcontr. apply Pos2Z.inj_divide in Hcontr. done.
 Qed.
 
-
 Lemma list_to_map_lookup_is_Some {A B} `{Countable A, EqDecision A} (l: list (A * B)) (a: A) :
   is_Some ((list_to_map l : gmap A B) !! a) ↔ a ∈ l.*1.
 Proof.
@@ -100,11 +99,26 @@ Lemma dom_list_to_map_singleton {K V: Type} `{EqDecision K, Countable K} (x:K) (
   dom (list_to_map [(x, y)] : gmap K V) = list_to_set [x].
 Proof. rewrite dom_insert_L /= dom_empty_L. set_solver. Qed.
 
-Lemma list_to_set_disj {A} `{Countable A, EqDecision A} (l1 l2: list A) :
+Lemma list_to_set_disj_1 {A} `{Countable A, EqDecision A} (l1 l2: list A) :
   l1 ## l2 → (list_to_set l1: gset A) ## list_to_set l2.
 Proof.
   intros * HH. rewrite elem_of_disjoint. intros x.
   rewrite !elem_of_list_to_set. rewrite elem_of_disjoint in HH |- *. eauto.
+Qed.
+
+Lemma list_to_set_disj_2 {A} `{Countable A, EqDecision A} (l1 l2: list A) :
+  (list_to_set l1: gset A) ## list_to_set l2 -> l1 ## l2.
+Proof.
+  intros * HH. rewrite elem_of_disjoint. intros x.
+  rewrite elem_of_disjoint in HH |- *.
+  specialize (HH x).
+  by rewrite !elem_of_list_to_set in HH.
+Qed.
+
+Lemma list_to_set_disj {A} `{Countable A, EqDecision A} (l1 l2: list A) :
+  l1 ## l2 <-> (list_to_set l1: gset A) ## list_to_set l2.
+Proof.
+  split; [apply list_to_set_disj_1 | apply list_to_set_disj_2].
 Qed.
 
 Lemma map_to_list_fst {A B : Type} `{EqDecision A, Countable A} (m : gmap A B) i :
@@ -134,13 +148,13 @@ Proof.
     + simpl in HH. eapply IHl; eauto.
 Qed.
 
-Lemma disjoint_nil_l {A : Type} `{EqDecision A} (a : A) (l2 : list A) :
+Lemma disjoint_nil_l {A : Type} `{EqDecision A} (l2 : list A) :
   [] ## l2.
 Proof.
   apply elem_of_disjoint. intros x Hcontr. inversion Hcontr.
 Qed.
 
-Lemma disjoint_nil_r {A : Type} `{EqDecision A} (a : A) (l2 : list A) :
+Lemma disjoint_nil_r {A : Type} `{EqDecision A} (l2 : list A) :
   l2 ## [].
 Proof.
   apply elem_of_disjoint. intros x Hl Hcontr. inversion Hcontr.
@@ -470,6 +484,16 @@ Proof.
     destruct (decide_rel elem_of a l2); first contradiction.
     f_equal.
       by apply IHl1.
+Qed.
+
+Lemma list_difference_same {A : Type} `{EqDecision A} (l : list A) :
+  NoDup l ->
+  list_difference l l = [].
+Proof.
+  induction l; intros Hnodup; cbn; first done.
+  destruct (decide_rel elem_of a (a :: l)) ; last set_solver.
+  rewrite NoDup_cons in Hnodup; destruct Hnodup as [Ha Hnodup].
+  rewrite list_difference_skip; auto.
 Qed.
 
 Lemma list_difference_nested {A : Type} `{EqDecision A}

@@ -1,4 +1,4 @@
-From iris.algebra Require Import gmap agree auth.
+From iris.algebra Require Import gmap agree auth excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine Require Export region_invariants_definitions.
@@ -22,7 +22,7 @@ Class heapGpreS Σ {Cname : CmptNameG} := HeapGpreS {
   heapPreG_invPreG : invGpreS Σ;
   heapPreG_saved_pred ::
     savedPredG Σ (
-      ((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
+      ((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
         CmptName *
         Word);
   heapPreG_rel :: inG Σ (authR relUR);
@@ -31,7 +31,7 @@ Class heapGpreS Σ {Cname : CmptNameG} := HeapGpreS {
 Class heapGS Σ {Cname : CmptNameG} := HeapGS {
   heapG_saved_pred ::
     savedPredG Σ (
-      ((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
+      ((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
         CmptName *
         Word);
   heapG_rel :: inG Σ (authR relUR);
@@ -45,7 +45,7 @@ Instance subG_heapPreΣ {Σ} {Cname : CmptNameG}:
   subG heapPreΣ Σ →
   invGpreS Σ →
   subG (savedPredΣ
-          ((((STS_std_states Addr region_type) * (STS_states * STS_rels))) *
+          ((((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat)) *
         CmptName *
         Word)) Σ →
   heapGpreS Σ.
@@ -67,7 +67,7 @@ Section REL_defs.
   Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
 
   Definition rel_def (C : CmptName) (a : Addr) (p : Perm)
-    (φ : (((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
+    (φ : (((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
         CmptName *
         Word) -> iProp Σ)
     : iProp Σ :=
@@ -120,11 +120,12 @@ Section heap.
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Addr region_type Σ}
-    {heapg : heapGS Σ}
+    {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     `{MP: MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
 
   Global Instance region_type_EqDecision : EqDecision region_type :=
@@ -412,14 +413,14 @@ Section heap.
     rewrite region_eq /region_def.
     iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
     assert (is_Some (M !! a)) as [ [γ p] Hγp].
-    { apply elem_of_dom. rewrite /std in Hlookup,Hdom'.
+    { apply elem_of_dom.
       rewrite -Hdom. rewrite elem_of_dom; eauto.
     }
     iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].
     iDestruct (big_sepM_delete _ _ a with "Hr") as "[Hstate Hr]";[eauto|].
     iDestruct "Hstate" as (ρ Ha) "[Hρ Hstate]".
     iDestruct (sts_full_state_std with "Hsts Hρ") as %Hx''; simplify_eq.
-    all: rewrite Hlookup in Hx'';inversion Hx'';subst.
+    (* all: rewrite Hlookup in Hx'';inversion Hx'';subst. *)
     all: iDestruct "Hstate" as (γpred p' φ Heq Hpers) "(#Hsaved & Ha)".
     all: iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     all: iDestruct (big_sepM_delete _ _ a with "[Hρ Ha HmonoV Hφ $Hr]") as "Hr";[eauto| |].
@@ -1083,6 +1084,29 @@ Section heap.
     by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
   Qed.
 
+  Lemma region_close_revoked W C a p φ  `{forall Wv, Persistent (φ Wv)}:
+    ⊢ sts_state_std C a Revoked
+    ∗ open_region W C a
+    ∗ rel C a p φ
+      -∗ region W C.
+  Proof.
+    iIntros "(Hstate & Hreg_open & #Hrel)".
+    rewrite open_region_eq region_eq rel_eq /open_region_def /region_def /rel_def.
+    iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
+    iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
+    iDestruct (region_map_insert _ _ _ _ _ Revoked  with "Hpreds") as "Hpreds".
+    iDestruct ( (big_sepM_insert _ (delete a M) a (γpred,p)) with "[-HM]") as "test";
+      first by rewrite lookup_delete.
+    { iFrame "∗ #". iSplitR; [by simplify_map_eq|].
+      iExists p.
+      repeat (iSplitR;[eauto|]). done.  }
+    iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
+    rewrite -HMeq.
+    iFrame "∗ # %".
+    iPureIntro.
+    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+  Qed.
+
   Lemma region_close W C a φ p v (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
     ρ = Temporary ∨ ρ = Permanent →
     sts_state_std C a ρ
@@ -1434,6 +1458,34 @@ Section heap.
     by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
   Qed.
 
+  Lemma region_close_revoked_next W C a als p φ  `{forall Wv, Persistent (φ Wv)}:
+    a ∉ als ->
+    ⊢ sts_state_std C a Revoked
+    ∗ open_region_many W C (a::als)
+    ∗ rel C a p φ
+      -∗ open_region_many W C als.
+  Proof.
+    rewrite open_region_many_eq /open_region_many_def.
+    iIntros (Hnin) "(Hstate & Hreg_open & #Hrel)".
+    rewrite rel_eq /rel_def /rel /region.
+    iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
+    iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
+    iDestruct (region_map_insert _ _ _ _ _ Revoked with "Hpreds") as "Hpreds".
+    iDestruct ( (big_sepM_insert _ (delete a (delete_list als M)) a (γpred,p)) with "[-HM]") as "test";
+      first by rewrite lookup_delete.
+    { iFrame "∗ #". iSplitR; [by simplify_map_eq|].
+      iExists p.
+      repeat (iSplitR;[eauto|]). done.  }
+    rewrite -(delete_list_delete _ M) // -(delete_list_insert _ (delete _ M)) //.
+    rewrite -(delete_list_insert _ Mρ) //.
+    iExists M, (<[a:=Revoked]> Mρ).
+    iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
+    rewrite -HMeq.
+    iFrame "∗ # %".
+    repeat(iSplitR; eauto).
+    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+  Qed.
+
   Definition monotonicity_guarantees_region
     (C : CmptName) (φ : WORLD * CmptName * Word → iProp Σ)
     (p : Perm) (w : Word) (ρ : region_type) :=
@@ -1549,7 +1601,7 @@ Section heap.
   Proof.
     intros HWa.
     rewrite /delete_std ; cbn.
-    destruct W as [Wstd Wcus]; cbn.
+    destruct W as [[Wstd Wcus] Wfrm];cbn.
     split; cbn in *.
     - split; cbn.
       + intros i x Hx Hperma; simplify_eq.

@@ -8,13 +8,14 @@ Section region_alloc.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ}
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -57,7 +58,7 @@ Section region_alloc.
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
-    - iPureIntro. rewrite /std /std_update in HMW |- *.
+    - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - iApply big_sepM_insert; auto.
@@ -116,7 +117,7 @@ Section region_alloc.
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
-    - iPureIntro. rewrite /std /std_update in HMW |- *.
+    - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - iApply big_sepM_insert; auto.
@@ -136,6 +137,28 @@ Section region_alloc.
       iExists ρ.
       assert (a' ≠ a) as Hne;[intros Hcontr;subst a';rewrite HRl in Ha; inversion Ha|].
       rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame.
+  Qed.
+
+  Lemma extend_region_temp E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
+    isO p = false ->
+    a ∉ dom (std W) →
+    (if isWL p then future_pub_mono C φ v else
+       (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)) -∗
+    sts_full_world W C -∗
+    region W C -∗
+    a ↦ₐ v -∗
+    φ (W,C,v)
+
+    ={E}=∗
+
+    region (<s[a := Temporary ]s>W) C
+    ∗ rel C a p φ
+    ∗ sts_full_world (<s[a := Temporary ]s>W) C.
+  Proof.
+    iIntros (HnpO Hnone1) "#HmonoV Hfull Hreg Hl #Hφ".
+    destruct (isWL p) eqn:Hpwl.
+    + iApply (extend_region_temp_pwl with "[$] [$] [$] [$]"); eauto.
+    + iApply (extend_region_temp_nwl with "[$] [$] [$] [$]"); eauto.
   Qed.
 
   Lemma extend_region_perm E W C a v p φ `{∀ Wv, Persistent (φ Wv)}:
@@ -176,7 +199,7 @@ Section region_alloc.
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
-    - iPureIntro. rewrite /std /std_update in HMW |- *.
+    - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - iApply big_sepM_insert; auto.
@@ -233,7 +256,7 @@ Section region_alloc.
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
-    - iPureIntro. rewrite /std /std_update in HMW |- *.
+    - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - iApply big_sepM_insert; auto.
@@ -273,25 +296,81 @@ Section region_alloc.
         assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked)
                 = std_update_multiple W l1 Revoked) as ->.
         { rewrite /std_update.
-          destruct (std_update_multiple W l1 Revoked) eqn:Heq.
+          destruct (std_update_multiple W l1 Revoked) as [ [] ] eqn:Heq.
+          f_equiv; last done.
           f_equiv; last done.
           simpl. rewrite insert_id//.
-          assert (o = (std_update_multiple W l1 Revoked).1) as ->;[rewrite Heq//|].
+          assert (o = std (std_update_multiple W l1 Revoked)) as ->;[rewrite Heq//|].
           apply std_sta_update_multiple_lookup_in_i;auto.
         }
         destruct (std_update_multiple W l1 Revoked) as [Wstd_sta Wloc] eqn:Heq.
         destruct l1; first by rewrite lookup_nil in Hk.
         by iFrame "#∗".
       + iMod (extend_region_revoked _ _ _ a with "Hsts Hr") as "(Hr & Hrel & Hsts)"; auto.
-        { rewrite /std in H0.
-          destruct l1.
+        { destruct l1.
           { rewrite not_elem_of_dom //. }
           rewrite -std_update_multiple_not_in_sta; auto.
           rewrite not_elem_of_dom //.
         }
-        rewrite /std in H0.
         by iFrame "#∗".
   Qed.
+
+  Lemma extend_region_temp_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
+    isO p = false ->
+    Forall (λ k, std W !! k = None) l1 →
+    sts_full_world W C
+    -∗ region W C
+    -∗ ([∗ list] k;v ∈ l1;l2,
+          k ↦ₐ v
+          ∗ φ (W, C, v)
+          ∗ (if isWL p then future_pub_mono C φ v else
+               (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)) )
+
+    ={E}=∗
+
+    region (std_update_multiple W l1 Temporary) C
+    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ sts_full_world (std_update_multiple W l1 Temporary) C.
+  Proof.
+    revert l2. induction l1.
+    - cbn. intros. iIntros "? ?". iFrame. eauto.
+    - intros l2 HneqO [HWa Hnone_l1]%Forall_cons_1. iIntros "Hsts Hr Hl".
+      simpl.
+      iDestruct (big_sepL2_length with "Hl") as %Hlen.
+      iDestruct (NoDup_of_sepL2_exclusive with "[] Hl") as %[Hal1 ND]%NoDup_cons.
+      { iIntros (? ? ?) "(H1 & ? & ?) (H2 & ? & ?)".
+        iApply (addr_dupl_false with "H1 H2"). }
+      destruct l2; [ by inversion Hlen |].
+      iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf) Hl]".
+
+      iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto.
+      iDestruct (extend_region_temp with "Hf Hsts Hr Ha [Hφ]") as ">(? & ? & ?)"; eauto.
+      {
+        intro Hcontra.
+        apply elem_of_dom_std_multiple_update in Hcontra.
+        destruct Hcontra as [?|Hcontra]; first set_solver.
+        rewrite elem_of_dom in Hcontra.
+        destruct Hcontra as [? Hcontra].
+        by rewrite Hcontra in HWa.
+      }
+      { destruct (isWL p).
+        + iApply ("Hf" with "[] Hφ"). iPureIntro.
+          apply related_sts_pub_update_multiple.
+          eapply Forall_impl; eauto.
+          intros. by rewrite not_elem_of_dom.
+        + destruct (isDL p).
+          ++ iApply ("Hf" with "[] Hφ"). iPureIntro.
+             apply related_sts_pub_borrow_world, related_sts_pub_update_multiple.
+             eapply Forall_impl; eauto.
+             intros. by rewrite not_elem_of_dom.
+          ++ iApply ("Hf" with "[] Hφ"). iPureIntro.
+             apply related_sts_pub_priv_world, related_sts_pub_update_multiple.
+             eapply Forall_impl; eauto.
+             intros. by rewrite not_elem_of_dom.
+      }
+      iModIntro. cbn. iFrame.
+  Qed.
+
 
   Lemma extend_region_perm_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->

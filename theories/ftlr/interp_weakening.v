@@ -9,13 +9,14 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -138,9 +139,9 @@ Section fundamental.
     rewrite /enter_cond /interp_expr /=.
     iIntros (r W') "#Hfuture".
     iSplitR; iNext.
-    - iIntros "[[Hfull Hmap] [Hreg [Hregion [Hsts Hown]]]]".
+    - iIntros "[[Hfull Hmap] (Hreg & Hregion & Hsts & Htframe & Hown)]".
       rewrite /interp_conf.
-      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hown"); eauto.
+      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Htframe Hown"); eauto.
       iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
       destruct (isO p) eqn:HpO; auto.
       destruct (has_sreg_access p) eqn:HpXSR'; auto.
@@ -162,9 +163,9 @@ Section fundamental.
         simplify_eq.
         destruct g' ; auto.
 
-    - iIntros "[[Hfull Hmap] [Hreg [Hregion [Hsts Hown]]]]".
+    - iIntros "[[Hfull Hmap] (Hreg & Hregion & Hsts & Htframe & Hown)]".
       rewrite /interp_conf.
-      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hown"); eauto.
+      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Htframe Hown"); eauto.
       iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
       destruct (isO p) eqn:HpO; auto.
       destruct (has_sreg_access p) eqn:HpXSR'; auto.

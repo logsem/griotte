@@ -373,6 +373,59 @@ Section cap_lang_rules.
     iExFalso. iApply (addr_dupl_false with "[$Ha1] [$Ha2]").
   Qed.
 
+  Lemma big_sepL2_disjoint_pointsto (la1 : list Addr) (lw1 : list Word)
+    (a : Addr) (w : Word) :
+    ⊢ ([∗ list] a1;w1 ∈ la1;lw1, a1 ↦ₐ w1) ∗ a ↦ₐ w -∗ ⌜ a ∉ la1 ⌝.
+  Proof.
+    generalize dependent lw1.
+    induction la1 as [|a1 la1]; iIntros (lw1) "[Hla1 Ha]".
+    - iPureIntro ; set_solver.
+    - destruct lw1; first done.
+      rewrite big_sepL2_cons.
+      iDestruct "Hla1" as "[Ha1 Hla1]".
+      iDestruct (address_neq with "[$] [$]") as "%".
+      rewrite not_elem_of_cons.
+      iSplit ; first done.
+      iApply IHla1; last iFrame.
+  Qed.
+
+  Lemma big_sepL2_nodup (la : list Addr) (lw : list Word):
+    ⊢ ([∗ list] a;w ∈ la;lw, a ↦ₐ w) -∗ ⌜NoDup la ⌝.
+  Proof.
+    generalize dependent lw.
+    induction la as [|a la]; iIntros (lw) "Hla".
+    - iPureIntro ; by apply NoDup_nil.
+    - destruct lw; first done.
+      rewrite big_sepL2_cons.
+      iDestruct "Hla" as "[Ha Hla]".
+      iDestruct (big_sepL2_disjoint_pointsto with "[$]") as "%Hnotin".
+      iDestruct (IHla with "[$]") as "%Hnodup".
+      rewrite NoDup_cons.
+      iSplit ; done.
+  Qed.
+
+
+  Lemma big_sepL2_disjoint (la1 la2 : list Addr) (lw1 lw2 : list Word) :
+    ⊢ ([∗ list] a1;w1 ∈ la1;lw1, a1 ↦ₐ w1) ∗ ([∗ list] a2;w2 ∈ la2;lw2, a2 ↦ₐ w2) -∗ ⌜ la1 ## la2 ⌝.
+  Proof.
+    generalize dependent lw2.
+    induction la2 as [|a2 la2]; iIntros (lw2) "[Hla1 Hla2]".
+    - iPureIntro ; set_solver.
+    - destruct lw2; first done.
+      rewrite big_sepL2_cons.
+      iDestruct "Hla2" as "[Ha2 Hla2]".
+      iDestruct (big_sepL2_disjoint_pointsto with "[$Hla1 $Ha2]") as "%Ha_l1".
+      rewrite /disjoint /set_disjoint_instance.
+      iIntros (a Ha Ha').
+      iDestruct (IHla2 with "[$Hla1 $Hla2]") as "%Hla_disjoint"; auto.
+      exfalso.
+      apply elem_of_cons in Ha'.
+      destruct Ha' as [->|Ha']; first congruence.
+      by apply Hla_disjoint in Ha.
+  Qed.
+
+
+
   Lemma memMap_resource_2ne_apply (a1 a2 : Addr) (w1 w2 : Word)  :
     a1 ↦ₐ w1 -∗ a2 ↦ₐ w2 -∗ ([∗ map] a↦w ∈  <[a1:=w1]> (<[a2:=w2]> ∅), a ↦ₐ w) ∗ ⌜a1 ≠ a2⌝.
   Proof.

@@ -13,13 +13,14 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -31,17 +32,8 @@ Section fundamental.
   Lemma binop_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg) (p p' : Perm)
     (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName)
     (r1 r2: Z + RegName) (P:D):
-    validPCperm p g
-    → (∀ x : RegName, is_Some (regs !! x))
-    → isCorrectPC (WCap p g b e a)
-    → (b <= a)%a ∧ (a < e)%a
-    → PermFlowsTo p p'
-    → isO p' = false
-    → persistent_cond P
-    → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
-    → std W !! a = Some ρ
-    → ρ ≠ Revoked
-    → (decodeInstrW w = Add dst r1 r2 \/
+    ftlr_instr_base W C regs p p' g b e a w ρ P
+      (decodeInstrW w = Add dst r1 r2 \/
        decodeInstrW w = Sub dst r1 r2 \/
        decodeInstrW w = Mul dst r1 r2 \/
        decodeInstrW w = LAnd dst r1 r2 \/
@@ -49,38 +41,10 @@ Section fundamental.
        decodeInstrW w = LShiftL dst r1 r2 \/
        decodeInstrW w = LShiftR dst r1 r2 \/
        decodeInstrW w = Lt dst r1 r2
-      )
-    -> ftlr_IH
-    -∗ fixpoint interp1 W C (WCap p g b e a)
-    -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → fixpoint interp1 W C v)
-    -∗ rel C a p' (safeC P)
-    -∗ □ (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)
-          then ▷ (rcond P C p' interp)
-          else emp)
-    -∗ □ (if decide (writeAllowed_a_in_regs (<[PC:=(WCap p g b e a)]> regs) a)
-          then ▷ wcond P C interp
-          else emp)
-    -∗ monoReq W C a p' P
-    -∗ (▷ (if decide (ρ = Temporary)
-           then (if isWL p'
-                 then future_pub_mono C (safeC P) w
-                 else (if isDL p' then future_borrow_mono C (safeC P) w else future_priv_mono C (safeC P) w))
-           else future_priv_mono C (safeC P) w))
-    -∗ ▷ P W C w
-    -∗ sts_full_world W C
-    -∗ na_own logrel_nais ⊤
-    -∗ open_region W C a
-    -∗ sts_state_std C a ρ
-    -∗ a ↦ₐ w
-    -∗ PC ↦ᵣ (WCap p g b e a)
-    -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
-    -∗ WP Instr Executable
-        {{ v, WP Seq (cap_lang.of_val v)
-                 {{ v0, ⌜v0 = HaltedV⌝
-                        → na_own logrel_nais ⊤}} }}.
+      ).
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -99,7 +63,7 @@ Section fundamental.
       rewrite lookup_insert_ne in H1; eauto; simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
-      iApply ("IH" $! _ _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]")
+      iApply ("IH" $! _ _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]")
       ; eauto.
       + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).

@@ -180,8 +180,8 @@ Proof.
 Qed.
 
 Lemma region_addrs_exists `{Σ : gFunctors} {A B: Type} (a : list A) (φ : A → B → iProp Σ) :
-     ⊢ (([∗ list] a0 ∈ a, (∃ b0, φ a0 b0)) ∗-∗
-      (∃ (ws : list B), [∗ list] a0;b0 ∈ a;ws, φ a0 b0))%I.
+      (([∗ list] a0 ∈ a, (∃ b0, φ a0 b0)) ⊣⊢
+       (∃ (ws : list B), [∗ list] a0;b0 ∈ a;ws, φ a0 b0))%I.
 Proof.
   iSplit.
   - iIntros "Ha".
@@ -202,7 +202,7 @@ Proof.
 Qed.
 
 Lemma region_addrs_exists_zip `{Σ : gFunctors} {A B C: Type} (a : list A) (φ : A → B → C -> iProp Σ) :
-  ⊢ (([∗ list] a0 ∈ a, (∃ b0 c0, φ a0 b0 c0)) ∗-∗
+  (([∗ list] a0 ∈ a, (∃ b0 c0, φ a0 b0 c0)) ⊣⊢
   (∃ (ws : list (B * C)), [∗ list] a0;bc0 ∈ a;ws, φ a0 bc0.1 bc0.2))%I.
 Proof.
   iSplit.
@@ -224,8 +224,8 @@ Proof.
 Qed.
 
 Lemma region_addrs_exists2 `{Σ : gFunctors} {A B C: Type} (a : list A) (b : list B) (φ : A → B → C -> iProp Σ) :
-     ⊢ (([∗ list] a0;b0 ∈ a;b, (∃ c0, φ a0 b0 c0)) ∗-∗
-      (∃ (ws : list C), ⌜length ws = length b⌝ ∗ [∗ list] a0;bc0 ∈ a;(zip b ws), φ a0 bc0.1 bc0.2))%I.
+  (([∗ list] a0;b0 ∈ a;b, (∃ c0, φ a0 b0 c0)) ⊣⊢
+   (∃ (ws : list C), ⌜length ws = length b⌝ ∗ [∗ list] a0;bc0 ∈ a;(zip b ws), φ a0 bc0.1 bc0.2))%I.
 Proof.
   iSplit.
   - iIntros "Ha".
@@ -250,8 +250,7 @@ Qed.
 
 Lemma big_sepL2_to_big_sepL_r `{Σ : gFunctors} {A B : Type} (φ : B → iProp Σ) (l1 : list A) l2 :
   length l1 = length l2 →
-  ⊢ (([∗ list] _;y2 ∈ l1;l2, φ y2) ∗-∗
-                                 ([∗ list] y ∈ l2, φ y))%I.
+  (([∗ list] _;y2 ∈ l1;l2, φ y2) ⊣⊢ ([∗ list] y ∈ l2, φ y))%I.
 Proof.
   iIntros (Hlen).
   iSplit.
@@ -274,8 +273,7 @@ Qed.
 Lemma big_sepL2_to_big_sepL_l `{Σ : gFunctors} {A B : Type} (φ : A → iProp Σ) (l1 : list A)
       (l2 : list B) :
   length l1 = length l2 →
-  ⊢ (([∗ list] y1;_ ∈ l1;l2, φ y1) ∗-∗
-  ([∗ list] y ∈ l1, φ y))%I.
+  (([∗ list] y1;_ ∈ l1;l2, φ y1) ⊣⊢ ([∗ list] y ∈ l1, φ y))%I.
 Proof.
   iIntros (Hlen).
   iSplit.
@@ -426,7 +424,7 @@ Qed.
 
 (* Helper lemma for reasoning about the current state of a region map *)
 Lemma big_sepM_exists `{Σ : gFunctors} {A B C : Type} `{EqDecision A, Countable A} (m : gmap A B) (φ : A → C -> B → iProp Σ) :
-  ⊢ (([∗ map] a↦b ∈ m, ∃ c, φ a c b) ∗-∗ (∃ (m' : gmap A C), [∗ map] a↦c;b ∈ m';m, φ a c b))%I.
+  (([∗ map] a↦b ∈ m, ∃ c, φ a c b) ⊣⊢ (∃ (m' : gmap A C), [∗ map] a↦c;b ∈ m';m, φ a c b))%I.
 Proof.
   iSplit.
   - iIntros "Hmap".
@@ -491,6 +489,60 @@ Proof.
       subst. auto.
 Qed.
 
+Lemma big_sepL2_zip_snd_2 {PROP : bi} {T1 : Type} {T2 : Type} {T3 : Type}
+  (l1 : list T1) (l2 : list T2) (l2' : list T3)
+  (ϕ : T1 -> T3 -> PROP) :
+  length l2 = length l2' ->
+  ([∗ list] y1;y2 ∈ l1;zip l2 l2', ϕ y1 y2.2)
+  ⊢ [∗ list] y1;y2 ∈ l1;l2', ϕ y1 y2.
+Proof.
+  generalize dependent l2'.
+  generalize dependent l2.
+  induction l1; cbn; iIntros (l2 l2' Hlen_l2) "Hl"
+  ; iDestruct (big_sepL2_length with "Hl") as "%Hlen_l1".
+  - destruct l2' ; destruct l2; cbn in *; try congruence; done.
+  - destruct l2' ; auto; cbn in *.
+    + destruct l2; cbn in *; try congruence; done.
+    + destruct l2; cbn in *; try congruence.
+      injection Hlen_l2 as Hlen_l2.
+      injection Hlen_l1 as Hlen_l1.
+      iDestruct "Hl" as "[$ Hl]".
+      by iApply (IHl1 with "Hl").
+Qed.
+
+Lemma big_sepL2_zip_snd_1 {PROP : bi} {T1 : Type} {T2 : Type} {T3 : Type}
+  (l1 : list T1) (l2 : list T2) (l2' : list T3)
+  (ϕ : T1 -> T3 -> PROP) :
+  length l2 = length l2' ->
+  ([∗ list] y1;y2 ∈ l1;l2', ϕ y1 y2)
+  ⊢ [∗ list] y1;y2 ∈ l1;zip l2 l2', ϕ y1 y2.2.
+Proof.
+  generalize dependent l2'.
+  generalize dependent l2.
+  induction l1; cbn; iIntros (l2 l2' Hlen_l2) "Hl"
+  ; iDestruct (big_sepL2_length with "Hl") as "%Hlen_l1".
+  - destruct l2' ; auto.
+    destruct l2; cbn in *; done.
+  - destruct l2' ; auto; cbn in *.
+    destruct l2; cbn in *; try congruence.
+    injection Hlen_l2 as Hlen_l2.
+    injection Hlen_l1 as Hlen_l1.
+    iDestruct "Hl" as "[$ Hl]".
+    by iApply (IHl1 with "Hl").
+Qed.
+
+Lemma big_sepL2_zip_snd {PROP : bi} {T1 : Type} {T2 : Type} {T3 : Type}
+  (l1 : list T1) (l2 : list T2) (l2' : list T3) (ϕ : T1 -> T3 -> PROP) :
+  length l2 = length l2' ->
+  ([∗ list] y1;y2 ∈ l1;l2', ϕ y1 y2)
+  ⊣⊢ [∗ list] y1;y2 ∈ l1;zip l2 l2', ϕ y1 y2.2.
+Proof.
+  intros Hlen.
+  iSplit; iIntros "Hl"
+  ; [ iApply (big_sepL2_zip_snd_1 with "Hl") | iApply (big_sepL2_zip_snd_2 with "Hl")]
+  ; done.
+Qed.
+
 Global Instance if_persistent `{PROP:bi} (b: bool) (φ1 φ2: PROP) (H1: Persistent φ1) (H2: Persistent φ2):
   Persistent (if b then φ1 else φ2).
 Proof.
@@ -508,3 +560,12 @@ Lemma if_dec_later {Σ : gFunctors} {C} {eqdec: Decision C} (Q Q' : iProp Σ) :
   (if (decide C) then ▷ Q else Q') -∗ ▷ (if (decide C) then Q else Q').
 Proof. iIntros "H". destruct (decide C);auto. Qed.
 
+Ltac iHide0 irisH coqH :=
+  let coqH := fresh coqH in
+  match goal with
+  | h: _ |- context [ environments.Esnoc _ (INamed irisH) ?prop ] =>
+      set (coqH := prop)
+  end.
+
+Tactic Notation "iHide" constr(irisH) "as" ident(coqH) :=
+  iHide0 irisH coqH.

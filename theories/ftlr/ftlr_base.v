@@ -8,13 +8,14 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -34,13 +35,14 @@ Section fundamental.
             -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r_ih)
             -∗ region W_ih C_ih
             -∗ sts_full_world W_ih C_ih
+            -∗ tframe_frag (frm W_ih)
             -∗ na_own logrel_nais ⊤
             -∗ □ interp W_ih C_ih (WCap p_ih g_ih b_ih e_ih a_ih)
             -∗ interp_conf W_ih C_ih))%I.
 
-  Definition ftlr_instr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+  Definition ftlr_instr_base (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (i: instr) (ρ : region_type) (P : D) : Prop :=
+    (w : Word) (ρ : region_type) (P : D) (Pinstr : Prop) : Prop :=
     validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
     → isCorrectPC (WCap p g b e a)
@@ -51,7 +53,7 @@ Section fundamental.
     → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
     → ρ ≠ Revoked
-    → decodeInstrW w = i
+    → Pinstr
     -> ftlr_IH
     -∗ fixpoint interp1 W C (WCap p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)
@@ -70,6 +72,7 @@ Section fundamental.
            else future_priv_mono C (safeC P) w))
     -∗ ▷ P W C w
     -∗ sts_full_world W C
+    -∗ tframe_frag (frm W)
     -∗ na_own logrel_nais ⊤
     -∗ open_region W C a
     -∗ sts_state_std C a ρ
@@ -80,16 +83,10 @@ Section fundamental.
         {{ v, WP Seq (cap_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝
                         → na_own logrel_nais ⊤}} }}.
-    (* -∗ WP Instr Executable *)
-    (*     {{ v, WP Seq (cap_lang.of_val v) *)
-    (*              {{ v0, ⌜v0 = HaltedV⌝ *)
-    (*                     → ∃ (regs' : Reg) (W' : WORLD) (WC' : CVIEW), *)
-    (*                       ∃ (regs' : Reg) (W' : WORLD) (WC WC' : CVIEW), *)
-    (*                         ⌜W !! C = Some WC⌝ ∧ ⌜W' !! C = Some WC'⌝ *)
-    (*                         ∧ full_map regs' ∧ registers_pointsto regs' *)
-    (*                         ∗ ⌜related_sts_priv_world WC WC'⌝ *)
-    (*                         ∗ na_own logrel_nais ⊤ *)
-    (*                         ∗ sts_full_world W' ∗ region W' }} }}. *)
 
+  Definition ftlr_instr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+    (p p' : Perm) (g : Locality) (b e a : Addr)
+    (w : Word) (i: instr) (ρ : region_type) (P : D) : Prop :=
+    ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w = i).
 
 End fundamental.

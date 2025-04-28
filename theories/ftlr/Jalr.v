@@ -11,13 +11,14 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -32,7 +33,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Jalr with "[$Ha $Hmap]"); eauto.
@@ -86,7 +87,7 @@ Section fundamental.
         { destruct ρ;auto;contradiction. }
         rewrite !insert_insert insert_commute //.
         iApply ("IH" $! _ _ (<[rdst:=WSentry p g b e pc_a']> regs) with
-                 "[%] [] [$Hmap] [$Hr] [$Hsts] [$Hown]") ; eauto.
+                 "[%] [] [$Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]") ; eauto.
         - intros; cbn.
           rewrite lookup_insert_is_Some.
           destruct (decide (rdst = x)); auto; right; split; auto.
@@ -113,7 +114,7 @@ Section fundamental.
         iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
         { destruct ρ;auto;contradiction. }
         rewrite !insert_insert insert_commute //.
-        iDestruct ("Hinterp_src" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
+        iDestruct ("Hinterp_src" with "[$Hmap $Hr $Hsts $Htframe $Hown]") as "HA"; eauto.
         iNext.
         cbn; iSplit.
         - iIntros (ri); cbn; iPureIntro.

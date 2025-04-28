@@ -33,7 +33,7 @@ Section CMDC_Main.
       Subseg ca0 ct0 ct1 (* ca0 -> b *)
     ]
     ++ fetch_instrs 0 ctp ct0 ct1 (* ctp -> switcher entry point *)
-    ++ fetch_instrs 2 cs0 ct0 ct1 (* cs0 -> {B.f}_(ot_switcher)  *)
+    ++ fetch_instrs 2 ct1 ct0 cs0 (* ct1 -> {B.f}_(ot_switcher)  *)
     ++
     encodeInstrsW [
       Jalr cra ctp;
@@ -58,7 +58,7 @@ Section CMDC_Main.
       Subseg ca0 ct0 ct1 (* ca0 -> c *)
     ]
     ++ fetch_instrs 0 ctp ct0 ct1 (* ctp -> switcher entry point *)
-    ++ fetch_instrs 3 cs0 ct0 ct1 (* cs0 -> {C.g}_(ot_switcher)  *)
+    ++ fetch_instrs 3 ct1 ct0 cs0 (* ct1 -> {C.g}_(ot_switcher)  *)
     ++
     encodeInstrsW [
       Jalr cra ctp;
@@ -79,7 +79,7 @@ Section CMDC_Main.
     (b_assert e_assert : Addr)
     (B_f C_g : Sealable) : list Word :=
     [
-      WSentry XSRW_ Global b_switcher e_switcher a_cc_switcher;
+      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
       WSentry RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_f;
       WSealed ot_switcher C_g

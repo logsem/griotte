@@ -416,7 +416,7 @@ Section cap_lang_rules.
      Unshelve. all:auto.
    Qed.
 
-   Lemma wp_Lea_fail_none Ep pc_p pc_g pc_b pc_e pc_a w r1 rv p g b e a z :
+   Lemma wp_Lea_fail_none_reg Ep pc_p pc_g pc_b pc_e pc_a w r1 rv p g b e a z :
      decodeInstrW w = Lea r1 (inr rv) →
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      (a + z)%a = None ->
@@ -430,6 +430,30 @@ Section cap_lang_rules.
    Proof.
      iIntros (Hdecode Hvpc Hz φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
      iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
+     iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+     by rewrite !dom_insert; set_solver+.
+     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)".
+     iDestruct "Hspec" as %Hspec.
+     destruct Hspec as [* Hsucc | * Hsucc |].
+     { (* Success (contradiction) *) simplify_map_eq. }
+     { (* Success (contradiction) *) simplify_map_eq. }
+     { (* Failure, done *) by iApply "Hφ". }
+   Qed.
+
+   Lemma wp_Lea_fail_none_z Ep pc_p pc_g pc_b pc_e pc_a w r1 p g b e a z :
+     decodeInstrW w = Lea r1 (inl z) →
+     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     (a + z)%a = None ->
+
+     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ ▷ pc_a ↦ₐ w
+           ∗ ▷ r1 ↦ᵣ WCap p g b e a
+     }}}
+       Instr Executable @ Ep
+       {{{ RET FailedV; True }}}.
+   Proof.
+     iIntros (Hdecode Hvpc Hz φ) "(>HPC & >Hpc_a & >Hsrc) Hφ".
+     iDestruct (map_of_regs_2 with "HPC Hsrc") as "[Hmap %]".
      iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      by rewrite !dom_insert; set_solver+.
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)".

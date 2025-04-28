@@ -11,13 +11,14 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -32,7 +33,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Lea dst src) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_lea with "[$Ha $Hmap]"); eauto.
@@ -55,7 +56,7 @@ Section fundamental.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
-      iApply ("IH" $! _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
+      iApply ("IH" $! _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]").
       - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
       - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
@@ -79,7 +80,7 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      iApply ("IH" $! _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hown]").
+      iApply ("IH" $! _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]").
       - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
       - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).

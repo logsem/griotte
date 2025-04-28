@@ -11,13 +11,14 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
+  Notation TFRAME := (leibnizO nat).
+  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -33,7 +34,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     destruct (decide (rsrc = PC)) as [HrPC|HrPC].
     - subst rsrc.
@@ -47,7 +48,7 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
       (* apply IH *)
-      iApply ("IH" $! _ _ _ _ g _ _ a with "[] [] [Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
+      iApply ("IH" $! _ _ _ _ g _ _ a with "[] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]"); eauto.
       { iPureIntro; apply Hsome. }
     - specialize Hsome with rsrc as Hrsrc; destruct Hrsrc as [wsrc Hsomesrc].
       iExtract "Hmap" rsrc as "Hrsrc".
@@ -75,7 +76,7 @@ Section fundamental.
           iNext; iIntros "_".
           iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
           { destruct ρ;auto;contradiction. }
-          iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Hown]"); eauto.
+          iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]"); eauto.
         - (* case sentry *)
           iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
           simpl; rewrite /enter_cond.
@@ -86,7 +87,7 @@ Section fundamental.
           iDestruct "H" as "[H _]".
           iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
           { destruct ρ;auto;contradiction. }
-          iDestruct ("H" with "[$Hmap $Hr $Hsts $Hown]") as "HA"; eauto.
+          iDestruct ("H" with "[$Hmap $Hr $Hsts $Htframe $Hown]") as "HA"; eauto.
           iFrame "#%".
       }
 

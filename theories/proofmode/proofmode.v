@@ -37,6 +37,7 @@ End codefrag.
 
 (* Administrative reduction steps *)
 Ltac wp_pure := iApply wp_pure_step_later; [ by auto | iNext ; iIntros "_" ].
+Ltac wp_pure_lc hlc := iApply wp_pure_step_later; [ by auto | iNext ; iIntros hlc ].
 (* NOTE the last `iIntros "_"` fixes the later 1 introduceed in Iris 4.0.0.
    Remove it from the tactic if necessary. *)
 Ltac wp_end := iApply wp_value.
@@ -272,6 +273,28 @@ Tactic Notation "focus_block" constr(n) constr(h) "as"
        ident(a_base) simple_intropattern(Ha_base) constr(hi) constr(hcont) :=
   focus_block n h a_base Ha_base hi hcont.
 
+Ltac focus_block_nochangePC n h a_base Ha_base hi hcont :=
+  let h := constr:(h:ident) in
+  let hi := constr:(hi:ident) in
+  let hcont := constr:(hcont:ident) in
+  let x := iFresh in
+  match goal with |- context [ environments.Esnoc _ h (codefrag ?a0 _) ] =>
+                    iPoseProof ((codefrag_block_acc n) with h) as (a_base) x;
+                    [ once (typeclasses eauto with proofmode_focus) | ];
+                    let xbase := iFresh in
+                    let y := iFresh in
+                    eapply coq_tactics.tac_and_destruct with x _ xbase y _ _ _;
+                    [reduction.pm_reflexivity|reduction.pm_reduce;tc_solve|reduction.pm_reduce];
+                    iPure xbase as Ha_base;
+                    eapply coq_tactics.tac_and_destruct with y _ hi hcont _ _ _;
+                    [reduction.pm_reflexivity|reduction.pm_reduce;tc_solve|reduction.pm_reduce];
+                    focus_block_codefrag_facts hi a0 Ha_base
+  end.
+Tactic Notation "focus_block_nochangePC" constr(n) constr(h) "as"
+  ident(a_base) simple_intropattern(Ha_base) constr(hi) constr(hcont) :=
+  focus_block_nochangePC n h a_base Ha_base hi hcont.
+
+
 Ltac unfocus_block hi hcont h :=
   let hi := constr:(hi:ident) in
   let hcont := constr:(hcont:ident) in
@@ -332,12 +355,18 @@ Qed.
    [FramableMachineResource] from [machine_utils/tactics.v]
 *)
 
+Class FramableSRegisterPointsto (sr: SRegName) (w: Word) := {}.
+#[export] Hint Mode FramableSRegisterPointsto + - : typeclass_instances.
 Class FramableRegisterPointsto (r: RegName) (w: Word) := {}.
 #[export] Hint Mode FramableRegisterPointsto + - : typeclass_instances.
 Class FramableMemoryPointsto (a: Addr) (dq: dfrac) (w: Word) := {}.
 #[export] Hint Mode FramableMemoryPointsto + - - : typeclass_instances.
 Class FramableCodefrag (a: Addr) (l: list Word) := {}.
 #[export] Hint Mode FramableCodefrag + - : typeclass_instances.
+
+Instance FramableSRegisterPointsto_default sr w :
+  FramableSRegisterPointsto sr w
+| 100. Qed.
 
 Instance FramableRegisterPointsto_default r w :
   FramableRegisterPointsto r w
@@ -350,6 +379,11 @@ Instance FramableMemoryPointsto_default a dq w :
 Instance FramableCodefrag_default a l :
   FramableCodefrag a l
 | 100. Qed.
+
+Instance FramableMachineResource_sreg `{ceriseG Σ} sr w :
+  FramableSRegisterPointsto sr w →
+  FramableMachineResource (sr ↦ₛᵣ w).
+Qed.
 
 Instance FramableMachineResource_reg `{ceriseG Σ} r w :
   FramableRegisterPointsto r w →
@@ -369,7 +403,7 @@ Qed.
 
 (* remembering names after auto-framing done by iFrameAuto *)
 
-Ltac2 Type hyp_table_kind := [ Reg | Mem | Codefrag ].
+Ltac2 Type hyp_table_kind := [ Reg | SReg | Mem | Codefrag ].
 
 Ltac2 record_framed
       (table: (constr * constr * hyp_table_kind) list ref)
@@ -379,6 +413,7 @@ Ltac2 record_framed
   let (lhs, kind) :=
     lazy_match! hh with
     | (?r ↦ᵣ _)%I => (r, Reg)
+    | (?sr ↦ₛᵣ _)%I => (sr, SReg)
     | (?a ↦ₐ{_} _)%I => (a, Mem)
     | (codefrag ?a _) => (a, Codefrag)
     end in
@@ -470,6 +505,12 @@ Definition check_addr_eq (a b: Addr) `{FinZEq _ a b res} := res.
 
 Ltac2 name_cap_resource (name, lhs, kind) :=
   match kind with
+  | SReg =>
+    match! goal with [ |- context [ (?sr ↦ₛᵣ ?x)%I ] ] =>
+      assert_constr_eq sr lhs;
+      ltac1:(x sr name |- change (sr ↦ₛᵣ x)%I with (name ∷ (sr ↦ₛᵣ x))%I)
+        (Ltac1.of_constr x) (Ltac1.of_constr sr) (Ltac1.of_constr name)
+    end
   | Reg =>
     match! goal with [ |- context [ (?r ↦ᵣ ?x)%I ] ] =>
       assert_constr_eq r lhs;
@@ -598,18 +639,50 @@ Ltac iInstr_close hprog :=
     iRename hcont into hprog
   end end.
 
+(* NOTE: iCombine doesn't allow to pass IAnon, so here it is *)
+Tactic Notation "iCombine_ident" constr(Hs) "as" constr(pat) :=
+  let H := iFresh in
+  let Δ := iGetCtx in
+  notypeclasses refine (tac_combine_as _ _ _ Hs _ _ H _ _ _ _ _ _);
+  [pm_reflexivity ||
+     let Hs := iMissingHypsCore Δ Hs in
+     fail "iCombine: hypotheses" Hs "not found"
+  |tc_solve
+  |pm_reflexivity ||
+     let H := pretty_ident H in
+     fail "iCombine:" H "not fresh"
+  (* should never happen in normal usage, since [H := iFresh]
+     FIXME: improve once consistent error messages are added,
+     see https://gitlab.mpi-sws.org/iris/iris/-/issues/499 *)
+  |iDestructHyp H as pat].
+
+Tactic Notation "iCombine_ident" constr(H1) constr(H2) "as" constr(pat) :=
+  iCombine_ident [H1;H2] as pat.
+
+
 (* TODO: find a way of displaying an error message if iApplyCapAuto fails,
    displaying the rule it was called on, and without silencing iApplyCapAuto's
    own error messages? *)
-Ltac iInstr hprog :=
+Ltac iInstr_lc hprog hlc:=
   let hi := iFresh in
   let hcont := iFresh in
+  let hlc' :=
+    match goal with
+    | |- context [ Esnoc _ (INamed hlc) (£ ?n)%I ] => iFresh
+    | _  => hlc
+    end
+  in
   iInstr_lookup hprog as hi hcont;
   try wp_instr;
   iInstr_get_rule hi ltac:(fun rule =>
-    iApplyCapAuto rule;
-    [ .. | iInstr_close hprog; try wp_pure]
-  ).
+                             iApplyCapAuto rule;
+                             [ .. | iInstr_close hprog
+                                    ; try wp_pure_lc hlc'
+                                    ; try (iCombine_ident (INamed hlc) hlc' as (INamed hlc))
+                          ])
+.
+Tactic Notation "iInstr" constr(H):= iInstr_lc H "_".
+Tactic Notation "iInstr" constr(H) "with" constr(Hlc):= iInstr_lc H Hlc.
 
 Ltac2 rec iGo hprog :=
   let stop_if_at_least_two_goals () :=
