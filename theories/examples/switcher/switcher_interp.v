@@ -25,7 +25,11 @@ Section Switcher.
   (b <= a' < e)%a ->
   writeAllowed p = true →
   interp W C (WCap p g b e a) -∗
-  (∃ p' φ', rel C a' p' (safeC φ') ∗ (▷ wcond φ' C interp))%I.
+  (∃ p' φ', rel C a' p' (safeC φ')
+            ∗ (▷ wcond φ' C interp)
+            ∗ ⌜persistent_cond φ'⌝
+            ∗ ⌜PermFlowsTo p p'⌝
+  )%I.
   Proof.
     iIntros (Ha' Hp) "Hinterp".
     rewrite fixpoint_interp1_eq interp1_eq.
@@ -38,7 +42,7 @@ Section Switcher.
     iDestruct "Hinterp" as (p' P') "(% & % & Hrel & _ & Hra & Hwa & _ & _)".
     eapply writeAllowed_flowsto in Hp; eauto.
     rewrite Hp.
-    iExists _,_; iFrame.
+    iExists _,_; iFrame "∗%".
   Qed.
 
   Lemma switcher_interp_expr (W : WORLD) (C : CmptName) (N : namespace) (rmap : Reg)
@@ -89,6 +93,16 @@ Section Switcher.
     (* ------------------------------------------------ *)
     (* ----- Start the proof of the switcher here ----- *)
     (* ------------------------------------------------ *)
+    iAssert (interp W C wcsp) as "#Hinterp_wcsp".
+    { iApply "Hrmap_interp"; eauto; done. }
+    iAssert (interp W C wcs0) as "#Hinterp_wcs0".
+    { iApply "Hrmap_interp"; eauto; done. }
+    iAssert (interp W C wcs1) as "#Hinterp_wcs1".
+    { iApply "Hrmap_interp"; eauto; done. }
+    iAssert (interp W C wcra) as "#Hinterp_wcra".
+    { iApply "Hrmap_interp"; eauto; done. }
+    iAssert (interp W C wcgp) as "#Hinterp_wcgp".
+    { iApply "Hrmap_interp"; eauto; done. }
 
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* ---- store csp cs0 ---- *)
@@ -102,8 +116,6 @@ Section Switcher.
       iNext; iIntros "_".
       wp_pure; wp_end ; by iIntros (?).
     }
-    iAssert (interp W C wcsp) as "#Hinterp_wcsp".
-    { iApply "Hrmap_interp"; eauto; done. }
     destruct wcsp as [ | [ p_stk g_stk b_stk e_stk a_stk |] | |]; cbn in His_cap_csp; try congruence.
     clear His_cap_csp.
 
@@ -155,15 +167,112 @@ Section Switcher.
     done.
   }
 
-  iDestruct (interp_has_rel _ _ _ _ _ _ _ a_stk with "Hinterp_wcsp") as (p_a_stk φ_a_stk) "#Hrel_a_stk".
+  iDestruct (interp_has_rel _ _ _ _ _ _ _ a_stk with "Hinterp_wcsp")
+    as (p_a_stk φ_a_stk) "#(Hrel_a_stk & Hφ_a_stk_wcond & %Hpers_φ_a_stk & %Hflow_p_a_stk)".
   { solve_addr. }
   { done. }
   iDestruct (region_open _ _ _ _ _ ρ_a_stk with "[$Hrel_a_stk $Hworld $Hregion]")
-    as (wastk) "(Hregion & Hworld & Hsts_std_a_stk & Ha_stk & _ & Hmono_φ_a_stk & Hφ_a_stk)"; eauto.
+    as (wastk) "(Hregion & Hworld & Hsts_std_a_stk & Ha_stk & _ & #Hmono_φ_a_stk & Hφ_a_stk)"; eauto.
   { destruct ρ_a_stk; naive_solver. }
 
+  iInstr_lookup "Hcode" as "Hi" "Hcode".
+  wp_instr.
+  iApply (wp_store_success_reg _ _ _ _ _ _ _ _ csp cs0 with "[$HPC Hi Hcs0 Hcsp Ha_stk]")
+  ; try iFrame
+  ; try solve_pure.
+  { rewrite /withinBounds; solve_addr. }
+  iNext; iIntros "(HPC & Hi & Hcso0 & Hcsp & Ha_stk)".
+  iDestruct ("Hcode" with "Hi") as "Hcode".
+  wp_pure.
+  iDestruct (region_close
+              with "[$Hsts_std_a_stk $Hregion $Ha_stk Hmono_φ_a_stk $Hrel_a_stk]")
+    as "Hregion".
+  { intros.
+    rewrite /persistent_cond in Hpers_φ_a_stk.
+    specialize (Hpers_φ_a_stk Wv); apply _.
+  }
+  { destruct ρ_a_stk; naive_solver. }
+  { iSplit.
+    + iPureIntro; by eapply writeAllowed_nonO, writeAllowed_flowsto.
+    + admit. (* TODO see how it's done in the FTLR *)
+  }
+
+  (* ---- lea csp 1 ---- *)
   iInstr "Hcode".
-    { apply withinBounds_true_iff. split;solve_addr. }
+  { transitivity (Some (a_stk ^+ 1%Z)%a); auto;solve_addr. }
+
+
+
+  (* ---- store csp cs1 ---- *)
+  destruct (decide (canStore p_stk wcs1 = true))%a as [Hstk_store_cs1|Hstk_store_cs1]; cycle 1.
+  {
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_fail_reg_perm with "[HPC Hi Hcsp Hcs1]")
+    ; try iFrame
+    ; try solve_pure.
+    { by destruct ( canStore p_stk wcs1 ); auto. }
+    iNext; iIntros "_".
+    wp_pure; wp_end ; by iIntros (?).
+  }
+  pose proof ( canStore_writeAllowed p_stk wcs1 Hstk_store_cs1 ) as Hp_stk_wa1.
+  destruct (decide ((a_stk ^+1)%a < e_stk))%a as [Hstk_a1|Hstk_a1]; cycle 1.
+  {
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_fail_reg with "[HPC Hi Hcsp Hcs1]")
+    ; try iFrame
+    ; try solve_pure.
+    { rewrite /withinBounds; solve_addr. }
+    iNext; iIntros "_".
+    wp_pure; wp_end ; by iIntros (?).
+  }
+  set (a_stk1 := (a_stk ^+ 1)%a).
+  assert ( ∃ ρ_a_stk1, std W !! a_stk1 = Some ρ_a_stk1 ∧ ρ_a_stk1 ≠ Revoked) as ( ρ_a_stk1 & Hρ_a_stk1 & Hρ_a_stk1_not_revoked).
+  {
+    rewrite Forall_lookup in Hstk_in_region.
+    assert ( a_stk1 ∈ finz.seq_between b_stk e_stk) as H_a_stk1.
+    { apply elem_of_finz_seq_between; subst a_stk1 ; solve_addr. }
+    rewrite elem_of_list_lookup in H_a_stk1.
+    destruct H_a_stk1 as [ka Hka].
+    apply Hstk_in_region in Hka.
+    done.
+  }
+
+  iDestruct (interp_has_rel _ _ _ _ _ _ _ (a_stk ^+ 1)%a with "Hinterp_wcsp")
+    as (p_a_stk1 φ_a_stk1)
+         "#(Hrel_a_stk1 & Hφ_a_stk_wcond0 & %Hpers_φ_a_stk1 & %Hflow_p_a_stk1)".
+  { solve_addr. }
+  { done. }
+  iDestruct (region_open _ _ _ _ _ ρ_a_stk1 with "[$Hrel_a_stk1 $Hworld $Hregion]")
+    as (wastk1) "(Hregion & Hworld & Hsts_std_a_stk1 & Ha_stk1 & _ & #Hmono_φ_a_stk1 & Hφ_a_stk1)"; eauto.
+  { destruct ρ_a_stk1; naive_solver. }
+
+  iInstr_lookup "Hcode" as "Hi" "Hcode".
+  wp_instr.
+  iApply (wp_store_success_reg _ _ _ _ _ _ _ _ csp cs1 with "[$HPC Hi Hcs1 Hcsp Ha_stk1]")
+  ; try iFrame
+  ; try solve_pure.
+  { rewrite /withinBounds; solve_addr. }
+  iNext; iIntros "(HPC & Hi & Hcs0 & Hcsp & Ha_stk1)".
+  iDestruct ("Hcode" with "Hi") as "Hcode".
+  wp_pure.
+  iDestruct (region_close
+              with "[$Hsts_std_a_stk1 $Hregion $Ha_stk1 Hmono_φ_a_stk1 $Hrel_a_stk1]")
+    as "Hregion".
+  { intros.
+    rewrite /persistent_cond in Hpers_φ_a_stk1.
+    specialize (Hpers_φ_a_stk1 Wv); apply _.
+  }
+  { destruct ρ_a_stk1; naive_solver. }
+  { iSplit.
+    + iPureIntro; by eapply writeAllowed_nonO, writeAllowed_flowsto.
+    + admit. (* TODO see how it's done in the FTLR *)
+  }
+  (* ---- lea csp 1 ---- *)
+  iInstr "Hcode".
+  { transitivity (Some (a_stk ^+ 2%Z)%a); auto;solve_addr. }
+
 
   Qed.
 
