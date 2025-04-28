@@ -118,6 +118,7 @@ Section Switcher.
      ∗ codefrag a_switcher_cc switcher_instrs
      ∗ b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
      ∗ [[ (a_tstk ^+1)%a, e_tstk ]] ↦ₐ [[ tstk_next ]]
+     ∗ ⌜ (b_tstk <= a_tstk)%a ∧ (a_tstk <= e_tstk)%a ⌝
      ∗ tframe_full d ∗ ⌜ (b_tstk + d)%a = Some a_tstk  ⌝
      ∗ seal_pred ot_switcher ot_switcher_propC.
 
@@ -264,7 +265,7 @@ Section Switcher.
       fresh_cus_name (switcher_world_pre_frame W0 callee_stk_frm_addr)
     in
 
-    (a_stk ^+ 4 < e_stk)%a ->
+    (a_stk ^+ 3 < e_stk)%a ->
 
     NoDup ltemp_unknown ->
     NoDup a_local_args ->
@@ -574,9 +575,9 @@ Section Switcher.
 
     Nswitcher ## Nframes ->
     (a_switcher_cc + 79%nat)%a = Some a_jmp ->
-    (a_stk ^+ 4 < e_stk)%a ->
+    (a_stk ^+ 3 < e_stk)%a ->
     (b_stk <= a_stk)%a ->
-    (a_tstk ^+ 2 < e_tstk)%a ->
+    (a_tstk ^+ 1 < e_tstk)%a ->
     (b_tstk <= a_tstk)%a ->
     (b_tstk + frm W0)%a = Some a_tstk ->
     NoDup ltemp_unknown ->
@@ -663,7 +664,8 @@ Section Switcher.
     rewrite /switcher_inv.
     iDestruct "Hswitcher_inv"
       as (a_tstk' d tstk_next')
-           "(>Hmtdc & >%Hbounds & >%Hot_bounds & >Hcode & >Hb_switcher & >Htstk & Htframe_full & >%H_tstk_frame & #Hp_ot_switcher)".
+           "(>Hmtdc & >%Hbounds & >%Hot_bounds & >Hcode & >Hb_switcher & >Htstk & >[%Hbounds_tstk_b %Hbounds_tstk_e]
+           & Htframe_full & >%H_tstk_frame & #Hp_ot_switcher)".
     codefrag_facts "Hcode".
     rename H into Hcont_switcher_region; clear H0.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
@@ -898,7 +900,10 @@ Section Switcher.
     { solve_addr. }
     iMod ("Hclose_switcher_inv" with
            "[$Hna $Hmtdc $Hcode $Hb_switcher $Htstk $Htframe_full $Hp_ot_switcher]")
-      as "Hna"; first done.
+      as "Hna".
+    { repeat (iSplit; try done).
+      iNext ; iPureIntro; solve_addr.
+    }
 
     iMod (sts_update_loc _ _ _ _ false with "[$Hworld] [$Hι_loc]") as "[Hworld Hι_loc]".
     iMod ("Hclose_frame_inv" with "[$Hna $Hι_loc]") as "Hna".
@@ -1074,7 +1079,8 @@ Section Switcher.
     rewrite /switcher_inv.
     iDestruct "Hswitcher_inv"
       as (a_tstk d tstk_next)
-           "(>Hmtdc & >%Hbounds & >%Hot_bounds & >Hcode & >Hb_switcher & >Htstk & Htframe_full & >%H_tstk_frame & #Hp_ot_switcher)".
+           "(>Hmtdc & >%Hbounds & >%Hot_bounds & >Hcode & >Hb_switcher & >Htstk & >[%Hbounds_tstk_b %Hbounds_tstk_e]
+           & Htframe_full & >%H_tstk_frame & #Hp_ot_switcher)".
     codefrag_facts "Hcode".
     rename H into Hcont_switcher_region; clear H0.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
@@ -1092,11 +1098,11 @@ Section Switcher.
     (* ----- Start the proof of the switcher here ----- *)
     (* ------------------------------------------------ *)
 
-    (* --- First, we destruct cases where it will quickly fail ---  *)
-    destruct (decide ((a_stk ^+ 4) < e_stk))%a as [Hstk_ae|Hstk_ae]; cycle 1.
-    { admit. (* NOTE will fail in the next upcoming instructions *) }
-    destruct (decide (b_stk <= a_stk))%a as [Hstk_ba|Hstk_ba]; cycle 1.
-    { admit. (* NOTE will fail in the next upcoming instructions *) }
+    (* (* --- First, we destruct cases where it will quickly fail ---  *) *)
+    (* destruct (decide ((a_stk ^+ 4) < e_stk))%a as [Hstk_ae|Hstk_ae]; cycle 1. *)
+    (* { admit. (* NOTE will fail in the next upcoming instructions *) } *)
+    (* destruct (decide (b_stk <= a_stk))%a as [Hstk_ba|Hstk_ba]; cycle 1. *)
+    (* { admit. (* NOTE will fail in the next upcoming instructions *) } *)
 
     iAssert (⌜ a_local_args ## (finz.seq_between a_stk e_stk) ⌝)%I
       with "[ Hlocal_args Hstk]" as "%Hdisjoint_locals_stk".
@@ -1113,38 +1119,95 @@ Section Switcher.
       by iApply big_sepL2_nodup. }
 
     iDestruct (big_sepL2_length with "Hstk") as %Hlen_stk.
-    iAssert (⌜ exists stk_wa stk_wa1 stk_wa2 stk_wa3 stk_mem',
-                 (stk_mem = stk_wa :: stk_wa1 :: stk_wa2 :: stk_wa3 :: stk_mem')⌝)%I
-      as %(stk_wa & stk_wa1 & stk_wa2 & stk_wa3 & stk_mem' & ->).
-    { iEval (rewrite /region_pointsto) in "Hstk".
-      iPureIntro.
-      assert (length (finz.seq_between a_stk e_stk) > 4) as Hlen_stk_ae.
-      { rewrite finz_seq_between_length.
-        assert (a_stk^+4 < e_stk)%a by solve_addr.
-        do 5 (rewrite finz_dist_S; last solve_addr); lia.
-      }
-      destruct stk_mem as [|stk_wa stk_mem0]; first (cbn in Hlen_stk; lia).
-      destruct stk_mem0 as [|stk_wa1 stk_mem1]; first (cbn in Hlen_stk; lia).
-      destruct stk_mem1 as [|stk_wa2 stk_mem2]; first (cbn in Hlen_stk; lia).
-      destruct stk_mem2 as [|stk_wa3 stk_mem3]; first (cbn in Hlen_stk; lia).
-      destruct stk_mem3 as [|stk_wa4 stk_mem4]; first (cbn in Hlen_stk; lia).
-      eexists _,_,_,_,_; done.
-    }
+    (* iAssert (⌜ exists stk_wa stk_wa1 stk_wa2 stk_wa3 stk_mem', *)
+    (*              (stk_mem = stk_wa :: stk_wa1 :: stk_wa2 :: stk_wa3 :: stk_mem')⌝)%I *)
+    (*   as %(stk_wa & stk_wa1 & stk_wa2 & stk_wa3 & stk_mem' & ->). *)
+    (* { iEval (rewrite /region_pointsto) in "Hstk". *)
+    (*   iPureIntro. *)
+    (*   assert (length (finz.seq_between a_stk e_stk) > 4) as Hlen_stk_ae. *)
+    (*   { rewrite finz_seq_between_length. *)
+    (*     assert (a_stk^+4 < e_stk)%a by solve_addr. *)
+    (*     do 5 (rewrite finz_dist_S; last solve_addr); lia. *)
+    (*   } *)
+    (*   destruct stk_mem as [|stk_wa stk_mem0]; first (cbn in Hlen_stk; lia). *)
+    (*   destruct stk_mem0 as [|stk_wa1 stk_mem1]; first (cbn in Hlen_stk; lia). *)
+    (*   destruct stk_mem1 as [|stk_wa2 stk_mem2]; first (cbn in Hlen_stk; lia). *)
+    (*   destruct stk_mem2 as [|stk_wa3 stk_mem3]; first (cbn in Hlen_stk; lia). *)
+    (*   destruct stk_mem3 as [|stk_wa4 stk_mem4]; first (cbn in Hlen_stk; lia). *)
+    (*   eexists _,_,_,_,_; done. *)
+    (* } *)
 
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    destruct (decide (b_stk <= a_stk))%a as [Hstk_ba|Hstk_ba]; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_store_fail_reg with "[HPC Hi Hcsp Hcs0]")
+      ; try iFrame
+      ; try solve_pure.
+      { rewrite /withinBounds; solve_addr. }
+      iNext; iIntros "_".
+      wp_pure; wp_end ; by iIntros (?).
+    }
 
     (* ---- store csp cs0 ---- *)
+    destruct (decide ((a_stk) < e_stk))%a as [Hstk_a|Hstk_a]; cycle 1.
+    {
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_fail_reg with "[HPC Hi Hcsp Hcs0]")
+    ; try iFrame
+    ; try solve_pure.
+    { rewrite /withinBounds; solve_addr. }
+    iNext; iIntros "_".
+    wp_pure; wp_end ; by iIntros (?).
+    }
+    iAssert (⌜ ∃ stk_wa0 stk_mem0, stk_mem = stk_wa0 :: stk_mem0 ⌝)%I as %(stk_wa0 & stk_mem0 & ->).
+    { iEval (rewrite /region_pointsto) in "Hstk".
+      iPureIntro.
+      assert (length (finz.seq_between a_stk e_stk) > 0) as Hlen_stk_ae.
+      { rewrite finz_seq_between_length.
+        assert (a_stk < e_stk)%a by solve_addr.
+        rewrite finz_dist_S; last solve_addr; lia.
+      }
+      destruct stk_mem as [|stk_wa stk_mem0]; first (cbn in Hlen_stk; lia).
+      eexists _,_; done.
+    }
+
     iDestruct (region_pointsto_cons with "Hstk") as "[Ha1_stk Hstk]".
     { transitivity (Some (a_stk ^+ 1)%a); auto; solve_addr. }
     { solve_addr. }
     iInstr "Hcode".
-    { apply withinBounds_true_iff; split;solve_addr. }
+    { apply withinBounds_true_iff. split;solve_addr. }
 
     (* ---- lea csp 1 ---- *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ 1%Z)%a); auto;solve_addr. }
 
     (* ---- store csp cs1 ---- *)
+    destruct (decide ((a_stk^+1)%a < e_stk))%a as [Hstk_a1|Hstk_a1]; cycle 1.
+    {
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_fail_reg with "[HPC Hi Hcsp Hcs1]")
+    ; try iFrame
+    ; try solve_pure.
+    { rewrite /withinBounds; solve_addr. }
+    iNext; iIntros "_".
+    wp_pure; wp_end ; by iIntros (?).
+    }
+    iAssert (⌜ ∃ stk_wa1 stk_mem1, stk_mem0 = stk_wa1 :: stk_mem1 ⌝)%I as %(stk_wa1 & stk_mem1 & ->).
+    { iEval (rewrite /region_pointsto) in "Hstk".
+      iPureIntro.
+      assert (length (finz.seq_between a_stk e_stk) > 1) as Hlen_stk_ae.
+      { rewrite finz_seq_between_length.
+        assert ( (a_stk ^+ 1)%a < e_stk)%a by solve_addr.
+        do 2 (rewrite finz_dist_S; last solve_addr); lia.
+      }
+      destruct stk_mem0 as [|stk_w1 stk_mem1]; first (cbn in Hlen_stk; lia).
+      eexists _,_; done.
+    }
+
     iDestruct (region_pointsto_cons with "Hstk") as "[Ha2_stk Hstk]".
     { transitivity (Some (a_stk ^+ 2)%a); auto; solve_addr. }
     { solve_addr. }
@@ -1156,6 +1219,28 @@ Section Switcher.
     { transitivity (Some (a_stk ^+ 2%Z)%a); auto;solve_addr. }
 
     (* ---- store csp cra ---- *)
+    destruct (decide ((a_stk^+2)%a < e_stk))%a as [Hstk_a2|Hstk_a2]; cycle 1.
+    {
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_fail_reg with "[HPC Hi Hcsp Hcra]")
+    ; try iFrame
+    ; try solve_pure.
+    { rewrite /withinBounds; solve_addr. }
+    iNext; iIntros "_".
+    wp_pure; wp_end ; by iIntros (?).
+    }
+    iAssert (⌜ ∃ stk_wa2 stk_mem2, stk_mem1 = stk_wa2 :: stk_mem2 ⌝)%I as %(stk_wa2 & stk_mem2 & ->).
+    { iEval (rewrite /region_pointsto) in "Hstk".
+      iPureIntro.
+      assert (length (finz.seq_between a_stk e_stk) > 2) as Hlen_stk_ae.
+      { rewrite finz_seq_between_length.
+        assert ( (a_stk ^+ 2)%a < e_stk)%a by solve_addr.
+        do 3 (rewrite finz_dist_S; last solve_addr); lia.
+      }
+      destruct stk_mem1 as [|stk_w2 stk_mem2]; first (cbn in Hlen_stk; lia).
+      eexists _,_; done.
+    }
     iDestruct (region_pointsto_cons with "Hstk") as "[Ha3_stk Hstk]".
     { transitivity (Some (a_stk ^+ 3)%a); auto; solve_addr. }
     { solve_addr. }
@@ -1167,11 +1252,35 @@ Section Switcher.
     { transitivity (Some (a_stk ^+ 3%Z)%a); auto;solve_addr. }
 
     (* ---- store csp cgp ---- *)
+    destruct (decide ((a_stk^+3)%a < e_stk))%a as [Hstk_a3|Hstk_a3]; cycle 1.
+    {
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_fail_reg with "[HPC Hi Hcsp Hcgp]")
+    ; try iFrame
+    ; try solve_pure.
+    { rewrite /withinBounds; solve_addr. }
+    iNext; iIntros "_".
+    wp_pure; wp_end ; by iIntros (?).
+    }
+    iAssert (⌜ ∃ stk_wa3 stk_mem3, stk_mem2 = stk_wa3 :: stk_mem3 ⌝)%I as %(stk_wa3 & stk_mem3 & ->).
+    { iEval (rewrite /region_pointsto) in "Hstk".
+      iPureIntro.
+      assert (length (finz.seq_between a_stk e_stk) > 3) as Hlen_stk_ae.
+      { rewrite finz_seq_between_length.
+        assert ( (a_stk ^+ 3)%a < e_stk)%a by solve_addr.
+        do 4 (rewrite finz_dist_S; last solve_addr); lia.
+      }
+      destruct stk_mem2 as [|stk_w3 stk_mem3]; first (cbn in Hlen_stk; lia).
+      eexists _,_; done.
+    }
     iDestruct (region_pointsto_cons with "Hstk") as "[Ha4_stk Hstk]".
     { transitivity (Some (a_stk ^+ 4)%a); auto; solve_addr. }
     { solve_addr. }
     iInstr "Hcode".
     { apply withinBounds_true_iff; split;solve_addr. }
+    assert ((a_stk ^+ 4) <= e_stk)%a as Hstk_ae by solve_addr.
+    clear Hstk_a Hstk_a1 Hstk_a2.
 
     (* ---- lea csp 1 ---- *)
     iInstr "Hcode".
@@ -1197,7 +1306,28 @@ Section Switcher.
     iInstr "Hcode".
     { done. (* TODO add to solve_pure *) }
 
-    destruct (decide ((a_tstk ^+ 2) < e_tstk))%a as [Htstk_ae|Htstk_ae]; cycle 1.
+
+    (* iDestruct (big_sepL2_length with "Htstk") as %Hlen_tstk. *)
+    (* destruct (decide ( (a_tstk ^+ 1)%a < e_tstk))%a as [Htstk_ae|Htstk_ae]; cycle 1. *)
+    (* { *)
+    (* iInstr_lookup "Hcode" as "Hi" "Hcode". *)
+    (* wp_instr. *)
+    (* iApply (wp_Lea_fail_none_z with "[HPC Hi Hct2]") *)
+    (* ; try iFrame *)
+    (* ; try solve_pure. *)
+    (* { assert (e_tstk <= a_tstk ^+1)%a by solve_addr. *)
+    (*   replace *)
+    (*    rewrite finz_seq_between_length in Hlen_tstk. *)
+    (*    rewrite finz_dist_0 in Hlen_tstk. *)
+    (*    ; auto. *)
+    (*   solve_addr. *)
+    (*   rewrite /withinBounds; solve_addr. } *)
+    (* iNext; iIntros "_". *)
+    (* wp_pure; wp_end ; by iIntros (?). *)
+    (* }  *)
+    (* {  *)
+
+    destruct (decide ((a_tstk ^+ 1) < e_tstk))%a as [Htstk_ae|Htstk_ae]; cycle 1.
     { admit. (* NOTE will fail in the next upcoming instructions *) }
     destruct (decide (b_tstk <= a_tstk))%a as [Htstk_ba|Htstk_ba]; cycle 1.
     { admit. (* NOTE will fail in the next upcoming instructions *) }
@@ -1206,10 +1336,11 @@ Section Switcher.
     { iEval (rewrite /region_pointsto) in "Htstk".
       iDestruct (big_sepL2_length with "Htstk") as %Hlen_tstk.
       iPureIntro.
-      assert (1 < length (finz.seq_between (a_tstk ^+ 1)%a e_tstk)) as Hlen_tstk_ae.
+      assert (0 < length (finz.seq_between (a_tstk ^+ 1)%a e_tstk)) as Hlen_tstk_ae.
       { rewrite finz_seq_between_length.
-        assert (a_tstk^+2 < e_tstk)%a by solve_addr.
-        rewrite finz_dist_S; last solve_addr.
+        (* assert (a_tstk^+1 < e_tstk)%a by solve_addr. *)
+        assert (a_tstk < e_tstk)%a by solve_addr.
+        (* rewrite finz_dist_S; last solve_addr. *)
         rewrite finz_dist_S; last solve_addr; lia.
       }
       destruct tstk_next as [|stk_a1 tstk_next]; first (cbn in Hlen_tstk; lia).
@@ -1247,7 +1378,6 @@ Section Switcher.
     focus_block 1 "Hcode" as a_clear_stk1 Ha_clear_stk1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hcs0 $Hcs1 $Hcode $Hstk]"); eauto.
     { done. }
-    { solve_addr. }
     iNext ; iIntros "(HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
@@ -1290,7 +1420,7 @@ Section Switcher.
       iDestruct (big_sepL2_disjoint_pointsto with "[$Hltemp_unknown $Ha4_stk]") as "%Ha4_stk".
       iDestruct (big_sepL2_disjoint with "[$Hltemp_unknown $Hstk]") as "%Hstk"; iFrame.
       iPureIntro.
-      clear -Ha1_stk Ha2_stk Ha3_stk Ha4_stk Hstk Hstk_ae Hstk_ba.
+      clear -Ha1_stk Ha2_stk Ha3_stk Ha4_stk Hstk Hstk_ae Hstk_ba Hstk_a3.
       do 4 (rewrite finz_seq_between_cons; last solve_addr).
       intros a Ha Ha'.
       rewrite elem_of_cons in Ha'; destruct Ha' as [-> | Ha']; first set_solver.
@@ -1389,9 +1519,6 @@ Section Switcher.
     rewrite !Heq_entry_point.
 
     (* UnSeal ct1 cs0 ct1 *)
-    assert ( ot_switcher < (ot_switcher ^+1) )%ot as Hot_switcher.
-    { admit. (* TODO add hyp *) }
-
     subst Hwct1_caller.
     iInstr "Hcode".
     { done. (* TODO solve_pure *) }
@@ -1616,8 +1743,8 @@ Section Switcher.
       replace ((a_tstk ^+ 1) ^+ 1)%a with (a_tstk ^+ 2)%a by solve_addr+Htstk_ae.
       iFrame "∗#".
       iPureIntro.
-      clear -H_tstk_frame Htstk_ba Htstk_ae.
-      replace a_tstk with (b_tstk ^+ frm W0)%a; solve_addr.
+      clear -H_tstk_frame Htstk_ba Htstk_ae Hbounds_tstk_b Hbounds_tstk_e.
+      split; replace a_tstk with (b_tstk ^+ frm W0)%a; solve_addr.
     }
 
     iAssert (interp W1 C (WSentry XSRW_ Local b_switcher e_switcher (a_jmp ^+ 1)%a)) as "Hinterp_return".
@@ -1803,9 +1930,9 @@ Section Switcher.
     clear Hstk_pre_jmp.
     cbn in Ha_jmp.
     clear Harg_map.
-    clear Hnargs arg_rmap' Hot_switcher.
+    clear Hnargs arg_rmap' Hot_bounds.
     clear Hatbl Hbtbl Hbtbl1.
-    clear Hlen_stk wct2 wctp stk_wa stk_wa1 stk_wa2 stk_wa3 stk_mem' tstk_next'.
+    clear Hlen_stk wct2 wctp stk_wa0 stk_wa1 stk_wa2 stk_wa3 tstk_next'.
     subst W0' ; cbn.
 
     iApply switcher_ret_specification ; eauto.
