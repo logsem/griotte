@@ -26,6 +26,14 @@ Section Switcher.
         Jmp 2%Z;
         Fail;
 
+        (* Check locality of the stack *)
+        GetL ct2 csp;
+        Mov ctp (encodeLoc Local);
+        Sub ct2 ct2 ctp;
+        Jnz 2%Z ct2;
+        Jmp 2%Z;
+        Fail;
+
         (* Save the caller's stack pointer in the trusted stack *)
         ReadSR ct2 mtdc;
         Lea ct2 1%Z;

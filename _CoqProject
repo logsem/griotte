@@ -119,7 +119,9 @@ theories/examples/switcher/clear_registers.v
 
 # Griotte case studies
 theories/examples/switcher/switcher.v
+theories/examples/switcher/switcher_preamble.v
 theories/examples/switcher/switcher_spec.v
+theories/examples/switcher/switcher_interp.v
 
 theories/examples/compartment_layout.v
 

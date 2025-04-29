@@ -104,19 +104,19 @@ Section ClearStackMacro.
 
   Lemma clear_stack_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (csp_b csp_e csp_a : Addr)
+    (csp_g : Locality) (csp_b csp_e csp_a : Addr)
     (r1 r2 : RegName) (ws : list Word)
     φ :
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a ->
     (csp_b <= csp_a)%a -> (csp_a <= csp_e)%a ->
     ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_a
+      ∗ csp ↦ᵣ WCap RWL csp_g csp_b csp_e csp_a
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
       ∗ codefrag pc_a (clear_stack_instrs r1 r2)
       ∗ ([[ csp_a , csp_e ]] ↦ₐ [[ ws ]])
       ∗ ▷ ( (PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
-             ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_a
+             ∗ csp ↦ᵣ WCap RWL csp_g csp_b csp_e csp_a
              ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap RWL Local csp_b csp_e csp_a
              ∗ codefrag pc_a (clear_stack_instrs r1 r2)
              ∗ ([[ csp_a , csp_e ]] ↦ₐ [[region_addrs_zeroes csp_a csp_e]]))

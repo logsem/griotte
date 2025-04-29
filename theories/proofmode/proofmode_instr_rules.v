@@ -38,6 +38,7 @@ Ltac dispatch_instr_rule instr cont :=
   | Mov _ (inr _) => cont (@wp_move_success_reg)
   | Mov _ (inl _) => cont (@wp_move_success_z)
   (* Get *)
+  | GetL ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetP ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetB ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetE ?r1 ?r2 => dispatch_Get r1 r2 cont

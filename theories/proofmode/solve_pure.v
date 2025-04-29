@@ -80,6 +80,8 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (PermFlowsTo _ _ = true) => reflexivity : solve_pure.
 (* Permissions allowed *)
 #[export] Hint Resolve executeAllowed_is_readAllowed : solve_pure.
+#[export] Hint Extern 1 (has_sreg_access _ = true) => reflexivity : solve_pure.
+#[export] Hint Extern 1 (has_sreg_access _ = false) => reflexivity : solve_pure.
 (* Follows the same behavior as the Hint Mode for PermFlowsTo *)
 #[export] Hint Extern 1 (PermFlowsTo ?p ?p' = true) =>
   (without_evars p'; apply PermFlowsToReflexive): solve_pure.
@@ -170,3 +172,5 @@ Proof. do 3 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
 Goal forall (P: Prop), P → P. intros. solve_pure. Qed.
 
 Goal forall w, canStore RWL w = true. Proof. intros. solve_pure. Qed.
+Goal has_sreg_access XSRW_ = true. Proof. solve_pure. Qed.
+Goal has_sreg_access RW = false. Proof. solve_pure. Qed.
