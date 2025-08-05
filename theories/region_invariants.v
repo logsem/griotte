@@ -22,7 +22,7 @@ Class heapGpreS Σ {Cname : CmptNameG} := HeapGpreS {
   heapPreG_invPreG : invGpreS Σ;
   heapPreG_saved_pred ::
     savedPredG Σ (
-      ((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
+      ((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
         CmptName *
         Word);
   heapPreG_rel :: inG Σ (authR relUR);
@@ -31,7 +31,7 @@ Class heapGpreS Σ {Cname : CmptNameG} := HeapGpreS {
 Class heapGS Σ {Cname : CmptNameG} := HeapGS {
   heapG_saved_pred ::
     savedPredG Σ (
-      ((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
+      ((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
         CmptName *
         Word);
   heapG_rel :: inG Σ (authR relUR);
@@ -45,7 +45,7 @@ Instance subG_heapPreΣ {Σ} {Cname : CmptNameG}:
   subG heapPreΣ Σ →
   invGpreS Σ →
   subG (savedPredΣ
-          ((((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat)) *
+          ((((STS_std_states Addr region_type) * (STS_states * STS_rels))) *
         CmptName *
         Word)) Σ →
   heapGpreS Σ.
@@ -67,7 +67,7 @@ Section REL_defs.
   Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
 
   Definition rel_def (C : CmptName) (a : Addr) (p : Perm)
-    (φ : (((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
+    (φ : (((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
         CmptName *
         Word) -> iProp Σ)
     : iProp Σ :=
@@ -120,12 +120,11 @@ Section heap.
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Addr region_type Σ}
-    {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {heapg : heapGS Σ}
     `{MP: MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
 
   Global Instance region_type_EqDecision : EqDecision region_type :=
@@ -1601,7 +1600,7 @@ Section heap.
   Proof.
     intros HWa.
     rewrite /delete_std ; cbn.
-    destruct W as [[Wstd Wcus] Wfrm];cbn.
+    destruct W as [Wstd Wcus];cbn.
     split; cbn in *.
     - split; cbn.
       + intros i x Hx Hperma; simplify_eq.

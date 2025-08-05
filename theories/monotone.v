@@ -9,14 +9,13 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
