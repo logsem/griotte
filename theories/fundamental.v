@@ -1,6 +1,6 @@
-From cap_machine.ftlr Require Export Jmp Jnz Jalr Mov Load Store BinOp Restrict
-  Subseg Get Lea Seal UnSeal ReadSR WriteSR.
-From cap_machine.ftlr Require Export JmpCap.
+(* From cap_machine.ftlr Require Export Jmp Jnz Jalr Mov Load Store BinOp Restrict *)
+(*   Subseg Get Lea Seal UnSeal ReadSR WriteSR. *)
+(* From cap_machine.ftlr Require Export JmpCap. *)
 From cap_machine.ftlr Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
@@ -18,22 +18,24 @@ Section fundamental.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation STK := (leibnizO (list (Word * Word))).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
-  Implicit Types interp : (D).
+  Implicit Types interp : (V).
 
-  Theorem fundamental_cap (W : WORLD) (C : CmptName) regs p g b e (a : Addr) :
+  Theorem fundamental_cap (W : WORLD) (C : CmptName) p g b e (a : Addr) (stk : STK) cstk :
     ⊢ interp W C (WCap p g b e a) →
-      interp_expression regs W C (WCap p g b e a).
+      interp_expression stk W C (WCap p g b e a) (WSealable cstk).
   Proof.
     iIntros "#Hinv_interp".
-    iIntros "[[Hfull Hreg] [Hmreg [Hr [Hsts [ Htframe Hown]]]]]".
+    iIntros (regs) "[[Hfull Hreg] [Hmreg [Hr [Hsts Hcont]]]]".
     assert ( readAllowed p = true \/ readAllowed p = false )
       as [Hread_p|Hread_p] by (destruct_perm p ; naive_solver)
     ; cycle 1.
@@ -54,10 +56,11 @@ Section fundamental.
     clear Hread_p.
 
     iRevert "Hinv_interp".
-    iLöb as "IH'" forall (W C regs p g b e a).
+    iLöb as "IH'" forall (W C regs p g b e a stk cstk).
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
-      iIntros (W_ih C_ih r_ih p_ig g_ih b_ih e_ih a_ih) "%Hfull #Hregs Hmreg Hr Hsts Htframe Hown Hinterp".
+      iIntros (W_ih C_ih stk_ih r_ih p_ig g_ih b_ih e_ih a_ih cstk_ih)
+        "%Hfull #Hregs Hmreg Hr Hsts Htframe Hown Hinterp".
       iApply ("IH'" with "[%] [] [Hmreg] [$Hr] [$Hsts] [$] [$]"); eauto.
     }
     iIntros "#Hinv_interp".
@@ -98,8 +101,8 @@ Section fundamental.
     iPoseProof "Hinv_interp" as "#Hinv".
     iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv".
     destruct (isO p) eqn: HnO.
-    { destruct Hp as [Hexec _]
-      ; eapply executeAllowed_nonO in Hexec
+    { inv HcorrectPC; simplify_eq
+      ; eapply executeAllowed_nonO in H6
       ; congruence.
     }
     destruct (has_sreg_access p) eqn:HpXRS; first done.
