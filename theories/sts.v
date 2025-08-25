@@ -70,61 +70,6 @@ Proof.
   solve_inG.
 Qed.
 
-Definition tframeR := excl_authR (leibnizO nat).
-Definition tframeUR := excl_authUR (leibnizO nat).
-
-Class TFRAME_preG Σ :=
-  { tframe_preG :: inG Σ tframeUR; }.
-
-Class TFRAMEG Σ :=
-  { tframe_inG :: inG Σ tframeUR;
-    γtframe : gname;
-  }.
-
-Definition TFRAME_preΣ :=
-  #[ GFunctor tframeUR ].
-
-Instance subG_TFRAME_preΣ {Σ} :
-  subG TFRAME_preΣ Σ → TFRAME_preG Σ.
-Proof. solve_inG. Qed.
-
-Section TStack.
-  Context {Σ : gFunctors} {tframeg : TFRAMEG Σ} .
-
-  Definition tframe_full (a : nat) : iProp Σ
-    := own γtframe (●E a : tframeUR).
-
-  Definition tframe_frag (a : nat) : iProp Σ
-    := own γtframe (◯E a : tframeUR).
-
-  Lemma tframe_agree (a a' : nat) :
-   tframe_full a -∗
-   tframe_frag a' -∗
-   ⌜ a = a' ⌝.
-  Proof.
-    iIntros "Hfull Hfrag".
-    rewrite /tframe_full /tframe_frag.
-    iCombine "Hfull Hfrag" as "H".
-    iDestruct (own_valid with "H") as "%H".
-    by apply excl_auth_agree_L in H.
-  Qed.
-
-  Lemma tframe_update (a a' a'' : nat) :
-   tframe_full a -∗
-   tframe_frag a' ==∗
-   tframe_full a'' ∗ tframe_frag a''.
-  Proof.
-    iIntros "Hfull Hfrag".
-    rewrite /tframe_full /tframe_frag.
-    iCombine "Hfull Hfrag" as "H".
-    iMod ( own_update _ _ _  with "H" ) as "H".
-    { apply excl_auth_update. }
-    iDestruct "H" as "[? ?]".
-    by iFrame.
-  Qed.
-
-End TStack.
-
 Section definitionsS.
 
   (* A now needs to be comparable, so we can distinquish between higher and lower a's *)
@@ -245,20 +190,6 @@ Proof.
   apply encode_inj in HH1.
   apply encode_inj in HH2. subst; eauto.
 Qed.
-
-Section pre_TFRAME.
-  Context {Σ : gFunctors} {tframeg : TFRAME_preG Σ}.
-
-  Lemma gen_tframe_init (n : nat) :
-    ⊢ |==> (∃ (tframeg : TFRAMEG Σ), tframe_full n ∗ tframe_frag n).
-  Proof.
-    iMod (own_alloc (A:=tframeUR) (●E n ⋅ ◯E n )) as (γtframe) "Htframe"
-    ; first by apply excl_auth_valid.
-    iModIntro. iExists (Build_TFRAMEG _ _ γtframe).
-    by rewrite own_op.
-  Qed.
-
-End pre_TFRAME.
 
 Section pre_STS.
   Context {A B E D: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}

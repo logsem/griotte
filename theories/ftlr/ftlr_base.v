@@ -30,20 +30,21 @@ Section fundamental.
   
   Definition ftlr_IH: iProp Σ :=
     (□ ▷ (∀ (W_ih : WORLD) (C_ih : CmptName) (stk : STK) (r_ih : leibnizO Reg)
-            (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr) (cstk_ih : Sealable),
+            (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr) (cstk_ih : Word),
             full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
-            -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> (<[csp:=WSealable cstk_ih]> r_ih))
+            -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> (<[csp:=cstk_ih]> r_ih))
             -∗ region W_ih C_ih
             -∗ sts_full_world W_ih C_ih
             -∗ interp_continuation stk W_ih C_ih
             -∗ na_own logrel_nais ⊤
+            -∗ tframe_frag stk 
             -∗ □ interp W_ih C_ih (WCap p_ih g_ih b_ih e_ih a_ih)
             -∗ interp_conf W_ih C_ih))%I.
 
   Definition ftlr_instr_base (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (P : D) (Pinstr : Prop) (stk : STK) (cstk : Sealable) : Prop :=
+    (w : Word) (ρ : region_type) (P : D) (Pinstr : Prop) (stk : STK) (cstk : Word) : Prop :=
     validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
     → isCorrectPC (WCap p g b e a)
@@ -75,11 +76,12 @@ Section fundamental.
     -∗ interp_continuation stk W C
     -∗ sts_full_world W C
     -∗ na_own logrel_nais ⊤
+    -∗ tframe_frag stk
     -∗ open_region W C a
     -∗ sts_state_std C a ρ
     -∗ a ↦ₐ w
     -∗ PC ↦ᵣ (WCap p g b e a)
-    -∗ ([∗ map] k↦y ∈ delete PC (<[csp:=WSealable cstk]> regs), k ↦ᵣ y)
+    -∗ ([∗ map] k↦y ∈ delete PC (<[csp:=cstk]> regs), k ↦ᵣ y)
     -∗ WP Instr Executable
         {{ v, WP Seq (cap_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝
@@ -87,7 +89,7 @@ Section fundamental.
 
   Definition ftlr_instr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (i: instr) (ρ : region_type) (P : D) (stk : STK) (cstk : Sealable) : Prop :=
+    (w : Word) (i: instr) (ρ : region_type) (P : D) (stk : STK) (cstk : Word) : Prop :=
     ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w = i) stk cstk.
 
 End fundamental.

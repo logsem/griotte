@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
 From cap_machine Require Export cap_lang region seal_store region_invariants.
-From iris.algebra Require Export gmap agree auth.
+From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine.rules Require Import rules_base.
 Import uPred.
@@ -28,6 +28,75 @@ Class logrel_na_invs Σ :=
     logrel_nais : na_inv_pool_name;
   }.
 
+Definition tframeR := excl_authR (leibnizO (list (Word * Word))).
+Definition tframeUR := excl_authUR (leibnizO (list (Word * Word))).
+
+Class TFRAME_preG Σ :=
+  { tframe_preG :: inG Σ tframeUR; }.
+
+Class TFRAMEG Σ :=
+  { tframe_inG :: inG Σ tframeUR;
+    γtframe : gname;
+  }.
+
+Definition TFRAME_preΣ :=
+  #[ GFunctor tframeUR ].
+
+Instance subG_TFRAME_preΣ {Σ} :
+  subG TFRAME_preΣ Σ → TFRAME_preG Σ.
+Proof. solve_inG. Qed.
+
+Section TStack.
+  Context {Σ : gFunctors} {tframeg : TFRAMEG Σ} .
+
+  Definition tframe_full (a : list (Word * Word)) : iProp Σ
+    := own γtframe (●E (a : leibnizO (list (Word * Word))) : tframeUR).
+
+  Definition tframe_frag (a : list (Word * Word)) : iProp Σ
+    := own γtframe (◯E (a : leibnizO (list (Word * Word))) : tframeUR).
+
+  Lemma tframe_agree a a' :
+   tframe_full a -∗
+   tframe_frag a' -∗
+   ⌜ a = a' ⌝.
+  Proof.
+    iIntros "Hfull Hfrag".
+    rewrite /tframe_full /tframe_frag.
+    iCombine "Hfull Hfrag" as "H".
+    iDestruct (own_valid with "H") as "%H".
+    by apply excl_auth_agree_L in H.
+  Qed.
+
+  Lemma tframe_update a a' a'' :
+   tframe_full a -∗
+   tframe_frag a' ==∗
+   tframe_full a'' ∗ tframe_frag a''.
+  Proof.
+    iIntros "Hfull Hfrag".
+    rewrite /tframe_full /tframe_frag.
+    iCombine "Hfull Hfrag" as "H".
+    iMod ( own_update _ _ _  with "H" ) as "H".
+    { apply excl_auth_update. }
+    iDestruct "H" as "[? ?]".
+    by iFrame.
+  Qed.
+
+End TStack.
+
+Section pre_TFRAME.
+  Context {Σ : gFunctors} {tframeg : TFRAME_preG Σ}.
+
+  Lemma gen_tframe_init stk :
+    ⊢ |==> (∃ (tframeg : TFRAMEG Σ), tframe_full stk ∗ tframe_frag stk).
+  Proof.
+    iMod (own_alloc (A:=tframeUR) (●E (stk : leibnizO _) ⋅ ◯E (stk : leibnizO _) )) as (γtframe) "Htframe"
+    ; first by apply excl_auth_valid.
+    iModIntro. iExists (Build_TFRAMEG _ _ γtframe).
+    by rewrite own_op.
+  Qed.
+
+End pre_TFRAME.
+
 (** interp : is a unary logical relation. *)
 Section logrel.
 
@@ -37,6 +106,7 @@ Section logrel.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
+    {tframeg : TFRAMEG Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
@@ -46,7 +116,7 @@ Section logrel.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (STK -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
@@ -118,14 +188,15 @@ Section logrel.
        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
 
   Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
-    (λne (W : WORLD) (C : CmptName) (wpc : Word) (wstk : Word),
+    (λne (stk : STK) (W : WORLD) (C : CmptName) (wpc : Word) (wstk : Word),
        ∀ regs,
        ( interp_reg interp W C regs
         ∗ registers_pointsto (<[PC:=wpc]> (<[csp:=wstk]> regs))
         ∗ region W C
         ∗ sts_full_world W C
         ∗ interp_cont W C
-        (* ∗ na_own logrel_nais ⊤ *)
+        ∗ na_own logrel_nais ⊤
+        ∗ tframe_frag stk
           -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.
@@ -134,17 +205,17 @@ Section logrel.
     Proper (dist n ==> dist n ==> dist n) (interp_expr).
   Proof.
     intros interp interp0 Heq K K0 HK.
-    rewrite /interp_expr. intros ????. simpl.
-    do 7 f_equiv;[|apply HK].
-    do 6 f_equiv. done.
+    rewrite /interp_expr. intros ?????. simpl.
+    do 10 f_equiv;[|apply HK].
+    by repeat f_equiv.
   Qed.
 
   Program Fixpoint interp_cont (stk : STK) (interp : V) : K :=
     match stk with
-    | [] => λne (W : WORLD) (C : leibnizO CmptName), (interp_conf W C)%I
+    | [] => λne (W : WORLD) (C : leibnizO CmptName), True%I
     | (wret,wstk) :: stk' =>
         λne (W : WORLD) (C : leibnizO CmptName),
-          (∀ W', ⌜related_sts_pub_world W W'⌝ -∗ ▷ interp_expr interp (interp_cont stk' interp) W' C wret wstk)%I
+          (∀ W', ⌜related_sts_pub_world W W'⌝ -∗ ▷ interp_expr interp (interp_cont stk' interp) stk' W' C wret wstk)%I
     end.
   Solve All Obligations with solve_proper.
 
@@ -225,8 +296,8 @@ Section logrel.
     (p : Perm) (g : Locality) (b e a : Addr)
     (interp : V) : iProp Σ :=
     (∀ stk wstk W', future_world g W W' →
-             (▷ interp_expr interp (interp_cont stk interp) W' C (WCap p g b e a) wstk)
-               ∗ (▷ interp_expr interp (interp_cont stk interp) W' C (WCap p Local b e a) wstk)
+             (▷ interp_expr interp (interp_cont stk interp) stk W' C (WCap p g b e a) wstk)
+               ∗ (▷ interp_expr interp (interp_cont stk interp) stk W' C (WCap p Local b e a) wstk)
     )%I.
   Global Instance enter_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
@@ -424,12 +495,18 @@ Section logrel.
     fixpoint (interp1) W C w ≡ interp1 (fixpoint (interp1)) W C w.
   Proof. exact: (fixpoint_unfold (interp1) W C w). Qed.
 
-  Program Definition interp : V := λne W C w, (fixpoint (interp1)) W C w.
+  Program Definition interp : V := (fixpoint (interp1)).
   Solve All Obligations with solve_proper.
   Definition interp_continuation (stk : STK) : K := interp_cont stk interp.
   Definition interp_expression (stk : STK) : E :=
     interp_expr interp (interp_continuation stk).
   Definition interp_registers : R := interp_reg interp.
+
+  Lemma interp_continuation_eq (stk : STK) (W : WORLD) (C : CmptName) (w : leibnizO Word) :
+    interp_continuation stk W C ≡ interp_cont stk (fixpoint interp1) W C.
+  Proof.
+    rewrite /interp_continuation /interp /= //.
+  Qed.
 
   Global Instance interp_persistent W C w : Persistent (interp W C w).
   Proof.

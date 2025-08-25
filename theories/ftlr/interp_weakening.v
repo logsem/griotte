@@ -15,15 +15,17 @@ Section fundamental.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation STK := (leibnizO (list (Word * Word))).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
-  Implicit Types interp : (D).
+  Implicit Types interp : (V).
 
   Lemma interp_weakening_from_sentry W C p g b e a :
       interp W C (WSentry p g b e a)
@@ -34,18 +36,18 @@ Section fundamental.
       iModIntro.
       iDestruct "Hinterp" as "#Hinterp".
       rewrite /enter_cond /interp_expr /=.
-      iIntros (regs W' Hrelated).
+      iIntros (stk wstk W' Hrelated).
       destruct g.
       + iAssert (future_world Global W W')%I as "%Hrelated'".
         { iPureIntro.
           apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto.
         }
-        iSpecialize ("Hinterp" $! regs W' Hrelated').
+        iSpecialize ("Hinterp" $! stk wstk W' Hrelated').
         iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
         iSplitL; iFrame "#".
       + iAssert (future_world Local W W')%I as "%Hrelated'".
         { done. }
-        iSpecialize ("Hinterp" $! regs W' Hrelated').
+        iSpecialize ("Hinterp" $! stk wstk W' Hrelated').
         iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
         iSplitL; iFrame "#".
   Qed.
@@ -137,11 +139,11 @@ Section fundamental.
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
-    iIntros (r W') "#Hfuture".
+    iIntros (stk wstk W') "#Hfuture".
     iSplitR; iNext.
-    - iIntros "[[Hfull Hmap] (Hreg & Hregion & Hsts & Htframe & Hown)]".
+    - iIntros (regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hframe)]".
       rewrite /interp_conf.
-      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Htframe Hown"); eauto.
+      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hcont Hown Hframe"); eauto.
       iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
       destruct (isO p) eqn:HpO; auto.
       destruct (has_sreg_access p) eqn:HpXSR'; auto.
@@ -163,9 +165,9 @@ Section fundamental.
         simplify_eq.
         destruct g' ; auto.
 
-    - iIntros "[[Hfull Hmap] (Hreg & Hregion & Hsts & Htframe & Hown)]".
+    - iIntros (regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hframe)]".
       rewrite /interp_conf.
-      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Htframe Hown"); eauto.
+      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hcont Hown Hframe"); eauto.
       iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
       destruct (isO p) eqn:HpO; auto.
       destruct (has_sreg_access p) eqn:HpXSR'; auto.
@@ -471,7 +473,7 @@ Section fundamental.
   Proof.
     iModIntro.
     iIntros (W W') "%Hrelated Hinterp".
-    cbn; iEval (rewrite fixpoint_interp1_eq); done.
+    rewrite /interpC /safeC /=. iEval (rewrite fixpoint_interp1_eq);done.
   Qed.
 
   Lemma future_pub_mono_interp_z (C : CmptName) (z : Z) :
@@ -479,7 +481,8 @@ Section fundamental.
   Proof.
     iModIntro.
     iIntros (W W') "%Hrelated Hinterp".
-    cbn; iEval (rewrite fixpoint_interp1_eq); done.
+    rewrite /interpC /safeC /=. 
+    iEval (rewrite fixpoint_interp1_eq); done.
   Qed.
 
 End fundamental.

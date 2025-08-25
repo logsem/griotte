@@ -18,7 +18,8 @@ Section fundamental.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation STK := (leibnizO (list (Word * Word))).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -30,11 +31,11 @@ Section fundamental.
 
   Lemma jmpcap_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rsrc : RegName) (P:D):
-    ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P.
+    (w : Word) (ρ : region_type) (rsrc : RegName) (P:D) (stk : STK) (cstk : Sealable) :
+    ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P stk cstk.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown".
     iIntros "Hr Hstate Ha HPC Hmap".
     destruct (decide (rsrc = PC)) as [HrPC|HrPC].
     - subst rsrc.
@@ -48,9 +49,10 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
       (* apply IH *)
-      iApply ("IH" $! _ _ _ _ g _ _ a with "[] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ g _ _ a with "[] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [$Hown]"); eauto.
       { iPureIntro; apply Hsome. }
     - specialize Hsome with rsrc as Hrsrc; destruct Hrsrc as [wsrc Hsomesrc].
+      iExtract "Hmap" csp as "Hrsrc".
       iExtract "Hmap" rsrc as "Hrsrc".
       iApply (wp_jmpcap_success with "[$HPC $Ha $Hrsrc]"); eauto.
       iNext. iIntros "[HPC [Ha Hrsrc]] /=".
