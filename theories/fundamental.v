@@ -1,4 +1,4 @@
-(* From cap_machine.ftlr Require Export Jmp Jnz Jalr Mov Load Store BinOp Restrict *)
+From cap_machine.ftlr Require Export Jmp. (* Jmp Jnz Jalr Mov Load Store BinOp Restrict *)
 (*   Subseg Get Lea Seal UnSeal ReadSR WriteSR. *)
 (* From cap_machine.ftlr Require Export JmpCap. *)
 From cap_machine.ftlr Require Export ftlr_base.
@@ -32,10 +32,10 @@ Section fundamental.
 
   Theorem fundamental_cap (W : WORLD) (C : CmptName) p g b e (a : Addr) (stk : STK) cstk :
     ⊢ interp W C (WCap p g b e a) →
-      interp_expression stk W C (WCap p g b e a) (WSealable cstk).
+      interp_expression stk W C (WCap p g b e a) cstk.
   Proof.
     iIntros "#Hinv_interp".
-    iIntros (regs) "[[Hfull Hreg] [Hmreg [Hr [Hsts Hcont]]]]".
+    iIntros (regs) "[[Hfull Hreg] [Hmreg [Hr [Hsts [Hcont [Hown Hframe]]]]]]".
     assert ( readAllowed p = true \/ readAllowed p = false )
       as [Hread_p|Hread_p] by (destruct_perm p ; naive_solver)
     ; cycle 1.
@@ -61,7 +61,7 @@ Section fundamental.
     { iModIntro; iNext.
       iIntros (W_ih C_ih stk_ih r_ih p_ig g_ih b_ih e_ih a_ih cstk_ih)
         "%Hfull #Hregs Hmreg Hr Hsts Htframe Hown Hinterp".
-      iApply ("IH'" with "[%] [] [Hmreg] [$Hr] [$Hsts] [$] [$]"); eauto.
+      iApply ("IH'" with "[%] [] [Hmreg] [$Hr] [$Hsts] [$] [$]");eauto.
     }
     iIntros "#Hinv_interp".
     iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".
@@ -137,8 +137,8 @@ Section fundamental.
       iApply (jmp_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
-               [$Hw] [$Hsts] [$Htframe] [$Hown] [$Hr] [$Hstate]
-               [$Ha] [$HPC] [$Hmreg]")
+               [$Hw] [$Hcont] [$Hsts] [$Hown] [$Hframe]
+               [$Hr] [$Hstate] [$Ha] [$HPC] [Hmreg]")
       ;eauto.
     + (* Jnz *)
       iApply (jnz_case with

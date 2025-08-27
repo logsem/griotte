@@ -210,19 +210,19 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
-  Program Fixpoint interp_cont (stk : STK) (interp : V) : K :=
+  Program Fixpoint interp_cont (interp : V) (stk : STK) : K :=
     match stk with
     | [] => λne (W : WORLD) (C : leibnizO CmptName), True%I
     | (wret,wstk) :: stk' =>
         λne (W : WORLD) (C : leibnizO CmptName),
-          (∀ W', ⌜related_sts_pub_world W W'⌝ -∗ ▷ interp_expr interp (interp_cont stk' interp) stk' W' C wret wstk)%I
+          (∀ W', ⌜related_sts_pub_world W W'⌝ -∗ ▷ interp_expr interp (interp_cont interp stk') stk' W' C wret wstk)%I
     end.
   Solve All Obligations with solve_proper.
 
   Global Instance interp_continuation_ne (* (interp : V) stk *) n :
-    Proper ((=) ==> dist n ==> dist n ==> dist n) (interp_cont).
+    Proper (dist n ==> (=) ==> dist n ==> dist n) (interp_cont).
   Proof.
-    intros x y -> interp interp0 Heq W W0 ->.
+    intros interp interp0 Heq x y -> W W0 ->.
     generalize dependent W0. clear W.
     induction y;intros W0;[simpl;f_equiv|].
     destruct a. simpl. intros ?. simpl.
@@ -296,8 +296,8 @@ Section logrel.
     (p : Perm) (g : Locality) (b e a : Addr)
     (interp : V) : iProp Σ :=
     (∀ stk wstk W', future_world g W W' →
-             (▷ interp_expr interp (interp_cont stk interp) stk W' C (WCap p g b e a) wstk)
-               ∗ (▷ interp_expr interp (interp_cont stk interp) stk W' C (WCap p Local b e a) wstk)
+             (▷ interp_expr interp (interp_cont interp stk) stk W' C (WCap p g b e a) wstk)
+               ∗ (▷ interp_expr interp (interp_cont interp stk) stk W' C (WCap p Local b e a) wstk)
     )%I.
   Global Instance enter_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
@@ -497,13 +497,13 @@ Section logrel.
 
   Program Definition interp : V := (fixpoint (interp1)).
   Solve All Obligations with solve_proper.
-  Definition interp_continuation (stk : STK) : K := interp_cont stk interp.
-  Definition interp_expression (stk : STK) : E :=
-    interp_expr interp (interp_continuation stk).
+  Definition interp_continuation (stk : STK) : K := interp_cont interp stk.
+  Definition interp_expression : E :=
+    λne stk, interp_expr interp (interp_continuation stk) stk.
   Definition interp_registers : R := interp_reg interp.
 
   Lemma interp_continuation_eq (stk : STK) (W : WORLD) (C : CmptName) (w : leibnizO Word) :
-    interp_continuation stk W C ≡ interp_cont stk (fixpoint interp1) W C.
+    interp_continuation stk W C ≡ interp_cont (fixpoint interp1) stk W C.
   Proof.
     rewrite /interp_continuation /interp /= //.
   Qed.
