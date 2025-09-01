@@ -9,7 +9,7 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}.
 
@@ -30,7 +30,7 @@ Section monotone.
     -> (std W') !! a = Some Permanent.
   Proof.
     intros Hrelated Hstate.
-    destruct Hrelated as [ [ [Hdom_sta Hrelated ] _ ] _]. simpl in *.
+    destruct Hrelated as [ [ Hdom_sta Hrelated] _]. simpl in *.
     assert (is_Some ((std W') !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated a Permanent y Hstate Hy).
@@ -43,7 +43,7 @@ Section monotone.
     -> (std W') !! a = Some Temporary.
   Proof.
     intros Hrelated Hstate.
-    destruct Hrelated as [ [ [Hdom_sta Hrelated ] _ ] _]. simpl in *.
+    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some ((std W') !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Temporary y Hstate Hy).
@@ -144,7 +144,7 @@ Section monotone.
   Proof.
     rewrite /region_state_pwl.
     intros Hrelated Hstate.
-    destruct Hrelated as [ [ [Hdom_sta Hrelated ] _ ] _]. simpl in *.
+    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (std W' !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom ;eauto. }
     specialize (Hrelated _ Revoked y Hstate Hy).
@@ -242,7 +242,7 @@ Section monotone.
     destruct w; [ | shelve | | ].
     { rewrite !fixpoint_interp1_eq /=; auto. }
     { rewrite !fixpoint_interp1_eq /=.
-      iModIntro. iIntros (r W'').
+      iModIntro. iIntros (stk r W'').
       destruct g.
       + iIntros "#Hrelated'".
         rewrite /future_world.
@@ -250,7 +250,7 @@ Section monotone.
         iAssert (future_world Global W W'')%I as "Hrelated".
         { rewrite /future_world.
           iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
-        iSpecialize ("Hw" $! r W'' with "Hrelated").
+        iSpecialize ("Hw" $! stk r W'' with "Hrelated").
         iApply "Hw".
       + iIntros "#Hrelated'".
         rewrite /future_world.
@@ -258,7 +258,7 @@ Section monotone.
         iAssert (future_world Local W W'')%I as "Hrelated".
         { rewrite /future_world.
           iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
-        iSpecialize ("Hw" $! r W'' with "Hrelated").
+        iSpecialize ("Hw" $! stk r W'' with "Hrelated").
         iApply "Hw".
     }
     { apply related_sts_pub_priv_world in Hrelated.
@@ -332,14 +332,14 @@ Section monotone.
     { rewrite !fixpoint_interp1_eq /=; auto. }
     { rewrite !fixpoint_interp1_eq /=.
       destruct g ; cbn in Hnl ; try done.
-      iModIntro. iIntros (r W'').
+      iModIntro. iIntros (stk r W'').
       iIntros "#Hrelated'".
       rewrite /future_world.
       iDestruct "Hrelated'" as "%Hrelated'".
       iAssert (future_world Global W W'')%I as "Hrelated".
       { rewrite /future_world.
         iPureIntro. apply related_sts_priv_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! r W'' with "Hrelated").
+      iSpecialize ("Hw" $! stk r W'' with "Hrelated").
       iApply "Hw".
     }
     { iApply (interp_monotone_sd with "[] [$Hw]"); eauto. }
