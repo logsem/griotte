@@ -215,7 +215,8 @@ Section logrel.
     | [] => λne (W : WORLD) (C : leibnizO CmptName), True%I
     | (wret,wstk) :: stk' =>
         λne (W : WORLD) (C : leibnizO CmptName),
-          (∀ W', ⌜related_sts_pub_world W W'⌝ -∗ ▷ interp_expr interp (interp_cont interp stk') stk' W' C wret wstk)%I
+        (interp_cont interp stk' W C ∗
+          (∀ W', ⌜related_sts_pub_world W W'⌝ -∗ ▷ interp_expr interp (interp_cont interp stk') stk' W' C wret wstk))%I
     end.
   Solve All Obligations with solve_proper.
 
@@ -226,6 +227,7 @@ Section logrel.
     generalize dependent W0. clear W.
     induction y;intros W0;[simpl;f_equiv|].
     destruct a. simpl. intros ?. simpl.
+    f_equiv;[apply IHy|].
     do 13 f_equiv;[repeat f_equiv;auto|].
     intros ?. apply IHy.
   Qed.
