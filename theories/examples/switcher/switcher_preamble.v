@@ -11,7 +11,7 @@ Section Switcher_preamble.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {tframeg : TFRAMEG Σ}
+    {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -20,7 +20,7 @@ Section Switcher_preamble.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation WORLD := (prodO STS_STD STS).
-  Notation STK := (leibnizO (list (Word * Word))).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -44,13 +44,13 @@ Section Switcher_preamble.
           (⌜r ∉ (dom_arg_rmap ∪ {[PC; cra; cgp; csp]})⌝ →  ⌜reg !! r = Some (WInt 0)⌝)))%I.
   Solve All Obligations with solve_proper.
 
-  Program Definition execute_entry_point (wpcc wcgp : Word) (regs : Reg) (cstk : STK) : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
+  Program Definition execute_entry_point (wpcc wcgp : Word) (regs : Reg) (cstk : CSTK) : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
        ( (execute_entry_point_register wpcc wcgp W C regs)
          ∗ registers_pointsto regs
          ∗ region W C
          ∗ sts_full_world W C
-         ∗ tframe_frag cstk
+         ∗ cstack_frag cstk
          ∗ na_own logrel_nais ⊤
            -∗ interp_conf W C)
     )%I.
@@ -201,8 +201,9 @@ Section Switcher_preamble.
   (* Qed. *)
 
 
+
   Definition switcher_inv : iProp Σ :=
-    ∃ (a_tstk : Addr) (cstk : STK) (tstk_next : list Word),
+    ∃ (a_tstk : Addr) (cstk : CSTK) (tstk_next : list Word),
      mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk
      (* ∗ ⌜ SubBounds *)
      (*     b_switcher e_switcher *)
@@ -212,7 +213,7 @@ Section Switcher_preamble.
      ∗ b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
      ∗ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↦ₐ [[ tstk_next ]]
      ∗ ⌜ (b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a ⌝
-     ∗ tframe_full cstk
+     ∗ cstack_full cstk
      ∗ ⌜ (b_trusted_stack + length cstk)%a = Some a_tstk  ⌝
      ∗ True (* TODO link the topmost frame of cstk to the state *)
      ∗ seal_pred ot_switcher ot_switcher_propC.

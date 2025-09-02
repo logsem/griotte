@@ -29,52 +29,62 @@ Class logrel_na_invs Σ :=
     logrel_nais : na_inv_pool_name;
   }.
 
-Definition tframeR := excl_authR (leibnizO (list (Word * Word))).
-Definition tframeUR := excl_authUR (leibnizO (list (Word * Word))).
-
-Class TFRAME_preG Σ :=
-  { tframe_preG :: inG Σ tframeUR; }.
-
-Class TFRAMEG Σ :=
-  { tframe_inG :: inG Σ tframeUR;
-    γtframe : gname;
+Record cframe := MkCFrame {
+      wret : Word;
+      wstk : Word;
+      wcgp : Word;
+      wcs0 : Word;
+      wcs1 : Word;
   }.
 
-Definition TFRAME_preΣ :=
-  #[ GFunctor tframeUR ].
+Notation cstack := (list cframe).
 
-Instance subG_TFRAME_preΣ {Σ} :
-  subG TFRAME_preΣ Σ → TFRAME_preG Σ.
+Definition cstackR := excl_authR (leibnizO cstack).
+Definition cstackUR := excl_authUR (leibnizO cstack).
+
+Class CSTACK_preG Σ :=
+  { cstack_preG :: inG Σ cstackUR; }.
+
+Class CSTACKG Σ :=
+  { cstack_inG :: inG Σ cstackUR;
+    γcstack : gname;
+  }.
+
+Definition CSTACK_preΣ :=
+  #[ GFunctor cstackUR ].
+
+Instance subG_CSTACK_preΣ {Σ} :
+  subG CSTACK_preΣ Σ → CSTACK_preG Σ.
 Proof. solve_inG. Qed.
 
-Section TStack.
-  Context {Σ : gFunctors} {tframeg : TFRAMEG Σ} .
+Section CStack.
+  Context {Σ : gFunctors} {cstackg : CSTACKG Σ} .
 
-  Definition tframe_full (a : list (Word * Word)) : iProp Σ
-    := own γtframe (●E (a : leibnizO (list (Word * Word))) : tframeUR).
+  Definition cstack_full (cstk : cstack) : iProp Σ
+    := own γcstack (●E (cstk : leibnizO cstack) : cstackUR).
 
-  Definition tframe_frag (a : list (Word * Word)) : iProp Σ
-    := own γtframe (◯E (a : leibnizO (list (Word * Word))) : tframeUR).
+  Definition cstack_frag (cstk : cstack) : iProp Σ
+    := own γcstack (◯E (cstk : leibnizO cstack) : cstackUR).
 
-  Lemma tframe_agree a a' :
-   tframe_full a -∗
-   tframe_frag a' -∗
-   ⌜ a = a' ⌝.
+  Lemma cstack_agree (cstk cstk' : cstack) :
+   cstack_full cstk -∗
+   cstack_frag cstk' -∗
+   ⌜ cstk = cstk' ⌝.
   Proof.
     iIntros "Hfull Hfrag".
-    rewrite /tframe_full /tframe_frag.
+    rewrite /cstack_full /cstack_frag.
     iCombine "Hfull Hfrag" as "H".
     iDestruct (own_valid with "H") as "%H".
     by apply excl_auth_agree_L in H.
   Qed.
 
-  Lemma tframe_update a a' a'' :
-   tframe_full a -∗
-   tframe_frag a' ==∗
-   tframe_full a'' ∗ tframe_frag a''.
+  Lemma cstack_update (cstk cstk' cstk'' : cstack) :
+   cstack_full cstk -∗
+   cstack_frag cstk' ==∗
+   cstack_full cstk'' ∗ cstack_frag cstk''.
   Proof.
     iIntros "Hfull Hfrag".
-    rewrite /tframe_full /tframe_frag.
+    rewrite /cstack_full /cstack_frag.
     iCombine "Hfull Hfrag" as "H".
     iMod ( own_update _ _ _  with "H" ) as "H".
     { apply excl_auth_update. }
@@ -82,21 +92,21 @@ Section TStack.
     by iFrame.
   Qed.
 
-End TStack.
+End CStack.
 
-Section pre_TFRAME.
-  Context {Σ : gFunctors} {tframeg : TFRAME_preG Σ}.
+Section pre_CSTACK.
+  Context {Σ : gFunctors} {tframeg : CSTACK_preG Σ}.
 
-  Lemma gen_tframe_init stk :
-    ⊢ |==> (∃ (tframeg : TFRAMEG Σ), tframe_full stk ∗ tframe_frag stk).
+  Lemma gen_tframe_init (cstk : cstack) :
+    ⊢ |==> (∃ (cstackg : CSTACKG Σ), cstack_full cstk ∗ cstack_frag cstk).
   Proof.
-    iMod (own_alloc (A:=tframeUR) (●E (stk : leibnizO _) ⋅ ◯E (stk : leibnizO _) )) as (γtframe) "Htframe"
+    iMod (own_alloc (A:=cstackUR) (●E (cstk : leibnizO _) ⋅ ◯E (cstk : leibnizO _) )) as (γcstack) "Hcstack"
     ; first by apply excl_auth_valid.
-    iModIntro. iExists (Build_TFRAMEG _ _ γtframe).
+    iModIntro. iExists (Build_CSTACKG _ _ γcstack).
     by rewrite own_op.
   Qed.
 
-End pre_TFRAME.
+End pre_CSTACK.
 
 (** interp : is a unary logical relation. *)
 Section logrel.
@@ -107,7 +117,7 @@ Section logrel.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
-    {tframeg : TFRAMEG Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     `{swlayout : switcherLayout}
   .
@@ -115,11 +125,11 @@ Section logrel.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation WORLD := (prodO STS_STD STS).
-  Notation STK := (leibnizO (list (Word * Word))).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (STK -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (CSTK -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
@@ -191,7 +201,7 @@ Section logrel.
        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
 
   Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
-    (λne (stk : STK) (W : WORLD) (C : CmptName) (wpc : Word) (wstk : Word),
+    (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (wpc : Word) (wstk : Word),
        ∀ regs,
        ( interp_reg interp W C regs
         ∗ registers_pointsto (<[PC:=wpc]> (<[csp:=wstk]> regs))
@@ -199,7 +209,7 @@ Section logrel.
         ∗ sts_full_world W C
         ∗ interp_cont W C
         ∗ na_own logrel_nais ⊤
-        ∗ tframe_frag stk
+        ∗ cstack_frag cstk
           -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.
@@ -213,13 +223,14 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
-  Program Fixpoint interp_cont (interp : V) (stk : STK) : K :=
-    match stk with
+  Program Fixpoint interp_cont (interp : V) (cstk : CSTK) : K :=
+    match cstk with
     | [] => λne (W : WORLD) (C : leibnizO CmptName), True%I
-    | (wret,wstk) :: stk' =>
+    | frm :: cstk' =>
         λne (W : WORLD) (C : leibnizO CmptName),
-        (interp_cont interp stk' W C ∗
-          (∀ W', ⌜related_sts_pub_world W W'⌝ -∗ ▷ interp_expr interp (interp_cont interp stk') stk' W' C wret wstk))%I
+        (interp_cont interp cstk' W C ∗
+          (∀ W', ⌜related_sts_pub_world W W'⌝
+                 -∗ ▷ interp_expr interp (interp_cont interp cstk') cstk' W' C frm.(wret) frm.(wstk)))%I
     end.
   Solve All Obligations with solve_proper.
 
@@ -503,13 +514,13 @@ Section logrel.
 
   Program Definition interp : V := (fixpoint (interp1)).
   Solve All Obligations with solve_proper.
-  Definition interp_continuation (stk : STK) : K := interp_cont interp stk.
+  Definition interp_continuation (cstk : CSTK) : K := interp_cont interp cstk.
   Definition interp_expression : E :=
-    λne stk, interp_expr interp (interp_continuation stk) stk.
+    λne cstk, interp_expr interp (interp_continuation cstk) cstk.
   Definition interp_registers : R := interp_reg interp.
 
-  Lemma interp_continuation_eq (stk : STK) (W : WORLD) (C : CmptName) (w : leibnizO Word) :
-    interp_continuation stk W C ≡ interp_cont (fixpoint interp1) stk W C.
+  Lemma interp_continuation_eq (cstk : CSTK) (W : WORLD) (C : CmptName) (w : leibnizO Word) :
+    interp_continuation cstk W C ≡ interp_cont (fixpoint interp1) cstk W C.
   Proof.
     rewrite /interp_continuation /interp /= //.
   Qed.

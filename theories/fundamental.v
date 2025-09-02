@@ -13,7 +13,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -22,7 +22,7 @@ Section fundamental.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation WORLD := (prodO STS_STD STS).
-  Notation STK := (leibnizO (list (Word * Word))).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -33,10 +33,13 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
-  Theorem fundamental_cap (W : WORLD) (C : CmptName) p g b e (a : Addr) (stk : STK) cstk Nswitcher :
+  Theorem fundamental_cap
+    (W : WORLD) (C : CmptName)
+    (p : Perm) (g : Locality)
+    (b e a : Addr) (cstk : CSTK) (wstk : Word) (Nswitcher : namespace) :
     na_inv logrel_nais Nswitcher switcher_inv
     ⊢ interp W C (WCap p g b e a) →
-      interp_expression stk W C (WCap p g b e a) cstk.
+      interp_expression cstk W C (WCap p g b e a) wstk.
   Proof.
     iIntros "#Hswitcher_inv #Hinv_interp".
     iIntros (regs) "[[Hfull Hreg] [Hmreg [Hr [Hsts [Hcont [Hown Hframe]]]]]]".
@@ -60,10 +63,10 @@ Section fundamental.
     clear Hread_p.
 
     iRevert "Hinv_interp".
-    iLöb as "IH'" forall (W C regs p g b e a stk cstk).
+    iLöb as "IH'" forall (W C regs p g b e a cstk wstk).
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
-      iIntros (W_ih C_ih stk_ih r_ih p_ig g_ih b_ih e_ih a_ih cstk_ih)
+      iIntros (W_ih C_ih cstk_ih r_ih p_ig g_ih b_ih e_ih a_ih wstk_ih)
         "%Hfull #Hregs Hmreg Hr Hsts Htframe Hown Hinterp".
       iApply ("IH'" with "[%] [] [Hmreg] [$Hr] [$Hsts] [$] [$]");eauto.
     }
