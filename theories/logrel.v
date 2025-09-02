@@ -224,6 +224,45 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
+  Program Definition interp_cont_exec (interp : V) (interp_cont : K) :
+    (CSTK -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO cframe) -n> iPropO Σ)
+    :=
+    (λne (cstk : CSTK) (W : WORLD) (C : CmptName)
+       (frm : cframe)
+     ,
+       ∀ wca0 wca1 regs,
+       ( PC ↦ᵣ frm.(wret)
+         ∗ csp ↦ᵣ frm.(wstk)
+         (* cgp, cs0 and cs1 are callee-saved registers *)
+         ∗ cgp ↦ᵣ frm.(wcgp)
+         ∗ cs0 ↦ᵣ frm.(wcs0)
+         ∗ cs1 ↦ᵣ frm.(wcs1)
+         (* ca0 and ca1 are the return value *)
+         ∗ ca0 ↦ᵣ wca0 ∗ interp W C wca0
+         ∗ ca1 ↦ᵣ wca1 ∗ interp W C wca1
+         (* all other register contain 0 *)
+         ∗ ⌜dom regs = all_registers_s ∖ {[PC; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
+         ∗ ([∗ map] r↦w ∈ regs, r ↦ᵣ WInt 0)
+         (* World interpretation *)
+         ∗ region W C
+         ∗ sts_full_world W C
+         (* Continuation *)
+         ∗ interp_cont W C
+         ∗ cstack_frag cstk
+         ∗ na_own logrel_nais ⊤
+           -∗ interp_conf W C)
+    )%I.
+  Solve All Obligations with solve_proper.
+
+  Global Instance interp_cont_exec_ne n :
+    Proper (dist n ==> dist n ==> dist n) (interp_cont_exec).
+  Proof.
+    intros interp interp0 Heq K K0 HK.
+    rewrite /interp_cont_exec. intros ????. simpl.
+    (* do 10 f_equiv;[|apply HK]. *)
+    by repeat f_equiv.
+  Qed.
+
   Program Fixpoint interp_cont (interp : V) (cstk : CSTK) : K :=
     match cstk with
     | [] => λne (W : WORLD) (C : leibnizO CmptName), True%I
@@ -231,7 +270,7 @@ Section logrel.
         λne (W : WORLD) (C : leibnizO CmptName),
         (interp_cont interp cstk' W C ∗
           (∀ W', ⌜related_sts_pub_world W W'⌝
-                 -∗ ▷ interp_expr interp (interp_cont interp cstk') cstk' W' C frm.(wret) frm.(wstk)))%I
+                 -∗ ▷ interp_cont_exec interp (interp_cont interp cstk') cstk' W' C frm))%I
     end.
   Solve All Obligations with solve_proper.
 
@@ -241,10 +280,11 @@ Section logrel.
     intros interp interp0 Heq x y -> W W0 ->.
     generalize dependent W0. clear W.
     induction y;intros W0;[simpl;f_equiv|].
-    destruct a. simpl. intros ?. simpl.
+    destruct a.
+    intros ?.
+    simpl.
     f_equiv;[apply IHy|].
-    do 13 f_equiv;[repeat f_equiv;auto|].
-    intros ?. apply IHy.
+    repeat (f_equiv; auto).
   Qed.
   (* Global Instance interp_cont_contractive (interp : V) stk : *)
     (* Contractive (λ interp_cont', (interp_cont stk interp) interp_cont'). *)
@@ -320,7 +360,7 @@ Section logrel.
   Proof.
     solve_proper_prepare.
     do 17 f_equiv;[by repeat f_equiv| |by repeat f_equiv|..].
-    1,2: by apply interp_continuation_ne.
+    1,2: f_equiv;apply interp_continuation_ne; auto.
   Qed.
 
   Global Instance enter_cond_contractive W C p g b e a :
