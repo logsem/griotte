@@ -4,6 +4,7 @@ From cap_machine Require Export cap_lang region seal_store region_invariants.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine.rules Require Import rules_base.
+From cap_machine Require Import switcher.
 Import uPred.
 
 Ltac auto_equiv :=
@@ -107,7 +108,9 @@ Section logrel.
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     {tframeg : TFRAMEG Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -235,7 +238,6 @@ Section logrel.
     (* Contractive (λ interp_cont', (interp_cont stk interp) interp_cont'). *)
   (* Proof. *)
   (*   solve_proper_prepare. *)
-    
   (*   destruct p. *)
   (*   destruct p. *)
   (*   solve_contractive. *)
@@ -308,7 +310,7 @@ Section logrel.
     do 17 f_equiv;[by repeat f_equiv| |by repeat f_equiv|..].
     1,2: by apply interp_continuation_ne.
   Qed.
-  
+
   Global Instance enter_cond_contractive W C p g b e a :
     Contractive (λ interp, enter_cond W C p g b e a interp).
   Proof.
@@ -370,10 +372,17 @@ Section logrel.
   Definition interp_z : V := λne _ _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
   Definition interp_cap_O : V := λne _ _ _, True%I.
 
+  Definition is_switcher_entry_point (b e a : Addr) :=
+    if (b =? b_switcher swlayout)%a && (e =? e_switcher swlayout)%a
+    then (if (a =? a_switcher_call swlayout)%a || (a =? a_switcher_return swlayout)%a then true else false)
+    else false.
+
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
                 | WSentry p g b e a =>
-                    (□ enter_cond W C p g b e a interp)
+                    if is_switcher_entry_point b e a
+                    then True
+                    else (□ enter_cond W C p g b e a interp)
                 | _ => False
                 end)%I.
   Solve All Obligations with solve_proper.

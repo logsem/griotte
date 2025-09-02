@@ -79,6 +79,12 @@ theories/monotone.v
 
 # Unary Logical Relation
 theories/seal_store.v
+
+theories/examples/switcher/clear_stack.v
+theories/examples/switcher/clear_registers.v
+theories/examples/switcher/switcher.v
+theories/examples/switcher/switcher_preamble.v
+
 theories/logrel.v
 theories/ftlr/ftlr_base.v
 theories/ftlr/interp_weakening.v
@@ -114,14 +120,10 @@ theories/examples/macros/fetch.v
 # theories/examples/macros/reqperm.v
 # theories/examples/macros/salloc.v
 # theories/examples/macros/macros.v
-theories/examples/switcher/clear_stack.v
-theories/examples/switcher/clear_registers.v
 
 # Griotte case studies
-theories/examples/switcher/switcher.v
-theories/examples/switcher/switcher_preamble.v
-theories/examples/switcher/switcher_spec.v
-theories/examples/switcher/switcher_interp.v
+# theories/examples/switcher/switcher_spec.v
+# theories/examples/switcher/switcher_interp.v
 
 theories/examples/compartment_layout.v
 

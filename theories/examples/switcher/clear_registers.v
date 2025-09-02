@@ -1,15 +1,20 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import addr_reg_sample rules proofmode.
-From cap_machine Require Import logrel.
+From iris.program_logic Require Export weakestpre.
+From cap_machine Require Export cap_lang region seal_store region_invariants.
+From iris.algebra Require Export gmap agree auth excl_auth.
+From iris.base_logic Require Export invariants na_invariants saved_prop.
+From cap_machine.rules Require Import rules_base.
 
 Section ClearRegistersMacro.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseg:ceriseG Σ}
+    {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ}
+    {heapg : heapGS Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
@@ -34,31 +39,31 @@ Section ClearRegistersMacro.
                     Mov ca5 0%Z;
                     Mov ct0 0%Z].
 
-  Lemma clear_registers_pre_call_skip_spec
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (arg_rmap : Reg) (z : Z)
-    (W : WORLD) (C : CmptName) φ :
-    executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a ->
+  (* Lemma clear_registers_pre_call_skip_spec *)
+  (*   (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr) *)
+  (*   (arg_rmap : Reg) (z : Z) *)
+  (*   (W : WORLD) (C : CmptName) φ : *)
+  (*   executeAllowed pc_p = true -> *)
+  (*   SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a -> *)
 
-    is_arg_rmap arg_rmap ->
-    (1 <= z <= 8)%Z ->
+  (*   is_arg_rmap arg_rmap -> *)
+  (*   (1 <= z <= 8)%Z -> *)
 
-    ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ ct2 ↦ᵣ WInt z
-      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg )
-      ∗ codefrag pc_a clear_registers_pre_call_skip_instrs
-      ∗ ▷ ( (∃ arg_rmap',
-              ⌜ is_arg_rmap arg_rmap' ⌝
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
-              ∗ ct2 ↦ᵣ WInt z
-              ∗ (  [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ warg ∗ interp W C warg )
-              ∗ codefrag pc_a clear_registers_pre_call_skip_instrs)
-               -∗ WP Seq (Instr Executable) {{ φ }})
-    )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
-  Proof.
-  Admitted.
+  (*   ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a *)
+  (*     ∗ ct2 ↦ᵣ WInt z *)
+  (*     ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg ) *)
+  (*     ∗ codefrag pc_a clear_registers_pre_call_skip_instrs *)
+  (*     ∗ ▷ ( (∃ arg_rmap', *)
+  (*             ⌜ is_arg_rmap arg_rmap' ⌝ *)
+  (*             ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a *)
+  (*             ∗ ct2 ↦ᵣ WInt z *)
+  (*             ∗ (  [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ warg ∗ interp W C warg ) *)
+  (*             ∗ codefrag pc_a clear_registers_pre_call_skip_instrs) *)
+  (*              -∗ WP Seq (Instr Executable) {{ φ }}) *)
+  (*   ) *)
+  (*   ⊢ WP Seq (Instr Executable) {{ φ }}%I. *)
+  (* Proof. *)
+  (* Admitted. *)
 
 
   Definition clear_registers_pre_call_instrs : list Word :=

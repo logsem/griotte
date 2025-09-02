@@ -1,6 +1,6 @@
 From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel fundamental interp_weakening addr_reg_sample rules proofmode.
+From cap_machine Require Import logrel addr_reg_sample rules proofmode.
 From cap_machine Require Import multiple_updates region_invariants_revocation region_invariants_allocation.
 From cap_machine Require Import switcher.
 

@@ -6,7 +6,7 @@ From cap_machine Require Export clear_stack clear_registers.
 Section Switcher.
   Context `{MP: MachineParameters}.
 
-  Definition switcher_instrs : list Word :=
+  Definition switcher_call_instrs : list Word :=
     encodeInstrsW [
         (* Save the callee registers *)
         Store csp cs0;
@@ -71,14 +71,18 @@ Section Switcher.
         Lea ct1 1%Z;
         Load cgp ct1;
         Lea cra cs0;
-        Add ct2 ct2 1%Z]
+        machine_base.Add ct2 ct2 1%Z]
       (* clear registers, skipping arguments *)
       ++ clear_registers_pre_call_skip_instrs
       ++ clear_registers_pre_call_instrs
       ++ encodeInstrsW [
 
         (* Jump to callee *)
-        Jalr cra cra;
+        Jalr cra cra
+      ].
+
+  Definition switcher_return_instrs : list Word :=
+    encodeInstrsW [
 
         (* --- Callback --- *)
         (* Restores caller's stack frame *)
@@ -122,6 +126,9 @@ Section Switcher.
         JmpCap cra
       ].
 
+  Definition switcher_instrs : list Word :=
+    switcher_call_instrs ++ switcher_return_instrs.
+
   Definition encode_entry_point (nargs entry_point_offset : Z) : Z :=
     let args := Z.land nargs 7 in
     let off := Z.shiftl entry_point_offset 3 in
@@ -129,5 +136,23 @@ Section Switcher.
 
   Definition decode_entry_point (entry_point : Z) : (Z * Z) :=
     ( Z.land entry_point 7, Z.shiftr entry_point 3).
+
+
+  Record switcherLayout `{MachineParameters} : Type :=
+    mkCmptSwitcher {
+        b_switcher : Addr ;
+        e_switcher : Addr ;
+        a_switcher_call : Addr ;
+        a_switcher_return : Addr ;
+
+        switcher_size :
+        (a_switcher_call + length switcher_instrs)%a = Some e_switcher ;
+
+        switcher_call_entry_point :
+        (b_switcher + 1)%a = Some a_switcher_call ;
+
+        switcher_return_entry_point :
+        (b_switcher + (1 + length switcher_call_instrs) )%a = Some a_switcher_return ;
+      }.
 
 End Switcher.
