@@ -268,9 +268,9 @@ Section logrel.
     | [] => λne (W : WORLD) (C : leibnizO CmptName), True%I
     | frm :: cstk' =>
         λne (W : WORLD) (C : leibnizO CmptName),
-        (interp_cont interp cstk' W C ∗
+        (▷ (interp_cont interp cstk' W C ∗
           (∀ W', ⌜related_sts_pub_world W W'⌝
-                 -∗ ▷ interp_cont_exec interp (interp_cont interp cstk') cstk' W' C frm))%I
+                 -∗  interp_cont_exec interp (interp_cont interp cstk') cstk' W' C frm)))%I
     end.
   Solve All Obligations with solve_proper.
 
@@ -283,6 +283,7 @@ Section logrel.
     destruct a.
     intros ?.
     simpl.
+    f_equiv.
     f_equiv;[apply IHy|].
     repeat (f_equiv; auto).
   Qed.
