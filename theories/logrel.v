@@ -204,7 +204,8 @@ Section logrel.
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (wpc : Word) (wstk : Word),
        ∀ regs,
        ( interp_reg interp W C regs
-        ∗ registers_pointsto (<[PC:=wpc]> (<[csp:=wstk]> regs))
+        ∗ registers_pointsto (<[PC:=wpc]> regs)
+        ∗ ⌜ regs !! csp = Some wstk ⌝ (* TODO: maybe we should also have the same for pc *)
         ∗ region W C
         ∗ sts_full_world W C
         ∗ interp_cont W C
