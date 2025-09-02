@@ -201,6 +201,22 @@ Section Switcher_preamble.
   (* Qed. *)
 
 
+  Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
+    match frm.(wstk) with
+    | WCap RWL Local b_stk e_stk a_stk =>
+        (* TODO do we need some constraints like b_stk <= a_stk - 4 < a_stk -1 < e_stk ? *)
+        (a_stk ^+ -4)%a ↦ₐ frm.(wcs0)
+        ∗ (a_stk ^+ -3)%a ↦ₐ frm.(wcs1)
+        ∗ (a_stk ^+ -2)%a ↦ₐ frm.(wret)
+        ∗ (a_stk ^+ -1)%a ↦ₐ frm.(wcgp)
+    | _ => False
+    end.
+
+  Fixpoint cstack_interp (cstk : cstack) (a_tstk : Addr) : iProp Σ :=
+    (match cstk with
+    | [] => True
+    | frm::cstk' => cstack_interp cstk' (a_tstk ^+ -1)%a ∗ cframe_interp frm a_tstk
+    end)%I.
 
   Definition switcher_inv : iProp Σ :=
     ∃ (a_tstk : Addr) (cstk : CSTK) (tstk_next : list Word),
@@ -215,7 +231,7 @@ Section Switcher_preamble.
      ∗ ⌜ (b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a ⌝
      ∗ cstack_full cstk
      ∗ ⌜ (b_trusted_stack + length cstk)%a = Some a_tstk  ⌝
-     ∗ True (* TODO link the topmost frame of cstk to the state *)
+     ∗ cstack_interp cstk a_tstk (* link the topmost frame of cstk to the state *)
      ∗ seal_pred ot_switcher ot_switcher_propC.
 
 
