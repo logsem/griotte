@@ -138,12 +138,17 @@ Section Switcher.
     ( Z.land entry_point 7, Z.shiftr entry_point 3).
 
 
-  Record switcherLayout `{MachineParameters} : Type :=
+  Class switcherLayout : Type :=
     mkCmptSwitcher {
         b_switcher : Addr ;
         e_switcher : Addr ;
         a_switcher_call : Addr ;
         a_switcher_return : Addr ;
+
+        ot_switcher : OType ;
+
+        b_trusted_stack : Addr;
+        e_trusted_stack : Addr;
 
         switcher_size :
         (a_switcher_call + length switcher_instrs)%a = Some e_switcher ;
@@ -154,5 +159,10 @@ Section Switcher.
         switcher_return_entry_point :
         (b_switcher + (1 + length switcher_call_instrs) )%a = Some a_switcher_return ;
       }.
+
+  Definition is_switcher_entry_point `{switcherLayout} (b e a : Addr) :=
+    if (b =? b_switcher)%a && (e =? e_switcher)%a
+    then (if (a =? a_switcher_call)%a || (a =? a_switcher_return)%a then true else false)
+    else false.
 
 End Switcher.

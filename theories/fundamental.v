@@ -6,6 +6,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel register_tactics.
+From cap_machine Require Export switcher_preamble.
 
 Section fundamental.
   Context
@@ -14,7 +15,9 @@ Section fundamental.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -30,11 +33,12 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
-  Theorem fundamental_cap (W : WORLD) (C : CmptName) p g b e (a : Addr) (stk : STK) cstk :
+  Theorem fundamental_cap (W : WORLD) (C : CmptName) p g b e (a : Addr) (stk : STK) cstk Nswitcher :
+    na_inv logrel_nais Nswitcher switcher_inv
     ⊢ interp W C (WCap p g b e a) →
       interp_expression stk W C (WCap p g b e a) cstk.
   Proof.
-    iIntros "#Hinv_interp".
+    iIntros "#Hswitcher_inv #Hinv_interp".
     iIntros (regs) "[[Hfull Hreg] [Hmreg [Hr [Hsts [Hcont [Hown Hframe]]]]]]".
     assert ( readAllowed p = true \/ readAllowed p = false )
       as [Hread_p|Hread_p] by (destruct_perm p ; naive_solver)

@@ -2,19 +2,23 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel.
+From cap_machine Require Export switcher_preamble.
 
 Section fundamental.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {tframeg : TFRAMEG Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
+  (* Notation TFRAME := (leibnizO nat). *)
   Notation WORLD := (prodO STS_STD STS).
   Notation STK := (leibnizO (list (Word * Word))).
   Implicit Types W : WORLD.
@@ -27,7 +31,7 @@ Section fundamental.
 
   Definition validPCperm (p : Perm) (g : Locality) :=
     executeAllowed p = true ∧ (isWL p = true -> g = Local).
-  
+
   Definition ftlr_IH: iProp Σ :=
     (□ ▷ (∀ (W_ih : WORLD) (C_ih : CmptName) (stk : STK) (r_ih : leibnizO Reg)
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr) (cstk_ih : Word),
@@ -38,13 +42,15 @@ Section fundamental.
             -∗ sts_full_world W_ih C_ih
             -∗ interp_continuation stk W_ih C_ih
             -∗ na_own logrel_nais ⊤
-            -∗ tframe_frag stk 
+            -∗ tframe_frag stk
             -∗ □ interp W_ih C_ih (WCap p_ih g_ih b_ih e_ih a_ih)
             -∗ interp_conf W_ih C_ih))%I.
 
   Definition ftlr_instr_base (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (P : D) (Pinstr : Prop) (stk : STK) (cstk : Word) : Prop :=
+    (w : Word) (ρ : region_type) (P : D) (Pinstr : Prop) (stk : STK) (cstk : Word)
+    (Nswitcher : namespace)
+    : Prop :=
     validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
     → isCorrectPC (WCap p g b e a)
@@ -82,6 +88,7 @@ Section fundamental.
     -∗ a ↦ₐ w
     -∗ PC ↦ᵣ (WCap p g b e a)
     -∗ ([∗ map] k↦y ∈ delete PC (<[csp:=cstk]> regs), k ↦ᵣ y)
+    -∗ na_inv logrel_nais Nswitcher switcher_inv (** SWITCHER INVARIANT *)
     -∗ WP Instr Executable
         {{ v, WP Seq (cap_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝
@@ -89,7 +96,9 @@ Section fundamental.
 
   Definition ftlr_instr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (i: instr) (ρ : region_type) (P : D) (stk : STK) (cstk : Word) : Prop :=
-    ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w = i) stk cstk.
+    (w : Word) (i: instr) (ρ : region_type) (P : D) (stk : STK) (cstk : Word)
+    (Nswitcher : namespace)
+    : Prop :=
+    ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w = i) stk cstk Nswitcher.
 
 End fundamental.

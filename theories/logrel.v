@@ -4,7 +4,7 @@ From cap_machine Require Export cap_lang region seal_store region_invariants.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine.rules Require Import rules_base.
-From cap_machine Require Import switcher.
+From cap_machine Require Export switcher.
 Import uPred.
 
 Ltac auto_equiv :=
@@ -109,7 +109,7 @@ Section logrel.
     {nainv: logrel_na_invs Σ}
     {tframeg : TFRAMEG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    `{swlayout : switcherLayout}
   .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
@@ -371,11 +371,6 @@ Section logrel.
 
   Definition interp_z : V := λne _ _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
   Definition interp_cap_O : V := λne _ _ _, True%I.
-
-  Definition is_switcher_entry_point (b e a : Addr) :=
-    if (b =? b_switcher swlayout)%a && (e =? e_switcher swlayout)%a
-    then (if (a =? a_switcher_call swlayout)%a || (a =? a_switcher_return swlayout)%a then true else false)
-    else false.
 
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
