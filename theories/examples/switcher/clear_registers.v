@@ -132,8 +132,6 @@ Section ClearRegistersMacro.
         Mov ca5 0%Z;
         Mov ca6 0%Z;
         Mov ca7 0%Z;
-        Mov cs0 0%Z;
-        Mov cs1 0%Z;
         Mov cs2 0%Z;
         Mov cs3 0%Z;
         Mov cs4 0%Z;
@@ -158,7 +156,7 @@ Section ClearRegistersMacro.
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag pc_a clear_registers_post_call_instrs
       ∗ ▷ ( (∃ (rmap' : Reg),
-              ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; ca0 ; ca1 ]} ⌝
+              ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
               ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_post_call_instrs)%a
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag pc_a clear_registers_post_call_instrs)

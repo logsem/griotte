@@ -231,7 +231,8 @@ Section logrel.
        (frm : cframe)
      ,
        ∀ wca0 wca1 regs,
-       ( PC ↦ᵣ frm.(wret)
+       ( PC ↦ᵣ updatePcPerm frm.(wret)
+         ∗ cra ↦ᵣ frm.(wret)
          ∗ csp ↦ᵣ frm.(wstk)
          (* cgp, cs0 and cs1 are callee-saved registers *)
          ∗ cgp ↦ᵣ frm.(wcgp)
@@ -241,7 +242,7 @@ Section logrel.
          ∗ ca0 ↦ᵣ wca0 ∗ interp W C wca0
          ∗ ca1 ↦ᵣ wca1 ∗ interp W C wca1
          (* all other register contain 0 *)
-         ∗ ⌜dom regs = all_registers_s ∖ {[PC; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
+         ∗ ⌜dom regs = all_registers_s ∖ {[PC; cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
          ∗ ([∗ map] r↦w ∈ regs, r ↦ᵣ WInt 0)
          (* World interpretation *)
          ∗ region W C
