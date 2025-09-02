@@ -248,7 +248,7 @@ Section CmptLayout.
     apply map_disjoint_dom_2.
     rewrite /mk_initial_cmpt.
     rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdis.
-    apply list_to_set_disj in Hdis.
+    apply stdpp_extra.list_to_set_disj in Hdis.
     repeat rewrite list_to_set_app_L in Hdis.
     do 4 rewrite dom_union_L.
     rewrite !dom_cmpt_pcc_mregion.
@@ -318,7 +318,7 @@ Section CmptLayout.
     intros Hdis.
     apply map_disjoint_dom_2.
     rewrite /switcher_cmpt_disjoint /cmpt_switcher_region /cmpt_region in Hdis.
-    apply list_to_set_disj in Hdis.
+    apply stdpp_extra.list_to_set_disj in Hdis.
     repeat rewrite list_to_set_app_L in Hdis.
 
     rewrite /mk_initial_cmpt /mk_initial_switcher.
@@ -339,7 +339,7 @@ Section CmptLayout.
     intros Hdis.
     apply map_disjoint_dom_2.
     rewrite /assert_cmpt_disjoint /cmpt_assert_region /cmpt_region in Hdis.
-    apply list_to_set_disj in Hdis.
+    apply stdpp_extra.list_to_set_disj in Hdis.
     repeat rewrite list_to_set_app_L in Hdis.
 
     rewrite /mk_initial_cmpt /mk_initial_assert.
@@ -360,7 +360,7 @@ Section CmptLayout.
     intros Hdis.
     apply map_disjoint_dom_2.
     rewrite /assert_switcher_disjoint /cmpt_assert_region /cmpt_switcher_region in Hdis.
-    apply list_to_set_disj in Hdis.
+    apply stdpp_extra.list_to_set_disj in Hdis.
     repeat rewrite list_to_set_app_L in Hdis.
 
     rewrite /mk_initial_switcher /mk_initial_assert.
