@@ -11,32 +11,86 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
   Notation WORLD := (prodO STS_STD STS).
-  Notation STK := (leibnizO (list (Word * Word))).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
-  Implicit Types interp : (D).
+  Implicit Types interp : (V).
+
+
+
+  (* TODO !! - and also prune the useless hypotheses *)
+  Lemma switcher_return_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+    (p p': Perm) (g : Locality) (b e a : Addr)
+    (w : Word) (ρ : region_type) (rsrc : RegName) (P:V) (cstk : CSTK) (wstk : Word)
+    (Nswitcher : namespace)
+    :
+    validPCperm p g ->
+    (∀ x, is_Some (regs !! x)) ->
+    isCorrectPC (WCap p g b e a) ->
+    (b <= a)%a ∧ (a < e)%a ->
+    PermFlowsTo p p' ->
+    isO p' = false ->
+    persistent_cond P ->
+    (if isWL p then region_state_pwl W a else region_state_nwl W a g) ->
+    W.1 !! a = Some ρ ->
+    ρ ≠ Revoked ->
+    decodeInstrW w = JmpCap rsrc ->
+    regs !! csp = Some wstk ->
+    rsrc ≠ PC ->
+    rsrc ≠ csp ->
+    regs !! rsrc = Some (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) ->
+    ftlr_IH -∗
+    interp W C (WCap p g b e a) -∗
+    (∀ (r : RegName) (v : leibnizO Word) , ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    rel C a p' (safeC P) -∗
+    (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a) then ▷ rcond P C p' interp else emp) -∗
+    (if decide (writeAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a) then ▷ wcond P C interp else emp) -∗
+    monoReq W C a p' P -∗
+    (
+      if decide (ρ = Temporary)
+      then
+        if isWL p'
+        then future_pub_mono C (safeC P) w
+        else if isDL p' then future_borrow_mono C (safeC P) w else future_priv_mono C (safeC P) w
+      else future_priv_mono C (safeC P) w
+    ) -∗
+    na_inv logrel_nais Nswitcher switcher_inv -∗
+    P W C w -∗
+    interp_continuation cstk W C -∗
+    sts_full_world W C -∗
+    na_own logrel_nais ⊤ -∗
+    cstack_frag cstk -∗
+    open_region W C a -∗
+    sts_state_std C a ρ -∗
+    a ↦ₐ w -∗
+    ([∗ map] k↦y ∈ <[PC:=WCap XSRW_ Local b_switcher e_switcher a_switcher_return]> regs , k ↦ᵣ y) -∗
+    ▷ (£ 1 -∗ WP Seq (Instr Executable) {{ v0, ⌜v0 = HaltedV⌝ → na_own logrel_nais ⊤ }}).
+  Admitted.
 
 
   Lemma jmpcap_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rsrc : RegName) (P:D) (stk : STK) (cstk : Sealable) :
-    ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P stk cstk.
+    (w : Word) (ρ : region_type) (rsrc : RegName) (P:V) (cstk : CSTK) (wstk : Word) (Nswitcher : namespace) :
+    ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P cstk wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown Hcstk".
+    iIntros "Hr Hstate Ha HPC Hmap %Hwstk #Hinv_switcher".
     destruct (decide (rsrc = PC)) as [HrPC|HrPC].
     - subst rsrc.
       iApply (wp_jmpcap_successPC with "[HPC Ha]"); eauto; first iFrame.
@@ -49,49 +103,79 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
       (* apply IH *)
-      iApply ("IH" $! _ _ _ _ _ g _ _ a with "[] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [$Hown]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ g _ _ a with "[] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [$Hown] [$]"); eauto.
       { iPureIntro; apply Hsome. }
-    - specialize Hsome with rsrc as Hrsrc; destruct Hrsrc as [wsrc Hsomesrc].
-      iExtract "Hmap" csp as "Hrsrc".
-      iExtract "Hmap" rsrc as "Hrsrc".
-      iApply (wp_jmpcap_success with "[$HPC $Ha $Hrsrc]"); eauto.
-      iNext. iIntros "[HPC [Ha Hrsrc]] /=".
-      iApply wp_pure_step_later; auto.
-      (* reconstruct regions *)
-      iInsert "Hmap" rsrc;
-      rewrite -delete_insert_ne; auto.
-      destruct (updatePcPerm wsrc) eqn:Heq ; [ | destruct sb | | ]; cycle 1.
-      { destruct (executeAllowed p0) eqn:Hpft; cycle 1.
-        { iNext; iIntros "_".
-          iApply (wp_bind (fill [SeqCtx])).
-          iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
-          iNext; iIntros "HPC /=".
-          iApply wp_pure_step_later; auto; iNext; iIntros "_".
-          iApply wp_value; iIntros; discriminate.
+    - destruct (decide (rsrc = csp)) as [Hr_csp|Hr_csp].
+      + (* Case where rsrc = csp, the reasoning is similar than below *)
+          admit.
+      + specialize Hsome with rsrc as Hrsrc; destruct Hrsrc as [wsrc Hsomesrc].
+        iExtract "Hmap" rsrc as "Hrsrc".
+        iApply (wp_jmpcap_success with "[$HPC $Ha $Hrsrc]"); eauto.
+        iNext. iIntros "[HPC [Ha Hrsrc]] /=".
+        iApply wp_pure_step_later; auto.
+        (* reconstruct regions *)
+        iInsert "Hmap" rsrc;
+          rewrite -delete_insert_ne; auto.
+        destruct (updatePcPerm wsrc) eqn:Heq ; [ | destruct sb | | ]; cycle 1.
+        { destruct (executeAllowed p0) eqn:Hpft; cycle 1.
+          { iNext; iIntros "_".
+            iApply (wp_bind (fill [SeqCtx])).
+            iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
+            iNext; iIntros "HPC /=".
+            iApply wp_pure_step_later; auto; iNext; iIntros "_".
+            iApply wp_value; iIntros; discriminate.
+          }
+          iInsert "Hmap" PC.
+          rewrite (insert_id regs rsrc); auto.
+          iDestruct ("Hreg" $! rsrc _ HrPC Hsomesrc) as "Hwsrc".
+          destruct wsrc; simpl in Heq; try congruence; simplify_eq.
+          - (* case cap *)
+            iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
+            iNext; iIntros "_".
+            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+            { destruct ρ;auto;contradiction. }
+            iApply ("IH" with "[] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [$Hown] [$]"); eauto.
+            auto.
+          - (* case sentry *)
+            iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
+            simpl; rewrite /enter_cond.
+            destruct (is_switcher_entry_point p0 g0 b0 e0 a0) eqn:His_switcher_call.
+            + (* This is a switcher entry point: execute the switcher *)
+              rewrite /is_switcher_entry_point in His_switcher_call.
+              destruct (decide (p0 = XSRW_)); simplify_eq;
+                [ rewrite bool_decide_eq_true_2 in His_switcher_call; last done
+                | rewrite bool_decide_eq_false_2 in His_switcher_call; done ].
+              destruct (decide (g0 = Local)); simplify_eq;
+                [ rewrite bool_decide_eq_true_2 in His_switcher_call; last done
+                | rewrite bool_decide_eq_false_2 in His_switcher_call; done].
+              simpl in His_switcher_call.
+              destruct (b0 =? b_switcher)%a eqn:Hb0
+              ; rewrite Hb0 in His_switcher_call
+              ; [apply Z.eqb_eq,finz_to_z_eq in Hb0|by cbn in His_switcher_call]
+              ; simplify_eq.
+              destruct (e0 =? e_switcher)%a eqn:He0
+              ; rewrite He0 in His_switcher_call
+              ; [apply Z.eqb_eq,finz_to_z_eq in He0|by cbn in His_switcher_call]
+              ; simplify_eq.
+              destruct ( (a0 =? a_switcher_call)%Z || (a0 =? a_switcher_return)%Z ) eqn:Ha0
+              ; [apply orb_true_iff in Ha0; rewrite !Z.eqb_eq in Ha0|by cbn in His_switcher_call].
+              destruct Ha0 as [Ha0|Ha0]; apply finz_to_z_eq in Ha0; simplify_eq; clear His_switcher_call.
+              * (* We jumped to the switcher-cc-call entry point *)
+                admit.
+              * (* We jumped to the switcher-cc-return entry point *)
+                iApply (switcher_return_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+
+            + (* This is just a regular Sentry, use the IH *)
+              iDestruct "Hwsrc" as "#H".
+              iAssert (future_world g0 W W) as "Hfuture".
+              { iApply futureworld_refl. }
+              iSpecialize ("H" with "Hfuture").
+              iDestruct "H" as "[H _]".
+              iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+              { destruct ρ;auto;contradiction. }
+              iDestruct ("H" with "[$Hcont $Hmap $Hr $Hsts $Hcstk $Hown]") as "HA"; eauto.
+              iFrame "#%".
         }
-        iInsert "Hmap" PC.
-        rewrite (insert_id regs rsrc); auto.
-        iDestruct ("Hreg" $! rsrc _ HrPC Hsomesrc) as "Hwsrc".
-        destruct wsrc; simpl in Heq; try congruence; simplify_eq.
-        - (* case cap *)
-          iEval (rewrite fixpoint_interp1_eq) in "Hinv_interp".
-          iNext; iIntros "_".
-          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-          { destruct ρ;auto;contradiction. }
-          iApply ("IH" with "[] [] [$Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]"); eauto.
-        - (* case sentry *)
-          iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
-          simpl; rewrite /enter_cond.
-          iDestruct "Hwsrc" as "#H".
-          iAssert (future_world g0 W W) as "Hfuture".
-          { iApply futureworld_refl. }
-          iSpecialize ("H" with "Hfuture").
-          iDestruct "H" as "[H _]".
-          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-          { destruct ρ;auto;contradiction. }
-          iDestruct ("H" with "[$Hmap $Hr $Hsts $Htframe $Hown]") as "HA"; eauto.
-          iFrame "#%".
-      }
 
       (* Non-capability cases *)
       all: iNext; iIntros "_".
@@ -100,6 +184,6 @@ Section fundamental.
       all: iNext; iIntros "HPC /=".
       all: iApply wp_pure_step_later; auto; iNext; iIntros "_".
       all: iApply wp_value; iIntros; discriminate.
-  Qed.
+  Admitted.
 
 End fundamental.
