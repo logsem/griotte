@@ -88,7 +88,8 @@ Section fundamental.
     -∗ sts_state_std C a ρ
     -∗ a ↦ₐ w
     -∗ PC ↦ᵣ (WCap p g b e a)
-    -∗ ([∗ map] k↦y ∈ delete PC (<[csp:=wstk]> regs), k ↦ᵣ y)
+    -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
+    -∗ ⌜ regs !! csp = Some wstk ⌝
     -∗ na_inv logrel_nais Nswitcher switcher_inv (** SWITCHER INVARIANT *)
     -∗ WP Instr Executable
         {{ v, WP Seq (cap_lang.of_val v)
