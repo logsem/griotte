@@ -129,12 +129,16 @@ Section fundamental.
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
     focus_block_nochangePC 6 "Hcode" as a5 Ha5 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    assert (a5 = a_switcher_return) by admit ; simplify_eq.
-    (* ReadSR ctp mtdc *)
-    pose proof switcher_call_entry_point.
-    pose proof switcher_return_entry_point.
-    iInstr "Hcode".
+    assert (a5 = a_switcher_return); [|simplify_eq].
+    { cbn in Ha5.
+      clear -Ha5.
+      pose proof switcher_return_entry_point as Hret; cbn in Hret.
+      pose proof switcher_call_entry_point as Hcall; cbn in Hcall.
+      solve_addr.
+    }
 
+    (* ReadSR ctp mtdc *)
+    iInstr "Hcode".
 
     iDestruct (cstack_agree with "[$] [$]") as "%"; simplify_eq.
     destruct cstk as [|frm cstk]; iEval (cbn) in "Hstk_interp"; cbn in Hlen_cstk.
@@ -142,7 +146,8 @@ Section fundamental.
     { (* the stack is empty, it will fail *)
       admit. (* Loading fails *)
     }
-    iDestruct "Hstk_interp" as "[Hstk_interp_next Hcframe_interp]".
+    iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp & %Ha_tstk1)".
+    destruct Ha_tstk1 as [a_tstk1 Ha_tstk1].
     destruct frm.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
@@ -156,22 +161,36 @@ Section fundamental.
     destruct dro; try done.
     destruct g; try done.
     rename a into a_stk; rename b into b_stk; rename e into e_stk.
-    iDestruct "Hcframe_interp" as "(Hstk_4 & Hstk_3 & Hstk_2 & Hstk_1 & %HWF)".
+    iDestruct "Hcframe_interp" as "[%HWF Hcframe_interp]".
     destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
-    destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
-    { admit. (* NOTE will fail in the next upcoming instructions *) }
-    (* Load csp ctp *)
-    iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
-
-    assert (is_Some (a_tstk + -1)%a) as [a_tstk1 Ha_tstk1]. admit.
+    replace (a_stk ^+ -4)%a with a_stk4 by solve_addr.
     assert (is_Some (a_stk + -1)%a) as [a_stk1 Ha_stk1] by solve_addr.
     replace (a_stk ^+ -1)%a with a_stk1 by solve_addr.
     assert (is_Some (a_stk + -2)%a) as [a_stk2 Ha_stk2] by solve_addr.
     replace (a_stk ^+ -2)%a with a_stk2 by solve_addr.
     assert (is_Some (a_stk + -3)%a) as [a_stk3 Ha_stk3] by solve_addr.
     replace (a_stk ^+ -3)%a with a_stk3 by solve_addr.
-    replace (a_stk ^+ -4)%a with a_stk4 by solve_addr.
+
+    (* TODO: be clever to not repeat the proof,
+       and assert
+       (exists wa4,
+       (if is_untrusted_caller then V(wa4) else ⌜wa4 = wcs2⌝ ) ∗
+       (a_stk ^+ -4 ↦ₐ wa4)
+       )
+       etc
+     *)
+    destruct is_untrusted_caller.
+    { admit. }
+    iDestruct "Hcframe_interp" as "(Hstk_4 & Hstk_3 & Hstk_2 & Hstk_1)".
+    destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
+    { admit. (* NOTE will fail in the next upcoming instructions *) }
+    (* Load csp ctp *)
+    iInstr "Hcode".
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
+    rewrite -/(interp_cont).
+    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
+    iEval (cbn) in "Hinterp_callee_wstk".
+
 
     (* Lea ctp (-1)%Z *)
     iInstr "Hcode".
@@ -214,32 +233,34 @@ Section fundamental.
 
     assert (Forall (fun a => (std W) !! a = Some Temporary) (finz.seq_between (a_stk ^+4)%a e_stk ))
       as Hcallee_stk_temporary.
-    { apply Forall_forall.
-      intros a Ha.
-      eapply region_state_pub_temp; eauto.
-      subst W1.
-      cbn.
-      destruct (decide (a ∈ a_local_args)).
-      - by apply std_sta_update_multiple_lookup_in_i.
-      - rewrite std_sta_update_multiple_lookup_same_i; last done.
-        rewrite frame_W_lookup_std.
-        by apply std_sta_update_multiple_lookup_in_i.
+    { (* I should get this from Hinterp_callee_wstk *)
+      admit.
+      (* apply Forall_forall. *)
+      (* intros a Ha. *)
+      (* eapply region_state_pub_temp; eauto. *)
+      (* subst W1. *)
+      (* cbn. *)
+      (* destruct (decide (a ∈ a_local_args)). *)
+      (* - by apply std_sta_update_multiple_lookup_in_i. *)
+      (* - rewrite std_sta_update_multiple_lookup_same_i; last done. *)
+      (*   rewrite frame_W_lookup_std. *)
+      (*   by apply std_sta_update_multiple_lookup_in_i. *)
     }
-    assert (Forall (fun a => (std W2) !! a = Some Temporary) a_local_args)
-      as Hlocal_args_temporary.
-    { clear -W1 Hrelated_W1_W2.
-      apply Forall_forall.
-      intros a Ha.
-      eapply region_state_pub_temp; eauto.
-      subst W1.
-      by apply std_sta_update_multiple_lookup_in_i.
-    }
+    (* assert (Forall (fun a => (std W) !! a = Some Temporary) a_local_args) *)
+    (*   as Hlocal_args_temporary. *)
+    (* { clear -W1 Hrelated_W1_W2. *)
+    (*   apply Forall_forall. *)
+    (*   intros a Ha. *)
+    (*   eapply region_state_pub_temp; eauto. *)
+    (*   subst W1. *)
+    (*   by apply std_sta_update_multiple_lookup_in_i. *)
+    (* } *)
 
-    focus_block 7 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto.
-    { solve_addr. }
-    iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)".
-    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+    (* focus_block 7 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
+    (* iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto. *)
+    (* { solve_addr. } *)
+    (* iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)". *)
+    (* unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont. *)
 
 
   Admitted.
