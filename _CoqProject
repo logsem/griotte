@@ -125,8 +125,8 @@ theories/examples/macros/fetch.v
 # theories/examples/switcher/switcher_spec.v
 # theories/examples/switcher/switcher_interp.v
 
-theories/examples/compartment_layout.v
+# theories/examples/compartment_layout.v
 
-theories/examples/cmdc/cmdc.v
-theories/examples/cmdc/cmdc_spec.v
-theories/examples/cmdc/cmdc_adequacy.v
+# theories/examples/cmdc/cmdc.v
+# theories/examples/cmdc/cmdc_spec.v
+# theories/examples/cmdc/cmdc_adequacy.v

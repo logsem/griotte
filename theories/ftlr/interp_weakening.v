@@ -148,7 +148,7 @@ Section fundamental.
     iSplitR; iNext.
     - iIntros (regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hframe & Hcstk)]".
       rewrite /interp_conf.
-      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hcont Hown Hcstk Hframe"); eauto.
+      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hcont Hown Hframe Hcstk"); eauto.
       iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
       destruct (isO p) eqn:HpO; auto.
       destruct (has_sreg_access p) eqn:HpXSR'; auto.
@@ -170,9 +170,9 @@ Section fundamental.
         simplify_eq.
         destruct g' ; auto.
 
-    - iIntros (regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hframe)]".
+    - iIntros (regs) "[[Hfull Hmap] (Hreg & %Hin & Hregion & Hsts & Hcont & Hown & Hframe)]".
       rewrite /interp_conf.
-      iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hcont Hown Hframe"); eauto.
+      iApply ("IH" with "Hfull Hmap Hreg [%] Hregion Hsts Hcont Hown Hframe"); eauto.
       iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
       destruct (isO p) eqn:HpO; auto.
       destruct (has_sreg_access p) eqn:HpXSR'; auto.
