@@ -266,15 +266,28 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
-  (* TODO we also need (interp (callee_part_of_the_stack frm.(wstk)) )  *)
+  Definition interp_callee_part_of_the_stack (interp : V) (W : WORLD) ( C : CmptName ) (wstk : Word) : iProp Σ :=
+    match wstk with
+    | WCap p g b e a =>
+        (* The callee's stack does not contain the caller's register save area. *)
+        let b_callee := (a^+4)%a in
+        interp W C (WCap p g b_callee e b_callee)
+    | _ => True
+    end.
+
   Program Fixpoint interp_cont (interp : V) (cstk : CSTK) : K :=
     match cstk with
     | [] => λne (W : WORLD) (C : leibnizO CmptName), True%I
     | frm :: cstk' =>
         λne (W : WORLD) (C : leibnizO CmptName),
-        (▷ (interp_cont interp cstk' W C ∗
-          (∀ W', ⌜related_sts_pub_world W W'⌝
-                 -∗  interp_cont_exec interp (interp_cont interp cstk') cstk' W' C frm)))%I
+        (▷ (
+             (* Continuation for the rest of the call-stack *)
+             interp_cont interp cstk' W C
+             (* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
+             ∗ interp_callee_part_of_the_stack interp W C frm.(wstk)
+             (* The continuation when matching the switcher's state at return-to-caller *)
+             ∗ (∀ W', ⌜related_sts_pub_world W W'⌝
+                      -∗  interp_cont_exec interp (interp_cont interp cstk') cstk' W' C frm)))%I
     end.
   Solve All Obligations with solve_proper.
 
@@ -289,7 +302,11 @@ Section logrel.
     simpl.
     f_equiv.
     f_equiv;[apply IHy|].
-    repeat (f_equiv; auto).
+    f_equiv;[| repeat (f_equiv; auto)].
+    rewrite /interp_callee_part_of_the_stack.
+    destruct wstk0; auto.
+    destruct sb ; auto.
+    apply Heq.
   Qed.
   (* Global Instance interp_cont_contractive (interp : V) stk : *)
     (* Contractive (λ interp_cont', (interp_cont stk interp) interp_cont'). *)
