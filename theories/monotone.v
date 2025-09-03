@@ -9,20 +9,26 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    `{swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation WORLD := (prodO STS_STD STS).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (CSTK -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
-  Implicit Types interp : (D).
+  Implicit Types interp : (V).
 
   Lemma region_state_pub_perm W W' a :
     related_sts_pub_world W W'
@@ -152,7 +158,7 @@ Section monotone.
     destruct Hrelated as [Hperm | [Hmono | Hrev] ]; subst; auto.
   Qed.
 
-  Lemma monoReq_mono_pub_nwl W W' C (P : D) a p g:
+  Lemma monoReq_mono_pub_nwl W W' C (P : V) a p g:
     related_sts_pub_world W W'
     -> region_state_nwl W a g
     -> monoReq W C a p P
@@ -170,7 +176,7 @@ Section monotone.
         by rewrite Hstate Hnext_state.
   Qed.
 
-  Lemma monoReq_mono_pub_pwl W W' C (P : D) a p:
+  Lemma monoReq_mono_pub_pwl W W' C (P : V) a p:
     related_sts_pub_world W W'
     -> region_state_pwl W a
     -> monoReq W C a p P
@@ -182,7 +188,7 @@ Section monotone.
     by rewrite Hstate Hnext_state.
   Qed.
 
-  Lemma monoReq_mono_priv_nwl W W' C (P : D) a p:
+  Lemma monoReq_mono_priv_nwl W W' C (P : V) a p:
     related_sts_priv_world W W'
     -> region_state_nwl W a Global
     -> monoReq W C a p P
@@ -242,6 +248,7 @@ Section monotone.
     destruct w; [ | shelve | | ].
     { rewrite !fixpoint_interp1_eq /=; auto. }
     { rewrite !fixpoint_interp1_eq /=.
+      destruct (is_switcher_entry_point b e a) ; first done.
       iModIntro. iIntros (stk r W'').
       destruct g.
       + iIntros "#Hrelated'".
@@ -331,6 +338,7 @@ Section monotone.
     destruct w; [ | shelve | | ].
     { rewrite !fixpoint_interp1_eq /=; auto. }
     { rewrite !fixpoint_interp1_eq /=.
+      destruct (is_switcher_entry_point b e a) ; first done.
       destruct g ; cbn in Hnl ; try done.
       iModIntro. iIntros (stk r W'').
       iIntros "#Hrelated'".
