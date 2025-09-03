@@ -30,30 +30,36 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
+  Lemma enter_cond_weakening W C p b e a :
+    (□ enter_cond W C p Global b e a (fixpoint interp1)) -∗
+     □ enter_cond W C p Local b e a (fixpoint interp1).
+  Proof.
+    iIntros "#Hinterp".
+    rewrite /enter_cond /interp_expr /=.
+    iIntros (stk wstk W' Hrelated).
+    iAssert (future_world Global W W')%I as "%Hrelated'".
+    { iPureIntro.
+      apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto.
+    }
+    iSpecialize ("Hinterp" $! stk wstk W' Hrelated').
+    iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
+    iSplitL; iFrame "#".
+  Qed.
+  
   Lemma interp_weakening_from_sentry W C p g b e a :
       interp W C (WSentry p g b e a)
       -∗ interp W C (WSentry p Local b e a).
   Proof.
     iIntros "#Hinterp".
     rewrite !fixpoint_interp1_eq /=.
-    destruct (is_switcher_entry_point p g b e a); first done.
-    iModIntro.
-    iDestruct "Hinterp" as "#Hinterp".
-    rewrite /enter_cond /interp_expr /=.
-    iIntros (stk wstk W' Hrelated).
-    destruct g.
-    + iAssert (future_world Global W W')%I as "%Hrelated'".
-      { iPureIntro.
-        apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto.
-      }
-      iSpecialize ("Hinterp" $! stk wstk W' Hrelated').
-      iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
-      iSplitL; iFrame "#".
-    + iAssert (future_world Local W W')%I as "%Hrelated'".
-      { done. }
-      iSpecialize ("Hinterp" $! stk wstk W' Hrelated').
-      iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
-      iSplitL; iFrame "#".
+    rewrite /is_switcher_entry_point.
+    do 4 (case_match;simpl;try done);simpl in *.
+    { repeat case_match; auto.
+      all: destruct (decide (p = XSRW_));subst;try done.
+      rewrite bool_decide_false// in H0. }
+    case_match;auto.
+    all: destruct g;[|auto].
+    all: iApply enter_cond_weakening;auto.
   Qed.
 
   Lemma interp_weakeningEO W C p p' g g' b b' e e' a a' :
@@ -141,7 +147,7 @@ Section fundamental.
     rewrite HpnotO.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     iDestruct "HA" as "[#A %Hpwl_cond]".
-    destruct (is_switcher_entry_point p' g' b' e' a'); first done.
+    destruct (is_switcher_entry_point p g' b' e' a'); first done.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (stk wstk W') "#Hfuture".
