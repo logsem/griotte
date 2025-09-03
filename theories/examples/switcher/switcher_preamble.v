@@ -205,11 +205,12 @@ Section Switcher_preamble.
     a_tstk ↦ₐ frm.(wstk) ∗
     match frm.(wstk) with
     | WCap RWL Local b_stk e_stk a_stk =>
-        (* TODO do we need some constraints like b_stk <= a_stk - 4 < a_stk -1 < e_stk ? *)
         (a_stk ^+ -4)%a ↦ₐ frm.(wcs0)
         ∗ (a_stk ^+ -3)%a ↦ₐ frm.(wcs1)
         ∗ (a_stk ^+ -2)%a ↦ₐ frm.(wret)
         ∗ (a_stk ^+ -1)%a ↦ₐ frm.(wcgp)
+        (* Constraints WFness of the register save area *)
+        ∗ ⌜ (b_stk <= a_stk ^+ -4)%a ∧ (a_stk ^+ -1 < e_stk)%a ∧ is_Some (a_stk + -4)%a ⌝
     | _ => False
     end.
 
