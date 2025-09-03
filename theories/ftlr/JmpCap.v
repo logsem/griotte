@@ -31,54 +31,40 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
-
-
-  (* TODO !! - and also prune the useless hypotheses *)
-  Lemma switcher_return_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
-    (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rsrc : RegName) (P:V) (cstk : CSTK) (wstk : Word)
+  Lemma switcher_call_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+    (cstk : CSTK) (wstk : Word)
     (Nswitcher : namespace)
     :
-    validPCperm p g ->
     (∀ x, is_Some (regs !! x)) ->
-    isCorrectPC (WCap p g b e a) ->
-    (b <= a)%a ∧ (a < e)%a ->
-    PermFlowsTo p p' ->
-    isO p' = false ->
-    persistent_cond P ->
-    (if isWL p then region_state_pwl W a else region_state_nwl W a g) ->
-    W.1 !! a = Some ρ ->
-    ρ ≠ Revoked ->
-    decodeInstrW w = JmpCap rsrc ->
     regs !! csp = Some wstk ->
-    rsrc ≠ PC ->
-    rsrc ≠ csp ->
-    regs !! rsrc = Some (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) ->
     ftlr_IH -∗
-    interp W C (WCap p g b e a) -∗
     (∀ (r : RegName) (v : leibnizO Word) , ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) -∗
-    rel C a p' (safeC P) -∗
-    (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a) then ▷ rcond P C p' interp else emp) -∗
-    (if decide (writeAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a) then ▷ wcond P C interp else emp) -∗
-    monoReq W C a p' P -∗
-    (
-      if decide (ρ = Temporary)
-      then
-        if isWL p'
-        then future_pub_mono C (safeC P) w
-        else if isDL p' then future_borrow_mono C (safeC P) w else future_priv_mono C (safeC P) w
-      else future_priv_mono C (safeC P) w
-    ) -∗
     na_inv logrel_nais Nswitcher switcher_inv -∗
-    P W C w -∗
     interp_continuation cstk W C -∗
     sts_full_world W C -∗
     na_own logrel_nais ⊤ -∗
     cstack_frag cstk -∗
-    open_region W C a -∗
-    sts_state_std C a ρ -∗
-    a ↦ₐ w -∗
+    ([∗ map] k↦y ∈ <[PC:=WCap XSRW_ Local b_switcher e_switcher a_switcher_call]> regs , k ↦ᵣ y) -∗
+    region W C -∗
+    ▷ (£ 1 -∗ WP Seq (Instr Executable) {{ v0, ⌜v0 = HaltedV⌝ → na_own logrel_nais ⊤ }}).
+  Admitted.
+
+
+  Lemma switcher_return_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+    (cstk : CSTK) (wstk : Word)
+    (Nswitcher : namespace)
+    :
+    (∀ x, is_Some (regs !! x)) ->
+    regs !! csp = Some wstk ->
+    ftlr_IH -∗
+    (∀ (r : RegName) (v : leibnizO Word) , ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    na_inv logrel_nais Nswitcher switcher_inv -∗
+    interp_continuation cstk W C -∗
+    sts_full_world W C -∗
+    na_own logrel_nais ⊤ -∗
+    cstack_frag cstk -∗
     ([∗ map] k↦y ∈ <[PC:=WCap XSRW_ Local b_switcher e_switcher a_switcher_return]> regs , k ↦ᵣ y) -∗
+    region W C -∗
     ▷ (£ 1 -∗ WP Seq (Instr Executable) {{ v0, ⌜v0 = HaltedV⌝ → na_own logrel_nais ⊤ }}).
   Admitted.
 
@@ -159,11 +145,16 @@ Section fundamental.
               ; simplify_eq.
               destruct ( (a0 =? a_switcher_call)%Z || (a0 =? a_switcher_return)%Z ) eqn:Ha0
               ; [apply orb_true_iff in Ha0; rewrite !Z.eqb_eq in Ha0|by cbn in His_switcher_call].
+              iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+              { destruct ρ;auto;contradiction. }
+              iClear "Hmono HmonoV Hinva Hrcond Hwcond Hwsrc Hinv_interp".
+              clear dependent p b e a g p' w ρ P rsrc.
+              clear Hpft.
               destruct Ha0 as [Ha0|Ha0]; apply finz_to_z_eq in Ha0; simplify_eq; clear His_switcher_call.
               * (* We jumped to the switcher-cc-call entry point *)
-                admit.
+                iApply (switcher_call_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
               * (* We jumped to the switcher-cc-return entry point *)
-                iApply (switcher_return_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+                iApply (switcher_return_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
 
             + (* This is just a regular Sentry, use the IH *)
               iDestruct "Hwsrc" as "#H".
