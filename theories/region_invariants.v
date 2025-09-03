@@ -1555,6 +1555,49 @@ Section heap.
       ; eauto; iFrame.
   Qed.
 
+  Lemma region_open_list (W : WORLD) (C : CmptName)
+    (l : list (Addr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type)) :
+
+    NoDup (fmap (fun '(a,p,φ,ρ) => a) l) ->
+    Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
+    Forall (fun '(a,p,φ,ρ) => (std W) !! a = Some ρ) l ->
+
+    ([∗ list] '(a,p,φ,ρ) ∈ l, rel C a p φ)
+    ∗ region W C
+    ∗ sts_full_world W C -∗
+
+    ∃ lv,
+      open_region_many W C (fmap (fun '(a,p,φ,ρ) => a) l)
+      ∗ sts_full_world W C
+      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C a ρ)
+      ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v)
+      ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C φ p v ρ)
+      ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C,v)).
+  Proof.
+    induction l; intros Hnodup Hregion_state Ha_state ;
+      iIntros "(Hrel & Hr & Hsts)"; cbn in * |- *.
+    - iExists []; cbn in *.
+      rewrite region_open_nil.
+      by iFrame.
+    - destruct a as [[[a p] φ] ρ]; cbn in * |- *.
+      iDestruct "Hrel" as "[Hrel_a Hrel]".
+      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
+      apply Forall_cons_1 in Ha_state; destruct Ha_state as [HWa Ha_state].
+      iDestruct (IHl with "[$Hrel $Hr $Hsts]") as "IH"; eauto.
+      iDestruct "IH" as (lv) "(Hr & Hsts & Hsts_stds & Hlv & Hmono & Hlφ)".
+      iDestruct (region_open_next with "[$Hr $Hrel_a $Hsts]") as "Ha"; eauto.
+      iDestruct "Ha" as (va) "(Hsts & Hsts_std_a & Hr & Hv_a & Hmono_a & Hφ_a)".
+      iExists (va::lv); iFrame.
+      iDestruct (big_sepL2_cons (fun _ '(a, _, _, _) v => (a ↦ₐ v)%I) (a,p,φ,ρ) va with "[$]") as "Hlv".
+      iFrame.
+      iSplitR "Hlφ Hφ_a"; iNext.
+      + iDestruct (big_sepL2_cons (fun _ '(a, p, φ, ρ) v => monotonicity_guarantees_region C φ p v ρ) (a,p,φ,ρ) va with "[$]") as "Hlφ".
+        iFrame.
+      + iDestruct (big_sepL2_cons (fun _ '(a, _, φ, _) v => φ (W, C, v)) (a,p,φ,ρ) va with "[$]") as "Hlφ".
+        iFrame.
+  Qed.
+
   Lemma region_close_next
     (W : WORLD) (C : CmptName)
     (φ : WORLD * CmptName * Word → iProp Σ)
