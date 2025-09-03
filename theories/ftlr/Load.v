@@ -12,14 +12,17 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -310,12 +313,13 @@ Section fundamental.
 
   Lemma load_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst src : RegName) (P:D) :
-    ftlr_instr W C regs p p' g b e a w (Load dst src) ρ P.
+    (w : Word) (ρ : region_type) (dst src : RegName) (P:D) (cstk : CSTK) (wstk : Word)
+    (Nswitcher : namespace) :
+    ftlr_instr W C regs p p' g b e a w (Load dst src) ρ P cstk wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown Htframe".
+    iIntros "Hr Hstate Ha HPC Hmap %Hcsp #Hswitcher".
     iInsert "Hmap" PC.
     iClear "Hwcond".
     iDestruct (if_dec_later with "Hrcond") as "Hrcond'"; iClear "Hrcond".
@@ -387,12 +391,15 @@ Section fundamental.
 
       iDestruct (region_close with "[$Hstate $Ha $Hr $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
-      iApply ("IH" $! _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]").
+      assert (is_Some (regs' !! csp)) as [? ?].
+      { rewrite XX lookup_insert_ne//.
+        destruct (decide (dst = csp));simplify_map_eq =>//. }
+      iApply ("IH" $! _ _ _ regs' with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [$Hown] [$Htframe]").
       { cbn. intros. subst regs'.
         rewrite lookup_insert_is_Some.
-        destruct (decide (PC = x5)); [ auto | right; split; auto].
+        destruct (decide (PC = x6)); [ auto | right; split; auto].
         rewrite lookup_insert_is_Some.
-        destruct (decide (dst = x5)); [ auto | right; split; auto]. }
+        destruct (decide (dst = x6)); [ auto | right; split; auto]. }
       (* Prove in the general case that the value relation holds for the register
          that was loaded to - unless it was the PC.*)
        { iIntros (ri wi Hri Hregs_ri).
