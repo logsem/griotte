@@ -2,9 +2,9 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel.
-From cap_machine.ftlr Require Import ftlr_base.
+From cap_machine.ftlr Require Import ftlr_base ftlr_switcher_call ftlr_switcher_return.
 From cap_machine.rules Require Import rules_JmpCap.
-From cap_machine.proofmode Require Import map_simpl register_tactics.
+From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 Section fundamental.
   Context
@@ -30,44 +30,6 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
-
-  Lemma switcher_call_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
-    (cstk : CSTK) (wstk : Word)
-    (Nswitcher : namespace)
-    :
-    (∀ x, is_Some (regs !! x)) ->
-    regs !! csp = Some wstk ->
-    ftlr_IH -∗
-    (∀ (r : RegName) (v : leibnizO Word) , ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) -∗
-    na_inv logrel_nais Nswitcher switcher_inv -∗
-    interp_continuation cstk W C -∗
-    sts_full_world W C -∗
-    na_own logrel_nais ⊤ -∗
-    cstack_frag cstk -∗
-    ([∗ map] k↦y ∈ <[PC:=WCap XSRW_ Local b_switcher e_switcher a_switcher_call]> regs , k ↦ᵣ y) -∗
-    region W C -∗
-    ▷ (£ 1 -∗ WP Seq (Instr Executable) {{ v0, ⌜v0 = HaltedV⌝ → na_own logrel_nais ⊤ }}).
-  Admitted.
-
-
-  Lemma switcher_return_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
-    (cstk : CSTK) (wstk : Word)
-    (Nswitcher : namespace)
-    :
-    (∀ x, is_Some (regs !! x)) ->
-    regs !! csp = Some wstk ->
-    ftlr_IH -∗
-    (∀ (r : RegName) (v : leibnizO Word) , ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) -∗
-    na_inv logrel_nais Nswitcher switcher_inv -∗
-    interp_continuation cstk W C -∗
-    sts_full_world W C -∗
-    na_own logrel_nais ⊤ -∗
-    cstack_frag cstk -∗
-    ([∗ map] k↦y ∈ <[PC:=WCap XSRW_ Local b_switcher e_switcher a_switcher_return]> regs , k ↦ᵣ y) -∗
-    region W C -∗
-    ▷ (£ 1 -∗ WP Seq (Instr Executable) {{ v0, ⌜v0 = HaltedV⌝ → na_own logrel_nais ⊤ }}).
-  Admitted.
-
 
   Lemma jmpcap_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
@@ -155,7 +117,6 @@ Section fundamental.
                 iApply (switcher_call_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
               * (* We jumped to the switcher-cc-return entry point *)
                 iApply (switcher_return_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
-
             + (* This is just a regular Sentry, use the IH *)
               iDestruct "Hwsrc" as "#H".
               iAssert (future_world g0 W W) as "Hfuture".
