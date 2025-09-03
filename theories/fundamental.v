@@ -42,7 +42,7 @@ Section fundamental.
       interp_expression cstk W C (WCap p g b e a) wstk.
   Proof.
     iIntros "#Hswitcher_inv #Hinv_interp".
-    iIntros (regs) "[[Hfull Hreg] [Hmreg [Hr [Hsts [Hcont [Hown Hframe]]]]]]".
+    iIntros (regs) "[[Hfull Hreg] [Hmreg [%Hwstk [Hr [Hsts [Hcont [Hown Hframe]]]]]]]".
     assert ( readAllowed p = true \/ readAllowed p = false )
       as [Hread_p|Hread_p] by (destruct_perm p ; naive_solver)
     ; cycle 1.
@@ -64,11 +64,13 @@ Section fundamental.
 
     iRevert "Hinv_interp".
     iLöb as "IH'" forall (W C regs p g b e a cstk wstk).
+    iDestruct "Hwstk" as "%Hwstk".
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
       iIntros (W_ih C_ih cstk_ih r_ih p_ig g_ih b_ih e_ih a_ih wstk_ih)
-        "%Hfull #Hregs Hmreg Hr Hsts Htframe Hown Hinterp".
-      iApply ("IH'" with "[%] [] [Hmreg] [$Hr] [$Hsts] [$] [$]");eauto.
+        "%Hfull #Hregs Hmreg Hwstk Hr Hsts Htframe Hown Hinterp".
+      destruct (Hfull csp) as [wstk' Hcsp].
+      iApply ("IH'" with "[%] [] [Hmreg] [Hwstk] [$Hr] [$Hsts] [$] [$]");eauto.
     }
     iIntros "#Hinv_interp".
     iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".

@@ -38,7 +38,7 @@ Section fundamental.
             full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
             -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r_ih)
-            -∗ ⌜ r_ih !! csp = wstk_ih ⌝
+            -∗ ⌜ r_ih !! csp = Some wstk_ih ⌝
             -∗ region W_ih C_ih
             -∗ sts_full_world W_ih C_ih
             -∗ interp_continuation cstk W_ih C_ih
