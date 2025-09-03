@@ -245,6 +245,8 @@ Section logrel.
          ∗ ⌜dom regs = all_registers_s ∖ {[PC; cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
          ∗ ([∗ map] r↦w ∈ regs, r ↦ᵣ WInt 0)
          (* World interpretation *)
+         (* TODO: @Aina suggest to open the region of the callee stack,
+            so that we get the points-to zero and user can take private transitions before returning *)
          ∗ region W C
          ∗ sts_full_world W C
          (* Continuation *)
@@ -264,6 +266,7 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
+  (* TODO we also need (interp (callee_part_of_the_stack frm.(wstk)) )  *)
   Program Fixpoint interp_cont (interp : V) (cstk : CSTK) : K :=
     match cstk with
     | [] => λne (W : WORLD) (C : leibnizO CmptName), True%I
