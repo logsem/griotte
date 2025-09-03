@@ -217,7 +217,9 @@ Section Switcher_preamble.
   Fixpoint cstack_interp (cstk : cstack) (a_tstk : Addr) : iProp Σ :=
     (match cstk with
     | [] => True
-    | frm::cstk' => cstack_interp cstk' (a_tstk ^+ -1)%a ∗ cframe_interp frm a_tstk
+    | frm::cstk' => cstack_interp cstk' (a_tstk ^+ -1)%a
+                  ∗ cframe_interp frm a_tstk
+                  ∗ ⌜ is_Some (a_tstk + -1)%a ⌝
     end)%I.
 
   Definition switcher_inv : iProp Σ :=
