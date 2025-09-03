@@ -35,6 +35,7 @@ Record cframe := MkCFrame {
       wcgp : Word;
       wcs0 : Word;
       wcs1 : Word;
+      is_untrusted_caller : bool;
   }.
 
 Notation cstack := (list cframe).
@@ -266,11 +267,13 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
-  Definition interp_callee_part_of_the_stack (interp : V) (W : WORLD) ( C : CmptName ) (wstk : Word) : iProp Σ :=
+  Definition interp_callee_part_of_the_stack
+    (interp : V) (W : WORLD) ( C : CmptName ) (wstk : Word)
+    (with_register_save_area : bool)
+    : iProp Σ :=
     match wstk with
     | WCap p g b e a =>
-        (* The callee's stack does not contain the caller's register save area. *)
-        let b_callee := (a^+4)%a in
+        let b_callee := if with_register_save_area then a else (a^+4)%a in
         interp W C (WCap p g b_callee e b_callee)
     | _ => True
     end.
@@ -284,7 +287,7 @@ Section logrel.
              (* Continuation for the rest of the call-stack *)
              interp_cont interp cstk' W C
              (* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
-             ∗ interp_callee_part_of_the_stack interp W C frm.(wstk)
+             ∗ interp_callee_part_of_the_stack interp W C frm.(wstk) frm.(is_untrusted_caller)
              (* The continuation when matching the switcher's state at return-to-caller *)
              ∗ (∀ W', ⌜related_sts_pub_world W W'⌝
                       -∗  interp_cont_exec interp (interp_cont interp cstk') cstk' W' C frm)))%I

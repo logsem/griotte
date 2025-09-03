@@ -205,12 +205,15 @@ Section Switcher_preamble.
     a_tstk ↦ₐ frm.(wstk) ∗
     match frm.(wstk) with
     | WCap RWL Local b_stk e_stk a_stk =>
-        (a_stk ^+ -4)%a ↦ₐ frm.(wcs0)
-        ∗ (a_stk ^+ -3)%a ↦ₐ frm.(wcs1)
-        ∗ (a_stk ^+ -2)%a ↦ₐ frm.(wret)
-        ∗ (a_stk ^+ -1)%a ↦ₐ frm.(wcgp)
-        (* Constraints WFness of the register save area *)
-        ∗ ⌜ (b_stk <= a_stk ^+ -4)%a ∧ (a_stk ^+ -1 < e_stk)%a ∧ is_Some (a_stk + -4)%a ⌝
+        (⌜ (b_stk <= a_stk ^+ -4)%a ∧ (a_stk ^+ -1 < e_stk)%a ∧ is_Some (a_stk + -4)%a ⌝
+        ∗ if frm.(is_untrusted_caller)
+          then True
+          else
+            (a_stk ^+ -4)%a ↦ₐ frm.(wcs0)
+            ∗ (a_stk ^+ -3)%a ↦ₐ frm.(wcs1)
+            ∗ (a_stk ^+ -2)%a ↦ₐ frm.(wret)
+            ∗ (a_stk ^+ -1)%a ↦ₐ frm.(wcgp))%I
+    (* Constraints WFness of the register save area *)
     | _ => False
     end.
 
@@ -225,9 +228,6 @@ Section Switcher_preamble.
   Definition switcher_inv : iProp Σ :=
     ∃ (a_tstk : Addr) (cstk : CSTK) (tstk_next : list Word),
      mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk
-     (* ∗ ⌜ SubBounds *)
-     (*     b_switcher e_switcher *)
-     (*     a_switcher_call (a_switcher_call ^+ length switcher_instrs)%a ⌝ *)
      ∗ ⌜ (ot_switcher < (ot_switcher ^+1) )%ot ⌝
      ∗ codefrag a_switcher_call switcher_instrs
      ∗ b_switcher ↦ₐ WSealRange (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher
@@ -237,6 +237,5 @@ Section Switcher_preamble.
      ∗ ⌜ (b_trusted_stack + (length cstk - 1)%Z)%a = Some a_tstk ⌝
      ∗ cstack_interp cstk a_tstk (* link the topmost frame of cstk to the state *)
      ∗ seal_pred ot_switcher ot_switcher_propC.
-
 
 End Switcher_preamble.
