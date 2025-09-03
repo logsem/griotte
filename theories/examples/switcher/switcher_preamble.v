@@ -202,6 +202,7 @@ Section Switcher_preamble.
 
 
   Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
+    a_tstk ↦ₐ frm.(wstk) ∗
     match frm.(wstk) with
     | WCap RWL Local b_stk e_stk a_stk =>
         (* TODO do we need some constraints like b_stk <= a_stk - 4 < a_stk -1 < e_stk ? *)
