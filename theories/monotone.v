@@ -248,7 +248,7 @@ Section monotone.
     destruct w; [ | shelve | | ].
     { rewrite !fixpoint_interp1_eq /=; auto. }
     { rewrite !fixpoint_interp1_eq /=.
-      destruct (is_switcher_entry_point b e a) ; first done.
+      destruct (is_switcher_entry_point p g b e a) ; first done.
       iModIntro. iIntros (stk r W'').
       destruct g.
       + iIntros "#Hrelated'".
@@ -338,7 +338,7 @@ Section monotone.
     destruct w; [ | shelve | | ].
     { rewrite !fixpoint_interp1_eq /=; auto. }
     { rewrite !fixpoint_interp1_eq /=.
-      destruct (is_switcher_entry_point b e a) ; first done.
+      destruct (is_switcher_entry_point p g b e a) ; first done.
       destruct g ; cbn in Hnl ; try done.
       iModIntro. iIntros (stk r W'').
       iIntros "#Hrelated'".

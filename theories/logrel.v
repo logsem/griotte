@@ -429,7 +429,7 @@ Section logrel.
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
                 | WSentry p g b e a =>
-                    if is_switcher_entry_point b e a
+                    if is_switcher_entry_point p g b e a
                     then True
                     else (□ enter_cond W C p g b e a interp)
                 | _ => False

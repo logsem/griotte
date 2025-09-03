@@ -36,7 +36,7 @@ Section fundamental.
   Proof.
     iIntros "#Hinterp".
     rewrite !fixpoint_interp1_eq /=.
-    destruct (is_switcher_entry_point b e a); first done.
+    destruct (is_switcher_entry_point p g b e a); first done.
     iModIntro.
     iDestruct "Hinterp" as "#Hinterp".
     rewrite /enter_cond /interp_expr /=.
@@ -141,7 +141,7 @@ Section fundamental.
     rewrite HpnotO.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     iDestruct "HA" as "[#A %Hpwl_cond]".
-    destruct (is_switcher_entry_point b' e' a'); first done.
+    destruct (is_switcher_entry_point p' g' b' e' a'); first done.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (stk wstk W') "#Hfuture".
