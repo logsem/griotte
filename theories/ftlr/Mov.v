@@ -1,25 +1,28 @@
-From cap_machine Require Export logrel.
+From stdpp Require Import base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
-From stdpp Require Import base.
+From cap_machine Require Export logrel.
 From cap_machine.ftlr Require Import ftlr_base interp_weakening.
-From cap_machine.rules Require Import rules_base rules_Mov.
+From cap_machine.rules Require Import rules_Mov.
 From cap_machine.proofmode Require Import map_simpl register_tactics.
-From cap_machine Require Import stdpp_extra.
+Import uPred.
 
 Section fundamental.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -30,12 +33,13 @@ Section fundamental.
 
    Lemma mov_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
      (p p' : Perm) (g : Locality) (b e a : Addr)
-     (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
-    ftlr_instr W C regs p p' g b e a w (Mov dst src) ρ P.
+     (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (wstk : Word)
+     (Nswitcher : namespace) :
+    ftlr_instr W C regs p p' g b e a w (Mov dst src) ρ P cstk wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown Htframe".
+    iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
     iInsert "Hmap" PC.
     iApply (wp_Mov with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -62,7 +66,7 @@ Section fundamental.
         { destruct ρ;auto;contradiction. }
         destruct (decide (r = PC)).
         { simplify_map_eq.
-          iApply ("IH" $! _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]"); eauto.
+          iApply ("IH" $! _ _ _ regs with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [$Hown] [$Htframe]"); eauto.
           iApply (interp_next_PC with "Hinv_interp"); eauto.
         }
         simplify_map_eq.
@@ -76,16 +80,18 @@ Section fundamental.
           iApply wp_value;auto.
         }
 
-        iApply ("IH" $! _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]"); eauto.
+        iApply ("IH" $! _ _ _ regs with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [$Hown] [$Htframe]"); eauto.
         iApply (interp_weakening with "IH Hr0"); eauto; try reflexivity; try solve_addr.
       }
       { map_simpl "Hmap".
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;contradiction. }
-        iApply ("IH" $! _ _ (<[dst:=w0]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]"); eauto.
+        assert (is_Some (<[dst:=w0]> regs !! csp)) as [??].
+        { destruct (decide (dst = csp));simplify_map_eq =>//. }
+        iApply ("IH" $! _ _ _ (<[dst:=w0]> _) with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [$Hown] [$Htframe]"); eauto.
         - intros; simpl.
           rewrite lookup_insert_is_Some.
-          destruct (decide (dst = x)); auto; right; split; auto.
+          destruct (decide (dst = x0)); auto; right; split; auto.
         - iIntros (ri wi Hri Hregs_ri).
           destruct (decide (ri = dst)); simplify_map_eq.
           + (* ri = dst *)

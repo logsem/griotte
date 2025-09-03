@@ -11,14 +11,17 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -26,7 +29,7 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
-
+  
   (* Proving the meaning of sealing in the LR sane *)
   Lemma sealing_preserves_interp W C sb p0 g0 b0 e0 a0:
         permit_seal p0 = true →
@@ -52,12 +55,13 @@ Section fundamental.
 
   Lemma seal_case (W : WORLD)(C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D):
-    ftlr_instr W C regs p p' g b e a w (Seal dst r1 r2) ρ P.
+    (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D) (cstk : CSTK) (wstk : Word)
+    (Nswitcher : namespace) :
+    ftlr_instr W C regs p p' g b e a w (Seal dst r1 r2) ρ P cstk wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown Htframe".
+    iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
     iInsert "Hmap" PC.
     iApply (wp_Seal with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -92,8 +96,11 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      iApply ("IH" $! _ _ (<[dst := _]> (<[PC := _]> regs))
-               with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]")
+      assert (is_Some (<[dst:=WSealed a0 sb]> (<[PC:=WCap p g b e a]> regs) !! csp)) as [??].
+      { destruct (decide (dst = csp)); simplify_map_eq=>//. }
+
+      iApply ("IH" $! _ _ _ (<[dst := _]> (<[PC := _]> regs))
+               with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [$Hown] [$Htframe]")
       ; eauto.
       + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).

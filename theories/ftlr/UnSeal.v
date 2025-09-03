@@ -11,14 +11,17 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -53,12 +56,13 @@ Section fundamental.
 
   Lemma unseal_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D):
-    ftlr_instr W C regs p p' g b e a w (UnSeal dst r1 r2) ρ P.
+    (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D) (cstk : CSTK) (wstk : Word)
+    (Nswitcher : namespace) :
+    ftlr_instr W C regs p p' g b e a w (UnSeal dst r1 r2) ρ P cstk wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown Htframe".
+    iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
     iInsert "Hmap" PC.
     iApply (wp_UnSeal with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -93,8 +97,10 @@ Section fundamental.
     destruct (decide (PC = dst)) as [Heq | Hne]; cycle 1.
     { (* PC ≠ dst *)
       simplify_map_eq; map_simpl "Hmap".
-      iApply ("IH" $! _ _ (<[dst:=WSealable sb]> regs)
-               with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]")
+      assert (is_Some (<[dst:=WSealable sb]> regs !! csp)) as [??].
+      { destruct (decide (dst = csp));simplify_map_eq=>//. }
+      iApply ("IH" $! _ _ _ (<[dst:=WSealable sb]> regs)
+               with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [$Hown] [$Htframe]")
       ; eauto.
       + cbn; intros. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri v Hri Hvs).
@@ -112,7 +118,7 @@ Section fundamental.
     { (* PC = dst *)
       simplify_map_eq; map_simpl "Hmap".
       destruct (executeAllowed p'') eqn:Hpft.
-      - iApply ("IH" $! _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]")
+      - iApply ("IH" $! _ _ _ regs with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [$Hown] [$Htframe]")
         ; eauto.
         iApply (interp_weakening with "IH HVsb"); eauto; try solve_addr; try done.
       - (* not executable *)
