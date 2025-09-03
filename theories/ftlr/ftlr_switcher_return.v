@@ -117,6 +117,10 @@ Section fundamental.
     { iApply "Hrmap_interp"; eauto; done. }
     iAssert (interp W C wct1) as "#Hinterp_wct1".
     { iApply "Hrmap_interp"; eauto; done. }
+    iAssert (interp W C wca0) as "#Hinterp_wca0".
+    { iApply "Hrmap_interp"; eauto; done. }
+    iAssert (interp W C wca1) as "#Hinterp_wca1".
+    { iApply "Hrmap_interp"; eauto; done. }
 
     rewrite /switcher_instrs /switcher_call_instrs /switcher_return_instrs.
     rewrite -!app_assoc.
@@ -231,7 +235,8 @@ Section fundamental.
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
 
-    assert (Forall (fun a => (std W) !! a = Some Temporary) (finz.seq_between (a_stk ^+4)%a e_stk ))
+    set ( callee_stk_range := (finz.seq_between (a_stk ^+4)%a e_stk ) ).
+    assert (Forall (fun a => (std W) !! a = Some Temporary) callee_stk_range)
       as Hcallee_stk_temporary.
     { (* I should get this from Hinterp_callee_wstk *)
       admit.
@@ -246,22 +251,105 @@ Section fundamental.
       (*   rewrite frame_W_lookup_std. *)
       (*   by apply std_sta_update_multiple_lookup_in_i. *)
     }
-    (* assert (Forall (fun a => (std W) !! a = Some Temporary) a_local_args) *)
-    (*   as Hlocal_args_temporary. *)
-    (* { clear -W1 Hrelated_W1_W2. *)
-    (*   apply Forall_forall. *)
-    (*   intros a Ha. *)
-    (*   eapply region_state_pub_temp; eauto. *)
-    (*   subst W1. *)
-    (*   by apply std_sta_update_multiple_lookup_in_i. *)
-    (* } *)
 
-    (* focus_block 7 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont. *)
-    (* iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto. *)
-    (* { solve_addr. } *)
-    (* iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)". *)
-    (* unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont. *)
+    set ( callee_stk_range_l :=
+            map (fun a => (a, RWL, interpC, Temporary)) (finz.seq_between (a_stk ^+4)%a e_stk ) ).
+    iAssert ([∗ list] '(a, p, φ, _) ∈ callee_stk_range_l, rel C a p φ)%I as "Hrel_stk_callee".
+    { admit. }
+    iDestruct (region_open_list with "[$Hrel_stk_callee $Hr $Hsts]") as (lv) "(Hr & Hsts & Hstd & Hv & Hmono & Hφ)".
+    { admit. }
+    { admit. }
+    { admit. }
 
+    iAssert ([[ a_stk4 , e_stk ]] ↦ₐ [[ wcs2::wcs3::wret::wcgp0::lv ]])%I
+      with "[Hstk_1 Hstk_2 Hstk_3 Hstk_4 Hv]" as "Hstk".
+    { admit. }
+
+    focus_block 7 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto.
+    { solve_addr. }
+    { solve_addr. }
+    iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+    focus_block 8 "Hcode" as a8 Ha8 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Mov cra ca2 *)
+    iInstr "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+    focus_block 9 "Hcode" as a9 Ha9 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct1]") as "Hrmap".
+    rewrite -delete_insert_ne //.
+    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct0]") as "Hrmap".
+    (* do 2 (rewrite -delete_insert_ne //). *)
+    (* iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs0]") as "Hrmap". *)
+    (* do 3 (rewrite -delete_insert_ne //). *)
+    (* iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs1]") as "Hrmap". *)
+    do 2 (rewrite (delete_commute _ _ ca2); auto).
+    do 2 (rewrite -delete_insert_ne //).
+    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca2]") as "Hrmap".
+    do 2 (rewrite (delete_commute _ _ ctp); auto).
+    do 3 (rewrite -delete_insert_ne //).
+    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hctp]") as "Hrmap".
+
+    iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]"); try solve_pure.
+    { clear -Hfull_rmap.
+      repeat (rewrite -delete_insert_ne //).
+      repeat (rewrite dom_delete_L).
+      repeat (rewrite dom_insert_L).
+      apply regmap_full_dom in Hfull_rmap.
+      rewrite Hfull_rmap.
+      set_solver.
+    }
+    iNext; iIntros "H".
+    iDestruct "H" as (arg_rmap') "(%Harg_rmap' & HPC & Harg_rmap' & Hcode)".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+    focus_block 10 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* JmpCap cra *)
+    iInstr "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+
+    (* TODO close the region *)
+
+    (* Update the call-stack: depop the topmost frame *)
+    iDestruct (cstack_update _ _ cstk with "[$] [$]") as ">[Hcstk_full Hcstk_frag]".
+
+    (* Close the switcher's invariant *)
+    iDestruct (region_pointsto_cons with "[$Ha_tstk $Htstk]") as "Htstk"; [solve_addr| solve_addr| ].
+    iMod ("Hclose_switcher_inv"
+           with "[Hstk_interp_next $Hna $Hmtdc $Hcode $Hb_switcher Htstk $Hcstk_full $Hp_ot_switcher]")
+      as "Hna".
+    {
+      replace (a_tstk1 ^+ 1)%a with a_tstk by solve_addr.
+      replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr.
+      iFrame.
+      iNext.
+      clear -Hot_bounds Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Ha_tstk1.
+      repeat (iSplit ;[iPureIntro; try solve_addr|]); [|iPureIntro; try solve_addr].
+      split; last solve_addr.
+      admit. (* TODO is this true? *)
+    }
+
+    (* Use the continuation *)
+    pose proof (related_sts_pub_refl_world W) as Hpub_W.
+    iSpecialize ("Hexec_topmost_frm" $! W Hpub_W).
+    rewrite /interp_cont_exec.
+    iEval (cbn) in "Hexec_topmost_frm".
+    iAssert ([∗ map] r↦w ∈ arg_rmap', r ↦ᵣ WInt 0)%I with "[Harg_rmap']" as "Hrmap".
+    { admit. }
+    iApply ("Hexec_topmost_frm" with
+      "[$HPC $Hcra Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
+      $Hrmap Hr $Hsts $Hcont_K $Hcstk_frag $Hna]").
+    iSplitL.
+    (* TODO: I think the switcher's invariant should have (frm.(wstk) + 4);
+       otherwise we can't match csp *)
+    admit.
+    iSplitL.
+    iPureIntro.
+    rewrite Harg_rmap'; set_solver.
+    (* Should be done with closing the region *)
+    admit.
 
   Admitted.
 
