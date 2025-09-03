@@ -230,7 +230,7 @@ Section Switcher_preamble.
      ∗ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↦ₐ [[ tstk_next ]]
      ∗ ⌜ (b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a ⌝
      ∗ cstack_full cstk
-     ∗ ⌜ (b_trusted_stack + length cstk)%a = Some a_tstk  ⌝
+     ∗ ⌜ (b_trusted_stack + (length cstk - 1))%a = Some a_tstk  ⌝
      ∗ cstack_interp cstk a_tstk (* link the topmost frame of cstk to the state *)
      ∗ seal_pred ot_switcher ot_switcher_propC.
 
