@@ -295,8 +295,7 @@ Section region_alloc.
         assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked)
                 = std_update_multiple W l1 Revoked) as ->.
         { rewrite /std_update.
-          destruct (std_update_multiple W l1 Revoked) as [ [] ] eqn:Heq.
-          f_equiv; last done.
+          destruct (std_update_multiple W l1 Revoked) as [] eqn:Heq.
           f_equiv; last done.
           simpl. rewrite insert_id//.
           assert (o = std (std_update_multiple W l1 Revoked)) as ->;[rewrite Heq//|].

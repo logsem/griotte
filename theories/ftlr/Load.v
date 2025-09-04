@@ -139,13 +139,13 @@ Section fundamental.
     ; first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
 
     iDestruct (region_open_prepare with "Hr") as "Hr".
-    iDestruct (readAllowed_valid_cap_implies with "Hvsrc") as %HH; eauto.
+    iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ a with "Hvsrc") as %HH; eauto.
     { rewrite /withinBounds Hle Hge. auto. }
     destruct HH as (ρ0 & Hstd & Hnotrevoked).
     (* We can finally frame off Hsts here,
             since it is no longer needed after opening the region*)
     iDestruct (region_open_next _ _ _ _ a p0 ρ0 with "[$Hrel0 $Hr $Hsts]")
-      as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
+      as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval & _)"; eauto.
     { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
     iExists w0,p0,P0.
     iFrame "∗#%".

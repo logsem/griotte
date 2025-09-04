@@ -436,6 +436,10 @@ Section logrel.
   Definition safeC (P : V) :=
     (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
 
+  Program Definition safeUC (P : WORLD * CmptName * leibnizO Word → iPropO Σ) : V :=
+    λne a b c, P (a, b, c).
+  Solve All Obligations with solve_proper.
+
   Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) :=
     (match (std W) !! a with
         | Some Temporary =>
@@ -692,6 +696,53 @@ Section logrel.
     iExists p',P'; iFrame "#∗%"; try done.
   Qed.
 
+  (* Lemma read_allowed_inv' (W : WORLD) (C : CmptName) (a b e: Addr) p g l : *)
+  (*   readAllowed p → *)
+  (*   Forall (fun a' : Addr => (b <= a' < e)%a ) l -> *)
+  (*   ⊢ (interp W C (WCap p g b e a)) → *)
+  (*   [∗ list] a' ∈ l, *)
+  (*         ( *)
+  (*           ∃ (p' : Perm) (P:V), *)
+  (*             ⌜ PermFlowsTo p p'⌝ *)
+  (*             ∗ ⌜persistent_cond P⌝ *)
+  (*             ∗ rel C a' p' (safeC P) *)
+  (*             ∗ ▷ zcond P C *)
+  (*             ∗ ▷ rcond P C p' interp *)
+  (*             ∗ (if writeAllowed p' then (▷ wcond P C interp) else True) *)
+  (*             ∗ monoReq W C a' p' P *)
+  (*         ). *)
+  (* Proof. *)
+  (*   induction l; iIntros (Hra Hin) "#Hinterp"; first done. *)
+  (*   simpl. *)
+  (*   apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin]. *)
+  (*   iDestruct (read_allowed_inv _ _ a0 with "Hinterp") *)
+  (*     as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)" *)
+  (*   ; auto. *)
+  (*   iFrame "%#". *)
+  (*   iApply (IHl with "Hinterp"); eauto. *)
+  (* Qed. *)
+
+  (* Lemma read_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g : *)
+  (*   readAllowed p → *)
+  (*   ⊢ (interp W C (WCap p g b e a)) → *)
+  (*   [∗ list] a' ∈ (finz.seq_between b e), *)
+  (*         ( *)
+  (*           ∃ (p' : Perm) (P:V), *)
+  (*             ⌜ PermFlowsTo p p'⌝ *)
+  (*             ∗ ⌜persistent_cond P⌝ *)
+  (*             ∗ rel C a' p' (safeC P) *)
+  (*             ∗ ▷ zcond P C *)
+  (*             ∗ ▷ rcond P C p' interp *)
+  (*             ∗ (if writeAllowed p' then (▷ wcond P C interp) else True) *)
+  (*             ∗ monoReq W C a' p' P *)
+  (*         ). *)
+  (* Proof. *)
+  (*   iIntros (Hra) "Hinterp". *)
+  (*   iApply (read_allowed_inv' with "Hinterp"); eauto. *)
+  (*   apply Forall_forall. *)
+  (*   intros a' Ha'. *)
+  (*   by apply elem_of_finz_seq_between. *)
+  (* Qed. *)
 
   Lemma write_allowed_inv (W : WORLD) (C : CmptName) (a' a b e: Addr) p g :
     (b ≤ a' ∧ a' < e)%Z →
@@ -722,11 +773,11 @@ Section logrel.
     iExists p',P'; iFrame "#∗%"; try done.
   Qed.
 
-  Lemma readAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a:
+  Lemma readAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a a':
     readAllowed p = true ->
-    withinBounds b e a = true ->
+    withinBounds b e a' = true ->
     interp W C (WCap p g b e a) -∗
-    ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked⌝.
+    ⌜∃ ρ, std W !! a' = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
