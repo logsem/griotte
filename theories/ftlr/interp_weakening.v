@@ -249,6 +249,15 @@ Section fundamental.
     iApply interp_weakeningEO; eauto; try solve_addr; try done.
   Qed.
 
+  Lemma interp_lea W C p g b e a a' :
+    isO p = false ->
+    interp W C (WCap p g b e a) -∗
+    interp W C (WCap p g b e a').
+  Proof.
+    iIntros (Hisno) "#Hi".
+    iApply interp_weakeningEO; eauto; try solve_addr; try done.
+  Qed.
+    
   Lemma safe_to_unseal_weakening W C b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
