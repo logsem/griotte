@@ -200,29 +200,30 @@ Section Switcher_preamble.
   (*   apply revoke_related_sts_priv_world. *)
   (* Qed. *)
 
-
-  Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
-    a_tstk ↦ₐ frm.(wstk) ∗
-    match frm.(wstk) with
-    | WCap RWL Local b_stk e_stk a_stk =>
-        (⌜ (b_stk <= a_stk ^+ -4)%a ∧ (a_stk ^+ -1 < e_stk)%a ∧ is_Some (a_stk + -4)%a ⌝
-        ∗ if frm.(is_untrusted_caller)
-          then True
-          else
-            (a_stk ^+ -4)%a ↦ₐ frm.(wcs0)
-            ∗ (a_stk ^+ -3)%a ↦ₐ frm.(wcs1)
-            ∗ (a_stk ^+ -2)%a ↦ₐ frm.(wret)
-            ∗ (a_stk ^+ -1)%a ↦ₐ frm.(wcgp))%I
-    (* Constraints WFness of the register save area *)
-    | _ => False
-    end.
+    Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
+    ∃ (wtstk4 : Word),
+      a_tstk ↦ₐ wtstk4 ∗
+      match frm.(wstk) with
+      | WCap RWL Local b_stk e_stk a_stk =>
+          (⌜ (b_stk <= a_stk ^+ 1)%a ∧ (a_stk ^+ 4 < e_stk)%a ∧ is_Some (a_stk + 1)%a ⌝
+           ∗ ⌜ wtstk4 = WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ⌝
+           ∗ if frm.(is_untrusted_caller)
+             then True
+             else
+               (a_stk ^+ 1)%a ↦ₐ frm.(wcs0)
+               ∗ (a_stk ^+ 2)%a ↦ₐ frm.(wcs1)
+               ∗ (a_stk ^+ 3)%a ↦ₐ frm.(wret)
+               ∗ (a_stk ^+ 4)%a ↦ₐ frm.(wcgp))%I
+      (* Constraints WFness of the register save area *)
+      | _ => False
+      end.
 
   Fixpoint cstack_interp (cstk : cstack) (a_tstk : Addr) : iProp Σ :=
     (match cstk with
     | [] => True
     | frm::cstk' => cstack_interp cstk' (a_tstk ^+ -1)%a
                   ∗ cframe_interp frm a_tstk
-                  ∗ ⌜ is_Some (a_tstk + -1)%a ⌝
+                  ∗ ⌜ is_Some (a_tstk + -1)%a ⌝ (* Not sure if this is necessary? *)
     end)%I.
 
   Definition switcher_inv : iProp Σ :=
