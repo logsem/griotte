@@ -141,8 +141,9 @@ Section fundamental.
       solve_addr.
     }
 
+    rewrite /interp_continuation /interp_cont.
     (* ReadSR ctp mtdc *)
-    iInstr "Hcode".
+    iInstr "Hcode" with "Hlc".
 
     iDestruct (cstack_agree with "[$] [$]") as "%"; simplify_eq.
     destruct cstk as [|frm cstk]; iEval (cbn) in "Hstk_interp"; cbn in Hlen_cstk.
@@ -155,7 +156,7 @@ Section fundamental.
     destruct frm.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as "[Ha_tstk Hcframe_interp]".
+    iDestruct "Hcframe_interp" as (wtstk4) "[Ha_tstk Hcframe_interp]".
     destruct wstk0; try done.
     destruct sb; try done.
     destruct p; try done.
@@ -165,16 +166,10 @@ Section fundamental.
     destruct dro; try done.
     destruct g; try done.
     rename a into a_stk; rename b into b_stk; rename e into e_stk.
-    iDestruct "Hcframe_interp" as "[%HWF Hcframe_interp]".
+    iDestruct "Hcframe_interp" as "(%HWF & -> & Hcframe_interp)".
     destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
-    replace (a_stk ^+ -4)%a with a_stk4 by solve_addr.
-    assert (is_Some (a_stk + -1)%a) as [a_stk1 Ha_stk1] by solve_addr.
-    replace (a_stk ^+ -1)%a with a_stk1 by solve_addr.
-    assert (is_Some (a_stk + -2)%a) as [a_stk2 Ha_stk2] by solve_addr.
-    replace (a_stk ^+ -2)%a with a_stk2 by solve_addr.
-    assert (is_Some (a_stk + -3)%a) as [a_stk3 Ha_stk3] by solve_addr.
-    replace (a_stk ^+ -3)%a with a_stk3 by solve_addr.
 
+    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
     (* TODO: be clever to not repeat the proof,
        and assert
        (exists wa4,
@@ -183,17 +178,72 @@ Section fundamental.
        )
        etc
      *)
-    destruct is_untrusted_caller.
-    { admit. }
-    iDestruct "Hcframe_interp" as "(Hstk_4 & Hstk_3 & Hstk_2 & Hstk_1)".
+
+    iAssert (
+        |={⊤}=>
+        ∃ wastk wastk1 wastk2 wastk3,
+          a_stk ↦ₐ wastk
+          ∗ (a_stk ^+ 1)%a ↦ₐ wastk1
+          ∗ (a_stk ^+ 2)%a ↦ₐ wastk2
+          ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
+          ∗ (if is_untrusted_caller
+             then (interp W C wastk ∗ interp W C wastk1 ∗ interp W C wastk2 ∗ interp W C wastk3)
+             else (⌜ wastk = wcs2 ⌝ ∗ ⌜ wastk1 = wcs3 ⌝ ∗ ⌜ wastk2 = wret ⌝ ∗ ⌜ wastk3 = wcgp0 ⌝)
+            )
+      )%I
+       with "[Hcframe_interp Hlc]" as ">Hcframe_interp"
+    ; [|iDestruct "Hcframe_interp" as
+        (wastk wastk1 wastk2 wastk3) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hwstk)"
+      ].
+    {
+      destruct is_untrusted_caller; cycle 1.
+      * iModIntro.
+        iExists wcs2, wcs3, wret, wcgp0.
+        by iDestruct "Hcframe_interp" as "($&$&$&$)".
+      * iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_callee_wstk]") as ">#Hinterp_callee_wstk'"; iModIntro.
+        iClear "Hinterp_callee_wstk" ; iRename "Hinterp_callee_wstk'" into "Hinterp_callee_wstk".
+        iEval (cbn) in "Hinterp_callee_wstk".
+        admit. (* we probably need to open the region *)
+    }
+    (* iDestruct "Hcframe_interp" as "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)". *)
     destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
     { admit. (* NOTE will fail in the next upcoming instructions *) }
     (* Load csp ctp *)
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
     rewrite -/(interp_cont).
-    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
     iEval (cbn) in "Hinterp_callee_wstk".
+
+    (* assert (is_Some (a_stk4 + -1)%a) as [a_stk3 Ha_stk3] by solve_addr+Ha_stk4. *)
+    (* replace (a_stk4 ^+ -1)%a with a_stk3 by solve_addr+Ha_stk3. *)
+    (* replace (a_stk ^+ 3)%a with a_stk3. *)
+    (* 2: { clear -Ha_stk4 Ha_stk3. *)
+    (*      assert ( a_stk4 = a_stk ^+ 4 )%a by solve_addr. *)
+    (*      rewrite H in Ha_stk3. *)
+    (*      replace ( (a_stk ^+ 4 + -1)%a) with ( (a_stk + 3)%a); solve_addr. *)
+    (* } *)
+
+    (* assert (is_Some (a_stk4 + -2)%a) as [a_stk2 Ha_stk2] by solve_addr+Ha_stk4. *)
+    (* replace (a_stk4 ^+ -2)%a with a_stk2 by solve_addr+Ha_stk2. *)
+    (* replace (a_stk ^+ 2)%a with a_stk2. *)
+    (* 2: { clear -Ha_stk4 Ha_stk2. *)
+    (*      assert ( a_stk4 = a_stk ^+ 4 )%a by solve_addr. *)
+    (*      rewrite H in Ha_stk2. *)
+    (*      replace ( (a_stk ^+ 4 + -2)%a) with ( (a_stk + 2)%a); solve_addr. *)
+    (* } *)
+
+    (* assert (is_Some (a_stk4 + -3)%a) as [a_stk1 Ha_stk1] by solve_addr+Ha_stk4. *)
+    (* replace (a_stk4 ^+ -3)%a with a_stk1 by solve_addr+Ha_stk1. *)
+    (* replace (a_stk ^+ 1)%a with a_stk1. *)
+    (* 2: { clear -Ha_stk4 Ha_stk1. *)
+    (*      assert ( a_stk4 = a_stk ^+ 4 )%a by solve_addr. *)
+    (*      rewrite H in Ha_stk1. *)
+    (*      replace ( (a_stk ^+ 4 + -3)%a) with ( (a_stk + 1)%a); solve_addr. *)
+    (* } *)
+
+    (* replace (a_stk4 ^+ -4)%a with a_stk by solve_addr+Ha_stk4. *)
+    (* replace (a_stk ^+ 4)%a with a_stk4 by solve_addr+Ha_stk4. *)
+
 
 
     (* Lea ctp (-1)%Z *)
@@ -202,30 +252,31 @@ Section fundamental.
     iInstr "Hcode".
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
+    { by transitivity (Some (a_stk ^+ 3)%a); solve_addr+Ha_stk4. }
     (* Load cgp csp *)
     iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcgp".
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
-    { by transitivity (Some a_stk2); solve_addr. }
+    { by transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
     (* Load ca2 csp *)
     iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hca2".
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
-    { by transitivity (Some a_stk3); solve_addr. }
+    { by transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
     (* Load cs1 csp *)
     iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcs1".
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
-    { by transitivity (Some a_stk4); solve_addr. }
+    { by transitivity (Some a_stk); solve_addr. }
     (* Load cs0 csp *)
     iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcs0".
     (* GetE ct0 csp *)
     iInstr "Hcode".
@@ -252,23 +303,29 @@ Section fundamental.
       (*   by apply std_sta_update_multiple_lookup_in_i. *)
     }
 
-    set ( callee_stk_range_l :=
-            map (fun a => (a, RWL, interpC, Temporary)) (finz.seq_between (a_stk ^+4)%a e_stk ) ).
-    iAssert ([∗ list] '(a, p, φ, _) ∈ callee_stk_range_l, rel C a p φ)%I as "Hrel_stk_callee".
-    { admit. }
-    iDestruct (region_open_list with "[$Hrel_stk_callee $Hr $Hsts]") as (lv) "(Hr & Hsts & Hstd & Hv & Hmono & Hφ)".
-    { admit. }
-    { admit. }
-    { admit. }
+    iAssert ([∗ list] a ∈ callee_stk_range, rel C a RWL interpC)%I as "Hrel_stk_callee".
+    {
+      (* iDestruct (read_allowed_inv with "Hinterp_callee_wstk") as "H". *)
+      admit.
+    }
+    iDestruct (region_open_list_alt with "[$Hrel_stk_callee $Hr $Hsts]") as (lv) "(Hr & Hsts & Hstd & Hstk & Hmono & Hφ)"
+    ; eauto.
+    { apply finz_seq_between_NoDup. }
+    { auto. }
 
-    iAssert ([[ a_stk4 , e_stk ]] ↦ₐ [[ wcs2::wcs3::wret::wcgp0::lv ]])%I
-      with "[Hstk_1 Hstk_2 Hstk_3 Hstk_4 Hv]" as "Hstk".
-    { admit. }
 
+    iAssert ([[ a_stk , e_stk ]] ↦ₐ [[wastk :: wastk1 :: wastk2 :: wastk3 :: lv]])%I
+      with "[Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hstk]" as "Hstk".
+    {
+      iAssert ([[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ lv ]])%I with "[$Hstk]" as "Hstk".
+      iDestruct (region_pointsto_cons with "[$Ha_stk3 $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
+      iDestruct (region_pointsto_cons with "[$Ha_stk2 $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
+      iDestruct (region_pointsto_cons with "[$Ha_stk1 $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
+      iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
+      iFrame.
+    }
     focus_block 7 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto.
-    { solve_addr. }
-    { solve_addr. }
+    iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto; [solve_addr|].
     iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
@@ -307,7 +364,7 @@ Section fundamental.
 
     focus_block 10 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* JmpCap cra *)
-    iInstr "Hcode".
+    iInstr "Hcode" with "Hlc".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
     (* TODO close the region *)
@@ -338,18 +395,150 @@ Section fundamental.
     iEval (cbn) in "Hexec_topmost_frm".
     iAssert ([∗ map] r↦w ∈ arg_rmap', r ↦ᵣ WInt 0)%I with "[Harg_rmap']" as "Hrmap".
     { admit. }
-    iApply ("Hexec_topmost_frm" with
-      "[$HPC $Hcra Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
+
+    destruct is_untrusted_caller.
+    - (* Case where caller is untrusted, we use the IH *)
+
+      destruct ( decide (isCorrectPC (updatePcPerm wastk2))) as [HcorrectWret|HcorrectWret]; cycle 1.
+      { (* The PC is not correct, the execution will crash *)
+            iApply (wp_bind (fill [SeqCtx])).
+            iApply (wp_notCorrectPC with "HPC"); first done.
+            iNext; iIntros "HPC /=".
+            iApply wp_pure_step_later; auto; iNext; iIntros "_".
+            iApply wp_value; iIntros; discriminate.
+      }
+      (* The PC is correct, we can use the continuation*)
+      iDestruct "Hwstk" as "(#Hinterp_wcs2 & #Hinterp_wcs3 & #Hinterp_wret & #Hinterp_wcgp0)".
+      iAssert (
+          ∃ rmap', ⌜ dom rmap' = dom arg_rmap' ⌝ ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ w)
+                   ∗ (∀ (r : RegName) (v : leibnizO Word), ⌜r ≠ PC⌝ → ⌜rmap' !! r = Some v⌝ → interp W C v)
+        )%I with "[Hrmap]" as (rmap') "(%Hdom_rmap' & Hrmap & #Hrmap_interp')".
+      {
+        iExists (fmap (fun v => WInt 0) arg_rmap').
+        iSplit ; [iPureIntro; apply dom_fmap_L|].
+        iSplitL; first admit. (* this clearly holds *)
+        iIntros (r w HrPC Hr).
+        rewrite lookup_fmap_Some in Hr.
+        destruct Hr as (? & <- & Hr').
+        iEval (rewrite fixpoint_interp1_eq); done.
+      }
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cra m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcra]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cgp m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcgp]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete ca0 m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca0]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete ca1 m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca1]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cs0 m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs0]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cs1 m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs1]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete csp m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcsp]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete PC m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $HPC]") as "Hrmap".
+
+      destruct wastk2 as [ z | [p g b e a|]  | p g b e a | ot sb ] ; iEval (cbn) in "Hrmap".
+      all: cbn in HcorrectWret.
+      all: inversion HcorrectWret; simplify_eq.
+      + (* wret was a regular capability: apply the IH *)
+        iApply ("IH" with "[] [] [$] [] [] [$Hsts] [$Hcont_K] [$Hna] [$Hcstk_frag] [$]").
+        { admit. (* easy *) }
+        { admit. (* easy, expect proving that the stack is safe, which is fine because of the clearing *) }
+        { iPureIntro; simplify_map_eq; done. }
+        { admit. (* just close the region *) }
+
+      + (* wret was a sentry capability: apply the def of safe for sentry *)
+        iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wret".
+        destruct ( is_switcher_entry_point p g b e a ) eqn:Hwret_is_switcher_entry_point.
+        (* The caller had changed the `wret` into one of the switcher's entry point.... *)
+        * admit. (* TODO I need an inductive case *)
+        * iDestruct "Hinterp_wret" as "#Hinterp_wret".
+          rewrite /enter_cond.
+          iAssert (future_world g W W) as "-#Hfuture".
+          { destruct g; cbn; iPureIntro
+            ; [apply related_sts_priv_refl_world| apply related_sts_pub_refl_world].
+          }
+          iSpecialize ("Hinterp_wret" $! cstk (WCap RWL Local b_stk e_stk a_stk) W with "[$]").
+          iDestruct "Hinterp_wret" as "[Hinterp_wret _]".
+          iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
+          rewrite /interp_expr /=.
+          iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap Hr $Hsts $Hcstk_frag $Hna]") as "HA"; eauto.
+          iSplitR.
+          { iSplit.
+            - admit. (* easy *)
+            - admit. (* easy, expect proving that the stack is safe, which is fine because of the clearing *)
+          }
+          iSplitR.
+          { iPureIntro; simplify_map_eq; done. }
+          { admit. (* just close the region *) }
+
+    - (* Case where caller is trusted, we use the continuation *)
+      iDestruct "Hwstk" as "(-> & -> & -> & ->)".
+      iApply ("Hexec_topmost_frm" with
+               "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
       $Hrmap Hr $Hsts $Hcont_K $Hcstk_frag $Hna]").
-    iSplitL.
-    (* TODO: I think the switcher's invariant should have (frm.(wstk) + 4);
-       otherwise we can't match csp *)
-    admit.
-    iSplitL.
-    iPureIntro.
-    rewrite Harg_rmap'; set_solver.
-    (* Should be done with closing the region *)
-    admit.
+      iSplitL;[iPureIntro|].
+      rewrite Harg_rmap'; set_solver.
+      (* Should be done with closing the region *)
+      admit.
 
   Admitted.
 
