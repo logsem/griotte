@@ -788,11 +788,10 @@ Section cap_lang_rules.
     { by rewrite !dom_insert; set_solver+. }
     Admitted.
 
-   Lemma wp_store_fail_reg_perm E pc_p pc_g pc_b pc_e pc_a pc_a' w dst src
+   Lemma wp_store_fail_reg_perm E pc_p pc_g pc_b pc_e pc_a w dst src
          p g b e a w'' :
       decodeInstrW w = Store dst (inr src) →
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-     (pc_a + 1)%a = Some pc_a' →
      canStore p w'' = false ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
@@ -803,7 +802,7 @@ Section cap_lang_rules.
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
     Proof.
-      iIntros (Hinstr Hvpc Hpca' HcanStore φ)
+      iIntros (Hinstr Hvpc HcanStore φ)
              "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
