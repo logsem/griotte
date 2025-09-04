@@ -1598,6 +1598,48 @@ Section heap.
         iFrame.
   Qed.
 
+  Lemma region_open_list_alt (W : WORLD) (C : CmptName)
+    (la : list Addr) (p : Perm) (φ : WORLD * CmptName * Word → iProp Σ) (ρ : region_type)
+    :
+
+    NoDup la ->
+    ρ ≠ Revoked ->
+    Forall (fun a => (std W) !! a = Some ρ) la ->
+
+    ([∗ list] a ∈ la, rel C a p φ)
+    ∗ region W C
+    ∗ sts_full_world W C -∗
+
+    ∃ (lv : list Word),
+      open_region_many W C la
+      ∗ sts_full_world W C
+      ∗ ([∗ list] a ∈ la, sts_state_std C a ρ)
+      ∗ ([∗ list] k↦a;v ∈ la;lv, a ↦ₐ v)
+      ∗ ▷ ([∗ list] v ∈ lv, monotonicity_guarantees_region C φ p v ρ)
+      ∗ ▷ ([∗ list] v ∈ lv, φ (W,C,v)).
+  Proof.
+    iIntros (HNoDup Hρ HW_la) "(Hrel & Hr & Hsts)".
+    set (l := map (fun a => (a, p, φ, ρ)) la ).
+    iAssert (([∗ list] '(a,p,φ,ρ) ∈ l, rel C a p φ))%I with "[Hrel]" as "Hrel".
+    { subst l.
+      admit.
+    }
+    iDestruct (region_open_list with "[$Hr $Hsts $Hrel]")
+      as (lv) "(Hr & Hsts & Hstd & Hlv & Hmono & Hφ)".
+    - subst l. (* should hold I think? *)
+      admit.
+    - subst l.
+      apply Forall_map.
+      admit. (* easy *)
+    - subst l.
+      by apply Forall_map.
+    - iExists lv.
+      iFrame.
+      admit. (* should be easy, just a matter to ignore the projection *)
+  Admitted.
+
+
+
   Lemma region_close_next
     (W : WORLD) (C : CmptName)
     (φ : WORLD * CmptName * Word → iProp Σ)
