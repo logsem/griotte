@@ -103,4 +103,22 @@ Section fundamental.
     : Prop :=
     ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w = i) cstk wstk Nswitcher.
 
+  Definition specification_switcher_entry_point
+    (W : WORLD) (C : CmptName) (rmap : leibnizO Reg)
+    (cstk : CSTK) (wstk : Word)
+    (Nswitcher : namespace)
+    (a_switcher_entry_point : Addr) :=
+    (∀ x, is_Some (rmap !! x)) →
+    rmap !! csp = Some wstk →
+    ftlr_IH -∗
+    (∀ (r : RegName) (v : leibnizO Word) , ⌜r ≠ PC⌝ → ⌜rmap !! r = Some v⌝ → interp W C v) -∗
+    na_inv logrel_nais Nswitcher switcher_inv -∗
+    interp_continuation cstk W C -∗
+    sts_full_world W C -∗
+    na_own logrel_nais ⊤ -∗
+    cstack_frag cstk -∗
+    ([∗ map] k↦y ∈ <[PC:=WCap XSRW_ Local b_switcher e_switcher a_switcher_entry_point]> rmap , k ↦ᵣ y) -∗
+    region W C -∗
+    WP Seq (Instr Executable) {{ v0, ⌜v0 = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+
 End fundamental.

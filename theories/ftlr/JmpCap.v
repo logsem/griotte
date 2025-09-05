@@ -112,11 +112,14 @@ Section fundamental.
               iClear "Hmono HmonoV Hinva Hrcond Hwcond Hwsrc Hinv_interp".
               clear dependent p b e a g p' w ρ P rsrc.
               clear Hpft.
+              iNext; iIntros "_".
               destruct Ha0 as [Ha0|Ha0]; apply finz_to_z_eq in Ha0; simplify_eq; clear His_switcher_call.
               * (* We jumped to the switcher-cc-call entry point *)
                 iApply (switcher_call_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
               * (* We jumped to the switcher-cc-return entry point *)
                 iApply (switcher_return_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+                intros.
+                apply switcher_call_ftlr.
             + (* This is just a regular Sentry, use the IH *)
               iDestruct "Hwsrc" as "#H".
               iAssert (future_world g0 W W) as "Hfuture".

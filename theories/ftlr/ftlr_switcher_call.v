@@ -718,21 +718,9 @@ Section fundamental.
     (cstk : CSTK) (wstk : Word)
     (Nswitcher : namespace)
     :
-    (∀ x, is_Some (regs !! x)) ->
-    regs !! csp = Some wstk ->
-    ftlr_IH -∗
-    (∀ (r : RegName) (v : leibnizO Word) , ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v) -∗
-    na_inv logrel_nais Nswitcher switcher_inv -∗
-    interp_continuation cstk W C -∗
-    sts_full_world W C -∗
-    na_own logrel_nais ⊤ -∗
-    cstack_frag cstk -∗
-    ([∗ map] k↦y ∈ <[PC:=WCap XSRW_ Local b_switcher e_switcher a_switcher_call]> regs , k ↦ᵣ y) -∗
-    region W C -∗
-    ▷ (£ 1 -∗ WP Seq (Instr Executable) {{ v0, ⌜v0 = HaltedV⌝ → na_own logrel_nais ⊤ }}).
+    specification_switcher_entry_point W C regs cstk wstk Nswitcher a_switcher_call.
   Proof.
     iIntros (Hfull_rmap Hwstk) "#IH #Hreg #Hinv_switcher Hcont Hsts Hna Hcstk Hrmap Hr".
-    iNext; iIntros "_".
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
