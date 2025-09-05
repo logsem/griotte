@@ -892,29 +892,11 @@ Section fundamental.
       + (* wret was a sentry capability: apply the def of safe for sentry *)
         iAssert (interp W C (WSentry p g b e a)) as "#Hinterp_wret'" ; first done.
         iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wstk2".
-        destruct ( is_switcher_entry_point p g b e a ) eqn:His_switcher_call.
+        destruct ( is_switcher_entry_point (WSentry p g b e a)) eqn:His_switcher_call.
         (* The caller had changed the `wret` into one of the switcher's entry point.... *)
-        *
-
-          rewrite /is_switcher_entry_point in His_switcher_call.
-          destruct (decide (p = XSRW_)); simplify_eq;
-            [ rewrite bool_decide_eq_true_2 in His_switcher_call; last done
-            | rewrite bool_decide_eq_false_2 in His_switcher_call; done ].
-          destruct (decide (g = Local)); simplify_eq;
-            [ rewrite bool_decide_eq_true_2 in His_switcher_call; last done
-            | rewrite bool_decide_eq_false_2 in His_switcher_call; done].
-          simpl in His_switcher_call.
-          destruct (b =? b_switcher)%a eqn:Hb
-          ; rewrite Hb in His_switcher_call
-          ; [apply Z.eqb_eq,finz_to_z_eq in Hb|by cbn in His_switcher_call]
-          ; simplify_eq.
-          destruct (e =? e_switcher)%a eqn:He
-          ; rewrite He in His_switcher_call
-          ; [apply Z.eqb_eq,finz_to_z_eq in He|by cbn in His_switcher_call]
-          ; simplify_eq.
-          destruct ( (a =? a_switcher_call)%Z || (a =? a_switcher_return)%Z ) eqn:Ha
-          ; [apply orb_true_iff in Ha; rewrite !Z.eqb_eq in Ha|by cbn in His_switcher_call].
-          destruct Ha as [Ha|Ha]; apply finz_to_z_eq in Ha; simplify_eq; clear His_switcher_call.
+        * rewrite /is_switcher_entry_point in His_switcher_call.
+          apply bool_decide_eq_true in His_switcher_call.
+          destruct His_switcher_call as [?|?]; simplify_eq.
           ** (* We jumped to the switcher-cc-call entry point *)
             rewrite /specification_switcher_entry_point in Hspec_call.
             iApply (Hspec_call with "[$] [] [$] [$] [$] [$] [$] [$] [$]").

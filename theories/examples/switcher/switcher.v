@@ -150,14 +150,22 @@ Section Switcher.
 
         switcher_return_entry_point :
         (b_switcher + (1 + length switcher_call_instrs) )%a = Some a_switcher_return ;
+
+        (* is_switcher_entry_point (w : Word) : *)
+        (* (bool_decide *)
+        (*    (w = (WCap XSRW_ Local b_switcher e_switcher a_switcher_call) *)
+        (*         ∨ *)
+        (* (w = (WCap XSRW_ Local b_switcher e_switcher a_switcher_return) *)
+        (* )) *)
+        (* ) *)
       }.
 
-  Definition is_switcher_entry_point `{switcherLayout} (p : Perm) (g : Locality) (b e a : Addr) :=
-    if (bool_decide (p = XSRW_)) && (bool_decide (g = Local))
-    then
-      if (b =? b_switcher)%a && (e =? e_switcher)%a
-      then (if (a =? a_switcher_call)%a || (a =? a_switcher_return)%a then true else false)
-      else false
-    else false.
+  Definition is_switcher_entry_point `{switcherLayout} (w : Word) :=
+    bool_decide
+      (w = (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)
+           ∨
+      (w = (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return)
+      ))
+  .
 
 End Switcher.

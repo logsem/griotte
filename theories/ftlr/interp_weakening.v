@@ -53,13 +53,13 @@ Section fundamental.
     iIntros "#Hinterp".
     rewrite !fixpoint_interp1_eq /=.
     rewrite /is_switcher_entry_point.
-    do 4 (case_match;simpl;try done);simpl in *.
-    { repeat case_match; auto.
-      all: destruct (decide (p = XSRW_));subst;try done.
-      rewrite bool_decide_false// in H0. }
-    case_match;auto.
-    all: destruct g;[|auto].
-    all: iApply enter_cond_weakening;auto.
+    case_match
+    ; [apply bool_decide_eq_true in H| apply bool_decide_eq_false in H].
+    + destruct H; simplify_eq; rewrite bool_decide_eq_true_2; eauto.
+    + case_match.
+      * apply bool_decide_eq_true in H0; destruct H0; simplify_eq; done.
+      * destruct g; auto.
+        iApply enter_cond_weakening;auto.
   Qed.
 
   Lemma interp_weakeningEO W C p p' g g' b b' e e' a a' :
@@ -147,7 +147,7 @@ Section fundamental.
     rewrite HpnotO.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     iDestruct "HA" as "[#A %Hpwl_cond]".
-    destruct (is_switcher_entry_point p g' b' e' a'); first done.
+    destruct (is_switcher_entry_point (WSentry p g' b' e' a')); first done.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (stk wstk W') "#Hfuture".

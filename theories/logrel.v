@@ -362,15 +362,29 @@ Section logrel.
     (p : Perm) (g : Locality) (b e : Addr)
     (cstk : CSTK) (wstk : Word)
     (interp : V) : iProp Σ :=
-    (∀ a regs W', ⌜a ∈ₐ [[ b , e ]]⌝
-               → future_world g W W'
-               → ▷ interp_expr interp regs cstk W' C (WCap p g b e a) wstk)%I.
+    (∀ (a : Addr) (W' : WORLD),
+       ⌜a ∈ₐ [[ b , e ]]⌝
+       → future_world g W W'
+       → ▷ interp_expr interp (interp_cont interp cstk) cstk W' C (WCap p g b e a) wstk)%I.
   Global Instance exec_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
-  Proof. unfold exec_cond. solve_proper. Qed.
+  Proof.
+    solve_proper_prepare.
+    do 17 (f_equiv; try done).
+    by (do 3 f_equiv).
+    apply interp_continuation_ne; eauto.
+  Qed.
   Global Instance exec_cond_contractive W C cstk b e g p wstk :
     Contractive (λ interp, exec_cond W C b e g p cstk wstk interp).
-  Proof. solve_contractive. Qed.
+  Proof.
+    intros ????. rewrite /exec_cond.
+    do 6 f_equiv.
+    apply later_contractive.
+    { inversion H. constructor. intros.
+      apply dist_later_lt in H0.
+      apply interp_expr_ne;auto. intros ?.
+      apply interp_continuation_ne;auto. }
+    Qed.
 
   Definition enter_cond
     (W : WORLD) (C : CmptName)
@@ -456,7 +470,7 @@ Section logrel.
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
                 | WSentry p g b e a =>
-                    if is_switcher_entry_point p g b e a
+                    if is_switcher_entry_point w
                     then True
                     else (□ enter_cond W C p g b e a interp)
                 | _ => False

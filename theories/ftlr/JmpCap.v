@@ -93,33 +93,17 @@ Section fundamental.
         - (* case sentry *)
           iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
           simpl; rewrite /enter_cond.
-          destruct (is_switcher_entry_point p0 g0 b0 e0 a0) eqn:His_switcher_call.
+          destruct (is_switcher_entry_point (WSentry p0 g0 b0 e0 a0)) eqn:His_switcher_call.
           + (* This is a switcher entry point: execute the switcher *)
             rewrite /is_switcher_entry_point in His_switcher_call.
-            destruct (decide (p0 = XSRW_)); simplify_eq;
-              [ rewrite bool_decide_eq_true_2 in His_switcher_call; last done
-              | rewrite bool_decide_eq_false_2 in His_switcher_call; done ].
-            destruct (decide (g0 = Local)); simplify_eq;
-              [ rewrite bool_decide_eq_true_2 in His_switcher_call; last done
-              | rewrite bool_decide_eq_false_2 in His_switcher_call; done].
-            simpl in His_switcher_call.
-            destruct (b0 =? b_switcher)%a eqn:Hb0
-            ; rewrite Hb0 in His_switcher_call
-            ; [apply Z.eqb_eq,finz_to_z_eq in Hb0|by cbn in His_switcher_call]
-            ; simplify_eq.
-            destruct (e0 =? e_switcher)%a eqn:He0
-            ; rewrite He0 in His_switcher_call
-            ; [apply Z.eqb_eq,finz_to_z_eq in He0|by cbn in His_switcher_call]
-            ; simplify_eq.
-            destruct ( (a0 =? a_switcher_call)%Z || (a0 =? a_switcher_return)%Z ) eqn:Ha0
-            ; [apply orb_true_iff in Ha0; rewrite !Z.eqb_eq in Ha0|by cbn in His_switcher_call].
+            apply bool_decide_eq_true in His_switcher_call.
             iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
             { destruct ρ;auto;contradiction. }
             iClear "Hmono HmonoV Hinva Hrcond Hwcond Hwsrc Hinv_interp".
             clear dependent p b e a g p' w ρ P rsrc.
             clear Hpft.
             iNext; iIntros "_".
-            destruct Ha0 as [Ha0|Ha0]; apply finz_to_z_eq in Ha0; simplify_eq; clear His_switcher_call.
+            destruct His_switcher_call as [?|?]; simplify_eq.
             * (* We jumped to the switcher-cc-call entry point *)
               iApply (switcher_call_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
             * (* We jumped to the switcher-cc-return entry point *)

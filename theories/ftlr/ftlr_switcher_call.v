@@ -1216,12 +1216,12 @@ Section fundamental.
       solve_addr. solve_addr-.
     - iIntros (wret Hwret). simplify_map_eq.
       iApply fixpoint_interp1_eq. iSimpl.
-      assert (is_switcher_entry_point XSRW_ Local b_switcher e_switcher (a_jalr ^+ 1)%a = true) as ->;[|done].
-      rewrite /is_switcher_entry_point. rewrite bool_decide_true// bool_decide_true// /=.
-      rewrite !Z.eqb_refl /=.
-      rewrite orb_true_iff;simpl. left.
-      rewrite orb_true_iff;simpl. right.
+      assert (is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher (a_jalr ^+ 1)%a) = true) as ->;[|done].
+      rewrite /is_switcher_entry_point.
       pose proof switcher_return_entry_point.
+      rewrite bool_decide_true//.
+      right.
+      f_equal.
       solve_addr.
     - iIntros (r v Hr Hv).
       repeat (rewrite lookup_insert_ne in Hv;[|set_solver+Hr]).
@@ -1242,5 +1242,5 @@ Section fundamental.
       rewrite lookup_union_r;[subst;auto|].
       apply not_elem_of_dom. by rewrite Hisarg_rmap'.
   Qed.
-    
+
 End fundamental.

@@ -377,16 +377,17 @@ Section fundamental.
   Qed.
 
   (* The fundamental theorem implies the exec_cond *)
-  Lemma interp_exec_cond W C p g b e a :
+  Lemma interp_exec_cond W C p g b e a cstk wstk Nswitcher:
     executeAllowed p = true ->
-    interp W C (WCap p g b e a) -∗ exec_cond W C p g b e interp.
+    na_inv logrel_nais Nswitcher switcher_inv ⊢
+    interp W C (WCap p g b e a) -∗ exec_cond W C p g b e cstk wstk interp.
   Proof.
-    iIntros (Hp) "#Hw".
-    iIntros (a0 r W' Hin) "#Hfuture". iModIntro.
+    iIntros (Hp) "#Hinv_switcher #Hw".
+    iIntros (a0 W' Hin) "#Hfuture". iModIntro.
     assert (isO p = false) by (by eapply executeAllowed_nonO).
     destruct g.
     - iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
-      iApply fundamental;eauto.
+      iApply fundamental; eauto.
       iApply interp_weakening.interp_weakeningEO; eauto; try done.
     - iDestruct (interp_monotone with "Hfuture Hw") as "Hw'".
       iApply fundamental;eauto.
@@ -394,75 +395,88 @@ Section fundamental.
   Qed.
 
   (* We can use the above fact to create a special "jump or fail pattern" when jumping to an unknown adversary *)
-
-  Lemma exec_wp W C p g b e a :
+  Lemma exec_wp W C p g b e a cstk wstk Nswitcher :
     isCorrectPC (WCap p g b e a) ->
-    exec_cond W C p g b e interp -∗
-    ∀ r W', future_world g W W' → ▷ (interp_expr interp r W' C (WCap p g b e a)).
+    na_inv logrel_nais Nswitcher switcher_inv ⊢
+    exec_cond W C p g b e cstk wstk interp -∗
+    ∀ W', future_world g W W' → ▷ (interp_expr interp (interp_cont interp cstk) cstk W' C (WCap p g b e a)) wstk.
   Proof.
-    iIntros (Hvpc) "Hexec".
+    iIntros (Hvpc) "#Hinv_switcher Hexec".
     rewrite /exec_cond /enter_cond.
-    iIntros (r W'). rewrite /future_world.
+    iIntros (W'). rewrite /future_world.
     assert (a ∈ₐ[[b,e]])%I as Hin.
     { rewrite /in_range. inversion Hvpc; subst. auto. }
     destruct g.
     - iIntros (Hrelated).
-      iSpecialize ("Hexec" $! a r W' Hin Hrelated).
+      iSpecialize ("Hexec" $! a W' Hin Hrelated).
       iFrame.
     - iIntros (Hrelated).
-      iSpecialize ("Hexec" $! a r W' Hin Hrelated).
+      iSpecialize ("Hexec" $! a W' Hin Hrelated).
       iFrame.
   Qed.
 
   (* updatePcPerm adds a later because of the case of E-capabilities, which
      unfold to ▷ interp_expr *)
-  Lemma interp_updatePcPerm W C w :
-    ⊢ interp W C w -∗ ▷ (∀ regs, interp_expression regs W C (updatePcPerm w)).
-  Proof.
-    iIntros "#Hw".
-    assert ( ( (∃ p g b e a, w = WSentry p g b e a))
-            ∨ updatePcPerm w = w)
-      as [ Hw | ->].
-    {
-      destruct w as [ | [ | ] | | ]; eauto. unfold updatePcPerm.
-      eauto; try naive_solver.
-    }
-    { destruct Hw as (p & g & b & e & a & ->).
-      rewrite fixpoint_interp1_eq /=.
-      iIntros (rmap). iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw".
-      iPoseProof (futureworld_refl g W) as "Hfuture".
-      iSpecialize ("Hw" $! W (futureworld_refl g W)).
-      iNext. iIntros "(HPC & Hr & ?)".
-      iDestruct "Hw" as "[Hw _]".
-      iApply "Hw"; eauto. iFrame.
-    }
-    { iNext. iIntros (rmap). iApply fundamental; eauto. }
-  Qed.
+  (* Lemma interp_updatePcPerm W C w : *)
+  (*   ⊢ interp W C w -∗ ▷ (∀ wstk regs, interp_expression regs W C (updatePcPerm w) wstk). *)
+  (* Proof. *)
+  (*   iIntros "#Hw". *)
+  (*   assert ( ( (∃ p g b e a, w = WSentry p g b e a)) *)
+  (*           ∨ updatePcPerm w = w) *)
+  (*     as [ Hw | ->]. *)
+  (*   { *)
+  (*     destruct w as [ | [ | ] | | ]; eauto. unfold updatePcPerm. *)
+  (*     eauto; try naive_solver. *)
+  (*   } *)
+  (*   { destruct Hw as (p & g & b & e & a & ->). *)
+  (*     rewrite fixpoint_interp1_eq /=. *)
+  (*     iIntros (cstk rmap). iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw". *)
+  (*     iPoseProof (futureworld_refl g W) as "Hfuture". *)
+  (*     iSpecialize ("Hw" $! W (futureworld_refl g W)). *)
+  (*     iNext. iIntros "(HPC & Hr & ?)". *)
+  (*     iDestruct "Hw" as "[Hw _]". *)
+  (*     iApply "Hw"; eauto. iFrame. *)
+  (*   } *)
+  (*   { iNext. iIntros (rmap). iApply fundamental; eauto. } *)
+  (* Qed. *)
 
-  Lemma jmp_or_fail_spec W C w φ :
+  Lemma jmp_or_fail_spec W C w φ cstk wstk Nswitcher :
+    na_inv logrel_nais Nswitcher switcher_inv ⊢
     (interp W C w
      -∗ (if decide (isCorrectPC (updatePcPerm w))
-         then (∃ p g b e a,
-                  ⌜w = WCap p g b e a ∨ w = WSentry p g b e a ⌝
-                  ∗ □ ∀ regs W',
-                 future_world g W W'
-                 → ▷ (interp_expr interp regs W' C) (updatePcPerm w))
+         then
+           (∃ p g b e a,
+              if is_switcher_entry_point w
+              then True
+              else
+                  (⌜w = WCap p g b e a ∨ w = WSentry p g b e a ⌝
+                   ∗ □ ∀ W', future_world g W W'
+                             → ▷ (interp_expr interp (interp_cont interp cstk) cstk W' C) (updatePcPerm w) wstk))
          else φ FailedV ∗ PC ↦ᵣ updatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.
-    iIntros "#Hw".
+    iIntros "#Hinv_switcher #Hw".
     destruct (decide (isCorrectPC (updatePcPerm w))).
     - inversion i.
       destruct w;inv H.
       + destruct p; cbn in * ; simplify_eq.
-        iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
-        iDestruct (interp_exec_cond with "Hw") as "Hexec";[auto|].
+        iExists _,_,_,_,_.
+        replace (is_switcher_entry_point _) with false.
+        2: { rewrite /is_switcher_entry_point.
+             symmetry.
+             rewrite bool_decide_eq_false.
+             intro Hcontra; destruct Hcontra; simplify_eq.
+        }
+        iSplit;[eauto|]. iModIntro.
+        iDestruct (interp_exec_cond with "[$] [$Hw]") as "Hexec";[auto|].
         iApply exec_wp;auto.
       + destruct p0; cbn in * ; simplify_eq.
-        * iExists _,_,_,_,_; iSplit;[eauto|]. iModIntro.
+        * iExists _,_,_,_,_.
           rewrite /= fixpoint_interp1_eq /=.
+          destruct (is_switcher_entry_point (WSentry (BPerm rx w dl dro) g0 b0 e0 a0)) eqn:Hsentry; first done.
+          iSplit;[eauto|]. iModIntro.
           iDestruct "Hw" as "#Hw".
-          iIntros (regs W') "Hfuture".
+          iIntros (W') "Hfuture".
           iSpecialize ("Hw" with "Hfuture").
           iDestruct "Hw" as "[Hw _]".
           iExact "Hw".
