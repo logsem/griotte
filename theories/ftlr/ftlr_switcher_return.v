@@ -57,7 +57,6 @@ Section fundamental.
       ∗ ▷ ([∗ list] '(p,φ,ρ)  ∈ l, φ (W, C, (WInt 0)))
 
       ∗ ▷ ([∗ list] '(p,φ,ρ) ∈ l, rcond (safeUC φ) C p interp)
-      (* ∗ ▷ ([∗ list] '(p,φ,ρ) ∈ l, wcond (safeUC φ) C interp) *)
       ∗ ([∗ list] a ; '(p,φ,ρ) ∈ la ; l, rel C a p φ)
       ∗ ([∗ list] '(p,φ,ρ) ∈ l, ⌜ρ ≠ Revoked⌝)
       ∗ ([∗ list] '(p,φ,ρ) ∈ l, ⌜isO p = false⌝)
@@ -183,39 +182,6 @@ Section fundamental.
       iApply (IHl with "Hl"); auto.
   Qed.
 
-  (* Lemma region_open_list_interp (W : WORLD) (C : CmptName) *)
-  (*   (la' : list Addr) (p : Perm) (g : Locality) (b e a : Addr) : *)
-  (*   let la := finz.seq_between b e in *)
-  (*   readAllowed p = true → *)
-  (*   la ## la' -> *)
-
-  (*   interp W C (WCap p g b e a) *)
-  (*   ∗ open_region_many W C la' *)
-  (*   ∗ sts_full_world W C -∗ *)
-
-  (*   ∃ (lv : list Word) *)
-  (*     (l : list (Perm * (WORLD * CmptName * Word → iProp Σ) * region_type)), *)
-  (*     open_region_many W C (la++la') *)
-  (*     ∗ sts_full_world W C *)
-  (*     ∗ ([∗ list] a ; '(p,φ,ρ) ∈ la ; l, sts_state_std C a ρ) *)
-  (*     ∗ ([∗ list] a ; v ∈ la ; lv, a ↦ₐ v) *)
-  (*     ∗ ▷ ([∗ list] '(p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C φ p v ρ) *)
-  (*     ∗ ▷ ([∗ list] '(p,φ,ρ) ; v ∈ l ; lv, φ (W, C, v)) *)
-  (*     ∗ ▷ ([∗ list] '(p,φ,ρ) ∈ l, rcond (safeUC φ) C p interp) *)
-  (*     ∗ ([∗ list] a ; '(p,φ,ρ) ∈ la ; l, rel C a p φ) *)
-  (*     ∗ ([∗ list] '(p,φ,ρ) ∈ l, ⌜ρ ≠ Revoked⌝) *)
-  (*     ∗ ([∗ list] '(p,φ,ρ) ∈ l, ⌜isO p = false⌝) *)
-  (*     ∗ ⌜ length l = length la ⌝ *)
-  (*     ∗ ⌜ length lv = length la ⌝ *)
-  (* . *)
-  (* Proof. *)
-  (*   iIntros (la Hp Hdis). *)
-  (*   iApply region_open_list_interp_gen; eauto; subst la. *)
-  (*   - apply finz_seq_between_NoDup. *)
-  (*   - apply Forall_forall ; intros. *)
-  (*     by apply elem_of_finz_seq_between. *)
-  (* Qed. *)
-
   Definition closing_resources W C a w : iProp Σ :=
     ∃ φ p ρ,
       (sts_state_std C a ρ
@@ -238,12 +204,13 @@ Section fundamental.
     destruct dl,dro; by iApply "Hrcond".
   Qed.
 
-  Lemma switcher_return_ftlr (W : WORLD) (C : CmptName) (rmap : leibnizO Reg)
+  Definition specification_switcher_entry_point
+    (W : WORLD) (C : CmptName) (rmap : leibnizO Reg)
     (cstk : CSTK) (wstk : Word)
     (Nswitcher : namespace)
-    :
-    (∀ x, is_Some (rmap !! x)) ->
-    rmap !! csp = Some wstk ->
+    (a_switcher_entry_point : Addr) :=
+    (∀ x, is_Some (rmap !! x)) →
+    rmap !! csp = Some wstk →
     ftlr_IH -∗
     (∀ (r : RegName) (v : leibnizO Word) , ⌜r ≠ PC⌝ → ⌜rmap !! r = Some v⌝ → interp W C v) -∗
     na_inv logrel_nais Nswitcher switcher_inv -∗
@@ -251,12 +218,21 @@ Section fundamental.
     sts_full_world W C -∗
     na_own logrel_nais ⊤ -∗
     cstack_frag cstk -∗
-    ([∗ map] k↦y ∈ <[PC:=WCap XSRW_ Local b_switcher e_switcher a_switcher_return]> rmap , k ↦ᵣ y) -∗
+    ([∗ map] k↦y ∈ <[PC:=WCap XSRW_ Local b_switcher e_switcher a_switcher_entry_point]> rmap , k ↦ᵣ y) -∗
     region W C -∗
-    ▷ (£ 1 -∗ WP Seq (Instr Executable) {{ v0, ⌜v0 = HaltedV⌝ → na_own logrel_nais ⊤ }}).
+    WP Seq (Instr Executable) {{ v0, ⌜v0 = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+
+  Lemma switcher_return_ftlr
+    (W : WORLD) (C : CmptName) (rmap : leibnizO Reg)
+    (cstk : CSTK) (wstk : Word)
+    (Nswitcher : namespace)
+    :
+    (forall cstk wstk rmap, specification_switcher_entry_point W C rmap cstk wstk Nswitcher a_switcher_call) ->
+    specification_switcher_entry_point W C rmap cstk wstk Nswitcher a_switcher_return.
   Proof.
+    intros Hspec_call.
+    iLöb as "IH'" forall (rmap cstk wstk).
     iIntros (Hfull_rmap Hwstk) "#IH #Hrmap_interp #Hinv_switcher Hcont_K Hsts Hna Hcstk Hrmap Hr".
-    iNext; iIntros "_".
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
@@ -449,9 +425,9 @@ Section fundamental.
     {
       destruct is_untrusted_caller; cycle 1.
       * iExists wcs2, wcs3, wret, wcgp0.
-        rewrite region_open_nil; iFrame "Hr Hsts".
+        iEval (rewrite region_open_nil) in "Hr"; iFrame "Hr Hsts".
         by iDestruct "Hcframe_interp" as "($&$&$&$)".
-      * rewrite region_open_nil.
+      * iEval (rewrite region_open_nil) in "Hr".
         iDestruct (region_open_list_interp_gen _ _ (finz.seq_between a_stk (a_stk^+4)%a)
                     with "[$Hinterp_callee_wstk $Hr $Hsts]")
           as (lv l
@@ -624,7 +600,6 @@ Section fundamental.
     iInstr "Hcode" with "Hlc".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-    Set Nested Proofs Allowed.
     iHide "Hcode" as hcode.
     rewrite (region_addrs_zeroes_split _ (a_stk ^+ 4)%a); last solve_addr+Ha_stk4 Hb_a4 He_a1.
     rewrite (region_pointsto_split _ _ (a_stk ^+ 4)%a)
@@ -950,9 +925,99 @@ Section fundamental.
       + (* wret was a sentry capability: apply the def of safe for sentry *)
         iAssert (interp W C (WSentry p g b e a)) as "#Hinterp_wret'" ; first done.
         iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wstk2".
-        destruct ( is_switcher_entry_point p g b e a ) eqn:Hwret_is_switcher_entry_point.
+        destruct ( is_switcher_entry_point p g b e a ) eqn:His_switcher_call.
         (* The caller had changed the `wret` into one of the switcher's entry point.... *)
-        * admit. (* TODO I need an inductive case *)
+        *
+
+          rewrite /is_switcher_entry_point in His_switcher_call.
+          destruct (decide (p = XSRW_)); simplify_eq;
+            [ rewrite bool_decide_eq_true_2 in His_switcher_call; last done
+            | rewrite bool_decide_eq_false_2 in His_switcher_call; done ].
+          destruct (decide (g = Local)); simplify_eq;
+            [ rewrite bool_decide_eq_true_2 in His_switcher_call; last done
+            | rewrite bool_decide_eq_false_2 in His_switcher_call; done].
+          simpl in His_switcher_call.
+          destruct (b =? b_switcher)%a eqn:Hb
+          ; rewrite Hb in His_switcher_call
+          ; [apply Z.eqb_eq,finz_to_z_eq in Hb|by cbn in His_switcher_call]
+          ; simplify_eq.
+          destruct (e =? e_switcher)%a eqn:He
+          ; rewrite He in His_switcher_call
+          ; [apply Z.eqb_eq,finz_to_z_eq in He|by cbn in His_switcher_call]
+          ; simplify_eq.
+          destruct ( (a =? a_switcher_call)%Z || (a =? a_switcher_return)%Z ) eqn:Ha
+          ; [apply orb_true_iff in Ha; rewrite !Z.eqb_eq in Ha|by cbn in His_switcher_call].
+          destruct Ha as [Ha|Ha]; apply finz_to_z_eq in Ha; simplify_eq; clear His_switcher_call.
+          ** (* We jumped to the switcher-cc-call entry point *)
+            rewrite /specification_switcher_entry_point in Hspec_call.
+            iApply (Hspec_call with "[$] [] [$] [$] [$] [$] [$] [$] [$]").
+            {
+              intros r.
+              clear -Hdom_rmap' Harg_rmap'.
+              destruct (decide (r = PC)); simplify_map_eq; first done.
+              destruct (decide (r = csp)); simplify_map_eq; first done.
+              destruct (decide (r = cs1)); simplify_map_eq; first done.
+              destruct (decide (r = cs0)); simplify_map_eq; first done.
+              destruct (decide (r = ca1)); simplify_map_eq; first done.
+              destruct (decide (r = ca0)); simplify_map_eq; first done.
+              destruct (decide (r = cgp)); simplify_map_eq; first done.
+              destruct (decide (r = cra)); simplify_map_eq; first done.
+              apply elem_of_dom.
+              rewrite Hdom_rmap' Harg_rmap'.
+              pose proof all_registers_s_correct.
+              set_solver.
+            }
+            { clear -Hdom_rmap' Harg_rmap'.
+              by simplify_map_eq.
+            }
+            {
+              iIntros (r rv HrPC Hr).
+              destruct (decide (r = csp)); simplify_map_eq; first done.
+              destruct (decide (r = cs1)); simplify_map_eq; first done.
+              destruct (decide (r = cs0)); simplify_map_eq; first done.
+              destruct (decide (r = ca1)); simplify_map_eq; first done.
+              destruct (decide (r = ca0)); simplify_map_eq; first done.
+              destruct (decide (r = cgp)); simplify_map_eq; first done.
+              destruct (decide (r = cra)); simplify_map_eq; first done.
+              iApply "Hrmap_interp'"; eauto.
+              iPureIntro.
+              rewrite lookup_delete_ne; eauto.
+            }
+          ** (* We jumped to the switcher-cc-return entry point *)
+            iApply ("IH'" with "[] [] [$] [] [$] [$] [$] [$] [$] [$] [$]").
+            {
+              iIntros (r); iPureIntro.
+              clear -Hdom_rmap' Harg_rmap'.
+              destruct (decide (r = PC)); simplify_map_eq; first done.
+              destruct (decide (r = csp)); simplify_map_eq; first done.
+              destruct (decide (r = cs1)); simplify_map_eq; first done.
+              destruct (decide (r = cs0)); simplify_map_eq; first done.
+              destruct (decide (r = ca1)); simplify_map_eq; first done.
+              destruct (decide (r = ca0)); simplify_map_eq; first done.
+              destruct (decide (r = cgp)); simplify_map_eq; first done.
+              destruct (decide (r = cra)); simplify_map_eq; first done.
+              apply elem_of_dom.
+              rewrite Hdom_rmap' Harg_rmap'.
+              pose proof all_registers_s_correct.
+              set_solver.
+            }
+            { iPureIntro.
+              clear -Hdom_rmap' Harg_rmap'.
+              by simplify_map_eq.
+            }
+            {
+              iIntros (r rv HrPC Hr).
+              destruct (decide (r = csp)); simplify_map_eq; first done.
+              destruct (decide (r = cs1)); simplify_map_eq; first done.
+              destruct (decide (r = cs0)); simplify_map_eq; first done.
+              destruct (decide (r = ca1)); simplify_map_eq; first done.
+              destruct (decide (r = ca0)); simplify_map_eq; first done.
+              destruct (decide (r = cgp)); simplify_map_eq; first done.
+              destruct (decide (r = cra)); simplify_map_eq; first done.
+              iApply "Hrmap_interp'"; eauto.
+              iPureIntro.
+              rewrite lookup_delete_ne; eauto.
+            }
         * iDestruct "Hinterp_wstk2" as "#Hinterp_wret".
           rewrite /enter_cond.
           iAssert (future_world g W W) as "-#Hfuture".
@@ -1003,8 +1068,6 @@ Section fundamental.
                "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
       $Hrmap $Hr $Hsts $Hcont_K $Hcstk_frag $Hna]").
       iPureIntro;rewrite Harg_rmap'; set_solver.
-
-  Admitted.
-
+  Qed.
 
 End fundamental.
