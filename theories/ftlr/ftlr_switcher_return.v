@@ -626,7 +626,18 @@ Section fundamental.
       as "Hr".
     { apply finz_seq_between_NoDup. }
     { auto. }
-    { admit. }
+    { destruct is_untrusted_caller; last set_solver+.
+      clear.
+      assert (a_stk ∉ finz.seq_between (a_stk ^+ 4)%a e_stk)
+        by (by apply not_elem_of_finz_seq_between; solve_addr+).
+      assert ( (a_stk ^+ 1)%a ∉ finz.seq_between (a_stk ^+ 4)%a e_stk)
+        by (by apply not_elem_of_finz_seq_between; solve_addr+).
+      assert ( (a_stk ^+ 2)%a ∉ finz.seq_between (a_stk ^+ 4)%a e_stk)
+        by (by apply not_elem_of_finz_seq_between; solve_addr+).
+      assert ( (a_stk ^+ 3)%a ∉ finz.seq_between (a_stk ^+ 4)%a e_stk)
+        by (by apply not_elem_of_finz_seq_between; solve_addr+).
+      set_solver.
+    }
     { by rewrite Hlen_lv. }
     { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
 
@@ -670,7 +681,9 @@ Section fundamental.
       iDestruct "Hwstk0"
         as (φ0 p0 ρ0) "(Hstd0 & Hφ0 & Hmono0 & Hφ0' & Hmono0' & Hrcond0 & Hrel0 & %Hρ0 & Hp0 & %Hpers0)".
       iDestruct (region_close_next with "[$Hstd0 $Hr $Hastk $Hp0 $Hmono0' $Hφ0' $Hrel0]") as "Hr"; auto.
-      { admit. }
+      { repeat (apply not_elem_of_cons; split; first solve_addr+Ha_stk4).
+        set_solver+.
+      }
 
       (* close Hastk +1 *)
       rewrite (region_pointsto_cons _ (a_stk ^+ 2)%a); [ | solve_addr+Ha_stk4 | solve_addr+Ha_stk4].
@@ -678,7 +691,9 @@ Section fundamental.
       iDestruct "Hwstk1"
         as (φ1 p1 ρ1) "(Hstd1 & Hφ1 & Hmono1 & Hφ1' & Hmono1' & Hrcond1 & Hrel1 & %Hρ1 & Hp1 & %Hpers1)".
       iDestruct (region_close_next with "[$Hstd1 $Hr $Hastk $Hp1 $Hmono1' $Hφ1' $Hrel1]") as "Hr"; auto.
-      { admit. }
+      { repeat (apply not_elem_of_cons; split; first solve_addr+Ha_stk4).
+        set_solver+.
+      }
 
       (* close Hastk +2 *)
       rewrite (region_pointsto_cons _ (a_stk ^+ 3)%a); [ | solve_addr+Ha_stk4 | solve_addr+Ha_stk4].
@@ -686,17 +701,18 @@ Section fundamental.
       iDestruct "Hwstk2"
         as (φ2 p2 ρ2) "(Hstd2 & Hφ2 & Hmono2 & Hφ2' & Hmono2' & Hrcond2 & Hrel2 & %Hρ2 & Hp2 & %Hpers2)".
       iDestruct (region_close_next with "[$Hstd2 $Hr $Hastk $Hp2 $Hmono2' $Hφ2' $Hrel2]") as "Hr"; auto.
-      { admit. }
+      { repeat (apply not_elem_of_cons; split; first solve_addr+Ha_stk4).
+        set_solver+.
+      }
 
-    (* close Hastk +3 *)
-    rewrite (region_pointsto_cons _ (a_stk ^+ 4)%a); [ | solve_addr+Ha_stk4 | solve_addr+Ha_stk4].
-    iDestruct "Hstk_register_save" as "(Hastk & Hstk_register_save)".
-    iDestruct "Hwstk3"
-      as (φ3 p3 ρ3) "(Hstd3 & Hφ3 & Hmono3 & Hφ3' & Hmono3' & Hrcond3 & Hrel3 & %Hρ3 & Hp3 & %Hpers3)".
-    iDestruct (region_close_next with "[$Hstd3 $Hr $Hastk $Hp3 $Hmono3' $Hφ3' $Hrel3]") as "Hr"; auto.
-    { admit. }
-
-    rewrite -region_open_nil; iFrame.
+      (* close Hastk +3 *)
+      rewrite (region_pointsto_cons _ (a_stk ^+ 4)%a); [ | solve_addr+Ha_stk4 | solve_addr+Ha_stk4].
+      iDestruct "Hstk_register_save" as "(Hastk & Hstk_register_save)".
+      iDestruct "Hwstk3"
+        as (φ3 p3 ρ3) "(Hstd3 & Hφ3 & Hmono3 & Hφ3' & Hmono3' & Hrcond3 & Hrel3 & %Hρ3 & Hp3 & %Hpers3)".
+      iDestruct (region_close_next with "[$Hstd3 $Hr $Hastk $Hp3 $Hmono3' $Hφ3' $Hrel3]") as "Hr"; auto.
+      { set_solver+. }
+      rewrite -region_open_nil; iFrame.
     }
 
     (* Update the call-stack: depop the topmost frame *)
@@ -825,12 +841,28 @@ Section fundamental.
       }
       iDestruct (big_sepM_insert_delete with "[$Hrmap $HPC]") as "Hrmap".
 
+      rewrite -(insert_id (<[PC:=updatePcPerm wastk2]> _) PC (updatePcPerm wastk2))
+      ; last (clear;simplify_map_eq; done).
       destruct wastk2 as [ z | [p g b e a|]  | p g b e a | ot sb ] ; iEval (cbn) in "Hrmap".
       all: cbn in HcorrectWret.
       all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the IH *)
         iApply ("IH" with "[] [] [$] [] [$Hr] [$Hsts] [$Hcont_K] [$Hna] [$Hcstk_frag] [$]").
-        { admit. (* easy *) }
+        { iIntros (r); iPureIntro.
+          clear -Hdom_rmap' Harg_rmap'.
+          destruct (decide (r = PC)); simplify_map_eq; first done.
+          destruct (decide (r = csp)); simplify_map_eq; first done.
+          destruct (decide (r = cs1)); simplify_map_eq; first done.
+          destruct (decide (r = cs0)); simplify_map_eq; first done.
+          destruct (decide (r = ca1)); simplify_map_eq; first done.
+          destruct (decide (r = ca0)); simplify_map_eq; first done.
+          destruct (decide (r = cgp)); simplify_map_eq; first done.
+          destruct (decide (r = cra)); simplify_map_eq; first done.
+          apply elem_of_dom.
+          rewrite Hdom_rmap' Harg_rmap'.
+          pose proof all_registers_s_correct.
+          set_solver.
+        }
         {
           iIntros (r rv HrPC Hr).
           destruct (decide (r = csp)); simplify_map_eq; first done.
@@ -865,9 +897,21 @@ Section fundamental.
           iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hr $Hsts $Hcstk_frag $Hna]") as "HA"; eauto.
           iSplitR.
           { iSplit.
-            - admit. (* easy *)
-            -
-              iIntros (r rv HrPC Hr).
+            - iIntros (r); iPureIntro.
+              clear -Hdom_rmap' Harg_rmap'.
+              destruct (decide (r = PC)); simplify_map_eq; first done.
+              destruct (decide (r = csp)); simplify_map_eq; first done.
+              destruct (decide (r = cs1)); simplify_map_eq; first done.
+              destruct (decide (r = cs0)); simplify_map_eq; first done.
+              destruct (decide (r = ca1)); simplify_map_eq; first done.
+              destruct (decide (r = ca0)); simplify_map_eq; first done.
+              destruct (decide (r = cgp)); simplify_map_eq; first done.
+              destruct (decide (r = cra)); simplify_map_eq; first done.
+              apply elem_of_dom.
+              rewrite Hdom_rmap' Harg_rmap'.
+              pose proof all_registers_s_correct.
+              set_solver.
+            - iIntros (r rv HrPC Hr).
               destruct (decide (r = csp)); simplify_map_eq; first done.
               destruct (decide (r = cs1)); simplify_map_eq; first done.
               destruct (decide (r = cs0)); simplify_map_eq; first done.
