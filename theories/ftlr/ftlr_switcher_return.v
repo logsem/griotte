@@ -167,21 +167,6 @@ Section fundamental.
       iDestruct (IHla with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hrevoked $Hp]") as "IH"; eauto.
   Qed.
 
-  Lemma big_opL_to_L2 {A : Type} (ϕ : A -> Word -> iProp Σ) (l : list A) (l' : list Word) :
-    length l = length l' ->
-    Forall (fun y => y = WInt 0) l' ->
-    ([∗ list] x ∈ l, ϕ x (WInt 0)) ⊢ ([∗ list] x;v ∈ l;l', ϕ x v).
-  Proof.
-    generalize dependent l'.
-    induction l; iIntros (l' Hlen Hl') "Hl".
-    - destruct l' as [|w l']; done.
-    - destruct l' as [|w l']; cbn in Hlen; simplify_eq.
-      cbn.
-      apply Forall_cons in Hl'; destruct Hl' as [-> Hl'].
-      iDestruct "Hl" as "[$ Hl]".
-      iApply (IHl with "Hl"); auto.
-  Qed.
-
   Definition closing_resources W C a w : iProp Σ :=
     ∃ φ p ρ,
       (sts_state_std C a ρ
@@ -203,24 +188,6 @@ Section fundamental.
     destruct p.
     destruct dl,dro; by iApply "Hrcond".
   Qed.
-
-  Definition specification_switcher_entry_point
-    (W : WORLD) (C : CmptName) (rmap : leibnizO Reg)
-    (cstk : CSTK) (wstk : Word)
-    (Nswitcher : namespace)
-    (a_switcher_entry_point : Addr) :=
-    (∀ x, is_Some (rmap !! x)) →
-    rmap !! csp = Some wstk →
-    ftlr_IH -∗
-    (∀ (r : RegName) (v : leibnizO Word) , ⌜r ≠ PC⌝ → ⌜rmap !! r = Some v⌝ → interp W C v) -∗
-    na_inv logrel_nais Nswitcher switcher_inv -∗
-    interp_continuation cstk W C -∗
-    sts_full_world W C -∗
-    na_own logrel_nais ⊤ -∗
-    cstack_frag cstk -∗
-    ([∗ map] k↦y ∈ <[PC:=WCap XSRW_ Local b_switcher e_switcher a_switcher_entry_point]> rmap , k ↦ᵣ y) -∗
-    region W C -∗
-    WP Seq (Instr Executable) {{ v0, ⌜v0 = HaltedV⌝ → na_own logrel_nais ⊤ }}.
 
   Lemma switcher_return_ftlr
     (W : WORLD) (C : CmptName) (rmap : leibnizO Reg)
