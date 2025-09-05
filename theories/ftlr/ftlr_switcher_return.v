@@ -588,7 +588,7 @@ Section fundamental.
     iAssert ([∗ list] '(_, φ, _);v ∈ l;lv', φ (W, C, v))%I with "[Hφ']" as "Hφ'".
     {
       iClear "#"; clear -Hlen_lv' Hlv'.
-      iApply (big_opL_to_L2 (fun '(p,φ,ρ) w => φ (W, C, w)) l lv'); auto.
+      iApply (big_opL_to_L2 (fun '(p,φ,ρ) w => φ (W, C, w)) (WInt 0) l lv'); auto.
       iStopProof.
       simpl.
       clear lv' Hlen_lv' Hlv'.
@@ -600,7 +600,7 @@ Section fundamental.
     iAssert ([∗ list] '(p, φ, ρ);v ∈ l;lv', monotonicity_guarantees_region C φ p v ρ)%I with "[Hmono']" as "Hmono'".
     {
       iClear "#"; clear -Hlen_lv' Hlv'.
-      iApply (big_opL_to_L2 (fun '(p,φ,ρ) w => monotonicity_guarantees_region C φ p w ρ) l lv'); auto.
+      iApply (big_opL_to_L2 (fun '(p,φ,ρ) w => monotonicity_guarantees_region C φ p w ρ) (WInt 0) l lv'); auto.
       iStopProof.
       simpl.
       clear lv' Hlen_lv' Hlv'.

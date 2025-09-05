@@ -42,7 +42,7 @@ Proof.
     + iFrame. iApply ("IH" $! l2 H4 H1 with "B"); auto.
 Qed.
 
-Lemma big_opL_to_L2 (PROP : bi) (A B : Type) (ϕ : A -> B -> PROP) (w : B) (l : list A) (l' : list B) :
+Lemma big_opL_to_L2 {Σ : gFunctors} {A B: Type} (ϕ : A -> B -> iProp Σ) (w : B) (l : list A) (l' : list B) :
   length l = length l' ->
   Forall (fun y => y = w) l' ->
   ([∗ list] x ∈ l, ϕ x w) ⊢ ([∗ list] x;v ∈ l;l', ϕ x v).

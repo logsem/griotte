@@ -357,20 +357,20 @@ Section logrel.
   Proof. solve_contractive. Qed.
 
 
-  (* Definition exec_cond *)
-  (*   (stk : STK) *)
-  (*   (W : WORLD) (C : CmptName) *)
-  (*   (p : Perm) (g : Locality) (b e : Addr) *)
-  (*   (interp : D) : iProp Σ := *)
-  (*   (∀ a regs W', ⌜a ∈ₐ [[ b , e ]]⌝ *)
-  (*              → future_world g W W' *)
-  (*              → ▷ interp_expr interp regs stk W' C (WCap p g b e a))%I. *)
-  (* Global Instance exec_cond_ne n : *)
-  (*   Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond. *)
-  (* Proof. unfold exec_cond. solve_proper. Qed. *)
-  (* Global Instance exec_cond_contractive W C b e g p : *)
-  (*   Contractive (λ interp, exec_cond W C b e g p interp). *)
-  (* Proof. solve_contractive. Qed. *)
+  Definition exec_cond
+    (W : WORLD) (C : CmptName)
+    (p : Perm) (g : Locality) (b e : Addr)
+    (cstk : CSTK) (wstk : Word)
+    (interp : V) : iProp Σ :=
+    (∀ a regs W', ⌜a ∈ₐ [[ b , e ]]⌝
+               → future_world g W W'
+               → ▷ interp_expr interp regs cstk W' C (WCap p g b e a) wstk)%I.
+  Global Instance exec_cond_ne n :
+    Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
+  Proof. unfold exec_cond. solve_proper. Qed.
+  Global Instance exec_cond_contractive W C cstk b e g p wstk :
+    Contractive (λ interp, exec_cond W C b e g p cstk wstk interp).
+  Proof. solve_contractive. Qed.
 
   Definition enter_cond
     (W : WORLD) (C : CmptName)

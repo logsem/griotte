@@ -1,7 +1,7 @@
-From cap_machine.ftlr Require Export Jmp Jnz Mov Load Store BinOp Restrict Subseg Get Lea Seal UnSeal ReadSR WriteSR.
-(* Jmp Jnz Jalr Mov Load Store BinOp Restrict *)
-(*   Subseg Get Lea Seal UnSeal ReadSR WriteSR. *)
-(* From cap_machine.ftlr Require Export JmpCap. *)
+From cap_machine.ftlr Require Export
+  Jmp Jnz Jalr Mov Load Store BinOp Restrict
+  Subseg Get Lea Seal UnSeal ReadSR WriteSR.
+From cap_machine.ftlr Require Export JmpCap.
 From cap_machine.ftlr Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
@@ -157,21 +157,19 @@ Section fundamental.
                [$Hr] [$Hstate] [$Ha] [$HPC] [Hmreg]")
       ;eauto.
     + (* Jalr *)
-      (* iApply (jalr_case with *)
-      (*          "[$IH] [$Hinv_interp] [$Hreg] [$Hrela] *)
-      (*          [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV] *)
-      (*          [$Hw] [$Hsts] [$Htframe] [$Hown] [$Hr] [$Hstate] *)
-      (*          [$Ha] [$HPC] [$Hmreg]") *)
-    (* ;eauto. *)
-      admit.
+      iApply (jalr_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hcont] [$Hsts] [$Hown] [$Hframe]
+               [$Hr] [$Hstate] [$Ha] [$HPC] [Hmreg]")
+      ;eauto.
     + (* JmpCap *)
-      (* iApply (jmpcap_case with *)
-      (*          "[$IH] [$Hinv_interp] [$Hreg] [$Hrela] *)
-      (*          [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV] *)
-      (*          [$Hw] [$Hsts] [$Htframe] [$Hown] [$Hr] [$Hstate] *)
-      (*          [$Ha] [$HPC] [$Hmreg]") *)
-    (* ;eauto. *)
-      admit.
+      iApply (jmpcap_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
+               [$Hw] [$Hcont] [$Hsts] [$Hown] [$Hframe]
+               [$Hr] [$Hstate] [$Ha] [$HPC] [Hmreg]")
+      ;eauto.
     + (* Mov *)
       iApply (mov_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
@@ -361,7 +359,7 @@ Section fundamental.
       iApply wp_pure_step_later; auto; iNext ; iIntros "_".
       iApply wp_value; auto.
       Unshelve. rewrite /persistent_cond in Hperscond_P''; apply _.
-  Admitted.
+  Qed.
 
   Theorem fundamental W C w wstk regs Nswitcher :
     na_inv logrel_nais Nswitcher switcher_inv ⊢ interp W C w -∗ interp_expression regs W C w wstk.
