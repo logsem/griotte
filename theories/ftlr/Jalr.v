@@ -116,8 +116,56 @@ Section fundamental.
         iDestruct "Hwsrc" as "#Hinterp_src".
         iAssert (future_world g0 W W) as "Hfuture".
         { iApply futureworld_refl. }
-        destruct (is_switcher_entry_point p0 g0 b0 e0 a0).
-        - admit. (* TODO *)
+          destruct (is_switcher_entry_point p0 g0 b0 e0 a0) eqn:His_switcher_call.
+        - (* This is a switcher entry point: execute the switcher *)
+          rewrite /is_switcher_entry_point in His_switcher_call.
+          destruct (decide (p0 = XSRW_)); simplify_eq;
+            [ rewrite bool_decide_eq_true_2 in His_switcher_call; last done
+            | rewrite bool_decide_eq_false_2 in His_switcher_call; done ].
+          destruct (decide (g0 = Local)); simplify_eq;
+            [ rewrite bool_decide_eq_true_2 in His_switcher_call; last done
+            | rewrite bool_decide_eq_false_2 in His_switcher_call; done].
+          simpl in His_switcher_call.
+          destruct (b0 =? b_switcher)%a eqn:Hb0
+          ; rewrite Hb0 in His_switcher_call
+          ; [apply Z.eqb_eq,finz_to_z_eq in Hb0|by cbn in His_switcher_call]
+          ; simplify_eq.
+          destruct (e0 =? e_switcher)%a eqn:He0
+          ; rewrite He0 in His_switcher_call
+          ; [apply Z.eqb_eq,finz_to_z_eq in He0|by cbn in His_switcher_call]
+          ; simplify_eq.
+          destruct ( (a0 =? a_switcher_call)%Z || (a0 =? a_switcher_return)%Z ) eqn:Ha0
+          ; [apply orb_true_iff in Ha0; rewrite !Z.eqb_eq in Ha0|by cbn in His_switcher_call].
+          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+          { destruct ρ;auto;contradiction. }
+          iClear "Hmono HmonoV Hinva Hrcond Hwcond Hinv_interp".
+          (* clear dependent p b e a g p' w ρ P rsrc. *)
+          clear Hpft.
+          iNext; iIntros "_".
+          rewrite insert_insert insert_commute //=.
+          set (wstk' := (if (decide (rdst = csp)) then WSentry p g b e pc_a' else wstk)).
+          destruct Ha0 as [Ha0|Ha0]; apply finz_to_z_eq in Ha0; simplify_eq; clear His_switcher_call.
+          + (* We jumped to the switcher-cc-call entry point *)
+            iApply (switcher_call_ftlr _ _ _ _ wstk' with "[$IH] [Hreg] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+            * intros.
+              destruct (decide (x = rdst)); simplify_map_eq; first done.
+              apply Hsome.
+            * subst wstk'.
+              destruct (decide (rdst = csp)); simplify_map_eq; done.
+            * iIntros (r v HrPC Hr).
+              destruct (decide (r = rdst)); simplify_map_eq; first done.
+              iApply "Hreg"; auto.
+          + (* We jumped to the switcher-cc-return entry point *)
+            iApply (switcher_return_ftlr _ _ _ _ wstk' with "[$IH] [Hreg] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+            * intros; apply switcher_call_ftlr.
+            * intros.
+              destruct (decide (x = rdst)); simplify_map_eq; first done.
+              apply Hsome.
+            * subst wstk'.
+              destruct (decide (rdst = csp)); simplify_map_eq; done.
+            * iIntros (r v HrPC Hr).
+              destruct (decide (r = rdst)); simplify_map_eq; first done.
+              iApply "Hreg"; auto.
         - iSpecialize ("Hinterp_src" with "Hfuture").
           iDestruct "Hinterp_src" as "[Hinterp_src _]".
           iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
