@@ -982,7 +982,14 @@ Section fundamental.
         specialize (Hfull_rmap i) as [x Hx].
         exists x. split;auto.
       - intros [? [? ?] ]. auto. }
-    { rewrite /encode_entry_point.  bitblast. solve_addr. lia. }
+    { replace ( (Z.land (encode_entry_point nargs off) 7)) with nargs. lia.
+      rewrite /encode_entry_point. clear -H13.
+      rewrite Z.land_lor_distr_l -Z.land_assoc Z.land_diag -Z.land_lor_distr_l.
+      
+
+      
+      replace ( (encode_entry_point nargs off ≫ 3)%Z) with off.
+    }
     
 
     
