@@ -241,14 +241,63 @@ Section fundamental.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode" with "Hlc".
 
+
+    (* Load csp ctp *)
+    destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (rules_Load.wp_load_fail_not_withinbounds with "[HPC Hi Hctp Hcsp]")
+      ; try iFrame
+      ; try solve_pure.
+      { rewrite /withinBounds.
+        apply andb_false_iff; right.
+        solve_addr+Htstk_ae.
+      }
+      iNext; iIntros "_".
+      wp_pure; wp_end ; by iIntros (?).
+    }
+
     iDestruct (cstack_agree with "[$] [$]") as "%"; simplify_eq.
     destruct cstk as [|frm cstk]; iEval (cbn) in "Hstk_interp"; cbn in Hlen_cstk.
-    replace a_tstk with (b_trusted_stack ^+ (-1))%a by solve_addr.
-    { (* the stack is empty, it will fail *)
-      admit. (* Loading fails *)
+    { (* In the case where main tries to return, the initial stack is simply 0
+         and it will fails *)
+      replace a_tstk with (b_trusted_stack)%a by solve_addr.
+      iInstr "Hcode".
+      { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
+      (* Lea ctp (-1)%Z *)
+      destruct (decide (b_trusted_stack <= (b_trusted_stack ^+ -1))%a) as [Hb_trusted_stack1'|Hb_trusted_stack1'].
+      {
+        assert ((b_trusted_stack + -1) = None)%a by solve_addr+Hb_trusted_stack1'.
+        iInstr_lookup "Hcode" as "Hi" "Hcode".
+        wp_instr.
+        iApply (rules_Lea.wp_Lea_fail_none_z with "[HPC Hi Hctp]")
+        ; try iFrame
+        ; try solve_pure.
+        iNext; iIntros "_".
+        wp_pure; wp_end ; by iIntros (?).
+      }
+      assert (is_Some (b_trusted_stack + -1))%a as [b_trusted_stack1 Hb_trusted_stack1] by solve_addr+Hb_trusted_stack1'.
+      clear Hb_trusted_stack1'.
+      iInstr "Hcode".
+      (* WriteSR mtdc ctp *)
+      iInstr "Hcode".
+      (* Lea csp (-1)%Z *)
+
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (rules_Lea.wp_Lea_fail_integer with "[HPC Hi Hcsp]")
+      ; try iFrame
+      ; try solve_pure.
+      iNext; iIntros "_".
+      wp_pure; wp_end ; by iIntros (?).
     }
-    iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp & %Ha_tstk1)".
-    destruct Ha_tstk1 as [a_tstk1 Ha_tstk1].
+    (* replace a_tstk with (b_trusted_stack ^+ (-1))%a by solve_addr. *)
+    (* { (* the stack is empty, it will fail *) *)
+    (*   admit. (* Loading fails *) *)
+    (* } *)
+    iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
+    (* destruct Ha_tstk1 as [a_tstk1 Ha_tstk1]. *)
     destruct frm.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
@@ -297,8 +346,6 @@ Section fundamental.
         rewrite region_open_nil; iFrame "Hr Hsts".
         by iDestruct "Hcframe_interp" as "($&$&$&$)".
       * rewrite region_open_nil.
-
-
         iDestruct (region_open_list_interp_gen _ _ (finz.seq_between a_stk (a_stk^+4)%a)
                     with "[$Hinterp_callee_wstk $Hr $Hsts]")
           as (l) "(Hr & Hsts & Hstd & Hv & Hmono & Hφ & Hrcond & Hrel & %Hlen_l)"; auto.
@@ -332,15 +379,25 @@ Section fundamental.
         iFrame.
     }
 
-    destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
-    { admit. (* NOTE will fail in the next upcoming instructions *) }
-    (* Load csp ctp *)
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
     rewrite -/(interp_cont).
     iEval (cbn) in "Hinterp_callee_wstk".
 
     (* Lea ctp (-1)%Z *)
+    destruct (decide (a_tstk <= (a_tstk ^+ -1))%a) as [Ha_tstk1'|Ha_tstk1'].
+    {
+      assert ((a_tstk + -1) = None)%a by solve_addr+Ha_tstk1'.
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (rules_Lea.wp_Lea_fail_none_z with "[HPC Hi Hctp]")
+      ; try iFrame
+      ; try solve_pure.
+      iNext; iIntros "_".
+      wp_pure; wp_end ; by iIntros (?).
+    }
+    assert (is_Some (a_tstk + -1))%a as [a_tstk1 Ha_tstk1] by solve_addr+Ha_tstk1'.
+    clear Ha_tstk1'.
     iInstr "Hcode".
     (* WriteSR mtdc ctp *)
     iInstr "Hcode".
@@ -465,10 +522,9 @@ Section fundamental.
       replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr.
       iFrame.
       iNext.
-      clear -Hot_bounds Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Ha_tstk1.
-      repeat (iSplit ;[iPureIntro; try solve_addr|]); [|iPureIntro; try solve_addr].
-      split; last solve_addr.
-      admit. (* TODO is this true? *)
+      iSplit; first (iPureIntro; done).
+      iSplit; first (iPureIntro; solve_addr+Hbounds_tstk_b Hbounds_tstk_e Hlen_cstk Ha_tstk1).
+      iPureIntro; solve_addr+Hbounds_tstk_b  Hlen_cstk Ha_tstk1.
     }
 
     (* Use the continuation *)

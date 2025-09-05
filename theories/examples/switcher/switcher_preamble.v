@@ -220,10 +220,10 @@ Section Switcher_preamble.
 
   Fixpoint cstack_interp (cstk : cstack) (a_tstk : Addr) : iProp Σ :=
     (match cstk with
-    | [] => True
+    | [] => a_tstk ↦ₐ WInt 0
     | frm::cstk' => cstack_interp cstk' (a_tstk ^+ -1)%a
                   ∗ cframe_interp frm a_tstk
-                  ∗ ⌜ is_Some (a_tstk + -1)%a ⌝ (* Not sure if this is necessary? *)
+                  (* ∗ ⌜ is_Some (a_tstk + -1)%a ⌝ (* Not sure if this is necessary? *) *)
     end)%I.
 
   Definition switcher_inv : iProp Σ :=
@@ -235,7 +235,7 @@ Section Switcher_preamble.
      ∗ [[ (a_tstk ^+1)%a, e_trusted_stack ]] ↦ₐ [[ tstk_next ]]
      ∗ ⌜ (b_trusted_stack <= a_tstk)%a ∧ (a_tstk <= e_trusted_stack)%a ⌝
      ∗ cstack_full cstk
-     ∗ ⌜ (b_trusted_stack + (length cstk - 1)%Z)%a = Some a_tstk ⌝
+     ∗ ⌜ (b_trusted_stack + length cstk)%a = Some a_tstk ⌝
      ∗ cstack_interp cstk a_tstk (* link the topmost frame of cstk to the state *)
      ∗ seal_pred ot_switcher ot_switcher_propC.
 
