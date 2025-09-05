@@ -168,6 +168,21 @@ Section fundamental.
       iDestruct (IHla with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hrevoked $Hp]") as "IH"; eauto.
   Qed.
 
+  Lemma big_opL_to_L2 {A : Type} (ϕ : A -> Word -> iProp Σ) (l : list A) (l' : list Word) :
+    length l = length l' ->
+    Forall (fun y => y = WInt 0) l' ->
+    ([∗ list] x ∈ l, ϕ x (WInt 0)) ⊢ ([∗ list] x;v ∈ l;l', ϕ x v).
+  Proof.
+    generalize dependent l'.
+    induction l; iIntros (l' Hlen Hl') "Hl".
+    - destruct l' as [|w l']; done.
+    - destruct l' as [|w l']; cbn in Hlen; simplify_eq.
+      cbn.
+      apply Forall_cons in Hl'; destruct Hl' as [-> Hl'].
+      iDestruct "Hl" as "[$ Hl]".
+      iApply (IHl with "Hl"); auto.
+  Qed.
+
   (* Lemma region_open_list_interp (W : WORLD) (C : CmptName) *)
   (*   (la' : list Addr) (p : Perm) (g : Locality) (b e a : Addr) : *)
   (*   let la := finz.seq_between b e in *)
@@ -617,10 +632,41 @@ Section fundamental.
     iDestruct "Hstk" as "[Hstk_register_save Hstk]".
 
     set (lv' := region_addrs_zeroes (a_stk ^+ 4)%a e_stk).
+    assert (length l = length lv') as Hlen_lv'.
+    { clear -Hlen_lv.
+      subst lv'.
+      rewrite Hlen_lv.
+      by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length.
+    }
+    assert (Forall (λ y : Word, y = WInt 0) lv') as Hlv'.
+    { subst lv'.
+      rewrite /region_addrs_zeroes.
+      by apply Forall_replicate.
+    }
     iAssert ([∗ list] '(_, φ, _);v ∈ l;lv', φ (W, C, v))%I with "[Hφ']" as "Hφ'".
-    { admit. (* doable *) }
+    {
+      iClear "#"; clear -Hlen_lv' Hlv'.
+      iApply (big_opL_to_L2 (fun '(p,φ,ρ) w => φ (W, C, w)) l lv'); auto.
+      iStopProof.
+      simpl.
+      clear lv' Hlen_lv' Hlv'.
+      induction l; cbn; first done.
+      destruct a as [ [ [] ] ].
+      iIntros "[? ?]"; iFrame.
+      iApply (IHl with "[$]").
+    }
     iAssert ([∗ list] '(p, φ, ρ);v ∈ l;lv', monotonicity_guarantees_region C φ p v ρ)%I with "[Hmono']" as "Hmono'".
-    { admit. (*doable *) }
+    {
+      iClear "#"; clear -Hlen_lv' Hlv'.
+      iApply (big_opL_to_L2 (fun '(p,φ,ρ) w => monotonicity_guarantees_region C φ p w ρ) l lv'); auto.
+      iStopProof.
+      simpl.
+      clear lv' Hlen_lv' Hlv'.
+      induction l; cbn; first done.
+      destruct a as [ [ [] ] ].
+      iIntros "[? ?]"; iFrame.
+      iApply (IHl with "[$]").
+    }
 
     iDestruct (region_close_list_interp_gen with "[$Hr $Hstd $Hstk $Hmono' $Hφ' $Hrel $Hρ $Hp]")
       as "Hr".
@@ -739,7 +785,18 @@ Section fundamental.
     rewrite /interp_cont_exec.
     iEval (cbn) in "Hexec_topmost_frm".
     iAssert ([∗ map] r↦w ∈ arg_rmap', r ↦ᵣ WInt 0)%I with "[Harg_rmap']" as "Hrmap".
-    { admit. (* easy *) }
+    {
+      iClear "#".
+      iStopProof.
+      clear.
+      induction arg_rmap' using map_ind; first auto.
+      iIntros "Hrmap".
+      iDestruct ( big_sepM_insert with "Hrmap" ) as "[ [Hi ->] Hrmap]"; auto.
+      iApply big_sepM_insert.
+      { by rewrite H; simplify_map_eq. }
+      iFrame.
+      iApply (IHarg_rmap' with "Hrmap").
+    }
 
     destruct is_untrusted_caller.
     - (* Case where caller is untrusted, we use the IH *)
@@ -762,7 +819,19 @@ Section fundamental.
         iExists (fmap (fun v => WInt 0) arg_rmap').
         iSplit ; [iPureIntro; apply dom_fmap_L|].
         iSplitL.
-        { admit. (* this clearly holds *) }
+        {
+          iClear "#".
+          iStopProof.
+          clear.
+          induction arg_rmap' using map_ind; first rewrite fmap_empty; auto.
+          rewrite fmap_insert.
+          iIntros "Hrmap".
+          iDestruct ( big_sepM_insert with "Hrmap" ) as "[Hi Hrmap]"; auto.
+          iApply big_sepM_insert.
+          { by rewrite lookup_fmap H; simplify_map_eq. }
+          iFrame.
+          iApply (IHarg_rmap' with "Hrmap").
+        }
         iIntros (r w HrPC Hr).
         rewrite lookup_fmap_Some in Hr.
         destruct Hr as (? & <- & Hr').
