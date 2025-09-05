@@ -5,7 +5,6 @@ From cap_machine Require Export logrel.
 From cap_machine.ftlr Require Import ftlr_base.
 From cap_machine.rules Require Import rules_JmpCap.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
-From cap_machine Require Export monotone.
 
 Section fundamental.
   Context
@@ -339,12 +338,7 @@ Section fundamental.
       iNext; iIntros "_".
       wp_pure; wp_end ; by iIntros (?).
     }
-    (* replace a_tstk with (b_trusted_stack ^+ (-1))%a by solve_addr. *)
-    (* { (* the stack is empty, it will fail *) *)
-    (*   admit. (* Loading fails *) *)
-    (* } *)
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
-    (* destruct Ha_tstk1 as [a_tstk1 Ha_tstk1]. *)
     destruct frm.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
@@ -398,7 +392,7 @@ Section fundamental.
           as (lv l
              ) "(Hr & Hsts & Hstd & Hv & Hmono & Hφ & Hmono' & Hφ' & Hrcond & Hrel & Hρ & Hp & %Hpers & %Hlen_lv & %Hlen_l)"; auto.
         { eapply finz_seq_between_NoDup. }
-        { clear-He_a1 ; apply Forall_forall; intros a' Ha'.
+        { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
           apply elem_of_finz_seq_between in Ha'; solve_addr.
         }
         { set_solver. }
@@ -502,7 +496,7 @@ Section fundamental.
       as (lv l
          ) "(Hr & Hsts & Hstd & Hv & Hmono & Hφ & Hmono' & Hφ' & Hrcond & Hrel & Hρ & Hp & %Hpers & %Hlen_lv & %Hlen_l)"; auto.
     { eapply finz_seq_between_NoDup. }
-    { clear-He_a1 ; apply Forall_forall; intros a' Ha'.
+    { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
       apply elem_of_finz_seq_between in Ha'.
       destruct is_untrusted_caller; solve_addr.
     }
@@ -829,9 +823,6 @@ Section fundamental.
            set_solver+.
       }
       iDestruct (big_sepM_insert_delete with "[$Hrmap $HPC]") as "Hrmap".
-
-      iAssert (interp W C (WCap RWL Local b_stk e_stk a_stk)) as "#Hinterp_csp".
-      { admit. (* doable, but tedious *) }
 
       destruct wastk2 as [ z | [p g b e a|]  | p g b e a | ot sb ] ; iEval (cbn) in "Hrmap".
       all: cbn in HcorrectWret.
