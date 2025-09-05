@@ -273,8 +273,8 @@ Section logrel.
     : iProp Σ :=
     match wstk with
     | WCap p g b e a =>
-        let b_callee := if with_register_save_area then a else (a^+4)%a in
-        interp W C (WCap p g b_callee e b_callee)
+        let b_callee := if with_register_save_area then b else (a^+4)%a in
+        interp W C (WCap p g b_callee e a)
     | _ => True
     end.
 
