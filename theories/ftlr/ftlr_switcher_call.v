@@ -982,18 +982,66 @@ Section fundamental.
         specialize (Hfull_rmap i) as [x Hx].
         exists x. split;auto.
       - intros [? [? ?] ]. auto. }
-    { replace ( (Z.land (encode_entry_point nargs off) 7)) with nargs. lia.
-      rewrite /encode_entry_point. clear -H13.
-      rewrite Z.land_lor_distr_l -Z.land_assoc Z.land_diag -Z.land_lor_distr_l.
-      
-
-      
-      replace ( (encode_entry_point nargs off ≫ 3)%Z) with off.
-    }
+    { rewrite encode_entry_point_eq_nargs;[lia|]. auto. }
+    iSplitL "Hparams".
+    { iApply big_sepM_sep. iFrame. iApply big_sepM_forall.
+      iIntros (k v [Hin Hspec]%map_lookup_filter_Some).
+      iApply ("Hreg" $! k);iPureIntro. set_solver+Hspec.
+      repeat (apply lookup_delete_Some in Hin as [_ Hin]). auto. }
+    iIntros "!> (%arg_rmap' & %Hisarg_rmap' & HPC & Hct2 & Hparams & Hcode)".
     
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+    focus_block 4 "Hcode" as a_clear' Ha_clear' "Hcode" "Hcls". iHide "Hcls" as hcont.
 
+    rewrite /rmap'. rewrite !map_filter_delete.
+    iDestruct (big_sepM_insert with "[$Hrest $Hct1]") as "Hrest"
+    ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
+    rewrite -(delete_insert_ne _ ctp);[|auto].
+    iDestruct (big_sepM_insert with "[$Hrest $Hctp]") as "Hrest"
+    ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
+    repeat (rewrite -(delete_insert_ne _ ct2);[|auto]).
+    iDestruct (big_sepM_insert with "[$Hrest $Hct2]") as "Hrest"
+    ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
+    repeat (rewrite (delete_commute _ _ cs1)//). repeat rewrite -(delete_insert_ne _ cs1)//.
+    iDestruct (big_sepM_insert with "[$Hrest $Hcs1]") as "Hrest"
+    ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
+    repeat (rewrite (delete_commute _ _ cs0)//). repeat rewrite -(delete_insert_ne _ cs0)//.
+    iDestruct (big_sepM_insert with "[$Hrest $Hcs0]") as "Hrest"
+    ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
+
+    iApply (clear_registers_pre_call_spec with "[- $HPC $Hcode $Hrest]"); try solve_pure.
+    { clear -Hfull_rmap. apply regmap_full_dom in Hfull_rmap as Heq.
+      rewrite !dom_insert_L !dom_delete_L.
+      cut (dom (filter (λ v, ¬ Pf v) regs) = all_registers_s ∖ dom_arg_rmap);[set_solver|].
+      apply (dom_filter_L _ (regs : gmap RegName Word)).
+      split.
+      - intros [Hi Hni]%elem_of_difference.
+        specialize (Hfull_rmap i) as [x Hx]. eauto.
+      - intros [? [? ?] ]. apply elem_of_difference.
+        split;auto. apply all_registers_s_correct. }
+
+    iIntros "!> (%rmap'' & %Hrmap'' & HPC & Hrest & Hcode)".
+
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+    focus_block 5 "Hcode" as a_jalr Ha_halr "Hcode" "Hcls". iHide "Hcls" as hcont.
+
+    iInstr "Hcode".
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+    rewrite /load_word. iSimpl in "Hcgp".
+
+    set (frame :=
+           {| wret := (WCap RX Global bpcc epcc f5);
+              wstk := (WCap RWL Local b e a);
+              wcgp := (WCap RW Global bcgp ecgp bcgp);
+              wcs0 := WInt 0;
+              wcs1 := WInt 0;
+              is_untrusted_caller := false
+           |}).
+
+    iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq'. subst.
+    iMod (cstack_update _ _ (frame :: cstk) with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
+    iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full]") as "HH".
     
-
     
     
 End fundamental.
