@@ -5,6 +5,7 @@ From cap_machine Require Export logrel.
 From cap_machine.ftlr Require Import ftlr_base.
 From cap_machine.rules Require Import rules_JmpCap.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
+From cap_machine Require Export monotone.
 
 Section fundamental.
   Context
@@ -36,6 +37,7 @@ Section fundamental.
     (la la' : list Addr) (p : Perm) (g : Locality) (b e a : Addr) :
     NoDup la ->
     readAllowed p = true →
+    writeAllowed p = true →
     Forall (fun a' : Addr => (b <= a' < e)%a ) la ->
     la ## la' ->
 
@@ -43,31 +45,44 @@ Section fundamental.
     ∗ open_region_many W C la'
     ∗ sts_full_world W C -∗
 
-    ∃ (l : list (Word * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type)),
+    ∃ (lv : list Word)
+      (l : list (Perm * (WORLD * CmptName * Word → iProp Σ) * region_type)),
       open_region_many W C (la++la')
       ∗ sts_full_world W C
-      ∗ ([∗ list] a ; '(v,p,φ,ρ) ∈ la ; l, sts_state_std C a ρ)
-      ∗ ([∗ list] a ; '(v,p,φ,ρ) ∈ la ; l, a ↦ₐ v)
-      ∗ ▷ ([∗ list] '(v,p,φ,ρ) ∈ l, monotonicity_guarantees_region C φ p v ρ)
-      ∗ ▷ ([∗ list] '(v,p,φ,ρ) ∈ l, φ (W, C, v))
-      ∗ ▷ ([∗ list] '(v,p,φ,ρ) ∈ l, rcond (safeUC φ) C p interp)
-      ∗ ([∗ list] a ; '(v,p,φ,ρ) ∈ la ; l, rel C a p φ)
+      ∗ ([∗ list] a ; '(p,φ,ρ) ∈ la ; l, sts_state_std C a ρ)
+      ∗ ([∗ list] a ; v ∈ la ; lv, a ↦ₐ v)
+      ∗ ▷ ([∗ list] '(p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C φ p v ρ)
+      ∗ ▷ ([∗ list] '(p,φ,ρ) ; v ∈ l ; lv, φ (W, C, v))
+
+      ∗ ▷ ([∗ list] '(p,φ,ρ)  ∈ l, monotonicity_guarantees_region C φ p (WInt 0) ρ)
+      ∗ ▷ ([∗ list] '(p,φ,ρ)  ∈ l, φ (W, C, (WInt 0)))
+
+      ∗ ▷ ([∗ list] '(p,φ,ρ) ∈ l, rcond (safeUC φ) C p interp)
+      (* ∗ ▷ ([∗ list] '(p,φ,ρ) ∈ l, wcond (safeUC φ) C interp) *)
+      ∗ ([∗ list] a ; '(p,φ,ρ) ∈ la ; l, rel C a p φ)
+      ∗ ([∗ list] '(p,φ,ρ) ∈ l, ⌜ρ ≠ Revoked⌝)
+      ∗ ([∗ list] '(p,φ,ρ) ∈ l, ⌜isO p = false⌝)
+      ∗ ⌜ Forall (fun '(p,φ,ρ) => forall Wv, Persistent (φ Wv)) l ⌝
       ∗ ⌜ length l = length la ⌝
+      ∗ ⌜ length lv = length la ⌝
   .
   Proof.
-    induction la; intros Hnodup Hp Hin Hdis ;
+    induction la; intros Hnodup Hp Hp' Hin Hdis ;
       iIntros "(#Hinterp & Hr & Hsts)"; cbn in * |- *.
-    - iExists []; cbn in *.
+    - iExists [],[]; cbn in *.
       by iFrame.
     - apply Forall_cons in Hin; destruct Hin as [Hin_a0 Hin].
       apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
       iDestruct (IHla with "[$Hinterp $Hr $Hsts]") as "IH"; eauto.
-      iDestruct "IH" as (lv) "(Hr & Hsts & Hsts_stds & Hlv & Hmono & Hlφ & Hrcond & Hrel & %Hlen)".
+      iDestruct "IH"
+        as (lv l
+           ) "(Hr & Hsts & Hsts_stds & Hlv & Hmono & Hlφ & Hmono' & Hlφ' & Hrcond & Hrel & Hρ & Hp & %Hpers & %Hlen & %Hlen')".
       iDestruct (read_allowed_inv _ _ a0 with "Hinterp")
         as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)"
       ; auto.
+      eapply (writeAllowed_flowsto _ p') in Hp'; [rewrite Hp'|auto].
       iDestruct (readAllowed_valid_cap_implies with "Hinterp") as (ρ) "[%HWa %Hρ]"; auto.
       { by eapply withinBounds_true_iff. }
       iDestruct (region_open_next with "[$Hr $Hrel_P $Hsts]") as "Ha"; eauto.
@@ -76,53 +91,85 @@ Section fundamental.
         apply elem_of_app in Hcontra. destruct Hcontra as [Hcontra|Hcontra]
         ; [set_solver+Hcontra Hnotin|set_solver+Hcontra Ha_notin_l'].
       }
-      iDestruct "Ha" as (va) "(Hsts & Hsts_std_a & Hr & Hv_a & Hmono_a & Hφ_a & %Hp_a)".
-      iExists ((va, p', safeC P, ρ)::lv).
-      iFrame "∗#".
-      iPureIntro ; cbn ; lia.
+      iDestruct "Ha" as (va) "(Hsts & Hsts_std_a & Hr & Hv_a & #Hmono_a & Hφ_a & %Hp_a)".
+      pose proof (Hpers_P (W,C,va)); iDestruct "Hφ_a" as "#Hφ_a".
+      iAssert (▷ P W C (WInt 0))%I as "Hφ_a'".
+      { iNext.
+        rewrite /rcond /wcond.
+        iDestruct "Hwcond_P" as "#Hwcond_P".
+        iApply "Hwcond_P".
+        iEval (rewrite fixpoint_interp1_eq); done.
+      }
+      iAssert (▷ monotonicity_guarantees_region C (safeC P) p' (WInt 0) ρ)%I as "Hmono_a'".
+      { iNext.
+        rewrite /monotonicity_guarantees_region.
+        destruct ρ; auto ; [destruct (isWL p'); [|destruct (isDL p')] |].
+        all: iModIntro; iIntros (W0 W1 ?) "?".
+        all: iDestruct "Hwcond_P" as "#Hwcond_P"; iApply "Hwcond_P".
+        all: iEval (rewrite fixpoint_interp1_eq); done.
+      }
+      iExists (va::lv), ((p', safeC P, ρ)::l).
+      rewrite Forall_cons.
+      cbn.
+      iFrame "∗#%".
+      iSplit; iPureIntro.
+      { split; last done.
+        rewrite /persistent_cond in Hpers_P; apply Hpers_P.
+      }
+      cbn ; lia.
   Qed.
 
-  Lemma region_open_list_interp (W : WORLD) (C : CmptName)
-    (la' : list Addr) (p : Perm) (g : Locality) (b e a : Addr) :
-    let la := finz.seq_between b e in
-    readAllowed p = true →
-    la ## la' ->
+  (* Lemma region_open_list_interp (W : WORLD) (C : CmptName) *)
+  (*   (la' : list Addr) (p : Perm) (g : Locality) (b e a : Addr) : *)
+  (*   let la := finz.seq_between b e in *)
+  (*   readAllowed p = true → *)
+  (*   la ## la' -> *)
 
-    interp W C (WCap p g b e a)
-    ∗ open_region_many W C la'
-    ∗ sts_full_world W C -∗
+  (*   interp W C (WCap p g b e a) *)
+  (*   ∗ open_region_many W C la' *)
+  (*   ∗ sts_full_world W C -∗ *)
 
-    ∃ (l : list (Word * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type)),
-      open_region_many W C (la++la')
-      ∗ sts_full_world W C
-      ∗ ([∗ list] a ; '(v,p,φ,ρ) ∈ la ; l, sts_state_std C a ρ)
-      ∗ ([∗ list] a ; '(v,p,φ,ρ) ∈ la ; l, a ↦ₐ v)
-      ∗ ▷ ([∗ list] '(v,p,φ,ρ) ∈ l, monotonicity_guarantees_region C φ p v ρ)
-      ∗ ▷ ([∗ list] '(v,p,φ,ρ) ∈ l, φ (W,C,v))
-      ∗ ▷ ([∗ list] '(v,p,φ,ρ) ∈ l, rcond (safeUC φ) C p interp)
-      ∗ ([∗ list] a ; '(v,p,φ,ρ) ∈ la ; l, rel C a p φ)
-      ∗ ⌜ length l = length la ⌝
-  .
-  Proof.
-    iIntros (la Hp Hdis).
-    iApply region_open_list_interp_gen; eauto; subst la.
-    - apply finz_seq_between_NoDup.
-    - apply Forall_forall ; intros.
-      by apply elem_of_finz_seq_between.
-  Qed.
+  (*   ∃ (lv : list Word) *)
+  (*     (l : list (Perm * (WORLD * CmptName * Word → iProp Σ) * region_type)), *)
+  (*     open_region_many W C (la++la') *)
+  (*     ∗ sts_full_world W C *)
+  (*     ∗ ([∗ list] a ; '(p,φ,ρ) ∈ la ; l, sts_state_std C a ρ) *)
+  (*     ∗ ([∗ list] a ; v ∈ la ; lv, a ↦ₐ v) *)
+  (*     ∗ ▷ ([∗ list] '(p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C φ p v ρ) *)
+  (*     ∗ ▷ ([∗ list] '(p,φ,ρ) ; v ∈ l ; lv, φ (W, C, v)) *)
+  (*     ∗ ▷ ([∗ list] '(p,φ,ρ) ∈ l, rcond (safeUC φ) C p interp) *)
+  (*     ∗ ([∗ list] a ; '(p,φ,ρ) ∈ la ; l, rel C a p φ) *)
+  (*     ∗ ([∗ list] '(p,φ,ρ) ∈ l, ⌜ρ ≠ Revoked⌝) *)
+  (*     ∗ ([∗ list] '(p,φ,ρ) ∈ l, ⌜isO p = false⌝) *)
+  (*     ∗ ⌜ length l = length la ⌝ *)
+  (*     ∗ ⌜ length lv = length la ⌝ *)
+  (* . *)
+  (* Proof. *)
+  (*   iIntros (la Hp Hdis). *)
+  (*   iApply region_open_list_interp_gen; eauto; subst la. *)
+  (*   - apply finz_seq_between_NoDup. *)
+  (*   - apply Forall_forall ; intros. *)
+  (*     by apply elem_of_finz_seq_between. *)
+  (* Qed. *)
 
   Definition closing_resources W C a w : iProp Σ :=
     ∃ φ p ρ,
       (sts_state_std C a ρ
        ∗ (φ (W, C, w))
        ∗ (monotonicity_guarantees_region C φ p w ρ)
+       ∗ (φ (W, C, WInt 0))
+       ∗ (monotonicity_guarantees_region C φ p (WInt 0) ρ)
        ∗ rcond (safeUC φ) C p interp
-       ∗ rel C a p φ)%I.
+       ∗ rel C a p φ
+       ∗ ⌜ ρ ≠ Revoked ⌝
+       ∗ ⌜ isO p = false ⌝
+       ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝
+      )%I.
 
   Lemma closing_resources_interp W C a w :
     closing_resources W C a w -∗ interp W C w.
     iIntros "H".
-    iDestruct "H" as (???) "(Hstd&Hφ&Hmono&Hrcond&Hrel)".
+    iDestruct "H" as (???) "(Hstd&Hφ&Hmono&_&_&Hrcond&Hrel)".
     destruct p.
     destruct dl,dro; by iApply "Hrcond".
   Qed.
@@ -348,35 +395,47 @@ Section fundamental.
       * rewrite region_open_nil.
         iDestruct (region_open_list_interp_gen _ _ (finz.seq_between a_stk (a_stk^+4)%a)
                     with "[$Hinterp_callee_wstk $Hr $Hsts]")
-          as (l) "(Hr & Hsts & Hstd & Hv & Hmono & Hφ & Hrcond & Hrel & %Hlen_l)"; auto.
+          as (lv l
+             ) "(Hr & Hsts & Hstd & Hv & Hmono & Hφ & Hmono' & Hφ' & Hrcond & Hrel & Hρ & Hp & %Hpers & %Hlen_lv & %Hlen_l)"; auto.
         { eapply finz_seq_between_NoDup. }
         { clear-He_a1 ; apply Forall_forall; intros a' Ha'.
           apply elem_of_finz_seq_between in Ha'; solve_addr.
         }
         { set_solver. }
-        cbn in Hlen_l.
-        do 4 (rewrite finz_seq_between_cons in Hlen_l; last solve_addr+He_a1).
-        rewrite finz_seq_between_empty in Hlen_l; last solve_addr+.
-        cbn in Hlen_l.
-        destruct l as [| [ [ [wastk0 p0] φ0] ρ0] l]; first (by cbn in Hlen_l).
-        destruct l as [| [ [ [wastk1 p1] φ1] ρ1] l]; first (by cbn in Hlen_l).
-        destruct l as [| [ [ [wastk2 p2] φ2] ρ2] l]; first (by cbn in Hlen_l).
-        destruct l as [| [ [ [wastk3 p3] φ3] ρ3] l]; first (by cbn in Hlen_l).
+        cbn in Hlen_l; cbn in Hlen_lv.
+        do 4 (rewrite finz_seq_between_cons in Hlen_l,Hlen_lv; last solve_addr+He_a1).
+        rewrite finz_seq_between_empty in Hlen_l,Hlen_lv; last solve_addr+.
+        cbn in Hlen_l; cbn in Hlen_lv.
+        destruct l as [| [ [p0 φ0] ρ0] l]; first (by cbn in Hlen_l).
+        destruct lv as [| wastk0 lv]; first (by cbn in Hlen_lv).
+        destruct l as [| [ [p1 φ1] ρ1] l]; first (by cbn in Hlen_l).
+        destruct lv as [| wastk1 lv]; first (by cbn in Hlen_lv).
+        destruct l as [| [ [p2 φ2] ρ2] l]; first (by cbn in Hlen_l).
+        destruct lv as [| wastk2 lv]; first (by cbn in Hlen_lv).
+        destruct l as [| [ [p3 φ3] ρ3] l]; first (by cbn in Hlen_l).
+        destruct lv as [| wastk3 lv]; first (by cbn in Hlen_lv).
         destruct l as [|]; last (by cbn in Hlen_l).
+        destruct lv as [|]; last (by cbn in Hlen_lv).
         do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
         rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
         cbn.
         replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
         replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
+        cbn.
         iDestruct "Hv" as "($&$&$&$&_)".
         iFrame.
         iDestruct "Hrcond" as "(Hrcond_0 & Hrcond_1 & Hrcond_2 & Hrcond_3 & _)".
         iDestruct "Hrel" as "(Hrel_0 & Hrel_1 & Hrel_2 & Hrel_3 & _)".
         iDestruct "Hφ" as "(Hφ_0 & Hφ_1 & Hφ_2 & Hφ_3 & _)".
+        iDestruct "Hφ'" as "(Hφ'_0 & Hφ'_1 & Hφ'_2 & Hφ'_3 & _)".
         iDestruct "Hmono" as "(Hmono_0 & Hmono_1 & Hmono_2 & Hmono_3 & _)".
+        iDestruct "Hmono'" as "(Hmono'_0 & Hmono'_1 & Hmono'_2 & Hmono'_3 & _)".
         iDestruct "Hstd" as "(Hstd_0 & Hstd_1 & Hstd_2 & Hstd_3 & _)".
+        iDestruct "Hρ" as "(%Hρ_0 & %Hρ_1 & %Hρ_2 & %Hρ_3 & _)".
+        iDestruct "Hp" as "(%Hp_0 & %Hp_1 & %Hp_2 & %Hp_3 & _)".
+        repeat (apply Forall_cons in Hpers; destruct Hpers as [? Hpers]).
         rewrite /closing_resources.
-        iFrame.
+        iFrame "∗%".
     }
 
     iInstr "Hcode".
@@ -440,7 +499,8 @@ Section fundamental.
 
     iDestruct (region_open_list_interp_gen _ _ (finz.seq_between (a_stk^+4)%a e_stk)
                 with "[$Hinterp_callee_wstk $Hr $Hsts]")
-      as (l) "(Hr & Hsts & Hstd & Hv & Hmono & Hφ & Hrcond & Hrel & %Hlen_l)"; auto.
+      as (lv l
+         ) "(Hr & Hsts & Hstd & Hv & Hmono & Hφ & Hmono' & Hφ' & Hrcond & Hrel & Hρ & Hp & %Hpers & %Hlen_lv & %Hlen_l)"; auto.
     { eapply finz_seq_between_NoDup. }
     { clear-He_a1 ; apply Forall_forall; intros a' Ha'.
       apply elem_of_finz_seq_between in Ha'.
@@ -455,13 +515,11 @@ Section fundamental.
       assert ( (a_stk ^+ 3)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
       set_solver.
     }
-    set (lv := map (fun x => let '(v, _, _, _) := x in v) l).
 
     iAssert ([[ a_stk , e_stk ]] ↦ₐ [[wastk :: wastk1 :: wastk2 :: wastk3 :: lv]])%I
       with "[Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hv]" as "Hstk".
     {
-      iAssert ([[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ lv ]])%I with "[Hv]" as "Hstk".
-      { admit. (* should be fairly easy, just projections *) }
+      iAssert ([[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ lv ]])%I with "[$Hv]" as "Hstk".
       iDestruct (region_pointsto_cons with "[$Ha_stk3 $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
       iDestruct (region_pointsto_cons with "[$Ha_stk2 $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
       iDestruct (region_pointsto_cons with "[$Ha_stk1 $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
@@ -507,7 +565,144 @@ Section fundamental.
     iInstr "Hcode" with "Hlc".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-    (* TODO close the region *)
+    Set Nested Proofs Allowed.
+  Lemma region_close_list_interp_gen (W : WORLD) (C : CmptName)
+  (lv : list Word)
+  (l : list (Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
+  (la la' : list Addr):
+
+    NoDup la ->
+    Forall (fun '(p,φ,ρ) => ∀ WCv : WORLD * CmptName * Word, Persistent (φ WCv) ) l ->
+    la ## la' ->
+    length l = length la ->
+    length lv = length la ->
+
+    open_region_many W C (la++la')
+    ∗ ([∗ list] a ; '(p,φ,ρ) ∈ la ; l, sts_state_std C a ρ)
+    ∗ ([∗ list] a ; v ∈ la ; lv, a ↦ₐ v)
+    ∗ ([∗ list] '(p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C φ p v ρ)
+    ∗ ▷ ([∗ list] '(p,φ,ρ) ; v ∈ l ; lv, φ (W, C, v))
+    ∗ ([∗ list] a ; '(p,φ,ρ) ∈ la ; l, rel C a p φ)
+    ∗ ([∗ list] '(p,φ,ρ) ∈ l, ⌜ρ ≠ Revoked⌝)
+    ∗ ([∗ list] '(p,φ,ρ) ∈ l, ⌜isO p = false⌝)
+    -∗ open_region_many W C la'
+  .
+  Proof.
+    generalize dependent l.
+    generalize dependent lv.
+    induction la; intros lv l Hnodup Hpers Hdis Hlen_l Hlen_lv
+    ; iIntros "(Hr & Hstd & Hv & Hmono & Hφ & Hrel & Hrevoked & Hp)"; cbn in * |- *.
+    - by iFrame.
+    - destruct l as [| [ [ ] ] l ]; simplify_eq.
+      destruct lv as [| v lv ]; simplify_eq.
+      cbn.
+      iDestruct "Hrevoked" as "[%Hrevoked_a Hrevoked]".
+      iDestruct "Hp" as "[%Hp_a Hp]".
+      iDestruct "Hrel" as "[Hrel_a Hrel]".
+      iDestruct "Hstd" as "[Hstd_a Hstd]".
+      iDestruct "Hv" as "[Hv_a Hv]".
+      iDestruct "Hφ" as "[Hφ_a Hφ]".
+      iDestruct "Hmono" as "[Hmono_a Hmono]".
+      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
+      eapply disjoint_weak in Hdis.
+      apply Forall_cons in Hpers; destruct Hpers as [Hpers_a Hpers].
+      iDestruct (region_close_next with "[$Hstd_a $Hr $Hv_a $Hmono_a $Hφ_a $Hrel_a]") as "Hr"; eauto.
+      {
+        intros Hcontra.
+        apply elem_of_app in Hcontra. destruct Hcontra as [Hcontra|Hcontra]
+        ; [set_solver+Hcontra Hnotin|set_solver+Hcontra Ha_notin_l'].
+      }
+      iDestruct (IHla with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hrevoked $Hp]") as "IH"; eauto.
+  Qed.
+  iHide "Hcode" as hcode.
+  rewrite (region_addrs_zeroes_split _ (a_stk ^+ 4)%a); last solve_addr+Ha_stk4 Hb_a4 He_a1.
+  rewrite (region_pointsto_split _ _ (a_stk ^+ 4)%a)
+  ; [| solve_addr+Ha_stk4 Hb_a4 He_a1 | by rewrite /region_addrs_zeroes length_replicate].
+  iDestruct "Hstk" as "[Hstk_register_save Hstk]".
+
+  set (lv' := region_addrs_zeroes (a_stk ^+ 4)%a e_stk).
+  iAssert ([∗ list] '(_, φ, _);v ∈ l;lv', φ (W, C, v))%I with "[Hφ']" as "Hφ'".
+  { admit. (* doable *) }
+  iAssert ([∗ list] '(p, φ, ρ);v ∈ l;lv', monotonicity_guarantees_region C φ p v ρ)%I with "[Hmono']" as "Hmono'".
+  { admit. (*doable *) }
+
+  iDestruct (region_close_list_interp_gen with "[$Hr $Hstd $Hstk $Hmono' $Hφ' $Hrel $Hρ $Hp]")
+    as "Hr".
+  { apply finz_seq_between_NoDup. }
+  { auto. }
+  { admit. }
+  { by rewrite Hlen_lv. }
+  { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
+
+  iDestruct (if_later with "Hwstk") as "Hwstk".
+  iDestruct "Hlc" as "[Hlc Hlc']".
+  iDestruct (lc_fupd_elim_later with "[$Hlc] [$Hwstk]") as ">Hwstk".
+
+  iAssert ( (if is_untrusted_caller then interp W C wastk else ⌜wastk = wcs2⌝)
+            ∗ (if is_untrusted_caller then interp W C wastk1 else ⌜wastk1 = wcs3⌝)
+            ∗ (if is_untrusted_caller then interp W C wastk2 else ⌜wastk2 = wret⌝)
+            ∗ (if is_untrusted_caller then interp W C wastk3 else ⌜wastk3 = wcgp0⌝)
+          )%I with "[Hwstk]" as "#(Hinterp_wstk0 & Hinterp_wstk1 & Hinterp_wstk2 & Hinterp_wstk3)".
+  { destruct is_untrusted_caller; last done.
+    iDestruct "Hwstk" as "(Hclose_wastk & Hclose_wastk1 & Hclose_wastk2 & Hclose_wastk3)".
+    iDestruct (closing_resources_interp with "Hclose_wastk") as "$".
+    iDestruct (closing_resources_interp with "Hclose_wastk1") as "$".
+    iDestruct (closing_resources_interp with "Hclose_wastk2") as "$".
+    iDestruct (closing_resources_interp with "Hclose_wastk3") as "$".
+  }
+
+  iAssert (
+      (region W C
+      ∗ if is_untrusted_caller
+        then True
+        else [[a_stk,(a_stk ^+ 4)%a]]↦ₐ[[region_addrs_zeroes a_stk (a_stk ^+ 4)%a]])
+    )%I with "[Hr Hstk_register_save Hwstk]" as "(Hr & Hwstk_register_save)".
+  {
+    destruct is_untrusted_caller; [| rewrite -region_open_nil; iFrame].
+    replace (region_addrs_zeroes a_stk (a_stk ^+ 4)%a) with (WInt 0:: WInt 0:: WInt 0:: WInt 0::[]).
+    2: {
+      rewrite /region_addrs_zeroes.
+      do 4 (rewrite finz_dist_S ; last solve_addr+Ha_stk4).
+      rewrite finz_dist_0 ; last solve_addr+Ha_stk4.
+      do 4 (rewrite replicate_S).
+      done.
+    }
+    iDestruct "Hwstk" as "(Hwstk0 & Hwstk1 & Hwstk2 & Hwstk3)".
+    (* close Hastk *)
+    rewrite (region_pointsto_cons _ (a_stk ^+ 1)%a); [ | solve_addr+Ha_stk4 | solve_addr+Ha_stk4].
+    iDestruct "Hstk_register_save" as "(Hastk & Hstk_register_save)".
+    iDestruct "Hwstk0"
+      as (φ0 p0 ρ0) "(Hstd0 & Hφ0 & Hmono0 & Hφ0' & Hmono0' & Hrcond0 & Hrel0 & %Hρ0 & Hp0 & %Hpers0)".
+    iDestruct (region_close_next with "[$Hstd0 $Hr $Hastk $Hp0 $Hmono0' $Hφ0' $Hrel0]") as "Hr"; auto.
+    { admit. }
+
+    (* close Hastk +1 *)
+    rewrite (region_pointsto_cons _ (a_stk ^+ 2)%a); [ | solve_addr+Ha_stk4 | solve_addr+Ha_stk4].
+    iDestruct "Hstk_register_save" as "(Hastk & Hstk_register_save)".
+    iDestruct "Hwstk1"
+      as (φ1 p1 ρ1) "(Hstd1 & Hφ1 & Hmono1 & Hφ1' & Hmono1' & Hrcond1 & Hrel1 & %Hρ1 & Hp1 & %Hpers1)".
+    iDestruct (region_close_next with "[$Hstd1 $Hr $Hastk $Hp1 $Hmono1' $Hφ1' $Hrel1]") as "Hr"; auto.
+    { admit. }
+
+    (* close Hastk +2 *)
+    rewrite (region_pointsto_cons _ (a_stk ^+ 3)%a); [ | solve_addr+Ha_stk4 | solve_addr+Ha_stk4].
+    iDestruct "Hstk_register_save" as "(Hastk & Hstk_register_save)".
+    iDestruct "Hwstk2"
+      as (φ2 p2 ρ2) "(Hstd2 & Hφ2 & Hmono2 & Hφ2' & Hmono2' & Hrcond2 & Hrel2 & %Hρ2 & Hp2 & %Hpers2)".
+    iDestruct (region_close_next with "[$Hstd2 $Hr $Hastk $Hp2 $Hmono2' $Hφ2' $Hrel2]") as "Hr"; auto.
+    { admit. }
+
+    (* close Hastk +3 *)
+    rewrite (region_pointsto_cons _ (a_stk ^+ 4)%a); [ | solve_addr+Ha_stk4 | solve_addr+Ha_stk4].
+    iDestruct "Hstk_register_save" as "(Hastk & Hstk_register_save)".
+    iDestruct "Hwstk3"
+      as (φ3 p3 ρ3) "(Hstd3 & Hφ3 & Hmono3 & Hφ3' & Hmono3' & Hrcond3 & Hrel3 & %Hρ3 & Hp3 & %Hpers3)".
+    iDestruct (region_close_next with "[$Hstd3 $Hr $Hastk $Hp3 $Hmono3' $Hφ3' $Hrel3]") as "Hr"; auto.
+    { admit. }
+
+    rewrite -region_open_nil; iFrame.
+  }
 
     (* Update the call-stack: depop the topmost frame *)
     iDestruct (cstack_update _ _ cstk with "[$] [$]") as ">[Hcstk_full Hcstk_frag]".
@@ -547,14 +742,6 @@ Section fundamental.
             iApply wp_value; iIntros; discriminate.
       }
       (* The PC is correct, we can use the continuation*)
-      iDestruct "Hlc" as "[Hlc Hlc']".
-      iDestruct (lc_fupd_elim_later with "[$Hlc'] [$Hwstk]") as ">Hwstk".
-      iDestruct "Hwstk" as "(Hclose_wastk & Hclose_wastk1 & Hclose_wastk2 & Hclose_wastk3)".
-
-      iDestruct (closing_resources_interp with "Hclose_wastk") as "#Hinterp_wastk".
-      iDestruct (closing_resources_interp with "Hclose_wastk1") as "#Hinterp_wastk1".
-      iDestruct (closing_resources_interp with "Hclose_wastk2") as "#Hinterp_wastk2".
-      iDestruct (closing_resources_interp with "Hclose_wastk3") as "#Hinterp_wastk3".
 
       iAssert (
           ∃ rmap', ⌜ dom rmap' = dom arg_rmap' ⌝ ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ w)
@@ -643,16 +830,18 @@ Section fundamental.
       }
       iDestruct (big_sepM_insert_delete with "[$Hrmap $HPC]") as "Hrmap".
 
+      iAssert (interp W C (WCap RWL Local b_stk e_stk a_stk)) as "#Hinterp_csp".
+      { admit. (* doable, but tedious *) }
+
       destruct wastk2 as [ z | [p g b e a|]  | p g b e a | ot sb ] ; iEval (cbn) in "Hrmap".
       all: cbn in HcorrectWret.
       all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the IH *)
-        iApply ("IH" with "[] [] [$] [] [Hr] [$Hsts] [$Hcont_K] [$Hna] [$Hcstk_frag] [$]").
+        iApply ("IH" with "[] [] [$] [] [$Hr] [$Hsts] [$Hcont_K] [$Hna] [$Hcstk_frag] [$]").
         { admit. (* easy *) }
         {
           iIntros (r rv HrPC Hr).
-          destruct (decide (r = csp)); simplify_map_eq.
-          { admit. (* doable, but tedious *) }
+          destruct (decide (r = csp)); simplify_map_eq; first done.
           destruct (decide (r = cs1)); simplify_map_eq; first done.
           destruct (decide (r = cs0)); simplify_map_eq; first done.
           destruct (decide (r = ca1)); simplify_map_eq; first done.
@@ -664,15 +853,14 @@ Section fundamental.
           rewrite lookup_delete_ne; eauto.
         }
         { iPureIntro; simplify_map_eq; done. }
-        { admit. (* just close the region *) }
 
       + (* wret was a sentry capability: apply the def of safe for sentry *)
         iAssert (interp W C (WSentry p g b e a)) as "#Hinterp_wret'" ; first done.
-        iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wastk2".
+        iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wstk2".
         destruct ( is_switcher_entry_point p g b e a ) eqn:Hwret_is_switcher_entry_point.
         (* The caller had changed the `wret` into one of the switcher's entry point.... *)
         * admit. (* TODO I need an inductive case *)
-        * iDestruct "Hinterp_wastk2" as "#Hinterp_wret".
+        * iDestruct "Hinterp_wstk2" as "#Hinterp_wret".
           rewrite /enter_cond.
           iAssert (future_world g W W) as "-#Hfuture".
           { destruct g; cbn; iPureIntro
@@ -682,14 +870,13 @@ Section fundamental.
           iDestruct "Hinterp_wret" as "[Hinterp_wret _]".
           iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
           rewrite /interp_expr /=.
-          iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap Hr $Hsts $Hcstk_frag $Hna]") as "HA"; eauto.
+          iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hr $Hsts $Hcstk_frag $Hna]") as "HA"; eauto.
           iSplitR.
           { iSplit.
             - admit. (* easy *)
             -
               iIntros (r rv HrPC Hr).
-              destruct (decide (r = csp)); simplify_map_eq.
-              { admit. (* doable, but tedious *) }
+              destruct (decide (r = csp)); simplify_map_eq; first done.
               destruct (decide (r = cs1)); simplify_map_eq; first done.
               destruct (decide (r = cs0)); simplify_map_eq; first done.
               destruct (decide (r = ca1)); simplify_map_eq; first done.
@@ -700,19 +887,17 @@ Section fundamental.
               iPureIntro.
               rewrite lookup_delete_ne; eauto.
           }
-          iSplitR.
-          { iPureIntro; simplify_map_eq; done. }
-          { admit. (* just close the region *) }
+          iPureIntro; simplify_map_eq; done.
 
     - (* Case where caller is trusted, we use the continuation *)
-      iDestruct "Hwstk" as "(-> & -> & -> & ->)".
+      iDestruct "Hinterp_wstk0" as "->".
+      iDestruct "Hinterp_wstk1" as "->".
+      iDestruct "Hinterp_wstk2" as "->".
+      iDestruct "Hinterp_wstk3" as "->".
       iApply ("Hexec_topmost_frm" with
                "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap Hr $Hsts $Hcont_K $Hcstk_frag $Hna]").
-      iSplitL;[iPureIntro|].
-      rewrite Harg_rmap'; set_solver.
-      (* Should be done with closing the region *)
-      admit.
+      $Hrmap $Hr $Hsts $Hcont_K $Hcstk_frag $Hna]").
+      iPureIntro;rewrite Harg_rmap'; set_solver.
 
   Admitted.
 
