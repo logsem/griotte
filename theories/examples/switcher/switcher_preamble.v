@@ -46,11 +46,12 @@ Section Switcher_preamble.
 
   Program Definition execute_entry_point (wpcc wcgp : Word) (regs : Reg) (cstk : CSTK) : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
-       ( (execute_entry_point_register wpcc wcgp W C regs)
+      ( interp_continuation cstk W C
+         ∗ (execute_entry_point_register wpcc wcgp W C regs)
          ∗ registers_pointsto regs
          ∗ region W C
          ∗ sts_full_world W C
-         ∗ cstack_frag cstk
+         ∗ cstack_frag cstk 
          ∗ na_own logrel_nais ⊤
            -∗ interp_conf W C)
     )%I.

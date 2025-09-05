@@ -364,6 +364,7 @@ Section fundamental.
              ∗ csp ↦ᵣ WCap csp_p csp_g csp_b csp_e csp_a
              ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap csp_p csp_g csp_b csp_e csp_e
              ∗ codefrag pc_a (clear_stack_instrs r1 r2))
+             ∗ region W C ∗ sts_full_world W C
             -∗ WP Seq (Instr Executable) {{ φ }})
       ∗ ▷ φ FailedV
     )
@@ -711,7 +712,7 @@ Section fundamental.
     { iFrame. iSplit;[by iApply "Hreg";eauto|].
       by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcgp
-    & Hcsp & Hr & Hsts & _)] /=".
+    & Hcsp & Hr & Hsts & _ & %bounds')] /=".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
@@ -844,7 +845,7 @@ Section fundamental.
     { iApply interp_weakeningEO;eauto. all: solve_addr. }
     iSplitL;cycle 1.
     { iIntros "!> %Hcontr"; done. }
-    iIntros "!> (HPC & Hcsp & Hcs0 & Hcs1 & Hcode)".
+    iIntros "!> ((HPC & Hcsp & Hcs0 & Hcs1 & Hcode) & Hr & Hsts)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     focus_block 2 "Hcode" as a_rest Ha_rest "Hcode" "Hcls". iHide "Hcls" as hcont.
 
@@ -1025,23 +1026,102 @@ Section fundamental.
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     focus_block 5 "Hcode" as a_jalr Ha_halr "Hcode" "Hcls". iHide "Hcls" as hcont.
 
+    eset (frame :=
+           {| wret := WInt 0;
+              wstk := (WCap RWL Local b e a);
+              wcgp := WInt 0;
+              wcs0 := WInt 0;
+              wcs1 := WInt 0;
+              is_untrusted_caller := true
+           |}).
+
+    iSpecialize ("Hexec" $! _ W (frame :: cstk) with "[]").
+    { iPureIntro. apply related_sts_priv_refl_world. }
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     rewrite /load_word. iSimpl in "Hcgp".
 
-    set (frame :=
-           {| wret := (WCap RX Global bpcc epcc f5);
-              wstk := (WCap RWL Local b e a);
-              wcgp := (WCap RW Global bcgp ecgp bcgp);
-              wcs0 := WInt 0;
-              wcs1 := WInt 0;
-              is_untrusted_caller := false
-           |}).
-
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq'. subst.
     iMod (cstack_update _ _ (frame :: cstk) with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
-    iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full]") as "HH".
+    iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hf3 Hstk_interp]") as "HH".
+    { iNext. iExists _,_. iFrame "∗ #".
+      rewrite (finz_incr_eq Hf4).
+      replace (f3 ^+ -1)%a with a_tstk by solve_addr+Hastk.
+      iFrame. simpl. iPureIntro.
+      repeat (split;auto);[solve_addr..|repeat f_equiv;solve_addr].
+    }
+
+    iApply "Hexec".
+    iSplitL "Hcont".
+    { iFrame. iNext. simpl.
+      iSplit.
+      - iApply (interp_weakening with "IH Hspv");auto;solve_addr.
+      - iIntros (W' HW' ???) "(HPC & _)".
+        rewrite /interp_conf.
+        wp_instr.
+        iApply (wp_notCorrectPC with "[$]").
+        { intros Hcontr;inversion Hcontr. }
+        iIntros "!> HPC". wp_pure. wp_end. iIntros (Hcontr);done. }
+    iFrame.
+    rewrite /execute_entry_point_register.
+    iDestruct (big_sepM_sep with "Hrest") as "[Hrest #Hnil]".
+    iDestruct (big_sepM_sep with "Hparams") as "[Hparams #Hval]".
+    iDestruct (big_sepM_union with "[$Hparams $Hrest]") as "Hregs".
+    { apply map_disjoint_dom. rewrite Hrmap'' Hisarg_rmap'.
+      rewrite /dom_arg_rmap. clear. set_solver. }
+    iDestruct (big_sepM_insert_2 with "[Hcsp] Hregs") as "Hregs";[iFrame|].
+    iDestruct (big_sepM_insert_2 with "[Hcra] Hregs") as "Hregs";[iFrame|].
+    iDestruct (big_sepM_insert_2 with "[Hcgp] Hregs") as "Hregs";[iFrame|].
+    iDestruct (big_sepM_insert_2 with "[HPC] Hregs") as "Hregs";[iFrame|].
     
-    
+    iFrame.
+    iSplit.
+    { iPureIntro. simpl. intros rr. clear -Hisarg_rmap' Hrmap''.
+      destruct (decide (rr = PC));simplify_map_eq;[eauto|].
+      destruct (decide (rr = cgp));simplify_map_eq;[eauto|].
+      destruct (decide (rr = cra));simplify_map_eq;[eauto|].
+      destruct (decide (rr = csp));simplify_map_eq;[eauto|].
+      apply elem_of_dom. rewrite dom_union_L Hrmap'' Hisarg_rmap'.
+      rewrite difference_union_distr_r_L union_intersection_l.
+      rewrite -union_difference_L;[|apply all_registers_subseteq].
+      apply elem_of_intersection. split;[apply all_registers_s_correct|].
+      apply elem_of_union. right.
+      apply elem_of_difference. split;[apply all_registers_s_correct|set_solver]. }
+
+    iSplit;[|iSplit;[|iSplit;[|iSplit;[|iSplit] ] ] ].
+    - clear-Hentry. iPureIntro. simplify_map_eq. repeat f_equiv.
+      rewrite encode_entry_point_eq_off in Hentry. solve_addr.
+    - iPureIntro. clear. simplify_map_eq. auto.
+    - iIntros (wstk Hwstk'). simplify_map_eq.
+      iApply (interp_weakening with "IH Hspv");auto.
+      solve_addr. solve_addr-.
+    - iIntros (wret Hwret). simplify_map_eq.
+      iApply fixpoint_interp1_eq. iSimpl.
+      assert (is_switcher_entry_point XSRW_ Local b_switcher e_switcher (a_jalr ^+ 1)%a = true) as ->;[|done].
+      rewrite /is_switcher_entry_point. rewrite bool_decide_true// bool_decide_true// /=.
+      rewrite !Z.eqb_refl /=.
+      rewrite orb_true_iff;simpl. left.
+      rewrite orb_true_iff;simpl. right.
+      pose proof switcher_return_entry_point.
+      solve_addr.
+    - iIntros (r v Hr Hv).
+      repeat (rewrite lookup_insert_ne in Hv;[|set_solver+Hr]).
+      rewrite lookup_union_l in Hv;cycle 1.
+      { apply not_elem_of_dom. rewrite Hrmap''.
+        apply not_elem_of_difference. right.
+        apply elem_of_union. by left. }
+      iDestruct (big_sepM_lookup with "Hval") as "$". apply Hv.
+    - iIntros (r Hnin).
+      apply not_elem_of_union in Hnin as [Hnin1 Hnin2].
+      assert (is_Some (rmap'' !! r)) as [v Hin].
+      { apply elem_of_dom. rewrite Hrmap''.
+        apply elem_of_difference. split;[apply all_registers_s_correct|].
+        apply not_elem_of_union. auto. }
+      iDestruct (big_sepM_lookup with "Hnil") as %Hnil;[eauto|].
+      iPureIntro.
+      repeat (rewrite lookup_insert_ne;[|set_solver+Hnin1 Hnin2]).
+      rewrite lookup_union_r;[subst;auto|].
+      apply not_elem_of_dom. by rewrite Hisarg_rmap'.
+  Qed.
     
 End fundamental.
