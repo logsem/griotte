@@ -557,7 +557,100 @@ Section fundamental.
     )
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-  Admitted.
+    iIntros (Hexec Hbounds Hargmap Hz) "(HPC & Hct2 & Hargs & Hcode & Hcont)".
+    codefrag_facts "Hcode". clear H0.
+
+    assert (∃ w0 w1 w2 w3 w4 w5 w, arg_rmap = <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
+             (<[ca5:=w5]> (<[ct0:=w]> ∅))))))) as [w0 [w1 [w2 [w3 [w4 [w5 [w Heq] ] ] ] ] ] ].
+    { assert (is_Some (arg_rmap !! ca0)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+      assert (is_Some (arg_rmap !! ca1)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+      assert (is_Some (arg_rmap !! ca2)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+      assert (is_Some (arg_rmap !! ca3)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+      assert (is_Some (arg_rmap !! ca4)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+      assert (is_Some (arg_rmap !! ca5)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+      assert (is_Some (arg_rmap !! ct0)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
+      exists x,x0,x1,x2,x3,x4,x5. apply map_eq.
+      intros i. destruct (decide (ca0 = i));simplify_map_eq=>//.
+      destruct (decide (ca1 = i));simplify_map_eq=>//.
+      destruct (decide (ca2 = i));simplify_map_eq=>//.
+      destruct (decide (ca3 = i));simplify_map_eq=>//.
+      destruct (decide (ca4 = i));simplify_map_eq=>//.
+      destruct (decide (ca5 = i));simplify_map_eq=>//.
+      destruct (decide (ct0 = i));simplify_map_eq=>//.
+      apply not_elem_of_dom. rewrite Hargmap. set_solver. }
+
+    rewrite Heq.
+    repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
+    iDestruct "Hargs" as "([Hca0 #Hca0v] & [Hca1 #Hca1v] & [Hca2 #Hca2v] & [Hca3 #Hca3v]
+    & [Hca4 #Hca4v] & [Hca5 #Hca5v] & [Hct0 #Hct0v] & _)".
+
+    (* Hardcoded proof of cases *)
+    destruct (decide (1 = z)%Z);[subst|].
+    { iGo "Hcode".
+      iApply "Hcont".
+      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
+      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
+      iFrame. repeat iSplit;[|iApply interp_int..|done].
+      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
+
+    destruct (decide (2 = z)%Z);[subst|].
+    { iGo "Hcode".
+      iApply "Hcont".
+      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
+      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
+      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
+
+    destruct (decide (3 = z)%Z);[subst|].
+    { iGo "Hcode".
+      iApply "Hcont".
+      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
+      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
+      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
+
+    destruct (decide (4 = z)%Z);[subst|].
+    { iGo "Hcode".
+      iApply "Hcont".
+      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
+      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
+      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
+
+    destruct (decide (5 = z)%Z);[subst|].
+    { iGo "Hcode".
+      iApply "Hcont".
+      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
+      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
+      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
+
+    destruct (decide (6 = z)%Z);[subst|].
+    { iGo "Hcode".
+      iApply "Hcont".
+      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
+      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
+      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
+
+    destruct (decide (7 = z)%Z);[subst|].
+    { iGo "Hcode".
+      iApply "Hcont".
+      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
+      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
+      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
+
+    destruct (decide (8 = z)%Z);[subst|].
+    { iGo "Hcode".
+      iApply "Hcont".
+      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
+      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
+      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
+
+    exfalso. lia.
+  Qed.
 
   Lemma clear_registers_pre_call_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
@@ -579,9 +672,47 @@ Section fundamental.
     )
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-  Admitted.
-  
-  Axiom foo : False.
+    iIntros (Hx Hbounds Hdom) "(HPC & Hregs & Hcode & Hcont)".
+
+    iAssert ([∗ map] r↦_ ∈ rmap, ∃ w, r ↦ᵣ w)%I with "[Hregs]" as "Hregs".
+    { iApply (big_sepM_mono with "Hregs"). intros. eauto. }
+
+    iDestruct (big_sepM_dom with "Hregs") as "Hregs".
+    rewrite Hdom.
+
+    iDestruct (big_sepS_delete _ _ cnull with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ ctp with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ ct1 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ ct2 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs0 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs1 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ ca6 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ ca7 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs2 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs3 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs4 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs5 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs6 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs7 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs8 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs9 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs10 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ cs11 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ ct3 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ ct4 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ ct5 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
+    iDestruct (big_sepS_delete _ _ ct6 with "Hregs") as "[[% ?] _]";[set_solver|].
+
+    codefrag_facts "Hcode". clear H0.
+    iGo "Hcode".
+    
+    iApply "Hcont".
+    iExists (<[cnull:=_]> (<[ctp:=_]> (<[ct1:=_]> (<[ct2:=_]> (<[cs0:=_]> (<[cs1:=_]> (<[ca6:=_]> (<[ca7:=_]> (<[cs2:=_]> (<[cs3:=_]> (<[cs4:=_]> (<[cs5:=_]> (<[cs6:=_]> (<[cs7:=_]> (<[cs8:=_]> (<[cs9:=_]> (<[cs10:=_]> (<[cs11:=_]> (<[ct3:=_]> (<[ct4:=_]> (<[ct5:=_]> (<[ct6:=_]> ∅)))))))))))))))))))))).
+    repeat (rewrite big_sepM_insert;[|by simplify_map_eq]).
+    iFrame. iSplit.
+    { iPureIntro. rewrite !dom_insert_L. set_solver. }
+    repeat (iSplit;[done|]). done.
+  Qed.   
 
   Lemma switcher_call_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (cstk : CSTK) (wstk : Word)
