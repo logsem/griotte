@@ -45,7 +45,7 @@ Section fundamental.
     iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
     iSplitL; iFrame "#".
   Qed.
-  
+
   Lemma interp_weakening_from_sentry W C p g b e a :
       interp W C (WSentry p g b e a)
       -∗ interp W C (WSentry p Local b e a).
@@ -257,7 +257,7 @@ Section fundamental.
     iIntros (Hisno) "#Hi".
     iApply interp_weakeningEO; eauto; try solve_addr; try done.
   Qed.
-    
+
   Lemma safe_to_unseal_weakening W C b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
@@ -501,7 +501,7 @@ Section fundamental.
   Proof.
     iModIntro.
     iIntros (W W') "%Hrelated Hinterp".
-    rewrite /interpC /safeC /=. 
+    rewrite /interpC /safeC /=.
     iEval (rewrite fixpoint_interp1_eq); done.
   Qed.
 

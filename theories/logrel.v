@@ -565,6 +565,7 @@ Section logrel.
     (* destruct c ; auto. *)
     (* destruct rx,w,g; auto. *)
     (* par: solve_contractive. (* TODO how can I set -async-proofs-tac-j *) *)
+    (* Qed. *)
   Admitted. (* TODO holds, but very loooong *)
 
   Global Instance interp_sr_contractive :
@@ -590,6 +591,7 @@ Section logrel.
     (* + by apply interp_sr_contractive. *)
     (* + by apply interp_sentry_contractive. *)
     (* + rewrite /interp_sb; solve_contractive. *)
+    (* Qed. *)
   Admitted. (* TODO holds, but very loooong *)
 
   Lemma fixpoint_interp1_eq (W : WORLD) (C : CmptName) (w : leibnizO Word) :
