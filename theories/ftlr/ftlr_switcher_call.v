@@ -52,7 +52,7 @@ Section fundamental.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           ( ∃ p g b e a,
-           ⌜ wdst = WCap p g b e a ⌝       
+           ⌜ wdst = WCap p g b e a ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
@@ -74,7 +74,7 @@ Section fundamental.
       iApply (wp_store_fail_reg_not_cap _ _ _ _ _ _ _ rdst rsrc with "[$]")
       ; try solve_pure.
       iIntros "!> _". iApply "Hφ"; by iLeft. }
-    destruct wdst;try done. destruct sb; try done. 
+    destruct wdst;try done. destruct sb; try done.
 
     destruct (decide (canStore p wsrc = true))%a as [Hstore_src|Hstore_src]; cycle 1.
     {
@@ -121,7 +121,7 @@ Section fundamental.
 
     iDestruct (region_open with "[$]") as (v) "(Hr & Hsts & Hstate & Ha & %Hno & _ & _)";[|done|].
     { destruct ρ;auto. done. }
-    
+
     iApply (wp_store_success_reg _ _ _ _ _ _ _ _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
     ; try iFrame
     ; try solve_pure.
@@ -210,7 +210,7 @@ Section fundamental.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           ( ∃ p g b e a,
-           ⌜ wdst = WCap p g b e a ⌝       
+           ⌜ wdst = WCap p g b e a ⌝
            ∗ ⌜ retv = NextIV ⌝
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
@@ -231,7 +231,7 @@ Section fundamental.
       iApply (wp_store_fail_z_not_cap with "[$]")
       ; try solve_pure; eauto.
       iIntros "!> _". iApply "Hφ"; by iLeft. }
-    destruct wdst;try done. destruct sb; try done. 
+    destruct wdst;try done. destruct sb; try done.
 
     destruct (decide (writeAllowed p = true))%a as [Hstore_src|Hstore_src]; cycle 1.
     {
@@ -280,7 +280,7 @@ Section fundamental.
 
     iDestruct (region_open with "[$]") as (v) "(Hr & Hsts & Hstate & Ha & %Hno & _ & _)";[|done|].
     { destruct ρ;auto. done. }
-    
+
     iApply (wp_store_success_z _ _ _ _ _ _ _ _ rdst with "[$HPC Hi Hdst Ha]")
     ; try iFrame
     ; try solve_pure
@@ -376,7 +376,7 @@ Section fundamental.
 
     (* --- Sub r1 r2 r1 --- *)
     iInstr "Hcode".
-    
+
     (* --- Mov r2 csp --- *)
     iInstr "Hcode".
 
@@ -705,14 +705,14 @@ Section fundamental.
 
     codefrag_facts "Hcode". clear H0.
     iGo "Hcode".
-    
+
     iApply "Hcont".
     iExists (<[cnull:=_]> (<[ctp:=_]> (<[ct1:=_]> (<[ct2:=_]> (<[cs0:=_]> (<[cs1:=_]> (<[ca6:=_]> (<[ca7:=_]> (<[cs2:=_]> (<[cs3:=_]> (<[cs4:=_]> (<[cs5:=_]> (<[cs6:=_]> (<[cs7:=_]> (<[cs8:=_]> (<[cs9:=_]> (<[cs10:=_]> (<[cs11:=_]> (<[ct3:=_]> (<[ct4:=_]> (<[ct5:=_]> (<[ct6:=_]> ∅)))))))))))))))))))))).
     repeat (rewrite big_sepM_insert;[|by simplify_map_eq]).
     iFrame. iSplit.
     { iPureIntro. rewrite !dom_insert_L. set_solver. }
     repeat (iSplit;[done|]). done.
-  Qed.   
+  Qed.
 
   Lemma switcher_call_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (cstk : CSTK) (wstk : Word)
@@ -756,11 +756,11 @@ Section fundamental.
     set (Hsize := switcher_size).
     assert (SubBounds b_switcher e_switcher a_switcher_call (a_switcher_call ^+(length switcher_instrs))%a)
       by solve_addr.
-    
+
     (* --- Store csp cs0 --- *)
     iDestruct ("Hreg" $! csp with "[//] [//]") as "#Hspv".
     iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.    
+    wp_instr.
     iApply (wp_store_interp with "[$HPC $Hi Hcsp Hcs0 $Hr $Hsts]"); try solve_pure.
     { iFrame. iFrame "#". by iApply "Hreg";eauto. }
     iIntros "!>" (v) "[-> | (% & % & % & % & % & -> & -> & HPC & Hi & Hcs0
@@ -783,7 +783,7 @@ Section fundamental.
     { apply canStore_writeAllowed in Hcanstore.
       destruct p,w,rx;auto. }
     iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.    
+    wp_instr.
     iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hr $Hsts]"); try solve_pure.
     { iFrame. iSplit;[by iApply "Hreg";eauto|].
       by iApply (interp_lea with "Hspv"). }
@@ -804,7 +804,7 @@ Section fundamental.
 
     (* --- Store csp cra --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.    
+    wp_instr.
     iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcra $Hr $Hsts]"); try solve_pure.
     { iFrame. iSplit;[by iApply "Hreg";eauto|].
       by iApply (interp_lea with "Hspv"). }
@@ -826,7 +826,7 @@ Section fundamental.
 
     (* --- Store csp cs1 --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.    
+    wp_instr.
     iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hr $Hsts]"); try solve_pure.
     { iFrame. iSplit;[by iApply "Hreg";eauto|].
       by iApply (interp_lea with "Hspv"). }
@@ -928,7 +928,7 @@ Section fundamental.
       iApply (wp_store_fail_reg with "[$HPC $Hi $Hcsp $Hct2]");try solve_pure.
       { rewrite /withinBounds. solve_addr+n Hastk. }
       iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done. }
-    
+
     iDestruct (big_sepL2_length with "Htstk") as %Hlen.
     erewrite finz_incr_eq in Hlen;[|eauto].
     rewrite finz_seq_between_length in Hlen.
@@ -1011,7 +1011,7 @@ Section fundamental.
     iDestruct "Hct1v" as (P HpersP) "(HmonoP & HPseal & HP & HPborrow)".
     iDestruct (seal_pred_agree with "Hp_ot_switcher HPseal") as "Hagree".
     iSpecialize ("Hagree" $! (W,C,WSealable wsb)).
-    
+
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
     rewrite /safeC.
@@ -1019,7 +1019,7 @@ Section fundamental.
     iRewrite -"Hagree" in "HP".
     iDestruct "HP" as (?????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & Hexec)". simpl fst. simpl snd.
     inversion Heq.
-    
+
     (* --- Load cs0 ct1 --- *)
     wp_instr.
     iInv "Htbl3" as ">Ha_tbl" "Hcls_tbl".
@@ -1091,7 +1091,7 @@ Section fundamental.
     rewrite -(map_filter_union_complement Pf rmap').
     iDestruct (big_sepM_union with "Hrmap") as "[Hparams Hrest]".
     { apply map_disjoint_filter_complement. }
-    
+
     iApply (clear_registers_pre_call_skip_spec with "[- $HPC $Hct2 $Hcode]"); try solve_pure.
     { instantiate (1:=filter (λ v : RegName * Word, (Pf v)%type) rmap').
       rewrite /is_arg_rmap /dom_arg_rmap.
@@ -1109,7 +1109,7 @@ Section fundamental.
       iApply ("Hreg" $! k);iPureIntro. set_solver+Hspec.
       repeat (apply lookup_delete_Some in Hin as [_ Hin]). auto. }
     iIntros "!> (%arg_rmap' & %Hisarg_rmap' & HPC & Hct2 & Hparams & Hcode)".
-    
+
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     focus_block 4 "Hcode" as a_clear' Ha_clear' "Hcode" "Hcls". iHide "Hcls" as hcont.
 
@@ -1175,7 +1175,7 @@ Section fundamental.
     { iFrame. iNext. simpl.
       iSplit.
       - iApply (interp_weakening with "IH Hspv");auto;solve_addr.
-      - iIntros (W' HW' ???) "(HPC & _)".
+      - iIntros (W' HW' ?????) "(HPC & _)".
         rewrite /interp_conf.
         wp_instr.
         iApply (wp_notCorrectPC with "[$]").
@@ -1192,7 +1192,7 @@ Section fundamental.
     iDestruct (big_sepM_insert_2 with "[Hcra] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hcgp] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[HPC] Hregs") as "Hregs";[iFrame|].
-    
+
     iFrame.
     iSplit.
     { iPureIntro. simpl. intros rr. clear -Hisarg_rmap' Hrmap''.

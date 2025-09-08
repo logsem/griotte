@@ -137,6 +137,13 @@ Section logrel.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
+  Definition safeC (P : V) :=
+    (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
+
+  Program Definition safeUC (P : WORLD * CmptName * leibnizO Word → iPropO Σ) : V :=
+    λne a b c, P (a, b, c).
+  Solve All Obligations with solve_proper.
+
   (* -------------------------------------------------------------------------------- *)
 
   (* Future world relation *)
@@ -225,13 +232,97 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
+  (* TODO move in machine_base *)
+  Definition get_a (w : Word) :=
+    match w with
+    | WCap _ _ _ _ a => Some a
+    | _ => None
+    end.
+
+  Definition get_e (w : Word) :=
+    match w with
+    | WCap _ _ _ e _ => Some e
+    | _ => None
+    end.
+
+  (* Condition definitions *)
+  Definition zcond (P : V) (C : CmptName) : iProp Σ :=
+    (□ ∀ (W1 W2: WORLD) (z : Z), P W1 C (WInt z) -∗ P W2 C (WInt z)).
+  Global Instance zcond_ne n :
+    Proper ((=) ==> (=) ==> dist n) zcond.
+  Proof. solve_proper_prepare.
+         repeat f_equiv;auto. Qed.
+  Global Instance zcond_contractive (P : V) (C : CmptName) :
+    Contractive (λ interp, ▷ zcond P C)%I.
+  Proof. solve_contractive. Qed.
+
+  Definition rcond (P : V) (C : CmptName) (p : Perm) (interp : V) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word), P W C w -∗ interp W C (load_word p w)).
+  Global Instance rcond_ne n :
+    Proper ((=) ==> (=) ==> (=) ==> dist n ==> dist n) rcond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance rcond_contractive (P : V) (C : CmptName) (p : Perm) :
+    Contractive (λ interp, ▷ rcond P C p interp)%I.
+  Proof. solve_contractive. Qed.
+
+  Definition wcond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word), interp W C w -∗ P W C w).
+  Global Instance wcond_ne n :
+    Proper ((=) ==> (=)  ==> dist n ==> dist n) wcond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance wcond_contractive (P : V) (C : CmptName) :
+    Contractive (λ interp, ▷ wcond P C interp)%I.
+  Proof. solve_contractive. Qed.
+
+
+  (* TODO Is there any way to move this at a better place? *)
+  Definition opening_resources (interp : V) W C a :=
+    (∃ v φ p ρ,
+      sts_state_std C a ρ
+      ∗ ▷ (φ (W, C, v))
+      ∗ ▷ (monotonicity_guarantees_region C φ p v ρ)
+      ∗ a ↦ₐ v
+      ∗ ▷ rcond (safeUC φ) C p interp
+      ∗ ▷ wcond (safeUC φ) C interp
+      ∗ rel C a p φ
+      ∗ ⌜ ρ ≠ Revoked ⌝
+      ∗ ⌜ isO p = false ⌝
+      ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝)%I.
+
+  Definition closing_resources (interp : V) W C a w : iProp Σ :=
+    ∃ φ p ρ,
+      (sts_state_std C a ρ
+       ∗ (φ (W, C, w))
+       ∗ (monotonicity_guarantees_region C φ p w ρ)
+       ∗ rcond (safeUC φ) C p interp
+       ∗ wcond (safeUC φ) C interp
+       ∗ rel C a p φ
+       ∗ ⌜ ρ ≠ Revoked ⌝
+       ∗ ⌜ isO p = false ⌝
+       ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝
+      )%I.
+
+  Global Instance closing_resources_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) closing_resources.
+  Proof.
+    intros interp interp0 Heq ????????????.
+    rewrite /closing_resources.
+    repeat (f_equiv; auto).
+  Qed.
+
   Program Definition interp_cont_exec (interp : V) (interp_cont : K) :
     (CSTK -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO cframe) -n> iPropO Σ)
     :=
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName)
        (frm : cframe)
      ,
-       ∀ wca0 wca1 regs,
+       ∀ wca0 wca1 regs a_stk e_stk,
+       let callee_stk_region :=
+         finz.seq_between (a_stk ^+4)%a e_stk
+         (* ( if frm.(is_untrusted_caller) *)
+         (*   then finz.seq_between a_stk e_stk *)
+         (*   else finz.seq_between (a_stk ^+4)%a e_stk) *)
+       in
        ( PC ↦ᵣ updatePcPerm frm.(wret)
          ∗ cra ↦ᵣ frm.(wret)
          ∗ csp ↦ᵣ frm.(wstk)
@@ -246,9 +337,11 @@ Section logrel.
          ∗ ⌜dom regs = all_registers_s ∖ {[PC; cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
          ∗ ([∗ map] r↦w ∈ regs, r ↦ᵣ WInt 0)
          (* World interpretation *)
-         (* TODO: @Aina suggest to open the region of the callee stack,
-            so that we get the points-to zero and user can take private transitions before returning *)
-         ∗ region W C
+         ∗ ⌜ get_a frm.(wstk) = Some a_stk ⌝
+         ∗ ⌜ get_e frm.(wstk) = Some e_stk ⌝
+         ∗ [[ a_stk , e_stk ]] ↦ₐ [[ addr_reg_sample.region_addrs_zeroes a_stk e_stk ]]
+         ∗ open_region_many W C callee_stk_region
+         ∗ ([∗ list] a ∈ callee_stk_region, closing_resources interp W C a (WInt 0))
          ∗ sts_full_world W C
          (* Continuation *)
          ∗ interp_cont W C
@@ -264,7 +357,9 @@ Section logrel.
     intros interp interp0 Heq K K0 HK.
     rewrite /interp_cont_exec. intros ????. simpl.
     (* do 10 f_equiv;[|apply HK]. *)
-    by repeat f_equiv.
+    do 22 f_equiv; auto;[apply Heq|].
+    do 9 f_equiv; auto.
+    by apply closing_resources_ne.
   Qed.
 
   Definition interp_callee_part_of_the_stack
@@ -311,51 +406,6 @@ Section logrel.
     destruct sb ; auto.
     apply Heq.
   Qed.
-  (* Global Instance interp_cont_contractive (interp : V) stk : *)
-    (* Contractive (λ interp_cont', (interp_cont stk interp) interp_cont'). *)
-  (* Proof. *)
-  (*   solve_proper_prepare. *)
-  (*   destruct p. *)
-  (*   destruct p. *)
-  (*   solve_contractive. *)
-  (* Qed. *)
-
-  (* Lemma fixpoint_interp_continuation_eq (interp : V) (stk : STK) (W : WORLD) (C : CmptName) (w : leibnizO Word) : *)
-  (*   fixpoint (interp_continuation interp) stk W C ≡ interp_continuation interp (fixpoint (interp_continuation interp)) stk W C. *)
-  (* Proof. exact: (fixpoint_unfold (interp_continuation interp) stk W C). Qed. *)
-
-  (* Definition interp_cont (interp : V) := fixpoint (interp_continuation interp). *)
-  (* Definition interp_expr (interp : V) := interp_expr' interp (interp_cont interp). *)
-
-  (* Condition definitions *)
-  Definition zcond (P : V) (C : CmptName) : iProp Σ :=
-    (□ ∀ (W1 W2: WORLD) (z : Z), P W1 C (WInt z) -∗ P W2 C (WInt z)).
-  Global Instance zcond_ne n :
-    Proper ((=) ==> (=) ==> dist n) zcond.
-  Proof. solve_proper_prepare.
-         repeat f_equiv;auto. Qed.
-  Global Instance zcond_contractive (P : V) (C : CmptName) :
-    Contractive (λ interp, ▷ zcond P C)%I.
-  Proof. solve_contractive. Qed.
-
-  Definition rcond (P : V) (C : CmptName) (p : Perm) (interp : V) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : Word), P W C w -∗ interp W C (load_word p w)).
-  Global Instance rcond_ne n :
-    Proper ((=) ==> (=) ==> (=) ==> dist n ==> dist n) rcond.
-  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  Global Instance rcond_contractive (P : V) (C : CmptName) (p : Perm) :
-    Contractive (λ interp, ▷ rcond P C p interp)%I.
-  Proof. solve_contractive. Qed.
-
-  Definition wcond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : Word), interp W C w -∗ P W C w).
-  Global Instance wcond_ne n :
-    Proper ((=) ==> (=)  ==> dist n ==> dist n) wcond.
-  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  Global Instance wcond_contractive (P : V) (C : CmptName) :
-    Contractive (λ interp, ▷ wcond P C interp)%I.
-  Proof. solve_contractive. Qed.
-
 
   Definition exec_cond
     (W : WORLD) (C : CmptName)
@@ -446,13 +496,6 @@ Section logrel.
 
   (* For simplicity we might want to have the following statement in valididy of caps.
      However, it is strictly not necessary since it can be derived form full_sts_world *)
-
-  Definition safeC (P : V) :=
-    (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
-
-  Program Definition safeUC (P : WORLD * CmptName * leibnizO Word → iPropO Σ) : V :=
-    λne a b c, P (a, b, c).
-  Solve All Obligations with solve_proper.
 
   Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) :=
     (match (std W) !! a with
