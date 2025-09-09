@@ -44,9 +44,10 @@ Section Switcher_preamble.
           (⌜r ∉ (dom_arg_rmap ∪ {[PC; cra; cgp; csp]})⌝ →  ⌜reg !! r = Some (WInt 0)⌝)))%I.
   Solve All Obligations with solve_proper.
 
-  Program Definition execute_entry_point (wpcc wcgp : Word) (regs : Reg) (cstk : CSTK) : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
+  Program Definition execute_entry_point (wpcc wcgp : Word) (regs : Reg) (cstk : CSTK) (Ws : list WORLD) : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
-      ( interp_continuation cstk W C
+      ( interp_continuation cstk Ws C
+         ∗ ⌜frame_match Ws cstk W⌝
          ∗ (execute_entry_point_register wpcc wcgp W C regs)
          ∗ registers_pointsto regs
          ∗ region W C
@@ -73,11 +74,11 @@ Section Switcher_preamble.
            ∗ inv (export_table_PCCN C) ( b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc)
            ∗ inv (export_table_CGPN C) ( (b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp)
            ∗ inv (export_table_entryN C a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point nargs off))
-           ∗ □ ( ∀ cstk W' regs, ⌜related_sts_priv_world W W'⌝ →
+           ∗ □ ( ∀ cstk Ws W' regs, ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap RX Global bpcc epcc (bpcc ^+ off)%a)
                             (WCap RW Global bcgp ecgp bcgp)
-                            cstk
+                            cstk Ws
                             regs W' C))
       )%I.
   Solve All Obligations with solve_proper.

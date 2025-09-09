@@ -715,12 +715,12 @@ Section fundamental.
   Qed.
 
   Lemma switcher_call_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
-    (cstk : CSTK) (wstk : Word)
+    (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
     (Nswitcher : namespace)
     :
-    specification_switcher_entry_point W C regs cstk wstk Nswitcher a_switcher_call.
+    specification_switcher_entry_point W C regs cstk Ws wstk Nswitcher a_switcher_call.
   Proof.
-    iIntros (Hfull_rmap Hwstk) "#IH #Hreg #Hinv_switcher Hcont Hsts Hna Hcstk Hrmap Hr".
+    iIntros (Hfull_rmap Hwstk) "#IH #Hreg #Hinv_switcher Hcont %Hframe Hsts Hna Hcstk Hrmap Hr".
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
@@ -1154,7 +1154,7 @@ Section fundamental.
               is_untrusted_caller := true
            |}).
 
-    iSpecialize ("Hexec" $! _ W (frame :: cstk) with "[]").
+    iSpecialize ("Hexec" $! _ (frame :: cstk) W (W :: Ws) with "[]").
     { iPureIntro. apply related_sts_priv_refl_world. }
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
@@ -1181,6 +1181,8 @@ Section fundamental.
         iApply (wp_notCorrectPC with "[$]").
         { intros Hcontr;inversion Hcontr. }
         iIntros "!> HPC". wp_pure. wp_end. iIntros (Hcontr);done. }
+    iSplitR.
+    { iPureIntro. simpl. split;auto. }
     iFrame.
     rewrite /execute_entry_point_register.
     iDestruct (big_sepM_sep with "Hrest") as "[Hrest #Hnil]".

@@ -418,12 +418,12 @@ Section fundamental.
 
    Lemma store_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
      (p p' : Perm) (g : Locality) (b e a : Addr) (w : Word)
-     (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : D) (cstk : CSTK) (wstk : Word)
+     (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : D) (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
      (Nswitcher : namespace) :
-     ftlr_instr W C regs p p' g b e a w (Store dst src) ρ P cstk wstk Nswitcher.
+     ftlr_instr W C regs p p' g b e a w (Store dst src) ρ P cstk Ws wstk Nswitcher.
    Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono HmonoV Hw Hcont Hsts Hown Htframe".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
     iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
     iInsert "Hmap" PC.
 
@@ -499,7 +499,7 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq. rewrite insert_insert.
 
-      iApply ("IH" with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [$Hown] [$Htframe]"); auto.
+      iApply ("IH" with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); auto.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { iApply wp_pure_step_later; auto. iNext; iIntros "_". iApply wp_value; auto.  }

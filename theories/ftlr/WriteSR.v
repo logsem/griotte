@@ -33,12 +33,12 @@ Section fundamental.
   
   Lemma writesr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst : SRegName) (src : RegName) (P:D) (cstk : CSTK) (wstk : Word)
+    (w : Word) (ρ : region_type) (dst : SRegName) (src : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
     (Nswitcher : namespace) :
-    ftlr_instr W C regs p p' g b e a w (WriteSR dst src) ρ P cstk wstk Nswitcher.
+    ftlr_instr W C regs p p' g b e a w (WriteSR dst src) ρ P cstk Ws wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown Htframe".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
     iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
     iInsert "Hmap" PC.
     destruct (has_sreg_access p) eqn:HpXRS.

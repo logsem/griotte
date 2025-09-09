@@ -247,7 +247,7 @@ Section monotone.
     iIntros (Hrelated) "#Hw".
     rewrite !fixpoint_interp1_eq /=.
     destruct (is_switcher_entry_point (WSentry p g b e a)) ; first done.
-    iModIntro. iIntros (stk r W'').
+    iModIntro. iIntros (stk r Ws W'').
     destruct g.
     + iIntros "#Hrelated'".
       rewrite /future_world.
@@ -255,7 +255,7 @@ Section monotone.
       iAssert (future_world Global W W'')%I as "Hrelated".
       { rewrite /future_world.
         iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! stk r W'' with "Hrelated").
+      iSpecialize ("Hw" $! stk r Ws W'' with "Hrelated").
       iApply "Hw".
     + iIntros "#Hrelated'".
       rewrite /future_world.
@@ -263,7 +263,7 @@ Section monotone.
       iAssert (future_world Local W W'')%I as "Hrelated".
       { rewrite /future_world.
         iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! stk r W'' with "Hrelated").
+      iSpecialize ("Hw" $! stk r Ws W'' with "Hrelated").
       iApply "Hw".
   Qed.
 
@@ -358,14 +358,14 @@ Section monotone.
     rewrite !fixpoint_interp1_eq /=.
     destruct (is_switcher_entry_point (WSentry p g b e a)) ; first done.
     destruct g ; cbn in Hnl ; try done.
-    iModIntro. iIntros (stk r W'').
+    iModIntro. iIntros (stk r Ws W'').
     iIntros "#Hrelated'".
     rewrite /future_world.
     iDestruct "Hrelated'" as "%Hrelated'".
     iAssert (future_world Global W W'')%I as "Hrelated".
     { rewrite /future_world.
       iPureIntro. apply related_sts_priv_trans_world with W'; auto. }
-    iSpecialize ("Hw" $! stk r W'' with "Hrelated").
+    iSpecialize ("Hw" $! stk r Ws W'' with "Hrelated").
     iApply "Hw".
   Qed.
 
@@ -599,15 +599,15 @@ Qed.
 
 Lemma interp_monotone_continuation
   (W W' : WORLD) (C : CmptName)
-  (cstk : CSTK) :
+  (cstk : CSTK) (Ws : list WORLD) :
   related_sts_pub_world W W' ->
-  interp_continuation cstk W C -∗ interp_continuation cstk W' C.
+  interp_continuation cstk (W :: Ws) C -∗ interp_continuation cstk (W' :: Ws) C.
 Proof.
-  induction cstk;simpl;auto.
+  revert Ws; induction cstk;intros Ws; simpl;auto.
   iIntros (Hrel) "[Hic [Hcallee Hcont]]".
   iNext.
   iSplitL "Hic";[|iSplitL "Hcallee"].
-  - iApply IHcstk;auto.
+  - iFrame.
   - rewrite /interp_callee_part_of_the_stack /=.
     case_match=>//.
     case_match=>//.
