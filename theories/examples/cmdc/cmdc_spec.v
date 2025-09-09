@@ -9,15 +9,19 @@ Section CMDC.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {tframeg : TFRAMEG Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    `{swlayout : switcherLayout}
+  .
   Context {B C : CmptName}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation CSTK := (leibnizO cstack).
+  Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
 
   Lemma cmdc_spec
 
@@ -26,7 +30,7 @@ Section CMDC.
     (csp_b csp_e : Addr)
     (rmap : Reg)
 
-    (b_switcher e_switcher a_cc_switcher b_tstk e_tstk : Addr) (ot_switcher : OType)
+    (b_tstk e_tstk : Addr) (ot_switcher : OType)
     (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f C_g : Sealable)
 
@@ -38,11 +42,11 @@ Section CMDC.
     (φ : language.val cap_lang -> iProp Σ)
     (Nassert Nswitcher : namespace)
 
-    (frm_init : nat)
+    (s_init : CSTK)
     :
 
     let imports :=
-     cmdc_main_imports b_switcher e_switcher a_cc_switcher ot_switcher b_assert e_assert B_f C_g
+     cmdc_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f C_g
     in
 
     Nswitcher ## Nassert ->
@@ -63,12 +67,12 @@ Section CMDC.
      The revoked world allow me to close the stack invariant (i.e., private transitions) *)
     revoke_condition W_init_B ->
     revoke_condition W_init_C ->
-    (frm W_init_B) = frm_init ->
-    (frm W_init_C) = frm_init ->
+    (* (frm W_init_B) = frm_init -> *)
+    (* (frm W_init_C) = frm_init -> *)
 
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_cc_switcher b_tstk e_tstk ot_switcher)
+      ∗ na_inv logrel_nais Nswitcher switcher_inv
       ∗ na_own logrel_nais ⊤
 
       (* initial register file *)
@@ -86,7 +90,10 @@ Section CMDC.
       ∗ region W_init_B B ∗ sts_full_world W_init_B B
       ∗ region W_init_C C ∗ sts_full_world W_init_C C
 
-      ∗ tframe_frag frm_init
+      ∗ interp_continuation s_init W_init_B B
+      ∗ interp_continuation s_init W_init_C C
+
+      ∗ cstack_frag s_init
 
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
@@ -102,13 +109,14 @@ Section CMDC.
     intros imports; subst imports.
     iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
-               Hrevoke_cond_B Hrevoke_cond_C Hfrm_B_init Hfrm_C_init)
+               Hrevoke_cond_B Hrevoke_cond_C)
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & HWreg_B & HWstd_full_B
       & HWreg_C & HWstd_full_C
-      & Htframe_frag
+      & HK_B & HK_C
+      & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & Hrel_stk_B & Hrel_stk_C
       & Hφ)".
@@ -294,15 +302,15 @@ Section CMDC.
     { done. }
     { done. }
     { iApply future_priv_mono_interp_z. }
-    { cbn; iEval (rewrite fixpoint_interp1_eq); done. }
+    { rewrite /interpC /safeC; cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
     (* Update the frame invariant of B *)
     set (W1 := (<s[cgp_b:=Permanent]s>W_init_B)).
-    set (W1' := switcher_world_upon_jmp W1 [] (finz.seq_between (csp_b ^+ 4)%a csp_e) ).
-    assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1.
-    { subst W1.
-      by eapply related_sts_priv_world_fresh_Permanent.
-    }
+    (* set (W1' := switcher_world_upon_jmp W1 [] (finz.seq_between (csp_b ^+ 4)%a csp_e) ). *)
+    (* assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1. *)
+    (* { subst W1. *)
+    (*   by eapply related_sts_priv_world_fresh_Permanent. *)
+    (* } *)
     iAssert ( ⌜ Forall (fun a => std W_init_B !! a = Some Revoked) (finz.seq_between csp_b csp_e) ⌝ )%I
       as "%Hrevoked_stack_B".
     {
@@ -332,17 +340,18 @@ Section CMDC.
       solve_addr.
     }
 
-    assert (related_sts_priv_world W_init_B W1') as HWinit_privB_W1'.
-    { subst W1'.
-      eapply related_sts_priv_trans_world; eauto.
-      eapply related_sts_priv_world_switcher_upon_jmp ; eauto.
-      apply disjoint_nil_l.
+    assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1.
+    { subst W1.
+      eapply related_sts_priv_world_fresh_Permanent.
+      (* eapply related_sts_priv_trans_world; eauto. *)
+      (* eapply related_sts_priv_world_switcher_upon_jmp ; eauto. *)
+      (* apply disjoint_nil_l. *)
     }
 
-    iAssert (interp W1' B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
+    iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
     { iApply monotone.interp_monotone_sd; eauto. }
 
-    iAssert (interp W1' B (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_W1_B_b".
+    iAssert (interp W1 B (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_W1_B_b".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
       rewrite (finz_seq_between_cons cgp_b); last solve_addr.
       rewrite (finz_seq_between_empty (cgp_b ^+ 1)%a); last solve_addr.
@@ -355,23 +364,19 @@ Section CMDC.
       iSplit; first (iNext ; by iApply zcond_interp).
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first (iNext ; by iApply wcond_interp).
-      subst W1' W1.
+      subst W1.
       iSplit.
       + iApply (monoReq_interp _ _ _ _  Permanent); last done.
-        rewrite /std_update frame_W_lookup_std.
-        rewrite std_sta_update_multiple_lookup_same_i; last done.
-        apply revoke_lookup_Perm.
+        rewrite /std_update.
         by rewrite lookup_insert.
       + iPureIntro.
-        rewrite std_sta_update_multiple_lookup_same_i; last done.
-        apply revoke_lookup_Perm.
         by rewrite lookup_insert.
     }
 
-    iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W1' B warg )%I
+    iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W1 B warg )%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
     { subst rmap_arg.
-      iAssert (interp W1' B (WInt 0)) as "Hinterp_0".
+      iAssert (interp W1 B (WInt 0)) as "Hinterp_0".
       { iEval (rewrite fixpoint_interp1_eq); done. }
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
       done.
@@ -390,12 +395,13 @@ Section CMDC.
       by eexists.
     }
 
-    replace frm_init with (frm W1).
-    iApply (switcher_cc_specification _ _ W1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ [] [] with
+    (* replace frm_init with (frm W1). *)
+    iEval (cbn) in "Hct1".
+    iApply (switcher_cc_specification _ W1 _ _ _ _ _ _ _ _ _ _ _ _  with
              "[- $Hswitcher $Hna
-              $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hct1 $Hrmap_arg $Hrmap
+              $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $HWreg_B $HWstd_full_B $Hrel_stk_B $Htframe_frag
-              $Hinterp_W1_B_f]"); eauto.
+              Hinterp_W1_B_f]"); eauto.
     { set_solver. }
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
