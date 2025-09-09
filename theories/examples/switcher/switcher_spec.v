@@ -39,7 +39,7 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD)
     :
     let wct1_caller := WSealed ot_switcher w_entry_point in
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; ct2 ; ctp ; cs0 ; cs1 ]} ∪ dom_arg_rmap) ->
+    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap) ->
     is_arg_rmap arg_rmap ->
     
     (b_stk <= a_stk)%a ->
@@ -59,8 +59,6 @@ Section Switcher.
     ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller
-    ∗ (∃ w, ct2 ↦ᵣ w)
-    ∗ (∃ w, ctp ↦ᵣ w)
     ∗ cs0 ↦ᵣ wcs0_caller
     ∗ cs1 ↦ᵣ wcs1_caller
     (* Argument registers, need to be safe-to-share *)
@@ -104,8 +102,22 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
-    iIntros (target Hdom Hrdom Hleb Hastk Hle) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v & 
-    [%wr0 Hct2] & [%wr1 Hctp] & Hcs0 & Hcs1 & Hargs & Hregs & stk & Hsts & Hr & #Hstk_val & Hcstk & Hcont & Hpost)".
+
+    iIntros (target Hdom Hrdom Hleb Hastk Hle) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    & Hcs0 & Hcs1 & Hargs & Hregs & stk & Hsts & Hr & #Hstk_val & Hcstk & Hcont & Hpost)".
+
+    assert ( exists wr0, rmap !! ct2 = Some wr0) as [wr0 Hwr0].
+    { rewrite -/(is_Some (rmap !! ct2)).
+      apply elem_of_dom. rewrite Hdom.
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+    }
+    iDestruct (big_sepM_delete _ _ ct2 with "Hregs") as "[Hct2 Hregs]"; first by simplify_map_eq.
+    assert ( exists wr1, rmap !! ctp = Some wr1) as [wr1 Hwr1].
+    { rewrite -/(is_Some (rmap !! ctp)).
+      apply elem_of_dom. rewrite Hdom.
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+    }
+    iDestruct (big_sepM_delete _ _ ctp with "Hregs") as "[Hctp Hregs]"; first by simplify_map_eq.
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hswitcher Hna")
@@ -384,10 +396,13 @@ Section Switcher.
     focus_block 4 "Hcode" as a_clear' Ha_clear' "Hcode" "Hcls". iHide "Hcls" as hcont.
 
     iDestruct (big_sepM_insert_2 with "[Hctp] Hregs") as "Hregs";[iFrame|].
+    rewrite insert_delete_insert.
+    rewrite -delete_insert_ne; last done.
+    iDestruct (big_sepM_insert_2 with "[Hct2] Hregs") as "Hregs";[iFrame|].
+    rewrite insert_delete_insert.
     iDestruct (big_sepM_insert_2 with "[Hcs1] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hcs0] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hct1] Hregs") as "Hregs";[iFrame|].
-    iDestruct (big_sepM_insert_2 with "[Hct2] Hregs") as "Hregs";[iFrame|].
 
     iApply (ftlr_switcher_call.clear_registers_pre_call_spec with "[- $HPC $Hcode $Hregs]"); try solve_pure.
     { rewrite !dom_insert_L Hdom. set_solver-. }

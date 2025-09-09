@@ -30,12 +30,12 @@ Section CMDC.
     (csp_b csp_e : Addr)
     (rmap : Reg)
 
-    (b_tstk e_tstk : Addr) (ot_switcher : OType)
+    (b_tstk e_tstk : Addr)
     (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f C_g : Sealable)
 
-    (W_init_B : WORLD)
-    (W_init_C : WORLD)
+    (W_init_B : WORLD) (Ws_B : list WORLD)
+    (W_init_C : WORLD) (Ws_C : list WORLD)
 
     (csp_content : list Word)
 
@@ -67,6 +67,8 @@ Section CMDC.
      The revoked world allow me to close the stack invariant (i.e., private transitions) *)
     revoke_condition W_init_B ->
     revoke_condition W_init_C ->
+    length s_init = length Ws_B ->
+    length s_init = length Ws_C ->
     (* (frm W_init_B) = frm_init -> *)
     (* (frm W_init_C) = frm_init -> *)
 
@@ -90,8 +92,8 @@ Section CMDC.
       ∗ region W_init_B B ∗ sts_full_world W_init_B B
       ∗ region W_init_C C ∗ sts_full_world W_init_C C
 
-      ∗ interp_continuation s_init W_init_B B
-      ∗ interp_continuation s_init W_init_C C
+      ∗ interp_continuation s_init Ws_B B
+      ∗ interp_continuation s_init Ws_C C
 
       ∗ cstack_frag s_init
 
@@ -109,7 +111,7 @@ Section CMDC.
     intros imports; subst imports.
     iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
-               Hrevoke_cond_B Hrevoke_cond_C)
+               Hrevoke_cond_B Hrevoke_cond_C Hlen_Ws_B Hlen_Ws_C)
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
@@ -397,39 +399,60 @@ Section CMDC.
 
     (* replace frm_init with (frm W1). *)
     iEval (cbn) in "Hct1".
-    iApply (switcher_cc_specification _ W1 _ _ _ _ _ _ _ _ _ _ _ _  with
+    iApply (switcher_cc_specification
+              Nswitcher W1 B
+              _ _ _ _
+              _ _ _ _
+              _ _ _ _ s_init Ws_B
+             with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hcsp_stk $HWreg_B $HWstd_full_B $Hrel_stk_B $Htframe_frag
-              Hinterp_W1_B_f]"); eauto.
-    { set_solver. }
+              $Hcsp_stk $HWreg_B $HWstd_full_B $Hrel_stk_B $Hcstk_frag
+              $Hinterp_W1_B_f $HK_B]"); eauto.
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hrmap_dom; set_solver.
     }
-    iSplit; first done.
-    iSplitR.
-    { iIntros "(Hregion & Hworld & _)".
-      by iFrame.
+    { by rewrite /is_arg_rmap. }
+    { solve_addr. }
+    { transitivity (Some (csp_b ^+ 4)%a); try solve_addr.
+      admit. (* can we maybe remove this condition? *)
     }
+    {
+      admit. (* can we maybe remove this condition? *)
+    }
+    (* iSplit; first done. *)
+    (* iSplitR. *)
+    (* { iIntros "(Hregion & Hworld & _)". *)
+    (*   by iFrame. *)
+    (* } *)
 
     iNext. subst rmap'.
-    iIntros "H".
-    iDestruct "H"
-      as (W2_B rmap') "(%HW1_pubB_W2 & %Hdom_rmap'
-                      & Hna & HWreg_B & HWstd_full_B & Htframe_frag & Hrel_stk_B
-                      & HPC & Hcgp & Hcra & Hcsp & Hca0 & Hca1
-                      & Hrmap & _ & Hcsp_stk)".
-    iDestruct "Hca0" as (warg0) "Hca0".
-    iDestruct "Hca1" as (warg1) "Hca1".
+    (* iIntros "H". *)
+    iIntros (W2_B rmap')
+      "(%HW1_pubB_W2 & %Hdom_rmap'
+      & Hna & HWstd_full_B & HWreg_B & Hclose_reg_B
+      & Hcstk_frag & Hrel_stk_B
+      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
+      & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
+      & Hrmap & Hcsp_stk & HK_B)".
     iEval (cbn) in "HPC".
-    replace (frm W2_B) with frm_init.
-    2: { destruct HW1_pubB_W2 as [ [_ _] HW1_pubB_W2].
-         rewrite /related_tframe_pub in HW1_pubB_W2.
-         rewrite -HW1_pubB_W2.
-         done.
-    }
 
+    iEval (rewrite -(app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "HWreg_B".
+    set (lv' := region_addrs_zeroes (csp_b ^+ 4)%a csp_e).
+    iAssert (
+        ([∗ list] a ; v ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e) ; lv', a ↦ₐ v ∗ closing_resources interp W2_B B a v)
+      )%I with "[Hcsp_stk Hclose_reg_B]" as "Hclose_reg_B".
+    { admit. (* TODO should have a lemma for that *)
+    }
+    iDestruct (ftlr_switcher_return.region_close_list_interp_gen
+                with "[$HWreg_B $Hclose_reg_B]") as "HWreg_B".
+    { apply finz_seq_between_NoDup. }
+    { set_solver. }
+    { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
+    rewrite -region_open_nil.
+
+    (* TODO continue here *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
     assert (∀ r : RegName, r ∈ dom rmap' → rmap' !! r = Some (WInt 0)) as Hrmap_init'.
