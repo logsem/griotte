@@ -33,11 +33,11 @@ Section fundamental.
 
   Lemma jmpcap_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rsrc : RegName) (P:V) (cstk : CSTK) (wstk : Word) (Nswitcher : namespace) :
-    ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P cstk wstk Nswitcher.
+    (w : Word) (ρ : region_type) (rsrc : RegName) (P:V) (cstk : CSTK) (Ws : list WORLD) (wstk : Word) (Nswitcher : namespace) :
+    ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P cstk Ws wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown Hcstk".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Hcstk".
     iIntros "Hr Hstate Ha HPC Hmap %Hwstk #Hinv_switcher".
     destruct (decide (rsrc = PC)) as [HrPC|HrPC].
     - subst rsrc.
@@ -51,7 +51,7 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
       (* apply IH *)
-      iApply ("IH" $! _ _ _ _ _ g _ _ a with "[] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [$Hown] [$]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ _ g _ _ a with "[] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]"); eauto.
       { iPureIntro; apply Hsome. }
 
     - iAssert (∃ wsrc,
@@ -88,7 +88,7 @@ Section fundamental.
           iNext; iIntros "_".
           iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
           { destruct ρ;auto;contradiction. }
-          iApply ("IH" with "[] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [$Hown] [$]"); eauto.
+          iApply ("IH" with "[] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]"); eauto.
           auto.
         - (* case sentry *)
           iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
@@ -105,9 +105,9 @@ Section fundamental.
             iNext; iIntros "_".
             destruct His_switcher_call as [?|?]; simplify_eq.
             * (* We jumped to the switcher-cc-call entry point *)
-              iApply (switcher_call_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+              iApply (switcher_call_ftlr with "[$IH] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
             * (* We jumped to the switcher-cc-return entry point *)
-              iApply (switcher_return_ftlr with "[$IH] [$] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+              iApply (switcher_return_ftlr with "[$IH] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
               intros.
               apply switcher_call_ftlr.
           + (* This is just a regular Sentry, use the IH *)

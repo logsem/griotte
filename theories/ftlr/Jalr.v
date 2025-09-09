@@ -33,11 +33,11 @@ Section fundamental.
 
   Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (wstk : Word) (Nswitcher : namespace):
-    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk wstk Nswitcher.
+    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (wstk : Word) (Nswitcher : namespace):
+    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown Hcstk".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Hcstk".
     iIntros "Hr Hstate Ha HPC Hmap %Hwstk #Hinv_switcher".
     iInsert "Hmap" PC.
     iApply (wp_Jalr with "[$Ha $Hmap]"); eauto.
@@ -90,8 +90,8 @@ Section fundamental.
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;contradiction. }
         rewrite !insert_insert insert_commute //.
-        iApply ("IH" $! _ _ _ (<[rdst:=WSentry p g b e pc_a']> regs) with
-                 "[%] [] [$Hmap] [%] [$Hr] [$Hsts] [$Hcont] [$Hown] [$]") ; eauto.
+        iApply ("IH" $! _ _ _ _ (<[rdst:=WSentry p g b e pc_a']> regs) with
+                 "[%] [] [$Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]") ; eauto.
         - intros; cbn.
           rewrite lookup_insert_is_Some.
           destruct (decide (rdst = x)); auto; right; split; auto.
@@ -130,7 +130,7 @@ Section fundamental.
           set (wstk' := (if (decide (rdst = csp)) then WSentry p g b e pc_a' else wstk)).
           destruct His_switcher_call as [?|?]; simplify_eq.
           + (* We jumped to the switcher-cc-call entry point *)
-            iApply (switcher_call_ftlr _ _ _ _ wstk' with "[$IH] [Hreg] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+            iApply (switcher_call_ftlr _ _ _ _ _ wstk' with "[$IH] [Hreg] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
             * intros.
               destruct (decide (x = rdst)); simplify_map_eq; first done.
               apply Hsome.
@@ -140,7 +140,7 @@ Section fundamental.
               destruct (decide (r = rdst)); simplify_map_eq; first done.
               iApply "Hreg"; auto.
           + (* We jumped to the switcher-cc-return entry point *)
-            iApply (switcher_return_ftlr _ _ _ _ wstk' with "[$IH] [Hreg] [$] [$] [$] [$] [$] [$] [$]"); eauto.
+            iApply (switcher_return_ftlr _ _ _ _ _ wstk' with "[$IH] [Hreg] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
             * intros; apply switcher_call_ftlr.
             * intros.
               destruct (decide (x = rdst)); simplify_map_eq; first done.

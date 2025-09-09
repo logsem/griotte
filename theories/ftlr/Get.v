@@ -31,13 +31,13 @@ Section fundamental.
   Implicit Types interp : (D).
 
   Lemma get_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg) (p p' : Perm)
-        (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst r : RegName) (ins: instr) (P:D) (cstk : CSTK) (wstk : Word)
+        (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst r : RegName) (ins: instr) (P:D) (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
         (Nswitcher : namespace) :
     is_Get ins dst r →
-    ftlr_instr W C regs p p' g b e a w ins ρ P cstk wstk Nswitcher.
+    ftlr_instr W C regs p p' g b e a w ins ρ P cstk Ws wstk Nswitcher.
   Proof.
     intros Hinstr Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont Hsts Hown Htframe".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
     iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
     rewrite <- Hi in Hinstr; clear Hi.
     iInsert "Hmap" PC.
@@ -59,8 +59,8 @@ Section fundamental.
 
       assert (is_Some (<[dst:=WInt z]> (<[PC:=WCap x x0 x1 x2 x3]> regs) !! csp)) as [??].
       { destruct (decide (dst = csp)); simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ (<[dst := _]> (<[PC := _]> regs))
-               with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [$Hown] [$Htframe]")
+      iApply ("IH" $! _ _ _ _ (<[dst := _]> (<[PC := _]> regs))
+               with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]")
         ; eauto.
       + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).

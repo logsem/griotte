@@ -36,7 +36,7 @@ Section Switcher.
     (w_entry_point : Sealable)
     (stk_mem : list Word)
     (arg_rmap rmap : Reg)
-    (cstk : CSTK)
+    (cstk : CSTK) (Ws : list WORLD)
     :
     let wct1_caller := WSealed ot_switcher w_entry_point in
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; ct2 ; ctp ; cs0 ; cs1 ]} ∪ dom_arg_rmap) ->
@@ -76,7 +76,7 @@ Section Switcher.
     ∗ region W C
     ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), rel C a RWL interpC ∗ ⌜ std W !! a = Some Revoked ⌝ )
     ∗ cstack_frag cstk
-    ∗ interp_continuation cstk W C 
+    ∗ interp_continuation cstk Ws C
 
     (* POST-CONDITION *)
     ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : Reg),
@@ -98,6 +98,7 @@ Section Switcher.
               ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
               ∗ ( [∗ map] r↦_ ∈ rmap', r ↦ᵣ WInt 0 )
               ∗ [[ a_stk , e_stk ]] ↦ₐ [[ region_addrs_zeroes a_stk e_stk ]]
+              ∗ interp_continuation cstk Ws C
             -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
                                              
     ⊢ WP Seq (Instr Executable)
@@ -427,10 +428,11 @@ Section Switcher.
     iAssert (⌜Forall (λ k : finz MemNum, W.1 !! k = Some Revoked) (finz.seq_between a_stk4 e_stk)⌝)%I as %Hrev.
     { rewrite Forall_forall. iIntros (a Ha).
       iDestruct (big_sepL_elem_of with "Hstk_val'") as "[_ $]";apply Ha. }
-    iSpecialize ("Hexec" $! _ (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) (frame :: cstk) with "[]").
+    iSpecialize ("Hexec" $! _ (frame :: cstk) (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary)
+                   ((std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) :: Ws) with "[]").
     { iPureIntro.
       apply related_sts_pub_priv_world.
-      apply related_sts_pub_update_multiple_temp. auto. }
+      apply related_sts_pub_update_multiple_temp. auto. } 
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     rewrite /load_word. iSimpl in "Hcgp".
@@ -467,8 +469,8 @@ Section Switcher.
       + intros Hcontr;done.
       + iPureIntro. apply std_sta_update_multiple_lookup_in_i. apply elem_of_list_lookup. eauto. }
     iSplitL "Hpost Hcont".
-    { simpl. iDestruct (interp_monotone_continuation with "Hcont") as "Hcont".
-      { apply related_sts_pub_update_multiple_temp. apply Hrev. }
+    { simpl. (* iDestruct (interp_monotone_continuation with "Hcont") as "Hcont". *)
+      (* { apply related_sts_pub_update_multiple_temp. apply Hrev. } *)
       iFrame. replace (a_stk ^+ 4)%a with a_stk4 by solve_addr. iSplitR.
       { iNext. iFrame "Hstk4v". }
       iIntros "!>" (W' HW' ?????) "(HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
@@ -482,6 +484,8 @@ Section Switcher.
       apply std_sta_update_multiple_lookup_in_i.
       apply elem_of_list_lookup. eauto.
     }
+    iSplitR.
+    { iPureIntro. simpl. auto. }
 
     iFrame.
     rewrite /execute_entry_point_register.
