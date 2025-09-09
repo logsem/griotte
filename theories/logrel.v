@@ -343,7 +343,7 @@ Section logrel.
          ∗ ca1 ↦ᵣ wca1 ∗ interp W C wca1
          (* all other register contain 0 *)
          ∗ ⌜dom regs = all_registers_s ∖ {[PC; cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
-         ∗ ([∗ map] r↦w ∈ regs, r ↦ᵣ WInt 0)
+         ∗ ( [∗ map] r↦w ∈ regs, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
          (* World interpretation *)
          ∗ ⌜ get_a frm.(wstk) = Some a_stk ⌝
          ∗ ⌜ get_e frm.(wstk) = Some e_stk ⌝

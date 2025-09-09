@@ -531,7 +531,7 @@ Section fundamental.
       set_solver.
     }
     iNext; iIntros "H".
-    iDestruct "H" as (arg_rmap') "(%Harg_rmap' & HPC & Harg_rmap' & Hcode)".
+    iDestruct "H" as (arg_rmap') "(%Harg_rmap' & HPC & Hrmap & Hcode)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
     focus_block 10 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
@@ -556,19 +556,6 @@ Section fundamental.
     iSpecialize ("Hexec_topmost_frm" $! W Hpub_W).
     rewrite /interp_cont_exec.
     iEval (cbn) in "Hexec_topmost_frm".
-    iAssert ([∗ map] r↦w ∈ arg_rmap', r ↦ᵣ WInt 0)%I with "[Harg_rmap']" as "Hrmap".
-    {
-      iClear "#".
-      iStopProof.
-      clear.
-      induction arg_rmap' using map_ind; first auto.
-      iIntros "Hrmap".
-      iDestruct ( big_sepM_insert with "Hrmap" ) as "[ [Hi ->] Hrmap]"; auto.
-      iApply big_sepM_insert.
-      { by rewrite H; simplify_map_eq. }
-      iFrame.
-      iApply (IHarg_rmap' with "Hrmap").
-    }
 
     (* Update the call-stack: depop the topmost frame *)
     iDestruct (cstack_update _ _ cstk with "[$] [$]") as ">[Hcstk_full Hcstk_frag]".
@@ -749,7 +736,7 @@ Section fundamental.
         induction arg_rmap' using map_ind; first rewrite fmap_empty; auto.
         rewrite fmap_insert.
         iIntros "Hrmap".
-        iDestruct ( big_sepM_insert with "Hrmap" ) as "[Hi Hrmap]"; auto.
+        iDestruct ( big_sepM_insert with "Hrmap" ) as "[ [Hi ->] Hrmap]"; auto.
         iApply big_sepM_insert.
         { by rewrite lookup_fmap H; simplify_map_eq. }
         iFrame.

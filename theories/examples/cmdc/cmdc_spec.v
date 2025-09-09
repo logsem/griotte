@@ -421,14 +421,8 @@ Section CMDC.
     {
       admit. (* can we maybe remove this condition? *)
     }
-    (* iSplit; first done. *)
-    (* iSplitR. *)
-    (* { iIntros "(Hregion & Hworld & _)". *)
-    (*   by iFrame. *)
-    (* } *)
 
     iNext. subst rmap'.
-    (* iIntros "H". *)
     iIntros (W2_B rmap')
       "(%HW1_pubB_W2 & %Hdom_rmap'
       & Hna & HWstd_full_B & HWreg_B & Hclose_reg_B
@@ -438,21 +432,6 @@ Section CMDC.
       & Hrmap & Hcsp_stk & HK_B)".
     iEval (cbn) in "HPC".
 
-    iEval (rewrite -(app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "HWreg_B".
-    set (lv' := region_addrs_zeroes (csp_b ^+ 4)%a csp_e).
-    iAssert (
-        ([∗ list] a ; v ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e) ; lv', a ↦ₐ v ∗ closing_resources interp W2_B B a v)
-      )%I with "[Hcsp_stk Hclose_reg_B]" as "Hclose_reg_B".
-    { admit. (* TODO should have a lemma for that *)
-    }
-    iDestruct (ftlr_switcher_return.region_close_list_interp_gen
-                with "[$HWreg_B $Hclose_reg_B]") as "HWreg_B".
-    { apply finz_seq_between_NoDup. }
-    { set_solver. }
-    { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
-    rewrite -region_open_nil.
-
-    (* TODO continue here *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
     assert (∀ r : RegName, r ∈ dom rmap' → rmap' !! r = Some (WInt 0)) as Hrmap_init'.
@@ -495,16 +474,6 @@ Section CMDC.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
     }
     iDestruct (big_sepM_delete _ _ ct4 with "Hrmap") as "[Hct4 Hrmap]"; first by simplify_map_eq.
-    assert ( rmap' !! cs0 = Some (WInt 0) ) as Hwcs0'.
-    { apply Hrmap_init'. rewrite Hdom_rmap'.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
-    assert ( rmap' !! cs1 = Some (WInt 0) ) as Hwcs1'.
-    { apply Hrmap_init'. rewrite Hdom_rmap'.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
@@ -544,15 +513,14 @@ Section CMDC.
     { eapply monotone.region_state_pub_perm in HW1_pubB_W2; eauto.
       subst W1.
       (* TODO lemma *)
-      rewrite /std_update.
+      rewrite std_update_multiple_insert_commute; last done.
       rewrite !lookup_insert; done.
     }
 
     (* we open the world to get the points-to predicate *)
-    iDestruct (region_open with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]")
-      as (wcgp_b) "(HWreg_B & HWsts_full_B & HWstd_full_B & Hcpg_b & _ & HmonoR & #Hinterp_wcpgb)"
-    ; auto.
-    destruct (decide (Permanent = Temporary ∧ isWL RW = true)) as [ [? ?] | _ ]; first congruence.
+    iDestruct (region_open_next with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]")
+      as (wcgp_b) "(HWreg_B & HWsts_full_B & HWstd_full_B & Hcpg_b & HmonoR & #Hinterp_wcpgb & _)"
+    ; eauto ; first done.
 
     (* Store cgp 42%Z *)
     iInstr "Hcode".
@@ -664,10 +632,9 @@ Section CMDC.
     { done. }
     { done. }
     { iApply future_priv_mono_interp_z. }
-    { cbn; iEval (rewrite fixpoint_interp1_eq); done. }
+    { rewrite /interpC /safeC; cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
     set (W3 := (<s[cgp_c:=Permanent]s>W_init_C)).
-    set (W3' := switcher_world_upon_jmp W3 [] (finz.seq_between (csp_b ^+ 4)%a csp_e) ).
     assert (related_sts_priv_world W_init_C W3) as HWinit_privC_W3.
     { subst W3.
       by eapply related_sts_priv_world_fresh_Permanent.
@@ -700,17 +667,11 @@ Section CMDC.
       apply elem_of_finz_seq_between in Ha.
       solve_addr.
     }
-    assert (related_sts_priv_world W_init_C W3') as HWinit_privC_W3'.
-    { subst W3'.
-      eapply related_sts_priv_trans_world; eauto.
-      eapply related_sts_priv_world_switcher_upon_jmp ; eauto.
-      apply disjoint_nil_l.
-    }
 
-    iAssert (interp W3' C (WSealed ot_switcher C_g)) as "#Hinterp_W3_C_g".
+    iAssert (interp W3 C (WSealed ot_switcher C_g)) as "#Hinterp_W3_C_g".
     { iApply monotone.interp_monotone_sd; eauto. }
 
-    iAssert (interp W3' C (WCap RW Global cgp_c (cgp_c ^+ 1)%a cgp_c)) as "#Hinterp_W3_C_c".
+    iAssert (interp W3 C (WCap RW Global cgp_c (cgp_c ^+ 1)%a cgp_c)) as "#Hinterp_W3_C_c".
     { subst cgp_c.
       iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
@@ -727,20 +688,15 @@ Section CMDC.
       subst W3.
       iSplit.
       + iApply (monoReq_interp _ _ _ _  Permanent); last done.
-        rewrite /std_update frame_W_lookup_std.
-        rewrite std_sta_update_multiple_lookup_same_i; last done.
-        apply revoke_lookup_Perm.
         by rewrite lookup_insert.
       + iPureIntro.
-        rewrite std_sta_update_multiple_lookup_same_i; last done.
-        apply revoke_lookup_Perm.
         by rewrite lookup_insert.
     }
 
-    iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W3' C warg )%I
+    iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W3 C warg )%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
     { subst rmap_arg.
-      iAssert (interp W3' C (WInt 0)) as "Hinterp_0".
+      iAssert (interp W3 C (WInt 0)) as "Hinterp_0".
       { iEval (rewrite fixpoint_interp1_eq); done. }
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
       done.
@@ -759,43 +715,33 @@ Section CMDC.
       by eexists.
     }
 
-    replace frm_init with (frm W3).
-    iApply (switcher_cc_specification _ _ W3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ [] [] with
+
+    iApply (switcher_cc_specification _ W3 with
              "[- $Hswitcher $Hna
-              $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hct1 $Hrmap_arg $Hrmap
-              $Hcsp_stk $HWreg_C $HWstd_full_C $Hrel_stk_C $Htframe_frag
-              $Hinterp_W3_C_g]"); eauto.
-    { set_solver. }
+              $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
+              $Hcsp_stk $HWreg_C $HWstd_full_C $Hrel_stk_C $Hcstk_frag
+              $Hinterp_W3_C_g $HK_C]"); eauto.
     { subst rmap''.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hdom_rmap'; set_solver.
     }
-    iSplit; first done.
-    iSplitR.
-    { iIntros "(Hregion & Hworld & _)".
-      by iFrame.
+    { by rewrite /is_arg_rmap. }
+    { solve_addr. }
+    { transitivity (Some (csp_b ^+ 4)%a); try solve_addr.
+      admit. (* can we maybe remove this condition? *)
+    }
+    {
+      admit. (* can we maybe remove this condition? *)
     }
     iNext. subst rmap''.
-    iIntros "H".
-    iDestruct "H"
-      as (W4_C rmap'') "(%HW1_pubB_W4 & %Hdom_rmap''
-                      & Hna & HWreg_C & HWstd_full_C & Htframe_frag & Hrel_stk_C
-                      & HPC & Hcgp & Hcra & Hcsp & Hca0 & Hca1
-                      & Hrmap & _ & Hcsp_stk)".
-    iDestruct "Hca0" as (warg0') "Hca0".
-    iDestruct "Hca1" as (warg1') "Hca1".
+    iIntros (W4_C rmap'')
+      "(%HW1_pubC_W4 & %Hdom_rmap''
+      & Hna & HWstd_full_C & HWreg_C & Hclose_reg_C
+      & Hcstk_frag & Hrel_stk_C
+      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
+      & [%warg0' [Hca0 _] ] & [%warg1' [Hca1 _] ]
+      & Hrmap & Hcsp_stk & HK_C)".
     iEval (cbn) in "HPC".
-
-    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
-    iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero'".
-    assert (∀ r : RegName, r ∈ dom rmap'' → rmap'' !! r = Some (WInt 0)) as Hrmap_init''.
-    { intros r Hr.
-      rewrite elem_of_dom in Hr. destruct Hr as [wr Hr].
-      pose proof Hr as Hr'.
-      eapply map_Forall_lookup in Hr'; eauto.
-      by cbn in Hr' ; simplify_eq.
-    }
-    iClear "Hrmap_zero".
 
     (* ---- extract the needed registers ctp ct0 ct1 ct2 ct3 ct4 cs0 ----  *)
     assert ( rmap'' !! ctp = Some (WInt 0) ) as Hwctp''.
@@ -828,16 +774,6 @@ Section CMDC.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
     }
     iDestruct (big_sepM_delete _ _ ct4 with "Hrmap") as "[Hct4 Hrmap]"; first by simplify_map_eq.
-    assert ( rmap'' !! cs0 = Some (WInt 0) ) as Hwcs0''.
-    { apply Hrmap_init''. rewrite Hdom_rmap''.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
-    assert ( rmap'' !! cs1 = Some (WInt 0) ) as Hwcs1''.
-    { apply Hrmap_init''. rewrite Hdom_rmap''.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
