@@ -597,4 +597,24 @@ Proof.
     iApply interp_monotone_sd; last eauto; eauto.
 Qed.
 
+Lemma interp_monotone_continuation
+  (W W' : WORLD) (C : CmptName)
+  (cstk : CSTK) :
+  related_sts_pub_world W W' ->
+  interp_continuation cstk W C -∗ interp_continuation cstk W' C.
+Proof.
+  induction cstk;simpl;auto.
+  iIntros (Hrel) "[Hic [Hcallee Hcont]]".
+  iNext.
+  iSplitL "Hic";[|iSplitL "Hcallee"].
+  - iApply IHcstk;auto.
+  - rewrite /interp_callee_part_of_the_stack /=.
+    case_match=>//.
+    case_match=>//.
+    iApply (interp_monotone with "[//] [$]").
+  - iIntros (W'' Hrel').
+    iApply "Hcont". iPureIntro.
+    eapply related_sts_pub_trans_world;eauto.
+Qed.
+
 End monotone.
