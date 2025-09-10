@@ -407,12 +407,6 @@ Section CMDC.
     }
     { by rewrite /is_arg_rmap. }
     { solve_addr. }
-    { transitivity (Some (csp_b ^+ 4)%a); try solve_addr.
-      admit. (* can we maybe remove this condition? *)
-    }
-    {
-      admit. (* can we maybe remove this condition? *)
-    }
 
     iNext. subst rmap'.
     iIntros (W2_B rmap')
@@ -707,7 +701,6 @@ Section CMDC.
       by eexists.
     }
 
-
     iApply (switcher_cc_specification _ W3 with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
@@ -719,12 +712,7 @@ Section CMDC.
     }
     { by rewrite /is_arg_rmap. }
     { solve_addr. }
-    { transitivity (Some (csp_b ^+ 4)%a); try solve_addr.
-      admit. (* can we maybe remove this condition? *)
-    }
-    {
-      admit. (* can we maybe remove this condition? *)
-    }
+
     iNext. subst rmap''.
     iIntros (W4_C rmap'')
       "(%HW1_pubC_W4 & %Hdom_rmap''
@@ -807,7 +795,7 @@ Section CMDC.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     subst hφ; iApply ("Hφ" with "[$]").
-  Admitted.
+  Qed.
 
   Lemma cmdc_spec_full
 
