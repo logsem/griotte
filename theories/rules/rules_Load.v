@@ -524,7 +524,7 @@ Section cap_lang_rules.
        rewrite insert_insert insert_insert.
        iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hr2]"; eauto.
        iFrame.
-       admit. (* it suffices to show that p'=x, g'=x0.... *)
+       by destruct p0; destruct dro,dl; rewrite /load_word in H1 |- *; cbn in *; simplify_eq.
      }
      { (* Failure (contradiction) *)
        destruct Hfail.
@@ -532,17 +532,12 @@ Section cap_lang_rules.
        + simplify_map_eq; eauto.
          destruct o ; congruence.
        + simplify_map_eq; eauto.
-       (*   rewrite /load_word in e3 |- *. *)
-       (*   destruct (isDRO p0) eqn:HDRO, (isDL p0) eqn:HDL; cbn. *)
-       (*   try incrementPC_inv; simplify_map_eq; eauto. *)
-       (*   congruence. *)
-       (*   2: { rewrite /load_word. *)
-       (*   } *)
-       (*   Unshelve. 7: exact a'. congruence. *)
-       (* destruct o. all: try congruence. } *)
-       admit. (* TODO need lemmas about load_word.. *)
+         rewrite /load_word in e3 |- *.
+         destruct (isDRO p0) eqn:HDRO, (isDL p0) eqn:HDL; cbn.
+         all: try incrementPC_inv; simplify_map_eq; eauto.
+         all: try congruence.
      }
-  Admitted.
+  Qed.
 
   Lemma wp_load_success_fromPC E r1 pc_p pc_g pc_b pc_e pc_a pc_a' w w'' dq :
     decodeInstrW w = Load r1 PC →

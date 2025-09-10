@@ -786,7 +786,29 @@ Section cap_lang_rules.
 
     iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
-    Admitted.
+    { rewrite /allow_store_map_or_true.
+      eexists _,_,_,_,_,_; eauto.
+      simplify_map_eq.
+      split; [|split]; eauto.
+      - rewrite /read_reg_inr; simplify_map_eq.
+        destruct wdst as [| [] | |]; cbn in Hnot_cap; done.
+      - rewrite /reg_allows_store; simplify_map_eq.
+        rewrite decide_False; auto.
+        intros [].
+        destruct wdst as [| [] | |]; cbn in Hnot_cap; simplify_eq.
+    }
+    iNext. iIntros (regs' mem' retv) "(#Hspec & Hmem & Hmap)".
+    iDestruct "Hspec" as %Hspec.
+
+    destruct Hspec.
+     { (* Success (contradiction) *)
+       exfalso.
+       rewrite /reg_allows_store in H3.
+       destruct H3 as (?&?&?&Hcontra); simplify_map_eq.
+     }
+     by iApply "Hφ".
+     Unshelve. all: done.
+    Qed.
 
     Lemma wp_store_fail_z_not_cap E pc_p pc_g pc_b pc_e pc_a w
      dst z wdst :
@@ -802,9 +824,36 @@ Section cap_lang_rules.
        {{{ RET FailedV; True}}}.
     Proof.
       iIntros (Hinstr Hvpc Hnot_cap φ)
-             "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
-    
-    Admitted.
+             "(>HPC & >Hi & >Hdst) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
+    iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
+
+    iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
+    { by rewrite !dom_insert; set_solver+. }
+    { rewrite /allow_store_map_or_true.
+      eexists _,_,_,_,_,_; eauto.
+      simplify_map_eq.
+      split; [|split]; eauto.
+      - rewrite /read_reg_inr; simplify_map_eq.
+        destruct wdst as [| [] | |]; cbn in Hnot_cap; done.
+      - rewrite /reg_allows_store; simplify_map_eq.
+        rewrite decide_False; auto.
+        intros [].
+        destruct wdst as [| [] | |]; cbn in Hnot_cap; simplify_eq.
+    }
+    iNext. iIntros (regs' mem' retv) "(#Hspec & Hmem & Hmap)".
+    iDestruct "Hspec" as %Hspec.
+
+    destruct Hspec.
+     { (* Success (contradiction) *)
+       exfalso.
+       rewrite /reg_allows_store in H1.
+       simplify_map_eq.
+       destruct H1 as (?&?&?&Hcontra); simplify_map_eq.
+     }
+     by iApply "Hφ".
+     Unshelve. all: done.
+    Qed.
 
    Lemma wp_store_fail_reg_perm E pc_p pc_g pc_b pc_e pc_a w dst src
          p g b e a w'' :
