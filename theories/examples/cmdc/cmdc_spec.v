@@ -406,7 +406,6 @@ Section CMDC.
       rewrite Hrmap_dom; set_solver.
     }
     { by rewrite /is_arg_rmap. }
-    { solve_addr. }
 
     iNext. subst rmap'.
     iIntros (W2_B rmap')
@@ -711,7 +710,6 @@ Section CMDC.
       rewrite Hdom_rmap'; set_solver.
     }
     { by rewrite /is_arg_rmap. }
-    { solve_addr. }
 
     iNext. subst rmap''.
     iIntros (W4_C rmap'')
