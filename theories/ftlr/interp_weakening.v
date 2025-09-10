@@ -13,7 +13,7 @@ Section fundamental.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    `{swlayout : switcherLayout}
+    {swlayout : switcherLayout}
   .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).

@@ -37,7 +37,7 @@ Section Switcher_preamble.
       (full_map reg ∧
        ⌜ reg !! PC = Some wpcc ⌝ ∧
        ⌜ reg !! cgp = Some wcgp ⌝ ∧
-       (∃ (wstk : Word), ⌜reg !! csp = Some wstk⌝ ∗ interp W C wstk) ∧
+       (∀ (wstk : Word), (⌜reg !! csp = Some wstk⌝ → interp W C wstk)) ∧
        (∀ (wret : Word), (⌜reg !! cra = Some wret⌝ → interp W C wret)) ∧
        (∀ (r : RegName) (v : Word), (⌜r ∈ dom_arg_rmap⌝ → ⌜reg !! r = Some v⌝ → interp W C v)) ∧
        (∀ (r : RegName),

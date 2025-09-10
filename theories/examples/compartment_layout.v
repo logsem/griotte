@@ -3,7 +3,7 @@ From cap_machine Require Import switcher assert.
 From cap_machine Require Import disjoint_regions_tactics mkregion_helpers.
 
 Section CmptLayout.
-  Context `{MP: MachineParameters}.
+  Context `{MP: MachineParameters} {swlayout : switcherLayout}.
 
   Record cmpt : Type :=
     mkCmpt {
@@ -74,25 +74,15 @@ Section CmptLayout.
     cmpt_cgp_mregion C ∪
     cmpt_exp_tbl_mregion C.
 
-  Record cmptSwitcher `{MachineParameters} : Type :=
+  Record cmptSwitcher : Type :=
     mkCmptSwitcher {
-        b_switcher : Addr ;
-        e_switcher : Addr ;
-        a_switcher_cc : Addr ;
-        ot_switcher : OType ;
-
-        switcher_size :
-        (a_switcher_cc + length switcher_instrs)%a = Some e_switcher ;
-
-        switcher_cc_entry_point :
-        (b_switcher + 1)%a = Some a_switcher_cc ;
-
-        b_trusted_stack : Addr;
-        e_trusted_stack : Addr;
         trusted_stack_content : list Word;
 
         trusted_stack_size :
         (b_trusted_stack + length trusted_stack_content)%a = Some e_trusted_stack ;
+
+        trusted_stack_content_base_zeroed :
+        head trusted_stack_content = Some (WInt 0);
 
         (* compartment's stack *)
         b_stack : Addr;
@@ -111,43 +101,43 @@ Section CmptLayout.
         (ot_switcher < ot_switcher ^+ 1)%ot;
       }.
 
-  Definition cmpt_switcher_code_region `{MachineParameters} (Cswitcher : cmptSwitcher) :=
-    (finz.seq_between (b_switcher Cswitcher) (e_switcher Cswitcher)).
+  Definition cmpt_switcher_code_region (Cswitcher : cmptSwitcher) :=
+    (finz.seq_between b_switcher e_switcher).
 
-  Definition cmpt_switcher_trusted_stack_region `{MachineParameters} (Cswitcher : cmptSwitcher) :=
-    (finz.seq_between (b_trusted_stack Cswitcher) (e_trusted_stack Cswitcher)).
+  Definition cmpt_switcher_trusted_stack_region (Cswitcher : cmptSwitcher) :=
+    (finz.seq_between b_trusted_stack e_trusted_stack).
 
-  Definition cmpt_switcher_stack_region `{MachineParameters} (Cswitcher : cmptSwitcher) :=
+  Definition cmpt_switcher_stack_region (Cswitcher : cmptSwitcher) :=
     (finz.seq_between (b_stack Cswitcher) (e_stack Cswitcher)).
 
-  Definition cmpt_switcher_region `{MachineParameters} (Cswitcher : cmptSwitcher) : list Addr :=
+  Definition cmpt_switcher_region (Cswitcher : cmptSwitcher) : list Addr :=
     (cmpt_switcher_code_region Cswitcher)
       ∪ (cmpt_switcher_trusted_stack_region Cswitcher)
       ∪ (cmpt_switcher_stack_region Cswitcher).
 
   Definition cmpt_switcher_code_mregion
-    `{MachineParameters} (Cswitcher : cmptSwitcher) : gmap Addr Word :=
-    let ot := (ot_switcher Cswitcher) in
+    (Cswitcher : cmptSwitcher) : gmap Addr Word :=
+    let ot := ot_switcher in
     let switcher_sealing := (WSealRange (true,true) Global ot (ot^+1)%ot ot) in
-    mkregion (b_switcher Cswitcher) (a_switcher_cc Cswitcher) [switcher_sealing]
-      ∪ mkregion (a_switcher_cc Cswitcher) (e_switcher Cswitcher) switcher_instrs .
+    mkregion b_switcher a_switcher_call [switcher_sealing]
+      ∪ mkregion a_switcher_call e_switcher switcher_instrs .
   Definition cmpt_switcher_trusted_stack_mregion
-    `{MachineParameters} (Cswitcher : cmptSwitcher) : gmap Addr Word :=
-    mkregion (b_trusted_stack Cswitcher) (e_trusted_stack Cswitcher) (trusted_stack_content Cswitcher).
+     (Cswitcher : cmptSwitcher) : gmap Addr Word :=
+    mkregion b_trusted_stack e_trusted_stack (trusted_stack_content Cswitcher).
   Definition cmpt_switcher_stack_mregion
-    `{MachineParameters} (Cswitcher : cmptSwitcher) : gmap Addr Word :=
+     (Cswitcher : cmptSwitcher) : gmap Addr Word :=
     mkregion (b_stack Cswitcher) (e_stack Cswitcher) (stack_content Cswitcher).
 
-  Definition mk_initial_switcher `{MachineParameters} (Cswitcher : cmptSwitcher) : gmap Addr Word :=
+  Definition mk_initial_switcher (Cswitcher : cmptSwitcher) : gmap Addr Word :=
     cmpt_switcher_code_mregion Cswitcher ∪
     cmpt_switcher_trusted_stack_mregion Cswitcher ∪
     cmpt_switcher_stack_mregion Cswitcher.
 
   Definition switcher_cmpt_disjoint
-    `{MachineParameters} (C : cmpt) (Cswitcher : cmptSwitcher) : Prop :=
+    (C : cmpt) (Cswitcher : cmptSwitcher) : Prop :=
     (cmpt_switcher_region Cswitcher) ## (cmpt_region C).
 
-  Record cmptAssert `{MachineParameters} : Type :=
+  Record cmptAssert : Type :=
     mkCmptAssert {
         b_assert : Addr ;
         e_assert : Addr ;
@@ -167,36 +157,36 @@ Section CmptLayout.
         (finz.seq_between flag_assert (flag_assert ^+ 1)%a)
       }.
 
-  Definition cmpt_assert_code_region `{MachineParameters} (Cassert : cmptAssert) :=
+  Definition cmpt_assert_code_region (Cassert : cmptAssert) :=
     (finz.seq_between (b_assert Cassert) (cap_assert Cassert)).
-  Definition cmpt_assert_cap_region `{MachineParameters} (Cassert : cmptAssert) :=
+  Definition cmpt_assert_cap_region (Cassert : cmptAssert) :=
     (finz.seq_between (cap_assert Cassert) (e_assert Cassert)).
-  Definition cmpt_assert_flag_region `{MachineParameters} (Cassert : cmptAssert) :=
+  Definition cmpt_assert_flag_region (Cassert : cmptAssert) :=
     (finz.seq_between (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a).
-  Definition cmpt_assert_region `{MachineParameters} (Cassert : cmptAssert) : list Addr :=
+  Definition cmpt_assert_region (Cassert : cmptAssert) : list Addr :=
     (cmpt_assert_code_region Cassert) ∪
     (cmpt_assert_cap_region Cassert) ∪
     (cmpt_assert_flag_region Cassert).
 
-  Definition cmpt_assert_code_mregion `{MachineParameters} (Cassert : cmptAssert) :=
+  Definition cmpt_assert_code_mregion (Cassert : cmptAssert) :=
     mkregion (b_assert Cassert) (cap_assert Cassert) assert_subroutine_instrs.
-  Definition cmpt_assert_cap_mregion `{MachineParameters} (Cassert : cmptAssert) :=
+  Definition cmpt_assert_cap_mregion (Cassert : cmptAssert) :=
     mkregion (cap_assert Cassert) (e_assert Cassert)
       [WCap RW Global (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a (flag_assert Cassert)].
-  Definition cmpt_assert_flag_mregion `{MachineParameters} (Cassert : cmptAssert) :=
+  Definition cmpt_assert_flag_mregion (Cassert : cmptAssert) :=
     mkregion (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a [WInt 0].
 
-  Definition mk_initial_assert `{MachineParameters} (Cassert : cmptAssert) : gmap Addr Word :=
+  Definition mk_initial_assert (Cassert : cmptAssert) : gmap Addr Word :=
     cmpt_assert_code_mregion Cassert ∪
     cmpt_assert_cap_mregion Cassert ∪
     cmpt_assert_flag_mregion Cassert.
 
   Definition assert_cmpt_disjoint
-    `{MachineParameters} (C : cmpt) (Cassert : cmptAssert) : Prop :=
+    (C : cmpt) (Cassert : cmptAssert) : Prop :=
     (cmpt_assert_region Cassert) ## (cmpt_region C).
 
   Definition assert_switcher_disjoint
-    `{MachineParameters} (Cassert : cmptAssert) (Cswitcher : cmptSwitcher) : Prop :=
+    (Cassert : cmptAssert) (Cswitcher : cmptSwitcher) : Prop :=
     (cmpt_assert_region Cassert) ## (cmpt_switcher_region Cswitcher).
 
   Lemma dom_cmpt_pcc_mregion (A_cmpt : cmpt) :
@@ -261,15 +251,15 @@ Section CmptLayout.
     dom (cmpt_switcher_code_mregion switcher_cmpt) =
     list_to_set (cmpt_switcher_code_region switcher_cmpt).
   Proof.
-    pose proof (switcher_size switcher_cmpt).
-    pose proof (switcher_cc_entry_point switcher_cmpt).
+    pose proof switcher_size.
+    pose proof switcher_call_entry_point.
     rewrite /cmpt_switcher_code_mregion /cmpt_switcher_code_region.
     rewrite !dom_union_L.
     repeat rewrite dom_mkregion_eq; try solve_addr.
     rewrite (finz_seq_between_split
-               (b_switcher switcher_cmpt)
-               (a_switcher_cc switcher_cmpt)
-               (e_switcher switcher_cmpt)); last solve_addr.
+               b_switcher
+               a_switcher_call
+               e_switcher); last solve_addr.
     set_solver.
   Qed.
   Lemma dom_switcher_trusted_stack_mregion (switcher_cmpt : cmptSwitcher) :
@@ -280,6 +270,7 @@ Section CmptLayout.
     rewrite /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_trusted_stack_region.
     repeat rewrite dom_mkregion_eq; try solve_addr.
   Qed.
+
   Lemma dom_switcher_stack_mregion (switcher_cmpt : cmptSwitcher) :
     dom (cmpt_switcher_stack_mregion switcher_cmpt) =
     list_to_set (cmpt_switcher_stack_region switcher_cmpt).
@@ -414,8 +405,8 @@ Section CmptLayout.
   Proof.
     apply map_disjoint_dom_2.
     pose proof (switcher_disjointness switcher_cmpt) as (_ & ? & ?).
-    pose proof (switcher_cc_entry_point switcher_cmpt).
-    pose proof (switcher_size switcher_cmpt).
+    pose proof switcher_call_entry_point.
+    pose proof switcher_size.
     pose proof (trusted_stack_size switcher_cmpt).
     pose proof (stack_size switcher_cmpt).
     rewrite /cmpt_switcher_code_mregion /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_stack_mregion.
@@ -441,8 +432,8 @@ Section CmptLayout.
   Proof.
     apply map_disjoint_dom_2.
     pose proof (switcher_disjointness switcher_cmpt) as (? & _ & _).
-    pose proof (switcher_cc_entry_point switcher_cmpt).
-    pose proof (switcher_size switcher_cmpt).
+    pose proof switcher_call_entry_point.
+    pose proof switcher_size.
     pose proof (trusted_stack_size switcher_cmpt).
     rewrite /cmpt_switcher_code_mregion /cmpt_switcher_trusted_stack_mregion.
     rewrite !dom_union_L.
@@ -461,14 +452,13 @@ Section CmptLayout.
   Qed.
 
   Lemma cmpt_switcher_code_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
-    mkregion (b_switcher switcher_cmpt) (a_switcher_cc switcher_cmpt)
-      [WSealRange (true, true) Global (ot_switcher switcher_cmpt)
-         (ot_switcher switcher_cmpt ^+ 1)%f (ot_switcher switcher_cmpt)]
-      ##ₘ mkregion (a_switcher_cc switcher_cmpt) (e_switcher switcher_cmpt) switcher_instrs.
+    mkregion b_switcher a_switcher_call
+      [WSealRange (true, true) Global ot_switcher (ot_switcher ^+ 1)%f ot_switcher]
+      ##ₘ mkregion a_switcher_call e_switcher switcher_instrs.
   Proof.
     apply map_disjoint_dom_2.
-    pose proof (switcher_size switcher_cmpt).
-    pose proof (switcher_cc_entry_point switcher_cmpt).
+    pose proof switcher_call_entry_point.
+    pose proof switcher_size.
     repeat rewrite dom_mkregion_eq; try (solve_addr).
     apply elem_of_disjoint.
     intros a Ha Ha'.

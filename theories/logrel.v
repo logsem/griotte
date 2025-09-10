@@ -98,7 +98,7 @@ End CStack.
 Section pre_CSTACK.
   Context {Σ : gFunctors} {tframeg : CSTACK_preG Σ}.
 
-  Lemma gen_cframe_init (cstk : cstack) :
+  Lemma gen_cstack_init (cstk : cstack) :
     ⊢ |==> (∃ (cstackg : CSTACKG Σ), cstack_full cstk ∗ cstack_frag cstk).
   Proof.
     iMod (own_alloc (A:=cstackUR) (●E (cstk : leibnizO _) ⋅ ◯E (cstk : leibnizO _) )) as (γcstack) "Hcstack"
@@ -120,7 +120,7 @@ Section logrel.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    `{swlayout : switcherLayout}
+    {swlayout : switcherLayout}
   .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).

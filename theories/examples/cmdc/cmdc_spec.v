@@ -12,7 +12,7 @@ Section CMDC.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    `{swlayout : switcherLayout}
+    {swlayout : switcherLayout}
   .
   Context {B C : CmptName}.
 
