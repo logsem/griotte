@@ -129,7 +129,6 @@ Section Switcher.
   Definition switcher_instrs : list Word :=
     switcher_call_instrs ++ switcher_return_instrs.
 
-
   Class switcherLayout : Type :=
     mkCmptSwitcher {
         b_switcher : Addr ;

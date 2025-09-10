@@ -56,9 +56,9 @@ Section fundamental.
 
   Lemma unseal_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
+    (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
     (Nswitcher : namespace) :
-    ftlr_instr W C regs p p' g b e a w (UnSeal dst r1 r2) ρ P cstk Ws wstk Nswitcher.
+    ftlr_instr W C regs p p' g b e a w (UnSeal dst r1 r2) ρ P cstk Ws Cs wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
@@ -99,7 +99,7 @@ Section fundamental.
       simplify_map_eq; map_simpl "Hmap".
       assert (is_Some (<[dst:=WSealable sb]> regs !! csp)) as [??].
       { destruct (decide (dst = csp));simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ (<[dst:=WSealable sb]> regs)
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealable sb]> regs)
                with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]")
       ; eauto.
       + cbn; intros. by repeat (rewrite lookup_insert_is_Some'; right).
@@ -118,7 +118,7 @@ Section fundamental.
     { (* PC = dst *)
       simplify_map_eq; map_simpl "Hmap".
       destruct (executeAllowed p'') eqn:Hpft.
-      - iApply ("IH" $! _ _ _ _ regs with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]")
+      - iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]")
         ; eauto.
         iApply (interp_weakening with "IH HVsb"); eauto; try solve_addr; try done.
       - (* not executable *)

@@ -37,22 +37,24 @@ Section Switcher_preamble.
       (full_map reg ∧
        ⌜ reg !! PC = Some wpcc ⌝ ∧
        ⌜ reg !! cgp = Some wcgp ⌝ ∧
-       (∀ (wstk : Word), (⌜reg !! csp = Some wstk⌝ → interp W C wstk)) ∧
+       (∃ (wstk : Word), ⌜reg !! csp = Some wstk⌝ ∗ interp W C wstk) ∧
        (∀ (wret : Word), (⌜reg !! cra = Some wret⌝ → interp W C wret)) ∧
        (∀ (r : RegName) (v : Word), (⌜r ∈ dom_arg_rmap⌝ → ⌜reg !! r = Some v⌝ → interp W C v)) ∧
        (∀ (r : RegName),
           (⌜r ∉ (dom_arg_rmap ∪ {[PC; cra; cgp; csp]})⌝ →  ⌜reg !! r = Some (WInt 0)⌝)))%I.
   Solve All Obligations with solve_proper.
 
-  Program Definition execute_entry_point (wpcc wcgp : Word) (regs : Reg) (cstk : CSTK) (Ws : list WORLD) : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
+  Program Definition execute_entry_point
+    (wpcc wcgp : Word) (regs : Reg) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
-      ( interp_continuation cstk Ws C
-         ∗ ⌜frame_match Ws cstk W⌝
+      ( interp_continuation cstk Ws Cs
+         ∗ ⌜frame_match Ws Cs cstk W C⌝
          ∗ (execute_entry_point_register wpcc wcgp W C regs)
          ∗ registers_pointsto regs
          ∗ region W C
          ∗ sts_full_world W C
-         ∗ cstack_frag cstk 
+         ∗ cstack_frag cstk
          ∗ na_own logrel_nais ⊤
            -∗ interp_conf W C)
     )%I.
@@ -74,12 +76,11 @@ Section Switcher_preamble.
            ∗ inv (export_table_PCCN C) ( b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc)
            ∗ inv (export_table_CGPN C) ( (b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp)
            ∗ inv (export_table_entryN C a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point nargs off))
-           ∗ □ ( ∀ cstk Ws W' regs, ⌜related_sts_priv_world W W'⌝ →
+           ∗ □ ( ∀ regs cstk Ws Cs W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap RX Global bpcc epcc (bpcc ^+ off)%a)
                             (WCap RW Global bcgp ecgp bcgp)
-                            cstk Ws
-                            regs W' C))
+                            regs cstk Ws Cs W' C))
       )%I.
   Solve All Obligations with solve_proper.
 
@@ -89,28 +90,6 @@ Section Switcher_preamble.
   Lemma persistent_cond_ot_switcher :
     persistent_cond ot_switcher_prop.
   Proof. intros [ [] ] ; cbn ; apply _. Qed.
-
-  (* Lemma mono_priv_ot_switcher (C : CmptName) (w : Word) : *)
-  (*   ⊢ future_priv_mono C ot_switcher_propC w. *)
-  (* Proof. *)
-  (*   iIntros (W W' Hrelated_W_W'). *)
-  (*   iModIntro. *)
-  (*   iIntros "Hot_switcher". *)
-  (*   iEval (cbn) in "Hot_switcher". *)
-  (*   iEval (cbn). *)
-  (*   iDestruct "Hot_switcher" as *)
-  (*     (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off -> *)
-  (*      Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hcont)". *)
-  (*   iFrame "Hinvpcc Hinvcgp Hinventry". *)
-  (*   iExists _,_. *)
-  (*   repeat (iSplit ; first done). *)
-  (*   iModIntro. *)
-  (*   iIntros (W'' regs Hrelated_W'_W''). *)
-  (*   iSpecialize ("Hcont" $! W'' regs). *)
-  (*   iApply "Hcont". *)
-  (*   iPureIntro. *)
-  (*   by eapply related_sts_priv_trans_world. *)
-  (* Qed. *)
 
   (* (** Custom invariant used by the switcher to store the frame  *) *)
   (*  Definition frame_inv (C : CmptName) (i : positive) (P : iProp Σ) := *)

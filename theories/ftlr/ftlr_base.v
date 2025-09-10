@@ -24,16 +24,16 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
-  Implicit Types interp : (D).
+  Implicit Types interp : (V).
 
   Definition validPCperm (p : Perm) (g : Locality) :=
     executeAllowed p = true ∧ (isWL p = true -> g = Local).
 
   Definition ftlr_IH: iProp Σ :=
-    (□ ▷ (∀ (W_ih : WORLD) (C_ih : CmptName) (cstk : CSTK) (Ws : list WORLD) (r_ih : leibnizO Reg)
+    (□ ▷ (∀ (W_ih : WORLD) (C_ih : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (r_ih : leibnizO Reg)
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr) (wstk_ih : Word),
             full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
@@ -41,8 +41,8 @@ Section fundamental.
             -∗ ⌜ r_ih !! csp = Some wstk_ih ⌝
             -∗ region W_ih C_ih
             -∗ sts_full_world W_ih C_ih
-            -∗ interp_continuation cstk Ws C_ih
-            -∗ ⌜frame_match Ws cstk W_ih⌝
+            -∗ interp_continuation cstk Ws Cs
+            -∗ ⌜frame_match Ws Cs cstk W_ih C_ih⌝
             -∗ na_own logrel_nais ⊤
             -∗ cstack_frag cstk
             -∗ □ interp W_ih C_ih (WCap p_ih g_ih b_ih e_ih a_ih)
@@ -50,7 +50,7 @@ Section fundamental.
 
   Definition ftlr_instr_base (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (P : D) (Pinstr : Prop) (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
+    (w : Word) (ρ : region_type) (P : V) (Pinstr : Prop) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
     (Nswitcher : namespace)
     : Prop :=
     validPCperm p g
@@ -81,8 +81,8 @@ Section fundamental.
                  else (if isDL p' then future_borrow_mono C (safeC P) w else future_priv_mono C (safeC P) w))
            else future_priv_mono C (safeC P) w))
     -∗ ▷ P W C w
-    -∗ interp_continuation cstk Ws C
-    -∗ ⌜frame_match Ws cstk W⌝
+    -∗ interp_continuation cstk Ws Cs
+    -∗ ⌜frame_match Ws Cs cstk W C⌝
     -∗ sts_full_world W C
     -∗ na_own logrel_nais ⊤
     -∗ cstack_frag cstk
@@ -100,14 +100,14 @@ Section fundamental.
 
   Definition ftlr_instr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (i: instr) (ρ : region_type) (P : D) (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
+    (w : Word) (i: instr) (ρ : region_type) (P : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
     (Nswitcher : namespace)
     : Prop :=
-    ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w = i) cstk Ws wstk Nswitcher.
+    ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w = i) cstk Ws Cs wstk Nswitcher.
 
   Definition specification_switcher_entry_point
     (W : WORLD) (C : CmptName) (rmap : leibnizO Reg)
-    (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
     (Nswitcher : namespace)
     (a_switcher_entry_point : Addr) :=
     (∀ x, is_Some (rmap !! x)) →
@@ -115,8 +115,8 @@ Section fundamental.
     ftlr_IH -∗
     (∀ (r : RegName) (v : leibnizO Word) , ⌜r ≠ PC⌝ → ⌜rmap !! r = Some v⌝ → interp W C v) -∗
     na_inv logrel_nais Nswitcher switcher_inv -∗
-    interp_continuation cstk Ws C -∗
-    ⌜frame_match Ws cstk W⌝ -∗
+    interp_continuation cstk Ws Cs -∗
+    ⌜frame_match Ws Cs cstk W C⌝ -∗
     sts_full_world W C -∗
     na_own logrel_nais ⊤ -∗
     cstack_frag cstk -∗

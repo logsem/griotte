@@ -32,9 +32,9 @@ Section fundamental.
 
   Lemma jmp_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rimm : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
+    (w : Word) (ρ : region_type) (rimm : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
     (Nswitcher : namespace) :
-    ftlr_instr W C regs p p' g b e a w (Jmp rimm) ρ P cstk Ws wstk Nswitcher.
+    ftlr_instr W C regs p p' g b e a w (Jmp rimm) ρ P cstk Ws Cs wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Hframe".
@@ -57,7 +57,7 @@ Section fundamental.
     iApply wp_pure_step_later; auto. iNext; iIntros "_".
     iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
     { destruct ρ;auto;contradiction. }
-    iApply ("IH" $! _ _ _ _ regs with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Hframe]") ; eauto.
+    iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Hframe]") ; eauto.
     iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity.
   Qed.
 

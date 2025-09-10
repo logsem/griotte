@@ -23,9 +23,9 @@ Section monotone.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (CSTK -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
+  Notation K := (iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
@@ -247,7 +247,7 @@ Section monotone.
     iIntros (Hrelated) "#Hw".
     rewrite !fixpoint_interp1_eq /=.
     destruct (is_switcher_entry_point (WSentry p g b e a)) ; first done.
-    iModIntro. iIntros (stk r Ws W'').
+    iModIntro. iIntros (stk r Ws Cs W'').
     destruct g.
     + iIntros "#Hrelated'".
       rewrite /future_world.
@@ -255,7 +255,7 @@ Section monotone.
       iAssert (future_world Global W W'')%I as "Hrelated".
       { rewrite /future_world.
         iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! stk r Ws W'' with "Hrelated").
+      iSpecialize ("Hw" $! stk r Ws Cs W'' with "Hrelated").
       iApply "Hw".
     + iIntros "#Hrelated'".
       rewrite /future_world.
@@ -263,7 +263,7 @@ Section monotone.
       iAssert (future_world Local W W'')%I as "Hrelated".
       { rewrite /future_world.
         iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! stk r Ws W'' with "Hrelated").
+      iSpecialize ("Hw" $! stk r Ws Cs W'' with "Hrelated").
       iApply "Hw".
   Qed.
 
@@ -358,14 +358,14 @@ Section monotone.
     rewrite !fixpoint_interp1_eq /=.
     destruct (is_switcher_entry_point (WSentry p g b e a)) ; first done.
     destruct g ; cbn in Hnl ; try done.
-    iModIntro. iIntros (stk r Ws W'').
+    iModIntro. iIntros (stk r Ws Cs W'').
     iIntros "#Hrelated'".
     rewrite /future_world.
     iDestruct "Hrelated'" as "%Hrelated'".
     iAssert (future_world Global W W'')%I as "Hrelated".
     { rewrite /future_world.
       iPureIntro. apply related_sts_priv_trans_world with W'; auto. }
-    iSpecialize ("Hw" $! stk r Ws W'' with "Hrelated").
+    iSpecialize ("Hw" $! stk r Ws Cs W'' with "Hrelated").
     iApply "Hw".
   Qed.
 
@@ -599,11 +599,11 @@ Qed.
 
 Lemma interp_monotone_continuation
   (W W' : WORLD) (C : CmptName)
-  (cstk : CSTK) (Ws : list WORLD) :
+  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
   related_sts_pub_world W W' ->
-  interp_continuation cstk (W :: Ws) C -∗ interp_continuation cstk (W' :: Ws) C.
+  interp_continuation cstk (W :: Ws) (C :: Cs) -∗ interp_continuation cstk (W' :: Ws) (C :: Cs).
 Proof.
-  revert Ws; induction cstk;intros Ws; simpl;auto.
+  revert Ws Cs; induction cstk;intros Ws Cs; simpl;auto.
   iIntros (Hrel) "[Hic [Hcallee Hcont]]".
   iNext.
   iSplitL "Hic";[|iSplitL "Hcallee"].

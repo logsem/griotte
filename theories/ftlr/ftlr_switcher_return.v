@@ -159,14 +159,14 @@ Section fundamental.
     
   Lemma switcher_return_ftlr
     (W : WORLD) (C : CmptName) (rmap : leibnizO Reg)
-    (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
     (Nswitcher : namespace)
     :
-    (forall cstk Ws wstk rmap, specification_switcher_entry_point W C rmap cstk Ws wstk Nswitcher a_switcher_call) ->
-    specification_switcher_entry_point W C rmap cstk Ws wstk Nswitcher a_switcher_return.
+    (forall cstk Ws Cs wstk rmap, specification_switcher_entry_point W C rmap cstk Ws Cs wstk Nswitcher a_switcher_call) ->
+    specification_switcher_entry_point W C rmap cstk Ws Cs wstk Nswitcher a_switcher_return.
   Proof.
     intros Hspec_call.
-    iLöb as "IH'" forall (rmap cstk Ws wstk).
+    iLöb as "IH'" forall (rmap cstk Ws Cs wstk).
     iIntros (Hfull_rmap Hwstk) "#IH #Hrmap_interp #Hinv_switcher Hcont_K %Hfreq Hsts Hna Hcstk Hrmap Hr".
 
     (* --- Extract the code from the invariant --- *)
@@ -315,6 +315,7 @@ Section fundamental.
       wp_pure; wp_end ; by iIntros (?).
     }
     destruct Ws;[done|].
+    destruct Cs;[done|].
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     destruct frm.
     rewrite /cframe_interp.
@@ -336,7 +337,7 @@ Section fundamental.
     iEval (cbn) in "Hinterp_callee_wstk".
     iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_callee_wstk]") as ">#Hinterp_callee_wstk'".
     iClear "Hinterp_callee_wstk" ; iRename "Hinterp_callee_wstk'" into "Hinterp_callee_wstk".
-    simpl in Hfreq. destruct Hfreq as [<- Hfreq].
+    simpl in Hfreq. destruct Hfreq as (<- & <- & Hfreq).
     iAssert (
         ∃ wastk wastk1 wastk2 wastk3,
         let la := (if is_untrusted_caller then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in
@@ -943,7 +944,7 @@ Section fundamental.
           { destruct g; cbn; iPureIntro
             ; [apply related_sts_priv_refl_world| apply related_sts_pub_refl_world].
           }
-          iSpecialize ("Hinterp_wret" $! cstk Ws (WCap RWL Local b_stk e_stk a_stk) W with "[$]").
+          iSpecialize ("Hinterp_wret" $! cstk Ws Cs (WCap RWL Local b_stk e_stk a_stk) W with "[$]").
           iDestruct "Hinterp_wret" as "[Hinterp_wret _]".
           iDestruct "Hlc" as "[Hlc _]"
           ; iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".

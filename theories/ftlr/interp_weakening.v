@@ -25,7 +25,6 @@ Section fundamental.
 
   Notation E := (CSTK -n> list WORLD -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation K := ((leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
@@ -36,12 +35,12 @@ Section fundamental.
   Proof.
     iIntros "#Hinterp".
     rewrite /enter_cond /interp_expr /=.
-    iIntros (stk Ws wstk W' Hrelated).
+    iIntros (stk Ws Cs wstk W' Hrelated).
     iAssert (future_world Global W W')%I as "%Hrelated'".
     { iPureIntro.
       apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto.
     }
-    iSpecialize ("Hinterp" $! stk Ws wstk W' Hrelated').
+    iSpecialize ("Hinterp" $! stk Ws Cs wstk W' Hrelated').
     iDestruct "Hinterp" as "[Hinterp Hinterp_borrowed]".
     iSplitL; iFrame "#".
   Qed.
@@ -150,7 +149,7 @@ Section fundamental.
     destruct (is_switcher_entry_point (WSentry p g' b' e' a')); first done.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
-    iIntros (stk Ws wstk W') "#Hfuture".
+    iIntros (stk Ws Cs wstk W') "#Hfuture".
     iSplitR; iNext.
     - iIntros (regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hframe & Hcstk & %)]".
       rewrite /interp_conf.

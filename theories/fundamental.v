@@ -37,10 +37,10 @@ Section fundamental.
   Theorem fundamental_cap
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality)
-    (b e a : Addr) (cstk : CSTK) (Ws : list WORLD) (wstk : Word) (Nswitcher : namespace) :
+    (b e a : Addr) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) (Nswitcher : namespace) :
     na_inv logrel_nais Nswitcher switcher_inv
     ⊢ interp W C (WCap p g b e a) →
-      interp_expression cstk Ws W C (WCap p g b e a) wstk.
+      interp_expression cstk Ws Cs W C (WCap p g b e a) wstk.
   Proof.
     iIntros "#Hswitcher_inv #Hinv_interp".
     iIntros (regs) "[[Hfull Hreg] [Hmreg [%Hwstk [Hr [Hsts [Hcont [Hown [Hframe %Hframe]]]]]]]]".
@@ -64,10 +64,10 @@ Section fundamental.
     clear Hread_p.
 
     iRevert "Hinv_interp".
-    iLöb as "IH'" forall (W C regs p g b e a cstk Ws wstk Hwstk Hframe).
+    iLöb as "IH'" forall (W C regs p g b e a cstk Ws Cs wstk Hwstk Hframe).
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
-      iIntros (W_ih C_ih cstk_ih Ws_ih r_ih p_ig g_ih b_ih e_ih a_ih wstk_ih)
+      iIntros (W_ih C_ih cstk_ih Ws_ih Cs_ih r_ih p_ig g_ih b_ih e_ih a_ih wstk_ih)
         "%Hfull #Hregs Hmreg %Hwstk' Hr Hsts Hcont %Hframe' Hown Htframe Hinterp".
       destruct (Hfull csp) as [wstk' Hcsp].
       iApply ("IH'" with "[%] [] [] [] [Hmreg] [$Hr] [$Hsts] [$] [$] [$]");eauto.
@@ -361,8 +361,8 @@ Section fundamental.
       Unshelve. rewrite /persistent_cond in Hperscond_P''; apply _.
   Qed.
 
-  Theorem fundamental W cstk Ws C w wstk Nswitcher :
-    na_inv logrel_nais Nswitcher switcher_inv ⊢ interp W C w -∗ interp_expression cstk Ws W C w wstk.
+  Theorem fundamental W cstk Ws Cs C w wstk Nswitcher :
+    na_inv logrel_nais Nswitcher switcher_inv ⊢ interp W C w -∗ interp_expression cstk Ws Cs W C w wstk.
   Proof.
     iIntros "#Hswitcher Hw". destruct w as [| [c | ] | | ].
     2: { iApply fundamental_cap; done. }
@@ -377,29 +377,29 @@ Section fundamental.
   Qed.
 
   (* The fundamental theorem implies the exec_cond *)
-  Lemma interp_exec_cond W C p g b e a cstk Ws wstk Nswitcher:
+  Lemma interp_exec_cond W C p g b e a cstk Ws Cs wstk Nswitcher:
     executeAllowed p = true ->
     na_inv logrel_nais Nswitcher switcher_inv ⊢
-    interp W C (WCap p g b e a) -∗ exec_cond W C p g b e cstk Ws wstk interp.
+    interp W C (WCap p g b e a) -∗ exec_cond W C p g b e cstk Ws Cs wstk interp.
   Proof.
     iIntros (Hp) "#Hinv_switcher #Hw".
     iIntros (a0 W' Hin) "#Hfuture". iModIntro.
     assert (isO p = false) by (by eapply executeAllowed_nonO).
     destruct g.
     - iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
-      iApply (fundamental W' cstk Ws);eauto.
+      iApply (fundamental W' cstk Ws Cs);eauto.
       iApply interp_weakening.interp_weakeningEO; eauto; try done.
     - iDestruct (interp_monotone with "Hfuture Hw") as "Hw'".
-      iApply (fundamental W' cstk Ws);eauto.
+      iApply (fundamental W' cstk Ws Cs);eauto.
       iApply interp_weakening.interp_weakeningEO; eauto; try done.
   Qed.
 
   (* We can use the above fact to create a special "jump or fail pattern" when jumping to an unknown adversary *)
-  Lemma exec_wp W C p g b e a cstk Ws wstk Nswitcher :
+  Lemma exec_wp W C p g b e a cstk Ws Cs wstk Nswitcher :
     isCorrectPC (WCap p g b e a) ->
     na_inv logrel_nais Nswitcher switcher_inv ⊢
-    exec_cond W C p g b e cstk Ws wstk interp -∗
-    ∀ W', future_world g W W' → ▷ (interp_expr interp (interp_cont interp cstk Ws) cstk Ws W' C (WCap p g b e a)) wstk.
+    exec_cond W C p g b e cstk Ws Cs wstk interp -∗
+    ∀ W', future_world g W W' → ▷ (interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W' C (WCap p g b e a)) wstk.
   Proof.
     iIntros (Hvpc) "#Hinv_switcher Hexec".
     rewrite /exec_cond /enter_cond.
@@ -440,7 +440,7 @@ Section fundamental.
   (*   { iNext. iIntros (rmap). iApply fundamental; eauto. } *)
   (* Qed. *)
 
-  Lemma jmp_or_fail_spec W C w φ cstk Ws wstk Nswitcher :
+  Lemma jmp_or_fail_spec W C w φ cstk Ws Cs wstk Nswitcher :
     na_inv logrel_nais Nswitcher switcher_inv ⊢
     (interp W C w
      -∗ (if decide (isCorrectPC (updatePcPerm w))
@@ -451,7 +451,7 @@ Section fundamental.
               else
                   (⌜w = WCap p g b e a ∨ w = WSentry p g b e a ⌝
                    ∗ □ ∀ W', future_world g W W'
-                             → ▷ (interp_expr interp (interp_cont interp cstk Ws) cstk Ws W' C) (updatePcPerm w) wstk))
+                             → ▷ (interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W' C) (updatePcPerm w) wstk))
          else φ FailedV ∗ PC ↦ᵣ updatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.

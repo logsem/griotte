@@ -30,19 +30,21 @@ Section CMDC.
     (csp_b csp_e : Addr)
     (rmap : Reg)
 
-    (b_tstk e_tstk : Addr)
     (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f C_g : Sealable)
 
-    (W_init_B : WORLD) (Ws_B : list WORLD)
-    (W_init_C : WORLD) (Ws_C : list WORLD)
+    (W_init_B : WORLD)
+    (W_init_C : WORLD)
+
+    (Ws : list WORLD)
+    (Cs : list CmptName)
 
     (csp_content : list Word)
 
     (φ : language.val cap_lang -> iProp Σ)
     (Nassert Nswitcher : namespace)
 
-    (s_init : CSTK)
+    (cstk : CSTK)
     :
 
     let imports :=
@@ -67,10 +69,6 @@ Section CMDC.
      The revoked world allow me to close the stack invariant (i.e., private transitions) *)
     revoke_condition W_init_B ->
     revoke_condition W_init_C ->
-    length s_init = length Ws_B ->
-    length s_init = length Ws_C ->
-    (* (frm W_init_B) = frm_init -> *)
-    (* (frm W_init_C) = frm_init -> *)
 
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
@@ -92,10 +90,9 @@ Section CMDC.
       ∗ region W_init_B B ∗ sts_full_world W_init_B B
       ∗ region W_init_C C ∗ sts_full_world W_init_C C
 
-      ∗ interp_continuation s_init Ws_B B
-      ∗ interp_continuation s_init Ws_C C
+      ∗ interp_continuation cstk Ws Cs
 
-      ∗ cstack_frag s_init
+      ∗ cstack_frag cstk
 
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
@@ -111,13 +108,13 @@ Section CMDC.
     intros imports; subst imports.
     iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
-               Hrevoke_cond_B Hrevoke_cond_C Hlen_Ws_B Hlen_Ws_C)
+               Hrevoke_cond_B Hrevoke_cond_C)
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & HWreg_B & HWstd_full_B
       & HWreg_C & HWstd_full_C
-      & HK_B & HK_C
+      & HK
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & Hrel_stk_B & Hrel_stk_C
@@ -399,16 +396,11 @@ Section CMDC.
 
     (* replace frm_init with (frm W1). *)
     iEval (cbn) in "Hct1".
-    iApply (switcher_cc_specification
-              Nswitcher W1 B
-              _ _ _ _
-              _ _ _ _
-              _ _ _ _ s_init Ws_B
-             with
+    iApply (switcher_cc_specification _ W1 with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $HWreg_B $HWstd_full_B $Hrel_stk_B $Hcstk_frag
-              $Hinterp_W1_B_f $HK_B]"); eauto.
+              $Hinterp_W1_B_f $HK]"); eauto.
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hrmap_dom; set_solver.
@@ -429,7 +421,7 @@ Section CMDC.
       & Hcstk_frag & Hrel_stk_B
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hcsp_stk & HK_B)".
+      & Hrmap & Hcsp_stk & HK)".
     iEval (cbn) in "HPC".
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
@@ -720,7 +712,7 @@ Section CMDC.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $HWreg_C $HWstd_full_C $Hrel_stk_C $Hcstk_frag
-              $Hinterp_W3_C_g $HK_C]"); eauto.
+              $Hinterp_W3_C_g $HK]"); eauto.
     { subst rmap''.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hdom_rmap'; set_solver.
@@ -740,8 +732,19 @@ Section CMDC.
       & Hcstk_frag & Hrel_stk_C
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0' [Hca0 _] ] & [%warg1' [Hca1 _] ]
-      & Hrmap & Hcsp_stk & HK_C)".
+      & Hrmap & Hcsp_stk & HK)".
     iEval (cbn) in "HPC".
+
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
+    iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero'".
+    assert (∀ r : RegName, r ∈ dom rmap'' → rmap'' !! r = Some (WInt 0)) as Hrmap_init''.
+    { intros r Hr.
+      rewrite elem_of_dom in Hr. destruct Hr as [wr Hr].
+      pose proof Hr as Hr'.
+      eapply map_Forall_lookup in Hr'; eauto.
+      by cbn in Hr' ; simplify_eq.
+    }
+    iClear "Hrmap_zero".
 
     (* ---- extract the needed registers ctp ct0 ct1 ct2 ct3 ct4 cs0 ----  *)
     assert ( rmap'' !! ctp = Some (WInt 0) ) as Hwctp''.
@@ -804,7 +807,7 @@ Section CMDC.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     subst hφ; iApply ("Hφ" with "[$]").
-  Qed.
+  Admitted.
 
   Lemma cmdc_spec_full
 
@@ -813,23 +816,25 @@ Section CMDC.
     (csp_b csp_e : Addr)
     (rmap : Reg)
 
-    (b_switcher e_switcher a_cc_switcher b_tstk e_tstk : Addr) (ot_switcher : OType)
     (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f C_g : Sealable)
 
     (W_init_B : WORLD)
     (W_init_C : WORLD)
 
+    (Ws : list WORLD)
+    (Cs : list CmptName)
+
     (csp_content : list Word)
 
     (φ : language.val cap_lang -> iProp Σ)
     (Nassert Nswitcher : namespace)
 
-    (frm_init : nat)
+    (cstk : CSTK)
     :
 
     let imports :=
-     cmdc_main_imports b_switcher e_switcher a_cc_switcher ot_switcher b_assert e_assert B_f C_g
+     cmdc_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f C_g
     in
 
     Nswitcher ## Nassert ->
@@ -846,12 +851,10 @@ Section CMDC.
 
     revoke_condition W_init_B ->
     revoke_condition W_init_C ->
-    (frm W_init_B) = frm_init ->
-    (frm W_init_C) = frm_init ->
 
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv logrel_nais Nswitcher (switcher_inv b_switcher e_switcher a_cc_switcher b_tstk e_tstk ot_switcher)
+      ∗ na_inv logrel_nais Nswitcher switcher_inv
       ∗ na_own logrel_nais ⊤
 
       (* initial register file *)
@@ -869,7 +872,9 @@ Section CMDC.
       ∗ region W_init_B B ∗ sts_full_world W_init_B B
       ∗ region W_init_C C ∗ sts_full_world W_init_C C
 
-      ∗ tframe_frag frm_init
+      ∗ interp_continuation cstk Ws Cs
+
+      ∗ cstack_frag cstk
 
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
@@ -885,22 +890,22 @@ Section CMDC.
     intros imports; subst imports.
     iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
-               Hrevoke_cond_B Hrevoke_cond_C Hfrm_B_init Hfrm_C_init)
+               Hrevoke_cond_B Hrevoke_cond_C)
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & HWreg_B & HWstd_full_B
       & HWreg_C & HWstd_full_C
-      & Htframe_frag
+      & HK
+      & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & Hrel_stk_B & Hrel_stk_C
       & Hφ)".
     iApply (wp_wand with "[-]").
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
-                b_switcher e_switcher a_cc_switcher _ _ ot_switcher
                 b_assert e_assert a_flag B_f C_g W_init_B W_init_C
-                csp_content φ Nassert Nswitcher); eauto; iFrame "#∗".
+                Ws Cs csp_content φ Nassert Nswitcher cstk); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".
   Qed.

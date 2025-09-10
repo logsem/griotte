@@ -33,8 +33,8 @@ Section fundamental.
 
   Lemma jmpcap_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rsrc : RegName) (P:V) (cstk : CSTK) (Ws : list WORLD) (wstk : Word) (Nswitcher : namespace) :
-    ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P cstk Ws wstk Nswitcher.
+    (w : Word) (ρ : region_type) (rsrc : RegName) (P:V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) (Nswitcher : namespace) :
+    ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P cstk Ws Cs wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Hcstk".
@@ -51,7 +51,7 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
       (* apply IH *)
-      iApply ("IH" $! _ _ _ _ _ _ g _ _ a with "[] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ _ _ g _ _ a with "[] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]"); eauto.
       { iPureIntro; apply Hsome. }
 
     - iAssert (∃ wsrc,

@@ -715,10 +715,10 @@ Section fundamental.
   Qed.
 
   Lemma switcher_call_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
-    (cstk : CSTK) (Ws : list WORLD) (wstk : Word)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
     (Nswitcher : namespace)
     :
-    specification_switcher_entry_point W C regs cstk Ws wstk Nswitcher a_switcher_call.
+    specification_switcher_entry_point W C regs cstk Ws Cs wstk Nswitcher a_switcher_call.
   Proof.
     iIntros (Hfull_rmap Hwstk) "#IH #Hreg #Hinv_switcher Hcont %Hframe Hsts Hna Hcstk Hrmap Hr".
 
@@ -1154,7 +1154,7 @@ Section fundamental.
               is_untrusted_caller := true
            |}).
 
-    iSpecialize ("Hexec" $! _ (frame :: cstk) W (W :: Ws) with "[]").
+    iSpecialize ("Hexec" $! _ (frame :: cstk) (W :: Ws) (C :: Cs) with "[]").
     { iPureIntro. apply related_sts_priv_refl_world. }
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
