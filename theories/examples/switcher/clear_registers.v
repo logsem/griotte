@@ -39,33 +39,6 @@ Section ClearRegistersMacro.
                     Mov ca5 0%Z;
                     Mov ct0 0%Z].
 
-  (* Lemma clear_registers_pre_call_skip_spec *)
-  (*   (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr) *)
-  (*   (arg_rmap : Reg) (z : Z) *)
-  (*   (W : WORLD) (C : CmptName) φ : *)
-  (*   executeAllowed pc_p = true -> *)
-  (*   SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a -> *)
-
-  (*   is_arg_rmap arg_rmap -> *)
-  (*   (1 <= z <= 8)%Z -> *)
-
-  (*   ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a *)
-  (*     ∗ ct2 ↦ᵣ WInt z *)
-  (*     ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg ) *)
-  (*     ∗ codefrag pc_a clear_registers_pre_call_skip_instrs *)
-  (*     ∗ ▷ ( (∃ arg_rmap', *)
-  (*             ⌜ is_arg_rmap arg_rmap' ⌝ *)
-  (*             ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a *)
-  (*             ∗ ct2 ↦ᵣ WInt z *)
-  (*             ∗ (  [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ warg ∗ interp W C warg ) *)
-  (*             ∗ codefrag pc_a clear_registers_pre_call_skip_instrs) *)
-  (*              -∗ WP Seq (Instr Executable) {{ φ }}) *)
-  (*   ) *)
-  (*   ⊢ WP Seq (Instr Executable) {{ φ }}%I. *)
-  (* Proof. *)
-  (* Admitted. *)
-
-
   Definition clear_registers_pre_call_instrs : list Word :=
     encodeInstrsW [
         Mov cnull 0%Z;
@@ -91,29 +64,6 @@ Section ClearRegistersMacro.
         Mov ct5 0%Z;
         Mov ct6 0%Z
       ].
-
-  Lemma clear_registers_pre_call_spec
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (rmap : Reg) φ :
-    executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_instrs)%a ->
-
-    dom rmap = all_registers_s ∖ (dom_arg_rmap ∪ {[ PC ; cra ; cgp ; csp ]}) ->
-
-    ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
-      ∗ codefrag pc_a clear_registers_pre_call_instrs
-      ∗ ▷ ( (∃ (rmap' : Reg),
-              ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ codefrag pc_a clear_registers_pre_call_instrs)
-               -∗ WP Seq (Instr Executable) {{ φ }})
-    )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
-  Proof.
-  Admitted.
-
 
   Definition clear_registers_post_call_instrs : list Word :=
     encodeInstrsW [
