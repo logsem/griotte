@@ -124,12 +124,21 @@ theories/examples/macros/fetch.v
 # theories/examples/macros/salloc.v
 # theories/examples/macros/macros.v
 
-# Griotte case studies
+# Switcher
 theories/examples/switcher/switcher_spec.v
 # theories/examples/switcher/switcher_interp.v
 
+# Griotte case studies
 theories/examples/compartment_layout.v
 
+## CMDC
 theories/examples/cmdc/cmdc.v
 theories/examples/cmdc/cmdc_spec.v
-# theories/examples/cmdc/cmdc_adequacy.v
+theories/examples/cmdc/cmdc_adequacy.v
+
+## Deep immutability (droe)
+theories/examples/droe/deep_immutability.v
+
+## Deep locality (dle)
+
+## Double Share (dshare)
