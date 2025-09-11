@@ -287,6 +287,8 @@ Section logrel.
       ∗ rel C a p φ
       ∗ ⌜ ρ ≠ Revoked ⌝
       ∗ ⌜ isO p = false ⌝
+      ∗ ⌜ isDRO p = false ⌝
+      ∗ ⌜ isDL p = false ⌝
       ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝)%I.
 
   Definition closing_resources (interp : V) W C a w : iProp Σ :=
@@ -299,6 +301,8 @@ Section logrel.
        ∗ rel C a p φ
        ∗ ⌜ ρ ≠ Revoked ⌝
        ∗ ⌜ isO p = false ⌝
+       ∗ ⌜ isDRO p = false ⌝
+       ∗ ⌜ isDL p = false ⌝
        ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝
       )%I.
 

@@ -58,14 +58,12 @@ Section fundamental.
   Qed.
 
   Lemma region_open_list_interp_gen (W : WORLD) (C : CmptName)
-    (la la' : list Addr) (p : Perm) (g : Locality) (b e a : Addr) :
+    (la la' : list Addr) (g : Locality) (b e a : Addr) :
     NoDup la ->
-    readAllowed p = true →
-    writeAllowed p = true →
     Forall (fun a' : Addr => (b <= a' < e)%a ) la ->
     la ## la' ->
 
-    interp W C (WCap p g b e a)
+    interp W C (WCap RWL g b e a)
     ∗ open_region_many W C la'
     ∗ sts_full_world W C -∗
 
@@ -74,7 +72,7 @@ Section fundamental.
       ∗ ([∗ list] a ∈ la, opening_resources interp W C a)
   .
   Proof.
-    induction la; intros Hnodup Hp Hp' Hin Hdis ;
+    induction la; intros Hnodup Hin Hdis ;
       iIntros "(#Hinterp & Hr & Hsts)"; cbn in * |- *.
     - by iFrame.
     - apply Forall_cons in Hin; destruct Hin as [Hin_a0 Hin].
@@ -86,7 +84,8 @@ Section fundamental.
       iDestruct (read_allowed_inv _ _ a0 with "Hinterp")
         as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)"
       ; auto.
-      eapply (writeAllowed_flowsto _ p') in Hp'; [rewrite Hp'|auto].
+      assert (writeAllowed p' = true) as ->.
+      {eapply writeAllowed_flowsto; eauto. }
       iDestruct (readAllowed_valid_cap_implies with "Hinterp") as (ρ) "[%HWa %Hρ]"; auto.
       { by eapply withinBounds_true_iff. }
       iDestruct (region_open_next with "[$Hr $Hrel_P $Hsts]") as "Ha"; eauto.
@@ -114,6 +113,9 @@ Section fundamental.
       }
       cbn.
       iFrame "∗#%".
+      iSplit; iPureIntro.
+      + eapply notisDRO_flowsfrom; eauto.
+      + eapply notisDL_flowsfrom; eauto.
   Qed.
 
   Lemma region_close_list_interp_gen (W : WORLD) (C : CmptName)
@@ -136,7 +138,8 @@ Section fundamental.
     - destruct lv as [| v lv ]; simplify_eq.
       cbn.
       iDestruct "Hclose_res" as "[ [Ha Hclose_res_a] Hclose_res ]".
-      iDestruct "Hclose_res_a" as (? ? ?) "(Hstd & Hφ & Hmono & _ & _ & Hrel & %Hrevoked & %Hp & %Hpers)".
+      iDestruct "Hclose_res_a"
+        as (? ? ?) "(Hstd & Hφ & Hmono & _ & _ & Hrel & %Hrevoked & %Hp & %Hp' & %Hp'' & %Hpers)".
       apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
@@ -152,11 +155,11 @@ Section fundamental.
   Lemma closing_resources_interp W C a w :
     closing_resources interp W C a w -∗ interp W C w.
     iIntros "H".
-    iDestruct "H" as (???) "(Hstd&Hφ&Hmono&Hrcond&Hrel)".
+    iDestruct "H" as (???) "(Hstd&Hφ&Hmono&Hrcond&Hrel&?&?&%&%&%&%)".
     destruct p.
-    destruct dl,dro; by iApply "Hrcond".
+    destruct dl,dro; try done; by iApply "Hrcond".
   Qed.
-    
+
   Lemma switcher_return_ftlr
     (W : WORLD) (C : CmptName) (rmap : leibnizO Reg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
