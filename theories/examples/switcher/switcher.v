@@ -150,13 +150,6 @@ Section Switcher.
         switcher_return_entry_point :
         (b_switcher + (1 + length switcher_call_instrs) )%a = Some a_switcher_return ;
 
-        (* is_switcher_entry_point (w : Word) : *)
-        (* (bool_decide *)
-        (*    (w = (WCap XSRW_ Local b_switcher e_switcher a_switcher_call) *)
-        (*         ∨ *)
-        (* (w = (WCap XSRW_ Local b_switcher e_switcher a_switcher_return) *)
-        (* )) *)
-        (* ) *)
       }.
 
   Definition is_switcher_entry_point `{switcherLayout} (w : Word) :=

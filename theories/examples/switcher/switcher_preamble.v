@@ -91,97 +91,7 @@ Section Switcher_preamble.
     persistent_cond ot_switcher_prop.
   Proof. intros [ [] ] ; cbn ; apply _. Qed.
 
-  (* (** Custom invariant used by the switcher to store the frame  *) *)
-  (*  Definition frame_inv (C : CmptName) (i : positive) (P : iProp Σ) := *)
-  (*    (∃ x:bool, sts_state_loc C i x ∗ if x then P else emp)%I. *)
-  (*  Definition frame_rel_pub := λ (a b : bool), False. *)
-  (*  Definition frame_rel_priv := λ (a b : bool), True. *)
-  (*  Definition frame_W (W : WORLD) : WORLD := *)
-  (*    let ι := fresh_cus_name W in *)
-  (*     <l[ ι := true , ( frame_rel_pub, (frame_rel_pub, frame_rel_priv)) ]l> W. *)
-
-  (*  Lemma frame_W_related_sts_pub_world (W : WORLD) : related_sts_pub_world W (frame_W W). *)
-  (*  Proof. *)
-  (*    rewrite /frame_W. *)
-  (*    destruct W as [ [Wstd [fs fr] ] Wfrm ] . *)
-  (*    assert (fresh (dom fs ∪ dom fr) ∉ (dom fs ∪ dom fr)) as Hfresh by apply is_fresh. *)
-  (*    apply related_sts_pub_world_fresh_loc; set_solver. *)
-  (*  Qed. *)
-
-  (*  Set Nested Proofs Allowed. *)
-
-  (* Lemma frame_W_lookup_std (W : WORLD) (a : Addr) : *)
-  (*   std (frame_W W) !! a = (std W) !!a. *)
-  (* Proof. *)
-  (*   rewrite /frame_W. *)
-  (*   by cbn. *)
-  (* Qed. *)
-
-  (* Lemma frame_W_lookup_loc (W : WORLD) (ι : positive) : *)
-  (*   ι ≠ fresh_cus_name W -> *)
-  (*   loc (frame_W W) !! ι = (loc W) !! ι. *)
-  (* Proof. *)
-  (*   intros Hι. *)
-  (*   rewrite /frame_W /= lookup_insert_ne //. *)
-  (* Qed. *)
-  (* Lemma frame_W_lookup_rel (W : WORLD) (ι : positive) : *)
-  (*   ι ≠ fresh_cus_name W -> *)
-  (*   wrel (frame_W W) !! ι = (wrel W) !! ι. *)
-  (* Proof. *)
-  (*   intros Hι. *)
-  (*   rewrite /frame_W /= lookup_insert_ne //. *)
-  (* Qed. *)
-  (* Lemma frame_W_lookup_frm (W : WORLD) : frm (frame_W W) = (frm W). *)
-  (* Proof. by cbn. Qed. *)
-
-  (* Lemma ι0_in_Wloc_helper (W0 : WORLD) (ι0 : positive) (callee_stk_frm_addr : list Addr) : *)
-  (*   ι0 ∈ (dom (loc (std_update_multiple *)
-  (*                      (<l[ι0:=false]l>(revoke W0)) *)
-  (*                      callee_stk_frm_addr Temporary))). *)
-  (* Proof. *)
-  (*   rewrite std_update_multiple_loc_sta dom_insert_L; set_solver. *)
-  (* Qed. *)
-
-  (* Lemma ι0_isnot_fresh (W0 : WORLD) (ι0 : positive) (callee_stk_frm_addr : list Addr) : *)
-  (*   ι0 ≠ fresh_cus_name (std_update_multiple *)
-  (*                          (<l[ι0:=false]l>(revoke W0)) *)
-  (*                          callee_stk_frm_addr Temporary). *)
-  (* Proof. *)
-  (*   apply fresh_name_notin. left. *)
-  (*   apply ι0_in_Wloc_helper. *)
-  (* Qed. *)
-
-
-  (* (** Evolution of the world in the switcher *) *)
-  (* Definition switcher_world_pre_frame (W_init : WORLD) (callee_stk_frm_addr : list Addr) := *)
-  (*   (std_update_multiple (<d[ frm W_init + 1]d>(revoke W_init)) callee_stk_frm_addr Temporary). *)
-
-  (* Definition switcher_world_upon_jmp (W_init : WORLD) *)
-  (*   (a_local_args callee_stk_frm_addr : list Addr) := *)
-  (*   std_update_multiple *)
-  (*     (frame_W (switcher_world_pre_frame W_init callee_stk_frm_addr)) *)
-  (*     a_local_args Temporary. *)
-
-  (* Lemma related_sts_priv_world_switcher_pre_frame *)
-  (*   (W : WORLD) (callee_stk_frm_addr : list Addr) : *)
-  (*   Forall (fun a => std W !! a = Some Revoked) callee_stk_frm_addr -> *)
-  (*   related_sts_priv_world W (switcher_world_pre_frame W callee_stk_frm_addr). *)
-  (* Proof. *)
-  (*   intros Ha_local_args. *)
-  (*   rewrite /switcher_world_pre_frame. *)
-  (*   eapply related_sts_priv_trans_world; cycle 1. *)
-  (*   { apply related_sts_pub_priv_world. *)
-  (*     apply related_sts_pub_update_multiple_temp. *)
-  (*     eapply Forall_impl; eauto. *)
-  (*     intros a Ha; cbn in *. *)
-  (*     by apply revoke_lookup_Revoked. *)
-  (*   } *)
-  (*   eapply related_sts_priv_trans_world; cycle 1. *)
-  (*   { apply sts.related_sts_priv_world_update_frm. } *)
-  (*   apply revoke_related_sts_priv_world. *)
-  (* Qed. *)
-
-    Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
+  Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
     ∃ (wtstk4 : Word),
       a_tstk ↦ₐ wtstk4 ∗
       match frm.(wstk) with
@@ -204,7 +114,6 @@ Section Switcher_preamble.
     | [] => a_tstk ↦ₐ WInt 0
     | frm::cstk' => cstack_interp cstk' (a_tstk ^+ -1)%a
                   ∗ cframe_interp frm a_tstk
-                  (* ∗ ⌜ is_Some (a_tstk + -1)%a ⌝ (* Not sure if this is necessary? *) *)
     end)%I.
 
   Definition switcher_inv : iProp Σ :=
