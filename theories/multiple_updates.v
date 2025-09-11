@@ -11,14 +11,13 @@ Section std_updates.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ}
+    {stsg : STSG Addr region_type Σ}
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -48,21 +47,21 @@ Section std_updates.
      induction l; auto.
    Qed.
 
-   Lemma std_update_multiple_frm W l ρ :
-     frm (std_update_multiple W l ρ) = frm W.
-   Proof.
-     induction l; auto.
-   Qed.
+   (* Lemma std_update_multiple_frm W l ρ : *)
+   (*   frm (std_update_multiple W l ρ) = frm W. *)
+   (* Proof. *)
+   (*   induction l; auto. *)
+   (* Qed. *)
 
-   Lemma std_update_multiple_proj_eq W Wloc Wfrm l ρ :
-     ( ( std (std_update_multiple W l ρ) , Wloc), Wfrm) = std_update_multiple ( (std W, Wloc), Wfrm) l ρ.
+   Lemma std_update_multiple_proj_eq W Wloc l ρ :
+     ( ( std (std_update_multiple W l ρ) , Wloc)) = std_update_multiple ( (std W, Wloc)) l ρ.
    Proof.
-     destruct W as [ [Wsta Wloc'] Wfrm']. simpl. induction l; auto.
+     destruct W as [Wsta Wloc']. simpl. induction l; auto.
      simpl. rewrite -IHl. auto.
    Qed.
 
-   Lemma std_update_multiple_std_sta_eq W Wloc Wfrm l ρ :
-     std (std_update_multiple W l ρ) = std (std_update_multiple ((std W, Wloc), Wfrm) l ρ).
+   Lemma std_update_multiple_std_sta_eq W Wloc l ρ :
+     std (std_update_multiple W l ρ) = std (std_update_multiple ((std W, Wloc)) l ρ).
    Proof.
      destruct W as [Wsta Wloc']. simpl. induction l; auto.
      simpl. rewrite -IHl. auto.
@@ -295,16 +294,11 @@ Section std_updates.
      related_sts_pub_world (std_update_multiple W l ρ) (std_update_multiple W' l ρ).
    Proof.
      intros Hrelated.
-     destruct W as [ [Wstd_sta [Wloc_sta Wloc_rel] ] Wfrm ].
-     destruct W' as [ [ Wstd_sta' [Wloc_sta' Wloc_rel'] ] Wfrm' ].
-     destruct Hrelated as [ [ [Hstd_dom1 Hstd_related ] Hcus_related]  Hfrm_related ].
+     destruct W as [Wstd_sta [Wloc_sta Wloc_rel] ].
+     destruct W' as [ Wstd_sta' [Wloc_sta' Wloc_rel'] ].
+     destruct Hrelated as [ [Hstd_dom1 Hstd_related ] Hcus_related].
      simpl in *.
-     split; [split|];[clear Hcus_related|by repeat rewrite std_update_multiple_loc_rel std_update_multiple_loc_sta|].
-     2: { rewrite !/related_tframe_pub in Hfrm_related |- *
-          ; rewrite !std_update_multiple_frm
-          ; simplify_eq.
-          done.
-     }
+     split;[clear Hcus_related|by repeat rewrite std_update_multiple_loc_rel std_update_multiple_loc_sta].
      split.
      - apply std_update_multiple_std_sta_dom_monotone. auto.
      - intros i x y Hx Hy.
@@ -435,7 +429,6 @@ Section std_updates.
      induction l;auto.
      simpl. destruct W as [Wstd Wloc]. rewrite /std_update /=.
      rewrite !std_update_multiple_cus /=; f_equiv.
-     all: rewrite !std_update_multiple_frm /=; f_equiv.
      apply map_eq'. intros k v.
      destruct (decide (a = k)).
      + subst. rewrite !lookup_insert. auto.
@@ -462,7 +455,7 @@ Section std_updates.
   Proof.
     intros Ha.
     rewrite /related_sts_pub_world /=.
-    split;[split|];[|apply related_sts_pub_refl|apply related_tframe_pub_refl].
+    split;[|apply related_sts_pub_refl].
     rewrite /related_sts_pub. split.
     - rewrite dom_insert_L. set_solver.
     - intros i x y Hx Hy.
@@ -503,7 +496,7 @@ Section std_updates.
    Proof.
      intros Ha.
      rewrite /related_sts_pub_world /=.
-    split;[split|];[|apply related_sts_pub_refl|apply related_tframe_pub_refl].
+    split;[|apply related_sts_pub_refl].
      rewrite /related_sts_pub. split.
      - rewrite dom_insert_L. set_solver.
      - intros i x y Hx Hy.

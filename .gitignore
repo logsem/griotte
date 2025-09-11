@@ -10,6 +10,7 @@ _opam
 .[ln]ia.cache
 .DS_Store
 *.fuse_*
+*.*~
 
 ## Shamelessly copied from github gitignore
 ## Core latex/pdflatex auxiliary files:

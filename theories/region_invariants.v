@@ -22,7 +22,7 @@ Class heapGpreS Σ {Cname : CmptNameG} := HeapGpreS {
   heapPreG_invPreG : invGpreS Σ;
   heapPreG_saved_pred ::
     savedPredG Σ (
-      ((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
+      ((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
         CmptName *
         Word);
   heapPreG_rel :: inG Σ (authR relUR);
@@ -31,7 +31,7 @@ Class heapGpreS Σ {Cname : CmptNameG} := HeapGpreS {
 Class heapGS Σ {Cname : CmptNameG} := HeapGS {
   heapG_saved_pred ::
     savedPredG Σ (
-      ((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
+      ((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
         CmptName *
         Word);
   heapG_rel :: inG Σ (authR relUR);
@@ -45,7 +45,7 @@ Instance subG_heapPreΣ {Σ} {Cname : CmptNameG}:
   subG heapPreΣ Σ →
   invGpreS Σ →
   subG (savedPredΣ
-          ((((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat)) *
+          ((((STS_std_states Addr region_type) * (STS_states * STS_rels))) *
         CmptName *
         Word)) Σ →
   heapGpreS Σ.
@@ -67,7 +67,7 @@ Section REL_defs.
   Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
 
   Definition rel_def (C : CmptName) (a : Addr) (p : Perm)
-    (φ : (((STS_std_states Addr region_type) * (STS_states * STS_rels) * nat) *
+    (φ : (((STS_std_states Addr region_type) * (STS_states * STS_rels)) *
         CmptName *
         Word) -> iProp Σ)
     : iProp Σ :=
@@ -120,12 +120,11 @@ Section heap.
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Addr region_type Σ}
-    {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {heapg : heapGS Σ}
     `{MP: MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
 
   Global Instance region_type_EqDecision : EqDecision region_type :=
@@ -1541,7 +1540,8 @@ Section heap.
         ∗ open_region_many W C (a :: als)
         ∗ a ↦ₐ v
         ∗ ▷ monotonicity_guarantees_region C φ p v ρ
-        ∗ ▷ φ (W, C, v).
+        ∗ ▷ φ (W, C, v)
+        ∗ ⌜isO p = false⌝.
   Proof.
     rewrite /monotonicity_guarantees_region.
     intros. iIntros "H".
@@ -1555,6 +1555,110 @@ Section heap.
     - iDestruct (region_open_next_perm with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
       ; eauto; iFrame.
   Qed.
+
+  Lemma region_open_list (W : WORLD) (C : CmptName)
+    (l : list (Addr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
+    (l' : list Addr)
+    :
+
+    let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
+    NoDup la ->
+    la ## l' ->
+    Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
+    Forall (fun '(a,p,φ,ρ) => (std W) !! a = Some ρ) l ->
+
+    ([∗ list] '(a,p,φ,ρ) ∈ l, rel C a p φ)
+    ∗ open_region_many W C l'
+    ∗ sts_full_world W C -∗
+
+    ∃ lv,
+      open_region_many W C (la++l')
+      ∗ sts_full_world W C
+      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C a ρ)
+      ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v)
+      ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C φ p v ρ)
+      ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C,v))
+      ∗ ⌜ length lv = length la ⌝
+      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
+  .
+  Proof.
+    induction l; intros la Hnodup Hdis Hregion_state Ha_state ;
+      iIntros "(Hrel & Hr & Hsts)"; cbn in * |- *.
+    - iExists []; cbn in *.
+      by iFrame.
+    - destruct a as [[[a p] φ] ρ]; cbn in * |- *.
+      iDestruct "Hrel" as "[Hrel_a Hrel]".
+      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
+      apply Forall_cons_1 in Ha_state; destruct Ha_state as [HWa Ha_state].
+      pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
+      eapply disjoint_weak in Hdis.
+      iDestruct (IHl with "[$Hrel $Hr $Hsts]") as "IH"; eauto.
+      iDestruct "IH" as (lv) "(Hr & Hsts & Hsts_stds & Hlv & Hmono & Hlφ & %Hlen & Hp)".
+      iDestruct (region_open_next with "[$Hr $Hrel_a $Hsts]") as "Ha"; eauto.
+      {
+        intros Hcontra.
+        apply elem_of_app in Hcontra. destruct Hcontra as [Hcontra|Hcontra]
+        ; [set_solver+Hcontra Hnotin|set_solver+Hcontra Ha_notin_l'].
+      }
+      iDestruct "Ha" as (va) "(Hsts & Hsts_std_a & Hr & Hv_a & Hmono_a & Hφ_a & %Hp_a)".
+      iExists (va::lv); iFrame.
+      iDestruct (big_sepL2_cons (fun _ '(a, _, _, _) v => (a ↦ₐ v)%I) (a,p,φ,ρ) va with "[$]") as "Hlv".
+      iFrame.
+      iSplitR "Hlφ Hφ_a"; [iNext|iSplit;[iNext|]].
+      + iDestruct (big_sepL2_cons (fun _ '(a, p, φ, ρ) v => monotonicity_guarantees_region C φ p v ρ) (a,p,φ,ρ) va with "[$]") as "Hlφ".
+        iFrame.
+      + iDestruct (big_sepL2_cons (fun _ '(a, _, φ, _) v => φ (W, C, v)) (a,p,φ,ρ) va with "[$]") as "Hlφ".
+        iFrame.
+      + by cbn ; rewrite Hlen.
+  Qed.
+
+  Lemma region_open_list_alt (W : WORLD) (C : CmptName)
+    (la la' : list Addr) (p : Perm) (φ : WORLD * CmptName * Word → iProp Σ) (ρ : region_type)
+    :
+
+    NoDup la ->
+    la ## la' ->
+    ρ ≠ Revoked ->
+    isO p = false ->
+    Forall (fun a => (std W) !! a = Some ρ) la ->
+
+    ([∗ list] a ∈ la, rel C a p φ)
+    ∗ open_region_many W C la'
+    ∗ sts_full_world W C -∗
+
+    ∃ (lv : list Word),
+      open_region_many W C (la++la')
+      ∗ sts_full_world W C
+      ∗ ([∗ list] a ∈ la, sts_state_std C a ρ)
+      ∗ ([∗ list] k↦a;v ∈ la;lv, a ↦ₐ v)
+      ∗ ▷ ([∗ list] v ∈ lv, monotonicity_guarantees_region C φ p v ρ)
+      ∗ ▷ ([∗ list] v ∈ lv, φ (W,C,v))
+      ∗ ⌜ length lv = length la ⌝
+  .
+  Proof.
+    induction la; intros Hnodup Hdis Hregion_state Hp Ha_state ;
+      iIntros "(Hrel & Hr & Hsts)"; cbn in * |- *.
+    - iExists []; cbn in *.
+      by iFrame.
+    - iDestruct "Hrel" as "[Hrel_a Hrel]".
+      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply Forall_cons_1 in Ha_state; destruct Ha_state as [HWa Ha_state].
+      pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
+      eapply disjoint_weak in Hdis.
+      iDestruct (IHla with "[$Hrel $Hr $Hsts]") as "IH"; eauto.
+      iDestruct "IH" as (lv) "(Hr & Hsts & Hsts_stds & Hlv & Hmono & Hlφ & %Hlen)".
+      iDestruct (region_open_next with "[$Hr $Hrel_a $Hsts]") as "Ha"; eauto.
+      {
+        intros Hcontra.
+        apply elem_of_app in Hcontra. destruct Hcontra as [Hcontra|Hcontra]
+        ; [set_solver+Hcontra Hnotin|set_solver+Hcontra Ha_notin_l'].
+      }
+      iDestruct "Ha" as (va) "(Hsts & Hsts_std_a & Hr & Hv_a & Hmono_a & Hφ_a & %Hp_a)".
+      iExists (va::lv); iFrame.
+      by cbn ; rewrite Hlen.
+  Qed.
+
 
   Lemma region_close_next
     (W : WORLD) (C : CmptName)
@@ -1582,6 +1686,98 @@ Section heap.
     - iApply (region_close_next_perm with "[A B C D E F G]"); eauto; iFrame.
   Qed.
 
+  Lemma region_close_list (W : WORLD) (C : CmptName)
+    (l : list (Addr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
+    (l' : list Addr)
+    (lv : list Word)
+    :
+
+    let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
+    length l = length lv ->
+    NoDup la ->
+    la ## l' ->
+    Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
+    Forall (fun '(a,p,φ,ρ) => ∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)) l ->
+
+    open_region_many W C (la++l')
+    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C a ρ)
+    ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v)
+    ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C φ p v ρ)
+    ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C,v))
+    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, rel C a p φ)
+    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
+      -∗ open_region_many W C l'.
+  Proof.
+    generalize dependent lv.
+    induction l; intros lv la Hlen Hnodup Hdis Hregion_state Hpers ;
+      iIntros "(Hr & Hstd & Hv & Hmono & Hφ & Hrel & Hp)"; cbn in * |- *.
+    - by iFrame.
+    - destruct a as [[[a p] φ] ρ]; cbn in * |- *.
+      iDestruct "Hrel" as "[Hrel_a Hrel]".
+      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
+      apply Forall_cons_1 in Hpers; destruct Hpers as [Hpers_a Hpers].
+      pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
+      eapply disjoint_weak in Hdis.
+      destruct lv as [|va lv]; cbn in Hlen; simplify_eq.
+      cbn.
+      iDestruct "Hstd" as "[Hstd_a Hstd]".
+      iDestruct "Hv" as "[Hv_a Hv]".
+      iDestruct "Hφ" as "[Hφ_a Hφ]".
+      iDestruct "Hmono" as "[Hmono_a Hmono]".
+      iDestruct "Hp" as "[Hp_a Hp]".
+      iDestruct (region_close_next with "[$Hstd_a $Hr $Hv_a $Hmono_a $Hφ_a $Hrel_a $Hp_a]") as "Hr"; eauto.
+      {
+        intros Hcontra.
+        apply elem_of_app in Hcontra. destruct Hcontra as [Hcontra|Hcontra]
+        ; [set_solver+Hcontra Hnotin|set_solver+Hcontra Ha_notin_l'].
+      }
+      iDestruct (IHl with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hp]") as "IH"; eauto.
+  Qed.
+
+
+  Lemma region_close_list_alt (W : WORLD) (C : CmptName)
+    (la la' : list Addr) (lv : list Word) (p : Perm) (φ : WORLD * CmptName * Word → iProp Σ) (ρ : region_type)
+    :
+
+    length la = length lv ->
+    NoDup la ->
+    la ## la' ->
+    ρ ≠ Revoked ->
+    (∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)) ->
+    isO p = false ->
+
+    ([∗ list] a ∈ la, rel C a p φ)
+    ∗ ([∗ list] a ∈ la, sts_state_std C a ρ)
+    ∗ ([∗ list] k↦a;v ∈ la;lv, a ↦ₐ v)
+    ∗ ([∗ list] v ∈ lv, monotonicity_guarantees_region C φ p v ρ)
+    ∗ ▷ ([∗ list] v ∈ lv, φ (W,C,v))
+    ∗ open_region_many W C (la++la')
+      -∗ open_region_many W C la'.
+  Proof.
+    generalize dependent lv.
+    induction la; intros lv Hlen Hnodup Hdis Hregion_state Hpers Hp ;
+      iIntros "(Hrel & Hstd & Hv & Hmono & Hφ & Hr)"; cbn in * |- *.
+    - by iFrame.
+    - iDestruct "Hrel" as "[Hrel_a Hrel]".
+      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
+      eapply disjoint_weak in Hdis.
+      destruct lv as [|va lv]; cbn in Hlen; simplify_eq.
+      cbn.
+      iDestruct "Hstd" as "[Hstd_a Hstd]".
+      iDestruct "Hv" as "[Hv_a Hv]".
+      iDestruct "Hφ" as "[Hφ_a Hφ]".
+      iDestruct "Hmono" as "[Hmono_a Hmono]".
+      iDestruct (region_close_next with "[$Hstd_a $Hr $Hv_a $Hmono_a $Hφ_a $Hrel_a]") as "Hr"; eauto.
+      {
+        intros Hcontra.
+        apply elem_of_app in Hcontra. destruct Hcontra as [Hcontra|Hcontra]
+        ; [set_solver+Hcontra Hnotin|set_solver+Hcontra Ha_notin_l'].
+      }
+      iDestruct (IHla with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel]") as "IH"; eauto.
+  Qed.
+
   Lemma related_sts_priv_world_fresh_Permanent W a :
     related_sts_priv_world W (<s[a:=Permanent]s> W).
   Proof.
@@ -1593,6 +1789,7 @@ Section heap.
       eright;[right;constructor|left].
   Qed.
 
+
   (* TODO move somewhere, but I don't know where/when it will be useful yet exactly *)
   Lemma delete_std_related_sts_priv_world_not_perma W a ρ :
     (std W) !! a = Some ρ ->
@@ -1601,7 +1798,7 @@ Section heap.
   Proof.
     intros HWa.
     rewrite /delete_std ; cbn.
-    destruct W as [[Wstd Wcus] Wfrm];cbn.
+    destruct W as [Wstd Wcus];cbn.
     split; cbn in *.
     - split; cbn.
       + intros i x Hx Hperma; simplify_eq.

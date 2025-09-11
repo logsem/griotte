@@ -42,6 +42,21 @@ Proof.
     + iFrame. iApply ("IH" $! l2 H4 H1 with "B"); auto.
 Qed.
 
+Lemma big_opL_to_L2 {Σ : gFunctors} {A B: Type} (ϕ : A -> B -> iProp Σ) (w : B) (l : list A) (l' : list B) :
+  length l = length l' ->
+  Forall (fun y => y = w) l' ->
+  ([∗ list] x ∈ l, ϕ x w) ⊢ ([∗ list] x;v ∈ l;l', ϕ x v).
+Proof.
+  generalize dependent l'.
+  induction l; iIntros (l' Hlen Hl') "Hl".
+  - destruct l' as [|w' l']; done.
+  - destruct l' as [|w' l']; cbn in Hlen; simplify_eq.
+    cbn.
+    apply Forall_cons in Hl'; destruct Hl' as [-> Hl'].
+    iDestruct "Hl" as "[$ Hl]".
+    iApply (IHl with "Hl"); auto.
+Qed.
+
 Lemma NoDup_of_sepL2_exclusive {Σ : gFunctors} {A B: Type} (l1: list A) (l2: list B) (Φ: A -> B -> iProp Σ):
   (∀ a x1 x2, Φ a x1 -∗ Φ a x2 -∗ False) -∗
   ([∗ list] a;x ∈ l1;l2, Φ a x) -∗

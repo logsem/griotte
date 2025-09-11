@@ -2,7 +2,7 @@ From cap_machine Require Export logrel.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine.ftlr Require Import ftlr_base interp_weakening.
+From cap_machine.ftlr Require Import ftlr_base interp_weakening ftlr_switcher_call ftlr_switcher_return.
 From cap_machine.rules Require Import rules_base rules_Jalr.
 From cap_machine.proofmode Require Import map_simpl register_tactics.
 
@@ -11,30 +11,34 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
-  Implicit Types interp : (D).
+  Implicit Types interp : (V).
 
   Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:D):
-    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P.
+    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) (Nswitcher : namespace):
+    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Hcstk".
+    iIntros "Hr Hstate Ha HPC Hmap %Hwstk #Hinv_switcher".
     iInsert "Hmap" PC.
     iApply (wp_Jalr with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -86,8 +90,8 @@ Section fundamental.
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;contradiction. }
         rewrite !insert_insert insert_commute //.
-        iApply ("IH" $! _ _ (<[rdst:=WSentry p g b e pc_a']> regs) with
-                 "[%] [] [$Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]") ; eauto.
+        iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry p g b e pc_a']> regs) with
+                 "[%] [] [$Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]") ; eauto.
         - intros; cbn.
           rewrite lookup_insert_is_Some.
           destruct (decide (rdst = x)); auto; right; split; auto.
@@ -95,6 +99,9 @@ Section fundamental.
           destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
           * iApply ("Hreg" $! ri) ; auto.
           * iFrame "Hinterp_ret".
+        - Unshelve.
+          2: exact (if (decide (rdst = csp)) then WSentry p g b e pc_a' else wstk).
+          destruct (decide (rdst = csp)); simplify_map_eq; eauto.
         - destruct (decide (rsrc = PC)) as [HrsrcPC|HrsrcPC].
           + simplify_map_eq; auto.
           + simplify_map_eq.
@@ -109,21 +116,59 @@ Section fundamental.
         iDestruct "Hwsrc" as "#Hinterp_src".
         iAssert (future_world g0 W W) as "Hfuture".
         { iApply futureworld_refl. }
-        iSpecialize ("Hinterp_src" with "Hfuture").
-        iDestruct "Hinterp_src" as "[Hinterp_src _]".
-        iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-        { destruct ρ;auto;contradiction. }
-        rewrite !insert_insert insert_commute //.
-        iDestruct ("Hinterp_src" with "[$Hmap $Hr $Hsts $Htframe $Hown]") as "HA"; eauto.
-        iNext.
-        cbn; iSplit.
-        - iIntros (ri); cbn; iPureIntro.
-          rewrite lookup_insert_is_Some.
-          destruct (decide (rdst = ri)); auto; right; split; auto.
-        - iIntros (ri wi Hri Hregs_ri).
-          destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
-          * iApply ("Hreg" $! ri) ; auto.
-          * iFrame "Hinterp_ret".
+          destruct (is_switcher_entry_point (WSentry p0 g0 b0 e0 a0)) eqn:His_switcher_call.
+        - (* This is a switcher entry point: execute the switcher *)
+          rewrite /is_switcher_entry_point in His_switcher_call.
+          apply bool_decide_eq_true in His_switcher_call.
+          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+          { destruct ρ;auto;contradiction. }
+          iClear "Hmono HmonoV Hinva Hrcond Hwcond Hinv_interp".
+          (* clear dependent p b e a g p' w ρ P rsrc. *)
+          clear Hpft.
+          iNext; iIntros "_".
+          rewrite insert_insert insert_commute //=.
+          set (wstk' := (if (decide (rdst = csp)) then WSentry p g b e pc_a' else wstk)).
+          destruct His_switcher_call as [?|?]; simplify_eq.
+          + (* We jumped to the switcher-cc-call entry point *)
+            iApply (switcher_call_ftlr _ _ _ _ _ _ wstk' with "[$IH] [Hreg] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
+            * intros.
+              destruct (decide (x = rdst)); simplify_map_eq; first done.
+              apply Hsome.
+            * subst wstk'.
+              destruct (decide (rdst = csp)); simplify_map_eq; done.
+            * iIntros (r v HrPC Hr).
+              destruct (decide (r = rdst)); simplify_map_eq; first done.
+              iApply "Hreg"; auto.
+          + (* We jumped to the switcher-cc-return entry point *)
+            iApply (switcher_return_ftlr _ _ _ _ _ _ wstk' with "[$IH] [Hreg] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
+            * intros; apply switcher_call_ftlr.
+            * intros.
+              destruct (decide (x = rdst)); simplify_map_eq; first done.
+              apply Hsome.
+            * subst wstk'.
+              destruct (decide (rdst = csp)); simplify_map_eq; done.
+            * iIntros (r v HrPC Hr).
+              destruct (decide (r = rdst)); simplify_map_eq; first done.
+              iApply "Hreg"; auto.
+        - iSpecialize ("Hinterp_src" with "Hfuture").
+          iDestruct "Hinterp_src" as "[Hinterp_src _]".
+          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+          { destruct ρ;auto;contradiction. }
+          rewrite !insert_insert insert_commute //.
+          iDestruct ("Hinterp_src" with "[$Hmap $Hr $Hsts $Hcstk $Hown $Hcont]") as "HA"; eauto.
+          iNext.
+          cbn; iSplit.
+          + cbn; iSplit.
+            * iIntros (ri); cbn; iPureIntro.
+              rewrite lookup_insert_is_Some.
+              destruct (decide (rdst = ri)); auto; right; split; auto.
+            * iIntros (ri wi Hri Hregs_ri).
+              destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
+              ** iApply ("Hreg" $! ri) ; auto.
+              ** iFrame "Hinterp_ret".
+          + Unshelve.
+          2: exact (if (decide (rdst = csp)) then WSentry p g b e pc_a' else wstk).
+          destruct (decide (rdst = csp)); simplify_map_eq; eauto.
       }
     }
 

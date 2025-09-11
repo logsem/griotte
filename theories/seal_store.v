@@ -64,11 +64,10 @@ Section Store.
   Context `{!sealStoreG Σ}
       {Cname : CmptNameG}
       {stsg : STSG Addr region_type Σ}
-      {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}.
+      {heapg : heapGS Σ}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
 
   Definition seal_pred (o : OType) (P : WORLD * CmptName * Word → iProp Σ) :=

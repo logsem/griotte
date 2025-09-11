@@ -8,14 +8,13 @@ Section region_alloc.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ}
+    {stsg : STSG Addr region_type Σ}
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -296,8 +295,7 @@ Section region_alloc.
         assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked)
                 = std_update_multiple W l1 Revoked) as ->.
         { rewrite /std_update.
-          destruct (std_update_multiple W l1 Revoked) as [ [] ] eqn:Heq.
-          f_equiv; last done.
+          destruct (std_update_multiple W l1 Revoked) as [] eqn:Heq.
           f_equiv; last done.
           simpl. rewrite insert_id//.
           assert (o = std (std_update_multiple W l1 Revoked)) as ->;[rewrite Heq//|].

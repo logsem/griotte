@@ -9,21 +9,26 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation K := (iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
-  Implicit Types interp : (D).
+  Implicit Types interp : (V).
 
   Lemma region_state_pub_perm W W' a :
     related_sts_pub_world W W'
@@ -31,7 +36,7 @@ Section monotone.
     -> (std W') !! a = Some Permanent.
   Proof.
     intros Hrelated Hstate.
-    destruct Hrelated as [ [ [Hdom_sta Hrelated ] _ ] _]. simpl in *.
+    destruct Hrelated as [ [ Hdom_sta Hrelated] _]. simpl in *.
     assert (is_Some ((std W') !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated a Permanent y Hstate Hy).
@@ -44,7 +49,7 @@ Section monotone.
     -> (std W') !! a = Some Temporary.
   Proof.
     intros Hrelated Hstate.
-    destruct Hrelated as [ [ [Hdom_sta Hrelated ] _ ] _]. simpl in *.
+    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some ((std W') !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Temporary y Hstate Hy).
@@ -145,7 +150,7 @@ Section monotone.
   Proof.
     rewrite /region_state_pwl.
     intros Hrelated Hstate.
-    destruct Hrelated as [ [ [Hdom_sta Hrelated ] _ ] _]. simpl in *.
+    destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some (std W' !! a)) as [y Hy].
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom ;eauto. }
     specialize (Hrelated _ Revoked y Hstate Hy).
@@ -153,7 +158,7 @@ Section monotone.
     destruct Hrelated as [Hperm | [Hmono | Hrev] ]; subst; auto.
   Qed.
 
-  Lemma monoReq_mono_pub_nwl W W' C (P : D) a p g:
+  Lemma monoReq_mono_pub_nwl W W' C (P : V) a p g:
     related_sts_pub_world W W'
     -> region_state_nwl W a g
     -> monoReq W C a p P
@@ -171,7 +176,7 @@ Section monotone.
         by rewrite Hstate Hnext_state.
   Qed.
 
-  Lemma monoReq_mono_pub_pwl W W' C (P : D) a p:
+  Lemma monoReq_mono_pub_pwl W W' C (P : V) a p:
     related_sts_pub_world W W'
     -> region_state_pwl W a
     -> monoReq W C a p P
@@ -183,7 +188,7 @@ Section monotone.
     by rewrite Hstate Hnext_state.
   Qed.
 
-  Lemma monoReq_mono_priv_nwl W W' C (P : D) a p:
+  Lemma monoReq_mono_priv_nwl W W' C (P : V) a p:
     related_sts_priv_world W W'
     -> region_state_nwl W a Global
     -> monoReq W C a p P
@@ -235,39 +240,38 @@ Section monotone.
     iFrame "#".
   Qed.
 
-  Lemma interp_monotone (W W' : WORLD) C w :
+  Lemma interp_monotone_sentry W W' C p g b e a :
     ⌜related_sts_pub_world W W'⌝
-    -∗ interp W C w -∗ interp W' C w.
+    -∗ interp W C (WSentry p g b e a) -∗ interp W' C (WSentry p g b e a).
   Proof.
     iIntros (Hrelated) "#Hw".
-    destruct w; [ | shelve | | ].
-    { rewrite !fixpoint_interp1_eq /=; auto. }
-    { rewrite !fixpoint_interp1_eq /=.
-      iModIntro. iIntros (r W'').
-      destruct g.
-      + iIntros "#Hrelated'".
-        rewrite /future_world.
-        iDestruct "Hrelated'" as "%Hrelated'".
-        iAssert (future_world Global W W'')%I as "Hrelated".
-        { rewrite /future_world.
-          iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
-        iSpecialize ("Hw" $! r W'' with "Hrelated").
-        iApply "Hw".
-      + iIntros "#Hrelated'".
-        rewrite /future_world.
-        iDestruct "Hrelated'" as "%Hrelated'".
-        iAssert (future_world Local W W'')%I as "Hrelated".
-        { rewrite /future_world.
-          iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
-        iSpecialize ("Hw" $! r W'' with "Hrelated").
-        iApply "Hw".
-    }
-    { apply related_sts_pub_priv_world in Hrelated.
-      iApply (interp_monotone_sd with "[] [$Hw]"); eauto.
-    }
-    Unshelve.
-    destruct sb; cycle 1.
-    { rewrite !fixpoint_interp1_eq /=; auto. }
+    rewrite !fixpoint_interp1_eq /=.
+    destruct (is_switcher_entry_point (WSentry p g b e a)) ; first done.
+    iModIntro. iIntros (stk r Ws Cs W'').
+    destruct g.
+    + iIntros "#Hrelated'".
+      rewrite /future_world.
+      iDestruct "Hrelated'" as "%Hrelated'".
+      iAssert (future_world Global W W'')%I as "Hrelated".
+      { rewrite /future_world.
+        iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
+      iSpecialize ("Hw" $! stk r Ws Cs W'' with "Hrelated").
+      iApply "Hw".
+    + iIntros "#Hrelated'".
+      rewrite /future_world.
+      iDestruct "Hrelated'" as "%Hrelated'".
+      iAssert (future_world Local W W'')%I as "Hrelated".
+      { rewrite /future_world.
+        iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
+      iSpecialize ("Hw" $! stk r Ws Cs W'' with "Hrelated").
+      iApply "Hw".
+  Qed.
+
+  Lemma interp_monotone_cap (W W' : WORLD) C p g b e a :
+    ⌜related_sts_pub_world W W'⌝
+    -∗ interp W C (WCap p g b e a) -∗ interp W' C (WCap p g b e a).
+  Proof.
+    iIntros (Hrelated) "#Hw".
     destruct p eqn:Hp;auto; cycle 1.
     destruct rx,w; rewrite !fixpoint_interp1_eq /=; auto.
     - iApply (big_sepL_mono with "Hw").
@@ -323,30 +327,54 @@ Section monotone.
       iPureIntro; eapply (region_state_pwl_monotone W W');eauto.
   Qed.
 
- Lemma interp_monotone_nl W W' C w :
+  Lemma interp_monotone_sealrange (W W' : WORLD) C p g b e a :
     ⌜related_sts_priv_world W W'⌝
-    -∗ ⌜isLocalWord w = false⌝
+    -∗ interp W C (WSealRange p g b e a) -∗ interp W' C (WSealRange p g b e a).
+  Proof.
+    iIntros (Hrelated) "#Hw".
+    rewrite !fixpoint_interp1_eq /=; auto.
+  Qed.
+
+  Lemma interp_monotone (W W' : WORLD) C w :
+    ⌜related_sts_pub_world W W'⌝
     -∗ interp W C w -∗ interp W' C w.
   Proof.
+    iIntros (Hrelated) "#Hw".
+    pose proof (related_sts_pub_priv_world _ _ Hrelated) as Hrelated'.
+    destruct w; [ | destruct sb | | ].
+    - rewrite !fixpoint_interp1_eq /=; auto.
+    - iApply (interp_monotone_cap with "[] [$]"); eauto.
+    - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
+    - iApply (interp_monotone_sentry with "[] [$]"); eauto.
+    - iApply (interp_monotone_sd with "[] [$]"); eauto.
+  Qed.
+
+  Lemma interp_monotone_nl_sentry W W' C p g b e a :
+    ⌜related_sts_priv_world W W'⌝
+    -∗ ⌜isLocalWord (WSentry p g b e a) = false⌝
+    -∗ interp W C (WSentry p g b e a) -∗ interp W' C (WSentry p g b e a).
+  Proof.
     iIntros (Hrelated Hnl) "#Hw".
-    destruct w; [ | shelve | | ].
-    { rewrite !fixpoint_interp1_eq /=; auto. }
-    { rewrite !fixpoint_interp1_eq /=.
-      destruct g ; cbn in Hnl ; try done.
-      iModIntro. iIntros (r W'').
-      iIntros "#Hrelated'".
-      rewrite /future_world.
-      iDestruct "Hrelated'" as "%Hrelated'".
-      iAssert (future_world Global W W'')%I as "Hrelated".
-      { rewrite /future_world.
-        iPureIntro. apply related_sts_priv_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! r W'' with "Hrelated").
-      iApply "Hw".
-    }
-    { iApply (interp_monotone_sd with "[] [$Hw]"); eauto. }
-    Unshelve.
-    destruct sb; cycle 1.
-    { rewrite !fixpoint_interp1_eq /=; auto. }
+    rewrite !fixpoint_interp1_eq /=.
+    destruct (is_switcher_entry_point (WSentry p g b e a)) ; first done.
+    destruct g ; cbn in Hnl ; try done.
+    iModIntro. iIntros (stk r Ws Cs W'').
+    iIntros "#Hrelated'".
+    rewrite /future_world.
+    iDestruct "Hrelated'" as "%Hrelated'".
+    iAssert (future_world Global W W'')%I as "Hrelated".
+    { rewrite /future_world.
+      iPureIntro. apply related_sts_priv_trans_world with W'; auto. }
+    iSpecialize ("Hw" $! stk r Ws Cs W'' with "Hrelated").
+    iApply "Hw".
+  Qed.
+
+  Lemma interp_monotone_nl_cap (W W' : WORLD) C p g b e a :
+    ⌜related_sts_priv_world W W'⌝
+    -∗ ⌜isLocalWord (WCap p g b e a) = false⌝
+    -∗ interp W C (WCap p g b e a) -∗ interp W' C (WCap p g b e a).
+  Proof.
+    iIntros (Hrelated Hnl) "#Hw".
     destruct g ; cbn in Hnl ; try done.
     destruct p eqn:Hp;auto; cycle 1.
     destruct rx,w; rewrite !fixpoint_interp1_eq /=; auto.
@@ -380,6 +408,20 @@ Section monotone.
       iDestruct (monoReq_mono_priv_nwl with "HmonoR") as "HmonoR'"; eauto.
       iExists p',P. iFrame "∗%".
       iPureIntro; apply (region_state_nwl_monotone_nl W W');auto.
+  Qed.
+
+ Lemma interp_monotone_nl W W' C w :
+    ⌜related_sts_priv_world W W'⌝
+    -∗ ⌜isLocalWord w = false⌝
+    -∗ interp W C w -∗ interp W' C w.
+  Proof.
+    iIntros (Hrelated Hnl) "#Hw".
+    destruct w; [ | destruct sb | | ].
+    - rewrite !fixpoint_interp1_eq /=; auto.
+    - iApply (interp_monotone_nl_cap with "[] [] [$]"); eauto.
+    - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
+    - iApply (interp_monotone_nl_sentry with "[] [] [$]"); eauto.
+    - iApply (interp_monotone_sd with "[] [$]"); eauto.
   Qed.
 
   (* The validity of regions are monotone wrt private/public future worlds *)
@@ -553,6 +595,26 @@ Proof.
     * iApply interp_monotone_sd; last eauto; eauto.
   - iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
     iApply interp_monotone_sd; last eauto; eauto.
+Qed.
+
+Lemma interp_monotone_continuation
+  (W W' : WORLD) (C : CmptName)
+  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+  related_sts_pub_world W W' ->
+  interp_continuation cstk (W :: Ws) (C :: Cs) -∗ interp_continuation cstk (W' :: Ws) (C :: Cs).
+Proof.
+  revert Ws Cs; induction cstk;intros Ws Cs; simpl;auto.
+  iIntros (Hrel) "[Hic [Hcallee Hcont]]".
+  iNext.
+  iSplitL "Hic";[|iSplitL "Hcallee"].
+  - iFrame.
+  - rewrite /interp_callee_part_of_the_stack /=.
+    case_match=>//.
+    case_match=>//.
+    iApply (interp_monotone with "[//] [$]").
+  - iIntros (W'' Hrel').
+    iApply "Hcont". iPureIntro.
+    eapply related_sts_pub_trans_world;eauto.
 Qed.
 
 End monotone.

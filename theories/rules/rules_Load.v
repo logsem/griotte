@@ -524,7 +524,7 @@ Section cap_lang_rules.
        rewrite insert_insert insert_insert.
        iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hr2]"; eauto.
        iFrame.
-       admit. (* it suffices to show that p'=x, g'=x0.... *)
+       by destruct p0; destruct dro,dl; rewrite /load_word in H1 |- *; cbn in *; simplify_eq.
      }
      { (* Failure (contradiction) *)
        destruct Hfail.
@@ -532,17 +532,12 @@ Section cap_lang_rules.
        + simplify_map_eq; eauto.
          destruct o ; congruence.
        + simplify_map_eq; eauto.
-       (*   rewrite /load_word in e3 |- *. *)
-       (*   destruct (isDRO p0) eqn:HDRO, (isDL p0) eqn:HDL; cbn. *)
-       (*   try incrementPC_inv; simplify_map_eq; eauto. *)
-       (*   congruence. *)
-       (*   2: { rewrite /load_word. *)
-       (*   } *)
-       (*   Unshelve. 7: exact a'. congruence. *)
-       (* destruct o. all: try congruence. } *)
-       admit. (* TODO need lemmas about load_word.. *)
+         rewrite /load_word in e3 |- *.
+         destruct (isDRO p0) eqn:HDRO, (isDL p0) eqn:HDL; cbn.
+         all: try incrementPC_inv; simplify_map_eq; eauto.
+         all: try congruence.
      }
-  Admitted.
+  Qed.
 
   Lemma wp_load_success_fromPC E r1 pc_p pc_g pc_b pc_e pc_a pc_a' w w'' dq :
     decodeInstrW w = Load r1 PC →
@@ -633,6 +628,42 @@ Section cap_lang_rules.
     iApply (wp_load_success_same with "[$HPC $Hpc_a $Hr1 Ha]");eauto;rewrite Hfalse;iFrame.
   Qed.
 
+  Lemma wp_load_fail_not_withinbounds E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a :
+    decodeInstrW w = Load r1 r2 →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    withinBounds b e a = false →
 
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+          ∗ ▷ pc_a ↦ₐ w
+          ∗ ▷ r1 ↦ᵣ w''
+          ∗ ▷ r2 ↦ᵣ WCap p g b e a
+    }}}
+       Instr Executable @ E
+       {{{ RET FailedV; True }}}.
+  Proof.
+     iIntros (Hdecode Hvpc Hbounds φ) "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
+     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
+     rewrite memMap_resource_1_dq.
+     iApply (wp_load with "[$Hmap $Hi]"); eauto; simplify_map_eq; eauto.
+     { by rewrite !dom_insert; set_solver+. }
+     { rewrite /allow_load_map_or_true.
+       exists p, g, b, e, a.
+       split.
+       + rewrite /read_reg_inr; by simplify_map_eq.
+       + rewrite /reg_allows_load; simplify_map_eq.
+         rewrite decide_False; first done.
+         rewrite Hbounds.
+         intros (_&_&?); done.
+     }
+     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)".
+     iDestruct "Hspec" as %Hspec.
+     destruct Hspec as [| Hfail].
+     {
+       rewrite /reg_allows_load in H2; simplify_map_eq.
+       destruct H2 as (? & _ & ?); simplify_eq.
+       by rewrite H5 in Hbounds.
+     }
+     by iApply "Hφ".
+  Qed.
 
 End cap_lang_rules.

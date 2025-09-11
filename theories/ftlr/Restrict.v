@@ -12,14 +12,17 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {tframeg : TFRAMEG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
+  Notation WORLD := (prodO STS_STD STS).
+  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -52,12 +55,13 @@ Section fundamental.
 
   Lemma restrict_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D):
-    ftlr_instr W C regs p p' g b e a w (Restrict dst src) ρ P.
+    (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
+    (Nswitcher : namespace) :
+    ftlr_instr W C regs p p' g b e a w (Restrict dst src) ρ P cstk Ws Cs wstk Nswitcher.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hsts Htframe Hown".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
+    iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
     iInsert "Hmap" PC.
     iApply (wp_Restrict with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -87,7 +91,7 @@ Section fundamental.
         destruct (executeAllowed p'') eqn:Hpft.
         {
           simplify_map_eq ; map_simpl "Hmap".
-          iApply ("IH" $! _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]"); eauto.
+          iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
           iModIntro.
           iApply (PermPairFlows_interp_preserved); eauto.
           iApply (interp_next_PC with "Hinv_interp"); eauto.
@@ -103,7 +107,9 @@ Section fundamental.
         simplify_map_eq.
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;contradiction. }
-        iApply ("IH" $! _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]"); eauto.
+        assert (is_Some (<[dst:=WCap p'0 g' b0 e0 a0]> (<[PC:=WCap p'' g'' b'' e'' a'']> regs) !! csp)) as [??].
+        { destruct (decide (dst = csp)); simplify_map_eq=>//. }
+        iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
         - intros; simpl. repeat (rewrite lookup_insert_is_Some'; right); eauto.
         - iIntros (ri v Hri Hvs).
           destruct (decide (ri = dst)).
@@ -130,8 +136,10 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq; map_simpl "Hmap".
-      iApply ("IH" $! _ _ (<[dst:=WSealRange p'0 g' b0 e0 a0]> regs) with
-               "[%] [] [Hmap] [$Hr] [$Hsts] [$Htframe] [$Hown]"); eauto.
+      assert (is_Some (<[dst:=WSealRange p'0 g' b0 e0 a0]> regs !! csp)) as [??].
+      { destruct (decide (dst = csp)); simplify_map_eq=>//. }
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealRange p'0 g' b0 e0 a0]> regs) with
+               "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       + intros. by rewrite lookup_insert_is_Some' ; right.
       + iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).

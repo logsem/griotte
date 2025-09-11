@@ -24,6 +24,7 @@ theories/addr_reg.v
 theories/proofmode/solve_addr.v
 theories/machine_utils_extra.v
 theories/asm_cerise.v
+theories/bitblast.v
 
 # Capability Machine Model
 theories/machine_base.v
@@ -79,9 +80,17 @@ theories/monotone.v
 
 # Unary Logical Relation
 theories/seal_store.v
+
+theories/examples/switcher/clear_stack.v
+theories/examples/switcher/clear_registers.v
+theories/examples/switcher/switcher.v
+theories/examples/switcher/switcher_preamble.v
+
 theories/logrel.v
 theories/ftlr/ftlr_base.v
 theories/ftlr/interp_weakening.v
+theories/ftlr/ftlr_switcher_call.v
+theories/ftlr/ftlr_switcher_return.v
 theories/ftlr/Get.v
 theories/ftlr/Load.v
 theories/ftlr/Store.v
@@ -114,15 +123,13 @@ theories/examples/macros/fetch.v
 # theories/examples/macros/reqperm.v
 # theories/examples/macros/salloc.v
 # theories/examples/macros/macros.v
-theories/examples/switcher/clear_stack.v
-theories/examples/switcher/clear_registers.v
 
 # Griotte case studies
-theories/examples/switcher/switcher.v
 theories/examples/switcher/switcher_spec.v
+# theories/examples/switcher/switcher_interp.v
 
 theories/examples/compartment_layout.v
 
 theories/examples/cmdc/cmdc.v
 theories/examples/cmdc/cmdc_spec.v
-theories/examples/cmdc/cmdc_adequacy.v
+# theories/examples/cmdc/cmdc_adequacy.v
