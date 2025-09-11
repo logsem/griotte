@@ -1015,4 +1015,31 @@ Section logrel.
     + destruct g; naive_solver.
   Qed.
 
+  Lemma is_switcher_entry_point_call :
+    is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call) = true.
+  Proof.
+    rewrite /is_switcher_entry_point.
+    rewrite bool_decide_eq_true_2; first done.
+    by left.
+  Qed.
+  Lemma is_switcher_entry_point_return :
+    is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
+  Proof.
+    rewrite /is_switcher_entry_point.
+    rewrite bool_decide_eq_true_2; first done.
+    by right.
+  Qed.
+  Lemma switcher_call_interp W B :
+    ⊢ interp W B (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call).
+  Proof.
+    iEval (rewrite fixpoint_interp1_eq /=).
+    by rewrite is_switcher_entry_point_call.
+  Qed.
+  Lemma switcher_return_interp W B :
+    ⊢ interp W B (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return).
+  Proof.
+    iEval (rewrite fixpoint_interp1_eq /=).
+    by rewrite is_switcher_entry_point_return.
+  Qed.
+
 End logrel.
