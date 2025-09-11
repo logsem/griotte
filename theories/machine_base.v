@@ -301,13 +301,13 @@ Definition isWL p : bool :=
 
 Definition isDL p : bool :=
   match p with
-  | BPerm _ _ DL _
+  | BPerm _ _ DL _ => true
   | _ => false
   end.
 
 Definition isDRO p : bool :=
   match p with
-  | BPerm _ _ _ DRO
+  | BPerm _ _ _ DRO => true
   | _ => false
   end.
 

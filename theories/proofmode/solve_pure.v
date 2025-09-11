@@ -54,6 +54,7 @@ Qed.
 
 (* #[export] Hint Mode ExecPCPerm + : solve_pure. *)
 #[export] Hint Mode PermFlowsTo - + : solve_pure.
+#[export] Hint Mode LocalityFlowsTo - + : solve_pure.
 
 (* Lemma ExecPCPerm_InCtx p : *)
 (*   InCtx (ExecPCPerm p) → ExecPCPerm p. *)
@@ -78,6 +79,7 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (readAllowed _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (writeAllowed _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (PermFlowsTo _ _ = true) => reflexivity : solve_pure.
+#[export] Hint Extern 1 (LocalityFlowsTo _ _ = true) => reflexivity : solve_pure.
 (* Permissions allowed *)
 #[export] Hint Resolve executeAllowed_is_readAllowed : solve_pure.
 #[export] Hint Extern 1 (has_sreg_access _ = true) => reflexivity : solve_pure.
@@ -85,6 +87,8 @@ Proof. auto. Qed.
 (* Follows the same behavior as the Hint Mode for PermFlowsTo *)
 #[export] Hint Extern 1 (PermFlowsTo ?p ?p' = true) =>
   (without_evars p'; apply PermFlowsToReflexive): solve_pure.
+#[export] Hint Extern 1 (LocalityFlowsTo ?p ?p' = true) =>
+  (without_evars p'; apply LocalityFlowsToReflexive): solve_pure.
 
 (* withinBounds *)
 
