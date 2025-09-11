@@ -87,6 +87,7 @@ theories/examples/switcher/switcher.v
 theories/examples/switcher/switcher_preamble.v
 
 theories/logrel.v
+theories/logrel_extra.v
 theories/ftlr/ftlr_base.v
 theories/ftlr/interp_weakening.v
 theories/ftlr/ftlr_switcher_call.v

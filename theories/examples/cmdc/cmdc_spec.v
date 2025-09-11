@@ -14,6 +14,26 @@ Section CMDC.
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
+
+  (* TODO move *)
+  Lemma closing_revoked_from_rel_stack W C a :
+    rel C a RWL interpC -∗ closing_revoked_resources W C a.
+  Proof.
+    iIntros "Hrel".
+    iExists interp, RWL, persistent_cond_interp; cbn. iFrame.
+    iSplit; first ( rewrite fixpoint_interp1_eq //= ).
+    iSplit; first (iApply future_pub_mono_interp_z).
+    iSplit.
+    { iIntros (v) "!>".
+      iIntros (W0 W1 Hrelated) "Hinterp".
+      rewrite /safeC /=.
+      iApply monotone.interp_monotone; eauto.
+    }
+    iSplit; first (iApply zcond_interp).
+    iSplit; first (iApply rcond_interp).
+    iApply wcond_interp.
+  Qed.
+
   Context {B C : CmptName}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
@@ -22,6 +42,7 @@ Section CMDC.
   Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
+
 
   Lemma cmdc_spec
 
@@ -394,6 +415,18 @@ Section CMDC.
       by eexists.
     }
 
+    iAssert (
+        ([∗ list] a ∈ finz.seq_between csp_b csp_e,
+           closing_revoked_resources W1 B a ∗ ⌜W1.1 !! a = Some Revoked⌝)
+      )%I with "[Hrel_stk_B]"  as "Hrel_stk_B".
+    {
+      iDestruct (big_sepL_sep with "Hrel_stk_B") as "[Hrel Hrev]".
+      iApply big_sepL_sep; iFrame.
+      iApply (big_sepL_impl with "Hrel").
+      iIntros (k a Ha) "!> Hrel".
+      iApply closing_revoked_from_rel_stack; auto.
+    }
+
     (* replace frm_init with (frm W1). *)
     iEval (cbn) in "Hct1".
     iApply (switcher_cc_specification _ W1 with
@@ -407,11 +440,12 @@ Section CMDC.
     }
     { by rewrite /is_arg_rmap. }
 
+
     iNext. subst rmap'.
     iIntros (W2_B rmap')
       "(%HW1_pubB_W2 & %Hdom_rmap'
       & Hna & HWstd_full_B & HWreg_B & Hclose_reg_B
-      & Hcstk_frag & Hrel_stk_B
+      & Hcstk_frag & _
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hcsp_stk & HK)".
@@ -700,6 +734,18 @@ Section CMDC.
       by eexists.
     }
 
+    iAssert (
+        ([∗ list] a ∈ finz.seq_between csp_b csp_e,
+           closing_revoked_resources W3 C a ∗ ⌜W1.1 !! a = Some Revoked⌝)
+      )%I with "[Hrel_stk_C]"  as "Hrel_stk_C".
+    {
+      iDestruct (big_sepL_sep with "Hrel_stk_C") as "[Hrel Hrev]".
+      iApply big_sepL_sep; iFrame.
+      iApply (big_sepL_impl with "Hrel").
+      iIntros (k a Ha) "!> Hrel".
+      iApply closing_revoked_from_rel_stack; auto.
+    }
+
     iApply (switcher_cc_specification _ W3 with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
@@ -715,7 +761,7 @@ Section CMDC.
     iIntros (W4_C rmap'')
       "(%HW1_pubC_W4 & %Hdom_rmap''
       & Hna & HWstd_full_C & HWreg_C & Hclose_reg_C
-      & Hcstk_frag & Hrel_stk_C
+      & Hcstk_frag & _
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0' [Hca0 _] ] & [%warg1' [Hca1 _] ]
       & Hrmap & Hcsp_stk & HK)".
