@@ -113,19 +113,16 @@ Section DROE.
 
     (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
     assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
-    { apply Hrmap_arg_init. rewrite Hrmap_dom.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
+    { apply Hrmap_arg_init; done. }
     iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
     assert ( rmap !! ct0 = Some (WInt 0) ) as Hwct0.
     { apply Hrmap_init. rewrite Hrmap_dom.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+      apply elem_of_difference; split;[|set_solver].
+                                  [apply all_registers_s_correct|set_solver].
     }
     iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
     assert ( is_Some (rmap !! ct1) ) as [wct1 Hwct1].
-    { apply Hrmap_init. rewrite Hrmap_dom.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
+    { apply Hrmap_arg_init; done. }
     iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
     assert ( rmap !! ct2 = Some (WInt 0) ) as Hwct2.
     { apply Hrmap_init. rewrite Hrmap_dom.
