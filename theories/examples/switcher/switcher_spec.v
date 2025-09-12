@@ -364,8 +364,7 @@ Section Switcher.
     iDestruct "HP" as (?????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & Hentry' & Hexec)". simpl fst. simpl snd.
     inversion Heq.
 
-    iDestruct (entry_agree _ nargs nargs0 with "[$Hentry] [Hentry']") as "<-".
-    { admit. }
+    iDestruct (entry_agree _ nargs nargs0 with "Hentry Hentry'") as "<-".
 
     (* --- Load cs0 ct1 --- *)
     wp_instr.
@@ -433,12 +432,14 @@ Section Switcher.
     focus_block 3 "Hcode" as a_clear Ha_clear "Hcode" "Hcls". iHide "Hcls" as hcont.
 
     rewrite encode_entry_point_eq_nargs;last lia.
-    (* TODO continue here *)
-    iApply (ftlr_switcher_call.clear_registers_pre_call_skip_spec with "[- $HPC $Hcode $Hargs]")
+    iApply (ftlr_switcher_call.clear_registers_pre_call_skip_spec
+              _ _ _ _ _ arg_rmap (nargs+1)
+             with "[- $HPC $Hcode]")
     ; try solve_pure.
     { lia. }
-    iSplitL "Hct2".
-    { replace (Z.of_nat nargs + 1)%Z with (Z.of_nat (nargs + 1))%Z by lia; done. }
+    replace (Z.of_nat (nargs + 1))%Z with (Z.of_nat nargs + 1)%Z by lia.
+    replace (nargs + 1 - 1) with nargs by lia.
+    iFrame.
     iIntros "!> (%arg_rmap' & %Harg_rmap' & HPC & Hct2 & Hargs & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     focus_block 4 "Hcode" as a_clear' Ha_clear' "Hcode" "Hcls". iHide "Hcls" as hcont.
@@ -473,13 +474,7 @@ Section Switcher.
     (* --- Close the world with the cleared stack --- *)
 
     rewrite {1}(finz_seq_between_split _ a_stk4);[|solve_addr].
-    (* replace (w0 :: w1 :: w2 :: w3 :: stk_mem) with ([w0 ; w1 ; w2 ; w3] ++ stk_mem) by done. *)
     iDestruct (big_sepL_app with "Hstk_val") as "[_ Hstk_val']".
-    (* { *)
-    (*   rewrite finz_seq_between_length /=. *)
-    (*   do 4 (rewrite finz_dist_S;last solve_addr). *)
-    (*   rewrite finz_dist_0; solve_addr. *)
-    (* } *)
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
     iAssert (
        [∗ list] y1 ∈ finz.seq_between a_stk4 e_stk,
@@ -494,12 +489,7 @@ Section Switcher.
       simplify_eq.
       revert Hstklen.
       rewrite -finz_seq_between_length.
-      (* assert ( *)
-      (*     Forall (eq (WInt 0)) (region_addrs_zeroes a_stk4 e_stk) *)
-      (*   ) as H by (apply Forall_replicate_eq). *)
-      (* revert H. *)
       revert stk_mem.
-      (* generalize (region_addrs_zeroes a_stk4 e_stk) as lv. *)
       generalize (finz.seq_between a_stk4 e_stk) as la.
       clear.
       induction la as [|a la]
@@ -507,9 +497,6 @@ Section Switcher.
       ; destruct lv ; simplify_eq
       ; cbn; first done.
       iDestruct "H" as "[ [$ $] $]".
-      (* apply Forall_cons in Hlv; destruct Hlv as [<- Hlv]. *)
-      (* iDestruct ( closing_resources_zeroed with "Hres") as "$". *)
-      (* iApply (IHla with "IH"); auto. *)
     }
     iAssert (
         [∗ list] y1;y2 ∈ finz.seq_between a_stk4 e_stk;region_addrs_zeroes a_stk4 e_stk,
@@ -520,34 +507,6 @@ Section Switcher.
       rewrite /region_pointsto.
       iDestruct (big_sepL2_to_big_sepL_l with "Hstk_val0") as "H"; eauto.
       iApply ( big_sepL2_sep); iFrame.
-      (*   as "$". *)
-      (* iDestruct ( big_sepL2_sep with "[$Hstk $H]" ) as "$". *)
-
-      (* replace ((((a_stk ^+ 1) ^+ 1) ^+ 1) ^+ 1)%a with a_stk4 in Hstklen by solve_addr. *)
-      (* clear-Hstklen' Hstklen. *)
-      (* iStopProof. *)
-      (* revert Hstklen'. *)
-      (* cbn in Hstklen. *)
-      (* simplify_eq. *)
-      (* revert Hstklen. *)
-      (* rewrite -finz_seq_between_length. *)
-      (* assert ( *)
-      (*     Forall (eq (WInt 0)) (region_addrs_zeroes a_stk4 e_stk) *)
-      (*   ) as H by (apply Forall_replicate_eq). *)
-      (* revert H. *)
-      (* revert stk_mem. *)
-      (* rewrite /region_pointsto. *)
-      (* generalize (region_addrs_zeroes a_stk4 e_stk) as lv. *)
-      (* generalize (finz.seq_between a_stk4 e_stk) as la. *)
-      (* clear. *)
-      (* induction la as [|a la] *)
-      (* ; iIntros (lv lv' Hlv Hlen Hlen') "H" *)
-      (* ; destruct lv ; simplify_eq *)
-      (* ; destruct lv' ; simplify_eq *)
-      (* ; cbn; first done. *)
-      (* iDestruct "H" as "[ [$ Hres] [$ IH]]". *)
-      (* apply Forall_cons in Hlv; destruct Hlv as [-> Hlv]. *)
-      (* iDestruct ( big_sepL2_sep with "[$IH $Hres]" ) as "$". *)
     }
 
 
@@ -595,7 +554,6 @@ Section Switcher.
     iApply "Hexec".
     iAssert (interp (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) C (WCap RWL Local a_stk4 e_stk a_stk)) as "Hstk4v".
     { iApply fixpoint_interp1_eq. iSimpl.
-      (* iApply (big_sepL2_to_big_sepL_l _ _ (region_addrs_zeroes a_stk4 e_stk)); first done. *)
       iApply (big_sepL_impl with "Hstk_val0").
       iIntros "!>" (k a Ha) "(Hr & _)".
       iDestruct "Hr" as (φ p Hpers) "(Hφ & Hmono & HmonoR & Hzcond & Hrcond & Hwcond & Hrel & %Hperm_flow)".
@@ -617,8 +575,6 @@ Section Switcher.
     }
     iSplitL "Hpost Hcont".
     { simpl.
-      (* iDestruct (interp_monotone_continuation with "Hcont") as "Hcont". *)
-      (* { apply related_sts_pub_update_multiple_temp. apply Hrev. } *)
       iFrame.
       iEval (cbn).
       replace (a_stk ^+ 4)%a with a_stk4 by solve_addr. iSplitR.
@@ -630,7 +586,6 @@ Section Switcher.
       iFrame. iFrame "# %".
 
       iDestruct (big_sepL_sep with "Hstk_val0") as "[_ H]".
-      (* iDestruct (big_sepL2_const_sepL_l with "H") as "[_ H']". *)
       iApply (big_sepL_mono with "H").
       iIntros (?? Hin) "%". iPureIntro.
       eapply region_state_pub_temp;[apply HW'|].
@@ -667,7 +622,7 @@ Section Switcher.
       apply elem_of_union. right.
       apply elem_of_difference. split;[apply all_registers_s_correct|set_solver]. }
 
-    iSplit;[|iSplit;[|iSplit;[|iSplit;[|iSplit] ] ] ].
+    repeat iSplit.
     - clear-Hentry. iPureIntro. simplify_map_eq. repeat f_equiv.
       rewrite encode_entry_point_eq_off in Hentry. solve_addr.
     - iPureIntro. clear. simplify_map_eq. auto.
@@ -682,25 +637,17 @@ Section Switcher.
       iApply (interp_lea with "Hstk4v"); first done.
     - iIntros (r v Hr Hv).
       repeat (rewrite lookup_insert_ne in Hv;[|set_solver+Hr]).
-      rewrite lookup_union_l in Hv;cycle 1.
-      { apply not_elem_of_dom. rewrite Hrmap'.
-        apply not_elem_of_difference. right.
-        apply elem_of_union. by left. }
-      iDestruct (big_sepM_lookup with "Hval") as "Hv";[apply Hv|].
-      iApply (interp_monotone with "[] Hv").
-      iPureIntro.
-      apply related_sts_pub_update_multiple_temp. auto.
-    - iIntros (r Hnin).
-      apply not_elem_of_union in Hnin as [Hnin1 Hnin2].
-      assert (is_Some (rmap' !! r)) as [v Hin].
-      { apply elem_of_dom. rewrite Hrmap'.
-        apply elem_of_difference. split;[apply all_registers_s_correct|].
-        apply not_elem_of_union. auto. }
-      iDestruct (big_sepM_lookup with "Hnil") as %Hnil;[eauto|].
-      iPureIntro.
-      repeat (rewrite lookup_insert_ne;[|set_solver+Hnin1 Hnin2]).
-      rewrite lookup_union_r;[subst;auto|].
-      apply not_elem_of_dom. by rewrite Harg_rmap'.
+      apply lookup_union_Some in Hv.
+      2: {
+        apply map_disjoint_dom_2.
+        rewrite Harg_rmap' Hrmap' /=; set_solver+.
+      }
+      destruct Hv as [Hv|Hv].
+      + iDestruct (big_sepM_lookup with "Hval") as "Hv";[apply Hv|].
+        iApply (interp_monotone with "[] Hv").
+        iPureIntro; apply related_sts_pub_update_multiple_temp; auto.
+      + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
+        iApply interp_int.
   Qed.
 
 End Switcher.

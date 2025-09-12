@@ -118,6 +118,9 @@ Section CMDC.
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
 
+      ∗ (WSealed ot_switcher B_f) ↦□ₑ 1
+      ∗ (WSealed ot_switcher C_g) ↦□ₑ 1
+
       (* initial stack are revoked in both worlds *)
       ∗ ([∗ list] a ∈ (finz.seq_between csp_b csp_e), rel B a RWL interpC ∗ ⌜ std W_init_B !! a = Some Revoked ⌝ )
       ∗ ([∗ list] a ∈ (finz.seq_between csp_b csp_e), rel C a RWL interpC ∗ ⌜ std W_init_C !! a = Some Revoked ⌝ )
@@ -138,6 +141,7 @@ Section CMDC.
       & HK
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
+      & #HentryB_f & #HentryC_g
       & Hrel_stk_B & Hrel_stk_C
       & Hφ)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
@@ -429,17 +433,21 @@ Section CMDC.
 
     (* replace frm_init with (frm W1). *)
     iEval (cbn) in "Hct1".
-    iApply (switcher_cc_specification _ W1 with
+    iApply (switcher_cc_specification _ W1 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
-              $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
+              $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
               $Hcsp_stk $HWreg_B $HWstd_full_B $Hrel_stk_B $Hcstk_frag
-              $Hinterp_W1_B_f $HK]"); eauto.
+              $Hinterp_W1_B_f $HentryB_f $HK]"); eauto.
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hrmap_dom; set_solver.
     }
     { by rewrite /is_arg_rmap. }
-
+    iSplitL "Hrmap_arg".
+    { iApply (big_sepM_impl with "Hrmap_arg").
+      iModIntro; iIntros (r w Hr) "[$ ?]".
+      destruct ( decide (r ∈ dom_arg_rmap 1) ); done.
+    }
 
     iNext. subst rmap'.
     iIntros (W2_B rmap')
@@ -746,16 +754,21 @@ Section CMDC.
       iApply closing_revoked_from_rel_stack;eauto.
     }
 
-    iApply (switcher_cc_specification _ W3 with
+    iApply (switcher_cc_specification _ W3 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
-              $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
+              $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
               $Hcsp_stk $HWreg_C $HWstd_full_C $Hrel_stk_C $Hcstk_frag
-              $Hinterp_W3_C_g $HK]"); eauto.
+              $Hinterp_W3_C_g $HentryC_g $HK]"); eauto.
     { subst rmap''.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hdom_rmap'; set_solver.
     }
     { by rewrite /is_arg_rmap. }
+    iSplitL "Hrmap_arg".
+    { iApply (big_sepM_impl with "Hrmap_arg").
+      iModIntro; iIntros (r w Hr) "[$ ?]".
+      destruct ( decide (r ∈ dom_arg_rmap 1) ); done.
+    }
 
     iNext. subst rmap''.
     iIntros (W4_C rmap'')
@@ -911,6 +924,9 @@ Section CMDC.
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
 
+      ∗ (WSealed ot_switcher B_f) ↦□ₑ 1
+      ∗ (WSealed ot_switcher C_g) ↦□ₑ 1
+
       (* initial stack are revoked in both worlds *)
       ∗ ([∗ list] a ∈ (finz.seq_between csp_b csp_e), rel B a RWL interpC ∗ ⌜ std W_init_B !! a = Some Revoked ⌝ )
       ∗ ([∗ list] a ∈ (finz.seq_between csp_b csp_e), rel C a RWL interpC ∗ ⌜ std W_init_C !! a = Some Revoked ⌝ )
@@ -931,6 +947,7 @@ Section CMDC.
       & HK
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
+      & #HentryB_f & #HentryC_g
       & Hrel_stk_B & Hrel_stk_C
       & Hφ)".
     iApply (wp_wand with "[-]").

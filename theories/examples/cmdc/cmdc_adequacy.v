@@ -206,10 +206,11 @@ Section helpers_cmdc_adequacy.
     -∗ inv (export_table_entryN C a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
     -∗ interp W C (WCap RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap RW Global b_cgp e_cgp b_cgp)
+    -∗ WSealed ot_switcher (SCap RO g_etbl b_etbl e_etbl a_etbl) ↦□ₑ args
     -∗ ot_switcher_prop W C (WCap RO g_etbl b_etbl e_etbl a_etbl).
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp Ha_etbl Hargs.
-    iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry #Hinterp_pcc #Hinterp_cgp".
+    iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry #Hinterp_pcc #Hinterp_cgp #Hentry".
     iEval (cbn).
     iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, off.
     iFrame "#".
@@ -253,7 +254,7 @@ Section helpers_cmdc_adequacy.
 
     iIntros
       "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
-                     & Hregs_csp & Hregs_args & Hregs_interp)
+                     & Hregs_csp & Hregs_interp)
                      & Hrmap & Hregion & Hworld & Htframe & Hna)".
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental.fundamental with "[$] Hinterp_PCC") as "H_jmp".
@@ -275,14 +276,9 @@ Section helpers_cmdc_adequacy.
     { iSpecialize ("Hregs_csp" $! v Hr).
       iDestruct "Hregs_csp" as "[? $]".
     }
-    destruct (decide (r ∈ dom_arg_rmap)) as [Hargs' | Hrarg'].
-    { iApply "Hregs_args" ; eauto. }
-    assert (r ∉ dom_arg_rmap ∪ {[PC; cra; cgp; csp]}) as Hrr.
-    { set_solver+Hrpc Hrcgp Hrcsp Hrcra Hrarg'. }
-    iSpecialize ("Hregs_interp" $! r Hrr).
-    iDestruct "Hregs_interp" as "%Hregs_interp"
-    ; rewrite Hregs_interp in Hr ; simplify_eq.
-    by iApply interp_int.
+    assert (r ∉ ({[PC; cra; cgp; csp]} : gset RegName)) as Hrr.
+    { set_solver+Hrpc Hrcgp Hrcsp Hrcra. }
+    by iSpecialize ("Hregs_interp" $! r _ Hrr Hr).
   Qed.
 
   Lemma mono_priv_ot_switcher (C : CmptName) (w : Word) :
@@ -295,8 +291,8 @@ Section helpers_cmdc_adequacy.
     iEval (cbn).
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off ->
-       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hcont)".
-    iFrame "Hinvpcc Hinvcgp Hinventry".
+       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hcont)".
+    iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
     iExists _,_.
     repeat (iSplit ; first done).
     iModIntro.
@@ -328,18 +324,20 @@ Section helpers_cmdc_adequacy.
     -∗ seal_pred ot ot_switcher_propC
     -∗ interp W C (WCap RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap RW Global b_cgp e_cgp b_cgp)
+    -∗ WSealed ot_switcher (SCap RO Global b_etbl e_etbl a_etbl) ↦□ₑ args
+    -∗ WSealed ot_switcher (SCap RO Local b_etbl e_etbl a_etbl) ↦□ₑ args
     -∗ interp W C (WSealed ot (SCap RO Global b_etbl e_etbl a_etbl)).
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp Ha_etbl Hargs.
     iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry
-    #Hsealed_pred_ot_switcher #Hinterp_pcc #Hinterp_cgp".
+    #Hsealed_pred_ot_switcher #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry'".
 
     iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
     rewrite /interp_sb.
     iFrame "Hsealed_pred_ot_switcher".
     iSplit; first (iPureIntro ; apply persistent_cond_ot_switcher).
     iSplit; first (iIntros (w) ; iApply mono_priv_ot_switcher).
-    iSplit; iApply (ot_switcher_interp with "[$] [$] [$] [$] [$]"); eauto.
+    iSplit; iApply (ot_switcher_interp with "[$] [$] [$] [$] [$] [$]"); eauto.
   Qed.
 
 End helpers_cmdc_adequacy.
@@ -409,6 +407,36 @@ Section Adequacy.
     iMod (gen_heap_init (sreg:SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
     iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
     iMod (seal_store_init ({[ ot_switcher ]} : gset _)) as (seal_storeg) "Hseal_store".
+    set (
+        B_f :=
+       (WCap RO Global (cmpt_exp_tbl_pcc B_cmpt)
+                         (cmpt_exp_tbl_entries_end B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt))
+      ).
+    set (
+        C_g :=
+       (WCap RO Global (cmpt_exp_tbl_pcc B_cmpt)
+                         (cmpt_exp_tbl_entries_end B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt))
+      ).
+    iMod (
+       entry_init (
+           {[
+               (seal_capability B_f ot_switcher) := 1;
+               (borrow (seal_capability B_f ot_switcher)) := 1;
+               (seal_capability C_g ot_switcher) := 1;
+               (borrow (seal_capability C_g ot_switcher)) := 1
+           ]}
+
+         )
+      ) as (entry_g) "#Hentries".
+    rewrite !fmap_insert fmap_empty.
+    (* TODO WIP: I think I need authoritative algebra *)
+    iAssert (
+       (seal_capability B_f ot_switcher) ↦□ₑ 1
+         )%I as "?".
+    { rewrite ENTRY_eq /ENTRY_def.
+      iFrame.
+      admit.
+    }
 
     unshelve iMod (gen_sts_init 0) as (stsg) "Hsts"; eauto. (*XX*)
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
