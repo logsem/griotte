@@ -37,8 +37,12 @@ Section Switcher_preamble.
       (full_map reg ∧
        ⌜ reg !! PC = Some wpcc ⌝ ∧
        ⌜ reg !! cgp = Some wcgp ⌝ ∧
-       (∀ (wstk : Word), (⌜reg !! csp = Some wstk⌝ → interp W C wstk)) ∧
-       (∀ (wret : Word), (⌜reg !! cra = Some wret⌝ → interp W C wret)) ∧
+       ⌜ reg !! cra = Some (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) ⌝ ∧
+       (∀ (wstk : Word),
+          (⌜reg !! csp = Some wstk⌝ →
+           (⌜ ∃ csp_b csp_e, wstk = (WCap RWL Local csp_b csp_e csp_b) ⌝ ∧ interp W C wstk))
+       )
+       ∧
        (∀ (r : RegName) (v : Word), (⌜r ∈ dom_arg_rmap⌝ → ⌜reg !! r = Some v⌝ → interp W C v)) ∧
        (∀ (r : RegName),
           (⌜r ∉ (dom_arg_rmap ∪ {[PC; cra; cgp; csp]})⌝ →  ⌜reg !! r = Some (WInt 0)⌝)))%I.

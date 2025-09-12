@@ -252,8 +252,8 @@ Section helpers_cmdc_adequacy.
     iModIntro;iNext.
 
     iIntros
-      "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & Hregs_csp
-                     & Hregs_cra & Hregs_args & Hregs_interp)
+      "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
+                     & Hregs_csp & Hregs_args & Hregs_interp)
                      & Hrmap & Hregion & Hworld & Htframe & Hna)".
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental.fundamental with "[$] Hinterp_PCC") as "H_jmp".
@@ -267,10 +267,14 @@ Section helpers_cmdc_adequacy.
     { rewrite Hregs_cgp in Hr ; simplify_eq.
       iApply interp_monotone_nl; eauto.
     }
-    destruct (decide (r = csp)) as [-> | Hrcsp].
-    { iApply "Hregs_csp"; eauto. }
     destruct (decide (r = cra)) as [-> | Hrcra].
-    { iApply "Hregs_cra"; eauto. }
+    { rewrite Hregs_cra in Hr ; simplify_eq.
+      iApply switcher_return_interp.
+    }
+    destruct (decide (r = csp)) as [-> | Hrcsp].
+    { iSpecialize ("Hregs_csp" $! v Hr).
+      iDestruct "Hregs_csp" as "[? $]".
+    }
     destruct (decide (r ∈ dom_arg_rmap)) as [Hargs' | Hrarg'].
     { iApply "Hregs_args" ; eauto. }
     assert (r ∉ dom_arg_rmap ∪ {[PC; cra; cgp; csp]}) as Hrr.

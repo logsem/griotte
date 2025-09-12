@@ -1213,18 +1213,16 @@ Section fundamental.
     - clear-Hentry. iPureIntro. simplify_map_eq. repeat f_equiv.
       rewrite encode_entry_point_eq_off in Hentry. solve_addr.
     - iPureIntro. clear. simplify_map_eq. auto.
-    - iIntros (wstk Hwstk'). simplify_map_eq.
-      iApply (interp_weakening with "IH Hspv");auto.
-      solve_addr. solve_addr-.
-    - iIntros (wret Hwret). simplify_map_eq.
-      iApply fixpoint_interp1_eq. iSimpl.
-      assert (is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher (a_jalr ^+ 1)%a) = true) as ->;[|done].
-      rewrite /is_switcher_entry_point.
+    - iPureIntro.
+      simplify_map_eq.
+      clear -Ha_halr Hcall.
       pose proof switcher_return_entry_point.
-      rewrite bool_decide_true//.
-      right.
-      f_equal.
-      solve_addr.
+      cbn in *.
+      do 2 (f_equal; auto). solve_addr.
+    - iIntros (wstk Hwstk'). simplify_map_eq.
+      iSplit; first (iExists _,_; done).
+      iApply (interp_weakening with "IH Hspv");auto
+      ;[solve_addr+bounds' Ha4|solve_addr-].
     - iIntros (r v Hr Hv).
       repeat (rewrite lookup_insert_ne in Hv;[|set_solver+Hr]).
       rewrite lookup_union_l in Hv;cycle 1.
