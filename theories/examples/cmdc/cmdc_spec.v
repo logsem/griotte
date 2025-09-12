@@ -736,14 +736,14 @@ Section CMDC.
 
     iAssert (
         ([∗ list] a ∈ finz.seq_between csp_b csp_e,
-           closing_revoked_resources W3 C a ∗ ⌜W1.1 !! a = Some Revoked⌝)
+           closing_revoked_resources W3 C a ∗ ⌜W3.1 !! a = Some Revoked⌝)
       )%I with "[Hrel_stk_C]"  as "Hrel_stk_C".
     {
       iDestruct (big_sepL_sep with "Hrel_stk_C") as "[Hrel Hrev]".
       iApply big_sepL_sep; iFrame.
       iApply (big_sepL_impl with "Hrel").
-      iIntros (k a Ha) "!> Hrel".
-      iApply closing_revoked_from_rel_stack; auto.
+      iModIntro; iIntros (k a Ha) "Hclose".
+      iApply closing_revoked_from_rel_stack;eauto.
     }
 
     iApply (switcher_cc_specification _ W3 with
