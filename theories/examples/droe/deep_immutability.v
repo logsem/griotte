@@ -66,7 +66,9 @@ Section DROE_Main.
     ++ fetch_instrs 2 ct1 ct2 ct3 (* ct1 -> {B.f}_(ot_switcher)  *)
     ++
     encodeInstrsW [
+      Mov cs0 cra; (* stores the return-to-switcher *)
       Jalr cra ct0;
+      Mov cra cs0; (* restores the return-to-switcher *)
       (* -- return from the call -- *)
       (* assert b == 42 *)
       Load ct0 cgp; (* ct0 -> c *)
