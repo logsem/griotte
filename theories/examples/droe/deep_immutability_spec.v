@@ -46,7 +46,6 @@ Section DROE.
 
     (csp_content : list Word)
 
-    (φ : language.val cap_lang -> iProp Σ)
     (Nassert Nswitcher : namespace)
 
     (cstk : CSTK)
@@ -68,6 +67,7 @@ Section DROE.
     (cgp_b)%a ∉ dom (std W_init_C) ->
     (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
 
+    frame_match Ws Cs cstk W_init_C C ->
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
       ∗ na_inv logrel_nais Nswitcher switcher_inv
@@ -84,7 +84,6 @@ Section DROE.
       ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
       ∗ codefrag pc_a droe_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ droe_main_data ]]
-      ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
 
       ∗ region W_init_C C ∗ sts_full_world W_init_C C
 
@@ -99,18 +98,18 @@ Section DROE.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a
+               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
             )
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
-      & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
+      & Himports_main & Hcode_main & Hcgp_main
       & HWreg_C & HWstd_full_C
       & HK
       & Hcstk_frag
       & #Hinterp_Winit_C_g & #Hinterp_Winit_C_csp
       )".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
-    iDestruct (big_sepL2_length with "Hcsp_stk") as "%Hlen_stack".
+    (* iDestruct (big_sepL2_length with "Hcsp_stk") as "%Hlen_stack". *)
 
     (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
     assert ( rmap !! ca0 = Some (WInt 0) ) as Hwca0.
@@ -307,15 +306,6 @@ Section DROE.
     repeat (rewrite -delete_insert_ne //).
 
     set (rmap' := (delete ca5 _)).
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_b]") as "%Hcgp_b_stk".
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_a]") as "%Hcgp_a_stk".
-    (* assert ( cgp_b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_b_stk'. *)
-    (* { clear -Hcgp_b_stk. *)
-    (*   apply not_elem_of_finz_seq_between. *)
-    (*   apply not_elem_of_finz_seq_between in Hcgp_b_stk. *)
-    (*   destruct Hcgp_b_stk; [left|right]; solve_addr. *)
-    (* } *)
-
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
@@ -348,12 +338,14 @@ Section DROE.
          ([∗ list] a ∈ finz.seq_between csp_b csp_e,
           closing_revoked_resources W_init_C C a ∗ ⌜(revoke W_init_C).1 !! a = Some Revoked⌝)
          ∗ [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]]
-      )%I with "[Hstk']" as (stk_mem) "[Hclose_res Hstk]".
+      )%I with "[Hstk']" as (stk_mem) "[Hclose_res Hcsp_stk]".
     { rewrite !big_sepL_sep.
       iDestruct "Hstk'" as "(Hclose & Hrev & Hv)".
       iDestruct (big_sepL_sep with "[$Hclose $Hrev]") as "$".
       by iApply region_addrs_exists.
     }
+    iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_b]") as "%Hcgp_b_stk".
+    iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_a]") as "%Hcgp_a_stk".
 
     match goal with
     | _ : _ |- context [ region ?W' ] => set (W0 := W')
@@ -469,9 +461,6 @@ Section DROE.
         by rewrite lookup_insert.
     }
 
-    Set Nested Proofs Allowed.
-    (* TODO move *)
-
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W2 C warg )%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
     { subst rmap_arg.
@@ -481,20 +470,6 @@ Section DROE.
       iSplit ; [ iApply switcher_call_interp |done].
     }
 
-    (* iAssert (([∗ list] a ∈ finz.seq_between csp_b csp_e, rel C a RWL interpC ∗ ⌜std W2 !! a = Some Revoked⌝)%I) *)
-    (*           with "[Hrel_stk_C]" as "Hrel_stk_C". *)
-    (* { rewrite !big_sepL_sep. *)
-    (*   iDestruct "Hrel_stk_B" as "[Hrel %Hrevoked]"; iFrame. *)
-    (*   iPureIntro; subst W1. *)
-    (*   intros k a Ha; cbn in *. *)
-    (*   rewrite lookup_insert_ne. *)
-    (*   eapply Hrevoked; eauto. *)
-    (*   rewrite elem_of_list_lookup in Hcgp_b_stk. *)
-    (*   intros -> ; apply Hcgp_b_stk. *)
-    (*   by eexists. *)
-    (* } *)
-
-    (* replace frm_init with (frm W1). *)
     iEval (cbn) in "Hct1".
     iApply (switcher_cc_specification _ W2 with
              "[- $Hswitcher $Hna
@@ -515,7 +490,7 @@ Section DROE.
         iModIntro; iIntros (k a Ha) "Hclose".
         rewrite /closing_revoked_resources.
         iDestruct "Hclose" as (???) "(?&?&#Hmono&#Hzcond&#Hrcond&#Hwcond&?)".
-        iExists φ0,p,Hpers; iFrame "∗#".
+        iExists φ,p,Hpers; iFrame "∗#".
         iApply "Hzcond"; done.
       - iApply (big_sepL_impl with "Hrev").
         iModIntro; iIntros (k a Ha) "Hrev".
@@ -539,7 +514,6 @@ Section DROE.
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hcsp_stk & HK)".
     iEval (cbn) in "HPC".
-    (* TODO here *)
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
@@ -738,38 +712,4 @@ Section DROE.
     (* take csp and cra out *)
     (* make an invariant for code and data *)
 
-    iApply (
-
-      )
-
-
-
-
-
-
-    (
-
-      (* initial register file *)
-      ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
-      ∗ cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
-
-      (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
-      ∗ codefrag pc_a droe_main_code
-      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ droe_main_data ]]
-      ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
-
-      ∗ region W_init_C C ∗ sts_full_world W_init_C C
-
-      ∗ interp_continuation cstk Ws Cs
-
-      ∗ cstack_frag cstk
-
-      ∗ interp W_init_C C (WSealed ot_switcher C_f)
-      ∗ interp W_init_C C (WCap RWL Local csp_b csp_e csp_b)
-
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
-  Proof.
+  Admitted.
