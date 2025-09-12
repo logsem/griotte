@@ -43,8 +43,8 @@ Section Switcher.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let wct1_caller := WSealed ot_switcher w_entry_point in
-    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap nargs) ->
-    is_arg_rmap arg_rmap nargs ->
+    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
     na_inv logrel_nais Nswitcher switcher_inv
@@ -62,7 +62,10 @@ Section Switcher.
     ∗ cs0 ↦ᵣ wcs0_caller
     ∗ cs1 ↦ᵣ wcs1_caller
     (* Argument registers, need to be safe-to-share *)
-    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg )
+    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg
+                                      ∗ if decide (rarg ∈ dom_arg_rmap nargs)
+                                        then interp W C warg
+                                        else True )
     (* All the other registers *)
     ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
@@ -105,7 +108,7 @@ Section Switcher.
   Proof.
 
     iIntros (a_stk4 target Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hr & Hstk_val & Hcstk & Hcont & Hpost)".
+    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hr & Hstk_val & Hcstk & Hcont & Hpost)".
     subst a_stk4.
 
     assert ( exists wr0, rmap !! ct2 = Some wr0) as [wr0 Hwr0].
@@ -358,8 +361,11 @@ Section Switcher.
     rewrite /safeC.
     iSimpl in "Hagree".
     iRewrite -"Hagree" in "HP".
-    iDestruct "HP" as (?????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & Hexec)". simpl fst. simpl snd.
+    iDestruct "HP" as (?????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & Hentry' & Hexec)". simpl fst. simpl snd.
     inversion Heq.
+
+    iDestruct (entry_agree _ nargs nargs0 with "[$Hentry] [Hentry']") as "<-".
+    { admit. }
 
     (* --- Load cs0 ct1 --- *)
     wp_instr.
@@ -426,9 +432,13 @@ Section Switcher.
     rewrite -!app_assoc.
     focus_block 3 "Hcode" as a_clear Ha_clear "Hcode" "Hcls". iHide "Hcls" as hcont.
 
-    iApply (ftlr_switcher_call.clear_registers_pre_call_skip_spec with "[- $HPC $Hct2 $Hcode $Hargs]")
+    rewrite encode_entry_point_eq_nargs;last lia.
+    (* TODO continue here *)
+    iApply (ftlr_switcher_call.clear_registers_pre_call_skip_spec with "[- $HPC $Hcode $Hargs]")
     ; try solve_pure.
-    { rewrite encode_entry_point_eq_nargs;[lia|]. auto. }
+    { lia. }
+    iSplitL "Hct2".
+    { replace (Z.of_nat nargs + 1)%Z with (Z.of_nat (nargs + 1))%Z by lia; done. }
     iIntros "!> (%arg_rmap' & %Harg_rmap' & HPC & Hct2 & Hargs & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     focus_block 4 "Hcode" as a_clear' Ha_clear' "Hcode" "Hcls". iHide "Hcls" as hcont.
