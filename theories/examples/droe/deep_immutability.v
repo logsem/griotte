@@ -67,6 +67,7 @@ Section DROE_Main.
     ++
     encodeInstrsW [
       Mov cs0 cra; (* stores the return-to-switcher *)
+      (* clear the arguments *)
       Jalr cra ct0;
       Mov cra cs0; (* restores the return-to-switcher *)
       (* -- return from the call -- *)

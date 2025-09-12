@@ -25,9 +25,40 @@ Section ClearRegistersMacro.
   Implicit Types C : CmptName.
 
   (* TODO should depend on the number of registers used by entry point. *)
-  Definition dom_arg_rmap : gset RegName := {[ ca0 ; ca1 ; ca2 ; ca3 ; ca4 ; ca5 ; ca5 ; ct0 ]}.
-  Definition is_arg_rmap (rmap : Reg) :=
-    dom rmap = dom_arg_rmap.
+  (* Fixpoint dom_arg_rmap (nargs : nat) : gset RegName := *)
+  (*     match nargs with *)
+  (*     | 0 => ∅ *)
+  (*     | S n => *)
+  (*         if nargs <? 8 *)
+  (*         then *)
+  (*           match nargs with *)
+  (*           | 1 => {[ ca0 ]} ∪ dom_arg_rmap n *)
+  (*           | 2 => {[ ca1 ]} ∪ dom_arg_rmap n *)
+  (*           | 3 => {[ ca2 ]} ∪ dom_arg_rmap n *)
+  (*           | 4 => {[ ca3 ]} ∪ dom_arg_rmap n *)
+  (*           | 5 => {[ ca4 ]} ∪ dom_arg_rmap n *)
+  (*           | 6 => {[ ca5 ]} ∪ dom_arg_rmap n *)
+  (*           | 7 => {[ ct0 ]} ∪ dom_arg_rmap n *)
+  (*           | _ => ∅ *)
+  (*           end *)
+  (*         else ∅ *)
+  (*     end. *)
+
+  Definition dom_arg_rmap (nargs : nat) : gset RegName :=
+    match nargs with
+    | 0 => ∅
+    | 1 => {[ ca0 ]}
+    | 2 => {[ ca0 ; ca1 ]}
+    | 3 => {[ ca0 ; ca1 ; ca2 ]}
+    | 4 => {[ ca0 ; ca1 ; ca2 ; ca3 ]}
+    | 5 => {[ ca0 ; ca1 ; ca2 ; ca3 ; ca4 ]}
+    | 6 => {[ ca0 ; ca1 ; ca2 ; ca3 ; ca4 ; ca5 ]}
+    | _ => {[ ca0 ; ca1 ; ca2 ; ca3 ; ca4 ; ca5 ; ct0 ]}
+    end.
+
+
+  Definition is_arg_rmap (rmap : Reg) (nargs : nat) :=
+    dom rmap = dom_arg_rmap nargs.
 
   Definition clear_registers_pre_call_skip_instrs : list Word :=
     encodeInstrsW [ Jmp ct2;

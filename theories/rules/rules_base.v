@@ -3,6 +3,98 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth.
 From cap_machine Require Export cap_lang iris_extra stdpp_extra.
+From iris.algebra Require Import frac gmap.
+
+
+Definition entryUR : ucmra :=
+  (gmapUR Word (agreeR (leibnizO nat))).
+
+Class entryGpreS Σ := EntryGpreS {
+  entryPreG_invPreG : invGpreS Σ;
+  entryPreG_rel :: inG Σ entryUR;
+}.
+
+Class entryGS Σ := EntryGS {
+  entryG_rel :: inG Σ entryUR;
+  γentry : gname
+}.
+
+Definition entryPreΣ :=
+  #[ GFunctor entryUR ].
+
+Instance subG_entryPreΣ {Σ} :
+  subG entryPreΣ Σ →
+  invGpreS Σ →
+  entryGpreS Σ.
+Proof. solve_inG. Qed.
+
+Section ENTRY_defs.
+  Context {Σ:gFunctors} {entryg : entryGS Σ}.
+
+  Definition ENTRY_def (w : Word) (n : nat) : iProp Σ :=
+    own γentry {[ w := to_agree n ]}.
+  Definition ENTRY_aux : { x | x = @ENTRY_def }. by eexists. Qed.
+  Definition ENTRY := proj1_sig ENTRY_aux.
+  Definition ENTRY_eq : @ENTRY = @ENTRY_def := proj2_sig ENTRY_aux.
+  Notation "w ↦□ₑ n" :=(ENTRY w n) (at level 20) : bi_scope.
+
+  Lemma entry_agree w n1 n2:
+    w ↦□ₑ n1 -∗ w ↦□ₑ n2 -∗ ⌜n1 = n2⌝.
+  Proof.
+    iIntros "H1 H2".
+    rewrite ENTRY_eq /ENTRY_def.
+    iCombine "H1 H2" as "H".
+    iDestruct (own_valid with "H") as "%".
+    apply singleton_valid, to_agree_op_inv in H.
+    done.
+  Qed.
+  Global Instance persistent_entry w n : Persistent (w ↦□ₑ n)%I.
+  Proof.
+    rewrite ENTRY_eq /ENTRY_def.
+    apply own_core_persistent.
+    apply gmap_core_id', agree_core_id.
+  Defined.
+
+
+End ENTRY_defs.
+Notation "w ↦□ₑ n" :=  (ENTRY w n) (at level 20) : bi_scope.
+
+Section entryPre.
+  Context {Σ:gFunctors} {entrypreg : entryGpreS Σ}.
+
+
+  Lemma entry_rel_init (m : gmap Word nat) :
+    ⊢ |==> (∃ γentry, own γentry ((to_agree <$> m) : entryUR)).
+  Proof.
+    iMod (own_alloc (A:= (entryUR)) (to_agree <$> m : entryUR)) as (γentry) "Hm".
+    { intros w.
+      destruct ((to_agree <$> m) !! w) eqn:Heq; rewrite Heq ; last done.
+      rewrite lookup_fmap_Some in Heq.
+      destruct Heq as (? & <- & ?).
+      done.
+    }
+    by iFrame.
+  Qed.
+
+  Lemma entry_init m :
+    ⊢ |==> ∃ (entryg: entryGS Σ), own γentry ((to_agree <$> m) : entryUR).
+  Proof.
+    iMod entry_rel_init as (γ) "H".
+    iExists (EntryGS _ _ _).
+    done.
+  Qed.
+End entryPre.
+
+
+(* Notation "w ↦ₑ{ q } n" := (pointsto (L:=Word) (V:=nat) w q n) *)
+(*   (at level 20, q at level 50, format "w  ↦ₑ{ q }  n") : bi_scope. *)
+(* Notation "w ↦ₑ n" := (pointsto (L:=Word) (V:=nat) w (DfracOwn 1) n) (at level 20) : bi_scope. *)
+(* Notation "w ↦□ₑ n" := (pointsto (L:=Word) (V:=nat) w DfracDiscarded n) (at level 20) : bi_scope. *)
+
+(* Class entryG Σ := *)
+(*   EntryG { entry_genG :: gen_heapGS Word nat Σ; (* entry points argument *) }. *)
+
+
 
 (* CMRA for Cerise *)
 Class ceriseG Σ :=
@@ -10,7 +102,8 @@ Class ceriseG Σ :=
       cerise_invG : invGS Σ;
       mem_gen_memG :: gen_heapGS Addr Word Σ; (* memory *)
       reg_gen_regG :: gen_heapGS RegName Word Σ; (* register *)
-      sreg_gen_regG :: gen_heapGS SRegName Word Σ (* system register *)
+      sreg_gen_regG :: gen_heapGS SRegName Word Σ; (* system register *)
+      entryG :: entryGS Σ (* entry point *)
     }.
 
 (* invariants for memory, and a state interpretation for (mem,reg) *)
@@ -793,7 +886,7 @@ Definition regs_of (i: instr): gset RegName :=
   | GetL r1 r2 => {[ r1; r2 ]}
   | GetOType dst src => {[ dst; src ]}
   | GetWType dst src => {[ dst; src ]}
-  | Add r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
+  | machine_base.Add r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Sub r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Mul r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | LAnd r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
