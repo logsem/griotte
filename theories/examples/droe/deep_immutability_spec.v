@@ -3,9 +3,44 @@ From cap_machine Require Import region_invariants_allocation region_invariants_r
 From cap_machine Require Import logrel rules proofmode.
 From cap_machine Require Import fetch assert switcher_spec deep_immutability.
 
+Section DROEData.
+
+  Definition one_shotR : cmra := authR (optionUR unitO).
+  Class one_shotG Σ := { #[local] one_shot_inG :: inG Σ one_shotR }.
+
+  Definition one_shotΣ : gFunctors := #[GFunctor one_shotR].
+  #[export] Instance subG_one_shotΣ {Σ} : subG one_shotΣ Σ → one_shotG Σ.
+  Proof. solve_inG. Qed.
+
+  Context {Σ:gFunctors} {oneshotg : one_shotG Σ}.
+
+  Definition pending_auth (γ : gname) : iProp Σ :=
+    own γ (● None).
+  Definition shot_auth (γ : gname) : iProp Σ :=
+    own γ (● Some ()).
+  Definition shot_token (γ : gname) : iProp Σ :=
+    own γ (◯ Some ()).
+
+  Lemma pending_alloc :
+    ⊢ |==> ∃ γ, pending_auth γ.
+  Proof. iApply own_alloc. by apply auth_auth_valid. Qed.
+
+
+  Lemma shoot (γ : gname) :
+    pending_auth γ ==∗ shot_auth γ ∗ shot_token γ.
+  Proof.
+    iIntros "H". rewrite -own_op.
+    iApply (own_update with "H").
+    by apply auth_update_alloc, alloc_option_local_update.
+  Qed.
+
+End DROEData.
+
+
 Section DROE.
   Context
     {Σ:gFunctors}
+    {oneshotg : one_shotG Σ}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
@@ -29,6 +64,27 @@ Section DROE.
      , (⌜ v = w ⌝ ∗ interp W B (readonly w))%I).
   Solve All Obligations with solve_proper.
 
+
+  Definition interp_droe_main_data (γ : gname) (cgp_b cgp_e : Addr) : iProp Σ :=
+    ( ∃ (v_b v_a : Word),
+        [[ cgp_b , cgp_e ]] ↦ₐ [[ [v_b ; v_a ] ]]
+        ∗
+          (
+            (pending_auth γ ∗ ⌜ v_b = WInt 0 ⌝ ∗ ⌜ v_a = WInt 0 ⌝)
+            ∨ (shot_token γ ∗ ⌜ v_b = WInt 42 ⌝ ∗ ⌜ v_a = WCap RW Global cgp_b (cgp_b ^+1)%a cgp_b ⌝)
+          )
+    ).
+
+  Definition droe_inv
+    (γ : gname) (pc_b pc_a cgp_b cgp_e b_assert e_assert : Addr)
+    (C_f : Sealable) : iProp Σ :=
+    let imports :=
+      droe_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
+    in
+    [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
+    ∗ codefrag pc_a droe_main_code
+    ∗ interp_droe_main_data γ cgp_b cgp_e.
+
   Lemma droe_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -46,7 +102,7 @@ Section DROE.
 
     (csp_content : list Word)
 
-    (Nassert Nswitcher : namespace)
+    (Nassert Nswitcher Nmain : namespace) (γ : gname)
 
     (cstk : CSTK)
     :
@@ -56,6 +112,8 @@ Section DROE.
     in
 
     Nswitcher ## Nassert ->
+    Nswitcher ## Nmain ->
+    Nassert ## Nmain ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp ; cra]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -71,6 +129,7 @@ Section DROE.
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
       ∗ na_inv logrel_nais Nswitcher switcher_inv
+      ∗ na_inv logrel_nais Nmain ( droe_inv γ pc_b pc_a cgp_b cgp_e b_assert e_assert C_f)
       ∗ na_own logrel_nais ⊤
 
       (* initial register file *)
@@ -79,11 +138,6 @@ Section DROE.
       ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
       ∗ cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
-
-      (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
-      ∗ codefrag pc_a droe_main_code
-      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ droe_main_data ]]
 
       ∗ region W_init_C C ∗ sts_full_world W_init_C C
 
@@ -98,12 +152,11 @@ Section DROE.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+    iIntros (HNswitcher_assert HNswitcher_main HNassert_main Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
             )
-      "(#Hassert & #Hswitcher & Hna
+      "(#Hassert & #Hswitcher & #Hmem & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
-      & Himports_main & Hcode_main & Hcgp_main
       & HWreg_C & HWstd_full_C
       & HK
       & Hcstk_frag
@@ -111,6 +164,9 @@ Section DROE.
       & #HentryC_g
       & #Hinterp_Winit_C_csp
       )".
+    iMod (na_inv_acc with "Hmem Hna")
+      as "(( >Himports_main & >Hcode_main & >Hcgp_main) & Hna & Hmem_close)"; auto.
+    iDestruct "Hcgp_main" as (v_b v_a) "[Hcgp_main Hcgp_val]".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
     (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
@@ -452,6 +508,20 @@ Section DROE.
       done.
     }
 
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    (* TODO
+       But I can't close the invariant because I don't have the points-to...
+       They are in the world. Maybe the invariant should then say that ?
+       i.e. in the shot state, I have the rel relations instead?
+       Or should I use the custom world instead?
+       Ask @Aina
+     *)
+    iMod ( "Hmem_close" with
+           "[Hcgp_val Hcgp_b Hcgp_a Hna Hcode
+           Himport_switcher Himport_assert Himport_C_f]
+           " ) as "?".
+
+      )
     iEval (cbn) in "Hct1".
     iApply (switcher_cc_specification _ W2 with
              "[- $Hswitcher $Hna
