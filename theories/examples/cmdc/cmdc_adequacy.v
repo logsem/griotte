@@ -342,13 +342,13 @@ Section helpers_cmdc_adequacy.
 
 End helpers_cmdc_adequacy.
 
-
 Section Adequacy.
   Context (Σ: gFunctors).
   Context {inv_preg: invGpreS Σ}.
   Context {mem_preg: gen_heapGpreS Addr Word Σ}.
   Context {reg_preg: gen_heapGpreS RegName Word Σ}.
   Context {sreg_preg: gen_heapGpreS SRegName Word Σ}.
+  Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_invg: na_invG Σ}.
   Context {sts_preg: STS_preG Addr region_type Σ}.
@@ -414,9 +414,31 @@ Section Adequacy.
       ).
     set (
         C_g :=
-       (WCap RO Global (cmpt_exp_tbl_pcc B_cmpt)
-                         (cmpt_exp_tbl_entries_end B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt))
+       (WCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
+         (cmpt_exp_tbl_entries_start C_cmpt))
       ).
+    assert (B_f ≠ C_g) as Hneq_entries.
+    { intro H ; subst B_f C_g ; simplify_eq.
+      pose proof cmpts_disjoints as (_&_&Hdisjoint).
+      rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdisjoint.
+      assert (
+          cmpt_exp_tbl_region B_cmpt  ## cmpt_exp_tbl_region C_cmpt
+        ) as Hdis by set_solver+Hdisjoint.
+      rewrite /cmpt_exp_tbl_region in Hdis.
+      apply stdpp_extra.list_to_set_disj in Hdis.
+      rewrite H H0 in Hdis.
+      assert (
+          list_to_set
+            (finz.seq_between (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt))
+            ≠ (∅ : gset Addr)
+        ) as Hemp; [|set_solver+Hdis Hemp].
+      pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as Hc.
+      pose proof (cmpt_exp_tbl_cgp_size C_cmpt) as Hc'.
+      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hc''.
+      rewrite finz_seq_between_cons ; last (solve_addr+ Hc Hc' Hc'').
+      set_solver+.
+    }
+
     iMod (
        entry_init (
            {[
@@ -427,16 +449,27 @@ Section Adequacy.
            ]}
 
          )
-      ) as (entry_g) "#Hentries".
-    rewrite !fmap_insert fmap_empty.
-    (* TODO WIP: I think I need authoritative algebra *)
-    iAssert (
-       (seal_capability B_f ot_switcher) ↦□ₑ 1
-         )%I as "?".
-    { rewrite ENTRY_eq /ENTRY_def.
-      iFrame.
-      admit.
-    }
+      ) as (entry_g) "Hentries".
+    iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Bf Hentries]"
+    ; repeat (rewrite delete_insert_ne ; last (subst B_f C_g ; intro ; simplify_eq; by rewrite H H0 H1 in Hneq_entries)).
+    iDestruct (big_sepM_insert_delete with "Hentries") as "[Hentry_Bf' Hentries]"
+    ; repeat (rewrite delete_insert_ne ; last (subst B_f C_g ; intro ; simplify_eq; by rewrite H H0 H1 in Hneq_entries)).
+    iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cg Hentries]"
+    ; repeat (rewrite delete_insert_ne ; last (subst B_f C_g ; intro ; simplify_eq; by rewrite H H0 H1 in Hneq_entries)).
+    iDestruct (big_sepM_insert_delete with "Hentries") as "[Hentry_Cg' _]"
+    ; repeat (rewrite delete_insert_ne ; last (subst B_f C_g ; intro ; simplify_eq; by rewrite H H0 H1 in Hneq_entries)).
+    subst B_f C_g; cbn.
+    set (B_f := (SCap RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
+                   (cmpt_exp_tbl_entries_start B_cmpt))).
+    set (B_f' := (SCap RO Local (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
+                   (cmpt_exp_tbl_entries_start B_cmpt))).
+    set (C_g := (SCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
+                   (cmpt_exp_tbl_entries_start C_cmpt))).
+    set (C_g' := (SCap RO Local (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
+                   (cmpt_exp_tbl_entries_start C_cmpt))).
+
+
+
 
     unshelve iMod (gen_sts_init 0) as (stsg) "Hsts"; eauto. (*XX*)
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
@@ -453,7 +486,7 @@ Section Adequacy.
 
     iMod (@na_alloc Σ na_invg) as (logrel_nais) "Hna".
 
-    pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg.
+    pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg entry_g.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
     pose switcher_layout_g := (@switcher_layout MP Layout).
 
@@ -686,8 +719,7 @@ Section Adequacy.
     match goal with
     | H: _ |- context [  (sts_full_world ?W B) ] => set (Winit_B := W)
     end.
-    set (B_f := (SCap RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
-                   (cmpt_exp_tbl_entries_start B_cmpt))).
+
 
     iEval (rewrite /cmpt_exp_tbl_mregion) in "HB_etbl".
     iDestruct (big_sepM_union with "HB_etbl") as "[HB_etbl HB_etbl_entries]".
@@ -781,9 +813,9 @@ Section Adequacy.
     }
 
     iAssert ( interp Winit_B B (WSealed ot_switcher B_f)) with
-      "[HB_code Hr_B HB_data Hsts_B]" as "#Hinterp_B".
+      "[HB_code Hr_B HB_data Hsts_B Hentry_Bf']" as "#Hinterp_B".
     { iApply (ot_switcher_interp_entry _ _ _ _ 1 1
-               with "[$] [$] [$] [$] [$] [$]"); eauto; last lia.
+               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H2.
       rewrite B_exp_tbl in H2.
@@ -900,8 +932,6 @@ Section Adequacy.
     match goal with
     | H: _ |- context [  (sts_full_world ?W C) ] => set (Winit_C := W)
     end.
-    set (C_g := (SCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
-                   (cmpt_exp_tbl_entries_start C_cmpt))).
 
 
     iEval (rewrite /cmpt_exp_tbl_mregion) in "HC_etbl".
@@ -996,9 +1026,9 @@ Section Adequacy.
     }
 
     iAssert ( interp Winit_C C (WSealed ot_switcher C_g)) with
-      "[HC_code Hr_C HC_data Hsts_C]" as "#Hinterp_C".
+      "[HC_code Hr_C HC_data Hsts_C Hentry_Cg']" as "#Hinterp_C".
     { iApply (ot_switcher_interp_entry _ _ _ _ 1 1
-               with "[$] [$] [$] [$] [$] [$]"); eauto; last lia.
+               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
       rewrite C_exp_tbl in H2.
@@ -1072,6 +1102,7 @@ Section Adequacy.
                         $HPC $Hcgp $Hcsp $Hreg
                         $Hmain_imports $Hmain_code $Hmain_data $Hstack
                         $Hinterp_B $Hinterp_C $Hcstk_frag $Hrel_stk_B $Hrel_stk_C
+                        $Hentry_Bf $Hentry_Cg
                         ]") as "Hspec"; eauto.
     { solve_ndisj. }
     { rewrite !dom_delete_L.
