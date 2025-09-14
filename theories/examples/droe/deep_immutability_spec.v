@@ -65,25 +65,39 @@ Section DROE.
   Solve All Obligations with solve_proper.
 
 
-  Definition interp_droe_main_data (γ : gname) (cgp_b cgp_e : Addr) : iProp Σ :=
-    ( ∃ (v_b v_a : Word),
-        [[ cgp_b , cgp_e ]] ↦ₐ [[ [v_b ; v_a ] ]]
-        ∗
-          (
-            (pending_auth γ ∗ ⌜ v_b = WInt 0 ⌝ ∗ ⌜ v_a = WInt 0 ⌝)
-            ∨ (shot_token γ ∗ ⌜ v_b = WInt 42 ⌝ ∗ ⌜ v_a = WCap RW Global cgp_b (cgp_b ^+1)%a cgp_b ⌝)
+  Definition interp_droe_main_data (γ : gname) (cgp_b cgp_e : Addr) (W_init_C : WORLD) : iProp Σ :=
+    (
+      (pending_auth γ
+       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ droe_main_data ]]
+       ∗ ⌜ (cgp_b)%a ∉ dom (std W_init_C) ∧ (cgp_b ^+1 )%a ∉ dom (std W_init_C) ⌝
+      )
+        ∨
+          (shot_token γ
+           ∗ rel C cgp_b RO_DRO (safeC (interp_ro_eq (WInt 42)))
+           ∗ rel C (cgp_b ^+ 1)%a RO_DRO
+                   (safeC (interp_ro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+           ∗ ⌜ (std W_init_C) !! (cgp_b)%a = Some Permanent
+              ∧ (std W_init_C) !! (cgp_b ^+1 )%a = Some Permanent ⌝
           )
     ).
 
   Definition droe_inv
     (γ : gname) (pc_b pc_a cgp_b cgp_e b_assert e_assert : Addr)
-    (C_f : Sealable) : iProp Σ :=
+    (C_f : Sealable)
+    (W_init_C : WORLD) : iProp Σ :=
     let imports :=
       droe_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
     in
     [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
     ∗ codefrag pc_a droe_main_code
-    ∗ interp_droe_main_data γ cgp_b cgp_e.
+    ∗ interp_droe_main_data γ cgp_b cgp_e W_init_C.
+
+  Definition droe_closing_resources W C a w : iProp Σ :=
+    let φ : (WORLD * CmptName * Word → iPropI Σ) := (safeC (interp_ro_eq w)) in
+      ((φ (W, C, w))
+       ∗ (monotonicity_guarantees_region C φ RO_DRO w Permanent)
+       ∗ rel C a RO_DRO φ
+      )%I.
 
   Lemma droe_spec
 
@@ -122,14 +136,12 @@ Section DROE.
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    (cgp_b)%a ∉ dom (std W_init_C) ->
-    (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
 
     frame_match Ws Cs cstk W_init_C C ->
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
       ∗ na_inv logrel_nais Nswitcher switcher_inv
-      ∗ na_inv logrel_nais Nmain ( droe_inv γ pc_b pc_a cgp_b cgp_e b_assert e_assert C_f)
+      ∗ na_inv logrel_nais Nmain ( droe_inv γ pc_b pc_a cgp_b cgp_e b_assert e_assert C_f W_init_C)
       ∗ na_own logrel_nais ⊤
 
       (* initial register file *)
@@ -153,7 +165,7 @@ Section DROE.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_assert HNswitcher_main HNassert_main Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
+               Hcgp_contiguous Himports_contiguous Hframe_match
             )
       "(#Hassert & #Hswitcher & #Hmem & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
@@ -165,8 +177,95 @@ Section DROE.
       & #Hinterp_Winit_C_csp
       )".
     iMod (na_inv_acc with "Hmem Hna")
-      as "(( >Himports_main & >Hcode_main & >Hcgp_main) & Hna & Hmem_close)"; auto.
-    iDestruct "Hcgp_main" as (v_b v_a) "[Hcgp_main Hcgp_val]".
+      as "(( >Himports_main & >Hcode_main & Hcgp_main) & Hna & Hmem_close)"; auto.
+
+    iMod (monotone_revoke_stack with "[$Hinterp_Winit_C_csp $HWstd_full_C $HWreg_C]")
+        as "(HWstd_full_C & HWreg_C & Hstk')".
+    iAssert (
+        |={⊤}=>
+          ▷ ([∗ list] a ∈ finz.seq_between csp_b csp_e,
+             closing_revoked_resources W_init_C C a
+             ∗ ⌜(revoke W_init_C).1 !! a = Some Revoked⌝
+             ∗ ∃ v, a ↦ₐ v
+          )
+      )%I with "[Hstk']" as ">Hstk'".
+    {
+      rewrite !big_sepL_sep.
+      iDestruct "Hstk'" as "[Hstk' $]".
+      iDestruct (big_sepL_later_2 with "Hstk'") as "Hstk'".
+      (* iDestruct (lc_fupd_elim_later with "[$] [$Hstk']") as ">Hstk'". *)
+      iModIntro; iNext.
+      rewrite -big_sepL_sep.
+      iApply (big_sepL_impl with "Hstk'").
+      iModIntro; iIntros (k a Hx) "Hrev".
+      iDestruct (close_revoked_resources with "Hrev") as (v) "[$ $]".
+    }
+    iAssert (
+        ▷
+        ∃ stk_mem,
+         ([∗ list] a ∈ finz.seq_between csp_b csp_e,
+          closing_revoked_resources W_init_C C a ∗ ⌜(revoke W_init_C).1 !! a = Some Revoked⌝)
+         ∗ [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]]
+      )%I with "[Hstk']" as (stk_mem) "[Hclose_res Hcsp_stk]".
+    { iNext.
+      rewrite !big_sepL_sep.
+      iDestruct "Hstk'" as "(Hclose & Hrev & Hv)".
+      iDestruct (big_sepL_sep with "[$Hclose $Hrev]") as "$".
+      by iApply region_addrs_exists.
+    }
+
+    iAssert (
+        ▷
+        (∃ (is_pending : bool) (v_b v_a : Word),
+        cgp_b ↦ₐ v_b
+        ∗ (cgp_b ^+1)%a ↦ₐ v_a
+        ∗ (if is_pending then pending_auth γ else shot_token γ)
+        ∗ ▷ (if is_pending
+             then True
+             else
+               droe_closing_resources (revoke W_init_C) C cgp_b (WInt 42)
+               ∗ droe_closing_resources (revoke W_init_C) C (cgp_b ^+1)%a (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)
+            )
+        ∗ ( if is_pending then True else sts_state_std C cgp_b Permanent ∗ sts_state_std C (cgp_b^+1)%a Permanent)
+        ∗ (if is_pending then region (revoke W_init_C) C else open_region_many (revoke W_init_C) C [(cgp_b^+1)%a;cgp_b])
+        ∗ sts_full_world (revoke W_init_C) C
+        ∗ ⌜ (std (revoke W_init_C)) !! (cgp_b)%a = (if is_pending then None else Some Permanent) ⌝
+        ∗ ⌜ (std (revoke W_init_C)) !! (cgp_b ^+1)%a = (if is_pending then None else Some Permanent) ⌝
+        )
+      )%I with "[HWreg_C Hcgp_main HWstd_full_C]"
+      as (is_pending v_b v_a
+         ) "(>Hcgp_b & >Hcgp_a & >Hshot & #Hrels & Hstd & HWreg_C & HWstd_full_C & >%Hcgp_b & >%Hcgp_a)".
+    {
+      iDestruct "Hcgp_main" as
+        "[ (Hshot & Hcgp_main & >%Hcgp_b & >%Hcgp_a) | (Hshot & #Hrel_b & #Hrel_a & >%Hcgp_b & >%Hcgp_a) ]"
+      ; [iExists true | iExists false].
+      + iNext.
+        iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
+        { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
+        { solve_addr. }
+        iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_a _]".
+        { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
+        { solve_addr. }
+        iFrame.
+        by rewrite not_elem_of_dom revoke_lookup_None in Hcgp_b
+        ; rewrite not_elem_of_dom revoke_lookup_None in Hcgp_a.
+      + iNext.
+        rewrite region_open_nil.
+        apply revoke_lookup_Perm in Hcgp_b, Hcgp_a.
+        assert (cgp_b ≠ (cgp_b ^+ 1)%a) as Hdif by solve_addr+Hcgp_contiguous.
+        iDestruct (region_open_next with "[$HWreg_C $HWstd_full_C $Hrel_b]")
+          as (v_b) "(HWstd_full_C & Hstd_cgp_b & HWreg_C & Hcgp_b & Hmono_cgp_b & [Heq_b Hsafe_cgp_b] & _)"
+        ; eauto; [solve_pure|set_solver+|cbn].
+        iDestruct (region_open_next with "[$HWreg_C $HWstd_full_C $Hrel_a]")
+          as (v_a) "(HWstd_full_C & Hstd_cgp_a & HWreg_C & Hcgp_a & Hmono_cgp_a & [Heq_a Hsafe_cgp_a] & _)"
+        ; eauto; [solve_pure|set_solver+Hdif|cbn].
+        iFrame "∗#%".
+        iNext.
+        iDestruct "Heq_b" as "->".
+        iDestruct "Heq_a" as "->".
+        cbn; iFrame.
+        done.
+    }
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
     (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
@@ -193,12 +292,12 @@ Section DROE.
     iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
 
     (* Extract the addresses of b and a *)
-    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_a _]".
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
+    (* iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]". *)
+    (* { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. } *)
+    (* { solve_addr. } *)
+    (* iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_a _]". *)
+    (* { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. } *)
+    (* { solve_addr. } *)
 
     (* Extract the imports *)
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
@@ -341,120 +440,121 @@ Section DROE.
 
     set (rmap' := (delete ca5 _)).
 
+    iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_b]") as "%Hcgp_b_stk".
+    iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_a]") as "%Hcgp_a_stk".
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W_init_C.1 !! a = Some Temporary⌝)%I as "Hstack_temporary".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_Winit_C_csp"); eauto. }
 
-    iMod (monotone_revoke_stack with "[$Hinterp_Winit_C_csp $HWstd_full_C $HWreg_C]")
-        as "(HWstd_full_C & HWreg_C & Hstk')".
-    iAssert (
+    iAssert
+      (
         |={⊤}=>
-          ([∗ list] a ∈ finz.seq_between csp_b csp_e,
-             closing_revoked_resources W_init_C C a
-             ∗ ⌜(revoke W_init_C).1 !! a = Some Revoked⌝
-             ∗ ∃ v, a ↦ₐ v
+          (
+            region (<s[(cgp_b ^+1)%a := Permanent ]s>(<s[cgp_b := Permanent ]s> (revoke W_init_C))) C
+            ∗ rel C cgp_b RO_DRO (safeC (interp_ro_eq (WInt 42)))
+            ∗ rel C (cgp_b ^+1)%a RO_DRO (safeC (interp_ro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+            ∗ sts_full_world (<s[ (cgp_b ^+1)%a := Permanent ]s>(<s[cgp_b := Permanent ]s>(revoke W_init_C))) C
+            ∗ shot_token γ
           )
-      )%I with "[Hstk' Hlc]" as ">Hstk'".
-    {
-      rewrite !big_sepL_sep.
-      iDestruct "Hstk'" as "[Hstk' $]".
-      iDestruct (big_sepL_later_2 with "Hstk'") as "Hstk'".
-      iDestruct (lc_fupd_elim_later with "[$] [$Hstk']") as ">Hstk'".
-      iModIntro.
-      rewrite -big_sepL_sep.
-      iApply (big_sepL_impl with "Hstk'").
-      iModIntro; iIntros (k a Hx) "Hrev".
-      iDestruct (close_revoked_resources with "Hrev") as (v) "[$ $]".
-    }
-    iAssert (
-        ∃ stk_mem,
-         ([∗ list] a ∈ finz.seq_between csp_b csp_e,
-          closing_revoked_resources W_init_C C a ∗ ⌜(revoke W_init_C).1 !! a = Some Revoked⌝)
-         ∗ [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]]
-      )%I with "[Hstk']" as (stk_mem) "[Hclose_res Hcsp_stk]".
-    { rewrite !big_sepL_sep.
-      iDestruct "Hstk'" as "(Hclose & Hrev & Hv)".
-      iDestruct (big_sepL_sep with "[$Hclose $Hrev]") as "$".
-      by iApply region_addrs_exists.
-    }
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_b]") as "%Hcgp_b_stk".
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_a]") as "%Hcgp_a_stk".
+      )%I with "[HWreg_C HWstd_full_C Hcgp_b Hcgp_a Hstd Hshot]" as
+      ">(HWreg_C & #Hrel_cgp_b & #Hrel_cgp_a & HWstd_full_W & #Hshot)".
+    { destruct is_pending.
+      - match goal with
+        | _ : _ |- context [ region ?W' ] => set (W0 := W')
+        end.
 
-    match goal with
-    | _ : _ |- context [ region ?W' ] => set (W0 := W')
-    end.
+        iMod (extend_region_perm _ W0 _ _ _ RO_DRO (safeC (interp_ro_eq (WInt 42)))
+               with "[] [$HWstd_full_C] [$HWreg_C] [$Hcgp_b] []")
+          as "(HWreg_C & Hrel_cgp_b & HWstd_full_C)".
+        { done. }
+        { subst W0.
+          by rewrite not_elem_of_dom.
+        }
+        { rewrite /future_priv_mono.
+          iIntros "!>" (W W' Hrelared) "[% H]"; cbn.
+          iSplitR; [done | by rewrite !fixpoint_interp1_eq].
+        }
+        { cbn.
+          iSplitR; [done | by rewrite !fixpoint_interp1_eq].
+        }
 
-    iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_ro_eq (WInt 42)))
-        with "[] [$HWstd_full_C] [$HWreg_C] [$Hcgp_b] []")
-      as "(HWreg_C & #Hrel_cgp_b & HWstd_full_C)".
-    { done. }
-    { subst W0.
-      by rewrite -revoke_dom_eq.
-    }
-    { rewrite /future_priv_mono.
-      iIntros "!>" (W W' Hrelared) "[% H]"; cbn.
-      iSplitR; [done | by rewrite !fixpoint_interp1_eq].
-    }
-    { cbn.
-      iSplitR; [done | by rewrite !fixpoint_interp1_eq].
+        match goal with
+        | _ : _ |- context [ region ?W' ] => set (W1 := W')
+        end.
+
+        iAssert (interp W1 C (WCap RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
+        { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
+          rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
+          rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
+          iApply big_sepL_singleton.
+          iExists RO_DRO, (interp_ro_eq _).
+          iEval (cbn).
+          iSplit; first done.
+          iSplit.
+          { iPureIntro; intros WCv; tc_solve. }
+          iSplit; first iFrame "Hrel_cgp_b".
+          iSplit.
+          { iIntros "!>" (W1').
+            iIntros "!>" (W1'' z) "[-> H]".
+            rewrite /interp_ro_eq /=.
+            iSplitR; [done | by rewrite !fixpoint_interp1_eq].
+          }
+          iSplit.
+          { iIntros "!>" (W1').
+            iIntros "!>" (w') "[-> H]".
+            done.
+          }
+          iSplit; first done.
+          subst W0.
+          iSplit.
+          + rewrite /monoReq; simplify_map_eq.
+            iIntros (?) "%Hcontra"; rewrite /canStore in Hcontra.
+            destruct (isLocalWord w); done.
+          + iPureIntro.
+            by rewrite lookup_insert.
+        }
+
+        iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_ro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+               with "[] [$HWstd_full_C] [$HWreg_C] [$Hcgp_a] []")
+          as "(HWreg_C & Hrel_cgp_a & HWstd_full_C)".
+        { done. }
+        { subst W1.
+          cbn; rewrite dom_insert_L not_elem_of_union; split.
+          + rewrite not_elem_of_singleton; solve_addr+Hcgp_contiguous.
+          + by rewrite not_elem_of_dom.
+        }
+        { rewrite /future_priv_mono.
+          iIntros "!>" (W W' Hrelared) "[% H]"; cbn.
+          iSplitR; [done |].
+          iApply monotone.interp_monotone_nl; eauto.
+        }
+        { cbn. iSplit; done. }
+        iMod (shoot with "Hshot") as "[? $]".
+        by iFrame.
+      - iModIntro.
+        iDestruct "Hrels" as "[ (Heq_b & Hmono_b & Hrel_b) (Heq_a & Hmono_a & Hrel_a)]".
+        iDestruct "Hstd" as "[Hstd_b Hstd_a]".
+        assert (cgp_b ≠ (cgp_b ^+ 1)%a) as Hdif by solve_addr+Hcgp_contiguous.
+        iDestruct (region_close_next with "[$HWreg_C $Hcgp_a $Hstd_a $Hrel_a]") as "HWreg_C"
+        ; auto
+        ; first set_solver+Hdif.
+        iDestruct (region_close_next with "[$HWreg_C $Hcgp_b $Hstd_b $Hrel_b]") as "HWreg_C"
+        ; auto
+        ; first set_solver.
+        rewrite -region_open_nil.
+        replace
+          (<s[(cgp_b ^+ 1)%a:=Permanent]s>(<s[cgp_b:=Permanent]s>(revoke W_init_C)))
+            with (revoke W_init_C); first iFrame "∗#".
+        destruct W_init_C as [wsta wstd]; cbn.
+        rewrite /revoke /std_update; cbn.
+        rewrite (insert_id _ cgp_b); last done.
+        rewrite insert_id; done.
     }
 
-    match goal with
-    | _ : _ |- context [ region ?W' ] => set (W1 := W')
-    end.
-
-    iAssert (interp W1 C (WCap RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
-    { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
-      rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
-      rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
-      iApply big_sepL_singleton.
-      iExists RO_DRO, (interp_ro_eq _).
-      iEval (cbn).
-      iSplit; first done.
-      iSplit.
-      { iPureIntro; intros WCv; tc_solve. }
-      iSplit; first iFrame "Hrel_cgp_b".
-      iSplit.
-      { iIntros "!>" (W1').
-        iIntros "!>" (W1'' z) "[-> H]".
-        rewrite /interp_ro_eq /=.
-        iSplitR; [done | by rewrite !fixpoint_interp1_eq].
-      }
-      iSplit.
-      { iIntros "!>" (W1').
-        iIntros "!>" (w') "[-> H]".
-        done.
-      }
-      iSplit; first done.
-      subst W0.
-      iSplit.
-      + rewrite /monoReq; simplify_map_eq.
-        iIntros (?) "%Hcontra"; rewrite /canStore in Hcontra.
-        destruct (isLocalWord w); done.
-      + iPureIntro.
-        by rewrite lookup_insert.
-    }
-
-    iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_ro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
-        with "[] [$HWstd_full_C] [$HWreg_C] [$Hcgp_a] []")
-      as "(HWreg_C & Hrel_cgp_a & HWstd_full_C)".
-    { done. }
-    { subst W1.
-      cbn; rewrite dom_insert_L not_elem_of_union; split.
-      + rewrite not_elem_of_singleton; solve_addr+Hcgp_contiguous.
-      + by rewrite -revoke_dom_eq.
-    }
-    { rewrite /future_priv_mono.
-      iIntros "!>" (W W' Hrelared) "[% H]"; cbn.
-      iSplitR; [done |].
-      iApply monotone.interp_monotone_nl; eauto.
-    }
-    { cbn. iSplit; done. }
-
-    match goal with
-    | _ : _ |- context [ region ?W' ] => set (W2 := W')
-    end.
+    set (W0 := (revoke W_init_C)).
+    set (W1 := (<s[cgp_b:=Permanent]s>W0)).
+    set (W2 := (<s[(cgp_b ^+ 1)%a:=Permanent]s>W1)).
 
     assert (related_sts_priv_world W_init_C W2) as HWinit_privC_W2.
     { subst W2.
@@ -509,19 +609,20 @@ Section DROE.
     }
 
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    (* TODO
-       But I can't close the invariant because I don't have the points-to...
-       They are in the world. Maybe the invariant should then say that ?
-       i.e. in the shot state, I have the rel relations instead?
-       Or should I use the custom world instead?
-       Ask @Aina
-     *)
     iMod ( "Hmem_close" with
-           "[Hcgp_val Hcgp_b Hcgp_a Hna Hcode
+           "[$Hna Hcode_main
            Himport_switcher Himport_assert Himport_C_f]
            " ) as "?".
+    { iNext.
+      iFrame.
+      iSplitR "".
+      admit.
+      iRight; iFrame "#".
+      (* well, it's only true in the case `is_pending = false`,
+         so idk how to prove it now...
+       *)
 
-      )
+    }
     iEval (cbn) in "Hct1".
     iApply (switcher_cc_specification _ W2 with
              "[- $Hswitcher $Hna
