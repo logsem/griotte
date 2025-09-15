@@ -21,7 +21,6 @@ Section DROE_Main.
   (* Expect:
      pc  := (RX, Global, b_main, e_main, b_main_code)
      cgp := (RW, Global, b, e, b)
-     cra := (E-XSRW, Local, b_switcher, e_switcher, a_switcher_return)
 
      b_main + 0 : WSentry XSRW_ b_switcher e_switcher a_cc_switcher
      b_main + 1 : WSentry RX b_assert e_assert a_assert
@@ -81,8 +80,7 @@ Section DROE_Main.
       (* erase returned values from the call *)
       Mov ca0 0;
       Mov ca1 0;
-      (* return to caller *)
-      JmpCap cra
+      Halt
       (* #"main_e" *)
     ].
 

@@ -139,6 +139,7 @@ theories/examples/cmdc/cmdc_adequacy.v
 
 ## Deep immutability (droe)
 theories/examples/droe/deep_immutability.v
+theories/examples/droe/deep_immutability_spec.v
 
 ## Deep locality (dle)
 

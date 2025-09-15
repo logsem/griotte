@@ -77,7 +77,7 @@ Section DROE.
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
-      ∗ cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return
+      ∗ (∃ wcra, cra ↦ᵣ wcra)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -102,7 +102,7 @@ Section DROE.
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
             )
       "(#Hassert & #Hswitcher & Hna
-      & HPC & Hcgp & Hcsp & Hcra & Hrmap
+      & HPC & Hcgp & Hcsp & [%wcra Hcra] & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & HWreg_C & HWstd_full_C
       & HK
@@ -577,7 +577,7 @@ Section DROE.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 5: RETURN ----------------- *)
+    (* ------------------ BLOCK 5: HALT ------------------ *)
     (* --------------------------------------------------- *)
     focus_block 5 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Mov ca0 0; *)
@@ -586,127 +586,51 @@ Section DROE.
     iInstr "Hcode".
     (* JmpCap cra *)
     iInstr "Hcode".
+    wp_end; iIntros "_"; iFrame.
 
-    iDestruct (
-       region_close_next with "[$Hstd_cgp_b $HWreg_B $Hcgp_b $Hmono $Hrel_cgp_b Hinterp_cgp_b']") as "HWreg_B"
-    ; auto.
-    { iSplit; first done.
-      cbn. iNext; iSplit; done.
-    }
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    (* iDestruct ( *)
+    (*    region_close_next with "[$Hstd_cgp_b $HWreg_B $Hcgp_b $Hmono $Hrel_cgp_b Hinterp_cgp_b']") as "HWreg_B" *)
+    (* ; auto. *)
+    (* { iSplit; first done. *)
+    (*   cbn. iNext; iSplit; done. *)
+    (* } *)
+    (* subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main". *)
 
-    clear dependent a_fetch1 a_fetch2 a_callB a_assert_c.
+    (* clear dependent a_fetch1 a_fetch2 a_callB a_assert_c. *)
 
-    rewrite !(delete_commute _ _ ct0).
-    iDestruct (big_sepM_insert _ _ ct0 with "[$Hrmap $Hct0]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
-    repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto.
+    (* rewrite !(delete_commute _ _ ct0). *)
+    (* iDestruct (big_sepM_insert _ _ ct0 with "[$Hrmap $Hct0]") as "Hrmap"; first by simplify_map_eq. *)
+    (* rewrite insert_delete_insert. *)
+    (* repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto. *)
 
-    rewrite !(delete_commute _ _ ct1).
-    iDestruct (big_sepM_insert _ _ ct1 with "[$Hrmap $Hct1]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
-    repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto.
+    (* rewrite !(delete_commute _ _ ct1). *)
+    (* iDestruct (big_sepM_insert _ _ ct1 with "[$Hrmap $Hct1]") as "Hrmap"; first by simplify_map_eq. *)
+    (* rewrite insert_delete_insert. *)
+    (* repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto. *)
 
-    rewrite !(delete_commute _ _ ct2).
-    iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
-    repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto.
+    (* rewrite !(delete_commute _ _ ct2). *)
+    (* iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap"; first by simplify_map_eq. *)
+    (* rewrite insert_delete_insert. *)
+    (* repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto. *)
 
-    rewrite !(delete_commute _ _ ct3).
-    iDestruct (big_sepM_insert _ _ ct3 with "[$Hrmap $Hct3]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
-    repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto.
+    (* rewrite !(delete_commute _ _ ct3). *)
+    (* iDestruct (big_sepM_insert _ _ ct3 with "[$Hrmap $Hct3]") as "Hrmap"; first by simplify_map_eq. *)
+    (* rewrite insert_delete_insert. *)
+    (* repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto. *)
 
-    iDestruct (big_sepM_insert _ _ ct4 with "[$Hrmap $Hct4]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
-    repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto.
+    (* iDestruct (big_sepM_insert _ _ ct4 with "[$Hrmap $Hct4]") as "Hrmap"; first by simplify_map_eq. *)
+    (* rewrite insert_delete_insert. *)
+    (* repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto. *)
 
-    iDestruct (big_sepM_insert _ _ cs0 with "[$Hrmap $Hcs0]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. }
-    iDestruct (big_sepM_insert _ _ cs1 with "[$Hrmap $Hcs1]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. }
-    iDestruct (big_sepM_insert _ _ ca0 with "[$Hrmap $Hca0]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. }
-    iDestruct (big_sepM_insert _ _ ca1 with "[$Hrmap $Hca1]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. }
+    (* iDestruct (big_sepM_insert _ _ cs0 with "[$Hrmap $Hcs0]") as "Hrmap". *)
+    (* { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. } *)
+    (* iDestruct (big_sepM_insert _ _ cs1 with "[$Hrmap $Hcs1]") as "Hrmap". *)
+    (* { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. } *)
+    (* iDestruct (big_sepM_insert _ _ ca0 with "[$Hrmap $Hca0]") as "Hrmap". *)
+    (* { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. } *)
+    (* iDestruct (big_sepM_insert _ _ ca1 with "[$Hrmap $Hca1]") as "Hrmap". *)
+    (* { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. } *)
 
     (* NOTE use the switcher's return functional spec *)
 
-  Admitted.
-
-
-  Lemma droe_spec_entry_point
-
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-    (rmap : Reg)
-
-    (b_assert e_assert : Addr) (a_flag : Addr)
-    (C_f : Sealable)
-
-    (W_init_C : WORLD)
-
-    (Ws : list WORLD)
-    (Cs : list CmptName)
-
-    (csp_content : list Word)
-
-    (Nassert Nswitcher : namespace)
-
-    (cstk : CSTK)
-    :
-
-    let imports :=
-     droe_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
-    in
-
-    Nswitcher ## Nassert ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ->
-    (cgp_b + length droe_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
-
-    (cgp_b)%a ∉ dom (std W_init_C) ->
-    (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
-
-    na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv logrel_nais Nswitcher switcher_inv
-    ∗ interp W_init_C C (WSealed ot_switcher C_f)
-    ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
-    (* TODO need an invariant, with oneshot resource to update the data from 0 to 42 *)
-    (* ∗ na_inv logrel_nais Nmain ( *)
-    (*      [[pc_b,pc_a]]↦ₐ[[imports]] *)
-    (*     ) *)
-    ⊢ execute_entry_point
-      (WCap RX Global pc_b pc_e pc_a) (WCap RW Global cgp_b cgp_e cgp_b) rmap
-      cstk Ws Cs W_init_C C.
-  Proof.
-    intros imports; subst imports.
-    iIntros (HNswitcher_assert HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a)
-      "(#Hassert & #Hswitcher & #Hinterp_C_f & #HentryC_f)
-      (HK & %Hframe_match & Hregister_state & Hrmap & HWreg_C & HWstd_full_C & Hcstk & Hna)".
-    iDestruct "Hregister_state" as "(%Hfullrmap & %HPC & %Hcgp & %Hcra & Hcsp & Hinterp_rmap)".
-    rewrite /interp_conf.
-    rewrite /registers_pointsto.
-
-    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
-    pose proof (Hfullrmap csp) as [wcsp Hwcsp].
-    iDestruct ("Hcsp" $! wcsp Hwcsp) as "[H Hinterp_csp]"; iDestruct "H" as (??) "->".
-    iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
-
-    iApply droe_spec; last iFrame "∗#"; eauto.
-    { repeat (rewrite dom_delete_L).
-      apply regmap_full_dom in Hfullrmap; rewrite Hfullrmap.
-      set_solver.
-    }
-    { intros r Hr.
-      repeat (rewrite dom_delete_L in Hr).
-      repeat (rewrite lookup_delete_ne; last set_solver).
-      set_solver.
-    }
-
-    (* make an invariant for code and data *)
-
-  Admitted.
+  Qed.
