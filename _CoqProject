@@ -146,5 +146,7 @@ theories/examples/counter/counter.v
 theories/examples/counter/counter_spec.v
 
 ## Deep locality (dle)
+theories/examples/dle/deep_locality.v
+theories/examples/dle/deep_locality_spec.v
 
 ## Double Share (dshare)
