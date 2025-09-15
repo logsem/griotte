@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel interp_weakening monotone.
 From cap_machine Require Import cmdc cmdc_spec.
-From cap_machine Require Import switcher switcher_spec assert logrel.
+From cap_machine Require Import switcher assert logrel.
 From cap_machine Require Import mkregion_helpers.
 From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
 From iris.program_logic Require Import adequacy.
