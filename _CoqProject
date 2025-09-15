@@ -141,6 +141,10 @@ theories/examples/cmdc/cmdc_adequacy.v
 theories/examples/droe/deep_immutability.v
 theories/examples/droe/deep_immutability_spec.v
 
+## Counter (closure around increment)
+theories/examples/counter/counter.v
+theories/examples/counter/counter_spec.v
+
 ## Deep locality (dle)
 
 ## Double Share (dshare)
