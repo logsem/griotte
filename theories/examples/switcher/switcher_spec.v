@@ -37,8 +37,9 @@ Section Switcher.
     (csp_e csp_b cgp_b cgp_e: Addr)
     (stk_mem : list Word)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (wca0 wca1 : Word)
     :
-    dom rmap = all_registers_s ∖ ({[ PC ; csp ]} ∪ dom_arg_rmap) ->
+    dom rmap = all_registers_s ∖ ({[ PC ; csp ; ca0 ; ca1 ]} ) ->
     frame_match Ws Cs cstk W0 C ->
 
     (* Switcher Invariant *)
@@ -53,12 +54,14 @@ Section Switcher.
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ open_region_many W C (finz.seq_between (csp_b ^+ 4)%a csp_e)
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
+    ∗ ca0 ↦ᵣ wca0
+    ∗ ca1 ↦ᵣ wca1
     ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
     iIntros (Hrmap Hframe) "(#Hswitcher & Hcls_stk & #Hstktemp & Hstk & Hcstk & Hcont & Hsts & Hna
-    & HPC & Hr & Hrmap & Hcsp)".
+    & HPC & Hr & Hrmap & Hca0 & Hca1 & Hcsp)".
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hswitcher Hna")
@@ -75,7 +78,7 @@ Section Switcher.
     rewrite {2}/switcher_instrs.
     assert (SubBounds b_switcher e_switcher a_switcher_return (a_switcher_call ^+(length switcher_instrs))%a)
       by solve_addr.
-    
+
     focus_block_nochangePC 1 "Hcode" as a_ret Ha_ret "Hcode" "Hcls". iHide "Hcls" as hcont.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
@@ -105,7 +108,7 @@ Section Switcher.
       iNext; iIntros "_".
       wp_pure; wp_end ; by iIntros (?).
     }
-    
+
     iDestruct (cstack_agree with "Hcstk_full [$]") as %Heq; subst cstk'.
 
     destruct cstk as [|frm cstk]; iEval (cbn) in "Hstk_interp"; cbn in Hlen_cstk.
@@ -131,7 +134,6 @@ Section Switcher.
       (* WriteSR mtdc ctp *)
       iInstr "Hcode".
       (* Lea csp (-1)%Z *)
-
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (rules_Lea.wp_Lea_fail_integer with "[HPC Hi Hcsp]")
@@ -143,9 +145,8 @@ Section Switcher.
 
     destruct Ws,Cs;try done. simpl in Hframe.
     destruct Hframe as [<- [<- Hframe] ].
-    
+
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
-    
     destruct frm.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
@@ -194,7 +195,12 @@ Section Switcher.
 
     set (stk_len := finz.dist (csp_b ^+ 4)%a csp_e).
     set (stk_ws := repeat (WInt 0) stk_len).
-    
+
+    (* NOTE in the case of untrusted code calling,
+       it means that the addresses (astk, astk+4) are stored in the world,
+       but remember that we revoked the world,
+       so the callee needs to pass the revoked addresses!
+     *)
     iAssert (
         ∃ wastk wastk1 wastk2 wastk3,
           let la := (if is_untrusted_caller then finz.seq_between a_stk csp_e
@@ -231,9 +237,15 @@ Section Switcher.
                     as "(Hr & Hsts & Hres)"; auto.
         { eapply finz_seq_between_NoDup. }
         { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
-          apply elem_of_finz_seq_between in Ha'; solve_addr.
+          apply elem_of_finz_seq_between in Ha'.
+          eapply Ha'.
         }
-        { set_solver. }
+        { admit. }
+        { rewrite /interp_callee_part_of_the_stack /=.
+          cbn in Hframe.
+          rewrite /frame_match in Hframe.
+
+        }
         do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
         rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
         cbn.
@@ -252,7 +264,7 @@ Section Switcher.
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcgp".
-    
+
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
     { by transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
