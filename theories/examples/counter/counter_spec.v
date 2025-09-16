@@ -136,7 +136,7 @@ Section DROE.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_Winit_C_csp"); eauto. }
 
     iMod (monotone_revoke_stack with "[$Hinterp_Winit_C_csp $HWstd_full_C $HWreg_C]")
-        as "(HWstd_full_C & HWreg_C & Hstk & Hrevoked_rest)".
+        as (l_unk) "(%Hl_unk & HWstd_full_C & HWreg_C & Hstk & Hrevoked_rest)".
     iAssert (
         |={⊤}=>
           ▷ ([∗ list] a ∈ finz.seq_between csp_b csp_e,
