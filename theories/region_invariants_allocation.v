@@ -81,7 +81,7 @@ Section region_alloc.
     isO p = false ->
      a ∉ dom (std W) →
      (isWL p) = false →
-     (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v) -∗
+     (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
      sts_full_world W C -∗
      region W C -∗
      a ↦ₐ v -∗
@@ -127,7 +127,7 @@ Section region_alloc.
         iFrame "∗ #".
         repeat(iSplitR;[auto|]).
         destruct (isDL p); iApply "HmonoV"; eauto.
-        + by iPureIntro; apply related_sts_pub_borrow_world.
+        + by iPureIntro; apply related_sts_pub_pub_world.
         + by iPureIntro; apply related_sts_pub_priv_world.
       }
       iApply (big_sepM_mono with "Hpreds'").
@@ -142,7 +142,7 @@ Section region_alloc.
     isO p = false ->
     a ∉ dom (std W) →
     (if isWL p then future_pub_mono C φ v else
-       (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)) -∗
+       (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)) -∗
     sts_full_world W C -∗
     region W C -∗
     a ↦ₐ v -∗
@@ -322,7 +322,7 @@ Section region_alloc.
           k ↦ₐ v
           ∗ φ (W, C, v)
           ∗ (if isWL p then future_pub_mono C φ v else
-               (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)) )
+               (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)) )
 
     ={E}=∗
 
@@ -358,7 +358,7 @@ Section region_alloc.
           intros. by rewrite not_elem_of_dom.
         + destruct (isDL p).
           ++ iApply ("Hf" with "[] Hφ"). iPureIntro.
-             apply related_sts_pub_borrow_world, related_sts_pub_update_multiple.
+             apply related_sts_pub_update_multiple.
              eapply Forall_impl; eauto.
              intros. by rewrite not_elem_of_dom.
           ++ iApply ("Hf" with "[] Hφ"). iPureIntro.
