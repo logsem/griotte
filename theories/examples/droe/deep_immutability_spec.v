@@ -588,51 +588,6 @@ Section DROE.
     iInstr "Hcode".
     wp_end; iIntros "_"; iFrame.
 
-    (* iDestruct ( *)
-    (*    region_close_next with "[$Hstd_cgp_b $HWreg_B $Hcgp_b $Hmono $Hrel_cgp_b Hinterp_cgp_b']") as "HWreg_B" *)
-    (* ; auto. *)
-    (* { iSplit; first done. *)
-    (*   cbn. iNext; iSplit; done. *)
-    (* } *)
-    (* subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main". *)
-
-    (* clear dependent a_fetch1 a_fetch2 a_callB a_assert_c. *)
-
-    (* rewrite !(delete_commute _ _ ct0). *)
-    (* iDestruct (big_sepM_insert _ _ ct0 with "[$Hrmap $Hct0]") as "Hrmap"; first by simplify_map_eq. *)
-    (* rewrite insert_delete_insert. *)
-    (* repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto. *)
-
-    (* rewrite !(delete_commute _ _ ct1). *)
-    (* iDestruct (big_sepM_insert _ _ ct1 with "[$Hrmap $Hct1]") as "Hrmap"; first by simplify_map_eq. *)
-    (* rewrite insert_delete_insert. *)
-    (* repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto. *)
-
-    (* rewrite !(delete_commute _ _ ct2). *)
-    (* iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap"; first by simplify_map_eq. *)
-    (* rewrite insert_delete_insert. *)
-    (* repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto. *)
-
-    (* rewrite !(delete_commute _ _ ct3). *)
-    (* iDestruct (big_sepM_insert _ _ ct3 with "[$Hrmap $Hct3]") as "Hrmap"; first by simplify_map_eq. *)
-    (* rewrite insert_delete_insert. *)
-    (* repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto. *)
-
-    (* iDestruct (big_sepM_insert _ _ ct4 with "[$Hrmap $Hct4]") as "Hrmap"; first by simplify_map_eq. *)
-    (* rewrite insert_delete_insert. *)
-    (* repeat (rewrite -delete_insert_ne //); rewrite insert_id; auto. *)
-
-    (* iDestruct (big_sepM_insert _ _ cs0 with "[$Hrmap $Hcs0]") as "Hrmap". *)
-    (* { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. } *)
-    (* iDestruct (big_sepM_insert _ _ cs1 with "[$Hrmap $Hcs1]") as "Hrmap". *)
-    (* { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. } *)
-    (* iDestruct (big_sepM_insert _ _ ca0 with "[$Hrmap $Hca0]") as "Hrmap". *)
-    (* { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. } *)
-    (* iDestruct (big_sepM_insert _ _ ca1 with "[$Hrmap $Hca1]") as "Hrmap". *)
-    (* { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap'; set_solver+. } *)
-
-    (* NOTE use the switcher's return functional spec *)
-
   Qed.
 
 End DROE.
