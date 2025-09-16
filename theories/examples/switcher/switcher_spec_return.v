@@ -244,85 +244,85 @@ Section Switcher.
         { rewrite /interp_callee_part_of_the_stack /=.
           cbn in Hframe.
           rewrite /frame_match in Hframe.
+  Admitted.
+  (*       } *)
+  (*       do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1). *)
+  (*       rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+. *)
+  (*       cbn. *)
+  (*       replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4. *)
+  (*       replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4. *)
+  (*       cbn. *)
+  (*       iDestruct "Hres" as "(Hres0 & Hres1 & Hres2 & Hres3 & _)". *)
+  (*       iDestruct (opening_closing_resources with "Hres0") as (wastk) "[Hres0 $]". *)
+  (*       iDestruct (opening_closing_resources with "Hres1") as (wastk1) "[Hres1 $]". *)
+  (*       iDestruct (opening_closing_resources with "Hres2") as (wastk2) "[Hres2 $]". *)
+  (*       iDestruct (opening_closing_resources with "Hres3") as (wastk3) "[Hres3 $]". *)
+  (*       iFrame. *)
+  (*   } *)
 
-        }
-        do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
-        rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
-        cbn.
-        replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
-        replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
-        cbn.
-        iDestruct "Hres" as "(Hres0 & Hres1 & Hres2 & Hres3 & _)".
-        iDestruct (opening_closing_resources with "Hres0") as (wastk) "[Hres0 $]".
-        iDestruct (opening_closing_resources with "Hres1") as (wastk1) "[Hres1 $]".
-        iDestruct (opening_closing_resources with "Hres2") as (wastk2) "[Hres2 $]".
-        iDestruct (opening_closing_resources with "Hres3") as (wastk3) "[Hres3 $]".
-        iFrame.
-    }
+  (*   (* --- Load cgp csp --- *) *)
+  (*   iInstr "Hcode". *)
+  (*   { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. } *)
+  (*   iEval (cbn) in "Hcgp". *)
 
-    (* --- Load cgp csp --- *)
-    iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
-    iEval (cbn) in "Hcgp".
+  (*   (* --- Lea csp (-1)%Z --- *) *)
+  (*   iInstr "Hcode". *)
+  (*   { by transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. } *)
 
-    (* --- Lea csp (-1)%Z --- *)
-    iInstr "Hcode".
-    { by transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
+  (*   (* Load ca2 csp *) *)
+  (*   iInstr "Hcode". *)
+  (*   { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. } *)
+  (*   iEval (cbn) in "Hca2". *)
+  (*   (* Lea csp (-1)%Z *) *)
+  (*   iInstr "Hcode". *)
+  (*   { by transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. } *)
+  (*   (* Load cs1 csp *) *)
+  (*   iInstr "Hcode". *)
+  (*   { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. } *)
+  (*   iEval (cbn) in "Hcs1". *)
+  (*   (* Lea csp (-1)%Z *) *)
+  (*   iInstr "Hcode". *)
+  (*   { by transitivity (Some a_stk); solve_addr. } *)
+  (*   (* Load cs0 csp *) *)
+  (*   iInstr "Hcode". *)
+  (*   { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. } *)
+  (*   iEval (cbn) in "Hcs0". *)
+  (*   (* GetE ct0 csp *) *)
+  (*   iInstr "Hcode". *)
+  (*   (* GetA ct1 csp *) *)
+  (*   iInstr "Hcode". *)
 
-    (* Load ca2 csp *)
-    iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
-    iEval (cbn) in "Hca2".
-    (* Lea csp (-1)%Z *)
-    iInstr "Hcode".
-    { by transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
-    (* Load cs1 csp *)
-    iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
-    iEval (cbn) in "Hcs1".
-    (* Lea csp (-1)%Z *)
-    iInstr "Hcode".
-    { by transitivity (Some a_stk); solve_addr. }
-    (* Load cs0 csp *)
-    iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
-    iEval (cbn) in "Hcs0".
-    (* GetE ct0 csp *)
-    iInstr "Hcode".
-    (* GetA ct1 csp *)
-    iInstr "Hcode".
+  (*   unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont. *)
 
-    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
+  (*   { i} *)
 
-    { i}
-
-    iAssert (
-        ∃ wastk wastk1 wastk2 wastk3,
-        let la := (if is_untrusted_caller then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in
-        let lv := (if is_untrusted_caller then [wastk;wastk1;wastk2;wastk3] else []) in
-          a_stk ↦ₐ wastk
-          ∗ (a_stk ^+ 1)%a ↦ₐ wastk1
-          ∗ (a_stk ^+ 2)%a ↦ₐ wastk2
-          ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
-          ∗ ▷ ([∗ list] a ; v ∈ la ; lv, ▷ closing_resources interp W C a v)
-          ∗ ⌜if is_untrusted_caller then True else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wret ∧ wastk3 = wcgp0)⌝
-          ∗ open_region_many W C la
-          ∗ sts_full_world W C
-      )%I
-      with "[Hcframe_interp Hr Hsts]" as "Hcframe_interp"
-    ; [|iDestruct "Hcframe_interp" as
-        (wastk wastk1 wastk2 wastk3) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hclose_res & %Hwastks & Hr & Hsts)"
-      ].
-
-
-    iInstr "Hcode"; try solve_pure.
+  (*   iAssert ( *)
+  (*       ∃ wastk wastk1 wastk2 wastk3, *)
+  (*       let la := (if is_untrusted_caller then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in *)
+  (*       let lv := (if is_untrusted_caller then [wastk;wastk1;wastk2;wastk3] else []) in *)
+  (*         a_stk ↦ₐ wastk *)
+  (*         ∗ (a_stk ^+ 1)%a ↦ₐ wastk1 *)
+  (*         ∗ (a_stk ^+ 2)%a ↦ₐ wastk2 *)
+  (*         ∗ (a_stk ^+ 3)%a ↦ₐ wastk3 *)
+  (*         ∗ ▷ ([∗ list] a ; v ∈ la ; lv, ▷ closing_resources interp W C a v) *)
+  (*         ∗ ⌜if is_untrusted_caller then True else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wret ∧ wastk3 = wcgp0)⌝ *)
+  (*         ∗ open_region_many W C la *)
+  (*         ∗ sts_full_world W C *)
+  (*     )%I *)
+  (*     with "[Hcframe_interp Hr Hsts]" as "Hcframe_interp" *)
+  (*   ; [|iDestruct "Hcframe_interp" as *)
+  (*       (wastk wastk1 wastk2 wastk3) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hclose_res & %Hwastks & Hr & Hsts)" *)
+  (*     ]. *)
 
 
-    [WriteSR mtdc ctp; Lea csp (-1)%Z; Load cgp csp;
-     Lea csp (-1)%Z; Load ca2 csp; Lea csp (-1)%Z; Load cs1 csp; Lea csp (-1)%Z; Load cs0 csp;
-     GetE ct0 csp; GetA ct1 csp] ++
-  clear_stack_instrs ct0 ct1 ++
-  encodeInstrsW [Mov cra ca2] ++ clear_registers_post_call_instrs ++ encodeInstrsW [JmpCap cra]
+  (*   iInstr "Hcode"; try solve_pure. *)
+
+
+  (*   [WriteSR mtdc ctp; Lea csp (-1)%Z; Load cgp csp; *)
+  (*    Lea csp (-1)%Z; Load ca2 csp; Lea csp (-1)%Z; Load cs1 csp; Lea csp (-1)%Z; Load cs0 csp; *)
+  (*    GetE ct0 csp; GetA ct1 csp] ++ *)
+  (* clear_stack_instrs ct0 ct1 ++ *)
+  (* encodeInstrsW [Mov cra ca2] ++ clear_registers_post_call_instrs ++ encodeInstrsW [JmpCap cra] *)
 
 
 
