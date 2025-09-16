@@ -151,7 +151,7 @@ Section heap.
     (std W) !! a = Some Revoked →
     isO p = false → isWL p = false →
 
-    (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v) -∗
+    (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
     sts_full_world W C -∗
     region W C -∗
     a ↦ₐ v -∗
@@ -228,7 +228,7 @@ Section heap.
     (std W) !! a = Some Revoked →
     isO p = false → isWL p = false →
 
-    (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v) -∗
+    (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
     sts_full_world W C -∗
     region W C -∗
     a ↦ₐ v -∗
@@ -242,18 +242,18 @@ Section heap.
   Proof.
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
     destruct (isDL p) eqn:Hpdl.
-    + assert (related_sts_borrow_world W (<s[ a := Temporary ]s> W)) as Hrelated.
-      { apply related_sts_pub_borrow_world,related_sts_pub_revoked_temp; auto. }
+    + assert (related_sts_pub_world W (<s[ a := Temporary ]s> W)) as Hrelated.
+      { apply related_sts_pub_revoked_temp; auto. }
       iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [Hφ]") as "Hφ'"; eauto.
-      replace (future_borrow_mono C φ v)
-        with (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)
+      replace (future_pub_mono C φ v)
+        with (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
       by (rewrite Hpdl;done).
       iApply (update_region_revoked_temp_nwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
     + assert (related_sts_priv_world W (<s[ a := Temporary ]s> W)) as Hrelated.
       { apply related_sts_pub_priv_world,related_sts_pub_revoked_temp; auto. }
       iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [Hφ]") as "Hφ'"; eauto.
       replace (future_priv_mono C φ v)
-        with (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v)
+        with (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
       by (rewrite Hpdl;done).
       iApply (update_region_revoked_temp_nwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
   Qed.
@@ -887,7 +887,7 @@ Section heap.
           ∗ a ↦ₐ v
           ∗ (if isWL p
              then future_pub_mono C φ v
-             else (if isDL p then future_borrow_mono C φ v else future_priv_mono C φ v))
+             else (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v))
           ∗ φ (W,C,v))%I.
 
 
@@ -967,7 +967,7 @@ Section heap.
            all: destruct (isWL p0).
            +++ iApply future_pub_mono_eq_pred; auto.
            +++ destruct (isDL p0).
-               ++++ iApply future_borrow_mono_eq_pred; auto.
+               ++++ iApply future_pub_mono_eq_pred; auto.
                ++++ iApply future_priv_mono_eq_pred; auto.
       + apply NoDup_cons in Hdup as [Hnin Hdup].
         apply submseteq_cons_r in Hsub as [Hsub | [l'' [Hcontr _] ] ].
@@ -1144,7 +1144,7 @@ Section heap.
   (*          all: destruct (isWL p0). *)
   (*          +++ iApply future_pub_mono_eq_pred; auto. *)
   (*          +++ destruct (isDL p0). *)
-  (*              ++++ iApply future_borrow_mono_eq_pred; auto. *)
+  (*              ++++ iApply future_pub_mono_eq_pred; auto. *)
   (*              ++++ iApply future_priv_mono_eq_pred; auto. *)
   (*     + apply NoDup_cons in Hdup as [Hnin Hdup]. *)
   (*       apply submseteq_cons_r in Hsub as [Hsub | [l'' [Hcontr _] ] ]. *)
@@ -1208,7 +1208,7 @@ Section heap.
     repeat iSplitR.
     - destruct (isWL p');
       [iApply future_pub_mono_eq_pred_rel|]; eauto.
-      destruct (isDL p'); [iApply future_borrow_mono_eq_pred_rel |iApply future_priv_mono_eq_pred_rel]; eauto.
+      destruct (isDL p'); [iApply future_pub_mono_eq_pred_rel |iApply future_priv_mono_eq_pred_rel]; eauto.
     - iNext. iSpecialize ("Hφeq'" $! (W,C,v)). iRewrite "Hφeq'". iFrame.
   Qed.
 
@@ -1510,7 +1510,7 @@ Section heap.
     iFrame "Hrel". iApply later_exist_2. iExists (v). iFrame.
     repeat iSplitR.
     - destruct (isWL p'); [iApply future_pub_mono_eq_pred_rel|]; eauto.
-      destruct (isDL p'); [iApply future_borrow_mono_eq_pred_rel|iApply future_priv_mono_eq_pred_rel]; eauto.
+      destruct (isDL p'); [iApply future_pub_mono_eq_pred_rel|iApply future_priv_mono_eq_pred_rel]; eauto.
     - iNext. iSpecialize ("Hφeq" $! (W,C,v)). iRewrite "Hφeq". iFrame.
   Qed.
 
@@ -1904,8 +1904,7 @@ Section heap.
           iAssert (future_pub_mono C φ a) as "#HmonoV'".
           { destruct (isWL p); first done.
             destruct (isDL p);
-              [iApply future_borrow_mono_is_future_pub_mono
-              |iApply future_priv_mono_is_future_pub_mono]; done. }
+              [done |iApply future_priv_mono_is_future_pub_mono]; done. }
           iNext. iApply "HmonoV'"; iFrame.
           iPureIntro. apply close_list_related_sts_pub_insert; auto.
         - iApply (big_sepM_mono with "Hr").
@@ -1917,8 +1916,7 @@ Section heap.
             iAssert (future_pub_mono C φ0 v) as "#HmonoV'".
             { destruct (isWL p'); first done.
             destruct (isDL p');
-              [iApply future_borrow_mono_is_future_pub_mono
-              |iApply future_priv_mono_is_future_pub_mono]; done. }
+              [done |iApply future_priv_mono_is_future_pub_mono]; done. }
             iFrame "∗#%".
             iNext. iApply ("HmonoV'" with "[] Hφ0"). iPureIntro.
             apply close_list_related_sts_pub_insert'; auto.
@@ -2015,7 +2013,6 @@ Section heap.
           - iFrame "∗#"; iApply ("HmonoV" with "[] Hφ"); auto.
           - destruct (isDL p).
             + iFrame "∗#"; iApply ("HmonoV" with "[] Hφ"); auto.
-              iPureIntro; apply related_sts_pub_borrow_world; auto.
             + iFrame "∗#"; iApply ("HmonoV" with "[] Hφ"); auto.
               iPureIntro; apply related_sts_pub_priv_world; auto.
         }
