@@ -127,8 +127,7 @@ Section region_alloc.
         iFrame "∗ #".
         repeat(iSplitR;[auto|]).
         destruct (isDL p); iApply "HmonoV"; eauto.
-        + by iPureIntro; apply related_sts_pub_pub_world.
-        + by iPureIntro; apply related_sts_pub_priv_world.
+        by iPureIntro; apply related_sts_pub_priv_world.
       }
       iApply (big_sepM_mono with "Hpreds'").
       iIntros (a' x Ha) "Hρ".
