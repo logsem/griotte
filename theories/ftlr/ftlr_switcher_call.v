@@ -139,9 +139,10 @@ Section fundamental.
       rewrite /monoReq Hρ.
       destruct ρ;[simpl..|exfalso;done].
       - destruct (isWL p');auto.
-        destruct (isDL p')
-        ; by (iSpecialize ("Hmono" with "[%]");[eapply canStore_flowsto;eauto|]).
-      - by (iSpecialize ("Hmono" with "[%]");[eapply canStore_flowsto;eauto|]). }
+        destruct (isDL p'); first done.
+       by (iSpecialize ("Hmono" with "[%]");[eapply canStore_flowsto;eauto|]).
+      - by (iSpecialize ("Hmono" with "[%]");[eapply canStore_flowsto;eauto|]).
+    }
 
     iApply "Hφ"; iRight; iFrame "∗%".
     iSplit; first done.
@@ -298,9 +299,10 @@ Section fundamental.
       rewrite /monoReq Hρ.
       destruct ρ;[simpl..|exfalso;done].
       - destruct (isWL p');auto.
-        destruct (isDL p')
-        ; by (iSpecialize ("Hmono" $! (WInt z) with "[%]");[eapply canStore_flowsto;eauto|]).
-      - by (iSpecialize ("Hmono" $! (WInt z) with "[%]");[eapply canStore_flowsto;eauto|]). }
+        destruct (isDL p') ; first done.
+        by (iSpecialize ("Hmono" $! (WInt z) with "[%]");[eapply canStore_flowsto;eauto|]).
+      - by (iSpecialize ("Hmono" $! (WInt z) with "[%]");[eapply canStore_flowsto;eauto|]).
+    }
 
     iApply "Hφ"; iRight; iFrame "∗%".
     iSplit; first done.
