@@ -147,11 +147,6 @@ Section definitionsS.
     related_sts_priv (loc W) (loc W') (wrel W) (wrel W').
   (* Nothing for tframe, because it's always related *)
 
-  (* NOTE new relation, that is public for standard, but private for custom *)
-  Definition related_sts_borrow_world (W W' : WORLD) :=
-    related_sts_std_pub (std W) (std W') ∧
-    related_sts_priv (loc W) (loc W') (wrel W) (wrel W').
-
   Global Instance sts_rel_loc_Persistent C i R P Q : Persistent (sts_rel_loc C i R P Q).
   Proof. apply _. Qed.
 
@@ -346,8 +341,6 @@ Section STS.
   Proof. split;[ apply related_sts_std_pub_refl | apply related_sts_pub_refl ]. Qed.
   Lemma related_sts_priv_refl_world W : related_sts_priv_world W W.
   Proof. split;[apply related_sts_std_priv_refl|apply related_sts_priv_refl]. Qed.
-  Lemma related_sts_borrow_refl_world W : related_sts_borrow_world W W.
-  Proof. split;[apply related_sts_std_pub_refl|apply related_sts_priv_refl]. Qed.
 
   Lemma related_sts_pub_priv fs fr gs gr :
     related_sts_pub fs gs fr gr → related_sts_priv fs gs fr gr.
@@ -386,19 +379,6 @@ Section STS.
     split;[apply related_sts_std_pub_priv|apply related_sts_pub_priv];auto.
   Qed.
 
-  Lemma related_sts_pub_borrow_world W W' :
-    related_sts_pub_world W W' → related_sts_borrow_world W W'.
-  Proof.
-    intros [ Hrel Hrel' ].
-    split;[done|apply related_sts_pub_priv];auto.
-  Qed.
-
-  Lemma related_sts_borrow_priv_world W W' :
-    related_sts_borrow_world W W' → related_sts_priv_world W W'.
-  Proof.
-    intros [Hrel Hrel'].
-    split;[apply related_sts_std_pub_priv|done];auto.
-  Qed.
   (* --------------------- TRANSITIVITY --------------------- *)
 
   Lemma related_sts_pub_trans fs fr gs gr hs hr :
@@ -664,17 +644,6 @@ Section STS.
     split; cbn.
     - split;auto.
       + intros ; set_solver.
-      + intros ; set_solver.
-    - split;auto.
-      + rewrite dom_empty_L; set_solver.
-      + intros ; set_solver.
-  Qed.
-
-  Lemma related_sts_borrow_empty_world W : related_sts_borrow_world (∅, (∅, ∅)) W.
-  Proof.
-    split; cbn.
-    - split;auto.
-      + rewrite dom_empty_L; set_solver.
       + intros ; set_solver.
     - split;auto.
       + rewrite dom_empty_L; set_solver.
