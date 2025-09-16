@@ -35,12 +35,16 @@ Section Switcher.
     (C : CmptName)
     (rmap : Reg)
     (csp_e csp_b cgp_b cgp_e: Addr)
+    (l_unk : list Addr)
     (stk_mem : list Word)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (wca0 wca1 : Word)
     :
     dom rmap = all_registers_s ∖ ({[ PC ; csp ; ca0 ; ca1 ]} ) ->
     frame_match Ws Cs cstk W0 C ->
+    NoDup (l_unk ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, (std W0) !! a = Some Temporary ↔ a ∈ l_unk ++ finz.seq_between csp_b csp_e) ->
+
 
     (* Switcher Invariant *)
     na_inv logrel_nais Nswitcher switcher_inv
@@ -53,6 +57,12 @@ Section Switcher.
     ∗ na_own logrel_nais ⊤
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ open_region_many W C (finz.seq_between (csp_b ^+ 4)%a csp_e)
+    ∗ ([∗ list] a ∈ l_unk,
+          (∃ (p : Perm) (P : WORLD * CmptName * Word → iPropI Σ),
+              ⌜∀ Wv : WORLD * CmptName * Word, Persistent (P Wv)⌝
+              ∗ temp_resources W0 C P a p
+              ∗ rel C a p P)
+          ∗ ⌜(std W) !! a = Some Revoked⌝)
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
@@ -60,8 +70,9 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
-    iIntros (Hrmap Hframe) "(#Hswitcher & Hcls_stk & #Hstktemp & Hstk & Hcstk & Hcont & Hsts & Hna
-    & HPC & Hr & Hrmap & Hca0 & Hca1 & Hcsp)".
+    iIntros (Hrmap Hframe Hnodup_revoked Htemp_revoked)
+      "(#Hswitcher & Hcls_stk & #Hstktemp & Hstk & Hcstk & Hcont & Hsts & Hna
+    & HPC & Hr & Hrevoked & Hrmap & Hca0 & Hca1 & Hcsp)".
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hswitcher Hna")
@@ -203,47 +214,58 @@ Section Switcher.
      *)
     iAssert (
         ∃ wastk wastk1 wastk2 wastk3,
-          let la := (if is_untrusted_caller then finz.seq_between a_stk csp_e
-                     else (finz.seq_between (csp_b ^+ 4)%a csp_e)) in
-          let lv := (if is_untrusted_caller then [wastk;wastk1;wastk2;wastk3] ++ stk_ws
-                     else stk_ws) in
+          (* let la := (if is_untrusted_caller then True else (finz.seq_between (csp_b ^+ 4)%a csp_e)) in *)
+          (* let lv := (if is_untrusted_caller then [wastk;wastk1;wastk2;wastk3] ++ stk_ws *)
+          (*            else stk_ws) in *)
           a_stk ↦ₐ wastk
           ∗ (a_stk ^+ 1)%a ↦ₐ wastk1
           ∗ (a_stk ^+ 2)%a ↦ₐ wastk2
           ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
-          ∗ ▷ ([∗ list] a ; v ∈ la ; lv, ▷ closing_resources interp W C a v)
-          ∗ ⌜if is_untrusted_caller then True else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wret ∧ wastk3 = wcgp)⌝
-          ∗ open_region_many W C la
-          ∗ sts_full_world W C
+          (* ∗ ▷ ([∗ list] a ; v ∈ la ; lv, ▷ closing_resources interp W C a v) *)
+          ∗ (⌜if is_untrusted_caller then True else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wret ∧ wastk3 = wcgp)⌝)
+          ∗ ([∗ list] a ∈ l_unk, (∃ (p : Perm) (P : WORLD * CmptName * Word → iPropI Σ),
+                                      ⌜∀ Wv : WORLD * CmptName * Word, Persistent (P Wv)⌝ ∗
+                                      temp_resources W0 C P a p ∗ rel C a p P) ∗
+               ⌜W.1 !! a = Some Revoked⌝)
       )%I
-      with "[Hcframe_interp Hr Hsts Hcls_stk]" as "Hcframe_interp"
+      with "[Hcframe_interp Hcls_stk Hrevoked]" as "Hcframe_interp"
     ; [|iDestruct "Hcframe_interp" as
-        (wastk wastk1 wastk2 wastk3) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hclose_res & %Hwastks & Hr & Hsts)"
+        (wastk wastk1 wastk2 wastk3
+        ) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & Hrevoked)"
       ].
     {
       destruct is_untrusted_caller; cycle 1.
       * iExists wcs0, wcs1, wret, wcgp.
         iDestruct "Hcframe_interp" as "($&$&$&$)". iFrame.
         cbn.
-        iSplit;[|done].
-        iNext.
-        iApply (big_sepL2_mono (λ _ a _, closing_resources interp W C a (WInt 0))).
-        { iIntros (???? ->%elem_of_list_lookup_2%elem_of_list_In%repeat_spec) "HH".
-          iFrame. }
-        iApply big_sepL2_const_sepL_l. iFrame. iPureIntro.
-        rewrite repeat_length finz_seq_between_length//.
-      * iDestruct (region_open_list_interp_gen _ _ (finz.seq_between a_stk (a_stk^+4)%a)
-                    with "[Hinterp_callee_wstk $Hr $Hsts]")
-                    as "(Hr & Hsts & Hres)"; auto.
-        { eapply finz_seq_between_NoDup. }
-        { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
-          apply elem_of_finz_seq_between in Ha'.
-          eapply Ha'.
+        done.
+        (* iSplit;done. *)
+        (* iNext. *)
+        (* iApply (big_sepL2_mono (λ _ a _, closing_resources interp W C a (WInt 0))). *)
+        (* { iIntros (???? ->%elem_of_list_lookup_2%elem_of_list_In%repeat_spec) "HH". *)
+        (*   iFrame. } *)
+        (* iApply big_sepL2_const_sepL_l. iFrame. iPureIntro. *)
+        (* rewrite repeat_length finz_seq_between_length//. *)
+      * cbn.
+        iAssert
+          (⌜ ∀ (a : Addr), a ∈ (finz.seq_between b_stk e_stk) → (std W0 !! a) = Some Temporary ⌝)%I
+          as "%Hstk_tmp".
+        {
+          iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_callee_wstk") as "%Hstk_tmp" ; auto.
+          iPureIntro ; intros a Ha.
+          apply elem_of_list_lookup_1 in Ha as [k Ha].
+          by eapply Hstk_tmp.
         }
-        { admit. }
-        { rewrite /interp_callee_part_of_the_stack /=.
-          cbn in Hframe.
-          rewrite /frame_match in Hframe.
+
+        iAssert ( ⌜ a_stk ∈ l_unk ⌝)%I as "%Hastk_unk".
+        {
+          opose proof (Hstk_tmp a_stk _) as Hastk_tmp.
+          { rewrite elem_of_finz_seq_between; solve_addr+Hb_a4 He_a1 Ha_stk4. }
+          apply Htemp_revoked in Hastk_tmp.
+          apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
+          (* TODO it should be that a_stk is (csp_b+4) *)
+          admit.
+        }
   Admitted.
   (*       } *)
   (*       do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1). *)
