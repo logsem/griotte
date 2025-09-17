@@ -86,9 +86,12 @@ Section Switcher.
               ⌜ related_sts_pub_world (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) W2 ⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
               ∗ na_own logrel_nais ⊤
+              ∗ interp W2 C (WCap RWL Local a_stk4 e_stk a_stk4)
+              ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk)%a ⌝
               (* Interpretation of the world *)
               ∗ sts_full_world W2 C
               ∗ open_region_many W2 C (finz.seq_between a_stk4 e_stk)
+              ∗ ([∗ list] a ∈ (finz.seq_between a_stk a_stk4), closing_revoked_resources W C a ∗ ⌜(std W) !! a = Some Revoked⌝)
               ∗ ([∗ list] a ∈ (finz.seq_between a_stk4 e_stk), closing_resources interp W2 C a (WInt 0))
               ∗ cstack_frag cstk
               ∗ ([∗ list] a ∈ (finz.seq_between a_stk4 e_stk), ⌜ std W2 !! a = Some Temporary ⌝ )
@@ -474,7 +477,7 @@ Section Switcher.
     (* --- Close the world with the cleared stack --- *)
 
     rewrite {1}(finz_seq_between_split _ a_stk4);[|solve_addr].
-    iDestruct (big_sepL_app with "Hstk_val") as "[_ Hstk_val']".
+    iDestruct (big_sepL_app with "Hstk_val") as "[#Hstk_val_save Hstk_val']".
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
     iAssert (
        [∗ list] y1 ∈ finz.seq_between a_stk4 e_stk,
@@ -584,6 +587,13 @@ Section Switcher.
       iApply "Hpost". simplify_eq.
       replace (a_stk0 ^+ 4)%a with a_stk4 by solve_addr.
       iFrame. iFrame "# %".
+      iSplit.
+      {
+        iApply interp_monotone; first done.
+        iApply (interp_lea with "Hstk4v"); done.
+      }
+      iSplit.
+      { iPureIntro; solve_addr+Hastk_inbounds Hastk Hastk3_inbounds. }
 
       iDestruct (big_sepL_sep with "Hstk_val0") as "[_ H]".
       iApply (big_sepL_mono with "H").

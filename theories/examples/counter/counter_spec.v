@@ -3,7 +3,7 @@ From cap_machine Require Import region_invariants_allocation region_invariants_r
 From cap_machine Require Import logrel rules proofmode.
 From cap_machine Require Import fetch switcher_spec_call counter.
 
-Section DROE.
+Section Counter.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
@@ -438,3 +438,5 @@ Section DROE.
       set_solver.
     }
   Qed.
+
+End Counter.
