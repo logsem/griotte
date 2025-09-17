@@ -452,7 +452,8 @@ Section CMDC.
     iNext. subst rmap'.
     iIntros (W2_B rmap')
       "(%HW1_pubB_W2 & %Hdom_rmap'
-      & Hna & HWstd_full_B & HWreg_B & Hclose_reg_B
+      & Hna & #Hinterp_csp & %Hcsp_bounds
+      & HWstd_full_B & HWreg_B & Hclose_reg_B & Hclose_reg_B'
       & Hcstk_frag & _
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -773,7 +774,8 @@ Section CMDC.
     iNext. subst rmap''.
     iIntros (W4_C rmap'')
       "(%HW1_pubC_W4 & %Hdom_rmap''
-      & Hna & HWstd_full_C & HWreg_C & Hclose_reg_C
+      & Hna & #Hinterp_csp' & _
+      & HWstd_full_C & HWreg_C & Hclose_reg_C & Hclose_reg_C'
       & Hcstk_frag & _
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0' [Hca0 _] ] & [%warg1' [Hca1 _] ]

@@ -324,7 +324,8 @@ Section Counter.
     iNext. subst rmap'.
     iIntros (W2 rmap')
       "(%HW1_pubB_W2 & %Hdom_rmap'
-      & Hna & HWstd_full_B & HWreg_B & Hclose_reg_B
+      & Hna & #Hinterp_cdp & %Hcsp_bounds
+      & HWstd_full_B & HWreg_B & Hclose_reg_B & Hclose_reg_B'
       & Hcstk_frag & Hrel_stk_B
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
