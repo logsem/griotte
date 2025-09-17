@@ -15,6 +15,8 @@ Section DLE.
     {swlayout : switcherLayout}
   .
 
+  Context {C : CmptName}.
+
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation WORLD := (prodO STS_STD STS).
@@ -22,124 +24,6 @@ Section DLE.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-
-  Set Nested Proofs Allowed.
-  Program Definition interp_dl : V :=
-    (λne (W : WORLD) (B : leibnizO CmptName) (v : leibnizO Word)
-     , (interp W B (deeplocal (borrow v)))%I).
-  Solve All Obligations with solve_proper.
-
-  (* TODO move *)
-  Lemma future_pub_mono_interp_dl C w:
-    ⊢ future_pub_mono C (safeC interp_dl) w.
-  Proof.
-    iIntros "!>" (W W' Hrelated) "H"; cbn.
-    iApply interp_monotone; eauto.
-  Qed.
-  Lemma persistent_cond_interp_dl : persistent_cond interp_dl.
-  Proof. intros W; apply _. Qed.
-  Lemma interp_dl_int W C n : ⊢ interp_dl W C (WInt n).
-  Proof. iIntros; cbn; iApply interp_int. Qed.
-  Lemma zcond_interp_dl C : ⊢ zcond interp_dl C.
-  Proof. by iModIntro; iIntros (W1 W2 w) "_"; iApply interp_int. Qed.
-  Lemma wcond_interp_dl C : ⊢ wcond interp_dl C interp.
-  Proof.
-    iIntros "!> %W %w H".
-    by iApply interp_deeplocal_word; iApply interp_borrow_word.
-  Qed.
-  Lemma rcond_interp_dl C p : isDL p = true -> ⊢ rcond interp_dl C p interp.
-  Proof.
-    iIntros (Hp) "!> %W %w H".
-    rewrite /load_word /= Hp.
-    destruct (isDRO p); last done.
-    by iApply interp_readonly_word.
-  Qed.
-  Lemma mono_pub_interp_dl C : ⊢ mono_pub C (safeC interp_dl).
-  Proof.
-    iIntros (?) "!> %W %W' %Hrelated H"; cbn.
-    iApply interp_monotone; auto.
-  Qed.
-  Lemma mono_priv_closing_revoked_resources W W' c a :
-    related_sts_priv_world W W' ->
-    closing_revoked_resources W c a -∗
-    closing_revoked_resources W' c a.
-  Proof.
-    iIntros (Hrelated) "(%&%&%&?&?&#Hmono&#Hzcond&#Hrcond&#Hwcond&?)".
-    iExists _,_,Hpers; iFrame "∗#".
-    iApply "Hzcond"; done.
-      Qed.
-
-  Lemma monotone_revoke_stack_alt W C b e a :
-    let la := finz.seq_between b e in
-
-    interp W C (WCap RWL Local b e a)
-    ∗ sts_full_world W C
-    ∗ region W C
-    ==∗
-    ∃ l_unk_temp,
-      ⌜ NoDup (l_unk_temp ++ la) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l_unk_temp ++ la))⌝
-      ∗ sts_full_world (revoke W) C
-      ∗ region (revoke W) C
-      ∗ ▷ ([∗ list] a ∈ la, closing_revoked_resources W C a ∗ ⌜(revoke W).1 !! a = Some Revoked⌝)
-      ∗ ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]])
-      ∗ ([∗ list] a ∈ l_unk_temp, (∃ p' φ, ⌜forall Wv, Persistent (φ Wv)⌝
-                                                       ∗ ▷ temp_resources W C φ a p'
-                                                       ∗ rel C a p' φ)
-                                  ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝).
-  Proof.
-    iIntros (la) "(#Hinterp & Hsts & Hr)".
-    iMod (monotone_revoke_stack with "[$Hinterp $Hsts $Hr]") as (l) "($ & $ & $ & Hstk & $)".
-    iModIntro.
-    rewrite -bi.later_sep.
-    iNext.
-    iAssert (
-        ([∗ list] a ∈ la,
-           closing_revoked_resources W C a
-           ∗ ⌜(revoke W).1 !! a = Some Revoked⌝
-           ∗ ∃ v, a ↦ₐ v
-        )
-      )%I with "[Hstk]" as "Hstk".
-    {
-      iApply (big_sepL_impl with "Hstk").
-      iModIntro; iIntros (k x Hx) "[Hrev $]".
-      iDestruct (close_revoked_resources with "Hrev") as (v) "[$ $]".
-    }
-    { rewrite !big_sepL_sep.
-      iDestruct "Hstk" as "(Hclose & Hrev & Hv)".
-      iFrame.
-      by iApply region_addrs_exists.
-    }
-  Qed.
-
-  Context {C : CmptName}.
-
-  Lemma elem_of_mono_pub W W' a :
-    related_sts_pub_world W W' -> a ∈ dom (std W) -> a ∈ dom (std W').
-  Proof.
-    intros [ [ Hdom_sta Hrelated] _] Ha.
-    rewrite elem_of_dom in Ha; destruct Ha as [? Ha].
-    cbn in *.
-    apply Hdom_sta; rewrite elem_of_dom;eauto.
-  Qed.
-
-  Lemma related_sts_pub_world_revoked_temporary' W a :
-    (std W) !! a = None →
-    related_sts_pub_world W (<s[a:=Temporary]s>W).
-  Proof.
-    intros Ha.
-    rewrite /related_sts_pub_world /=.
-    split;[|apply related_sts_pub_refl].
-    rewrite /related_sts_pub. split.
-    - rewrite dom_insert_L. set_solver.
-    - intros i x y Hx Hy.
-      destruct (decide (a = i)).
-      + subst.
-        rewrite Hx in Ha. inversion Ha.
-      + rewrite lookup_insert_ne in Hy;auto.
-        rewrite Hx in Hy.
-        inversion Hy; subst.
-        left.
-  Qed.
 
   Lemma dle_spec
 

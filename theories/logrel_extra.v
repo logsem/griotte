@@ -78,6 +78,34 @@ Section Logrel_extra.
     all: iEval (rewrite fixpoint_interp1_eq); done.
   Qed.
 
+  Lemma closing_revoked_from_rel_stack W C a :
+    rel C a RWL interpC -∗ closing_revoked_resources W C a.
+  Proof.
+    iIntros "Hrel".
+    iExists interp, RWL, persistent_cond_interp; cbn. iFrame.
+    iSplit; first (iApply interp_int).
+    iSplit; first (iApply future_pub_mono_interp_z).
+    iSplit.
+    { iIntros (v) "!>".
+      iIntros (W0 W1 Hrelated) "Hinterp".
+      rewrite /safeC /=.
+      iApply monotone.interp_monotone; eauto.
+    }
+    iSplit; first (iApply zcond_interp).
+    iSplit; first (iApply rcond_interp).
+    iApply wcond_interp.
+  Qed.
+
+  Lemma mono_priv_closing_revoked_resources W W' c a :
+    related_sts_priv_world W W' ->
+    closing_revoked_resources W c a -∗
+    closing_revoked_resources W' c a.
+  Proof.
+    iIntros (Hrelated) "(%&%&%&?&?&#Hmono&#Hzcond&#Hrcond&#Hwcond&?)".
+    iExists _,_,Hpers; iFrame "∗#".
+    iApply "Hzcond"; done.
+  Qed.
+
   (* Lemma closing_resources_zeroed W C a v : *)
   (*   closing_revoked_resources W C a v -∗ *)
   (*   closing_revoked_resources W C a (WInt 0). *)
@@ -601,6 +629,48 @@ Section Logrel_extra.
         apply Hl'.
         rewrite elem_of_app;left.
         by eapply elem_of_list_lookup_2.
+  Qed.
+
+  Lemma monotone_revoke_stack_alt W C b e a :
+    let la := finz.seq_between b e in
+
+    interp W C (WCap RWL Local b e a)
+    ∗ sts_full_world W C
+    ∗ region W C
+    ==∗
+    ∃ l_unk_temp,
+      ⌜ NoDup (l_unk_temp ++ la) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l_unk_temp ++ la))⌝
+      ∗ sts_full_world (revoke W) C
+      ∗ region (revoke W) C
+      ∗ ▷ ([∗ list] a ∈ la, closing_revoked_resources W C a ∗ ⌜(revoke W).1 !! a = Some Revoked⌝)
+      ∗ ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]])
+      ∗ ([∗ list] a ∈ l_unk_temp, (∃ p' φ, ⌜forall Wv, Persistent (φ Wv)⌝
+                                                       ∗ ▷ temp_resources W C φ a p'
+                                                       ∗ rel C a p' φ)
+                                  ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝).
+  Proof.
+    iIntros (la) "(#Hinterp & Hsts & Hr)".
+    iMod (monotone_revoke_stack with "[$Hinterp $Hsts $Hr]") as (l) "($ & $ & $ & Hstk & $)".
+    iModIntro.
+    rewrite -bi.later_sep.
+    iNext.
+    iAssert (
+        ([∗ list] a ∈ la,
+           closing_revoked_resources W C a
+           ∗ ⌜(revoke W).1 !! a = Some Revoked⌝
+           ∗ ∃ v, a ↦ₐ v
+        )
+      )%I with "[Hstk]" as "Hstk".
+    {
+      iApply (big_sepL_impl with "Hstk").
+      iModIntro; iIntros (k x Hx) "[Hrev $]".
+      iDestruct (close_revoked_resources with "Hrev") as (v) "[$ $]".
+    }
+    { rewrite !big_sepL_sep.
+      iDestruct "Hstk" as "(Hclose & Hrev & Hv)".
+      iFrame.
+      by iApply region_addrs_exists.
+    }
   Qed.
 
 

@@ -496,7 +496,7 @@ Section std_updates.
    Proof.
      intros Ha.
      rewrite /related_sts_pub_world /=.
-    split;[|apply related_sts_pub_refl].
+     split;[|apply related_sts_pub_refl].
      rewrite /related_sts_pub. split.
      - rewrite dom_insert_L. set_solver.
      - intros i x y Hx Hy.
@@ -505,6 +505,25 @@ Section std_updates.
          rewrite Hx in Ha. inversion Ha.
          rewrite lookup_insert in Hy. inversion Hy.
          right with (Temporary);[|left]. constructor.
+       + rewrite lookup_insert_ne in Hy;auto.
+         rewrite Hx in Hy.
+         inversion Hy; subst.
+         left.
+   Qed.
+
+   Lemma related_sts_pub_world_revoked_temporary' W a :
+     (std W) !! a = None →
+     related_sts_pub_world W (<s[a:=Temporary]s>W).
+   Proof.
+     intros Ha.
+     rewrite /related_sts_pub_world /=.
+     split;[|apply related_sts_pub_refl].
+     rewrite /related_sts_pub. split.
+     - rewrite dom_insert_L. set_solver.
+     - intros i x y Hx Hy.
+       destruct (decide (a = i)).
+       + subst.
+         rewrite Hx in Ha. inversion Ha.
        + rewrite lookup_insert_ne in Hy;auto.
          rewrite Hx in Hy.
          inversion Hy; subst.

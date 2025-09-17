@@ -14,26 +14,6 @@ Section CMDC.
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
-
-  (* TODO move *)
-  Lemma closing_revoked_from_rel_stack W C a :
-    rel C a RWL interpC -∗ closing_revoked_resources W C a.
-  Proof.
-    iIntros "Hrel".
-    iExists interp, RWL, persistent_cond_interp; cbn. iFrame.
-    iSplit; first ( rewrite fixpoint_interp1_eq //= ).
-    iSplit; first (iApply future_pub_mono_interp_z).
-    iSplit.
-    { iIntros (v) "!>".
-      iIntros (W0 W1 Hrelated) "Hinterp".
-      rewrite /safeC /=.
-      iApply monotone.interp_monotone; eauto.
-    }
-    iSplit; first (iApply zcond_interp).
-    iSplit; first (iApply rcond_interp).
-    iApply wcond_interp.
-  Qed.
-
   Context {B C : CmptName}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
