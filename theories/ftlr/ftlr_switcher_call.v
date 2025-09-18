@@ -1371,7 +1371,9 @@ Section fundamental.
     iDestruct (big_sepM_insert_2 with "[Hcgp] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[HPC] Hregs") as "Hregs";[iFrame|].
 
+    cbn.
     iFrame.
+    iSplit;last (iPureIntro; split;reflexivity).
     iSplit.
     { iPureIntro. simpl. intros rr. clear -Hisarg_rmap' Hrmap''.
       destruct (decide (rr = PC));simplify_map_eq;[eauto|].
@@ -1395,10 +1397,11 @@ Section fundamental.
       pose proof switcher_return_entry_point.
       cbn in *.
       do 2 (f_equal; auto). solve_addr.
-    - iIntros (wstk Hwstk'). simplify_map_eq.
-      iSplit; first (iExists _,_; done).
-      iApply (interp_weakening with "IH Hspv");auto
-      ;[solve_addr+bounds' Ha4|solve_addr-].
+    - iPureIntro. clear -Ha4 Ha3 Ha2 Ha1 bounds. simplify_map_eq.
+      replace f2 with (a^+4)%a by solve_addr.
+      done.
+    - iApply (interp_weakening with "IH Hspv");auto
+      ;[solve_addr+bounds' Ha4 Ha3 Ha2 Ha1|solve_addr-].
     - iIntros (r v Hr Hv).
       repeat (rewrite lookup_insert_ne in Hv;[|set_solver+Hr]).
       apply lookup_union_Some in Hv.

@@ -618,7 +618,9 @@ Section Switcher.
     iDestruct (big_sepM_insert_2 with "[Hcgp] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[HPC] Hregs") as "Hregs";[iFrame|].
 
+    cbn.
     iFrame.
+    iSplit;last (iPureIntro; split;reflexivity).
     iSplit.
     { iPureIntro. simpl. intros rr. clear -Harg_rmap' Hrmap'.
       destruct (decide (rr = PC));simplify_map_eq;[eauto|].
@@ -642,8 +644,10 @@ Section Switcher.
       pose proof switcher_return_entry_point.
       cbn in *.
       do 2 (f_equal; auto). solve_addr.
-    - iIntros (wstk Hwstk'). simplify_map_eq.
-      iSplit; first (iExists _,_; done).
+    - iPureIntro. clear -Hastk. simplify_map_eq.
+      replace a_stk4 with (a_stk^+4)%a by solve_addr.
+      done.
+    - replace a_stk4 with (a_stk^+4)%a by solve_addr+Hastk.
       iApply (interp_lea with "Hstk4v"); first done.
     - iIntros (r v Hr Hv).
       repeat (rewrite lookup_insert_ne in Hv;[|set_solver+Hr]).
