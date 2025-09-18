@@ -1351,7 +1351,7 @@ Section fundamental.
     { iFrame. iNext. simpl.
       iSplit.
       - iApply (interp_weakening with "IH Hspv");auto;solve_addr.
-      - iIntros (W' HW' ?????) "(HPC & _)".
+      - iIntros (W' HW' ????) "(HPC & _)".
         rewrite /interp_conf.
         wp_instr.
         iApply (wp_notCorrectPC with "[$]").

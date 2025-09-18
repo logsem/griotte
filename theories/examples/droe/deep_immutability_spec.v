@@ -491,7 +491,7 @@ Section DROE.
     iIntros (W2_B rmap')
       "(%HW1_pubB_W2 & %Hdom_rmap'
       & Hna & #Hinterp_cdp & %Hcsp_bounds
-      & HWstd_full_B & HWreg_B & Hclose_reg_B & Hclose_reg_B'
+      & HWstd_full_B & HWreg_B
       & Hcstk_frag & Hrel_stk_B
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -542,9 +542,11 @@ Section DROE.
       apply not_elem_of_finz_seq_between in Hcgp_b_stk.
       destruct Hcgp_b_stk; [left|right]; solve_addr.
     }
+    rewrite region_open_nil.
     iDestruct (
        region_open_next _ _ _ _ _ _ Permanent with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]"
       ) as (v) "(HWstd_full_B & Hstd_cgp_b & HWreg_B & Hcgp_b & Hmono & Hφ_cgp_b & %Hp)"; auto.
+    { set_solver+. }
     {
       eapply monotone.region_state_pub_perm; eauto.
       rewrite std_sta_update_multiple_lookup_same_i; auto.

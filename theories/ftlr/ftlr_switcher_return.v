@@ -579,38 +579,6 @@ Section fundamental.
       iPureIntro; solve_addr+Hbounds_tstk_b  Hlen_cstk Ha_tstk1.
     }
 
-    destruct is_untrusted_caller; cycle 1.
-    - (* Case where caller is trusted, we use the continuation *)
-      destruct Hwastks as (-> & -> & -> & ->).
-      iEval (rewrite app_nil_r) in "Hr".
-      iAssert ([[a_stk,e_stk]] ↦ₐ [[region_addrs_zeroes a_stk e_stk%a]])%I with "[Hstk_register_save Hstk]" as "Hstk".
-      {
-        rewrite (region_addrs_zeroes_split a_stk (a_stk ^+4)%a e_stk); last solve_addr+Ha_stk4 He_a1 Hb_a4.
-        rewrite region_pointsto_split; first iFrame.
-        solve_addr+Ha_stk4 He_a1 Hb_a4.
-        by rewrite /region_addrs_zeroes length_replicate.
-      }
-      iAssert (([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, closing_resources interp W C a (WInt 0)))%I
-        with "[Hres]" as "Hres".
-      { iClear "#".
-        clear -Hlen_lv.
-        iStopProof.
-        revert Hlen_lv.
-        generalize dependent lv.
-        generalize (finz.seq_between (a_stk ^+ 4)%a e_stk) as la.
-        induction la; iIntros (lv Hlen) "H"; destruct lv as [|v lv]; simplify_eq; cbn; first done.
-        iDestruct "H" as "[Ha H]".
-        iDestruct (closing_resources_zeroed with "Ha") as "$".
-        by iApply (IHla with "H").
-      }
-
-      iApply ("Hexec_topmost_frm" with
-               "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk $Hr $Hres $Hsts $Hcont_K $Hcstk_frag $Hna]").
-      iPureIntro;rewrite Harg_rmap'; set_solver.
-
-    - (* Case where caller is untrusted, we use the IH *)
-
     iAssert (
         ([∗ list] a ; v ∈ finz.seq_between (a_stk ^+ 4)%a e_stk ; lv', a ↦ₐ v ∗ closing_resources interp W C a v)
       )%I with "[Hres Hstk]" as "Hres".
@@ -649,9 +617,20 @@ Section fundamental.
       rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
       replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
       replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
-      set_solver.
+      destruct is_untrusted_caller; set_solver.
     }
     { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
+
+    destruct is_untrusted_caller; cycle 1.
+    - (* Case where caller is trusted, we use the continuation *)
+      destruct Hwastks as (-> & -> & -> & ->).
+      rewrite -region_open_nil.
+      iApply ("Hexec_topmost_frm" with
+               "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
+      $Hrmap $Hr $Hstk_register_save $Hsts $Hcont_K $Hcstk_frag $Hna]").
+      iPureIntro;rewrite Harg_rmap'; set_solver.
+
+    - (* Case where caller is untrusted, we use the IH *)
 
     iAssert ((interp W C wastk)
               ∗ (interp W C wastk1)

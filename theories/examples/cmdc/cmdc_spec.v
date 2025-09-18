@@ -433,12 +433,17 @@ Section CMDC.
     iIntros (W2_B rmap')
       "(%HW1_pubB_W2 & %Hdom_rmap'
       & Hna & #Hinterp_csp & %Hcsp_bounds
-      & HWstd_full_B & HWreg_B & Hclose_reg_B & Hclose_reg_B'
-      & Hcstk_frag & _
+      & HWstd_full_B & HWreg_B
+      & Hcstk_frag & Htmp_W2
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hcsp_stk & HK)".
+      & Hrmap & Hstk' & HK)".
     iEval (cbn) in "HPC".
+
+    iMod (monotone_revoke_stack_alt with "[$Hinterp_csp $HWstd_full_B $HWreg_B]")
+        as (l') "(%Hl_unk' & HWstd_full_B & HWreg_B & Hfrm_close_W4 & >[%stk_mem Hstk] & Hrevoked_l')".
+    iDestruct (region_pointsto_split with "[$Hstk' $Hstk]") as "Hstk"; auto.
+    { by rewrite length_replicate. }
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
@@ -526,9 +531,13 @@ Section CMDC.
     }
 
     (* we open the world to get the points-to predicate *)
+    iEval (rewrite region_open_nil) in "HWreg_B".
+    apply revoke_lookup_Perm in HW2_B_cpg_b.
     iDestruct (region_open_next with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]")
       as (wcgp_b) "(HWreg_B & HWsts_full_B & HWstd_full_B & Hcpg_b & HmonoR & #Hinterp_wcpgb & _)"
-    ; eauto ; first done.
+    ; eauto.
+    { done. }
+    { set_solver+. }
 
     (* Store cgp 42%Z *)
     iInstr "Hcode".
@@ -625,7 +634,7 @@ Section CMDC.
     repeat (rewrite -delete_insert_ne //).
 
     set (rmap'' := (delete ca5 _)).
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_c]") as "%Hcgp_c_stk".
+    iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_c]") as "%Hcgp_c_stk".
     assert ( cgp_c ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_c_stk'.
     { clear -Hcgp_c_stk.
       apply not_elem_of_finz_seq_between.
@@ -738,7 +747,7 @@ Section CMDC.
     iApply (switcher_cc_specification _ W3 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hcsp_stk $HWreg_C $HWstd_full_C $Hrel_stk_C $Hcstk_frag
+              $Hstk $HWreg_C $HWstd_full_C $Hrel_stk_C $Hcstk_frag
               $Hinterp_W3_C_g $HentryC_g $HK]"); eauto.
     { subst rmap''.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -755,11 +764,11 @@ Section CMDC.
     iIntros (W4_C rmap'')
       "(%HW1_pubC_W4 & %Hdom_rmap''
       & Hna & #Hinterp_csp' & _
-      & HWstd_full_C & HWreg_C & Hclose_reg_C & Hclose_reg_C'
+      & HWstd_full_C & HWreg_C
       & Hcstk_frag & _
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0' [Hca0 _] ] & [%warg1' [Hca1 _] ]
-      & Hrmap & Hcsp_stk & HK)".
+      & Hrmap & Hstk & HK)".
     iEval (cbn) in "HPC".
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".

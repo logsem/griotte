@@ -430,7 +430,7 @@ Section DLE.
     iIntros (W4 rmap)
       "(%Hrelated_pub_W3ext_W4 & %Hdom_rmap
       & Hna & #Hinterp_W4_csp & %Hcsp_bounds
-      & Hsts_C & Hr_C & Hfrm_close_W3 & Hfrm_close_W4
+      & Hsts_C & Hr_C
       & Hcstk_frag & Hrel_stk_C
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -439,31 +439,6 @@ Section DLE.
 
 
     (* TODO see whether I can make this a lemma *)
-    iEval (rewrite <- (app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "Hr_C".
-    rewrite (region_addrs_zeroes_split _ (csp_b ^+4)%a).
-    2: { split; solve_addr+Hcsp_bounds. }
-    set (lv := region_addrs_zeroes (csp_b ^+4)%a csp_e).
-    iDestruct (region_pointsto_split _ _ (csp_b ^+4)%a with "Hstk") as "[Hstk' Hstk]".
-    { split; solve_addr+Hcsp_bounds. }
-    { by rewrite length_replicate. }
-    iAssert (
-       [∗ list] a ; v ∈ finz.seq_between (csp_b ^+ 4)%a csp_e ; lv, a ↦ₐ v ∗ closing_resources interp W4 C a v
-      )%I with "[Hfrm_close_W4 Hstk]" as "Hfrm_close_W4".
-    { rewrite /region_pointsto.
-      iDestruct (big_sepL2_sep_sepL_l  with "[$Hfrm_close_W4 $Hstk]") as "H".
-      iApply (big_sepL2_impl with "H").
-      iIntros "!> % % % % % [? $]"; iFrame.
-      subst lv; apply lookup_replicate in H2 as [-> _]; done.
-    }
-    iDestruct (
-        ftlr_switcher_return.region_close_list_interp_gen
-          with "[$Hr_C $Hfrm_close_W4]"
-      ) as "Hr_C".
-    { apply finz_seq_between_NoDup. }
-    { set_solver+. }
-    { subst lv; by rewrite length_replicate finz_seq_between_length. }
-    rewrite -region_open_nil.
-
     assert ( cgp_b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_b_stk'.
     { clear -Hcgp_b_stk.
       apply not_elem_of_finz_seq_between.
@@ -490,7 +465,7 @@ Section DLE.
       rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
     }
 
-    iMod (revoked_by_separation_many with "[$Hr_C $Hsts_C $Hstk']")
+    iMod (revoked_by_separation_many with "[$Hr_C $Hsts_C $Hstk]")
       as "(Hr_C & Hsts_C & Hstk' & %Hstk'_revoked)".
     {
       assert ( cgp_b ∉ finz.seq_between csp_b (csp_b ^+ 4)%a ) as Hcgp_b_stk''.
@@ -586,7 +561,7 @@ Section DLE.
 
 
     (* --------------------------------------------------- *)
-    (* ------------- BLOCK 3.2: CALL B again -------------- *)
+    (* ------------- BLOCK 3.2: CALL B again ------------- *)
     (* --------------------------------------------------- *)
 
     (* Store cgp 42%Z; *)

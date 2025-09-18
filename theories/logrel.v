@@ -320,8 +320,8 @@ Section logrel.
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName)
        (frm : cframe)
      ,
-       ∀ wca0 wca1 regs a_stk e_stk,
-       let callee_stk_region := finz.seq_between (a_stk ^+4)%a e_stk in
+       ∀ wca0 wca1 regs a_stk,
+       (* let callee_stk_region := finz.seq_between (a_stk ^+4)%a e_stk in *)
        ( PC ↦ᵣ updatePcPerm frm.(wret)
          ∗ cra ↦ᵣ frm.(wret)
          ∗ csp ↦ᵣ frm.(wstk)
@@ -337,10 +337,10 @@ Section logrel.
          ∗ ( [∗ map] r↦w ∈ regs, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
          (* World interpretation *)
          ∗ ⌜ get_a frm.(wstk) = Some a_stk ⌝
-         ∗ ⌜ get_e frm.(wstk) = Some e_stk ⌝
-         ∗ [[ a_stk , e_stk ]] ↦ₐ [[ addr_reg_sample.region_addrs_zeroes a_stk e_stk ]]
-         ∗ open_region_many W C callee_stk_region
-         ∗ ([∗ list] a ∈ callee_stk_region, closing_resources interp W C a (WInt 0))
+         (* ∗ ⌜ get_e frm.(wstk) = Some e_stk ⌝ *)
+         ∗ [[ a_stk , (a_stk^+4)%a ]] ↦ₐ [[ addr_reg_sample.region_addrs_zeroes a_stk (a_stk^+4)%a ]]
+         ∗ region W C
+         (* ∗ ([∗ list] a ∈ callee_stk_region, closing_resources interp W C a (WInt 0)) *)
          ∗ sts_full_world W C
          (* Continuation *)
          ∗ interp_cont
@@ -356,10 +356,8 @@ Section logrel.
     intros interp interp0 Heq K K0 HK.
     rewrite /interp_cont_exec. intros ????. simpl.
     (* do 10 f_equiv;[|apply HK]. *)
-    do 22 f_equiv; auto;[apply Heq|].
-    do 8 f_equiv; auto.
-    f_equiv; auto.
-    by apply closing_resources_ne.
+    do 20 f_equiv; auto;[apply Heq|].
+    do 6 f_equiv; auto.
   Qed.
 
   Definition interp_callee_part_of_the_stack

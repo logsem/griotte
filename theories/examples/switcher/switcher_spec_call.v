@@ -90,9 +90,9 @@ Section Switcher.
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk)%a ⌝
               (* Interpretation of the world *)
               ∗ sts_full_world W2 C
-              ∗ open_region_many W2 C (finz.seq_between a_stk4 e_stk)
-              ∗ ([∗ list] a ∈ (finz.seq_between a_stk a_stk4), closing_revoked_resources W C a ∗ ⌜(std W) !! a = Some Revoked⌝)
-              ∗ ([∗ list] a ∈ (finz.seq_between a_stk4 e_stk), closing_resources interp W2 C a (WInt 0))
+              ∗ region W2 C
+              (* ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a ∗ ⌜(std W) !! a = Some Revoked⌝) *)
+              (* ∗ ([∗ list] a ∈ (finz.seq_between a_stk4 e_stk), closing_resources interp W2 C a (WInt 0)) *)
               ∗ cstack_frag cstk
               ∗ ([∗ list] a ∈ (finz.seq_between a_stk4 e_stk), ⌜ std W2 !! a = Some Temporary ⌝ )
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
@@ -102,7 +102,7 @@ Section Switcher.
               ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
               ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ region_addrs_zeroes a_stk e_stk ]]
+              ∗ [[ a_stk , a_stk4 ]] ↦ₐ [[ region_addrs_zeroes a_stk a_stk4 ]]
               ∗ interp_continuation cstk Ws Cs
             -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
 
@@ -582,8 +582,8 @@ Section Switcher.
       iEval (cbn).
       replace (a_stk ^+ 4)%a with a_stk4 by solve_addr. iSplitR.
       { iNext. iFrame "Hstk4v". }
-      iIntros "!>" (W' HW' ?????) "(HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
-      & Hca1 & #Hv' & % & Hregs & % & % & Hstk & Hr & Hcls & Hsts & Hcont & Hcstk & Own)".
+      iIntros "!>" (W' HW' ????) "(HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
+      & Hca1 & #Hv' & Hregs & Hr & % & Hstk & Hcls & Hsts & Hcont & Hcstk & Own)".
       iApply "Hpost". simplify_eq.
       replace (a_stk0 ^+ 4)%a with a_stk4 by solve_addr.
       iFrame. iFrame "# %".
