@@ -75,7 +75,7 @@ Section Switcher_preamble.
          ∗ registers_pointsto regs
          ∗ region W C
          ∗ sts_full_world W C
-         ∗ ⌜csp_sync cstk a_stk e_stk⌝
+         ∗ ⌜csp_sync cstk a_stk e_stk ∧ a_stk = (a_stk4 ^+ -4)%a⌝
          ∗ cstack_frag cstk
          ∗ na_own logrel_nais ⊤
            -∗ interp_conf W C)

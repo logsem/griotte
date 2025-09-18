@@ -253,10 +253,10 @@ Section helpers_cmdc_adequacy.
                 with "Hinterp_pcc'") as "Hinterp_PCC"; eauto; try solve_addr.
     iModIntro;iNext.
 
-    iIntros
+    iIntros (??)
       "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
-                     & Hregs_csp & Hregs_interp)
-                     & Hrmap & Hregion & Hworld & Htframe & Hna)".
+                     & %Hregs_csp & Hinterp_csp & Hregs_interp)
+                     & Hrmap & Hregion & Hworld & %Hcsp_sync & Htframe & Hna)".
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental.fundamental with "[$] Hinterp_PCC") as "H_jmp".
     iSpecialize ("H_jmp" $! regs).
@@ -274,9 +274,7 @@ Section helpers_cmdc_adequacy.
       iApply switcher_return_interp.
     }
     destruct (decide (r = csp)) as [-> | Hrcsp].
-    { iSpecialize ("Hregs_csp" $! v Hr).
-      iDestruct "Hregs_csp" as "[? $]".
-    }
+    { by rewrite Hregs_csp in Hr ; simplify_eq. }
     assert (r ∉ ({[PC; cra; cgp; csp]} : gset RegName)) as Hrr.
     { set_solver+Hrpc Hrcgp Hrcsp Hrcra. }
     by iSpecialize ("Hregs_interp" $! r _ Hrr Hr).

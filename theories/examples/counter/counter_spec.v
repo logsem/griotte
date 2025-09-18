@@ -93,7 +93,6 @@ Section Counter.
     iIntros (HNswitcher_counter Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hframe_match Hcsp_sync
             )
-         ∗ ⌜csp_sync cstk a_stk e_stk⌝
       "(#Hswitcher & #Hmem & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Hr_C & Hsts_C
@@ -460,8 +459,7 @@ Section Counter.
       repeat (rewrite lookup_delete_ne; last set_solver).
       set_solver.
     }
-    replace (((a_stk ^+ 4) ^+ -4)%a)%a with a_stk; first done.
-    admit.
-  Admitted.
+    destruct Hsync_csp as [ Hsync_csp <- ]; done.
+  Qed.
 
 End Counter.

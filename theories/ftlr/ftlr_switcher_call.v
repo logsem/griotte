@@ -1373,7 +1373,7 @@ Section fundamental.
 
     cbn.
     iFrame.
-    iSplit;last (iPureIntro; split;reflexivity).
+    iSplit;last (iPureIntro; split ;[split|];[reflexivity|reflexivity|solve_addr]).
     iSplit.
     { iPureIntro. simpl. intros rr. clear -Hisarg_rmap' Hrmap''.
       destruct (decide (rr = PC));simplify_map_eq;[eauto|].
