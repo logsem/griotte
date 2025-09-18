@@ -215,7 +215,7 @@ Section Switcher.
     iInstr "Hcode".
 
     (* --- Lea csp -1 --- *)
-    iInstr "Hcode".
+    iInstr "Hcode" with "Hlc".
     { transitivity (Some (a_stk ^+ 3)%a); subst a_stk; solve_addr+Ha_stk4. }
 
     set (stk_len := finz.dist (a_stk ^+ 4)%a csp_e).
@@ -228,6 +228,7 @@ Section Switcher.
        so the callee needs to pass the revoked addresses!
      *)
     iAssert (
+        |={⊤}=>
         ∃ wastk wastk1 wastk2 wastk3,
           (* let la := (if is_untrusted_caller then True else (finz.seq_between (csp_b ^+ 4)%a csp_e)) in *)
           (* let lv := (if is_untrusted_caller then [wastk;wastk1;wastk2;wastk3] ++ stk_ws *)
@@ -246,9 +247,17 @@ Section Switcher.
                                        ⌜∀ Wv : WORLD * CmptName * Word, Persistent (P Wv)⌝ ∗
                                                                         temp_resources W0 C P a p ∗ rel C a p P) ∗
                                    ⌜(revoke W0).1 !! a = Some Revoked⌝)
-                    (* ∗ ([∗ list] a ∈ l', (∃ (p' : Perm) (φ : WORLD * CmptName * Word → iPropI Σ), *)
-                    (*                          ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝ ∗ ▷ temp_resources W4 C φ a p' ∗ *)
-                    (*                                                           rel C a p' φ) ∗ ⌜(revoke W4).1 !! a = Some Revoked⌝) *)
+                    ∗ ([∗ list] a ∈ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a],
+                       ∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+                         ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                                          ∗ (⌜isO p = false⌝
+                                                             ∗ (if isWL p
+                                                                then future_pub_mono C φ (WInt 0)
+                                                                else if isDL p then future_pub_mono C φ (WInt 0) else future_priv_mono C φ (WInt 0)
+                                                               )
+                                                             ∗ φ (W0, C, WInt 0))
+                                                          ∗ rel C a p φ
+                      )
                 )
               else
                 ([∗ list] a ∈ l, (∃ (p : Perm) (P : WORLD * CmptName * Word → iPropI Σ),
@@ -258,121 +267,199 @@ Section Switcher.
                 )
             )
       )%I
-      with "[Hcframe_interp Hrevoked]" as "Hcframe_interp"
+      with "[Hcframe_interp Hrevoked Hlc]" as ">Hcframe_interp"
     ; [|iDestruct "Hcframe_interp" as
         (wastk wastk1 wastk2 wastk3
         ) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & Hrevoked)"
       ].
-    { admit. }
-    (* { *)
-    (*   destruct is_untrusted_caller; cycle 1. *)
-    (*   * iExists wcs0, wcs1, wret, wcgp. *)
-    (*     iDestruct "Hcframe_interp" as "($&$&$&$)". iFrame. *)
-    (*     done. *)
-    (*   * cbn. *)
-    (*     iAssert *)
-    (*       (⌜ ∀ (a : Addr), a ∈ (finz.seq_between b_stk csp_e) → (std W0 !! a) = Some Temporary ⌝)%I *)
-    (*       as "%Hstk_tmp". *)
-    (*     { *)
-    (*       iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_callee_wstk") as "%Hstk_tmp" ; auto. *)
-    (*       iPureIntro ; intros a Ha. *)
-    (*       apply elem_of_list_lookup_1 in Ha as [k Ha]. *)
-    (*       by eapply Hstk_tmp. *)
-    (*     } *)
+    {
+      destruct is_untrusted_caller; cycle 1.
+      * iExists wcs0, wcs1, wret, wcgp.
+        iDestruct "Hcframe_interp" as "($&$&$&$)". iFrame.
+        done.
+      * cbn.
+        iAssert
+          (⌜ ∀ (a : Addr), a ∈ (finz.seq_between b_stk csp_e) → (std W0 !! a) = Some Temporary ⌝)%I
+          as "%Hstk_tmp".
+        {
+          iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_callee_wstk") as "%Hstk_tmp" ; auto.
+          iPureIntro ; intros a Ha.
+          apply elem_of_list_lookup_1 in Ha as [k Ha].
+          by eapply Hstk_tmp.
+        }
 
-    (*     iAssert ( ⌜ a_stk ∈ l ⌝)%I as "%Hastk_unk". *)
-    (*     { *)
-    (*       opose proof (Hstk_tmp a_stk _) as Hastk_tmp. *)
-    (*       { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. } *)
-    (*       apply Htemp_revoked in Hastk_tmp. *)
-    (*       apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done. *)
-    (*       rewrite elem_of_finz_seq_between in Hcontra. *)
-    (*       subst a_stk. *)
-    (*       solve_addr+Hcontra. *)
-    (*     } *)
-    (*     iAssert ( ⌜ (a_stk ^+1)%a ∈ l ⌝)%I as "%Hastk1_unk". *)
-    (*     { *)
-    (*       opose proof (Hstk_tmp (a_stk ^+1)%a _) as Hastk_tmp. *)
-    (*       { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. } *)
-    (*       apply Htemp_revoked in Hastk_tmp. *)
-    (*       apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done. *)
-    (*       rewrite elem_of_finz_seq_between in Hcontra. *)
-    (*       subst a_stk. *)
-    (*       solve_addr+Hcontra. *)
-    (*     } *)
-    (*     iAssert ( ⌜ (a_stk ^+2)%a ∈ l ⌝)%I as "%Hastk2_unk". *)
-    (*     { *)
-    (*       opose proof (Hstk_tmp (a_stk ^+2)%a _) as Hastk_tmp. *)
-    (*       { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. } *)
-    (*       apply Htemp_revoked in Hastk_tmp. *)
-    (*       apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done. *)
-    (*       rewrite elem_of_finz_seq_between in Hcontra. *)
-    (*       subst a_stk. *)
-    (*       solve_addr+Hcontra. *)
-    (*     } *)
-    (*     iAssert ( ⌜ (a_stk ^+3)%a ∈ l ⌝)%I as "%Hastk3_unk". *)
-    (*     { *)
-    (*       opose proof (Hstk_tmp (a_stk ^+3)%a _) as Hastk_tmp. *)
-    (*       { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. } *)
-    (*       apply Htemp_revoked in Hastk_tmp. *)
-    (*       apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done. *)
-    (*       rewrite elem_of_finz_seq_between in Hcontra. *)
-    (*       subst a_stk. *)
-    (*       solve_addr+Hcontra. *)
-    (*     } *)
-    (*     iAssert *)
-    (*       ( ∃ l', *)
-    (*           ⌜ l ≡ₚ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a]++l' ⌝ *)
-    (*           ∗ ([∗ list] a ∈ l', (∃ (p : Perm) (P : WORLD * CmptName * Word → iPropI Σ), *)
-    (*                                   ⌜∀ Wv : WORLD * CmptName * Word, Persistent (P Wv)⌝ ∗ *)
-    (*                                                                    temp_resources W0 C P a p ∗ rel C a p P) ∗ *)
-    (*                               ⌜(revoke W0).1 !! a = Some Revoked⌝) *)
-    (*           ∗ (∃ wastk wastk1 wastk2 wastk3, *)
-    (*                 a_stk ↦ₐ wastk *)
-    (*                 ∗ (a_stk ^+ 1)%a ↦ₐ wastk1 *)
-    (*                 ∗ (a_stk ^+ 2)%a ↦ₐ wastk2 *)
-    (*                 ∗ (a_stk ^+ 3)%a ↦ₐ wastk3 *)
-    (*             ) *)
-    (*       )%I with "[Hrevoked]" *)
-    (*       as (l') "(%Hl_unk'' & Hrevoked_l'' & H)". *)
-    (* { apply NoDup_app in Hnodup_revoked as (Hnodup_revoked & ? & ?). *)
-    (*   apply elem_of_Permutation in Hastk_unk as [l0 Hl0]. *)
-    (*   rewrite Hl0 in Hastk1_unk,Hastk2_unk,Hastk3_unk. *)
-    (*   apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (subst a_stk;solve_addr+Hcontra He_a1). *)
-    (*   apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (subst a_stk;solve_addr+Hcontra He_a1). *)
-    (*   apply elem_of_cons in Hastk1_unk as [Hcontra | Hastk1_unk]; first (subst a_stk;solve_addr+Hcontra He_a1). *)
+        iAssert ( ⌜ a_stk ∈ l ⌝)%I as "%Hastk_unk".
+        {
+          opose proof (Hstk_tmp a_stk _) as Hastk_tmp.
+          { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
+          apply Htemp_revoked in Hastk_tmp.
+          apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
+          rewrite elem_of_finz_seq_between in Hcontra.
+          subst a_stk.
+          solve_addr+Hcontra.
+        }
+        iAssert ( ⌜ (a_stk ^+1)%a ∈ l ⌝)%I as "%Hastk1_unk".
+        {
+          opose proof (Hstk_tmp (a_stk ^+1)%a _) as Hastk_tmp.
+          { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
+          apply Htemp_revoked in Hastk_tmp.
+          apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
+          rewrite elem_of_finz_seq_between in Hcontra.
+          subst a_stk.
+          solve_addr+Hcontra.
+        }
+        iAssert ( ⌜ (a_stk ^+2)%a ∈ l ⌝)%I as "%Hastk2_unk".
+        {
+          opose proof (Hstk_tmp (a_stk ^+2)%a _) as Hastk_tmp.
+          { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
+          apply Htemp_revoked in Hastk_tmp.
+          apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
+          rewrite elem_of_finz_seq_between in Hcontra.
+          subst a_stk.
+          solve_addr+Hcontra.
+        }
+        iAssert ( ⌜ (a_stk ^+3)%a ∈ l ⌝)%I as "%Hastk3_unk".
+        {
+          opose proof (Hstk_tmp (a_stk ^+3)%a _) as Hastk_tmp.
+          { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
+          apply Htemp_revoked in Hastk_tmp.
+          apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
+          rewrite elem_of_finz_seq_between in Hcontra.
+          subst a_stk.
+          solve_addr+Hcontra.
+        }
+        iDestruct (write_allowed_inv _ _ a_stk with "Hinterp_callee_wstk")
+          as (p_astk0 φ_astk0) "(%Hp_astk0 & _ &  Hrel_astk0 & _ & Hwcond_astk0 & Hrcond_astk0 & _)"
+        ; auto.
+        { subst a_stk; solve_addr+Hb_a4 He_a1. }
+        iDestruct (write_allowed_inv _ _ (a_stk ^+1)%a with "Hinterp_callee_wstk")
+          as (p_astk1 φ_astk1) "(%Hp_astk1 & _ &  Hrel_astk1 & _ & Hwcond_astk1 & Hrcond_astk1 & _)"
+        ; auto.
+        { subst a_stk; solve_addr+Hb_a4 He_a1. }
+        iDestruct (write_allowed_inv _ _ (a_stk ^+2)%a with "Hinterp_callee_wstk")
+          as (p_astk2 φ_astk2) "(%Hp_astk2 & _ &  Hrel_astk2 & _ & Hwcond_astk2 & Hrcond_astk2 & _)"
+        ; auto.
+        { subst a_stk; solve_addr+Hb_a4 He_a1. }
+        iDestruct (write_allowed_inv _ _ (a_stk ^+3)%a with "Hinterp_callee_wstk")
+          as (p_astk3 φ_astk3) "(%Hp_astk3 & _ &  Hrel_astk3 & _ & Hwcond_astk3 & Hrcond_astk3 & _)"
+        ; auto.
+        { subst a_stk; solve_addr+Hb_a4 He_a1. }
 
-    (*   apply elem_of_Permutation in Hastk1_unk as [l1 Hl1]. *)
-    (*   rewrite Hl1 in Hastk2_unk,Hastk3_unk. *)
-    (*   apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (subst a_stk;solve_addr+Hcontra He_a1). *)
-    (*   apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (subst a_stk;solve_addr+Hcontra He_a1). *)
+        iAssert
+          ( ▷ (∃ l',
+              ⌜ l ≡ₚ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a]++l' ⌝
+              ∗ ([∗ list] a ∈ l', (∃ (p : Perm) (P : WORLD * CmptName * Word → iPropI Σ),
+                                      ⌜∀ Wv : WORLD * CmptName * Word, Persistent (P Wv)⌝ ∗
+                                                                       temp_resources W0 C P a p ∗ rel C a p P) ∗
+                                  ⌜(revoke W0).1 !! a = Some Revoked⌝)
+              ∗ (∃ wastk wastk1 wastk2 wastk3,
+                    a_stk ↦ₐ wastk
+                    ∗ (a_stk ^+ 1)%a ↦ₐ wastk1
+                    ∗ (a_stk ^+ 2)%a ↦ₐ wastk2
+                    ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
+                )
+              ∗ ([∗ list] a ∈ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a],
+                   ∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+                     ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                                      ∗ (⌜isO p = false⌝
+                                                         ∗ (if isWL p
+                                                            then future_pub_mono C φ (WInt 0)
+                                                            else if isDL p then future_pub_mono C φ (WInt 0) else future_priv_mono C φ (WInt 0)
+                                                           )
+                                                         ∗ φ (W0, C, WInt 0))
+                                                      ∗ rel C a p φ
+                )
+          ))%I with "[Hrevoked]" as "H".
+    { apply NoDup_app in Hnodup_revoked as (Hnodup_revoked & ? & ?).
+      apply elem_of_Permutation in Hastk_unk as [l0 Hl0].
+      rewrite Hl0 in Hastk1_unk,Hastk2_unk,Hastk3_unk.
+      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (subst a_stk;solve_addr+Hcontra He_a1).
+      apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (subst a_stk;solve_addr+Hcontra He_a1).
+      apply elem_of_cons in Hastk1_unk as [Hcontra | Hastk1_unk]; first (subst a_stk;solve_addr+Hcontra He_a1).
 
-    (*   apply elem_of_Permutation in Hastk2_unk as [l2 Hl2]. *)
-    (*   rewrite Hl2 in Hastk3_unk. *)
-    (*   apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (subst a_stk;solve_addr+Hcontra He_a1). *)
+      apply elem_of_Permutation in Hastk1_unk as [l1 Hl1].
+      rewrite Hl1 in Hastk2_unk,Hastk3_unk.
+      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (subst a_stk;solve_addr+Hcontra He_a1).
+      apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (subst a_stk;solve_addr+Hcontra He_a1).
 
-    (*   apply elem_of_Permutation in Hastk3_unk as [l3 Hl3]. *)
+      apply elem_of_Permutation in Hastk2_unk as [l2 Hl2].
+      rewrite Hl2 in Hastk3_unk.
+      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (subst a_stk;solve_addr+Hcontra He_a1).
 
-    (*   rewrite Hl3 in Hl2; rewrite Hl2 in Hl1; rewrite Hl1 in Hl0. *)
-    (*   clear Hl3 Hl2 Hl1. *)
+      apply elem_of_Permutation in Hastk3_unk as [l3 Hl3].
 
-    (*   iExists l3; iFrame "%". *)
-    (*   iEval (setoid_rewrite Hl0) in "Hrevoked". *)
-    (*   cbn. *)
-    (*   iDestruct "Hrevoked" as "( [Hv0 _] & [Hv1 _] & [Hv2 _] & [Hv3 _] & $)". *)
-    (*   iDestruct "Hv0" as (? ? ?) "[Hv0 _]". *)
-    (*   iDestruct "Hv1" as (? ? ?) "[Hv1 _]". *)
-    (*   iDestruct "Hv2" as (? ? ?) "[Hv2 _]". *)
-    (*   iDestruct "Hv3" as (? ? ?) "[Hv3 _]". *)
-    (*   rewrite /temp_resources. *)
-    (*   iDestruct "Hv0" as (??) "[$ _]". *)
-    (*   iDestruct "Hv1" as (??) "[$ _]". *)
-    (*   iDestruct "Hv2" as (??) "[$ _]". *)
-    (*   iDestruct "Hv3" as (??) "[$ _]". *)
-    (* } *)
-    (* iDestruct "H" as (????) "($&$&$&$)". *)
-    (* by iFrame. *)
-    (* } *)
+      rewrite Hl3 in Hl2; rewrite Hl2 in Hl1; rewrite Hl1 in Hl0.
+      clear Hl3 Hl2 Hl1.
+
+      iExists l3; iFrame "%".
+      iEval (setoid_rewrite Hl0) in "Hrevoked".
+      cbn.
+      iDestruct "Hrevoked" as "( [Hv0 _] & [Hv1 _] & [Hv2 _] & [Hv3 _] & $)".
+      iDestruct "Hv0" as (? P0 ?) "[Hv0 #Hrel0]".
+      iDestruct "Hv1" as (? P1 ?) "[Hv1 #Hrel1]".
+      iDestruct "Hv2" as (? P2 ?) "[Hv2 #Hrel2]".
+      iDestruct "Hv3" as (? P3 ?) "[Hv3 #Hrel3]".
+      iFrame "#".
+      iDestruct "Hv0" as (v0 ?) "[$ [#H0 H0']]".
+      iDestruct "Hv1" as (v1 ?) "[$ [#H1 H1']]".
+      iDestruct "Hv2" as (v2 ?) "[$ [#H2 H2']]".
+      iDestruct "Hv3" as (v3 ?) "[$ [#H3 H3']]".
+      iFrame "%".
+      iDestruct (rel_agree _ _ (safeC φ_astk0) P0 with "[$Hrel_astk0 $Hrel0]") as "[<- HP0]".
+      iDestruct (rel_agree _ _ (safeC φ_astk1) P1 with "[$Hrel_astk1 $Hrel1]") as "[<- HP1]".
+      iDestruct (rel_agree _ _ (safeC φ_astk2) P2 with "[$Hrel_astk2 $Hrel2]") as "[<- HP2]".
+      iDestruct (rel_agree _ _ (safeC φ_astk3) P3 with "[$Hrel_astk3 $Hrel3]") as "[<- HP3]".
+      rewrite (readAllowed_flowsto RWL p_astk0); auto.
+      rewrite (readAllowed_flowsto RWL p_astk1); auto.
+      rewrite (readAllowed_flowsto RWL p_astk2); auto.
+      rewrite (readAllowed_flowsto RWL p_astk3); auto.
+      rewrite (isWL_flowsto RWL p_astk0); auto.
+      rewrite (isWL_flowsto RWL p_astk1); auto.
+      rewrite (isWL_flowsto RWL p_astk2); auto.
+      rewrite (isWL_flowsto RWL p_astk3); auto.
+      iNext.
+      iSplitL "H0 H0'".
+      { iSplitR "H0'"; cycle 1.
+        + iRewrite - ("HP0" $! (W0,C,v0)) in "H0'".
+          iRewrite - ("HP0" $! (W0,C,WInt 0)).
+          iApply "Hwcond_astk0"; iApply interp_int.
+        + iIntros "!> % % % _".
+          iRewrite - ("HP0" $! (W',C,WInt 0)).
+          iApply "Hwcond_astk0"; iApply interp_int.
+      }
+      iSplitL "H1 H1'".
+      { iSplitR "H1'"; cycle 1.
+        + iRewrite - ("HP1" $! (W0,C,v1)) in "H1'".
+          iRewrite - ("HP1" $! (W0,C,WInt 0)).
+          iApply "Hwcond_astk1"; iApply interp_int.
+        + iIntros "!> % % % _".
+          iRewrite - ("HP1" $! (W',C,WInt 0)).
+          iApply "Hwcond_astk1"; iApply interp_int.
+      }
+      iSplitL "H2 H2'".
+      { iSplitR "H2'"; cycle 1.
+        + iRewrite - ("HP2" $! (W0,C,v2)) in "H2'".
+          iRewrite - ("HP2" $! (W0,C,WInt 0)).
+          iApply "Hwcond_astk2"; iApply interp_int.
+        + iIntros "!> % % % _".
+          iRewrite - ("HP2" $! (W',C,WInt 0)).
+          iApply "Hwcond_astk2"; iApply interp_int.
+      }
+      { iSplitR "H3'"; cycle 1.
+        + iRewrite - ("HP3" $! (W0,C,v3)) in "H3'".
+          iRewrite - ("HP3" $! (W0,C,WInt 0)).
+          iApply "Hwcond_astk3"; iApply interp_int.
+        + iIntros "!> % % % _".
+          iRewrite - ("HP3" $! (W',C,WInt 0)).
+          iApply "Hwcond_astk3"; iApply interp_int.
+      }
+    }
+
+    iDestruct (lc_fupd_elim_later with "[$] [$H]") as ">H".
+    iModIntro.
+    iDestruct "H" as (l') "($ & $ & (%&%&%&%& $&$&$&$) & ($&$&$&?))".
+    rewrite big_sepL_singleton; iFrame.
+    }
 
     (* --- Load cgp csp --- *)
     iInstr "Hcode".
@@ -492,8 +579,59 @@ Section Switcher.
       iPureIntro; solve_addr+Hbounds_tstk_b  Hlen_cstk Ha_tstk1.
     }
 
-    (* TODO need to fix the world *)
+    set (Wfixed := (close_list (l ++ finz.seq_between csp_b csp_e) (revoke Wcur))).
+    assert (related_sts_pub_world W0 Wfixed)
+      as Hrelated_W0_Wfixed.
+    { admit. (* hypothesis !! *) }
 
+    (* Fix the world! *)
+    iMod (monotone_close_list_region W0 _ _ (l ++ finz.seq_between csp_b csp_e) with
+           "[] [$Hr $Hsts Hrevoked Hstk]") as "[Hsts Hr]"; first done.
+    { destruct is_untrusted_caller.
+      + iDestruct "Hrevoked" as (l') "(%Hl & Hrevoked & (Hrev0 & Hrev1 & Hrev2 & Hrev3 & _) )".
+        rewrite Hl.
+        rewrite big_sepL_app.
+        rewrite big_sepL_app.
+        rewrite (region_addrs_zeroes_split _ (a_stk ^+ 4)%a); last (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
+        rewrite (region_pointsto_split _ _ (a_stk ^+ 4)%a)
+        ; [| subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1 | by rewrite /region_addrs_zeroes length_replicate].
+        iDestruct "Hstk" as "[Hstk_register_save Hstk]".
+        iSplitL "Hstk_register_save Hrev0 Hrev1 Hrev2 Hrev3 Hrevoked".
+        * iSplitL "Hstk_register_save Hrev0 Hrev1 Hrev2 Hrev3".
+          ** cbn in *.
+             rewrite /region_addrs_zeroes.
+             replace (finz.dist a_stk (a_stk ^+ 4)%a) with 4; first cbn.
+             2: { do 4 (rewrite finz_dist_S; last (subst a_stk; solve_addr+Ha_stk4)).
+                  rewrite finz_dist_0; last (subst a_stk; solve_addr+Ha_stk4).
+                  done.
+             }
+
+             iDestruct (region_pointsto_cons with "Hstk_register_save") as "[Ha_stk0 Hstk_register_save]"
+             ; [ transitivity ( Some (a_stk ^+ 1)%a ); subst a_stk; solve_addr+Ha_stk4
+               | subst a_stk; solve_addr+Ha_stk4 He_a1
+               |].
+             iDestruct (region_pointsto_cons with "Hstk_register_save") as "[Ha_stk1 Hstk_register_save]"
+             ; [ transitivity ( Some (a_stk ^+ 2)%a ); subst a_stk; solve_addr+Ha_stk4
+               | subst a_stk; solve_addr+Ha_stk4 He_a1
+               |].
+             iDestruct (region_pointsto_cons with "Hstk_register_save") as "[Ha_stk2 Hstk_register_save]"
+             ; [ transitivity ( Some (a_stk ^+ 3)%a ); subst a_stk; solve_addr+Ha_stk4
+               | subst a_stk; solve_addr+Ha_stk4 He_a1
+               |].
+             iDestruct (region_pointsto_cons with "Hstk_register_save") as "[Ha_stk3 _]"
+             ; [ transitivity ( Some (a_stk ^+ 4)%a ); subst a_stk; solve_addr+Ha_stk4
+               | subst a_stk; solve_addr+Ha_stk4 He_a1
+               |].
+             iFrame.
+          ** iApply (big_sepL_impl with "Hrevoked"); iIntros "!> % % %Hk [$ _]".
+        * admit.
+          (* I should be able to obtain all the information I need from Hinterp_callee_wstk *)
+      + rewrite big_sepL_app.
+        iSplitL "Hrevoked".
+        * iApply (big_sepL_impl with "Hrevoked"); iIntros "!> % % %Hk [$ _]".
+        * admit.
+          (* I should be able to obtain all the information I need from Hinterp_callee_wstk *)
+    }
 
     destruct is_untrusted_caller; cycle 1.
     - (* Case where caller is trusted, we use the continuation *)
@@ -522,20 +660,21 @@ Section Switcher.
       (* } *)
 
       (* here I'm supposed to have fixed the world, so (revoke Wcur) should be fixed *)
-      iAssert (interp (revoke Wcur) C wca0)%I as "#Hinterp_wca0".
+      iAssert (interp Wfixed C wca0)%I as "#Hinterp_wca0".
       { admit. (* hypothesis *) }
-      iAssert (interp (revoke Wcur) C wca1)%I as "#Hinterp_wca1".
+      iAssert (interp Wfixed C wca1)%I as "#Hinterp_wca1".
       { admit. (* hypothesis *) }
-      iApply ("Hexec_topmost_frm" with
-               "[] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk Hr $Hsts $Hcont_K $Hcstk_frag $Hna]").
-      { admit. (* hypothesis *) }
-      iSplitR.
-      { iPureIntro;rewrite Harg_rmap'; set_solver. }
-      iSplit; first done.
-      iSplit; first done.
-      admit. (* follows from opening the world *)
+      (* iApply ("Hexec_topmost_frm" with *)
+      (*          "[] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1 *)
+      (* $Hrmap $Hstk Hr $Hsts $Hcont_K $Hcstk_frag $Hna]"). *)
+      (* { admit. (* hypothesis *) } *)
+      (* iSplitR. *)
+      (* { iPureIntro;rewrite Harg_rmap'; set_solver. } *)
+      (* iSplit; first done. *)
+      (* iSplit; first done. *)
+      (* admit. (* follows from opening the world *) *)
 
+      admit.
     - (* Case where caller is untrusted, we use the IH *)
 
       (* I should know that wastk,... , are interp, because of interp_callee_wstk
