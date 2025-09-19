@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
 From cap_machine Require Import logrel rules proofmode.
 From cap_machine Require Import fetch switcher_spec_call counter.
+From cap_machine Require Import switcher_spec_return.
 
 Section Counter.
   Context
@@ -24,6 +25,58 @@ Section Counter.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
   Context {C : CmptName}.
+
+  Lemma revoked_by_separation_with_temp_resources W W' B a :
+    a ∈ dom (std W') ->
+    (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+        ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                         ∗ temp_resources W B φ a p  ∗ rel C a p φ)
+    ∗ sts_full_world W' B
+    ∗ region W' B
+    ==∗
+    (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+        ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                         ∗ temp_resources W B φ a p ∗ rel C a p φ)
+    ∗ sts_full_world W' B
+    ∗ region W' B
+    ∗ ⌜ std W' !! a = Some Revoked ⌝.
+  Proof.
+    iIntros (Hin) "( (%&%&%& (%&%&Hv&Hmono&Hφ) &Hrel) & Hsts & Hr )".
+    rewrite elem_of_dom in Hin; destruct Hin as [? Hin].
+    iMod (revoked_by_separation with "[$Hsts $Hr $Hv]") as "(Hsts & Hr & Hv & %H')"; eauto.
+    simplify_eq.
+    iModIntro.
+    iFrame "∗%".
+  Qed.
+
+  Lemma revoked_by_separation_many_with_temp_resources W W' B la :
+    Forall (λ a, a ∈ dom (std W')) la →
+    ([∗ list] a ∈ la, (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+                          ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                                           ∗ temp_resources W B φ a p  ∗ rel C a p φ)
+                      ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
+    ∗ sts_full_world W' B
+    ∗ region W' B
+    ==∗
+    ([∗ list] a ∈ la, (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+                          ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                                           ∗ temp_resources W B φ a p  ∗ rel C a p φ)
+                      ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
+    ∗ sts_full_world W' B
+    ∗ region W' B
+    ∗ ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
+  Proof.
+    induction la; iIntros (Hin) "(Hl & Hsts & Hr)"; cbn.
+    - iModIntro; iFrame. by iPureIntro; apply Forall_nil.
+    - iDestruct "Hl" as "[ [Hl %] IHl]".
+      apply Forall_cons in Hin as [Hin_a Hin].
+      iMod (revoked_by_separation_with_temp_resources with "[$Hl $Hsts $Hr]")
+        as "(Hl & Hsts & Hr & %)"; first done.
+      iMod (IHla with "[$IHl $Hsts $Hr]") as "(IHl & Hsts & Hr & %)"; first done.
+      iModIntro.
+      iFrame "∗%".
+      by iPureIntro; apply Forall_cons.
+  Qed.
 
   Lemma counter_spec
 
@@ -335,14 +388,40 @@ Section Counter.
       rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
     }
 
-    iAssert (
-        [∗ list] a ∈ l, ⌜(std W2) !! a = Some Revoked⌝
-      )%I as "%HW2_revoked_l".
-    { admit. }
+    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W1.1) l ⌝)%I as "%Hrevoked_l_W".
+    {
+      iDestruct (big_sepL_sep with "Hrevoked_l") as "[_ %Hrevoked_l]".
+      iPureIntro; apply Forall_forall; intros a Ha.
+      apply elem_of_list_lookup in Ha as [k Hk].
+      apply Hrevoked_l in Hk.
+      by rewrite elem_of_dom.
+    }
+    iMod (
+       revoked_by_separation_many_with_temp_resources with "[$Hsts_C $Hr_C $Hrevoked_l]"
+      ) as "(Hrevoked_l & Hsts_C & Hr_C & %HW2_revoked_l)".
+    { apply Forall_forall; intros a Ha.
+      rewrite Forall_forall in Hrevoked_l_W.
+      apply Hrevoked_l_W in Ha.
+      destruct Hrelated_pub_W1_W2 as [ [Hdom _ ] _].
+      by apply Hdom.
+    }
+
+    iDestruct (big_sepL_sep with "Hfrm_close_W0") as "[_ %Hrevoked_stk]".
     iMod (
        revoked_by_separation_many with "[$Hsts_C $Hr_C $Hstk_l]"
       ) as "(Hsts_C & Hr_C & Hstk_l & %Hrevoked_stk_l)".
-    { admit. }
+    { apply Forall_forall; intros x Hx.
+      destruct Hrelated_pub_W1_W2 as [ [Hdom _ ] _].
+      apply Hdom.
+      subst W1.
+      rewrite elem_of_dom.
+      assert (x ∈ finz.seq_between csp_b csp_e) as Hx'.
+      { rewrite !elem_of_finz_seq_between in Hx |- *.
+        solve_addr+Hcsp_bounds Hx.
+      }
+      apply elem_of_list_lookup in Hx' as [? Hx'].
+      eexists; eapply Hrevoked_stk; eauto.
+    }
 
 
     (* Revoke the world again to get the points-to of the stack *)
@@ -396,17 +475,18 @@ Section Counter.
     iClear "Hmem Hentry_C_f".
     subst W3.
 
-    From cap_machine Require Import switcher_spec_return.
     destruct Hl_unk.
     iApply (switcher_ret_specification _ W0 W2
              with
              "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
-    {
-      destruct W0 as [W0_std W0_cus], W2 as [W2_std W2_cus]; cbn.
+    { (* TODO make a lemma out of this *)
+      opose proof (finz_seq_between_split csp_b (csp_b^+4)%a csp_e _) as Hsplit_csp.
+      { solve_addr+Hcsp_bounds. }
       clear - Hrelated_pub_1ext_W2 Hrelared_priv_W0_W1 Hrelated_pub_W1_W2 H H0 Hl_unk'
-      HW2_revoked_l Hrevoked_stk_l.
+      HW2_revoked_l Hrevoked_stk_l Hsplit_csp.
+      destruct W0 as [W0_std W0_cus], W2 as [W2_std W2_cus]; cbn.
       destruct Hrelated_pub_W1_W2 as [HW1_W2_std HW1_W2_cus].
       subst W1; cbn in *.
       split; cbn; cycle 1.
@@ -456,7 +536,6 @@ Section Counter.
         { destruct (H0 a) as [? _]; by apply H1. }
         apply revoke_lookup_Monotemp in Ha0.
         assert (std (revoke ((W0_std, W0_cus))) !! a = Some Revoked) as Ha0' by done.
-
         assert (
             std ((std_update_multiple (revoke (W0_std, W0_cus)) (finz.seq_between (csp_b ^+ 4)%a csp_e)
                Temporary)) !! a =
@@ -472,21 +551,39 @@ Section Counter.
         assert (is_Some (W2_std !! a)) as [ρ2' Ha2'].
         { rewrite -elem_of_dom. apply HW1ext_W2_dom. by rewrite elem_of_dom. }
         pose proof (HW1ext_W2_t a _ ρ2' H1 Ha2') as Hρ2'.
-        destruct (decide (a ∈ finz.seq_between (csp_b ^+ 4)%a csp_e)).
-        + eapply std_rel_pub_rtc_Temporary in Hρ2'; auto; simplify_eq.
+        pose proof Ha_in as Ha_in'.
+        rewrite Hsplit_csp app_assoc elem_of_app in Ha_in'.
+
+        destruct (decide (a ∈ finz.seq_between (csp_b ^+ 4)%a csp_e)) as [Ha_in''|Ha_in''].
+        { eapply std_rel_pub_rtc_Temporary in Hρ2'; auto; simplify_eq.
           apply revoke_lookup_Monotemp in Ha2'.
           assert (std (revoke ((W2_std, W2_cus))) !! a = Some Revoked) as Ha2'' by done.
           eapply close_list_std_sta_revoked in Ha2''; last apply Ha_in.
           rewrite Ha2 in Ha2''; simplify_eq.
           apply rtc_refl.
-        + admit.
+        }
 
-          (* I think it's fine *)
+        destruct Ha_in' as [Ha_in'|Ha_in']; last set_solver+Ha_in'' Ha_in'.
+        assert (ρ2' = Revoked) as ->.
+        { rewrite elem_of_app in Ha_in'.
+          destruct Ha_in' as [Ha_in'|Ha_in'].
+          + rewrite Forall_forall in HW2_revoked_l.
+            eapply HW2_revoked_l in Ha_in';eauto.
+            by rewrite Ha_in' in Ha2'; simplify_eq.
+          + rewrite Forall_forall in Hrevoked_stk_l.
+            eapply Hrevoked_stk_l in Ha_in'; eauto.
+            by rewrite Ha_in' in Ha2'; simplify_eq.
+        }
+        eapply revoke_lookup_Revoked in Ha2'.
+        assert (std (revoke ((W2_std, W2_cus))) !! a = Some Revoked) as Ha2'' by done.
+        eapply close_list_std_sta_revoked in Ha2''; last apply Ha_in.
+        rewrite Ha2 in Ha2''; simplify_eq.
+        apply rtc_refl.
     }
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
     { iSplit; iApply interp_int. }
 
-  Admitted.
+  Qed.
 
   Lemma counter_spec_entry_point
 
