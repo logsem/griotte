@@ -34,7 +34,7 @@ Section Switcher.
     (W0 Wcur : WORLD)
     (C : CmptName)
     (rmap : Reg)
-    (csp_e csp_b cgp_e: Addr)
+    (csp_e csp_b: Addr)
     (l : list Addr)
     (stk_mem : list Word)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
