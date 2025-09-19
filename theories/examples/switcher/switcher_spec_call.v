@@ -605,7 +605,9 @@ Section Switcher.
       apply elem_of_list_lookup. eauto.
     }
     iSplitR.
-    { iPureIntro. simpl. auto. }
+    { iPureIntro; simpl; split; [|split]; auto.
+      apply related_sts_pub_refl_world.
+    }
 
     iFrame.
     rewrite /execute_entry_point_register.

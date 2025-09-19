@@ -1358,7 +1358,7 @@ Section fundamental.
         { intros Hcontr;inversion Hcontr. }
         iIntros "!> HPC". wp_pure. wp_end. iIntros (Hcontr);done. }
     iSplitR.
-    { iPureIntro. simpl. split;auto. }
+    { iPureIntro. simpl. split;auto. apply related_sts_pub_refl_world. }
     iFrame.
     rewrite /execute_entry_point_register.
     iDestruct (big_sepM_sep with "Hrest") as "[Hrest #Hnil]".

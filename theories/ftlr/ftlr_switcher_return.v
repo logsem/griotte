@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine Require Export logrel.
+From cap_machine Require Export logrel monotone.
 From cap_machine.ftlr Require Import ftlr_base.
 From cap_machine.rules Require Import rules_JmpCap.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
@@ -262,7 +262,6 @@ Section fundamental.
       solve_addr.
     }
 
-    rewrite /interp_continuation /interp_cont.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode" with "Hlc".
 
@@ -335,12 +334,13 @@ Section fundamental.
     rename a into a_stk; rename b into b_stk; rename e into e_stk.
     iDestruct "Hcframe_interp" as "(%HWF & -> & Hcframe_interp)".
     destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
+    simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hfreq).
 
+    iDestruct (interp_monotone_continuation with "Hcont_K") as "Hcont_K"; eauto.
     iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
     iEval (cbn) in "Hinterp_callee_wstk".
     iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_callee_wstk]") as ">#Hinterp_callee_wstk'".
     iClear "Hinterp_callee_wstk" ; iRename "Hinterp_callee_wstk'" into "Hinterp_callee_wstk".
-    simpl in Hfreq. destruct Hfreq as (<- & <- & Hfreq).
     iAssert (
         ∃ wastk wastk1 wastk2 wastk3,
         let la := (if is_untrusted_caller then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in

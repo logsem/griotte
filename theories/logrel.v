@@ -202,11 +202,28 @@ Section logrel.
     : Prop :=
     match Ws,Cs,cstk with
     | W' :: Ws', C' :: Cs', frm :: cstk' =>
-        W = W' ∧ C = C'
+        related_sts_pub_world W' W ∧ C = C'
         ∧ (if frm.(is_untrusted_caller) then frame_match Ws' Cs' cstk' W C else True)
     | [], [] , []=> True
     | _,_,_ => False
     end.
+
+  Lemma frame_match_mono
+    (Ws : list WORLD) (Cs : list CmptName) (cstk : CSTK) (W W' : WORLD) ( C : CmptName ) :
+    related_sts_pub_world W W' ->
+    frame_match Ws Cs cstk W C ->
+    frame_match Ws Cs cstk W' C.
+  Proof.
+    revert Ws Cs.
+    induction cstk as [|frm cstk]; intros Ws Cs Hrelated Hfrm.
+    - destruct Ws,Cs; cbn in *; try done.
+    - destruct Ws,Cs; cbn in *; try done.
+      destruct Hfrm as (Hrelated' & <- & IH).
+      split;[|split]; auto.
+      + eapply related_sts_pub_trans_world; eauto.
+      + destruct (is_untrusted_caller frm); last done.
+        by apply IHcstk.
+  Qed.
 
   Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
     (λne (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (W : WORLD) (C : CmptName) (wpc : Word) (wstk : Word),

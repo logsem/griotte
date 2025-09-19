@@ -171,8 +171,8 @@ Section Switcher.
       wp_pure; wp_end ; by iIntros (?).
     }
 
-    destruct Ws,Cs;try done. simpl in Hframe.
-    destruct Hframe as [<- [<- Hframe] ].
+    destruct Ws as [|Wprev Ws],Cs;try done. simpl in Hframe.
+    destruct Hframe as [Hrelated_pub_Wprev_W0 [<- Hframe] ].
 
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     destruct frm.
@@ -193,6 +193,7 @@ Section Switcher.
     cbn in Hcsp_sync; destruct Hcsp_sync as [ Ha He ]; simplify_eq.
     set (a_stk := (csp_b ^+ -4)%a).
 
+    iDestruct (interp_monotone_continuation with "HK") as "HK"; eauto.
     iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
 
     rewrite -/(interp_cont).
@@ -594,10 +595,6 @@ Section Switcher.
 
     iHide "Hcode" as hcode.
     subst a_stk; set (a_stk := (csp_b ^+ -4)%a).
-    (* rewrite (region_addrs_zeroes_split _ (a_stk ^+ 4)%a); last (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1). *)
-    (* rewrite (region_pointsto_split _ _ (a_stk ^+ 4)%a) *)
-    (* ; [| subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1 | by rewrite /region_addrs_zeroes length_replicate]. *)
-    (* iDestruct "Hstk" as "[Hstk_register_save Hstk]". *)
 
 
     (* Update the call-stack: depop the topmost frame *)
@@ -758,7 +755,6 @@ Section Switcher.
       iClear "Hexec_topmost_frm".
 
       (* TODO apply the FTLR here, should be fine *)
-      (* BUT!!! I can't prove `frame_match Wfixed` because what I have is `frame_match W0` !!!! *)
 
       (* iDestruct (fundamental _ cstk Ws Cs _ _ (WCap RWL Local b_stk csp_e a_stk) with "[$] Hinterp_wstk2") as "Hcont'". *)
       (* rewrite /interp_expression /=. *)
@@ -809,11 +805,7 @@ Section Switcher.
       (* {  rewrite /registers_pointsto. *)
       (*    subst regs'. *)
       (*   admit. } *)
-      (* iSplit. *)
-      (* { *)
-
-      (* } *)
-      (* last (iPureIntro; apply Hframe). *)
+      (* iSplit; last(iPureIntro; eapply frame_match_mono; eauto). *)
 
   Admitted.
 
