@@ -583,13 +583,13 @@ Section fundamental.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
       iEval (rewrite app_nil_r) in "Hr".
-      iAssert ([[a_stk,e_stk]] ↦ₐ [[region_addrs_zeroes a_stk e_stk%a]])%I with "[Hstk_register_save Hstk]" as "Hstk".
-      {
-        rewrite (region_addrs_zeroes_split a_stk (a_stk ^+4)%a e_stk); last solve_addr+Ha_stk4 He_a1 Hb_a4.
-        rewrite region_pointsto_split; first iFrame.
-        solve_addr+Ha_stk4 He_a1 Hb_a4.
-        by rewrite /region_addrs_zeroes length_replicate.
-      }
+      (* iAssert ([[a_stk,e_stk]] ↦ₐ [[region_addrs_zeroes a_stk e_stk%a]])%I with "[Hstk_register_save Hstk]" as "Hstk". *)
+      (* { *)
+      (*   rewrite (region_addrs_zeroes_split a_stk (a_stk ^+4)%a e_stk); last solve_addr+Ha_stk4 He_a1 Hb_a4. *)
+      (*   rewrite region_pointsto_split; first iFrame. *)
+      (*   solve_addr+Ha_stk4 He_a1 Hb_a4. *)
+      (*   by rewrite /region_addrs_zeroes length_replicate. *)
+      (* } *)
       iAssert (([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, closing_resources interp W C a (WInt 0)))%I
         with "[Hres]" as "Hres".
       { iClear "#".
@@ -604,9 +604,16 @@ Section fundamental.
         by iApply (IHla with "H").
       }
 
+      iAssert (([∗ list] a ; v ∈ finz.seq_between (a_stk ^+ 4)%a e_stk ; lv' , closing_resources interp W C a v))%I
+        with "[Hres]" as "Hres".
+      { rewrite /region_pointsto.
+        iApply big_sepL2_replicate_r; auto.
+        by rewrite finz_seq_between_length.
+      }
+
       iApply ("Hexec_topmost_frm" with
                "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk $Hr $Hres $Hsts $Hcont_K $Hcstk_frag $Hna]").
+      $Hrmap $Hstk_register_save $Hstk $Hr $Hres $Hsts $Hcont_K $Hcstk_frag $Hna]").
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we use the IH *)

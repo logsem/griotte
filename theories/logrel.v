@@ -320,8 +320,9 @@ Section logrel.
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName)
        (frm : cframe)
      ,
-       ∀ wca0 wca1 regs a_stk e_stk,
-       let callee_stk_region := finz.seq_between (a_stk ^+4)%a e_stk in
+       ∀ wca0 wca1 regs a_stk e_stk stk_mem_l stk_mem_h,
+       let callee_stk_region := finz.seq_between (if frm.(is_untrusted_caller) then a_stk else (a_stk ^+4)%a) e_stk in
+       let callee_stk_mem := if frm.(is_untrusted_caller) then stk_mem_l++stk_mem_h else stk_mem_h in
        ( PC ↦ᵣ updatePcPerm frm.(wret)
          ∗ cra ↦ᵣ frm.(wret)
          ∗ csp ↦ᵣ frm.(wstk)
@@ -338,9 +339,10 @@ Section logrel.
          (* World interpretation *)
          ∗ ⌜ get_a frm.(wstk) = Some a_stk ⌝
          ∗ ⌜ get_e frm.(wstk) = Some e_stk ⌝
-         ∗ [[ a_stk , e_stk ]] ↦ₐ [[ addr_reg_sample.region_addrs_zeroes a_stk e_stk ]]
+         ∗ [[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ stk_mem_l ]]
+         ∗ [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]]
          ∗ open_region_many W C callee_stk_region
-         ∗ ([∗ list] a ∈ callee_stk_region, closing_resources interp W C a (WInt 0))
+         ∗ ([∗ list] a ; v ∈ callee_stk_region ; callee_stk_mem, closing_resources interp W C a v)
          ∗ sts_full_world W C
          (* Continuation *)
          ∗ interp_cont
@@ -356,9 +358,9 @@ Section logrel.
     intros interp interp0 Heq K K0 HK.
     rewrite /interp_cont_exec. intros ????. simpl.
     (* do 10 f_equiv;[|apply HK]. *)
-    do 22 f_equiv; auto;[apply Heq|].
-    do 8 f_equiv; auto.
-    f_equiv; auto.
+    do 26 f_equiv; auto;[apply Heq|].
+    do 9 f_equiv; auto.
+    do 2 f_equiv; auto.
     by apply closing_resources_ne.
   Qed.
 

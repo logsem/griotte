@@ -40,6 +40,8 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (wca0 wca1 : Word)
     :
+    let Wfixed := (close_list (l ++ finz.seq_between csp_b csp_e) (revoke Wcur)) in
+    related_sts_pub_world W0 Wfixed ->
     dom rmap = all_registers_s ∖ ({[ PC ; csp ; ca0 ; ca1 ]} ) ->
     frame_match Ws Cs cstk W0 C ->
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
@@ -48,6 +50,8 @@ Section Switcher.
 
     (* Switcher Invariant *)
     na_inv logrel_nais Nswitcher switcher_inv
+    ∗ interp Wfixed C wca0
+    ∗ interp Wfixed C wca1
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
@@ -68,8 +72,9 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
-    iIntros (Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hswitcher & Hstk & Hcstk & HK & Hsts & Hna
+    intros Wfixed.
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
+      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hsts & Hna
     & HPC & Hr & Hrevoked & Hrmap & Hca0 & Hca1 & Hcsp)".
 
     (* --- Extract the code from the invariant --- *)
@@ -239,6 +244,15 @@ Section Switcher.
           ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
           (* ∗ ▷ ([∗ list] a ; v ∈ la ; lv, ▷ closing_resources interp W C a v) *)
           ∗ (⌜if is_untrusted_caller then True else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wret ∧ wastk3 = wcgp)⌝)
+          ∗ (if is_untrusted_caller
+             then (
+                 (interp Wfixed C wastk)
+                 ∗ (interp Wfixed C wastk1)
+                 ∗ (interp Wfixed C wastk2)
+                 ∗ (interp Wfixed C wastk3)
+               )
+             else True
+            )
           ∗ ( if is_untrusted_caller
               then
                 ( ∃ l',
@@ -270,7 +284,7 @@ Section Switcher.
       with "[Hcframe_interp Hrevoked Hlc]" as ">Hcframe_interp"
     ; [|iDestruct "Hcframe_interp" as
         (wastk wastk1 wastk2 wastk3
-        ) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & Hrevoked)"
+        ) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)"
       ].
     {
       destruct is_untrusted_caller; cycle 1.
@@ -357,6 +371,10 @@ Section Switcher.
                     ∗ (a_stk ^+ 1)%a ↦ₐ wastk1
                     ∗ (a_stk ^+ 2)%a ↦ₐ wastk2
                     ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
+                    ∗ (interp W0 C wastk)
+                    ∗ (interp W0 C wastk1)
+                    ∗ (interp W0 C wastk2)
+                    ∗ (interp W0 C wastk3)
                 )
               ∗ ([∗ list] a ∈ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a],
                    ∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
@@ -399,6 +417,7 @@ Section Switcher.
       iDestruct "Hv1" as (? P1 ?) "[Hv1 #Hrel1]".
       iDestruct "Hv2" as (? P2 ?) "[Hv2 #Hrel2]".
       iDestruct "Hv3" as (? P3 ?) "[Hv3 #Hrel3]".
+      iClear "Hinterp_Wfixed_wca0 Hinterp_Wfixed_wca1 Hinterp_callee_wstk".
       iFrame "#".
       iDestruct "Hv0" as (v0 ?) "[$ [#H0 H0']]".
       iDestruct "Hv1" as (v1 ?) "[$ [#H1 H1']]".
@@ -418,10 +437,18 @@ Section Switcher.
       rewrite (isWL_flowsto RWL p_astk2); auto.
       rewrite (isWL_flowsto RWL p_astk3); auto.
       iNext.
+      iRewrite - ("HP0" $! (W0,C,v0)) in "H0'".
+      iRewrite - ("HP1" $! (W0,C,v1)) in "H1'".
+      iRewrite - ("HP2" $! (W0,C,v2)) in "H2'".
+      iRewrite - ("HP3" $! (W0,C,v3)) in "H3'".
+      iDestruct ("Hrcond_astk0" with "H0'") as "#Hinterp0"; cbn.
+      iDestruct ("Hrcond_astk1" with "H1'") as "#Hinterp1"; cbn.
+      iDestruct ("Hrcond_astk2" with "H2'") as "#Hinterp2"; cbn.
+      iDestruct ("Hrcond_astk3" with "H3'") as "#Hinterp3"; cbn.
+      iSplitR ; cycle 1.
       iSplitL "H0 H0'".
       { iSplitR "H0'"; cycle 1.
-        + iRewrite - ("HP0" $! (W0,C,v0)) in "H0'".
-          iRewrite - ("HP0" $! (W0,C,WInt 0)).
+        + iRewrite - ("HP0" $! (W0,C,WInt 0)).
           iApply "Hwcond_astk0"; iApply interp_int.
         + iIntros "!> % % % _".
           iRewrite - ("HP0" $! (W',C,WInt 0)).
@@ -429,8 +456,7 @@ Section Switcher.
       }
       iSplitL "H1 H1'".
       { iSplitR "H1'"; cycle 1.
-        + iRewrite - ("HP1" $! (W0,C,v1)) in "H1'".
-          iRewrite - ("HP1" $! (W0,C,WInt 0)).
+        + iRewrite - ("HP1" $! (W0,C,WInt 0)).
           iApply "Hwcond_astk1"; iApply interp_int.
         + iIntros "!> % % % _".
           iRewrite - ("HP1" $! (W',C,WInt 0)).
@@ -438,26 +464,39 @@ Section Switcher.
       }
       iSplitL "H2 H2'".
       { iSplitR "H2'"; cycle 1.
-        + iRewrite - ("HP2" $! (W0,C,v2)) in "H2'".
-          iRewrite - ("HP2" $! (W0,C,WInt 0)).
+        + iRewrite - ("HP2" $! (W0,C,WInt 0)).
           iApply "Hwcond_astk2"; iApply interp_int.
         + iIntros "!> % % % _".
           iRewrite - ("HP2" $! (W',C,WInt 0)).
           iApply "Hwcond_astk2"; iApply interp_int.
       }
       { iSplitR "H3'"; cycle 1.
-        + iRewrite - ("HP3" $! (W0,C,v3)) in "H3'".
-          iRewrite - ("HP3" $! (W0,C,WInt 0)).
+        + iRewrite - ("HP3" $! (W0,C,WInt 0)).
           iApply "Hwcond_astk3"; iApply interp_int.
         + iIntros "!> % % % _".
           iRewrite - ("HP3" $! (W',C,WInt 0)).
           iApply "Hwcond_astk3"; iApply interp_int.
       }
+
+      rewrite /load_word.
+      rewrite (notisDRO_flowsfrom RWL p_astk0); eauto.
+      rewrite (notisDRO_flowsfrom RWL p_astk1); eauto.
+      rewrite (notisDRO_flowsfrom RWL p_astk2); eauto.
+      rewrite (notisDRO_flowsfrom RWL p_astk3); eauto.
+      rewrite (notisDL_flowsfrom RWL p_astk0); eauto.
+      rewrite (notisDL_flowsfrom RWL p_astk1); eauto.
+      rewrite (notisDL_flowsfrom RWL p_astk2); eauto.
+      rewrite (notisDL_flowsfrom RWL p_astk3); eauto.
     }
 
     iDestruct (lc_fupd_elim_later with "[$] [$H]") as ">H".
     iModIntro.
-    iDestruct "H" as (l') "($ & $ & (%&%&%&%& $&$&$&$) & ($&$&$&?))".
+    iDestruct "H" as (l') "($ & $ & (%&%&%&%& $&$&$&$&H0&H1&H2&H3) & ($&$&$&?))".
+    iDestruct (interp_monotone W0 Wfixed with "[] H0") as "$"; first done.
+    iDestruct (interp_monotone W0 Wfixed with "[] H1") as "$"; first done.
+    iDestruct (interp_monotone W0 Wfixed with "[] H2") as "$"; first done.
+    iDestruct (interp_monotone W0 Wfixed with "[] H3") as "$"; first done.
+    iFrame.
     rewrite big_sepL_singleton; iFrame.
     }
 
@@ -493,7 +532,7 @@ Section Switcher.
     (* GetE ct0 csp *)
     iInstr "Hcode".
     (* GetA ct1 csp *)
-    iInstr "Hcode".
+    iInstr "Hcode" with "Hlc'".
 
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
@@ -579,109 +618,203 @@ Section Switcher.
       iPureIntro; solve_addr+Hbounds_tstk_b  Hlen_cstk Ha_tstk1.
     }
 
-    set (Wfixed := (close_list (l ++ finz.seq_between csp_b csp_e) (revoke Wcur))).
-    assert (related_sts_pub_world W0 Wfixed)
-      as Hrelated_W0_Wfixed.
-    { admit. (* hypothesis !! *) }
+
+    iAssert
+      ([[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]] ∗ [[a_stk4,csp_e]]↦ₐ[[region_addrs_zeroes a_stk4 csp_e]]
+      )%I with "[Hstk]" as "[Hstk' Hstk]".
+    {
+      rewrite (region_addrs_zeroes_split _ a_stk4); last (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
+      rewrite (region_pointsto_split _ _ a_stk4)
+      ; [| subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1 | by rewrite /region_addrs_zeroes length_replicate].
+      done.
+    }
+    set (closing_region := finz.seq_between csp_b csp_e).
+
 
     (* Fix the world! *)
-    iMod (monotone_close_list_region W0 _ _ (l ++ finz.seq_between csp_b csp_e) with
-           "[] [$Hr $Hsts Hrevoked Hstk]") as "[Hsts Hr]"; first done.
+    iAssert (
+        |==>
+          sts_full_world Wfixed C
+          ∗ region Wfixed C
+          ∗ (if is_untrusted_caller
+             then True
+             else [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]]
+            )
+      )%I with "[Hsts Hr Hstk' Hstk Hrevoked]" as ">(Hsts & Hr & Hstk')".
     { destruct is_untrusted_caller.
-      + iDestruct "Hrevoked" as (l') "(%Hl & Hrevoked & (Hrev0 & Hrev1 & Hrev2 & Hrev3 & _) )".
+      - (* caller is untrusted, we need to re-instate the whole stack frame *)
+        iMod (monotone_close_list_region W0 _ _ (l++closing_region) with
+               "[] [$Hr $Hsts Hrevoked Hstk Hstk']") as "[Hsts Hr]"; first done; last by iFrame.
+        iDestruct "Hrevoked" as (l') "(%Hl & Hrevoked & (Hrev0 & Hrev1 & Hrev2 & Hrev3 & _) )".
         rewrite Hl.
         rewrite big_sepL_app.
         rewrite big_sepL_app.
-        rewrite (region_addrs_zeroes_split _ (a_stk ^+ 4)%a); last (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
-        rewrite (region_pointsto_split _ _ (a_stk ^+ 4)%a)
-        ; [| subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1 | by rewrite /region_addrs_zeroes length_replicate].
-        iDestruct "Hstk" as "[Hstk_register_save Hstk]".
-        iSplitL "Hstk_register_save Hrev0 Hrev1 Hrev2 Hrev3 Hrevoked".
-        * iSplitL "Hstk_register_save Hrev0 Hrev1 Hrev2 Hrev3".
-          ** cbn in *.
-             rewrite /region_addrs_zeroes.
-             replace (finz.dist a_stk (a_stk ^+ 4)%a) with 4; first cbn.
-             2: { do 4 (rewrite finz_dist_S; last (subst a_stk; solve_addr+Ha_stk4)).
-                  rewrite finz_dist_0; last (subst a_stk; solve_addr+Ha_stk4).
-                  done.
-             }
+        iSplitR "Hstk"; cycle 1.
+        { subst closing_region.
+          replace a_stk4 with csp_b by solve_addr+Ha_stk4 Hb_a4 He_a1.
+          (* I should be able to obtain all the information I need from Hinterp_callee_wstk *)
+          admit.
+        }
+        iSplitR "Hrevoked"; cycle 1.
+        { iApply (big_sepL_impl with "Hrevoked"); iIntros "!> % % %Hk [$ _]". }
+        cbn in *.
+        replace a_stk4 with (a_stk ^+4)%a by (subst a_stk; solve_addr+Ha_stk4 He_a1).
+        rewrite /region_addrs_zeroes.
+        replace (finz.dist a_stk (a_stk ^+ 4)%a) with 4; first cbn.
+        2: { do 4 (rewrite finz_dist_S; last (subst a_stk; solve_addr+Ha_stk4)).
+             rewrite finz_dist_0; last (subst a_stk; solve_addr+Ha_stk4).
+             done.
+        }
+        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk0 Hstk']"
+        ; [ transitivity ( Some (a_stk ^+ 1)%a ); subst a_stk; solve_addr+Ha_stk4
+          | subst a_stk; solve_addr+Ha_stk4 He_a1
+          |].
+        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk1 Hstk']"
+        ; [ transitivity ( Some (a_stk ^+ 2)%a ); subst a_stk; solve_addr+Ha_stk4
+          | subst a_stk; solve_addr+Ha_stk4 He_a1
+          |].
+        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk2 Hstk']"
+        ; [ transitivity ( Some (a_stk ^+ 3)%a ); subst a_stk; solve_addr+Ha_stk4
+          | subst a_stk; solve_addr+Ha_stk4 He_a1
+          |].
+        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk3 _]"
+        ; [ transitivity ( Some (a_stk ^+ 4)%a ); subst a_stk; solve_addr+Ha_stk4
+          | subst a_stk; solve_addr+Ha_stk4 He_a1
+          |].
+        iFrame.
 
-             iDestruct (region_pointsto_cons with "Hstk_register_save") as "[Ha_stk0 Hstk_register_save]"
-             ; [ transitivity ( Some (a_stk ^+ 1)%a ); subst a_stk; solve_addr+Ha_stk4
-               | subst a_stk; solve_addr+Ha_stk4 He_a1
-               |].
-             iDestruct (region_pointsto_cons with "Hstk_register_save") as "[Ha_stk1 Hstk_register_save]"
-             ; [ transitivity ( Some (a_stk ^+ 2)%a ); subst a_stk; solve_addr+Ha_stk4
-               | subst a_stk; solve_addr+Ha_stk4 He_a1
-               |].
-             iDestruct (region_pointsto_cons with "Hstk_register_save") as "[Ha_stk2 Hstk_register_save]"
-             ; [ transitivity ( Some (a_stk ^+ 3)%a ); subst a_stk; solve_addr+Ha_stk4
-               | subst a_stk; solve_addr+Ha_stk4 He_a1
-               |].
-             iDestruct (region_pointsto_cons with "Hstk_register_save") as "[Ha_stk3 _]"
-             ; [ transitivity ( Some (a_stk ^+ 4)%a ); subst a_stk; solve_addr+Ha_stk4
-               | subst a_stk; solve_addr+Ha_stk4 He_a1
-               |].
-             iFrame.
-          ** iApply (big_sepL_impl with "Hrevoked"); iIntros "!> % % %Hk [$ _]".
-        * admit.
-          (* I should be able to obtain all the information I need from Hinterp_callee_wstk *)
-      + rewrite big_sepL_app.
+      - (* caller is trusted, we need only need re-instate callee's stack frame *)
+        iFrame "Hstk'".
+        iMod (monotone_close_list_region W0 _ _ (l++closing_region) with
+               "[] [$Hr $Hsts Hrevoked Hstk]") as "[Hsts Hr]"; first done; last by iFrame.
+        rewrite big_sepL_app.
         iSplitL "Hrevoked".
-        * iApply (big_sepL_impl with "Hrevoked"); iIntros "!> % % %Hk [$ _]".
-        * admit.
-          (* I should be able to obtain all the information I need from Hinterp_callee_wstk *)
+        { iApply (big_sepL_impl with "Hrevoked"); iIntros "!> % % %Hk [$ _]". }
+        subst closing_region.
+        replace a_stk4 with csp_b by solve_addr+Ha_stk4 Hb_a4 He_a1.
+        admit.
+        (* I should be able to obtain all the information I need from Hinterp_callee_wstk *)
     }
+
+    iDestruct (interp_monotone with "[] [$Hinterp_callee_wstk]") as "Hinterp_callee_wstk'" ; first done.
+
 
     destruct is_untrusted_caller; cycle 1.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
-      (* TODO need open the world *)
-      (* iEval (rewrite app_nil_r) in "Hr". *)
-      (* iAssert ([[a_stk,e_stk]] ↦ₐ [[region_addrs_zeroes a_stk e_stk%a]])%I with "[Hstk_register_save Hstk]" as "Hstk". *)
-      (* { *)
-      (*   rewrite (region_addrs_zeroes_split a_stk (a_stk ^+4)%a e_stk); last solve_addr+Ha_stk4 He_a1 Hb_a4. *)
-      (*   rewrite region_pointsto_split; first iFrame. *)
-      (*   solve_addr+Ha_stk4 He_a1 Hb_a4. *)
-      (*   by rewrite /region_addrs_zeroes length_replicate. *)
-      (* } *)
-      (* iAssert (([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, closing_resources interp W C a (WInt 0)))%I *)
-      (*   with "[Hres]" as "Hres". *)
-      (* { iClear "#". *)
-      (*   clear -Hlen_lv. *)
-      (*   iStopProof. *)
-      (*   revert Hlen_lv. *)
-      (*   generalize dependent lv. *)
-      (*   generalize (finz.seq_between (a_stk ^+ 4)%a e_stk) as la. *)
-      (*   induction la; iIntros (lv Hlen) "H"; destruct lv as [|v lv]; simplify_eq; cbn; first done. *)
-      (*   iDestruct "H" as "[Ha H]". *)
-      (*   iDestruct (closing_resources_zeroed with "Ha") as "$". *)
-      (*   by iApply (IHla with "H"). *)
-      (* } *)
 
-      (* here I'm supposed to have fixed the world, so (revoke Wcur) should be fixed *)
-      iAssert (interp Wfixed C wca0)%I as "#Hinterp_wca0".
-      { admit. (* hypothesis *) }
-      iAssert (interp Wfixed C wca1)%I as "#Hinterp_wca1".
-      { admit. (* hypothesis *) }
-      (* iApply ("Hexec_topmost_frm" with *)
-      (*          "[] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1 *)
-      (* $Hrmap $Hstk Hr $Hsts $Hcont_K $Hcstk_frag $Hna]"). *)
-      (* { admit. (* hypothesis *) } *)
-      (* iSplitR. *)
-      (* { iPureIntro;rewrite Harg_rmap'; set_solver. } *)
-      (* iSplit; first done. *)
-      (* iSplit; first done. *)
-      (* admit. (* follows from opening the world *) *)
+    iEval (rewrite region_open_nil) in "Hr".
+    iDestruct (region_open_list_interp_gen _ _ (finz.seq_between a_stk4 csp_e) []
+                with "[$Hinterp_callee_wstk' $Hr $Hsts]")
+      as "(Hr & Hsts & Hres)"; auto.
+    { apply finz_seq_between_NoDup. }
+    { apply Forall_forall; intros y Hy.
+      rewrite elem_of_finz_seq_between in Hy.
+      subst a_stk.
+      solve_addr+Ha_stk4 Hb_a4 He_a1 Hy.
+    }
+    { set_solver+. }
 
-      admit.
+      iAssert (∃ (lv : list Word),
+                  ⌜ length lv = length (finz.seq_between a_stk4 csp_e) ⌝
+                  ∗ ▷ ([∗ list] a ; v ∈ (finz.seq_between a_stk4 csp_e) ; lv, closing_resources interp Wfixed C a v)
+                  ∗ ([∗ list] a ; v ∈ (finz.seq_between a_stk4 csp_e)  ; lv, a ↦ₐ v)
+              )%I
+        with "[Hres]"
+        as (lv Hlen_lv) "[Hres Hstk]".
+      {
+        replace a_stk4 with csp_b by solve_addr+Ha_stk4 Hb_a4 He_a1.
+        replace (a_stk ^+ 4)%a with csp_b by (subst a_stk;solve_addr+Ha_stk4 Hb_a4 He_a1).
+        iClear "#"; clear.
+        iStopProof.
+        generalize Wfixed; clear; intros W.
+        generalize (finz.seq_between csp_b csp_e).
+        induction l; cbn; iIntros "Hres".
+        - iExists []; cbn; done.
+        - iDestruct "Hres" as "[Ha Hres]".
+          iDestruct (IHl with "Hres") as (lv) "(%Hlen & Hres & Hlv)".
+          iDestruct ( opening_closing_resources with "Ha" ) as (va) "[Hres_a Ha]".
+          iExists (va::lv).
+          iFrame.
+          iPureIntro ; cbn ; lia.
+      }
+      rewrite app_nil_r.
+      replace a_stk4 with csp_b by solve_addr+Ha_stk4 Hb_a4 He_a1.
+      replace csp_b with (a_stk ^+ 4)%a by (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
+      iDestruct (lc_fupd_elim_later with "[$] [$Hres]") as ">Hres".
+
+
+      iApply ("Hexec_topmost_frm" with
+               "[] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
+      $Hrmap $Hr $Hstk $Hstk' $Hsts $Hres $Hcont_K $Hcstk_frag $Hna]"); first done.
+
+      iSplitR.
+      { iPureIntro;rewrite Harg_rmap'; set_solver. }
+      iSplit; done.
+
     - (* Case where caller is untrusted, we use the IH *)
 
-      (* I should know that wastk,... , are interp, because of interp_callee_wstk
-       and fixed world is public *)
+      iDestruct "Hinterp_wfrm" as "#(Hinterp_wstk0 & Hinterp_wstk1 & Hinterp_wstk2 & Hinterp_wstk3)".
+      iClear "Hexec_topmost_frm".
+
+      (* TODO apply the FTLR here, should be fine *)
+      (* BUT!!! I can't prove `frame_match Wfixed` because what I have is `frame_match W0` !!!! *)
+
+      (* iDestruct (fundamental _ cstk Ws Cs _ _ (WCap RWL Local b_stk csp_e a_stk) with "[$] Hinterp_wstk2") as "Hcont'". *)
+      (* rewrite /interp_expression /=. *)
+      (* iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]". *)
+
+      (* iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap". *)
+      (* { apply not_elem_of_dom; rewrite Harg_rmap'; set_solver+. } *)
+      (* iDestruct (big_sepM_insert with "[$Hrmap $Hca1]") as "Hrmap". *)
+      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
+      (* iDestruct (big_sepM_insert with "[$Hrmap $Hcs0]") as "Hrmap". *)
+      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
+      (* iDestruct (big_sepM_insert with "[$Hrmap $Hcs1]") as "Hrmap". *)
+      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
+      (* iDestruct (big_sepM_insert with "[$Hrmap $Hcgp]") as "Hrmap". *)
+      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
+      (* iDestruct (big_sepM_insert with "[$Hrmap $Hcra]") as "Hrmap". *)
+      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
+      (* iDestruct (big_sepM_insert with "[$Hrmap $Hcsp]") as "Hrmap". *)
+      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
+      (* iClear "Hlc Hlc' Hstk'". *)
+
+      (* set (regs := <[csp := _]> _ ). *)
+      (* set (regs' := <[PC := WInt 0]> regs). *)
+      (* iApply ("Hcont'" $! regs'); iFrame. *)
+      (* iSplit. *)
+      (* { iSplit. *)
+      (*   + iIntros (r); iPureIntro. *)
+      (*     rewrite -elem_of_dom. *)
+      (*     subst regs regs'. *)
+      (*     repeat (rewrite dom_insert_L). *)
+      (*     rewrite Harg_rmap'. *)
+      (*     set_solver+. *)
+      (*   + iIntros (r v) "%HrPC %Hr". *)
+      (*     subst regs' regs. *)
+      (*     clear -Hr HrPC Hrmap_zeroes. *)
+      (*     simplify_map_eq. *)
+      (*     destruct (decide (r = csp)); simplify_map_eq; first done. *)
+      (*     destruct (decide (r = cra)); simplify_map_eq; first done. *)
+      (*     destruct (decide (r = cgp)); simplify_map_eq; first done. *)
+      (*     destruct (decide (r = cs1)); simplify_map_eq; first done. *)
+      (*     destruct (decide (r = cs0)); simplify_map_eq; first done. *)
+      (*     destruct (decide (r = ca1)); simplify_map_eq; first done. *)
+      (*     destruct (decide (r = ca0)); simplify_map_eq; first done. *)
+      (*     eapply map_Forall_lookup_1 in Hr; eauto; cbn in Hr; simplify_eq. *)
+      (*     iApply interp_int. *)
+      (* } *)
+      (* iSplit. *)
+      (* {  rewrite /registers_pointsto. *)
+      (*    subst regs'. *)
+      (*   admit. } *)
+      (* iSplit. *)
+      (* { *)
+
+      (* } *)
+      (* last (iPureIntro; apply Hframe). *)
 
   Admitted.
-
-
 
 End Switcher.

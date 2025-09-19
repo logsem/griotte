@@ -14,7 +14,6 @@ Section Counter.
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
-  Context {C : CmptName}.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
@@ -23,6 +22,89 @@ Section Counter.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+
+  Lemma switcher_cc_specification
+    (Nswitcher : namespace)
+    (W : WORLD)
+    (C : CmptName)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (b_stk e_stk a_stk : Addr)
+    (w_entry_point : Sealable)
+    (stk_mem : list Word)
+    (arg_rmap rmap : Reg)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (nargs : nat)
+    :
+    let a_stk4 := (a_stk ^+ 4)%a in
+    let wct1_caller := WSealed ot_switcher w_entry_point in
+    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    is_arg_rmap arg_rmap 8 ->
+
+    (* Switcher Invariant *)
+    na_inv logrel_nais Nswitcher switcher_inv
+
+    (* PRE-CONDITION *)
+    ∗ na_own logrel_nais ⊤
+    (* Registers *)
+    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ cgp ↦ᵣ wcgp_caller
+    ∗ cra ↦ᵣ wcra_caller
+    (* Stack register *)
+    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    (* Entry point of the target compartment *)
+    ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller ∗ wct1_caller ↦□ₑ nargs
+    ∗ cs0 ↦ᵣ wcs0_caller
+    ∗ cs1 ↦ᵣ wcs1_caller
+    (* Argument registers, need to be safe-to-share *)
+    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg
+                                      ∗ if decide (rarg ∈ dom_arg_rmap nargs)
+                                        then interp W C warg
+                                        else True )
+    (* All the other registers *)
+    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+
+    (* Stack frame *)
+    ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+
+    (* Interpretation of the world and stack, at the moment of the switcher_call *)
+    ∗ sts_full_world W C
+    ∗ region W C
+    ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a ∗ ⌜(std W) !! a = Some Revoked⌝)
+    ∗ cstack_frag cstk
+    ∗ interp_continuation cstk Ws Cs
+
+
+    (* POST-CONDITION *)
+    ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : Reg) (stk_mem : list Word),
+              (* We receive a public future world of the world pre switcher call *)
+              ⌜ related_sts_pub_world (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) W2 ⌝
+              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+              ∗ na_own logrel_nais ⊤
+              ∗ interp W2 C (WCap RWL Local a_stk4 e_stk a_stk4)
+              ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+              (* Interpretation of the world *)
+              ∗ sts_full_world W2 C
+              ∗ open_region_many W2 C (finz.seq_between a_stk4 e_stk)
+              ∗ ([∗ list] a ∈ (finz.seq_between a_stk a_stk4), closing_revoked_resources W C a ∗ ⌜(std W) !! a = Some Revoked⌝)
+              ∗ ([∗ list] a ∈ (finz.seq_between a_stk4 e_stk), closing_resources interp W2 C a (WInt 0))
+              ∗ cstack_frag cstk
+              ∗ ([∗ list] a ∈ (finz.seq_between a_stk4 e_stk), ⌜ std W2 !! a = Some Temporary ⌝ )
+              ∗ PC ↦ᵣ updatePcPerm wcra_caller
+              (* cgp is restored, cra points to the next  *)
+              ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller ∗ cs0 ↦ᵣ wcs0_caller ∗ cs1 ↦ᵣ  wcs1_caller
+              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+              ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
+              ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
+              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+              ∗ interp_continuation cstk Ws Cs
+            -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+
+    ⊢ WP Seq (Instr Executable)
+      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+  Admitted.
+
+  Context {C : CmptName}.
 
   Lemma counter_spec
 
@@ -291,8 +373,8 @@ Section Counter.
     }
     { by rewrite /is_arg_rmap . }
 
-    iNext. subst rmap'.
-    iIntros (W2 rmap')
+    iNext. subst rmap'; clear stk_mem.
+    iIntros (W2 rmap' stk_mem)
       "(%Hrelated_pub_1ext_W2 & %Hdom_rmap
       & Hna & #Hinterp_W2_csp & %Hcsp_bounds
       & Hsts_C & Hr_C & Hfrm_close_1 & Hfrm_close_W2
@@ -304,12 +386,20 @@ Section Counter.
 
     (* TODO see whether I can make this a lemma *)
     iEval (rewrite <- (app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "Hr_C".
-    rewrite (region_addrs_zeroes_split _ (csp_b ^+4)%a).
-    2: { split; solve_addr+Hcsp_bounds. }
-    set (lv := region_addrs_zeroes (csp_b ^+4)%a csp_e).
+
+    iDestruct ( big_sepL2_length with "Hstk" ) as "%Hlen_stk_mem".
+    rewrite (finz_seq_between_split _ (csp_b ^+4)%a) in Hlen_stk_mem.
+    rewrite -(take_drop 4 stk_mem).
     iDestruct (region_pointsto_split _ _ (csp_b ^+4)%a with "Hstk") as "[Hstk' Hstk]".
     { split; solve_addr+Hcsp_bounds. }
-    { by rewrite length_replicate. }
+    { rewrite length_take -Hlen_stk_mem length_app finz_seq_between_length.
+      replace (finz.dist csp_b (csp_b ^+ 4)%a) with 4; first lia.
+      destruct Hcsp_bounds as (Hcsp_bounds_l & Hcsp_bounds_h & Hcsp_b4).
+      do 4 (rewrite finz_dist_S; last solve_addr+Hcsp_bounds_l Hcsp_bounds_h Hcsp_b4).
+      by rewrite finz_dist_0; last solve_addr+Hcsp_b4.
+    }
+
+    set (lv := region_addrs_zeroes (csp_b ^+4)%a csp_e).
     iAssert (
        [∗ list] a ; v ∈ finz.seq_between (csp_b ^+ 4)%a csp_e ; lv, a ↦ₐ v ∗ closing_resources interp W2 C a v
       )%I with "[Hfrm_close_W2 Hstk]" as "Hfrm_close_W2".
@@ -340,7 +430,6 @@ Section Counter.
     }
 
     (* Revoke the world again to get the points-to of the stack *)
-    clear stk_mem.
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W2_csp $Hsts_C $Hr_C]")
         as (l') "(%Hl_unk' & Hsts_C & Hr_C & Hfrm_close_W2 & >[%stk_mem Hstk] & Hrevoked_l')".
     iDestruct (region_pointsto_split with "[$Hstk' $Hstk]") as "Hstk"; auto.
