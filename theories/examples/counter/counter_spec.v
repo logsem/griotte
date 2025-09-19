@@ -335,6 +335,16 @@ Section Counter.
       rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
     }
 
+    iAssert (
+        [∗ list] a ∈ l, ⌜(std W2) !! a = Some Revoked⌝
+      )%I as "%HW2_revoked_l".
+    { admit. }
+    iMod (
+       revoked_by_separation_many with "[$Hsts_C $Hr_C $Hstk_l]"
+      ) as "(Hsts_C & Hr_C & Hstk_l & %Hrevoked_stk_l)".
+    { admit. }
+
+
     (* Revoke the world again to get the points-to of the stack *)
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W2_csp $Hsts_C $Hr_C]")
         as (l') "(%Hl_unk' & Hsts_C & Hr_C & Hfrm_close_W2 & >[%stk_mem Hstk] & Hrevoked_l')".
@@ -395,7 +405,8 @@ Section Counter.
            ); auto.
     {
       destruct W0 as [W0_std W0_cus], W2 as [W2_std W2_cus]; cbn.
-      clear - Hrelated_pub_1ext_W2 Hrelared_priv_W0_W1 Hrelated_pub_W1_W2 H H0 Hl_unk'.
+      clear - Hrelated_pub_1ext_W2 Hrelared_priv_W0_W1 Hrelated_pub_W1_W2 H H0 Hl_unk'
+      HW2_revoked_l Hrevoked_stk_l.
       destruct Hrelated_pub_W1_W2 as [HW1_W2_std HW1_W2_cus].
       subst W1; cbn in *.
       split; cbn; cycle 1.
@@ -469,15 +480,8 @@ Section Counter.
           rewrite Ha2 in Ha2''; simplify_eq.
           apply rtc_refl.
         + admit.
-          (* what if not one of the temporary of `l`, get revoked,
-             and then public transition becomes Permanent,
-             and then cannot be turned into Temporary again...
-           *)
 
-          (*
-            I think it's not fine, but it means we need to turn Revoked->Perma
-           into a private transition, as in Stack Cerise
-           *)
+          (* I think it's fine *)
     }
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
     { iSplit; iApply interp_int. }
