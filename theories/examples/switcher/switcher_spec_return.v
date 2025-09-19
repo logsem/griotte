@@ -649,6 +649,7 @@ Section Switcher.
         iSplitR "Hstk"; cycle 1.
         { subst closing_region.
           replace a_stk4 with csp_b by solve_addr+Ha_stk4 Hb_a4 He_a1.
+          iDestruct (read_allowed_inv_full_cap with "Hinterp_callee_wstk") as "H"; first done.
           (* I should be able to obtain all the information I need from Hinterp_callee_wstk *)
           admit.
         }
@@ -754,58 +755,75 @@ Section Switcher.
       iDestruct "Hinterp_wfrm" as "#(Hinterp_wstk0 & Hinterp_wstk1 & Hinterp_wstk2 & Hinterp_wstk3)".
       iClear "Hexec_topmost_frm".
 
-      (* TODO apply the FTLR here, should be fine *)
+      iDestruct (jmp_or_fail_spec with "[$] [$Hinterp_wstk2]") as "Hcont".
+      destruct (decide (isCorrectPC (updatePcPerm wastk2))); cycle 1.
+      { by iApply "Hcont"; iFrame. }
+      iDestruct "Hcont" as "(%&%&%&%&%&Hcont)".
+      destruct (is_switcher_entry_point wastk2) eqn:Hentry; cycle 1.
+      { iDestruct "Hcont" as "(%Hwastk & #Hcont)".
+        iSpecialize ("Hcont" $! Wfixed _).
+        iDestruct "Hlc" as "[Hlc _]"
+        ; iDestruct (lc_fupd_elim_later with "[$] [$Hcont]") as ">Hcont'".
+        iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
 
-      (* iDestruct (fundamental _ cstk Ws Cs _ _ (WCap RWL Local b_stk csp_e a_stk) with "[$] Hinterp_wstk2") as "Hcont'". *)
-      (* rewrite /interp_expression /=. *)
-      (* iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]". *)
+        iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap".
+        { apply not_elem_of_dom; rewrite Harg_rmap'; set_solver+. }
+        iDestruct (big_sepM_insert with "[$Hrmap $Hca1]") as "Hrmap".
+        { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. }
+        iDestruct (big_sepM_insert with "[$Hrmap $Hcs0]") as "Hrmap".
+        { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. }
+        iDestruct (big_sepM_insert with "[$Hrmap $Hcs1]") as "Hrmap".
+        { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. }
+        iDestruct (big_sepM_insert with "[$Hrmap $Hcgp]") as "Hrmap".
+        { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. }
+        iDestruct (big_sepM_insert with "[$Hrmap $Hcra]") as "Hrmap".
+        { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. }
+        iDestruct (big_sepM_insert with "[$Hrmap $Hcsp]") as "Hrmap".
+        { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. }
+        set (regs := <[csp := _]> _ ).
+        set (regs' := <[PC := WInt 0]> regs).
 
-      (* iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap". *)
-      (* { apply not_elem_of_dom; rewrite Harg_rmap'; set_solver+. } *)
-      (* iDestruct (big_sepM_insert with "[$Hrmap $Hca1]") as "Hrmap". *)
-      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
-      (* iDestruct (big_sepM_insert with "[$Hrmap $Hcs0]") as "Hrmap". *)
-      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
-      (* iDestruct (big_sepM_insert with "[$Hrmap $Hcs1]") as "Hrmap". *)
-      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
-      (* iDestruct (big_sepM_insert with "[$Hrmap $Hcgp]") as "Hrmap". *)
-      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
-      (* iDestruct (big_sepM_insert with "[$Hrmap $Hcra]") as "Hrmap". *)
-      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
-      (* iDestruct (big_sepM_insert with "[$Hrmap $Hcsp]") as "Hrmap". *)
-      (* { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. } *)
-      (* iClear "Hlc Hlc' Hstk'". *)
+        iApply ("Hcont'" $! regs'); iFrame.
 
-      (* set (regs := <[csp := _]> _ ). *)
-      (* set (regs' := <[PC := WInt 0]> regs). *)
-      (* iApply ("Hcont'" $! regs'); iFrame. *)
-      (* iSplit. *)
-      (* { iSplit. *)
-      (*   + iIntros (r); iPureIntro. *)
-      (*     rewrite -elem_of_dom. *)
-      (*     subst regs regs'. *)
-      (*     repeat (rewrite dom_insert_L). *)
-      (*     rewrite Harg_rmap'. *)
-      (*     set_solver+. *)
-      (*   + iIntros (r v) "%HrPC %Hr". *)
-      (*     subst regs' regs. *)
-      (*     clear -Hr HrPC Hrmap_zeroes. *)
-      (*     simplify_map_eq. *)
-      (*     destruct (decide (r = csp)); simplify_map_eq; first done. *)
-      (*     destruct (decide (r = cra)); simplify_map_eq; first done. *)
-      (*     destruct (decide (r = cgp)); simplify_map_eq; first done. *)
-      (*     destruct (decide (r = cs1)); simplify_map_eq; first done. *)
-      (*     destruct (decide (r = cs0)); simplify_map_eq; first done. *)
-      (*     destruct (decide (r = ca1)); simplify_map_eq; first done. *)
-      (*     destruct (decide (r = ca0)); simplify_map_eq; first done. *)
-      (*     eapply map_Forall_lookup_1 in Hr; eauto; cbn in Hr; simplify_eq. *)
-      (*     iApply interp_int. *)
-      (* } *)
-      (* iSplit. *)
-      (* {  rewrite /registers_pointsto. *)
-      (*    subst regs'. *)
-      (*   admit. } *)
-      (* iSplit; last(iPureIntro; eapply frame_match_mono; eauto). *)
+        iSplit.
+        { iSplit.
+          + iIntros (r); iPureIntro.
+            rewrite -elem_of_dom.
+            subst regs regs'.
+            repeat (rewrite dom_insert_L).
+            rewrite Harg_rmap'.
+            set_solver+.
+          + iIntros (r v) "%HrPC %Hr".
+            subst regs' regs.
+            clear -Hr HrPC Hrmap_zeroes.
+            simplify_map_eq.
+            destruct (decide (r = csp)); simplify_map_eq; first done.
+            destruct (decide (r = cra)); simplify_map_eq; first done.
+            destruct (decide (r = cgp)); simplify_map_eq; first done.
+            destruct (decide (r = cs1)); simplify_map_eq; first done.
+            destruct (decide (r = cs0)); simplify_map_eq; first done.
+            destruct (decide (r = ca1)); simplify_map_eq; first done.
+            destruct (decide (r = ca0)); simplify_map_eq; first done.
+            eapply map_Forall_lookup_1 in Hr; eauto; cbn in Hr; simplify_eq.
+            iApply interp_int.
+        }
+        iSplit.
+        {  rewrite /registers_pointsto.
+           subst regs'.
+           rewrite insert_insert.
+           iApply big_sepM_insert; last iFrame.
+           subst regs.
+           simplify_map_eq.
+           rewrite -not_elem_of_dom Harg_rmap'.
+           set_solver+.
+        }
+        iSplit; last(iPureIntro; eapply frame_match_mono; eauto).
+        iPureIntro.
+        by subst regs' regs; simplify_map_eq.
+      }
+      (* TODO I should have a lemma for this....
+         I'd like to use the FTLR one, but I need the ftlr_IH to apply it...
+       *)
 
   Admitted.
 
