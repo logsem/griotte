@@ -202,11 +202,28 @@ Section logrel.
     : Prop :=
     match Ws,Cs,cstk with
     | W' :: Ws', C' :: Cs', frm :: cstk' =>
-        W = W' ∧ C = C'
+        related_sts_pub_world W' W ∧ C = C'
         ∧ (if frm.(is_untrusted_caller) then frame_match Ws' Cs' cstk' W C else True)
     | [], [] , []=> True
     | _,_,_ => False
     end.
+
+  Lemma frame_match_mono
+    (Ws : list WORLD) (Cs : list CmptName) (cstk : CSTK) (W W' : WORLD) ( C : CmptName ) :
+    related_sts_pub_world W W' ->
+    frame_match Ws Cs cstk W C ->
+    frame_match Ws Cs cstk W' C.
+  Proof.
+    revert Ws Cs.
+    induction cstk as [|frm cstk]; intros Ws Cs Hrelated Hfrm.
+    - destruct Ws,Cs; cbn in *; try done.
+    - destruct Ws,Cs; cbn in *; try done.
+      destruct Hfrm as (Hrelated' & <- & IH).
+      split;[|split]; auto.
+      + eapply related_sts_pub_trans_world; eauto.
+      + destruct (is_untrusted_caller frm); last done.
+        by apply IHcstk.
+  Qed.
 
   Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
     (λne (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (W : WORLD) (C : CmptName) (wpc : Word) (wstk : Word),
@@ -320,8 +337,9 @@ Section logrel.
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName)
        (frm : cframe)
      ,
-       ∀ wca0 wca1 regs a_stk e_stk,
-       let callee_stk_region := finz.seq_between (a_stk ^+4)%a e_stk in
+       ∀ wca0 wca1 regs a_stk e_stk stk_mem_l stk_mem_h,
+       let callee_stk_region := finz.seq_between (if frm.(is_untrusted_caller) then a_stk else (a_stk ^+4)%a) e_stk in
+       let callee_stk_mem := if frm.(is_untrusted_caller) then stk_mem_l++stk_mem_h else stk_mem_h in
        ( PC ↦ᵣ updatePcPerm frm.(wret)
          ∗ cra ↦ᵣ frm.(wret)
          ∗ csp ↦ᵣ frm.(wstk)
@@ -338,9 +356,10 @@ Section logrel.
          (* World interpretation *)
          ∗ ⌜ get_a frm.(wstk) = Some a_stk ⌝
          ∗ ⌜ get_e frm.(wstk) = Some e_stk ⌝
-         ∗ [[ a_stk , e_stk ]] ↦ₐ [[ addr_reg_sample.region_addrs_zeroes a_stk e_stk ]]
+         ∗ [[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ stk_mem_l ]]
+         ∗ [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]]
          ∗ open_region_many W C callee_stk_region
-         ∗ ([∗ list] a ∈ callee_stk_region, closing_resources interp W C a (WInt 0))
+         ∗ ([∗ list] a ; v ∈ callee_stk_region ; callee_stk_mem, closing_resources interp W C a v)
          ∗ sts_full_world W C
          (* Continuation *)
          ∗ interp_cont
@@ -356,9 +375,9 @@ Section logrel.
     intros interp interp0 Heq K K0 HK.
     rewrite /interp_cont_exec. intros ????. simpl.
     (* do 10 f_equiv;[|apply HK]. *)
-    do 22 f_equiv; auto;[apply Heq|].
-    do 8 f_equiv; auto.
-    f_equiv; auto.
+    do 26 f_equiv; auto;[apply Heq|].
+    do 9 f_equiv; auto.
+    do 2 f_equiv; auto.
     by apply closing_resources_ne.
   Qed.
 
@@ -1013,6 +1032,33 @@ Section logrel.
     destruct (isWL p); simplify_eq.
     + naive_solver.
     + destruct g; naive_solver.
+  Qed.
+
+  Lemma is_switcher_entry_point_call :
+    is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call) = true.
+  Proof.
+    rewrite /is_switcher_entry_point.
+    rewrite bool_decide_eq_true_2; first done.
+    by left.
+  Qed.
+  Lemma is_switcher_entry_point_return :
+    is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
+  Proof.
+    rewrite /is_switcher_entry_point.
+    rewrite bool_decide_eq_true_2; first done.
+    by right.
+  Qed.
+  Lemma switcher_call_interp W B :
+    ⊢ interp W B (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call).
+  Proof.
+    iEval (rewrite fixpoint_interp1_eq /=).
+    by rewrite is_switcher_entry_point_call.
+  Qed.
+  Lemma switcher_return_interp W B :
+    ⊢ interp W B (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return).
+  Proof.
+    iEval (rewrite fixpoint_interp1_eq /=).
+    by rewrite is_switcher_entry_point_return.
   Qed.
 
 End logrel.

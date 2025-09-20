@@ -79,9 +79,9 @@ Proof.
 Qed.
 #[export] Hint Resolve AddrRegionsRange_cons | 10 : disj_regions.
 
-Instance Empty_list {A}: Empty (list A). exact []. Defined.
-Instance Union_list {A}: Union (list A). exact app. Defined.
-Instance Singleton_list {A}: Singleton A (list A). exact (λ a, [a]). Defined.
+Global Instance Empty_list {A}: Empty (list A). exact []. Defined.
+Global Instance Union_list {A}: Union (list A). exact app. Defined.
+Global Instance Singleton_list {A}: Singleton A (list A). exact (λ a, [a]). Defined.
 
 Lemma addr_range_union_incl_range (ll: list (list Addr)) (b e: Addr):
   AddrRegionsRange ll b e →

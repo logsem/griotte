@@ -3,6 +3,94 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth.
 From cap_machine Require Export cap_lang iris_extra stdpp_extra.
+From iris.algebra Require Import frac gmap.
+
+
+Definition entryR : cmra :=
+  (agreeR (leibnizO nat)).
+
+Class entryGpreS Σ := EntryGpreS {
+  entryPreG_invPreG : invGpreS Σ;
+  entryPreG_rel :: inG Σ entryR;
+}.
+
+Class entryGS Σ := EntryGS {
+  entryG_rel :: inG Σ entryR;
+  γentry : Word -> gname
+}.
+
+Definition entryPreΣ :=
+  #[ GFunctor entryR ].
+
+Instance subG_entryPreΣ {Σ} :
+  subG entryPreΣ Σ →
+  invGpreS Σ →
+  entryGpreS Σ.
+Proof. solve_inG. Qed.
+
+Section ENTRY_defs.
+  Context {Σ:gFunctors} {entryg : entryGS Σ}.
+
+  Definition ENTRY_def (w : Word) (n : nat) : iProp Σ :=
+    own (γentry w) (to_agree n).
+  Definition ENTRY_aux : { x | x = @ENTRY_def }. by eexists. Qed.
+  Definition ENTRY := proj1_sig ENTRY_aux.
+  Definition ENTRY_eq : @ENTRY = @ENTRY_def := proj2_sig ENTRY_aux.
+  Notation "w ↦□ₑ n" :=(ENTRY w n) (at level 20) : bi_scope.
+
+  Lemma entry_agree w n1 n2:
+    w ↦□ₑ n1 -∗ w ↦□ₑ n2 -∗ ⌜n1 = n2⌝.
+  Proof.
+    iIntros "H1 H2".
+    rewrite ENTRY_eq /ENTRY_def.
+    iCombine "H1 H2" as "H".
+    iDestruct (own_valid with "H") as "%".
+    apply to_agree_op_inv in H.
+    done.
+  Qed.
+  Global Instance persistent_entry w n : Persistent (w ↦□ₑ n)%I.
+  Proof.
+    rewrite ENTRY_eq /ENTRY_def.
+    apply _.
+  Defined.
+
+
+End ENTRY_defs.
+Notation "w ↦□ₑ n" :=  (ENTRY w n) (at level 20) : bi_scope.
+
+Section entryPre.
+  Context {Σ:gFunctors} {entrypreg : entryGpreS Σ}.
+
+
+  Lemma entry_rel_init (m : gmap Word nat) :
+    ⊢ |==> (∃ γentry, ([∗ map] w↦n ∈ m, own (γentry w) (to_agree n))).
+  Proof.
+
+    induction m using map_ind.
+    - iModIntro.
+      iExists ( λ w, encode w).
+      by iApply big_sepM_empty.
+    - iMod IHm as (γentry) "IH".
+      iMod (own_alloc (A:= entryR) (to_agree x)) as (γx) "Hrel" ; first done.
+      iModIntro.
+      iExists (λ w, if (bool_decide (w = i)) then γx else γentry w).
+      iApply (big_sepM_insert with "[IH Hrel]");auto.
+      rewrite bool_decide_eq_true_2; auto; iFrame.
+      iApply (big_sepM_mono with "IH").
+      iIntros (k n Hk) "H".
+      rewrite bool_decide_eq_false_2; [done|].
+      by intros ->; rewrite H in Hk.
+  Qed.
+
+  Lemma entry_init m :
+    ⊢ |==> ∃ (entryg: entryGS Σ), ([∗ map] w↦n ∈ m, w ↦□ₑ n).
+  Proof.
+    iMod entry_rel_init as (γ) "H".
+    iExists (EntryGS _ _ _).
+    by rewrite ENTRY_eq /ENTRY_def.
+  Qed.
+
+End entryPre.
 
 (* CMRA for Cerise *)
 Class ceriseG Σ :=
@@ -10,7 +98,8 @@ Class ceriseG Σ :=
       cerise_invG : invGS Σ;
       mem_gen_memG :: gen_heapGS Addr Word Σ; (* memory *)
       reg_gen_regG :: gen_heapGS RegName Word Σ; (* register *)
-      sreg_gen_regG :: gen_heapGS SRegName Word Σ (* system register *)
+      sreg_gen_regG :: gen_heapGS SRegName Word Σ; (* system register *)
+      entryG :: entryGS Σ (* entry point *)
     }.
 
 (* invariants for memory, and a state interpretation for (mem,reg) *)
@@ -793,7 +882,7 @@ Definition regs_of (i: instr): gset RegName :=
   | GetL r1 r2 => {[ r1; r2 ]}
   | GetOType dst src => {[ dst; src ]}
   | GetWType dst src => {[ dst; src ]}
-  | Add r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
+  | machine_base.Add r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Sub r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Mul r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | LAnd r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2

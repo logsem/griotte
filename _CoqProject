@@ -87,6 +87,7 @@ theories/examples/switcher/switcher.v
 theories/examples/switcher/switcher_preamble.v
 
 theories/logrel.v
+theories/logrel_extra.v
 theories/ftlr/ftlr_base.v
 theories/ftlr/interp_weakening.v
 theories/ftlr/ftlr_switcher_call.v
@@ -124,12 +125,28 @@ theories/examples/macros/fetch.v
 # theories/examples/macros/salloc.v
 # theories/examples/macros/macros.v
 
-# Griotte case studies
-theories/examples/switcher/switcher_spec.v
-# theories/examples/switcher/switcher_interp.v
+# Switcher
+theories/examples/switcher/switcher_spec_call.v
+theories/examples/switcher/switcher_spec_return.v
 
+# Griotte case studies
 theories/examples/compartment_layout.v
 
+## CMDC
 theories/examples/cmdc/cmdc.v
 theories/examples/cmdc/cmdc_spec.v
-# theories/examples/cmdc/cmdc_adequacy.v
+theories/examples/cmdc/cmdc_adequacy.v
+
+## Deep immutability (droe)
+theories/examples/droe/deep_immutability.v
+theories/examples/droe/deep_immutability_spec.v
+
+## Counter (closure around increment)
+theories/examples/counter/counter.v
+theories/examples/counter/counter_spec.v
+
+## Deep locality (dle)
+theories/examples/dle/deep_locality.v
+theories/examples/dle/deep_locality_spec.v
+
+## Double Share (dshare)

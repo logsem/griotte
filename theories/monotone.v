@@ -617,4 +617,14 @@ Proof.
     eapply related_sts_pub_trans_world;eauto.
 Qed.
 
+Lemma elem_of_mono_pub W W' a :
+  related_sts_pub_world W W' -> a ∈ dom (std W) -> a ∈ dom (std W').
+Proof.
+  intros [ [ Hdom_sta Hrelated] _] Ha.
+  rewrite elem_of_dom in Ha; destruct Ha as [? Ha].
+  cbn in *.
+  apply Hdom_sta; rewrite elem_of_dom;eauto.
+Qed.
+
+
 End monotone.

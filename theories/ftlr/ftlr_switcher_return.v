@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine Require Export logrel.
+From cap_machine Require Export logrel monotone.
 From cap_machine.ftlr Require Import ftlr_base.
 From cap_machine.rules Require Import rules_JmpCap.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
@@ -262,7 +262,6 @@ Section fundamental.
       solve_addr.
     }
 
-    rewrite /interp_continuation /interp_cont.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode" with "Hlc".
 
@@ -335,12 +334,13 @@ Section fundamental.
     rename a into a_stk; rename b into b_stk; rename e into e_stk.
     iDestruct "Hcframe_interp" as "(%HWF & -> & Hcframe_interp)".
     destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
+    simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hfreq).
 
+    iDestruct (interp_monotone_continuation with "Hcont_K") as "Hcont_K"; eauto.
     iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
     iEval (cbn) in "Hinterp_callee_wstk".
     iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_callee_wstk]") as ">#Hinterp_callee_wstk'".
     iClear "Hinterp_callee_wstk" ; iRename "Hinterp_callee_wstk'" into "Hinterp_callee_wstk".
-    simpl in Hfreq. destruct Hfreq as (<- & <- & Hfreq).
     iAssert (
         ∃ wastk wastk1 wastk2 wastk3,
         let la := (if is_untrusted_caller then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in
@@ -583,13 +583,13 @@ Section fundamental.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
       iEval (rewrite app_nil_r) in "Hr".
-      iAssert ([[a_stk,e_stk]] ↦ₐ [[region_addrs_zeroes a_stk e_stk%a]])%I with "[Hstk_register_save Hstk]" as "Hstk".
-      {
-        rewrite (region_addrs_zeroes_split a_stk (a_stk ^+4)%a e_stk); last solve_addr+Ha_stk4 He_a1 Hb_a4.
-        rewrite region_pointsto_split; first iFrame.
-        solve_addr+Ha_stk4 He_a1 Hb_a4.
-        by rewrite /region_addrs_zeroes length_replicate.
-      }
+      (* iAssert ([[a_stk,e_stk]] ↦ₐ [[region_addrs_zeroes a_stk e_stk%a]])%I with "[Hstk_register_save Hstk]" as "Hstk". *)
+      (* { *)
+      (*   rewrite (region_addrs_zeroes_split a_stk (a_stk ^+4)%a e_stk); last solve_addr+Ha_stk4 He_a1 Hb_a4. *)
+      (*   rewrite region_pointsto_split; first iFrame. *)
+      (*   solve_addr+Ha_stk4 He_a1 Hb_a4. *)
+      (*   by rewrite /region_addrs_zeroes length_replicate. *)
+      (* } *)
       iAssert (([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, closing_resources interp W C a (WInt 0)))%I
         with "[Hres]" as "Hres".
       { iClear "#".
@@ -604,9 +604,16 @@ Section fundamental.
         by iApply (IHla with "H").
       }
 
+      iAssert (([∗ list] a ; v ∈ finz.seq_between (a_stk ^+ 4)%a e_stk ; lv' , closing_resources interp W C a v))%I
+        with "[Hres]" as "Hres".
+      { rewrite /region_pointsto.
+        iApply big_sepL2_replicate_r; auto.
+        by rewrite finz_seq_between_length.
+      }
+
       iApply ("Hexec_topmost_frm" with
                "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk $Hr $Hres $Hsts $Hcont_K $Hcstk_frag $Hna]").
+      $Hrmap $Hstk_register_save $Hstk $Hr $Hres $Hsts $Hcont_K $Hcstk_frag $Hna]").
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we use the IH *)

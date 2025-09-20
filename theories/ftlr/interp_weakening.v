@@ -501,4 +501,46 @@ Section fundamental.
     iEval (rewrite fixpoint_interp1_eq); done.
   Qed.
 
+  (* interp_dl *)
+  Program Definition interp_dl : V :=
+    (λne (W : WORLD) (B : leibnizO CmptName) (v : leibnizO Word)
+     , (interp W B (deeplocal (borrow v)))%I).
+  Solve All Obligations with solve_proper.
+
+  Lemma future_pub_mono_interp_dl C w:
+    ⊢ future_pub_mono C (safeC interp_dl) w.
+  Proof.
+    iIntros "!>" (W W' Hrelated) "H"; cbn.
+    iApply interp_monotone; eauto.
+  Qed.
+
+  Lemma persistent_cond_interp_dl : persistent_cond interp_dl.
+  Proof. intros W; apply _. Qed.
+
+  Lemma interp_dl_int W C n : ⊢ interp_dl W C (WInt n).
+  Proof. iIntros; cbn; iApply interp_int. Qed.
+
+  Lemma zcond_interp_dl C : ⊢ zcond interp_dl C.
+  Proof. by iModIntro; iIntros (W1 W2 w) "_"; iApply interp_int. Qed.
+
+  Lemma wcond_interp_dl C : ⊢ wcond interp_dl C interp.
+  Proof.
+    iIntros "!> %W %w H".
+    by iApply interp_deeplocal_word; iApply interp_borrow_word.
+  Qed.
+
+  Lemma rcond_interp_dl C p : isDL p = true -> ⊢ rcond interp_dl C p interp.
+  Proof.
+    iIntros (Hp) "!> %W %w H".
+    rewrite /load_word /= Hp.
+    destruct (isDRO p); last done.
+    by iApply interp_readonly_word.
+  Qed.
+
+  Lemma mono_pub_interp_dl C : ⊢ mono_pub C (safeC interp_dl).
+  Proof.
+    iIntros (?) "!> %W %W' %Hrelated H"; cbn.
+    iApply interp_monotone; auto.
+  Qed.
+
 End fundamental.

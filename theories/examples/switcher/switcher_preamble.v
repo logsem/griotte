@@ -31,34 +31,62 @@ Section Switcher_preamble.
   Definition export_table_entryN (C : CmptName) (a : Addr) : namespace :=
     (export_tableN C) .@ "entry" .@ a.
 
-  Program Definition execute_entry_point_register (wpcc wcgp : Word) :
+  Program Definition execute_entry_point_register (wpcc wcgp wstk : Word) :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ) :=
     λne (W : WORLD) (C : CmptName) (reg : leibnizO Reg),
       (full_map reg ∧
        ⌜ reg !! PC = Some wpcc ⌝ ∧
        ⌜ reg !! cgp = Some wcgp ⌝ ∧
-       (∀ (wstk : Word), (⌜reg !! csp = Some wstk⌝ → interp W C wstk)) ∧
-       (∀ (wret : Word), (⌜reg !! cra = Some wret⌝ → interp W C wret)) ∧
-       (∀ (r : RegName) (v : Word), (⌜r ∈ dom_arg_rmap⌝ → ⌜reg !! r = Some v⌝ → interp W C v)) ∧
-       (∀ (r : RegName),
-          (⌜r ∉ (dom_arg_rmap ∪ {[PC; cra; cgp; csp]})⌝ →  ⌜reg !! r = Some (WInt 0)⌝)))%I.
+       ⌜ reg !! cra = Some (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) ⌝ ∧
+       ⌜ reg !! csp = Some wstk ⌝ ∗ interp W C wstk ∗
+       (∀ (r : RegName) (v : Word), (⌜r ∉ ({[PC; cra; cgp; csp]} : gset RegName)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))
+      (* NOTE I think the zeroes are not necessary and we never rely in it *)
+       (* ∧ *)
+      (* (∀ (r : RegName), *)
+      (*    (⌜r ∉ (dom_arg_rmap nargs ∪ {[PC; cra; cgp; csp]})⌝ →  ⌜reg !! r = Some (WInt 0)⌝)) *)
+      )%I.
   Solve All Obligations with solve_proper.
+
+  (* TODO move in machine_base *)
+  Definition get_b (w : Word) :=
+    match w with
+    | WCap _ _ b _ _ => Some b
+    | _ => None
+    end.
+
+  Definition csp_sync cstk a_stk e_stk :=
+    match cstk with
+    | frm::_ =>
+        get_a frm.(wstk) = Some a_stk
+        ∧ get_e frm.(wstk) = Some e_stk
+    | _ => True
+    end
+  .
 
   Program Definition execute_entry_point
     (wpcc wcgp : Word) (regs : Reg) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
-      ( interp_continuation cstk Ws Cs
+      ∀ a_stk e_stk,
+       let a_stk4 := (a_stk ^+4)%a in
+       ( interp_continuation cstk Ws Cs
          ∗ ⌜frame_match Ws Cs cstk W C⌝
-         ∗ (execute_entry_point_register wpcc wcgp W C regs)
+         ∗ (execute_entry_point_register wpcc wcgp (WCap RWL Local a_stk4 e_stk a_stk4) W C regs)
          ∗ registers_pointsto regs
          ∗ region W C
          ∗ sts_full_world W C
+         ∗ ⌜csp_sync cstk a_stk e_stk ∧ a_stk = (a_stk4 ^+ -4)%a⌝
          ∗ cstack_frag cstk
          ∗ na_own logrel_nais ⊤
            -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.
+
+  Definition seal_capability ( w : Word ) (ot : OType) :=
+    match w with
+    | WCap p g b e a => WSealed ot (SCap p g b e a)
+    | _ => w
+    end.
 
   (* TODO unclear if it's still the right definition *)
   Program Definition ot_switcher_prop :
@@ -67,15 +95,16 @@ Section Switcher_preamble.
        (∃ (g_tbl : Locality) (b_tbl e_tbl a_tbl : Addr)
           (bpcc epcc : Addr)
           (bcgp ecgp : Addr)
-          (nargs off : Z),
+          (nargs : nat) (off : Z),
            ⌜ w = WCap RO g_tbl b_tbl e_tbl a_tbl ⌝
            ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
            ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝
            ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
-           ∗ ⌜ (0 <= nargs <= 7 )%Z ⌝
+           ∗ ⌜ (0 <= nargs <= 7 )%nat ⌝
            ∗ inv (export_table_PCCN C) ( b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc)
            ∗ inv (export_table_CGPN C) ( (b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp)
-           ∗ inv (export_table_entryN C a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point nargs off))
+           ∗ inv (export_table_entryN C a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
+           ∗ (seal_capability w ot_switcher) ↦□ₑ nargs
            ∗ □ ( ∀ regs cstk Ws Cs W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap RX Global bpcc epcc (bpcc ^+ off)%a)
@@ -89,7 +118,7 @@ Section Switcher_preamble.
 
   Lemma persistent_cond_ot_switcher :
     persistent_cond ot_switcher_prop.
-  Proof. intros [ [] ] ; cbn ; apply _. Qed.
+  Proof. intros [ [] ] ; cbn; apply _. Qed.
 
   Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
     ∃ (wtstk4 : Word),
