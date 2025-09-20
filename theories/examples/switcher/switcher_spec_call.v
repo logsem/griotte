@@ -6,8 +6,8 @@ From cap_machine Require Import logrel fundamental interp_weakening addr_reg_sam
 From cap_machine Require Import multiple_updates region_invariants_revocation region_invariants_allocation.
 From cap_machine Require Import switcher switcher_preamble.
 From stdpp Require Import base.
+From cap_machine Require Import logrel_extra switcher_macros_spec.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
-From cap_machine Require Export logrel_extra.
 
 
 Section Switcher.
@@ -437,7 +437,7 @@ Section Switcher.
     focus_block 3 "Hcode" as a_clear Ha_clear "Hcode" "Hcls". iHide "Hcls" as hcont.
 
     rewrite encode_entry_point_eq_nargs;last lia.
-    iApply (ftlr_switcher_call.clear_registers_pre_call_skip_spec
+    iApply (clear_registers_pre_call_skip_spec
               _ _ _ _ _ arg_rmap (nargs+1)
              with "[- $HPC $Hcode]")
     ; try solve_pure.
@@ -458,7 +458,7 @@ Section Switcher.
     iDestruct (big_sepM_insert_2 with "[Hcs0] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hct1] Hregs") as "Hregs";[iFrame|].
 
-    iApply (ftlr_switcher_call.clear_registers_pre_call_spec with "[- $HPC $Hcode $Hregs]"); try solve_pure.
+    iApply (clear_registers_pre_call_spec with "[- $HPC $Hcode $Hregs]"); try solve_pure.
     { rewrite !dom_insert_L Hdom. set_solver-. }
 
     iIntros "!> (%rmap' & %Hrmap' & HPC & Hregs & Hcode)".

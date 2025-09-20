@@ -814,93 +814,52 @@ Section Switcher.
       set (regs' := <[PC := WInt 0]> regs).
 
       iDestruct "Hcont" as "(%&%&%&%&%&Hcont)".
-      destruct (is_switcher_entry_point wastk2) eqn:Hentry; cycle 1.
-      { iDestruct "Hcont" as "(%Hwastk & #Hcont)".
-        iAssert (future_world g Wfixed Wfixed) as "Hfuture".
-        { destruct g; cbn; iPureIntro; [ apply  related_sts_priv_refl_world
-                                       | apply related_sts_pub_refl_world].
-        }
-        iSpecialize ("Hcont" $! Wfixed with "Hfuture").
-        iDestruct "Hlc" as "[Hlc _]"
-        ; iDestruct (lc_fupd_elim_later with "[$] [$Hcont]") as ">Hcont'".
-
-        iApply ("Hcont'" $! regs'); iFrame.
-
-        iSplit.
-        { iSplit.
-          + iIntros (r); iPureIntro.
-            rewrite -elem_of_dom.
-            subst regs regs'.
-            repeat (rewrite dom_insert_L).
-            rewrite Harg_rmap'.
-            set_solver+.
-          + iIntros (r v) "%HrPC %Hr".
-            subst regs' regs.
-            clear -Hr HrPC Hrmap_zeroes.
-            simplify_map_eq.
-            destruct (decide (r = csp)); simplify_map_eq; first done.
-            destruct (decide (r = cra)); simplify_map_eq; first done.
-            destruct (decide (r = cgp)); simplify_map_eq; first done.
-            destruct (decide (r = cs1)); simplify_map_eq; first done.
-            destruct (decide (r = cs0)); simplify_map_eq; first done.
-            destruct (decide (r = ca1)); simplify_map_eq; first done.
-            destruct (decide (r = ca0)); simplify_map_eq; first done.
-            eapply map_Forall_lookup_1 in Hr; eauto; cbn in Hr; simplify_eq.
-            iApply interp_int.
-        }
-        iSplit.
-        {  rewrite /registers_pointsto.
-           subst regs'.
-           rewrite insert_insert.
-           iApply big_sepM_insert; last iFrame.
-           subst regs.
-           simplify_map_eq.
-           rewrite -not_elem_of_dom Harg_rmap'.
-           set_solver+.
-        }
-        iSplit; last(iPureIntro; eapply frame_match_mono; eauto).
-        iPureIntro.
-        by subst regs' regs; simplify_map_eq.
+      iDestruct "Hcont" as "(%Hwastk & #Hcont)".
+      iAssert (future_world g Wfixed Wfixed) as "Hfuture".
+      { destruct g; cbn; iPureIntro; [ apply  related_sts_priv_refl_world
+                                     | apply related_sts_pub_refl_world].
       }
+      iSpecialize ("Hcont" $! Wfixed with "Hfuture").
+      iDestruct "Hlc" as "[Hlc _]"
+      ; iDestruct (lc_fupd_elim_later with "[$] [$Hcont]") as ">Hcont'".
 
-      apply bool_decide_eq_true_1 in Hentry.
-      iDestruct (big_sepM_insert with "[$Hrmap $HPC]") as "Hrmap".
-      { apply not_elem_of_dom; repeat (rewrite dom_insert_L); rewrite Harg_rmap'; set_solver+. }
-      rewrite -(insert_insert _ PC _ (WInt 0)).
-      assert (∀ x7 : RegName, is_Some (<[PC:=WInt 0]> regs !! x7)).
-      { intros r.
-        rewrite -elem_of_dom.
-        subst regs regs'.
-        repeat (rewrite dom_insert_L).
-        rewrite Harg_rmap'.
-        set_solver+.
+      iApply ("Hcont'" $! regs'); iFrame.
+
+      iSplit.
+      { iSplit.
+        + iIntros (r); iPureIntro.
+          rewrite -elem_of_dom.
+          subst regs regs'.
+          repeat (rewrite dom_insert_L).
+          rewrite Harg_rmap'.
+          set_solver+.
+        + iIntros (r v) "%HrPC %Hr".
+          subst regs' regs.
+          clear -Hr HrPC Hrmap_zeroes.
+          simplify_map_eq.
+          destruct (decide (r = csp)); simplify_map_eq; first done.
+          destruct (decide (r = cra)); simplify_map_eq; first done.
+          destruct (decide (r = cgp)); simplify_map_eq; first done.
+          destruct (decide (r = cs1)); simplify_map_eq; first done.
+          destruct (decide (r = cs0)); simplify_map_eq; first done.
+          destruct (decide (r = ca1)); simplify_map_eq; first done.
+          destruct (decide (r = ca0)); simplify_map_eq; first done.
+          eapply map_Forall_lookup_1 in Hr; eauto; cbn in Hr; simplify_eq.
+          iApply interp_int.
       }
-      assert (<[PC:=WInt 0]> regs !! csp = Some (WCap RWL Local b_stk csp_e a_stk)).
-      { by subst regs; simplify_map_eq. }
-      iPoseProof (fundamental_ih with "Hswitcher") as "Hftlr".
-      iAssert (
-          ∀ (r : RegName) (v : leibnizO Word),
-            ⌜r ≠ PC⌝ → ⌜<[PC:=WInt 0]> regs !! r = Some v⌝ → interp Wfixed C v
-        )%I as "?".
-      { iIntros (r v) "%HrPC %Hr".
-        subst regs' regs.
-        clear -Hr HrPC Hrmap_zeroes.
-        simplify_map_eq.
-        destruct (decide (r = csp)); simplify_map_eq; first done.
-        destruct (decide (r = cra)); simplify_map_eq; first done.
-        destruct (decide (r = cgp)); simplify_map_eq; first done.
-        destruct (decide (r = cs1)); simplify_map_eq; first done.
-        destruct (decide (r = cs0)); simplify_map_eq; first done.
-        destruct (decide (r = ca1)); simplify_map_eq; first done.
-        destruct (decide (r = ca0)); simplify_map_eq; first done.
-        eapply map_Forall_lookup_1 in Hr; eauto; cbn in Hr; simplify_eq.
-        iApply interp_int.
+      iSplit.
+      {  rewrite /registers_pointsto.
+         subst regs'.
+         rewrite insert_insert.
+         iApply big_sepM_insert; last iFrame.
+         subst regs.
+         simplify_map_eq.
+         rewrite -not_elem_of_dom Harg_rmap'.
+         set_solver+.
       }
-      assert (frame_match Ws Cs cstk Wfixed C) by ( eapply frame_match_mono; eauto ).
-      destruct Hentry as [-> | ->]; cbn.
-      + iApply (ftlr_switcher_call.switcher_call_ftlr _ _ _ _ _ _ (WCap RWL Local b_stk csp_e a_stk) with "[] [] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
-      + iApply (ftlr_switcher_return.switcher_return_ftlr _ _ _ _ _ _ (WCap RWL Local b_stk csp_e a_stk) with "[] [] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
-        intros ; apply ftlr_switcher_call.switcher_call_ftlr.
+      iSplit; last(iPureIntro; eapply frame_match_mono; eauto).
+      iPureIntro.
+      by subst regs' regs; simplify_map_eq.
   Qed.
 
 End Switcher.

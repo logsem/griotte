@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
-From cap_machine Require Import logrel rules proofmode.
+From cap_machine Require Import logrel logrel_extra rules proofmode.
 From cap_machine Require Import fetch assert switcher_spec_call cmdc.
 
 Section CMDC.

@@ -415,30 +415,53 @@ Section fundamental.
       iFrame.
   Qed.
 
-  (* updatePcPerm adds a later because of the case of E-capabilities, which
-     unfold to ▷ interp_expr *)
-  (* Lemma interp_updatePcPerm W C w : *)
-  (*   ⊢ interp W C w -∗ ▷ (∀ wstk regs, interp_expression regs W C (updatePcPerm w) wstk). *)
-  (* Proof. *)
-  (*   iIntros "#Hw". *)
-  (*   assert ( ( (∃ p g b e a, w = WSentry p g b e a)) *)
-  (*           ∨ updatePcPerm w = w) *)
-  (*     as [ Hw | ->]. *)
-  (*   { *)
-  (*     destruct w as [ | [ | ] | | ]; eauto. unfold updatePcPerm. *)
-  (*     eauto; try naive_solver. *)
-  (*   } *)
-  (*   { destruct Hw as (p & g & b & e & a & ->). *)
-  (*     rewrite fixpoint_interp1_eq /=. *)
-  (*     iIntros (cstk rmap). iSpecialize ("Hw" $! rmap). iDestruct "Hw" as "#Hw". *)
-  (*     iPoseProof (futureworld_refl g W) as "Hfuture". *)
-  (*     iSpecialize ("Hw" $! W (futureworld_refl g W)). *)
-  (*     iNext. iIntros "(HPC & Hr & ?)". *)
-  (*     iDestruct "Hw" as "[Hw _]". *)
-  (*     iApply "Hw"; eauto. iFrame. *)
-  (*   } *)
-  (*   { iNext. iIntros (rmap). iApply fundamental; eauto. } *)
-  (* Qed. *)
+  Lemma fundamental_ih Nswitcher :
+    na_inv logrel_nais Nswitcher switcher_inv
+    ⊢ ftlr_IH.
+    iIntros "#Hinv".
+    iModIntro; iNext.
+    iIntros (????????????) "??????????#Hv".
+    iDestruct (fundamental with "[$] Hv") as "Hcont".
+    iApply "Hcont"; iFrame.
+  Qed.
+
+  (* updatePcPerm adds a later because of the case of E-capabilities, which *)
+  (*    unfold to ▷ interp_expr *)
+  Lemma interp_updatePcPerm W C w Nswitcher :
+    na_inv logrel_nais Nswitcher switcher_inv
+    ⊢ interp W C w -∗ ▷ (∀ cstk Ws Cs wstk, interp_expression cstk Ws Cs W C (updatePcPerm w) wstk).
+  Proof.
+    iIntros "#Hswitcher #Hw".
+    assert ( ( (∃ p g b e a, w = WSentry p g b e a))
+            ∨ updatePcPerm w = w)
+      as [ Hw | ->].
+    {
+      destruct w as [ | [ | ] | | ]; eauto. unfold updatePcPerm.
+      eauto; try naive_solver.
+    }
+    { destruct Hw as (p & g & b & e & a & ->).
+      rewrite fixpoint_interp1_eq /=.
+      destruct (is_switcher_entry_point (WSentry p g b e a)) eqn:Hsentry.
+      + apply bool_decide_eq_true_1 in Hsentry.
+        destruct Hsentry as [|]
+        ; simplify_eq
+        ; iIntros "!> %%%%% ([% ?]&?&%&?&?&?&?&?&%)"
+        ; iPoseProof (fundamental_ih with "Hswitcher") as "Hftlr".
+        * iApply (ftlr_switcher_call.switcher_call_ftlr _ _ _ _ _ _ wstk with "[$] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
+        * iApply (ftlr_switcher_return.switcher_return_ftlr _ _ _ _ _ _ wstk with
+                 "[$] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
+        intros ; apply ftlr_switcher_call.switcher_call_ftlr.
+      + iIntros (cstk Ws Cs wstk rmap).
+        iDestruct "Hw" as "#Hw".
+        iPoseProof (futureworld_refl g W) as "Hfuture".
+        iSpecialize ("Hw" $! cstk Ws Cs wstk W).
+        iSpecialize ("Hw" $! (futureworld_refl g W)).
+        iNext. iIntros "(HPC & Hr & ?)".
+        iDestruct "Hw" as "[Hw _]".
+        iApply "Hw"; eauto. iFrame.
+    }
+    { iNext; iIntros (????); iApply fundamental; eauto. }
+  Qed.
 
   Lemma jmp_or_fail_spec W C w φ cstk Ws Cs wstk Nswitcher :
     na_inv logrel_nais Nswitcher switcher_inv ⊢
@@ -446,12 +469,9 @@ Section fundamental.
      -∗ (if decide (isCorrectPC (updatePcPerm w))
          then
            (∃ p g b e a,
-              if is_switcher_entry_point w
-              then True
-              else
-                  (⌜w = WCap p g b e a ∨ w = WSentry p g b e a ⌝
-                   ∗ □ ∀ W', future_world g W W'
-                             → ▷ (interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W' C) (updatePcPerm w) wstk))
+               (⌜w = WCap p g b e a ∨ w = WSentry p g b e a ⌝
+                ∗ □ ∀ W', future_world g W W'
+                          → ▷ (interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W' C) (updatePcPerm w) wstk))
          else φ FailedV ∗ PC ↦ᵣ updatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.
@@ -461,22 +481,29 @@ Section fundamental.
       destruct w;inv H.
       + destruct p; cbn in * ; simplify_eq.
         iExists _,_,_,_,_.
-        replace (is_switcher_entry_point _) with false.
-        2: { rewrite /is_switcher_entry_point.
-             symmetry.
-             rewrite bool_decide_eq_false.
-             intro Hcontra; destruct Hcontra; simplify_eq.
-        }
         iSplit;[eauto|]. iModIntro.
         iDestruct (interp_exec_cond with "[$] [$Hw]") as "Hexec";[auto|].
         iApply exec_wp;auto.
       + destruct p0; cbn in * ; simplify_eq.
-        * iExists _,_,_,_,_.
+        *
+          destruct (is_switcher_entry_point (WSentry (BPerm rx w dl dro) g0 b0 e0 a0)) eqn:Hsentry.
+          { apply bool_decide_eq_true_1 in Hsentry.
+            destruct Hsentry as [|]
+            ; simplify_eq
+            ; iExists _,_,_,_,_; (iSplit;[eauto|])
+            ; iIntros "!> % Hrelated !> % ([% ?]&?&%&?&?&?&?&?&%)"
+            ; iPoseProof (fundamental_ih with "Hinv_switcher") as "Hftlr".
+            + iApply (ftlr_switcher_call.switcher_call_ftlr _ _ _ _ _ _ wstk with "[$] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
+            + iApply (ftlr_switcher_return.switcher_return_ftlr _ _ _ _ _ _ wstk with
+                       "[$] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
+              intros ; apply ftlr_switcher_call.switcher_call_ftlr.
+          }
+          iExists _,_,_,_,_.
           rewrite /= fixpoint_interp1_eq /=.
-          destruct (is_switcher_entry_point (WSentry (BPerm rx w dl dro) g0 b0 e0 a0)) eqn:Hsentry; first done.
           iSplit;[eauto|]. iModIntro.
           iDestruct "Hw" as "#Hw".
           iIntros (W') "Hfuture".
+          rewrite Hsentry.
           iSpecialize ("Hw" with "Hfuture").
           iDestruct "Hw" as "[Hw _]".
           iExact "Hw".

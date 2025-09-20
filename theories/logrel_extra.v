@@ -2,7 +2,7 @@ From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From cap_machine.ftlr Require Import ftlr_base interp_weakening.
-From cap_machine Require Import logrel fundamental interp_weakening addr_reg_sample rules proofmode monotone.
+From cap_machine Require Import logrel interp_weakening addr_reg_sample rules proofmode monotone.
 From cap_machine Require Import multiple_updates region_invariants_revocation region_invariants_allocation.
 From stdpp Require Import base.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
@@ -105,23 +105,6 @@ Section Logrel_extra.
     iExists _,_,Hpers; iFrame "∗#".
     iApply "Hzcond"; done.
   Qed.
-
-  (* Lemma closing_resources_zeroed W C a v : *)
-  (*   closing_revoked_resources W C a v -∗ *)
-  (*   closing_revoked_resources W C a (WInt 0). *)
-  (* Proof. *)
-  (*   iIntros "H". *)
-  (*   iDestruct "H" as (φ p Hpers) "(#Hmono&#HmonoR&#Hzcond&#Hrcond&#Hwcond&?&?)". *)
-  (*   iExists φ, p, Hpers. *)
-  (*   iFrame "∗#". *)
-  (*   (* iSplit. *) *)
-  (*   (* { iApply "Hwcond"; iEval (rewrite fixpoint_interp1_eq); done. } *) *)
-  (*   rewrite /monotonicity_guarantees_region. *)
-  (*   destruct (isWL p); [|destruct (isDL p)]. *)
-  (*   all: iModIntro; iIntros (W0 W1 ?) "?". *)
-  (*   all: iApply "Hwcond". *)
-  (*   all: iEval (rewrite fixpoint_interp1_eq); done. *)
-  (* Qed. *)
 
    Lemma update_region_revoked_temp_pwl_multiple' E W C la lv :
      NoDup la →
@@ -671,16 +654,6 @@ Section Logrel_extra.
       iFrame.
       by iApply region_addrs_exists.
     }
-  Qed.
-
-  Lemma fundamental_ih Nswitcher :
-    na_inv logrel_nais Nswitcher switcher_inv
-    ⊢ ftlr_IH.
-    iIntros "#Hinv".
-    iModIntro; iNext.
-    iIntros (????????????) "??????????#Hv".
-    iDestruct (fundamental with "[$] Hv") as "Hcont".
-    iApply "Hcont"; iFrame.
   Qed.
 
   Lemma write_allowed_inv' (W : WORLD) (C : CmptName) (a b e: Addr) p g l :
