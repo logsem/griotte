@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import logrel logrel_extra rules proofmode.
+From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
 From cap_machine Require Import fetch assert switcher_spec_call deep_locality.
 
 Section DLE.
@@ -24,6 +24,22 @@ Section DLE.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+
+  (* TODO move *)
+  Lemma big_sepL_elem_of_extract { A : Type } (P Q : A -> iProp Σ) (a : A) (l : list A) :
+    a ∈ l ->
+    NoDup l ->
+    (∀ a, P a -∗ Q a) -∗
+    ([∗ list] a ∈ l, P a) -∗
+    ∃ l', ⌜ l ≡ₚ a::l' ⌝ ∗ ([∗ list] a ∈ l', P a) ∗ (Q a).
+  Proof.
+    iIntros (Ha_in Hnodup) "Himpl Hl".
+    apply elem_of_Permutation in Ha_in as [l' Hl'].
+    iExists l'; iFrame "%".
+    iEval (setoid_rewrite Hl') in "Hl".
+    iDestruct "Hl" as "[Ha $]".
+    by iApply "Himpl".
+  Qed.
 
   Lemma dle_spec
 
@@ -110,27 +126,8 @@ Section DLE.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
     (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
-    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct0) ) as [wct0 Hwct0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct1) ) as [wct1 Hwct1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct2) ) as [wct2 Hwct2].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct3) ) as [wct3 Hwct3].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! cs0) ) as [wcs0 Hwcs0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! cs1) ) as [wcs1 Hwcs1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
+    iExtractList "Hrmap" [ca0;ct0;ct1;ct2;ct3;cs0;cs1]
+      as ["Hca0"; "Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hcs0"; "Hcs1"].
 
     (* Extract the addresses of b and a *)
     iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
@@ -161,14 +158,11 @@ Section DLE.
         as (l) "(%Hl_unk & Hsts_C & Hr_C & Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_a]") as "%Hcgp_a_stk".
+    set (W1 := revoke W0).
 
-    match goal with
-    | _ : _ |- context [ region ?W' ] => set (W1 := W')
-    end.
-
-    (* --------------------------------------------------- *)
-    (* ----------------- Start the proof ----------------- *)
-    (* --------------------------------------------------- *)
+    (* --------------------------------------------------------------- *)
+    (* ----------------- Start the proof of the code ----------------- *)
+    (* --------------------------------------------------------------- *)
 
     (* --------------------------------------------------- *)
     (* ----------------- BLOCK 0 : INIT ------------------ *)
@@ -195,7 +189,7 @@ Section DLE.
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
     (* Store cgp ct0; *)
-    (* NOTE for some reason, iInstr doesnt work here lol *)
+    (* NOTE for some reason, iInstr doesnt work here *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_store_success_reg with "[$HPC $Hi $Hct0 $Hcgp $Hcgp_a]") ; try solve_pure.
@@ -237,7 +231,7 @@ Section DLE.
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent a_fetch1.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct2 $Hct3 $Hcode $Himport_C_f]"); eauto.
     { solve_addr. }
     iNext ; iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hcode & Himport_C_f)".
@@ -249,14 +243,13 @@ Section DLE.
     (* ---------------- BLOCK 3.1: CALL B ---------------- *)
     (* --------------------------------------------------- *)
 
-    focus_block 3 "Hcode_main" as a_callB Ha_callB "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 3 "Hcode_main" as a_callB Ha_callB "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent a_fetch2.
     (* Mov cs0 ct0; *)
     iInstr "Hcode".
     (* Mov cs1 ct1; *)
-    iInstr "Hcode" with "Hlc".
-
+    iInstr "Hcode".
     (* Jalr cra ct0; *)
-    iInstr "Hcode" with "Hlc'".
+    iInstr "Hcode".
 
     (* -- Update the world and prove interp of the the argument in `ca0` -- *)
 
@@ -339,42 +332,22 @@ Section DLE.
     }
 
     (* -- separate argument registers -- *)
-    assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca2) ) as [wca2 Hwca2].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca3) ) as [wca3 Hwca3].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca4) ) as [wca4 Hwca4].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca4 with "Hrmap") as "[Hca4 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca5) ) as [wca5 Hwca5].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by simplify_map_eq.
+    iExtractList "Hrmap" [ca1;ca2;ca3;ca4;ca5]
+      as ["Hca1"; "Hca2"; "Hca3"; "Hca4"; "Hca5"].
 
     set ( rmap_arg :=
            {[ ca0 := WCap RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
-              ca1 := wca1;
-              ca2 := wca2;
-              ca3 := wca3;
-              ca4 := wca4;
-              ca5 := wca5;
+              ca1 := vr_t11;
+              ca2 := vr_t12;
+              ca3 := vr_t13;
+              ca4 := vr_t14;
+              ca5 := vr_t15;
               ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
 
-    rewrite !(delete_commute _ _ ct2).
-    iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
-    repeat (rewrite -delete_insert_ne //).
-    rewrite !(delete_commute _ _ ct3).
-    iDestruct (big_sepM_insert _ _ ct3 with "[$Hrmap $Hct3]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
-    repeat (rewrite -delete_insert_ne //).
-
+    iInsertList "Hrmap" [ct2;ct3].
+    repeat (iEval (rewrite -delete_insert_ne //) in "Hrmap").
     set (rmap' := (delete ca5 _)).
 
     (* Show that the arguments are safe, when necessary *)
@@ -425,7 +398,8 @@ Section DLE.
     }
     { by rewrite /is_arg_rmap. }
 
-    clear dependent wca1 wca2 wca3 wca4 wca5 rmap.
+    clear dependent vr_t10 vr_t5 vr_t6 vr_t7 vr_t28 vr_t8 vr_t9.
+    clear dependent vr_t11 vr_t12 vr_t13 vr_t14 vr_t15 rmap.
     iNext.
     iIntros (W4 rmap stk_mem_l stk_mem_h)
       "(%Hrelated_pub_W3ext_W4 & %Hdom_rmap
@@ -438,7 +412,8 @@ Section DLE.
     iEval (cbn) in "HPC".
 
 
-    (* TODO see whether I can make this a lemma *)
+    (* ----- Revoke the world to get borrowed addresses back -----*)
+    (* 1. Close the world *)
     iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
     iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
     iEval (rewrite <- (app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "Hr_C".
@@ -457,6 +432,7 @@ Section DLE.
     { done. }
     rewrite -region_open_nil.
 
+    (* 1.5. Derive some properties on the world required later *)
     assert ( cgp_b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_b_stk'.
     { clear -Hcgp_b_stk.
       apply not_elem_of_finz_seq_between.
@@ -511,6 +487,7 @@ Section DLE.
     }
     rewrite Forall_forall in Hstk_l_revoked.
 
+    (* 2. Revoke the world again *)
     clear dependent stk_mem stk_mem_h.
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W4_csp $Hsts_C $Hr_C]")
         as (l') "(%Hl_unk' & Hsts_C & Hr_C & Hfrm_close_W4 & >[%stk_mem_h Hstk_h] & Hrevoked_l')".
@@ -518,11 +495,10 @@ Section DLE.
     { solve_addr+ Hcsp_bounds. }
     { by rewrite finz_seq_between_length in Hlen_stk_l. }
     set (W5 := revoke W4).
-    (* TODO up to here *)
 
-    (* TODO lemma again *)
     (* -- extract cgp_b out of the revoked -- *)
-    assert (cgp_b ∈ l') as Hcgp_in_l'.
+    iDestruct ( big_sepL_elem_of_extract _ (fun a => ▷ ∃ v, a ↦ₐ v)%I cgp_b with "[] [$Hrevoked_l']")
+      as (l'') "(%Hl_unk'' & Hrevoked_l'' & >[%wcgpb Hcgp_b])".
     {
       assert ( W4.1 !! cgp_b = Some Temporary ) as HW4.
       { eapply region_state_pub_temp; eauto.
@@ -534,25 +510,8 @@ Section DLE.
       apply Hl_unk'_cgp in HW4.
       apply elem_of_app in HW4 as [?|?]; try done.
     }
-    iAssert
-      ( ∃ l'',
-          ⌜ l' ≡ₚ cgp_b::l'' ⌝
-          ∗ ([∗ list] a ∈ l'', (∃ (p' : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-                                             ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝ ∗ ▷ temp_resources W4 C φ a p' ∗
-                                             rel C a p' φ) ∗ ⌜(revoke W4).1 !! a = Some Revoked⌝)
-          ∗ (▷ (∃ v, cgp_b ↦ₐ v)))%I with "[Hrevoked_l']"
-      as (l'') "(%Hl_unk'' & Hrevoked_l'' & >[%wcgpb Hcgp_b])".
-    { destruct Hl_unk' as [Hnodup ?].
-      apply NoDup_app in Hnodup as (Hnodup_l_unk & ? & ?).
-      apply elem_of_Permutation in Hcgp_in_l' as [l_unk'' Hl_unk''].
-      iExists l_unk''; iFrame "%".
-      iEval (setoid_rewrite Hl_unk'') in "Hrevoked_l'".
-      iDestruct "Hrevoked_l'" as "[ [Hv _] $]".
-      iDestruct "Hv" as (? ? ?) "[Hv _]".
-      iNext.
-      rewrite /temp_resources.
-      iDestruct "Hv" as (??) "[$ _]".
-    }
+    { by destruct Hl_unk' as [Hl_unk' _]; apply NoDup_app in Hl_unk' as (? & _ & _). }
+    { iClear "#"; clear; iIntros (a) "[(%&%&%& (%&_&$&?) &_) _]". }
 
     (* simplify the knowledge about the new rmap *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
@@ -567,17 +526,7 @@ Section DLE.
     iClear "Hrmap_zero".
 
     (* ---- extract the needed registers ct0 ct1 ----  *)
-    assert ( rmap !! ct0 = Some (WInt 0) ) as Hwct0'.
-    { apply Hrmap_init. rewrite Hdom_rmap.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
-    assert ( rmap !! ct1 = Some (WInt 0) ) as Hwct1'.
-    { apply Hrmap_init. rewrite Hdom_rmap.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
-
+    iExtractList "Hrmap" [ct0;ct1] as ["Hct0"; "Hct1"].
 
     (* --------------------------------------------------- *)
     (* ------------- BLOCK 3.2: CALL B again -------------- *)
@@ -596,26 +545,15 @@ Section DLE.
     iInstr "Hcode".
 
     (* -- separate argument registers -- *)
-    assert ( is_Some (rmap !! ca2) ) as [wca2 Hwca2].
-    { exists (WInt 0); apply Hrmap_init; rewrite Hdom_rmap ; done. }
-    iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca3) ) as [wca3 Hwca3].
-    { exists (WInt 0); apply Hrmap_init; rewrite Hdom_rmap ; done. }
-    iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca4) ) as [wca4 Hwca4].
-    { exists (WInt 0); apply Hrmap_init; rewrite Hdom_rmap ; done. }
-    iDestruct (big_sepM_delete _ _ ca4 with "Hrmap") as "[Hca4 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca5) ) as [wca5 Hwca5].
-    { exists (WInt 0); apply Hrmap_init; rewrite Hdom_rmap ; done. }
-    iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by simplify_map_eq.
+    iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as ["Hca2"; "Hca3"; "Hca4"; "Hca5"].
 
     set ( rmap_arg :=
            {[ ca0 := WInt 0;
               ca1 := warg1;
-              ca2 := wca2;
-              ca3 := wca3;
-              ca4 := wca4;
-              ca5 := wca5;
+              ca2 := vr_t12;
+              ca3 := vr_t13;
+              ca4 := vr_t14;
+              ca5 := vr_t15;
               ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
@@ -717,31 +655,7 @@ Section DLE.
     iClear "Hrmap_zero".
 
     (* ---- extract the needed registers ct0 ct1 ----  *)
-    assert ( rmap !! ct0 = Some (WInt 0) ) as Hwct0.
-    { apply Hrmap_init. rewrite Hdom_rmap.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
-    assert ( rmap !! ct1 = Some (WInt 0) ) as Hwct1.
-    { apply Hrmap_init. rewrite Hdom_rmap.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
-    assert ( rmap !! ct2 = Some (WInt 0) ) as Hwct2.
-    { apply Hrmap_init. rewrite Hdom_rmap.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by simplify_map_eq.
-    assert ( rmap !! ct3 = Some (WInt 0) ) as Hwct3.
-    { apply Hrmap_init. rewrite Hdom_rmap.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by simplify_map_eq.
-    assert ( rmap !! ct4 = Some (WInt 0) ) as Hwct4.
-    { apply Hrmap_init. rewrite Hdom_rmap.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
-    }
-    iDestruct (big_sepM_delete _ _ ct4 with "Hrmap") as "[Hct4 Hrmap]"; first by simplify_map_eq.
+    iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4] as ["Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hct4"].
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
@@ -770,6 +684,7 @@ Section DLE.
     (* JmpCap cra *)
     iInstr "Hcode".
     wp_end; iIntros "_"; iFrame.
+
   Qed.
 
 End DLE.
