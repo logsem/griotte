@@ -673,5 +673,62 @@ Section Logrel_extra.
     }
   Qed.
 
+  Lemma fundamental_ih Nswitcher :
+    na_inv logrel_nais Nswitcher switcher_inv
+    ⊢ ftlr_IH.
+    iIntros "#Hinv".
+    iModIntro; iNext.
+    iIntros (????????????) "??????????#Hv".
+    iDestruct (fundamental with "[$] Hv") as "Hcont".
+    iApply "Hcont"; iFrame.
+  Qed.
+
+  Lemma write_allowed_inv' (W : WORLD) (C : CmptName) (a b e: Addr) p g l :
+    writeAllowed p →
+    Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
+    ⊢ (interp W C (WCap p g b e a)) →
+    [∗ list] a' ∈ l,
+          (
+            ∃ (p' : Perm) (P:V),
+              ⌜ PermFlowsTo p p'⌝
+              ∗ ⌜persistent_cond P⌝
+              ∗ rel C a' p' (safeC P)
+              ∗ ▷ zcond P C
+              ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
+              ∗ (▷ wcond P C interp)
+              ∗ monoReq W C a' p' P
+          ).
+  Proof.
+    induction l; iIntros (Hra Hin) "#Hinterp"; first done.
+    simpl.
+    apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
+    iDestruct (write_allowed_inv _ _ a0 with "Hinterp")
+      as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)"
+    ; auto.
+    iFrame "%#".
+    iApply (IHl with "Hinterp"); eauto.
+  Qed.
+
+  Lemma write_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g :
+    writeAllowed p →
+    ⊢ (interp W C (WCap p g b e a)) →
+    [∗ list] a' ∈ (finz.seq_between b e),
+          (
+            ∃ (p' : Perm) (P:V),
+              ⌜ PermFlowsTo p p'⌝
+              ∗ ⌜persistent_cond P⌝
+              ∗ rel C a' p' (safeC P)
+              ∗ ▷ zcond P C
+              ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
+              ∗ (▷ wcond P C interp)
+              ∗ monoReq W C a' p' P
+          ).
+  Proof.
+    iIntros (Hra) "Hinterp".
+    iApply (write_allowed_inv' with "Hinterp"); eauto.
+    apply Forall_forall.
+    intros a' Ha'.
+    by apply elem_of_finz_seq_between.
+  Qed.
 
 End Logrel_extra.
