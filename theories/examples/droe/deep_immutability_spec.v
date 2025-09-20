@@ -488,14 +488,14 @@ Section DROE.
     }
 
     iNext. subst rmap'.
-    iIntros (W2_B rmap')
+    iIntros (W2_B rmap' stk_mem_l stk_mem_h)
       "(%HW1_pubB_W2 & %Hdom_rmap'
       & Hna & #Hinterp_cdp & %Hcsp_bounds
-      & HWstd_full_B & HWreg_B & Hclose_reg_B & Hclose_reg_B'
+      & HWstd_full_B & HWreg_B & Hclose_reg_B
       & Hcstk_frag & Hrel_stk_B
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hcsp_stk & HK)".
+      & Hrmap & Hcsp_stk_l & H_stk_h & HK)".
     iEval (cbn) in "HPC".
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
