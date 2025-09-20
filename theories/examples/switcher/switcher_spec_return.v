@@ -40,7 +40,7 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (wca0 wca1 : Word)
     :
-    let Wfixed := (close_list (l ++ finz.seq_between csp_b csp_e) (revoke Wcur)) in
+    let Wfixed := (close_list (l ++ finz.seq_between csp_b csp_e) Wcur) in
     related_sts_pub_world W0 Wfixed ->
     dom rmap = all_registers_s ∖ ({[ PC ; csp ; ca0 ; ca1 ]} ) ->
     frame_match Ws Cs cstk W0 C ->
@@ -55,10 +55,10 @@ Section Switcher.
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
-    ∗ sts_full_world (revoke Wcur) C
+    ∗ sts_full_world Wcur C
     ∗ na_own logrel_nais ⊤
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
-    ∗ region (revoke Wcur) C
+    ∗ region Wcur C
     ∗ ([∗ list] a ∈ l,
           (∃ (p : Perm) (P : WORLD * CmptName * Word → iPropI Σ),
               ⌜∀ Wv : WORLD * CmptName * Word, Persistent (P Wv)⌝
