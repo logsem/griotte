@@ -400,7 +400,7 @@ Section DLE.
     iAssert (
         ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W3 C a ∗
                                                     ⌜W3.1 !! a = Some Revoked⌝)
-      )%I with "[Hfrm_close_W0]" as "Hfrm_close_W3".
+      )%I with "[Hfrm_close_W0]" as "#Hfrm_close_W3".
     {
       iApply (big_sepL_impl with "Hfrm_close_W0").
       iModIntro; iIntros (k a Ha) "[Hclose %Hrev]".
@@ -427,33 +427,26 @@ Section DLE.
 
     clear dependent wca1 wca2 wca3 wca4 wca5 rmap.
     iNext.
-    iIntros (W4 rmap)
+    iIntros (W4 rmap stk_mem_l stk_mem_h)
       "(%Hrelated_pub_W3ext_W4 & %Hdom_rmap
       & Hna & #Hinterp_W4_csp & %Hcsp_bounds
-      & Hsts_C & Hr_C & Hfrm_close_W3 & Hfrm_close_W4
+      & Hsts_C & Hr_C & Hfrm_close_W4
       & Hcstk_frag & Hrel_stk_C
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)".
+      & Hrmap & Hstk_l & Hstk_h & HK)".
     iEval (cbn) in "HPC".
 
 
     (* TODO see whether I can make this a lemma *)
+    iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
+    iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
     iEval (rewrite <- (app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "Hr_C".
-    rewrite (region_addrs_zeroes_split _ (csp_b ^+4)%a).
-    2: { split; solve_addr+Hcsp_bounds. }
-    set (lv := region_addrs_zeroes (csp_b ^+4)%a csp_e).
-    iDestruct (region_pointsto_split _ _ (csp_b ^+4)%a with "Hstk") as "[Hstk' Hstk]".
-    { split; solve_addr+Hcsp_bounds. }
-    { by rewrite length_replicate. }
     iAssert (
-       [∗ list] a ; v ∈ finz.seq_between (csp_b ^+ 4)%a csp_e ; lv, a ↦ₐ v ∗ closing_resources interp W4 C a v
-      )%I with "[Hfrm_close_W4 Hstk]" as "Hfrm_close_W4".
+       [∗ list] a ; v ∈ finz.seq_between (csp_b ^+ 4)%a csp_e ; stk_mem_h, a ↦ₐ v ∗ closing_resources interp W4 C a v
+      )%I with "[Hfrm_close_W4 Hstk_h]" as "Hfrm_close_W4".
     { rewrite /region_pointsto.
-      iDestruct (big_sepL2_sep_sepL_l  with "[$Hfrm_close_W4 $Hstk]") as "H".
-      iApply (big_sepL2_impl with "H").
-      iIntros "!> % % % % % [? $]"; iFrame.
-      subst lv; apply lookup_replicate in H2 as [-> _]; done.
+      iDestruct (big_sepL2_sep  with "[$Hstk_h $Hfrm_close_W4]") as "$".
     }
     iDestruct (
         ftlr_switcher_return.region_close_list_interp_gen
@@ -461,7 +454,7 @@ Section DLE.
       ) as "Hr_C".
     { apply finz_seq_between_NoDup. }
     { set_solver+. }
-    { subst lv; by rewrite length_replicate finz_seq_between_length. }
+    { done. }
     rewrite -region_open_nil.
 
     assert ( cgp_b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_b_stk'.
@@ -490,8 +483,8 @@ Section DLE.
       rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
     }
 
-    iMod (revoked_by_separation_many with "[$Hr_C $Hsts_C $Hstk']")
-      as "(Hr_C & Hsts_C & Hstk' & %Hstk'_revoked)".
+    iMod (revoked_by_separation_many with "[$Hr_C $Hsts_C $Hstk_l]")
+      as "(Hr_C & Hsts_C & Hstk_l & %Hstk_l_revoked)".
     {
       assert ( cgp_b ∉ finz.seq_between csp_b (csp_b ^+ 4)%a ) as Hcgp_b_stk''.
       { apply not_elem_of_finz_seq_between.
@@ -516,13 +509,14 @@ Section DLE.
       apply elem_of_app; right.
       rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha Hcsp_bounds.
     }
-    rewrite Forall_forall in Hstk'_revoked.
+    rewrite Forall_forall in Hstk_l_revoked.
 
-    clear stk_mem.
+    clear dependent stk_mem stk_mem_h.
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W4_csp $Hsts_C $Hr_C]")
-        as (l') "(%Hl_unk' & Hsts_C & Hr_C & Hfrm_close_W4 & >[%stk_mem Hstk] & Hrevoked_l')".
-    iDestruct (region_pointsto_split with "[$Hstk' $Hstk]") as "Hstk"; auto.
-    { by rewrite length_replicate. }
+        as (l') "(%Hl_unk' & Hsts_C & Hr_C & Hfrm_close_W4 & >[%stk_mem_h Hstk_h] & Hrevoked_l')".
+    iDestruct (region_pointsto_split with "[$Hstk_l $Hstk_h]") as "Hstk"; auto.
+    { solve_addr+ Hcsp_bounds. }
+    { by rewrite finz_seq_between_length in Hlen_stk_l. }
     set (W5 := revoke W4).
     (* TODO up to here *)
 
@@ -658,6 +652,10 @@ Section DLE.
     { rewrite !big_sepL_sep.
      rewrite (finz_seq_between_split csp_b (csp_b ^+ 4)%a csp_e); last solve_addr.
       iDestruct "Hfrm_close_W3" as "[Hclose_W3 Hrev_W3]".
+      iEval (rewrite big_sepL_app) in "Hclose_W3".
+      iEval (rewrite big_sepL_app) in "Hrev_W3".
+      iDestruct "Hclose_W3" as "[Hclose_W3 _]".
+      iDestruct "Hrev_W3" as "[Hrev_W3 _]".
       iDestruct "Hfrm_close_W4" as "[Hclose_W4 Hrev_W4]".
       iSplitL "Hclose_W3 Hclose_W4".
       - rewrite big_sepL_app.
@@ -677,7 +675,7 @@ Section DLE.
         iDestruct (big_sepL_pure_1 with "Hstk_frm_tmp_W0") as "%Hstk_frm_tmp_W0".
         iPureIntro.
         apply revoke_lookup_Revoked.
-        eapply Hstk'_revoked.
+        eapply Hstk_l_revoked.
         apply elem_of_list_lookup.
         eexists; done.
     }
@@ -695,15 +693,15 @@ Section DLE.
     { by rewrite /is_arg_rmap. }
 
     iNext. subst rmap'.
-    clear dependent warg0 warg1 rmap.
-    iIntros (W6 rmap)
+    clear dependent warg0 warg1 rmap stk_mem_l stk_mem_h.
+    iIntros (W6 rmap stk_mem_l stk_mem_h)
       "(%Hrelated_pub_W5_W6 & %Hdom_rmap
       & Hna & #Hinterp_W6_csp & _
-      & Hsts_C & Hr_C & Hfrm_close_W5 & Hfrm_close_W6
+      & Hsts_C & Hr_C & Hfrm_close_W6
       & Hcstk_frag & Hrel_stk_C'
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hcsp_stk & HK)".
+      & Hrmap & Hstk_mem_l & Hstk_mem_h & HK)".
     iEval (cbn) in "HPC".
 
     (* -- simplify our knowledge about rmap -- *)
