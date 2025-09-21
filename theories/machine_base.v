@@ -397,7 +397,7 @@ Definition updatePcPerm (w: Word): Word :=
 
 Definition nonZero (w: Word): bool :=
   match w with
-  | WInt n => Zneq_bool n 0
+  | WInt n => negb (Z.eqb n 0)
   | _ => true
   end.
 

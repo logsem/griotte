@@ -160,9 +160,10 @@ Section cap_lang_rules.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero wcond = true).
-    { unfold nonZero, Zneq_bool in *.
-      repeat case_match; try congruence; subst. exfalso.
-      apply Hne. f_equal. by apply Z.compare_eq. }
+    { unfold nonZero, Z.eqb in *.
+      destruct wcond; auto.
+      repeat case_match; try congruence; by cbn.
+    }
 
    destruct Hspec as [ | | Hfail ].
    { exfalso; simplify_map_eq; congruence. }
@@ -201,9 +202,10 @@ Section cap_lang_rules.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero wcond = true).
-    { unfold nonZero, Zneq_bool in *.
-      repeat case_match; try congruence; subst. exfalso.
-      apply Hne. f_equal. by apply Z.compare_eq. }
+    { unfold nonZero, Z.eqb in *.
+      destruct wcond; auto.
+      repeat case_match; try congruence; by cbn.
+    }
 
    destruct Hspec as [ | | Hfail ].
    { exfalso; simplify_map_eq; congruence. }
@@ -240,9 +242,9 @@ Section cap_lang_rules.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero (WInt imm) = true).
-    { unfold nonZero, Zneq_bool in *.
-      repeat case_match; try congruence; subst. exfalso.
-      apply Hne. f_equal. by apply Z.compare_eq. }
+    { unfold nonZero, Z.eqb in *.
+      destruct imm; auto.
+    }
 
    destruct Hspec as [ | | Hfail ].
    { exfalso; simplify_map_eq; congruence. }
