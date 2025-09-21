@@ -1,5 +1,6 @@
 From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import proofmode.
+From stdpp Require Import list_relations.
 From cap_machine Require Export region_invariants multiple_updates.
 From cap_machine Require Import seal_store logrel interp_weakening.
 Import uPred.
@@ -427,7 +428,7 @@ Section region_alloc.
   (*   { cbn. intros. iIntros "? ? ?". iFrame. eauto. } *)
   (*   { intros ? ? [? ?]%Forall_cons_1. iIntros "Hsts Hr Hl". *)
   (*     iDestruct (big_sepL2_length with "Hl") as %Hlen. *)
-  (*     iDestruct (NoDup_of_sepL2_exclusive with "[] Hl") as %[Hal1 ND]%list.NoDup_cons. *)
+  (*     iDestruct (NoDup_of_sepL2_exclusive with "[] Hl") as %[Hal1 ND]%NoDup_cons. *)
   (*     { iIntros (? ? ?) "(H1 & ? & ?) (H2 & ? & ?)". *)
   (*       iApply (addr_dupl_false with "H1 H2"). } *)
   (*     destruct l2; [ by inversion Hlen |]. *)

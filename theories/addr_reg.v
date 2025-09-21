@@ -24,7 +24,6 @@ Inductive RegName: Type :=
 | PC
 | R (n: nat) (fin: n <=? RegNum = true).
 
-Unset Automatic Proposition Inductives.
 Inductive SRegName : Type :=
 | MTDC.
 

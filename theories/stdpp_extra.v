@@ -131,7 +131,7 @@ Proof.
     + rewrite -(list_to_map_to_list m) in Hsome.
       eapply not_elem_of_list_to_map in Hsome. done.
   - intros [x Hix].
-    apply list_elem_of_fmap.
+    apply elem_of_list_fmap.
     exists (i,x). auto.
 Qed.
 
@@ -438,13 +438,13 @@ Qed.
 
  (* Helper lemmas on list differences *)
 
-Lemma not_list_elem_of {A : Type} `{EqDecision A} (a : A) (l x : list A) :
+Lemma not_elem_of_list {A : Type} `{EqDecision A} (a : A) (l x : list A) :
   a ∈ x → a ∉ list_difference l x.
 Proof.
   intros Hax.
   rewrite /not.
   intros Hal.
-  by apply list_elem_of_difference in Hal as [Ha' Hax_not].
+  by apply elem_of_list_difference in Hal as [Ha' Hax_not].
 Qed.
 
 Lemma list_difference_nil {A : Type} `{EqDecision A} (l : list A) :
@@ -460,7 +460,7 @@ Lemma list_difference_length_cons {A : Type} `{EqDecision A}
   list_difference [a] (a :: l2) = [].
 Proof.
   simpl.
-  assert (a ∈ a :: l2); first apply list_elem_of_here.
+  assert (a ∈ a :: l2); first apply elem_of_list_here.
   destruct (decide_rel elem_of a (a :: l2)); auto; last contradiction.
 Qed.
 
@@ -504,7 +504,7 @@ Proof.
   intros Hnotin.
   induction l1.
   - simpl.
-    assert (b ∈ (b :: l2)); first apply list_elem_of_here.
+    assert (b ∈ (b :: l2)); first apply elem_of_list_here.
     destruct (decide_rel elem_of b (b :: l2)); last contradiction.
     rewrite list_difference_skip; auto.
   - simpl in *.
@@ -533,7 +533,7 @@ Proof.
   apply not_elem_of_cons in Hna.
   destruct Hna as [Hne Hna].
   destruct (decide_rel elem_of a [b]).
-  - apply list_elem_of_singleton in e. congruence.
+  - apply elem_of_list_singleton in e. congruence.
   - simpl. rewrite list_difference_skip; auto.
       by rewrite list_difference_nil.
 Qed.
@@ -549,18 +549,18 @@ Proof.
   induction l1; auto.
   destruct (decide (b = a)).
   - subst.
-    assert (a ∈ a :: l1); first apply list_elem_of_here.
+    assert (a ∈ a :: l1); first apply elem_of_list_here.
     rewrite ->NoDup_cons in Hndup. destruct Hndup as [Hni Hndup].
     assert (¬ (a ∈ l1)) as Hni'.
     { rewrite /not. intros Hin. contradiction. }
     simpl.
-    assert (a ∈ [a]); first apply list_elem_of_here.
+    assert (a ∈ [a]); first apply elem_of_list_here.
     destruct (decide_rel elem_of a [a]); last contradiction.
     rewrite Nat.sub_0_r.
     apply list_difference_length_ni; auto.
   - simpl.
     assert (¬ (a ∈ [b])).
-    { rewrite /not. intros Hin. apply list_elem_of_singleton in Hin. congruence. }
+    { rewrite /not. intros Hin. apply elem_of_list_singleton in Hin. congruence. }
     destruct (decide_rel elem_of a [b]); first contradiction.
     rewrite Nat.sub_0_r /=.
     inversion Hndup; subst.
@@ -599,16 +599,16 @@ Proof.
   induction l; auto.
   simpl. rewrite IHl.
   destruct (decide_rel elem_of a l1).
-  - apply list_elem_of_In in e.
+  - apply elem_of_list_In in e.
     apply Permutation_in with _ _ _ a in Hl; auto.
-    apply list_elem_of_In in Hl.
+    apply elem_of_list_In in Hl.
     destruct (decide_rel elem_of a l2);[|contradiction].
     done.
-  - revert n; rewrite list_elem_of_In; intros n.
+  - revert n; rewrite elem_of_list_In; intros n.
     assert (¬ In a l2) as Hnin.
     { intros Hcontr. apply Permutation_sym in Hl.
       apply Permutation_in with _ _ _ a in Hl; auto. }
-    revert Hnin; rewrite -list_elem_of_In; intro Hnin.
+    revert Hnin; rewrite -elem_of_list_In; intro Hnin.
     destruct (decide_rel elem_of a l2);[contradiction|].
     done.
 Qed.
@@ -666,7 +666,7 @@ Proof.
       rewrite lookup_insert_ne; auto.
   - intros Hl.
     induction l; inversion Hl.
-    destruct (decide (a = k)); [subst;apply list_elem_of_here|].
+    destruct (decide (a = k)); [subst;apply elem_of_list_here|].
     apply elem_of_cons. right.
     apply IHl. simplify_map_eq. auto.
 Qed.
@@ -772,7 +772,7 @@ Proof.
   - by apply NoDup_nil.
   - destruct a. simpl in Hdup. apply NoDup_cons in Hdup as [Hin Hdup].
     apply NoDup_cons. split;auto.
-    intros Hcontr. apply Hin. apply list_elem_of_fmap.
+    intros Hcontr. apply Hin. apply elem_of_list_fmap.
     exists (a,b). simpl. split;auto.
 Qed.
 
@@ -815,7 +815,7 @@ Proof.
       assert (NoDup ((i0, x) :: l)) as Hdup'.
       { rewrite Hl. apply NoDup_map_to_list. }
       assert (i0 ∈ l.*1) as HWInt.
-      { apply list_elem_of_fmap. exists (i0,x0). simpl. split;auto. }
+      { apply elem_of_list_fmap. exists (i0,x0). simpl. split;auto. }
       apply NoDup_cons in Hdup as [Hcontr ?]. by apply Hcontr.
     }
     assert ((i0, x0) ∈ (i, x) :: l) as Hin'.
@@ -832,7 +832,7 @@ Proof.
   - rewrite map_to_list_empty. simpl. by apply NoDup_nil.
   - rewrite map_to_list_insert;auto.
     simpl. rewrite NoDup_cons. split.
-    + intros Hcontr%list_elem_of_fmap.
+    + intros Hcontr%elem_of_list_fmap.
       destruct Hcontr as [ab [Heqab Hcontr] ].
       destruct ab as [a b]. subst. simpl in *.
       apply elem_of_map_to_list in Hcontr. rewrite Hcontr in H0. inversion H0.
@@ -853,14 +853,14 @@ Proof.
   set l' := zip l (repeat x (length l)).
   assert (l = l'.*1) as Heq;[rewrite fst_zip;auto;rewrite repeat_length;lia|].
   intros i0. split.
-  - intros Hinx%list_elem_of_fmap.
+  - intros Hinx%elem_of_list_fmap.
     destruct Hinx as [ [? ?] [? Hinx] ]. simpl in *. subst a.
     apply elem_of_map_to_list in Hinx.
     destruct (decide (i = i0));[subst i;rewrite lookup_delete in Hinx;inversion Hinx|].
     rewrite lookup_delete_ne in Hinx;auto.
     apply elem_of_map_to_list in Hinx.
     assert (i0 ∈ (map_to_list m).*1) as Hinx'.
-    { apply list_elem_of_fmap. exists (i0,b). split;auto. }
+    { apply elem_of_list_fmap. exists (i0,b). split;auto. }
     revert Hinx'. rewrite -Hl =>Hinx'.
     by apply elem_of_cons in Hinx' as [Hcontr | Hinx'];[congruence|].
   - intros Hinx. assert (i ≠ i0) as Hne;[congruence|simplify_map_eq].
@@ -878,7 +878,7 @@ Lemma submseteq_list_difference {A} `{EqDecision A} (l1 l2 l3 : list A) :
 Proof.
   intros Hdup Hnin Hsub.
   apply NoDup_submseteq;auto.
-  intros x Hx. apply list_elem_of_difference.
+  intros x Hx. apply elem_of_list_difference.
   split.
   - eapply elem_of_submseteq;eauto.
   - intros Hcontr. apply Hnin in Hcontr. done.
@@ -916,7 +916,7 @@ Qed.
 
 (* The last element of a list is the same as a list where we drop fewer elements than the list *)
 Lemma last_drop_lt {A : Type} (l : list A) (i : nat) (a : A) :
-  i < (length l) → list.last l = Some a → list.last (drop i l) = Some a.
+  i < (length l) → last l = Some a → last (drop i l) = Some a.
 Proof.
   generalize i. induction l.
   - intros i' Hlen Hlast. inversion Hlast.
@@ -928,7 +928,7 @@ Proof.
 Qed.
 
 Lemma last_lookup {A : Type} (l : list A) :
-  list.last l = l !! (length l - 1).
+  last l = l !! (length l - 1).
 Proof.
   induction l.
   - done.
@@ -938,7 +938,7 @@ Proof.
 Qed.
 
 Lemma last_app_iff {A : Type} (l1 l2 : list A) a :
-  list.last l2 = Some a <-> length l2 > 0 ∧ list.last (l1 ++ l2) = Some a.
+  last l2 = Some a <-> length l2 > 0 ∧ last (l1 ++ l2) = Some a.
 Proof.
   split.
   - intros Hl2.
@@ -956,7 +956,7 @@ Qed.
 
 Lemma last_app_eq {A : Type} (l1 l2 : list A) :
   length l2 > 0 ->
-  list.last l2 = list.last (l1 ++ l2).
+  last l2 = last (l1 ++ l2).
 Proof.
   revert l1. induction l2;intros l1 Hlen.
   - inversion Hlen.

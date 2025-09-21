@@ -108,34 +108,34 @@ Proof.
   elim: p => //; csimpl.
   - move => p IH n. rewrite Nat_eqb_eq. case_match; subst.
     + split; [|done] => _. case_match.
-      all: eexists _; split; [by apply list_elem_of_here|] => /=; lia.
+      all: eexists _; split; [by apply elem_of_list_here|] => /=; lia.
     + rewrite {}IH. split; move => [r[/elem_of_cons[Heq|Hin] ?]]; simplify_eq/=.
       * (* r = (pos_to_bit_ranges_aux p).1 *)
         case_bool_decide as Heq; simplify_eq/=.
-        -- eexists _. split; [by apply list_elem_of_here|] => /=. lia.
-        -- eexists _. split. { apply list_elem_of_further. apply list_elem_of_here. }
+        -- eexists _. split; [by apply elem_of_list_here|] => /=. lia.
+        -- eexists _. split. { apply elem_of_list_further. apply elem_of_list_here. }
           simplify_eq/=. lia.
       * (* r ∈ (pos_to_bit_ranges_aux p).2 *)
         case_bool_decide as Heq; simplify_eq/=.
-        -- eexists _. split. { apply list_elem_of_further. apply list_elem_of_fmap. by eexists _. }
+        -- eexists _. split. { apply elem_of_list_further. apply elem_of_list_fmap. by eexists _. }
            simplify_eq/=. lia.
-        -- eexists _. split. { do 2 apply list_elem_of_further. apply list_elem_of_fmap. by eexists _. }
+        -- eexists _. split. { do 2 apply elem_of_list_further. apply elem_of_list_fmap. by eexists _. }
            simplify_eq/=. lia.
-      * eexists _. split; [by apply list_elem_of_here|]. case_bool_decide as Heq; simplify_eq/=; lia.
+      * eexists _. split; [by apply elem_of_list_here|]. case_bool_decide as Heq; simplify_eq/=; lia.
       * case_bool_decide as Heq; simplify_eq/=.
-        -- move: Hin => /= /list_elem_of_fmap[?[??]]; subst. eexists _. split; [by apply list_elem_of_further |].
+        -- move: Hin => /= /elem_of_list_fmap[?[??]]; subst. eexists _. split; [by apply elem_of_list_further |].
            simplify_eq/=. lia.
-        -- rewrite -fmap_cons in Hin. move: Hin => /list_elem_of_fmap[?[??]]; subst. naive_solver lia.
+        -- rewrite -fmap_cons in Hin. move: Hin => /elem_of_list_fmap[?[??]]; subst. naive_solver lia.
   - move => p IH n. case_match; subst.
-    + split; [done|] => -[[l h][/elem_of_cons[?|/(list_elem_of_fmap _ _ _)[[??][??]]]?]]; simplify_eq/=; lia.
+    + split; [done|] => -[[l h][/elem_of_cons[?|/(elem_of_list_fmap _ _ _)[[??][??]]]?]]; simplify_eq/=; lia.
     + rewrite IH. split; move => [r[/elem_of_cons[Heq|Hin] ?]]; simplify_eq/=.
-      * eexists _. split; [by apply list_elem_of_here|] => /=; lia.
-      * eexists _. split. { apply list_elem_of_further. apply list_elem_of_fmap. by eexists _. }
+      * eexists _. split; [by apply elem_of_list_here|] => /=; lia.
+      * eexists _. split. { apply elem_of_list_further. apply elem_of_list_fmap. by eexists _. }
         destruct r; simplify_eq/=. lia.
-      * eexists _. split; [by apply list_elem_of_here|] => /=; lia.
-      * move: Hin => /list_elem_of_fmap[r'[??]]; subst. eexists _. split; [by apply list_elem_of_further|].
+      * eexists _. split; [by apply elem_of_list_here|] => /=; lia.
+      * move: Hin => /elem_of_list_fmap[r'[??]]; subst. eexists _. split; [by apply elem_of_list_further|].
          destruct r'; simplify_eq/=. lia.
-  - move => n. setoid_rewrite list_elem_of_singleton. case_match; split => //; subst; naive_solver lia.
+  - move => n. setoid_rewrite elem_of_list_singleton. case_match; split => //; subst; naive_solver lia.
 Qed.
 
 Definition Z_to_bit_ranges (z : Z) : list (nat * nat) :=

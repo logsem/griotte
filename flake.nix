@@ -1,3 +1,5 @@
+# Adapted from https://gitlab.mpi-sws.org/lgaeher/refinedrust-dev/-/blob/main/flake.nix
+
 {
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
@@ -82,11 +84,6 @@
           version = "4.4.0";
           sha256 = "sha256-zpuaIdH2ScOuZB0Vt1TEHAbsmcT1DyoDsJpftT1M7qw=";
         };
-
-        # iris-contrib = {
-        #   version = "4e3ace9604b7ec7a1826cd3563b05f1ef9be0dfd";
-        #   sha256 = "sha256-+7MR4MGzHMNgio8GN4bEwnIpJO96MUzW2kbEedPf+Xk=";
-        # };
       };
 
     in rec {
@@ -139,26 +136,6 @@
             propagatedBuildInputs = [stdpp];
           };
 
-          # machine_utils = rocq.pkgs.mkRocqDerivation {
-          #   pname = "machine_utils";
-          #   owner = "logsem";
-          #   repo = "machine_utils";
-
-          #   propagatedBuildInputs = [rocq.pkgs.stdlib iris];
-
-          #   mlPlugin = true;
-          #   useDune = false;
-
-          #   version = "5eaa2c739001b9d72fe78a6cbf4cddbff9a472ee";
-          #   sha256 = "sha256-+10qhr759xnxdmjag9zbm2ydqy0m5ivfvj3l3d55b5irb0842z0xl";
-          # };
-
-
-          # iris-contrib = mkDepRocqDerivation rocq.iris-contrib {
-          #   pname = "iris-contrib";
-
-          #   propagatedBuildInputs = [iris];
-          # };
         in
           rocq.pkgs.mkRocqDerivation {
             inherit meta version;
@@ -167,7 +144,6 @@
             opam-name = name;
             src = ./theories;
 
-            # propagatedBuildInputs = [equations iris machine_utils];
             propagatedBuildInputs = [equations iris];
 
             preBuild = "dune() { command dune $@ --display=short; }";

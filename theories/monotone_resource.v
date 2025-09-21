@@ -32,8 +32,8 @@ Qed.
 Lemma Below_principal a b : Below a (principal R b) ↔ R a b.
 Proof.
   split.
-  - intros (c & ->%list_elem_of_singleton & ?); done.
-  - intros Hab; exists b; split; first apply list_elem_of_singleton; done.
+  - intros (c & ->%elem_of_list_singleton & ?); done.
+  - intros Hab; exists b; split; first apply elem_of_list_singleton; done.
 Qed.
 
 (* OFE *)
@@ -83,9 +83,9 @@ Proof.
 Qed.
 
 Instance monotone_validN_ne n :
-  Proper (dist n ==> impl) (@validN (monotone R) _ n).
+  Proper (dist n ==> impl) (@validN _ (monotone R) _ n).
 Proof. intros x y ?; rewrite /impl; auto. Qed.
-Instance monotone_validN_proper n : Proper (equiv ==> iff) (@validN (monotone R) _ n).
+Instance monotone_validN_proper n : Proper (equiv ==> iff) (@validN _ (monotone R) _ n).
 Proof. move=> x y /equiv_dist H; auto. Qed.
 
 Instance monotone_op_ne' x : NonExpansive (op x).
@@ -153,9 +153,9 @@ Lemma principal_injN_general n a b :
   principal R a ≡{n}≡ principal R b → R a a → R a b.
 Proof.
   rewrite /principal /dist /monotone_dist => Hab Haa.
-  - destruct (Hab a) as [Ha _]; edestruct Ha as [? [?%list_elem_of_singleton ?]];
+  - destruct (Hab a) as [Ha _]; edestruct Ha as [? [?%elem_of_list_singleton ?]];
     subst; eauto.
-    eexists _; split; first apply list_elem_of_singleton; eauto.
+    eexists _; split; first apply elem_of_list_singleton; eauto.
 Qed.
 
 Lemma principal_inj_general a b :
@@ -196,7 +196,7 @@ Lemma principal_R_opN `{!Transitive R} n a b :
   R a b → principal R a ⋅ principal R b ≡{n}≡ principal R b.
 Proof.
   intros; apply principal_R_opN_base; intros c; rewrite /principal.
-  setoid_rewrite list_elem_of_singleton => ->; eauto.
+  setoid_rewrite elem_of_list_singleton => ->; eauto.
 Qed.
 
 Lemma principal_R_op `{!Transitive R} a b :
@@ -207,7 +207,7 @@ Lemma principal_op_RN n a b x :
   R a a → principal R a ⋅ x ≡{n}≡ principal R b → R a b.
 Proof.
   intros Ha HR.
-  destruct (HR a) as [[z [HR1%list_elem_of_singleton HR2]] _];
+  destruct (HR a) as [[z [HR1%elem_of_list_singleton HR2]] _];
     last by subst; eauto.
   rewrite /op /monotone_op /principal Below_app Below_principal; auto.
 Qed.
@@ -258,12 +258,12 @@ Proof.
   split; first done.
   intros n; specialize (Habz n).
   intros x; split.
-  - intros (y & ->%list_elem_of_singleton & Hy2).
+  - intros (y & ->%elem_of_list_singleton & Hy2).
     by exists na; split; first constructor.
   - intros (y & [->|Hy1]%elem_of_cons & Hy2).
     + by exists na; split; first constructor.
     + exists na; split; first constructor.
-      specialize (Habz x) as [_ [c [->%list_elem_of_singleton Hc2]]].
+      specialize (Habz x) as [_ [c [->%elem_of_list_singleton Hc2]]].
       { exists y; split; first (by apply elem_of_app; right); eauto. }
       etrans; eauto.
 Qed.

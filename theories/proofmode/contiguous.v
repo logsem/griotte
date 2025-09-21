@@ -54,7 +54,7 @@ Section Contiguous.
 
   Lemma contiguous_between_last (a : list Addr) a0 an ai :
     contiguous_between a a0 an →
-    list.last a = Some ai →
+    last a = Some ai →
     (ai + 1)%a = Some an.
   Proof.
     revert ai. induction 1 as [| * X Y].
@@ -182,7 +182,7 @@ Section Contiguous.
   Lemma contiguous_between_link_last (a : list Addr) a_first a_last ai :
     contiguous_between a a_first a_last ->
     length a > 0 ->
-    (ai + 1)%a = Some a_last -> list.last a = Some ai.
+    (ai + 1)%a = Some a_last -> last a = Some ai.
   Proof.
     revert a_first. induction a; intros a_first Ha Hlen Hlink.
     - inversion Hlen.
