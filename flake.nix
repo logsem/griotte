@@ -36,10 +36,11 @@
               coqc = coqSubcommand "compile" "coqc";
               coqdep = coqSubcommand "dep" "coqdep";
               coqpp = coqSubcommand "pp-mlg" "coqpp";
+              coqdoc = coqSubcommand "doc" "coqdoc";
             in ''
               wrapProgram $out/bin/dune \
-                --prefix PATH ":" "${pkgs.lib.makeBinPath [coqc coqdep coqpp]}" \
-                --prefix OCAMLPATH ":" "${pkgs.lib.makeBinPath [coqc coqdep coqpp]}" \
+                --prefix PATH ":" "${pkgs.lib.makeBinPath [coqc coqdep coqpp coqdoc]}" \
+                --prefix OCAMLPATH ":" "${pkgs.lib.makeBinPath [coqc coqdep coqpp coqdoc]}" \
                 --run "export COQPATH=\$(eval echo \$ROCQPATH)"
             '';
           });
@@ -144,7 +145,7 @@
             opam-name = name;
             src = ./theories;
 
-            propagatedBuildInputs = [equations iris];
+            propagatedBuildInputs = [equations iris pkgs.ocamlPackages.odoc];
 
             preBuild = "dune() { command dune $@ --display=short; }";
             useDune = true;
