@@ -1,7 +1,7 @@
 {
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   };
 
   outputs = {
@@ -74,13 +74,13 @@
         version = rocq.pkgs.rocq-core.rocq-version;
 
         stdpp = {
-          version = "2d5412f48adadeb69fb3115da4d83075c9ba15bf";
-          sha256 = "sha256-GXo9G+bF4wIdMrkedj7/yQnf/4n75kOWmj26g3rjgbg";
+          version = "1.12.0";
+          sha256 = "sha256-2o8YMkKbXrKHwtfpkdAovxl+2NZZk958GjSSd9wcEIU=";
         };
 
         iris = {
-          version = "3e83a7affa51b91aa1eaab1fc0d8a68e5a38b221";
-          sha256 = "sha256-wL95wD0sESzzU7dCZCPw9pMzfJgz06MV/mWbYWjs+k8=";
+          version = "4.4.0";
+          sha256 = "sha256-zpuaIdH2ScOuZB0Vt1TEHAbsmcT1DyoDsJpftT1M7qw=";
         };
 
         # iris-contrib = {
