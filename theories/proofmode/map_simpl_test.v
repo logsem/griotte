@@ -23,8 +23,8 @@ Section test.
     map_simpl "H".
   Abort.
 
-  Lemma expressions_allowed pc_p pc_b pc_e a_first:
-    ([∗ map] k↦y ∈  (<[r_t8:= WCap pc_p pc_b pc_e (a_first ^+ 0)%a]>
+  Lemma expressions_allowed pc_p pc_g pc_b pc_e a_first:
+    ([∗ map] k↦y ∈  (<[r_t8:= WCap pc_p pc_g pc_b pc_e (a_first ^+ 0)%a]>
                        (<[r_t8 := WInt 0]> ∅)),
             k ↦ᵣ y) -∗ ⌜ True ⌝.
   Proof. iIntros "Ht".

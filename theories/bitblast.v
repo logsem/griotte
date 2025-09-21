@@ -1,8 +1,8 @@
 (* This file is still experimental. See its tracking issue
 https://gitlab.mpi-sws.org/iris/stdpp/-/issues/141 for details on remaining
 issues before stabilization. This file is maintained by Michael Sammler. *)
-From Coq Require Import ssreflect.
-From Coq.btauto Require Export Btauto.
+From Stdlib Require Import ssreflect.
+From Stdlib.btauto Require Export Btauto.
 From stdpp.bitvector Require Import definitions.
 From stdpp Require Export tactics numbers list.
 From stdpp Require Import options.

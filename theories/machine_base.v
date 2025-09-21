@@ -1,4 +1,4 @@
-From Coq Require Import ssreflect Eqdep_dec.
+From Stdlib Require Import ssreflect Eqdep_dec.
 From stdpp Require Import gmap fin_maps list countable.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Export addr_reg solve_addr machine_utils_extra.
@@ -8,7 +8,7 @@ From cap_machine Require Export addr_reg solve_addr machine_utils_extra.
    The [solve_cap_pure] tactic automates the proof of some of these facts (see
    solve_cap_pure.v on how to extend it). *)
 
-(* Definitions: capabilities, machine String.words, machine instructions *)
+(* Definitions: capabilities, machine String.String.words, machine instructions *)
 
 Inductive RXperm : Type :=
 | Orx
@@ -160,7 +160,7 @@ Definition cst : Z → (Z+RegName)%type := inl.
 Coercion regn : RegName >-> sum.
 Coercion cst : Z >-> sum.
 
-(* Registers and memory: maps from register names/addresses to String.words *)
+(* Registers and memory: maps from register names/addresses to String.String.words *)
 
 Definition Reg := gmap RegName Word.
 Definition SReg := gmap SRegName Word.
@@ -207,7 +207,7 @@ Ltac destruct_sealperm p :=
   let b1 := fresh "b1" in
   destruct p as [b b1]; destruct b, b1.
 
-(***** Identifying parts of String.words *****)
+(***** Identifying parts of String.String.words *****)
 
 (* Z <-> Word *)
 Definition is_z (w : Word) : bool :=
@@ -1111,7 +1111,7 @@ Proof.
 Qed.
 
 
-(** Helper properties about words *)
+(** Helper properties about String.words *)
 
 (* isPerm: permission of the capability *)
 Definition isPerm p p' := @bool_decide _ (perm_eq_dec p p').

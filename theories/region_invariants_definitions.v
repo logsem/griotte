@@ -1,4 +1,5 @@
 From cap_machine Require Export cap_lang sts.
+From stdpp Require Import base.
 
 Section region_invariants_definitions.
 
@@ -7,6 +8,9 @@ Section region_invariants_definitions.
   | Temporary
   | Permanent
   | Revoked.
+
+  Global Instance LeibnizEquiv_region_type : @LeibnizEquiv region_type (@eq region_type).
+  Proof. rewrite /LeibnizEquiv; intros ? ? ?; done. Defined.
 
   Inductive std_rel_pub : region_type -> region_type -> Prop :=
   | Std_pub_Revoked_Temporary : std_rel_pub Revoked Temporary

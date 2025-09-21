@@ -1,0 +1,17 @@
+(include_subdirs qualified)
+
+(coq.theory
+ (name cap_machine)
+ (package griotte)
+ (coqdoc_flags
+  --utf8 --parse-comments --toc --lib-subtitles
+  --external https://plv.mpi-sws.org/coqdoc/stdpp/ stdpp
+  --external https://plv.mpi-sws.org/coqdoc/iris/ iris)
+ (flags :standard
+        -w -convert_concl_no_check
+        -w -several-object-files
+        -w -ssr-search-moved
+        -w deprecated-instance-without-locality
+ )
+ (theories stdpp iris Ltac2 Equations Stdlib machine_utils)
+)

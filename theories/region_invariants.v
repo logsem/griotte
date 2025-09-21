@@ -6,7 +6,7 @@ From cap_machine Require Export stdpp_extra cap_lang sts rules_base.
 (* import [stdpp.countable] before [cap_machine.cap_lang]; this way [encode] and
    [decode] refer to [countable.encode] and [countable.decode], instead of
    [cap_lang.encode]/[cap_lang.decode]. *)
-From stdpp Require Import countable.
+From stdpp Require Import countable list_relations.
 Import uPred.
 
 (** CMRA for heap and its predicates. Contains: *)
@@ -326,7 +326,7 @@ Section heap.
     rewrite insert_delete_insert insert_id /leibniz_equiv_iff => //; auto.
     revert Heq. rewrite lookup_fmap fmap_Some_equiv =>Hγp'.
     destruct Hγp' as [γp' [? Hrγp'] ].
-    apply to_agree_inj, leibniz_equiv_iff in Hrγp' as ->.
+    apply to_agree_inj, leibniz_equiv_iff in Hrγp' as <-.
     done.
   Qed.
 
@@ -1504,7 +1504,7 @@ Section heap.
       by iFrame.
     - destruct a as [[[a p] φ] ρ]; cbn in * |- *.
       iDestruct "Hrel" as "[Hrel_a Hrel]".
-      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
       apply Forall_cons_1 in Ha_state; destruct Ha_state as [HWa Ha_state].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
@@ -1558,7 +1558,7 @@ Section heap.
     - iExists []; cbn in *.
       by iFrame.
     - iDestruct "Hrel" as "[Hrel_a Hrel]".
-      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       apply Forall_cons_1 in Ha_state; destruct Ha_state as [HWa Ha_state].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
@@ -1630,7 +1630,7 @@ Section heap.
     - by iFrame.
     - destruct a as [[[a p] φ] ρ]; cbn in * |- *.
       iDestruct "Hrel" as "[Hrel_a Hrel]".
-      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
       apply Forall_cons_1 in Hpers; destruct Hpers as [Hpers_a Hpers].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
@@ -1676,7 +1676,7 @@ Section heap.
       iIntros "(Hrel & Hstd & Hv & Hmono & Hφ & Hr)"; cbn in * |- *.
     - by iFrame.
     - iDestruct "Hrel" as "[Hrel_a Hrel]".
-      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
       destruct lv as [|va lv]; cbn in Hlen; simplify_eq.

@@ -1,7 +1,7 @@
 From iris.proofmode Require Import tactics.
 From cap_machine Require Import region_invariants.
-Require Import Eqdep_dec List.
-From stdpp Require Import countable.
+From Stdlib Require Import Eqdep_dec List.
+From stdpp Require Import countable list_relations.
 
 Section std_updates.
 
@@ -230,7 +230,7 @@ Section std_updates.
      intros Hforall. induction l.
      - apply related_sts_pub_refl_world.
      - simpl.
-       apply list.Forall_cons in Hforall as [ Ha_std Hforall].
+       apply Forall_cons in Hforall as [ Ha_std Hforall].
        eapply related_sts_pub_trans_world;[apply IHl; auto|].
        destruct (decide (a ∈ l)).
        { rewrite (_: <s[a:=ρ]s>(std_update_multiple W l ρ) = std_update_multiple W l ρ) /=.
@@ -394,7 +394,7 @@ Section std_updates.
                    (a ∉ dom (<[ a' := i]> (std W)))) (finz.seq_between a b).
    Proof.
      intros Hlt.
-     do 2 (rewrite list.Forall_forall). intros Hforall.
+     do 2 (rewrite Forall_forall). intros Hforall.
      intros x Hin.
      assert (x ≠ a') as Hne.
      { intros ->.
@@ -477,7 +477,7 @@ Section std_updates.
      intros Hforall. induction l.
      - apply related_sts_pub_refl_world.
      - simpl.
-       apply list.Forall_cons in Hforall as [ Ha_std Hforall].
+       apply Forall_cons in Hforall as [ Ha_std Hforall].
        eapply related_sts_pub_trans_world;[apply IHl; auto|].
        destruct (decide (a ∈ l)).
        { rewrite (_: <s[a:=Permanent]s>(std_update_multiple W l Permanent) = std_update_multiple W l Permanent) /=.
@@ -537,7 +537,7 @@ Section std_updates.
      intros Hforall. induction l.
      - apply related_sts_pub_refl_world.
      - simpl.
-       apply list.Forall_cons in Hforall as [ Ha_std Hforall].
+       apply Forall_cons in Hforall as [ Ha_std Hforall].
        eapply related_sts_pub_trans_world;[apply IHl; auto|].
        destruct (decide (a ∈ l)).
        { rewrite (_: <s[a:=Temporary]s>(std_update_multiple W l Temporary) = std_update_multiple W l Temporary) /=.

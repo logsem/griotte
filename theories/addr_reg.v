@@ -1,7 +1,7 @@
-From Coq Require Import Eqdep_dec. (* Needed to prove decidable equality on RegName *)
-From Coq.micromega Require Import ZifyClasses.
+From Stdlib Require Import Eqdep_dec. (* Needed to prove decidable equality on RegName *)
+From Stdlib.micromega Require Import ZifyClasses.
 From stdpp Require Import gmap fin_maps list.
-From Coq Require Import ssreflect.
+From Stdlib Require Import ssreflect.
 From cap_machine Require Import stdpp_extra.
 From machine_utils Require Export finz.
 
@@ -24,7 +24,6 @@ Inductive RegName: Type :=
 | PC
 | R (n: nat) (fin: n <=? RegNum = true).
 
-Unset Automatic Proposition Inductives.
 Inductive SRegName : Type :=
 | MTDC.
 

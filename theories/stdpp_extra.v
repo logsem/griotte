@@ -916,7 +916,7 @@ Qed.
 
 (* The last element of a list is the same as a list where we drop fewer elements than the list *)
 Lemma last_drop_lt {A : Type} (l : list A) (i : nat) (a : A) :
-  i < (length l) → list.last l = Some a → list.last (drop i l) = Some a.
+  i < (length l) → last l = Some a → last (drop i l) = Some a.
 Proof.
   generalize i. induction l.
   - intros i' Hlen Hlast. inversion Hlast.
@@ -928,7 +928,7 @@ Proof.
 Qed.
 
 Lemma last_lookup {A : Type} (l : list A) :
-  list.last l = l !! (length l - 1).
+  last l = l !! (length l - 1).
 Proof.
   induction l.
   - done.
@@ -938,7 +938,7 @@ Proof.
 Qed.
 
 Lemma last_app_iff {A : Type} (l1 l2 : list A) a :
-  list.last l2 = Some a <-> length l2 > 0 ∧ list.last (l1 ++ l2) = Some a.
+  last l2 = Some a <-> length l2 > 0 ∧ last (l1 ++ l2) = Some a.
 Proof.
   split.
   - intros Hl2.
@@ -956,7 +956,7 @@ Qed.
 
 Lemma last_app_eq {A : Type} (l1 l2 : list A) :
   length l2 > 0 ->
-  list.last l2 = list.last (l1 ++ l2).
+  last l2 = last (l1 ++ l2).
 Proof.
   revert l1. induction l2;intros l1 Hlen.
   - inversion Hlen.

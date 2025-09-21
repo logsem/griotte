@@ -83,9 +83,9 @@ Proof.
 Qed.
 
 Instance monotone_validN_ne n :
-  Proper (dist n ==> impl) (@validN (monotone R) _ n).
+  Proper (dist n ==> impl) (@validN _ (monotone R) _ n).
 Proof. intros x y ?; rewrite /impl; auto. Qed.
-Instance monotone_validN_proper n : Proper (equiv ==> iff) (@validN (monotone R) _ n).
+Instance monotone_validN_proper n : Proper (equiv ==> iff) (@validN _ (monotone R) _ n).
 Proof. move=> x y /equiv_dist H; auto. Qed.
 
 Instance monotone_op_ne' x : NonExpansive (op x).

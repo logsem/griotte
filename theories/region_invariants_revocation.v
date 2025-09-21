@@ -345,11 +345,12 @@ Section heap.
       all: try eapply leibniz_equiv_iff; auto.
       destruct x;auto; try contradiction.
     - eapply leibniz_equiv_iff; auto.
-      Unshelve. all: try apply _.
+      Unshelve.
+      all: try apply _.
       all: try apply option_leibniz.
       all: try eapply Equivalence_Reflexive.
       Unshelve.
-      all: apply option_equivalence; apply _.
+      all: try (apply option_equivalence; apply _).
   Qed.
 
   Lemma revoke_list_dom (W : WORLD) :

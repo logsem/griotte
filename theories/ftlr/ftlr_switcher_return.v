@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
-From stdpp Require Import base.
+From stdpp Require Import base list_relations.
 From cap_machine Require Export logrel monotone.
 From cap_machine.ftlr Require Import ftlr_base.
 From cap_machine.rules Require Import rules_JmpCap.
@@ -76,7 +76,7 @@ Section fundamental.
       iIntros "(#Hinterp & Hr & Hsts)"; cbn in * |- *.
     - by iFrame.
     - apply Forall_cons in Hin; destruct Hin as [Hin_a0 Hin].
-      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
       iDestruct (IHla with "[$Hinterp $Hr $Hsts]") as "IH"; eauto.
@@ -140,7 +140,7 @@ Section fundamental.
       iDestruct "Hclose_res" as "[ [Ha Hclose_res_a] Hclose_res ]".
       iDestruct "Hclose_res_a"
         as (? ? ?) "(Hstd & Hφ & Hmono & _ & _ & Hrel & %Hrevoked & %Hp & %Hp' & %Hp'' & %Hpers)".
-      apply list.NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
       iDestruct (region_close_next with "[$Hstd $Hr $Ha $Hmono $Hφ $Hrel]") as "Hr"; eauto.
