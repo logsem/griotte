@@ -1,41 +1,169 @@
 {
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "nixpkgs/nixos-25.05";
   };
 
+  outputs = {
+    self,
+    flake-utils,
+    nixpkgs,
+  }:
+    flake-utils.lib.eachDefaultSystem (system: let
+      ocamlFlambda = _: prev: rec {
+        # NOTE: Using OCaml 4.14 due to Rocq being slow with OCaml 5+
+        # See: https://github.com/NixOS/nixpkgs/blob/nixos-25.05/pkgs/applications/science/logic/rocq-core/default.nix#L15
+        ocamlPackages = prev.ocaml-ng.ocamlPackages_4_14.overrideScope (final: prev: {
+          ocaml = prev.ocaml.override {
+            flambdaSupport = true;
+          };
 
-  outputs = { self, flake-utils, nixpkgs }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
-        inherit (pkgs) coqPackages;
-      in
-        rec {
-          packages.default = coqPackages.mkCoqDerivation {
-              pname = "griotte";
-              version = "0.0.0";
+          # NOTE: Remove this when `dune` will handle `rocq` subcommands
+          # See: https://github.com/ocaml/dune/issues/11572
+          dune_3 = prev.dune_3.overrideAttrs (prev: {
+            nativeBuildInputs = prev.nativeBuildInputs ++ [pkgs.makeWrapper];
 
-              coq-version = "8.20";
+            postFixup = let
+              coqSubcommand = newCmd: oldCmd:
+                pkgs.writeScriptBin oldCmd ''
+                  #!/bin/sh
+                  unset COQPATH
+                  rocq ${newCmd} "$@"
+                '';
 
-              src = ./.;
-              # src = builtins.fetchGit {
-              #   url = ./.;
-              #   submodules = true;
-              # };
-
-              buildInputs = with coqPackages; [ equations iris stdpp ];
-
-              meta = with pkgs.lib; {
-                description = "Griotte, Rocq mechanization of a CHERIoT and principles to reason about compartmentalisation";
-                homepage = "https://github.com/logsem/griotte";
-                license = licenses.bsd3;
-              };
-            };
-
-            devShells.default = pkgs.mkShell (with packages.default; {
-              name = pname + "-dev";
-              packages = buildInputs ++ [ pkgs.coq coqPackages.coq-lsp ];
-            });
+              coqc = coqSubcommand "compile" "coqc";
+              coqdep = coqSubcommand "dep" "coqdep";
+              coqpp = coqSubcommand "pp-mlg" "coqpp";
+            in ''
+              wrapProgram $out/bin/dune \
+                --prefix PATH ":" "${pkgs.lib.makeBinPath [coqc coqdep coqpp]}" \
+                --prefix OCAMLPATH ":" "${pkgs.lib.makeBinPath [coqc coqdep coqpp]}" \
+                --run "export COQPATH=\$(eval echo \$ROCQPATH)"
+            '';
           });
+        });
+
+        rocqPackages = prev.rocqPackages.overrideScope (_: prev: {
+          rocq-core = prev.rocq-core.override {
+            customOCamlPackages = ocamlPackages;
+          };
+        });
+      };
+
+      overlays = [ocamlFlambda ];
+      pkgs = import nixpkgs {inherit overlays system;};
+
+      name = "griotte";
+      version = "0.0.0";
+
+      meta = with pkgs.lib; {
+        description = "Griotte, Rocq mechanization of a CHERIoT and principles to reason about compartmentalisation";
+        homepage = "https://github.com/logsem/griotte";
+        license = licenses.bsd3;
+      };
+
+      ocaml = {
+        pkgs = pkgs.ocamlPackages;
+        version = pkgs.ocaml.version;
+      };
+
+      rocq = {
+        pkgs = pkgs.rocqPackages;
+        toolchain = [rocq.pkgs.rocq-core] ++ rocq.pkgs.rocq-core.nativeBuildInputs;
+
+        version = rocq.pkgs.rocq-core.rocq-version;
+
+        stdpp = {
+          version = "2d5412f48adadeb69fb3115da4d83075c9ba15bf";
+          sha256 = "sha256-GXo9G+bF4wIdMrkedj7/yQnf/4n75kOWmj26g3rjgbg";
+        };
+
+        iris = {
+          version = "3e83a7affa51b91aa1eaab1fc0d8a68e5a38b221";
+          sha256 = "sha256-wL95wD0sESzzU7dCZCPw9pMzfJgz06MV/mWbYWjs+k8=";
+        };
+
+        # iris-contrib = {
+        #   version = "4e3ace9604b7ec7a1826cd3563b05f1ef9be0dfd";
+        #   sha256 = "sha256-+7MR4MGzHMNgio8GN4bEwnIpJO96MUzW2kbEedPf+Xk=";
+        # };
+      };
+
+    in rec {
+      packages = let
+        mkDepRocqDerivation = pin: {
+          pname,
+          propagatedBuildInputs ? [rocq.pkgs.stdlib],
+          owner ? "iris",
+        }:
+          rocq.pkgs.mkRocqDerivation {
+            inherit pname propagatedBuildInputs owner;
+
+            domain = "gitlab.mpi-sws.org";
+            # NOTE: Remove `sed` line when Makefiles will be updated upstream
+            preBuild = ''
+              sed -i -e 's/"$(COQBIN)coq_makefile"/"$(COQBIN)rocq" makefile/g' Makefile
+              patchShebangs coq-lint.sh
+            '';
+
+            release.${pin.version}.sha256 = "${pin.sha256}";
+            version = pin.version;
+          };
+      in {
+        theories = let
+          # NOTE: Remove `coq-record-update` and `equations` when available in Nix's `RocqPackages`
+          equations = rocq.pkgs.mkRocqDerivation {
+            pname = "equations";
+            owner = "mattam82";
+            repo = "Coq-Equations";
+            opam-name = "rocq-equations";
+
+            propagatedBuildInputs = [rocq.pkgs.stdlib ocaml.pkgs.ppx_optcomp];
+
+            mlPlugin = true;
+            useDune = true;
+
+            version = "2ce6d98dd03979369d739ac139db4da4f7eab352";
+            release = {
+              "2ce6d98dd03979369d739ac139db4da4f7eab352".sha256 = "sha256-186Z0/wCuGAjIvG1LoYBMPooaC6HmnKWowYXuR0y6bA=";
+            };
+          };
+
+          stdpp = mkDepRocqDerivation rocq.stdpp {
+            pname = "stdpp";
+          };
+
+          iris = mkDepRocqDerivation rocq.iris {
+            pname = "iris";
+
+            propagatedBuildInputs = [stdpp];
+          };
+
+          # iris-contrib = mkDepRocqDerivation rocq.iris-contrib {
+          #   pname = "iris-contrib";
+
+          #   propagatedBuildInputs = [iris];
+          # };
+        in
+          rocq.pkgs.mkRocqDerivation {
+            inherit meta version;
+
+            pname = name;
+            opam-name = name;
+            src = ./theories;
+
+            # propagatedBuildInputs = [equations iris-contrib];
+            propagatedBuildInputs = [equations];
+
+            preBuild = "dune() { command dune $@ --display=short; }";
+            useDune = true;
+          };
+      };
+
+      devShells.default = pkgs.mkShell (with packages.default; {
+        inputsFrom = with packages; [theories];
+      });
+
+
+    });
 }

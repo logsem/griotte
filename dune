@@ -1,0 +1,12 @@
+;; The following trick is borrowed from a dune file of Coq-HoTT.
+(rule
+ (alias runtest)
+ (deps
+  (glob_files_rec ./*.vo))
+ (action
+  (run
+   rocqchk
+   -Q machine_utils/theories/ machine_utils
+   -Q theories cap_machine
+   %{deps}
+   -o)))

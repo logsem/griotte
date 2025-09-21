@@ -1,0 +1,14 @@
+(include_subdirs qualified)
+
+(coq.theory
+ (name cap_machine)
+ (package griotte)
+ (coqdoc_flags
+  --utf8 --parse-comments --toc --lib-subtitles
+  --external https://plv.mpi-sws.org/coqdoc/stdpp/ stdpp
+  --external https://plv.mpi-sws.org/coqdoc/iris/ iris)
+ (flags
+  -set "Default Goal Selector=!"
+  -set "Mangle Names")
+ (theories stdpp iris Ltac2 Equations)
+)
