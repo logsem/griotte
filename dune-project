@@ -1,4 +1,4 @@
-(lang dune 3.20)
+(lang dune 3.18)
 (using coq 0.8)
 
 (name griotte)

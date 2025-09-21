@@ -139,6 +139,21 @@
             propagatedBuildInputs = [stdpp];
           };
 
+          # machine_utils = rocq.pkgs.mkRocqDerivation {
+          #   pname = "machine_utils";
+          #   owner = "logsem";
+          #   repo = "machine_utils";
+
+          #   propagatedBuildInputs = [rocq.pkgs.stdlib iris];
+
+          #   mlPlugin = true;
+          #   useDune = false;
+
+          #   version = "5eaa2c739001b9d72fe78a6cbf4cddbff9a472ee";
+          #   sha256 = "sha256-+10qhr759xnxdmjag9zbm2ydqy0m5ivfvj3l3d55b5irb0842z0xl";
+          # };
+
+
           # iris-contrib = mkDepRocqDerivation rocq.iris-contrib {
           #   pname = "iris-contrib";
 
@@ -152,18 +167,17 @@
             opam-name = name;
             src = ./theories;
 
-            # propagatedBuildInputs = [equations iris-contrib];
-            propagatedBuildInputs = [equations];
+            # propagatedBuildInputs = [equations iris machine_utils];
+            propagatedBuildInputs = [equations iris];
 
             preBuild = "dune() { command dune $@ --display=short; }";
             useDune = true;
           };
       };
 
-      devShells.default = pkgs.mkShell (with packages.default; {
+      devShells.default = pkgs.mkShell (with packages; {
         inputsFrom = with packages; [theories];
       });
-
 
     });
 }

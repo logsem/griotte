@@ -1,4 +1,4 @@
-From Coq Require Import ssreflect Eqdep_dec.
+From Stdlib Require Import ssreflect Eqdep_dec.
 From machine_utils Require Export finz.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Export solve_addr stdpp_extra.

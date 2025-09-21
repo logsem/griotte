@@ -52,7 +52,7 @@ Section simpl_gmap.
     - destruct (decide (k = k0)); simpl; lia.
   Qed.
 
-  Equations simpl_rmap {A: Type} (rm: @rgmap A): @rgmap A by wf (rlength rm) lt :=
+  Equations simpl_rmap {A: Type} (rm: @rgmap A): @rgmap A by well_founded (rlength rm) lt :=
     simpl_rmap (Ins k a rm) := Ins k a (simpl_rmap (remove_key k rm));
     simpl_rmap (Del k rm) := Del k (simpl_rmap (remove_key k rm));
     simpl_rmap (Symb) := Symb.
