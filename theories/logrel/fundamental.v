@@ -1,8 +1,8 @@
-From cap_machine.ftlr Require Export
+From cap_machine Require Export
   Jmp Jnz Jalr Mov Load Store BinOp Restrict
   Subseg Get Lea Seal UnSeal ReadSR WriteSR.
-From cap_machine.ftlr Require Export JmpCap.
-From cap_machine.ftlr Require Export ftlr_base.
+From cap_machine Require Export JmpCap.
+From cap_machine Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.

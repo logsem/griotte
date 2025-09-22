@@ -2,8 +2,8 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base list_relations.
 From cap_machine Require Export logrel monotone.
-From cap_machine.ftlr Require Import ftlr_base.
-From cap_machine.rules Require Import rules_JmpCap.
+From cap_machine Require Import ftlr_base.
+From cap_machine Require Import rules_JmpCap.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 Section fundamental.

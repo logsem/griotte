@@ -47,13 +47,6 @@ Section Switcher_preamble.
       )%I.
   Solve All Obligations with solve_proper.
 
-  (* TODO move in machine_base *)
-  Definition get_b (w : Word) :=
-    match w with
-    | WCap _ _ b _ _ => Some b
-    | _ => None
-    end.
-
   Definition csp_sync cstk a_stk e_stk :=
     match cstk with
     | frm::_ =>

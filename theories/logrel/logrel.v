@@ -3,7 +3,7 @@ From iris.program_logic Require Export weakestpre.
 From cap_machine Require Export cap_lang region seal_store region_invariants.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-From cap_machine.rules Require Import rules_base.
+From cap_machine Require Import rules_base.
 From cap_machine Require Export switcher.
 Import uPred.
 
@@ -248,19 +248,6 @@ Section logrel.
     rewrite /interp_expr. intros ???????. simpl.
     by repeat f_equiv.
   Qed.
-
-  (* TODO move in machine_base *)
-  Definition get_a (w : Word) :=
-    match w with
-    | WCap _ _ _ _ a => Some a
-    | _ => None
-    end.
-
-  Definition get_e (w : Word) :=
-    match w with
-    | WCap _ _ _ e _ => Some e
-    | _ => None
-    end.
 
   (* Condition definitions *)
   Definition zcond (P : V) (C : CmptName) : iProp Σ :=

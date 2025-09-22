@@ -209,6 +209,25 @@ Ltac destruct_sealperm p :=
 
 (***** Identifying parts of String.String.words *****)
 
+Definition get_b (w : Word) :=
+  match w with
+  | WCap _ _ b _ _ => Some b
+  | _ => None
+  end.
+
+Definition get_a (w : Word) :=
+  match w with
+  | WCap _ _ _ _ a => Some a
+  | _ => None
+  end.
+
+Definition get_e (w : Word) :=
+  match w with
+  | WCap _ _ _ e _ => Some e
+  | _ => None
+  end.
+
+
 (* Z <-> Word *)
 Definition is_z (w : Word) : bool :=
   match w with

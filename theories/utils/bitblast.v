@@ -541,6 +541,7 @@ Tactic Notation "bitblast" ident(H) "with" constr(i) "as" ident(H') :=
 Tactic Notation "bitblast" ident(H) "with" constr(i) :=
   let H' := fresh "H" in bitblast H with i as H'.
 
+(* TODO move in switcher_preamble *)
 Definition encode_entry_point (nargs entry_point_offset : Z) : Z :=
   let args := Z.land nargs 7 in
   let off := Z.shiftl entry_point_offset 3 in

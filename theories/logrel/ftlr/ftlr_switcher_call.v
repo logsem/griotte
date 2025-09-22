@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel region_invariants bitblast.
-From cap_machine.ftlr Require Import ftlr_base interp_weakening.
+From cap_machine Require Import ftlr_base interp_weakening.
 From cap_machine Require Import wp_rules_interp switcher_macros_spec.
 From cap_machine Require Import rules proofmode monotone.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
