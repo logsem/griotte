@@ -77,7 +77,7 @@ Section named.
     env_to_named_prop_go acc Γ = env_to_prop_go acc Γ.
   Proof.
     revert acc.
-    induction Γ; simpl; auto; intros.
+    induction Γ as [|? IHΓ i ]; simpl; auto; intros acc.
     rewrite IHΓ.
     destruct i; simpl; auto.
   Qed.
@@ -85,7 +85,7 @@ Section named.
   Theorem env_to_named_prop_unname (Γ: env PROP) :
     env_to_named_prop Γ = env_to_prop Γ.
   Proof.
-    destruct Γ; auto.
+    destruct Γ as [|P i ?]; auto.
     destruct i; simpl; rewrite env_to_named_prop_go_unname //.
   Qed.
 
@@ -367,6 +367,7 @@ Notation "name ∷ P" := (named name P%I) (at level 79).
 
 (* TODO: maybe we should move tests out *)
 Module tests.
+  Unset Mangle Names.
   Set Default Proof Using "All".
   Section tests.
     Context {PROP: bi} {Haffine: BiAffine PROP}.

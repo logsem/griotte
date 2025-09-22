@@ -63,10 +63,10 @@ Qed.
 Lemma list_to_map_lookup_is_Some {A B} `{Countable A, EqDecision A} (l: list (A * B)) (a: A) :
   is_Some ((list_to_map l : gmap A B) !! a) ↔ a ∈ l.*1.
 Proof.
-  induction l.
+  induction l as [|a' la IHla].
   - cbn. split; by inversion 1.
   - cbn. rewrite lookup_insert_is_Some' elem_of_cons.
-    split; intros [HH|HH]; eauto; rewrite -> IHl in *; auto.
+    split; intros [HH|HH]; eauto; rewrite -> IHla in *; auto.
 Qed.
 
 Lemma zip_app {A B} (l1 l1': list A) (l2 l2' : list B) :
@@ -82,16 +82,17 @@ Qed.
 Lemma length_zip_l {A B} (l1: list A) (l2: list B) :
   length l1 ≤ length l2 → length (zip l1 l2) = length l1.
 Proof.
-  revert l2. induction l1; intros l2 Hl2; auto.
-  destruct l2; cbn in Hl2. exfalso; lia.
-  cbn. rewrite IHl1; auto. lia.
+  revert l2. induction l1 as [| x1 l1 IHl1]; intros l2 Hl2; auto.
+  destruct l2; cbn in Hl2.
+  + exfalso; lia.
+  + cbn. rewrite IHl1; auto. lia.
 Qed.
 
 Lemma list_filter_forall { A: Type } (P: A -> Prop) `{ forall x, Decision (P x) } l:
   Forall P l ->
   @list_filter _ P _ l = l.
 Proof.
-  induction 1; auto.
+  induction 1 as [|x l IHl]; auto.
   simpl. destruct (decide (P x)); rewrite /filter; try congruence.
 Qed.
 
@@ -126,7 +127,7 @@ Lemma map_to_list_fst {A B : Type} `{EqDecision A, Countable A} (m : gmap A B) i
 Proof.
   split.
   - intros Hi.
-    destruct (m !! i) eqn:Hsome.
+    destruct (m !! i) as [b|] eqn:Hsome.
     + exists b. by apply elem_of_map_to_list.
     + rewrite -(list_to_map_to_list m) in Hsome.
       eapply not_elem_of_list_to_map in Hsome. done.
@@ -140,7 +141,9 @@ Lemma drop_S':
       drop n l = a::l' ->
       drop (S n) l = l'.
 Proof.
-  induction l; intros * HH.
+  intros A l n a l'.
+  revert l' n a.
+  induction l as [|x l IHl]; intros l' n a HH.
   - rewrite drop_nil in HH. inversion HH.
   - simpl. destruct n.
     + rewrite drop_0 in HH. inversion HH.
@@ -203,7 +206,7 @@ Lemma delete_list_insert {K V : Type} `{Countable K, EqDecision K}
   delete_list ks (<[l:=v]> m) = <[l:=v]> (delete_list ks m).
 Proof.
   intros Hnin.
-  induction ks; auto.
+  induction ks as [|k ks IHks]; auto.
   simpl.
   apply not_elem_of_cons in Hnin as [Hneq Hnin].
   rewrite -delete_insert_ne; auto.
@@ -216,7 +219,7 @@ Lemma delete_list_delete {K V : Type} `{Countable K, EqDecision K}
   delete_list ks (delete l m) = delete l (delete_list ks m).
 Proof.
   intros Hnin.
-  induction ks; auto.
+  induction ks as [|k ks IHks]; auto.
   simpl.
   apply not_elem_of_cons in Hnin as [Hneq Hnin].
   rewrite -delete_commute; auto.
@@ -237,10 +240,15 @@ Lemma delete_list_permutation {A B} `{Countable A, EqDecision A}
       (l1 l2: list A) (m: gmap A B):
   l1 ≡ₚ l2 → delete_list l1 m = delete_list l2 m.
 Proof.
-  induction 1.
+  induction 1 as
+    [
+    | a la la' Hperm IHPermutation
+    | a a' la
+    | a0 a1 a2 Ha0_1 IHPermutation1 Ha1_2 IHPermutation2
+    ].
   { reflexivity. }
-  { cbn. rewrite IHPermutation //. }
-  { cbn. rewrite delete_commute //. }
+  { cbn; rewrite IHPermutation //. }
+  { cbn; rewrite delete_commute //. }
   { rewrite IHPermutation1 //. }
 Qed.
 
@@ -249,7 +257,7 @@ Lemma delete_list_swap {A B : Type} `{EqDecision A, Countable A}
   delete a' (delete_list (l1 ++ a :: l2) M) =
   delete a (delete a' (delete_list (l1 ++ l2) M)).
 Proof.
-  induction l1.
+  induction l1 as [| a0 l1 IHl1].
   - apply delete_commute.
   - simpl. repeat rewrite (delete_commute _ _ a0).
     f_equiv. apply IHl1.
@@ -260,10 +268,10 @@ Lemma delete_list_None {K V : Type} `{Countable K, EqDecision K}
   l ∈ ks →
   (delete_list ks m) !! l = None.
 Proof.
-  intros HH;induction ks;[inversion HH|].
+  intros HH;induction ks as [| k ks IHks];[inversion HH|].
   apply elem_of_cons in HH as [-> | Hin];auto.
   - simpl. rewrite lookup_delete. auto.
-  - simpl. destruct (decide (a = l));[subst;rewrite lookup_delete;auto|].
+  - simpl. destruct (decide (k = l));[subst;rewrite lookup_delete;auto|].
     rewrite lookup_delete_ne// IHks;auto.
 Qed.
 
@@ -282,7 +290,7 @@ Lemma map_eq' {A B} `{Countable A, EqDecision A, Countable B, EqDecision B}
   (m1 m2: gmap A B):
   m1 = m2 ↔ (forall k v, m1 !! k = Some v ↔ m2 !! k = Some v).
 Proof.
-  split. intros ->. done.
+  split; first (intros ->; done).
   intros Heq. apply map_eq. intro k. destruct (m2 !! k) eqn:HH.
   { by apply Heq. }
   { destruct (m1 !! k) eqn:HHH; auto. apply Heq in HHH. congruence. }
@@ -367,7 +375,7 @@ Lemma dom_difference_het
   dom (m1 ∖∖ m2) = dom m1 ∖ dom m2.
 Proof.
   apply (@anti_symm _ _ subseteq).
-  typeclasses eauto.
+  { typeclasses eauto. }
   { rewrite elem_of_subseteq. intro k.
     rewrite elem_of_dom. intros [v Hv].
     rewrite difference_het_lookup_Some in Hv *.
@@ -395,11 +403,11 @@ Proof.
     rewrite difference_het_insert_r.
     rewrite dom_insert in Hm1l *.
     move: Hm1l. rewrite elements_union_singleton.
+    2: { rewrite elem_of_dom; intros [? ?]; congruence. }
     intros Hm1l.
     transitivity (delete k (delete_list (elements (dom m2)) m1)).
     { erewrite delete_list_permutation. 2: eauto. reflexivity. }
     { rewrite HI//. }
-    rewrite elem_of_dom; intros [? ?]; congruence.
 Qed.
 
 (* rtc *)
@@ -409,10 +417,10 @@ Lemma rtc_implies {A : Type} (R Q : A → A → Prop) (x y : A) :
   rtc R x y → rtc Q x y.
 Proof.
   intros Himpl HR.
-  induction HR.
+  induction HR as [H | x y z HR H H'].
   - done.
-  - apply Himpl in H.
-    apply rtc_once in H.
+  - apply Himpl in HR.
+    apply rtc_once in HR.
     apply rtc_transitive with y; auto.
 Qed.
 
@@ -420,7 +428,7 @@ Lemma rtc_or_intro {A : Type} (R Q : A → A → Prop) (x y : A) :
   rtc (λ a b, R a b) x y →
   rtc (λ a b, R a b ∨ Q a b) x y.
 Proof.
-  intros HR. induction HR.
+  intros HR. induction HR as [H | x y z HR H H'].
   - done.
   - apply rtc_transitive with y; auto.
     apply rtc_once. by left.
@@ -430,7 +438,7 @@ Lemma rtc_or_intro_l {A : Type} (R Q : A → A → Prop) (x y : A) :
     rtc (λ a b, R a b) x y →
     rtc (λ a b, Q a b ∨ R a b) x y.
 Proof.
-  intros HR. induction HR.
+  intros HR. induction HR as [H | x y z HR H H'].
   - done.
   - apply rtc_transitive with y; auto.
     apply rtc_once. by right.
@@ -450,7 +458,7 @@ Qed.
 Lemma list_difference_nil {A : Type} `{EqDecision A} (l : list A) :
   list_difference l [] = l.
 Proof.
-  induction l; auto.
+  induction l as [| x l IHl]; auto.
   simpl. f_equal.
   apply IHl.
 Qed.
@@ -470,11 +478,11 @@ Lemma list_difference_skip {A : Type} `{EqDecision A}
   list_difference l1 (b :: l2) = list_difference l1 l2.
 Proof.
   intros Hnin.
-  induction l1; auto.
+  induction l1 as [|a l1 IHl1]; auto.
   apply not_elem_of_cons in Hnin.
   destruct Hnin as [Hne Hl1].
   simpl.
-  destruct (decide_rel elem_of a (b :: l2)).
+  destruct (decide_rel elem_of a (b :: l2)) as [e|n].
   - apply elem_of_cons in e.
     destruct e as [Hcontr | Hl2]; first congruence.
     destruct (decide_rel elem_of a l2); last contradiction.
@@ -483,14 +491,14 @@ Proof.
     destruct n as [Hne' Hl2].
     destruct (decide_rel elem_of a l2); first contradiction.
     f_equal.
-      by apply IHl1.
+    by apply IHl1.
 Qed.
 
 Lemma list_difference_same {A : Type} `{EqDecision A} (l : list A) :
   NoDup l ->
   list_difference l l = [].
 Proof.
-  induction l; intros Hnodup; cbn; first done.
+  induction l as [|a l IHl]; intros Hnodup; cbn; first done.
   destruct (decide_rel elem_of a (a :: l)) ; last set_solver.
   rewrite NoDup_cons in Hnodup; destruct Hnodup as [Ha Hnodup].
   rewrite list_difference_skip; auto.
@@ -502,7 +510,7 @@ Lemma list_difference_nested {A : Type} `{EqDecision A}
   list_difference (l1 ++ b :: l1') (b :: l2) = list_difference (l1 ++ l1') l2.
 Proof.
   intros Hnotin.
-  induction l1.
+  induction l1 as [|a l IHl1].
   - simpl.
     assert (b ∈ (b :: l2)); first apply elem_of_list_here.
     destruct (decide_rel elem_of b (b :: l2)); last contradiction.
@@ -510,7 +518,7 @@ Proof.
   - simpl in *.
     apply not_elem_of_cons in Hnotin.
     destruct Hnotin as [Hne Hnotin].
-    destruct (decide_rel elem_of a (b :: l2)).
+    destruct (decide_rel elem_of a (b :: l2)) as [e|n].
     + apply elem_of_cons in e.
       destruct e as [Hcontr | Hl2]; first congruence.
       destruct (decide_rel elem_of a l2); last contradiction.
@@ -528,11 +536,11 @@ Lemma list_difference_length_ni  {A : Type} `{EqDecision A}
   length (list_difference l1 [b]) = length l1.
 Proof.
   intros Hna.
-  destruct l1; auto.
+  destruct l1 as [|a l1]; auto.
   simpl.
   apply not_elem_of_cons in Hna.
   destruct Hna as [Hne Hna].
-  destruct (decide_rel elem_of a [b]).
+  destruct (decide_rel elem_of a [b]) as [e|n].
   - apply elem_of_list_singleton in e. congruence.
   - simpl. rewrite list_difference_skip; auto.
       by rewrite list_difference_nil.
@@ -546,7 +554,7 @@ Lemma list_difference_single_length {A : Type} `{EqDecision A}
   length l1 - 1.
 Proof.
   intros Ha Hndup.
-  induction l1; auto.
+  induction l1 as [|a l1 IHl1]; auto.
   destruct (decide (b = a)).
   - subst.
     assert (a ∈ a :: l1); first apply elem_of_list_here.
@@ -576,8 +584,8 @@ Lemma list_difference_app {A : Type} `{EqDecision A}
       (l1 l2 l2' : list A) :
   list_difference l1 (l2 ++ l2') = list_difference (list_difference l1 l2) l2'.
 Proof.
-  induction l1; auto.
-  simpl. destruct (decide_rel elem_of a (l2 ++ l2')).
+  induction l1 as [|a l1 IHl1]; auto.
+  simpl. destruct (decide_rel elem_of a (l2 ++ l2')) as [e|n].
   - apply elem_of_app in e as [Hl2 | Hl2'].
     + destruct (decide_rel elem_of a l2); last contradiction.
       apply IHl1.
@@ -596,9 +604,9 @@ Lemma list_difference_Permutation {A : Type} `{EqDecision A} (l l1 l2 : list A) 
   l1 ≡ₚ l2 -> list_difference l l1 = list_difference l l2.
 Proof.
   intros Hl.
-  induction l; auto.
+  induction l as [|a l IHl]; auto.
   simpl. rewrite IHl.
-  destruct (decide_rel elem_of a l1).
+  destruct (decide_rel elem_of a l1) as [e|n].
   - apply elem_of_list_In in e.
     apply Permutation_in with _ _ _ a in Hl; auto.
     apply elem_of_list_In in Hl.
@@ -617,31 +625,30 @@ Lemma list_difference_length {A} `{EqDecision A} (l1 : list A) :
   forall l2, NoDup l1 -> NoDup l2 -> l2 ⊆+ l1 ->
   length (list_difference l1 l2) = length (l1) - length l2.
 Proof.
-  induction l1; intros l2 Hdup1 Hdup2 Hsub.
-  - simpl. done.
-  - simpl. destruct (decide_rel elem_of a l2).
-    + apply submseteq_cons_r in Hsub as [Hcontr | [k [Hperm Hk] ] ].
-      { apply elem_of_submseteq with (x:=a) in Hcontr;auto. apply NoDup_cons in Hdup1 as [Hnin ?].
-        exfalso. by apply Hnin. }
-      apply list_difference_Permutation with (l:=l1) in Hperm as Heq. rewrite Heq.
-      apply NoDup_cons in Hdup1 as [Hnin ?].
-      rewrite list_difference_skip; [|intros Hcontr;by apply Hnin].
-      rewrite IHl1;auto.
-      rewrite Hperm /=. auto.
-      revert Hdup2. rewrite Hperm =>Hdup2. by apply NoDup_cons in Hdup2 as [? ?].
-    + simpl. apply submseteq_cons_r in Hsub as [Hsub | Hcontr].
-      rewrite IHl1;auto. assert (length l2 ≤ length l1).
-      { apply submseteq_length. auto. }
-      by apply submseteq_length in Hsub; lia.
-      by apply NoDup_cons in Hdup1 as [? ?]; auto.
-      destruct Hcontr as [l' [Hperm Hl'] ].
+  induction l1 as [|a l1 IHl1]; intros l2 Hdup1 Hdup2 Hsub; first (simpl; done).
+  simpl. destruct (decide_rel elem_of a l2) as [e|n].
+  - apply submseteq_cons_r in Hsub as [Hcontr | [k [Hperm Hk] ] ].
+    { apply elem_of_submseteq with (x:=a) in Hcontr;auto. apply NoDup_cons in Hdup1 as [Hnin ?].
+      exfalso. by apply Hnin. }
+    apply list_difference_Permutation with (l:=l1) in Hperm as Heq. rewrite Heq.
+    apply NoDup_cons in Hdup1 as [Hnin ?].
+    rewrite list_difference_skip; [|intros Hcontr;by apply Hnin].
+    rewrite IHl1;auto.
+    + rewrite Hperm /=; auto.
+    + revert Hdup2. rewrite Hperm =>Hdup2. by apply NoDup_cons in Hdup2 as [? ?].
+  - simpl. apply submseteq_cons_r in Hsub as [Hsub | Hcontr].
+    + rewrite IHl1;auto.
+      * assert (length l2 ≤ length l1) by (apply submseteq_length; auto).
+        by apply submseteq_length in Hsub; lia.
+      * by apply NoDup_cons in Hdup1 as [? ?]; auto.
+    + destruct Hcontr as [l' [Hperm Hl'] ].
       exfalso. apply n. rewrite Hperm. constructor.
 Qed.
 
 Lemma list_to_set_difference A {_: EqDecision A} {_: Countable A} (l1 l2: list A):
   (list_to_set (list_difference l1 l2): gset A) = (list_to_set l1: gset A) ∖ (list_to_set l2: gset A).
 Proof.
-  revert l2. induction l1.
+  revert l2. induction l1 as [|a l1 IHl1].
   - intro. cbn [list_difference list_to_set]. set_solver.
   - intros l2. cbn [list_difference list_to_set]. destruct (decide_rel elem_of a l2); set_solver.
 Qed.
@@ -660,12 +667,12 @@ Lemma create_gmap_default_lookup {K V : Type} `{Countable K}
 Proof.
   split.
   - intros Hk.
-    induction l; inversion Hk.
+    induction l as [|a l IHl]; inversion Hk.
     + by rewrite lookup_insert.
     + destruct (decide (a = k)); [subst; by rewrite lookup_insert|].
       rewrite lookup_insert_ne; auto.
   - intros Hl.
-    induction l; inversion Hl.
+    induction l as [|a l IHl]; inversion Hl.
     destruct (decide (a = k)); [subst;apply elem_of_list_here|].
     apply elem_of_cons. right.
     apply IHl. simplify_map_eq. auto.
@@ -674,7 +681,7 @@ Qed.
 Lemma create_gmap_default_lookup_is_Some {K V} `{EqDecision K, Countable K} (l: list K) (d: V) x v:
   create_gmap_default l d !! x = Some v → x ∈ l ∧ v = d.
 Proof.
-  revert x v d. induction l as [| a l]; cbn.
+  revert x v d. induction l as [| a l IHl]; cbn.
   - done.
   - intros x v d. destruct (decide (a = x)) as [->|].
     + rewrite lookup_insert. intros; simplify_eq. repeat constructor.
@@ -684,7 +691,7 @@ Qed.
 Lemma create_gmap_default_dom {K V} `{EqDecision K, Countable K} (l: list K) (d: V):
   dom (create_gmap_default l d) = list_to_set l.
 Proof.
-  induction l as [| a l].
+  induction l as [| a l IHl].
   - cbn. rewrite dom_empty_L //.
   - cbn [create_gmap_default list_to_set]. rewrite dom_insert_L // IHl //.
 Qed.
@@ -695,7 +702,7 @@ Lemma create_gmap_default_lookup_None {K V : Type} `{Countable K}
   (create_gmap_default l d) !! k = None.
 Proof.
   intros Hk.
-  induction l;auto.
+  induction l as [|a l IHl];auto.
   simpl. apply not_elem_of_cons in Hk as [Hne Hk].
   rewrite lookup_insert_ne//. apply IHl. auto.
 Qed.
@@ -707,7 +714,7 @@ Lemma create_gmap_default_permutation {K V : Type} `{Countable K}
 Proof.
   intros Hperm.
   apply map_eq. intros k.
-  destruct (decide (k ∈ l)).
+  destruct (decide (k ∈ l)) as [e|n].
   - assert (k ∈ l') as e';[rewrite -Hperm;auto|].
     apply (create_gmap_default_lookup _ d) in e as ->.
     apply (create_gmap_default_lookup _ d) in e' as ->. auto.
@@ -719,7 +726,7 @@ Qed.
 Lemma fst_zip_prefix A B (l : list A) (k : list B) :
   (zip l k).*1 `prefix_of` l.
 Proof.
-  revert k. induction l; cbn; auto.
+  revert k. induction l as [|a l IHl]; intros k; cbn; auto.
   destruct k; cbn.
   - apply prefix_nil.
   - apply prefix_cons; auto.
@@ -757,20 +764,21 @@ Lemma take_lookup_Some_inv A (l : list A) (n i : nat) x :
   take n l !! i = Some x →
   i < n ∧ l !! i = Some x.
 Proof.
-  revert l i x. induction n; cbn.
-  { intros *. inversion 1. }
-  { intros *. destruct l; cbn. by inversion 1. destruct i; cbn.
+  revert l i x. induction n as [|n IHn]; cbn.
+  { intros l i x. inversion 1. }
+  { intros l i x. destruct l; cbn; first (by inversion 1).
+    destruct i; cbn.
     - intros; simplify_eq. split; auto. lia.
-    - intros [? ?]%IHn. split. lia. auto. }
+    - intros [? ?]%IHn. split; [lia|auto]. }
 Qed.
 
 Lemma NoDup_fst {A B : Type} (l : list (A*B)) :
   NoDup l.*1 -> NoDup l.
 Proof.
   intros Hdup.
-  induction l.
+  induction l as [|a l IHl].
   - by apply NoDup_nil.
-  - destruct a. simpl in Hdup. apply NoDup_cons in Hdup as [Hin Hdup].
+  - destruct a as [a b]. simpl in Hdup. apply NoDup_cons in Hdup as [Hin Hdup].
     apply NoDup_cons. split;auto.
     intros Hcontr. apply Hin. apply elem_of_list_fmap.
     exists (a,b). simpl. split;auto.
@@ -779,7 +787,7 @@ Qed.
 Lemma fst_elem_of_cons {A B} `{EqDecision A} (l : list A) (x : A) (l': list B) :
   x ∈ (zip l l').*1 →
   x ∈ l.
-Proof. intros H. eapply in_prefix. eapply fst_zip_prefix. done. Qed.
+Proof. intros H. eapply in_prefix; last done. eapply fst_zip_prefix. Qed.
 
 Lemma length_fst_snd {A B} `{Countable A} (m : gmap A B) :
   length (map_to_list m).*1 = length (map_to_list m).*2.
@@ -800,8 +808,8 @@ Proof.
   assert (m !! i = Some x) as Hsome.
   { apply elem_of_map_to_list; auto. }
   apply NoDup_Permutation;auto.
-  by apply NoDup_map_to_list.
-  apply NoDup_fst. apply NoDup_cons in Hdup as [? ?]. by auto.
+  { by apply NoDup_map_to_list. }
+  { apply NoDup_fst. apply NoDup_cons in Hdup as [? ?]. by auto. }
   intros [i0 x0]. split.
   - intros Hinx%elem_of_map_to_list.
     assert (i ≠ i0) as Hne;[intros Hcontr;subst;simplify_map_eq|simplify_map_eq].
@@ -828,14 +836,14 @@ Lemma NoDup_map_to_list_fst (A B : Type) `{EqDecision A} `{Countable A}
        (m : gmap A B):
   NoDup (map_to_list m).*1.
 Proof.
-  induction m as [|i x m] using map_ind.
+  induction m as [|i x m Hm IHm] using map_ind.
   - rewrite map_to_list_empty. simpl. by apply NoDup_nil.
   - rewrite map_to_list_insert;auto.
     simpl. rewrite NoDup_cons. split.
     + intros Hcontr%elem_of_list_fmap.
       destruct Hcontr as [ab [Heqab Hcontr] ].
       destruct ab as [a b]. subst. simpl in *.
-      apply elem_of_map_to_list in Hcontr. rewrite Hcontr in H0. inversion H0.
+      apply elem_of_map_to_list in Hcontr. rewrite Hcontr in Hm. inversion Hm.
     + auto.
 Qed.
 
@@ -849,12 +857,12 @@ Proof.
   { rewrite -Hl. constructor. }
   apply NoDup_cons in Hdup as [Hnin Hdup].
   apply NoDup_Permutation;auto.
-  apply NoDup_map_to_list_fst. done.
+  { by apply NoDup_map_to_list_fst. }
   set l' := zip l (repeat x (length l)).
   assert (l = l'.*1) as Heq;[rewrite fst_zip;auto;rewrite repeat_length;lia|].
   intros i0. split.
   - intros Hinx%elem_of_list_fmap.
-    destruct Hinx as [ [? ?] [? Hinx] ]. simpl in *. subst a.
+    destruct Hinx as [ [a b] [Heq_i0 Hinx] ]. simpl in *. subst a.
     apply elem_of_map_to_list in Hinx.
     destruct (decide (i = i0));[subst i;rewrite lookup_delete in Hinx;inversion Hinx|].
     rewrite lookup_delete_ne in Hinx;auto.
@@ -887,29 +895,30 @@ Qed.
 Lemma list_difference_cons {A} `{EqDecision A} (l1 l2 : list A) (a : A) :
   NoDup l1 → a ∈ l1 → a ∉ l2 → list_difference l1 l2 ≡ₚ a :: list_difference l1 (a :: l2).
 Proof.
-  revert l2 a. induction l1;intros l2 a' Hdup Hin1 Hin2.
+  revert l2 a. induction l1 as [|a l1 IHl1];intros l2 a' Hdup Hin1 Hin2.
   - inversion Hin1.
   - simpl. destruct (decide_rel elem_of a l2).
     + assert (a ≠ a') as Hne; [intros Hcontr;subst;contradiction|].
-      rewrite decide_True.
-      apply IHl1;auto. apply NoDup_cons in Hdup as [? ?];auto.
-      apply elem_of_cons in Hin1 as [? | ?];[congruence|auto].
-      { apply elem_of_cons. right;auto. }
+      rewrite decide_True; last ( apply elem_of_cons;right;auto).
+      apply IHl1;auto.
+      * apply NoDup_cons in Hdup as [? ?];auto.
+      * apply elem_of_cons in Hin1 as [? | ?];[congruence|auto].
     + destruct (decide (a = a'));subst.
       * apply NoDup_cons in Hdup as [Hnin Hdup].
         f_equiv. rewrite decide_True;[|constructor].
         rewrite list_difference_skip;auto.
       * apply NoDup_cons in Hdup as [Hnin Hdup].
         apply elem_of_cons in Hin1 as [? | ?];[congruence|auto].
-        erewrite IHl1;eauto. rewrite decide_False.
-        apply Permutation_swap. apply not_elem_of_cons;auto.
+        erewrite IHl1;eauto.
+        rewrite decide_False; last ( apply not_elem_of_cons;auto ).
+        apply Permutation_swap.
 Qed.
 
 Lemma list_to_set_map_to_list {K V : Type} `{EqDecision K} `{Countable K}
       (m : gmap K V) :
   list_to_set (map_to_list m).*1 = dom m.
 Proof.
-  induction m using map_ind.
+  induction m as [|i x m Hm IHm] using map_ind.
   - rewrite map_to_list_empty dom_empty_L. auto.
   - rewrite map_to_list_insert// dom_insert_L. simpl. rewrite IHm. auto.
 Qed.
@@ -918,7 +927,7 @@ Qed.
 Lemma last_drop_lt {A : Type} (l : list A) (i : nat) (a : A) :
   i < (length l) → last l = Some a → last (drop i l) = Some a.
 Proof.
-  generalize i. induction l.
+  generalize i. induction l as [|a' l IHl].
   - intros i' Hlen Hlast. inversion Hlast.
   - intros i' Hlen Hlast. destruct i'.
     + simpl. apply Hlast.
@@ -930,11 +939,10 @@ Qed.
 Lemma last_lookup {A : Type} (l : list A) :
   last l = l !! (length l - 1).
 Proof.
-  induction l.
-  - done.
-  - simpl; rewrite {1}/last -/last.
-    destruct l; auto.
-    rewrite IHl. simpl. rewrite PeanoNat.Nat.sub_0_r. done.
+  induction l as [|a l IHl]; auto.
+  simpl; rewrite {1}/last -/last.
+  destruct l; auto.
+  rewrite IHl. simpl. rewrite PeanoNat.Nat.sub_0_r. done.
 Qed.
 
 Lemma last_app_iff {A : Type} (l1 l2 : list A) a :
@@ -942,12 +950,12 @@ Lemma last_app_iff {A : Type} (l1 l2 : list A) a :
 Proof.
   split.
   - intros Hl2.
-    induction l1.
+    induction l1 as [|a' l1 IHl1].
     + destruct l2; inversion Hl2. simpl. split; auto. lia.
     + destruct IHl1 as [Hlt Hlast]. split; auto. simpl; rewrite {1}/last -/last. rewrite Hlast.
       destruct (l1 ++ l2); auto.
       inversion Hlast.
-  - generalize l1. induction l2; intros l1' [Hlen Hl].
+  - generalize l1. induction l2 as [|a0 l2 IHl2]; intros l1' [Hlen Hl].
     + inversion Hlen.
     + destruct l2;[rewrite last_snoc in Hl; inversion Hl; done|].
       rewrite -(IHl2 (l1' ++ [a0])); auto.
@@ -958,7 +966,7 @@ Lemma last_app_eq {A : Type} (l1 l2 : list A) :
   length l2 > 0 ->
   last l2 = last (l1 ++ l2).
 Proof.
-  revert l1. induction l2;intros l1 Hlen.
+  revert l1. induction l2 as [|a l2 IHl2];intros l1 Hlen.
   - inversion Hlen.
   - destruct l2.
     + rewrite last_snoc. done.
@@ -977,9 +985,9 @@ Qed.
 Lemma rev_singleton_inv {A} (l : list A) (a : A) :
   rev l = [a] -> l = [a].
 Proof.
-  destruct l;auto.
+  destruct l as [|a0 l];auto.
   simpl. intros Hrev.
-  destruct l.
+  destruct l as [|a1 l].
   - simpl in Hrev. inversion Hrev. auto.
   - exfalso. simpl in Hrev.
     apply app_singleton in Hrev. destruct Hrev as [ [Hrev1 Hrev2] | [Hrev1 Hrev2] ].
@@ -992,13 +1000,13 @@ Lemma rev_lookup {A} (l : list A) (a : A) :
 Proof.
   split; intros Hl.
   - rewrite -last_lookup.
-    induction l.
+    induction l as [|a0 l IHl].
     + inversion Hl.
     + simpl in Hl. simpl. destruct l.
       { simpl in Hl. inversion Hl. auto. }
       { apply IHl. rewrite lookup_app_l in Hl;[|simpl;rewrite length_app /=;lia]. auto. }
   - rewrite -last_lookup in Hl.
-    induction l.
+    induction l as [|a0 l IHl].
     + inversion Hl.
     + simpl. destruct l.
       { simpl. inversion Hl. auto. }
@@ -1010,7 +1018,7 @@ Lemma rev_cons_inv {A} (l l' : list A) (a : A) :
   ∃ l'', l = l'' ++ [a].
 Proof.
   intros Hrel.
-  destruct l;inversion Hrel.
+  destruct l as [|a0 l];inversion Hrel.
   assert ((a0 :: l) !! (length l) = Some a) as Hsome.
   { assert (length l = length (a0 :: l) - 1) as ->;[simpl;lia|]. apply rev_lookup. rewrite Hrel. constructor. }
   apply take_S_r in Hsome.

@@ -47,7 +47,8 @@ Section simpl_gmap.
   Lemma rlength_remove_key:
     forall A k (rm: @rgmap A), rlength (remove_key k rm) <= rlength rm.
   Proof.
-    induction rm; simpl; auto.
+    intros A k rm.
+    induction rm as [ k0 | k0 | ]; simpl; auto.
     - destruct (decide (k = k0)); simpl; lia.
     - destruct (decide (k = k0)); simpl; lia.
   Qed.

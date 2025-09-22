@@ -28,12 +28,12 @@ Inductive SRegName : Type :=
 | MTDC.
 
 Global Instance reg_eq_dec : EqDecision RegName.
-Proof. intros r1 r2.  destruct r1,r2; [by left | by right | by right |].
+Proof. intros r1 r2.  destruct r1 as [| n fin ],r2 as [|n0 fin0]; [by left | by right | by right |].
        destruct (Nat.eq_dec n n0).
        + subst n0. left.
-         assert (forall (b: bool) (n m: nat) (P1 P2: n <=? m = b), P1 = P2).
-         { intros. apply eq_proofs_unicity.
-           intros; destruct x; destruct y; auto. }
+         assert (forall (b: bool) (n m: nat) (P1 P2: n <=? m = b), P1 = P2) as H.
+         { intros b n' m' P1 P2. apply eq_proofs_unicity.
+           intros x y; destruct x; destruct y; auto. }
          rewrite (H _ _ _ fin fin0). reflexivity.
        + right. congruence.
 Defined.
@@ -58,7 +58,7 @@ Proof.
                         | None => None
                         end ;
             decode_encode := _ |}.
-  intro r. destruct r; auto.
+  intro r. destruct r as [|n fin]; auto.
   rewrite decode_encode.
   unfold n_to_regname.
   destruct (Nat.le_dec n RegNum).
@@ -90,13 +90,13 @@ Proof. apply (finite.enc_finite (λ r : RegName, match r with
                                                 end)
                 (λ n : nat, match n_to_regname n with | Some r => r | None => PC end)
                 (S (S RegNum))).
-       - intros x. destruct x;auto.
+       - intros x. destruct x as [| n fin];auto.
          unfold n_to_regname.
          destruct (Nat.le_dec n RegNum).
          + do 2 f_equal. apply eq_proofs_unicity. decide equality.
          + exfalso. by apply (Nat.leb_le n RegNum) in fin.
        - intros x.
-         + destruct x;[lia|]. apply Nat.leb_le in fin. lia.
+         + destruct x as [|n fin];[lia|]. apply Nat.leb_le in fin. lia.
        - intros i Hlt. unfold n_to_regname.
          destruct (Nat.le_dec i RegNum);auto.
          lia.
@@ -116,13 +116,15 @@ Defined.
 (* TODO: separate the proof parts into lemmas *)
 
 Definition Z_of_regname (r: RegName): Z.
-  destruct r. exact 0.
-  exact (S n).
+  destruct r as [|n fin].
+  + exact 0.
+  + exact (S n).
 Defined.
 
 Instance RegName_InjTyp : InjTyp RegName Z.
   refine (mkinj _ _ Z_of_regname (fun n => n <= RegNum + 1)%Z _).
-  intros [|]. cbn. lia. cbn. apply Nat.leb_le in fin. lia.
+  intros [|n fin]; cbn;first lia.
+  apply Nat.leb_le in fin; lia.
 Defined.
 Add Zify InjTyp RegName_InjTyp.
 
@@ -234,14 +236,14 @@ Lemma all_registers_correct r1 :
   r1 ∈ all_registers.
 Proof.
   rewrite /all_registers.
-  destruct r1.
+  destruct r1 as [|n fin].
   - do 32 (apply elem_of_cons; right).
       by apply elem_of_list_singleton.
-  - induction n.
+  - induction n as [|n IHn].
     + apply elem_of_cons; left.
       apply f_equal. apply eq_proofs_unicity. decide equality.
     + apply elem_of_list_lookup_2 with (S n).
-      repeat (destruct n;
+      repeat (destruct n as [|n];
                 first (simpl;do 2 f_equal;apply eq_proofs_unicity;decide equality)).
       simpl in *. inversion fin.
 Qed.
