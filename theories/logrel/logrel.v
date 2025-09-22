@@ -379,13 +379,13 @@ Section logrel.
     generalize dependent W0.
     generalize dependent C0.
     induction y; intros C0 W0;[simpl;f_equiv|].
-    destruct a, W0, C0;simpl;auto.
+    destruct a, W0, C0;simpl; [auto|auto|auto|].
     simpl.
     f_equiv.
     f_equiv;[apply IHy|].
     f_equiv;[| repeat (f_equiv; auto)].
     rewrite /interp_callee_part_of_the_stack.
-    destruct wstk0; auto.
+    destruct wstk; auto.
     destruct sb ; auto.
     apply Heq.
   Qed.
