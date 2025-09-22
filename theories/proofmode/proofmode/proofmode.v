@@ -1,6 +1,6 @@
 From Stdlib Require Import Eqdep_dec List.
 From cap_machine Require Import rules.
-From cap_machine Require Export iris_extra addr_reg_sample.
+From cap_machine Require Export iris_extra memory_region.
 From cap_machine.proofmode Require Import classes tactics_helpers proofmode_instr_rules.
 From cap_machine.proofmode Require Export class_instances solve_pure solve_addr_extra.
 From iris.proofmode Require Import proofmode spec_patterns coq_tactics ltac_tactics reduction.

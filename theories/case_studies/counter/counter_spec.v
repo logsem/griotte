@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
-From cap_machine Require Import logrel rules proofmode.
+From cap_machine Require Import logrel logrel_extra rules proofmode.
 From cap_machine Require Import fetch switcher_spec_call counter.
 From cap_machine Require Import switcher_spec_return.
 
@@ -16,16 +16,13 @@ Section Counter.
     {swlayout : switcherLayout}
   .
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
   Context {C : CmptName}.
 
+  (* TODO move *)
   Lemma revoked_by_separation_with_temp_resources W W' B a :
     a ∈ dom (std W') ->
     (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
@@ -472,9 +469,7 @@ Section Counter.
     { rewrite /region_pointsto.
       iDestruct (big_sepL2_sep  with "[$Hstk_h $Hfrm_close_W2]") as "$".
     }
-    iDestruct (
-        ftlr_switcher_return.region_close_list_interp_gen
-          with "[$Hr_C $Hfrm_close_W2]"
+    iDestruct (region_close_list_interp_gen with "[$Hr_C $Hfrm_close_W2]"
       ) as "Hr_C"; auto.
     { apply finz_seq_between_NoDup. }
     { set_solver+. }

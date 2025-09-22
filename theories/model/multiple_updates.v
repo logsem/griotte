@@ -15,9 +15,6 @@ Section std_updates.
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -46,12 +43,6 @@ Section std_updates.
    Proof.
      induction l; auto.
    Qed.
-
-   (* Lemma std_update_multiple_frm W l ρ : *)
-   (*   frm (std_update_multiple W l ρ) = frm W. *)
-   (* Proof. *)
-   (*   induction l; auto. *)
-   (* Qed. *)
 
    Lemma std_update_multiple_proj_eq W Wloc l ρ :
      ( ( std (std_update_multiple W l ρ) , Wloc)) = std_update_multiple ( (std W, Wloc)) l ρ.

@@ -2,7 +2,7 @@ From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From cap_machine Require Import ftlr_base interp_weakening ftlr_switcher_return.
-From cap_machine Require Import logrel fundamental interp_weakening addr_reg_sample rules proofmode monotone.
+From cap_machine Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
 From cap_machine Require Import multiple_updates region_invariants_revocation region_invariants_allocation.
 From cap_machine Require Import switcher switcher_preamble.
 From stdpp Require Import base.
@@ -21,10 +21,6 @@ Section Switcher.
     {swlayout : switcherLayout}
   .
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).

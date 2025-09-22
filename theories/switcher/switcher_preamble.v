@@ -1,8 +1,7 @@
 From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel addr_reg_sample rules proofmode.
+From cap_machine Require Import logrel memory_region rules proofmode.
 From cap_machine Require Import multiple_updates region_invariants_revocation.
-(* region_invariants_allocation. *)
 From cap_machine Require Export switcher.
 
 Section Switcher_preamble.
@@ -17,10 +16,6 @@ Section Switcher_preamble.
     {swlayout : switcherLayout}
   .
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
@@ -35,15 +30,12 @@ Section Switcher_preamble.
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ) :=
     λne (W : WORLD) (C : CmptName) (reg : leibnizO Reg),
       (full_map reg ∧
-       ⌜ reg !! PC = Some wpcc ⌝ ∧
-       ⌜ reg !! cgp = Some wcgp ⌝ ∧
-       ⌜ reg !! cra = Some (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) ⌝ ∧
-       ⌜ reg !! csp = Some wstk ⌝ ∗ interp W C wstk ∗
-       (∀ (r : RegName) (v : Word), (⌜r ∉ ({[PC; cra; cgp; csp]} : gset RegName)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))
-      (* NOTE I think the zeroes are not necessary and we never rely in it *)
-       (* ∧ *)
-      (* (∀ (r : RegName), *)
-      (*    (⌜r ∉ (dom_arg_rmap nargs ∪ {[PC; cra; cgp; csp]})⌝ →  ⌜reg !! r = Some (WInt 0)⌝)) *)
+       ⌜ reg !! PC = Some wpcc ⌝
+       ∧ ⌜ reg !! cgp = Some wcgp ⌝
+       ∧ ⌜ reg !! cra = Some (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) ⌝
+       ∧ ⌜ reg !! csp = Some wstk ⌝
+       ∗ interp W C wstk
+       ∗ (∀ (r : RegName) (v : Word), (⌜r ∉ ({[PC; cra; cgp; csp]} : gset RegName)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))
       )%I.
   Solve All Obligations with solve_proper.
 
@@ -81,7 +73,6 @@ Section Switcher_preamble.
     | _ => w
     end.
 
-  (* TODO unclear if it's still the right definition *)
   Program Definition ot_switcher_prop :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
     λne (W : WORLD) (C : CmptName) (w : Word),
@@ -150,39 +141,5 @@ Section Switcher_preamble.
      ∗ ⌜ (b_trusted_stack + length cstk)%a = Some a_tstk ⌝
      ∗ cstack_interp cstk a_tstk (* link the topmost frame of cstk to the state *)
      ∗ seal_pred ot_switcher ot_switcher_propC.
-
-
-  Definition encode_entry_point (nargs entry_point_offset : Z) : Z :=
-    let args := Z.land nargs 7 in
-    let off := Z.shiftl entry_point_offset 3 in
-    (Z.lor off args).
-
-  Definition decode_entry_point (entry_point : Z) : (Z * Z) :=
-    ( Z.land entry_point 7, Z.shiftr entry_point 3).
-
-  Lemma encode_entry_point_eq_nargs nargs off_entry :
-    (0 ≤ nargs ≤ 7)%Z -> ( (Z.land (encode_entry_point nargs off_entry) 7)) = nargs.
-  Proof.
-    intros.
-    rewrite /encode_entry_point.
-    bitblast.
-    destruct (decide (nargs = 0)); simplify_eq; first bitblast.
-    destruct (decide (nargs = 1)); simplify_eq; first bitblast.
-    destruct (decide (nargs = 2)); simplify_eq; first bitblast.
-    destruct (decide (nargs = 3)); simplify_eq; first bitblast.
-    destruct (decide (nargs = 4)); simplify_eq; first bitblast.
-    destruct (decide (nargs = 5)); simplify_eq; first bitblast.
-    destruct (decide (nargs = 6)); simplify_eq; first bitblast.
-    destruct (decide (nargs = 7)); simplify_eq; first bitblast.
-    lia.
-  Qed.
-
-  Lemma encode_entry_point_eq_off nargs off_entry :
-    ( (encode_entry_point nargs off_entry ≫ 3)) = off_entry.
-  Proof.
-    intros.
-    rewrite /encode_entry_point.
-    bitblast.
-  Qed.
 
 End Switcher_preamble.

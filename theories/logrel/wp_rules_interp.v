@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine Require Export logrel region_invariants bitblast.
+From cap_machine Require Export logrel region_invariants.
 From cap_machine Require Import ftlr_base interp_weakening.
 From cap_machine Require Import rules proofmode monotone.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
@@ -17,10 +17,6 @@ Section wp_interp.
     {swlayout : switcherLayout}
   .
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 

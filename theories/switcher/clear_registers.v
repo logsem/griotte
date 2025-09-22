@@ -1,8 +1,8 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import addr_reg_sample rules proofmode.
+From cap_machine Require Import memory_region rules proofmode.
 From iris.program_logic Require Export weakestpre.
-From cap_machine Require Export cap_lang region seal_store region_invariants.
+From cap_machine Require Export cap_lang seal_store region_invariants.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine Require Import rules_base.
@@ -17,32 +17,8 @@ Section ClearRegistersMacro.
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation TFRAME := (leibnizO nat).
-  Notation WORLD := ( prodO (prodO STS_STD STS) TFRAME) .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-
-  (* TODO should depend on the number of registers used by entry point. *)
-  (* Fixpoint dom_arg_rmap (nargs : nat) : gset RegName := *)
-  (*     match nargs with *)
-  (*     | 0 => ∅ *)
-  (*     | S n => *)
-  (*         if nargs <? 8 *)
-  (*         then *)
-  (*           match nargs with *)
-  (*           | 1 => {[ ca0 ]} ∪ dom_arg_rmap n *)
-  (*           | 2 => {[ ca1 ]} ∪ dom_arg_rmap n *)
-  (*           | 3 => {[ ca2 ]} ∪ dom_arg_rmap n *)
-  (*           | 4 => {[ ca3 ]} ∪ dom_arg_rmap n *)
-  (*           | 5 => {[ ca4 ]} ∪ dom_arg_rmap n *)
-  (*           | 6 => {[ ca5 ]} ∪ dom_arg_rmap n *)
-  (*           | 7 => {[ ct0 ]} ∪ dom_arg_rmap n *)
-  (*           | _ => ∅ *)
-  (*           end *)
-  (*         else ∅ *)
-  (*     end. *)
 
   Definition dom_arg_rmap (nargs : nat) : gset RegName :=
     match nargs with

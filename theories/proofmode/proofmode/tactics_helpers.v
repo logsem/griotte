@@ -2,7 +2,7 @@ From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 From Stdlib Require Import Eqdep_dec List.
-From cap_machine Require Import cap_lang region contiguous.
+From cap_machine Require Import cap_lang memory_region contiguous.
 
 Section helpers.
 

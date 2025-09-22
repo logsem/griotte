@@ -105,13 +105,13 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   ∧ (cmpt_imports B_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code B_cmpt) (* only instructions *)
   ∧ Forall is_z (cmpt_data B_cmpt) (* TODO generalise: either z or in_region *)
-  ∧ (cmpt_exp_tbl_entries B_cmpt) = [WInt (bitblast.encode_entry_point 1 1)]
+  ∧ (cmpt_exp_tbl_entries B_cmpt) = [WInt (encode_entry_point 1 1)]
 
   (* instantiating C *)
   ∧ (cmpt_imports C_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall is_z (cmpt_data C_cmpt) (* TODO generalise: either z or in_region *)
-  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (bitblast.encode_entry_point 1 1)]
+  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point 1 1)]
 .
 
 Lemma mk_initial_cmpt_C_disjoint `{Layout: @memory_layout MP} (m : Mem) :
@@ -181,11 +181,6 @@ Section helpers_cmdc_adequacy.
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
-
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Notation CSTK := (leibnizO cstack).
 
   Lemma ot_switcher_interp
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
@@ -358,11 +353,6 @@ Section Adequacy.
   Context {B C : CmptName}.
   Context { HCNames : CNames = (list_to_set [B;C]) }.
   Context { HCNamesNoDup : NoDup [B;C] }.
-
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Notation CSTK := (leibnizO cstack).
 
   Definition flagN : namespace := nroot .@ "cmdc" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "cmdc" .@ "switcher_flag".

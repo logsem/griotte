@@ -17,10 +17,6 @@ Section DLE.
 
   Context {C : CmptName}.
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
@@ -321,11 +317,11 @@ Section DLE.
 
     set ( rmap_arg :=
            {[ ca0 := WCap RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
-              ca1 := vr_t11;
-              ca2 := vr_t12;
-              ca3 := vr_t13;
-              ca4 := vr_t14;
-              ca5 := vr_t15;
+              ca1 := vca1;
+              ca2 := vca2;
+              ca3 := vca3;
+              ca4 := vca4;
+              ca5 := vca5;
               ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
@@ -382,8 +378,8 @@ Section DLE.
     }
     { by rewrite /is_arg_rmap. }
 
-    clear dependent vr_t10 vr_t5 vr_t6 vr_t7 vr_t28 vr_t8 vr_t9.
-    clear dependent vr_t11 vr_t12 vr_t13 vr_t14 vr_t15 rmap.
+    clear dependent vca0 vct0 vct1 vct2 vct3 vcs0 vcs1.
+    clear dependent vca1 vca2 vca3 vca4 vca5 rmap.
     iNext.
     iIntros (W4 rmap stk_mem_l stk_mem_h)
       "(%Hrelated_pub_W3ext_W4 & %Hdom_rmap
@@ -407,9 +403,7 @@ Section DLE.
     { rewrite /region_pointsto.
       iDestruct (big_sepL2_sep  with "[$Hstk_h $Hfrm_close_W4]") as "$".
     }
-    iDestruct (
-        ftlr_switcher_return.region_close_list_interp_gen
-          with "[$Hr_C $Hfrm_close_W4]"
+    iDestruct (region_close_list_interp_gen with "[$Hr_C $Hfrm_close_W4]"
       ) as "Hr_C".
     { apply finz_seq_between_NoDup. }
     { set_solver+. }
@@ -534,10 +528,10 @@ Section DLE.
     set ( rmap_arg :=
            {[ ca0 := WInt 0;
               ca1 := warg1;
-              ca2 := vr_t12;
-              ca3 := vr_t13;
-              ca4 := vr_t14;
-              ca5 := vr_t15;
+              ca2 := vca2;
+              ca3 := vca3;
+              ca4 := vca4;
+              ca5 := vca5;
               ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).

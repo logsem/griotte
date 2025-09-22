@@ -1,6 +1,6 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import addr_reg_sample rules proofmode.
+From cap_machine Require Import memory_region rules proofmode.
 
 Section ClearStackMacro.
   Context

@@ -2,7 +2,7 @@ From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From cap_machine Require Import ftlr_base interp_weakening.
-From cap_machine Require Import logrel interp_weakening addr_reg_sample rules proofmode monotone.
+From cap_machine Require Import logrel interp_weakening memory_region rules proofmode monotone.
 From cap_machine Require Import multiple_updates region_invariants_revocation region_invariants_allocation.
 From stdpp Require Import base.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
@@ -19,10 +19,6 @@ Section Logrel_extra.
     {swlayout : switcherLayout}
   .
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
@@ -156,146 +152,6 @@ Section Logrel_extra.
        { eapply notisO_flowsfrom; eauto. }
        by iFrame.
    Qed.
-
-  Lemma read_allowed_inv' (W : WORLD) (C : CmptName) (a b e: Addr) p g l :
-    readAllowed p →
-    Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ l,
-          (
-            ∃ (p' : Perm) (P:V),
-              ⌜ PermFlowsTo p p'⌝
-              ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
-              ∗ ▷ zcond P C
-              ∗ ▷ rcond P C p' interp
-              ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
-              ∗ monoReq W C a' p' P
-          ).
-  Proof.
-    induction l; iIntros (Hra Hin) "#Hinterp"; first done.
-    simpl.
-    apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
-    iDestruct (read_allowed_inv _ _ a0 with "Hinterp")
-      as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)"
-    ; auto.
-    iFrame "%#".
-    iApply (IHl with "Hinterp"); eauto.
-  Qed.
-
-  Lemma read_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g :
-    readAllowed p →
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ (finz.seq_between b e),
-          (
-            ∃ (p' : Perm) (P:V),
-              ⌜ PermFlowsTo p p'⌝
-              ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
-              ∗ ▷ zcond P C
-              ∗ ▷ rcond P C p' interp
-              ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
-              ∗ monoReq W C a' p' P
-          ).
-  Proof.
-    iIntros (Hra) "Hinterp".
-    iApply (read_allowed_inv' with "Hinterp"); eauto.
-    apply Forall_forall.
-    intros a' Ha'.
-    by apply elem_of_finz_seq_between.
-  Qed.
-
-  Lemma writeLocalAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a a':
-    isWL p = true ->
-    withinBounds b e a = true ->
-    interp W C (WCap p g b e a') -∗
-    ⌜std W !! a = Some Temporary⌝.
-  Proof.
-    intros Hp Hb. iIntros "Hinterp".
-    eapply withinBounds_le_addr in Hb.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
-    replace (isO p) with false.
-    2: { eapply isWL_nonO in Hp ;done. }
-    destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
-    iDestruct (extract_from_region_inv with "Hinterp")
-             as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
-    by rewrite Hp in Hstate.
-  Qed.
-
-  Lemma writeLocalAllowed_valid_cap_implies' (W : WORLD) (C : CmptName) p g b e a l:
-    isWL p = true ->
-    Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ l, ⌜std W !! a' = Some Temporary⌝.
-  Proof.
-    induction l; iIntros (Hra Hin) "#Hinterp"; first done.
-    simpl.
-    apply Forall_cons in Hin; destruct Hin as [Hin_a0 Hin].
-    iDestruct (writeLocalAllowed_valid_cap_implies with "Hinterp") as "$"; auto.
-    { rewrite /withinBounds; solve_addr. }
-    iApply (IHl with "Hinterp"); eauto.
-  Qed.
-
-  Lemma writeLocalAllowed_valid_cap_implies_full_cap (W : WORLD) (C : CmptName) p g b e a:
-    isWL p = true ->
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! a' = Some Temporary⌝.
-  Proof.
-    iIntros (Hwl) "Hinterp".
-    iApply (writeLocalAllowed_valid_cap_implies' with "Hinterp"); eauto.
-    apply Forall_forall.
-    intros a' Ha'.
-    by apply elem_of_finz_seq_between.
-  Qed.
-
-  Lemma write_allowed_inv' (W : WORLD) (C : CmptName) (a b e: Addr) p g l :
-    writeAllowed p →
-    Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ l,
-          (
-            ∃ (p' : Perm) (P:V),
-              ⌜ PermFlowsTo p p'⌝
-              ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
-              ∗ ▷ zcond P C
-              ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
-              ∗ (▷ wcond P C interp)
-              ∗ monoReq W C a' p' P
-          ).
-  Proof.
-    induction l; iIntros (Hra Hin) "#Hinterp"; first done.
-    simpl.
-    apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
-    iDestruct (write_allowed_inv _ _ a0 with "Hinterp")
-      as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)"
-    ; auto.
-    iFrame "%#".
-    iApply (IHl with "Hinterp"); eauto.
-  Qed.
-
-  Lemma write_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g :
-    writeAllowed p →
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ (finz.seq_between b e),
-          (
-            ∃ (p' : Perm) (P:V),
-              ⌜ PermFlowsTo p p'⌝
-              ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
-              ∗ ▷ zcond P C
-              ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
-              ∗ (▷ wcond P C interp)
-              ∗ monoReq W C a' p' P
-          ).
-  Proof.
-    iIntros (Hra) "Hinterp".
-    iApply (write_allowed_inv' with "Hinterp"); eauto.
-    apply Forall_forall.
-    intros a' Ha'.
-    by apply elem_of_finz_seq_between.
-  Qed.
 
   Lemma monotone_revoke_list_sts_full_world_keep_interp W C (l : list Addr) (l' l_unk : list Addr) :
     ⊢ ⌜NoDup (l_unk ++ l')⌝ → ⌜NoDup l⌝ → ⌜(l_unk ++ l') ⊆+ l⌝ →

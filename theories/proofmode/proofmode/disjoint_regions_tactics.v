@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From stdpp Require Import sets list.
-From cap_machine Require Import addr_reg region.
+From cap_machine Require Import addr_reg memory_region.
 
 Class DisjointList A := disjoint_list : list A → Prop.
 #[export] Hint Mode DisjointList ! : typeclass_instances.

@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Export clear_stack clear_registers bitblast.
+From cap_machine Require Import rules proofmode bitblast.
+From cap_machine Require Export clear_stack clear_registers.
 
 Section Switcher.
   Context `{MP: MachineParameters}.
@@ -106,19 +106,9 @@ Section Switcher.
         GetA ct1 csp]
       ++ clear_stack_instrs ct0 ct1
       ++ encodeInstrsW[
-
-        (* Sub ct0 ct1 ct0; *)
-        (* Mov ct1 csp; *)
-        (* Lea ct1 ct0; *)
-        (* Jnz 2%Z ct0; *)
-        (* Jmp 5%Z; *)
-        (* Store ct1 0%Z; *)
-        (* Lea ct1 1%Z; *)
-        (* Add ct0 ct0 1%Z; *)
-        (* Jmp (-5)%Z; *)
-
         (* Restores the return pointer to caller  *)
-        Mov cra ca2]
+        Mov cra ca2
+      ]
       (* Clear registers *)
       ++ clear_registers_post_call_instrs
       ++ encodeInstrsW [
@@ -159,5 +149,54 @@ Section Switcher.
       (w = (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return)
       ))
   .
+
+  Lemma is_switcher_entry_point_call `{switcherLayout} :
+    is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call) = true.
+  Proof.
+    rewrite /is_switcher_entry_point.
+    rewrite bool_decide_eq_true_2; first done.
+    by left.
+  Qed.
+
+  Lemma is_switcher_entry_point_return `{switcherLayout} :
+    is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
+  Proof.
+    rewrite /is_switcher_entry_point.
+    rewrite bool_decide_eq_true_2; first done.
+    by right.
+  Qed.
+
+  Definition encode_entry_point (nargs entry_point_offset : Z) : Z :=
+    let args := Z.land nargs 7 in
+    let off := Z.shiftl entry_point_offset 3 in
+    (Z.lor off args).
+
+  Definition decode_entry_point (entry_point : Z) : (Z * Z) :=
+    ( Z.land entry_point 7, Z.shiftr entry_point 3).
+
+  Lemma encode_entry_point_eq_nargs nargs off_entry :
+    (0 ≤ nargs ≤ 7)%Z -> ( (Z.land (encode_entry_point nargs off_entry) 7)) = nargs.
+  Proof.
+    intros.
+    rewrite /encode_entry_point.
+    bitblast.
+    destruct (decide (nargs = 0)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 1)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 2)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 3)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 4)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 5)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 6)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 7)%Z); simplify_eq; first bitblast.
+    lia.
+  Qed.
+
+  Lemma encode_entry_point_eq_off nargs off_entry :
+    ( (encode_entry_point nargs off_entry ≫ 3)%Z) = off_entry.
+  Proof.
+    intros.
+    rewrite /encode_entry_point.
+    bitblast.
+  Qed.
 
 End Switcher.

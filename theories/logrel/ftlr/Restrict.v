@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Import ftlr_base interp_weakening.
-From cap_machine Require Import addr_reg region map_simpl.
+From cap_machine Require Import addr_reg memory_region map_simpl.
 From cap_machine Require Import rules_base rules_Restrict.
 From cap_machine.proofmode Require Import map_simpl register_tactics.
 
@@ -19,10 +19,6 @@ Section fundamental.
     {swlayout : switcherLayout}
   .
 
-  Notation STS := (leibnizO (STS_states * STS_rels)).
-  Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-  Notation WORLD := (prodO STS_STD STS).
-  Notation CSTK := (leibnizO cstack).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
