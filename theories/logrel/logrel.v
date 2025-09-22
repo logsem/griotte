@@ -4,7 +4,7 @@ From cap_machine Require Export cap_lang memory_region seal_store region_invaria
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine Require Import rules_base.
-From cap_machine Require Export switcher.
+From cap_machine Require Export switcher call_stack.
 Import uPred.
 
 Ltac auto_equiv :=
@@ -29,86 +29,6 @@ Class logrel_na_invs Σ :=
     logrel_nais : na_inv_pool_name;
   }.
 
-Record cframe := MkCFrame {
-      wret : Word;
-      wstk : Word;
-      wcgp : Word;
-      wcs0 : Word;
-      wcs1 : Word;
-      is_untrusted_caller : bool;
-  }.
-
-Definition cstackR := excl_authR (leibnizO (list cframe)).
-Definition cstackUR := excl_authUR (leibnizO (list cframe)).
-
-Class CSTACK_preG Σ :=
-  { cstack_preG :: inG Σ cstackUR; }.
-
-Class CSTACKG Σ :=
-  { cstack_inG :: inG Σ cstackUR;
-    γcstack : gname;
-  }.
-
-Definition CSTACK_preΣ :=
-  #[ GFunctor cstackUR ].
-
-Instance subG_CSTACK_preΣ {Σ} :
-  subG CSTACK_preΣ Σ → CSTACK_preG Σ.
-Proof. solve_inG. Qed.
-
-Section CStack.
-  Context {Σ : gFunctors} {cstackg : CSTACKG Σ} .
-  Notation cstack := (list cframe).
-
-  Definition cstack_full (cstk : cstack) : iProp Σ
-    := own γcstack (●E (cstk : leibnizO cstack) : cstackUR).
-
-  Definition cstack_frag (cstk : cstack) : iProp Σ
-    := own γcstack (◯E (cstk : leibnizO cstack) : cstackUR).
-
-  Lemma cstack_agree (cstk cstk' : cstack) :
-   cstack_full cstk -∗
-   cstack_frag cstk' -∗
-   ⌜ cstk = cstk' ⌝.
-  Proof.
-    iIntros "Hfull Hfrag".
-    rewrite /cstack_full /cstack_frag.
-    iCombine "Hfull Hfrag" as "H".
-    iDestruct (own_valid with "H") as "%H".
-    by apply excl_auth_agree_L in H.
-  Qed.
-
-  Lemma cstack_update (cstk cstk' cstk'' : cstack) :
-   cstack_full cstk -∗
-   cstack_frag cstk' ==∗
-   cstack_full cstk'' ∗ cstack_frag cstk''.
-  Proof.
-    iIntros "Hfull Hfrag".
-    rewrite /cstack_full /cstack_frag.
-    iCombine "Hfull Hfrag" as "H".
-    iMod ( own_update _ _ _  with "H" ) as "H".
-    { apply excl_auth_update. }
-    iDestruct "H" as "[? ?]".
-    by iFrame.
-  Qed.
-
-End CStack.
-
-Section pre_CSTACK.
-  Context {Σ : gFunctors} {tframeg : CSTACK_preG Σ}.
-  Notation cstack := (list cframe).
-
-  Lemma gen_cstack_init (cstk : cstack) :
-    ⊢ |==> (∃ (cstackg : CSTACKG Σ), cstack_full cstk ∗ cstack_frag cstk).
-  Proof.
-    iMod (own_alloc (A:=cstackUR) (●E (cstk : leibnizO _) ⋅ ◯E (cstk : leibnizO _) )) as (γcstack) "Hcstack"
-    ; first by apply excl_auth_valid.
-    iModIntro. iExists (Build_CSTACKG _ _ γcstack).
-    by rewrite own_op.
-  Qed.
-
-End pre_CSTACK.
-
 (** interp : is a unary logical relation. *)
 Section logrel.
 
@@ -122,9 +42,6 @@ Section logrel.
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
-  Notation cstack := (list cframe).
-  Notation CSTK := (leibnizO cstack).
-
   Notation E := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation K := (iPropO Σ).
@@ -192,12 +109,46 @@ Section logrel.
     (WP Seq (Instr Executable)
        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
 
+  (** [frame_match] expresses that the call stack [cstk], the stack of worlds [Ws] and compartments [Cs],
+      match with the current world [W] and compartment [C].
+
+      When the switcher pushes/pops a stack frame, it also pushes/pops
+      the current world and compartment together.
+
+      It is necessary because the continuation relation is monotonic with public
+      transitions only.
+      Without this feature, when a user receives a world [W]
+      (and it's corresponding continuation relation) from a caller,
+      calling the switcher requires to give a world [W'] together with the
+      corresponding continuation relation.
+      But because the continuation relation is monotonic with public transition only,
+      it would forbid the user to take private transitions
+      (which usually happen, because the user revokes the world for taking control
+      of its own stack frame).
+
+      With the [frame_match] criteria, the user can take private transition during
+      the duration of their call, and calling the switcher pushed the world
+      into the stack of world [Ws] (done by the switcher).
+      When the user return, they have to show that they end up in a
+      public future world [W'] of the caller's world [W].
+      It has to be public transition (and not equality), because the world
+      can evolve publicly during an adversary's call.
+
+      Finally, this matching only happens within a "chain of untrusted calls",
+      because as soon as we hit a trusted caller, the chain of public world
+      can be broken by a private transition taken by the user
+      (which they'll have to prove public when returning).
+
+      The compartment's name is an equality, because untrusted (physical) compartments
+      that can call each others are considered as a unique logical compartment.
+   *)
   Fixpoint frame_match
-    (Ws : list WORLD) (Cs : list CmptName) (cstk : CSTK) (W : WORLD) ( C : CmptName )
+    (Ws : list WORLD) (Cs : list CmptName) (cstk : CSTK) (W : WORLD) (C : CmptName)
     : Prop :=
     match Ws,Cs,cstk with
     | W' :: Ws', C' :: Cs', frm :: cstk' =>
-        related_sts_pub_world W' W ∧ C = C'
+        related_sts_pub_world W' W
+        ∧ C = C'
         ∧ (if frm.(is_untrusted_caller) then frame_match Ws' Cs' cstk' W C else True)
     | [], [] , []=> True
     | _,_,_ => False
@@ -312,14 +263,46 @@ Section logrel.
     repeat (f_equiv; auto).
   Qed.
 
+  (** WP rule given by the continuation relation.
+      It matches the states of the machine at the point where the switcher returns to the caller.
+      In particular:
+      - [PC] points-to the caller's site
+      - the callee-saved registers of the topmost call-frame [frm] are restored in their
+        original registers
+      - [ca0] and [ca1] contain some return values, [interp] in the current world
+      - all the other registers have been clear and point to zero
+      - the stack is given back, with some universally content (1) [stk_mem_l]
+        and [stk_mem_h].
+      - [stk_mem_h] corresponds to the callee's stack frame.
+        It is shared with the caller, and therefore part of the standard world.
+      - [stk_mem_l] corresponds the part of the stack used by the switcher to save the callee-save registers.
+        When the caller is untrusted, the points-to have been shared with the callee,
+        and therefore stored in the region invariant.
+        When the caller is trusted, they are not shared with the callee,
+        and therefore _not_ stored in the region invariant.
+      - The region invariant is returned, but open to have the points-to of the stack region out.
+      - Because the region invariant is open, we need to give the user a way to close the region invariant.
+        That's the role of the resources [closing_resources interp W C a v].
+      - Finally, we have the [interp_cont] of the (depoped) stack frame (we don't see it in this def,
+        but we see it in the definition of [interp_cont] later),
+        and the fragmental view of the call-stack [cstk].
+
+
+    (1) Although we know it should contain zeroes due to the clearing during the return routine,
+        it is logically hard to prove in the functional specification because the world
+        given by the (known) user is revoked. Which means that we need to
+        re-instate the world, together with keeping it open to keep track of its content.
+        I think it should work, but the infrastructure for this case doesn't exist,
+        and we don't lose anything to have the content universally quantified.
+   *)
   Program Definition interp_cont_exec (interp : V) (interp_cont : K) :
     (CSTK -n> WORLD  -n> (leibnizO CmptName) -n> (leibnizO cframe) -n> iPropO Σ)
     :=
-    (λne (cstk : CSTK) (W : WORLD) (C : CmptName)
-       (frm : cframe)
+    (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (frm : cframe)
      ,
        ∀ wca0 wca1 regs a_stk e_stk stk_mem_l stk_mem_h,
-       let callee_stk_region := finz.seq_between (if frm.(is_untrusted_caller) then a_stk else (a_stk ^+4)%a) e_stk in
+       let astk4 := (a_stk ^+4)%a in
+       let callee_stk_region := finz.seq_between (if frm.(is_untrusted_caller) then a_stk else astk4) e_stk in
        let callee_stk_mem := if frm.(is_untrusted_caller) then stk_mem_l++stk_mem_h else stk_mem_h in
        ( PC ↦ᵣ updatePcPerm frm.(wret)
          ∗ cra ↦ᵣ frm.(wret)
@@ -337,8 +320,8 @@ Section logrel.
          (* World interpretation *)
          ∗ ⌜ get_a frm.(wstk) = Some a_stk ⌝
          ∗ ⌜ get_e frm.(wstk) = Some e_stk ⌝
-         ∗ [[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ stk_mem_l ]]
-         ∗ [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]]
+         ∗ [[ a_stk , astk4 ]] ↦ₐ [[ stk_mem_l ]]
+         ∗ [[ astk4 , e_stk ]] ↦ₐ [[ stk_mem_h ]]
          ∗ open_region_many W C callee_stk_region
          ∗ ([∗ list] a ; v ∈ callee_stk_region ; callee_stk_mem, closing_resources interp W C a v)
          ∗ sts_full_world W C
@@ -1103,6 +1086,3 @@ Section logrel.
   Qed.
 
 End logrel.
-
-Notation cstack := (list cframe).
-Notation CSTK := (leibnizO cstack).
