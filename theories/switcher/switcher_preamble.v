@@ -151,4 +151,38 @@ Section Switcher_preamble.
      ∗ cstack_interp cstk a_tstk (* link the topmost frame of cstk to the state *)
      ∗ seal_pred ot_switcher ot_switcher_propC.
 
+
+  Definition encode_entry_point (nargs entry_point_offset : Z) : Z :=
+    let args := Z.land nargs 7 in
+    let off := Z.shiftl entry_point_offset 3 in
+    (Z.lor off args).
+
+  Definition decode_entry_point (entry_point : Z) : (Z * Z) :=
+    ( Z.land entry_point 7, Z.shiftr entry_point 3).
+
+  Lemma encode_entry_point_eq_nargs nargs off_entry :
+    (0 ≤ nargs ≤ 7)%Z -> ( (Z.land (encode_entry_point nargs off_entry) 7)) = nargs.
+  Proof.
+    intros.
+    rewrite /encode_entry_point.
+    bitblast.
+    destruct (decide (nargs = 0)); simplify_eq; first bitblast.
+    destruct (decide (nargs = 1)); simplify_eq; first bitblast.
+    destruct (decide (nargs = 2)); simplify_eq; first bitblast.
+    destruct (decide (nargs = 3)); simplify_eq; first bitblast.
+    destruct (decide (nargs = 4)); simplify_eq; first bitblast.
+    destruct (decide (nargs = 5)); simplify_eq; first bitblast.
+    destruct (decide (nargs = 6)); simplify_eq; first bitblast.
+    destruct (decide (nargs = 7)); simplify_eq; first bitblast.
+    lia.
+  Qed.
+
+  Lemma encode_entry_point_eq_off nargs off_entry :
+    ( (encode_entry_point nargs off_entry ≫ 3)) = off_entry.
+  Proof.
+    intros.
+    rewrite /encode_entry_point.
+    bitblast.
+  Qed.
+
 End Switcher_preamble.

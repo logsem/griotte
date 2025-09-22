@@ -596,7 +596,6 @@ Proof.
   apply DLPermFlowsTo_trans.
 Qed.
 
-
 Definition DROPermFlowsTo (dro1 dro2 : DROperm) : bool :=
   match dro1 with
   | DRO => true
@@ -626,7 +625,6 @@ Proof.
   rewrite /Transitive.
   apply DROPermFlowsTo_trans.
 Qed.
-
 
 Definition PermFlowsTo (p1 p2: Perm): bool :=
   match p1,p2 with
@@ -683,6 +681,13 @@ Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
   | _ => false
   end.
 
+Lemma DL_flowsto (rx : RXperm) (w : Wperm) dl dro :
+  PermFlowsTo (BPerm rx w DL dro) (BPerm rx w dl dro).
+Proof. destruct rx,w,dl,dro; cbn in *; done. Qed.
+
+Lemma DRO_flowsto (rx : RXperm) (w : Wperm) dl dro :
+  PermFlowsTo (BPerm rx Ow dl DRO) (BPerm rx w dl dro).
+Proof. destruct rx,w,dl,dro; cbn in *; done. Qed.
 
 (** FlowsTo relation for locality *)
 

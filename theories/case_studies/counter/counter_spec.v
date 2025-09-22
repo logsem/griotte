@@ -191,19 +191,16 @@ Section Counter.
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
     (rmap : Reg)
-
+    (csp_content : list Word)
     (C_f : Sealable)
 
     (W0 : WORLD)
-
+    (cstk : CSTK)
     (Ws : list WORLD)
     (Cs : list CmptName)
 
-    (csp_content : list Word)
-
     (Nswitcher Ncounter : namespace)
 
-    (cstk : CSTK)
     :
 
     let imports := counter_main_imports b_switcher e_switcher a_switcher_call ot_switcher C_f in

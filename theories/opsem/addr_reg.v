@@ -16,7 +16,9 @@ Local Coercion Z.of_nat : nat >-> Z.
 
 Definition RegNum: nat := 31.
 Definition MemNum: Z := 2000000.
+Definition ONum: Z := 1000.
 Global Opaque MemNum.
+Global Opaque ONum.
 
 (* ---------------------------------- Registers ----------------------------------------*)
 
@@ -139,82 +141,88 @@ Defined.
 Add Zify BinRel Op_RegName_eq.
 
 (* Names for registers *)
-Definition r_t0 : RegName := R 0 eq_refl.
-Definition r_t1 : RegName := R 1 eq_refl.
-Definition r_t2 : RegName := R 2 eq_refl.
-Definition r_t3 : RegName := R 3 eq_refl.
-Definition r_t4 : RegName := R 4 eq_refl.
-Definition r_t5 : RegName := R 5 eq_refl.
-Definition r_t6 : RegName := R 6 eq_refl.
-Definition r_t7 : RegName := R 7 eq_refl.
-Definition r_t8 : RegName := R 8 eq_refl.
-Definition r_t9 : RegName := R 9 eq_refl.
-Definition r_t10 : RegName := R 10 eq_refl.
-Definition r_t11 : RegName := R 11 eq_refl.
-Definition r_t12 : RegName := R 12 eq_refl.
-Definition r_t13 : RegName := R 13 eq_refl.
-Definition r_t14 : RegName := R 14 eq_refl.
-Definition r_t15 : RegName := R 15 eq_refl.
-Definition r_t16 : RegName := R 16 eq_refl.
-Definition r_t17 : RegName := R 17 eq_refl.
-Definition r_t18 : RegName := R 18 eq_refl.
-Definition r_t19 : RegName := R 19 eq_refl.
-Definition r_t20 : RegName := R 20 eq_refl.
-Definition r_t21 : RegName := R 21 eq_refl.
-Definition r_t22 : RegName := R 22 eq_refl.
-Definition r_t23 : RegName := R 23 eq_refl.
-Definition r_t24 : RegName := R 24 eq_refl.
-Definition r_t25 : RegName := R 25 eq_refl.
-Definition r_t26 : RegName := R 26 eq_refl.
-Definition r_t27 : RegName := R 27 eq_refl.
-Definition r_t28 : RegName := R 28 eq_refl.
-Definition r_t29 : RegName := R 29 eq_refl.
-Definition r_t30 : RegName := R 30 eq_refl.
-Definition r_t31 : RegName := R 31 eq_refl.
+(* special registers *)
+Definition cnull  : RegName := R 0 eq_refl. (* supposed to be null register *)
+Definition cra    : RegName := R 1 eq_refl. (* link register *)
+Definition csp    : RegName := R 2 eq_refl. (* compartment stack register *)
+Definition cgp    : RegName := R 3 eq_refl. (* global data register *)
 
-Notation cnull := r_t0. (* supposedly null register *)
-Notation cra   := r_t1. (* link register *)
-Notation csp   := r_t2. (* compartment stack register *)
-Notation cgp   := r_t3. (* global data register *)
+(* temporary registers *)
+Definition ctp : RegName := R 4 eq_refl.
+Definition ct0 : RegName := R 5 eq_refl.
+Definition ct1 : RegName := R 6 eq_refl.
+Definition ct2 : RegName := R 7 eq_refl.
+Definition ct3 : RegName := R 28 eq_refl.
+Definition ct4 : RegName := R 29 eq_refl.
+Definition ct5 : RegName := R 30 eq_refl.
+Definition ct6 : RegName := R 31 eq_refl.
 
-Notation ctp   := r_t4. (* temporary registers *)
-Notation ct0   := r_t5.
-Notation ct1   := r_t6.
-Notation ct2   := r_t7.
-Notation ct3   := r_t28.
-Notation ct4   := r_t29.
-Notation ct5   := r_t30.
-Notation ct6   := r_t31.
+(* other temporary registers *)
+Definition cs0  : RegName := R 8 eq_refl.  (* also aliased cfp *)
+Definition cs1  : RegName := R 9 eq_refl.
+Definition cs2  : RegName := R 18 eq_refl.
+Definition cs3  : RegName := R 19 eq_refl.
+Definition cs4  : RegName := R 20 eq_refl.
+Definition cs5  : RegName := R 21 eq_refl.
+Definition cs6  : RegName := R 22 eq_refl.
+Definition cs7  : RegName := R 23 eq_refl.
+Definition cs8  : RegName := R 24 eq_refl.
+Definition cs9  : RegName := R 25 eq_refl.
+Definition cs10 : RegName := R 26 eq_refl.
+Definition cs11 : RegName := R 27 eq_refl.
 
-Notation cs0   := r_t8. (* temporary registers ? *) (* also aliased cfp *)
-Notation cs1   := r_t9.
-Notation cs2   := r_t18.
-Notation cs3   := r_t19.
-Notation cs4   := r_t20.
-Notation cs5   := r_t21.
-Notation cs6   := r_t22.
-Notation cs7   := r_t23.
-Notation cs8   := r_t24.
-Notation cs9   := r_t25.
-Notation cs10  := r_t26.
-Notation cs11  := r_t27.
-
-Notation ca0   := r_t10. (* arguments registers *)
-Notation ca1   := r_t11.
-Notation ca2   := r_t12.
-Notation ca3   := r_t13.
-Notation ca4   := r_t14.
-Notation ca5   := r_t15.
-Notation ca6   := r_t16.
-Notation ca7   := r_t17.
+(* argument registers *)
+Definition ca0 : RegName := R 10 eq_refl.
+Definition ca1 : RegName := R 11 eq_refl.
+Definition ca2 : RegName := R 12 eq_refl.
+Definition ca3 : RegName := R 13 eq_refl.
+Definition ca4 : RegName := R 14 eq_refl.
+Definition ca5 : RegName := R 15 eq_refl.
+Definition ca6 : RegName := R 16 eq_refl.
+Definition ca7 : RegName := R 17 eq_refl.
 
 Notation mtdc  := MTDC.
 
-(* A list of all general purpuse registers (if regnum=31) *)
+(* A list of all general purpose registers *)
 Definition all_registers : list RegName :=
-  [r_t0;r_t1;r_t2;r_t3;r_t4;r_t5;r_t6;r_t7;r_t8;r_t9;r_t10;r_t11;r_t12;r_t13;
-     r_t14;r_t15;r_t16;r_t17;r_t18;r_t19;r_t20;r_t21;r_t22;r_t23;r_t24;r_t25;r_t26;
-       r_t27;r_t28;r_t29;r_t30;r_t31;PC].
+  [
+    cnull  ; (* supposed to be null register *)
+    cra    ; (* link register *)
+    csp    ; (* compartment stack register *)
+    cgp    ; (* global data register *)
+    (* temporary registers *)
+    ctp ;
+    ct0 ;
+    ct1 ;
+    ct2 ;
+    ct3 ;
+    ct4 ;
+    ct5 ;
+    ct6 ;
+    (* other temporary registers *)
+    cs0  ;  (* also aliased cfp *)
+    cs1  ;
+    cs2  ;
+    cs3  ;
+    cs4  ;
+    cs5  ;
+    cs6  ;
+    cs7  ;
+    cs8  ;
+    cs9  ;
+    cs10 ;
+    cs11 ;
+    (* argument registers *)
+    ca0 ;
+    ca1 ;
+    ca2 ;
+    ca3 ;
+    ca4 ;
+    ca5 ;
+    ca6 ;
+    ca7 ;
+    PC
+  ].
 
 (* Set of all registers *)
 Definition all_registers_s : gset RegName := list_to_set all_registers.
@@ -235,7 +243,20 @@ Qed.
 Lemma all_registers_correct r1 :
   r1 ∈ all_registers.
 Proof.
-  rewrite /all_registers.
+  set ( all_registers' := [cnull; cra; csp; cgp; ctp; ct0; ct1; ct2; cs0; cs1; ca0; ca1; ca2; ca3; ca4; ca5; ca6; ca7;
+        cs2; cs3; cs4; cs5; cs6; cs7; cs8; cs9; cs10; cs11; ct3; ct4; ct5; ct6; PC]).
+  assert (elements ((list_to_set all_registers) : gset RegName) ≡ₚ elements ((list_to_set all_registers') : gset RegName)).
+  { set_solver. }
+  setoid_rewrite elements_list_to_set in H; cycle 1.
+  { rewrite /all_registers.
+    repeat (apply NoDup_cons; split; first set_solver).
+    by apply NoDup_nil.
+  }
+  { rewrite /all_registers'.
+    repeat (apply NoDup_cons; split; first set_solver).
+    by apply NoDup_nil.
+  }
+  setoid_rewrite H.
   destruct r1 as [|n fin].
   - do 32 (apply elem_of_cons; right).
       by apply elem_of_list_singleton.
@@ -245,6 +266,7 @@ Proof.
     + apply elem_of_list_lookup_2 with (S n).
       repeat (destruct n as [|n];
                 first (simpl;do 2 f_equal;apply eq_proofs_unicity;decide equality)).
+      cbn.
       simpl in *. inversion fin.
 Qed.
 
@@ -296,10 +318,8 @@ Proof.
   - intros rr _. rewrite elem_of_dom. apply Hfull.
 Qed.
 
-Global Opaque r_t1 r_t2 r_t3 r_t4 r_t5 r_t6 r_t7 r_t8 r_t9
-  r_t10 r_t11 r_t12 r_t13 r_t14 r_t15 r_t16 r_t17 r_t18 r_t19
-  r_t20 r_t21 r_t22 r_t23 r_t24 r_t25 r_t26 r_t27 r_t28 r_t29
-  r_t30 r_t31.
+Global Opaque cnull cra csp cgp ctp ct0 ct1 ct2 cs0 cs1 ca0 ca1 ca2 ca3 ca4 ca5 ca6 ca7
+        cs2 cs3 cs4 cs5 cs6 cs7 cs8 cs9 cs10 cs11 ct3 ct4 ct5 ct6.
 
 (* -------------------------------- Memory addresses -----------------------------------*)
 
@@ -331,8 +351,6 @@ Global Open Scope general_if_scope.
 (* ---------------------------------- OTypes ----------------------------------------*)
 
 (* Number of otypes in our system *)
-Definition ONum: nat := 1000.
-Global Opaque ONum.
 Notation OType := (finz ONum).
 Declare Scope OType_scope.
 Delimit Scope OType_scope with ot.

@@ -25,22 +25,6 @@ Section DLE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  (* TODO move *)
-  Lemma big_sepL_elem_of_extract { A : Type } (P Q : A -> iProp Σ) (a : A) (l : list A) :
-    a ∈ l ->
-    NoDup l ->
-    (∀ a, P a -∗ Q a) -∗
-    ([∗ list] a ∈ l, P a) -∗
-    ∃ l', ⌜ l ≡ₚ a::l' ⌝ ∗ ([∗ list] a ∈ l', P a) ∗ (Q a).
-  Proof.
-    iIntros (Ha_in Hnodup) "Himpl Hl".
-    apply elem_of_Permutation in Ha_in as [l' Hl'].
-    iExists l'; iFrame "%".
-    iEval (setoid_rewrite Hl') in "Hl".
-    iDestruct "Hl" as "[Ha $]".
-    by iApply "Himpl".
-  Qed.
-
   Lemma dle_spec
 
     (pc_b pc_e pc_a : Addr)

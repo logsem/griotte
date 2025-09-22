@@ -279,7 +279,6 @@ Section logrel.
   Proof. solve_contractive. Qed.
 
 
-  (* TODO Is there any way to move this at a better place? *)
   Definition opening_resources (interp : V) W C a :=
     (∃ v φ p ρ,
       sts_state_std C a ρ
@@ -608,13 +607,12 @@ Section logrel.
   Global Instance interp_cap_contractive :
     Contractive (interp_cap).
   Proof.
-    (* solve_proper_prepare. *)
-    (* destruct_word x2; auto. *)
-    (* destruct c ; auto. *)
-    (* destruct rx,w,g; auto. *)
-    (* par: solve_contractive. (* TODO how can I set -async-proofs-tac-j *) *)
-    (* Qed. *)
-  Admitted. (* TODO holds, but very loooong *)
+    solve_proper_prepare.
+    destruct_word x2; auto.
+    destruct c ; auto.
+    destruct rx,w,g; auto.
+    par: solve_contractive.
+  Qed.
 
   Global Instance interp_sr_contractive :
     Contractive (interp_sr).
@@ -629,18 +627,17 @@ Section logrel.
   Global Instance interp1_contractive :
     Contractive (interp1).
   Proof.
-    (* intros n x y Hdistn W C w. *)
-    (* rewrite /interp1. *)
-    (* destruct_word w; [auto|..]. *)
-    (* + destruct c; first auto. *)
-    (*   destruct rx,w,dl,dro. *)
-    (*   par: try (by apply interp_cap_O_contractive). *)
-    (*   par: by apply interp_cap_contractive. *)
-    (* + by apply interp_sr_contractive. *)
-    (* + by apply interp_sentry_contractive. *)
-    (* + rewrite /interp_sb; solve_contractive. *)
-    (* Qed. *)
-  Admitted. (* TODO holds, but very loooong *)
+    intros n x y Hdistn W C w.
+    rewrite /interp1.
+    destruct_word w; [auto|..].
+    + destruct c; first auto.
+      destruct rx,w,dl,dro.
+      par: try (by apply interp_cap_O_contractive).
+      par: by apply interp_cap_contractive.
+    + by apply interp_sr_contractive.
+    + by apply interp_sentry_contractive.
+    + rewrite /interp_sb; solve_contractive.
+    Qed.
 
   Lemma fixpoint_interp1_eq (W : WORLD) (C : CmptName) (w : leibnizO Word) :
     fixpoint (interp1) W C w ≡ interp1 (fixpoint (interp1)) W C w.
@@ -710,28 +707,28 @@ Section logrel.
                     ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
                ∗ (⌜ if isWL p then g = Local else True⌝))%I).
   Proof.
-    (* iSplit. *)
-    (* { iIntros "HA". *)
-    (*   destruct (isO p) eqn:HnotO; subst; auto. *)
-    (*   destruct p; cbn. *)
-    (*   destruct rx ; destruct w ; try (cbn in HnotO ; congruence); auto. *)
-    (*   all: destruct g ;auto ; try (iSplit;eauto). *)
-    (*   all: try (iApply (big_sepL_mono with "HA"); intros k a' ?; iIntros "H"). *)
-    (*   all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a')"). *)
-    (*   all: try (iExists p',P ; iFrame "#∗"; repeat (iSplit;[done|];done)). *)
-    (* } *)
-    (* { iIntros "A". *)
-    (*   destruct (isO p) eqn:HnotO; subst; auto. *)
-    (*   { destruct_perm p ; cbn in *;auto;try congruence. } *)
-    (*   destruct (has_sreg_access p) eqn:HnotXSR; subst; auto. *)
-    (*   iDestruct "A" as "(A & %)". *)
-    (*   destruct_perm p; cbn in HnotO,HnotXSR; try congruence; auto. *)
-    (*   all: destruct g eqn:Hg; simplify_eq ; eauto ; cbn. *)
-    (*   all: try (iApply (big_sepL_mono with "A"); intros; iIntros "H"). *)
-    (*   all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a')"). *)
-    (*   all: try (iExists p',P ; iFrame "#∗"; repeat (iSplit;[done|];done)). *)
-    (* } *)
-  Admitted. (* TODO holds, but very long to compile *)
+    iSplit.
+    { iIntros "HA".
+      destruct (isO p) eqn:HnotO; subst; auto.
+      destruct p; cbn.
+      destruct rx ; destruct w ; try (cbn in HnotO ; congruence); auto.
+      all: destruct g ;auto ; try (iSplit;eauto).
+      all: try (iApply (big_sepL_mono with "HA"); intros k a' ?; iIntros "H").
+      all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a')").
+      all: try (iExists p',P ; iFrame "#∗"; repeat (iSplit;[done|];done)).
+    }
+    { iIntros "A".
+      destruct (isO p) eqn:HnotO; subst; auto.
+      { destruct_perm p ; cbn in *;auto;try congruence. }
+      destruct (has_sreg_access p) eqn:HnotXSR; subst; auto.
+      iDestruct "A" as "(A & %)".
+      destruct_perm p; cbn in HnotO,HnotXSR; try congruence; auto.
+      all: destruct g eqn:Hg; simplify_eq ; eauto ; cbn.
+      all: try (iApply (big_sepL_mono with "A"); intros; iIntros "H").
+      all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a')").
+      all: try (iExists p',P ; iFrame "#∗"; repeat (iSplit;[done|];done)).
+    }
+  Qed.
 
 
   (* Inversion lemmas about interp  *)
@@ -763,54 +760,6 @@ Section logrel.
     rewrite Ra'.
     iExists p',P'; iFrame "#∗%"; try done.
   Qed.
-
-  (* Lemma read_allowed_inv' (W : WORLD) (C : CmptName) (a b e: Addr) p g l : *)
-  (*   readAllowed p → *)
-  (*   Forall (fun a' : Addr => (b <= a' < e)%a ) l -> *)
-  (*   ⊢ (interp W C (WCap p g b e a)) → *)
-  (*   [∗ list] a' ∈ l, *)
-  (*         ( *)
-  (*           ∃ (p' : Perm) (P:V), *)
-  (*             ⌜ PermFlowsTo p p'⌝ *)
-  (*             ∗ ⌜persistent_cond P⌝ *)
-  (*             ∗ rel C a' p' (safeC P) *)
-  (*             ∗ ▷ zcond P C *)
-  (*             ∗ ▷ rcond P C p' interp *)
-  (*             ∗ (if writeAllowed p' then (▷ wcond P C interp) else True) *)
-  (*             ∗ monoReq W C a' p' P *)
-  (*         ). *)
-  (* Proof. *)
-  (*   induction l; iIntros (Hra Hin) "#Hinterp"; first done. *)
-  (*   simpl. *)
-  (*   apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin]. *)
-  (*   iDestruct (read_allowed_inv _ _ a0 with "Hinterp") *)
-  (*     as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)" *)
-  (*   ; auto. *)
-  (*   iFrame "%#". *)
-  (*   iApply (IHl with "Hinterp"); eauto. *)
-  (* Qed. *)
-
-  (* Lemma read_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g : *)
-  (*   readAllowed p → *)
-  (*   ⊢ (interp W C (WCap p g b e a)) → *)
-  (*   [∗ list] a' ∈ (finz.seq_between b e), *)
-  (*         ( *)
-  (*           ∃ (p' : Perm) (P:V), *)
-  (*             ⌜ PermFlowsTo p p'⌝ *)
-  (*             ∗ ⌜persistent_cond P⌝ *)
-  (*             ∗ rel C a' p' (safeC P) *)
-  (*             ∗ ▷ zcond P C *)
-  (*             ∗ ▷ rcond P C p' interp *)
-  (*             ∗ (if writeAllowed p' then (▷ wcond P C interp) else True) *)
-  (*             ∗ monoReq W C a' p' P *)
-  (*         ). *)
-  (* Proof. *)
-  (*   iIntros (Hra) "Hinterp". *)
-  (*   iApply (read_allowed_inv' with "Hinterp"); eauto. *)
-  (*   apply Forall_forall. *)
-  (*   intros a' Ha'. *)
-  (*   by apply elem_of_finz_seq_between. *)
-  (* Qed. *)
 
   Lemma write_allowed_inv (W : WORLD) (C : CmptName) (a' a b e: Addr) p g :
     (b ≤ a' ∧ a' < e)%Z →

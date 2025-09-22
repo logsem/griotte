@@ -183,6 +183,28 @@ Section Logrel_extra.
     iApply (IHl with "Hinterp"); eauto.
   Qed.
 
+  Lemma read_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g :
+    readAllowed p →
+    ⊢ (interp W C (WCap p g b e a)) →
+    [∗ list] a' ∈ (finz.seq_between b e),
+          (
+            ∃ (p' : Perm) (P:V),
+              ⌜ PermFlowsTo p p'⌝
+              ∗ ⌜persistent_cond P⌝
+              ∗ rel C a' p' (safeC P)
+              ∗ ▷ zcond P C
+              ∗ ▷ rcond P C p' interp
+              ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
+              ∗ monoReq W C a' p' P
+          ).
+  Proof.
+    iIntros (Hra) "Hinterp".
+    iApply (read_allowed_inv' with "Hinterp"); eauto.
+    apply Forall_forall.
+    intros a' Ha'.
+    by apply elem_of_finz_seq_between.
+  Qed.
+
   Lemma writeLocalAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a a':
     isWL p = true ->
     withinBounds b e a = true ->
@@ -215,8 +237,46 @@ Section Logrel_extra.
     iApply (IHl with "Hinterp"); eauto.
   Qed.
 
-  Lemma read_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g :
-    readAllowed p →
+  Lemma writeLocalAllowed_valid_cap_implies_full_cap (W : WORLD) (C : CmptName) p g b e a:
+    isWL p = true ->
+    ⊢ (interp W C (WCap p g b e a)) →
+    [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! a' = Some Temporary⌝.
+  Proof.
+    iIntros (Hwl) "Hinterp".
+    iApply (writeLocalAllowed_valid_cap_implies' with "Hinterp"); eauto.
+    apply Forall_forall.
+    intros a' Ha'.
+    by apply elem_of_finz_seq_between.
+  Qed.
+
+  Lemma write_allowed_inv' (W : WORLD) (C : CmptName) (a b e: Addr) p g l :
+    writeAllowed p →
+    Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
+    ⊢ (interp W C (WCap p g b e a)) →
+    [∗ list] a' ∈ l,
+          (
+            ∃ (p' : Perm) (P:V),
+              ⌜ PermFlowsTo p p'⌝
+              ∗ ⌜persistent_cond P⌝
+              ∗ rel C a' p' (safeC P)
+              ∗ ▷ zcond P C
+              ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
+              ∗ (▷ wcond P C interp)
+              ∗ monoReq W C a' p' P
+          ).
+  Proof.
+    induction l; iIntros (Hra Hin) "#Hinterp"; first done.
+    simpl.
+    apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
+    iDestruct (write_allowed_inv _ _ a0 with "Hinterp")
+      as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)"
+    ; auto.
+    iFrame "%#".
+    iApply (IHl with "Hinterp"); eauto.
+  Qed.
+
+  Lemma write_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g :
+    writeAllowed p →
     ⊢ (interp W C (WCap p g b e a)) →
     [∗ list] a' ∈ (finz.seq_between b e),
           (
@@ -225,25 +285,13 @@ Section Logrel_extra.
               ∗ ⌜persistent_cond P⌝
               ∗ rel C a' p' (safeC P)
               ∗ ▷ zcond P C
-              ∗ ▷ rcond P C p' interp
-              ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
+              ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
+              ∗ (▷ wcond P C interp)
               ∗ monoReq W C a' p' P
           ).
   Proof.
     iIntros (Hra) "Hinterp".
-    iApply (read_allowed_inv' with "Hinterp"); eauto.
-    apply Forall_forall.
-    intros a' Ha'.
-    by apply elem_of_finz_seq_between.
-  Qed.
-
-  Lemma writeLocalAllowed_valid_cap_implies_full_cap (W : WORLD) (C : CmptName) p g b e a:
-    isWL p = true ->
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! a' = Some Temporary⌝.
-  Proof.
-    iIntros (Hwl) "Hinterp".
-    iApply (writeLocalAllowed_valid_cap_implies' with "Hinterp"); eauto.
+    iApply (write_allowed_inv' with "Hinterp"); eauto.
     apply Forall_forall.
     intros a' Ha'.
     by apply elem_of_finz_seq_between.
@@ -656,52 +704,132 @@ Section Logrel_extra.
     }
   Qed.
 
-  Lemma write_allowed_inv' (W : WORLD) (C : CmptName) (a b e: Addr) p g l :
-    writeAllowed p →
-    Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ l,
-          (
-            ∃ (p' : Perm) (P:V),
-              ⌜ PermFlowsTo p p'⌝
-              ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
-              ∗ ▷ zcond P C
-              ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
-              ∗ (▷ wcond P C interp)
-              ∗ monoReq W C a' p' P
-          ).
+  Lemma opening_closing_resources W C a :
+    opening_resources interp W C a -∗ (∃ v, ▷ closing_resources interp W C a v ∗ a ↦ₐ v).
   Proof.
-    induction l; iIntros (Hra Hin) "#Hinterp"; first done.
-    simpl.
-    apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
-    iDestruct (write_allowed_inv _ _ a0 with "Hinterp")
-      as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)"
-    ; auto.
-    iFrame "%#".
-    iApply (IHl with "Hinterp"); eauto.
+    iIntros "H".
+    iDestruct "H" as (w φ p ρ) "(?&?&?&?&?&?&?&?&?&?)".
+    iFrame.
   Qed.
 
-  Lemma write_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g :
-    writeAllowed p →
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ (finz.seq_between b e),
-          (
-            ∃ (p' : Perm) (P:V),
-              ⌜ PermFlowsTo p p'⌝
-              ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
-              ∗ ▷ zcond P C
-              ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
-              ∗ (▷ wcond P C interp)
-              ∗ monoReq W C a' p' P
-          ).
+  Lemma closing_resources_zeroed W C a v :
+    closing_resources interp W C a v -∗
+    closing_resources interp W C a (WInt 0).
   Proof.
-    iIntros (Hra) "Hinterp".
-    iApply (write_allowed_inv' with "Hinterp"); eauto.
-    apply Forall_forall.
-    intros a' Ha'.
-    by apply elem_of_finz_seq_between.
+    iIntros "H".
+    iDestruct "H" as (φ p ρ) "(?&Hφ&#Hmono&#Hwcond&#Hrcond&?&?&?&?)".
+    iExists φ, p, ρ.
+    iFrame "∗#".
+    iSplit.
+    { iApply "Hrcond"; iEval (rewrite fixpoint_interp1_eq); done. }
+    rewrite /monotonicity_guarantees_region.
+    destruct ρ; auto ; [destruct (isWL p); [|destruct (isDL p)] |].
+    all: iModIntro; iIntros (W0 W1 ?) "?".
+    all: iApply "Hrcond".
+    all: iEval (rewrite fixpoint_interp1_eq); done.
+  Qed.
+
+  Lemma region_open_list_interp_gen (W : WORLD) (C : CmptName)
+    (la la' : list Addr) (g : Locality) (b e a : Addr) :
+    NoDup la ->
+    Forall (fun a' : Addr => (b <= a' < e)%a ) la ->
+    la ## la' ->
+
+    interp W C (WCap RWL g b e a)
+    ∗ open_region_many W C la'
+    ∗ sts_full_world W C -∗
+
+      open_region_many W C (la++la')
+      ∗ sts_full_world W C
+      ∗ ([∗ list] a ∈ la, opening_resources interp W C a)
+  .
+  Proof.
+    induction la; intros Hnodup Hin Hdis ;
+      iIntros "(#Hinterp & Hr & Hsts)"; cbn in * |- *.
+    - by iFrame.
+    - apply Forall_cons in Hin; destruct Hin as [Hin_a0 Hin].
+      apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
+      eapply disjoint_weak in Hdis.
+      iDestruct (IHla with "[$Hinterp $Hr $Hsts]") as "IH"; eauto.
+      iDestruct "IH" as "(Hr & Hsts & Hopen_res)".
+      iDestruct (read_allowed_inv _ _ a0 with "Hinterp")
+        as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)"
+      ; auto.
+      assert (writeAllowed p' = true) as ->.
+      {eapply writeAllowed_flowsto; eauto. }
+      iDestruct (readAllowed_valid_cap_implies with "Hinterp") as (ρ) "[%HWa %Hρ]"; auto.
+      { by eapply withinBounds_true_iff. }
+      iDestruct (region_open_next with "[$Hr $Hrel_P $Hsts]") as "Ha"; eauto.
+      {
+        intros Hcontra.
+        apply elem_of_app in Hcontra. destruct Hcontra as [Hcontra|Hcontra]
+        ; [set_solver+Hcontra Hnotin|set_solver+Hcontra Ha_notin_l'].
+      }
+      iDestruct "Ha" as (va) "(Hsts & Hsts_std_a & Hr & Hv_a & #Hmono_a & Hφ_a & %Hp_a)".
+      pose proof (Hpers_P (W,C,va)); iDestruct "Hφ_a" as "#Hφ_a".
+      iAssert (▷ P W C (WInt 0))%I as "Hφ_a'".
+      { iNext.
+        rewrite /rcond /wcond.
+        iDestruct "Hwcond_P" as "#Hwcond_P".
+        iApply "Hwcond_P".
+        iEval (rewrite fixpoint_interp1_eq); done.
+      }
+      iAssert (▷ monotonicity_guarantees_region C (safeC P) p' (WInt 0) ρ)%I as "Hmono_a'".
+      { iNext.
+        rewrite /monotonicity_guarantees_region.
+        destruct ρ; auto ; [destruct (isWL p'); [|destruct (isDL p')] |].
+        all: iModIntro; iIntros (W0 W1 ?) "?".
+        all: iDestruct "Hwcond_P" as "#Hwcond_P"; iApply "Hwcond_P".
+        all: iEval (rewrite fixpoint_interp1_eq); done.
+      }
+      cbn.
+      iFrame "∗#%".
+      iSplit; iPureIntro.
+      + eapply notisDRO_flowsfrom; eauto.
+      + eapply notisDL_flowsfrom; eauto.
+  Qed.
+
+  Lemma region_close_list_interp_gen (W : WORLD) (C : CmptName)
+  (lv : list Word)
+  (la la' : list Addr):
+
+    NoDup la ->
+    la ## la' ->
+    length lv = length la ->
+
+    open_region_many W C (la++la')
+    ∗ ([∗ list] a ; v ∈ la ; lv, a ↦ₐ v ∗ closing_resources interp W C a v)
+    -∗ open_region_many W C la'
+  .
+  Proof.
+    generalize dependent lv.
+    induction la; intros lv Hnodup Hdis Hlen_lv
+    ; iIntros "(Hr & Hclose_res)"; cbn in * |- *.
+    - by iFrame.
+    - destruct lv as [| v lv ]; simplify_eq.
+      cbn.
+      iDestruct "Hclose_res" as "[ [Ha Hclose_res_a] Hclose_res ]".
+      iDestruct "Hclose_res_a"
+        as (? ? ?) "(Hstd & Hφ & Hmono & _ & _ & Hrel & %Hrevoked & %Hp & %Hp' & %Hp'' & %Hpers)".
+      apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
+      pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
+      eapply disjoint_weak in Hdis.
+      iDestruct (region_close_next with "[$Hstd $Hr $Ha $Hmono $Hφ $Hrel]") as "Hr"; eauto.
+      {
+        intros Hcontra.
+        apply elem_of_app in Hcontra. destruct Hcontra as [Hcontra|Hcontra]
+        ; [set_solver+Hcontra Hnotin|set_solver+Hcontra Ha_notin_l'].
+      }
+      iDestruct (IHla with "[$Hr $Hclose_res]") as "IH"; eauto.
+  Qed.
+
+  Lemma closing_resources_interp W C a w :
+    closing_resources interp W C a w -∗ interp W C w.
+    iIntros "H".
+    iDestruct "H" as (???) "(Hstd&Hφ&Hmono&Hrcond&Hrel&?&?&%&%&%&%)".
+    destruct p.
+    destruct dl,dro; try done; by iApply "Hrcond".
   Qed.
 
 End Logrel_extra.

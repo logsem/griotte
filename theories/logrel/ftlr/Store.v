@@ -275,7 +275,6 @@ Section fundamental.
       case_decide as Hdec1; last by done. by exfalso.
   Qed.
 
-  (* TODO move somewhere *)
   Lemma monotonicity_guarantees_region_canStore
     (W : WORLD) (C : CmptName)
     (p : Perm) (w : Word) (P : D)

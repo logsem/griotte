@@ -312,19 +312,6 @@ Section fundamental.
     iFrame "∗#%".
   Qed.
 
-  (* TODO move in machine_base *)
-  Lemma DL_flowsto (rx : RXperm) (w : Wperm) dl dro :
-    PermFlowsTo (BPerm rx w DL dro) (BPerm rx w dl dro).
-  Proof.
-    destruct rx,w,dl,dro; cbn in *; done.
-  Qed.
-
-  Lemma DRO_flowsto (rx : RXperm) (w : Wperm) dl dro :
-    PermFlowsTo (BPerm rx Ow dl DRO) (BPerm rx w dl dro).
-  Proof.
-    destruct rx,w,dl,dro; cbn in *; done.
-  Qed.
-
   Lemma interp_deeplocal_word W C w : interp W C w ⊢ interp W C (deeplocal w).
   Proof.
     iIntros "Hw".

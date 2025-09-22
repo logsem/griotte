@@ -365,7 +365,7 @@ Notation "name ∷ P" := (named name P%I) (at level 79).
 (* Enable eauto to solve goals where the top-level is [named] *)
 #[global] Hint Extern 0 (environments.envs_entails _ (named _ _)) => unfold named : core.
 
-(* TODO: maybe we should move tests out *)
+(* maybe we should move tests out *)
 Module tests.
   Unset Mangle Names.
   Set Default Proof Using "All".

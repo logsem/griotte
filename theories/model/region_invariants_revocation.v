@@ -1006,62 +1006,6 @@ Section heap.
         revert Hin Hdom'. clear; intros Hin Hdom. rewrite Hdom. set_solver.
   Qed.
 
-  (* TODO move *)
-  Lemma open_region_rel_get (W : WORLD) (C : CmptName) (a aopen : Addr) :
-    a ≠ aopen ->
-    (std W) !! a = Some Temporary ->
-    open_region W C aopen ∗ sts_full_world W C
-    ==∗
-    open_region W C aopen ∗ sts_full_world W C ∗ ∃ p φ, ⌜forall WCv, Persistent (φ WCv)⌝ ∗ rel C a p φ.
-  Proof.
-    iIntros (Haneq Hlookup) "[Hr Hsts]".
-    rewrite open_region_eq /open_region_def.
-    iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
-    assert (is_Some (M !! a)) as [ [γ p] Hγp].
-    { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom; eauto. }
-    iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].
-    iDestruct (big_sepM_delete _ _ a with "Hr") as "[Hstate Hr]";[rewrite lookup_delete_ne; eauto|].
-    iDestruct "Hstate" as (ρ Ha) "[Hρ Hstate]".
-    iDestruct (sts_full_state_std with "Hsts Hρ") as %Hx''; simplify_eq.
-    all: iDestruct "Hstate" as (γpred p' φ Heq Hpers) "(#Hsaved & Ha)".
-    all: iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
-    all: iDestruct (big_sepM_delete _ _ a with "[Hρ Ha HmonoV Hφ $Hr]") as "Hr";[rewrite lookup_delete_ne; eauto| |].
-    { iExists Temporary. iFrame "∗#%". }
-    all: iModIntro.
-    all: iSplitL "HM Hr".
-    { iExists M. iFrame "∗#%". }
-    all: iFrame; iExists p,φ; iSplit;auto; rewrite rel_eq /rel_def; iExists γpred.
-    all: simplify_eq; iFrame "Hsaved Hrel".
-  Qed.
-
-  Lemma open_region_many_rel_get (W : WORLD) (C : CmptName) (a : Addr) (lopen : list Addr) :
-    a ∉ lopen ->
-    (std W) !! a = Some Temporary ->
-    open_region_many W C lopen ∗ sts_full_world W C
-    ==∗
-    open_region_many W C lopen ∗ sts_full_world W C ∗ ∃ p φ, ⌜forall WCv, Persistent (φ WCv)⌝ ∗ rel C a p φ.
-  Proof.
-    iIntros (Haneq Hlookup) "[Hr Hsts]".
-    rewrite open_region_many_eq /open_region_many_def.
-    iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
-    assert (is_Some (M !! a)) as [ [γ p] Hγp].
-    { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom; eauto. }
-    iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].
-    iDestruct (big_sepM_delete _ _ a with "Hr") as "[Hstate Hr]";[rewrite lookup_delete_list_notin; eauto|].
-    iDestruct "Hstate" as (ρ Ha) "[Hρ Hstate]".
-    iDestruct (sts_full_state_std with "Hsts Hρ") as %Hx''; simplify_eq.
-    all: iDestruct "Hstate" as (γpred p' φ Heq Hpers) "(#Hsaved & Ha)".
-    all: iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
-    all: iDestruct (big_sepM_delete _ _ a with "[Hρ Ha HmonoV Hφ $Hr]") as "Hr"
-    ;[rewrite lookup_delete_list_notin; eauto| |].
-    { iExists Temporary. iFrame "∗#%". }
-    all: iModIntro.
-    all: iSplitL "HM Hr".
-    { iExists M. iFrame "∗#%". }
-    all: iFrame; iExists p,φ; iSplit;auto; rewrite rel_eq /rel_def; iExists γpred.
-    all: simplify_eq; iFrame "Hsaved Hrel".
-  Qed.
-
   Lemma monotone_revoke_list_sts_full_world_keep_alt W C (l : list Addr) (l' : list Addr) p φ :
     ⊢ ⌜NoDup l'⌝ → ⌜NoDup l⌝ → ⌜l' ⊆+ l⌝ →
     ([∗ list] a ∈ l', ⌜(std W) !! a = Some Temporary⌝ ∗ rel C a p φ)
