@@ -1,5 +1,7 @@
 # Griotte - Fork from Monotone Cerise
 
+TODO: UPDATE THE README
+
 This directory contains the Coq mechanization accompanying the submission "Le
 Temps des Cerises: Efficient Temporal Stack Safety on Capability Machines using
 Directed Capabilities".
