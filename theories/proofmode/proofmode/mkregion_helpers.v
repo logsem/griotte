@@ -21,18 +21,19 @@ Proof.
   { intros * Hl. cbn.
     rewrite (_: b = e). 2: solve_addr.
     rewrite finz_seq_between_empty //.
-    split. by inversion 1. intros [? [? ?] ].  rewrite lookup_nil in H0. congruence. }
+    split; first by inversion 1.
+    intros [? [? ?] ].  rewrite lookup_nil in H0. congruence. }
   { intros * Hl. cbn in *.
     rewrite finz_seq_between_cons. 2: solve_addr. cbn.
     split.
     { intros [HH|HH]%elem_of_cons.
-      { simplify_eq. exists 0. split. solve_addr. constructor. }
+      { simplify_eq. exists 0. split; first solve_addr. constructor. }
       { eapply IHl in HH as [i [? ?] ].
         { exists (S i). split; solve_addr. }
         { solve_addr. } } }
     { intros [i [? H2] ]. destruct i.
-      { cbn in H2. simplify_eq. rewrite (_: b ^+ 0%nat = b)%a. constructor. solve_addr. }
-      { constructor. cbn in H2. apply IHl. solve_addr. exists i.
+      { cbn in H2. simplify_eq. rewrite (_: b ^+ 0%nat = b)%a; first constructor. solve_addr. }
+      { constructor. cbn in H2. apply IHl; first solve_addr. exists i.
         split; solve_addr. } } }
 Qed.
 
@@ -60,8 +61,8 @@ Lemma mkregion_lookup (b e a : Addr) l x :
   mkregion b e l !! a = Some x ↔ ∃ (i:nat), a = (b ^+ i)%a ∧ l !! i = Some x.
 Proof.
   intros Hl. rewrite /mkregion.
-  rewrite -elem_of_list_to_map. apply zip_seq_between_lookup; auto.
-  rewrite fst_zip. apply finz_seq_between_NoDup.
+  rewrite -elem_of_list_to_map; first apply zip_seq_between_lookup; auto.
+  rewrite fst_zip; first apply finz_seq_between_NoDup.
   rewrite finz_seq_between_length /finz.dist. solve_addr.
 Qed.
 
@@ -175,7 +176,7 @@ Lemma mkregion_sepM_to_sepL2_zip `{Σ: gFunctors} (a e: Addr) l l' (φ φ': Addr
 Proof.
   rewrite /mkregion. revert a e l'. induction l as [| x l].
   { cbn. intros. rewrite zip_with_nil_r /=. assert (a = e) as -> by solve_addr.
-    rewrite /finz.seq_between /finz.dist /=. assert ((Z.to_nat (e - e)) = 0) as ->. lia. simpl.
+    rewrite /finz.seq_between /finz.dist /=. assert ((Z.to_nat (e - e)) = 0) as -> by lia. simpl.
     rewrite /mbkregion. rewrite finz_seq_between_empty;[|solve_addr]. eauto. }
   { cbn. intros a e l' Hlen Hlen'.
     assert (length l' = S (length l)) as Hleneq.
@@ -196,5 +197,5 @@ Proof.
     { rewrite -not_elem_of_list_to_map /=.
       intros [ [? ?] [-> [? ?]%elem_of_zip_l%elem_of_finz_seq_between] ]%elem_of_list_fmap.
       solve_addr. }
-    iFrame. iApply (IHl with "H H'"). solve_addr. solve_addr. }
+    iFrame. iApply (IHl with "H H'"); solve_addr. }
 Qed.

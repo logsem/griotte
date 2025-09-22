@@ -511,7 +511,7 @@ Definition RXPermFlowsTo (rx1 rx2: RXperm): bool :=
 
 Lemma RXPermFlowsTo_refl : forall rx,  RXPermFlowsTo rx rx.
 Proof.
-  destruct rx; cbn ; done.
+  intro rx; destruct rx; cbn ; done.
 Qed.
 Global Instance RXPermFlowsToReflexive: Reflexive RXPermFlowsTo.
 Proof.
@@ -521,7 +521,7 @@ Qed.
 
 Lemma RXPermFlowsTo_trans : transitive _ RXPermFlowsTo.
 Proof.
-  red; intros.
+  red; intros x y z.
   destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
 Global Instance RXPermFlowsToTransitive: Transitive RXPermFlowsTo.
@@ -546,7 +546,7 @@ Definition WPermFlowsTo (w1 w2 : Wperm) : bool :=
 
 Lemma WPermFlowsTo_refl : forall rx,  WPermFlowsTo rx rx.
 Proof.
-  destruct rx; cbn ; done.
+  intro rx; destruct rx; cbn ; done.
 Qed.
 Global Instance WPermFlowsToReflexive: Reflexive WPermFlowsTo.
 Proof.
@@ -556,7 +556,7 @@ Qed.
 
 Lemma WPermFlowsTo_trans : transitive _ WPermFlowsTo.
 Proof.
-  red; intros.
+  red; intros x y z.
   destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
 Global Instance WPermFlowsToTransitive: Transitive WPermFlowsTo.
@@ -577,7 +577,7 @@ Definition DLPermFlowsTo (dl1 dl2 : DLperm) : bool :=
 
 Lemma DLPermFlowsTo_refl : forall rx,  DLPermFlowsTo rx rx.
 Proof.
-  destruct rx; cbn ; done.
+  intro rx; destruct rx; cbn ; done.
 Qed.
 Global Instance DLPermFlowsToReflexive: Reflexive DLPermFlowsTo.
 Proof.
@@ -587,7 +587,7 @@ Qed.
 
 Lemma DLPermFlowsTo_trans : transitive _ DLPermFlowsTo.
 Proof.
-  red; intros.
+  red; intros x y z.
   destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
 Global Instance DLPermFlowsToTransitive: Transitive DLPermFlowsTo.
@@ -608,7 +608,7 @@ Definition DROPermFlowsTo (dro1 dro2 : DROperm) : bool :=
 
 Lemma DROPermFlowsTo_refl : forall rx,  DROPermFlowsTo rx rx.
 Proof.
-  destruct rx; cbn ; done.
+  intro rx; destruct rx; cbn ; done.
 Qed.
 Global Instance DROPermFlowsToReflexive: Reflexive DROPermFlowsTo.
 Proof.
@@ -618,7 +618,7 @@ Qed.
 
 Lemma DROPermFlowsTo_trans : transitive _ DROPermFlowsTo.
 Proof.
-  red; intros.
+  red; intros x y z.
   destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
 Global Instance DROPermFlowsToTransitive: Transitive DROPermFlowsTo.
@@ -669,7 +669,7 @@ Qed.
 Lemma PermFlowsTo_refl:
   forall p, PermFlowsTo p p.
 Proof.
-  intros; destruct_perm p; auto.
+  intros p; destruct_perm p; auto.
 Qed.
 Global Instance PermFlowsToReflexive: Reflexive PermFlowsTo.
 Proof.
@@ -699,7 +699,7 @@ Definition LocalityFlowsTo (l1 l2: Locality): bool :=
 Lemma localityflowsto_trans :
   transitive _ LocalityFlowsTo.
 Proof.
-  red; intros; destruct x; destruct y; destruct z; try congruence; auto.
+  red; intros x y z; destruct x; destruct y; destruct z; try congruence; auto.
 Qed.
 Global Instance LocalityFlowsToTransitive: Transitive LocalityFlowsTo.
 Proof.
@@ -711,7 +711,7 @@ Qed.
 Lemma localityflowsto_refl:
   forall g, LocalityFlowsTo g g.
 Proof.
-  intros; destruct g; auto.
+  intros g; destruct g; auto.
 Qed.
 Global Instance LocalityFlowsToReflexive: Reflexive LocalityFlowsTo.
 Proof.
@@ -884,7 +884,7 @@ Qed.
 
 (* Lemmas about isO *)
 
-Lemma isO_flowsto (p p' : Perm) :
+Lemma notisO_flowsfrom (p p' : Perm) :
   PermFlowsTo p p'
   -> isO p = false
   -> isO p' = false.
@@ -893,7 +893,7 @@ Proof.
   destruct_perm p; destruct_perm p' ; cbn in *; done.
 Qed.
 
-Lemma notisO_flowsfrom (p p' : Perm) :
+Lemma isO_flowsto (p p' : Perm) :
   PermFlowsTo p p'
   -> isO p' = true
   -> isO p = true.
@@ -988,8 +988,8 @@ Proof.
   intros Hfl HcanStore.
   rewrite /canStore in HcanStore |- *.
   destruct (isLocalWord w).
-  by eapply isWL_flowsto.
-  by eapply writeAllowed_flowsto.
+  + by eapply isWL_flowsto.
+  + by eapply writeAllowed_flowsto.
 Qed.
 
 Lemma notcanStore_flowsfrom (p p' : Perm) (w : Word) :
@@ -1000,8 +1000,8 @@ Proof.
   intros Hfl HcanStore.
   rewrite /canStore in HcanStore |- *.
   destruct (isLocalWord w).
-  by eapply notisWL_flowsfrom.
-  by eapply notwriteAllowed_flowsfrom.
+  + by eapply notisWL_flowsfrom.
+  + by eapply notwriteAllowed_flowsfrom.
 Qed.
 
 Lemma canStore_writeAllowed (p : Perm) (w : Word) :
@@ -1009,7 +1009,7 @@ Lemma canStore_writeAllowed (p : Perm) (w : Word) :
 Proof.
   intros HcanStore.
   rewrite /canStore in HcanStore.
-  destruct p; cbn in *.
+  destruct p as [? w0 ? ?]; cbn in *.
   destruct w0; cbn in *; try done.
   by rewrite Tauto.if_same in HcanStore.
 Qed.
@@ -1176,7 +1176,7 @@ Inductive isCorrectPC: Word → Prop :=
 Lemma isCorrectPC_dec:
   forall w, { isCorrectPC w } + { not (isCorrectPC w) }.
 Proof.
-  destruct w.
+  intro w; destruct w as [z | sb | |].
   - right. red; intros H. inversion H.
   - destruct sb as [p g b e a | ].
     -- case_eq (executeAllowed p); intros.
@@ -1224,12 +1224,13 @@ Lemma isCorrectPC_bounds p g b e (a0 a1 a2 : Addr) :
   (a0 ≤ a1 < a2)%Z → isCorrectPC (WCap p g b e a1).
 Proof.
   intros Hvpc0 Hvpc2 [Hle Hlt].
-  inversion Hvpc0.
-  - subst; econstructor; auto.
-    inversion Hvpc2; subst.
-    + destruct H1 as [Hb He]. destruct H2 as [Hb2 He2]. split.
-      { apply Z.le_trans with a0; auto. }
-      { apply Z.lt_trans with a2; auto. }
+  inversion Hvpc0 as [p' g' b' e' a' Ha0 Hp]; simplify_eq.
+  subst; econstructor; auto.
+  inversion Hvpc2 as [p'' g'' ? ? ? Ha2 Hp']; simplify_eq.
+  destruct Ha0 as [Hb He]. destruct Ha2 as [Hb2 He2].
+  split.
+  { apply Z.le_trans with a0; auto. }
+  { apply Z.lt_trans with a2; auto. }
 Qed.
 
 Lemma isCorrectPC_bounds_alt p g b e (a0 a1 a2 : Addr) :
@@ -1519,23 +1520,23 @@ Proof.
 Defined.
 
 Global Instance readAllowedWord_dec w: Decision (readAllowedWord w).
-Proof. destruct_word w; try (right; solve [auto]). destruct c;simpl;apply _. Qed.
+Proof. destruct w as [| [ p g b e a |  ] | | ]; try (right; solve [auto]). destruct p;simpl;apply _. Qed.
 
 Global Instance writeAllowedWord_dec w: Decision (writeAllowedWord w).
-Proof. destruct_word w; try (right; solve [auto]). destruct c;simpl;apply _. Qed.
+Proof. destruct w as [| [ p g b e a |  ] | | ]; try (right; solve [auto]). destruct p;simpl;apply _. Qed.
 
 Global Instance hasValidAddress_dec w a: Decision (hasValidAddress w a).
-Proof. destruct_word w; try (right; solve [auto]). destruct c;simpl;apply _. Qed.
+Proof. destruct w as [| [ p g b e a' |  ] | | ]; try (right; solve [auto]). destruct p;simpl;apply _. Qed.
 
 Global Instance writeAllowed_a_in_regs_Decidable
   (r : Reg) (a : Addr) :
   Decision (writeAllowed_a_in_regs r a).
 Proof.
   eapply finite.exists_dec.
-  intros x. destruct (r !! x) eqn:Hsome;
-    first destruct (decide (writeAllowedWord w)), (decide (hasValidAddress w a)).
-  left. eexists _; auto.
-  all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
+  intros x. destruct (r !! x) as [w|] eqn:Hsome
+  ; first (destruct (decide (writeAllowedWord w)), (decide (hasValidAddress w a)))
+  ; try ( (right; intros [w1 (Heq & ? & ?)]; inversion Heq; congruence ) ).
+  left; eexists _; auto.
 Qed.
 
 Global Instance readAllowed_a_in_regs_Decidable
@@ -1543,9 +1544,8 @@ Global Instance readAllowed_a_in_regs_Decidable
   Decision (readAllowed_a_in_regs r a).
 Proof.
   eapply finite.exists_dec.
-  intros x.
-  destruct (r !! x) eqn:Hsome;
-    first destruct (decide (readAllowedWord w)), (decide (hasValidAddress w a)).
-  left. eexists _; eauto.
-  all : (right; intros [w1 (Heq & ? & ?)]; inversion Heq; try congruence ).
+  intros x. destruct (r !! x) as [w|] eqn:Hsome
+  ; first (destruct (decide (readAllowedWord w)), (decide (hasValidAddress w a)))
+  ; try ( (right; intros [w1 (Heq & ? & ?)]; inversion Heq; congruence ) ).
+  left; eexists _; auto.
 Qed.

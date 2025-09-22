@@ -392,8 +392,7 @@ Section CMDC.
       iDestruct "Hrel_stk_B" as "[Hrel %Hrevoked]"; iFrame.
       iPureIntro; subst W1.
       intros k a Ha; cbn in *.
-      rewrite lookup_insert_ne.
-      eapply Hrevoked; eauto.
+      rewrite lookup_insert_ne; first (eapply Hrevoked; eauto).
       rewrite elem_of_list_lookup in Hcgp_b_stk.
       intros -> ; apply Hcgp_b_stk.
       by eexists.
@@ -715,8 +714,7 @@ Section CMDC.
       iDestruct "Hrel_stk_C" as "[Hrel %Hrevoked]"; iFrame.
       iPureIntro; subst W1.
       intros k a Ha; cbn in *.
-      rewrite lookup_insert_ne.
-      eapply Hrevoked; eauto.
+      rewrite lookup_insert_ne; first (eapply Hrevoked; eauto).
       rewrite elem_of_list_lookup in Hcgp_c_stk.
       intros -> ; apply Hcgp_c_stk.
       by eexists.

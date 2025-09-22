@@ -82,6 +82,8 @@ Qed.
 Global Instance Empty_list {A}: Empty (list A). exact []. Defined.
 Global Instance Union_list {A}: Union (list A). exact app. Defined.
 Global Instance Singleton_list {A}: Singleton A (list A). exact (λ a, [a]). Defined.
+Global Instance Semiset_list {A}: SemiSet A (list A) .
+Proof. split; set_solver. Qed.
 
 Lemma addr_range_union_incl_range (ll: list (list Addr)) (b e: Addr):
   AddrRegionsRange ll b e →
@@ -95,8 +97,10 @@ Proof.
     + specialize (HInd l x ltac:(constructor) Hx). apply elem_of_finz_seq_between.
       solve_addr.
     + assert (HI: AddrRegionsRange ll b e).
-      { intros ? ? ? ?. eapply HInd. apply elem_of_list_further; eassumption.
-        auto. }
+      { intros ? ? ? ?. eapply HInd.
+        + apply elem_of_list_further; eassumption.
+        + auto.
+      }
       specialize (IHll _ _ HI).
       rewrite elem_of_subseteq in IHll.
       by apply IHll.
@@ -130,9 +134,9 @@ Proof.
   intros.
   rewrite AddrRegionRange_iff_incl_region_addrs in Hl.
   eapply disjoint_mono_l; eauto.
-  eapply disjoint_mono_r. eapply addr_range_union_incl_range; eauto.
-  unfold disjoint.
-  intro. rewrite !elem_of_finz_seq_between. solve_addr.
+  eapply disjoint_mono_r.
+  + eapply addr_range_union_incl_range; eauto.
+  + unfold disjoint. intro. rewrite !elem_of_finz_seq_between. solve_addr.
 Qed.
 #[export] Hint Resolve addr_range_disj_range_union | 10 : disj_regions.
 

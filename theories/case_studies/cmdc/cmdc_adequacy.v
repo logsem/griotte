@@ -819,19 +819,49 @@ Section Adequacy.
       iSplit; first done.
       iSplit; first (iPureIntro ; by apply persistent_cond_interp).
       iSplit.
-      { destruct k; cbn in Ha ; simplify_eq.
-        iFrame "HB_imports".
+      { destruct k; cbn in Ha ; simplify_eq; first iFrame "HB_imports".
         rewrite (big_sepL_lookup _ _ _ a); eauto.
       }
       iSplit; first (iNext ; by iApply zcond_interp).
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first done.
-      subst Winit_B.
-      iSplit.
-      + iApply (monoReq_interp _ _ _ _ Permanent); last done.
-        admit. (* TODO easy but tedious *)
-      + iPureIntro.
-        admit. (* TODO easy but tedious *)
+      assert (Winit_B.1 !! a = Some Permanent).
+      {
+        subst Winit_B.
+        apply elem_of_list_lookup_2 in Ha.
+        rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+        { pose proof switcher_cmpt_disjoints as ( _& Hdis_switcher_cmptB & _).
+          rewrite /switcher_cmpt_disjoint /cmpt_switcher_region /cmpt_region in Hdis_switcher_cmptB.
+          assert
+            (cmpt_switcher_stack_region switcher_cmpt ## cmpt_pcc_region B_cmpt)
+              as Hdis
+              by (set_solver+Hdis_switcher_cmptB).
+          rewrite /cmpt_pcc_region /cmpt_switcher_stack_region in Hdis.
+          intro Hcontra.
+          replace (cmpt_a_code B_cmpt) with (cmpt_b_pcc B_cmpt ^+ 1)%a in Ha by solve_addr+Himport_B.
+          rewrite -(finz_seq_between_cons) in Ha.
+          + apply (Hdis a); auto.
+          + pose proof (cmpt_import_size B_cmpt) as H1.
+            pose proof (cmpt_code_size B_cmpt) as H2.
+            rewrite B_imports /= in H1.
+            solve_addr.
+        }
+        rewrite elem_of_cons in Ha.
+        destruct Ha as [ Ha | Ha ]; simplify_eq.
+        + rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
+        + rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+          { intro Hcontra. apply elem_of_list_singleton in Hcontra as ->.
+            apply elem_of_finz_seq_between in Ha.
+            solve_addr+Himport_B Ha.
+          }
+          rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+          { intro Hcontra.
+            admit. (* TODO easy but tedious *)
+          }
+          rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
+      }
+      iSplit; last done.
+      iApply (monoReq_interp _ _ _ _ Permanent); done.
     }
 
     iAssert (interp Winit_B B
@@ -850,12 +880,12 @@ Section Adequacy.
       iSplit; first (iNext ; by iApply zcond_interp).
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first (iNext ; by iApply wcond_interp).
-      subst Winit_B.
-      iSplit.
-      + iApply (monoReq_interp _ _ _ _ Permanent); last done.
+      assert (Winit_B.1 !! a = Some Permanent).
+      { subst Winit_B.
         admit. (* TODO easy but tedious *)
-      + iPureIntro.
-        admit. (* TODO easy but tedious *)
+      }
+      iSplit; last done.
+      iApply (monoReq_interp _ _ _ _ Permanent); done.
     }
 
     iAssert ( interp Winit_B B (WSealed ot_switcher B_f)) with
@@ -1099,19 +1129,18 @@ Section Adequacy.
       iSplit; first done.
       iSplit; first (iPureIntro ; by apply persistent_cond_interp).
       iSplit.
-      { destruct k; cbn in Ha ; simplify_eq.
-        iFrame "HC_imports".
+      { destruct k; cbn in Ha ; simplify_eq; first iFrame "HC_imports".
         rewrite (big_sepL_lookup _ _ _ a); eauto.
       }
       iSplit; first (iNext ; by iApply zcond_interp).
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first done.
-      subst Winit_C.
-      iSplit.
-      + iApply (monoReq_interp _ _ _ _ Permanent); last done.
+      assert ((std Winit_C) !! a = Some Permanent).
+      { subst Winit_C.
         admit. (* TODO easy but tedious *)
-      + iPureIntro.
-        admit. (* TODO easy but tedious *)
+      }
+      iSplit; last done.
+      iApply (monoReq_interp _ _ _ _ Permanent); done.
     }
 
     iAssert (interp Winit_C C
@@ -1130,12 +1159,12 @@ Section Adequacy.
       iSplit; first (iNext ; by iApply zcond_interp).
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first (iNext ; by iApply wcond_interp).
-      subst Winit_C.
-      iSplit.
-      + iApply (monoReq_interp _ _ _ _ Permanent); last done.
+      assert ((std Winit_C) !! a = Some Permanent).
+      { subst Winit_C.
         admit. (* TODO easy but tedious *)
-      + iPureIntro.
-        admit. (* TODO easy but tedious *)
+      }
+      iSplit; last done.
+      iApply (monoReq_interp _ _ _ _ Permanent); done.
     }
 
     iAssert ( interp Winit_C C (WSealed ot_switcher C_g)) with
@@ -1231,7 +1260,7 @@ Section Adequacy.
       apply Hreg.
       clear -n n0 n1; set_solver.
     }
-   { intros r Hdom.
+    { intros r Hdom.
      rewrite !dom_delete_L in Hdom.
      destruct (decide (r = PC)); simplify_eq.
      { set_solver+Hdom. }
@@ -1259,8 +1288,7 @@ Section Adequacy.
       intro Hcontra.
       apply elem_of_dom_std_multiple_update in Hcontra.
       destruct Hcontra as [Hcontra|Hcontra].
-      - assert ( cmpt_b_cgp main_cmpt ∈ finz.seq_between (cmpt_b_cgp main_cmpt)
-                   (cmpt_e_cgp main_cmpt)).
+      - assert ( cmpt_b_cgp main_cmpt ∈ finz.seq_between (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt)).
         { pose proof (cmpt_data_size main_cmpt) as H.
           rewrite elem_of_finz_seq_between.
           rewrite main_data in H; cbn.

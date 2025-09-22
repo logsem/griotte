@@ -59,11 +59,11 @@ Proof. intros ? [? ?] ?. solve_addr. Qed.
 
 Lemma addr_next_le (a e : Addr) :
   (a < e)%Z → ∃ a', (a + 1)%a = Some a'.
-Proof. intros. zify_addr; eauto. exfalso. lia. lia. Qed.
+Proof. intros. zify_addr; eauto; [exfalso; lia| lia]. Qed.
 
 Lemma addr_next_lt (a e : Addr) :
   (a < e)%Z -> ∃ a', (a + 1)%a = Some a'.
-Proof. intros. zify_addr; eauto. exfalso. lia. lia. Qed.
+Proof. intros. zify_addr; eauto; [exfalso; lia| lia]. Qed.
 
 Lemma addr_next_lt_gt_contr (a e a' : Addr) :
   (a < e)%Z → (a + 1)%a = Some a' → (e < a')%Z → False.

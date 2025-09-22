@@ -258,18 +258,19 @@ Section fundamental.
     - case_decide as Haeq.
       + pose(Hallows' := Hallows). destruct Hallows' as (Hrinr & Hra & Hwb & HLoc).
         iDestruct "HStoreRes" as (p0' P0' w0 Hflp' HpersP0') "(_ & _ & _ & _ & % & _)".
-        iSplitR. subst. rewrite lookup_insert_ne; auto. by rewrite lookup_insert.
+        iSplitR.
+        { subst. rewrite lookup_insert_ne; auto. by rewrite lookup_insert. }
         iExists p1,g1,b1,e1,a1,storev.
         iPureIntro. repeat split; auto.
         case_decide; last by exfalso.
         exists w0. by simplify_map_eq.
       + subst a. iDestruct "HStoreRes" as "[-> HStoreRes]".
-        iSplitR. by rewrite lookup_insert.
+        iSplitR; first by rewrite lookup_insert.
         iExists p1,g1,b1,e1,a1,storev. repeat iSplitR; auto.
         case_decide as Hdec1; last by done.
         iExists w.  by rewrite lookup_insert.
     - iDestruct "HStoreRes" as "[-> HStoreRes ]".
-      iSplitR. by rewrite lookup_insert.
+      iSplitR; first by rewrite lookup_insert.
       iExists p1,g1,b1,e1,a1,storev. repeat iSplitR; auto.
       case_decide as Hdec1; last by done. by exfalso.
   Qed.
@@ -331,21 +332,21 @@ Section fundamental.
     iAssert (interp W C storev)%I with "[HVPCr Hreg]" as "#HVstorev1".
     { destruct storev.
       - iEval (rewrite fixpoint_interp1_eq); by cbn.
-      - destruct r2. cbn in Hwoa; inversion Hwoa; by exfalso.
+      - destruct r2; first (cbn in Hwoa; inversion Hwoa; by exfalso).
         cbn in Hwoa.
         destruct (decide (r = PC)).
         + subst r; simplify_map_eq. done.
         + simplify_map_eq.
           iSpecialize ("Hreg" $! r _ n Hwoa).
           done.
-      - destruct r2. cbn in Hwoa; inversion Hwoa; by exfalso.
+      - destruct r2; first (cbn in Hwoa; inversion Hwoa; by exfalso).
         cbn in Hwoa.
         destruct (decide (r = PC)).
         + subst r; simplify_map_eq.
         + simplify_map_eq.
           iSpecialize ("Hreg" $! r _ n Hwoa).
           done.
-      - destruct r2. cbn in Hwoa; inversion Hwoa; by exfalso.
+      - destruct r2; first (cbn in Hwoa; inversion Hwoa; by exfalso).
         cbn in Hwoa.
         destruct (decide (r = PC)).
         + subst r; simplify_map_eq.
@@ -366,8 +367,9 @@ Section fundamental.
       iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' HmonoV]") as "Hr"; eauto.
       { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
       { iSplit.
-        iPureIntro ; clear -Hflp' Hwa; destruct p0,p'; cbn in *; try done.
-        {  destruct rx, rx0, w, w0 ; cbn in *; try done. }
+        { iPureIntro ; clear -Hflp' Hwa; destruct p0,p'; cbn in *; try done.
+          destruct rx, rx0, w, w0 ; cbn in *; try done.
+        }
         destruct (writeAllowed p0) eqn:Hwa'; cycle 1.
         { destruct p0, p'; cbn in *; try congruence;  inv Hflp'. }
         iDestruct ("Hwcond'" with "HVstorev1") as "HP'storev".
@@ -384,7 +386,7 @@ Section fundamental.
       rewrite decide_True.
       2:{
         rewrite /writeAllowed_a_in_regs. eexists r1, _. inversion Hras.
-        split. eassumption.
+        split; first eassumption.
         destruct H1. destruct H2.
         split;auto.
         split;auto.
@@ -412,8 +414,8 @@ Section fundamental.
     iDestruct "HStoreRes" as (p0 P w0 Hp'O Hpers) "(#Hzcond & #Hwcond & #Hrcond & #HmonoR & -> & HStoreMem)".
     repeat (iApply later_exist_2; iExists _).
     repeat (iApply later_sep_2; iSplitR; auto).
-    iDestruct (if_later with "Hwcond") as "Hwcond'"; eauto.
-    iDestruct (if_later with "Hrcond") as "Hrcond'"; eauto.
+    + iDestruct (if_later with "Hwcond") as "Hwcond'"; eauto.
+    + iDestruct (if_later with "Hrcond") as "Hrcond'"; eauto.
   Qed.
 
    Lemma store_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
@@ -430,9 +432,8 @@ Section fundamental.
     (* To read out PC's name later, and needed when calling wp_load *)
     assert(∀ x : RegName, is_Some (<[PC:=WCap p g b e a]> regs !! x)) as Hsome'.
     {
-      intros. destruct (decide (x = PC)).
+      intros. destruct (decide (x = PC)); last by rewrite lookup_insert_ne.
       rewrite e0 lookup_insert; unfold is_Some. by eexists.
-        by rewrite lookup_insert_ne.
     }
 
     (* Initializing the names for the values of Hsrc now, to instantiate the existentials in step 1 *)

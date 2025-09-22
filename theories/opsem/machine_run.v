@@ -17,18 +17,18 @@ Lemma isCorrectPCb_isCorrectPC w :
 Proof.
   rewrite /isCorrectPCb. destruct_word w.
   1,3,4,5 : split; try congruence; inversion 1.
-  { rewrite !andb_true_iff !Z.leb_le !Z.ltb_lt.
-    split.
-    { intros [? ?]. constructor. solve_addr. naive_solver. }
-    { inversion 1; subst. split. solve_addr. naive_solver. } }
+  rewrite !andb_true_iff !Z.leb_le !Z.ltb_lt.
+  split.
+  - intros [? ?]. constructor; [solve_addr | naive_solver].
+  - inversion 1; subst. split; [solve_addr | naive_solver].
 Qed.
 
 Lemma isCorrectPCb_nisCorrectPC w :
   isCorrectPCb w = false ↔ ¬ isCorrectPC w.
 Proof.
   destruct (isCorrectPCb w) eqn:HH.
-  { apply isCorrectPCb_isCorrectPC in HH. split; congruence. }
-  { split; auto. intros _. intros ?%isCorrectPCb_isCorrectPC. congruence. }
+  - apply isCorrectPCb_isCorrectPC in HH. split; congruence.
+  - split; auto. intros _. intros ?%isCorrectPCb_isCorrectPC. congruence.
 Qed.
 
 
@@ -76,59 +76,61 @@ Lemma machine_run_correct `{MachineParameters} fuel cf (φ: ExecConf) cf':
             ([Seq (Instr cf)], φ)
             ([Instr cf'], φ').
 Proof.
-  revert cf cf' φ. induction fuel.
-  { cbn. done. }
-  { cbn. intros ? ? [ [r sr] m ] Hc.
-    destruct cf; simplify_eq.
-    destruct (r !! PC) as [wpc | ] eqn:HePC.
-    2: {
-      eexists. eapply rtc_l. unfold erased_step. exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-      constructor. constructor; auto.
-      eapply rtc_once. exists []. simplify_eq.
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-      constructor. }
-    destruct (isCorrectPCb wpc) eqn:HPC.
-    { apply isCorrectPCb_isCorrectPC in HPC.
-      destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC | by inversion HPC]. destruct sb as [p g b e a | ]; last by inversion HPC.
-      destruct (m !! a) as [wa | ] eqn:HeMem.
-      2: {
-        eexists. eapply rtc_l. unfold erased_step. exists [].
+  revert cf cf' φ. induction fuel; first (cbn; done).
+  cbn. intros ? ? [ [r sr] m ] Hc.
+  destruct cf; simplify_eq.
+  - destruct (r !! PC) as [wpc | ] eqn:HePC; cycle 1.
+    + eexists. eapply rtc_l.
+      * unfold erased_step. exists [].
         eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
         eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-        constructor. eapply step_exec_memfail; eauto.
-        eapply rtc_once. exists []. simplify_eq.
+        constructor. constructor; auto.
+      * eapply rtc_once. exists []. simplify_eq.
         eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
         eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-        constructor. }
-      eapply IHfuel in Hc as [φ' Hc]. eexists.
-      eapply rtc_l. unfold erased_step. exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity.
-      constructor. eapply step_exec_instr; eauto. eapply Hc.
-    }
-    { simplify_eq. apply isCorrectPCb_nisCorrectPC in HPC.
-      eexists. eapply rtc_l. unfold erased_step. exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-      constructor. eapply step_exec_corrfail; eauto.
-      eapply rtc_once. exists [].
+        constructor.
+    + destruct (isCorrectPCb wpc) eqn:HPC.
+      * apply isCorrectPCb_isCorrectPC in HPC.
+        destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC | by inversion HPC]. destruct sb as [p g b e a | ]; last by inversion HPC.
+        destruct (m !! a) as [wa | ] eqn:HeMem.
+        ** eapply IHfuel in Hc as [φ' Hc]. eexists.
+           eapply rtc_l; last eapply Hc.
+           unfold erased_step. exists [].
+           eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+           eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity.
+           constructor. eapply step_exec_instr; eauto.
+        ** eexists. eapply rtc_l.
+           *** unfold erased_step. exists [].
+               eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+               eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
+               constructor. eapply step_exec_memfail; eauto.
+           *** eapply rtc_once. exists []. simplify_eq.
+               eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+               eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
+               constructor.
+      * simplify_eq. apply isCorrectPCb_nisCorrectPC in HPC.
+        eexists. eapply rtc_l.
+        ** unfold erased_step. exists [].
+           eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+           eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
+           constructor. eapply step_exec_corrfail; eauto.
+        ** eapply rtc_once. exists [].
+           eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+           eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
+           constructor.
+  - eexists. eapply rtc_once. exists [].
+    eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+    eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
+    econstructor.
+  - eexists. eapply rtc_once. exists [].
+    eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
+    eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
+    econstructor.
+  - apply IHfuel in Hc as [φ' Hc]. eexists.
+    eapply rtc_l.
+    + exists [].
       eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
       eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-      constructor. }
-    { eexists. eapply rtc_once. exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-      econstructor. }
-    { eexists. eapply rtc_once. exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-      econstructor. }
-    { apply IHfuel in Hc as [φ' Hc]. eexists.
-      eapply rtc_l. exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-      econstructor. cbn. apply Hc. } }
+      econstructor.
+    + cbn. apply Hc.
 Qed.

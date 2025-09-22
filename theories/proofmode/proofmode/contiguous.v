@@ -73,8 +73,9 @@ Section Contiguous.
     intros * Ha. revert i k ai. induction Ha; [done |].
     intros [| i] k ai; cbn.
     { intros. simplify_eq. enough ((a' + length l)%a = Some b) by solve_addr.
-      inversion Ha; subst; cbn. solve_addr.
-      apply (IHHa 0); eauto. }
+      inversion Ha; subst; cbn; first solve_addr.
+      apply (IHHa 0); eauto.
+    }
     { eauto. }
   Qed.
 
@@ -86,7 +87,7 @@ Section Contiguous.
     revert a b l. induction n.
     { intros. cbn in *. subst l. assert (a = b) as -> by solve_addr.
       constructor. }
-    { intros * -> ?. cbn. eapply (contiguous_between_cons _ (a^+1)%a). solve_addr.
+    { intros * -> ?. cbn. eapply (contiguous_between_cons _ (a^+1)%a); first solve_addr.
       apply IHn; auto. solve_addr. }
   Qed.
 
@@ -152,8 +153,9 @@ Section Contiguous.
       destruct (decide (a' = b)).
       { subst a'. inversion Hc; subst; solve_addr. }
       { apply contiguous_between_length in Hc. solve_addr. } }
-    { cbn in Hi'. split. enough (a' <= ai)%a by solve_addr.
-      all: eapply Hi; eauto. }
+    { cbn in Hi'. split; first enough (a' <= ai)%a by solve_addr.
+      all: eapply Hi; eauto.
+    }
   Qed.
 
   Lemma contiguous_between_middle_bounds' (a : list Addr) (ai a0 an : Addr) :
@@ -225,8 +227,9 @@ Section Contiguous.
     { intros * ->. cbn. inversion 1. subst. intros.
       unshelve epose proof (IHa1 (a1 ++ a2) a2 _ _ _ eq_refl _ _) as [IH1 IH2];
         [ shelve | shelve | shelve | ..]; eauto; cycle 1.
-      split; [| eapply IH2]. 2: by solve_addr.
-      eapply contiguous_between_cons; eauto. }
+      + split; [| eapply IH2]. eapply contiguous_between_cons; eauto.
+      + by solve_addr.
+    }
   Qed.
 
   Lemma contiguous_between_spec (l: list Addr) a0 an :
@@ -271,7 +274,7 @@ Section Contiguous.
     iFrame. iPureIntro.
     pose proof (contiguous_between_length _ _ _ Ha).
     destruct (contiguous_between_app a (take n1 a) (drop n1 a) i j k); auto.
-    by rewrite take_drop.
+    { by rewrite take_drop. }
     { rewrite length_take Hlength. subst k. solve_addr. }
     rewrite length_take. repeat split; eauto. rewrite Nat.min_l; subst k; solve_addr.
   Qed.

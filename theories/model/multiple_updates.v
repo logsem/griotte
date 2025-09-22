@@ -234,10 +234,11 @@ Section std_updates.
        eapply related_sts_pub_trans_world;[apply IHl; auto|].
        destruct (decide (a ∈ l)).
        { rewrite (_: <s[a:=ρ]s>(std_update_multiple W l ρ) = std_update_multiple W l ρ) /=.
-         by apply related_sts_pub_refl_world.
+         { by apply related_sts_pub_refl_world. }
          rewrite /std_update insert_id /=.
-         by destruct (std_update_multiple W l ρ) as [ [] ].
-         by apply std_sta_update_multiple_lookup_in_i. }
+         { by destruct (std_update_multiple W l ρ) as [ [] ]. }
+         by apply std_sta_update_multiple_lookup_in_i.
+       }
        apply related_sts_pub_world_fresh; auto.
        intros Hcontr. apply std_update_multiple_not_in_sta in Hcontr; auto.
    Qed.
@@ -480,10 +481,11 @@ Section std_updates.
        apply Forall_cons in Hforall as [ Ha_std Hforall].
        eapply related_sts_pub_trans_world;[apply IHl; auto|].
        destruct (decide (a ∈ l)).
-       { rewrite (_: <s[a:=Permanent]s>(std_update_multiple W l Permanent) = std_update_multiple W l Permanent) /=.
-         by apply related_sts_pub_refl_world.
-         rewrite /std_update insert_id /=. by destruct (std_update_multiple W l Permanent) as [ [] ].
-         by apply std_sta_update_multiple_lookup_in_i. }
+       { rewrite (_: <s[a:=Permanent]s>(std_update_multiple W l Permanent) = std_update_multiple W l Permanent) /=
+         ; first by apply related_sts_pub_refl_world.
+         rewrite /std_update insert_id /=; first by destruct (std_update_multiple W l Permanent) as [ [] ].
+         by apply std_sta_update_multiple_lookup_in_i.
+       }
        destruct W as [Hstd Hloc].
        apply related_sts_pub_world_revoked_permanent in Ha_std.
        eapply related_sts_pub_trans_world;[apply std_update_multiple_related_monotone,Ha_std|].
@@ -540,10 +542,11 @@ Section std_updates.
        apply Forall_cons in Hforall as [ Ha_std Hforall].
        eapply related_sts_pub_trans_world;[apply IHl; auto|].
        destruct (decide (a ∈ l)).
-       { rewrite (_: <s[a:=Temporary]s>(std_update_multiple W l Temporary) = std_update_multiple W l Temporary) /=.
-         by apply related_sts_pub_refl_world.
-         rewrite /std_update insert_id /=. by destruct (std_update_multiple W l Temporary) as [ [] ].
-         by apply std_sta_update_multiple_lookup_in_i. }
+       { rewrite (_: <s[a:=Temporary]s>(std_update_multiple W l Temporary) = std_update_multiple W l Temporary) /=
+         ; first by apply related_sts_pub_refl_world.
+         rewrite /std_update insert_id /=; first  by destruct (std_update_multiple W l Temporary) as [ [] ].
+         by apply std_sta_update_multiple_lookup_in_i.
+       }
        destruct W as [Hstd Hloc].
        apply related_sts_pub_world_revoked_temporary in Ha_std.
        eapply related_sts_pub_trans_world;[apply std_update_multiple_related_monotone,Ha_std|].

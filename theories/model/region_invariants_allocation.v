@@ -49,7 +49,7 @@ Section region_alloc.
     }
     (* if not, we need to allocate a new saved pred using φ,
        and extend R with l := pred *)
-    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'". apply dfrac_valid_discarded.
+    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'"; first apply dfrac_valid_discarded.
     iMod (update_RELS _ _ _ a γpred p with "Hγrel") as "[HR Hγrel]"; auto.
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
@@ -107,7 +107,7 @@ Section region_alloc.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
   (*      and extend R with l := pred *)
-    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'". apply dfrac_valid_discarded.
+    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'"; first apply dfrac_valid_discarded.
     iMod (update_RELS _ _ _ a γpred p with "Hγrel") as "[HR Hγrel]"; auto.
     (* we also need to extend the World with a new temporary region *)
     iMod (sts_alloc_std_i W C a Temporary
@@ -188,7 +188,7 @@ Section region_alloc.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
   (*      and extend R with l := pred *)
-    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'". apply dfrac_valid_discarded.
+    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'"; first apply dfrac_valid_discarded.
     iMod (update_RELS _ _ _ a γpred p with "Hγrel") as "[HR Hγrel]"; auto.
     (* we also need to extend the World with a new temporary region *)
     iMod (sts_alloc_std_i W C a Permanent
@@ -245,7 +245,7 @@ Section region_alloc.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
   (*      and extend R with a := pred *)
-    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'". apply dfrac_valid_discarded.
+    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'"; first apply dfrac_valid_discarded.
     iMod (update_RELS _ _ _ a γpred p with "Hγrel") as "[HR Hγrel]"; auto.
     (* we also need to extend the World with a new temporary region *)
     iMod (sts_alloc_std_i W C a Revoked
@@ -261,8 +261,8 @@ Section region_alloc.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Revoked. iFrame. iSplitR.
-        iPureIntro;apply lookup_insert.
-        iExists _. iFrame "#". auto.
+        + iPureIntro;apply lookup_insert.
+        + iExists _. iFrame "#". auto.
       }
       iApply (big_sepM_mono with "Hpreds'").
       iIntros (a' x Ha') "Hρ".

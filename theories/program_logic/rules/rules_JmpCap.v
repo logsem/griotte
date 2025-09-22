@@ -36,7 +36,7 @@ Section cap_lang_rules.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
     iDestruct (@gen_heap_valid with "Hr0 HPC") as %?.
     iDestruct (@gen_heap_valid with "Hr0 Hr") as %Hr_r0.
-    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iIntros "_".
@@ -63,7 +63,7 @@ Section cap_lang_rules.
     iIntros (σ1 ns l1 l2 nt) "[ [Hr0 Hsr] Hm ] /=". destruct σ1 as [ [r0 sr] m]; cbn.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %?; auto.
     iDestruct (@gen_heap_valid with "Hr0 HPC") as %Hr_PC.
-    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iIntros "_".

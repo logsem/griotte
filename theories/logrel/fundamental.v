@@ -54,7 +54,7 @@ Section fundamental.
       rewrite /registers_pointsto.
       iExtract "Hmreg" PC as "HPC".
       iApply (wp_notCorrectPC with "HPC"); eauto.
-      intro Hcontra ; destruct p ; inv Hcontra; congruence.
+      { intro Hcontra ; destruct p ; inv Hcontra; congruence. }
       iNext. iIntros "HPC /=".
       iApply wp_pure_step_later; auto.
       iNext ; iIntros "_".

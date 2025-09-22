@@ -129,8 +129,7 @@ Section Counter.
       + by apply revoke_std_sta_lookup_non_temp in Ha2.
       + done.
       + apply anti_revoke_lookup_Revoked in Ha2.
-        destruct Ha2 as [Ha2|Ha2].
-        eapply (HW1ext_W2_t _ _ Revoked) in Ha0'; auto.
+        destruct Ha2 as [Ha2|Ha2]; first (eapply (HW1ext_W2_t _ _ Revoked) in Ha0'; auto).
         eapply (HW1ext_W2_t _ _ Temporary) in Ha0'; auto.
         inversion Ha0' as [|??? Hcontra]; simplify_eq.
         inversion Hcontra.

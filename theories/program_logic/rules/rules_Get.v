@@ -168,7 +168,7 @@ Section cap_lang_rules.
     iDestruct "H" as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
-    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iIntros "_".
@@ -177,8 +177,8 @@ Section cap_lang_rules.
 
     specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri.
     erewrite regs_of_is_Get in Hri; eauto.
-    destruct (Hri src) as [wsrc [H'src Hsrc]]. by set_solver+.
-    destruct (Hri dst) as [wdst [H'dst Hdst]]. by set_solver+.
+    destruct (Hri src) as [wsrc [H'src Hsrc]]; first by set_solver+.
+    destruct (Hri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
     destruct (denote get_i wsrc) as [z | ] eqn:Hwsrc.
     2 : { (* Failure: src is not of the right word type *)
       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
@@ -237,7 +237,7 @@ Section cap_lang_rules.
     iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote φ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+.
+    { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -268,7 +268,7 @@ Section cap_lang_rules.
     iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote φ) "(>HPC & >Hpc_a & >Hr) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr") as "[Hmap %]".
     iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+.
+    { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -301,7 +301,7 @@ Section cap_lang_rules.
     iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hdst Hsrc") as "[Hmap (%&%&%)]".
     iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+.
+    { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| * Hfail].
@@ -330,7 +330,7 @@ Section cap_lang_rules.
     iIntros (Hdecode Hinstr Hnot_otype Hnot_wtype Hvpc φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-      by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+.
+    { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
     destruct Hspec as [* Hsucc |].
     { (* Success (contradiction) *)

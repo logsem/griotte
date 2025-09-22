@@ -147,7 +147,7 @@ Proof. auto. Qed.
 Goal forall (r_t1 PC: RegName) `{MachineParameters}, exists r1 r2,
   decodeInstrW (encodeInstrW (Mov r_t1 PC)) = Mov r1 r2 ∧
   r1 = r_t1 ∧ r2 = inr PC.
-Proof. do 2 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
+Proof. do 2 eexists. repeat apply conj; first solve_pure. all: reflexivity. Qed.
 
 Goal forall p g b e a,
   executeAllowed p = true →
@@ -159,7 +159,7 @@ Proof. intros. solve_pure. Qed.
 Goal forall (r_t1 r_t2: RegName), exists r1 r2,
   is_Get (GetB r_t2 r_t1) r1 r2 ∧
   r1 = r_t2 ∧ r2 = r_t1.
-Proof. do 2 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
+Proof. do 2 eexists. repeat apply conj; first solve_pure. all: reflexivity. Qed.
 
 Goal forall p g b e a,
   executeAllowed p = true →
@@ -171,7 +171,7 @@ Proof. intros. solve_pure. Qed.
 Goal forall (r_t1 r_t2 r_t3: RegName), exists r1 r2 r3,
   is_BinOp (Sub r_t2 r_t2 r_t3) r1 (inr r2) (inr r3) ∧
   r1 = r_t2 ∧ r2 = r_t2 ∧ r3 = r_t3.
-Proof. do 3 eexists. repeat apply conj. solve_pure. all: reflexivity. Qed.
+Proof. do 3 eexists. repeat apply conj; first solve_pure. all: reflexivity. Qed.
 
 Goal forall (P: Prop), P → P. intros. solve_pure. Qed.
 

@@ -71,7 +71,7 @@ Section cap_lang_rules.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
-    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iIntros "_".
@@ -156,7 +156,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hne Hpca' ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hrcond") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero wcond = true).
@@ -165,15 +165,15 @@ Section cap_lang_rules.
       repeat case_match; try congruence; by cbn.
     }
 
-   destruct Hspec as [ | | Hfail ].
-   { exfalso; simplify_map_eq; congruence. }
-   { iApply "Hφ". iFrame. simplify_map_eq.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
-     rewrite insert_insert.
-     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-   { destruct Hfail; simplify_map_eq; eauto; try congruence.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
-   }
+    destruct Hspec as [ | | Hfail ].
+    { exfalso; simplify_map_eq; congruence. }
+    { iApply "Hφ". iFrame. simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      rewrite insert_insert.
+      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+    { destruct Hfail; simplify_map_eq; eauto; try congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+    }
   Qed.
 
   Lemma wp_jnz_success_jmp_reg E rcond rimm pc_p pc_g pc_b pc_e pc_a pc_a' w imm wcond :
@@ -198,7 +198,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hne Hpca' ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hrimm Hrcond") as "[Hmap (%&%&%)]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero wcond = true).
@@ -207,15 +207,15 @@ Section cap_lang_rules.
       repeat case_match; try congruence; by cbn.
     }
 
-   destruct Hspec as [ | | Hfail ].
-   { exfalso; simplify_map_eq; congruence. }
-   { iApply "Hφ". iFrame. simplify_map_eq.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
-     rewrite insert_insert.
-     iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-   { destruct Hfail; simplify_map_eq; eauto; try congruence.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
-   }
+    destruct Hspec as [ | | Hfail ].
+    { exfalso; simplify_map_eq; congruence. }
+    { iApply "Hφ". iFrame. simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      rewrite insert_insert.
+      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+    { destruct Hfail; simplify_map_eq; eauto; try congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+    }
   Qed.
 
   Lemma wp_jnz_success_jmp_same E rcond pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
@@ -238,7 +238,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hne Hpca' ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hrcond") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     assert (nonZero (WInt imm) = true).
@@ -246,15 +246,15 @@ Section cap_lang_rules.
       destruct imm; auto.
     }
 
-   destruct Hspec as [ | | Hfail ].
-   { exfalso; simplify_map_eq; congruence. }
-   { iApply "Hφ". iFrame. simplify_map_eq.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
-     rewrite insert_insert.
-     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-   { destruct Hfail; simplify_map_eq; eauto; try congruence.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
-   }
+    destruct Hspec as [ | | Hfail ].
+    { exfalso; simplify_map_eq; congruence. }
+    { iApply "Hφ". iFrame. simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      rewrite insert_insert.
+      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+    { destruct Hfail; simplify_map_eq; eauto; try congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+    }
   Qed.
 
   Lemma wp_jnz_success_jmpPC_z E pc_p pc_g pc_b pc_e pc_a pc_a' w imm:
@@ -276,15 +276,15 @@ Section cap_lang_rules.
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-   destruct Hspec as [ | | Hfail ].
-   { exfalso; simplify_map_eq; congruence. }
-   { iApply "Hφ". iFrame. simplify_map_eq.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
-     rewrite insert_insert.
-     iDestruct (regs_of_map_1 with "Hmap") as "?"; eauto; iFrame. }
-   { destruct Hfail; simplify_map_eq; eauto; try congruence.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
-   }
+    destruct Hspec as [ | | Hfail ].
+    { exfalso; simplify_map_eq; congruence. }
+    { iApply "Hφ". iFrame. simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      rewrite insert_insert.
+      iDestruct (regs_of_map_1 with "Hmap") as "?"; eauto; iFrame. }
+    { destruct Hfail; simplify_map_eq; eauto; try congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+    }
   Qed.
 
   Lemma wp_jnz_success_jmpPC_reg E rimm pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
@@ -309,15 +309,15 @@ Section cap_lang_rules.
     { set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-   destruct Hspec as [ | | Hfail ].
-   { exfalso; simplify_map_eq; congruence. }
-   { iApply "Hφ". iFrame. simplify_map_eq.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
-     rewrite insert_insert.
-     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-   { destruct Hfail; simplify_map_eq; eauto; try congruence.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
-   }
+    destruct Hspec as [ | | Hfail ].
+    { exfalso; simplify_map_eq; congruence. }
+    { iApply "Hφ". iFrame. simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      rewrite insert_insert.
+      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+    { destruct Hfail; simplify_map_eq; eauto; try congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+    }
   Qed.
 
   Lemma wp_jnz_success_next_z E rcond pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
@@ -337,16 +337,16 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hrcond") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-   destruct Hspec as [ | | Hfail ]; try incrementPC_inv; simplify_map_eq; eauto.
-   { iApply "Hφ". iFrame.
-     rewrite insert_insert.
-     iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-   { destruct Hfail; simplify_map_eq; eauto; try congruence.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
-   }
+    destruct Hspec as [ | | Hfail ]; try incrementPC_inv; simplify_map_eq; eauto.
+    { iApply "Hφ". iFrame.
+      rewrite insert_insert.
+      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+    { destruct Hfail; simplify_map_eq; eauto; try congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+    }
   Qed.
 
   (* TODO ideally, I would like to not require the register rimm *)
@@ -369,16 +369,16 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hrcond Hrimm") as "[Hmap (%&%&%)]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-   destruct Hspec as [ | | Hfail ]; try incrementPC_inv; simplify_map_eq; eauto.
-   { iApply "Hφ". iFrame.
-     rewrite insert_insert.
-     iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-   { destruct Hfail; simplify_map_eq; eauto; try congruence.
-     incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
-   }
+    destruct Hspec as [ | | Hfail ]; try incrementPC_inv; simplify_map_eq; eauto.
+    { iApply "Hφ". iFrame.
+      rewrite insert_insert.
+      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+    { destruct Hfail; simplify_map_eq; eauto; try congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+    }
   Qed.
 
 End cap_lang_rules.

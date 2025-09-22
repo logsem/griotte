@@ -86,11 +86,11 @@ Section region.
     intros. iSplit.
     - iIntros "H".
       iDestruct (extract_from_region with "H") as (w Hws) "(?&?&?&#Hφ&?&?)"; eauto.
-      iExists _. iFrame. iSplitR. iPureIntro. by rewrite {1}Hws //.
+      iExists _. iFrame. iSplitR; first (iPureIntro; by rewrite {1}Hws //).
       rewrite {3}Hws. iFrame. iSplit; iApply "Hφ".
     - iIntros "H". iApply (extract_from_region with "[H]"); eauto.
       iDestruct "H" as (w Hws) "(?&Hl&?&#Hφ&?)". iExists _. iFrame.
-      iSplitR. iPureIntro. by rewrite {1}Hws //.
+      iSplitR; first (iPureIntro; by rewrite {1}Hws //).
       rewrite {1}Hws. iDestruct (big_sepL_app with "Hl") as "[? ?]".
       cbn. iFrame.
   Qed.

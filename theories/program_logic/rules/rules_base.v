@@ -206,8 +206,8 @@ Section cap_lang_rules.
     r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2.
   Proof.
     iIntros (?) "Hmap". rewrite !big_sepM_insert ?big_sepM_empty; eauto.
-    by iDestruct "Hmap" as "(? & ? & _)"; iFrame.
-    apply lookup_insert_None; split; eauto.
+    + by iDestruct "Hmap" as "(? & ? & _)"; iFrame.
+    + apply lookup_insert_None; split; eauto.
   Qed.
 
   Lemma map_of_regs_3 (r1 r2 r3: RegName) (w1 w2 w3: Word) :
@@ -663,7 +663,7 @@ Section cap_lang_rules.
       + iIntros "Hmem". iDestruct (big_sepM_insert with "Hmem") as "[Ha Hmem]";auto.
         { rewrite lookup_merge /prod_op /=.
           destruct (create_gmap_default (elements (dom mem)) dq !! a);auto; rewrite H;auto. }
-        iApply big_sepM_insert. auto.
+        iApply big_sepM_insert; auto.
         iFrame. iApply "IH". iFrame.
   Qed.
 
@@ -708,7 +708,7 @@ Section cap_lang_rules.
     iModIntro.
     iSplitL "Hh"; eauto.
     iDestruct (big_sepM_insert _ _ l with "[$Hmap $Hl]") as "H".
-    apply lookup_delete.
+    { apply lookup_delete. }
     rewrite insert_delete_insert. iFrame.
   Qed.
 
@@ -729,7 +729,7 @@ Section cap_lang_rules.
     iDestruct "Hσ1" as "[ [Hr Hsr] Hm ]".
     iDestruct (@gen_heap_valid with "Hr HPC") as %?.
     iApply fupd_frame_l.
-    iSplit. by iPureIntro; apply normal_always_base_reducible.
+    iSplit; first (by iPureIntro; apply normal_always_base_reducible).
     iModIntro. iIntros (e1 σ2 efs Hstep).
     apply prim_step_exec_inv in Hstep as (-> & -> & (c & -> & Hstep)).
     eapply step_fail_inv in Hstep as [-> ->]; eauto.
@@ -783,7 +783,7 @@ Section cap_lang_rules.
     iDestruct (@gen_heap_valid with "Hr Hpc") as %?.
     iDestruct (@gen_heap_valid with "Hm Hpca") as %?.
     iModIntro.
-    iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iIntros (e2 σ2 efs Hstep).
     eapply prim_step_exec_inv in Hstep as (-> & -> & (c & -> & Hstep)).
     eapply step_exec_inv in Hstep; eauto. cbn in Hstep. simplify_eq.
@@ -807,7 +807,7 @@ Section cap_lang_rules.
     iDestruct (@gen_heap_valid with "Hr Hpc") as %?.
     iDestruct (@gen_heap_valid with "Hm Hpca") as %?.
     iModIntro.
-    iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iIntros (e2 σ2 efs Hstep).
     eapply prim_step_exec_inv in Hstep as (-> & -> & (c & -> & Hstep)).
     eapply step_exec_inv in Hstep; eauto. cbn in Hstep. simplify_eq.
@@ -913,7 +913,7 @@ Lemma indom_regs_incl D (regs regs': Reg) :
 Proof.
   intros * HD Hincl rr Hr.
   assert (is_Some (regs !! rr)) as [w Hw].
-  { eapply @elem_of_dom with (D := gset RegName). typeclasses eauto.
+  { eapply @elem_of_dom with (D := gset RegName); first typeclasses eauto.
     eapply elem_of_subseteq; eauto. }
   exists w. split; auto. eapply lookup_weaken; eauto.
 Qed.
@@ -933,7 +933,7 @@ Lemma indom_sregs_incl D (sregs sregs': SReg) :
 Proof.
   intros * HD Hincl rr Hr.
   assert (is_Some (sregs !! rr)) as [w Hw].
-  { eapply @elem_of_dom with (D := gset SRegName). typeclasses eauto.
+  { eapply @elem_of_dom with (D := gset SRegName); first typeclasses eauto.
     eapply elem_of_subseteq; eauto. }
   exists w. split; auto. eapply lookup_weaken; eauto.
 Qed.

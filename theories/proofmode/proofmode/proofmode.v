@@ -27,10 +27,10 @@ Section codefrag.
     rewrite /codefrag.
     destruct Hub as [? Hub].
     iDestruct (big_sepL2_lookup_acc with "Hcs") as "[Hw Hcont]"; only 2: by eauto.
+    2: iFrame.
     eapply finz_seq_between_lookup with (n:=length cs).
     { apply lookup_lt_is_Some_1; eauto. }
     { solve_addr. }
-    iFrame.
   Qed.
 
 End codefrag.
@@ -156,9 +156,12 @@ Section codefrag_subblock.
     iDestruct (codefrag_contiguous_region with "H") as %Hregion.
     destruct Hregion as [an Han]. rewrite length_app in Han |- *.
     iDestruct (region_pointsto_split _ _ (a0 ^+ length l1)%a with "H") as "[H1 H2]".
-    by solve_addr. by rewrite /finz.dist; solve_addr.
+    { by solve_addr. }
+    { by rewrite /finz.dist; solve_addr. }
     iFrame. iIntros "H1".
-    rewrite region_pointsto_split. iFrame. solve_addr. rewrite /finz.dist; solve_addr.
+    rewrite region_pointsto_split; first iFrame.
+    + solve_addr.
+    + rewrite /finz.dist; solve_addr.
   Qed.
 
   Lemma codefrag_block_acc (n: nat) a0 (cs: list Word) l1 l l2:
@@ -172,13 +175,20 @@ Section codefrag_subblock.
     iDestruct (codefrag_contiguous_region with "H") as %[a1 Ha1].
     rewrite !length_app in Ha1 |- *.
     iDestruct (region_pointsto_split _ _ (a0 ^+ length l1)%a with "H") as "[H1 H2]".
-    solve_addr. rewrite /finz.dist; solve_addr.
-    iExists (a0 ^+ length l1)%a. iSplitR. iPureIntro; solve_addr.
+    { solve_addr. }
+    { rewrite /finz.dist; solve_addr. }
+    iExists (a0 ^+ length l1)%a. iSplitR; first (iPureIntro; solve_addr).
     iDestruct (region_pointsto_split _ _ ((a0 ^+ length l1) ^+ length l)%a with "H2") as "[H2 H3]".
-    solve_addr. rewrite /finz.dist; solve_addr. iFrame.
+    { solve_addr. }
+    { rewrite /finz.dist; solve_addr. }
+    iFrame.
     iIntros "H2".
-    rewrite region_pointsto_split. iFrame. 2: solve_addr. 2: rewrite /finz.dist; solve_addr.
-    rewrite region_pointsto_split. iFrame. solve_addr. rewrite /finz.dist; solve_addr.
+    rewrite region_pointsto_split; [iFrame|..]; cycle 1.
+    { solve_addr. }
+    { rewrite /finz.dist; solve_addr. }
+    rewrite region_pointsto_split; first iFrame.
+    { solve_addr. }
+    { rewrite /finz.dist; solve_addr. }
   Qed.
 
 End codefrag_subblock.
@@ -345,10 +355,13 @@ Proof.
   iDestruct "HΔ'" as "[#HΔ'i Hs]".
   iDestruct (envs_clear_spatial_sound_rev with "[$HΔ'i $Hs]") as "HΔ'"; auto.
   iDestruct (HH with "HΔ'") as "[HP1' HF]".
-  iApply add_modal. eauto. iFrame. iIntros "HP1".
+  iApply add_modal; first eauto.
+  iFrame. iIntros "HP1".
   iApply (HQ with "[HR HP1] HF").
-  { iApply (envs_app_singleton_sound with "[] [HR HP1]"). eauto. iApply "HΔ'i".
-    iApply (into_wand with "[HR]"). eauto. eauto. eauto. }
+  { iApply (envs_app_singleton_sound with "[] [HR HP1]"); first eauto.
+    + iApply "HΔ'i".
+    + iApply (into_wand with "[HR]"); eauto.
+  }
 Qed.
 
 (* Typeclass instances to look-up framable resources in the goal, for

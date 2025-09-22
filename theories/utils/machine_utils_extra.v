@@ -76,10 +76,10 @@ Proof. rewrite /finz.dist. solve_finz. Qed.
 Lemma finz_empty_seq_between:
   ∀ (finz_bound : Z) (f1 f2 : finz finz_bound),
     finz.seq_between f1 f2 = [] → (f2 <= f1)%f.
-Proof. intros *. rewrite /finz.seq_between /finz.seq.
+Proof. intros z f1 f2. rewrite /finz.seq_between /finz.seq.
   destruct (finz.dist f1 f2) eqn:Heq.
-  by apply finz_0_dist in Heq.
-  intro HFalse; inversion HFalse.
+  + by apply finz_0_dist in Heq.
+  + intro HFalse; inversion HFalse.
 Qed.
 
 Lemma finz_cons_hd (z : Z) (e0 a0 a : finz z) (l : list (finz z)) :

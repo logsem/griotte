@@ -163,8 +163,9 @@ Section cap_lang_rules.
     (* Derive necessary register values in r *)
     pose proof (lookup_weaken _ _ _ _ HPC Hregs).
     specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri. unfold regs_of in Hri.
-    odestruct (Hri r2) as [r2v [Hr'2 Hr2]]. by set_solver+.
-    odestruct (Hri r1) as [r1v [Hr'1 _]]. by set_solver+. clear Hri.
+    odestruct (Hri r2) as [r2v [Hr'2 Hr2]]; first by set_solver+.
+    odestruct (Hri r1) as [r1v [Hr'1 _]]; first by set_solver+.
+    clear Hri.
     (* Derive the PC in memory *)
     assert (is_Some (dfracs !! pc_a)) as [dq Hdq].
     { apply elem_of_dom. rewrite -Hdomeq. apply elem_of_dom;eauto. }
@@ -172,8 +173,7 @@ Section cap_lang_rules.
     { rewrite lookup_merge Hmem_pc Hdq //. }
     iDestruct (gen_mem_valid_inSepM_general (prod_merge dfracs mem) m with "Hm Hmem") as %Hma; eauto.
 
-    iModIntro.
-    iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iIntros "_".
@@ -215,8 +215,8 @@ Section cap_lang_rules.
     2: { (* Failure: the PC could not be incremented correctly *)
       assert (incrementPC (<[ r1 := (load_word p loadv) ]> r) = None).
       { eapply incrementPC_overflow_mono; first eapply Hregs'.
-          by rewrite lookup_insert_is_Some'; eauto.
-            by apply insert_mono; eauto. }
+          + by rewrite lookup_insert_is_Some'; eauto.
+          + by apply insert_mono; eauto. }
 
       rewrite incrementPC_fail_updatePC /= in Hstep; auto.
       symmetry in Hstep; inversion Hstep; clear Hstep. subst c σ2.
@@ -314,8 +314,9 @@ Section cap_lang_rules.
        by destruct (a0 =? x3)%Z.
      }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-       destruct o. all: congruence. }
+       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; [destruct o|].
+       all: congruence.
+     }
   Qed.
 
   Lemma wp_load_success_notinstr E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' dq dq' :
@@ -339,17 +340,25 @@ Section cap_lang_rules.
   Proof.
     intros. iIntros "(>HPC & >Hpc_a & >Hr1 & >Hr2 & >Ha)".
     destruct (a =? pc_a)%Z eqn:Ha.
-    { rewrite (_: a = pc_a); cycle 1.
+    - rewrite (_: a = pc_a); cycle 1.
       { apply Z.eqb_eq in Ha. solve_addr. }
       iDestruct (pointsto_agree with "Hpc_a Ha") as %->.
       iIntros "Hφ". iApply (wp_load_success with "[$HPC $Hpc_a $Hr1 $Hr2]"); eauto.
-      apply Z.eqb_eq,finz_to_z_eq in Ha. subst a. auto.
-      apply Z.eqb_eq,finz_to_z_eq in Ha. subst a. assert (pc_a =? pc_a = true)%Z as ->. apply Z.eqb_refl.
-      done. iNext. iIntros "(? & ? & ? & ? & ?)".
-      iApply "Hφ". iFrame. assert (pc_a =? pc_a = true)%Z as ->. apply Z.eqb_refl. iFrame. }
-    iIntros "Hφ". iApply (wp_load_success with "[$HPC $Hpc_a $Hr1 $Hr2 Ha]"); eauto.
-    rewrite Ha. iFrame. iNext. iIntros "(? & ? & ? & ? & ?)". rewrite Ha.
-    iApply "Hφ". iFrame. Unshelve. apply DfracDiscarded. apply (WInt 0).
+      { apply Z.eqb_eq,finz_to_z_eq in Ha. subst a. auto. }
+      { apply Z.eqb_eq,finz_to_z_eq in Ha. subst a.
+        by assert (pc_a =? pc_a = true)%Z as -> by (apply Z.eqb_refl).
+      }
+      iNext. iIntros "(? & ? & ? & ? & ?)".
+      iApply "Hφ".
+      assert (pc_a =? pc_a = true)%Z as -> by (apply Z.eqb_refl).
+      iFrame.
+    - iIntros "Hφ". iApply (wp_load_success with "[$HPC $Hpc_a $Hr1 $Hr2 Ha]"); eauto.
+      { rewrite Ha. iFrame. }
+      iNext. iIntros "(? & ? & ? & ? & ?)". rewrite Ha.
+      iApply "Hφ". iFrame.
+      Unshelve.
+      + apply DfracDiscarded.
+      + apply (WInt 0).
   Qed.
 
   Lemma wp_load_success_frominstr E r1 r2 pc_p pc_g pc_b pc_e pc_a w w'' p g b e pc_a' dq :
@@ -423,8 +432,7 @@ Section cap_lang_rules.
        by destruct (a0 =? x3)%Z.
      }
      { (* Failure (contradiction) *)
-       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-       destruct o. all: congruence. }
+       destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; [ destruct o |]; congruence. }
     Qed.
 
   Lemma wp_load_success_same_notinstr E r1 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' dq dq' :
@@ -452,13 +460,17 @@ Section cap_lang_rules.
       rewrite Heqa. subst a.
       iDestruct (pointsto_agree with "Hpc_a Ha") as %->.
       iIntros "Hφ". iApply (wp_load_success_same with "[$HPC $Hpc_a $Hr1]"); eauto.
-      rewrite Ha. done.
+      { rewrite Ha; done. }
       iNext. iIntros "(? & ? & ? & ?)".
       iApply "Hφ". iFrame. rewrite Ha. iFrame.
     }
     iIntros "Hφ". iApply (wp_load_success_same with "[$HPC $Hpc_a $Hr1 Ha]"); eauto.
-    rewrite Ha. iFrame. iNext. iIntros "(? & ? & ? & ?)". rewrite Ha.
-    iApply "Hφ". iFrame. Unshelve. apply (WInt 0). apply DfracDiscarded.
+    { rewrite Ha. iFrame. }
+    iNext. iIntros "(? & ? & ? & ?)". rewrite Ha.
+    iApply "Hφ". iFrame.
+    Unshelve.
+    + apply (WInt 0).
+    + apply DfracDiscarded.
   Qed.
 
   Lemma wp_load_success_same_frominstr E r1 pc_p pc_g pc_b pc_e pc_a w p g b e pc_a' dq :
@@ -575,8 +587,9 @@ Section cap_lang_rules.
        iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hr1]"; eauto. iFrame. }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto.
-       apply isCorrectPC_ra_wb in Hvpc. apply andb_prop_elim in Hvpc as [Hra Hwb].
-       destruct o; apply Is_true_false in H0. all: try congruence. done.
+       + apply isCorrectPC_ra_wb in Hvpc. apply andb_prop_elim in Hvpc as [Hra Hwb].
+         destruct o; apply Is_true_false in H0; try congruence. done.
+       + congruence.
      }
   Qed.
 

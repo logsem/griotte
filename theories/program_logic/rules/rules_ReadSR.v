@@ -70,7 +70,7 @@ Section cap_lang_rules.
     iDestruct (gen_heap_valid_inclSepM with "Hsr Hsmap") as %Hsregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
-    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iIntros "_".
@@ -78,7 +78,7 @@ Section cap_lang_rules.
     unfold exec in Hstep.
 
     specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri. unfold regs_of in Hri.
-    destruct (Hri dst) as [wdst [H'dst Hdst]]. by set_solver+.
+    destruct (Hri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
 
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep. rewrite Hxsr in Hstep.
@@ -87,7 +87,7 @@ Section cap_lang_rules.
     }
 
     specialize (indom_sregs_incl _ _ _ Dsregs Hsregs) as Hsri. unfold sregs_of in Hsri.
-    destruct (Hsri src) as [wsrc [H'src Hsrc]]. by set_solver+.
+    destruct (Hsri src) as [wsrc [H'src Hsrc]]; first by set_solver+.
 
     assert (exec_opt (ReadSR dst src) pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst wsrc)) as HH.
     { by cbn; rewrite Hsrc Hxsr /=. }

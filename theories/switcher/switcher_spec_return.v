@@ -446,7 +446,18 @@ Section Switcher.
       iDestruct ("Hrcond_astk1" with "H1'") as "#Hinterp1"; cbn.
       iDestruct ("Hrcond_astk2" with "H2'") as "#Hinterp2"; cbn.
       iDestruct ("Hrcond_astk3" with "H3'") as "#Hinterp3"; cbn.
-      iSplitR ; cycle 1.
+      iSplitR.
+      {
+        rewrite /load_word.
+        rewrite (notisDRO_flowsfrom RWL p_astk0); eauto.
+        rewrite (notisDRO_flowsfrom RWL p_astk1); eauto.
+        rewrite (notisDRO_flowsfrom RWL p_astk2); eauto.
+        rewrite (notisDRO_flowsfrom RWL p_astk3); eauto.
+        rewrite (notisDL_flowsfrom RWL p_astk0); eauto.
+        rewrite (notisDL_flowsfrom RWL p_astk1); eauto.
+        rewrite (notisDL_flowsfrom RWL p_astk2); eauto.
+        rewrite (notisDL_flowsfrom RWL p_astk3); eauto.
+      }
       iSplitL "H0 H0'".
       { iSplitR "H0'"; cycle 1.
         + iRewrite - ("HP0" $! (W0,C,WInt 0)).
@@ -478,16 +489,6 @@ Section Switcher.
           iRewrite - ("HP3" $! (W',C,WInt 0)).
           iApply "Hwcond_astk3"; iApply interp_int.
       }
-
-      rewrite /load_word.
-      rewrite (notisDRO_flowsfrom RWL p_astk0); eauto.
-      rewrite (notisDRO_flowsfrom RWL p_astk1); eauto.
-      rewrite (notisDRO_flowsfrom RWL p_astk2); eauto.
-      rewrite (notisDRO_flowsfrom RWL p_astk3); eauto.
-      rewrite (notisDL_flowsfrom RWL p_astk0); eauto.
-      rewrite (notisDL_flowsfrom RWL p_astk1); eauto.
-      rewrite (notisDL_flowsfrom RWL p_astk2); eauto.
-      rewrite (notisDL_flowsfrom RWL p_astk3); eauto.
     }
 
     iDestruct (lc_fupd_elim_later with "[$] [$H]") as ">H".
@@ -673,7 +674,7 @@ Section Switcher.
           specialize (H1 W).
           apply _.
         }
-        iSplit; first (iPureIntro; eapply isO_flowsto; eauto).
+        iSplit; first (iPureIntro; eapply notisO_flowsfrom; eauto).
         iSplit.
         { erewrite isWL_flowsto;eauto.
           rewrite /future_pub_mono.

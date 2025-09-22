@@ -432,8 +432,9 @@ Section fundamental.
       }
       iIntros (k v [Hin Hspec]%map_lookup_filter_Some).
       destruct ( decide (k ∈ dom_arg_rmap (nargs + 1 - 1)) ); last done.
-      iApply ("Hreg" $! k);iPureIntro. set_solver+Hspec.
-      repeat (apply lookup_delete_Some in Hin as [_ Hin]). auto. }
+      iApply ("Hreg" $! k);iPureIntro; first set_solver+Hspec.
+      repeat (apply lookup_delete_Some in Hin as [_ Hin]); auto.
+    }
     iIntros "!> (%arg_rmap' & %Hisarg_rmap' & HPC & Hct2 & Hparams & Hcode)".
 
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
@@ -535,8 +536,8 @@ Section fundamental.
       rewrite -union_difference_L;[|apply all_registers_subseteq].
       apply elem_of_intersection. split;[apply all_registers_s_correct|].
       apply elem_of_union. right.
-      apply elem_of_difference. split;[apply all_registers_s_correct|set_solver]. }
-
+      apply elem_of_difference. split;[apply all_registers_s_correct|set_solver].
+    }
     repeat iSplit.
     - clear-Hentry. iPureIntro. simplify_map_eq. repeat f_equiv.
       rewrite encode_entry_point_eq_off in Hentry. solve_addr.

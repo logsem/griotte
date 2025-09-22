@@ -203,7 +203,7 @@ Section fundamental.
     case_decide as Hallows; cycle 1.
     {
       iDestruct "HLoadRes" as "[-> HLoadRes ]".
-      iSplitR. by rewrite lookup_insert.
+      iSplitR; first by rewrite lookup_insert.
       iExists p1,g1,b1,e1,a1. iSplitR; auto.
       case_decide as Hdec1; last by done.
       done.
@@ -214,13 +214,13 @@ Section fundamental.
       destruct Hallows' as (Hrinr & Hra & Hwb).
       (* case_decide as Haeq. *)
       iDestruct "HLoadRes" as (w0 p' P Hp'O Hpers) "[-> _]".
-      iSplitR. rewrite lookup_insert_ne; auto. by rewrite lookup_insert.
+      iSplitR; first (rewrite lookup_insert_ne; auto; by rewrite lookup_insert).
       iExists p1,g1,b1,e1,a1. iSplitR; auto.
       case_decide; last by exfalso.
       iExists w0.
       by rewrite lookup_insert.
     - subst a. iDestruct "HLoadRes" as "[-> HLoadRes]".
-      iSplitR. by rewrite lookup_insert.
+      iSplitR; first by rewrite lookup_insert.
       iExists p1,g1,b1,e1,a1. repeat iSplitR; auto.
       case_decide as Hdec1; last by done.
       iExists w. by rewrite lookup_insert.
@@ -282,7 +282,7 @@ Section fundamental.
       rewrite decide_True.
       2: { eexists src,_.
            inversion Hrar.
-           split. eauto.
+           split;eauto.
            split;auto.
            split;auto.
            destruct H0.
@@ -331,9 +331,8 @@ Section fundamental.
     (* To read out PC's name later, and needed when calling wp_load *)
     assert(∀ x : RegName, is_Some (<[PC:=WCap p g b e a]> regs !! x)) as Hsome'.
     {
-      intros. destruct (decide (x = PC)).
+      intros. destruct (decide (x = PC)); last by rewrite lookup_insert_ne.
       rewrite e0 lookup_insert; unfold is_Some. by eexists.
-      by rewrite lookup_insert_ne.
     }
 
     (* Initializing the names for the values of Hsrc now,

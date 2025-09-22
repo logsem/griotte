@@ -102,7 +102,7 @@ Section cap_lang_rules.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
-    iModIntro. iSplitR. by iPureIntro; apply normal_always_base_reducible.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
     iIntros "_".
@@ -110,7 +110,7 @@ Section cap_lang_rules.
 
     specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri.
     unfold regs_of in Hri, Dregs.
-    destruct (Hri dst) as [wdst [H'dst Hdst]]. by set_solver+.
+    destruct (Hri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
 
     rewrite /exec /= Hdst /= in Hstep.
 
@@ -135,17 +135,17 @@ Section cap_lang_rules.
           assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { repeat case_match; inv Hstep; auto. }
           iFailWP "Hφ" Subseg_fail_src1_nonaddr. }
-        subst src1. destruct (Hri r1) as [r1v [Hr'1 Hr1]].
-          by unfold regs_of_argument; set_solver+.
-          rewrite /addr_of_argument /= Hr'1 in Ha1.
-          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-          { destruct r1v ; simplify_pair_eq.
-            all: unfold addr_of_argument, z_of_argument at 2 in Hstep.
-            all: rewrite /= Hr1 ?Ha1 /= in Hstep.
-            all: inv Hstep; auto.
-          }
-          repeat case_match; try congruence.
-          all: iFailWP "Hφ" Subseg_fail_src1_nonaddr. }
+        subst src1.
+        destruct (Hri r1) as [r1v [Hr'1 Hr1]] ; first (by unfold regs_of_argument; set_solver+).
+        rewrite /addr_of_argument /= Hr'1 in Ha1.
+        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+        { destruct r1v ; simplify_pair_eq.
+          all: unfold addr_of_argument, z_of_argument at 2 in Hstep.
+          all: rewrite /= Hr1 ?Ha1 /= in Hstep.
+          all: inv Hstep; auto.
+        }
+        repeat case_match; try congruence.
+        all: iFailWP "Hφ" Subseg_fail_src1_nonaddr. }
       apply (addr_of_arg_mono _ r) in Ha1; auto. rewrite Ha1 /= in Hstep.
 
       destruct (addr_of_argument regs src2) as [a2|] eqn:Ha2;
@@ -154,18 +154,19 @@ Section cap_lang_rules.
         { rewrite Ha2 /= in Hstep.
           assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { repeat case_match; inv Hstep; auto. }
-          iFailWP "Hφ" Subseg_fail_src2_nonaddr. }
-        subst src2. destruct (Hri r2) as [r2v [Hr'2 Hr2]].
-          by unfold regs_of_argument; set_solver+.
-          rewrite /addr_of_argument /= Hr'2 in Ha2.
-          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-          { destruct r2v ; simplify_pair_eq.
-            all: unfold addr_of_argument, z_of_argument  in Hstep.
-            all: rewrite /= Hr2 ?Ha2 /= in Hstep.
-            all: inv Hstep; auto.
-          }
-          repeat case_match; try congruence.
-          all: iFailWP "Hφ" Subseg_fail_src2_nonaddr. }
+          iFailWP "Hφ" Subseg_fail_src2_nonaddr.
+        }
+        subst src2.
+        destruct (Hri r2) as [r2v [Hr'2 Hr2]]; first (by unfold regs_of_argument; set_solver+).
+        rewrite /addr_of_argument /= Hr'2 in Ha2.
+        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+        { destruct r2v ; simplify_pair_eq.
+          all: unfold addr_of_argument, z_of_argument  in Hstep.
+          all: rewrite /= Hr2 ?Ha2 /= in Hstep.
+          all: inv Hstep; auto.
+        }
+        repeat case_match; try congruence.
+        all: iFailWP "Hφ" Subseg_fail_src2_nonaddr. }
       apply (addr_of_arg_mono _ r) in Ha2; auto. rewrite Ha2 /= in Hstep.
       rewrite /update_reg /= in Hstep.
 
@@ -176,15 +177,16 @@ Section cap_lang_rules.
         pose proof Hregs' as H'regs'; cycle 1.
       { assert (incrementPC (<[ dst := (WCap p g a1 a2 a) ]> r) = None) as HH.
         { eapply incrementPC_overflow_mono; first eapply Hregs'.
-            by rewrite lookup_insert_is_Some'; eauto.
-              by apply insert_mono; eauto. }
+            + by rewrite lookup_insert_is_Some'; eauto.
+            + by apply insert_mono; eauto.
+        }
         apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
             by (destruct p; inversion Hstep; auto).
         iFailWP "Hφ" Subseg_fail_incrPC_cap. }
 
       eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-        as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+          as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
       eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
       { destruct_perm p; cbn in Hstep; eauto. }
@@ -192,25 +194,26 @@ Section cap_lang_rules.
       iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
       iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
       iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
-     (* Now, the case where wsrc is a capability *)
+    (* Now, the case where wsrc is a capability *)
     + destruct (otype_of_argument regs src1) as [a1|] eqn:Ha1;
         pose proof Ha1 as H'a1; cycle 1.
       { destruct src1 as [| r1] eqn:?; cbn in Ha1, Hstep.
         { rewrite Ha1 /= in Hstep.
           assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { repeat case_match; inv Hstep; auto. }
-          iFailWP "Hφ" Subseg_fail_src1_nonotype. }
-        subst src1. destruct (Hri r1) as [r1v [Hr'1 Hr1]].
-          by unfold regs_of_argument; set_solver+.
-          rewrite /otype_of_argument /= Hr'1 in Ha1.
-          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-          { destruct r1v ; simplify_pair_eq.
-            all: unfold otype_of_argument, z_of_argument at 2 in Hstep.
-            all: rewrite /= Hr1 ?Ha1 /= in Hstep.
-            all: inv Hstep; auto.
-          }
-          repeat case_match; try congruence.
-          all: iFailWP "Hφ" Subseg_fail_src1_nonotype. }
+          iFailWP "Hφ" Subseg_fail_src1_nonotype.
+        }
+        subst src1.
+        destruct (Hri r1) as [r1v [Hr'1 Hr1]]; first (by unfold regs_of_argument; set_solver+).
+        rewrite /otype_of_argument /= Hr'1 in Ha1.
+        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+        { destruct r1v ; simplify_pair_eq.
+          all: unfold otype_of_argument, z_of_argument at 2 in Hstep.
+          all: rewrite /= Hr1 ?Ha1 /= in Hstep.
+          all: inv Hstep; auto.
+        }
+        repeat case_match; try congruence.
+        all: iFailWP "Hφ" Subseg_fail_src1_nonotype. }
       apply (otype_of_arg_mono _ r) in Ha1; auto. rewrite Ha1 /= in Hstep.
 
       destruct (otype_of_argument regs src2) as [a2|] eqn:Ha2;
@@ -219,9 +222,10 @@ Section cap_lang_rules.
         { rewrite Ha2 /= in Hstep.
           assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { repeat case_match; inv Hstep; auto. }
-          iFailWP "Hφ" Subseg_fail_src2_nonotype. }
-        subst src2. destruct (Hri r2) as [r2v [Hr'2 Hr2]].
-          by unfold regs_of_argument; set_solver+.
+          iFailWP "Hφ" Subseg_fail_src2_nonotype.
+        }
+        subst src2.
+        destruct (Hri r2) as [r2v [Hr'2 Hr2]]; first (by unfold regs_of_argument; set_solver+).
           rewrite /otype_of_argument /= Hr'2 in Ha2.
           assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
           { destruct r2v ; simplify_pair_eq.
@@ -241,8 +245,9 @@ Section cap_lang_rules.
         pose proof Hregs' as H'regs'; cycle 1.
       { assert (incrementPC (<[ dst := (WSealRange p g a1 a2 a) ]> r) = None) as HH.
         { eapply incrementPC_overflow_mono; first eapply Hregs'.
-            by rewrite lookup_insert_is_Some'; eauto.
-              by apply insert_mono; eauto. }
+          + by rewrite lookup_insert_is_Some'; eauto.
+          + by apply insert_mono; eauto.
+        }
         apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
             by (destruct p; inversion Hstep; auto).
@@ -283,7 +288,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -324,7 +329,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -365,7 +370,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -406,7 +411,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -444,7 +449,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -478,7 +483,7 @@ Section cap_lang_rules.
     iIntros (? ? ? ? Hncond ?) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
     destruct Hspec as [| | * Hfail].
     { (* Success (contradiction) *)
@@ -514,7 +519,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -552,7 +557,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -590,7 +595,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr2") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -628,7 +633,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -707,7 +712,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -747,7 +752,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -787,7 +792,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -827,7 +832,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].
@@ -865,7 +870,7 @@ Section cap_lang_rules.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [| | * Hfail].

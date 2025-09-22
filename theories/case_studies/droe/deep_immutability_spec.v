@@ -24,11 +24,6 @@ Section DROE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  Program Definition interp_ro_eq (w : Word) : V :=
-    (λne (W : WORLD) (B : leibnizO CmptName) (v : leibnizO Word)
-     , (⌜ v = w ⌝ ∗ interp W B (readonly w))%I).
-  Solve All Obligations with solve_proper.
-
   Lemma droe_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -329,7 +324,7 @@ Section DROE.
     | _ : _ |- context [ region ?W' ] => set (W0 := W')
     end.
 
-    iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_ro_eq (WInt 42)))
+    iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_dro_eq (WInt 42)))
         with "[] [$HWstd_full_C] [$HWreg_C] [$Hcgp_b] []")
       as "(HWreg_C & #Hrel_cgp_b & HWstd_full_C)".
     { done. }
@@ -353,7 +348,7 @@ Section DROE.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RO_DRO, (interp_ro_eq _).
+      iExists RO_DRO, (interp_dro_eq _).
       iEval (cbn).
       iSplit; first done.
       iSplit.
@@ -362,7 +357,7 @@ Section DROE.
       iSplit.
       { iIntros "!>" (W1').
         iIntros "!>" (W1'' z) "[-> H]".
-        rewrite /interp_ro_eq /=.
+        rewrite /interp_dro_eq /=.
         iSplitR; [done | by rewrite !fixpoint_interp1_eq].
       }
       iSplit.
@@ -380,7 +375,7 @@ Section DROE.
         by rewrite lookup_insert.
     }
 
-    iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_ro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+    iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_dro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
         with "[] [$HWstd_full_C] [$HWreg_C] [$Hcgp_a] []")
       as "(HWreg_C & Hrel_cgp_a & HWstd_full_C)".
     { done. }
@@ -414,7 +409,7 @@ Section DROE.
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RO_DRO, (interp_ro_eq _).
+      iExists RO_DRO, (interp_dro_eq _).
       iEval (cbn).
       iSplit; first done.
       iSplit.

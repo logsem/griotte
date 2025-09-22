@@ -467,8 +467,10 @@ Section opsem.
   Lemma normal_always_step:
     forall φ, exists cf φ', step (Executable, φ) (cf, φ').
   Proof.
-    intros. destruct (reg φ !! PC) as [wpc | ] eqn:Hreg.
-    destruct (isCorrectPC_dec wpc) as [Hcorr | ].
+    intros. destruct (reg φ !! PC) as [wpc | ] eqn:Hreg
+    ; last (eexists _,_; by econstructor).
+    destruct (isCorrectPC_dec wpc) as [Hcorr | ]
+    ; last (eexists _,_; by econstructor).
     set (Hcorr' := Hcorr).
     inversion Hcorr' as [?????? Hre]. subst wpc.
     destruct (mem φ !! a) as [wa | ] eqn:Hmem.

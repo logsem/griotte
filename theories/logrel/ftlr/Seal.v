@@ -29,7 +29,7 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
-  
+
   (* Proving the meaning of sealing in the LR sane *)
   Lemma sealing_preserves_interp W C sb p0 g0 b0 e0 a0:
         permit_seal p0 = true →
@@ -48,9 +48,7 @@ Section fundamental.
     iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
     iDestruct "HSa0" as (P) "(% & #Hmono & HsealP & HWcond)".
     iExists P.
-    repeat iSplitR; auto.
-    by iApply "HWcond".
-    by iApply "HWcond".
+    repeat iSplitR; auto; by iApply "HWcond".
   Qed.
 
   Lemma seal_case (W : WORLD)(C : CmptName) (regs : leibnizO Reg)

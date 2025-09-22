@@ -376,7 +376,7 @@ Section wp_interp.
 
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_UnSeal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].
@@ -424,7 +424,7 @@ Section wp_interp.
 
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_UnSeal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    by unfold regs_of; rewrite !dom_insert; set_solver+.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].

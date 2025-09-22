@@ -116,7 +116,7 @@ Proof.
   iModIntro. iExists (SealStoreG _ _ γ).
 
   iInduction oset as [| x oset Hni] "IH" using set_ind_L; first done.
-  iApply big_sepS_union. set_solver.
+  iApply big_sepS_union; first set_solver.
   rewrite gset_to_gmap_union_singleton.
   rewrite insert_singleton_op. 2: rewrite lookup_gset_to_gmap_None; set_solver.
   iDestruct (own_op with "H") as "[Hx H]".

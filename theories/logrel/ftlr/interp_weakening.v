@@ -199,14 +199,11 @@ Section fundamental.
 
       destruct (isWL p) eqn: Hpwl; cycle 1.
       { iDestruct ( (monoReq_nwl_future W W' C g g' p p'' x φ)
-                  with "[$Hfuture] [] [$HmonoR]") as "HmonoR'"; eauto.
-        by rewrite Hpwl.
-        by rewrite Hpwl.
+                  with "[$Hfuture] [] [$HmonoR]") as "HmonoR'"; eauto; try by rewrite Hpwl.
        repeat(iSplit; auto).
        clear Hflows''.
-       iDestruct (region_state_nwl_future _ _ _ _ p with "Hfuture []") as "Hregion_state" ; eauto.
-        by rewrite Hpwl.
-        by rewrite Hpwl.
+       iDestruct (region_state_nwl_future _ _ _ _ p with "Hfuture []") as "Hregion_state" ; eauto
+       ; try by rewrite Hpwl.
        destruct g'; cbn; [iLeft|];done.
       }
       {
@@ -310,11 +307,9 @@ Section fundamental.
     iDestruct "Hinterp" as (P HpersP) "(Hmono & Hsealpred & _ & HPborrowed)".
     opose proof (HpersP (W,C,_)) as HpersPborrowed; cbn in HpersPborrowed.
     iDestruct "HPborrowed" as "#HPborrowed".
-    replace (borrow (WSealable (borrow_sb sb)))
-      with (WSealable (borrow_sb sb)).
+    replace (borrow (WSealable (borrow_sb sb))) with (WSealable (borrow_sb sb))
+    by (destruct sb; auto).
     iFrame "∗#%".
-    cbn.
-    destruct sb; auto.
   Qed.
 
   (* TODO move in machine_base *)
@@ -410,7 +405,7 @@ Section fundamental.
         by rewrite HnO.
       }
       iApply (interp_weakeningEO with "Hinterp"); auto; try solve_addr.
-      + eapply isO_flowsto ; eauto.
+      + eapply notisO_flowsfrom ; eauto.
         apply load_word_perm_load_flows;auto.
       + apply load_word_perm_load_flows;auto.
       + destruct (isDL p) eqn:Hdl; auto.
@@ -541,6 +536,30 @@ Section fundamental.
   Proof.
     iIntros (?) "!> %W %W' %Hrelated H"; cbn.
     iApply interp_monotone; auto.
+  Qed.
+
+  Program Definition interp_dro_eq (w : Word) : V :=
+    (λne (W : WORLD) (B : leibnizO CmptName) (v : leibnizO Word)
+     , (⌜ v = w ⌝ ∗ interp W B (readonly w))%I).
+  Solve All Obligations with solve_proper.
+
+  Lemma persistent_cond_interp_dro_eq (w : Word) : persistent_cond (interp_dro_eq w).
+  Proof. intros W; apply _. Qed.
+
+  Lemma zcond_interp_dro_eq C w : ⊢ zcond (interp_dro_eq w) C.
+  Proof. iModIntro; iIntros (W1 W2 w') "[<- ?]".
+         iSplit; first done.
+         iApply interp_int.
+  Qed.
+
+  Lemma rcond_interp_dro_eq C w p : isDRO p = true -> ⊢ rcond (interp_dro_eq w) C p interp.
+  Proof.
+    iIntros (Hp) "!> %W %w' [<- H]".
+    rewrite /load_word /= Hp.
+    destruct (isDL p); last done.
+    replace (readonly (deeplocal (borrow w'))) with (deeplocal (borrow (readonly w'))).
+    + by iApply interp_deeplocal_word; iApply interp_borrow_word.
+    + destruct w' as [| [ [] |] | |]; auto.
   Qed.
 
 End fundamental.

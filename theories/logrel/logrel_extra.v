@@ -153,7 +153,7 @@ Section Logrel_extra.
        iMod (update_region_revoked_temp_pwl with "Hmono Hworld Hregion Ha Hφ Hrel")
          as "[Hregion Hworld]" ;auto.
        { rewrite std_sta_update_multiple_lookup_same_i; auto. }
-       { eapply isO_flowsto; eauto. }
+       { eapply notisO_flowsfrom; eauto. }
        by iFrame.
    Qed.
 
@@ -329,8 +329,7 @@ Section Logrel_extra.
      ; [apply lookup_delete|..]
      ; iClear "IH"
      ; iFrame "∗ #".
-     iSplitR;[iPureIntro; apply lookup_insert|].
-     iExists _ ;iSplit;auto.
+     { iSplitR;[iPureIntro; apply lookup_insert|]. iExists _ ;iSplit;auto. }
      rewrite -HMeq.
      iModIntro. iSplitR.
      ++ iSplit; auto.
@@ -421,8 +420,7 @@ Section Logrel_extra.
      ; [apply lookup_delete|..]
      ; iClear "IH"
      ; iFrame "∗ #".
-     iSplitR;[iPureIntro; apply lookup_insert|].
-     iExists _ ;iSplit;auto.
+     { iSplitR;[iPureIntro; apply lookup_insert|]. iExists _ ;iSplit;auto. }
      iDestruct (big_sepL_app with "Hl_unk") as "[$ $]".
      rewrite -HMeq.
      iModIntro. iSplitR.
@@ -471,9 +469,11 @@ Section Logrel_extra.
      rewrite Hlookup in Hsome. inversion Hsome. subst.
      iDestruct (region_map_insert _ _ _ _ _ Revoked with "Hpreds") as "Hpreds";auto.
      iDestruct (big_sepM_delete _ _ x with "[Hstate $Hpreds Hρ]") as "Hr"; eauto.
-     iExists Revoked; iSplitR; first (by iPureIntro ; simplify_map_eq).
-     iFrame.
-     iDestruct "Hρ" as (? ? ? ? ?) "[? _]". iExists _,_,_. repeat iSplit;eauto.
+     { iExists Revoked; iSplitR; first (by iPureIntro ; simplify_map_eq).
+       iFrame.
+       iDestruct "Hρ" as (? ? ? ? ?) "[? _]".
+       iExists _,_,_. repeat iSplit;eauto.
+     }
      iModIntro. iFrame.
      iSplit; auto.
      iPureIntro. rewrite dom_insert_L.
