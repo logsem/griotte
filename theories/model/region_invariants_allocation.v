@@ -383,116 +383,24 @@ Section region_alloc.
     ∗ ([∗ list] k ∈ l1, rel C k p φ)
     ∗ sts_full_world (std_update_multiple W l1 Permanent) C.
   Proof.
-  (*   revert l2. induction l1. *)
-  (*   { cbn. intros. iIntros "? ? ?". iFrame. eauto. } *)
-  (*   { intros ? ? [? ?]%Forall_cons_1. iIntros "Hsts Hr Hl". *)
-  (*     iDestruct (big_sepL2_length with "Hl") as %Hlen. *)
-  (*     iDestruct (NoDup_of_sepL2_exclusive with "[] Hl") as %[Hal1 ND]%NoDup_cons. *)
-  (*     { iIntros (? ? ?) "(H1 & ? & ?) (H2 & ? & ?)". *)
-  (*       iApply (addr_dupl_false with "H1 H2"). } *)
-  (*     destruct l2; [ by inversion Hlen |]. *)
-  (*     iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf) Hl]". *)
-  (*     iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto. *)
-  (*     iDestruct (extend_region_perm with "Hf Hsts Hr Ha [Hφ]") as ">(? & ? & ?)"; eauto. *)
-  (*     { rewrite -std_update_multiple_cview_not_in_sta; auto. *)
-  (*       rewrite not_elem_of_dom //. } *)
-  (*     { iApply ("Hf" with "[] Hφ"). iPureIntro. *)
-  (*       apply related_sts_pub_priv_world, related_sts_pub_update_multiple. *)
-  (*       eapply Forall_impl; eauto. *)
-  (*       intros. by rewrite not_elem_of_dom. } *)
-  (*     iModIntro. cbn. iFrame. } *)
-  (* Qed. *)
-    Admitted.
-
-  Lemma extend_region_perm_sepL2_from_rev φ E W C l1 l2 p `{∀ Wv, Persistent (φ Wv)}:
-    isO p = false ->
-    Forall (λ k, std W !! k = Some Revoked) l1 →
-    sts_full_world W C -∗
-    region W C -∗
-    ([∗ list] k;v ∈ l1;l2,
-       k ↦ₐ v
-       ∗ φ (W, C, v)
-       ∗ future_priv_mono C φ v
-       ∗ rel C k p φ)
-
-    ={E}=∗
-
-    region (std_update_multiple W l1 Permanent) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
-    ∗ sts_full_world (std_update_multiple W l1 Permanent) C.
-  Proof.
-  (*   revert l2. induction l1. *)
-  (*   { cbn. intros. iIntros "? ? ?". iFrame. eauto. } *)
-  (*   { intros ? ? [? ?]%Forall_cons_1. iIntros "Hsts Hr Hl". *)
-  (*     iDestruct (big_sepL2_length with "Hl") as %Hlen. *)
-  (*     iDestruct (NoDup_of_sepL2_exclusive with "[] Hl") as %[Hal1 ND]%NoDup_cons. *)
-  (*     { iIntros (? ? ?) "(H1 & ? & ?) (H2 & ? & ?)". *)
-  (*       iApply (addr_dupl_false with "H1 H2"). } *)
-  (*     destruct l2; [ by inversion Hlen |]. *)
-  (*     iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf & #Hrel) Hl]". *)
-  (*     iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto. *)
-  (*     iMod (update_region_revoked_perm with "Hf Hsts Hr Ha [Hφ] Hrel") as "(? & ?)"; auto. *)
-  (*     { erewrite std_sta_update_multiple_lookup_same_i;auto. } *)
-  (*     { iApply ("Hf" with "[] Hφ"). iPureIntro. *)
-  (*       apply related_sts_pub_priv_world,related_sts_pub_update_multiple_perm. auto. } *)
-  (*     iFrame "∗ #". done. *)
-  (*   } *)
-  (* Qed. *)
-    Admitted.
-
-  (* TODO fix this *)
-  (* Context {sealsg: sealStoreG Σ} *)
-  (*   {nainv: logrel_na_invs Σ} *)
-  (* . *)
-  (* Lemma region_seal_pred_interp E (W : WORLD) (C : CmptName) (b e a: OType) (b1 b2 : bool) (g : Locality) : *)
-  (*   ([∗ list] o ∈ finz.seq_between b e, seal_pred o (safeC interp)) *)
-  (*   ={E}=∗ *)
-  (*   interp W C (WSealRange (b1,b2) Global b e a). *)
-  (* Proof. *)
-  (*   remember (finz.seq_between b e) as l eqn:Hgen. rewrite Hgen; revert Hgen. *)
-  (*   generalize b e. clear b e. *)
-  (*   induction l as [|hd tl IH]. *)
-  (*   - iIntros (b e Hfinz) "_ !>". *)
-  (*     rewrite /interp fixpoint_interp1_eq /= /safe_to_seal /safe_to_unseal. *)
-  (*     rewrite -Hfinz. destruct b1, b2; iSplit; done. *)
-  (*   - iIntros (b e Hfinz). *)
-  (*     assert (b < e)%ot as Hlbe. *)
-  (*     {destruct (decide (b < e)%ot) as [|HF]; first auto. rewrite finz_seq_between_empty in Hfinz; [inversion Hfinz | solve_addr  ]. } *)
-  (*     apply finz_cons_tl in Hfinz as (b' & Hplus & Hfinz). *)
-  (*     specialize (IH b' e Hfinz). rewrite (finz_seq_between_split _ b' _). *)
-  (*     2 : split; solve_addr. *)
-  (*     iIntros "[#Hfirst Hca]". *)
-  (*     iMod (IH with "Hca") as "Hca". iModIntro. *)
-  (*     rewrite /interp !fixpoint_interp1_eq /= /safe_to_seal /safe_to_unseal. *)
-  (*     rewrite !(finz_seq_between_split b b' e). 2: { split ; solve_addr. } *)
-  (*     iDestruct "Hca" as "[Hseal Hunseal]". *)
-  (*     iSplitL "Hseal"; [destruct b1| destruct b2]; iFrame. *)
-  (*     all: iApply (big_sepL_mono with "Hfirst"). *)
-  (*     all: iIntros (k a' Hk) "H"; cbn. *)
-  (*     all: iExists _; iFrame; auto. *)
-  (*     1: iSplit; first (iPureIntro;apply persistent_cond_interp). *)
-  (*     1:iSplit;last iApply wcond_interp. *)
-  (*     2:iSplit;last iApply rcond_interp. *)
-  (*     all: iIntros (w W0 W1 Hrelated); iModIntro ; iIntros "Hsafe" ; cbn. *)
-  (*     all:iApply monotone.interp_monotone_nl;eauto. *)
-  (*     iPureIntro; apply _. *)
-  (*     iSplit;first (iPureIntro; apply _). *)
-  (*     iApply rcond_interp. *)
-  (* Qed. *)
-
-  (* Get the validity of sealing capabilities if we can allocate an arbitrary predicate,
-     and can hence choose interp itself as the sealing predicate *)
-  (* Lemma region_can_alloc_interp E W C (b e a: OType) b1 b2 g: *)
-  (*   ([∗ list] o ∈ finz.seq_between b e, can_alloc_pred o) ={E}=∗ *)
-  (*   interp W C (WSealRange (b1,b2) g b e a). *)
-  (* Proof. *)
-  (*   iIntros "Hca". *)
-  (*   iDestruct (big_sepL_mono with "Hca") as "Hca". *)
-  (*   iIntros (k a' Hk) "H". iDestruct (seal_store_update_alloc _ (safeC interp)  with "H") as "H". iExact "H". *)
-
-  (*   iDestruct (big_sepL_bupd with "Hca") as "Hca". *)
-  (*   iMod "Hca". *)
-  (*   iApply region_seal_pred_interp. *)
-  (* Qed. *)
+    revert l2. induction l1.
+    { cbn. intros. iIntros "? ? ?". iFrame. eauto. }
+    { intros ? ? [? ?]%Forall_cons_1. iIntros "Hsts Hr Hl".
+      iDestruct (big_sepL2_length with "Hl") as %Hlen.
+      iDestruct (NoDup_of_sepL2_exclusive with "[] Hl") as %[Hal1 ND]%NoDup_cons.
+      { iIntros (? ? ?) "(H1 & ? & ?) (H2 & ? & ?)".
+        iApply (addr_dupl_false with "H1 H2"). }
+      destruct l2; [ by inversion Hlen |].
+      iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf) Hl]".
+      iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto.
+      iDestruct (extend_region_perm with "Hf Hsts Hr Ha [Hφ]") as ">(? & ? & ?)"; eauto.
+      { rewrite -std_update_multiple_not_in_sta; auto.
+        rewrite not_elem_of_dom //. }
+      { iApply ("Hf" with "[] Hφ"). iPureIntro.
+        apply related_sts_pub_priv_world, related_sts_pub_update_multiple.
+        eapply Forall_impl; eauto.
+        intros. by rewrite not_elem_of_dom. }
+      iModIntro. cbn. iFrame. }
+  Qed.
 
 End region_alloc.
