@@ -47,8 +47,6 @@ Class MachineParameters := {
             | WInt _, WInt _ => encodeWordType w = encodeWordType w'
             | _, _ => encodeWordType w <> encodeWordType w'
             end;
-    decode_encode_word_type_inv :
-    forall w, decodeWordType (encodeWordType w) = w;
   }.
 
 (* Lift the encoding / decoding between Z and instructions on Words: simplify
