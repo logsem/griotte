@@ -265,7 +265,12 @@ Section logrel.
 
   (** [interp_cont_exec] provides a WP rule for the continuation relation.
       It matches the states of the machine at the point where the switcher returns to the caller.
-      In particular:
+
+      [interp_cont_exec] is somewhat the dual of [execute_entry_point]:
+      - [interp_cont_exec] matches the state of the machine after the execution of return-to-switcher
+      - [execute_entry_point] matches the state of the machine after the execution of call-switcher
+
+      The state of the machine should:
       - [PC] points-to the caller's site
       - the callee-saved registers of the topmost call-frame [frm] are restored in their
         original registers
@@ -286,7 +291,6 @@ Section logrel.
       - Finally, we have the [interp_cont] of the (depoped) stack frame (we don't see it in this def,
         but we see it in the definition of [interp_cont] later),
         and the fragmental view of the call-stack [cstk].
-
 
     (1) Although we know it should contain zeroes due to the clearing during the return routine,
         it is logically hard to prove in the functional specification because the world
