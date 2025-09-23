@@ -172,8 +172,14 @@ Section Switcher_preamble.
     persistent_cond ot_switcher_prop.
   Proof. intros [ [] ] ; cbn; apply _. Qed.
 
-  (** TODO explanation switcher's invariant
-
+  (** [cframe_interp] interprets a call-frame, i.e.,
+      describes how the physical call-frame is linked to the logical call-frame [frm : cframe].
+      We have 2 situations to take into account:
+      - If the caller is untrusted, the points-to predicate of the callee-save region
+        are stored in the region invariant, which means that their content is controlled by adversary,
+        and does not have to match with the call-frame.
+      - If the caller is trusted, the switcher controls the callee-save region,
+        and the content should match the words of the call-frame.
    *)
   Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
     ∃ (wtstk4 : Word),
@@ -193,6 +199,10 @@ Section Switcher_preamble.
       | _ => False
       end.
 
+  (** [cstack_interp] interprets a call-stack.
+      It simply interpret the topmost stack frame,
+      as well as the rest of the call-stack.
+   *)
   Fixpoint cstack_interp (cstk : cstack) (a_tstk : Addr) : iProp Σ :=
     (match cstk with
     | [] => a_tstk ↦ₐ WInt 0
@@ -200,6 +210,26 @@ Section Switcher_preamble.
                   ∗ cframe_interp frm a_tstk
     end)%I.
 
+  (** [switcher_inv] describes the invariant of the switcher,
+      and describe the private state of the switcher.
+
+      [mtdc] is the a privileged register, than only the switcher can access.
+      It contains a pointer to the _trusted stack_
+      (also called _physical call stack_ or _switcher's private state_).
+      The trusted stack stores the compartment's stack pointer of all calls.
+
+      The _trusted stack_ must be in sync with the logical call stack [cstk],
+      for which the switcher's invariant holds the authoritative view [cstack_full].
+      As a reminder, the fragmental view [cstack_frag] is given by the expression relation
+      (or any of its variants).
+
+      The invariant also contains the code of the switcher,
+      as well as the unsealing capability of the switcher's otype.
+
+      Finally, it holds the points-to predicates of the trusted stack.
+      The unused part `[a_tstk+1, e_trusted_stack)` contains some unknown values.
+      The used part is contained in the definition of [stack_interp].
+   *)
   Definition switcher_inv : iProp Σ :=
     ∃ (a_tstk : Addr) (cstk : CSTK) (tstk_next : list Word),
      mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk
