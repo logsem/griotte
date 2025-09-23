@@ -448,28 +448,23 @@ Section logrel.
     (p : Perm) (g : Locality) (b e a : Addr)
     (interp : V) : iProp Σ :=
     (∀ stk Ws Cs wstk W',
-       future_world g W W' →
-             (▷ interp_expr interp (interp_cont interp stk Ws Cs) stk Ws Cs W' C (WCap p g b e a) wstk)
-               ∗ (▷ interp_expr interp (interp_cont interp stk Ws Cs) stk Ws Cs W' C (WCap p Local b e a) wstk)
+       future_world g W W'
+       → (∀ g', ⌜ LocalityFlowsTo g' g ⌝ → (▷ interp_expr interp (interp_cont interp stk Ws Cs) stk Ws Cs W' C (WCap p g' b e a) wstk))
     )%I.
   Global Instance enter_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
   Proof.
     solve_proper_prepare.
-    do 22 f_equiv;[by repeat f_equiv| |by repeat f_equiv|..].
-    1,2: apply interp_cont_ne; auto.
+    do 24 f_equiv;[by repeat f_equiv|..].
+    apply interp_cont_ne; auto.
   Qed.
 
   Global Instance enter_cond_contractive W C p g b e a :
     Contractive (λ interp, enter_cond W C p g b e a interp).
   Proof.
     intros ????. rewrite /enter_cond.
-    do 12 f_equiv;
+    do 14 f_equiv.
     apply later_contractive.
-    { inversion H. constructor. intros.
-      apply dist_later_lt in H0.
-      apply interp_expr_ne;auto.
-      apply interp_cont_ne;auto. }
     inversion H. constructor. intros.
     apply dist_later_lt in H0.
     apply interp_expr_ne;auto.
