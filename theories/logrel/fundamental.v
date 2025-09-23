@@ -414,6 +414,7 @@ Section fundamental.
   Lemma fundamental_ih Nswitcher :
     na_inv logrel_nais Nswitcher switcher_inv
     ⊢ ftlr_IH.
+  Proof.
     iIntros "#Hinv".
     iModIntro; iNext.
     iIntros (????????????) "??????????#Hv".
@@ -437,24 +438,14 @@ Section fundamental.
     }
     { destruct Hw as (p & g & b & e & a & ->).
       rewrite fixpoint_interp1_eq /=.
-      destruct (is_switcher_entry_point (WSentry p g b e a)) eqn:Hsentry.
-      + apply bool_decide_eq_true_1 in Hsentry.
-        destruct Hsentry as [|]
-        ; simplify_eq
-        ; iIntros "!> %%%%% ([% ?]&?&%&?&?&?&?&?&%)"
-        ; iPoseProof (fundamental_ih with "Hswitcher") as "Hftlr".
-        * iApply (ftlr_switcher_call.switcher_call_ftlr _ _ _ _ _ _ wstk with "[$] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
-        * iApply (ftlr_switcher_return.switcher_return_ftlr _ _ _ _ _ _ wstk with
-                 "[$] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
-        intros ; apply ftlr_switcher_call.switcher_call_ftlr.
-      + iIntros (cstk Ws Cs wstk rmap).
-        iDestruct "Hw" as "#Hw".
-        iPoseProof (futureworld_refl g W) as "Hfuture".
-        iSpecialize ("Hw" $! cstk Ws Cs wstk W).
-        iSpecialize ("Hw" $! (futureworld_refl g W)).
-        iNext. iIntros "(HPC & Hr & ?)".
-        iDestruct "Hw" as "[Hw _]".
-        iApply "Hw"; eauto. iFrame.
+      iIntros (cstk Ws Cs wstk rmap).
+      iDestruct "Hw" as "#Hw".
+      iPoseProof (futureworld_refl g W) as "Hfuture".
+      iSpecialize ("Hw" $! cstk Ws Cs wstk W).
+      iSpecialize ("Hw" $! (futureworld_refl g W)).
+      iNext. iIntros "(HPC & Hr & ?)".
+      iDestruct "Hw" as "[Hw _]".
+      iApply "Hw"; eauto. iFrame.
     }
     { iNext; iIntros (????); iApply fundamental; eauto. }
   Qed.
@@ -481,28 +472,14 @@ Section fundamental.
         iDestruct (interp_exec_cond with "[$] [$Hw]") as "Hexec";[auto|].
         iApply exec_wp;auto.
       + destruct p0; cbn in * ; simplify_eq.
-        *
-          destruct (is_switcher_entry_point (WSentry (BPerm rx w dl dro) g0 b0 e0 a0)) eqn:Hsentry.
-          { apply bool_decide_eq_true_1 in Hsentry.
-            destruct Hsentry as [|]
-            ; simplify_eq
-            ; iExists _,_,_,_,_; (iSplit;[eauto|])
-            ; iIntros "!> % Hrelated !> % ([% ?]&?&%&?&?&?&?&?&%)"
-            ; iPoseProof (fundamental_ih with "Hinv_switcher") as "Hftlr".
-            + iApply (ftlr_switcher_call.switcher_call_ftlr _ _ _ _ _ _ wstk with "[$] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
-            + iApply (ftlr_switcher_return.switcher_return_ftlr _ _ _ _ _ _ wstk with
-                       "[$] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
-              intros ; apply ftlr_switcher_call.switcher_call_ftlr.
-          }
-          iExists _,_,_,_,_.
-          rewrite /= fixpoint_interp1_eq /=.
-          iSplit;[eauto|]. iModIntro.
-          iDestruct "Hw" as "#Hw".
-          iIntros (W') "Hfuture".
-          rewrite Hsentry.
-          iSpecialize ("Hw" with "Hfuture").
-          iDestruct "Hw" as "[Hw _]".
-          iExact "Hw".
+        iExists _,_,_,_,_.
+        rewrite /= fixpoint_interp1_eq /=.
+        iSplit;[eauto|]. iModIntro.
+        iDestruct "Hw" as "#Hw".
+        iIntros (W') "Hfuture".
+        iSpecialize ("Hw" with "Hfuture").
+        iDestruct "Hw" as "[Hw _]".
+        iExact "Hw".
     - iIntros "[Hfailed HPC]".
       iApply (wp_bind (fill [SeqCtx])).
       iApply (wp_notCorrectPC with "HPC");eauto.

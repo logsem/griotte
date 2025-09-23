@@ -2,8 +2,8 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base list_relations.
 From cap_machine Require Export logrel logrel_extra monotone.
-From cap_machine Require Import ftlr_base.
 From cap_machine Require Import rules_JmpCap.
+From cap_machine Require Import fundamental.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 Section fundamental.
@@ -27,17 +27,15 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
-  Lemma switcher_return_ftlr
-    (W : WORLD) (C : CmptName) (rmap : leibnizO Reg)
+  Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
     (Nswitcher : namespace)
     :
-    (forall cstk Ws Cs wstk rmap, specification_switcher_entry_point W C rmap cstk Ws Cs wstk Nswitcher a_switcher_call) ->
-    specification_switcher_entry_point W C rmap cstk Ws Cs wstk Nswitcher a_switcher_return.
+    na_inv logrel_nais Nswitcher switcher_inv
+    ⊢ interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_return) wstk.
   Proof.
-    intros Hspec_call.
-    iLöb as "IH'" forall (rmap cstk Ws Cs wstk).
-    iIntros (Hfull_rmap Hwstk) "#IH #Hrmap_interp #Hinv_switcher Hcont_K %Hfreq Hsts Hna Hcstk Hrmap Hr".
+    iIntros  " #Hinv_switcher %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & %Hstk & Hr & Hsts & Hcont_K & Hna & Hcstk & %Hfreq)]".
+    rewrite /registers_pointsto.
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
@@ -151,8 +149,8 @@ Section fundamental.
 
     iDestruct (cstack_agree with "[$] [$]") as "%"; simplify_eq.
     destruct cstk as [|frm cstk]; iEval (cbn) in "Hstk_interp"; cbn in Hlen_cstk.
-    { (* In the case where main tries to return, the initial stack is simply 0
-         and it will fails *)
+    { (* In the case where main tries to return, the initial stack is simply 0 *)
+    (*      and it will fails *)
       replace a_tstk with (b_trusted_stack)%a by solve_addr.
       iInstr "Hcode".
       { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
@@ -407,7 +405,7 @@ Section fundamental.
 
     focus_block 10 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* JmpCap cra *)
-    iInstr "Hcode" with "Hlc".
+    iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
     iHide "Hcode" as hcode.
@@ -704,8 +702,11 @@ Section fundamental.
                                 e a|]  | p g b e a | ot sb ] ; iEval (cbn) in "Hrmap".
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
-      + (* wret was a regular capability: apply the IH *)
-        iApply ("IH" with "[] [] [$] [] [$Hr] [$Hsts] [$Hcont_K] [] [$Hna] [$Hcstk_frag] [$]").
+      + (* wret was a regular capability: apply the FTLR *)
+        iPoseProof ( fundamental W cstk Ws Cs C (WCap p g b e a) (WCap RWL Local b_stk e_stk a_stk) Nswitcher with "Hinv_switcher Hinterp_wstk2") as "IH".
+        rewrite /interp_expression /=.
+        iApply ("IH" with "[- $Hr $Hsts $Hcont_K $Hna $Hcstk_frag $Hrmap]"); eauto.
+        repeat iSplit;auto.
         { iIntros (r); iPureIntro.
           clear -Hdom_rmap' Harg_rmap'.
           destruct (decide (r = PC)); simplify_map_eq; first done.
@@ -734,128 +735,62 @@ Section fundamental.
           iPureIntro.
           rewrite lookup_delete_ne; eauto.
         }
-        { iPureIntro; simplify_map_eq; done. }
-        { done. }
+        { by iPureIntro; simplify_map_eq. }
 
       + (* wret was a sentry capability: apply the def of safe for sentry *)
         iAssert (interp W C (WSentry p g b e a)) as "#Hinterp_wret'" ; first done.
         iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wstk2".
-        destruct ( is_switcher_entry_point (WSentry p g b e a)) eqn:His_switcher_call.
-        (* The caller had changed the `wret` into one of the switcher's entry point.... *)
-        * rewrite /is_switcher_entry_point in His_switcher_call.
-          apply bool_decide_eq_true in His_switcher_call.
-          destruct His_switcher_call as [?|?]; simplify_eq.
-          ** (* We jumped to the switcher-cc-call entry point *)
-            rewrite /specification_switcher_entry_point in Hspec_call.
-            iApply (Hspec_call with "[$] [] [$] [$] [//] [$] [$] [$] [$] [$]").
-            {
-              intros r.
-              clear -Hdom_rmap' Harg_rmap'.
-              destruct (decide (r = PC)); simplify_map_eq; first done.
-              destruct (decide (r = csp)); simplify_map_eq; first done.
-              destruct (decide (r = cs1)); simplify_map_eq; first done.
-              destruct (decide (r = cs0)); simplify_map_eq; first done.
-              destruct (decide (r = ca1)); simplify_map_eq; first done.
-              destruct (decide (r = ca0)); simplify_map_eq; first done.
-              destruct (decide (r = cgp)); simplify_map_eq; first done.
-              destruct (decide (r = cra)); simplify_map_eq; first done.
-              apply elem_of_dom.
-              rewrite Hdom_rmap' Harg_rmap'.
-              pose proof all_registers_s_correct.
-              set_solver.
-            }
-            { clear -Hdom_rmap' Harg_rmap'.
-              by simplify_map_eq.
-            }
-            {
-              iIntros (r rv HrPC Hr).
-              destruct (decide (r = csp)); simplify_map_eq; first done.
-              destruct (decide (r = cs1)); simplify_map_eq; first done.
-              destruct (decide (r = cs0)); simplify_map_eq; first done.
-              destruct (decide (r = ca1)); simplify_map_eq; first done.
-              destruct (decide (r = ca0)); simplify_map_eq; first done.
-              destruct (decide (r = cgp)); simplify_map_eq; first done.
-              destruct (decide (r = cra)); simplify_map_eq; first done.
-              iApply "Hrmap_interp'"; eauto.
-              iPureIntro.
-              rewrite lookup_delete_ne; eauto.
-            }
-          ** (* We jumped to the switcher-cc-return entry point *)
-            iApply ("IH'" with "[] [] [$] [] [$] [$] [//] [$] [$] [$] [$] [$]").
-            {
-              iIntros (r); iPureIntro.
-              clear -Hdom_rmap' Harg_rmap'.
-              destruct (decide (r = PC)); simplify_map_eq; first done.
-              destruct (decide (r = csp)); simplify_map_eq; first done.
-              destruct (decide (r = cs1)); simplify_map_eq; first done.
-              destruct (decide (r = cs0)); simplify_map_eq; first done.
-              destruct (decide (r = ca1)); simplify_map_eq; first done.
-              destruct (decide (r = ca0)); simplify_map_eq; first done.
-              destruct (decide (r = cgp)); simplify_map_eq; first done.
-              destruct (decide (r = cra)); simplify_map_eq; first done.
-              apply elem_of_dom.
-              rewrite Hdom_rmap' Harg_rmap'.
-              pose proof all_registers_s_correct.
-              set_solver.
-            }
-            { iPureIntro.
-              clear -Hdom_rmap' Harg_rmap'.
-              by simplify_map_eq.
-            }
-            {
-              iIntros (r rv HrPC Hr).
-              destruct (decide (r = csp)); simplify_map_eq; first done.
-              destruct (decide (r = cs1)); simplify_map_eq; first done.
-              destruct (decide (r = cs0)); simplify_map_eq; first done.
-              destruct (decide (r = ca1)); simplify_map_eq; first done.
-              destruct (decide (r = ca0)); simplify_map_eq; first done.
-              destruct (decide (r = cgp)); simplify_map_eq; first done.
-              destruct (decide (r = cra)); simplify_map_eq; first done.
-              iApply "Hrmap_interp'"; eauto.
-              iPureIntro.
-              rewrite lookup_delete_ne; eauto.
-            }
-        * iDestruct "Hinterp_wstk2" as "#Hinterp_wret".
-          rewrite /enter_cond.
-          iAssert (future_world g W W) as "-#Hfuture".
-          { destruct g; cbn; iPureIntro
-            ; [apply related_sts_priv_refl_world| apply related_sts_pub_refl_world].
-          }
-          iSpecialize ("Hinterp_wret" $! cstk Ws Cs (WCap RWL Local b_stk e_stk a_stk) W with "[$]").
-          iDestruct "Hinterp_wret" as "[Hinterp_wret _]".
-          iDestruct "Hlc" as "[Hlc _]"
-          ; iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
-          rewrite /interp_expr /=.
-          iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hr $Hsts $Hcstk_frag $Hna]") as "HA"; eauto.
-          iSplitR.
-          { iSplit.
-            - iIntros (r); iPureIntro.
-              clear -Hdom_rmap' Harg_rmap'.
-              destruct (decide (r = PC)); simplify_map_eq; first done.
-              destruct (decide (r = csp)); simplify_map_eq; first done.
-              destruct (decide (r = cs1)); simplify_map_eq; first done.
-              destruct (decide (r = cs0)); simplify_map_eq; first done.
-              destruct (decide (r = ca1)); simplify_map_eq; first done.
-              destruct (decide (r = ca0)); simplify_map_eq; first done.
-              destruct (decide (r = cgp)); simplify_map_eq; first done.
-              destruct (decide (r = cra)); simplify_map_eq; first done.
-              apply elem_of_dom.
-              rewrite Hdom_rmap' Harg_rmap'.
-              pose proof all_registers_s_correct.
-              set_solver.
-            - iIntros (r rv HrPC Hr).
-              destruct (decide (r = csp)); simplify_map_eq; first done.
-              destruct (decide (r = cs1)); simplify_map_eq; first done.
-              destruct (decide (r = cs0)); simplify_map_eq; first done.
-              destruct (decide (r = ca1)); simplify_map_eq; first done.
-              destruct (decide (r = ca0)); simplify_map_eq; first done.
-              destruct (decide (r = cgp)); simplify_map_eq; first done.
-              destruct (decide (r = cra)); simplify_map_eq; first done.
-              iApply "Hrmap_interp'"; eauto.
-              iPureIntro.
-              rewrite lookup_delete_ne; eauto.
-          }
-          iPureIntro; simplify_map_eq; done.
+        iDestruct "Hinterp_wstk2" as "#Hinterp_wret".
+        rewrite /enter_cond.
+        iAssert (future_world g W W) as "-#Hfuture".
+        { destruct g; cbn; iPureIntro
+          ; [apply related_sts_priv_refl_world| apply related_sts_pub_refl_world].
+        }
+        iSpecialize ("Hinterp_wret" $! cstk Ws Cs (WCap RWL Local b_stk e_stk a_stk) W with "[$]").
+        iDestruct "Hinterp_wret" as "[Hinterp_wret _]".
+        iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
+        rewrite /interp_expr /=.
+        iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hr $Hsts $Hcstk_frag $Hna]") as "HA"; eauto.
+        iSplitR.
+        { iSplit.
+          - iIntros (r); iPureIntro.
+            clear -Hdom_rmap' Harg_rmap'.
+            destruct (decide (r = PC)); simplify_map_eq; first done.
+            destruct (decide (r = csp)); simplify_map_eq; first done.
+            destruct (decide (r = cs1)); simplify_map_eq; first done.
+            destruct (decide (r = cs0)); simplify_map_eq; first done.
+            destruct (decide (r = ca1)); simplify_map_eq; first done.
+            destruct (decide (r = ca0)); simplify_map_eq; first done.
+            destruct (decide (r = cgp)); simplify_map_eq; first done.
+            destruct (decide (r = cra)); simplify_map_eq; first done.
+            apply elem_of_dom.
+            rewrite Hdom_rmap' Harg_rmap'.
+            pose proof all_registers_s_correct.
+            set_solver.
+          - iIntros (r rv HrPC Hr).
+            destruct (decide (r = csp)); simplify_map_eq; first done.
+            destruct (decide (r = cs1)); simplify_map_eq; first done.
+            destruct (decide (r = cs0)); simplify_map_eq; first done.
+            destruct (decide (r = ca1)); simplify_map_eq; first done.
+            destruct (decide (r = ca0)); simplify_map_eq; first done.
+            destruct (decide (r = cgp)); simplify_map_eq; first done.
+            destruct (decide (r = cra)); simplify_map_eq; first done.
+            iApply "Hrmap_interp'"; eauto.
+            iPureIntro.
+            rewrite lookup_delete_ne; eauto.
+        }
+        iPureIntro; simplify_map_eq; done.
   Qed.
+
+  Lemma interp_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace)
+    :
+    na_inv logrel_nais Nswitcher switcher_inv
+    ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return).
+  Proof.
+    iIntros "#Hinv".
+    rewrite fixpoint_interp1_eq /=.
+    iIntros "!> %cstk %Ws %Cs %regs %W' _"; iSplitL; iNext ; iApply (interp_expr_switcher_return with "Hinv").
+  Qed.
+
 
 End fundamental.

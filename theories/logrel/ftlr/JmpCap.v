@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel.
-From cap_machine Require Import ftlr_base ftlr_switcher_call ftlr_switcher_return.
+From cap_machine Require Import ftlr_base.
 From cap_machine Require Import rules_JmpCap.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
@@ -89,33 +89,15 @@ Section fundamental.
         - (* case sentry *)
           iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
           simpl; rewrite /enter_cond.
-          destruct (is_switcher_entry_point (WSentry p0 g0 b0 e0 a0)) eqn:His_switcher_call.
-          + (* This is a switcher entry point: execute the switcher *)
-            rewrite /is_switcher_entry_point in His_switcher_call.
-            apply bool_decide_eq_true in His_switcher_call.
-            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-            { destruct ρ;auto;contradiction. }
-            iClear "Hmono HmonoV Hinva Hrcond Hwcond Hwsrc Hinv_interp".
-            clear dependent p b e a g p' w ρ P rsrc.
-            clear Hpft.
-            iNext; iIntros "_".
-            destruct His_switcher_call as [?|?]; simplify_eq.
-            * (* We jumped to the switcher-cc-call entry point *)
-              iApply (switcher_call_ftlr with "[$IH] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
-            * (* We jumped to the switcher-cc-return entry point *)
-              iApply (switcher_return_ftlr with "[$IH] [$] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
-              intros.
-              apply switcher_call_ftlr.
-          + (* This is just a regular Sentry, use the IH *)
-            iDestruct "Hwsrc" as "#H".
-            iAssert (future_world g0 W W) as "Hfuture".
-            { iApply futureworld_refl. }
-            iSpecialize ("H" with "Hfuture").
-            iDestruct "H" as "[H _]".
-            iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-            { destruct ρ;auto;contradiction. }
-            iDestruct ("H" with "[$Hcont $Hmap $Hr $Hsts $Hcstk $Hown]") as "HA"; eauto.
-            iFrame "#%".
+          iDestruct "Hwsrc" as "#H".
+          iAssert (future_world g0 W W) as "Hfuture".
+          { iApply futureworld_refl. }
+          iSpecialize ("H" with "Hfuture").
+          iDestruct "H" as "[H _]".
+          iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+          { destruct ρ;auto;contradiction. }
+          iDestruct ("H" with "[$Hcont $Hmap $Hr $Hsts $Hcstk $Hown]") as "HA"; eauto.
+          iFrame "#%".
       }
 
       (* Non-capability cases *)

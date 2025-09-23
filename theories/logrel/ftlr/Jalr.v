@@ -2,7 +2,7 @@ From cap_machine Require Export logrel.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine Require Import ftlr_base interp_weakening ftlr_switcher_call ftlr_switcher_return.
+From cap_machine Require Import ftlr_base interp_weakening.
 From cap_machine Require Import rules_base rules_Jalr.
 From cap_machine.proofmode Require Import map_simpl register_tactics.
 
@@ -112,41 +112,7 @@ Section fundamental.
       iDestruct "Hwsrc" as "#Hinterp_src".
       iAssert (future_world g0 W W) as "Hfuture".
       { iApply futureworld_refl. }
-      destruct (is_switcher_entry_point (WSentry p0 g0 b0 e0 a0)) eqn:His_switcher_call.
-      - (* This is a switcher entry point: execute the switcher *)
-        rewrite /is_switcher_entry_point in His_switcher_call.
-        apply bool_decide_eq_true in His_switcher_call.
-        iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-        { destruct ρ;auto;contradiction. }
-        iClear "Hmono HmonoV Hinva Hrcond Hwcond Hinv_interp".
-        (* clear dependent p b e a g p' w ρ P rsrc. *)
-        clear Hpft.
-        iNext; iIntros "_".
-        rewrite insert_insert insert_commute //=.
-        set (wstk' := (if (decide (rdst = csp)) then WSentry p g b e pc_a' else wstk)).
-        destruct His_switcher_call as [?|?]; simplify_eq.
-        + (* We jumped to the switcher-cc-call entry point *)
-          iApply (switcher_call_ftlr _ _ _ _ _ _ wstk' with "[$IH] [Hreg] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
-          * intros.
-            destruct (decide (x = rdst)); simplify_map_eq; first done.
-            apply Hsome.
-          * subst wstk'.
-            destruct (decide (rdst = csp)); simplify_map_eq; done.
-          * iIntros (r v HrPC Hr).
-            destruct (decide (r = rdst)); simplify_map_eq; first done.
-            iApply "Hreg"; auto.
-        + (* We jumped to the switcher-cc-return entry point *)
-          iApply (switcher_return_ftlr _ _ _ _ _ _ wstk' with "[$IH] [Hreg] [$] [$] [] [$] [$] [$] [$] [$]"); eauto.
-          * intros; apply switcher_call_ftlr.
-          * intros.
-            destruct (decide (x = rdst)); simplify_map_eq; first done.
-            apply Hsome.
-          * subst wstk'.
-            destruct (decide (rdst = csp)); simplify_map_eq; done.
-          * iIntros (r v HrPC Hr).
-            destruct (decide (r = rdst)); simplify_map_eq; first done.
-            iApply "Hreg"; auto.
-      - iSpecialize ("Hinterp_src" with "Hfuture").
+        iSpecialize ("Hinterp_src" with "Hfuture").
         iDestruct "Hinterp_src" as "[Hinterp_src _]".
         iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
         { destruct ρ;auto;contradiction. }

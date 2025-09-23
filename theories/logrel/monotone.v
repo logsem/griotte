@@ -242,7 +242,6 @@ Section monotone.
   Proof.
     iIntros (Hrelated) "#Hw".
     rewrite !fixpoint_interp1_eq /=.
-    destruct (is_switcher_entry_point (WSentry p g b e a)) ; first done.
     iModIntro. iIntros (stk r Ws Cs W'').
     destruct g.
     + iIntros "#Hrelated'".
@@ -352,7 +351,6 @@ Section monotone.
   Proof.
     iIntros (Hrelated Hnl) "#Hw".
     rewrite !fixpoint_interp1_eq /=.
-    destruct (is_switcher_entry_point (WSentry p g b e a)) ; first done.
     destruct g ; cbn in Hnl ; try done.
     iModIntro. iIntros (stk r Ws Cs W'').
     iIntros "#Hrelated'".

@@ -8,6 +8,7 @@ From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From cap_machine Require Import compartment_layout.
 From cap_machine Require Import disjoint_regions_tactics.
+From cap_machine Require Import interp_switcher_call interp_switcher_return.
 
 Class memory_layout `{MP: MachineParameters} := {
 
@@ -266,7 +267,7 @@ Section helpers_cmdc_adequacy.
     }
     destruct (decide (r = cra)) as [-> | Hrcra].
     { rewrite Hregs_cra in Hr ; simplify_eq.
-      iApply switcher_return_interp.
+      iApply (interp_switcher_return with "Hinv_switcher").
     }
     destruct (decide (r = csp)) as [-> | Hrcsp].
     { by rewrite Hregs_csp in Hr ; simplify_eq. }
@@ -705,10 +706,10 @@ Section Adequacy.
     {
       rewrite B_imports; cbn; iFrame.
       rewrite /interpC /safeC /=.
-      iSplit; first iApply switcher_call_interp.
+      iSplit; first iApply interp_switcher_call; eauto.
       (* TODO make lemma *)
       iModIntro.
-      iIntros (???) "?"; iApply switcher_call_interp.
+      iIntros (???) "?"; iApply interp_switcher_call; eauto.
     }
 
     iMod ( extend_region_revoked_sepL2 _ _ _
@@ -1016,10 +1017,10 @@ Section Adequacy.
     {
       rewrite C_imports; cbn; iFrame.
       rewrite /interpC /safeC /=.
-      iSplit; first iApply switcher_call_interp.
+      iSplit; first iApply interp_switcher_call; eauto.
       (* TODO make lemma *)
       iModIntro.
-      iIntros (???) "?"; iApply switcher_call_interp.
+      iIntros (???) "?"; iApply interp_switcher_call; eauto.
     }
 
     iMod ( extend_region_revoked_sepL2 _ _ _

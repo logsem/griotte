@@ -2,10 +2,12 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel region_invariants bitblast.
-From cap_machine Require Import ftlr_base interp_weakening.
+From cap_machine Require Import interp_weakening.
 From cap_machine Require Import wp_rules_interp switcher_macros_spec.
 From cap_machine Require Import rules proofmode monotone.
+From cap_machine Require Import fundamental.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
+
 
 Section fundamental.
   Context
@@ -28,13 +30,16 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
-  Lemma switcher_call_ftlr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+  Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
     (Nswitcher : namespace)
     :
-    specification_switcher_entry_point W C regs cstk Ws Cs wstk Nswitcher a_switcher_call.
+    na_inv logrel_nais Nswitcher switcher_inv
+    ⊢ interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_call) wstk.
   Proof.
-    iIntros (Hfull_rmap Hwstk) "#IH #Hreg #Hinv_switcher Hcont %Hframe Hsts Hna Hcstk Hrmap Hr".
+    iIntros  "#Hinv_switcher %regs [[%Hfull_rmap #Hreg] (Hrmap & %Hstk & Hr & Hsts & Hcont & Hna & Hcstk & %Hframe)]".
+    rewrite /registers_pointsto.
+    iPoseProof (fundamental_ih with "Hinv_switcher") as "IH". (* used for weakening lemma later *)
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
@@ -560,6 +565,16 @@ Section fundamental.
       + iDestruct (big_sepM_lookup with "Hval") as "$";eauto.
       + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
         iApply interp_int.
+  Qed.
+
+  Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace)
+    :
+    na_inv logrel_nais Nswitcher switcher_inv
+    ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call).
+  Proof.
+    iIntros "#Hinv".
+    rewrite fixpoint_interp1_eq /=.
+    iIntros "!> %cstk %Ws %Cs %regs %W' _"; iSplitL; iNext; iApply (interp_expr_switcher_call with "Hinv").
   Qed.
 
 End fundamental.

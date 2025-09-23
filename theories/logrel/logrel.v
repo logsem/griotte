@@ -517,24 +517,9 @@ Section logrel.
   Definition interp_z : V := λne _ _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
   Definition interp_cap_O : V := λne _ _ _, True%I.
 
-  (** If the sentry capability is one of the switcher's entry point,
-      then it is trivially [interp],
-      otherwise, we use the regular definition of [interp] for E-capabilities.
-
-      On the one hand, it makes it easy to prove safety of the call-switcher in the adequacy
-      (when we need to prove that the imports of a compartments are all safe, in the initial state),
-      (TODO: check whether we actually rely on this in next)
-      and safety of the return-to-switcher in the switcher's specification.
-
-      On the other hand, it means that we don't get any information in the FTLR when jumping to
-      one of them, and requires us to execute the switcher's code to continue the proof.
-   *)
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
-                | WSentry p g b e a =>
-                    if is_switcher_entry_point w
-                    then True
-                    else (□ enter_cond W C p g b e a interp)
+                | WSentry p g b e a => □ enter_cond W C p g b e a interp
                 | _ => False
                 end)%I.
   Solve All Obligations with solve_proper.
@@ -1105,19 +1090,6 @@ Section logrel.
       apply writeAllowed_flowsto in Hflc1; auto.
       iDestruct (rel_agree C a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
-  Qed.
-
-  Lemma switcher_call_interp W B :
-    ⊢ interp W B (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call).
-  Proof.
-    iEval (rewrite fixpoint_interp1_eq /=).
-    by rewrite is_switcher_entry_point_call.
-  Qed.
-  Lemma switcher_return_interp W B :
-    ⊢ interp W B (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return).
-  Proof.
-    iEval (rewrite fixpoint_interp1_eq /=).
-    by rewrite is_switcher_entry_point_return.
   Qed.
 
 End logrel.
