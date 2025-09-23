@@ -263,7 +263,7 @@ Section logrel.
     repeat (f_equiv; auto).
   Qed.
 
-  (** WP rule given by the continuation relation.
+  (** [interp_cont_exec] provides a WP rule for the continuation relation.
       It matches the states of the machine at the point where the switcher returns to the caller.
       In particular:
       - [PC] points-to the caller's site
@@ -317,11 +317,12 @@ Section logrel.
          (* all other register contain 0 *)
          ∗ ⌜dom regs = all_registers_s ∖ {[PC; cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
          ∗ ( [∗ map] r↦w ∈ regs, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-         (* World interpretation *)
+         (* points-to predicate of the stack region *)
          ∗ ⌜ get_a frm.(wstk) = Some a_stk ⌝
          ∗ ⌜ get_e frm.(wstk) = Some e_stk ⌝
          ∗ [[ a_stk , astk4 ]] ↦ₐ [[ stk_mem_l ]]
          ∗ [[ astk4 , e_stk ]] ↦ₐ [[ stk_mem_h ]]
+         (* World interpretation *)
          ∗ open_region_many W C callee_stk_region
          ∗ ([∗ list] a ; v ∈ callee_stk_region ; callee_stk_mem, closing_resources interp W C a v)
          ∗ sts_full_world W C
@@ -335,27 +336,47 @@ Section logrel.
 
   Global Instance interp_cont_exec_ne n :
     Proper (dist n ==> dist n ==> dist n) (interp_cont_exec).
-  Proof.
-    intros interp interp0 Heq K K0 HK.
-    rewrite /interp_cont_exec. intros ????. simpl.
-    (* do 10 f_equiv;[|apply HK]. *)
-    do 26 f_equiv; auto;[apply Heq|].
-    do 9 f_equiv; auto.
-    do 2 f_equiv; auto.
-    by apply closing_resources_ne.
-  Qed.
+  Proof. solve_proper. Qed.
 
+  (** [interp_callee_part_of_the_stack] interprets the stack pointer of the caller [wstk].
+      When a caller calls the switcher-call routine with a capability [WCap p g b e a] in the [csp]
+      register, the switcher is using the region `[a,a+4)` for as callee-saved registers area,
+      and giving the region `[a+4,e)` as callee-stack frame.
+
+      If the caller is trusted, the callee-saved registers area is expected to be solely accessed by the switcher,
+      sharing in fact only the region `[a+4,e)` with the caller.
+
+      If the caller is untrusted, there are no guarantees that the caller won't share its entire stack frame
+      with the callee, through one of the arguments.
+      In that case, we need to capture the worst possible case, i.e., the caller is sharing all its stack frame,
+      making in fact the entire caller's stack pointer [interp].
+      This is specifically important in the [ftlr_switcher_call],
+      where we don't have any information about the registers,
+      and so the points-to predicate of the callee-saved registers are in the region invariant.
+   *)
   Definition interp_callee_part_of_the_stack
     (interp : V) (W : WORLD) ( C : CmptName ) (wstk : Word)
-    (with_register_save_area : bool)
+    (is_untrusted_caller : bool)
     : iProp Σ :=
     match wstk with
     | WCap p g b e a =>
-        let b_callee := if with_register_save_area then b else (a^+4)%a in
+        let a4 := (a^+4)%a in
+        let b_callee := if is_untrusted_caller then b else a4 in
         interp W C (WCap p g b_callee e a)
     | _ => True
     end.
 
+
+  (** [interp_cont] is the continuation relation.
+      It takes a call-stack [cstk], a list of world [Ws] and a list of compartments [Cs],
+      all of same size.
+      All together, they keep track of the stack of continuations.
+      [interp_cont] contains 3 components:
+      - the recursive part of the definition, stating that the rest of the stack is also part of the continuation
+      - safety of the stack callee stack pointer
+      - [interp_cont_exec], which provides a WP rule for the continuation,
+        matching the machine state after the return-to-caller
+   *)
   Program Fixpoint interp_cont (interp : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) : K :=
     match cstk, Ws, Cs with
     | [],[],[] => True%I
@@ -476,7 +497,7 @@ Section logrel.
      | Global => (std W) !! a = Some Permanent
     end.
 
-  (* For simplicity we might want to have the following statement in valididy of caps.
+  (* For simplicity we might want to have the following statement in validity of caps.
      However, it is strictly not necessary since it can be derived form full_sts_world *)
 
   Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) :=
@@ -492,6 +513,18 @@ Section logrel.
   Definition interp_z : V := λne _ _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
   Definition interp_cap_O : V := λne _ _ _, True%I.
 
+  (** If the sentry capability is one of the switcher's entry point,
+      then it is trivially [interp],
+      otherwise, we use the regular definition of [interp] for E-capabilities.
+
+      On the one hand, it makes it easy to prove safety of the call-switcher in the adequacy
+      (when we need to prove that the imports of a compartments are all safe, in the initial state),
+      (TODO: check whether we actually rely on this in next)
+      and safety of the return-to-switcher in the switcher's specification.
+
+      On the other hand, it means that we don't get any information in the FTLR when jumping to
+      one of them, and requires us to execute the switcher's code to continue the proof.
+   *)
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
                 | WSentry p g b e a =>
@@ -553,8 +586,6 @@ Section logrel.
         ∗ ▷ P W C w
         ∗ ▷ P W C (borrow w)
     )%I.
-
-  Definition interp_False : V := λne _ _ _, False%I.
 
   Program Definition interp1 (interp : V) : V :=
     (λne W C w,
