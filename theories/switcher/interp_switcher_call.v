@@ -574,7 +574,9 @@ Section fundamental.
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.
-    iIntros "!> %cstk %Ws %Cs %regs %W' _"; iSplitL; iNext; iApply (interp_expr_switcher_call with "Hinv").
+    iIntros "!> %cstk %Ws %Cs %regs %W' _% %".
+    destruct g'; first done.
+    iNext ; iApply (interp_expr_switcher_call with "Hinv").
   Qed.
 
 End fundamental.

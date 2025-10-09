@@ -112,24 +112,25 @@ Section fundamental.
       iDestruct "Hwsrc" as "#Hinterp_src".
       iAssert (future_world g0 W W) as "Hfuture".
       { iApply futureworld_refl. }
-        iSpecialize ("Hinterp_src" with "Hfuture").
-        iDestruct "Hinterp_src" as "[Hinterp_src _]".
-        iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
-        { destruct ρ;auto;contradiction. }
-        rewrite !insert_insert insert_commute //.
-        iDestruct ("Hinterp_src" with "[$Hmap $Hr $Hsts $Hcstk $Hown $Hcont]") as "HA"; eauto.
-        iNext.
-        repeat (cbn; iSplit; auto).
-        + iIntros (ri); cbn; iPureIntro.
-          rewrite lookup_insert_is_Some.
-          destruct (decide (rdst = ri)); auto; right; split; auto.
-        + iIntros (ri wi Hri Hregs_ri).
-          destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
-          * iApply ("Hreg" $! ri) ; auto.
-          * iFrame "Hinterp_ret".
-        + Unshelve.
-          2: exact (if (decide (rdst = csp)) then WSentry p g b e pc_a' else wstk).
-          destruct (decide (rdst = csp)); simplify_map_eq; eauto.
+      iSpecialize ("Hinterp_src" with "Hfuture").
+      pose proof (LocalityFlowsToReflexive g0) as Hg0.
+      iSpecialize ("Hinterp_src" $! g0 Hg0).
+      iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+      { destruct ρ;auto;contradiction. }
+      rewrite !insert_insert insert_commute //.
+      iDestruct ("Hinterp_src" with "[$Hmap $Hr $Hsts $Hcstk $Hown $Hcont]") as "HA"; eauto.
+      iNext.
+      repeat (cbn; iSplit; auto).
+      + iIntros (ri); cbn; iPureIntro.
+        rewrite lookup_insert_is_Some.
+        destruct (decide (rdst = ri)); auto; right; split; auto.
+      + iIntros (ri wi Hri Hregs_ri).
+        destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
+        * iApply ("Hreg" $! ri) ; auto.
+        * iFrame "Hinterp_ret".
+      + Unshelve.
+        2: exact (if (decide (rdst = csp)) then WSentry p g b e pc_a' else wstk).
+        destruct (decide (rdst = csp)); simplify_map_eq; eauto.
     }
 
     (* Non-capability cases *)

@@ -747,7 +747,7 @@ Section fundamental.
           ; [apply related_sts_priv_refl_world| apply related_sts_pub_refl_world].
         }
         iSpecialize ("Hinterp_wret" $! cstk Ws Cs (WCap RWL Local b_stk e_stk a_stk) W with "[$]").
-        iDestruct "Hinterp_wret" as "[Hinterp_wret _]".
+        iSpecialize ("Hinterp_wret" $! g (LocalityFlowsToReflexive g)).
         iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
         rewrite /interp_expr /=.
         iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hr $Hsts $Hcstk_frag $Hna]") as "HA"; eauto.
@@ -789,7 +789,9 @@ Section fundamental.
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.
-    iIntros "!> %cstk %Ws %Cs %regs %W' _"; iSplitL; iNext ; iApply (interp_expr_switcher_return with "Hinv").
+    iIntros "!> %cstk %Ws %Cs %regs %W' _% %".
+    destruct g'; first done.
+    iNext ; iApply (interp_expr_switcher_return with "Hinv").
   Qed.
 
 

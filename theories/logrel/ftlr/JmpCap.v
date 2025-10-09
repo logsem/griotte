@@ -93,7 +93,8 @@ Section fundamental.
           iAssert (future_world g0 W W) as "Hfuture".
           { iApply futureworld_refl. }
           iSpecialize ("H" with "Hfuture").
-          iDestruct "H" as "[H _]".
+          pose proof (LocalityFlowsToReflexive g0) as Hg0.
+          iSpecialize ("H" $! g0 Hg0).
           iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
           { destruct ρ;auto;contradiction. }
           iDestruct ("H" with "[$Hcont $Hmap $Hr $Hsts $Hcstk $Hown]") as "HA"; eauto.

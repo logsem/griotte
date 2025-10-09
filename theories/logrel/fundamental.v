@@ -440,11 +440,8 @@ Section fundamental.
       rewrite fixpoint_interp1_eq /=.
       iIntros (cstk Ws Cs wstk rmap).
       iDestruct "Hw" as "#Hw".
-      iPoseProof (futureworld_refl g W) as "Hfuture".
-      iSpecialize ("Hw" $! cstk Ws Cs wstk W).
-      iSpecialize ("Hw" $! (futureworld_refl g W)).
-      iNext. iIntros "(HPC & Hr & ?)".
-      iDestruct "Hw" as "[Hw _]".
+      iSpecialize ("Hw" $! cstk Ws Cs wstk W (futureworld_refl g W) g (LocalityFlowsToReflexive g)).
+      iIntros "!> (HPC & Hr & ?)".
       iApply "Hw"; eauto. iFrame.
     }
     { iNext; iIntros (????); iApply fundamental; eauto. }
@@ -478,7 +475,7 @@ Section fundamental.
         iDestruct "Hw" as "#Hw".
         iIntros (W') "Hfuture".
         iSpecialize ("Hw" with "Hfuture").
-        iDestruct "Hw" as "[Hw _]".
+        iSpecialize ("Hw" $! g0 (LocalityFlowsToReflexive g0)).
         iExact "Hw".
     - iIntros "[Hfailed HPC]".
       iApply (wp_bind (fill [SeqCtx])).
