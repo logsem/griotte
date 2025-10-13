@@ -79,6 +79,9 @@ Proof.
     f_equiv. auto.
 Qed.
 
+Lemma zip_nil_r {A B : Type} (l : list A) : zip l ([] : list B) = [].
+Proof. destruct l ; done. Qed.
+
 Lemma length_zip_l {A B} (l1: list A) (l2: list B) :
   length l1 ≤ length l2 → length (zip l1 l2) = length l1.
 Proof.

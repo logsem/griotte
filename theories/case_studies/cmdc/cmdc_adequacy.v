@@ -760,9 +760,9 @@ Section Adequacy.
 
     iEval (rewrite /cmpt_exp_tbl_mregion) in "HB_etbl".
     iDestruct (big_sepM_union with "HB_etbl") as "[HB_etbl HB_etbl_entries]".
-    { admit. }
+    { eapply cmpt_exp_tbl_entries_disjoint. }
     iDestruct (big_sepM_union with "HB_etbl") as "[HB_etbl_pcc HB_etbl_cgp]".
-    { admit. }
+    { eapply cmpt_exp_tbl_pcc_cgp_disjoint. }
     iDestruct (mkregion_prepare with "[HB_etbl_entries]") as ">HB_etbl_entries"; auto.
     { apply cmpt_exp_tbl_entries_size. }
     iDestruct (mkregion_prepare with "[HB_etbl_pcc]") as ">HB_etbl_pcc"; auto.
@@ -847,7 +847,25 @@ Section Adequacy.
           }
           rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
           { intro Hcontra.
-            admit. (* TODO easy but tedious *)
+            assert (
+                (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))
+                  ##
+                  (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt))
+              ) as Hdis; last set_solver+Ha Hcontra Hdis.
+              clear.
+              pose proof (cmpt_cgp_disjoint B_cmpt) as Hdis.
+              rewrite /cmpt_pcc_mregion /cmpt_cgp_mregion in Hdis.
+              rewrite -/(cmpt_pcc_mregion B_cmpt) -/(cmpt_cgp_mregion B_cmpt) in Hdis.
+              rewrite map_disjoint_dom in Hdis.
+              rewrite dom_cmpt_pcc_mregion dom_cmpt_cgp_mregion /cmpt_pcc_region /cmpt_cgp_region in Hdis.
+              rewrite -list_to_set_disj in Hdis.
+              assert (
+                  finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt) ⊆ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)
+                ); last set_solver.
+              intros a Ha.
+              rewrite !elem_of_finz_seq_between in Ha |- *.
+              pose proof (cmpt_import_size B_cmpt).
+              solve_addr.
           }
           rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
       }
@@ -1070,9 +1088,9 @@ Section Adequacy.
 
     iEval (rewrite /cmpt_exp_tbl_mregion) in "HC_etbl".
     iDestruct (big_sepM_union with "HC_etbl") as "[HC_etbl HC_etbl_entries]".
-    { admit. }
+    { eapply cmpt_exp_tbl_entries_disjoint. }
     iDestruct (big_sepM_union with "HC_etbl") as "[HC_etbl_pcc HC_etbl_cgp]".
-    { admit. }
+    { eapply cmpt_exp_tbl_pcc_cgp_disjoint. }
     iDestruct (mkregion_prepare with "[HC_etbl_entries]") as ">HC_etbl_entries"; auto.
     { apply cmpt_exp_tbl_entries_size. }
     iDestruct (mkregion_prepare with "[HC_etbl_pcc]") as ">HC_etbl_pcc"; auto.

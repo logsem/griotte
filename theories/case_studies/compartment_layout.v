@@ -548,5 +548,54 @@ Section CmptLayout.
     rewrite !elem_of_finz_seq_between in Ha,Ha'.
     solve_addr.
   Qed.
+  Lemma cmpt_exp_tbl_entries_disjoint (B_cmpt : cmpt) :
+    mkregion (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_cgp B_cmpt)
+      [WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
+      ∪ mkregion (cmpt_exp_tbl_cgp B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt)
+      [WCap RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)]
+      ##ₘ mkregion (cmpt_exp_tbl_entries_start B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt) (cmpt_exp_tbl_entries B_cmpt).
+  Proof.
+    apply map_disjoint_dom_2.
+    pose proof (cmpt_disjointness B_cmpt) as Hdis.
+    rewrite !disjoint_list_cons in Hdis.
+    destruct Hdis as (?&?&_&?).
+    rewrite !union_list_cons in H,H0.
+    rewrite union_list_nil in H,H0.
+    rewrite /union /Union_list in H,H0.
+    rewrite /empty /Empty_list in H,H0.
+    rewrite app_nil_r in H,H0.
+    pose proof (cmpt_import_size B_cmpt).
+    pose proof (cmpt_exp_tbl_pcc_size B_cmpt).
+    pose proof (cmpt_exp_tbl_cgp_size B_cmpt).
+    pose proof (cmpt_exp_tbl_entries_size B_cmpt).
+    repeat rewrite dom_mkregion_eq; try (solve_addr).
+    rewrite /mkregion.
+    rewrite finz_seq_between_cons /=; [rewrite zip_nil_r /=|solve_addr].
+    rewrite finz_seq_between_cons /=; [rewrite zip_nil_r /=|solve_addr].
+    rewrite dom_union_L !dom_insert_L !dom_empty_L !union_empty_r_L.
+    rewrite disjoint_union_l
+    ; split
+    ; rewrite disjoint_singleton_l not_elem_of_list_to_set not_elem_of_finz_seq_between
+    ; solve_addr.
+  Qed.
+
+  Lemma cmpt_exp_tbl_pcc_cgp_disjoint (B_cmpt : cmpt) :
+    mkregion (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_cgp B_cmpt)
+      [WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
+      ##ₘ mkregion (cmpt_exp_tbl_cgp B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt)
+      [WCap RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)].
+  Proof.
+    apply map_disjoint_dom_2.
+    pose proof (cmpt_exp_tbl_pcc_size B_cmpt).
+    pose proof (cmpt_exp_tbl_cgp_size B_cmpt).
+    pose proof (cmpt_exp_tbl_entries_size B_cmpt).
+
+    rewrite /mkregion.
+    rewrite finz_seq_between_cons /=; [rewrite zip_nil_r /=|solve_addr].
+    rewrite finz_seq_between_cons /=; [rewrite zip_nil_r /=|solve_addr].
+    rewrite !dom_insert_L !dom_empty_L !union_empty_r_L.
+    rewrite disjoint_singleton_l elem_of_singleton.
+    solve_addr.
+  Qed.
 
 End CmptLayout.
