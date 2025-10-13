@@ -891,7 +891,30 @@ Section Adequacy.
       iSplit; first (iNext ; by iApply wcond_interp).
       assert (Winit_B.1 !! a = Some Permanent).
       { subst Winit_B.
-        admit. (* TODO easy but tedious *)
+        apply elem_of_list_lookup_2 in Ha.
+        assert (a ∉ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)).
+        { intro Hcontra.
+          clear -Ha Hcontra.
+          pose proof switcher_cmpt_disjoints as (_&Hdis&_).
+          set_solver.
+        }
+        assert (a ∉ [cmpt_b_pcc B_cmpt]).
+        { intro Hcontra.
+          clear -Ha Hcontra B_imports.
+          pose proof (cmpt_disjointness B_cmpt) as Hdis.
+          apply disjoint_list_cons in Hdis as [Hdis _].
+          rewrite union_list_cons disjoint_union_r in Hdis.
+          destruct Hdis as [Hdis _].
+          rewrite elem_of_list_singleton in Hcontra; simplify_eq.
+          assert ( cmpt_b_pcc B_cmpt ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt))
+          ; last set_solver.
+          apply elem_of_finz_seq_between.
+          pose proof (cmpt_import_size B_cmpt) as Hsize; rewrite B_imports in Hsize.
+          pose proof (cmpt_code_size B_cmpt).
+          solve_addr.
+        }
+        repeat (rewrite std_sta_update_multiple_lookup_same_i; last done).
+        rewrite std_sta_update_multiple_lookup_in_i; auto.
       }
       iSplit; last done.
       iApply (monoReq_interp _ _ _ _ Permanent); done.
@@ -1145,8 +1168,57 @@ Section Adequacy.
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first done.
       assert ((std Winit_C) !! a = Some Permanent).
-      { subst Winit_C.
-        admit. (* TODO easy but tedious *)
+      {
+        subst Winit_B.
+        apply elem_of_list_lookup_2 in Ha.
+        rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+        { pose proof switcher_cmpt_disjoints as ( _& _ & Hdis_switcher_cmptC).
+          rewrite /switcher_cmpt_disjoint /cmpt_switcher_region /cmpt_region in Hdis_switcher_cmptC.
+          assert
+            (cmpt_switcher_stack_region switcher_cmpt ## cmpt_pcc_region C_cmpt)
+              as Hdis
+              by (set_solver+Hdis_switcher_cmptC).
+          rewrite /cmpt_pcc_region /cmpt_switcher_stack_region in Hdis.
+          intro Hcontra.
+          replace (cmpt_a_code C_cmpt) with (cmpt_b_pcc C_cmpt ^+ 1)%a in Ha by solve_addr+Himport_C.
+          rewrite -(finz_seq_between_cons) in Ha.
+          + apply (Hdis a); auto.
+          + pose proof (cmpt_import_size C_cmpt) as H1.
+            pose proof (cmpt_code_size C_cmpt) as H2.
+            rewrite C_imports /= in H1.
+            solve_addr.
+        }
+        rewrite elem_of_cons in Ha.
+        destruct Ha as [ Ha | Ha ]; simplify_eq.
+        + rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
+        + rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+          { intro Hcontra. apply elem_of_list_singleton in Hcontra as ->.
+            apply elem_of_finz_seq_between in Ha.
+            solve_addr+Himport_C Ha.
+          }
+          rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+          { intro Hcontra.
+            assert (
+                (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
+                  ##
+                  (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt))
+              ) as Hdis; last set_solver+Ha Hcontra Hdis.
+              clear.
+              pose proof (cmpt_cgp_disjoint C_cmpt) as Hdis.
+              rewrite /cmpt_pcc_mregion /cmpt_cgp_mregion in Hdis.
+              rewrite -/(cmpt_pcc_mregion C_cmpt) -/(cmpt_cgp_mregion C_cmpt) in Hdis.
+              rewrite map_disjoint_dom in Hdis.
+              rewrite dom_cmpt_pcc_mregion dom_cmpt_cgp_mregion /cmpt_pcc_region /cmpt_cgp_region in Hdis.
+              rewrite -list_to_set_disj in Hdis.
+              assert (
+                  finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) ⊆ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)
+                ); last set_solver.
+              intros a Ha.
+              rewrite !elem_of_finz_seq_between in Ha |- *.
+              pose proof (cmpt_import_size C_cmpt).
+              solve_addr.
+          }
+          rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
       }
       iSplit; last done.
       iApply (monoReq_interp _ _ _ _ Permanent); done.
@@ -1169,8 +1241,31 @@ Section Adequacy.
       iSplit; first (iNext ; by iApply rcond_interp).
       iSplit; first (iNext ; by iApply wcond_interp).
       assert ((std Winit_C) !! a = Some Permanent).
-      { subst Winit_C.
-        admit. (* TODO easy but tedious *)
+     { subst Winit_C.
+        apply elem_of_list_lookup_2 in Ha.
+        assert (a ∉ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)).
+        { intro Hcontra.
+          clear -Ha Hcontra.
+          pose proof switcher_cmpt_disjoints as (_&_&Hdis).
+          set_solver.
+        }
+        assert (a ∉ [cmpt_b_pcc C_cmpt]).
+        { intro Hcontra.
+          clear -Ha Hcontra C_imports.
+          pose proof (cmpt_disjointness C_cmpt) as Hdis.
+          apply disjoint_list_cons in Hdis as [Hdis _].
+          rewrite union_list_cons disjoint_union_r in Hdis.
+          destruct Hdis as [Hdis _].
+          rewrite elem_of_list_singleton in Hcontra; simplify_eq.
+          assert ( cmpt_b_pcc C_cmpt ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt))
+          ; last set_solver.
+          apply elem_of_finz_seq_between.
+          pose proof (cmpt_import_size C_cmpt) as Hsize; rewrite C_imports in Hsize.
+          pose proof (cmpt_code_size C_cmpt).
+          solve_addr.
+        }
+        repeat (rewrite std_sta_update_multiple_lookup_same_i; last done).
+        rewrite std_sta_update_multiple_lookup_in_i; auto.
       }
       iSplit; last done.
       iApply (monoReq_interp _ _ _ _ Permanent); done.
@@ -1295,46 +1390,82 @@ Section Adequacy.
     }
     { subst Winit_B.
       intro Hcontra.
+      assert ( cmpt_b_cgp main_cmpt ∈ finz.seq_between (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt)
+             ) as Hb_cgp_in.
+      { pose proof (cmpt_data_size main_cmpt) as H.
+        rewrite elem_of_finz_seq_between.
+        rewrite main_data in H; cbn.
+        solve_addr+H.
+      }
       apply elem_of_dom_std_multiple_update in Hcontra.
+      clear -Hcontra Hb_cgp_in B_imports.
       destruct Hcontra as [Hcontra|Hcontra].
-      - assert ( cmpt_b_cgp main_cmpt ∈ finz.seq_between (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt)).
-        { pose proof (cmpt_data_size main_cmpt) as H.
-          rewrite elem_of_finz_seq_between.
-          rewrite main_data in H; cbn.
-          solve_addr+H.
-        }
-        assert (
-            finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)
-              ##
-              finz.seq_between (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt)
-          ) as H'; last set_solver+H H' Hcontra.
-        admit.
+      - pose proof switcher_cmpt_disjoints as (Hdis&_&_); set_solver.
       - apply elem_of_dom_std_multiple_update in Hcontra.
         destruct Hcontra as [Hcontra|Hcontra].
-        + admit.
+        + assert (cmpt_b_pcc B_cmpt ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)).
+          { pose proof (cmpt_import_size B_cmpt) as Hsize ; rewrite B_imports in Hsize.
+            pose proof (cmpt_code_size B_cmpt).
+            rewrite elem_of_finz_seq_between; solve_addr.
+          }
+          rewrite elem_of_list_singleton in Hcontra; rewrite {1}Hcontra in Hb_cgp_in.
+          pose proof cmpts_disjoints as (Hdis&_&_); set_solver.
         + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
-          * admit.
+          * assert (cmpt_b_cgp B_cmpt ∈ finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)).
+            { pose proof (cmpt_data_size B_cmpt) as Hsize.
+              (* rewrite elem_of_finz_seq_between; solve_addr. *)
+              admit. (* TODO need (length cmpt_data) > 0 ... !! *)
+            }
+            pose proof cmpts_disjoints as (Hdis&_&_); set_solver.
           * apply elem_of_dom_std_multiple_update in Hcontra.
             destruct Hcontra as [Hcontra|Hcontra].
-            ** admit.
+            ** assert (cmpt_b_cgp main_cmpt ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt))
+               ; last (pose proof cmpts_disjoints as (Hdis&_&_); set_solver).
+               rewrite !elem_of_finz_seq_between in Hcontra |- *.
+               pose proof (cmpt_import_size B_cmpt) as Hsize ; rewrite B_imports in Hsize.
+               solve_addr.
             ** rewrite /= dom_empty_L in Hcontra; set_solver+Hcontra.
     }
     { subst Winit_C.
       intro Hcontra.
+      assert ( (cmpt_b_cgp main_cmpt ^+1)%a ∈ finz.seq_between (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt)
+             ) as Hb_cgp_in.
+      { pose proof (cmpt_data_size main_cmpt) as H.
+        rewrite elem_of_finz_seq_between.
+        rewrite main_data in H; cbn.
+        solve_addr+H.
+      }
       apply elem_of_dom_std_multiple_update in Hcontra.
+      clear -Hcontra Hb_cgp_in C_imports.
       destruct Hcontra as [Hcontra|Hcontra].
-      - admit.
-      - apply elem_of_dom_std_multiple_update in Hcontra.
+      - pose proof switcher_cmpt_disjoints as (Hdis&_&_); set_solver.
+      - pose proof cmpts_disjoints as (_&Hdis&_).
+        apply elem_of_dom_std_multiple_update in Hcontra.
         destruct Hcontra as [Hcontra|Hcontra].
-        + admit.
+        + assert (cmpt_b_pcc C_cmpt ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)).
+          { pose proof (cmpt_import_size C_cmpt) as Hsize ; rewrite C_imports in Hsize.
+            pose proof (cmpt_code_size C_cmpt).
+            rewrite elem_of_finz_seq_between; solve_addr.
+          }
+          rewrite elem_of_list_singleton in Hcontra; rewrite {1}Hcontra in Hb_cgp_in.
+          set_solver.
         + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
-          * admit.
+          * assert (cmpt_b_cgp C_cmpt ∈ finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)).
+            { pose proof (cmpt_data_size C_cmpt) as Hsize.
+              (* rewrite elem_of_finz_seq_between; solve_addr. *)
+              admit. (* TODO need (length cmpt_data) > 0 ... !! *)
+            }
+            set_solver.
           * apply elem_of_dom_std_multiple_update in Hcontra.
-          destruct Hcontra as [Hcontra|Hcontra].
-          ** admit.
-          ** rewrite /= dom_empty_L in Hcontra; set_solver+Hcontra.
+            destruct Hcontra as [Hcontra|Hcontra].
+            ** assert ((cmpt_b_cgp main_cmpt ^+ 1)%a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt))
+               ; last set_solver.
+               rewrite !elem_of_finz_seq_between in Hcontra |- *.
+               pose proof (cmpt_import_size C_cmpt) as Hsize ; rewrite C_imports in Hsize.
+               solve_addr.
+            ** rewrite /= dom_empty_L in Hcontra; set_solver+Hcontra.
     }
     { rewrite /revoke_condition.
       intros a.
