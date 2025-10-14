@@ -1401,7 +1401,8 @@ Section Adequacy.
       clear -Hcontra Hb_cgp_in B_imports.
       destruct Hcontra as [Hcontra|Hcontra].
       - pose proof switcher_cmpt_disjoints as (Hdis&_&_); set_solver.
-      - apply elem_of_dom_std_multiple_update in Hcontra.
+      - pose proof cmpts_disjoints as (Hdis&_&_).
+        apply elem_of_dom_std_multiple_update in Hcontra.
         destruct Hcontra as [Hcontra|Hcontra].
         + assert (cmpt_b_pcc B_cmpt ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)).
           { pose proof (cmpt_import_size B_cmpt) as Hsize ; rewrite B_imports in Hsize.
@@ -1409,19 +1410,14 @@ Section Adequacy.
             rewrite elem_of_finz_seq_between; solve_addr.
           }
           rewrite elem_of_list_singleton in Hcontra; rewrite {1}Hcontra in Hb_cgp_in.
-          pose proof cmpts_disjoints as (Hdis&_&_); set_solver.
+          set_solver.
         + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
-          * assert (cmpt_b_cgp B_cmpt ∈ finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)).
-            { pose proof (cmpt_data_size B_cmpt) as Hsize.
-              (* rewrite elem_of_finz_seq_between; solve_addr. *)
-              admit. (* TODO need (length cmpt_data) > 0 ... !! *)
-            }
-            pose proof cmpts_disjoints as (Hdis&_&_); set_solver.
+          * set_solver.
           * apply elem_of_dom_std_multiple_update in Hcontra.
             destruct Hcontra as [Hcontra|Hcontra].
             ** assert (cmpt_b_cgp main_cmpt ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt))
-               ; last (pose proof cmpts_disjoints as (Hdis&_&_); set_solver).
+               ; last set_solver.
                rewrite !elem_of_finz_seq_between in Hcontra |- *.
                pose proof (cmpt_import_size B_cmpt) as Hsize ; rewrite B_imports in Hsize.
                solve_addr.
@@ -1452,12 +1448,7 @@ Section Adequacy.
           set_solver.
         + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
-          * assert (cmpt_b_cgp C_cmpt ∈ finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)).
-            { pose proof (cmpt_data_size C_cmpt) as Hsize.
-              (* rewrite elem_of_finz_seq_between; solve_addr. *)
-              admit. (* TODO need (length cmpt_data) > 0 ... !! *)
-            }
-            set_solver.
+          * set_solver.
           * apply elem_of_dom_std_multiple_update in Hcontra.
             destruct Hcontra as [Hcontra|Hcontra].
             ** assert ((cmpt_b_cgp main_cmpt ^+ 1)%a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt))
@@ -1511,5 +1502,5 @@ Section Adequacy.
     iInv flagN as ">Hflag" "Hclose".
     iDestruct (gen_heap_valid with "Hmem' Hflag") as %Hm'_flag.
     iModIntro. iPureIntro. rewrite /state_is_good //=.
-  Admitted.
+  Qed.
 End Adequacy.
