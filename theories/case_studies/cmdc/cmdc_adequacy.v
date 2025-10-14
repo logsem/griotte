@@ -173,6 +173,8 @@ Qed.
 
 Section Adequacy.
   Context (Σ: gFunctors).
+  Context {cname : CmptNameG}.
+  Context {B C : CmptName}.
   Context {inv_preg: invGpreS Σ}.
   Context {mem_preg: gen_heapGpreS Addr Word Σ}.
   Context {reg_preg: gen_heapGpreS RegName Word Σ}.
@@ -182,10 +184,8 @@ Section Adequacy.
   Context {na_invg: na_invG Σ}.
   Context {sts_preg: STS_preG Addr region_type Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
-  Context {cname : CmptNameG}.
   Context {heappreg: heapGpreS Σ}.
   Context `{MP: MachineParameters}.
-  Context {B C : CmptName}.
   Context { HCNames : CNames = (list_to_set [B;C]) }.
   Context { HCNamesNoDup : NoDup [B;C] }.
 
@@ -1338,3 +1338,43 @@ Section Adequacy.
     iModIntro. iPureIntro. rewrite /state_is_good //=.
   Qed.
 End Adequacy.
+
+Inductive CmptNames_CMDC := | B | C.
+
+Local Program Instance CmptNames_CMDC_CmptNameG : CmptNameG :=
+  {|
+  CmptName := CmptNames_CMDC;
+  CmptName_eq_dec := _;
+  CmptName_countable := _;
+  CNames := {[ B ; C ]}
+  |}.
+Next Obligation. intros C C'; destruct C,C'; solve_decision. Qed.
+Next Obligation.
+  refine {| finite.enum := [B; C] |}.
+  + constructor; [ by rewrite elem_of_list_singleton | apply NoDup_singleton ].
+  + intros [|]; [ left | right; left ].
+Qed.
+
+(** END-TO-END THEOREM *)
+Theorem cmdc_adequacy `{Layout: memory_layout}
+  (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
+  (es: list cap_lang.expr):
+  is_initial_registers reg →
+  is_initial_sregisters sreg →
+  is_initial_memory m →
+  rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m)) (es, (reg', sreg', m')) →
+  m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
+Proof.
+  intros ? ? ? ?.
+  set ( cnames := CmptNames_CMDC_CmptNameG ).
+  set (Σ := #[invΣ
+              ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
+              ; entryPreΣ ; CSTACK_preΣ
+              ; na_invΣ; sealStorePreΣ
+              ; STS_preΣ Addr region_type ; heapPreΣ
+              ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * CmptName * Word)
+      ]).
+  eapply (@cmdc_adequacy' Σ cnames B C); eauto; try typeclasses eauto.
+  + set_solver.
+  + apply NoDup_cons; split ; [set_solver | apply NoDup_singleton].
+Qed.
