@@ -9,8 +9,9 @@ Class CmptNameG := CmptNameS {
   CmptName : Type;
   CmptName_eq_dec :: EqDecision CmptName;
   CmptName_countable :: Finite CmptName;
-  CNames : gset CmptName;
 }.
+
+Definition CNames `{CmptNameG} : gset CmptName := list_to_set (enum CmptName).
 
 (** The CMRA for the heap of STS.
     We distinguish between the standard and owned sts. *)

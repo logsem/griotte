@@ -298,9 +298,10 @@ Section Adequacy.
     unshelve iMod (gen_sts_init 0) as (stsg) "Hsts"; eauto. (*XX*)
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
     iMod (heap_init) as (heapg) "HRELS".
-    rewrite HCNames.
+
     iDestruct (big_sepS_elements with "Hsts") as "Hsts".
     iDestruct (big_sepS_elements with "HRELS") as "HRELS".
+    rewrite HCNames.
     setoid_rewrite elements_list_to_set; auto.
 
     iDestruct (big_sepL_cons with "Hsts") as "[Hsts_B Hsts_C]".
@@ -1340,20 +1341,17 @@ Section Adequacy.
 End Adequacy.
 
 Inductive CmptNames_CMDC := | B | C.
-
-Local Program Instance CmptNames_CMDC_CmptNameG : CmptNameG :=
-  {|
-  CmptName := CmptNames_CMDC;
-  CmptName_eq_dec := _;
-  CmptName_countable := _;
-  CNames := {[ B ; C ]}
-  |}.
-Next Obligation. intros C C'; destruct C,C'; solve_decision. Qed.
-Next Obligation.
+Local Instance CmptNames_CMDC_eq_dec : EqDecision CmptNames_CMDC.
+Proof. intros C C'; destruct C,C'; solve_decision. Qed.
+Local Instance CmptNames_CMDC_finite : finite.Finite CmptNames_CMDC.
+Proof.
   refine {| finite.enum := [B; C] |}.
   + constructor; [ by rewrite elem_of_list_singleton | apply NoDup_singleton ].
   + intros [|]; [ left | right; left ].
-Qed.
+Defined.
+
+Local Program Instance CmptNames_CMDC_CmptNameG : CmptNameG :=
+  {| CmptName := CmptNames_CMDC; |}.
 
 (** END-TO-END THEOREM *)
 Theorem cmdc_adequacy `{Layout: memory_layout}
@@ -1375,6 +1373,5 @@ Proof.
               ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * CmptName * Word)
       ]).
   eapply (@cmdc_adequacy' Σ cnames B C); eauto; try typeclasses eauto.
-  + set_solver.
-  + apply NoDup_cons; split ; [set_solver | apply NoDup_singleton].
+  apply NoDup_cons; split ; [set_solver | apply NoDup_singleton].
 Qed.
