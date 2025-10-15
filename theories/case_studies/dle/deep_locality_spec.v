@@ -36,8 +36,6 @@ Section DLE.
     (Ws : list WORLD)
     (Cs : list CmptName)
 
-    (csp_content : list Word)
-
     (Nassert Nswitcher : namespace)
 
     (cstk : CSTK)
@@ -49,7 +47,7 @@ Section DLE.
 
     Nswitcher ## Nassert ->
 
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp ; cra]} ->
+    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length dle_main_code)%a ->
 
@@ -69,7 +67,6 @@ Section DLE.
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
-      ∗ (∃ wcra, cra ↦ᵣ wcra)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -94,7 +91,7 @@ Section DLE.
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
             )
       "(#Hassert & #Hswitcher & Hna
-      & HPC & Hcgp & Hcsp & [%wcra Hcra] & Hrmap
+      & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hr_C & Hsts_C
       & HK
@@ -106,8 +103,8 @@ Section DLE.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
     (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
-    iExtractList "Hrmap" [ca0;ct0;ct1;ct2;ct3;cs0;cs1]
-      as ["Hca0"; "Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hcs0"; "Hcs1"].
+    iExtractList "Hrmap" [cra;ca0;ct0;ct1;ct2;ct3;cs0;cs1]
+      as ["Hcra"; "Hca0"; "Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hcs0"; "Hcs1"].
 
     (* Extract the addresses of b and a *)
     iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
