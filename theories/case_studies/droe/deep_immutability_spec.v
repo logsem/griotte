@@ -35,8 +35,6 @@ Section DROE.
     (Ws : list WORLD)
     (Cs : list CmptName)
 
-    (csp_content : list Word)
-
     (Nassert Nswitcher : namespace)
 
     (cstk : CSTK)
@@ -48,7 +46,7 @@ Section DROE.
 
     Nswitcher ## Nassert ->
 
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp ; cra]} ->
+    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ->
 
@@ -68,7 +66,6 @@ Section DROE.
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
-      ∗ (∃ wcra, cra ↦ᵣ wcra)
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -93,7 +90,7 @@ Section DROE.
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
             )
       "(#Hassert & #Hswitcher & Hna
-      & HPC & Hcgp & Hcsp & [%wcra Hcra] & Hrmap
+      & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & HWreg_C & HWstd_full_C
       & HK
@@ -126,6 +123,9 @@ Section DROE.
     assert ( is_Some (rmap !! cs1) ) as [wcs1 Hwcs1].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! cra) ) as [wcra Hwcra].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
 
     (* Extract the addresses of b and a *)
     iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
