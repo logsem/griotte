@@ -116,14 +116,9 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
 .
 
 Lemma mk_initial_cmpt_C_disjoint `{Layout: @memory_layout MP} (m : Mem) :
-  is_initial_memory m →
   mk_initial_switcher switcher_cmpt ∪ mk_initial_assert assert_cmpt ∪ mk_initial_cmpt main_cmpt ∪ mk_initial_cmpt B_cmpt
     ##ₘ mk_initial_cmpt C_cmpt.
 Proof.
-  intros (Hm & main_imports & main_code & main_data & main_exp_tbl
-          & B_imports & B_code & B_data & B_exp_tbl
-          & C_imports & C_code & C_data & C_exp_tbl
-         ).
   pose proof cmpts_disjoints as (_ & HmainC & HBC).
   pose proof switcher_cmpt_disjoints as (_ & _ & HswitcherC).
   pose proof assert_cmpt_disjoints as (_ & _ & HassertC).
@@ -136,14 +131,9 @@ Proof.
 Qed.
 
 Lemma mk_initial_cmpt_B_disjoint `{Layout: @memory_layout MP} (m : Mem) :
-  is_initial_memory m →
   mk_initial_switcher switcher_cmpt ∪ mk_initial_assert assert_cmpt ∪ mk_initial_cmpt main_cmpt
     ##ₘ mk_initial_cmpt B_cmpt.
 Proof.
-  intros (Hm & main_imports & main_code & main_data & main_exp_tbl
-          & B_imports & B_code & B_data & B_exp_tbl
-          & C_imports & C_code & C_data & C_exp_tbl
-         ).
   pose proof cmpts_disjoints as (HmainB & _ & _).
   pose proof switcher_cmpt_disjoints as (_ & HswitcherB & _).
   pose proof assert_cmpt_disjoints as (_ & HassertB & _).
@@ -155,14 +145,9 @@ Proof.
 Qed.
 
 Lemma mk_initial_cmpt_main_disjoint `{Layout: @memory_layout MP} (m : Mem) :
-  is_initial_memory m →
   mk_initial_switcher switcher_cmpt ∪ mk_initial_assert assert_cmpt
     ##ₘ mk_initial_cmpt main_cmpt.
 Proof.
-  intros (Hm & main_imports & main_code & main_data & main_exp_tbl
-          & B_imports & B_code & B_data & B_exp_tbl
-          & C_imports & C_code & C_data & C_exp_tbl
-         ).
   pose proof switcher_cmpt_disjoints as (HswitcherMain & _ & _).
   pose proof assert_cmpt_disjoints as (HassertMain & _ & _).
   rewrite map_disjoint_union_l.
