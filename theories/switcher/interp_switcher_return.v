@@ -51,46 +51,12 @@ Section fundamental.
     iHide "Hinv_switcher" as hinv_switcher.
 
     (* --- Extract scratch registers ct2 ctp --- *)
-    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
-    rewrite delete_insert_delete.
-    assert (exists wcra, rmap !! cra = Some wcra)
-      as [wcra Hwcra] by (by specialize (Hfull_rmap cra)).
-    iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
-    assert (exists wcsp, rmap !! csp = Some wcsp)
-      as [wcsp Hwcsp] by (by specialize (Hfull_rmap csp)).
-    iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
-    assert (exists wcgp, rmap !! cgp = Some wcgp)
-      as [wcgp Hwcgp] by (by specialize (Hfull_rmap cgp)).
-    iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
-    assert (exists wca0, rmap !! ca0 = Some wca0)
-      as [wca0 Hwca0] by (by specialize (Hfull_rmap ca0)).
-    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
-    assert (exists wca1, rmap !! ca1 = Some wca1)
-      as [wca1 Hwca1] by (by specialize (Hfull_rmap ca1)).
-    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
-    assert (exists wctp, rmap !! ctp = Some wctp)
-      as [wctp Hwctp] by (by specialize (Hfull_rmap ctp)).
-    iDestruct (big_sepM_delete _ _ ctp with "Hrmap") as "[Hctp Hrmap]"; first by simplify_map_eq.
-    assert (exists wca2, rmap !! ca2 = Some wca2)
-      as [wca2 Hwca2] by (by specialize (Hfull_rmap ca2)).
-    iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq.
-    assert (exists wcs1, rmap !! cs1 = Some wcs1)
-      as [wcs1 Hwcs1] by (by specialize (Hfull_rmap cs1)).
-    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
-    assert (exists wcs0, rmap !! cs0 = Some wcs0)
-      as [wcs0 Hwcs0] by (by specialize (Hfull_rmap cs0)).
-    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
-    assert (exists wct0, rmap !! ct0 = Some wct0)
-      as [wct0 Hwct0] by (by specialize (Hfull_rmap ct0)).
-    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
-    assert (exists wct1, rmap !! ct1 = Some wct1)
-      as [wct1 Hwct1] by (by specialize (Hfull_rmap ct1)).
-    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
+    cbn in Hfull_rmap.
+    rename wstk into wcsp.
 
-
-    (* ------------------------------------------------ *)
-    (* ----- Start the proof of the switcher here ----- *)
-    (* ------------------------------------------------ *)
+    getRegValList [PC;cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1].
+    iExtractList "Hrmap" [PC;cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1]
+      as ["HPC";"Hcra";"Hcsp";"Hcgp";"Hca0";"Hca1";"Hctp";"Hca2";"Hcs1";"Hcs0";"Hct0";"Hct1"].
     iAssert (interp W C wcsp) as "#Hinterp_wcsp".
     { iApply "Hrmap_interp"; eauto; done. }
     iAssert (interp W C wcs0) as "#Hinterp_wcs0".
@@ -107,6 +73,10 @@ Section fundamental.
     { iApply "Hrmap_interp"; eauto; done. }
     iAssert (interp W C wca1) as "#Hinterp_wca1".
     { iApply "Hrmap_interp"; eauto; done. }
+
+    (* ------------------------------------------------ *)
+    (* ----- Start the proof of the switcher here ----- *)
+    (* ------------------------------------------------ *)
 
     rewrite /switcher_instrs /switcher_call_instrs /switcher_return_instrs.
     rewrite -!app_assoc.
@@ -188,7 +158,7 @@ Section fundamental.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as (wtstk4) "[Ha_tstk Hcframe_interp]".
-    destruct wstk0; try done.
+    destruct wstk; try done.
     destruct sb; try done.
     destruct p; try done.
     destruct rx; try done.
@@ -380,15 +350,7 @@ Section fundamental.
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
     focus_block 9 "Hcode" as a9 Ha9 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct1]") as "Hrmap".
-    rewrite -delete_insert_ne //.
-    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct0]") as "Hrmap".
-    do 2 (rewrite (delete_commute _ _ ca2); auto).
-    do 2 (rewrite -delete_insert_ne //).
-    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca2]") as "Hrmap".
-    do 2 (rewrite (delete_commute _ _ ctp); auto).
-    do 3 (rewrite -delete_insert_ne //).
-    iDestruct (big_sepM_insert_delete with "[$Hrmap $Hctp]") as "Hrmap".
+    iInsertList "Hrmap" [ct0;ct1;ca2;ctp].
 
     iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]"); try solve_pure.
     { clear -Hfull_rmap.
@@ -448,13 +410,6 @@ Section fundamental.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
       iEval (rewrite app_nil_r) in "Hr".
-      (* iAssert ([[a_stk,e_stk]] ↦ₐ [[region_addrs_zeroes a_stk e_stk%a]])%I with "[Hstk_register_save Hstk]" as "Hstk". *)
-      (* { *)
-      (*   rewrite (region_addrs_zeroes_split a_stk (a_stk ^+4)%a e_stk); last solve_addr+Ha_stk4 He_a1 Hb_a4. *)
-      (*   rewrite region_pointsto_split; first iFrame. *)
-      (*   solve_addr+Ha_stk4 He_a1 Hb_a4. *)
-      (*   by rewrite /region_addrs_zeroes length_replicate. *)
-      (* } *)
       iAssert (([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, closing_resources interp W C a (WInt 0)))%I
         with "[Hres]" as "Hres".
       { iClear "#".
@@ -624,6 +579,7 @@ Section fundamental.
       iEval (rewrite fixpoint_interp1_eq); done.
     }
 
+    (* Insert the registers in the rmap *)
     match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cra m) end.
     2: { rewrite delete_notin; auto.
          apply not_elem_of_dom.

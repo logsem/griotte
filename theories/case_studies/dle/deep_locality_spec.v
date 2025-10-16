@@ -314,11 +314,11 @@ Section DLE.
 
     set ( rmap_arg :=
            {[ ca0 := WCap RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
-              ca1 := vca1;
-              ca2 := vca2;
-              ca3 := vca3;
-              ca4 := vca4;
-              ca5 := vca5;
+              ca1 := wca1;
+              ca2 := wca2;
+              ca3 := wca3;
+              ca4 := wca4;
+              ca5 := wca5;
               ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
@@ -375,8 +375,8 @@ Section DLE.
     }
     { by rewrite /is_arg_rmap. }
 
-    clear dependent vca0 vct0 vct1 vct2 vct3 vcs0 vcs1.
-    clear dependent vca1 vca2 vca3 vca4 vca5 rmap.
+    clear dependent wca0 wct0 wct1 wct2 wct3 wcs0 wcs1.
+    clear dependent wca1 wca2 wca3 wca4 wca5 rmap.
     iNext.
     iIntros (W4 rmap stk_mem_l stk_mem_h)
       "(%Hrelated_pub_W3ext_W4 & %Hdom_rmap
@@ -525,10 +525,10 @@ Section DLE.
     set ( rmap_arg :=
            {[ ca0 := WInt 0;
               ca1 := warg1;
-              ca2 := vca2;
-              ca3 := vca3;
-              ca4 := vca4;
-              ca5 := vca5;
+              ca2 := wca2;
+              ca3 := wca3;
+              ca4 := wca4;
+              ca5 := wca5;
               ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).

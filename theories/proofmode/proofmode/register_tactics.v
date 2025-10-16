@@ -70,8 +70,26 @@ repeat (
     | |- _ !! ?reg = Some _ => exact
     end ); fail.
 
+Ltac get_rval_from_rname_with_full_rmap Hfull_rmap rname :=
+  let rval := fresh "w"rname in
+  let Hsome := fresh "Hw"rname in
+  let HH := fresh "HH" in
+  specialize (Hfull_rmap rname) as HH ; destruct HH as [rval Hsome].
+
+Ltac get_rval_from_rname rname :=
+  match goal with
+  | Hfull_rmap : ∀ r, is_Some (?regs !! r) |- _ =>
+  get_rval_from_rname_with_full_rmap Hfull_rmap rname
+end.
+
+Ltac get_rval_from_rnames rnames :=
+  match rnames with
+  | nil => idtac
+  | ?rname::?rtail => get_rval_from_rname rname; get_rval_from_rnames rtail
+  end.
+
 Ltac extract_pointsto_map regs Hmap rname Hrdom Hreg :=
-  let rval := fresh "v"rname in
+  let rval := fresh "w"rname in
   let Hsome := fresh "Hsome" in
   first [ eassert (regs !! rname = Some _) as Hsome by solve_lookup_some (* Try to reuse existing value, if any *) |
   assert (is_Some (regs !! rname)) as [rval Hsome] by (rewrite -elem_of_dom Hrdom; set_solver +) ];
@@ -107,6 +125,11 @@ Ltac iExtract0 Hmap rnames Hregs :=
         end
       end
     end.
+
+Tactic Notation "getRegVal" constr(rname) :=
+    get_rval_from_rname rname.
+Tactic Notation "getRegValList" constr(rnames) :=
+    get_rval_from_rnames rnames.
 
 Tactic Notation "iExtract" constr(Hmap) constr(rname) "as" constr(Hreg):=
     iExtract0 Hmap [rname] [Hreg].
