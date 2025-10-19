@@ -5,7 +5,7 @@ From cap_machine Require Import disjoint_regions_tactics mkregion_helpers.
 Section CmptLayout.
   Context `{MP: MachineParameters} {swlayout : switcherLayout}.
 
-  Record cmpt : Type :=
+  Inductive cmpt : Type :=
     mkCmpt {
         cmpt_b_pcc : Addr;
         cmpt_a_code : Addr;
@@ -18,6 +18,9 @@ Section CmptLayout.
         cmpt_exp_tbl_cgp : Addr;
         cmpt_exp_tbl_entries_start : Addr;
         cmpt_exp_tbl_entries_end : Addr;
+
+        export_table : list (Z * Z);
+        import_table : list (cmpt * Z);
 
         cmpt_imports : list Word;
         cmpt_code : list Word;
@@ -134,7 +137,7 @@ Section CmptLayout.
     cmpt_switcher_stack_mregion Cswitcher.
 
   Definition switcher_cmpt_disjoint
-    (C : cmpt) (Cswitcher : cmptSwitcher) : Prop :=
+    (Cswitcher : cmptSwitcher) (C : cmpt)  : Prop :=
     (cmpt_switcher_region Cswitcher) ## (cmpt_region C).
 
   Record cmptAssert : Type :=
@@ -182,7 +185,7 @@ Section CmptLayout.
     cmpt_assert_flag_mregion Cassert.
 
   Definition assert_cmpt_disjoint
-    (C : cmpt) (Cassert : cmptAssert) : Prop :=
+    (Cassert : cmptAssert) (C : cmpt) : Prop :=
     (cmpt_assert_region Cassert) ## (cmpt_region C).
 
   Definition assert_switcher_disjoint
@@ -303,7 +306,7 @@ Section CmptLayout.
   Qed.
 
   Lemma disjoint_switcher_cmpts_mkinitial (A_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) :
-    switcher_cmpt_disjoint A_cmpt switcher_cmpt ->
+    switcher_cmpt_disjoint switcher_cmpt A_cmpt ->
     (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_switcher switcher_cmpt).
   Proof.
     intros Hdis.
@@ -324,7 +327,7 @@ Section CmptLayout.
   Qed.
 
   Lemma disjoint_assert_cmpts_mkinitial (A_cmpt : cmpt) (assert_cmpt : cmptAssert) :
-    assert_cmpt_disjoint A_cmpt assert_cmpt ->
+    assert_cmpt_disjoint assert_cmpt A_cmpt ->
     (mk_initial_cmpt A_cmpt) ##ₘ (mk_initial_assert assert_cmpt).
   Proof.
     intros Hdis.
@@ -473,7 +476,7 @@ Section CmptLayout.
     apply map_disjoint_dom_2.
     pose proof (cmpt_disjointness B_cmpt) as Hdis.
     rewrite !disjoint_list_cons in Hdis.
-    destruct Hdis as (?&?&_&_).
+    destruct Hdis as (?%Forall_disjoint_Union&?%Forall_disjoint_Union&_&_).
     rewrite !union_list_cons in H,H0.
     rewrite union_list_nil in H,H0.
     rewrite /union /Union_list in H,H0.
@@ -512,7 +515,7 @@ Section CmptLayout.
     apply map_disjoint_dom_2.
     pose proof (cmpt_disjointness B_cmpt) as Hdis.
     rewrite !disjoint_list_cons in Hdis.
-    destruct Hdis as (?&?&_&_).
+    destruct Hdis as (?%Forall_disjoint_Union&?%Forall_disjoint_Union&_&_).
     rewrite !union_list_cons in H,H0.
     rewrite union_list_nil in H,H0.
     rewrite /union /Union_list in H,H0.
@@ -558,7 +561,7 @@ Section CmptLayout.
     apply map_disjoint_dom_2.
     pose proof (cmpt_disjointness B_cmpt) as Hdis.
     rewrite !disjoint_list_cons in Hdis.
-    destruct Hdis as (?&?&_&?).
+    destruct Hdis as (?%Forall_disjoint_Union&?%Forall_disjoint_Union&_&?).
     rewrite !union_list_cons in H,H0.
     rewrite union_list_nil in H,H0.
     rewrite /union /Union_list in H,H0.

@@ -33,14 +33,14 @@ Class memory_layout `{MP: MachineParameters} := {
     ∧ B_cmpt ## C_cmpt ;
 
     switcher_cmpt_disjoints :
-    switcher_cmpt_disjoint main_cmpt switcher_cmpt
-    ∧ switcher_cmpt_disjoint B_cmpt switcher_cmpt
-    ∧ switcher_cmpt_disjoint C_cmpt switcher_cmpt ;
+    switcher_cmpt_disjoint switcher_cmpt main_cmpt
+    ∧ switcher_cmpt_disjoint switcher_cmpt B_cmpt
+    ∧ switcher_cmpt_disjoint switcher_cmpt C_cmpt;
 
     assert_cmpt_disjoints :
-    assert_cmpt_disjoint main_cmpt assert_cmpt
-    ∧ assert_cmpt_disjoint B_cmpt assert_cmpt
-    ∧ assert_cmpt_disjoint C_cmpt assert_cmpt ;
+    assert_cmpt_disjoint assert_cmpt main_cmpt
+    ∧ assert_cmpt_disjoint assert_cmpt B_cmpt
+    ∧ assert_cmpt_disjoint assert_cmpt C_cmpt;
 
     assert_switcher_disjoints :
     assert_switcher_disjoint assert_cmpt switcher_cmpt;
@@ -509,7 +509,7 @@ Section Adequacy.
         left; solve_addr+HB.
       + pose proof (cmpt_disjointness B_cmpt) as HB.
         apply disjoint_regions_tactics.disjoint_list_cons in HB
-        ; destruct HB as [HB _].
+        ; destruct HB as [HB%Forall_disjoint_Union _].
         rewrite union_list_cons in HB.
         cbn in HB.
         assert (
@@ -722,7 +722,7 @@ Section Adequacy.
         { intro Hcontra.
           clear -Ha Hcontra B_imports.
           pose proof (cmpt_disjointness B_cmpt) as Hdis.
-          apply disjoint_list_cons in Hdis as [Hdis _].
+          apply disjoint_list_cons in Hdis as [Hdis%Forall_disjoint_Union _].
           rewrite union_list_cons disjoint_union_r in Hdis.
           destruct Hdis as [Hdis _].
           rewrite elem_of_list_singleton in Hcontra; simplify_eq.
@@ -861,7 +861,7 @@ Section Adequacy.
         left; solve_addr+HC.
       + pose proof (cmpt_disjointness C_cmpt) as HC.
         apply disjoint_regions_tactics.disjoint_list_cons in HC
-        ; destruct HC as [HC _].
+        ; destruct HC as [HC%Forall_disjoint_Union _].
         rewrite union_list_cons in HC.
         cbn in HC.
         assert (
@@ -1073,7 +1073,7 @@ Section Adequacy.
         { intro Hcontra.
           clear -Ha Hcontra C_imports.
           pose proof (cmpt_disjointness C_cmpt) as Hdis.
-          apply disjoint_list_cons in Hdis as [Hdis _].
+          apply disjoint_list_cons in Hdis as [Hdis%Forall_disjoint_Union _].
           rewrite union_list_cons disjoint_union_r in Hdis.
           destruct Hdis as [Hdis _].
           rewrite elem_of_list_singleton in Hcontra; simplify_eq.

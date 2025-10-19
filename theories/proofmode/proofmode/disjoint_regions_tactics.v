@@ -11,22 +11,24 @@ Notation "##@{ A } Xs" :=
 
 Section disjoint_list.
   Variable A: Type.
-  Context `{Disjoint A, Union A, Empty A}.
+  Context `{Disjoint A}.
   Implicit Types X : A.
 
   Inductive disjoint_list_default : DisjointList A :=
     | disjoint_nil_2 : ##@{A} []
-    | disjoint_cons_2 (X : A) (Xs : list A) : X ## ⋃ Xs → ## Xs → ## (X :: Xs).
+    | disjoint_cons_2 (X : A) (Xs : list A) :
+      Forall (disjoint X) Xs -> ## Xs -> ## (X :: Xs).
   Global Existing Instance disjoint_list_default.
 
   Lemma disjoint_list_nil  : ##@{A} [] ↔ True.
   Proof. split; constructor. Qed.
-  Lemma disjoint_list_cons X Xs : ## (X :: Xs) ↔ X ## ⋃ Xs ∧ ## Xs.
+  Lemma disjoint_list_cons X Xs : ## (X :: Xs) ↔ Forall (disjoint X) Xs ∧ ## Xs.
   Proof.
     split; [inversion_clear 1; auto |].
     intros [??]. constructor; auto.
   Qed.
 End disjoint_list.
+
 
 Lemma disjoint_mono_l A C `{ElemOf A C} (X Y Z: C) : X ⊆ Y → Y ## Z → X ## Z.
 Proof. intros * HXY. rewrite !elem_of_disjoint. eauto. Qed.
@@ -144,11 +146,26 @@ Lemma addr_disjoint_list_empty : ## ([]: list (list Addr)).
 Proof. constructor. Qed.
 #[export] Hint Resolve addr_disjoint_list_empty : disj_regions.
 
+Lemma Forall_disjoint_Union { A : Type } (l : list A) (ll: list (list A)) :
+ l ## ⋃ ll <-> Forall (disjoint l) ll.
+Proof.
+  induction ll; cbn; split; intro Hll; [done|set_solver+|..].
+  - apply Forall_cons.
+    apply disjoint_union_r in Hll as [Hla Hll].
+    apply IHll in Hll; done.
+  - apply disjoint_union_r.
+    apply Forall_cons in Hll as [Hla Hll].
+    apply IHll in Hll; done.
+Qed.
+
 Lemma addr_disjoint_list_cons (l: list Addr) ll :
   l ## ⋃ ll →
   ## ll →
   ## (l :: ll).
-Proof. intros. rewrite disjoint_list_cons; auto. Qed.
+Proof. intros. rewrite disjoint_list_cons; auto.
+       split; auto.
+       by apply Forall_disjoint_Union.
+Qed.
 #[export] Hint Resolve addr_disjoint_list_cons : disj_regions.
 
 Ltac disj_regions :=
