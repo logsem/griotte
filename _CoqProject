@@ -6,3 +6,4 @@
 -arg -w -arg -ssr-search-moved
 -arg -w -arg -deprecated-instance-without-locality
 -arg "-set \"Default Goal Selector=!\""
+-arg "-w -arg -async-proofs-tac-j 12"

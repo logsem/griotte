@@ -12,6 +12,7 @@
         -w -several-object-files
         -w -ssr-search-moved
         -w deprecated-instance-without-locality
+        -set "Default Goal Selector=!"
  )
  (theories stdpp iris Ltac2 Equations Stdlib machine_utils)
 )
