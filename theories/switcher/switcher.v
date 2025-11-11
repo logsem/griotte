@@ -8,16 +8,6 @@ Section Switcher.
 
   Definition switcher_call_instrs : list Word :=
     encodeInstrsW [
-        (* Save the callee registers *)
-        Store csp cs0;
-        Lea csp 1%Z;
-        Store csp cs1;
-        Lea csp 1%Z;
-        Store csp cra;
-        Lea csp 1%Z;
-        Store csp cgp;
-        Lea csp 1%Z;
-
         (* Check permissions of the stack *)
         GetP ct2 csp;
         Mov ctp (encodePerm RWL);
@@ -33,6 +23,16 @@ Section Switcher.
         Jnz 2%Z ct2;
         Jmp 2%Z;
         Fail;
+
+        (* Save the callee registers *)
+        Store csp cs0;
+        Lea csp 1%Z;
+        Store csp cs1;
+        Lea csp 1%Z;
+        Store csp cra;
+        Lea csp 1%Z;
+        Store csp cgp;
+        Lea csp 1%Z;
 
         (* Save the caller's stack pointer in the trusted stack *)
         ReadSR ct2 mtdc;

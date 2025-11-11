@@ -76,8 +76,78 @@ Section fundamental.
     assert (SubBounds b_switcher e_switcher a_switcher_call (a_switcher_call ^+(length switcher_instrs))%a)
       by solve_addr.
 
-    (* --- Store csp cs0 --- *)
     iDestruct ("Hreg" $! csp with "[//] [//]") as "#Hspv".
+    (* --- GetP ct2 csp --- *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_Get_unknown with "[$HPC $Hi $Hct2 $Hcsp]"); try solve_pure.
+    iIntros "!>" (v) "[-> | (%p0 & %Hp0 & Hcap_wstk & -> & HPC & Hi & Hcsp & Hct2)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr";done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+
+    (* ---  Mov ctp (encodePerm RWL) --- *)
+    iInstr "Hcode".
+
+    (* --- Sub ct2 ct2 ctp --- *)
+    iInstr "Hcode".
+
+    (* --- Jnz 2 ct2 --- *)
+    destruct (decide ((p0 - encodePerm RWL)%Z = 0)) as [Hp0'|];cycle 1.
+    { (* p ≠ RWL *)
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
+      { intros Hcontr; inversion Hcontr; done. }
+      iIntros "!> (HPC & Hi & Hct2)".
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
+      iInstr "Hcode".
+      wp_end. iIntros "%Hcontr";done.
+    }
+    (* p = RWL *)
+    rewrite Hp0'.
+    iInstr "Hcode".
+
+    (* --- Jmp 2 --- *)
+    iInstr "Hcode".
+
+    (* --- GetL ct2 csp --- *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_Get_unknown with "[$HPC $Hi $Hct2 $Hcsp]"); try solve_pure.
+    iIntros "!>" (v) "[-> | (%g0 & %Hg0 & _ & -> & HPC & Hi & Hcsp & Hct2)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr";done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+
+    (* --- Mov ctp (encodeLoc Local) --- *)
+    iInstr "Hcode".
+
+    (* --- Sub ct2 ct2 ctp --- *)
+    iInstr "Hcode".
+
+    (* --- Jnz 2 ct2 --- *)
+    destruct (decide ((g0 - encodeLoc Local)%Z = 0)) as [Hg0'|];cycle 1.
+    { (* g ≠ Local *)
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
+      { intros Hcontr; inversion Hcontr; done. }
+      iIntros "!> (HPC & Hi & Hct2)".
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
+      iInstr "Hcode".
+      wp_end. iIntros "%Hcontr";done.
+    }
+    rewrite Hg0'.
+    (* g = Local *)
+    iInstr "Hcode".
+
+    (* --- Jmp 2 --- *)
+    iInstr "Hcode".
+
+    (* --- Store csp cs0 --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_store_interp with "[$HPC $Hi Hcsp Hcs0 $Hr $Hsts]"); try solve_pure.
@@ -87,6 +157,9 @@ Section fundamental.
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
+    cbn in Hp0,Hg0; simplify_eq.
+    assert (encodePerm p = encodePerm RWL)%Z as ?%encodePerm_inj by lia; simplify_eq; clear Hp0'.
+    assert (encodeLoc g = encodeLoc Local)%Z as ?%encodeLoc_inj by lia; simplify_eq; clear Hg0'.
 
     (* --- Lea csp 1 --- *)
     destruct (a + 1)%a eqn:Ha1;cycle 1.
@@ -98,9 +171,6 @@ Section fundamental.
     iInstr "Hcode".
 
     (* --- Store csp cs1 --- *)
-    assert (isO p = false) as Hno.
-    { apply canStore_writeAllowed in Hcanstore.
-      destruct p,w,rx;auto. }
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hr $Hsts]"); try solve_pure.
@@ -164,69 +234,6 @@ Section fundamental.
       iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done. }
     iInstr "Hcode".
 
-    (* --- GetP ct2 csp --- *)
-    iInstr "Hcode".
-
-    (* ---  Mov ctp (encodePerm RWL) --- *)
-    iInstr "Hcode".
-
-    (* --- Sub ct2 ct2 ctp --- *)
-    iInstr "Hcode".
-
-    (* --- Jnz 2 ct2 --- *)
-    destruct (decide (p = RWL));cycle 1.
-    { (* p ≠ RWL *)
-      assert ((encodePerm p - encodePerm RWL)%Z ≠ 0) as Hne.
-      { destruct (decide (encodePerm p = encodePerm RWL));[|lia].
-        apply encodePerm_inj in e0. congruence. }
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
-      { intros Hcontr; inversion Hcontr; done. }
-      iIntros "!> (HPC & Hi & Hct2)".
-      wp_pure.
-      iSpecialize ("Hcode" with "[$]").
-      iInstr "Hcode".
-      wp_end. iIntros "%Hcontr";done.
-    }
-    (* p = RWL *)
-    subst p. replace (encodePerm RWL - encodePerm RWL)%Z with 0%Z by lia.
-    iInstr "Hcode".
-
-    (* --- Jmp 2 --- *)
-    iInstr "Hcode".
-
-    (* --- GetL ct2 csp --- *)
-    iInstr "Hcode".
-
-    (* --- Mov ctp (encodeLoc Local) --- *)
-    iInstr "Hcode".
-
-    (* --- Sub ct2 ct2 ctp --- *)
-    iInstr "Hcode".
-
-    (* --- Jnz 2 ct2 --- *)
-    destruct (decide (g = Local));cycle 1.
-    { (* g ≠ Local *)
-      assert ((encodeLoc g - encodeLoc Local)%Z ≠ 0) as Hne.
-      { destruct (decide (encodeLoc g = encodeLoc Local));[|lia].
-        apply encodeLoc_inj in e0. congruence. }
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
-      { intros Hcontr; inversion Hcontr; done. }
-      iIntros "!> (HPC & Hi & Hct2)".
-      wp_pure.
-      iSpecialize ("Hcode" with "[$]").
-      iInstr "Hcode".
-      wp_end. iIntros "%Hcontr";done.
-    }
-    (* g = Local *)
-    subst g. replace (encodeLoc Local - encodeLoc Local)%Z with 0%Z by lia.
-    iInstr "Hcode".
-
-    (* --- Jmp 2 --- *)
-    iInstr "Hcode".
 
     (* --- ReadSR ct2 mtdc --- *)
     iInstr "Hcode".

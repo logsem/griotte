@@ -144,95 +144,6 @@ Section Switcher.
       by solve_addr.
 
 
-    iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
-    rewrite finz_seq_between_length in Hstklen.
-    destruct (decide (b_stk <= a_stk < e_stk)%a) as [Hastk_inbounds|Hastk_inbounds]; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs0 $Hcsp]") ; try solve_pure.
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk_inbounds.
-    destruct stk_mem as [|w0 stk_mem]; simplify_eq.
-    assert (is_Some (a_stk + 1)%a) as [a_stk1 Hastk1];[solve_addr+Hastk_inbounds|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk Hstk]"; eauto.
-    { solve_addr+Hastk_inbounds Hastk1. }
-
-    (* --- Store csp cs0 --- *)
-    iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
-
-    (* --- Lea csp 1 --- *)
-    iInstr "Hcode".
-
-
-    destruct (decide (b_stk <= (a_stk ^+ 1)%a < e_stk)%a) as [Hastk1_inbounds|Hastk1_inbounds]; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs1 $Hcsp]") ; try solve_pure.
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk1_inbounds.
-    destruct stk_mem as [|w1 stk_mem]; simplify_eq.
-    assert (is_Some (a_stk1 + 1)%a) as [a_stk2 Hastk2];[solve_addr+Hastk1 Hastk1_inbounds|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk1 Hstk]"; eauto.
-    { solve_addr+Hastk1_inbounds Hastk1 Hastk2. }
-
-    (* --- Store csp cs1 --- *)
-    iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
-
-    (* --- Lea csp 1 --- *)
-    iInstr "Hcode".
-
-    destruct (decide (b_stk <= (a_stk ^+ 2)%a < e_stk)%a) as [Hastk2_inbounds|Hastk2_inbounds]; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcra $Hcsp]") ; try solve_pure.
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk2_inbounds.
-    destruct stk_mem as [|w2 stk_mem]; simplify_eq.
-    assert (is_Some (a_stk2 + 1)%a) as [a_stk3 Hastk3];[solve_addr+Hastk1 Hastk2 Hastk2_inbounds|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk2 Hstk]"; eauto.
-    { solve_addr+Hastk2_inbounds Hastk1 Hastk2 Hastk3. }
-
-    (* --- Store csp cra --- *)
-    iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
-
-    (* --- Lea csp 1 --- *)
-    iInstr "Hcode".
-
-
-    destruct (decide (b_stk <= (a_stk ^+ 3)%a < e_stk)%a) as [Hastk3_inbounds|Hastk3_inbounds]; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcgp $Hcsp]") ; try solve_pure.
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk3_inbounds.
-    destruct stk_mem as [|w3 stk_mem]; simplify_eq.
-    assert (is_Some (a_stk3 + 1)%a) as [a_stk4 Hastk4];[solve_addr+Hastk1 Hastk2 Hastk3 Hastk3_inbounds|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk3 Hstk]"; eauto.
-    { solve_addr+Hastk3_inbounds Hastk1 Hastk2 Hastk3 Hastk4. }
-    assert ((a_stk + 4)%a = Some a_stk4) as Hastk by solve_addr.
-    assert ((a_stk ^+4)%a = a_stk4) as -> by solve_addr.
-    (* --- Store csp cgp --- *)
-    iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
-
-    (* --- Lea csp 1 --- *)
-    iInstr "Hcode".
-
     (* --- GetP ct2 csp --- *)
     iInstr "Hcode".
 
@@ -263,6 +174,95 @@ Section Switcher.
     iInstr "Hcode".
 
     (* --- Jmp 2 --- *)
+    iInstr "Hcode".
+
+    (* --- Store csp cs0 --- *)
+    iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
+    rewrite finz_seq_between_length in Hstklen.
+    destruct (decide (b_stk <= a_stk < e_stk)%a) as [Hastk_inbounds|Hastk_inbounds]; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs0 $Hcsp]") ; try solve_pure.
+      { rewrite /withinBounds; solve_addr. }
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+    }
+    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk_inbounds.
+    destruct stk_mem as [|w0 stk_mem]; simplify_eq.
+    assert (is_Some (a_stk + 1)%a) as [a_stk1 Hastk1];[solve_addr+Hastk_inbounds|].
+    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk Hstk]"; eauto.
+    { solve_addr+Hastk_inbounds Hastk1. }
+
+    iInstr "Hcode".
+    { rewrite /withinBounds. solve_addr. }
+
+    (* --- Lea csp 1 --- *)
+    iInstr "Hcode".
+
+
+    (* --- Store csp cs1 --- *)
+    destruct (decide (b_stk <= (a_stk ^+ 1)%a < e_stk)%a) as [Hastk1_inbounds|Hastk1_inbounds]; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs1 $Hcsp]") ; try solve_pure.
+      { rewrite /withinBounds; solve_addr. }
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+    }
+    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk1_inbounds.
+    destruct stk_mem as [|w1 stk_mem]; simplify_eq.
+    assert (is_Some (a_stk1 + 1)%a) as [a_stk2 Hastk2];[solve_addr+Hastk1 Hastk1_inbounds|].
+    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk1 Hstk]"; eauto.
+    { solve_addr+Hastk1_inbounds Hastk1 Hastk2. }
+
+    iInstr "Hcode".
+    { rewrite /withinBounds. solve_addr. }
+
+    (* --- Lea csp 1 --- *)
+    iInstr "Hcode".
+
+    (* --- Store csp cra --- *)
+    destruct (decide (b_stk <= (a_stk ^+ 2)%a < e_stk)%a) as [Hastk2_inbounds|Hastk2_inbounds]; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcra $Hcsp]") ; try solve_pure.
+      { rewrite /withinBounds; solve_addr. }
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+    }
+    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk2_inbounds.
+    destruct stk_mem as [|w2 stk_mem]; simplify_eq.
+    assert (is_Some (a_stk2 + 1)%a) as [a_stk3 Hastk3];[solve_addr+Hastk1 Hastk2 Hastk2_inbounds|].
+    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk2 Hstk]"; eauto.
+    { solve_addr+Hastk2_inbounds Hastk1 Hastk2 Hastk3. }
+
+    iInstr "Hcode".
+    { rewrite /withinBounds. solve_addr. }
+
+    (* --- Lea csp 1 --- *)
+    iInstr "Hcode".
+
+    (* --- Store csp cgp --- *)
+    destruct (decide (b_stk <= (a_stk ^+ 3)%a < e_stk)%a) as [Hastk3_inbounds|Hastk3_inbounds]; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcgp $Hcsp]") ; try solve_pure.
+      { rewrite /withinBounds; solve_addr. }
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+    }
+    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk3_inbounds.
+    destruct stk_mem as [|w3 stk_mem]; simplify_eq.
+    assert (is_Some (a_stk3 + 1)%a) as [a_stk4 Hastk4];[solve_addr+Hastk1 Hastk2 Hastk3 Hastk3_inbounds|].
+    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk3 Hstk]"; eauto.
+    { solve_addr+Hastk3_inbounds Hastk1 Hastk2 Hastk3 Hastk4. }
+    assert ((a_stk + 4)%a = Some a_stk4) as Hastk by solve_addr.
+    assert ((a_stk ^+4)%a = a_stk4) as -> by solve_addr.
+
+    iInstr "Hcode".
+    { rewrite /withinBounds. solve_addr. }
+
+    (* --- Lea csp 1 --- *)
     iInstr "Hcode".
 
     (* --- ReadSR ct2 mtdc --- *)
