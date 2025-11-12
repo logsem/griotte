@@ -238,23 +238,35 @@ Section fundamental.
     (* --- ReadSR ct2 mtdc --- *)
     iInstr "Hcode".
 
+    (* --- GetA cs0 ct2 --- *)
+    iInstr "Hcode".
+
+    (* --- Add cs0 cs0 1%Z --- *)
+    iInstr "Hcode".
+
+    (* --- GetE ctp ct2 --- *)
+    iInstr "Hcode".
+
+    (* --- Sub ctp ctp cs0 --- *)
+    iInstr "Hcode".
+
+    (* --- Jnz 2%Z ctp --- *)
+    destruct ( (a_tstk + 1 <? e_trusted_stack)%Z) eqn:Hsize_tstk
+    ; iEval (cbn) in "Hctp"
+    ; cycle 1.
+    {
+      iInstr "Hcode".
+      (* --- Fail --- *)
+      iInstr "Hcode".
+      wp_end. iIntros "%Hcontr";done.
+    }
+    iInstr "Hcode".
+
     (* --- Lea ct2 1 --- *)
-    destruct (a_tstk + 1)%a eqn:Hastk;cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hct2]")
-      ; try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done. }
+    assert ( ∃ f3, (a_tstk + 1)%a = Some f3) as [f3 Hastk] by (exists (a_tstk ^+ 1)%a; solve_addr+Hsize_tstk).
     iInstr "Hcode".
 
     (* --- Store ct2 csp --- *)
-    destruct (decide (f3 < e_trusted_stack)%a); cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcsp $Hct2]");try solve_pure.
-      { rewrite /withinBounds. solve_addr+n Hastk. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done. }
-
     iDestruct (big_sepL2_length with "Htstk") as %Hlen.
     erewrite finz_incr_eq in Hlen;[|eauto].
     rewrite finz_seq_between_length in Hlen.
