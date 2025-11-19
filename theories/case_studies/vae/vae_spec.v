@@ -22,6 +22,15 @@ Section VAE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
+  Definition awk_inv C i a :=
+    (∃ x:bool, sts_state_loc (A:=Addr) C i x
+            ∗ if x
+              then a ↦ₐ WInt 1%Z
+              else a ↦ₐ WInt 0%Z)%I.
+
+  Definition awk_rel_pub := λ a b, a = false ∨ b = true.
+  Definition awk_rel_priv := λ (a b : bool), True.
+
   Lemma vae_awkward_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -36,6 +45,7 @@ Section VAE.
     (W : WORLD)
 
     (Nassert Nswitcher Nvae VAEN : namespace)
+    i
 
     :
 
@@ -63,6 +73,9 @@ Section VAE.
     ∗ WSealed ot_switcher (SCap RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
         ↦□ₑ 1
     ∗ seal_pred ot_switcher ot_switcher_propC
+    (* invariant for d *)
+    ∗ (∃ ι, inv ι (awk_inv C i cgp_b))
+    ∗ sts_rel_loc (A:=Addr) C i awk_rel_pub awk_rel_pub awk_rel_priv
       -∗
     ot_switcher_prop W C (WCap RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a).
   Proof.
@@ -75,7 +88,7 @@ Section VAE.
       & #Hvae_exp_awkward
       & #Hinterp_W0_C_f
       & #HentryC_f & #Hentry_VAE & #Hot_switcher
-      )".
+      & [%ι #Hι] & #Hsts_rel)".
     iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl, (b_vae_exp_tbl ^+ 2)%a,
     pc_b, pc_e, cgp_b, cgp_e, 1, (length VAE_main_code_init), VAEN.
     iFrame "#".
@@ -101,6 +114,7 @@ Section VAE.
     (W : WORLD)
 
     (Nassert Nswitcher Nvae VAEN : namespace)
+    i
 
     :
 
@@ -130,6 +144,8 @@ Section VAE.
     ∗ WSealed ot_switcher (SCap RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
         ↦□ₑ 1
     ∗ seal_pred ot_switcher ot_switcher_propC
+    ∗ (∃ ι, inv ι (awk_inv C i cgp_b))
+    ∗ sts_rel_loc (A:=Addr) C i awk_rel_pub awk_rel_pub awk_rel_priv
       -∗
     interp W C
       (WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)).
@@ -143,7 +159,7 @@ Section VAE.
       & #Hvae_exp_awkward
       & #Hinterp_W0_C_f
       & #HentryC_f & #Hentry_VAE & #Hentry_VAE' & #Hot_switcher
-      )".
+      & [%ι #Hι] & #Hsts_rel)".
     iEval (rewrite fixpoint_interp1_eq /=).
     rewrite /interp_sb.
     iFrame "Hot_switcher".
@@ -382,6 +398,7 @@ Section VAE.
     { iApply interp_monotone_sd; eauto. }
     iClear "Hinterp_W0_C_f".
 
+    (* TODO alloc the invariant in the custom world *)
     (* Show that the arguments are safe, when necessary *)
     iAssert (
         interp W1 C
