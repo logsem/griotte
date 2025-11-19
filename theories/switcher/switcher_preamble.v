@@ -20,11 +20,11 @@ Section Switcher_preamble.
   Implicit Types C : CmptName.
 
   (** Property of capability sealed by the switcher's otype *)
-  Definition export_tableN (C : CmptName) : namespace := nroot .@ "export_tableN" .@ C.
-  Definition export_table_PCCN (C : CmptName) : namespace := (export_tableN C) .@ "PCC".
-  Definition export_table_CGPN (C : CmptName) : namespace := (export_tableN C) .@ "CGP".
-  Definition export_table_entryN (C : CmptName) (a : Addr) : namespace :=
-    (export_tableN C) .@ "entry" .@ a.
+  Definition export_tableN (Cname : namespace) : namespace := nroot .@ "export_tableN" .@ Cname.
+  Definition export_table_PCCN (Cname : namespace) : namespace := (export_tableN Cname) .@ "PCC".
+  Definition export_table_CGPN (Cname : namespace) : namespace := (export_tableN Cname) .@ "CGP".
+  Definition export_table_entryN (Cname : namespace) (a : Addr) : namespace :=
+    (export_tableN Cname) .@ "entry" .@ a.
 
   (** [execute_entry_point_register] describes the register state of the machine
       after jumping to the callee, at the end of the switcher-call.
@@ -147,15 +147,17 @@ Section Switcher_preamble.
        (∃ (g_tbl : Locality) (b_tbl e_tbl a_tbl : Addr)
           (bpcc epcc : Addr)
           (bcgp ecgp : Addr)
-          (nargs : nat) (off : Z),
+          (nargs : nat) (off : Z)
+          (Cname : namespace)
+         ,
            ⌜ w = WCap RO g_tbl b_tbl e_tbl a_tbl ⌝
            ∗ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝
            ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝
            ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
            ∗ ⌜ (0 <= nargs <= 7 )%nat ⌝
-           ∗ inv (export_table_PCCN C) ( b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc)
-           ∗ inv (export_table_CGPN C) ( (b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp)
-           ∗ inv (export_table_entryN C a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
+           ∗ inv (export_table_PCCN Cname) ( b_tbl ↦ₐ WCap RX Global bpcc epcc bpcc)
+           ∗ inv (export_table_CGPN Cname) ( (b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp)
+           ∗ inv (export_table_entryN Cname a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
            ∗ (seal_capability w ot_switcher) ↦□ₑ nargs
            ∗ □ ( ∀ regs cstk Ws Cs W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
@@ -171,6 +173,28 @@ Section Switcher_preamble.
   Lemma persistent_cond_ot_switcher :
     persistent_cond ot_switcher_prop.
   Proof. intros [ [] ] ; cbn; apply _. Qed.
+
+  Lemma mono_priv_ot_switcher (C : CmptName) (w : Word) :
+    ⊢ future_priv_mono C ot_switcher_propC w.
+  Proof.
+    iIntros (W W' Hrelated_W_W').
+    iModIntro.
+    iIntros "Hot_switcher".
+    iEval (cbn) in "Hot_switcher".
+    iEval (cbn).
+    iDestruct "Hot_switcher" as
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
+       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hcont)".
+    iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
+    iExists _,_.
+    repeat (iSplit ; first done).
+    iModIntro.
+    iIntros (regs cstk Ws Cs W'' Hrelated_W'_W'').
+    iSpecialize ("Hcont" $! regs cstk Ws Cs W'').
+    iApply "Hcont".
+    iPureIntro.
+    by eapply related_sts_priv_trans_world.
+  Qed.
 
   (** [cframe_interp] interprets a call-frame, i.e.,
       describes how the physical call-frame is linked to the logical call-frame [frm : cframe].

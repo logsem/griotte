@@ -20,7 +20,7 @@ Section helpers_switcher_adequacy.
   Lemma ot_switcher_interp
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (g_etbl : Locality) (a_etbl: Addr)
-    (args off : nat) (ot : OType) (Nswitcher : namespace) :
+    (args off : nat) (ot : OType) (Nswitcher CNAME : namespace) :
     let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
     let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
     let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
@@ -32,9 +32,9 @@ Section helpers_switcher_adequacy.
     (entries_etbl <= a_etbl < e_etbl)%a
     → 0 <= args < 7
     → na_inv logrel_nais Nswitcher switcher_inv
-    ⊢ inv (export_table_PCCN C) (b_etbl ↦ₐ WCap RX Global b_pcc e_pcc b_pcc)
-    -∗ inv (export_table_CGPN C) (b_etbl1 ↦ₐ WCap RW Global b_cgp e_cgp b_cgp)
-    -∗ inv (export_table_entryN C a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
+    ⊢ inv (export_table_PCCN CNAME) (b_etbl ↦ₐ WCap RX Global b_pcc e_pcc b_pcc)
+    -∗ inv (export_table_CGPN CNAME) (b_etbl1 ↦ₐ WCap RW Global b_cgp e_cgp b_cgp)
+    -∗ inv (export_table_entryN CNAME a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
     -∗ interp W C (WCap RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap RW Global b_cgp e_cgp b_cgp)
     -∗ WSealed ot_switcher (SCap RO g_etbl b_etbl e_etbl a_etbl) ↦□ₑ args
@@ -110,32 +110,10 @@ Section helpers_switcher_adequacy.
     by iSpecialize ("Hregs_interp" $! r _ Hrr Hr).
   Qed.
 
-  Lemma mono_priv_ot_switcher (C : CmptName) (w : Word) :
-    ⊢ future_priv_mono C ot_switcher_propC w.
-  Proof.
-    iIntros (W W' Hrelated_W_W').
-    iModIntro.
-    iIntros "Hot_switcher".
-    iEval (cbn) in "Hot_switcher".
-    iEval (cbn).
-    iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off ->
-       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hcont)".
-    iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
-    iExists _,_.
-    repeat (iSplit ; first done).
-    iModIntro.
-    iIntros (regs cstk Ws Cs W'' Hrelated_W'_W'').
-    iSpecialize ("Hcont" $! regs cstk Ws Cs W'').
-    iApply "Hcont".
-    iPureIntro.
-    by eapply related_sts_priv_trans_world.
-  Qed.
-
   Lemma ot_switcher_interp_entry
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (a_etbl: Addr)
-    (args off : nat) (ot : OType) (Nswitcher : namespace) :
+    (args off : nat) (ot : OType) (Nswitcher CNAME : namespace) :
     let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
     let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
     let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
@@ -147,9 +125,9 @@ Section helpers_switcher_adequacy.
     (entries_etbl <= a_etbl < e_etbl)%a
     → 0 <= args < 7
     → na_inv logrel_nais Nswitcher switcher_inv
-    ⊢ inv (export_table_PCCN C) (b_etbl ↦ₐ WCap RX Global b_pcc e_pcc b_pcc)
-    -∗ inv (export_table_CGPN C) (b_etbl1 ↦ₐ WCap RW Global b_cgp e_cgp b_cgp)
-    -∗ inv (export_table_entryN C a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
+    ⊢ inv (export_table_PCCN CNAME) (b_etbl ↦ₐ WCap RX Global b_pcc e_pcc b_pcc)
+    -∗ inv (export_table_CGPN CNAME) (b_etbl1 ↦ₐ WCap RW Global b_cgp e_cgp b_cgp)
+    -∗ inv (export_table_entryN CNAME a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
     -∗ seal_pred ot ot_switcher_propC
     -∗ interp W C (WCap RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap RW Global b_cgp e_cgp b_cgp)
