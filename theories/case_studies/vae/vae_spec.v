@@ -336,12 +336,9 @@ Section VAE.
 
     (W : WORLD)
 
-    (Ws : list WORLD)
-    (Cs : list CmptName)
 
     (Nassert Nswitcher Nvae : namespace)
 
-    (cstk : CSTK)
     :
 
     Nswitcher ## Nassert ->
@@ -351,7 +348,6 @@ Section VAE.
     na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv logrel_nais Nswitcher switcher_inv
     ∗ na_inv logrel_nais Nvae (codefrag pc_a (vae_main_code ot_switcher)
-    ∗
          ∗ (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_a
             ∗ (b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b
             ∗ (b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (switcher.encode_entry_point 1 (length VAE_main_code_init))
@@ -359,6 +355,8 @@ Section VAE.
         )
     ∗ interp W C (WSealed ot_switcher C_f)
     ∗ WSealed ot_switcher C_f ↦□ₑ 1
+    ∗ WSealed ot_switcher (SCap RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
+        ↦□ₑ 1
     ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
     ot_switcher_prop W C (WCap RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a).
@@ -366,11 +364,22 @@ Section VAE.
     iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae)
       "(#Hassert & #Hswitcher & #Hvae
       & #Hinterp_W0_C_f
-      & #HentryC_f & #Hot_switcher
+      & #HentryC_f & #Hentry_VAE & #Hot_switcher
       )".
-    cbn.
-    iExists _, _, _.
-    
+    iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl, (b_vae_exp_tbl ^+ 2)%a,
+    pc_b, pc_e, cgp_b, cgp_e, 1, (length VAE_main_code_init).
+    iSplit; first done.
+    iSplit; first admit.
+    iSplit; first admit.
+    iSplit; first admit.
+    iSplit; first (iPureIntro; lia).
+    iSplit; first admit.
+    iSplit; first admit.
+    iSplit; first admit.
+    iEval (cbn).
+    iFrame "Hentry_VAE".
+    iIntros "!> %regs %cstk %Ws %Cs %W' %Hpriv_W_W' !> %a_stk %e_stk".
+    iIntros "(HK & %Hframe_cstk & ?)".
   Admitted.
 
   Lemma vae_awkward_spec
