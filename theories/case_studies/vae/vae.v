@@ -40,18 +40,8 @@ Section VAE_Main.
     ].
 
   Definition VAE_main_code_f (ot_switcher : OType) : list Word :=
-    encodeInstrsW [
-        (* set a := 0 *)
-        Store cgp 0;
-        (* if (getotype arg_1 != ot_switcher) *)
-        GetOType ct0 ca0;
-        Sub ct0 ct0 ot_switcher;
-        Jnz 2 ct0;
-        Jmp 2;
-        (* (getotype arg_1 <> ot_switcher) *)
-        Halt
-        (* (getotype arg_1 == ot_switcher) *)
-      ]
+    (* set a := 0 *)
+    encodeInstrsW [Store cgp 0]
     (* call g () *)
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
     ++

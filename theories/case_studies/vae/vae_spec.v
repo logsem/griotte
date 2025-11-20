@@ -22,6 +22,7 @@ Section VAE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
+  Definition awkN : namespace := nroot .@ "awkN".
   Definition awk_inv C i a :=
     (∃ x:bool, sts_state_loc (A:=Addr) C i x
             ∗ if x
@@ -59,6 +60,8 @@ Section VAE.
     Nswitcher ## Nvae ->
     Nassert ## Nvae ->
     (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (vae_main_code ot_switcher))%a ->
+    (pc_b + length imports)%a = Some pc_a ->
 
     na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv logrel_nais Nswitcher switcher_inv
@@ -80,7 +83,8 @@ Section VAE.
     ot_switcher_prop W C (WCap RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a).
   Proof.
     intros imports; subst imports.
-    iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae Hvae_size)
+    iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae Hvae_exp_tbl_size Hvae_size_code
+               Hvae_imports )
       "(#Hassert & #Hswitcher
       & #Hvae_code
       & #Hvae_exp_PCC
@@ -88,7 +92,7 @@ Section VAE.
       & #Hvae_exp_awkward
       & #Hinterp_W0_C_f
       & #HentryC_f & #Hentry_VAE & #Hot_switcher
-      & [%ι #Hι] & #Hsts_rel)".
+      & [%awkN #HawkN] & #Hsts_rel)".
     iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl, (b_vae_exp_tbl ^+ 2)%a,
     pc_b, pc_e, cgp_b, cgp_e, 1, (length VAE_main_code_init), VAEN.
     iFrame "#".
@@ -97,8 +101,104 @@ Section VAE.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
-    iIntros "!> %regs %cstk %Ws %Cs %W' %Hpriv_W_W' !> %a_stk %e_stk".
-    iIntros "(HK & %Hframe_cstk & (Hrmap_full & Hregs & Hreg & Hsts & %Hcsp_sync & Hcstk & Hna))".
+    iIntros "!> %rmap %cstk %Ws %Cs %W0 %Hpriv_W_W0 !> %csp_b' %csp_e".
+    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
+    iDestruct "Hregister_state" as "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap)".
+    rewrite /interp_conf.
+    rewrite /registers_pointsto.
+
+    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
+
+    iMod (na_inv_acc with "Hvae_code Hna")
+      as "(( >Himports_main & >Hcode_main) & Hna & Hvae_code_close)"; auto.
+    codefrag_facts "Hcode_main" ; rename H into Hpc_contiguous; clear H0.
+
+    (* --- Extract registers ca0  --- *)
+    assert ( is_Some (rmap !! ct0) ) as [wct0 Hwct0].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! cs0) ) as [wcs0 Hwcs0].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! cs1) ) as [wcs1 Hwcs1].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! ct1) ) as [wct1 Hwct1].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! ct2) ) as [wct2 Hwct2].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! ct3) ) as [wct3 Hwct3].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! ct4) ) as [wct4 Hwct4].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ct4 with "Hrmap") as "[Hct4 Hrmap]"; first by simplify_map_eq.
+
+    (* Extract the imports *)
+    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
+    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_assert Himports_main]".
+    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_C_f Himports_main]".
+    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_VAE_awkward Himports_main]".
+    { transitivity (Some (pc_b ^+ 4)%a); auto; solve_addr. }
+    { solve_addr. }
+
+    (* Revoke the world to get the stack frame *)
+    generalize (csp_b' ^+4)%a as csp_b; intros csp_b.
+    set (stk_frame_addrs := finz.seq_between csp_b csp_e).
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
+
+    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
+        as (l) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
+    (* iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk". *)
+
+    set (W1 := revoke W0).
+    assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
+
+
+    (* --------------------------------------------------- *)
+    (* ----------------- Start the proof ----------------- *)
+    (* --------------------------------------------------- *)
+
+    rewrite /vae_main_code /VAE_main_code_init /VAE_main_code_f.
+    rewrite -!app_assoc.
+    assert ((pc_b ^+ 30)%a = (pc_a ^+26)%a) as Hpcb_pca by solve_addr.
+    replace (pc_b ^+ 30)%a with (pc_a ^+26)%a by solve_addr.
+    focus_block_nochangePC 5 "Hcode_main" as a_awkward Ha_awkward "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* TODO fix the addresses *)
+
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs0 $Hcsp]") ; try solve_pure.
+    { rewrite /withinBounds; solve_addr. }
+    iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+    
+    iMod (inv_acc with "HawkN") as "(? & ?)".
+    (* Load ca0 cgp; *)
+    iInstr "Hcode".
+    { split; first done. apply withinBounds_true_iff; solve_addr. }
+
+    
+
+    (* Extract the addresses of b and a *)
+    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
+    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
+    { solve_addr. }
+    
   Admitted.
 
   Lemma vae_awkward_safe
@@ -399,6 +499,11 @@ Section VAE.
     iClear "Hinterp_W0_C_f".
 
     (* TODO alloc the invariant in the custom world *)
+     iDestruct (sts_alloc_loc _ C false awk_rel_pub awk_rel_pub awk_rel_priv with "Hsts_C")
+       as ">(Hsts & %Hloc_fresh & %Hcus_fresh & Hst_i & #Hrel_i)".
+     set (i := (fresh_cus_name W1)).
+    iDestruct (inv_alloc awkN _ (awk_inv C i cgp_b) with "[Hcgp_b Hst_i]") as ">#Hawk_inv".
+    { iExists false; iFrame. }
     (* Show that the arguments are safe, when necessary *)
     iAssert (
         interp W1 C
