@@ -105,6 +105,182 @@ Section VAE.
       by iPureIntro; apply Forall_cons.
   Qed.
 
+  Lemma related_pub_W0_Wfixed (W0 W3 W6 : WORLD) (csp_b csp_e : Addr) (l : list Addr) ( i : positive) :
+    let W1 := revoke W0 in
+    let W2 := <l[i:=false]l>W1 in
+    let W4 := revoke W3 in
+    let W5 := <l[i:=true]l>W4 in
+    let W7 := (revoke W6) in
+    (∀ a : finz MemNum, W0.1 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    related_sts_pub_world W2 W3 ->
+    related_sts_pub_world
+      (std_update_multiple W2 (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) W3 ->
+    related_sts_pub_world W5 W6 ->
+    related_sts_pub_world
+      (std_update_multiple W5 (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) W6 ->
+    Forall (λ a : finz MemNum, W6.1 !! a = Some Revoked) l ->
+    Forall (λ a : finz MemNum, W6.1 !! a = Some Revoked) (finz.seq_between csp_b (csp_b ^+ 4)%a) ->
+    finz.seq_between csp_b csp_e = finz.seq_between csp_b (csp_b ^+ 4)%a ++ finz.seq_between (csp_b ^+ 4)%a csp_e ->
+    wrel W6 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
+    loc W6 !! i = Some (encode true) ->
+    (exists b : bool, loc W0 !! i = Some (encode b)) ->
+
+    related_sts_pub_world W0
+      (close_list (l ++ finz.seq_between csp_b csp_e) W7).
+  Proof.
+    intros W1 W2 W4 W5 W7.
+    intros Htemporaries_W0 Hrelated_pub_W2_W3 Hrelated_pub_W2ext_W3 Hrelated_pub_W5_W6 Hrelated_pub_W5ext_W6
+      HW6_revoked_l Hrevoked_stk_l Hsplit_csp Hwrel_i Hwloc_i Hwloc_i_0.
+
+    assert ( related_sts_priv_world W0 W6 ) as Hrelated_priv_W0_W6.
+    { eapply (related_sts_priv_trans_world _ W3); eauto.
+      + eapply (related_sts_priv_pub_trans_world _ W2); eauto.
+        subst W2 W1.
+        admit.
+      + eapply (related_sts_priv_pub_trans_world _ W5); eauto.
+        subst W4 W5.
+        admit.
+    }
+    split; cbn; cycle 1.
+    - destruct W0 as [W0_std [W0_loc W0_rel] ],
+                 W3 as [W3_std [W3_loc W3_rel] ],
+                   W6 as [W6_std [W6_loc W6_rel] ]
+                   ; cbn.
+      destruct Hrelated_pub_W2_W3 as [HW2_W3_std HW2_W3_cus].
+      destruct Hrelated_pub_W5_W6 as [HW5_W6_std HW5_W6_cus].
+      destruct Hrelated_priv_W0_W6 as [HW0_W6_std HW0_W6_cus].
+      destruct HW0_W6_cus as (Hdom_loc_0_6 & Hdom_rel_0_6 & Hrtc_loc_0_6); cbn in *.
+      split;[|split];auto.
+      intros d r1 r2 r1' r2' r3 r3' HW0_rel HW6_rel.
+      specialize (Hrtc_loc_0_6 d _ _ _ _ _ _ HW0_rel HW6_rel) as (-> & -> & -> & Hrtc_loc_0_6).
+      repeat (split;first done).
+      intros d_W0 d_W6 Hd_W0 Hd_W6.
+      destruct HW2_W3_cus as (Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3); cbn in *.
+      assert (∃ d_W3, W3_loc !! d = Some d_W3) as [d_W3 Hd_W3].
+      { apply elem_of_dom.
+        apply Hdom_loc_2_3.
+        rewrite dom_insert.
+        rewrite elem_of_union; right.
+        apply elem_of_dom.
+        set_solver+Hd_W0.
+      }
+      assert (∃ r1 r2 r3, W3_rel !! d = Some (r1, r2, r3)) as (r1 & r2 & r3 & HW3_rel).
+      { assert (is_Some (W0_rel !! d)) as HW0_rel_some by set_solver+HW0_rel.
+        apply elem_of_dom in HW0_rel_some.
+        apply Hdom_rel_2_3 in HW0_rel_some.
+        apply elem_of_dom in HW0_rel_some as [ [ [] ] HW3_rel].
+        eexists _,_,_; eauto.
+      }
+
+      destruct (decide (d = i)); simplify_eq.
+      + destruct Hwloc_i_0 as [b Hwloc_i_0]; simplify_eq.
+        apply rtc_once.
+        destruct HW5_W6_cus as (Hdom_loc_5_6 & Hdom_rel_5_6 & Hrtc_loc_5_6); cbn in *.
+        apply convert_rel_of_rel.
+        by right.
+      + eapply (rtc_transitive d_W0 d_W3 d_W6).
+        * specialize (Hrtc_loc_2_3 d _ _ _ _ _ _ HW0_rel HW3_rel) as (-> & -> & -> & Hrtc_loc_0_3).
+          ospecialize (Hrtc_loc_0_3 d_W0 d_W3 _ Hd_W3).
+          { by simplify_map_eq. }
+          done.
+        * destruct HW5_W6_cus as (Hdom_loc_5_6 & Hdom_rel_5_6 & Hrtc_loc_5_6); cbn in *.
+          specialize (Hrtc_loc_5_6 d _ _ _ _ _ _ HW3_rel HW6_rel) as (-> & -> & -> & Hrtc_loc_5_6).
+          ospecialize (Hrtc_loc_5_6 d_W3 d_W6 _ Hd_W6).
+          { by simplify_map_eq. }
+          done.
+    - cbn in *.
+      split.
+      {
+        intros a Ha.
+        rewrite elem_of_dom -close_list_std_sta_is_Some -revoke_std_sta_lookup_Some -elem_of_dom.
+        destruct Hrelated_pub_W5_W6 as [ [Hdom_W5_W6 _] _].
+        apply Hdom_W5_W6.
+        rewrite -revoke_dom_eq.
+        destruct Hrelated_pub_W2_W3 as [ [Hdom_W2_W3 _] _].
+        apply Hdom_W2_W3.
+        by rewrite -revoke_dom_eq.
+      }
+      intros a ρ0 ρ2 Ha0 Ha2.
+      destruct ρ0; cycle 1.
+      + (* the initial a was in the Permanent state *)
+        assert (a ∉ l ++ finz.seq_between csp_b csp_e) as Ha_notin.
+        { destruct (Htemporaries_W0 a) as [_ ?].
+          intro Hcontra; apply H in Hcontra. by rewrite Ha0 in Hcontra.
+        }
+        apply revoke_lookup_Perm in Ha0.
+        assert (std W3 !! a = Some Permanent) as Ha0_W3.
+        { rewrite (region_state_pub_perm W2); eauto. }
+        assert (std W6 !! a = Some Permanent) as Ha0_W6.
+        { rewrite (region_state_pub_perm W5); eauto.
+          subst W5. cbn.
+          rewrite revoke_lookup_Perm; eauto.
+        }
+        rewrite -close_list_std_sta_same in Ha2; eauto.
+        apply revoke_lookup_Perm in Ha0_W6.
+        simplify_map_eq.
+        apply rtc_refl.
+      + (* the initial a was in the Revoked state *)
+        destruct ρ2; last apply rtc_refl; apply rtc_once; constructor.
+      + (* the initial a was in the Temporary state *)
+        assert (a ∈ l ++ finz.seq_between csp_b csp_e) as Ha_in.
+        { destruct (Htemporaries_W0 a) as [? _]; by apply Htemporaries_W0. }
+        apply revoke_lookup_Monotemp in Ha0.
+        assert (std W1 !! a = Some Revoked) as Ha0_W1.
+        { done. }
+        assert (std W2 !! a = Some Revoked) as Ha0_W2.
+        { done. }
+        assert (
+            std ((std_update_multiple W2 (finz.seq_between (csp_b ^+ 4)%a csp_e)
+                    Temporary)) !! a =
+            Some (if (decide (a ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e)))
+                  then Temporary
+                  else Revoked
+          )).
+        {
+          destruct (decide (a ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e))) as [Ha_in_stk | Ha_in_stk].
+          + apply std_sta_update_multiple_lookup_in_i; eauto.
+          + rewrite std_sta_update_multiple_lookup_same_i; eauto.
+        }
+
+        destruct (decide (a ∈ finz.seq_between (csp_b ^+ 4)%a csp_e)) as [Ha_in''|Ha_in''].
+        * assert (std W3 !! a = Some Temporary) as Ha0_W3.
+          { eapply region_state_pub_temp; eauto. }
+          assert (std W4 !! a = Some Revoked) as Ha0_W4.
+          { by apply revoke_lookup_Monotemp. }
+          assert (std W5 !! a = Some Revoked) as Ha0_W5 by done.
+          assert (
+              std (std_update_multiple W5 (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) !! a = Some Temporary
+            ) as Ha0_W5ext.
+          { apply std_sta_update_multiple_lookup_in_i; eauto. }
+          assert (std W6 !! a = Some Temporary) as Ha0_W6.
+          { eapply region_state_pub_temp; eauto. }
+          assert (std W7 !! a = Some Revoked) as Ha0_W7.
+          { by apply revoke_lookup_Monotemp. }
+          eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha0_W7; eauto.
+          rewrite Ha2 in Ha0_W7; simplify_eq.
+          apply rtc_refl.
+        * destruct (decide (a ∈ finz.seq_between csp_b (csp_b ^+ 4)%a)) as [Ha_in_save|Ha_in_save].
+          ** rewrite Forall_forall in Hrevoked_stk_l.
+             apply Hrevoked_stk_l in Ha_in_save.
+             apply revoke_lookup_Revoked in Ha_in_save.
+             eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_save; eauto.
+             rewrite Ha2 in Ha_in_save; simplify_eq.
+             apply rtc_refl.
+          ** assert (a ∈ l) as Ha_in_l.
+             { rewrite Hsplit_csp in Ha_in.
+               rewrite elem_of_app in Ha_in.
+               destruct Ha_in; first done.
+               rewrite elem_of_app in H0.
+               destruct H0; contradiction.
+             }
+             rewrite Forall_forall in HW6_revoked_l.
+             apply HW6_revoked_l in Ha_in_l.
+             apply revoke_lookup_Revoked in Ha_in_l.
+             eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_l; eauto.
+             rewrite Ha2 in Ha_in_l; simplify_eq.
+             apply rtc_refl.
+  Admitted.
+
   Lemma vae_awkward_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -136,6 +312,9 @@ Section VAE.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (vae_main_code ot_switcher))%a ->
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
+    (exists b : bool, loc W !! i = Some (encode b)) ->
+    wrel W !! i =
+    Some (convert_rel awk_rel_pub, convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
 
     na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv logrel_nais Nswitcher switcher_inv
@@ -158,7 +337,7 @@ Section VAE.
   Proof.
     intros imports.
     iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae
-               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size)
+               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hloc_i_W Hrel_i_W)
       "(#Hassert & #Hswitcher
       & #Hvae_code
       & #Hvae_exp_PCC
@@ -180,6 +359,19 @@ Section VAE.
     iDestruct "Hregister_state" as "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap)".
     rewrite /interp_conf.
     rewrite /registers_pointsto.
+    iDestruct (sts_full_rel_loc  with "Hsts_C Hsts_rel") as "%Hwrel_i_W0".
+    assert (∃ b : bool, loc W0 !! i = Some (encode b)) as Hloc_i_W0.
+    { destruct Hloc_i_W as [b Hloc_i_W].
+      destruct Hpriv_W_W0 as [ _ [Hloc_W_W0 [Hrel_W_W0 Hcus_i_W_W0] ] ].
+      specialize (Hcus_i_W_W0 _ _ _ _ _ _ _ Hrel_i_W Hwrel_i_W0).
+      destruct Hcus_i_W_W0 as (_&_&_&Hloc_i_W_W0).
+      assert (is_Some (loc W0 !! i)) as [b0 Hloc_i_W0].
+      { apply elem_of_dom, Hloc_W_W0, elem_of_dom; done. }
+      specialize (Hloc_i_W_W0 _ _ Hloc_i_W Hloc_i_W0).
+      clear - Hloc_i_W_W0 Hloc_i_W0 Hloc_i_W.
+      (* TODO: should be easy..... *)
+      admit.
+    }
 
     iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
@@ -878,172 +1070,9 @@ Section VAE.
              "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
-    {
-      
-      Set Nested Proofs Allowed.
-      Lemma related_pub_W0_Wfixed (W0 W3 W6 : WORLD) (csp_b csp_e : Addr) (l : list Addr) :
-        let W1 := revoke W0 in
-        let i := fresh_cus_name W1 in
-        let W2 := <l[i:=false]l>W1 in
-        let W4 := revoke W3 in
-        let W5 := <l[i:=true]l>W4 in
-        let W7 := (revoke W6) in
-        
-
-        (* NoDup (l ++ finz.seq_between csp_b csp_e) -> *)
-        (∀ a : finz MemNum, W0.1 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
-        related_sts_pub_world W2 W3 ->
-        related_sts_pub_world W5 W6 ->
-        Forall (λ a : finz MemNum, W6.1 !! a = Some Revoked) l ->
-        Forall (λ a : finz MemNum, W6.1 !! a = Some Revoked) (finz.seq_between csp_b (csp_b ^+ 4)%a) ->
-        finz.seq_between csp_b csp_e = finz.seq_between csp_b (csp_b ^+ 4)%a ++ finz.seq_between (csp_b ^+ 4)%a csp_e ->
-        (* (∀ a : finz MemNum, W0.1 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) *)
-        (* → related_sts_priv_world W0 (revoke W0) *)
-        (* → related_sts_pub_world (std_update_multiple (revoke W0) (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) W2 *)
-        (* -> related_sts_pub_world (revoke W0) W2 *)
-        (* → Forall (λ a : finz MemNum, W2.1 !! a = Some Revoked) l *)
-        (* -> Forall (λ a : finz MemNum, W2.1 !! a = Some Revoked) (finz.seq_between csp_b (csp_b ^+ 4)%a) *)
-        (* -> finz.seq_between csp_b csp_e = finz.seq_between csp_b (csp_b ^+ 4)%a ++ finz.seq_between (csp_b ^+ 4)%a csp_e *)
-        related_sts_pub_world W0
-            (close_list (l ++ finz.seq_between csp_b csp_e) W7).
-      Proof.
-        intros W1 i W2 W4 W5 W7.
-        intros Htemporaries_W0 Hrelated_pub_W2_W3 Hrelated_pub_W5_W6
-          HW6_revoked_l Hrevoked_stk_l Hsplit_csp.
-
-        assert ( related_sts_priv_world W0 W6 ) as Hrelated_priv_W0_W6.
-        { admit. }
-        destruct W0 as [W0_std [W0_loc W0_rel] ],
-                 W3 as [W3_std [W3_loc W3_rel] ],
-                 W6 as [W6_std [W6_loc W6_rel] ]
-                 ; cbn.
-        destruct Hrelated_pub_W2_W3 as [HW2_W3_std HW2_W3_cus].
-        destruct Hrelated_pub_W5_W6 as [HW5_W6_std HW5_W6_cus].
-        destruct Hrelated_priv_W0_W6 as [HW0_W6_std HW0_W6_cus].
-        split; cbn; cycle 1.
-        - destruct HW0_W6_cus as (Hdom_loc_0_6 & Hdom_rel_0_6 & Hrtc_loc_0_6); cbn in *.
-          split;[|split];auto.
-          intros d r1 r2 r1' r2' r3 r3' HW0_rel HW6_rel.
-          specialize (Hrtc_loc_0_6 d _ _ _ _ _ _ HW0_rel HW6_rel) as (-> & -> & -> & Hrtc_loc_0_6).
-          repeat (split;first done).
-          intros d_W0 d_W6 Hd_W0 Hd_W6.
-          destruct (decide (d = i)); simplify_eq.
-          + assert (i ∉ (dom W0_loc ∪ dom W0_rel)) as Hi by apply is_fresh.
-            assert (i ∉ (dom W0_loc)) as Hi' by set_solver.
-            rewrite not_elem_of_dom in Hi'.
-            simplify_map_eq.
-          + destruct HW2_W3_cus as (Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3); cbn in *.
-            assert (∃ d_W3, W3_loc !! d = Some d_W3) as [d_W3 Hd_W3].
-            { apply elem_of_dom.
-              apply Hdom_loc_2_3.
-              rewrite dom_insert.
-              rewrite elem_of_union; right.
-              apply elem_of_dom.
-              set_solver+Hd_W0.
-            }
-            eapply (rtc_transitive d_W0 d_W3 d_W6).
-            * assert (∃ r1 r2 r3, W3_rel !! d = Some (r1, r2, r3)) as (r1 & r2 & r3 & HW3_rel).
-              { assert (is_Some (W0_rel !! d)) as HW0_rel_some by set_solver+HW0_rel.
-                apply elem_of_dom in HW0_rel_some.
-                apply Hdom_rel_2_3 in HW0_rel_some.
-                apply elem_of_dom in HW0_rel_some as [ [ [] ] HW3_rel].
-                eexists _,_,_; eauto.
-              }
-            specialize (Hrtc_loc_2_3 d _ _ _ _ _ _ HW0_rel HW3_rel) as (-> & -> & -> & Hrtc_loc_0_3).
-            ospecialize (Hrtc_loc_0_3 d_W0 d_W3 _ Hd_W3).
-            { by simplify_map_eq. }
-            done.
-            * admit.
-        - (* destruct Hrelated_pub_1ext_W2 as [ [HW1ext_W2_dom HW1ext_W2_t] _]. *)
-          cbn in *.
-          split.
-          {
-            intros a Ha.
-            rewrite elem_of_dom -close_list_std_sta_is_Some -revoke_std_sta_lookup_Some -elem_of_dom.
-            admit.
-          }
-          intros a ρ0 ρ2 Ha0 Ha2.
-          destruct ρ0; cycle 1.
-          + (* the initial a was in the Permanent state *)
-            assert (a ∉ l ++ finz.seq_between csp_b csp_e) as Ha_notin.
-            { destruct (Htemporaries_W0 a) as [_ ?].
-              intro Hcontra; apply H in Hcontra. by rewrite Ha0 in Hcontra.
-            }
-            apply revoke_lookup_Perm in Ha0.
-            assert (std (revoke ((W0_std, (W0_loc, W0_rel)))) !! a = Some Permanent) as Ha0' by done.
-            rewrite -(std_sta_update_multiple_lookup_same_i _ (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary)
-              in Ha0'.
-            2: {
-              intro Hcontra; apply Ha_notin.
-              rewrite elem_of_app; right.
-              rewrite !elem_of_finz_seq_between in Hcontra |- *.
-              solve_addr.
-            }
-            rewrite -close_list_std_sta_same in Ha2; last done.
-            destruct ρ2.
-            * by apply revoke_std_sta_lookup_non_temp in Ha2.
-            * done.
-            * apply anti_revoke_lookup_Revoked in Ha2.
-              admit.
-              (* destruct Ha2 as [Ha2|Ha2]; first (eapply (HW1ext_W2_t _ _ Revoked) in Ha0'; auto). *)
-              (* eapply (HW1ext_W2_t _ _ Temporary) in Ha0'; auto. *)
-              (* inversion Ha0' as [|??? Hcontra]; simplify_eq. *)
-              (* inversion Hcontra. *)
-          + (* the initial a was in the Revoked state *)
-            destruct ρ2; last apply rtc_refl; apply rtc_once; constructor.
-          + (* the initial a was in the Temporary state *)
-            assert (a ∈ l ++ finz.seq_between csp_b csp_e) as Ha_in.
-            { destruct (Htemporaries_W0 a) as [? _]; by apply Htemporaries_W0. }
-            apply revoke_lookup_Monotemp in Ha0.
-            assert (std (revoke ((W0_std, (W0_loc, W0_rel)))) !! a = Some Revoked) as Ha0' by done.
-            assert (
-                std ((std_update_multiple (revoke (W0_std, (W0_loc, W0_rel))) (finz.seq_between (csp_b ^+ 4)%a csp_e)
-                        Temporary)) !! a =
-                Some (if (decide (a ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e)))
-                      then Temporary
-                      else Revoked
-              )).
-            {
-              destruct (decide (a ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e))) as [Ha_in_stk | Ha_in_stk].
-              + apply std_sta_update_multiple_lookup_in_i; eauto.
-              + rewrite std_sta_update_multiple_lookup_same_i; eauto.
-            }
-            (* assert (is_Some (W2_std !! a)) as [ρ2' Ha2']. *)
-            (* { rewrite -elem_of_dom. apply HW1ext_W2_dom. by rewrite elem_of_dom. } *)
-            (* pose proof (HW1ext_W2_t a _ ρ2' H Ha2') as Hρ2'. *)
-            (* pose proof Ha_in as Ha_in'. *)
-            (* rewrite Hsplit_csp app_assoc elem_of_app in Ha_in'. *)
-
-            (* destruct (decide (a ∈ finz.seq_between (csp_b ^+ 4)%a csp_e)) as [Ha_in''|Ha_in'']. *)
-            (* { eapply std_rel_pub_rtc_Temporary in Hρ2'; auto; simplify_eq. *)
-            (*   apply revoke_lookup_Monotemp in Ha2'. *)
-            (*   assert (std (revoke ((W2_std, W2_cus))) !! a = Some Revoked) as Ha2'' by done. *)
-            (*   eapply close_list_std_sta_revoked in Ha2''; last apply Ha_in. *)
-            (*   rewrite Ha2 in Ha2''; simplify_eq. *)
-            (*   apply rtc_refl. *)
-            (* } *)
-
-            (* destruct Ha_in' as [Ha_in'|Ha_in']; last set_solver+Ha_in'' Ha_in'. *)
-            (* assert (ρ2' = Revoked) as ->. *)
-            (* { rewrite elem_of_app in Ha_in'. *)
-            (*   destruct Ha_in' as [Ha_in'|Ha_in']. *)
-            (*   + rewrite Forall_forall in HW2_revoked_l. *)
-            (*     eapply HW2_revoked_l in Ha_in';eauto. *)
-            (*     by rewrite Ha_in' in Ha2'; simplify_eq. *)
-            (*   + rewrite Forall_forall in Hrevoked_stk_l. *)
-            (*     eapply Hrevoked_stk_l in Ha_in'; eauto. *)
-            (*     by rewrite Ha_in' in Ha2'; simplify_eq. *)
-            (* } *)
-            (* eapply revoke_lookup_Revoked in Ha2'. *)
-            (* assert (std (revoke ((W2_std, W2_cus))) !! a = Some Revoked) as Ha2'' by done. *)
-            (* eapply close_list_std_sta_revoked in Ha2''; last apply Ha_in. *)
-            (* rewrite Ha2 in Ha2''; simplify_eq. *)
-            (* apply rtc_refl. *)
-      Admitted.
-      eapply (related_pub_W0_Wfixed W0 W3 W6); eauto.
+    { eapply (related_pub_W0_Wfixed W0 W3 W6); eauto.
       + destruct Hl_unk; auto.
       + apply finz_seq_between_split; solve_addr+Hcsp_bounds.
-      admit. (* TODO is that actually true? I think so *)
     }
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
     { subst csp_b.
@@ -1086,6 +1115,9 @@ Section VAE.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (vae_main_code ot_switcher))%a ->
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
+    (exists b : bool, loc W !! i = Some (encode b)) ->
+    wrel W !! i =
+    Some (convert_rel awk_rel_pub, convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
 
     na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv logrel_nais Nswitcher switcher_inv
@@ -1110,7 +1142,7 @@ Section VAE.
   Proof.
     intros imports; subst imports.
     iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae
-               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size)
+               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hloc_i_W Hrel_i_W)
       "(#Hassert & #Hswitcher
       & #Hvae_code
       & #Hvae_exp_PCC
@@ -1383,6 +1415,8 @@ Section VAE.
       )%I as "#Hinterp_VAE".
     { iApply (vae_awkward_safe pc_b pc_e pc_a cgp_b cgp_e b_vae_exp_tbl e_vae_exp_tbl b_assert
                 e_assert a_flag C_f W2); try iFrame "#"; eauto.
+      + subst W2; simplify_map_eq. eexists _ ; done.
+      + subst W2; by simplify_map_eq.
     }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg
