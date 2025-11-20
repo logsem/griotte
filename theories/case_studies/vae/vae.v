@@ -48,17 +48,26 @@ Section VAE_Main.
     encodeInstrsW [
       Mov cs0 cra; (* stores return-to-switcher *)
       Mov cs1 ca0; (* stores arg_1 *)
-      Jalr cs1 ct0 (* jmp to arg_1 *)
+      Mov ct1 ca0; (* place the arg_1 in ct1 *)
+      Mov ca0 0;
+      Mov ca1 0;
+      Mov ca2 0;
+      Mov ca3 0;
+      Mov ca4 0;
+      Mov ca5 0;
+      Jalr cra ct0 (* jmp to arg_1 *)
     ]
     (* set a := 1 *)
-    ++ encodeInstrsW [Store cgp 1]
+    ++ encodeInstrsW [Store cgp 1; Mov cra cs0; Mov ca0 cs1]
     (* call g () *)
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
     ++
     encodeInstrsW [
       Mov cs0 cra; (* stores return-to-switcher *)
-      Mov cs1 ca0; (* stores arg_1 *)
-      Jalr cs1 ct0; (* jmp to arg_1 *)
+      Mov ct1 ca0; (* stores arg_1 *)
+      Mov ca0 0;
+      Mov ca1 0;
+      Jalr cra ct0; (* jmp to arg_1 *)
 
       (* assert (a == 1) *)
       Load ct0 cgp; (* ct0 -> a *)
