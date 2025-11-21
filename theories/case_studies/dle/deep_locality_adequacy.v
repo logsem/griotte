@@ -542,11 +542,11 @@ Section Adequacy.
     ; last (apply cmpt_exp_tbl_cgp_size).
     rewrite !big_sepL2_singleton.
 
-    iMod (inv_alloc (switcher_preamble.export_table_PCCN C) ⊤ _
+    iMod (inv_alloc (switcher_preamble.export_table_PCCN (nroot .@ C)) ⊤ _
            with "HC_etbl_pcc")%I as "#HC_etbl_pcc".
-    iMod (inv_alloc (switcher_preamble.export_table_CGPN C) ⊤ _
+    iMod (inv_alloc (switcher_preamble.export_table_CGPN (nroot .@ C)) ⊤ _
            with "HC_etbl_cgp")%I as "#HC_etbl_cgp".
-    iMod (inv_alloc (switcher_preamble.export_table_entryN C (cmpt_exp_tbl_entries_start C_cmpt)) ⊤ _
+    iMod (inv_alloc (switcher_preamble.export_table_entryN (nroot .@ C) (cmpt_exp_tbl_entries_start C_cmpt)) ⊤ _
            with "HC_etbl_entries")%I as "#HC_etbl_entries".
 
     iAssert (interp Winit_C C

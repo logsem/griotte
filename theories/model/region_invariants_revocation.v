@@ -2214,4 +2214,56 @@ Section heap.
     iDestruct (big_sepL2_length with "Hla") as "%Hlen"; iFrame "%∗".
   Qed.
 
+  Lemma revoked_by_separation_with_temp_resources W W' C a :
+    a ∈ dom (std W') ->
+    (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+        ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                         ∗ temp_resources W C φ a p  ∗ rel C a p φ)
+    ∗ sts_full_world W' C
+    ∗ region W' C
+    ==∗
+    (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+        ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                         ∗ temp_resources W C φ a p ∗ rel C a p φ)
+    ∗ sts_full_world W' C
+    ∗ region W' C
+    ∗ ⌜ std W' !! a = Some Revoked ⌝.
+  Proof.
+    iIntros (Hin) "( (%&%&%& (%&%&Hv&Hmono&Hφ) &Hrel) & Hsts & Hr )".
+    rewrite elem_of_dom in Hin; destruct Hin as [? Hin].
+    iMod (revoked_by_separation with "[$Hsts $Hr $Hv]") as "(Hsts & Hr & Hv & %H')"; eauto.
+    simplify_eq.
+    iModIntro.
+    iFrame "∗%".
+  Qed.
+
+  Lemma revoked_by_separation_many_with_temp_resources W W' C la :
+    Forall (λ a, a ∈ dom (std W')) la →
+    ([∗ list] a ∈ la, (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+                          ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                                           ∗ temp_resources W C φ a p  ∗ rel C a p φ)
+                      ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
+    ∗ sts_full_world W' C
+    ∗ region W' C
+    ==∗
+    ([∗ list] a ∈ la, (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+                          ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                                           ∗ temp_resources W C φ a p  ∗ rel C a p φ)
+                      ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
+    ∗ sts_full_world W' C
+    ∗ region W' C
+    ∗ ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
+  Proof.
+    induction la; iIntros (Hin) "(Hl & Hsts & Hr)"; cbn.
+    - iModIntro; iFrame. by iPureIntro; apply Forall_nil.
+    - iDestruct "Hl" as "[ [Hl %] IHl]".
+      apply Forall_cons in Hin as [Hin_a Hin].
+      iMod (revoked_by_separation_with_temp_resources with "[$Hl $Hsts $Hr]")
+        as "(Hl & Hsts & Hr & %)"; first done.
+      iMod (IHla with "[$IHl $Hsts $Hr]") as "(IHl & Hsts & Hr & %)"; first done.
+      iModIntro.
+      iFrame "∗%".
+      by iPureIntro; apply Forall_cons.
+  Qed.
+
 End heap.

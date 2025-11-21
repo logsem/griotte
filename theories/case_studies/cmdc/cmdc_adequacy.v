@@ -601,11 +601,11 @@ Section Adequacy.
     ; last (apply cmpt_exp_tbl_cgp_size).
     rewrite !big_sepL2_singleton.
 
-    iMod (inv_alloc (switcher_preamble.export_table_PCCN B) ⊤ _
+    iMod (inv_alloc (switcher_preamble.export_table_PCCN (nroot .@ B)) ⊤ _
            with "HB_etbl_pcc")%I as "#HB_etbl_pcc".
-    iMod (inv_alloc (switcher_preamble.export_table_CGPN B) ⊤ _
+    iMod (inv_alloc (switcher_preamble.export_table_CGPN (nroot .@ B)) ⊤ _
            with "HB_etbl_cgp")%I as "#HB_etbl_cgp".
-    iMod (inv_alloc (switcher_preamble.export_table_entryN B (cmpt_exp_tbl_entries_start B_cmpt)) ⊤ _
+    iMod (inv_alloc (switcher_preamble.export_table_entryN (nroot .@ B) (cmpt_exp_tbl_entries_start B_cmpt)) ⊤ _
            with "HB_etbl_entries")%I as "#HB_etbl_entries".
 
     iAssert (interp Winit_B B
@@ -952,11 +952,11 @@ Section Adequacy.
     ; last (apply cmpt_exp_tbl_cgp_size).
     rewrite !big_sepL2_singleton.
 
-    iMod (inv_alloc (switcher_preamble.export_table_PCCN C) ⊤ _
+    iMod (inv_alloc (switcher_preamble.export_table_PCCN (nroot .@ C)) ⊤ _
            with "HC_etbl_pcc")%I as "#HC_etbl_pcc".
-    iMod (inv_alloc (switcher_preamble.export_table_CGPN C) ⊤ _
+    iMod (inv_alloc (switcher_preamble.export_table_CGPN (nroot .@ C)) ⊤ _
            with "HC_etbl_cgp")%I as "#HC_etbl_cgp".
-    iMod (inv_alloc (switcher_preamble.export_table_entryN C (cmpt_exp_tbl_entries_start C_cmpt)) ⊤ _
+    iMod (inv_alloc (switcher_preamble.export_table_entryN (nroot .@ C) (cmpt_exp_tbl_entries_start C_cmpt)) ⊤ _
            with "HC_etbl_entries")%I as "#HC_etbl_entries".
 
     iAssert (interp Winit_C C

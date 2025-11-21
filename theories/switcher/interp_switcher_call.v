@@ -355,7 +355,7 @@ Section fundamental.
     rewrite /safeC.
     iSimpl in "Hagree".
     iRewrite -"Hagree" in "HP".
-    iDestruct "HP" as (?????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & Hexec)". simpl fst. simpl snd.
+    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & Hexec)". simpl fst. simpl snd.
     inversion Heq.
 
     (* --- Load cs0 ct1 --- *)

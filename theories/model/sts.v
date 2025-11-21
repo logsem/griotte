@@ -987,6 +987,27 @@ Section STS.
     by eapply related_sts_priv_rel.
   Qed.
 
+  Lemma related_sts_priv_world_loc_update
+    (W : WORLD) (i : positive) (d d' : D)
+    (r1 r2 r3 : positive -> positive -> Prop)
+    :
+    loc W !! i = Some (encode d) ->
+    wrel W !! i = Some (r1,r2,r3) ->
+    (r1 (encode d) (encode d') ∨ r2 (encode d) (encode d') ∨ r3 (encode d) (encode d')) ->
+    related_sts_priv_world W (<l[i:=d']l>W).
+  Proof.
+    intros Hloc Hrel Hr.
+    split; first apply related_sts_std_priv_refl.
+    split;[set_solver+|split;[set_solver+|] ].
+    intros ?????????; cbn in *; simplify_eq.
+    repeat (split;first done).
+    intros ????; cbn in *; simplify_eq.
+    destruct (decide (i = i0)); simplify_map_eq.
+    - by apply rtc_once.
+    - by apply rtc_refl.
+  Qed.
+
+
 End STS.
 
 Notation "<s[ a := ρ ]s> W" := (std_update W a ρ) (at level 10, format "<s[ a := ρ ]s> W").

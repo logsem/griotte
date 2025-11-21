@@ -25,20 +25,17 @@ Section Switcher.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  Lemma switcher_cc_specification
+  Lemma switcher_cc_specification_alt
     (Nswitcher : namespace)
     (W : WORLD)
     (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : Word)
     (b_stk e_stk a_stk : Addr)
-    (w_entry_point : Sealable)
     (stk_mem : list Word)
     (arg_rmap rmap : Reg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (nargs : nat)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
-    let wct1_caller := WSealed ot_switcher w_entry_point in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
@@ -55,14 +52,11 @@ Section Switcher.
     (* Stack register *)
     ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
-    ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller ∗ wct1_caller ↦□ₑ nargs
+    ∗ ct1 ↦ᵣ wct1_caller ∗ (if is_sealed_with_o wct1_caller ot_switcher then interp W C wct1_caller else True)
     ∗ cs0 ↦ᵣ wcs0_caller
     ∗ cs1 ↦ᵣ wcs1_caller
     (* Argument registers, need to be safe-to-share *)
-    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg
-                                      ∗ if decide (rarg ∈ dom_arg_rmap nargs)
-                                        then interp W C warg
-                                        else True )
+    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg )
     (* All the other registers *)
     ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
@@ -102,13 +96,11 @@ Section Switcher.
               ∗ [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]]
               ∗ interp_continuation cstk Ws Cs
             -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
-
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
-
-    iIntros (a_stk4 target callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hr & Hstk_val & Hcstk & Hcont & Hpost)".
+    iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hr & Hstk_val & Hcstk & Hcont & Hpost)".
     subst a_stk4.
     subst callee_stk_region.
 
@@ -364,7 +356,19 @@ Section Switcher.
     iInstr "Hcode".
 
     (* --- UnSeal ct1 cs0 ct1 --- *)
-    subst target.
+    destruct (is_sealed_with_o wct1_caller ot_switcher) eqn:Hwct1_caller; cycle 1.
+    { (* wct1_caller is not sealed with ot_switcher, so the next instruction will fail *)
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_unseal_nomatch_r2 with "[$HPC $Hi $Hct1 $Hcs0 $Hcs1]") ; try solve_pure.
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+    }
+    assert (∃ w_entry_point, wct1_caller = WSealed ot_switcher w_entry_point ) as [w_entry_point ->].
+    { destruct wct1_caller as [ | [] | |]; cbn in Hwct1_caller; try discriminate.
+      exists sb. apply Z.eqb_eq in Hwct1_caller.
+      replace ot with ot_switcher by solve_addr.
+      done.
+    }
     rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher w_entry_point)).
     iDestruct "Htarget_v" as (P HpersP) "(HmonoP & HPseal & HP & HPborrow)".
     iDestruct (seal_pred_agree with "Hp_ot_switcher HPseal") as "Hagree".
@@ -376,8 +380,6 @@ Section Switcher.
     iRewrite -"Hagree" in "HP".
     iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & Hentry' & Hexec)". simpl fst. simpl snd.
     inversion Heq.
-
-    iDestruct (entry_agree _ nargs nargs0 with "Hentry Hentry'") as "<-".
 
     (* --- Load cs0 ct1 --- *)
     wp_instr.
@@ -426,6 +428,7 @@ Section Switcher.
     iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
     wp_pure.
 
+
     (* --- Lea cra cs0 --- *)
     destruct (bpcc + encode_entry_point nargs off ≫ 3)%a eqn:Hentry;cycle 1.
     { iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -452,6 +455,16 @@ Section Switcher.
     { lia. }
     replace (Z.of_nat (nargs + 1))%Z with (Z.of_nat nargs + 1)%Z by lia.
     replace (nargs + 1 - 1) with nargs by lia.
+    iAssert
+      ( [∗ map] rarg↦warg ∈ arg_rmap,
+         rarg ↦ᵣ warg ∗
+         (if decide (rarg ∈ dom_arg_rmap nargs) then interp W C warg else True)
+      )%I with "[Hargs]" as "Hargs".
+    {
+      iApply (big_sepM_impl with "Hargs").
+      iIntros "!> %k %w' _ [$ Hinterp]".
+      destruct ( decide (k ∈ dom_arg_rmap nargs) ) ; auto.
+    }
     iFrame.
     iIntros "!> (%arg_rmap' & %Harg_rmap' & HPC & Hct2 & Hargs & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
