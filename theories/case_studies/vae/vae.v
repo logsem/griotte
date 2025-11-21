@@ -105,7 +105,19 @@ Section VAE_Main.
       WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl a_vae_exp_tbl_awkward)
     ].
 
-  Definition vae_export_table_entries : list Word :=
-    [WInt (switcher.encode_entry_point 1 (length VAE_main_code_init))].
+  Definition vae_export_table_entries
+    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
+    (b_assert e_assert : Addr)
+    (B_adv : Sealable)
+    (b_vae_exp_tbl e_vae_exp_tbl a_vae_exp_tbl_awkward : Addr)
+    : list Word :=
+    [WInt (switcher.encode_entry_point 1
+             (length ((
+                    vae_main_imports
+                      b_switcher e_switcher a_cc_switcher ot_switcher
+                      b_assert e_assert B_adv
+                      b_vae_exp_tbl e_vae_exp_tbl a_vae_exp_tbl_awkward
+                  ) ++ VAE_main_code_init)))
+    ].
 
 End VAE_Main.
