@@ -52,6 +52,66 @@ Section VAE.
     apply rtc_rel_pub with (encode true); auto.
   Qed.
 
+  Lemma rtc_rel_pub_inv y x :
+    y = (encode true) ∨ y = (encode false) ->
+    rtc (convert_rel awk_rel_pub) y x ->
+    x = (encode true) ∨ x = (encode false).
+  Proof.
+    intros Heq Hrtc.
+    induction Hrtc; auto.
+    destruct Heq; subst.
+    + inversion H as [y' [b [Heq1 [Heq2 Hy] ] ] ]; simplify_eq.
+      apply IHHrtc. destruct b; auto.
+    + inversion H as [y' [b [Heq1 [Heq2 Hy] ] ] ]; simplify_eq.
+      apply IHHrtc. destruct b; auto.
+  Qed.
+
+  Lemma awk_rel_pub_inv (b : bool) (d d' : positive) :
+    d = encode b ->
+    rtc (convert_rel awk_rel_pub) d d' ->
+    ∃ b : bool, d' = encode b.
+  Proof.
+    intros Hd Hrtc.
+    assert (d' = encode true ∨ (d' = encode false)).
+    { eapply rtc_rel_pub_inv; last done.
+      destruct b ; auto.
+    }
+    destruct H; eexists; eauto.
+  Qed.
+
+  Lemma rtc_rel_inv y x :
+    y = (encode true) ∨ y = (encode false) ->
+    rtc (λ x y : positive,
+         convert_rel awk_rel_pub x y
+         ∨ convert_rel awk_rel_pub x y ∨ convert_rel awk_rel_priv x y) y x ->
+    x = (encode true) ∨ x = (encode false).
+  Proof.
+    intros Heq Hrtc.
+    induction Hrtc; auto.
+    destruct Heq; subst.
+    + destruct H as [ | [] ].
+      all: inversion H as [y' [b [Heq1 [Heq2 Hy] ] ] ]; simplify_eq.
+      all: apply IHHrtc; destruct b; auto.
+    + destruct H as [ | [] ].
+      all: inversion H as [y' [b [Heq1 [Heq2 Hy] ] ] ]; simplify_eq.
+      all: apply IHHrtc; destruct b; auto.
+  Qed.
+
+  Lemma awk_rel_inv (b : bool) (d d' : positive) :
+    d = encode b ->
+    rtc (λ x y : positive,
+         convert_rel awk_rel_pub x y
+         ∨ convert_rel awk_rel_pub x y ∨ convert_rel awk_rel_priv x y) d d' ->
+    ∃ b : bool, d' = encode b.
+  Proof.
+    intros Hd Hrtc.
+    assert (d' = encode true ∨ (d' = encode false)).
+    { eapply rtc_rel_inv; last done.
+      destruct b ; auto.
+    }
+    destruct H; eexists; eauto.
+  Qed.
+
   (* TODO move (duplicate from counter_spec) *)
   Lemma revoked_by_separation_with_temp_resources W W' B a :
     a ∈ dom (std W') ->
@@ -105,6 +165,27 @@ Section VAE.
       by iPureIntro; apply Forall_cons.
   Qed.
 
+  Lemma related_sts_priv_world_loc_update
+    { D : Type } `{EqDecision D, Countable D}
+    (W : WORLD) (i : positive) (d d' : D)
+    (r1 r2 r3 : positive -> positive -> Prop)
+    :
+    loc W !! i = Some (encode d) ->
+    wrel W !! i = Some (r1,r2,r3) ->
+    (r1 (encode d) (encode d') ∨ r2 (encode d) (encode d') ∨ r3 (encode d) (encode d')) ->
+    related_sts_priv_world W (<l[i:=d']l>W).
+  Proof.
+    intros Hloc Hrel Hr.
+    split; first apply related_sts_std_priv_refl.
+    split;[set_solver+|split;[set_solver+|] ].
+    intros ?????????; cbn in *; simplify_eq.
+    repeat (split;first done).
+    intros ????; cbn in *; simplify_eq.
+    destruct (decide (i = i0)); simplify_map_eq.
+    - by apply rtc_once.
+    - by apply rtc_refl.
+  Qed.
+
   Lemma related_pub_W0_Wfixed (W0 W3 W6 : WORLD) (csp_b csp_e : Addr) (l : list Addr) ( i : positive) :
     let W1 := revoke W0 in
     let W2 := <l[i:=false]l>W1 in
@@ -123,6 +204,7 @@ Section VAE.
     finz.seq_between csp_b csp_e = finz.seq_between csp_b (csp_b ^+ 4)%a ++ finz.seq_between (csp_b ^+ 4)%a csp_e ->
     wrel W6 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
     loc W6 !! i = Some (encode true) ->
+    wrel W0 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
     (exists b : bool, loc W0 !! i = Some (encode b)) ->
 
     related_sts_pub_world W0
@@ -130,16 +212,44 @@ Section VAE.
   Proof.
     intros W1 W2 W4 W5 W7.
     intros Htemporaries_W0 Hrelated_pub_W2_W3 Hrelated_pub_W2ext_W3 Hrelated_pub_W5_W6 Hrelated_pub_W5ext_W6
-      HW6_revoked_l Hrevoked_stk_l Hsplit_csp Hwrel_i Hwloc_i Hwloc_i_0.
+      HW6_revoked_l Hrevoked_stk_l Hsplit_csp Hwrel_i Hwloc_i Hwrel_i_0 Hwloc_i_0.
 
     assert ( related_sts_priv_world W0 W6 ) as Hrelated_priv_W0_W6.
     { eapply (related_sts_priv_trans_world _ W3); eauto.
       + eapply (related_sts_priv_pub_trans_world _ W2); eauto.
         subst W2 W1.
-        admit.
+        eapply (related_sts_priv_trans_world _ (revoke W0)).
+        * apply revoke_related_sts_priv_world.
+        * destruct Hwloc_i_0 as [b Hwloc_i_0].
+          eapply related_sts_priv_world_loc_update; eauto.
+          right;right; apply convert_rel_of_rel; done.
       + eapply (related_sts_priv_pub_trans_world _ W5); eauto.
         subst W4 W5.
-        admit.
+        eapply (related_sts_priv_trans_world _ (revoke W3)).
+        * apply revoke_related_sts_priv_world.
+        *
+          destruct Hrelated_pub_W2_W3 as [HW2_W3_std (Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3)].
+          assert (∃ d_W3, loc W3 !! i = Some d_W3) as [d_W3 Hd_W3].
+          { apply elem_of_dom.
+            apply Hdom_loc_2_3.
+            rewrite dom_insert.
+            rewrite elem_of_union; right.
+            apply elem_of_dom.
+            set_solver+Hwloc_i_0.
+          }
+          assert (∃ r1 r2 r3, wrel W3 !! i = Some (r1, r2, r3)) as (r1 & r2 & r3 & HW3_rel).
+          { assert (is_Some (wrel W0 !! i)) as HW0_rel_some by set_solver+Hwrel_i_0.
+            apply elem_of_dom in HW0_rel_some.
+            apply Hdom_rel_2_3 in HW0_rel_some.
+            apply elem_of_dom in HW0_rel_some as [ [ [] ] HW3_rel].
+            eexists _,_,_; eauto.
+          }
+          destruct Hwloc_i_0 as [b Hwloc_i_0].
+          specialize (Hrtc_loc_2_3 i _ _ _ _ _ _ Hwrel_i_0 HW3_rel) as (<- & <- & <- & Hrtc_loc_0_3).
+          ospecialize (Hrtc_loc_0_3 _ _ _ Hd_W3); first by simplify_map_eq.
+          eapply awk_rel_pub_inv in Hrtc_loc_0_3 as [b' ->]; last done.
+          eapply related_sts_priv_world_loc_update; eauto.
+          right;right; apply convert_rel_of_rel; done.
     }
     split; cbn; cycle 1.
     - destruct W0 as [W0_std [W0_loc W0_rel] ],
@@ -279,7 +389,7 @@ Section VAE.
              eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_l; eauto.
              rewrite Ha2 in Ha_in_l; simplify_eq.
              apply rtc_refl.
-  Admitted.
+  Qed.
 
   Lemma vae_awkward_spec
 
@@ -361,16 +471,13 @@ Section VAE.
     rewrite /registers_pointsto.
     iDestruct (sts_full_rel_loc  with "Hsts_C Hsts_rel") as "%Hwrel_i_W0".
     assert (∃ b : bool, loc W0 !! i = Some (encode b)) as Hloc_i_W0.
-    { destruct Hloc_i_W as [b Hloc_i_W].
-      destruct Hpriv_W_W0 as [ _ [Hloc_W_W0 [Hrel_W_W0 Hcus_i_W_W0] ] ].
-      specialize (Hcus_i_W_W0 _ _ _ _ _ _ _ Hrel_i_W Hwrel_i_W0).
-      destruct Hcus_i_W_W0 as (_&_&_&Hloc_i_W_W0).
-      assert (is_Some (loc W0 !! i)) as [b0 Hloc_i_W0].
-      { apply elem_of_dom, Hloc_W_W0, elem_of_dom; done. }
-      specialize (Hloc_i_W_W0 _ _ Hloc_i_W Hloc_i_W0).
-      clear - Hloc_i_W_W0 Hloc_i_W0 Hloc_i_W.
-      (* TODO: should be easy..... *)
-      admit.
+    { destruct Hpriv_W_W0 as [_ (?&_&Hpriv) ].
+      destruct Hloc_i_W.
+      assert (is_Some (loc W0 !! i)) as [d Hloc_0] by (by apply elem_of_dom, H, elem_of_dom).
+      specialize (Hpriv _ _ _ _ _ _ _ Hrel_i_W Hwrel_i_W0) as (_&_&_&Hpriv).
+      specialize (Hpriv _ _ H0 Hloc_0).
+      eapply awk_rel_inv in Hpriv; last done.
+      destruct Hpriv as [? ->]. eexists; done.
     }
 
     iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
