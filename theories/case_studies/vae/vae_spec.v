@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
-From cap_machine Require Import fetch assert interp_switcher_call switcher_spec_call switcher_spec_call_alt switcher_spec_return vae.
+From cap_machine Require Import fetch assert interp_switcher_call switcher_spec_call switcher_spec_call_alt switcher_spec_return.
+From cap_machine Require Import vae vae_helper.
 
 Section VAE.
   Context
@@ -20,171 +21,6 @@ Section VAE.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-
-  Definition awkN : namespace := nroot .@ "awkN".
-  Definition awk_inv C i a :=
-    (∃ x:bool, sts_state_loc (A:=Addr) C i x
-            ∗ if x
-              then a ↦ₐ WInt 1%Z
-              else a ↦ₐ WInt 0%Z)%I.
-
-  Definition awk_rel_pub := λ a b, a = false ∨ b = true.
-  Definition awk_rel_priv := λ (a b : bool), True.
-
-  Lemma rtc_rel_pub y x :
-    y = (encode true) ->
-    rtc (convert_rel awk_rel_pub) y x ->
-    x = (encode true).
-  Proof.
-    intros Heq Hrtc.
-    induction Hrtc; auto.
-    rewrite Heq in H.
-    inversion H as [y' [b [Heq1 [Heq2 Hy] ] ] ].
-    inversion Hy; subst; auto.
-    apply encode_inj in Heq1. inversion Heq1.
-  Qed.
-  Lemma rtc_rel_pub' x :
-    rtc (convert_rel awk_rel_pub) (encode true) (encode x) ->
-    x = true.
-  Proof.
-    intros Hrtc.
-    apply encode_inj.
-    apply rtc_rel_pub with (encode true); auto.
-  Qed.
-
-  Lemma rtc_rel_pub_inv y x :
-    y = (encode true) ∨ y = (encode false) ->
-    rtc (convert_rel awk_rel_pub) y x ->
-    x = (encode true) ∨ x = (encode false).
-  Proof.
-    intros Heq Hrtc.
-    induction Hrtc; auto.
-    destruct Heq; subst.
-    + inversion H as [y' [b [Heq1 [Heq2 Hy] ] ] ]; simplify_eq.
-      apply IHHrtc. destruct b; auto.
-    + inversion H as [y' [b [Heq1 [Heq2 Hy] ] ] ]; simplify_eq.
-      apply IHHrtc. destruct b; auto.
-  Qed.
-
-  Lemma awk_rel_pub_inv (b : bool) (d d' : positive) :
-    d = encode b ->
-    rtc (convert_rel awk_rel_pub) d d' ->
-    ∃ b : bool, d' = encode b.
-  Proof.
-    intros Hd Hrtc.
-    assert (d' = encode true ∨ (d' = encode false)).
-    { eapply rtc_rel_pub_inv; last done.
-      destruct b ; auto.
-    }
-    destruct H; eexists; eauto.
-  Qed.
-
-  Lemma rtc_rel_inv y x :
-    y = (encode true) ∨ y = (encode false) ->
-    rtc (λ x y : positive,
-         convert_rel awk_rel_pub x y
-         ∨ convert_rel awk_rel_pub x y ∨ convert_rel awk_rel_priv x y) y x ->
-    x = (encode true) ∨ x = (encode false).
-  Proof.
-    intros Heq Hrtc.
-    induction Hrtc; auto.
-    destruct Heq; subst.
-    + destruct H as [ | [] ].
-      all: inversion H as [y' [b [Heq1 [Heq2 Hy] ] ] ]; simplify_eq.
-      all: apply IHHrtc; destruct b; auto.
-    + destruct H as [ | [] ].
-      all: inversion H as [y' [b [Heq1 [Heq2 Hy] ] ] ]; simplify_eq.
-      all: apply IHHrtc; destruct b; auto.
-  Qed.
-
-  Lemma awk_rel_inv (b : bool) (d d' : positive) :
-    d = encode b ->
-    rtc (λ x y : positive,
-         convert_rel awk_rel_pub x y
-         ∨ convert_rel awk_rel_pub x y ∨ convert_rel awk_rel_priv x y) d d' ->
-    ∃ b : bool, d' = encode b.
-  Proof.
-    intros Hd Hrtc.
-    assert (d' = encode true ∨ (d' = encode false)).
-    { eapply rtc_rel_inv; last done.
-      destruct b ; auto.
-    }
-    destruct H; eexists; eauto.
-  Qed.
-
-  (* TODO move (duplicate from counter_spec) *)
-  Lemma revoked_by_separation_with_temp_resources W W' B a :
-    a ∈ dom (std W') ->
-    (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-        ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                         ∗ temp_resources W B φ a p  ∗ rel C a p φ)
-    ∗ sts_full_world W' B
-    ∗ region W' B
-    ==∗
-    (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-        ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                         ∗ temp_resources W B φ a p ∗ rel C a p φ)
-    ∗ sts_full_world W' B
-    ∗ region W' B
-    ∗ ⌜ std W' !! a = Some Revoked ⌝.
-  Proof.
-    iIntros (Hin) "( (%&%&%& (%&%&Hv&Hmono&Hφ) &Hrel) & Hsts & Hr )".
-    rewrite elem_of_dom in Hin; destruct Hin as [? Hin].
-    iMod (revoked_by_separation with "[$Hsts $Hr $Hv]") as "(Hsts & Hr & Hv & %H')"; eauto.
-    simplify_eq.
-    iModIntro.
-    iFrame "∗%".
-  Qed.
-
-  Lemma revoked_by_separation_many_with_temp_resources W W' B la :
-    Forall (λ a, a ∈ dom (std W')) la →
-    ([∗ list] a ∈ la, (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-                          ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                                           ∗ temp_resources W B φ a p  ∗ rel C a p φ)
-                      ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
-    ∗ sts_full_world W' B
-    ∗ region W' B
-    ==∗
-    ([∗ list] a ∈ la, (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-                          ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                                           ∗ temp_resources W B φ a p  ∗ rel C a p φ)
-                      ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
-    ∗ sts_full_world W' B
-    ∗ region W' B
-    ∗ ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
-  Proof.
-    induction la; iIntros (Hin) "(Hl & Hsts & Hr)"; cbn.
-    - iModIntro; iFrame. by iPureIntro; apply Forall_nil.
-    - iDestruct "Hl" as "[ [Hl %] IHl]".
-      apply Forall_cons in Hin as [Hin_a Hin].
-      iMod (revoked_by_separation_with_temp_resources with "[$Hl $Hsts $Hr]")
-        as "(Hl & Hsts & Hr & %)"; first done.
-      iMod (IHla with "[$IHl $Hsts $Hr]") as "(IHl & Hsts & Hr & %)"; first done.
-      iModIntro.
-      iFrame "∗%".
-      by iPureIntro; apply Forall_cons.
-  Qed.
-
-  Lemma related_sts_priv_world_loc_update
-    { D : Type } `{EqDecision D, Countable D}
-    (W : WORLD) (i : positive) (d d' : D)
-    (r1 r2 r3 : positive -> positive -> Prop)
-    :
-    loc W !! i = Some (encode d) ->
-    wrel W !! i = Some (r1,r2,r3) ->
-    (r1 (encode d) (encode d') ∨ r2 (encode d) (encode d') ∨ r3 (encode d) (encode d')) ->
-    related_sts_priv_world W (<l[i:=d']l>W).
-  Proof.
-    intros Hloc Hrel Hr.
-    split; first apply related_sts_std_priv_refl.
-    split;[set_solver+|split;[set_solver+|] ].
-    intros ?????????; cbn in *; simplify_eq.
-    repeat (split;first done).
-    intros ????; cbn in *; simplify_eq.
-    destruct (decide (i = i0)); simplify_map_eq.
-    - by apply rtc_once.
-    - by apply rtc_refl.
-  Qed.
 
   Lemma related_pub_W0_Wfixed (W0 W3 W6 : WORLD) (csp_b csp_e : Addr) (l : list Addr) ( i : positive) :
     let W1 := revoke W0 in
@@ -942,16 +778,41 @@ Section VAE.
       destruct wca0 as [| [|] | |]; try discriminate.
       iApply (interp_monotone_sd W2 W5); eauto.
     }
-    (* Prepare the closing resources for the switcher call spec *)
 
+    (* Prepare the closing resources for the switcher call spec *)
     iAssert (
         ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W5 C a ∗
                                                     ⌜W5.1 !! a = Some Revoked⌝)
       )%I with "[Hfrm_close_W2 Hfrm_close_W3]" as "#Hfrm_close_W5".
     { rewrite !big_sepL_sep.
       rewrite (finz_seq_between_split csp_b (csp_b ^+ 4)%a csp_e); last solve_addr.
+      iDestruct "Hfrm_close_W2" as "[Hclose_W2 Hrev_W2]".
+      iEval (rewrite big_sepL_app) in "Hclose_W2".
+      iEval (rewrite big_sepL_app) in "Hrev_W2".
+      iDestruct "Hclose_W2" as "[Hclose_W2 _]".
+      iDestruct "Hrev_W2" as "[Hrev_W2 _]".
       iDestruct "Hfrm_close_W3" as "[Hclose_W3 Hrev_W3]".
-      admit.
+      iSplitL "Hclose_W2 Hclose_W3".
+      - rewrite big_sepL_app.
+        iSplitL "Hclose_W2".
+        + iApply (big_sepL_impl with "Hclose_W2").
+          iModIntro; iIntros (k a Ha) "Hclose'".
+          iApply mono_priv_closing_revoked_resources; eauto.
+        + iApply (big_sepL_impl with "Hclose_W3").
+          iModIntro; iIntros (k a Ha) "Hclose_".
+          iApply mono_priv_closing_revoked_resources.
+          { apply related_sts_pub_priv_world; eapply Hpriv_W4_W5. }
+          iApply mono_priv_closing_revoked_resources; eauto.
+          by apply revoke_related_sts_priv_world.
+      - iApply big_sepL_app.
+        iFrame "#".
+        iApply big_sepL_pure; iPureIntro.
+        intros k x Hk.
+        cbn.
+        apply revoke_lookup_Revoked.
+        apply Hstk_l_revoked .
+        apply elem_of_list_lookup.
+        set_solver+Hk.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -1008,7 +869,18 @@ Section VAE.
 
     iAssert ( ⌜ Forall (λ k : finz MemNum, W5.1 !! k = Some Revoked) (finz.seq_between (csp_b ^+ 4)%a csp_e) ⌝)%I
       as "%Hrevoked_stk_W5".
-    { admit. (* derive from Hfrm_close_W5 *)
+    { iClear "∗".
+      iDestruct (big_sepL_sep with "Hfrm_close_W5") as "[_ %]".
+      iPureIntro.
+      apply Forall_forall.
+      intros x Hx.
+      assert (x ∈ finz.seq_between csp_b csp_e) as Hx'.
+      {
+        rewrite (finz_seq_between_split csp_b (csp_b ^+ 4)%a csp_e); last solve_addr.
+        rewrite elem_of_app; by right.
+      }
+      apply elem_of_list_lookup in Hx' as [k Hk].
+      eapply H; eauto.
     }
     assert (related_sts_pub_world W5 W6) as Hrelated_pub_W5_W6.
     { clear -Hrelated_pub_5ext_W6 Hrevoked_stk_W5.
@@ -1022,7 +894,12 @@ Section VAE.
       iPureIntro; apply Forall_forall; intros a Ha.
       apply elem_of_list_lookup in Ha as [k Hk].
       apply Hrevoked_l in Hk.
-      admit.
+      cbn.
+      rewrite -revoke_dom_eq.
+      assert (a ∈ dom (std W2)) as Ha2.
+      { rewrite elem_of_dom; done. }
+      destruct Hrelated_pub_W2_W3 as [ [Hdom_2_3 _] _ ].
+      by apply Hdom_2_3.
     }
     iMod (
        revoked_by_separation_many_with_temp_resources with "[$Hsts_C $Hr_C $Hrevoked_l]"
@@ -1189,8 +1066,7 @@ Section VAE.
     { destruct Hl_unk; auto. }
     { destruct Hl_unk; auto. }
     { iSplit; iApply interp_int. }
-
-  Admitted.
+  Qed.
 
   Lemma vae_awkward_safe
 

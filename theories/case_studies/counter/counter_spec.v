@@ -22,59 +22,6 @@ Section Counter.
 
   Context {C : CmptName}.
 
-  (* TODO move *)
-  Lemma revoked_by_separation_with_temp_resources W W' B a :
-    a ∈ dom (std W') ->
-    (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-        ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                         ∗ temp_resources W B φ a p  ∗ rel C a p φ)
-    ∗ sts_full_world W' B
-    ∗ region W' B
-    ==∗
-    (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-        ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                         ∗ temp_resources W B φ a p ∗ rel C a p φ)
-    ∗ sts_full_world W' B
-    ∗ region W' B
-    ∗ ⌜ std W' !! a = Some Revoked ⌝.
-  Proof.
-    iIntros (Hin) "( (%&%&%& (%&%&Hv&Hmono&Hφ) &Hrel) & Hsts & Hr )".
-    rewrite elem_of_dom in Hin; destruct Hin as [? Hin].
-    iMod (revoked_by_separation with "[$Hsts $Hr $Hv]") as "(Hsts & Hr & Hv & %H')"; eauto.
-    simplify_eq.
-    iModIntro.
-    iFrame "∗%".
-  Qed.
-
-  Lemma revoked_by_separation_many_with_temp_resources W W' B la :
-    Forall (λ a, a ∈ dom (std W')) la →
-    ([∗ list] a ∈ la, (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-                          ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                                           ∗ temp_resources W B φ a p  ∗ rel C a p φ)
-                      ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
-    ∗ sts_full_world W' B
-    ∗ region W' B
-    ==∗
-    ([∗ list] a ∈ la, (∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-                          ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                                           ∗ temp_resources W B φ a p  ∗ rel C a p φ)
-                      ∗ ⌜(std (revoke W)) !! a = Some Revoked⌝)
-    ∗ sts_full_world W' B
-    ∗ region W' B
-    ∗ ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
-  Proof.
-    induction la; iIntros (Hin) "(Hl & Hsts & Hr)"; cbn.
-    - iModIntro; iFrame. by iPureIntro; apply Forall_nil.
-    - iDestruct "Hl" as "[ [Hl %] IHl]".
-      apply Forall_cons in Hin as [Hin_a Hin].
-      iMod (revoked_by_separation_with_temp_resources with "[$Hl $Hsts $Hr]")
-        as "(Hl & Hsts & Hr & %)"; first done.
-      iMod (IHla with "[$IHl $Hsts $Hr]") as "(IHl & Hsts & Hr & %)"; first done.
-      iModIntro.
-      iFrame "∗%".
-      by iPureIntro; apply Forall_cons.
-  Qed.
-
   Lemma related_pub_W0_Wfixed (W0 W2 : WORLD  ) (csp_b csp_e : Addr ) (l : list Addr):
     (∀ a : finz MemNum, W0.1 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e)
     → related_sts_priv_world W0 (revoke W0)
