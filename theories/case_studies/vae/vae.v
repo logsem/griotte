@@ -17,13 +17,11 @@ Section VAE_Main.
 
     awkward:
       set a := 0
-      if (getotype arg_1 != ot_switcher) then halt else
       call g ()
       set a := 1
       call g ()
       assert (a == 1)
-      return cra
-
+      return
    *)
 
   Definition VAE_main_code_init : list Word :=
