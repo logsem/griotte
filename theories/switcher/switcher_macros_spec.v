@@ -142,7 +142,12 @@ Section switcher_macros.
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
               ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
               ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
-              ∗ (  [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ warg ∗ interp W C warg )
+              ∗ (  [∗ map] rarg↦warg ∈ arg_rmap',
+                     rarg ↦ᵣ warg
+                     ∗ if decide (rarg ∈ dom_arg_rmap (nargs-1))
+                       then interp W C warg
+                       else ⌜ warg = WInt 0⌝
+                )
               ∗ codefrag pc_a clear_registers_pre_call_skip_instrs)
                -∗ WP Seq (Instr Executable) {{ φ }})
     )
@@ -181,7 +186,9 @@ Section switcher_macros.
       iApply "Hcont".
       iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
       repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame. repeat iSplit;[|iApply interp_int..|done].
+      iFrame. cbn.
+      destruct (decide (_ ∈ ∅)) as [Hcontra|]; first set_solver+Hcontra.
+      repeat iSplit;[|done..|done].
       iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
 
     destruct (decide (2 = nargs));[subst|].
@@ -189,7 +196,10 @@ Section switcher_macros.
       iApply "Hcont".
       iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
       repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iFrame "∗ #".
+      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; try set_solver+Hca0.
+      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
+      repeat iSplit;[|done..|done].
       iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
 
     destruct (decide (3 = nargs));[subst|].
@@ -197,7 +207,11 @@ Section switcher_macros.
       iApply "Hcont".
       iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
       repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iFrame "∗ #".
+      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
+      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
+      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
+      repeat iSplit;[|done..|done].
       iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
 
     destruct (decide (4 = nargs));[subst|].
@@ -205,7 +219,12 @@ Section switcher_macros.
       iApply "Hcont".
       iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
       repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iFrame "∗ #".
+      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
+      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
+      destruct (decide (ca2 ∈ _)) as [Hca2|Hca2]; last set_solver+Hca2.
+      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
+      repeat iSplit;[|done..|done].
       iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
 
     destruct (decide (5 = nargs));[subst|].
@@ -213,7 +232,13 @@ Section switcher_macros.
       iApply "Hcont".
       iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
       repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iFrame "∗ #".
+      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
+      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
+      destruct (decide (ca2 ∈ _)) as [Hca2|Hca2]; last set_solver+Hca2.
+      destruct (decide (ca3 ∈ _)) as [Hca3|Hca3]; last set_solver+Hca3.
+      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
+      repeat iSplit;[|done..|done].
       iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
 
     destruct (decide (6 = nargs));[subst|].
@@ -221,7 +246,14 @@ Section switcher_macros.
       iApply "Hcont".
       iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
       repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iFrame "∗ #".
+      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
+      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
+      destruct (decide (ca2 ∈ _)) as [Hca2|Hca2]; last set_solver+Hca2.
+      destruct (decide (ca3 ∈ _)) as [Hca3|Hca3]; last set_solver+Hca3.
+      destruct (decide (ca4 ∈ _)) as [Hca4|Hca4]; last set_solver+Hca4.
+      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
+      repeat iSplit;[|done..|done].
       iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
 
     destruct (decide (7 = nargs));[subst|].
@@ -229,7 +261,15 @@ Section switcher_macros.
       iApply "Hcont".
       iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
       repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iFrame "∗ #".
+      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
+      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
+      destruct (decide (ca2 ∈ _)) as [Hca2|Hca2]; last set_solver+Hca2.
+      destruct (decide (ca3 ∈ _)) as [Hca3|Hca3]; last set_solver+Hca3.
+      destruct (decide (ca4 ∈ _)) as [Hca4|Hca4]; last set_solver+Hca4.
+      destruct (decide (ca5 ∈ _)) as [Hca5|Hca5]; last set_solver+Hca5.
+      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
+      repeat iSplit;[|done..|done].
       iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
 
     destruct (decide (8 = nargs));[subst|].
@@ -237,7 +277,15 @@ Section switcher_macros.
       iApply "Hcont".
       iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
       repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #". repeat iSplit;[|iApply interp_int..|done].
+      iFrame "∗ #".
+      destruct (decide (ca0 ∈ _)) as [Hca0|Hca0]; last set_solver+Hca0.
+      destruct (decide (ca1 ∈ _)) as [Hca1|Hca1]; last set_solver+Hca1.
+      destruct (decide (ca2 ∈ _)) as [Hca2|Hca2]; last set_solver+Hca2.
+      destruct (decide (ca3 ∈ _)) as [Hca3|Hca3]; last set_solver+Hca3.
+      destruct (decide (ca4 ∈ _)) as [Hca4|Hca4]; last set_solver+Hca4.
+      destruct (decide (ca5 ∈ _)) as [Hca5|Hca5]; last set_solver+Hca5.
+      destruct (decide (ct0 ∈ _)) as [Hct0|Hct0]; last set_solver+Hct0.
+      repeat iSplit;[|done..|done].
       iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
 
     exfalso. lia.
