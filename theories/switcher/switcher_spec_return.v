@@ -30,7 +30,7 @@ Section Switcher.
     (W0 Wcur : WORLD)
     (C : CmptName)
     (rmap : Reg)
-    (csp_e csp_b: Addr)
+    (csp_e csp_b csp_a: Addr)
     (l : list Addr)
     (stk_mem : list Word)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
@@ -64,7 +64,7 @@ Section Switcher.
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
-    ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+    ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_a
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.

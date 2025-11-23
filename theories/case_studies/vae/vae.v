@@ -38,31 +38,30 @@ Section VAE_Main.
 
   Definition VAE_main_code_f (ot_switcher : OType) : list Word :=
     (* set a := 0 *)
-    encodeInstrsW [Store cgp 0]
+    encodeInstrsW [
+        Store csp cra; (* mem[csp_b] -> return-to-switcher *)
+        Lea csp 1;
+        Mov cs1 ca0; (* cs1 -> fun_g *)
+        Store cgp 0
+      ]
     (* call g () *)
-    ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
+    ++ fetch_instrs 0 ct0 cs0 ct1 (* ct0 -> switcher entry point *)
     ++
     encodeInstrsW [
-      Mov cs0 cra; (* cs0 -> return-to-switcher *)
-      Mov cs1 ca0; (* cs1 -> fun_g *)
       Mov ct1 ca0; (* ct1 -> fun_g *)
       Mov ca0 0;
-      Jalr cra ct0 (* jmp to g *)
+      Jalr cra ct0 (* jmp to fun_g *)
     ]
     (* set a := 1 *)
-    ++ encodeInstrsW [
-      Store cgp 1;
-      Mov cra cs0; (* cra -> return_to-switcher *)
-      Mov ct1 cs1  (* ct1 -> fun_g *)
-    ]
+    ++ encodeInstrsW [Store cgp 1]
     (* call g () *)
-    ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
+    ++ fetch_instrs 0 ct0 cs0 ct1 (* ct0 -> switcher entry point *)
     ++
     encodeInstrsW [
-      Mov cs0 cra; (* cs0 -> return-to-switcher *)
       Mov ca0 0;
       Mov ca1 0;
-      Jalr cra ct0; (* jmp to arg_1 *)
+      Mov ct1 cs1; (* ct1 -> fun_g *)
+      Jalr cra ct0; (* jmp to fun_g *)
 
       (* assert (a == 1) *)
       Load ct0 cgp; (* ct0 -> a *)
@@ -72,7 +71,8 @@ Section VAE_Main.
     (* return cra *)
     ++
     encodeInstrsW [
-      Mov cra cs0; (* cra -> return_to-switcher *)
+      Lea csp (-1)%Z;
+      Load cra csp; (* cra -> return_to-switcher *)
 
       (* return a *)
       Mov ca0 0%Z;

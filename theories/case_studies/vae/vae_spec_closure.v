@@ -22,19 +22,20 @@ Section VAE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  Lemma related_pub_W0_Wfixed (W0 W3 W6 : WORLD) (csp_b csp_e : Addr) (l : list Addr) ( i : positive) :
+  Lemma related_pub_W0_Wfixed (W0 W3 W6 : WORLD) (csp_b csp_e a_stk1 : Addr) (l : list Addr) ( i : positive) :
     let W1 := revoke W0 in
     let W2 := <l[i:=false]l>W1 in
     let W4 := revoke W3 in
     let W5 := <l[i:=true]l>W4 in
     let W7 := (revoke W6) in
+    (csp_b + 1)%a = Some a_stk1 ->
     (∀ a : finz MemNum, W0.1 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
     related_sts_pub_world W2 W3 ->
     related_sts_pub_world
-      (std_update_multiple W2 (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) W3 ->
+      (std_update_multiple W2 (finz.seq_between (a_stk1 ^+ 4)%a csp_e) Temporary) W3 ->
     related_sts_pub_world W5 W6 ->
     related_sts_pub_world
-      (std_update_multiple W5 (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) W6 ->
+      (std_update_multiple W5 (finz.seq_between (a_stk1 ^+ 4)%a csp_e) Temporary) W6 ->
     Forall (λ a : finz MemNum, W6.1 !! a = Some Revoked) l ->
     Forall (λ a : finz MemNum, W6.1 !! a = Some Revoked) (finz.seq_between csp_b (csp_b ^+ 4)%a) ->
     finz.seq_between csp_b csp_e = finz.seq_between csp_b (csp_b ^+ 4)%a ++ finz.seq_between (csp_b ^+ 4)%a csp_e ->
@@ -47,7 +48,7 @@ Section VAE.
       (close_list (l ++ finz.seq_between csp_b csp_e) W7).
   Proof.
     intros W1 W2 W4 W5 W7.
-    intros Htemporaries_W0 Hrelated_pub_W2_W3 Hrelated_pub_W2ext_W3 Hrelated_pub_W5_W6 Hrelated_pub_W5ext_W6
+    intros Ha_stk1 Htemporaries_W0 Hrelated_pub_W2_W3 Hrelated_pub_W2ext_W3 Hrelated_pub_W5_W6 Hrelated_pub_W5ext_W6
       HW6_revoked_l Hrevoked_stk_l Hsplit_csp Hwrel_i Hwloc_i Hwrel_i_0 Hwloc_i_0.
 
     assert ( related_sts_priv_world W0 W6 ) as Hrelated_priv_W0_W6.
@@ -176,26 +177,26 @@ Section VAE.
         assert (std W2 !! a = Some Revoked) as Ha0_W2.
         { done. }
         assert (
-            std ((std_update_multiple W2 (finz.seq_between (csp_b ^+ 4)%a csp_e)
+            std ((std_update_multiple W2 (finz.seq_between (a_stk1 ^+ 4)%a csp_e)
                     Temporary)) !! a =
-            Some (if (decide (a ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e)))
+            Some (if (decide (a ∈ (finz.seq_between (a_stk1 ^+ 4)%a csp_e)))
                   then Temporary
                   else Revoked
           )).
         {
-          destruct (decide (a ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e))) as [Ha_in_stk | Ha_in_stk].
+          destruct (decide (a ∈ (finz.seq_between (a_stk1 ^+ 4)%a csp_e))) as [Ha_in_stk | Ha_in_stk].
           + apply std_sta_update_multiple_lookup_in_i; eauto.
           + rewrite std_sta_update_multiple_lookup_same_i; eauto.
         }
 
-        destruct (decide (a ∈ finz.seq_between (csp_b ^+ 4)%a csp_e)) as [Ha_in''|Ha_in''].
+        destruct (decide (a ∈ finz.seq_between (a_stk1 ^+ 4)%a csp_e)) as [Ha_in''|Ha_in''].
         * assert (std W3 !! a = Some Temporary) as Ha0_W3.
           { eapply region_state_pub_temp; eauto. }
           assert (std W4 !! a = Some Revoked) as Ha0_W4.
           { by apply revoke_lookup_Monotemp. }
           assert (std W5 !! a = Some Revoked) as Ha0_W5 by done.
           assert (
-              std (std_update_multiple W5 (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) !! a = Some Temporary
+              std (std_update_multiple W5 (finz.seq_between (a_stk1 ^+ 4)%a csp_e) Temporary) !! a = Some Temporary
             ) as Ha0_W5ext.
           { apply std_sta_update_multiple_lookup_in_i; eauto. }
           assert (std W6 !! a = Some Temporary) as Ha0_W6.
@@ -212,19 +213,38 @@ Section VAE.
              eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_save; eauto.
              rewrite Ha2 in Ha_in_save; simplify_eq.
              apply rtc_refl.
-          ** assert (a ∈ l) as Ha_in_l.
-             { rewrite Hsplit_csp in Ha_in.
-               rewrite elem_of_app in Ha_in.
-               destruct Ha_in; first done.
-               rewrite elem_of_app in H0.
-               destruct H0; contradiction.
-             }
-             rewrite Forall_forall in HW6_revoked_l.
-             apply HW6_revoked_l in Ha_in_l.
-             apply revoke_lookup_Revoked in Ha_in_l.
-             eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_l; eauto.
-             rewrite Ha2 in Ha_in_l; simplify_eq.
-             apply rtc_refl.
+          ** destruct (decide (a = a_stk1)) as [-> | Ha]; cycle 1.
+             *** assert (a ∈ l) as Ha_in_l.
+                 { rewrite Hsplit_csp in Ha_in.
+                   rewrite elem_of_app in Ha_in.
+                   destruct Ha_in; first done.
+                   rewrite elem_of_app in H0.
+                   destruct H0; first contradiction.
+                   rewrite not_elem_of_finz_seq_between in Ha_in''.
+                   destruct Ha_in''
+                   ; last (
+                   rewrite elem_of_finz_seq_between in H0;
+                   solve_addr+Ha H0 H1 Ha_stk1).
+                   -rewrite not_elem_of_finz_seq_between in Ha_in''.
+                   + solve_addr+Ha H0 H1 Ha_stk1.
+                   admit.
+                 }
+                 rewrite Forall_forall in HW6_revoked_l.
+                 apply HW6_revoked_l in Ha_in_l.
+                 apply revoke_lookup_Revoked in Ha_in_l.
+                 eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_l; eauto.
+                 rewrite Ha2 in Ha_in_l; simplify_eq.
+                 apply rtc_refl.
+             *** rewrite close_list_std_sta_revoked in Ha2; auto.
+                 { simplify_eq. apply rtc_refl. }
+                 apply revoke_lookup_Revoked.
+                 rewrite Forall_forall in HW6_revoked_l.
+                 apply HW6_revoked_l.
+                   in Ha_in.
+                   in Ha_in_l.
+                 eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_l; eauto.
+                 rewrite Ha2 in Ha_in_l; simplify_eq.
+                 apply rtc_refl.
   Qed.
 
   Lemma vae_awkward_spec
@@ -341,6 +361,9 @@ Section VAE.
     assert ( is_Some (rmap !! ct3) ) as [wct3 Hwct3].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
 
     (* Extract the imports *)
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
@@ -379,6 +402,31 @@ Section VAE.
     focus_block_nochangePC 4 "Hcode_main" as a_awkward Ha_awkward "Hcode" "Hcont"; iHide "Hcont" as hcont.
     replace (pc_b ^+ 24%nat)%a with a_awkward by solve_addr.
 
+    (* Store csp cra; *)
+    destruct ( decide ((csp_b < csp_e)%a) ) as [Hcsp_size|Hcsp_size]; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcra $Hcsp]"); try solve_pure.
+      { rewrite /withinBounds; solve_addr+Hcsp_size. }
+      iIntros "!> _".
+      wp_pure; wp_end; iIntros (?); done.
+    }
+    iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
+    rewrite finz_seq_between_length in Hstklen.
+    rewrite finz_dist_S in Hstklen; last solve_addr+Hcsp_size.
+    destruct stk_mem as [|w0 stk_mem]; simplify_eq.
+    assert (is_Some (csp_b + 1)%a) as [a_stk1 Hastk1];[solve_addr+Hcsp_size|].
+    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk Hstk]"; eauto.
+    { solve_addr+Hcsp_size Hastk1. }
+    iInstr "Hcode".
+    { rewrite /withinBounds; solve_addr+Hcsp_size. }
+
+    (* Lea csp 1 *)
+    iInstr "Hcode".
+    (* Mov cs1 ca0 *)
+    iInstr "Hcode".
+
     (* Store cgp 0%Z; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
@@ -402,11 +450,11 @@ Section VAE.
     (* --------------------------------------------------- *)
 
     focus_block 5 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_awkward.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hct1 $Hcode]"); eauto.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext ; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & Hcode & Himport_switcher)".
+    iNext ; iIntros "(HPC & Hct0 & Hcs0 & Hct1 & Hcode & Himport_switcher)".
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -415,9 +463,6 @@ Section VAE.
     (* --------------------------------------------------- *)
 
     (* -- separate argument registers -- *)
-    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
     assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
@@ -435,10 +480,6 @@ Section VAE.
     iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by simplify_map_eq.
 
     focus_block 6 "Hcode_main" as a_call_g1 Ha_call_g1 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_fetch1.
-    (* Mov cs0 cra *)
-    iInstr "Hcode".
-    (* Mov cs1 ca0 *)
-    iInstr "Hcode".
     (* Mov ct1 ca0 *)
     iInstr "Hcode".
     (* Mov ca0 0 *)
@@ -528,10 +569,14 @@ Section VAE.
 
     (* Prepare the closing resources for the switcher call spec *)
     iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W2 C a ∗
+        ([∗ list] a ∈ finz.seq_between a_stk1 csp_e, closing_revoked_resources W2 C a ∗
                                                     ⌜W2.1 !! a = Some Revoked⌝)
       )%I with "[Hfrm_close_W0]" as "#Hfrm_close_W2".
     {
+      rewrite (finz_seq_between_cons csp_b); last solve_addr+Hcsp_size.
+      rewrite big_sepL_cons.
+      iDestruct "Hfrm_close_W0" as "[Hfrm_close_W0_csp_b Hfrm_close_W0]".
+      replace (csp_b ^+1)%a with a_stk1 by solve_addr+Hastk1.
       iApply (big_sepL_impl with "Hfrm_close_W0").
       iModIntro; iIntros (k a Ha) "[Hclose %Hrev]".
       iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
@@ -580,9 +625,9 @@ Section VAE.
     (* 1. Close the world *)
     iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
     iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
-    iEval (rewrite <- (app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "Hr_C".
+    iEval (rewrite <- (app_nil_r (finz.seq_between (a_stk1 ^+ 4)%a csp_e))) in "Hr_C".
     iAssert (
-       [∗ list] a ; v ∈ finz.seq_between (csp_b ^+ 4)%a csp_e ; stk_mem_h, a ↦ₐ v ∗ closing_resources interp W3 C a v
+       [∗ list] a ; v ∈ finz.seq_between (a_stk1 ^+ 4)%a csp_e ; stk_mem_h, a ↦ₐ v ∗ closing_resources interp W3 C a v
       )%I with "[Hfrm_close_W3 Hstk_h]" as "Hfrm_close_W3".
     { rewrite /region_pointsto.
       iDestruct (big_sepL2_sep  with "[$Hstk_h $Hfrm_close_W3]") as "$".
@@ -604,7 +649,7 @@ Section VAE.
       eapply revoke_lookup_Monotemp.
       destruct Hl_unk as [_ Htemp]; apply Htemp.
       apply elem_of_app; right.
-      rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
+      rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha Hastk1.
     }
 
     iMod (revoked_by_separation_many with "[$Hr_C $Hsts_C $Hstk_l]")
@@ -617,7 +662,7 @@ Section VAE.
       destruct Hl_unk as [_ H_lunk].
       pose proof (H_lunk a) as [_ Ha']; apply Ha'.
       apply elem_of_app; right.
-      rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha Hcsp_bounds.
+      rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha Hcsp_bounds Hastk1.
     }
     rewrite Forall_forall in Hstk_l_revoked.
 
@@ -657,7 +702,7 @@ Section VAE.
 
     clear a_awkward.
     focus_block_nochangePC 7 "Hcode_main" as a_awkward Ha_awkward "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    replace (a_call_g1 ^+ 5)%a with a_awkward by solve_addr.
+    replace (a_call_g1 ^+ 3)%a with a_awkward by solve_addr.
 
     (* Store cgp 1%Z; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -674,11 +719,6 @@ Section VAE.
     iModIntro.
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
-
-    (* Mov cra cs0 *)
-    iInstr "Hcode".
-    (* Mov ct1 cs1 *)
-    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* --------------------------------------------------- *)
@@ -686,11 +726,11 @@ Section VAE.
     (* --------------------------------------------------- *)
 
     focus_block 8 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_awkward.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hct1 $Hcode]"); eauto.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
-    iNext ; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & Hcode & Himport_switcher)".
+    iNext ; iIntros "(HPC & Hct0 & Hcs0 & Hct1 & Hcode & Himport_switcher)".
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -782,11 +822,11 @@ Section VAE.
 
     (* Prepare the closing resources for the switcher call spec *)
     iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W5 C a ∗
+        ([∗ list] a ∈ finz.seq_between a_stk1 csp_e, closing_revoked_resources W5 C a ∗
                                                     ⌜W5.1 !! a = Some Revoked⌝)
       )%I with "[Hfrm_close_W2 Hfrm_close_W3]" as "#Hfrm_close_W5".
     { rewrite !big_sepL_sep.
-      rewrite (finz_seq_between_split csp_b (csp_b ^+ 4)%a csp_e); last solve_addr.
+      rewrite (finz_seq_between_split a_stk1 (a_stk1 ^+ 4)%a csp_e); last solve_addr.
       iDestruct "Hfrm_close_W2" as "[Hclose_W2 Hrev_W2]".
       iEval (rewrite big_sepL_app) in "Hclose_W2".
       iEval (rewrite big_sepL_app) in "Hrev_W2".
@@ -854,9 +894,9 @@ Section VAE.
     (* 1. Close the world *)
     iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
     iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
-    iEval (rewrite <- (app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "Hr_C".
+    iEval (rewrite <- (app_nil_r (finz.seq_between (a_stk1 ^+ 4)%a csp_e))) in "Hr_C".
     iAssert (
-       [∗ list] a ; v ∈ finz.seq_between (csp_b ^+ 4)%a csp_e ; stk_mem_h, a ↦ₐ v ∗ closing_resources interp W6 C a v
+       [∗ list] a ; v ∈ finz.seq_between (a_stk1 ^+ 4)%a csp_e ; stk_mem_h, a ↦ₐ v ∗ closing_resources interp W6 C a v
       )%I with "[Hfrm_close_W6 Hstk_h]" as "Hfrm_close_W6".
     { rewrite /region_pointsto.
       iDestruct (big_sepL2_sep  with "[$Hstk_h $Hfrm_close_W6]") as "$".
@@ -868,16 +908,16 @@ Section VAE.
     { done. }
     rewrite -region_open_nil.
 
-    iAssert ( ⌜ Forall (λ k : finz MemNum, W5.1 !! k = Some Revoked) (finz.seq_between (csp_b ^+ 4)%a csp_e) ⌝)%I
+    iAssert ( ⌜ Forall (λ k : finz MemNum, W5.1 !! k = Some Revoked) (finz.seq_between (a_stk1 ^+ 4)%a csp_e) ⌝)%I
       as "%Hrevoked_stk_W5".
     { iClear "∗".
       iDestruct (big_sepL_sep with "Hfrm_close_W5") as "[_ %]".
       iPureIntro.
       apply Forall_forall.
       intros x Hx.
-      assert (x ∈ finz.seq_between csp_b csp_e) as Hx'.
+      assert (x ∈ finz.seq_between a_stk1 csp_e) as Hx'.
       {
-        rewrite (finz_seq_between_split csp_b (csp_b ^+ 4)%a csp_e); last solve_addr.
+        rewrite (finz_seq_between_split a_stk1 (a_stk1 ^+ 4)%a csp_e); last solve_addr.
         rewrite elem_of_app; by right.
       }
       apply elem_of_list_lookup in Hx' as [k Hk].
@@ -921,7 +961,7 @@ Section VAE.
       apply Hdom.
       subst W1.
       rewrite elem_of_dom.
-      assert (x ∈ finz.seq_between csp_b csp_e) as Hx'.
+      assert (x ∈ finz.seq_between a_stk1 csp_e) as Hx'.
       { rewrite !elem_of_finz_seq_between in Hx |- *.
         solve_addr+Hcsp_bounds Hx.
       }
@@ -1018,8 +1058,12 @@ Section VAE.
     (* ----------------- BLOCK 5: RETURN ----------------- *)
     (* --------------------------------------------------- *)
     focus_block 11 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    (* Mov cra cs0; *)
+    (* Lea csp (-1); *)
     iInstr "Hcode".
+    { transitivity (Some csp_b); solve_addr+Hcsp_size Hastk1. }
+    (* Load cra csp; *)
+    iInstr "Hcode".
+    { rewrite /withinBounds; split; auto; solve_addr+Hcsp_size. }
     (* Mov ca0 0%Z; *)
     iInstr "Hcode".
     (* Mov ca1 0%Z; *)
@@ -1047,6 +1091,9 @@ Section VAE.
     iDestruct (big_sepM_insert _ _ cra with "[$Hrmap $Hcra]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
 
+    iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk".
+    { solve_addr+Hastk1. }
+    { solve_addr+Hastk1 Hcsp_size. }
     iApply (switcher_ret_specification _ W0 W7
              with
              "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
