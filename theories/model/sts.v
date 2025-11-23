@@ -25,10 +25,10 @@ Definition STS_std_states (A B : Type) {eqD: EqDecision A} {count: Countable A} 
 
 Definition sts_stateUR := authUR (gmapUR positive (exclR (leibnizO positive))).
 Definition sts_relUR :=
-  authUR (gmapUR positive (agreeR (leibnizO ((positive → positive → Prop) * (positive → positive → Prop) * (positive → positive → Prop))))).
+  authUR (gmapUR positive (agreeR (leibnizO ((positive → positive → Prop) * (positive → positive → Prop) )))).
 
 Notation STS_states := (gmap positive positive).
-Notation STS_rels := (gmap positive ((positive → positive → Prop) * (positive → positive → Prop) * (positive → positive → Prop ))).
+Notation STS_rels := (gmap positive ((positive → positive → Prop) * (positive → positive → Prop))).
 
 (** Standard STS. *)
 (** The Standard STS is made up of three relations *)
@@ -98,8 +98,8 @@ Section definitionsS.
   Definition convert_rel {D : Type} `{Countable D} (R : D → D → Prop) : positive → positive → Prop :=
     λ x y, ∃ a b, x = encode a ∧ y = encode b ∧ R a b.
 
-  Definition sts_rel_loc (C : CmptName) (i : positive) (R P Q : D → D → Prop) : iProp Σ :=
-    own (γr_loc C) (◯ {[ i := to_agree ((convert_rel R,convert_rel P,convert_rel Q)) ]}).
+  Definition sts_rel_loc (C : CmptName) (i : positive) (rpub rpriv : D → D → Prop) : iProp Σ :=
+    own (γr_loc C) (◯ {[ i := to_agree ((convert_rel rpub,convert_rel rpriv)) ]}).
 
   Definition sts_full C (fs : STS_states) (fr : STS_rels) : iProp Σ
     := (own (A := sts_stateUR) (γs_loc C) (● (Excl <$> fs))
@@ -126,19 +126,16 @@ Section definitionsS.
   Definition related_sts_pub (fs gs : STS_states) (fr gr : STS_rels) : Prop :=
     dom fs ⊆ dom gs ∧
     dom fr ⊆ dom gr ∧
-    ∀ i (r1 r2 r1' r2' r3 r3' : positive → positive → Prop), fr !! i = Some (r1,r2,r3) → gr !! i = Some (r1',r2',r3') →
-                       r1 = r1' ∧ r2 = r2' ∧ r3 = r3' ∧
-                       (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc r1 x y)).
+    ∀ i (rpub rpriv rpub' rpriv' : positive → positive → Prop), fr !! i = Some (rpub,rpriv) → gr !! i = Some (rpub',rpriv') →
+                       rpub = rpub' ∧ rpriv = rpriv' ∧
+                       (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc rpub x y)).
 
   Definition related_sts_priv (fs gs : STS_states) (fr gr : STS_rels) : Prop :=
     dom fs ⊆ dom gs ∧
     dom fr ⊆ dom gr ∧
-    ∀ i (r1 r2 r1' r2' r3 r3' : positive → positive → Prop), fr !! i = Some (r1,r2,r3) → gr !! i = Some (r1',r2',r3') →
-                       r1 = r1' ∧ r2 = r2' ∧ r3 = r3' ∧
-                       (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc (λ x y, (r1 x y ∨ r2 x y ∨ r3 x y)) x y)).
-
-  (* Definition related_tframe_pub (fd gd : nat) : Prop := fd = gd. *)
-  (* Definition related_tframe_priv (ds dr : nat) : Prop := True. *)
+    ∀ i (rpub rpriv rpub' rpriv' : positive → positive → Prop), fr !! i = Some (rpub,rpriv) → gr !! i = Some (rpub',rpriv') →
+                       rpub = rpub' ∧ rpriv = rpriv' ∧
+                       (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc (λ x y, (rpub x y ∨ rpriv x y)) x y)).
 
   (* Future world relations are only defined when both world have C *)
   Definition related_sts_pub_world (W W' : WORLD) :=
@@ -146,12 +143,11 @@ Section definitionsS.
   Definition related_sts_priv_world (W W' : WORLD) :=
     related_sts_std_priv (std W) (std W') ∧
     related_sts_priv (loc W) (loc W') (wrel W) (wrel W').
-  (* Nothing for tframe, because it's always related *)
 
-  Global Instance sts_rel_loc_Persistent C i R P Q : Persistent (sts_rel_loc C i R P Q).
+  Global Instance sts_rel_loc_Persistent C i rpub rpriv : Persistent (sts_rel_loc C i rpub rpriv).
   Proof. apply _. Qed.
 
-  Global Instance sts_rel_loc_Timeless C i R P Q : Timeless (sts_rel_loc C i R P Q).
+  Global Instance sts_rel_loc_Timeless C i rpub rpriv : Timeless (sts_rel_loc C i rpub rpriv).
   Proof. apply _. Qed.
 
   Global Instance sts_state_std_Timeless C i x : Timeless (sts_state_std C i x).
@@ -292,7 +288,7 @@ Section STS.
   Implicit Types fr_pub fr_priv gr_pub gr_priv : STS_rels.
   Implicit Types fd gd : nat.
   Implicit Types R : E → E → Prop.
-  Implicit Types Q : D → D → Prop.
+  Implicit Types rpub rpriv Q : D → D → Prop.
   Implicit Types Rp : positive → positive → Prop.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
@@ -306,7 +302,7 @@ Section STS.
   Proof.
     split; [|split]; trivial.
     intros; simplify_eq.
-    split; [|split]; [..|split]; trivial.
+    split; [|split]; trivial.
     intros; simplify_eq; eauto using rtc_refl.
   Qed.
 
@@ -314,7 +310,7 @@ Section STS.
   Proof.
     split; [|split]; trivial.
     intros; simplify_eq.
-    split; [|split]; [..|split]; trivial.
+    split; [|split]; trivial.
     intros; simplify_eq;
     eauto using rtc_refl.
   Qed.
@@ -343,11 +339,11 @@ Section STS.
   Proof.
     rewrite /related_sts_pub /related_sts_priv.
     intros [Hf1 [Hf2 Hf3]].
-    do 2 (split; auto). intros i r1 r2 r1' r2' r3 r3' H H0.
-    specialize (Hf3 i r1 r2 r1' r2' r3 r3' H H0) as (Hr1 & Hr2 & Hr3 & Hrtc); auto.
+    do 2 (split; auto). intros i rpub rpriv rpub' rpriv' H H0.
+    specialize (Hf3 i rpub rpriv rpub' rpriv' H H0) as (Hrpub & Hrpriv & Hrtc); auto.
     subst. repeat (split;auto).
-    intros x y H1 H2.
-    specialize (Hrtc x y H1 H2).
+    intros x y Hpub Hpriv.
+    specialize (Hrtc x y Hpub Hpriv).
     inversion Hrtc as [| x0 y0 r Hr Hrtc'].
     - left.
     - right with y0; auto; simplify_eq; apply rtc_or_intro; apply Hrtc'.
@@ -382,12 +378,12 @@ Section STS.
     related_sts_pub fs hs fr hr.
   Proof.
     intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans.
-    intros i r1 r2 r1' r2' r3 r3' Hfr Hhr.
+    intros i rpub rpriv rpub' rpriv' Hfr Hhr.
     specialize (Hf1 i); specialize (Hf2 i)
     ; revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
-    destruct Hf2 as [[[x1 x2] x3] Hrtc2] ; eauto.
-    edestruct Hf3 as [Heq1 [Heq2 [Heq3 Hrtc3]] ] ; eauto; simplify_eq.
-    edestruct Hg3 as [Heq1 [Heq2 [Heq3 Hrtc4]] ] ; eauto; simplify_eq.
+    destruct Hf2 as [[x1 x2] Hrtc2] ; eauto.
+    edestruct Hf3 as [Heq1 [Heq2 Hrtc3] ] ; eauto; simplify_eq.
+    edestruct Hg3 as [Heq1 [Heq2 Hrtc4] ] ; eauto; simplify_eq.
     repeat (split;auto).
     intros x y Hx Hy.
     destruct Hf1;eauto.
@@ -412,11 +408,11 @@ Section STS.
     related_sts_priv fs hs fr hr.
   Proof.
     intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans.
-    intros i r1 r2 r1' r2' r3 r3' Hfr Hhr.
+    intros i rpub rpriv rpub' rpriv' Hfr Hhr.
     specialize (Hf1 i); specialize (Hf2 i); revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
-    destruct Hf2 as [[[x1 x2] x3] Hrtc2] ; eauto.
-    edestruct Hf3 as [Heq1 [Heq2 [Heq3 Hrtc3]] ] ; eauto; simplify_eq.
-    edestruct Hg3 as [Heq1 [Heq2 [Heq3 Hrtc4]] ] ; eauto; simplify_eq.
+    destruct Hf2 as [[x1 x2] Hrtc2] ; eauto.
+    edestruct Hf3 as [Heq1 [Heq2 Hrtc3] ] ; eauto; simplify_eq.
+    edestruct Hg3 as [Heq1 [Heq2 Hrtc4] ] ; eauto; simplify_eq.
     repeat (split;auto).
     intros x y Hx Hy.
     destruct Hf1;eauto.
@@ -457,12 +453,12 @@ Section STS.
     related_sts_priv fs hs fr hr.
   Proof.
     intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans.
-    intros i r1 r2 r1' r2' r3 r3' Hfr Hhr.
-    specialize (Hf1 i); specialize (Hf2 i);
-      revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
-    destruct Hf2 as [[[x1 x2] x3] Hrtc2] ; eauto.
-    edestruct Hf3 as [Heq1 [Heq2 [Heq3 Hrtc]] ] ; eauto; simplify_eq.
-    edestruct Hg3 as [Heq1 [Heq2 [Heq3 Hrtc']] ] ; eauto; simplify_eq.
+    intros i rpub rpriv rpub' rpriv' Hfr Hhr.
+    specialize (Hf1 i); specialize (Hf2 i)
+    ; revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
+    destruct Hf2 as [[x1 x2] Hrtc2] ; eauto.
+    edestruct Hf3 as [Heq1 [Heq2 Hrtc3] ] ; eauto; simplify_eq.
+    edestruct Hg3 as [Heq1 [Heq2 Hrtc4] ] ; eauto; simplify_eq.
     repeat (split;auto).
     intros x y Hx Hy.
     destruct Hf1;eauto.
@@ -504,12 +500,12 @@ Section STS.
     related_sts_priv fs hs fr hr.
   Proof.
     intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans.
-    intros i r1 r2 r1' r2' r3 r3' Hfr Hhr.
-    specialize (Hf1 i); specialize (Hf2 i);
-      revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
-    destruct Hf2 as [[[x1 x2] x3] Hrtc2] ; eauto.
-    edestruct Hf3 as [Heq1 [Heq2 [Heq3 Hrtc]] ] ; eauto; simplify_eq.
-    edestruct Hg3 as [Heq1 [Heq2 [Heq3 Hrtc']] ] ; eauto; simplify_eq.
+    intros i rpub rpriv rpub' rpriv' Hfr Hhr.
+    specialize (Hf1 i); specialize (Hf2 i)
+    ; revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
+    destruct Hf2 as [[x1 x2] Hrtc2] ; eauto.
+    edestruct Hf3 as [Heq1 [Heq2 Hrtc3] ] ; eauto; simplify_eq.
+    edestruct Hg3 as [Heq1 [Heq2 Hrtc4] ] ; eauto; simplify_eq.
     repeat (split;auto).
     intros x y Hx Hy.
     destruct Hf1;eauto.
@@ -625,10 +621,10 @@ Section STS.
       + intros ; set_solver.
   Qed.
 
-  Lemma sts_full_rel_loc W C i Q Q' P :
+  Lemma sts_full_rel_loc W C i rpub rpriv:
     sts_full_world W C
-    -∗ sts_rel_loc C (A:=A) i Q Q' P
-    -∗ ⌜ wrel W !! i = Some (convert_rel Q,convert_rel Q',convert_rel P)⌝.
+    -∗ sts_rel_loc C (A:=A) i rpub rpriv
+    -∗ ⌜ wrel W !! i = Some (convert_rel rpub,convert_rel rpriv)⌝.
   Proof.
     rewrite /sts_rel_loc /sts_full_world /sts_full.
     destruct W as [Wstd [fs fr]].
@@ -706,14 +702,14 @@ Section STS.
   Definition std_update (W : WORLD) (a : A) (b : B) : WORLD :=
     (<[ a := b]>(std W), cus W).
   Definition loc_alloc (W : WORLD) (i : positive) (d : D)
-    (r1 r2 r3 : D → D -> Prop) : WORLD :=
+    (rpub rpriv : D → D -> Prop) : WORLD :=
     (std W,(<[ i := encode d]>(loc W),
-              <[ i := (convert_rel r1,convert_rel r2,convert_rel r3)]>(wrel W))).
+              <[ i := (convert_rel rpub,convert_rel rpriv)]>(wrel W))).
   Definition loc_update (W : WORLD) (i : positive) (d : D) :=
     (std W, ( (<[i := encode d ]>(loc W)), wrel W)).
 
   Notation "<s[ a := ρ ]s> W" := (std_update W a ρ) (at level 10, format "<s[ a := ρ ]s> W").
-  Notation "<l[ a := ρ , r ]l> W" := (loc_alloc W a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ a := ρ , r ]l> W").
+  Notation "<l[ a := ρ , r ]l> W" := (loc_alloc W a ρ r.1 r.2) (at level 10, format "<l[ a := ρ , r ]l> W").
   Notation "<l[ a := ρ ]l> W" := (loc_update W a ρ) (at level 10, format "<l[ a := ρ ]l> W").
 
   Definition delete_std (W : WORLD) a : WORLD := (delete a (std W), cus W).
@@ -773,12 +769,12 @@ Section STS.
     set_solver.
   Qed.
 
-  Lemma sts_alloc_loc W C (d : D) (P Q R : D → D → Prop):
+  Lemma sts_alloc_loc W C (d : D) (rpub rpriv : D → D → Prop):
     let i := fresh_cus_name W in
     sts_full_world W C ==∗
-    sts_full_world (<l[ i := d , (P,(Q,R)) ]l> W) C
+    sts_full_world (<l[ i := d , (rpub,rpriv) ]l> W) C
     ∗ ⌜i ∉ dom (loc W)⌝ ∗ ⌜i ∉ dom (wrel W)⌝
-    ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i P Q R.
+    ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i rpub rpriv.
   Proof.
     rewrite /sts_full_world /sts_full /sts_rel_loc /sts_state_loc /loc_alloc.
     destruct W as [Wstd [fs fr]].
@@ -803,8 +799,8 @@ Section STS.
             (A := sts_relUR)
             _ _
             (● (to_agree <$>
-                <[fresh (dom fs ∪ dom fr) := (convert_rel P,convert_rel Q,convert_rel R)]> fr)
-             ⋅ ◯ {[fresh (dom fs ∪ dom fr) := to_agree (convert_rel P,convert_rel Q,convert_rel R)]})
+                <[fresh (dom fs ∪ dom fr) := (convert_rel rpub,convert_rel rpriv)]> fr)
+             ⋅ ◯ {[fresh (dom fs ∪ dom fr) := to_agree (convert_rel rpub,convert_rel rpriv)]})
            with "H2") as "[H2 Hr]".
     { apply auth_update_alloc.
       rewrite fmap_insert /=.
@@ -817,11 +813,11 @@ Section STS.
     repeat iSplit; auto.
   Qed.
 
-  Lemma sts_alloc_loc_alt W C (d : D) (P Q R : D → D → Prop):
+  Lemma sts_alloc_loc_alt W C (d : D) (rpub rpriv : D → D → Prop):
     sts_full_world W C ==∗
-    ∃ i, sts_full_world (<l[ i := d , (P,(Q,R)) ]l> W) C
+    ∃ i, sts_full_world (<l[ i := d , (rpub,rpriv) ]l> W) C
          ∗ ⌜i ∉ dom (loc W)⌝ ∗ ⌜i ∉ dom (wrel W)⌝
-         ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i P Q R.
+         ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i rpub rpriv.
   Proof.
     iIntros "Hstd".
     iMod (sts_alloc_loc with "Hstd") as "Hstd".
@@ -926,7 +922,7 @@ Section STS.
     - apply dom_insert_subseteq.
     - apply not_elem_of_dom in Hdom_sta.
        apply not_elem_of_dom in Hdom_rel.
-       intros j r1 r2 r1' r2' r3 r3' Hr Hr'.
+       intros j rpub rpriv rpub' rpriv' Hr Hr'.
        destruct (decide (j = i)).
       + subst. rewrite Hr in Hdom_rel. done.
       + rewrite lookup_insert_ne in Hr'; auto.
@@ -938,10 +934,10 @@ Section STS.
         left.
   Qed.
 
-  Lemma related_sts_pub_world_fresh_loc W (i x : positive) r1 r2 :
+  Lemma related_sts_pub_world_fresh_loc W (i x : positive) (rpub rpriv : positive -> positive -> Prop) :
     i ∉ dom (loc W) →
     i ∉ dom (wrel W) →
-    related_sts_pub_world W (std W,(<[i:=x]> (loc W), <[i:= (r1,r2)]> (wrel W))).
+    related_sts_pub_world W (std W,(<[i:=x]> (loc W), <[i:= (rpub,rpriv)]> (wrel W))).
   Proof.
     intros Hdom_sta Hdom_rel.
     rewrite /related_sts_pub_world /=.
@@ -951,7 +947,7 @@ Section STS.
     - rewrite dom_insert_L. set_solver.
     - apply (not_elem_of_dom (D:=gset positive) (loc W) i) in Hdom_sta.
       apply (not_elem_of_dom (D:=gset positive) (wrel W) i) in Hdom_rel.
-      intros j r1' r2' r1'' r2'' r3' r3''  Hr' Hr''.
+      intros j rpub' rpriv' rpub'' rpriv'' Hr' Hr''.
       destruct (decide (j = i)).
       + subst. rewrite Hdom_rel in Hr'. inversion Hr'.
       + simplify_map_eq. repeat split;auto.
@@ -960,7 +956,7 @@ Section STS.
 
 
   Lemma related_sts_priv_rel
-    (W1 W2 : WORLD) (ι : positive) (R : (positive → positive → Prop) * (positive → positive → Prop) * (positive → positive → Prop)) :
+    (W1 W2 : WORLD) (ι : positive) (R : (positive → positive → Prop) * (positive → positive → Prop) ) :
     related_sts_priv_world W1 W2 ->
     (wrel W1) !! ι = Some R ->
     (wrel W2) !! ι = Some R.
@@ -972,12 +968,12 @@ Section STS.
     assert ( ι ∈ dom W1rel ) as Hι by (by rewrite elem_of_dom).
     apply Hdom in Hι.
     rewrite elem_of_dom in Hι ; destruct Hι as [R' HW2].
-    destruct R as [ [r1 r2] r3], R' as [ [r1' r2'] r3'].
-    specialize (Hrelated_rel ι _ _ _ _ _ _ HW1 HW2).
-    by destruct Hrelated_rel as ( -> & -> & -> & _ ).
+    destruct R as [r1 r2], R' as [r1' r2'].
+    specialize (Hrelated_rel ι _ _ _ _ HW1 HW2).
+    by destruct Hrelated_rel as ( -> & -> & _ ).
   Qed.
 
-  Lemma related_sts_pub_rel (W1 W2 : WORLD) (ι : positive) (R : (positive → positive → Prop) * (positive → positive → Prop) * (positive → positive → Prop)) :
+  Lemma related_sts_pub_rel (W1 W2 : WORLD) (ι : positive) (R : (positive → positive → Prop) * (positive → positive → Prop) ) :
     related_sts_pub_world W1 W2 ->
     (wrel W1) !! ι = Some R ->
     (wrel W2) !! ι = Some R.
@@ -989,17 +985,17 @@ Section STS.
 
   Lemma related_sts_priv_world_loc_update
     (W : WORLD) (i : positive) (d d' : D)
-    (r1 r2 r3 : positive -> positive -> Prop)
+    (rpub rpriv : positive -> positive -> Prop)
     :
     loc W !! i = Some (encode d) ->
-    wrel W !! i = Some (r1,r2,r3) ->
-    (r1 (encode d) (encode d') ∨ r2 (encode d) (encode d') ∨ r3 (encode d) (encode d')) ->
+    wrel W !! i = Some (rpub,rpriv) ->
+    (rpub (encode d) (encode d') ∨ rpriv (encode d) (encode d')) ->
     related_sts_priv_world W (<l[i:=d']l>W).
   Proof.
     intros Hloc Hrel Hr.
     split; first apply related_sts_std_priv_refl.
     split;[set_solver+|split;[set_solver+|] ].
-    intros ?????????; cbn in *; simplify_eq.
+    intros ???????; cbn in *; simplify_eq.
     repeat (split;first done).
     intros ????; cbn in *; simplify_eq.
     destruct (decide (i = i0)); simplify_map_eq.
@@ -1007,9 +1003,8 @@ Section STS.
     - by apply rtc_refl.
   Qed.
 
-
 End STS.
 
 Notation "<s[ a := ρ ]s> W" := (std_update W a ρ) (at level 10, format "<s[ a := ρ ]s> W").
-Notation "<l[ a := ρ , r ]l> W" := (loc_alloc W a ρ r.1 r.2.1 r.2.2) (at level 10, format "<l[ a := ρ , r ]l> W").
+Notation "<l[ a := ρ , r ]l> W" := (loc_alloc W a ρ r.1 r.2) (at level 10, format "<l[ a := ρ , r ]l> W").
 Notation "<l[ a := ρ ]l> W" := (loc_update W a ρ) (at level 10, format "<l[ a := ρ ]l> W").
