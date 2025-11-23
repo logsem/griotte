@@ -12,7 +12,7 @@ Section VAE_Main.
 
     init:
       set a := 0
-      call B.adv VAE.akward
+      call B.adv
       halt
 
     awkward:
@@ -28,7 +28,6 @@ Section VAE_Main.
     (* set a := 0 *)
     encodeInstrsW [Store cgp 0]
     (* call B.adv VAE.awkward *)
-    ++ fetch_instrs 3 ca0 cs0 cs1 (* ca0 -> VAE_awkward entry point *)
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
     ++ fetch_instrs 2 ct1 cs0 cs1 (* ct1 -> {B.f}_(ot_switcher)  *)
     ++
@@ -94,28 +93,26 @@ Section VAE_Main.
     (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
     (b_assert e_assert : Addr)
     (B_adv : Sealable)
-    (b_vae_exp_tbl e_vae_exp_tbl a_vae_exp_tbl_awkward : Addr)
     : list Word :=
     [
       WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
       WSentry RX Global b_assert e_assert b_assert;
-      WSealed ot_switcher B_adv;
-      WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl a_vae_exp_tbl_awkward)
+      WSealed ot_switcher B_adv
     ].
 
-  Definition vae_export_table_entries
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
-    (b_assert e_assert : Addr)
-    (B_adv : Sealable)
-    (b_vae_exp_tbl e_vae_exp_tbl a_vae_exp_tbl_awkward : Addr)
-    : list Word :=
-    [WInt (switcher.encode_entry_point 1
-             (length ((
-                    vae_main_imports
-                      b_switcher e_switcher a_cc_switcher ot_switcher
-                      b_assert e_assert B_adv
-                      b_vae_exp_tbl e_vae_exp_tbl a_vae_exp_tbl_awkward
-                  ) ++ VAE_main_code_init)))
-    ].
+  Definition length_vae_main_imports :=
+    length
+      (vae_main_imports za za za za_ot za za (SCap RO Global za za za)).
+
+  Definition vae_exp_tbl_entry_awkward :=
+    WInt (switcher.encode_entry_point 0
+            (length_vae_main_imports + (length VAE_main_code_init))).
+
+  Definition vae_entry_awkward_sb
+    b_vae_exp_tbl e_vae_exp_tbl : Sealable :=
+      SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+2)%a.
+
+  Definition vae_export_table_entries : list Word :=
+    [ vae_exp_tbl_entry_awkward ].
 
 End VAE_Main.
