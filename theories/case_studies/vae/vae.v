@@ -43,25 +43,23 @@ Section VAE_Main.
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
     ++
     encodeInstrsW [
-      Mov cs0 cra; (* stores return-to-switcher *)
-      Mov cs1 ca0; (* stores arg_1 *)
-      Mov ct1 ca0; (* place the arg_1 in ct1 *)
+      Mov cs0 cra; (* cs0 -> return-to-switcher *)
+      Mov cs1 ca0; (* cs1 -> fun_g *)
+      Mov ct1 ca0; (* ct1 -> fun_g *)
       Mov ca0 0;
-      Mov ca1 0;
-      Mov ca2 0;
-      Mov ca3 0;
-      Mov ca4 0;
-      Mov ca5 0;
-      Jalr cra ct0 (* jmp to arg_1 *)
+      Jalr cra ct0 (* jmp to g *)
     ]
     (* set a := 1 *)
-    ++ encodeInstrsW [Store cgp 1; Mov cra cs0; Mov ca0 cs1]
+    ++ encodeInstrsW [
+      Store cgp 1;
+      Mov cra cs0; (* cra -> return_to-switcher *)
+      Mov ct1 cs1  (* ct1 -> fun_g *)
+    ]
     (* call g () *)
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
     ++
     encodeInstrsW [
-      Mov cs0 cra; (* stores return-to-switcher *)
-      Mov ct1 ca0; (* stores arg_1 *)
+      Mov cs0 cra; (* cs0 -> return-to-switcher *)
       Mov ca0 0;
       Mov ca1 0;
       Jalr cra ct0; (* jmp to arg_1 *)
@@ -74,13 +72,11 @@ Section VAE_Main.
     (* return cra *)
     ++
     encodeInstrsW [
-      Mov cra cs0; (* restores the return-to-switcher *)
+      Mov cra cs0; (* cra -> return_to-switcher *)
 
       (* return a *)
       Mov ca0 0%Z;
       Mov ca1 0%Z;
-      Mov cs0 0%Z;
-      Mov cs1 0%Z;
       JmpCap cra
     ].
 
@@ -105,7 +101,7 @@ Section VAE_Main.
       (vae_main_imports za za za za_ot za za (SCap RO Global za za za)).
 
   Definition vae_exp_tbl_entry_awkward :=
-    WInt (switcher.encode_entry_point 0
+    WInt (switcher.encode_entry_point 1
             (length_vae_main_imports + (length VAE_main_code_init))).
 
   Definition vae_entry_awkward_sb

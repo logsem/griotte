@@ -268,9 +268,9 @@ Section VAE.
     ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
-        ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (switcher.encode_entry_point 0 (length (imports ++ VAE_main_code_init))))
+        ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (switcher.encode_entry_point 1 (length (imports ++ VAE_main_code_init))))
     ∗ WSealed ot_switcher (SCap RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
-        ↦□ₑ 0
+        ↦□ₑ 1
     ∗ seal_pred ot_switcher ot_switcher_propC
     (* invariant for d *)
     ∗ (∃ ι, inv ι (awk_inv C i cgp_b))
@@ -289,7 +289,7 @@ Section VAE.
       & #Hentry_VAE & #Hot_switcher
       & [%awkN #HawkN] & #Hsts_rel)".
     iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl, (b_vae_exp_tbl ^+ 2)%a,
-    pc_b, pc_e, cgp_b, cgp_e, 0, _, VAEN.
+    pc_b, pc_e, cgp_b, cgp_e, 1, _, VAEN.
     iFrame "#".
     iSplit; first done.
     iSplit; first solve_addr.
@@ -298,7 +298,8 @@ Section VAE.
     iSplit; first (iPureIntro; lia).
     iIntros "!> %rmap %cstk %Ws %Cs %W0 %Hpriv_W_W0 !> %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
-    iDestruct "Hregister_state" as "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap)".
+    iDestruct "Hregister_state" as
+      "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
     rewrite /registers_pointsto.
     iDestruct (sts_full_rel_loc  with "Hsts_C Hsts_rel") as "%Hwrel_i_W0".
@@ -325,9 +326,6 @@ Section VAE.
     assert ( is_Some (rmap !! ct0) ) as [wct0 Hwct0].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
     assert ( is_Some (rmap !! cs0) ) as [wcs0 Hwcs0].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
@@ -417,6 +415,9 @@ Section VAE.
     (* --------------------------------------------------- *)
 
     (* -- separate argument registers -- *)
+    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
     assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
@@ -442,26 +443,16 @@ Section VAE.
     iInstr "Hcode".
     (* Mov ca0 0 *)
     iInstr "Hcode".
-    (* Mov ca1 0 *)
-    iInstr "Hcode".
-    (* Mov ca2 0 *)
-    iInstr "Hcode".
-    (* Mov ca3 0 *)
-    iInstr "Hcode".
-    (* Mov ca4 0 *)
-    iInstr "Hcode".
-    (* Mov ca5 0 *)
-    iInstr "Hcode".
     (* Jalr cra ct0 *)
     iInstr "Hcode".
 
     set ( rmap_arg :=
            {[ ca0 := WInt 0;
-              ca1 := WInt 0;
-              ca2 := WInt 0;
-              ca3 := WInt 0;
-              ca4 := WInt 0;
-              ca5 := WInt 0;
+              ca1 := wca1;
+              ca2 := wca2;
+              ca3 := wca3;
+              ca4 := wca4;
+              ca5 := wca5;
               ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
@@ -503,6 +494,26 @@ Section VAE.
       iApply (interp_monotone_sd W0 W2); eauto.
       iApply "Hinterp_rmap"; eauto.
       iPureIntro ; set_solver.
+    }
+    iAssert ( ⌜ wca1 = WInt 0 ⌝ )%I as "->".
+    { iApply "Hzeroed_rmap"; eauto.
+      set_solver+.
+    }
+    iAssert ( ⌜ wca2 = WInt 0 ⌝ )%I as "->".
+    { iApply "Hzeroed_rmap"; eauto.
+      set_solver+.
+    }
+    iAssert ( ⌜ wca3 = WInt 0 ⌝ )%I as "->".
+    { iApply "Hzeroed_rmap"; eauto.
+      set_solver+.
+    }
+    iAssert ( ⌜ wca4 = WInt 0 ⌝ )%I as "->".
+    { iApply "Hzeroed_rmap"; eauto.
+      set_solver+.
+    }
+    iAssert ( ⌜ wca5 = WInt 0 ⌝ )%I as "->".
+    { iApply "Hzeroed_rmap"; eauto.
+      set_solver+.
     }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg , rarg ↦ᵣ warg ∗ interp W2 C warg)%I
@@ -551,8 +562,7 @@ Section VAE.
     }
     { by rewrite /is_arg_rmap. }
 
-    iClear "Hinterp_rmap".
-    clear dependent wca1 wca2 wca3 wca4 wca5.
+    iClear "Hinterp_rmap Hzeroed_rmap".
     clear dependent wct1 wct0 wct2 wct3 wcs0 wcs1 rmap.
     iNext.
     (* subst rmap'; clear stk_mem. *)
@@ -647,9 +657,9 @@ Section VAE.
 
     clear a_awkward.
     focus_block_nochangePC 7 "Hcode_main" as a_awkward Ha_awkward "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    replace (a_call_g1 ^+ 10)%a with a_awkward by solve_addr.
+    replace (a_call_g1 ^+ 5)%a with a_awkward by solve_addr.
 
-    (* Store cgp 0%Z;8*)
+    (* Store cgp 1%Z; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iMod (inv_acc with "HawkN") as "(>(%b' & Hst_i & Hcgp_b) & Hclose_awk)"; auto.
@@ -665,7 +675,9 @@ Section VAE.
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
 
+    (* Mov cra cs0 *)
     iInstr "Hcode".
+    (* Mov ct1 cs1 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -685,8 +697,6 @@ Section VAE.
     focus_block 9 "Hcode_main" as a_call_g2 Ha_call_g2 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_fetch2.
     (* Mov cs0 cra *)
-    iInstr "Hcode".
-    (* Mov cs1 ca0 *)
     iInstr "Hcode".
     (* Mov ca0 0 *)
     iInstr "Hcode".
@@ -1005,19 +1015,16 @@ Section VAE.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* --------------------------------------------------- *)
-    (* ------------------ BLOCK 5: HALT ------------------ *)
+    (* ----------------- BLOCK 5: RETURN ----------------- *)
     (* --------------------------------------------------- *)
     focus_block 11 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Mov cra cs0; *)
+    iInstr "Hcode".
     (* Mov ca0 0%Z; *)
     iInstr "Hcode".
     (* Mov ca1 0%Z; *)
     iInstr "Hcode".
-    (* Mov cs0 0%Z; *)
-    iInstr "Hcode".
-    (* Mov cs1 0%Z; *)
-    iInstr "Hcode".
     (* JmpCap cra *)
-    iInstr "Hcode".
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -1099,11 +1106,11 @@ Section VAE.
     ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
-        ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (switcher.encode_entry_point 0 (length (imports ++ VAE_main_code_init))))
+        ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (switcher.encode_entry_point 1 (length (imports ++ VAE_main_code_init))))
     ∗ WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
-        ↦□ₑ 0
+        ↦□ₑ 1
     ∗ WSealed ot_switcher (SCap RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
-        ↦□ₑ 0
+        ↦□ₑ 1
     ∗ seal_pred ot_switcher ot_switcher_propC
     ∗ (∃ ι, inv ι (awk_inv C i cgp_b))
     ∗ sts_rel_loc (A:=Addr) C i awk_rel_pub awk_rel_priv

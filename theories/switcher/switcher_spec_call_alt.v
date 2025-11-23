@@ -675,18 +675,41 @@ Section Switcher.
     - replace a_stk4 with (a_stk^+4)%a by solve_addr+Hastk.
       iApply (interp_lea with "Hstk4v"); first done.
     - iIntros (r v Hr Hv).
+      assert (r ∉ ({[ PC ; cgp ; cra ; csp ]} : gset RegName)) as Hr'.
+      {
+        clear -Hr.
+        do 8 (destruct nargs; first set_solver).
+        induction nargs.
+        + set_solver+Hr.
+        + apply IHnargs; set_solver+Hr.
+      }
+      repeat (rewrite lookup_insert_ne in Hv;[|set_solver+Hr Hr']).
+      apply lookup_union_Some in Hv.
+      2: {
+        apply map_disjoint_dom_2.
+        rewrite Harg_rmap' Hrmap' /=; set_solver+.
+      }
+      replace (nargs + 1 - 1) with nargs by lia.
+      destruct Hv as [Hv|Hv].
+      + iDestruct (big_sepM_lookup with "Hval") as "Hv";[apply Hv|].
+        destruct (decide (r ∈ _)) as [|Hcontra]; last set_solver+Hcontra Hr.
+        iApply (interp_monotone with "[] Hv").
+        iPureIntro; apply related_sts_pub_update_multiple_temp; auto.
+      + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
+        iApply interp_int.
+    - iIntros (r v Hr Hv).
       repeat (rewrite lookup_insert_ne in Hv;[|set_solver+Hr]).
       apply lookup_union_Some in Hv.
       2: {
         apply map_disjoint_dom_2.
         rewrite Harg_rmap' Hrmap' /=; set_solver+.
       }
-      destruct Hv as [Hv|Hv].
-      + iDestruct (big_sepM_lookup with "Hval") as "Hv";[apply Hv|].
-        iApply (interp_monotone with "[] Hv").
-        iPureIntro; apply related_sts_pub_update_multiple_temp; auto.
+      replace (nargs + 1 - 1) with nargs by lia.
+      destruct Hv.
+      + iDestruct (big_sepM_lookup with "Hval") as "?";eauto.
+        destruct (decide (r ∈ _)) as [Hcontra|]; last iFrame "#".
+        set_solver+Hcontra Hr.
       + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
-        iApply interp_int.
   Qed.
 
 End Switcher.

@@ -574,7 +574,7 @@ Section Counter.
     ∗ interp W0 C (WSealed ot_switcher C_f)
     ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
     ⊢ execute_entry_point
-      (WCap RX Global pc_b pc_e pc_a) (WCap RW Global cgp_b cgp_e cgp_b) rmap
+      (WCap RX Global pc_b pc_e pc_a) (WCap RW Global cgp_b cgp_e cgp_b) 0 rmap
       cstk Ws Cs W0 C.
   Proof.
     intros imports; subst imports.

@@ -85,7 +85,7 @@ Section helpers_switcher_adequacy.
 
     iIntros (??)
       "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
-                     & %Hregs_csp & Hinterp_csp & Hregs_interp)
+                     & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
                      & Hrmap & Hregion & Hworld & %Hcsp_sync & Htframe & Hna)".
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental.fundamental with "[$] Hinterp_PCC") as "H_jmp".
@@ -107,7 +107,11 @@ Section helpers_switcher_adequacy.
     { by rewrite Hregs_csp in Hr ; simplify_eq. }
     assert (r ∉ ({[PC; cra; cgp; csp]} : gset RegName)) as Hrr.
     { set_solver+Hrpc Hrcgp Hrcsp Hrcra. }
-    by iSpecialize ("Hregs_interp" $! r _ Hrr Hr).
+    destruct (decide ( r ∈ dom_arg_rmap args)) as [Hr_arg | Hr_arg].
+    + iApply "Hregs_interp"; eauto.
+    + assert (r ∉ {[PC; cra; cgp; csp]} ∪ dom_arg_rmap args) as Hrrr by set_solver+Hrr Hr_arg.
+      iSpecialize ("Hregs_zeros" $! r _ Hrrr Hr); iDestruct "Hregs_zeros" as "->".
+      iApply interp_int.
   Qed.
 
   Lemma ot_switcher_interp_entry

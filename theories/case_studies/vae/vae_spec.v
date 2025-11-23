@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
 From cap_machine Require Import fetch assert interp_switcher_call switcher_spec_call switcher_spec_call_alt switcher_spec_return.
-From cap_machine Require Import vae vae_helper vae_awkward.
+From cap_machine Require Import vae vae_helper vae_spec_closure.
 
 Section VAE.
   Context
@@ -73,7 +73,7 @@ Section VAE.
       ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
       ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
       ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
-          ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (switcher.encode_entry_point 0 (length (imports ++ VAE_main_code_init))))
+          ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (switcher.encode_entry_point 1 (length (imports ++ VAE_main_code_init))))
       ∗ inv awkN (awk_inv C i cgp_b)
       ∗ sts_rel_loc C i awk_rel_pub awk_rel_priv
       ∗ na_own logrel_nais ⊤
@@ -95,8 +95,8 @@ Section VAE.
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
       ∗ interp W0 C (WCap RWL Local csp_b csp_e csp_b)
 
-      ∗ WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 0
-      ∗ WSealed ot_switcher (SCap RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 0
+      ∗ WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
+      ∗ WSealed ot_switcher (SCap RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
       ∗ seal_pred ot_switcher ot_switcher_propC
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.

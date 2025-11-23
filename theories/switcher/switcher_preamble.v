@@ -40,7 +40,7 @@ Section Switcher_preamble.
       (1) Although we know that they contain zeroes due to the caller's clearing,
           it makes the proofs more annoying, and we never rely on this information anyway.
    *)
-  Program Definition execute_entry_point_register (wpcc wcgp wstk : Word) :
+  Program Definition execute_entry_point_register (wpcc wcgp wstk : Word) (nargs : nat) :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ) :=
     λne (W : WORLD) (C : CmptName) (reg : leibnizO Reg),
       (full_map reg
@@ -49,7 +49,8 @@ Section Switcher_preamble.
        ∧ ⌜ reg !! cra = Some (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) ⌝
        ∧ ⌜ reg !! csp = Some wstk ⌝
        ∗ interp W C wstk
-       ∗ (∀ (r : RegName) (v : Word), (⌜r ∉ ({[PC; cra; cgp; csp]} : gset RegName)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))
+       ∗ (∀ (r : RegName) (v : Word), (⌜r ∈ (dom_arg_rmap nargs)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))
+       ∗ (∀ (r : RegName) (v : Word), (⌜r ∉ ({[PC; cra; cgp; csp]} ∪ (dom_arg_rmap nargs) : gset RegName)⌝ → ⌜reg !! r = Some v⌝ → ⌜ v = WInt 0 ⌝))
       )%I.
   Solve All Obligations with solve_proper.
 
@@ -93,14 +94,14 @@ Section Switcher_preamble.
       This will become clearer in the proof of [switcher_ret_specification].
    *)
   Program Definition execute_entry_point
-    (wpcc wcgp : Word) (regs : Reg) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (wpcc wcgp : Word) nargs (regs : Reg) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
       ∀ a_stk e_stk,
        let a_stk4 := (a_stk ^+4)%a in
        ( interp_continuation cstk Ws Cs
          ∗ ⌜frame_match Ws Cs cstk W C⌝
-         ∗ (execute_entry_point_register wpcc wcgp (WCap RWL Local a_stk4 e_stk a_stk4) W C regs)
+         ∗ (execute_entry_point_register wpcc wcgp (WCap RWL Local a_stk4 e_stk a_stk4) nargs W C regs)
          ∗ registers_pointsto regs
          ∗ region W C
          ∗ sts_full_world W C
@@ -163,6 +164,7 @@ Section Switcher_preamble.
                    ▷ (execute_entry_point
                             (WCap RX Global bpcc epcc (bpcc ^+ off)%a)
                             (WCap RW Global bcgp ecgp bcgp)
+                            nargs
                             regs cstk Ws Cs W' C))
       )%I.
   Solve All Obligations with solve_proper.

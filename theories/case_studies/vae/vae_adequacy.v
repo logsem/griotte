@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel interp_weakening monotone.
-From cap_machine Require Import vae vae_helper vae_awkward vae_spec.
+From cap_machine Require Import vae vae_helper vae_spec_closure vae_spec.
 From cap_machine Require Import switcher assert logrel.
 From cap_machine Require Import mkregion_helpers.
 From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
@@ -222,8 +222,8 @@ Section Adequacy.
            {[
                (seal_capability C_f ot_switcher) := 0;
                (borrow (seal_capability C_f ot_switcher)) := 0;
-               (seal_capability awk_f ot_switcher) := 0;
-               (borrow (seal_capability awk_f ot_switcher)) := 0
+               (seal_capability awk_f ot_switcher) := 1;
+               (borrow (seal_capability awk_f ot_switcher)) := 1
            ]}
 
          )
@@ -501,7 +501,7 @@ Section Adequacy.
     rewrite /vae_export_table_entries.
     iAssert (
        (cmpt_exp_tbl_entries_start main_cmpt) ↦ₐ
-         WInt (encode_entry_point 0 (length (cmpt_imports main_cmpt ++ VAE_main_code_init)))
+         WInt (encode_entry_point 1 (length (cmpt_imports main_cmpt ++ VAE_main_code_init)))
       )%I with "[Hmain_etbl_entries]" as "Hmain_etbl_entries".
     {
       rewrite (finz_seq_between_singleton (cmpt_exp_tbl_entries_start main_cmpt)).
@@ -528,7 +528,7 @@ Section Adequacy.
       as "#Hinv_etbl_CGP".
     iMod (inv_alloc (export_table_entryN vaeN (cmpt_exp_tbl_entries_start main_cmpt)) ⊤
             (cmpt_exp_tbl_entries_start main_cmpt
-               ↦ₐ WInt (encode_entry_point 0 (length (cmpt_imports main_cmpt ++ VAE_main_code_init)))
+               ↦ₐ WInt (encode_entry_point 1 (length (cmpt_imports main_cmpt ++ VAE_main_code_init)))
             )%I with "Hmain_etbl_entries")%I
       as "#Hinv_etbl_entry_awkward".
 
