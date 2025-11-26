@@ -151,6 +151,12 @@ Section heap.
                             destruct (decide x); [ try (exfalso; lia) | ] end).
   Qed.
 
+  Global Instance REL_persistent (C : CmptName) (a : Addr) (γ : gname) (p : Perm) :
+    Persistent (REL C a γ p).
+  Proof. rewrite REL_eq /REL_def.
+         apply _.
+  Qed.
+
   Global Instance rel_persistent (C : CmptName) (a : Addr) (p : Perm)
     (φ : (WORLD * CmptName * Word) -> iProp Σ) :
     Persistent (rel C a p φ).

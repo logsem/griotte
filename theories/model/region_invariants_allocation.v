@@ -525,57 +525,47 @@ Section region_alloc.
   Qed.
 
 
-  (* TODO move *)
-  Global Instance REL_persistent (C : CmptName) (a : Addr) (γ : gname) (p : Perm) :
-    Persistent (REL C a γ p).
-  Proof. rewrite REL_eq /REL_def.
-         apply _.
-  Qed.
   Lemma extend_region_perm_open E W C a w p la1 φ `{∀ Wv, Persistent (φ Wv)} :
-      a ∉ dom (std W) →
+    a ∉ dom (std W) →
     a ∉ la1 ->
     sts_full_world (std_update_multiple W la1 Permanent) C -∗
     open_region_many (std_update_multiple W la1 Permanent) C la1 -∗
     a ↦ₐ w
-    (* (([∗ list] k ∈ (a :: la2), rel C k p φ) -∗ φ (std_update_multiple W (a :: la1 ++ la2) Permanent, C, w)) *)
     ={E}=∗
-     open_region_many (std_update_multiple W (a::la1) Permanent) C (a::la1)
-     ∗ rel C a p φ
-     ∗ a ↦ₐ w
-     (* ∗ φ (std_update_multiple W (a :: la1 ++ la2) Permanent, C, w) *)
-     ∗ sts_state_std C a Permanent
-     ∗ sts_full_world (std_update_multiple W (a::la1) Permanent) C.
-    Proof.
-      iIntros (Hnone ?) "Hfull Hreg Ha".
-      assert (a ∉ dom (std (std_update_multiple W la1 Permanent))) as Hnone'.
-      {
-        rewrite not_elem_of_dom.
-        rewrite std_sta_update_multiple_lookup_same_i; eauto.
-        by rewrite -not_elem_of_dom.
-      }
-      rewrite open_region_many_eq /open_region_many_def.
-      iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
-      destruct (M !! a) eqn:HRl.
-      { (* The location is not in the map *)
-        assert ((delete_list la1) M !! a = Some o) as HRl'.
-        { rewrite lookup_delete_list_notin; auto. }
-        iDestruct (big_sepM_delete _ _ _ _ HRl' with "Hpreds") as "[Hl' _]".
-        iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
-        iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-        rewrite (not_elem_of_dom _ a) in Hnone'.
-        by rewrite Hcontr in Hnone'.
-      }
+    open_region_many (std_update_multiple W (a::la1) Permanent) C (a::la1)
+    ∗ rel C a p φ
+    ∗ a ↦ₐ w
+    ∗ sts_state_std C a Permanent
+    ∗ sts_full_world (std_update_multiple W (a::la1) Permanent) C.
+  Proof.
+    iIntros (Hnone ?) "Hfull Hreg Ha".
+    assert (a ∉ dom (std (std_update_multiple W la1 Permanent))) as Hnone'.
+    {
+      rewrite not_elem_of_dom.
+      rewrite std_sta_update_multiple_lookup_same_i; eauto.
+      by rewrite -not_elem_of_dom.
+    }
+    rewrite open_region_many_eq /open_region_many_def.
+    iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    destruct (M !! a) eqn:HRl.
+    { (* The location is not in the map *)
+      assert ((delete_list la1) M !! a = Some o) as HRl'.
+      { rewrite lookup_delete_list_notin; auto. }
+      iDestruct (big_sepM_delete _ _ _ _ HRl' with "Hpreds") as "[Hl' _]".
+      iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
+      iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
+      rewrite (not_elem_of_dom _ a) in Hnone'.
+      by rewrite Hcontr in Hnone'.
+    }
     rewrite /region_map_def.
     (* if not, we need to allocate a new saved pred using φ, *)
-  (*      and extend R with l := pred *)
+    (*      and extend R with l := pred *)
     iMod (saved_pred_alloc φ) as (γpred) "#Hφ'"; first apply dfrac_valid_discarded.
     iMod (update_RELS _ _ _ a γpred p with "Hγrel") as "[HR #Hγrel]"; auto.
     iAssert (rel C a p φ) as "Ha_rel".
     { rewrite rel_eq /rel_def; iFrame "#". }
-    (* iDestruct ("Hφ" with "Ha_rel") as "#Hφ". *)
-    (* we also need to extend the World with a new temporary region *)
     iMod (sts_alloc_std_i _ C a Permanent
-            with "[] Hfull") as "(Hfull & Hstate)"; auto.
+           with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh (std_update_multiple W la1 Permanent) a Permanent)
       in Hnone' as Hrelated; auto.
     iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|].
@@ -596,10 +586,9 @@ Section region_alloc.
       iExists ρ.
       iFrame.
       done.
-    Qed.
-    (* Admitted. *)
+  Qed.
 
-  Lemma extend_region_perm_sepL2_ind' E W C la1 la2 lw2 p φ `{∀ Wv, Persistent (φ Wv)}:
+  Lemma extend_region_perm_sepL2_open_ind E W C la1 la2 lw2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
     Forall (λ k, std W !! k = None) la2 →
     NoDup la1 ->
@@ -637,7 +626,6 @@ Section region_alloc.
     }
     iMod (extend_region_perm_open with "Hsts Hreg Ha") as "(Hreg & Hrel & Ha & Hsts_std & Hsts)"; auto.
     { by rewrite not_elem_of_dom. }
-    (* specialize (IHla2 la1 lw2). *)
     iMod (IHla2 (a::la1) lw2 with "[Hsts] [Hreg] [Hl2]") as "(Hreg&?&?&?)"; auto.
     { apply NoDup_cons;auto. }
     iDestruct (open_region_many_permutation _ _ _ (la1 ++ a :: la2) with "Hreg") as "Hreg".
@@ -672,14 +660,14 @@ Section region_alloc.
     iMod (IHl1 with "Hrel Hreg Hl Hφ Hmono"); auto.
   Qed.
 
-  Lemma extend_region_perm_sepL2' E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
+  Lemma extend_region_perm_sepL2_open E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     NoDup l1 ->
     isO p = false ->
     Forall (λ k, std W !! k = None) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
-    -∗ ([∗ list] k;v ∈ l1;l2,
+    -∗ ([∗ list] v ∈ l2,
           (([∗ list] k ∈ l1, rel C k p φ) -∗ φ ((std_update_multiple W l1 Permanent), C, v))
           ∗ future_priv_mono C φ v)
 
@@ -690,20 +678,17 @@ Section region_alloc.
     ∗ sts_full_world (std_update_multiple W l1 Permanent) C.
   Proof.
     iIntros (HNoDup Hp Hl1) "Hsts Hreg Hl".
-    iMod (extend_region_perm_sepL2_ind' E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
+    iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
     "(Hreg & Hl & #Hrel & Hsts)"; auto.
     { apply NoDup_nil. auto. }
     { eapply disjoint_nil_r. }
     { by rewrite -region_open_nil. }
     { cbn; iFrame "Hrel Hsts".
       iIntros "Hφ".
-      iDestruct (big_sepL2_sep with "Hφ") as "[Hφ Hmono]".
-      iDestruct (big_sepL2_const_sepL_r with "Hφ") as "[_ Hφ]".
-      iDestruct (big_sepL2_const_sepL_r with "Hmono") as "[_ Hmono]".
+      iDestruct (big_sepL_sep with "Hφ") as "[Hφ Hmono]".
       iAssert ([∗ list] y2 ∈ l2, φ (std_update_multiple W l1 Permanent, C, y2))%I as "#Hφ'".
       { iClear "Hreg Hl Hmono".
         iInduction (l2) as [|x l2]; first done.
-        cbn.
         iDestruct "Hφ" as "[H1 H2]".
         iDestruct ("H1" with "Hrel") as "$".
         iApply ("IHl2" with "H2"); auto.
