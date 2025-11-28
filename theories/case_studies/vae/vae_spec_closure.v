@@ -37,8 +37,8 @@ Section VAE.
     related_sts_pub_world
       (std_update_multiple W5 (finz.seq_between (a_stk1 ^+ 4)%a csp_e) Temporary) W6 ->
     Forall (λ a : finz MemNum, W6.1 !! a = Some Revoked) l ->
-    Forall (λ a : finz MemNum, W6.1 !! a = Some Revoked) (finz.seq_between csp_b (csp_b ^+ 4)%a) ->
-    finz.seq_between csp_b csp_e = finz.seq_between csp_b (csp_b ^+ 4)%a ++ finz.seq_between (csp_b ^+ 4)%a csp_e ->
+    Forall (λ a : finz MemNum, W6.1 !! a = Some Revoked) (finz.seq_between csp_b (csp_b ^+ 5)%a) ->
+    finz.seq_between csp_b csp_e = finz.seq_between csp_b (csp_b ^+ 5)%a ++ finz.seq_between (csp_b ^+ 5)%a csp_e ->
     wrel W6 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
     loc W6 !! i = Some (encode true) ->
     wrel W0 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
@@ -206,45 +206,24 @@ Section VAE.
           eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha0_W7; eauto.
           rewrite Ha2 in Ha0_W7; simplify_eq.
           apply rtc_refl.
-        * destruct (decide (a ∈ finz.seq_between csp_b (csp_b ^+ 4)%a)) as [Ha_in_save|Ha_in_save].
+        * destruct (decide (a ∈ finz.seq_between csp_b (csp_b ^+ 5)%a)) as [Ha_in_save|Ha_in_save].
           ** rewrite Forall_forall in Hrevoked_stk_l.
              apply Hrevoked_stk_l in Ha_in_save.
              apply revoke_lookup_Revoked in Ha_in_save.
              eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_save; eauto.
              rewrite Ha2 in Ha_in_save; simplify_eq.
              apply rtc_refl.
-          ** destruct (decide (a = a_stk1)) as [-> | Ha]; cycle 1.
-             *** assert (a ∈ l) as Ha_in_l.
-                 { rewrite Hsplit_csp in Ha_in.
-                   rewrite elem_of_app in Ha_in.
-                   destruct Ha_in; first done.
-                   rewrite elem_of_app in H0.
-                   destruct H0; first contradiction.
-                   rewrite not_elem_of_finz_seq_between in Ha_in''.
-                   destruct Ha_in''
-                   ; last (
-                   rewrite elem_of_finz_seq_between in H0;
-                   solve_addr+Ha H0 H1 Ha_stk1).
-                   -rewrite not_elem_of_finz_seq_between in Ha_in''.
-                   + solve_addr+Ha H0 H1 Ha_stk1.
-                   admit.
-                 }
-                 rewrite Forall_forall in HW6_revoked_l.
-                 apply HW6_revoked_l in Ha_in_l.
-                 apply revoke_lookup_Revoked in Ha_in_l.
-                 eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_l; eauto.
-                 rewrite Ha2 in Ha_in_l; simplify_eq.
-                 apply rtc_refl.
-             *** rewrite close_list_std_sta_revoked in Ha2; auto.
-                 { simplify_eq. apply rtc_refl. }
-                 apply revoke_lookup_Revoked.
-                 rewrite Forall_forall in HW6_revoked_l.
-                 apply HW6_revoked_l.
-                   in Ha_in.
-                   in Ha_in_l.
-                 eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_l; eauto.
-                 rewrite Ha2 in Ha_in_l; simplify_eq.
-                 apply rtc_refl.
+          ** rewrite close_list_std_sta_revoked in Ha2; auto.
+             { simplify_eq. apply rtc_refl. }
+             apply revoke_lookup_Revoked.
+             rewrite Forall_forall in HW6_revoked_l.
+             apply HW6_revoked_l.
+             clear -Ha_in Ha_in_save Ha_in'' Ha_stk1 Hsplit_csp.
+             replace (a_stk1 ^+ 4)%a with (csp_b ^+ 5)%a in Ha_in'' by solve_addr.
+             apply elem_of_app in Ha_in.
+             destruct Ha_in as [|Ha]; first done.
+             rewrite Hsplit_csp in Ha.
+             set_solver.
   Qed.
 
   Lemma vae_awkward_spec
@@ -968,6 +947,20 @@ Section VAE.
       apply elem_of_list_lookup in Hx' as [? Hx'].
       eexists; eapply Hrevoked_stk; eauto.
     }
+
+    iMod (revoked_by_separation _ _ _ _ with "[$Hsts_C $Hr_C $Ha_stk]" ) as
+      "(Hsts_C & Hr_C &Ha_stk & %Hrevoked_csp_b)".
+    {
+      destruct Hrelated_pub_W5_W6 as [ [Hdom _ ] _].
+      eapply Hdom; clear Hdom.
+      destruct Hpriv_W2_W5 as [ [Hdom _ ] _].
+      eapply Hdom; clear Hdom.
+      destruct Hpriv_W0_W2 as [ [Hdom _ ] _].
+      eapply Hdom; clear Hdom.
+      destruct Hl_unk  as [_ Hl_unk].
+      admit.
+    }
+    auto.
 
     (* Revoke the world again to get the points-to of the stack *)
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W6_csp $Hsts_C $Hr_C]")
