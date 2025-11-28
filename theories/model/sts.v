@@ -35,12 +35,6 @@ Notation STS_rels := (gmap positive ((positive → positive → Prop) * (positiv
 Class STS_STD (B : Type) :=
   { Rpub : relation B;
     Rpriv : relation B;
-    state_permanent : B -> Prop ; (* set of B that have to stay in the domain of the world *)
-    dec_state_permanent : forall b, Decision (state_permanent b);
-    state_permanent_reachable : forall b b', ¬ (state_permanent b) -> rtc (λ x y, (Rpub x y ∨ Rpriv x y)) b b' ;
-    state_permanent_inv : forall b b', state_permanent b
-                                         -> rtc (λ x y, (Rpub x y ∨ Rpriv x y)) b b'
-                                         -> state_permanent b' ;
   }.
 
 (** The CMRA for the sts collection. *)
@@ -119,8 +113,7 @@ Section definitionsS.
     ∀ i x y, fs !! i = Some x → gs !! i = Some y → rtc (Rpub) x y.
 
   Definition related_sts_std_priv (fs gs : STS_std_states A B) : Prop :=
-    (forall i x, fs !! i = Some x -> state_permanent x -> is_Some (gs !! i) )
-    ∧
+    dom fs ⊆ dom gs ∧
     ∀ i x y, fs !! i = Some x → gs !! i = Some y → rtc (λ x y, (Rpub x y ∨ Rpriv x y)) x y.
 
   Definition related_sts_pub (fs gs : STS_states) (fr gr : STS_rels) : Prop :=
@@ -353,15 +346,9 @@ Section STS.
     related_sts_std_pub fsd gsd → related_sts_std_priv fsd gsd.
   Proof.
     intros [Hf1 Hf2].
-    split;auto.
-    - intros i x Hx Hperm_x.
-      rewrite -elem_of_dom.
-      apply Hf1.
-      rewrite elem_of_dom.
-      by exists x.
-    - intros i x y Hx Hy.
-      specialize (Hf2 i x y Hx Hy).
-      apply rtc_or_intro. auto.
+    split;auto. intros i x y Hx Hy.
+    specialize (Hf2 i x y Hx Hy).
+    apply rtc_or_intro. auto.
   Qed.
 
   Lemma related_sts_pub_priv_world W W' :
@@ -425,27 +412,13 @@ Section STS.
     related_sts_std_priv fsd hsd.
   Proof.
     intros [Hf1 Hf2] [Hg1 Hg2]; split; try by etrans.
-    - intros i x Hx Hperm_x.
-      rewrite -elem_of_dom.
-      apply Hg1.
-      rewrite elem_of_dom.
-      eapply Hf1; done.
-    - intros i x y Hx Hy.
-      pose proof (dec_state_permanent x) as Hdec_x.
-      destruct (decide (state_permanent x)) as [Hperma_x|Hperma_x].
-      + specialize (Hf1 i x Hx Hperma_x).
-        destruct Hf1 as [x' Hx'].
-        specialize (Hf2 i x x' Hx Hx').
-        specialize (Hg2 i _ _ Hx' Hy).
-        clear -Hf2 Hg2.
-        eapply rtc_transitive; eauto.
-        eapply rtc_or_intro; eauto.
-      + destruct (gsd !! i) as [x'|] eqn:Hx'.
-        ++ specialize (Hf2 i x x' Hx Hx').
-           specialize (Hg2 i _ _ Hx' Hy).
-           eapply rtc_transitive; eauto.
-           eapply rtc_or_intro; eauto.
-        ++ apply (state_permanent_reachable x y Hperma_x).
+    intros i x y Hx Hy.
+    specialize (Hf1 i); revert Hf1; rewrite !elem_of_dom; intros Hf1.
+    destruct Hf1 as [x0 Hx0]; eauto.
+    specialize (Hf2 i x x0 Hx Hx0); simplify_eq.
+    specialize (Hg2 i x0 y Hx0 Hy); simplify_eq.
+    etrans;eauto.
+    apply rtc_or_intro; auto.
   Qed.
 
   Lemma related_sts_pub_priv_trans fs fr gs gr hs hr :
@@ -471,28 +444,13 @@ Section STS.
     related_sts_std_priv fsd hsd.
   Proof.
     intros [Hf1 Hf2] [Hg1 Hg2]; split; try by etrans.
-    - intros i x Hx Hperm_x.
-      pose proof Hx as Hx_'.
-      eapply (elem_of_dom_2 fsd i x) in Hx.
-      eapply Hf1 in Hx.
-      rewrite elem_of_dom in Hx.
-      destruct Hx as [x' Hx].
-      assert (state_permanent x') as Hperm_x'.
-      { eapply state_permanent_inv; eauto.
-        specialize (Hf2 i x x' Hx_' Hx).
-        eapply rtc_or_intro; eauto.
-      }
-      eapply Hg1; eauto.
-    - intros i x y Hx Hy.
-      assert (is_Some (gsd !! i)) as [x' Hx'].
-      { rewrite -elem_of_dom.
-        apply Hf1.
-        by rewrite elem_of_dom.
-      }
-      specialize (Hf2 _ _ _ Hx Hx').
-      specialize (Hg2 _ _ _ Hx' Hy).
-      eapply rtc_transitive; eauto.
-      eapply rtc_or_intro; eauto.
+    intros i x y Hx Hy.
+    specialize (Hf1 i); revert Hf1; rewrite !elem_of_dom; intros Hf1.
+    destruct Hf1 as [x0 Hx0]; eauto.
+    specialize (Hf2 i x x0 Hx Hx0); simplify_eq.
+    specialize (Hg2 i x0 y Hx0 Hy); simplify_eq.
+    etrans;eauto.
+    apply rtc_or_intro; auto.
   Qed.
 
   Lemma related_sts_priv_trans fs fr gs gr hs hr :
@@ -517,26 +475,12 @@ Section STS.
     related_sts_std_priv fsd hsd.
   Proof.
     intros [Hf1 Hf2] [Hg1 Hg2]; split; try by etrans.
-    - intros i x Hx Hperm_x.
-      specialize (Hf1 i x Hx Hperm_x).
-      destruct Hf1 as [y Hy].
-      specialize (Hf2 i x y Hx Hy).
-      pose proof (state_permanent_inv x y Hperm_x Hf2) as Hperm_y.
-      by specialize (Hg1 i y Hy Hperm_y).
-    - intros i x y Hx Hy.
-      pose proof (dec_state_permanent x) as Hdec_x.
-      destruct (decide (state_permanent x)) as [Hperma_x|Hperma_x].
-      + specialize (Hf1 i x Hx Hperma_x).
-        destruct Hf1 as [x' Hx'].
-        specialize (Hf2 i x x' Hx Hx').
-        specialize (Hg2 i _ _ Hx' Hy).
-        clear -Hf2 Hg2.
-        eapply rtc_transitive; eauto.
-      + destruct (gsd !! i) as [x'|] eqn:Hx'.
-        ++ specialize (Hf2 i x x' Hx Hx').
-           specialize (Hg2 i _ _ Hx' Hy).
-           eapply rtc_transitive; eauto.
-        ++ apply (state_permanent_reachable x y Hperma_x).
+    intros i x y Hx Hy.
+    specialize (Hf1 i); revert Hf1; rewrite !elem_of_dom; intros Hf1.
+    destruct Hf1 as [x0 Hx0]; eauto.
+    specialize (Hf2 i x x0 Hx Hx0); simplify_eq.
+    specialize (Hg2 i x0 y Hx0 Hy); simplify_eq.
+    etrans;eauto.
   Qed.
 
   (* Helper functions for transitivity of sts pairs *)
@@ -584,19 +528,15 @@ Section STS.
     - apply related_sts_pub_trans with (loc W') (wrel W'); auto.
   Qed.
 
-  Definition is_permanent_state W i :=
-    ∃ b, (std W) !! i = Some b ∧ state_permanent b.
-
   Lemma related_sts_priv_world_std_sta_is_Some W W' i :
     related_sts_priv_world W W'
-    -> is_permanent_state W i
     -> is_Some (std W !! i)
     -> is_Some (std W' !! i).
   Proof.
-    intros [ [Hdom _ ] _] Hperm [x Hx].
-    destruct Hperm as [x' [Hx' Hperm_x'] ].
-    rewrite Hx' in Hx; simplify_eq.
-    by specialize (Hdom i x Hx' Hperm_x').
+    intros [ [Hdom1 _ ] _] Hsome.
+    rewrite -elem_of_dom.
+    rewrite -elem_of_dom in Hsome.
+    apply elem_of_subseteq in Hdom1. auto.
   Qed.
 
   Lemma related_sts_pub_empty_world W : related_sts_pub_world (∅, (∅, ∅)) W.
@@ -612,9 +552,9 @@ Section STS.
 
   Lemma related_sts_priv_empty_world W : related_sts_priv_world (∅, (∅, ∅)) W.
   Proof.
-    split; cbn.
+   split; cbn.
     - split;auto.
-      + intros ; set_solver.
+      + rewrite dom_empty_L; set_solver.
       + intros ; set_solver.
     - split;auto.
       + rewrite dom_empty_L; set_solver.
@@ -899,8 +839,7 @@ Section STS.
     rewrite /related_sts_priv_world /=.
     split;[|apply related_sts_priv_refl].
     rewrite /related_sts_std_priv. split.
-    - intros i x Hx _.
-      destruct (decide (a = i)); simplify_map_eq; done.
+    - rewrite dom_insert_L; set_solver.
     - intros i x y Hx Hy.
       destruct (decide (a = i)).
       + subst. rewrite lookup_insert in Hy; simplify_eq.

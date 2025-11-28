@@ -59,7 +59,7 @@ Section monotone.
     intros Hrelated Hstate.
     destruct Hrelated as [ [Hdom_sta Hrelated ] _]. simpl in *.
     assert (is_Some ((std W') !! a)) as [y Hy].
-    { apply Hdom_sta in Hstate; auto. }
+{ rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated a Permanent y Hstate Hy).
     eapply std_rel_rtc_Permanent in Hrelated;subst;auto.
   Qed.
