@@ -358,7 +358,7 @@ Section VAE.
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "%Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
@@ -958,7 +958,13 @@ Section VAE.
       destruct Hpriv_W0_W2 as [ [Hdom _ ] _].
       eapply Hdom; clear Hdom.
       destruct Hl_unk  as [_ Hl_unk].
-      admit.
+      assert ( csp_b ∈ stk_frame_addrs ) as Hcsp_b.
+      { apply elem_of_finz_seq_between.
+        solve_addr+Hcsp_size.
+      }
+      apply elem_of_list_lookup in Hcsp_b as [? Hcsp_b].
+      apply Hstk_frm_tmp_W0 in Hcsp_b.
+      rewrite elem_of_dom; done.
     }
     auto.
 
@@ -1094,7 +1100,11 @@ Section VAE.
            ); auto.
     { eapply (related_pub_W0_Wfixed W0 W3 W6); eauto.
       + destruct Hl_unk; auto.
-      + apply finz_seq_between_split; solve_addr+Hcsp_bounds.
+      + rewrite finz_seq_between_cons; last solve_addr+Hcsp_size.
+        replace (csp_b ^+ 1)%a with a_stk1 by solve_addr+Hastk1.
+        replace (csp_b ^+ 5)%a with (a_stk1 ^+4)%a by solve_addr+Hastk1 Hcsp_size.
+        apply Forall_cons; split; auto.
+      + apply finz_seq_between_split; solve_addr+ Hastk1 Hcsp_bounds.
     }
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
     { subst csp_b.
