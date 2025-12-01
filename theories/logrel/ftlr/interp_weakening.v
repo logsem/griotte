@@ -518,4 +518,50 @@ Section fundamental.
     + destruct w' as [| [ [] |] | |]; auto.
   Qed.
 
+  Program Definition interp_eq (w : Word) : V :=
+    (λne (W : WORLD) (B : leibnizO CmptName) (v : leibnizO Word)
+     , (⌜ v = w ⌝)%I).
+  Solve All Obligations with solve_proper.
+
+  Lemma persistent_cond_interp_eq (w : Word) : persistent_cond (interp_eq w).
+  Proof. intros W; apply _. Qed.
+
+  Lemma zcond_interp_eq C w : ⊢ zcond (interp_eq w) C.
+  Proof. iModIntro; iIntros (W1 W2 w') "<-".
+         by cbn.
+  Qed.
+
+  Lemma rcond_interp_eq C w p : is_z w = true -> ⊢ rcond (interp_eq w) C p interp.
+  Proof.
+    iIntros (Hw) "!> %W %w' <-".
+    destruct w'; cbn in Hw; try done.
+    rewrite load_word_int.
+    iApply interp_int.
+  Qed.
+
+  Program Definition interp_dro : V :=
+    (λne (W : WORLD) (B : leibnizO CmptName) (w : leibnizO Word)
+     , (interp W B (readonly w))%I).
+  Solve All Obligations with solve_proper.
+
+  Lemma persistent_cond_interp_dro (w : Word) : persistent_cond interp_dro.
+  Proof. intros W; apply _. Qed.
+
+  Lemma zcond_interp_dro C : ⊢ zcond interp_dro C.
+  Proof. iModIntro; iIntros (W1 W2 w') "?".
+         iApply interp_int.
+  Qed.
+
+  Lemma rcond_interp_dro C p : isDRO p = true -> ⊢ rcond interp_dro C p interp.
+  Proof.
+    iIntros (Hp) "!> %W %w' H".
+    rewrite /load_word /= Hp.
+    destruct (isDL p); last done.
+    replace (readonly (deeplocal (borrow w'))) with (deeplocal (borrow (readonly w'))).
+    + by iApply interp_deeplocal_word; iApply interp_borrow_word.
+    + destruct w' as [| [ [] |] | |]; auto.
+  Qed.
+
+
+
 End fundamental.
