@@ -94,10 +94,10 @@ Section Switcher_preamble.
       This will become clearer in the proof of [switcher_ret_specification].
    *)
   Program Definition execute_entry_point
-    (wpcc wcgp : Word) nargs (regs : Reg) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (wpcc wcgp : Word) (nargs : nat) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
-      ∀ a_stk e_stk,
+      ∀ regs a_stk e_stk,
        let a_stk4 := (a_stk ^+4)%a in
        ( interp_continuation cstk Ws Cs
          ∗ ⌜frame_match Ws Cs cstk W C⌝
@@ -154,12 +154,12 @@ Section Switcher_preamble.
            ∗ inv (export_table_CGPN Cname) ( (b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp)
            ∗ inv (export_table_entryN Cname a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
            ∗ (seal_capability w ot_switcher) ↦□ₑ nargs
-           ∗ □ ( ∀ regs cstk Ws Cs W', ⌜related_sts_priv_world W W'⌝ →
+           ∗ □ ( ∀ cstk Ws Cs W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap RX Global bpcc epcc (bpcc ^+ off)%a)
                             (WCap RW Global bcgp ecgp bcgp)
                             nargs
-                            regs cstk Ws Cs W' C))
+                            cstk Ws Cs W' C))
       )%I.
   Solve All Obligations with solve_proper.
 
@@ -185,8 +185,8 @@ Section Switcher_preamble.
     iExists _,_.
     repeat (iSplit ; first done).
     iModIntro.
-    iIntros (regs cstk Ws Cs W'' Hrelated_W'_W'').
-    iSpecialize ("Hcont" $! regs cstk Ws Cs W'').
+    iIntros (cstk Ws Cs W'' Hrelated_W'_W'').
+    iSpecialize ("Hcont" $! cstk Ws Cs W'').
     iApply "Hcont".
     iPureIntro.
     by eapply related_sts_priv_trans_world.

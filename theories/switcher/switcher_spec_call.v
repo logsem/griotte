@@ -533,7 +533,7 @@ Section Switcher.
       iDestruct (big_sepL_sep with "Hstk_val0") as "[_ H]".
       iDestruct (big_sepL_elem_of with "H") as "?"; eauto.
     }
-    iSpecialize ("Hexec" $! _
+    iSpecialize ("Hexec" $!
                    (frame :: cstk)
                    ((std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) :: Ws)
                    (C::Cs)

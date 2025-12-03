@@ -23,13 +23,13 @@ Section helpers_switcher_adequacy.
     na_inv logrel_nais Nswitcher switcher_inv
     ⊢ interp W C (WCap RX Global b_pcc e_pcc b_pcc) -∗
     interp W C (WCap RW Global b_cgp e_cgp b_cgp) -∗
-    □ ∀ (regs : Reg) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (W' : WORLD),
+    □ ∀ (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (W' : WORLD),
     ⌜related_sts_priv_world W W'⌝
     → ▷ execute_entry_point (WCap RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap RW Global b_cgp e_cgp b_cgp)
-        args regs cstk Ws Cs W' C.
+        args cstk Ws Cs W' C.
   Proof.
     iIntros "#Hinv_switcher #Hinterp_pcc #Hinterp_cgp".
-    iIntros (regs cstk Ws Cs W' Hrelated).
+    iIntros (cstk Ws Cs W' Hrelated).
     iDestruct (interp_monotone_nl with "[] [] [$Hinterp_pcc]")
       as "Hinterp_pcc'"; eauto.
     iDestruct (interp_monotone_nl with "[] [] [$Hinterp_cgp]")
@@ -39,7 +39,7 @@ Section helpers_switcher_adequacy.
                 with "Hinterp_pcc'") as "Hinterp_PCC"; eauto; try solve_addr.
     iModIntro;iNext.
 
-    iIntros (??)
+    iIntros (???)
       "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
                      & Hrmap & Hregion & Hworld & %Hcsp_sync & Htframe & Hna)".

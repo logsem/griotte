@@ -503,7 +503,7 @@ Section fundamental.
               is_untrusted_caller := true
            |}).
 
-    iSpecialize ("Hexec" $! _ (frame :: cstk) (W :: Ws) (C :: Cs) with "[]").
+    iSpecialize ("Hexec" $! (frame :: cstk) (W :: Ws) (C :: Cs) with "[]").
     { iPureIntro. apply related_sts_priv_refl_world. }
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
