@@ -31,12 +31,12 @@ Section fundamental.
   Theorem fundamental_cap
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality)
-    (b e a : Addr) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) :
+    (b e a : Addr) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ⊢ interp W C (WCap p g b e a) →
-      interp_expression cstk Ws Cs W C (WCap p g b e a) wstk.
+      interp_expression cstk Ws Cs W C (WCap p g b e a).
   Proof.
     iIntros "#Hinv_interp".
-    iIntros (regs) "[[Hfull Hreg] [Hmreg [%Hwstk [Hr [Hsts [Hcont [Hown [Hframe %Hframe]]]]]]]]".
+    iIntros (regs) "[[Hfull Hreg] [Hmreg [Hr [Hsts [Hcont [Hown [Hframe %Hframe]]]]]]]".
     assert ( readAllowed p = true \/ readAllowed p = false )
       as [Hread_p|Hread_p] by (destruct_perm p ; naive_solver)
     ; cycle 1.
@@ -57,13 +57,13 @@ Section fundamental.
     clear Hread_p.
 
     iRevert "Hinv_interp".
-    iLöb as "IH'" forall (W C regs p g b e a cstk Ws Cs wstk Hwstk Hframe).
+    iLöb as "IH'" forall (W C regs p g b e a cstk Ws Cs Hframe).
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
-      iIntros (W_ih C_ih cstk_ih Ws_ih Cs_ih r_ih p_ig g_ih b_ih e_ih a_ih wstk_ih)
-        "%Hfull #Hregs Hmreg %Hwstk' Hr Hsts Hcont %Hframe' Hown Htframe Hinterp".
-      destruct (Hfull csp) as [wstk' Hcsp].
-      iApply ("IH'" with "[%] [] [] [] [Hmreg] [$Hr] [$Hsts] [$] [$] [$]");eauto.
+      iIntros (W_ih C_ih cstk_ih Ws_ih Cs_ih r_ih p_ig g_ih b_ih e_ih a_ih)
+        "%Hfull #Hregs Hmreg Hr Hsts Hcont %Hframe' Hown Htframe Hinterp".
+      iApply ("IH'" with "[%] [] [] [Hmreg] [$Hr] [$Hsts] [$] [$] [$]");eauto.
+      done.
     }
     iIntros "#Hinv_interp".
     iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".
@@ -354,8 +354,8 @@ Section fundamental.
       Unshelve. rewrite /persistent_cond in Hperscond_P''; apply _.
   Qed.
 
-  Theorem fundamental W cstk Ws Cs C w wstk :
-    ⊢ interp W C w -∗ interp_expression cstk Ws Cs W C w wstk.
+  Theorem fundamental W cstk Ws Cs C w :
+    ⊢ interp W C w -∗ interp_expression cstk Ws Cs W C w.
   Proof.
     iIntros "Hw"; destruct w as [| [c | ] | | ].
     2: { iApply fundamental_cap; done. }
@@ -370,9 +370,9 @@ Section fundamental.
   Qed.
 
   (* The fundamental theorem implies the exec_cond *)
-  Lemma interp_exec_cond W C p g b e a cstk Ws Cs wstk:
+  Lemma interp_exec_cond W C p g b e a cstk Ws Cs:
     executeAllowed p = true ->
-    ⊢ interp W C (WCap p g b e a) -∗ exec_cond W C p g b e cstk Ws Cs wstk interp.
+    ⊢ interp W C (WCap p g b e a) -∗ exec_cond W C p g b e cstk Ws Cs interp.
   Proof.
     iIntros (Hp) "#Hw".
     iIntros (a0 W' Hin) "#Hfuture". iModIntro.
@@ -387,10 +387,10 @@ Section fundamental.
   Qed.
 
   (* We can use the above fact to create a special "jump or fail pattern" when jumping to an unknown adversary *)
-  Lemma exec_wp W C p g b e a cstk Ws Cs wstk :
+  Lemma exec_wp W C p g b e a cstk Ws Cs :
     isCorrectPC (WCap p g b e a) ->
-    ⊢ exec_cond W C p g b e cstk Ws Cs wstk interp -∗
-    ∀ W', future_world g W W' → ▷ (interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W' C (WCap p g b e a)) wstk.
+    ⊢ exec_cond W C p g b e cstk Ws Cs interp -∗
+    ∀ W', future_world g W W' → ▷ (interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W' C (WCap p g b e a)).
   Proof.
     iIntros (Hvpc) "Hexec".
     rewrite /exec_cond /enter_cond.
@@ -410,7 +410,7 @@ Section fundamental.
     ⊢ ftlr_IH.
   Proof.
     iModIntro; iNext.
-    iIntros (????????????) "??????????#Hv".
+    iIntros (???????????) "?????????#Hv".
     iDestruct (fundamental with "Hv") as "Hcont".
     iApply "Hcont"; iFrame.
   Qed.
@@ -418,7 +418,7 @@ Section fundamental.
   (* updatePcPerm adds a later because of the case of E-capabilities, which *)
   (*    unfold to ▷ interp_expr *)
   Lemma interp_updatePcPerm W C w :
-    ⊢ interp W C w -∗ ▷ (∀ cstk Ws Cs wstk, interp_expression cstk Ws Cs W C (updatePcPerm w) wstk).
+    ⊢ interp W C w -∗ ▷ (∀ cstk Ws Cs, interp_expression cstk Ws Cs W C (updatePcPerm w)).
   Proof.
     iIntros "#Hw".
     assert ( ( (∃ p g b e a, w = WSentry p g b e a))
@@ -430,16 +430,16 @@ Section fundamental.
     }
     { destruct Hw as (p & g & b & e & a & ->).
       rewrite fixpoint_interp1_eq /=.
-      iIntros (cstk Ws Cs wstk rmap).
+      iIntros (cstk Ws Cs rmap).
       iDestruct "Hw" as "#Hw".
-      iSpecialize ("Hw" $! cstk Ws Cs wstk W (futureworld_refl g W) g (LocalityFlowsToReflexive g)).
+      iSpecialize ("Hw" $! cstk Ws Cs W (futureworld_refl g W) g (LocalityFlowsToReflexive g)).
       iIntros "!> (HPC & Hr & ?)".
       iApply "Hw"; eauto. iFrame.
     }
-    { iNext; iIntros (????); iApply fundamental; eauto. }
+    { iNext; iIntros (???); iApply fundamental; eauto. }
   Qed.
 
-  Lemma jmp_or_fail_spec W C w φ cstk Ws Cs wstk :
+  Lemma jmp_or_fail_spec W C w φ cstk Ws Cs :
     ⊢
     (interp W C w
      -∗ (if decide (isCorrectPC (updatePcPerm w))
@@ -447,7 +447,7 @@ Section fundamental.
            (∃ p g b e a,
                (⌜w = WCap p g b e a ∨ w = WSentry p g b e a ⌝
                 ∗ □ ∀ W', future_world g W W'
-                          → ▷ (interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W' C) (updatePcPerm w) wstk))
+                          → ▷ (interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W' C) (updatePcPerm w)))
          else φ FailedV ∗ PC ↦ᵣ updatePcPerm w
                           -∗ WP Seq (Instr Executable) {{ φ }} )).
   Proof.

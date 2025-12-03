@@ -19,7 +19,7 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
@@ -28,12 +28,12 @@ Section fundamental.
 
   Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word):
-    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs wstk.
+    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName):
+    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Hcstk".
-    iIntros "Hr Hstate Ha HPC Hmap %Hwstk".
+    iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Jalr with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -86,7 +86,7 @@ Section fundamental.
         { destruct ρ;auto;contradiction. }
         rewrite !insert_insert insert_commute //.
         iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry p g b e pc_a']> regs) with
-                 "[%] [] [$Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]") ; eauto.
+                 "[%] [] [$Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]") ; eauto.
         - intros; cbn.
           rewrite lookup_insert_is_Some.
           destruct (decide (rdst = x)); auto; right; split; auto.
@@ -94,9 +94,6 @@ Section fundamental.
           destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
           * iApply ("Hreg" $! ri) ; auto.
           * iFrame "Hinterp_ret".
-        - Unshelve.
-          2: exact (if (decide (rdst = csp)) then WSentry p g b e pc_a' else wstk).
-          destruct (decide (rdst = csp)); simplify_map_eq; eauto.
         - destruct (decide (rsrc = PC)) as [HrsrcPC|HrsrcPC].
           + simplify_map_eq; auto.
           + simplify_map_eq.
@@ -127,9 +124,6 @@ Section fundamental.
         destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
         * iApply ("Hreg" $! ri) ; auto.
         * iFrame "Hinterp_ret".
-      + Unshelve.
-        2: exact (if (decide (rdst = csp)) then WSentry p g b e pc_a' else wstk).
-        destruct (decide (rdst = csp)); simplify_map_eq; eauto.
     }
 
     (* Non-capability cases *)

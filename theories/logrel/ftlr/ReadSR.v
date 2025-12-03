@@ -28,12 +28,12 @@ Section fundamental.
 
   Lemma readsr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst : RegName) (src : SRegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) :
-    ftlr_instr W C regs p p' g b e a w (ReadSR dst src) ρ P cstk Ws Cs wstk.
+    (w : Word) (ρ : region_type) (dst : RegName) (src : SRegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr W C regs p p' g b e a w (ReadSR dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap %Hsp".
+    iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     destruct (has_sreg_access p) eqn:HpXRS.
     { iClear "IH Hreg Hinva Hrcond Hwcond Hmono HmonoV Hw Hsts Htframe Hown Hr Hstate Ha Hmap".

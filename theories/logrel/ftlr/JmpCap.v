@@ -19,7 +19,7 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
@@ -28,12 +28,12 @@ Section fundamental.
 
   Lemma jmpcap_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rsrc : RegName) (P:V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) :
-    ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P cstk Ws Cs wstk.
+    (w : Word) (ρ : region_type) (rsrc : RegName) (P:V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr W C regs p p' g b e a w (JmpCap rsrc) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Hcstk".
-    iIntros "Hr Hstate Ha HPC Hmap %Hwstk".
+    iIntros "Hr Hstate Ha HPC Hmap".
     destruct (decide (rsrc = PC)) as [HrPC|HrPC].
     - subst rsrc.
       iApply (wp_jmpcap_successPC with "[HPC Ha]"); eauto; first iFrame.
@@ -46,7 +46,7 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
       (* apply IH *)
-      iApply ("IH" $! _ _ _ _ _ _ _ g _ _ a with "[] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ _ _ g _ _ a with "[] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]"); eauto.
       { iPureIntro; apply Hsome. }
 
     - iAssert (∃ wsrc,
@@ -83,7 +83,7 @@ Section fundamental.
           iNext; iIntros "_".
           iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
           { destruct ρ;auto;contradiction. }
-          iApply ("IH" with "[] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]"); eauto.
+          iApply ("IH" with "[] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]"); eauto.
           auto.
         - (* case sentry *)
           iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".

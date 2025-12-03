@@ -308,12 +308,12 @@ Section fundamental.
 
   Lemma load_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst src : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) :
-    ftlr_instr W C regs p p' g b e a w (Load dst src) ρ P cstk Ws Cs wstk.
+    (w : Word) (ρ : region_type) (dst src : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr W C regs p p' g b e a w (Load dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap %Hcsp".
+    iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iClear "Hwcond".
     iDestruct (if_dec_later with "Hrcond") as "Hrcond'"; iClear "Hrcond".
@@ -387,7 +387,7 @@ Section fundamental.
       assert (is_Some (regs' !! csp)) as [? ?].
       { rewrite XX lookup_insert_ne//.
         destruct (decide (dst = csp));simplify_map_eq =>//. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
+      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
       { cbn. intros. subst regs'.
         rewrite lookup_insert_is_Some.
         destruct (decide (PC = x6)); [ auto | right; split; auto].

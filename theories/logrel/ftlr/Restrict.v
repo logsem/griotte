@@ -50,12 +50,12 @@ Section fundamental.
 
   Lemma restrict_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) :
-    ftlr_instr W C regs p p' g b e a w (Restrict dst src) ρ P cstk Ws Cs wstk.
+    (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr W C regs p p' g b e a w (Restrict dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap %Hsp".
+    iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Restrict with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -85,7 +85,7 @@ Section fundamental.
         destruct (executeAllowed p'') eqn:Hpft.
         {
           simplify_map_eq ; map_simpl "Hmap".
-          iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+          iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
           iModIntro.
           iApply (PermPairFlows_interp_preserved); eauto.
           iApply (interp_next_PC with "Hinv_interp"); eauto.
@@ -103,7 +103,7 @@ Section fundamental.
         { destruct ρ;auto;contradiction. }
         assert (is_Some (<[dst:=WCap p'0 g' b0 e0 a0]> (<[PC:=WCap p'' g'' b'' e'' a'']> regs) !! csp)) as [??].
         { destruct (decide (dst = csp)); simplify_map_eq=>//. }
-        iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+        iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
         - intros; simpl. repeat (rewrite lookup_insert_is_Some'; right); eauto.
         - iIntros (ri v Hri Hvs).
           destruct (decide (ri = dst)).
@@ -133,7 +133,7 @@ Section fundamental.
       assert (is_Some (<[dst:=WSealRange p'0 g' b0 e0 a0]> regs !! csp)) as [??].
       { destruct (decide (dst = csp)); simplify_map_eq=>//. }
       iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealRange p'0 g' b0 e0 a0]> regs) with
-               "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+               "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       + intros. by rewrite lookup_insert_is_Some' ; right.
       + iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).

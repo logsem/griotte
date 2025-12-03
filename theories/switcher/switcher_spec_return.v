@@ -854,9 +854,7 @@ Section Switcher.
          rewrite -not_elem_of_dom Harg_rmap'.
          set_solver+.
       }
-      iSplit; last(iPureIntro; eapply frame_match_mono; eauto).
-      iPureIntro.
-      by subst regs' regs; simplify_map_eq.
+      iPureIntro; eapply frame_match_mono; eauto.
   Qed.
 
 End Switcher.

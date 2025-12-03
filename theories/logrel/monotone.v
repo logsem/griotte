@@ -241,7 +241,7 @@ Section monotone.
   Proof.
     iIntros (Hrelated) "#Hw".
     rewrite !fixpoint_interp1_eq /=.
-    iModIntro. iIntros (stk r Ws Cs W'').
+    iModIntro. iIntros (stk Ws Cs W'').
     destruct g.
     + iIntros "#Hrelated'".
       rewrite /future_world.
@@ -249,7 +249,7 @@ Section monotone.
       iAssert (future_world Global W W'')%I as "Hrelated".
       { rewrite /future_world.
         iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! stk r Ws Cs W'' with "Hrelated").
+      iSpecialize ("Hw" $! stk Ws Cs W'' with "Hrelated").
       iApply "Hw".
     + iIntros "#Hrelated'".
       rewrite /future_world.
@@ -257,7 +257,7 @@ Section monotone.
       iAssert (future_world Local W W'')%I as "Hrelated".
       { rewrite /future_world.
         iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! stk r Ws Cs W'' with "Hrelated").
+      iSpecialize ("Hw" $! stk Ws Cs W'' with "Hrelated").
       iApply "Hw".
   Qed.
 
@@ -351,14 +351,14 @@ Section monotone.
     iIntros (Hrelated Hnl) "#Hw".
     rewrite !fixpoint_interp1_eq /=.
     destruct g ; cbn in Hnl ; try done.
-    iModIntro. iIntros (stk r Ws Cs W'').
+    iModIntro. iIntros (stk Ws Cs W'').
     iIntros "#Hrelated'".
     rewrite /future_world.
     iDestruct "Hrelated'" as "%Hrelated'".
     iAssert (future_world Global W W'')%I as "Hrelated".
     { rewrite /future_world.
       iPureIntro. apply related_sts_priv_trans_world with W'; auto. }
-    iSpecialize ("Hw" $! stk r Ws Cs W'' with "Hrelated").
+    iSpecialize ("Hw" $! stk Ws Cs W'' with "Hrelated").
     iApply "Hw".
   Qed.
 

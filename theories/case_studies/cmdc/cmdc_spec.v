@@ -936,7 +936,7 @@ Section CMDC.
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
                 b_assert e_assert a_flag B_f C_g W_init_B W_init_C
-                Ws Cs csp_content φ Nassert Nswitcher cstk); eauto; iFrame "#∗".
+               Ws Cs csp_content φ Nassert Nswitcher cstk); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".
   Qed.

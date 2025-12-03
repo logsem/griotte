@@ -41,12 +41,12 @@ Section fundamental.
 
    Lemma subseg_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
      (p p' : Perm) (g : Locality) (b e a : Addr) (w : Word)
-     (ρ : region_type) (dst : RegName) (r1 r2 : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) :
-    ftlr_instr W C regs p p' g b e a w (Subseg dst r1 r2) ρ P cstk Ws Cs wstk.
+     (ρ : region_type) (dst : RegName) (r1 r2 : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr W C regs p p' g b e a w (Subseg dst r1 r2) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap %Hsp".
+    iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Subseg with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -70,9 +70,9 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq; map_simpl "Hmap".
-      
-      edestruct Hspdst as [??].
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+
+      (* edestruct Hspdst as [??]. *)
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       { cbn. intros. by repeat (rewrite lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
@@ -110,8 +110,7 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq; map_simpl "Hmap".
 
-      edestruct Hspdst as [??].
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       { cbn. intros. by repeat (rewrite lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).

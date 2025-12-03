@@ -24,7 +24,7 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
@@ -32,13 +32,13 @@ Section fundamental.
   Implicit Types interp : (V).
 
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (Nswitcher : namespace)
     :
     na_inv logrel_nais Nswitcher switcher_inv
-    ⊢ interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_call) wstk.
+    ⊢ interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
-    iIntros  "#Hinv_switcher %regs [[%Hfull_rmap #Hreg] (Hrmap & %Hstk & Hr & Hsts & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros  "#Hinv_switcher %regs [[%Hfull_rmap #Hreg] (Hrmap & Hr & Hsts & Hcont & Hna & Hcstk & %Hframe)]".
     rewrite /registers_pointsto.
     iPoseProof fundamental_ih as "IH". (* used for weakening lemma later *)
 
@@ -56,7 +56,7 @@ Section fundamental.
     iHide "Hinv_switcher" as hinv_switcher.
 
     iExtract "Hrmap" PC as "HPC".
-    iExtract "Hrmap" csp as "Hcsp".
+    specialize (Hfull_rmap csp) as HH;destruct HH as [Hstk wcsp].
     specialize (Hfull_rmap cs0) as HH;destruct HH as [? ?].
     specialize (Hfull_rmap cs1) as HH;destruct HH as [? ?].
     specialize (Hfull_rmap cra) as HH;destruct HH as [? ?].
@@ -64,6 +64,7 @@ Section fundamental.
     specialize (Hfull_rmap ct2) as HH;destruct HH as [? ?].
     specialize (Hfull_rmap ctp) as HH;destruct HH as [? ?].
     specialize (Hfull_rmap ct1) as HH;destruct HH as [? ?].
+    iExtract "Hrmap" csp as "Hcsp".
     iExtract "Hrmap" cs0 as "Hcs0".
     iExtract "Hrmap" cs1 as "Hcs1".
     iExtract "Hrmap" cra as "Hcra".
@@ -618,7 +619,7 @@ Section fundamental.
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.
-    iIntros "!> %cstk %Ws %Cs %regs %W' _% %".
+    iIntros "!> %cstk %Ws %Cs %regs %W' % %".
     destruct g'; first done.
     iNext ; iApply (interp_expr_switcher_call with "Hinv").
   Qed.
