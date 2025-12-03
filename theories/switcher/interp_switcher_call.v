@@ -26,19 +26,16 @@ Section fundamental.
 
   Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
+  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
-  Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (Nswitcher : namespace)
-    :
+  Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv logrel_nais Nswitcher switcher_inv
-    ⊢ interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
-    iIntros  "#Hinv_switcher %regs [[%Hfull_rmap #Hreg] (Hrmap & Hr & Hsts & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros "#Hinv_switcher %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hr & Hsts & Hcont & Hna & Hcstk & %Hframe)]".
     rewrite /registers_pointsto.
     iPoseProof fundamental_ih as "IH". (* used for weakening lemma later *)
 
@@ -612,14 +609,13 @@ Section fundamental.
       + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
   Qed.
 
-  Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace)
-    :
+  Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv logrel_nais Nswitcher switcher_inv
     ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.
-    iIntros "!> %cstk %Ws %Cs %regs %W' % %".
+    iIntros "!> %regs %W' % %".
     destruct g'; first done.
     iNext ; iApply (interp_expr_switcher_call with "Hinv").
   Qed.

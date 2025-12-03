@@ -820,7 +820,7 @@ Section Switcher.
       iDestruct "Hlc" as "[Hlc _]"
       ; iDestruct (lc_fupd_elim_later with "[$] [$Hcont]") as ">Hcont'".
 
-      iApply ("Hcont'" $! regs'); iFrame.
+      iApply ("Hcont'" $! cstk Ws Cs regs'); iFrame.
 
       iSplit.
       { iSplit.

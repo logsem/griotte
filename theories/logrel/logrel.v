@@ -41,9 +41,9 @@ Section logrel.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
-  Notation E := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation K := (iPropO Σ).
+  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
@@ -171,13 +171,13 @@ Section logrel.
   Qed.
 
   Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
-    (λne (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (W : WORLD) (C : CmptName) (wpc : Word),
-       ∀ regs,
+    (λne (W : WORLD) (C : CmptName) (wpc : Word),
+       ∀ cstk Ws Cs regs,
        ( interp_reg interp W C regs
         ∗ registers_pointsto (<[PC:=wpc]> regs)
         ∗ region W C
         ∗ sts_full_world W C
-        ∗ interp_cont
+        ∗ interp_cont cstk Ws Cs
         ∗ na_own logrel_nais ⊤
         ∗ cstack_frag cstk
         ∗ ⌜frame_match Ws Cs cstk W C⌝
@@ -189,7 +189,7 @@ Section logrel.
     Proper (dist n ==> dist n ==> dist n) (interp_expr).
   Proof.
     intros interp interp0 Heq K K0 HK.
-    rewrite /interp_expr. intros ??????. simpl.
+    rewrite /interp_expr. intros ???. simpl.
     by repeat f_equiv.
   Qed.
 
@@ -297,7 +297,7 @@ Section logrel.
         I think it should work, but the infrastructure for this case doesn't exist,
         and we don't lose anything to have the content universally quantified.
    *)
-  Program Definition interp_cont_exec (interp : V) (interp_cont : K) :
+  Program Definition interp_cont_exec (interp : V) (interp_cont : iProp Σ) :
     (CSTK -n> WORLD  -n> (leibnizO CmptName) -n> (leibnizO cframe) -n> iPropO Σ)
     :=
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (frm : cframe)
@@ -379,24 +379,25 @@ Section logrel.
       - [interp_cont_exec], which provides a WP rule for the continuation,
         matching the machine state after the return-to-caller
    *)
-  Program Fixpoint interp_cont (interp : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) : K :=
+  Program Fixpoint interp_cont_aux (interp : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    : iProp Σ :=
     match cstk, Ws, Cs with
     | [],[],[] => True%I
     | frm :: cstk', Wt :: Ws', Ct :: Cs' =>
         (▷ (
              (* Continuation for the rest of the call-stack *)
-             interp_cont interp cstk' Ws' Cs'
+             interp_cont_aux interp cstk' Ws' Cs'
              (* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
              ∗ interp_callee_part_of_the_stack interp Wt Ct frm.(wstk) frm.(is_untrusted_caller)
              (* The continuation when matching the switcher's state at return-to-caller *)
              ∗ (∀ W', ⌜related_sts_pub_world Wt W'⌝
-                      -∗  interp_cont_exec interp (interp_cont interp cstk' Ws' Cs') cstk' W' Ct frm)))%I
+                      -∗  interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs') cstk' W' Ct frm)))%I
     | _,_,_ =>  False%I
     end.
   Solve All Obligations with ( solve_proper; split; intros ; (intros [?  [] ]; done) ).
 
-  Global Instance interp_cont_ne n :
-    Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) (interp_cont).
+  Global Instance interp_cont_aux_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) (interp_cont_aux).
   Proof.
     intros interp interp0 Heq x y -> W W0 -> C C0 ->.
     generalize dependent W0.
@@ -413,24 +414,31 @@ Section logrel.
     apply Heq.
   Qed.
 
+  Program Definition interp_cont (interp : V) : K :=
+    (λne (cstk : CSTK) (Ws : list WORLD) (Cs : leibnizO (list CmptName)),
+       interp_cont_aux interp cstk Ws Cs
+    ).
+  Solve All Obligations with solve_proper.
+  Global Instance interp_cont_ne n :
+    Proper (dist n ==> dist n) (interp_cont).
+  Proof. solve_proper. Qed.
+
   Definition exec_cond
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality) (b e : Addr)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (interp : V) : iProp Σ :=
     (∀ (a : Addr) (W' : WORLD),
        ⌜a ∈ₐ [[ b , e ]]⌝
        → future_world g W W'
-       → ▷ interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W' C (WCap p g b e a))%I.
+       → ▷ interp_expr interp (interp_cont interp) W' C (WCap p g b e a))%I.
   Global Instance exec_cond_ne n :
-    Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
+    Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
   Proof.
     solve_proper_prepare.
-    do 17 (f_equiv; try done).
-    by (do 3 f_equiv).
+    solve_proper.
   Qed.
-  Global Instance exec_cond_contractive W C cstk Ws Cs b e g p :
-    Contractive (λ interp, exec_cond W C b e g p cstk Ws Cs interp).
+  Global Instance exec_cond_contractive W C b e g p :
+    Contractive (λ interp, exec_cond W C b e g p interp).
   Proof.
     intros ????. rewrite /exec_cond.
     do 6 f_equiv.
@@ -445,23 +453,22 @@ Section logrel.
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality) (b e a : Addr)
     (interp : V) : iProp Σ :=
-    (∀ stk Ws Cs W',
+    (∀ W',
        future_world g W W'
-       → (∀ g', ⌜ LocalityFlowsTo g' g ⌝ → (▷ interp_expr interp (interp_cont interp stk Ws Cs) stk Ws Cs W' C (WCap p g' b e a)))
+       → (∀ g', ⌜ LocalityFlowsTo g' g ⌝ → (▷ interp_expr interp (interp_cont interp) W' C (WCap p g' b e a)))
     )%I.
   Global Instance enter_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
   Proof.
     solve_proper_prepare.
-    do 21 f_equiv;[by repeat f_equiv|..].
-    apply interp_cont_ne; auto.
+    solve_proper.
   Qed.
 
   Global Instance enter_cond_contractive W C p g b e a :
     Contractive (λ interp, enter_cond W C p g b e a interp).
   Proof.
     intros ????. rewrite /enter_cond.
-    do 12 f_equiv.
+    do 6 f_equiv.
     apply later_contractive.
     inversion H. constructor. intros.
     apply dist_later_lt in H0.
@@ -636,17 +643,13 @@ Section logrel.
 
   Program Definition interp : V := (fixpoint (interp1)).
   Solve All Obligations with solve_proper.
-  Definition interp_continuation
-    (cstk : CSTK) (Ws : list WORLD) (Cs : leibnizO (list CmptName)) : K
-    := interp_cont interp cstk Ws Cs.
+  Definition interp_continuation : K := interp_cont interp.
   Program Definition interp_expression : E :=
-    λne cstk Ws Cs, interp_expr interp (interp_continuation cstk Ws Cs) cstk Ws Cs.
-  Solve Obligations with solve_proper.
+    interp_expr interp interp_continuation.
   Definition interp_registers : R := interp_reg interp.
 
-  Lemma interp_continuation_eq
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (w : leibnizO Word) :
-    interp_continuation cstk Ws Cs ≡ interp_cont (fixpoint interp1) cstk Ws Cs.
+  Lemma interp_continuation_eq :
+    interp_continuation ≡ interp_cont (fixpoint interp1).
   Proof.
     rewrite /interp_continuation /interp /= //.
   Qed.

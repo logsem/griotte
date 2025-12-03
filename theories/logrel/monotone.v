@@ -18,9 +18,9 @@ Section monotone.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation K := (iPropO Σ).
+  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
@@ -241,7 +241,7 @@ Section monotone.
   Proof.
     iIntros (Hrelated) "#Hw".
     rewrite !fixpoint_interp1_eq /=.
-    iModIntro. iIntros (stk Ws Cs W'').
+    iModIntro. iIntros (W'').
     destruct g.
     + iIntros "#Hrelated'".
       rewrite /future_world.
@@ -249,7 +249,7 @@ Section monotone.
       iAssert (future_world Global W W'')%I as "Hrelated".
       { rewrite /future_world.
         iPureIntro. apply related_sts_pub_priv_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! stk Ws Cs W'' with "Hrelated").
+      iSpecialize ("Hw" $! W'' with "Hrelated").
       iApply "Hw".
     + iIntros "#Hrelated'".
       rewrite /future_world.
@@ -257,7 +257,7 @@ Section monotone.
       iAssert (future_world Local W W'')%I as "Hrelated".
       { rewrite /future_world.
         iPureIntro. apply related_sts_pub_trans_world with W'; auto. }
-      iSpecialize ("Hw" $! stk Ws Cs W'' with "Hrelated").
+      iSpecialize ("Hw" $! W'' with "Hrelated").
       iApply "Hw".
   Qed.
 
@@ -351,14 +351,14 @@ Section monotone.
     iIntros (Hrelated Hnl) "#Hw".
     rewrite !fixpoint_interp1_eq /=.
     destruct g ; cbn in Hnl ; try done.
-    iModIntro. iIntros (stk Ws Cs W'').
+    iModIntro. iIntros (W'').
     iIntros "#Hrelated'".
     rewrite /future_world.
     iDestruct "Hrelated'" as "%Hrelated'".
     iAssert (future_world Global W W'')%I as "Hrelated".
     { rewrite /future_world.
       iPureIntro. apply related_sts_priv_trans_world with W'; auto. }
-    iSpecialize ("Hw" $! stk Ws Cs W'' with "Hrelated").
+    iSpecialize ("Hw" $! W'' with "Hrelated").
     iApply "Hw".
   Qed.
 

@@ -22,7 +22,7 @@ Section fundamental.
 
   Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
+  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
@@ -90,14 +90,11 @@ Section fundamental.
 
    *)
 
-  Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (Nswitcher : namespace)
-    :
+  Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv logrel_nais Nswitcher switcher_inv
-    ⊢ interp_expr interp (interp_cont interp cstk Ws Cs) cstk Ws Cs W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_return).
+    ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
-    iIntros  "#Hinv_switcher %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hr & Hsts & Hcont_K & Hna & Hcstk & %Hfreq)]".
+    iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hr & Hsts & Hcont_K & Hna & Hcstk & %Hfreq)]".
     rewrite /registers_pointsto.
 
     (* --- Extract scratch registers ct2 ctp --- *)
@@ -739,7 +736,7 @@ Section fundamental.
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the FTLR *)
-        iPoseProof ( fundamental W cstk Ws Cs C (WCap p g b e a) with "Hinterp_wstk2") as "IH".
+        iPoseProof ( fundamental W C (WCap p g b e a) with "Hinterp_wstk2") as "IH".
         rewrite /interp_expression /=.
         iApply ("IH" with "[- $Hr $Hsts $Hcont_K $Hna $Hcstk_frag $Hrmap]"); eauto.
         repeat iSplit;auto.
@@ -781,7 +778,7 @@ Section fundamental.
         { destruct g; cbn; iPureIntro
           ; [apply related_sts_priv_refl_world| apply related_sts_pub_refl_world].
         }
-        iSpecialize ("Hinterp_wret" $! cstk Ws Cs W with "[$]").
+        iSpecialize ("Hinterp_wret" $! W with "[$]").
         iSpecialize ("Hinterp_wret" $! g (LocalityFlowsToReflexive g)).
         iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
         rewrite /interp_expr /=.
@@ -815,14 +812,13 @@ Section fundamental.
           rewrite lookup_delete_ne; eauto.
   Qed.
 
-  Lemma interp_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace)
-    :
+  Lemma interp_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv logrel_nais Nswitcher switcher_inv
     ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.
-    iIntros "!> %cstk %Ws %Cs %regs %W' % %".
+    iIntros "!> %regs %W' % %".
     destruct g'; first done.
     iNext ; iApply (interp_expr_switcher_return with "Hinv").
   Qed.

@@ -45,7 +45,7 @@ Section helpers_switcher_adequacy.
                      & Hrmap & Hregion & Hworld & %Hcsp_sync & Htframe & Hna)".
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental with "Hinterp_PCC") as "H_jmp".
-    iSpecialize ("H_jmp" $! regs).
+    iSpecialize ("H_jmp" $! cstk Ws Cs regs).
     iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
     iApply "H_jmp".
     rewrite insert_id ; last done.

@@ -30,7 +30,7 @@ Section fundamental.
   Proof.
     iIntros "#Hinterp".
     rewrite /enter_cond /interp_expr /=.
-    iIntros (stk Ws Cs W' Hrelated).
+    iIntros (W' Hrelated).
     iAssert (future_world Global W W')%I as "%Hrelated'".
     { iPureIntro.
       apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto.
@@ -38,7 +38,7 @@ Section fundamental.
     iIntros "!> %g' %Hflows".
     assert (  LocalityFlowsTo g' Global ) as Hflow'.
     { destruct g'; auto. }
-    iSpecialize ("Hinterp" $! stk Ws Cs W' Hrelated' g' Hflow').
+    iSpecialize ("Hinterp" $! W' Hrelated' g' Hflow').
     iFrame "#".
   Qed.
 
@@ -156,8 +156,8 @@ Section fundamental.
     iDestruct "HA" as "[#A %Hpwl_cond]".
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
-    iIntros (stk Ws Cs W') "#Hfuture %g'' %Hflows !>".
-    iIntros (regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hcstk & Hframe)]".
+    iIntros (W') "#Hfuture %g'' %Hflows !>".
+    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hcstk & Hframe)]".
     rewrite /interp_conf.
     iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hcont Hframe Hown Hcstk"); eauto.
     iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
