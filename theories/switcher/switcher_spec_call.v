@@ -4,7 +4,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From cap_machine Require Import ftlr_base interp_weakening interp_switcher_return.
 From cap_machine Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
 From cap_machine Require Import multiple_updates region_invariants_revocation region_invariants_allocation.
-From cap_machine Require Import switcher switcher_preamble.
+From cap_machine Require Export switcher switcher_preamble.
 From stdpp Require Import base.
 From cap_machine Require Import logrel_extra switcher_macros_spec.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.

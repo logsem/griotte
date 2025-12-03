@@ -2,8 +2,8 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base list_relations.
 From cap_machine Require Export logrel logrel_extra monotone.
-From cap_machine Require Import rules_JmpCap.
 From cap_machine Require Import fundamental.
+From cap_machine Require Import switcher_preamble.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 Section fundamental.
@@ -740,7 +740,7 @@ Section fundamental.
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the FTLR *)
-        iPoseProof ( fundamental W cstk Ws Cs C (WCap p g b e a) (WCap RWL Local b_stk e_stk a_stk) Nswitcher with "Hinv_switcher Hinterp_wstk2") as "IH".
+        iPoseProof ( fundamental W cstk Ws Cs C (WCap p g b e a) (WCap RWL Local b_stk e_stk a_stk) with "Hinterp_wstk2") as "IH".
         rewrite /interp_expression /=.
         iApply ("IH" with "[- $Hr $Hsts $Hcont_K $Hna $Hcstk_frag $Hrmap]"); eauto.
         repeat iSplit;auto.

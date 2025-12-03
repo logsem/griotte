@@ -8,7 +8,7 @@ From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From cap_machine Require Import compartment_layout switcher_adequacy.
 From cap_machine Require Import disjoint_regions_tactics.
-From cap_machine Require Import interp_switcher_call interp_switcher_return.
+From cap_machine Require Import switcher_preamble interp_switcher_call interp_switcher_return.
 
 Class memory_layout `{MP: MachineParameters} := {
 

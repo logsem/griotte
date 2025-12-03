@@ -14,7 +14,6 @@ Section fundamental.
     {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Implicit Types W : WORLD.
@@ -29,12 +28,12 @@ Section fundamental.
 
   Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) (Nswitcher : namespace):
-    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs wstk Nswitcher.
+    (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word):
+    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs wstk.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Hcstk".
-    iIntros "Hr Hstate Ha HPC Hmap %Hwstk #Hinv_switcher".
+    iIntros "Hr Hstate Ha HPC Hmap %Hwstk".
     iInsert "Hmap" PC.
     iApply (wp_Jalr with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }

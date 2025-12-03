@@ -6,6 +6,7 @@ From cap_machine Require Import ftlr_base interp_weakening.
 From cap_machine Require Import rules proofmode monotone.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 From cap_machine Require Import wp_rules_interp.
+From cap_machine Require Import clear_stack clear_registers.
 
 Section switcher_macros.
   Context
@@ -15,7 +16,6 @@ Section switcher_macros.
     {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Implicit Types W : WORLD.
@@ -173,6 +173,7 @@ Section switcher_macros.
       destruct (decide (ca4 = i));simplify_map_eq=>//.
       destruct (decide (ca5 = i));simplify_map_eq=>//.
       destruct (decide (ct0 = i));simplify_map_eq=>//.
+      repeat (rewrite lookup_insert_ne; auto).
       apply not_elem_of_dom. rewrite Hargmap. set_solver. }
 
     rewrite Heq.

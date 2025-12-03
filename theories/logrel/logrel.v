@@ -4,7 +4,7 @@ From cap_machine Require Export cap_lang memory_region seal_store region_invaria
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine Require Import rules_base.
-From cap_machine Require Export switcher call_stack.
+From cap_machine Require Export call_stack.
 Import uPred.
 
 Ltac auto_equiv :=
@@ -40,7 +40,6 @@ Section logrel.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
   Notation E := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).

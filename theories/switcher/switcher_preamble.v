@@ -114,12 +114,6 @@ Section Switcher_preamble.
     )%I.
   Solve All Obligations with solve_proper.
 
-  Definition seal_capability ( w : Word ) (ot : OType) :=
-    match w with
-    | WCap p g b e a => WSealed ot (SCap p g b e a)
-    | _ => w
-    end.
-
   (** [ot_switcher_prop] is the sealing predicate for the switcher's otype, used for sealing entry points.
       Any (regular) compartment's are sealed with this otype, and must therefore respect this predicate.
       Only the switcher can unseal this otype.

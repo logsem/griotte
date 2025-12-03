@@ -1,9 +1,9 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel interp_weakening monotone.
-From cap_machine Require Import switcher logrel.
+From cap_machine Require Import switcher logrel fundamental.
 From iris.base_logic Require Import invariants.
 From cap_machine Require Import compartment_layout.
-From cap_machine Require Import interp_switcher_call interp_switcher_return.
+From cap_machine Require Import switcher_preamble interp_switcher_call interp_switcher_return.
 
 Section helpers_switcher_adequacy.
   Context
@@ -16,6 +16,59 @@ Section helpers_switcher_adequacy.
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
+
+  Lemma fundamental_execute_entry_point
+    (W : WORLD) (C : CmptName) ( b_pcc e_pcc b_cgp e_cgp : Addr )
+    (args off : nat) (Nswitcher : namespace) :
+    na_inv logrel_nais Nswitcher switcher_inv
+    ⊢ interp W C (WCap RX Global b_pcc e_pcc b_pcc) -∗
+    interp W C (WCap RW Global b_cgp e_cgp b_cgp) -∗
+    □ ∀ (regs : Reg) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (W' : WORLD),
+    ⌜related_sts_priv_world W W'⌝
+    → ▷ execute_entry_point (WCap RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap RW Global b_cgp e_cgp b_cgp)
+        args regs cstk Ws Cs W' C.
+  Proof.
+    iIntros "#Hinv_switcher #Hinterp_pcc #Hinterp_cgp".
+    iIntros (regs cstk Ws Cs W' Hrelated).
+    iDestruct (interp_monotone_nl with "[] [] [$Hinterp_pcc]")
+      as "Hinterp_pcc'"; eauto.
+    iDestruct (interp_monotone_nl with "[] [] [$Hinterp_cgp]")
+      as "Hinterp_cgp'"; eauto.
+    iDestruct (interp_weakeningEO W' C
+                 RX RX Global Global b_pcc b_pcc e_pcc e_pcc b_pcc (b_pcc ^+ off%nat)%a
+                with "Hinterp_pcc'") as "Hinterp_PCC"; eauto; try solve_addr.
+    iModIntro;iNext.
+
+    iIntros (??)
+      "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
+                     & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
+                     & Hrmap & Hregion & Hworld & %Hcsp_sync & Htframe & Hna)".
+    pose proof (Hfullmap csp) as [wcsp Hwcsp].
+    iDestruct (fundamental with "Hinterp_PCC") as "H_jmp".
+    iSpecialize ("H_jmp" $! regs).
+    iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
+    iApply "H_jmp".
+    rewrite insert_id ; last done.
+    iFrame "∗%#".
+    iIntros (r v Hrpc Hr).
+    destruct (decide (r = cgp)) as [-> | Hrcgp].
+    { rewrite Hregs_cgp in Hr ; simplify_eq.
+      iApply interp_monotone_nl; eauto.
+    }
+    destruct (decide (r = cra)) as [-> | Hrcra].
+    { rewrite Hregs_cra in Hr ; simplify_eq.
+      iApply (interp_switcher_return with "Hinv_switcher").
+    }
+    destruct (decide (r = csp)) as [-> | Hrcsp].
+    { by rewrite Hregs_csp in Hr ; simplify_eq. }
+    assert (r ∉ ({[PC; cra; cgp; csp]} : gset RegName)) as Hrr.
+    { set_solver+Hrpc Hrcgp Hrcsp Hrcra. }
+    destruct (decide ( r ∈ dom_arg_rmap args)) as [Hr_arg | Hr_arg].
+    + iApply "Hregs_interp"; eauto.
+    + assert (r ∉ {[PC; cra; cgp; csp]} ∪ dom_arg_rmap args) as Hrrr by set_solver+Hrr Hr_arg.
+      iSpecialize ("Hregs_zeros" $! r _ Hrrr Hr); iDestruct "Hregs_zeros" as "->".
+      iApply interp_int.
+  Qed.
 
   Lemma ot_switcher_interp
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
@@ -42,7 +95,6 @@ Section helpers_switcher_adequacy.
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp Ha_etbl Hargs.
     iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry #Hinterp_pcc #Hinterp_cgp #Hentry".
-    iEval (cbn).
     iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, off.
     iFrame "#".
     iSplit ; first (by iPureIntro).
@@ -72,46 +124,7 @@ Section helpers_switcher_adequacy.
       pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
       solve_addr.
     }
-
-    iIntros (regs cstk Ws Cs W' Hrelated).
-    iDestruct (interp_monotone_nl with "[] [] [$Hinterp_pcc]")
-      as "Hinterp_pcc'"; eauto.
-    iDestruct (interp_monotone_nl with "[] [] [$Hinterp_cgp]")
-      as "Hinterp_cgp'"; eauto.
-    iDestruct (interp_weakeningEO W' C
-                 RX RX Global Global b_pcc b_pcc e_pcc e_pcc b_pcc (b_pcc ^+ off%nat)%a
-                with "Hinterp_pcc'") as "Hinterp_PCC"; eauto; try solve_addr.
-    iModIntro;iNext.
-
-    iIntros (??)
-      "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
-                     & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
-                     & Hrmap & Hregion & Hworld & %Hcsp_sync & Htframe & Hna)".
-    pose proof (Hfullmap csp) as [wcsp Hwcsp].
-    iDestruct (fundamental.fundamental with "[$] Hinterp_PCC") as "H_jmp".
-    iSpecialize ("H_jmp" $! regs).
-    iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
-    iApply "H_jmp".
-    rewrite insert_id ; last done.
-    iFrame "∗%#".
-    iIntros (r v Hrpc Hr).
-    destruct (decide (r = cgp)) as [-> | Hrcgp].
-    { rewrite Hregs_cgp in Hr ; simplify_eq.
-      iApply interp_monotone_nl; eauto.
-    }
-    destruct (decide (r = cra)) as [-> | Hrcra].
-    { rewrite Hregs_cra in Hr ; simplify_eq.
-      iApply (interp_switcher_return with "Hinv_switcher").
-    }
-    destruct (decide (r = csp)) as [-> | Hrcsp].
-    { by rewrite Hregs_csp in Hr ; simplify_eq. }
-    assert (r ∉ ({[PC; cra; cgp; csp]} : gset RegName)) as Hrr.
-    { set_solver+Hrpc Hrcgp Hrcsp Hrcra. }
-    destruct (decide ( r ∈ dom_arg_rmap args)) as [Hr_arg | Hr_arg].
-    + iApply "Hregs_interp"; eauto.
-    + assert (r ∉ {[PC; cra; cgp; csp]} ∪ dom_arg_rmap args) as Hrrr by set_solver+Hrr Hr_arg.
-      iSpecialize ("Hregs_zeros" $! r _ Hrrr Hr); iDestruct "Hregs_zeros" as "->".
-      iApply interp_int.
+    iApply fundamental_execute_entry_point; eauto.
   Qed.
 
   Lemma ot_switcher_interp_entry

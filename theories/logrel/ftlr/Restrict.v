@@ -16,7 +16,6 @@ Section fundamental.
     {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Implicit Types W : WORLD.
@@ -51,13 +50,12 @@ Section fundamental.
 
   Lemma restrict_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
-    (Nswitcher : namespace) :
-    ftlr_instr W C regs p p' g b e a w (Restrict dst src) ρ P cstk Ws Cs wstk Nswitcher.
+    (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word) :
+    ftlr_instr W C regs p p' g b e a w (Restrict dst src) ρ P cstk Ws Cs wstk.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
+    iIntros "Hr Hstate Ha HPC Hmap %Hsp".
     iInsert "Hmap" PC.
     iApply (wp_Restrict with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }

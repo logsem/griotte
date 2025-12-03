@@ -13,7 +13,6 @@ Section fundamental.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Implicit Types W : WORLD.

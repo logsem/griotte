@@ -6,6 +6,7 @@ From cap_machine Require Import interp_weakening.
 From cap_machine Require Import wp_rules_interp switcher_macros_spec.
 From cap_machine Require Import rules proofmode monotone.
 From cap_machine Require Import fundamental.
+From cap_machine Require Import switcher_preamble.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 
@@ -39,7 +40,7 @@ Section fundamental.
   Proof.
     iIntros  "#Hinv_switcher %regs [[%Hfull_rmap #Hreg] (Hrmap & %Hstk & Hr & Hsts & Hcont & Hna & Hcstk & %Hframe)]".
     rewrite /registers_pointsto.
-    iPoseProof (fundamental_ih with "Hinv_switcher") as "IH". (* used for weakening lemma later *)
+    iPoseProof fundamental_ih as "IH". (* used for weakening lemma later *)
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
