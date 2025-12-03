@@ -297,7 +297,7 @@ Section VAE.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
-    iIntros "!> %cstk %Ws %Cs %W0 %Hpriv_W_W0 !> %rmap %csp_b' %csp_e".
+    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".

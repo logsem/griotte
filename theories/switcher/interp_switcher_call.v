@@ -500,9 +500,10 @@ Section fundamental.
               is_untrusted_caller := true
            |}).
 
-    iSpecialize ("Hexec" $! (frame :: cstk) (W :: Ws) (C :: Cs) with "[]").
+    iSpecialize ("Hexec" with "[]").
     { iPureIntro. apply related_sts_priv_refl_world. }
     iInstr "Hcode".
+    iSpecialize ("Hexec" $! (frame :: cstk) (W :: Ws) (C :: Cs)).
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     rewrite /load_word. iSimpl in "Hcgp".
 

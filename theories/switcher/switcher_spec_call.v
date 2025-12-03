@@ -534,15 +534,16 @@ Section Switcher.
       iDestruct (big_sepL_elem_of with "H") as "?"; eauto.
     }
     iSpecialize ("Hexec" $!
-                   (frame :: cstk)
-                   ((std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) :: Ws)
-                   (C::Cs)
                    (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary)
                   with "[]").
     { iPureIntro.
       apply related_sts_pub_priv_world.
       apply related_sts_pub_update_multiple_temp. auto. }
     iInstr "Hcode".
+    iSpecialize ("Hexec" $!
+                   (frame :: cstk)
+                   ((std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) :: Ws)
+                   (C::Cs)).
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     rewrite /load_word. iSimpl in "Hcgp".
 
