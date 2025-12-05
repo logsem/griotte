@@ -14,7 +14,6 @@ Section wp_interp.
     {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Implicit Types W : WORLD.
@@ -22,7 +21,7 @@ Section wp_interp.
 
   Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation K := (WORLD -n> (leibnizO CmptName) -n> iPropO Σ).
+  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).

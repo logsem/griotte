@@ -15,7 +15,6 @@ Section fundamental.
     {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Implicit Types W : WORLD.
@@ -28,13 +27,12 @@ Section fundamental.
 
   Lemma jnz_case (W : WORLD) (C : CmptName)  (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (rimm : Z + RegName) (rcond : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
-    (Nswitcher : namespace) :
-    ftlr_instr W C regs p p' g b e a w (Jnz rimm rcond) ρ P cstk Ws Cs wstk Nswitcher.
+    (w : Word) (ρ : region_type) (rimm : Z + RegName) (rcond : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr W C regs p p' g b e a w (Jnz rimm rcond) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
+    iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Jnz with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -54,7 +52,7 @@ Section fundamental.
       map_simpl "Hmap".
       iDestruct (region_close with "[$Hstate $Hr $Ha Hw $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
-      iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
@@ -64,7 +62,7 @@ Section fundamental.
     iApply wp_pure_step_later; auto. iNext; iIntros "_".
     iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
     { destruct ρ;auto;contradiction. }
-    iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]") ; eauto.
+    iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]") ; eauto.
     iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity.
   Qed.
 

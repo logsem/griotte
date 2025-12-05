@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
+From cap_machine Require Import rules logrel logrel_extra monotone register_tactics.
 From cap_machine Require Import fetch assert switcher_spec_call deep_locality.
+From cap_machine Require Import proofmode.
 
 Section DLE.
   Context

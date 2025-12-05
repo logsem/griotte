@@ -93,11 +93,10 @@ Section Switcher_preamble.
       to re-instate validity of the caller's stack.
       This will become clearer in the proof of [switcher_ret_specification].
    *)
-  Program Definition execute_entry_point
-    (wpcc wcgp : Word) nargs (regs : Reg) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    : (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
+  Program Definition execute_entry_point (wpcc wcgp : Word) (nargs : nat) :
+    (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
-      ∀ a_stk e_stk,
+      ∀ (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) regs a_stk e_stk,
        let a_stk4 := (a_stk ^+4)%a in
        ( interp_continuation cstk Ws Cs
          ∗ ⌜frame_match Ws Cs cstk W C⌝
@@ -113,12 +112,6 @@ Section Switcher_preamble.
            -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.
-
-  Definition seal_capability ( w : Word ) (ot : OType) :=
-    match w with
-    | WCap p g b e a => WSealed ot (SCap p g b e a)
-    | _ => w
-    end.
 
   (** [ot_switcher_prop] is the sealing predicate for the switcher's otype, used for sealing entry points.
       Any (regular) compartment's are sealed with this otype, and must therefore respect this predicate.
@@ -160,12 +153,12 @@ Section Switcher_preamble.
            ∗ inv (export_table_CGPN Cname) ( (b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp)
            ∗ inv (export_table_entryN Cname a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
            ∗ (seal_capability w ot_switcher) ↦□ₑ nargs
-           ∗ □ ( ∀ regs cstk Ws Cs W', ⌜related_sts_priv_world W W'⌝ →
+           ∗ □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap RX Global bpcc epcc (bpcc ^+ off)%a)
                             (WCap RW Global bcgp ecgp bcgp)
                             nargs
-                            regs cstk Ws Cs W' C))
+                            W' C))
       )%I.
   Solve All Obligations with solve_proper.
 
@@ -191,8 +184,8 @@ Section Switcher_preamble.
     iExists _,_.
     repeat (iSplit ; first done).
     iModIntro.
-    iIntros (regs cstk Ws Cs W'' Hrelated_W'_W'').
-    iSpecialize ("Hcont" $! regs cstk Ws Cs W'').
+    iIntros (W'' Hrelated_W'_W'').
+    iSpecialize ("Hcont" $! W'').
     iApply "Hcont".
     iPureIntro.
     by eapply related_sts_priv_trans_world.

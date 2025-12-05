@@ -4,7 +4,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From cap_machine Require Import ftlr_base interp_weakening interp_switcher_return.
 From cap_machine Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
 From cap_machine Require Import multiple_updates region_invariants_revocation region_invariants_allocation.
-From cap_machine Require Import switcher switcher_preamble.
+From cap_machine Require Export switcher switcher_preamble.
 From stdpp Require Import base.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 From cap_machine Require Export logrel_extra.
@@ -653,7 +653,7 @@ Section Switcher.
           iApply (interp_weakening _ _ _ _ _ _ b_stk csp_b with "[]Hinterp_callee_wstk"); auto.
           + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
           + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
-          + iApply (fundamental_ih with "Hswitcher").
+          + iApply fundamental_ih.
         }
 
         iDestruct (write_allowed_inv_full_cap with "Hvalid") as "-#H"; auto.
@@ -788,7 +788,7 @@ Section Switcher.
       iDestruct "Hinterp_wfrm" as "#(Hinterp_wstk0 & Hinterp_wstk1 & Hinterp_wstk2 & Hinterp_wstk3)".
       iClear "Hexec_topmost_frm".
 
-      iDestruct (jmp_or_fail_spec with "[$] [$Hinterp_wstk2]") as "Hcont".
+      iDestruct (jmp_or_fail_spec with "[$Hinterp_wstk2]") as "Hcont".
       destruct (decide (isCorrectPC (updatePcPerm wastk2))); cycle 1.
       { by iApply "Hcont"; iFrame. }
 
@@ -820,7 +820,7 @@ Section Switcher.
       iDestruct "Hlc" as "[Hlc _]"
       ; iDestruct (lc_fupd_elim_later with "[$] [$Hcont]") as ">Hcont'".
 
-      iApply ("Hcont'" $! regs'); iFrame.
+      iApply ("Hcont'" $! cstk Ws Cs regs'); iFrame.
 
       iSplit.
       { iSplit.
@@ -854,9 +854,7 @@ Section Switcher.
          rewrite -not_elem_of_dom Harg_rmap'.
          set_solver+.
       }
-      iSplit; last(iPureIntro; eapply frame_match_mono; eauto).
-      iPureIntro.
-      by subst regs' regs; simplify_map_eq.
+      iPureIntro; eapply frame_match_mono; eauto.
   Qed.
 
 End Switcher.

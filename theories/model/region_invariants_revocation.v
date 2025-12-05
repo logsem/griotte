@@ -660,38 +660,20 @@ Section heap.
         all: try (right with Permanent; [left;constructor|eleft; constructor]).
   Qed.
 
-  Lemma revoke_private_monotone_dom (Wstd_sta Wstd_sta' : gmap Addr region_type) :
-    (∀ (i : finz MemNum) (x : region_type), Wstd_sta !! i = Some x → x = Permanent → is_Some (Wstd_sta' !! i))
-    -> ( ∀ (i : finz MemNum) (x : region_type), (revoke_std_sta Wstd_sta) !! i = Some x → x = Permanent → is_Some ((revoke_std_sta Wstd_sta') !! i) ).
-  Proof.
-    intros Hmono a ρ Hρ ->.
-    assert (Wstd_sta !! a = Some Permanent).
-    { rewrite /revoke_std_sta lookup_fmap in Hρ.
-      destruct (Wstd_sta !! a); cbn in Hρ; last done.
-      destruct r;  congruence.
-    }
-    specialize (Hmono _ _ H eq_refl).
-    destruct Hmono.
-    rewrite /revoke_std_sta lookup_fmap H0.
-    destruct (decide (x = Temporary)); simplify_eq.
-    + by exists Revoked; cbn.
-    + exists x; cbn.
-      destruct x ; congruence.
-  Qed.
-
   Lemma revoke_monotone (W W' : WORLD) :
     related_sts_priv_world W W' → related_sts_priv_world (revoke W) (revoke W').
   Proof.
     destruct W as [ Wstd_sta [Wloc_sta Wloc_rel] ].
     destruct W' as [ Wstd_sta' [Wloc_sta' Wloc_rel'] ].
     intros [(Hdom_sta & Htransition) Hrelated_loc].
-    pose proof (revoke_private_monotone_dom _ _ Hdom_sta) as Hdom_sta'.
+    (* pose proof (revoke_private_monotone_dom _ _ Hdom_sta) as Hdom_sta'. *)
     split;[split;[auto|]|auto].
-    intros i x' y' Hx' Hy'.
-    simpl in *.
-    assert (is_Some (Wstd_sta !! i)) as [x Hx]; [apply revoke_std_sta_lookup_Some; eauto|].
-    assert (is_Some (Wstd_sta' !! i)) as [y Hy]; [apply revoke_std_sta_lookup_Some; eauto|].
-    apply std_rel_monotone with x y Wstd_sta Wstd_sta' i; auto. apply Htransition with i;auto.
+    - apply revoke_monotone_dom; eauto.
+    - intros i x' y' Hx' Hy'.
+      simpl in *.
+      assert (is_Some (Wstd_sta !! i)) as [x Hx]; [apply revoke_std_sta_lookup_Some; eauto|].
+      assert (is_Some (Wstd_sta' !! i)) as [y Hy]; [apply revoke_std_sta_lookup_Some; eauto|].
+      apply std_rel_monotone with x y Wstd_sta Wstd_sta' i; auto. apply Htransition with i;auto.
   Qed.
 
   (* --------------------------------------------------------------------------------- *)
@@ -710,10 +692,7 @@ Section heap.
       rewrite /related_sts_std_priv.
       simpl in *.
       split.
-      + intros a ρ Hρ ->.
-        destruct (decide (i = a)); simplify_map_eq; first done.
-        (* rewrite lookup_insert_ne; auto. *)
-        eapply Hdoms; eauto.
+      + rewrite dom_insert_L; set_solver.
       + intros j x y Hx Hy.
         destruct (decide (i = j)).
         { subst.
@@ -2048,8 +2027,8 @@ Section heap.
 
    Lemma revoked_by_separation
      (W : WORLD) (C : CmptName)
-     (a : Addr) (w : Word) (ρ : region_type) :
-     std W !! a = Some ρ →
+     (a : Addr) (w : Word) :
+     a ∈ dom (std W) →
      region W C
      ∗ sts_full_world W C
      ∗ a ↦ₐ w
@@ -2057,7 +2036,7 @@ Section heap.
      region W C
      ∗ sts_full_world W C
      ∗ a ↦ₐ w
-     ∗ ⌜ ρ = Revoked ⌝
+     ∗ ⌜ std W !! a = Some Revoked ⌝
    .
    Proof.
      iIntros (Hstd_a) "(Hregion & Hworld & Ha)".
@@ -2065,10 +2044,10 @@ Section heap.
      iDestruct "Hregion" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
      rewrite /region_map_def.
      assert (is_Some (M !! a)) as [ [γ p] Hγp].
-     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom; eauto. }
+     { apply elem_of_dom. rewrite -Hdom. auto. }
      iMod (reg_get with "[$HM]") as "[HM Hrel]";[eauto|].
      iDestruct (big_sepM_delete _ _ a with "Hr") as "[Hstate Hr]";[eauto|].
-     iDestruct "Hstate" as (ρ' Ha) "[Hρ Hstate]".
+     iDestruct "Hstate" as (ρ Ha) "[Hρ Hstate]".
      iDestruct (sts_full_state_std with "Hworld Hρ") as %Hx''; simplify_eq.
      iDestruct "Hstate" as (γ' p' φ) "(% & % & Hφ & Hstate)"; simplify_eq.
      iFrame "Hworld".
@@ -2082,6 +2061,7 @@ Section heap.
      }
      iDestruct (big_sepM_delete _ _ a with "[Hρ Hφ Hstate $Hr]") as "Hr";[eauto| |].
      { iFrame "∗%"; done. }
+     simplify_eq.
      by iFrame.
    Qed.
 
@@ -2110,8 +2090,6 @@ Section heap.
        destruct Hla as [Ha Hla].
        iMod (IHla with "[$Hregion $Hworld $Hla]")
          as "(Hregion & Hworld & Hla & %Hforall_la)"; eauto.
-       rewrite elem_of_dom in Ha.
-       destruct Ha as [ρ Ha].
        iMod (revoked_by_separation with "[$Hregion $Hworld $Ha]")
          as "(Hregion & Hworld & Ha & %Hforall_a)"; eauto; simplify_eq.
        rewrite Forall_cons_iff.
@@ -2232,6 +2210,7 @@ Section heap.
     iIntros (Hin) "( (%&%&%& (%&%&Hv&Hmono&Hφ) &Hrel) & Hsts & Hr )".
     rewrite elem_of_dom in Hin; destruct Hin as [? Hin].
     iMod (revoked_by_separation with "[$Hsts $Hr $Hv]") as "(Hsts & Hr & Hv & %H')"; eauto.
+    { by rewrite elem_of_dom. }
     simplify_eq.
     iModIntro.
     iFrame "∗%".

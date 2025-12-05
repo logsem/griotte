@@ -15,7 +15,6 @@ Section fundamental.
     {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Implicit Types W : WORLD.
@@ -28,14 +27,13 @@ Section fundamental.
 
   Lemma get_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg) (p p' : Perm)
         (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst r : RegName) (ins: instr)
-        (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
-        (Nswitcher : namespace) :
+        (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     is_Get ins dst r →
-    ftlr_instr W C regs p p' g b e a w ins ρ P cstk Ws Cs wstk Nswitcher.
+    ftlr_instr W C regs p p' g b e a w ins ρ P cstk Ws Cs.
   Proof.
     intros Hinstr Hp Hsome i Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
+    iIntros "Hr Hstate Ha HPC Hmap".
     rewrite <- Hi in Hinstr; clear Hi.
     iInsert "Hmap" PC.
     iApply (wp_Get with "[$Ha $Hmap]"); eauto.
@@ -57,7 +55,7 @@ Section fundamental.
       assert (is_Some (<[dst:=WInt z]> (<[PC:=WCap x x0 x1 x2 x3]> regs) !! csp)) as [??].
       { destruct (decide (dst = csp)); simplify_map_eq=>//. }
       iApply ("IH" $! _ _ _ _ _ (<[dst := _]> (<[PC := _]> regs))
-               with "[%] [] [Hmap] [%] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]")
+               with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]")
         ; eauto.
       + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).

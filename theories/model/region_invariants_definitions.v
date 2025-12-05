@@ -137,44 +137,11 @@ Section region_invariants_definitions.
   Qed.
 
   (* ------------------------- DEFINITION STD STS CLASS -------------------------- *)
-  Definition state_permanent_std (ρ : region_type) := ρ = Permanent.
-  Global Instance state_permanent_std_dec (ρ : region_type) : Decision (state_permanent_std ρ).
-  Proof.
-    destruct ρ; rewrite /state_permanent_std ; cbn; solve_decision.
-  Qed.
-
-
-  Lemma state_permanent_reachable_std :
-    forall (ρ ρ' : region_type), ¬ (state_permanent_std ρ) -> rtc (λ x y, (std_rel_pub x y ∨ std_rel_priv x y)) ρ ρ'.
-  Proof.
-    intros ρ ρ' Hρ.
-    destruct ρ; rewrite /state_permanent_std in Hρ ; try congruence.
-    - destruct ρ'; try apply rtc_refl ; try (apply rtc_once; right; constructor).
-    - destruct ρ'
-      ; try apply rtc_refl
-      ; try (apply rtc_once; right; constructor)
-      ; try (apply rtc_once; left; constructor).
-  Qed.
-
-  Lemma state_permanent_inv_std :
-    forall (ρ ρ' : region_type),
-    (state_permanent_std ρ) ->
-    rtc (λ x y, (std_rel_pub x y ∨ std_rel_priv x y)) ρ ρ' ->
-    (state_permanent_std ρ').
-  Proof.
-    intros ρ ρ' Hρ Hrtc.
-    destruct ρ, ρ'; rewrite /state_permanent_std in Hρ ; try congruence.
-    all: by pose proof (std_rel_rtc_Permanent Permanent _ Hρ Hrtc).
-  Qed.
 
   Global Program Instance sts_std : STS_STD region_type :=
     {|
       Rpub := std_rel_pub;
       Rpriv := std_rel_priv;
-      state_permanent := (fun ρ => ρ = Permanent);
-      dec_state_permanent := state_permanent_std_dec;
-      state_permanent_reachable := state_permanent_reachable_std;
-      state_permanent_inv := state_permanent_inv_std;
     |}.
 
 End region_invariants_definitions.

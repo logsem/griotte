@@ -275,6 +275,11 @@ Definition is_sealed_with_o (w : Word) (o : OType) : bool :=
   | WSealed o' sb => (o =? o')%ot
   | _ => false end.
 
+Definition seal_capability ( w : Word ) (ot : OType) :=
+  match w with
+  | WCap p g b e a => WSealed ot (SCap p g b e a)
+  | _ => w
+  end.
 
 (* non-E capability or range of seals *)
 Definition is_mutable_range (w : Word) : bool:=

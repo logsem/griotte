@@ -1,8 +1,9 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
-From cap_machine Require Import logrel logrel_extra rules proofmode.
+From cap_machine Require Import logrel logrel_extra rules.
 From cap_machine Require Import fetch switcher_spec_call counter.
 From cap_machine Require Import switcher_spec_return.
+From cap_machine Require Import proofmode.
 
 Section Counter.
   Context
@@ -539,20 +540,14 @@ Section Counter.
 
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
-    (rmap : Reg)
 
     (C_f : Sealable)
 
     (W0 : WORLD)
 
-    (Ws : list WORLD)
-    (Cs : list CmptName)
-
     (csp_content : list Word)
 
     (Nswitcher Ncounter : namespace)
-
-    (cstk : CSTK)
     :
 
     let imports := counter_main_imports b_switcher e_switcher a_switcher_call ot_switcher C_f in
@@ -574,14 +569,13 @@ Section Counter.
     ∗ interp W0 C (WSealed ot_switcher C_f)
     ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
     ⊢ execute_entry_point
-      (WCap RX Global pc_b pc_e pc_a) (WCap RW Global cgp_b cgp_e cgp_b) 0 rmap
-      cstk Ws Cs W0 C.
+      (WCap RX Global pc_b pc_e pc_a) (WCap RW Global cgp_b cgp_e cgp_b) 0 W0 C.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_counter HsubBounds
                Hcgp_contiguous Himports_contiguous)
       "(#Hswitcher & #Hmain & #Hinterp_C_f & #HentryC_f)
-      % % (HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
+      % % % % % % (HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as "(%Hfullrmap & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hinterp_rmap)".
     rewrite /interp_conf.
     rewrite /registers_pointsto.

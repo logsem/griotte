@@ -2,7 +2,6 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Export logrel.
-From cap_machine Require Export switcher_preamble.
 
 Section fundamental.
   Context
@@ -13,7 +12,6 @@ Section fundamental.
     {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Implicit Types W : WORLD.
@@ -29,11 +27,10 @@ Section fundamental.
 
   Definition ftlr_IH: iProp Σ :=
     (□ ▷ (∀ (W_ih : WORLD) (C_ih : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (r_ih : leibnizO Reg)
-            (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr) (wstk_ih : Word),
+            (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr),
             full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
             -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r_ih)
-            -∗ ⌜ r_ih !! csp = Some wstk_ih ⌝
             -∗ region W_ih C_ih
             -∗ sts_full_world W_ih C_ih
             -∗ interp_continuation cstk Ws Cs
@@ -45,8 +42,7 @@ Section fundamental.
 
   Definition ftlr_instr_base (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (P : V) (Pinstr : Prop) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
-    (Nswitcher : namespace)
+    (w : Word) (ρ : region_type) (P : V) (Pinstr : Prop) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     : Prop :=
     validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
@@ -86,8 +82,6 @@ Section fundamental.
     -∗ a ↦ₐ w
     -∗ PC ↦ᵣ (WCap p g b e a)
     -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
-    -∗ ⌜ regs !! csp = Some wstk ⌝
-    -∗ na_inv logrel_nais Nswitcher switcher_inv (** SWITCHER INVARIANT *)
     -∗ WP Instr Executable
         {{ v, WP Seq (cap_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝
@@ -95,9 +89,8 @@ Section fundamental.
 
   Definition ftlr_instr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (i: instr) (ρ : region_type) (P : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
-    (Nswitcher : namespace)
+    (w : Word) (i: instr) (ρ : region_type) (P : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     : Prop :=
-    ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w = i) cstk Ws Cs wstk Nswitcher.
+    ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w = i) cstk Ws Cs.
 
 End fundamental.

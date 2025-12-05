@@ -10,7 +10,6 @@ Section VAE_helper.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Context {C : CmptName}.

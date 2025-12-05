@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
-From cap_machine Require Import logrel logrel_extra rules proofmode.
+From cap_machine Require Import logrel logrel_extra rules.
 From cap_machine Require Import fetch assert switcher_spec_call cmdc.
+From cap_machine Require Import proofmode.
 
 Section CMDC.
   Context
@@ -935,7 +936,7 @@ Section CMDC.
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
                 b_assert e_assert a_flag B_f C_g W_init_B W_init_C
-                Ws Cs csp_content φ Nassert Nswitcher cstk); eauto; iFrame "#∗".
+               Ws Cs csp_content φ Nassert Nswitcher cstk); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".
   Qed.

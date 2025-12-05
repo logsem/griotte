@@ -15,7 +15,6 @@ Section fundamental.
     {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Implicit Types W : WORLD.
@@ -28,13 +27,12 @@ Section fundamental.
 
   Lemma lea_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr) (w : Word)
-    (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (wstk : Word)
-    (Nswitcher : namespace) :
-    ftlr_instr W C regs p p' g b e a w (Lea dst src) ρ P cstk Ws Cs wstk Nswitcher.
+    (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr W C regs p p' g b e a w (Lea dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap %Hsp #Hswitcher".
+    iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_lea with "[$Ha $Hmap]"); eauto.
     { by rewrite lookup_insert. }
@@ -58,7 +56,7 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
       assert (is_Some (regs' !! csp)) as [??].
       { rewrite Hregs'. destruct (decide (dst = csp));simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
+      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
       - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
       - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
@@ -84,7 +82,7 @@ Section fundamental.
 
       assert (is_Some (regs' !! csp)) as [??].
       { rewrite Hregs'. destruct (decide (dst = csp));simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [//] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
+      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
       - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
       - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
