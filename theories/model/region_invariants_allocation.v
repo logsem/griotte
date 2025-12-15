@@ -712,7 +712,7 @@ Section region_alloc_cmpt.
     `{MP: MachineParameters}
   .
 
-    Lemma alloc_compartment_interp (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName)  :
+    Lemma alloc_compartment_interp_rel (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName)  :
       let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
       let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
       let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
@@ -995,5 +995,154 @@ Section region_alloc_cmpt.
         iSplit; last done.
          iApply (monoReq_interp _ _ _ _ Permanent); done.
     Qed.
+
+    Lemma alloc_compartment_interp (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName)  :
+      let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
+      let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
+      let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
+      let Wcode := std_update_multiple W code_addrs Permanent in
+      let Wdata := std_update_multiple Wcode data_addrs Permanent in
+      let Wfinal := std_update_multiple Wdata imports_addrs Permanent in
+      let pcc_cap := (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
+      let cgp_cap := (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
+
+      Forall (λ k, std W !! k = None) imports_addrs →
+      Forall (λ k, std W !! k = None) code_addrs →
+      Forall (λ k, std W !! k = None) data_addrs →
+
+      Forall (λ w : Word, is_z w) (cmpt_code C_cmpt) ->
+      Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) ->
+
+      ([∗ list] k;v ∈ imports_addrs ; cmpt_imports C_cmpt, k ↦ₐ v) -∗
+      ([∗ list] k;v ∈ code_addrs ; cmpt_code C_cmpt, k ↦ₐ v) -∗
+      ([∗ list] k;v ∈ data_addrs ; cmpt_data C_cmpt, k ↦ₐ v) -∗
+
+      ([∗ list] v ∈ cmpt_imports C_cmpt,
+         ( (interp Wfinal C pcc_cap ∗ interp Wfinal C cgp_cap)
+           -∗
+          interpC (Wfinal, C, v)
+         )
+         ∗ future_priv_mono C interpC v) -∗
+
+      sts_full_world W C -∗
+      region W C
+
+      ={E}=∗
+
+      sts_full_world Wfinal C
+      ∗ region Wfinal C
+      ∗ interp Wfinal C pcc_cap
+      ∗ interp Wfinal C cgp_cap
+    .
+    Proof.
+      intros * Himports Hcode Hdata C_code C_data.
+      iIntros "HC_imports HC_code HC_data Himport_interp Hsts_C Hr_C".
+      iApply (alloc_compartment_interp_rel with "[$] [$] [$] [Himport_interp] [$] [$]"); eauto.
+      iApply (big_sepL_impl with "Himport_interp").
+      iIntros "!> %k %w %Hw [Hinterp $] [#Hrel_pcc #Hrel_data]".
+      iApply "Hinterp".
+      iSplit.
+      - iEval (rewrite fixpoint_interp1_eq /=).
+        iApply big_sepL_intro; iModIntro.
+        iIntros (ka a Ha).
+        iExists RX, interp.
+        iEval (cbn).
+        iSplit; first done.
+        iSplit; first (iPureIntro ; by apply persistent_cond_interp).
+        iSplit.
+        { apply elem_of_list_lookup_2 in Ha.
+          iApply (big_sepL_elem_of with "Hrel_pcc"); eauto.
+          rewrite -finz_seq_between_split;auto.
+          pose proof (cmpt_import_size C_cmpt) as HC.
+          pose proof (cmpt_code_size C_cmpt) as HC'.
+          solve_addr.
+        }
+        iSplit; first (iNext ; by iApply zcond_interp).
+        iSplit; first (iNext ; by iApply rcond_interp).
+        iSplit; first done.
+        assert ((std Wfinal) !! a = Some Permanent).
+        {
+          subst Wfinal.
+          apply elem_of_list_lookup_2 in Ha.
+          rewrite (finz_seq_between_split _ (cmpt_a_code C_cmpt)) in Ha.
+          2: {
+            pose proof (cmpt_import_size C_cmpt) as HC.
+            pose proof (cmpt_code_size C_cmpt) as HC'.
+            solve_addr.
+          }
+          rewrite elem_of_app in Ha.
+          destruct Ha as [ Ha | Ha ]; simplify_eq.
+          + rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
+          + rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+            { pose proof (cmpt_import_size C_cmpt) as HC.
+              pose proof (cmpt_code_size C_cmpt) as HC'.
+              apply elem_of_finz_seq_between in Ha.
+              apply not_elem_of_finz_seq_between.
+              solve_addr.
+            }
+            rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
+            { intro Hcontra.
+              assert (
+                  (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
+                    ##
+                    (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt))
+                ) as Hdis; last set_solver+Ha Hcontra Hdis.
+              clear.
+              pose proof (cmpt_cgp_disjoint C_cmpt) as Hdis.
+              rewrite /cmpt_pcc_mregion /cmpt_cgp_mregion in Hdis.
+              rewrite -/(cmpt_pcc_mregion C_cmpt) -/(cmpt_cgp_mregion C_cmpt) in Hdis.
+              rewrite map_disjoint_dom in Hdis.
+              rewrite dom_cmpt_pcc_mregion dom_cmpt_cgp_mregion /cmpt_pcc_region /cmpt_cgp_region in Hdis.
+              rewrite -list_to_set_disj in Hdis.
+              assert (
+                  finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) ⊆ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)
+                ); last set_solver.
+              intros a Ha.
+              rewrite !elem_of_finz_seq_between in Ha |- *.
+              pose proof (cmpt_import_size C_cmpt).
+              solve_addr.
+            }
+            rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
+        }
+        iSplit; last done.
+        iApply (monoReq_interp _ _ _ _ Permanent); done.
+      - iEval (rewrite fixpoint_interp1_eq /=).
+        iApply big_sepL_intro; iModIntro.
+        iIntros (ka a Ha).
+        iExists RW, interp.
+        iEval (cbn).
+        iSplit; first done.
+        iSplit; first (iPureIntro ; by apply persistent_cond_interp).
+        rewrite (big_sepL_lookup _ (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt))
+                   ka a); eauto.
+        iFrame "Hrel_data".
+        iSplit; first (iNext ; by iApply zcond_interp).
+        iSplit; first (iNext ; by iApply rcond_interp).
+        iSplit; first (iNext ; by iApply wcond_interp).
+        assert ((std Wfinal) !! a = Some Permanent).
+        { subst Wfinal.
+          apply elem_of_list_lookup_2 in Ha.
+          assert (a ∉ imports_addrs).
+          { clear -Ha.
+            pose proof (cmpt_disjointness C_cmpt) as Hdis.
+            apply disjoint_list_cons in Hdis as [Hdis _].
+            rewrite union_list_cons disjoint_union_r in Hdis.
+            destruct Hdis as [Hdis _].
+            intro Hcontra.
+            assert ( a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt))
+            ; last set_solver.
+            pose proof (cmpt_import_size C_cmpt) as Hsize.
+            pose proof (cmpt_code_size C_cmpt).
+            apply elem_of_finz_seq_between in Hcontra.
+            apply elem_of_finz_seq_between.
+            solve_addr.
+          }
+          repeat (rewrite std_sta_update_multiple_lookup_same_i; last done).
+          rewrite std_sta_update_multiple_lookup_in_i; auto.
+        }
+        iSplit; last done.
+         iApply (monoReq_interp _ _ _ _ Permanent); done.
+    Qed.
+
 
 End region_alloc_cmpt.
