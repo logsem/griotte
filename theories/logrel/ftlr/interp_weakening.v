@@ -451,6 +451,15 @@ Section fundamental.
     iEval (rewrite fixpoint_interp1_eq); done.
   Qed.
 
+  Lemma future_priv_mono_interp_global (C : CmptName) (p : Perm) (b e a : Addr) :
+    ⊢ future_priv_mono C interpC (WCap p Global b e a).
+  Proof.
+    iModIntro.
+    iIntros (W W') "%Hrelated Hinterp".
+    rewrite /interpC /safeC /=.
+    iApply interp_monotone_nl_cap; eauto.
+  Qed.
+
   (* interp_dl *)
   Program Definition interp_dl : V :=
     (λne (W : WORLD) (B : leibnizO CmptName) (v : leibnizO Word)

@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From cap_machine Require Import ftlr_base interp_weakening.
 From cap_machine Require Import logrel interp_weakening memory_region rules proofmode monotone.
-From cap_machine Require Import multiple_updates region_invariants_revocation region_invariants_allocation.
+From cap_machine Require Import multiple_updates region_invariants_revocation.
 From stdpp Require Import base.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
