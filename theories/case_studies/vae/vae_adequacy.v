@@ -830,23 +830,18 @@ Section Adequacy.
     { apply Forall_true; intros; done. }
     {
       rewrite C_imports.
+      iIntros "[#Hpcc_interp #Hcgp_interp]".
+
       (* Switcher cross-compartment *)
       iApply big_sepL_cons; iSplitL.
       {
-        iFrame.
-        rewrite /interpC /safeC /=.
-        iSplit; first (iIntros "_"; iApply interp_switcher_call; eauto).
-        iModIntro.
-        iIntros (???) "?"; iApply interp_switcher_call; eauto.
+        iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done.
       }
 
       (* VAE.awk *)
       iApply big_sepL_cons; iSplitL.
-      { iFrame.
-        rewrite /interpC /safeC /=.
-        iSplit.
-        * iIntros "_".
-          pose proof (cmpt_exp_tbl_pcc_size main_cmpt) as H0.
+      { iSplit.
+        * pose proof (cmpt_exp_tbl_pcc_size main_cmpt) as H0.
           pose proof (cmpt_exp_tbl_cgp_size main_cmpt) as H1.
           replace (cmpt_exp_tbl_entries_start main_cmpt)
             with ((cmpt_exp_tbl_pcc main_cmpt) ^+ 2)%a by solve_addr+H0 H1.
@@ -857,14 +852,12 @@ Section Adequacy.
           eapply related_sts_pub_trans_world; eauto.
         * iIntros (??) "!> % ?".
           rewrite /vae_exp_tbl_entry_awkward.
-          cbn.
           iApply interp_monotone_sd; auto.
       }
 
       (* B.adv *)
       iApply big_sepL_cons; iSplitL; last done.
       iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
-      iIntros "[Hpcc_interp Hcgp_interp]".
       iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_g _ _ (nroot.@C)
                with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.

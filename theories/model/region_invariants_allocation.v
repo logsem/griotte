@@ -668,9 +668,11 @@ Section region_alloc.
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
-    -∗ ([∗ list] v ∈ l2,
-          (([∗ list] k ∈ l1, rel C k p φ) -∗ φ ((std_update_multiple W l1 Permanent), C, v))
-          ∗ future_priv_mono C φ v)
+    -∗ (
+         ([∗ list] k ∈ l1, rel C k p φ)
+         -∗ ([∗ list] v ∈ l2,
+               (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v)
+       )
 
     ={E}=∗
 
@@ -686,15 +688,9 @@ Section region_alloc.
     { by rewrite -region_open_nil. }
     { cbn; iFrame "Hrel Hsts".
       iIntros "Hφ".
+      iDestruct ("Hφ" with "Hrel") as "Hφ".
       iDestruct (big_sepL_sep with "Hφ") as "[Hφ Hmono]".
-      iAssert ([∗ list] y2 ∈ l2, φ (std_update_multiple W l1 Permanent, C, y2))%I as "#Hφ'".
-      { iClear "Hreg Hl Hmono".
-        iInduction (l2) as [|x l2]; first done.
-        iDestruct "Hφ" as "[H1 H2]".
-        iDestruct ("H1" with "Hrel") as "$".
-        iApply ("IHl2" with "H2"); auto.
-      }
-      iMod (region_close_many with "Hrel Hreg Hl Hφ' Hmono"); eauto.
+      iMod (region_close_many with "Hrel Hreg Hl Hφ Hmono"); eauto.
     }
   Qed.
 
@@ -733,13 +729,14 @@ Section region_alloc_cmpt.
       ([∗ list] k;v ∈ code_addrs ; cmpt_code C_cmpt, k ↦ₐ v) -∗
       ([∗ list] k;v ∈ data_addrs ; cmpt_data C_cmpt, k ↦ₐ v) -∗
 
-      ([∗ list] v ∈ cmpt_imports C_cmpt,
-         ( (([∗ list] k ∈ (imports_addrs++code_addrs), rel C k RX interpC)
-            ∗ ([∗ list] k ∈ (data_addrs), rel C k RW interpC))
-           -∗
-          interpC (Wfinal, C, v)
-         )
-         ∗ future_priv_mono C interpC v) -∗
+      (
+        (
+          ([∗ list] k ∈ (imports_addrs++code_addrs), rel C k RX interpC)
+           ∗ ([∗ list] k ∈ (data_addrs), rel C k RW interpC)
+        )
+        -∗
+        ([∗ list] v ∈ cmpt_imports C_cmpt, interpC (Wfinal, C, v) ∗ future_priv_mono C interpC v)
+      ) -∗
 
       sts_full_world W C -∗
       region W C
@@ -805,6 +802,7 @@ Section region_alloc_cmpt.
         iClear "#".
         clear -C_data.
         generalize dependent (cmpt_data C_cmpt); iIntros (l Hl).
+        iIntros "#Hrels".
         iInduction (l) as [| w l] "IH"; first done.
         cbn.
         apply Forall_cons in Hl; destruct Hl as [Hw Hl].
@@ -812,10 +810,8 @@ Section region_alloc_cmpt.
         destruct w as [| [|] | |] ; cbn in Hw; destruct Hw as [Hw|Hw]; cbn in Hw; try done
         ; [|destruct g ; last done].
         - iSplit; last iApply future_priv_mono_interp_z.
-          iIntros "Hrels".
           by rewrite /interpC /safeC fixpoint_interp1_eq /=.
         - iSplit; last iApply future_priv_mono_interp_global.
-          iIntros "#Hrels".
           rewrite /interpC /safeC fixpoint_interp1_eq interp1_eq.
           destruct Hw as (Hp & Hb & He).
           destruct (isO p) eqn:HpO; first done.
@@ -881,10 +877,8 @@ Section region_alloc_cmpt.
           rewrite elem_of_finz_seq_between in Ha.
           apply elem_of_finz_seq_between; solve_addr+H H' Ha.
       }
-      {
-        iApply (big_sepL_impl with "Himport_interp").
-        iIntros "!> %k %w %Hw [H $] #HC_imports".
-        iApply "H"; iFrame "#".
+      { iIntros "#HC_imports".
+        iApply "Himport_interp"; iFrame "#".
       }
 
       iFrame.
@@ -1016,13 +1010,12 @@ Section region_alloc_cmpt.
       ([∗ list] k;v ∈ imports_addrs ; cmpt_imports C_cmpt, k ↦ₐ v) -∗
       ([∗ list] k;v ∈ code_addrs ; cmpt_code C_cmpt, k ↦ₐ v) -∗
       ([∗ list] k;v ∈ data_addrs ; cmpt_data C_cmpt, k ↦ₐ v) -∗
-
-      ([∗ list] v ∈ cmpt_imports C_cmpt,
-         ( (interp Wfinal C pcc_cap ∗ interp Wfinal C cgp_cap)
-           -∗
-          interpC (Wfinal, C, v)
-         )
-         ∗ future_priv_mono C interpC v) -∗
+      (
+        (interp Wfinal C pcc_cap ∗ interp Wfinal C cgp_cap)
+          -∗
+        ([∗ list] v ∈ cmpt_imports C_cmpt, interpC (Wfinal, C, v) ∗ future_priv_mono C interpC v)
+      )
+      -∗
 
       sts_full_world W C -∗
       region W C
@@ -1038,9 +1031,8 @@ Section region_alloc_cmpt.
       intros * Himports Hcode Hdata C_code C_data.
       iIntros "HC_imports HC_code HC_data Himport_interp Hsts_C Hr_C".
       iApply (alloc_compartment_interp_rel with "[$] [$] [$] [Himport_interp] [$] [$]"); eauto.
-      iApply (big_sepL_impl with "Himport_interp").
-      iIntros "!> %k %w %Hw [Hinterp $] [#Hrel_pcc #Hrel_data]".
-      iApply "Hinterp".
+      iIntros "[#Hrel_pcc #Hrel_data]".
+      iApply "Himport_interp".
       iSplit.
       - iEval (rewrite fixpoint_interp1_eq /=).
         iApply big_sepL_intro; iModIntro.

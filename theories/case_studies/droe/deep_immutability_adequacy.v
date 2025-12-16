@@ -377,10 +377,9 @@ Section Adequacy.
       2: { pose proof (cmpt_import_size C_cmpt) as HC_import_size.
            by rewrite C_imports /= in HC_import_size.
       }
-      cbn.
+      iIntros "_".
       iSplit; last done.
-      iSplit; [| iIntros (???) ; iModIntro ]
-      ; iIntros "_"; iApply interp_switcher_call ; done.
+      iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done.
     }
     rewrite (finz_seq_between_singleton (cmpt_b_pcc C_cmpt)).
     2: { pose proof (cmpt_import_size C_cmpt) as HC_import_size.
