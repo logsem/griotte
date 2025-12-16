@@ -82,8 +82,8 @@ Section Switcher_preamble.
       An important point is the use of [csp_sync] and the stack capability [WCap RWL Local a_stk4 e_stk a_stk4].
       If the call stack is not empty, we know that the caller's stack looks like
       [WCap RWL Local b_stk e_stk a_stk] (it is tested by the switcher's call routine).
-      The switcher reserves the area `[a_stk, a_stk+4)` for the callee-saved area,
-      and passes the rest, i.e. `[a_stk+4, e_stk)`  to the callee.
+      The switcher reserves the area "[a_stk, a_stk+4)" for the callee-saved area,
+      and passes the rest, i.e. "[a_stk+4, e_stk)"  to the callee.
 
       [csp_sync] synchronises the caller's stack pointer with the callee stack pointer.
       It's important when proving the functional specification of the return-to-switcher routine,
@@ -246,7 +246,7 @@ Section Switcher_preamble.
       as well as the unsealing capability of the switcher's otype.
 
       Finally, it holds the points-to predicates of the trusted stack.
-      The unused part `[a_tstk+1, e_trusted_stack)` contains some unknown values.
+      The unused part "[a_tstk+1, e_trusted_stack)" contains some unknown values.
       The used part is contained in the definition of [stack_interp].
    *)
   Definition switcher_inv : iProp Σ :=

@@ -342,11 +342,11 @@ Section logrel.
 
   (** [interp_callee_part_of_the_stack] interprets the stack pointer of the caller [wstk].
       When a caller calls the switcher-call routine with a capability [WCap p g b e a] in the [csp]
-      register, the switcher is using the region `[a,a+4)` for as callee-saved registers area,
-      and giving the region `[a+4,e)` as callee-stack frame.
+      register, the switcher is using the region "[a,a+4)" for as callee-saved registers area,
+      and giving the region "[a+4,e)" as callee-stack frame.
 
       If the caller is trusted, the callee-saved registers area is expected to be solely accessed by the switcher,
-      sharing in fact only the region `[a+4,e)` with the caller.
+      sharing in fact only the region "[a+4,e)" with the caller.
 
       If the caller is untrusted, there are no guarantees that the caller won't share its entire stack frame
       with the callee, through one of the arguments.
