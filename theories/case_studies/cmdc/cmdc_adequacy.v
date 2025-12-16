@@ -444,65 +444,19 @@ Section Adequacy.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
     { rewrite B_imports.
-      rewrite (finz_seq_between_singleton (cmpt_b_pcc B_cmpt)).
-      2: { pose proof (cmpt_import_size B_cmpt) as HB_import_size.
-           by rewrite B_imports /= in HB_import_size.
-      }
       iIntros "_".
       iSplit; last done.
       iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done.
     }
-    rewrite (finz_seq_between_singleton (cmpt_b_pcc B_cmpt)).
-    2: { pose proof (cmpt_import_size B_cmpt) as HB_import_size.
-         by rewrite B_imports /= in HB_import_size.
-    }
 
     assert (
         Forall
-          (λ k : finz MemNum,
-             (std_update_multiple
-                (std_update_multiple
-                   (std_update_multiple (∅, (∅, ∅))
-                      (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt)) Permanent)
-                   (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)) Permanent)
-                [cmpt_b_pcc B_cmpt] Permanent).1
-               !! k = None)
+          (λ k : finz MemNum, (std_update_compartment (∅, (∅, ∅)) B_cmpt).1 !! k = None)
           (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
       ) as Hstack_disjoint_B.
     { apply Forall_forall; intros a Ha; cbn.
-      pose proof (cmpt_import_size B_cmpt) as H.
-      rewrite B_imports /= in H.
-      pose proof (cmpt_code_size B_cmpt) as H'.
-      pose proof switcher_cmpt_disjoints as (_ & Hb & _).
-
-      rewrite lookup_insert_ne.
-      2: { intro Hcontra.
-           assert (a ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)).
-           { rewrite -Hcontra.
-             apply elem_of_finz_seq_between; solve_addr+H H'.
-           }
-           apply (Hb a).
-           + rewrite /cmpt_switcher_region.
-             eapply elem_of_union;eauto.
-           + eapply elem_of_union;eauto.
-             left; eapply elem_of_union;eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i.
-      2: { intro Hcontra.
-           apply (Hb a); eauto.
-           + eapply elem_of_union;eauto.
-           + eapply elem_of_union;eauto.
-             left;eapply elem_of_union;eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i; first done.
-      intro Hcontra.
-      apply (Hb a); eauto.
-      + eapply elem_of_union;eauto.
-      + eapply elem_of_union;eauto.
-        left;eapply elem_of_union;eauto.
-        left.
-        rewrite elem_of_finz_seq_between in Hcontra.
-        apply elem_of_finz_seq_between; solve_addr+H H' Hcontra.
+      pose proof switcher_cmpt_disjoints as (_ & [Hb _]).
+      eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
     }
 
     iMod ( extend_region_revoked_sepL2 _ _ _
@@ -630,65 +584,19 @@ Section Adequacy.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
     { rewrite C_imports.
-      rewrite (finz_seq_between_singleton (cmpt_b_pcc C_cmpt)).
-      2: { pose proof (cmpt_import_size C_cmpt) as HC_import_size.
-           by rewrite C_imports /= in HC_import_size.
-      }
       iIntros "_".
       iSplit; last done.
       iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done.
     }
-    rewrite (finz_seq_between_singleton (cmpt_b_pcc C_cmpt)).
-    2: { pose proof (cmpt_import_size C_cmpt) as HC_import_size.
-         by rewrite C_imports /= in HC_import_size.
-    }
 
     assert (
         Forall
-          (λ k : finz MemNum,
-             (std_update_multiple
-                (std_update_multiple
-                   (std_update_multiple (∅, (∅, ∅))
-                      (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt)) Permanent)
-                   (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)) Permanent)
-                [cmpt_b_pcc C_cmpt] Permanent).1
-               !! k = None)
+          (λ k : finz MemNum, (std_update_compartment (∅, (∅, ∅)) C_cmpt).1 !! k = None)
           (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
-      ) as Hstack_disjoint.
+      ) as Hstack_disjoint_C.
     { apply Forall_forall; intros a Ha; cbn.
-      pose proof (cmpt_import_size C_cmpt) as H.
-      rewrite C_imports /= in H.
-      pose proof (cmpt_code_size C_cmpt) as H'.
-      pose proof switcher_cmpt_disjoints as (_ & _ & Hc).
-
-      rewrite lookup_insert_ne.
-      2: { intro Hcontra.
-           assert (a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)).
-           { rewrite -Hcontra.
-             apply elem_of_finz_seq_between; solve_addr+H H'.
-           }
-           apply (Hc a).
-           + rewrite /cmpt_switcher_region.
-             eapply elem_of_union;eauto.
-           + eapply elem_of_union;eauto.
-             left; eapply elem_of_union;eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i.
-      2: { intro Hcontra.
-           apply (Hc a); eauto.
-           + eapply elem_of_union;eauto.
-           + eapply elem_of_union;eauto.
-             left;eapply elem_of_union;eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i; first done.
-      intro Hcontra.
-      apply (Hc a); eauto.
-      + eapply elem_of_union;eauto.
-      + eapply elem_of_union;eauto.
-        left;eapply elem_of_union;eauto.
-        left.
-        rewrite elem_of_finz_seq_between in Hcontra.
-        apply elem_of_finz_seq_between; solve_addr+H H' Hcontra.
+      pose proof switcher_cmpt_disjoints as (_ & [_ Hc]).
+      eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
     }
 
     iMod ( extend_region_revoked_sepL2 _ _ _
@@ -696,7 +604,7 @@ Section Adequacy.
              RWL interpC
            with "[$Hsts_C] [$Hr_C]")
            as "(Hr_C & Hrel_stk_C & Hsts_C)".
-    { eapply Hstack_disjoint. }
+    { eapply Hstack_disjoint_C. }
 
     match goal with
     | H: _ |- context [  (sts_full_world ?W C) ] => set (Winit_C := W)
@@ -892,12 +800,13 @@ Section Adequacy.
       - pose proof cmpts_disjoints as (Hdis&_&_).
         apply elem_of_dom_std_multiple_update in Hcontra.
         destruct Hcontra as [Hcontra|Hcontra].
-        + assert (cmpt_b_pcc B_cmpt ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)).
+        + assert (cmpt_b_cgp main_cmpt ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)).
           { pose proof (cmpt_import_size B_cmpt) as Hsize ; rewrite B_imports in Hsize.
             pose proof (cmpt_code_size B_cmpt).
-            rewrite elem_of_finz_seq_between; solve_addr.
+            rewrite elem_of_finz_seq_between in Hcontra.
+            rewrite elem_of_finz_seq_between.
+            solve_addr.
           }
-          rewrite elem_of_list_singleton in Hcontra; rewrite {1}Hcontra in Hb_cgp_in.
           set_solver.
         + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
@@ -927,12 +836,13 @@ Section Adequacy.
       - pose proof cmpts_disjoints as (_&Hdis&_).
         apply elem_of_dom_std_multiple_update in Hcontra.
         destruct Hcontra as [Hcontra|Hcontra].
-        + assert (cmpt_b_pcc C_cmpt ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)).
+        + assert ((cmpt_b_cgp main_cmpt ^+ 1)%a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)).
           { pose proof (cmpt_import_size C_cmpt) as Hsize ; rewrite C_imports in Hsize.
             pose proof (cmpt_code_size C_cmpt).
-            rewrite elem_of_finz_seq_between; solve_addr.
+            rewrite elem_of_finz_seq_between in Hcontra.
+            rewrite elem_of_finz_seq_between.
+            solve_addr.
           }
-          rewrite elem_of_list_singleton in Hcontra; rewrite {1}Hcontra in Hb_cgp_in.
           set_solver.
         + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
@@ -953,7 +863,7 @@ Section Adequacy.
       destruct (decide ( a ∈ (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)))).
       { rewrite std_sta_update_multiple_lookup_in_i //. }
       rewrite std_sta_update_multiple_lookup_same_i //.
-      destruct (decide ( a ∈ [cmpt_b_pcc B_cmpt])).
+      destruct (decide ( a ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_a_code B_cmpt))).
       { rewrite std_sta_update_multiple_lookup_in_i //. }
       rewrite std_sta_update_multiple_lookup_same_i //.
       destruct (decide ( a ∈ (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)))).
@@ -970,7 +880,7 @@ Section Adequacy.
       destruct (decide ( a ∈ (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)))).
       { rewrite std_sta_update_multiple_lookup_in_i //. }
       rewrite std_sta_update_multiple_lookup_same_i //.
-      destruct (decide ( a ∈ [cmpt_b_pcc C_cmpt])).
+      destruct (decide ( a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt))).
       { rewrite std_sta_update_multiple_lookup_in_i //. }
       rewrite std_sta_update_multiple_lookup_same_i //.
       destruct (decide ( a ∈ (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)))).

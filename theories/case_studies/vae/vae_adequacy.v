@@ -753,74 +753,9 @@ Section Adequacy.
       done.
     }
 
-    set (W2 := std_update_multiple W1 (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt)) Permanent).
-    assert (related_sts_pub_world W1 W2) as Hrelated_pub_W1_W2.
-    { apply related_sts_pub_update_multiple.
-      apply Forall_forall.
-      intros a Ha.
-      pose proof (cmpt_cgp_disjoint C_cmpt) as Hdisjoint.
-      apply map_disjoint_dom_1 in Hdisjoint.
-      rewrite /cmpt_pcc_mregion dom_union_L in Hdisjoint.
-      rewrite disjoint_union_l in Hdisjoint.
-      destruct Hdisjoint as [_ Hdisjoint].
-      pose proof (cmpt_data_size C_cmpt) as Hsize_data.
-      pose proof (cmpt_code_size C_cmpt) as Hsize_code.
-      rewrite !dom_mkregion_eq in Hdisjoint; auto.
-    }
-    set (W3 := std_update_multiple W2 (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)) Permanent).
-    assert (related_sts_pub_world W2 W3) as Hrelated_pub_W2_W3.
-    { apply related_sts_pub_update_multiple.
-      apply Forall_forall.
-      intros a Ha.
-      subst W2.
-      intro Ha'.
-      apply elem_of_dom_std_multiple_update in Ha' as [Ha' | Ha']; last done.
-      pose proof (cmpt_cgp_disjoint C_cmpt) as Hdisjoint.
-      apply map_disjoint_dom_1 in Hdisjoint.
-      rewrite /cmpt_pcc_mregion dom_union_L in Hdisjoint.
-      rewrite disjoint_union_l in Hdisjoint.
-      destruct Hdisjoint as [_ Hdisjoint].
-      pose proof (cmpt_data_size C_cmpt) as Hsize_data.
-      pose proof (cmpt_code_size C_cmpt) as Hsize_code.
-      rewrite !dom_mkregion_eq in Hdisjoint; auto.
-      apply list_to_set_disj_2 in Hdisjoint.
-      rewrite /disjoint /set_disjoint_instance in Hdisjoint.
-      apply (Hdisjoint a); auto.
-    }
-    set (W4 := std_update_multiple W3 (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt))
-                 Permanent).
-    assert (Forall (fun a => a ∉ dom (std W3))
-              (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt))) as Himports_W3.
-    { apply Forall_forall; intros a Ha; cbn.
-      rewrite not_elem_of_dom.
-      pose proof (cmpt_import_size C_cmpt) as H.
-      rewrite C_imports /= in H.
-      rewrite std_sta_update_multiple_lookup_same_i; auto.
-      2: {
-        pose proof (cmpt_cgp_disjoint C_cmpt) as Hdisjoint.
-        apply map_disjoint_dom_1 in Hdisjoint.
-        rewrite /cmpt_pcc_mregion dom_union_L in Hdisjoint.
-        rewrite disjoint_union_l in Hdisjoint.
-        destruct Hdisjoint as [H1 _].
-        pose proof (cmpt_data_size C_cmpt) as Hsize_data.
-        pose proof (cmpt_import_size C_cmpt) as Hsize_imports.
-        pose proof (cmpt_code_size C_cmpt) as Hsize_code.
-        rewrite !dom_mkregion_eq in H1; auto.
-        apply list_to_set_disj_2 in H1.
-        apply H1 in Ha; eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i; auto.
-      {  pose proof (cmpt_code_disjoint C_cmpt) as Hdis.
-         apply map_disjoint_dom_1 in Hdis.
-        pose proof (cmpt_import_size C_cmpt) as Hsize_imports.
-        pose proof (cmpt_code_size C_cmpt) as Hsize_code.
-        rewrite !dom_mkregion_eq in Hdis; auto.
-        apply list_to_set_disj_2 in Hdis.
-        apply Hdis in Ha; eauto.
-      }
-    }
-    assert (related_sts_pub_world W3 W4) as Hrelated_pub_W3_W4.
-    { apply related_sts_pub_update_multiple; auto. }
+    set (W4 := std_update_compartment W1 C_cmpt).
+    assert (related_sts_pub_world W1 (std_update_compartment W1 C_cmpt)) as Hrelated_pub_W1_W4.
+    { eapply std_update_compartment_pub; eauto ; (apply Forall_true; intros; done). }
 
     iMod (
        alloc_compartment_interp with "[$HC_imports] [$HC_code] [$HC_data] [] [$Hsts_C] [$Hr_C]"
@@ -849,7 +784,7 @@ Section Adequacy.
           iPureIntro.
           apply related_sts_pub_priv_world.
           eapply related_sts_pub_trans_world; eauto.
-          eapply related_sts_pub_trans_world; eauto.
+          eapply related_sts_pub_refl_world.
         * iIntros (??) "!> % ?".
           rewrite /vae_exp_tbl_entry_awkward.
           iApply interp_monotone_sd; auto.
@@ -881,41 +816,9 @@ Section Adequacy.
     assert (Forall (fun a => a ∉ dom (std W4))
               (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))) as Hswitcher_W4.
     { apply Forall_forall; intros a Ha; cbn.
-      rewrite not_elem_of_dom.
-      pose proof (cmpt_import_size C_cmpt) as H.
-      rewrite C_imports /= in H.
-      pose proof (cmpt_code_size C_cmpt) as H'.
       pose proof switcher_cmpt_disjoints as (_ & Hc).
-      rewrite std_sta_update_multiple_lookup_same_i.
-      2: {
-        intros Hcontra.
-        assert (a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)).
-        { apply elem_of_finz_seq_between.
-          apply elem_of_finz_seq_between in Hcontra.
-          solve_addr+H H' Hcontra.
-        }
-        apply (Hc a).
-        + rewrite /cmpt_switcher_region.
-          eapply elem_of_union;eauto.
-        + eapply elem_of_union;eauto.
-          left; eapply elem_of_union;eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i.
-      2: { intro Hcontra.
-           apply (Hc a); eauto.
-           + eapply elem_of_union;eauto.
-           + eapply elem_of_union;eauto.
-             left;eapply elem_of_union;eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i; first done.
-      intro Hcontra.
-      apply (Hc a); eauto.
-      + eapply elem_of_union;eauto.
-      + eapply elem_of_union;eauto.
-        left;eapply elem_of_union;eauto.
-        left.
-        rewrite elem_of_finz_seq_between in Hcontra.
-        apply elem_of_finz_seq_between; solve_addr+H H' Hcontra.
+      rewrite not_elem_of_dom.
+      eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
     }
     iMod ( extend_region_temp_sepL2 _ _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
