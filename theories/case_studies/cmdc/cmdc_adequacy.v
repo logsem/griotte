@@ -105,13 +105,13 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   (* instantiating B *)
   ∧ (cmpt_imports B_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code B_cmpt) (* only instructions *)
-  ∧ Forall is_z (cmpt_data B_cmpt) (* TODO generalise: either z or in_region *)
+  ∧ Forall (is_initial_data_word B_cmpt) (cmpt_data B_cmpt)
   ∧ (cmpt_exp_tbl_entries B_cmpt) = [WInt (encode_entry_point 1 1)]
 
   (* instantiating C *)
   ∧ (cmpt_imports C_cmpt) = [switcher_entry]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
-  ∧ Forall is_z (cmpt_data C_cmpt) (* TODO generalise: either z or in_region *)
+  ∧ Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt)
   ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point 1 1)]
 .
 
@@ -419,117 +419,44 @@ Section Adequacy.
     rewrite /cmpt_pcc_mregion.
     iDestruct (big_sepM_union with "HB_code") as "[HB_imports HB_code]".
     { eapply cmpt_code_disjoint ; eauto. }
-    rewrite B_imports.
     iEval (rewrite /mkregion) in "HB_imports".
-    rewrite finz_seq_between_singleton.
-    2: { pose proof (cmpt_import_size B_cmpt) as HB_import_size.
-         by rewrite B_imports /= in HB_import_size.
-    }
-    cbn.
-    iDestruct (big_sepM_insert with "HB_imports") as "[HB_imports _]"; first done.
     rewrite /cmpt_cgp_mregion.
     iDestruct (mkregion_prepare with "[HB_code]") as ">HB_code"; auto.
     { apply (cmpt_code_size B_cmpt). }
     iDestruct (mkregion_prepare with "[HB_data]") as ">HB_data"; auto.
     { apply (cmpt_data_size B_cmpt). }
+    iDestruct (mkregion_prepare with "[HB_imports]") as ">HB_imports"; auto.
+    { rewrite B_imports.
+      pose proof (cmpt_import_size B_cmpt) as H ; cbn in *.
+      by rewrite B_imports in H.
+    }
 
     (* Initialises the world for B *)
     iAssert (region (∅, (∅, ∅)) B) with "[HRELS_B]" as "Hr_B".
     { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
-    iMod (extend_region_perm_sepL2 _ (∅, (∅, ∅)) B
-            (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))
-            (cmpt_code B_cmpt)
-            RX interpC
-           with "Hsts_B Hr_B [HB_code]") as "(Hr_B & #HB_code & Hsts_B)".
-    { done. }
-    { apply Forall_true. intros.
-      by rewrite lookup_empty.
-    }
-    {
-      iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
-                                 pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "[HB_code]").
-      - intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
-        pose proof (Forall_lookup_1 _ _ _ _ B_code Hv2) as Hncap.
-        destruct v2; [| by inversion Hncap..].
-        rewrite /interpC /safeC fixpoint_interp1_eq /=.
-        iSplit; eauto.
-        iApply future_priv_mono_interp_z.
-      - iFrame.
+
+    iMod (
+       alloc_compartment_interp with "[$HB_imports] [$HB_code] [$HB_data] [] [$Hsts_B] [$Hr_B]"
+      ) as "(Hsts_B & Hr_B & #HB_code & #HB_data & _)"; eauto.
+    { apply Forall_true; intros; done. }
+    { apply Forall_true; intros; done. }
+    { apply Forall_true; intros; done. }
+    { rewrite B_imports.
+      iIntros "_".
+      iSplit; last done.
+      iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done.
     }
 
-    iMod (extend_region_perm_sepL2 _ _ B
-            (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt))
-            (cmpt_data B_cmpt)
-            RW interpC
-           with "Hsts_B Hr_B [HB_data]") as "(Hr_B & #HB_data & Hsts_B)".
-    { done. }
-    { apply Forall_forall. intros a Ha.
-      rewrite std_sta_update_multiple_lookup_same_i; auto.
-      pose proof (cmpt_cgp_disjoint B_cmpt) as Hdisjoint.
-      apply map_disjoint_dom_1 in Hdisjoint.
-      rewrite /cmpt_pcc_mregion dom_union_L in Hdisjoint.
-      rewrite disjoint_union_l in Hdisjoint.
-      destruct Hdisjoint as [_ Hdisjoint].
-      pose proof (cmpt_data_size B_cmpt) as Hsize_data.
-      pose proof (cmpt_code_size B_cmpt) as Hsize_code.
-      rewrite !dom_mkregion_eq in Hdisjoint; auto.
-      apply list_to_set_disj_2 in Hdisjoint.
-      rewrite /disjoint /set_disjoint_instance in Hdisjoint.
-      intro Ha'.
-      apply (Hdisjoint a); auto.
-    }
-    {
-      iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
-                                 pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "[HB_data]").
-      - intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
-        pose proof (Forall_lookup_1 _ _ _ _ B_data Hv2) as Hncap.
-        destruct v2; [| by inversion Hncap..].
-        rewrite /interpC /safeC fixpoint_interp1_eq /=.
-        iSplit; eauto.
-        iApply future_priv_mono_interp_z.
-      - iFrame.
-    }
-
-    iMod (extend_region_perm_sepL2 _ _ B
-            [cmpt_b_pcc B_cmpt]
-            (cmpt_imports B_cmpt)
-            RX interpC
-           with "Hsts_B Hr_B [HB_imports]") as "(Hr_B & [#HB_imports _] & Hsts_B)".
-    { done. }
-    { apply Forall_forall.
-      intros a Ha.
-      apply elem_of_list_singleton in Ha; simplify_eq.
-      rewrite std_sta_update_multiple_lookup_same_i; auto.
-      + rewrite std_sta_update_multiple_lookup_same_i; auto.
-        pose proof (cmpt_import_size B_cmpt) as HB.
-        apply not_elem_of_finz_seq_between.
-        rewrite B_imports in HB.
-        left; solve_addr+HB.
-      + pose proof (cmpt_disjointness B_cmpt) as HB.
-        apply disjoint_regions_tactics.disjoint_list_cons in HB
-        ; destruct HB as [HB _].
-        rewrite union_list_cons in HB.
-        cbn in HB.
-        assert (
-            finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)
-              ## finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)
-          ) as HB' by set_solver+HB
-        ; clear HB.
-        intro Hcontra ; eapply HB'; eauto.
-        pose proof (cmpt_import_size B_cmpt) as H.
-        rewrite B_imports /= in H.
-        pose proof (cmpt_code_size B_cmpt) as H'.
-        apply elem_of_finz_seq_between; solve_addr+H H'.
-    }
-    {
-      rewrite B_imports; cbn; iFrame.
-      rewrite /interpC /safeC /=.
-      iSplit; first iApply interp_switcher_call; eauto.
-      (* TODO make lemma *)
-      iModIntro.
-      iIntros (???) "?"; iApply interp_switcher_call; eauto.
+    assert (
+        Forall
+          (λ k : finz MemNum, (std_update_compartment (∅, (∅, ∅)) B_cmpt).1 !! k = None)
+          (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
+      ) as Hstack_disjoint_B.
+    { apply Forall_forall; intros a Ha; cbn.
+      pose proof switcher_cmpt_disjoints as (_ & [Hb _]).
+      eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
     }
 
     iMod ( extend_region_revoked_sepL2 _ _ _
@@ -537,41 +464,7 @@ Section Adequacy.
              RWL interpC
            with "[$Hsts_B] [$Hr_B]")
            as "(Hr_B & Hrel_stk_B & Hsts_B)".
-    { apply Forall_forall; intros a Ha; cbn.
-      pose proof (cmpt_import_size B_cmpt) as H.
-      rewrite B_imports /= in H.
-      pose proof (cmpt_code_size B_cmpt) as H'.
-      pose proof switcher_cmpt_disjoints as (_ & Hb & _).
-
-      rewrite lookup_insert_ne.
-      2: { intro Hcontra.
-           assert (a ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)).
-           { rewrite -Hcontra.
-             apply elem_of_finz_seq_between; solve_addr+H H'.
-           }
-           apply (Hb a).
-           + rewrite /cmpt_switcher_region.
-             eapply elem_of_union;eauto.
-           + eapply elem_of_union;eauto.
-             left; eapply elem_of_union;eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i.
-      2: { intro Hcontra.
-           apply (Hb a); eauto.
-           + eapply elem_of_union;eauto.
-           + eapply elem_of_union;eauto.
-             left;eapply elem_of_union;eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i; first done.
-      intro Hcontra.
-      apply (Hb a); eauto.
-      + eapply elem_of_union;eauto.
-      + eapply elem_of_union;eauto.
-        left;eapply elem_of_union;eauto.
-        left.
-        rewrite elem_of_finz_seq_between in Hcontra.
-        apply elem_of_finz_seq_between; solve_addr+H H' Hcontra.
-    }
+    { eapply Hstack_disjoint_B. }
 
     match goal with
     | H: _ |- context [  (sts_full_world ?W B) ] => set (Winit_B := W)
@@ -611,133 +504,27 @@ Section Adequacy.
     iAssert (interp Winit_B B
                (WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)%a)
             )%I as "#Hinterp_pcc_B".
-    { rewrite fixpoint_interp1_eq /=.
-      iApply big_sepL_intro; iModIntro.
-      iIntros (k a Ha).
-      rewrite finz_seq_between_cons in Ha.
-      2: {
-        pose proof (cmpt_import_size B_cmpt) as H1.
-        pose proof (cmpt_code_size B_cmpt) as H2.
-        rewrite B_imports /= in H1.
-        solve_addr.
-      }
-      pose proof (cmpt_import_size B_cmpt) as Himport_B.
-      rewrite B_imports /= in Himport_B.
-      replace (cmpt_b_pcc B_cmpt ^+ 1)%a with
-        (cmpt_a_code B_cmpt) in Ha by solve_addr+Himport_B.
-      iExists RX, interp.
-      iEval (cbn).
-      iSplit; first done.
-      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
-      iSplit.
-      { destruct k; cbn in Ha ; simplify_eq; first iFrame "HB_imports".
-        rewrite (big_sepL_lookup _ _ _ a); eauto.
-      }
-      iSplit; first (iNext ; by iApply zcond_interp).
-      iSplit; first (iNext ; by iApply rcond_interp).
-      iSplit; first done.
-      assert (Winit_B.1 !! a = Some Permanent).
-      {
-        subst Winit_B.
-        apply elem_of_list_lookup_2 in Ha.
-        rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
-        { pose proof switcher_cmpt_disjoints as ( _& Hdis_switcher_cmptB & _).
-          rewrite /switcher_cmpt_disjoint /cmpt_switcher_region /cmpt_region in Hdis_switcher_cmptB.
-          assert
-            (cmpt_switcher_stack_region switcher_cmpt ## cmpt_pcc_region B_cmpt)
-              as Hdis
-              by (set_solver+Hdis_switcher_cmptB).
-          rewrite /cmpt_pcc_region /cmpt_switcher_stack_region in Hdis.
-          intro Hcontra.
-          replace (cmpt_a_code B_cmpt) with (cmpt_b_pcc B_cmpt ^+ 1)%a in Ha by solve_addr+Himport_B.
-          rewrite -(finz_seq_between_cons) in Ha.
-          + apply (Hdis a); auto.
-          + pose proof (cmpt_import_size B_cmpt) as H1.
-            pose proof (cmpt_code_size B_cmpt) as H2.
-            rewrite B_imports /= in H1.
-            solve_addr.
-        }
-        rewrite elem_of_cons in Ha.
-        destruct Ha as [ Ha | Ha ]; simplify_eq.
-        + rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
-        + rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
-          { intro Hcontra. apply elem_of_list_singleton in Hcontra as ->.
-            apply elem_of_finz_seq_between in Ha.
-            solve_addr+Himport_B Ha.
-          }
-          rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
-          { intro Hcontra.
-            assert (
-                (finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt))
-                  ##
-                  (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt))
-              ) as Hdis; last set_solver+Ha Hcontra Hdis.
-              clear.
-              pose proof (cmpt_cgp_disjoint B_cmpt) as Hdis.
-              rewrite /cmpt_pcc_mregion /cmpt_cgp_mregion in Hdis.
-              rewrite -/(cmpt_pcc_mregion B_cmpt) -/(cmpt_cgp_mregion B_cmpt) in Hdis.
-              rewrite map_disjoint_dom in Hdis.
-              rewrite dom_cmpt_pcc_mregion dom_cmpt_cgp_mregion /cmpt_pcc_region /cmpt_cgp_region in Hdis.
-              rewrite -list_to_set_disj in Hdis.
-              assert (
-                  finz.seq_between (cmpt_a_code B_cmpt) (cmpt_e_pcc B_cmpt) ⊆ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)
-                ); last set_solver.
-              intros a Ha.
-              rewrite !elem_of_finz_seq_between in Ha |- *.
-              pose proof (cmpt_import_size B_cmpt).
-              solve_addr.
-          }
-          rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
-      }
-      iSplit; last done.
-      iApply (monoReq_interp _ _ _ _ Permanent); done.
+    { iApply interp_monotone_nl; eauto.
+      iPureIntro.
+      rewrite /Winit_B.
+      apply related_sts_pub_priv_world.
+      eapply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
     }
 
     iAssert (interp Winit_B B
                (WCap RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)%a)
             )%I as "#Hinterp_cgp_B".
-    { iEval (rewrite fixpoint_interp1_eq /=).
-      iApply big_sepL_intro; iModIntro.
-      iIntros (k a Ha).
-      iExists RW, interp.
-      iEval (cbn).
-      iSplit; first done.
-      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
-      rewrite (big_sepL_lookup _ (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt))
-                 k a); eauto.
-      iFrame "HB_data".
-      iSplit; first (iNext ; by iApply zcond_interp).
-      iSplit; first (iNext ; by iApply rcond_interp).
-      iSplit; first (iNext ; by iApply wcond_interp).
-      assert (Winit_B.1 !! a = Some Permanent).
-      { subst Winit_B.
-        apply elem_of_list_lookup_2 in Ha.
-        assert (a ∉ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)).
-        { intro Hcontra.
-          clear -Ha Hcontra.
-          pose proof switcher_cmpt_disjoints as (_&Hdis&_).
-          set_solver.
-        }
-        assert (a ∉ [cmpt_b_pcc B_cmpt]).
-        { intro Hcontra.
-          clear -Ha Hcontra B_imports.
-          pose proof (cmpt_disjointness B_cmpt) as Hdis.
-          apply disjoint_list_cons in Hdis as [Hdis _].
-          rewrite union_list_cons disjoint_union_r in Hdis.
-          destruct Hdis as [Hdis _].
-          rewrite elem_of_list_singleton in Hcontra; simplify_eq.
-          assert ( cmpt_b_pcc B_cmpt ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt))
-          ; last set_solver.
-          apply elem_of_finz_seq_between.
-          pose proof (cmpt_import_size B_cmpt) as Hsize; rewrite B_imports in Hsize.
-          pose proof (cmpt_code_size B_cmpt).
-          solve_addr.
-        }
-        repeat (rewrite std_sta_update_multiple_lookup_same_i; last done).
-        rewrite std_sta_update_multiple_lookup_in_i; auto.
-      }
-      iSplit; last done.
-      iApply (monoReq_interp _ _ _ _ Permanent); done.
+    { iApply interp_monotone_nl; eauto.
+      iPureIntro.
+      rewrite /Winit_B.
+      apply related_sts_pub_priv_world.
+      eapply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
     }
 
     iAssert ( interp Winit_B B (WSealed ot_switcher B_f)) with
@@ -772,18 +559,17 @@ Section Adequacy.
     rewrite /cmpt_pcc_mregion.
     iDestruct (big_sepM_union with "HC_code") as "[HC_imports HC_code]".
     { eapply cmpt_code_disjoint ; eauto. }
-    rewrite C_imports.
     iEval (rewrite /mkregion) in "HC_imports".
-    rewrite (finz_seq_between_singleton (cmpt_b_pcc C_cmpt)).
-    2: { pose proof (cmpt_import_size C_cmpt) as HC_import_size.
-         by rewrite C_imports /= in HC_import_size.
-    }
-    iDestruct (big_sepM_insert with "HC_imports") as "[HC_imports _]"; first done.
     rewrite /cmpt_cgp_mregion.
     iDestruct (mkregion_prepare with "[HC_code]") as ">HC_code"; auto.
     { apply (cmpt_code_size C_cmpt). }
     iDestruct (mkregion_prepare with "[HC_data]") as ">HC_data"; auto.
     { apply (cmpt_data_size C_cmpt). }
+    iDestruct (mkregion_prepare with "[HC_imports]") as ">HC_imports"; auto.
+    { rewrite C_imports.
+      pose proof (cmpt_import_size C_cmpt) as H ; cbn in *.
+      by rewrite C_imports in H.
+    }
 
     (* Initialises the world for C *)
     iAssert (region (∅, (∅, ∅)) C) with "[HRELS_C]" as "Hr_C".
@@ -791,97 +577,26 @@ Section Adequacy.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
 
-    iMod (extend_region_perm_sepL2 _ (∅, (∅, ∅)) C
-            (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
-            (cmpt_code C_cmpt)
-            RX interpC
-           with "Hsts_C Hr_C [HC_code]") as "(Hr_C & #HC_code & Hsts_C)".
-    { done. }
-    { apply Forall_true. intros.
-      by rewrite lookup_empty.
-    }
-    {
-      iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
-                                 pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "[HC_code]").
-      - intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
-        pose proof (Forall_lookup_1 _ _ _ _ C_code Hv2) as Hncap.
-        destruct v2; [| by inversion Hncap..].
-        rewrite /interpC /safeC fixpoint_interp1_eq /=.
-        iSplit; eauto.
-        iApply future_priv_mono_interp_z.
-      - iFrame.
-    }
-    iMod (extend_region_perm_sepL2 _ _ C
-            (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt))
-            (cmpt_data C_cmpt)
-            RW interpC
-           with "Hsts_C Hr_C [HC_data]") as "(Hr_C & #HC_data & Hsts_C)".
-    { done. }
-    { apply Forall_forall. intros a Ha.
-      rewrite std_sta_update_multiple_lookup_same_i; auto.
-      pose proof (cmpt_cgp_disjoint C_cmpt) as Hdisjoint.
-      apply map_disjoint_dom_1 in Hdisjoint.
-      rewrite /cmpt_pcc_mregion dom_union_L in Hdisjoint.
-      rewrite disjoint_union_l in Hdisjoint.
-      destruct Hdisjoint as [_ Hdisjoint].
-      pose proof (cmpt_data_size C_cmpt) as Hsize_data.
-      pose proof (cmpt_code_size C_cmpt) as Hsize_code.
-      rewrite !dom_mkregion_eq in Hdisjoint; auto.
-      apply list_to_set_disj_2 in Hdisjoint.
-      rewrite /disjoint /set_disjoint_instance in Hdisjoint.
-      intro Ha'.
-      apply (Hdisjoint a); auto.
-    }
-    {
-      iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
-                                 pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "[HC_data]").
-      - intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
-        pose proof (Forall_lookup_1 _ _ _ _ C_data Hv2) as Hncap.
-        destruct v2; [| by inversion Hncap..].
-        rewrite /interpC /safeC fixpoint_interp1_eq /=.
-        iSplit; eauto.
-        iApply future_priv_mono_interp_z.
-      - iFrame.
+    iMod (
+       alloc_compartment_interp with "[$HC_imports] [$HC_code] [$HC_data] [] [$Hsts_C] [$Hr_C]"
+      ) as "(Hsts_C & Hr_C & #HC_code & #HC_data & _)"; eauto.
+    { apply Forall_true; intros; done. }
+    { apply Forall_true; intros; done. }
+    { apply Forall_true; intros; done. }
+    { rewrite C_imports.
+      iIntros "_".
+      iSplit; last done.
+      iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done.
     }
 
-    iMod (extend_region_perm_sepL2 _ _ C
-            [cmpt_b_pcc C_cmpt]
-            (cmpt_imports C_cmpt)
-            RX interpC
-           with "Hsts_C Hr_C [HC_imports]") as "(Hr_C & [#HC_imports _] & Hsts_C)".
-    { done. }
-    { apply Forall_forall.
-      intros a Ha.
-      apply elem_of_list_singleton in Ha; simplify_eq.
-      rewrite std_sta_update_multiple_lookup_same_i; auto.
-      + rewrite std_sta_update_multiple_lookup_same_i; auto.
-        pose proof (cmpt_import_size C_cmpt) as HC.
-        apply not_elem_of_finz_seq_between.
-        rewrite C_imports in HC.
-        left; solve_addr+HC.
-      + pose proof (cmpt_disjointness C_cmpt) as HC.
-        apply disjoint_regions_tactics.disjoint_list_cons in HC
-        ; destruct HC as [HC _].
-        rewrite union_list_cons in HC.
-        cbn in HC.
-        assert (
-            finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)
-              ## finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)
-          ) as HC' by set_solver+HC
-        ; clear HC.
-        intro Hcontra ; eapply HC'; eauto.
-        pose proof (cmpt_import_size C_cmpt) as H.
-        rewrite C_imports /= in H.
-        pose proof (cmpt_code_size C_cmpt) as H'.
-        apply elem_of_finz_seq_between; solve_addr+H H'.
-    }
-    {
-      rewrite C_imports; cbn; iFrame.
-      rewrite /interpC /safeC /=.
-      iSplit; first iApply interp_switcher_call; eauto.
-      (* TODO make lemma *)
-      iModIntro.
-      iIntros (???) "?"; iApply interp_switcher_call; eauto.
+    assert (
+        Forall
+          (λ k : finz MemNum, (std_update_compartment (∅, (∅, ∅)) C_cmpt).1 !! k = None)
+          (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
+      ) as Hstack_disjoint_C.
+    { apply Forall_forall; intros a Ha; cbn.
+      pose proof switcher_cmpt_disjoints as (_ & [_ Hc]).
+      eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
     }
 
     iMod ( extend_region_revoked_sepL2 _ _ _
@@ -889,41 +604,8 @@ Section Adequacy.
              RWL interpC
            with "[$Hsts_C] [$Hr_C]")
            as "(Hr_C & Hrel_stk_C & Hsts_C)".
-    { apply Forall_forall; intros a Ha; cbn.
-      pose proof (cmpt_import_size C_cmpt) as H.
-      rewrite C_imports /= in H.
-      pose proof (cmpt_code_size C_cmpt) as H'.
-      pose proof switcher_cmpt_disjoints as (_ & _ & Hc).
+    { eapply Hstack_disjoint_C. }
 
-      rewrite lookup_insert_ne.
-      2: { intro Hcontra.
-           assert (a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)).
-           { rewrite -Hcontra.
-             apply elem_of_finz_seq_between; solve_addr+H H'.
-           }
-           apply (Hc a).
-           + rewrite /cmpt_switcher_region.
-             eapply elem_of_union;eauto.
-           + eapply elem_of_union;eauto.
-             left; eapply elem_of_union;eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i.
-      2: { intro Hcontra.
-           apply (Hc a); eauto.
-           + eapply elem_of_union;eauto.
-           + eapply elem_of_union;eauto.
-             left;eapply elem_of_union;eauto.
-      }
-      rewrite std_sta_update_multiple_lookup_same_i; first done.
-      intro Hcontra.
-      apply (Hc a); eauto.
-      + eapply elem_of_union;eauto.
-      + eapply elem_of_union;eauto.
-        left;eapply elem_of_union;eauto.
-        left.
-        rewrite elem_of_finz_seq_between in Hcontra.
-        apply elem_of_finz_seq_between; solve_addr+H H' Hcontra.
-    }
     match goal with
     | H: _ |- context [  (sts_full_world ?W C) ] => set (Winit_C := W)
     end.
@@ -962,133 +644,27 @@ Section Adequacy.
     iAssert (interp Winit_C C
                (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a)
             )%I as "#Hinterp_pcc_C".
-    { iEval (rewrite fixpoint_interp1_eq /=).
-      iApply big_sepL_intro; iModIntro.
-      iIntros (k a Ha).
-      rewrite finz_seq_between_cons in Ha.
-      2: {
-        pose proof (cmpt_import_size C_cmpt) as H1.
-        pose proof (cmpt_code_size C_cmpt) as H2.
-        rewrite C_imports /= in H1.
-        solve_addr.
-      }
-      pose proof (cmpt_import_size C_cmpt) as Himport_C.
-      rewrite C_imports /= in Himport_C.
-      replace (cmpt_b_pcc C_cmpt ^+ 1)%a with
-        (cmpt_a_code C_cmpt) in Ha by solve_addr+Himport_C.
-      iExists RX, interp.
-      iEval (cbn).
-      iSplit; first done.
-      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
-      iSplit.
-      { destruct k; cbn in Ha ; simplify_eq; first iFrame "HC_imports".
-        rewrite (big_sepL_lookup _ _ _ a); eauto.
-      }
-      iSplit; first (iNext ; by iApply zcond_interp).
-      iSplit; first (iNext ; by iApply rcond_interp).
-      iSplit; first done.
-      assert ((std Winit_C) !! a = Some Permanent).
-      {
-        subst Winit_B.
-        apply elem_of_list_lookup_2 in Ha.
-        rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
-        { pose proof switcher_cmpt_disjoints as ( _& _ & Hdis_switcher_cmptC).
-          rewrite /switcher_cmpt_disjoint /cmpt_switcher_region /cmpt_region in Hdis_switcher_cmptC.
-          assert
-            (cmpt_switcher_stack_region switcher_cmpt ## cmpt_pcc_region C_cmpt)
-              as Hdis
-              by (set_solver+Hdis_switcher_cmptC).
-          rewrite /cmpt_pcc_region /cmpt_switcher_stack_region in Hdis.
-          intro Hcontra.
-          replace (cmpt_a_code C_cmpt) with (cmpt_b_pcc C_cmpt ^+ 1)%a in Ha by solve_addr+Himport_C.
-          rewrite -(finz_seq_between_cons) in Ha.
-          + apply (Hdis a); auto.
-          + pose proof (cmpt_import_size C_cmpt) as H1.
-            pose proof (cmpt_code_size C_cmpt) as H2.
-            rewrite C_imports /= in H1.
-            solve_addr.
-        }
-        rewrite elem_of_cons in Ha.
-        destruct Ha as [ Ha | Ha ]; simplify_eq.
-        + rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
-        + rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
-          { intro Hcontra. apply elem_of_list_singleton in Hcontra as ->.
-            apply elem_of_finz_seq_between in Ha.
-            solve_addr+Himport_C Ha.
-          }
-          rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
-          { intro Hcontra.
-            assert (
-                (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt))
-                  ##
-                  (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt))
-              ) as Hdis; last set_solver+Ha Hcontra Hdis.
-              clear.
-              pose proof (cmpt_cgp_disjoint C_cmpt) as Hdis.
-              rewrite /cmpt_pcc_mregion /cmpt_cgp_mregion in Hdis.
-              rewrite -/(cmpt_pcc_mregion C_cmpt) -/(cmpt_cgp_mregion C_cmpt) in Hdis.
-              rewrite map_disjoint_dom in Hdis.
-              rewrite dom_cmpt_pcc_mregion dom_cmpt_cgp_mregion /cmpt_pcc_region /cmpt_cgp_region in Hdis.
-              rewrite -list_to_set_disj in Hdis.
-              assert (
-                  finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) ⊆ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)
-                ); last set_solver.
-              intros a Ha.
-              rewrite !elem_of_finz_seq_between in Ha |- *.
-              pose proof (cmpt_import_size C_cmpt).
-              solve_addr.
-          }
-          rewrite std_sta_update_multiple_lookup_in_i; auto; set_solver+.
-      }
-      iSplit; last done.
-      iApply (monoReq_interp _ _ _ _ Permanent); done.
+    { iApply interp_monotone_nl; eauto.
+      iPureIntro.
+      rewrite /Winit_C.
+      apply related_sts_pub_priv_world.
+      eapply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
     }
 
     iAssert (interp Winit_C C
                (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a)
             )%I as "#Hinterp_cgp_C".
-    { iEval (rewrite fixpoint_interp1_eq /=).
-      iApply big_sepL_intro; iModIntro.
-      iIntros (k a Ha).
-      iExists RW, interp.
-      iEval (cbn).
-      iSplit; first done.
-      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
-      rewrite (big_sepL_lookup _ (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt))
-                 k a); eauto.
-      iFrame "HC_data".
-      iSplit; first (iNext ; by iApply zcond_interp).
-      iSplit; first (iNext ; by iApply rcond_interp).
-      iSplit; first (iNext ; by iApply wcond_interp).
-      assert ((std Winit_C) !! a = Some Permanent).
-     { subst Winit_C.
-        apply elem_of_list_lookup_2 in Ha.
-        assert (a ∉ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)).
-        { intro Hcontra.
-          clear -Ha Hcontra.
-          pose proof switcher_cmpt_disjoints as (_&_&Hdis).
-          set_solver.
-        }
-        assert (a ∉ [cmpt_b_pcc C_cmpt]).
-        { intro Hcontra.
-          clear -Ha Hcontra C_imports.
-          pose proof (cmpt_disjointness C_cmpt) as Hdis.
-          apply disjoint_list_cons in Hdis as [Hdis _].
-          rewrite union_list_cons disjoint_union_r in Hdis.
-          destruct Hdis as [Hdis _].
-          rewrite elem_of_list_singleton in Hcontra; simplify_eq.
-          assert ( cmpt_b_pcc C_cmpt ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt))
-          ; last set_solver.
-          apply elem_of_finz_seq_between.
-          pose proof (cmpt_import_size C_cmpt) as Hsize; rewrite C_imports in Hsize.
-          pose proof (cmpt_code_size C_cmpt).
-          solve_addr.
-        }
-        repeat (rewrite std_sta_update_multiple_lookup_same_i; last done).
-        rewrite std_sta_update_multiple_lookup_in_i; auto.
-      }
-      iSplit; last done.
-      iApply (monoReq_interp _ _ _ _ Permanent); done.
+    { iApply interp_monotone_nl; eauto.
+      iPureIntro.
+      rewrite /Winit_C.
+      apply related_sts_pub_priv_world.
+      eapply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
     }
 
     iAssert ( interp Winit_C C (WSealed ot_switcher C_g)) with
@@ -1224,12 +800,13 @@ Section Adequacy.
       - pose proof cmpts_disjoints as (Hdis&_&_).
         apply elem_of_dom_std_multiple_update in Hcontra.
         destruct Hcontra as [Hcontra|Hcontra].
-        + assert (cmpt_b_pcc B_cmpt ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)).
+        + assert (cmpt_b_cgp main_cmpt ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt)).
           { pose proof (cmpt_import_size B_cmpt) as Hsize ; rewrite B_imports in Hsize.
             pose proof (cmpt_code_size B_cmpt).
-            rewrite elem_of_finz_seq_between; solve_addr.
+            rewrite elem_of_finz_seq_between in Hcontra.
+            rewrite elem_of_finz_seq_between.
+            solve_addr.
           }
-          rewrite elem_of_list_singleton in Hcontra; rewrite {1}Hcontra in Hb_cgp_in.
           set_solver.
         + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
@@ -1259,12 +836,13 @@ Section Adequacy.
       - pose proof cmpts_disjoints as (_&Hdis&_).
         apply elem_of_dom_std_multiple_update in Hcontra.
         destruct Hcontra as [Hcontra|Hcontra].
-        + assert (cmpt_b_pcc C_cmpt ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)).
+        + assert ((cmpt_b_cgp main_cmpt ^+ 1)%a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt)).
           { pose proof (cmpt_import_size C_cmpt) as Hsize ; rewrite C_imports in Hsize.
             pose proof (cmpt_code_size C_cmpt).
-            rewrite elem_of_finz_seq_between; solve_addr.
+            rewrite elem_of_finz_seq_between in Hcontra.
+            rewrite elem_of_finz_seq_between.
+            solve_addr.
           }
-          rewrite elem_of_list_singleton in Hcontra; rewrite {1}Hcontra in Hb_cgp_in.
           set_solver.
         + apply elem_of_dom_std_multiple_update in Hcontra.
           destruct Hcontra as [Hcontra|Hcontra].
@@ -1285,7 +863,7 @@ Section Adequacy.
       destruct (decide ( a ∈ (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)))).
       { rewrite std_sta_update_multiple_lookup_in_i //. }
       rewrite std_sta_update_multiple_lookup_same_i //.
-      destruct (decide ( a ∈ [cmpt_b_pcc B_cmpt])).
+      destruct (decide ( a ∈ finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_a_code B_cmpt))).
       { rewrite std_sta_update_multiple_lookup_in_i //. }
       rewrite std_sta_update_multiple_lookup_same_i //.
       destruct (decide ( a ∈ (finz.seq_between (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)))).
@@ -1302,7 +880,7 @@ Section Adequacy.
       destruct (decide ( a ∈ (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt)))).
       { rewrite std_sta_update_multiple_lookup_in_i //. }
       rewrite std_sta_update_multiple_lookup_same_i //.
-      destruct (decide ( a ∈ [cmpt_b_pcc C_cmpt])).
+      destruct (decide ( a ∈ finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt))).
       { rewrite std_sta_update_multiple_lookup_in_i //. }
       rewrite std_sta_update_multiple_lookup_same_i //.
       destruct (decide ( a ∈ (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)))).

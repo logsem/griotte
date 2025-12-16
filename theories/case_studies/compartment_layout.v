@@ -598,4 +598,15 @@ Section CmptLayout.
     solve_addr.
   Qed.
 
+  Definition in_region (w : Word) (b e : Addr) :=
+    match w with
+    | WSealable (SCap p Global b' e' a) =>
+        PermFlowsTo p RW (* at most RW capability: excludes WL, excludes XSR *)
+        ∧ (b <= b')%a /\ (e' <= e)%a (* in between the bounds *)
+    | _ => False
+    end.
+
+  Definition is_initial_data_word (B_cmpt : cmpt) :=
+    (fun w => is_z w ∨ in_region w (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)).
+
 End CmptLayout.
