@@ -677,8 +677,10 @@ Section region_alloc.
     ={E}=∗
 
     region (std_update_multiple W l1 Permanent) C
+    ∗ sts_full_world (std_update_multiple W l1 Permanent) C
     ∗ ([∗ list] k ∈ l1, rel C k p φ)
-    ∗ sts_full_world (std_update_multiple W l1 Permanent) C.
+    ∗ ([∗ list] v ∈ l2,
+               (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
   Proof.
     iIntros (HNoDup Hp Hl1) "Hsts Hreg Hl".
     iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
@@ -688,9 +690,10 @@ Section region_alloc.
     { by rewrite -region_open_nil. }
     { cbn; iFrame "Hrel Hsts".
       iIntros "Hφ".
-      iDestruct ("Hφ" with "Hrel") as "Hφ".
-      iDestruct (big_sepL_sep with "Hφ") as "[Hφ Hmono]".
-      iMod (region_close_many with "Hrel Hreg Hl Hφ Hmono"); eauto.
+      iDestruct ("Hφ" with "Hrel") as "#Hφ".
+      iFrame "#".
+      iDestruct (big_sepL_sep with "Hφ") as "[Hφ' Hmono]".
+      iMod (region_close_many with "Hrel Hreg Hl Hφ' Hmono"); eauto.
     }
   Qed.
 
@@ -747,6 +750,7 @@ Section region_alloc_cmpt.
       ∗ region Wfinal C
       ∗ interp Wfinal C pcc_cap
       ∗ interp Wfinal C cgp_cap
+      ∗ ([∗ list] v ∈ cmpt_imports C_cmpt, interp Wfinal C v)
     .
     Proof.
       intros * Himports Hcode Hdata C_code C_data.
@@ -774,7 +778,7 @@ Section region_alloc_cmpt.
               data_addrs
               (cmpt_data C_cmpt)
               RW interpC
-             with "Hsts_C Hr_C [HC_data] []") as "(Hr_C & #HC_data & Hsts_C)".
+             with "Hsts_C Hr_C [HC_data] []") as "(Hr_C & Hsts_C & #HC_data & _)".
       { apply finz_seq_between_NoDup. }
       { done. }
       { apply Forall_forall. intros a Ha.
@@ -848,7 +852,7 @@ Section region_alloc_cmpt.
               imports_addrs
               (cmpt_imports C_cmpt)
               RX interpC
-             with "Hsts_C Hr_C HC_imports [Himport_interp]") as "(Hr_C & #HC_imports & Hsts_C)".
+             with "Hsts_C Hr_C HC_imports [Himport_interp]") as "(Hr_C & Hsts_C & #HC_imports & Hinterp_imports)".
       { apply finz_seq_between_NoDup. }
       { done. }
       { apply Forall_forall.
@@ -880,7 +884,7 @@ Section region_alloc_cmpt.
       { iIntros "#HC_imports".
         iApply "Himport_interp"; iFrame "#".
       }
-
+      iDestruct (big_sepL_sep with "Hinterp_imports") as "[$ _]".
       iFrame.
       iModIntro.
       iDestruct (big_sepL_app _ imports_addrs code_addrs with "[$HC_imports $HC_code]") as "HC_PCC".
@@ -987,7 +991,7 @@ Section region_alloc_cmpt.
           rewrite std_sta_update_multiple_lookup_in_i; auto.
         }
         iSplit; last done.
-         iApply (monoReq_interp _ _ _ _ Permanent); done.
+        iApply (monoReq_interp _ _ _ _ Permanent); done.
     Qed.
 
     Lemma alloc_compartment_interp (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName)  :
@@ -1026,6 +1030,7 @@ Section region_alloc_cmpt.
       ∗ region Wfinal C
       ∗ interp Wfinal C pcc_cap
       ∗ interp Wfinal C cgp_cap
+      ∗ ([∗ list] v ∈ cmpt_imports C_cmpt, interp Wfinal C v)
     .
     Proof.
       intros * Himports Hcode Hdata C_code C_data.
@@ -1133,7 +1138,7 @@ Section region_alloc_cmpt.
           rewrite std_sta_update_multiple_lookup_in_i; auto.
         }
         iSplit; last done.
-         iApply (monoReq_interp _ _ _ _ Permanent); done.
+        iApply (monoReq_interp _ _ _ _ Permanent); done.
     Qed.
 
 

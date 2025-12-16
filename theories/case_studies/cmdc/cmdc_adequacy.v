@@ -439,7 +439,7 @@ Section Adequacy.
 
     iMod (
        alloc_compartment_interp with "[$HB_imports] [$HB_code] [$HB_data] [] [$Hsts_B] [$Hr_B]"
-      ) as "(Hsts_B & Hr_B & #HB_code & #HB_data)"; eauto.
+      ) as "(Hsts_B & Hr_B & #HB_code & #HB_data & _)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
@@ -625,7 +625,7 @@ Section Adequacy.
 
     iMod (
        alloc_compartment_interp with "[$HC_imports] [$HC_code] [$HC_data] [] [$Hsts_C] [$Hr_C]"
-      ) as "(Hsts_C & Hr_C & #HC_code & #HC_data)"; eauto.
+      ) as "(Hsts_C & Hr_C & #HC_code & #HC_data & _)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
