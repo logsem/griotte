@@ -1616,6 +1616,16 @@ Section heap.
     + apply option_leibniz.
   Qed.
 
+  Lemma related_pub_revoke_close_list (W : WORLD) (l : list Addr) :
+    (∀ a : finz MemNum, std W !! a = Some Temporary ↔ a ∈ l) ->
+    related_sts_pub_world W (close_list l (revoke W)).
+  Proof.
+    intros Htemporaries.
+    rewrite /revoke /close_list.
+    rewrite close_revoke_eq; auto; cbn.
+    destruct W; apply related_sts_pub_refl_world.
+  Qed.
+
   Lemma close_list_std_sta_idemp Wstd_sta (l1 l2 : list Addr) :
     close_list_std_sta l1 (close_list_std_sta l2 Wstd_sta) = close_list_std_sta (l1 ++ l2) Wstd_sta.
   Proof.

@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel interp_weakening monotone.
-From cap_machine Require Import vae vae_helper vae_spec_closure vae_spec.
+From cap_machine Require Import lse lse_spec_closure lse_spec.
 From cap_machine Require Import switcher assert logrel.
 From cap_machine Require Import mkregion_helpers.
 From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
@@ -25,7 +25,6 @@ Class memory_layout `{MP: MachineParameters} := {
     (* adv compartments C *)
     C_cmpt : cmpt ;
     offset_adv_f : nat;
-    offset_adv_g : nat;
 
     (* disjointness *)
     cmpts_disjoints :
@@ -79,33 +78,26 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
       (cmpt_exp_tbl_entries_end C_cmpt)
       (cmpt_exp_tbl_entries_start C_cmpt)
   in
-  let C_g :=
-    SCap RO Global
-      (cmpt_exp_tbl_pcc C_cmpt)
-      (cmpt_exp_tbl_entries_end C_cmpt)
-      ((cmpt_exp_tbl_entries_start C_cmpt) ^+ 1)%a
-  in
 
   mem = mk_initial_memory mem
   (* instantiating main *)
   ∧ (cmpt_imports main_cmpt) =
-  vae_main_imports
+  lse_main_imports
     b_switcher e_switcher a_switcher_call ot_switcher
     (b_assert assert_cmpt) (e_assert assert_cmpt) C_f
-  ∧ (cmpt_code main_cmpt) = (vae_main_code ot_switcher)
-  ∧ (cmpt_data main_cmpt) = vae_main_data
-  ∧ (cmpt_exp_tbl_entries main_cmpt) = vae_export_table_entries
+  ∧ (cmpt_code main_cmpt) = lse_main_code
+  ∧ (cmpt_data main_cmpt) = lse_main_data
+  ∧ (cmpt_exp_tbl_entries main_cmpt) = lse_export_table_entries
 
   (* instantiating C *)
   ∧ (cmpt_imports C_cmpt) =
   [switcher_entry
-   ; WSealed ot_switcher (vae_entry_awkward_sb (cmpt_exp_tbl_pcc main_cmpt)
+   ; WSealed ot_switcher (lse_entry_f_sb (cmpt_exp_tbl_pcc main_cmpt)
                             (cmpt_exp_tbl_entries_end main_cmpt))
-   ; WSealed ot_switcher C_g
   ]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt)
-  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point 0 offset_adv_f); WInt (encode_entry_point 0 offset_adv_g)]
+  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point 0 offset_adv_f)]
 
   (* initial stack *)
   ∧ Forall is_z (stack_content switcher_cmpt)
@@ -154,10 +146,10 @@ Section Adequacy.
   Context `{MP: MachineParameters}.
   Context { HCNames : CNames = (list_to_set [C]) }.
 
-  Definition flagN : namespace := nroot .@ "vae" .@ "fail_flag".
-  Definition switcherN : namespace := nroot .@ "vae" .@ "switcher_flag".
-  Definition assertN : namespace := nroot .@ "vae" .@ "assert_flag".
-  Definition vaeN : namespace := nroot .@ "vae" .@ "code".
+  Definition flagN : namespace := nroot .@ "lse" .@ "fail_flag".
+  Definition switcherN : namespace := nroot .@ "lse" .@ "switcher_flag".
+  Definition assertN : namespace := nroot .@ "lse" .@ "assert_flag".
+  Definition lseN : namespace := nroot .@ "lse" .@ "code".
 
   Lemma cmdc_adequacy' `{Layout: @memory_layout MP}
     (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
@@ -201,18 +193,13 @@ Section Adequacy.
        (WCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
          (cmpt_exp_tbl_entries_start C_cmpt))
       ).
-    set (
-        C_g :=
-       (WCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
-         ((cmpt_exp_tbl_entries_start C_cmpt) ^+1)%a)
-      ).
-    set (awk_f :=
+    set (main_f :=
           (WCap RO Global
              (cmpt_exp_tbl_pcc main_cmpt) (cmpt_exp_tbl_entries_end main_cmpt)
              (cmpt_exp_tbl_pcc main_cmpt ^+ 2)%a)
         ).
-    assert (C_f ≠ awk_f) as Hneq_Cf_awkf.
-    { intro H ; subst awk_f C_f ; simplify_eq.
+    assert (C_f ≠ main_f) as Hneq_Cf_mainf.
+    { intro H ; subst main_f C_f ; simplify_eq.
       pose proof cmpts_disjoints as Hdisjoint.
       rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdisjoint.
       assert (
@@ -231,33 +218,6 @@ Section Adequacy.
       pose proof (cmpt_exp_tbl_entries_size main_cmpt) as Hc''.
       rewrite finz_seq_between_cons ; last (solve_addr+ Hc Hc' Hc'').
       set_solver+.
-    }
-    assert (C_g ≠ awk_f) as Hneq_Cg_awkf.
-    { intro H ; subst awk_f C_g ; simplify_eq.
-      pose proof cmpts_disjoints as Hdisjoint.
-      rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdisjoint.
-      assert (
-          cmpt_exp_tbl_region main_cmpt  ## cmpt_exp_tbl_region C_cmpt
-        ) as Hdis by set_solver+Hdisjoint.
-      rewrite /cmpt_exp_tbl_region in Hdis.
-      apply stdpp_extra.list_to_set_disj in Hdis.
-      rewrite H H0 in Hdis.
-      assert (
-          list_to_set
-            (finz.seq_between (cmpt_exp_tbl_pcc main_cmpt) (cmpt_exp_tbl_entries_end main_cmpt))
-            ≠ (∅ : gset Addr)
-        ) as Hemp; [|set_solver+Hdis Hemp].
-      pose proof (cmpt_exp_tbl_pcc_size main_cmpt) as Hc.
-      pose proof (cmpt_exp_tbl_cgp_size main_cmpt) as Hc'.
-      pose proof (cmpt_exp_tbl_entries_size main_cmpt) as Hc''.
-      rewrite finz_seq_between_cons ; last (solve_addr+ Hc Hc' Hc'').
-      set_solver+.
-    }
-    assert (C_f ≠ C_g) as Hneq_Cf_Cg.
-    { intro H ; subst C_f C_g ; simplify_eq.
-      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
-      rewrite C_exp_tbl in H1.
-      solve_addr+H H1.
     }
 
     iMod (
@@ -265,10 +225,8 @@ Section Adequacy.
            {[
                (seal_capability C_f ot_switcher) := 0;
                (borrow (seal_capability C_f ot_switcher)) := 0;
-               (seal_capability C_g ot_switcher) := 0;
-               (borrow (seal_capability C_g ot_switcher)) := 0;
-               (seal_capability awk_f ot_switcher) := 1;
-               (borrow (seal_capability awk_f ot_switcher)) := 1
+               (seal_capability main_f ot_switcher) := 0;
+               (borrow (seal_capability main_f ot_switcher)) := 0
            ]}
 
          )
@@ -280,25 +238,17 @@ Section Adequacy.
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cf' Hentries]".
     rewrite delete_notin
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
-    iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cg Hentries]".
+    iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_mainf Hentries]".
     rewrite delete_notin
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
-    iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cg' Hentries]".
-    rewrite delete_notin
-    ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
-    iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_awkf Hentries]".
-    rewrite delete_notin
-    ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
-    iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_awkf' _]".
+    iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_mainf' _]".
 
-    subst C_f C_g awk_f; cbn.
+    subst C_f main_f; cbn.
     set (C_f := (SCap RO Global _ _ (cmpt_exp_tbl_entries_start C_cmpt))).
     set (C_f' := (SCap RO Local _ _ (cmpt_exp_tbl_entries_start C_cmpt))).
-    set (C_g := (SCap RO Global _ _ ((cmpt_exp_tbl_entries_start C_cmpt) ^+1)%a)).
-    set (C_g' := (SCap RO Local _ _ ((cmpt_exp_tbl_entries_start C_cmpt) ^+1)%a)).
-    set (awk_f := (SCap RO Global _ _ (cmpt_exp_tbl_pcc main_cmpt ^+ 2)%a)).
-    set (awk_f' := (SCap RO Local _ _ (cmpt_exp_tbl_pcc main_cmpt ^+ 2)%a)).
-    clear Hneq_Cf_Cg Hneq_Cg_awkf Hneq_Cf_awkf.
+    set (main_f := (SCap RO Global _ _ (cmpt_exp_tbl_pcc main_cmpt ^+ 2)%a)).
+    set (main_f' := (SCap RO Local _ _ (cmpt_exp_tbl_pcc main_cmpt ^+ 2)%a)).
+    clear Hneq_Cf_mainf.
 
     unshelve iMod (gen_sts_init 0) as (stsg) "Hsts"; eauto. (*XX*)
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
@@ -318,7 +268,7 @@ Section Adequacy.
     pose switcher_layout_g := (@switcher_layout MP Layout).
 
     pose proof (
-        @vae_init_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _  switcher_layout_g C
+        @lse_run_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _  switcher_layout_g C
       ) as Spec.
 
     (* Get initial sregister mtdc *)
@@ -460,12 +410,7 @@ Section Adequacy.
     iDestruct (mkregion_prepare with "[HC_etbl_cgp]") as ">HC_etbl_cgp"; auto.
     { cbn; apply cmpt_exp_tbl_cgp_size. }
     iEval (rewrite C_exp_tbl) in "HC_etbl_entries".
-    rewrite (finz_seq_between_cons (cmpt_exp_tbl_entries_start C_cmpt)).
-    2: {
-      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
-      rewrite C_exp_tbl in H1; solve_addr+H1.
-    }
-    rewrite (finz_seq_between_singleton (cmpt_exp_tbl_entries_start C_cmpt ^+ 1)%a).
+    rewrite (finz_seq_between_singleton (cmpt_exp_tbl_entries_start C_cmpt)%a).
     2: {
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       rewrite C_exp_tbl in H1; solve_addr+H1.
@@ -475,7 +420,7 @@ Section Adequacy.
     rewrite (finz_seq_between_singleton (cmpt_exp_tbl_cgp C_cmpt))
     ; last (apply cmpt_exp_tbl_cgp_size).
     rewrite !big_sepL2_singleton.
-    iDestruct "HC_etbl_entries" as "[HC_etbl_C_f [HC_etbl_C_g _ ]]".
+    iDestruct "HC_etbl_entries" as "HC_etbl_C_f".
 
     iMod (inv_alloc (switcher_preamble.export_table_PCCN (nroot .@ C)) ⊤ _
            with "HC_etbl_pcc")%I as "#HC_etbl_pcc".
@@ -483,9 +428,6 @@ Section Adequacy.
            with "HC_etbl_cgp")%I as "#HC_etbl_cgp".
     iMod (inv_alloc (switcher_preamble.export_table_entryN (nroot .@ C) (cmpt_exp_tbl_entries_start C_cmpt)) ⊤ _
            with "HC_etbl_C_f")%I as "#HC_etbl_C_f".
-    iMod (inv_alloc (switcher_preamble.export_table_entryN (nroot .@ C)
-                       ((cmpt_exp_tbl_entries_start C_cmpt) ^+1)%a) ⊤ _
-           with "HC_etbl_C_g")%I as "#HC_etbl_C_g".
 
     (* CMPT MAIN *)
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_main".
@@ -525,7 +467,7 @@ Section Adequacy.
       rewrite main_data in H.
       solve_addr+H.
     }
-    rewrite main_data /vae_main_data in Hv; simplify_eq.
+    rewrite main_data /lse_main_data in Hv; simplify_eq.
     iAssert (
       codefrag (cmpt_a_code main_cmpt) (cmpt_code main_cmpt)
      )%I with "[Hmain_code]" as "Hmain_code".
@@ -555,10 +497,9 @@ Section Adequacy.
       2: { apply (cmpt_exp_tbl_cgp_size main_cmpt). }
       by rewrite big_sepL2_singleton.
     }
-    rewrite /vae_export_table_entries.
+    rewrite /lse_export_table_entries.
     iAssert (
-       (cmpt_exp_tbl_entries_start main_cmpt) ↦ₐ
-         WInt (encode_entry_point 1 (length (cmpt_imports main_cmpt ++ VAE_main_code_init)))
+       (cmpt_exp_tbl_entries_start main_cmpt) ↦ₐ lse_exp_tbl_entry_f
       )%I with "[Hmain_etbl_entries]" as "Hmain_etbl_entries".
     {
       rewrite (finz_seq_between_singleton (cmpt_exp_tbl_entries_start main_cmpt)).
@@ -566,28 +507,28 @@ Section Adequacy.
         pose proof (cmpt_exp_tbl_entries_size main_cmpt) as H.
         by rewrite main_exp_tbl /= in H.
       }
-      rewrite main_imports.
       by rewrite big_sepL2_singleton.
     }
+    iCombine "Hmain_code Hcgp_b" as "Hmain_code".
     iCombine "Hmain_imports Hmain_code" as "Hmain_code".
-    iMod (na_inv_alloc logrel.logrel_nais _ vaeN _ with "Hmain_code") as "#Hmain_code".
-    iMod (inv_alloc (export_table_PCCN vaeN) ⊤
+    iMod (na_inv_alloc logrel.logrel_nais _ lseN _ with "Hmain_code") as "#Hmain_code".
+    iMod (inv_alloc (export_table_PCCN lseN) ⊤
             (cmpt_exp_tbl_pcc main_cmpt
                ↦ₐ WCap RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt)
                (cmpt_b_pcc main_cmpt)
             )%I with "Hmain_etbl_PCC")%I
       as "#Hinv_etbl_PCC".
-    iMod (inv_alloc (export_table_CGPN vaeN) ⊤
+    iMod (inv_alloc (export_table_CGPN lseN) ⊤
             (cmpt_exp_tbl_cgp main_cmpt
                ↦ₐ WCap RW Global (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt)
                (cmpt_b_cgp main_cmpt)
             )%I with "Hmain_etbl_CGP")%I
       as "#Hinv_etbl_CGP".
-    iMod (inv_alloc (export_table_entryN vaeN (cmpt_exp_tbl_entries_start main_cmpt)) ⊤
+    iMod (inv_alloc (export_table_entryN lseN (cmpt_exp_tbl_entries_start main_cmpt)) ⊤
             (cmpt_exp_tbl_entries_start main_cmpt
-               ↦ₐ WInt (encode_entry_point 1 (length (cmpt_imports main_cmpt ++ VAE_main_code_init)))
+               ↦ₐ lse_exp_tbl_entry_f
             )%I with "Hmain_etbl_entries")%I
-      as "#Hinv_etbl_entry_awkward".
+      as "#Hinv_etbl_entry_f".
 
     (* Initialises the world for C *)
     set (W0 := (∅, (∅, ∅))).
@@ -597,33 +538,15 @@ Section Adequacy.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
 
 
-    (* Allocate the custom invariant *)
-    iDestruct (sts_alloc_loc _ C false awk_rel_pub awk_rel_priv with "Hsts_C")
-      as ">(Hsts_C & %Hloc_fresh & %Hcus_fresh & Hst_i & #Hrel_i)".
-    set (i := (fresh_cus_name W0)).
-    set (W1 := (<l[i:=false,(awk_rel_pub, awk_rel_priv)]l>W0)).
-    assert (related_sts_priv_world W0 W1) as Hpriv_W0_W1.
-    { subst W1 i.
-      apply related_sts_pub_priv_world.
-      eapply related_sts_pub_world_fresh_loc; eauto.
-    }
-
-    iMod (update_region_revoked_update_loc with "Hsts_C Hr_C") as "[Hr_C Hsts_C]"; auto.
-    { by intros Ha Ha'. }
-
-    iDestruct (inv_alloc awkN _ (awk_inv C i _) with "[Hcgp_b Hst_i]") as ">#Hawk_inv".
-    { iExists false; iFrame. }
-
     iAssert (
-        interp W1 C
+        interp W0 C
           (WSealed ot_switcher
              (SCap RO Global
                 (cmpt_exp_tbl_pcc main_cmpt)
                 (cmpt_exp_tbl_entries_end main_cmpt)
                 (cmpt_exp_tbl_entries_start main_cmpt)%a))
-      )%I as "#Hinterp_VAE".
+      )%I as "#Hinterp_LSE".
     {
-      iEval (rewrite main_imports) in "Hinv_etbl_entry_awkward".
       pose proof (cmpt_exp_tbl_pcc_size main_cmpt) as H0.
       pose proof (cmpt_exp_tbl_cgp_size main_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size main_cmpt) as H2.
@@ -638,12 +561,12 @@ Section Adequacy.
         with ((cmpt_exp_tbl_pcc main_cmpt) ^+ 2)%a by solve_addr+H0 H1.
       replace (cmpt_exp_tbl_cgp main_cmpt)
         with (cmpt_exp_tbl_pcc main_cmpt ^+ 1)%a by solve_addr+H0.
-      iApply (vae_awkward_safe
+      iApply (lse_awkward_safe
                 _ _  _
                 _ _
                 _ _
                 _ _
-                _ _ W1 assertN switcherN vaeN vaeN
+                _ _ W0 assertN switcherN lseN lseN
              ); try iFrame "#"; eauto.
       + solve_ndisj.
       + solve_ndisj.
@@ -653,20 +576,17 @@ Section Adequacy.
     }
 
     assert (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt)
-            = [cmpt_b_pcc C_cmpt; (cmpt_b_pcc C_cmpt ^+ 1)%a; (cmpt_b_pcc C_cmpt ^+ 2)%a]) as
+            = [cmpt_b_pcc C_cmpt; (cmpt_b_pcc C_cmpt ^+ 1)%a]) as
       C_imports_addr.
     { pose proof (cmpt_import_size C_cmpt) as Hsize; rewrite C_imports in Hsize.
       rewrite finz_seq_between_cons; last solve_addr+Hsize.
       rewrite finz_seq_between_cons; last solve_addr+Hsize.
-      rewrite finz_seq_between_cons; last solve_addr+Hsize.
       rewrite finz_seq_between_empty; last solve_addr+Hsize.
-      replace ((cmpt_b_pcc C_cmpt ^+ 1) ^+ 1)%a with
-        (cmpt_b_pcc C_cmpt ^+ 2)%a by solve_addr+Hsize.
       done.
     }
 
-    set (W4 := std_update_compartment W1 C_cmpt).
-    assert (related_sts_pub_world W1 (std_update_compartment W1 C_cmpt)) as Hrelated_pub_W1_W4.
+    set (W1 := std_update_compartment W0 C_cmpt).
+    assert (related_sts_pub_world W0 (std_update_compartment W0 C_cmpt)) as Hrelated_pub_W0_W1.
     { eapply std_update_compartment_pub; eauto ; (apply Forall_true; intros; done). }
 
     iMod (
@@ -685,36 +605,25 @@ Section Adequacy.
         iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done.
       }
 
-      (* VAE.awk *)
-      iApply big_sepL_cons; iSplitL.
-      { iSplit.
-        * pose proof (cmpt_exp_tbl_pcc_size main_cmpt) as H0.
-          pose proof (cmpt_exp_tbl_cgp_size main_cmpt) as H1.
-          replace (cmpt_exp_tbl_entries_start main_cmpt)
-            with ((cmpt_exp_tbl_pcc main_cmpt) ^+ 2)%a by solve_addr+H0 H1.
-          iApply interp_monotone_sd; auto.
-          iPureIntro.
-          apply related_sts_pub_priv_world.
-          eapply related_sts_pub_trans_world; eauto.
-          eapply related_sts_pub_refl_world.
-        * iIntros (??) "!> % ?".
-          rewrite /vae_exp_tbl_entry_awkward.
-          iApply interp_monotone_sd; auto.
-      }
-
-      (* B.adv *)
+      (* LSE.f *)
       iApply big_sepL_cons; iSplitL; last done.
-      iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
-      iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_g _ _ (nroot.@C)
-               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
-      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
-      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
-      rewrite C_exp_tbl in H2.
-      solve_addr+H1 H2.
+      iSplit.
+      * pose proof (cmpt_exp_tbl_pcc_size main_cmpt) as H0.
+        pose proof (cmpt_exp_tbl_cgp_size main_cmpt) as H1.
+        replace (cmpt_exp_tbl_entries_start main_cmpt)
+          with ((cmpt_exp_tbl_pcc main_cmpt) ^+ 2)%a by solve_addr+H0 H1.
+        iApply interp_monotone_sd; auto.
+        iPureIntro.
+        apply related_sts_pub_priv_world.
+        eapply related_sts_pub_trans_world; eauto.
+        eapply related_sts_pub_refl_world.
+      * iIntros (??) "!> % ?".
+        rewrite /lse_exp_tbl_entry_f.
+        iApply interp_monotone_sd; auto.
     }
 
     iAssert
-      ( interp W4 C (WSealed ot_switcher C_f)
+      ( interp W1 C (WSealed ot_switcher C_f)
       )%I as "Hinterp_C_f".
     {
       iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_f _ _ (nroot.@C)
@@ -725,8 +634,8 @@ Section Adequacy.
       solve_addr+H1 H2.
     }
 
-    assert (Forall (fun a => a ∉ dom (std W4))
-              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))) as Hswitcher_W4.
+    assert (Forall (fun a => a ∉ dom (std W1))
+              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))) as Hswitcher_W1.
     { apply Forall_forall; intros a Ha; cbn.
       pose proof switcher_cmpt_disjoints as (_ & Hc).
       rewrite not_elem_of_dom.
@@ -756,7 +665,7 @@ Section Adequacy.
     match goal with
     | H: _ |- context [  (sts_full_world ?W C) ] => set (Winit_C := W)
     end.
-    assert (related_sts_pub_world W4 Winit_C) as Hrelated_pub_W4_W5.
+    assert (related_sts_pub_world W1 Winit_C) as Hrelated_pub_W1_Winit_C.
     { apply related_sts_pub_update_multiple; auto. }
 
     iAssert (interp Winit_C C
@@ -788,7 +697,7 @@ Section Adequacy.
     iDestruct (interp_monotone_sd with "[] [$Hinterp_C_f]") as "Hinterp_C_f'" ; eauto.
     { iPureIntro. apply related_sts_pub_priv_world; eauto. }
 
-    iClear "HC_etbl_pcc HC_etbl_cgp HC_etbl_C_f HC_etbl_C_g HC_code HC_data".
+    iClear "HC_etbl_pcc HC_etbl_cgp HC_etbl_C_f HC_code HC_data".
 
     (* Extract registers *)
     destruct Hreg as (HPC & Hcgp & Hcsp & Hreg).
@@ -809,18 +718,18 @@ Section Adequacy.
          pose proof (cmpt_exp_tbl_cgp_size main_cmpt) as Hsize_cgp.
          solve_addr+Hsize_pcc Hsize_cgp.
     }
-    rewrite main_imports.
+    (* rewrite main_imports. *)
 
     iPoseProof (Spec _ _ _ _ _ _ _ _
                   _ (cmpt_exp_tbl_entries_end main_cmpt) _ _ _
-                  _ _ [] [] assertN switcherN vaeN
+                  _ _ [] [] assertN switcherN lseN
                  with "[ $Hassert $Hswitcher $Hmain_code
-                         $Hinv_etbl_PCC $Hinv_etbl_CGP $Hinv_etbl_entry_awkward
+                         $Hinv_etbl_PCC $Hinv_etbl_CGP $Hinv_etbl_entry_f
                          $Hna
                          $Hr_C $Hsts_C
                          $HPC $Hcgp $Hcsp $Hreg
                          $Hcstk_frag $Hinterp_stack_C
-                         $Hinterp_C_f' $Hentry_Cf $Hentry_awkf $Hentry_awkf'
+                         $Hinterp_C_f' $Hentry_Cf $Hentry_mainf $Hentry_mainf'
                          $Hsealed_pred_ot_switcher
                         ]") as "Hspec"; eauto.
     { solve_ndisj. }
@@ -870,10 +779,6 @@ Section Adequacy.
     { pose proof (cmpt_import_size main_cmpt) as Hmain_imports.
       by rewrite -Hmain_imports main_imports.
     }
-    { subst Winit_C W1.
-      rewrite !std_update_multiple_loc_sta.
-      by simplify_map_eq.
-    }
     { done. }
 
     iModIntro.
@@ -889,21 +794,21 @@ Section Adequacy.
   Qed.
 End Adequacy.
 
-Inductive CmptNames_vae := | B .
-Local Instance CmptNames_vae_eq_dec : EqDecision CmptNames_vae.
+Inductive CmptNames_lse := | B .
+Local Instance CmptNames_lse_eq_dec : EqDecision CmptNames_lse.
 Proof. intros C C'; destruct C,C'; solve_decision. Qed.
-Local Instance CmptNames_vae_finite : finite.Finite CmptNames_vae.
+Local Instance CmptNames_lse_finite : finite.Finite CmptNames_lse.
 Proof.
   refine {| finite.enum := [B] |}.
   + apply NoDup_singleton.
   + intros []; left.
 Defined.
 
-Local Program Instance CmptNames_vae_CmptNameG : CmptNameG :=
-  {| CmptName := CmptNames_vae; |}.
+Local Program Instance CmptNames_lse_CmptNameG : CmptNameG :=
+  {| CmptName := CmptNames_lse; |}.
 
 (** END-TO-END THEOREM *)
-Theorem vae_adequacy `{Layout: memory_layout}
+Theorem lse_adequacy `{Layout: memory_layout}
   (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
   (es: list cap_lang.expr)
   :
@@ -914,7 +819,7 @@ Theorem vae_adequacy `{Layout: memory_layout}
   m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
 Proof.
   intros ? ? ? ?.
-  set ( cnames := CmptNames_vae_CmptNameG ).
+  set ( cnames := CmptNames_lse_CmptNameG ).
   set (Σ := #[invΣ
               ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ
