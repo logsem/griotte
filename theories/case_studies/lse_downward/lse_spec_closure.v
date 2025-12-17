@@ -23,16 +23,6 @@ Section LSE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  Lemma related_pub_revoke_close (W : WORLD) (l : list Addr) :
-    (∀ a : finz MemNum, std W !! a = Some Temporary ↔ a ∈ l) ->
-    related_sts_pub_world W (close_list l (revoke W)).
-  Proof.
-    intros Htemporaries.
-    rewrite /revoke /close_list.
-    rewrite close_revoke_eq; auto; cbn.
-    destruct W; apply related_sts_pub_refl_world.
-  Qed.
-
   Lemma lse_f_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -256,7 +246,7 @@ Section LSE.
              "[ $Hswitcher $Hstk $Hcstk $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
-    { apply related_pub_revoke_close.
+    { apply related_pub_revoke_close_list.
       destruct Hl_unk; auto.
     }
     { apply regmap_full_dom in Hrmap_init.
