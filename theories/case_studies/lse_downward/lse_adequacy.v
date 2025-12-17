@@ -129,63 +129,6 @@ Proof.
   - symmetry; apply disjoint_assert_cmpts_mkinitial; done.
 Qed.
 
-(* TODO move in machine_base.v *)
-Lemma seal_capability_inj (o : OType) (c1 c2 : Word) :
-  is_cap c1 ->
-  is_cap c2 ->
-  c1 ≠ c2 ->
-  seal_capability c1 o ≠ seal_capability c2 o.
-Proof.
-  intros Hcap1 Hcap2 Hc Hcontra.
-  apply Hc.
-  destruct c1 as [| [|] | |], c2 as [| [|] | |] ; cbn in *; simplify_eq.
-Qed.
-
-Lemma borrow_seal_capability_inj (o : OType) (c1 c2 : Word) :
-  is_cap c1 ->
-  is_cap c2 ->
-  isGlobalWord c1 ->
-  isGlobalWord c2 ->
-  c1 ≠ c2 ->
-  seal_capability c1 o ≠ borrow (seal_capability c2 o).
-Proof.
-  intros Hcap1 Hcap2 Hg1 Hg2 Hc Hcontra.
-  apply Hc.
-  destruct c1 as [| [|] | |], c2 as [| [|] | |] ; cbn in *; simplify_eq.
-Qed.
-
-Lemma borrow_seal_capability_inj' (o : OType) (c1 c2 : Word) :
-  is_cap c1 ->
-  is_cap c2 ->
-  isGlobalWord c1 ->
-  isGlobalWord c2 ->
-  c1 ≠ c2 ->
-  borrow (seal_capability c1 o) ≠ borrow (seal_capability c2 o).
-Proof.
-  intros Hcap1 Hcap2 Hg1 Hg2 Hc Hcontra.
-  apply Hc.
-  destruct c1 as [| [|] | |], c2 as [| [|] | |] ; cbn in *; simplify_eq.
-  destruct g,g0; simplify_eq.
-Qed.
-
-Lemma borrow_inj (w : Word) :
-  isGlobalWord w ->
-  is_sealed w ->
-  w ≠ borrow w.
-Proof.
-  intros Hw Hcontra.
-  destruct w as [| [|] | |]; cbn in *; simplify_eq; auto.
-  destruct sb; cbn in *; auto; destruct g; cbn in *; auto.
-Qed.
-
-Ltac entry_point_inj :=
-  try ( apply seal_capability_inj; auto )
-  ; try (apply borrow_inj; auto)
-  ; try (symmetry ; apply borrow_inj; auto)
-  ; try (apply borrow_seal_capability_inj ; auto)
-  ; try (apply borrow_seal_capability_inj' ; auto).
-
-
 Section Adequacy.
   Context (Σ: gFunctors).
   Context {cname : CmptNameG}.
@@ -291,16 +234,13 @@ Section Adequacy.
 
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cf Hentries]".
     rewrite delete_notin
-    ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done
-    ).
+    ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cf' Hentries]".
     rewrite delete_notin
-    ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done
-    ).
+    ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_mainf Hentries]".
     rewrite delete_notin
-    ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done
-    ).
+    ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_mainf' _]".
 
     subst C_f main_f; cbn.
