@@ -3,6 +3,7 @@ name: Test Compilation for OCaml
 on: [ pull_request ]
 jobs:
   build:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
 
     steps:
