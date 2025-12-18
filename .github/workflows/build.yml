@@ -25,15 +25,14 @@ jobs:
       - name: Install OCaml
         uses: avsm/setup-ocaml@v3
         with:
-          ocaml-compiler: 4.14
+          ocaml-compiler: 5.4.0
           opam-repositories: |
-            coq-released: https://coq.inria.fr/opam/released
+            rocq-released: https://rocq-prover.org/opam/released
             default: https://github.com/ocaml/opam-repository.git
 
-      - name: Install Coq and Iris
+      - name: Install Rocq and Iris
         run: opam install . --deps-only -y
 
       - name: Build
         run: |
-            find ./theories -name "*.v" -exec ./disable-qed.sh {} +;
-            opam exec -- make pretty-timed -j2
+            opam exec -- dune build --display short
