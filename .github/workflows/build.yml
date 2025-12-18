@@ -11,6 +11,11 @@ jobs:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
 
+    env:
+      OCAML_VERSION: "5.4.0"
+      JOBS_LIMIT: "2"
+      OPAM_SWITCH: "ci-switch"
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -20,40 +25,47 @@ jobs:
       - name: Install OCaml
         uses: avsm/setup-ocaml@v3
         with:
-          ocaml-compiler: 5.4.0
+          ocaml-compiler: ${{ env.OCAML_VERSION }}
           opam-repositories: |
             rocq-released: https://rocq-prover.org/opam/released
             default: https://github.com/ocaml/opam-repository.git
           dune-cache: true
 
-      - name: Cache opam
+      - name: Cache opam packages
         id: cache-opam
         uses: actions/cache@v4
         with:
-          path: _opam
-          key: ${{ runner.os }}-opam-${{ hashFiles('*.opam.locked') }}
+          path: ~/.opam                     # the default opam root created by setup‑ocaml
+          key: |
+            opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked') }}
           restore-keys: |
-            ${{ runner.os }}-opam-
+            opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
 
-      - name: Cache Dune
+      - name: Cache Dune global cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/dune
-          key: ${{ runner.os }}-dune-${{ github.sha }}
+          key: |
+            dune-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked') }}
           restore-keys: |
-            ${{ runner.os }}-dune-
+            dune-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
 
-      - name: Cache Build
+      - name: Cache Dune _build directory
+        id: cache-build
         uses: actions/cache@v4
         with:
           path: _build
-          key: ${{ runner.os }}-build-${{ github.sha }}
+          key: |
+            dune-build-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked', 'dune-project') }}
           restore-keys: |
-            ${{ runner.os }}-build-
+            dune-build-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
 
-      - name: Install Rocq and Iris
-        run: opam install . --deps-only -y
+      - name: Install Rocq and Iris (deps only)
+        run: |
+          eval "$(opam env)"
+          opam install . --deps-only -y
 
       - name: Build
         run: |
-            opam exec -- dune build --display short -j2
+          eval "$(opam env)"
+          opam exec -- dune build --display short -j ${{ env.JOBS_LIMIT }}
