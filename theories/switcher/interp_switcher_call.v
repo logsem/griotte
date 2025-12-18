@@ -8,6 +8,7 @@ From cap_machine Require Import rules proofmode monotone.
 From cap_machine Require Import fundamental.
 From cap_machine Require Import switcher_preamble.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
+From cap_machine Require Import interp_switcher_return.
 
 
 Section fundamental.
@@ -53,22 +54,12 @@ Section fundamental.
     iHide "Hinv_switcher" as hinv_switcher.
 
     iExtract "Hrmap" PC as "HPC".
-    specialize (Hfull_rmap csp) as HH;destruct HH as [Hstk wcsp].
-    specialize (Hfull_rmap cs0) as HH;destruct HH as [? ?].
-    specialize (Hfull_rmap cs1) as HH;destruct HH as [? ?].
-    specialize (Hfull_rmap cra) as HH;destruct HH as [? ?].
-    specialize (Hfull_rmap cgp) as HH;destruct HH as [? ?].
-    specialize (Hfull_rmap ct2) as HH;destruct HH as [? ?].
-    specialize (Hfull_rmap ctp) as HH;destruct HH as [? ?].
-    specialize (Hfull_rmap ct1) as HH;destruct HH as [? ?].
+    specialize (Hfull_rmap csp) as HH;destruct HH as [wcsp Hstk].
+    specialize (Hfull_rmap ct2) as HH;destruct HH as [? wct2].
+    specialize (Hfull_rmap ctp) as HH;destruct HH as [? wctp].
     iExtract "Hrmap" csp as "Hcsp".
-    iExtract "Hrmap" cs0 as "Hcs0".
-    iExtract "Hrmap" cs1 as "Hcs1".
-    iExtract "Hrmap" cra as "Hcra".
-    iExtract "Hrmap" cgp as "Hcgp".
     iExtract "Hrmap" ct2 as "Hct2".
     iExtract "Hrmap" ctp as "Hctp".
-    iExtract "Hrmap" ct1 as "Hct1".
 
     set (Hcall := switcher_call_entry_point).
     set (Hsize := switcher_size).
@@ -114,14 +105,55 @@ Section fundamental.
       iIntros "!> (HPC & Hi & Hct2)".
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs_pre.
+
+      (* -----------------------------------  *)
+      (* ------ Lcommon_force_unwind -------  *)
+      (* -----------------------------------  *)
+      focus_block 18 "Hcode" as a_force_unwind Ha_force_unwind "Hcode" "Hcls"; iHide "Hcls" as hcont.
+      specialize (Hfull_rmap ca0) as HH;destruct HH as [? ?].
+      specialize (Hfull_rmap ca1) as HH;destruct HH as [? ?].
+      iExtract "Hrmap" ca0 as "Hca0".
+      iExtract "Hrmap" ca1 as "Hca1".
+      (* Mov ca0 ECOMPARTMENTFAIL; *)
       iInstr "Hcode".
-      wp_end. iIntros "%Hcontr";done.
+      (* Mov ca1 0; *)
+      iInstr "Hcode".
+      (* Jmp Lswitcher_after_compartment_call_z *)
+      iInstr "Hcode".
+      { transitivity (Some a_switcher_return); last done.
+        admit.
+      }
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+      iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
+      { iNext. iExists _,_. iFrame "∗ # %".
+        iPureIntro; split; auto.
+      }
+
+      iInsertList "Hrmap" [csp;ctp;ct2;ca0;ca1;PC].
+      iApply interp_expr_switcher_return; iFrame "∗%#".
+      rewrite /interp_reg /=.
+      iSplit.
+      + rewrite /full_map.
+        iIntros (r) ; iPureIntro.
+        destruct (decide (r = ca1)); first by simplify_map_eq.
+        destruct (decide (r = ca0)); first by simplify_map_eq.
+        destruct (decide (r = ct2)); first by simplify_map_eq.
+        destruct (decide (r = ctp)); first by simplify_map_eq.
+        destruct (decide (r = csp)); first by simplify_map_eq.
+        simplify_map_eq.
+        apply Hfull_rmap.
+      + iIntros (r w HrPC Hr).
+        destruct (decide (r = ca1)); first (simplify_map_eq ; iApply interp_int).
+        destruct (decide (r = ca0)); first (simplify_map_eq ; iApply interp_int).
+        destruct (decide (r = ct2)); first (simplify_map_eq ; iApply interp_int).
+        destruct (decide (r = ctp)); first (simplify_map_eq ; iApply interp_int).
+        destruct (decide (r = csp)); simplify_map_eq ; iApply "Hreg"; eauto.
     }
+
     (* p = RWL *)
     rewrite Hp0'.
-    iInstr "Hcode".
-
-    (* --- Jmp 2 --- *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
@@ -151,21 +183,76 @@ Section fundamental.
       wp_instr.
       iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
       { intros Hcontr; inversion Hcontr; done. }
+      { transitivity (Some ((a_switcher_call ^+ Lcommon_force_unwind_z)%a)); auto.
+        rewrite /Lcommon_force_unwind_z.
+        solve_addr.
+      }
       iIntros "!> (HPC & Hi & Hct2)".
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs_pre.
+
+      (* -----------------------------------  *)
+      (* ------ Lcommon_force_unwind -------  *)
+      (* -----------------------------------  *)
+      rewrite /Lcommon_force_unwind_z.
+      focus_block 18 "Hcode" as a_force_unwind Ha_force_unwind "Hcode" "Hcls"; iHide "Hcls" as hcont.
+      specialize (Hfull_rmap ca0) as HH;destruct HH as [? ?].
+      specialize (Hfull_rmap ca1) as HH;destruct HH as [? ?].
+      iExtract "Hrmap" ca0 as "Hca0".
+      iExtract "Hrmap" ca1 as "Hca1".
+      (* Mov ca0 ECOMPARTMENTFAIL; *)
       iInstr "Hcode".
-      wp_end. iIntros "%Hcontr";done.
+      (* Mov ca1 0; *)
+      iInstr "Hcode".
+      (* Jmp Lswitcher_after_compartment_call_z *)
+      iInstr "Hcode".
+      { transitivity (Some a_switcher_return); last done.
+        admit.
+      }
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+      iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
+      { iNext. iExists _,_. iFrame "∗ # %".
+        iPureIntro; split; auto.
+      }
+
+      iInsertList "Hrmap" [csp;ctp;ct2;ca0;ca1;PC].
+      iApply interp_expr_switcher_return; iFrame "∗%#".
+      rewrite /interp_reg /=.
+      iSplit.
+      + rewrite /full_map.
+        iIntros (r) ; iPureIntro.
+        destruct (decide (r = ca1)); first by simplify_map_eq.
+        destruct (decide (r = ca0)); first by simplify_map_eq.
+        destruct (decide (r = ct2)); first by simplify_map_eq.
+        destruct (decide (r = ctp)); first by simplify_map_eq.
+        destruct (decide (r = csp)); first by simplify_map_eq.
+        simplify_map_eq.
+        apply Hfull_rmap.
+      + iIntros (r w HrPC Hr).
+        destruct (decide (r = ca1)); first (simplify_map_eq ; iApply interp_int).
+        destruct (decide (r = ca0)); first (simplify_map_eq ; iApply interp_int).
+        destruct (decide (r = ct2)); first (simplify_map_eq ; iApply interp_int).
+        destruct (decide (r = ctp)); first (simplify_map_eq ; iApply interp_int).
+        destruct (decide (r = csp)); simplify_map_eq ; iApply "Hreg"; eauto.
     }
     rewrite Hg0'.
     (* g = Local *)
     iInstr "Hcode".
 
-    (* --- Jmp 2 --- *)
-    iInstr "Hcode".
-
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
+    specialize (Hfull_rmap cs0) as HH;destruct HH as [? ?].
+    specialize (Hfull_rmap cs1) as HH;destruct HH as [? ?].
+    specialize (Hfull_rmap cra) as HH;destruct HH as [? ?].
+    specialize (Hfull_rmap cgp) as HH;destruct HH as [? ?].
+    specialize (Hfull_rmap ct1) as HH;destruct HH as [? ?].
+    iExtract "Hrmap" cs0 as "Hcs0".
+    iExtract "Hrmap" cs1 as "Hcs1".
+    iExtract "Hrmap" cra as "Hcra".
+    iExtract "Hrmap" cgp as "Hcgp".
+    iExtract "Hrmap" ct1 as "Hct1".
 
     (* -----------------------------------  *)
     (* ---- Lswitch_entry_first_spill ----  *)
@@ -287,6 +374,54 @@ Section fundamental.
     ; cycle 1.
     {
       iInstr "Hcode".
+      (* --- Jmp  Lswitch_trusted_stack_exhausted_z --- *)
+      iInstr "Hcode".
+      { transitivity (Some ((a_switcher_call ^+ Lswitch_trusted_stack_exhausted_z)%a)); auto.
+        rewrite /Lswitch_trusted_stack_exhausted_z.
+        admit.
+      }
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs_pre.
+
+      (* -----------------------------------  *)
+      (* ------ Lcommon_force_unwind -------  *)
+      (* -----------------------------------  *)
+      rewrite /Lswitch_trusted_stack_exhausted_z.
+      focus_block 17 "Hcode" as a_tstk_exhausted Ha_tstk_exhausted "Hcode" "Hcls"; iHide "Hcls" as hcont.
+      (* Lea csp (-1)%Z; *)
+      iInstr "Hcode".
+      { transitivity (Some f1); auto; solve_addr. }
+      (* Load cgp csp; *)
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hr $Hsts]"); try solve_pure.
+      { iFrame. iSplit;[by iApply "Hreg";eauto|].
+        by iApply (interp_lea with "Hspv"). }
+      iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcgp
+    & Hcsp & Hr & Hsts & _ & %bounds')] /=".
+      { wp_pure. wp_end. iIntros "%Hcontr";done. }
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
+      
+      iInstr "Hcode".
+      (* Lea csp (-1)%Z; *)
+      iInstr "Hcode".
+      (* Load cra csp; *)
+      iInstr "Hcode".
+      (* Lea csp (-1)%Z; *)
+      iInstr "Hcode".
+      (* Load cs1 csp; *)
+      iInstr "Hcode".
+      iInstr "Hcode".
+      (* Lea csp (-1)%Z; *)
+      iInstr "Hcode".
+      (* Load cs0 csp; *)
+      iInstr "Hcode".
+      (* Mov ca0 ECOMPARTMENTFAIL; *)
+      (* Mov ca1 0; *)
+      (* Jmp Lswitch_callee_dead_zeros_z *)
+      
+      
       (* --- Fail --- *)
       iInstr "Hcode".
       wp_end. iIntros "%Hcontr";done.
