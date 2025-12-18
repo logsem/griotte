@@ -1,0 +1,26 @@
+;; The following trick is borrowed from a dune file of Coq-HoTT.
+(rule
+ (alias runtest)
+ (deps
+  (glob_files_rec ./*.vo))
+ (action
+  (run
+    rocqchk
+    -Q theories cap_machine
+    -Q machine_utils/theories machine_utils
+    %{deps}
+    -o)))
+
+;; Only compiles Rocq files.
+(alias
+ (name rocq-part)
+ (deps
+  (alias_rec theories/all)))
+
+;; Compile everything (including documentation).
+(alias
+ (name default)
+ (deps
+  (alias_rec doc)
+  (alias rocq-part)
+))

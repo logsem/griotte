@@ -8,7 +8,7 @@ Section Switcher.
 
   Definition switcher_call_instrs : list Word :=
     encodeInstrsW [
-        (* Check permissions of the stack *)
+        (* Checks the permissions of the stack (RWL) *)
         GetP ct2 csp;
         Mov ctp (encodePerm RWL);
         Sub ct2 ct2 ctp;
@@ -16,7 +16,7 @@ Section Switcher.
         Jmp 2%Z;
         Fail;
 
-        (* Check locality of the stack *)
+        (* Checks the locality of the stack (Local) *)
         GetL ct2 csp;
         Mov ctp (encodeLoc Local);
         Sub ct2 ct2 ctp;
@@ -24,7 +24,7 @@ Section Switcher.
         Jmp 2%Z;
         Fail;
 
-        (* Save the callee registers *)
+        (* Saves the callee registers *)
         Store csp cs0;
         Lea csp 1%Z;
         Store csp cs1;
@@ -34,7 +34,7 @@ Section Switcher.
         Store csp cgp;
         Lea csp 1%Z;
 
-        (* Check that the trusted stack has enough space *)
+        (* Checks that the trusted stack has enough space *)
         ReadSR ct2 mtdc;
         GetA cs0 ct2;
         machine_base.Add cs0 cs0 1%Z;
@@ -43,20 +43,20 @@ Section Switcher.
         Jnz 2%Z ctp;
         Fail;
 
-        (* Save the caller's stack pointer in the trusted stack *)
+        (* Saves the caller's stack pointer in the trusted stack *)
         Lea ct2 1%Z;
         Store ct2 csp;
         WriteSR mtdc ct2;
 
-      (* Chop off the stack *)
+        (* Restricts the boundaries of the stack *)
         GetE cs0 csp;
         GetA cs1 csp;
         Subseg csp cs1 cs0
       ]
-      (* Zero out the callee's stack frame *)
+      (* Zeroes the callee's stack frame out *)
       ++ clear_stack_instrs cs0 cs1
       ++ encodeInstrsW [
-        (* Fetch (unsealing capability and unseal entry point *)
+        (* Fetches (un-)sealing capability and unseals the entry point *)
         GetB cs1 PC;
         GetA cs0 PC;
         Sub cs1 cs1 cs0;
@@ -66,12 +66,12 @@ Section Switcher.
         Load cs0 cs0;
         UnSeal ct1 cs0 ct1;
 
-        (* Load and decode entry point nargs and offset *)
+        (* Loads and decodes the entry point <nargs> and <offset> *)
         Load cs0 ct1;
         LAnd ct2 cs0 7%Z;
         LShiftR cs0 cs0 3%Z;
 
-        (* Prepare callee's PCC in cra, and callee's CGP in cgp *)
+        (* Prepares the callee's PCC in cra, and callee's CGP in cgp *)
         GetB cgp ct1;
         GetA cs1 ct1;
         Sub cs1 cgp cs1;
@@ -81,12 +81,12 @@ Section Switcher.
         Load cgp ct1;
         Lea cra cs0;
         machine_base.Add ct2 ct2 1%Z]
-      (* clear registers, skipping arguments *)
+      (* Clears the registers, skipping arguments *)
       ++ clear_registers_pre_call_skip_instrs
       ++ clear_registers_pre_call_instrs
       ++ encodeInstrsW [
 
-        (* Jump to callee *)
+        (* Jumps to the callee *)
         Jalr cra cra
       ].
 
@@ -94,7 +94,7 @@ Section Switcher.
     encodeInstrsW [
 
         (* --- Callback --- *)
-        (* Restores caller's stack frame *)
+        (* Restores the caller's stack frame *)
         ReadSR ctp mtdc;
         Load csp ctp;
         Lea ctp (-1)%Z;
@@ -110,7 +110,7 @@ Section Switcher.
         Lea csp (-1)%Z;
         Load cs0 csp;
 
-        (* Zero out the callee stack frame *)
+        (* Zeroes the callee stack frame out *)
         GetE ct0 csp;
         GetA ct1 csp]
       ++ clear_stack_instrs ct0 ct1
@@ -118,10 +118,10 @@ Section Switcher.
         (* Restores the return pointer to caller  *)
         Mov cra ca2
       ]
-      (* Clear registers *)
+      (* Clears the registers *)
       ++ clear_registers_post_call_instrs
       ++ encodeInstrsW [
-        (* Jump back to caller *)
+        (* Jumps back to the caller *)
         JmpCap cra
       ].
 
