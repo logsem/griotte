@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
-From cap_machine Require Import fetch assert switcher interp_switcher_call switcher_spec_call switcher_spec_call_alt switcher_spec_return.
+From cap_machine Require Import fetch assert switcher interp_switcher_call switcher_spec_call switcher_spec_return.
 From cap_machine Require Import vae vae_helper.
 From cap_machine Require Import proofmode.
 

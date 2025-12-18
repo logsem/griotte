@@ -25,20 +25,18 @@ Section Switcher.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  Lemma switcher_cc_specification
+  Lemma switcher_cc_specification_gen
     (Nswitcher : namespace)
     (W : WORLD)
     (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : Word)
     (b_stk e_stk a_stk : Addr)
-    (w_entry_point : Sealable)
     (stk_mem : list Word)
     (arg_rmap rmap : Reg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (nargs : nat)
+    (is_entry_point_known : bool)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
-    let wct1_caller := WSealed ot_switcher w_entry_point in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
@@ -55,14 +53,21 @@ Section Switcher.
     (* Stack register *)
     ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
-    ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller ∗ wct1_caller ↦□ₑ nargs
+    ∗ ct1 ↦ᵣ wct1_caller
+    ∗ (if is_sealed_with_o wct1_caller ot_switcher then interp W C wct1_caller else True)
+    ∗ (if is_entry_point_known
+       then ⌜ ∃ w_entry_point, wct1_caller = WSealed ot_switcher w_entry_point ⌝
+            ∗ ∃ nargs, wct1_caller ↦□ₑ nargs
+                         (* Argument registers, need to be safe-to-share *)
+                         ∗ ( [∗ map] rarg↦warg ∈ arg_rmap,
+                               rarg ↦ᵣ warg
+                               ∗ if decide (rarg ∈ dom_arg_rmap nargs)
+                                 then interp W C warg
+                                 else True )
+       else ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg )
+      )
     ∗ cs0 ↦ᵣ wcs0_caller
     ∗ cs1 ↦ᵣ wcs1_caller
-    (* Argument registers, need to be safe-to-share *)
-    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg
-                                      ∗ if decide (rarg ∈ dom_arg_rmap nargs)
-                                        then interp W C warg
-                                        else True )
     (* All the other registers *)
     ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
@@ -107,8 +112,8 @@ Section Switcher.
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
 
-    iIntros (a_stk4 target callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hr & Hstk_val & Hcstk & Hcont & Hpost)".
+    iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hsts & Hr & Hstk_val & Hcstk & Hcont & Hpost)".
     subst a_stk4.
     subst callee_stk_region.
 
@@ -143,6 +148,18 @@ Section Switcher.
     assert (SubBounds b_switcher e_switcher a_switcher_call (a_switcher_call ^+(length switcher_instrs))%a)
       by solve_addr.
 
+    rewrite /switcher_instrs /switcher_call_instrs /switcher_return_instrs.
+    rewrite -!app_assoc.
+    assert (SubBounds b_switcher e_switcher a_switcher_call (a_switcher_call ^+ (length switcher_instrs))%a).
+    { pose proof switcher_size.
+      pose proof switcher_call_entry_point.
+      solve_addr.
+    }
+
+    (* -----------------------------------  *)
+    (* ----- Lswitch_csp_check_perm ------  *)
+    (* -----------------------------------  *)
+    focus_block_0 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
 
     (* --- GetP ct2 csp --- *)
     iInstr "Hcode".
@@ -159,6 +176,12 @@ Section Switcher.
 
     (* --- Jmp 2 --- *)
     iInstr "Hcode".
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+    (* -----------------------------------  *)
+    (* ------ Lswitch_csp_check_loc ------  *)
+    (* -----------------------------------  *)
+    focus_block 1 "Hcode" as a_csp_check_loc Ha_csp_check_loc "Hcode" "Hcls"; iHide "Hcls" as hcont.
 
     (* --- GetL ct2 csp --- *)
     iInstr "Hcode".
@@ -175,6 +198,13 @@ Section Switcher.
 
     (* --- Jmp 2 --- *)
     iInstr "Hcode".
+
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+    (* -----------------------------------  *)
+    (* ---- Lswitch_entry_first_spill ----  *)
+    (* -----------------------------------  *)
+    focus_block 2 "Hcode" as a_entry_first_spill Ha_entry_first_spill "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_csp_check_loc.
 
     (* --- Store csp cs0 --- *)
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
@@ -265,6 +295,13 @@ Section Switcher.
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
 
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+    (* --------------------------------------  *)
+    (* -- Lswitch_trusted_stack_check_size --  *)
+    (* --------------------------------------  *)
+    focus_block 3 "Hcode" as a_tstack_ckeck_size Ha_tstack_ckeck_size "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_entry_first_spill.
+
     (* --- ReadSR ct2 mtdc --- *)
     iInstr "Hcode".
 
@@ -292,6 +329,13 @@ Section Switcher.
     }
     iInstr "Hcode".
 
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+    (* --------------------------------------  *)
+    (* ----- Lswitch_trusted_stack_push -----  *)
+    (* --------------------------------------  *)
+    focus_block 4 "Hcode" as a_tstack_push Ha_tstack_push "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_tstack_ckeck_size.
+
     (* --- Lea ct2 1 --- *)
     assert ( ∃ f3, (a_tstk + 1)%a = Some f3) as [f3 Htastk] by (exists (a_tstk ^+ 1)%a; solve_addr+Hsize_tstk).
     iInstr "Hcode".
@@ -314,6 +358,13 @@ Section Switcher.
     (* --- WriteSR mtdc ct2 --- *)
     iInstr "Hcode".
 
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+    (* ------------------------------  *)
+    (* ----- Lswitch_stack_chop -----  *)
+    (* ------------------------------  *)
+    focus_block 5 "Hcode" as a_stack_chop Ha_stack_chop "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_tstack_push.
+
     (* --- GetE cs0 csp --- *)
     iInstr "Hcode".
 
@@ -324,16 +375,24 @@ Section Switcher.
     iInstr "Hcode".
     { rewrite /isWithin. solve_addr. }
 
-    (* --- clear stack --- *)
-    rewrite /switcher_instrs /switcher_call_instrs -app_assoc -app_assoc.
-    focus_block 1 "Hcode" as a_clear_stk1 Ha_clear_stk1 "Hcode" "Hcls". iHide "Hcls" as hcont.
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+    (* -----------------------  *)
+    (* ----- Clear stack -----  *)
+    (* -----------------------  *)
+    focus_block 6 "Hcode" as a_clear_stk1 Ha_clear_stk1 "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_stack_chop.
     iApply (clear_stack_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hstk]"); try solve_pure.
     { solve_addr+. }
     { solve_addr. }
     iSplitL;[|iIntros "!> %Hcontr"; done].
     iIntros "!> (HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-    focus_block 2 "Hcode" as a_rest Ha_rest "Hcode" "Hcls". iHide "Hcls" as hcont.
+
+    (* -----------------------  *)
+    (* ----- LoadCapPCC ------  *)
+    (* -----------------------  *)
+    focus_block 7 "Hcode" as a_LoadCapPCC Ha_LoadCapPCC "Hcode" "Hcls"; iHide "Hcls" as hcont
+    ; clear dependent Ha_clear_stk1.
 
     (* --- GetB cs1 PC --- *)
     iInstr "Hcode".
@@ -363,8 +422,28 @@ Section Switcher.
     (* --- Load cs0 cs0 --- *)
     iInstr "Hcode".
 
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+    (* ------------------------------  *)
+    (* ---- Lswitch_unseal_entry ----  *)
+    (* ------------------------------  *)
+    focus_block 8 "Hcode" as a_unseal_entry Ha_unseal_entry "Hcode" "Hcls"; iHide "Hcls" as hcont
+    ; clear dependent Ha_LoadCapPCC.
+
     (* --- UnSeal ct1 cs0 ct1 --- *)
-    subst target.
+    destruct (is_sealed_with_o wct1_caller ot_switcher) eqn:Hwct1_caller; cycle 1.
+    { (* wct1_caller is not sealed with ot_switcher, so the next instruction will fail *)
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_unseal_nomatch_r2 with "[$HPC $Hi $Hct1 $Hcs0 $Hcs1]") ; try solve_pure.
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+    }
+    assert (∃ w_entry_point, wct1_caller = WSealed ot_switcher w_entry_point ) as [w_entry_point ->].
+    { destruct wct1_caller as [ | [] | |]; cbn in Hwct1_caller; try discriminate.
+      exists sb. apply Z.eqb_eq in Hwct1_caller.
+      replace ot with ot_switcher by solve_addr.
+      done.
+    }
     rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher w_entry_point)).
     iDestruct "Htarget_v" as (P HpersP) "(HmonoP & HPseal & HP & HPborrow)".
     iDestruct (seal_pred_agree with "Hp_ot_switcher HPseal") as "Hagree".
@@ -374,10 +453,10 @@ Section Switcher.
     rewrite /safeC.
     iSimpl in "Hagree".
     iRewrite -"Hagree" in "HP".
-    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & Hentry' & Hexec)". simpl fst. simpl snd.
+    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & Hexec)". simpl fst. simpl snd.
     inversion Heq.
 
-    iDestruct (entry_agree _ nargs nargs0 with "Hentry Hentry'") as "<-".
+    (* iDestruct (entry_agree _ nargs nargs0 with "Hentry Hentry'") as "<-". *)
 
     (* --- Load cs0 ct1 --- *)
     wp_instr.
@@ -392,6 +471,15 @@ Section Switcher.
 
     (* --- LShiftR cs0 cs0 3 --- *)
     iInstr "Hcode".
+
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+    (* ------------------------------  *)
+    (* ---- Lswitch_callee_load -----  *)
+    (* ------------------------------  *)
+    focus_block 9 "Hcode" as a_callee_load Ha_callee_load "Hcode" "Hcls"; iHide "Hcls" as hcont
+    ; clear dependent Ha_unseal_entry.
+
 
     (* --- GetB cgp ct1 --- *)
     iInstr "Hcode".
@@ -441,8 +529,12 @@ Section Switcher.
 
     (* clear registers except parameters *)
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-    rewrite -!app_assoc.
-    focus_block 3 "Hcode" as a_clear Ha_clear "Hcode" "Hcls". iHide "Hcls" as hcont.
+
+    (* ---------------------------------------- *)
+    (* ---- clear_registers_pre_call_skip ----- *)
+    (* ---------------------------------------- *)
+    focus_block 10 "Hcode" as a_clear Ha_clear "Hcode" "Hcls"; iHide "Hcls" as hcont
+    ; clear dependent Ha_callee_load.
 
     rewrite encode_entry_point_eq_nargs;last lia.
     iApply (clear_registers_pre_call_skip_spec
@@ -453,9 +545,24 @@ Section Switcher.
     replace (Z.of_nat (nargs + 1))%Z with (Z.of_nat nargs + 1)%Z by lia.
     replace (nargs + 1 - 1) with nargs by lia.
     iFrame.
+    iSplitL "Hargs".
+    { destruct is_entry_point_known.
+      + iDestruct "Hargs" as "[_ (%nargs0 & Hentry & Hargs )]".
+        iEval (cbn) in "Hentry'".
+        iDestruct (entry_agree _ nargs nargs0 with "Hentry' Hentry") as "<-".
+        iFrame.
+      + iApply (big_sepM_impl with "Hargs").
+        iIntros "!> %k %w' _ [$ Hinterp]".
+        destruct ( decide (k ∈ dom_arg_rmap nargs) ) ; auto.
+    }
     iIntros "!> (%arg_rmap' & %Harg_rmap' & HPC & Hct2 & Hargs & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-    focus_block 4 "Hcode" as a_clear' Ha_clear' "Hcode" "Hcls". iHide "Hcls" as hcont.
+
+    (* ----------------------------------- *)
+    (* ---- clear_registers_pre_call ----- *)
+    (* ----------------------------------- *)
+    focus_block 11 "Hcode" as a_clear' Ha_clear' "Hcode" "Hcls"; iHide "Hcls" as hcont
+    ; clear dependent Ha_clear.
 
     iDestruct (big_sepM_insert_2 with "[Hctp] Hregs") as "Hregs";[iFrame|].
     rewrite insert_delete_insert.
@@ -472,7 +579,12 @@ Section Switcher.
     iIntros "!> (%rmap' & %Hrmap' & HPC & Hregs & Hcode)".
 
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-    focus_block 5 "Hcode" as a_jalr Ha_halr "Hcode" "Hcls". iHide "Hcls" as hcont.
+    (* ------------------------------ *)
+    (* ---- Lswitch_callee_call ----- *)
+    (* ------------------------------ *)
+    focus_block 12 "Hcode" as a_callee_call Ha_callee_call "Hcode" "Hcls"; iHide "Hcls" as hcont
+    ; clear dependent Ha_clear'.
+
 
     set (frame :=
            {| wret := wcra_caller;
@@ -653,7 +765,7 @@ Section Switcher.
     - iPureIntro. clear. simplify_map_eq. auto.
     - iPureIntro.
       simplify_map_eq.
-      clear -Ha_halr Hcall.
+      clear -Ha_callee_call Hcall.
       pose proof switcher_return_entry_point.
       cbn in *.
       do 2 (f_equal; auto). solve_addr.
@@ -698,6 +810,177 @@ Section Switcher.
         destruct (decide (r ∈ _)) as [Hcontra|]; last iFrame "#".
         set_solver+Hcontra Hr.
       + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
+  Qed.
+
+  Lemma switcher_cc_specification
+    (Nswitcher : namespace)
+    (W : WORLD)
+    (C : CmptName)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (b_stk e_stk a_stk : Addr)
+    (w_entry_point : Sealable)
+    (stk_mem : list Word)
+    (arg_rmap rmap : Reg)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (nargs : nat)
+    :
+    let a_stk4 := (a_stk ^+ 4)%a in
+    let wct1_caller := WSealed ot_switcher w_entry_point in
+    let callee_stk_region := finz.seq_between a_stk4 e_stk in
+    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    is_arg_rmap arg_rmap 8 ->
+
+    (* Switcher Invariant *)
+    na_inv logrel_nais Nswitcher switcher_inv
+
+    (* PRE-CONDITION *)
+    ∗ na_own logrel_nais ⊤
+    (* Registers *)
+    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ cgp ↦ᵣ wcgp_caller
+    ∗ cra ↦ᵣ wcra_caller
+    (* Stack register *)
+    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    (* Entry point of the target compartment *)
+    ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller ∗ wct1_caller ↦□ₑ nargs
+    ∗ cs0 ↦ᵣ wcs0_caller
+    ∗ cs1 ↦ᵣ wcs1_caller
+    (* Argument registers, need to be safe-to-share *)
+    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg
+                                      ∗ if decide (rarg ∈ dom_arg_rmap nargs)
+                                        then interp W C warg
+                                        else True )
+    (* All the other registers *)
+    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+
+    (* Stack frame *)
+    ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+
+    (* Interpretation of the world and stack, at the moment of the switcher_call *)
+    ∗ sts_full_world W C
+    ∗ region W C
+    ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a ∗ ⌜(std W) !! a = Some Revoked⌝)
+    ∗ cstack_frag cstk
+    ∗ interp_continuation cstk Ws Cs
+
+
+    (* POST-CONDITION *)
+    ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : Reg) (stk_mem_l stk_mem_h : list Word),
+              (* We receive a public future world of the world pre switcher call *)
+              ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
+              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+              ∗ na_own logrel_nais ⊤
+              ∗ interp W2 C (WCap RWL Local a_stk4 e_stk a_stk4)
+              ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+              (* Interpretation of the world *)
+              ∗ sts_full_world W2 C
+              ∗ open_region_many W2 C callee_stk_region
+              ∗ ([∗ list] a ; v ∈ callee_stk_region ; stk_mem_h, closing_resources interp W2 C a v)
+              ∗ cstack_frag cstk
+              ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+              ∗ PC ↦ᵣ updatePcPerm wcra_caller
+              (* cgp is restored, cra points to the next  *)
+              ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller ∗ cs0 ↦ᵣ wcs0_caller ∗ cs1 ↦ᵣ  wcs1_caller
+              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+              ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
+              ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
+              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ [[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ stk_mem_l ]]
+              ∗ [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]]
+              ∗ interp_continuation cstk Ws Cs
+            -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+
+    ⊢ WP Seq (Instr Executable)
+      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+  Proof.
+    iIntros (a_stk4 target callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hr & Hstk_val & Hcstk & Hcont & Hpost)".
+    iApply (switcher_cc_specification_gen _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ true)
+            ; eauto; iFrame "∗#".
+    subst target; cbn.
+    iSplit.
+    + destruct ( (ot_switcher =? ot_switcher)%Z ); eauto.
+    + iPureIntro; eauto.
+  Qed.
+
+  Lemma switcher_cc_specification_alt
+    (Nswitcher : namespace)
+    (W : WORLD)
+    (C : CmptName)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : Word)
+    (b_stk e_stk a_stk : Addr)
+    (stk_mem : list Word)
+    (arg_rmap rmap : Reg)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    :
+    let a_stk4 := (a_stk ^+ 4)%a in
+    let callee_stk_region := finz.seq_between a_stk4 e_stk in
+    dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
+    is_arg_rmap arg_rmap 8 ->
+
+    (* Switcher Invariant *)
+    na_inv logrel_nais Nswitcher switcher_inv
+
+    (* PRE-CONDITION *)
+    ∗ na_own logrel_nais ⊤
+    (* Registers *)
+    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ cgp ↦ᵣ wcgp_caller
+    ∗ cra ↦ᵣ wcra_caller
+    (* Stack register *)
+    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    (* Entry point of the target compartment *)
+    ∗ ct1 ↦ᵣ wct1_caller ∗ (if is_sealed_with_o wct1_caller ot_switcher then interp W C wct1_caller else True)
+    ∗ cs0 ↦ᵣ wcs0_caller
+    ∗ cs1 ↦ᵣ wcs1_caller
+    (* Argument registers, need to be safe-to-share *)
+    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg )
+    (* All the other registers *)
+    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+
+    (* Stack frame *)
+    ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+
+    (* Interpretation of the world and stack, at the moment of the switcher_call *)
+    ∗ sts_full_world W C
+    ∗ region W C
+    ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a ∗ ⌜(std W) !! a = Some Revoked⌝)
+    ∗ cstack_frag cstk
+    ∗ interp_continuation cstk Ws Cs
+
+
+    (* POST-CONDITION *)
+    ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : Reg) (stk_mem_l stk_mem_h : list Word),
+              (* We receive a public future world of the world pre switcher call *)
+              ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
+              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+              ∗ na_own logrel_nais ⊤
+              ∗ interp W2 C (WCap RWL Local a_stk4 e_stk a_stk4)
+              ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+              (* Interpretation of the world *)
+              ∗ sts_full_world W2 C
+              ∗ open_region_many W2 C callee_stk_region
+              ∗ ([∗ list] a ; v ∈ callee_stk_region ; stk_mem_h, closing_resources interp W2 C a v)
+              ∗ cstack_frag cstk
+              ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+              ∗ PC ↦ᵣ updatePcPerm wcra_caller
+              (* cgp is restored, cra points to the next  *)
+              ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller ∗ cs0 ↦ᵣ wcs0_caller ∗ cs1 ↦ᵣ  wcs1_caller
+              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+              ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
+              ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
+              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ [[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ stk_mem_l ]]
+              ∗ [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]]
+              ∗ interp_continuation cstk Ws Cs
+            -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+    ⊢ WP Seq (Instr Executable)
+      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+  Proof.
+    iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hr & Hstk_val & Hcstk & Hcont & Hpost)".
+    iApply (switcher_cc_specification_gen _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ false)
+            ; eauto; iFrame "∗#".
   Qed.
 
 End Switcher.
