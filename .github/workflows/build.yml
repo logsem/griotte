@@ -1,16 +1,9 @@
 name: Test Compilation for OCaml
 
-on:
-  pull_request:
-    types:
-      - closed
+on: [ pull_request ]
 jobs:
   build:
-    if_merged:
-      if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    rules:
-      - if: "$CI_COMMIT_BRANCH == 'main'"
 
     steps:
       - name: Get branch name
