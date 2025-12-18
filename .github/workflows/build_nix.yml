@@ -1,0 +1,32 @@
+name: Test Compilation for Nix
+
+on: [pull_request]
+
+# Prevent parallel CI: Stop every workflow of a branch
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.ref }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: get_branch
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Cachix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Build
+        run: |
+          nix build

@@ -4,6 +4,7 @@
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    self.submodules = true;
   };
 
   outputs = {
@@ -137,19 +138,32 @@
             propagatedBuildInputs = [stdpp];
           };
 
+          machine_utils = rocq.pkgs.mkRocqDerivation {
+            pname = "machine_utils";
+            opam-name = "machine_utils";
+            src = ./machine_utils;
+
+            propagatedBuildInputs = [iris pkgs.ocamlPackages.odoc];
+
+            preBuild = "dune() { command dune $@ --display=short; }";
+            useDune = true;
+            version = "0.0.0";
+          };
+
         in
           rocq.pkgs.mkRocqDerivation {
             inherit meta version;
 
             pname = name;
             opam-name = name;
-            src = ./theories;
+            src = ./.;
 
-            propagatedBuildInputs = [equations iris pkgs.ocamlPackages.odoc];
+            propagatedBuildInputs = [machine_utils equations];
 
             preBuild = "dune() { command dune $@ --display=short; }";
             useDune = true;
           };
+        default = packages.theories;
       };
 
       devShells.default = pkgs.mkShell (with packages; {
