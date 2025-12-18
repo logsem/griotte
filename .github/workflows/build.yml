@@ -13,7 +13,7 @@ jobs:
 
     env:
       OCAML_VERSION: "5.4.0"
-      JOBS_LIMIT: "2"
+      JOBS_LIMIT: "1"
       OPAM_SWITCH: "ci-switch"
 
     steps:
