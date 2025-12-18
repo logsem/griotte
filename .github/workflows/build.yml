@@ -21,6 +21,31 @@ jobs:
             default: https://github.com/ocaml/opam-repository.git
           dune-cache: true
 
+      - name: Cache opam
+        id: cache-opam
+        uses: actions/cache@v4
+        with:
+          path: _opam
+          key: ${{ runner.os }}-opam-${{ hashFiles('*.opam.locked') }}
+          restore-keys: |
+            ${{ runner.os }}-opam-
+
+      - name: Cache Dune
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/dune
+          key: ${{ runner.os }}-dune-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-dune-
+
+      - name: Cache Build
+        uses: actions/cache@v4
+        with:
+          path: _build
+          key: ${{ runner.os }}-build-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
       - name: Install Rocq and Iris
         run: opam install . --deps-only -y
 
