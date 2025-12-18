@@ -31,15 +31,33 @@ jobs:
             default: https://github.com/ocaml/opam-repository.git
           dune-cache: true
 
-      - name: Cache opam packages
-        id: cache-opam
+      - name: Restore opam cache
+        id: restore-opam
         uses: actions/cache@v4
         with:
-          path: ~/.opam                     # the default opam root created by setup‑ocaml
+          path: ${{ env.OPAM_ROOT }}
+          # Key includes OCaml version + lockfile hash.
+          # If the lockfile changes we get a new cache.
           key: |
             opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked') }}
           restore-keys: |
             opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
+
+      - name: Install Rocq and Iris (deps only)
+        run: |
+          eval "$(opam env)"
+          opam install . --deps-only -y
+
+      - name: Save opam cache
+        # This step runs only if the previous step succeeded.
+        if: success()
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.OPAM_ROOT }}
+          # The same key we used for restore – if the key already existed,
+          # the cache is updated with the newly compiled artefacts.
+          key: |
+            opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked') }}
 
       - name: Cache Dune global cache
         uses: actions/cache@v4
@@ -59,11 +77,6 @@ jobs:
             dune-build-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked', 'dune-project') }}
           restore-keys: |
             dune-build-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
-
-      - name: Install Rocq and Iris (deps only)
-        run: |
-          eval "$(opam env)"
-          opam install . --deps-only -y
 
       - name: Build
         run: |
