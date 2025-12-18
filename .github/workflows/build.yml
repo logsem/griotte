@@ -18,6 +18,7 @@ jobs:
           opam-repositories: |
             rocq-released: https://rocq-prover.org/opam/released
             default: https://github.com/ocaml/opam-repository.git
+          dune-cache: true
 
       - name: Install Rocq and Iris
         run: opam install . --deps-only -y
