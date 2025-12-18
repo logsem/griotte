@@ -25,4 +25,4 @@ jobs:
 
       - name: Build
         run: |
-            opam exec -- dune build --display short
+            opam exec -- dune build --display short -j1
