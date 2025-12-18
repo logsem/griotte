@@ -35,7 +35,7 @@ jobs:
         id: restore-opam
         uses: actions/cache@v4
         with:
-          path: ${{ env.OPAM_ROOT }}
+          path: ${{ env.OPAMROOT }}
           # Key includes OCaml version + lockfile hash.
           # If the lockfile changes we get a new cache.
           key: |
@@ -53,7 +53,7 @@ jobs:
         if: success()
         uses: actions/cache@v4
         with:
-          path: ${{ env.OPAM_ROOT }}
+          path: ${{ env.OPAMROOT }}
           # The same key we used for restore – if the key already existed,
           # the cache is updated with the newly compiled artefacts.
           key: |
