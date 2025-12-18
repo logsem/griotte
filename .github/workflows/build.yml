@@ -62,7 +62,7 @@ jobs:
       - name: Cache Dune global cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/dune
+          path: ${{ env.DUNE_CACHE_ROOT }}
           key: |
             dune-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked') }}
           restore-keys: |
