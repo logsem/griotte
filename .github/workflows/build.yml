@@ -1,39 +1,64 @@
-name: Test compilation
-
-on: [pull_request]
+name: Test Compilation for OCaml
 
 # Prevent parallel CI: Stop every workflow of a branch
 concurrency:
   cancel-in-progress: true
   group: ${{ github.ref }}
 
+on: [ pull_request ]
 jobs:
   build:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Get branch name
-        shell: bash
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-        id: get_branch
+    env:
+      OPAM_LOCAL: "_opam"
+      OCAML_VERSION: "5.4.0"
+      JOBS_LIMIT: "1"
+      DUNE_CACHE_ROOT: "/home/runner/.cache/dune"
 
+    steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           submodules: true
 
       - name: Install OCaml
         uses: avsm/setup-ocaml@v3
         with:
-          ocaml-compiler: 4.14
+          ocaml-compiler: ${{ env.OCAML_VERSION }}
           opam-repositories: |
-            coq-released: https://coq.inria.fr/opam/released
+            rocq-released: https://rocq-prover.org/opam/released
             default: https://github.com/ocaml/opam-repository.git
 
-      - name: Install Coq and Iris
-        run: opam install . --deps-only -y
+      - name: Cache opam
+        id: cache-opam
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-opam
+        with:
+          path: ${{ env.OPAM_LOCAL }}
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.opam') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+
+      - name: Install Rocq and Iris (deps only)
+        if: steps.cache-opam.outputs.cache-hit != 'true'
+        run: |
+          eval "$(opam env)"
+          opam install . --deps-only -y
+
+      - name: Cache Dune _build directory
+        id: cache-build
+        uses: actions/cache@v4
+        with:
+          path: _build
+          key: |
+            dune-build-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked', 'dune-project') }}
+          restore-keys: |
+            dune-build-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
 
       - name: Build
         run: |
-            find ./theories -name "*.v" -exec ./disable-qed.sh {} +;
-            opam exec -- make pretty-timed -j2
+          eval "$(opam env)"
+          opam exec -- dune build --display short -j ${{ env.JOBS_LIMIT }}

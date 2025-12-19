@@ -10,22 +10,31 @@ Directed Capabilities".
 
 ## Installing the dependencies
 
+```
+git clone --recursive git@github.com:logsem/griotte.git
+```
+
+If you forgot `--recursive`
+```
+git submodule update --init
+```
+
 
 ### With Nix:
-```
+```bash
 TODO
 ```
 
 ### With opam.
 You need to have [opam](https://opam.ocaml.org/) >= 2.0 installed.
 
-The development is known to compile with Coq 8.12.0 and Iris 3.3.0. To install
+The development is known to compile with Rocq 9.0.0 and Iris 4.4.0. To install
 those, two options:
 
 - **Option 1**: create a fresh *local* opam switch with everything needed:
 
 ```
-   opam switch create -y --deps-only --repositories=default,coq-released=https://coq.inria.fr/opam/released .
+   opam switch create -y --deps-only --repositories=default,rocq-released=https://rocq-prover.org/opam/released .
    eval $(opam env)
 ```
 
@@ -33,12 +42,14 @@ those, two options:
   ocaml >= 4.10.0:
 
 ```
-    # Add the coq-released repo (skip if you already have it)
-    opam repo add coq-released https://coq.inria.fr/opam/released
-    # Install Coq 8.12.0 (skip if already installed)
-    opam install coq.8.12.0
+    opam switch create griotte-test 5.4.0
+    # Add the rocq-released repo (skip if you already have it)
+    opam repo add rocq-released https://rocq-prover.org/opam/released
+    # Install Coq 9.9.0 (skip if already installed)
     opam update
-    opam install coq-iris.3.3.0
+    opam install dune.3.20.2
+    opam install rocq-prover.9.0.0 coq-stdpp.1.12.0 coq-stdpp-bitvector.1.12.0 coq-iris.4.4.0
+    opam install rocq-equations
 ```
 
 ### Troubleshooting
@@ -51,7 +62,7 @@ failed).
 ## Building
 
 ```
-make -jN  # replace N with the number of CPU cores of your machine
+dune build --display short -jN  # replace N with the number of CPU cores of your machine
 ```
 
 We recommend that you have **32Gb of RAM+swap**. Please be aware that the
