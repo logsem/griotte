@@ -15,6 +15,7 @@ jobs:
       OPAM_LOCAL: "_opam"
       OCAML_VERSION: "5.4.0"
       JOBS_LIMIT: "1"
+      DUNE_CACHE_ROOT: "/home/runner/.cache/dune"
 
     steps:
       - name: Checkout code
@@ -29,7 +30,6 @@ jobs:
           opam-repositories: |
             rocq-released: https://rocq-prover.org/opam/released
             default: https://github.com/ocaml/opam-repository.git
-          dune-cache: true
 
       - name: Cache opam
         id: cache-opam
@@ -41,6 +41,17 @@ jobs:
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.opam') }}
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
+
+
+      - name: Cache Dune global cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DUNE_CACHE_ROOT }}
+          key: |
+            dune-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('**/*.opam') }}
+          restore-keys: |
+            dune-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
+
 
       - name: Install Rocq and Iris (deps only)
         if: steps.cache-opam.outputs.cache-hit != 'true'
