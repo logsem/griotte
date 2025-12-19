@@ -29,17 +29,16 @@ jobs:
             rocq-released: https://rocq-prover.org/opam/released
             default: https://github.com/ocaml/opam-repository.git
           dune-cache: true
-          opam-cache: true
 
-      # - name: Cache opam
-      #   id: restore-opam
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ${{ env.OPAMROOT }}
-      #     key: |
-      #       opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked') }}
-      #     restore-keys: |
-      #       opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
+      - name: Cache opam
+        id: restore-opam
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.OPAMROOT }}
+          key: |
+            opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked') }}
+          restore-keys: |
+            opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
 
       - name: Install Rocq and Iris (deps only)
         run: |
