@@ -382,14 +382,14 @@ Section fundamental.
       iInstr "Hcode".
       { transitivity (Some ((a_switcher_call ^+ Lswitch_trusted_stack_exhausted_z)%a)); auto.
         rewrite /Lswitch_trusted_stack_exhausted_z.
-        solve_addr.
+        solve_addr+Ha_tstack_ckeck_size Hsize.
       }
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
       rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs.
 
-      (* -----------------------------------  *)
-      (* ------ Lcommon_force_unwind -------  *)
-      (* -----------------------------------  *)
+      (* ----------------------------------------------  *)
+      (* ------ Lswitch_trusted_stack_exhausted -------  *)
+      (* ----------------------------------------------  *)
       rewrite /Lswitch_trusted_stack_exhausted_z.
       focus_block 17 "Hcode" as a_tstk_exhausted Ha_tstk_exhausted "Hcode" "Hcls"; iHide "Hcls" as hcont.
       (* Lea csp (-1)%Z; *)
@@ -449,7 +449,7 @@ Section fundamental.
       specialize (Hfull_rmap ca1) as HH;destruct HH as [? ?].
       iExtract "Hrmap" ca0 as "Hca0".
       iExtract "Hrmap" ca1 as "Hca1".
-      (* Mov ca0 ECOMPARTMENTFAIL; *)
+      (* Mov ca0 ENOTENOUGHTRUSTEDSTACK; *)
       iInstr "Hcode".
       (* Mov ca1 0; *)
       iInstr "Hcode".

@@ -173,6 +173,7 @@ Section Switcher.
       encodeInstrsW [JmpCap cra]. (* Lswitch_just_return *)
 
   Definition ECOMPARTMENTFAIL : Z := -1.
+  Definition ENOTENOUGHTRUSTEDSTACK : Z := -141.
 
   Definition Lswitch_trusted_stack_exhausted (Lswitch_callee_dead_zeros_z : Z) : list Word :=
     encodeInstrsW
@@ -185,7 +186,7 @@ Section Switcher.
         Load cs1 csp;
         Lea csp (-1)%Z;
         Load cs0 csp;
-        Mov ca0 ECOMPARTMENTFAIL;
+        Mov ca0 ENOTENOUGHTRUSTEDSTACK;
         Mov ca1 0;
         Jmp (Lswitch_callee_dead_zeros_z + 1)%Z
     ].
