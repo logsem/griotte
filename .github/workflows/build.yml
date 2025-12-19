@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      OPAM_LOCAL: "_opam"
       OCAML_VERSION: "5.4.0"
       JOBS_LIMIT: "1"
 
@@ -31,16 +32,18 @@ jobs:
           dune-cache: true
 
       - name: Cache opam
-        id: restore-opam
+        id: cache-opam
         uses: actions/cache@v4
+        env:
+          cache-name: cache-opam
         with:
-          path: ${{ env.OPAMROOT }}
-          key: |
-            opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked') }}
+          path: ${{ env.OPAM_LOCAL }}
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.opam') }}
           restore-keys: |
-            opam-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
+            ${{ runner.os }}-build-${{ env.cache-name }}-
 
       - name: Install Rocq and Iris (deps only)
+        if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
           eval "$(opam env)"
           opam install . --deps-only -y
