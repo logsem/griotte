@@ -477,12 +477,24 @@ Section wp_interp.
     iIntros "Hφ".
 
     destruct (is_cap wsrc) eqn:Hcap;cycle 1.
-    { admit. }
+    {
+      iApply (wp_load_fail_not_cap with "[HPC Hi Hsrc Hdst]")
+      ; try iFrame
+      ; try solve_pure.
+      iNext; iIntros "_".
+      iApply "Hφ"; by iLeft.
+    }
     destruct wsrc;try done. destruct sb; try done.
 
     destruct (decide (readAllowed p = true))%a as [Hra_src|Hra_src]; cycle 1.
-    { admit. }
-    (* pose proof ( canStore_writeAllowed p wsrc Hstore_src ) as Hp_stk_wa. *)
+    {
+      iApply (wp_load_fail_not_ra with "[HPC Hi Hsrc Hdst]")
+      ; try iFrame
+      ; try solve_pure.
+      { destruct p as [ [] ? ? ? ]; cbn in * ; done. }
+      iNext; iIntros "_".
+      iApply "Hφ"; by iLeft.
+    }
     destruct (decide (b <= a))%a as [Hba|Hba]; cycle 1.
     {
       iApply (wp_load_fail_not_withinbounds with "[HPC Hi Hsrc Hdst]")
@@ -540,7 +552,7 @@ Section wp_interp.
     iSplit; last solve_addr.
     iDestruct ("Hwcond" with "HφV") as "H"; cbn.
     iApply interp_weakening_word_load; eauto.
-  Admitted.
+  Qed.
 
   Lemma wp_load_interp_cap (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
@@ -564,6 +576,8 @@ Section wp_interp.
            ⌜ retv = FailedV ⌝ ∨
           (∃ wload,
               ⌜ retv = NextIV ⌝
+           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ (WCap p g b e a)
            ∗ rdst ↦ᵣ wload ∗ interp W C wload
            ∗ region W C
