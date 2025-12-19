@@ -42,17 +42,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
 
-
-      - name: Cache Dune global cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.DUNE_CACHE_ROOT }}
-          key: |
-            dune-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('**/*.opam') }}
-          restore-keys: |
-            dune-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
-
-
       - name: Install Rocq and Iris (deps only)
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
