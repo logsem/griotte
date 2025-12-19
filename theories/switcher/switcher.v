@@ -56,12 +56,17 @@ Section Switcher.
         GetE ctp ct2;
         Lt ctp cs0 ctp; (* if (atstk+1 < etstk) then (ctp := 1) else (ctp := 0)*)
         Jnz 2%Z ctp;
-        Jmp Lswitch_trusted_stack_exhausted_z
+        Jmp (Lswitch_trusted_stack_exhausted_z + 1)%Z
       ].
 
   Definition Lswitch_trusted_stack_push (Lswitch_trusted_stack_exhausted_z : Z) : list Word :=
     let Lswitch_trusted_stack_exhausted_z_check_size :=
-      (Lswitch_trusted_stack_exhausted_z - length (Lswitch_trusted_stack_check_size 0))%Z
+      (Lswitch_trusted_stack_exhausted_z -
+         (length (Lswitch_trusted_stack_check_size 0)
+          + length Lswitch_entry_first_spill
+          + length (Lswitch_csp_check 0)
+         )
+         )%Z
     in
     Lswitch_trusted_stack_check_size Lswitch_trusted_stack_exhausted_z_check_size
       ++
@@ -182,27 +187,15 @@ Section Switcher.
         Load cs0 csp;
         Mov ca0 ECOMPARTMENTFAIL;
         Mov ca1 0;
-        Jmp Lswitch_callee_dead_zeros_z
+        Jmp (Lswitch_callee_dead_zeros_z + 1)%Z
     ].
 
   Definition Lcommon_force_unwind (Lswitcher_after_compartment_call_z : Z) : list Word :=
     encodeInstrsW [
         Mov ca0 ECOMPARTMENTFAIL;
         Mov ca1 0;
-        Jmp Lswitcher_after_compartment_call_z
+        Jmp (Lswitcher_after_compartment_call_z + 1)%Z
       ].
-
-  Definition switcher_fail_path_instrs_pre
-    (Lswitch_callee_dead_zeros_z Lswitcher_after_compartment_call_z : Z)
-    : list Word :=
-    let Lswitch_callee_dead_zeros_z_tstk_exhausted :=
-      (Lswitch_callee_dead_zeros_z - length (Lswitch_trusted_stack_exhausted 0))%Z
-    in
-    let Lswitcher_after_compartment_call_z_unwind :=
-      (Lswitcher_after_compartment_call_z - length (Lcommon_force_unwind 0))%Z
-    in
-    Lswitch_trusted_stack_exhausted Lswitch_callee_dead_zeros_z_tstk_exhausted
-      ++ Lcommon_force_unwind Lswitcher_after_compartment_call_z_unwind.
 
    Definition Lswitcher_after_compartment_call_z : Z :=
     Eval cbv in (length (switcher_call_instrs_pre 0 0)).
@@ -219,10 +212,26 @@ Section Switcher.
     Eval cbv in (Lswitch_trusted_stack_exhausted_z +
                    length (Lswitch_trusted_stack_exhausted 0))%Z.
 
+  Definition switcher_fail_path_instrs
+    : list Word :=
+    let Lswitch_callee_dead_zeros_z_tstk_exhausted :=
+      let a_src := (Lswitch_trusted_stack_exhausted_z + (length (Lswitch_trusted_stack_exhausted 0)))%Z in
+      let a_tgt := Lswitch_callee_dead_zeros_z in
+      (a_tgt - a_src)%Z
+    in
+    let Lswitcher_after_compartment_call_z_unwind :=
+      let a_src := (Lcommon_force_unwind_z + (length (Lcommon_force_unwind 0)))%Z in
+      let a_tgt := Lswitcher_after_compartment_call_z in
+      (a_tgt - a_src)%Z
+    in
+    Lswitch_trusted_stack_exhausted Lswitch_callee_dead_zeros_z_tstk_exhausted
+      ++ Lcommon_force_unwind Lswitcher_after_compartment_call_z_unwind.
+
+
    Definition switcher_call_instrs :=
     switcher_call_instrs_pre Lcommon_force_unwind_z Lswitch_trusted_stack_exhausted_z.
-   Definition switcher_fail_path_instrs :=
-    switcher_fail_path_instrs_pre Lswitch_callee_dead_zeros_z Lswitcher_after_compartment_call_z.
+   (* Definition switcher_fail_path_instrs := *)
+   (*  switcher_fail_path_instrs_pre Lswitch_callee_dead_zeros_z Lswitcher_after_compartment_call_z. *)
 
   Definition switcher_instrs : list Word :=
     switcher_call_instrs

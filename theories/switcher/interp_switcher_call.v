@@ -7,8 +7,8 @@ From cap_machine Require Import wp_rules_interp switcher_macros_spec.
 From cap_machine Require Import rules proofmode monotone.
 From cap_machine Require Import fundamental.
 From cap_machine Require Import switcher_preamble.
-From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 From cap_machine Require Import interp_switcher_return.
+From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 
 Section fundamental.
@@ -106,7 +106,7 @@ Section fundamental.
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs_pre.
+      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs.
 
       (* -----------------------------------  *)
       (* ------ Lcommon_force_unwind -------  *)
@@ -123,7 +123,9 @@ Section fundamental.
       (* Jmp Lswitcher_after_compartment_call_z *)
       iInstr "Hcode".
       { transitivity (Some a_switcher_return); last done.
-        admit.
+        pose proof switcher_return_entry_point.
+        rewrite /Lswitcher_after_compartment_call_z /Lcommon_force_unwind_z.
+        solve_addr.
       }
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
       iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
@@ -191,7 +193,7 @@ Section fundamental.
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs_pre.
+      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs.
 
       (* -----------------------------------  *)
       (* ------ Lcommon_force_unwind -------  *)
@@ -209,7 +211,9 @@ Section fundamental.
       (* Jmp Lswitcher_after_compartment_call_z *)
       iInstr "Hcode".
       { transitivity (Some a_switcher_return); last done.
-        admit.
+        pose proof switcher_return_entry_point.
+        rewrite /Lswitcher_after_compartment_call_z /Lcommon_force_unwind_z.
+        solve_addr.
       }
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
       iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
@@ -378,10 +382,10 @@ Section fundamental.
       iInstr "Hcode".
       { transitivity (Some ((a_switcher_call ^+ Lswitch_trusted_stack_exhausted_z)%a)); auto.
         rewrite /Lswitch_trusted_stack_exhausted_z.
-        admit.
+        solve_addr.
       }
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs_pre.
+      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs.
 
       (* -----------------------------------  *)
       (* ------ Lcommon_force_unwind -------  *)
@@ -395,36 +399,279 @@ Section fundamental.
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
       iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hr $Hsts]"); try solve_pure.
-      { iFrame. iSplit;[by iApply "Hreg";eauto|].
-        by iApply (interp_lea with "Hspv"). }
-      iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcgp
-    & Hcsp & Hr & Hsts & _ & %bounds')] /=".
-      { wp_pure. wp_end. iIntros "%Hcontr";done. }
+      { iFrame. by iApply (interp_lea with "Hspv"). }
+      iIntros "!>" (v) "[-> | (%wcgp & -> & HPC & Hi & Hcsp
+    & Hcgp & #Hinterp_wcgp & Hr & Hsts & _ & _)] /=".
+      { wp_pure; wp_end; iIntros "%Hcontr";done. }
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
-      
-      iInstr "Hcode".
       (* Lea csp (-1)%Z; *)
       iInstr "Hcode".
+      { transitivity (Some f0); auto. solve_addr+Ha3. }
       (* Load cra csp; *)
-      iInstr "Hcode".
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcra $Hr $Hsts]"); try solve_pure.
+      { iFrame. by iApply (interp_lea with "Hspv"). }
+      iIntros "!>" (v) "[-> | (%wcra & -> & HPC & Hi & Hcsp
+    & Hcra & #Hinterp_wcra & Hr & Hsts & _ & _)] /=".
+      { wp_pure; wp_end; iIntros "%Hcontr";done. }
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
       (* Lea csp (-1)%Z; *)
       iInstr "Hcode".
+      { transitivity (Some f); auto. solve_addr+Ha2. }
       (* Load cs1 csp; *)
-      iInstr "Hcode".
-      iInstr "Hcode".
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hr $Hsts]"); try solve_pure.
+      { iFrame. by iApply (interp_lea with "Hspv"). }
+      iIntros "!>" (v) "[-> | (%wcs1 & -> & HPC & Hi & Hcsp
+    & Hcs1 & #Hinterp_wcs1 & Hr & Hsts & _ & _)] /=".
+      { wp_pure; wp_end; iIntros "%Hcontr";done. }
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
       (* Lea csp (-1)%Z; *)
       iInstr "Hcode".
+      { transitivity (Some a); auto. solve_addr+Ha1. }
       (* Load cs0 csp; *)
-      iInstr "Hcode".
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs0 $Hr $Hsts]"); try solve_pure.
+      { iFrame. by iApply (interp_lea with "Hspv"). }
+      iIntros "!>" (v) "[-> | (%wcs0 & -> & HPC & Hi & Hcsp
+    & Hcs0 & #Hinterp_wcs0 & Hr & Hsts & _ & _)] /=".
+      { wp_pure; wp_end; iIntros "%Hcontr";done. }
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
+
+      specialize (Hfull_rmap ca0) as HH;destruct HH as [? ?].
+      specialize (Hfull_rmap ca1) as HH;destruct HH as [? ?].
+      iExtract "Hrmap" ca0 as "Hca0".
+      iExtract "Hrmap" ca1 as "Hca1".
       (* Mov ca0 ECOMPARTMENTFAIL; *)
-      (* Mov ca1 0; *)
-      (* Jmp Lswitch_callee_dead_zeros_z *)
-      
-      
-      (* --- Fail --- *)
       iInstr "Hcode".
-      wp_end. iIntros "%Hcontr";done.
+      (* Mov ca1 0; *)
+      iInstr "Hcode".
+      (* Jmp Lswitch_callee_dead_zeros_z *)
+      iInstr "Hcode".
+      { transitivity (Some (a_switcher_call ^+ Lswitch_callee_dead_zeros_z)%a); auto.
+        rewrite /Lswitch_callee_dead_zeros_z.
+        solve_addr.
+      }
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+      (* ---- clear registers  ---- *)
+      rewrite /Lswitch_callee_dead_zeros_z.
+      focus_block 15 "Hcode" as a7 Ha7 "Hcode" "Hcls"; iHide "Hcls" as hcont.
+      iInsertList "Hrmap" [ct1;ctp;ct2].
+      iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]"); try solve_pure.
+      { clear -Hfull_rmap.
+        repeat (rewrite -delete_insert_ne //).
+        repeat (rewrite dom_delete_L).
+        repeat (rewrite dom_insert_L).
+        apply regmap_full_dom in Hfull_rmap.
+        rewrite Hfull_rmap.
+        set_solver.
+      }
+      iNext; iIntros "H".
+      iDestruct "H" as (arg_rmap') "(%Harg_rmap' & HPC & Hrmap & Hcode)".
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+      focus_block 16 "Hcode" as a10 Ha10 "Hcode" "Hcsl"; iHide "Hcsl" as hcont.
+      (* JmpCap cra *)
+      iInstr "Hcode" with "Hlc".
+      unfocus_block "Hcode" "Hcsl" as "Hcode"; subst hcont.
+
+    (* Close the switcher's invariant *)
+      iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
+      { iNext. iExists _,_. iFrame "∗ # %".
+        iPureIntro; split; auto.
+      }
+
+      iAssert (
+          ∃ rmap', ⌜ dom rmap' = dom arg_rmap' ⌝ ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ w)
+                   ∗ (∀ (r : RegName) (v : leibnizO Word), ⌜r ≠ PC⌝ → ⌜rmap' !! r = Some v⌝ → interp W C v)
+        )%I with "[Hrmap]" as (rmap') "(%Hdom_rmap' & Hrmap & #Hrmap_interp')".
+      {
+        iExists (fmap (fun v => WInt 0) arg_rmap').
+        iSplit ; [iPureIntro; apply dom_fmap_L|].
+        iSplitL.
+        {
+          iClear "#".
+          iStopProof.
+          clear.
+          induction arg_rmap' using map_ind; first rewrite fmap_empty; auto.
+          rewrite fmap_insert.
+          iIntros "Hrmap".
+          iDestruct ( big_sepM_insert with "Hrmap" ) as "[ [Hi ->] Hrmap]"; auto.
+          iApply big_sepM_insert.
+          { by rewrite lookup_fmap H; simplify_map_eq. }
+          iFrame.
+          iApply (IHarg_rmap' with "Hrmap").
+        }
+        iIntros (r w HrPC Hr).
+        rewrite lookup_fmap_Some in Hr.
+        destruct Hr as (? & <- & Hr').
+        iEval (rewrite fixpoint_interp1_eq); done.
+      }
+
+      (* Insert the registers in the rmap *)
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cra m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcra]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cgp m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcgp]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete ca0 m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca0]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete ca1 m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca1]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cs0 m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs0]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cs1 m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs1]") as "Hrmap".
+
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete csp m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcsp]") as "Hrmap".
+
+      destruct ( decide (isCorrectPC (updatePcPerm wcra))) as [HcorrectWret|HcorrectWret]; cycle 1.
+      { (* The PC is not correct, the execution will crash *)
+        iApply (wp_bind (fill [SeqCtx])).
+        iApply (wp_notCorrectPC with "HPC"); first done.
+        iNext; iIntros "HPC /=".
+        iApply wp_pure_step_later; auto; iNext; iIntros "_".
+        iApply wp_value; iIntros; discriminate.
+      }
+      match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete PC m) end.
+      2: { rewrite delete_notin; auto.
+           apply not_elem_of_dom.
+           repeat (rewrite dom_insert_L).
+           rewrite Hdom_rmap' Harg_rmap'.
+           set_solver+.
+      }
+      iDestruct (big_sepM_insert_delete with "[$Hrmap $HPC]") as "Hrmap".
+
+    rewrite -(insert_id (<[PC:=updatePcPerm wcra]> _) PC (updatePcPerm wcra))
+    ; last (clear;simplify_map_eq; done).
+    destruct wcra as [ z | [pcra gcra bcra ecra acra|]  | pcra gcra bcra ecra acra | ot sb ] ; iEval (cbn) in "Hrmap".
+    all: cbn in HcorrectWret.
+    all: inversion HcorrectWret; simplify_eq.
+      + (* wret was a regular capability: apply the FTLR *)
+        iApply ("IH" with "[] [] [$] [$] [$] [$] [%] [$] [$]"); eauto.
+        { iIntros (r); iPureIntro.
+          clear -Hdom_rmap' Harg_rmap'.
+          destruct (decide (r = PC)); simplify_map_eq; first done.
+          destruct (decide (r = csp)); simplify_map_eq; first done.
+          destruct (decide (r = cs1)); simplify_map_eq; first done.
+          destruct (decide (r = cs0)); simplify_map_eq; first done.
+          destruct (decide (r = ca1)); simplify_map_eq; first done.
+          destruct (decide (r = ca0)); simplify_map_eq; first done.
+          destruct (decide (r = cgp)); simplify_map_eq; first done.
+          destruct (decide (r = cra)); simplify_map_eq; first done.
+          apply elem_of_dom.
+          rewrite Hdom_rmap' Harg_rmap'.
+          pose proof all_registers_s_correct.
+          set_solver.
+        }
+        {
+          iIntros (r rv HrPC Hr).
+          destruct (decide (r = csp)); simplify_map_eq; first done.
+          destruct (decide (r = cs1)); simplify_map_eq; first done.
+          destruct (decide (r = cs0)); simplify_map_eq; first done.
+          destruct (decide (r = ca1)); simplify_map_eq; first (iApply interp_int).
+          destruct (decide (r = ca0)); simplify_map_eq; first (iApply interp_int).
+          destruct (decide (r = cgp)); simplify_map_eq; first done.
+          destruct (decide (r = cra)); simplify_map_eq; first done.
+          iApply "Hrmap_interp'"; eauto.
+          iPureIntro.
+          rewrite lookup_delete_ne; eauto.
+        }
+      + iAssert (interp W C (WSentry pcra gcra bcra ecra acra)) as "#Hinterp_wret'" ; first done.
+        iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wcra".
+        iDestruct "Hinterp_wcra" as "#Hinterp_wret".
+        rewrite /enter_cond.
+        iAssert (future_world gcra W W) as "-#Hfuture".
+        { destruct gcra; cbn; iPureIntro
+          ; [apply related_sts_priv_refl_world| apply related_sts_pub_refl_world].
+        }
+        iSpecialize ("Hinterp_wret" $! W with "[$]").
+        iSpecialize ("Hinterp_wret" $! gcra (LocalityFlowsToReflexive gcra)).
+        iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
+        rewrite /interp_expr /=.
+        iDestruct ("Hinterp_wret" with "[$Hcont $Hrmap $Hr $Hsts $Hcstk $HH]") as "HA"; eauto.
+        iSplitR; last (iPureIntro; simplify_map_eq; done).
+        iSplit.
+        * iIntros (r); iPureIntro.
+          clear -Hdom_rmap' Harg_rmap'.
+          destruct (decide (r = PC)); simplify_map_eq; first done.
+          destruct (decide (r = csp)); simplify_map_eq; first done.
+          destruct (decide (r = cs1)); simplify_map_eq; first done.
+          destruct (decide (r = cs0)); simplify_map_eq; first done.
+          destruct (decide (r = ca1)); simplify_map_eq; first done.
+          destruct (decide (r = ca0)); simplify_map_eq; first done.
+          destruct (decide (r = cgp)); simplify_map_eq; first done.
+          destruct (decide (r = cra)); simplify_map_eq; first done.
+          apply elem_of_dom.
+          rewrite Hdom_rmap' Harg_rmap'.
+          pose proof all_registers_s_correct.
+          set_solver.
+        * iIntros (r rv HrPC Hr).
+          destruct (decide (r = csp)); simplify_map_eq; first done.
+          destruct (decide (r = cs1)); simplify_map_eq; first done.
+          destruct (decide (r = cs0)); simplify_map_eq; first done.
+          destruct (decide (r = ca1)); simplify_map_eq; first (iApply interp_int).
+          destruct (decide (r = ca0)); simplify_map_eq; first (iApply interp_int).
+          destruct (decide (r = cgp)); simplify_map_eq; first done.
+          destruct (decide (r = cra)); simplify_map_eq; first done.
+          iApply "Hrmap_interp'"; eauto.
+          iPureIntro.
+          rewrite lookup_delete_ne; eauto.
     }
     iInstr "Hcode".
 
@@ -679,18 +926,7 @@ Section fundamental.
     rewrite /rmap'. rewrite !map_filter_delete.
     iDestruct (big_sepM_insert with "[$Hrest $Hct1]") as "Hrest"
     ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
-    rewrite -(delete_insert_ne _ ctp);[|auto].
-    iDestruct (big_sepM_insert with "[$Hrest $Hctp]") as "Hrest"
-    ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
-    repeat (rewrite -(delete_insert_ne _ ct2);[|auto]).
-    iDestruct (big_sepM_insert with "[$Hrest $Hct2]") as "Hrest"
-    ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
-    repeat (rewrite (delete_commute _ _ cs1)//). repeat rewrite -(delete_insert_ne _ cs1)//.
-    iDestruct (big_sepM_insert with "[$Hrest $Hcs1]") as "Hrest"
-    ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
-    repeat (rewrite (delete_commute _ _ cs0)//). repeat rewrite -(delete_insert_ne _ cs0)//.
-    iDestruct (big_sepM_insert with "[$Hrest $Hcs0]") as "Hrest"
-    ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
+    iInsertList "Hrest" [ctp;ct2;cs1;cs0].
 
     iApply (clear_registers_pre_call_spec with "[- $HPC $Hcode $Hrest]"); try solve_pure.
     { clear -Hfull_rmap. apply regmap_full_dom in Hfull_rmap as Heq'.
