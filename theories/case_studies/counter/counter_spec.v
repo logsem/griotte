@@ -575,7 +575,8 @@ Section Counter.
     iIntros (HNswitcher_counter HsubBounds
                Hcgp_contiguous Himports_contiguous)
       "(#Hswitcher & #Hmain & #Hinterp_C_f & #HentryC_f)
-      % % % % % % (HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
+      % % % % % %
+      (HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as "(%Hfullrmap & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hinterp_rmap)".
     rewrite /interp_conf.
     rewrite /registers_pointsto.
