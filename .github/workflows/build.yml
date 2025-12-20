@@ -5,7 +5,13 @@ concurrency:
   cancel-in-progress: true
   group: ${{ github.ref }}
 
-on: [ pull_request ]
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
 jobs:
   build:
     if: github.event.pull_request.draft == false
