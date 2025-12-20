@@ -23,7 +23,6 @@ Section VAE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  (* TODO ideally, I would minimize the number of assumptions here *)
   Lemma related_pub_W0_Wfixed (W0 W3 W6 : WORLD) (l : list Addr) (csp_b csp_e : Addr)
     (b : bool) (i : positive) :
     let W1 := revoke W0 in
@@ -31,59 +30,77 @@ Section VAE.
     let W4 := revoke W3 in
     let W5 := <l[i:=true]l>W4 in
     let W7 := revoke W6 in
-    wrel W0 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
-    (∀ a : finz MemNum, W0.1 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
-    loc W1 !! i = Some (encode b) ->
-    related_sts_priv_world W0 W2 ->
+    (* initial revocation W0 *)
+    (∀ a : finz MemNum, std W0 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (* final revocation W7 *)
+    Forall (λ a : finz MemNum, std W7 !! a = Some Revoked) (l ++ finz.seq_between csp_b csp_e)->
+    (* world transition of the first call *)
     related_sts_pub_world W2 W3 ->
-    related_sts_priv_world W2 W5 ->
+    (* world transition of the second call *)
     related_sts_pub_world W5 W6 ->
-    Forall (λ a : finz MemNum, (revoke W6).1 !! a = Some Revoked) l ->
+    (* custom invariant `i` in initial world W0 *)
+    loc W1 !! i = Some (encode b) ->
+    wrel W0 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
+    (* custom invariant `i` in final world W7 *)
     loc W7 !! i = Some (encode true) ->
     wrel W7 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
-    (∀ (k : nat) (x : finz MemNum),
-       finz.seq_between csp_b csp_e !! k = Some x → W7.1 !! x = Some Revoked) ->
+    (* public transition between initial and fixed *)
     related_sts_pub_world W0 (close_list (l ++ finz.seq_between csp_b csp_e) W7).
   Proof.
-    intros * Hwrel_i_0 Htemporaries_W0 Hwloc_i_0
-               Hpriv_W0_W2
-               Hrelated_pub_W2_W3
-               Hpriv_W2_W5
-               Hrelated_pub_W5_W6
-               HW6_revoked_l
-               Hwrel_i_7 Hwloc_i_7
-               Hrevoked_stk_W7.
+    intros * Htemporaries_W0
+             Hrevoked_W7
+             Hrelated_pub_W2_W3 Hrelated_pub_W5_W6
+             Hwloc_i_0 Hwrel_i_0
+             Hwrel_i_7 Hwloc_i_7
+    .
 
+    assert ( related_sts_priv_world W0 W2 ) as Hrelated_priv_W0_W2.
+    { eapply (related_sts_priv_trans_world _ W1); eauto.
+      + apply revoke_related_sts_priv_world.
+      + subst W2.
+        rewrite /related_sts_priv_world /=.
+        split; first apply related_sts_std_priv_refl.
+        split;[set_solver|split;[set_solver|] ].
+        intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
+        repeat (split; first done).
+        intros x y Hd Hd'.
+        destruct (decide (d = i)); simplify_map_eq; last apply rtc_refl.
+        destruct b; simplify_map_eq; last apply rtc_refl.
+        apply rtc_once.
+        right;apply convert_rel_of_rel.
+        done.
+    }
+    assert ( related_sts_priv_world W3 W5 ) as Hrelated_priv_W3_W5.
+    { eapply (related_sts_priv_trans_world _ W4); eauto.
+      + apply revoke_related_sts_priv_world.
+      + destruct Hrelated_pub_W2_W3 as [HW2_W3_std (Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3)].
+        assert (∃ d_W3, loc W3 !! i = Some d_W3) as [d_W3 Hd_W3].
+        { apply elem_of_dom.
+          apply Hdom_loc_2_3.
+          rewrite dom_insert.
+          rewrite elem_of_union; right.
+          apply elem_of_dom.
+          set_solver+Hwloc_i_0.
+        }
+        assert (∃ r1 r2 , wrel W3 !! i = Some (r1, r2)) as (rpub & rpriv  & HW3_rel).
+        { assert (is_Some (wrel W0 !! i)) as HW0_rel_some by set_solver+Hwrel_i_0.
+          apply elem_of_dom in HW0_rel_some.
+          apply Hdom_rel_2_3 in HW0_rel_some.
+          apply elem_of_dom in HW0_rel_some as [ [] ].
+          eexists _,_; eauto.
+        }
+        specialize (Hrtc_loc_2_3 i  _ _ _ _ Hwrel_i_0 HW3_rel) as (<- & <- & Hrtc_loc_0_3).
+        ospecialize (Hrtc_loc_0_3 _ _ _ Hd_W3); first by simplify_map_eq.
+        eapply awk_rel_pub_inv in Hrtc_loc_0_3 as [b0 ->]; last done.
+        eapply related_sts_priv_world_loc_update; eauto.
+        right; apply convert_rel_of_rel; done.
+    }
     assert ( related_sts_priv_world W0 W6 ) as Hrelated_priv_W0_W6.
     { eapply (related_sts_priv_trans_world _ W3); eauto.
       + eapply (related_sts_priv_pub_trans_world _ W2); eauto.
       + eapply (related_sts_priv_pub_trans_world _ W5); eauto.
-        subst W4 W5.
-        eapply (related_sts_priv_trans_world _ (revoke W3)).
-        * apply revoke_related_sts_priv_world.
-        *
-          destruct Hrelated_pub_W2_W3 as [HW2_W3_std (Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3)].
-          assert (∃ d_W3, loc W3 !! i = Some d_W3) as [d_W3 Hd_W3].
-          { apply elem_of_dom.
-            apply Hdom_loc_2_3.
-            rewrite dom_insert.
-            rewrite elem_of_union; right.
-            apply elem_of_dom.
-            set_solver+Hwloc_i_0.
-          }
-          assert (∃ r1 r2 , wrel W3 !! i = Some (r1, r2)) as (rpub & rpriv  & HW3_rel).
-          { assert (is_Some (wrel W0 !! i)) as HW0_rel_some by set_solver+Hwrel_i_0.
-            apply elem_of_dom in HW0_rel_some.
-            apply Hdom_rel_2_3 in HW0_rel_some.
-            apply elem_of_dom in HW0_rel_some as [ [] ].
-            eexists _,_; eauto.
-          }
-          specialize (Hrtc_loc_2_3 i  _ _ _ _ Hwrel_i_0 HW3_rel) as (<- & <- & Hrtc_loc_0_3).
-          ospecialize (Hrtc_loc_0_3 _ _ _ Hd_W3); first by simplify_map_eq.
-          eapply awk_rel_pub_inv in Hrtc_loc_0_3 as [b0 ->]; last done.
-          eapply related_sts_priv_world_loc_update; eauto.
-          right; apply convert_rel_of_rel; done.
     }
+
     split; cbn; cycle 1.
     - destruct W0 as [W0_std [W0_loc W0_rel] ],
                  W3 as [W3_std [W3_loc W3_rel] ],
@@ -172,23 +189,11 @@ Section VAE.
         assert (std W2 !! a = Some Revoked) as Ha0_W2.
         { done. }
 
-        destruct (decide (a ∈ finz.seq_between csp_b csp_e)) as [Ha_in_save|Ha_in_save].
-        * rewrite elem_of_list_lookup in Ha_in_save; destruct Ha_in_save as [k Ha_in_save].
-          apply Hrevoked_stk_W7 in Ha_in_save.
-          eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_save; eauto.
-          rewrite Ha2 in Ha_in_save; simplify_eq.
-          apply rtc_refl.
-        * assert (a ∈ l) as Ha_in_l.
-          {
-            rewrite elem_of_app in Ha_in.
-            destruct Ha_in; first done.
-            contradiction.
-          }
-          rewrite Forall_forall in HW6_revoked_l.
-          apply HW6_revoked_l in Ha_in_l.
-          eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_in_l; eauto.
-          rewrite Ha2 in Ha_in_l; simplify_eq.
-          apply rtc_refl.
+        rewrite Forall_forall in Hrevoked_W7.
+        pose proof (Hrevoked_W7 a Ha_in) as Ha_W6.
+        eapply (close_list_std_sta_revoked _ _ _  Ha_in) in Ha_W6; eauto.
+        rewrite Ha2 in Ha_W6; simplify_eq.
+        apply rtc_refl.
   Qed.
 
   Lemma vae_awkward_spec
@@ -327,7 +332,7 @@ Section VAE.
         as (l) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
 
     set (W1 := revoke W0).
-    assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
+    assert (related_sts_priv_world W0 W1) as Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
 
 
     (* --------------------------------------------------- *)
@@ -427,7 +432,7 @@ Section VAE.
     iDestruct (sts_full_rel_loc  with "Hsts_C Hsts_rel") as "%Hwrel_i".
 
     set (W2 := (<l[i:=false]l>W1)).
-    assert (related_sts_priv_world W1 W2) as Hpriv_W1_W2.
+    assert (related_sts_priv_world W1 W2) as Hrelated_priv_W1_W2.
     { subst W2.
      rewrite /related_sts_priv_world /=.
      split; first apply related_sts_std_priv_refl.
@@ -442,9 +447,9 @@ Section VAE.
      done.
     }
 
-    assert (related_sts_priv_world W0 W2) as Hpriv_W0_W2 by (by eapply related_sts_priv_trans_world; eauto).
+    assert (related_sts_priv_world W0 W2) as Hrelated_priv_W0_W2 by (by eapply related_sts_priv_trans_world; eauto).
     assert (related_sts_priv_world W W2) as
-      Hpriv_W_W2 by (by eapply related_sts_priv_trans_world; eauto).
+      Hrelated_priv_W_W2 by (by eapply related_sts_priv_trans_world; eauto).
 
     iMod (update_region_revoked_update_loc with "Hsts_C Hr_C") as "[Hr_C Hsts_C]"; auto.
     { apply revoke_conditions_sat. }
@@ -494,7 +499,7 @@ Section VAE.
     iAssert (
         ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W2 C a ∗
                                                     ⌜W2.1 !! a = Some Revoked⌝)
-      )%I with "[Hfrm_close_W0]" as "#Hfrm_close_W2".
+      )%I with "[Hfrm_close_W0]" as "Hfrm_close_W2".
     {
       iApply (big_sepL_impl with "Hfrm_close_W0").
       iModIntro; iIntros (k a Ha) "[Hclose %Hrev]".
@@ -539,8 +544,6 @@ Section VAE.
       & Hrmap & Hstk & HK)"; clear l'.
     iEval (cbn) in "HPC".
 
-    (* ----- Revoke the world to get borrowed addresses back -----*)
-    (* 1.5. Derive some properties on the world required later *)
     assert (related_sts_pub_world W2 W3) as Hrelated_pub_W2_W3.
     {
       eapply related_sts_pub_trans_world ; eauto.
@@ -673,11 +676,12 @@ Section VAE.
      by rewrite /awk_rel_pub; left.
     }
 
-    assert (related_sts_priv_world W2 W5) as Hpriv_W2_W5.
-    { eapply related_sts_pub_priv_trans_world; eauto.
-      eapply (related_sts_priv_pub_trans_world W3 W4); eauto.
+    assert (related_sts_priv_world W3 W5) as Hrelated_priv_W3_W5.
+    { eapply (related_sts_priv_pub_trans_world W3 W4); eauto.
       apply revoke_related_sts_priv_world.
     }
+    assert (related_sts_priv_world W2 W5) as Hrelated_priv_W2_W5.
+    { eapply related_sts_pub_priv_trans_world; eauto. }
 
     iMod (update_region_revoked_update_loc with "Hsts_C Hr_C") as "[Hr_C Hsts_C]"; auto.
     { apply revoke_conditions_sat. }
@@ -694,7 +698,6 @@ Section VAE.
       done.
     }
 
-
     (* Show that the arguments are safe, when necessary *)
     iAssert (if is_sealed_with_o wca0 ot_switcher
              then (interp W5 C wca0)
@@ -708,14 +711,14 @@ Section VAE.
     iAssert (
         ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W5 C a ∗
                                                     ⌜W5.1 !! a = Some Revoked⌝)
-      )%I with "[Hfrm_close_W2 Hfrm_close_W3]" as "#Hfrm_close_W5".
+      )%I with "[Hfrm_close_W3]" as "#Hfrm_close_W5".
     { rewrite !big_sepL_sep.
       iDestruct "Hfrm_close_W3" as "[Hclose_W3 %Hrev_W3]".
-      iDestruct "Hfrm_close_W2" as "[Hclose_W2 Hrev_W2]".
       iSplitL "Hclose_W3".
-      - iApply (big_sepL_impl with "Hclose_W2").
+      - iApply (big_sepL_impl with "Hclose_W3").
         iModIntro; iIntros (k a Ha) "Hclose'".
-        iApply mono_priv_closing_revoked_resources; eauto.
+        iApply mono_priv_closing_revoked_resources; last done.
+        eauto.
       - iApply big_sepL_pure; iPureIntro.
         intros k x Hk.
         cbn.
@@ -755,7 +758,6 @@ Section VAE.
       & Hrmap & Hstk & HK)"; clear l'.
     iEval (cbn) in "HPC".
 
-    (* ----- Revoke the world to get borrowed addresses back -----*)
     (* Derive some information necessary later *)
     iAssert ( ⌜ Forall (λ k : finz MemNum, W5.1 !! k = Some Revoked) (finz.seq_between (csp_b ^+ 4)%a csp_e) ⌝)%I
       as "%Hrevoked_stk_W5".
@@ -779,7 +781,7 @@ Section VAE.
     }
     clear Hrevoked_stk_W5.
 
-    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W6.1) l ⌝)%I as "%Hrevoked_l_W6".
+    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W6.1) l ⌝)%I as "%Hl_revoked_W6".
     {
       iDestruct (big_sepL_sep with "Hrevoked_l") as "[_ %Hrevoked_l]".
       iPureIntro; apply Forall_forall; intros a Ha.
@@ -796,16 +798,16 @@ Section VAE.
       by apply Hdom_2_3.
     }
 
+    set (W7 := revoke W6).
     iMod (
        revoked_by_separation_many_with_temp_resources with "[$Hsts_C $Hr_C $Hrevoked_l]"
-      ) as "(Hrevoked_l & Hsts_C & Hr_C & %HW6_revoked_l)".
+      ) as "(Hrevoked_l & Hsts_C & Hr_C & %Hl_revoked_W7)".
     { apply Forall_forall; intros a Ha.
-      rewrite Forall_forall in Hrevoked_l_W6.
-      apply Hrevoked_l_W6 in Ha.
+      rewrite Forall_forall in Hl_revoked_W6.
+      apply Hl_revoked_W6 in Ha.
       rewrite -revoke_dom_eq.
       done.
     }
-    set (W7 := revoke W6).
 
 
     (* simplify the knowledge about the new rmap *)
@@ -926,6 +928,9 @@ Section VAE.
            ); auto.
     { destruct Hl_unk as [_ ?].
       eapply (related_pub_W0_Wfixed W0 W3 W6 l); eauto.
+      apply Forall_app; split; auto.
+      apply Forall_forall; intros a Ha.
+      apply elem_of_list_lookup in Ha ; destruct Ha as [??]; eapply Hrevoked_stk_W7; eauto.
     }
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
     { subst csp_b.
