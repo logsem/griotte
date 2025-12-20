@@ -529,14 +529,14 @@ Section VAE.
     iClear "Hinterp_rmap Hzeroed_rmap".
     clear dependent wct1 wct0 wct2 wct3 wcs0 wcs1 rmap stk_mem.
     iNext.
-    iIntros (W3 rmap stk_mem)
-      "(%Hrelated_pub_2ext_W3 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W3
+    iIntros (W3 rmap stk_mem l')
+      "( _ & _ & %Hrelated_pub_2ext_W3 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W3
       & Hna & %Hcsp_bounds
       & Hsts_C & Hr_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)".
+      & Hrmap & Hstk & HK)"; clear l'.
     iEval (cbn) in "HPC".
 
     (* ----- Revoke the world to get borrowed addresses back -----*)
@@ -745,15 +745,14 @@ Section VAE.
 
     clear dependent wct1 wct0 warg0 warg1 rmap stk_mem Hcsp_bounds.
     iNext.
-    (* subst rmap'; clear stk_mem. *)
-    iIntros (W6 rmap stk_mem)
-      "(%Hrelated_pub_5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6
+    iIntros (W6 rmap stk_mem l')
+      "(_ & _ & %Hrelated_pub_5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6
       & Hna & %Hcsp_bounds
       & Hsts_C & Hr_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)".
+      & Hrmap & Hstk & HK)"; clear l'.
     iEval (cbn) in "HPC".
 
     (* ----- Revoke the world to get borrowed addresses back -----*)

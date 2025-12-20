@@ -283,15 +283,16 @@ Section VAE.
 
     clear dependent wca0 wct0 wct1 wct2 wct3 wcs0 wcs1.
     clear dependent wca1 wca2 wca3 wca4 wca5 rmap.
+    clear stk_mem.
     iNext.
-    iIntros (W2 rmap stk_mem_l stk_mem_h)
-      "(%Hrelated_pub_W2ext_W2 & %Hdom_rmap
-      & Hna & #Hinterp_W2_csp & %Hcsp_bounds
-      & Hsts_C & Hr_C & Hfrm_close_W2
-      & Hcstk_frag & Hrel_stk_C
+    iIntros (W2 rmap stk_mem l')
+      "( _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2
+      & Hna & %Hcsp_bounds
+      & Hsts_C & Hr_C
+      & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk_l & Hstk_h & HK)".
+      & Hrmap & Hstk & HK)"; clear l'.
     iEval (cbn) in "HPC".
 
     (* Halt *)

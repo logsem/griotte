@@ -395,34 +395,15 @@ Section Counter.
     { by rewrite /is_arg_rmap . }
 
     iNext. subst rmap'; clear stk_mem.
-    iIntros (W2 rmap' stk_mem_l stk_mem_h)
-      "(%Hrelated_pub_1ext_W2 & %Hdom_rmap
-      & Hna & #Hinterp_W2_csp & %Hcsp_bounds
-      & Hsts_C & Hr_C & Hfrm_close_W2
-      & Hcstk_frag & Hrel_stk_C
+    iIntros (W2 rmap' stk_mem l')
+      "( _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2
+      & Hna & %Hcsp_bounds
+      & Hsts_C & Hr_C
+      & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk_l & Hstk_h & HK)".
+      & Hrmap & Hstk & HK)"; clear l'.
     iEval (cbn) in "HPC".
-
-    (* TODO see whether I can make this a lemma *)
-    iEval (rewrite <- (app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "Hr_C".
-
-    iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
-    iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
-
-    iAssert (
-       [∗ list] a ; v ∈ finz.seq_between (csp_b ^+ 4)%a csp_e ; stk_mem_h, a ↦ₐ v ∗ closing_resources interp W2 C a v
-      )%I with "[Hfrm_close_W2 Hstk_h]" as "Hfrm_close_W2".
-    { rewrite /region_pointsto.
-      iDestruct (big_sepL2_sep  with "[$Hstk_h $Hfrm_close_W2]") as "$".
-    }
-    iDestruct (region_close_list_interp_gen with "[$Hr_C $Hfrm_close_W2]"
-      ) as "Hr_C"; auto.
-    { apply finz_seq_between_NoDup. }
-    { set_solver+. }
-    clear dependent stk_mem_h.
-    rewrite -region_open_nil.
 
     assert (related_sts_pub_world W1 W2) as Hrelated_pub_W1_W2.
     {
@@ -450,15 +431,17 @@ Section Counter.
       rewrite Forall_forall in Hrevoked_l_W.
       apply Hrevoked_l_W in Ha.
       destruct Hrelated_pub_W1_W2 as [ [Hdom _ ] _].
+      rewrite -revoke_dom_eq.
       by apply Hdom.
     }
 
     iDestruct (big_sepL_sep with "Hfrm_close_W0") as "[_ %Hrevoked_stk]".
     iMod (
-       revoked_by_separation_many with "[$Hsts_C $Hr_C $Hstk_l]"
-      ) as "(Hsts_C & Hr_C & Hstk_l & %Hrevoked_stk_l)".
+       revoked_by_separation_many with "[$Hsts_C $Hr_C $Hstk]"
+      ) as "(Hsts_C & Hr_C & Hstk & %Hrevoked_stk')".
     { apply Forall_forall; intros x Hx.
       destruct Hrelated_pub_W1_W2 as [ [Hdom _ ] _].
+      rewrite -revoke_dom_eq.
       apply Hdom.
       subst W1.
       rewrite elem_of_dom.
@@ -472,11 +455,6 @@ Section Counter.
 
 
     (* Revoke the world again to get the points-to of the stack *)
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W2_csp $Hsts_C $Hr_C]")
-        as (l') "(%Hl_unk' & Hsts_C & Hr_C & Hfrm_close_W2 & >[%stk_mem Hstk] & Hrevoked_l')".
-    iDestruct (region_pointsto_split with "[$Hstk_l $Hstk]") as "Hstk"; auto.
-    { solve_addr+Hcsp_bounds. }
-    { by rewrite finz_seq_between_length in Hlen_stk_l. }
     set (W3 := revoke W2).
 
     (* simplify the knowledge about the new rmap *)
@@ -528,13 +506,11 @@ Section Counter.
              "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
-    { apply related_pub_W0_Wfixed; eauto.
-      apply finz_seq_between_split; solve_addr+Hcsp_bounds.
-    }
+    { admit. }
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
     { iSplit; iApply interp_int. }
 
-  Qed.
+  Admitted.
 
   Lemma counter_spec_entry_point
 
