@@ -12,6 +12,11 @@ on:
       - synchronize
       - reopened
       - ready_for_review
+
+  push:
+    branches:
+      - main
+
 jobs:
   build:
     if: github.event.pull_request.draft == false
