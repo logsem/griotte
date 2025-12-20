@@ -6,7 +6,7 @@ From cap_machine Require Import ftlr_base interp_weakening.
 From cap_machine Require Import rules proofmode monotone.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 From cap_machine Require Import wp_rules_interp.
-From cap_machine Require Import clear_stack clear_registers.
+From cap_machine Require Import clear_stack_spec clear_registers_spec.
 
 Section switcher_macros.
   Context

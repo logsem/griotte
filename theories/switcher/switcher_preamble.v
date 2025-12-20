@@ -2,7 +2,9 @@ From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel memory_region rules proofmode.
 From cap_machine Require Import multiple_updates region_invariants_revocation.
+From cap_machine Require Import bitblast.
 From cap_machine Require Export switcher.
+From cap_machine Require Export clear_stack_spec clear_registers_spec.
 
 Section Switcher_preamble.
   Context
@@ -18,6 +20,47 @@ Section Switcher_preamble.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
+
+  Lemma is_switcher_entry_point_call `{switcherLayout} :
+    is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call) = true.
+  Proof.
+    rewrite /is_switcher_entry_point.
+    rewrite bool_decide_eq_true_2; first done.
+    by left.
+  Qed.
+
+  Lemma is_switcher_entry_point_return `{switcherLayout} :
+    is_switcher_entry_point (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
+  Proof.
+    rewrite /is_switcher_entry_point.
+    rewrite bool_decide_eq_true_2; first done.
+    by right.
+  Qed.
+
+  Lemma encode_entry_point_eq_nargs nargs off_entry :
+    (0 ≤ nargs ≤ 7)%Z -> ( (Z.land (encode_entry_point nargs off_entry) 7)) = nargs.
+  Proof.
+    intros.
+    rewrite /encode_entry_point.
+    bitblast.
+    destruct (decide (nargs = 0)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 1)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 2)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 3)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 4)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 5)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 6)%Z); simplify_eq; first bitblast.
+    destruct (decide (nargs = 7)%Z); simplify_eq; first bitblast.
+    lia.
+  Qed.
+
+  Lemma encode_entry_point_eq_off nargs off_entry :
+    ( (encode_entry_point nargs off_entry ≫ 3)%Z) = off_entry.
+  Proof.
+    intros.
+    rewrite /encode_entry_point.
+    bitblast.
+  Qed.
 
   (** Property of capability sealed by the switcher's otype *)
   Definition export_tableN (Cname : namespace) : namespace := nroot .@ "export_tableN" .@ Cname.

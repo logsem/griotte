@@ -68,8 +68,9 @@ Section fundamental.
 
     iDestruct ("Hreg" $! csp with "[//] [//]") as "#Hspv".
 
-    rewrite /switcher_instrs /switcher_call_instrs /switcher_return_instrs.
-    rewrite -!app_assoc.
+    rewrite /switcher_instrs /assembled_switcher.
+    repeat (iEval (cbn [fmap list_fmap]) in "Hcode").
+    repeat (iEval (cbn [concat]) in "Hcode").
     assert (SubBounds b_switcher e_switcher a_switcher_call (a_switcher_call ^+ (length switcher_instrs))%a).
     { pose proof switcher_size.
       pose proof switcher_call_entry_point.
@@ -106,12 +107,11 @@ Section fundamental.
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs.
 
       (* -----------------------------------  *)
       (* ------ Lcommon_force_unwind -------  *)
       (* -----------------------------------  *)
-      focus_block 18 "Hcode" as a_force_unwind Ha_force_unwind "Hcode" "Hcls"; iHide "Hcls" as hcont.
+      focus_block 17 "Hcode" as a_force_unwind Ha_force_unwind "Hcode" "Hcls"; iHide "Hcls" as hcont.
       specialize (Hfull_rmap ca0) as HH;destruct HH as [? ?].
       specialize (Hfull_rmap ca1) as HH;destruct HH as [? ?].
       iExtract "Hrmap" ca0 as "Hca0".
@@ -124,7 +124,6 @@ Section fundamental.
       iInstr "Hcode".
       { transitivity (Some a_switcher_return); last done.
         pose proof switcher_return_entry_point.
-        rewrite /Lswitcher_after_compartment_call_z /Lcommon_force_unwind_z.
         solve_addr.
       }
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
@@ -185,21 +184,21 @@ Section fundamental.
       wp_instr.
       iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
       { intros Hcontr; inversion Hcontr; done. }
-      { transitivity (Some ((a_switcher_call ^+ Lcommon_force_unwind_z)%a)); auto.
-        rewrite /Lcommon_force_unwind_z.
-        solve_addr.
+      { set (Lcommon_force_unwind := default 0 (switcher_labels !! ".Lcommon_force_unwind")).
+        transitivity (Some ((a_switcher_call ^+ Lcommon_force_unwind)%a)); auto.
+        subst Lcommon_force_unwind; rewrite /switcher_labels; simplify_map_eq.
+        solve_addr+Ha_csp_check_loc Hcont_switcher_region.
       }
       iIntros "!> (HPC & Hi & Hct2)".
+      iEval (simplify_map_eq) in "HPC".
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs.
 
       (* -----------------------------------  *)
       (* ------ Lcommon_force_unwind -------  *)
       (* -----------------------------------  *)
-      rewrite /Lcommon_force_unwind_z.
-      focus_block 18 "Hcode" as a_force_unwind Ha_force_unwind "Hcode" "Hcls"; iHide "Hcls" as hcont.
+      focus_block 17 "Hcode" as a_force_unwind Ha_force_unwind "Hcode" "Hcls"; iHide "Hcls" as hcont.
       specialize (Hfull_rmap ca0) as HH;destruct HH as [? ?].
       specialize (Hfull_rmap ca1) as HH;destruct HH as [? ?].
       iExtract "Hrmap" ca0 as "Hca0".
@@ -212,7 +211,6 @@ Section fundamental.
       iInstr "Hcode".
       { transitivity (Some a_switcher_return); last done.
         pose proof switcher_return_entry_point.
-        rewrite /Lswitcher_after_compartment_call_z /Lcommon_force_unwind_z.
         solve_addr.
       }
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
@@ -353,9 +351,9 @@ Section fundamental.
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* --------------------------------------  *)
-    (* -- Lswitch_trusted_stack_check_size --  *)
+    (* ----- Lswitch_trusted_stack_push -----  *)
     (* --------------------------------------  *)
-    focus_block 3 "Hcode" as a_tstack_ckeck_size Ha_tstack_ckeck_size "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_entry_first_spill.
+    focus_block 3 "Hcode" as a_tstack_push Ha_tstack_push "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_entry_first_spill.
 
     (* --- ReadSR ct2 mtdc --- *)
     iInstr "Hcode".
@@ -380,18 +378,18 @@ Section fundamental.
       iInstr "Hcode".
       (* --- Jmp  Lswitch_trusted_stack_exhausted_z --- *)
       iInstr "Hcode".
-      { transitivity (Some ((a_switcher_call ^+ Lswitch_trusted_stack_exhausted_z)%a)); auto.
-        rewrite /Lswitch_trusted_stack_exhausted_z.
-        solve_addr+Ha_tstack_ckeck_size Hsize.
+      { set (Lswitch_trusted_stack_exhausted := default 0 (switcher_labels !! ".Lswitch_trusted_stack_exhausted")).
+        transitivity (Some ((a_switcher_call ^+ Lswitch_trusted_stack_exhausted)%a)); auto.
+        subst Lswitch_trusted_stack_exhausted; rewrite /switcher_labels; simplify_map_eq.
+        solve_addr+Ha_tstack_push Hsize.
       }
+      iEval (simplify_map_eq) in "HPC".
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-      rewrite /switcher_fail_path_instrs /switcher_fail_path_instrs.
 
       (* ----------------------------------------------  *)
       (* ------ Lswitch_trusted_stack_exhausted -------  *)
       (* ----------------------------------------------  *)
-      rewrite /Lswitch_trusted_stack_exhausted_z.
-      focus_block 17 "Hcode" as a_tstk_exhausted Ha_tstk_exhausted "Hcode" "Hcls"; iHide "Hcls" as hcont.
+      focus_block 16 "Hcode" as a_tstk_exhausted Ha_tstk_exhausted "Hcode" "Hcls"; iHide "Hcls" as hcont.
       (* Lea csp (-1)%Z; *)
       iInstr "Hcode".
       { transitivity (Some f1); auto; solve_addr. }
@@ -455,15 +453,16 @@ Section fundamental.
       iInstr "Hcode".
       (* Jmp Lswitch_callee_dead_zeros_z *)
       iInstr "Hcode".
-      { transitivity (Some (a_switcher_call ^+ Lswitch_callee_dead_zeros_z)%a); auto.
-        rewrite /Lswitch_callee_dead_zeros_z.
+      { set (Lswitch_callee_dead_zeros := default 0 (switcher_labels !! ".Lswitch_callee_dead_zeros")).
+        transitivity (Some ((a_switcher_call ^+ Lswitch_callee_dead_zeros)%a)); auto.
+        subst Lswitch_callee_dead_zeros; rewrite /switcher_labels; simplify_map_eq.
         solve_addr.
       }
+      iEval (simplify_map_eq) in "HPC".
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
       (* ---- clear registers  ---- *)
-      rewrite /Lswitch_callee_dead_zeros_z.
-      focus_block 15 "Hcode" as a7 Ha7 "Hcode" "Hcls"; iHide "Hcls" as hcont.
+      focus_block 14 "Hcode" as a7 Ha7 "Hcode" "Hcls"; iHide "Hcls" as hcont.
       iInsertList "Hrmap" [ct1;ctp;ct2].
       iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]"); try solve_pure.
       { clear -Hfull_rmap.
@@ -478,7 +477,7 @@ Section fundamental.
       iDestruct "H" as (arg_rmap') "(%Harg_rmap' & HPC & Hrmap & Hcode)".
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
-      focus_block 16 "Hcode" as a10 Ha10 "Hcode" "Hcsl"; iHide "Hcsl" as hcont.
+      focus_block 15 "Hcode" as a10 Ha10 "Hcode" "Hcsl"; iHide "Hcsl" as hcont.
       (* JmpCap cra *)
       iInstr "Hcode" with "Hlc".
       unfocus_block "Hcode" "Hcsl" as "Hcode"; subst hcont.
@@ -675,12 +674,6 @@ Section fundamental.
     }
     iInstr "Hcode".
 
-    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-
-    (* --------------------------------------  *)
-    (* ----- Lswitch_trusted_stack_push -----  *)
-    (* --------------------------------------  *)
-    focus_block 4 "Hcode" as a_tstack_push Ha_tstack_push "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_tstack_ckeck_size.
     (* --- Lea ct2 1 --- *)
     assert ( ∃ f3, (a_tstk + 1)%a = Some f3) as [f3 Hastk] by (exists (a_tstk ^+ 1)%a; solve_addr+Hsize_tstk).
     iInstr "Hcode".
@@ -708,7 +701,7 @@ Section fundamental.
     (* ------------------------------  *)
     (* ----- Lswitch_stack_chop -----  *)
     (* ------------------------------  *)
-    focus_block 5 "Hcode" as a_stack_chop Ha_stack_chop "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_tstack_push.
+    focus_block 4 "Hcode" as a_stack_chop Ha_stack_chop "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_tstack_push.
 
     (* --- GetE cs0 csp --- *)
     iInstr "Hcode".
@@ -725,7 +718,7 @@ Section fundamental.
     (* -----------------------  *)
     (* ----- Clear stack -----  *)
     (* -----------------------  *)
-    focus_block 6 "Hcode" as a_clear_stk1 Ha_clear_stk1 "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_stack_chop.
+    focus_block 5 "Hcode" as a_clear_stk1 Ha_clear_stk1 "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_stack_chop.
     iApply (clear_stack_interp_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hr $Hsts]"); try solve_pure.
     iSplit.
     { iApply interp_weakeningEO;eauto. all: solve_addr. }
@@ -737,7 +730,7 @@ Section fundamental.
     (* -----------------------  *)
     (* ----- LoadCapPCC ------  *)
     (* -----------------------  *)
-    focus_block 7 "Hcode" as a_LoadCapPCC Ha_LoadCapPCC "Hcode" "Hcls"; iHide "Hcls" as hcont
+    focus_block 6 "Hcode" as a_LoadCapPCC Ha_LoadCapPCC "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_clear_stk1.
 
     (* --- GetB cs1 PC --- *)
@@ -774,7 +767,7 @@ Section fundamental.
     (* ------------------------------  *)
     (* ---- Lswitch_unseal_entry ----  *)
     (* ------------------------------  *)
-    focus_block 8 "Hcode" as a_unseal_entry Ha_unseal_entry "Hcode" "Hcls"; iHide "Hcls" as hcont
+    focus_block 7 "Hcode" as a_unseal_entry Ha_unseal_entry "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_LoadCapPCC.
 
     (* --- UnSeal ct1 cs0 ct1 --- *)
@@ -821,7 +814,7 @@ Section fundamental.
     (* ------------------------------  *)
     (* ---- Lswitch_callee_load -----  *)
     (* ------------------------------  *)
-    focus_block 9 "Hcode" as a_callee_load Ha_callee_load "Hcode" "Hcls"; iHide "Hcls" as hcont
+    focus_block 8 "Hcode" as a_callee_load Ha_callee_load "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_unseal_entry.
 
 
@@ -878,7 +871,7 @@ Section fundamental.
     (* ---------------------------------------- *)
     (* ---- clear_registers_pre_call_skip ----- *)
     (* ---------------------------------------- *)
-    focus_block 10 "Hcode" as a_clear Ha_clear "Hcode" "Hcls"; iHide "Hcls" as hcont
+    focus_block 9 "Hcode" as a_clear Ha_clear "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_callee_load.
 
     match goal with |- context [ ([∗ map] k↦y ∈ ?r , k ↦ᵣ y)%I ] => set (rmap' := r) end.
@@ -920,7 +913,7 @@ Section fundamental.
     (* ----------------------------------- *)
     (* ---- clear_registers_pre_call ----- *)
     (* ----------------------------------- *)
-    focus_block 11 "Hcode" as a_clear' Ha_clear' "Hcode" "Hcls"; iHide "Hcls" as hcont
+    focus_block 10 "Hcode" as a_clear' Ha_clear' "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_clear.
 
     rewrite /rmap'. rewrite !map_filter_delete.
@@ -946,7 +939,7 @@ Section fundamental.
     (* ------------------------------ *)
     (* ---- Lswitch_callee_call ----- *)
     (* ------------------------------ *)
-    focus_block 12 "Hcode" as a_callee_call Ha_callee_call "Hcode" "Hcls"; iHide "Hcls" as hcont
+    focus_block 11 "Hcode" as a_callee_call Ha_callee_call "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_clear'.
 
     eset (frame :=

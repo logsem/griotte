@@ -90,9 +90,10 @@ Section Switcher.
       by solve_addr.
 
     codefrag_facts "Hcode".
-    rewrite /switcher_instrs /switcher_call_instrs /switcher_return_instrs.
-    rewrite -!app_assoc.
-    focus_block_nochangePC 13 "Hcode" as a_ret Ha_ret "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    rewrite /switcher_instrs /assembled_switcher.
+    repeat (iEval (cbn [fmap list_fmap]) in "Hcode").
+    repeat (iEval (cbn [concat]) in "Hcode").
+    focus_block_nochangePC 12 "Hcode" as a_ret Ha_ret "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
     replace a_switcher_return with a_ret by solve_addr.
@@ -535,7 +536,7 @@ Section Switcher.
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
     (* -------- CLEAR STACK --------- *)
-    focus_block 14 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 13 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iAssert ([[ a_stk , csp_e ]] ↦ₐ [[wastk :: wastk1 :: wastk2 :: wastk3 :: stk_mem]])%I
       with "[Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hstk]" as "Hstk".
     {
@@ -556,7 +557,7 @@ Section Switcher.
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
     (* -------- CLEAR REGISTERS --------- *)
-    focus_block 15 "Hcode" as a9 Ha9 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 14 "Hcode" as a9 Ha9 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct1]") as "Hrmap".
     rewrite -delete_insert_ne //.
     iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct0]") as "Hrmap".
@@ -580,7 +581,7 @@ Section Switcher.
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
 
-    focus_block 16 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 15 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* JmpCap cra *)
     iInstr "Hcode" with "Hlc".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
