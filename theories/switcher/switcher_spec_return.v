@@ -92,7 +92,7 @@ Section Switcher.
     codefrag_facts "Hcode".
     rewrite /switcher_instrs /switcher_call_instrs /switcher_return_instrs.
     rewrite -!app_assoc.
-    focus_block_nochangePC 6 "Hcode" as a_ret Ha_ret "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block_nochangePC 13 "Hcode" as a_ret Ha_ret "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
     replace a_switcher_return with a_ret by solve_addr.
@@ -528,14 +528,14 @@ Section Switcher.
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; subst a_stk; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcs0".
     (* GetE ct0 csp *)
-    iInstr "Hcode".
+    iInstr "Hcode" with "Hlc".
     (* GetA ct1 csp *)
     iInstr "Hcode" with "Hlc'".
 
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
     (* -------- CLEAR STACK --------- *)
-    focus_block 7 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 14 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iAssert ([[ a_stk , csp_e ]] ↦ₐ [[wastk :: wastk1 :: wastk2 :: wastk3 :: stk_mem]])%I
       with "[Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hstk]" as "Hstk".
     {
@@ -555,13 +555,8 @@ Section Switcher.
     iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-    focus_block 8 "Hcode" as a8 Ha8 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    (* Mov cra ca2 *)
-    iInstr "Hcode" with "Hlc".
-    unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
-
     (* -------- CLEAR REGISTERS --------- *)
-    focus_block 9 "Hcode" as a9 Ha9 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 15 "Hcode" as a9 Ha9 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct1]") as "Hrmap".
     rewrite -delete_insert_ne //.
     iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct0]") as "Hrmap".
@@ -585,7 +580,7 @@ Section Switcher.
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
 
-    focus_block 10 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 16 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* JmpCap cra *)
     iInstr "Hcode" with "Hlc".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.

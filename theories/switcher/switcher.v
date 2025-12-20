@@ -6,25 +6,37 @@ From cap_machine Require Export clear_stack clear_registers.
 Section Switcher.
   Context `{MP: MachineParameters}.
 
-  Definition switcher_call_instrs : list Word :=
+  Definition Lswitch_csp_check_perm (Lcommon_force_unwind_z : Z) : list Word :=
+    (* Check permissions of the stack *)
     encodeInstrsW [
-        (* Check permissions of the stack *)
         GetP ct2 csp;
         Mov ctp (encodePerm RWL);
         Sub ct2 ct2 ctp;
-        Jnz 2%Z ct2;
-        Jmp 2%Z;
-        Fail;
+        Jnz (Lcommon_force_unwind_z + 1)%Z ct2
+      ].
 
-        (* Check locality of the stack *)
+  Definition Lswitch_csp_check_loc (Lcommon_force_unwind_z : Z) : list Word :=
+    (* Check locality of the stack *)
+    encodeInstrsW [
         GetL ct2 csp;
         Mov ctp (encodeLoc Local);
         Sub ct2 ct2 ctp;
-        Jnz 2%Z ct2;
-        Jmp 2%Z;
-        Fail;
+        Jnz (Lcommon_force_unwind_z + 1)%Z ct2
+      ].
 
-        (* Save the callee registers *)
+  Definition Lswitch_csp_check (Lcommon_force_unwind_z : Z) : list Word :=
+    let Lcommon_force_unwind_z_check_perm :=
+      (Lcommon_force_unwind_z - length (Lswitch_csp_check_perm 0))%Z
+    in
+    let Lcommon_force_unwind_z_check_loc :=
+      (Lcommon_force_unwind_z_check_perm - length (Lswitch_csp_check_loc 0))%Z
+    in
+   Lswitch_csp_check_perm Lcommon_force_unwind_z_check_perm
+     ++ Lswitch_csp_check_loc Lcommon_force_unwind_z_check_loc.
+
+  Definition Lswitch_entry_first_spill : list Word :=
+    (* Save the callee registers *)
+    encodeInstrsW [
         Store csp cs0;
         Lea csp 1%Z;
         Store csp cs1;
@@ -32,46 +44,71 @@ Section Switcher.
         Store csp cra;
         Lea csp 1%Z;
         Store csp cgp;
-        Lea csp 1%Z;
+        Lea csp 1%Z
+      ].
 
-        (* Check that the trusted stack has enough space *)
+  Definition Lswitch_trusted_stack_check_size (Lswitch_trusted_stack_exhausted_z : Z) : list Word :=
+    (* Check that the trusted stack has enough space *)
+    encodeInstrsW [
         ReadSR ct2 mtdc;
         GetA cs0 ct2;
         machine_base.Add cs0 cs0 1%Z;
         GetE ctp ct2;
         Lt ctp cs0 ctp; (* if (atstk+1 < etstk) then (ctp := 1) else (ctp := 0)*)
         Jnz 2%Z ctp;
-        Fail;
+        Jmp (Lswitch_trusted_stack_exhausted_z + 1)%Z
+      ].
 
-        (* Save the caller's stack pointer in the trusted stack *)
+  Definition Lswitch_trusted_stack_push (Lswitch_trusted_stack_exhausted_z : Z) : list Word :=
+    let Lswitch_trusted_stack_exhausted_z_check_size :=
+      (Lswitch_trusted_stack_exhausted_z -
+         (length (Lswitch_trusted_stack_check_size 0)
+          + length Lswitch_entry_first_spill
+          + length (Lswitch_csp_check 0)
+         )
+         )%Z
+    in
+    Lswitch_trusted_stack_check_size Lswitch_trusted_stack_exhausted_z_check_size
+      ++
+      (* Save the caller's stack pointer in the trusted stack *)
+      encodeInstrsW [
         Lea ct2 1%Z;
         Store ct2 csp;
-        WriteSR mtdc ct2;
+        WriteSR mtdc ct2
+      ].
 
-      (* Chop off the stack *)
+  Definition Lswitch_stack_chop : list Word :=
+    (* Chop off the stack *)
+    encodeInstrsW [
         GetE cs0 csp;
         GetA cs1 csp;
         Subseg csp cs1 cs0
-      ]
-      (* Zero out the callee's stack frame *)
-      ++ clear_stack_instrs cs0 cs1
-      ++ encodeInstrsW [
-        (* Fetch (unsealing capability and unseal entry point *)
+      ].
+
+  Definition LoadCapPCC : list Word :=
+    (* Fetch (unsealing capability and unseal entry point *)
+    encodeInstrsW [
         GetB cs1 PC;
         GetA cs0 PC;
         Sub cs1 cs1 cs0;
         Mov cs0 PC;
         Lea cs0 cs1;
         Lea cs0 (-2)%Z;
-        Load cs0 cs0;
-        UnSeal ct1 cs0 ct1;
+        Load cs0 cs0
+      ].
 
-        (* Load and decode entry point nargs and offset *)
+  Definition Lswitch_unseal_entry : list Word :=
+    (* Load and decode entry point nargs and offset *)
+    encodeInstrsW [
+        UnSeal ct1 cs0 ct1;
         Load cs0 ct1;
         LAnd ct2 cs0 7%Z;
-        LShiftR cs0 cs0 3%Z;
+        LShiftR cs0 cs0 3%Z
+      ].
 
-        (* Prepare callee's PCC in cra, and callee's CGP in cgp *)
+  Definition Lswitch_callee_load : list Word :=
+    (* Prepare callee's PCC in cra, and callee's CGP in cgp *)
+    encodeInstrsW [
         GetB cgp ct1;
         GetA cs1 ct1;
         Sub cs1 cgp cs1;
@@ -80,20 +117,31 @@ Section Switcher.
         Lea ct1 1%Z;
         Load cgp ct1;
         Lea cra cs0;
-        machine_base.Add ct2 ct2 1%Z]
-      (* clear registers, skipping arguments *)
-      ++ clear_registers_pre_call_skip_instrs
-      ++ clear_registers_pre_call_instrs
-      ++ encodeInstrsW [
-
-        (* Jump to callee *)
-        Jalr cra cra
+        machine_base.Add ct2 ct2 1%Z
       ].
 
-  Definition switcher_return_instrs : list Word :=
+  Definition Lswitch_callee_call : list Word :=
+    (* Jump to callee *)
+    encodeInstrsW [ Jalr cra cra ].
+
+  Definition switcher_call_instrs_pre (Lcommon_force_unwind_z Lswitch_trusted_stack_exhausted_z : Z) : list Word :=
+    (Lswitch_csp_check Lcommon_force_unwind_z)
+      ++ Lswitch_entry_first_spill
+      ++ (Lswitch_trusted_stack_push Lswitch_trusted_stack_exhausted_z)
+      ++ Lswitch_stack_chop
+      (* Zero out the callee's stack frame *)
+      ++ clear_stack_instrs cs0 cs1
+      ++ LoadCapPCC
+      ++ Lswitch_unseal_entry
+      ++ Lswitch_callee_load
+      ++ clear_registers_pre_call_skip_instrs (* Lswitch_zero_arguments_start *)
+      ++ clear_registers_pre_call_instrs (* Lswitch_caller_dead_zeros *)
+      ++ Lswitch_callee_call.
+
+
+  Definition Lswitcher_after_compartment_call : list Word :=
     encodeInstrsW [
 
-        (* --- Callback --- *)
         (* Restores caller's stack frame *)
         ReadSR ctp mtdc;
         Load csp ctp;
@@ -104,7 +152,7 @@ Section Switcher.
         Lea csp (-1)%Z;
         Load cgp csp;
         Lea csp (-1)%Z;
-        Load ca2 csp;
+        Load cra csp;
         Lea csp (-1)%Z;
         Load cs1 csp;
         Lea csp (-1)%Z;
@@ -112,21 +160,84 @@ Section Switcher.
 
         (* Zero out the callee stack frame *)
         GetE ct0 csp;
-        GetA ct1 csp]
-      ++ clear_stack_instrs ct0 ct1
-      ++ encodeInstrsW[
-        (* Restores the return pointer to caller  *)
-        Mov cra ca2
-      ]
-      (* Clear registers *)
-      ++ clear_registers_post_call_instrs
-      ++ encodeInstrsW [
-        (* Jump back to caller *)
-        JmpCap cra
+        GetA ct1 csp
       ].
 
+    (* --- Callback --- *)
+  Definition switcher_return_instrs : list Word :=
+    Lswitcher_after_compartment_call
+      ++ clear_stack_instrs ct0 ct1
+      (* Clear registers *)
+      ++ clear_registers_post_call_instrs  (* Lswitch_callee_dead_zeros *)
+      ++ (* Jump back to caller *)
+      encodeInstrsW [JmpCap cra]. (* Lswitch_just_return *)
+
+  Definition ECOMPARTMENTFAIL : Z := -1.
+  Definition ENOTENOUGHTRUSTEDSTACK : Z := -141.
+
+  Definition Lswitch_trusted_stack_exhausted (Lswitch_callee_dead_zeros_z : Z) : list Word :=
+    encodeInstrsW
+      [
+        Lea csp (-1)%Z;
+        Load cgp csp;
+        Lea csp (-1)%Z;
+        Load cra csp;
+        Lea csp (-1)%Z;
+        Load cs1 csp;
+        Lea csp (-1)%Z;
+        Load cs0 csp;
+        Mov ca0 ENOTENOUGHTRUSTEDSTACK;
+        Mov ca1 0;
+        Jmp (Lswitch_callee_dead_zeros_z + 1)%Z
+    ].
+
+  Definition Lcommon_force_unwind (Lswitcher_after_compartment_call_z : Z) : list Word :=
+    encodeInstrsW [
+        Mov ca0 ECOMPARTMENTFAIL;
+        Mov ca1 0;
+        Jmp (Lswitcher_after_compartment_call_z + 1)%Z
+      ].
+
+   Definition Lswitcher_after_compartment_call_z : Z :=
+    Eval cbv in (length (switcher_call_instrs_pre 0 0)).
+   Definition Lswitch_callee_dead_zeros_z : Z :=
+    Eval cbv in
+      (Lswitcher_after_compartment_call_z
+       + (length Lswitcher_after_compartment_call)
+       + (length (clear_stack_instrs ct0 ct1))
+      )%Z.
+   Definition Lswitch_trusted_stack_exhausted_z : Z :=
+    Eval cbv in
+       ( Lswitcher_after_compartment_call_z + length switcher_return_instrs ).
+   Definition Lcommon_force_unwind_z : Z :=
+    Eval cbv in (Lswitch_trusted_stack_exhausted_z +
+                   length (Lswitch_trusted_stack_exhausted 0))%Z.
+
+  Definition switcher_fail_path_instrs
+    : list Word :=
+    let Lswitch_callee_dead_zeros_z_tstk_exhausted :=
+      let a_src := (Lswitch_trusted_stack_exhausted_z + (length (Lswitch_trusted_stack_exhausted 0)))%Z in
+      let a_tgt := Lswitch_callee_dead_zeros_z in
+      (a_tgt - a_src)%Z
+    in
+    let Lswitcher_after_compartment_call_z_unwind :=
+      let a_src := (Lcommon_force_unwind_z + (length (Lcommon_force_unwind 0)))%Z in
+      let a_tgt := Lswitcher_after_compartment_call_z in
+      (a_tgt - a_src)%Z
+    in
+    Lswitch_trusted_stack_exhausted Lswitch_callee_dead_zeros_z_tstk_exhausted
+      ++ Lcommon_force_unwind Lswitcher_after_compartment_call_z_unwind.
+
+
+   Definition switcher_call_instrs :=
+    switcher_call_instrs_pre Lcommon_force_unwind_z Lswitch_trusted_stack_exhausted_z.
+   (* Definition switcher_fail_path_instrs := *)
+   (*  switcher_fail_path_instrs_pre Lswitch_callee_dead_zeros_z Lswitcher_after_compartment_call_z. *)
+
   Definition switcher_instrs : list Word :=
-    switcher_call_instrs ++ switcher_return_instrs.
+    switcher_call_instrs
+      ++ switcher_return_instrs
+      ++ switcher_fail_path_instrs.
 
   Class switcherLayout : Type :=
     mkCmptSwitcher {

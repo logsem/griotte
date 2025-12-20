@@ -23,34 +23,28 @@ Section Counter.
 
   Context {C : CmptName}.
 
-  Lemma related_pub_W0_Wfixed (W0 W2 : WORLD  ) (csp_b csp_e : Addr ) (l : list Addr):
-    (∀ a : finz MemNum, W0.1 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e)
-    → related_sts_priv_world W0 (revoke W0)
-    → related_sts_pub_world (std_update_multiple (revoke W0) (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) W2
-    -> related_sts_pub_world (revoke W0) W2
-    → Forall (λ a : finz MemNum, W2.1 !! a = Some Revoked) l
-    -> Forall (λ a : finz MemNum, W2.1 !! a = Some Revoked) (finz.seq_between csp_b (csp_b ^+ 4)%a)
-    -> finz.seq_between csp_b csp_e = finz.seq_between csp_b (csp_b ^+ 4)%a ++ finz.seq_between (csp_b ^+ 4)%a csp_e
-    → related_sts_pub_world W0
-        (close_list (l ++ finz.seq_between csp_b csp_e) (revoke W2)).
+  Lemma related_pub_W0_Wfixed (W0 W2 : WORLD) (csp_b csp_e : Addr ) (l : list Addr):
+    let W1 := revoke W0 in
+    let W3 := revoke W2 in
+    (∀ a : finz MemNum, std W0 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    Forall (λ a : finz MemNum, std W3 !! a = Some Revoked) (l++finz.seq_between csp_b csp_e) ->
+    related_sts_pub_world W1 W2 ->
+    related_sts_pub_world W0 (close_list (l ++ finz.seq_between csp_b csp_e) W3).
   Proof.
-    intros Htemporaries_W0 Hrelared_priv_W0_W1 Hrelated_pub_1ext_W2 Hrelated_pub_W1_W2 HW2_revoked_l
-      Hrevoked_stk_l Hsplit_csp.
+    intros * Htemporaries_W0 Hrevoked_W3 Hrelated_pub_W1_W2.
 
     destruct W0 as [W0_std W0_cus], W2 as [W2_std W2_cus]; cbn.
     destruct Hrelated_pub_W1_W2 as [HW1_W2_std HW1_W2_cus].
     split; cbn; cycle 1.
     { eapply related_sts_pub_trans; eauto; eapply related_sts_pub_refl. }
-    destruct Hrelated_pub_1ext_W2 as [ [HW1ext_W2_dom HW1ext_W2_t] _].
+    destruct HW1_W2_std as [HW1_W2_std_dom HW1_W2_std_t].
     cbn in *.
     split.
     {
       intros a Ha.
       rewrite elem_of_dom -close_list_std_sta_is_Some -revoke_std_sta_lookup_Some -elem_of_dom.
-      apply HW1ext_W2_dom.
-      rewrite elem_of_dom; apply std_sta_update_multiple_is_Some.
-      cbn.
-      by rewrite -revoke_std_sta_lookup_Some -elem_of_dom.
+      apply HW1_W2_std_dom.
+      by rewrite elem_of_dom -revoke_std_sta_lookup_Some -elem_of_dom.
     }
     intros a ρ0 ρ2 Ha0 Ha2.
     destruct ρ0; cycle 1.
@@ -74,9 +68,9 @@ Section Counter.
       + by apply revoke_std_sta_lookup_non_temp in Ha2.
       + done.
       + apply anti_revoke_lookup_Revoked in Ha2.
-        destruct Ha2 as [Ha2|Ha2]; first (eapply (HW1ext_W2_t _ _ Revoked) in Ha0'; auto).
-        eapply (HW1ext_W2_t _ _ Temporary) in Ha0'; auto.
-        inversion Ha0' as [|??? Hcontra]; simplify_eq.
+        destruct Ha2 as [Ha2|Ha2]; first eapply HW1_W2_std_t in Ha0; eauto.
+        eapply HW1_W2_std_t in Ha0; last eauto.
+        inversion Ha0 as [|??? Hcontra]; simplify_eq.
         inversion Hcontra.
     - (* the initial a was in the Revoked state *)
       destruct ρ2; last apply rtc_refl; apply rtc_once; constructor.
@@ -97,36 +91,11 @@ Section Counter.
         + apply std_sta_update_multiple_lookup_in_i; eauto.
         + rewrite std_sta_update_multiple_lookup_same_i; eauto.
       }
-      assert (is_Some (W2_std !! a)) as [ρ2' Ha2'].
-      { rewrite -elem_of_dom. apply HW1ext_W2_dom. by rewrite elem_of_dom. }
-      pose proof (HW1ext_W2_t a _ ρ2' H Ha2') as Hρ2'.
       pose proof Ha_in as Ha_in'.
-      rewrite Hsplit_csp app_assoc elem_of_app in Ha_in'.
-
-      destruct (decide (a ∈ finz.seq_between (csp_b ^+ 4)%a csp_e)) as [Ha_in''|Ha_in''].
-      { eapply std_rel_pub_rtc_Temporary in Hρ2'; auto; simplify_eq.
-        apply revoke_lookup_Monotemp in Ha2'.
-        assert (std (revoke ((W2_std, W2_cus))) !! a = Some Revoked) as Ha2'' by done.
-        eapply close_list_std_sta_revoked in Ha2''; last apply Ha_in.
-        rewrite Ha2 in Ha2''; simplify_eq.
-        apply rtc_refl.
-      }
-
-      destruct Ha_in' as [Ha_in'|Ha_in']; last set_solver+Ha_in'' Ha_in'.
-      assert (ρ2' = Revoked) as ->.
-      { rewrite elem_of_app in Ha_in'.
-        destruct Ha_in' as [Ha_in'|Ha_in'].
-        + rewrite Forall_forall in HW2_revoked_l.
-          eapply HW2_revoked_l in Ha_in';eauto.
-          by rewrite Ha_in' in Ha2'; simplify_eq.
-        + rewrite Forall_forall in Hrevoked_stk_l.
-          eapply Hrevoked_stk_l in Ha_in'; eauto.
-          by rewrite Ha_in' in Ha2'; simplify_eq.
-      }
-      eapply revoke_lookup_Revoked in Ha2'.
-      assert (std (revoke ((W2_std, W2_cus))) !! a = Some Revoked) as Ha2'' by done.
-      eapply close_list_std_sta_revoked in Ha2''; last apply Ha_in.
-      rewrite Ha2 in Ha2''; simplify_eq.
+      rewrite Forall_forall in Hrevoked_W3.
+      eapply Hrevoked_W3 in Ha_in;eauto.
+      eapply close_list_std_sta_revoked in Ha_in; last apply Ha_in'.
+      rewrite Ha_in in Ha2; simplify_eq.
       apply rtc_refl.
   Qed.
 
@@ -395,34 +364,15 @@ Section Counter.
     { by rewrite /is_arg_rmap . }
 
     iNext. subst rmap'; clear stk_mem.
-    iIntros (W2 rmap' stk_mem_l stk_mem_h)
-      "(%Hrelated_pub_1ext_W2 & %Hdom_rmap
-      & Hna & #Hinterp_W2_csp & %Hcsp_bounds
-      & Hsts_C & Hr_C & Hfrm_close_W2
-      & Hcstk_frag & Hrel_stk_C
+    iIntros (W2 rmap' stk_mem l')
+      "( _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2
+      & Hna & %Hcsp_bounds
+      & Hsts_C & Hr_C
+      & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk_l & Hstk_h & HK)".
+      & Hrmap & Hstk & HK)"; clear l'.
     iEval (cbn) in "HPC".
-
-    (* TODO see whether I can make this a lemma *)
-    iEval (rewrite <- (app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "Hr_C".
-
-    iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
-    iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
-
-    iAssert (
-       [∗ list] a ; v ∈ finz.seq_between (csp_b ^+ 4)%a csp_e ; stk_mem_h, a ↦ₐ v ∗ closing_resources interp W2 C a v
-      )%I with "[Hfrm_close_W2 Hstk_h]" as "Hfrm_close_W2".
-    { rewrite /region_pointsto.
-      iDestruct (big_sepL2_sep  with "[$Hstk_h $Hfrm_close_W2]") as "$".
-    }
-    iDestruct (region_close_list_interp_gen with "[$Hr_C $Hfrm_close_W2]"
-      ) as "Hr_C"; auto.
-    { apply finz_seq_between_NoDup. }
-    { set_solver+. }
-    clear dependent stk_mem_h.
-    rewrite -region_open_nil.
 
     assert (related_sts_pub_world W1 W2) as Hrelated_pub_W1_W2.
     {
@@ -450,15 +400,17 @@ Section Counter.
       rewrite Forall_forall in Hrevoked_l_W.
       apply Hrevoked_l_W in Ha.
       destruct Hrelated_pub_W1_W2 as [ [Hdom _ ] _].
+      rewrite -revoke_dom_eq.
       by apply Hdom.
     }
 
     iDestruct (big_sepL_sep with "Hfrm_close_W0") as "[_ %Hrevoked_stk]".
     iMod (
-       revoked_by_separation_many with "[$Hsts_C $Hr_C $Hstk_l]"
-      ) as "(Hsts_C & Hr_C & Hstk_l & %Hrevoked_stk_l)".
+       revoked_by_separation_many with "[$Hsts_C $Hr_C $Hstk]"
+      ) as "(Hsts_C & Hr_C & Hstk & %Hrevoked_stk')".
     { apply Forall_forall; intros x Hx.
       destruct Hrelated_pub_W1_W2 as [ [Hdom _ ] _].
+      rewrite -revoke_dom_eq.
       apply Hdom.
       subst W1.
       rewrite elem_of_dom.
@@ -472,11 +424,6 @@ Section Counter.
 
 
     (* Revoke the world again to get the points-to of the stack *)
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W2_csp $Hsts_C $Hr_C]")
-        as (l') "(%Hl_unk' & Hsts_C & Hr_C & Hfrm_close_W2 & >[%stk_mem Hstk] & Hrevoked_l')".
-    iDestruct (region_pointsto_split with "[$Hstk_l $Hstk]") as "Hstk"; auto.
-    { solve_addr+Hcsp_bounds. }
-    { by rewrite finz_seq_between_length in Hlen_stk_l. }
     set (W3 := revoke W2).
 
     (* simplify the knowledge about the new rmap *)
@@ -520,7 +467,6 @@ Section Counter.
 
     clear dependent wcs0 wcs1 wct0 wct1 a_fetch1 a_fetch2 a_callB a_ret.
     iClear "Hmem Hentry_C_f".
-    subst W3.
 
     destruct Hl_unk.
     iApply (switcher_ret_specification _ W0 (revoke W2)
@@ -528,12 +474,11 @@ Section Counter.
              "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
-    { apply related_pub_W0_Wfixed; eauto.
-      apply finz_seq_between_split; solve_addr+Hcsp_bounds.
+    { eapply related_pub_W0_Wfixed ; eauto.
+      apply Forall_app; split; auto.
     }
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
     { iSplit; iApply interp_int. }
-
   Qed.
 
   Lemma counter_spec_entry_point

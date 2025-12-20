@@ -480,14 +480,16 @@ Section DROE.
     }
 
     iNext. subst rmap'.
-    iIntros (W2_B rmap' stk_mem_l stk_mem_h)
-      "(%HW1_pubB_W2 & %Hdom_rmap'
-      & Hna & #Hinterp_cdp & %Hcsp_bounds
-      & HWstd_full_B & HWreg_B & Hclose_reg_B
-      & Hcstk_frag & Hrel_stk_B
+    clear stk_mem.
+    iIntros (W2_B rmap' stk_mem l)
+      "( _ & _
+      & %HW1_pubB_W2 & Hrel_stk_B & %Hdom_rmap' & Hclose_reg_B
+      & Hna & %Hcsp_bounds
+      & HWstd_full_B & HWreg_B
+      & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hcsp_stk_l & H_stk_h & HK)".
+      & Hrmap & Hstk & HK)" ; clear l.
     iEval (cbn) in "HPC".
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
@@ -535,9 +537,11 @@ Section DROE.
       destruct Hcgp_b_stk; [left|right]; solve_addr.
     }
     iDestruct (
-       region_open_next _ _ _ _ _ _ Permanent with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]"
-      ) as (v) "(HWstd_full_B & Hstd_cgp_b & HWreg_B & Hcgp_b & Hmono & Hφ_cgp_b & %Hp)"; auto.
+       region_open_perm with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]"
+      ) as (v) "(HWreg_B & HWstd_full_B & Hstd_cgp_b & Hcgp_b & %Hp & Hmono & Hφ_cgp_b)"; auto.
     {
+      eapply (monotone.region_state_priv_perm W2_B); eauto.
+      { eapply revoke_related_sts_priv_world. }
       eapply monotone.region_state_pub_perm; eauto.
       rewrite std_sta_update_multiple_lookup_same_i; auto.
       subst W2 W1.

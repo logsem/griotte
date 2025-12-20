@@ -1991,6 +1991,25 @@ Section heap.
        + apply option_leibniz.
    Qed.
 
+   Lemma revoke_std_update_multiple_eq W l :
+     Forall (fun a => std W !! a = Some Revoked) l ->
+     (revoke (std_update_multiple W l Temporary)) = (revoke W).
+   Proof.
+     induction l; intros Hl; cbn; first done.
+     rewrite Forall_cons in Hl; destruct Hl as [Hla Hl].
+     rewrite /revoke /revoke_std_sta.
+     rewrite fmap_insert.
+     destruct W as [W1 W2].
+     rewrite -/revoke_std_sta -/(revoke (W1,W2)).
+     rewrite -IHl; auto.
+     rewrite insert_id; auto.
+     destruct (decide (a ∈ l)).
+     + apply revoke_lookup_Monotemp.
+       by apply std_sta_update_multiple_lookup_in_i.
+     + apply revoke_lookup_Revoked.
+       rewrite std_sta_update_multiple_lookup_same_i; auto.
+   Qed.
+
    Lemma update_region_revoked_temp_pwl_multiple E W C la lv p φ `{∀ Wv, Persistent (φ Wv)} :
      isO p = false → isWL p = true →
      NoDup la →

@@ -439,4 +439,162 @@ Section wp_interp.
     iFrame; done.
   Qed.
 
+  Lemma wp_load_interp (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
+    (wi wsrc wdst : Word)
+    :
+    decodeInstrW wi = Load rdst rsrc →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+
+     {{{ interp W C wsrc
+           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ pc_a ↦ₐ wi
+           ∗ rsrc ↦ᵣ wsrc
+           ∗ rdst ↦ᵣ wdst
+           ∗ region W C
+           ∗ sts_full_world W C
+     }}}
+       Instr Executable @ E
+       {{{ retv, RET retv;
+           ⌜ retv = FailedV ⌝ ∨
+          ( ∃ p g b e a wload,
+           ⌜ wsrc = WCap p g b e a ⌝
+           ∗ ⌜ retv = NextIV ⌝
+           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ pc_a ↦ₐ wi
+           ∗ rsrc ↦ᵣ WCap p g b e a
+           ∗ rdst ↦ᵣ wload ∗ interp W C wload
+           ∗ region W C
+           ∗ sts_full_world W C
+           ∗ ⌜ readAllowed p = true ⌝
+           ∗ ⌜(b <= a < e)%a ⌝
+          )
+       }}}.
+  Proof.
+    iIntros (Hdecode_wi Hcorrect_pc Hpca' φ)
+      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hregion & Hworld)".
+    iIntros "Hφ".
+
+    destruct (is_cap wsrc) eqn:Hcap;cycle 1.
+    {
+      iApply (wp_load_fail_not_cap with "[HPC Hi Hsrc Hdst]")
+      ; try iFrame
+      ; try solve_pure.
+      iNext; iIntros "_".
+      iApply "Hφ"; by iLeft.
+    }
+    destruct wsrc;try done. destruct sb; try done.
+
+    destruct (decide (readAllowed p = true))%a as [Hra_src|Hra_src]; cycle 1.
+    {
+      iApply (wp_load_fail_not_ra with "[HPC Hi Hsrc Hdst]")
+      ; try iFrame
+      ; try solve_pure.
+      { destruct p as [ [] ? ? ? ]; cbn in * ; done. }
+      iNext; iIntros "_".
+      iApply "Hφ"; by iLeft.
+    }
+    destruct (decide (b <= a))%a as [Hba|Hba]; cycle 1.
+    {
+      iApply (wp_load_fail_not_withinbounds with "[HPC Hi Hsrc Hdst]")
+      ; try iFrame
+      ; try solve_pure.
+      { rewrite /withinBounds; solve_addr. }
+      iNext; iIntros "_".
+      iApply "Hφ"; by iLeft.
+    }
+    destruct (decide (a < e))%a as [Hae|Hae]; cycle 1.
+    {
+      iApply (wp_load_fail_not_withinbounds with "[HPC Hi Hsrc Hdst]")
+      ; try iFrame
+      ; try solve_pure.
+      { rewrite /withinBounds; solve_addr. }
+      iNext; iIntros "_".
+      iApply "Hφ"; by iLeft.
+    }
+
+    iDestruct (readAllowed_valid_cap with "Hinterp_src") as "%Hsrc_in_region"; auto.
+    assert ( ∃ ρ, std W !! a = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
+    {
+      rewrite Forall_lookup in Hsrc_in_region.
+      assert ( a ∈ finz.seq_between b e) as Ha.
+      { apply elem_of_finz_seq_between; solve_addr. }
+      rewrite elem_of_list_lookup in Ha.
+      destruct Ha as [ka Hka].
+      apply Hsrc_in_region in Hka.
+      done.
+    }
+
+    iDestruct (read_allowed_inv _ _ a with "Hinterp_src") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
+
+    iDestruct (region_open with "[$]") as (v) "(Hr & Hsts & Hstate & Ha & %Hno & HmonoV & HφV)";[|done|].
+    { destruct ρ;auto. done. }
+
+    iApply (wp_load_success_alt _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
+    ; try iFrame
+    ; try solve_pure.
+    { split; auto. rewrite /withinBounds; solve_addr. }
+    iNext; iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
+    pose proof (Hpers (W, C, v)).
+    iDestruct "HφV" as "#HφV".
+
+    iDestruct (region_close
+                with "[$Hstate $Hr $Ha $Hrel $HmonoV $HφV]")
+      as "Hregion".
+    { rewrite /safeC. auto. }
+    { destruct ρ; naive_solver. }
+    { iFrame "%". }
+
+    iApply "Hφ"; iRight; iFrame "∗%".
+    iSplit; first done.
+    iSplit; first done.
+    iSplit; last solve_addr.
+    iDestruct ("Hwcond" with "HφV") as "H"; cbn.
+    iApply interp_weakening_word_load; eauto.
+  Qed.
+
+  Lemma wp_load_interp_cap (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
+    (p : Perm) (g : Locality) (b e a : Addr)
+    (wi wdst : Word)
+    :
+    decodeInstrW wi = Load rdst rsrc →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+
+     {{{ interp W C (WCap p g b e a)
+           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ pc_a ↦ₐ wi
+           ∗ rsrc ↦ᵣ (WCap p g b e a)
+           ∗ rdst ↦ᵣ wdst
+           ∗ region W C
+           ∗ sts_full_world W C
+     }}}
+       Instr Executable @ E
+       {{{ retv, RET retv;
+           ⌜ retv = FailedV ⌝ ∨
+          (∃ wload,
+              ⌜ retv = NextIV ⌝
+           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ pc_a ↦ₐ wi
+           ∗ rsrc ↦ᵣ (WCap p g b e a)
+           ∗ rdst ↦ᵣ wload ∗ interp W C wload
+           ∗ region W C
+           ∗ sts_full_world W C
+           ∗ ⌜ readAllowed p = true ⌝
+           ∗ ⌜(b <= a < e)%a ⌝
+          )
+       }}}.
+  Proof.
+    iIntros (Hdecode_wi Hcorrect_pc Hpca' φ)
+      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hregion & Hworld)".
+    iIntros "Hφ".
+    iApply (wp_load_interp with "[-Hφ]");eauto;[iFrame "∗ #"|].
+    iNext. iIntros (ret) "[? | (%&%&%&%&%&%&%&?&?&?&?&?&?&?&?&%&%)]"
+    ; iApply "Hφ" ; auto.
+    iRight. simplify_eq.  iFrame.
+    auto.
+  Qed.
+
 End wp_interp.

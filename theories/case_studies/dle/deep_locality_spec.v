@@ -378,36 +378,21 @@ Section DLE.
 
     clear dependent wca0 wct0 wct1 wct2 wct3 wcs0 wcs1.
     clear dependent wca1 wca2 wca3 wca4 wca5 rmap.
+    clear stk_mem.
     iNext.
-    iIntros (W4 rmap stk_mem_l stk_mem_h)
-      "(%Hrelated_pub_W3ext_W4 & %Hdom_rmap
-      & Hna & #Hinterp_W4_csp & %Hcsp_bounds
-      & Hsts_C & Hr_C & Hfrm_close_W4
-      & Hcstk_frag & Hrel_stk_C
+    iIntros (W4 rmap stk_mem l')
+      "( %Hl_unk' & Hrevoked_l'
+      & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4
+      & Hna & %Hcsp_bounds
+      & Hsts_C & Hr_C
+      & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk_l & Hstk_h & HK)".
+      & Hrmap & Hstk & HK)".
     iEval (cbn) in "HPC".
 
 
     (* ----- Revoke the world to get borrowed addresses back -----*)
-    (* 1. Close the world *)
-    iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
-    iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
-    iEval (rewrite <- (app_nil_r (finz.seq_between (csp_b ^+ 4)%a csp_e))) in "Hr_C".
-    iAssert (
-       [∗ list] a ; v ∈ finz.seq_between (csp_b ^+ 4)%a csp_e ; stk_mem_h, a ↦ₐ v ∗ closing_resources interp W4 C a v
-      )%I with "[Hfrm_close_W4 Hstk_h]" as "Hfrm_close_W4".
-    { rewrite /region_pointsto.
-      iDestruct (big_sepL2_sep  with "[$Hstk_h $Hfrm_close_W4]") as "$".
-    }
-    iDestruct (region_close_list_interp_gen with "[$Hr_C $Hfrm_close_W4]"
-      ) as "Hr_C".
-    { apply finz_seq_between_NoDup. }
-    { set_solver+. }
-    { done. }
-    rewrite -region_open_nil.
-
     (* 1.5. Derive some properties on the world required later *)
     assert ( cgp_b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_b_stk'.
     { clear -Hcgp_b_stk.
@@ -434,42 +419,6 @@ Section DLE.
       apply elem_of_app; right.
       rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
     }
-
-    iMod (revoked_by_separation_many with "[$Hr_C $Hsts_C $Hstk_l]")
-      as "(Hr_C & Hsts_C & Hstk_l & %Hstk_l_revoked)".
-    {
-      assert ( cgp_b ∉ finz.seq_between csp_b (csp_b ^+ 4)%a ) as Hcgp_b_stk''.
-      { apply not_elem_of_finz_seq_between.
-        apply not_elem_of_finz_seq_between in Hcgp_b_stk.
-        destruct Hcgp_b_stk; [left|right]; solve_addr.
-      }
-      assert ( (cgp_b ^+1)%a ∉ finz.seq_between csp_b (csp_b ^+ 4)%a ) as Hcgp_a_stk''.
-      { apply not_elem_of_finz_seq_between.
-        apply not_elem_of_finz_seq_between in Hcgp_a_stk.
-        destruct Hcgp_a_stk; [left|right]; solve_addr.
-      }
-      apply Forall_forall; intros a Ha.
-      eapply elem_of_mono_pub;eauto.
-      rewrite elem_of_dom.
-      rewrite lookup_insert_ne.
-      2:{ intro Hcontra; subst a; set_solver +Ha Hcgp_a_stk''. }
-      rewrite lookup_insert_ne.
-      2:{ intro Hcontra; subst a; set_solver +Ha Hcgp_b_stk''. }
-      rewrite revoke_lookup_Monotemp; first done.
-      destruct Hl_unk as [_ H_lunk].
-      pose proof (H_lunk a) as [_ Ha']; apply Ha'.
-      apply elem_of_app; right.
-      rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha Hcsp_bounds.
-    }
-    rewrite Forall_forall in Hstk_l_revoked.
-
-    (* 2. Revoke the world again *)
-    clear dependent stk_mem stk_mem_h.
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W4_csp $Hsts_C $Hr_C]")
-        as (l') "(%Hl_unk' & Hsts_C & Hr_C & Hfrm_close_W4 & >[%stk_mem_h Hstk_h] & Hrevoked_l')".
-    iDestruct (region_pointsto_split with "[$Hstk_l $Hstk_h]") as "Hstk"; auto.
-    { solve_addr+ Hcsp_bounds. }
-    { by rewrite finz_seq_between_length in Hlen_stk_l. }
     set (W5 := revoke W4).
 
     (* -- extract cgp_b out of the revoked -- *)
@@ -564,34 +513,16 @@ Section DLE.
                                                     ⌜W5.1 !! a = Some Revoked⌝)
       )%I with "[Hfrm_close_W3 Hfrm_close_W4]" as "Hfrm_close_W5".
     { rewrite !big_sepL_sep.
-     rewrite (finz_seq_between_split csp_b (csp_b ^+ 4)%a csp_e); last solve_addr.
-      iDestruct "Hfrm_close_W3" as "[Hclose_W3 Hrev_W3]".
-      iEval (rewrite big_sepL_app) in "Hclose_W3".
-      iEval (rewrite big_sepL_app) in "Hrev_W3".
-      iDestruct "Hclose_W3" as "[Hclose_W3 _]".
-      iDestruct "Hrev_W3" as "[Hrev_W3 _]".
-      iDestruct "Hfrm_close_W4" as "[Hclose_W4 Hrev_W4]".
-      iSplitL "Hclose_W3 Hclose_W4".
-      - rewrite big_sepL_app.
-        iSplitL "Hclose_W3".
-        + iApply (big_sepL_impl with "Hclose_W3").
-          iModIntro; iIntros (k a Ha) "Hclose'".
-          iApply mono_priv_closing_revoked_resources; eauto.
-          iApply mono_priv_closing_revoked_resources; eauto.
-          by apply related_sts_pub_priv_world.
-        + iApply (big_sepL_impl with "Hclose_W4").
-          iModIntro; iIntros (k a Ha) "Hclose_".
-          iApply mono_priv_closing_revoked_resources; eauto.
-      - rewrite big_sepL_app.
-        iFrame.
-        iApply (big_sepL_impl with "Hrev_W3").
-        iModIntro; iIntros (k a Ha) "%Hrev_W3".
-        iDestruct (big_sepL_pure_1 with "Hstk_frm_tmp_W0") as "%Hstk_frm_tmp_W0".
-        iPureIntro.
-        apply revoke_lookup_Revoked.
-        eapply Hstk_l_revoked.
-        apply elem_of_list_lookup.
-        eexists; done.
+      iDestruct "Hfrm_close_W3" as "[Hclose_W3 %Hrev_W3]".
+      iDestruct "Hfrm_close_W4" as "[Hclose_W4 %Hrev_W4]".
+      iSplitL "Hclose_W4".
+      - iApply (big_sepL_impl with "Hclose_W4").
+        iModIntro; iIntros (k a Ha) "Hclose'".
+        iApply mono_priv_closing_revoked_resources; eauto.
+      - iApply big_sepL_pure; iPureIntro.
+        intros k x Hk.
+        cbn.
+        eapply Hrev_W4; eauto.
     }
 
     iApply (switcher_cc_specification with
@@ -607,15 +538,16 @@ Section DLE.
     { by rewrite /is_arg_rmap. }
 
     iNext. subst rmap'.
-    clear dependent warg0 warg1 rmap stk_mem_l stk_mem_h.
-    iIntros (W6 rmap stk_mem_l stk_mem_h)
-      "(%Hrelated_pub_W5_W6 & %Hdom_rmap
-      & Hna & #Hinterp_W6_csp & _
-      & Hsts_C & Hr_C & Hfrm_close_W6
-      & Hcstk_frag & Hrel_stk_C'
+    clear dependent warg0 warg1 rmap stk_mem.
+    iIntros (W6 rmap stk_mem l0)
+      "( _ & _
+      & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6
+      & Hna & _
+      & Hsts_C & Hr_C
+      & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk_mem_l & Hstk_mem_h & HK)".
+      & Hrmap & Hstk & HK)"; clear l0.
     iEval (cbn) in "HPC".
 
     (* -- simplify our knowledge about rmap -- *)

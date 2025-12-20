@@ -426,14 +426,15 @@ Section CMDC.
     }
 
     iNext. subst rmap'.
-    iIntros (W2_B rmap' stk_mem_l stk_mem_h)
-      "(%HW1_pubB_W2 & %Hdom_rmap'
-      & Hna & #Hinterp_csp & %Hcsp_bounds
-      & HWstd_full_B & HWreg_B & Hclose_reg_B'
-      & Hcstk_frag & _
+    iIntros (W2_B rmap' stk_mem l)
+      "( _ & _
+      & %HW1_pubB_W2 & Hrel_stk_B & %Hdom_rmap' & Hclose_reg_B
+      & Hna & %Hcsp_bounds
+      & HWstd_full_B & HWreg_B
+      & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk_l & Hstk_h & HK)".
+      & Hrmap & Hstk & HK)" ; clear l.
     iEval (cbn) in "HPC".
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
@@ -522,9 +523,13 @@ Section CMDC.
     }
 
     (* we open the world to get the points-to predicate *)
-    iDestruct (region_open_next with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]")
-      as (wcgp_b) "(HWreg_B & HWsts_full_B & HWstd_full_B & Hcpg_b & HmonoR & #Hinterp_wcpgb & _)"
-    ; eauto ; first done.
+    iDestruct (
+       region_open_perm with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]"
+      ) as (v) "(HWreg_B & HWstd_full_B & Hstd_cgp_b & Hcgp_b & _ & HmonoR & #Hinterp_wcpgb)"; auto.
+    {
+      eapply (monotone.region_state_priv_perm W2_B); eauto.
+      eapply revoke_related_sts_priv_world.
+    }
 
     (* Store cgp 42%Z *)
     iInstr "Hcode".
@@ -621,12 +626,7 @@ Section CMDC.
     repeat (rewrite -delete_insert_ne //).
 
     set (rmap'' := (delete ca5 _)).
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk_l $Hcgp_c]") as "%Hcgp_c_stk_l".
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk_h $Hcgp_c]") as "%Hcgp_c_stk_h".
-    assert (cgp_c ∉ finz.seq_between csp_b csp_e) as Hcgp_c_stk.
-    { rewrite (finz_seq_between_split _ (csp_b ^+ 4)%a) ; last solve_addr+Hcsp_bounds.
-      set_solver+Hcgp_c_stk_h Hcgp_c_stk_l.
-    }
+    iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_c]") as "%Hcgp_c_stk".
 
     (* We add the newly shared address in the world of C *)
     iMod (extend_region_perm _ _ _ _ _ RW interpC
@@ -729,11 +729,7 @@ Section CMDC.
       iApply closing_revoked_from_rel_stack;eauto.
     }
 
-    iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
-    iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
-    iDestruct (region_pointsto_split with "[$Hstk_l $Hstk_h]") as "Hstk".
-    { solve_addr+Hcsp_bounds. }
-    { by rewrite finz_seq_between_length in Hlen_stk_l. }
+    iDestruct ( big_sepL2_length with "Hstk" ) as "%Hlen_stk".
 
     iApply (switcher_cc_specification _ W3 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
@@ -751,15 +747,16 @@ Section CMDC.
       destruct ( decide (r ∈ dom_arg_rmap 1) ); done.
     }
 
-    iNext. subst rmap''.
-    iIntros (W4_C rmap'' stk_mem_l' stk_mem_h')
-      "(%HW1_pubC_W4 & %Hdom_rmap''
-      & Hna & #Hinterp_csp' & _
-      & HWstd_full_C & HWreg_C & Hclose_reg_C
-      & Hcstk_frag & _
+    iNext. subst rmap''. clear dependent stk_mem.
+    iIntros (W4_C rmap'' stk_mem l)
+      "( _ & _
+      & %HW1_pubC_4 & Hrel_stk_C & %Hdom_rmap'' & Hclose_reg_C
+      & Hna & _
+      & HWstd_full_C & HWreg_C
+      & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-      & [%warg0' [Hca0 _] ] & [%warg1' [Hca1 _] ]
-      & Hrmap & Hstk_l & Hstk_h & HK)".
+      & [%warg'0 [Hca0 _] ] & [%warg1' [Hca1 _] ]
+      & Hrmap & Hstk & HK)" ; clear l.
     iEval (cbn) in "HPC".
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
