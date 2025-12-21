@@ -1,71 +1,30 @@
-From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
+From cap_machine Require Import machine_parameters assembler.
 
 Section Fetch.
-  Context
-    {Σ : gFunctors}
-      {ceriseg: ceriseG Σ}
-      {MP: MachineParameters}
-  .
+  Import Asm_Griotte.
+  Local Coercion Z.of_nat : nat >-> Z.
+  Context `{MP: MachineParameters}.
 
-  (* --------------------------------------------------------------------------------- *)
-  (* ------------------------------------- FETCH ------------------------------------- *)
-  (* --------------------------------------------------------------------------------- *)
-
+  (* Expects r1 := e_stk ; r2 := a_stk *)
   (** Fetch the value at the address (pc_b + n).
      - rdst contains the fetched value.
      - rscratch1 and rscratch2 are both clobbered.
    **)
-  Definition fetch_instrs (n : Z) (rdst rscratch1 rscratch2 : RegName) : list Word :=
-    encodeInstrsW [
-      Mov rdst PC;
-      GetB rscratch1 rdst;
-      GetA rscratch2 rdst;
-      Sub rscratch1 rscratch1 rscratch2;
-      Lea rdst rscratch1;
-      Lea rdst n;
-      Load rdst rdst;
-      Mov rscratch1 0%Z;
-      Mov rscratch2 0%Z
+  Definition fetch_asm (n : Z) (rdst rscratch1 rscratch2 : RegName) : list asm_code :=
+    [
+      mov rdst PC;
+      getb rscratch1 rdst;
+      geta rscratch2 rdst;
+      sub rscratch1 rscratch1 rscratch2;
+      lea rdst rscratch1;
+      lea rdst n;
+      load rdst rdst;
+      mov rscratch1 0;
+      mov rscratch2 0
     ].
 
-  Lemma fetch_spec
-    (n : Z) (rdst rscratch1 rscratch2 : RegName)
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (wentry wdst w1 w2 : Word)
-    (φ : language.val cap_lang → iPropI Σ) :
-
-    let fetch := (fetch_instrs n rdst rscratch1 rscratch2) in
-    let a_last := (pc_a ^+ length fetch)%a in
-    executeAllowed pc_p = true →
-    SubBounds pc_b pc_e pc_a a_last →
-    withinBounds pc_b pc_e (pc_b ^+ n)%a = true ->
-
-    ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-    ∗ ▷ rdst ↦ᵣ wdst
-    ∗ ▷ rscratch1 ↦ᵣ w1
-    ∗ ▷ rscratch2 ↦ᵣ w2
-    ∗ ▷ codefrag pc_a fetch
-    ∗ ▷ (pc_b ^+ n)%a ↦ₐ wentry
-    ∗ ▷ (PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
-         ∗ rdst ↦ᵣ load_word pc_p wentry
-         ∗ rscratch1 ↦ᵣ WInt 0%Z
-         ∗ rscratch2 ↦ᵣ WInt 0%Z
-         ∗ codefrag pc_a fetch
-         ∗ (pc_b ^+ n)%a ↦ₐ wentry
-         -∗ WP Seq (Instr Executable) {{ φ }})
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
-  Proof.
-    intros fetch a_last ; subst fetch a_last.
-    iIntros (Hvpc Hcont Hpc_n)
-      "(>HPC & >Hrdst & >Hrscratch1 & >Hrscratch2 & >Hprog & >Hpc_bn & Hφ)".
-    iDestruct (big_sepL2_length with "Hprog") as %Hlength.
-    codefrag_facts "Hprog".
-    rename H into HcontRegion; clear H0.
-    assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea;[solve_addr|].
-    assert ((pc_b + n)%a = Some (pc_b ^+ n)%a) as Hpc_bn;[solve_addr|].
-    iGo "Hprog".
-    iApply "Hφ"; iFrame.
-  Qed.
-
+  Definition fetch (n : Z) (rdst rscratch1 rscratch2 : RegName) :=
+    Eval compute in assemble (fetch_asm n rdst rscratch1 rscratch2).
+  Definition fetch_instrs (n : Z) (rdst rscratch1 rscratch2 : RegName) : list Word :=
+    encodeInstrsW (fetch n rdst rscratch1 rscratch2).
 End Fetch.

@@ -153,20 +153,22 @@ Section Switcher.
       ]
     ].
 
-  Definition switcher_asm : list (list asm_code) :=
+  Definition switcher_asm_pre : list (list asm_code) :=
     switcher_call_asm ++
     switcher_callback_asm ++
     switcher_failure_asm.
 
-  Definition assembled_switcher' :=
-    Eval vm_compute in assemble_block switcher_asm.
+  Definition switcher_asm_env :=
+    Eval vm_compute in (compute_asm_code_env (concat switcher_asm_pre)).2.
+  Definition switcher_labels :=
+    Eval cbn in (compute_asm_code_env (concat switcher_asm_pre)).2.
+  Definition switcher_asm :=
+    Eval compute in resolve_labels_block switcher_asm_pre switcher_asm_env.
   Definition assembled_switcher :=
-    Eval cbv in (revert_regs_code_block assembled_switcher').
+    Eval compute in assemble_block switcher_asm.
   Definition switcher_instrs : list Word :=
    concat (encodeInstrsW <$> assembled_switcher).
 
-  Definition switcher_labels :=
-    Eval cbn in (compute_asm_code_env (concat switcher_asm)).2.
 
   Definition switcher_call_instrs :=
       Eval compute in
