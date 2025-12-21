@@ -189,6 +189,7 @@ Section switcher_macros.
       repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
       iFrame. cbn.
       destruct (decide (_ ∈ ∅)) as [Hcontra|]; first set_solver+Hcontra.
+      rewrite /is_arg_rmap /dom_arg_rmap; cbn.
       repeat iSplit;[|done..|done].
       iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
 
@@ -292,66 +293,5 @@ Section switcher_macros.
     exfalso. lia.
   Qed.
 
-  Lemma clear_registers_pre_call_spec
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (rmap : Reg) φ :
-    executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_instrs)%a ->
-
-    dom rmap = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ->
-
-    ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
-      ∗ codefrag pc_a clear_registers_pre_call_instrs
-      ∗ ▷ ( (∃ (rmap' : Reg),
-              ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ PC ; cra ; cgp ; csp ]}) ⌝
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ codefrag pc_a clear_registers_pre_call_instrs)
-               -∗ WP Seq (Instr Executable) {{ φ }})
-    )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
-  Proof.
-    iIntros (Hx Hbounds Hdom) "(HPC & Hregs & Hcode & Hcont)".
-
-    iAssert ([∗ map] r↦_ ∈ rmap, ∃ w, r ↦ᵣ w)%I with "[Hregs]" as "Hregs".
-    { iApply (big_sepM_mono with "Hregs"). intros. eauto. }
-
-    iDestruct (big_sepM_dom with "Hregs") as "Hregs".
-    rewrite Hdom.
-
-    iDestruct (big_sepS_delete _ _ cnull with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ ctp with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ ct1 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ ct2 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs0 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs1 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ ca6 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ ca7 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs2 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs3 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs4 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs5 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs6 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs7 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs8 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs9 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs10 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ cs11 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ ct3 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ ct4 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ ct5 with "Hregs") as "[[% ?] Hregs]";[set_solver|].
-    iDestruct (big_sepS_delete _ _ ct6 with "Hregs") as "[[% ?] _]";[set_solver|].
-
-    codefrag_facts "Hcode". clear H0.
-    iGo "Hcode".
-
-    iApply "Hcont".
-    iExists (<[cnull:=_]> (<[ctp:=_]> (<[ct1:=_]> (<[ct2:=_]> (<[cs0:=_]> (<[cs1:=_]> (<[ca6:=_]> (<[ca7:=_]> (<[cs2:=_]> (<[cs3:=_]> (<[cs4:=_]> (<[cs5:=_]> (<[cs6:=_]> (<[cs7:=_]> (<[cs8:=_]> (<[cs9:=_]> (<[cs10:=_]> (<[cs11:=_]> (<[ct3:=_]> (<[ct4:=_]> (<[ct5:=_]> (<[ct6:=_]> ∅)))))))))))))))))))))).
-    repeat (rewrite big_sepM_insert;[|by simplify_map_eq]).
-    iFrame. iSplit.
-    { iPureIntro. rewrite !dom_insert_L. set_solver. }
-    repeat (iSplit;[done|]). done.
-  Qed.
 
 End switcher_macros.

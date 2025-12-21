@@ -5,79 +5,45 @@ Section ClearStackMacro.
   Local Coercion Z.of_nat : nat >-> Z.
   Context `{MP: MachineParameters}.
 
+  Definition rclear_asm (l : list RegName) : list asm_code :=
+  (fun r => mov r 0) <$> l.
+  Definition rclear (l : list RegName) : list instr :=
+    Eval cbn in assemble (rclear_asm l).
+  Definition rclear_instrs (l : list RegName) : list Word :=
+    encodeInstrsW (rclear l).
+  Definition rclear_instrs' (l : list RegName) : list Word
+    := (fun r => (encodeInstrW (machine_base.Mov r (inl 0%Z)))) <$> l.
+
+  Definition registers_pre_call_skip : list RegName :=
+    [ca0;ca1;ca2;ca3;ca4;ca5;ct0].
   Definition clear_registers_pre_call_skip_asm : list asm_code :=
-    [ jmp ct2;
-      mov ca0 0;
-      mov ca1 0;
-      mov ca2 0;
-      mov ca3 0;
-      mov ca4 0;
-      mov ca5 0;
-      mov ct0 0
-    ].
+    [ jmp ct2 ] ++ rclear_asm registers_pre_call_skip.
   Definition clear_registers_pre_call_skip : list instr :=
     Eval compute in assemble clear_registers_pre_call_skip_asm.
   Definition clear_registers_pre_call_skip_instrs : list Word :=
     encodeInstrsW clear_registers_pre_call_skip.
 
-  Definition clear_registers_pre_call_asm : list asm_code :=
-    [
-      mov cnull 0;
-      mov ctp 0;
-      mov ct1 0;
-      mov ct2 0;
-      mov cs0 0;
-      mov cs1 0;
-      mov ca6 0;
-      mov ca7 0;
-      mov cs2 0;
-      mov cs3 0;
-      mov cs4 0;
-      mov cs5 0;
-      mov cs6 0;
-      mov cs7 0;
-      mov cs8 0;
-      mov cs9 0;
-      mov cs10 0;
-      mov cs11 0;
-      mov ct3 0;
-      mov ct4 0;
-      mov ct5 0;
-      mov ct6 0
+  Definition registers_pre_call : list RegName :=
+    [cnull;
+     ctp; ct1; ct2; cs0; cs1; ca6; ca7;
+     cs2; cs3; cs4; cs5; cs6; cs7; cs8; cs9; cs10; cs11;
+     ct3; ct4; ct5; ct6
     ].
+  Definition clear_registers_pre_call_asm : list asm_code :=
+    rclear_asm registers_pre_call.
   Definition clear_registers_pre_call : list instr :=
     Eval compute in assemble clear_registers_pre_call_asm.
   Definition clear_registers_pre_call_instrs : list Word :=
     encodeInstrsW clear_registers_pre_call.
 
+  Definition registers_post_call : list RegName :=
+    [ct0; cnull;
+     ctp; ct1; ct2; ct3; ct4; ct5; ct6;
+     ca2; ca3; ca4; ca5; ca6; ca7;
+     cs2; cs3; cs4; cs5; cs6; cs7; cs8; cs9; cs10; cs11
+    ].
   Definition clear_registers_post_call_asm : list asm_code :=
-    [
-        mov ct0 0;
-        mov cnull 0;
-        mov ctp 0;
-        mov ct1 0;
-        mov ct2 0;
-        mov ct3 0;
-        mov ct4 0;
-        mov ct5 0;
-        mov ct6 0;
-        mov ca2 0;
-        mov ca3 0;
-        mov ca4 0;
-        mov ca5 0;
-        mov ca6 0;
-        mov ca7 0;
-        mov cs2 0;
-        mov cs3 0;
-        mov cs4 0;
-        mov cs5 0;
-        mov cs6 0;
-        mov cs7 0;
-        mov cs8 0;
-        mov cs9 0;
-        mov cs10 0;
-        mov cs11 0
-      ].
+    rclear_asm registers_post_call.
   Definition clear_registers_post_call : list instr :=
     Eval compute in assemble clear_registers_post_call_asm.
   Definition clear_registers_post_call_instrs : list Word :=
