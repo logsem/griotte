@@ -23,17 +23,8 @@ Section ClearRegistersMacro.
   Implicit Types C : CmptName.
 
   Definition dom_arg_rmap (nargs : nat) : gset RegName :=
-    match nargs with
-    | 0 => ∅
-    | 1 => {[ ca0 ]}
-    | 2 => {[ ca0 ; ca1 ]}
-    | 3 => {[ ca0 ; ca1 ; ca2 ]}
-    | 4 => {[ ca0 ; ca1 ; ca2 ; ca3 ]}
-    | 5 => {[ ca0 ; ca1 ; ca2 ; ca3 ; ca4 ]}
-    | 6 => {[ ca0 ; ca1 ; ca2 ; ca3 ; ca4 ; ca5 ]}
-    | _ => {[ ca0 ; ca1 ; ca2 ; ca3 ; ca4 ; ca5 ; ct0 ]}
-    end.
-
+    let rargs := [ca0 ; ca1 ; ca2 ; ca3 ; ca4 ; ca5 ; ct0] in
+    list_to_set (firstn nargs rargs).
 
   Definition is_arg_rmap (rmap : Reg) (nargs : nat) :=
     dom rmap = dom_arg_rmap nargs.
