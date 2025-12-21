@@ -73,6 +73,8 @@ int __cheri_compartment("known") run()
     encodeInstrsW [
         Mov ct1 ca1 (* ct1 := fun_g *)
       ]
+      (* TODO: macro [check_stack_object] instead *)
+      (* we also need to explicitly check that it does not point upward *)
       ++ checkra_instrs ca0 cs0 cs1
       ++ checkints_instrs ca0 cs0 cs1
       ++ encodeInstrsW [

@@ -139,19 +139,6 @@ Section SO.
     { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
     { solve_addr. }
 
-    (* Revoke the world to get the stack frame *)
-    set ( csp_b := (csp_b' ^+ 4)%a ).
-    set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
-    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
-
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
-
-    set (W1 := revoke W0).
-    assert (related_sts_priv_world W0 W1) as Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
-
-
     (* --------------------------------------------------- *)
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
@@ -176,7 +163,7 @@ Section SO.
     focus_block 4 "Hcode_main" as a_checkra Ha_checkra "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_f.
     iApply (checkra_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     iSplitL; last ( iNext ; iIntros (?); done).
-    iNext ; iIntros "H"; iDestruct "H" as (p g b e a) "(%Hp & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
+    iNext ; iIntros "H"; iDestruct "H" as (p g b e a) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* ------------------------------------------------------- *)
@@ -184,7 +171,24 @@ Section SO.
     (* ------------------------------------------------------- *)
     focus_block 5 "Hcode_main" as a_checkints Ha_checkints "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_checkra.
-    iAssert (interp )
+    iAssert (interp W0 C (WCap p g b e a)) as "#Hinterp_wca0_W0".
+    { iApply "Hinterp_rmap"; eauto.
+      cbn; set_solver+.
+    }
+
+    (* Revoke the world to get the stack frame *)
+    set ( csp_b := (csp_b' ^+ 4)%a ).
+    set (stk_frame_addrs := finz.seq_between csp_b csp_e).
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
+
+    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
+        as (l) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
+
+    set (W1 := revoke W0).
+    assert (related_sts_priv_world W0 W1) as Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
+
+(* https://github.com/logsem/cerise-stack-monotone/blob/dff1909f6abc6de99c28d8f12e903b98dd76fb41/theories/examples/stack_object_helpers.v#L223 *)
     iApply (checkints_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
 
     (* -- separate argument registers -- *)
