@@ -10,3 +10,7 @@ doc:
 
 clean:
 	dune clean
+
+# Adapted from https://github.com/AbsInt/CompCert/blob/master/Makefile
+check-admitted:
+	@grep -w 'admit\|Admitted\|ADMITTED' -r ./theories ./machine_utils/theories || echo "Nothing admitted."
