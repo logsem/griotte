@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel interp_weakening monotone.
 From cap_machine Require Import cmdc cmdc_spec.
-From cap_machine Require Import switcher assert logrel.
+From cap_machine Require Import switcher assert_spec logrel.
 From cap_machine Require Import mkregion_helpers.
 From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
 From iris.program_logic Require Import adequacy.
@@ -343,12 +343,12 @@ Section Adequacy.
     rewrite /cmpt_assert_code_mregion.
     iDestruct (mkregion_prepare with "[Hassert]") as ">Hassert"; auto.
     { apply (assert_code_size assert_cmpt). }
-    iAssert (assert.assert_inv
+    iAssert (assert_inv
                (b_assert assert_cmpt)
                (e_assert assert_cmpt)
                (flag_assert assert_cmpt))
             with "[Hassert Hassert_cap]" as "Hassert".
-    { rewrite /assert.assert_inv. iExists (cap_assert assert_cmpt).
+    { rewrite /assert_inv. iExists (cap_assert assert_cmpt).
       rewrite /codefrag /region_pointsto.
       replace (b_assert assert_cmpt ^+ length assert_subroutine_instrs)%a
         with (cap_assert assert_cmpt).

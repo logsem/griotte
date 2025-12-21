@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
 From cap_machine Require Import logrel logrel_extra rules.
-From cap_machine Require Import fetch switcher_spec_call counter.
+From cap_machine Require Import fetch_spec switcher_spec_call counter.
 From cap_machine Require Import switcher_spec_return.
 From cap_machine Require Import proofmode.
 
