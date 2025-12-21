@@ -21,66 +21,66 @@ Section cap_lang_rules.
       z_of_argument regs src = None →
       Restrict_failure regs dst src
   | Restrict_fail_allowed w:
-      regs !! dst = Some w →
+      regs !!ᵣ dst = Some w →
       is_mutable_range w = false →
       Restrict_failure regs dst src
   | Restrict_fail_invalid_perm_cap p g b e a n p' g':
-      regs !! dst = Some (WCap p g b e a) →
+      regs !!ᵣ dst = Some (WCap p g b e a) →
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       PermFlowsTo p' p = false →
       Restrict_failure regs dst src
   | Restrict_fail_invalid_loc_cap p g b e a n p' g':
-      regs !! dst = Some (WCap p g b e a) →
+      regs !!ᵣ dst = Some (WCap p g b e a) →
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       LocalityFlowsTo g' g = false →
       Restrict_failure regs dst src
   | Restrict_fail_PC_overflow_cap p g b e a n p' g':
-      regs !! dst = Some (WCap p g b e a) →
+      regs !!ᵣ dst = Some (WCap p g b e a) →
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       PermFlowsTo p' p = true →
       LocalityFlowsTo g' g = true →
-      incrementPC (<[ dst := WCap p' g' b e a ]> regs) = None →
+      incrementPC (<[ dst := WCap p' g' b e a ]ᵣ> regs) = None →
       Restrict_failure regs dst src
   | Restrict_fail_invalid_perm_sr p g b e a n p' g':
-      regs !! dst = Some (WSealRange p g b e a) →
+      regs !!ᵣ dst = Some (WSealRange p g b e a) →
       z_of_argument regs src = Some n →
       (p',g') = (decodeSealPermPair n) ->
       SealPermFlowsTo p' p = false →
       Restrict_failure regs dst src
   | Restrict_fail_invalid_loc_sr p g b e a n p' g':
-      regs !! dst = Some (WSealRange p g b e a) →
+      regs !!ᵣ dst = Some (WSealRange p g b e a) →
       z_of_argument regs src = Some n →
       (p',g') = (decodeSealPermPair n) ->
       LocalityFlowsTo g' g = false →
       Restrict_failure regs dst src
   | Restrict_fail_PC_overflow_sr p g b e a n p' g':
-      regs !! dst = Some (WSealRange p g b e a) →
+      regs !!ᵣ dst = Some (WSealRange p g b e a) →
       z_of_argument regs src = Some n →
       (p',g') = (decodeSealPermPair n) ->
       SealPermFlowsTo p' p = true →
       LocalityFlowsTo g' g = true →
-      incrementPC (<[ dst := WSealRange p' g' b e a ]> regs) = None →
+      incrementPC (<[ dst := WSealRange p' g' b e a ]ᵣ> regs) = None →
       Restrict_failure regs dst src.
 
   Inductive Restrict_spec (regs: Reg) (dst: RegName) (src: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
   | Restrict_spec_success_cap p g b e a n p' g':
-      regs !! dst = Some (WCap p g b e a) →
+      regs !!ᵣ dst = Some (WCap p g b e a) →
       z_of_argument regs src = Some n →
       (p',g') = (decodePermPair n) ->
       PermFlowsTo p' p = true →
       LocalityFlowsTo g' g = true →
-      incrementPC (<[ dst := WCap p' g' b e a ]> regs) = Some regs' →
+      incrementPC (<[ dst := WCap p' g' b e a ]ᵣ> regs) = Some regs' →
       Restrict_spec regs dst src regs' NextIV
   | Restrict_spec_success_sr p g b e a n p' g':
-      regs !! dst = Some (WSealRange p g b e a) →
+      regs !!ᵣ dst = Some (WSealRange p g b e a) →
       z_of_argument regs src = Some n →
       (p',g') = (decodeSealPermPair n) ->
       SealPermFlowsTo p' p = true →
       LocalityFlowsTo g' g = true →
-      incrementPC (<[ dst := WSealRange p' g' b e a ]> regs) = Some regs' →
+      incrementPC (<[ dst := WSealRange p' g' b e a ]ᵣ> regs) = Some regs' →
       Restrict_spec regs dst src regs' NextIV
   | Restrict_spec_failure:
       Restrict_failure regs dst src →
@@ -153,10 +153,10 @@ Section cap_lang_rules.
         ; iFailWP "Hφ" Restrict_fail_invalid_loc_cap. }
       rewrite /update_reg /= in Hstep.
 
-      destruct (incrementPC (<[ dst := WCap p' g' b e a ]> regs)) eqn:Hregs';
+      destruct (incrementPC (<[ dst := WCap p' g' b e a ]ᵣ> regs)) eqn:Hregs';
         pose proof Hregs' as H'regs'; cycle 1.
       {
-        assert (incrementPC (<[ dst := WCap p' g' b e a ]> r) = None) as HH.
+        assert (incrementPC (<[ dst := WCap p' g' b e a ]ᵣ> r) = None) as HH.
         { eapply incrementPC_overflow_mono; first eapply Hregs'.
           + by rewrite lookup_insert_is_Some'; eauto.
           + by apply insert_mono; eauto.
@@ -176,6 +176,7 @@ Section cap_lang_rules.
 
       iFrame.
       iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+      { apply is_Some_lookup_reg; done. }
       iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
       iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
     (* Now, the case where wsrc is a sealrange *)
@@ -189,10 +190,10 @@ Section cap_lang_rules.
       { destruct p; try congruence; inv Hstep ; iFailWP "Hφ" Restrict_fail_invalid_loc_sr. }
       rewrite /update_reg /= in Hstep.
 
-      destruct (incrementPC (<[ dst := WSealRange p' g' b e a ]> regs)) eqn:Hregs';
+      destruct (incrementPC (<[ dst := WSealRange p' g' b e a ]ᵣ> regs)) eqn:Hregs';
         pose proof Hregs' as H'regs'; cycle 1.
       {
-        assert (incrementPC (<[ dst := WSealRange p' g' b e a ]> r) = None) as HH.
+        assert (incrementPC (<[ dst := WSealRange p' g' b e a ]ᵣ> r) = None) as HH.
         { eapply incrementPC_overflow_mono; first eapply Hregs'.
           + by rewrite lookup_insert_is_Some'; eauto.
           + by apply insert_mono; eauto.
@@ -211,6 +212,7 @@ Section cap_lang_rules.
 
       iFrame.
       iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+      { apply is_Some_lookup_reg; done. }
       iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
       iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor 2; eauto.
   Qed.
@@ -222,6 +224,7 @@ Section cap_lang_rules.
     (p',g') = (decodePermPair z) ->
     PermFlowsTo p' pc_p = true →
     LocalityFlowsTo g' pc_g = true →
+    rv ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
          ∗ ▷ pc_a ↦ₐ w
@@ -232,7 +235,7 @@ Section cap_lang_rules.
            ∗ pc_a ↦ₐ w
            ∗ rv ↦ᵣ WInt z }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' HdecPair HPflows HLflows ϕ) "(>HPC & >Hpc_a & >Hrv) Hφ".
+     iIntros (Hinstr Hvpc Hpca' HdecPair HPflows HLflows Hcnull ϕ) "(>HPC & >Hpc_a & >Hrv) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hrv") as "[Hmap %]".
      iApply (wp_Restrict with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -241,15 +244,22 @@ Section cap_lang_rules.
      destruct Hspec as [| | * Hfail].
      { (* Success *)
        iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-       rewrite !insert_insert.
-       simplify_pair_eq.
+       rewrite lookup_reg_not_cnull in H0; last done.
+       rewrite lookup_reg_not_cnull in H1; last done.
+       rewrite lookup_insert in H5; simplify_eq.
+       simplify_map_eq; simplify_pair_eq; rewrite !insert_insert.
        iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
      }
      { (* Success with WSealRange (contradiction) *)
+       rewrite lookup_reg_not_cnull in H0; last done.
        simplify_map_eq. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       incrementPC_inv; simplify_map_eq; eauto. congruence. }
+       all: ( repeat (match goal with
+              | H : context [ ?m !!ᵣ _ ] |- _
+                => (rewrite !lookup_reg_not_cnull in H; last done)
+              end)); simplify_map_eq; eauto; try congruence.
+       incrementPC_inv; simplify_map_eq; eauto; last (by rewrite lookup_insert). congruence. }
    Qed.
 
    Lemma wp_restrict_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_a' w r1 rv p g b e a z p' g' :

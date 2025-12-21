@@ -43,7 +43,6 @@ Module Asm_Griotte.
   | Jmp (rimm: asm_expr + RegName)
   | Jnz (rimm : asm_expr + RegName) (rcond: RegName)
   | Jalr (rdst: RegName) (rsrc: RegName)
-  | JmpCap (rsrc: RegName) (* XXX: temporary, remove when support for cnull *)
   | Mov (dst: RegName) (src: asm_expr + RegName)
   | Load (dst src: RegName)
   | Store (dst: RegName) (src: asm_expr + RegName)
@@ -140,8 +139,6 @@ Module Asm_Griotte.
         Some (Jnz rimm' rcond)
     | Jalr rdst rsrc =>
         Some (Jalr rdst rsrc)
-    | JmpCap rsrc =>
-        Some (JmpCap rsrc)
     | Mov dst src  =>
         src ← resolve_labels_arg src env current_n;
         Some (Mov dst src)
@@ -289,8 +286,6 @@ Module Asm_Griotte.
         Some (machine_base.Jnz rimm' rcond)
     | Jalr rdst rsrc =>
         Some (machine_base.Jalr rdst rsrc)
-    | JmpCap rsrc =>
-        Some (machine_base.JmpCap rsrc)
     | Mov dst src  =>
         src ← assemble_arg src env;
         Some (machine_base.Mov dst src)
@@ -474,9 +469,6 @@ Module Asm_Griotte.
         let rdst := revert_regs rdst in
         let rsrc := revert_regs rsrc in
         (machine_base.Jalr rdst rsrc)
-    | machine_base.JmpCap rsrc =>
-        let rsrc := revert_regs rsrc in
-        (machine_base.JmpCap rsrc)
     | machine_base.Mov dst src  =>
         let dst := revert_regs dst in
         let src := revert_regs_arg src in
@@ -623,7 +615,6 @@ Module Asm_Griotte.
   Definition jnz rimm rcond := (ASM_Instr (Jnz rimm rcond)).
   Definition jalr rdst rsrc := (ASM_Instr (Jalr rdst rsrc)).
 
-  Definition jmpcap rsrc := (ASM_Instr (JmpCap rsrc)). (* XXX: temporary, remove when support for cnull *)
   Definition mov dst src  := (ASM_Instr (Mov dst src)).
   Definition load dst src := (ASM_Instr (Load dst src)).
   Definition store dst src := (ASM_Instr (Store dst src)).

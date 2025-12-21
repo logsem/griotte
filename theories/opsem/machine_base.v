@@ -122,9 +122,6 @@ Inductive instr: Type :=
 | Jmp (rimm: Z + RegName)
 | Jnz (rimm : Z + RegName) (rcond: RegName)
 | Jalr (rdst: RegName) (rsrc: RegName) (* jumps to wsrc, rdst receives return cap *)
-(* TODO temporary instruction, waiting for CNULL.
-   Jumps to wsrc, similar to jalr, but does not create a return cap *)
-| JmpCap (rsrc: RegName)
 | Mov (dst: RegName) (src: Z + RegName)
 | Load (dst src: RegName)
 | Store (dst: RegName) (src: Z + RegName)
@@ -1541,7 +1538,6 @@ Proof.
       | LShiftL dst r1 r2 => GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | LShiftR dst r1 r2 => GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | Jalr dst src => GenNode 29 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))]
-      | JmpCap src => GenNode 30 [GenLeaf (inl (inl src))]
       end).
   set (dec := fun e =>
       match e with
@@ -1577,7 +1573,6 @@ Proof.
       | GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftL dst r1 r2
       | GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftR dst r1 r2
       | GenNode 29 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))] => Jalr dst src
-      | GenNode 30 [GenLeaf (inl (inl src))] => JmpCap src
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).
@@ -1613,4 +1608,59 @@ Proof.
   ; first (destruct (decide (readAllowedWord w)), (decide (hasValidAddress w a)))
   ; try ( (right; intros [w1 (Heq & ? & ?)]; inversion Heq; congruence ) ).
   left; eexists _; auto.
+Qed.
+
+(** Register file: CNULL always contains 0 *)
+
+Definition lookup_reg (r : RegName) (regs : Reg) : option Word :=
+  w ← (regs !! r);
+  Some (if (bool_decide (r = cnull)) then (WInt 0) else w).
+Definition insert_reg (r : RegName) (w : Word) (regs : Reg) : Reg :=
+  let w' := if (bool_decide (r = cnull)) then (WInt 0) else w in
+  <[r:=w']>regs.
+
+Notation "m !!ᵣ i" := (lookup_reg i m) (at level 20) : stdpp_scope.
+Notation "(!!ᵣ)" := lookup_reg (only parsing) : stdpp_scope.
+Notation "( m !!ᵣ.)" := (λ i, m !!ᵣ i) (only parsing) : stdpp_scope.
+Notation "(.!!ᵣ i )" := (lookup_reg i) (only parsing) : stdpp_scope.
+Notation "<[ k := a ]ᵣ>" := (insert_reg k a)
+  (at level 5, right associativity, format "<[ k := a ]ᵣ>") : stdpp_scope.
+
+Lemma is_Some_lookup_reg (regs : Reg) ( r : RegName ) :
+  (is_Some (regs !!ᵣ r)) <-> (is_Some (regs !! r)).
+Proof.
+  rewrite /lookup_reg.
+  destruct (regs !! r); cbn; done.
+Qed.
+Lemma lookup_reg_not_cnull (regs : Reg) (r : RegName) :
+  r ≠ cnull -> regs !!ᵣ r = regs !! r.
+Proof.
+  intros Hr.
+  rewrite /lookup_reg.
+  destruct (regs !! r) ; cbn ; last done.
+  destruct (bool_decide (r = cnull)) eqn:Hdec; cbn in *; try done.
+  apply bool_decide_eq_true in Hdec; done.
+Qed.
+
+Lemma elem_of_dom_reg (regs : Reg) (r : RegName) :
+  r ∈ dom regs ↔ is_Some (regs !!ᵣ r).
+Proof.
+  split; rewrite /lookup_reg; intros Hr.
+  + rewrite elem_of_dom in Hr; destruct Hr as [w Hr].
+    rewrite Hr; cbn; done.
+  + rewrite elem_of_dom.
+    destruct (regs !! r) eqn:Hr'; rewrite Hr'; cbn in *; first done.
+    by apply is_Some_None in Hr.
+Qed.
+
+Lemma lookup_reg_weaken (regs1 regs2 : Reg) (r : RegName) (w : Word) :
+  regs1 !!ᵣ r = Some w → regs1 ⊆ regs2 → regs2 !!ᵣ r = Some w.
+Proof.
+  intros Hr1 Hincl.
+  rewrite /lookup_reg in Hr1.
+  rewrite /lookup_reg.
+  destruct (regs1 !! r) eqn:Hr; cbn in *; last done.
+  eapply lookup_weaken in Hr; eauto.
+  rewrite Hr; cbn.
+  done.
 Qed.

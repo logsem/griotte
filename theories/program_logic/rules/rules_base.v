@@ -909,13 +909,13 @@ Lemma indom_regs_incl D (regs regs': Reg) :
   D ⊆ dom regs →
   regs ⊆ regs' →
   ∀ r, r ∈ D →
-       ∃ (w:Word), (regs !! r = Some w) ∧ (regs' !! r = Some w).
+       ∃ (w:Word), (regs !!ᵣ r = Some w) ∧ (regs' !!ᵣ r = Some w).
 Proof.
   intros * HD Hincl rr Hr.
-  assert (is_Some (regs !! rr)) as [w Hw].
-  { eapply @elem_of_dom with (D := gset RegName); first typeclasses eauto.
+  assert (is_Some (regs !!ᵣ rr)) as [w Hw].
+  { eapply elem_of_dom_reg.
     eapply elem_of_subseteq; eauto. }
-  exists w. split; auto. eapply lookup_weaken; eauto.
+  exists w. split; auto. eapply lookup_reg_weaken; eauto.
 Qed.
 
 Definition sregs_of (i: instr): gset SRegName :=
