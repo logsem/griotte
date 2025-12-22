@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
-From cap_machine Require Import fetch_spec assert_spec checkints checkra.
+From cap_machine Require Import fetch_spec assert_spec checkints checkra check_no_overlap_spec.
 From cap_machine Require Import
   switcher interp_switcher_call switcher_spec_call switcher_spec_return.
 From cap_machine Require Import stack_object.
@@ -139,6 +139,11 @@ Section SO.
     { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
     { solve_addr. }
 
+    iAssert (interp W0 C wca0) as "#Hinterp_wca0_W0".
+    { iApply "Hinterp_rmap"; eauto.
+      cbn; set_solver+.
+    }
+
     (* --------------------------------------------------- *)
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
@@ -166,15 +171,21 @@ Section SO.
     iNext ; iIntros "H"; iDestruct "H" as (p g b e a) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* ------------------------------------------------------- *)
-    (* ----------------- BLOCK 5:  CHECKINTS ----------------- *)
-    (* ------------------------------------------------------- *)
-    focus_block 5 "Hcode_main" as a_checkints Ha_checkints "Hcode" "Hcont"; iHide "Hcont" as hcont
+    (* ------------------------------------------------------ *)
+    (* ------------- BLOCK 5:  CHECK_NO_OVERLAP ------------- *)
+    (* ------------------------------------------------------ *)
+    focus_block 5 "Hcode_main" as a_check_overlap Ha_check_overlap "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_checkra.
-    iAssert (interp W0 C (WCap p g b e a)) as "#Hinterp_wca0_W0".
-    { iApply "Hinterp_rmap"; eauto.
-      cbn; set_solver+.
-    }
+    iApply (check_no_overlap_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto.
+    iSplitL; last ( iNext ; iIntros (?); done).
+    iNext ; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hcsp & %Hno_overlap & Hcode)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    (* ------------------------------------------------------- *)
+    (* ----------------- BLOCK 6:  CHECKINTS ----------------- *)
+    (* ------------------------------------------------------- *)
+    focus_block 6 "Hcode_main" as a_checkints Ha_checkints "Hcode" "Hcont"; iHide "Hcont" as hcont
+    ; clear dependent Ha_check_overlap.
 
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
@@ -186,9 +197,55 @@ Section SO.
         as (l) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
 
     set (W1 := revoke W0).
-    assert (related_sts_priv_world W0 W1) as Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
+    assert (related_sts_priv_world W0 W1) as
+      Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
+    iAssert ( ⌜ Forall (fun a => std W !! a = Some Permanent ∨ std W !! a = Some Temporary)
+                (finz.seq_between b e) ⌝)%I
+    as "%Harg_std_states".
+    { admit. (* easy, consequence of RO interp capability *) }
+    set (wca0_temp := filter (fun a => std W !! a = Some Temporary) (finz.seq_between b e)).
+    set (wca0_perma := filter (fun a => std W !! a = Some Permanent) (finz.seq_between b e)).
+    assert ( (finz.seq_between b e) ≡ₚ wca0_perma ++ wca0_temp ) as Hwca0_range.
+    { clear - Harg_std_states.
+      admit. (* should be easy -ish *)
+    }
+    set (l' := filter (fun a => a ∉ wca0_temp) l).
+    assert ( l ≡ₚ wca0_temp ∪ l') as Hl_wca0_l'.
+    { admit. (* should be easy -ish *) }
+    setoid_rewrite Hl_wca0_l'.
+    iDestruct (big_sepL_app with "Hrevoked_l") as "[Hrevoked_wca0_temp Hrevoked_l']".
 
-(* https://github.com/logsem/cerise-stack-monotone/blob/dff1909f6abc6de99c28d8f12e903b98dd76fb41/theories/examples/stack_object_helpers.v#L223 *)
+    rewrite region_open_nil.
+    iDestruct (read_allowed_inv_full_cap with "Hinterp_wca0_W0") as "Hinterp_wca0_invs"; auto.
+    iAssert (
+        ∃ (wca0_invs : list (finz MemNum * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type)),
+          ⌜ (λ '(a, _, _, _), a) <$> wca0_invs = wca0_perma ⌝ ∗
+          ⌜ Forall (λ '(a, _, _, ρ), W !! a = Some ρ) wca0_invs ⌝ ∗
+          ([∗ list] '(a, p, φ, _) ∈ wca0_invs, rel C a p φ)
+      )%I as "(%wca0_invs & %Hwca0_invs_perma & %Hwca0_invs_std_perma & Hrels_wca0)".
+    { admit. (* should be doable *)
+    }
+
+    iDestruct (region_open_list with "[$Hrels_wca0 $Hr_C $Hsts_C]") as
+      "(%wca0_lv & Hr_C & Hsts_C & Hsts_std_wca0 & Hwca0_perma_lv & Hwca0_mono & Hwca0_φs
+     & %Hlength_wca0_lv & Hwca0_pO)".
+    { rewrite Hwca0_invs_perma.
+      admit.
+    }
+    { rewrite Hwca0_invs_perma; set_solver+. }
+    { rewrite !Forall_forall in Hwca0_invs_std_perma |- *.
+      intros [ [ [  ] ] ] Hx; cbn in *; simplify_eq.
+      admit.
+    }
+    { admit. }
+    (* TODO get the points-to as big_sepL2 for wca0_perma out of Hwca0_perma_lv *)
+    (* TODO get the points-to as big_sepL2 for wca0_temp out of Hrevoked_wca0_temp *)
+    (* exists wca0_lvs, [b,e) ↦ₐ [[ lvs ]]  *)
+    (* apply checkints *)
+    (* close the world *)
+    (* update the world with wca0_temp to temporary *)
+    (* and the hard part should be mostly done at that point *)
+
     iApply (checkints_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
 
     (* -- separate argument registers -- *)

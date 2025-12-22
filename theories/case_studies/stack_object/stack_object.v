@@ -1,5 +1,6 @@
 From cap_machine Require Import rules proofmode.
-From cap_machine Require Import check_valid_stack_object fetch assert switcher.
+From cap_machine Require Import fetch assert switcher.
+From cap_machine Require Import checkra checkints check_no_overlap.
 
 Section SO_Main.
   Context `{MP: MachineParameters}.
@@ -77,7 +78,10 @@ int __cheri_compartment("known") run()
       (* we also need to explicitly check that it does not point upward *)
       (* ++ checkra_instrs ca0 cs0 cs1 *)
       (* ++ checkints_instrs ca0 cs0 cs1 *)
-      ++ check_valid_stack_object_instrs ca0 cs0 cs1
+      (* ++ check_valid_stack_object_instrs ca0 cs0 cs1 *)
+      ++ checkra_instrs ca0 cs0 cs1
+      ++ check_no_overlap_instrs ca0 csp cs0 cs1
+      ++ checkints_instrs ca0 cs0 cs1
       ++ encodeInstrsW [
         (* push (secret_val) on csp_b *)
         Store csp so_secret;
