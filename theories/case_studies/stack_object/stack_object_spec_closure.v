@@ -178,7 +178,7 @@ Section SO.
     ; clear dependent Ha_checkra.
     iApply (check_no_overlap_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto.
     iSplitL; last ( iNext ; iIntros (?); done).
-    iNext ; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hcsp & %Hno_overlap & Hcode)".
+    iNext ; iIntros "(HPC & Hca0 & Hcsp & Hcs1 & Hcs0 & %Hno_overlap & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* ------------------------------------------------------- *)
@@ -227,7 +227,7 @@ Section SO.
     }
 
     iDestruct (region_open_list with "[$Hrels_wca0 $Hr_C $Hsts_C]") as
-      "(%wca0_lv & Hr_C & Hsts_C & Hsts_std_wca0 & Hwca0_perma_lv & Hwca0_mono & Hwca0_φs
+      "(%wca0_lv_perma & Hr_C & Hsts_C & Hsts_std_wca0 & Hwca0_perma_lv & Hwca0_mono & Hwca0_φs
      & %Hlength_wca0_lv & Hwca0_pO)".
     { rewrite Hwca0_invs_perma.
       admit.
@@ -238,10 +238,41 @@ Section SO.
       admit.
     }
     { admit. }
-    (* TODO get the points-to as big_sepL2 for wca0_perma out of Hwca0_perma_lv *)
-    (* TODO get the points-to as big_sepL2 for wca0_temp out of Hrevoked_wca0_temp *)
-    (* exists wca0_lvs, [b,e) ↦ₐ [[ lvs ]]  *)
-    (* apply checkints *)
+    iAssert ( [∗ list] a;v ∈ wca0_perma ; wca0_lv_perma, a ↦ₐ v )%I with "[Hwca0_perma_lv]"
+      as "Hwca0_perma_lv".
+    { admit. (* easy, just impl *)
+    }
+    iDestruct (big_sepL_sep with "Hrevoked_wca0_temp") as "[Hrevoked_wca0_temp %Hrevoked_wca0_temp]"
+    .
+    iAssert (
+        ∃ (lp : list Perm)
+          (lφ : list (WORLD * CmptName * Word → iPropI Σ) )
+          (lv : list Word),
+          ([∗ list] φ ∈ lφ, ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝)
+          ∗ ([∗ list] a;pφ ∈ wca0_temp;(zip lp lφ), rel C a pφ.1 pφ.2)
+          ∗ ([∗ list] p ∈ lp, ⌜isO p = false⌝)
+          ∗ ([∗ list] a;v ∈ wca0_temp;lv, a ↦ₐ v)
+          ∗ ([∗ list] lpφ;v ∈ (zip lp lφ);lv,
+               (if isWL lpφ.1
+                then future_pub_mono C lpφ.2 v
+                else (if isDL lpφ.1 then future_pub_mono C lpφ.2 v else future_priv_mono C lpφ.2 v))
+            )
+          ∗ ([∗ list] φ;v ∈ lφ;lv, φ (W,C,v)))%I
+      with "[Hrevoked_wca0_temp]"
+      as (lp lφ wca0_lv_temps) "(Hlφ_pers & #Hlpφ_rels & HlpO & Hwca0_temp_lv & Hlpφ_mono & Hlφ_lv)".
+    { admit. (* very annoying, but should be okay *) }
+    iDestruct (big_sepL2_app with "Hwca0_perma_lv Hwca0_temp_lv") as "Hwca0_lvs".
+    iAssert (∃ wca0_lvs,
+                ⌜ wca0_lvs ≡ₚ wca0_lv_perma ∪ wca0_lv_temps ⌝
+                ∗ [[b,e]] ↦ₐ [[ wca0_lvs ]]
+            )%I with "[Hwca0_lvs]" as (wca0_lvs) "[%Hwca0_lvs_eq Hwca0_lvs]".
+    { admit. (* TODO might be pretty hard to prove... but maybe if generalised + induction *)
+    }
+
+    iApply (checkints_spec with "[- $HPC $Hca0 $Hcs1 $Hcs0 $Hwca0_lvs $Hcode]"); eauto.
+    iSplitL; last ( iNext ; iIntros (?); done).
+    iNext ; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hwca0_lvs & %Hwca0_lvs_ints & Hcode)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     (* close the world *)
     (* update the world with wca0_temp to temporary *)
     (* and the hard part should be mostly done at that point *)
