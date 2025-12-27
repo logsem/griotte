@@ -240,7 +240,8 @@ Section SO.
     { admit. }
     iAssert ( [∗ list] a;v ∈ wca0_perma ; wca0_lv_perma, a ↦ₐ v )%I with "[Hwca0_perma_lv]"
       as "Hwca0_perma_lv".
-    { admit. (* easy, just impl *)
+    { rewrite -Hwca0_invs_perma big_sepL2_fmap_l.
+      admit. (* easy, just impl *)
     }
     iDestruct (big_sepL_sep with "Hrevoked_wca0_temp") as "[Hrevoked_wca0_temp %Hrevoked_wca0_temp]"
     .
@@ -273,11 +274,55 @@ Section SO.
     iSplitL; last ( iNext ; iIntros (?); done).
     iNext ; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hwca0_lvs & %Hwca0_lvs_ints & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    (* close the world *)
-    (* update the world with wca0_temp to temporary *)
-    (* and the hard part should be mostly done at that point *)
+    iAssert (
+        [∗ list] y1;y2 ∈ (wca0_perma ++ wca0_temp);(wca0_lv_perma ++ wca0_lv_temps),
+          y1 ↦ₐ y2
+      )%I with "[Hwca0_lvs]" as "Hwca0_lvs".
+    { admit. }
+    iDestruct (big_sepL2_app' with "Hwca0_lvs") as "[Hwca0_perma_lv Hwca0_temp_lv]".
+    { by rewrite Hlength_wca0_lv Hwca0_invs_perma. }
+    iAssert ( [∗ list] '(a0, _, _, _);v ∈ wca0_invs;wca0_lv_perma, a0 ↦ₐ v )%I with "[Hwca0_perma_lv]"
+      as "Hwca0_perma_lv".
+    {
+      admit. (* easy, just impl *)
+    }
+    iDestruct (region_close_list W1 C wca0_invs [] with
+             "[$Hr_C $Hsts_std_wca0 $Hwca0_perma_lv $Hwca0_mono $Hwca0_φs $Hrels_wca0 $Hwca0_pO]"
+      ) as "Hr_C".
+    { by rewrite Hlength_wca0_lv length_fmap. }
+    { rewrite Hwca0_invs_perma. apply NoDup_filter, finz_seq_between_NoDup. }
+    { set_solver+. }
+    { apply Forall_forall; auto. admit. }
+    { admit. (* TODO need an additional information in region_open_list *) }
+    rewrite -region_open_nil.
+    iAssert ([∗ list] φ ∈ lφ, zcond (safeUC φ) C)%I as "#Hzcond_lφ".
+    { admit. (* interp + rels *) }
+    iAssert (
+        [∗ list] φ;v ∈ lφ;wca0_lv_temps, φ (W1, C, v)
+      )%I with "[Hlφ_lv]" as "Hlφ_lv".
+    {
+      (* with Hzcond_lφ, and Hwca0_lvs_ints *)
+      admit.
+    }
+    iAssert (
+        ([∗ list] a ∈ wca0_temp,
+           ∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ temp_resources W1 C φ a p ∗ rel C a p φ)
+      )%I with "[Hlφ_pers HlpO Hlpφ_mono Hwca0_temp_lv Hlφ_lv]" as "Hwca0_temp_closing_resources".
+    { admit. }
+    iMod (monotone_close_list_region W1 W1 C wca0_temp with
+      "[] [$Hsts_C $Hr_C $Hwca0_temp_closing_resources]") as "[Hsts_C Hr_C]".
+    { iPureIntro; apply close_list_related_sts_pub. }
+    set ( W2 := (close_list wca0_temp W1)).
+    iAssert (interp W2 C (WCap p g b e (finz.max b e)))%I as "#Hinterp_wca0_W2".
+    {
+      iEval (rewrite fixpoint_interp1_eq interp1_eq).
+      destruct (isO p); first done.
+      destruct (has_sreg_access p).
+      { admit. }
+      admit. (* I shouls have everything I need *)
+    }
 
-    iApply (checkints_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    (* and the hard part should be mostly done at that point *)
 
     (* -- separate argument registers -- *)
     assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
