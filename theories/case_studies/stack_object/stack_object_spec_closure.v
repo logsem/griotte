@@ -115,12 +115,6 @@ Section SO.
     assert ( is_Some (rmap !! ct1) ) as [wct1 Hwct1].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct2) ) as [wct2 Hwct2].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct3) ) as [wct3 Hwct3].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by simplify_map_eq.
     assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
@@ -322,15 +316,99 @@ Section SO.
       admit. (* I shouls have everything I need *)
     }
 
+
+    (* ------------------------------------------------------- *)
+    (* ------------------ BLOCK 7: ALLOC_SO ------------------ *)
+    (* ------------------------------------------------------- *)
+    focus_block 7 "Hcode_main" as a_alloc_so Ha_alloc_so "Hcode" "Hcont"; iHide "Hcont" as hcont
+    ; clear dependent Ha_checkints.
+
+    (* Store csp so_secret; *)
+    destruct ( decide ((csp_b < csp_e)%a) ) as [Hcsp_size|Hcsp_size]; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_store_fail_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
+      { rewrite /withinBounds; solve_addr+Hcsp_size. }
+      iIntros "!> _".
+      wp_pure; wp_end; iIntros (?); done.
+    }
+    iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
+    rewrite finz_seq_between_length in Hstklen.
+    rewrite finz_dist_S in Hstklen; last solve_addr+Hcsp_size.
+    destruct stk_mem as [|w0 stk_mem]; simplify_eq.
+    assert (is_Some (csp_b + 1)%a) as [a_stk1 Hastk1];[solve_addr+Hcsp_size|].
+    iDestruct (region_pointsto_cons with "Hstk") as "[Hastk1 Hstk]"; eauto.
+    { solve_addr+Hcsp_size Hastk1. }
+    iInstr "Hcode".
+    { rewrite /withinBounds; solve_addr+Hcsp_size. }
+    (* Lea csp 1; *)
+    iInstr "Hcode".
+    (* Mov ca1 csp; *)
+    iInstr "Hcode".
+    (* GetA cs0 ca1; *)
+    iInstr "Hcode".
+    (* Add cs1 cs0 1; *)
+    iInstr "Hcode".
+    (* Subseg ca1 cs0 cs1; *)
+    destruct ( decide ((a_stk1 < csp_e)%a) ) as [Hcsp_size'|Hcsp_size']; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      admit.
+      (* iApply (wp_store_fail_z with "[$HPC $Hi $Hcsp]"); try solve_pure. *)
+      (* { rewrite /withinBounds; solve_addr+Hcsp_size. } *)
+      (* iIntros "!> _". *)
+      (* wp_pure; wp_end; iIntros (?); done. *)
+    }
+    iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
+    rewrite finz_seq_between_length in Hstklen'.
+    rewrite finz_dist_S in Hstklen'; last solve_addr+Hcsp_size'.
+    destruct stk_mem as [|w1 stk_mem]; simplify_eq.
+    assert (is_Some (a_stk1 + 1)%a) as [a_stk2 Hastk2];[solve_addr+Hcsp_size'|].
+    iDestruct (region_pointsto_cons with "Hstk") as "[Hastk2 Hstk]"; eauto.
+    { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
+    iInstr "Hcode".
+    { transitivity (Some (a_stk2)%a); auto.
+      solve_addr+Hastk2.
+    }
+    { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
+    (* Store ca1 0; *)
+    iInstr "Hcode".
+    { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
+    (* Lea csp 1; *)
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    (* --------------------------------------------------- *)
+    (* ---------------- BLOCK 8 : FETCH ------------------ *)
+    (* --------------------------------------------------- *)
+
+    focus_block 8 "Hcode_main" as a_fetch Ha_fetch "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_alloc_so.
+    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    { apply withinBounds_true_iff; solve_addr. }
+    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    iFrame "Himport_switcher".
+    iNext ; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & Hcode & Himport_switcher)".
+    iEval (cbn) in "Hct0".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    (* --------------------------------------------------- *)
+    (* ----------------- BLOCK 9 : CALL ------------------ *)
+    (* --------------------------------------------------- *)
+
+    focus_block 9 "Hcode_main" as a_call Ha_call "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_fetch.
+    (* Mov cs0 cra *)
+    iInstr "Hcode".
+    (* Mov cs1 ct1 *)
+    iInstr "Hcode".
+    (* Jalr cra ct0 *)
+    iInstr "Hcode".
+
+
     (* and the hard part should be mostly done at that point *)
 
     (* -- separate argument registers -- *)
-    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
     assert ( is_Some (rmap !! ca2) ) as [wca2 Hwca2].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq.
@@ -344,21 +422,9 @@ Section SO.
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by simplify_map_eq.
 
-    focus_block 6 "Hcode_main" as a_call_g1 Ha_call_g1 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_fetch1.
-    (* Mov cs0 cra *)
-    iInstr "Hcode".
-    (* Mov cs1 ca0 *)
-    iInstr "Hcode".
-    (* Mov ct1 ca0 *)
-    iInstr "Hcode".
-    (* Mov ca0 0 *)
-    iInstr "Hcode".
-    (* Jalr cra ct0 *)
-    iInstr "Hcode".
-
     set ( rmap_arg :=
-           {[ ca0 := WInt 0;
-              ca1 := wca1;
+           {[ ca0 := WCap p g b e (finz.max b e);
+              ca1 := WCap RWL Local a_stk1 a_stk2 a_stk1;
               ca2 := wca2;
               ca3 := wca3;
               ca4 := wca4;
@@ -367,48 +433,17 @@ Section SO.
            ]} : Reg
         ).
 
-    iInsertList "Hrmap" [ct2;ct3].
-    repeat (iEval (rewrite -delete_insert_ne //) in "Hrmap").
     set (rmap' := (delete ca5 _)).
-    iDestruct (sts_full_rel_loc  with "Hsts_C Hsts_rel") as "%Hwrel_i".
 
-    set (W2 := (<l[i:=false]l>W1)).
-    assert (related_sts_priv_world W1 W2) as Hrelated_priv_W1_W2.
-    { subst W2.
-     rewrite /related_sts_priv_world /=.
-     split; first apply related_sts_std_priv_refl.
-     split;[set_solver|split;[set_solver|] ].
-     intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
-     repeat (split; first done).
-     intros x y Hd Hd'.
-     destruct (decide (d = i)); simplify_map_eq; last apply rtc_refl.
-     destruct b; simplify_map_eq; last apply rtc_refl.
-     apply rtc_once.
-     right;apply convert_rel_of_rel.
-     done.
-    }
+    assert (related_sts_pub_world W1 W2) as Hrelated_pub_W1_W2.
+    { apply close_list_related_sts_pub. }
 
-    assert (related_sts_priv_world W0 W2) as Hrelated_priv_W0_W2 by (by eapply related_sts_priv_trans_world; eauto).
+    assert (related_sts_priv_world W0 W2) as Hrelated_priv_W0_W2.
+    { eapply related_sts_priv_pub_trans_world; eauto. }
     assert (related_sts_priv_world W W2) as
       Hrelated_priv_W_W2 by (by eapply related_sts_priv_trans_world; eauto).
 
-    iMod (update_region_revoked_update_loc with "Hsts_C Hr_C") as "[Hr_C Hsts_C]"; auto.
-    { apply revoke_conditions_sat. }
-
     (* Show that the arguments are safe, when necessary *)
-    iAssert (if is_sealed_with_o wca0 ot_switcher
-             then (interp W2 C wca0)
-             else True)%I as "#Hinterp_W2_wct1".
-    { destruct (is_sealed_with_o wca0 ot_switcher) eqn:His_sealed_wct1; last done.
-      destruct wca0 as [| [|] | |]; try discriminate.
-      iApply (interp_monotone_sd W0 W2); eauto.
-      iApply "Hinterp_rmap"; eauto.
-      iPureIntro ; set_solver.
-    }
-    iAssert ( ⌜ wca1 = WInt 0 ⌝ )%I as "->".
-    { iApply "Hzeroed_rmap"; eauto.
-      set_solver+.
-    }
     iAssert ( ⌜ wca2 = WInt 0 ⌝ )%I as "->".
     { iApply "Hzeroed_rmap"; eauto.
       set_solver+.
@@ -425,12 +460,62 @@ Section SO.
     { iApply "Hzeroed_rmap"; eauto.
       set_solver+.
     }
+    (* TODO: we need to update the world with [a_stk1],
+       but we already have rel because we have the interp for the full stack frame
+     *)
+    iAssert (
+        ([∗ list] a ∈ [a_stk1],
+           ∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ temp_resources W2 C φ a p ∗ rel C a p φ)
+      )%I with "[Hastk2]" as "Hastk1_closing_resources".
+    { cbn.
+      iDestruct (read_allowed_inv _ _ a_stk1 with "Hinterp_W0_csp")
+        as "(%pastk1 & %Pastk1 &
+      %Hpastk1_rwl & %Hpers_Pastk1 & #Hrel_astk1
+      & Hzcond_Pastk1 & Hrcond_Pastk1 & Hwcond_Pastk1 & Hmono_Pastk1
+)";auto.
+      { solve_addr+Hastk1 Hcsp_size'. }
+      iSplit; last done.
+      iExists pastk1, (safeC Pastk1).
+      iSplit; first iPureIntro.
+      { intros Wcv; apply Hpers_Pastk1. }
+      iSplit; last iFrame "#".
+      iFrame "Hastk2".
+      iSplit; first iPureIntro.
+      { admit. (* easyyyy *) }
+      replace (writeAllowed pastk1) with true.
+      2:{ symmetry; eapply writeAllowed_flowsto; eauto. }
+      rewrite /monoReq.
+      replace (isWL pastk1) with true.
+      2:{ symmetry; eapply isWL_flowsto; eauto. }
+      iSplit.
+      + replace (W0.1 !! a_stk1) with (Some Temporary).
+        2: { admit. (* easy, with Hl_unk *) }
+        iApply "Hmono_Pastk1".
+      + (* apply Hwcond_Pastk1, but remove the later... *)
+        admit.
+    }
+    iMod (monotone_close_list_region W2 W2 C [a_stk1] with
+      "[] [$Hsts_C $Hr_C $Hastk1_closing_resources]") as "[Hsts_C Hr_C]".
+    { iPureIntro; apply close_list_related_sts_pub. }
+    set (W3 := close_list _ W2).
+    assert (related_sts_pub_world W2 W3) as Hrelated_pub_W2_W3.
+    { apply close_list_related_sts_pub. }
+    assert (related_sts_priv_world W0 W3) as Hrelated_priv_W0_W3.
+    { eapply related_sts_priv_pub_trans_world; eauto. }
 
-    iAssert ([∗ map] rarg↦warg ∈ rmap_arg , rarg ↦ᵣ warg ∗ interp W2 C warg)%I
+    iAssert (interp W3 C (WCap RWL Local a_stk1 a_stk2 a_stk1))%I
+      with "[Hastk1]"
+      as "#Hinterp_W2_wca1".
+    {
+      admit.
+    }
+    iDestruct (interp_monotone with "[] Hinterp_wca0_W2") as "Hinterp_wca0_W3"; eauto.
+
+    iAssert ([∗ map] rarg↦warg ∈ rmap_arg , rarg ↦ᵣ warg ∗ interp W3 C warg)%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
     { subst rmap_arg.
-      iAssert (interp W2 C (WInt 0)) as "Hinterp_0"; first iApply interp_int.
-      iAssert (interp W2 C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)) as
+      iAssert (interp W3 C (WInt 0)) as "Hinterp_0"; first iApply interp_int.
+      iAssert (interp W3 C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)) as
         "Hinterp_sw_call"; first iApply interp_switcher_call; auto.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
       done.
@@ -438,12 +523,13 @@ Section SO.
 
     (* Prepare the closing resources for the switcher call spec *)
     iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W2 C a ∗
-                                                    ⌜W2.1 !! a = Some Revoked⌝)
-      )%I with "[Hfrm_close_W0]" as "Hfrm_close_W2".
+        ([∗ list] a ∈ finz.seq_between (a_stk2^+1)%a csp_e, closing_revoked_resources W3 C a ∗
+                                                    ⌜W3.1 !! a = Some Revoked⌝)
+      )%I with "[Hfrm_close_W0]" as "Hfrm_close_W3".
     {
+      (* TODO continue here *)
       iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "[Hclose %Hrev]".
+      iModIntro; iIntros (k a' Ha') "[Hclose %Hrev]".
       iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
