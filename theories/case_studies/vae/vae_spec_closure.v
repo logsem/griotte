@@ -329,7 +329,8 @@ Section VAE.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
+        as (l
+           ) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
 
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
@@ -497,13 +498,19 @@ Section VAE.
 
     (* Prepare the closing resources for the switcher call spec *)
     iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W2 C a ∗
-                                                    ⌜W2.1 !! a = Some Revoked⌝)
+        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W2 C a)
       )%I with "[Hfrm_close_W0]" as "Hfrm_close_W2".
     {
       iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "[Hclose %Hrev]".
+      iModIntro; iIntros (k a Ha) "Hclose".
       iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
+    }
+    assert (Forall (λ a, W2.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)) as Hfrm_close_W2.
+    { apply Forall_forall.
+      intros a Ha.
+      subst W2 W1.
+      cbn.
+      by rewrite Forall_forall in Hfrm_close_W0; eapply Hfrm_close_W0.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -522,7 +529,7 @@ Section VAE.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hr_C $Hsts_C $Hfrm_close_W2 $Hcstk
-              $Hinterp_W2_wct1 $HK]"); eauto.
+              $Hinterp_W2_wct1 $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       apply regmap_full_dom in Hrmap_init.
@@ -535,7 +542,7 @@ Section VAE.
     clear dependent wct1 wct0 wct2 wct3 wcs0 wcs1 rmap stk_mem.
     iNext.
     iIntros (W3 rmap stk_mem l')
-      "( _ & _ & %Hrelated_pub_2ext_W3 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W3
+      "( _ & _ & _ & %Hrelated_pub_2ext_W3 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W3 & %Hfrm_close_W3
       & Hna & %Hcsp_bounds
       & Hsts_C & Hr_C
       & Hcstk_frag
@@ -709,20 +716,19 @@ Section VAE.
 
     (* Prepare the closing resources for the switcher call spec *)
     iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W5 C a ∗
-                                                    ⌜W5.1 !! a = Some Revoked⌝)
-      )%I with "[Hfrm_close_W3]" as "#Hfrm_close_W5".
-    { rewrite !big_sepL_sep.
-      iDestruct "Hfrm_close_W3" as "[Hclose_W3 %Hrev_W3]".
-      iSplitL "Hclose_W3".
-      - iApply (big_sepL_impl with "Hclose_W3").
-        iModIntro; iIntros (k a Ha) "Hclose'".
-        iApply mono_priv_closing_revoked_resources; last done.
-        eauto.
-      - iApply big_sepL_pure; iPureIntro.
-        intros k x Hk.
-        cbn.
-        eapply Hrev_W3; eauto.
+        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W5 C a)
+      )%I with "[Hfrm_close_W3]" as "Hfrm_close_W5".
+    {
+      iApply (big_sepL_impl with "Hfrm_close_W3").
+      iModIntro; iIntros (k a Ha) "Hclose".
+      iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
+    }
+    assert (Forall (λ a, W5.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)) as Hfrm_close_W5.
+    { apply Forall_forall.
+      intros a Ha.
+      subst W5 W4.
+      cbn.
+      by rewrite Forall_forall in Hfrm_close_W3; eapply Hfrm_close_W3.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -738,7 +744,7 @@ Section VAE.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hr_C $Hsts_C $Hfrm_close_W5 $Hcstk_frag
-              $Hinterp_W5_wca0 $HK]"); eauto.
+              $Hinterp_W5_wca0 $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hdom_rmap.
@@ -749,7 +755,7 @@ Section VAE.
     clear dependent wct1 wct0 warg0 warg1 rmap stk_mem Hcsp_bounds.
     iNext.
     iIntros (W6 rmap stk_mem l')
-      "(_ & _ & %Hrelated_pub_5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6
+      "(_ & _ & _ & %Hrelated_pub_5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6 & %Hfrm_close_W6
       & Hna & %Hcsp_bounds
       & Hsts_C & Hr_C
       & Hcstk_frag
@@ -761,9 +767,7 @@ Section VAE.
     (* Derive some information necessary later *)
     iAssert ( ⌜ Forall (λ k : finz MemNum, W5.1 !! k = Some Revoked) (finz.seq_between (csp_b ^+ 4)%a csp_e) ⌝)%I
       as "%Hrevoked_stk_W5".
-    { iClear "∗".
-      iDestruct (big_sepL_sep with "Hfrm_close_W5") as "[_ %]".
-      iPureIntro.
+    { iPureIntro.
       apply Forall_forall.
       intros x Hx.
       assert (x ∈ finz.seq_between csp_b csp_e) as Hx'.
@@ -771,8 +775,7 @@ Section VAE.
         rewrite (finz_seq_between_split csp_b (csp_b ^+ 4)%a csp_e); last solve_addr.
         rewrite elem_of_app; by right.
       }
-      apply elem_of_list_lookup in Hx' as [k Hk].
-      eapply H; eauto.
+      by rewrite Forall_forall in Hfrm_close_W5 ; apply Hfrm_close_W5.
     }
     assert (related_sts_pub_world W5 W6) as Hrelated_pub_W5_W6.
     { clear -Hrelated_pub_5ext_W6 Hrevoked_stk_W5.
@@ -783,10 +786,9 @@ Section VAE.
 
     iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W6.1) l ⌝)%I as "%Hl_revoked_W6".
     {
-      iDestruct (big_sepL_sep with "Hrevoked_l") as "[_ %Hrevoked_l]".
       iPureIntro; apply Forall_forall; intros a Ha.
-      apply elem_of_list_lookup in Ha as [k Hk].
-      apply Hrevoked_l in Hk.
+      rewrite Forall_forall in Hrevoked_l.
+      apply Hrevoked_l in Ha.
       cbn.
       assert (a ∈ dom (std W2)) as Ha2.
       { rewrite elem_of_dom; done. }
@@ -920,7 +922,6 @@ Section VAE.
     iDestruct (big_sepM_insert _ _ cra with "[$Hrmap $Hcra]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
 
-    iDestruct (big_sepL_sep with "Hfrm_close_W6") as "[_ %Hrevoked_stk_W7]".
     iApply (switcher_ret_specification _ W0 W7
              with
              "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
@@ -929,8 +930,6 @@ Section VAE.
     { destruct Hl_unk as [_ ?].
       eapply (related_pub_W0_Wfixed W0 W3 W6 l); eauto.
       apply Forall_app; split; auto.
-      apply Forall_forall; intros a Ha.
-      apply elem_of_list_lookup in Ha ; destruct Ha as [??]; eapply Hrevoked_stk_W7; eauto.
     }
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
     { subst csp_b.

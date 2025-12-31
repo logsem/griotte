@@ -147,7 +147,7 @@ Section VAE.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l) "(%Hl_unk & Hsts_C & Hr_C & Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
+        as (l) "(%Hl_unk & Hsts_C & Hr_C & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     set (W1 := revoke W0).
 
     (* --------------------------------------------------------------- *)
@@ -248,12 +248,11 @@ Section VAE.
 
     (* Prepare the closing resources for the switcher call spec *)
     iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 C a ∗
-                                                    ⌜W1.1 !! a = Some Revoked⌝)
+        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 C a)
       )%I with "[Hfrm_close_W0]" as "#Hfrm_close_W1".
     {
       iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "[Hclose %Hrev]".
+      iModIntro; iIntros (k a Ha) "Hclose".
       iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -273,7 +272,7 @@ Section VAE.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hr_C $Hsts_C $Hfrm_close_W1 $Hcstk_frag
-              $Hinterp_W1_C_f $HK]"); eauto.
+              $Hinterp_W1_C_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite /dom_arg_rmap Hrmap_dom.
@@ -286,7 +285,7 @@ Section VAE.
     clear stk_mem.
     iNext.
     iIntros (W2 rmap stk_mem l')
-      "( _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2
+      "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & _
       & Hna & %Hcsp_bounds
       & Hsts_C & Hr_C
       & Hcstk_frag
