@@ -42,7 +42,7 @@ Section Switcher.
     frame_match Ws Cs cstk W0 C ->
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
     NoDup (l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : finz MemNum, W0.1 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, W0.1 !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
 
     (* Switcher Invariant *)
     na_inv logrel_nais Nswitcher switcher_inv
@@ -924,8 +924,11 @@ Section Switcher.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
       "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hsts & Hna
     & HPC & Hr & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
-    iApply switcher_ret_specification_gen ; eauto; iFrame "∗#".
-    iApply close_list_resources_gen_eq; eauto.
+    iApply switcher_ret_specification_gen; eauto.
+    + intros a Ha.
+      by apply Htemp_revoked.
+    + iFrame "∗#".
+      iApply close_list_resources_gen_eq; eauto.
   Qed.
 
 End Switcher.
