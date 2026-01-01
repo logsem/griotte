@@ -511,31 +511,12 @@ Section SO.
       cbn; lia.
     }
     iDestruct (big_sepL2_app with "Hwca0_perma_lv Hwca0_temp_lv") as "Hwca0_lvs".
-    (* TODO I think I should not bother with obtaining the ordered way,
-       and I should have a spec of checkints that takes it in an un-ordered way
-     *)
-    iAssert (∃ wca0_lvs,
-                ⌜ wca0_lvs ≡ₚ wca0_lv_perma ∪ wca0_lv_temps ⌝
-                ∗ [[b,e]] ↦ₐ [[ wca0_lvs ]]
-            )%I with "[Hwca0_lvs]" as (wca0_lvs) "[%Hwca0_lvs_eq Hwca0_lvs]".
-    { iClear "#".
-      rewrite Hwca0_invs_perma in Hlength_wca0_lv.
-      clear -Hwca0_range Hlength_wca0_lv.
-      admit. (* TODO might be pretty hard to prove... but maybe if generalised + induction *)
-    }
 
-    iApply (checkints_spec with "[- $HPC $Hca0 $Hcs1 $Hcs0 $Hwca0_lvs $Hcode]"); eauto.
+    iApply (checkints_spec_alt with "[- $HPC $Hca0 $Hcs1 $Hcs0 $Hwca0_lvs $Hcode]"); eauto.
+    { symmetry; auto. }
     iSplitL; last ( iNext ; iIntros (?); done).
-    iNext ; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hwca0_lvs & %Hwca0_lvs_ints & Hcode)".
+    iNext ; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hwca0_lvs & %Hwca0_lvs_ints & Hcode & Hlc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iAssert (
-        [∗ list] y1;y2 ∈ (wca0_perma ++ wca0_temp);(wca0_lv_perma ++ wca0_lv_temps),
-          y1 ↦ₐ y2
-      )%I with "[Hwca0_lvs]" as "Hwca0_lvs".
-    { rewrite /region_pointsto.
-      (* XXX: It's just the reverse operation than above, but I actually don't know
-       if that works... *)
-      admit. }
     iDestruct (big_sepL2_app' with "Hwca0_lvs") as "[Hwca0_perma_lv Hwca0_temp_lv]".
     { by rewrite Hlength_wca0_lv Hwca0_invs_perma. }
     iAssert ( [∗ list] '(a0, _, _, _);v ∈ wca0_invs;wca0_lv_perma, a0 ↦ₐ v )%I with "[Hwca0_perma_lv]"

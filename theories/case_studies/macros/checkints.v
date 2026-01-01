@@ -43,6 +43,46 @@ Section Checkints_spec.
       {MP: MachineParameters}
   .
 
+  Lemma checkints_spec_alt
+    (r r1 r2 : RegName)
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
+    (w1 w2 : Word) (l : list Addr) (ws : list Word)
+    (p : Perm) (g : Locality) (b e a : Addr)
+    (φ : language.val cap_lang → iPropI Σ) :
+
+    let checkints := (checkints_instrs r r1 r2) in
+    let a_last := (pc_a ^+ length checkints)%a in
+    executeAllowed pc_p = true →
+    SubBounds pc_b pc_e pc_a a_last →
+    l ≡ₚ (finz.seq_between b e) ->
+
+    ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    ∗ ▷ r ↦ᵣ (WCap p g b e a)
+    ∗ ▷ r1 ↦ᵣ w1
+    ∗ ▷ r2 ↦ᵣ w2
+    ∗ ▷ codefrag pc_a checkints
+    ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
+    ∗ ▷ ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
+         ∗ r ↦ᵣ WCap p g b e (finz.max b e)
+         ∗ r1 ↦ᵣ WInt 0%Z
+         ∗ r2 ↦ᵣ WInt 0%Z
+         ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
+         ∗ ⌜ Forall (λ w, ∃ z, w = WInt z) ws ⌝
+         ∗ codefrag pc_a checkints
+         ∗ £ 2
+         -∗ WP Seq (Instr Executable) {{ φ }}
+        )
+    ∗ ▷ φ FailedV
+    ⊢ WP Seq (Instr Executable) {{ φ }}.
+  Proof.
+    intros checkints a_last ; subst checkints a_last.
+    iIntros (Hvpc Hcont Hl)
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >Hprog & Hmem & Hφ & Hfailed)".
+    iDestruct (big_sepL2_length with "Hprog") as %Hlength.
+    codefrag_facts "Hprog".
+    rename H into HcontRegion; clear H0.
+  Admitted.
+
   Lemma checkints_spec
     (r r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
