@@ -53,6 +53,16 @@ Section SO.
     iDestruct "H" as "(%&_&H&_)".
     iApply (address_neq with "Hl1 H"); eauto.
   Qed.
+  Lemma close_addr_resources_gen_separation
+    (C : CmptName) (W : WORLD) (a1 a2 : Addr) (l : list Addr) (v : Word) :
+    a1 ↦ₐ v -∗
+    close_addr_resources_gen C W l a2 false -∗
+    ⌜ a1 ≠ a2 ⌝.
+  Proof.
+    iIntros "Hl1 (%&%&%&H&_)".
+    iDestruct "H" as (? ?) "(%&_&H&_)".
+    iApply (address_neq with "Hl1 H"); eauto.
+  Qed.
   Lemma close_list_resources_separation
     (C : CmptName) (W : WORLD) (l : list Addr) (a : Addr) (v : Word) :
     a ↦ₐ v -∗
@@ -63,6 +73,20 @@ Section SO.
     iInduction (l) as [|x l]; cbn; first (iPureIntro;set_solver).
     iDestruct "Hl" as "[Hx Hl]".
     iDestruct (close_addr_resources_separation with "[$] [$]") as "%H".
+    iDestruct ("IHl" with "[$] [$]") as "%Hl".
+    iPureIntro.
+    apply not_elem_of_cons; split ; auto.
+  Qed.
+  Lemma close_list_resources_gen_separation
+    (C : CmptName) (W : WORLD) (l' l : list Addr) (a : Addr) (v : Word) :
+    a ↦ₐ v -∗
+    close_list_resources_gen C W l' l false -∗
+    ⌜ a ∉ l ⌝.
+  Proof.
+    iIntros "Ha Hl".
+    iInduction (l) as [|x l]; cbn; first (iPureIntro;set_solver).
+    iDestruct "Hl" as "[Hx Hl]".
+    iDestruct (close_addr_resources_gen_separation with "[$] [$]") as "%H".
     iDestruct ("IHl" with "[$] [$]") as "%Hl".
     iPureIntro.
     apply not_elem_of_cons; split ; auto.
@@ -85,6 +109,15 @@ Section SO.
     iIntros "(%&%&%&(%&_&H1&_)&_) H".
     iApply (close_list_resources_separation with "[$] [$]").
   Qed.
+  Lemma close_addr_list_gen_resources_separation
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (a1 : Addr) (l' l2 : list Addr) :
+    close_addr_resources C1 W1 a1 false -∗
+    close_list_resources_gen C2 W2 l' l2 false -∗
+    ⌜ a1 ∉ l2 ⌝.
+  Proof.
+    iIntros "(%&%&%&(%&_&H1&_)&_) H".
+    iApply (close_list_resources_gen_separation with "[$] [$]").
+  Qed.
   Lemma close_list_resources_separation_many
     (C1 C2 : CmptName) (W1 W2 : WORLD) (la l2 : list Addr) (lv : list Word) :
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) -∗
@@ -100,7 +133,22 @@ Section SO.
       iDestruct ("IH" with "[$] [$]") as "%Hl".
       iPureIntro; set_solver.
   Qed.
-  Lemma close_list_resources_separation_many_aly
+  Lemma close_list_resources_gen_separation_many
+    (C2 : CmptName) (W2 : WORLD) (la l' l2 : list Addr) (lv : list Word) :
+    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) -∗
+    close_list_resources_gen C2 W2 l' l2 false -∗
+    ⌜ la ## l2 ⌝.
+  Proof.
+    iIntros "Hl1 Hl2".
+    iInduction (la) as [|a la] "IH" forall (lv); first (iPureIntro; set_solver+).
+    - iDestruct (big_sepL2_length with "Hl1") as "%Hl1".
+      destruct lv; simplify_eq.
+      iDestruct "Hl1" as "[Ha Hl1]".
+      iDestruct (close_list_resources_gen_separation with "[$] [$]") as "%Ha".
+      iDestruct ("IH" with "[$] [$]") as "%Hl".
+      iPureIntro; set_solver.
+  Qed.
+  Lemma close_list_resources_separation_many_alt
     (C1 C2 : CmptName) (W1 W2 : WORLD) (l1 l2 : list Addr) :
     close_list_resources C1 W1 l1 false
     ∗ close_list_resources C2 W2 l2 false
@@ -289,19 +337,75 @@ Section SO.
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as
       Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
-    iAssert ( ⌜ Forall (fun a => std W !! a = Some Permanent ∨ std W !! a = Some Temporary)
+    iAssert ( ⌜ Forall (fun a => std W0 !! a = Some Permanent ∨ std W0 !! a = Some Temporary)
                 (finz.seq_between b e) ⌝)%I
     as "%Harg_std_states".
-    { admit. (* easy, consequence of RO interp capability *) }
-    set (wca0_temp := filter (fun a => std W !! a = Some Temporary) (finz.seq_between b e)).
-    set (wca0_perma := filter (fun a => std W !! a = Some Permanent) (finz.seq_between b e)).
+    { iDestruct (readAllowed_valid_cap with "Hinterp_wca0_W0" ) as "%Hbe_revoked"; auto.
+      iPureIntro.
+      clear -Hbe_revoked.
+      eapply Forall_impl; eauto; cbn.
+      intros a Ha.
+      destruct Ha as (ρ & Ha & Hρ).
+      destruct ρ; [ right | left |]; done.
+    }
+    set (wca0_temp := filter (fun a => std W0 !! a = Some Temporary) (finz.seq_between b e)).
+    set (wca0_perma := filter (fun a => std W0 !! a = Some Permanent) (finz.seq_between b e)).
     assert ( (finz.seq_between b e) ≡ₚ wca0_perma ++ wca0_temp ) as Hwca0_range.
-    { clear - Harg_std_states.
-      admit. (* should be easy -ish *)
+    { clear - Harg_std_states Harg_std_states.
+      subst wca0_perma wca0_temp.
+      generalize (finz.seq_between b e), Harg_std_states.
+      clear Harg_std_states b e .
+      induction l; intros Hl; cbn; first done.
+      apply Forall_cons in Hl as [Ha Hl]
+      ; apply IHl in Hl
+      ; destruct Ha as [Ha | Ha]
+      ; [ assert (W0.1 !! a ≠ Some Temporary) as Ha' by (intro ; simplify_map_eq)
+        | assert (W0.1 !! a ≠ Some Permanent) as Ha' by (intro ; simplify_map_eq) ]
+      ; rewrite (decide_True _ _ Ha); auto; rewrite (decide_False _ _ Ha'); auto
+      ; cbn ; [|rewrite -Permutation_middle] ; rewrite -Hl; done.
     }
     set (l' := filter (fun a => a ∉ wca0_temp) l).
+    assert (
+       wca0_temp ≡ₚ filter (fun a => a ∈ wca0_temp) l
+      ) as Hwca0_temp_l.
+    {
+      clear -Hl_unk Hno_overlap.
+      destruct Hl_unk as [_ Hl_unk].
+      assert (wca0_temp ⊆ l).
+      {
+        intros a Ha.
+        subst wca0_temp.
+        apply elem_of_list_filter in Ha as [Ha Ha_be].
+        apply (Hl_unk a) in Ha.
+        apply elem_of_app in Ha as [Ha|Ha]; first done.
+        rewrite elem_of_disjoint in Hno_overlap.
+        exfalso; eapply Hno_overlap; eauto.
+      }
+      admit.
+      (* the proof below is a good start, but probably need some NoDup *)
+      (* generalize wca0_temp, H; intros l' Hl'. *)
+      (* clear -Hl'. *)
+      (* generalize dependent l'. *)
+      (* induction l as [|a l]; intros l' Hl'. *)
+      (* + destruct l' ; last set_solver. *)
+      (*   done. *)
+      (* + cbn. *)
+      (*   destruct (decide (a ∈ l')) as [Ha_l' | Ha_l']. *)
+      (*   * apply elem_of_Permutation in Ha_l' as [l0 Ha_l']. *)
+      (*     setoid_rewrite Ha_l' in Hl'. *)
+      (*     setoid_rewrite Ha_l' at 1. *)
+      (*     setoid_rewrite <- IHl at 1. *)
+      (*     apply Permutation_cons; first done. *)
+      (*     apply list_subseteq_cons_iff in Hl'. *)
+      (*     destruct *)
+      (*   assert (l' = []) by set_solver. *)
+      (*   set_solver+. *)
+    }
     assert ( l ≡ₚ wca0_temp ∪ l') as Hl_wca0_l'.
-    { admit. (* should be easy -ish *) }
+    { subst l'.
+      rewrite {1}Hwca0_temp_l.
+      apply filter_complement_list.
+    }
     iAssert (▷ (close_list_resources C W0 l false))%I with "[Hrevoked_l]" as "Hrevoked_l".
     { rewrite /close_list_resources /close_addr_resources.
       iNext; done.
@@ -320,7 +424,8 @@ Section SO.
           ([∗ list] '(a, p, φ, _) ∈ wca0_invs, rel C a p φ) ∗
           ⌜ Forall (λ '(_, _, φ, _), ∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)) wca0_invs⌝
       )%I as "(%wca0_invs & %Hwca0_invs_perma & %Hwca0_invs_std_perma & Hrels_wca0 & %Hpers_wca0_invs)".
-    { admit. (* should be doable *)
+    {
+      admit. (* should be doable *)
     }
 
     iDestruct (region_open_list with "[$Hrels_wca0 $Hr_C $Hsts_C]") as
@@ -345,8 +450,22 @@ Section SO.
     }
     iAssert ( [∗ list] a;v ∈ wca0_perma ; wca0_lv_perma, a ↦ₐ v )%I with "[Hwca0_perma_lv]"
       as "Hwca0_perma_lv".
-    { rewrite -Hwca0_invs_perma big_sepL2_fmap_l.
-      admit. (* easy, just impl *)
+    { iClear "#". clear -Hwca0_invs_perma.
+      iStopProof.
+      rewrite -Hwca0_invs_perma big_sepL2_fmap_l.
+      generalize dependent wca0_perma; intros l Hl.
+      generalize dependent wca0_invs.
+      generalize dependent wca0_lv_perma.
+      induction l; iIntros (lv linvs Hl) "Hl".
+      + apply fmap_nil_inv in Hl; simplify_eq; done.
+      + apply fmap_cons_inv in Hl; simplify_eq.
+        destruct Hl as ( apφρ & l' & Ha & Hl' & Hl); cbn in *.
+        destruct apφρ as [ [ [] ] ]; simplify_eq; cbn.
+        iDestruct (big_sepL2_length with "Hl") as "%Hlen"
+        ; destruct lv ; simplify_eq.
+        cbn.
+        iDestruct "Hl" as "[$ Hl]".
+        iApply IHl; eauto.
     }
     assert (Forall (λ a : finz MemNum, (revoke W0).1 !! a = Some Revoked) wca0_temp) as
       Hrevoked_wca0_temp.
@@ -392,6 +511,9 @@ Section SO.
       cbn; lia.
     }
     iDestruct (big_sepL2_app with "Hwca0_perma_lv Hwca0_temp_lv") as "Hwca0_lvs".
+    (* TODO I think I should not bother with obtaining the ordered way,
+       and I should have a spec of checkints that takes it in an un-ordered way
+     *)
     iAssert (∃ wca0_lvs,
                 ⌜ wca0_lvs ≡ₚ wca0_lv_perma ∪ wca0_lv_temps ⌝
                 ∗ [[b,e]] ↦ₐ [[ wca0_lvs ]]
@@ -418,8 +540,22 @@ Section SO.
     { by rewrite Hlength_wca0_lv Hwca0_invs_perma. }
     iAssert ( [∗ list] '(a0, _, _, _);v ∈ wca0_invs;wca0_lv_perma, a0 ↦ₐ v )%I with "[Hwca0_perma_lv]"
       as "Hwca0_perma_lv".
-    {
-      admit. (* easy, just impl *)
+    { iClear "#". clear -Hwca0_invs_perma.
+      iStopProof.
+      rewrite -Hwca0_invs_perma big_sepL2_fmap_l.
+      generalize dependent wca0_perma; intros l Hl.
+      generalize dependent wca0_invs.
+      generalize dependent wca0_lv_perma.
+      induction l; iIntros (lv linvs Hl) "Hl".
+      + apply fmap_nil_inv in Hl; simplify_eq; done.
+      + apply fmap_cons_inv in Hl; simplify_eq.
+        destruct Hl as ( apφρ & l' & Ha & Hl' & Hl); cbn in *.
+        destruct apφρ as [ [ [] ] ]; simplify_eq; cbn.
+        iDestruct (big_sepL2_length with "Hl") as "%Hlen"
+        ; destruct lv ; simplify_eq.
+        cbn.
+        iDestruct "Hl" as "[$ Hl]".
+        iApply IHl; eauto.
     }
     iDestruct (region_close_list W1 C wca0_invs [] with
              "[$Hr_C $Hsts_std_wca0 $Hwca0_perma_lv $Hwca0_mono $Hwca0_φs $Hrels_wca0 $Hwca0_pO]"
@@ -451,7 +587,10 @@ Section SO.
     { iDestruct "Hlpφ_rels" as "-#Hlpφ_rels".
       iClear "#".
       assert (Forall (λ w : Word, ∃ z : Z, w = WInt z) wca0_lv_temps) as Hlvs_temp_int.
-      { admit. }
+      { clear -Hwca0_lvs_eq Hwca0_lvs_ints.
+        setoid_rewrite Hwca0_lvs_eq in Hwca0_lvs_ints.
+        by apply Forall_app in Hwca0_lvs_ints as [??].
+      }
       clear -Hlen_lp Hlen_lφ Hlen_lv.
       generalize dependent wca0_temp; intros l Hlen_lp Hlen_lφ Hlen_lv.
       generalize wca0_lv_temps Hlen_lv; intros lv.
@@ -899,7 +1038,7 @@ Section SO.
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
 
     rewrite -/(close_list_resources C W0 l' false).
-    iDestruct (close_list_resources_disjoint with "[$Hrevoked_l' $Hrevoked_l'']") as "%Hdisjoint_l_l''".
+    iDestruct (close_list_resources_separation_many_alt with "[$Hrevoked_l' $Hrevoked_l'']") as "%Hdisjoint_l_l''".
     assert (∃ l''0, l'' ≡ₚ a_stk1::l''0 ∧ a_stk1 ∉ l''0) as (l''0 & Hl'' & Ha_stk1_l''0).
     { assert (a_stk1 ∈ l'') as Hastk1_l''.
       { admit. (* use Hl_unk'', Hrelated_pub_2ext_W4, and close_list  *)
@@ -948,12 +1087,10 @@ Section SO.
       setoid_rewrite Hl''0_p.
       iDestruct (big_sepL_app with "Hrevoked_l''") as "[$ $]".
     }
-    iAssert ( ⌜ csp_b ∉ l''0_no_wca0 ⌝ )%I as "%Hcsp_b_notin_l''0_no_wca0".
-    { admit. (* separation with Hrevoked_l''_wca0 and Hastk1 *) }
-    iAssert ( ⌜ a_stk1 ∉ l''0_no_wca0 ⌝ )%I as "%Hastk_1_notin_l''0_no_wca0".
-    { admit. (* separation with Hrevoked_l''_wca0 and Ha_stk1 *) }
-    iAssert ( ⌜ finz.seq_between a_stk2 csp_e ## l''0_no_wca0 ⌝ )%I as "%Hfrm_notin_l''0_no_wca0".
-    { admit. (* separation with Hrevoked_l''_wca0 and Hstk *) }
+    iDestruct (close_list_resources_gen_separation with "[$Hastk1] [$Hrevoked_l''_wca0]") as "%Hcsp_b_notin_l''0_no_wca0".
+    iDestruct (close_addr_list_gen_resources_separation with "[$Ha_stk1] [$Hrevoked_l''_wca0]") as "%Hastk_1_notin_l''0_no_wca0".
+    iDestruct (close_list_resources_gen_separation_many
+                 with "[$Hstk] [$Hrevoked_l''_wca0]") as "%Hfrm_notin_l''0_no_wca0".
     iAssert (close_list_resources_gen C W5 closing_list l false)
       with "[Hrevoked_l' Hrevoked_l''_wca0]" as "Hrevoked_l'".
     { rewrite /close_list_resources_gen.
