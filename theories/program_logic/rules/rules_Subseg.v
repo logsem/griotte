@@ -916,4 +916,89 @@ Section cap_lang_rules.
     Unshelve. all: auto.
   Qed.
 
+  Lemma wp_subseg_fail_src2_nonaddr
+    E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 p g b e a n1 n2 :
+    decodeInstrW w = Subseg dst (inr r1) (inr r2) →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    z_to_addr n2 = None →
+
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ dst ↦ᵣ WCap p g b e a
+        ∗ ▷ r1 ↦ᵣ WInt n1
+        ∗ ▷ r2 ↦ᵣ WInt n2 }}}
+      Instr Executable @ E
+      {{{ RET FailedV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+          ∗ pc_a ↦ₐ w
+          ∗ r1 ↦ᵣ WInt n1
+          ∗ r2 ↦ᵣ WInt n2
+          ∗ dst ↦ᵣ WCap p g b e a
+      }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hn2 ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
+    iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+
+    destruct Hspec as [| | * Hfail].
+    { (* Success *)
+      unfold addr_of_argument, z_of_argument in *; simplify_map_eq.
+    }
+    { (* Success with WSealRange (contradiction) *)
+      unfold addr_of_argument, z_of_argument in *; simplify_map_eq.
+    }
+    { iApply "Hφ".
+      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
+      all: simplify_map_eq; eauto; try congruence.
+      all: iFrame.
+      all: iDestruct (regs_of_map_4 with "Hmap") as "($&$&$&$)"; eauto.
+    }
+    Unshelve. all: auto.
+  Qed.
+  Lemma wp_subseg_fail_not_iswithin_cap
+    E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 p g b e a n1 n2 a1 a2 :
+    decodeInstrW w = Subseg dst (inr r1) (inr r2) →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    z_to_addr n1 = Some a1 →
+    z_to_addr n2 = Some a2 →
+    isWithin a1 a2 b e = false →
+
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ dst ↦ᵣ WCap p g b e a
+        ∗ ▷ r1 ↦ᵣ WInt n1
+        ∗ ▷ r2 ↦ᵣ WInt n2 }}}
+      Instr Executable @ E
+      {{{ RET FailedV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+          ∗ pc_a ↦ₐ w
+          ∗ r1 ↦ᵣ WInt n1
+          ∗ r2 ↦ᵣ WInt n2
+          ∗ dst ↦ᵣ WCap p g b e a
+      }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwt ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
+    iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+
+    destruct Hspec as [| | * Hfail].
+    { (* Success *)
+      unfold addr_of_argument, z_of_argument in *; simplify_map_eq.
+      by rewrite H8 in Hwt.
+    }
+    { (* Success with WSealRange (contradiction) *)
+      unfold addr_of_argument, z_of_argument in *; simplify_map_eq.
+    }
+    { iApply "Hφ".
+      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
+      all: simplify_map_eq; eauto; try congruence.
+      iDestruct (regs_of_map_4 with "Hmap") as "($&$&$&$)"; eauto.
+    }
+    Unshelve. all: auto.
+  Qed.
+
 End cap_lang_rules.
