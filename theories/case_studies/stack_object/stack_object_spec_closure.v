@@ -8,6 +8,16 @@ From cap_machine Require Import stack_object.
 From cap_machine Require Import proofmode.
 
 Section SO.
+  Lemma filter_complement_list {A : Type} (l : list A) (P : A -> Prop) {Hdec: ∀ x, Decision (P x)} :
+    l ≡ₚ filter P l ∪ filter (λ x : A, ¬ P x) l.
+  Proof.
+    induction l; cbn; first done.
+    rewrite /union /disjoint_regions_tactics.Union_list.
+    destruct ( decide (P a) ); destruct ( decide (¬ P a) ); try done.
+    + rewrite -app_comm_cons {1}IHl; done.
+    + rewrite -Permutation_middle {1}IHl; done.
+  Qed.
+
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
@@ -18,6 +28,91 @@ Section SO.
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
+
+  (* TODO move *)
+  Lemma close_list_lookup_not_in W l a :
+    a ∉ l -> std (close_list l W) !! a = std W !! a.
+  Proof.
+    intros Ha.
+    induction l as [|a' l]; cbn; first done.
+    apply not_elem_of_cons in Ha; destruct Ha as [Haeq Ha].
+    apply IHl in Ha.
+    rewrite -Ha.
+    destruct (W.1 !! a') eqn:Ha'; last done.
+    destruct (decide (Revoked = r)); last done.
+    simplify_map_eq.
+    done.
+  Qed.
+  Lemma close_addr_resources_separation
+    (C : CmptName) (W : WORLD) (a1 a2 : Addr) (v : Word) :
+    a1 ↦ₐ v -∗
+    close_addr_resources C W a2 false -∗
+    ⌜ a1 ≠ a2 ⌝.
+  Proof.
+    iIntros "Hl1 (%&%&%&H&_)".
+    iDestruct "H" as "(%&_&H&_)".
+    iApply (address_neq with "Hl1 H"); eauto.
+  Qed.
+  Lemma close_list_resources_separation
+    (C : CmptName) (W : WORLD) (l : list Addr) (a : Addr) (v : Word) :
+    a ↦ₐ v -∗
+    close_list_resources C W l false -∗
+    ⌜ a ∉ l ⌝.
+  Proof.
+    iIntros "Ha Hl".
+    iInduction (l) as [|x l]; cbn; first (iPureIntro;set_solver).
+    iDestruct "Hl" as "[Hx Hl]".
+    iDestruct (close_addr_resources_separation with "[$] [$]") as "%H".
+    iDestruct ("IHl" with "[$] [$]") as "%Hl".
+    iPureIntro.
+    apply not_elem_of_cons; split ; auto.
+  Qed.
+  Lemma close_addr_resources_separation_alt
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (a1 a2 : Addr) :
+    close_addr_resources C1 W1 a1 false -∗
+    close_addr_resources C2 W2 a2 false -∗
+    ⌜ a1 ≠ a2 ⌝.
+  Proof.
+    iIntros "(%&%&%&(%&_&H1&_)&_) (%&%&%&(%&_&H2&_)&_)".
+    iApply (address_neq with "H1 H2"); eauto.
+  Qed.
+  Lemma close_addr_list_resources_separation
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (a1 : Addr) (l2 : list Addr) :
+    close_addr_resources C1 W1 a1 false -∗
+    close_list_resources C2 W2 l2 false -∗
+    ⌜ a1 ∉ l2 ⌝.
+  Proof.
+    iIntros "(%&%&%&(%&_&H1&_)&_) H".
+    iApply (close_list_resources_separation with "[$] [$]").
+  Qed.
+  Lemma close_list_resources_separation_many
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (la l2 : list Addr) (lv : list Word) :
+    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) -∗
+    close_list_resources C2 W2 l2 false -∗
+    ⌜ la ## l2 ⌝.
+  Proof.
+    iIntros "Hl1 Hl2".
+    iInduction (la) as [|a la] "IH" forall (lv); first (iPureIntro; set_solver+).
+    - iDestruct (big_sepL2_length with "Hl1") as "%Hl1".
+      destruct lv; simplify_eq.
+      iDestruct "Hl1" as "[Ha Hl1]".
+      iDestruct (close_list_resources_separation with "[$] [$]") as "%Ha".
+      iDestruct ("IH" with "[$] [$]") as "%Hl".
+      iPureIntro; set_solver.
+  Qed.
+  Lemma close_list_resources_separation_many_aly
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (l1 l2 : list Addr) :
+    close_list_resources C1 W1 l1 false
+    ∗ close_list_resources C2 W2 l2 false
+      -∗ ⌜ l1 ## l2 ⌝.
+  Proof.
+    iIntros "[Hl1 Hl2]".
+    iInduction (l1) as [|a1 l1]; first (iPureIntro;set_solver+).
+    iDestruct "Hl1" as "[Ha Hl1]".
+    iDestruct (close_addr_list_resources_separation with "[$] [$Hl2]") as "%Ha".
+    iDestruct ("IHl1" with "[$] [$]") as "%Hl".
+    iPureIntro; set_solver.
+  Qed.
 
   Context {C : CmptName}.
 
@@ -348,6 +443,7 @@ Section SO.
       (* with Hzcond_lφ, and Hwca0_lvs_ints *)
       admit.
     }
+    iDestruct (big_sepL2_disjoint with "[$Hstk $Hwca0_temp_lv]") as "%".
     iAssert (
         ([∗ list] a ∈ wca0_temp,
            ∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ temp_resources W1 C φ a p ∗ rel C a p φ)
@@ -475,7 +571,7 @@ Section SO.
     (* Mov cs1 ct1 *)
     iInstr "Hcode".
     (* Jalr cra ct0 *)
-    iInstr "Hcode".
+    iInstr "Hcode" with "Hl".
 
 
     (* and the hard part should be mostly done at that point *)
@@ -535,37 +631,48 @@ Section SO.
     (* TODO: we need to update the world with [a_stk1],
        but we already have rel because we have the interp for the full stack frame
      *)
+    iAssert (£ 1)%I as "Hlc".
+    { admit. (* TODO get earlier *) }
     iAssert (
-        ([∗ list] a ∈ [a_stk1],
+        |={⊤}=> ([∗ list] a ∈ [a_stk1],
            ∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ temp_resources W2 C φ a p ∗ rel C a p φ)
-      )%I with "[Hastk2]" as "Hastk1_closing_resources".
+      )%I with "[Hastk2 Hlc]" as ">Hastk1_closing_resources".
     { cbn.
       iDestruct (read_allowed_inv _ _ a_stk1 with "Hinterp_W0_csp")
         as "(%pastk1 & %Pastk1 &
       %Hpastk1_rwl & %Hpers_Pastk1 & #Hrel_astk1
       & Hzcond_Pastk1 & Hrcond_Pastk1 & Hwcond_Pastk1 & Hmono_Pastk1
-)";auto.
+      )";auto.
       { solve_addr+Hastk1 Hcsp_size'. }
-      iSplit; last done.
+      replace (writeAllowed pastk1) with true.
+      2:{ symmetry; eapply writeAllowed_flowsto; eauto. }
+      iDestruct (lc_fupd_elim_later with "[$] [$Hwcond_Pastk1]") as ">#Hwcond_Pastk1'".
+      assert (isWL pastk1 = true) as Hpastk1_wl by (apply isWL_flowsto in Hpastk1_rwl;done).
+      iModIntro.
+      iSplitL; last done.
       iExists pastk1, (safeC Pastk1).
       iSplit; first iPureIntro.
       { intros Wcv; apply Hpers_Pastk1. }
       iSplit; last iFrame "#".
       iFrame "Hastk2".
       iSplit; first iPureIntro.
-      (* TODO CONTINUE TO CHECK THE ADMIT FROM HERE *)
-      { admit. (* easyyyy *) }
-      replace (writeAllowed pastk1) with true.
-      2:{ symmetry; eapply writeAllowed_flowsto; eauto. }
-      rewrite /monoReq.
-      replace (isWL pastk1) with true.
-      2:{ symmetry; eapply isWL_flowsto; eauto. }
+      { by apply isWL_nonO. }
+      rewrite /monoReq !Hpastk1_wl.
       iSplit.
-      + replace (W0.1 !! a_stk1) with (Some Temporary).
-        2: { admit. (* easy, with Hl_unk *) }
-        iApply "Hmono_Pastk1".
+      + replace (W0.1 !! a_stk1) with (Some Temporary); first iApply "Hmono_Pastk1".
+        assert (a_stk1 ∈ finz.seq_between csp_b csp_e) as Hastk1_range.
+        { rewrite elem_of_finz_seq_between.
+          solve_addr+Hastk1 Hcsp_size' Hcsp_size.
+        }
+        clear -Hl_unk Hastk1_range.
+        assert ( a_stk1 ∈ l ++ finz.seq_between csp_b csp_e ) as Ha.
+        { apply elem_of_app; right; done. }
+        destruct Hl_unk as [_ Hl_unk].
+        by specialize (Hl_unk a_stk1); apply Hl_unk in Ha.
       + (* apply Hwcond_Pastk1, but remove the later... *)
-        admit.
+        rewrite /safeC /=.
+        iApply "Hwcond_Pastk1'".
+        iApply interp_int.
     }
     iMod (monotone_close_list_region W2 W2 C [a_stk1] with
       "[] [$Hsts_C $Hr_C $Hastk1_closing_resources]") as "[Hsts_C Hr_C]".
@@ -616,7 +723,28 @@ Section SO.
         Forall (λ k : finz MemNum, W3.1 !! k = Some Revoked) (finz.seq_between a_stk2 csp_e)
       ) as HW3_revoked_callee_frm.
     {
-      admit. (* should be fine, just need the lemma about close_list *)
+      apply Forall_forall; intros x Hx.
+      subst W3 W2 W1.
+      rewrite close_list_lookup_not_in.
+      2: { intros Hx'; apply elem_of_list_singleton in Hx'; simplify_eq.
+           apply elem_of_finz_seq_between in Hx.
+           solve_addr+Hx Hastk2 Hcsp_size'.
+      }
+      rewrite close_list_lookup_not_in.
+      2: { intro Hx'.
+           apply H0 in Hx'; first done.
+           apply elem_of_finz_seq_between in Hx.
+           apply elem_of_finz_seq_between.
+           solve_addr+Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size.
+      }
+      apply revoke_lookup_Monotemp.
+      clear -Hl_unk Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size.
+      destruct Hl_unk as [_ Hl_unk].
+      specialize (Hl_unk x) ; apply Hl_unk.
+      apply elem_of_app; right.
+      apply elem_of_finz_seq_between in Hx.
+      apply elem_of_finz_seq_between.
+      solve_addr+Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size.
     }
     iAssert (
         ([∗ list] a ∈ finz.seq_between a_stk2 csp_e, closing_revoked_resources W3 C a)
@@ -771,8 +899,20 @@ Section SO.
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
 
     rewrite -/(close_list_resources C W0 l' false).
+    iDestruct (close_list_resources_disjoint with "[$Hrevoked_l' $Hrevoked_l'']") as "%Hdisjoint_l_l''".
     assert (∃ l''0, l'' ≡ₚ a_stk1::l''0 ∧ a_stk1 ∉ l''0) as (l''0 & Hl'' & Ha_stk1_l''0).
-    { admit. }
+    { assert (a_stk1 ∈ l'') as Hastk1_l''.
+      { admit. (* use Hl_unk'', Hrelated_pub_2ext_W4, and close_list  *)
+      }
+      clear -Hastk1_l'' Hl_unk''.
+      apply elem_of_Permutation in Hastk1_l''.
+      destruct Hastk1_l'' as [l''0 Hl''0].
+      exists l''0; split; first done.
+      destruct Hl_unk'' as [Hnodup _].
+      setoid_rewrite Hl''0 in Hnodup.
+      apply NoDup_app in Hnodup; destruct Hnodup as (Hnodup & _ & _).
+      apply NoDup_cons in Hnodup; destruct Hnodup as [? _]; done.
+    }
     iAssert (
        close_list_resources C W4 l''0 false
        ∗ close_addr_resources C W4 a_stk1 false
@@ -783,8 +923,11 @@ Section SO.
     }
     set (l''0_no_wca0 := filter (fun a => a ∉ wca0_temp) l''0).
     set (l''0_wca0 := filter (fun a => a ∈ wca0_temp) l''0).
-    assert (l''0 ≡ₚ l''0_no_wca0 ∪ l''0_wca0) as Hl''0_p.
-    { admit. }
+    assert (l''0 ≡ₚ l''0_wca0 ∪ l''0_no_wca0) as Hl''0_p.
+    { clear.
+      subst l''0_wca0 l''0_no_wca0.
+      apply filter_complement_list.
+    }
     assert ( l ≡ₚ l' ∪ l''0_wca0) as Hl_l''0_wca0.
     { admit. (* this might be challening *) }
     set (closing_list := ((l++l''0_no_wca0) ++ finz.seq_between csp_b csp_e)).
@@ -805,6 +948,12 @@ Section SO.
       setoid_rewrite Hl''0_p.
       iDestruct (big_sepL_app with "Hrevoked_l''") as "[$ $]".
     }
+    iAssert ( ⌜ csp_b ∉ l''0_no_wca0 ⌝ )%I as "%Hcsp_b_notin_l''0_no_wca0".
+    { admit. (* separation with Hrevoked_l''_wca0 and Hastk1 *) }
+    iAssert ( ⌜ a_stk1 ∉ l''0_no_wca0 ⌝ )%I as "%Hastk_1_notin_l''0_no_wca0".
+    { admit. (* separation with Hrevoked_l''_wca0 and Ha_stk1 *) }
+    iAssert ( ⌜ finz.seq_between a_stk2 csp_e ## l''0_no_wca0 ⌝ )%I as "%Hfrm_notin_l''0_no_wca0".
+    { admit. (* separation with Hrevoked_l''_wca0 and Hstk *) }
     iAssert (close_list_resources_gen C W5 closing_list l false)
       with "[Hrevoked_l' Hrevoked_l''_wca0]" as "Hrevoked_l'".
     { rewrite /close_list_resources_gen.
@@ -837,8 +986,78 @@ Section SO.
       destruct Hsync_csp as [].
       rewrite -H0; auto.
     }
-    { (* should be fine, but very annoying*)
-      admit.
+    {
+      apply NoDup_app.
+      split;[|split]; cycle -1.
+      - apply finz_seq_between_NoDup.
+      - setoid_rewrite Hl_l''0_wca0.
+        subst l'.
+        rewrite /union /disjoint_regions_tactics.Union_list.
+        apply NoDup_app.
+        split;[|split]; cycle -1.
+        + subst l''0_no_wca0.
+          apply NoDup_filter.
+          clear -Hl_unk'' Hl''.
+          destruct Hl_unk'' as [Hnodup _].
+          apply NoDup_app in Hnodup as (Hnodup&_&_).
+          setoid_rewrite Hl'' in Hnodup.
+          apply NoDup_cons in Hnodup as [_ Hnodup].
+          done.
+        + apply NoDup_app.
+          split;[|split]; cycle -1.
+          * subst l''0_wca0.
+            apply NoDup_filter.
+            clear -Hl_unk'' Hl''.
+            destruct Hl_unk'' as [Hnodup _].
+            apply NoDup_app in Hnodup as (Hnodup&_&_).
+            setoid_rewrite Hl'' in Hnodup.
+            apply NoDup_cons in Hnodup as [_ Hnodup].
+            done.
+          * apply NoDup_filter.
+            clear -Hl_unk.
+            destruct Hl_unk as [Hnodup _].
+            apply NoDup_app in Hnodup as (Hnodup&_&_).
+            done.
+          * cbn; intros x Hx.
+            clear -Hx.
+            apply elem_of_list_filter in Hx as [Hx _].
+            subst l''0_wca0.
+            intros Hx'.
+            apply elem_of_list_filter in Hx' as [Hx' _].
+            done.
+        + cbn; intros x Hx.
+          intros Hx'.
+          subst l''0_no_wca0.
+          apply elem_of_list_filter in Hx' as [Hx_no_wca0_temp Hx'].
+          apply elem_of_app in Hx as [Hx|Hx].
+          * apply elem_of_list_filter in Hx as [_ Hx].
+            apply (elem_of_list_further _ a_stk1) in Hx'.
+            setoid_rewrite <- Hl'' in Hx'.
+            setoid_rewrite Hl_wca0_l' in Hx.
+            clear -Hx Hx_no_wca0_temp Hx' Hdisjoint_l_l''.
+            rewrite elem_of_disjoint in Hdisjoint_l_l''.
+            apply elem_of_app in Hx as [Hx|Hx]; first done.
+            apply (Hdisjoint_l_l'' x); eauto.
+          * subst l''0_wca0.
+            apply elem_of_list_filter in Hx as [Hx _].
+            done.
+      - cbn; intros x Hx.
+        apply elem_of_app in Hx as [Hx|Hx].
+        + clear -Hx Hl_unk.
+          destruct Hl_unk as [Hnodup _].
+          apply NoDup_app in Hnodup as (_&Hnodup&_).
+          by apply Hnodup.
+        + rewrite finz_seq_between_cons; last solve_addr+Hcsp_bounds Hastk1 Hastk2.
+          apply not_elem_of_cons; split.
+          { intros ->; done. }
+          replace (csp_b ^+ 1)%a with a_stk1; last solve_addr+Hcsp_bounds Hastk1 Hastk2.
+          rewrite finz_seq_between_cons; last solve_addr+Hcsp_bounds Hastk1 Hastk2.
+          apply not_elem_of_cons; split.
+          { intros ->; done. }
+          replace (a_stk1 ^+ 1)%a with a_stk2; last solve_addr+Hcsp_bounds Hastk1 Hastk2.
+          intro Hx'.
+          rewrite elem_of_disjoint in Hfrm_notin_l''0_no_wca0.
+          eapply Hfrm_notin_l''0_no_wca0; eauto.
     }
     { intros x Hx.
       destruct Hl_unk as [_ Hl_unk].
