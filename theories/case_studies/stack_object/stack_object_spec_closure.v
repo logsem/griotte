@@ -152,7 +152,7 @@ Section SO.
     replace (pc_b ^+ 23%nat)%a with a_f by solve_addr.
 
     (* Mov ct1 ca1 *)
-    iInstr "Hcode".
+    iInstr "Hcode" with "Hlc".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* ----------------------------------------------- *)
@@ -207,7 +207,12 @@ Section SO.
     set (l' := filter (fun a => a ∉ wca0_temp) l).
     assert ( l ≡ₚ wca0_temp ∪ l') as Hl_wca0_l'.
     { admit. (* should be easy -ish *) }
-    rewrite /close_list_resources /close_addr_resources.
+    iAssert (▷ (close_list_resources C W0 l false))%I with "[Hrevoked_l]" as "Hrevoked_l".
+    { rewrite /close_list_resources /close_addr_resources.
+      iNext; done.
+    }
+    iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l]") as ">Hrevoked_l".
+    rewrite /close_list_resources.
     iEval (setoid_rewrite Hl_wca0_l') in "Hrevoked_l".
     iDestruct (big_sepL_app with "Hrevoked_l") as "[Hrevoked_wca0_temp Hrevoked_l']".
 
@@ -216,9 +221,10 @@ Section SO.
     iAssert (
         ∃ (wca0_invs : list (finz MemNum * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type)),
           ⌜ (λ '(a, _, _, _), a) <$> wca0_invs = wca0_perma ⌝ ∗
-          ⌜ Forall (λ '(a, _, _, ρ), W !! a = Some ρ) wca0_invs ⌝ ∗
-          ([∗ list] '(a, p, φ, _) ∈ wca0_invs, rel C a p φ)
-      )%I as "(%wca0_invs & %Hwca0_invs_perma & %Hwca0_invs_std_perma & Hrels_wca0)".
+          ⌜ Forall (λ '(a, _, _, ρ), std W0 !! a = Some ρ ∧ ρ = Permanent) wca0_invs ⌝ ∗
+          ([∗ list] '(a, p, φ, _) ∈ wca0_invs, rel C a p φ) ∗
+          ⌜ Forall (λ '(_, _, φ, _), ∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)) wca0_invs⌝
+      )%I as "(%wca0_invs & %Hwca0_invs_perma & %Hwca0_invs_std_perma & Hrels_wca0 & %Hpers_wca0_invs)".
     { admit. (* should be doable *)
     }
 
@@ -226,14 +232,22 @@ Section SO.
       "(%wca0_lv_perma & Hr_C & Hsts_C & Hsts_std_wca0 & Hwca0_perma_lv & Hwca0_mono & Hwca0_φs
      & %Hlength_wca0_lv & Hwca0_pO)".
     { rewrite Hwca0_invs_perma.
-      admit.
+      subst wca0_perma.
+      apply NoDup_filter, finz_seq_between_NoDup.
     }
     { rewrite Hwca0_invs_perma; set_solver+. }
     { rewrite !Forall_forall in Hwca0_invs_std_perma |- *.
       intros [ [ [  ] ] ] Hx; cbn in *; simplify_eq.
-      admit.
+      apply Hwca0_invs_std_perma in Hx.
+      destruct Hx as [_ ->]; done.
     }
-    { admit. }
+    { cbn in *.
+      rewrite !Forall_forall in Hwca0_invs_std_perma |- *.
+      intros [ [ [  ] ] ] Hx; cbn in *; simplify_eq.
+      apply Hwca0_invs_std_perma in Hx.
+      destruct Hx as [Hx ->].
+      by apply revoke_lookup_Perm.
+    }
     iAssert ( [∗ list] a;v ∈ wca0_perma ; wca0_lv_perma, a ↦ₐ v )%I with "[Hwca0_perma_lv]"
       as "Hwca0_perma_lv".
     { rewrite -Hwca0_invs_perma big_sepL2_fmap_l.
@@ -251,7 +265,10 @@ Section SO.
         ∃ (lp : list Perm)
           (lφ : list (WORLD * CmptName * Word → iPropI Σ) )
           (lv : list Word),
-          ([∗ list] φ ∈ lφ, ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝)
+          ⌜ length lp = length wca0_temp ⌝
+          ∗ ⌜ length lφ = length wca0_temp ⌝
+          ∗ ⌜ length lv = length wca0_temp ⌝
+          ∗ ([∗ list] φ ∈ lφ, ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝)
           ∗ ([∗ list] a;pφ ∈ wca0_temp;(zip lp lφ), rel C a pφ.1 pφ.2)
           ∗ ([∗ list] p ∈ lp, ⌜isO p = false⌝)
           ∗ ([∗ list] a;v ∈ wca0_temp;lv, a ↦ₐ v)
@@ -260,16 +277,34 @@ Section SO.
                 then future_pub_mono C lpφ.2 v
                 else (if isDL lpφ.1 then future_pub_mono C lpφ.2 v else future_priv_mono C lpφ.2 v))
             )
-          ∗ ([∗ list] φ;v ∈ lφ;lv, φ (W,C,v)))%I
+          ∗ ([∗ list] φ;v ∈ lφ;lv, φ (W0,C,v)))%I
       with "[Hrevoked_wca0_temp]"
-      as (lp lφ wca0_lv_temps) "(Hlφ_pers & #Hlpφ_rels & HlpO & Hwca0_temp_lv & Hlpφ_mono & Hlφ_lv)".
-    { admit. (* very annoying, but should be okay *) }
+      as (lp lφ wca0_lv_temps)
+           "(%Hlen_lp & %Hlen_lφ & %Hlen_lv & Hlφ_pers & #Hlpφ_rels & HlpO & Hwca0_temp_lv & Hlpφ_mono & Hlφ_lv)".
+    { iClear "#".
+      generalize wca0_temp.
+      clear; intros l.
+      iInduction (l) as [| a l]; first (iExists [],[],[]; cbn; done).
+      iDestruct "Hrevoked_wca0_temp" as "[Ha Hl]".
+      iDestruct ("IHl" with "Hl") as "Hl".
+      iDestruct "Ha" as (p P HpersP) "[Ha Hrel_a]".
+      iDestruct "Ha" as (v) "(HpO & Hv & Hmono & HP)".
+      iDestruct "Hl" as (lp lP lv) "(% & % & % & %Hpers_lP & Hrels & HpOs & Hvs & Hmonos & HPs)".
+      iExists (p::lp), (P::lP), (v::lv).
+      iFrame.
+      iFrame "%".
+      iPureIntro.
+      cbn; lia.
+    }
     iDestruct (big_sepL2_app with "Hwca0_perma_lv Hwca0_temp_lv") as "Hwca0_lvs".
     iAssert (∃ wca0_lvs,
                 ⌜ wca0_lvs ≡ₚ wca0_lv_perma ∪ wca0_lv_temps ⌝
                 ∗ [[b,e]] ↦ₐ [[ wca0_lvs ]]
             )%I with "[Hwca0_lvs]" as (wca0_lvs) "[%Hwca0_lvs_eq Hwca0_lvs]".
-    { admit. (* TODO might be pretty hard to prove... but maybe if generalised + induction *)
+    { iClear "#".
+      rewrite Hwca0_invs_perma in Hlength_wca0_lv.
+      clear -Hwca0_range Hlength_wca0_lv.
+      admit. (* TODO might be pretty hard to prove... but maybe if generalised + induction *)
     }
 
     iApply (checkints_spec with "[- $HPC $Hca0 $Hcs1 $Hcs0 $Hwca0_lvs $Hcode]"); eauto.
@@ -280,7 +315,10 @@ Section SO.
         [∗ list] y1;y2 ∈ (wca0_perma ++ wca0_temp);(wca0_lv_perma ++ wca0_lv_temps),
           y1 ↦ₐ y2
       )%I with "[Hwca0_lvs]" as "Hwca0_lvs".
-    { admit. }
+    { rewrite /region_pointsto.
+      (* XXX: It's just the reverse operation than above, but I actually don't know
+       if that works... *)
+      admit. }
     iDestruct (big_sepL2_app' with "Hwca0_lvs") as "[Hwca0_perma_lv Hwca0_temp_lv]".
     { by rewrite Hlength_wca0_lv Hwca0_invs_perma. }
     iAssert ( [∗ list] '(a0, _, _, _);v ∈ wca0_invs;wca0_lv_perma, a0 ↦ₐ v )%I with "[Hwca0_perma_lv]"
@@ -294,8 +332,12 @@ Section SO.
     { by rewrite Hlength_wca0_lv length_fmap. }
     { rewrite Hwca0_invs_perma. apply NoDup_filter, finz_seq_between_NoDup. }
     { set_solver+. }
-    { apply Forall_forall; auto. admit. }
-    { admit. (* TODO need an additional information in region_open_list *) }
+    { rewrite !Forall_forall in Hwca0_invs_std_perma |- *.
+      intros [ [ [  ] ] ] Hx; cbn in *; simplify_eq.
+      apply Hwca0_invs_std_perma in Hx.
+      destruct Hx as [_ ->]; done.
+    }
+    { auto. }
     rewrite -region_open_nil.
     iAssert ([∗ list] φ ∈ lφ, zcond (safeUC φ) C)%I as "#Hzcond_lφ".
     { admit. (* interp + rels *) }
@@ -310,7 +352,29 @@ Section SO.
         ([∗ list] a ∈ wca0_temp,
            ∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ temp_resources W1 C φ a p ∗ rel C a p φ)
       )%I with "[Hlφ_pers HlpO Hlpφ_mono Hwca0_temp_lv Hlφ_lv]" as "Hwca0_temp_closing_resources".
-    { admit. }
+    { iDestruct "Hlpφ_rels" as "-#Hlpφ_rels".
+      iClear "#".
+      assert (Forall (λ w : Word, ∃ z : Z, w = WInt z) wca0_lv_temps) as Hlvs_temp_int.
+      { admit. }
+      clear -Hlen_lp Hlen_lφ Hlen_lv.
+      generalize dependent wca0_temp; intros l Hlen_lp Hlen_lφ Hlen_lv.
+      generalize wca0_lv_temps Hlen_lv; intros lv.
+      clear Hlen_lv wca0_lv_temps; intros Hlen_lv.
+      iRename "Hwca0_temp_lv" into "Hlv".
+      iInduction (l) as [|a l] "IH" forall (lφ lp lv Hlen_lp Hlen_lφ Hlen_lv); first done.
+      destruct lv as [|v lv]; cbn in Hlen_lv; simplify_eq.
+      destruct lφ as [|φ lφ]; cbn in Hlen_lφ; simplify_eq.
+      destruct lp as [|p lp]; cbn in Hlen_lp; simplify_eq.
+      cbn in *.
+      iDestruct "Hlφ_pers" as "[Hlφ_pers_a Hlφ_pers]".
+      iDestruct "HlpO" as "[HlpO_a HlpO]".
+      iDestruct "Hlpφ_mono" as "[Hlpφ_mono_a Hlpφ_mono]".
+      iDestruct "Hlv" as "[Hlv_a Hlv]".
+      iDestruct "Hlφ_lv" as "[Hlφ_lv_a Hlφ_lv]".
+      iDestruct "Hlpφ_rels" as "[Hlpφ_rels_a Hlpφ_rels]".
+      iFrame.
+      iApply ("IH" $! lφ lp lv with "[%] [%] [%] [$] [$] [$] [$] [$] [$]"); eauto.
+    }
     iMod (monotone_close_list_region W1 W1 C wca0_temp with
       "[] [$Hsts_C $Hr_C $Hwca0_temp_closing_resources]") as "[Hsts_C Hr_C]".
     { iPureIntro; apply close_list_related_sts_pub. }
@@ -321,7 +385,7 @@ Section SO.
       destruct (isO p); first done.
       destruct (has_sreg_access p).
       { admit. }
-      admit. (* I shouls have everything I need *)
+      admit. (* I should have everything I need *)
     }
 
 
@@ -489,6 +553,7 @@ Section SO.
       iSplit; last iFrame "#".
       iFrame "Hastk2".
       iSplit; first iPureIntro.
+      (* TODO CONTINUE TO CHECK THE ADMIT FROM HERE *)
       { admit. (* easyyyy *) }
       replace (writeAllowed pastk1) with true.
       2:{ symmetry; eapply writeAllowed_flowsto; eauto. }
