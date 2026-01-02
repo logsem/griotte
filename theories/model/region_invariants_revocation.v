@@ -1186,7 +1186,6 @@ Section heap.
          rewrite lookup_insert_ne in Htemps;auto.
   Qed.
 
-
   (* ---------------------------------------------------------------------------------------- *)
   (* ------------------ WE CAN REVOKΕ A REGION AND STS COLLECTION PAIR ---------------------- *)
   (* ---------------------------------------------------------------------------------------- *)
@@ -2104,6 +2103,180 @@ Section heap.
        by iFrame.
    Qed.
 
+  Lemma close_list_lookup_not_in W l a :
+    a ∉ l -> std (close_list l W) !! a = std W !! a.
+  Proof.
+    intros Ha.
+    induction l as [|a' l]; cbn; first done.
+    apply not_elem_of_cons in Ha; destruct Ha as [Haeq Ha].
+    apply IHl in Ha.
+    rewrite -Ha.
+    destruct (W.1 !! a') eqn:Ha'; last done.
+    destruct (decide (Revoked = r)); last done.
+    simplify_map_eq.
+    done.
+  Qed.
+
+  Lemma close_list_lookup_in W l a :
+    std W !! a = Some Revoked -> a ∈ l -> std (close_list l W) !! a = Some Temporary.
+  Proof.
+    intros Hrevoked Ha.
+    induction l as [|a' l]; cbn;first set_solver.
+    destruct (decide (a = a')) as [-> | Ha'].
+    + rewrite Hrevoked.
+      destruct (decide (Revoked = Revoked)); last done.
+      by simplify_map_eq.
+    + apply elem_of_cons in Ha; destruct Ha as [-> | Ha]; first done.
+      apply IHl in Ha.
+      destruct (W.1 !! a') eqn:Ha''; auto.
+      destruct (decide (Revoked = r)); auto.
+      by simplify_map_eq.
+  Qed.
+
+  Lemma close_list_lookup_Temporary W l a :
+    std W !! a = Some Temporary -> std (close_list l W) !! a = Some Temporary.
+  Proof.
+    intros Hrevoked.
+    induction l as [|a' l]; cbn;first set_solver.
+    destruct (decide (a = a')) as [-> | Ha'].
+    + rewrite Hrevoked.
+      destruct (decide (Revoked = Temporary)); first done.
+      by rewrite IHl.
+    + destruct (W.1 !! a') eqn:Ha''; auto.
+      destruct (decide (Revoked = r)); auto.
+      by simplify_map_eq.
+  Qed.
+
+  Lemma close_addr_resources_separation
+    (C : CmptName) (W : WORLD) (a1 a2 : Addr) (v : Word) :
+    a1 ↦ₐ v -∗
+    close_addr_resources C W a2 false -∗
+    ⌜ a1 ≠ a2 ⌝.
+  Proof.
+    iIntros "Hl1 (%&%&%&H&_)".
+    iDestruct "H" as "(%&_&H&_)".
+    iApply (address_neq with "Hl1 H"); eauto.
+  Qed.
+
+  Lemma close_addr_resources_gen_separation
+    (C : CmptName) (W : WORLD) (a1 a2 : Addr) (l : list Addr) (v : Word) :
+    a1 ↦ₐ v -∗
+    close_addr_resources_gen C W l a2 false -∗
+    ⌜ a1 ≠ a2 ⌝.
+  Proof.
+    iIntros "Hl1 (%&%&%&H&_)".
+    iDestruct "H" as (? ?) "(%&_&H&_)".
+    iApply (address_neq with "Hl1 H"); eauto.
+  Qed.
+
+  Lemma close_list_resources_separation
+    (C : CmptName) (W : WORLD) (l : list Addr) (a : Addr) (v : Word) :
+    a ↦ₐ v -∗
+    close_list_resources C W l false -∗
+    ⌜ a ∉ l ⌝.
+  Proof.
+    iIntros "Ha Hl".
+    iInduction (l) as [|x l]; cbn; first (iPureIntro;set_solver).
+    iDestruct "Hl" as "[Hx Hl]".
+    iDestruct (close_addr_resources_separation with "[$] [$]") as "%H".
+    iDestruct ("IHl" with "[$] [$]") as "%Hl".
+    iPureIntro.
+    apply not_elem_of_cons; split ; auto.
+  Qed.
+
+  Lemma close_list_resources_gen_separation
+    (C : CmptName) (W : WORLD) (l' l : list Addr) (a : Addr) (v : Word) :
+    a ↦ₐ v -∗
+    close_list_resources_gen C W l' l false -∗
+    ⌜ a ∉ l ⌝.
+  Proof.
+    iIntros "Ha Hl".
+    iInduction (l) as [|x l]; cbn; first (iPureIntro;set_solver).
+    iDestruct "Hl" as "[Hx Hl]".
+    iDestruct (close_addr_resources_gen_separation with "[$] [$]") as "%H".
+    iDestruct ("IHl" with "[$] [$]") as "%Hl".
+    iPureIntro.
+    apply not_elem_of_cons; split ; auto.
+  Qed.
+
+  Lemma close_addr_resources_separation_alt
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (a1 a2 : Addr) :
+    close_addr_resources C1 W1 a1 false -∗
+    close_addr_resources C2 W2 a2 false -∗
+    ⌜ a1 ≠ a2 ⌝.
+  Proof.
+    iIntros "(%&%&%&(%&_&H1&_)&_) (%&%&%&(%&_&H2&_)&_)".
+    iApply (address_neq with "H1 H2"); eauto.
+  Qed.
+
+  Lemma close_addr_list_resources_separation
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (a1 : Addr) (l2 : list Addr) :
+    close_addr_resources C1 W1 a1 false -∗
+    close_list_resources C2 W2 l2 false -∗
+    ⌜ a1 ∉ l2 ⌝.
+  Proof.
+    iIntros "(%&%&%&(%&_&H1&_)&_) H".
+    iApply (close_list_resources_separation with "[$] [$]").
+  Qed.
+
+  Lemma close_addr_list_gen_resources_separation
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (a1 : Addr) (l' l2 : list Addr) :
+    close_addr_resources C1 W1 a1 false -∗
+    close_list_resources_gen C2 W2 l' l2 false -∗
+    ⌜ a1 ∉ l2 ⌝.
+  Proof.
+    iIntros "(%&%&%&(%&_&H1&_)&_) H".
+    iApply (close_list_resources_gen_separation with "[$] [$]").
+  Qed.
+
+  Lemma close_list_resources_separation_many
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (la l2 : list Addr) (lv : list Word) :
+    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) -∗
+    close_list_resources C2 W2 l2 false -∗
+    ⌜ la ## l2 ⌝.
+  Proof.
+    iIntros "Hl1 Hl2".
+    iInduction (la) as [|a la] "IH" forall (lv); first (iPureIntro; set_solver+).
+    - iDestruct (big_sepL2_length with "Hl1") as "%Hl1".
+      destruct lv; simplify_eq.
+      iDestruct "Hl1" as "[Ha Hl1]".
+      iDestruct (close_list_resources_separation with "[$] [$]") as "%Ha".
+      iDestruct ("IH" with "[$] [$]") as "%Hl".
+      iPureIntro; set_solver.
+  Qed.
+
+  Lemma close_list_resources_gen_separation_many
+    (C2 : CmptName) (W2 : WORLD) (la l' l2 : list Addr) (lv : list Word) :
+    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) -∗
+    close_list_resources_gen C2 W2 l' l2 false -∗
+    ⌜ la ## l2 ⌝.
+  Proof.
+    iIntros "Hl1 Hl2".
+    iInduction (la) as [|a la] "IH" forall (lv); first (iPureIntro; set_solver+).
+    - iDestruct (big_sepL2_length with "Hl1") as "%Hl1".
+      destruct lv; simplify_eq.
+      iDestruct "Hl1" as "[Ha Hl1]".
+      iDestruct (close_list_resources_gen_separation with "[$] [$]") as "%Ha".
+      iDestruct ("IH" with "[$] [$]") as "%Hl".
+      iPureIntro; set_solver.
+  Qed.
+
+  Lemma close_list_resources_separation_many_alt
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (l1 l2 : list Addr) :
+    close_list_resources C1 W1 l1 false
+    ∗ close_list_resources C2 W2 l2 false
+      -∗ ⌜ l1 ## l2 ⌝.
+  Proof.
+    iIntros "[Hl1 Hl2]".
+    iInduction (l1) as [|a1 l1]; first (iPureIntro;set_solver+).
+    iDestruct "Hl1" as "[Ha Hl1]".
+    iDestruct (close_addr_list_resources_separation with "[$] [$Hl2]") as "%Ha".
+    iDestruct ("IHl1" with "[$] [$]") as "%Hl".
+    iPureIntro; set_solver.
+  Qed.
+
+
+  (** Obtain that an address is Revoked if we own the points-to *)
    Lemma revoked_by_separation
      (W : WORLD) (C : CmptName)
      (a : Addr) (w : Word) :
@@ -2174,6 +2347,44 @@ Section heap.
        rewrite Forall_cons_iff.
        iFrame; done.
    Qed.
+
+  Lemma revoked_by_separation_close_addr_resources B W W' a :
+    a ∈ dom (std W) →
+    region W B
+    ∗ sts_full_world W B
+    ∗ close_addr_resources B W' a false
+    ==∗
+    region W B
+    ∗ sts_full_world W B
+    ∗ close_addr_resources B W' a false
+    ∗ ⌜std W !! a = Some Revoked⌝.
+  Proof.
+    iIntros (Ha) "(Hr & Hsts & (%&%&%& (%&%&Ha&Hmono&HP) &Hrel))"; cbn.
+    iMod (revoked_by_separation with "[$Ha $Hr $Hsts]") as "(Hr & Hsts & Ha & %)"; auto.
+    iModIntro; iFrame "∗%".
+  Qed.
+
+  Lemma revoked_by_separation_close_list_resources B W' W la :
+    Forall (λ a : finz MemNum, a ∈ dom (std W)) la →
+    region W B
+    ∗ sts_full_world W B
+    ∗ close_list_resources B W' la false
+    ==∗
+    region W B
+    ∗ sts_full_world W B
+    ∗ close_list_resources B W' la false
+    ∗ ⌜Forall (λ a : finz MemNum, std W !! a = Some Revoked) la⌝.
+  Proof.
+    induction la as [|a la]; iIntros (Ha) "(Hr & Hsts & Ha)".
+    - iModIntro ; iFrame; done.
+    - iDestruct "Ha" as "[Ha Hl]".
+      apply Forall_cons in Ha as [Ha Hl].
+      iMod (revoked_by_separation_close_addr_resources with "[$Ha $Hr $Hsts]") as "(Hr & Hsts & Ha & %)"; auto.
+      iMod (IHla with "[$Hl $Hr $Hsts]") as "(Hr & Hsts & Hl & %)"; auto.
+      iModIntro; iFrame.
+      iPureIntro; apply Forall_cons; done.
+  Qed.
+
 
    (* Lemma revoked_by_revoked_resources *)
    (*   (W W' : WORLD) (C : CmptName) (la : list Addr) : *)
@@ -2271,6 +2482,7 @@ Section heap.
   (*   iDestruct (big_sepL2_length with "Hla") as "%Hlen"; iFrame "%∗". *)
   (* Qed. *)
 
+  (* TODO I think those lemmas are already defined above: clean *)
   Lemma revoked_by_separation_with_temp_resources W W' C a :
     a ∈ dom (std W') ->
     close_addr_resources C W a false

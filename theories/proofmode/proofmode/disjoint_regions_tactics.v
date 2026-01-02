@@ -2,38 +2,6 @@ From iris.proofmode Require Import proofmode.
 From stdpp Require Import sets list.
 From cap_machine Require Import addr_reg memory_region.
 
-Class DisjointList A := disjoint_list : list A → Prop.
-#[export] Hint Mode DisjointList ! : typeclass_instances.
-Instance: Params (@disjoint_list) 2 := {}.
-Notation "## Xs" := (disjoint_list Xs) (at level 20, format "##  Xs") : stdpp_scope.
-Notation "##@{ A } Xs" :=
-  (@disjoint_list A _ Xs) (at level 20, only parsing) : stdpp_scope.
-
-Section disjoint_list.
-  Variable A: Type.
-  Context `{Disjoint A, Union A, Empty A}.
-  Implicit Types X : A.
-
-  Inductive disjoint_list_default : DisjointList A :=
-    | disjoint_nil_2 : ##@{A} []
-    | disjoint_cons_2 (X : A) (Xs : list A) : X ## ⋃ Xs → ## Xs → ## (X :: Xs).
-  Global Existing Instance disjoint_list_default.
-
-  Lemma disjoint_list_nil  : ##@{A} [] ↔ True.
-  Proof. split; constructor. Qed.
-  Lemma disjoint_list_cons X Xs : ## (X :: Xs) ↔ X ## ⋃ Xs ∧ ## Xs.
-  Proof.
-    split; [inversion_clear 1; auto |].
-    intros [??]. constructor; auto.
-  Qed.
-End disjoint_list.
-
-Lemma disjoint_mono_l A C `{ElemOf A C} (X Y Z: C) : X ⊆ Y → Y ## Z → X ## Z.
-Proof. intros * HXY. rewrite !elem_of_disjoint. eauto. Qed.
-
-Lemma disjoint_mono_r A C `{ElemOf A C} (X Y Z: C) : X ⊆ Y → Z ## Y → Z ## X.
-Proof. intros * HXY. rewrite !elem_of_disjoint. eauto. Qed.
-
 Definition ByReflexivity (P: Prop) :=
   P.
 #[export] Hint Extern 1 (ByReflexivity _) => reflexivity : disj_regions.
@@ -78,12 +46,6 @@ Proof.
   - intros ?%Hll; auto. solve_addr.
 Qed.
 #[export] Hint Resolve AddrRegionsRange_cons | 10 : disj_regions.
-
-Global Instance Empty_list {A}: Empty (list A). exact []. Defined.
-Global Instance Union_list {A}: Union (list A). exact app. Defined.
-Global Instance Singleton_list {A}: Singleton A (list A). exact (λ a, [a]). Defined.
-Global Instance Semiset_list {A}: SemiSet A (list A) .
-Proof. split; set_solver. Qed.
 
 Lemma addr_range_union_incl_range (ll: list (list Addr)) (b e: Addr):
   AddrRegionsRange ll b e →
