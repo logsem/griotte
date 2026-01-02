@@ -1649,75 +1649,68 @@ Section SO.
     { iSplit; iApply interp_int. }
   Qed.
 
-  Lemma vae_awkward_safe
+
+  Lemma stack_object_f_spec_safe
 
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
 
-    (b_vae_exp_tbl e_vae_exp_tbl : Addr)
+    (b_so_exp_tbl e_so_exp_tbl : Addr)
 
     (b_assert e_assert : Addr) (a_flag : Addr)
     (C_f : Sealable)
 
     (W : WORLD)
 
-    (Nassert Nswitcher Nvae VAEN : namespace)
-    i
+    (Nassert Nswitcher Nso SON : namespace)
 
     :
 
     let imports :=
-     vae_main_imports
+     so_main_imports
        b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
     in
 
     Nswitcher ## Nassert ->
-    Nswitcher ## Nvae ->
-    Nassert ## Nvae ->
-    (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (vae_main_code ot_switcher))%a ->
+    Nswitcher ## Nso ->
+    Nassert ## Nso ->
+    (b_so_exp_tbl <= b_so_exp_tbl ^+ 2 < e_so_exp_tbl)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
     (pc_b + length imports)%a = Some pc_a ->
-    (cgp_b + length vae_main_data)%a = Some cgp_e ->
-    (exists b : bool, loc W !! i = Some (encode b)) ->
-    wrel W !! i =
-    Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
+    (cgp_b + length so_main_data)%a = Some cgp_e ->
 
     na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv logrel_nais Nswitcher switcher_inv
-    ∗ na_inv logrel_nais Nvae
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a (vae_main_code ot_switcher))
-    ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
-    ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
-        ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 1 (length (imports ++ VAE_main_code_init))))
-    ∗ WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
-        ↦□ₑ 1
-    ∗ WSealed ot_switcher (SCap RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
-        ↦□ₑ 1
+    ∗ na_inv logrel_nais Nso
+        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
+    ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
+    ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
+    ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
+        ((b_so_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run))))
+    ∗ WSealed ot_switcher (SCap RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)
+        ↦□ₑ 2
+    ∗ WSealed ot_switcher (SCap RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)
+        ↦□ₑ 2
     ∗ seal_pred ot_switcher ot_switcher_propC
-    ∗ (∃ ι, inv ι (awk_inv C i cgp_b))
-    ∗ sts_rel_loc (A:=Addr) C i awk_rel_pub awk_rel_priv
       -∗
     interp W C
-      (WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)).
+      (WSealed ot_switcher (SCap RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)).
   Proof.
-    intros imports; subst imports.
-    iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae
-               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hloc_i_W Hrel_i_W)
+    intros imports.
+    iIntros (Hswitcher_assert HNswitcher_so HNassert_so
+               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size)
       "(#Hassert & #Hswitcher
-      & #Hvae_code
-      & #Hvae_exp_PCC
-      & #Hvae_exp_CGP
-      & #Hvae_exp_awkward
-      & #Hentry_VAE & #Hentry_VAE' & #Hot_switcher
-      & [%ι #Hι] & #Hsts_rel)".
+      & #Hso_code
+      & #Hso_exp_PCC
+      & #Hso_exp_CGP
+      & #Hso_exp_awkward
+      & #Hentry_SO & #Hentry_SO' & #Hot_switcher)".
     iEval (rewrite fixpoint_interp1_eq /=).
     rewrite /interp_sb.
     iFrame "Hot_switcher".
     iSplit; [iPureIntro; apply persistent_cond_ot_switcher |].
     iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
-    iSplit; iNext ; iApply vae_awkward_spec; try iFrame "#"; eauto.
+    iSplit; iNext ; iApply stack_object_f_spec; try iFrame "#"; eauto.
   Qed.
 
-
-End VAE.
+End SO.
