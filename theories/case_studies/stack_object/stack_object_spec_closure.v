@@ -26,6 +26,48 @@ Section SO.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
+  (** Steps of the proofs:
+      - 1) Revoke the world, obtain [l] the unknown addresses being revoked.
+      - 2) Check that the passed stack object [wca0] has read permission,
+         and that it does not overlap with our stack frame.
+      - 3) Knowing that [wca0] is a safe capability with read permission,
+         we know that all addresses must be in the world,
+         either Temporary or Permanent.
+      - 4) Filter [l] to separate the addresses of [wca0]'s region
+         that are Temporary, and the others.
+         We know that they are in [l] because if Temporary
+         they must either be in [l] or in our stack frame.
+         That way, we can get the points-to predicates for
+         the Temporary addresses of [wca0].
+      - 5) Open the world and get the points-to predicates
+         of the Permanent addresses of [wca0].
+      - 6) We know have all the points-to predicate of [wca0]'s region,
+         we can apply [checkints_spec].
+      - 7) We can close the world with the Permanent addresses,
+         and we can re-introduce the Temporary ones (via [close_list]).
+         They respect their associated validity predicate because [wca0] is interp,
+         so their associated predicate must be [zcond],
+         and they contain integers.
+      - 8) Allocate a new stack object [a_stk1] from our stack frame,
+         update the world with its address.
+      - 9) Show the arguments to be safe.
+         The passed SO is safe because it was safe in the initial world,
+         and we re-introduced the Temporary addresses
+         (which had been revoked in the initial revocation)
+         manually.
+         The allocated SO [a_stk1] is safe because we updated the world accordingly.
+      - 10) Call the adversary. We obtain a new public future world that is revoked.
+          The unknown addresses are [l''].
+      - 11) We know that [a_stk1] is in [l'']
+          and that the Temporary addresses of `wca0` also are in [l''].
+      - 12) We fix the world by closing the world with [l] and [l''],
+          but some addresses are redundant.
+          It's mostly a game of filtering the addresses.
+      - 13) Note that the addresses of [l] are revoked in the initial world,
+          but the ones of [l''] are revoked in the final world.
+          That's why we need the generalised version of the switcher's return specification.
+   *)
+
   Lemma stack_object_f_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -493,7 +535,7 @@ Section SO.
         iIntros (???) "!> H"; cbn.
         iDestruct ("Heq" $! (W1, C, WInt z)) as "-#Heq0".
         iDestruct ("Heq" $! (W2, C, WInt z)) as "-#Heq1".
-        (* TODO for some reason, I cant rewrite Heq0 and Heq1... *)
+        (* FIXME: for some reason, I cant rewrite Heq0 and Heq1... *)
         iDestruct (internal_eq_iff with "Heq1") as "[_ Heq1]".
         iDestruct (internal_eq_iff with "Heq0") as "[Heq0 _]".
         iApply "Heq1".

@@ -218,6 +218,9 @@ The case studies are:
 - `vae/`: Very Awkward Example. Shows that the switcher's defines a Well Bracketed 
   calling convention.
 
+- `stack_object/`: Example showing that the switcher can support stack objects,
+  but requires additional checks.
+
 # Differences with the paper
 
 Some definitions have different names from the paper.

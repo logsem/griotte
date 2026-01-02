@@ -7,7 +7,7 @@ Section SO_Main.
 
   (** CHERIoT code for the stack objects example
 
-      ```
+<<
 void __cheri_compartment("known") f(char* in, Callback* g)
 {
   // `*in` is a stack object from the caller
@@ -26,7 +26,7 @@ int __cheri_compartment("known") run()
 	adv();
 	return 0;
 }
-      ```
+>>
 
    *)
 
@@ -39,22 +39,23 @@ int __cheri_compartment("known") run()
 
    *)
 
-  (*
-    PSEUDO-CODE:
+  (** PSEUDO-CODE:
 
+<<
     run:
       call B.adv
       halt
 
     f(in):
       // integrity check of `in`
-      check_read(in, RWL);
+      check_read(in);
       check_only_integer(in);
       y := push(2);
       o := allocate_stack_object( [0] );
       call(g, in, o) ;
       assert (y == 2) ;
       return
+>>
    *)
 
   Definition SO_main_code_run : list Word :=
@@ -74,11 +75,6 @@ int __cheri_compartment("known") run()
     encodeInstrsW [
         Mov ct1 ca1 (* ct1 := fun_g *)
       ]
-      (* TODO: macro [check_stack_object] instead *)
-      (* we also need to explicitly check that it does not point upward *)
-      (* ++ checkra_instrs ca0 cs0 cs1 *)
-      (* ++ checkints_instrs ca0 cs0 cs1 *)
-      (* ++ check_valid_stack_object_instrs ca0 cs0 cs1 *)
       ++ checkra_instrs ca0 cs0 cs1
       ++ check_no_overlap_instrs ca0 csp cs0 cs1
       ++ checkints_instrs ca0 cs0 cs1
