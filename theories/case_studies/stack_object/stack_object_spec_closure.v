@@ -190,6 +190,43 @@ Section SO.
     iPureIntro; set_solver.
   Qed.
 
+  Lemma revoked_by_separation_close_addr_resources B W W' a :
+    a ∈ dom (std W) →
+    region W B
+    ∗ sts_full_world W B
+    ∗ close_addr_resources B W' a false
+    ==∗
+    region W B
+    ∗ sts_full_world W B
+    ∗ close_addr_resources B W' a false
+    ∗ ⌜std W !! a = Some Revoked⌝.
+  Proof.
+    iIntros (Ha) "(Hr & Hsts & (%&%&%& (%&%&Ha&Hmono&HP) &Hrel))"; cbn.
+    iMod (revoked_by_separation with "[$Ha $Hr $Hsts]") as "(Hr & Hsts & Ha & %)"; auto.
+    iModIntro; iFrame "∗%".
+  Qed.
+
+  Lemma revoked_by_separation_close_list_resources B W' W la :
+    Forall (λ a : finz MemNum, a ∈ dom (std W)) la →
+    region W B
+    ∗ sts_full_world W B
+    ∗ close_list_resources B W' la false
+    ==∗
+    region W B
+    ∗ sts_full_world W B
+    ∗ close_list_resources B W' la false
+    ∗ ⌜Forall (λ a : finz MemNum, std W !! a = Some Revoked) la⌝.
+  Proof.
+    induction la as [|a la]; iIntros (Ha) "(Hr & Hsts & Ha)".
+    - iModIntro ; iFrame; done.
+    - iDestruct "Ha" as "[Ha Hl]".
+      apply Forall_cons in Ha as [Ha Hl].
+      iMod (revoked_by_separation_close_addr_resources with "[$Ha $Hr $Hsts]") as "(Hr & Hsts & Ha & %)"; auto.
+      iMod (IHla with "[$Hl $Hr $Hsts]") as "(Hr & Hsts & Hl & %)"; auto.
+      iModIntro; iFrame.
+      iPureIntro; apply Forall_cons; done.
+  Qed.
+
   Context {C : CmptName}.
 
   Implicit Types W : WORLD.
@@ -660,12 +697,15 @@ Section SO.
         iDestruct (rel_agree  with "[$Hrel $Hrel']") as "[_ #Heq]".
         iSplitL "Heq"; last iApply "IH"; eauto.
         iNext.
-        iIntros (???) "!> H".
-        iDestruct ("Heq" $! (W1, C, WInt z)) as "Heq0".
-        iDestruct ("Heq" $! (W2, C, WInt z)) as "Heq1".
-        cbn.
+        iIntros (???) "!> H"; cbn.
+        iDestruct ("Heq" $! (W1, C, WInt z)) as "-#Heq0".
+        iDestruct ("Heq" $! (W2, C, WInt z)) as "-#Heq1".
         (* TODO for some reason, I cant rewrite Heq0 and Heq1... *)
-        admit.
+        iDestruct (internal_eq_iff with "Heq1") as "[_ Heq1]".
+        iDestruct (internal_eq_iff with "Heq0") as "[Heq0 _]".
+        iApply "Heq1".
+        iDestruct ("Heq0" with "H") as "H".
+        iApply "Hzcond"; eauto.
     }
     iDestruct "Hlc" as "[Hlc' Hlc]".
     iDestruct (lc_fupd_elim_later with "[$Hlc'] [$Hzcond_lφ]") as ">Hzcond_lφ'".
@@ -918,9 +958,6 @@ Section SO.
     { iApply "Hzeroed_rmap"; eauto.
       set_solver+.
     }
-    (* TODO: we need to update the world with [a_stk1],
-       but we already have rel because we have the interp for the full stack frame
-     *)
     iAssert (
         |={⊤}=> ([∗ list] a ∈ [a_stk1],
            ∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ temp_resources W2 C φ a p ∗ rel C a p φ)
@@ -1124,41 +1161,51 @@ Section SO.
     }
     set (W5 := revoke W4).
 
-    Set Nested Proofs Allowed.
-    Lemma revoked_by_separation_close_addr_resources B W W' a :
-      a ∈ dom (std W) →
-      region W B
-      ∗ sts_full_world W B
-      ∗ close_addr_resources B W' a false
-      ==∗
-      region W B
-      ∗ sts_full_world W B
-      ∗ close_addr_resources B W' a false
-      ∗ ⌜std W !! a = Some Revoked⌝.
-    Proof. Admitted.
-    Lemma revoked_by_separation_close_list_resources B W' W la :
-      Forall (λ a : finz MemNum, a ∈ dom (std W)) la →
-      region W B
-      ∗ sts_full_world W B
-      ∗ close_list_resources B W' la false
-      ==∗
-      region W B
-      ∗ sts_full_world W B
-      ∗ close_list_resources B W' la false
-      ∗ ⌜Forall (λ a : finz MemNum, std W !! a = Some Revoked) la⌝.
-    Proof. Admitted.
     iMod (revoked_by_separation_close_list_resources with "[$Hrevoked_l' $Hr_C $Hsts_C]")
       as "(Hr_C & Hsts_C & Hrevoked_l' & %Hrevoked_l'_W5)".
-    { admit. }
+    { apply Forall_forall.
+      intros x Hx.
+      subst l'.
+      apply elem_of_list_filter in Hx as [_ Hl].
+      rewrite -revoke_dom_eq.
+      eapply elem_of_mono_pub; eauto.
+      rewrite -!close_list_dom_eq.
+      rewrite -revoke_dom_eq.
+      destruct Hl_unk as [_ Hl_unk].
+      assert ( std W0 !! x = Some Temporary).
+      { apply Hl_unk; apply elem_of_app ; by left. }
+      rewrite elem_of_dom; done.
+    }
     iMod (revoked_by_separation_close_list_resources with "[$Hrevoked_l'' $Hr_C $Hsts_C]")
       as "(Hr_C & Hsts_C & Hrevoked_l'' & %Hrevoked_l''_W5)".
-    { admit. }
+    { apply Forall_forall.
+      intros x Hx.
+      rewrite -revoke_dom_eq.
+      destruct Hl_unk'' as [_ Hl_unk''].
+      assert ( std W4 !! x = Some Temporary).
+      { apply Hl_unk''; apply elem_of_app ; by left. }
+      rewrite elem_of_dom; done.
+    }
     iMod (revoked_by_separation_many with "[$Hstk $Hr_C $Hsts_C]")
       as "(Hr_C & Hsts_C & Hstk & %Hstk_W5)".
-    { admit. }
+    { eapply Forall_impl; eauto; cbn.
+      intros x Hx.
+      rewrite elem_of_dom; done.
+    }
     iMod (revoked_by_separation with "[$Hastk1 $Hr_C $Hsts_C]")
       as "(Hr_C & Hsts_C & Hastk1 & %Hastk1_W5)".
-    { admit. }
+    {
+      rewrite -revoke_dom_eq.
+      eapply elem_of_mono_pub; eauto.
+      rewrite -!close_list_dom_eq.
+      rewrite -revoke_dom_eq.
+      destruct Hl_unk as [_ Hl_unk].
+      assert ( std W0 !! csp_b = Some Temporary).
+      { apply Hl_unk; apply elem_of_app ; right.
+        apply elem_of_finz_seq_between; done.
+      }
+      rewrite elem_of_dom; done.
+    }
 
     assert (a_stk1 ∈ l'') as Hastk1_l''.
     { assert (a_stk1 ∉ finz.seq_between (a_stk2 ^+ 4)%a csp_e).
@@ -1176,9 +1223,9 @@ Section SO.
       apply elem_of_app in Htemp as [?|?]; done.
     }
 
-    assert (a ∈ l ++ finz.seq_between csp_b csp_e -> std (revoke W4) !! a = Some Revoked) as
+    assert (∀ a, a ∈ l ++ finz.seq_between csp_b csp_e -> std (revoke W4) !! a = Some Revoked) as
     Ha_5.
-    { intros Ha.
+    { clear a ; intros a Ha.
       apply elem_of_app in Ha as [Ha|Ha]; cycle 1.
       - rewrite finz_seq_between_cons in Ha; last solve_addr+Hcsp_size' Hastk1.
         replace (csp_b ^+1)%a with a_stk1 in Ha by solve_addr+Hcsp_size' Hastk2 Hastk1 Hcsp_bounds.
@@ -1454,39 +1501,10 @@ Section SO.
         { destruct Hl_unk as [_ Hl]; apply Hl; auto. }
         assert (std W1 !! a = Some Revoked)
           as Ha_1 by (by apply revoke_lookup_Monotemp).
-        assert ( a ∈ l ++ finz.seq_between csp_b csp_e -> revoke_std_sta W4std !! a = Some Revoked ) as Ha_5.
-        (* iAssert (⌜ a ∈ l ++ finz.seq_between csp_b csp_e -> std W4 !! a = Some Revoked ⌝). *)
-        (* Revoked in W3, we need to know that they are still revoked in W4,
-             from the separation during the proof *)
-        { admit. }
-        specialize (Ha_5 Ha_closing).
+        specialize (Ha_5 a Ha_closing).
         apply H in Ha_closing.
         rewrite close_list_std_sta_revoked in Ha_6; auto.
         simplify_eq; apply rtc_refl.
-        (* assert (std W3 !! a = Some Revoked ∨ std W3 !! a = Some Temporary) as [Ha_3|Ha_3]. *)
-        (* { subst W3 W2. *)
-        (*   destruct ( decide (a ∈ wca0_temp) ) as [Ha_temp | Ha_temp] *)
-        (*   ; destruct ( decide (a = a_stk1) ) as [-> | Ha_astk1]. *)
-        (*   + right. *)
-        (*     rewrite close_list_lookup_Temporary; eauto. *)
-        (*     apply close_list_lookup_in; eauto. *)
-        (*   + right. *)
-        (*     rewrite close_list_lookup_Temporary; eauto. *)
-        (*     apply close_list_lookup_in; eauto. *)
-        (*   + right. *)
-        (*     apply close_list_lookup_in; eauto; last set_solver+. *)
-        (*     rewrite close_list_lookup_not_in; eauto. *)
-        (*   + left. *)
-        (*     rewrite close_list_lookup_not_in; eauto; last (set_solver+Ha_astk1). *)
-        (*     rewrite close_list_lookup_not_in; eauto. *)
-        (* } *)
-        (* + *)
-      (* Revoked in W3, we need to know that they are still revoked in W4,
-             from the separation during the proof *)
-        (* + eapply region_state_pub_temp in Ha_3; eauto. *)
-        (*   eapply region_state_pub_temp in Ha_3; eauto. *)
-        (*   rewrite Ha_3 in Ha_6; simplify_eq. *)
-        (*   apply rtc_refl. *)
       - (* Permanent in W0 *)
         assert (std W3 !! a = Some Permanent) as Ha_3.
         { eapply region_state_priv_perm; eauto. }
@@ -1512,10 +1530,10 @@ Section SO.
       setoid_rewrite Hl''0_p.
       iDestruct (big_sepL_app with "Hrevoked_l''") as "[$ $]".
     }
-    iDestruct (close_list_resources_gen_separation with "[$Hastk1] [$Hrevoked_l''_wca0]") as "%Hcsp_b_notin_l''0_no_wca0".
-    iDestruct (close_addr_list_gen_resources_separation with "[$Ha_stk1] [$Hrevoked_l''_wca0]") as "%Hastk_1_notin_l''0_no_wca0".
+    iDestruct (close_list_resources_gen_separation with "[$Hastk1] [$Hrevoked_l''_no_wca0]") as "%Hcsp_b_notin_l''0_no_wca0".
+    iDestruct (close_addr_list_gen_resources_separation with "[$Ha_stk1] [$Hrevoked_l''_no_wca0]") as "%Hastk_1_notin_l''0_no_wca0".
     iDestruct (close_list_resources_gen_separation_many
-                 with "[$Hstk] [$Hrevoked_l''_wca0]") as "%Hfrm_notin_l''0_no_wca0".
+                 with "[$Hstk] [$Hrevoked_l''_no_wca0]") as "%Hfrm_notin_l''0_no_wca0".
     iAssert (close_list_resources_gen C W5 closing_list l false)
       with "[Hrevoked_l' Hrevoked_l''_wca0]" as "Hrevoked_l'".
     { rewrite /close_list_resources_gen.
