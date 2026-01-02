@@ -162,7 +162,7 @@ Section SO.
 
     focus_block 4 "Hcode_main" as a_checkra Ha_checkra "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_f.
     iApply (checkra_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
-    iSplitL; last ( iNext ; iIntros (?); done).
+    iSplitL; last ( iModIntro; iNext ; iIntros (?); done).
     iNext ; iIntros "H"; iDestruct "H" as (p g b e a) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

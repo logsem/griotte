@@ -9,7 +9,49 @@ Section Checkra.
 
 
   Definition checkra_instrs (r r1 r2 : RegName) : list Word :=
-    encodeInstrsW [ Mov r1 0%Z; Mov r2 0%Z ].
+    encodeInstrsW [
+        GetWType r1 r;
+        Sub r2 r1 (encodeWordType wt_cap);
+        Jnz 4 r2;
+        GetP r1 r;
+        Sub r2 r1 (encodePerm (O LG LM));
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm (O DL LM));
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm (O LG DRO));
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm (O DL DRO));
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm WO);
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm WO_DL);
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm WO_DRO);
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm WO_DL_DRO);
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm WLO);
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm WLO_DL);
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm WLO_DRO);
+        Jnz 2 r2;
+        Fail;
+        Sub r2 r1 (encodePerm WLO_DL_DRO);
+        Jnz 2 r2;
+        Fail;
+        Mov r1 0%Z;
+        Mov r2 0%Z ].
   (* TODO: it's actually quite annoying to check...
      In CHERIoT, I would do something like:
      ```
@@ -30,6 +72,37 @@ Section Checkra_spec.
       {ceriseg: ceriseG Σ}
       {MP: MachineParameters}
   .
+
+  Local Ltac fail_check_ra :=
+    match goal with
+    | _ : _ |- context [ WInt (encodePerm ?p - encodePerm ?p') ] =>
+        replace (encodePerm p' - encodePerm p')%Z with 0%Z by lia
+    end
+    ; iInstr "Hcode"
+    ; iInstr "Hcode"
+    ; by wp_end.
+  Local Ltac pass_check_ra :=
+    match goal with
+    | _ : _ |- context [ WInt (encodePerm ?p - encodePerm ?p') ] =>
+        let Heq := fresh "Heq" in
+        let Hneq := fresh "Hneq" in
+        assert ( (WInt (encodePerm p - encodePerm p') ≠ WInt 0 )) as Hneq
+        ; [
+            intro; simplify_eq
+            ; assert (encodePerm p = encodePerm p' ) as Heq by lia
+            ; apply encodePerm_inj in Heq
+            ; done
+          |]
+        ; iInstr "Hcode"
+        ; iInstr "Hcode"
+        ; clear Hneq
+    end.
+  Local Ltac check_ra :=
+    match goal with
+    | _ : _ |- context [ WInt (encodePerm ?p - encodePerm ?p') ] =>
+        let Hp := fresh "Hp" in
+        destruct (decide (p = p')) as [-> | Hp]; [fail_check_ra|pass_check_ra]
+    end.
 
   Lemma checkra_spec
     (rsrc r1 r2 : RegName)
@@ -56,9 +129,45 @@ Section Checkra_spec.
           ∗ codefrag pc_a checkra_ )
             -∗ WP Seq (Instr Executable) {{ φ }}
         )
-    ∗ ▷ φ FailedV
+    ∗ □ (▷ φ FailedV)
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
-  Admitted.
+    intros checkra a_last ; subst checkra a_last.
+    iIntros (Hra Hbounds) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >Hcode & Hpost & #Hfailed)".
+    codefrag_facts "Hcode".
+    rename H into HcontRegion; clear H0.
+
+    iInstr "Hcode".
+    { rewrite /rules_Get.denote.
+      destruct_word wsrc;done.
+    }
+    iInstr "Hcode".
+
+    destruct (is_cap wsrc) eqn:His_cap_wsrc; cycle 1.
+    { assert (WInt (encodeWordType wsrc - encodeWordType wt_cap)%Z ≠ WInt 0).
+      { intro; simplify_eq.
+        destruct_word wsrc; cbn in *; try done.
+        all: match goal with
+             | _ : ((encodeWordType ?w - encodeWordType wt_cap)%Z = 0%Z) |- _ =>
+                 pose proof (encodeWordType_correct w wt_cap) as Hwtype ; cbn in Hwtype; lia
+             end.
+      }
+      iInstr "Hcode".
+      iInstr "Hcode".
+      by wp_end.
+    }
+    destruct_word wsrc; cbn in His_cap_wsrc; try done.
+    pose proof (encodeWordType_correct (WCap c g b e a) wt_cap) as Hwtype ; cbn in Hwtype.
+    rewrite Hwtype.
+    replace (encodeWordType wt_cap - encodeWordType wt_cap)%Z with 0%Z by lia.
+    iInstr "Hcode".
+    iInstr "Hcode".
+    iInstr "Hcode".
+    do 12 check_ra.
+    iInstr "Hcode".
+    iApply "Hpost"; iFrame.
+    iPureIntro; split; last done.
+    destruct_perm c; auto.
+  Qed.
 
 End Checkra_spec.
