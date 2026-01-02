@@ -49,9 +49,8 @@ Section Is_WordType_spec.
     ∗ ▷ r ↦ᵣ w
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ codefrag pc_a is_int
-    ∗ ▷ ( (∃ z,
-            PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
-            ∗ r ↦ᵣ WInt z
+    ∗ ▷ ( ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
+            ∗ r ↦ᵣ w ∗ ⌜ ∃ z, w = WInt z ⌝
             ∗ r1 ↦ᵣ WInt 0%Z
             ∗ codefrag pc_a is_int)
               -∗ WP Seq (Instr Executable) {{ φ }}
@@ -73,6 +72,7 @@ Section Is_WordType_spec.
       2: { rewrite (encodeWordType_correct_int z 0) /wt_int; lia. }
       iGo "Hprog".
       iApply "Hφ"; iFrame.
+      iPureIntro; eexists; done.
     - iGo "Hprog".
       { apply getwtype_denote. }
       assert (WInt (encodeWordType w - encodeWordType wt_int) ≠ WInt 0).
