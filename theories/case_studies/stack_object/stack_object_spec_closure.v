@@ -1442,7 +1442,8 @@ Section SO.
       apply NoDup_app.
       split;[|split]; cycle -1.
       - apply finz_seq_between_NoDup.
-      - setoid_rewrite Hl_l_revoked_W4_no_astk1_wca0.
+      - subst closing_list_revoked_addresses.
+        setoid_rewrite Hl_l_revoked_W4_no_astk1_wca0.
         subst l_revoked_W0_no_be.
         rewrite /union /Union_list.
         apply NoDup_app.
