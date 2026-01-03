@@ -231,15 +231,17 @@ Section SO.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l
-           ) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+        as (l_revoked_W0) "([%Hl_revoked_W0_nodup %Hl_revoked_W0_temporaries]
+                 & Hsts_C & Hr_C
+                 & #Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk]
+                 & [Hl_revoked_W0 %Hl_revoked_W0])".
 
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as
       Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
     iAssert ( ⌜ Forall (fun a => std W0 !! a = Some Permanent ∨ std W0 !! a = Some Temporary)
                 (finz.seq_between b e) ⌝)%I
-    as "%Harg_std_states".
+    as "%Hstd_state_be_W0".
     { iDestruct (readAllowed_valid_cap with "Hinterp_wca0_W0" ) as "%Hbe_revoked"; auto.
       iPureIntro.
       clear -Hbe_revoked.
@@ -248,13 +250,14 @@ Section SO.
       destruct Ha as (ρ & Ha & Hρ).
       destruct ρ; [ right | left |]; done.
     }
-    set (wca0_temp := filter (fun a => std W0 !! a = Some Temporary) (finz.seq_between b e)).
-    set (wca0_perma := filter (fun a => std W0 !! a = Some Permanent) (finz.seq_between b e)).
-    assert ( (finz.seq_between b e) ≡ₚ wca0_perma ++ wca0_temp ) as Hwca0_range.
-    { clear - Harg_std_states Harg_std_states.
-      subst wca0_perma wca0_temp.
-      generalize (finz.seq_between b e), Harg_std_states.
-      clear Harg_std_states b e .
+
+    set (la_be_temporaries := filter (fun a => std W0 !! a = Some Temporary) (finz.seq_between b e)).
+    set (la_be_permanents := filter (fun a => std W0 !! a = Some Permanent) (finz.seq_between b e)).
+    assert ( (finz.seq_between b e) ≡ₚ la_be_permanents ++ la_be_temporaries ) as Hwca0_range.
+    { clear - Hstd_state_be_W0 Hstd_state_be_W0.
+      subst la_be_permanents la_be_temporaries.
+      generalize (finz.seq_between b e), Hstd_state_be_W0.
+      clear Hstd_state_be_W0 b e .
       induction l; intros Hl; cbn; first done.
       apply Forall_cons in Hl as [Ha Hl]
       ; apply IHl in Hl
@@ -264,31 +267,31 @@ Section SO.
       ; rewrite (decide_True _ _ Ha); auto; rewrite (decide_False _ _ Ha'); auto
       ; cbn ; [|rewrite -Permutation_middle] ; rewrite -Hl; done.
     }
-    set (l' := filter (fun a => a ∉ wca0_temp) l).
+
+    set (l_revoked_W0_no_be := filter (fun a => a ∉ la_be_temporaries) l_revoked_W0).
     assert (
-       wca0_temp ≡ₚ filter (fun a => a ∈ wca0_temp) l
-      ) as Hwca0_temp_l.
+       la_be_temporaries ≡ₚ filter (fun a => a ∈ la_be_temporaries) l_revoked_W0
+      ) as Hla_be_temporaries_l.
     {
-      clear -Hl_unk Hno_overlap.
-      destruct Hl_unk as [Hnodup_l Hl_unk].
-      assert (wca0_temp ⊆ l).
+      clear -Hl_revoked_W0_nodup Hl_revoked_W0_temporaries Hno_overlap.
+      assert (la_be_temporaries ⊆ l_revoked_W0).
       {
         intros a Ha.
-        subst wca0_temp.
+        subst la_be_temporaries.
         apply elem_of_list_filter in Ha as [Ha Ha_be].
-        apply (Hl_unk a) in Ha.
+        apply (Hl_revoked_W0_temporaries a) in Ha.
         apply elem_of_app in Ha as [Ha|Ha]; first done.
         rewrite elem_of_disjoint in Hno_overlap.
         exfalso; eapply Hno_overlap; eauto.
       }
-      apply NoDup_app in Hnodup_l as (Hnodup_l & _ & _).
-      assert (NoDup wca0_temp) as Hnodup_wca0_temp.
-      { subst wca0_temp. apply NoDup_filter, finz_seq_between_NoDup. }
+      apply NoDup_app in Hl_revoked_W0_nodup as (Hnodup_l & _ & _).
+      assert (NoDup la_be_temporaries) as Hnodup_la_be_temporaries.
+      { subst la_be_temporaries. apply NoDup_filter, finz_seq_between_NoDup. }
       (* can the proofs below be a lemma instead? *)
-      generalize wca0_temp, H, Hnodup_wca0_temp; intros l' Hl' Hnodup_l'.
+      generalize la_be_temporaries, H, Hnodup_la_be_temporaries; intros l' Hl' Hnodup_l'.
       clear -Hl' Hnodup_l Hnodup_l'.
       generalize dependent l'.
-      induction l as [|a l]; intros l' Hl' Hnodup_l'.
+      induction l_revoked_W0 as [|a l_revoked_W0]; intros l' Hl' Hnodup_l'.
       + destruct l' ; last set_solver.
         done.
       + cbn.
@@ -299,7 +302,7 @@ Section SO.
           apply NoDup_cons in Hnodup_l' as [Ha_l0 Hnodup_l0].
           setoid_rewrite Ha_l' in Hl'.
           setoid_rewrite Ha_l' at 1.
-          assert (l0 ⊆ l).
+          assert (l0 ⊆ l_revoked_W0).
           { clear -Ha_l Hl' Ha_l0.
             intros x Hx.
             assert (x ≠ a) by (intro; simplify_eq; done).
@@ -308,23 +311,23 @@ Section SO.
             apply elem_of_cons in Hx as [Hx|Hx]; auto.
             done.
           }
-          eapply (IHl) in H; eauto.
+          eapply (IHl_revoked_W0) in H; eauto.
           apply Permutation_cons; first done.
           rewrite H.
           clear -Hnodup_l Ha_l' Ha_l.
-          induction l; cbn; first done.
+          induction l_revoked_W0; cbn; first done.
           apply not_elem_of_cons in Ha_l as [Ha_a0 Ha_l].
           apply NoDup_cons in Hnodup_l as [_ Hnodup_l].
           destruct ( decide (a0 ∈ l0) ) as [Ha0|Ha0].
           ** apply (elem_of_list_further _ a) in Ha0.
              setoid_rewrite <- Ha_l' in Ha0.
              rewrite decide_True; last done.
-             rewrite IHl; auto.
-          ** rewrite decide_False; first (rewrite IHl; auto).
+             rewrite IHl_revoked_W0; auto.
+          ** rewrite decide_False; first (rewrite IHl_revoked_W0; auto).
              intros Ha0'.
              setoid_rewrite Ha_l' in Ha0'.
              apply elem_of_cons in Ha0' as [Ha0'|?]; auto.
-        * eapply IHl; auto.
+        * eapply IHl_revoked_W0; auto.
           clear -Hl' Ha_l Ha_l'.
           intros x Hx.
           assert (x ≠ a) by (intro; simplify_eq; done).
@@ -332,25 +335,25 @@ Section SO.
           apply elem_of_cons in Hx as [Hx|Hx]; auto.
           done.
     }
-    assert ( l ≡ₚ wca0_temp ∪ l') as Hl_wca0_l'.
-    { subst l'.
-      rewrite {1}Hwca0_temp_l.
+    assert ( l_revoked_W0 ≡ₚ la_be_temporaries ∪ l_revoked_W0_no_be) as Hl_wca0_l'.
+    { subst l_revoked_W0_no_be.
+      rewrite {1}Hla_be_temporaries_l.
       apply filter_complement_list.
     }
-    iAssert (▷ (close_list_resources C W0 l false))%I with "[Hrevoked_l]" as "Hrevoked_l".
+    iAssert (▷ (close_list_resources C W0 l_revoked_W0 false))%I with "[Hl_revoked_W0]" as "Hl_revoked_W0".
     { rewrite /close_list_resources /close_addr_resources.
       iNext; done.
     }
-    iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l]") as ">Hrevoked_l".
+    iDestruct (lc_fupd_elim_later with "[$] [$Hl_revoked_W0]") as ">Hl_revoked_W0".
     rewrite /close_list_resources.
-    iEval (setoid_rewrite Hl_wca0_l') in "Hrevoked_l".
-    iDestruct (big_sepL_app with "Hrevoked_l") as "[Hrevoked_wca0_temp Hrevoked_l']".
+    iEval (setoid_rewrite Hl_wca0_l') in "Hl_revoked_W0".
+    iDestruct (big_sepL_app with "Hl_revoked_W0") as "[Hrevoked_la_be_temporaries Hrevoked_l_revoked_W0_no_be]".
 
     rewrite region_open_nil.
     iDestruct (read_allowed_inv_full_cap with "Hinterp_wca0_W0") as "Hinterp_wca0_invs"; auto.
     iAssert (
         ∃ (wca0_invs : list (finz MemNum * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type)),
-          ⌜ (λ '(a, _, _, _), a) <$> wca0_invs = wca0_perma ⌝ ∗
+          ⌜ (λ '(a, _, _, _), a) <$> wca0_invs = la_be_permanents ⌝ ∗
           ⌜ Forall (λ '(a, _, _, ρ), std W0 !! a = Some ρ ∧ ρ = Permanent) wca0_invs ⌝ ∗
           ([∗ list] '(a, p, φ, _) ∈ wca0_invs, rel C a p φ) ∗
           ⌜ Forall (λ '(_, _, φ, _), ∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)) wca0_invs⌝
@@ -361,15 +364,15 @@ Section SO.
       setoid_rewrite Hwca0_range.
       iDestruct (big_sepL_app with "Hinterp_wca0_invs") as "[H _]".
       iDestruct "H" as "#H".
-      assert (Forall (λ a : finz MemNum, W0.1 !! a = Some Permanent) wca0_perma) as Hwca0_perma.
-      { subst wca0_perma.
+      assert (Forall (λ a : finz MemNum, W0.1 !! a = Some Permanent) la_be_permanents) as Hla_be_permanents.
+      { subst la_be_permanents.
         clear.
         induction (finz.seq_between b e); first done.
         cbn.
         destruct ( decide (W0.1 !! a = Some Permanent) ); last done.
         apply Forall_cons; split ;auto.
       }
-      generalize wca0_perma, Hwca0_perma.
+      generalize la_be_permanents, Hla_be_permanents.
       clear; intros l Hl.
       iInduction (l) as [|a l] "IH".
       + iExists []; cbn.
@@ -390,10 +393,10 @@ Section SO.
     }
 
     iDestruct (region_open_list with "[$Hrels_wca0 $Hr_C $Hsts_C]") as
-      "(%wca0_lv_perma & Hr_C & Hsts_C & Hsts_std_wca0 & Hwca0_perma_lv & Hwca0_mono & Hwca0_φs
+      "(%wca0_lv_perma & Hr_C & Hsts_C & Hsts_std_wca0 & Hla_be_permanents_lv & Hwca0_mono & Hwca0_φs
      & %Hlength_wca0_lv & Hwca0_pO)".
     { rewrite Hwca0_invs_perma.
-      subst wca0_perma.
+      subst la_be_permanents.
       apply NoDup_filter, finz_seq_between_NoDup.
     }
     { rewrite Hwca0_invs_perma; set_solver+. }
@@ -409,12 +412,12 @@ Section SO.
       destruct Hx as [Hx ->].
       by apply revoke_lookup_Perm.
     }
-    iAssert ( [∗ list] a;v ∈ wca0_perma ; wca0_lv_perma, a ↦ₐ v )%I with "[Hwca0_perma_lv]"
-      as "Hwca0_perma_lv".
+    iAssert ( [∗ list] a;v ∈ la_be_permanents ; wca0_lv_perma, a ↦ₐ v )%I with "[Hla_be_permanents_lv]"
+      as "Hla_be_permanents_lv".
     { iClear "#". clear -Hwca0_invs_perma.
       iStopProof.
       rewrite -Hwca0_invs_perma big_sepL2_fmap_l.
-      generalize dependent wca0_perma; intros l Hl.
+      generalize dependent la_be_permanents; intros l Hl.
       generalize dependent wca0_invs.
       generalize dependent wca0_lv_perma.
       induction l; iIntros (lv linvs Hl) "Hl".
@@ -428,11 +431,11 @@ Section SO.
         iDestruct "Hl" as "[$ Hl]".
         iApply IHl; eauto.
     }
-    assert (Forall (λ a : finz MemNum, (revoke W0).1 !! a = Some Revoked) wca0_temp) as
-      Hrevoked_wca0_temp.
-    { clear - Hl_wca0_l' Hrevoked_l.
-      setoid_rewrite Hl_wca0_l' in Hrevoked_l.
-      apply Forall_app in Hrevoked_l as [? ?].
+    assert (Forall (λ a : finz MemNum, (revoke W0).1 !! a = Some Revoked) la_be_temporaries) as
+      Hrevoked_la_be_temporaries.
+    { clear - Hl_wca0_l' Hl_revoked_W0.
+      setoid_rewrite Hl_wca0_l' in Hl_revoked_W0.
+      apply Forall_app in Hl_revoked_W0 as [? ?].
       auto.
     }
 
@@ -440,27 +443,27 @@ Section SO.
         ∃ (lp : list Perm)
           (lφ : list (WORLD * CmptName * Word → iPropI Σ) )
           (lv : list Word),
-          ⌜ length lp = length wca0_temp ⌝
-          ∗ ⌜ length lφ = length wca0_temp ⌝
-          ∗ ⌜ length lv = length wca0_temp ⌝
+          ⌜ length lp = length la_be_temporaries ⌝
+          ∗ ⌜ length lφ = length la_be_temporaries ⌝
+          ∗ ⌜ length lv = length la_be_temporaries ⌝
           ∗ ([∗ list] φ ∈ lφ, ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝)
-          ∗ ([∗ list] a;pφ ∈ wca0_temp;(zip lp lφ), rel C a pφ.1 pφ.2)
+          ∗ ([∗ list] a;pφ ∈ la_be_temporaries;(zip lp lφ), rel C a pφ.1 pφ.2)
           ∗ ([∗ list] p ∈ lp, ⌜isO p = false⌝)
-          ∗ ([∗ list] a;v ∈ wca0_temp;lv, a ↦ₐ v)
+          ∗ ([∗ list] a;v ∈ la_be_temporaries;lv, a ↦ₐ v)
           ∗ ([∗ list] lpφ;v ∈ (zip lp lφ);lv,
                (if isWL lpφ.1
                 then future_pub_mono C lpφ.2 v
                 else (if isDL lpφ.1 then future_pub_mono C lpφ.2 v else future_priv_mono C lpφ.2 v))
             )
           ∗ ([∗ list] φ;v ∈ lφ;lv, φ (W0,C,v)))%I
-      with "[Hrevoked_wca0_temp]"
+      with "[Hrevoked_la_be_temporaries]"
       as (lp lφ wca0_lv_temps)
-           "(%Hlen_lp & %Hlen_lφ & %Hlen_lv & Hlφ_pers & #Hlpφ_rels & HlpO & Hwca0_temp_lv & Hlpφ_mono & Hlφ_lv)".
+           "(%Hlen_lp & %Hlen_lφ & %Hlen_lv & Hlφ_pers & #Hlpφ_rels & HlpO & Hla_be_temporaries_lv & Hlpφ_mono & Hlφ_lv)".
     { iClear "#".
-      generalize wca0_temp.
+      generalize la_be_temporaries.
       clear; intros l.
       iInduction (l) as [| a l]; first (iExists [],[],[]; cbn; done).
-      iDestruct "Hrevoked_wca0_temp" as "[Ha Hl]".
+      iDestruct "Hrevoked_la_be_temporaries" as "[Ha Hl]".
       iDestruct ("IHl" with "Hl") as "Hl".
       iDestruct "Ha" as (p P HpersP) "[Ha Hrel_a]".
       iDestruct "Ha" as (v) "(HpO & Hv & Hmono & HP)".
@@ -471,21 +474,21 @@ Section SO.
       iPureIntro.
       cbn; lia.
     }
-    iDestruct (big_sepL2_app with "Hwca0_perma_lv Hwca0_temp_lv") as "Hwca0_lvs".
+    iDestruct (big_sepL2_app with "Hla_be_permanents_lv Hla_be_temporaries_lv") as "Hwca0_lvs".
 
     iApply (checkints_spec with "[- $HPC $Hca0 $Hcs1 $Hcs0 $Hwca0_lvs $Hcode]"); eauto.
     { symmetry; auto. }
     iSplitL; last ( iModIntro; iNext ; iIntros (?); done).
     iNext ; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hwca0_lvs & %Hwca0_lvs_ints & Hcode & Hlc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iDestruct (big_sepL2_app' with "Hwca0_lvs") as "[Hwca0_perma_lv Hwca0_temp_lv]".
+    iDestruct (big_sepL2_app' with "Hwca0_lvs") as "[Hla_be_permanents_lv Hla_be_temporaries_lv]".
     { by rewrite Hlength_wca0_lv Hwca0_invs_perma. }
-    iAssert ( [∗ list] '(a0, _, _, _);v ∈ wca0_invs;wca0_lv_perma, a0 ↦ₐ v )%I with "[Hwca0_perma_lv]"
-      as "Hwca0_perma_lv".
+    iAssert ( [∗ list] '(a0, _, _, _);v ∈ wca0_invs;wca0_lv_perma, a0 ↦ₐ v )%I with "[Hla_be_permanents_lv]"
+      as "Hla_be_permanents_lv".
     { iClear "#". clear -Hwca0_invs_perma.
       iStopProof.
       rewrite -Hwca0_invs_perma big_sepL2_fmap_l.
-      generalize dependent wca0_perma; intros l Hl.
+      generalize dependent la_be_permanents; intros l Hl.
       generalize dependent wca0_invs.
       generalize dependent wca0_lv_perma.
       induction l; iIntros (lv linvs Hl) "Hl".
@@ -500,7 +503,7 @@ Section SO.
         iApply IHl; eauto.
     }
     iDestruct (region_close_list W1 C wca0_invs [] with
-             "[$Hr_C $Hsts_std_wca0 $Hwca0_perma_lv $Hwca0_mono $Hwca0_φs $Hrels_wca0 $Hwca0_pO]"
+             "[$Hr_C $Hsts_std_wca0 $Hla_be_permanents_lv $Hwca0_mono $Hwca0_φs $Hrels_wca0 $Hwca0_pO]"
       ) as "Hr_C".
     { by rewrite Hlength_wca0_lv length_fmap. }
     { rewrite Hwca0_invs_perma. apply NoDup_filter, finz_seq_between_NoDup. }
@@ -519,7 +522,7 @@ Section SO.
       iClear "#".
       setoid_rewrite Hwca0_range.
       iDestruct (big_sepL_app with "Hinterp") as "[_ #Hinterp]".
-      generalize wca0_temp, Hlen_lp, Hlen_lφ.
+      generalize la_be_temporaries, Hlen_lp, Hlen_lφ.
       clear.
       intros l Hlen_lp Hlen_lφ.
       iInduction (l) as [|a l] "IH" forall (lp lφ Hlen_lp Hlen_lφ).
@@ -550,7 +553,7 @@ Section SO.
     { iClear "#".
       apply Forall_app in Hwca0_lvs_ints as [_ Hl].
       generalize wca0_lv_temps, Hl, Hlen_lv.
-      generalize wca0_temp, Hlen_lp, Hlen_lφ.
+      generalize la_be_temporaries, Hlen_lp, Hlen_lφ.
       clear.
       intros la Hlen_lp Hlen_lφ lv Hl_ints Hlen_lv.
       iInduction (la) as [|a la] "IH" forall (lp lφ lv Hlen_lp Hlen_lφ Hlen_lv Hl_ints).
@@ -568,11 +571,11 @@ Section SO.
         cbn.
         iApply "Hz"; auto.
     }
-    iDestruct (big_sepL2_disjoint with "[$Hstk $Hwca0_temp_lv]") as "%".
+    iDestruct (big_sepL2_disjoint with "[$Hstk $Hla_be_temporaries_lv]") as "%".
     iAssert (
-        ([∗ list] a ∈ wca0_temp,
+        ([∗ list] a ∈ la_be_temporaries,
            ∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ temp_resources W1 C φ a p ∗ rel C a p φ)
-      )%I with "[Hlφ_pers HlpO Hlpφ_mono Hwca0_temp_lv Hlφ_lv]" as "Hwca0_temp_closing_resources".
+      )%I with "[Hlφ_pers HlpO Hlpφ_mono Hla_be_temporaries_lv Hlφ_lv]" as "Hla_be_temporaries_closing_resources".
     { iDestruct "Hlpφ_rels" as "-#Hlpφ_rels".
       iClear "#".
       assert (Forall (λ w : Word, ∃ z : Z, w = WInt z) wca0_lv_temps) as Hlvs_temp_int.
@@ -580,10 +583,10 @@ Section SO.
         by apply Forall_app in Hwca0_lvs_ints as [??].
       }
       clear -Hlen_lp Hlen_lφ Hlen_lv.
-      generalize dependent wca0_temp; intros l Hlen_lp Hlen_lφ Hlen_lv.
+      generalize dependent la_be_temporaries; intros l Hlen_lp Hlen_lφ Hlen_lv.
       generalize wca0_lv_temps Hlen_lv; intros lv.
       clear Hlen_lv wca0_lv_temps; intros Hlen_lv.
-      iRename "Hwca0_temp_lv" into "Hlv".
+      iRename "Hla_be_temporaries_lv" into "Hlv".
       iInduction (l) as [|a l] "IH" forall (lφ lp lv Hlen_lp Hlen_lφ Hlen_lv); first done.
       destruct lv as [|v lv]; cbn in Hlen_lv; simplify_eq.
       destruct lφ as [|φ lφ]; cbn in Hlen_lφ; simplify_eq.
@@ -598,10 +601,10 @@ Section SO.
       iFrame.
       iApply ("IH" $! lφ lp lv with "[%] [%] [%] [$] [$] [$] [$] [$] [$]"); eauto.
     }
-    iMod (monotone_close_list_region W1 W1 C wca0_temp with
-      "[] [$Hsts_C $Hr_C $Hwca0_temp_closing_resources]") as "[Hsts_C Hr_C]".
+    iMod (monotone_close_list_region W1 W1 C la_be_temporaries with
+      "[] [$Hsts_C $Hr_C $Hla_be_temporaries_closing_resources]") as "[Hsts_C Hr_C]".
     { iPureIntro; apply close_list_related_sts_pub. }
-    set ( W2 := (close_list wca0_temp W1)).
+    set ( W2 := (close_list la_be_temporaries W1)).
     iAssert (interp W2 C (WCap p g b e (finz.max b e)))%I as "#Hinterp_wca0_W2".
     {
       iEval (rewrite fixpoint_interp1_eq interp1_eq).
@@ -616,9 +619,9 @@ Section SO.
                              & Hzcondx & Hrcondx & Hwcondx & Hmonox & %Hstatex)".
       iFrame "∗%".
       apply elem_of_list_lookup_2 in Hx.
-      rewrite Forall_forall in Harg_std_states.
+      rewrite Forall_forall in Hstd_state_be_W0.
       assert (std W0 !! x = std W2 !! x) as Hxeq.
-      { destruct (Harg_std_states x Hx) as [Hx' | Hx']; rewrite Hx'; symmetry.
+      { destruct (Hstd_state_be_W0 x Hx) as [Hx' | Hx']; rewrite Hx'; symmetry.
         * rewrite close_list_lookup_not_in.
           { cbn.
             by apply revoke_lookup_Perm.
@@ -659,7 +662,7 @@ Section SO.
     rewrite finz_dist_S in Hstklen; last solve_addr+Hcsp_size.
     destruct stk_mem as [|w0 stk_mem]; simplify_eq.
     assert (is_Some (csp_b + 1)%a) as [a_stk1 Hastk1];[solve_addr+Hcsp_size|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Hastk1 Hstk]"; eauto.
+    iDestruct (region_pointsto_cons with "Hstk") as "[Hastk0 Hstk]"; eauto.
     { solve_addr+Hcsp_size Hastk1. }
     iInstr "Hcode".
     { rewrite /withinBounds; solve_addr+Hcsp_size. }
@@ -699,7 +702,7 @@ Section SO.
     rewrite finz_dist_S in Hstklen'; last solve_addr+Hcsp_size'.
     destruct stk_mem as [|w1 stk_mem]; simplify_eq.
     assert (is_Some (a_stk1 + 1)%a) as [a_stk2 Hastk2];[solve_addr+Hcsp_size'|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Hastk2 Hstk]"; eauto.
+    iDestruct (region_pointsto_cons with "Hstk") as "[Hastk1 Hstk]"; eauto.
     { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     iInstr "Hcode".
     { transitivity (Some (a_stk2)%a); auto.
@@ -796,7 +799,7 @@ Section SO.
     iAssert (
         |={⊤}=> ([∗ list] a ∈ [a_stk1],
            ∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝ ∗ temp_resources W2 C φ a p ∗ rel C a p φ)
-      )%I with "[Hastk2 Hlc]" as ">Hastk1_closing_resources".
+      )%I with "[Hastk1 Hlc]" as ">Hastk1_closing_resources".
     { cbn.
       iDestruct (read_allowed_inv _ _ a_stk1 with "Hinterp_W0_csp")
         as "(%pastk1 & %Pastk1 &
@@ -814,7 +817,7 @@ Section SO.
       iSplit; first iPureIntro.
       { intros Wcv; apply Hpers_Pastk1. }
       iSplit; last iFrame "#".
-      iFrame "Hastk2".
+      iFrame "Hastk1".
       iSplit; first iPureIntro.
       { by apply isWL_nonO. }
       rewrite /monoReq !Hpastk1_wl.
@@ -824,11 +827,10 @@ Section SO.
         { rewrite elem_of_finz_seq_between.
           solve_addr+Hastk1 Hcsp_size' Hcsp_size.
         }
-        clear -Hl_unk Hastk1_range.
-        assert ( a_stk1 ∈ l ++ finz.seq_between csp_b csp_e ) as Ha.
+        clear -Hl_revoked_W0_nodup Hl_revoked_W0_temporaries Hastk1_range.
+        assert ( a_stk1 ∈ l_revoked_W0 ++ finz.seq_between csp_b csp_e ) as Ha.
         { apply elem_of_app; right; done. }
-        destruct Hl_unk as [_ Hl_unk].
-        by specialize (Hl_unk a_stk1); apply Hl_unk in Ha.
+        by specialize (Hl_revoked_W0_temporaries a_stk1); apply Hl_revoked_W0_temporaries in Ha.
       + (* apply Hwcond_Pastk1, but remove the later... *)
         rewrite /safeC /=.
         iApply "Hwcond_Pastk1'".
@@ -844,8 +846,7 @@ Section SO.
     { eapply related_sts_priv_pub_trans_world; eauto. }
 
     assert (W0.1 !! a_stk1 = Some Temporary) as Ha_stk1_W0.
-    { destruct Hl_unk as [_ Hl].
-      apply Hl.
+    { apply Hl_revoked_W0_temporaries.
       apply elem_of_app; right.
       apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'.
     }
@@ -854,7 +855,7 @@ Section SO.
       apply close_list_lookup_in; last set_solver+.
       rewrite close_list_lookup_not_in.
       * cbn; apply revoke_lookup_Monotemp; done.
-      * subst wca0_temp.
+      * subst la_be_temporaries.
         intro Ha'.
         rewrite elem_of_disjoint in H0; eapply H0; eauto.
         apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'.
@@ -928,9 +929,8 @@ Section SO.
            solve_addr+Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size.
       }
       apply revoke_lookup_Monotemp.
-      clear -Hl_unk Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size.
-      destruct Hl_unk as [_ Hl_unk].
-      specialize (Hl_unk x) ; apply Hl_unk.
+      clear -Hl_revoked_W0_nodup Hl_revoked_W0_temporaries Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size.
+      specialize (Hl_revoked_W0_temporaries x) ; apply Hl_revoked_W0_temporaries.
       apply elem_of_app; right.
       apply elem_of_finz_seq_between in Hx.
       apply elem_of_finz_seq_between.
@@ -974,8 +974,8 @@ Section SO.
     iClear "Hinterp_rmap Hzeroed_rmap".
     clear dependent wct1 wct0 wcs0 wcs1 rmap stk_mem.
     iNext.
-    iIntros (W4 rmap stk_mem l'')
-      "( %Hl_unk'' & Hrevoked_l'' & %Hrevoked_l''
+    iIntros (W4 rmap stk_mem l_revoked_W4)
+      "( [%Hl_revoked_W4_nodup %Hl_revoked_W4_temporaries] & Hl_revoked_W4 & %Hl_revoked_W4
       & %Hrelated_pub_2ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4 & %Hfrm_close_W4
       & Hna & %Hcsp_bounds
       & Hsts_C & Hr_C
@@ -996,29 +996,27 @@ Section SO.
     }
     set (W5 := revoke W4).
 
-    iMod (revoked_by_separation_close_list_resources with "[$Hrevoked_l' $Hr_C $Hsts_C]")
-      as "(Hr_C & Hsts_C & Hrevoked_l' & %Hrevoked_l'_W5)".
+    iMod (revoked_by_separation_close_list_resources with "[$Hrevoked_l_revoked_W0_no_be $Hr_C $Hsts_C]")
+      as "(Hr_C & Hsts_C & Hrevoked_l_revoked_W0_no_be & %Hrevoked_l_revoked_W0_no_be_W5)".
     { apply Forall_forall.
       intros x Hx.
-      subst l'.
+      subst l_revoked_W0_no_be.
       apply elem_of_list_filter in Hx as [_ Hl].
       rewrite -revoke_dom_eq.
       eapply elem_of_mono_pub; eauto.
       rewrite -!close_list_dom_eq.
       rewrite -revoke_dom_eq.
-      destruct Hl_unk as [_ Hl_unk].
       assert ( std W0 !! x = Some Temporary).
-      { apply Hl_unk; apply elem_of_app ; by left. }
+      { apply Hl_revoked_W0_temporaries; apply elem_of_app ; by left. }
       rewrite elem_of_dom; done.
     }
-    iMod (revoked_by_separation_close_list_resources with "[$Hrevoked_l'' $Hr_C $Hsts_C]")
-      as "(Hr_C & Hsts_C & Hrevoked_l'' & %Hrevoked_l''_W5)".
+    iMod (revoked_by_separation_close_list_resources with "[$Hl_revoked_W4 $Hr_C $Hsts_C]")
+      as "(Hr_C & Hsts_C & Hl_revoked_W4 & %Hrevoked_l_revoked_W4_W5)".
     { apply Forall_forall.
       intros x Hx.
       rewrite -revoke_dom_eq.
-      destruct Hl_unk'' as [_ Hl_unk''].
       assert ( std W4 !! x = Some Temporary).
-      { apply Hl_unk''; apply elem_of_app ; by left. }
+      { apply Hl_revoked_W4_temporaries; apply elem_of_app ; by left. }
       rewrite elem_of_dom; done.
     }
     iMod (revoked_by_separation_many with "[$Hstk $Hr_C $Hsts_C]")
@@ -1027,38 +1025,36 @@ Section SO.
       intros x Hx.
       rewrite elem_of_dom; done.
     }
-    iMod (revoked_by_separation with "[$Hastk1 $Hr_C $Hsts_C]")
-      as "(Hr_C & Hsts_C & Hastk1 & %Hastk1_W5)".
+    iMod (revoked_by_separation with "[$Hastk0 $Hr_C $Hsts_C]")
+      as "(Hr_C & Hsts_C & Hastk0 & %Hastk0_W5)".
     {
       rewrite -revoke_dom_eq.
       eapply elem_of_mono_pub; eauto.
       rewrite -!close_list_dom_eq.
       rewrite -revoke_dom_eq.
-      destruct Hl_unk as [_ Hl_unk].
       assert ( std W0 !! csp_b = Some Temporary).
-      { apply Hl_unk; apply elem_of_app ; right.
+      { apply Hl_revoked_W0_temporaries; apply elem_of_app ; right.
         apply elem_of_finz_seq_between; done.
       }
       rewrite elem_of_dom; done.
     }
 
-    assert (a_stk1 ∈ l'') as Hastk1_l''.
+    assert (a_stk1 ∈ l_revoked_W4) as Hastk1_l_revoked_W4.
     { assert (a_stk1 ∉ finz.seq_between (a_stk2 ^+ 4)%a csp_e).
       {
         apply not_elem_of_finz_seq_between.
         solve_addr+Hcsp_bounds Hastk1 Hastk2 Hcsp_size' Hcsp_size.
       }
-      clear -Hl_unk'' Hrelated_pub_2ext_W4 H Ha_stk1_W3 H1.
-      destruct Hl_unk'' as [_ Hl''].
+      clear -Hl_revoked_W4_temporaries Hrelated_pub_2ext_W4 H Ha_stk1_W3 H1.
       assert (std W4 !! a_stk1 = Some Temporary) as Htemp.
       { eapply region_state_pub_temp; eauto.
         rewrite std_sta_update_multiple_lookup_same_i; auto.
       }
-      apply Hl'' in Htemp.
+      apply Hl_revoked_W4_temporaries in Htemp.
       apply elem_of_app in Htemp as [?|?]; done.
     }
 
-    assert (∀ a, a ∈ l ++ finz.seq_between csp_b csp_e -> std (revoke W4) !! a = Some Revoked) as
+    assert (∀ a, a ∈ l_revoked_W0 ++ finz.seq_between csp_b csp_e -> std (revoke W4) !! a = Some Revoked) as
     Ha_5.
     { clear a ; intros a Ha.
       apply elem_of_app in Ha as [Ha|Ha]; cycle 1.
@@ -1068,16 +1064,16 @@ Section SO.
         replace (a_stk1 ^+1)%a with a_stk2 in Ha by solve_addr+Hcsp_size' Hastk2 Hastk1 Hcsp_bounds.
         apply elem_of_cons in Ha as [Ha | Ha]; simplify_eq; first auto.
         apply elem_of_cons in Ha as [Ha | Ha]; simplify_eq.
-        { rewrite Forall_forall in Hrevoked_l''; apply Hrevoked_l'' in Hastk1_l''; auto. }
+        { rewrite Forall_forall in Hl_revoked_W4; apply Hl_revoked_W4 in Hastk1_l_revoked_W4; auto. }
         rewrite Forall_forall in Hstk_W5; apply Hstk_W5 in Ha; auto.
       - setoid_rewrite Hl_wca0_l' in Ha.
         apply elem_of_app in Ha as [Ha|Ha]; cycle 1.
-        + rewrite Forall_forall in Hrevoked_l'_W5; apply Hrevoked_l'_W5 in Ha; auto.
+        + rewrite Forall_forall in Hrevoked_l_revoked_W0_no_be_W5; apply Hrevoked_l_revoked_W0_no_be_W5 in Ha; auto.
         + apply revoke_lookup_Monotemp.
           eapply region_state_pub_temp; eauto.
           rewrite close_list_lookup_not_in; auto.
           * rewrite close_list_lookup_in; auto.
-            rewrite Forall_forall in Hrevoked_wca0_temp; apply Hrevoked_wca0_temp; auto.
+            rewrite Forall_forall in Hrevoked_la_be_temporaries; apply Hrevoked_la_be_temporaries; auto.
           * intro Ha' ; apply elem_of_list_singleton in Ha'; simplify_eq.
             apply elem_of_list_filter in Ha as [_ Ha].
             rewrite elem_of_disjoint in Hno_overlap; eapply Hno_overlap; eauto.
@@ -1176,45 +1172,42 @@ Section SO.
     iDestruct (big_sepM_insert _ _ cra with "[$Hrmap $Hcra]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
 
-    rewrite -/(close_list_resources C W0 l' false).
-    iDestruct (close_list_resources_separation_many_alt with "[$Hrevoked_l' $Hrevoked_l'']") as "%Hdisjoint_l_l''".
-    assert (∃ l''0, l'' ≡ₚ a_stk1::l''0 ∧ a_stk1 ∉ l''0) as (l''0 & Hl'' & Ha_stk1_l''0).
+    rewrite -/(close_list_resources C W0 l_revoked_W0_no_be false).
+    iDestruct (close_list_resources_separation_many_alt with "[$Hrevoked_l_revoked_W0_no_be $Hl_revoked_W4]") as "%Hdisjoint_l_revoked_W0_no_be_l_revoked_W4".
+    assert (∃ l_revoked_W4_no_astk1, l_revoked_W4 ≡ₚ a_stk1::l_revoked_W4_no_astk1 ∧ a_stk1 ∉ l_revoked_W4_no_astk1) as (l_revoked_W4_no_astk1 & Hl_revoked_W4_astk1 & Ha_stk1_l_revoked_W4_no_astk1).
     {
-      clear -Hastk1_l'' Hl_unk''.
-      apply elem_of_Permutation in Hastk1_l''.
-      destruct Hastk1_l'' as [l''0 Hl''0].
-      exists l''0; split; first done.
-      destruct Hl_unk'' as [Hnodup _].
-      setoid_rewrite Hl''0 in Hnodup.
-      apply NoDup_app in Hnodup; destruct Hnodup as (Hnodup & _ & _).
+      clear -Hastk1_l_revoked_W4 Hl_revoked_W4_nodup.
+      apply elem_of_Permutation in Hastk1_l_revoked_W4.
+      destruct Hastk1_l_revoked_W4 as [l_revoked_W4_no_astk1 Hl_revoked_W4_no_astk1].
+      exists l_revoked_W4_no_astk1; split; first done.
+      setoid_rewrite Hl_revoked_W4_no_astk1 in Hl_revoked_W4_nodup.
+      apply NoDup_app in Hl_revoked_W4_nodup; destruct Hl_revoked_W4_nodup as (Hnodup & _ & _).
       apply NoDup_cons in Hnodup; destruct Hnodup as [? _]; done.
     }
     iAssert (
-       close_list_resources C W4 l''0 false
+       close_list_resources C W4 l_revoked_W4_no_astk1 false
        ∗ close_addr_resources C W4 a_stk1 false
-      )%I with "[Hrevoked_l'']" as "[Hrevoked_l'' Ha_stk1]".
+      )%I with "[Hl_revoked_W4]" as "[Hl_revoked_W4 Ha_stk1]".
     { rewrite /close_list_resources.
-      setoid_rewrite Hl''.
-      iDestruct "Hrevoked_l''" as "[$ $]".
+      setoid_rewrite Hl_revoked_W4_astk1.
+      iDestruct "Hl_revoked_W4" as "[$ $]".
     }
-    set (l''0_no_wca0 := filter (fun a => a ∉ wca0_temp) l''0).
-    set (l''0_wca0 := filter (fun a => a ∈ wca0_temp) l''0).
-    assert (l''0 ≡ₚ l''0_wca0 ∪ l''0_no_wca0) as Hl''0_p.
+    set (l_revoked_W4_no_astk1_no_wca0 := filter (fun a => a ∉ la_be_temporaries) l_revoked_W4_no_astk1).
+    set (l_revoked_W4_no_astk1_wca0 := filter (fun a => a ∈ la_be_temporaries) l_revoked_W4_no_astk1).
+    assert (l_revoked_W4_no_astk1 ≡ₚ l_revoked_W4_no_astk1_wca0 ∪ l_revoked_W4_no_astk1_no_wca0) as Hl_revoked_W4_no_astk1_p.
     { clear.
-      subst l''0_wca0 l''0_no_wca0.
+      subst l_revoked_W4_no_astk1_wca0 l_revoked_W4_no_astk1_no_wca0.
       apply filter_complement_list.
     }
-    assert ( l ≡ₚ l' ∪ l''0_wca0) as Hl_l''0_wca0.
-    { subst l' l''0_wca0 l''0_no_wca0.
-      destruct Hl_unk as [Hnodup_l Hl_unk].
-      apply NoDup_app in Hnodup_l as (Hnodup_l&?&?).
-      destruct Hl_unk'' as [Hnodup_l'' Hl_unk''].
-      apply NoDup_app in Hnodup_l'' as (Hnodup_l''&?&?).
+    assert ( l_revoked_W0 ≡ₚ l_revoked_W0_no_be ∪ l_revoked_W4_no_astk1_wca0) as Hl_l_revoked_W4_no_astk1_wca0.
+    { subst l_revoked_W0_no_be l_revoked_W4_no_astk1_wca0 l_revoked_W4_no_astk1_no_wca0.
+      apply NoDup_app in Hl_revoked_W0_nodup as (Hnodup_l&?&?).
+      apply NoDup_app in Hl_revoked_W4_nodup as (Hl_revoked_W4_nodup&?&?).
       eapply NoDup_Permutation; eauto.
       { apply NoDup_app.
         split;[|split]; try (apply NoDup_filter); auto; cycle 1.
         + apply (NoDup_cons_1_2 a_stk1).
-          setoid_rewrite <- Hl''; auto.
+          setoid_rewrite <- Hl_revoked_W4_astk1; auto.
         + intros x Hx Hx'.
           apply elem_of_list_filter in Hx as [Hx _].
           apply elem_of_list_filter in Hx' as [Hx' _].
@@ -1222,7 +1215,7 @@ Section SO.
       }
       intros x; split; intros Hx.
       + apply elem_of_app.
-        destruct (decide (x ∈ wca0_temp)) as [Hx_temp|Hx_temp]; [right|left]; cycle 1.
+        destruct (decide (x ∈ la_be_temporaries)) as [Hx_temp|Hx_temp]; [right|left]; cycle 1.
         * apply elem_of_list_filter; split; auto.
         * apply elem_of_list_filter; split; auto.
           assert (std W4 !! x = Some Temporary) as Hx_W4.
@@ -1231,13 +1224,13 @@ Section SO.
             + rewrite elem_of_list_singleton in Hx'; simplify_eq; done.
             + rewrite close_list_lookup_not_in; eauto.
               apply close_list_lookup_in; eauto.
-              rewrite Forall_forall in Hrevoked_l; apply Hrevoked_l; auto.
+              rewrite Forall_forall in Hl_revoked_W0; apply Hl_revoked_W0; auto.
           }
           apply elem_of_list_filter in Hx_temp as [Hx_temp_W0 Hx_temp].
-          subst wca0_temp.
-          apply Hl_unk'' in Hx_W4.
+          subst la_be_temporaries.
+          apply Hl_revoked_W4_temporaries in Hx_W4.
           apply elem_of_app in Hx_W4 as [Hx_W4|Hx_W4].
-          { setoid_rewrite Hl'' in Hx_W4.
+          { setoid_rewrite Hl_revoked_W4_astk1 in Hx_W4.
             apply elem_of_cons in Hx_W4 as [Hx_W4|Hx_W4]; last done; simplify_eq.
             assert (a_stk1 ∈ finz.seq_between csp_b csp_e)
               by (apply elem_of_finz_seq_between; solve_addr+Hastk1 Hcsp_size').
@@ -1254,14 +1247,14 @@ Section SO.
           as Hx_be by (by apply elem_of_list_filter in Hx as [_ ?]).
         assert ( W0.1 !! x = Some Temporary )
           as Hx_W0 by (by apply elem_of_list_filter in Hx as [? _]).
-        apply Hl_unk in Hx_W0.
+        apply Hl_revoked_W0_temporaries in Hx_W0.
         apply elem_of_app in Hx_W0 as [Hx_W0|Hx_W0]; auto.
             exfalso; rewrite elem_of_disjoint in Hno_overlap ; eapply Hno_overlap; eauto.
     }
-    set (closing_list := ((l++l''0_no_wca0) ++ finz.seq_between csp_b csp_e)).
+    set (closing_list := ((l_revoked_W0++l_revoked_W4_no_astk1_no_wca0) ++ finz.seq_between csp_b csp_e)).
     assert (related_sts_pub_world W4 (close_list closing_list W5)) as Hrelated_pub_W4_Wfixed.
     { subst W5.
-      assert ( l'' ++ finz.seq_between (a_stk2 ^+ 4)%a csp_e ⊆ closing_list ).
+      assert ( l_revoked_W4 ++ finz.seq_between (a_stk2 ^+ 4)%a csp_e ⊆ closing_list ).
       { clear a.
         intros a Ha.
         apply elem_of_app in Ha as [Ha|Ha]; cycle 1.
@@ -1270,12 +1263,12 @@ Section SO.
           apply elem_of_finz_seq_between.
           solve_addr+Ha Hcsp_bounds Hastk1 Hastk2.
         }
-        setoid_rewrite Hl'' in Ha.
+        setoid_rewrite Hl_revoked_W4_astk1 in Ha.
         apply elem_of_cons in Ha as [Ha|Ha]; simplify_eq; cycle 1.
         + apply elem_of_app; left.
-          setoid_rewrite Hl_l''0_wca0.
+          setoid_rewrite Hl_l_revoked_W4_no_astk1_wca0.
           rewrite -app_assoc.
-          setoid_rewrite <- Hl''0_p.
+          setoid_rewrite <- Hl_revoked_W4_no_astk1_p.
           apply elem_of_app; right.
           done.
         + apply elem_of_app; right.
@@ -1288,8 +1281,8 @@ Section SO.
       intros a ρ4 ρ5 Ha_4 Ha_6.
       destruct ρ4.
       - (* Temporary in W4 *)
-        assert ( a ∈  l'' ++ finz.seq_between (a_stk2 ^+ 4)%a csp_e ) as Ha_closing.
-        { destruct Hl_unk'' as [_ Hl]; apply Hl; auto. }
+        assert ( a ∈  l_revoked_W4 ++ finz.seq_between (a_stk2 ^+ 4)%a csp_e ) as Ha_closing.
+        { apply Hl_revoked_W4_temporaries; auto. }
         rewrite close_list_std_sta_revoked in Ha_6; auto.
         + simplify_eq; apply rtc_refl.
         + by apply revoke_lookup_Monotemp.
@@ -1300,11 +1293,11 @@ Section SO.
      - (* Revoked in W4 *)
        destruct ρ5; try apply rtc_refl ; apply rtc_once; econstructor.
     }
-    iAssert (close_list_resources_gen C W5 closing_list l''0 false) with "[Hrevoked_l'']" as "Hrevoked_l''".
+    iAssert (close_list_resources_gen C W5 closing_list l_revoked_W4_no_astk1 false) with "[Hl_revoked_W4]" as "Hl_revoked_W4".
     { iApply close_list_resources_gen_eq; eauto. }
     assert (related_sts_pub_world W0 (close_list closing_list W5)) as Hrelated_pub_W0_Wfixed.
     { subst W5.
-      assert ( l ++ finz.seq_between csp_b csp_e ⊆ closing_list ).
+      assert ( l_revoked_W0 ++ finz.seq_between csp_b csp_e ⊆ closing_list ).
       { clear a.
         intros a Ha.
         apply elem_of_app in Ha as [Ha|Ha]; last (by apply elem_of_app; right).
@@ -1332,8 +1325,8 @@ Section SO.
       intros a ρ0 ρ5 Ha_0 Ha_6.
       destruct ρ0.
       - (* Temporary in W0 *)
-        assert ( a ∈  l ++ finz.seq_between csp_b csp_e ) as Ha_closing.
-        { destruct Hl_unk as [_ Hl]; apply Hl; auto. }
+        assert ( a ∈  l_revoked_W0 ++ finz.seq_between csp_b csp_e ) as Ha_closing.
+        { apply Hl_revoked_W0_temporaries; auto. }
         assert (std W1 !! a = Some Revoked)
           as Ha_1 by (by apply revoke_lookup_Monotemp).
         specialize (Ha_5 a Ha_closing).
@@ -1354,29 +1347,29 @@ Section SO.
       - (* Revoked in W0 *)
         destruct ρ5; try apply rtc_refl ; apply rtc_once; econstructor.
     }
-    iAssert (close_list_resources_gen C W5 closing_list l' false) with "[Hrevoked_l']" as "Hrevoked_l'".
+    iAssert (close_list_resources_gen C W5 closing_list l_revoked_W0_no_be false) with "[Hrevoked_l_revoked_W0_no_be]" as "Hrevoked_l_revoked_W0_no_be".
     { iApply close_list_resources_gen_eq; eauto. }
 
     iAssert (
-       close_list_resources_gen C W5 closing_list l''0_no_wca0 false
-       ∗ close_list_resources_gen C W5 closing_list l''0_wca0 false
-      )%I with "[Hrevoked_l'']" as "[Hrevoked_l''_no_wca0 Hrevoked_l''_wca0]".
+       close_list_resources_gen C W5 closing_list l_revoked_W4_no_astk1_no_wca0 false
+       ∗ close_list_resources_gen C W5 closing_list l_revoked_W4_no_astk1_wca0 false
+      )%I with "[Hl_revoked_W4]" as "[Hl_revoked_W4_no_wca0 Hl_revoked_W4_wca0]".
     { rewrite /close_list_resources_gen.
-      setoid_rewrite Hl''0_p.
-      iDestruct (big_sepL_app with "Hrevoked_l''") as "[$ $]".
+      setoid_rewrite Hl_revoked_W4_no_astk1_p.
+      iDestruct (big_sepL_app with "Hl_revoked_W4") as "[$ $]".
     }
-    iDestruct (close_list_resources_gen_separation with "[$Hastk1] [$Hrevoked_l''_no_wca0]") as "%Hcsp_b_notin_l''0_no_wca0".
-    iDestruct (close_addr_list_gen_resources_separation with "[$Ha_stk1] [$Hrevoked_l''_no_wca0]") as "%Hastk_1_notin_l''0_no_wca0".
+    iDestruct (close_list_resources_gen_separation with "[$Hastk0] [$Hl_revoked_W4_no_wca0]") as "%Hcsp_b_notin_l_revoked_W4_no_astk1_no_wca0".
+    iDestruct (close_addr_list_gen_resources_separation with "[$Ha_stk1] [$Hl_revoked_W4_no_wca0]") as "%Hastk_1_notin_l_revoked_W4_no_astk1_no_wca0".
     iDestruct (close_list_resources_gen_separation_many
-                 with "[$Hstk] [$Hrevoked_l''_no_wca0]") as "%Hfrm_notin_l''0_no_wca0".
-    iAssert (close_list_resources_gen C W5 closing_list l false)
-      with "[Hrevoked_l' Hrevoked_l''_wca0]" as "Hrevoked_l'".
+                 with "[$Hstk] [$Hl_revoked_W4_no_wca0]") as "%Hfrm_notin_l_revoked_W4_no_astk1_no_wca0".
+    iAssert (close_list_resources_gen C W5 closing_list l_revoked_W0 false)
+      with "[Hrevoked_l_revoked_W0_no_be Hl_revoked_W4_wca0]" as "Hrevoked_l_revoked_W0_no_be".
     { rewrite /close_list_resources_gen.
-      setoid_rewrite Hl_l''0_wca0.
+      setoid_rewrite Hl_l_revoked_W4_no_astk1_wca0.
       iApply big_sepL_app; iFrame.
     }
-    iAssert (close_list_resources_gen C W5 closing_list (l++l''0_no_wca0) false)
-      with "[Hrevoked_l' Hrevoked_l''_no_wca0]" as "Hrevoked".
+    iAssert (close_list_resources_gen C W5 closing_list (l_revoked_W0++l_revoked_W4_no_astk1_no_wca0) false)
+      with "[Hrevoked_l_revoked_W0_no_be Hl_revoked_W4_no_wca0]" as "Hrevoked".
     { rewrite /close_list_resources_gen; iApply big_sepL_app; iFrame. }
 
 
@@ -1386,7 +1379,7 @@ Section SO.
     iDestruct "Ha_stk1" as (?) "(_ & Ha_stk1 & _)".
     iDestruct (region_pointsto_cons with "[$Ha_stk1 $Hstk]") as "Hstk"; auto.
     { solve_addr+Hcsp_size' Hastk2. }
-    iDestruct (region_pointsto_cons with "[$Hastk1 $Hstk]") as "Hstk"; auto.
+    iDestruct (region_pointsto_cons with "[$Hastk0 $Hstk]") as "Hstk"; auto.
     { solve_addr+Hcsp_size Hastk1. }
 
     iApply (switcher_ret_specification_gen _ W0 W5
@@ -1404,63 +1397,59 @@ Section SO.
       apply NoDup_app.
       split;[|split]; cycle -1.
       - apply finz_seq_between_NoDup.
-      - setoid_rewrite Hl_l''0_wca0.
-        subst l'.
+      - setoid_rewrite Hl_l_revoked_W4_no_astk1_wca0.
+        subst l_revoked_W0_no_be.
         rewrite /union /Union_list.
         apply NoDup_app.
         split;[|split]; cycle -1.
-        + subst l''0_no_wca0.
+        + subst l_revoked_W4_no_astk1_no_wca0.
           apply NoDup_filter.
-          clear -Hl_unk'' Hl''.
-          destruct Hl_unk'' as [Hnodup _].
-          apply NoDup_app in Hnodup as (Hnodup&_&_).
-          setoid_rewrite Hl'' in Hnodup.
+          clear -Hl_revoked_W4_nodup Hl_revoked_W4_astk1.
+          apply NoDup_app in Hl_revoked_W4_nodup as (Hnodup&_&_).
+          setoid_rewrite Hl_revoked_W4_astk1 in Hnodup.
           apply NoDup_cons in Hnodup as [_ Hnodup].
           done.
         + apply NoDup_app.
           split;[|split]; cycle -1.
-          * subst l''0_wca0.
+          * subst l_revoked_W4_no_astk1_wca0.
             apply NoDup_filter.
-            clear -Hl_unk'' Hl''.
-            destruct Hl_unk'' as [Hnodup _].
-            apply NoDup_app in Hnodup as (Hnodup&_&_).
-            setoid_rewrite Hl'' in Hnodup.
+            clear -Hl_revoked_W4_nodup Hl_revoked_W4_astk1.
+            apply NoDup_app in Hl_revoked_W4_nodup as (Hnodup&_&_).
+            setoid_rewrite Hl_revoked_W4_astk1 in Hnodup.
             apply NoDup_cons in Hnodup as [_ Hnodup].
             done.
           * apply NoDup_filter.
-            clear -Hl_unk.
-            destruct Hl_unk as [Hnodup _].
-            apply NoDup_app in Hnodup as (Hnodup&_&_).
+            clear -Hl_revoked_W0_nodup Hl_revoked_W0_temporaries.
+            apply NoDup_app in Hl_revoked_W0_nodup as (Hl_revoked_W0_nodup&_&_).
             done.
           * cbn; intros x Hx.
             clear -Hx.
             apply elem_of_list_filter in Hx as [Hx _].
-            subst l''0_wca0.
+            subst l_revoked_W4_no_astk1_wca0.
             intros Hx'.
             apply elem_of_list_filter in Hx' as [Hx' _].
             done.
         + cbn; intros x Hx.
           intros Hx'.
-          subst l''0_no_wca0.
-          apply elem_of_list_filter in Hx' as [Hx_no_wca0_temp Hx'].
+          subst l_revoked_W4_no_astk1_no_wca0.
+          apply elem_of_list_filter in Hx' as [Hx_no_la_be_temporaries Hx'].
           apply elem_of_app in Hx as [Hx|Hx].
           * apply elem_of_list_filter in Hx as [_ Hx].
             apply (elem_of_list_further _ a_stk1) in Hx'.
-            setoid_rewrite <- Hl'' in Hx'.
+            setoid_rewrite <- Hl_revoked_W4_astk1 in Hx'.
             setoid_rewrite Hl_wca0_l' in Hx.
-            clear -Hx Hx_no_wca0_temp Hx' Hdisjoint_l_l''.
-            rewrite elem_of_disjoint in Hdisjoint_l_l''.
+            clear -Hx Hx_no_la_be_temporaries Hx' Hdisjoint_l_revoked_W0_no_be_l_revoked_W4.
+            rewrite elem_of_disjoint in Hdisjoint_l_revoked_W0_no_be_l_revoked_W4.
             apply elem_of_app in Hx as [Hx|Hx]; first done.
-            apply (Hdisjoint_l_l'' x); eauto.
-          * subst l''0_wca0.
+            apply (Hdisjoint_l_revoked_W0_no_be_l_revoked_W4 x); eauto.
+          * subst l_revoked_W4_no_astk1_wca0.
             apply elem_of_list_filter in Hx as [Hx _].
             done.
       - cbn; intros x Hx.
         apply elem_of_app in Hx as [Hx|Hx].
-        + clear -Hx Hl_unk.
-          destruct Hl_unk as [Hnodup _].
-          apply NoDup_app in Hnodup as (_&Hnodup&_).
-          by apply Hnodup.
+        + clear -Hx Hl_revoked_W0_nodup Hl_revoked_W0_temporaries.
+          apply NoDup_app in Hl_revoked_W0_nodup as (_&Hl_revoked_W0_nodup&_).
+          by apply Hl_revoked_W0_nodup.
         + rewrite finz_seq_between_cons; last solve_addr+Hcsp_bounds Hastk1 Hastk2.
           apply not_elem_of_cons; split.
           { intros ->; done. }
@@ -1470,12 +1459,11 @@ Section SO.
           { intros ->; done. }
           replace (a_stk1 ^+ 1)%a with a_stk2; last solve_addr+Hcsp_bounds Hastk1 Hastk2.
           intro Hx'.
-          rewrite elem_of_disjoint in Hfrm_notin_l''0_no_wca0.
-          eapply Hfrm_notin_l''0_no_wca0; eauto.
+          rewrite elem_of_disjoint in Hfrm_notin_l_revoked_W4_no_astk1_no_wca0.
+          eapply Hfrm_notin_l_revoked_W4_no_astk1_no_wca0; eauto.
     }
     { intros x Hx.
-      destruct Hl_unk as [_ Hl_unk].
-      specialize (Hl_unk x); apply Hl_unk in Hx.
+      specialize (Hl_revoked_W0_temporaries x); apply Hl_revoked_W0_temporaries in Hx.
       apply elem_of_app in Hx as [Hx | Hx].
       + apply elem_of_app; left.
         apply elem_of_app; left; done.
