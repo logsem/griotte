@@ -239,6 +239,9 @@ Section SO.
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as
       Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
+
+    (* Because the passed object has read permission,
+       all the addresses must be in the world, either Temporary or Permanent *)
     iAssert ( ⌜ Forall (fun a => std W0 !! a = Some Permanent ∨ std W0 !! a = Some Temporary)
                 (finz.seq_between b e) ⌝)%I
     as "%Hstd_state_be_W0".
@@ -251,6 +254,8 @@ Section SO.
       destruct ρ; [ right | left |]; done.
     }
 
+    (* Filter the addresses that are in Temporary state in [la_be_temporaries]
+       and the ones that are in Permanent state in [la_be_permanents] *)
     set (la_be_temporaries := filter (fun a => std W0 !! a = Some Temporary) (finz.seq_between b e)).
     set (la_be_permanents := filter (fun a => std W0 !! a = Some Permanent) (finz.seq_between b e)).
     assert ( (finz.seq_between b e) ≡ₚ la_be_permanents ++ la_be_temporaries ) as Hwca0_range.
@@ -268,6 +273,8 @@ Section SO.
       ; cbn ; [|rewrite -Permutation_middle] ; rewrite -Hl; done.
     }
 
+    (* Filter out of [l_revoked_W0] the addresses that are [la_be_temporaries]
+       and those that are not. *)
     set (l_revoked_W0_no_be := filter (fun a => a ∉ la_be_temporaries) l_revoked_W0).
     assert (
        la_be_temporaries ≡ₚ filter (fun a => a ∈ la_be_temporaries) l_revoked_W0
@@ -340,6 +347,7 @@ Section SO.
       rewrite {1}Hla_be_temporaries_l.
       apply filter_complement_list.
     }
+    (* Eliminate the later of [close_list_resources] *)
     iAssert (▷ (close_list_resources C W0 l_revoked_W0 false))%I with "[Hl_revoked_W0]" as "Hl_revoked_W0".
     { rewrite /close_list_resources /close_addr_resources.
       iNext; done.
@@ -349,6 +357,11 @@ Section SO.
     iEval (setoid_rewrite Hl_wca0_l') in "Hl_revoked_W0".
     iDestruct (big_sepL_app with "Hl_revoked_W0") as "[Hrevoked_la_be_temporaries Hrevoked_l_revoked_W0_no_be]".
 
+    (* Open the world for the Permanent addresses [la_be_permanents]:
+     - get the list of predicates [φs] and [rel] from the validity predicate of [wca0]
+     - open the world
+     - change the shape of the resources obtained from the open world in a more usable way
+     *)
     rewrite region_open_nil.
     iDestruct (read_allowed_inv_full_cap with "Hinterp_wca0_W0") as "Hinterp_wca0_invs"; auto.
     iAssert (
@@ -391,7 +404,6 @@ Section SO.
         iPureIntro.
         apply Forall_cons; split; auto.
     }
-
     iDestruct (region_open_list with "[$Hrels_wca0 $Hr_C $Hsts_C]") as
       "(%wca0_lv_perma & Hr_C & Hsts_C & Hsts_std_wca0 & Hla_be_permanents_lv & Hwca0_mono & Hwca0_φs
      & %Hlength_wca0_lv & Hwca0_pO)".
@@ -439,6 +451,7 @@ Section SO.
       auto.
     }
 
+    (* Get the list of permissions, predicates and words for the [la_be_temporaries] *)
     iAssert (
         ∃ (lp : list Perm)
           (lφ : list (WORLD * CmptName * Word → iPropI Σ) )
@@ -476,11 +489,14 @@ Section SO.
     }
     iDestruct (big_sepL2_app with "Hla_be_permanents_lv Hla_be_temporaries_lv") as "Hwca0_lvs".
 
+    (* Apply the checkint specification*)
     iApply (checkints_spec with "[- $HPC $Hca0 $Hcs1 $Hcs0 $Hwca0_lvs $Hcode]"); eauto.
     { symmetry; auto. }
     iSplitL; last ( iModIntro; iNext ; iIntros (?); done).
     iNext ; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & Hwca0_lvs & %Hwca0_lvs_ints & Hcode & Hlc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    (* Close the world from the opened addresses [la_be_permanents] *)
     iDestruct (big_sepL2_app' with "Hwca0_lvs") as "[Hla_be_permanents_lv Hla_be_temporaries_lv]".
     { by rewrite Hlength_wca0_lv Hwca0_invs_perma. }
     iAssert ( [∗ list] '(a0, _, _, _);v ∈ wca0_invs;wca0_lv_perma, a0 ↦ₐ v )%I with "[Hla_be_permanents_lv]"
@@ -515,6 +531,11 @@ Section SO.
     }
     { auto. }
     rewrite -region_open_nil.
+
+    (* Update the world and insert [la_be_temporaries].
+       It means that we need to prove that they are safe to share in the revoked world.
+       It's fine because they contain only integers.
+     *)
     iAssert (▷ [∗ list] φ ∈ lφ, zcond (safeUC φ) C)%I as "#Hzcond_lφ".
     { iClear "∗".
       iDestruct "Hlpφ_rels" as "-#Hrels".
@@ -605,6 +626,8 @@ Section SO.
       "[] [$Hsts_C $Hr_C $Hla_be_temporaries_closing_resources]") as "[Hsts_C Hr_C]".
     { iPureIntro; apply close_list_related_sts_pub. }
     set ( W2 := (close_list la_be_temporaries W1)).
+
+    (* The passed object is safe to share in the world [W2] *)
     iAssert (interp W2 C (WCap p g b e (finz.max b e)))%I as "#Hinterp_wca0_W2".
     {
       iEval (rewrite fixpoint_interp1_eq interp1_eq).
@@ -836,6 +859,8 @@ Section SO.
         iApply "Hwcond_Pastk1'".
         iApply interp_int.
     }
+
+    (* Insert the allocated SO [a_stk1] in the world *)
     iMod (monotone_close_list_region W2 W2 C [a_stk1] with
       "[] [$Hsts_C $Hr_C $Hastk1_closing_resources]") as "[Hsts_C Hr_C]".
     { iPureIntro; apply close_list_related_sts_pub. }
@@ -860,6 +885,7 @@ Section SO.
         rewrite elem_of_disjoint in H0; eapply H0; eauto.
         apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'.
     }
+    (* And show that the allocated SO is safe to share *)
     iAssert (interp W3 C (WCap RWL Local a_stk1 a_stk2 a_stk1))%I
       as "#Hinterp_W2_wca1".
     {
@@ -996,6 +1022,7 @@ Section SO.
     }
     set (W5 := revoke W4).
 
+    (* Derive a bunch of disjointness properties that will be necessary later *)
     iMod (revoked_by_separation_close_list_resources with "[$Hrevoked_l_revoked_W0_no_be $Hr_C $Hsts_C]")
       as "(Hr_C & Hsts_C & Hrevoked_l_revoked_W0_no_be & %Hrevoked_l_revoked_W0_no_be_W5)".
     { apply Forall_forall.
@@ -1037,47 +1064,6 @@ Section SO.
         apply elem_of_finz_seq_between; done.
       }
       rewrite elem_of_dom; done.
-    }
-
-    assert (a_stk1 ∈ l_revoked_W4) as Hastk1_l_revoked_W4.
-    { assert (a_stk1 ∉ finz.seq_between (a_stk2 ^+ 4)%a csp_e).
-      {
-        apply not_elem_of_finz_seq_between.
-        solve_addr+Hcsp_bounds Hastk1 Hastk2 Hcsp_size' Hcsp_size.
-      }
-      clear -Hl_revoked_W4_temporaries Hrelated_pub_2ext_W4 H Ha_stk1_W3 H1.
-      assert (std W4 !! a_stk1 = Some Temporary) as Htemp.
-      { eapply region_state_pub_temp; eauto.
-        rewrite std_sta_update_multiple_lookup_same_i; auto.
-      }
-      apply Hl_revoked_W4_temporaries in Htemp.
-      apply elem_of_app in Htemp as [?|?]; done.
-    }
-
-    assert (∀ a, a ∈ l_revoked_W0 ++ finz.seq_between csp_b csp_e -> std (revoke W4) !! a = Some Revoked) as
-    Ha_5.
-    { clear a ; intros a Ha.
-      apply elem_of_app in Ha as [Ha|Ha]; cycle 1.
-      - rewrite finz_seq_between_cons in Ha; last solve_addr+Hcsp_size' Hastk1.
-        replace (csp_b ^+1)%a with a_stk1 in Ha by solve_addr+Hcsp_size' Hastk2 Hastk1 Hcsp_bounds.
-        rewrite finz_seq_between_cons in Ha; last solve_addr+Hcsp_size' Hastk1 Hcsp_bounds.
-        replace (a_stk1 ^+1)%a with a_stk2 in Ha by solve_addr+Hcsp_size' Hastk2 Hastk1 Hcsp_bounds.
-        apply elem_of_cons in Ha as [Ha | Ha]; simplify_eq; first auto.
-        apply elem_of_cons in Ha as [Ha | Ha]; simplify_eq.
-        { rewrite Forall_forall in Hl_revoked_W4; apply Hl_revoked_W4 in Hastk1_l_revoked_W4; auto. }
-        rewrite Forall_forall in Hstk_W5; apply Hstk_W5 in Ha; auto.
-      - setoid_rewrite Hl_wca0_l' in Ha.
-        apply elem_of_app in Ha as [Ha|Ha]; cycle 1.
-        + rewrite Forall_forall in Hrevoked_l_revoked_W0_no_be_W5; apply Hrevoked_l_revoked_W0_no_be_W5 in Ha; auto.
-        + apply revoke_lookup_Monotemp.
-          eapply region_state_pub_temp; eauto.
-          rewrite close_list_lookup_not_in; auto.
-          * rewrite close_list_lookup_in; auto.
-            rewrite Forall_forall in Hrevoked_la_be_temporaries; apply Hrevoked_la_be_temporaries; auto.
-          * intro Ha' ; apply elem_of_list_singleton in Ha'; simplify_eq.
-            apply elem_of_list_filter in Ha as [_ Ha].
-            rewrite elem_of_disjoint in Hno_overlap; eapply Hno_overlap; eauto.
-            apply elem_of_finz_seq_between; subst csp_b; solve_addr+Hastk1 Hcsp_size'.
     }
 
     (* simplify the knowledge about the new rmap *)
@@ -1170,8 +1156,53 @@ Section SO.
     iDestruct (big_sepM_insert _ _ cgp with "[$Hrmap $Hcgp]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
     iDestruct (big_sepM_insert _ _ cra with "[$Hrmap $Hcra]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
+    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap ; set_solver+. }
 
+    assert (a_stk1 ∈ l_revoked_W4) as Hastk1_l_revoked_W4.
+    { assert (a_stk1 ∉ finz.seq_between (a_stk2 ^+ 4)%a csp_e).
+      {
+        apply not_elem_of_finz_seq_between.
+        solve_addr+Hcsp_bounds Hastk1 Hastk2 Hcsp_size' Hcsp_size.
+      }
+      clear -Hl_revoked_W4_temporaries Hrelated_pub_2ext_W4 H Ha_stk1_W3 H1.
+      assert (std W4 !! a_stk1 = Some Temporary) as Htemp.
+      { eapply region_state_pub_temp; eauto.
+        rewrite std_sta_update_multiple_lookup_same_i; auto.
+      }
+      apply Hl_revoked_W4_temporaries in Htemp.
+      apply elem_of_app in Htemp as [?|?]; done.
+    }
+
+    assert (∀ a, a ∈ l_revoked_W0 ++ finz.seq_between csp_b csp_e -> std (revoke W4) !! a = Some Revoked) as
+    Ha_5.
+    { clear a ; intros a Ha.
+      apply elem_of_app in Ha as [Ha|Ha]; cycle 1.
+      - rewrite finz_seq_between_cons in Ha; last solve_addr+Hcsp_size' Hastk1.
+        replace (csp_b ^+1)%a with a_stk1 in Ha by solve_addr+Hcsp_size' Hastk2 Hastk1 Hcsp_bounds.
+        rewrite finz_seq_between_cons in Ha; last solve_addr+Hcsp_size' Hastk1 Hcsp_bounds.
+        replace (a_stk1 ^+1)%a with a_stk2 in Ha by solve_addr+Hcsp_size' Hastk2 Hastk1 Hcsp_bounds.
+        apply elem_of_cons in Ha as [Ha | Ha]; simplify_eq; first auto.
+        apply elem_of_cons in Ha as [Ha | Ha]; simplify_eq.
+        { rewrite Forall_forall in Hl_revoked_W4; apply Hl_revoked_W4 in Hastk1_l_revoked_W4; auto. }
+        rewrite Forall_forall in Hstk_W5; apply Hstk_W5 in Ha; auto.
+      - setoid_rewrite Hl_wca0_l' in Ha.
+        apply elem_of_app in Ha as [Ha|Ha]; cycle 1.
+        + rewrite Forall_forall in Hrevoked_l_revoked_W0_no_be_W5; apply Hrevoked_l_revoked_W0_no_be_W5 in Ha; auto.
+        + apply revoke_lookup_Monotemp.
+          eapply region_state_pub_temp; eauto.
+          rewrite close_list_lookup_not_in; auto.
+          * rewrite close_list_lookup_in; auto.
+            rewrite Forall_forall in Hrevoked_la_be_temporaries; apply Hrevoked_la_be_temporaries; auto.
+          * intro Ha' ; apply elem_of_list_singleton in Ha'; simplify_eq.
+            apply elem_of_list_filter in Ha as [_ Ha].
+            rewrite elem_of_disjoint in Hno_overlap; eapply Hno_overlap; eauto.
+            apply elem_of_finz_seq_between; subst csp_b; solve_addr+Hastk1 Hcsp_size'.
+    }
+
+    (* To fix the world, we need to close the world with the addresses from
+       [l_revoked_W0] and [l_revoked_W4], but they have some overlap.
+       So we need to separe them into disjoint lists.
+     *)
     rewrite -/(close_list_resources C W0 l_revoked_W0_no_be false).
     iDestruct (close_list_resources_separation_many_alt with "[$Hrevoked_l_revoked_W0_no_be $Hl_revoked_W4]") as "%Hdisjoint_l_revoked_W0_no_be_l_revoked_W4".
     assert (∃ l_revoked_W4_no_astk1, l_revoked_W4 ≡ₚ a_stk1::l_revoked_W4_no_astk1 ∧ a_stk1 ∉ l_revoked_W4_no_astk1) as (l_revoked_W4_no_astk1 & Hl_revoked_W4_astk1 & Ha_stk1_l_revoked_W4_no_astk1).
@@ -1251,7 +1282,12 @@ Section SO.
         apply elem_of_app in Hx_W0 as [Hx_W0|Hx_W0]; auto.
             exfalso; rewrite elem_of_disjoint in Hno_overlap ; eapply Hno_overlap; eauto.
     }
-    set (closing_list := ((l_revoked_W0++l_revoked_W4_no_astk1_no_wca0) ++ finz.seq_between csp_b csp_e)).
+
+    (* [closing_list_revoked_addresses] is the addresses revoked from [W0] and from [W4],
+       but without duplication *)
+    set (closing_list_revoked_addresses := l_revoked_W0++l_revoked_W4_no_astk1_no_wca0).
+    set (closing_list := (closing_list_revoked_addresses ++ finz.seq_between csp_b csp_e)).
+    (* Show that fixing the world [W4] with [closing_list] is public future world... *)
     assert (related_sts_pub_world W4 (close_list closing_list W5)) as Hrelated_pub_W4_Wfixed.
     { subst W5.
       assert ( l_revoked_W4 ++ finz.seq_between (a_stk2 ^+ 4)%a csp_e ⊆ closing_list ).
@@ -1266,6 +1302,7 @@ Section SO.
         setoid_rewrite Hl_revoked_W4_astk1 in Ha.
         apply elem_of_cons in Ha as [Ha|Ha]; simplify_eq; cycle 1.
         + apply elem_of_app; left.
+          subst closing_list_revoked_addresses.
           setoid_rewrite Hl_l_revoked_W4_no_astk1_wca0.
           rewrite -app_assoc.
           setoid_rewrite <- Hl_revoked_W4_no_astk1_p.
@@ -1293,8 +1330,11 @@ Section SO.
      - (* Revoked in W4 *)
        destruct ρ5; try apply rtc_refl ; apply rtc_once; econstructor.
     }
+    (* ... and use it for showing that we can close the resources of [l_revoked_W4_no_astk1] *)
     iAssert (close_list_resources_gen C W5 closing_list l_revoked_W4_no_astk1 false) with "[Hl_revoked_W4]" as "Hl_revoked_W4".
     { iApply close_list_resources_gen_eq; eauto. }
+
+    (* Show that fixing the world [W0] with [closing_list] is public future world... *)
     assert (related_sts_pub_world W0 (close_list closing_list W5)) as Hrelated_pub_W0_Wfixed.
     { subst W5.
       assert ( l_revoked_W0 ++ finz.seq_between csp_b csp_e ⊆ closing_list ).
@@ -1347,9 +1387,11 @@ Section SO.
       - (* Revoked in W0 *)
         destruct ρ5; try apply rtc_refl ; apply rtc_once; econstructor.
     }
+    (* ... and use it for showing that we can close the resources of [l_revoked_W0_no_be] *)
     iAssert (close_list_resources_gen C W5 closing_list l_revoked_W0_no_be false) with "[Hrevoked_l_revoked_W0_no_be]" as "Hrevoked_l_revoked_W0_no_be".
     { iApply close_list_resources_gen_eq; eauto. }
 
+    (* Derive some separation properties that will be requires later *)
     iAssert (
        close_list_resources_gen C W5 closing_list l_revoked_W4_no_astk1_no_wca0 false
        ∗ close_list_resources_gen C W5 closing_list l_revoked_W4_no_astk1_wca0 false
@@ -1362,17 +1404,19 @@ Section SO.
     iDestruct (close_addr_list_gen_resources_separation with "[$Ha_stk1] [$Hl_revoked_W4_no_wca0]") as "%Hastk_1_notin_l_revoked_W4_no_astk1_no_wca0".
     iDestruct (close_list_resources_gen_separation_many
                  with "[$Hstk] [$Hl_revoked_W4_no_wca0]") as "%Hfrm_notin_l_revoked_W4_no_astk1_no_wca0".
+    (* Combine all the revoked addresses [closing_list_revoked_addresses] that will
+     be used to fix the world *)
     iAssert (close_list_resources_gen C W5 closing_list l_revoked_W0 false)
       with "[Hrevoked_l_revoked_W0_no_be Hl_revoked_W4_wca0]" as "Hrevoked_l_revoked_W0_no_be".
     { rewrite /close_list_resources_gen.
       setoid_rewrite Hl_l_revoked_W4_no_astk1_wca0.
       iApply big_sepL_app; iFrame.
     }
-    iAssert (close_list_resources_gen C W5 closing_list (l_revoked_W0++l_revoked_W4_no_astk1_no_wca0) false)
+    iAssert (close_list_resources_gen C W5 closing_list closing_list_revoked_addresses false)
       with "[Hrevoked_l_revoked_W0_no_be Hl_revoked_W4_no_wca0]" as "Hrevoked".
     { rewrite /close_list_resources_gen; iApply big_sepL_app; iFrame. }
 
-
+    (* Reconstruct the stack region *)
     rewrite /close_addr_resources.
     iDestruct "Ha_stk1" as (???) "[Ha_stk1 _]".
     iEval (cbn) in "Ha_stk1".
@@ -1382,6 +1426,7 @@ Section SO.
     iDestruct (region_pointsto_cons with "[$Hastk0 $Hstk]") as "Hstk"; auto.
     { solve_addr+Hcsp_size Hastk1. }
 
+    (* Apply the generalised version of the return to switcher specification *)
     iApply (switcher_ret_specification_gen _ W0 W5
              with
              "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hna $HPC $Hr_C
