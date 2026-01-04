@@ -244,24 +244,15 @@ Section cap_lang_rules.
      destruct Hspec as [| | * Hfail].
      { (* Success *)
        iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-       rewrite lookup_reg_not_cnull in H0; last done.
-       rewrite lookup_reg_not_cnull in H1; last done.
-       rewrite lookup_insert in H5; simplify_eq.
-       simplify_map_eq; simplify_pair_eq; rewrite !insert_insert.
+       simplify_pair_eq; rewrite !insert_insert.
        iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
      }
      { (* Success with WSealRange (contradiction) *)
-       rewrite lookup_reg_not_cnull in H0; last done.
        simplify_map_eq. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       all: ( repeat (match goal with
-              | H : context [ ?m !!ᵣ _ ] |- _
-                => (rewrite !lookup_reg_not_cnull in H; last done)
-              end)); simplify_map_eq; eauto; try congruence.
-       incrementPC_inv; simplify_map_eq; eauto; last (by rewrite lookup_insert). congruence. }
+       incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
-
 
    Lemma wp_restrict_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_a' w r1 rv p g b e a z p' g' :
      decodeInstrW w = Restrict r1 (inr rv) →
@@ -293,30 +284,16 @@ Section cap_lang_rules.
     destruct Hspec as [| | * Hfail].
     { (* Success *)
       iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      rewrite lookup_reg_not_cnull in H3; last done.
-
-      rewrite lookup_reg_insert_ne // lookup_reg_insert in H2; simplify_map_eq.
-      rewrite lookup_insert_ne in H7;auto; simplify_map_eq.
-      rewrite (insert_commute _ PC r1) // insert_reg_insert
+      rewrite (insert_commute _ PC r1) // insert_insert
               (insert_commute _ PC r1) // insert_insert.
-      rewrite bool_decide_eq_false_2; auto.
       simplify_pair_eq.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
      { (* Success with WSealRange (contradiction) *)
-      rewrite lookup_reg_insert_ne // lookup_reg_insert in H2; simplify_map_eq.
+      simplify_map_eq.
      }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       all: repeat ( (match goal with
-              | H : context [ ?m !!ᵣ _ ] |- _
-                => (rewrite lookup_reg_insert_ne in H; last done)
-              end)); simplify_map_eq; eauto; try congruence.
-       all: ( repeat (match goal with
-              | H : context [ ?m !!ᵣ _ ] |- _
-                => (rewrite !lookup_reg_not_cnull in H; last done)
-              end)); simplify_map_eq; eauto; try congruence.
-       incrementPC_inv; simplify_map_eq; eauto;
-       last (by rewrite lookup_insert_ne //; simplify_map_eq). congruence. }
+       incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
 
    Lemma wp_restrict_success_z_PC Ep pc_p pc_g pc_b pc_e pc_a pc_a' w z p' g' :
@@ -343,20 +320,13 @@ Section cap_lang_rules.
      destruct Hspec as [ | | * Hfail ].
      { (* Success *)
        iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-       rewrite lookup_reg_not_cnull in H; last done.
-       rewrite lookup_insert in H4; simplify_map_eq.
-       rewrite insert_insert_reg; simplify_map_eq.
-       rewrite insert_insert.
        simplify_pair_eq.
+       rewrite !insert_insert.
        iApply (regs_of_map_1 with "Hmap"). }
      { (* Success with WSealRange (contradiction) *)
        simplify_map_eq. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       all: ( repeat (match goal with
-              | H : context [ ?m !!ᵣ _ ] |- _
-                => (rewrite !lookup_reg_not_cnull in H; last done)
-              end)); simplify_map_eq; eauto; try congruence.
        incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
 
@@ -387,27 +357,14 @@ Section cap_lang_rules.
      destruct Hspec as [| | * Hfail].
      { (* Success *)
        iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-       rewrite lookup_reg_insert_ne // lookup_reg_insert in H0; simplify_map_eq.
-       rewrite lookup_insert_ne in H5;auto; simplify_map_eq.
-       rewrite (insert_commute _ PC r1) // insert_reg_insert
-         (insert_commute _ PC r1) // insert_insert.
-       rewrite bool_decide_eq_false_2; auto.
-       simplify_pair_eq.
+       rewrite (insert_commute _ PC r1) // insert_insert
+               (insert_commute _ PC r1) // insert_insert. simplify_pair_eq.
        iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
      { (* Success with WSealRange (contradiction) *)
-      rewrite lookup_reg_insert_ne // lookup_reg_insert in H0; simplify_map_eq.
+      simplify_map_eq.
      }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       all: repeat ( (match goal with
-              | H : context [ ?m !!ᵣ _ ] |- _
-                => (rewrite lookup_reg_insert_ne in H; last done)
-              end)); simplify_map_eq; eauto; try congruence.
-       all: ( repeat (match goal with
-              | H : context [ ?m !!ᵣ _ ] |- _
-                => (rewrite !lookup_reg_not_cnull in H; last done)
-              end)); simplify_map_eq; eauto; try congruence.
-       rewrite insert_reg_insert_commute // insert_reg_insert in e6.
        incrementPC_inv; simplify_map_eq; eauto; congruence. }
    Qed.
 
@@ -442,30 +399,15 @@ Section cap_lang_rules.
 
     destruct Hspec as [| | * Hfail].
     { (* Success with WCap (contradiction) *)
-      rewrite lookup_reg_insert_ne // lookup_reg_insert in H2; simplify_map_eq.
+      simplify_map_eq.
     }
     { (* Success *)
       iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      rewrite lookup_reg_not_cnull in H3; last done.
-
-      rewrite lookup_reg_insert_ne // lookup_reg_insert in H2; simplify_map_eq.
-      rewrite lookup_insert_ne in H7;auto; simplify_map_eq.
-      rewrite (insert_commute _ PC r1) // insert_reg_insert
-              (insert_commute _ PC r1) // insert_insert.
-      rewrite bool_decide_eq_false_2; auto.
-      simplify_pair_eq.
+       rewrite (insert_commute _ PC r1) // insert_insert
+               (insert_commute _ PC r1) // insert_insert. simplify_pair_eq.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       destruct Hfail; simplify_map_eq; eauto; try congruence.
-       all: repeat ( (match goal with
-              | H : context [ ?m !!ᵣ _ ] |- _
-                => (rewrite lookup_reg_insert_ne in H; last done)
-              end)); simplify_map_eq; eauto; try congruence.
-       all: ( repeat (match goal with
-              | H : context [ ?m !!ᵣ _ ] |- _
-                => (rewrite !lookup_reg_not_cnull in H; last done)
-              end)); simplify_map_eq; eauto; try congruence.
-       rewrite insert_reg_insert_commute // insert_reg_insert in e6.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
 
@@ -495,28 +437,16 @@ Section cap_lang_rules.
 
      destruct Hspec as [| | * Hfail].
      { (* Success with WSealRange (contradiction) *)
-       rewrite lookup_reg_insert_ne // lookup_reg_insert in H0; simplify_map_eq.
+       simplify_map_eq.
      }
      { (* Success *)
        iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-       rewrite lookup_reg_insert_ne // lookup_reg_insert in H0; simplify_map_eq.
-       rewrite lookup_insert_ne in H5;auto; simplify_map_eq.
-       rewrite (insert_commute _ PC r1) // insert_reg_insert
+       rewrite (insert_commute _ PC r1) // insert_insert
          (insert_commute _ PC r1) // insert_insert.
-       rewrite bool_decide_eq_false_2; auto.
        simplify_pair_eq.
        iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       all: repeat ( (match goal with
-              | H : context [ ?m !!ᵣ _ ] |- _
-                => (rewrite lookup_reg_insert_ne in H; last done)
-              end)); simplify_map_eq; eauto; try congruence.
-       all: ( repeat (match goal with
-              | H : context [ ?m !!ᵣ _ ] |- _
-                => (rewrite !lookup_reg_not_cnull in H; last done)
-              end)); simplify_map_eq; eauto; try congruence.
-       rewrite insert_reg_insert_commute // insert_reg_insert in e6.
        incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
 
