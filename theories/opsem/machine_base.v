@@ -1664,3 +1664,42 @@ Proof.
   rewrite Hr; cbn.
   done.
 Qed.
+
+Lemma lookup_reg_insert_ne r1 r2 w regs :
+  r1 ≠ r2 -> (<[r1:=w]> regs) !!ᵣ r2 = regs !!ᵣ r2.
+Proof.
+  intros Hneq.
+  rewrite /lookup_reg.
+  rewrite lookup_insert_ne; auto.
+Qed.
+
+Lemma lookup_reg_insert r w regs :
+  (<[r:=w]> regs) !!ᵣ r = (if (decide (r = cnull)) then Some (WInt 0) else Some w).
+Proof.
+  destruct (decide (r = cnull)); simplify_eq; rewrite /lookup_reg; simplify_map_eq.
+  + rewrite bool_decide_eq_true_2; auto.
+  + rewrite bool_decide_eq_false_2; auto.
+Qed.
+
+Lemma insert_reg_insert r w1 w2 regs :
+  <[ r := w1 ]ᵣ> (<[ r := w2 ]> regs) = <[ r := w1 ]ᵣ> regs.
+Proof.
+  destruct (decide (r = cnull)); simplify_eq; rewrite /insert_reg; simplify_map_eq.
+  + rewrite bool_decide_eq_true_2; auto; by rewrite insert_insert.
+  + rewrite bool_decide_eq_false_2; auto; by rewrite insert_insert.
+Qed.
+
+Lemma insert_insert_reg r w1 w2 regs :
+  <[ r := w1 ]> (<[ r := w2 ]ᵣ> regs) = <[ r := w1 ]> regs.
+Proof.
+  destruct (decide (r = cnull)); simplify_eq; rewrite /insert_reg; simplify_map_eq.
+  + rewrite bool_decide_eq_true_2; auto; by rewrite insert_insert.
+  + rewrite bool_decide_eq_false_2; auto; by rewrite insert_insert.
+Qed.
+
+Lemma insert_reg_insert_commute r1 r2 w1 w2 regs :
+  r1 ≠ r2 -> <[ r1 := w1 ]ᵣ> (<[ r2 := w2 ]> regs) = <[ r2 := w2
+    ]> (<[ r1 := w1 ]ᵣ> regs).
+Proof.
+  intros Hneq. rewrite insert_commute; auto.
+Qed.
