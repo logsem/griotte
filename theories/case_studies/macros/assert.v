@@ -18,7 +18,7 @@ Section Assert_Code.
       #"assert_success";
       mov ct0 0;
       mov ct1 0;
-      jmpcap cra; (* return *)
+      jalr cnull cra; (* return *)
       #"assert_fail";
       mov ct1 PC;
       lea ct1 ("cap_flag"+1)%asm; (* pointer to cap: *)
@@ -26,7 +26,7 @@ Section Assert_Code.
       store ct1 1;
       mov ct0 0;
       mov ct1 0;
-      jmpcap cra;
+      jalr cnull cra;
       #"cap_flag"
        (* cap: (RW, flag, end, flag) *)
        (* flag: <0 or 1> *)

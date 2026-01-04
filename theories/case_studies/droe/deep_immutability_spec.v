@@ -529,6 +529,11 @@ Section DROE.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
     }
     iDestruct (big_sepM_delete _ _ ct4 with "Hrmap") as "[Hct4 Hrmap]"; first by simplify_map_eq.
+    assert ( rmap' !! cnull = Some (WInt 0) ) as Hwcnull'.
+    { apply Hrmap_init'. rewrite Hdom_rmap'.
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+    }
+    iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
 
     assert ( cgp_b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_b_stk'.
     { clear -Hcgp_b_stk.
@@ -566,10 +571,10 @@ Section DROE.
 
     focus_block 4 "Hcode_main" as a_assert_c Ha_assert_c "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (assert_success_spec with
-             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcra
+             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcra $Hcnull
               $Hcode $Himport_assert]"); auto.
     { solve_addr. }
-    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1
+    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
                     & Hcode & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -581,7 +586,7 @@ Section DROE.
     iInstr "Hcode".
     (* Mov ca1 0; *)
     iInstr "Hcode".
-    (* JmpCap cra *)
+    (* Jalr cnull cra *)
     iInstr "Hcode".
     wp_end; iIntros "_"; iFrame.
 

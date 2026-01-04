@@ -85,7 +85,7 @@ int __cheri_compartment("known") run()
         (* return 0 *)
         Mov ca0 0%Z;
         Mov ca1 0%Z;
-        JmpCap cra
+        Jalr cnull cra
       ].
 
   Definition lse_main_code : list Word

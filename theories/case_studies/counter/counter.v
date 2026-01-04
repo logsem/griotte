@@ -58,7 +58,7 @@ Section Counter_Main.
       Mov ca1 0%Z;
       Mov cs0 0%Z;
       Mov cs1 0%Z;
-      JmpCap cra
+      Jalr cnull cra
 
       (* #"main_e" *)
     ].

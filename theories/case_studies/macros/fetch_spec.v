@@ -19,6 +19,9 @@ Section Fetch.
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
     withinBounds pc_b pc_e (pc_b ^+ n)%a = true ->
+    rdst ≠ cnull ->
+    rscratch1 ≠ cnull ->
+    rscratch2 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ rdst ↦ᵣ wdst
@@ -36,7 +39,7 @@ Section Fetch.
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros fetch a_last ; subst fetch a_last.
-    iIntros (Hvpc Hcont Hpc_n)
+    iIntros (Hvpc Hcont Hpc_n Hrdst Hr1 Hr2)
       "(>HPC & >Hrdst & >Hrscratch1 & >Hrscratch2 & >Hprog & >Hpc_bn & Hφ)".
     iDestruct (big_sepL2_length with "Hprog") as %Hlength.
     codefrag_facts "Hprog".
@@ -44,6 +47,10 @@ Section Fetch.
     assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea;[solve_addr|].
     assert ((pc_b + n)%a = Some (pc_b ^+ n)%a) as Hpc_bn;[solve_addr|].
     iGo "Hprog".
+    replace ( WInt (if decide (rscratch1 = cnull) then 0 else 0%Z) )
+      with (WInt 0) by (destruct (decide _); done).
+    replace ( WInt (if decide (rscratch2 = cnull) then 0 else 0%Z) )
+      with (WInt 0) by (destruct (decide _); done).
     iApply "Hφ"; iFrame.
   Qed.
 

@@ -122,6 +122,9 @@ Section LSE.
     assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! cnull) ) as [wcnull Hwcnull].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
 
     (* Extract the imports *)
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
@@ -204,11 +207,11 @@ Section LSE.
     ; clear dependent Ha_f.
     iApply (assert_success_spec
              with
-             "[- $Hassert $Hna $HPC $Hcgp $Hcs0 $Hcs1 $Hct0 $Hct1 $Hcra
+             "[- $Hassert $Hna $HPC $Hcgp $Hcs0 $Hcs1 $Hct0 $Hct1 $Hcra $Hcnull
               $Hcode $Himport_assert]") ; auto.
     { apply withinBounds_true_iff; solve_addr. }
     { solve_ndisj. }
-    iNext; iIntros "(Hna & HPC & Hcgp & Hcs0 & Hcs1 & Hcra & Hct0 & Hct1
+    iNext; iIntros "(Hna & HPC & Hcgp & Hcs0 & Hcs1 & Hcra & Hct0 & Hct1 & Hcnull
                     & Hcode & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -221,7 +224,7 @@ Section LSE.
     iInstr "Hcode".
     (* Mov ca1 0%Z; *)
     iInstr "Hcode".
-    (* JmpCap cra *)
+    (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -236,7 +239,7 @@ Section LSE.
     }
 
     (* Put all the registers under the same map *)
-    iInsertList "Hrmap" [cra;cgp;cs1;cs0;ct1;ct0].
+    iInsertList "Hrmap" [cra;cgp;cs1;cs0;ct1;ct0;cnull].
     iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk".
     { solve_addr+Hastk1. }
     { solve_addr+Hastk1 Hcsp_size. }

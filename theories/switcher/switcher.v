@@ -126,7 +126,7 @@ Section Switcher.
       ; (* Clear the register file *)
       (#".Lswitch_callee_dead_zeros"::clear_registers_post_call_asm)
       ; (* Return to caller  *)
-      [jmpcap cra]
+      [jalr cnull cra]
     ].
 
   Definition switcher_failure_asm : list (list asm_code) :=
