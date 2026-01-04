@@ -72,5 +72,5 @@ jobs:
       - name: Build
         run: |
           eval "$(opam env)"
-          opam exec -- dune build --display short -j ${{ env.JOBS_LIMIT }}
-          make pretty-timed
+          opam exec -- dune build --display short -j ${{ env.JOBS_LIMIT }} --trace-file griotte.trc --trace-extended
+          ./pretty-print-trace.sh griotte.trc
