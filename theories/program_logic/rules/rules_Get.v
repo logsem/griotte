@@ -127,20 +127,20 @@ Section cap_lang_rules.
 
   Inductive Get_failure (i: instr) (regs: Reg) (dst src: RegName) :=
     | Get_fail_src_denote w:
-        regs !! src = Some w →
+        regs !!ᵣ src = Some w →
         denote i w = None →
         Get_failure i regs dst src
     | Get_fail_overflow_PC w z:
-        regs !! src = Some w →
+        regs !!ᵣ src = Some w →
         denote i w = Some z →
-        incrementPC (<[ dst := WInt z ]> regs) = None →
+        incrementPC (<[ dst := WInt z ]ᵣ> regs) = None →
         Get_failure i regs dst src.
 
   Inductive Get_spec (i: instr) (regs: Reg) (dst src: RegName) (regs': Reg): cap_lang.val -> Prop :=
     | Get_spec_success w z:
-        regs !! src = Some w →
+        regs !!ᵣ src = Some w →
         denote i w = Some z →
-        incrementPC (<[ dst := WInt z ]> regs) = Some regs' →
+        incrementPC (<[ dst := WInt z ]ᵣ> regs) = Some regs' →
         Get_spec i regs dst src regs' NextIV
     | Get_spec_failure:
         Get_failure i regs dst src →
@@ -195,11 +195,12 @@ Section cap_lang_rules.
     }
     rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
 
-    destruct (incrementPC (<[ dst := WInt z ]> regs))
+    destruct (incrementPC (<[ dst := WInt z ]ᵣ> regs))
       as [regs'|] eqn:Hregs'; pose proof Hregs' as H'regs'; cycle 1.
     { (* Failure: incrementing PC overflows *)
       apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) in Hregs'.
       eapply updatePC_fail_incl with (sregs':=sr) (m':=m) in Hregs'.
+      2: simpl_map_regs by eauto.
       2: by apply lookup_insert_is_Some'; eauto.
       2: by apply insert_mono; eauto.
       simplify_pair_eq.
@@ -213,6 +214,7 @@ Section cap_lang_rules.
     eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
     simplify_pair_eq. iFrame.
     iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+    { apply is_Some_lookup_reg; done. }
     iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     iFrame. iModIntro. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
   Qed.
@@ -224,6 +226,7 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
     denote get_i (WCap pc_p pc_g pc_b pc_e pc_a) = Some z →
+    dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -234,7 +237,7 @@ Section cap_lang_rules.
           ∗ pc_a ↦ₐ w
           ∗ dst ↦ᵣ WInt z }}}.
   Proof.
-    iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote φ) "(>HPC & >Hpc_a & >Hdst) Hφ".
+    iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote Hcnull φ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }
@@ -255,6 +258,7 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
     denote get_i wr = Some z →
+    r ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -265,7 +269,7 @@ Section cap_lang_rules.
           ∗ pc_a ↦ₐ w
           ∗ r ↦ᵣ WInt z }}}.
   Proof.
-    iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote φ) "(>HPC & >Hpc_a & >Hr) Hφ".
+    iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote Hcnull φ) "(>HPC & >Hpc_a & >Hr) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr") as "[Hmap %]".
     iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }
@@ -286,6 +290,8 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
     denote get_i wsrc = Some z →
+    src ≠ cnull ->
+    dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -298,7 +304,7 @@ Section cap_lang_rules.
           ∗ src ↦ᵣ wsrc
           ∗ dst ↦ᵣ WInt z }}}.
   Proof.
-    iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
+    iIntros (Hdecode Hinstr Hvpc Hpca' Hdenote Hcnull Hcnull' φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hdst Hsrc") as "[Hmap (%&%&%)]".
     iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }
@@ -319,6 +325,7 @@ Section cap_lang_rules.
     (forall dst' src', get_i <> GetOType dst' src') ->
     (forall dst' src', get_i <> GetWType dst' src') ->
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    src ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
       ∗ ▷ pc_a ↦ₐ w
@@ -327,7 +334,7 @@ Section cap_lang_rules.
       Instr Executable @ E
       {{{ RET FailedV; True }}}.
   Proof.
-    iIntros (Hdecode Hinstr Hnot_otype Hnot_wtype Hvpc φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
+    iIntros (Hdecode Hinstr Hnot_otype Hnot_wtype Hvpc Hcnull φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }
@@ -349,6 +356,8 @@ Section cap_lang_rules.
     (forall dst' src', get_i <> GetWType dst' src') ->
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    src ≠ cnull ->
+    dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
       ∗ ▷ pc_a ↦ₐ w
@@ -368,7 +377,7 @@ Section cap_lang_rules.
           )
        }}}.
   Proof.
-    iIntros (Hdecode Hinstr Hnot_otype Hnot_wtype Hvpc Hpc_a' φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
+    iIntros (Hdecode Hinstr Hnot_otype Hnot_wtype Hvpc Hpc_a' Hcnull Hcnull' φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Get with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by erewrite regs_of_is_Get; eauto; rewrite !dom_insert; set_solver+. }

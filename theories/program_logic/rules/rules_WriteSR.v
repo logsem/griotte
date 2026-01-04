@@ -25,7 +25,7 @@ Section cap_lang_rules.
       WriteSR_failure regs sregs dst src
   | WriteSR_fail_incrPC p g b e a w:
       regs !! PC = Some (WCap p g b e a) →
-      regs !! src = Some w →
+      regs !!ᵣ src = Some w →
       incrementPC regs = None →
       WriteSR_failure regs sregs dst src
   .
@@ -36,7 +36,7 @@ Section cap_lang_rules.
   | WriteSR_spec_success p g b e a w:
     regs !! PC = Some (WCap p g b e a) →
     has_sreg_access p = true ->
-    regs !! src = Some w →
+    regs !!ᵣ src = Some w →
     incrementPC regs = Some regs' →
     sregs' = (<[dst := w]> sregs) →
     WriteSR_spec regs regs' sregs sregs' dst src NextIV
@@ -119,6 +119,7 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
+    src ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -131,7 +132,7 @@ Section cap_lang_rules.
           ∗ dst ↦ₛᵣ wsrc
           ∗ src ↦ᵣ wsrc }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hpca' ? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hsrc") as "[Hmap %]".
     iDestruct (map_of_sregs_1 with "Hdst") as "Hsmap".
     iApply (wp_WriteSR with "[$Hmap $Hsmap Hpc_a]"); eauto; simplify_map_eq; eauto.

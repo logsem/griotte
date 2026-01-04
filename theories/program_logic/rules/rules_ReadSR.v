@@ -26,7 +26,7 @@ Section cap_lang_rules.
   | ReadSR_fail_incrPC p g b e a w:
       regs !! PC = Some (WCap p g b e a) →
       sregs !! src = Some w →
-      incrementPC (<[ dst := w ]> regs) = None →
+      incrementPC (<[ dst := w ]ᵣ> regs) = None →
       ReadSR_failure regs sregs dst src
   .
 
@@ -37,7 +37,7 @@ Section cap_lang_rules.
       regs !! PC = Some (WCap p g b e a) →
       has_sreg_access p = true ->
       sregs !! src = Some w →
-      incrementPC (<[ dst := w ]> regs) = Some regs' →
+      incrementPC (<[ dst := w ]ᵣ> regs) = Some regs' →
       ReadSR_spec regs sregs dst src regs' NextIV
   | ReadSR_spec_failure:
       ReadSR_failure regs sregs dst src →
@@ -93,7 +93,7 @@ Section cap_lang_rules.
     { by cbn; rewrite Hsrc Hxsr /=. }
     rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
 
-    destruct (incrementPC (<[ dst := wsrc ]> regs)) as [regs'|] eqn:Hregs'
+    destruct (incrementPC (<[ dst := wsrc ]ᵣ> regs)) as [regs'|] eqn:Hregs'
     ; pose proof Hregs' as H'regs'; cycle 1.
     { apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) in Hregs'.
       eapply updatePC_fail_incl with (sregs':=sr) (m':=m) in Hregs'.
@@ -108,6 +108,7 @@ Section cap_lang_rules.
     eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto.
     rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
     iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+    { apply is_Some_lookup_reg; done. }
     iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     iFrame. iModIntro. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
   Qed.
@@ -117,6 +118,7 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -129,7 +131,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ wsrc
           ∗ src ↦ₛᵣ wsrc }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iDestruct (map_of_sregs_1 with "Hsrc") as "Hsmap".
     iApply (wp_ReadSR with "[$Hmap $Hsmap Hpc_a]"); eauto; simplify_map_eq; eauto.

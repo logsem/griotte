@@ -17,66 +17,66 @@ Section cap_lang_rules.
 
   Inductive Subseg_failure  (regs: Reg) (dst: RegName) (src1 src2: Z + RegName) : Reg → Prop :=
   | Subseg_fail_allowed w :
-      regs !! dst = Some w →
+      regs !!ᵣ dst = Some w →
       is_mutable_range w = false →
       Subseg_failure regs dst src1 src2 regs
   | Subseg_fail_src1_nonaddr p g b e a:
-      regs !! dst = Some (WCap p g b e a) →
+      regs !!ᵣ dst = Some (WCap p g b e a) →
       addr_of_argument regs src1 = None →
       Subseg_failure regs dst src1 src2 regs
   | Subseg_fail_src2_nonaddr p g b e a:
-      regs !! dst = Some (WCap p g b e a) →
+      regs !!ᵣ dst = Some (WCap p g b e a) →
       addr_of_argument regs src2 = None →
       Subseg_failure regs dst src1 src2 regs
   | Subseg_fail_src1_nonotype p g b e a:
-      regs !! dst = Some (WSealRange p g b e a) →
+      regs !!ᵣ dst = Some (WSealRange p g b e a) →
       otype_of_argument regs src1 = None →
       Subseg_failure regs dst src1 src2 regs
   | Subseg_fail_src2_nonotype p g b e a:
-      regs !! dst = Some (WSealRange p g b e a) →
+      regs !!ᵣ dst = Some (WSealRange p g b e a) →
       otype_of_argument regs src2 = None →
       Subseg_failure regs dst src1 src2 regs
   | Subseg_fail_not_iswithin_cap p g b e a a1 a2 :
-      regs !! dst = Some (WCap p g b e a) →
+      regs !!ᵣ dst = Some (WCap p g b e a) →
       addr_of_argument regs src1 = Some a1 →
       addr_of_argument regs src2 = Some a2 →
       isWithin a1 a2 b e = false →
       Subseg_failure regs dst src1 src2 regs
   | Subseg_fail_incrPC_cap p g b e a a1 a2 :
-      regs !! dst = Some (WCap p g b e a) →
+      regs !!ᵣ dst = Some (WCap p g b e a) →
       addr_of_argument regs src1 = Some a1 →
       addr_of_argument regs src2 = Some a2 →
       isWithin a1 a2 b e = true →
-      incrementPC (<[ dst := WCap p g a1 a2 a ]> regs) = None →
+      incrementPC (<[ dst := WCap p g a1 a2 a ]ᵣ> regs) = None →
       Subseg_failure regs dst src1 src2 regs
   | Subseg_fail_not_iswithin_sr p g b e a a1 a2 :
-      regs !! dst = Some (WSealRange p g b e a) →
+      regs !!ᵣ dst = Some (WSealRange p g b e a) →
       otype_of_argument regs src1 = Some a1 →
       otype_of_argument regs src2 = Some a2 →
       isWithin a1 a2 b e = false →
       Subseg_failure regs dst src1 src2 regs
   | Subseg_fail_incrPC_sr p g b e a a1 a2 :
-      regs !! dst = Some (WSealRange p g b e a) →
+      regs !!ᵣ dst = Some (WSealRange p g b e a) →
       otype_of_argument regs src1 = Some a1 →
       otype_of_argument regs src2 = Some a2 →
       isWithin a1 a2 b e = true →
-      incrementPC (<[ dst := WSealRange p g a1 a2 a ]> regs) = None →
+      incrementPC (<[ dst := WSealRange p g a1 a2 a ]ᵣ> regs) = None →
       Subseg_failure regs dst src1 src2 regs.
 
   Inductive Subseg_spec (regs: Reg) (dst: RegName) (src1 src2: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
   | Subseg_spec_success_cap p g b e a a1 a2:
-      regs !! dst = Some (WCap p g b e a) ->
+      regs !!ᵣ dst = Some (WCap p g b e a) ->
       addr_of_argument regs src1 = Some a1 ->
       addr_of_argument regs src2 = Some a2 ->
       isWithin a1 a2 b e = true ->
-      incrementPC (<[ dst := WCap p g a1 a2 a ]> regs) = Some regs' ->
+      incrementPC (<[ dst := WCap p g a1 a2 a ]ᵣ> regs) = Some regs' ->
       Subseg_spec regs dst src1 src2 regs' NextIV
   | Subseg_spec_success_sr p g b e a a1 a2:
-      regs !! dst = Some (WSealRange p g b e a) ->
+      regs !!ᵣ dst = Some (WSealRange p g b e a) ->
       otype_of_argument regs src1 = Some a1 ->
       otype_of_argument regs src2 = Some a2 ->
       isWithin a1 a2 b e = true ->
-      incrementPC (<[ dst := WSealRange p g a1 a2 a ]> regs) = Some regs' ->
+      incrementPC (<[ dst := WSealRange p g a1 a2 a ]ᵣ> regs) = Some regs' ->
       Subseg_spec regs dst src1 src2 regs' NextIV
   | Subseg_spec_failure :
       Subseg_failure regs dst src1 src2 regs' →
@@ -173,14 +173,15 @@ Section cap_lang_rules.
       destruct (isWithin a1 a2 b e) eqn:Hiw; cycle 1.
       { destruct p; try congruence; inv Hstep ; iFailWP "Hφ" Subseg_fail_not_iswithin_cap. }
 
-      destruct (incrementPC (<[ dst := (WCap p g a1 a2 a) ]> regs)) eqn:Hregs';
+      destruct (incrementPC (<[ dst := (WCap p g a1 a2 a) ]ᵣ> regs)) eqn:Hregs';
         pose proof Hregs' as H'regs'; cycle 1.
-      { assert (incrementPC (<[ dst := (WCap p g a1 a2 a) ]> r) = None) as HH.
+      { assert (incrementPC (<[ dst := (WCap p g a1 a2 a) ]ᵣ> r) = None) as HH.
         { eapply incrementPC_overflow_mono; first eapply Hregs'.
             + by rewrite lookup_insert_is_Some'; eauto.
             + by apply insert_mono; eauto.
         }
-        apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
+        apply (incrementPC_fail_updatePC _ sr m) in HH.
+        rewrite HH in Hstep.
         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
             by (destruct p; inversion Hstep; auto).
         iFailWP "Hφ" Subseg_fail_incrPC_cap. }
@@ -192,6 +193,7 @@ Section cap_lang_rules.
       { destruct_perm p; cbn in Hstep; eauto. }
       simplify_pair_eq. iFrame.
       iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+      { apply is_Some_lookup_reg; done. }
       iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
       iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
     (* Now, the case where wsrc is a capability *)
@@ -241,9 +243,9 @@ Section cap_lang_rules.
       destruct (isWithin a1 a2 b e) eqn:Hiw; cycle 1.
       { destruct p; try congruence; inv Hstep ; iFailWP "Hφ" Subseg_fail_not_iswithin_sr. }
 
-      destruct (incrementPC (<[ dst := (WSealRange p g a1 a2 a) ]> regs)) eqn:Hregs';
+      destruct (incrementPC (<[ dst := (WSealRange p g a1 a2 a) ]ᵣ> regs)) eqn:Hregs';
         pose proof Hregs' as H'regs'; cycle 1.
-      { assert (incrementPC (<[ dst := (WSealRange p g a1 a2 a) ]> r) = None) as HH.
+      { assert (incrementPC (<[ dst := (WSealRange p g a1 a2 a) ]ᵣ> r) = None) as HH.
         { eapply incrementPC_overflow_mono; first eapply Hregs'.
           + by rewrite lookup_insert_is_Some'; eauto.
           + by apply insert_mono; eauto.
@@ -260,6 +262,7 @@ Section cap_lang_rules.
       { destruct p; cbn in Hstep; eauto. }
       simplify_pair_eq. iFrame.
       iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+      { apply is_Some_lookup_reg; done. }
       iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
       iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor 2; eauto.
   Qed.
@@ -270,6 +273,9 @@ Section cap_lang_rules.
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -285,7 +291,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ WCap p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' Hcnull Hcnull' Hcnull'' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -313,6 +319,8 @@ Section cap_lang_rules.
     z_to_addr n1 = Some a1 →
     isWithin a1 a1 b e = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -326,7 +334,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ WCap p g a1 a1 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -354,6 +362,8 @@ Section cap_lang_rules.
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -367,7 +377,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ WCap p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -395,6 +405,8 @@ Section cap_lang_rules.
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -408,7 +420,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ WCap p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -435,6 +447,7 @@ Section cap_lang_rules.
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -446,7 +459,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ WCap p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -471,6 +484,7 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     ¬ (isWithin a1 a2 b e = true) →
+    dst ≠ cnull ->
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
           ∗ ▷ dst ↦ᵣ WCap p g b e a }}}
@@ -480,7 +494,7 @@ Section cap_lang_rules.
             ∗ ▷ pc_a ↦ₐ w
             ∗ ▷ dst ↦ᵣ WCap p g b e a }}}.
   Proof.
-    iIntros (? ? ? ? Hncond ?) "(>HPC & >Hpc_a & >Hdst) Hφ".
+    iIntros (? ? ? ? Hncond ? ?) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -503,6 +517,8 @@ Section cap_lang_rules.
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -516,7 +532,7 @@ Section cap_lang_rules.
           ∗ r2 ↦ᵣ WInt n2
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -543,6 +559,7 @@ Section cap_lang_rules.
     z_to_addr n1 = Some a1 →
     isWithin a1 a1 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -554,7 +571,7 @@ Section cap_lang_rules.
           ∗ r1 ↦ᵣ WInt n1
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -581,6 +598,7 @@ Section cap_lang_rules.
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -592,7 +610,7 @@ Section cap_lang_rules.
           ∗ r2 ↦ᵣ WInt n2
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr2") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -619,6 +637,7 @@ Section cap_lang_rules.
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -630,7 +649,7 @@ Section cap_lang_rules.
           ∗ r1 ↦ᵣ WInt n1
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -694,6 +713,9 @@ Section cap_lang_rules.
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -709,7 +731,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ WSealRange p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ??? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -736,6 +758,8 @@ Section cap_lang_rules.
     z_to_otype n1 = Some a1 →
     isWithin a1 a1 b e = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -749,7 +773,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ WSealRange p g a1 a1 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -776,6 +800,8 @@ Section cap_lang_rules.
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -789,7 +815,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ WSealRange p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -816,6 +842,8 @@ Section cap_lang_rules.
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -829,7 +857,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ WSealRange p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -856,6 +884,7 @@ Section cap_lang_rules.
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -867,7 +896,7 @@ Section cap_lang_rules.
           ∗ dst ↦ᵣ WSealRange p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }

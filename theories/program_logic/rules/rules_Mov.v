@@ -20,11 +20,11 @@ Section cap_lang_rules.
   Inductive Mov_spec (regs: Reg) (dst: RegName) (src: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
   | GetTag_spec_success w:
       word_of_argument regs src = Some w →
-      incrementPC (<[ dst := w ]> regs) = Some regs' →
+      incrementPC (<[ dst := w ]ᵣ> regs) = Some regs' →
       Mov_spec regs dst src regs' NextIV
   | Mov_spec_failure w:
       word_of_argument regs src = Some w →
-      incrementPC (<[ dst := w ]> regs) = None →
+      incrementPC (<[ dst := w ]ᵣ> regs) = None →
       Mov_spec regs dst src regs' FailedV.
 
   Lemma wp_Mov Ep pc_p pc_g pc_b pc_e pc_a  w dst src regs :
@@ -67,7 +67,7 @@ Section cap_lang_rules.
       cbn. by rewrite /= Hr'. }
     rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
 
-    destruct (incrementPC (<[ dst := wsrc ]> regs)) as [regs'|] eqn:Hregs';
+    destruct (incrementPC (<[ dst := wsrc ]ᵣ> regs)) as [regs'|] eqn:Hregs';
       pose proof Hregs' as H'regs'; cycle 1.
     { apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) in Hregs'.
       eapply updatePC_fail_incl with (sregs':=sr) (m':=m) in Hregs'.
@@ -81,11 +81,12 @@ Section cap_lang_rules.
     eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto.
     rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
     iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+    { apply is_Some_lookup_reg; done. }
     iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     iFrame. iModIntro. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
   Qed.
 
-  Lemma wp_move_success_z E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 z :
+  Lemma wp_move_success_z_gen E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 z :
     decodeInstrW w = Mov r1 (inl z) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -97,7 +98,7 @@ Section cap_lang_rules.
       {{{ RET NextIV;
           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt z }}}.
+          ∗ r1 ↦ᵣ WInt (if (decide (r1 = cnull)) then 0 else z) }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
@@ -108,16 +109,58 @@ Section cap_lang_rules.
     destruct Hspec as [|].
     { (* Success *)
       iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      rewrite (insert_commute _ PC r1) // insert_insert insert_commute // insert_insert.
-      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+      destruct (decide (r1 = cnull)) ; simplify_map_eq.
+      all: rewrite (insert_commute _ PC _) // insert_insert insert_commute // insert_insert.
+      all: iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { (* Failure (contradiction) *)
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
+  Qed.
+
+  Lemma wp_move_success_z E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 z :
+    decodeInstrW w = Mov r1 (inl z) →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ r1 ↦ᵣ wr1 }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          ∗ pc_a ↦ₐ w
+          ∗ r1 ↦ᵣ WInt z }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iApply (wp_move_success_z_gen with "[$HPC $Hpc_a $Hr1]"); eauto.
+    destruct (decide (r1 = cnull)); first done.
+    iFrame.
+  Qed.
+
+  Lemma wp_move_success_cnull_z E pc_p pc_g pc_b pc_e pc_a pc_a' w w0 z :
+    decodeInstrW w = Mov cnull (inl z) →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ cnull ↦ᵣ w0 }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          ∗ pc_a ↦ₐ w
+          ∗ cnull ↦ᵣ WInt 0 }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iApply (wp_move_success_z_gen with "[$HPC $Hpc_a $Hr1]"); eauto.
   Qed.
 
   Lemma wp_move_success_reg E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 wr1 rv wrv :
     decodeInstrW w = Mov r1 (inr rv) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+    rv ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -130,7 +173,7 @@ Section cap_lang_rules.
           ∗ r1 ↦ᵣ wrv
           ∗ rv ↦ᵣ wrv }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+    iIntros (Hinstr Hvpc Hpca' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hrv") as "[Hmap (%&%&%)]".
     iApply (wp_Mov with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -149,6 +192,7 @@ Section cap_lang_rules.
     decodeInstrW w = Mov r1 (inr r1) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -159,7 +203,7 @@ Section cap_lang_rules.
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ wr1 }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Mov with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -204,6 +248,7 @@ Section cap_lang_rules.
     decodeInstrW w = Mov PC (inr r1) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (a + 1)%a = Some a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -214,7 +259,7 @@ Section cap_lang_rules.
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WCap p g b e a }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Mov with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -233,6 +278,7 @@ Section cap_lang_rules.
     decodeInstrW w = Mov r1 (inr PC) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -243,7 +289,7 @@ Section cap_lang_rules.
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Mov with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }

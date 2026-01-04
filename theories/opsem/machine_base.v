@@ -1807,16 +1807,37 @@ Proof.
   destruct (decide (r = cnull)); done.
 Qed.
 
+Lemma insert_reg_cnull (regs : Reg) (w : Word) :
+  <[cnull := w]ᵣ> regs = <[cnull := WInt 0]> regs.
+Proof.
+  rewrite /insert_reg.
+  destruct (decide (cnull = cnull)); done.
+Qed.
+Lemma lookup_reg_cnull (regs : Reg) :
+  regs !!ᵣ cnull = (fun _ => WInt 0) <$> (regs !! cnull).
+Proof.
+  rewrite /lookup_reg.
+  destruct (regs !! cnull) eqn:Hcnull; auto.
+Qed.
+
 Tactic Notation "simpl_map_regs" "by" tactic3(tac) :=
   repeat (match goal with
           | H : context [ _ !!ᵣ ?r ] |- _ =>
               rewrite lookup_reg_not_cnull in H; [|by tac]
+          | H : context [ _ !!ᵣ cnull ] |- _ =>
+              rewrite lookup_reg_cnull in H
           | H : context [ <[ _ := _]ᵣ> _ ] |- _ =>
               rewrite insert_reg_not_cnull in H; [|by tac]
+          | H : context [ <[ cnull := _]ᵣ> _ ] |- _ =>
+              rewrite insert_reg_cnull in H
           | |- context [ _ !!ᵣ ?r ] =>
               rewrite lookup_reg_not_cnull; [|by tac]
+          | |- context [ _ !!ᵣ cnull ] =>
+              rewrite lookup_reg_cnull
           | |- context [ <[ _ := _]ᵣ> _ ] =>
               rewrite insert_reg_not_cnull; [|by tac]
+          | |- context [ <[ cnull := _]ᵣ> _ ] =>
+              rewrite insert_reg_cnull
           end).
 
 Tactic Notation "simpl_map" "by" tactic3(tac) :=

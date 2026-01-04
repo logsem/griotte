@@ -18,21 +18,21 @@ Section cap_lang_rules.
   Implicit Types ms : gmap Addr Word.
 
   Definition reg_allows_store (regs : Reg) (r : RegName) p g b e a (storev : Word) :=
-    regs !! r = Some (WCap p g b e a) ∧
+    regs !!ᵣ r = Some (WCap p g b e a) ∧
     writeAllowed p = true ∧ withinBounds b e a = true /\
     (canStore p storev = true).
 
   Inductive Store_failure (regs: Reg) (r1 : RegName)(r2 : Z + RegName) (mem : gmap Addr Word):=
   | Store_fail_const w:
-      regs !! r1 = Some w ->
+      regs !!ᵣ r1 = Some w ->
       is_cap w = false →
       Store_failure regs r1 r2 mem
   | Store_fail_bounds p g b e a:
-      regs !! r1 = Some(WCap p g b e a) ->
+      regs !!ᵣ r1 = Some(WCap p g b e a) ->
       (writeAllowed p = false ∨ withinBounds b e a = false) →
       Store_failure regs r1 r2 mem
   | Store_fail_invalid_locality p g b e a storev:
-      regs !! r1 = Some(WCap p g b e a) ->
+      regs !!ᵣ r1 = Some(WCap p g b e a) ->
       word_of_argument regs r2 = Some storev ->
       canStore p storev = false ->
       Store_failure regs r1 r2 mem
@@ -69,7 +69,7 @@ Section cap_lang_rules.
     ∀ (r1 : RegName)(r2 : Z + RegName) (mem0 : gmap Addr Word) (r : Reg)
       (p : Perm) (g : Locality) (b e a : Addr) storev,
       allow_store_map_or_true r1 r2 r mem0
-      → r !! r1 = Some (WCap p g b e a)
+      → r !!ᵣ r1 = Some (WCap p g b e a)
       → word_of_argument r r2 = Some storev
       → writeAllowed p = true
       → withinBounds b e a = true
@@ -78,23 +78,34 @@ Section cap_lang_rules.
           mem0 !! a = Some storev.
   Proof.
     intros r1 r2 mem0 r p g b e a storev HaStore Hr2v Hwoa Hwa Hwb HLocal.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (r !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
     unfold allow_store_map_or_true, read_reg_inr in HaStore.
     destruct HaStore as (?&?&?&?&?&?&Hrinr&Hwo&Hmem).
     rewrite Hr2v in Hrinr. inversion Hrinr; subst.
     case_decide as HAL.
     - auto.
     - unfold reg_allows_store in HAL.
-      destruct HAL. rewrite Hwo in Hwoa; inversion Hwoa. auto.
+      destruct HAL. rewrite Hwo in Hwoa; inversion Hwoa. split;auto.
+      by simplify_map_eq.
   Qed.
 
   Lemma mem_eq_implies_allow_store_map:
     ∀ (regs : Reg)(mem : Mem)(r1 : RegName)(r2 : Z + RegName)(w storev : Word) p g b e a,
       mem = <[a:=w]> ∅
-      → regs !! r1 = Some (WCap p g b e a)
+      → regs !!ᵣ r1 = Some (WCap p g b e a)
       → word_of_argument regs r2 = Some storev
       → allow_store_map_or_true r1 r2 regs mem.
   Proof.
     intros regs mem r1 r2 w storev p g b e a Hmem Hrr2.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
     exists p,g,b,e,a,storev; split.
     - unfold read_reg_inr. by rewrite Hrr2.
     - case_decide; last done.
@@ -106,11 +117,16 @@ Section cap_lang_rules.
       (w w' storev : Word) p g b e a,
       a ≠ pc_a
       → mem = <[pc_a:= w]> (<[a:= w']> ∅)
-      → regs !! r1 = Some (WCap p g b e a)
+      → regs !!ᵣ r1 = Some (WCap p g b e a)
       → word_of_argument regs r2 = Some storev
       → allow_store_map_or_true r1 r2 regs mem.
   Proof.
     intros regs mem r1 r2 pc_a w w' storev p g b e a H4 Hrr2 Hreg1 Hwoa.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
     exists p,g,b,e,a,storev; split.
     - unfold read_reg_inr. by rewrite Hreg1.
     - case_decide; last done.
@@ -123,14 +139,21 @@ Section cap_lang_rules.
       (if (a =? pc_a)%a
        then mem = <[pc_a:= w]> ∅
        else mem = <[pc_a:= w]> (<[a:= w']> ∅))
-      → regs !! r1 = Some (WCap p g b e a)
+      → regs !!ᵣ r1 = Some (WCap p g b e a)
       → word_of_argument regs r2 = Some storev
       → allow_store_map_or_true r1 r2 regs mem.
   Proof.
     intros regs mem r1 r2 pc_a w w' storev p g b e a H4 Hrr2 Hwoa.
+    assert (r1 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
     destruct (a =? pc_a)%a eqn:Heq.
       + apply Z.eqb_eq, finz_to_z_eq in Heq. subst a. eapply mem_eq_implies_allow_store_map; eauto.
-      + apply Z.eqb_neq in Heq. eapply mem_neq_implies_allow_store_map; eauto. congruence.
+        by simplify_map_eq.
+      + apply Z.eqb_neq in Heq. eapply mem_neq_implies_allow_store_map; eauto; first congruence.
+        by simplify_map_eq.
   Qed.
 
    Lemma wp_store Ep
@@ -206,7 +229,7 @@ Section cap_lang_rules.
            rewrite writeAllowed_canStore_int in HcanStore; auto; congruence.
          - assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
            { simpl in HSV; inv HSV. rewrite HcanStore /= in Hstep.
-             destruct (r !! r0); try congruence; inv Hstep; auto.
+             destruct (r !!ᵣ r0); try congruence; inv Hstep; auto.
            }
            iFailWP "Hφ" Store_fail_invalid_locality.
      }
@@ -293,6 +316,7 @@ Section cap_lang_rules.
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed pc_p = true →
      canStore pc_p wsrc = true ->
+     src ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -303,7 +327,7 @@ Section cap_lang_rules.
               ∗ pc_a ↦ₐ wsrc
               ∗ src ↦ᵣ wsrc }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Hwa HcanStore φ)
+     iIntros (Hinstr Hvpc Hpca' Hwa HcanStore ? φ)
             "(>HPC & >Hi & >Hsrc) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hsrc") as "[Hmap %]".
      iDestruct (memMap_resource_1 with "Hi") as "Hmem".
@@ -318,17 +342,21 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success *)
        iApply "Hφ".
-       destruct H1 as [Hrr2 _]. simplify_map_eq.
+       simplify_map_eq.
        rewrite memMap_resource_1.
        incrementPC_inv.
        simplify_map_eq.
-       do 2 rewrite insert_insert.
-       iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto. iFrame. }
+       assert (x3  = a ) as ->.
+       { destruct (decide (x3 = a )); auto; simplify_map_eq. }
+       rewrite !insert_insert.
+       iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto.
+       iFrame.
+     }
      { (* Failure (contradiction) *)
        destruct X; try incrementPC_inv; simplify_map_eq; eauto
        ; try congruence.
        apply isCorrectPC_ra_wb in Hvpc. apply andb_prop_elim in Hvpc as [_ Hwb].
-       destruct o; last apply Is_true_false in H0; try congruence ; try done.
+       destruct o; last apply Is_true_false in H1; try congruence ; try done.
      }
     Qed.
 
@@ -379,6 +407,7 @@ Section cap_lang_rules.
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e pc_a = true →
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -389,7 +418,7 @@ Section cap_lang_rules.
               ∗ pc_a ↦ₐ (WInt z)
               ∗ dst ↦ᵣ WCap p g b e pc_a }}}.
     Proof.
-     iIntros (Hinstr Hvpc Hpca' Hwa Hwb φ)
+     iIntros (Hinstr Hvpc Hpca' Hwa Hwb ? φ)
             "(>HPC & >Hi & >Hdst) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
      iDestruct (memMap_resource_1 with "Hi") as "Hmem".
@@ -404,11 +433,11 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success *)
        iApply "Hφ".
-       destruct H1 as [Hrr2 _]. simplify_map_eq.
+       destruct H2 as [? _]; simplify_map_eq.
        rewrite memMap_resource_1.
        incrementPC_inv.
        simplify_map_eq.
-       do 2 rewrite insert_insert.
+       rewrite !insert_insert.
        iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto. iFrame. }
      { (* Failure (contradiction) *)
        destruct X; try incrementPC_inv; simplify_map_eq; eauto.
@@ -425,6 +454,7 @@ Section cap_lang_rules.
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e pc_a = true →
      canStore p (WCap p g b e pc_a) = true ->
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -435,7 +465,7 @@ Section cap_lang_rules.
               ∗ pc_a ↦ₐ WCap p g b e pc_a
               ∗ dst ↦ᵣ WCap p g b e pc_a }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore φ)
+     iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore ? φ)
             "(>HPC & >Hi & >Hdst) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
      iDestruct (memMap_resource_1 with "Hi") as "Hmem".
@@ -450,11 +480,11 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success *)
        iApply "Hφ".
-       destruct H1 as [Hrr2 _]. simplify_map_eq.
+       destruct H2 as [? _]; simplify_map_eq.
        rewrite memMap_resource_1.
        incrementPC_inv.
        simplify_map_eq.
-       do 2 rewrite insert_insert.
+       rewrite !insert_insert.
        iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto. iFrame. }
      { (* Failure (contradiction) *)
        destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence.
@@ -469,6 +499,8 @@ Section cap_lang_rules.
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e pc_a = true →
      canStore p w'' = true ->
+     src ≠ cnull ->
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -481,7 +513,7 @@ Section cap_lang_rules.
               ∗ src ↦ᵣ w''
               ∗ dst ↦ᵣ WCap p g b e pc_a}}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore φ)
+     iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore ?? φ)
              "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
      iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
      iDestruct (memMap_resource_1 with "Hi") as "Hmem".
@@ -496,11 +528,11 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success *)
        iApply "Hφ".
-       destruct H3 as [Hrr2 _]. simplify_map_eq.
+       destruct H5 as [? _]; simplify_map_eq.
        rewrite memMap_resource_1.
        incrementPC_inv.
        simplify_map_eq.
-       do 2 rewrite insert_insert.
+       rewrite !insert_insert.
        iDestruct (regs_of_map_3 with "[$Hmap]") as "[HPC [Hsrc Hdst] ]"; eauto. iFrame. }
      { (* Failure (contradiction) *)
        destruct X; try incrementPC_inv; simplify_map_eq; eauto; try congruence.
@@ -515,6 +547,8 @@ Section cap_lang_rules.
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e a = true →
      canStore p w'' = true ->
+     src ≠ cnull ->
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -529,7 +563,7 @@ Section cap_lang_rules.
               ∗ dst ↦ᵣ WCap p g b e a
               ∗ a ↦ₐ w'' }}}.
     Proof.
-      iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore φ)
+      iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore ?? φ)
              "(>HPC & >Hi & >Hsrc & >Hdst & >Hsrca) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iDestruct (memMap_resource_2ne_apply with "Hi Hsrca") as "[Hmem %]"; auto.
@@ -544,7 +578,7 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success *)
        iApply "Hφ".
-       destruct H4 as [Hrr2 _]. simplify_map_eq.
+       destruct H6 as [? _]; simplify_map_eq.
        rewrite insert_commute // insert_insert.
        iDestruct (memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
        incrementPC_inv.
@@ -564,6 +598,7 @@ Section cap_lang_rules.
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e a = true →
      canStore p (WCap p g b e a) = true ->
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -576,7 +611,7 @@ Section cap_lang_rules.
               ∗ dst ↦ᵣ WCap p g b e a
               ∗ a ↦ₐ WCap p g b e a }}}.
    Proof.
-    iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore φ)
+    iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore ? φ)
              "(>HPC & >Hi & >Hdst & >Hsrca) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iDestruct (memMap_resource_2ne_apply with "Hi Hsrca") as "[Hmem %]"; auto.
@@ -591,7 +626,7 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success *)
        iApply "Hφ".
-       destruct H2 as [Hrr2 _]. simplify_map_eq.
+       destruct H3 as [Hrr2 _]. simplify_map_eq.
        rewrite insert_commute // insert_insert.
        iDestruct (memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
        incrementPC_inv.
@@ -610,6 +645,7 @@ Section cap_lang_rules.
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e a = true →
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -622,7 +658,7 @@ Section cap_lang_rules.
               ∗ dst ↦ᵣ WCap p g b e a
               ∗ a ↦ₐ WInt z }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' Hwa Hwb φ)
+     iIntros (Hinstr Hvpc Hpca' Hwa Hwb ? φ)
              "(>HPC & >Hi & >Hdst & >Hsrca) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iDestruct (memMap_resource_2ne_apply with "Hi Hsrca") as "[Hmem %]"; auto.
@@ -637,7 +673,7 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success *)
        iApply "Hφ".
-       destruct H2 as [Hrr2 _]. simplify_map_eq.
+       destruct H3 as [Hrr2 _]. simplify_map_eq.
        rewrite insert_commute // insert_insert.
        iDestruct (memMap_resource_2ne with "Hmem") as "[Hpc_a Ha]";auto.
        incrementPC_inv.
@@ -656,6 +692,7 @@ Section cap_lang_rules.
       decodeInstrW w = Store dst (inr src) →
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      is_cap wdst = false ->
+     src ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -665,7 +702,7 @@ Section cap_lang_rules.
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
     Proof.
-      iIntros (Hinstr Hvpc Hnot_cap φ)
+      iIntros (Hinstr Hvpc Hnot_cap ? φ)
              "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
@@ -681,6 +718,7 @@ Section cap_lang_rules.
       - rewrite /reg_allows_store; simplify_map_eq.
         rewrite decide_False; auto.
         intros [].
+        destruct (decide (dst = cnull)); first done.
         destruct wdst as [| [] | |]; cbn in Hnot_cap; simplify_eq.
     }
     iNext. iIntros (regs' mem' retv) "(#Hspec & Hmem & Hmap)".
@@ -690,7 +728,9 @@ Section cap_lang_rules.
      { (* Success (contradiction) *)
        exfalso.
        rewrite /reg_allows_store in H3.
-       destruct H3 as (?&?&?&Hcontra); simplify_map_eq.
+       destruct H4 as (?&?&?&Hcontra); simplify_map_eq.
+       destruct (decide (dst = cnull)); first done.
+       simplify_map_eq.
      }
      by iApply "Hφ".
      Unshelve. all: done.
@@ -701,6 +741,7 @@ Section cap_lang_rules.
       decodeInstrW w = Store dst (inl z) →
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      is_cap wdst = false ->
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -709,7 +750,7 @@ Section cap_lang_rules.
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
     Proof.
-      iIntros (Hinstr Hvpc Hnot_cap φ)
+      iIntros (Hinstr Hvpc Hnot_cap ? φ)
              "(>HPC & >Hi & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
@@ -725,6 +766,7 @@ Section cap_lang_rules.
       - rewrite /reg_allows_store; simplify_map_eq.
         rewrite decide_False; auto.
         intros [].
+        destruct (decide (dst = cnull)); first done.
         destruct wdst as [| [] | |]; cbn in Hnot_cap; simplify_eq.
     }
     iNext. iIntros (regs' mem' retv) "(#Hspec & Hmem & Hmap)".
@@ -733,9 +775,9 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H1.
+       rewrite /reg_allows_store in H2.
        simplify_map_eq.
-       destruct H1 as (?&?&?&Hcontra); simplify_map_eq.
+       destruct H2 as (?&?&?&Hcontra); simplify_map_eq.
      }
      by iApply "Hφ".
      Unshelve. all: done.
@@ -746,6 +788,8 @@ Section cap_lang_rules.
       decodeInstrW w = Store dst (inr src) →
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      canStore p w'' = false ->
+     src ≠ cnull ->
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -755,7 +799,7 @@ Section cap_lang_rules.
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
     Proof.
-      iIntros (Hinstr Hvpc HcanStore φ)
+      iIntros (Hinstr Hvpc HcanStore ?? φ)
              "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
@@ -770,7 +814,7 @@ Section cap_lang_rules.
       }
       split.
       { rewrite /word_of_argument.
-        by rewrite lookup_insert_ne // lookup_insert.
+        by simplify_map_eq.
       }
       rewrite /reg_allows_store.
       rewrite HcanStore.
@@ -783,8 +827,8 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H3.
-       destruct H3 as (?&?&?&Hcontra); simplify_map_eq.
+       rewrite /reg_allows_store in H5.
+       destruct H5 as (?&?&?&Hcontra); simplify_map_eq.
        by rewrite Hcontra in HcanStore.
      }
      { (* Failure (contradiction) *)
@@ -797,6 +841,7 @@ Section cap_lang_rules.
       decodeInstrW w = Store dst (inl z) →
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      writeAllowed p = false ->
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -805,7 +850,7 @@ Section cap_lang_rules.
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
     Proof.
-      iIntros (Hinstr Hvpc HcanStore φ)
+      iIntros (Hinstr Hvpc HcanStore ? φ)
              "(>HPC & >Hi & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
@@ -833,8 +878,8 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H1.
-       destruct H1 as (?&?&?&Hcontra); simplify_map_eq.
+       rewrite /reg_allows_store in H2.
+       destruct H2 as (?&?&?&Hcontra); simplify_map_eq.
        apply canStore_writeAllowed in Hcontra. congruence.
      }
      { (* Failure (contradiction) *)
@@ -847,6 +892,8 @@ Section cap_lang_rules.
       decodeInstrW w = Store dst (inr src) →
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      withinBounds b e a = false →
+     src ≠ cnull ->
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -856,7 +903,7 @@ Section cap_lang_rules.
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
     Proof.
-      iIntros (Hinstr Hvpc Hwb φ)
+      iIntros (Hinstr Hvpc Hwb ?? φ)
              "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
@@ -871,7 +918,7 @@ Section cap_lang_rules.
       }
       split.
       { rewrite /word_of_argument.
-        by rewrite lookup_insert_ne // lookup_insert.
+        by simplify_map_eq.
       }
       rewrite /reg_allows_store.
       rewrite Hwb.
@@ -884,8 +931,8 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H3.
-       destruct H3 as (?&?&Hcontra&?); simplify_map_eq.
+       rewrite /reg_allows_store in H5.
+       destruct H5 as (?&?&Hcontra&?); simplify_map_eq.
        by rewrite Hcontra in Hwb.
      }
      { (* Failure (contradiction) *)
@@ -898,6 +945,7 @@ Section cap_lang_rules.
       decodeInstrW w = Store dst (inl z) →
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      withinBounds b e a = false →
+     dst ≠ cnull ->
 
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
@@ -906,7 +954,7 @@ Section cap_lang_rules.
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
     Proof.
-      iIntros (Hinstr Hvpc Hwb φ)
+      iIntros (Hinstr Hvpc Hwb ? φ)
              "(>HPC & >Hi & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
@@ -933,8 +981,8 @@ Section cap_lang_rules.
     destruct Hspec.
      { (* Success (contradiction) *)
        exfalso.
-       rewrite /reg_allows_store in H1.
-       destruct H1 as (?&?&Hcontra&?); simplify_map_eq.
+       rewrite /reg_allows_store in H2.
+       destruct H2 as (?&?&Hcontra&?); simplify_map_eq.
        by rewrite Hcontra in Hwb.
      }
      { (* Failure (contradiction) *)

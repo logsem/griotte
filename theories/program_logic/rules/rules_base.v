@@ -3,6 +3,7 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth.
 From cap_machine Require Export cap_lang iris_extra stdpp_extra.
+From cap_machine Require Export machine_base.
 From iris.algebra Require Import frac gmap.
 
 

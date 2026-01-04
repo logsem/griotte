@@ -20,10 +20,10 @@ Section cap_lang_rules.
 
   Inductive Jalr_spec (regs: Reg) pc_p pc_g pc_b pc_e pc_a (rdst rsrc: RegName) : Reg → cap_lang.val → Prop :=
   | Jalr_spec_success regs' pc_a' wsrc :
-    regs !! rsrc = Some wsrc ->
+    regs !!ᵣ rsrc = Some wsrc ->
     (pc_a + 1)%a = Some pc_a' ->
-    regs' = (<[rdst := (WSentry pc_p pc_g pc_b pc_e pc_a') ]>
-              (<[PC :=  updatePcPerm wsrc ]>
+    regs' = (<[rdst := (WSentry pc_p pc_g pc_b pc_e pc_a') ]ᵣ>
+              (<[PC :=  updatePcPerm wsrc ]ᵣ>
                regs)) →
     Jalr_spec regs pc_p pc_g pc_b pc_e pc_a rdst rsrc regs' NextIV
   | Jalr_spec_failure :
@@ -65,9 +65,10 @@ Section cap_lang_rules.
 
     destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; simplify_pair_eq; cycle 1.
     { iFailWP "Hφ" Jalr_spec_failure. }
-    iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+    iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; simplify_map_eq; eauto.
     iMod ((gen_heap_update_inSepM _ _ rdst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
-    { destruct (decide (rdst = PC)); simplify_map_eq; done. }
+    { destruct (decide (rdst = PC)); simplify_map_eq; auto.
+      apply is_Some_lookup_reg; done. }
     iFrame.
     iApply "Hφ"; iFrame.
     iPureIntro; econstructor; eauto.
@@ -77,6 +78,8 @@ Section cap_lang_rules.
     decodeInstrW w = Jalr rdst rsrc →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    rsrc ≠ cnull ->
+    rdst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -91,7 +94,7 @@ Section cap_lang_rules.
           ∗ rdst ↦ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
+    iIntros (Hinstr Hvpc Hpca' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hrsrc Hrdst") as "[Hmap (%&%&%)]".
     iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { set_solver. }
@@ -105,10 +108,44 @@ Section cap_lang_rules.
    { congruence. }
   Qed.
 
+  Lemma wp_jalr_success_cnull E pc_p pc_g pc_b pc_e pc_a pc_a' w rsrc wsrc wdst :
+    decodeInstrW w = Jalr cnull rsrc →
+    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    rsrc ≠ cnull ->
+
+    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ rsrc ↦ᵣ wsrc
+        ∗ ▷ cnull ↦ᵣ wdst
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ updatePcPerm wsrc
+          ∗ pc_a ↦ₐ w
+          ∗ rsrc ↦ᵣ wsrc
+          ∗ cnull ↦ᵣ WInt 0
+      }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hrsrc Hrdst") as "[Hmap (%&%&%)]".
+    iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { set_solver. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+
+   destruct Hspec as [ | Hfail ]; subst.
+   { iApply "Hφ". iFrame. simplify_map_eq.
+     rewrite (insert_commute _ rsrc cnull) // insert_insert.
+     rewrite (insert_commute _ PC cnull) // insert_insert.
+     iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+   { congruence. }
+  Qed.
+
   Lemma wp_jalr_successPC E pc_p pc_g pc_b pc_e pc_a pc_a' w rdst wdst :
     decodeInstrW w = Jalr rdst PC →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    rdst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -121,7 +158,7 @@ Section cap_lang_rules.
           ∗ rdst ↦ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".
+    iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hrdst") as "[Hmap %]".
     iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { set_solver. }
@@ -139,6 +176,7 @@ Section cap_lang_rules.
     decodeInstrW w = Jalr rdst rdst →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    rdst ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -151,7 +189,7 @@ Section cap_lang_rules.
           ∗ rdst ↦ᵣ WSentry pc_p pc_g pc_b pc_e pc_a'
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".
+    iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hrdst") as "[Hmap %]".
     iApply (wp_Jalr with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { set_solver. }
