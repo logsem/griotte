@@ -25,7 +25,7 @@ jobs:
     env:
       OPAM_LOCAL: "_opam"
       OCAML_VERSION: "5.4.0"
-      JOBS_LIMIT: "1"
+      JOBS_LIMIT: "2"
       DUNE_CACHE_ROOT: "/home/runner/.cache/dune"
 
     steps:
