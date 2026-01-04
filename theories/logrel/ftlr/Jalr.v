@@ -26,6 +26,15 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
+  Lemma insert_reg_commute regs r1 r2 w1 w2 :
+    r1 ≠ r2 ->
+    <[ r1 := w1 ]ᵣ> (<[ r2 := w2 ]ᵣ> regs) = <[ r2 := w2 ]ᵣ> (<[ r1 := w1 ]ᵣ> regs).
+  Proof.
+    intros Hneq.
+    rewrite /insert_reg.
+    apply insert_commute; done.
+  Qed.
+
   Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p': Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName):
@@ -60,6 +69,7 @@ Section fundamental.
     destruct (decide (rdst = PC)) as [HPC_dst|HPC_dst]; simplify_eq.
     { iNext; iIntros "_".
       iApply (wp_bind (fill [SeqCtx])).
+      simplify_map_eq.
       iExtract "Hmap" PC as "HPC".
       iApply (wp_notCorrectPC with "HPC"); first by inversion 1.
       iNext; iIntros "HPC /=".
@@ -70,6 +80,7 @@ Section fundamental.
     destruct (updatePcPerm wsrc) eqn:Hwsrc ; [ | destruct sb | | ]; cycle 1.
     { destruct (executeAllowed p0) eqn:Hpft; cycle 1.
       { iNext; iIntros "_".
+        rewrite insert_reg_commute //; simplify_map_eq.
         iApply (wp_bind (fill [SeqCtx])).
         iExtract "Hmap" PC as "HPC".
         iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
@@ -84,8 +95,8 @@ Section fundamental.
         iNext ; iIntros "_".
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;contradiction. }
-        rewrite !insert_insert insert_commute //.
-        iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry p g b e pc_a']> regs) with
+        rewrite !insert_reg_insert insert_reg_commute //.
+        iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry p g b e pc_a']ᵣ> regs) with
                  "[%] [] [$Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]") ; eauto.
         - intros; cbn.
           rewrite lookup_insert_is_Some.
@@ -93,15 +104,24 @@ Section fundamental.
         - iIntros (ri wi Hri Hregs_ri).
           destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
           * iApply ("Hreg" $! ri) ; auto.
-          * iFrame "Hinterp_ret".
+          * destruct (decide (rdst = cnull))
+            ; [iApply interp_int
+              | iFrame "Hinterp_ret"
+              ].
         - destruct (decide (rsrc = PC)) as [HrsrcPC|HrsrcPC].
           + simplify_map_eq; auto.
           + simplify_map_eq.
+            assert (rsrc ≠ cnull); simplify_map_eq.
+            { intros ->; simplify_map_eq.
+              destruct (regs !! cnull) eqn:Heq; rewrite Heq in Hrsrc; cbn in *; try done. }
             iDestruct ("Hreg" $! rsrc _ HrsrcPC Hrsrc) as "Hrsrc"; eauto.
       }
       assert (rsrc <> PC) as HPCnrsrc.
       { intro; subst rsrc; simplify_map_eq. }
       simplify_map_eq.
+      assert (rsrc ≠ cnull); simplify_map_eq.
+      { intros ->; simplify_map_eq.
+        destruct (regs !! cnull) eqn:Heq; rewrite Heq in Hrsrc; cbn in *; try done. }
       iDestruct ("Hreg" $! rsrc _ HPCnrsrc Hrsrc) as "Hwsrc".
       iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
       simpl; rewrite /enter_cond.
@@ -113,7 +133,7 @@ Section fundamental.
       iSpecialize ("Hinterp_src" $! g0 Hg0).
       iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
-      rewrite !insert_insert insert_commute //.
+      rewrite !insert_reg_insert insert_reg_commute //.
       iDestruct ("Hinterp_src" with "[$Hmap $Hr $Hsts $Hcstk $Hown $Hcont]") as "HA"; eauto.
       iNext.
       repeat (cbn; iSplit; auto).
@@ -123,10 +143,14 @@ Section fundamental.
       + iIntros (ri wi Hri Hregs_ri).
         destruct (decide (ri = rdst)); simplify_map_eq; cycle 1.
         * iApply ("Hreg" $! ri) ; auto.
-        * iFrame "Hinterp_ret".
+        * destruct (decide (rdst = cnull))
+          ; [iApply interp_int
+            | iFrame "Hinterp_ret"
+            ].
     }
 
     (* Non-capability cases *)
+    all: rewrite insert_reg_commute //; simplify_map_eq.
     all: iExtract "Hmap" PC as "HPC".
     all: iNext; iIntros "_".
     all: iApply (wp_bind (fill [SeqCtx])).

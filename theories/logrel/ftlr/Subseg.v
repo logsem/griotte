@@ -72,12 +72,13 @@ Section fundamental.
       simplify_map_eq; map_simpl "Hmap".
 
       (* edestruct Hspdst as [??]. *)
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       { cbn. intros. by repeat (rewrite lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         { subst ri.
-          rewrite lookup_insert_ne in Hdst; auto; simplify_map_eq.
+          simplify_map_eq.
+          destruct (decide (dst = cnull)); simplify_map_eq; first iApply interp_int.
           unshelve iSpecialize ("Hreg" $! dst _ _ Hdst); eauto.
           rewrite /isWithin in Hwi.
           iApply (interp_weakening with "IH Hreg"); auto; try solve_addr.
@@ -110,12 +111,13 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq; map_simpl "Hmap".
 
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       { cbn. intros. by repeat (rewrite lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         { subst ri.
-          rewrite lookup_insert_ne in Hdst; auto; simplify_map_eq.
+          simplify_map_eq.
+          destruct (decide (dst = cnull)); simplify_map_eq; first iApply interp_int.
 
           unshelve iSpecialize ("Hreg" $! dst _ _ Hdst); eauto.
           rewrite /isWithin in Hwi.

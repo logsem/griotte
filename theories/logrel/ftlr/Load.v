@@ -44,7 +44,10 @@ Section fundamental.
   Proof.
     intros Hrar H3.
     pose (Hrar' := Hrar).
-    destruct Hrar' as (Hinr0 & _). rewrite /read_reg_inr Hinr0 in H3. by inversion H3.
+    destruct Hrar' as (Hinr0 & _).
+    destruct (decide (r = cnull)); simplify_map_eq.
+    { destruct (regs !! cnull) eqn:Hr ; simplify_map_eq. }
+    rewrite /read_reg_inr Hinr0 in H3. by inversion H3.
   Qed.
 
   (* Description of what the resources are supposed to look like
@@ -75,6 +78,8 @@ Section fundamental.
     - subst r1. iIntros ([? ?] ?). simplify_map_eq; auto.
     - iIntros ((Hsomer1 & Hwa & Hwb) Hfl) "Hreg #Hinva".
       simplify_map_eq.
+      assert (r1 ≠ cnull); simplify_map_eq.
+      { intros -> ; simplify_map_eq. destruct (regs !! cnull) eqn:Hr; simplify_map_eq. }
       iDestruct ("Hreg" $! r1 _ n Hsomer1) as "Hr1"; eauto.
       iDestruct (read_allowed_inv _ _ a with "Hr1")
         as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hrcond'' & Hwcond'')"; auto.
@@ -124,6 +129,8 @@ Section fundamental.
     (* Unlike in the old proof, we now go the other way around,
             and prove that the source register could not have been the PC,
             since both addresses differ. This saves us some cases.*)
+    assert (src ≠ cnull); simplify_map_eq.
+    { intros -> ; simplify_map_eq. destruct (regs !! cnull) eqn:Hr; simplify_map_eq. }
     assert (src ≠ PC) as n.
     { refine (addr_ne_reg_ne Hrinr _ Haeq). by rewrite lookup_insert. }
     simplify_map_eq.
@@ -268,6 +275,8 @@ Section fundamental.
     destruct (load_inr_eq Hrar Hread) as (<- & <- & <- & <- & <-).
     case_decide as Hallows; last by exfalso.
     destruct Hallows as (Hrinr & Hwa & Hwb).
+    assert (src ≠ cnull); simplify_map_eq.
+    { intros -> ; simplify_map_eq. destruct (regs !! cnull) eqn:Hr; simplify_map_eq. }
     case_decide as Haeq; cycle 1.
     - iDestruct "HLoadRes" as "(-> & $ & %Hfl')".
       simplify_map_eq.
@@ -280,7 +289,8 @@ Section fundamental.
            split;eauto.
            split;auto.
            split;auto.
-           destruct H0.
+           simplify_map_eq.
+           destruct H1.
            apply withinBounds_le_addr in H1; auto.
       }
       iApply interp_weakening_word_load; eauto.
@@ -398,7 +408,9 @@ Section fundamental.
        { iIntros (ri wi Hri Hregs_ri).
         subst regs'.
         destruct (decide (ri = dst)).
-        { by simplify_map_eq. }
+        { simplify_map_eq.
+          destruct (decide (dst = cnull)); [iApply interp_int|]; auto.
+        }
         { simplify_map_eq; iApply "Hreg"; auto. }
        }
        { subst regs'. rewrite insert_insert. iApply "Hmap". }

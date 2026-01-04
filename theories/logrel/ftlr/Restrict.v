@@ -109,6 +109,7 @@ Section fundamental.
           destruct (decide (ri = dst)).
           + subst ri. simplify_map_eq.
             destruct (decodePermPair n) as (p1 & g1); simplify_eq.
+            destruct (decide (dst = cnull)); simplify_map_eq; [iApply interp_int|].
             iDestruct ("Hreg" $! dst _ Hri Hdst) as "Hdst".
             iApply PermPairFlows_interp_preserved; eauto.
           + simplify_map_eq. iApply "Hreg"; auto.
@@ -130,15 +131,18 @@ Section fundamental.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq; map_simpl "Hmap".
-      assert (is_Some (<[dst:=WSealRange p'0 g' b0 e0 a0]> regs !! csp)) as [??].
+      rewrite insert_reg_insert_commute; auto.
+      simplify_map_eq; map_simpl "Hmap".
+      assert (is_Some (<[dst:=WSealRange p'0 g' b0 e0 a0]ᵣ> regs !! csp)) as [??].
       { destruct (decide (dst = csp)); simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealRange p'0 g' b0 e0 a0]> regs) with
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealRange p'0 g' b0 e0 a0]ᵣ> regs) with
                "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       + intros. by rewrite lookup_insert_is_Some' ; right.
       + iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         * subst ri. simplify_map_eq.
           destruct (decodeSealPermPair n) as (p1 & g1); simplify_eq.
+          destruct (decide (dst = cnull)); simplify_map_eq; [iApply interp_int|].
           iDestruct ("Hreg" $! dst _ Hri Hdst) as "Hdst".
           iApply SealPermPairFlows_interp_preserved; eauto.
         * simplify_map_eq. iApply "Hreg"; auto.
