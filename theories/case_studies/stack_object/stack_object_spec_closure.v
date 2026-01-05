@@ -1114,14 +1114,14 @@ Section SO.
     (* --------------------------------------------------- *)
 
     focus_block 11 "Hcode_main" as a_assert_c Ha_assert_c "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_assert_prep.
-    iExtractList "Hrmap" [ct2;ct3;ct4] as ["Hct2"; "Hct3";"Hct4"].
+    iExtractList "Hrmap" [ct2;ct3;ct4;cnull] as ["Hct2"; "Hct3";"Hct4";"Hcnull"].
     iApply (assert_success_spec
              with
-             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcra
+             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcra $Hcnull
               $Hcode $Himport_assert]") ; auto.
     { apply withinBounds_true_iff; solve_addr. }
     { solve_ndisj. }
-    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1
+    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
                     & Hcode & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -1135,7 +1135,7 @@ Section SO.
     iInstr "Hcode".
     (* Mov ca1 0%Z; *)
     iInstr "Hcode".
-    (* JmpCap cra *)
+    (* Jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -1148,7 +1148,7 @@ Section SO.
     }
 
     (* Put all the registers under the same map *)
-    iInsertList "Hrmap" [ct4;ct3;ct2;ct1;ct0].
+    iInsertList "Hrmap" [cnull;ct4;ct3;ct2;ct1;ct0].
     iDestruct (big_sepM_insert _ _ cs0 with "[$Hrmap $Hcs0]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
     iDestruct (big_sepM_insert _ _ cs1 with "[$Hrmap $Hcs1]") as "Hrmap".

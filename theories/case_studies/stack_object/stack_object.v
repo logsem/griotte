@@ -114,7 +114,7 @@ int __cheri_compartment("known") run()
         (* return a *)
         Mov ca0 0%Z;
         Mov ca1 0%Z;
-        JmpCap cra
+        Jalr cnull cra
       ].
 
   Definition so_main_code : list Word
