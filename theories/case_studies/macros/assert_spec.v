@@ -86,10 +86,6 @@ Section Assert_subroutine.
     { (* n1 = n2 *)
       subst n2. rewrite (_: n1 - n1 = 0)%Z; last lia.
       iGo "Hprog".
-      replace ( WInt (if decide (ct0 = cnull) then 0 else 0) )
-        with (WInt 0) by (destruct (decide _); done).
-      replace ( WInt (if decide (ct1 = cnull) then 0 else 0) )
-        with (WInt 0) by (destruct (decide _); done).
       iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
       { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
       iApply "Hφ". iFrame. rewrite Z.eqb_refl //. }
@@ -139,10 +135,6 @@ Section Assert_subroutine.
     iInstr "Hprog".
     rewrite (_: n1 - n2 = 0)%Z; last lia.
     iGo "Hprog".
-    replace ( WInt (if decide (ct0 = cnull) then 0 else 0) )
-      with (WInt 0) by (destruct (decide _); done).
-    replace ( WInt (if decide (ct1 = cnull) then 0 else 0) )
-      with (WInt 0) by (destruct (decide _); done).
     iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
     { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
     iApply "Hφ". iFrame.
@@ -223,10 +215,6 @@ Section Assert.
     iGo "Hassert".
     unfocus_block "Hassert" "Hcont" as "Hcode".
     replace (a_assert ^+ 5)%a with (pc_a ^+ 14)%a by solve_addr.
-      replace ( WInt (if decide (_ = cnull) then 0 else 0) )
-        with (WInt 0) by (destruct (decide _); done).
-      replace ( WInt (if decide (_ = cnull) then 0 else 0) )
-        with (WInt 0) by (destruct (decide _); done).
     iApply "Hφ"; iFrame.
   Qed.
 

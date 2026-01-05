@@ -690,6 +690,7 @@ Ltac iInstr_lc hprog hlc:=
   iInstr_get_rule hi ltac:(fun rule =>
                              iApplyCapAuto rule;
                              [ .. | iInstr_close hprog
+                                    ; repeat (replace ( WInt (if decide (_ = cnull) then 0 else 0) ) with (WInt 0) by (destruct (decide _); done))
                                     ; try wp_pure_lc hlc'
                                     ; try (iCombine_ident (INamed hlc) hlc' as (INamed hlc))
                           ])

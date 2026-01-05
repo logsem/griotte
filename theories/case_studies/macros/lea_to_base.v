@@ -36,6 +36,9 @@ Section Lea_To_Base_spec.
     let a_last := (pc_a ^+ length lea_to_base)%a in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
+    r ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ WCap p g b e a
@@ -52,7 +55,7 @@ Section Lea_To_Base_spec.
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros lea_to_base a_last ; subst lea_to_base a_last.
-    iIntros (Hvpc Hcont)
+    iIntros (Hvpc Hcont Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >Hprog & Hφ)".
     iDestruct (big_sepL2_length with "Hprog") as %Hlength.
     codefrag_facts "Hprog".

@@ -452,7 +452,6 @@ Section Counter.
     }
     iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
     iGo "Hcode".
-    repeat (replace ( WInt (if decide _ then 0 else 0%Z)) with (WInt 0) by (destruct (decide _);done)).
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Close the memory invariant *)

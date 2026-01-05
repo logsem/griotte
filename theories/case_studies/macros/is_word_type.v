@@ -44,6 +44,8 @@ Section Is_WordType_spec.
     let a_last := (pc_a ^+ length is_int)%a in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
+    r ≠ cnull ->
+    r1 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ w
@@ -59,7 +61,7 @@ Section Is_WordType_spec.
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros is_int a_last ; subst is_int a_last.
-    iIntros (Hvpc Hcont)
+    iIntros (Hvpc Hcont Hrcnull Hr1cnull)
       "(>HPC & >Hr & >Hr1 & >Hprog & Hφ & Hfailed)".
     iDestruct (big_sepL2_length with "Hprog") as %Hlength.
     codefrag_facts "Hprog".
@@ -94,6 +96,8 @@ Section Is_WordType_spec.
     let a_last := (pc_a ^+ length is_memory_cap)%a in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
+    r ≠ cnull ->
+    r1 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ w
@@ -110,7 +114,7 @@ Section Is_WordType_spec.
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros is_int a_last ; subst is_int a_last.
-    iIntros (Hvpc Hcont)
+    iIntros (Hvpc Hcont Hrcnull Hr1cnull)
       "(>HPC & >Hr & >Hr1 & >Hprog & Hφ & Hfailed)".
     iDestruct (big_sepL2_length with "Hprog") as %Hlength.
     codefrag_facts "Hprog".

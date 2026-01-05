@@ -114,6 +114,9 @@ Section Checkra_spec.
     let a_last := (pc_a ^+ length checkra_)%a in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
+    rsrc ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ rsrc ↦ᵣ wsrc
@@ -133,7 +136,7 @@ Section Checkra_spec.
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkra a_last ; subst checkra a_last.
-    iIntros (Hra Hbounds) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >Hcode & Hpost & #Hfailed)".
+    iIntros (Hra Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >Hcode & Hpost & #Hfailed)".
     codefrag_facts "Hcode".
     rename H into HcontRegion; clear H0.
 

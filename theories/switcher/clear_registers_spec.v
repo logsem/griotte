@@ -64,8 +64,6 @@ Section ClearRegistersMacro.
 
     iInstr "Hcode".
     { transitivity (Some (pc_a ^+ 1)%a); auto; solve_addr. }
-    replace (WInt (if decide (r = cnull) then 0 else 0%Z)) with (WInt 0).
-    2: { by destruct (decide _). }
     destruct (decide (l = [])).
     { subst l. iApply "Hcont". iFrame.
       replace (delete r rmap) with (∅ : Reg).

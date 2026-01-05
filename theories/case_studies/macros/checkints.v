@@ -73,6 +73,9 @@ Section Checkints_spec.
               (∃ k, ws !! k = Some w ∧ (∃ a', l !! k = Some a' ∧ (b <= a' < a)%a ))
               ->
               ∃ z, w = WInt z) ws ->
+    r ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ (WCap p g b e a)
@@ -93,7 +96,7 @@ Section Checkints_spec.
     ⊢ WP Seq (Instr Executable) {{ v, φ v }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
-    iIntros (Hvpc Hcont Hl Hae Hra Hall)
+    iIntros (Hvpc Hcont Hl Hae Hra Hall Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & >Hmem & Hφ & #Hfailed)".
     iLöb as "IH" forall ( a Hae Hall w1 w2).
     iDestruct (big_sepL2_length with "Hcode") as %Hlength.
@@ -246,6 +249,9 @@ Section Checkints_spec.
     SubBounds pc_b pc_e pc_a a_last →
     l ≡ₚ (finz.seq_between b e) ->
     readAllowed p = true ->
+    r ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ (WCap p g b e a)
@@ -267,7 +273,7 @@ Section Checkints_spec.
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
-    iIntros (Hvpc Hcont Hl Hra)
+    iIntros (Hvpc Hcont Hl Hra Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & >Hmem & Hφ & #Hfailed)".
     iDestruct (big_sepL2_length with "Hcode") as %Hlength.
     iDestruct (big_sepL2_length with "Hmem") as %Hlength_mem

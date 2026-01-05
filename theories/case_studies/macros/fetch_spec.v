@@ -47,10 +47,6 @@ Section Fetch.
     assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea;[solve_addr|].
     assert ((pc_b + n)%a = Some (pc_b ^+ n)%a) as Hpc_bn;[solve_addr|].
     iGo "Hprog".
-    replace ( WInt (if decide (rscratch1 = cnull) then 0 else 0%Z) )
-      with (WInt 0) by (destruct (decide _); done).
-    replace ( WInt (if decide (rscratch2 = cnull) then 0 else 0%Z) )
-      with (WInt 0) by (destruct (decide _); done).
     iApply "Hφ"; iFrame.
   Qed.
 

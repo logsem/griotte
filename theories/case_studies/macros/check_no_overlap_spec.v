@@ -21,6 +21,10 @@ Section Check_No_Overlap_spec.
     let a_last := (pc_a ^+ length check_no_overlap)%a in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
+    rsrc1 ≠ cnull ->
+    rsrc2 ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ rsrc1 ↦ᵣ (WCap p1 g1 b1 e1 a1)
@@ -41,7 +45,7 @@ Section Check_No_Overlap_spec.
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros check_no_overlap a_last ; subst check_no_overlap a_last.
-    iIntros (Hvpc Hcont)
+    iIntros (Hvpc Hcont Hrsrc1_cnull Hrsrc2_cnull Hr1_cnull Hr2_cnull)
       "(>HPC & >Hrsrc1 & >Hrsrc2 & >Hr1 & >Hr2 & >Hprog & Hφ & Hfailed)".
     iDestruct (big_sepL2_length with "Hprog") as %Hlength.
     codefrag_facts "Hprog".
