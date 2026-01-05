@@ -2,7 +2,7 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
-From cap_machine Require Export rules_base stdpp_extra.
+From cap_machine Require Export rules_base.
 
 Section cap_lang_rules.
   Context `{MP: MachineParameters}.
@@ -18,23 +18,23 @@ Section cap_lang_rules.
   Implicit Types ms : gmap Addr Word.
 
   Definition reg_allows_load (regs : Reg) (r : RegName) p g b e a  :=
-    regs !! r = Some (WCap p g b e a) ∧
+    regs !!ᵣ r = Some (WCap p g b e a) ∧
     readAllowed p = true ∧ withinBounds b e a = true.
 
   Inductive Load_failure (regs: Reg) (r1 r2: RegName) (mem : gmap Addr Word) :=
   | Load_fail_const w:
-      regs !! r2 = Some w ->
+      regs !!ᵣ r2 = Some w ->
       is_cap w = false →
       Load_failure regs r1 r2 mem
   | Load_fail_bounds p g b e a:
-      regs !! r2 = Some (WCap p g b e a) ->
+      regs !!ᵣ r2 = Some (WCap p g b e a) ->
       (readAllowed p = false ∨ withinBounds b e a = false) →
       Load_failure regs r1 r2 mem
   (* Notice how the None below also includes all cases where we read an inl value into the PC, because then incrementing it will fail *)
   | Load_fail_invalid_PC p g b e a loadv:
-      regs !! r2 = Some (WCap p g b e a) ->
+      regs !!ᵣ r2 = Some (WCap p g b e a) ->
       mem !! a = Some loadv →
-      incrementPC (<[ r1 := (load_word p loadv) ]> regs) = None ->
+      incrementPC (<[ r1 := (load_word p loadv) ]ᵣ> regs) = None ->
       Load_failure regs r1 r2 mem
   .
 
@@ -46,7 +46,7 @@ Section cap_lang_rules.
     reg_allows_load regs r2 p g b e a →
     mem !! a = Some loadv →
     incrementPC
-      (<[ r1 := (load_word p loadv) ]> regs) = Some regs' ->
+      (<[ r1 := (load_word p loadv) ]ᵣ> regs) = Some regs' ->
     Load_spec regs r1 r2 regs' mem NextIV
 
   | Load_spec_failure :
@@ -63,7 +63,7 @@ Section cap_lang_rules.
     ∀ (r2 : RegName) (mem0 : gmap Addr Word) (r : Reg) (p : Perm)
       (g : Locality) (b e a : Addr),
       allow_load_map_or_true r2 r mem0
-      → r !! r2 = Some (WCap p g b e a)
+      → r !!ᵣ r2 = Some (WCap p g b e a)
       → readAllowed p = true
       → withinBounds b e a = true
       → ∃ (loadv : Word),
@@ -72,19 +72,31 @@ Section cap_lang_rules.
     intros r2 mem0 r p g b e a HaLoad Hr2v Hra Hwb.
     unfold allow_load_map_or_true, read_reg_inr in HaLoad.
     destruct HaLoad as (?&?&?&?&?& Hrinr & Hmem).
+    assert (r2 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (r !! cnull); cbn in * ; done.
+    }
+    simpl_map_regs by eauto.
     rewrite Hr2v in Hrinr. inversion Hrinr; subst.
     case_decide as Hrega.
     - exact Hmem.
-    - contradiction Hrega. done.
+    - assert (r !!ᵣ r2 = Some (WCap x x0 x1 x2 x3)); eauto.
+      { by simplify_map_eq. }
+      contradiction Hrega. done.
   Qed.
 
   Lemma mem_eq_implies_allow_load_map:
     ∀ (regs : Reg)(mem : gmap Addr Word)(r2 : RegName) (w : Word) p g b e a,
       mem = <[a:=w]> ∅
-      → regs !! r2 = Some (WCap p g b e a)
+      → regs !!ᵣ r2 = Some (WCap p g b e a)
       → allow_load_map_or_true r2 regs mem.
   Proof.
     intros regs mem r2 w p g b e a Hmem Hrr2.
+    assert (r2 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
     exists p,g,b,e,a; split.
     - unfold read_reg_inr. by rewrite Hrr2.
     - case_decide; last done.
@@ -96,10 +108,15 @@ Section cap_lang_rules.
       (w w' : Word) p g b e a,
       a ≠ pc_a
       → mem = <[pc_a:=w]> (<[a:=w']> ∅)
-      → regs !! r2 = Some (WCap p g b e a)
+      → regs !!ᵣ r2 = Some (WCap p g b e a)
       → allow_load_map_or_true r2 regs mem.
   Proof.
     intros regs mem r2 pc_a w w' p g b e a H4 Hrr2 Hreg2.
+    assert (r2 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
     exists p,g,b,e,a; split.
     - unfold read_reg_inr. by rewrite Hreg2.
     - case_decide; last done.
@@ -112,13 +129,21 @@ Section cap_lang_rules.
       (if (a =? pc_a)%a
        then mem = <[pc_a:=w]> ∅
        else mem = <[pc_a:=w]> (<[a:=w']> ∅))
-      → regs !! r2 = Some (WCap p g b e a)
+      → regs !!ᵣ r2 = Some (WCap p g b e a)
       → allow_load_map_or_true r2 regs mem.
   Proof.
     intros regs mem r2 pc_a w w' p g b e a H4 Hrr2.
+    assert (r2 ≠ cnull).
+    { intros -> ; simplify_map_eq.
+      destruct (regs !! cnull); cbn in * ; done.
+    }
+    simplify_map_eq.
     destruct (a =? pc_a)%a eqn:Heq.
       + apply Z.eqb_eq, finz_to_z_eq in Heq. subst a. eapply mem_eq_implies_allow_load_map; eauto.
-      + apply Z.eqb_neq in Heq. eapply mem_neq_implies_allow_load_map; eauto. congruence.
+        by simplify_map_eq.
+      + apply Z.eqb_neq in Heq. eapply mem_neq_implies_allow_load_map; eauto.
+        2: by simplify_map_eq.
+        congruence.
   Qed.
 
   Lemma mem_implies_loadv:
@@ -211,11 +236,11 @@ Section cap_lang_rules.
     iDestruct (gen_mem_valid_inSepM_general (prod_merge dfracs mem) m a loadv with "Hm Hmem" ) as %Hma' ; eauto.
 
     rewrite Hma' /= in Hstep.
-    destruct (incrementPC (<[ r1 := (load_word p loadv) ]> regs)) as  [ regs' |] eqn:Hregs'.
+    destruct (incrementPC (<[ r1 := (load_word p loadv) ]ᵣ> regs)) as  [ regs' |] eqn:Hregs'.
     2: { (* Failure: the PC could not be incremented correctly *)
-      assert (incrementPC (<[ r1 := (load_word p loadv) ]> r) = None).
+      assert (incrementPC (<[ r1 := (load_word p loadv) ]ᵣ> r) = None).
       { eapply incrementPC_overflow_mono; first eapply Hregs'.
-          + by rewrite lookup_insert_is_Some'; eauto.
+          + simplify_map_eq; by rewrite lookup_insert_is_Some'; eauto.
           + by apply insert_mono; eauto. }
 
       rewrite incrementPC_fail_updatePC /= in Hstep; auto.
@@ -232,6 +257,7 @@ Section cap_lang_rules.
     rewrite HuPC in Hstep; clear HuPC; inversion Hstep; clear Hstep; subst c σ2. cbn.
     iFrame.
     iMod ((gen_heap_update_inSepM _ _ r1) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+    { apply is_Some_lookup_reg; done. }
     iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     iFrame. iModIntro. iApply "Hφ". iFrame.
     iPureIntro. eapply Load_spec_success; auto.
@@ -271,6 +297,8 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
@@ -285,7 +313,7 @@ Section cap_lang_rules.
              ∗ r2 ↦ᵣ WCap p g b e a
              ∗ (if (eqb_addr a pc_a) then emp else a ↦ₐ{dq'} w') }}}.
   Proof.
-    iIntros (Hinstr Hvpc [Hra Hwb] Hpca' φ)
+    iIntros (Hinstr Hvpc [Hra Hwb] Hpca' Hcnull Hcnull' φ)
             "(>HPC & >Hi & >Hr1 & >Hr2 & Hr2a) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iDestruct (memMap_resource_2gen_clater_dq _ _ _ _ _ _ (λ a dq w, a ↦ₐ{dq} w)%I with "Hi Hr2a") as (mem dfracs) "[>Hmem Hmem']".
@@ -324,6 +352,8 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
@@ -366,6 +396,8 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e pc_a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
@@ -391,6 +423,7 @@ Section cap_lang_rules.
     readAllowed p = true →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
@@ -403,7 +436,7 @@ Section cap_lang_rules.
              ∗ pc_a ↦ₐ{dq} w
              ∗ (if (a =? pc_a)%a then emp else a ↦ₐ{dq'} w') }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hra Hwb Hpca' φ)
+    iIntros (Hinstr Hvpc Hra Hwb Hpca' Hcnull φ)
             "(>HPC & >Hi & >Hr1 & Hr1a) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iDestruct (memMap_resource_2gen_clater_dq _ _ _ _ _ _ (λ a dq w, a ↦ₐ{dq} w)%I with "Hi Hr1a") as
@@ -441,6 +474,7 @@ Section cap_lang_rules.
     readAllowed p = true →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
@@ -479,6 +513,7 @@ Section cap_lang_rules.
     readAllowed p = true →
     withinBounds b e pc_a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
@@ -503,6 +538,7 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (a' + 1)%a = Some a'' →
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
@@ -515,7 +551,7 @@ Section cap_lang_rules.
              ∗ r2 ↦ᵣ WCap p g b e a
              ∗ a ↦ₐ WCap p' g' b' e' a' }}}.
   Proof.
-    iIntros (Hinstr Hvpc [Hra Hwb] Hpca' φ)
+    iIntros (Hinstr Hvpc [Hra Hwb] Hpca' Hcnull φ)
             "(>HPC & >Hi & >Hr2 & >Hr2a) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr2") as "[Hmap %]".
     iDestruct (memMap_resource_2ne_apply with "Hi Hr2a") as "[Hmem %]"; auto.
@@ -555,6 +591,7 @@ Section cap_lang_rules.
     decodeInstrW w = Load r1 PC →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
@@ -565,7 +602,7 @@ Section cap_lang_rules.
              ∗ pc_a ↦ₐ{dq} w
              ∗ r1 ↦ᵣ load_word pc_p w }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' φ)
+    iIntros (Hinstr Hvpc Hpca' Hcnull φ)
             "(>HPC & >Hi & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     rewrite memMap_resource_1_dq.
@@ -598,6 +635,8 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
@@ -612,7 +651,7 @@ Section cap_lang_rules.
              ∗ r2 ↦ᵣ WCap p g b e a
              ∗ a ↦ₐ w' }}}.
   Proof.
-    iIntros (Hinstr Hvpc [Hra Hwb] Hpca' φ) "(>HPC & >Hi & >Hr1 & >Hr2 & >Hr2a) Hφ".
+    iIntros (Hinstr Hvpc [Hra Hwb] Hpca' Hcnull Hcnull' φ) "(>HPC & >Hi & >Hr1 & >Hr2 & >Hr2a) Hφ".
     iAssert (⌜(a =? pc_a)%a = false⌝)%I as %Hfalse.
     { rewrite Z.eqb_neq. iDestruct (address_neq with "Hr2a Hi") as %Hneq. iIntros (->%finz_to_z_eq). done. }
     iApply (wp_load_success with "[$HPC $Hi $Hr1 $Hr2 Hr2a]");eauto;rewrite Hfalse;iFrame.
@@ -623,6 +662,7 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
@@ -635,7 +675,7 @@ Section cap_lang_rules.
              ∗ pc_a ↦ₐ w
              ∗ a ↦ₐ w' }}}.
   Proof.
-    iIntros (Hinstr Hvpc [Hra Hwb] Hpca' φ) "(>HPC & >Hpc_a & >Hr1 & >Ha) Hφ".
+    iIntros (Hinstr Hvpc [Hra Hwb] Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hr1 & >Ha) Hφ".
     iAssert (⌜(a =? pc_a)%a = false⌝)%I as %Hfalse.
     { rewrite Z.eqb_neq. iDestruct (address_neq with "Ha Hpc_a") as %Hneq. iIntros (->%finz_to_z_eq). done. }
     iApply (wp_load_success_same with "[$HPC $Hpc_a $Hr1 Ha]");eauto;rewrite Hfalse;iFrame.
@@ -666,6 +706,7 @@ Section cap_lang_rules.
        all: rewrite /reg_allows_load; simplify_map_eq.
        all: rewrite decide_False; first done.
        all: intros (?&_&_); try done;  simplify_map_eq.
+       all: destruct (decide (r2 = cnull)); done.
      }
      iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)".
      iDestruct "Hspec" as %Hspec.
@@ -673,6 +714,8 @@ Section cap_lang_rules.
      {
        rewrite /reg_allows_load in H2; simplify_map_eq.
        destruct H2 as (? & _ & ?); simplify_eq.
+       destruct (decide (r2 = cnull)); first done.
+       simplify_eq.
      }
      by iApply "Hφ".
   Qed.
@@ -681,6 +724,7 @@ Section cap_lang_rules.
     decodeInstrW w = Load r1 r2 →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = false ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
@@ -690,7 +734,7 @@ Section cap_lang_rules.
        Instr Executable @ E
        {{{ RET FailedV; True }}}.
   Proof.
-     iIntros (Hdecode Hvpc Hbounds φ) "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
+     iIntros (Hdecode Hvpc Hbounds Hcnull φ) "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
      iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
      rewrite memMap_resource_1_dq.
      iApply (wp_load with "[$Hmap $Hi]"); eauto; simplify_map_eq; eauto.
@@ -719,6 +763,7 @@ Section cap_lang_rules.
     decodeInstrW w = Load r1 r2 →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     withinBounds b e a = false →
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
@@ -728,7 +773,7 @@ Section cap_lang_rules.
        Instr Executable @ E
        {{{ RET FailedV; True }}}.
   Proof.
-     iIntros (Hdecode Hvpc Hbounds φ) "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
+     iIntros (Hdecode Hvpc Hbounds Hcnull φ) "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
      iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
      rewrite memMap_resource_1_dq.
      iApply (wp_load with "[$Hmap $Hi]"); eauto; simplify_map_eq; eauto.

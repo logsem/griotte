@@ -77,7 +77,7 @@ Section VAE_Main.
       (* return a *)
       Mov ca0 0%Z;
       Mov ca1 0%Z;
-      JmpCap cra
+      Jalr cnull cra
     ].
 
   Definition vae_main_code (ot_switcher : OType) : list Word

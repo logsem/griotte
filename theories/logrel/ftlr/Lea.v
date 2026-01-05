@@ -61,6 +61,7 @@ Section fundamental.
       - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         { subst ri. simplify_map_eq.
+          destruct (decide (dst = cnull)); [iApply interp_int|]; simplify_map_eq.
           unshelve iSpecialize ("Hreg" $! dst _ _ Hdst); eauto.
           iApply (interp_weakening with "IH"); eauto; try solve_addr.
           - eapply PermFlowsToReflexive.
@@ -87,6 +88,7 @@ Section fundamental.
       - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         { subst ri. simplify_map_eq.
+          destruct (decide (dst = cnull)); [iApply interp_int|]; simplify_map_eq.
           unshelve iSpecialize ("Hreg" $! dst _ _ Hdst); eauto.
           iApply interp_weakening_ot; eauto; try solve_addr.
           - apply SealPermFlowsToReflexive.

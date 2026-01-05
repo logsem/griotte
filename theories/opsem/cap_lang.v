@@ -19,7 +19,7 @@ Definition sreg (ϕ: ExecConf) := (snd (fst ϕ)).
 Definition mem (ϕ: ExecConf) := snd ϕ.
 
 Definition update_reg (φ: ExecConf) (r: RegName) (w: Word): ExecConf :=
-  (<[r:=w]>(reg φ), sreg φ, mem φ).
+  (<[r:=w]ᵣ>(reg φ), sreg φ, mem φ).
 Definition update_sreg (φ: ExecConf) (sr: SRegName) (w: Word): ExecConf :=
   (reg φ, <[sr:=w]>(sreg φ), mem φ).
 Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
@@ -45,7 +45,7 @@ Definition z_of_argument (regs: Reg) (a: Z + RegName) : option Z :=
   match a with
   | inl z => Some z
   | inr r =>
-    match regs !! r with
+    match regs !!ᵣ r with
     | Some (WInt z) => Some z
     | _ => None
     end
@@ -53,7 +53,7 @@ Definition z_of_argument (regs: Reg) (a: Z + RegName) : option Z :=
 
 Lemma z_of_argument_Some_inv (regs: Reg) (arg: Z + RegName) (z:Z) :
   z_of_argument regs arg = Some z →
-  (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !! r = Some (WInt z)).
+  (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z)).
 Proof.
   unfold z_of_argument. intro. repeat case_match; simplify_eq/=; eauto.
 Qed.
@@ -61,10 +61,10 @@ Qed.
 Lemma z_of_argument_Some_inv' (regs regs': Reg) (arg: Z + RegName) (z:Z) :
   z_of_argument regs arg = Some z →
   regs ⊆ regs' →
-  (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !! r = Some (WInt z) ∧ regs' !! r = Some (WInt z)).
+  (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z) ∧ regs' !!ᵣ r  = Some (WInt z)).
 Proof.
   unfold z_of_argument. intro. repeat case_match; simplify_eq/=; eauto.
-  intros HH. unshelve epose proof (lookup_weaken _ _ _ _ _ HH); eauto.
+  intros HH. unshelve epose proof (lookup_reg_weaken _ _ _ _ _ HH); eauto.
 Qed.
 
 Lemma z_of_arg_mono (regs r: Reg) arg argz:
@@ -74,8 +74,8 @@ regs ⊆ r
 Proof.
   intros.
   unfold z_of_argument in *.
-  destruct arg; auto. destruct (_ !! _)  eqn:Heq; [| congruence].
-  eapply lookup_weaken in Heq as ->; auto.
+  destruct arg; auto. destruct (lookup_reg _ _)  eqn:Heq; [| congruence].
+  eapply lookup_reg_weaken in Heq as ->; auto.
 Qed.
 
 (*--- word_of_argument ---*)
@@ -83,13 +83,13 @@ Qed.
 Definition word_of_argument (regs: Reg) (a: Z + RegName): option Word :=
   match a with
   | inl n => Some (WInt n)
-  | inr r => regs !! r
+  | inr r => regs !!ᵣ r
   end.
 
 Lemma word_of_argument_Some_inv (regs: Reg) (arg: Z + RegName) (w:Word) :
   word_of_argument regs arg = Some w →
   ((∃ z, arg = inl z ∧ w = WInt z) ∨
-   (∃ r, arg = inr r ∧ regs !! r = Some w)).
+   (∃ r, arg = inr r ∧ regs !!ᵣ r = Some w)).
 Proof.
   unfold word_of_argument. intro. repeat case_match; simplify_eq/=; eauto.
 Qed.
@@ -98,21 +98,21 @@ Lemma word_of_argument_Some_inv' (regs regs': Reg) (arg: Z + RegName) (w:Word) :
   word_of_argument regs arg = Some w →
   regs ⊆ regs' →
   ((∃ z, arg = inl z ∧ w = WInt z) ∨
-   (∃ r, arg = inr r ∧ regs !! r = Some w ∧ regs' !! r = Some w)).
+   (∃ r, arg = inr r ∧ regs !!ᵣ r = Some w ∧ regs' !!ᵣ r = Some w)).
 Proof.
   unfold word_of_argument. intro. repeat case_match; simplify_eq/=; eauto.
-  intros HH. unshelve epose proof (lookup_weaken _ _ _ _ _ HH); eauto.
+  intros HH. unshelve epose proof (lookup_reg_weaken _ _ _ _ _ HH); eauto.
 Qed.
 
 Lemma word_of_argument_inr (regs: Reg) (arg: Z + RegName) p g b e a:
   word_of_argument regs arg = Some (WCap p g b e a) →
-  (∃ r : RegName, arg = inr r ∧ regs !! r = Some (WCap p g b e a)).
+  (∃ r : RegName, arg = inr r ∧ regs !!ᵣ r = Some (WCap p g b e a)).
 Proof.
   intros HStoreV.
   unfold word_of_argument in HStoreV.
   destruct arg.
       - by inversion HStoreV.
-      - exists r. destruct (regs !! r) eqn:Hvr0; last by inversion HStoreV.
+      - exists r. destruct (regs !!ᵣ r) eqn:Hvr0; last by inversion HStoreV.
         split; auto.
 Qed.
 
@@ -123,8 +123,8 @@ regs ⊆ r
 Proof.
   intros.
   unfold word_of_argument in *.
-  destruct arg; auto. destruct (_ !! _)  eqn:Heq; [| congruence].
-  eapply lookup_weaken in Heq as ->; auto.
+  destruct arg; auto. destruct (_ !!ᵣ _)  eqn:Heq; [| congruence].
+  eapply lookup_reg_weaken in Heq as ->; auto.
 Qed.
 
 (*--- addr_of_argument ---*)
@@ -138,7 +138,7 @@ Definition addr_of_argument regs src :=
 Lemma addr_of_argument_Some_inv (regs: Reg) (arg: Z + RegName) (a:Addr) :
   addr_of_argument regs arg = Some a →
   ∃ z, z_to_addr z = Some a ∧
-       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !! r = Some (WInt z)).
+       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z)).
 Proof.
   unfold addr_of_argument, z_of_argument.
   intro. repeat case_match; simplify_eq/=; eauto. eexists. eauto.
@@ -148,11 +148,11 @@ Lemma addr_of_argument_Some_inv' (regs regs': Reg) (arg: Z + RegName) (a:Addr) :
   addr_of_argument regs arg = Some a →
   regs ⊆ regs' →
   ∃ z, z_to_addr z = Some a ∧
-       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !! r = Some (WInt z) ∧ regs' !! r = Some (WInt z)).
+       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z) ∧ regs' !!ᵣ r = Some (WInt z)).
 Proof.
   unfold addr_of_argument, z_of_argument.
   intros ? HH. repeat case_match; simplify_eq/=; eauto. eexists. split; eauto.
-  unshelve epose proof (lookup_weaken _ _ _ _ _ HH); eauto.
+  unshelve epose proof (lookup_reg_weaken _ _ _ _ _ HH); eauto.
 Qed.
 
 Lemma addr_of_arg_mono (regs r: Reg) arg w:
@@ -162,8 +162,8 @@ regs ⊆ r
 Proof.
   intros.
   unfold addr_of_argument, z_of_argument in *.
-  destruct arg; auto. destruct (_ !! _)  eqn:Heq; [| congruence].
-  eapply lookup_weaken in Heq as ->; auto.
+  destruct arg; auto. destruct (_ !!ᵣ _)  eqn:Heq; [| congruence].
+  eapply lookup_reg_weaken in Heq as ->; auto.
 Qed.
 
 (*--- otype_of_argument ---*)
@@ -177,7 +177,7 @@ Definition otype_of_argument regs src : option OType :=
 Lemma otype_of_argument_Some_inv (regs: Reg) (arg: Z + RegName) (o:OType) :
   otype_of_argument regs arg = Some o →
   ∃ z, z_to_otype z = Some o ∧
-       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !! r = Some (WInt z)).
+       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z)).
 Proof.
   unfold otype_of_argument, z_of_argument.
   intro. repeat case_match; simplify_eq/=; eauto. eexists. eauto.
@@ -187,11 +187,11 @@ Lemma otype_of_argument_Some_inv' (regs regs': Reg) (arg: Z + RegName) (o:OType)
   otype_of_argument regs arg = Some o →
   regs ⊆ regs' →
   ∃ z, z_to_otype z = Some o ∧
-       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !! r = Some (WInt z) ∧ regs' !! r = Some (WInt z)).
+       (arg = inl z ∨ ∃ r, arg = inr r ∧ regs !!ᵣ r = Some (WInt z) ∧ regs' !!ᵣ r = Some (WInt z)).
 Proof.
   unfold otype_of_argument, z_of_argument.
   intros ? HH. repeat case_match; simplify_eq/=; eauto. eexists. split; eauto.
-  unshelve epose proof (lookup_weaken _ _ _ _ _ HH); eauto.
+  unshelve epose proof (lookup_reg_weaken _ _ _ _ _ HH); eauto.
 Qed.
 
 Lemma otype_of_arg_mono (regs r: Reg) arg w:
@@ -201,8 +201,8 @@ regs ⊆ r
 Proof.
   intros.
   unfold otype_of_argument, z_of_argument in *.
-  destruct arg; auto. destruct (_ !! _)  eqn:Heq; [| congruence].
-  eapply lookup_weaken in Heq as ->; auto.
+  destruct arg; auto. destruct (_ !!ᵣ _)  eqn:Heq; [| congruence].
+  eapply lookup_reg_weaken in Heq as ->; auto.
 Qed.
 
 Section opsem.
@@ -216,14 +216,14 @@ Section opsem.
         imm ← z_of_argument (reg φ) rimm;
         updatePC_gen φ imm
     | Jnz rimm rcond =>
-        wcond ← (reg φ) !! rcond;
+        wcond ← (reg φ) !!ᵣ rcond;
         if nonZero wcond
         then imm ← z_of_argument (reg φ) rimm;
              updatePC_gen φ imm
         else updatePC φ
     | Jalr rdst rsrc =>
         (* Note: allow jumping to integers, sealing ranges etc; machine will crash later *)
-        wrsrc ← (reg φ) !! rsrc;
+        wrsrc ← (reg φ) !!ᵣ rsrc;
         wpc ← (reg φ) !! PC;
         match wpc with
         | (WCap p g b e a) =>
@@ -236,13 +236,8 @@ Section opsem.
             end
         | _ => None
         end
-    (* TODO TEMPORARY *)
-    | JmpCap rsrc =>
-        (* Note: allow jumping to integers, sealing ranges etc; machine will crash later *)
-        wrsrc ← (reg φ) !! rsrc;
-        Some (NextI, (update_reg φ PC (updatePcPerm wrsrc)))
     | Load dst src =>
-      wsrc ← (reg φ) !! src;
+      wsrc ← (reg φ) !!ᵣ src;
       match wsrc with
       | WCap p g b e a =>
         if readAllowed p && withinBounds b e a then
@@ -253,7 +248,7 @@ Section opsem.
       end
     | Store dst ρ =>
       tostore ← word_of_argument (reg φ) ρ;
-      wdst ← (reg φ) !! dst;
+      wdst ← (reg φ) !!ᵣ dst;
       match wdst with
       | WCap p g b e a =>
         if writeAllowed p && withinBounds b e a && canStore p tostore then
@@ -266,7 +261,7 @@ Section opsem.
       updatePC (update_reg φ dst tomov)
     | Lea dst ρ =>
       n ← z_of_argument (reg φ) ρ;
-      wdst ← (reg φ) !! dst;
+      wdst ← (reg φ) !!ᵣ dst;
       match wdst with
       | WCap p g b e a =>
           match (a + n)%a with
@@ -282,7 +277,7 @@ Section opsem.
       end
     | Restrict dst ρ =>
       n ← z_of_argument (reg φ) ρ ;
-      wdst ← (reg φ) !! dst;
+      wdst ← (reg φ) !!ᵣ dst;
       match wdst with
       | WCap p g b e a =>
           let (p',g') := decodePermPair n in
@@ -329,7 +324,7 @@ Section opsem.
     n2 ← z_of_argument (reg φ) ρ2;
     updatePC (update_reg φ dst (WInt (Z.b2z (Z.ltb n1 n2))))
   | Subseg dst ρ1 ρ2 =>
-    wdst ← (reg φ) !! dst;
+    wdst ← (reg φ) !!ᵣ dst;
     match wdst with
     | WCap p g b e a =>
       a1 ← addr_of_argument (reg φ) ρ1;
@@ -346,7 +341,7 @@ Section opsem.
     | _ => None
     end
   | GetA dst r =>
-    wr ← (reg φ) !! r;
+    wr ← (reg φ) !!ᵣ r;
     match wr with
     | WCap _ _ _ _ a
     | WSentry _ _ _ _ a
@@ -354,7 +349,7 @@ Section opsem.
     | _ => None
     end
   | GetB dst r =>
-    wr ← (reg φ) !! r;
+    wr ← (reg φ) !!ᵣ r;
     match wr with
     | WCap _ _ b _ _
     | WSentry _ _ b _ _
@@ -362,7 +357,7 @@ Section opsem.
     | _ => None
     end
   | GetE dst r =>
-    wr ← (reg φ) !! r;
+    wr ← (reg φ) !!ᵣ r;
     match wr with
     | WCap _ _ _ e _
     | WSentry _ _ _ e _
@@ -370,7 +365,7 @@ Section opsem.
     | _ => None
     end
   | GetP dst r =>
-    wr ← (reg φ) !! r;
+    wr ← (reg φ) !!ᵣ r;
     match wr with
     | WCap p _ _ _ _
     | WSentry p _ _ _ _ => updatePC (update_reg φ dst (WInt (encodePerm p)))
@@ -378,7 +373,7 @@ Section opsem.
     | _ => None
     end
   | GetL dst r =>
-    wr ← (reg φ) !! r;
+    wr ← (reg φ) !!ᵣ r;
     match wr with
     | WCap _ l _ _ _
     | WSentry _ l _ _ _
@@ -387,7 +382,7 @@ Section opsem.
     end
 
   | GetOType dst r =>
-    wr ← (reg φ) !! r;
+    wr ← (reg φ) !!ᵣ r;
     match wr with
     | WSealed o _ => updatePC (update_reg φ dst (WInt o))
     (* NOTE if not a sealed, return -1 in any other case ? What if not a sealable ? *)
@@ -395,11 +390,11 @@ Section opsem.
     end
 
   | GetWType dst r =>
-    wr ← (reg φ) !! r; updatePC (update_reg φ dst (WInt (encodeWordType wr)))
+    wr ← (reg φ) !!ᵣ r; updatePC (update_reg φ dst (WInt (encodeWordType wr)))
 
   | Seal dst r1 r2 =>
-    wr1 ← (reg φ) !! r1;
-    wr2 ← (reg φ) !! r2;
+    wr1 ← (reg φ) !!ᵣ r1;
+    wr2 ← (reg φ) !!ᵣ r2;
     match wr1,wr2 with
     | WSealRange p g b e a, WSealable sb =>
       if permit_seal p && withinBounds b e a then updatePC (update_reg φ dst (WSealed a sb))
@@ -407,8 +402,8 @@ Section opsem.
     | _, _ => None
     end
   | UnSeal dst r1 r2 =>
-    wr1 ← (reg φ) !! r1;
-    wr2 ← (reg φ) !! r2;
+    wr1 ← (reg φ) !!ᵣ r1;
+    wr2 ← (reg φ) !!ᵣ r2;
     match wr1, wr2 with
     | WSealRange p g b e a, WSealed a' sb =>
         if decide (permit_unseal p = true ∧ withinBounds b e a = true ∧ a' = a) then updatePC (update_reg φ dst (WSealable sb))
@@ -421,7 +416,7 @@ Section opsem.
       else None
   | WriteSR dst src =>
       if has_sreg_access plevel
-      then tomov ← (reg φ) !! src; updatePC (update_sreg φ dst tomov)
+      then tomov ← (reg φ) !!ᵣ src; updatePC (update_sreg φ dst tomov)
       else None
   end.
 
@@ -662,7 +657,8 @@ Section opsem.
     ; repeat destruct (word_of_argument (reg φ) _)
     ; repeat destruct (z_of_argument (reg φ) _)
     ; cbn in *; try by exfalso.
-    all: repeat destruct (reg _ !! _); cbn in *; repeat case_match.
+    all: repeat destruct (reg _ !!ᵣ _); cbn in *; repeat case_match.
+    all: repeat destruct (reg _ !! PC); cbn in *; repeat case_match.
     all: repeat destruct (sreg _ !! _); cbn in *; repeat case_match.
     all: repeat destruct (mem _ !! _); cbn in *; repeat case_match.
     all: simplify_eq; try by exfalso.

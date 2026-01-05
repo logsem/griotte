@@ -16,6 +16,9 @@ Section ClearStackMacro.
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a ->
     (csp_b <= csp_a)%a -> (csp_a <= csp_e)%a ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
+
     ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
       ∗ csp ↦ᵣ WCap RWL csp_g csp_b csp_e csp_a
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
@@ -31,7 +34,7 @@ Section ClearStackMacro.
     )
       ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    iIntros (Hpc_exec Hbounds Hbounds1 Hbounds2)
+    iIntros (Hpc_exec Hbounds Hbounds1 Hbounds2 Hr1cnull Hr2cnull)
       "(HPC & Hcsp & Hr1 & Hr2 & Hcode & Hstack & Hφ & Hfail)".
     codefrag_facts "Hcode".
 

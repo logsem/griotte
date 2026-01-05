@@ -36,7 +36,7 @@ Ltac dispatch_instr_rule instr cont :=
   | Mov _ (inr PC) => cont (@wp_move_success_reg_fromPC)
   | Mov ?r (inr ?r) => cont (@wp_move_success_reg_same)
   | Mov _ (inr _) => cont (@wp_move_success_reg)
-  | Mov _ (inl _) => cont (@wp_move_success_z)
+  | Mov _ (inl _) => cont (@wp_move_success_z_gen)
   (* Get *)
   | GetL ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetP ?r1 ?r2 => dispatch_Get r1 r2 cont
@@ -95,11 +95,9 @@ Ltac dispatch_instr_rule instr cont :=
   | Jmp (inl _) => cont (@wp_jmp_success_z)
   | Jmp (inr _) => cont (@wp_jmp_success_reg)
   (* | Jmp (inr PC) => cont (@wp_jmp_success_z) *) (* FAIL *)
-  (* JmpCap *)
-  | JmpCap PC => cont (@wp_jmpcap_successPC)
-  | JmpCap _ => cont (@wp_jmpcap_success)
   (* Jalr *)
   | Jalr _ PC => cont (@wp_jalr_successPC)
+  | Jalr cnull _ => cont (@wp_jalr_success_cnull)
   | Jalr ?r ?r => cont (@wp_jalr_success_rdst)
   | Jalr _ _ => cont (@wp_jalr_success)
   (* Subseg *)

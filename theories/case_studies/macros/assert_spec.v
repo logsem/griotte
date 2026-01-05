@@ -25,7 +25,7 @@ Section Assert_subroutine.
       (* success case *)
       Mov ct0 0;
       Mov ct1 0;
-      JmpCap cra; (* return *)
+      Jalr cnull cra; (* return *)
       (* failure case *)
       Mov ct1 PC; (* pointer to cap: *)
       Lea ct1 7; (* pointer to cap: *)
@@ -33,7 +33,7 @@ Section Assert_subroutine.
       Store ct1 1;
       Mov ct0 0;
       Mov ct1 0;
-      JmpCap cra (* return *)
+      Jalr cnull cra (* return *)
     ].
   (* followed in memory by:
     cap: (RW, flag, end, flag)
@@ -51,7 +51,7 @@ Section Assert_subroutine.
 
   Lemma assert_subroutine_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
-    ( n1 n2 flag : Z ) ( wret : Word)
+    ( n1 n2 flag : Z ) ( wret wnull : Word)
     (N : namespace) (E : coPset) (φ : language.val cap_lang -> iProp Σ) :
     ↑N ⊆ E →
     (  na_inv logrel_nais N (assert_inv pc_b pc_e a_flag)
@@ -60,17 +60,19 @@ Section Assert_subroutine.
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
+     ∗ cnull ↦ᵣ wnull
      ∗ a_flag ↦ₐ WInt flag
      ∗ ▷ (na_own logrel_nais E
           ∗ PC ↦ᵣ updatePcPerm wret
           ∗ cra ↦ᵣ wret
           ∗ ct0 ↦ᵣ WInt 0
           ∗ ct1 ↦ᵣ WInt 0
+          ∗ cnull ↦ᵣ WInt 0
           ∗ a_flag ↦ₐ WInt (if (n1 =? n2)%Z then flag else 1%Z)
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
-    iIntros (HNE) "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hflag & Hφ)".
+    iIntros (HNE) "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hflag & Hφ)".
     iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hpc_e & %He_flag & Hcap)".
     destruct He_flag as [e_flag He_flag].
@@ -84,9 +86,12 @@ Section Assert_subroutine.
     { (* n1 = n2 *)
       subst n2. rewrite (_: n1 - n1 = 0)%Z; last lia.
       iGo "Hprog".
+      replace ( WInt (if decide (ct0 = cnull) then 0 else 0) )
+        with (WInt 0) by (destruct (decide _); done).
+      replace ( WInt (if decide (ct1 = cnull) then 0 else 0) )
+        with (WInt 0) by (destruct (decide _); done).
       iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
       { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
-
       iApply "Hφ". iFrame. rewrite Z.eqb_refl //. }
     { (* n1 ≠ n2 *)
       iInstr "Hprog". { assert (n1 - n2 ≠ 0)%Z by lia. congruence. }
@@ -104,7 +109,7 @@ Section Assert_subroutine.
 
   Lemma assert_subroutine_success_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
-    ( n1 n2 flag : Z ) ( wret : Word)
+    ( n1 n2 flag : Z ) ( wret wnull : Word)
     (N : namespace) (E : coPset) (φ : language.val cap_lang -> iProp Σ) :
     ↑N ⊆ E →
     n1 = n2 →
@@ -114,15 +119,17 @@ Section Assert_subroutine.
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
+     ∗ cnull ↦ᵣ wnull
      ∗ ▷ (na_own logrel_nais E
           ∗ PC ↦ᵣ updatePcPerm wret
           ∗ cra ↦ᵣ wret
           ∗ ct0 ↦ᵣ WInt 0%Z
           ∗ ct1 ↦ᵣ WInt 0%Z
+          ∗ cnull ↦ᵣ WInt 0
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
-    iIntros (HNE Heq) "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hφ)".
+    iIntros (HNE Heq) "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hφ)".
     iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
     rewrite /assert_subroutine_instrs. codefrag_facts "Hprog".
@@ -132,6 +139,10 @@ Section Assert_subroutine.
     iInstr "Hprog".
     rewrite (_: n1 - n2 = 0)%Z; last lia.
     iGo "Hprog".
+    replace ( WInt (if decide (ct0 = cnull) then 0 else 0) )
+      with (WInt 0) by (destruct (decide _); done).
+    replace ( WInt (if decide (ct1 = cnull) then 0 else 0) )
+      with (WInt 0) by (destruct (decide _); done).
     iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
     { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
     iApply "Hφ". iFrame.
@@ -151,7 +162,7 @@ Section Assert.
     (n : Z) (rdst rscratch1 rscratch2 : RegName)
     (pc_g : Locality) (pc_p : Perm) (pc_b pc_e pc_a : Addr)
     (g_assert : Locality) (b_assert e_assert a_flag : Addr)
-    (n1 n2 : Z) (wdst wcra w1 w2 : Word)
+    (n1 n2 : Z) (wdst wcra w1 w2 wnull : Word)
     (N : namespace) (E : coPset) (φ : language.val cap_lang -> iProp Σ) :
 
     let assert_macro := assert_instrs n rdst rscratch1 rscratch2 in
@@ -171,6 +182,7 @@ Section Assert.
      ∗ cra ↦ᵣ wcra
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
+     ∗ cnull ↦ᵣ wnull
      ∗ codefrag pc_a assert_macro
      ∗ (pc_b ^+ n)%a ↦ₐ (WSentry RX g_assert b_assert e_assert b_assert)
      ∗ ▷ (na_own logrel_nais E
@@ -181,6 +193,7 @@ Section Assert.
           ∗ cra ↦ᵣ wcra
           ∗ ct0 ↦ᵣ WInt 0
           ∗ ct1 ↦ᵣ WInt 0
+          ∗ cnull ↦ᵣ WInt 0
           ∗ codefrag pc_a assert_macro
           ∗ (pc_b ^+ n)%a ↦ₐ (WSentry RX g_assert b_assert e_assert b_assert)
           -∗ WP Seq (Instr Executable) {{ φ }})
@@ -188,13 +201,16 @@ Section Assert.
   Proof.
     intros assert_macro a_last; subst assert_macro a_last.
     iIntros (Hpc_exec HsubBounds Hinbounds HNE Heq)
-      "(#Hinv & Hna & HPC & Hrdst & Hrscratch1 & Hrscratch2 & Hcra & Hct0 & Hct1 & Hcode & Hpc_bn & Hφ)".
+      "(#Hinv & Hna & HPC & Hrdst & Hrscratch1 & Hrscratch2 & Hcra & Hct0 & Hct1 & Hcnull & Hcode & Hpc_bn & Hφ)".
     codefrag_facts "Hcode".
     rewrite /assert_instrs /assembled_assert.
     repeat (iEval (cbn [concat]) in "Hcode").
     repeat (iEval (cbn [fmap list_fmap]) in "Hcode").
     focus_block_0 "Hcode" as "Hfetch" "Hcont".
-    iApply (fetch_spec with "[-]"); eauto; iFrame.
+    iDestruct (regname_neq with "Hrscratch1 Hcnull") as "%".
+    iDestruct (regname_neq with "Hrscratch2 Hcnull") as "%".
+    iDestruct (regname_neq with "Hrdst Hcnull") as "%".
+    iApply (fetch_spec with "[-]"); last iFrame; eauto.
     iNext; iIntros "(HPC & Hrdst & Hrscratch1 & Hrscratch2 & Hfetch & Hpc_bn)".
     unfocus_block "Hfetch" "Hcont" as "Hcode".
     focus_block 1 "Hcode" as a_assert Ha_assert "Hassert" "Hcont".
@@ -202,11 +218,15 @@ Section Assert.
     rewrite load_word_sentry.
     iEval (cbn) in "HPC".
     iApply (assert_subroutine_success_spec with "[-]"); eauto; iFrame "#∗".
-    iNext; iIntros "(Hna & HPC & Hcra & Hct0 & Hct1)".
+    iNext; iIntros "(Hna & HPC & Hcra & Hct0 & Hct1 & Hcnull )".
     iEval (cbn) in "HPC".
     iGo "Hassert".
     unfocus_block "Hassert" "Hcont" as "Hcode".
     replace (a_assert ^+ 5)%a with (pc_a ^+ 14)%a by solve_addr.
+      replace ( WInt (if decide (_ = cnull) then 0 else 0) )
+        with (WInt 0) by (destruct (decide _); done).
+      replace ( WInt (if decide (_ = cnull) then 0 else 0) )
+        with (WInt 0) by (destruct (decide _); done).
     iApply "Hφ"; iFrame.
   Qed.
 

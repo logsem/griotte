@@ -448,14 +448,22 @@ Section Counter.
     rewrite /counter_main_code.
     focus_block 4 "Hcode_main" as a_ret Ha_ret "Hcode" "Hcont"; iHide "Hcont" as hcont.
 
+    assert ( rmap' !! cnull = Some (WInt 0) ) as Hwcnull''.
+    { apply Hrmap_init'. rewrite Hdom_rmap.
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+    }
+    iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
     iGo "Hcode".
-
+    repeat (replace ( WInt (if decide _ then 0 else 0%Z)) with (WInt 0) by (destruct (decide _);done)).
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Close the memory invariant *)
     iMod ("Hmem_close" with "[$Hna $Himports_main $Hcode_main $Hcgp_main]") as "Hna"; first done.
 
     (* Put all the registers under the same map *)
+    iDestruct (big_sepM_insert _ _ cnull with "[$Hrmap $Hcnull]") as "Hrmap".
+    { by simplify_map_eq. }
+    rewrite insert_delete //.
     iDestruct (big_sepM_insert _ _ cs0 with "[$Hrmap $Hcs0]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
     iDestruct (big_sepM_insert _ _ cs1 with "[$Hrmap $Hcs1]") as "Hrmap".
@@ -463,7 +471,7 @@ Section Counter.
     iDestruct (big_sepM_insert _ _ cgp with "[$Hrmap $Hcgp]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
     iDestruct (big_sepM_insert _ _ cra with "[$Hrmap $Hcra]") as "Hrmap".
-    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
+    { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap ; set_solver+. }
 
     clear dependent wcs0 wcs1 wct0 wct1 a_fetch1 a_fetch2 a_callB a_ret.
     iClear "Hmem Hentry_C_f".

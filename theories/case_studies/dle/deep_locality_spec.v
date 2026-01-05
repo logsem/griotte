@@ -563,7 +563,7 @@ Section DLE.
     iClear "Hrmap_zero".
 
     (* ---- extract the needed registers ct0 ct1 ----  *)
-    iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4] as ["Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hct4"].
+    iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull] as ["Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hct4"; "Hcnull"].
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
@@ -578,10 +578,10 @@ Section DLE.
 
     focus_block 4 "Hcode_main" as a_assert_c Ha_assert_c "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (assert_success_spec with
-             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcra
+             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
               $Hcode $Himport_assert]"); auto.
     { solve_addr. }
-    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1
+    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
                     & Hcode & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -589,7 +589,7 @@ Section DLE.
     (* ------------------ BLOCK 5: HALT ------------------ *)
     (* --------------------------------------------------- *)
     focus_block 5 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    (* JmpCap cra *)
+    (* Jalr cnull cra *)
     iInstr "Hcode".
     wp_end; iIntros "_"; iFrame.
 

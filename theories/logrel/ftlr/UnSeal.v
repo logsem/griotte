@@ -74,10 +74,12 @@ Section fundamental.
 
     assert (r1 ≠ PC) as Hne1.
     { destruct (decide (PC = r1)); last auto. simplify_map_eq; auto. }
-    rewrite lookup_insert_ne in Hr1; auto.
     assert (r2 ≠ PC) as Hne2.
     { destruct (decide (PC = r2)); last auto. simplify_map_eq; auto. }
-    rewrite lookup_insert_ne in Hr2; auto.
+    assert (r1 ≠ cnull); simplify_map_eq.
+    { intros ->; destruct (regs !! cnull) eqn:Hr ; simplify_map_eq. }
+    assert (r2 ≠ cnull); simplify_map_eq.
+    { intros ->; destruct (regs !! cnull) eqn:Hr ; simplify_map_eq. }
 
     unshelve iDestruct ("Hreg" $! r1 _ _ Hr1) as "HVsr"; eauto.
     unshelve iDestruct ("Hreg" $! r2 _ _ Hr2) as "HVsd"; eauto.
@@ -90,18 +92,19 @@ Section fundamental.
 
     destruct (decide (PC = dst)) as [Heq | Hne]; cycle 1.
     { (* PC ≠ dst *)
+      rewrite insert_reg_insert_commute; auto.
       simplify_map_eq; map_simpl "Hmap".
-      assert (is_Some (<[dst:=WSealable sb]> regs !! csp)) as [??].
+      assert (is_Some (<[dst:=WSealable sb]ᵣ> regs !! csp)) as [??].
       { destruct (decide (dst = csp));simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealable sb]> regs)
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealable sb]ᵣ> regs)
                with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]")
       ; eauto.
       + cbn; intros. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         { subst ri.
-          rewrite lookup_insert in Hvs;
-            inversion Hvs.
+          rewrite lookup_insert in Hvs; inversion Hvs.
+          destruct (decide (dst = cnull)) ; first iApply interp_int.
           auto.
         }
         { repeat (rewrite lookup_insert_ne in Hvs); auto.

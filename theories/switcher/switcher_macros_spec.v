@@ -34,6 +34,8 @@ Section switcher_macros.
     φ :
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
     ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
       ∗ csp ↦ᵣ WCap csp_p csp_g csp_b csp_e csp_a
       ∗ interp W C (WCap csp_p csp_g csp_b csp_e csp_a)
@@ -51,7 +53,7 @@ Section switcher_macros.
     )
       ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    iIntros (Hpc_exec Hbounds)
+    iIntros (Hpc_exec Hbounds Hr1cnull Hr2cnull)
       "(HPC & Hcsp & Hinterp & Hr1 & Hr2 & Hcode & Hr & Hsts & Hφ & Hfailed)".
     codefrag_facts "Hcode". clear H0.
 

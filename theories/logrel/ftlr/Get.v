@@ -60,8 +60,9 @@ Section fundamental.
       + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).
         destruct (decide (ri = dst)); simplify_map_eq.
-      { repeat rewrite fixpoint_interp1_eq; auto. }
-      { iApply "Hreg"; eauto. }
+        { destruct (decide (dst = cnull)) ; [iApply interp_int|].
+          repeat rewrite fixpoint_interp1_eq; auto. }
+        { iApply "Hreg"; eauto. }
       + iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 

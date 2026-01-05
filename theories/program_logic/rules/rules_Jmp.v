@@ -85,7 +85,8 @@ Section cap_lang_rules.
        pose proof Hregs' as H'regs'; cycle 1.
      {
        assert (incrementPC_gen r imm = None) as HH.
-       { eapply incrementPC_gen_overflow_mono; first eapply Hregs' ; eauto. }
+       { eapply incrementPC_gen_overflow_mono; first eapply Hregs' ; eauto.
+       }
        apply (incrementPC_gen_fail_updatePC_gen _ sr m) in HH. rewrite HH in Hstep.
        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->) by (inversion Hstep; auto).
        iFailWP "Hφ" Jmp_fail_PC_overflow. }
@@ -139,6 +140,7 @@ Section cap_lang_rules.
      decodeInstrW w = Jmp (inr rimm) →
      isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
+     rimm ≠ cnull ->
      {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
          ∗ ▷ pc_a ↦ₐ w
          ∗ ▷ rimm ↦ᵣ WInt imm
@@ -150,7 +152,7 @@ Section cap_lang_rules.
          ∗ rimm ↦ᵣ WInt imm
      }}}.
    Proof.
-     iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrimm) Hφ".
+     iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrimm) Hφ".
      iDestruct (map_of_regs_2 with "HPC Hrimm") as "[Hmap %]".
      iApply (wp_Jmp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
      { set_solver+. }

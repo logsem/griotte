@@ -64,6 +64,8 @@ Section ClearRegistersMacro.
 
     iInstr "Hcode".
     { transitivity (Some (pc_a ^+ 1)%a); auto; solve_addr. }
+    replace (WInt (if decide (r = cnull) then 0 else 0%Z)) with (WInt 0).
+    2: { by destruct (decide _). }
     destruct (decide (l = [])).
     { subst l. iApply "Hcont". iFrame.
       replace (delete r rmap) with (∅ : Reg).
@@ -72,7 +74,7 @@ Section ClearRegistersMacro.
            rewrite dom_delete_L.
            rewrite Hrdom.
            set_solver.
-         }
+      }
       iExists (<[r := WInt 0]> ∅).
       iSplit; cycle 1.
       + iDestruct (big_sepM_insert (fun r w => r ↦ᵣ w ∗ ⌜ w = WInt 0⌝ )%I ∅ r with "[Hr Hregs]") as "H".
@@ -98,7 +100,7 @@ Section ClearRegistersMacro.
     2: { unfold rclear_instrs'; cbn; solve_addr. }
 
     destruct (decide (r ∈ l)).
-    - iDestruct (big_sepM_insert _ _ r with "[Hr $Hregs]") as "Hregs".
+    + iDestruct (big_sepM_insert _ _ r with "[Hr $Hregs]") as "Hregs".
       { by rewrite lookup_delete//. }
       { by iFrame. }
       iApply ("IH" with "[] HPC Hregs Hcode [Hcont Hcls]"); eauto.
@@ -110,7 +112,7 @@ Section ClearRegistersMacro.
       }
       { iPureIntro; solve_pure_addr. }
       {  iPureIntro. rewrite insert_delete_insert. set_solver. }
-    - iApply ("IH" with "[] HPC Hregs Hcode [Hcont Hcls Hr]"); eauto.
+    + iApply ("IH" with "[] HPC Hregs Hcode [Hcont Hcls Hr]"); eauto.
       { iNext.
         iIntros "H"; iDestruct "H" as (rmap' Hdom_rmap')  "(HPC & Hregs & Hcode)".
         iDestruct (big_sepM_insert _ _ r with "[Hr $Hregs]") as "Hregs".

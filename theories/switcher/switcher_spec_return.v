@@ -582,8 +582,28 @@ Section Switcher.
 
 
     focus_block 15 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    (* JmpCap cra *)
+    (* Jalr cnull cra *)
+    iAssert (⌜map_Forall (λ (_ : RegName) (x : Word), x = WInt 0) arg_rmap' ⌝)%I as
+      "%Harg_rmap'_zeroes".
+    { iDestruct (big_sepM_sep with "Hrmap") as "[_ %]"; auto. }
+    iExtract "Hrmap" cnull as "[Hcnull %]".
     iInstr "Hcode" with "Hlc".
+    iAssert ( ∃ wnull, cnull ↦ᵣ wnull ∗ ⌜ wnull = WInt 0⌝ )%I with "[Hcnull]" as (wnull) "Hcnull".
+    { iFrame; done. }
+    iInsert "Hrmap" cnull.
+    iAssert (⌜ <[cnull := wnull]> arg_rmap' = arg_rmap' ⌝)%I as "%Harg_rmap'_id".
+    { iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hint]".
+      iPureIntro.
+      clear -Harg_rmap' Hint Harg_rmap'_zeroes.
+      assert (is_Some (arg_rmap' !! cnull)) as [? Hcnull] by (rewrite -elem_of_dom Harg_rmap' ; set_solver).
+      apply insert_id.
+      pose proof (map_Forall_insert_1_1 _ _ _ _ Hint); cbn in *.
+      rewrite H.
+      rewrite Hcnull.
+      by eapply map_Forall_lookup in Hcnull; eauto; cbn in *; simplify_map_eq.
+    }
+    rewrite Harg_rmap'_id.
+    clear dependent Harg_rmap'_id Harg_rmap'_zeroes wcnull wnull.
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
     iHide "Hcode" as hcode.

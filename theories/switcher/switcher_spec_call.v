@@ -205,6 +205,8 @@ Section Switcher.
     replace ( match MP with
                  | {| encodePerm := encodePerm |} => encodePerm
                  end  ) with encodePerm by done.
+    replace ( (if decide (ctp = cnull) then 0 else encodePerm RWL)%Z )
+      with ( encodePerm RWL ) by (destruct (decide _); done).
     replace (encodePerm RWL - encodePerm RWL)%Z with 0%Z by lia.
     iInstr "Hcode".
 
@@ -228,6 +230,8 @@ Section Switcher.
     replace ( match MP with
                  | {| encodeLoc := encodeLoc |} => encodeLoc
                  end  ) with encodeLoc by done.
+    replace ( (if decide (ctp = cnull) then 0 else encodeLoc Local )%Z )
+      with ( encodeLoc Local ) by (destruct (decide _); done).
     replace (encodeLoc Local - encodeLoc Local)%Z with 0%Z by lia.
     iInstr "Hcode".
 
@@ -492,8 +496,28 @@ Section Switcher.
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
       focus_block 15 "Hcode" as a10 Ha10 "Hcode" "Hcsl"; iHide "Hcsl" as hcont.
-      (* JmpCap cra *)
+      (* Jalr cnull cra *)
+      iAssert (⌜map_Forall (λ (_ : RegName) (x : Word), x = WInt 0) arg_rmap' ⌝)%I as
+        "%Harg_rmap'_zeroes".
+      { iDestruct (big_sepM_sep with "Hrmap") as "[_ %]"; auto. }
+      iExtract "Hrmap" cnull as "[Hcnull %]".
       iInstr "Hcode" with "Hlc".
+      iAssert ( ∃ wnull, cnull ↦ᵣ wnull ∗ ⌜ wnull = WInt 0⌝ )%I with "[Hcnull]" as (wnull) "Hcnull".
+      { iFrame; done. }
+      iInsert "Hrmap" cnull.
+      iAssert (⌜ <[cnull := wnull]> arg_rmap' = arg_rmap' ⌝)%I as "%Harg_rmap'_id".
+      { iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hint]".
+        iPureIntro.
+        clear -Harg_rmap' Hint Harg_rmap'_zeroes.
+        assert (is_Some (arg_rmap' !! cnull)) as [? Hcnull] by (rewrite -elem_of_dom Harg_rmap' ; set_solver).
+        apply insert_id.
+        pose proof (map_Forall_insert_1_1 _ _ _ _ Hint); cbn in *.
+        rewrite H.
+        rewrite Hcnull.
+        by eapply map_Forall_lookup in Hcnull; eauto; cbn in *; simplify_map_eq.
+      }
+      rewrite Harg_rmap'_id.
+      clear dependent Harg_rmap'_id Harg_rmap'_zeroes wcnull wnull.
       unfocus_block "Hcode" "Hcsl" as "Hcode"; subst hcont.
 
     (* Close the switcher's invariant *)
@@ -597,7 +621,7 @@ Section Switcher.
     (* --- Lea cs0 cs1 --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_lea_success_reg with "[$HPC $Hi $Hcs0 $Hcs1]");[solve_pure..| |].
+    iApply (wp_lea_success_reg with "[$HPC $Hi $Hcs0 $Hcs1]");auto;[solve_pure..| |].
     { instantiate (1:=(b_switcher ^+ 2)%a). solve_addr. }
     iIntros "!> (HPC & Hi & Hcs1 & Hcs0)".
     wp_pure.

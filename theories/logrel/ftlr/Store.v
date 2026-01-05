@@ -44,6 +44,8 @@ Section fundamental.
   Proof.
     iIntros (Hflp Hwoa Hras Hststd) "HInt".
     destruct Hras as (Hrir & Hwa & Hwb & Hloc).
+    assert ( r1 ≠ cnull ); simplify_map_eq.
+    { intros -> ; destruct (r !! cnull) eqn:? ; simplify_map_eq. }
     destruct storev as [z | sb | | ot sb ].
     - iApply (interp_monotone_generalZ with "[HInt]" ); eauto.
     - destruct sb ;
@@ -66,6 +68,8 @@ Section fundamental.
     - subst r1. iIntros ([? ?] ?). simplify_map_eq; auto.
     - iIntros ((Hsomer1 & Hwa & Hwb & Hloc) Hfl) "Hreg #Hinva".
       simplify_map_eq.
+      assert ( r1 ≠ cnull ); simplify_map_eq.
+      { intros -> ; destruct (regs !! cnull) eqn:? ; simplify_map_eq. }
       iDestruct ("Hreg" $! r1 _ n Hsomer1) as "Hr1"; eauto.
       iDestruct (write_allowed_inv _ _ a with "Hr1")
         as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hrcond'' & Hwcond'')"; auto.
@@ -99,7 +103,10 @@ Section fundamental.
   Proof.
     intros Hrar H3.
     pose (Hrar' := Hrar).
-    destruct Hrar' as (Hinr0 & _). rewrite /read_reg_inr Hinr0 in H3.
+    destruct Hrar' as (Hinr0 & _).
+    assert ( r ≠ cnull ); simplify_map_eq.
+    { intros -> ; destruct (regs !! cnull) eqn:? ; simplify_map_eq. }
+    rewrite /read_reg_inr Hinr0 in H3.
     by inversion H3.
   Qed.
 
@@ -171,6 +178,8 @@ Section fundamental.
     case_decide as Haeq.
     - destruct Hallows as (Hrinr & Hra & Hwb & HLoc).
       apply andb_prop in Hwb as [Hle Hge].
+      assert ( r1 ≠ cnull ); simplify_map_eq.
+      { intros -> ; destruct (regs !! cnull) eqn:? ; simplify_map_eq. }
       assert (r1 ≠ PC) as n.
       { refine (addr_ne_reg_ne Hrinr _ Haeq). by rewrite lookup_insert. }
 
@@ -319,8 +328,11 @@ Section fundamental.
     case_decide as Hallows; last by exfalso.
     iAssert (interp W C (WCap p0 g0 b0 e0 a0))%I with "[HVPCr Hreg]" as "#HVr1".
     { destruct Hras as [Hreg _]. destruct (decide (r1 = PC)).
-      - subst r1. rewrite lookup_insert in Hreg; by inversion Hreg.
+      - subst r1.
+        by simplify_map_eq.
       - simplify_map_eq.
+        assert ( r1 ≠ cnull ); simplify_map_eq.
+        { intros -> ; destruct (regs !! cnull) eqn:? ; simplify_map_eq. }
         by iSpecialize ("Hreg" $! r1 _ n Hreg).
     }
     iAssert (interp W C storev)%I with "[HVPCr Hreg]" as "#HVstorev1".
@@ -331,6 +343,8 @@ Section fundamental.
         destruct (decide (r = PC)).
         + subst r; simplify_map_eq. done.
         + simplify_map_eq.
+          assert ( r ≠ cnull ); simplify_map_eq.
+          { intros -> ; destruct (regs !! cnull) eqn:? ; simplify_map_eq. }
           iSpecialize ("Hreg" $! r _ n Hwoa).
           done.
       - destruct r2; first (cbn in Hwoa; inversion Hwoa; by exfalso).
@@ -338,6 +352,8 @@ Section fundamental.
         destruct (decide (r = PC)).
         + subst r; simplify_map_eq.
         + simplify_map_eq.
+          assert ( r ≠ cnull ); simplify_map_eq.
+          { intros -> ; destruct (regs !! cnull) eqn:? ; simplify_map_eq. }
           iSpecialize ("Hreg" $! r _ n Hwoa).
           done.
       - destruct r2; first (cbn in Hwoa; inversion Hwoa; by exfalso).
@@ -345,6 +361,8 @@ Section fundamental.
         destruct (decide (r = PC)).
         + subst r; simplify_map_eq.
         + simplify_map_eq.
+          assert ( r ≠ cnull ); simplify_map_eq.
+          { intros -> ; destruct (regs !! cnull) eqn:? ; simplify_map_eq. }
           iSpecialize ("Hreg" $! r _ n Hwoa).
           done.
     }
@@ -380,7 +398,9 @@ Section fundamental.
       rewrite decide_True.
       2:{
         rewrite /writeAllowed_a_in_regs. eexists r1, _. inversion Hras.
-        split; first eassumption.
+        assert ( r1 ≠ cnull ); simplify_map_eq.
+        { intros -> ; destruct (regs !! cnull) eqn:? ; simplify_map_eq. }
+        split; first done.
         destruct H1. destruct H2.
         split;auto.
         split;auto.
@@ -428,6 +448,14 @@ Section fundamental.
       intros. destruct (decide (x = PC)); last by rewrite lookup_insert_ne.
       rewrite e0 lookup_insert; unfold is_Some. by eexists.
     }
+    assert(∀ x : RegName, is_Some (<[PC:=WCap p g b e a]> regs !!ᵣ x)) as Hsome'ᵣ.
+    {
+      intros.
+      destruct (decide (x = PC)); simplify_map_eq; first done.
+      destruct (decide (x = cnull)); simplify_map_eq; last done.
+      specialize (Hsome cnull).
+      destruct (regs !! cnull) eqn:?; simplify_map_eq; done.
+    }
 
     (* Initializing the names for the values of Hsrc now, to instantiate the existentials in step 1 *)
     assert (∃ p0 g0 b0 e0 a0 , read_reg_inr (<[PC:=WCap p g b e a]> regs) dst p0 g0 b0 e0 a0)
@@ -444,7 +472,7 @@ Section fundamental.
       as [storev Hwoa].
     { destruct src; cbn.
       - by exists (WInt z).
-      - specialize Hsome' with r as Hr.
+      - specialize Hsome'ᵣ with r as Hr.
         destruct Hr as [wsrc Hsomer].
         exists wsrc. by rewrite Hsomer.
     }

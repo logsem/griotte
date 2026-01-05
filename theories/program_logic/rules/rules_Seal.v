@@ -17,33 +17,33 @@ Section cap_lang_rules.
 
   Inductive Seal_failure (regs: Reg) (dst: RegName) (src1 src2: RegName) : Reg → Prop :=
   | Seal_fail_sealr w :
-      regs !! src1 = Some w →
+      regs !!ᵣ src1 = Some w →
       is_sealr w = false →
       Seal_failure regs dst src1 src2 regs
   | Seal_fail_sealb w :
-      regs !! src2 = Some w →
+      regs !!ᵣ src2 = Some w →
       is_sealb w = false →
       Seal_failure regs dst src1 src2 regs
   | Seal_fail_bounds w p g b e a sb:
-      regs !! src1 = Some (WSealRange p g b e a) →
-      regs !! src2 = Some (WSealable sb) →
+      regs !!ᵣ src1 = Some (WSealRange p g b e a) →
+      regs !!ᵣ src2 = Some (WSealable sb) →
       (permit_seal p = false ∨ withinBounds b e a = false) →
       Seal_failure regs dst src1 src2 regs
   | Seal_fail_incrPC p g b e a sb :
-      regs !! src1 = Some (WSealRange p g b e a) →
-      regs !! src2 = Some (WSealable sb) →
+      regs !!ᵣ src1 = Some (WSealRange p g b e a) →
+      regs !!ᵣ src2 = Some (WSealable sb) →
       permit_seal p = true →
       withinBounds b e a = true →
-      incrementPC (<[ dst := WSealed a sb ]> regs) = None →
+      incrementPC (<[ dst := WSealed a sb ]ᵣ> regs) = None →
       Seal_failure regs dst src1 src2 regs.
 
   Inductive Seal_spec (regs: Reg) (dst: RegName) (src1 src2: RegName) (regs': Reg): cap_lang.val -> Prop :=
   | Seal_spec_success p g b e a sb:
-      regs !! src1 = Some (WSealRange p g b e a) →
-      regs !! src2 = Some (WSealable sb) →
+      regs !!ᵣ src1 = Some (WSealRange p g b e a) →
+      regs !!ᵣ src2 = Some (WSealable sb) →
       permit_seal p = true →
       withinBounds b e a = true →
-      incrementPC (<[ dst := WSealed a sb ]> regs) = Some regs' →
+      incrementPC (<[ dst := WSealed a sb ]ᵣ> regs) = Some regs' →
       Seal_spec regs dst src1 src2 regs' NextIV
   | Seal_spec_failure :
       Seal_failure regs dst src1 src2 regs' →
@@ -114,9 +114,9 @@ Section cap_lang_rules.
      }
      apply andb_true_iff in HSA; destruct HSA as (Hps & Hwb).
 
-     destruct (incrementPC (<[ dst := (WSealed a sb) ]> regs)) as  [ regs' |] eqn:Hregs'.
+     destruct (incrementPC (<[ dst := (WSealed a sb) ]ᵣ> regs)) as  [ regs' |] eqn:Hregs'.
      2: { (* Failure: the PC could not be incremented correctly *)
-       assert (incrementPC (<[ dst := (WSealed a sb) ]> r) = None).
+       assert (incrementPC (<[ dst := (WSealed a sb) ]ᵣ> r) = None).
        { eapply incrementPC_overflow_mono; first eapply Hregs'.
          + by rewrite lookup_insert_is_Some'; eauto.
          + by apply insert_mono; eauto.
@@ -136,6 +136,7 @@ Section cap_lang_rules.
      rewrite HuPC in Hstep; clear HuPC; inversion Hstep; clear Hstep; subst c σ2. cbn.
      iFrame.
      iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+     { apply is_Some_lookup_reg; done. }
      iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
      iFrame. iModIntro. iApply "Hφ". iFrame.
      iPureIntro. eapply Seal_spec_success; eauto.
@@ -151,6 +152,9 @@ Section cap_lang_rules.
     permit_seal p = true →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -166,7 +170,7 @@ Section cap_lang_rules.
           ∗ r2 ↦ᵣ WSealable sb
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' Hcnull Hcnull' Hncull'' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -190,6 +194,8 @@ Section cap_lang_rules.
     permit_seal p = true →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -203,7 +209,7 @@ Section cap_lang_rules.
           ∗ r2 ↦ᵣ WSealable sb
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -227,6 +233,8 @@ Section cap_lang_rules.
     permit_seal p = true →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -240,7 +248,7 @@ Section cap_lang_rules.
           ∗ r2 ↦ᵣ WSealed a sb
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -266,6 +274,8 @@ Section cap_lang_rules.
     permit_seal p = true →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -279,7 +289,7 @@ Section cap_lang_rules.
           ∗ r1 ↦ᵣ WSealRange p g b e a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hdst Hr1") as "[Hmap (%&%&%)]".
     iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -303,6 +313,7 @@ Section cap_lang_rules.
     permit_seal p = true →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -314,7 +325,7 @@ Section cap_lang_rules.
           ∗ r1 ↦ᵣ WSealed a (SCap pc_p pc_g pc_b pc_e pc_a)
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hps Hwb Hpc_a' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -337,6 +348,8 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     is_sealb w2 = false →
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
@@ -345,7 +358,7 @@ Section cap_lang_rules.
       Instr Executable @ E
       {{{ RET FailedV; True }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpc_a' Hfalse ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hpc_a' Hfalse Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
 
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_Seal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.

@@ -19,30 +19,30 @@ Section cap_lang_rules.
 
   Inductive Jnz_failure (regs: Reg) (rimm: Z + RegName) (rcond : RegName) :=
   | Jnz_fail_PC_overflow_next cond:
-      regs !! rcond = Some cond →
+      regs !!ᵣ rcond = Some cond →
       nonZero cond = false →
       incrementPC regs = None →
       Jnz_failure regs rimm rcond
   | Jnz_fail_PC_overflow_jmp imm cond:
-      regs !! rcond = Some cond →
+      regs !!ᵣ rcond = Some cond →
       nonZero cond = true →
       z_of_argument regs rimm = Some imm →
       incrementPC_gen regs imm = None →
       Jnz_failure regs rimm rcond
   | Jnz_fail_no_imm cond:
-      regs !! rcond = Some cond →
+      regs !!ᵣ rcond = Some cond →
       nonZero cond = true →
       z_of_argument regs rimm = None →
       Jnz_failure regs rimm rcond.
 
   Inductive Jnz_spec (regs: Reg) (rimm: Z + RegName) (rcond : RegName) : Reg → cap_lang.val → Prop :=
   | Jnz_spec_success_next regs' cond :
-      regs !! rcond = Some cond →
+      regs !!ᵣ rcond = Some cond →
       nonZero cond = false →
       incrementPC regs = Some regs' →
       Jnz_spec regs rimm rcond regs' NextIV
   | Jnz_spec_success_jmp regs' imm cond :
-      regs !! rcond = Some cond →
+      regs !!ᵣ rcond = Some cond →
       nonZero cond = true →
       z_of_argument regs rimm = Some imm →
       incrementPC_gen regs imm = Some regs' →
@@ -103,7 +103,8 @@ Section cap_lang_rules.
         pose proof Hregs' as H'regs'; cycle 1.
       {
         assert (incrementPC_gen r imm = None) as HH.
-        { eapply incrementPC_gen_overflow_mono; first eapply Hregs' ; eauto. }
+        { eapply incrementPC_gen_overflow_mono; first eapply Hregs' ; eauto.
+        }
         apply (incrementPC_gen_fail_updatePC_gen _ sr m) in HH. rewrite HH in Hstep.
         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->) by (inversion Hstep; auto).
         iFailWP "Hφ" Jnz_fail_PC_overflow_jmp. }
@@ -135,12 +136,12 @@ Section cap_lang_rules.
       eapply Jnz_spec_success_next; eauto.
   Qed.
 
-  (* TODO fix the instantiated rules *)
   Lemma wp_jnz_success_jmp_z E rcond pc_p pc_g pc_b pc_e pc_a pc_a' w imm wcond :
     decodeInstrW w = Jnz (inl imm) rcond →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     wcond ≠ WInt 0%Z →
     (pc_a + imm)%a = Some pc_a' ->
+    rcond ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -153,7 +154,7 @@ Section cap_lang_rules.
           ∗ rcond ↦ᵣ wcond
           }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hne Hpca' ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
+    iIntros (Hinstr Hvpc Hne Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hrcond") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -181,6 +182,8 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     wcond ≠ WInt 0%Z →
     (pc_a + imm)%a = Some pc_a' ->
+    rcond ≠ cnull ->
+    rimm ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -195,7 +198,7 @@ Section cap_lang_rules.
           ∗ rcond ↦ᵣ wcond
           }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hne Hpca' ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
+    iIntros (Hinstr Hvpc Hne Hpca' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hrimm Hrcond") as "[Hmap (%&%&%)]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -223,6 +226,7 @@ Section cap_lang_rules.
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     imm ≠ 0%Z →
     (pc_a + imm)%a = Some pc_a' ->
+    rcond ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -235,7 +239,7 @@ Section cap_lang_rules.
         ∗ ▷ rcond ↦ᵣ WInt imm
           }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hne Hpca' ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
+    iIntros (Hinstr Hvpc Hne Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrcond) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hrcond") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -291,6 +295,7 @@ Section cap_lang_rules.
     decodeInstrW w = Jnz (inl imm) PC →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + imm)%a = Some pc_a' ->
+    rimm ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -303,7 +308,7 @@ Section cap_lang_rules.
           ∗ rimm ↦ᵣ WInt imm
           }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' ϕ) "(>HPC & >Hpc_a & >Hrimm) Hφ".
+    iIntros (Hinstr Hvpc Hpca' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrimm) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hrimm") as "[Hmap %]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { set_solver+. }
@@ -344,8 +349,10 @@ Section cap_lang_rules.
     { iApply "Hφ". iFrame.
       rewrite insert_insert.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+    { destruct (decide (rcond = cnull)); cbn in *; done. }
     { destruct Hfail; simplify_map_eq; eauto; try congruence.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+      all: destruct (decide (rcond = cnull)); cbn in *; try done.
+      all: incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
     }
   Qed.
 
@@ -354,6 +361,7 @@ Section cap_lang_rules.
     decodeInstrW w = Jnz (inr rimm) rcond →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    rimm ≠ cnull ->
 
     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
@@ -366,7 +374,7 @@ Section cap_lang_rules.
           ∗ rimm ↦ᵣ wimm
           ∗ rcond ↦ᵣ WInt 0%Z }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpc_a' ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
+    iIntros (Hinstr Hvpc Hpc_a' Hcnull ϕ) "(>HPC & >Hpc_a & >Hrimm & >Hrcond) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hrcond Hrimm") as "[Hmap (%&%&%)]".
     iApply (wp_Jnz with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -376,8 +384,10 @@ Section cap_lang_rules.
     { iApply "Hφ". iFrame.
       rewrite insert_insert.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+    { destruct (decide (rcond = cnull)); cbn in *; done. }
     { destruct Hfail; simplify_map_eq; eauto; try congruence.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+      all: destruct (decide (rcond = cnull)); cbn in *; try done.
+      all: try (incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence).
     }
   Qed.
 

@@ -64,6 +64,9 @@ Section fundamental.
           iApply (interp_next_PC with "Hinv_interp"); eauto.
         }
         simplify_map_eq.
+        assert (r ≠ cnull); simplify_map_eq.
+        { intros ->; simplify_map_eq.
+          destruct (regs !! cnull) eqn:Heq; rewrite Heq in H; cbn in *; try done. }
         iDestruct ("Hreg" $! r (WCap p0 g0 b0 e0 a0) n H ) as "Hr0".
         destruct (executeAllowed p0) eqn:Hpft; cycle 1.
         { iApply (wp_bind (fill [SeqCtx])).
@@ -82,19 +85,23 @@ Section fundamental.
         { destruct ρ;auto;contradiction. }
         assert (is_Some (<[dst:=w0]> regs !! csp)) as [??].
         { destruct (decide (dst = csp));simplify_map_eq =>//. }
-        iApply ("IH" $! _ _ _ _ _ (<[dst:=w0]> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+        iApply ("IH" $! _ _ _ _ _ (<[dst:=w0]ᵣ> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
         - intros; simpl.
           rewrite lookup_insert_is_Some.
           destruct (decide (dst = x0)); auto; right; split; auto.
+          destruct (decide (PC = x0)); auto; simplify_map_eq; done. 
         - iIntros (ri wi Hri Hregs_ri).
           destruct (decide (ri = dst)); simplify_map_eq.
           + (* ri = dst *)
+            destruct (decide (dst = cnull)); [iApply interp_int|].
             destruct src; simplify_map_eq.
             * repeat rewrite fixpoint_interp1_eq; auto.
             * destruct (decide (PC = r)); simplify_map_eq; first done.
+              destruct (decide (cnull = r)); simplify_map_eq.
+              { destruct (regs !! cnull) eqn:Hr; simplify_map_eq; iApply interp_int. }
               iApply ("Hreg" $! r) ; auto.
           + iApply ("Hreg" $! ri) ; auto.
-      - iApply (interp_next_PC with "Hinv_interp"); eauto.
+      - iApply (interp_next_PC with "[Hinv_interp]"); eauto.
       }
   Qed.
 

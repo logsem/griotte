@@ -33,6 +33,8 @@ Section wp_interp.
     decodeInstrW wi = Store rdst (inr rsrc) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    rsrc ≠ cnull ->
+    rdst ≠ cnull ->
 
      {{{ interp W C wsrc
            ∗ interp W C wdst
@@ -60,7 +62,7 @@ Section wp_interp.
           )
        }}}.
   Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' φ)
+    iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ)
       "(#Hinterp_src & #Hinterp_dst & HPC & Hi & Hsrc & Hdst & Hregion & Hworld)".
     iIntros "Hφ".
 
@@ -152,6 +154,8 @@ Section wp_interp.
     decodeInstrW wi = Store rdst (inr rsrc) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    rsrc ≠ cnull ->
+    rdst ≠ cnull ->
 
      {{{ interp W C wsrc
            ∗ interp W C (WCap p g b e a)
@@ -177,7 +181,7 @@ Section wp_interp.
           )
        }}}.
   Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' φ)
+    iIntros (Hdecode_wi Hcorrect_pc Hpca' ? ? φ)
       "(#Hinterp_src & #Hinterp_dst & HPC & Hi & Hsrc & Hdst & Hregion & Hworld)".
     iIntros "Hφ".
     iApply (wp_store_interp with "[-Hφ]");eauto;[iFrame "∗ #"|].
@@ -194,6 +198,7 @@ Section wp_interp.
     decodeInstrW wi = Store rdst (inl z) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    rdst ≠ cnull ->
 
      {{{ interp W C wdst
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
@@ -218,7 +223,7 @@ Section wp_interp.
           )
        }}}.
   Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' φ)
+    iIntros (Hdecode_wi Hcorrect_pc Hpca' ? φ)
       "(#Hinterp_dst & HPC & Hi & Hdst & Hregion & Hworld)".
     iIntros "Hφ".
 
@@ -312,6 +317,7 @@ Section wp_interp.
     decodeInstrW wi = Store rdst (inl z) →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    rdst ≠ cnull ->
 
      {{{  interp W C (WCap p g b e a)
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
@@ -334,7 +340,7 @@ Section wp_interp.
           )
        }}}.
   Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' φ)
+    iIntros (Hdecode_wi Hcorrect_pc Hpca' ? φ)
       "(#Hinterp_dst & HPC & Hi & Hdst & Hregion & Hworld)".
     iIntros "Hφ".
     iApply (wp_store_interp_z with "[-Hφ]");eauto;[iFrame "∗ #"|].
@@ -348,6 +354,8 @@ Section wp_interp.
     decodeInstrW wi = UnSeal r2 r1 r2 →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{  PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ wi
@@ -367,7 +375,7 @@ Section wp_interp.
               ∗ ⌜ wsealed = WSealed asr wsb ⌝
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpc_a' ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hpc_a' ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
 
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_UnSeal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
@@ -375,10 +383,9 @@ Section wp_interp.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].
-    rewrite lookup_insert_ne // lookup_insert  in H2.
-    rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert in H3.
-    apply incrementPC_Some_inv in H6.
-    destruct H6 as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
+    simplify_map_eq.
+    apply incrementPC_Some_inv in H8.
+    destruct H8 as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
     rewrite lookup_insert_ne // lookup_insert in HPC.
     simplify_eq.
     iExists p, g, b, e, a, sb.
@@ -397,6 +404,8 @@ Section wp_interp.
     (pc_a + 1)%a = Some pc_a' →
     permit_unseal psr = true ->
     (bsr <= asr < esr)%ot ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
 
     {{{  PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ wi
@@ -415,7 +424,7 @@ Section wp_interp.
               ∗ ⌜ wsealed = WSealed asr wsb ⌝
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hpc_a' Hpsr Hsr ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hpc_a' Hpsr Hsr ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
 
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_UnSeal with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
@@ -423,10 +432,9 @@ Section wp_interp.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
     destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].
-    rewrite lookup_insert_ne // lookup_insert  in H2.
-    rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert in H3.
-    apply incrementPC_Some_inv in H6.
-    destruct H6 as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
+    simplify_map_eq.
+    apply incrementPC_Some_inv in H8.
+    destruct H8 as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
     rewrite lookup_insert_ne // lookup_insert in HPC.
     simplify_eq.
     iExists sb.
@@ -446,6 +454,8 @@ Section wp_interp.
     decodeInstrW wi = Load rdst rsrc →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    rsrc ≠ cnull ->
+    rdst ≠ cnull ->
 
      {{{ interp W C wsrc
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
@@ -472,7 +482,7 @@ Section wp_interp.
           )
        }}}.
   Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' φ)
+    iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ)
       "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hregion & Hworld)".
     iIntros "Hφ".
 
@@ -562,6 +572,8 @@ Section wp_interp.
     decodeInstrW wi = Load rdst rsrc →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
+    rsrc ≠ cnull ->
+    rdst ≠ cnull ->
 
      {{{ interp W C (WCap p g b e a)
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
@@ -587,7 +599,7 @@ Section wp_interp.
           )
        }}}.
   Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' φ)
+    iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ)
       "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hregion & Hworld)".
     iIntros "Hφ".
     iApply (wp_load_interp with "[-Hφ]");eauto;[iFrame "∗ #"|].

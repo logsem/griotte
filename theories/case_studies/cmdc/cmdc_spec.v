@@ -479,6 +479,11 @@ Section CMDC.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
     }
     iDestruct (big_sepM_delete _ _ ct4 with "Hrmap") as "[Hct4 Hrmap]"; first by simplify_map_eq.
+    assert ( rmap' !! cnull = Some (WInt 0) ) as Hwcnull'.
+    { apply Hrmap_init'. rewrite Hdom_rmap'.
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+    }
+    iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
@@ -493,10 +498,10 @@ Section CMDC.
 
     focus_block 4 "Hcode_main" as a_assert_c Ha_assert_c "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (assert_success_spec with
-             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcra
+             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
               $Hcode $Himport_assert]"); auto.
     { solve_addr. }
-    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1
+    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
                     & Hcode & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -608,6 +613,10 @@ Section CMDC.
            ]} : Reg
         ).
 
+    rewrite !(delete_commute _ _ cnull).
+    iDestruct (big_sepM_insert _ _ cnull with "[$Hrmap $Hcnull]") as "Hrmap"; first by simplify_map_eq.
+    rewrite insert_delete_insert.
+    repeat (rewrite -delete_insert_ne //).
     rewrite !(delete_commute _ _ ct4).
     iDestruct (big_sepM_insert _ _ ct4 with "[$Hrmap $Hct4]") as "Hrmap"; first by simplify_map_eq.
     rewrite insert_delete_insert.
@@ -801,6 +810,11 @@ Section CMDC.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
     }
     iDestruct (big_sepM_delete _ _ ct4 with "Hrmap") as "[Hct4 Hrmap]"; first by simplify_map_eq.
+    assert ( rmap'' !! cnull = Some (WInt 0) ) as Hwcnull''.
+    { apply Hrmap_init''. rewrite Hdom_rmap''.
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+    }
+    iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
@@ -815,10 +829,10 @@ Section CMDC.
 
     focus_block 9 "Hcode_main" as a_assert_b Ha_assert_b "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (assert_success_spec with
-             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hcra $Hct0 $Hct1
+             "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hcra $Hct0 $Hct1 $Hcnull
               $Hcode $Himport_assert]"); auto.
     { solve_addr. }
-    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1
+    iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
                     & Hcode & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

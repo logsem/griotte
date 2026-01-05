@@ -72,7 +72,10 @@ Section fundamental.
       { destruct (decide (PC = dst)); simplify_map_eq; auto. }
       assert (r1 ≠ PC) as Hne.
       { destruct (decide (PC = r1)); last auto. simplify_map_eq; auto. }
-      rewrite lookup_insert_ne in Hr1; auto.
+      assert (r1 ≠ cnull); simplify_map_eq.
+      { intros ->; destruct (regs !! cnull) eqn:Hr ; simplify_map_eq. }
+      assert (r2 ≠ cnull); simplify_map_eq.
+      { intros ->; destruct (regs !! cnull) eqn:Hr ; simplify_map_eq. }
 
       iAssert (interp W C (WSealable sb)) as "#HVsb".
       { destruct (decide (r2 = PC)) as [Heq|Heq]; simplify_map_eq; first done.
@@ -98,6 +101,7 @@ Section fundamental.
       + iIntros (ri wi Hri Hregs_ri).
         destruct (decide (ri = dst)); simplify_map_eq.
         { unshelve iDestruct ("Hreg" $! r1 _ _ Hr1) as "HVsr"; eauto.
+          destruct (decide (dst = cnull)) ; first iApply interp_int.
           iApply (sealing_preserves_interp with "[HVsb HVsr]"); eauto.
         }
         { by iApply "Hreg". }
