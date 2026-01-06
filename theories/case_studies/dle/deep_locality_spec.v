@@ -133,7 +133,7 @@ Section DLE.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l) "(%Hl_unk & Hsts_C & Hr_C & Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
+        as (l) "(%Hl_unk & Hsts_C & Hr_C & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_a]") as "%Hcgp_a_stk".
     set (W1 := revoke W0).
@@ -349,26 +349,32 @@ Section DLE.
 
     (* Prepare the closing resources for the switcher call spec *)
     iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W3 C a ∗
-                                                    ⌜W3.1 !! a = Some Revoked⌝)
+        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W3 C a)
       )%I with "[Hfrm_close_W0]" as "#Hfrm_close_W3".
     {
       iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "[Hclose %Hrev]".
+      iModIntro; iIntros (k a Ha) "Hclose".
       iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
-      iPureIntro.
-      pose proof (elem_of_list_lookup_2 _ _ _ Ha) as Ha'.
-      rewrite lookup_insert_ne; last (set_solver+Ha' Hcgp_a_stk).
-      rewrite lookup_insert_ne; last (set_solver+Ha' Hcgp_b_stk).
-      done.
     }
-
+    assert (Forall (λ a, W3.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)) as Hfrm_close_W3.
+    {
+      apply Forall_forall.
+      intros x Hx.
+      assert (x ≠ (cgp_b ^+ 1)%a).
+      { intros Hx'; simplify_eq; set_solver+Hx Hcgp_a_stk. }
+      assert (x ≠ (cgp_b)%a).
+      { intros Hx'; simplify_eq; set_solver+Hx Hcgp_b_stk. }
+      simplify_map_eq.
+      apply elem_of_list_lookup_1 in Hx; destruct Hx as [? Hx].
+      rewrite Forall_forall in Hfrm_close_W0; apply Hfrm_close_W0.
+      eapply elem_of_list_lookup_2; eauto.
+    }
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hr_C $Hsts_C $Hfrm_close_W3 $Hcstk_frag
-              $Hinterp_W3_C_f $HentryC_f $HK]"); eauto.
+              $Hinterp_W3_C_f $HentryC_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite /dom_arg_rmap Hrmap_dom.
@@ -381,8 +387,8 @@ Section DLE.
     clear stk_mem.
     iNext.
     iIntros (W4 rmap stk_mem l')
-      "( %Hl_unk' & Hrevoked_l'
-      & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4
+      "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
+      & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4 & %Hfrm_close_W4
       & Hna & %Hcsp_bounds
       & Hsts_C & Hr_C
       & Hcstk_frag
@@ -436,7 +442,7 @@ Section DLE.
       apply elem_of_app in HW4 as [?|?]; try done.
     }
     { by destruct Hl_unk' as [Hl_unk' _]; apply NoDup_app in Hl_unk' as (? & _ & _). }
-    { iClear "#"; clear; iIntros (a) "[(%&%&%& (%&_&$&?) &_) _]". }
+    { iClear "#"; clear; iIntros (a) "(%&%&%& (%&_&$&?) &_)". }
 
     (* simplify the knowledge about the new rmap *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
@@ -509,27 +515,21 @@ Section DLE.
 
     (* Prepare the closing resources for the switcher call spec *)
     iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W5 C a ∗
-                                                    ⌜W5.1 !! a = Some Revoked⌝)
-      )%I with "[Hfrm_close_W3 Hfrm_close_W4]" as "Hfrm_close_W5".
-    { rewrite !big_sepL_sep.
-      iDestruct "Hfrm_close_W3" as "[Hclose_W3 %Hrev_W3]".
-      iDestruct "Hfrm_close_W4" as "[Hclose_W4 %Hrev_W4]".
-      iSplitL "Hclose_W4".
-      - iApply (big_sepL_impl with "Hclose_W4").
-        iModIntro; iIntros (k a Ha) "Hclose'".
-        iApply mono_priv_closing_revoked_resources; eauto.
-      - iApply big_sepL_pure; iPureIntro.
-        intros k x Hk.
-        cbn.
-        eapply Hrev_W4; eauto.
+        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W5 C a)
+      )%I with "[Hfrm_close_W3 Hfrm_close_W4]" as "#Hfrm_close_W5".
+    {
+      iDestruct "Hfrm_close_W3" as "Hclose_W3".
+      iDestruct "Hfrm_close_W4" as "Hclose_W4".
+      iApply (big_sepL_impl with "Hclose_W4").
+      iModIntro; iIntros (k a Ha) "Hclose'".
+      iApply mono_priv_closing_revoked_resources; eauto.
     }
 
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hr_C $Hsts_C $Hfrm_close_W5 $Hcstk_frag
-              $Hinterp_W5_C_f $HentryC_f $HK]"); eauto.
+              $Hinterp_W5_C_f $HentryC_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite /dom_arg_rmap Hdom_rmap.
@@ -540,8 +540,8 @@ Section DLE.
     iNext. subst rmap'.
     clear dependent warg0 warg1 rmap stk_mem.
     iIntros (W6 rmap stk_mem l0)
-      "( _ & _
-      & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6
+      "( _ & _ & _
+      & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6 & _
       & Hna & _
       & Hsts_C & Hr_C
       & Hcstk_frag

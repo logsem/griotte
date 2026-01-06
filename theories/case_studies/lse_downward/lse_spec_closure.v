@@ -144,7 +144,8 @@ Section LSE.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
+        as (l
+           ) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
 
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.

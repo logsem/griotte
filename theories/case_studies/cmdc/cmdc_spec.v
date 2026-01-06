@@ -396,15 +396,20 @@ Section CMDC.
     }
 
     iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e,
-           closing_revoked_resources W1 B a ∗ ⌜W1.1 !! a = Some Revoked⌝)
-      )%I with "[Hrel_stk_B]"  as "Hrel_stk_B".
+        ( [∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 B a)
+          ∗ ⌜ Forall (λ a, W1.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)⌝
+      )%I with "[Hrel_stk_B]"  as "[Hrel_stk_B %Hrel_stk_B]".
     {
-      iDestruct (big_sepL_sep with "Hrel_stk_B") as "[Hrel Hrev]".
-      iApply big_sepL_sep; iFrame.
-      iApply (big_sepL_impl with "Hrel").
-      iIntros (k a Ha) "!> Hrel".
-      iApply closing_revoked_from_rel_stack; auto.
+      iDestruct (big_sepL_sep with "Hrel_stk_B") as "[Hrel %Hrev]".
+      iSplitL.
+      + iApply (big_sepL_impl with "Hrel").
+        iIntros (k a Ha) "!> Hrel".
+        iApply closing_revoked_from_rel_stack; auto.
+      + iPureIntro.
+        apply Forall_forall.
+        intros a Ha.
+        apply elem_of_list_lookup_1 in Ha as [? Ha].
+        eapply Hrev; eauto.
     }
 
     (* replace frm_init with (frm W1). *)
@@ -413,7 +418,7 @@ Section CMDC.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
               $Hcsp_stk $HWreg_B $HWstd_full_B $Hrel_stk_B $Hcstk_frag
-              $Hinterp_W1_B_f $HentryB_f $HK]"); eauto.
+              $Hinterp_W1_B_f $HentryB_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hrmap_dom; set_solver.
@@ -427,8 +432,8 @@ Section CMDC.
 
     iNext. subst rmap'.
     iIntros (W2_B rmap' stk_mem l)
-      "( _ & _
-      & %HW1_pubB_W2 & Hrel_stk_B & %Hdom_rmap' & Hclose_reg_B
+      "( _ & _ & _
+      & %HW1_pubB_W2 & Hrel_stk_B & %Hdom_rmap' & Hclose_reg_B & %Hclose_reg_B
       & Hna & %Hcsp_bounds
       & HWstd_full_B & HWreg_B
       & Hcstk_frag
@@ -727,15 +732,20 @@ Section CMDC.
     }
 
     iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e,
-           closing_revoked_resources W3 C a ∗ ⌜W3.1 !! a = Some Revoked⌝)
-      )%I with "[Hrel_stk_C]"  as "Hrel_stk_C".
+        ( [∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W3 C a)
+          ∗ ⌜ Forall (λ a, W3.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)⌝
+      )%I with "[Hrel_stk_C]"  as "[Hrel_stk_C %Hrel_stk_C]".
     {
-      iDestruct (big_sepL_sep with "Hrel_stk_C") as "[Hrel Hrev]".
-      iApply big_sepL_sep; iFrame.
-      iApply (big_sepL_impl with "Hrel").
-      iModIntro; iIntros (k a Ha) "Hclose".
-      iApply closing_revoked_from_rel_stack;eauto.
+      iDestruct (big_sepL_sep with "Hrel_stk_C") as "[Hrel %Hrev]".
+      iSplitL.
+      + iApply (big_sepL_impl with "Hrel").
+        iIntros (k a Ha) "!> Hrel".
+        iApply closing_revoked_from_rel_stack; auto.
+      + iPureIntro.
+        apply Forall_forall.
+        intros a Ha.
+        apply elem_of_list_lookup_1 in Ha as [? Ha].
+        eapply Hrev; eauto.
     }
 
     iDestruct ( big_sepL2_length with "Hstk" ) as "%Hlen_stk".
@@ -744,7 +754,7 @@ Section CMDC.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
               $Hstk $HWreg_C $HWstd_full_C $Hrel_stk_C $Hcstk_frag
-              $Hinterp_W3_C_g $HentryC_g $HK]"); eauto.
+              $Hinterp_W3_C_g $HentryC_g $HK]"); eauto; iFrame "%".
     { subst rmap''.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hdom_rmap'; set_solver.
@@ -758,8 +768,8 @@ Section CMDC.
 
     iNext. subst rmap''. clear dependent stk_mem.
     iIntros (W4_C rmap'' stk_mem l)
-      "( _ & _
-      & %HW1_pubC_4 & Hrel_stk_C & %Hdom_rmap'' & Hclose_reg_C
+      "( _ & _ & _
+      & %HW1_pubC_4 & Hrel_stk_C & %Hdom_rmap'' & Hclose_reg_C & _
       & Hna & _
       & HWstd_full_C & HWreg_C
       & Hcstk_frag

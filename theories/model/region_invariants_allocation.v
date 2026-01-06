@@ -996,7 +996,7 @@ Section region_alloc_cmpt.
         rewrite elem_of_finz_seq_between in Ha.
         solve_addr+HC Ha.
       + pose proof (cmpt_disjointness C_cmpt) as HC.
-        apply disjoint_regions_tactics.disjoint_list_cons in HC
+        apply disjoint_list_cons in HC
         ; destruct HC as [HC _].
         rewrite union_list_cons in HC.
         cbn in HC.

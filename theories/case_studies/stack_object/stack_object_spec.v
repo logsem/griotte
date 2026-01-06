@@ -2,10 +2,10 @@ From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
 From cap_machine Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
-From cap_machine Require Import vae vae_helper vae_spec_closure.
+From cap_machine Require Import stack_object stack_object_spec_closure.
 From cap_machine Require Import proofmode.
 
-Section VAE.
+Section SO.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
@@ -23,14 +23,14 @@ Section VAE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  Lemma vae_init_spec
+  Lemma so_init_spec
 
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
     (rmap : Reg)
 
-    (b_vae_exp_tbl e_vae_exp_tbl : Addr)
+    (b_so_exp_tbl e_so_exp_tbl : Addr)
 
     (b_assert e_assert : Addr) (a_flag : Addr)
     (C_f : Sealable)
@@ -40,43 +40,39 @@ Section VAE.
     (Ws : list WORLD)
     (Cs : list CmptName)
 
-    (Nassert Nswitcher Nvae_code VAEN : namespace)
+    (Nassert Nswitcher Nso_code SON : namespace)
 
     (cstk : CSTK)
-    (i : positive)
     :
 
     let imports :=
-     vae_main_imports
+     so_main_imports
        b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
     in
 
     Nswitcher ## Nassert ->
-    Nswitcher ## Nvae_code ->
-    Nassert ## Nvae_code ->
+    Nswitcher ## Nso_code ->
+    Nassert ## Nso_code ->
 
-    (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
+    (b_so_exp_tbl <= b_so_exp_tbl ^+ 2 < e_so_exp_tbl)%a ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (vae_main_code ot_switcher))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
 
-    (cgp_b + length vae_main_data)%a = Some cgp_e ->
+    (cgp_b + length so_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    loc W0 !! i = Some (encode false) ->
     frame_match Ws Cs cstk W0 C ->
     (
       na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
       ∗ na_inv logrel_nais Nswitcher switcher_inv
-      ∗ na_inv logrel_nais Nvae_code
-          ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a (vae_main_code ot_switcher))
-      ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-      ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
-      ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
-          ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 1 (length (imports ++ VAE_main_code_init))))
-      ∗ inv awkN (awk_inv C i cgp_b)
-      ∗ sts_rel_loc C i awk_rel_pub awk_rel_priv
+      ∗ na_inv logrel_nais Nso_code
+          ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
+    ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
+    ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
+    ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
+        ((b_so_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run))))
       ∗ na_own logrel_nais ⊤
 
       (* initial register file *)
@@ -96,22 +92,20 @@ Section VAE.
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
       ∗ interp W0 C (WCap RWL Local csp_b csp_e csp_b)
 
-      ∗ WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
-      ∗ WSealed ot_switcher (SCap RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
+      ∗ WSealed ot_switcher (SCap RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
+      ∗ WSealed ot_switcher (SCap RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
       ∗ seal_pred ot_switcher ot_switcher_propC
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_assert HNswitcher_vae HNassert_vae Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hloc_i_0 Hframe_match
-            )
+    iIntros (HNswitcher_assert HNswitcher_so HNassert_so Hsize_so_exp_tbl Hrmap_dom Hrmap_init HsubBounds
+               Hcgp_contiguous Himports_contiguous Hframe_match)
       "(#Hassert & #Hswitcher
-      & #Hvae
-      & #Hvae_exp_tbl_PCC
-      & #Hvae_exp_tbl_CGP
-      & #Hvae_exp_tbl_awkward
-      & #Hawk_inv & #Hrel_ι
+      & #Hso_code
+      & #Hso_exp_tbl_PCC
+      & #Hso_exp_tbl_CGP
+      & #Hso_exp_tbl_f
       & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Hr_C & Hsts_C
@@ -120,12 +114,12 @@ Section VAE.
       & #Hinterp_W0_C_f
       & #HentryC_f
       & #Hinterp_W0_csp
-      & #Hentry_awkward & #Hentry_awkward'
+      & #Hentry_f & #Hentry_f'
       & #Hot_switcher
       )".
-    iMod (na_inv_acc with "Hvae Hna")
-      as "(( >Himports_main & >Hcode_main) & Hna & Hvae_close)"; auto.
-    codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
+    iMod (na_inv_acc with "Hso_code Hna")
+      as "(( >Himports_main & >Hcode_main) & Hna & Hso_code_close)"; auto.
+    codefrag_facts "Hcode_main" ; rename H into Hpc_contiguous; clear H0.
     (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
     iExtractList "Hrmap" [cra;ca0;ct0;ct1;ct2;ct3;cs0;cs1]
       as ["Hcra"; "Hca0"; "Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hcs0"; "Hcs1"].
@@ -155,33 +149,11 @@ Section VAE.
     (* --------------------------------------------------------------- *)
 
     (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 0 : INIT ------------------ *)
+    (* ---------------- BLOCK 1 : FETCH ------------------ *)
     (* --------------------------------------------------- *)
-    rewrite /vae_main_code /VAE_main_code_init.
+    rewrite /so_main_code /SO_main_code_run.
     rewrite -!app_assoc.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
-
-    (* Store cgp 0%Z; *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iMod (inv_acc with "Hawk_inv") as "(>(%b & Hst_i & Hcgp_b) & Hclose_awk)"; auto.
-    iDestruct (sts_full_state_loc  with "Hsts_C Hst_i") as "%Hloc_i_1".
-    rewrite Hloc_i_0 in Hloc_i_1; simplify_eq.
-    iApply (wp_store_success_z with "[$HPC $Hi $Hcgp $Hcgp_b]"); try solve_pure.
-    { apply withinBounds_true_iff; solve_addr. }
-    iIntros "!> (HPC & Hi & Hcgp & Hcgp_b)".
-    iMod ("Hclose_awk" with "[$Hst_i $Hcgp_b]") as "_".
-    iModIntro.
-    wp_pure.
-    iSpecialize ("Hcode" with "[$]").
-
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    (* --------------------------------------------------- *)
-    (* -------------- BLOCK 1 to 3 : FETCH --------------- *)
-    (* --------------------------------------------------- *)
-
-    focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
@@ -190,7 +162,11 @@ Section VAE.
     iEval (cbn) in "Hct0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent a_fetch1.
+    (* --------------------------------------------------- *)
+    (* ---------------- BLOCK 2 : FETCH ------------------ *)
+    (* --------------------------------------------------- *)
+
+    focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hcs0 $Hcs1 $Hcode $Himport_C_f]"); eauto.
     { apply withinBounds_true_iff; solve_addr. }
     iNext ; iIntros "(HPC & Hct1 & Hcs0 & Hcs1 & Hcode & Himport_C_f)".
@@ -201,12 +177,12 @@ Section VAE.
     (* ----------------- BLOCK 3: CALL B ----------------- *)
     (* --------------------------------------------------- *)
 
-    focus_block 3 "Hcode_main" as a_callB Ha_callB "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent a_fetch2.
+    focus_block 2 "Hcode_main" as a_callB Ha_callB "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent a_fetch1.
     (* Jalr cra ct0; *)
     iInstr "Hcode".
 
 
-    (*  -- prove that the VAE_awkward entry point is safe-to-share -- *)
+    (*  -- prove that the SO_f entry point is safe-to-share -- *)
 
     (* -- separate argument registers -- *)
     iExtractList "Hrmap" [ca1;ca2;ca3;ca4;ca5]
@@ -257,7 +233,7 @@ Section VAE.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    iMod ("Hvae_close" with "[$Hna Himport_assert Himport_switcher Himport_C_f Himports_main $Hcode_main]")
+    iMod ("Hso_code_close" with "[$Hna Himport_assert Himport_switcher Himport_C_f Himports_main $Hcode_main]")
       as "Hna".
     { iNext.
       iDestruct (region_pointsto_cons with "[$Himport_C_f $Himports_main]") as "Himports_main"
@@ -295,17 +271,17 @@ Section VAE.
     iEval (cbn) in "HPC".
 
     (* Halt *)
-    iMod (na_inv_acc with "Hvae Hna")
-      as "(( >Himports_main & >Hcode_main) & Hna & Hvae_close)"; auto.
+    iMod (na_inv_acc with "Hso_code Hna")
+      as "(( >Himports_main & >Hcode_main) & Hna & Hso_code_close)"; auto.
     replace (encodeInstrsW [Jalr cra ct0; Halt]) with
       (encodeInstrsW [Jalr cra ct0] ++ encodeInstrsW [Halt])
     by auto.
     rewrite -app_assoc.
-    focus_block 4 "Hcode_main" as a_callB' Ha_callB' "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 3 "Hcode_main" as a_callB' Ha_callB' "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iMod ("Hvae_close" with "[$Hna $Himports_main $Hcode_main]") as "Hna".
+    iMod ("Hso_code_close" with "[$Hna $Himports_main $Hcode_main]") as "Hna".
     wp_end; iIntros "_"; iFrame.
   Qed.
 
-End VAE.
+End SO.

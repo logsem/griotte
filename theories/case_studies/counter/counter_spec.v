@@ -211,7 +211,8 @@ Section Counter.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >[%stk_mem Hstk] & Hrevoked_l)".
+        as (l
+           ) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >%Hrevoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     (* iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk". *)
 
     set (W1 := revoke W0).
@@ -341,13 +342,11 @@ Section Counter.
     iClear "Hinterp_W0_C_f".
 
     (* Prepare the closing resources for the switcher call spec *)
-    iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 C a ∗
-                                                    ⌜W1.1 !! a = Some Revoked⌝)
+    iAssert (([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 C a)
       )%I with "[Hfrm_close_W0]" as "Hfrm_close_W1".
     {
       iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "[Hclose %Hrev]".
+      iModIntro; iIntros (k a Ha) "Hclose".
       iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
     }
 
@@ -355,7 +354,7 @@ Section Counter.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
               $Hstk $Hr_C $Hsts_C $Hfrm_close_W1 $Hcstk_frag
-              $Hinterp_W1_C_f $Hentry_C_f $HK]"); eauto; last iFrame.
+              $Hinterp_W1_C_f $Hentry_C_f $HK]"); eauto; last iFrame "∗%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite /dom_arg_rmap Hrmap_dom.
@@ -365,7 +364,7 @@ Section Counter.
 
     iNext. subst rmap'; clear stk_mem.
     iIntros (W2 rmap' stk_mem l')
-      "( _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2
+      "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & %Hfrm_close_W2
       & Hna & %Hcsp_bounds
       & Hsts_C & Hr_C
       & Hcstk_frag
@@ -387,10 +386,9 @@ Section Counter.
 
     iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W1.1) l ⌝)%I as "%Hrevoked_l_W".
     {
-      iDestruct (big_sepL_sep with "Hrevoked_l") as "[_ %Hrevoked_l]".
       iPureIntro; apply Forall_forall; intros a Ha.
-      apply elem_of_list_lookup in Ha as [k Hk].
-      apply Hrevoked_l in Hk.
+      rewrite Forall_forall in Hrevoked_l.
+      apply Hrevoked_l in Ha.
       by rewrite elem_of_dom.
     }
     iMod (
@@ -404,7 +402,6 @@ Section Counter.
       by apply Hdom.
     }
 
-    iDestruct (big_sepL_sep with "Hfrm_close_W0") as "[_ %Hrevoked_stk]".
     iMod (
        revoked_by_separation_many with "[$Hsts_C $Hr_C $Hstk]"
       ) as "(Hsts_C & Hr_C & Hstk & %Hrevoked_stk')".
@@ -418,8 +415,9 @@ Section Counter.
       { rewrite !elem_of_finz_seq_between in Hx |- *.
         solve_addr+Hcsp_bounds Hx.
       }
-      apply elem_of_list_lookup in Hx' as [? Hx'].
-      eexists; eapply Hrevoked_stk; eauto.
+      rewrite Forall_forall in Hrevoked_W0.
+      eexists.
+      by apply Hrevoked_W0.
     }
 
 
@@ -454,7 +452,6 @@ Section Counter.
     }
     iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
     iGo "Hcode".
-    repeat (replace ( WInt (if decide _ then 0 else 0%Z)) with (WInt 0) by (destruct (decide _);done)).
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Close the memory invariant *)
