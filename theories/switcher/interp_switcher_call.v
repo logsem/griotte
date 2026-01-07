@@ -964,10 +964,12 @@ Section fundamental.
 
     eset (frame :=
            {| wret := WInt 0;
-              wstk := (WCap RWL Local b e a);
               wcgp := WInt 0;
               wcs0 := WInt 0;
               wcs1 := WInt 0;
+              b_stk := b ;
+              a_stk := a ;
+              e_stk := e ;
               is_untrusted_caller := true
            |}).
 
@@ -993,7 +995,7 @@ Section fundamental.
     { iFrame. iNext. simpl.
       iSplit.
       - iApply (interp_weakening with "IH Hspv");auto;solve_addr.
-      - iIntros (W' HW' ???????) "(HPC & _)".
+      - iIntros (W' HW' ?????) "(HPC & _)".
         rewrite /interp_conf.
         wp_instr.
         iApply (wp_notCorrectPC with "[$]").

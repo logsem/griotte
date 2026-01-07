@@ -302,13 +302,16 @@ Section logrel.
     :=
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (frm : cframe)
      ,
-       ∀ wca0 wca1 regs a_stk e_stk stk_mem_l stk_mem_h,
+       ∀ wca0 wca1 regs stk_mem_l stk_mem_h,
+       let b_stk := frm.(b_stk) in
+       let a_stk := frm.(a_stk) in
+       let e_stk := frm.(e_stk) in
        let astk4 := (a_stk ^+4)%a in
        let callee_stk_region := finz.seq_between (if frm.(is_untrusted_caller) then a_stk else astk4) e_stk in
        let callee_stk_mem := if frm.(is_untrusted_caller) then stk_mem_l++stk_mem_h else stk_mem_h in
        ( PC ↦ᵣ updatePcPerm frm.(wret)
          ∗ cra ↦ᵣ frm.(wret)
-         ∗ csp ↦ᵣ frm.(wstk)
+         ∗ csp ↦ᵣ (WCap RWL Local b_stk e_stk a_stk)
          (* cgp, cs0 and cs1 are callee-saved registers *)
          ∗ cgp ↦ᵣ frm.(wcgp)
          ∗ cs0 ↦ᵣ frm.(wcs0)
@@ -320,8 +323,6 @@ Section logrel.
          ∗ ⌜dom regs = all_registers_s ∖ {[PC; cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
          ∗ ( [∗ map] r↦w ∈ regs, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
          (* points-to predicate of the stack region *)
-         ∗ ⌜ get_a frm.(wstk) = Some a_stk ⌝
-         ∗ ⌜ get_e frm.(wstk) = Some e_stk ⌝
          ∗ [[ a_stk , astk4 ]] ↦ₐ [[ stk_mem_l ]]
          ∗ [[ astk4 , e_stk ]] ↦ₐ [[ stk_mem_h ]]
          (* World interpretation *)
@@ -388,7 +389,7 @@ Section logrel.
              (* Continuation for the rest of the call-stack *)
              interp_cont_aux interp cstk' Ws' Cs'
              (* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
-             ∗ interp_callee_part_of_the_stack interp Wt Ct frm.(wstk) frm.(is_untrusted_caller)
+             ∗ interp_callee_part_of_the_stack interp Wt Ct (WCap RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) frm.(is_untrusted_caller)
              (* The continuation when matching the switcher's state at return-to-caller *)
              ∗ (∀ W', ⌜related_sts_pub_world Wt W'⌝
                       -∗  interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs') cstk' W' Ct frm)))%I
@@ -408,9 +409,6 @@ Section logrel.
     f_equiv.
     f_equiv;[apply IHy|].
     f_equiv;[| repeat (f_equiv; auto)].
-    rewrite /interp_callee_part_of_the_stack.
-    destruct wstk; auto.
-    destruct sb ; auto.
     apply Heq.
   Qed.
 

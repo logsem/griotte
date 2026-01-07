@@ -601,10 +601,7 @@ Proof.
   iNext.
   iSplitL "Hic";[|iSplitL "Hcallee"].
   - iFrame.
-  - rewrite /interp_callee_part_of_the_stack /=.
-    case_match=>//.
-    case_match=>//.
-    iApply (interp_monotone with "[//] [$]").
+  - iApply (interp_monotone with "[//] [$]").
   - iIntros (W'' Hrel').
     iApply "Hcont". iPureIntro.
     eapply related_sts_pub_trans_world;eauto.

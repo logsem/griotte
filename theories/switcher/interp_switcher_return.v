@@ -223,15 +223,6 @@ Section fundamental.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as (wtstk4) "[Ha_tstk Hcframe_interp]".
-    destruct wstk; try done.
-    destruct sb; try done.
-    destruct p; try done.
-    destruct rx; try done.
-    destruct w; try done.
-    destruct dl; try done.
-    destruct dro; try done.
-    destruct g; try done.
-    rename a into a_stk; rename b into b_stk; rename e into e_stk.
     iDestruct "Hcframe_interp" as "(%HWF & -> & Hcframe_interp)".
     destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
     simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hfreq).

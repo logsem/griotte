@@ -802,10 +802,12 @@ Section Switcher.
 
     set (frame :=
            {| wret := wcra_caller;
-              wstk := (WCap RWL Local b_stk e_stk a_stk);
               wcgp := wcgp_caller;
               wcs0 := wcs0_caller;
               wcs1 := wcs1_caller;
+              b_stk := b_stk;
+              a_stk := a_stk;
+              e_stk := e_stk;
               is_untrusted_caller := false
            |}).
 
@@ -881,7 +883,7 @@ Section Switcher.
       iSplit;[auto|]. iFrame "Htstk Hstk_interp".
       iSplit;[iPureIntro;solve_addr|].
       iSplit;[iPureIntro;solve_addr|].
-      iFrame.
+      iFrame; cbn.
       replace (a_stk ^+ 1)%a with a_stk1 by solve_addr+Hastk1.
       replace (a_stk ^+ 2)%a with a_stk2 by solve_addr+Hastk1 Hastk2.
       replace (a_stk ^+ 3)%a with a_stk3 by solve_addr+Hastk1 Hastk2 Hastk3.
@@ -917,10 +919,10 @@ Section Switcher.
       iEval (cbn).
       replace (a_stk ^+ 4)%a with a_stk4 by solve_addr. iSplitR.
       { iNext. iFrame "Hstk4v". }
-      iIntros "!>" (W' HW' ???????) "(HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
-      & Hca1 & #Hv' & % & Hregs & % & % & Hstk & Hstk' & Hr & Hcls & Hsts & Hcont & Hcstk & Own)".
+      iIntros "!>" (W' HW' ?????) "(HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
+      & Hca1 & #Hv' & % & Hregs & Hstk & Hstk' & Hr & Hcls & Hsts & Hcont & Hcstk & Own)".
       iApply "Hpost";iLeft. simplify_eq.
-      replace (a_stk0 ^+ 4)%a with a_stk4 by solve_addr.
+      replace (a_stk ^+ 4)%a with a_stk4 by solve_addr.
       iFrame "∗#%".
       iSplit.
       {
