@@ -8,10 +8,11 @@ From cap_machine Require Import cap_lang.
     kept track by the switcher.
 
     - [wret] records the value of [cra], the return pointer of the caller
-    - [wstk] records the value of [csp], the (compartment) stack frame of the caller
     - [wcgp] records the value of [cgp], the global data (compartment's memory) of the caller
     - [wcs0] records the value of [cs0], general purpose register
     - [wcs1] records the value of [cs1], general purpose register
+    - [b_stk], [a_stk] and  [e_stk] records the bounds of the stack capability [csp],
+    the (compartment) stack frame of the caller
 
     TODO: reformulate the following.
     In addition, it records whether the caller of the topmost frame
@@ -23,10 +24,12 @@ From cap_machine Require Import cap_lang.
  **)
 Record cframe := MkCFrame {
       wret : Word;
-      wstk : Word;
       wcgp : Word;
       wcs0 : Word;
       wcs1 : Word;
+      b_stk : Addr;
+      a_stk : Addr;
+      e_stk : Addr;
       is_untrusted_caller : bool;
   }.
 

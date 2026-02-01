@@ -101,11 +101,11 @@ Section Switcher_preamble.
       with the stack pointer of the callee.
       See [execute_entry_point] to understand how they are related.
    *)
-  Definition csp_sync (cstk : CSTK) (a_stk e_stk : Addr) :=
+  Definition csp_sync (cstk : CSTK) (a_stk' e_stk' : Addr) :=
     match cstk with
     | frm::_ =>
-        get_a frm.(wstk) = Some a_stk
-        ∧ get_e frm.(wstk) = Some e_stk
+        frm.(a_stk) = a_stk'
+        ∧ frm.(e_stk) = e_stk'
     | _ => True
     end
   .
@@ -244,22 +244,20 @@ Section Switcher_preamble.
         and the content should match the words of the call-frame.
    *)
   Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
+    let b_stk := frm.(b_stk) in
+    let a_stk := frm.(a_stk) in
+    let e_stk := frm.(e_stk) in
     ∃ (wtstk4 : Word),
       a_tstk ↦ₐ wtstk4 ∗
-      match frm.(wstk) with
-      | WCap RWL Local b_stk e_stk a_stk =>
-          (⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ⌝
-           ∗ ⌜ wtstk4 = WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ⌝
-           ∗ if frm.(is_untrusted_caller)
-             then True
-             else
-               a_stk ↦ₐ frm.(wcs0)
-               ∗ (a_stk ^+ 1)%a ↦ₐ frm.(wcs1)
-               ∗ (a_stk ^+ 2)%a ↦ₐ frm.(wret)
-               ∗ (a_stk ^+ 3)%a ↦ₐ frm.(wcgp))%I
-      (* Constraints WFness of the register save area *)
-      | _ => False
-      end.
+      (⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ⌝
+       ∗ ⌜ wtstk4 = WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ⌝
+       ∗ if frm.(is_untrusted_caller)
+         then True
+         else
+           a_stk ↦ₐ frm.(wcs0)
+           ∗ (a_stk ^+ 1)%a ↦ₐ frm.(wcs1)
+           ∗ (a_stk ^+ 2)%a ↦ₐ frm.(wret)
+           ∗ (a_stk ^+ 3)%a ↦ₐ frm.(wcgp))%I.
 
   (** [cstack_interp] interprets a call-stack.
       It simply interpret the topmost stack frame,
