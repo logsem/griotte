@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From cap_machine Require Import ftlr_base interp_weakening.
-From cap_machine Require Import rules_base rules_ReadSR.
+From cap_machine Require Import rules_base rules_SpecialRW.
 From cap_machine.proofmode Require Import map_simpl register_tactics.
 From cap_machine Require Import stdpp_extra.
 
@@ -26,10 +26,10 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma readsr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
+  Lemma specialrw_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : Word) (ρ : region_type) (dst : RegName) (src : SRegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr W C regs p p' g b e a w (ReadSR dst src) ρ P cstk Ws Cs.
+    (w : Word) (ρ : region_type) (dst : RegName) (csr : SRegName) (src : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    ftlr_instr W C regs p p' g b e a w (SpecialRW dst csr src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
@@ -47,17 +47,18 @@ Section fundamental.
       congruence.
     }
 
-    iApply (wp_ReadSR with "[$Ha $Hmap]"); eauto.
+    iApply (wp_SpecialRW with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
     { by rewrite HpXRS. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec; cycle 1.
+    destruct HSpec; cycle 2.
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.
-    - by simplify_map_eq.
+    - simplify_map_eq; congruence.
+    - simplify_map_eq; congruence.
   Qed.
 
 End fundamental.

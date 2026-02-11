@@ -146,8 +146,7 @@ Inductive instr: Type :=
 | Seal (dst : RegName) (r1 r2: RegName)
 | UnSeal (dst : RegName) (r1 r2: RegName)
 (* Separate SpecialRW into 2 instructions *)
-| ReadSR (dst: RegName) (src: SRegName)
-| WriteSR (dst: SRegName) (src: RegName)
+| SpecialRW (dst: RegName) (csr : SRegName) (src: RegName)
 | Fail
 | Halt.
 
@@ -1528,16 +1527,15 @@ Proof.
 
       | Seal dst r1 r2 => GenNode 18 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))]
       | UnSeal dst r1 r2 => GenNode 19 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))]
-      | ReadSR dst src => GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr src))]
-      | WriteSR dst src => GenNode 21 [GenLeaf (inl (inr dst)); GenLeaf (inl (inl src))]
-      | Fail => GenNode 22 []
-      | Halt => GenNode 23 []
-      | Mul dst r1 r2 => GenNode 24 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | LAnd dst r1 r2 => GenNode 25 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | LOr dst r1 r2 => GenNode 26 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | LShiftL dst r1 r2 => GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | LShiftR dst r1 r2 => GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
-      | Jalr dst src => GenNode 29 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))]
+      | SpecialRW dst csr src => GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr csr)); GenLeaf (inl (inl src))]
+      | Fail => GenNode 21 []
+      | Halt => GenNode 22 []
+      | Mul dst r1 r2 => GenNode 23 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | LAnd dst r1 r2 => GenNode 24 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | LOr dst r1 r2 => GenNode 25 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | LShiftL dst r1 r2 => GenNode 26 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | LShiftR dst r1 r2 => GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
+      | Jalr dst src => GenNode 28 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))]
       end).
   set (dec := fun e =>
       match e with
@@ -1563,16 +1561,16 @@ Proof.
 
       | GenNode 18 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))] => Seal dst r1 r2
       | GenNode 19 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl r1)); GenLeaf (inl (inl r2))] => UnSeal dst r1 r2
-      | GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr src))] => ReadSR dst src
-      | GenNode 21 [GenLeaf (inl (inr dst)); GenLeaf (inl (inl src))] => WriteSR dst src
-      | GenNode 22 [] => Fail
-      | GenNode 23 [] => Halt
-      | GenNode 24 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Mul dst r1 r2
-      | GenNode 25 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LAnd dst r1 r2
-      | GenNode 26 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LOr dst r1 r2
-      | GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftL dst r1 r2
-      | GenNode 28 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftR dst r1 r2
-      | GenNode 29 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))] => Jalr dst src
+      | GenNode 20 [GenLeaf (inl (inl dst)); GenLeaf (inl (inr csr)); GenLeaf (inl (inl src))]
+        => SpecialRW dst csr src
+      | GenNode 21 [] => Fail
+      | GenNode 22 [] => Halt
+      | GenNode 23 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Mul dst r1 r2
+      | GenNode 24 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LAnd dst r1 r2
+      | GenNode 25 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LOr dst r1 r2
+      | GenNode 26 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftL dst r1 r2
+      | GenNode 27 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => LShiftR dst r1 r2
+      | GenNode 28 [GenLeaf (inl (inl dst));GenLeaf (inl (inl src))] => Jalr dst src
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).
