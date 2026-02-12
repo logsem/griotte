@@ -319,7 +319,7 @@ Section DROE.
     | _ : _ |- context [ region ?W' ] => set (W0 := W')
     end.
 
-    iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_dro_eq (WInt 42)))
+    iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_eq (WInt 42)))
         with "[] [$HWstd_full_C] [$HWreg_C] [$Hcgp_b] []")
       as "(HWreg_C & #Hrel_cgp_b & HWstd_full_C)".
     { done. }
@@ -327,13 +327,10 @@ Section DROE.
       by rewrite -revoke_dom_eq.
     }
     { rewrite /future_priv_mono.
-      iIntros "!>" (W W' Hrelared) "[% H]"; cbn.
-      iSplitR; [done | by rewrite !fixpoint_interp1_eq].
+      iIntros "!>" (W W' Hrelared) "%"; cbn; simplify_eq.
+      done.
     }
-    { cbn.
-      iSplitR; [done | by rewrite !fixpoint_interp1_eq].
-    }
-
+    {  done. }
     match goal with
     | _ : _ |- context [ region ?W' ] => set (W1 := W')
     end.
@@ -343,23 +340,14 @@ Section DROE.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RO_DRO, (interp_dro_eq _).
+      iExists RO_DRO, (interp_eq _).
       iEval (cbn).
       iSplit; first done.
       iSplit.
       { iPureIntro; intros WCv; tc_solve. }
       iSplit; first iFrame "Hrel_cgp_b".
-      iSplit.
-      { iIntros "!>" (W1').
-        iIntros "!>" (W1'' z) "[-> H]".
-        rewrite /interp_dro_eq /=.
-        iSplitR; [done | by rewrite !fixpoint_interp1_eq].
-      }
-      iSplit.
-      { iIntros "!>" (W1').
-        iIntros "!>" (w') "[-> H]".
-        done.
-      }
+      iSplit; first iApply zcond_interp_eq.
+      iSplit; first (iApply rcond_interp_eq; auto).
       iSplit; first done.
       subst W0.
       iSplit.
@@ -370,7 +358,7 @@ Section DROE.
         by rewrite lookup_insert.
     }
 
-    iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_dro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+    iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC interp_dro)
         with "[] [$HWstd_full_C] [$HWreg_C] [$Hcgp_a] []")
       as "(HWreg_C & Hrel_cgp_a & HWstd_full_C)".
     { done. }
@@ -380,11 +368,10 @@ Section DROE.
       + by rewrite -revoke_dom_eq.
     }
     { rewrite /future_priv_mono.
-      iIntros "!>" (W W' Hrelared) "[% H]"; cbn.
-      iSplitR; [done |].
+      iIntros "!>" (W W' Hrelated) "H"; cbn.
       iApply monotone.interp_monotone_nl; eauto.
     }
-    { cbn. iSplit; done. }
+    { done. }
 
     match goal with
     | _ : _ |- context [ region ?W' ] => set (W2 := W')
@@ -404,21 +391,14 @@ Section DROE.
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RO_DRO, (interp_dro_eq _).
+      iExists RO_DRO, interp_dro.
       iEval (cbn).
       iSplit; first done.
       iSplit.
       { iPureIntro; intros WCv; tc_solve. }
       iSplit; first iFrame "Hrel_cgp_a".
-      iSplit.
-      { iIntros "!>" (W1').
-        iIntros "!>" (W1'' z) "[% H]"; done.
-      }
-      iSplit.
-      { iIntros "!>" (W1').
-        iIntros "!>" (w') "[-> H]".
-        done.
-      }
+      iSplit; first iApply zcond_interp_dro.
+      iSplit; first (iApply rcond_interp_dro; auto).
       iSplit; first done.
       subst W1.
       iSplit.
@@ -554,7 +534,7 @@ Section DROE.
 
     (* Mov cs0 cra; *)
     iInstr "Hcode".
-    cbn; iDestruct "Hφ_cgp_b" as "[-> Hinterp_cgp_b']".
+    cbn; iDestruct "Hφ_cgp_b" as "->".
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".

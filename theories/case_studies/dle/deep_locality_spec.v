@@ -232,7 +232,7 @@ Section DLE.
     (* -- Update the world and prove interp of the the argument in `ca0` -- *)
 
     (* First, extend the world such that `cgp_b` is interp with RW_DL access *)
-    iMod (extend_region_temp _ _ _ _ _ RW_DL interpC
+    iMod (extend_region_temp _ _ _ _ _ RW_DL (safeC interp_dl)
         with "[] [$Hsts_C] [$Hr_C] [$Hcgp_b] []")
       as "(Hr_C & #Hrel_cgp_b & Hsts_C)"; auto.
     { by rewrite -revoke_dom_eq. }
@@ -248,19 +248,18 @@ Section DLE.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RW_DL, interp.
+      iExists RW_DL, interp_dl.
       iEval (cbn).
       iSplit; first done.
       iSplit.
       { iPureIntro; intros WCv; tc_solve. }
       iSplit; first iFrame "Hrel_cgp_b".
-      iSplit; first iApply zcond_interp.
-      iSplit; first iApply rcond_interp.
-      iSplit; first iApply wcond_interp.
-      iSplit; first iApply monoReq_interp.
-      + by simplify_map_eq.
-      + by intro.
-      + by iPureIntro; right; simplify_map_eq.
+      iSplit; first iApply zcond_interp_dl.
+      iSplit; first (iApply rcond_interp_dl; auto).
+      iSplit; first iApply wcond_interp_dl.
+      iSplit; last (by iPureIntro; right; rewrite lookup_insert).
+      rewrite /monoReq; rewrite lookup_insert; cbn.
+      iApply mono_pub_interp_dl.
     }
 
     (* Second, extend the world such that `cgp_b+1` is interp_dl with RW_DL access *)
