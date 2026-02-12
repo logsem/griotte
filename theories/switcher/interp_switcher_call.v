@@ -714,6 +714,8 @@ Section fundamental.
     { solve_addr. }
 
     (* --- WriteSR mtdc ct2 --- *)
+    specialize (Hfull_rmap cnull) as HH;destruct HH as [? wcnull].
+    iExtract "Hrmap" cnull as "Hcnull".
     iInstr "Hcode".
 
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
@@ -937,9 +939,10 @@ Section fundamental.
     ; clear dependent Ha_clear.
 
     rewrite /rmap'. rewrite !map_filter_delete.
+    rewrite (delete_commute _ _ ct1).
     iDestruct (big_sepM_insert with "[$Hrest $Hct1]") as "Hrest"
     ; [clear; by simplify_map_eq|rewrite insert_delete_insert].
-    iInsertList "Hrest" [ctp;ct2;cs1;cs0].
+    iInsertList "Hrest" [cnull;ctp;ct2;cs1;cs0].
 
     iApply (clear_registers_pre_call_spec with "[- $HPC $Hcode $Hrest]"); try solve_pure.
     { clear -Hfull_rmap. apply regmap_full_dom in Hfull_rmap as Heq'.
