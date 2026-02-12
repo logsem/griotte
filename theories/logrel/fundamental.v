@@ -1,6 +1,6 @@
 From cap_machine Require Export
   Jmp Jnz Jalr Mov Load Store BinOp Restrict
-  Subseg Get Lea Seal UnSeal ReadSR WriteSR.
+  Subseg Get Lea Seal UnSeal SpecialRW.
 From cap_machine Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
@@ -316,15 +316,8 @@ Section fundamental.
                [$Hw] [$Hcont] [//] [$Hsts] [$Hown] [$Hframe]
                [$Hr] [$Hstate] [$Ha] [$HPC] [Hmreg]")
       ;eauto.
-    + (* ReadSR *)
-      iApply (readsr_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
-               [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
-               [$Hw] [$Hcont] [//] [$Hsts] [$Hown] [$Hframe]
-               [$Hr] [$Hstate] [$Ha] [$HPC] [Hmreg]")
-      ;eauto.
-    + (* WriteSR *)
-      iApply (writesr_case with
+    + (* SpecialRW *)
+      iApply (specialrw_case with
                "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond]  [$HmonoR] [$HmonoV]
                [$Hw] [$Hcont] [//] [$Hsts] [$Hown] [$Hframe]

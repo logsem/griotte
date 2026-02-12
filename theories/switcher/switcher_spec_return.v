@@ -109,6 +109,8 @@ Section Switcher.
     iExtract "Hrmap" ct0 as "Hct0".
     assert (is_Some (rmap !! ct1)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
     iExtract "Hrmap" ct1 as "Hct1".
+    assert (is_Some (rmap !! cnull)) as [??];[apply elem_of_dom;rewrite Hrmap;set_solver-|].
+    iExtract "Hrmap" cnull as "Hcnull".
 
     (* --- ReadSR ctp mtdc --- *)
     iInstr "Hcode"; try solve_pure.
@@ -525,6 +527,7 @@ Section Switcher.
 
     (* -------- CLEAR STACK --------- *)
     focus_block 13 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iInsert "Hrmap" cnull.
     iAssert ([[ a_stk , csp_e ]] ↦ₐ [[wastk :: wastk1 :: wastk2 :: wastk3 :: stk_mem]])%I
       with "[Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hstk]" as "Hstk".
     {
@@ -546,6 +549,7 @@ Section Switcher.
 
     (* -------- CLEAR REGISTERS --------- *)
     focus_block 14 "Hcode" as a9 Ha9 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    rewrite -!delete_insert_ne //.
     iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct1]") as "Hrmap".
     rewrite -delete_insert_ne //.
     iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct0]") as "Hrmap".
