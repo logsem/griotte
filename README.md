@@ -229,11 +229,11 @@ Some definitions have different names from the paper.
 
 In the operational semantics:
 
-| *name in paper*   | *name in mechanisation*   |
-|-------------------|---------------------------|
-| Executable        | Instr Executable          |
-| Halted            | Instr Halted              |
-| Failed            | Instr Failed              |
+| *name in paper* | *name in mechanisation* |
+|-----------------|-------------------------|
+| Running         | Instr Executable        |
+| Halted          | Instr Halted            |
+| Failed          | Instr Failed            |
 
 For technical reasons (so that Iris considers a single instruction as an atomic step), 
 the execution mode is interweaved with the "Instr Next" mode, which reduces to a value.
