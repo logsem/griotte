@@ -1,6 +1,6 @@
-# Griotte - Formal Verification of Compartmentalisation for CHERIoT
+# Griotte - Verified Compartmentalisation via Capabilities
 
-This directory contains the Rocq mechanization accompanying the submission "Griotte".
+This directory contains the Rocq mechanisation accompanying the submission "Griotte: Verified Compartmentalisation via Capabilities".
 It provides a model of a capability machine based on [CHERIoT](https://cheriot.org/),
 a minimal implementation of the CHERIoT's RTOS switcher's,
 and principle to reason about interactions between known and unknown compartments
