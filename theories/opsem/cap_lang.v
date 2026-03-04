@@ -410,13 +410,15 @@ Section opsem.
         else None
     | _,_ => None
     end
-  | ReadSR dst src =>
+  | SpecialRW dst csr src =>
       if has_sreg_access plevel
-      then tomov ← (sreg φ) !! src; updatePC (update_reg φ dst tomov)
-      else None
-  | WriteSR dst src =>
-      if has_sreg_access plevel
-      then tomov ← (reg φ) !!ᵣ src; updatePC (update_sreg φ dst tomov)
+      then
+        csr_val ← (sreg φ) !! csr;
+        if (decide (src = cnull))
+        then updatePC (update_reg φ dst csr_val)
+        else
+          src_val ← (reg φ) !!ᵣ src;
+          updatePC (update_reg (update_sreg φ csr src_val) dst csr_val)
       else None
   end.
 

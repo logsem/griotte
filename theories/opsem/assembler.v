@@ -66,8 +66,7 @@ Module Asm_Griotte.
   | GetOType (dst r: RegName)
   | Seal (dst : RegName) (r1 r2: RegName)
   | UnSeal (dst : RegName) (r1 r2: RegName)
-  | ReadSR (dst: RegName) (src: SRegName)
-  | WriteSR (dst: SRegName) (src: RegName)
+  | SpecialRW (dst: RegName) (csr: SRegName) (src: RegName)
   | Fail
   | Halt.
 
@@ -207,10 +206,8 @@ Module Asm_Griotte.
         Some (Seal dst r1 r2)
     | UnSeal dst r1 r2 =>
         Some (UnSeal dst r1 r2)
-    | ReadSR dst src =>
-        Some (ReadSR dst src)
-    | WriteSR dst src =>
-        Some (WriteSR dst src)
+    | SpecialRW dst csr src =>
+        Some (SpecialRW dst csr src)
     | Fail=>
         Some (Fail)
     | Halt=>
@@ -354,10 +351,8 @@ Module Asm_Griotte.
         Some (machine_base.Seal dst r1 r2)
     | UnSeal dst r1 r2 =>
         Some (machine_base.UnSeal dst r1 r2)
-    | ReadSR dst src =>
-        Some (machine_base.ReadSR dst src)
-    | WriteSR dst src =>
-        Some (machine_base.WriteSR dst src)
+    | SpecialRW dst csr src =>
+        Some (machine_base.SpecialRW dst csr src)
     | Fail=>
         Some (machine_base.Fail)
     | Halt=>
@@ -572,12 +567,10 @@ Module Asm_Griotte.
         let r1 := revert_regs r1 in
         let r2 := revert_regs r2 in
         (machine_base.UnSeal dst r1 r2)
-    | machine_base.ReadSR dst src =>
+    | machine_base.SpecialRW dst csr src =>
         let dst := revert_regs dst in
-        (machine_base.ReadSR dst src)
-    | machine_base.WriteSR dst src =>
         let src := revert_regs src in
-        (machine_base.WriteSR dst src)
+        (machine_base.SpecialRW dst csr src)
     | machine_base.Fail=>
         (machine_base.Fail)
     | machine_base.Halt=>
@@ -638,10 +631,14 @@ Module Asm_Griotte.
   Definition getotype dst src := (ASM_Instr (GetOType dst src)).
   Definition seal dst r1 r2 := (ASM_Instr (Seal dst r1 r2)).
   Definition unseal dst r1 r2 := (ASM_Instr (UnSeal dst r1 r2)).
-  Definition readsr dst src := (ASM_Instr (ReadSR dst src)).
-  Definition writesr dst src := (ASM_Instr (WriteSR dst src)).
+  Definition specialrw dst csr src := (ASM_Instr (SpecialRW dst csr src)).
   Definition fail:= (ASM_Instr Fail).
   Definition halt:= (ASM_Instr Halt).
   Notation "# s" := (ASM_Label s) (at level 50).
+
+  (** Aliases *)
+  Definition readsr dst csr := specialrw dst csr cnull.
+  Definition writesr csr src := specialrw cnull csr src.
+  Definition ret rsrc := jalr cnull rsrc.
 
 End Asm_Griotte.

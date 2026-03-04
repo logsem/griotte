@@ -901,8 +901,7 @@ Definition regs_of (i: instr): gset RegName :=
   | Jalr rdst rsrc => {[ rdst; rsrc ]}
   | Seal dst r1 r2 => {[dst; r1; r2]}
   | UnSeal dst r1 r2 => {[dst; r1; r2]}
-  | ReadSR dst _ => {[ dst ]}
-  | WriteSR _ src => {[ src ]}
+  | SpecialRW dst _ src => if (decide (src = cnull)) then {[ dst ]} else {[ dst; src ]}
   | _ => ∅
   end.
 
@@ -921,8 +920,7 @@ Qed.
 
 Definition sregs_of (i: instr): gset SRegName :=
   match i with
-  | ReadSR _ src => {[ src ]}
-  | WriteSR dst _ => {[ dst ]}
+  | SpecialRW _ csr _ => {[ csr ]}
   | _ => ∅
   end.
 

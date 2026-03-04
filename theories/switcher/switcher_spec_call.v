@@ -570,7 +570,9 @@ Section Switcher.
     { rewrite /withinBounds. solve_addr. }
 
     (* --- WriteSR mtdc ct2 --- *)
+    iExtract "Hregs" cnull as "Hcnull".
     iInstr "Hcode".
+    iInsert "Hregs" cnull.
 
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
@@ -778,6 +780,7 @@ Section Switcher.
     focus_block 10 "Hcode" as a_clear' Ha_clear' "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_clear.
 
+    do 2 (rewrite -delete_insert_ne; last done).
     iDestruct (big_sepM_insert_2 with "[Hctp] Hregs") as "Hregs";[iFrame|].
     rewrite insert_delete_insert.
     rewrite -delete_insert_ne; last done.

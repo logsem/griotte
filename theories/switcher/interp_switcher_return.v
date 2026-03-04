@@ -100,9 +100,9 @@ Section fundamental.
     (* --- Extract scratch registers ct2 ctp --- *)
     cbn in Hfull_rmap.
 
-    getRegValList [PC;cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1].
-    iExtractList "Hrmap" [PC;cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1]
-      as ["HPC";"Hcra";"Hcsp";"Hcgp";"Hca0";"Hca1";"Hctp";"Hca2";"Hcs1";"Hcs0";"Hct0";"Hct1"].
+    getRegValList [PC;cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1;cnull].
+    iExtractList "Hrmap" [PC;cra;csp;cgp;ca0;ca1;ctp;ca2;cs1;cs0;ct0;ct1;cnull]
+      as ["HPC";"Hcra";"Hcsp";"Hcgp";"Hca0";"Hca1";"Hctp";"Hca2";"Hcs1";"Hcs0";"Hct0";"Hct1";"Hcnull"].
     iAssert (interp W C wcsp) as "#Hinterp_wcsp".
     { iApply "Hrmap_interp"; eauto; done. }
     iAssert (interp W C wcs0) as "#Hinterp_wcs0".
@@ -403,6 +403,7 @@ Section fundamental.
 
     (* We continue the execution *)
     focus_block 13 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iInsert "Hrmap" cnull.
     iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto; [solve_addr|].
     iSplitL; cycle 1.
     { iIntros "!> %"; simplify_eq. }
