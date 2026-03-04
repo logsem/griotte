@@ -27,7 +27,11 @@ Inductive RegName: Type :=
 | R (n: nat) (fin: n <=? RegNum = true).
 
 Inductive SRegName : Type :=
-| MTDC.
+| MTDC      (* trusted stack *)
+| MTCC      (* the PC of the exception handler *)
+| MEPCC     (* the return PC when an exception is handled *)
+| MCAUSE    (* cause of the exception *)
+.
 
 Global Instance reg_eq_dec : EqDecision RegName.
 Proof. intros r1 r2.  destruct r1 as [| n fin ],r2 as [|n0 fin0]; [by left | by right | by right |].
@@ -70,16 +74,22 @@ Defined.
 
 
 Global Instance sreg_eq_dec : EqDecision SRegName.
-Proof. intros r1 r2; destruct r1,r2; by left. Defined.
+Proof. intros r1 r2; destruct r1,r2; auto; try (by left); try (by right). Defined.
 
 Global Instance sreg_countable : Countable SRegName.
 Proof.
   refine {| encode r := encode match r with
-                               | MTDC => Some ()
-                               end ;
+                          | MTDC => 0
+                          | MTCC => 1
+                          | MEPCC => 2
+                          | MCAUSE => 3
+                          end ;
             decode n := match (decode n) with
-                        | Some () => Some MTDC
-                        | None => None
+                        | Some 0 => Some MTDC
+                        | Some 1 => Some MTCC
+                        | Some 2 => Some MEPCC
+                        | Some 3 => Some MCAUSE
+                        | _ => None
                         end ;
             decode_encode := _ |}.
   intro r. destruct r; auto.
@@ -106,12 +116,26 @@ Defined.
 
 Global Instance sreg_finite : finite.Finite SRegName.
 Proof.
- apply (finite.enc_finite (λ r : SRegName, match r with | MTDC => 0%nat end)
-                (λ n : nat, MTDC)
-                1%nat).
+ apply (finite.enc_finite
+          (λ r : SRegName,
+             match r with
+             | MTDC => 0%nat
+             | MTCC => 1%nat
+             | MEPCC => 2%nat
+             | MCAUSE => 3%nat
+             end)
+          (λ n : nat,
+             match n with
+             | 0 => MTDC
+             | 1 => MTCC
+             | 2 => MEPCC
+             | _ => MCAUSE
+             end
+          )
+          4%nat).
  - by intro sr; destruct sr.
- - by intro sr; destruct sr.
- - lia.
+ - intro sr; destruct sr; lia.
+ - repeat (destruct i ; try lia).
 Defined.
 
 (* Instances for [zify]: make [lia] work on registers *)
@@ -181,7 +205,10 @@ Definition ca5 : RegName := R 15 eq_refl.
 Definition ca6 : RegName := R 16 eq_refl.
 Definition ca7 : RegName := R 17 eq_refl.
 
-Notation mtdc  := MTDC.
+Notation mtdc     := MTDC.
+Notation mtcc     := MTCC.
+Notation mepcc    := MEPCC.
+Notation mcause   := MCAUSE.
 
 (* A list of all general purpose registers *)
 Definition all_registers : list RegName :=

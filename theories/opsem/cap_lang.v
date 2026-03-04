@@ -208,6 +208,14 @@ Qed.
 Section opsem.
   Context `{MachineParameters}.
 
+  Definition handle_error (φ: ExecConf): option Conf :=
+    wexception_handler ← (sreg φ) !! MTCC;
+    wpc ← (reg φ) !! PC;
+    let φ_next :=
+      (update_reg (update_sreg φ MEPCC wexception_handler) PC wexception_handler)
+    in
+    Some (NextI, φ_next).
+
   Definition exec_opt (i: instr) (plevel : Perm) (φ: ExecConf): option Conf :=
     match i with
     | Fail => Some (Failed, φ)
@@ -281,14 +289,18 @@ Section opsem.
       match wdst with
       | WCap p g b e a =>
           let (p',g') := decodePermPair n in
-          if PermFlowsTo p' p && LocalityFlowsTo g' g then
-            updatePC (update_reg φ dst (WCap p' g' b e a))
-          else None
+          let newcap := WCap p' g' b e a in
+          let newword :=
+            if PermFlowsTo p' p && LocalityFlowsTo g' g then newcap else WInt (untag newcap)
+          in
+          updatePC (update_reg φ dst newword)
       | WSealRange p g b e a =>
             let (p',g') := decodeSealPermPair n in
-            if SealPermFlowsTo p' p && LocalityFlowsTo g' g  then
-              updatePC (update_reg φ dst (WSealRange p' g' b e a))
-            else None
+            let newcap := WSealRange p' g' b e a in
+            let newword :=
+              if SealPermFlowsTo p' p && LocalityFlowsTo g' g then newcap else WInt (untag newcap)
+            in
+            updatePC (update_reg φ dst newword)
       | _ => None
       end
     | Add dst ρ1 ρ2 =>
@@ -329,15 +341,19 @@ Section opsem.
     | WCap p g b e a =>
       a1 ← addr_of_argument (reg φ) ρ1;
       a2 ← addr_of_argument (reg φ) ρ2;
-      if isWithin a1 a2 b e then
-        updatePC (update_reg φ dst (WCap p g a1 a2 a))
-      else None
+      let newcap := WCap p g a1 a2 a in
+      let newword :=
+        if isWithin a1 a2 b e then newcap else WInt (untag newcap)
+      in
+      updatePC (update_reg φ dst newword)
     | WSealRange p g b e a =>
       o1 ← otype_of_argument (reg φ) ρ1;
       o2 ← otype_of_argument (reg φ) ρ2;
-      if isWithin o1 o2 b e then
-        updatePC (update_reg φ dst (WSealRange p g o1 o2 a))
-      else None
+      let newcap := WSealRange p g o1 o2 a in
+      let newword :=
+        if isWithin o1 o2 b e then newcap else WInt (untag newcap)
+      in
+      updatePC (update_reg φ dst newword)
     | _ => None
     end
   | GetA dst r =>
@@ -397,7 +413,8 @@ Section opsem.
     wr2 ← (reg φ) !!ᵣ r2;
     match wr1,wr2 with
     | WSealRange p g b e a, WSealable sb =>
-      if permit_seal p && withinBounds b e a then updatePC (update_reg φ dst (WSealed a sb))
+      if permit_seal p && withinBounds b e a
+      then updatePC (update_reg φ dst (WSealed a sb))
       else None
     | _, _ => None
     end
@@ -406,7 +423,8 @@ Section opsem.
     wr2 ← (reg φ) !!ᵣ r2;
     match wr1, wr2 with
     | WSealRange p g b e a, WSealed a' sb =>
-        if decide (permit_unseal p = true ∧ withinBounds b e a = true ∧ a' = a) then updatePC (update_reg φ dst (WSealable sb))
+        if decide (permit_unseal p = true ∧ withinBounds b e a = true ∧ a' = a)
+        then updatePC (update_reg φ dst (WSealable sb))
         else None
     | _,_ => None
     end
@@ -421,7 +439,15 @@ Section opsem.
   end.
 
   Definition exec (i: instr) (plevel : Perm) (φ: ExecConf) : Conf :=
-     match exec_opt i plevel φ with | None => (Failed, φ) | Some conf => conf end .
+     match exec_opt i plevel φ with
+     | None =>
+         (* the machine traps *)
+         match handle_error φ with
+         | None => (Failed, φ)
+         | Some conf => conf
+         end
+     | Some conf => conf
+     end.
 
   Lemma exec_opt_exec_some :
     forall φ i plevel c,
@@ -429,11 +455,11 @@ Section opsem.
       exec i plevel φ = c.
   Proof. unfold exec. by intros * ->. Qed.
 
-  Lemma exec_opt_exec_none :
-    forall φ i plevel,
-      exec_opt i plevel φ = None →
-      exec i plevel φ = (Failed, φ).
-  Proof. unfold exec. by intros * ->. Qed.
+  (* Lemma exec_opt_exec_none : *)
+  (*   forall φ i plevel, *)
+  (*     exec_opt i plevel φ = None → *)
+  (*     exec i plevel φ = (Failed, φ). *)
+  (* Proof. unfold exec. by intros * ->. Qed. *)
 
   Inductive step: Conf → Conf → Prop :=
   | step_exec_regfail:
@@ -644,13 +670,21 @@ Section opsem.
   Proof.
     rewrite /updatePC; apply updatePC_gen_some.
   Qed.
+  Lemma handle_error_some φ c:
+    handle_error φ = Some c → ∃ φ', c = (NextI, φ').
+  Proof.
+    rewrite /handle_error; repeat case_match; try congruence.
+    destruct ( sreg φ !! mtcc ); cbn; try congruence.
+    destruct ( reg φ !! PC ); cbn; try congruence.
+    inversion 1. eauto.
+  Qed.
 
   Lemma instr_atomic i p φ :
     ∃ φ', (exec i p φ = (Failed, φ') ) ∨ (exec i p φ = (NextI, φ')) ∨
           (exec i p φ = (Halted, φ')).
   Proof.
     unfold exec, exec_opt.
-    repeat case_match; simplify_eq; eauto;rename H0 into Heqo.
+    repeat case_match; simplify_eq; eauto;try rename H0 into Heqo.
     (* Create more goals through *_of_argument, now that some have been pruned *)
     all: repeat destruct (addr_of_argument (reg φ) _)
     ; repeat destruct (otype_of_argument (reg φ) _)
@@ -664,6 +698,10 @@ Section opsem.
     all: simplify_eq; try by exfalso.
     all: try apply updatePC_some in Heqo as [φ' Heqo]; eauto.
     all: try apply updatePC_gen_some in Heqo as [φ' Heqo]; eauto.
+    all: match goal with
+         | h : handle_error _ = Some _ |- _ =>
+             try apply handle_error_some in h as [φ' ?]; eauto
+         end.
   Qed.
 
 End opsem.

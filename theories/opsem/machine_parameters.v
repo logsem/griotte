@@ -47,6 +47,8 @@ Class MachineParameters := {
             | WInt _, WInt _ => encodeWordType w = encodeWordType w'
             | _, _ => encodeWordType w <> encodeWordType w'
             end;
+
+    untag : Word -> Z;
   }.
 
 (* Lift the encoding / decoding between Z and instructions on Words: simplify
