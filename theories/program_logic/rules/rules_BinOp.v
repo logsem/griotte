@@ -48,52 +48,67 @@ Section cap_lang_rules.
     intros HH. destruct_or! HH; subst i; reflexivity.
   Qed.
 
-  Inductive BinOp_failure (i: instr) (regs: Reg) (dst: RegName) (rv1 rv2: Z + RegName) (regs': Reg) :=
+  Inductive BinOp_failure (i: instr) (regs: Reg) (dst: RegName) (rv1 rv2: Z + RegName) :=
   | BinOp_fail_nonconst1:
       z_of_argument regs rv1 = None ->
-      BinOp_failure i regs dst rv1 rv2 regs'
+      BinOp_failure i regs dst rv1 rv2
   | BinOp_fail_nonconst2:
       z_of_argument regs rv2 = None ->
-      BinOp_failure i regs dst rv1 rv2 regs'
+      BinOp_failure i regs dst rv1 rv2
   | BinOp_fail_incrPC n1 n2:
       z_of_argument regs rv1 = Some n1 ->
       z_of_argument regs rv2 = Some n2 ->
       incrementPC (<[ dst := WInt (denote i n1 n2) ]ᵣ> regs) = None ->
-      BinOp_failure i regs dst rv1 rv2 regs'.
+      BinOp_failure i regs dst rv1 rv2.
 
-  Inductive BinOp_spec (i: instr) (regs: Reg) (dst: RegName) (rv1 rv2: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
+  Inductive BinOp_spec
+    (i: instr)
+    (regs: Reg) (sregs : SReg)
+    (dst: RegName) (rv1 rv2: Z + RegName)
+    (regs': Reg) (sregs' : SReg)
+    : cap_lang.val -> Prop :=
   | BinOp_spec_success n1 n2:
       z_of_argument regs rv1 = Some n1 ->
       z_of_argument regs rv2 = Some n2 ->
       incrementPC (<[ dst := WInt (denote i n1 n2) ]ᵣ> regs) = Some regs' ->
-      BinOp_spec i regs dst rv1 rv2 regs' NextIV
-  | BinOp_spec_failure:
-      BinOp_failure i regs dst rv1 rv2 regs' ->
-      BinOp_spec i regs dst rv1 rv2 regs' FailedV.
+      BinOp_spec i regs sregs dst rv1 rv2 regs' sregs' NextIV
+  | BinOp_spec_failure wexception_handler wpc:
+      BinOp_failure i regs dst rv1 rv2 ->
+      sregs !! MTCC = Some wexception_handler ->
+      regs !! PC = Some wpc ->
+      <[ PC := wexception_handler ]> regs = regs' ->
+      <[ MEPCC := wpc ]> (<[ MCAUSE := (WInt CHERI_TRAP) ]> sregs) = sregs' ->
+      BinOp_spec i regs sregs dst rv1 rv2 regs' sregs' NextIV.
 
   Local Ltac iFail Hcont get_fail_case :=
     cbn; iFrame; iApply Hcont; iFrame; iPureIntro;
     econstructor; eapply get_fail_case; eauto.
 
-  Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a w dst arg1 arg2 regs :
+  Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a w dst arg1 arg2 regs sregs :
     decodeInstrW w = i →
     is_BinOp i dst arg1 arg2 →
     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
     regs_of i ⊆ dom regs →
-    {{{ ▷ pc_a ↦ₐ w ∗
-        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+    (BinOp_failure (decodeInstrW w) regs dst arg1 arg2 -> {[ MTCC ; MEPCC ; MCAUSE ]} ⊆ dom sregs)
+    →
+    {{{ ▷ pc_a ↦ₐ w
+        ∗ ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y)
+        ∗ ▷ ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
+    }}}
       Instr Executable @ Ep
-    {{{ regs' retv, RET retv;
-        ⌜ BinOp_spec (decodeInstrW w) regs dst arg1 arg2 regs' retv ⌝ ∗
-          pc_a ↦ₐ w ∗
-          [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
+    {{{ regs' sregs' retv, RET retv;
+        ⌜ BinOp_spec (decodeInstrW w) regs sregs dst arg1 arg2 regs' sregs' retv ⌝ ∗
+        pc_a ↦ₐ w
+        ∗ ([∗ map] k↦y ∈ regs', k ↦ᵣ y)
+        ∗ ([∗ map] k↦y ∈ sregs', k ↦ₛᵣ y)
+ }}}.
   Proof.
-    iIntros (Hdecode Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
+    iIntros (Hdecode Hinstr Hvpc HPC Dregs Dsregs φ) "(>Hpc_a & >Hmap & >Hsmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
     iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
-    have ? := lookup_weaken _ _ _ _ HPC Hregs.
+    have HPCr := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
     iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
@@ -109,27 +124,71 @@ Section cap_lang_rules.
     destruct (z_of_argument regs arg1) as [n1|] eqn:Hn1;
       pose proof Hn1 as Hn1'; cycle 1.
     (* Failure: arg1 is not an integer *)
-    { unfold z_of_argument in Hn1. destruct arg1 as [| r0]; [ congruence |].
+    { opose proof (Dsregs _) as HDsregs; first (econstructor; eauto).
+      iDestruct (gen_heap_valid_inclSepM with "Hsr Hsmap") as %Hsregs.
+      specialize (indom_sregs_incl _ _ _ HDsregs Hsregs) as Hsri.
+      destruct (Hsri mtcc) as [wexception_handler [H'mtcc Hmtcc]]; first by set_solver+.
+      destruct (Hsri mepcc) as [wepcc [H'mepcc Hmepcc]]; first by set_solver+.
+      destruct (Hsri mcause) as [wcause [H'mcause Hmcause]]; first by set_solver+.
+
+      unfold z_of_argument in Hn1. destruct arg1 as [| r0]; [ congruence |].
       destruct (Hri r0) as [r0v [Hr'0 Hr0]]; first by unfold regs_of_argument; set_solver+.
-      assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+      assert (c = NextI ∧
+              σ2 = (<[ PC := wexception_handler ]> r,
+                      <[MEPCC := (WCap pc_p pc_g pc_b pc_e pc_a) ]> (<[MCAUSE := WInt CHERI_TRAP]> sr),
+                        m))
+        as (-> & ->).
       { rewrite Hr'0 in Hn1.
         destruct_word r0v; try congruence.
         all: destruct_or! Hinstr; rewrite Hinstr /= in Hstep.
-        all: rewrite Hr0 in Hstep. all: repeat case_match; simplify_eq; eauto. }
-      iFail "Hφ" BinOp_fail_nonconst1. }
+        all: rewrite Hr0 in Hstep. all: repeat case_match; simplify_eq; eauto.
+        all: rewrite /handle_error Hmtcc /= HPCr /= in H0; simplify_eq; split;auto.
+      }
+      iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+      iMod ((gen_heap_update_inSepM _ _ MCAUSE) with "Hsr Hsmap") as "[Hsr Hsmap]"; eauto.
+      iMod ((gen_heap_update_inSepM _ _ MEPCC) with "Hsr Hsmap") as "[Hsr Hsmap]"; eauto.
+      { apply lookup_insert_is_Some; right; split; auto. }
+      cbn; iFrame.
+      iApply "Hφ"; iFrame.
+      iPureIntro.
+      econstructor 2; eauto.
+      eapply BinOp_fail_nonconst1; eauto.
+    }
     apply (z_of_arg_mono _ r) in Hn1; auto.
 
     destruct (z_of_argument regs arg2) as [n2|] eqn:Hn2;
       pose proof Hn2 as Hn2'; cycle 1.
     (* Failure: arg2 is not an integer *)
-    { unfold z_of_argument in Hn2. destruct arg2 as [| r0]; [ congruence |].
+    { opose proof (Dsregs _) as HDsregs; first (econstructor 2; eauto).
+      iDestruct (gen_heap_valid_inclSepM with "Hsr Hsmap") as %Hsregs.
+      specialize (indom_sregs_incl _ _ _ HDsregs Hsregs) as Hsri.
+      destruct (Hsri mtcc) as [wexception_handler [H'mtcc Hmtcc]]; first by set_solver+.
+      destruct (Hsri mepcc) as [wepcc [H'mepcc Hmepcc]]; first by set_solver+.
+      destruct (Hsri mcause) as [wcause [H'mcause Hmcause]]; first by set_solver+.
+
+      unfold z_of_argument in Hn2. destruct arg2 as [| r0]; [ congruence |].
       destruct (Hri r0) as [r0v [Hr'0 Hr0]]; first by unfold regs_of_argument; set_solver+.
-      assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+      assert (c = NextI ∧
+              σ2 = (<[ PC := wexception_handler ]> r,
+                      <[MEPCC := (WCap pc_p pc_g pc_b pc_e pc_a) ]> (<[MCAUSE := WInt CHERI_TRAP]> sr),
+                        m))
+        as (-> & ->).
       {
         rewrite Hr'0 in Hn2. destruct_word r0v; try congruence.
         all: destruct_or! Hinstr; rewrite Hinstr /= Hn1 in Hstep; cbn in Hstep.
-        all: rewrite Hr0 in Hstep. all: repeat case_match; simplify_eq; eauto. }
-      iFail "Hφ" BinOp_fail_nonconst2. }
+        all: rewrite Hr0 in Hstep. all: repeat case_match; simplify_eq; eauto.
+        all: rewrite /handle_error Hmtcc /= HPCr /= in H0; simplify_eq; split;auto.
+      }
+      iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+      iMod ((gen_heap_update_inSepM _ _ MCAUSE) with "Hsr Hsmap") as "[Hsr Hsmap]"; eauto.
+      iMod ((gen_heap_update_inSepM _ _ MEPCC) with "Hsr Hsmap") as "[Hsr Hsmap]"; eauto.
+      { apply lookup_insert_is_Some; right; split; auto. }
+      cbn; iFrame.
+      iApply "Hφ"; iFrame.
+      iPureIntro.
+      econstructor 2; eauto.
+      eapply BinOp_fail_nonconst2; eauto.
+    }
     apply (z_of_arg_mono _ r) in Hn2; auto.
 
     assert (exec_opt i pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst (WInt (denote i n1 n2)))) as HH.
@@ -146,7 +205,8 @@ Section cap_lang_rules.
       2: by apply insert_mono; eauto.
       simplify_pair_eq.
       rewrite Hregs' in Hstep. inversion Hstep.
-      iFail "Hφ" BinOp_fail_incrPC. }
+      admit. }
+      (* iFail "Hφ" BinOp_fail_incrPC. } *)
 
 
     (* Success *)
