@@ -208,11 +208,13 @@ Qed.
 Section opsem.
   Context `{MachineParameters}.
 
-  Definition handle_error (φ: ExecConf): option Conf :=
+  Definition handle_error (φ: ExecConf) (ecause : Z) : option Conf :=
     wexception_handler ← (sreg φ) !! MTCC;
     wpc ← (reg φ) !! PC;
+    let φ_mcause := (update_sreg φ MCAUSE (WInt ecause)) in
+    let φ_mepcc := (update_sreg φ_mcause MEPCC wpc) in
     let φ_next :=
-      (update_reg (update_sreg φ MEPCC wexception_handler) PC wexception_handler)
+      (update_reg φ_mepcc PC wexception_handler)
     in
     Some (NextI, φ_next).
 
@@ -442,7 +444,7 @@ Section opsem.
      match exec_opt i plevel φ with
      | None =>
          (* the machine traps *)
-         match handle_error φ with
+         match handle_error φ CHERI_TRAP with
          | None => (Failed, φ)
          | Some conf => conf
          end
@@ -670,8 +672,8 @@ Section opsem.
   Proof.
     rewrite /updatePC; apply updatePC_gen_some.
   Qed.
-  Lemma handle_error_some φ c:
-    handle_error φ = Some c → ∃ φ', c = (NextI, φ').
+  Lemma handle_error_some φ c z:
+    handle_error φ z = Some c → ∃ φ', c = (NextI, φ').
   Proof.
     rewrite /handle_error; repeat case_match; try congruence.
     destruct ( sreg φ !! mtcc ); cbn; try congruence.
@@ -699,7 +701,7 @@ Section opsem.
     all: try apply updatePC_some in Heqo as [φ' Heqo]; eauto.
     all: try apply updatePC_gen_some in Heqo as [φ' Heqo]; eauto.
     all: match goal with
-         | h : handle_error _ = Some _ |- _ =>
+         | h : handle_error _ _ = Some _ |- _ =>
              try apply handle_error_some in h as [φ' ?]; eauto
          end.
   Qed.

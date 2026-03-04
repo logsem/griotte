@@ -49,6 +49,7 @@ Class MachineParameters := {
             end;
 
     untag : Word -> Z;
+    CHERI_TRAP : Z;
   }.
 
 (* Lift the encoding / decoding between Z and instructions on Words: simplify
