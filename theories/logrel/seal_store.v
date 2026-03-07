@@ -18,25 +18,25 @@ Qed.
 
 (* resources *)
 
-Class sealStoreG Σ := SealStoreG { (* Create record constructor for typeclass *)
+Class sealStoreG Σ {Cname : CmptNameG} := SealStoreG { (* Create record constructor for typeclass *)
     SG_sealStore ::  inG Σ (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)));
-    (* SG_storedPreds ::  savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word); *)
+    SG_storedPreds ::  savedPredG Σ (WORLD * CmptName * Word);
     SG_sealN : gname;
 }.
 
-Definition sealStorePreΣ :=
-  #[ GFunctor (gmapUR OType (csumR (exclR unitO) (agreeR gnameO))) ].
-     (* ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word)]. *)
+Definition sealStorePreΣ {Cname : CmptNameG} :=
+  #[ GFunctor (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)))
+     ; savedPredΣ (WORLD * CmptName * Word)].
 
-Class sealStorePreG Σ := {
+Class sealStorePreG Σ {Cname : CmptNameG} := {
     SG_sealStorePre ::  inG Σ (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)));
-    (* SG_storedPredsPre ::  savedPredG Σ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * Word); *)
+    SG_storedPredsPre ::  savedPredG Σ (WORLD * CmptName * Word);
 }.
 
 Instance sealStoreG_preG `{sealStoreG Σ} : sealStorePreG Σ.
 Proof. constructor. all: apply _. Defined.
 
-Global Instance subG_sealStorePreΣ {Σ}:
+Global Instance subG_sealStorePreΣ {Σ} {Cname : CmptNameG}:
   subG sealStorePreΣ Σ →
   sealStorePreG Σ.
 Proof. solve_inG. Qed.
@@ -61,10 +61,11 @@ Proof.
 Qed.
 
 Section Store.
-  Context `{!sealStoreG Σ}
-      {Cname : CmptNameG}
-      {stsg : STSG Addr region_type Σ}
-      {heapg : heapGS Σ}.
+  Context {Cname : CmptNameG}
+      `{!sealStoreG Σ}
+      (* {stsg : STSG Addr region_type Σ} *)
+      (* {heapg : heapGS Σ}. *)
+      .
   Implicit Types W : WORLD.
 
   Definition seal_pred (o : OType) (P : WORLD * CmptName * Word → iProp Σ) :=
@@ -110,7 +111,7 @@ Proof.
   iMod (own_alloc (A:= (gmapUR OType (csumR (exclR unitO) (agreeR gnameO)))) ((gset_to_gmap (Cinl (Excl ())) oset): gmap OType (csumR (exclR unitO) (agreeR gnameO)))) as (γ) "H".
   { intros i. destruct (gset_to_gmap _ _ !! i) eqn:Heq; last done.
     apply lookup_gset_to_gmap_Some in Heq. by destruct Heq as [_ <-]. }
-  iModIntro. iExists (SealStoreG _ _ γ).
+  iModIntro. iExists (SealStoreG _ _ _ _ γ).
 
   iInduction oset as [| x oset Hni] "IH" using set_ind_L; first done.
   iApply big_sepS_union; first set_solver.

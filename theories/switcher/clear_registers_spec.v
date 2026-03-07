@@ -13,10 +13,10 @@ Section ClearRegistersMacro.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
-    {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ}
-    {heapg : heapGS Σ}
+    {sealsg: sealStoreG Σ}
+    (* {stsg : STSG Addr region_type Σ} *)
+    (* {heapg : heapGS Σ} *)
     `{MP: MachineParameters}.
 
   Implicit Types W : WORLD.

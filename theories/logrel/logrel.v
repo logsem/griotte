@@ -1,10 +1,11 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
 From cap_machine Require Export cap_lang memory_region seal_store region_invariants.
+(* From cap_machine Require Export cap_lang memory_region seal_store. *)
 From iris.algebra Require Export gmap agree auth excl_auth.
-From iris.base_logic Require Export invariants na_invariants saved_prop.
+From iris.base_logic Require Export invariants na_invariants cancelable_invariants saved_prop.
 From cap_machine Require Import rules_base.
-From cap_machine Require Export call_stack.
+From cap_machine Require Export ghost_stacks call_stack.
 Import uPred.
 
 Ltac auto_equiv :=
@@ -29,15 +30,15 @@ Class logrel_na_invs Σ :=
     logrel_nais : na_inv_pool_name;
   }.
 
+
 (** interp : is a unary logical relation. *)
 Section logrel.
 
   Context
-    {Σ:gFunctors}
+    {Σ:gFunctors} {Cname : CmptNameG}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
+    {cinvg : cinvG Σ} {gstkg: gstacksIG Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -60,37 +61,37 @@ Section logrel.
   (* -------------------------------------------------------------------------------- *)
 
   (* Future world relation *)
-  Definition future_world (g : Locality) (W W' : WORLD) : iProp Σ :=
-    (match g with
-     | Local => ⌜related_sts_pub_world W W'⌝
-     | Global => ⌜related_sts_priv_world W W'⌝
-     end)%I.
+  (* Definition future_world (g : Locality) (W W' : WORLD) : iProp Σ := *)
+  (*   (match g with *)
+  (*    | Local => ⌜related_sts_pub_world W W'⌝ *)
+  (*    | Global => ⌜related_sts_priv_world W W'⌝ *)
+  (*    end)%I. *)
 
-  Lemma localityflowsto_futureworld (g g' : Locality) (W W' : WORLD):
-    LocalityFlowsTo g' g ->
-    (@future_world g' W W' -∗
-     @future_world g  W W').
-  Proof.
-    intros Hflows.
-    destruct g, g'; auto.
-    rewrite /future_world; iIntros "%".
-    iPureIntro. eapply related_sts_pub_priv_world; auto.
-  Qed.
+  (* Lemma localityflowsto_futureworld (g g' : Locality) (W W' : WORLD): *)
+  (*   LocalityFlowsTo g' g -> *)
+  (*   (@future_world g' W W' -∗ *)
+  (*    @future_world g  W W'). *)
+  (* Proof. *)
+  (*   intros Hflows. *)
+  (*   destruct g, g'; auto. *)
+  (*   rewrite /future_world; iIntros "%". *)
+  (*   iPureIntro. eapply related_sts_pub_priv_world; auto. *)
+  (* Qed. *)
 
-  Lemma futureworld_refl (g : Locality) (W : WORLD) :
-    ⊢ @future_world g W W.
-  Proof.
-    rewrite /future_world.
-    destruct g; iPureIntro
-    ; [apply related_sts_priv_refl_world
-      | apply related_sts_pub_refl_world].
-  Qed.
+  (* Lemma futureworld_refl (g : Locality) (W : WORLD) : *)
+  (*   ⊢ @future_world g W W. *)
+  (* Proof. *)
+  (*   rewrite /future_world. *)
+  (*   destruct g; iPureIntro *)
+  (*   ; [apply related_sts_priv_refl_world *)
+  (*     | apply related_sts_pub_refl_world]. *)
+  (* Qed. *)
 
-  Global Instance future_world_persistent (g : Locality) (W W' : WORLD) :
-    Persistent (future_world g W W').
-  Proof.
-    unfold future_world. destruct g; apply bi.pure_persistent.
-  Qed.
+  (* Global Instance future_world_persistent (g : Locality) (W W' : WORLD) : *)
+  (*   Persistent (future_world g W W'). *)
+  (* Proof. *)
+  (*   unfold future_world. destruct g; apply bi.pure_persistent. *)
+  (* Qed. *)
 
 
   (* interp expression definitions *)
@@ -146,7 +147,7 @@ Section logrel.
     : Prop :=
     match Ws,Cs,cstk with
     | W' :: Ws', C' :: Cs', frm :: cstk' =>
-        related_sts_pub_world W' W
+        W' ⊆ W
         ∧ C = C'
         ∧ (if frm.(is_untrusted_caller) then frame_match Ws' Cs' cstk' W C else True)
     | [], [] , []=> True
@@ -155,7 +156,7 @@ Section logrel.
 
   Lemma frame_match_mono
     (Ws : list WORLD) (Cs : list CmptName) (cstk : CSTK) (W W' : WORLD) ( C : CmptName ) :
-    related_sts_pub_world W W' ->
+    W ⊆ W' ->
     frame_match Ws Cs cstk W C ->
     frame_match Ws Cs cstk W' C.
   Proof.
@@ -165,18 +166,26 @@ Section logrel.
     - destruct Ws,Cs; cbn in *; try done.
       destruct Hfrm as (Hrelated' & <- & IH).
       split;[|split]; auto.
-      + eapply related_sts_pub_trans_world; eauto.
+      + etransitivity; eauto.
       + destruct (is_untrusted_caller frm); last done.
         by apply IHcstk.
   Qed.
+
+  Definition gname_of_addr (a : Addr) : gname := (Z.to_pos a).
+
+
+  Definition interp_world (W : WORLD) : iProp Σ :=
+    ∃ (S : gstacks),
+      gstacks_except S ∅
+      ∗ ⌜ list_to_set (fmap gname_of_addr (elements (dom W))) ⊆ dom S ⌝
+      ∗ ([∗ map] a↦γₐ ∈ W, cinv_own γₐ 1 ∗ ∃ s, gstack_frag (gname_of_addr a) (γₐ::s)).
 
   Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
     (λne (W : WORLD) (C : CmptName) (wpc : Word),
        ∀ cstk Ws Cs regs,
        ( interp_reg interp W C regs
         ∗ registers_pointsto (<[PC:=wpc]> regs)
-        ∗ region W C
-        ∗ sts_full_world W C
+        ∗ interp_world W
         ∗ interp_cont cstk Ws Cs
         ∗ na_own logrel_nais ⊤
         ∗ cstack_frag cstk
@@ -223,43 +232,43 @@ Section logrel.
   Proof. solve_contractive. Qed.
 
 
-  Definition opening_resources (interp : V) W C a :=
-    (∃ v φ p ρ,
-      sts_state_std C a ρ
-      ∗ ▷ (φ (W, C, v))
-      ∗ ▷ (monotonicity_guarantees_region C φ p v ρ)
-      ∗ a ↦ₐ v
-      ∗ ▷ rcond (safeUC φ) C p interp
-      ∗ ▷ wcond (safeUC φ) C interp
-      ∗ rel C a p φ
-      ∗ ⌜ ρ ≠ Revoked ⌝
-      ∗ ⌜ isO p = false ⌝
-      ∗ ⌜ isDRO p = false ⌝
-      ∗ ⌜ isDL p = false ⌝
-      ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝)%I.
+  (* Definition opening_resources (interp : V) W C a := *)
+  (*   (∃ v φ p ρ, *)
+  (*     sts_state_std C a ρ *)
+  (*     ∗ ▷ (φ (W, C, v)) *)
+  (*     ∗ ▷ (monotonicity_guarantees_region C φ p v ρ) *)
+  (*     ∗ a ↦ₐ v *)
+  (*     ∗ ▷ rcond (safeUC φ) C p interp *)
+  (*     ∗ ▷ wcond (safeUC φ) C interp *)
+  (*     ∗ rel C a p φ *)
+  (*     ∗ ⌜ ρ ≠ Revoked ⌝ *)
+  (*     ∗ ⌜ isO p = false ⌝ *)
+  (*     ∗ ⌜ isDRO p = false ⌝ *)
+  (*     ∗ ⌜ isDL p = false ⌝ *)
+  (*     ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝)%I. *)
 
-  Definition closing_resources (interp : V) W C a w : iProp Σ :=
-    ∃ φ p ρ,
-      (sts_state_std C a ρ
-       ∗ (φ (W, C, w))
-       ∗ (monotonicity_guarantees_region C φ p w ρ)
-       ∗ rcond (safeUC φ) C p interp
-       ∗ wcond (safeUC φ) C interp
-       ∗ rel C a p φ
-       ∗ ⌜ ρ ≠ Revoked ⌝
-       ∗ ⌜ isO p = false ⌝
-       ∗ ⌜ isDRO p = false ⌝
-       ∗ ⌜ isDL p = false ⌝
-       ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝
-      )%I.
+  (* Definition closing_resources (interp : V) W C a w : iProp Σ := *)
+  (*   ∃ φ p ρ, *)
+  (*     (sts_state_std C a ρ *)
+  (*      ∗ (φ (W, C, w)) *)
+  (*      ∗ (monotonicity_guarantees_region C φ p w ρ) *)
+  (*      ∗ rcond (safeUC φ) C p interp *)
+  (*      ∗ wcond (safeUC φ) C interp *)
+  (*      ∗ rel C a p φ *)
+  (*      ∗ ⌜ ρ ≠ Revoked ⌝ *)
+  (*      ∗ ⌜ isO p = false ⌝ *)
+  (*      ∗ ⌜ isDRO p = false ⌝ *)
+  (*      ∗ ⌜ isDL p = false ⌝ *)
+  (*      ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝ *)
+  (*     )%I. *)
 
-  Global Instance closing_resources_ne n :
-    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) closing_resources.
-  Proof.
-    intros interp interp0 Heq ????????????.
-    rewrite /closing_resources.
-    repeat (f_equiv; auto).
-  Qed.
+  (* Global Instance closing_resources_ne n : *)
+  (*   Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) closing_resources. *)
+  (* Proof. *)
+  (*   intros interp interp0 Heq ????????????. *)
+  (*   rewrite /closing_resources. *)
+  (*   repeat (f_equiv; auto). *)
+  (* Qed. *)
 
   (** [interp_cont_exec] provides a WP rule for the continuation relation.
       It matches the states of the machine at the point where the switcher returns to the caller.
@@ -326,9 +335,10 @@ Section logrel.
          ∗ [[ a_stk , astk4 ]] ↦ₐ [[ stk_mem_l ]]
          ∗ [[ astk4 , e_stk ]] ↦ₐ [[ stk_mem_h ]]
          (* World interpretation *)
-         ∗ open_region_many W C callee_stk_region
-         ∗ ([∗ list] a ; v ∈ callee_stk_region ; callee_stk_mem, closing_resources interp W C a v)
-         ∗ sts_full_world W C
+         (* ∗ open_region_many W C callee_stk_region *)
+         (* ∗ ([∗ list] a ; v ∈ callee_stk_region ; callee_stk_mem, closing_resources interp W C a v) *)
+         (* ∗ sts_full_world W C *)
+         ∗ interp_world W
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk
@@ -391,8 +401,10 @@ Section logrel.
              (* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
              ∗ interp_callee_part_of_the_stack interp Wt Ct (WCap RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) frm.(is_untrusted_caller)
              (* The continuation when matching the switcher's state at return-to-caller *)
-             ∗ (∀ W', ⌜related_sts_pub_world Wt W'⌝
+             ∗ (∀ W', ⌜Wt ⊆ W'⌝
                       -∗  interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs') cstk' W' Ct frm)))%I
+             (* ∗ (∀ W', ⌜related_sts_pub_world Wt W'⌝ *)
+             (*          -∗  interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs') cstk' W' Ct frm)))%I *)
     | _,_,_ =>  False%I
     end.
   Solve All Obligations with ( solve_proper; split; intros ; (intros [?  [] ]; done) ).
@@ -427,7 +439,8 @@ Section logrel.
     (interp : V) : iProp Σ :=
     (∀ (a : Addr) (W' : WORLD),
        ⌜a ∈ₐ [[ b , e ]]⌝
-       → future_world g W W'
+       (* → future_world g W W' *)
+       → ⌜ W ⊆ W' ⌝
        → ▷ interp_expr interp (interp_cont interp) W' C (WCap p g b e a))%I.
   Global Instance exec_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
@@ -452,7 +465,7 @@ Section logrel.
     (p : Perm) (g : Locality) (b e a : Addr)
     (interp : V) : iProp Σ :=
     (∀ W',
-       future_world g W W'
+       ⌜ W ⊆ W' ⌝
        → (∀ g', ⌜ LocalityFlowsTo g' g ⌝ → (▷ interp_expr interp (interp_cont interp) W' C (WCap p g' b e a)))
     )%I.
   Global Instance enter_cond_ne n :
@@ -490,27 +503,74 @@ Section logrel.
 
    *)
 
-  Definition region_state_pwl (W : WORLD) (a : Addr) : Prop :=
-    (std W) !! a = Some Temporary.
 
-  Definition region_state_nwl (W : WORLD) (a : Addr) (l : Locality) : Prop :=
-    match l with
-     | Local => (std W) !! a = Some Permanent ∨ (std W) !! a = Some Temporary
-     | Global => (std W) !! a = Some Permanent
+  Definition logN : namespace := nroot .@ "logN".
+  (* interp definitions *)
+  Program Definition interp_ref (W : WORLD) (C : CmptName) (a : Addr) : V -n> iPropO Σ :=
+    λne P, (∃ w, a ↦ₐ w ∗ P W C w)%I.
+  Solve Obligations with solve_proper.
+
+  Definition permanent_inv (a : Addr) (Φ : iProp Σ) : iProp Σ :=
+    inv (logN .@ a) Φ.
+
+  Definition temporary_inv ( W : WORLD ) (a : Addr) (Φ : iProp Σ) : iProp Σ :=
+    match ( W !! a ) with
+    | None => False
+    | Some γₐ => cinv (logN .@ (a, γₐ)) γₐ Φ
     end.
 
-  (* For simplicity we might want to have the following statement in validity of caps.
-     However, it is strictly not necessary since it can be derived form full_sts_world *)
+  Definition interp_invariant
+    (W : WORLD) (p : Perm) (l : Locality) (a : Addr) (Φ : iProp Σ) : iProp Σ :=
+    (match l with
+     | Global =>
+         (if isWL p
+          then False%I
+          else permanent_inv a Φ
+         )
+     | Local =>
+         (if isWL p
+          then temporary_inv W a Φ
+          else permanent_inv a Φ ∨ temporary_inv W a Φ
+         )
+     end)%I.
+  Global Instance interp_invariant_persistent
+    (W : WORLD) (p : Perm) (l : Locality) (a : Addr) (Φ : iProp Σ)
+    : Persistent (interp_invariant W p l a Φ).
+  Proof. rewrite /interp_invariant; apply _. Defined.
 
-  Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) :=
-    (match (std W) !! a with
-        | Some Temporary =>
-            (if isWL p
-             then mono_pub C (safeC P)
-             else (if isDL p then mono_pub C (safeC P) else mono_priv C (safeC P) p))
-        | Some Permanent => mono_priv C (safeC P) p
-        | _ => True
-        end)%I.
+  Definition interp_ref_inv
+    (W : WORLD) (C : CmptName) (p : Perm) (l : Locality) (a : Addr) (P : V) : iProp Σ :=
+    interp_invariant W p l a (interp_ref W C a P).
+  Global Instance interp_ref_inv_persistent
+    (W : WORLD) (C : CmptName) (p : Perm) (l : Locality) (a : Addr) (P : V)
+    : Persistent (interp_ref_inv W C p l a P).
+  Proof. apply _. Defined.
+
+  (* Definition region_state_pwl (W : WORLD) (a : Addr) : Prop := *)
+  (*   (std W) !! a = Some Temporary. *)
+
+  (* Definition region_state_nwl (W : WORLD) (a : Addr) (l : Locality) : Prop := *)
+  (*   match l with *)
+  (*    | Local => (std W) !! a = Some Permanent ∨ (std W) !! a = Some Temporary *)
+  (*    | Global => (std W) !! a = Some Permanent *)
+  (*   end. *)
+
+  (* (* For simplicity we might want to have the following statement in validity of caps. *)
+  (*    However, it is strictly not necessary since it can be derived form full_sts_world *) *)
+
+  (* Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) := *)
+  (*   (match (std W) !! a with *)
+  (*       | Some Temporary => *)
+  (*           (if isWL p *)
+  (*            then mono_pub C (safeC P) *)
+  (*            else (if isDL p then mono_pub C (safeC P) else mono_priv C (safeC P) p)) *)
+  (*       | Some Permanent => mono_priv C (safeC P) p *)
+  (*       | _ => True *)
+  (*       end)%I. *)
+
+  Definition future_mono (C : CmptName) (φ : V) : iProp Σ :=
+    (□ ∀ ( v : Word ) (W W' : WORLD),
+        ⌜W ⊆ W'⌝ → φ W C v -∗ φ W' C v)%I.
 
   Definition interp_z : V := λne _ _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
   Definition interp_cap_O : V := λne _ _ _, True%I.
@@ -533,12 +593,12 @@ Section logrel.
                     ∃ (p' : Perm) (P:V),
                       ⌜PermFlowsTo p p'⌝
                       ∧ ⌜persistent_cond P⌝
-                      ∧ rel C a p' (safeC P)
                       ∧ ▷ zcond P C
                       ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
                       ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
-                      ∧ monoReq W C a p' P
-                      ∧ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
+                      ∧ interp_ref_inv W C p' g a P
+                      ∧ future_mono C P
+                      (* ∧ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝ *)
               | _ => False
               end)%I.
   Solve All Obligations with auto;solve_proper.
@@ -548,13 +608,14 @@ Section logrel.
   Definition safe_to_seal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
        ∃ P : V, ⌜persistent_cond P⌝
-                ∗ (∀ w, future_priv_mono C (safeC P) w)
+                (* ∗ (∀ w, future_priv_mono C (safeC P) w) *)
                 ∗ (seal_pred a (safeC P))
                 ∗ ▷ wcond P C interp)%I.
   Definition safe_to_unseal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
-       ∃ P : V, (∀ w, future_priv_mono C (safeC P) w)
-                ∗ (seal_pred a (safeC P))
+       ∃ P : V,
+(* (∀ w, future_priv_mono C (safeC P) w) *)
+                (seal_pred a (safeC P))
                 ∗ ▷ rcond P C RO interp)%I.
 
   Program Definition interp_sr (interp : V) : V :=
@@ -568,7 +629,7 @@ Section logrel.
   Program Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (w : Word) :=
     (∃ (P : V) ,
         ⌜persistent_cond P⌝
-        ∗ (∀ w, future_priv_mono C (safeC P) w)
+        (* ∗ (∀ w, future_priv_mono C (safeC P) w) *)
         ∗ seal_pred o (safeC P)
         ∗ ▷ P W C w
         ∗ ▷ P W C (borrow w)
@@ -660,7 +721,7 @@ Section logrel.
     - destruct (permit_seal sr), (permit_unseal sr); rewrite /safe_to_seal /safe_to_unseal; apply _ .
     - apply _.
     - apply exist_persistent; intros P.
-      unfold Persistent. iIntros "(%Hpers & #Hmono & #Hs & HP & HPborrowed)".
+      unfold Persistent. iIntros "(%Hpers & #Hs & HP & HPborrowed)".
       (* use knowledge about persistence *)
       iAssert (<pers> ▷ P W C (WSealable sb))%I with "[ HP ]" as "HP".
       { iApply later_persistently_1.
@@ -673,7 +734,7 @@ Section logrel.
         by iApply persistent_persistently_2.
       }
       iApply persistently_sep_2; iSplitR; auto.
-      iApply persistently_sep_2; iSplitR; auto; iFrame "Hs".
+      iApply persistently_sep_2; iSplitR; auto.
       iApply persistently_sep_2;iFrame.
   Qed.
 
@@ -691,12 +752,15 @@ Section logrel.
                   ∃ (p' : Perm) (P:V),
                     ⌜PermFlowsTo p p'⌝
                     ∗ ⌜persistent_cond P⌝
-                    ∗ rel C a p' (safeC P)
+                    (* ∗ rel C a p' (safeC P) *)
                     ∗ ▷ zcond P C
                     ∗ (if readAllowed p' then ▷ (rcond P C p' interp) else True)
                     ∗ (if writeAllowed p' then ▷ (wcond P C interp) else True)
-                    ∗ monoReq W C a p' P
-                    ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
+                    (* ∗ monoReq W C a p' P *)
+                    ∗ interp_ref_inv W C p' g a P
+                    ∗ future_mono C P
+                    (* ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝) *)
+               )
                ∗ (⌜ if isWL p then g = Local else True⌝))%I).
   Proof.
     iSplit.
@@ -706,7 +770,7 @@ Section logrel.
       destruct rx ; destruct w ; try (cbn in HnotO ; congruence); auto.
       all: destruct g ;auto ; try (iSplit;eauto).
       all: try (iApply (big_sepL_mono with "HA"); intros k a' ?; iIntros "H").
-      all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a')").
+      all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hzcond & Hrcond & Hwcond & Href & Hmono)").
       all: try (iExists p',P ; iFrame "#∗"; repeat (iSplit;[done|];done)).
     }
     { iIntros "A".
@@ -717,7 +781,7 @@ Section logrel.
       destruct_perm p; cbn in HnotO,HnotXSR; try congruence; auto.
       all: destruct g eqn:Hg; simplify_eq ; eauto ; cbn.
       all: try (iApply (big_sepL_mono with "A"); intros; iIntros "H").
-      all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a')").
+      all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hzcond & Hrcond & Hwcond & Href & Hmono)").
       all: try (iExists p',P ; iFrame "#∗"; repeat (iSplit;[done|];done)).
     }
   Qed.
@@ -725,28 +789,28 @@ Section logrel.
 
   (* Inversion lemmas about interp  *)
   (* Inversion lemmas about about when R-capability *)
-  Lemma readAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a':
-    readAllowed p = true ->
-    interp W C (WCap p g b e a') -∗
-    ⌜Forall (fun a => ∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
-  Proof.
-    iIntros (Hwa) "Hinterp".
-    rewrite Forall_forall.
-    iIntros (a Ha).
-    apply elem_of_finz_seq_between in Ha.
-    rewrite /interp; cbn.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
-    replace (isO p) with false.
-    2: { eapply readAllowed_nonO in Hwa ;done. }
-    destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
-    iDestruct (extract_from_region_inv with "Hinterp")
-      as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
-    iPureIntro.
-    destruct (isWL p); simplify_eq.
-    + naive_solver.
-    + destruct g; naive_solver.
-  Qed.
+  (* Lemma readAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a': *)
+  (*   readAllowed p = true -> *)
+  (*   interp W C (WCap p g b e a') -∗ *)
+  (*   ⌜Forall (fun a => ∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝. *)
+  (* Proof. *)
+  (*   iIntros (Hwa) "Hinterp". *)
+  (*   rewrite Forall_forall. *)
+  (*   iIntros (a Ha). *)
+  (*   apply elem_of_finz_seq_between in Ha. *)
+  (*   rewrite /interp; cbn. *)
+  (*   rewrite fixpoint_interp1_eq interp1_eq; cbn. *)
+  (*   replace (isO p) with false. *)
+  (*   2: { eapply readAllowed_nonO in Hwa ;done. } *)
+  (*   destruct (has_sreg_access p) eqn:HnXSR; auto. *)
+  (*   iDestruct "Hinterp" as "[Hinterp %Hloc]". *)
+  (*   iDestruct (extract_from_region_inv with "Hinterp") *)
+  (*     as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto. *)
+  (*   iPureIntro. *)
+  (*   destruct (isWL p); simplify_eq. *)
+  (*   + naive_solver. *)
+  (*   + destruct g; naive_solver. *)
+  (* Qed. *)
 
   Lemma read_allowed_inv (W : WORLD) (C : CmptName) (a' a b e: Addr) p g :
     (b ≤ a' ∧ a' < e)%Z →
@@ -755,11 +819,11 @@ Section logrel.
     ∃ (p' : Perm) (P:V),
       ⌜ PermFlowsTo p p'⌝
       ∗ ⌜persistent_cond P⌝
-      ∗ rel C a' p' (safeC P)
       ∗ ▷ zcond P C
       ∗ ▷ rcond P C p' interp
       ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
-      ∗ monoReq W C a' p' P
+      ∗ interp_ref_inv W C p' g a' P
+      ∗ future_mono C P
   .
   Proof.
     iIntros (Hin Ra) "Hinterp".
@@ -771,7 +835,7 @@ Section logrel.
     destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
-             as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & _)";eauto.
+             as (p' P' Hfl' Hpers') "(Hzcond & Hrcond & Hwcond & Href & Hmono)";eauto.
     pose proof (readAllowed_flowsto _ _ Hfl' Ra) as Ra'.
     rewrite Ra'.
     iExists p',P'; iFrame "#∗%"; try done.
@@ -786,18 +850,17 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
               ∗ ▷ zcond P C
               ∗ ▷ rcond P C p' interp
-              ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
-              ∗ monoReq W C a' p' P
+              ∗ interp_ref_inv W C p' g a' P
+              ∗ future_mono C P
           ).
   Proof.
     induction l; iIntros (Hra Hin) "#Hinterp"; first done.
     simpl.
     apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
     iDestruct (read_allowed_inv _ _ a0 with "Hinterp")
-      as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)"
+      as (p' P) "(%Hperm_flow & %Hpers_P & Hzcond_P & Hrcond_P & Hwcond_P & Href & Hmono)"
     ; auto.
     iFrame "%#".
     iApply (IHl with "Hinterp"); eauto.
@@ -811,11 +874,10 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
               ∗ ▷ zcond P C
               ∗ ▷ rcond P C p' interp
-              ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
-              ∗ monoReq W C a' p' P
+              ∗ interp_ref_inv W C p' g a' P
+              ∗ future_mono C P
           ).
   Proof.
     iIntros (Hra) "Hinterp".
@@ -825,27 +887,27 @@ Section logrel.
     by apply elem_of_finz_seq_between.
   Qed.
 
-  Lemma readAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a a':
-    readAllowed p = true ->
-    withinBounds b e a' = true ->
-    interp W C (WCap p g b e a) -∗
-    ⌜∃ ρ, std W !! a' = Some ρ ∧ ρ <> Revoked⌝.
-  Proof.
-    intros Hra Hb. iIntros "Hinterp".
-    eapply withinBounds_le_addr in Hb.
-    rewrite /interp. cbn.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
-    replace (isO p) with false.
-    2: { eapply readAllowed_nonO in Hra ;done. }
-    destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
-    iDestruct (extract_from_region_inv with "Hinterp")
-             as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
-    iPureIntro.
-    destruct (isWL p); simplify_eq.
-    + naive_solver.
-    + destruct g; naive_solver.
-  Qed.
+  (* Lemma readAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a a': *)
+  (*   readAllowed p = true -> *)
+  (*   withinBounds b e a' = true -> *)
+  (*   interp W C (WCap p g b e a) -∗ *)
+  (*   ⌜∃ ρ, std W !! a' = Some ρ ∧ ρ <> Revoked⌝. *)
+  (* Proof. *)
+  (*   intros Hra Hb. iIntros "Hinterp". *)
+  (*   eapply withinBounds_le_addr in Hb. *)
+  (*   rewrite /interp. cbn. *)
+  (*   rewrite fixpoint_interp1_eq interp1_eq; cbn. *)
+  (*   replace (isO p) with false. *)
+  (*   2: { eapply readAllowed_nonO in Hra ;done. } *)
+  (*   destruct (has_sreg_access p) eqn:HnXSR; auto. *)
+  (*   iDestruct "Hinterp" as "[Hinterp %Hloc]". *)
+  (*   iDestruct (extract_from_region_inv with "Hinterp") *)
+  (*            as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto. *)
+  (*   iPureIntro. *)
+  (*   destruct (isWL p); simplify_eq. *)
+  (*   + naive_solver. *)
+  (*   + destruct g; naive_solver. *)
+  (* Qed. *)
 
   (* Inversion lemmas about about when W-capability *)
   Lemma write_allowed_inv (W : WORLD) (C : CmptName) (a' a b e: Addr) p g :
@@ -855,11 +917,11 @@ Section logrel.
     ∃ (p' : Perm) (P:V),
       ⌜ PermFlowsTo p p'⌝
       ∗ ⌜persistent_cond P⌝
-      ∗ rel C a' p' (safeC P)
       ∗ ▷ zcond P C
-      ∗ ▷ wcond P C interp
       ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
-      ∗ monoReq W C a' p' P
+      ∗ ▷ wcond P C interp
+      ∗ interp_ref_inv W C p' g a' P
+      ∗ future_mono C P
   .
   Proof.
     iIntros (Hin Ra) "Hinterp".
@@ -871,7 +933,7 @@ Section logrel.
     destruct (has_sreg_access p) eqn:HnXSR; auto.
     iDestruct "Hinterp" as "[Hinterp %Hloc]".
     iDestruct (extract_from_region_inv with "Hinterp")
-             as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & _)";eauto.
+             as (p' P' Hfl' Hpers') "(Hzcond & Hrcond & Hwcond & Href & Hmono)";eauto.
     pose proof (writeAllowed_flowsto _ _ Hfl' Ra) as Ra'.
     rewrite Ra'.
     iExists p',P'; iFrame "#∗%"; try done.
@@ -886,18 +948,18 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
               ∗ ▷ zcond P C
               ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
               ∗ (▷ wcond P C interp)
-              ∗ monoReq W C a' p' P
+              ∗ interp_ref_inv W C p' g a' P
+              ∗ future_mono C P
           ).
   Proof.
     induction l; iIntros (Hra Hin) "#Hinterp"; first done.
     simpl.
     apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
     iDestruct (write_allowed_inv _ _ a0 with "Hinterp")
-      as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P & HmonoV)"
+      as (p' P) "(%Hperm_flow & %Hpers_P & Hzcond_P & Hrcond_P & Hwcond_P & Href & Hmono)"
     ; auto.
     iFrame "%#".
     iApply (IHl with "Hinterp"); eauto.
@@ -911,11 +973,11 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
               ∗ ▷ zcond P C
               ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
               ∗ (▷ wcond P C interp)
-              ∗ monoReq W C a' p' P
+              ∗ interp_ref_inv W C p' g a' P
+              ∗ future_mono C P
           ).
   Proof.
     iIntros (Hra) "Hinterp".
@@ -925,95 +987,95 @@ Section logrel.
     by apply elem_of_finz_seq_between.
   Qed.
 
-  Lemma writeAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a:
-    writeAllowed p = true ->
-    withinBounds b e a = true ->
-    interp W C (WCap p g b e a) -∗
-    ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked⌝.
-  Proof.
-    intros Hra Hb. iIntros "Hinterp".
-    eapply withinBounds_le_addr in Hb.
-    rewrite /interp. cbn.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
-    replace (isO p) with false.
-    2: { eapply writeAllowed_nonO in Hra ;done. }
-    destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
-    iDestruct (extract_from_region_inv with "Hinterp")
-             as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
-    iPureIntro.
-    destruct (isWL p); simplify_eq.
-    + naive_solver.
-    + destruct g; naive_solver.
-  Qed.
+  (* Lemma writeAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a: *)
+  (*   writeAllowed p = true -> *)
+  (*   withinBounds b e a = true -> *)
+  (*   interp W C (WCap p g b e a) -∗ *)
+  (*   ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked⌝. *)
+  (* Proof. *)
+  (*   intros Hra Hb. iIntros "Hinterp". *)
+  (*   eapply withinBounds_le_addr in Hb. *)
+  (*   rewrite /interp. cbn. *)
+  (*   rewrite fixpoint_interp1_eq interp1_eq; cbn. *)
+  (*   replace (isO p) with false. *)
+  (*   2: { eapply writeAllowed_nonO in Hra ;done. } *)
+  (*   destruct (has_sreg_access p) eqn:HnXSR; auto. *)
+  (*   iDestruct "Hinterp" as "[Hinterp %Hloc]". *)
+  (*   iDestruct (extract_from_region_inv with "Hinterp") *)
+  (*            as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto. *)
+  (*   iPureIntro. *)
+  (*   destruct (isWL p); simplify_eq. *)
+  (*   + naive_solver. *)
+  (*   + destruct g; naive_solver. *)
+  (* Qed. *)
 
-  Lemma writeAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a':
-    writeAllowed p = true ->
-    interp W C (WCap p g b e a') -∗
-    ⌜Forall (fun a => ∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
-  Proof.
-    iIntros (Hwa) "Hinterp".
-    rewrite Forall_forall.
-    iIntros (a Ha).
-    apply elem_of_finz_seq_between in Ha.
-    rewrite /interp; cbn.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
-    replace (isO p) with false.
-    2: { eapply writeAllowed_nonO in Hwa ;done. }
-    destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
-    iDestruct (extract_from_region_inv with "Hinterp")
-             as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
-    iPureIntro.
-    destruct (isWL p); simplify_eq.
-    + naive_solver.
-    + destruct g; naive_solver.
-  Qed.
+  (* Lemma writeAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a': *)
+  (*   writeAllowed p = true -> *)
+  (*   interp W C (WCap p g b e a') -∗ *)
+  (*   ⌜Forall (fun a => ∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝. *)
+  (* Proof. *)
+  (*   iIntros (Hwa) "Hinterp". *)
+  (*   rewrite Forall_forall. *)
+  (*   iIntros (a Ha). *)
+  (*   apply elem_of_finz_seq_between in Ha. *)
+  (*   rewrite /interp; cbn. *)
+  (*   rewrite fixpoint_interp1_eq interp1_eq; cbn. *)
+  (*   replace (isO p) with false. *)
+  (*   2: { eapply writeAllowed_nonO in Hwa ;done. } *)
+  (*   destruct (has_sreg_access p) eqn:HnXSR; auto. *)
+  (*   iDestruct "Hinterp" as "[Hinterp %Hloc]". *)
+  (*   iDestruct (extract_from_region_inv with "Hinterp") *)
+  (*            as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto. *)
+  (*   iPureIntro. *)
+  (*   destruct (isWL p); simplify_eq. *)
+  (*   + naive_solver. *)
+  (*   + destruct g; naive_solver. *)
+  (* Qed. *)
 
   (* Inversion lemmas about about when WL-capability *)
-  Lemma writeLocalAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a a':
-    isWL p = true ->
-    withinBounds b e a = true ->
-    interp W C (WCap p g b e a') -∗
-    ⌜std W !! a = Some Temporary⌝.
-  Proof.
-    intros Hp Hb. iIntros "Hinterp".
-    eapply withinBounds_le_addr in Hb.
-    rewrite fixpoint_interp1_eq interp1_eq; cbn.
-    replace (isO p) with false.
-    2: { eapply isWL_nonO in Hp ;done. }
-    destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
-    iDestruct (extract_from_region_inv with "Hinterp")
-             as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
-    by rewrite Hp in Hstate.
-  Qed.
+  (* Lemma writeLocalAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a a': *)
+  (*   isWL p = true -> *)
+  (*   withinBounds b e a = true -> *)
+  (*   interp W C (WCap p g b e a') -∗ *)
+  (*   ⌜std W !! a = Some Temporary⌝. *)
+  (* Proof. *)
+  (*   intros Hp Hb. iIntros "Hinterp". *)
+  (*   eapply withinBounds_le_addr in Hb. *)
+  (*   rewrite fixpoint_interp1_eq interp1_eq; cbn. *)
+  (*   replace (isO p) with false. *)
+  (*   2: { eapply isWL_nonO in Hp ;done. } *)
+  (*   destruct (has_sreg_access p) eqn:HnXSR; auto. *)
+  (*   iDestruct "Hinterp" as "[Hinterp %Hloc]". *)
+  (*   iDestruct (extract_from_region_inv with "Hinterp") *)
+  (*            as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto. *)
+  (*   by rewrite Hp in Hstate. *)
+  (* Qed. *)
 
-  Lemma writeLocalAllowed_valid_cap_implies_many (W : WORLD) (C : CmptName) p g b e a l:
-    isWL p = true ->
-    Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ l, ⌜std W !! a' = Some Temporary⌝.
-  Proof.
-    induction l; iIntros (Hra Hin) "#Hinterp"; first done.
-    simpl.
-    apply Forall_cons in Hin; destruct Hin as [Hin_a0 Hin].
-    iDestruct (writeLocalAllowed_valid_cap_implies with "Hinterp") as "$"; auto.
-    { rewrite /withinBounds; solve_addr. }
-    iApply (IHl with "Hinterp"); eauto.
-  Qed.
+  (* Lemma writeLocalAllowed_valid_cap_implies_many (W : WORLD) (C : CmptName) p g b e a l: *)
+  (*   isWL p = true -> *)
+  (*   Forall (fun a' : Addr => (b <= a' < e)%a ) l -> *)
+  (*   ⊢ (interp W C (WCap p g b e a)) → *)
+  (*   [∗ list] a' ∈ l, ⌜std W !! a' = Some Temporary⌝. *)
+  (* Proof. *)
+  (*   induction l; iIntros (Hra Hin) "#Hinterp"; first done. *)
+  (*   simpl. *)
+  (*   apply Forall_cons in Hin; destruct Hin as [Hin_a0 Hin]. *)
+  (*   iDestruct (writeLocalAllowed_valid_cap_implies with "Hinterp") as "$"; auto. *)
+  (*   { rewrite /withinBounds; solve_addr. } *)
+  (*   iApply (IHl with "Hinterp"); eauto. *)
+  (* Qed. *)
 
-  Lemma writeLocalAllowed_valid_cap_implies_full_cap (W : WORLD) (C : CmptName) p g b e a:
-    isWL p = true ->
-    ⊢ (interp W C (WCap p g b e a)) →
-    [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! a' = Some Temporary⌝.
-  Proof.
-    iIntros (Hwl) "Hinterp".
-    iApply (writeLocalAllowed_valid_cap_implies_many with "Hinterp"); eauto.
-    apply Forall_forall.
-    intros a' Ha'.
-    by apply elem_of_finz_seq_between.
-  Qed.
+  (* Lemma writeLocalAllowed_valid_cap_implies_full_cap (W : WORLD) (C : CmptName) p g b e a: *)
+  (*   isWL p = true -> *)
+  (*   ⊢ (interp W C (WCap p g b e a)) → *)
+  (*   [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! a' = Some Temporary⌝. *)
+  (* Proof. *)
+  (*   iIntros (Hwl) "Hinterp". *)
+  (*   iApply (writeLocalAllowed_valid_cap_implies_many with "Hinterp"); eauto. *)
+  (*   apply Forall_forall. *)
+  (*   intros a' Ha'. *)
+  (*   by apply elem_of_finz_seq_between. *)
+  (* Qed. *)
 
   Lemma writeLocalAllowed_implies_local (W : WORLD) (C : CmptName) p g b e a:
     isWL p = true -> interp W C (WCap p g b e a) -∗ ⌜ isLocal g = true ⌝.
@@ -1023,90 +1085,88 @@ Section logrel.
     destruct_perm p; simpl in H; try congruence; destruct g; auto.
   Qed.
 
-  Lemma interp_in_registers
-    (W : WORLD) (C : CmptName)
-    (regs : leibnizO Reg) (p : Perm) (g : Locality) (b e a : Addr):
-      (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)%I
-    -∗ (∃ (p' : Perm) (P : V),
-        ⌜PermFlowsTo p p'⌝
-        ∗ ⌜persistent_cond P⌝
-        ∗ rel C a p' (safeC P)
-        ∗ ▷ zcond P C
-        ∗ (if readAllowed p' then ▷ rcond P C p' interp else True)
-        ∗ (if writeAllowed p' then ▷ wcond P C interp else True)
-        ∗ monoReq W C a p' P
-        ∗ ⌜if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
-       )
-    -∗ (∃ (p' : Perm) (P : V),
-        ⌜PermFlowsTo p p'⌝
-        ∗ ⌜persistent_cond P⌝
-        ∗ rel C a p' (safeC P)
-        ∗ ▷ zcond P C
-        ∗ (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)
-            then ▷ (rcond P C p' interp)
-            else emp)
-        ∗ (if decide (writeAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)
-            then ▷ wcond P C interp
-            else emp)
-        ∗ monoReq W C a p' P
-        ∗ ⌜if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
-       ).
-  Proof.
-    iIntros "#Hreg #H".
-    iDestruct "H" as (p0 P0 Hflp0 Hperscond_P0) "(Hrel0 & Hzcond0 & Hrcond0 & Hwcond0 & HmonoR0 & %Hstate0)".
-    iExists p0,P0.
-    iFrame "%#".
-    iSplit.
-    - (* rcond *)
-      destruct (decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a))
-        as [Hra'|Hra']; auto.
-      destruct (readAllowed p0) eqn:Hra; auto.
-      destruct Hra' as (r & w & Hsome & Hrar & Hvw).
-      destruct (decide (r = PC)); subst.
-      { rewrite lookup_insert in Hsome; simplify_eq.
-        eapply readAllowed_flowsto in Hrar; eauto.
-        cbn in *; congruence.
-      }
-      rewrite lookup_insert_ne in Hsome; auto.
-      iDestruct ("Hreg" $! r w n Hsome) as "Hinterp_w".
-      destruct_word w; cbn in * ; try done.
-      destruct Hvw as [Hvw ->].
-      iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
-      replace (isO c) with false.
-      2: { eapply readAllowed_nonO in Hrar ;done. }
-      destruct (has_sreg_access c) eqn:HnXSR; auto.
-      iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
-      iDestruct (extract_from_region_inv with "Hinterp_w")
-        as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
-      ; eauto; iClear "Hinterp_w".
-      apply readAllowed_flowsto in Hflc1; auto.
-      iDestruct (rel_agree C a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
-      congruence.
-    - (* wcond *)
-      destruct (decide (writeAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a))
-        as [Hwa'|Hwa']; auto.
-      destruct (writeAllowed p0) eqn:Hwa; auto.
-      destruct Hwa' as (r & w & Hsome & Hwaw & Hvw).
-      destruct (decide (r = PC)); subst.
-      { rewrite lookup_insert in Hsome; simplify_eq.
-        eapply writeAllowed_flowsto in Hwaw; eauto.
-        cbn in *; congruence.
-      }
-      rewrite lookup_insert_ne in Hsome; auto.
-      iDestruct ("Hreg" $! r w n Hsome) as "Hinterp_w".
-      destruct_word w; cbn in * ; try done.
-      destruct Hvw as [Hvw ->].
-      iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
-      replace (isO c) with false.
-      2: { eapply writeAllowed_nonO in Hwaw ;done. }
-      destruct (has_sreg_access c) eqn:HnXSR; auto.
-      iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
-      iDestruct (extract_from_region_inv with "Hinterp_w")
-        as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
-      ; eauto; iClear "Hinterp_w".
-      apply writeAllowed_flowsto in Hflc1; auto.
-      iDestruct (rel_agree C a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
-      congruence.
-  Qed.
+  (* Lemma interp_in_registers *)
+  (*   (W : WORLD) (C : CmptName) *)
+  (*   (regs : leibnizO Reg) (p : Perm) (g : Locality) (b e a : Addr): *)
+  (*     (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)%I *)
+  (*   -∗ (∃ (p' : Perm) (P : V), *)
+  (*       ⌜PermFlowsTo p p'⌝ *)
+  (*       ∗ ⌜persistent_cond P⌝ *)
+  (*       ∗ ▷ zcond P C *)
+  (*       ∗ (if readAllowed p' then ▷ rcond P C p' interp else True) *)
+  (*       ∗ (if writeAllowed p' then ▷ wcond P C interp else True) *)
+  (*       ∗ interp_ref_inv W C p' g a P *)
+  (*      ) *)
+  (*   -∗ (∃ (p' : Perm) (P : V), *)
+  (*       ⌜PermFlowsTo p p'⌝ *)
+  (*       ∗ ⌜persistent_cond P⌝ *)
+  (*       ∗ ▷ zcond P C *)
+  (*       ∗ (if decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a) *)
+  (*           then ▷ (rcond P C p' interp) *)
+  (*           else emp) *)
+  (*       ∗ (if decide (writeAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a) *)
+  (*           then ▷ wcond P C interp *)
+  (*           else emp) *)
+  (*       ∗ interp_ref_inv W C p' g a P *)
+  (*      ). *)
+  (* Proof. *)
+  (*   iIntros "#Hreg #H". *)
+  (*   iDestruct "H" as (p0 P0 Hflp0 Hperscond_P0) "(Hzcond0 & Hrcond0 & Hwcond0 & Href0)". *)
+  (*   iExists p0,P0. *)
+  (*   iFrame "%#". *)
+  (*   iSplit. *)
+  (*   - (* rcond *) *)
+  (*     destruct (decide (readAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)) *)
+  (*       as [Hra'|Hra']; auto. *)
+  (*     destruct (readAllowed p0) eqn:Hra; auto. *)
+  (*     destruct Hra' as (r & w & Hsome & Hrar & Hvw). *)
+  (*     destruct (decide (r = PC)); subst. *)
+  (*     { rewrite lookup_insert in Hsome; simplify_eq. *)
+  (*       eapply readAllowed_flowsto in Hrar; eauto. *)
+  (*       cbn in *; congruence. *)
+  (*     } *)
+  (*     rewrite lookup_insert_ne in Hsome; auto. *)
+  (*     iDestruct ("Hreg" $! r w n Hsome) as "Hinterp_w". *)
+  (*     destruct_word w; cbn in * ; try done. *)
+  (*     destruct Hvw as [Hvw ->]. *)
+  (*     iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w". *)
+  (*     replace (isO c) with false. *)
+  (*     2: { eapply readAllowed_nonO in Hrar ;done. } *)
+  (*     destruct (has_sreg_access c) eqn:HnXSR; auto. *)
+  (*     iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]". *)
+  (*     iDestruct (extract_from_region_inv with "Hinterp_w") *)
+  (*       as (p1 P1 Hflc1 Hperscond_P1) "(Hzcond1 & Hrcond1 & Hwcond1 & Href1)" *)
+  (*     ; eauto; iClear "Hinterp_w". *)
+  (*     apply readAllowed_flowsto in Hflc1; auto. *)
+
+  (*     rewrite /interp_ref_inv /interp_invariant. *)
+  (*     iDestruct (rel_agree C a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)". *)
+  (*     congruence. *)
+  (*   - (* wcond *) *)
+  (*     destruct (decide (writeAllowed_a_in_regs (<[PC:=WCap p g b e a]> regs) a)) *)
+  (*       as [Hwa'|Hwa']; auto. *)
+  (*     destruct (writeAllowed p0) eqn:Hwa; auto. *)
+  (*     destruct Hwa' as (r & w & Hsome & Hwaw & Hvw). *)
+  (*     destruct (decide (r = PC)); subst. *)
+  (*     { rewrite lookup_insert in Hsome; simplify_eq. *)
+  (*       eapply writeAllowed_flowsto in Hwaw; eauto. *)
+  (*       cbn in *; congruence. *)
+  (*     } *)
+  (*     rewrite lookup_insert_ne in Hsome; auto. *)
+  (*     iDestruct ("Hreg" $! r w n Hsome) as "Hinterp_w". *)
+  (*     destruct_word w; cbn in * ; try done. *)
+  (*     destruct Hvw as [Hvw ->]. *)
+  (*     iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w". *)
+  (*     replace (isO c) with false. *)
+  (*     2: { eapply writeAllowed_nonO in Hwaw ;done. } *)
+  (*     destruct (has_sreg_access c) eqn:HnXSR; auto. *)
+  (*     iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]". *)
+  (*     iDestruct (extract_from_region_inv with "Hinterp_w") *)
+  (*       as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)" *)
+  (*     ; eauto; iClear "Hinterp_w". *)
+  (*     apply writeAllowed_flowsto in Hflc1; auto. *)
+  (*     iDestruct (rel_agree C a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)". *)
+  (*     congruence. *)
+  (* Qed. *)
 
 End logrel.

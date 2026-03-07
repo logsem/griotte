@@ -6,11 +6,11 @@ From cap_machine Require Export logrel ftlr_base.
 
 Section fundamental.
   Context
-    {Σ:gFunctors}
+    {Σ:gFunctors} {Cname : CmptNameG}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    (* {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ} *)
     {nainv: logrel_na_invs Σ}
+    {cinvg : cinvG Σ} {gstkg: gstacksIG Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -31,14 +31,14 @@ Section fundamental.
     iIntros "#Hinterp".
     rewrite /enter_cond /interp_expr /=.
     iIntros (W' Hrelated).
-    iAssert (future_world Global W W')%I as "%Hrelated'".
-    { iPureIntro.
-      apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto.
-    }
+    (* iAssert (future_world Global W W')%I as "%Hrelated'". *)
+    (* { iPureIntro. *)
+    (*   apply related_sts_pub_priv_trans_world with W', related_sts_priv_refl_world; auto. *)
+    (* } *)
     iIntros "!> %g' %Hflows".
     assert (  LocalityFlowsTo g' Global ) as Hflow'.
     { destruct g'; auto. }
-    iSpecialize ("Hinterp" $! W' Hrelated' g' Hflow').
+    iSpecialize ("Hinterp" $! W' Hrelated g' Hflow').
     iFrame "#".
   Qed.
 
@@ -50,6 +50,17 @@ Section fundamental.
     rewrite !fixpoint_interp1_eq /=.
     destruct g; auto.
     iApply enter_cond_weakening;auto.
+  Qed.
+
+  Lemma interp_ref_inv_weaken_locality W C p g g' a φ :
+    LocalityFlowsTo g' g ->
+    interp_ref_inv W C p g a φ -∗
+    interp_ref_inv W C p g' a φ.
+  Proof.
+    iIntros (Hl) "#Href".
+    rewrite /interp_ref_inv /interp_invariant.
+    destruct g,g'; destruct (isWL p); eauto.
+    inversion Hl.
   Qed.
 
   Lemma interp_weakeningEO W C p p' g g' b b' e e' a a' :
@@ -89,8 +100,8 @@ Section fundamental.
       rewrite !big_sepL_app; iDestruct "A" as "[_ [A _]]".
       iApply (big_sepL_impl with "A"); auto.
       iModIntro; iIntros (k x Hx) "Hw".
-      iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
-      rewrite Hpwl in Hstate.
+      iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hzcond & Hrcond & Hwcond & #Href & Hmono)".
+      (* rewrite Hpwl in Hstate. *)
       assert ( PermFlowsTo p' p'')
         as Hflp' by (eapply PermFlowsToTransitive; eauto).
       iExists p'',φ; iFrame "∗%#".
@@ -102,11 +113,11 @@ Section fundamental.
         rewrite !big_sepL_app; iDestruct "A" as "[_ [A _]]".
         iApply (big_sepL_impl with "A"); auto.
         iModIntro; iIntros (k x Hx) "Hw".
-        iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
+        iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hzcond & Hrcond & Hwcond & #Href & Hmono)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
-        assert (region_state_nwl W x Local)
-          as Hstate' by (cbn in * ; naive_solver).
+        (* assert (region_state_nwl W x Local) *)
+        (*   as Hstate' by (cbn in * ; naive_solver). *)
         iExists p'',φ; iFrame "∗%#".
       + destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
         { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
@@ -114,12 +125,13 @@ Section fundamental.
         rewrite !big_sepL_app; iDestruct "A" as "[_ [A _]]".
         iApply (big_sepL_impl with "A"); auto.
         iModIntro; iIntros (k x Hx) "Hw".
-        iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond & #HmonoR & %Hstate)".
+        iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hzcond & Hrcond & Hwcond & #Href & Hmono)".
         assert ( PermFlowsTo p' p'')
           as Hflp' by (eapply PermFlowsToTransitive; eauto).
-        assert (region_state_nwl W x g')
-          as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver).
+        (* assert (region_state_nwl W x g') *)
+        (*   as Hstate' by (destruct g,g'; inv Hl ; cbn in * ; naive_solver). *)
         iExists p'',φ; iFrame "∗%#".
+        by iApply interp_ref_inv_weaken_locality.
   Qed.
 
   Lemma interp_weakening W C p p' g g' b b' e e' a a' :
@@ -139,6 +151,25 @@ Section fundamental.
     { iApply (interp_weakeningEO _ _ p p' g g'); eauto. }
   Qed.
 
+  Lemma interp_ref_inv_mono (W W' : WORLD) (C : CmptName) (p : Perm) g a φ :
+    W ⊆ W' →
+    future_mono C φ -∗
+    interp_ref_inv W C p g a φ -∗
+    interp_ref_inv W' C p g a φ.
+  Proof.
+    iIntros (HW) "#Hmono #Hinterp".
+    rewrite /interp_ref_inv /interp_invariant /permanent_inv /temporary_inv.
+    destruct g, (isWL p); eauto.
+    - admit.
+    - destruct (W !! a) as [γₐ|] eqn:HW'a; last done.
+      rewrite (lookup_weaken W W' a γₐ); eauto.
+      (* TODO: clearly here it doesnt work because
+         we dont have
+         (interp_ref W C a φ) <-> (interp_ref W' C a φ)
+       *)
+  Abort.
+
+
   Lemma interp_weakeningSentry W C p g g' b b' e e' a a' :
       isO p = false ->
       (b <= b')%a ->
@@ -157,9 +188,9 @@ Section fundamental.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (W') "#Hfuture %g'' %Hflows !>".
-    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hcstk & Hframe)]".
+    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hworld & Hcont & Hown & Hcstk & Hframe)]".
     rewrite /interp_conf.
-    iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hcont Hframe Hown Hcstk"); eauto.
+    iApply ("IH" with "Hfull Hmap Hreg Hworld Hcont Hframe Hown Hcstk"); eauto.
     iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
     destruct (isO p) eqn:HpO; auto.
     destruct (has_sreg_access p) eqn:HpXSR'; auto.
@@ -175,9 +206,9 @@ Section fundamental.
     rewrite !big_sepL_app. iDestruct "A" as "[_ [A2 _]]".
     iApply (big_sepL_impl with "A2"); auto.
     iModIntro; iIntros (k x Hx) "Hw".
-    iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & #Hzcond & #Hrcond & #Hwcond & #HmonoR & %Hstate)".
+    iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(#Hzcond & #Hrcond & #Hwcond & #Href & Hmono)".
     iExists p'',φ.
-    iFrame "Hrel".
+    iFrame "#".
     iDestruct ( (monoReq_nwl_future W W' C g g' p p'' x φ)
                 with "[$Hfuture] [] [$HmonoR]") as "HmonoR'"; eauto.
     repeat(iSplit; auto).
