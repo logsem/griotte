@@ -1,6 +1,6 @@
-From cap_machine Require Export
-  Jmp Jnz Jalr Mov Load Store BinOp Restrict
-  Subseg Get Lea Seal UnSeal ReadSR WriteSR.
+(* From cap_machine Require Export *)
+(*   Jmp Jnz Jalr Mov Load Store BinOp Restrict *)
+(*   Subseg Get Lea Seal UnSeal ReadSR WriteSR. *)
 From cap_machine Require Export ftlr_base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
@@ -118,19 +118,32 @@ Section fundamental.
       destruct Hp as [Hexec _]
       ; by eapply executeAllowed_is_readAllowed.
     }
-    iDestruct (interp_in_registers with "[Hreg] [H]")
-      as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
-    ;eauto ; iClear "Hinv".
+    (* iDestruct (interp_in_registers with "[Hreg] [H]") *)
+    (*   as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)" *)
+    (* ;eauto ; iClear "Hinv". *)
+    iDestruct "H" as (p' P Hflp' HpersP) "(Hzcond & Hrcond & Hwcond & HmonoR & Href)".
+    rewrite /interp_ref.
+    (* TODO what's the best way to encode both opening the world when temporary_inv,
+       and opening the regular invariant when permanent_inv?
+     *)
+    Definition is_temporary_inv (W : WORLD) (a : Addr) :=
+      ( (std W) !! a = Some Temporary ).
+    Set Nested Proofs Allowed.
+    Global Instance is_temporary_inv_decide (W : WORLD) (a : Addr) : Decision (is_temporary_inv W a).
+    Proof. rewrite /is_temporary_inv; solve_decision. Qed.
+
+    destruct ( decide (is_temporary_inv W a) ) as [His_tmp_inv|His_tmp_inv].
+    - iDestruct (region_open W C a p' with "[$Hrela $Hr $Hsts]")
+      as (w) "(Hr & Hsts & Hstate & Ha & % & #HmonoV & Hw) /="; [ |apply Hρ|].
+    { destruct ρ;auto;done. }
+    pose proof (Hperscond_P'' (W,C,w)) as HpersP''
+    ; iDestruct "Hw" as "#Hw".
+
     assert (∃ (ρ : region_type), (std W) !! a = Some ρ ∧ ρ ≠ Revoked)
       as [ρ [Hρ Hne ] ].
     { destruct (isWL p),g; simplify_eq ; eauto.
       destruct Hstate_a as [Htemp | Hperm];eauto. }
 
-    iDestruct (region_open W C a p'' with "[$Hrela $Hr $Hsts]")
-      as (w) "(Hr & Hsts & Hstate & Ha & % & #HmonoV & Hw) /="; [ |apply Hρ|].
-    { destruct ρ;auto;done. }
-    pose proof (Hperscond_P'' (W,C,w)) as HpersP''
-    ; iDestruct "Hw" as "#Hw".
 
     rewrite /registers_pointsto ; iExtract "Hmreg" PC as "HPC".
     destruct (decodeInstrW w) eqn:Hi. (* proof by cases on each instruction *)

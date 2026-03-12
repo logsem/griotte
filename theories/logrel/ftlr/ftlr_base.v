@@ -51,7 +51,7 @@ Section fundamental.
     → PermFlowsTo p p'
     → isO p' = false
     → (persistent_cond P)
-    → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
+    (* → (if isWL p then region_state_pwl W a else region_state_nwl W a g) *)
     → std W !! a = Some ρ
     → ρ ≠ Revoked
     → Pinstr
