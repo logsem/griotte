@@ -493,11 +493,11 @@ Section logrel.
   Definition region_state_pwl (W : WORLD) (a : Addr) : Prop :=
     (std W) !! a = Some Temporary.
 
-  Definition region_state_nwl (W : WORLD) (a : Addr) (l : Locality) : Prop :=
-    match l with
-     | Local => (std W) !! a = Some Permanent ∨ (std W) !! a = Some Temporary
-     | Global => (std W) !! a = Some Permanent
-    end.
+  (* Definition region_state_nwl (W : WORLD) (a : Addr) (l : Locality) : Prop := *)
+  (*   match l with *)
+  (*    | Local => (std W) !! a = Some Revoked ∨ (std W) !! a = Some Temporary *)
+  (*    | Global => (std W) !! a = Some Permanent *)
+  (*   end. *)
 
   (* For simplicity we might want to have the following statement in validity of caps.
      However, it is strictly not necessary since it can be derived form full_sts_world *)
@@ -508,7 +508,6 @@ Section logrel.
             (if isWL p
              then mono_pub C (safeC P)
              else (if isDL p then mono_pub C (safeC P) else mono_priv C (safeC P) p))
-        | Some Permanent => mono_priv C (safeC P) p
         | _ => True
         end)%I.
 
@@ -522,26 +521,48 @@ Section logrel.
                 end)%I.
   Solve All Obligations with solve_proper.
 
+  Definition logN : namespace := nroot .@ "logN".
+
+  Definition interp_permanent (interp : V) (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) :=
+    (∃ (p' : Perm) (P:V),
+      ⌜PermFlowsTo p p'⌝
+      ∧ ⌜persistent_cond P⌝
+      ∧ inv (logN .@ a) ( (∃ w, a ↦ₐ w ∗ ∀ W, P W C w)%I )
+      ∧ ▷ zcond P C
+      ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
+      ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
+      ∧ monoReq W C a p' P
+      ∧ ⌜ (std W) !! a ≠ Some Temporary ⌝)%I.
+
+  Definition interp_temporary (interp : V) (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) :=
+    (∃ (p' : Perm) (P:V),
+        ⌜PermFlowsTo p p'⌝
+        ∧ ⌜persistent_cond P⌝
+        ∧ rel C a p' (safeC P)
+        ∧ ▷ zcond P C
+        ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
+        ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
+        ∧ monoReq W C a p' P
+        ∧ ⌜ (std W) !! a = Some Temporary ⌝
+    )%I.
+
   Program Definition interp_cap (interp : V) : V :=
     λne W C w, (match w with
               | WCap (O _ _) _ _ _ _
               | WCap (BPerm XSR _ _ _) _ _ _ _ (* XRS capabilities are never safe-to-share *)
               | WCap (BPerm _ WL _ _) Global _ _ _ (* WL Global capabilities are never safe-to-share *)
                 => False
-              | WCap p g b e a =>
+              | WCap p Global b e a =>
+                  [∗ list] a ∈ (finz.seq_between b e), interp_permanent interp W C a p
+              | WCap (BPerm r WL dl dro) Local b e a =>
+                  [∗ list] a ∈ (finz.seq_between b e), interp_temporary interp W C a (BPerm r WL dl dro)
+              | WCap p Local b e a =>
                   [∗ list] a ∈ (finz.seq_between b e),
-                    ∃ (p' : Perm) (P:V),
-                      ⌜PermFlowsTo p p'⌝
-                      ∧ ⌜persistent_cond P⌝
-                      ∧ rel C a p' (safeC P)
-                      ∧ ▷ zcond P C
-                      ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
-                      ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
-                      ∧ monoReq W C a p' P
-                      ∧ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
+                    interp_permanent interp W C a p ∨
+                    interp_temporary interp W C a p
               | _ => False
               end)%I.
-  Solve All Obligations with auto;solve_proper.
+  Solve All Obligations with (solve_proper; split; intros; done).
 
   (* (un)seal permission definitions *)
   (* Note the asymmetry: to seal values, we need to know that we are using a persistent predicate to create a value, whereas we do not need this information when unsealing values (it is provided by the `interp_sb` case). *)

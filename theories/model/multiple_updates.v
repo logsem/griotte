@@ -441,48 +441,6 @@ Section std_updates.
      rewrite /std_update /=. rewrite insert_commute;auto.
    Qed.
 
-   Lemma related_sts_pub_world_revoked_permanent W a :
-    (std W) !! a = Some Revoked →
-    related_sts_pub_world W (<s[a:=Permanent]s>W).
-  Proof.
-    intros Ha.
-    rewrite /related_sts_pub_world /=.
-    split;[|apply related_sts_pub_refl].
-    rewrite /related_sts_pub. split.
-    - rewrite dom_insert_L. set_solver.
-    - intros i x y Hx Hy.
-      destruct (decide (a = i)).
-      + subst.
-        rewrite Hx in Ha. inversion Ha.
-        rewrite lookup_insert in Hy. inversion Hy.
-        right with (Permanent);[|left]. constructor.
-      + rewrite lookup_insert_ne in Hy;auto.
-        rewrite Hx in Hy.
-        inversion Hy; subst.
-        left.
-  Qed.
-
-   Lemma related_sts_pub_update_multiple_perm W l :
-     Forall (λ k, std W !! k = Some Revoked) l →
-     related_sts_pub_world W (std_update_multiple W l Permanent).
-   Proof.
-     intros Hforall. induction l.
-     - apply related_sts_pub_refl_world.
-     - simpl.
-       apply Forall_cons in Hforall as [ Ha_std Hforall].
-       eapply related_sts_pub_trans_world;[apply IHl; auto|].
-       destruct (decide (a ∈ l)).
-       { rewrite (_: <s[a:=Permanent]s>(std_update_multiple W l Permanent) = std_update_multiple W l Permanent) /=
-         ; first by apply related_sts_pub_refl_world.
-         rewrite /std_update insert_id /=; first by destruct (std_update_multiple W l Permanent) as [ [] ].
-         by apply std_sta_update_multiple_lookup_in_i.
-       }
-       destruct W as [Hstd Hloc].
-       apply related_sts_pub_world_revoked_permanent in Ha_std.
-       eapply related_sts_pub_trans_world;[apply std_update_multiple_related_monotone,Ha_std|].
-       rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.
-   Qed.
-
    Lemma related_sts_pub_world_revoked_temporary W a :
      (std W) !! a = Some Revoked →
      related_sts_pub_world W (<s[a:=Temporary]s>W).
