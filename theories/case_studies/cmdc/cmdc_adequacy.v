@@ -529,8 +529,7 @@ Section Adequacy.
 
     iAssert ( interp Winit_B B (WSealed ot_switcher B_f)) with
       "[HB_code Hr_B HB_data Hsts_B Hentry_Bf']" as "#Hinterp_B".
-    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1
-               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
+    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H2.
       rewrite B_exp_tbl in H2.
@@ -669,8 +668,7 @@ Section Adequacy.
 
     iAssert ( interp Winit_C C (WSealed ot_switcher C_g)) with
       "[HC_code Hr_C HC_data Hsts_C Hentry_Cg']" as "#Hinterp_C".
-    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1
-               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
+    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
       rewrite C_exp_tbl in H2.

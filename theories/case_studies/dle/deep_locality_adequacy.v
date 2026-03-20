@@ -367,7 +367,7 @@ Section Adequacy.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
 
     iMod (
-       alloc_compartment_interp with "[$HC_imports] [$HC_code] [$HC_data] [] [$Hsts_C] [$Hr_C]"
+       alloc_compartment_interp with "[HC_imports] [HC_code] [HC_data] [] [$Hsts_C] [$Hr_C]"
       ) as "(Hsts_C & Hr_C & #HC_code & #HC_data & _)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
@@ -497,8 +497,7 @@ Section Adequacy.
 
     iAssert ( interp Winit_C C (WSealed ot_switcher C_f)) with
       "[HC_code Hr_C HC_data Hsts_C Hentry_Cf']" as "#Hinterp_C".
-    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1
-               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
+    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
       rewrite C_exp_tbl in H2.

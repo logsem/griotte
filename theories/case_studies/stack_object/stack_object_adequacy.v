@@ -687,8 +687,7 @@ Section Adequacy.
       (* B.adv *)
       iApply big_sepL_cons; iSplitL; last done.
       iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
-      iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_g _ _ (nroot.@C)
-               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
+      iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_g _ _ (nroot.@C)); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
       rewrite C_exp_tbl in H2.
@@ -699,8 +698,7 @@ Section Adequacy.
       ( interp W4 C (WSealed ot_switcher C_f)
       )%I as "Hinterp_C_f".
     {
-      iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_f _ _ (nroot.@C)
-               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
+      iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_f _ _ (nroot.@C)); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
       rewrite C_exp_tbl in H2.
