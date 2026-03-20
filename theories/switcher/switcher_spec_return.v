@@ -484,7 +484,6 @@ Section Switcher.
     iDestruct (interp_monotone W2' Wfixed with "[] H2") as "$"; first done.
     iDestruct (interp_monotone W3' Wfixed with "[] H3") as "$"; first done.
     iFrame.
-    rewrite big_sepL_singleton; iFrame.
     }
 
     (* --- Load cgp csp --- *)

@@ -631,7 +631,9 @@ Section Logrel_extra.
         all: iEval (rewrite fixpoint_interp1_eq); done.
       }
       cbn.
-      iFrame "∗#%".
+      iFrame "∗".
+      iExists (safeC P),p'.
+      iFrame "#%".
       iSplit; iPureIntro.
       + eapply notisDRO_flowsfrom; eauto.
       + eapply notisDL_flowsfrom; eauto.

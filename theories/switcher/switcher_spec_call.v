@@ -649,7 +649,7 @@ Section Switcher.
     { (* wct1_caller is not sealed with ot_switcher, so the next instruction will fail *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (wp_unseal_nomatch_r2 with "[$HPC $Hi $Hct1 $Hcs0 $Hcs1]") ; try solve_pure.
+      iApply (wp_unseal_nomatch_r2 with "[$HPC $Hi $Hct1 $Hcs0]") ; try solve_pure.
       iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
     }
     assert (∃ w_entry_point, wct1_caller = WSealed ot_switcher w_entry_point ) as [w_entry_point ->].

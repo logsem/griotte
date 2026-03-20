@@ -14,7 +14,7 @@ Ltac auto_equiv :=
   end;
   (* Normalize away equalities. *)
   repeat match goal with
-  | H : _ ≡{_}≡ _ |-  _ => apply (discrete_iff _ _) in H
+  | H : _ ≡{_}≡ _ |-  _ => apply (discrete_iff _ _ _) in H
   | H : _ ≡ _ |-  _ => apply leibniz_equiv in H
   | _ => progress simplify_eq
   end;

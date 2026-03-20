@@ -339,11 +339,12 @@ Section fundamental.
     + (* Halt *)
       iApply (wp_halt with "[HPC Ha]"); eauto; iFrame.
       iNext. iIntros "[HPC Ha] /=".
+      assert ( ∀ Wv : WORLD * CmptName * Word, Persistent (safeC P'' Wv) ) as Hperscond_safeP''.
+      { rewrite /persistent_cond in Hperscond_P''; apply _. }
       iDestruct (region_close _ _ _ _ _ _ ρ with "[$Hr $Ha $Hstate $HmonoV Hw]") as "Hr";[auto|iFrame "#"; auto|].
       { destruct ρ;auto; contradiction. }
       iApply wp_pure_step_later; auto; iNext ; iIntros "_".
       iApply wp_value; auto.
-      Unshelve. rewrite /persistent_cond in Hperscond_P''; apply _.
   Qed.
 
   Theorem fundamental W C w :

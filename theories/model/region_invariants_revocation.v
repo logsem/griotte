@@ -774,7 +774,6 @@ Section heap.
     iNext. iApply ("HmonoV" with "[] Hφ").
     iPureIntro.
     apply revoke_related_sts_priv_world.
-    Unshelve. apply _.
   Qed.
 
   (* ---------------------------------------------------------------------------------------- *)
@@ -811,7 +810,6 @@ Section heap.
     iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     iFrame "∗%#".
     iNext. iApply "HmonoV";[|iFrame "#"]. auto.
-    Unshelve. apply _.
   Qed.
 
   Lemma monotone_revoke_list_region_def_mono
@@ -1723,14 +1721,14 @@ Section heap.
             iSplit;auto. iExists _,_,_.
             iAssert (future_pub_mono C φ0 v) as "#HmonoV'".
             { destruct (isWL p'); first done.
-            destruct (isDL p');
+              destruct (isDL p');
               [done |iApply future_priv_mono_is_future_pub_mono]; done. }
-            iFrame "∗#%".
+            iFrame "#%∗".
             iNext. iApply ("HmonoV'" with "[] Hφ0"). iPureIntro.
             apply close_list_related_sts_pub_insert'; auto.
           + iDestruct "Hρ" as (γpred' p' φ0 Heq' Hpers) "(#Hpred & Hρ)".
             iDestruct "Hρ" as (v) "(HO & Ha' & #HmonoV & Hφ0)".
-            iSplit;auto. iExists _,_,_. iFrame "∗%#".
+            iSplit;auto. iExists _,_,_. iFrame "%#∗".
             iNext. iApply ("HmonoV" with "[] Hφ0").
             iPureIntro.
             apply related_sts_pub_priv_world.
@@ -1996,7 +1994,6 @@ Section heap.
     iNext. iApply ("HmonoV" with "[] Hφ").
     iPureIntro.
     apply Hrelated.
-    Unshelve. apply _.
   Qed.
 
   Lemma update_region_revoked_update_loc E W W' C :

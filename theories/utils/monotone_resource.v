@@ -243,7 +243,7 @@ Lemma monotone_equivI `{!(∀ n : nat, Proper (dist n ==> dist n ==> iff) R)}
       `{!Reflexive R} `{!AntiSymm (≡) R} {M} a b :
   principal R a ≡ principal R b ⊣⊢ (a ≡ b : uPred M).
 Proof.
-  uPred.unseal. do 2 split.
+  sbi_unfold. split.
   - intros Hx. exact: principal_injN.
   - intros Hx. exact: principal_ne.
 Qed.
