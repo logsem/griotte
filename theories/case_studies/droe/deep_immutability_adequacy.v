@@ -488,7 +488,7 @@ Section Adequacy.
       iSplit; first (iNext ; by iApply wcond_interp).
       assert ((std Winit_C) !! a = Some Temporary).
       { subst Winit_C.
-        apply elem_of_list_lookup_2 in Ha.
+        apply list_elem_of_lookup_2 in Ha.
         rewrite std_sta_update_multiple_lookup_in_i; auto.
       }
       iSplit; last done.

@@ -291,8 +291,8 @@ Section DLE.
       iSplit; first iApply zcond_interp_dl.
       iSplit; first (iApply rcond_interp_dl; auto).
       iSplit; first iApply wcond_interp_dl.
-      iSplit; last (by iPureIntro; right; rewrite lookup_insert).
-      rewrite /monoReq; rewrite lookup_insert; cbn.
+      iSplit; last (by iPureIntro; right; rewrite lookup_insert_eq).
+      rewrite /monoReq; rewrite lookup_insert_eq; cbn.
       iApply mono_pub_interp_dl.
     }
 
@@ -365,9 +365,9 @@ Section DLE.
       assert (x ≠ (cgp_b)%a).
       { intros Hx'; simplify_eq; set_solver+Hx Hcgp_b_stk. }
       simplify_map_eq.
-      apply elem_of_list_lookup_1 in Hx; destruct Hx as [? Hx].
+      apply list_elem_of_lookup_1 in Hx; destruct Hx as [? Hx].
       rewrite Forall_forall in Hfrm_close_W0; apply Hfrm_close_W0.
-      eapply elem_of_list_lookup_2; eauto.
+      eapply list_elem_of_lookup_2; eauto.
     }
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification with
@@ -434,7 +434,7 @@ Section DLE.
       assert ( W4.1 !! cgp_b = Some Temporary ) as HW4.
       { eapply region_state_pub_temp; eauto.
         rewrite lookup_insert_ne; last solve_addr.
-        by rewrite lookup_insert.
+        by rewrite lookup_insert_eq.
       }
       destruct Hl_unk' as [_ Hl_unk'].
       pose proof (Hl_unk' cgp_b) as [Hl_unk'_cgp _].

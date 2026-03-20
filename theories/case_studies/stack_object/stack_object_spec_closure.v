@@ -285,7 +285,7 @@ Section SO.
       {
         intros a Ha.
         subst la_be_temporaries.
-        apply elem_of_list_filter in Ha as [Ha Ha_be].
+        apply list_elem_of_filter in Ha as [Ha Ha_be].
         apply (Hl_revoked_W0_temporaries a) in Ha.
         apply elem_of_app in Ha as [Ha|Ha]; first done.
         rewrite elem_of_disjoint in Hno_overlap.
@@ -313,7 +313,7 @@ Section SO.
           { clear -Ha_l Hl' Ha_l0.
             intros x Hx.
             assert (x ≠ a) by (intro; simplify_eq; done).
-            apply (elem_of_list_further _ a) in Hx.
+            apply (list_elem_of_further _ a) in Hx.
             apply Hl' in Hx.
             apply elem_of_cons in Hx as [Hx|Hx]; auto.
             done.
@@ -326,7 +326,7 @@ Section SO.
           apply not_elem_of_cons in Ha_l as [Ha_a0 Ha_l].
           apply NoDup_cons in Hnodup_l as [_ Hnodup_l].
           destruct ( decide (a0 ∈ l0) ) as [Ha0|Ha0].
-          ** apply (elem_of_list_further _ a) in Ha0.
+          ** apply (list_elem_of_further _ a) in Ha0.
              setoid_rewrite <- Ha_l' in Ha0.
              rewrite decide_True; last done.
              rewrite IHl_revoked_W0; auto.
@@ -641,7 +641,7 @@ Section SO.
       iIntros (k x Hx) "(%px & %Px & %Hpx_flow & %Hpers_Px & Hrelx
                              & Hzcondx & Hrcondx & Hwcondx & Hmonox & %Hstatex)".
       iFrame "∗%".
-      apply elem_of_list_lookup_2 in Hx.
+      apply list_elem_of_lookup_2 in Hx.
       rewrite Forall_forall in Hstd_state_be_W0.
       assert (std W0 !! x = std W2 !! x) as Hxeq.
       { destruct (Hstd_state_be_W0 x Hx) as [Hx' | Hx']; rewrite Hx'; symmetry.
@@ -650,9 +650,9 @@ Section SO.
             by apply revoke_lookup_Perm.
           }
           intro Hcontra.
-          apply elem_of_list_filter in Hcontra as [ hcontra _ ].
+          apply list_elem_of_filter in Hcontra as [ hcontra _ ].
           by rewrite hcontra in Hx'.
-        * apply close_list_lookup_in; auto; last (apply elem_of_list_filter; split; done).
+        * apply close_list_lookup_in; auto; last (apply list_elem_of_filter; split; done).
           cbn; apply revoke_lookup_Monotemp; auto.
       }
       iSplitL "Hmonox".
@@ -943,7 +943,7 @@ Section SO.
       apply Forall_forall; intros x Hx.
       subst W3 W2 W1.
       rewrite close_list_lookup_not_in.
-      2: { intros Hx'; apply elem_of_list_singleton in Hx'; simplify_eq.
+      2: { intros Hx'; apply list_elem_of_singleton in Hx'; simplify_eq.
            apply elem_of_finz_seq_between in Hx.
            solve_addr+Hx Hastk2 Hcsp_size'.
       }
@@ -1028,7 +1028,7 @@ Section SO.
     { apply Forall_forall.
       intros x Hx.
       subst l_revoked_W0_no_be.
-      apply elem_of_list_filter in Hx as [_ Hl].
+      apply list_elem_of_filter in Hx as [_ Hl].
       rewrite -revoke_dom_eq.
       eapply elem_of_mono_pub; eauto.
       rewrite -!close_list_dom_eq.
@@ -1193,8 +1193,8 @@ Section SO.
           rewrite close_list_lookup_not_in; auto.
           * rewrite close_list_lookup_in; auto.
             rewrite Forall_forall in Hrevoked_la_be_temporaries; apply Hrevoked_la_be_temporaries; auto.
-          * intro Ha' ; apply elem_of_list_singleton in Ha'; simplify_eq.
-            apply elem_of_list_filter in Ha as [_ Ha].
+          * intro Ha' ; apply list_elem_of_singleton in Ha'; simplify_eq.
+            apply list_elem_of_filter in Ha as [_ Ha].
             rewrite elem_of_disjoint in Hno_overlap; eapply Hno_overlap; eauto.
             apply elem_of_finz_seq_between; subst csp_b; solve_addr+Hastk1 Hcsp_size'.
     }
@@ -1240,24 +1240,24 @@ Section SO.
         + apply (NoDup_cons_1_2 a_stk1).
           setoid_rewrite <- Hl_revoked_W4_astk1; auto.
         + intros x Hx Hx'.
-          apply elem_of_list_filter in Hx as [Hx _].
-          apply elem_of_list_filter in Hx' as [Hx' _].
+          apply list_elem_of_filter in Hx as [Hx _].
+          apply list_elem_of_filter in Hx' as [Hx' _].
           done.
       }
       intros x; split; intros Hx.
       + apply elem_of_app.
         destruct (decide (x ∈ la_be_temporaries)) as [Hx_temp|Hx_temp]; [right|left]; cycle 1.
-        * apply elem_of_list_filter; split; auto.
-        * apply elem_of_list_filter; split; auto.
+        * apply list_elem_of_filter; split; auto.
+        * apply list_elem_of_filter; split; auto.
           assert (std W4 !! x = Some Temporary) as Hx_W4.
           { eapply region_state_pub_temp; eauto.
             destruct (decide (x ∈ [a_stk1])) as [Hx'|Hx'].
-            + rewrite elem_of_list_singleton in Hx'; simplify_eq; done.
+            + rewrite list_elem_of_singleton in Hx'; simplify_eq; done.
             + rewrite close_list_lookup_not_in; eauto.
               apply close_list_lookup_in; eauto.
               rewrite Forall_forall in Hl_revoked_W0; apply Hl_revoked_W0; auto.
           }
-          apply elem_of_list_filter in Hx_temp as [Hx_temp_W0 Hx_temp].
+          apply list_elem_of_filter in Hx_temp as [Hx_temp_W0 Hx_temp].
           subst la_be_temporaries.
           apply Hl_revoked_W4_temporaries in Hx_W4.
           apply elem_of_app in Hx_W4 as [Hx_W4|Hx_W4].
@@ -1273,11 +1273,11 @@ Section SO.
             exfalso; rewrite elem_of_disjoint in Hno_overlap ; eapply Hno_overlap; eauto.
           }
       + apply elem_of_app in Hx as [Hx | Hx]
-        ; apply elem_of_list_filter in Hx as [Hx Hx']; first done.
+        ; apply list_elem_of_filter in Hx as [Hx Hx']; first done.
         assert (x ∈ finz.seq_between b e)
-          as Hx_be by (by apply elem_of_list_filter in Hx as [_ ?]).
+          as Hx_be by (by apply list_elem_of_filter in Hx as [_ ?]).
         assert ( W0.1 !! x = Some Temporary )
-          as Hx_W0 by (by apply elem_of_list_filter in Hx as [? _]).
+          as Hx_W0 by (by apply list_elem_of_filter in Hx as [? _]).
         apply Hl_revoked_W0_temporaries in Hx_W0.
         apply elem_of_app in Hx_W0 as [Hx_W0|Hx_W0]; auto.
             exfalso; rewrite elem_of_disjoint in Hno_overlap ; eapply Hno_overlap; eauto.
@@ -1470,18 +1470,18 @@ Section SO.
             done.
           * cbn; intros x Hx.
             clear -Hx.
-            apply elem_of_list_filter in Hx as [Hx _].
+            apply list_elem_of_filter in Hx as [Hx _].
             subst l_revoked_W4_no_astk1_wca0.
             intros Hx'.
-            apply elem_of_list_filter in Hx' as [Hx' _].
+            apply list_elem_of_filter in Hx' as [Hx' _].
             done.
         + cbn; intros x Hx.
           intros Hx'.
           subst l_revoked_W4_no_astk1_no_wca0.
-          apply elem_of_list_filter in Hx' as [Hx_no_la_be_temporaries Hx'].
+          apply list_elem_of_filter in Hx' as [Hx_no_la_be_temporaries Hx'].
           apply elem_of_app in Hx as [Hx|Hx].
-          * apply elem_of_list_filter in Hx as [_ Hx].
-            apply (elem_of_list_further _ a_stk1) in Hx'.
+          * apply list_elem_of_filter in Hx as [_ Hx].
+            apply (list_elem_of_further _ a_stk1) in Hx'.
             setoid_rewrite <- Hl_revoked_W4_astk1 in Hx'.
             setoid_rewrite Hl_wca0_l' in Hx.
             clear -Hx Hx_no_la_be_temporaries Hx' Hdisjoint_l_revoked_W0_no_be_l_revoked_W4.
@@ -1489,7 +1489,7 @@ Section SO.
             apply elem_of_app in Hx as [Hx|Hx]; first done.
             apply (Hdisjoint_l_revoked_W0_no_be_l_revoked_W4 x); eauto.
           * subst l_revoked_W4_no_astk1_wca0.
-            apply elem_of_list_filter in Hx as [Hx _].
+            apply list_elem_of_filter in Hx as [Hx _].
             done.
       - cbn; intros x Hx.
         apply elem_of_app in Hx as [Hx|Hx].

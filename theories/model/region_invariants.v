@@ -326,7 +326,7 @@ Section heap.
     revert Hi Heq; rewrite -Hγp => Hi Heq.
     apply to_agree_included in Hi; subst.
     revert Heq; rewrite -Hi => Heq.
-    rewrite insert_delete_insert insert_id /leibniz_equiv_iff => //; auto.
+    rewrite insert_delete_eq insert_id /leibniz_equiv_iff => //; auto.
     revert Heq. rewrite lookup_fmap fmap_Some_equiv =>Hγp'.
     destruct Hγp' as [γp' [? Hrγp'] ].
     apply to_agree_inj, leibniz_equiv_iff in Hrγp' as <-.
@@ -434,7 +434,7 @@ Section heap.
     rewrite rel_eq /rel_def.
     iDestruct "Hrel" as (γpred) "#[Hown _]".
     iDestruct (reg_in with "[$HM $Hown]") as %HMeq; eauto.
-    rewrite HMeq. rewrite lookup_insert. eauto.
+    rewrite HMeq. rewrite lookup_insert_eq. eauto.
   Qed.
 
 
@@ -625,7 +625,7 @@ Section heap.
     iDestruct "Hreg" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
     (* assert that γrel = γrel' *)
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
-    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete].
+    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
     iDestruct "Hpreds" as "[Hl Hpreds]".
     iDestruct "Hl" as (ρ Hρ) "[Hstate Hl]".
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
@@ -665,7 +665,7 @@ Section heap.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iDestruct "Hreg" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
-    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete].
+    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
     iDestruct "Hpreds" as "[Hl Hpreds]".
     iDestruct "Hl" as (ρ Hρ) "[Hstate Hl]".
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
@@ -706,7 +706,7 @@ Section heap.
     iDestruct "Hreg" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
     (* assert that γrel = γrel' *)
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
-    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete].
+    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
     iDestruct "Hpreds" as "[Hl Hpreds]".
     iDestruct "Hl" as (ρ Hρ) "[Hstate Hl]".
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
@@ -776,7 +776,7 @@ Section heap.
     region_map_def W C (delete a M) (<[ a := ρ ]> Mρ).
   Proof.
     iIntros "HH".
-    rewrite {1}(_: delete a Mρ = delete a (<[ a := ρ ]> Mρ)). 2: by rewrite delete_insert_delete//.
+    rewrite {1}(_: delete a Mρ = delete a (<[ a := ρ ]> Mρ)). 2: by rewrite delete_insert_eq//.
     iDestruct (region_map_undelete with "HH") as "HH".
     auto.
   Qed.
@@ -831,7 +831,7 @@ Section heap.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Temporary  with "Hpreds") as "Hpreds".
     iDestruct ( (big_sepM_insert _ (delete a M) a) with "[-HM]") as "test";
-      first by rewrite lookup_delete.
+      first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
       iExists _,p,_. rewrite Hpwl. iFrame "#∗". repeat (iSplitR;eauto).
     }
@@ -839,7 +839,7 @@ Section heap.
     rewrite -HMeq.
     iFrame "∗ # %".
     iPureIntro.
-    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
   Qed.
 
   Lemma region_close_temp_nwl W C a φ p v `{forall Wv, Persistent (φ Wv)} :
@@ -859,7 +859,7 @@ Section heap.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Temporary  with "Hpreds") as "Hpreds".
     iDestruct ( (big_sepM_insert _ (delete a M) a) with "[-HM]") as "test";
-      first by rewrite lookup_delete.
+      first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
       iExists _,p,_. rewrite Hpwl. iFrame "#∗". repeat (iSplitR;eauto).
     }
@@ -867,7 +867,7 @@ Section heap.
     rewrite -HMeq.
     iFrame "∗ # %".
     iPureIntro.
-    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
   Qed.
 
   Lemma region_close_perm W C a p φ v `{forall Wv, Persistent (φ Wv)}:
@@ -886,14 +886,14 @@ Section heap.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Permanent  with "Hpreds") as "Hpreds".
     iDestruct ( (big_sepM_insert _ (delete a M) a) with "[-HM]") as "test";
-      first by rewrite lookup_delete.
+      first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
       iFrame "∗ #". repeat (iSplitR;[eauto|]). iFrame. auto. }
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite -HMeq.
     iFrame "∗ # %".
     iPureIntro.
-    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
   Qed.
 
   Lemma region_close_revoked W C a p φ  `{forall Wv, Persistent (φ Wv)}:
@@ -908,7 +908,7 @@ Section heap.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Revoked  with "Hpreds") as "Hpreds".
     iDestruct ( (big_sepM_insert _ (delete a M) a (γpred,p)) with "[-HM]") as "test";
-      first by rewrite lookup_delete.
+      first by rewrite lookup_delete_eq.
     { iFrame "∗ #". iSplitR; [by simplify_map_eq|].
       iExists p.
       repeat (iSplitR;[eauto|]). done.  }
@@ -916,7 +916,7 @@ Section heap.
     rewrite -HMeq.
     iFrame "∗ # %".
     iPureIntro.
-    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
   Qed.
 
   Lemma region_close W C a φ p v (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
@@ -1043,7 +1043,7 @@ Section heap.
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
-    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete].
+    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
     iDestruct "Hpreds" as "[Hl Hpreds]".
     iDestruct "Hl" as (ρ Hρ) "[Hstate Hl]".
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
@@ -1085,7 +1085,7 @@ Section heap.
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
-    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete].
+    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
     iDestruct "Hpreds" as "[Hl Hpreds]".
     iDestruct "Hl" as (ρ Hρ) "[Hstate Hl]".
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
@@ -1130,7 +1130,7 @@ Section heap.
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
-    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete].
+    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
     iDestruct "Hpreds" as "[Hl Hpreds]".
     iDestruct "Hl" as (ρ Hρ) "[Hstate Hl]".
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
@@ -1171,7 +1171,7 @@ Section heap.
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hpreds") as "Hpreds".
     rewrite -!/delete_list.
     iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
-      first by rewrite lookup_delete.
+      first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
       iExists _,p,_. rewrite Hpwl. iFrame "∗ #". repeat (iSplitR;[eauto|]).
       auto. }
@@ -1183,7 +1183,7 @@ Section heap.
     rewrite -HMeq.
     iFrame "∗ # %".
     repeat(iSplitR; eauto).
-    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
   Qed.
 
   Lemma region_close_next_temp_nwl W C φ als a p v `{forall Wv, Persistent (φ Wv)} :
@@ -1206,7 +1206,7 @@ Section heap.
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hpreds") as "Hpreds".
     rewrite -!/delete_list.
     iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
-      first by rewrite lookup_delete.
+      first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
       iExists _,p,_. rewrite Hpwl. iFrame "∗ #". repeat (iSplitR;[eauto|]).
       auto. }
@@ -1218,7 +1218,7 @@ Section heap.
     rewrite -HMeq.
     iFrame "∗ # %".
     repeat(iSplitR; eauto).
-    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
   Qed.
 
   Lemma region_close_next_perm W C φ als a p v `{forall Wv, Persistent (φ Wv)} :
@@ -1239,7 +1239,7 @@ Section heap.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Permanent with "Hpreds") as "Hpreds".
     iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
-      first by rewrite lookup_delete.
+      first by rewrite lookup_delete_eq.
     { iFrame.
       iSplitR; [by simplify_map_eq|].
       iExists _,_,_. iFrame "∗ #". repeat (iSplitR;[eauto|]). auto.
@@ -1251,7 +1251,7 @@ Section heap.
     rewrite -HMeq.
     iFrame "∗ # %".
     repeat(iSplitR; eauto).
-    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
   Qed.
 
   Lemma region_close_revoked_next W C a als p φ  `{forall Wv, Persistent (φ Wv)}:
@@ -1268,7 +1268,7 @@ Section heap.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Revoked with "Hpreds") as "Hpreds".
     iDestruct ( (big_sepM_insert _ (delete a (delete_list als M)) a (γpred,p)) with "[-HM]") as "test";
-      first by rewrite lookup_delete.
+      first by rewrite lookup_delete_eq.
     { iFrame "∗ #". iSplitR; [by simplify_map_eq|].
       iExists p.
       repeat (iSplitR;[eauto|]). done.  }
@@ -1279,7 +1279,7 @@ Section heap.
     rewrite -HMeq.
     iFrame "∗ # %".
     repeat(iSplitR; eauto).
-    by rewrite HMeq insert_delete_insert !dom_insert_L Hdomρ.
+    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
   Qed.
 
   Definition monotonicity_guarantees_region

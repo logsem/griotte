@@ -474,10 +474,10 @@ Section Switcher.
       focus_block 14 "Hcode" as a7 Ha7 "Hcode" "Hcls"; iHide "Hcls" as hcont.
 
       iDestruct (big_sepM_insert_2 with "[Hctp] Hregs") as "Hregs";[iFrame|].
-      rewrite insert_delete_insert.
+      rewrite insert_delete_eq.
       rewrite -delete_insert_ne; last done.
       iDestruct (big_sepM_insert_2 with "[Hct2] Hregs") as "Hregs";[iFrame|].
-      rewrite insert_delete_insert.
+      rewrite insert_delete_eq.
       iDestruct (big_sepM_insert_2 with "[Hct1] Hregs") as "Hregs";[iFrame|].
       iDestruct (big_sepM_insert_2 with "[Hca2] Hregs") as "Hregs";[iFrame|].
       iDestruct (big_sepM_insert_2 with "[Hca3] Hregs") as "Hregs";[iFrame|].
@@ -779,10 +779,10 @@ Section Switcher.
     ; clear dependent Ha_clear.
 
     iDestruct (big_sepM_insert_2 with "[Hctp] Hregs") as "Hregs";[iFrame|].
-    rewrite insert_delete_insert.
+    rewrite insert_delete_eq.
     rewrite -delete_insert_ne; last done.
     iDestruct (big_sepM_insert_2 with "[Hct2] Hregs") as "Hregs";[iFrame|].
-    rewrite insert_delete_insert.
+    rewrite insert_delete_eq.
     iDestruct (big_sepM_insert_2 with "[Hcs1] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hcs0] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[Hct1] Hregs") as "Hregs";[iFrame|].
@@ -829,7 +829,7 @@ Section Switcher.
       intros k a Ha; cbn.
       rewrite Forall_forall in Hstk_revoked.
       apply Hstk_revoked.
-      apply elem_of_list_lookup_2 in Ha.
+      apply list_elem_of_lookup_2 in Ha.
       rewrite !elem_of_finz_seq_between in Ha |- *.
       solve_addr.
     }
@@ -908,10 +908,10 @@ Section Switcher.
         rewrite /monoReq /monotonicity_guarantees_region.
         erewrite isWL_flowsto; eauto.
         rewrite std_sta_update_multiple_lookup_in_i.
-        2: { apply elem_of_list_lookup. eauto. }
+        2: { apply list_elem_of_lookup. eauto. }
         done.
       }
-      iPureIntro. apply std_sta_update_multiple_lookup_in_i. apply elem_of_list_lookup. eauto.
+      iPureIntro. apply std_sta_update_multiple_lookup_in_i. apply list_elem_of_lookup. eauto.
     }
     iSplitL "Hpost Hlc Hcont".
     { simpl.
@@ -937,7 +937,7 @@ Section Switcher.
       iIntros (?? Hin) "%". iPureIntro.
       eapply region_state_pub_temp;[apply HW'|].
       apply std_sta_update_multiple_lookup_in_i.
-      apply elem_of_list_lookup. eauto.
+      apply list_elem_of_lookup. eauto.
     }
     iSplitR.
     { iPureIntro; simpl; split; [|split]; auto.
@@ -1222,7 +1222,7 @@ Section Switcher.
         "(Hsts_C & Hr_C & Hrevoked_l & %Hrevoked_l)"; auto.
       { iPureIntro; intros; auto.
         apply Hlunk.
-        by apply elem_of_list_lookup_2 in H.
+        by apply list_elem_of_lookup_2 in H.
       }
       iAssert (
           ▷ close_list_resources C W l_unk false
@@ -1239,10 +1239,10 @@ Section Switcher.
              rewrite elem_of_finz_seq_between in Ha.
              solve_addr.
            }
-           rewrite elem_of_list_lookup in Ha'; destruct Ha' as [? ?].
+           rewrite list_elem_of_lookup in Ha'; destruct Ha' as [? ?].
            rewrite Forall_forall in Hrevoke_close.
            eapply Hrevoke_close; eauto.
-           by apply elem_of_list_lookup_2 in H.
+           by apply list_elem_of_lookup_2 in H.
       }
       iApply "Hpost"; iFrame "∗%#".
       iSplit.
@@ -1289,11 +1289,11 @@ Section Switcher.
         apply related_sts_pub_update_multiple_temp.
         apply Forall_forall.
         intros x Hx.
-        assert (x ∈ finz.seq_between a_stk e_stk) as [xk Hx']%elem_of_list_lookup.
+        assert (x ∈ finz.seq_between a_stk e_stk) as [xk Hx']%list_elem_of_lookup.
         { rewrite !elem_of_finz_seq_between in Hx |- *; solve_addr. }
         rewrite Forall_forall in Hrevoke_close.
         eapply Hrevoke_close; eauto.
-        by apply elem_of_list_lookup_2 in Hx'.
+        by apply list_elem_of_lookup_2 in Hx'.
       }
       iSplit.
       {
@@ -1305,7 +1305,7 @@ Section Switcher.
         iPureIntro.
         intros k a Ha; cbn.
         apply std_sta_update_multiple_lookup_in_i.
-        apply elem_of_list_lookup; eauto.
+        apply list_elem_of_lookup; eauto.
       }
       iSplitL "Hclose".
       {iApply (big_sepL_impl with "Hclose").

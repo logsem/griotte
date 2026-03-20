@@ -266,13 +266,13 @@ Section DROE.
            ]} : Reg
         ).
 
-    rewrite !(delete_commute _ _ ct2).
+    rewrite !(delete_delete _ _ ct2).
     iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
+    rewrite insert_delete_eq.
     repeat (rewrite -delete_insert_ne //).
-    rewrite !(delete_commute _ _ ct3).
+    rewrite !(delete_delete _ _ ct3).
     iDestruct (big_sepM_insert _ _ ct3 with "[$Hrmap $Hct3]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
+    rewrite insert_delete_eq.
     repeat (rewrite -delete_insert_ne //).
 
     set (rmap' := (delete ca5 _)).
@@ -367,7 +367,7 @@ Section DROE.
         iIntros (?) "%Hcontra"; rewrite /canStore in Hcontra.
         destruct (isLocalWord w); done.
       + iPureIntro.
-        by rewrite lookup_insert.
+        by rewrite lookup_insert_eq.
     }
 
     iMod (extend_region_perm _ _ _ _ _ RO_DRO (safeC (interp_dro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
@@ -426,7 +426,7 @@ Section DROE.
         iIntros (?) "%Hcontra"; rewrite /canStore in Hcontra.
         destruct (isLocalWord w); done.
       + iPureIntro.
-        by rewrite lookup_insert.
+        by rewrite lookup_insert_eq.
     }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg
@@ -473,7 +473,7 @@ Section DROE.
       assert (x ≠ (cgp_b)%a).
       { intros Hx'; simplify_eq; set_solver+Hx Hcgp_b_stk. }
       simplify_map_eq.
-      apply elem_of_list_lookup_1 in Hx; destruct Hx as [? Hx].
+      apply list_elem_of_lookup_1 in Hx; destruct Hx as [? Hx].
       eapply revoke_lookup_Monotemp, Hstack_temporary; eauto.
     }
 
@@ -549,7 +549,7 @@ Section DROE.
       rewrite std_sta_update_multiple_lookup_same_i; auto.
       subst W2 W1.
       rewrite lookup_insert_ne; last solve_addr+Hcgp_contiguous.
-      by rewrite lookup_insert.
+      by rewrite lookup_insert_eq.
     }
 
     (* Mov cs0 cra; *)

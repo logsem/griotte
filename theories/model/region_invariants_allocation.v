@@ -63,7 +63,7 @@ Section region_alloc.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Temporary. iFrame.
-        iSplitR;[iPureIntro;apply lookup_insert|].
+        iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. rewrite Hpwl.
         iFrame "∗ #".
         repeat(iSplitR;auto).
@@ -122,7 +122,7 @@ Section region_alloc.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Temporary. iFrame.
-        iSplitR;[iPureIntro;apply lookup_insert|].
+        iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. rewrite Hpwl.
         iFrame "∗ #".
         repeat(iSplitR;[auto|]).
@@ -203,7 +203,7 @@ Section region_alloc.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Permanent. iFrame.
-        iSplitR;[iPureIntro;apply lookup_insert|].
+        iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. iFrame "∗ #".
         repeat (iSplitR;[done|]).
         iNext. iApply "HmonoV"; eauto.
@@ -261,7 +261,7 @@ Section region_alloc.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Permanent. iFrame.
-        iSplitR;[iPureIntro;apply lookup_insert|].
+        iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. iFrame "∗ #".
         repeat (iSplitR;done).
       }
@@ -326,7 +326,7 @@ Section region_alloc.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Permanent. iFrame.
-        iSplitR;[iPureIntro;apply lookup_insert|].
+        iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. iFrame "∗ #".
         repeat (iSplitR;done).
       }
@@ -381,7 +381,7 @@ Section region_alloc.
     - iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Revoked. iFrame. iSplitR.
-        + iPureIntro;apply lookup_insert.
+        + iPureIntro;apply lookup_insert_eq.
         + iExists _. iFrame "#". auto.
       }
       iApply (big_sepM_mono with "Hpreds'").
@@ -409,7 +409,7 @@ Section region_alloc.
       simpl. iMod (IHl1 with "Hsts Hr") as "(Hr & #Hrels & Hsts)"; auto.
       destruct (decide (a ∈ l1)).
       + (* if a is already in l1, we are done *)
-        assert (e':=e). apply elem_of_list_lookup in e as [k Hk].
+        assert (e':=e). apply list_elem_of_lookup in e as [k Hk].
         iDestruct (big_sepL_lookup _ _ k with "Hrels") as "Ha";[eauto|].
         (* rewrite /std_multiple_update HWC; cbn. *)
         assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked)
@@ -579,9 +579,9 @@ Section region_alloc.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - cbn.
       rewrite -(delete_list_delete _ (<[a:=(γpred, p)]> M)); last done.
-      rewrite delete_insert; last done.
+      rewrite delete_insert_id; last done.
       rewrite -(delete_list_delete _ (<[a:=_]> Mρ)); last done.
-      rewrite delete_insert; last (rewrite -not_elem_of_dom HMρ not_elem_of_dom; done).
+      rewrite delete_insert_id; last (rewrite -not_elem_of_dom HMρ not_elem_of_dom; done).
       iApply (big_sepM_mono with "Hpreds'").
       iIntros (a' x Ha) "Hρ".
       iDestruct "Hρ" as (ρ Hρ) "[Hstate Hρ]".
@@ -959,7 +959,7 @@ Section region_alloc_cmpt.
         iSplit; last done.
         iApply big_sepL_forall; cbn.
         iIntros (k a' Ha').
-        apply elem_of_list_lookup_2, elem_of_finz_seq_between in Ha'.
+        apply list_elem_of_lookup_2, elem_of_finz_seq_between in Ha'.
         assert ((cmpt_b_cgp C_cmpt) <= a' < (cmpt_e_cgp C_cmpt))%a as Ha'' by solve_addr.
         apply elem_of_finz_seq_between in Ha''.
         iDestruct (big_sepL_elem_of with "Hrels") as "Hrel_a'"; eauto.
@@ -1034,7 +1034,7 @@ Section region_alloc_cmpt.
       iSplit; first done.
       iSplit; first (iPureIntro ; by apply persistent_cond_interp).
       iSplit.
-      { apply elem_of_list_lookup_2 in Ha.
+      { apply list_elem_of_lookup_2 in Ha.
         iApply (big_sepL_elem_of with "HC_PCC"); eauto.
       }
       iSplit; first (iNext ; by iApply zcond_interp).
@@ -1043,7 +1043,7 @@ Section region_alloc_cmpt.
       assert ((std Wfinal) !! a = Some Permanent).
       {
         subst Wfinal.
-        apply elem_of_list_lookup_2 in Ha.
+        apply list_elem_of_lookup_2 in Ha.
         rewrite (finz_seq_between_split _ (cmpt_a_code C_cmpt)) in Ha.
         2: {
           pose proof (cmpt_import_size C_cmpt) as HC.
@@ -1101,7 +1101,7 @@ Section region_alloc_cmpt.
       iSplit; first (iNext ; by iApply wcond_interp).
       assert ((std Wfinal) !! a = Some Permanent).
       { subst Wfinal.
-        apply elem_of_list_lookup_2 in Ha.
+        apply list_elem_of_lookup_2 in Ha.
         assert (a ∉ imports_addrs).
         { clear -Ha.
           pose proof (cmpt_disjointness C_cmpt) as Hdis.
@@ -1175,7 +1175,7 @@ Section region_alloc_cmpt.
       iSplit; first done.
       iSplit; first (iPureIntro ; by apply persistent_cond_interp).
       iSplit.
-      { apply elem_of_list_lookup_2 in Ha.
+      { apply list_elem_of_lookup_2 in Ha.
         iApply (big_sepL_elem_of with "Hrel_pcc"); eauto.
         rewrite -finz_seq_between_split;auto.
         pose proof (cmpt_import_size C_cmpt) as HC.
@@ -1188,7 +1188,7 @@ Section region_alloc_cmpt.
       assert ((std Wfinal) !! a = Some Permanent).
       {
         subst Wfinal.
-        apply elem_of_list_lookup_2 in Ha.
+        apply list_elem_of_lookup_2 in Ha.
         rewrite (finz_seq_between_split _ (cmpt_a_code C_cmpt)) in Ha.
         2: {
           pose proof (cmpt_import_size C_cmpt) as HC.
@@ -1246,7 +1246,7 @@ Section region_alloc_cmpt.
       iSplit; first (iNext ; by iApply wcond_interp).
       assert ((std Wfinal) !! a = Some Permanent).
       { subst Wfinal.
-        apply elem_of_list_lookup_2 in Ha.
+        apply list_elem_of_lookup_2 in Ha.
         assert (a ∉ imports_addrs).
         { clear -Ha.
           pose proof (cmpt_disjointness C_cmpt) as Hdis.

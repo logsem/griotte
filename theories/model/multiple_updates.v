@@ -1,4 +1,4 @@
-From iris.proofmode Require Import tactics.
+From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants.
 From Stdlib Require Import Eqdep_dec List.
 From stdpp Require Import countable list_relations.
@@ -65,10 +65,10 @@ Section std_updates.
      - simpl. destruct (decide (a1 = a2)); subst.
        + done.
        + rewrite /std_update.
-         repeat rewrite (insert_commute _ a1 a2); auto.
+         repeat rewrite (insert_insert_ne _ a1 a2); auto.
      - destruct (decide (a1 = a2)); subst;[done|].
        simpl. rewrite /std_update.
-       repeat rewrite (insert_commute _ a1 a2) ; auto.
+       repeat rewrite (insert_insert_ne _ a1 a2) ; auto.
    Qed.
 
    Lemma std_update_multiple_swap W l1 a l2 ρ :
@@ -163,8 +163,8 @@ Section std_updates.
      intros Hnin.
      induction l; auto; first inversion Hnin.
      apply elem_of_cons in Hnin as [Hne | Hnin].
-     - subst i. rewrite lookup_insert; auto.
-     - destruct (decide (a = i));[subst i; rewrite lookup_insert; auto|].
+     - subst i. rewrite lookup_insert_eq; auto.
+     - destruct (decide (a = i));[subst i; rewrite lookup_insert_eq; auto|].
        rewrite lookup_insert_ne;auto.
    Qed.
 
@@ -239,10 +239,10 @@ Section std_updates.
      std (std_update_multiple W l ρ) !! y = Some ρ.
    Proof.
      intros Helem.
-     apply elem_of_list_lookup_2 in Helem.
-     apply elem_of_list_split in Helem as [l1 [l2 Heq] ].
+     apply list_elem_of_lookup_2 in Helem.
+     apply list_elem_of_split in Helem as [l1 [l2 Heq] ].
      rewrite Heq std_update_multiple_swap /= /std_update.
-     rewrite /=. rewrite lookup_insert. auto.
+     rewrite /=. rewrite lookup_insert_eq. auto.
    Qed.
 
 
@@ -364,7 +364,7 @@ Section std_updates.
          apply elem_of_finz_seq_between in Hin.
          solve_addr.
        }
-       apply elem_of_list_lookup in Hin as [n Hsome].
+       apply list_elem_of_lookup in Hin as [n Hsome].
        assert (std (std_update_multiple W (finz.seq_between a b) ρ) !! l = Some ρ) as Hpwl.
        { apply std_update_multiple_lookup with n; auto. }
        assert (std (std_update_multiple (std_update W a' i) (finz.seq_between a b) ρ) !! l = Some ρ) as Hpwl'.
@@ -373,7 +373,7 @@ Section std_updates.
        rewrite lookup_insert_ne; auto.
      - rewrite std_sta_update_multiple_lookup_same_i; auto.
        destruct (decide ( a' =  l)).
-       + rewrite /std_update /= e. do 2 rewrite lookup_insert. done.
+       + rewrite /std_update /= e. do 2 rewrite lookup_insert_eq. done.
        + rewrite /std_update /=. rewrite lookup_insert_ne;auto. rewrite lookup_insert_ne; auto.
          rewrite std_sta_update_multiple_lookup_same_i; auto.
    Qed.
@@ -423,7 +423,7 @@ Section std_updates.
      rewrite !std_update_multiple_cus /=; f_equiv.
      apply map_eq'. intros k v.
      destruct (decide (a = k)).
-     + subst. rewrite !lookup_insert. auto.
+     + subst. rewrite !lookup_insert_eq. auto.
      + rewrite !lookup_insert_ne//. destruct (decide (k ∈ l)).
        * rewrite !std_sta_update_multiple_lookup_in_i//.
        * rewrite !std_sta_update_multiple_lookup_same_i// /=.
@@ -438,7 +438,7 @@ Section std_updates.
      induction l; auto; simpl.
      apply not_elem_of_cons in Hne as [Hne Hnin].
      rewrite IHl;auto.
-     rewrite /std_update /=. rewrite insert_commute;auto.
+     rewrite /std_update /=. rewrite insert_insert_ne;auto.
    Qed.
 
    Lemma related_sts_pub_world_revoked_permanent W a :
@@ -454,7 +454,7 @@ Section std_updates.
       destruct (decide (a = i)).
       + subst.
         rewrite Hx in Ha. inversion Ha.
-        rewrite lookup_insert in Hy. inversion Hy.
+        rewrite lookup_insert_eq in Hy. inversion Hy.
         right with (Permanent);[|left]. constructor.
       + rewrite lookup_insert_ne in Hy;auto.
         rewrite Hx in Hy.
@@ -496,7 +496,7 @@ Section std_updates.
        destruct (decide (a = i)).
        + subst.
          rewrite Hx in Ha. inversion Ha.
-         rewrite lookup_insert in Hy. inversion Hy.
+         rewrite lookup_insert_eq in Hy. inversion Hy.
          right with (Temporary);[|left]. constructor.
        + rewrite lookup_insert_ne in Hy;auto.
          rewrite Hx in Hy.

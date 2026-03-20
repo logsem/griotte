@@ -1668,21 +1668,21 @@ Lemma insert_reg_insert r w1 w2 regs :
   <[ r := w1 ]ᵣ> (<[ r := w2 ]> regs) = <[ r := w1 ]ᵣ> regs.
 Proof.
   destruct (decide (r = cnull)) eqn:Hdec; simplify_eq; rewrite /insert_reg
-  ; rewrite Hdec; by rewrite insert_insert.
+  ; rewrite Hdec; by rewrite insert_insert_eq.
 Qed.
 
 Lemma insert_insert_reg r w1 w2 regs :
   <[ r := w1 ]> (<[ r := w2 ]ᵣ> regs) = <[ r := w1 ]> regs.
 Proof.
   destruct (decide (r = cnull)) eqn:Hdec; simplify_eq; rewrite /insert_reg
-  ; rewrite Hdec; by rewrite insert_insert.
+  ; rewrite Hdec; by rewrite insert_insert_eq.
 Qed.
 
 Lemma insert_reg_insert_commute r1 r2 w1 w2 regs :
   r1 ≠ r2 -> <[ r1 := w1 ]ᵣ> (<[ r2 := w2 ]> regs) = <[ r2 := w2
     ]> (<[ r1 := w1 ]ᵣ> regs).
 Proof.
-  intros Hneq. rewrite insert_commute; auto.
+  intros Hneq. rewrite insert_insert_ne; auto.
 Qed.
 
 Lemma lookup_reg_singleton_None r1 r2 w :
@@ -1690,7 +1690,7 @@ Lemma lookup_reg_singleton_None r1 r2 w :
 Proof.
   rewrite /lookup_reg.
   split; intros H.
-  - intros ->; rewrite lookup_singleton in H; done.
+  - intros ->; rewrite lookup_singleton_eq in H; done.
   - eapply lookup_singleton_None in H; rewrite H; auto.
     Unshelve. 1: exact Word. 1: auto.
 Qed.
@@ -1706,7 +1706,7 @@ Lemma lookup_insert_reg regs r w :
   <[r:=w]ᵣ> regs !! r = Some (if (decide (r = cnull)) then WInt 0 else w).
 Proof.
   destruct (decide (r = cnull)) eqn:Hdec; simplify_eq; rewrite /insert_reg
-  ; rewrite Hdec; by rewrite lookup_insert.
+  ; rewrite Hdec; by rewrite lookup_insert_eq.
 Qed.
 Lemma lookup_insert_reg_ne regs r1 r2 w :
   r1 ≠ r2 -> <[r1:=w]ᵣ> regs !! r2 = regs !! r2.
@@ -1720,7 +1720,7 @@ Lemma lookup_reg_insert regs r w :
   (<[r:=w]> regs) !!ᵣ r = Some (if (decide (r = cnull)) then WInt 0 else w).
 Proof.
   destruct (decide (r = cnull)) eqn:Hdec; simplify_eq; rewrite /lookup_reg
-  ; rewrite Hdec; by rewrite lookup_insert.
+  ; rewrite Hdec; by rewrite lookup_insert_eq.
 Qed.
 
 Lemma lookup_reg_insert_ne regs r1 r2 w :
@@ -1735,7 +1735,7 @@ Lemma lookup_reg_insert_reg regs r w :
   <[r:=w]ᵣ> regs !!ᵣ r = Some (if (decide (r = cnull)) then WInt 0 else w).
 Proof.
   destruct (decide (r = cnull)) eqn:Hdec; simplify_eq; rewrite /lookup_reg /insert_reg
-  ; rewrite Hdec; by rewrite lookup_insert.
+  ; rewrite Hdec; by rewrite lookup_insert_eq.
 Qed.
 
 Lemma lookup_reg_insert_reg_ne regs r1 r2 w :
@@ -1750,7 +1750,7 @@ Lemma lookup_reg_delete regs r :
   delete r regs !!ᵣ r = None.
 Proof.
   rewrite /lookup_reg.
-  by rewrite lookup_delete.
+  by rewrite lookup_delete_eq.
 Qed.
 Lemma lookup_reg_delete_ne regs r1 r2 :
   r1 ≠ r2 -> delete r1 regs !!ᵣ r2 = regs !!ᵣ r2.
@@ -1763,7 +1763,7 @@ Lemma lookup_reg_singleton r w :
   ({[r := w]} : Reg) !!ᵣ r = Some (if (decide (r = cnull)) then WInt 0 else w).
 Proof.
   rewrite /lookup_reg.
-  rewrite lookup_singleton; auto; cbn.
+  rewrite lookup_singleton_eq; auto; cbn.
 Qed.
 Lemma lookup_reg_singleton_ne r1 r2 w :
   r1 ≠ r2 -> ({[r1 := w]} : Reg) !!ᵣ r2 = None.
@@ -1782,7 +1782,7 @@ Proof.
     apply lookup_singleton_Some in Hr2 as [-> ->].
     split; simplify_eq; done.
   - destruct H as [-> <-].
-    by rewrite lookup_singleton; cbn.
+    by rewrite lookup_singleton_eq; cbn.
 Qed.
 
 Lemma lookup_reg_weaken_inv (regs1 regs2 : Reg) (r : RegName) (w1 w2 : Word) :
@@ -1846,7 +1846,7 @@ Tactic Notation "simpl_map" "by" tactic3(tac) :=
   | H : context[ ∅ !! _ ] |- _ => rewrite lookup_empty in H
   | H : context[ ∅ !!ᵣ _ ] |- _ => rewrite lookup_reg_empty in H
   | H : context[ (<[_:=_]>_) !! _ ] |- _ =>
-    rewrite lookup_insert in H || (rewrite lookup_insert_ne in H; [| by tac])
+    rewrite lookup_insert_eq in H || (rewrite lookup_insert_ne in H; [| by tac])
   | H : context[ (<[_:=_]ᵣ>_) !! _ ] |- _ =>
     rewrite lookup_insert_reg in H || (rewrite lookup_insert_reg_ne in H; [| by tac])
   | H : context[ (<[_:=_]>_) !!ᵣ _ ] |- _ =>
@@ -1854,13 +1854,13 @@ Tactic Notation "simpl_map" "by" tactic3(tac) :=
   | H : context[ (<[_:=_]ᵣ>_) !!ᵣ _ ] |- _ =>
     rewrite lookup_reg_insert_reg in H || (rewrite lookup_reg_insert_reg_ne in H; [| by tac])
   | H : context[ (alter _ _ _) !! _] |- _ =>
-    rewrite lookup_alter in H || (rewrite lookup_alter_ne in H; [| by tac])
+    rewrite lookup_alter_eq in H || (rewrite lookup_alter_ne in H; [| by tac])
   | H : context[ (delete _ _) !! _] |- _ =>
-    rewrite lookup_delete in H || (rewrite lookup_delete_ne in H; [| by tac])
+    rewrite lookup_delete_eq in H || (rewrite lookup_delete_ne in H; [| by tac])
   | H : context[ (delete _ _) !!ᵣ _] |- _ =>
     rewrite lookup_reg_delete in H || (rewrite lookup_reg_delete_ne in H; [| by tac])
   | H : context[ {[ _ := _ ]} !! _ ] |- _ =>
-    rewrite lookup_singleton in H || (rewrite lookup_singleton_ne in H; [| by tac])
+    rewrite lookup_singleton_eq in H || (rewrite lookup_singleton_ne in H; [| by tac])
   | H : context[ {[ _ := _ ]} !!ᵣ _ ] |- _ =>
     rewrite lookup_reg_singleton in H || (rewrite lookup_reg_singleton_ne in H; [| by tac])
   | H : context[ (_ <$> _) !! _ ] |- _ => rewrite lookup_fmap in H
@@ -1874,7 +1874,7 @@ Tactic Notation "simpl_map" "by" tactic3(tac) :=
   | |- context[ ∅ !! _ ] => rewrite lookup_empty
   | |- context[ ∅ !!ᵣ _ ] => rewrite lookup_reg_empty
   | |- context[ (<[_:=_]>_) !! _ ] =>
-    rewrite lookup_insert || (rewrite lookup_insert_ne; [| by tac])
+    rewrite lookup_insert_eq || (rewrite lookup_insert_ne; [| by tac])
   | |- context[ (<[_:=_]ᵣ>_) !!ᵣ _ ] =>
     rewrite lookup_reg_insert_reg || (rewrite lookup_reg_insert_reg_ne; [| by tac])
   | |- context[ (<[_:=_]ᵣ>_) !! _ ] =>
@@ -1882,13 +1882,13 @@ Tactic Notation "simpl_map" "by" tactic3(tac) :=
   | |- context[ (<[_:=_]>_) !!ᵣ _ ] =>
     rewrite lookup_reg_insert || (rewrite lookup_reg_insert_ne; [| by tac])
   | |- context[ (alter _ _ _) !! _ ] =>
-    rewrite lookup_alter || (rewrite lookup_alter_ne; [| by tac])
+    rewrite lookup_alter_eq || (rewrite lookup_alter_ne; [| by tac])
   | |- context[ (delete _ _) !! _ ] =>
-    rewrite lookup_delete || (rewrite lookup_delete_ne; [| by tac])
+    rewrite lookup_delete_eq || (rewrite lookup_delete_ne; [| by tac])
   | |- context[ (delete _ _) !!ᵣ _ ] =>
     rewrite lookup_reg_delete || (rewrite lookup_reg_delete_ne; [| by tac])
   | |- context[ {[ _ := _ ]} !! _ ] =>
-    rewrite lookup_singleton || (rewrite lookup_singleton_ne; [| by tac])
+    rewrite lookup_singleton_eq || (rewrite lookup_singleton_ne; [| by tac])
   | |- context[ {[ _ := _ ]} !!ᵣ _ ] =>
     rewrite lookup_reg_singleton || (rewrite lookup_reg_singleton_ne; [| by tac])
   | |- context[ (_ <$> _) !! _ ] => rewrite lookup_fmap

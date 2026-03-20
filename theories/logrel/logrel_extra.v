@@ -185,14 +185,14 @@ Section Logrel_extra.
       repeat rewrite big_sepL_nil. done.
     }
     destruct (decide (x ∈ l'));[|destruct (decide (x ∈ l_unk))].
-   - apply elem_of_list_split in e as [l1 [l2 Heq] ].
+   - apply list_elem_of_split in e as [l1 [l2 Heq] ].
      rewrite Heq in Hsub.
      iRevert (Hsub Hdup Hdup'). rewrite Heq -Permutation_middle. iIntros (Hsub Hdup Hdup').
      apply NoDup_cons in Hdup as [Hnin Hdup].
      setoid_rewrite <- Permutation_middle in Hdup'.
      apply NoDup_cons in Hdup' as [Hnin' Hdup'].
      assert (x ∈ l') as Ha.
-     { rewrite Heq. apply elem_of_app. right. apply elem_of_list_here. }
+     { rewrite Heq. apply elem_of_app. right. apply list_elem_of_here. }
      apply elem_of_Permutation in Ha as [l'' Hleq].
      simpl. iDestruct "Hrel'" as "[ [%Htemp H] Hrel']".
      iDestruct "H" as (p' P) "(%Hpermflow_p' & %Hpers_p' & #Hx & #Hzcond & #Hrcond & #Hwcond & #Hmono)".
@@ -218,7 +218,7 @@ Section Logrel_extra.
      iDestruct "Hx" as (γpred) "#(Hγpred & Hφ)".
      iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq; auto.
      rewrite /region_map_def.
-     rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete].
+     rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
      iDestruct "Hpreds" as "[Ha Hpreds]".
      iDestruct "Ha" as (ρ Ha) "[Hstate Ha]".
      iDestruct (sts_full_state_std with "Hfull Hstate") as %Hlookup.
@@ -229,10 +229,10 @@ Section Logrel_extra.
      iDestruct (region_map_delete with "Hpreds") as "Hpreds".
      iDestruct (region_map_insert _ _ _ _ _ Revoked with "Hpreds") as "Hpreds";auto.
      iDestruct (big_sepM_insert _ _ x (γpred, p') with "[$Hpreds Hstate]") as "Hpreds"
-     ; [apply lookup_delete|..]
+     ; [apply lookup_delete_eq|..]
      ; iClear "IH"
      ; iFrame "∗ #".
-     { iSplitR;[iPureIntro; apply lookup_insert|]. iExists _ ;iSplit;auto. }
+     { iSplitR;[iPureIntro; apply lookup_insert_eq|]. iExists _ ;iSplit;auto. }
      rewrite -HMeq.
      iModIntro. iSplitR.
      ++ iSplit; auto.
@@ -266,7 +266,7 @@ Section Logrel_extra.
         { destruct p0.
           destruct rx,w; cbn in *; try done.
         }
-   - apply elem_of_list_split in e as [l1 [l2 Heq] ].
+   - apply list_elem_of_split in e as [l1 [l2 Heq] ].
      rewrite Heq in Hsub.
      iRevert (Hsub Hdup Hdup').
      setoid_rewrite <- Permutation_middle.
@@ -276,7 +276,7 @@ Section Logrel_extra.
      setoid_rewrite <- Permutation_middle in Hdup'.
      apply NoDup_cons in Hdup' as [Hnin' Hdup'].
      assert (x ∈ l_unk) as Ha.
-     { rewrite Heq. apply elem_of_app. right. apply elem_of_list_here. }
+     { rewrite Heq. apply elem_of_app. right. apply list_elem_of_here. }
      pose proof Ha as Ha'.
      apply elem_of_Permutation in Ha as [l'' Hleq].
      rewrite Forall_forall in Htmp.
@@ -308,7 +308,7 @@ Section Logrel_extra.
      iDestruct "Hx" as (γpred) "#(Hγpred & Hφ)".
      iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq; auto.
      rewrite /region_map_def.
-     rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete].
+     rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
      iDestruct "Hpreds" as "[Ha Hpreds]".
      iDestruct "Ha" as (ρ Ha) "[Hstate Ha]".
      iDestruct (sts_full_state_std with "Hfull Hstate") as %Hlookup.
@@ -320,10 +320,10 @@ Section Logrel_extra.
      iDestruct (region_map_delete with "Hpreds") as "Hpreds".
      iDestruct (region_map_insert _ _ _ _ _ Revoked with "Hpreds") as "Hpreds";auto.
      iDestruct (big_sepM_insert _ _ x (γpred, p') with "[$Hpreds Hstate]") as "Hpreds"
-     ; [apply lookup_delete|..]
+     ; [apply lookup_delete_eq|..]
      ; iClear "IH"
      ; iFrame "∗ #".
-     { iSplitR;[iPureIntro; apply lookup_insert|]. iExists _ ;iSplit;auto. }
+     { iSplitR;[iPureIntro; apply lookup_insert_eq|]. iExists _ ;iSplit;auto. }
      iDestruct (big_sepL_app with "Hl_unk") as "[$ $]".
      rewrite -HMeq.
      iModIntro. iSplitR.
@@ -350,7 +350,7 @@ Section Logrel_extra.
      assert ( x ∉ (l_unk ++ l')) as n1 by set_solver+n n0.
      apply submseteq_cons_r in Hsub as [Hsub | [l'' [Hcontr _] ] ].
      2: { exfalso. apply n1.
-          rewrite Hcontr. apply elem_of_list_here. }
+          rewrite Hcontr. apply list_elem_of_here. }
      iMod ("IH" with "[] [] [] [] [$Hrel' $Hfull $Hr]") as "(Hfull & Hr & Hl & Hl')"; auto.
      iDestruct "Hr" as (M Mρ) "(HM & #Hdom & #Hdom' & Hr)".
      iDestruct "Hdom" as %Hdom. iDestruct "Hdom'" as %Hdom'. iClear "IH".
@@ -412,7 +412,7 @@ Section Logrel_extra.
     rewrite revoke_list_dom.
     iAssert ( ⌜ Forall (λ a : finz MemNum, W.1 !! a = Some Temporary) l⌝ )%I with "[Hl]" as "%Htmp".
     { iDestruct (big_sepL_sep with "Hl") as "[% _]".
-      iPureIntro; apply Forall_forall; intros a [k Ha]%elem_of_list_lookup; eapply H; done.
+      iPureIntro; apply Forall_forall; intros a [k Ha]%list_elem_of_lookup; eapply H; done.
     }
     pose proof (extract_temps_split_world _ l Hdup Htmp) as (l_tmp_unk & Hnodup' & Hall_l).
     assert (l_tmp_unk ++ l ⊆+ (map_to_list W.1).*1) as Hsub.

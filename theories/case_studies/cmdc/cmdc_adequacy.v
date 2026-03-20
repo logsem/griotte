@@ -546,7 +546,7 @@ Section Adequacy.
       intros k a Ha ; cbn.
       subst Winit_B ; clear -Ha.
       apply std_sta_update_multiple_lookup_in_i.
-      rewrite elem_of_list_lookup; naive_solver.
+      rewrite list_elem_of_lookup; naive_solver.
     }
 
 
@@ -686,7 +686,7 @@ Section Adequacy.
       intros k a Ha ; cbn.
       subst Winit_C ; clear -Ha.
       apply std_sta_update_multiple_lookup_in_i.
-      rewrite elem_of_list_lookup; naive_solver.
+      rewrite list_elem_of_lookup; naive_solver.
     }
 
     (* CMPT MAIN *)
@@ -909,7 +909,7 @@ Proof. intros C C'; destruct C,C'; solve_decision. Qed.
 Local Instance CmptNames_CMDC_finite : finite.Finite CmptNames_CMDC.
 Proof.
   refine {| finite.enum := [B; C] |}.
-  + constructor; [ by rewrite elem_of_list_singleton | apply NoDup_singleton ].
+  + constructor; [ by rewrite list_elem_of_singleton | apply NoDup_singleton ].
   + intros [|]; [ left | right; left ].
 Defined.
 

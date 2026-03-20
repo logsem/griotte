@@ -460,7 +460,7 @@ Section Counter.
     (* Put all the registers under the same map *)
     iDestruct (big_sepM_insert _ _ cnull with "[$Hrmap $Hcnull]") as "Hrmap".
     { by simplify_map_eq. }
-    rewrite insert_delete //.
+    rewrite insert_delete_id //.
     iDestruct (big_sepM_insert _ _ cs0 with "[$Hrmap $Hcs0]") as "Hrmap".
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
     iDestruct (big_sepM_insert _ _ cs1 with "[$Hrmap $Hcs1]") as "Hrmap".

@@ -108,7 +108,7 @@ Section wp_interp.
       rewrite Forall_lookup in Hdst_in_region.
       assert ( a ∈ finz.seq_between b e) as Ha.
       { apply elem_of_finz_seq_between; solve_addr. }
-      rewrite elem_of_list_lookup in Ha.
+      rewrite list_elem_of_lookup in Ha.
       destruct Ha as [ka Hka].
       apply Hdst_in_region in Hka.
       done.
@@ -271,7 +271,7 @@ Section wp_interp.
       rewrite Forall_lookup in Hdst_in_region.
       assert ( a ∈ finz.seq_between b e) as Ha.
       { apply elem_of_finz_seq_between; solve_addr. }
-      rewrite elem_of_list_lookup in Ha.
+      rewrite list_elem_of_lookup in Ha.
       destruct Ha as [ka Hka].
       apply Hdst_in_region in Hka.
       done.
@@ -386,12 +386,12 @@ Section wp_interp.
     simplify_map_eq.
     apply incrementPC_Some_inv in H8.
     destruct H8 as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
-    rewrite lookup_insert_ne // lookup_insert in HPC.
+    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
     simplify_eq.
     iExists p, g, b, e, a, sb.
-    rewrite (insert_commute _ _ PC) //.
-    rewrite (insert_commute _ _ r1) //.
-    rewrite !insert_insert.
+    rewrite (insert_insert_ne _ _ PC) //.
+    rewrite (insert_insert_ne _ _ r1) //.
+    rewrite !insert_insert_eq.
     iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
@@ -435,12 +435,12 @@ Section wp_interp.
     simplify_map_eq.
     apply incrementPC_Some_inv in H8.
     destruct H8 as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
-    rewrite lookup_insert_ne // lookup_insert in HPC.
+    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
     simplify_eq.
     iExists sb.
-    rewrite (insert_commute _ _ PC) //.
-    rewrite (insert_commute _ _ r1) //.
-    rewrite !insert_insert.
+    rewrite (insert_insert_ne _ _ PC) //.
+    rewrite (insert_insert_ne _ _ r1) //.
+    rewrite !insert_insert_eq.
     iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
     iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
@@ -530,7 +530,7 @@ Section wp_interp.
       rewrite Forall_lookup in Hsrc_in_region.
       assert ( a ∈ finz.seq_between b e) as Ha.
       { apply elem_of_finz_seq_between; solve_addr. }
-      rewrite elem_of_list_lookup in Ha.
+      rewrite list_elem_of_lookup in Ha.
       destruct Ha as [ka Hka].
       apply Hsrc_in_region in Hka.
       done.

@@ -103,4 +103,4 @@ Ltac iContiguous_le Ha index :=
   eapply contiguous_between_middle_bounds with (i:=index) in Ha;eauto;clear -Ha;solve_addr.
 
 Ltac consider_next_reg r1 r2 :=
-  destruct (decide (r1 = r2));[subst;rewrite lookup_insert;eauto|rewrite lookup_insert_ne;auto].
+  destruct (decide (r1 = r2));[subst;rewrite lookup_insert_eq;eauto|rewrite lookup_insert_ne;auto].

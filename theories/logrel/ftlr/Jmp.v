@@ -47,7 +47,7 @@ Section fundamental.
     }
 
     incrementPC_inv as (p0&g0&b0&e0&a0&a0'&?&Ha0'&?); simplify_map_eq.
-    rewrite insert_insert.
+    rewrite insert_insert_eq.
     iApply wp_pure_step_later; auto. iNext; iIntros "_".
     iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
     { destruct ρ;auto;contradiction. }

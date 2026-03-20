@@ -102,8 +102,8 @@ Section cap_lang_rules.
 
    destruct Hspec as [ | Hfail ]; subst.
    { iApply "Hφ". iFrame. simplify_map_eq.
-     rewrite (insert_commute _ rsrc rdst) // insert_insert.
-     rewrite (insert_commute _ rdst PC) // insert_insert.
+     rewrite (insert_insert_ne _ rsrc rdst) // insert_insert_eq.
+     rewrite (insert_insert_ne _ rdst PC) // insert_insert_eq.
      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
    { congruence. }
   Qed.
@@ -135,8 +135,8 @@ Section cap_lang_rules.
 
    destruct Hspec as [ | Hfail ]; subst.
    { iApply "Hφ". iFrame. simplify_map_eq.
-     rewrite (insert_commute _ rsrc cnull) // insert_insert.
-     rewrite (insert_commute _ PC cnull) // insert_insert.
+     rewrite (insert_insert_ne _ rsrc cnull) // insert_insert_eq.
+     rewrite (insert_insert_ne _ PC cnull) // insert_insert_eq.
      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
    { congruence. }
   Qed.
@@ -167,7 +167,7 @@ Section cap_lang_rules.
    destruct Hspec as [ | Hfail ]; subst.
    { iApply "Hφ". iFrame.
      simplify_map_eq.
-     rewrite insert_insert (insert_commute _ rdst PC) // insert_insert.
+     rewrite insert_insert_eq (insert_insert_ne _ rdst PC) // insert_insert_eq.
      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
    { congruence. }
   Qed.
@@ -198,7 +198,7 @@ Section cap_lang_rules.
    destruct Hspec as [ | Hfail ]; subst.
    { iApply "Hφ". iFrame.
      simplify_map_eq.
-     rewrite insert_insert (insert_commute _ rdst PC) // !insert_insert.
+     rewrite insert_insert_eq (insert_insert_ne _ rdst PC) // !insert_insert_eq.
      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
    { congruence. }
   Qed.

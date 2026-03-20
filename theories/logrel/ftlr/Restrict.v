@@ -78,8 +78,8 @@ Section fundamental.
 
       destruct (decide (PC=dst)) as [HdstPC|HdstPC].
       { subst dst.
-        repeat rewrite insert_insert in HPC.
-        rewrite lookup_insert in HPC. inv HPC.
+        repeat rewrite insert_insert_eq in HPC.
+        rewrite lookup_insert_eq in HPC. inv HPC.
         iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
         { destruct ρ;auto;contradiction. }
         destruct (executeAllowed p'') eqn:Hpft.
@@ -123,9 +123,9 @@ Section fundamental.
         intro; subst r. simplify_map_eq. }
 
       destruct (decide (PC=dst)) as [HdstPC|HdstPC].
-      { subst dst. repeat rewrite insert_insert.
-        repeat rewrite insert_insert in HPC.
-        rewrite lookup_insert in HPC. inv HPC.
+      { subst dst. repeat rewrite insert_insert_eq.
+        repeat rewrite insert_insert_eq in HPC.
+        rewrite lookup_insert_eq in HPC. inv HPC.
       }
 
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.

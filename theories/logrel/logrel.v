@@ -1063,7 +1063,7 @@ Section logrel.
       destruct (readAllowed p0) eqn:Hra; auto.
       destruct Hra' as (r & w & Hsome & Hrar & Hvw).
       destruct (decide (r = PC)); subst.
-      { rewrite lookup_insert in Hsome; simplify_eq.
+      { rewrite lookup_insert_eq in Hsome; simplify_eq.
         eapply readAllowed_flowsto in Hrar; eauto.
         cbn in *; congruence.
       }
@@ -1088,7 +1088,7 @@ Section logrel.
       destruct (writeAllowed p0) eqn:Hwa; auto.
       destruct Hwa' as (r & w & Hsome & Hwaw & Hvw).
       destruct (decide (r = PC)); subst.
-      { rewrite lookup_insert in Hsome; simplify_eq.
+      { rewrite lookup_insert_eq in Hsome; simplify_eq.
         eapply writeAllowed_flowsto in Hwaw; eauto.
         cbn in *; congruence.
       }

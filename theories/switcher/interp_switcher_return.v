@@ -665,7 +665,7 @@ Section fundamental.
 
       (* Insert the registers in the rmap *)
       match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cra m) end.
-      2: { rewrite delete_notin; auto.
+      2: { rewrite delete_id; auto.
            apply not_elem_of_dom.
            repeat (rewrite dom_insert_L).
            rewrite Hdom_rmap' Harg_rmap'.
@@ -674,7 +674,7 @@ Section fundamental.
       iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcra]") as "Hrmap".
 
       match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cgp m) end.
-      2: { rewrite delete_notin; auto.
+      2: { rewrite delete_id; auto.
            apply not_elem_of_dom.
            repeat (rewrite dom_insert_L).
            rewrite Hdom_rmap' Harg_rmap'.
@@ -683,7 +683,7 @@ Section fundamental.
       iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcgp]") as "Hrmap".
 
       match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete ca0 m) end.
-      2: { rewrite delete_notin; auto.
+      2: { rewrite delete_id; auto.
            apply not_elem_of_dom.
            repeat (rewrite dom_insert_L).
            rewrite Hdom_rmap' Harg_rmap'.
@@ -692,7 +692,7 @@ Section fundamental.
       iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca0]") as "Hrmap".
 
       match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete ca1 m) end.
-      2: { rewrite delete_notin; auto.
+      2: { rewrite delete_id; auto.
            apply not_elem_of_dom.
            repeat (rewrite dom_insert_L).
            rewrite Hdom_rmap' Harg_rmap'.
@@ -701,7 +701,7 @@ Section fundamental.
       iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca1]") as "Hrmap".
 
       match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cs0 m) end.
-      2: { rewrite delete_notin; auto.
+      2: { rewrite delete_id; auto.
            apply not_elem_of_dom.
            repeat (rewrite dom_insert_L).
            rewrite Hdom_rmap' Harg_rmap'.
@@ -710,7 +710,7 @@ Section fundamental.
       iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs0]") as "Hrmap".
 
       match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete cs1 m) end.
-      2: { rewrite delete_notin; auto.
+      2: { rewrite delete_id; auto.
            apply not_elem_of_dom.
            repeat (rewrite dom_insert_L).
            rewrite Hdom_rmap' Harg_rmap'.
@@ -719,7 +719,7 @@ Section fundamental.
       iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcs1]") as "Hrmap".
 
       match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete csp m) end.
-      2: { rewrite delete_notin; auto.
+      2: { rewrite delete_id; auto.
            apply not_elem_of_dom.
            repeat (rewrite dom_insert_L).
            rewrite Hdom_rmap' Harg_rmap'.
@@ -728,7 +728,7 @@ Section fundamental.
       iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcsp]") as "Hrmap".
 
       match goal with | _ : _ |- context [ ([∗ map] r↦w ∈ ?m, r ↦ᵣ w)%I ] => replace m with (delete PC m) end.
-      2: { rewrite delete_notin; auto.
+      2: { rewrite delete_id; auto.
            apply not_elem_of_dom.
            repeat (rewrite dom_insert_L).
            rewrite Hdom_rmap' Harg_rmap'.

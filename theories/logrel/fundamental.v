@@ -354,8 +354,8 @@ Section fundamental.
     all: iIntros (????) "(? & Hreg & ?)"; unfold interp_conf.
     all: iApply (wp_wand with "[-]"); [ | iIntros (?) "H"; iApply "H"].
     all: iApply (wp_bind (fill [SeqCtx])); cbn.
-    all: unfold registers_pointsto; rewrite -insert_delete_insert.
-    all: iDestruct (big_sepM_insert with "Hreg") as "[HPC ?]"; first by rewrite lookup_delete.
+    all: unfold registers_pointsto; rewrite -insert_delete_eq.
+    all: iDestruct (big_sepM_insert with "Hreg") as "[HPC ?]"; first by rewrite lookup_delete_eq.
     all: iApply (wp_notCorrectPC with "HPC"); first by inversion 1.
     all: iNext; iIntros; cbn; iApply wp_pure_step_later; auto.
     all: iNext; iIntros "_"; iApply wp_value; iIntros (?); congruence.

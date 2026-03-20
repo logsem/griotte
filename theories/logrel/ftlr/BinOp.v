@@ -57,7 +57,7 @@ Section fundamental.
       iApply wp_value; auto.
     - incrementPC_inv; simplify_map_eq.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      assert (dst <> PC) as HdstPC by (intros ->; rewrite lookup_insert in H1; done).
+      assert (dst <> PC) as HdstPC by (intros ->; rewrite lookup_insert_eq in H1; done).
       rewrite lookup_insert_ne in H1; eauto; simplify_map_eq.
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }

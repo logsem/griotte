@@ -275,19 +275,19 @@ Section Adequacy.
       ) as (entry_g) "Hentries".
 
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cf Hentries]".
-    rewrite delete_notin
+    rewrite delete_id
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cf' Hentries]".
-    rewrite delete_notin
+    rewrite delete_id
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cg Hentries]".
-    rewrite delete_notin
+    rewrite delete_id
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cg' Hentries]".
-    rewrite delete_notin
+    rewrite delete_id
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_awkf Hentries]".
-    rewrite delete_notin
+    rewrite delete_id
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_awkf' _]".
 
@@ -759,7 +759,7 @@ Section Adequacy.
       iSplit; first (iNext ; by iApply wcond_interp).
       assert ((std Winit_C) !! a = Some Temporary).
       { subst Winit_C.
-        apply elem_of_list_lookup_2 in Ha.
+        apply list_elem_of_lookup_2 in Ha.
         rewrite std_sta_update_multiple_lookup_in_i; auto.
       }
       iSplit; last done.

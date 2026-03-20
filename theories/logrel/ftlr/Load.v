@@ -132,7 +132,7 @@ Section fundamental.
     assert (src ≠ cnull); simplify_map_eq.
     { intros -> ; simplify_map_eq. destruct (regs !! cnull) eqn:Hr; simplify_map_eq. }
     assert (src ≠ PC) as n.
-    { refine (addr_ne_reg_ne Hrinr _ Haeq). by rewrite lookup_insert. }
+    { refine (addr_ne_reg_ne Hrinr _ Haeq). by rewrite lookup_insert_eq. }
     simplify_map_eq.
 
     iDestruct ("Hreg" $! src _ n Hrinr) as "Hvsrc"; eauto.
@@ -205,7 +205,7 @@ Section fundamental.
     case_decide as Hallows; cycle 1.
     {
       iDestruct "HLoadRes" as "[-> HLoadRes ]".
-      iSplitR; first by rewrite lookup_insert.
+      iSplitR; first by rewrite lookup_insert_eq.
       iExists p1,g1,b1,e1,a1. iSplitR; auto.
       case_decide as Hdec1; last by done.
       done.
@@ -216,16 +216,16 @@ Section fundamental.
       destruct Hallows' as (Hrinr & Hra & Hwb).
       (* case_decide as Haeq. *)
       iDestruct "HLoadRes" as (w0 p' P Hp'O Hpers) "[-> _]".
-      iSplitR; first (rewrite lookup_insert_ne; auto; by rewrite lookup_insert).
+      iSplitR; first (rewrite lookup_insert_ne; auto; by rewrite lookup_insert_eq).
       iExists p1,g1,b1,e1,a1. iSplitR; auto.
       case_decide; last by exfalso.
       iExists w0.
-      by rewrite lookup_insert.
+      by rewrite lookup_insert_eq.
     - subst a. iDestruct "HLoadRes" as "[-> HLoadRes]".
-      iSplitR; first by rewrite lookup_insert.
+      iSplitR; first by rewrite lookup_insert_eq.
       iExists p1,g1,b1,e1,a1. repeat iSplitR; auto.
       case_decide as Hdec1; last by done.
-      iExists w. by rewrite lookup_insert.
+      iExists w. by rewrite lookup_insert_eq.
   Qed.
 
   Lemma allow_load_mem_later
@@ -297,7 +297,7 @@ Section fundamental.
       by iApply "Hrcond".
     - iDestruct "HLoadRes"
         as (w p' P' Hflp'' HpersP') "(-> & HLoadRes & #Hrcond')".
-      rewrite lookup_insert in Ha; inversion Ha; clear Ha; subst.
+      rewrite lookup_insert_eq in Ha; inversion Ha; clear Ha; subst.
       rewrite memMap_resource_2ne; last auto.
       iDestruct "Hmem" as "[Ha Hapc]"; iFrame.
       rewrite /persistent_cond in HpersP'.
@@ -336,7 +336,7 @@ Section fundamental.
     assert(∀ x : RegName, is_Some (<[PC:=WCap p g b e a]> regs !! x)) as Hsome'.
     {
       intros. destruct (decide (x = PC)); last by rewrite lookup_insert_ne.
-      rewrite e0 lookup_insert; unfold is_Some. by eexists.
+      rewrite e0 lookup_insert_eq; unfold is_Some. by eexists.
     }
 
     (* Initializing the names for the values of Hsrc now,
@@ -366,7 +366,7 @@ Section fundamental.
     iDestruct (allow_load_mem_later with "HLoadMem") as "HLoadMem"; auto.
 
     iApply (wp_load with "[Hmap HMemRes]"); eauto.
-    { by rewrite lookup_insert. }
+    { by rewrite lookup_insert_eq. }
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. rewrite lookup_insert_is_Some'; eauto. }
     { iSplitR "Hmap"; auto. }
@@ -385,7 +385,7 @@ Section fundamental.
       destruct (executeAllowed x) eqn:Hp'.
       2 : {
         iDestruct ((big_sepM_delete _ _ PC) with "Hmap") as "[HPC Hmap]".
-        { subst. by rewrite lookup_insert. }
+        { subst. by rewrite lookup_insert_eq. }
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC_perm with "[HPC]"); eauto. iIntros "!> _".
         iApply wp_pure_step_later; auto. iNext; iIntros "_". iApply wp_value.
@@ -413,7 +413,7 @@ Section fundamental.
         }
         { simplify_map_eq; iApply "Hreg"; auto. }
        }
-       { subst regs'. rewrite insert_insert. iApply "Hmap". }
+       { subst regs'. rewrite insert_insert_eq. iApply "Hmap". }
        {
         destruct (decide (PC = dst)); simplify_map_eq; cycle 1.
         + iApply (interp_next_PC with "Hinv_interp"); eauto.
