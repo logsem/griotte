@@ -42,28 +42,26 @@ It sets up the environment to contain Rocq and all the dependencies.
 ### With opam.
 You need to have [opam](https://opam.ocaml.org/) >= 2.0 installed.
 
-The development is known to compile with Rocq 9.0.0 and Iris 4.4.0. To install
+The development is known to compile with Rocq 9.1.1 and Iris 4.5.0. To install
 those, two options:
 
 - **Option 1**: create a fresh *local* opam switch with everything needed:
 
 ```
-   opam switch create -y --deps-only --repositories=default,rocq-released=https://rocq-prover.org/opam/released .
+   opam switch create -y --deps-only --repositories=default,rocq-released=https://rocq-prover.org/opam/released . 4.14.0
    eval $(opam env)
 ```
 
-- **Option 2 (manual installation)**: if you already have an opam switch with
-  ocaml >= 4.10.0:
+- **Option 2 (manual installation)**:
 
 ```
-    opam switch create griotte-test 5.4.0
+    opam switch create griotte-test 4.14.0
     # Add the rocq-released repo (skip if you already have it)
     opam repo add rocq-released https://rocq-prover.org/opam/released
     opam update
-    # Install Rocq 9.9.0 (skip if already installed)
+    # Install dependencies (skip if already installed)
     opam install dune.3.20.2
-    opam install rocq-prover.9.0.0 coq-stdpp.1.12.0 coq-stdpp-bitvector.1.12.0 coq-iris.4.4.0
-    opam install rocq-equations
+    opam install rocq-core.9.1.1 rocq-stdlib.9.0.0 rocq-stdpp.1.13.0 rocq-stdpp-bitvector.1.13.0 rocq-iris.4.5.0 rocq-equations.1.3.1+9.1
 ```
 
 ### Troubleshooting
