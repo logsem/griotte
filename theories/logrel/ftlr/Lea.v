@@ -35,7 +35,7 @@ Section fundamental.
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_lea with "[$Ha $Hmap]"); eauto.
-    { by rewrite lookup_insert. }
+    { by rewrite lookup_insert_eq. }
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
@@ -68,7 +68,7 @@ Section fundamental.
           - apply LocalityFlowsToReflexive.
         }
         { iApply "Hreg"; auto. by simplify_map_eq. }
-      - subst regs';rewrite insert_insert;iApply "Hmap".
+      - subst regs';rewrite insert_insert_eq;iApply "Hmap".
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
@@ -95,7 +95,7 @@ Section fundamental.
           - apply LocalityFlowsToReflexive.
         }
         { iApply "Hreg"; auto. by simplify_map_eq. }
-      - subst regs';rewrite insert_insert;iApply "Hmap".
+      - subst regs';rewrite insert_insert_eq;iApply "Hmap".
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     Qed.

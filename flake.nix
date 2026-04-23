@@ -21,34 +21,30 @@
             flambdaSupport = true;
           };
 
-          # NOTE: Remove this when `dune` will handle `rocq` subcommands
-          # See: https://github.com/ocaml/dune/issues/11572
-          dune_3 = prev.dune_3.overrideAttrs (prev: {
-            nativeBuildInputs = prev.nativeBuildInputs ++ [pkgs.makeWrapper];
+          dune_3 = prev.dune_3.overrideAttrs rec {
+            version = "3.21.0";
 
-            postFixup = let
-              coqSubcommand = newCmd: oldCmd:
-                pkgs.writeScriptBin oldCmd ''
-                  #!/bin/sh
-                  unset COQPATH
-                  rocq ${newCmd} "$@"
-                '';
+            src = pkgs.fetchurl {
+              url = "https://github.com/ocaml/dune/releases/download/3.21.0/dune-3.21.0.tbz";
+              hash = "sha256-521NiTaKCnACUZOur098W1QDHbo/Wb+dKvGXHcDs7d0=";
+            };
+          };
 
-              coqc = coqSubcommand "compile" "coqc";
-              coqdep = coqSubcommand "dep" "coqdep";
-              coqpp = coqSubcommand "pp-mlg" "coqpp";
-              coqdoc = coqSubcommand "doc" "coqdoc";
-            in ''
-              wrapProgram $out/bin/dune \
-                --prefix PATH ":" "${pkgs.lib.makeBinPath [coqc coqdep coqpp coqdoc]}" \
-                --prefix OCAMLPATH ":" "${pkgs.lib.makeBinPath [coqc coqdep coqpp coqdoc]}" \
-                --run "export COQPATH=\$(eval echo \$ROCQPATH)"
-            '';
-          });
         });
 
-        rocqPackages = prev.rocqPackages.overrideScope (_: prev: {
-          rocq-core = prev.rocq-core.override {
+        rocqPackages = prev.rocqPackages.overrideScope (_: prev: rec {
+          dune = ocamlPackages.dune_3;
+
+          mkRocqDerivation = args:
+            prev.mkRocqDerivation ({
+              preBuild = ''
+            dune() { command dune $@ --display=short; }
+          '';
+            }
+            // args);
+
+          rocq-core = pkgs.rocq-core_9_1.override {
+            inherit dune;
             customOCamlPackages = ocamlPackages;
           };
         });
@@ -78,13 +74,13 @@
         version = rocq.pkgs.rocq-core.rocq-version;
 
         stdpp = {
-          version = "1.12.0";
-          sha256 = "sha256-2o8YMkKbXrKHwtfpkdAovxl+2NZZk958GjSSd9wcEIU=";
+          version = "1.13.0";
+          sha256 = "sha256-kj8oBzarsLB4DDQ43yz4ViQbyzuISqext28wC2Fh3Sw=";
         };
 
         iris = {
-          version = "4.4.0";
-          sha256 = "sha256-zpuaIdH2ScOuZB0Vt1TEHAbsmcT1DyoDsJpftT1M7qw=";
+          version = "4.5.0";
+          sha256 = "sha256-oGqo+W1prLtAwRwo2U15VGhmrkDIPPE6uMbNrTa8iAQ=";
         };
       };
 
@@ -122,10 +118,17 @@
             mlPlugin = true;
             useDune = true;
 
-            version = "2ce6d98dd03979369d739ac139db4da4f7eab352";
+            version = "v1.3.1-9.1";
             release = {
-              "2ce6d98dd03979369d739ac139db4da4f7eab352".sha256 = "sha256-186Z0/wCuGAjIvG1LoYBMPooaC6HmnKWowYXuR0y6bA=";
+              "v1.3.1-9.1".sha256 = "sha256-LtYbAR3jt+JbYcqP+m1n3AZhAWSMIeOZtmdSJwg7L1A=";
             };
+
+            patchPhase = ''
+                       sed -i -e 's/(lang dune 3.13)/(lang dune 3.21)/g' dune-project
+                       sed -i -e 's/(using coq 0.8)/(using rocq 0.11)/g' dune-project
+                       sed -i -e 's/coq-core/rocq-runtime/g' src/dune
+                       sed -i -e 's/coq/rocq/g' examples/dune src/dune theories/dune theories/Prop/dune theories/Type/dune test-suite/dune
+                       '';
           };
 
           stdpp = mkDepRocqDerivation rocq.stdpp {

@@ -103,7 +103,7 @@ Section fundamental.
       + iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
         { subst ri.
-          rewrite lookup_insert in Hvs; inversion Hvs.
+          rewrite lookup_insert_eq in Hvs; inversion Hvs.
           destruct (decide (dst = cnull)) ; first iApply interp_int.
           auto.
         }

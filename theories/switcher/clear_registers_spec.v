@@ -99,7 +99,7 @@ Section ClearRegistersMacro.
 
     destruct (decide (r ∈ l)).
     + iDestruct (big_sepM_insert _ _ r with "[Hr $Hregs]") as "Hregs".
-      { by rewrite lookup_delete//. }
+      { by rewrite lookup_delete_eq//. }
       { by iFrame. }
       iApply ("IH" with "[] HPC Hregs Hcode [Hcont Hcls]"); eauto.
       { iNext.
@@ -109,7 +109,7 @@ Section ClearRegistersMacro.
         iPureIntro; set_solver.
       }
       { iPureIntro; solve_pure_addr. }
-      {  iPureIntro. rewrite insert_delete_insert. set_solver. }
+      {  iPureIntro. rewrite insert_delete_eq. set_solver. }
     + iApply ("IH" with "[] HPC Hregs Hcode [Hcont Hcls Hr]"); eauto.
       { iNext.
         iIntros "H"; iDestruct "H" as (rmap' Hdom_rmap')  "(HPC & Hregs & Hcode)".

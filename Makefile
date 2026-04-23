@@ -3,7 +3,7 @@
 all: theories doc
 
 theories:
-	dune build --display short --trace-file griotte.trc --trace-extended
+	dune build --display short --trace-file griotte.trc
 
 pretty-timed: theories
 	./pretty-print-trace.sh griotte.trc

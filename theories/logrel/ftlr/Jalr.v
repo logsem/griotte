@@ -32,7 +32,7 @@ Section fundamental.
   Proof.
     intros Hneq.
     rewrite /insert_reg.
-    apply insert_commute; done.
+    apply insert_insert_ne; done.
   Qed.
 
   Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)

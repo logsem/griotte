@@ -181,7 +181,7 @@ Section fundamental.
       assert ( r1 ≠ cnull ); simplify_map_eq.
       { intros -> ; destruct (regs !! cnull) eqn:? ; simplify_map_eq. }
       assert (r1 ≠ PC) as n.
-      { refine (addr_ne_reg_ne Hrinr _ Haeq). by rewrite lookup_insert. }
+      { refine (addr_ne_reg_ne Hrinr _ Haeq). by rewrite lookup_insert_eq. }
 
       simplify_map_eq.
       iDestruct ("Hreg" $! r1 _ n Hrinr) as "Hvsrc"; eauto.
@@ -263,18 +263,18 @@ Section fundamental.
       + pose(Hallows' := Hallows). destruct Hallows' as (Hrinr & Hra & Hwb & HLoc).
         iDestruct "HStoreRes" as (p0' P0' w0 Hflp' HpersP0') "(_ & _ & _ & _ & % & _)".
         iSplitR.
-        { subst. rewrite lookup_insert_ne; auto. by rewrite lookup_insert. }
+        { subst. rewrite lookup_insert_ne; auto. by rewrite lookup_insert_eq. }
         iExists p1,g1,b1,e1,a1,storev.
         iPureIntro. repeat split; auto.
         case_decide; last by exfalso.
         exists w0. by simplify_map_eq.
       + subst a. iDestruct "HStoreRes" as "[-> HStoreRes]".
-        iSplitR; first by rewrite lookup_insert.
+        iSplitR; first by rewrite lookup_insert_eq.
         iExists p1,g1,b1,e1,a1,storev. repeat iSplitR; auto.
         case_decide as Hdec1; last by done.
-        iExists w.  by rewrite lookup_insert.
+        iExists w.  by rewrite lookup_insert_eq.
     - iDestruct "HStoreRes" as "[-> HStoreRes ]".
-      iSplitR; first by rewrite lookup_insert.
+      iSplitR; first by rewrite lookup_insert_eq.
       iExists p1,g1,b1,e1,a1,storev. repeat iSplitR; auto.
       case_decide as Hdec1; last by done. by exfalso.
   Qed.
@@ -371,9 +371,9 @@ Section fundamental.
     + iExists pc_w.
       iDestruct "HStoreRes"
         as (p' P' w' Hflp' HpersP') "(#Hzcond' & #Hwcond' & #Hrcond' & #HmonoR' & -> & HStoreRes)".
-      rewrite lookup_insert in Ha0; inversion Ha0; clear Ha0; subst.
+      rewrite lookup_insert_eq in Ha0; inversion Ha0; clear Ha0; subst.
       iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & Hr & #HmonoV & Hrel')".
-      rewrite insert_insert memMap_resource_2ne; last auto.
+      rewrite insert_insert_eq memMap_resource_2ne; last auto.
       iDestruct "Hmem" as  "[Ha1 Hpc_a]".
       iFrame.
       iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' HmonoV]") as "Hr"; eauto.
@@ -392,8 +392,8 @@ Section fundamental.
       iDestruct (region_open_prepare with "Hr") as "$".
       iFrame "#".
     + subst a0. iDestruct "HStoreRes" as "[-> [HStoreRes %]]".
-      rewrite insert_insert -memMap_resource_1.
-      rewrite lookup_insert in Ha0; inversion Ha0; simplify_eq.
+      rewrite insert_insert_eq -memMap_resource_1.
+      rewrite lookup_insert_eq in Ha0; inversion Ha0; simplify_eq.
       iExists storev. iFrame. rewrite /wcond'.
       rewrite decide_True.
       2:{
@@ -446,7 +446,7 @@ Section fundamental.
     assert(∀ x : RegName, is_Some (<[PC:=WCap p g b e a]> regs !! x)) as Hsome'.
     {
       intros. destruct (decide (x = PC)); last by rewrite lookup_insert_ne.
-      rewrite e0 lookup_insert; unfold is_Some. by eexists.
+      rewrite e0 lookup_insert_eq; unfold is_Some. by eexists.
     }
     assert(∀ x : RegName, is_Some (<[PC:=WCap p g b e a]> regs !!ᵣ x)) as Hsome'ᵣ.
     {
@@ -491,7 +491,7 @@ Section fundamental.
     iDestruct (mem_map_implies_pure_conds with "HStoreMem") as %(HReadPC & HStoreAP); auto.
 
     iApply (wp_store with "[Hmap HMemRes]"); eauto.
-    { by rewrite lookup_insert. }
+    { by rewrite lookup_insert_eq. }
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. rewrite lookup_insert_is_Some'; eauto. }
     { iSplitR "Hmap"; auto. }
@@ -519,7 +519,7 @@ Section fundamental.
 
       iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV $HSVInterp]") as "Hr"; eauto.
       { destruct ρ;auto;contradiction. }
-      simplify_map_eq. rewrite insert_insert.
+      simplify_map_eq. rewrite insert_insert_eq.
 
       iApply ("IH" with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); auto.
       iApply (interp_next_PC with "Hinv_interp"); eauto.

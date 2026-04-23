@@ -233,13 +233,13 @@ Section Adequacy.
       ) as (entry_g) "Hentries".
 
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cf Hentries]".
-    rewrite delete_notin
+    rewrite delete_id
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cf' Hentries]".
-    rewrite delete_notin
+    rewrite delete_id
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_mainf Hentries]".
-    rewrite delete_notin
+    rewrite delete_id
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_mainf' _]".
 
@@ -626,8 +626,7 @@ Section Adequacy.
       ( interp W1 C (WSealed ot_switcher C_f)
       )%I as "Hinterp_C_f".
     {
-      iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_f _ _ (nroot.@C)
-               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
+      iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_f _ _ (nroot.@C)); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
       rewrite C_exp_tbl in H2.
@@ -686,7 +685,7 @@ Section Adequacy.
       iSplit; first (iNext ; by iApply wcond_interp).
       assert ((std Winit_C) !! a = Some Temporary).
       { subst Winit_C.
-        apply elem_of_list_lookup_2 in Ha.
+        apply list_elem_of_lookup_2 in Ha.
         rewrite std_sta_update_multiple_lookup_in_i; auto.
       }
       iSplit; last done.

@@ -271,7 +271,7 @@ Section Switcher.
         {
           iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_callee_wstk") as "%Hstk_tmp" ; auto.
           iPureIntro ; intros a Ha.
-          apply elem_of_list_lookup_1 in Ha as [k Ha].
+          apply list_elem_of_lookup_1 in Ha as [k Ha].
           by eapply Hstk_tmp.
         }
 
@@ -484,7 +484,6 @@ Section Switcher.
     iDestruct (interp_monotone W2' Wfixed with "[] H2") as "$"; first done.
     iDestruct (interp_monotone W3' Wfixed with "[] H3") as "$"; first done.
     iFrame.
-    rewrite big_sepL_singleton; iFrame.
     }
 
     (* --- Load cgp csp --- *)
@@ -549,10 +548,10 @@ Section Switcher.
     iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct1]") as "Hrmap".
     rewrite -delete_insert_ne //.
     iDestruct (big_sepM_insert_delete with "[$Hrmap $Hct0]") as "Hrmap".
-    do 2 (rewrite (delete_commute _ _ ca2); auto).
+    do 2 (rewrite (delete_delete _ _ ca2); auto).
     do 2 (rewrite -delete_insert_ne //).
     iDestruct (big_sepM_insert_delete with "[$Hrmap $Hca2]") as "Hrmap".
-    do 2 (rewrite (delete_commute _ _ ctp); auto).
+    do 2 (rewrite (delete_delete _ _ ctp); auto).
     do 3 (rewrite -delete_insert_ne //).
     iDestruct (big_sepM_insert_delete with "[$Hrmap $Hctp]") as "Hrmap".
 
@@ -859,7 +858,7 @@ Section Switcher.
       iSplit.
       {  rewrite /registers_pointsto.
          subst regs'.
-         rewrite insert_insert.
+         rewrite insert_insert_eq.
          iApply big_sepM_insert; last iFrame.
          subst regs.
          simplify_map_eq.

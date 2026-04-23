@@ -259,11 +259,11 @@ Proof.
   setoid_rewrite H.
   destruct r1 as [|n fin].
   - do 32 (apply elem_of_cons; right).
-      by apply elem_of_list_singleton.
+      by apply list_elem_of_singleton.
   - induction n as [|n IHn].
     + apply elem_of_cons; left.
       apply f_equal. apply eq_proofs_unicity. decide equality.
-    + apply elem_of_list_lookup_2 with (S n).
+    + apply list_elem_of_lookup_2 with (S n).
       repeat (destruct n as [|n];
                 first (simpl;do 2 f_equal;apply eq_proofs_unicity;decide equality)).
       cbn.

@@ -283,9 +283,9 @@ Section CMDC.
            ]} : Reg
         ).
 
-    rewrite !(delete_commute _ _ ctp).
+    rewrite !(delete_delete _ _ ctp).
     iDestruct (big_sepM_insert _ _ ctp with "[$Hrmap $Hctp]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
+    rewrite insert_delete_eq.
     repeat (rewrite -delete_insert_ne //).
 
     set (rmap' := (delete ca5 _)).
@@ -319,7 +319,7 @@ Section CMDC.
       iPureIntro.
       apply Forall_forall.
       intros a Ha.
-      rewrite elem_of_list_lookup in Ha.
+      rewrite list_elem_of_lookup in Ha.
       destruct Ha as [? Ha].
       eapply Hstk; eauto.
     }
@@ -327,7 +327,7 @@ Section CMDC.
     { eapply Forall_forall; eauto.
       intros a Ha; cbn in *.
       rewrite lookup_insert_ne; last (intros ->; set_solver+Hcgp_b_stk Ha).
-      rewrite elem_of_list_lookup in Ha.
+      rewrite list_elem_of_lookup in Ha.
       destruct Ha as [? Ha].
       eapply Forall_lookup_1 in Hrevoked_stack_B; eauto.
     }
@@ -369,9 +369,9 @@ Section CMDC.
       iSplit.
       + iApply (monoReq_interp _ _ _ _  Permanent); last done.
         rewrite /std_update.
-        by rewrite lookup_insert.
+        by rewrite lookup_insert_eq.
       + iPureIntro.
-        by rewrite lookup_insert.
+        by rewrite lookup_insert_eq.
     }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W1 B warg )%I
@@ -390,7 +390,7 @@ Section CMDC.
       iPureIntro; subst W1.
       intros k a Ha; cbn in *.
       rewrite lookup_insert_ne; first (eapply Hrevoked; eauto).
-      rewrite elem_of_list_lookup in Hcgp_b_stk.
+      rewrite list_elem_of_lookup in Hcgp_b_stk.
       intros -> ; apply Hcgp_b_stk.
       by eexists.
     }
@@ -408,7 +408,7 @@ Section CMDC.
       + iPureIntro.
         apply Forall_forall.
         intros a Ha.
-        apply elem_of_list_lookup_1 in Ha as [? Ha].
+        apply list_elem_of_lookup_1 in Ha as [? Ha].
         eapply Hrev; eauto.
     }
 
@@ -529,7 +529,7 @@ Section CMDC.
       subst W1.
       (* TODO lemma *)
       rewrite std_update_multiple_insert_commute; last done.
-      rewrite !lookup_insert; done.
+      rewrite !lookup_insert_eq; done.
     }
 
     (* we open the world to get the points-to predicate *)
@@ -618,25 +618,25 @@ Section CMDC.
            ]} : Reg
         ).
 
-    rewrite !(delete_commute _ _ cnull).
+    rewrite !(delete_delete _ _ cnull).
     iDestruct (big_sepM_insert _ _ cnull with "[$Hrmap $Hcnull]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
+    rewrite insert_delete_eq.
     repeat (rewrite -delete_insert_ne //).
-    rewrite !(delete_commute _ _ ct4).
+    rewrite !(delete_delete _ _ ct4).
     iDestruct (big_sepM_insert _ _ ct4 with "[$Hrmap $Hct4]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
+    rewrite insert_delete_eq.
     repeat (rewrite -delete_insert_ne //).
-    rewrite !(delete_commute _ _ ct3).
+    rewrite !(delete_delete _ _ ct3).
     iDestruct (big_sepM_insert _ _ ct3 with "[$Hrmap $Hct3]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
+    rewrite insert_delete_eq.
     repeat (rewrite -delete_insert_ne //).
-    rewrite !(delete_commute _ _ ct2).
+    rewrite !(delete_delete _ _ ct2).
     iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
+    rewrite insert_delete_eq.
     repeat (rewrite -delete_insert_ne //).
-    rewrite !(delete_commute _ _ ctp).
+    rewrite !(delete_delete _ _ ctp).
     iDestruct (big_sepM_insert _ _ ctp with "[$Hrmap $Hctp]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_insert.
+    rewrite insert_delete_eq.
     repeat (rewrite -delete_insert_ne //).
 
     set (rmap'' := (delete ca5 _)).
@@ -663,7 +663,7 @@ Section CMDC.
       iPureIntro.
       apply Forall_forall.
       intros a Ha.
-      rewrite elem_of_list_lookup in Ha.
+      rewrite list_elem_of_lookup in Ha.
       destruct Ha as [? Ha].
       eapply Hstk; eauto.
     }
@@ -671,7 +671,7 @@ Section CMDC.
     { eapply Forall_forall; eauto.
       intros a Ha; cbn in *.
       rewrite lookup_insert_ne; last (intros ->; set_solver+Hcgp_c_stk Ha).
-      rewrite elem_of_list_lookup in Ha.
+      rewrite list_elem_of_lookup in Ha.
       destruct Ha as [? Ha].
       eapply Forall_lookup_1 in Hrevoked_stack_C; eauto.
     }
@@ -705,9 +705,9 @@ Section CMDC.
       subst W3.
       iSplit.
       + iApply (monoReq_interp _ _ _ _  Permanent); last done.
-        by rewrite lookup_insert.
+        by rewrite lookup_insert_eq.
       + iPureIntro.
-        by rewrite lookup_insert.
+        by rewrite lookup_insert_eq.
     }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg ∗ interp W3 C warg )%I
@@ -726,7 +726,7 @@ Section CMDC.
       iPureIntro; subst W1.
       intros k a Ha; cbn in *.
       rewrite lookup_insert_ne; first (eapply Hrevoked; eauto).
-      rewrite elem_of_list_lookup in Hcgp_c_stk.
+      rewrite list_elem_of_lookup in Hcgp_c_stk.
       intros -> ; apply Hcgp_c_stk.
       by eexists.
     }
@@ -744,7 +744,7 @@ Section CMDC.
       + iPureIntro.
         apply Forall_forall.
         intros a Ha.
-        apply elem_of_list_lookup_1 in Ha as [? Ha].
+        apply list_elem_of_lookup_1 in Ha as [? Ha].
         eapply Hrev; eauto.
     }
 

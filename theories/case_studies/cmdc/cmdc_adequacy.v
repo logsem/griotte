@@ -529,8 +529,7 @@ Section Adequacy.
 
     iAssert ( interp Winit_B B (WSealed ot_switcher B_f)) with
       "[HB_code Hr_B HB_data Hsts_B Hentry_Bf']" as "#Hinterp_B".
-    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1
-               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
+    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H2.
       rewrite B_exp_tbl in H2.
@@ -546,7 +545,7 @@ Section Adequacy.
       intros k a Ha ; cbn.
       subst Winit_B ; clear -Ha.
       apply std_sta_update_multiple_lookup_in_i.
-      rewrite elem_of_list_lookup; naive_solver.
+      rewrite list_elem_of_lookup; naive_solver.
     }
 
 
@@ -669,8 +668,7 @@ Section Adequacy.
 
     iAssert ( interp Winit_C C (WSealed ot_switcher C_g)) with
       "[HC_code Hr_C HC_data Hsts_C Hentry_Cg']" as "#Hinterp_C".
-    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1
-               with "[$] [$] [$] [$] [$] [$] [$] [$]"); eauto; last lia.
+    { iApply (ot_switcher_interp_entry _ _ _ _ 1 1); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
       rewrite C_exp_tbl in H2.
@@ -686,7 +684,7 @@ Section Adequacy.
       intros k a Ha ; cbn.
       subst Winit_C ; clear -Ha.
       apply std_sta_update_multiple_lookup_in_i.
-      rewrite elem_of_list_lookup; naive_solver.
+      rewrite list_elem_of_lookup; naive_solver.
     }
 
     (* CMPT MAIN *)
@@ -909,7 +907,7 @@ Proof. intros C C'; destruct C,C'; solve_decision. Qed.
 Local Instance CmptNames_CMDC_finite : finite.Finite CmptNames_CMDC.
 Proof.
   refine {| finite.enum := [B; C] |}.
-  + constructor; [ by rewrite elem_of_list_singleton | apply NoDup_singleton ].
+  + constructor; [ by rewrite list_elem_of_singleton | apply NoDup_singleton ].
   + intros [|]; [ left | right; left ].
 Defined.
 

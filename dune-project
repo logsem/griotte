@@ -1,5 +1,5 @@
-(lang dune 3.18)
-(using coq 0.8)
+(lang dune 3.21)
+(using rocq 0.11)
 
 (name griotte)
 
@@ -18,7 +18,7 @@
  (name griotte)
  (synopsis "Griotte")
  (description "Griotte")
- (depends ocaml dune coq-iris equations)
+ (depends ocaml dune rocq-iris equations)
  (tags
   (Rocq CHERIoT "capability machine" Iris)))
 

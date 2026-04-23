@@ -107,7 +107,7 @@ Section Checkints_spec.
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     assert (a ∈ l) as Ha.
     { setoid_rewrite Hl; by rewrite elem_of_finz_seq_between. }
-    rewrite elem_of_list_lookup in Ha; destruct Ha as [ka Ha].
+    rewrite list_elem_of_lookup in Ha; destruct Ha as [ka Ha].
     pose proof Ha as Ha'.
     apply take_drop_middle in Ha'; symmetry in Ha'.
     set (la1 := take ka l).
@@ -118,7 +118,7 @@ Section Checkints_spec.
                          ∧ length lw2 = length la2
            ) as (lw1 & w & lw2 & Hlw & Hlw1 & Hlw2).
     {
-      (* rewrite elem_of_list_lookup in Ha'; destruct Ha' as [ka Ha]. *)
+      (* rewrite list_elem_of_lookup in Ha'; destruct Ha' as [ka Ha]. *)
       assert (is_Some (ws !! ka)) as [wa Hwa].
       { exists (ws !!! ka).
         apply list_lookup_lookup_total_lt.
@@ -173,10 +173,10 @@ Section Checkints_spec.
       apply Forall_forall.
       intros v Hv.
       rewrite Forall_forall in Hall.
-      apply elem_of_list_lookup in Hv as [k Hv].
+      apply list_elem_of_lookup in Hv as [k Hv].
       destruct (decide (k = ka)) as [-> | Hkeq]; cycle 1.
       + eapply Hall; eauto.
-        {  by apply elem_of_list_lookup_2 in Hv. }
+        {  by apply list_elem_of_lookup_2 in Hv. }
         eexists k; split; first done.
         assert (is_Some (l !! k)) as [f Hk].
         { apply lookup_lt_is_Some_2.
@@ -192,7 +192,7 @@ Section Checkints_spec.
           apply finz_seq_between_NoDup.
         }
         exists f; split; auto.
-        apply elem_of_list_lookup_2 in Hk.
+        apply list_elem_of_lookup_2 in Hk.
         setoid_rewrite Hl in Hk.
         replace e with (a ^+1)%a in Hk; last solve_addr.
         apply elem_of_finz_seq_between in Hk.

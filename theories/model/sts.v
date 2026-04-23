@@ -842,7 +842,7 @@ Section STS.
     - rewrite dom_insert_L; set_solver.
     - intros i x y Hx Hy.
       destruct (decide (a = i)).
-      + subst. rewrite lookup_insert in Hy; simplify_eq.
+      + subst. rewrite lookup_insert_eq in Hy; simplify_eq.
         apply Hdom_sta.
       + rewrite lookup_insert_ne in Hy;auto.
         rewrite Hx in Hy.

@@ -137,7 +137,7 @@ Section VAE.
         destruct HW5_W6_cus as (Hdom_loc_5_6 & Hdom_rel_5_6 & Hrtc_loc_5_6); cbn in *.
         apply convert_rel_of_rel.
         by right.
-      + eapply (rtc_transitive d_W0 d_W3 d_W6).
+      + eapply (rtc_trans d_W0 d_W3 d_W6).
         * specialize (Hrtc_loc_2_3 d _ _ _ _ HW0_rel HW3_rel) as (-> & -> & Hrtc_loc_0_3).
           ospecialize (Hrtc_loc_0_3 d_W0 d_W3 _ Hd_W3).
           { by simplify_map_eq. }
