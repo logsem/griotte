@@ -30,12 +30,11 @@ Section ClearStackMacro.
              ∗ codefrag pc_a (clear_stack_instrs r1 r2)
              ∗ ([[ csp_a , csp_e ]] ↦ₐ [[region_addrs_zeroes csp_a csp_e]]))
         -∗ WP Seq (Instr Executable) {{ φ }})
-      ∗ ▷ φ FailedV
     )
       ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
     iIntros (Hpc_exec Hbounds Hbounds1 Hbounds2 Hr1cnull Hr2cnull)
-      "(HPC & Hcsp & Hr1 & Hr2 & Hcode & Hstack & Hφ & Hfail)".
+      "(HPC & Hcsp & Hr1 & Hr2 & Hcode & Hstack & Hφ)".
     codefrag_facts "Hcode".
 
     (* --- Sub r1 r2 r1 --- *)
@@ -91,11 +90,8 @@ Section ClearStackMacro.
       (* --- Lea r2 1 --- *)
       destruct (csp_a + 1)%a eqn:Ha;cycle 1.
       { iInstr_lookup "Hcode" as "Hi" "Hcode".
-        wp_instr.
-        iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hr2]")
-        ; try solve_pure
-        ; eauto.
-        iIntros "!> _". wp_pure. wp_end. iFrame. }
+        solve_addr.
+      }
       iInstr "Hcode".
 
       (* --- Add r1 r1 1 --- *)
@@ -109,7 +105,7 @@ Section ClearStackMacro.
       replace (csp_a - csp_e + 1)%Z with (f - csp_e)%Z by solve_addr.
       replace f with (csp_a ^+1)%a by solve_addr.
       iApply ("IH" $! (csp_a ^+1)%a ws with
-               "[$Hstack] [Ha Hφ] [$Hfail] [$Hct2] [$Hcode] [$HPC] [$Hr2] [$Hcsp] [] []").
+               "[$Hstack] [Ha Hφ] [$Hct2] [$Hcode] [$HPC] [$Hr2] [$Hcsp] [] []").
       { iIntros "(?&?&?&?&?&Hstk)".
         iApply "Hφ"; iFrame.
         iDestruct ( region_pointsto_cons with "[$Ha $Hstk]" ) as "Hstk"; [solve_addr|solve_addr|].
