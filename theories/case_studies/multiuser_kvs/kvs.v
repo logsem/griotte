@@ -1,14 +1,15 @@
-From iris.algebra Require Import frac.
-From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Import fetch assert.
-
+From cap_machine Require Import machine_parameters assembler.
 
 Section KVS_Service.
   Import Asm_Griotte.
   Context `{MP: MachineParameters}.
   Local Coercion Z.of_nat : nat >-> Z.
 
+  (** Multiuser KVS service inspired from
+      https://github.com/vmurali/cheriot-rtos/blob/service/examples/11.service/service.cc
+
+      TODO description of the service
+   *)
   (*
     ca0 : sealedUserKey
     ca1 : key
@@ -20,19 +21,32 @@ Section KVS_Service.
     ...   : ...
     cgp31 : key15
     cgp32 : val15
-*)
-  Definition SIZE_MAP := 16:
-  Definition addOrUpdate_asm : list (list asm_code) :=
+   *)
+  Definition SIZE_MAP := 16.
+
+  Definition EMPTY_SLOT : Z := -1.
+  Definition DEFAULT_VAL : Z := 0.
+
+  Definition kvs_getFullKey_asm (rdst rsealkey rkey rscratch : RegName) : list asm_code :=
     [
       (* get full key *)
-      [
-        load ct1 cgp;
-        unseal ca0 ca0 ct1;
-        geta ca0 ca0;
-        lshiftl ca0 ca0 16;
-        lor ca0 ca0 ca1;
-        (* ca0 contains the full key *)
-      ];
+      load rscratch cgp;
+      unseal rdst rsealkey rscratch;
+      geta rdst rdst;
+      lshiftl rdst rdst 16;
+      lor rdst rdst rkey
+    ].
+  (* TODO I think the 3 functions can be refactored by using a (common) search macros.
+     It would probably be slitghly less faithfull to the original code,
+     but it would make it much easier to verify.
+ *)
+
+  (* TODO I'm pretty sure this code is not correct *)
+  Definition kvs_addOrUpdate_asm : list (list asm_code) :=
+    [
+      (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
+      (* ca0 contains the full key *)
+      ;
       [
         lea cgp 1;
         mov ct0 0; (* 0 mean false *)
@@ -40,35 +54,36 @@ Section KVS_Service.
         (* go through all entries of the map *)
         #".loop_start";
         sub ct2 SIZE_MAP ct1;
-        jnz ct2 (".loop_body")%asm
-        jmp (".loop_end")%asm
+        jnz (".loop_body")%asm ct2;
+        jmp (".loop_end")%asm;
         #".loop_body";
-
         load ct2 cgp;
-        (* we need to check that not 0 *)
-        jnz ct2 (".not_empty_slot")
+        (* we need to check that not -1 (empty slot) *)
+        sub ct2 ct2 EMPTY_SLOT;
+        jnz (".not_empty_slot") ct2;
         (* slot is empty, we exit the loop *)
         #".empty_slot";
         jmp (".loop_end");
-
         (* slot is not empty, we now need to compare ct2 with the full key *)
         #".not_empty_slot";
         sub ct2 ca0 ct2;
-        jnz ct2 (".not_same_key");
+        jnz (".not_same_key") ct2;
         #".same_key";
         (* update the value *)
         lea cgp 1;
         store cgp ca2;
+        mov ca0 1;
+        jmp (".return")%asm;
         #".not_same_key";
         (* skip, we then finish the body of the loop *)
         lea cgp 2;
         add ct1 ct1 1;
         jmp (".loop_start");
-        #".loop_end";
+        #".loop_end"
       ];
       [
         (* if ct0 still contains 0, then we did not find an existing key, and we need to add *)
-        jnz ct0 (".key_found")%asm;
+        jnz (".key_found")%asm ct0
       ];
       [
         #".key_not_found";
@@ -77,7 +92,7 @@ Section KVS_Service.
         lea cgp 1;
         store cgp ca2;
         mov ca0 0;
-        jmp (".return")%asm;
+        jmp (".return")%asm
       ];
       [
         #".key_found";
@@ -87,103 +102,140 @@ Section KVS_Service.
       [
         #".return";
         (* return *)
-        mov ca1 0
+        mov ca1 0;
         jmp cra
       ]
     ].
 
-Section KVS_Main.
-  Context `{MP: MachineParameters}.
-
-  (* KVS compartment *)
-  Definition addOrUpdate : list Word :=
-
-
-
-  (*
-    PSEUDO-CODE:
-
-    set a := (RW, Global, b, b+1, b)
-    set b := 0
-    call B.adv (RW-DL, Local, a, a+1, a)
-    set b := 42
-    call B.adv null
-    assert (b==0)
-    halt
-
-   *)
-
-  (* Expect:
-     pc  := (RX, Global, b_main, e_main, b_main_code)
-     cgp := (RW, Global, b, e, b)
-
-     b_main + 0 : WSentry XSRW_ b_switcher e_switcher a_cc_switcher
-     b_main + 1 : WSentry RX b_assert e_assert a_assert
-     b_main + 2 : WSealed ot_switcher B.f
-
-   *)
-  Definition dle_main_code : list Word :=
-    let rw_dl := (encodePermPair (RW_DL, Local)) in
-    encodeInstrsW [
-      (* #"main_b_code"; *)
-
-      (* set b <- 0 *)
-      Store cgp 0%Z;      (* b <- 0 *)
-      Mov ct0 cgp;        (* ct0 := (RW, Global, b, e, b) *)
-
-      (* set a <- (RW, Global, b, b+1, b) *)
-      GetB ct1 cgp;       (* ct1 := b *)
-      Add ct2 ct1 1%Z;    (* ct2 := b+1 = a *)
-      Subseg ct0 ct1 ct2; (* ct0 := (RW, Global, b, b+1, b) *)
-
-      Lea cgp 1%Z;        (* cgp := (RW, Global, b, e, b+1) *)
-      Store cgp ct0;      (* a <- (RW, Global, b, b+1, b) *)
-      (* call B.f (RW-DL, Local, a, a+1, a) *)
-      Mov ca0 cgp;         (* ca0 := (RW, Global, b, e, b+1) = (RW, Global, b, e, a) *)
-      Lea cgp (-1)%Z;      (* cgp := (RW, Global, b, e, b) *)
-      Add ct1 ct2 1%Z;     (* ct1 := a+1 *)
-      Subseg ca0 ct2 ct1;  (* ca0 := (RW, Global, a, a+1, a) *)
-      Restrict ca0 rw_dl  (* ca0 := (RO_DRO, Global, a, a+1, a) *)
-    ]
-    ++ fetch_instrs 0 ct0 ct1 ct2 (* ct0 -> switcher entry point *)
-    ++ fetch_instrs 2 ct1 ct2 ct3 (* ct1 -> {B.f}_(ot_switcher)  *)
-    ++
-    encodeInstrsW [
-      (* Use cs0 and cs1 to save ct0 and ct1 through the call *)
-      Mov cs0 ct0; (* cs0 -> switcher entry point *)
-      Mov cs1 ct1; (* cs1 -> {B.f}_(ot_switcher)  *)
-      (* switcher_call to B.f *)
-      Jalr cra ct0;
-      (* set b := 42 *)
-      Store cgp 42%Z;      (* b <- 0 *)
-      (* call B.adv null *)
-      Mov ca0 0%Z;
-      Mov ct0 cs0; (* ct0 -> switcher entry point *)
-      Mov ct1 cs1; (* ct1 -> {B.f}_(ot_switcher)  *)
-      (* switcher_call to B.f *)
-      Jalr cra ct0;
-      (* assert (b==42) *)
-      Load ct0 cgp; (* ct0 -> b *)
-      Mov ct1 42%Z  (* ct1 -> 42 *)
-    ]
-    ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
-    ++
-    encodeInstrsW [
-      (* halt *)
-      Halt
-      (* #"main_e" *)
-    ].
-
-  Definition dle_main_data : list Word := [WInt 0; WInt 0].
-
-  Definition dle_main_imports
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
-    (b_assert e_assert : Addr)
-    (B_f : Sealable) : list Word :=
+  Definition kvs_read_asm : list (list asm_code) :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
-      WSentry RX Global b_assert e_assert b_assert;
-      WSealed ot_switcher B_f
+      (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
+      (* ca0 contains the full key *)
+      ;
+      [
+        lea cgp 1;
+        mov ct0 DEFAULT_VAL; (* 0 is the default value if key not found in KVS *)
+        mov ct1 0; (* ct1 contains the index of loop *)
+        (* go through all entries of the map *)
+        #".loop_start";
+        sub ct2 SIZE_MAP ct1;
+        jnz (".loop_body")%asm ct2;
+        jmp (".loop_end")%asm;
+        #".loop_body";
+        load ct2 cgp;
+        (* we need to check that not -1 (empty slot) *)
+        sub ct2 ct2 EMPTY_SLOT;
+        jnz (".not_empty_slot") ct2;
+        (* slot is empty, we exit the loop *)
+        #".empty_slot";
+        jmp (".loop_end");
+        (* slot is not empty, we now need to compare ct2 with the full key *)
+        #".not_empty_slot";
+        sub ct2 ca0 ct2;
+        jnz (".not_same_key") ct2;
+        #".same_key";
+        (* return the read value *)
+        lea cgp 1;
+        load ct0 cgp;
+        #".not_same_key";
+        (* skip, we then finish the body of the loop *)
+        lea cgp 2;
+        add ct1 ct1 1;
+        jmp (".loop_start");
+        #".loop_end"
+      ];
+      [
+        #".return";
+        (* ct0 contains the read value; or 0 if no existing key *)
+        mov ca0 ct1;
+        (* return *)
+        mov ca1 0;
+        jmp cra
+      ]
     ].
 
-End DLE_Main.
+  Definition kvs_erase_asm : list (list asm_code) :=
+    [
+      (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
+      (* ca0 contains the full key *)
+      ;
+      [
+        lea cgp 1;
+        mov ct0 0; (* 0 is the default value if key not found in KVS *)
+        mov ct1 0; (* ct1 contains the index of loop *)
+        (* go through all entries of the map *)
+        #".loop_start";
+        sub ct2 SIZE_MAP ct1;
+        jnz (".loop_body")%asm ct2;
+        jmp (".loop_end")%asm;
+        #".loop_body";
+        load ct2 cgp;
+        (* we need to check that not -1 (empty slot) *)
+        sub ct2 ct2 EMPTY_SLOT;
+        jnz (".not_empty_slot") ct2;
+        (* slot is empty, we exit the loop *)
+        #".empty_slot";
+        jmp (".loop_end");
+        (* slot is not empty, we now need to compare ct2 with the full key *)
+        #".not_empty_slot";
+        sub ct2 ca0 ct2;
+        jnz (".not_same_key") ct2;
+        #".same_key";
+        (* erase the value and delete the key *)
+        store cgp EMPTY_SLOT;
+        lea cgp 1;
+        store cgp DEFAULT_VAL;
+        #".not_same_key";
+        (* skip, we then finish the body of the loop *)
+        lea cgp 2;
+        add ct1 ct1 1;
+        jmp (".loop_start");
+        #".loop_end"
+      ];
+      [
+        #".return";
+        (* no return value *)
+        (* return *)
+        mov ca0 0;
+        mov ca1 0;
+        jmp cra
+      ]
+    ].
+
+  Definition kvs_getFullKey (rdst rsealkey rkey rscratch : RegName) :=
+    Eval compute in assemble (kvs_getFullKey_asm rdst rsealkey rkey rscratch).
+  Definition kvs_getFullKey_instrs (rdst rsealkey rkey rscratch : RegName) : list Word :=
+    encodeInstrsW (kvs_getFullKey rdst rsealkey rkey rscratch).
+
+
+  Definition assembled_kvs_addOrUpdate' := Eval vm_compute in (assemble_block kvs_addOrUpdate_asm).
+  Definition assembled_kvs_addOrUpdate  := Eval cbv in (revert_regs_code_block assembled_kvs_addOrUpdate').
+  Definition kvs_addOrUpdate_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_addOrUpdate).
+
+  Definition assembled_kvs_read' := Eval vm_compute in (assemble_block kvs_read_asm).
+  Definition assembled_kvs_read  := Eval cbv in (revert_regs_code_block assembled_kvs_read').
+  Definition kvs_read_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_read).
+
+  Definition assembled_kvs_erase' := Eval vm_compute in (assemble_block kvs_erase_asm).
+  Definition assembled_kvs_erase  := Eval cbv in (revert_regs_code_block assembled_kvs_erase').
+  Definition kvs_erase_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_erase).
+
+  Fixpoint repeat_list `{A : Type} (l : list A) (n : nat) : list A :=
+    match n with
+    | 0 => []
+    | S n => l ++ repeat_list l n
+    end.
+
+  Definition kvs_initial_map :=
+    repeat_list [WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP.
+
+  Definition kvs_data (OUserKey : OType) : list Word :=
+    [WSealRange (false, true) Global OUserKey (OUserKey^+1)%ot OUserKey] ++ kvs_initial_map.
+
+  Definition kvs_imports
+    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
+    : list Word :=
+    [
+      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher
+    ].
+End KVS_Service.
