@@ -538,8 +538,6 @@ Section Switcher.
     }
 
     iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto; [solve_addr|].
-    iSplitL; cycle 1.
-    { iIntros "!> %"; simplify_eq. }
     iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
