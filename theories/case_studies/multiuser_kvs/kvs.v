@@ -1,4 +1,5 @@
 From cap_machine Require Import machine_parameters assembler.
+From cap_machine Require Import switcher.
 
 Section KVS_Service.
   Import Asm_Griotte.
@@ -245,6 +246,9 @@ Section KVS_Service.
   Definition assembled_kvs_erase  := Eval cbv in (revert_regs_code_block assembled_kvs_erase').
   Definition kvs_erase_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_erase).
 
+  Definition kvs_service_instrs : list Word :=
+    kvs_addOrUpdate_instrs ++ kvs_read_instrs ++ kvs_erase_instrs.
+
   Fixpoint repeat_list `{A : Type} (l : list A) (n : nat) : list A :=
     match n with
     | 0 => []
@@ -263,4 +267,42 @@ Section KVS_Service.
     [
       WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher
     ].
+
+  Class kvsLayout : Type :=
+    mkCmptKvs {
+        KVS_OTYPE : OType;
+        b_kvs_exp_tbl : Addr;
+        e_kvs_exp_tbl : Addr
+      }.
+
+
+  Definition kvs_user_seal_key {KVS : kvsLayout} (n : nat) :=
+    WSealed KVS_OTYPE (SCap (O LG LM) Global 0%a 0%a (0 ^+ n)%a).
+
+  Definition length_kvs_imports := length (kvs_imports za za za za_ot).
+
+  Definition kvs_exp_tbl_entry_addOrUpdate :=
+    WInt (encode_entry_point 3 (length_kvs_imports)).
+
+  Definition KVS_addOrUpdate {KVS : kvsLayout} : Sealable :=
+    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl (b_kvs_exp_tbl ^+2)%a.
+
+  Definition kvs_exp_tbl_entry_read :=
+    WInt (encode_entry_point 2 (length_kvs_imports + length kvs_addOrUpdate_instrs)).
+
+  Definition KVS_read {KVS : kvsLayout} : Sealable :=
+    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl (b_kvs_exp_tbl ^+3)%a.
+
+  Definition kvs_exp_tbl_entry_erase :=
+    WInt (encode_entry_point 2 (length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_erase_instrs)).
+
+  Definition KVS_erase {KVS : kvsLayout} : Sealable :=
+    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl (b_kvs_exp_tbl ^+4)%a.
+
+  Definition kvs_export_table_entries : list Word :=
+    [ kvs_exp_tbl_entry_addOrUpdate;
+      kvs_exp_tbl_entry_read;
+      kvs_exp_tbl_entry_erase
+    ].
+
 End KVS_Service.
