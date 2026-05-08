@@ -25,148 +25,6 @@ Section Switcher.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  (* TODO move *)
-  Lemma clear_registers_pre_call_skip_spec_known
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (arg_rmap : Reg) (nargs : nat)
-    φ :
-    executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a ->
-
-    is_arg_rmap arg_rmap 8 ->
-    (1 <= nargs <= 8)%nat ->
-
-    ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
-      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg )
-      ∗ codefrag pc_a clear_registers_pre_call_skip_instrs
-      ∗ ▷ ( (∃ arg_rmap',
-              ⌜ is_arg_rmap arg_rmap' 8 ⌝
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
-              ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
-              ∗ (  [∗ map] rarg↦warg ∈ arg_rmap',
-                     rarg ↦ᵣ warg
-                     ∗ if decide (rarg ∈ dom_arg_rmap (nargs-1))
-                       then True
-                       else ⌜ warg = WInt 0⌝
-                )
-              ∗ codefrag pc_a clear_registers_pre_call_skip_instrs)
-               -∗ WP Seq (Instr Executable) {{ φ }})
-    )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
-  Proof.
-    iIntros (Hexec Hbounds Hargmap Hz) "(HPC & Hct2 & Hargs & Hcode & Hcont)".
-    codefrag_facts "Hcode". clear H0.
-
-    assert (∃ w0 w1 w2 w3 w4 w5 w, arg_rmap = <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
-             (<[ca5:=w5]> (<[ct0:=w]> ∅))))))) as [w0 [w1 [w2 [w3 [w4 [w5 [w Heq] ] ] ] ] ] ].
-    { assert (is_Some (arg_rmap !! ca0)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ca1)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ca2)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ca3)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ca4)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ca5)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      assert (is_Some (arg_rmap !! ct0)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-      exists x,x0,x1,x2,x3,x4,x5. apply map_eq.
-      intros i. destruct (decide (ca0 = i));simplify_map_eq=>//.
-      destruct (decide (ca1 = i));simplify_map_eq=>//.
-      destruct (decide (ca2 = i));simplify_map_eq=>//.
-      destruct (decide (ca3 = i));simplify_map_eq=>//.
-      destruct (decide (ca4 = i));simplify_map_eq=>//.
-      destruct (decide (ca5 = i));simplify_map_eq=>//.
-      destruct (decide (ct0 = i));simplify_map_eq=>//.
-      repeat (rewrite lookup_insert_ne; auto).
-      apply not_elem_of_dom. rewrite Hargmap. set_solver. }
-
-    rewrite Heq.
-    repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-    iDestruct "Hargs" as "(Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0 & _)".
-
-    (* Hardcoded proof of cases *)
-    destruct (decide (1 = nargs));[subst|].
-    { iGo "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame. cbn.
-      destruct (decide (_ ∈ ∅)) as [Hcontra|]; first set_solver+Hcontra.
-      rewrite /is_arg_rmap /dom_arg_rmap; cbn.
-      repeat iSplit;[|done..|done].
-      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
-
-    destruct (decide (2 = nargs));[subst|].
-    { iGo "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #".
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit;[|done..|done].
-      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
-
-    destruct (decide (3 = nargs));[subst|].
-    { iGo "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #".
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit;[|done..|done].
-      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
-
-    destruct (decide (4 = nargs));[subst|].
-    { iGo "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #".
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit;[|done..|done].
-      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
-
-    destruct (decide (5 = nargs));[subst|].
-    { iGo "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #".
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit;[|done..|done].
-      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
-
-    destruct (decide (6 = nargs));[subst|].
-    { iGo "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #".
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit;[|done..|done].
-      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
-
-    destruct (decide (7 = nargs));[subst|].
-    { iGo "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #".
-      destruct (decide (_ ∈ _)) as [Hcontra|Hcontra]; first set_solver+Hcontra.
-      repeat iSplit;[|done..|done].
-      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
-
-    destruct (decide (8 = nargs));[subst|].
-    { iGo "Hcode".
-      iApply "Hcont".
-      iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅))))))).
-      repeat (rewrite big_sepM_insert;[|simplify_map_eq=>//]).
-      iFrame "∗ #".
-      repeat iSplit;[|done..|done].
-      iPureIntro. rewrite /is_arg_rmap !dom_insert_L. set_solver. }
-
-    exfalso. lia.
-  Qed.
-
-
   Lemma switcher_cc_specification_known_to_known
     (Nswitcher : namespace)
     (* (W : WORLD) *)
@@ -246,28 +104,33 @@ Section Switcher.
     ∗ cstack_frag cstk
 
 
-    ∗ ▷ ( na_own logrel_nais ⊤
+    ∗ ▷ ( ∀ arg_rmap' rmap',
+          ( ⌜ is_arg_rmap arg_rmap' 8 ⌝
+          ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
+          ∗ na_own logrel_nais ⊤
           (* Registers *)
           ∗ PC ↦ᵣ WCap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
           ∗ cgp ↦ᵣ WCap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
           ∗ cra ↦ᵣ (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return)
           (* Stack register *)
           ∗ csp ↦ᵣ WCap RWL Local a_stk4 e_stk a_stk4
-          (* Entry point of the target compartment *)
-          ∗ ct1 ↦ᵣ WInt 0
-          ∗ cs0 ↦ᵣ WInt 0
-          ∗ cs1 ↦ᵣ WInt 0
           (* All the other registers *)
-          ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ (if decide (rarg ∈ dom_arg_rmap nargs) then True else ⌜warg = WInt 0⌝) )
-          ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ WInt 0 )
+          (* Entry point of the target compartment *)
+          ∗ ( [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ warg
+                                             ∗ (if decide (rarg ∈ dom_arg_rmap nargs)
+                                                then ⌜ arg_rmap !! rarg = Some warg ⌝
+                                                else ⌜warg = WInt 0⌝)
+            )
+          ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
 
           (* Stack frame *)
-          (* ∗ ([[ a_stk4 , e_stk ]] ↦ₐ (region_addrs_zeroes a_stk4 e_stk)) *)
+          ∗ ([[ a_stk4 , e_stk ]] ↦ₐ [[region_addrs_zeroes a_stk4 e_stk]])
 
           (* Interpretation of the world and stack, at the moment of the switcher_call *)
           ∗ cstack_frag (frame::cstk)
 
           -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+        )
         )
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
@@ -490,11 +353,11 @@ Section Switcher.
     ; cycle 1.
     { admit. }
 
-    iInstr "Hcode" with "Hlc".
+    iInstr "Hcode".
 
     (* --- Lea ct2 1 --- *)
     assert ( ∃ f3, (a_tstk + 1)%a = Some f3) as [f3 Htastk] by (exists (a_tstk ^+ 1)%a; solve_addr+Hsize_tstk).
-    iInstr "Hcode" with "Hlc".
+    iInstr "Hcode".
 
     (* --- Store ct2 csp --- *)
     iDestruct (big_sepL2_length with "Htstk") as %Hlen.
@@ -735,7 +598,10 @@ Section Switcher.
     pose proof switcher_return_entry_point as Ha_return.
     replace (a_callee_call ^+ 1)%a with a_switcher_return by solve_addr.
     replace a_stk4 with astk4 by (subst astk4 ; solve_addr+Hastk).
-    iApply "Hpost"; iFrame.
-    (* TODO should be easy now *)
-
+    iApply "Hpost"; iFrame "∗ # %".
+    iPureIntro.
+    rewrite Hdom Hrmap'.
+    set_solver+.
     Admitted.
+
+
