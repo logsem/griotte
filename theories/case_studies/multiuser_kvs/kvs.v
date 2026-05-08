@@ -27,6 +27,9 @@ Section KVS_Service.
   Definition EMPTY_SLOT : Z := -1.
   Definition DEFAULT_VAL : Z := 0.
 
+  Definition ASM_TRUE : Z := 0.
+  Definition ASM_FALSE : Z := (-1).
+
   Definition kvs_getFullKey_asm (rdst rsealkey rkey rscratch : RegName) : list asm_code :=
     [
       (* get full key *)
@@ -36,166 +39,169 @@ Section KVS_Service.
       lshiftl rdst rdst 16;
       lor rdst rdst rkey
     ].
-  (* TODO I think the 3 functions can be refactored by using a (common) search macros.
-     It would probably be slitghly less faithfull to the original code,
-     but it would make it much easier to verify.
- *)
+  (** The functions had been refactored to use a (common) search macros.
+      It is slightly less faithful to the original code,
+      but it accomplishes the same,
+      and it will make it easier to verify.
+   *)
 
-  (* TODO I'm pretty sure this code is not correct *)
+  (** KVS Search:
+      This macro searches whether the element in [rkey] exists in the map.
+      Arguments:
+      - [cgp] points at the first key of the map
+      - [rkey], [ridx] and [rscratch] are clobbered.
+      Return value:
+      + If the element exists:
+        - [cgp] points-to the found key
+        - [ridx] >= 0
+
+      + If no element in found:
+        - [cgp] points-to the first key of the map
+        - [ridx] = -1
+   *)
+  Definition kvs_search_asm (rkey ridx rscratch: RegName) : (list asm_code) :=
+    [
+      (* initialise ridx *)
+      mov ridx 0%Z;
+      (* go through all entries of the map *)
+      #".loop_start";
+      sub rscratch SIZE_MAP ridx;
+      jnz (".loop_body")%asm rscratch;
+      jmp (".loop_end_not_found")%asm;
+      #".loop_body";
+      load rscratch cgp;
+      (* we now need to compare rscratch with the full key *)
+      sub rscratch rkey rscratch;
+      jnz (".not_same_key")%asm rscratch;
+      #".same_key";
+      (* key was found, [cgp] points-to the the found key *)
+      jmp (".loop_end_found")%asm;
+      #".not_same_key";
+      (* skip, we then finish the body of the loop *)
+      lea cgp 2;
+      add ridx ridx 1;
+      jmp (".loop_start");
+      #".loop_end_not_found";
+      lea cgp (-(2*SIZE_MAP))%Z;
+      mov ridx (-1)%Z;
+      #".loop_end_found"
+    ].
+
+  (** AddOrUpdate.
+      Arguments:
+      - [ca0] contains the sealed user key
+      - [ca1] contains the map key to insert/update
+      - [ca2] contains the new value to insert
+      Return values:
+      - [ca0] contains TRUE if value was inserted, and FALSE if no empty slot
+      - [ca1] contains 0
+ *)
   Definition kvs_addOrUpdate_asm : list (list asm_code) :=
     [
       (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
       (* ca0 contains the full key *)
       ;
+      [ lea cgp 1 ] ;
+      (kvs_search_asm ca0 ct1 ct2) ;
       [
-        lea cgp 1;
-        mov ct0 0; (* 0 mean false *)
-        mov ct1 0; (* ct1 contains the index of loop *)
-        (* go through all entries of the map *)
-        #".loop_start";
-        sub ct2 SIZE_MAP ct1;
-        jnz (".loop_body")%asm ct2;
-        jmp (".loop_end")%asm;
-        #".loop_body";
-        load ct2 cgp;
-        (* we need to check that not -1 (empty slot) *)
-        sub ct2 ct2 EMPTY_SLOT;
-        jnz (".not_empty_slot") ct2;
-        (* slot is empty, we exit the loop *)
-        #".empty_slot";
-        jmp (".loop_end");
-        (* slot is not empty, we now need to compare ct2 with the full key *)
-        #".not_empty_slot";
-        sub ct2 ca0 ct2;
-        jnz (".not_same_key") ct2;
-        #".same_key";
+        sub ct1 ct1 (-1)%Z;
+        jnz (".addOrUpdate_key_not_found")%asm ct1;
+        (* key was found, we know that [cgp] points-to it *)
+        #".addOrUpdate_key_found";
         (* update the value *)
         lea cgp 1;
         store cgp ca2;
-        mov ca0 1;
-        jmp (".return")%asm;
-        #".not_same_key";
-        (* skip, we then finish the body of the loop *)
-        lea cgp 2;
-        add ct1 ct1 1;
-        jmp (".loop_start");
-        #".loop_end"
-      ];
+        (* return true *)
+        mov ca0 ASM_TRUE;
+        mov ca1 0;
+        jmp cra;
+        #".addOrUpdate_key_not_found";
+        (* we need to find an empty slot *)
+        mov ca0 EMPTY_SLOT
+      ] ;
+      (kvs_search_asm ctp ct1 ct2) ;
       [
-        (* if ct0 still contains 0, then we did not find an existing key, and we need to add *)
-        jnz (".key_found")%asm ct0
-      ];
-      [
-        #".key_not_found";
-        (* cgp already points to the first empty slot in the map *)
+        sub ct1 (-1)%Z ct1;
+        jnz (".addOrUpdate_emptyslot_not_found")%asm ct1;
+        (* empty slot found, we know that [cgp] points-to it *)
+        #".addOrUpdate_emptyslot_found";
+        (* insert the key/value in empty slot *)
         store cgp ca0;
         lea cgp 1;
         store cgp ca2;
-        mov ca0 0;
-        jmp (".return")%asm
-      ];
-      [
-        #".key_found";
         (* return true *)
-        mov ca0 1
-      ];
-      [
-        #".return";
-        (* return *)
+        mov ca0 ASM_TRUE;
+        mov ca1 0;
+        jmp cra;
+        #".addOrUpdate_emptyslot_not_found";
+        (* no empty slot found, return false *)
+        mov ca0 ASM_FALSE;
         mov ca1 0;
         jmp cra
       ]
     ].
 
+  (** Read.
+      Arguments:
+      - [ca0] contains the sealed user key
+      - [ca1] contains the map key to read
+      Return values:
+      - [ca0] contains TRUE or FALSE (whether the key was found)
+      - [ca1] contains the read value, if the key was found
+   *)
   Definition kvs_read_asm : list (list asm_code) :=
     [
       (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
       (* ca0 contains the full key *)
       ;
+      [ lea cgp 1 ] ;
+      (kvs_search_asm ca0 ct1 ct2) ;
       [
+        sub ct1 ct1 (-1)%Z;
+        jnz (".read_key_not_found")%asm ct1;
+        (* key was found, we know that [cgp] points-to it *)
+        #".read_key_found";
+        (* read the value *)
         lea cgp 1;
-        mov ct0 DEFAULT_VAL; (* 0 is the default value if key not found in KVS *)
-        mov ct1 0; (* ct1 contains the index of loop *)
-        (* go through all entries of the map *)
-        #".loop_start";
-        sub ct2 SIZE_MAP ct1;
-        jnz (".loop_body")%asm ct2;
-        jmp (".loop_end")%asm;
-        #".loop_body";
-        load ct2 cgp;
-        (* we need to check that not -1 (empty slot) *)
-        sub ct2 ct2 EMPTY_SLOT;
-        jnz (".not_empty_slot") ct2;
-        (* slot is empty, we exit the loop *)
-        #".empty_slot";
-        jmp (".loop_end");
-        (* slot is not empty, we now need to compare ct2 with the full key *)
-        #".not_empty_slot";
-        sub ct2 ca0 ct2;
-        jnz (".not_same_key") ct2;
-        #".same_key";
-        (* return the read value *)
-        lea cgp 1;
-        load ct0 cgp;
-        #".not_same_key";
-        (* skip, we then finish the body of the loop *)
-        lea cgp 2;
-        add ct1 ct1 1;
-        jmp (".loop_start");
-        #".loop_end"
-      ];
-      [
-        #".return";
-        (* ct0 contains the read value; or 0 if no existing key *)
-        mov ca0 ct1;
-        (* return *)
+        load ca1 cgp;
+        (* return true *)
+        mov ca0 ASM_TRUE;
+        jmp cra;
+        #".read_key_not_found";
+        (* no empty slot found, return false *)
+        mov ca0 ASM_FALSE;
         mov ca1 0;
         jmp cra
       ]
     ].
 
+
+  (** Erase.
+      Arguments:
+      - [ca0] contains the sealed user key
+      - [ca1] contains the map key to erase
+      Return values:
+      - [ca0] and [ca1] contains 0
+   *)
   Definition kvs_erase_asm : list (list asm_code) :=
     [
       (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
       (* ca0 contains the full key *)
       ;
+      [ lea cgp 1 ] ;
+      (kvs_search_asm ca0 ct1 ct2) ;
       [
-        lea cgp 1;
-        mov ct0 0; (* 0 is the default value if key not found in KVS *)
-        mov ct1 0; (* ct1 contains the index of loop *)
-        (* go through all entries of the map *)
-        #".loop_start";
-        sub ct2 SIZE_MAP ct1;
-        jnz (".loop_body")%asm ct2;
-        jmp (".loop_end")%asm;
-        #".loop_body";
-        load ct2 cgp;
-        (* we need to check that not -1 (empty slot) *)
-        sub ct2 ct2 EMPTY_SLOT;
-        jnz (".not_empty_slot") ct2;
-        (* slot is empty, we exit the loop *)
-        #".empty_slot";
-        jmp (".loop_end");
-        (* slot is not empty, we now need to compare ct2 with the full key *)
-        #".not_empty_slot";
-        sub ct2 ca0 ct2;
-        jnz (".not_same_key") ct2;
-        #".same_key";
-        (* erase the value and delete the key *)
+        sub ct1 ct1 (-1)%Z;
+        jnz (".erase_key_not_found")%asm ct1;
+        (* key was found, we know that [cgp] points-to it *)
+        #".erase_key_found";
+        (* erase the key *)
         store cgp EMPTY_SLOT;
         lea cgp 1;
-        store cgp DEFAULT_VAL;
-        #".not_same_key";
-        (* skip, we then finish the body of the loop *)
-        lea cgp 2;
-        add ct1 ct1 1;
-        jmp (".loop_start");
-        #".loop_end"
-      ];
-      [
-        #".return";
-        (* no return value *)
-        (* return *)
+        store cgp 0;
+        (* return void *)
+        #".erase_key_not_found";
+        (* no empty slot found, return void *)
         mov ca0 0;
         mov ca1 0;
         jmp cra
