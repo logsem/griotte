@@ -39,6 +39,25 @@ Section KVS_Service.
       lshiftl rdst rdst 16;
       lor rdst rdst rkey
     ].
+
+  (* TODO we could consider encoding option Z as:
+     - [?]0 -> None
+     - [z]1 -> Some z
+
+     Check option (if ropt contains an option 0):
+     - land rres ropt 1  --> rres = if None then 0 else 1
+     - lsr ropt 1        --> ropt = if Some z then z else [garbage]
+
+     To make an option z (if rz contains z):
+     - Some z
+       lsl rres rz 1
+       lor rres rres 1
+     - None
+       mov rres 0
+
+       It would make the search macro a bit more annoying though
+   *)
+
   (** The functions had been refactored to use a (common) search macros.
       It is slightly less faithful to the original code,
       but it accomplishes the same,
