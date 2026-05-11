@@ -100,4 +100,139 @@ Section KVS_spec.
     iApply "Hpost"; iFrame.
   Qed.
 
+  Lemma KVS_search_spec `{KVS : kvsLayout}
+    (pc_b pc_e pc_a : Addr)
+    (cgp_b cgp_e : Addr)
+    (rkey ridx rscratch : RegName)
+    (user_key nkey : Z)
+    (widx wscratch : Word)
+    (m : kvs_map) (w : Word)
+    :
+    let instrs := (kvs_search_instrs rkey ridx rscratch) in
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
+    withinBounds cgp_b cgp_e cgp_b = true ->
+
+    rscratch ≠ cnull ->
+    ridx ≠ cnull ->
+    rkey ≠ cnull ->
+
+    (
+      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+1)%a ∗
+      rkey ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
+      ridx ↦ᵣ widx ∗
+      rscratch ↦ᵣ kvs_service_unsealing_key ∗
+
+      isKVS (cgp_b ^+ 1)%a cgp_e m ∗
+      (user_key, nkey) ⤇(KVS) w ∗
+
+      codefrag pc_a instrs ∗
+      ▷ ( ∀ idx,
+            (
+            ⌜ 0 <= idx ⌝ ∗
+            PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+            cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (1+2*idx) )%a ∗
+            rkey ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
+            ridx ↦ᵣ WInt idx ∗
+            rscratch ↦ᵣ kvs_service_unsealing_key ∗
+
+            isKVS (cgp_b ^+ 1)%a cgp_e m ∗
+
+            codefrag pc_a instrs -∗
+
+            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+            )
+        )
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+  Proof.
+    intros instrs ; subst instrs.
+    iIntros (HsubBounds Hbounds_cgp Hrscratch Hridx Hkey)
+      "(HPC & Hcgp & Hrkey & Hridx & Hrscratch & HKVS & #Hkvs_frag & Hcode & Hpost)".
+    codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
+
+    (* --------------------------------------------------- *)
+    (* ----------------- Start the proof ----------------- *)
+    (* --------------------------------------------------- *)
+
+  Admitted.
+
+  Lemma KVS_read `{KVS : kvsLayout}
+    (pc_b pc_b' pc_e pc_a : Addr)
+    (cgp_b cgp_e : Addr)
+    (wret wct1 wct2 : Word)
+    (user_key nkey : Z)
+    (m : kvs_map)
+    (w : Word)
+    :
+
+    let imports :=
+      kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
+    in
+
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
+    (0 <= user_key < top)%Z ->
+
+    (cgp_b + length kvs_data)%a = Some cgp_e ->
+    (pc_b + length imports)%a = Some pc_b' ->
+
+    ( na_own logrel_nais ⊤ ∗
+
+      (* initial register file *)
+      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+      cra ↦ᵣ wret ∗
+      ca0 ↦ᵣ kvs_user_seal_key user_key ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
+      ct1 ↦ᵣ wct1 ∗ (* scratch *)
+      ct2 ↦ᵣ wct2 ∗ (* scratch *)
+
+      (* initial memory layout *)
+      [[ pc_b , pc_b' ]] ↦ₐ [[ imports ]] ∗
+      codefrag pc_a kvs_read_instrs ∗
+      cgp_b ↦ₐ kvs_service_unsealing_key ∗
+
+      isKVS (cgp_b ^+ 1)%a cgp_e m ∗
+      (user_key, nkey) ⤇(KVS) w ∗
+
+      ▷ (na_own logrel_nais ⊤ ∗
+         PC ↦ᵣ updatePcPerm wret ∗
+         cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+         cra ↦ᵣ wret ∗
+         ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
+         ca1 ↦ᵣ w ∗ (* result of the read *)
+         ct1 ↦ᵣ wct1 ∗ (* scratch *)
+         ct2 ↦ᵣ wct2 (* scratch *)
+         -∗ WP Instr Halted {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+        )
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+  Proof.
+    intros imports.
+    iIntros (HsubBounds Hbounds_user_key Hcgp_contiguous Himports_contiguous)
+      "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Himports & Hcode & Hcgp_b & HKVS & Hkvs_frag & Hpost)".
+    codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
+
+    (* --------------------------------------------------- *)
+    (* ----------------- Start the proof ----------------- *)
+    (* --------------------------------------------------- *)
+    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (KVS_getFullKey_spec with "[- $HPC $Hcgp $Hca0 $Hca1 $Hct1 $Hcgp_b $Hcode]"); eauto; [|iNext].
+    { rewrite /withinBounds; solve_addr. }
+    iIntros "(HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 1 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iInstr "Hcode".
+    { transitivity (Some (cgp_b ^+ 1)%a); [solve_addr|done]. }
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 2 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    (* Store cgp 0%Z; *)
+    iInstr "Hcode".
+    { solve_addr. }
+    iHide "Hφ" as hφ.
+
+  Admitted.
+
 Section KVS_spec.
