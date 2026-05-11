@@ -35,7 +35,7 @@ Section KVS_Service.
     [
       (* get full key *)
       load rscratch cgp;
-      unseal rdst rsealkey rscratch;
+      unseal rdst rscratch rsealkey;
       geta rdst rdst;
       lshiftl rdst rdst 16;
       lor rdst rdst rkey
@@ -79,7 +79,7 @@ Section KVS_Service.
         - [cgp] points-to the first key of the map
         - [ridx] = -1
    *)
-  Definition kvs_search_asm (rkey ridx rscratch: RegName) : (list asm_code) :=
+  Definition kvs_search_asm_pre (rkey ridx rscratch : RegName) : (list asm_code) :=
     [
       (* initialise ridx *)
       mov ridx 0%Z;
@@ -106,6 +106,11 @@ Section KVS_Service.
       mov ridx (-1)%Z;
       #".loop_end_found"
     ].
+  Definition kvs_search_asm_env (rkey ridx rscratch : RegName) :=
+    Eval vm_compute in (compute_asm_code_env (kvs_search_asm_pre rkey ridx rscratch)).2.
+  Definition kvs_search_asm (rkey ridx rscratch : RegName) :=
+    Eval compute in resolve_labels_macros (kvs_search_asm_pre rkey ridx rscratch)
+                      (kvs_search_asm_env rkey ridx rscratch).
 
   (** AddOrUpdate.
       Arguments:
@@ -233,6 +238,10 @@ Section KVS_Service.
   Definition kvs_getFullKey_instrs (rdst rsealkey rkey rscratch : RegName) : list Word :=
     encodeInstrsW (kvs_getFullKey rdst rsealkey rkey rscratch).
 
+  Definition kvs_search (rkey ridx rscratch : RegName) :=
+    Eval compute in assemble (kvs_search_asm rkey ridx rscratch).
+  Definition kvs_search_instrs (rkey ridx rscratch : RegName) : list Word :=
+    encodeInstrsW (kvs_search rkey ridx rscratch).
 
   Definition assembled_kvs_addOrUpdate' := Eval vm_compute in (assemble_block kvs_addOrUpdate_asm).
   Definition assembled_kvs_addOrUpdate  := Eval cbv in (revert_regs_code_block assembled_kvs_addOrUpdate').
@@ -249,6 +258,16 @@ Section KVS_Service.
   Definition kvs_service_instrs : list Word :=
     kvs_addOrUpdate_instrs ++ kvs_read_instrs ++ kvs_erase_instrs.
 
+  Class kvsLayout : Type :=
+    mkCmptKvs {
+        KVS_OTYPE : OType;
+        KVS_OTYPE_size :
+        (KVS_OTYPE < KVS_OTYPE ^+ 1)%ot;
+
+        b_kvs_exp_tbl : Addr;
+        e_kvs_exp_tbl : Addr
+      }.
+
   Fixpoint repeat_list `{A : Type} (l : list A) (n : nat) : list A :=
     match n with
     | 0 => []
@@ -258,8 +277,13 @@ Section KVS_Service.
   Definition kvs_initial_map :=
     repeat_list [WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP.
 
-  Definition kvs_data (OUserKey : OType) : list Word :=
-    [WSealRange (false, true) Global OUserKey (OUserKey^+1)%ot OUserKey] ++ kvs_initial_map.
+  Definition kvs_service_unsealing_key {KVS : kvsLayout} :=
+    WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
+
+  Definition kvs_full_key (user_key nkey : Z) := Z.lor (user_key ≪ 16) nkey.
+
+  Definition kvs_data {KVS : kvsLayout} : list Word :=
+    kvs_service_unsealing_key :: kvs_initial_map.
 
   Definition kvs_imports
     (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
@@ -268,16 +292,8 @@ Section KVS_Service.
       WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher
     ].
 
-  Class kvsLayout : Type :=
-    mkCmptKvs {
-        KVS_OTYPE : OType;
-        b_kvs_exp_tbl : Addr;
-        e_kvs_exp_tbl : Addr
-      }.
-
-
-  Definition kvs_user_seal_key {KVS : kvsLayout} (n : nat) :=
-    WSealed KVS_OTYPE (SCap (O LG LM) Global 0%a 0%a (0 ^+ n)%a).
+  Definition kvs_user_seal_key {KVS : kvsLayout} (z : Z) :=
+    WSealed KVS_OTYPE (SCap (O LG LM) Global 0%a 0%a (0 ^+ z)%a).
 
   Definition length_kvs_imports := length (kvs_imports za za za za_ot).
 
