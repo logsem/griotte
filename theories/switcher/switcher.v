@@ -179,8 +179,12 @@ Section Switcher.
     Eval compute in resolve_labels_block switcher_asm_pre switcher_asm_env.
   Definition assembled_switcher :=
     Eval compute in assemble_block switcher_asm.
+  Definition assembled_switcher_n (n : nat) :=
+    Eval compute in (match (assembled_switcher !! n) with | Some l => l | None => [] end).
   Definition switcher_instrs : list Word :=
    concat (encodeInstrsW <$> assembled_switcher).
+  Definition switcher_instrs_n (n : nat) :=
+   encodeInstrsW (assembled_switcher_n n).
 
   Definition switcher_call_instrs :=
       Eval compute in
