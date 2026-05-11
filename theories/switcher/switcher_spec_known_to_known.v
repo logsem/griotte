@@ -34,7 +34,7 @@ Section Switcher.
     (arg_rmap rmap : Reg)
     (cstk : CSTK)
     (nargs : nat)
-    (* (E : coPset) *)
+    (E : coPset)
 
     (Ctgt : CmptName)
     (btbl_tgt atbl_tgt etbl_tgt : Addr)
@@ -60,7 +60,7 @@ Section Switcher.
     in
 
     (* (* NA mask *) *)
-    (* Nswitcher ⊆ E -> *)
+    ↑Nswitcher ⊆ E ->
 
     (* Well formed entry point *)
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a →
@@ -82,7 +82,7 @@ Section Switcher.
 
 
     (* PRE-CONDITION *)
-    ∗ na_own logrel_nais ⊤
+    ∗ na_own logrel_nais E
     (* Registers *)
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
@@ -107,7 +107,7 @@ Section Switcher.
     ∗ ▷ ( ∀ arg_rmap' rmap',
           ( ⌜ is_arg_rmap arg_rmap' 8 ⌝
           ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
-          ∗ na_own logrel_nais ⊤
+          ∗ na_own logrel_nais E
           (* Registers *)
           ∗ PC ↦ᵣ WCap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
           ∗ cgp ↦ᵣ WCap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
@@ -136,7 +136,7 @@ Section Switcher.
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
     intros Cname0 astk4 wct1_caller callee_stk_region frame.
-    iIntros (atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hdom Harg_rmap)
+    iIntros (HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hdom Harg_rmap)
       "(#Hswitcher & Hinv_exp_tbl_pcc & Hinv_exp_tbl_cgp & Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
 
@@ -315,8 +315,7 @@ Section Switcher.
     assert (is_Some (a_stk3 + 1)%a) as [a_stk4 Hastk4];[solve_addr+Hastk1 Hastk2 Hastk3 Hastk3_inbounds|].
     iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk3 Hstk]"; eauto.
     { solve_addr+Hastk3_inbounds Hastk1 Hastk2 Hastk3 Hastk4. }
-    (* assert ((a_stk + 4)%a = Some a_stk4) as Hastk by solve_addr. *)
-    (* assert ((a_stk ^+4)%a = a_stk4) as -> by solve_addr. *)
+    assert ((a_stk + 4)%a = Some a_stk4) as Hastk by solve_addr.
 
     iInstr "Hcode".
     { rewrite /withinBounds. solve_addr. }
@@ -576,7 +575,6 @@ Section Switcher.
 
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq'. subst.
     iMod (cstack_update _ _ (frame :: cstk) with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
-    assert ((a_stk + 4)%a = Some a_stk4) as Hastk by solve_addr.
     iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hf3 Hstk_interp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3]") as "HH".
     { iNext. iExists f3,tstk_next.
       iFrame "Hmtdc Hb_switcher Hp_ot_switcher".
