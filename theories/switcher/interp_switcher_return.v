@@ -225,7 +225,7 @@ Section fundamental.
     iDestruct "Hcframe_interp" as (wtstk4) "[Ha_tstk Hcframe_interp]".
     iDestruct "Hcframe_interp" as "(%HWF & -> & Hcframe_interp)".
     destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
-    simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hfreq).
+    simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hccrel_known_to_known & Hfreq).
 
     (* We derive the points-to resources of the compartment's stack.
        Ownership of the points-to depend on trusted and untrusted caller.
@@ -233,6 +233,9 @@ Section fundamental.
        a clever existential quantifier.
      *)
     iDestruct (interp_monotone_continuation with "Hcont_K") as "Hcont_K"; eauto.
+    rewrite /interp_continuation /interp_cont.
+    iEval (cbn) in "Hcont_K"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
+    cbn.
     iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
     iEval (cbn) in "Hinterp_callee_wstk".
     iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_callee_wstk]") as ">#Hinterp_callee_wstk'".
@@ -488,9 +491,7 @@ Section fundamental.
       by apply Forall_replicate.
     }
 
-    destruct (is_untrusted_caller ccrel) eqn:Hccrel
-    ; do 2 (rewrite /is_untrusted_caller_frm /= Hccrel)
-    ; cycle 1.
+    destruct (is_untrusted_caller ccrel) eqn:Hccrel ; cycle 1.
     - (* Case where caller is trusted, we use the continuation relation K *)
       destruct Hwastks as (-> & -> & -> & ->).
       iEval (rewrite app_nil_r) in "Hr".

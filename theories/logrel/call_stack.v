@@ -12,6 +12,22 @@ Inductive caller_callee_relation : Type :=
 | Known_to_Unknown
 | Known_to_Known.
 
+Definition is_untrusted_caller (r : caller_callee_relation) :=
+  match r with
+  | Unknown_to_Unknown | Unknown_to_Known => true
+  | Known_to_Unknown | Known_to_Known => false
+  end.
+
+Definition is_known_to_known (r : caller_callee_relation) :=
+  match r with
+  | Known_to_Known => true
+  | Unknown_to_Unknown | Unknown_to_Known | Known_to_Unknown => false
+  end.
+
+Lemma is_untrusted_caller_is_not_known_to_known (r : caller_callee_relation) :
+  is_untrusted_caller r = true -> is_known_to_known r = false.
+Proof. intros Huntrusted; destruct r; cbn in *; auto. Qed.
+
 (** A calls stack [cstack] is a list of call-frames [cframe],
     and they contain the content of the callee-saved registers,
     kept track by the switcher.
@@ -42,14 +58,17 @@ Record cframe := MkCFrame {
       ccrel : caller_callee_relation;
   }.
 
-Definition is_untrusted_caller (r : caller_callee_relation) :=
-match r with
-| Unknown_to_Unknown | Unknown_to_Known => true
-| Known_to_Unknown | Known_to_Known => false
-end.
-
 Definition is_untrusted_caller_frm (frm : cframe) :=
   is_untrusted_caller frm.(ccrel).
+Definition is_known_to_known_frm (frm : cframe) :=
+  is_known_to_known frm.(ccrel).
+
+Lemma is_untrusted_caller_is_not_known_to_known_frm (frm : cframe) :
+  is_untrusted_caller_frm frm = true -> is_known_to_known_frm frm = false.
+Proof.
+  rewrite /is_untrusted_caller_frm /is_known_to_known_frm.
+  apply is_untrusted_caller_is_not_known_to_known.
+Qed.
 
 Notation cstack := (list cframe).
 Notation CSTK := (leibnizO cstack).

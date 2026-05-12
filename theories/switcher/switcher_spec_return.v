@@ -164,7 +164,7 @@ Section Switcher.
     }
 
     destruct Ws as [|Wprev Ws],Cs;try done. simpl in Hframe.
-    destruct Hframe as [Hrelated_pub_Wprev_W0 [<- Hframe] ].
+    destruct Hframe as [Hrelated_pub_Wprev_W0 [<- [Hccrel_known_to_known Hframe] ] ].
 
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     destruct frm.
@@ -177,9 +177,9 @@ Section Switcher.
     set (a_stk := (csp_b ^+ -4)%a).
 
     iDestruct (interp_monotone_continuation with "HK") as "HK"; eauto.
+    rewrite /interp_continuation /interp_cont.
+    iEval (cbn) in "HK"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
-
-    rewrite -/(interp_cont).
 
     iInstr "Hcode".
     { split;auto. rewrite /withinBounds. solve_addr. }

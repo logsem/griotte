@@ -148,6 +148,7 @@ Section logrel.
     | W' :: Ws', C' :: Cs', frm :: cstk' =>
         related_sts_pub_world W' W
         ∧ C = C'
+        ∧ is_known_to_known_frm frm = false
         ∧ (if (is_untrusted_caller_frm frm) then frame_match Ws' Cs' cstk' W C else True)
     | [], [] , []=> True
     | _,_,_ => False
@@ -163,8 +164,8 @@ Section logrel.
     induction cstk as [|frm cstk]; intros Ws Cs Hrelated Hfrm.
     - destruct Ws,Cs; cbn in *; try done.
     - destruct Ws,Cs; cbn in *; try done.
-      destruct Hfrm as (Hrelated' & <- & IH).
-      split;[|split]; auto.
+      destruct Hfrm as (Hrelated' & <- & is_not_known_to_known & IHframe).
+      split;[|split;[|split] ]; auto.
       + eapply related_sts_pub_trans_world; eauto.
       + destruct (is_untrusted_caller_frm frm); last done.
         by apply IHcstk.
@@ -385,6 +386,9 @@ Section logrel.
     match cstk, Ws, Cs with
     | [],[],[] => True%I
     | frm :: cstk', Wt :: Ws', Ct :: Cs' =>
+        if is_known_to_known_frm frm
+        then True%I
+        else
         (▷ (
              (* Continuation for the rest of the call-stack *)
              interp_cont_aux interp cstk' Ws' Cs'
@@ -406,6 +410,7 @@ Section logrel.
     induction y; intros C0 W0;[simpl;f_equiv|].
     destruct a, W0, C0;simpl; [auto|auto|auto|].
     simpl.
+    f_equiv.
     f_equiv.
     f_equiv;[apply IHy|].
     f_equiv;[| repeat (f_equiv; auto)].
