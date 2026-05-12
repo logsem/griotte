@@ -3,6 +3,15 @@ From iris.algebra Require Import excl_auth.
 From iris.base_logic Require Import own.
 From cap_machine Require Import cap_lang.
 
+
+(** TODO explanation relation caller-callee *)
+
+Inductive caller_callee_relation : Type :=
+| Unknown_to_Unknown
+| Unknown_to_Known
+| Known_to_Unknown
+| Known_to_Known.
+
 (** A calls stack [cstack] is a list of call-frames [cframe],
     and they contain the content of the callee-saved registers,
     kept track by the switcher.
@@ -30,8 +39,17 @@ Record cframe := MkCFrame {
       b_stk : Addr;
       a_stk : Addr;
       e_stk : Addr;
-      is_untrusted_caller : bool;
+      ccrel : caller_callee_relation;
   }.
+
+Definition is_untrusted_caller (r : caller_callee_relation) :=
+match r with
+| Unknown_to_Unknown | Unknown_to_Known => true
+| Known_to_Unknown | Known_to_Known => false
+end.
+
+Definition is_untrusted_caller_frm (frm : cframe) :=
+  is_untrusted_caller frm.(ccrel).
 
 Notation cstack := (list cframe).
 Notation CSTK := (leibnizO cstack).

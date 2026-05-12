@@ -239,14 +239,14 @@ Section fundamental.
     iClear "Hinterp_callee_wstk" ; iRename "Hinterp_callee_wstk'" into "Hinterp_callee_wstk".
     iAssert (
         ∃ wastk wastk1 wastk2 wastk3,
-        let la := (if is_untrusted_caller then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in
-        let lv := (if is_untrusted_caller then [wastk;wastk1;wastk2;wastk3] else []) in
+        let la := (if (is_untrusted_caller ccrel) then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in
+        let lv := (if (is_untrusted_caller ccrel) then [wastk;wastk1;wastk2;wastk3] else []) in
           a_stk ↦ₐ wastk
           ∗ (a_stk ^+ 1)%a ↦ₐ wastk1
           ∗ (a_stk ^+ 2)%a ↦ₐ wastk2
           ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
           ∗ ▷ ([∗ list] a ; v ∈ la ; lv, ▷ closing_resources interp W C a v)
-          ∗ ⌜if is_untrusted_caller then True else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wret ∧ wastk3 = wcgp0)⌝
+          ∗ ⌜if (is_untrusted_caller ccrel) then True else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wret ∧ wastk3 = wcgp0)⌝
           ∗ open_region_many W C la
           ∗ sts_full_world W C
       )%I
@@ -255,7 +255,8 @@ Section fundamental.
         (wastk wastk1 wastk2 wastk3) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hclose_res & %Hwastks & Hr & Hsts)"
       ].
     {
-      destruct is_untrusted_caller; cycle 1.
+      rewrite /is_untrusted_caller_frm; cbn.
+      destruct (is_untrusted_caller ccrel); cycle 1.
       * iExists wcs2, wcs3, wret, wcgp0.
         iEval (rewrite region_open_nil) in "Hr"; iFrame "Hr Hsts".
         iDestruct "Hcframe_interp" as "($&$&$&$)".
@@ -355,10 +356,11 @@ Section fundamental.
     { eapply finz_seq_between_NoDup. }
     { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
       apply elem_of_finz_seq_between in Ha'.
-      destruct is_untrusted_caller; solve_addr.
+      rewrite /is_untrusted_caller_frm; cbn.
+      destruct (is_untrusted_caller ccrel); solve_addr.
     }
     {
-      destruct is_untrusted_caller; last set_solver.
+      destruct (is_untrusted_caller ccrel); last set_solver.
       set (la := finz.seq_between (a_stk ^+ 4)%a e_stk).
       assert ( a_stk ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
       assert ( (a_stk ^+ 1)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
@@ -486,7 +488,9 @@ Section fundamental.
       by apply Forall_replicate.
     }
 
-    destruct is_untrusted_caller; cycle 1.
+    destruct (is_untrusted_caller ccrel) eqn:Hccrel
+    ; do 2 (rewrite /is_untrusted_caller_frm /= Hccrel)
+    ; cycle 1.
     - (* Case where caller is trusted, we use the continuation relation K *)
       destruct Hwastks as (-> & -> & -> & ->).
       iEval (rewrite app_nil_r) in "Hr".
@@ -736,6 +740,7 @@ Section fundamental.
 
     rewrite -(insert_id (<[PC:=updatePcPerm wastk2]> _) PC (updatePcPerm wastk2))
     ; last (clear;simplify_map_eq; done).
+    rewrite /is_untrusted_caller_frm /= Hccrel in Hfreq.
     destruct wastk2 as [ z | [p g b
                                 e a|]  | p g b e a | ot sb ] ; iEval (cbn) in "Hrmap".
     all: cbn in HcorrectWret.

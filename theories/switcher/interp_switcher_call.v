@@ -970,7 +970,7 @@ Section fundamental.
               b_stk := b ;
               a_stk := a ;
               e_stk := e ;
-              is_untrusted_caller := true
+              ccrel := Unknown_to_Unknown
            |}).
 
     iSpecialize ("Hexec" with "[]").
