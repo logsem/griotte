@@ -130,8 +130,12 @@ Section KVS_Service.
       (kvs_search_asm ca0 ct1 ct2) ;
       [
         sub ct1 ct1 (-1)%Z;
-        jnz (".addOrUpdate_key_not_found")%asm ct1;
+        jnz (".addOrUpdate_key_found")%asm ct1;
         (* key was found, we know that [cgp] points-to it *)
+        #".addOrUpdate_key_not_found";
+        (* we need to find an empty slot *)
+        mov ca0 EMPTY_SLOT;
+        jmp (".addOrUpdate_search_empty_slot");
         #".addOrUpdate_key_found";
         (* update the value *)
         lea cgp 1;
@@ -139,16 +143,19 @@ Section KVS_Service.
         (* return true *)
         mov ca0 ASM_TRUE;
         mov ca1 0;
-        jmp cra;
-        #".addOrUpdate_key_not_found";
-        (* we need to find an empty slot *)
-        mov ca0 EMPTY_SLOT
+        jalr cra cra;
+        #".addOrUpdate_search_empty_slot"
       ] ;
       (kvs_search_asm ctp ct1 ct2) ;
       [
         sub ct1 (-1)%Z ct1;
-        jnz (".addOrUpdate_emptyslot_not_found")%asm ct1;
+        jnz (".addOrUpdate_emptyslot_found")%asm ct1;
         (* empty slot found, we know that [cgp] points-to it *)
+        #".addOrUpdate_emptyslot_not_found";
+        (* no empty slot found, return false *)
+        mov ca0 ASM_FALSE;
+        mov ca1 0;
+        jalr cnull cra;
         #".addOrUpdate_emptyslot_found";
         (* insert the key/value in empty slot *)
         store cgp ca0;
@@ -157,12 +164,7 @@ Section KVS_Service.
         (* return true *)
         mov ca0 ASM_TRUE;
         mov ca1 0;
-        jmp cra;
-        #".addOrUpdate_emptyslot_not_found";
-        (* no empty slot found, return false *)
-        mov ca0 ASM_FALSE;
-        mov ca1 0;
-        jmp cra
+        jalr cnull cra
       ]
     ].
 
@@ -183,20 +185,21 @@ Section KVS_Service.
       (kvs_search_asm ca0 ct1 ct2) ;
       [
         sub ct1 ct1 (-1)%Z;
-        jnz (".read_key_not_found")%asm ct1;
+        jnz (".read_key_found")%asm ct1;
         (* key was found, we know that [cgp] points-to it *)
+        #".read_key_not_found";
+        (* no empty slot found, return false *)
+        mov ca0 ASM_FALSE;
+        mov ca1 0;
+        jmp (".read_key_ret")%asm;
         #".read_key_found";
         (* read the value *)
         lea cgp 1;
         load ca1 cgp;
         (* return true *)
         mov ca0 ASM_TRUE;
-        jmp cra;
-        #".read_key_not_found";
-        (* no empty slot found, return false *)
-        mov ca0 ASM_FALSE;
-        mov ca1 0;
-        jmp cra
+        #".read_key_ret";
+        jalr cnull cra
       ]
     ].
 
@@ -217,19 +220,21 @@ Section KVS_Service.
       (kvs_search_asm ca0 ct1 ct2) ;
       [
         sub ct1 ct1 (-1)%Z;
-        jnz (".erase_key_not_found")%asm ct1;
+        jnz (".erase_key_found")%asm ct1;
         (* key was found, we know that [cgp] points-to it *)
+        (* return void *)
+        #".erase_key_not_found";
+        jmp (".erase_return");
         #".erase_key_found";
         (* erase the key *)
         store cgp EMPTY_SLOT;
         lea cgp 1;
         store cgp 0;
+        #".erase_return";
         (* return void *)
-        #".erase_key_not_found";
-        (* no empty slot found, return void *)
         mov ca0 0;
         mov ca1 0;
-        jmp cra
+        jalr cnull cra
       ]
     ].
 
