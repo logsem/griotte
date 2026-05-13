@@ -807,9 +807,8 @@ Section Switcher.
               b_stk := b_stk;
               a_stk := a_stk;
               e_stk := e_stk;
-              is_untrusted_caller := false
+              ccrel := Known_to_Unknown
            |}).
-
 
     (* --- Close the world with the cleared stack --- *)
 

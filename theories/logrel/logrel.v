@@ -148,7 +148,8 @@ Section logrel.
     | W' :: Ws', C' :: Cs', frm :: cstk' =>
         related_sts_pub_world W' W
         ∧ C = C'
-        ∧ (if frm.(is_untrusted_caller) then frame_match Ws' Cs' cstk' W C else True)
+        ∧ is_known_to_known_frm frm = false
+        ∧ (if (is_untrusted_caller_frm frm) then frame_match Ws' Cs' cstk' W C else True)
     | [], [] , []=> True
     | _,_,_ => False
     end.
@@ -163,10 +164,10 @@ Section logrel.
     induction cstk as [|frm cstk]; intros Ws Cs Hrelated Hfrm.
     - destruct Ws,Cs; cbn in *; try done.
     - destruct Ws,Cs; cbn in *; try done.
-      destruct Hfrm as (Hrelated' & <- & IH).
-      split;[|split]; auto.
+      destruct Hfrm as (Hrelated' & <- & is_not_known_to_known & IHframe).
+      split;[|split;[|split] ]; auto.
       + eapply related_sts_pub_trans_world; eauto.
-      + destruct (is_untrusted_caller frm); last done.
+      + destruct (is_untrusted_caller_frm frm); last done.
         by apply IHcstk.
   Qed.
 
@@ -307,8 +308,8 @@ Section logrel.
        let a_stk := frm.(a_stk) in
        let e_stk := frm.(e_stk) in
        let astk4 := (a_stk ^+4)%a in
-       let callee_stk_region := finz.seq_between (if frm.(is_untrusted_caller) then a_stk else astk4) e_stk in
-       let callee_stk_mem := if frm.(is_untrusted_caller) then stk_mem_l++stk_mem_h else stk_mem_h in
+       let callee_stk_region := finz.seq_between (if (is_untrusted_caller_frm frm) then a_stk else astk4) e_stk in
+       let callee_stk_mem := if (is_untrusted_caller_frm frm) then stk_mem_l++stk_mem_h else stk_mem_h in
        ( PC ↦ᵣ updatePcPerm frm.(wret)
          ∗ cra ↦ᵣ frm.(wret)
          ∗ csp ↦ᵣ (WCap RWL Local b_stk e_stk a_stk)
@@ -385,11 +386,14 @@ Section logrel.
     match cstk, Ws, Cs with
     | [],[],[] => True%I
     | frm :: cstk', Wt :: Ws', Ct :: Cs' =>
+        if is_known_to_known_frm frm
+        then True%I
+        else
         (▷ (
              (* Continuation for the rest of the call-stack *)
              interp_cont_aux interp cstk' Ws' Cs'
              (* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
-             ∗ interp_callee_part_of_the_stack interp Wt Ct (WCap RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) frm.(is_untrusted_caller)
+             ∗ interp_callee_part_of_the_stack interp Wt Ct (WCap RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) (is_untrusted_caller_frm frm)
              (* The continuation when matching the switcher's state at return-to-caller *)
              ∗ (∀ W', ⌜related_sts_pub_world Wt W'⌝
                       -∗  interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs') cstk' W' Ct frm)))%I
@@ -406,6 +410,7 @@ Section logrel.
     induction y; intros C0 W0;[simpl;f_equiv|].
     destruct a, W0, C0;simpl; [auto|auto|auto|].
     simpl.
+    f_equiv.
     f_equiv.
     f_equiv;[apply IHy|].
     f_equiv;[| repeat (f_equiv; auto)].

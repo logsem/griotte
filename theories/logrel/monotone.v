@@ -597,7 +597,9 @@ Lemma interp_monotone_continuation
   interp_continuation cstk (W :: Ws) (C :: Cs) -∗ interp_continuation cstk (W' :: Ws) (C :: Cs).
 Proof.
   revert Ws Cs; induction cstk;intros Ws Cs; simpl;auto.
-  iIntros (Hrel) "[Hic [Hcallee Hcont]]".
+  intros Hrel.
+  destruct (is_known_to_known_frm a); first (iStartProof; done).
+  iIntros "[Hic [Hcallee Hcont]]".
   iNext.
   iSplitL "Hic";[|iSplitL "Hcallee"].
   - iFrame.

@@ -251,7 +251,7 @@ Section Switcher_preamble.
       a_tstk ↦ₐ wtstk4 ∗
       (⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ⌝
        ∗ ⌜ wtstk4 = WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ⌝
-       ∗ if frm.(is_untrusted_caller)
+       ∗ if (is_untrusted_caller_frm frm)
          then True
          else
            a_stk ↦ₐ frm.(wcs0)

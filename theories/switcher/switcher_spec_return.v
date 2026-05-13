@@ -164,7 +164,7 @@ Section Switcher.
     }
 
     destruct Ws as [|Wprev Ws],Cs;try done. simpl in Hframe.
-    destruct Hframe as [Hrelated_pub_Wprev_W0 [<- Hframe] ].
+    destruct Hframe as [Hrelated_pub_Wprev_W0 [<- [Hccrel_known_to_known Hframe] ] ].
 
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     destruct frm.
@@ -177,9 +177,9 @@ Section Switcher.
     set (a_stk := (csp_b ^+ -4)%a).
 
     iDestruct (interp_monotone_continuation with "HK") as "HK"; eauto.
+    rewrite /interp_continuation /interp_cont.
+    iEval (cbn) in "HK"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
-
-    rewrite -/(interp_cont).
 
     iInstr "Hcode".
     { split;auto. rewrite /withinBounds. solve_addr. }
@@ -223,8 +223,8 @@ Section Switcher.
           ∗ (a_stk ^+ 1)%a ↦ₐ wastk1
           ∗ (a_stk ^+ 2)%a ↦ₐ wastk2
           ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
-          ∗ (⌜if is_untrusted_caller then True else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wret ∧ wastk3 = wcgp)⌝)
-          ∗ (if is_untrusted_caller
+          ∗ (⌜if (is_untrusted_caller ccrel) then True else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wret ∧ wastk3 = wcgp)⌝)
+          ∗ (if (is_untrusted_caller ccrel)
              then (
                  (interp Wfixed C wastk)
                  ∗ (interp Wfixed C wastk1)
@@ -233,7 +233,7 @@ Section Switcher.
                )
              else True
             )
-          ∗ ( if is_untrusted_caller
+          ∗ ( if (is_untrusted_caller ccrel)
               then
                 ( ∃ l',
                     ⌜ l ≡ₚ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a]++l' ⌝
@@ -260,7 +260,8 @@ Section Switcher.
         ) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)"
       ].
     {
-      destruct is_untrusted_caller; cycle 1.
+      rewrite /is_untrusted_caller_frm; cbn.
+      destruct (is_untrusted_caller ccrel); cycle 1.
       * iExists wcs0, wcs1, wret, wcgp.
         iDestruct "Hcframe_interp" as "($&$&$&$)". iFrame.
         done.
@@ -633,7 +634,7 @@ Section Switcher.
         |={⊤}=>
           sts_full_world Wfixed C
           ∗ region Wfixed C
-          ∗ (if is_untrusted_caller
+          ∗ (if (is_untrusted_caller ccrel)
              then True
              else [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]]
             )
@@ -644,7 +645,8 @@ Section Switcher.
         replace a_stk4 with (a_stk ^+4)%a by (subst a_stk; solve_addr+Ha_stk4 He_a1).
         replace (a_stk ^+4)%a with csp_b by (subst a_stk; solve_addr+Ha_stk4 He_a1).
         iAssert (interp W0 C (WCap RWL Local csp_b csp_e a_stk)) as "Hvalid".
-        { destruct is_untrusted_caller; auto.
+        {
+          rewrite /is_untrusted_caller_frm /=; destruct (is_untrusted_caller ccrel); auto.
           iApply (interp_weakening _ _ _ _ _ _ b_stk csp_b with "[]Hinterp_callee_wstk"); auto.
           + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
           + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
@@ -677,7 +679,7 @@ Section Switcher.
       }
       iDestruct (lc_fupd_elim_later with "[$] [$Hstk]") as ">Hstk".
 
-      destruct is_untrusted_caller.
+      destruct (is_untrusted_caller ccrel).
       - (* caller is untrusted, we need to re-instate the whole stack frame *)
         iMod (monotone_close_list_region_gen _ _ _ (l++closing_region) with
                "[$Hr $Hsts Hrevoked Hstk Hstk']") as "[Hsts Hr]"; last by iFrame.
@@ -742,7 +744,9 @@ Section Switcher.
     iDestruct (interp_monotone with "[] [$Hinterp_callee_wstk]") as "Hinterp_callee_wstk'" ; first done.
 
 
-    destruct is_untrusted_caller; cycle 1.
+    rewrite /is_untrusted_caller_frm /=
+    ; rewrite /is_untrusted_caller_frm /= in Hframe
+    ; destruct (is_untrusted_caller ccrel); cycle 1.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
 
