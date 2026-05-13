@@ -459,7 +459,7 @@ Section KVS_spec.
     { injection; intros; lia. }
     (* Lea cgp 1 *)
     iInstr "Hcode".
-    { transitivity ( Some ((cgp_b ^+ (2 + 2 * idx))%a) ); solve_addr+Hcgp_idx. }
+    { transitivity ( Some ((cgp_b ^+ (2 + 2 * idx))%a) ); solve_addr+Hcgp_idx Hidx. }
     (* Load ca1 cgp *)
     iInstr "Hcode".
     { split; done. }
