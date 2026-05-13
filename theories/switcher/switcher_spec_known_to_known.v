@@ -819,7 +819,6 @@ Section Switcher_Known.
     iApply (clear_stack_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hstk]"); try solve_pure.
     { solve_addr+. }
     { solve_addr. }
-    iSplitL;[|iIntros "!> %Hcontr"; done].
     iIntros "!> (HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
