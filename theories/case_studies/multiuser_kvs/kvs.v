@@ -1,4 +1,5 @@
 From cap_machine Require Import machine_parameters assembler.
+From cap_machine Require Import bitblast.
 From cap_machine Require Import switcher.
 
 Section KVS_Service.
@@ -325,5 +326,36 @@ Section KVS_Service.
       kvs_exp_tbl_entry_read;
       kvs_exp_tbl_entry_erase
     ].
+
+  Lemma shiftr_inj (a a' b : Z) :
+    a = a' -> (a ≫ b)%Z = (a' ≫ b)%Z.
+  Proof. intros ->; done. Qed.
+  Lemma land_inj (a b c : Z) :
+    b = c -> Z.land a b = Z.land a c.
+  Proof. intros ->; done. Qed.
+
+  Lemma kvs_full_key_inj (uk1 nk1 uk2 nk2 : Z) :
+    (0 <= nk1 < 16)%Z ->
+    (0 <= nk2 < 16)%Z ->
+    (0 <= uk1)%Z ->
+    (0 <= uk2)%Z ->
+    (kvs_full_key uk1 nk1 = kvs_full_key uk2 nk2)%Z -> uk1 = uk2 ∧ nk1 = nk2.
+  Proof.
+    intros Hnk1 Hnk2 Huk1 Huk2 Heq.
+    unfold kvs_full_key in Heq.
+    split.
+    - assert (0 ≤ nk1 < 2^16)%Z as Hnk1' by lia.
+      assert (0 ≤ nk2 < 2^16)%Z as Hnk2' by lia.
+      assert ( uk1 = (Z.lor (uk1 ≪ 16) nk1) ≫ 16)%Z as -> by bitblast.
+      assert ( uk2 = (Z.lor (uk2 ≪ 16) nk2) ≫ 16)%Z as -> by bitblast.
+      by apply shiftr_inj.
+    - assert (0 ≤ nk1 < 2^4)%Z as Hnk1' by lia.
+      assert (0 ≤ nk2 < 2^4)%Z as Hnk2' by lia.
+      assert ( nk1 = Z.land 15 (Z.lor (uk1 ≪ 16) nk1))%Z as ->.
+      { bitblast as n. }
+      assert ( nk2 = Z.land 15 (Z.lor (uk2 ≪ 16) nk2))%Z as ->.
+      { bitblast as n. }
+      by apply land_inj.
+  Qed.
 
 End KVS_Service.
