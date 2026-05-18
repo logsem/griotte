@@ -3,94 +3,109 @@ From cap_machine Require Import logrel rules.
 From cap_machine Require Import switcher kvs.
 From cap_machine Require Import proofmode.
 
+Definition kvs_entry : Type := (Z * Word).
+Definition kvs_map : Type := gmap nat kvs_entry.
+
+(* CMRA for Cerise *)
+Class kvsG Σ :=
+  KvsG {
+      kvs_genG :: gen_heapGS nat kvs_entry Σ; (* memory *)
+    }.
+
+(* Notation "r ↦ᵣ{ q } w" := (pointsto (L:=RegName) (V:=Word) r q w) *)
+
+Definition kvs_frag_idx_frac `{kvsG} (idx : nat) (k : Z) (w : Word) (q : dfrac) : iProp Σ :=
+  (pointsto (L:=nat) (V:=kvs_entry) idx q (k,w)).
+Notation "k '⤇(KVS){' q '}[' idx  ']' w" :=
+  (kvs_frag_idx_frac idx k w q) (at level 20) : bi_scope.
+Notation "k '⤇(KVS)[' idx  ']' w" :=
+  (kvs_frag_idx_frac idx k w (DfracOwn 1)) (at level 20) : bi_scope.
+
+Definition kvs_frag `{kvsG} (k : Z ) (w : Word) : iProp Σ := ∃ idx, k ⤇(KVS)[ idx ] w.
+Notation "k '⤇(KVS)' w" := (kvs_frag k w) (at level 20) : bi_scope.
+(* Global Instance persistent_kvs_frag k w : Persistent (k ⤇(KVS) w)%I. *)
+(* Admitted. *)
+
+Notation "●(KVS) m" := (gen_heap_interp m) (at level 20) : bi_scope.
+
 Section KVS_spec.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
+    {kvsg:kvsG Σ}
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
 
-  Definition kvs_map := list (Z * Word).
 
-  Fixpoint isKVS
-    (b e : Addr) (m : kvs_map) : iProp Σ :=
-    match m with
-    | [] => ⌜ b = e ⌝
-    | (k,w)::m' => b ↦ₐ WInt k ∗ (b^+1)%a ↦ₐ w ∗ isKVS (b^+2)%a e m'
-    end
-  .
+  Definition isKVS_entry (a : Addr) (idx : nat) (kw : Z * Word) : iProp Σ :=
+    (a ^+ (2*idx))%a ↦ₐ (WInt kw.1) ∗ (a ^+ (2*idx + 1))%a ↦ₐ kw.2.
 
-  Fixpoint isKVS_open
-    (b e : Addr) (m : kvs_map) (idx : Z) : iProp Σ :=
-    match m with
-    | [] => ⌜ b = e ⌝
-    | (k,w)::m' =>
-        if (idx =? 0)%Z
-        then isKVS_open (b^+2)%a e m' (-1)%Z
-        else (b ↦ₐ WInt k ∗ (b^+1)%a ↦ₐ w ∗ isKVS_open (b^+2)%a e m' (idx-1)%Z)%I
-    end
-  .
+  Definition isKVS
+    (a : Addr) (m : kvs_map) : iProp Σ :=
+    ⌜ dom m = (list_to_set (seq 0 (length (map_to_list m))))⌝ ∗
+    ●(KVS) m ∗
+    [∗ map] idx ↦ kw ∈ m, isKVS_entry a idx kw.
 
-  Definition kvs_frag_idx (idx : nat) (k : Z * Z) (w : Word) : iProp Σ. Admitted.
-  Notation "k ⤇(KVS){ idx } w" := (kvs_frag_idx idx k w) (at level 20) : bi_scope.
-  (* Global Instance persistent_kvs_frag k w : Persistent (k ⤇(KVS) w)%I. *)
-  (* Admitted. *)
+  Definition isKVS_open
+    (a : Addr) (m : kvs_map) (open_idx : Z) : iProp Σ :=
+    ⌜ dom m = (list_to_set (seq 0 (length (map_to_list m))))⌝ ∗
+    ●(KVS) m ∗
+    [∗ map] idx ↦ kw ∈ m, if (decide (Z.of_nat idx = open_idx)%Z) then True else isKVS_entry a idx kw.
 
-  Definition kvs_frag (k : Z * Z) (w : Word) : iProp Σ := ∃ idx, k ⤇(KVS){ idx } w.
-  Notation "k ⤇(KVS) w" := (kvs_frag k w) (at level 20) : bi_scope.
-  (* Global Instance persistent_kvs_frag k w : Persistent (k ⤇(KVS) w)%I. *)
-  (* Admitted. *)
 
-  Lemma kvs_frag_kvs_frag_idx (k : Z * Z) (w : Word) :
-    k ⤇(KVS) w -∗ ∃ idx, k ⤇(KVS){idx} w.
+  Lemma kvs_frag_kvs_frag_idx (k : Z) (w : Word) :
+    k ⤇(KVS) w -∗ ∃ idx, k ⤇(KVS)[idx] w.
   Proof. rewrite /kvs_frag; iIntros "?"; done. Qed.
 
-  Lemma kvs_frag_idx_kvs_frag (k : Z * Z) (w : Word) (idx : nat) :
-    k ⤇(KVS){idx} w -∗ k ⤇(KVS) w.
+  Lemma kvs_frag_idx_kvs_frag (k : Z) (w : Word) (idx : nat) :
+    k ⤇(KVS)[idx] w -∗ k ⤇(KVS) w.
   Proof. rewrite /kvs_frag; iIntros "$".  Qed.
 
   Lemma open_isKVS_kvs_frag_idx
-    (b e : Addr) (m : kvs_map)
-    (idx : nat) (k : Z * Z) (w : Word) :
-    isKVS b e m ∗
-    k ⤇(KVS){ idx } w -∗
-    isKVS_open b e m idx ∗
-    (b ^+ (2*idx))%a ↦ₐ WInt (kvs_full_key k.1 k.2) ∗
-    (b ^+ (1+2*idx))%a ↦ₐ w ∗
-    k ⤇(KVS){ idx } w.
+    (b : Addr) (m : kvs_map)
+    (idx : nat) (ku kn : Z) (w : Word) :
+    let k := (kvs_full_key ku kn) in
+    isKVS b m ∗
+    k ⤇(KVS)[idx] w -∗
+    isKVS_open b m idx ∗
+    isKVS_entry b idx (k, w) ∗
+    k ⤇(KVS)[idx] w.
   Proof.
+    intros k.
+    iIntros "( (%HdomKVS & Hkvs_auth & HKVS) & Hk)".
   Admitted.
 
   Lemma open_isKVS_kvs_frag
-    (b e : Addr) (m : kvs_map)
-    (k : Z * Z) (w : Word) :
-    isKVS b e m ∗
+    (b : Addr) (m : kvs_map)
+    (ku kn : Z ) (w : Word) :
+    let k := (kvs_full_key ku kn) in
+    isKVS b m ∗
     k ⤇(KVS) w -∗
-    ∃ idx,
-      isKVS_open b e m idx ∗
-      (b ^+ (2*idx))%a ↦ₐ WInt (kvs_full_key k.1 k.2) ∗
-      (b ^+ (1+2*idx))%a ↦ₐ w ∗
+    ∃ idx : nat,
+      isKVS_open b m idx ∗
+      isKVS_entry b idx (k, w) ∗
       k ⤇(KVS) w.
   Proof.
+    intros k.
     iIntros "(HKVS & Hkvs_frag)".
     iDestruct (kvs_frag_kvs_frag_idx with "Hkvs_frag") as (idx) "Hkvs_frag".
     iExists idx.
-    iDestruct (open_isKVS_kvs_frag_idx with "[$HKVS $Hkvs_frag]") as "($ & $ & $ & Hkvk_frag)".
+    iDestruct (open_isKVS_kvs_frag_idx with "[$HKVS $Hkvs_frag]") as "($ & $ & Hkvk_frag)".
     by iApply kvs_frag_idx_kvs_frag.
   Qed.
 
   Lemma close_isKVS_kvs_frag_idx
-    (b e : Addr) (m : kvs_map)
-    (idx : nat) (k : Z * Z) (w : Word) :
-    isKVS_open b e m idx ∗
-    (b ^+ (2*idx))%a ↦ₐ WInt (kvs_full_key k.1 k.2) ∗
-    (b ^+ (1+2*idx))%a ↦ₐ w ∗
-    k ⤇(KVS){ idx } w -∗
-    isKVS b e m ∗
-    k ⤇(KVS){ idx } w
+    (b : Addr) (m : kvs_map)
+    (idx : nat) (ku kn : Z) (w : Word) :
+    let k := (kvs_full_key ku kn) in
+    isKVS_open b m idx ∗
+    isKVS_entry b idx (k, w) ∗
+    k ⤇(KVS)[ idx ] w -∗
+    isKVS b m ∗
+    k ⤇(KVS)[ idx ] w
   .
   Proof.
   Admitted.
@@ -172,12 +187,12 @@ Section KVS_spec.
 
 
   Lemma open_isKVS
-    (b e : Addr) (m : kvs_map) (idx : Z):
+    (b : Addr) (m : kvs_map) (idx : Z):
     (0 ≤ idx < 16)%Z ->
     (* (e + 32)%a = Some b -> *)
-    isKVS b e m -∗
+    isKVS b m -∗
     ∃ k w,
-      isKVS_open b e m idx ∗
+      isKVS_open b m idx ∗
       (b ^+ (2*idx))%a ↦ₐ WInt (kvs_full_key k.1 k.2) ∗
       (b ^+ (1+2*idx))%a ↦ₐ w.
   Proof.
@@ -195,13 +210,13 @@ Section KVS_spec.
   Admitted.
 
   Lemma close_isKVS
-    (b e : Addr) (m : kvs_map) (idx : Z) (k : Z * Z) (w : Word):
+    (b : Addr) (m : kvs_map) (idx : Z) (k : Z * Z) (w : Word):
     (0 ≤ idx < 16)%Z ->
     (* (e + 32)%a = Some b -> *)
-    isKVS_open b e m idx ∗
+    isKVS_open b m idx ∗
     (b ^+ (2*idx))%a ↦ₐ WInt (kvs_full_key k.1 k.2) ∗
     (b ^+ (1+2*idx))%a ↦ₐ w -∗
-    isKVS b e m.
+    isKVS b m.
   Proof.
     (*         generalize dependent b. *)
     (*         induction idx; iIntros (b Hkvs_size Hidx) "HKVS"; cbn. *)
