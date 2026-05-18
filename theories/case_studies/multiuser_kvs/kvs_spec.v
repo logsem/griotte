@@ -43,15 +43,17 @@ Section KVS_spec.
   Definition isKVS_entry (a : Addr) (idx : nat) (kw : Z * Word) : iProp Σ :=
     (a ^+ (2*idx))%a ↦ₐ (WInt kw.1) ∗ (a ^+ (2*idx + 1))%a ↦ₐ kw.2.
 
+  Definition kvs_dom : gset nat := list_to_set (seq 0 (SIZE_MAP -1)).
+
   Definition isKVS
     (a : Addr) (m : kvs_map) : iProp Σ :=
-    ⌜ dom m = (list_to_set (seq 0 (length (map_to_list m))))⌝ ∗
+    ⌜ dom m = kvs_dom⌝ ∗
     ●(KVS) m ∗
     [∗ map] idx ↦ kw ∈ m, isKVS_entry a idx kw.
 
   Definition isKVS_open
     (a : Addr) (m : kvs_map) (open_idx : Z) : iProp Σ :=
-    ⌜ dom m = (list_to_set (seq 0 (length (map_to_list m))))⌝ ∗
+    ⌜ dom m = kvs_dom⌝ ∗
     ●(KVS) m ∗
     [∗ map] idx ↦ kw ∈ m, if (decide (Z.of_nat idx = open_idx)%Z) then True else isKVS_entry a idx kw.
 
@@ -66,22 +68,19 @@ Section KVS_spec.
 
   Lemma open_isKVS_kvs_frag_idx
     (b : Addr) (m : kvs_map)
-    (idx : nat) (ku kn : Z) (w : Word) :
-    let k := (kvs_full_key ku kn) in
+    (idx : nat) (k : Z) (w : Word) :
     isKVS b m ∗
     k ⤇(KVS)[idx] w -∗
     isKVS_open b m idx ∗
     isKVS_entry b idx (k, w) ∗
     k ⤇(KVS)[idx] w.
   Proof.
-    intros k.
     iIntros "( (%HdomKVS & Hkvs_auth & HKVS) & Hk)".
   Admitted.
 
   Lemma open_isKVS_kvs_frag
     (b : Addr) (m : kvs_map)
-    (ku kn : Z ) (w : Word) :
-    let k := (kvs_full_key ku kn) in
+    (k : Z ) (w : Word) :
     isKVS b m ∗
     k ⤇(KVS) w -∗
     ∃ idx : nat,
@@ -89,7 +88,6 @@ Section KVS_spec.
       isKVS_entry b idx (k, w) ∗
       k ⤇(KVS) w.
   Proof.
-    intros k.
     iIntros "(HKVS & Hkvs_frag)".
     iDestruct (kvs_frag_kvs_frag_idx with "Hkvs_frag") as (idx) "Hkvs_frag".
     iExists idx.
@@ -99,8 +97,7 @@ Section KVS_spec.
 
   Lemma close_isKVS_kvs_frag_idx
     (b : Addr) (m : kvs_map)
-    (idx : nat) (ku kn : Z) (w : Word) :
-    let k := (kvs_full_key ku kn) in
+    (idx : nat) (k : Z) (w : Word) :
     isKVS_open b m idx ∗
     isKVS_entry b idx (k, w) ∗
     k ⤇(KVS)[ idx ] w -∗
@@ -191,9 +188,9 @@ Section KVS_spec.
     (0 ≤ idx < 16)%Z ->
     (* (e + 32)%a = Some b -> *)
     isKVS b m -∗
-    ∃ k w,
+    ∃ ku kn w,
       isKVS_open b m idx ∗
-      (b ^+ (2*idx))%a ↦ₐ WInt (kvs_full_key k.1 k.2) ∗
+      (b ^+ (2*idx))%a ↦ₐ WInt (kvs_full_key ku kn) ∗
       (b ^+ (1+2*idx))%a ↦ₐ w.
   Proof.
     (*         generalize dependent b. *)
@@ -210,11 +207,11 @@ Section KVS_spec.
   Admitted.
 
   Lemma close_isKVS
-    (b : Addr) (m : kvs_map) (idx : Z) (k : Z * Z) (w : Word):
+    (b : Addr) (m : kvs_map) (idx : Z) (ku kn : Z) (w : Word):
     (0 ≤ idx < 16)%Z ->
     (* (e + 32)%a = Some b -> *)
     isKVS_open b m idx ∗
-    (b ^+ (2*idx))%a ↦ₐ WInt (kvs_full_key k.1 k.2) ∗
+    (b ^+ (2*idx))%a ↦ₐ WInt (kvs_full_key ku kn) ∗
     (b ^+ (1+2*idx))%a ↦ₐ w -∗
     isKVS b m.
   Proof.
@@ -251,6 +248,7 @@ Section KVS_spec.
     (m : kvs_map) (w : Word)
     :
     let instrs := (kvs_search_instrs rkey ridx rscratch) in
+    let fkey := (kvs_full_key user_key nkey) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
 
@@ -261,12 +259,12 @@ Section KVS_spec.
     (
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ 1 )%a ∗
-      rkey ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
+      rkey ↦ᵣ WInt fkey ∗
       ridx ↦ᵣ - ∗
       rscratch ↦ᵣ - ∗
 
-      isKVS (cgp_b ^+ 1)%a cgp_e m ∗
-      (user_key, nkey) ⤇(KVS) w ∗
+      isKVS (cgp_b ^+ 1)%a m ∗
+      fkey ⤇(KVS) w ∗
 
       codefrag pc_a instrs ∗
       ▷ ( ∀ idx,
@@ -274,17 +272,17 @@ Section KVS_spec.
               ⌜ (0 <= idx)%Z ⌝ ∗
               PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
               cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (1+2*idx) )%a ∗
-              rkey ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
+              rkey ↦ᵣ WInt fkey ∗
               ridx ↦ᵣ WInt idx ∗
               rscratch ↦ᵣ - ∗
 
-              isKVS_open (cgp_b ^+ 1)%a cgp_e m idx ∗
+              isKVS_open (cgp_b ^+ 1)%a  m idx ∗
               (cgp_b ^+ (1+2*idx))%a ↦ₐ WInt (kvs_full_key user_key nkey) ∗
               (cgp_b ^+ (2+2*idx))%a ↦ₐ w ∗
 
               ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (2 + 2 * idx))%a = true ⌝ ∗
 
-              (user_key, nkey) ⤇(KVS) w ∗
+              fkey ⤇(KVS) w ∗
               codefrag pc_a instrs -∗
 
               WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
@@ -292,7 +290,7 @@ Section KVS_spec.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
-    intros instrs ; subst instrs.
+    intros instrs fkey ; subst instrs.
     iIntros (HsubBounds Hbounds_cgp Hrscratch Hridx Hkey)
       "(HPC & Hcgp & Hrkey & [%widx Hridx] & Hrscratch & HKVS & Hkvs_frag & Hcode & Hpost)".
     assert ( (cgp_b ^+ 33)%a < cgp_e  )%a as Hcgp_bound by admit.
@@ -336,7 +334,10 @@ Section KVS_spec.
     iInstr "Hcode".
     { by injection. }
     (* load rscratch cgp; *)
-    iDestruct (open_isKVS _ _ _ n with "HKVS") as "(%k' & %w' & HKVS & Hbk' & Hbw')"; first done.
+
+    (* iDestruct (kvs_frag_kvs_frag_idx with "Hkvs_frag") as "(%idx & Hkvs_frag)". *)
+    (* iDestruct (open_isKVS_kvs_frag_idx with "[$HKVS $Hkvs_frag]") as "(HKVS & [Hbk Hbw] & Hkvs_frag)". *)
+    iDestruct (open_isKVS _ _ n with "HKVS") as "(%ku' & %kn' & %w' & HKVS & Hbk' & Hbw')"; first done.
     replace ((cgp_b ^+ 1) ^+ 2 * n)%a  with (cgp_b ^+ (1 + 2 * n))%a by solve_addr+Hn.
     replace ((cgp_b ^+ 1) ^+ (1 + 2 * n))%a with (cgp_b ^+ (2 + 2 * n))%a by solve_addr+Hn.
     iInstr "Hcode".
@@ -344,7 +345,7 @@ Section KVS_spec.
 
     (* sub rscratch rkey rscratch; *)
     iInstr "Hcode".
-    destruct (decide ( (kvs_full_key user_key nkey - kvs_full_key k'.1 k'.2) = 0)%Z) as [Heqfullkey | Heqfullkey].
+    destruct (decide ( (fkey - kvs_full_key ku' kn') = 0)%Z) as [Heqfullkey | Heqfullkey].
     - (* keys are equal *)
       (* jnz (".not_same_key")%asm rscratch; *)
       rewrite Heqfullkey.
@@ -352,8 +353,7 @@ Section KVS_spec.
       (* jmp (".loop_end_found")%asm; *)
       iInstr "Hcode".
 
-      assert ( (kvs_full_key user_key nkey = kvs_full_key k'.1 k'.2)%Z ) as Heqfullkey' by lia.
-      destruct k' as [ku kn].
+      assert ( (kvs_full_key user_key nkey = kvs_full_key ku' kn')%Z ) as Heqfullkey' by lia.
       apply kvs_full_key_inj in Heqfullkey' as [<- <-].
       {
         assert (w' = w) as -> by admit.
@@ -395,6 +395,7 @@ Section KVS_spec.
     let imports :=
       kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
     in
+    let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
     (0 <= user_key < top)%Z ->
@@ -419,8 +420,8 @@ Section KVS_spec.
       codefrag pc_a kvs_read_instrs ∗
       cgp_b ↦ₐ kvs_service_unsealing_key ∗
 
-      isKVS (cgp_b ^+ 1)%a cgp_e m ∗
-      (user_key, nkey) ⤇(KVS) w ∗
+      isKVS (cgp_b ^+ 1)%a m ∗
+      fkey ⤇(KVS) w ∗
 
       ▷ (na_own logrel_nais ⊤ ∗
          PC ↦ᵣ updatePcPerm wret ∗
@@ -435,7 +436,7 @@ Section KVS_spec.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
-    intros imports.
+    intros imports fkey.
     iIntros (HsubBounds Hbounds_user_key Hcgp_contiguous Himports_contiguous)
       "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & [%wcnull Hcnull] & Himports & Hcode & Hcgp_b & HKVS & Hkvs_frag & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
