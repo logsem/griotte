@@ -243,21 +243,23 @@ Section Switcher_preamble.
       - If the caller is trusted, the switcher controls the callee-save region,
         and the content should match the words of the call-frame.
    *)
+  Definition cframe_stk_own (frm : cframe) : iProp Σ :=
+    let a_stk := frm.(a_stk) in
+    (if (is_untrusted_caller_frm frm)
+    then True
+    else
+      a_stk ↦ₐ frm.(wcs0)
+      ∗ (a_stk ^+ 1)%a ↦ₐ frm.(wcs1)
+      ∗ (a_stk ^+ 2)%a ↦ₐ frm.(wret)
+      ∗ (a_stk ^+ 3)%a ↦ₐ frm.(wcgp))%I.
+
   Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=
     let b_stk := frm.(b_stk) in
     let a_stk := frm.(a_stk) in
     let e_stk := frm.(e_stk) in
-    ∃ (wtstk4 : Word),
-      a_tstk ↦ₐ wtstk4 ∗
-      (⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ⌝
-       ∗ ⌜ wtstk4 = WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ⌝
-       ∗ if (is_untrusted_caller_frm frm)
-         then True
-         else
-           a_stk ↦ₐ frm.(wcs0)
-           ∗ (a_stk ^+ 1)%a ↦ₐ frm.(wcs1)
-           ∗ (a_stk ^+ 2)%a ↦ₐ frm.(wret)
-           ∗ (a_stk ^+ 3)%a ↦ₐ frm.(wcgp))%I.
+    a_tstk ↦ₐ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+    ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ⌝ ∗
+    cframe_stk_own frm%I.
 
   (** [cstack_interp] interprets a call-stack.
       It simply interpret the topmost stack frame,
