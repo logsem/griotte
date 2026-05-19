@@ -39,8 +39,16 @@ Section KVS_preamble.
   Definition wf_kvs_map (m : kvs_map) : Prop :=
     dom m = kvs_dom ∧ NoDup (fst <$> (snd <$> (map_to_list m))).
 
+  Definition isKVS_entry_empty (idx : nat) (k : Z) (w : Word) : iProp Σ :=
+    (if (decide (k = EMPTY_SLOT)) then k ⤇(KVS)[idx] w else True)%I.
+
   Definition isKVS_entry (a : Addr) (idx : nat) (kw : Z * Word) : iProp Σ :=
-    (a ^+ (2*idx))%a ↦ₐ (WInt kw.1) ∗ (a ^+ (2*idx + 1))%a ↦ₐ kw.2.
+    let k := kw.1 in
+    let w := kw.2 in
+    (a ^+ (2*idx))%a ↦ₐ (WInt k) ∗
+    (a ^+ (2*idx + 1))%a ↦ₐ w ∗
+    isKVS_entry_empty idx k w
+  .
 
   Definition isKVS
     (a : Addr) (m : kvs_map) : iProp Σ :=
@@ -118,6 +126,36 @@ Section KVS_preamble.
     rewrite Hkvs_dom /kvs_dom.
     by apply elem_of_set_seq.
   Qed.
+
+  Lemma wf_kvs_indom_idx (m : kvs_map) (idx : nat) :
+    idx ∈ dom m ->
+    wf_kvs_map m ->
+    0 <= idx < SIZE_MAP.
+  Proof.
+    intros Hm_idx [Hkvs_dom _].
+    rewrite Hkvs_dom /kvs_dom in Hm_idx.
+    apply elem_of_set_seq in Hm_idx.
+    lia.
+  Qed.
+
+  Lemma isKVS_indom_idx (m : kvs_map) (a : Addr) (idx : nat) :
+    idx ∈ dom m ->
+    isKVS a m -∗
+    ⌜ 0 <= idx < SIZE_MAP ⌝.
+  Proof.
+    iIntros (Hm_idx) "(%Hwf & _)"; iPureIntro.
+    by eapply wf_kvs_indom_idx.
+  Qed.
+
+  Lemma isKVS_open_indom_idx (m : kvs_map) (a : Addr) (idx idx' : nat) :
+    idx ∈ dom m ->
+    isKVS_open a m idx' -∗
+    ⌜ 0 <= idx < SIZE_MAP ⌝.
+  Proof.
+    iIntros (Hm_idx) "(%Hwf & _)"; iPureIntro.
+    by eapply wf_kvs_indom_idx.
+  Qed.
+
 
   Lemma wf_kvs_neq (m : kvs_map) (idx idx' : nat) (k k' : Z) (w w' : Word) :
     wf_kvs_map m ->
@@ -248,8 +286,7 @@ Section KVS_preamble.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (rkey ridx rscratch : RegName)
-    (fkey : Z)
-    (m : kvs_map) (w : Word)
+    (m : kvs_map) (idx : nat) (fkey : Z) (w : Word)
     :
     let instrs := (kvs_search_instrs rkey ridx rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
@@ -268,29 +305,27 @@ Section KVS_preamble.
       rscratch ↦ᵣ - ∗
 
       isKVS (cgp_b ^+ 1)%a m ∗
-      fkey ⤇(KVS) w ∗
+      fkey ⤇(KVS)[idx] w ∗
 
       codefrag pc_a instrs ∗
-      ▷ ( ∀ idx,
-            (
-              ⌜ (0 <= idx) ⌝ ∗
-              PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-              cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (1+2*idx) )%a ∗
-              rkey ↦ᵣ WInt fkey ∗
-              ridx ↦ᵣ WInt idx ∗
-              rscratch ↦ᵣ - ∗
+      ▷ (
+          PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (1+2*idx) )%a ∗
+          rkey ↦ᵣ WInt fkey ∗
+          ridx ↦ᵣ WInt idx ∗
+          rscratch ↦ᵣ - ∗
 
-              isKVS_open (cgp_b ^+ 1)%a m (idx) ∗
-              (cgp_b ^+ (1+2*idx))%a ↦ₐ WInt fkey ∗
-              (cgp_b ^+ (2+2*idx))%a ↦ₐ w ∗
+          isKVS_open (cgp_b ^+ 1)%a m (idx) ∗
+          (cgp_b ^+ (1+2*idx))%a ↦ₐ WInt fkey ∗
+          (cgp_b ^+ (2+2*idx))%a ↦ₐ w ∗
+          isKVS_entry_empty idx fkey w ∗
 
-              ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (2 + 2 * idx))%a = true ⌝ ∗
+          ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (2 + 2 * idx))%a = true ⌝ ∗
 
-              fkey ⤇(KVS) w ∗
-              codefrag pc_a instrs -∗
+          fkey ⤇(KVS)[idx] w ∗
+          codefrag pc_a instrs -∗
 
-              WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
-            )
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
@@ -324,17 +359,10 @@ Section KVS_preamble.
       rewrite Hneq.
       assert ( n = SIZE_MAP ) as -> by lia.
 
-      iDestruct (kvs_frag_kvs_frag_idx with "Hkvs_frag") as "(%idx & Hkvs_frag)".
-      iDestruct "HKVS" as "( [%Hkvs_dom %Hkvs_uniqueness] & Hkvs_auth & HKVS)".
-      iDestruct (kvs_valid with "Hkvs_auth Hkvs_frag") as "%Hm_idx".
+      iDestruct (isKVS_valid with "HKVS Hkvs_frag") as "%Hm_idx".
+      iDestruct (isKVS_indom_idx with "HKVS") as "%Hidx".
+      { by apply elem_of_dom_2 in Hm_idx. }
       exfalso.
-
-      assert (0 <= idx < SIZE_MAP) as Hidx.
-      { apply elem_of_dom_2 in Hm_idx.
-        rewrite Hkvs_dom /kvs_dom in Hm_idx.
-        apply elem_of_set_seq in Hm_idx.
-        lia.
-      }
       apply Hfkey_notin_nfirst in Hidx as (k' & w' & Hm_idx' & Hneq_keys).
       rewrite Hm_idx in Hm_idx'; simplify_eq.
     }
@@ -343,9 +371,8 @@ Section KVS_preamble.
     iInstr "Hcode".
     { by injection. }
 
-    iDestruct (kvs_frag_kvs_frag_idx with "Hkvs_frag") as "(%idx & Hkvs_frag)".
     destruct (decide (Z.of_nat idx = n)%Z) as [<- | Hneq'].
-    - iDestruct (open_isKVS_kvs_frag_idx with "[$HKVS $Hkvs_frag]") as "(HKVS & [Hbk Hbw] & Hkvs_frag)".
+    - iDestruct (open_isKVS_kvs_frag_idx with "[$HKVS $Hkvs_frag]") as "(HKVS & (Hbk & Hbw & Hfkey) & Hkvs_frag)".
       replace ((cgp_b ^+ 1) ^+ 2 * idx)%a  with (cgp_b ^+ (1 + 2 * idx))%a by solve_addr+Hn.
       replace ((cgp_b ^+ 1) ^+ (2 * idx + 1))%a with (cgp_b ^+ (2 + 2 * idx))%a by solve_addr+Hn.
       (* load rscratch cgp; *)
@@ -361,11 +388,10 @@ Section KVS_preamble.
 
       cbn.
       iApply "Hpost"; iFrame.
-      iPureIntro; split; first lia.
-      rewrite /withinBounds; solve_addr.
+      iPureIntro; rewrite /withinBounds; solve_addr.
 
     - iDestruct (open_isKVS_kvs_frag_idx_diff _ _ _ (Z.to_nat n) with "[$HKVS $Hkvs_frag]")
-        as "(%k' & %w' & %Hkk' & %Hm_idx' & HKVS  & Hkvs_frag & [Hbk Hbw])".
+        as "(%k' & %w' & %Hkk' & %Hm_idx' & HKVS  & Hkvs_frag & (Hbk & Hbw & Hfkey))".
       { lia. }
       { lia. }
       replace ((cgp_b ^+ 1) ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (1 + 2 * n))%a by solve_addr+Hn.
@@ -387,7 +413,7 @@ Section KVS_preamble.
       iInstr "Hcode".
       { transitivity (Some ( (pc_a ^+ 1)%a)); solve_addr. }
 
-      iDestruct (close_isKVS with "[$HKVS Hbk Hbw]") as "HKVS";eauto.
+      iDestruct (close_isKVS with "[$HKVS Hbk Hbw Hfkey]") as "HKVS";eauto.
       {
         replace (cgp_b ^+ (1 + 2 * n))%a with ((cgp_b ^+ 1) ^+ 2 * Z.to_nat n)%a by solve_addr+Hn.
         replace (cgp_b ^+ (2 + 2 * n))%a  with ((cgp_b ^+ 1) ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
