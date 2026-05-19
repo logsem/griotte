@@ -116,16 +116,19 @@ Global Instance memG_irisG `{MachineParameters} `{!ceriseG Σ} : irisGS cap_lang
 Notation "r ↦ᵣ{ q } w" := (pointsto (L:=RegName) (V:=Word) r q w)
   (at level 20, q at level 50, format "r  ↦ᵣ{ q }  w") : bi_scope.
 Notation "r ↦ᵣ w" := (pointsto (L:=RegName) (V:=Word) r (DfracOwn 1) w) (at level 20) : bi_scope.
+Notation "r ↦ᵣ -" := (∃ w, pointsto (L:=RegName) (V:=Word) r (DfracOwn 1) w)%I (at level 20) : bi_scope.
 
 (* Points to predicates for system registers *)
 Notation "sr ↦ₛᵣ{ q } w" := (pointsto (L:=SRegName) (V:=Word) sr q w)
   (at level 20, q at level 50, format "sr  ↦ₛᵣ{ q }  w") : bi_scope.
 Notation "sr ↦ₛᵣ w" := (pointsto (L:=SRegName) (V:=Word) sr (DfracOwn 1) w) (at level 20) : bi_scope.
+Notation "sr ↦ₛᵣ -" := (∃ w, pointsto (L:=SRegName) (V:=Word) sr (DfracOwn 1) w)%I (at level 20) : bi_scope.
 
 (* Points to predicates for memory *)
 Notation "a ↦ₐ{ q } w" := (pointsto (L:=Addr) (V:=Word) a q w)
   (at level 20, q at level 50, format "a  ↦ₐ{ q }  w") : bi_scope.
 Notation "a ↦ₐ w" := (pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) w) (at level 20) : bi_scope.
+Notation "a ↦ₐ -" := (∃ w, pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) w)%I (at level 20) : bi_scope.
 
 (* --------------------------- LTAC DEFINITIONS ----------------------------------- *)
 
