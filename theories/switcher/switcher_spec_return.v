@@ -170,8 +170,7 @@ Section Switcher.
     destruct frm.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as (wtstk4) "[Ha_tstk Hcframe_interp]".
-    iDestruct "Hcframe_interp" as "(%HWF & -> & Hcframe_interp)".
+    iDestruct "Hcframe_interp" as "[Ha_tstk (%HWF & Hcframe_interp)]".
     destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
     cbn in Hcsp_sync; destruct Hcsp_sync as [ Ha He ]; simplify_eq.
     set (a_stk := (csp_b ^+ -4)%a).
@@ -260,7 +259,7 @@ Section Switcher.
         ) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)"
       ].
     {
-      rewrite /is_untrusted_caller_frm; cbn.
+      rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
       destruct (is_untrusted_caller ccrel); cycle 1.
       * iExists wcs0, wcs1, wret, wcgp.
         iDestruct "Hcframe_interp" as "($&$&$&$)". iFrame.

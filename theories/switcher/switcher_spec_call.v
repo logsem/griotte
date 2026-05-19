@@ -885,9 +885,9 @@ Section Switcher.
       replace (a_stk ^+ 1)%a with a_stk1 by solve_addr+Hastk1.
       replace (a_stk ^+ 2)%a with a_stk2 by solve_addr+Hastk1 Hastk2.
       replace (a_stk ^+ 3)%a with a_stk3 by solve_addr+Hastk1 Hastk2 Hastk3.
-      iFrame. iPureIntro.
       replace (a_stk ^+ 4)%a with a_stk4 by solve_addr+Hastk.
-      rewrite Hastk. split;auto. split;[solve_addr|]. split;[solve_addr|eauto]. }
+      iFrame. iPureIntro.
+      rewrite Hastk. split;[solve_addr|]. split;[solve_addr|eauto]. }
 
     iApply "Hexec".
     iAssert (interp (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) C (WCap RWL Local a_stk4 e_stk a_stk)) as "Hstk4v".

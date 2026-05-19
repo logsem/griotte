@@ -985,7 +985,8 @@ Section fundamental.
     iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hf3 Hstk_interp]") as "HH".
     { iNext. iExists _,_. iFrame "∗ #".
       rewrite (finz_incr_eq Hf4).
-      replace (f3 ^+ -1)%a with a_tstk by solve_addr+Hastk.
+      replace f2 with (a^+4)%a by solve_addr.
+      replace a_tstk with (f3 ^+ -1)%a by solve_addr.
       iFrame. simpl. iPureIntro.
       repeat (split;auto);[solve_addr..|repeat f_equiv;solve_addr].
     }
