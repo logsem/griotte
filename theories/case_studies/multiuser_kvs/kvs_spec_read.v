@@ -1,0 +1,120 @@
+From iris.proofmode Require Import proofmode.
+From cap_machine Require Import logrel rules.
+From cap_machine Require Import switcher kvs kvs_preamble.
+From cap_machine Require Import proofmode.
+
+Section KVS_spec_read.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    {kvsg:kvsG Σ}
+    {nainv: logrel_na_invs Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
+
+  Lemma KVS_read_spec `{KVS : kvsLayout}
+    (pc_b pc_b' pc_e pc_a : Addr)
+    (cgp_b cgp_e : Addr)
+    (wret : Word)
+    (user_key nkey : Z)
+    (m : kvs_map)
+    (w : Word)
+    :
+
+    let imports :=
+      kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
+    in
+    let fkey := (kvs_full_key user_key nkey) in
+
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
+    (0 <= user_key < top)%Z ->
+
+    (cgp_b + length kvs_data)%a = Some cgp_e ->
+    (pc_b + length imports)%a = Some pc_b' ->
+
+    ( na_own logrel_nais ⊤ ∗
+
+      (* initial register file *)
+      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+      cra ↦ᵣ wret ∗
+      ca0 ↦ᵣ kvs_user_seal_key user_key ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
+      ct1 ↦ᵣ - ∗ (* scratch *)
+      ct2 ↦ᵣ - ∗ (* scratch *)
+      cnull ↦ᵣ - ∗
+
+      (* initial memory layout *)
+      [[ pc_b , pc_b' ]] ↦ₐ [[ imports ]] ∗
+      codefrag pc_a kvs_read_instrs ∗
+      cgp_b ↦ₐ kvs_service_unsealing_key ∗
+
+      isKVS (cgp_b ^+ 1)%a m ∗
+      fkey ⤇(KVS) w ∗
+      ▷ (na_own logrel_nais ⊤ ∗
+         PC ↦ᵣ updatePcPerm wret ∗
+         cgp ↦ᵣ - ∗
+         cra ↦ᵣ - ∗
+         ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
+         ca1 ↦ᵣ w ∗ (* result of the read *)
+         ct1 ↦ᵣ - ∗ (* scratch *)
+         ct2 ↦ᵣ - ∗ (* scratch *)
+         cnull ↦ᵣ -
+         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+        )
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+  Proof.
+    intros imports fkey.
+    iIntros (HsubBounds Hbounds_user_key Hcgp_contiguous Himports_contiguous)
+      "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & [%wcnull Hcnull] & Himports & Hcode & Hcgp_b & HKVS & Hkvs_frag & Hpost)".
+    codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
+
+    (* --------------------------------------------------- *)
+    (* ----------------- Start the proof ----------------- *)
+    (* --------------------------------------------------- *)
+    rewrite /kvs_read_instrs /assembled_kvs_read.
+    rewrite -/(kvs_getFullKey ca0 ca0 ca1 ct1).
+    rewrite -/(kvs_search ca0 ct1 ct2).
+
+    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (KVS_getFullKey_spec with "[- $HPC $Hcgp $Hca0 $Hca1 $Hct1 $Hcgp_b $Hcode]"); eauto; [|iNext].
+    { rewrite /withinBounds; solve_addr. }
+    iIntros "(HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 1 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iInstr "Hcode".
+    { transitivity (Some (cgp_b ^+ 1)%a); [solve_addr|done]. }
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 2 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
+    iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
+    iApply (KVS_search_spec with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
+    { rewrite /withinBounds; solve_addr. }
+    iNext; iIntros (idx)
+             "(%Hidx & HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val & %Hcgp_idx & Hkvs_frag & Hcode)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 3 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
+    (* Sub ct1 ct1 (-1) *)
+    iInstr "Hcode".
+    (* Jnz 5 ct1 *)
+    iInstr "Hcode".
+    { injection; intros; lia. }
+    (* Lea cgp 1 *)
+    iInstr "Hcode".
+    { transitivity ( Some ((cgp_b ^+ (2 + 2 * idx))%a) ); solve_addr+Hcgp_idx Hidx. }
+    (* Load ca1 cgp *)
+    iInstr "Hcode".
+    { split; done. }
+    (* Mov ca1 0 *)
+    iInstr "Hcode".
+    (* Jalr cnull cra *)
+    iInstr "Hcode".
+
+    iApply "Hpost"; iFrame.
+  Qed.
+
+End KVS_spec_read.
