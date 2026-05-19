@@ -61,7 +61,8 @@ Section KVS_spec_read.
          ca1 ↦ᵣ w ∗ (* result of the read *)
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ -
+         cnull ↦ᵣ - ∗
+         isKVS (cgp_b ^+ 1)%a m
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
@@ -70,6 +71,7 @@ Section KVS_spec_read.
     iIntros (HsubBounds Hbounds_user_key Hcgp_contiguous Himports_contiguous)
       "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & [%wcnull Hcnull] & Himports & Hcode & Hcgp_b & HKVS & Hkvs_frag & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
+    iDestruct (kvs_frag_kvs_frag_idx with "Hkvs_frag") as "(%idx & Hkvs_frag)".
 
     (* --------------------------------------------------- *)
     (* ----------------- Start the proof ----------------- *)
@@ -93,8 +95,10 @@ Section KVS_spec_read.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
     iApply (KVS_search_spec with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
-    iNext; iIntros (idx)
-             "(%Hidx & HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val & %Hcgp_idx & Hkvs_frag & Hcode)".
+    iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val  & Hfkey & %Hcgp_idx & Hkvs_frag & Hcode)".
+    iDestruct (isKVS_open_valid with "HKVS Hkvs_frag") as "%Hm_idx".
+    iDestruct (isKVS_open_indom_idx with "HKVS") as "%Hidx".
+    { by apply elem_of_dom_2 in Hm_idx. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
@@ -114,6 +118,12 @@ Section KVS_spec_read.
     (* Jalr cnull cra *)
     iInstr "Hcode".
 
+    iDestruct (close_isKVS with "[$HKVS Hcgp_key Hcgp_val Hfkey]") as "HKVS";eauto.
+    {
+      replace (cgp_b ^+ (1 + 2 * idx))%a with ((cgp_b ^+ 1) ^+ 2 * idx)%a by solve_addr+Hidx.
+      replace (cgp_b ^+ (2 + 2 * idx))%a  with ((cgp_b ^+ 1) ^+ (2 * idx + 1))%a by solve_addr+Hidx.
+      iFrame.
+    }
     iApply "Hpost"; iFrame.
   Qed.
 
