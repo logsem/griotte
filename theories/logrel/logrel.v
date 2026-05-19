@@ -372,28 +372,29 @@ Section logrel.
 
 
   (** [interp_cont] is the continuation relation.
-      It takes a call-stack [cstk], a list of world [Ws] and a list of compartments [Cs],
-      all of same size.
+      It takes a call-stack [cstk], a list of world [Ws] and a list of compartments [Cs], all of same size.
       All together, they keep track of the stack of continuations.
       [interp_cont] contains 3 components:
       - the recursive part of the definition, stating that the rest of the stack is also part of the continuation
       - safety of the stack callee stack pointer
       - [interp_cont_exec], which provides a WP rule for the continuation,
         matching the machine state after the return-to-caller
+
+      The "body" of continuation relation is only enforced if the caller-callee relation
+      involves an unknown compartment.
    *)
   Program Fixpoint interp_cont_aux (interp : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     : iProp Σ :=
     match cstk, Ws, Cs with
     | [],[],[] => True%I
     | frm :: cstk', Wt :: Ws', Ct :: Cs' =>
-        if is_known_to_known_frm frm
-        then True%I
-        else
-        (▷ (
-             (* Continuation for the rest of the call-stack *)
-             interp_cont_aux interp cstk' Ws' Cs'
-             (* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
-             ∗ interp_callee_part_of_the_stack interp Wt Ct (WCap RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) (is_untrusted_caller_frm frm)
+        (* Continuation for the rest of the call-stack *)
+        interp_cont_aux interp cstk' Ws' Cs' ∗
+        (if is_known_to_known_frm frm
+         then True%I
+         else
+           ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
+             interp_callee_part_of_the_stack interp Wt Ct (WCap RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) (is_untrusted_caller_frm frm)
              (* The continuation when matching the switcher's state at return-to-caller *)
              ∗ (∀ W', ⌜related_sts_pub_world Wt W'⌝
                       -∗  interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs') cstk' W' Ct frm)))%I
@@ -409,12 +410,8 @@ Section logrel.
     generalize dependent C0.
     induction y; intros C0 W0;[simpl;f_equiv|].
     destruct a, W0, C0;simpl; [auto|auto|auto|].
-    simpl.
-    f_equiv.
-    f_equiv.
-    f_equiv;[apply IHy|].
-    f_equiv;[| repeat (f_equiv; auto)].
-    apply Heq.
+    f_equiv; [apply IHy|].
+    f_equiv;repeat (f_equiv; auto).
   Qed.
 
   Program Definition interp_cont (interp : V) : K :=

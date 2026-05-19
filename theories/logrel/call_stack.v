@@ -4,7 +4,10 @@ From iris.base_logic Require Import own.
 From cap_machine Require Import cap_lang.
 
 
-(** TODO explanation relation caller-callee *)
+(** The relationship between the caller and the callee determines
+    the guarantees that the continuation K provides when popping a frame;
+    and conversely, the obligations that we need to prove when pushing a frame.
+ *)
 
 Inductive caller_callee_relation : Type :=
 | Unknown_to_Unknown
@@ -39,11 +42,13 @@ Proof. intros Huntrusted; destruct r; cbn in *; auto. Qed.
     - [b_stk], [a_stk] and  [e_stk] records the bounds of the stack capability [csp],
     the (compartment) stack frame of the caller
 
-    TODO: reformulate the following.
-    In addition, it records whether the caller of the topmost frame
-    is trusted or not.
-    It is necessary, because the callee-saved registers values are stored
-    in the compartment's stack, and the way to handle the points-to predicates
+    Finally, [ccrel] tracks the caller-callee relationship.
+    In case of know-to-known, we trust the caller and the callee to properly
+    keep track of the continuation themselves, and therefore the continuation is trivial.
+
+    In addition, if the caller topmost frame is unknown,
+    the callee-saved registers values are stored in the compartment's stack,
+    and the way to handle the points-to predicates
     depend on whether the region is shared.
     More explanation in the switcher's invariant.
  **)
