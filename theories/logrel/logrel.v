@@ -372,14 +372,16 @@ Section logrel.
 
 
   (** [interp_cont] is the continuation relation.
-      It takes a call-stack [cstk], a list of world [Ws] and a list of compartments [Cs],
-      all of same size.
+      It takes a call-stack [cstk], a list of world [Ws] and a list of compartments [Cs], all of same size.
       All together, they keep track of the stack of continuations.
       [interp_cont] contains 3 components:
       - the recursive part of the definition, stating that the rest of the stack is also part of the continuation
       - safety of the stack callee stack pointer
       - [interp_cont_exec], which provides a WP rule for the continuation,
         matching the machine state after the return-to-caller
+
+      The "body" of continuation relation is only enforced if the caller-callee relation
+      involves an unknown compartment.
    *)
   Program Fixpoint interp_cont_aux (interp : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     : iProp Σ :=
