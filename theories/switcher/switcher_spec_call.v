@@ -916,8 +916,8 @@ Section Switcher.
       iFrame.
       iEval (cbn).
       replace (a_stk ^+ 4)%a with a_stk4 by solve_addr. iSplitR.
-      { iNext. iFrame "Hstk4v". }
-      iIntros "!>" (W' HW' ?????) "(HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
+      { iFrame "Hstk4v". }
+      iIntros (W' HW' ?????) "(HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
       & Hca1 & #Hv' & % & Hregs & Hstk & Hstk' & Hr & Hcls & Hsts & Hcont & Hcstk & Own)".
       iApply "Hpost";iLeft. simplify_eq.
       replace (a_stk ^+ 4)%a with a_stk4 by solve_addr.

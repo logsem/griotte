@@ -993,7 +993,7 @@ Section fundamental.
 
     iApply "Hexec".
     iSplitL "Hcont".
-    { iFrame. iNext. simpl.
+    { iFrame. simpl.
       iSplit.
       - iApply (interp_weakening with "IH Hspv");auto;solve_addr.
       - iIntros (W' HW' ?????) "(HPC & _)".

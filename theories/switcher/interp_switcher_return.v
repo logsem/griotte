@@ -159,7 +159,7 @@ Section fundamental.
     }
 
     (* ReadSR ctp mtdc *)
-    iInstr "Hcode" with "Hlc".
+    iInstr "Hcode".
 
     (* Load csp ctp *)
     destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
@@ -237,8 +237,6 @@ Section fundamental.
     cbn.
     iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
     iEval (cbn) in "Hinterp_callee_wstk".
-    iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_callee_wstk]") as ">#Hinterp_callee_wstk'".
-    iClear "Hinterp_callee_wstk" ; iRename "Hinterp_callee_wstk'" into "Hinterp_callee_wstk".
     iAssert (
         ∃ wastk wastk1 wastk2 wastk3,
         let la := (if (is_untrusted_caller ccrel) then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in

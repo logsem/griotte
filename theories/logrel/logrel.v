@@ -386,14 +386,13 @@ Section logrel.
     match cstk, Ws, Cs with
     | [],[],[] => True%I
     | frm :: cstk', Wt :: Ws', Ct :: Cs' =>
-        if is_known_to_known_frm frm
-        then True%I
-        else
-        (▷ (
-             (* Continuation for the rest of the call-stack *)
-             interp_cont_aux interp cstk' Ws' Cs'
-             (* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
-             ∗ interp_callee_part_of_the_stack interp Wt Ct (WCap RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) (is_untrusted_caller_frm frm)
+        (* Continuation for the rest of the call-stack *)
+        interp_cont_aux interp cstk' Ws' Cs' ∗
+        (if is_known_to_known_frm frm
+         then True%I
+         else
+           ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
+             interp_callee_part_of_the_stack interp Wt Ct (WCap RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) (is_untrusted_caller_frm frm)
              (* The continuation when matching the switcher's state at return-to-caller *)
              ∗ (∀ W', ⌜related_sts_pub_world Wt W'⌝
                       -∗  interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs') cstk' W' Ct frm)))%I
@@ -409,12 +408,8 @@ Section logrel.
     generalize dependent C0.
     induction y; intros C0 W0;[simpl;f_equiv|].
     destruct a, W0, C0;simpl; [auto|auto|auto|].
-    simpl.
-    f_equiv.
-    f_equiv.
-    f_equiv;[apply IHy|].
-    f_equiv;[| repeat (f_equiv; auto)].
-    apply Heq.
+    f_equiv; [apply IHy|].
+    f_equiv;repeat (f_equiv; auto).
   Qed.
 
   Program Definition interp_cont (interp : V) : K :=
