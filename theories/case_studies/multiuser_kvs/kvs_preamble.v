@@ -226,6 +226,45 @@ Section KVS_preamble.
     by iMod (gen_heap_update m idx _ (k',w') with "Hkvs_auth Hkvs_frag") as "[$ $]".
   Qed.
 
+
+  (* TODO surely there's a better way to prove this *)
+  Lemma NoDup_map_to_list_snd_fst_insert {Key : Type} {Val1 Val2 : Type}
+    `{EqDecision Key} `{Countable Key}
+    (m : gmap Key (Val1 * Val2)) (k : Key) (kv : Val1) (vv1 vv2 : Val2) :
+    m !! k = Some (kv, vv1) ->
+    NoDup (map_to_list m).*2.*1 ->
+    NoDup (map_to_list (<[k := (kv, vv2)]>m)).*2.*1.
+  Proof.
+    generalize dependent k; generalize dependent vv1.
+    induction m using map_ind; intros vv1 k Hk Hnodup; first simplify_map_eq.
+    destruct (decide (k = i)); simplify_map_eq.
+    - rewrite insert_insert_eq.
+      rewrite map_to_list_insert; auto.
+      rewrite map_to_list_insert in Hnodup; auto.
+    - rewrite insert_insert_ne; last done.
+      rewrite map_to_list_insert in Hnodup; last done.
+      rewrite map_to_list_insert; last by simplify_map_eq.
+      destruct x as [kX vX]; cbn in *.
+      apply NoDup_cons in Hnodup as [HkX Hnodup].
+      apply NoDup_cons; split.
+      + intro; apply HkX.
+        rewrite list_elem_of_fmap in H1; destruct H1 as ( [? ?] & ? & H1 ); simplify_eq.
+        rewrite list_elem_of_fmap in H1; destruct H1 as ( [? [? ?] ] & ? & H1 ); cbn in *; simplify_eq.
+        apply elem_of_map_to_list in H1.
+        destruct (decide (k = k0)); simplify_map_eq.
+        * rewrite list_elem_of_fmap.
+          exists (v1, vv1); split; first done.
+          rewrite list_elem_of_fmap.
+          exists (k0, (v1, vv1)); split; first done.
+          by apply elem_of_map_to_list.
+        * rewrite list_elem_of_fmap.
+          exists (v1, v2); split; first done.
+          rewrite list_elem_of_fmap.
+          exists (k0, (v1, v2)); split; first done.
+          by apply elem_of_map_to_list.
+      + eapply IHm; eauto.
+  Qed.
+
   Lemma wf_kvs_map_insert (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
     (∃ w', m !! idx = Some (k, w')) ->
     wf_kvs_map m ->
@@ -237,28 +276,8 @@ Section KVS_preamble.
       assert (idx ∈ dom m).
       { apply elem_of_dom; eauto. }
       set_solver.
-    - clear -Hidx Hkvs_unique.
-      generalize dependent idx.
-      generalize dependent w'.
-      induction m using map_ind; intros w' idx Hidx; simplify_map_eq.
-      destruct (decide (idx = i)); simplify_eq.
-      + rewrite lookup_insert_eq in Hidx; simplify_eq; cbn in *.
-        rewrite insert_insert_eq.
-        rewrite map_to_list_insert; last done.
-        rewrite map_to_list_insert in Hkvs_unique; last done.
-        by cbn in *.
-      + destruct x as [k' k'w].
-        rewrite insert_insert_ne; last done.
-        rewrite map_to_list_insert; last by simplify_map_eq.
-        rewrite map_to_list_insert in Hkvs_unique; last done.
-        cbn in *.
-        apply NoDup_cons in Hkvs_unique as [Hk' Hkvs_unique]; auto.
-        rewrite lookup_insert_ne in Hidx; eauto.
-        eapply IHm in Hkvs_unique; eauto.
-        apply NoDup_cons; split; auto.
-        intro contra. apply Hk'; clear Hk'.
-        admit.
-  Admitted.
+    - eapply NoDup_map_to_list_snd_fst_insert; eauto.
+  Qed.
 
   Lemma isKVS_open_update (a : Addr) (m : kvs_map) (idx : nat) (k : Z) (w w' : Word) :
     isKVS_open a m idx -∗ k ⤇(KVS)[ idx ] w
