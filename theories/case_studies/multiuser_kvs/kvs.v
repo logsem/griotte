@@ -144,7 +144,7 @@ Section KVS_Service.
         (* return true *)
         mov ca0 ASM_TRUE;
         mov ca1 0;
-        jalr cra cra;
+        jalr cnull cra;
         #".addOrUpdate_search_empty_slot"
       ] ;
       (kvs_search_asm ctp ct1 ct2) ;
