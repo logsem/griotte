@@ -10,7 +10,7 @@ From cap_machine Require Import logrel_extra switcher_macros_spec.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 
-Section Switcher_Known.
+Section Switcher_KtK_Call.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
@@ -920,4 +920,4 @@ Section Switcher_Known.
     set_solver+.
   Qed.
 
-End Switcher_Known.
+End Switcher_KtK_Call.
