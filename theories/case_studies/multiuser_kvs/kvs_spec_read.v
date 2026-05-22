@@ -62,7 +62,8 @@ Section KVS_spec_read.
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
-         isKVS (cgp_b ^+ 1)%a m
+         isKVS (cgp_b ^+ 1)%a m ∗
+         fkey ⤇(KVS) w
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
