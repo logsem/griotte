@@ -29,7 +29,7 @@ Definition kvs_frag `{kvsG} (k : Z ) (w : Word) : iProp Σ := ∃ idx, k ⤇(KVS
 Notation "k '⤇(KVS)' w" := (kvs_frag k w) (at level 20) : bi_scope.
 Notation "k '⤇(KVS)' -" := (∃ w, kvs_frag k w)%I (at level 20) : bi_scope.
 
-Notation "●(KVS) m" := (gen_heap_interp m) (at level 20) : bi_scope.
+Notation "●(KVS) m" := (gen_heap_interp (m : kvs_map)) (at level 20) : bi_scope.
 
 Section KVS_preamble.
   Context
