@@ -31,6 +31,44 @@ Notation "k '⤇(KVS)' -" := (∃ w, kvs_frag k w)%I (at level 20) : bi_scope.
 
 Notation "●(KVS) m" := (gen_heap_interp (m : kvs_map)) (at level 20) : bi_scope.
 
+(* TODO move + surely there's a better way to prove this *)
+Lemma NoDup_map_to_list_snd_fst_insert {Key : Type} {Val1 Val2 : Type}
+  `{EqDecision Key} `{Countable Key}
+  (m : gmap Key (Val1 * Val2)) (k : Key) (kv : Val1) (vv1 vv2 : Val2) :
+  m !! k = Some (kv, vv1) ->
+  NoDup (map_to_list m).*2.*1 ->
+  NoDup (map_to_list (<[k := (kv, vv2)]>m)).*2.*1.
+Proof.
+  generalize dependent k; generalize dependent vv1.
+  induction m using map_ind; intros vv1 k Hk Hnodup; first simplify_map_eq.
+  destruct (decide (k = i)); simplify_map_eq.
+  - rewrite insert_insert_eq.
+    rewrite map_to_list_insert; auto.
+    rewrite map_to_list_insert in Hnodup; auto.
+  - rewrite insert_insert_ne; last done.
+    rewrite map_to_list_insert in Hnodup; last done.
+    rewrite map_to_list_insert; last by simplify_map_eq.
+    destruct x as [kX vX]; cbn in *.
+    apply NoDup_cons in Hnodup as [HkX Hnodup].
+    apply NoDup_cons; split.
+    + intro; apply HkX.
+      rewrite list_elem_of_fmap in H1; destruct H1 as ( [? ?] & ? & H1 ); simplify_eq.
+      rewrite list_elem_of_fmap in H1; destruct H1 as ( [? [? ?] ] & ? & H1 ); cbn in *; simplify_eq.
+      apply elem_of_map_to_list in H1.
+      destruct (decide (k = k0)); simplify_map_eq.
+      * rewrite list_elem_of_fmap.
+        exists (v1, vv1); split; first done.
+        rewrite list_elem_of_fmap.
+        exists (k0, (v1, vv1)); split; first done.
+        by apply elem_of_map_to_list.
+      * rewrite list_elem_of_fmap.
+        exists (v1, v2); split; first done.
+        rewrite list_elem_of_fmap.
+        exists (k0, (v1, v2)); split; first done.
+        by apply elem_of_map_to_list.
+    + eapply IHm; eauto.
+Qed.
+
 Section KVS_preamble.
   Context
     {Σ:gFunctors}
@@ -68,60 +106,6 @@ Section KVS_preamble.
     ●(KVS) m ∗
     [∗ map] idx ↦ kw ∈ (delete open_idx m), isKVS_entry a idx kw.
 
-
-  Lemma kvs_frag_kvs_frag_idx (k : Z) (w : Word) :
-    k ⤇(KVS) w -∗ ∃ idx, k ⤇(KVS)[idx] w.
-  Proof. rewrite /kvs_frag; iIntros "?"; done. Qed.
-
-  Lemma kvs_frag_idx_kvs_frag (k : Z) (w : Word) (idx : nat) :
-    k ⤇(KVS)[idx] w -∗ k ⤇(KVS) w.
-  Proof. rewrite /kvs_frag; iIntros "$".  Qed.
-
-  Lemma open_isKVS_kvs_frag_idx
-    (b : Addr) (m : kvs_map)
-    (idx : nat) (k : Z) (w : Word) :
-    isKVS b m ∗
-    k ⤇(KVS)[idx] w -∗
-    isKVS_open b m idx ∗
-    isKVS_entry b idx (k, w) ∗
-    k ⤇(KVS)[idx] w.
-  Proof.
-    iIntros "( (%HdomKVS & Hkvs_auth & HKVS) & Hk)".
-    iDestruct (gen_heap_valid with "Hkvs_auth Hk") as "%Hidx'".
-    rewrite -{2}(insert_id m idx (k,w)); last done.
-    iDestruct (big_sepM_insert_delete with "HKVS") as "[Hkvs_entry HKVS]".
-    iFrame; eauto.
-  Qed.
-
-  Lemma kvs_valid (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
-    ●(KVS) m -∗
-    k ⤇(KVS)[idx] w -∗
-    ⌜ m !! idx = Some (k, w) ⌝.
-  Proof.
-    iIntros "Hkvs_auth Hk".
-    by iDestruct (gen_heap_valid with "Hkvs_auth Hk") as "%Hidx'".
-  Qed.
-
-
-  Lemma isKVS_valid (m : kvs_map) (a : Addr) (idx : nat) (k : Z) (w : Word) :
-    isKVS a m -∗
-    k ⤇(KVS)[idx] w -∗
-    ⌜ m !! idx = Some (k, w) ⌝.
-  Proof.
-    iIntros "(%HdomKVS & Hkvs_auth & HKVS) Hk".
-    by iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hidx'".
-  Qed.
-
-
-  Lemma isKVS_open_valid (m : kvs_map) (a : Addr) (idx idx' : nat) (k : Z) (w : Word) :
-    isKVS_open a m idx' -∗
-    k ⤇(KVS)[idx] w -∗
-    ⌜ m !! idx = Some (k, w) ⌝.
-  Proof.
-    iIntros "(%HdomKVS & Hkvs_auth & HKVS) Hk".
-    by iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hidx'".
-  Qed.
-
   Lemma wf_kvs_is_Some (m : kvs_map) (idx : nat)  :
     wf_kvs_map m ->
     0 <= idx < SIZE_MAP ->
@@ -144,25 +128,6 @@ Section KVS_preamble.
     lia.
   Qed.
 
-  Lemma isKVS_indom_idx (m : kvs_map) (a : Addr) (idx : nat) :
-    idx ∈ dom m ->
-    isKVS a m -∗
-    ⌜ 0 <= idx < SIZE_MAP ⌝.
-  Proof.
-    iIntros (Hm_idx) "(%Hwf & _)"; iPureIntro.
-    by eapply wf_kvs_indom_idx.
-  Qed.
-
-  Lemma isKVS_open_indom_idx (m : kvs_map) (a : Addr) (idx idx' : nat) :
-    idx ∈ dom m ->
-    isKVS_open a m idx' -∗
-    ⌜ 0 <= idx < SIZE_MAP ⌝.
-  Proof.
-    iIntros (Hm_idx) "(%Hwf & _)"; iPureIntro.
-    by eapply wf_kvs_indom_idx.
-  Qed.
-
-
   Lemma wf_kvs_neq (m : kvs_map) (idx idx' : nat) (k k' : Z) (w w' : Word) :
     wf_kvs_map m ->
     idx ≠ idx' ->
@@ -181,6 +146,117 @@ Section KVS_preamble.
     cbn in Hkvs_uniqueness.
     apply NoDup_cons_1_1 in Hkvs_uniqueness.
     set_solver+Hkvs_uniqueness.
+  Qed.
+
+  Lemma wf_kvs_map_insert (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
+    (∃ w', m !! idx = Some (k, w')) ->
+    wf_kvs_map m ->
+    wf_kvs_map (<[idx:=(k, w)]> m).
+  Proof.
+    intros [w' Hidx] (Hkvs_dom & Hkvs_unique).
+    split.
+    - rewrite dom_insert_L -Hkvs_dom.
+      assert (idx ∈ dom m).
+      { apply elem_of_dom; eauto. }
+      set_solver.
+    - eapply NoDup_map_to_list_snd_fst_insert; eauto.
+  Qed.
+
+  Lemma kvs_frag_kvs_frag_idx (k : Z) (w : Word) :
+    k ⤇(KVS) w -∗ ∃ idx, k ⤇(KVS)[idx] w.
+  Proof. rewrite /kvs_frag; iIntros "?"; done. Qed.
+
+  Lemma kvs_frag_idx_kvs_frag (k : Z) (w : Word) (idx : nat) :
+    k ⤇(KVS)[idx] w -∗ k ⤇(KVS) w.
+  Proof. rewrite /kvs_frag; iIntros "$".  Qed.
+
+  Lemma kvs_auth_update (a : Addr) (m : kvs_map) (idx : nat) (k k' : Z) (w w' : Word) :
+    ●(KVS) m -∗ k ⤇(KVS)[ idx ] w
+    ==∗
+    ●(KVS) (<[idx:=(k', w')]> m) ∗ k' ⤇(KVS)[ idx ] w'.
+  Proof.
+    iIntros "Hkvs_auth Hkvs_frag".
+    by iMod (gen_heap_update m idx _ (k',w') with "Hkvs_auth Hkvs_frag") as "[$ $]".
+  Qed.
+
+  Lemma kvs_frag_idx_dupl_false idx k k' w w' :
+    k ⤇(KVS)[ idx ] w -∗ k' ⤇(KVS)[ idx ] w' -∗ False.
+  Proof.
+    iIntros "H1 H2".
+    iDestruct (pointsto_valid_2 with "H1 H2") as %?.
+    destruct H; eapply dfrac_full_exclusive in H; auto.
+  Qed.
+
+  Lemma kvs_frag_kvs_empty_not_empty_slot idx k w w' :
+    k ⤇(KVS)[ idx ] w -∗
+    isKVS_entry_empty idx k w' -∗
+    ⌜ k ≠ EMPTY_SLOT ⌝.
+  Proof.
+    iIntros "Hk Hk'".
+    rewrite /isKVS_entry_empty.
+    destruct (decide (k = EMPTY_SLOT)); last done.
+    iDestruct (kvs_frag_idx_dupl_false with "Hk Hk'") as "H"; done.
+  Qed.
+
+  Lemma kvs_valid (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
+    ●(KVS) m -∗
+    k ⤇(KVS)[idx] w -∗
+    ⌜ m !! idx = Some (k, w) ⌝.
+  Proof.
+    iIntros "Hkvs_auth Hk".
+    by iDestruct (gen_heap_valid with "Hkvs_auth Hk") as "%Hidx'".
+  Qed.
+
+  Lemma isKVS_valid (m : kvs_map) (a : Addr) (idx : nat) (k : Z) (w : Word) :
+    isKVS a m -∗
+    k ⤇(KVS)[idx] w -∗
+    ⌜ m !! idx = Some (k, w) ⌝.
+  Proof.
+    iIntros "(%HdomKVS & Hkvs_auth & HKVS) Hk".
+    by iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hidx'".
+  Qed.
+
+  Lemma isKVS_open_valid (m : kvs_map) (a : Addr) (idx idx' : nat) (k : Z) (w : Word) :
+    isKVS_open a m idx' -∗
+    k ⤇(KVS)[idx] w -∗
+    ⌜ m !! idx = Some (k, w) ⌝.
+  Proof.
+    iIntros "(%HdomKVS & Hkvs_auth & HKVS) Hk".
+    by iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hidx'".
+  Qed.
+
+  Lemma open_isKVS_kvs_frag_idx
+    (b : Addr) (m : kvs_map)
+    (idx : nat) (k : Z) (w : Word) :
+    isKVS b m ∗
+    k ⤇(KVS)[idx] w -∗
+    isKVS_open b m idx ∗
+    isKVS_entry b idx (k, w) ∗
+    k ⤇(KVS)[idx] w.
+  Proof.
+    iIntros "( (%HdomKVS & Hkvs_auth & HKVS) & Hk)".
+    iDestruct (gen_heap_valid with "Hkvs_auth Hk") as "%Hidx'".
+    rewrite -{2}(insert_id m idx (k,w)); last done.
+    iDestruct (big_sepM_insert_delete with "HKVS") as "[Hkvs_entry HKVS]".
+    iFrame; eauto.
+  Qed.
+
+  Lemma isKVS_indom_idx (m : kvs_map) (a : Addr) (idx : nat) :
+    idx ∈ dom m ->
+    isKVS a m -∗
+    ⌜ 0 <= idx < SIZE_MAP ⌝.
+  Proof.
+    iIntros (Hm_idx) "(%Hwf & _)"; iPureIntro.
+    by eapply wf_kvs_indom_idx.
+  Qed.
+
+  Lemma isKVS_open_indom_idx (m : kvs_map) (a : Addr) (idx idx' : nat) :
+    idx ∈ dom m ->
+    isKVS_open a m idx' -∗
+    ⌜ 0 <= idx < SIZE_MAP ⌝.
+  Proof.
+    iIntros (Hm_idx) "(%Hwf & _)"; iPureIntro.
+    by eapply wf_kvs_indom_idx.
   Qed.
 
   Lemma open_isKVS_kvs_frag_idx_diff
@@ -217,99 +293,18 @@ Section KVS_preamble.
     iFrame; eauto.
   Qed.
 
-  Lemma kvs_auth_update (a : Addr) (m : kvs_map) (idx : nat) (k k' : Z) (w w' : Word) :
-    ●(KVS) m -∗ k ⤇(KVS)[ idx ] w
-    ==∗
-    ●(KVS) (<[idx:=(k', w')]> m) ∗ k' ⤇(KVS)[ idx ] w'.
-  Proof.
-    iIntros "Hkvs_auth Hkvs_frag".
-    by iMod (gen_heap_update m idx _ (k',w') with "Hkvs_auth Hkvs_frag") as "[$ $]".
-  Qed.
-
-
-  (* TODO surely there's a better way to prove this *)
-  Lemma NoDup_map_to_list_snd_fst_insert {Key : Type} {Val1 Val2 : Type}
-    `{EqDecision Key} `{Countable Key}
-    (m : gmap Key (Val1 * Val2)) (k : Key) (kv : Val1) (vv1 vv2 : Val2) :
-    m !! k = Some (kv, vv1) ->
-    NoDup (map_to_list m).*2.*1 ->
-    NoDup (map_to_list (<[k := (kv, vv2)]>m)).*2.*1.
-  Proof.
-    generalize dependent k; generalize dependent vv1.
-    induction m using map_ind; intros vv1 k Hk Hnodup; first simplify_map_eq.
-    destruct (decide (k = i)); simplify_map_eq.
-    - rewrite insert_insert_eq.
-      rewrite map_to_list_insert; auto.
-      rewrite map_to_list_insert in Hnodup; auto.
-    - rewrite insert_insert_ne; last done.
-      rewrite map_to_list_insert in Hnodup; last done.
-      rewrite map_to_list_insert; last by simplify_map_eq.
-      destruct x as [kX vX]; cbn in *.
-      apply NoDup_cons in Hnodup as [HkX Hnodup].
-      apply NoDup_cons; split.
-      + intro; apply HkX.
-        rewrite list_elem_of_fmap in H1; destruct H1 as ( [? ?] & ? & H1 ); simplify_eq.
-        rewrite list_elem_of_fmap in H1; destruct H1 as ( [? [? ?] ] & ? & H1 ); cbn in *; simplify_eq.
-        apply elem_of_map_to_list in H1.
-        destruct (decide (k = k0)); simplify_map_eq.
-        * rewrite list_elem_of_fmap.
-          exists (v1, vv1); split; first done.
-          rewrite list_elem_of_fmap.
-          exists (k0, (v1, vv1)); split; first done.
-          by apply elem_of_map_to_list.
-        * rewrite list_elem_of_fmap.
-          exists (v1, v2); split; first done.
-          rewrite list_elem_of_fmap.
-          exists (k0, (v1, v2)); split; first done.
-          by apply elem_of_map_to_list.
-      + eapply IHm; eauto.
-  Qed.
-
-  Lemma wf_kvs_map_insert (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
-    (∃ w', m !! idx = Some (k, w')) ->
-    wf_kvs_map m ->
-    wf_kvs_map (<[idx:=(k, w)]> m).
-  Proof.
-    intros [w' Hidx] (Hkvs_dom & Hkvs_unique).
-    split.
-    - rewrite dom_insert_L -Hkvs_dom.
-      assert (idx ∈ dom m).
-      { apply elem_of_dom; eauto. }
-      set_solver.
-    - eapply NoDup_map_to_list_snd_fst_insert; eauto.
-  Qed.
-
   Lemma isKVS_open_update (a : Addr) (m : kvs_map) (idx : nat) (k : Z) (w w' : Word) :
     isKVS_open a m idx -∗ k ⤇(KVS)[ idx ] w
     ==∗
     isKVS_open a (<[idx:=(k, w')]> m) idx ∗ k ⤇(KVS)[ idx ] w'.
   Proof.
     iIntros "(%Hkvs_wf & Hkvs_auth & HKVS) Hk".
-
     iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hm_idx".
     iMod (kvs_auth_update a m idx _ k _ w' with "Hkvs_auth Hk") as "[$ $]".
     eapply (wf_kvs_map_insert _ _ _ w') in Hkvs_wf; eauto.
     iModIntro.
     iSplit; first by iPureIntro.
     by rewrite delete_insert_eq.
-  Qed.
-
-  Lemma kvs_frag_idx_dupl_false idx k k' w w' :
-    k ⤇(KVS)[ idx ] w -∗ k' ⤇(KVS)[ idx ] w' -∗ False.
-  Proof.
-    iIntros "H1 H2".
-    iDestruct (pointsto_valid_2 with "H1 H2") as %?.
-    destruct H; eapply dfrac_full_exclusive in H; auto.
-  Qed.
-  Lemma kvs_frag_kvs_empty_not_empty_slot idx k w w' :
-    k ⤇(KVS)[ idx ] w -∗
-    isKVS_entry_empty idx k w' -∗
-    ⌜ k ≠ EMPTY_SLOT ⌝.
-  Proof.
-    iIntros "Hk Hk'".
-    rewrite /isKVS_entry_empty.
-    destruct (decide (k = EMPTY_SLOT)); last done.
-    iDestruct (kvs_frag_idx_dupl_false with "Hk Hk'") as "H"; done.
   Qed.
 
   Lemma KVS_getFullKey_spec `{KVS : kvsLayout}
