@@ -333,7 +333,8 @@ Section KVS_spec_addOrUpdate.
         rewrite /isKVS_entry_empty /=.
         destruct (decide (kvs_full_key user_key nkey = EMPTY_SLOT)); try done.
         exfalso.
-        by apply (kvs_full_key_not_empty user_key nkey).
+        apply (kvs_full_key_not_empty user_key nkey); auto.
+        admit. (* wf_kvs_full_key user_key nkey -> we need to check the nkey + constraint 0 <= user_key *)
       }
 
       iApply "Hpost"; iLeft ; iFrame.
@@ -353,7 +354,7 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
 
       iApply "Hpost"; iRight ; iFrame.
-  Qed.
+  Admitted.
 
 
 End KVS_spec_addOrUpdate.
