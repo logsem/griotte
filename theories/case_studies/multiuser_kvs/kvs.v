@@ -122,6 +122,7 @@ Section KVS_Service.
       - [ca0] contains TRUE if value was inserted, and FALSE if no empty slot
       - [ca1] contains 0
  *)
+  (* TODO we need to check that [ca1] is a uint16, ie 0 <= [ca1] < 2^16 *)
   Definition kvs_addOrUpdate_asm : list (list asm_code) :=
     [
       (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
@@ -334,28 +335,76 @@ Section KVS_Service.
     b = c -> Z.land a b = Z.land a c.
   Proof. intros ->; done. Qed.
 
+  (* TODO any better way to prove this? *)
+  Lemma Z_testbit_mask_16_true (n : Z) :
+    (0 ≤ n < 16)%Z -> Z.testbit (2 ^ 16 - 1) n = true.
+  Proof.
+    intros H.
+    destruct (decide (n = 0)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 1)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 2)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 3)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 4)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 5)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 6)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 7)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 8)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 9)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 10)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 11)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 12)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 13)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 14)%Z); simplify_eq; first bitblast.
+    destruct (decide (n = 15)%Z); simplify_eq; first bitblast.
+    lia.
+  Qed.
+  Lemma Z_testbit_mask_16_false (n : Z) :
+    (0 ≤ n)%Z -> ¬(0 ≤ n < 16)%Z -> Z.testbit (2 ^ 16 - 1) n = false.
+  Proof.
+    intros H1 H2.
+    apply Z.bits_above_log2; first lia.
+    apply Z.log2_lt_pow2; first lia.
+    assert (2^16 <= 2^n)%Z by (apply Z.pow_le_mono_r_iff; lia).
+    lia.
+  Qed.
+
+  Definition wf_kvs_full_key (ku kn : Z) :=
+    (0 <= ku)%Z ∧ (0 <= kn < 2^16)%Z.
+
   Lemma kvs_full_key_inj (uk1 nk1 uk2 nk2 : Z) :
-    (0 <= nk1 < 16)%Z ->
-    (0 <= nk2 < 16)%Z ->
-    (0 <= uk1)%Z ->
-    (0 <= uk2)%Z ->
+    wf_kvs_full_key uk1 nk1 ->
+    wf_kvs_full_key uk2 nk2 ->
     (kvs_full_key uk1 nk1 = kvs_full_key uk2 nk2)%Z -> uk1 = uk2 ∧ nk1 = nk2.
   Proof.
-    intros Hnk1 Hnk2 Huk1 Huk2 Heq.
+    intros [Huk1 Hnk1] [Huk2 Hnk2] Heq.
     unfold kvs_full_key in Heq.
     split.
-    - assert (0 ≤ nk1 < 2^16)%Z as Hnk1' by lia.
-      assert (0 ≤ nk2 < 2^16)%Z as Hnk2' by lia.
-      assert ( uk1 = (Z.lor (uk1 ≪ 16) nk1) ≫ 16)%Z as -> by bitblast.
+    - assert ( uk1 = (Z.lor (uk1 ≪ 16) nk1) ≫ 16)%Z as -> by bitblast.
       assert ( uk2 = (Z.lor (uk2 ≪ 16) nk2) ≫ 16)%Z as -> by bitblast.
       by apply shiftr_inj.
-    - assert (0 ≤ nk1 < 2^4)%Z as Hnk1' by lia.
-      assert (0 ≤ nk2 < 2^4)%Z as Hnk2' by lia.
-      assert ( nk1 = Z.land 15 (Z.lor (uk1 ≪ 16) nk1))%Z as ->.
-      { bitblast as n. }
-      assert ( nk2 = Z.land 15 (Z.lor (uk2 ≪ 16) nk2))%Z as ->.
-      { bitblast as n. }
+    - assert ( nk1 = Z.land (2^16 -1) (Z.lor (uk1 ≪ 16) nk1))%Z as ->.
+      { bitblast as n.
+        - rewrite Z_testbit_mask_16_true; auto; bitblast.
+        - rewrite Z_testbit_mask_16_false; auto.
+      }
+      assert ( nk2 = Z.land (2^16 -1) (Z.lor (uk2 ≪ 16) nk2))%Z as ->.
+      { bitblast as n.
+        - rewrite Z_testbit_mask_16_true; auto; bitblast.
+        - rewrite Z_testbit_mask_16_false; auto.
+      }
       by apply land_inj.
+  Qed.
+
+  Lemma kvs_full_key_not_empty (ku kn : Z) :
+    wf_kvs_full_key ku kn ->
+    (kvs_full_key ku kn ≠ EMPTY_SLOT)%Z.
+  Proof.
+    intros [Hku Hkn].
+    unfold EMPTY_SLOT.
+    enough (0 <= kvs_full_key ku kn)%Z; first lia.
+    unfold kvs_full_key.
+    apply Z.lor_nonneg; split; last lia.
+    apply Z.shiftl_nonneg; lia.
   Qed.
 
 End KVS_Service.
