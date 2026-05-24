@@ -20,7 +20,7 @@ Section KVS_spec_addOrUpdate.
     (wret wca2 : Word)
     (user_key nkey : Z)
     (idx : nat)
-    (m : kvs_map)
+    (m : kvs_map) (s : gset (Z*Z))
     :
 
     let imports :=
@@ -55,7 +55,7 @@ Section KVS_spec_addOrUpdate.
       codefrag pc_a kvs_addOrUpdate_instrs ∗
       cgp_b ↦ₐ kvs_service_unsealing_key ∗
 
-      isKVS (cgp_b ^+ 1)%a m ∗
+      isKVS (cgp_b ^+ 1)%a m s ∗
       fkey ⤇(KVS)[ idx ] - ∗
 
       ▷ (na_own logrel_nais ⊤ ∗
@@ -69,7 +69,7 @@ Section KVS_spec_addOrUpdate.
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
-         isKVS (cgp_b ^+ 1)%a (<[ idx := (fkey, wca2) ]> m) ∗
+         isKVS (cgp_b ^+ 1)%a (<[ idx := (fkey, wca2) ]> m) s ∗
          fkey ⤇(KVS)[idx] wca2
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
         )
@@ -102,7 +102,7 @@ Section KVS_spec_addOrUpdate.
 
     focus_block 2 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
-    iApply (KVS_search_spec with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
+    iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val  & Hfkey & %Hcgp_idx & Hkvs_frag & Hcode)".
     iDestruct (isKVS_open_valid with "HKVS Hkvs_frag") as "%Hm_idx".
@@ -136,7 +136,7 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    iMod (isKVS_open_update _ _ idx (kvs_full_key user_key nkey) _ wca2 with "HKVS Hkvs_frag") as "[HKVS Hkvs_frag]".
+    iMod (isKVS_open_update _ _ _ idx (kvs_full_key user_key nkey) _ wca2 with "HKVS Hkvs_frag") as "[HKVS Hkvs_frag]".
     iDestruct (kvs_frag_kvs_empty_not_empty_slot with "Hkvs_frag Hfkey") as "%Hk".
 
 
