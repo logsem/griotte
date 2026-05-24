@@ -19,7 +19,7 @@ Section KVS_spec_read.
     (cgp_b cgp_e : Addr)
     (wret : Word)
     (user_key nkey : Z)
-    (m : kvs_map)
+    (m : kvs_map) (s : gset (Z*Z))
     (w : Word)
     :
 
@@ -51,7 +51,7 @@ Section KVS_spec_read.
       codefrag pc_a kvs_read_instrs ∗
       cgp_b ↦ₐ kvs_service_unsealing_key ∗
 
-      isKVS (cgp_b ^+ 1)%a m ∗
+      isKVS (cgp_b ^+ 1)%a m s ∗
       fkey ⤇(KVS) w ∗
       ▷ (na_own logrel_nais ⊤ ∗
          PC ↦ᵣ updatePcPerm wret ∗
@@ -62,7 +62,7 @@ Section KVS_spec_read.
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
-         isKVS (cgp_b ^+ 1)%a m ∗
+         isKVS (cgp_b ^+ 1)%a m s ∗
          fkey ⤇(KVS) w
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
         )
@@ -94,7 +94,7 @@ Section KVS_spec_read.
 
     focus_block 2 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
-    iApply (KVS_search_spec with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
+    iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val  & Hfkey & %Hcgp_idx & Hkvs_frag & Hcode)".
     iDestruct (isKVS_open_valid with "HKVS Hkvs_frag") as "%Hm_idx".
