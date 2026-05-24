@@ -136,7 +136,7 @@ Section KVS_Service.
         (* key was found, we know that [cgp] points-to it *)
         #".addOrUpdate_key_not_found";
         (* we need to find an empty slot *)
-        mov ca0 EMPTY_SLOT;
+        mov ctp EMPTY_SLOT;
         jmp (".addOrUpdate_search_empty_slot");
         #".addOrUpdate_key_found";
         (* update the value *)
