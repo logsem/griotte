@@ -153,4 +153,207 @@ Section KVS_spec_addOrUpdate.
     iApply "Hpost"; iFrame.
   Qed.
 
+  Lemma KVS_add_spec `{KVS : kvsLayout}
+    (pc_b pc_b' pc_e pc_a : Addr)
+    (cgp_b cgp_e : Addr)
+    (wret wca2 : Word)
+    (user_key nkey : Z)
+    (m : kvs_map) (s s' : gset (Z*Z))
+    :
+
+    let imports :=
+      kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
+    in
+    let fkey := (kvs_full_key user_key nkey) in
+
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
+    (0 <= user_key < top)%Z ->
+
+    (cgp_b + length kvs_data)%a = Some cgp_e ->
+    (pc_b + length imports)%a = Some pc_b' ->
+
+    canStore RW wca2 = true ->
+    (user_key, nkey) ∉ s' ->
+
+    ( na_own logrel_nais ⊤ ∗
+
+      (* initial register file *)
+      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+      cra ↦ᵣ wret ∗
+      ca0 ↦ᵣ kvs_user_seal_key user_key ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
+      ca2 ↦ᵣ wca2 ∗ (* New value *)
+      ctp ↦ᵣ - ∗ (* scratch *)
+      ct1 ↦ᵣ - ∗ (* scratch *)
+      ct2 ↦ᵣ - ∗ (* scratch *)
+      cnull ↦ᵣ - ∗
+
+      (* initial memory layout *)
+      [[ pc_b , pc_b' ]] ↦ₐ [[ imports ]] ∗
+      codefrag pc_a kvs_addOrUpdate_instrs ∗
+      cgp_b ↦ₐ kvs_service_unsealing_key ∗
+
+      isKVS (cgp_b ^+ 1)%a m s ∗
+      ◯(ALLOC)[user_key] s' ∗
+
+      ▷ (
+          (* THERE IS AN EMPTY SLOT AVAILABLE*)
+          (∃ idx,
+             (na_own logrel_nais ⊤ ∗
+              PC ↦ᵣ updatePcPerm wret ∗
+              cgp ↦ᵣ - ∗
+              cra ↦ᵣ - ∗
+              ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
+              ca1 ↦ᵣ WInt 0 ∗
+              ca2 ↦ᵣ - ∗
+              ctp ↦ᵣ - ∗ (* scratch *)
+              ct1 ↦ᵣ - ∗ (* scratch *)
+              ct2 ↦ᵣ - ∗ (* scratch *)
+              cnull ↦ᵣ - ∗
+              isKVS (cgp_b ^+ 1)%a (<[ idx := (fkey, wca2) ]> m) ({[(user_key, nkey)]} ∪ s) ∗
+              ◯(ALLOC)[user_key] ( {[ (user_key, nkey) ]} ∪ s') ∗
+              fkey ⤇(KVS)[ idx ] wca2
+             )
+          )
+          ∨
+            (* THERE IS NO EMPTY SLOT AVAILABLE*)
+            (na_own logrel_nais ⊤ ∗
+             PC ↦ᵣ updatePcPerm wret ∗
+             cgp ↦ᵣ - ∗
+             cra ↦ᵣ - ∗
+             ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: no empty slot available *)
+             ca1 ↦ᵣ WInt 0 ∗
+             ca2 ↦ᵣ - ∗
+             ctp ↦ᵣ - ∗ (* scratch *)
+             ct1 ↦ᵣ - ∗ (* scratch *)
+             ct2 ↦ᵣ - ∗ (* scratch *)
+             cnull ↦ᵣ - ∗
+             isKVS (cgp_b ^+ 1)%a m s ∗
+             ◯(ALLOC)[user_key] s'
+            ) -∗
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+        )
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+  Proof.
+    intros imports fkey.
+    iIntros (HsubBounds Hbounds_user_key Hcgp_contiguous Himports_contiguous HcanStore_wca2 Hs')
+      "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & [%wctp Hctp] & Hct1 & Hct2 & [%wcnull Hcnull] &
+        Himports & Hcode & Hcgp_b & HKVS & Halloc & Hpost)".
+    codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
+
+    (* --------------------------------------------------- *)
+    (* ----------------- Start the proof ----------------- *)
+    (* --------------------------------------------------- *)
+    rewrite /kvs_addOrUpdate_instrs /assembled_kvs_addOrUpdate.
+    rewrite -/(kvs_getFullKey ca0 ca0 ca1 ct1).
+    rewrite -/(kvs_search ca0 ct1 ct2).
+    rewrite -/(kvs_search ctp ct1 ct2).
+
+    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (KVS_getFullKey_spec with "[- $HPC $Hcgp $Hca0 $Hca1 $Hct1 $Hcgp_b $Hcode]"); eauto; [|iNext].
+    { rewrite /withinBounds; solve_addr. }
+    iIntros "(HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 1 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iInstr "Hcode".
+    { transitivity (Some (cgp_b ^+ 1)%a); [solve_addr|done]. }
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 2 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
+    iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
+    iApply (KVS_search_spec_notin with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Halloc $Hcode]"); eauto.
+    { rewrite /withinBounds; solve_addr. }
+    iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Halloc & Hcode)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 3 "Hcode" as a_addOrUpdate Ha_addOrUpdate "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
+    (* Sub ct1 ct1 (-1) *)
+    iInstr "Hcode".
+    replace (-1 - -1)%Z with 0%Z by lia.
+    (* Jnz 5 ct1 *)
+    iInstr "Hcode".
+    (* Mov ctp (-1) *)
+    iInstr "Hcode".
+    destruct (decide (ctp = cnull)); first done.
+    (* Jmp 6 *)
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 4 "Hcode" as a_search' Ha_search' "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_addOrUpdate.
+    iApply (KVS_search_spec_empty_slot with "[- $HPC $Hcgp $Hctp $Hct1 $Hct2 $HKVS $Hcode]"); eauto.
+    { rewrite /withinBounds; solve_addr. }
+    iNext; iIntros
+             "[ (%idx & HPC & Hcgp & Hctp & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val & Hfkey & %Hcgp_idx & %Hidx & Hcode)
+               | (HPC & Hcgp & Hctp & Hct1 & Hct2 & HKVS & Hcode)
+               ]".
+    all: subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+    all: focus_block 5 "Hcode" as a_add Ha_add "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search'.
+
+    - (* an empty slot was found *)
+      (* Sub ct1 ct1 (-1) *)
+      iInstr "Hcode".
+      (* Jnz 4 ct1 *)
+      iInstr "Hcode".
+      { injection ; lia. }
+      (* Store cgp ca0 *)
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (rules_Store.wp_store_success_reg with "[$HPC $Hi $Hca0 $Hcgp $Hcgp_key]"); try solve_pure.
+      { rewrite /withinBounds ; solve_addr. }
+      { done. }
+      iNext; iIntros "(HPC & Hi & Hca0 & Hcgp & Hcgp_key)".
+      wp_pure.
+      iInstr_close "Hcode".
+      (* Lea cgp 1 *)
+      iInstr "Hcode".
+      { transitivity ( Some ((cgp_b ^+ (2 + 2 * idx))%a) ); solve_addr+Hcgp_idx Hidx. }
+      (* Store cgp ca2 *)
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (rules_Store.wp_store_success_reg with "[$HPC $Hi $Hca2 $Hcgp $Hcgp_val]"); try solve_pure.
+      iNext; iIntros "(HPC & Hi & Hca2 & Hcgp & Hcgp_val)".
+      wp_pure.
+      iInstr_close "Hcode".
+      (* Mov ca0 0 *)
+      iInstr "Hcode".
+      (* Mov ca1 0 *)
+      iInstr "Hcode".
+      (* Jalr cnull cra *)
+      iInstr "Hcode".
+
+      iMod (isKVS_open_insert _ _ _ _ _ _ _ wca2 with "HKVS Halloc Hfkey") as "(HKVS & Halloc & Hfkey)"; eauto.
+      iDestruct (close_isKVS with "[$HKVS Hcgp_key Hcgp_val]") as "HKVS";eauto.
+      { by simplify_map_eq. }
+      {
+        replace (cgp_b ^+ (1 + 2 * idx))%a with ((cgp_b ^+ 1) ^+ 2 * idx)%a by solve_addr+Hidx.
+        replace (cgp_b ^+ (2 + 2 * idx))%a  with ((cgp_b ^+ 1) ^+ (2 * idx + 1))%a by solve_addr+Hidx.
+        iFrame.
+        rewrite /isKVS_entry_empty /=.
+        destruct (decide (kvs_full_key user_key nkey = EMPTY_SLOT)); try done.
+        exfalso.
+        by apply (kvs_full_key_not_empty user_key nkey).
+      }
+
+      iApply "Hpost"; iLeft ; iFrame.
+
+    - (* no empty slot found *)
+      (* Sub ct1 ct1 (-1) *)
+      iInstr "Hcode".
+      replace (-1 - -1)%Z with 0%Z by lia.
+      (* Jnz 4 ct1 *)
+      iInstr "Hcode".
+      (* Mov ca0 (-1) *)
+      iInstr "Hcode".
+      destruct (decide (ca0 = cnull)); first done.
+      (* Mov ca1 0 *)
+      iInstr "Hcode".
+      (* Jalr cnull cra *)
+      iInstr "Hcode".
+
+      iApply "Hpost"; iRight ; iFrame.
+  Qed.
+
+
 End KVS_spec_addOrUpdate.
