@@ -165,8 +165,8 @@ Section Switcher_KtK_Return.
 
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
     rewrite /frame /cframe_interp; iEval (cbn) in "Hcframe_interp".
-    iDestruct "Hcframe_interp" as (wtstk4) "[Ha_tstk Hcframe_interp]".
-    iDestruct "Hcframe_interp" as "(%HWF & -> & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
+    iDestruct "Hcframe_interp" as "[Ha_tstk Hcframe_interp]".
+    iDestruct "Hcframe_interp" as "(%HWF & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
     rewrite -/(cstack_interp cstk (a_tstk ^+ -1)%a).
     destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
 
