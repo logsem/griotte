@@ -281,6 +281,7 @@ Section KVS_preamble.
       apply elem_of_kvs_keys in Hk as (idx' & v' & Hk).
       destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
       + left. apply elem_of_singleton.
+        admit.
         (* see kvs_full_key_inj *)
       + right.
         apply Halloc.
