@@ -90,7 +90,7 @@ Section KVS_spec_addOrUpdate.
     rewrite -/(kvs_getFullKey ca0 ca0 ca1 ct1).
     rewrite -/(kvs_search ca0 ct1 ct2).
     rewrite -/(kvs_search ctp ct1 ct2).
-    rewrite -/(kvs_check_uint16 ca0 ct1).
+    rewrite -/(kvs_check_uint16 ca1 ct1).
 
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (KVS_check_uint16_spec_known with "[- $HPC $Hca1 $Hct1 $Hcode]"); eauto;iNext.
@@ -120,6 +120,7 @@ Section KVS_spec_addOrUpdate.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
     iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
+    { apply kvs_full_key_not_empty; split; auto; lia. }
     iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val  & Hfkey & %Hcgp_idx & Hkvs_frag & Hcode)".
     iDestruct (isKVS_open_valid with "HKVS Hkvs_frag") as "%Hm_idx".
     iDestruct (isKVS_open_indom_idx with "HKVS") as "%Hidx".
@@ -154,7 +155,6 @@ Section KVS_spec_addOrUpdate.
 
     iMod (isKVS_open_update _ _ _ idx (kvs_full_key user_key nkey) _ wca2 with "HKVS Hkvs_frag") as "[HKVS Hkvs_frag]".
     iDestruct (kvs_frag_kvs_empty_not_empty_slot with "Hkvs_frag Hfkey") as "%Hk".
-
 
     iDestruct (close_isKVS with "[$HKVS Hcgp_key Hcgp_val]") as "HKVS";eauto.
     { by simplify_map_eq. }
