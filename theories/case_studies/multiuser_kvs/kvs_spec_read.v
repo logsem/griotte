@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel rules.
 From cap_machine Require Import
-  switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search.
+  switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
 From cap_machine Require Import proofmode.
 
 Section KVS_spec_read.
@@ -31,6 +31,8 @@ Section KVS_spec_read.
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
     (0 <= user_key < top)%Z ->
+    is_uint16 nkey ->
+
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_b' ->
@@ -70,7 +72,7 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     intros imports fkey.
-    iIntros (HsubBounds Hbounds_user_key Hcgp_contiguous Himports_contiguous)
+    iIntros (HsubBounds Hbounds_user_key Hnkey_is_uint16 Hcgp_contiguous Himports_contiguous)
       "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & [%wcnull Hcnull] & Himports & Hcode & Hcgp_b & HKVS & Hkvs_frag & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
     iDestruct (kvs_frag_kvs_frag_idx with "Hkvs_frag") as "(%idx & Hkvs_frag)".
@@ -81,29 +83,44 @@ Section KVS_spec_read.
     rewrite /kvs_read_instrs /assembled_kvs_read.
     rewrite -/(kvs_getFullKey ca0 ca0 ca1 ct1).
     rewrite -/(kvs_search ca0 ct1 ct2).
+    rewrite -/(kvs_check_uint16 ca1 ct1).
 
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (KVS_check_uint16_spec_known with "[- $HPC $Hca1 $Hct1 $Hcode]"); eauto;iNext.
+    iIntros "(HPC & Hca1 & Hcode & Hct1)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 1 "Hcode" as a_check_uint Ha_check_uint "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* jnz (".read_not_uint16")%asm ct1; *)
+    iInstr "Hcode".
+    (* jmp (".read_uint16_check_pass")%asm; *)
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 2 "Hcode" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcont" as hcont
+    ; clear dependent Ha_check_uint.
     iApply (KVS_getFullKey_spec with "[- $HPC $Hcgp $Hca0 $Hca1 $Hct1 $Hcgp_b $Hcode]"); eauto; [|iNext].
     { rewrite /withinBounds; solve_addr. }
     iIntros "(HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    focus_block 1 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)%a); [solve_addr|done]. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    focus_block 2 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
+    focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
     iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
+    { apply kvs_full_key_not_empty; split; auto; lia. }
     iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val  & Hfkey & %Hcgp_idx & Hkvs_frag & Hcode)".
     iDestruct (isKVS_open_valid with "HKVS Hkvs_frag") as "%Hm_idx".
     iDestruct (isKVS_open_indom_idx with "HKVS") as "%Hidx".
     { by apply elem_of_dom_2 in Hm_idx. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    focus_block 3 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
+    focus_block 5 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
     (* Sub ct1 ct1 (-1) *)
     iInstr "Hcode".
     (* Jnz 5 ct1 *)

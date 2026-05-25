@@ -70,8 +70,7 @@ Section KVS_preamble.
   .
 
   Definition kvs_keys (m : kvs_map) : list Z :=
-    (* filter (fun k -> k ≠ EMPTY_SLOT) (map_to_list m).*2.*1. *)
-    (map_to_list m).*2.*1.
+    filter (fun k => k ≠ EMPTY_SLOT) (map_to_list m).*2.*1.
 
   Definition wf_kvs_map (m : kvs_map) : Prop :=
     dom m = kvs_dom ∧ NoDup (kvs_keys m).
@@ -129,13 +128,14 @@ Section KVS_preamble.
   Qed.
 
   Lemma wf_kvs_neq (m : kvs_map) (idx idx' : nat) (k k' : Z) (w w' : Word) :
+    k ≠ EMPTY_SLOT ->
     wf_kvs_map m ->
     idx ≠ idx' ->
     m !! idx = Some (k, w) ->
     m !! idx' = Some (k', w') ->
     k ≠ k'.
   Proof.
-    intros [_ Hkvs_uniqueness] Hidx_ne Hm_idx Hm_idx'.
+    intros Hk_ne_empty [_ Hkvs_uniqueness] Hidx_ne Hm_idx Hm_idx'.
     rewrite /kvs_keys in Hkvs_uniqueness.
     rewrite -(insert_id m idx (k, w)) in Hkvs_uniqueness; last done.
     rewrite -insert_delete_eq in Hkvs_uniqueness.
@@ -145,31 +145,39 @@ Section KVS_preamble.
     rewrite map_to_list_insert in Hkvs_uniqueness; last by simplify_map_eq.
     rewrite map_to_list_insert in Hkvs_uniqueness; last by simplify_map_eq.
     cbn in Hkvs_uniqueness.
-    apply NoDup_cons_1_1 in Hkvs_uniqueness.
-    set_solver+Hkvs_uniqueness.
+    destruct (decide (k' ≠ EMPTY_SLOT)); simplify_eq.
+    - destruct (decide (k ≠ EMPTY_SLOT)); simplify_eq.
+      apply NoDup_cons_1_1 in Hkvs_uniqueness.
+      set_solver+Hkvs_uniqueness.
+    - destruct (decide (k ≠ EMPTY_SLOT)); simplify_eq.
+      apply NoDup_cons_1_1 in Hkvs_uniqueness.
+      lia.
   Qed.
 
   Lemma elem_of_kvs_keys_1 (m : kvs_map) (k : Z) :
-    k ∈ kvs_keys m -> ∃ idx w, m !! idx = Some (k, w).
+    k ∈ kvs_keys m -> (k ≠ EMPTY_SLOT ∧ ∃ idx w, m !! idx = Some (k, w)).
   Proof.
     intros Hk.
+    apply list_elem_of_filter in Hk as [Hk_ne_empty Hk].
     apply list_elem_of_fmap in Hk as ([k' v'] & ? & Hk); cbn in *; simplify_eq.
     apply list_elem_of_fmap in Hk as ([idx' kv'] & ? & Hk); cbn in *; simplify_eq.
     apply elem_of_map_to_list in Hk.
-    eauto.
+    split; eauto.
   Qed.
 
   Lemma elem_of_kvs_keys_2 (m : kvs_map) (k : Z) :
-    (∃ idx w, m !! idx = Some (k, w)) -> k ∈ kvs_keys m.
+    (k ≠ EMPTY_SLOT ∧ ∃ idx w, m !! idx = Some (k, w)) ->
+    k ∈ kvs_keys m.
   Proof.
-    intros (idx & w & Hidx).
+    intros [ Hk_ne_empty (idx & w & Hidx)].
+    apply list_elem_of_filter; split; auto.
     apply list_elem_of_fmap; exists (k, w); split; first done.
     apply list_elem_of_fmap; exists (idx, (k, w)); split; first done.
     by apply elem_of_map_to_list.
   Qed.
 
   Lemma elem_of_kvs_keys (m : kvs_map) (k : Z) :
-    k ∈ kvs_keys m ↔ ∃ idx w, m !! idx = Some (k, w).
+    k ∈ kvs_keys m ↔ (k ≠ EMPTY_SLOT ∧ ∃ idx w, m !! idx = Some (k, w)).
   Proof. split ; [apply elem_of_kvs_keys_1 | apply elem_of_kvs_keys_2]. Qed.
 
 
@@ -189,15 +197,15 @@ Section KVS_preamble.
       rewrite map_to_list_insert in Hnodup; last done.
       rewrite map_to_list_insert; last by simplify_map_eq.
       destruct x as [kX vX]; cbn in *.
+      destruct (decide (kX ≠ EMPTY_SLOT)); auto; last (eapply IHm; eauto).
       apply NoDup_cons in Hnodup as [HkX Hnodup].
-      apply NoDup_cons; split.
-      + rewrite -/(kvs_keys (<[idx:=(k, w')]> m)).
-        rewrite -/(kvs_keys m) in HkX.
-        intro Hcontra; apply HkX.
-        apply elem_of_kvs_keys in Hcontra as (idx0 & w0 & H0).
-        apply elem_of_kvs_keys.
-        destruct (decide (idx = idx0)); simplify_map_eq; eauto.
-      + eapply IHm; eauto.
+      apply NoDup_cons; split; last (eapply IHm; eauto).
+      rewrite -/(kvs_keys (<[idx:=(k, w')]> m)).
+      rewrite -/(kvs_keys m) in HkX.
+      intro Hcontra; apply HkX.
+      apply elem_of_kvs_keys in Hcontra as (HkX_ne_empty & idx0 & w0 & H0).
+      apply elem_of_kvs_keys; split; auto.
+      destruct (decide (idx = idx0)); simplify_map_eq; eauto.
   Qed.
 
   Lemma NoDup_kvs_keys_insert
@@ -212,31 +220,38 @@ Section KVS_preamble.
     induction m using map_ind; intros w k Hk Hnodup; first simplify_map_eq.
     { rewrite map_to_list_insert; auto; cbn.
       rewrite map_to_list_empty; auto; cbn.
-      apply NoDup_singleton.
+      destruct (decide (k ≠ EMPTY_SLOT)).
+      + apply NoDup_singleton.
+      + by apply NoDup_nil.
     }
     destruct (decide (idx = i)); simplify_map_eq.
     - rewrite insert_insert_eq.
       rewrite map_to_list_insert; auto; cbn.
       rewrite map_to_list_insert in Hnodup; auto; cbn in Hnodup.
       rewrite map_to_list_insert in Hk; auto; cbn in Hk.
-      apply NoDup_cons in Hnodup as [_ Hnodup].
-      apply not_elem_of_cons in Hk as [_ Hk].
-      apply NoDup_cons; split; auto.
+      destruct x as [kx wx]; cbn in *.
+      destruct (decide (kx ≠ EMPTY_SLOT)); simplify_eq; auto.
+      + apply NoDup_cons in Hnodup as [_ Hnodup].
+        apply not_elem_of_cons in Hk as [_ Hk].
+        destruct (decide (k ≠ EMPTY_SLOT)); simplify_eq; auto.
+        apply NoDup_cons; split; auto.
+      + destruct (decide (k ≠ EMPTY_SLOT)); simplify_eq; auto.
+        apply NoDup_cons; split; auto.
     - rewrite insert_insert_ne; last done.
       rewrite map_to_list_insert in Hnodup; last done.
       rewrite map_to_list_insert in Hk; last done.
       rewrite map_to_list_insert; last by simplify_map_eq.
-      destruct x as [kX vX]; cbn in *.
+      destruct x as [kx wx]; cbn in *.
+      destruct (decide (kx ≠ EMPTY_SLOT)); simplify_eq; auto.
+      apply NoDup_cons in Hnodup as [Hkx Hnodup].
       apply not_elem_of_cons in Hk as [Hk_ne Hk].
-      apply NoDup_cons in Hnodup as [HkX Hnodup].
-      apply NoDup_cons; split.
-      + rewrite -/(kvs_keys (<[idx:=(k, w)]> m)).
-        rewrite -/(kvs_keys m) in HkX.
-        intro Hcontra; apply HkX.
-        apply elem_of_kvs_keys in Hcontra as (idx0 & w0 & H0).
-        apply elem_of_kvs_keys.
-        destruct (decide (idx = idx0)); simplify_map_eq; eauto.
-      + eapply IHm; eauto.
+      apply NoDup_cons; split; auto.
+      rewrite -/(kvs_keys (<[idx:=(k, w)]> m)).
+      rewrite -/(kvs_keys m) in Hkx.
+      intro Hcontra; apply Hkx.
+      apply elem_of_kvs_keys in Hcontra as (_ & idx0 & w0 & H0).
+      apply elem_of_kvs_keys; split ; auto.
+      destruct (decide (idx = idx0)); simplify_map_eq; eauto.
   Qed.
 
   Lemma wf_kvs_map_insert (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
@@ -271,21 +286,27 @@ Section KVS_preamble.
     - apply elem_of_union in Hk; destruct Hk as [Hk | Hk].
       + apply elem_of_singleton in Hk ; simplify_eq.
         eapply elem_of_kvs_keys.
-        by exists idx, w; simplify_map_eq.
+        split.
+        * by apply kvs_full_key_not_empty.
+        * by exists idx, w; simplify_map_eq.
       + apply (Halloc Hwf_full_key') in Hk.
-        apply elem_of_kvs_keys in Hk as (idx' & v' & Hk).
+        apply elem_of_kvs_keys in Hk as (Hidx' & idx' & v' & Hk).
         eapply elem_of_kvs_keys.
-        destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
+        split.
         * by apply kvs_full_key_not_empty in Hwf_full_key'.
-        * by eexists idx', v'; simplify_map_eq.
+        * destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
+          by eexists idx', v'; simplify_map_eq.
     - apply elem_of_union.
-      apply elem_of_kvs_keys in Hk as (idx' & v' & Hk).
+      apply elem_of_kvs_keys in Hk as (Hidx' & idx' & v' & Hk).
       destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
       + left. apply elem_of_singleton.
         apply kvs_full_key_inj in H as [ -> -> ]; eauto.
       + right.
         apply Halloc; eauto.
-        by eapply elem_of_kvs_keys; eexists idx',_; simplify_map_eq.
+        eapply elem_of_kvs_keys.
+        split.
+        * by apply kvs_full_key_not_empty in Hwf_full_key'.
+        * by eexists idx',_; simplify_map_eq.
   Qed.
 
   Lemma wf_kvs_map_update (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
@@ -402,6 +423,7 @@ Section KVS_preamble.
   Lemma open_isKVS_kvs_frag_idx_diff
     (b : Addr) (m : kvs_map) (s : gset (Z*Z)) (idx idx' : nat) (k : Z) (w : Word):
     0 <= idx' < SIZE_MAP ->
+    k ≠ EMPTY_SLOT ->
     idx ≠ idx' ->
     isKVS b m s ∗
     k ⤇(KVS)[ idx ] w -∗
@@ -411,14 +433,14 @@ Section KVS_preamble.
       k ⤇(KVS)[ idx ] w ∗
       isKVS_entry b idx' (k', w').
   Proof.
-    iIntros (Hidx' Hidx_ne) "( (%Hwf_kvs & Hkvs_auth & Halloc & %Hwf_alloc & HKVS) & Hk)".
+    iIntros (Hidx' Hk_ne_empty Hidx_ne) "( (%Hwf_kvs & Hkvs_auth & Halloc & %Hwf_alloc & HKVS) & Hk)".
     iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hm_idx".
     pose proof (wf_kvs_is_Some _ _ Hwf_kvs Hidx') as [ [k' w'] Hm_idx' ].
-    pose proof (wf_kvs_neq _ _ _ _ _ _ _ Hwf_kvs Hidx_ne Hm_idx Hm_idx') as Hkk'.
+    pose proof (wf_kvs_neq _ _ _ _ _ _ _ Hk_ne_empty Hwf_kvs Hidx_ne Hm_idx Hm_idx') as Hkk'.
     iExists k',w'.
     rewrite -{2}(insert_id m idx' (k',w')); last done.
     iDestruct (big_sepM_insert_delete with "HKVS") as "[ [Hkb' Hkw'] HKVS]".
-    iFrame; eauto.
+    iFrame "∗%".
   Qed.
 
   Lemma open_isKVS_not_alloc
@@ -453,8 +475,10 @@ Section KVS_preamble.
     iDestruct (big_sepM_insert_delete with "HKVS") as "[Hkvs_entry HKVS]".
     iFrame "∗%".
     iPureIntro.
-    assert ( kidx ∈ kvs_keys m ) as Hkidx by (apply elem_of_kvs_keys; eauto).
-    set_solver.
+    destruct (decide (kidx = EMPTY_SLOT)); simplify_eq.
+    - symmetry; apply kvs_full_key_not_empty; done.
+    - assert ( kidx ∈ kvs_keys m ) as Hkidx by (apply elem_of_kvs_keys; split; eauto).
+      set_solver.
   Qed.
 
   Lemma open_isKVS
@@ -500,15 +524,15 @@ Section KVS_preamble.
     specialize (Halloc (ku, kn)); cbn in *.
     split; intros Hk.
     - apply Halloc in Hk; auto.
-      apply elem_of_kvs_keys in Hk as (idx' & v' & Hk).
+      apply elem_of_kvs_keys in Hk as (Hidx' & idx' & v' & Hk).
       destruct (decide (idx = idx')); simplify_eq; cbn in *.
-      + by eapply elem_of_kvs_keys; eexists idx',_; simplify_map_eq.
-      + by eapply elem_of_kvs_keys; eexists idx',_; simplify_map_eq.
+      + by eapply elem_of_kvs_keys; split; eauto; eexists idx',_; simplify_map_eq.
+      + by eapply elem_of_kvs_keys; split; eauto; eexists idx',_; simplify_map_eq.
     - apply Halloc; auto.
-      apply elem_of_kvs_keys in Hk as (idx' & v' & Hk).
+      apply elem_of_kvs_keys in Hk as (Hidx' & idx' & v' & Hk).
       destruct (decide (idx = idx')); simplify_eq; cbn in *.
-      + by eapply elem_of_kvs_keys; eexists idx',_; simplify_map_eq.
-      + by eapply elem_of_kvs_keys; eexists idx',_; simplify_map_eq.
+      + by eapply elem_of_kvs_keys; split; eauto; eexists idx',_; simplify_map_eq.
+      + by eapply elem_of_kvs_keys; split; eauto; eexists idx',_; simplify_map_eq.
   Qed.
 
   Lemma isKVS_open_update (a : Addr) (m : kvs_map) (s : gset (Z*Z)) (idx : nat) (k : Z) (w w' : Word) :
