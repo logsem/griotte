@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel rules.
-From cap_machine Require Import switcher kvs kvs_preamble.
+From cap_machine Require Import
+  switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
 From cap_machine Require Import proofmode.
 
 Section KVS_spec_addOrUpdate.
@@ -30,6 +31,7 @@ Section KVS_spec_addOrUpdate.
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
     (0 <= user_key < top)%Z ->
+    is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_b' ->
@@ -76,7 +78,7 @@ Section KVS_spec_addOrUpdate.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     intros imports fkey.
-    iIntros (HsubBounds Hbounds_user_key Hcgp_contiguous Himports_contiguous HcanStore_wca2)
+    iIntros (HsubBounds Hbounds_user_key His_uint16_nkey Hcgp_contiguous Himports_contiguous HcanStore_wca2)
       "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
         Himports & Hcode & Hcgp_b & HKVS & [%fkey_w Hkvs_frag] & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -88,19 +90,33 @@ Section KVS_spec_addOrUpdate.
     rewrite -/(kvs_getFullKey ca0 ca0 ca1 ct1).
     rewrite -/(kvs_search ca0 ct1 ct2).
     rewrite -/(kvs_search ctp ct1 ct2).
+    rewrite -/(kvs_check_uint16 ca0 ct1).
 
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (KVS_check_uint16_spec_known with "[- $HPC $Hca1 $Hct1 $Hcode]"); eauto;iNext.
+    iIntros "(HPC & Hca1 & Hcode & Hct1)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 1 "Hcode" as a_check_uint Ha_check_uint "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* jnz (".addOrUpdate_not_uint16")%asm ct1; *)
+    iInstr "Hcode".
+    (* jmp (".addOrUpdate_uint16_check_pass")%asm; *)
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 2 "Hcode" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcont" as hcont
+    ; clear dependent Ha_check_uint.
     iApply (KVS_getFullKey_spec with "[- $HPC $Hcgp $Hca0 $Hca1 $Hct1 $Hcgp_b $Hcode]"); eauto; [|iNext].
     { rewrite /withinBounds; solve_addr. }
     iIntros "(HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    focus_block 1 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)%a); [solve_addr|done]. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    focus_block 2 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
+    focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
     iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
@@ -111,7 +127,7 @@ Section KVS_spec_addOrUpdate.
     iEval (cbn) in "Hfkey".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    focus_block 3 "Hcode" as a_addOrUpdate Ha_addOrUpdate "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
+    focus_block 5 "Hcode" as a_addOrUpdate Ha_addOrUpdate "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
     (* Sub ct1 ct1 (-1) *)
     iInstr "Hcode".
     (* Jnz 5 ct1 *)
@@ -168,6 +184,7 @@ Section KVS_spec_addOrUpdate.
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
     (0 <= user_key < top)%Z ->
+    is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_b' ->
@@ -237,7 +254,7 @@ Section KVS_spec_addOrUpdate.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     intros imports fkey.
-    iIntros (HsubBounds Hbounds_user_key Hcgp_contiguous Himports_contiguous HcanStore_wca2 Hs')
+    iIntros (HsubBounds Hbounds_user_key His_uint16_nkey Hcgp_contiguous Himports_contiguous HcanStore_wca2 Hs')
       "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & [%wctp Hctp] & Hct1 & Hct2 & [%wcnull Hcnull] &
         Himports & Hcode & Hcgp_b & HKVS & Halloc & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -251,24 +268,39 @@ Section KVS_spec_addOrUpdate.
     rewrite -/(kvs_search ctp ct1 ct2).
 
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (KVS_check_uint16_spec_known with "[- $HPC $Hca1 $Hct1 $Hcode]"); eauto;iNext.
+    iIntros "(HPC & Hca1 & Hcode & Hct1)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 1 "Hcode" as a_check_uint Ha_check_uint "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* jnz (".addOrUpdate_not_uint16")%asm ct1; *)
+    iInstr "Hcode".
+    (* jmp (".addOrUpdate_uint16_check_pass")%asm; *)
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 2 "Hcode" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcont" as hcont
+    ; clear dependent Ha_check_uint.
     iApply (KVS_getFullKey_spec with "[- $HPC $Hcgp $Hca0 $Hca1 $Hct1 $Hcgp_b $Hcode]"); eauto; [|iNext].
     { rewrite /withinBounds; solve_addr. }
     iIntros "(HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode)".
+    assert ( wf_kvs_full_key user_key nkey ) as Hwf_fullkey.
+    { split; auto; lia. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    focus_block 1 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)%a); [solve_addr|done]. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    focus_block 2 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
+    focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
     iApply (KVS_search_spec_notin with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Halloc $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Halloc & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    focus_block 3 "Hcode" as a_addOrUpdate Ha_addOrUpdate "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
+    focus_block 5 "Hcode" as a_addOrUpdate Ha_addOrUpdate "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
     (* Sub ct1 ct1 (-1) *)
     iInstr "Hcode".
     replace (-1 - -1)%Z with 0%Z by lia.
@@ -281,7 +313,7 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    focus_block 4 "Hcode" as a_search' Ha_search' "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_addOrUpdate.
+    focus_block 6 "Hcode" as a_search' Ha_search' "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_addOrUpdate.
     iApply (KVS_search_spec_empty_slot with "[- $HPC $Hcgp $Hctp $Hct1 $Hct2 $HKVS $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros
@@ -289,8 +321,8 @@ Section KVS_spec_addOrUpdate.
                | (HPC & Hcgp & Hctp & Hct1 & Hct2 & HKVS & Hcode)
                ]".
     all: subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-    all: focus_block 5 "Hcode" as a_add Ha_add "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search'.
 
+    all: focus_block 7 "Hcode" as a_add Ha_add "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search'.
     - (* an empty slot was found *)
       (* Sub ct1 ct1 (-1) *)
       iInstr "Hcode".
@@ -334,7 +366,6 @@ Section KVS_spec_addOrUpdate.
         destruct (decide (kvs_full_key user_key nkey = EMPTY_SLOT)); try done.
         exfalso.
         apply (kvs_full_key_not_empty user_key nkey); auto.
-        admit. (* wf_kvs_full_key user_key nkey -> we need to check the nkey + constraint 0 <= user_key *)
       }
 
       iApply "Hpost"; iLeft ; iFrame.
@@ -354,7 +385,7 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
 
       iApply "Hpost"; iRight ; iFrame.
-  Admitted.
+  Qed.
 
 
 End KVS_spec_addOrUpdate.
