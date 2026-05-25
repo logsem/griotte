@@ -42,6 +42,11 @@ Section KVS_Service.
       lor rdst rdst rkey
     ].
 
+  Definition kvs_getFullKey (rdst rsealkey rkey rscratch : RegName) :=
+    Eval compute in assemble (kvs_getFullKey_asm rdst rsealkey rkey rscratch).
+  Definition kvs_getFullKey_instrs (rdst rsealkey rkey rscratch : RegName) : list Word :=
+    encodeInstrsW (kvs_getFullKey rdst rsealkey rkey rscratch).
+
   (* TODO we could consider encoding option Z as:
      - [?]0 -> None
      - [z]1 -> Some z
@@ -112,6 +117,51 @@ Section KVS_Service.
   Definition kvs_search_asm (rkey ridx rscratch : RegName) :=
     Eval compute in resolve_labels_macros (kvs_search_asm_pre rkey ridx rscratch)
                       (kvs_search_asm_env rkey ridx rscratch).
+  Definition kvs_search (rkey ridx rscratch : RegName) :=
+    Eval compute in assemble (kvs_search_asm rkey ridx rscratch).
+  Definition kvs_search_instrs (rkey ridx rscratch : RegName) : list Word :=
+    encodeInstrsW (kvs_search rkey ridx rscratch).
+
+  Definition UINT16_MIN : Z := 0.
+  Definition UINT16_MAX : Z := 2 ^ 16.
+
+  (**  KVS uint16 check:
+       This macros checks whether the argument [rv] is a correct UINT16,
+       and in particular that UINT16_MIN <= [rv] < UINT16_MAX.
+       Arguments:
+       - [rv] contains the value that will be checked
+       - [rdst] -
+       Result:
+       - [rv]: not changed
+       - [rdst]: if is_uint16(rv) then ASM_TRUE else ASM_FALSE
+   *)
+  Definition kvs_check_uint16_asm_pre (rv rdst : RegName) : (list asm_code) :=
+    [
+      lt rdst (UINT16_MIN-1)%Z rv; (* rdst := if (UINT16_MIN <= rv) then 0 else 1 *)
+      jnz (".kvs_key_check_uint16_min")%asm rdst;
+      #".kvs_key_check_uint16_too_low";
+      mov rdst ASM_FALSE;
+      jmp (".kvs_key_ret")%asm;
+      #".kvs_key_check_uint16_min";
+      lt rdst rv UINT16_MAX; (* rdst := if (rv < UINT16_MAX) then 0 else 1 *)
+      jnz (".kvs_key_check_uint16_max")%asm rdst;
+      #".kvs_key_check_uint16_too_big";
+      mov rdst ASM_FALSE;
+      jmp (".kvs_key_ret")%asm;
+      #".kvs_key_check_uint16_max";
+      mov rdst ASM_TRUE;
+      #".kvs_key_ret"
+    ].
+  Definition kvs_check_uint16_asm_env (rv rdst : RegName) :=
+    Eval vm_compute in (compute_asm_code_env (kvs_check_uint16_asm_pre rv rdst)).2.
+  Definition kvs_check_uint16_asm (rv rdst : RegName) :=
+    Eval compute in resolve_labels_macros (kvs_check_uint16_asm_pre rv rdst)
+                      (kvs_check_uint16_asm_env rv rdst).
+  Definition kvs_check_uint16 (rv rdst : RegName) :=
+    Eval compute in assemble (kvs_check_uint16_asm rv rdst).
+  Definition kvs_check_uint16_instrs (rv rdst : RegName) : list Word :=
+    encodeInstrsW (kvs_check_uint16 rv rdst).
+
 
   (** AddOrUpdate.
       Arguments:
@@ -119,12 +169,23 @@ Section KVS_Service.
       - [ca1] contains the map key to insert/update
       - [ca2] contains the new value to insert
       Return values:
-      - [ca0] contains TRUE if value was inserted, and FALSE if no empty slot
+      - [ca0] contains TRUE if value was inserted, and FALSE if no empty slot or key not uint16
       - [ca1] contains 0
  *)
-  (* TODO we need to check that [ca1] is a uint16, ie 0 <= [ca1] < 2^16 *)
   Definition kvs_addOrUpdate_asm : list (list asm_code) :=
     [
+      (kvs_check_uint16_asm ca1 ct1) ;
+      [
+        jnz (".addOrUpdate_not_uint16")%asm ct1;
+        #".addOrUpdate_uint16";
+        jmp (".addOrUpdate_uint16_check_pass")%asm;
+        #".addOrUpdate_not_uint16";
+        mov ca0 ASM_FALSE;
+        mov ca1 0;
+        jalr cnull cra;
+        #".addOrUpdate_uint16_check_pass"
+      ]
+      ;
       (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
       (* ca0 contains the full key *)
       ;
@@ -169,6 +230,10 @@ Section KVS_Service.
         jalr cnull cra
       ]
     ].
+  Definition assembled_kvs_addOrUpdate' := Eval vm_compute in (assemble_block kvs_addOrUpdate_asm).
+  Definition assembled_kvs_addOrUpdate  := Eval cbv in (revert_regs_code_block assembled_kvs_addOrUpdate').
+  Definition kvs_addOrUpdate_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_addOrUpdate).
+
 
   (** Read.
       Arguments:
@@ -204,7 +269,9 @@ Section KVS_Service.
         jalr cnull cra
       ]
     ].
-
+  Definition assembled_kvs_read' := Eval vm_compute in (assemble_block kvs_read_asm).
+  Definition assembled_kvs_read  := Eval cbv in (revert_regs_code_block assembled_kvs_read').
+  Definition kvs_read_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_read).
 
   (** Erase.
       Arguments:
@@ -239,28 +306,10 @@ Section KVS_Service.
         jalr cnull cra
       ]
     ].
-
-  Definition kvs_getFullKey (rdst rsealkey rkey rscratch : RegName) :=
-    Eval compute in assemble (kvs_getFullKey_asm rdst rsealkey rkey rscratch).
-  Definition kvs_getFullKey_instrs (rdst rsealkey rkey rscratch : RegName) : list Word :=
-    encodeInstrsW (kvs_getFullKey rdst rsealkey rkey rscratch).
-
-  Definition kvs_search (rkey ridx rscratch : RegName) :=
-    Eval compute in assemble (kvs_search_asm rkey ridx rscratch).
-  Definition kvs_search_instrs (rkey ridx rscratch : RegName) : list Word :=
-    encodeInstrsW (kvs_search rkey ridx rscratch).
-
-  Definition assembled_kvs_addOrUpdate' := Eval vm_compute in (assemble_block kvs_addOrUpdate_asm).
-  Definition assembled_kvs_addOrUpdate  := Eval cbv in (revert_regs_code_block assembled_kvs_addOrUpdate').
-  Definition kvs_addOrUpdate_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_addOrUpdate).
-
-  Definition assembled_kvs_read' := Eval vm_compute in (assemble_block kvs_read_asm).
-  Definition assembled_kvs_read  := Eval cbv in (revert_regs_code_block assembled_kvs_read').
-  Definition kvs_read_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_read).
-
   Definition assembled_kvs_erase' := Eval vm_compute in (assemble_block kvs_erase_asm).
   Definition assembled_kvs_erase  := Eval cbv in (revert_regs_code_block assembled_kvs_erase').
   Definition kvs_erase_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_erase).
+
 
   Definition kvs_service_instrs : list Word :=
     kvs_addOrUpdate_instrs ++ kvs_read_instrs ++ kvs_erase_instrs.
@@ -368,8 +417,8 @@ Section KVS_Service.
     lia.
   Qed.
 
-  Definition wf_kvs_full_key (ku kn : Z) :=
-    (0 <= ku)%Z ∧ (0 <= kn < 2^16)%Z.
+  Definition is_uint16 ( z : Z ) : Prop := (UINT16_MIN <= z < UINT16_MAX)%Z.
+  Definition wf_kvs_full_key (ku kn : Z) : Prop := (0 <= ku)%Z ∧ is_uint16 kn.
 
   Lemma kvs_full_key_inj (uk1 nk1 uk2 nk2 : Z) :
     wf_kvs_full_key uk1 nk1 ->
@@ -378,6 +427,7 @@ Section KVS_Service.
   Proof.
     intros [Huk1 Hnk1] [Huk2 Hnk2] Heq.
     unfold kvs_full_key in Heq.
+    unfold is_uint16, UINT16_MIN, UINT16_MAX in Hnk1, Hnk2.
     split.
     - assert ( uk1 = (Z.lor (uk1 ≪ 16) nk1) ≫ 16)%Z as -> by bitblast.
       assert ( uk2 = (Z.lor (uk2 ≪ 16) nk2) ≫ 16)%Z as -> by bitblast.
@@ -403,6 +453,7 @@ Section KVS_Service.
     unfold EMPTY_SLOT.
     enough (0 <= kvs_full_key ku kn)%Z; first lia.
     unfold kvs_full_key.
+    unfold is_uint16, UINT16_MIN, UINT16_MAX in Hkn.
     apply Z.lor_nonneg; split; last lia.
     apply Z.shiftl_nonneg; lia.
   Qed.
