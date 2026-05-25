@@ -579,4 +579,15 @@ Section KVS_preamble.
     by iFrame "∗ %".
   Qed.
 
+  Definition kvs_inv `{KVS : kvsLayout} : iProp Σ :=
+    let imports :=
+      kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
+    in
+    ∃ (m : kvs_map) (s : gset (Z*Z)),
+      [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ imports ]] ∗
+      codefrag KVS_pcc_b' kvs_service_instrs ∗
+      KVS_cgp_b ↦ₐ kvs_service_unsealing_key ∗
+      isKVS (KVS_cgp_b ^+ 1)%a m s.
+
+
 End KVS_preamble.

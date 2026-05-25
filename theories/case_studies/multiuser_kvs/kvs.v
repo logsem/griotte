@@ -326,15 +326,14 @@ Section KVS_Service.
   Definition kvs_service_instrs : list Word :=
     kvs_addOrUpdate_instrs ++ kvs_read_instrs ++ kvs_erase_instrs.
 
-  Class kvsLayout : Type :=
-    mkCmptKvs {
-        KVS_OTYPE : OType;
-        KVS_OTYPE_size :
-        (KVS_OTYPE < KVS_OTYPE ^+ 1)%ot;
+  Definition kvs_imports
+    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
+    : list Word :=
+    [
+      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher
+    ].
 
-        b_kvs_exp_tbl : Addr;
-        e_kvs_exp_tbl : Addr
-      }.
+  Definition length_kvs_imports := length (kvs_imports za za za za_ot).
 
   Fixpoint repeat_list `{A : Type} (l : list A) (n : nat) : list A :=
     match n with
@@ -345,40 +344,62 @@ Section KVS_Service.
   Definition kvs_initial_map :=
     repeat_list [WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP.
 
-  Definition kvs_service_unsealing_key {KVS : kvsLayout} :=
+  Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
     WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
 
+  Definition kvs_data_pre (KVS_OTYPE : OType) : list Word :=
+    (kvs_service_unsealing_key_pre KVS_OTYPE) :: kvs_initial_map.
+
+  Definition length_kvs_data := length (kvs_data_pre za_ot).
+
+  Class kvsLayout : Type :=
+    mkCmptKvs {
+        KVS_OTYPE : OType;
+        KVS_OTYPE_size :
+        (KVS_OTYPE < KVS_OTYPE ^+ 1)%ot;
+
+        KVS_pcc_b : Addr;
+        KVS_pcc_b' : Addr;
+        KVS_pcc_e : Addr;
+        KVS_size_imports : (KVS_pcc_b + length_kvs_imports )%a = Some KVS_pcc_b';
+        KVS_size_code : (KVS_pcc_b' + length kvs_service_instrs)%a = Some KVS_pcc_e;
+
+        KVS_cgp_b : Addr;
+        KVS_cgp_e : Addr;
+        KVS_size_data : (KVS_cgp_b + length_kvs_data)%a = Some KVS_cgp_e;
+
+        b_kvs_exp_tbl : Addr;
+        e_kvs_exp_tbl : Addr
+      }.
+
+
+  Definition kvs_service_unsealing_key {KVS : kvsLayout} :=
+    WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
+  Definition kvs_data {KVS : kvsLayout} := kvs_data_pre KVS_OTYPE.
+
   Definition kvs_full_key (user_key nkey : Z) := Z.lor (user_key ≪ 16) nkey.
-
-  Definition kvs_data {KVS : kvsLayout} : list Word :=
-    kvs_service_unsealing_key :: kvs_initial_map.
-
-  Definition kvs_imports
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
-    : list Word :=
-    [
-      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher
-    ].
 
   Definition kvs_user_seal_key {KVS : kvsLayout} (z : Z) :=
     WSealed KVS_OTYPE (SCap (O LG LM) Global 0%a 0%a (0 ^+ z)%a).
 
-  Definition length_kvs_imports := length (kvs_imports za za za za_ot).
+  Definition kvs_addOrUpdate_offset := (length_kvs_imports).
+  Definition kvs_read_offset := (length_kvs_imports + length kvs_addOrUpdate_instrs).
+  Definition kvs_erase_offset := (length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_erase_instrs).
 
   Definition kvs_exp_tbl_entry_addOrUpdate :=
-    WInt (encode_entry_point 3 (length_kvs_imports)).
+    WInt (encode_entry_point 3 kvs_addOrUpdate_offset).
 
   Definition KVS_addOrUpdate {KVS : kvsLayout} : Sealable :=
     SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl (b_kvs_exp_tbl ^+2)%a.
 
   Definition kvs_exp_tbl_entry_read :=
-    WInt (encode_entry_point 2 (length_kvs_imports + length kvs_addOrUpdate_instrs)).
+    WInt (encode_entry_point 2 kvs_read_offset).
 
   Definition KVS_read {KVS : kvsLayout} : Sealable :=
     SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl (b_kvs_exp_tbl ^+3)%a.
 
   Definition kvs_exp_tbl_entry_erase :=
-    WInt (encode_entry_point 2 (length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_erase_instrs)).
+    WInt (encode_entry_point 2 kvs_erase_offset).
 
   Definition KVS_erase {KVS : kvsLayout} : Sealable :=
     SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl (b_kvs_exp_tbl ^+4)%a.
