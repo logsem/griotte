@@ -11,7 +11,6 @@ Definition entryR : cmra :=
   (agreeR (leibnizO nat)).
 
 Class entryGpreS Σ := EntryGpreS {
-  entryPreG_invPreG : invGpreS Σ;
   entryPreG_rel :: inG Σ entryR;
 }.
 
@@ -25,7 +24,6 @@ Definition entryPreΣ :=
 
 Instance subG_entryPreΣ {Σ} :
   subG entryPreΣ Σ →
-  invGpreS Σ →
   entryGpreS Σ.
 Proof. solve_inG. Qed.
 
