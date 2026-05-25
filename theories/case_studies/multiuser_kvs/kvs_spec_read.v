@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel rules.
-From cap_machine Require Import switcher kvs kvs_preamble.
+From cap_machine Require Import
+  switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search.
 From cap_machine Require Import proofmode.
 
 Section KVS_spec_read.
