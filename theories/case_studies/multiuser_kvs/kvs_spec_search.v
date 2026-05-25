@@ -25,6 +25,7 @@ Section KVS_search.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
     ((cgp_b + (1 + 2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
+    fkey ≠ EMPTY_SLOT ->
 
     rscratch ≠ cnull ->
     ridx ≠ cnull ->
@@ -63,7 +64,7 @@ Section KVS_search.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx Hkey)
+    iIntros (HsubBounds Hbounds_cgp Hcgp_bound Hfkey_ne_empty Hrscratch Hridx Hkey)
       "(HPC & Hcgp & Hrkey & [%widx Hridx] & Hrscratch & HKVS & Hkvs_frag & Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
@@ -124,9 +125,8 @@ Section KVS_search.
       iPureIntro; rewrite /withinBounds; solve_addr.
 
     - iDestruct (open_isKVS_kvs_frag_idx_diff _ _ _ _ (Z.to_nat n) with "[$HKVS $Hkvs_frag]")
-        as "(%k' & %w' & %Hkk' & %Hm_idx' & HKVS  & Hkvs_frag & (Hbk & Hbw & Hfkey))".
-      { lia. }
-      { lia. }
+        as "(%k' & %w' & %Hkk' & %Hm_idx' & HKVS  & Hkvs_frag & (Hbk & Hbw & Hfkey))"
+      ; auto; try lia.
       replace ((cgp_b ^+ 1) ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (1 + 2 * n))%a by solve_addr+Hn.
       replace ((cgp_b ^+ 1) ^+ (2 * Z.to_nat n + 1))%a with (cgp_b ^+ (2 + 2 * n))%a by solve_addr+Hn.
       (* load rscratch cgp; *)
