@@ -28,6 +28,7 @@ Section KVS_Main.
   Definition ADV_F_OFFSET := 2.
   Definition KVS_INSERT_OFFSET := 3.
   Definition KVS_READ_OFFSET := 4.
+  Definition KVS_ERASE_OFFSET := 5.
 
   Definition SEALED_USER_KEY_OFFSET := 0.
 
@@ -35,7 +36,7 @@ Section KVS_Main.
     encodeInstrsW [
       (* #"main_code"; *)
 
-      (* addOrUpdate(sealedUserKey, 1, 12)*)
+      (* addOrUpdate(sealedUserKey, 1, 12) *)
       Lea cgp SEALED_USER_KEY_OFFSET; (* TODO remove *)
       Load ca0 cgp;
       Mov ca1 1;
@@ -45,7 +46,15 @@ Section KVS_Main.
     ++ fetch_instrs KVS_INSERT_OFFSET ct1 ct0 cs0    (* ct1 -> {KVS.addOrUpdate}_(ot_switcher)  *)
     ++ encodeInstrsW [ Jalr cra ctp ]
     (* adv.f() *)
-    ++ encodeInstrsW [ Mov ca0 0; Mov ca1 0 ]
+    ++ encodeInstrsW [
+      (* check if inserted *)
+      Jnz 2 ca0;  (* ca0 = 0 if inserted. So, jumps if no empty slot *)
+      (* case INSERT_PASS *)
+      Jmp 2;
+      (* case INSERT_FAIL *)
+      Halt;
+      Mov ca0 0;
+      Mov ca1 0 ]
     ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
     ++ fetch_instrs ADV_F_OFFSET ct1 ct0 cs0         (* ct1 -> {adv.f}_(ot_switcher)  *)
     ++ encodeInstrsW [ Jalr cra ctp ]
@@ -61,13 +70,15 @@ Section KVS_Main.
     ++ encodeInstrsW [ Jalr cra ctp ]
     (* assert (ret == 12) *)
     ++ encodeInstrsW [
-      Mov ct0 ca0;
+      Mov ct0 ca1;
       Mov ct1 12
     ]
     ++ assert_instrs ASSERT_OFFSET ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
+    ++ encodeInstrsW [ Halt ]
   .
 
-  Definition kvs_main_data {KVS : kvsLayout} : list Word := [kvs_user_seal_key 0].
+  Definition KVS_USER_KEY_MAIN : Z := 0.
+  Definition kvs_main_data {KVS : kvsLayout} : list Word := [kvs_user_seal_key KVS_USER_KEY_MAIN].
 
   Definition kvs_main_imports {KVS : kvsLayout}
     (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
