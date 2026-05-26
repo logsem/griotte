@@ -404,7 +404,7 @@ Section KVS_spec_addOrUpdate_safe.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
       as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
     iApply (KVS_addOrupdate_spec_safe_pre _ _ _ _ _ _ _ _ wca0 with "[- $HPC]"); last iFrame "∗#"; eauto.
-    { pose proof Nkvs_namespaces_disjoint; solve_ndisj. }
+    { pose proof Nkvs_namespaces_disjoint as (?&?&?); solve_ndisj. }
 
     iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
               & Hcnull & Hcode & Hcgp_b & HKVS)".
