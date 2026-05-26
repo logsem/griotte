@@ -276,7 +276,7 @@ Section KVS_spec_read_safe.
     assert (a_read = kvs_read_pcc_addr)
       as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
     iApply (KVS_read_spec_safe_pre with "[- $HPC]"); last iFrame "∗#"; eauto.
-    { pose proof Nkvs_namespaces_disjoint; solve_ndisj. }
+    { pose proof Nkvs_namespaces_disjoint as (?&?&?); solve_ndisj. }
     iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hct1 & Hct2 & Hcnull
      & Hcode & Hcgp_b & HKVS & Hres)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
