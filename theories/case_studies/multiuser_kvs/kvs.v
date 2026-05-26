@@ -385,8 +385,8 @@ Section KVS_Service.
     WInt (encode_entry_point kvs_addOrUpdate_nargs kvs_addOrUpdate_pcc_off).
   Definition kvs_addOrUpdate_exp_tbl_off : nat := 2.
   Definition kvs_addOrUpdate_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_addOrUpdate_exp_tbl_off)%a.
-  Definition KVS_addOrUpdate {KVS : kvsLayout} : Sealable :=
-    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr.
+  Definition KVS_addOrUpdate {KVS : kvsLayout} (g : Locality) : Sealable :=
+    SCap RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr.
 
   (* Meta information about read entry point *)
   Definition kvs_read_nargs : nat := 2.
@@ -396,8 +396,8 @@ Section KVS_Service.
     WInt (encode_entry_point kvs_read_nargs kvs_read_pcc_off).
   Definition kvs_read_exp_tbl_off : nat := 3.
   Definition kvs_read_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_read_exp_tbl_off)%a.
-  Definition KVS_read {KVS : kvsLayout} : Sealable :=
-    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr%a.
+  Definition KVS_read {KVS : kvsLayout} (g : Locality) : Sealable :=
+    SCap RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr%a.
 
   (* Meta information about erase entry point *)
   Definition kvs_erase_nargs : nat := 2.
@@ -407,8 +407,8 @@ Section KVS_Service.
     WInt (encode_entry_point kvs_erase_nargs kvs_erase_pcc_off).
   Definition kvs_erase_exp_tbl_off : nat := 4.
   Definition kvs_erase_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_erase_exp_tbl_off)%a.
-  Definition KVS_erase {KVS : kvsLayout} : Sealable :=
-    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr%a.
+  Definition KVS_erase {KVS : kvsLayout} (g : Locality) : Sealable :=
+    SCap RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr%a.
 
   (* Export table of KVS service *)
   Definition kvs_export_table_entries : list Word :=
