@@ -42,7 +42,7 @@ Section KVS_spec_addOrUpdate_safe.
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ interp W C wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ wca1 ∗ (* Key to update *)
-      ca2 ↦ᵣ wca2 ∗ (* New value *)
+      ca2 ↦ᵣ wca2 ∗ interp W C wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -85,7 +85,7 @@ Section KVS_spec_addOrUpdate_safe.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     iIntros (HN HsubBounds Hcgp_contiguous)
-      "(Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_wca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
+      "(Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_wca0 & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
         Hcode & Hcgp_b & HKVS & Hspred & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
@@ -150,7 +150,9 @@ Section KVS_spec_addOrUpdate_safe.
 
     destruct ( decide ( (user_key, nkey) ∈ s' ) ) as [Hfkey_in_s|Hfkey_notin_s].
     (* The key has already been allocated *)
-    - iDestruct (big_sepS_elem_of_acc with "Hkvs_frags") as "[ [%w [%idx Hkvs_frag]] Hkvs_frags]"; eauto; iEval (cbn) in "Hkvs_frag".
+    - iDestruct (big_sepS_elem_of_acc with "Hkvs_frags")
+        as "[ [%w [ [%idx Hkvs_frag] Hinterp_w] ] Hkvs_frags]"
+      ; eauto; iEval (cbn) in "Hkvs_frag".
       iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
       { rewrite /withinBounds; solve_addr. }
       { apply kvs_full_key_not_empty; auto. }
@@ -208,6 +210,10 @@ Section KVS_spec_addOrUpdate_safe.
       }
 
       iDestruct ("Hkvs_frags" with "[$Hkvs_frag]") as "Hkvs_frags".
+      { iIntros (W' Hpriv_W_W').
+        iApply monotone.interp_monotone_nl; eauto.
+        destruct_word wca2; cbn; [done| | | | destruct sb]; destruct g; done.
+      }
       iMod ("HP_close" with "[$Hna $Halloc $Hkvs_frags]") as "Hna"; eauto.
       {
         iNext; iPureIntro; exists a; split; auto.
@@ -302,7 +308,11 @@ Section KVS_spec_addOrUpdate_safe.
       }
 
       iDestruct ( big_sepS_insert with "[$Hkvs_frags Hfkey]") as "Hkvs_frags";eauto.
-      { iExists _,_; eauto. }
+      { iExists wca2; iFrame.
+        iIntros (W' Hpriv_W_W').
+        iApply monotone.interp_monotone_nl; eauto.
+        destruct_word wca2; cbn; [done| | | | destruct sb]; destruct g; done.
+      }
       iMod ("HP_close" with "[$Hna $Halloc $Hkvs_frags]") as "Hna"; eauto.
       {
         iNext; iPureIntro; exists a; (repeat split); auto.
@@ -336,7 +346,6 @@ Section KVS_spec_addOrUpdate_safe.
 
       iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b".
       iRight; iRight; iFrame.
-
   Qed.
 
   Lemma KVS_addOrupdate_spec_safe
@@ -357,7 +366,7 @@ Section KVS_spec_addOrUpdate_safe.
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ wca0 ∗ interp W C wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ wca1 ∗ (* Key to update *)
-      ca2 ↦ᵣ wca2 ∗ (* New value *)
+      ca2 ↦ᵣ wca2 ∗ interp W C wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -379,8 +388,8 @@ Section KVS_spec_addOrUpdate_safe.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     iIntros (Hnkvs_E Hnkvs_otype_E)
-      "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_ca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
-      & Hpost)".
+      "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_ca0
+      & Hca1 & Hca2 & Hinterp_ca2 & Hctp & Hct1 & Hct2 & Hcnull & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
       as "( (%m & %s & >Himports & >Hcode & >Hcgp_b & HisKVS & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
@@ -394,7 +403,7 @@ Section KVS_spec_addOrUpdate_safe.
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
       as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
-    iApply (KVS_addOrupdate_spec_safe_pre with "[- $HPC]"); last iFrame "∗#"; eauto.
+    iApply (KVS_addOrupdate_spec_safe_pre _ _ _ _ _ _ _ _ wca0 with "[- $HPC]"); last iFrame "∗#"; eauto.
     { pose proof Nkvs_namespaces_disjoint; solve_ndisj. }
 
     iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
@@ -483,9 +492,9 @@ Section KVS_spec_addOrUpdate_safe.
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq.
 
     iAssert (interp W0 C wca0) as "#Hinterp_wca0".
-    { iApply "Hinterp_rmap"; eauto.
-      by rewrite /kvs_addOrUpdate_nargs.
-    }
+    { iApply "Hinterp_rmap"; eauto; by rewrite /kvs_addOrUpdate_nargs. }
+    iAssert (interp W0 C wca2) as "#Hinterp_wca2".
+    { iApply "Hinterp_rmap"; eauto; by rewrite /kvs_addOrUpdate_nargs. }
 
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
