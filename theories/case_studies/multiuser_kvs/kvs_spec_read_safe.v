@@ -295,14 +295,14 @@ Section KVS_spec_read_safe.
     (W : WORLD)
     (C : CmptName)
 
-    (KVSN Nswitcher : namespace)
+    (Nswitcher : namespace)
     :
 
     na_inv logrel_nais Nkvs kvs_inv ∗
     na_inv logrel_nais Nswitcher switcher_inv ∗
-    inv (export_table_PCCN KVSN) (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
-    inv (export_table_CGPN KVSN) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
-    inv (export_table_entryN KVSN kvs_read_exp_tbl_addr)
+    inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
+    inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
+    inv (export_table_entryN Nkvs_exp_tbl kvs_read_exp_tbl_addr)
         (kvs_read_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_read) ∗
     WSealed ot_switcher (SCap RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr) ↦□ₑ kvs_read_nargs
     -∗
@@ -317,7 +317,7 @@ Section KVS_spec_read_safe.
       )".
 
     iExists g_kvs_exp_tbl, b_kvs_exp_tbl, e_kvs_exp_tbl, kvs_read_exp_tbl_addr,
-    KVS_pcc_b, KVS_pcc_e, KVS_cgp_b, KVS_cgp_e, kvs_read_nargs, _, KVSN.
+    KVS_pcc_b, KVS_pcc_e, KVS_cgp_b, KVS_cgp_e, kvs_read_nargs, _, Nkvs_exp_tbl.
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
     iFrame "#".
