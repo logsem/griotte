@@ -466,7 +466,7 @@ Section Switcher_KtK_Call.
     pc_b pc_e pc_a
     wct2 o
     btbl_tgt etbl_tgt atbl_tgt
-    Cname_tgt nargs off_tgt :
+    Nexp_tbl nargs off_tgt :
     let switcher_instrs_7 := (switcher_instrs_n 7) in
     let len_switcher_7 := length switcher_instrs_7 in
     let wct1 := WSealed o (SCap RO Global btbl_tgt etbl_tgt atbl_tgt) in
@@ -475,7 +475,7 @@ Section Switcher_KtK_Call.
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     0 ≤ nargs ≤ 7 ->
 
-    inv (export_table_entryN Cname_tgt atbl_tgt)
+    inv (export_table_entryN Nexp_tbl atbl_tgt)
       (atbl_tgt ↦ₐ WInt (encode_entry_point nargs off_tgt)) ∗
     PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ WSealRange (true, true) Global o (o ^+ 1)%ot o ∗
@@ -527,7 +527,7 @@ Section Switcher_KtK_Call.
     wcs1 wcgp wcra
     btbl_tgt etbl_tgt atbl_tgt
     (bpcc_tgt epcc_tgt : Addr) wcgp_tgt
-    Cname_tgt nargs off_tgt :
+    Nexp_tbl nargs off_tgt :
     let switcher_instrs_8 := (switcher_instrs_n 8) in
     let len_switcher_8 := length switcher_instrs_8 in
     let wct1 := WCap RO Global btbl_tgt etbl_tgt atbl_tgt in
@@ -535,8 +535,8 @@ Section Switcher_KtK_Call.
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt ^+ 1 < atbl_tgt)%a ->
 
-    inv (export_table_PCCN Cname_tgt) (btbl_tgt ↦ₐ WCap RX Global bpcc_tgt epcc_tgt bpcc_tgt) ∗
-    inv (export_table_CGPN Cname_tgt) ((btbl_tgt ^+ 1)%a ↦ₐ wcgp_tgt) ∗
+    inv (export_table_PCCN Nexp_tbl) (btbl_tgt ↦ₐ WCap RX Global bpcc_tgt epcc_tgt bpcc_tgt) ∗
+    inv (export_table_CGPN Nexp_tbl) ((btbl_tgt ^+ 1)%a ↦ₐ wcgp_tgt) ∗
     PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ WInt off_tgt ∗
     cs1 ↦ᵣ wcs1 ∗
@@ -624,14 +624,13 @@ Section Switcher_KtK_Call.
     (nargs : nat)
     (E : coPset)
 
-    (Ctgt : CmptName)
+    (Nexp_tbl : namespace)
     (btbl_tgt atbl_tgt etbl_tgt : Addr)
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
     (off_tgt : Z)
 
     :
-    let Cname := (nroot.@Ctgt) in
     let a_stk4 := (a_stk ^+ 4)%a in
     let wct1_caller := WSealed ot_switcher (SCap RO Global btbl_tgt etbl_tgt atbl_tgt) in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
@@ -664,9 +663,9 @@ Section Switcher_KtK_Call.
     na_inv logrel_nais Nswitcher switcher_inv
 
     (* Entry Point Invariant *)
-    ∗ inv (export_table_PCCN Cname)             ( btbl_tgt ↦ₐ WCap RX Global bpcc_tgt epcc_tgt bpcc_tgt)
-    ∗ inv (export_table_CGPN Cname)             ( (btbl_tgt ^+ 1)%a ↦ₐ WCap RW Global bcgp_tgt ecgp_tgt bcgp_tgt)
-    ∗ inv (export_table_entryN Cname atbl_tgt) ( atbl_tgt ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off_tgt))
+    ∗ inv (export_table_PCCN Nexp_tbl)             ( btbl_tgt ↦ₐ WCap RX Global bpcc_tgt epcc_tgt bpcc_tgt)
+    ∗ inv (export_table_CGPN Nexp_tbl)             ( (btbl_tgt ^+ 1)%a ↦ₐ WCap RW Global bcgp_tgt ecgp_tgt bcgp_tgt)
+    ∗ inv (export_table_entryN Nexp_tbl atbl_tgt) ( atbl_tgt ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off_tgt))
 
 
     (* PRE-CONDITION *)
@@ -723,7 +722,7 @@ Section Switcher_KtK_Call.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
-    intros Cname0 astk4 wct1_caller callee_stk_region frame.
+    intros astk4 wct1_caller callee_stk_region frame.
     iIntros (HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hdom Harg_rmap)
       "(#Hswitcher & Hinv_exp_tbl_pcc & Hinv_exp_tbl_cgp & Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
