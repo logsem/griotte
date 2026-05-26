@@ -608,7 +608,8 @@ Section KVS_preamble.
       (* KVS resources *)
       (⌜ ∀ k, k ∈ s → k.1 = ku ⌝) ∗
       ◯(ALLOC)[ku] s ∗
-      ([∗ set] k ∈ s, (kvs_full_key k.1 k.2) ⤇(KVS) - ).
+      ([∗ set] k ∈ s, ∃ w, (kvs_full_key k.1 k.2) ⤇(KVS) w
+                           ∗ (∀ W', ⌜related_sts_priv_world W W'⌝ -∗ interp W' C w ) ).
 
   Program Definition kvs_otype_prop
     {KVS_layout : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
