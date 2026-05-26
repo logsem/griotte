@@ -7,15 +7,18 @@ From cap_machine Require Import proofmode.
 Section KVS_spec_read.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {kvsg:kvsG Σ}
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
+    {KVS_layout : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
   .
 
-  Lemma KVS_read_spec_in_pre `{KVS : kvsLayout}
+  Lemma KVS_read_spec_in_pre
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret : Word)
@@ -141,13 +144,12 @@ Section KVS_spec_read.
     iApply "Hpost"; iFrame.
   Qed.
 
-  Lemma KVS_read_spec_in `{KVS : kvsLayout}
+  Lemma KVS_read_spec_in
     (wret wca2 : Word)
     (user_key nkey : Z) (w : Word)
     (E : coPset) (Nkvs : namespace)
     :
     let fkey := (kvs_full_key user_key nkey) in
-    let pc_a := (KVS_pcc_b ^+ kvs_read_offset)%a in
 
     ↑Nkvs ⊆ E ->
 
@@ -158,7 +160,7 @@ Section KVS_spec_read.
       na_own logrel_nais E ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e pc_a ∗
+      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
       ca0 ↦ᵣ kvs_user_seal_key user_key ∗ (* Sealed User Key *)
@@ -183,27 +185,27 @@ Section KVS_spec_read.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
-    intros fkey pc_a.
+    intros fkey.
     iIntros (Hnkvs_E Hbounds_user_key His_uint16_nkey)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hcnull & Hfkey & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%m & %s & >Himports & >Hcode & >Hcgp_b & HKVS) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (%m & %s & >Himports & >Hcode & >Hcgp_b & HKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
-    assert (SubBounds KVS_pcc_b KVS_pcc_e pc_a (pc_a ^+ length kvs_read_instrs)%a) as HSubBounds.
-    { subst pc_a; cbn in *; solve_addr. }
+    assert (SubBounds KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr (kvs_read_pcc_addr ^+ length kvs_read_instrs)%a) as HSubBounds.
+    { rewrite /kvs_read_pcc_addr; cbn in *; solve_addr. }
     codefrag_facts "Hcode"; rename H into Hpc_contiguous.
 
     rewrite /kvs_service_instrs.
     focus_block_nochangePC 1 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    assert (a_read = pc_a) as -> by (subst pc_a ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
+    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
     iApply (KVS_read_spec_in_pre with "[- $HPC]"); last iFrame; eauto.
     iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2
               & Hcnull & Hcode & Hcgp_b & HKVS & Hfkey)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    iMod ("Hkvs_inv_close" with "[$Hna $Hcode $Hcgp_b $Himports $HKVS]") as "Hna" ; auto.
+    iMod ("Hkvs_inv_close" with "[$Hna $Hcode $Hcgp_b $Himports $HKVS $Hspred]") as "Hna" ; auto.
     iApply "Hpost"; iFrame.
   Qed.
 

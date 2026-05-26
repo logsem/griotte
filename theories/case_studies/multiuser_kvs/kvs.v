@@ -344,13 +344,16 @@ Section KVS_Service.
   Definition kvs_initial_map :=
     repeat_list [WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP.
 
-  Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
+  Local Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
     WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
 
-  Definition kvs_data_pre (KVS_OTYPE : OType) : list Word :=
+  Local Definition kvs_data_pre (KVS_OTYPE : OType) : list Word :=
     (kvs_service_unsealing_key_pre KVS_OTYPE) :: kvs_initial_map.
 
   Definition length_kvs_data := length (kvs_data_pre za_ot).
+
+  Definition kvs_nb_exports : Z := 3.
+  Definition length_kvs_exports_tbl : Z := 2 + kvs_nb_exports.
 
   Class kvsLayout : Type :=
     mkCmptKvs {
@@ -361,7 +364,7 @@ Section KVS_Service.
         KVS_pcc_b : Addr;
         KVS_pcc_b' : Addr;
         KVS_pcc_e : Addr;
-        KVS_size_imports : (KVS_pcc_b + length_kvs_imports )%a = Some KVS_pcc_b';
+        KVS_size_imports : (KVS_pcc_b + length_kvs_imports)%a = Some KVS_pcc_b';
         KVS_size_code : (KVS_pcc_b' + length kvs_service_instrs)%a = Some KVS_pcc_e;
 
         KVS_cgp_b : Addr;
@@ -369,8 +372,50 @@ Section KVS_Service.
         KVS_size_data : (KVS_cgp_b + length_kvs_data)%a = Some KVS_cgp_e;
 
         b_kvs_exp_tbl : Addr;
-        e_kvs_exp_tbl : Addr
+        e_kvs_exp_tbl : Addr;
+        kvs_exp_tbl_size : (b_kvs_exp_tbl <= b_kvs_exp_tbl ^+ length_kvs_exports_tbl < e_kvs_exp_tbl)%a
       }.
+
+
+  (* Meta information about addOrUpdate entry point *)
+  Definition kvs_addOrUpdate_nargs : nat := 3.
+  Definition kvs_addOrUpdate_pcc_off := (length_kvs_imports).
+  Definition kvs_addOrUpdate_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_addOrUpdate_pcc_off)%a.
+  Definition kvs_exp_tbl_entry_addOrUpdate :=
+    WInt (encode_entry_point kvs_addOrUpdate_nargs kvs_addOrUpdate_pcc_off).
+  Definition kvs_addOrUpdate_exp_tbl_off : nat := 2.
+  Definition kvs_addOrUpdate_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_addOrUpdate_exp_tbl_off)%a.
+  Definition KVS_addOrUpdate {KVS : kvsLayout} : Sealable :=
+    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr.
+
+  (* Meta information about read entry point *)
+  Definition kvs_read_nargs : nat := 2.
+  Definition kvs_read_pcc_off := (length_kvs_imports + length kvs_addOrUpdate_instrs).
+  Definition kvs_read_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_read_pcc_off)%a.
+  Definition kvs_exp_tbl_entry_read :=
+    WInt (encode_entry_point kvs_read_nargs kvs_read_pcc_off).
+  Definition kvs_read_exp_tbl_off : nat := 3.
+  Definition kvs_read_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_read_exp_tbl_off)%a.
+  Definition KVS_read {KVS : kvsLayout} : Sealable :=
+    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr%a.
+
+  (* Meta information about erase entry point *)
+  Definition kvs_erase_nargs : nat := 2.
+  Definition kvs_erase_pcc_off := (length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_erase_instrs).
+  Definition kvs_erase_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_erase_pcc_off)%a.
+  Definition kvs_exp_tbl_entry_erase :=
+    WInt (encode_entry_point kvs_erase_nargs kvs_erase_pcc_off).
+  Definition kvs_erase_exp_tbl_off : nat := 4.
+  Definition kvs_erase_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_erase_exp_tbl_off)%a.
+  Definition KVS_erase {KVS : kvsLayout} : Sealable :=
+    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr%a.
+
+  (* Export table of KVS service *)
+  Definition kvs_export_table_entries : list Word :=
+    [ kvs_exp_tbl_entry_addOrUpdate;
+      kvs_exp_tbl_entry_read;
+      kvs_exp_tbl_entry_erase
+    ].
 
 
   Definition kvs_service_unsealing_key {KVS : kvsLayout} :=
@@ -379,36 +424,13 @@ Section KVS_Service.
 
   Definition kvs_full_key (user_key nkey : Z) := Z.lor (user_key ≪ 16) nkey.
 
+  Definition kvs_user_seal_key_scap {KVS : kvsLayout} (z : Z) :=
+    (SCap (O LG LM) Global 0%a 0%a (0 ^+ z)%a).
+
   Definition kvs_user_seal_key {KVS : kvsLayout} (z : Z) :=
-    WSealed KVS_OTYPE (SCap (O LG LM) Global 0%a 0%a (0 ^+ z)%a).
+    WSealed KVS_OTYPE (kvs_user_seal_key_scap z).
 
-  Definition kvs_addOrUpdate_offset := (length_kvs_imports).
-  Definition kvs_read_offset := (length_kvs_imports + length kvs_addOrUpdate_instrs).
-  Definition kvs_erase_offset := (length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_erase_instrs).
 
-  Definition kvs_exp_tbl_entry_addOrUpdate :=
-    WInt (encode_entry_point 3 kvs_addOrUpdate_offset).
-
-  Definition KVS_addOrUpdate {KVS : kvsLayout} : Sealable :=
-    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl (b_kvs_exp_tbl ^+2)%a.
-
-  Definition kvs_exp_tbl_entry_read :=
-    WInt (encode_entry_point 2 kvs_read_offset).
-
-  Definition KVS_read {KVS : kvsLayout} : Sealable :=
-    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl (b_kvs_exp_tbl ^+3)%a.
-
-  Definition kvs_exp_tbl_entry_erase :=
-    WInt (encode_entry_point 2 kvs_erase_offset).
-
-  Definition KVS_erase {KVS : kvsLayout} : Sealable :=
-    SCap RO Global b_kvs_exp_tbl e_kvs_exp_tbl (b_kvs_exp_tbl ^+4)%a.
-
-  Definition kvs_export_table_entries : list Word :=
-    [ kvs_exp_tbl_entry_addOrUpdate;
-      kvs_exp_tbl_entry_read;
-      kvs_exp_tbl_entry_erase
-    ].
 
   Lemma shiftr_inj (a a' b : Z) :
     a = a' -> (a ≫ b)%Z = (a' ≫ b)%Z.

@@ -13,6 +13,14 @@ Class kvsG Σ :=
       kvs_genG :: gen_heapGS nat kvs_entry Σ;
     }.
 
+Class kvs_users {Cname : CmptNameG} :=
+  {
+    kvs_users_seals : gmap CmptName Z;
+    kvs_users_seals_dom : forall (C : CmptName), C ∈ dom kvs_users_seals;
+    kvs_users_seals_unique : NoDup (map_to_list kvs_users_seals).*2;
+    kvs_users_seals_bounds :
+    ∀ C ku, kvs_users_seals !! C = Some ku -> (0 <= ku < top)%Z
+  }.
 
 Definition allocated_keys_auth `{kvsG} ( s : gset (Z * Z) ) : iProp Σ. Admitted.
 Definition allocated_keys_frag `{kvsG} (ku : Z) ( s : gset (Z*Z) ) : iProp Σ. Admitted.
@@ -61,7 +69,9 @@ Notation "●(KVS) m" := (gen_heap_interp (m : kvs_map)) (at level 20) : bi_scop
 Section KVS_preamble.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
     {kvsg:kvsG Σ}
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
@@ -579,7 +589,42 @@ Section KVS_preamble.
     by iFrame "∗ %".
   Qed.
 
-  Definition kvs_inv `{KVS : kvsLayout} : iProp Σ :=
+  Class kvs_namespaces :=
+    {
+      Nkvs : namespace;
+      Nkvs_otype : namespace;
+      Nkvs_namespaces_disjoint : Nkvs ## Nkvs_otype
+    }.
+
+  Definition kvs_otype_inv
+    {KVS_layout : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    (W : WORLD) (C : CmptName) (w : Word) : iProp Σ :=
+    ∃ (ku : Z) (a : Addr) (s : gset (Z*Z)),
+      (* Shape of the capability*)
+      ⌜ w = WSealable (kvs_user_seal_key_scap a) ⌝ ∗
+      (* Current address is the user key of the compartment *)
+      ⌜ kvs_users_seals !! C = Some ku ⌝ ∗
+      ⌜ (finz.of_z ku) = Some a ⌝ ∗
+      (* KVS resources *)
+      (⌜ ∀ k, k ∈ s → k.1 = ku ⌝) ∗
+      ◯(ALLOC)[ku] s ∗
+      ([∗ set] k ∈ s, (kvs_full_key k.1 k.2) ⤇(KVS) - ).
+
+  Program Definition kvs_otype_prop
+    {KVS_layout : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
+    (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
+    λne (W : WORLD) (C : CmptName) (w : Word),
+      na_inv logrel_nais (Nkvs_otype.@C) (kvs_otype_inv W C w).
+  Next Obligation. solve_proper. Defined.
+  Next Obligation. solve_proper. Defined.
+  Next Obligation. solve_proper. Defined.
+
+  Definition kvs_otype_propC
+    {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
+    WORLD * CmptName * leibnizO Word -> iProp Σ :=
+    safeC kvs_otype_prop.
+
+  Definition kvs_inv {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} : iProp Σ :=
     let imports :=
       kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
     in
@@ -587,7 +632,7 @@ Section KVS_preamble.
       [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ imports ]] ∗
       codefrag KVS_pcc_b' kvs_service_instrs ∗
       KVS_cgp_b ↦ₐ kvs_service_unsealing_key ∗
-      isKVS (KVS_cgp_b ^+ 1)%a m s.
-
+      isKVS (KVS_cgp_b ^+ 1)%a m s ∗
+      seal_pred KVS_OTYPE kvs_otype_propC.
 
 End KVS_preamble.
