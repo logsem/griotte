@@ -435,7 +435,7 @@ Section KVS_spec_addOrUpdate.
 
     rewrite /kvs_service_instrs.
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    assert (pc_a = KVS_pcc_b') as -> by (subst pc_a ; solve_addr+HKVS_pcc_b').
+    assert (pc_a = KVS_pcc_b') as -> by (subst pc_a; rewrite /kvs_addOrUpdate_offset; solve_addr+HKVS_pcc_b').
     iApply (KVS_update_spec_pre with "[- $HPC]"); last iFrame; eauto.
     iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
               & Hcnull & HKVS & Hfkey & Hcode & Hcgp_b)".
@@ -521,7 +521,7 @@ Section KVS_spec_addOrUpdate.
 
     rewrite /kvs_service_instrs.
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    assert (pc_a = KVS_pcc_b') as -> by (subst pc_a ; solve_addr+HKVS_pcc_b').
+    assert (pc_a = KVS_pcc_b') as -> by (subst pc_a; rewrite /kvs_addOrUpdate_offset; solve_addr+HKVS_pcc_b').
     iApply (KVS_add_spec_pre with "[- $HPC]"); last iFrame; eauto.
     iNext; iIntros "(HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
               & Hcnull & Hcode & Hcgp_b &
