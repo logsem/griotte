@@ -77,9 +77,9 @@ Section KVS_Main.
       WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
       WSentry RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_f;
-      WSealed ot_switcher KVS_addOrUpdate;
-      WSealed ot_switcher KVS_read;
-      WSealed ot_switcher KVS_erase
+      WSealed ot_switcher (KVS_addOrUpdate Global);
+      WSealed ot_switcher (KVS_read Global);
+      WSealed ot_switcher (KVS_erase Global)
     ].
 
 End KVS_Main.
