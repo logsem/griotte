@@ -33,7 +33,6 @@ Section Switcher_KtK_Return.
     (stk_mem : list Word)
     (rmap : Reg)
     (cstk : CSTK)
-    (nargs : nat)
     (E : coPset)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
@@ -66,7 +65,7 @@ Section Switcher_KtK_Return.
     (* Callee-saved registers *)
     ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ WCap RWL Local a_stk4 e_stk a_stk4
     (* Return values *)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
@@ -92,6 +91,9 @@ Section Switcher_KtK_Return.
               ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller ∗ cs0 ↦ᵣ wcs0_caller ∗ cs1 ↦ᵣ wcs1_caller
               (* Stack register *)
               ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+              (* Return values *)
+              ∗ ca0 ↦ᵣ wca0
+              ∗ ca1 ↦ᵣ wca1
               (* All the other registers *)
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
 
