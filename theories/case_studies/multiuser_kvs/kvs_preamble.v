@@ -593,7 +593,9 @@ Section KVS_preamble.
     {
       Nkvs : namespace;
       Nkvs_otype : namespace;
-      Nkvs_namespaces_disjoint : Nkvs ## Nkvs_otype
+      Nkvs_exp_tbl : namespace;
+      Nkvs_namespaces_disjoint :
+      Nkvs ## Nkvs_otype ∧ Nkvs ## Nkvs_exp_tbl ∧ Nkvs_otype ## Nkvs_exp_tbl
     }.
 
   Definition kvs_otype_inv
