@@ -147,7 +147,7 @@ Section KVS_spec_read.
   Lemma KVS_read_spec_in
     (wret wca2 : Word)
     (user_key nkey : Z) (w : Word)
-    (E : coPset) (Nkvs : namespace)
+    (E : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
