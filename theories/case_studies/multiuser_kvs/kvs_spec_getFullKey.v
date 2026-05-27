@@ -173,7 +173,7 @@ Section KVS_getFullKey.
     rewrite /kvs_otype_propC /safeC /= /kvs_otype_prop //=.
     iDestruct "HP" as "#HP".
     iMod (na_inv_acc with "HP Hna")
-      as "( (%ku & %a & %s & >%Heq & >%Hku_C & >%Hku & >%Hku_s & Halloc & Hfkeys) & Hna & HP_close)"
+      as "( (%ku & %a & %s & >%Heq & >%Hku_C & >%Hku & Halloc & Hfkeys) & Hna & HP_close)"
     ; eauto; simplify_eq; first solve_ndisj.
 
     (* geta rdst rdst; *)

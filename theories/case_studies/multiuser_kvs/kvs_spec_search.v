@@ -19,7 +19,7 @@ Section KVS_search.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (rkey ridx rscratch : RegName)
-    (m : kvs_map) (s : gset (Z*Z)) (idx : nat) (fkey : Z) (w : Word)
+    (m : kvs_map) (s : kvs_alloc) (idx : nat) (fkey : Z) (w : Word)
     :
     let instrs := (kvs_search_instrs rkey ridx rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
@@ -165,14 +165,14 @@ Section KVS_search.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (rkey ridx rscratch : RegName)
-    (m : kvs_map) (s s' : gset (Z*Z)) (ku kn : Z)
+    (m : kvs_map) (s : kvs_alloc) (s' : gset Z) (ku kn : Z)
     :
     let instrs := (kvs_search_instrs rkey ridx rscratch) in
     let fkey := kvs_full_key ku kn in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
     ((cgp_b + (1 + 2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
-    (ku, kn) ∉ s' ->
+    kn ∉ s' ->
     wf_kvs_full_key ku kn ->
 
     rscratch ≠ cnull ->
@@ -292,7 +292,7 @@ Section KVS_search.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (rkey ridx rscratch : RegName)
-    (m : kvs_map) (s : gset (Z*Z))
+    (m : kvs_map) (s : kvs_alloc)
     :
     let instrs := (kvs_search_instrs rkey ridx rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->

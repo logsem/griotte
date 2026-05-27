@@ -26,7 +26,7 @@ Section KVS_spec_addOrUpdate_safe.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret wca0 wca1 wca2 : Word)
-    (m : kvs_map) (s : gset (Z*Z))
+    (m : kvs_map) (s : kvs_alloc)
     ( E : coPset )
     :
 
@@ -142,7 +142,7 @@ Section KVS_spec_addOrUpdate_safe.
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
     iMod (na_inv_acc with "Hinv_kvs_ot Hna")
-      as "( (%ku & %a & %s' & >%Heq & >%Hku_C & >%Hku & >%Hku_s' & Hot_res) & Hna & HP_close)"
+      as "( (%ku & %a & %s' & >%Heq & >%Hku_C & >%Hku & & Hot_res) & Hna & HP_close)"
     ; eauto; simplify_eq; first solve_ndisj.
     iDestruct (lc_fupd_elim_later with "[$] [$Hot_res]") as ">[Halloc Hkvs_frags]".
     pose proof (kvs_users_seals_bounds C user_key Huser_key_C) as Huser_key_bound.
