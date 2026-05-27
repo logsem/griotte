@@ -23,7 +23,7 @@ Section KVS_spec_read.
     (cgp_b cgp_e : Addr)
     (wret : Word)
     (user_key nkey : Z)
-    (m : kvs_map) (s : gset (Z*Z))
+    (m : kvs_map) (s : kvs_alloc)
     (w : Word)
     :
 

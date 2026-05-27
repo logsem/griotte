@@ -7,10 +7,13 @@ Definition kvs_entry : Type := (Z * Word).
 Definition kvs_dom : gset nat := set_seq 0 SIZE_MAP.
 Definition kvs_map : Type := gmap nat kvs_entry.
 
+Definition kvs_alloc : Type := gmap Z (gset Z).
+
 (* CMRA for KVS *)
 Class kvsG Σ :=
   KvsG {
       kvs_genG :: gen_heapGS nat kvs_entry Σ;
+      kvs_alloc_genG :: gen_heapGS Z (gset Z) Σ;
     }.
 
 Class kvs_users {Cname : CmptNameG} :=
@@ -22,30 +25,34 @@ Class kvs_users {Cname : CmptNameG} :=
     ∀ C ku, kvs_users_seals !! C = Some ku -> (0 <= ku < top)%Z
   }.
 
-Definition allocated_keys_auth `{kvsG} ( s : gset (Z * Z) ) : iProp Σ. Admitted.
-Definition allocated_keys_frag `{kvsG} (ku : Z) ( s : gset (Z*Z) ) : iProp Σ. Admitted.
+Definition allocated_keys_auth `{kvsG} ( m : kvs_alloc) : iProp Σ :=
+  (gen_heap_interp (L:=Z) (V:= gset Z) m).
+Definition allocated_keys_frag `{kvsG} (ku : Z) ( s : gset Z ) : iProp Σ :=
+  pointsto (L:=Z) (V:= gset Z) ku (DfracOwn 1) s.
 
 Notation "●(ALLOC) s" := (allocated_keys_auth s)%I (at level 20) : bi_scope.
 Notation "◯(ALLOC)[ k ] s" := (allocated_keys_frag k s)%I (at level 20) : bi_scope.
 
-Lemma allocated_keys_valid `{kvsG} (ku : Z) (s s' : gset (Z * Z)) :
-  ●(ALLOC) s -∗ ◯(ALLOC)[ ku ] s' -∗ ⌜ s' = filter (λ k, k.1 = ku) s ⌝.
+Lemma allocated_keys_valid `{kvsG} (ku : Z) (m : kvs_alloc) (s : gset Z) :
+  ●(ALLOC) m -∗ ◯(ALLOC)[ ku ] s -∗ ⌜ m !! ku = Some s  ⌝.
 Proof.
-Admitted.
+  iIntros "Hauth Hfrag".
+  by iDestruct (gen_heap_valid with "Hauth Hfrag") as "%Hvalid".
+Qed.
 
-Lemma allocated_keys_union `{kvsG} (ku : Z) (s s' s'' : gset (Z * Z)) :
-  (forall k, k ∈ s'' -> k.1 = ku) ->
-  ●(ALLOC) s -∗ ◯(ALLOC)[ku] s' ==∗ ●(ALLOC) (s'' ∪ s) ∗ ◯(ALLOC)[ku] (s'' ∪ s').
+Lemma allocated_keys_union `{kvsG} (ku : Z) ( m : kvs_alloc) (s' s'' : gset Z) :
+  ●(ALLOC) m -∗ ◯(ALLOC)[ku] s' ==∗ ●(ALLOC) (<[ ku := (s'' ∪ s') ]> m) ∗ ◯(ALLOC)[ku] (s'' ∪ s').
 Proof.
-Admitted.
+  iIntros "Hauth Hfrag".
+  by iMod (gen_heap_update m ku _ (s'' ∪ s') with "Hauth Hfrag") as "[$ $]".
+Qed.
 
-Lemma allocated_keys_insert `{kvsG} (ku : Z)  (kn : Z) (s s' : gset (Z * Z)) :
-  ●(ALLOC) s -∗ ◯(ALLOC)[ku] s' ==∗
-  ●(ALLOC) ( {[ (ku, kn) ]} ∪ s) ∗ ◯(ALLOC)[ku] ( {[ (ku, kn) ]} ∪ s').
+Lemma allocated_keys_insert `{kvsG} (ku : Z) (kn : Z) ( m : kvs_alloc) (s' : gset Z) :
+  ●(ALLOC) m -∗ ◯(ALLOC)[ku] s' ==∗
+  ●(ALLOC) (<[ ku := ({[kn]} ∪ s') ]> m) ∗ ◯(ALLOC)[ku] ( {[kn]} ∪ s').
 Proof.
   iIntros "Hs Hs'".
   iMod (allocated_keys_union with "Hs Hs'") as "[$ $]" ; last done.
-  intros k Hk. apply elem_of_singleton in Hk ; simplify_eq; done.
 Qed.
 
 Definition kvs_frag_idx_frac `{kvsG} (idx : nat) (k : Z) (w : Word) (q : dfrac) : iProp Σ :=
@@ -96,11 +103,50 @@ Section KVS_preamble.
     isKVS_entry_empty idx k
   .
 
-  Definition kvs_alloc_synced (m : kvs_map) (s : gset (Z * Z)) : Prop :=
-    ∀ k, wf_kvs_full_key k.1 k.2 -> (k ∈ s ↔ (kvs_full_key k.1 k.2) ∈ kvs_keys m).
+  Definition kvs_alloc_elem_of (s : kvs_alloc) (ku kn : Z) :=
+    (∃ sk, s !! ku = Some sk ∧ kn ∈ sk).
+
+  Local Lemma kvs_alloc_not_elem_of (s : kvs_alloc) (ku kn : Z) :
+    ¬ kvs_alloc_elem_of s ku kn ->
+    s !! ku = None ∨ ∃ sk, s !! ku = Some sk ∧ kn ∉ sk.
+  Proof.
+    rewrite /kvs_alloc_elem_of.
+    intros H.
+    destruct (s !! ku) eqn:H' ;[right|left]; auto.
+    exists g.
+    destruct (decide (kn ∈ g)); auto.
+    exfalso; apply H.
+    exists g; split; auto.
+  Qed.
+
+  Definition kvs_alloc_insert (s : kvs_alloc) (ku : Z) (ks : gset Z) :=
+   <[ku := ks ∪ (default ∅ (s !! ku)) ]> s.
+
+  Lemma kvs_alloc_insert_lookup_eq s ku ks sk :
+    kvs_alloc_insert s ku ks !! ku = Some sk ->
+    sk = ks ∪ default ∅ (s !! ku).
+  Proof.
+    intros H.
+    rewrite /kvs_alloc_insert in H; simplify_map_eq.
+    done.
+  Qed.
+
+  Lemma kvs_alloc_insert_lookup_ne s ku ku' ks sk :
+    ku ≠ ku' ->
+    kvs_alloc_insert s ku ks !! ku' = Some sk ->
+    s !! ku' = Some sk.
+  Proof.
+    intros Hk H.
+    rewrite /kvs_alloc_insert in H; simplify_map_eq.
+    done.
+  Qed.
+
+  Definition kvs_alloc_synced (m : kvs_map) (s : kvs_alloc) : Prop :=
+    ∀ k, wf_kvs_full_key k.1 k.2 ->
+         ( kvs_alloc_elem_of s k.1 k.2 ↔ (kvs_full_key k.1 k.2) ∈ kvs_keys m).
 
   Definition isKVS
-    (a : Addr) (m : kvs_map) (s : gset (Z * Z)) : iProp Σ :=
+    (a : Addr) (m : kvs_map) (s : kvs_alloc) : iProp Σ :=
     ⌜ wf_kvs_map m ⌝ ∗
     ●(KVS) m ∗
     ●(ALLOC) s ∗
@@ -108,7 +154,7 @@ Section KVS_preamble.
     [∗ map] idx ↦ kw ∈ m, isKVS_entry a idx kw.
 
   Definition isKVS_open
-    (a : Addr) (m : kvs_map) (s : gset (Z * Z)) (open_idx : nat) : iProp Σ :=
+    (a : Addr) (m : kvs_map) (s : kvs_alloc) (open_idx : nat) : iProp Σ :=
     ⌜ wf_kvs_map m ⌝ ∗
     ●(KVS) m ∗
     ●(ALLOC) s ∗
@@ -189,7 +235,6 @@ Section KVS_preamble.
   Lemma elem_of_kvs_keys (m : kvs_map) (k : Z) :
     k ∈ kvs_keys m ↔ (k ≠ EMPTY_SLOT ∧ ∃ idx w, m !! idx = Some (k, w)).
   Proof. split ; [apply elem_of_kvs_keys_1 | apply elem_of_kvs_keys_2]. Qed.
-
 
   Lemma NoDup_kvs_keys_update (m : kvs_map) (idx : nat) (k : Z) (w w' : Word) :
     m !! idx = Some (k, w) ->
@@ -279,44 +324,77 @@ Section KVS_preamble.
     - eapply NoDup_kvs_keys_insert; eauto.
   Qed.
 
-  Lemma kvs_alloc_synced_insert (m : kvs_map) ( s : gset (Z*Z) ) (idx : nat) (ku kn : Z) (w : Word) :
+  (* TODO surely there a better way to prove this *)
+  Lemma kvs_alloc_synced_insert (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn : Z) (w : Word) :
     let fkey := kvs_full_key ku kn in
     wf_kvs_full_key ku kn ->
     m !! idx = Some (EMPTY_SLOT, WInt DEFAULT_VAL) ->
     fkey ∉ kvs_keys m ->
     kvs_alloc_synced m s ->
-    kvs_alloc_synced (<[idx:=(fkey, w)]> m) ( {[ (ku, kn) ]} ∪ s).
+    kvs_alloc_synced (<[idx:=(fkey, w)]> m) ( kvs_alloc_insert s ku {[kn]}).
   Proof.
     intros fkey Hwf_full_key Hidx Hk_free Halloc.
     rewrite /kvs_alloc_synced.
     intros [ku' kn'] Hwf_full_key'.
     cbn.
-    specialize (Halloc (ku', kn')); cbn in *.
     split; intros Hk.
-    - apply elem_of_union in Hk; destruct Hk as [Hk | Hk].
-      + apply elem_of_singleton in Hk ; simplify_eq.
-        eapply elem_of_kvs_keys.
+    - destruct Hk as (sk & Hku' & Hkn').
+      destruct (decide (ku = ku')); simplify_map_eq.
+      + apply kvs_alloc_insert_lookup_eq in Hku'; simplify_map_eq.
+        apply elem_of_union in Hkn'; destruct Hkn' as [Hkn' | Hkn'].
+        * apply elem_of_singleton in Hkn' ; simplify_eq.
+          eapply elem_of_kvs_keys.
         split.
-        * by apply kvs_full_key_not_empty.
-        * by exists idx, w; simplify_map_eq.
-      + apply (Halloc Hwf_full_key') in Hk.
-        apply elem_of_kvs_keys in Hk as (Hidx' & idx' & v' & Hk).
+          ** by apply kvs_full_key_not_empty.
+          ** by exists idx, w; simplify_map_eq.
+        * specialize (Halloc (ku', kn') Hwf_full_key'); cbn in *.
+          rewrite /kvs_alloc_elem_of in Halloc.
+          destruct ( s !! ku' ) as [s_ku|]; last set_solver+Hkn'.
+          cbn in Hkn'.
+          assert ((∃ sk : gset Z, Some s_ku = Some sk ∧ kn' ∈ sk)) as IH.
+          { exists s_ku; split; auto. }
+          apply Halloc in IH.
+          apply elem_of_kvs_keys in IH as (Hidx' & idx' & v' & Hk).
+          eapply elem_of_kvs_keys.
+          split.
+          ** by apply kvs_full_key_not_empty in Hwf_full_key'.
+          ** destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
+             by eexists idx', v'; simplify_map_eq.
+      + apply kvs_alloc_insert_lookup_ne in Hku'; auto; simplify_map_eq.
         eapply elem_of_kvs_keys.
-        split.
-        * by apply kvs_full_key_not_empty in Hwf_full_key'.
-        * destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
-          by eexists idx', v'; simplify_map_eq.
-    - apply elem_of_union.
+        split;first (by apply kvs_full_key_not_empty in Hwf_full_key').
+        assert (∃ sk : gset Z, s !! ku' = Some sk ∧ kn' ∈ sk) as IH.
+        { exists sk; split; auto. }
+        apply (Halloc (ku', kn') Hwf_full_key') in IH.
+        apply elem_of_kvs_keys in IH as (Hidx' & idx' & v' & Hk).
+        destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
+        by eexists idx', v'; simplify_map_eq.
+    - specialize (Halloc (ku', kn') Hwf_full_key') as IH.
       apply elem_of_kvs_keys in Hk as (Hidx' & idx' & v' & Hk).
       destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
-      + left. apply elem_of_singleton.
-        apply kvs_full_key_inj in H as [ -> -> ]; eauto.
-      + right.
-        apply Halloc; eauto.
-        eapply elem_of_kvs_keys.
-        split.
-        * by apply kvs_full_key_not_empty in Hwf_full_key'.
-        * by eexists idx',_; simplify_map_eq.
+      + apply kvs_full_key_inj in H as [ -> -> ]; eauto.
+        rewrite /kvs_alloc_insert;simplify_map_eq.
+        apply (iffRLn (Halloc (ku',kn') Hwf_full_key')) in Hk_free.
+        apply kvs_alloc_not_elem_of in Hk_free as [Hkfree|Hkfree]; eauto; cbn in *.
+        * rewrite Hkfree /default /= union_empty_r_L.
+          exists {[kn']}; split; eauto;simplify_map_eq;set_solver+.
+        * destruct Hkfree as (sk' & Hsk'' & Hkn''); simplify_map_eq.
+          exists ({[kn']} ∪ sk'); split; eauto;simplify_map_eq; set_solver+.
+      + assert (kvs_full_key ku' kn' ∈ kvs_keys m) as IHm.
+        { apply elem_of_kvs_keys; split ; eauto. }
+        apply IH in IHm as (sk & Hsk & Hsk').
+
+        apply (iffRLn (Halloc (ku,kn) Hwf_full_key)) in Hk_free.
+        apply kvs_alloc_not_elem_of in Hk_free as [Hkfree|Hkfree]; cbn in *.
+        * rewrite /kvs_alloc_insert Hkfree /default union_empty_r_L.
+          assert (ku ≠ ku') by (intro;simplify_map_eq).
+          exists sk;split; simplify_map_eq; eauto.
+        * destruct Hkfree as (sk' & Hsk'' & Hkn''); simplify_map_eq.
+          rewrite /kvs_alloc_insert.
+          rewrite Hsk'' /default /=.
+          destruct (decide (ku = ku')); simplify_map_eq.
+          ** eexists; split; simplify_map_eq; eauto;apply elem_of_union; by right.
+          ** exists sk; split; simplify_map_eq;eauto.
   Qed.
 
   Lemma wf_kvs_map_update (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
@@ -378,7 +456,7 @@ Section KVS_preamble.
     by iDestruct (gen_heap_valid with "Hkvs_auth Hk") as "%Hidx'".
   Qed.
 
-  Lemma isKVS_valid (m : kvs_map) (s : gset (Z*Z)) (a : Addr) (idx : nat) (k : Z) (w : Word) :
+  Lemma isKVS_valid (m : kvs_map) (s : kvs_alloc) (a : Addr) (idx : nat) (k : Z) (w : Word) :
     isKVS a m s -∗
     k ⤇(KVS)[idx] w -∗
     ⌜ m !! idx = Some (k, w) ⌝.
@@ -387,7 +465,7 @@ Section KVS_preamble.
     by iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hidx'".
   Qed.
 
-  Lemma isKVS_open_valid (m : kvs_map) (s : gset (Z*Z)) (a : Addr) (idx idx' : nat) (k : Z) (w : Word) :
+  Lemma isKVS_open_valid (m : kvs_map) (s : kvs_alloc) (a : Addr) (idx idx' : nat) (k : Z) (w : Word) :
     isKVS_open a m s idx' -∗
     k ⤇(KVS)[idx] w -∗
     ⌜ m !! idx = Some (k, w) ⌝.
@@ -397,7 +475,7 @@ Section KVS_preamble.
   Qed.
 
   Lemma open_isKVS_kvs_frag_idx
-    (b : Addr) (m : kvs_map) (s : gset (Z*Z))
+    (b : Addr) (m : kvs_map) (s : kvs_alloc)
     (idx : nat) (k : Z) (w : Word) :
     isKVS b m s ∗
     k ⤇(KVS)[idx] w -∗
@@ -412,7 +490,7 @@ Section KVS_preamble.
     iFrame; eauto.
   Qed.
 
-  Lemma isKVS_indom_idx (m : kvs_map) (s : gset (Z*Z)) (a : Addr) (idx : nat) :
+  Lemma isKVS_indom_idx (m : kvs_map) (s : kvs_alloc) (a : Addr) (idx : nat) :
     idx ∈ dom m ->
     isKVS a m s -∗
     ⌜ 0 <= idx < SIZE_MAP ⌝.
@@ -421,7 +499,7 @@ Section KVS_preamble.
     by eapply wf_kvs_indom_idx.
   Qed.
 
-  Lemma isKVS_open_indom_idx (m : kvs_map) (s : gset (Z*Z)) (a : Addr) (idx idx' : nat) :
+  Lemma isKVS_open_indom_idx (m : kvs_map) (s : kvs_alloc) (a : Addr) (idx idx' : nat) :
     idx ∈ dom m ->
     isKVS_open a m s idx' -∗
     ⌜ 0 <= idx < SIZE_MAP ⌝.
@@ -431,7 +509,7 @@ Section KVS_preamble.
   Qed.
 
   Lemma open_isKVS_kvs_frag_idx_diff
-    (b : Addr) (m : kvs_map) (s : gset (Z*Z)) (idx idx' : nat) (k : Z) (w : Word):
+    (b : Addr) (m : kvs_map) (s : kvs_alloc) (idx idx' : nat) (k : Z) (w : Word):
     0 <= idx' < SIZE_MAP ->
     k ≠ EMPTY_SLOT ->
     idx ≠ idx' ->
@@ -454,12 +532,12 @@ Section KVS_preamble.
   Qed.
 
   Lemma open_isKVS_not_alloc
-    (b : Addr) (m : kvs_map) (s s' : gset (Z*Z))
+    (b : Addr) (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
     (idx : nat) (ku kn : Z) :
     let fkey := kvs_full_key ku kn in
     wf_kvs_full_key ku kn ->
     (0 ≤ idx < SIZE_MAP)%Z →
-    (ku, kn) ∉ s' →
+    kn ∉ s' →
     isKVS b m s -∗
     ◯(ALLOC)[ku] s' -∗
     ∃ kidx widx,
@@ -476,6 +554,7 @@ Section KVS_preamble.
     { intro Hcontra; apply (Hwf_alloc (ku, kn)) in Hcontra.
       2: { by cbn. }
       rewrite /kvs_alloc_synced in Hwf_alloc.
+      rewrite /kvs_alloc_elem_of in Hcontra.
       set_solver.
     }
     iFrame.
@@ -492,7 +571,7 @@ Section KVS_preamble.
   Qed.
 
   Lemma open_isKVS
-    (b : Addr) (m : kvs_map) (s  : gset (Z*Z))
+    (b : Addr) (m : kvs_map) (s : kvs_alloc)
     (idx : nat) :
     (0 ≤ idx < SIZE_MAP)%Z →
     isKVS b m s -∗
@@ -512,7 +591,7 @@ Section KVS_preamble.
   Qed.
 
   Lemma close_isKVS
-    (b : Addr) (m : kvs_map) (s : gset (Z*Z)) (idx : nat) (k : Z) (w : Word):
+    (b : Addr) (m : kvs_map) (s : kvs_alloc) (idx : nat) (k : Z) (w : Word):
     m !! idx = Some (k, w) ->
     isKVS_open b m s idx ∗
     isKVS_entry b idx (k, w) -∗
@@ -523,7 +602,7 @@ Section KVS_preamble.
     iFrame; eauto.
   Qed.
 
-  Lemma kvs_alloc_synced_update (m : kvs_map) ( s : gset (Z*Z) ) (idx : nat) (k : Z) (w : Word) :
+  Lemma kvs_alloc_synced_update (m : kvs_map) (s : kvs_alloc) (idx : nat) (k : Z) (w : Word) :
     (∃ w', m !! idx = Some (k, w')) ->
     kvs_alloc_synced m s ->
     kvs_alloc_synced (<[idx:=(k, w)]> m) s.
@@ -545,7 +624,7 @@ Section KVS_preamble.
       + by eapply elem_of_kvs_keys; split; eauto; eexists idx',_; simplify_map_eq.
   Qed.
 
-  Lemma isKVS_open_update (a : Addr) (m : kvs_map) (s : gset (Z*Z)) (idx : nat) (k : Z) (w w' : Word) :
+  Lemma isKVS_open_update (a : Addr) (m : kvs_map) (s : kvs_alloc) (idx : nat) (k : Z) (w w' : Word) :
     isKVS_open a m s idx -∗ k ⤇(KVS)[ idx ] w
     ==∗
     isKVS_open a (<[idx:=(k, w')]> m) s idx ∗ k ⤇(KVS)[ idx ] w'.
@@ -559,34 +638,37 @@ Section KVS_preamble.
     by iFrame "∗ %".
   Qed.
 
-  Lemma isKVS_open_insert (a : Addr) (m : kvs_map) (s s' : gset (Z*Z)) (idx : nat) (ku kn : Z) (w : Word) :
+  Lemma isKVS_open_insert (a : Addr) (m : kvs_map) (s : kvs_alloc) (s' : gset Z) (idx : nat) (ku kn : Z) (w : Word) :
     let k := kvs_full_key ku kn in
-    (ku, kn) ∉  s' →
+    kn ∉ s' →
     wf_kvs_full_key ku kn ->
     isKVS_open a m s idx -∗
     ◯(ALLOC)[ku] s' -∗
     EMPTY_SLOT ⤇(KVS)[ idx ] (WInt DEFAULT_VAL)
     ==∗
-    isKVS_open a (<[idx:=(k, w)]> m) ({[(ku, kn)]} ∪ s) idx ∗
-    ◯(ALLOC)[ku] ({[(ku, kn)]} ∪ s') ∗
+    isKVS_open a (<[idx:=(k, w)]> m) (kvs_alloc_insert s ku {[kn]}) idx ∗
+    ◯(ALLOC)[ku] ({[kn]} ∪ s') ∗
     k ⤇(KVS)[ idx ] w.
   Proof.
     intro k.
     iIntros (Hs' Hwf_kvs_full_key)
       "(%Hwf_kvs & Hkvs_auth & Halloc_auth & %Hwf_alloc & HKVS) Halloc_frag Hk".
-    iDestruct (allocated_keys_valid with "Halloc_auth Halloc_frag") as "->".
+    iDestruct (allocated_keys_valid with "Halloc_auth Halloc_frag") as "%Hvalid".
     iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hm_idx".
     iMod (kvs_auth_update a m idx _ k _ w with "Hkvs_auth Hk") as "[$ $]".
     iMod ( allocated_keys_insert ku kn with "Halloc_auth Halloc_frag") as "[Halloc_auth Halloc_frag]".
     rewrite /kvs_alloc_synced in Hwf_alloc.
     assert (k ∉ kvs_keys m) as Hk_notin_keys.
-    { intro Hcontra; apply Hs'. apply elem_of_filter; cbn in *; split; auto.
-      apply Hwf_alloc; cbn; done. }
+    { intro Hcontra; apply Hs'.
+      apply (Hwf_alloc (ku,kn) Hwf_kvs_full_key) in Hcontra.
+      destruct Hcontra as (?&?&?); simplify_map_eq; done.
+    }
     eapply (wf_kvs_map_insert _ _ _ w) in Hwf_kvs; eauto.
     eapply (kvs_alloc_synced_insert _ _ _ _ _ w) in Hwf_alloc; eauto.
     rewrite delete_insert_eq.
     subst k.
-    by iFrame "∗ %".
+    iFrame "∗ %".
+    by rewrite /kvs_alloc_insert Hvalid /=.
   Qed.
 
   Class kvs_namespaces :=
@@ -601,16 +683,15 @@ Section KVS_preamble.
   Definition kvs_otype_inv
     {KVS_layout : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
     (W : WORLD) (C : CmptName) (w : Word) : iProp Σ :=
-    ∃ (ku : Z) (a : Addr) (s : gset (Z*Z)),
+    ∃ (ku : Z) (a : Addr) (s : gset Z),
       (* Shape of the capability*)
       ⌜ w = WSealable (kvs_user_seal_key_scap a) ⌝ ∗
       (* Current address is the user key of the compartment *)
       ⌜ kvs_users_seals !! C = Some ku ⌝ ∗
       ⌜ (finz.of_z ku) = Some a ⌝ ∗
       (* KVS resources *)
-      (⌜ ∀ k, k ∈ s → k.1 = ku ⌝) ∗
       ◯(ALLOC)[ku] s ∗
-      ([∗ set] k ∈ s, ∃ w, (kvs_full_key k.1 k.2) ⤇(KVS) w
+      ([∗ set] kn ∈ s, ∃ w, (kvs_full_key ku kn) ⤇(KVS) w
                            ∗ (∀ W', ⌜related_sts_priv_world W W'⌝ -∗ interp W' C w ) ).
 
   Program Definition kvs_otype_prop
@@ -631,7 +712,7 @@ Section KVS_preamble.
     let imports :=
       kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
     in
-    ∃ (m : kvs_map) (s : gset (Z*Z)),
+    ∃ (m : kvs_map) (s : kvs_alloc),
       [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ imports ]] ∗
       codefrag KVS_pcc_b' kvs_service_instrs ∗
       KVS_cgp_b ↦ₐ kvs_service_unsealing_key ∗
