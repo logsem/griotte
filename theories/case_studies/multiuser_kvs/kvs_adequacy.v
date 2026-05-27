@@ -439,9 +439,11 @@ Section Adequacy.
 
     iMod (@na_alloc Σ na_invg) as (logrel_nais) "Hna".
 
+    (* TODO this is not empty... it should be filled with EMPTY_SLOT DEFAULT_VAL *)
+    set (kvs_map_init := ∅ : kvs_map).
+    iMod (gen_heap_init (kvs_map_init : kvs_map)) as (kvs_heapg) "(Hkvs_auth & _ & _)".
     set ( kvs_alloc_init := ({[ 0%Z := ∅ ; 1%Z := ∅ ]} : kvs_alloc)).
-    iMod (gen_heap_init (∅:kvs_map)) as (kvs_heapg) "(Hkvs_auth & _ & _)".
-    iMod (gen_heap_init (kvs_alloc_init:kvs_alloc)) as (kvs_alloc_heapg) "(Hkvs_alloc_auth & Hkvs_alloc_frag & _)".
+    iMod (gen_heap_init (kvs_alloc_init : kvs_alloc)) as (kvs_alloc_heapg) "(Hkvs_alloc_auth & Hkvs_alloc_frag & _)".
     subst kvs_alloc_init.
     rewrite big_sepM_insert; last by simplify_map_eq.
     rewrite big_sepM_insert; last by simplify_map_eq.
@@ -829,10 +831,46 @@ Section Adequacy.
                        ((cmpt_exp_tbl_entries_start kvs_cmpt) ^+ kvs_erase_exp_tbl_off)%a) ⊤ _
            with "Hkvs_etbl_entries_erase")%I as "#Hkvs_etbl_entries_erase".
 
-    (* na_inv logrel_nais Nkvs kvs_inv ∗ *)
-    (* iCombine "Hkvs_imports Hkvs_code" as "Hkvs_code". *)
+    iMod (seal_store_update_alloc _ ( kvs_otype_propC ) with "Hseal_store_kvs") as "#Hsealed_pred_ot_kvs".
+    iMod (na_inv_alloc logrel.logrel_nais _ Nkvs kvs_inv
+           with "[Hkvs_auth Hkvs_alloc_auth Hkvs_imports Hkvs_data Hkvs_code]") as "#Hkvs".
+    { iNext.
+      rewrite /kvs_inv.
+      assert (cmpt_b_pcc kvs_cmpt  = KVS_pcc_b) as ->.
+      { admit. }
+      assert (cmpt_a_code kvs_cmpt  = KVS_pcc_b') as ->.
+      { admit. }
+      rewrite kvs_data /kvs.kvs_data /kvs.kvs_data_pre.
+      pose proof (cmpt_data_size kvs_cmpt) as H.
+      rewrite kvs_data /kvs.kvs_data /kvs.kvs_data_pre in H.
+
+      iDestruct (region_pointsto_cons with "Hkvs_data") as "[Hkvs_cgp_b Hkvs_data]".
+      { transitivity ( Some ((cmpt_b_cgp kvs_cmpt ^+ 1)%a) ); solve_addr+H. }
+      { solve_addr+H. }
+      assert (cmpt_b_cgp kvs_cmpt = KVS_cgp_b) as ->.
+      { admit. }
+      assert (cmpt_e_cgp kvs_cmpt = KVS_cgp_b) as ->.
+      { admit. }
+      assert ( ot_kvs = KVS_OTYPE ) as ->.
+      { admit. }
+      iFrame "∗#".
+      iSplit.
+      { iPureIntro. admit. }
+      iSplit.
+      { iPureIntro. admit. }
+      (* TODO lemma *)
+      admit.
+    }
 
 
+    (* Initialises the world for B *)
+    set (W0 := (∅, (∅, ∅))).
+    iAssert (region W0 B) with "[HRELS_B]" as "Hr_B".
+    { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
+      rewrite /= !dom_empty_L //. repeat iSplit; eauto.
+      rewrite /region_map_def. by rewrite big_sepM_empty. }
+
+    (* TODO continue *)
     Admitted.
 
 End Adequacy.
