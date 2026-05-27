@@ -27,7 +27,7 @@ Section KVS_spec_addOrUpdate.
     (wret wca2 : Word)
     (user_key nkey : Z)
     (idx : nat)
-    (m : kvs_map) (s : gset (Z*Z))
+    (m : kvs_map) (s : kvs_alloc)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
@@ -249,7 +249,7 @@ Section KVS_spec_addOrUpdate.
     (cgp_b cgp_e : Addr)
     (wret wca2 : Word)
     (user_key nkey : Z)
-    (m : kvs_map) (s s' : gset (Z*Z))
+    (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
@@ -261,7 +261,7 @@ Section KVS_spec_addOrUpdate.
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
     canStore RW wca2 = true ->
-    (user_key, nkey) ∉ s' ->
+    nkey ∉ s' ->
 
     (
       (* initial register file *)
@@ -299,8 +299,8 @@ Section KVS_spec_addOrUpdate.
             (* THERE IS AN EMPTY SLOT AVAILABLE*)
             (∃ idx,
                 ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
-                isKVS (cgp_b ^+ 1)%a (<[ idx := (fkey, wca2) ]> m) ({[(user_key, nkey)]} ∪ s) ∗
-                ◯(ALLOC)[user_key] ( {[ (user_key, nkey) ]} ∪ s') ∗
+                isKVS (cgp_b ^+ 1)%a (<[ idx := (fkey, wca2) ]> m) ( kvs_alloc_insert s user_key {[nkey]}) ∗
+                ◯(ALLOC)[user_key] ( {[ nkey ]} ∪ s') ∗
                 fkey ⤇(KVS)[ idx ] wca2
             )
             ∨
@@ -455,7 +455,7 @@ Section KVS_spec_addOrUpdate.
 
   Lemma KVS_add_spec
     (wret wca2 : Word)
-    (user_key nkey : Z) (s : gset (Z*Z))
+    (user_key nkey : Z) (s : gset Z)
     (E : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
@@ -464,7 +464,7 @@ Section KVS_spec_addOrUpdate.
 
     (0 <= user_key < top)%Z ->
     is_uint16 nkey ->
-    (user_key, nkey) ∉ s ->
+    nkey ∉ s ->
 
     canStore RW wca2 = true ->
 
@@ -499,7 +499,7 @@ Section KVS_spec_addOrUpdate.
            (* THERE IS AN EMPTY SLOT AVAILABLE*)
            (
              ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
-             ◯(ALLOC)[user_key] ( {[ (user_key, nkey) ]} ∪ s) ∗
+             ◯(ALLOC)[user_key] ( {[ nkey ]} ∪ s) ∗
              fkey ⤇(KVS) wca2
            )
            ∨
