@@ -457,6 +457,382 @@ Section Adequacy.
           kvsg _ _ _ B
       ) as Spec.
 
+
+    (* Get initial sregister mtdc *)
+    iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; eauto.
+
+    (* Separate all compartments *)
+    rewrite {2}Hm.
+    rewrite /mk_initial_memory.
+    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_B]".
+    { eapply mk_initial_cmpt_B_disjoint; eauto. }
+    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_kvs]".
+    { eapply mk_initial_cmpt_kvs_disjoint; eauto. }
+    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_main]".
+    { eapply mk_initial_cmpt_main_disjoint; eauto. }
+    iDestruct (big_sepM_union with "Hmem") as "[Hcmpt_switcher Hcmpt_assert]".
+    { pose proof assert_switcher_disjoints; symmetry; eapply disjoint_assert_switcher_mkinitial ; eauto. }
+
+    (* Assert *)
+    rewrite /mk_initial_assert.
+    iDestruct (big_sepM_union with "Hcmpt_assert") as "[Hassert Hassert_flag]".
+    { eapply cmpt_assert_flag_mregion_disjoint ; eauto. }
+    iDestruct (big_sepM_union with "Hassert") as "[Hassert Hassert_cap]".
+    { eapply cmpt_assert_cap_mregion_disjoint ; eauto. }
+    rewrite /cmpt_assert_flag_mregion.
+    rewrite /mkregion.
+    rewrite finz_seq_between_singleton.
+    2: { pose proof (assert_flag_size assert_cmpt) as H; solve_addr+H. }
+    cbn.
+    iDestruct (big_sepM_insert with "Hassert_flag") as "[Hassert_flag _]"; first done.
+    iMod (inv_alloc flagN ⊤ (flag_assert assert_cmpt ↦ₐ WInt 0%Z) with "Hassert_flag")%I
+     as "#Hinv_assert_flag".
+    rewrite /cmpt_assert_cap_mregion.
+    rewrite /mkregion.
+    rewrite finz_seq_between_singleton.
+    2: { pose proof (assert_cap_size assert_cmpt) as H; solve_addr+H. }
+    cbn.
+    iDestruct (big_sepM_insert with "Hassert_cap") as "[Hassert_cap _]"; first done.
+
+    rewrite /cmpt_assert_code_mregion.
+    iDestruct (mkregion_prepare with "[Hassert]") as ">Hassert"; auto.
+    { apply (assert_code_size assert_cmpt). }
+    iAssert (assert_inv
+               (b_assert assert_cmpt)
+               (e_assert assert_cmpt)
+               (flag_assert assert_cmpt))
+            with "[Hassert Hassert_cap]" as "Hassert".
+    { rewrite /assert_inv. iExists (cap_assert assert_cmpt).
+      rewrite /codefrag /region_pointsto.
+      replace (b_assert assert_cmpt ^+ length assert_subroutine_instrs)%a
+        with (cap_assert assert_cmpt).
+      2: { pose proof (assert_code_size assert_cmpt); solve_addr+H. }
+      iFrame.
+      iSplit; first (iPureIntro ; apply (assert_code_size assert_cmpt)).
+      iSplit; iPureIntro.
+      + apply (assert_cap_size assert_cmpt).
+      + by rewrite (assert_flag_size assert_cmpt).
+    }
+    iMod (na_inv_alloc logrel.logrel_nais _ assertN _ with "Hassert") as "#Hassert".
+
+    (* Switcher *)
+    rewrite /mk_initial_switcher.
+    iDestruct (big_sepM_union with "Hcmpt_switcher") as "[Hswitcher Hstack]".
+    { eapply cmpt_switcher_stack_mregion_disjoint ; eauto. }
+    iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher Htrusted_stack]".
+    { eapply cmpt_switcher_trusted_stack_mregion_disjoint ; eauto. }
+
+    rewrite /cmpt_switcher_code_mregion.
+    iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher_sealing Hswitcher]".
+    { eapply cmpt_switcher_code_stack_mregion_disjoint ; eauto.
+      exact switcher_cmpt.
+    }
+    iEval (rewrite /mkregion) in "Hswitcher_sealing".
+    rewrite finz_seq_between_singleton.
+    2: { apply switcher_call_entry_point. }
+    iEval (cbn) in "Hswitcher_sealing".
+    iDestruct (big_sepM_insert with "Hswitcher_sealing") as "[Hswitcher_sealing _]"; first done.
+    iDestruct (mkregion_prepare with "[Hswitcher]") as ">Hswitcher"; auto.
+    { apply switcher_size. }
+    rewrite /cmpt_switcher_trusted_stack_mregion.
+    iDestruct (mkregion_prepare with "[Htrusted_stack]") as ">Htrusted_stack"; auto.
+    { apply (trusted_stack_size switcher_cmpt). }
+    iMod (seal_store_update_alloc _ ( ot_switcher_propC ) with "Hseal_store_switcher") as "#Hsealed_pred_ot_switcher".
+    iAssert ( switcher_preamble.switcher_inv )
+      with "[Hswitcher Hswitcher_sealing Htrusted_stack Hcstk_full Hmtdc]" as "Hswitcher".
+    {
+      rewrite /switcher_preamble.switcher_inv /codefrag /region_pointsto.
+      replace (a_switcher_call ^+ length switcher_instrs)%a
+        with e_switcher.
+      2: { pose proof switcher_size as H.
+           subst a_switcher_call e_switcher.
+           solve_addr+H.
+      }
+      iFrame "∗#".
+      iExists (tl (trusted_stack_content switcher_cmpt)).
+      iSplitR; first (iPureIntro; apply (ot_switcher_size switcher_cmpt)).
+      pose proof (trusted_stack_content_base_zeroed switcher_cmpt) as Htstk_head.
+      pose proof (trusted_stack_size switcher_cmpt) as Htstk_size.
+      destruct (trusted_stack_content switcher_cmpt); cbn in Htstk_head; simplify_eq.
+      rewrite finz_seq_between_cons; last solve_addr+Htstk_size.
+      iDestruct "Htrusted_stack" as "[Hbase_stack Htrusted_stack]".
+      iFrame.
+      iSplitL; last (iPureIntro ; by rewrite finz_add_0).
+      subst switcher_layout_g.
+      iSplit; iPureIntro; solve_addr.
+    }
+    iMod (na_inv_alloc logrel.logrel_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
+
+    (* CMPT B *)
+    iEval (rewrite /mk_initial_cmpt) in "Hcmpt_B".
+    iDestruct (big_sepM_union with "Hcmpt_B") as "[HB HB_etbl]".
+    { eapply cmpt_exp_tbl_disjoint ; eauto. }
+    iDestruct (big_sepM_union with "HB") as "[HB_code HB_data]".
+    { eapply cmpt_cgp_disjoint ; eauto. }
+    rewrite /cmpt_pcc_mregion.
+    iDestruct (big_sepM_union with "HB_code") as "[HB_imports HB_code]".
+    { eapply cmpt_code_disjoint ; eauto. }
+    iEval (rewrite /mkregion) in "HB_imports".
+    rewrite /cmpt_cgp_mregion.
+    iDestruct (mkregion_prepare with "[HB_code]") as ">HB_code"; auto.
+    { apply (cmpt_code_size B_cmpt). }
+    iDestruct (mkregion_prepare with "[HB_data]") as ">HB_data"; auto.
+    { apply (cmpt_data_size B_cmpt). }
+    iDestruct (mkregion_prepare with "[HB_imports]") as ">HB_imports"; auto.
+    { rewrite B_imports.
+      pose proof (cmpt_import_size B_cmpt) as H ; cbn in *.
+      by rewrite B_imports in H.
+    }
+    iDestruct (mkregion_prepare with "[Hstack]") as ">Hstack"; auto.
+    { apply (stack_size switcher_cmpt). }
+
+    iEval (rewrite /cmpt_exp_tbl_mregion) in "HB_etbl".
+    iDestruct (big_sepM_union with "HB_etbl") as "[HB_etbl HB_etbl_entries]".
+    { eapply cmpt_exp_tbl_entries_disjoint. }
+    iDestruct (big_sepM_union with "HB_etbl") as "[HB_etbl_pcc HB_etbl_cgp]".
+    { eapply cmpt_exp_tbl_pcc_cgp_disjoint. }
+    iDestruct (mkregion_prepare with "[HB_etbl_entries]") as ">HB_etbl_entries"; auto.
+    { apply cmpt_exp_tbl_entries_size. }
+    iDestruct (mkregion_prepare with "[HB_etbl_pcc]") as ">HB_etbl_pcc"; auto.
+    { cbn; apply cmpt_exp_tbl_pcc_size. }
+    iDestruct (mkregion_prepare with "[HB_etbl_cgp]") as ">HB_etbl_cgp"; auto.
+    { cbn; apply cmpt_exp_tbl_cgp_size. }
+    iEval (rewrite B_exp_tbl) in "HB_etbl_entries".
+    rewrite (finz_seq_between_cons (cmpt_exp_tbl_entries_start B_cmpt)).
+    2: {
+      pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
+      rewrite B_exp_tbl in H1; solve_addr+H1.
+    }
+    rewrite (finz_seq_between_singleton (cmpt_exp_tbl_pcc B_cmpt))
+    ; last (apply cmpt_exp_tbl_pcc_size).
+    rewrite (finz_seq_between_singleton (cmpt_exp_tbl_cgp B_cmpt))
+    ; last (apply cmpt_exp_tbl_cgp_size).
+    rewrite !big_sepL2_singleton.
+    iDestruct "HB_etbl_entries" as "[HB_etbl_B_f _]".
+
+    iMod (inv_alloc (switcher_preamble.export_table_PCCN (nroot .@ B)) ⊤ _
+           with "HB_etbl_pcc")%I as "#HB_etbl_pcc".
+    iMod (inv_alloc (switcher_preamble.export_table_CGPN (nroot .@ B)) ⊤ _
+           with "HB_etbl_cgp")%I as "#HB_etbl_cgp".
+    iMod (inv_alloc (switcher_preamble.export_table_entryN (nroot .@ B) (cmpt_exp_tbl_entries_start B_cmpt)) ⊤ _
+           with "HB_etbl_B_f")%I as "#HB_etbl_B_f".
+
+    (* CMPT MAIN *)
+    iEval (rewrite /mk_initial_cmpt) in "Hcmpt_main".
+    iDestruct (big_sepM_union with "Hcmpt_main") as "[Hmain Hmain_etbl]".
+    { eapply cmpt_exp_tbl_disjoint ; eauto. }
+    iDestruct (big_sepM_union with "Hmain") as "[Hmain_code Hmain_data]".
+    { eapply cmpt_cgp_disjoint ; eauto. }
+    rewrite /cmpt_pcc_mregion.
+    iDestruct (big_sepM_union with "Hmain_code") as "[Hmain_imports Hmain_code]".
+    { eapply cmpt_code_disjoint ; eauto. }
+    rewrite /cmpt_cgp_mregion.
+    rewrite /cmpt_exp_tbl_mregion.
+    iDestruct (big_sepM_union with "Hmain_etbl") as "[Hmain_etbl Hmain_etbl_entries]".
+    { eapply cmpt_exp_tbl_entries_disjoint ; eauto. }
+    iDestruct (big_sepM_union with "Hmain_etbl") as "[Hmain_etbl_PCC Hmain_etbl_CGP]".
+    { eapply cmpt_exp_tbl_pcc_cgp_disjoint ; eauto. }
+    iDestruct (mkregion_prepare with "[Hmain_imports]") as ">Hmain_imports"; auto.
+    { apply (cmpt_import_size main_cmpt). }
+    iDestruct (mkregion_prepare with "[Hmain_code]") as ">Hmain_code"; auto.
+    { apply (cmpt_code_size main_cmpt). }
+    iDestruct (mkregion_prepare with "[Hmain_data]") as ">Hmain_data"; auto.
+    { apply (cmpt_data_size main_cmpt). }
+    iDestruct (mkregion_prepare with "[Hmain_etbl_PCC]") as ">Hmain_etbl_PCC"; auto.
+    { apply (cmpt_exp_tbl_pcc_size main_cmpt). }
+    iDestruct (mkregion_prepare with "[Hmain_etbl_CGP]") as ">Hmain_etbl_CGP"; auto.
+    { apply (cmpt_exp_tbl_cgp_size main_cmpt). }
+    iDestruct (mkregion_prepare with "[Hmain_etbl_entries]") as ">Hmain_etbl_entries"; auto.
+    { apply (cmpt_exp_tbl_entries_size main_cmpt). }
+    iAssert (
+       [[(cmpt_b_pcc main_cmpt),(cmpt_a_code main_cmpt)]]↦ₐ[[cmpt_imports main_cmpt]]
+     )%I with "[Hmain_imports]" as "Hmain_imports"; first done.
+    iAssert (
+       [[(cmpt_b_cgp main_cmpt),(cmpt_e_cgp main_cmpt)]]↦ₐ[[cmpt_data main_cmpt]]
+     )%I with "[Hmain_data]" as "Hmain_data"; first done.
+    iDestruct (region_pointsto_single with "Hmain_data") as "[%v [Hcgp_b %Hv] ]".
+    { pose proof (cmpt_data_size main_cmpt) as H.
+      rewrite main_data in H.
+      solve_addr+H.
+    }
+    rewrite main_data /kvs_main_data in Hv; simplify_eq.
+
+    iAssert (
+      codefrag (cmpt_a_code main_cmpt) (cmpt_code main_cmpt)
+     )%I with "[Hmain_code]" as "Hmain_code".
+    { rewrite /codefrag.
+      replace (cmpt_a_code main_cmpt ^+ length (cmpt_code main_cmpt))%a
+        with (cmpt_e_pcc main_cmpt).
+      2: { pose proof (cmpt_code_size main_cmpt) as H ; solve_addr+H. }
+      done.
+    }
+    rewrite main_imports main_code.
+    rewrite main_exp_tbl.
+    iAssert (
+       (cmpt_exp_tbl_pcc main_cmpt) ↦ₐ
+         WCap RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt) (cmpt_b_pcc main_cmpt)
+      )%I with "[Hmain_etbl_PCC]" as "Hmain_etbl_PCC".
+    {
+      rewrite (finz_seq_between_singleton (cmpt_exp_tbl_pcc main_cmpt)).
+      2: { apply (cmpt_exp_tbl_pcc_size main_cmpt). }
+      by rewrite big_sepL2_singleton.
+    }
+    iAssert (
+       (cmpt_exp_tbl_cgp main_cmpt) ↦ₐ
+         WCap RW Global (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt) (cmpt_b_cgp main_cmpt)
+      )%I with "[Hmain_etbl_CGP]" as "Hmain_etbl_CGP".
+    {
+      rewrite (finz_seq_between_singleton (cmpt_exp_tbl_cgp main_cmpt)).
+      2: { apply (cmpt_exp_tbl_cgp_size main_cmpt). }
+      by rewrite big_sepL2_singleton.
+    }
+
+    (* rewrite /main_export_table_entries. *)
+    (* iAssert ( *)
+    (*    (cmpt_exp_tbl_entries_start main_cmpt) ↦ₐ *)
+    (*      WInt (encode_entry_point 1 (length (cmpt_imports main_cmpt ++ VAE_main_code_init))) *)
+    (*   )%I with "[Hmain_etbl_entries]" as "Hmain_etbl_entries". *)
+    (* { *)
+    (*   rewrite (finz_seq_between_singleton (cmpt_exp_tbl_entries_start main_cmpt)). *)
+    (*   2: { *)
+    (*     pose proof (cmpt_exp_tbl_entries_size main_cmpt) as H. *)
+    (*     by rewrite main_exp_tbl /= in H. *)
+    (*   } *)
+    (*   rewrite main_imports. *)
+    (*   by rewrite big_sepL2_singleton. *)
+    (* } *)
+    (* iCombine "Hmain_imports Hmain_code" as "Hmain_code". *)
+    (* iMod (na_inv_alloc logrel.logrel_nais _ vaeN _ with "Hmain_code") as "#Hmain_code". *)
+    (* iMod (inv_alloc (export_table_PCCN vaeN) ⊤ *)
+    (*         (cmpt_exp_tbl_pcc main_cmpt *)
+    (*            ↦ₐ WCap RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt) *)
+    (*            (cmpt_b_pcc main_cmpt) *)
+    (*         )%I with "Hmain_etbl_PCC")%I *)
+    (*   as "#Hinv_etbl_PCC". *)
+    (* iMod (inv_alloc (export_table_CGPN vaeN) ⊤ *)
+    (*         (cmpt_exp_tbl_cgp main_cmpt *)
+    (*            ↦ₐ WCap RW Global (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt) *)
+    (*            (cmpt_b_cgp main_cmpt) *)
+    (*         )%I with "Hmain_etbl_CGP")%I *)
+    (*   as "#Hinv_etbl_CGP". *)
+    (* iMod (inv_alloc (export_table_entryN vaeN (cmpt_exp_tbl_entries_start main_cmpt)) ⊤ *)
+    (*         (cmpt_exp_tbl_entries_start main_cmpt *)
+    (*            ↦ₐ WInt (encode_entry_point 1 (length (cmpt_imports main_cmpt ++ VAE_main_code_init))) *)
+    (*         )%I with "Hmain_etbl_entries")%I *)
+    (*   as "#Hinv_etbl_entry_awkward". *)
+
+    (* CMPT KVS *)
+    iEval (rewrite /mk_initial_cmpt) in "Hcmpt_kvs".
+    iDestruct (big_sepM_union with "Hcmpt_kvs") as "[Hkvs Hkvs_etbl]".
+    { eapply cmpt_exp_tbl_disjoint ; eauto. }
+    iDestruct (big_sepM_union with "Hkvs") as "[Hkvs_code Hkvs_data]".
+    { eapply cmpt_cgp_disjoint ; eauto. }
+    rewrite /cmpt_pcc_mregion.
+    iDestruct (big_sepM_union with "Hkvs_code") as "[Hkvs_imports Hkvs_code]".
+    { eapply cmpt_code_disjoint ; eauto. }
+    rewrite /cmpt_cgp_mregion.
+    rewrite /cmpt_exp_tbl_mregion.
+    iDestruct (big_sepM_union with "Hkvs_etbl") as "[Hkvs_etbl Hkvs_etbl_entries]".
+    { eapply cmpt_exp_tbl_entries_disjoint ; eauto. }
+    iDestruct (big_sepM_union with "Hkvs_etbl") as "[Hkvs_etbl_PCC Hkvs_etbl_CGP]".
+    { eapply cmpt_exp_tbl_pcc_cgp_disjoint ; eauto. }
+    iDestruct (mkregion_prepare with "[Hkvs_imports]") as ">Hkvs_imports"; auto.
+    { apply (cmpt_import_size kvs_cmpt). }
+    iDestruct (mkregion_prepare with "[Hkvs_code]") as ">Hkvs_code"; auto.
+    { apply (cmpt_code_size kvs_cmpt). }
+    iDestruct (mkregion_prepare with "[Hkvs_data]") as ">Hkvs_data"; auto.
+    { apply (cmpt_data_size kvs_cmpt). }
+    iDestruct (mkregion_prepare with "[Hkvs_etbl_PCC]") as ">Hkvs_etbl_PCC"; auto.
+    { apply (cmpt_exp_tbl_pcc_size kvs_cmpt). }
+    iDestruct (mkregion_prepare with "[Hkvs_etbl_CGP]") as ">Hkvs_etbl_CGP"; auto.
+    { apply (cmpt_exp_tbl_cgp_size kvs_cmpt). }
+    iDestruct (mkregion_prepare with "[Hkvs_etbl_entries]") as ">Hkvs_etbl_entries"; auto.
+    { apply (cmpt_exp_tbl_entries_size kvs_cmpt). }
+    iAssert (
+       [[(cmpt_b_pcc kvs_cmpt),(cmpt_a_code kvs_cmpt)]]↦ₐ[[cmpt_imports kvs_cmpt]]
+     )%I with "[Hkvs_imports]" as "Hkvs_imports"; first done.
+    iAssert (
+       [[(cmpt_b_cgp kvs_cmpt),(cmpt_e_cgp kvs_cmpt)]]↦ₐ[[cmpt_data kvs_cmpt]]
+     )%I with "[Hkvs_data]" as "Hkvs_data"; first done.
+    (* iDestruct (region_pointsto_single with "Hkvs_data") as "[%v [Hcgp_b %Hv] ]". *)
+    (* { pose proof (cmpt_data_size kvs_cmpt) as H. *)
+    (*   rewrite kvs_data in H. *)
+    (*   solve_addr+H. *)
+    (* } *)
+    (* rewrite kvs_data /vae_kvs_data in Hv; simplify_eq. *)
+    iAssert (
+      codefrag (cmpt_a_code kvs_cmpt) (cmpt_code kvs_cmpt)
+     )%I with "[Hkvs_code]" as "Hkvs_code".
+    { rewrite /codefrag.
+      replace (cmpt_a_code kvs_cmpt ^+ length (cmpt_code kvs_cmpt))%a
+        with (cmpt_e_pcc kvs_cmpt).
+      2: { pose proof (cmpt_code_size kvs_cmpt) as H ; solve_addr+H. }
+      done.
+    }
+    rewrite kvs_imports kvs_code.
+    rewrite kvs_exp_tbl.
+    iAssert (
+       (cmpt_exp_tbl_pcc kvs_cmpt) ↦ₐ
+         WCap RX Global (cmpt_b_pcc kvs_cmpt) (cmpt_e_pcc kvs_cmpt) (cmpt_b_pcc kvs_cmpt)
+      )%I with "[Hkvs_etbl_PCC]" as "Hkvs_etbl_PCC".
+    {
+      rewrite (finz_seq_between_singleton (cmpt_exp_tbl_pcc kvs_cmpt)).
+      2: { apply (cmpt_exp_tbl_pcc_size kvs_cmpt). }
+      by rewrite big_sepL2_singleton.
+    }
+    iAssert (
+       (cmpt_exp_tbl_cgp kvs_cmpt) ↦ₐ
+         WCap RW Global (cmpt_b_cgp kvs_cmpt) (cmpt_e_cgp kvs_cmpt) (cmpt_b_cgp kvs_cmpt)
+      )%I with "[Hkvs_etbl_CGP]" as "Hkvs_etbl_CGP".
+    {
+      rewrite (finz_seq_between_singleton (cmpt_exp_tbl_cgp kvs_cmpt)).
+      2: { apply (cmpt_exp_tbl_cgp_size kvs_cmpt). }
+      by rewrite big_sepL2_singleton.
+    }
+
+    rewrite /kvs_export_table_entries.
+    rewrite (finz_seq_between_cons (cmpt_exp_tbl_entries_start kvs_cmpt)).
+    2: {
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H1.
+      rewrite kvs_exp_tbl in H1; solve_addr+H1.
+    }
+    rewrite (finz_seq_between_cons ((cmpt_exp_tbl_entries_start kvs_cmpt) ^+ _)%a).
+    2: {
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H1.
+      rewrite kvs_exp_tbl in H1; solve_addr+H1.
+    }
+    rewrite (finz_seq_between_cons (((cmpt_exp_tbl_entries_start kvs_cmpt) ^+ _) ^+ _)%a).
+    2: {
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H1.
+      rewrite kvs_exp_tbl in H1; solve_addr+H1.
+    }
+    rewrite big_sepL2_cons.
+    rewrite big_sepL2_cons.
+    rewrite big_sepL2_cons.
+    iDestruct "Hkvs_etbl_entries"
+      as "(Hkvs_etbl_entries_addOrUpdate & Hkvs_etbl_entries_read
+          & Hkvs_etbl_entries_erase & _)".
+
+    set ( Nkvs_etbl := @Nkvs_exp_tbl choice_kvs_namespaces ).
+
+    iMod (inv_alloc (switcher_preamble.export_table_PCCN Nkvs_etbl) ⊤ _
+           with "Hkvs_etbl_PCC")%I as "#Hkvs_etbl_pcc".
+    iMod (inv_alloc (switcher_preamble.export_table_CGPN Nkvs_etbl) ⊤ _
+           with "Hkvs_etbl_CGP")%I as "#Hkvs_etbl_cgp".
+    iMod (inv_alloc (switcher_preamble.export_table_entryN Nkvs_etbl
+                       ((cmpt_exp_tbl_entries_start kvs_cmpt) ^+ kvs_addOrUpdate_exp_tbl_off)%a) ⊤ _
+           with "Hkvs_etbl_entries_addOrUpdate")%I as "#Hkvs_etbl_entries_addOrUpdate".
+    iMod (inv_alloc (switcher_preamble.export_table_entryN Nkvs_etbl
+                       ((cmpt_exp_tbl_entries_start kvs_cmpt) ^+ kvs_read_exp_tbl_off)%a) ⊤ _
+           with "Hkvs_etbl_entries_read")%I as "#Hkvs_etbl_entries_read".
+    iMod (inv_alloc (switcher_preamble.export_table_entryN Nkvs_etbl
+                       ((cmpt_exp_tbl_entries_start kvs_cmpt) ^+ kvs_erase_exp_tbl_off)%a) ⊤ _
+           with "Hkvs_etbl_entries_erase")%I as "#Hkvs_etbl_entries_erase".
+
+    (* na_inv logrel_nais Nkvs kvs_inv ∗ *)
+    (* iCombine "Hkvs_imports Hkvs_code" as "Hkvs_code". *)
+
+
     Admitted.
 
 End Adequacy.
