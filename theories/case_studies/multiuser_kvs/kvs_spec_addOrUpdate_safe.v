@@ -74,7 +74,8 @@ Section KVS_spec_addOrUpdate_safe.
            ∨
              (* THERE IS AN EMPTY SLOT AVAILABLE *)
              (∃ idx (k : Z*Z) w,
-                 ca0 ↦ᵣ WInt ASM_TRUE ∗ isKVS (cgp_b ^+ 1)%a (<[ idx := (kvs_full_key k.1 k.2, w) ]> m) ({[k]} ∪ s) )
+                 ca0 ↦ᵣ WInt ASM_TRUE ∗
+                 isKVS (cgp_b ^+ 1)%a (<[ idx := (kvs_full_key k.1 k.2, w)]> m) (kvs_alloc_insert s k.1 {[k.2]} ) )
            ∨
              (* THERE IS NO EMPTY SLOT AVAILABLE *)
              (ca0 ↦ᵣ WInt ASM_FALSE ∗ isKVS (cgp_b ^+ 1)%a m s)
@@ -142,13 +143,13 @@ Section KVS_spec_addOrUpdate_safe.
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
     iMod (na_inv_acc with "Hinv_kvs_ot Hna")
-      as "( (%ku & %a & %s' & >%Heq & >%Hku_C & >%Hku & & Hot_res) & Hna & HP_close)"
+      as "( (%ku & %a & %s' & >%Heq & >%Hku_C & >%Hku & Hot_res) & Hna & HP_close)"
     ; eauto; simplify_eq; first solve_ndisj.
     iDestruct (lc_fupd_elim_later with "[$] [$Hot_res]") as ">[Halloc Hkvs_frags]".
     pose proof (kvs_users_seals_bounds C user_key Huser_key_C) as Huser_key_bound.
     assert ( wf_kvs_full_key user_key nkey) as Hwk_fkey by (split; auto; lia).
 
-    destruct ( decide ( (user_key, nkey) ∈ s' ) ) as [Hfkey_in_s|Hfkey_notin_s].
+    destruct ( decide ( nkey ∈ s' ) ) as [Hfkey_in_s|Hfkey_notin_s].
     (* The key has already been allocated *)
     - iDestruct (big_sepS_elem_of_acc with "Hkvs_frags")
         as "[ [%w [ [%idx Hkvs_frag] Hinterp_w] ] Hkvs_frags]"
@@ -316,9 +317,7 @@ Section KVS_spec_addOrUpdate_safe.
       iMod ("HP_close" with "[$Hna $Halloc $Hkvs_frags]") as "Hna"; eauto.
       {
         iNext; iPureIntro; exists a; (repeat split); auto.
-        - by replace (z_of a) with user_key by solve_addr+Hku.
-        - intros k Hk. apply elem_of_union in Hk as [ Hk | Hk ]; auto.
-          by apply elem_of_singleton in Hk; simplify_eq.
+        by replace (z_of a) with user_key by solve_addr+Hku.
       }
 
       iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b".
