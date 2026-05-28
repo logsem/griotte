@@ -294,6 +294,18 @@ Section KVS_Service.
    *)
   Definition kvs_erase_asm : list (list asm_code) :=
     [
+      (kvs_check_uint16_asm ca1 ct1) ;
+      [
+        jnz (".erase_not_uint16")%asm ct1;
+        #".erase_uint16";
+        jmp (".erase_uint16_check_pass")%asm;
+        #".erase_not_uint16";
+        mov ca0 ASM_FALSE;
+        mov ca1 0;
+        jalr cnull cra;
+        #".erase_uint16_check_pass"
+      ]
+      ;
       (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
       (* ca0 contains the full key *)
       ;
