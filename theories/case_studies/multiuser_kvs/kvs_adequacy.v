@@ -14,7 +14,7 @@ From cap_machine Require Import switcher_preamble interp_switcher_call interp_sw
 Class memory_layout `{MP: MachineParameters} := {
 
     (* switcher *)
-    switcher_layout : @switcherLayout MP;
+    switcher_layout :> @switcherLayout MP;
     switcher_cmpt : cmptSwitcher;
 
     (* assert *)
@@ -81,7 +81,7 @@ Proof.
             (cmpt_exp_tbl_pcc kvs_cmpt) (cmpt_exp_tbl_entries_end kvs_cmpt)).
 Defined.
 
-Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
+Definition is_initial_memory `{@memory_layout MP} `{kvs_users} (mem: Mem) :=
   let b_switcher := (@b_switcher MP switcher_layout) in
   let e_switcher := (@e_switcher MP switcher_layout) in
   let a_switcher_call := (@a_switcher_call MP switcher_layout) in
@@ -99,6 +99,8 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
       (cmpt_exp_tbl_entries_start B_cmpt)
   in
 
+  (* let kvs_user_key_B := default 0%Z (kvs_users_seals !! B) in *)
+
   mem = mk_initial_memory mem ∧
   (* instantiating main *)
   (cmpt_imports main_cmpt) =
@@ -108,7 +110,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
     (b_assert assert_cmpt) (e_assert assert_cmpt)
     B_f) ∧
   (cmpt_code main_cmpt) = kvs_main_code ∧
-  (cmpt_data main_cmpt) = kvs_main_data ∧
+  (cmpt_data main_cmpt) = (kvs_main_data (default 0%Z (kvs_users_seals_reserved !! 0))) ∧
   (cmpt_exp_tbl_entries main_cmpt) = [] ∧
 
   (* instantiating kvs *)
@@ -120,6 +122,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   (* instantiating B *)
   (cmpt_imports B_cmpt) = [
       switcher_entry;
+      (* kvs_user_seal_key kvs_user_key_B ; *)
       WSealed ot_switcher (KVS_addOrUpdate Global);
       WSealed ot_switcher (KVS_read Global)
       (* WSealed ot_switcher (KVS_erase Global) *)
@@ -193,6 +196,8 @@ Section Adequacy.
   Context {kvs_preg: gen_heapGpreS nat kvs_entry Σ}.
   Context {kvs_alloc_preg: gen_heapGpreS Z (gset Z) Σ}.
   Context {KVS_users: kvs_users}.
+  Context { Hkvs_users_seals : kvs_users_seals = {[ B := 1%Z ]} }.
+  Context { Hkvs_users_seals_reserved : kvs_users_seals_reserved = [0%Z] }.
 
   Definition flagN : namespace := nroot .@ "kvs" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "kvs" .@ "switcher_flag".
@@ -204,7 +209,7 @@ Section Adequacy.
     (es: list cap_lang.expr):
     is_initial_registers reg →
     is_initial_sregisters sreg →
-    is_initial_memory m →
+    (@is_initial_memory _ _ cname _ ) m →
     rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m)) (es, (reg', sreg', m')) →
     m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
   Proof.
@@ -425,16 +430,19 @@ Section Adequacy.
 
     iMod (@na_alloc Σ na_invg) as (logrel_nais) "Hna".
 
-    (* TODO move *)
-    set ( kvs_alloc_init := ({[ 0%Z := ∅ ; 1%Z := ∅ ]} : kvs_alloc)).
+    set (all_users_keys := (kvs_users_seals_reserved ++ (map_to_list kvs_users_seals).*2)).
+    set (kvs_alloc_init := (list_to_map ( (fun k => (k,∅)) <$> all_users_keys) : kvs_alloc)).
     iMod (gen_heap_init (kvs_alloc_init : kvs_alloc)) as (kvs_alloc_heapg) "(Hkvs_alloc_auth & Hkvs_alloc_frag & _)".
-    subst kvs_alloc_init.
+    assert ( kvs_alloc_init = {[ 0%Z := ∅ ; 1%Z := ∅ ]} ) as ->.
+    { subst kvs_alloc_init all_users_keys.
+      rewrite Hkvs_users_seals Hkvs_users_seals_reserved. cbn.
+      rewrite map_to_list_singleton /=.
+      done.
+    }
     rewrite big_sepM_insert; last by simplify_map_eq.
     rewrite big_sepM_insert; last by simplify_map_eq.
     iDestruct "Hkvs_alloc_frag" as "(Halloc_0 & Halloc_1 & _)".
-
     iMod (gen_heap_init (kvs_map_init : kvs_map)) as (kvs_heapg) "(Hkvs_auth & Hkvs_frags & _)".
-    Opaque kvs_map_init.
 
     assert kvs_namespaces as kvs_namespacesg.
     {
@@ -673,13 +681,7 @@ Section Adequacy.
     iAssert (
        [[(cmpt_b_cgp main_cmpt),(cmpt_e_cgp main_cmpt)]]↦ₐ[[cmpt_data main_cmpt]]
      )%I with "[Hmain_data]" as "Hmain_data"; first done.
-    (* iDestruct (region_pointsto_single with "Hmain_data") as "[%v [Hcgp_b %Hv] ]". *)
-    (* { pose proof (cmpt_data_size main_cmpt) as H. *)
-    (*   rewrite main_data in H. *)
-    (*   solve_addr+H. *)
-    (* } *)
-    (* rewrite main_data /kvs_main_data in Hv; simplify_eq. *)
-
+    rewrite main_data.
     iAssert (
       codefrag (cmpt_a_code main_cmpt) (cmpt_code main_cmpt)
      )%I with "[Hmain_code]" as "Hmain_code".
@@ -868,7 +870,7 @@ Section Adequacy.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
 
     iMod (
-       alloc_compartment_interp with "[HB_imports] [HB_code] [HB_data] [] [$Hsts_B] [$Hr_B]"
+       alloc_compartment_interp with "[HB_imports] [HB_code] [HB_data] [Halloc_1] [$Hsts_B] [$Hr_B]"
       ) as "(Hsts_B & Hr_B & #HB_code & #HB_data & ?)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
@@ -897,6 +899,7 @@ Section Adequacy.
         iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
         iSplit; iNext ; iApply kvs_addOrUpdate_entry_point_spec; try iFrame "#"; eauto.
       }
+      (* KVS.read*)
       iApply big_sepL_cons; iSplitL.
       { cbn.
         iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
@@ -1007,12 +1010,14 @@ Section Adequacy.
     iDestruct (big_sepM_delete _ _ cgp with "Hreg") as "[Hcgp Hreg]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[Hcsp Hreg]"; first by simplify_map_eq.
 
-    rewrite main_data.
     replace (cmpt_exp_tbl_cgp kvs_cmpt) with (b_kvs_exp_tbl ^+ 1)%a
                                              by (pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H; cbn; solve_addr+H).
 
+    replace ( (default 0%Z (kvs_users_seals_reserved !! 0)) ) with 0%Z
+    by (rewrite Hkvs_users_seals_reserved; simplify_map_eq; set_solver+).
+
     iPoseProof (Spec _ _ _ _ _ _ _ _
-                  _ _ _ _ _
+                  _ _ _ _ _ _
                   [] [] [] assertN switcherN
                  with "[ $Hassert $Hswitcher $Hkvs
                         $Hkvs_etbl_pcc $Hkvs_etbl_cgp $Hkvs_etbl_entries_addOrUpdate $Hkvs_etbl_entries_read
@@ -1023,6 +1028,7 @@ Section Adequacy.
                         $Hinterp_B $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto.
     { solve_ndisj. }
+    { rewrite Hkvs_users_seals_reserved; set_solver+. }
     { rewrite !dom_delete_L.
       rewrite regmap_full_dom; first done.
       intros r.
@@ -1056,7 +1062,10 @@ Section Adequacy.
       solve_addr+Hmain_imports Hmain_code.
     }
     { pose proof (cmpt_data_size main_cmpt) as Hmain_data.
-      by rewrite -main_data.
+      rewrite main_data in Hmain_data.
+      replace ( (default 0%Z (kvs_users_seals_reserved !! 0)) )
+        with 0%Z in Hmain_data by (rewrite Hkvs_users_seals_reserved; simplify_map_eq; set_solver+).
+      done.
     }
     { pose proof (cmpt_import_size main_cmpt) as Hmain_imports.
       by rewrite -Hmain_imports main_imports.
@@ -1092,19 +1101,21 @@ Local Program Instance CmptNames_kvs_CmptNameG : CmptNameG :=
 
 Local Instance choice_kvs_users_seals : kvs_users.
 Proof.
-  refine (Build_kvs_users CmptNames_kvs_CmptNameG {[B := 1%Z]} _ _ _).
+  refine (Build_kvs_users CmptNames_kvs_CmptNameG {[B := 1%Z]} _ _ [0%Z] _ _).
   - intros C.
     rewrite dom_singleton_L.
     apply elem_of_singleton.
     pose proof (finite.elem_of_enum C).
     cbn in *.
     by apply list_elem_of_singleton.
-  - rewrite map_to_list_singleton list_fmap_singleton /=.
-    apply NoDup_singleton.
   - intros C ku HC.
     destruct (decide (C = B)); simplify_map_eq.
     compute; done.
-Qed.
+  - apply Forall_singleton; done.
+  - rewrite map_to_list_singleton list_fmap_singleton /=.
+    apply NoDup_cons; split; [set_solver+|].
+    apply NoDup_singleton.
+Defined.
 
 (** END-TO-END THEOREM *)
 Theorem kvs_adequacy `{Layout: memory_layout}

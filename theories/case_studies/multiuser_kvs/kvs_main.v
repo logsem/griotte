@@ -77,8 +77,7 @@ Section KVS_Main.
     ++ encodeInstrsW [ Halt ]
   .
 
-  Definition KVS_USER_KEY_MAIN : Z := 0.
-  Definition kvs_main_data {KVS : kvsLayout} : list Word := [kvs_user_seal_key KVS_USER_KEY_MAIN].
+  Definition kvs_main_data {KVS : kvsLayout} (KVS_USER_KEY_MAIN : Z) : list Word := [kvs_user_seal_key KVS_USER_KEY_MAIN].
 
   Definition kvs_main_imports {KVS : kvsLayout}
     (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
