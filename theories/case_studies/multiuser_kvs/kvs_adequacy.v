@@ -14,7 +14,7 @@ From cap_machine Require Import switcher_preamble interp_switcher_call interp_sw
 Class memory_layout `{MP: MachineParameters} := {
 
     (* switcher *)
-    switcher_layout :> @switcherLayout MP;
+    switcher_layout : @switcherLayout MP;
     switcher_cmpt : cmptSwitcher;
 
     (* assert *)

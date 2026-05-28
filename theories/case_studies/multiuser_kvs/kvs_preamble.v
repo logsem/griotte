@@ -821,6 +821,12 @@ Section KVS_preamble.
       ◯(ALLOC)[ku] s ∗
       ([∗ set] kn ∈ s, ∃ w, (kvs_full_key ku kn) ⤇(KVS) w ∗ interp W C w ).
 
+  (* TODO: We cannot initialise this predicate!
+     Because we need to allocate the invariant for some world W' (which requires to update),
+     but we don't know the world W' in advance!!
+
+     And we need to have monotonicity with W...
+   *)
   Program Definition kvs_otype_prop
     {KVS_layout : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
