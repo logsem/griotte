@@ -51,8 +51,9 @@ Section KVS_Main.
       Jnz 2 ca0;  (* ca0 = 0 if inserted. So, jumps if no empty slot *)
       (* case INSERT_PASS *)
       Jmp 2;
-      (* case INSERT_FAIL *)
+      (* case INSERT_FAIL / ENOTENOUGHTRUSTEDSTACK *)
       Halt;
+      (* case INSERT_PASS *)
       Mov ca0 0;
       Mov ca1 0 ]
     ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
@@ -70,6 +71,13 @@ Section KVS_Main.
     ++ encodeInstrsW [ Jalr cra ctp ]
     (* assert (ret == 12) *)
     ++ encodeInstrsW [
+      (* check if ENOTENOUGHTRUSTEDSTACK *)
+      Jnz 2 ca0;  (* ca0 = 0 if NOT ENOTENOUGHTRUSTEDSTACK. *)
+      (* case PASS *)
+      Jmp 2;
+      (* case ENOTENOUGHTRUSTEDSTACK *)
+      Halt;
+      (* case PASS *)
       Mov ct0 ca1;
       Mov ct1 12
     ]

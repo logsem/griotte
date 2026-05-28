@@ -255,10 +255,26 @@ Section KVS_main_spec.
        set_solver+.
     }
     { subst rmap_arg; set_solver. }
-    iNext. iIntros
-      (arg_rmap_add rmap_add)
-        "(%Hdom_arg_rmap_add & %Hdom_rmap_add
-          & Hna & HPC & Hcgp & Hcra & Hcsp & Hargs & Hrmap & Hstk & Hcstk)".
+    iNext.
+    iIntros "[
+    (%arg_rmap_add & %rmap_add & %Hdom_arg_rmap_add & %Hdom_rmap_add
+    & Hna & HPC & Hcgp & Hcra & Hcsp & Hargs & Hrmap & Hstk & Hcstk)
+    |
+    (%rmap_add & %stk_mem' & %Hdom_rmap_add & Hna
+    & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1 & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag
+    )
+    ]"
+    ; iEval (cbn) in "HPC"
+    ; cycle 1.
+    {
+      focus_block 4 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
+      ; clear dependent a_insert_kvs.
+      (* Jnz 2 ca0 *)
+      iInstr "Hcode".
+      (* Halt *)
+      iInstr "Hcode".
+      wp_end; iIntros (_); iFrame "Hna".
+    }
     clear wca0 wca1 wca2 wct0.
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
       as ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
@@ -587,10 +603,28 @@ Section KVS_main_spec.
        set_solver+.
     }
     { subst rmap_arg; set_solver. }
-    iNext. iIntros
-      (arg_rmap_read rmap_read)
-        "(%Hdom_arg_rmap_read & %Hdom_rmap_read
-          & Hna & HPC & Hcgp & Hcra & Hcsp & Hargs & Hrmap & Hstk & Hcstk)".
+    iNext.
+    iIntros "[
+    (%arg_rmap_read & %rmap_read & %Hdom_arg_rmap_read & %Hdom_rmap_read
+    & Hna & HPC & Hcgp & Hcra & Hcsp & Hargs & Hrmap & Hstk & Hcstk)
+    |
+    (%rmap_read & %stk_mem' & %Hdom_rmap_read & Hna
+    & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1 & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag
+    )
+    ]"
+    ; iEval (cbn) in "HPC"
+    ; cycle 1.
+    {
+      focus_block 12 "Hcode_main" as a_assert1  Ha_assert1 "Hcode" "Hcont"; iHide "Hcont" as hcont
+      ; clear dependent a_insert_kvs.
+      (* Jnz 2 ca0 *)
+      iInstr "Hcode".
+      (* Halt *)
+      iInstr "Hcode".
+      wp_end; iIntros (_); iFrame "Hna".
+    }
+
+
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
       as ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
           "[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]";"[Hct0 %Hwct0]"].
@@ -667,6 +701,10 @@ Section KVS_main_spec.
     (* -------------------------------------------------- *)
     focus_block 12 "Hcode_main" as a_assert1  Ha_assert1 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_insert_kvs.
+    (* Jnz 2 ca0 *)
+    iInstr "Hcode".
+    (* Jmp 2 *)
+    iInstr "Hcode".
     (* Mov ct0 ca1 *)
     iInstr "Hcode".
     (* Mov ct1 12 *)
