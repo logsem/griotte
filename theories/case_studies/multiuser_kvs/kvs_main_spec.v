@@ -20,7 +20,7 @@ Section KVS_main_spec.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
-    {kvsg:kvsG Σ} {KVS_layout : kvsLayout}
+    {kvsg:kvsG Σ} {KVS_layout : kvsLayout} {KVS_layout_Wf : kvsLayoutWf}
     {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
   .
 
