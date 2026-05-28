@@ -309,6 +309,104 @@ Section KVS_preamble.
       destruct (decide (idx = idx0)); simplify_map_eq; eauto.
   Qed.
 
+  Lemma kvs_keys_empty_slot (m : kvs_map) : EMPTY_SLOT ∉ kvs_keys m.
+  Proof.
+    rewrite /kvs_keys.
+    intros Hcontra.
+    apply list_elem_of_filter in Hcontra as [? _]; done.
+  Qed.
+
+  Definition kvs_map_init : kvs_map :=
+    list_to_map ((fun n => (n, (EMPTY_SLOT, WInt DEFAULT_VAL))) <$> (seq 0 SIZE_MAP)).
+
+  Lemma wf_kvs_map_kvs_map_init : wf_kvs_map kvs_map_init.
+  Proof.
+    rewrite /kvs_map_init /wf_kvs_map /kvs_dom.
+    generalize 0 as k.
+    induction SIZE_MAP; intros k; cbn.
+    - split.
+      + by rewrite dom_empty_L.
+      + rewrite /kvs_keys map_to_list_empty fmap_nil fmap_nil filter_nil.
+        by apply NoDup_nil.
+    - destruct (IHn (S k)) as [IH_dom IH_nodup].
+      split.
+      + by rewrite dom_insert_L IH_dom.
+      + set (IHl := (list_to_map ((λ n0 : nat, (n0, (EMPTY_SLOT, WInt DEFAULT_VAL))) <$> seq (S k) n))).
+        apply NoDup_kvs_keys_insert; auto.
+        apply kvs_keys_empty_slot.
+  Qed.
+
+  Lemma kvs_keys_map_init : kvs_keys kvs_map_init ≡ₚ [].
+  Proof.
+    rewrite /kvs_map_init /kvs_keys.
+    generalize 0 as k.
+    induction SIZE_MAP; intros k; cbn.
+    - by rewrite map_to_list_empty fmap_nil fmap_nil filter_nil.
+    - specialize (IHn (S k)).
+      setoid_rewrite map_to_list_insert.
+      + cbn.
+        destruct (decide (EMPTY_SLOT ≠ EMPTY_SLOT)); done.
+      + apply not_elem_of_list_to_map.
+        intro Hcontra.
+        apply list_elem_of_fmap in Hcontra as ([idx [ku kn] ] & ? & Hcontra); simplify_eq.
+        apply list_elem_of_fmap in Hcontra as (k' & ? & Hcontra); simplify_eq.
+        apply elem_of_seq in Hcontra; cbn in *.
+        lia.
+  Qed.
+
+  Lemma kvs_alloc_synced_map_init (m : kvs_alloc) :
+    (∀ ku sk, m !! ku = Some sk -> sk = ∅) ->
+    kvs_alloc_synced kvs_map_init m.
+  Proof.
+    intros Hm.
+    intros [ku kn] Hwf_k; cbn in *.
+    split; intros Hkvs; exfalso.
+    - destruct Hkvs as (sk & Hk & Hsk).
+      apply Hm in Hk; set_solver.
+    - rewrite kvs_keys_map_init in Hkvs.
+      set_solver.
+  Qed.
+
+  Lemma kvs_initial_map_init (b e : Addr) :
+    (b + (2 * SIZE_MAP))%a = Some e ->
+    ([[b,e]]↦ₐ[[kvs_initial_map]]) -∗
+    ([∗ map] idx↦kw ∈ kvs_map_init, kw.1 ⤇(KVS)[ idx ] kw.2) -∗
+    [∗ map] idx↦kw ∈ kvs_map_init, isKVS_entry b idx kw.
+    Proof.
+      rewrite /kvs_map_init /kvs_initial_map.
+      generalize dependent e.
+      replace b with (b^+(2*0%nat))%a by solve_addr.
+      rewrite {3}(_ : (b^+(2*0%nat))%a = b); last solve_addr.
+      generalize 0 as k.
+      induction SIZE_MAP; iIntros (k e Hbe) "Hmem Hfrags"; cbn; first done.
+      specialize (IHn (S k)).
+      (* assert ( (list_to_map ((λ n0 : nat, (n0, (EMPTY_SLOT, WInt DEFAULT_VAL))) <$> seq (S k) n) !! k = None). *)
+      iDestruct (big_sepM_insert with "Hfrags") as "[Hf Hfrags]".
+      { apply not_elem_of_list_to_map.
+        intro Hcontra.
+        apply list_elem_of_fmap in Hcontra as ([idx [ku kn] ] & ? & Hcontra); simplify_eq.
+        apply list_elem_of_fmap in Hcontra as (k' & ? & Hcontra); simplify_eq.
+        apply elem_of_seq in Hcontra; cbn in *.
+        lia.
+      }
+      iApply big_sepM_insert.
+      { apply not_elem_of_list_to_map.
+        intro Hcontra.
+        apply list_elem_of_fmap in Hcontra as ([idx [ku kn] ] & ? & Hcontra); simplify_eq.
+        apply list_elem_of_fmap in Hcontra as (k' & ? & Hcontra); simplify_eq.
+        apply elem_of_seq in Hcontra; cbn in *.
+        lia.
+      }
+      iDestruct (region_pointsto_cons _ (b ^+ ((2 * k)+1))%a with "Hmem") as "[Hb Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
+      iDestruct (region_pointsto_cons _ (b ^+ ((2 * k)+2))%a with "Hmem") as "[Hb' Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
+      iSplitL "Hf Hb Hb'".
+      - iFrame.
+      - iApply (IHn (b ^+ (2 * (k + (S n))))%a with "[Hmem] [$Hfrags]"); first solve_addr+Hbe.
+        replace (b ^+ 2 * S k)%a with (b ^+ (2 * k + 2))%a by solve_addr.
+        replace e with (b ^+ 2 * (k + S n))%a by solve_addr.
+        done.
+ Qed.
+
   Lemma wf_kvs_map_insert (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
     m !! idx = Some (EMPTY_SLOT, WInt DEFAULT_VAL) ->
     k ∉ kvs_keys m ->
@@ -747,3 +845,5 @@ Section KVS_preamble.
       seal_pred KVS_OTYPE kvs_otype_propC.
 
 End KVS_preamble.
+
+Opaque kvs_map_init.
