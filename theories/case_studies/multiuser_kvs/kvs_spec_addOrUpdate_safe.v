@@ -210,11 +210,7 @@ Section KVS_spec_addOrUpdate_safe.
         destruct (decide (kvs_full_key user_key nkey = EMPTY_SLOT)); done.
       }
 
-      iDestruct ("Hkvs_frags" with "[$Hkvs_frag]") as "Hkvs_frags".
-      { iIntros (W' Hpriv_W_W').
-        iApply monotone.interp_monotone_nl; eauto.
-        destruct_word wca2; cbn; [done| | | | destruct sb]; destruct g; done.
-      }
+      iDestruct ("Hkvs_frags" with "[$Hkvs_frag]") as "Hkvs_frags"; eauto.
       iMod ("HP_close" with "[$Hna $Halloc $Hkvs_frags]") as "Hna"; eauto.
       {
         iNext; iPureIntro; exists a; split; auto.
@@ -310,8 +306,6 @@ Section KVS_spec_addOrUpdate_safe.
 
       iDestruct ( big_sepS_insert with "[$Hkvs_frags Hfkey]") as "Hkvs_frags";eauto.
       { iExists wca2; iFrame.
-        iIntros (W' Hpriv_W_W').
-        iApply monotone.interp_monotone_nl; eauto.
         destruct_word wca2; cbn; [done| | | | destruct sb]; destruct g; done.
       }
       iMod ("HP_close" with "[$Hna $Halloc $Hkvs_frags]") as "Hna"; eauto.

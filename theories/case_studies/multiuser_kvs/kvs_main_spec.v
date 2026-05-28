@@ -35,6 +35,7 @@ Section KVS_main_spec.
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
     (rmap : Reg)
+    (KVS_USER_KEY_MAIN : Z)
 
     (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f : Sealable)
@@ -52,12 +53,13 @@ Section KVS_main_spec.
     in
 
     Nswitcher ## Nassert ->
+    KVS_USER_KEY_MAIN ∈ kvs_users_seals_reserved ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
 
-    (cgp_b + length kvs_main_data)%a = Some cgp_e ->
+    (cgp_b + length (kvs_main_data KVS_USER_KEY_MAIN))%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
     frame_match Ws Cs cstk W0 B ->
@@ -82,7 +84,7 @@ Section KVS_main_spec.
       (* initial memory layout *)
       [[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗
       codefrag pc_a kvs_main_code ∗
-      [[ cgp_b , cgp_e ]] ↦ₐ [[ kvs_main_data ]] ∗
+      [[ cgp_b , cgp_e ]] ↦ₐ [[ (kvs_main_data KVS_USER_KEY_MAIN) ]] ∗
 
       ◯(ALLOC)[KVS_USER_KEY_MAIN] ∅ ∗
       region W0 B ∗ sts_full_world W0 B ∗
@@ -104,7 +106,7 @@ Section KVS_main_spec.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+    iIntros (HNswitcher_assert HKVS_USER_KEY_MAIN Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hframe_match
             )
       "(#Hassert & #Hswitcher
@@ -297,7 +299,10 @@ Section KVS_main_spec.
     iApply (KVS_add_spec
       with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull $Halloc]")
     ; auto.
-    { rewrite /finz.largest //=. }
+    { pose proof kvs_users_seals_reserved_bounds as H_ukey_bounds.
+      rewrite Forall_forall in H_ukey_bounds.
+      by apply H_ukey_bounds in HKVS_USER_KEY_MAIN.
+    }
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     { set_solver+. }
     iNext;
@@ -620,7 +625,10 @@ Section KVS_main_spec.
     iApply (KVS_read_spec_in
       with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hcnull $Hfkey]")
     ; auto.
-    { rewrite /finz.largest //=. }
+    { pose proof kvs_users_seals_reserved_bounds as H_ukey_bounds.
+      rewrite Forall_forall in H_ukey_bounds.
+      by apply H_ukey_bounds in HKVS_USER_KEY_MAIN.
+    }
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     iNext;
       iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & Hca0 & Hca1
