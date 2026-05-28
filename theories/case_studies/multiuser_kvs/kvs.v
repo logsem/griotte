@@ -356,26 +356,34 @@ Section KVS_Service.
   Definition length_kvs_exports_tbl : Z := 2 + kvs_nb_exports.
 
   Class kvsLayout : Type :=
-    mkCmptKvs {
+    mkKvsLayout {
         KVS_OTYPE : OType;
-        KVS_OTYPE_size :
-        (KVS_OTYPE < KVS_OTYPE ^+ 1)%ot;
 
         KVS_pcc_b : Addr;
         KVS_pcc_b' : Addr;
         KVS_pcc_e : Addr;
-        KVS_size_imports : (KVS_pcc_b + length_kvs_imports)%a = Some KVS_pcc_b';
-        KVS_size_code : (KVS_pcc_b' + length kvs_service_instrs)%a = Some KVS_pcc_e;
+
 
         KVS_cgp_b : Addr;
         KVS_cgp_e : Addr;
-        KVS_size_data : (KVS_cgp_b + length_kvs_data)%a = Some KVS_cgp_e;
+
 
         b_kvs_exp_tbl : Addr;
         e_kvs_exp_tbl : Addr;
-        kvs_exp_tbl_size : (b_kvs_exp_tbl <= b_kvs_exp_tbl ^+ length_kvs_exports_tbl < e_kvs_exp_tbl)%a
       }.
 
+  Class kvsLayoutWf `{kvsLayout} : Type :=
+    mkKvsLayoutWf {
+        KVS_OTYPE_size : (KVS_OTYPE < KVS_OTYPE ^+ 1)%ot;
+
+        KVS_size_imports : (KVS_pcc_b + length_kvs_imports)%a = Some KVS_pcc_b';
+
+        KVS_size_code : (KVS_pcc_b' + length kvs_service_instrs)%a = Some KVS_pcc_e;
+
+        KVS_size_data : (KVS_cgp_b + length_kvs_data)%a = Some KVS_cgp_e;
+
+        kvs_exp_tbl_size : (b_kvs_exp_tbl + length_kvs_exports_tbl)%a = Some e_kvs_exp_tbl
+      }.
 
   (* Meta information about addOrUpdate entry point *)
   Definition kvs_addOrUpdate_nargs : nat := 3.
