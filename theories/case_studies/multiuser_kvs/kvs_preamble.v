@@ -20,9 +20,12 @@ Class kvs_users {Cname : CmptNameG} :=
   {
     kvs_users_seals : gmap CmptName Z;
     kvs_users_seals_dom : forall (C : CmptName), C ∈ dom kvs_users_seals;
-    kvs_users_seals_unique : NoDup (map_to_list kvs_users_seals).*2;
-    kvs_users_seals_bounds :
-    ∀ C ku, kvs_users_seals !! C = Some ku -> (0 <= ku < top)%Z
+    kvs_users_seals_bounds : ∀ C ku, kvs_users_seals !! C = Some ku -> (0 <= ku < top)%Z;
+
+    kvs_users_seals_reserved : list Z;
+    kvs_users_seals_reserved_bounds : Forall (fun k => (0 <= k < top)%Z) kvs_users_seals_reserved;
+
+    kvs_users_seals_unique: NoDup (kvs_users_seals_reserved ++ (map_to_list kvs_users_seals).*2)
   }.
 
 Definition allocated_keys_auth `{kvsG} ( m : kvs_alloc) : iProp Σ :=
@@ -816,14 +819,13 @@ Section KVS_preamble.
       ⌜ (finz.of_z ku) = Some a ⌝ ∗
       (* KVS resources *)
       ◯(ALLOC)[ku] s ∗
-      ([∗ set] kn ∈ s, ∃ w, (kvs_full_key ku kn) ⤇(KVS) w
-                           ∗ (∀ W', ⌜related_sts_priv_world W W'⌝ -∗ interp W' C w ) ).
+      ([∗ set] kn ∈ s, ∃ w, (kvs_full_key ku kn) ⤇(KVS) w ∗ interp W C w ).
 
   Program Definition kvs_otype_prop
     {KVS_layout : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
     λne (W : WORLD) (C : CmptName) (w : Word),
-      na_inv logrel_nais (Nkvs_otype.@C) (kvs_otype_inv W C w).
+      (∀ W', ⌜related_sts_priv_world W W'⌝ -∗ na_inv logrel_nais (Nkvs_otype.@C) (kvs_otype_inv W' C w))%I.
   Next Obligation. solve_proper. Defined.
   Next Obligation. solve_proper. Defined.
   Next Obligation. solve_proper. Defined.
@@ -832,6 +834,23 @@ Section KVS_preamble.
     {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
     WORLD * CmptName * leibnizO Word -> iProp Σ :=
     safeC kvs_otype_prop.
+
+  Lemma persistent_cond_ot_kvs {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
+    persistent_cond kvs_otype_prop.
+  Proof. intros [ [] ] ; cbn; apply _. Qed.
+
+  Lemma mono_priv_ot_kvs
+    {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    (C : CmptName) (w : Word) :
+    ⊢ future_priv_mono C kvs_otype_propC w.
+  Proof.
+    iIntros (W W' Hrelated_W_W').
+    iModIntro.
+    iIntros "Hot_kvs".
+    iIntros (W'' Hrelated_W'_W'').
+    iSpecialize ("Hot_kvs" $! W'' with "[%]"); last done.
+    by eapply related_sts_priv_trans_world.
+  Qed.
 
   Definition kvs_inv {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} : iProp Σ :=
     let imports :=
@@ -846,4 +865,4 @@ Section KVS_preamble.
 
 End KVS_preamble.
 
-Opaque kvs_map_init.
+Global Opaque kvs_map_init.
