@@ -172,6 +172,8 @@ Section KVS_getFullKey.
     iRewrite -"Hagree" in "HP".
     rewrite /kvs_otype_propC /safeC /= /kvs_otype_prop //=.
     iDestruct "HP" as "#HP".
+    iSpecialize ("HP" $! W with "[]").
+    { by iPureIntro; apply related_sts_priv_refl_world. }
     iMod (na_inv_acc with "HP Hna")
       as "( (%ku & %a & %s & >%Heq & >%Hku_C & >%Hku & Halloc & Hfkeys) & Hna & HP_close)"
     ; eauto; simplify_eq; first solve_ndisj.
