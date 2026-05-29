@@ -144,7 +144,7 @@ int __cheri_compartment("known") run()
     b_so_exp_tbl e_so_exp_tbl : Sealable :=
       SCap RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+2)%a.
 
-  Definition so_export_table_entries : list Word :=
+  Definition so_export_table_entries `{!switcherLayout} : list Word :=
     [ so_exp_tbl_entry_f ].
 
 End SO_Main.

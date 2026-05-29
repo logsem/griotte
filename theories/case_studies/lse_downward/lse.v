@@ -115,7 +115,7 @@ int __cheri_compartment("known") run()
     b_lse_exp_tbl e_lse_exp_tbl : Sealable :=
       SCap RO Global b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+2)%a.
 
-  Definition lse_export_table_entries : list Word :=
+  Definition lse_export_table_entries `{!switcherLayout} : list Word :=
     [ lse_exp_tbl_entry_f ].
 
 End LSE_Main.

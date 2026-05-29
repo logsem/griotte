@@ -121,6 +121,20 @@ Section CmptLayout.
 
       }.
 
+
+  Global Instance cmptSwitcher_switcherLayout (switcher_cmpt : cmptSwitcher) : switcherLayout.
+  Proof.
+    refine (@mkSwitcherLayout
+              (b_switcher switcher_cmpt)
+              (e_switcher switcher_cmpt)
+              (a_switcher_call switcher_cmpt)
+              (a_switcher_return switcher_cmpt)
+              (ot_switcher switcher_cmpt)
+              (b_trusted_stack switcher_cmpt)
+              (e_trusted_stack switcher_cmpt)
+           ).
+  Defined.
+
   Definition cmpt_switcher_code_region (Cswitcher : cmptSwitcher) :=
     (finz.seq_between (b_switcher Cswitcher) (e_switcher Cswitcher)).
 

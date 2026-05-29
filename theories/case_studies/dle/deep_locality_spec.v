@@ -42,7 +42,7 @@ Section DLE.
     (cstk : CSTK)
     :
 
-    let imports := dle_main_importsb_assert e_assert C_f in
+    let imports := dle_main_imports b_assert e_assert C_f in
 
     Nswitcher ## Nassert ->
 

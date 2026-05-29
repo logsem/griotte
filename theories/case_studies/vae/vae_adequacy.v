@@ -6,10 +6,9 @@ From cap_machine Require Import mkregion_helpers.
 From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
-From cap_machine Require Import switcher_adequacy.
 From cap_machine Require Import disjoint_regions_tactics.
 From cap_machine Require Import switcher_preamble interp_switcher_call interp_switcher_return.
-From cap_machine Require Import compartment_layout.
+From cap_machine Require Import compartment_layout switcher_adequacy.
 
 Class memory_layout `{MP: MachineParameters} := {
 
@@ -43,17 +42,18 @@ Class memory_layout `{MP: MachineParameters} := {
     assert_switcher_disjoint assert_cmpt switcher_cmpt;
   }.
 
-Local Instance memory_layout_switcher_layout `{memory_layout} : switcherLayout.
+Local Instance memory_layoutr_switcherLayout `{memory_layout} : switcherLayout.
 Proof.
-  refine (@mkSwitcherLayout
-          (b_switcher switcher_cmpt)
-          (e_switcher switcher_cmpt)
-          (a_switcher_call switcher_cmpt)
-          (a_switcher_return switcher_cmpt)
-          (ot_switcher switcher_cmpt)
-          (b_trusted_stack switcher_cmpt)
-          (e_trusted_stack switcher_cmpt)
-         ).
+  exact (cmptSwitcher_switcherLayout switcher_cmpt).
+Defined.
+
+Local Instance memory_layout_switcherLayoutWf `{memory_layout} : switcherLayoutWf.
+Proof.
+  pose proof (ot_switcher_size switcher_cmpt).
+  pose proof (switcher_size switcher_cmpt).
+  pose proof (switcher_call_entry_point switcher_cmpt).
+  pose proof (switcher_return_entry_point switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _); cbn in *; auto.
 Defined.
 
 Definition mk_initial_memory `{memory_layout} (mem: Mem) :=
@@ -326,14 +326,6 @@ Section Adequacy.
 
     pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg entry_g.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
-    assert switcherLayoutWf as switcherLayoutWfg.
-    {
-      pose proof (ot_switcher_size switcher_cmpt).
-      pose proof (switcher_size switcher_cmpt).
-      pose proof (switcher_call_entry_point switcher_cmpt).
-      pose proof (switcher_return_entry_point switcher_cmpt).
-      refine (mkSwitcherLayoutWf _ _ _ _ _); cbn in *; auto.
-    }
 
     pose proof (
         @vae_init_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _ C
