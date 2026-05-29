@@ -810,7 +810,6 @@ Section KVS_preamble.
     by iMod (gen_heap_update m ku _ (s' ∖ {[kn]}) with "Hs Hs'") as "[$ $]".
   Qed.
 
-  Set Nested Proofs Allowed.
   Lemma kvs_alloc_delete_lookup_eq s ku ks sk :
     kvs_alloc_delete s ku ks !! ku = Some sk ->
     sk = default ∅ (s !! ku) ∖ ks.
@@ -819,6 +818,7 @@ Section KVS_preamble.
     rewrite /kvs_alloc_delete in H; simplify_map_eq.
     done.
   Qed.
+
   Lemma kvs_alloc_delete_lookup_ne s ku ku' ks sk :
     ku ≠ ku' ->
     kvs_alloc_delete s ku ks !! ku' = Some sk ->
@@ -870,42 +870,91 @@ Section KVS_preamble.
       * by exists idx', v'; simplify_map_eq.
   Qed.
 
+  Lemma NoDup_kvs_keys_elem_of m idx ku kn w idx' ku' kn' w' :
+    let f := kvs_full_key ku kn in
+    let f' := kvs_full_key ku' kn' in
+    NoDup (kvs_keys m) ->
+    idx ≠ idx' ->
+    (f ≠ EMPTY_SLOT) ->
+    (f' ≠ EMPTY_SLOT) ->
+    m !! idx = Some (f, w) ->
+    m !! idx' = Some (f', w') ->
+    ku' ≠ ku ∨ kn' ≠ kn.
+  Proof.
+    intros f f'.
+    induction m using map_ind; intros Hnodup Hidx_ne Hf_not_empty Hf'_not_empty Hm_idx Hm_idx'; first set_solver.
+    simplify_map_eq.
+    rewrite /kvs_keys in Hnodup.
+    rewrite map_to_list_insert in Hnodup;auto; cbn in *.
+    destruct x as [kux knx]; cbn in *.
+    destruct (decide (idx = i)); simplify_map_eq.
+    - (* idx = i *)
+      destruct (decide (f ≠ EMPTY_SLOT)); last done.
+      apply NoDup_cons in Hnodup as [Hf Hnodup].
+      rewrite -/(kvs_keys m) in Hf, Hnodup.
+      assert (f' ∈ kvs_keys m) as Hf'.
+      { apply elem_of_kvs_keys; split; first done.
+        eexists _,_; eauto.
+      }
+      destruct (decide (ku' = ku)); simplify_eq; [right|left]; auto.
+      destruct (decide (kn' = kn)); simplify_eq; auto.
+    - destruct (decide (idx' = i)); simplify_map_eq.
+      + (* idx ≠ i ∧ idx' = i *)
+        destruct (decide (f' ≠ EMPTY_SLOT)); last done.
+        apply NoDup_cons in Hnodup as [Hf' Hnodup].
+        rewrite -/(kvs_keys m) in Hf', Hnodup.
+        assert (f ∈ kvs_keys m) as Hf.
+        { apply elem_of_kvs_keys; split; first done.
+          eexists _,_; eauto.
+        }
+        destruct (decide (ku' = ku)); simplify_eq; [right|left]; auto.
+        destruct (decide (kn' = kn)); simplify_eq; auto.
+      + (* idx ≠ i ∧ idx' ≠ i *)
+        eapply IHm; eauto.
+        destruct (decide (kux ≠ EMPTY_SLOT)); [apply NoDup_cons in Hnodup as [_ Hnodup]|]; done.
+  Qed.
+
   Local Lemma kvs_alloc_synced_delete_2 (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn ku' kn' : Z) (w : Word) :
     let fkey := kvs_full_key ku kn in
     wf_kvs_full_key ku kn ->
     m !! idx = Some (fkey, w) ->
-    fkey ∈ kvs_keys m ->
+    NoDup (kvs_keys m) ->
     kvs_alloc_synced m s ->
     wf_kvs_full_key ku' kn' ->
     kvs_full_key ku' kn' ∈ kvs_keys (<[idx:=(EMPTY_SLOT, WInt DEFAULT_VAL)]> m) ->
     kvs_alloc_elem_of (kvs_alloc_delete s ku {[kn]}) ku' kn'.
   Proof.
     intros fkey Hwf_full_key Hidx Hnodup Halloc Hwf_full_key' Hk.
-    specialize (Halloc (ku', kn') Hwf_full_key') as IH.
-    specialize (Halloc (ku, kn) Hwf_full_key) as IH'.
-    apply IH' in Hnodup.
-    apply elem_of_kvs_keys in Hk as (Hidx' & idx' & v' & Hk).
+    specialize (Halloc (ku', kn') Hwf_full_key') as IH'.
+    cbn in *.
+    apply elem_of_kvs_keys in Hk as (Hf'_not_empty & idx' & v' & Hk).
+    assert (kvs_full_key ku kn ≠ EMPTY_SLOT) as Hf_not_empty by ( by eapply kvs_full_key_not_empty).
+
     destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
-    assert (kvs_full_key ku' kn' ∈ kvs_keys m) as IHm.
+    assert (kvs_full_key ku' kn' ∈ kvs_keys m) as IHm'.
     { apply elem_of_kvs_keys; split ; eauto. }
-    apply IH in IHm as (sk & Hsk & Hsk').
+
+    apply IH' in IHm' as (sk' & Hsk' & Hkn'_in_sk').
+    assert (kvs_full_key ku kn ∈ kvs_keys m) as IHm.
+    { apply elem_of_kvs_keys; split ; eauto. }
     rewrite /kvs_alloc_delete.
     destruct (decide (ku = ku')); simplify_map_eq; cycle 1.
-    { exists sk; split; simplify_map_eq;eauto. }
+    { exists sk'; split; simplify_map_eq;eauto. }
     eexists; split; simplify_map_eq; eauto;apply elem_of_difference; split; auto.
     apply not_elem_of_singleton.
-    destruct Hnodup as (?&?&?); simplify_map_eq.
-    exfalso.
-  Admitted.
+    eapply (NoDup_kvs_keys_elem_of m idx ku' kn _ idx' ku' kn') in Hnodup; eauto.
+    destruct Hnodup as [ | ]; auto.
+  Qed.
 
   Lemma kvs_alloc_synced_delete (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn : Z) (w : Word) :
     let fkey := kvs_full_key ku kn in
+    NoDup (kvs_keys m) ->
     wf_kvs_full_key ku kn ->
     m !! idx = Some (fkey, w) ->
     kvs_alloc_synced m s ->
     kvs_alloc_synced (<[idx:=(EMPTY_SLOT, WInt DEFAULT_VAL)]> m) (kvs_alloc_delete s ku {[kn]}).
   Proof.
-    intros fkey Hwf_full_key Hidx Halloc.
+    intros fkey Hnodup Hwf_full_key Hidx Halloc.
     rewrite /kvs_alloc_synced.
     intros [ku' kn'] Hwf_full_key'.
     cbn.
@@ -945,6 +994,7 @@ Section KVS_preamble.
       apply elem_of_kvs_keys; split; auto.
       destruct (decide (idx = idx0)); simplify_map_eq; eauto.
   Qed.
+
   Lemma wf_kvs_map_delete (m : kvs_map) (idx : nat) (k : Z) :
     (is_Some (m !! idx)) ->
     wf_kvs_map m ->
@@ -980,17 +1030,15 @@ Section KVS_preamble.
     iMod (kvs_auth_update a m idx _ EMPTY_SLOT _ (WInt DEFAULT_VAL) with "Hkvs_auth Hk") as "[$ $]".
 
     iMod ( allocated_keys_delete ku kn with "Halloc_auth Halloc_frag") as "[Halloc_auth Halloc_frag]".
+    assert (NoDup (kvs_keys m)) as Hnodup by ( by destruct Hwf_kvs ).
     rewrite /kvs_alloc_synced in Hwf_alloc.
     eapply (wf_kvs_map_delete _ _) in Hwf_kvs; eauto.
-
     eapply (kvs_alloc_synced_delete _ _ _ _ _ w) in Hwf_alloc; eauto.
     rewrite delete_insert_eq.
     subst k.
     iFrame "∗ %".
     by rewrite /kvs_alloc_delete Hvalid /=.
   Qed.
-
-
 
   Class kvs_namespaces :=
     {
