@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel interp_weakening monotone.
 From cap_machine Require Import
-  kvs kvs_main kvs_preamble kvs_main_spec kvs_spec_addOrUpdate_safe kvs_spec_read_safe.
+  kvs kvs_main kvs_preamble kvs_main_spec kvs_spec_addOrUpdate_safe kvs_spec_read_safe kvs_erase_spec_safe.
 From cap_machine Require Import switcher assert_spec logrel.
 From cap_machine Require Import mkregion_helpers.
 From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
@@ -124,8 +124,8 @@ Definition is_initial_memory `{@memory_layout MP} `{kvs_users} (mem: Mem) :=
       switcher_entry;
       (* kvs_user_seal_key kvs_user_key_B ; *)
       WSealed ot_switcher (KVS_addOrUpdate Global);
-      WSealed ot_switcher (KVS_read Global)
-      (* WSealed ot_switcher (KVS_erase Global) *)
+      WSealed ot_switcher (KVS_read Global);
+      WSealed ot_switcher (KVS_erase Global)
     ] ∧
   Forall is_z (cmpt_code B_cmpt) ∧ (* only instructions *)
   Forall (is_initial_data_word B_cmpt) (cmpt_data B_cmpt) ∧
@@ -908,6 +908,16 @@ Section Adequacy.
         iSplit; [iPureIntro; apply persistent_cond_ot_switcher |].
         iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
         iSplit; iNext ; iApply kvs_read_entry_point_spec; try iFrame "#"; eauto.
+      }
+      (* KVS.erase*)
+      iApply big_sepL_cons; iSplitL.
+      { cbn.
+        iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
+        rewrite fixpoint_interp1_eq /interp1 //= /interp_sb.
+        iExists _; iFrame "Hsealed_pred_ot_switcher".
+        iSplit; [iPureIntro; apply persistent_cond_ot_switcher |].
+        iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
+        iSplit; iNext ; iApply kvs_erase_entry_point_spec; try iFrame "#"; eauto.
       }
       done.
     }
