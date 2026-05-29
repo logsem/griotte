@@ -94,8 +94,6 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   (* instantiating main *)
   ∧ (cmpt_imports main_cmpt) =
     cmdc_main_imports
-      b_switcher e_switcher
-      a_switcher_call ot_switcher
       (b_assert assert_cmpt) (e_assert assert_cmpt)
       B_f C_g
   ∧ (cmpt_code main_cmpt) = cmdc_main_code

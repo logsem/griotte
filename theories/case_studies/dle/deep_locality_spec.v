@@ -13,7 +13,7 @@ Section DLE.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
   .
 
   Context {C : CmptName}.
@@ -42,9 +42,7 @@ Section DLE.
     (cstk : CSTK)
     :
 
-    let imports :=
-     dle_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
-    in
+    let imports := dle_main_importsb_assert e_assert C_f in
 
     Nswitcher ## Nassert ->
 

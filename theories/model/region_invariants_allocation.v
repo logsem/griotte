@@ -800,7 +800,6 @@ Section region_alloc_cmpt.
   Qed.
 
   Lemma switcher_cmpt_disjoint_std_update_compartment
-    `{switcher_layout : (@switcherLayout MP)}
     (W : WORLD) (C_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) (a : Addr) :
     a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ->
     switcher_cmpt_disjoint C_cmpt switcher_cmpt ->
@@ -827,15 +826,17 @@ Section region_alloc_cmpt.
     }
     rewrite std_sta_update_multiple_lookup_same_i.
     2: { intro Hcontra.
+         (* admit. *)
          apply (Hc a); eauto.
-         + eapply elem_of_union;eauto.
+         + rewrite /cmpt_switcher_region.
+           eapply elem_of_union;eauto.
          + eapply elem_of_union;eauto.
            left;eapply elem_of_union;eauto.
     }
     rewrite std_sta_update_multiple_lookup_same_i; first done.
     intro Hcontra.
     apply (Hc a); eauto.
-    + eapply elem_of_union;eauto.
+    + rewrite /cmpt_switcher_region. eapply elem_of_union;eauto.
     + eapply elem_of_union;eauto.
       left;eapply elem_of_union;eauto.
       left.

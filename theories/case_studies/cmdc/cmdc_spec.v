@@ -13,7 +13,7 @@ Section CMDC.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
   .
   Context {B C : CmptName}.
 
@@ -46,7 +46,7 @@ Section CMDC.
     :
 
     let imports :=
-     cmdc_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f C_g
+     cmdc_main_imports b_assert e_assert B_f C_g
     in
 
     Nswitcher ## Nassert ->
@@ -882,7 +882,7 @@ Section CMDC.
     :
 
     let imports :=
-     cmdc_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f C_g
+     cmdc_main_imports b_assert e_assert B_f C_g
     in
 
     Nswitcher ## Nassert ->

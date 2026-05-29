@@ -1,6 +1,19 @@
 From cap_machine Require Import machine_parameters assembler.
 From cap_machine Require Export clear_stack clear_registers.
 
+Class switcherLayout : Type :=
+  mkSwitcherLayout {
+      b_switcher : Addr ;
+      e_switcher : Addr ;
+      a_switcher_call : Addr ;
+      a_switcher_return : Addr ;
+
+      ot_switcher : OType ;
+
+      b_trusted_stack : Addr;
+      e_trusted_stack : Addr;
+    }.
+
 Section Switcher.
   Import Asm_Griotte.
   Context `{MP: MachineParameters}.
@@ -169,34 +182,10 @@ Section Switcher.
   Definition switcher_instrs : list Word :=
    concat (encodeInstrsW <$> assembled_switcher).
 
-
   Definition switcher_call_instrs :=
       Eval compute in
       let blocks_call_asm := length switcher_call_asm in
       concat (firstn blocks_call_asm assembled_switcher).
-
-  Class switcherLayout : Type :=
-    mkCmptSwitcher {
-        b_switcher : Addr ;
-        e_switcher : Addr ;
-        a_switcher_call : Addr ;
-        a_switcher_return : Addr ;
-
-        ot_switcher : OType ;
-
-        b_trusted_stack : Addr;
-        e_trusted_stack : Addr;
-
-        switcher_size :
-        (a_switcher_call + length switcher_instrs)%a = Some e_switcher ;
-
-        switcher_call_entry_point :
-        (b_switcher + 1)%a = Some a_switcher_call ;
-
-        switcher_return_entry_point :
-        (b_switcher + (1 + length switcher_call_instrs) )%a = Some a_switcher_return ;
-
-      }.
 
   Definition is_switcher_entry_point `{switcherLayout} (w : Word) :=
     bool_decide
@@ -213,5 +202,20 @@ Section Switcher.
 
   Definition decode_entry_point (entry_point : Z) : (Z * Z) :=
     ( Z.land entry_point 7, Z.shiftr entry_point 3).
+
+  Class switcherLayoutWf `{!switcherLayout} : Type :=
+    mkSwitcherLayoutWf {
+        switcher_size :
+        (a_switcher_call + length switcher_instrs)%a = Some e_switcher ;
+
+        switcher_call_entry_point :
+        (b_switcher + 1)%a = Some a_switcher_call ;
+
+        switcher_return_entry_point :
+        (b_switcher + (1 + length switcher_call_instrs) )%a = Some a_switcher_return ;
+
+        ot_switcher_size :
+        (ot_switcher < ot_switcher ^+ 1)%ot
+      }.
 
 End Switcher.

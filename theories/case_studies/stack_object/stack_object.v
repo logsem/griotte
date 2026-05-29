@@ -122,22 +122,21 @@ int __cheri_compartment("known") run()
 
   Definition so_main_data : list Word := [].
 
-  Definition so_main_imports
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
+  Definition so_main_imports `{!switcherLayout}
     (b_assert e_assert : Addr)
     (B_adv : Sealable)
     : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
+      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
       WSentry RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_adv
     ].
 
-  Definition length_so_main_imports :=
+  Definition length_so_main_imports `{!switcherLayout} :=
     length
-      (so_main_imports za za za za_ot za za (SCap RO Global za za za)).
+      (so_main_imports za za (SCap RO Global za za za)).
 
-  Definition so_exp_tbl_entry_f :=
+  Definition so_exp_tbl_entry_f `{!switcherLayout} :=
     WInt (encode_entry_point 2
             (length_so_main_imports + (length SO_main_code_run))).
 

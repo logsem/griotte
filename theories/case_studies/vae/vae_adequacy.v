@@ -6,14 +6,14 @@ From cap_machine Require Import mkregion_helpers.
 From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
-From cap_machine Require Import compartment_layout switcher_adequacy.
+From cap_machine Require Import switcher_adequacy.
 From cap_machine Require Import disjoint_regions_tactics.
 From cap_machine Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From cap_machine Require Import compartment_layout.
 
 Class memory_layout `{MP: MachineParameters} := {
 
     (* switcher *)
-    switcher_layout : @switcherLayout MP;
     switcher_cmpt : cmptSwitcher;
 
     (* assert *)
@@ -43,12 +43,24 @@ Class memory_layout `{MP: MachineParameters} := {
     assert_switcher_disjoint assert_cmpt switcher_cmpt;
   }.
 
+Local Instance memory_layout_switcher_layout `{memory_layout} : switcherLayout.
+Proof.
+  refine (@mkSwitcherLayout
+          (b_switcher switcher_cmpt)
+          (e_switcher switcher_cmpt)
+          (a_switcher_call switcher_cmpt)
+          (a_switcher_return switcher_cmpt)
+          (ot_switcher switcher_cmpt)
+          (b_trusted_stack switcher_cmpt)
+          (e_trusted_stack switcher_cmpt)
+         ).
+Defined.
+
 Definition mk_initial_memory `{memory_layout} (mem: Mem) :=
   mk_initial_switcher switcher_cmpt ∪
     mk_initial_assert assert_cmpt ∪
     mk_initial_cmpt main_cmpt ∪
     mk_initial_cmpt C_cmpt.
-
 
 Definition is_initial_registers `{memory_layout} (reg: Reg) :=
   reg !! PC = Some (WCap RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt) (cmpt_a_code main_cmpt)) ∧
@@ -58,15 +70,15 @@ Definition is_initial_registers `{memory_layout} (reg: Reg) :=
 
 Program Definition is_initial_sregisters `{@memory_layout MP} (sreg : SReg) :=
   sreg !! MTDC = Some (WCap RWL Local
-                         (@b_trusted_stack MP switcher_layout)
-                         (@e_trusted_stack MP switcher_layout)
-                         (@b_trusted_stack MP switcher_layout)).
+                         (b_trusted_stack switcher_cmpt)
+                         (e_trusted_stack switcher_cmpt)
+                         (b_trusted_stack switcher_cmpt)).
 
 Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
-  let b_switcher := (@b_switcher MP switcher_layout) in
-  let e_switcher := (@e_switcher MP switcher_layout) in
-  let a_switcher_call := (@a_switcher_call MP switcher_layout) in
-  let ot_switcher := (@ot_switcher MP switcher_layout) in
+  let b_switcher := (b_switcher switcher_cmpt) in
+  let e_switcher := (e_switcher switcher_cmpt) in
+  let a_switcher_call := (a_switcher_call switcher_cmpt) in
+  let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
     WSentry XSRW_ Local
       b_switcher
@@ -90,9 +102,8 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   (* instantiating main *)
   ∧ (cmpt_imports main_cmpt) =
   vae_main_imports
-    b_switcher e_switcher a_switcher_call ot_switcher
     (b_assert assert_cmpt) (e_assert assert_cmpt) C_f
-  ∧ (cmpt_code main_cmpt) = (vae_main_code ot_switcher)
+  ∧ (cmpt_code main_cmpt) = vae_main_code
   ∧ (cmpt_data main_cmpt) = vae_main_data
   ∧ (cmpt_exp_tbl_entries main_cmpt) = vae_export_table_entries
 
@@ -159,7 +170,7 @@ Section Adequacy.
   Definition assertN : namespace := nroot .@ "vae" .@ "assert_flag".
   Definition vaeN : namespace := nroot .@ "vae" .@ "code".
 
-  Lemma cmdc_adequacy' `{Layout: @memory_layout MP}
+  Lemma cmdc_adequacy' `{Layout: !memory_layout}
     (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
     (es: list cap_lang.expr):
     is_initial_registers reg →
@@ -175,16 +186,16 @@ Section Adequacy.
                   (state_is_good (reg', sreg', m'))).
     eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
 
-    set b_switcher := (@b_switcher MP switcher_layout).
-    set e_switcher := (@e_switcher MP switcher_layout).
-    set a_switcher_call := (@a_switcher_call MP switcher_layout).
-    set ot_switcher := (@ot_switcher MP switcher_layout).
-    set a_switcher_return := (@a_switcher_return MP switcher_layout).
-    set b_trusted_stack := (@b_trusted_stack MP switcher_layout).
-    set e_trusted_stack := (@e_trusted_stack MP switcher_layout).
-    set switcher_size := (@switcher_size MP switcher_layout).
-    set switcher_call_entry_point := (@switcher_call_entry_point MP switcher_layout).
-    set switcher_return_entry_point := (@switcher_return_entry_point MP switcher_layout).
+    (* set b_switcher := (b_switcher switcher_cmpt). *)
+    (* set e_switcher := (e_switcher switcher_cmpt). *)
+    (* set a_switcher_call := (a_switcher_call switcher_cmpt). *)
+    (* set a_switcher_return := (a_switcher_return switcher_cmpt). *)
+    (* set ot_switcher := (ot_switcher switcher_cmpt). *)
+    (* set b_trusted_stack := (b_trusted_stack switcher_cmpt). *)
+    (* set e_trusted_stack := (e_trusted_stack switcher_cmpt). *)
+    (* set switcher_size := (switcher_size switcher_cmpt). *)
+    (* set switcher_call_entry_point := (switcher_call_entry_point switcher_cmpt). *)
+    (* set switcher_return_entry_point := (switcher_return_entry_point switcher_cmpt). *)
 
     pose proof Hm as Hm'.
     destruct Hm as (Hm
@@ -195,7 +206,7 @@ Section Adequacy.
     iMod (gen_heap_init (reg:Reg)) as (reg_heapg) "(Hreg_ctx & Hreg & _)".
     iMod (gen_heap_init (sreg:SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
     iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
-    iMod (seal_store_init ({[ ot_switcher ]} : gset _)) as (seal_storeg) "Hseal_store".
+    iMod (seal_store_init ({[ (ot_switcher switcher_cmpt) ]} : gset _)) as (seal_storeg) "Hseal_store".
     set (
         C_f :=
        (WCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
@@ -263,12 +274,12 @@ Section Adequacy.
     iMod (
        entry_init (
            {[
-               (seal_capability C_f ot_switcher) := 0;
-               (borrow (seal_capability C_f ot_switcher)) := 0;
-               (seal_capability C_g ot_switcher) := 0;
-               (borrow (seal_capability C_g ot_switcher)) := 0;
-               (seal_capability awk_f ot_switcher) := 1;
-               (borrow (seal_capability awk_f ot_switcher)) := 1
+               (seal_capability C_f (ot_switcher switcher_cmpt)) := 0;
+               (borrow (seal_capability C_f (ot_switcher switcher_cmpt))) := 0;
+               (seal_capability C_g (ot_switcher switcher_cmpt)) := 0;
+               (borrow (seal_capability C_g (ot_switcher switcher_cmpt))) := 0;
+               (seal_capability awk_f (ot_switcher switcher_cmpt)) := 1;
+               (borrow (seal_capability awk_f (ot_switcher switcher_cmpt))) := 1
            ]}
 
          )
@@ -315,10 +326,17 @@ Section Adequacy.
 
     pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg entry_g.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
-    pose switcher_layout_g := (@switcher_layout MP Layout).
+    assert switcherLayoutWf as switcherLayoutWfg.
+    {
+      pose proof (ot_switcher_size switcher_cmpt).
+      pose proof (switcher_size switcher_cmpt).
+      pose proof (switcher_call_entry_point switcher_cmpt).
+      pose proof (switcher_return_entry_point switcher_cmpt).
+      refine (mkSwitcherLayoutWf _ _ _ _ _); cbn in *; auto.
+    }
 
     pose proof (
-        @vae_init_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _  switcher_layout_g C
+        @vae_init_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _ C
       ) as Spec.
 
     (* Get initial sregister mtdc *)
@@ -386,7 +404,6 @@ Section Adequacy.
     rewrite /cmpt_switcher_code_mregion.
     iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher_sealing Hswitcher]".
     { eapply cmpt_switcher_code_stack_mregion_disjoint ; eauto.
-      exact switcher_cmpt.
     }
     iEval (rewrite /mkregion) in "Hswitcher_sealing".
     rewrite finz_seq_between_singleton.
@@ -403,11 +420,10 @@ Section Adequacy.
     iAssert ( switcher_preamble.switcher_inv )
       with "[Hswitcher Hswitcher_sealing Htrusted_stack Hcstk_full Hmtdc]" as "Hswitcher".
     {
-      rewrite /switcher_preamble.switcher_inv /codefrag /region_pointsto.
-      replace (a_switcher_call ^+ length switcher_instrs)%a
-        with e_switcher.
-      2: { pose proof switcher_size as H.
-           subst a_switcher_call e_switcher.
+      rewrite /switcher_preamble.switcher_inv /codefrag /region_pointsto /=.
+      replace ((a_switcher_call switcher_cmpt) ^+ length switcher_instrs)%a
+        with (e_switcher switcher_cmpt).
+      2: { pose proof (switcher_size switcher_cmpt) as H.
            solve_addr+H.
       }
       iFrame "∗#".
@@ -420,7 +436,6 @@ Section Adequacy.
       iDestruct "Htrusted_stack" as "[Hbase_stack Htrusted_stack]".
       iFrame.
       iSplitL; last (iPureIntro ; by rewrite finz_add_0).
-      subst switcher_layout_g.
       iSplit; iPureIntro; solve_addr.
     }
     iMod (na_inv_alloc logrel.logrel_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
@@ -616,7 +631,7 @@ Section Adequacy.
 
     iAssert (
         interp W1 C
-          (WSealed ot_switcher
+          (WSealed (ot_switcher switcher_cmpt)
              (SCap RO Global
                 (cmpt_exp_tbl_pcc main_cmpt)
                 (cmpt_exp_tbl_entries_end main_cmpt)
@@ -713,7 +728,7 @@ Section Adequacy.
     }
 
     iAssert
-      ( interp W4 C (WSealed ot_switcher C_f)
+      ( interp W4 C (WSealed (ot_switcher switcher_cmpt) C_f)
       )%I as "Hinterp_C_f".
     {
       iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_f _ _ (nroot.@C)); eauto; last lia.

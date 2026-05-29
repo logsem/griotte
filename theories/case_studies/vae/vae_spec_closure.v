@@ -14,7 +14,7 @@ Section VAE.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
   .
 
   Context {C : CmptName}.
@@ -214,16 +214,13 @@ Section VAE.
 
     :
 
-    let imports :=
-     vae_main_imports
-       b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
-    in
+    let imports := vae_main_imports b_assert e_assert C_f in
 
     Nswitcher ## Nassert ->
     Nswitcher ## Nvae ->
     Nassert ## Nvae ->
     (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (vae_main_code ot_switcher))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ->
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
     (exists b : bool, loc W !! i = Some (encode b)) ->
@@ -233,7 +230,7 @@ Section VAE.
     na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv logrel_nais Nswitcher switcher_inv
     ∗ na_inv logrel_nais Nvae
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a (vae_main_code ot_switcher))
+        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a vae_main_code)
     ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
@@ -344,7 +341,7 @@ Section VAE.
     rewrite -!app_assoc.
     rewrite /VAE_main_code_f.
     assert (SubBounds pc_b pc_e (pc_a ^+ length VAE_main_code_init)%a
-              (pc_a ^+ length (vae_main_code ot_switcher))%a).
+              (pc_a ^+ length vae_main_code)%a).
     { solve_addr. }
     focus_block_nochangePC 4 "Hcode_main" as a_awkward Ha_awkward "Hcode" "Hcont"; iHide "Hcont" as hcont.
     replace (pc_b ^+ 24%nat)%a with a_awkward by solve_addr.
@@ -958,16 +955,13 @@ Section VAE.
 
     :
 
-    let imports :=
-     vae_main_imports
-       b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
-    in
+    let imports := vae_main_imports b_assert e_assert C_f in
 
     Nswitcher ## Nassert ->
     Nswitcher ## Nvae ->
     Nassert ## Nvae ->
     (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (vae_main_code ot_switcher))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ->
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
     (exists b : bool, loc W !! i = Some (encode b)) ->
@@ -977,7 +971,7 @@ Section VAE.
     na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv logrel_nais Nswitcher switcher_inv
     ∗ na_inv logrel_nais Nvae
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a (vae_main_code ot_switcher))
+        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a vae_main_code)
     ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)

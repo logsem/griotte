@@ -14,7 +14,7 @@ Section SO.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
   .
 
   Context {C : CmptName}.
@@ -45,10 +45,7 @@ Section SO.
     (cstk : CSTK)
     :
 
-    let imports :=
-     so_main_imports
-       b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
-    in
+    let imports := so_main_imports b_assert e_assert C_f in
 
     Nswitcher ## Nassert ->
     Nswitcher ## Nso_code ->
