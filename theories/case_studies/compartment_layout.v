@@ -191,6 +191,15 @@ Section CmptLayout.
         (finz.seq_between flag_assert (flag_assert ^+ 1)%a)
       }.
 
+  Global Instance cmptAssert_assertLayout (assert_cmpt : cmptAssert) : assertLayout.
+  Proof.
+    refine (@mkAssertLayout
+              (b_assert assert_cmpt)
+              (e_assert assert_cmpt)
+              (flag_assert assert_cmpt)
+           ).
+  Defined.
+
   Definition cmpt_assert_code_region (Cassert : cmptAssert) :=
     (finz.seq_between (b_assert Cassert) (cap_assert Cassert)).
   Definition cmpt_assert_cap_region (Cassert : cmptAssert) :=

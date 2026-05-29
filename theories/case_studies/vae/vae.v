@@ -85,9 +85,7 @@ Section VAE_Main.
 
   Definition vae_main_data : list Word := [WInt 0].
 
-  Definition vae_main_imports
-    `{!switcherLayout}
-    (b_assert e_assert : Addr)
+  Definition vae_main_imports `{!switcherLayout} `{!assertLayout}
     (B_adv : Sealable)
     : list Word :=
     [
@@ -96,11 +94,11 @@ Section VAE_Main.
       WSealed ot_switcher B_adv
     ].
 
-  Definition length_vae_main_imports `{!switcherLayout} :=
+  Definition length_vae_main_imports `{!switcherLayout} `{!assertLayout} :=
     length
-      (vae_main_imports za za (SCap RO Global za za za)).
+      (vae_main_imports (SCap RO Global za za za)).
 
-  Definition vae_exp_tbl_entry_awkward `{!switcherLayout} :=
+  Definition vae_exp_tbl_entry_awkward `{!switcherLayout} `{!assertLayout} :=
     WInt (encode_entry_point 1
             (length_vae_main_imports + (length VAE_main_code_init))).
 
@@ -108,7 +106,7 @@ Section VAE_Main.
     b_vae_exp_tbl e_vae_exp_tbl : Sealable :=
       SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+2)%a.
 
-  Definition vae_export_table_entries `{!switcherLayout} : list Word :=
+  Definition vae_export_table_entries `{!switcherLayout} `{!assertLayout} : list Word :=
     [ vae_exp_tbl_entry_awkward ].
 
 End VAE_Main.

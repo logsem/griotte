@@ -54,6 +54,10 @@ Proof.
   refine (mkSwitcherLayoutWf _ _ _ _ _); cbn in *; auto.
 Defined.
 
+Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
+Proof.
+  exact (cmptAssert_assertLayout assert_cmpt).
+Defined.
 
 Definition mk_initial_memory `{memory_layout} (mem: Mem) :=
   mk_initial_switcher switcher_cmpt ∪
@@ -94,10 +98,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
 
   mem = mk_initial_memory mem
   (* instantiating main *)
-  ∧ (cmpt_imports main_cmpt) =
-    dle_main_imports
-      (b_assert assert_cmpt) (e_assert assert_cmpt)
-      C_f
+  ∧ (cmpt_imports main_cmpt) = dle_main_imports C_f
   ∧ (cmpt_code main_cmpt) = dle_main_code
   ∧ (cmpt_data main_cmpt) = dle_main_data
   ∧ (cmpt_exp_tbl_entries main_cmpt) = []
@@ -231,7 +232,7 @@ Section Adequacy.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
 
     pose proof (
-        @dle_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _ C
+        @dle_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _ _ C
       ) as Spec.
 
     (* Get initial sregister mtdc *)
@@ -540,7 +541,7 @@ Section Adequacy.
     iDestruct (big_sepM_delete _ _ cgp with "Hreg") as "[Hcgp Hreg]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[Hcsp Hreg]"; first by simplify_map_eq.
 
-    iPoseProof (Spec _ _ _ _ _ _ _ _
+    iPoseProof (Spec _ _ _ _ _
                   _ _ _ _ _
                   [] [] assertN switcherN []
                  with "[ $Hassert $Hswitcher $Hna

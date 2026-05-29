@@ -14,7 +14,7 @@ Section SO.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
 
   Context {C : CmptName}.
@@ -32,7 +32,6 @@ Section SO.
 
     (b_so_exp_tbl e_so_exp_tbl : Addr)
 
-    (b_assert e_assert : Addr) (a_flag : Addr)
     (C_f : Sealable)
 
     (W0 : WORLD)
@@ -45,7 +44,7 @@ Section SO.
     (cstk : CSTK)
     :
 
-    let imports := so_main_imports b_assert e_assert C_f in
+    let imports := so_main_imports C_f in
 
     Nswitcher ## Nassert ->
     Nswitcher ## Nso_code ->

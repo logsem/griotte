@@ -83,8 +83,7 @@ Section DLE_Main.
 
   Definition dle_main_data : list Word := [WInt 0; WInt 0].
 
-  Definition dle_main_imports `{!switcherLayout}
-    (b_assert e_assert : Addr)
+  Definition dle_main_imports `{!switcherLayout} `{!assertLayout}
     (B_f : Sealable) : list Word :=
     [
       WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;

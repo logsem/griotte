@@ -13,7 +13,7 @@ Section DROE.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
   Context {C : CmptName}.
 
@@ -28,7 +28,6 @@ Section DROE.
     (csp_b csp_e : Addr)
     (rmap : Reg)
 
-    (b_assert e_assert : Addr) (a_flag : Addr)
     (C_f : Sealable)
 
     (W_init_C : WORLD)
@@ -41,7 +40,7 @@ Section DROE.
     (cstk : CSTK)
     :
 
-    let imports := droe_main_imports b_assert e_assert C_f in
+    let imports := droe_main_imports C_f in
 
     Nswitcher ## Nassert ->
 

@@ -56,6 +56,11 @@ Proof.
   refine (mkSwitcherLayoutWf _ _ _ _ _); cbn in *; auto.
 Defined.
 
+Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
+Proof.
+  exact (cmptAssert_assertLayout assert_cmpt).
+Defined.
+
 Definition mk_initial_memory `{memory_layout} (mem: Mem) :=
   mk_initial_switcher switcher_cmpt ∪
     mk_initial_assert assert_cmpt ∪
@@ -100,9 +105,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
 
   mem = mk_initial_memory mem
   (* instantiating main *)
-  ∧ (cmpt_imports main_cmpt) =
-  vae_main_imports
-    (b_assert assert_cmpt) (e_assert assert_cmpt) C_f
+  ∧ (cmpt_imports main_cmpt) = vae_main_imports C_f
   ∧ (cmpt_code main_cmpt) = vae_main_code
   ∧ (cmpt_data main_cmpt) = vae_main_data
   ∧ (cmpt_exp_tbl_entries main_cmpt) = vae_export_table_entries
@@ -185,17 +188,6 @@ Section Adequacy.
     specialize (WPI (Seq (Instr Executable)) (reg, sreg, m) es (reg', sreg', m')
                   (state_is_good (reg', sreg', m'))).
     eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
-
-    (* set b_switcher := (b_switcher switcher_cmpt). *)
-    (* set e_switcher := (e_switcher switcher_cmpt). *)
-    (* set a_switcher_call := (a_switcher_call switcher_cmpt). *)
-    (* set a_switcher_return := (a_switcher_return switcher_cmpt). *)
-    (* set ot_switcher := (ot_switcher switcher_cmpt). *)
-    (* set b_trusted_stack := (b_trusted_stack switcher_cmpt). *)
-    (* set e_trusted_stack := (e_trusted_stack switcher_cmpt). *)
-    (* set switcher_size := (switcher_size switcher_cmpt). *)
-    (* set switcher_call_entry_point := (switcher_call_entry_point switcher_cmpt). *)
-    (* set switcher_return_entry_point := (switcher_return_entry_point switcher_cmpt). *)
 
     pose proof Hm as Hm'.
     destruct Hm as (Hm
@@ -328,7 +320,7 @@ Section Adequacy.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
 
     pose proof (
-        @vae_init_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _ C
+        @vae_init_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _ _ C
       ) as Spec.
 
     (* Get initial sregister mtdc *)
@@ -646,10 +638,8 @@ Section Adequacy.
       replace (cmpt_exp_tbl_cgp main_cmpt)
         with (cmpt_exp_tbl_pcc main_cmpt ^+ 1)%a by solve_addr+H0.
       iApply (vae_awkward_safe
-                _ _  _
-                _ _
-                _ _
-                _ _
+                _ _ _
+                _ _ _
                 _ _ W1 assertN switcherN vaeN vaeN
              ); try iFrame "#"; eauto.
       + solve_ndisj.
@@ -817,7 +807,7 @@ Section Adequacy.
     rewrite main_imports.
 
     iPoseProof (Spec _ _ _ _ _ _ _ _
-                  _ (cmpt_exp_tbl_entries_end main_cmpt) _ _ _
+                  _ (cmpt_exp_tbl_entries_end main_cmpt)
                   _ _ [] [] assertN switcherN vaeN
                  with "[ $Hassert $Hswitcher $Hmain_code
                          $Hinv_etbl_PCC $Hinv_etbl_CGP $Hinv_etbl_entry_awkward

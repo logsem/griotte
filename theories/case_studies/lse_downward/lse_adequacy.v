@@ -55,6 +55,10 @@ Proof.
   refine (mkSwitcherLayoutWf _ _ _ _ _); cbn in *; auto.
 Defined.
 
+Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
+Proof.
+  exact (cmptAssert_assertLayout assert_cmpt).
+Defined.
 
 Definition mk_initial_memory `{memory_layout} (mem: Mem) :=
   mk_initial_switcher switcher_cmpt ∪
@@ -95,9 +99,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
 
   mem = mk_initial_memory mem
   (* instantiating main *)
-  ∧ (cmpt_imports main_cmpt) =
-  lse_main_imports
-    (b_assert assert_cmpt) (e_assert assert_cmpt) C_f
+  ∧ (cmpt_imports main_cmpt) = lse_main_imports C_f
   ∧ (cmpt_code main_cmpt) = lse_main_code
   ∧ (cmpt_data main_cmpt) = lse_main_data
   ∧ (cmpt_exp_tbl_entries main_cmpt) = lse_export_table_entries
@@ -269,7 +271,7 @@ Section Adequacy.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
 
     pose proof (
-        @lse_run_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _ C
+        @lse_run_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _ _ C
       ) as Spec.
 
     (* Get initial sregister mtdc *)
@@ -559,10 +561,8 @@ Section Adequacy.
       replace (cmpt_exp_tbl_cgp main_cmpt)
         with (cmpt_exp_tbl_pcc main_cmpt ^+ 1)%a by solve_addr+H0.
       iApply (lse_awkward_safe
-                _ _  _
-                _ _
-                _ _
-                _ _
+                _ _ _
+                _ _ _
                 _ _ W0 assertN switcherN lseN lseN
              ); try iFrame "#"; eauto.
       + solve_ndisj.
@@ -717,7 +717,7 @@ Section Adequacy.
     (* rewrite main_imports. *)
 
     iPoseProof (Spec _ _ _ _ _ _ _ _
-                  _ (cmpt_exp_tbl_entries_end main_cmpt) _ _ _
+                  _ (cmpt_exp_tbl_entries_end main_cmpt)
                   _ _ [] [] assertN switcherN lseN
                  with "[ $Hassert $Hswitcher $Hmain_code
                          $Hinv_etbl_PCC $Hinv_etbl_CGP $Hinv_etbl_entry_f

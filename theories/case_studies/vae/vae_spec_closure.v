@@ -14,7 +14,7 @@ Section VAE.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
 
   Context {C : CmptName}.
@@ -204,7 +204,6 @@ Section VAE.
     (b_vae_exp_tbl e_vae_exp_tbl : Addr)
     (g_vae_exp_tbl : Locality)
 
-    (b_assert e_assert : Addr) (a_flag : Addr)
     (C_f : Sealable)
 
     (W : WORLD)
@@ -214,7 +213,7 @@ Section VAE.
 
     :
 
-    let imports := vae_main_imports b_assert e_assert C_f in
+    let imports := vae_main_imports C_f in
 
     Nswitcher ## Nassert ->
     Nswitcher ## Nvae ->
@@ -945,7 +944,6 @@ Section VAE.
 
     (b_vae_exp_tbl e_vae_exp_tbl : Addr)
 
-    (b_assert e_assert : Addr) (a_flag : Addr)
     (C_f : Sealable)
 
     (W : WORLD)
@@ -955,7 +953,7 @@ Section VAE.
 
     :
 
-    let imports := vae_main_imports b_assert e_assert C_f in
+    let imports := vae_main_imports C_f in
 
     Nswitcher ## Nassert ->
     Nswitcher ## Nvae ->

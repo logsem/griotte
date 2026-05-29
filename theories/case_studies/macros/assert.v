@@ -1,6 +1,13 @@
 From cap_machine Require Import machine_parameters assembler.
 From cap_machine Require Import fetch.
 
+Class assertLayout : Type :=
+  mkAssertLayout {
+      b_assert : Addr ;
+      e_assert : Addr ;
+      a_flag : Addr ;
+    }.
+
 Section Assert_Code.
   Import Asm_Griotte.
   Local Coercion Z.of_nat : nat >-> Z.
