@@ -9,7 +9,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -270,13 +270,9 @@ Section fundamental.
     interp W C (WSealed ot sb) -∗ interp W C (WSealed ot (borrow_sb sb)).
   Proof.
     iIntros "Hinterp".
-    rewrite !fixpoint_interp1_eq /= /interp_sb.
-    iDestruct "Hinterp" as (P HpersP) "(Hmono & Hsealpred & _ & HPborrowed)".
-    opose proof (HpersP (W,C,_)) as HpersPborrowed; cbn in HpersPborrowed.
-    iDestruct "HPborrowed" as "#HPborrowed".
-    replace (borrow (WSealable (borrow_sb sb))) with (WSealable (borrow_sb sb))
-    by (destruct sb; auto).
-    iFrame "∗#%".
+    rewrite !fixpoint_interp1_eq /= /interp_sb /= borrow_sb_idempotent.
+    iApply sts_seals_std_weaken; last iFrame.
+    set_solver+.
   Qed.
 
   Lemma interp_deeplocal_word W C w : interp W C w ⊢ interp W C (deeplocal w).

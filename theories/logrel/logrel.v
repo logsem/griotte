@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
-From cap_machine Require Export cap_lang memory_region seal_store region_invariants.
+From cap_machine Require Export cap_lang memory_region region_invariants sealing_invariants.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine Require Import rules_base.
@@ -31,7 +31,8 @@ Section logrel.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
+    {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -615,19 +616,48 @@ Section logrel.
               end)%I.
   Solve All Obligations with auto;solve_proper.
 
+  (* NOTE : Using [force_global] is a bit like a hack,
+     waiting for an actual normalisation function for [sealing_map].
+
+     Having both [w] and [borrow w] in [sts_seals_std]
+     forces to have both P(w) and P(borrow w),
+     where P is the sealing predicate associated with [o].
+     The problem is that P is not Persistent in general,
+     and therefore, having both P(w) ∗ P(borrow w)
+     might not be possible.
+   *)
+  Definition unseal_cond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word), P W C (force_global w) -∗ interp W C w).
+  Global Instance unseal_cond_ne n :
+    Proper ((=) ==> (=) ==> dist n ==> dist n) unseal_cond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance unseal_contractive (P : V) (C : CmptName) (p : Perm) :
+    Contractive (λ interp, ▷ unseal_cond P C interp)%I.
+  Proof. solve_contractive. Qed.
+
+  Definition seal_cond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word), interp W C w -∗ P W C (force_global w)).
+  Global Instance seal_cond_ne n :
+    Proper ((=) ==> (=) ==> dist n ==> dist n) seal_cond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance seal_contractive (P : V) (C : CmptName) (p : Perm) :
+    Contractive (λ interp, ▷ seal_cond P C interp)%I.
+  Proof. solve_contractive. Qed.
+
   (* (un)seal permission definitions *)
   (* Note the asymmetry: to seal values, we need to know that we are using a persistent predicate to create a value, whereas we do not need this information when unsealing values (it is provided by the `interp_sb` case). *)
   Definition safe_to_seal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
        ∃ P : V, ⌜persistent_cond P⌝
-                ∗ (∀ w, future_priv_mono C (safeC P) w)
                 ∗ (seal_pred a (safeC P))
-                ∗ ▷ wcond P C interp)%I.
+                ∗ ⌜ a ∈ dom (seal_std W) ⌝
+                ∗ ▷ seal_cond P C interp)%I.
   Definition safe_to_unseal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
-       ∃ P : V, (∀ w, future_priv_mono C (safeC P) w)
+       ∃ P : V, ⌜persistent_cond P⌝
                 ∗ (seal_pred a (safeC P))
-                ∗ ▷ rcond P C RO interp)%I.
+                ∗ ⌜ a ∈ dom (seal_std W) ⌝
+                ∗ ▷ unseal_cond P C interp)%I.
 
   (** Interp for sealing capability. *)
   Program Definition interp_sr (interp : V) : V :=
@@ -639,14 +669,8 @@ Section logrel.
   Solve All Obligations with solve_proper.
 
   (** Interp for sealed capability. *)
-  Program Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (w : Word) :=
-    (∃ (P : V) ,
-        ⌜persistent_cond P⌝
-        ∗ (∀ w, future_priv_mono C (safeC P) w)
-        ∗ seal_pred o (safeC P)
-        ∗ ▷ P W C w
-        ∗ ▷ P W C (borrow w)
-    )%I.
+  Program Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (w : Word) : iPropO Σ :=
+    (sts_seals_std C o {[w ; borrow w ]})%I.
 
   (** Definition of interp, pre-fixpoint. *)
   Program Definition interp1 (interp : V) : V :=
@@ -736,22 +760,7 @@ Section logrel.
     - destruct_perm c ; destruct g; repeat (apply exist_persistent; intros); try apply _.
     - destruct (permit_seal sr), (permit_unseal sr); rewrite /safe_to_seal /safe_to_unseal; apply _ .
     - apply _.
-    - apply exist_persistent; intros P.
-      unfold Persistent. iIntros "(%Hpers & #Hmono & #Hs & HP & HPborrowed)".
-      (* use knowledge about persistence *)
-      iAssert (<pers> ▷ P W C (WSealable sb))%I with "[ HP ]" as "HP".
-      { iApply later_persistently_1.
-        ospecialize (Hpers (W,C,_)); cbn in Hpers.
-        by iApply persistent_persistently_2.
-      }
-      iAssert (<pers> ▷ P W C (borrow (WSealable sb)))%I with "[ HPborrowed ]" as "HPborrowed".
-      { iApply later_persistently_1.
-        ospecialize (Hpers (W,C,_)); cbn in Hpers.
-        by iApply persistent_persistently_2.
-      }
-      iApply persistently_sep_2; iSplitR; auto.
-      iApply persistently_sep_2; iSplitR; auto; iFrame "Hs".
-      iApply persistently_sep_2;iFrame.
+    - apply _.
   Qed.
 
   (* Non-curried version of interp *)

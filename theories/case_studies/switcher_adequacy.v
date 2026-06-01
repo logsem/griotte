@@ -10,7 +10,7 @@ Section helpers_switcher_adequacy.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -72,7 +72,7 @@ Section helpers_switcher_adequacy.
   Lemma ot_switcher_interp
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (g_etbl : Locality) (a_etbl: Addr)
-    (args off : nat) (ot : OType) (Nswitcher CNAME : namespace) :
+    (args off : nat) (Nswitcher CNAME : namespace) :
     let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
     let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
     let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
@@ -90,10 +90,11 @@ Section helpers_switcher_adequacy.
     -∗ interp W C (WCap RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap RW Global b_cgp e_cgp b_cgp)
     -∗ WSealed ot_switcher (SCap RO g_etbl b_etbl e_etbl a_etbl) ↦□ₑ args
+    -∗ WSealed ot_switcher (SCap RO Local b_etbl e_etbl a_etbl) ↦□ₑ args
     -∗ ot_switcher_prop W C (WCap RO g_etbl b_etbl e_etbl a_etbl).
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp Ha_etbl Hargs.
-    iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry #Hinterp_pcc #Hinterp_cgp #Hentry".
+    iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry_borrow".
     iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, off.
     iFrame "#".
     iSplit ; first (by iPureIntro).
@@ -124,43 +125,6 @@ Section helpers_switcher_adequacy.
       solve_addr.
     }
     iApply fundamental_execute_entry_point; eauto.
-  Qed.
-
-  Lemma ot_switcher_interp_entry
-    (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
-    (a_etbl: Addr)
-    (args off : nat) (ot : OType) (Nswitcher CNAME : namespace) :
-    let b_etbl := (cmpt_exp_tbl_pcc C_cmpt) in
-    let b_etbl1 := (cmpt_exp_tbl_cgp C_cmpt) in
-    let e_etbl := (cmpt_exp_tbl_entries_end C_cmpt) in
-    let entries_etbl := (cmpt_exp_tbl_entries_start C_cmpt) in
-    let b_pcc := (cmpt_b_pcc C_cmpt) in
-    let e_pcc := (cmpt_e_pcc C_cmpt) in
-    let b_cgp := (cmpt_b_cgp C_cmpt) in
-    let e_cgp := (cmpt_e_cgp C_cmpt) in
-    (entries_etbl <= a_etbl < e_etbl)%a
-    → 0 <= args < 7
-    → na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ inv (export_table_PCCN CNAME) (b_etbl ↦ₐ WCap RX Global b_pcc e_pcc b_pcc)
-    -∗ inv (export_table_CGPN CNAME) (b_etbl1 ↦ₐ WCap RW Global b_cgp e_cgp b_cgp)
-    -∗ inv (export_table_entryN CNAME a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
-    -∗ seal_pred ot ot_switcher_propC
-    -∗ interp W C (WCap RX Global b_pcc e_pcc b_pcc)
-    -∗ interp W C (WCap RW Global b_cgp e_cgp b_cgp)
-    -∗ WSealed ot_switcher (SCap RO Global b_etbl e_etbl a_etbl) ↦□ₑ args
-    -∗ WSealed ot_switcher (SCap RO Local b_etbl e_etbl a_etbl) ↦□ₑ args
-    -∗ interp W C (WSealed ot (SCap RO Global b_etbl e_etbl a_etbl)).
-  Proof.
-    intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp Ha_etbl Hargs.
-    iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry
-    #Hsealed_pred_ot_switcher #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry'".
-
-    iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
-    rewrite /interp_sb.
-    iFrame "Hsealed_pred_ot_switcher".
-    iSplit; first (iPureIntro ; apply persistent_cond_ot_switcher).
-    iSplit; first (iIntros (w) ; iApply mono_priv_ot_switcher).
-    iSplit; iApply (ot_switcher_interp with "[$] [$] [$] [$] [$] [$]"); eauto.
   Qed.
 
 End helpers_switcher_adequacy.

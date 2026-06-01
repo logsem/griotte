@@ -1,4 +1,4 @@
-From iris.algebra Require Import gmap agree auth excl_auth.
+From iris.algebra Require Import gmap agree auth excl csum excl_auth.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Export stdpp_extra rules_base.
 From cap_machine Require Export sts world_std_sts world_ghost_resources.
@@ -28,10 +28,9 @@ Section standard_world_interp.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.
-  Implicit Types W : WORLD.
 
   (* ----------------------------------------------------------------------------------------------- *)
   (* ------------------------------------------- REGION_MAP ---------------------------------------- *)
@@ -141,7 +140,7 @@ Section standard_world_interp.
     iDestruct "HW" as (M Mρ) "(HM & % & % & Hmap)"; simplify_map_eq.
     iExists M, Mρ. iFrame.
     repeat(iSplitR; auto).
-    - iPureIntro;congruence.
+    - iPureIntro. rewrite -Hdomeq H; done.
     - iApply region_map_monotone; last eauto;eauto.
   Qed.
 
@@ -170,7 +169,7 @@ Section standard_world_interp.
     iDestruct "HW" as (M Mρ) "(HM & % & % & Hmap)"; simplify_map_eq.
     iExists M, Mρ. iFrame.
     repeat(iSplitR; auto).
-    - iPureIntro;congruence.
+    - iPureIntro. rewrite -Hdomeq H; done.
     - iApply region_map_monotone; last eauto;eauto.
   Qed.
 
@@ -484,6 +483,20 @@ Section standard_world_interp.
   Definition open_region_many_aux : { x | x = @open_region_many_def }. by eexists. Qed.
   Definition open_region_many := proj1_sig open_region_many_aux.
   Definition open_region_many_eq : @open_region_many = @open_region_many_def := proj2_sig open_region_many_aux.
+
+  Lemma open_region_many_monotone (C : CmptName) (W W' : WORLD) l:
+    dom (std W) = dom (std W')
+    -> related_sts_pub_world W W'
+    -> open_region_many W C l -∗ open_region_many W' C l.
+  Proof.
+    iIntros (Hdomeq Hrelated) "HW".
+    rewrite open_region_many_eq /open_region_many_def.
+    iDestruct "HW" as (M Mρ) "(Hm & % & % & Hmap)" ; simplify_eq.
+    iExists M, Mρ. iFrame.
+    repeat(iSplitR; auto).
+    - iPureIntro;congruence.
+    - iApply region_map_monotone; last eauto;eauto.
+  Qed.
 
   Lemma open_region_many_permutation W C l1 l2:
     l1 ≡ₚ l2 → open_region_many W C l1 -∗ open_region_many W C l2.
@@ -945,5 +958,6 @@ Section standard_world_interp.
       }
       iDestruct (IHl with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hp]") as "IH"; eauto.
   Qed.
+
 
 End standard_world_interp.

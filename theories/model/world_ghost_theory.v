@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
-From cap_machine Require Export world_std_revocation sts_multiple_updates.
+From cap_machine Require Import region_invariants_revocation region_invariants_allocation sealing_invariants.
+From cap_machine Require Export sts world_std_revocation sts_multiple_updates.
 From cap_machine Require Export stdpp_extra iris_extra.
 
   (*** World Ghost Theory *)
@@ -20,9 +20,10 @@ Section world_ghost_theory.
 
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG} {CNames : gset CmptName}
+    {stsg : STSG Addr region_type OType Word Σ}
+    {relg : relGS Σ}
     `{MP: MachineParameters}
   .
   Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
@@ -38,7 +39,7 @@ Section world_ghost_theory.
   (** Definition of [world_interp].
       All safety resources of the addresses in the world are owned by the world interpretation. *)
   Definition world_interp_def (W : WORLD) (C : CmptName) : iProp Σ :=
-    region W C ∗ sts_full_world W C.
+    region W C ∗ sts_full_world W C ∗ sealing_map W C.
   Definition world_interp_aux : { x | x = @world_interp_def }. by eexists. Qed.
   Definition world_interp := proj1_sig world_interp_aux.
   Definition world_interp_eq : @world_interp = @world_interp_def := proj2_sig world_interp_aux.
@@ -46,7 +47,7 @@ Section world_ghost_theory.
   (** Definition of [world_interp_open].
       The safety resources of the addresses in [s] are not owned by the world interpretation. *)
   Definition world_interp_open_def (W : WORLD) (C : CmptName) (s : list Addr) : iProp Σ :=
-    open_region_many W C s ∗ sts_full_world W C.
+    open_region_many W C s ∗ sts_full_world W C ∗ sealing_map W C.
   Definition world_interp_open_aux : { x | x = @world_interp_open_def }. by eexists. Qed.
   Definition world_interp_open := proj1_sig world_interp_open_aux.
   Definition world_interp_open_eq : @world_interp_open = @world_interp_open_def := proj2_sig world_interp_open_aux.
@@ -263,7 +264,7 @@ Section world_ghost_theory.
     ∃ w, a ↦ₐ w ∗ ▷ P W C w.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (HWa) "[Hr Hsts] Hrel".
+    iIntros (HWa) "[Hr [Hsts Hseals] ] Hrel".
     rewrite rel_eq region_eq /rel_def /region_def /region_map_def.
     iDestruct "Hrel" as (γpred) "#(Hγpred & Hφ)".
     iDestruct "Hr" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
@@ -312,7 +313,7 @@ Section world_ghost_theory.
     ▷ (∃ w, TmpRes W C a p Φ w).
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Ha HWa) "[Hr Hsts] Hrel".
+    iIntros (Ha HWa) "[Hr [Hsts Hseals] ] Hrel".
     destruct (isWL p) eqn:Hp_WL.
     - iDestruct (region_open_next_temp_pwl with "[$Hr $Hrel $Hsts]")
         as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)" ;[set_solver|..]; eauto.
@@ -337,7 +338,7 @@ Section world_ghost_theory.
     world_interp_open W C s ∗ rel C a p Φ.
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Ha) "[Hr Hsts] #Hrel Hstd_sta (HpO & Ha & HΦ & Hmono)".
+    iIntros (Ha) "[Hr [Hsts Hseals] ] #Hrel Hstd_sta (HpO & Ha & HΦ & Hmono)".
     rewrite /mono_temporary.
     destruct (isWL p) eqn:Hp_WL.
     - iDestruct (region_close_next_temp_pwl with "[Hr Hrel Hstd_sta HpO Ha HΦ Hmono]") as "Hr"
@@ -361,7 +362,7 @@ Section world_ghost_theory.
     ▷ (∃ w, PermRes W C a p Φ w).
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Ha HWa) "[Hr Hsts] Hrel".
+    iIntros (Ha HWa) "[Hr [Hsts Hseals] ] Hrel".
     iDestruct (region_open_next_perm with "[$Hr $Hrel $Hsts]")
       as "(%w & Hr & Hsts & Hstd_sta & Ha & Hp & Hmono & HΦ)" ;[set_solver|..]; eauto.
     iFrame.
@@ -396,8 +397,8 @@ Section world_ghost_theory.
     ▷ (∃ v, WorldRes W C a p φ v ρ).
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Hs Hne Htemp) "Hrel [Hreg Hfull]".
-    iDestruct (region_open_next with "[$Hrel $Hreg $Hfull]") as (v) "(Hr & Hfull & Hstate & Hl & Hp & Hmono & φ)"; eauto.
+    iIntros (Hs Hne Htemp) "Hrel [Hr [Hsts Hseals] ]".
+    iDestruct (region_open_next with "[$Hrel $Hr $Hsts]") as (v) "(Hr & Hfull & Hstate & Hl & Hp & Hmono & φ)"; eauto.
     { destruct Hne; simplify_eq; done. }
     iFrame.
     iNext.
@@ -418,10 +419,10 @@ Section world_ghost_theory.
     world_interp_open W C s.
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Hs Hρ) "[Hreg_open $] Hstate Hrel (Hp&Ha&Hφ&Hmono)".
+    iIntros (Hs Hρ) "[Hr [$ $] ] Hstate Hrel (Hp&Ha&Hφ&Hmono)".
     rewrite mono_invariant_monotonicity_guarantees_region; eauto; cycle 1.
     { destruct Hρ; simplify_eq; done. }
-    iApply (region_close_next with "[$Hstate $Hreg_open $Ha $Hp $Hmono $Hφ $Hrel]"); eauto.
+    iApply (region_close_next with "[$Hstate $Hr $Ha $Hp $Hmono $Hφ $Hrel]"); eauto.
     { destruct Hρ; simplify_eq; done. }
   Qed.
 
@@ -493,9 +494,11 @@ Section world_ghost_theory.
   Proof.
     rewrite world_interp_eq /world_interp_def RevokedResources_eq.
     intros [Hnodup HaS].
-    iIntros "[Hr Hsts]".
+    iIntros "[Hr [Hsts Hseals] ]".
     iMod ( monotone_revoke_keep _ _ s with "[$Hr $Hsts]") as "($ & $ & Hres & $)"; auto.
-    iPureIntro; intros k a Ha; apply HaS; apply list_elem_of_lookup; eauto.
+    { iPureIntro; intros k a Ha; apply HaS; apply list_elem_of_lookup; eauto. }
+    iDestruct (sealing_map_monotone with "Hseals") as "$"; auto.
+    apply revoke_related_sts_priv_world.
   Qed.
 
   (* Restoration of the world, after revocation.
@@ -511,7 +514,7 @@ Section world_ghost_theory.
   Proof.
     rewrite world_interp_eq /world_interp_def.
     rewrite /reinstate.
-    iIntros (Hpub) "[Hr Hsts] HrevokedRes".
+    iIntros (Hpub) "[Hr [Hsts Hseals] ] HrevokedRes".
     iAssert (close_list_resources C W s false) with "[HrevokedRes]" as "H".
     { iFrame.
       iApply (big_sepL_impl with "HrevokedRes").
@@ -528,6 +531,8 @@ Section world_ghost_theory.
           destruct Hdec as []; done.
     }
     iMod (monotone_close_list_region with "[%] [$Hsts $Hr $H]") as "[$ $]"; eauto.
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    apply close_list_related_sts_pub.
   Qed.
 
   (** ** Revocation by separation.
@@ -553,7 +558,7 @@ Section world_ghost_theory.
   .
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "([Hr Hsts] & Ha)".
+    iIntros (?) "([Hr [Hsts Hseals] ] & Ha)".
     iMod (revoked_by_separation with "[$Hr $Hsts $Ha]") as "($&$&$)";auto.
   Qed.
 
@@ -570,7 +575,7 @@ Section world_ghost_theory.
   .
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "([Hr Hsts] & Hl)".
+    iIntros (?) "([Hr [Hsts Hseals] ] & Hl)".
     iMod (revoked_by_separation_many with "[$Hr $Hsts $Hl]")
       as "($ & $ & $ & $)"; auto.
   Qed.
@@ -588,8 +593,9 @@ Section world_ghost_theory.
     ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
   Proof.
     rewrite world_interp_eq /world_interp_def RevokedResources_eq.
-    iIntros (Hin) "([Hr Hsts] & Hl)"; cbn.
+    iIntros (Hin) "([Hr [Hsts Hseals] ] & Hl)"; cbn.
     iMod (revoked_by_separation_many_with_temp_resources with "[$Hsts $Hr Hl]") as "(H & $ & $ & $)"; auto.
+    by iFrame.
   Qed.
 
   (** ** Extension the world interpretation for safety invariants. *)
@@ -609,8 +615,10 @@ Section world_ghost_theory.
     rel C a p φ.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "[? ?] (%&?&?&?)".
+    iIntros (?) "[Hr [Hsts Hseals] ] (%&?&?&?)".
     iMod (extend_region_perm with "[$] [$] [$] [$] [$]") as "($ & $ & $)"; auto.
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    apply related_sts_pub_world_fresh; auto.
   Qed.
 
   (* Extend the world with a temporary safety invariant. *)
@@ -628,8 +636,10 @@ Section world_ghost_theory.
     rel C a p φ.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "[? ?] (%&?&?&?)"; rewrite  mono_temporary_eq.
+    iIntros (?) "[Hr [Hsts Hseals] ] (%&?&?&?)"; rewrite  mono_temporary_eq.
     iMod (extend_region_temp with "[$] [$] [$] [$] [$]") as "($ & $ & $)"; auto.
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    apply related_sts_pub_world_fresh; auto.
   Qed.
 
   (* Extend the world with several permanent safety invariants. *)
@@ -648,10 +658,16 @@ Section world_ghost_theory.
     ([∗ list] k ∈ la, rel C k p φ).
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (??) "[Hr Hsts] Hres".
+    iIntros (??) "[Hr [Hsts Hseals] ] Hres".
     iMod (extend_region_perm_sepL2 with "Hsts Hr [Hres]") as "($&$&$)"; eauto.
-    iApply (big_sepL2_impl with "Hres").
-    iModIntro; iIntros (k a v Ha Hv) "(%&?&?&?)"; iFrame.
+    { iApply (big_sepL2_impl with "Hres").
+      iModIntro; iIntros (k a v Ha Hv) "(%&?&?&?)"; iFrame. }
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    - by rewrite std_update_multiple_seals.
+    - apply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
   Qed.
 
   (* Extend the world with several temporary safety invariants. *)
@@ -670,11 +686,18 @@ Section world_ghost_theory.
     ([∗ list] k ∈ la, rel C k p φ).
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (??) "[Hr Hsts] Hres".
+    iIntros (??) "[Hr [Hsts Hseals] ] Hres".
     iMod (extend_region_temp_sepL2 with "Hsts Hr [Hres]") as "($&$&$)"; auto.
-    iApply (big_sepL2_impl with "Hres").
-    iModIntro; iIntros (k a v Ha Hv) "(%&?&?&?)"; iFrame.
-    by rewrite mono_temporary_eq.
+    { iApply (big_sepL2_impl with "Hres").
+      iModIntro; iIntros (k a v Ha Hv) "(%&?&?&?)"; iFrame.
+      by rewrite mono_temporary_eq.
+    }
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    - by rewrite std_update_multiple_seals.
+    - apply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
   Qed.
 
   (* Pre-allocate safety invariant: extend the world with several Revoked safety invariants. *)
@@ -691,8 +714,14 @@ Section world_ghost_theory.
      ([∗ list] k ∈ la, rel C k p φ).
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "[Hr Hsts]".
+    iIntros (?) "[Hr [Hsts Hseals] ]".
     iMod (extend_region_revoked_sepL2 with "Hsts Hr") as "($&$&$)"; auto.
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    - by rewrite std_update_multiple_seals.
+    - apply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
   Qed.
 
 
@@ -722,10 +751,52 @@ Section world_ghost_theory.
     ([∗ list] v ∈ lw, (φ (W', C, v)) ∗ future_priv_mono C φ v).
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (HNoDup Hp Hla) "[Hr Hsts] Hreg Hl".
+    iIntros (HNoDup Hp Hla) "[Hr [Hsts Hseals] ] Hreg Hl".
     iMod (extend_region_perm_sepL2_open with "Hsts Hr Hreg Hl") as "($&$&$)"; auto.
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    - by rewrite std_update_multiple_seals.
+    - apply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
   Qed.
 
+  Lemma world_interp_extend_perm_sepL2_open'
+    {E : coPset}
+    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
+    (o : OType) (ws ws_sealed : gset Word)
+    `{∀ Wv, Persistent (φ Wv)} :
+    let W' := (<o[ o := ws ]o> (std_update_multiple W la Permanent)) in
+    NoDup la ->
+    isO p = false ->
+    Forall (λ k, std W !! k = None) la →
+    world_interp W C -∗
+    ([∗ list] k;v ∈ la;lw, k ↦ₐ v) -∗
+    (
+      ([∗ list] k ∈ la, rel C k p φ) ∗
+      world_interp_open (std_update_multiple W la Permanent) C la
+      ==∗
+      world_interp_open W' C la ∗
+      ([∗ list] v ∈ lw, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
+      ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
+    )
+
+    ={E}=∗
+
+    world_interp W' C ∗
+    ([∗ list] k ∈ la, rel C k p φ) ∗
+    ([∗ list] v ∈ lw, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
+    ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
+  .
+  Proof.
+    rewrite world_interp_eq /world_interp_def.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (HNoDup Hp Hla) "[Hr [Hsts Hseals] ] Hreg Hl".
+    iMod (extend_region_perm_sepL2_open' with "Hsts Hr Hseals Hreg [Hl]") as "($&$&$)"; auto.
+    iIntros "(Hrel & Hsts & Hseals & Hr)".
+    iMod ("Hl" with "[$Hrel $Hr $Hsts $Hseals]") as "(($&$&$)&$&$)".
+    done.
+  Qed.
 
 
   (** ** Interface with custom world. *)
@@ -746,14 +817,18 @@ Section world_ghost_theory.
     intros i.
     rewrite world_interp_eq /world_interp_def.
 
-    iIntros "[Hr Hsts]".
+    iIntros "[Hr [Hsts Hseals] ]".
     iDestruct (sts_alloc_loc W C d rpub rpriv with "Hsts") as ">($ & $ & $ & $ & $)"; auto.
     iDestruct (region_monotone with "Hr") as "$"; auto.
-    subst i.
-    eapply related_sts_pub_world_fresh_loc; eauto
-    ; intro Hcontra
-    ; apply (fresh_name_notin W (fresh_cus_name W))
-    ; try done ; [by left | by right].
+    - subst i.
+      eapply related_sts_pub_world_fresh_loc; eauto
+      ; intro Hcontra
+      ; apply (fresh_name_notin W (fresh_cus_name W))
+      ; try done ; [by left | by right].
+    - iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+      apply related_sts_pub_world_fresh_loc; subst i.
+      + intro H; apply (fresh_name_notin W (fresh_cus_name W)); auto.
+      + intro H; apply (fresh_name_notin W (fresh_cus_name W)); auto.
   Qed.
 
   (* Update of custom invariant in the world. *)
@@ -770,11 +845,11 @@ Section world_ghost_theory.
     sts_state_loc C' i d'.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (Hrevoke_conditions Hrelated) "[Hr Hsts] Hst_i".
+    iIntros (Hrevoke_conditions Hrelated) "[Hr [Hsts Hseals] ] Hst_i".
     iMod (sts_update_loc _ _ _ _ d' with "Hsts Hst_i") as "[Hsts Hst_i]".
     iMod (update_region_revoked_update_loc with "Hsts Hr" ) as "[Hr Hsts]"; auto.
     iFrame.
-    done.
+    iDestruct (sealing_map_monotone with "Hseals") as "$"; auto.
   Qed.
 
   (* Get the STS (relations) of a custom invariant in the world. *)
@@ -788,7 +863,7 @@ Section world_ghost_theory.
     ⌜ wrel W !! i = Some (convert_rel rpub,convert_rel rpriv)⌝.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros "[Hr Hsts] Hsts_rel".
+    iIntros "[Hr [Hsts Hseals] ] Hsts_rel".
     iDestruct (sts_full_rel_loc  with "Hsts Hsts_rel") as "$".
   Qed.
 
@@ -802,11 +877,111 @@ Section world_ghost_theory.
     ⌜loc W !! i = Some (encode d)⌝.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros "[Hr Hsts] Hst_i".
+    iIntros "[Hr [Hsts Hseals] ] Hst_i".
     iDestruct (sts_full_state_loc  with "Hsts Hst_i") as "$".
   Qed.
 
+  (** ** Interface with sealing map *)
+  Lemma world_interp_seal_pred_singleton (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : Word) :
+    seal_pred o Po -∗
+    sts_seals_std C o {[ w ]} -∗
+    world_interp W C -∗
+    ▷ (world_interp W C ∗ Po (W, C, force_global w)).
+  Proof.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "#Hspred Hseal ($ & Hsts & Hseals)".
+    iDestruct (sealing_map_seal_pred with "Hspred Hseal Hseals Hsts") as "($ & $ & H)"; eauto.
+    by rewrite normalise_sealed_words_singleton big_sepS_singleton.
+  Qed.
 
+  Lemma world_interp_open_seal_pred_singleton
+    (W : WORLD) (C : CmptName) (s : list Addr) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : Word) :
+    seal_pred o Po -∗
+    sts_seals_std C o {[ w ]} -∗
+    world_interp_open W C s -∗
+    ▷ (world_interp_open W C s ∗ Po (W, C, force_global w)).
+  Proof.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros "#Hspred Hseal ($ & Hsts & Hseals)".
+    iDestruct (sealing_map_seal_pred with "Hspred Hseal Hseals Hsts") as "($ & $ & H)"; eauto.
+    by rewrite normalise_sealed_words_singleton big_sepS_singleton.
+  Qed.
+
+  Lemma world_interp_sealing_update (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
+    (o : OType) (ws ws' : gset Word)  :
+    let W' := (<o[ o := ws' ∪ ws ]o> W) in
+    (seal_std W) !! o = Some ws ->
+    seal_pred o Po -∗
+    ([∗ set] w ∈ (normalise_sealed_words ws'), ▷ Po (W', C, w)) -∗
+    world_interp W C
+    ==∗
+    world_interp W' C ∗ sts_seals_std C o (ws' ∪ ws).
+  Proof.
+    intros W' HWo.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "Hpred Hs (Hr & Hsts & Hseals)".
+    iMod (sealing_map_update with "Hpred Hs [$Hseals $Hsts]") as "($&$&$)"; eauto.
+    iApply (region_monotone with "Hr"); auto.
+    subst W'.
+    apply related_sts_pub_world_update_ot.
+  Qed.
+
+  Lemma world_interp_sealing_update' (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
+    (o : OType) (ws : gset Word)  :
+    let W' := (<o[ o := ws ]o> W) in
+    seal_pred o Po -∗
+    (∀ w : Word, future_priv_mono C Po w) -∗
+    ([∗ set] w ∈ (normalise_sealed_words ws), ▷ Po (W', C, w)) -∗
+    world_interp W C
+    ==∗
+    world_interp W' C ∗ sts_seals_std C o ws.
+  Proof.
+    intros W'.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "Hpred Hmono Hs (Hr & Hsts & Hseals)".
+    iMod (sealing_map_update' with "Hpred Hmono Hs [$Hseals $Hsts]") as "($&$&$)"; eauto.
+    iApply (region_monotone with "Hr"); auto.
+    subst W'.
+    apply related_sts_pub_world_update_ot.
+  Qed.
+
+  Lemma world_interp_open_sealing_update'
+    (W : WORLD) (C : CmptName) (s : list Addr) (Po : WORLD * CmptName * Word → iProp Σ)
+    (o : OType) (ws : gset Word)  :
+    let W' := (<o[ o := ws ]o> W) in
+    seal_pred o Po -∗
+    (∀ w : Word, future_priv_mono C Po w) -∗
+    ([∗ set] w ∈ (normalise_sealed_words ws), ▷ Po (W', C, w)) -∗
+    world_interp_open W C s
+    ==∗
+    world_interp_open W' C s ∗ sts_seals_std C o ws.
+  Proof.
+    intros W'.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros "Hpred Hmono Hs (Hr & Hsts & Hseals)".
+    iMod (sealing_map_update' with "Hpred Hmono Hs [$Hseals $Hsts]") as "($&$&$)"; eauto.
+    iApply (open_region_many_monotone with "Hr"); auto.
+    subst W'.
+    apply related_sts_pub_world_update_ot.
+  Qed.
+
+  Lemma world_interp_salloc
+    (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ) (o : OType) (ws : gset Word)  :
+    let W' := (<o[ o := ws ]o> W) in
+    o ∉ dom (seal_std W) ->
+    seal_pred o Po -∗
+    (∀ w : Word, future_priv_mono C Po w) -∗
+    ([∗ set] w ∈ (normalise_sealed_words ws), ▷ Po (W', C, w)) -∗
+    world_interp W C ==∗
+    world_interp W' C ∗ sts_seals_std C o ws.
+  Proof.
+    intros.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "Hpred Hmono Hs [Hr [Hsts Hseals] ]".
+    iMod (sealing_map_alloc with "Hpred Hmono Hs [$Hsts $Hseals]") as "($&$&$)"; auto.
+    iApply (region_monotone with "Hr"); auto.
+    apply related_sts_pub_world_update_ot.
+  Qed.
 
   (** ** Initialisation of the world interpretation and resources. *)
 
@@ -851,15 +1026,21 @@ Section world_interp_Pre.
   Context {Σ:gFunctors}
           {Cname : CmptNameG}
           {ceriseg : ceriseG Σ}
-          {sts_preg: STS_preG Addr region_type Σ} {relpreg : relGpreS Σ}.
+          {sts_preg: STS_preG Addr region_type OType Word Σ}
+          {relpreg : relGpreS Σ}
+          {sealstorepreg: sealStorePreG Σ}
+.
 
-  Lemma world_interp_init :
-    ⊢ |==> (∃ (relg: relGS Σ) (stsg : STSG Addr region_type Σ),
-            [∗ set] C ∈ CNames, world_interp (∅, (∅,∅)) C).
+  Lemma world_interp_init (oset : gset OType) :
+    ⊢ |==> (∃ (relg: relGS Σ) (stsg : STSG Addr region_type OType Word Σ) (sstoreg : sealStoreG Σ),
+            ([∗ set] C ∈ CNames, world_interp (∅, (∅,∅), ∅) C) ∗
+            ([∗ set] o ∈ oset, can_alloc_pred o)).
   Proof.
     iMod (gen_sts_init) as (stsg) "Hsts". (*XX*)
     iMod (rel_init) as (relg) "HRELS".
-    set (Wempty := (∅, (∅,∅))).
+    iMod (seal_store_init) as (sstoreg) "Hseals".
+    iExists relg, stsg, sstoreg; iFrame "Hseals".
+    set (Wempty := (∅, (∅,∅), ∅)).
     iAssert ([∗ set] C ∈ CNames, region Wempty C)%I with "[HRELS]" as "Hr".
     { iApply (big_sepS_impl with "HRELS").
       iModIntro; iIntros (C HC) "HRELS".
@@ -869,10 +1050,11 @@ Section world_interp_Pre.
     }
     iCombine "Hr" "Hsts" as "H".
     rewrite -big_sepS_sep.
-    iModIntro; iExists relg, stsg.
+    iModIntro.
     iApply (big_sepS_impl with "H").
-    iModIntro; iIntros (C HC) "H".
-    by rewrite world_interp_eq /world_interp_def.
+    rewrite world_interp_eq /world_interp_def.
+    iModIntro; iIntros (C HC) "[$ $]".
+    iApply sealing_map_empty.
   Qed.
 
 End world_interp_Pre.

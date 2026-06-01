@@ -10,7 +10,7 @@ Section switcher_helper.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -31,9 +31,10 @@ Section switcher_helper.
     world_interp (reinstate W l) C.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros "([Hr Hsts] & Htemp)".
+    iIntros "([Hr [Hsts Hseals] ] & Htemp)".
     iMod (monotone_close_list_region_gen W W _ l with "[$Hr $Hsts $Htemp]") as "[Hsts Hr]"; iFrame.
-    done.
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    apply close_list_related_sts_pub; done.
   Qed.
 
   (** Helper lemmas for switcher. *)

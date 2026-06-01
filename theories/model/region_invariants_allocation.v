@@ -1,11 +1,12 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Export stdpp_extra iris_extra region_invariants sts_multiple_updates.
+From cap_machine Require Export
+  stdpp_extra iris_extra region_invariants sealing_invariants sts_multiple_updates.
 
 Section region_alloc.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.
 
@@ -287,10 +288,10 @@ Section region_alloc.
         assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked)
                 = std_update_multiple W l1 Revoked) as ->.
         { rewrite /std_update.
-          destruct (std_update_multiple W l1 Revoked) as [] eqn:Heq.
+          destruct (std_update_multiple W l1 Revoked) as [ [Wstd' Wsts'] Wseal'] eqn:Heq.
           f_equiv; last done.
           simpl. rewrite insert_id//.
-          assert (o = std (std_update_multiple W l1 Revoked)) as ->;[rewrite Heq//|].
+          assert (Wstd' = std (std_update_multiple W l1 Revoked)) as ->;[rewrite Heq//|].
           apply std_sta_update_multiple_lookup_in_i;auto.
         }
         destruct (std_update_multiple W l1 Revoked) as [Wstd_sta Wloc] eqn:Heq.
@@ -570,6 +571,64 @@ Section region_alloc.
     }
   Qed.
 
+  Lemma extend_region_perm_sepL2_open'
+    {sealsg: sealStoreG Σ} E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} o ws ws_sealed:
+    let W' := (<o[ o := ws ]o> (std_update_multiple W l1 Permanent)) in
+    NoDup l1 ->
+    isO p = false ->
+    Forall (λ k, std W !! k = None) l1 →
+    sts_full_world W C
+    -∗ region W C
+    -∗ sealing_map W C
+    -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
+    -∗ (
+         ([∗ list] k ∈ l1, rel C k p φ)
+         ∗ sts_full_world (std_update_multiple W l1 Permanent) C
+         ∗ sealing_map (std_update_multiple W l1 Permanent) C
+         ∗ open_region_many (std_update_multiple W l1 Permanent) C l1
+         ==∗
+         sts_full_world W' C ∗
+         sealing_map W' C ∗
+         open_region_many W' C l1 ∗
+         ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
+         ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
+       )
+
+    ={E}=∗
+
+    region W' C
+    ∗ sts_full_world W' C
+    ∗ sealing_map W' C
+    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v)
+    ∗ ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
+.
+  Proof.
+    intros W'; subst W'.
+    iIntros (HNoDup Hp Hl1) "Hsts Hreg Hseals Hl Hφ".
+    iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
+    "(Hreg & Hl & #Hrel & Hsts)"; auto.
+    { apply NoDup_nil. auto. }
+    { eapply disjoint_nil_r. }
+    { by rewrite -region_open_nil. }
+
+    iDestruct (sealing_map_monotone_pub _ _ (std_update_multiple W l1 Permanent) with "Hseals") as "Hseals".
+    { by rewrite std_update_multiple_seals. }
+    { apply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
+    }
+    iMod ("Hφ" with "[$Hrel $Hsts $Hseals $Hreg]") as "(Hsts & Hseals & Hreg & #Hφ & #Hφ')".
+    cbn; iFrame "Hrel Hsts".
+    iFrame "#".
+    iDestruct (big_sepL_sep with "Hφ") as "[Hφ'' Hmono]".
+    iDestruct (open_region_many_monotone _ _ (<o[o:=ws]o>(std_update_multiple W l1 Permanent)) with "Hreg") as "Hreg".
+    { auto. }
+    { apply related_sts_pub_refl_world. }
+    iMod (region_close_many with "Hrel Hreg Hl Hφ'' Hmono") as "Hreg"; eauto.
+    by iFrame.
+  Qed.
+
+
 End region_alloc.
-
-

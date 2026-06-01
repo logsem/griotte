@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 From cap_machine Require Import switcher_preamble assert_spec.
-From cap_machine Require Import rules seal_store call_stack.
+From cap_machine Require Import rules call_stack.
 From cap_machine Require Import mkregion_helpers memory_region disjoint_regions_tactics.
 From cap_machine Require Import switcher_adequacy compartment_layout.
 
@@ -11,7 +11,7 @@ Section adequacy_helpers.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters} .
 
