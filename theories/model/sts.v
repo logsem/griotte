@@ -39,20 +39,34 @@ Class STS_STD (B : Type) :=
 
 
 (** STS for seals  *)
-Definition seals_stdUR (S : Type) {eqD: EqDecision S} {count: Countable S} := authUR (gset_disjUR S).
-Definition seals_std (S : Type) {eqD: EqDecision S} {count: Countable S} := (gset S).
+Definition seals_stdUR (O Wd : Type)
+  {eqO: EqDecision O} {countO: Countable O}
+  {eqWd: EqDecision Wd} {countWd: Countable Wd}
+  := authUR (gmapUR O (gset_disjUR Wd)).
+Definition seals_std (O Wd : Type)
+  {eqO: EqDecision O} {countO: Countable O}
+  {eqWd: EqDecision Wd} {countWd: Countable Wd} :=
+  gmap O (gset Wd).
 
 (** The CMRA for the sts collection. *)
-Class STS_preG A B S Σ `{EqDecision A, Countable A} `{EqDecision S, Countable S} :=
+Class STS_preG A B O Wd Σ
+  `{EqDecision A, Countable A}
+  `{EqDecision O, Countable O}
+  `{EqDecision Wd, Countable Wd}
+  :=
   { sts_pre_state_inG :: inG Σ sts_stateUR;
     sts_pre_std_state_inG :: inG Σ (sts_std_stateUR A B);
-    sts_pre_seals_std_inG :: inG Σ (seals_stdUR S);
+    sts_pre_seals_std_inG :: inG Σ (seals_stdUR O Wd);
     sts_pre_rel_inG :: inG Σ sts_relUR; }.
 
-Class STSG A B S Σ `{EqDecision A, Countable A} `{EqDecision S, Countable S} `{CName : CmptNameG} :=
+Class STSG A B O Wd Σ
+  `{EqDecision A, Countable A}
+  `{EqDecision O, Countable O}
+  `{EqDecision Wd, Countable Wd}
+  `{CName : CmptNameG} :=
   { sts_state_inG :: inG Σ sts_stateUR;
     sts_std_state_inG :: inG Σ (sts_std_stateUR A B);
-    sts_seals_std_inG :: inG Σ (seals_stdUR S);
+    sts_seals_std_inG :: inG Σ (seals_stdUR O Wd);
     sts_rel_inG :: inG Σ sts_relUR;
     γs_std : CmptName -> gname;
     γs_loc : CmptName -> gname;
@@ -60,35 +74,44 @@ Class STSG A B S Σ `{EqDecision A, Countable A} `{EqDecision S, Countable S} `{
     γs_seals : CmptName -> gname;
 }.
 
-Definition STS_preΣ A B S `{EqDecision A, Countable A} `{EqDecision S, Countable S} :=
+Definition STS_preΣ A B O Wd
+  `{EqDecision A, Countable A}
+  `{EqDecision O, Countable O}
+  `{EqDecision Wd, Countable Wd}
+  :=
   #[ GFunctor sts_stateUR;
      GFunctor (sts_std_stateUR A B);
      GFunctor sts_relUR;
-     GFunctor (seals_stdUR S)
+     GFunctor (seals_stdUR O Wd)
 ].
 
-Instance subG_STS_preΣ A B S `{EqDecision A, Countable A} `{EqDecision S, Countable S} {Σ} `{CName : CmptNameG} :
-  subG (STS_preΣ A B S) Σ → STS_preG A B S Σ.
+Instance subG_STS_preΣ A B O Wd
+  `{EqDecision A, Countable A}
+  `{EqDecision O, Countable O}
+  `{EqDecision Wd, Countable Wd}
+  {Σ} `{CName : CmptNameG} :
+  subG (STS_preΣ A B O Wd) Σ → STS_preG A B O Wd Σ.
 Proof.
   (* hack: solve_inG does not currently unfold [subG X _] where X has more than
      4 parameters. We have 5. *)
-  set f := STS_preΣ A B S. unfold STS_preΣ in f.
+  set f := STS_preΣ A B O Wd. unfold STS_preΣ in f.
   solve_inG.
 Qed.
 
 Section definitionsS.
 
   (* A now needs to be comparable, so we can distinquish between higher and lower a's *)
-  Context {A B E D S: Type} {Σ : gFunctors} {eqa: EqDecision A} {a_compare : Ord A}
-          {count: Countable A}
+  Context {A B E D O Wd: Type} {Σ : gFunctors}
+          {eqa: EqDecision A} {a_compare : Ord A} {count: Countable A}
           {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E}
           {eqd : EqDecision D} {countD: Countable D}
-          {eqS : EqDecision S} {countS: Countable S}
-          {CName : CmptNameG} {stsg : STSG A B S Σ}
+          {eqO : EqDecision O} {countO: Countable O}
+          {eqWd : EqDecision Wd} {countWd: Countable Wd}
+          {CName : CmptNameG} {stsg : STSG A B O Wd Σ}
 .
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
-  Notation SEAL_STD := (leibnizO (gset S)).
+  Notation SEAL_STD := (leibnizO (seals_std O Wd)).
   Notation WORLD := (prodO (prodO STS_STD STS) SEAL_STD).
 
   (* Some practical shorthands for projections *)
@@ -110,15 +133,16 @@ Section definitionsS.
   Definition sts_rel_loc (C : CmptName) (i : positive) (rpub rpriv : D → D → Prop) : iProp Σ :=
     own (γr_loc C) (◯ {[ i := to_agree ((convert_rel rpub,convert_rel rpriv)) ]}).
 
-  Definition sts_seals_std (C : CmptName) (s : gset S) : iProp Σ := own (γs_seals C) (◯ (GSet s)).
+  Definition sts_seals_std (C : CmptName) (o : O) (ws : gset Wd) : iProp Σ :=
+    own (γs_seals C) (◯ {[ o := (GSet ws)]}).
 
   Definition sts_full C (fs : STS_states) (fr : STS_rels) : iProp Σ
     := (own (A := sts_stateUR) (γs_loc C) (● (Excl <$> fs))
             ∗ own (A := sts_relUR) (γr_loc C) (● (to_agree <$> fr)))%I.
   Definition sts_full_std C (fs : STS_std_states A B) : iProp Σ
     := own (A := sts_std_stateUR A B) (γs_std C) (● (Excl <$> fs))%I.
-  Definition sts_full_seals_std C (fs : gset S) : iProp Σ
-    := own (A := seals_stdUR S) (γs_seals C) (● (GSet fs))%I.
+  Definition sts_full_seals_std C (fs : seals_std O Wd) : iProp Σ
+    := own (A := seals_stdUR O Wd) (γs_seals C) (● (GSet <$> fs))%I.
   Definition sts_full_world (W : WORLD) (C : CmptName) : iProp Σ :=
     (sts_full_std C (std W)) ∗ (sts_full C (loc W) (wrel W)) ∗ (sts_full_seals_std C (seal_std W)).
 
@@ -148,7 +172,9 @@ Section definitionsS.
     ∀ i (rpub rpriv rpub' rpriv' : positive → positive → Prop), fr !! i = Some (rpub,rpriv) → gr !! i = Some (rpub',rpriv') →
                        rpub = rpub' ∧ rpriv = rpriv' ∧
                        (∀ x y, fs !! i = Some x → gs !! i = Some y → (rtc (λ x y, (rpub x y ∨ rpriv x y)) x y)).
-  Definition related_sts_seals_std (fs gs : seals_std S) : Prop := fs ⊆ gs.
+  Definition related_sts_seals_std (fs gs : seals_std O Wd) : Prop :=
+    dom fs ⊆ dom gs ∧
+    ∀ i s s', fs !! i = Some s -> gs !! i = Some s' -> s ⊆ s'.
 
   (* Future world relations are only defined when both world have C *)
   Definition related_sts_pub_world (W W' : WORLD) :=
@@ -170,6 +196,8 @@ Section definitionsS.
   Global Instance sts_state_std_Timeless C i x : Timeless (sts_state_std C i x).
   Proof. apply _. Qed.
   Global Instance sts_state_loc_Timeless C i x : Timeless (sts_state_loc C i x).
+  Proof. apply _. Qed.
+  Global Instance sts_seals_std_Timeless C i x : Timeless (sts_seals_std C i x).
   Proof. apply _. Qed.
 
   Global Instance sts_full_Timeless C fs fr : Timeless (sts_full C fs fr).
@@ -201,16 +229,17 @@ Proof.
 Qed.
 
 Section pre_STS.
-  Context {A B E D S: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
+  Context {A B E D O Wd: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
           {count: Countable A}
           {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E}
           {eqd : EqDecision D} {countD: Countable D}
-          {eqS : EqDecision S} {countS: Countable S}
+          {eqO : EqDecision O} {countO: Countable O}
+          {eqWd : EqDecision Wd} {countWd: Countable Wd}
           {CName : CmptNameG}
-          {sts_preg: STS_preG A B S Σ}.
+          {sts_preg: STS_preG A B O Wd Σ}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
-  Notation SEAL_STD := (leibnizO (gset S)).
+  Notation SEAL_STD := (leibnizO (seals_std O Wd)).
   Notation WORLD := (prodO (prodO STS_STD STS) SEAL_STD).
   Implicit Types W : WORLD.
 
@@ -275,14 +304,14 @@ Section pre_STS.
   Qed.
 
   Lemma gen_sts_seals_std_init :
-    ⊢ |==> (∃ γr, ([∗ set] C ∈ CNames, own (γr C) (● (GSet ∅) : seals_stdUR S))).
+    ⊢ |==> (∃ γr, ([∗ set] C ∈ CNames, own (γr C) (● ∅ : seals_stdUR O Wd))).
   Proof.
     induction CNames as [|C CNames HCNames IHg] using set_ind_L.
     - iModIntro.
       iExists ( λ C, encode C).
       by iApply big_sepS_empty.
     - iMod IHg as (γr) "IH".
-      iMod (own_alloc (A:=seals_stdUR S) (● (GSet ∅))) as (γr') "Hr"
+      iMod (own_alloc (A:=seals_stdUR O Wd) (● ∅)) as (γr') "Hr"
       ; first by apply auth_auth_valid.
       iModIntro.
       iExists (λ C', if (bool_decide (C' = C)) then γr' else γr C').
@@ -295,13 +324,13 @@ Section pre_STS.
   Qed.
 
   Lemma gen_sts_init (d : nat) :
-    ⊢ |==> ∃ (stsg : STSG A B S Σ), ([∗ set] C ∈ CNames, sts_full_world ((∅,(∅,∅)), ∅) C) .
+    ⊢ |==> ∃ (stsg : STSG A B O Wd Σ), ([∗ set] C ∈ CNames, sts_full_world ((∅,(∅,∅)), ∅) C) .
   Proof.
     iMod gen_sts_std_init as (γsstd) "Hstd".
     iMod gen_sts_state_init as (γs) "Hs".
     iMod gen_sts_rel_init as (γr) "Hr".
     iMod gen_sts_seals_std_init as (γseals) "Hseals".
-    iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ γsstd γs γr γseals).
+    iModIntro. iExists (Build_STSG _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ γsstd γs γr γseals).
     rewrite /sts_full_world /sts_full_std /sts_full /=.
     iDestruct (big_sepS_sep with "[$Hstd $Hs]") as "H".
     iDestruct (big_sepS_sep with "[$Hr $H]") as "H".
@@ -315,11 +344,12 @@ Section pre_STS.
 End pre_STS.
 
 Section STS.
-  Context {A B E D S: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
+  Context {A B E D O Wd: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
           {count: Countable A}
           {sts_std: STS_STD B} {eqc : EqDecision E} {countC: Countable E}
-          {eqs : EqDecision S} {countS: Countable S}
-          {eqd : EqDecision D} {countD: Countable D} {CName : CmptNameG} {stsg : STSG A B S Σ}.
+          {eqO : EqDecision O} {countO: Countable O}
+          {eqWd : EqDecision Wd} {countWd: Countable Wd}
+          {eqd : EqDecision D} {countD: Countable D} {CName : CmptNameG} {stsg : STSG A B O Wd Σ}.
   Implicit Types x y : positive.
   Implicit Types a : A.
   Implicit Types b : B.
@@ -327,7 +357,7 @@ Section STS.
   Implicit Types d : D.
   Implicit Types fs gs : STS_states.
   Implicit Types fsd gsd : STS_std_states A B.
-  Implicit Types s : seals_std S.
+  Implicit Types s : seals_std O Wd.
   Implicit Types fr_pub fr_priv gr_pub gr_priv : STS_rels.
   Implicit Types fd gd : nat.
   Implicit Types R : E → E → Prop.
@@ -336,7 +366,7 @@ Section STS.
 
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
-  Notation SEAL_STD := (leibnizO (gset S)).
+  Notation SEAL_STD := (leibnizO (seals_std O Wd)).
   Notation WORLD := (prodO (prodO STS_STD STS) SEAL_STD).
   Implicit Types W : WORLD.
 
@@ -374,7 +404,10 @@ Section STS.
   Qed.
 
   Lemma related_sts_seals_std_refl s : related_sts_seals_std s s.
-  Proof. rewrite /related_sts_seals_std; done. Qed.
+  Proof. split ; first done.
+         intros o s0 s1 Hs0 Hs1; simplify_map_eq.
+         done.
+  Qed.
 
   Lemma related_sts_pub_refl_world W : related_sts_pub_world W W.
   Proof. split;[|split];[ apply related_sts_std_pub_refl
@@ -545,7 +578,17 @@ Qed.
 
   Lemma related_sts_seals_trans s s' s'' :
     related_sts_seals_std s s' -> related_sts_seals_std s' s'' -> related_sts_seals_std s s''.
-  Proof. intros Hs Hs'; set_solver. Qed.
+  Proof.
+    intros [Hs1 Hs2] [Hs1' Hs2']; split.
+    - set_solver+Hs1 Hs1'.
+    - intros o s0 s0'' Hs0 Hs0''; simplify_map_eq.
+      assert (o ∈ dom s').
+      { apply (Hs1 o); by rewrite elem_of_dom. }
+      rewrite elem_of_dom in H; destruct H as [s0' Hs0'].
+      specialize (Hs2 _ _ _ Hs0 Hs0').
+      specialize (Hs2' _ _ _ Hs0' Hs0'').
+      set_solver+Hs2 Hs2'.
+  Qed.
 
   (* Helper functions for transitivity of sts pairs *)
   Lemma related_sts_pub_priv_trans_world W W' W'' :
@@ -617,7 +660,9 @@ Qed.
     - split;auto.
       + rewrite dom_empty_L; set_solver.
       + intros ; set_solver.
-    - set_solver.
+    - split;auto.
+      + rewrite dom_empty_L; set_solver.
+      + intros ; set_solver.
   Qed.
 
   Lemma related_sts_priv_empty_world W : related_sts_priv_world ((∅, (∅, ∅)), ∅) W.
@@ -629,7 +674,9 @@ Qed.
     - split;auto.
       + rewrite dom_empty_L; set_solver.
       + intros ; set_solver.
-    - set_solver.
+    - split;auto.
+      + rewrite dom_empty_L; set_solver.
+      + intros ; set_solver.
   Qed.
 
   Lemma sts_full_rel_loc W C i rpub rpriv:
@@ -709,16 +756,25 @@ Qed.
     apply leibniz_equiv in HR; simplify_eq; eauto.
   Qed.
 
-  Lemma sts_full_seals_std_subseteq W C (s : gset S) :
+  Lemma sts_full_seals_std_subseteq W C (o : O) (ws : gset Wd) :
     sts_full_world W C
-    -∗ sts_seals_std C s
-    -∗ ⌜s ⊆ seal_std W ⌝.
+    -∗ sts_seals_std C o ws
+    -∗ ⌜∃ ws', seal_std W !!o = Some ws' ∧ ws ⊆ ws' ⌝.
   Proof.
     rewrite /sts_full_world /sts_full /sts_full_seals_std /sts_seals_std.
     destruct W as [ [Wstd Wcus] Wseals ].
     iIntros "(_ & _ & H1) H2".
     iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete; iPureIntro.
-    set_solver.
+    specialize (Hv o).
+    revert HR; rewrite /= singleton_included_l;
+      intros [z [Hz HR]].
+    rewrite lookup_fmap in Hz Hv.
+    destruct (Wseals !! o) eqn:Heq; last (rewrite Heq in Hz; inversion Hz).
+    apply Some_included_1 in HR as [HR | HR].
+    - inversion HR; simplify_map_eq.
+      exists ws; split; auto.
+    - simplify_map_eq.
+      exists g; split; auto. set_solver+HR.
   Qed.
 
   (* Definition and notation for updating a standard or local state in the STS collection *)
@@ -731,13 +787,13 @@ Qed.
        seal_std W).
   Definition loc_update (W : WORLD) (i : positive) (d : D) :=
     (std W, ( (<[i := encode d ]>(loc W)), wrel W), seal_std W).
-  Definition seals_std_update (W : WORLD) (s : S) :=
-    (std W, cus W, {[s]} ∪ (seal_std W)).
+  Definition seals_std_update (W : WORLD) (o : O) (ws : gset Wd) :=
+    (std W, cus W, (<[o := ws ]>(seal_std W))).
 
   Notation "<s[ a := ρ ]s> W" := (std_update W a ρ) (at level 10, format "<s[ a := ρ ]s> W").
   Notation "<l[ a := ρ , r ]l> W" := (loc_alloc W a ρ r.1 r.2) (at level 10, format "<l[ a := ρ , r ]l> W").
   Notation "<l[ a := ρ ]l> W" := (loc_update W a ρ) (at level 10, format "<l[ a := ρ ]l> W").
-  Notation "<o[ s ]o> W" := (seals_std_update W s) (at level 10, format "<o[ s ]o> W").
+  Notation "<o[ o := s ]o> W" := (seals_std_update W o s) (at level 10, format "<o[ o := s ]o> W").
 
   Definition delete_std (W : WORLD) a : WORLD := (delete a (std W), cus W, seal_std W).
 
@@ -782,22 +838,24 @@ Qed.
     iFrame. done.
   Qed.
 
-  Lemma sts_alloc_seal_std W C (s : S) :
-    ⌜s ∉ (seal_std W)⌝ -∗ sts_full_world W C ==∗
-    sts_full_world (<o[ s ]o> W) C ∗ sts_seals_std C {[s]}.
+  Lemma sts_alloc_seal_std W C (o : O) (ws : gset Wd) :
+    ⌜o ∉ dom (seal_std W)⌝ -∗ sts_full_world W C ==∗
+    sts_full_world (<o[ o := ws ]o> W) C ∗ sts_seals_std C o ws.
   Proof.
     rewrite /sts_full_world /sts_full /sts_seals_std /seals_std_update /=.
     destruct W as [ [? ?] Wseals]. rewrite /sts_full_seals_std.
     iIntros (Hfresh1) "(H1 & H2 & Hseals) /=".
 
     iMod (own_update
-            (A := seals_stdUR S)
-            _ (● GSet Wseals)
-            ( (● GSet ({[s]} ∪ Wseals)) ⋅ ◯ (GSet {[s]}))
+            (A := seals_stdUR O Wd)
+            _ (● (GSet <$> Wseals))
+            ( (● (GSet <$> (<[o := ws ]>Wseals))) ⋅ ◯ ({[o := GSet ws]}))
             with "Hseals") as "[Hseals Hs]".
     { apply auth_update_alloc.
-      apply: gset_disj_alloc_empty_local_update; last set_solver.
-    }
+      rewrite fmap_insert /=.
+      apply: alloc_singleton_local_update; last done.
+      apply (not_elem_of_dom).
+      rewrite dom_fmap. auto. }
     iFrame. done.
   Qed.
 
@@ -1053,4 +1111,4 @@ End STS.
 Notation "<s[ a := ρ ]s> W" := (std_update W a ρ) (at level 10, format "<s[ a := ρ ]s> W").
 Notation "<l[ a := ρ , r ]l> W" := (loc_alloc W a ρ r.1 r.2) (at level 10, format "<l[ a := ρ , r ]l> W").
 Notation "<l[ a := ρ ]l> W" := (loc_update W a ρ) (at level 10, format "<l[ a := ρ ]l> W").
-Notation "<o[ s ]o> W" := (seals_std_update W s) (at level 10, format "<o[ s ]o> W").
+Notation "<o[ o := s ]o> W" := (seals_std_update W o s) (at level 10, format "<o[ o := s ]o> W").
