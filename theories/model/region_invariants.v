@@ -9,6 +9,8 @@ From cap_machine Require Export stdpp_extra cap_lang sts rules_base.
 From stdpp Require Import countable list_relations.
 Import uPred.
 
+(* TODO: move the content of seal store here *)
+
 (** CMRA for heap and its predicates. Contains: *)
 (* CMRA for relatedness between locations and saved prop names *)
 (* CMRA for saved predicates *)
@@ -113,10 +115,11 @@ End heapPre.
 
 Section heap.
 
+(* TODO: update the type of the world  *)
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type OType Σ}
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
@@ -266,6 +269,7 @@ Section heap.
   (* ------------------------------------------- REGION_MAP ---------------------------------------- *)
   (* ----------------------------------------------------------------------------------------------- *)
 
+  (* TODO similar to region, we need a 3rd component for interpreting sealed capabilities. *)
   Definition region_map_def
     (W : WORLD)
     (C : CmptName)
