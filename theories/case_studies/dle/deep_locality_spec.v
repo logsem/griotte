@@ -72,7 +72,7 @@ Section DLE.
       ∗ codefrag pc_a dle_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ dle_main_data ]]
 
-      ∗ region W0 C ∗ sts_full_world W0 C
+      ∗ region W0 C ∗ sts_full_world W0 C ∗ sealing_map W0 C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -91,7 +91,7 @@ Section DLE.
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
-      & Hr_C & Hsts_C
+      & Hr_C & Hsts_C & Hseals_C
       & HK
       & Hcstk_frag
       & #Hinterp_W0_C_f
@@ -353,7 +353,7 @@ Section DLE.
       iModIntro; iIntros (k a Ha) "Hclose".
       iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
     }
-    assert (Forall (λ a, W3.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)) as Hfrm_close_W3.
+    assert (Forall (λ a, std W3 !! a = Some Revoked) (finz.seq_between csp_b csp_e)) as Hfrm_close_W3.
     {
       apply Forall_forall.
       intros x Hx.
@@ -366,11 +366,14 @@ Section DLE.
       rewrite Forall_forall in Hfrm_close_W0; apply Hfrm_close_W0.
       eapply list_elem_of_lookup_2; eauto.
     }
+
+    iDestruct ( sealing_map_monotone _ _ W3 with "Hseals_C") as "Hseals_C"
+    ; [ by subst W1 W2 W3 | auto |].
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W3 $Hcstk_frag
+              $Hstk $Hr_C $Hsts_C $Hseals_C $Hfrm_close_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -387,7 +390,7 @@ Section DLE.
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
       & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4 & %Hfrm_close_W4
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C
+      & Hsts_C & Hr_C $ Hseals_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -522,10 +525,12 @@ Section DLE.
       iApply mono_priv_closing_revoked_resources; eauto.
     }
 
+    iDestruct ( sealing_map_monotone _ _ W5 with "Hseals_C") as "Hseals_C"
+    ; [ by subst W5 | auto |].
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W5 $Hcstk_frag
+              $Hstk $Hr_C $Hsts_C $Hseals_C $Hfrm_close_W5 $Hcstk_frag
               $Hinterp_W5_C_f $HentryC_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -540,7 +545,7 @@ Section DLE.
       "( _ & _ & _
       & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6 & _
       & Hna & _
-      & Hsts_C & Hr_C
+      & Hsts_C & Hr_C $ Hseals_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]

@@ -82,8 +82,8 @@ Section CMDC.
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ cmdc_main_data ]]
       ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
 
-      ∗ region W_init_B B ∗ sts_full_world W_init_B B
-      ∗ region W_init_C C ∗ sts_full_world W_init_C C
+      ∗ region W_init_B B ∗ sts_full_world W_init_B B ∗ sealing_map W_init_B B
+      ∗ region W_init_C C ∗ sts_full_world W_init_C C ∗ sealing_map W_init_C C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -110,8 +110,8 @@ Section CMDC.
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
-      & HWreg_B & HWstd_full_B
-      & HWreg_C & HWstd_full_C
+      & HWreg_B & HWstd_full_B & HWseals_B
+      & HWreg_C & HWstd_full_C & HWseals_C
       & HK
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
@@ -304,11 +304,6 @@ Section CMDC.
 
     (* Update the frame invariant of B *)
     set (W1 := (<s[cgp_b:=Permanent]s>W_init_B)).
-    (* set (W1' := switcher_world_upon_jmp W1 [] (finz.seq_between (csp_b ^+ 4)%a csp_e) ). *)
-    (* assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1. *)
-    (* { subst W1. *)
-    (*   by eapply related_sts_priv_world_fresh_Permanent. *)
-    (* } *)
     iAssert ( ⌜ Forall (fun a => std W_init_B !! a = Some Revoked) (finz.seq_between csp_b csp_e) ⌝ )%I
       as "%Hrevoked_stack_B".
     {
@@ -394,7 +389,7 @@ Section CMDC.
 
     iAssert (
         ( [∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 B a)
-          ∗ ⌜ Forall (λ a, W1.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)⌝
+          ∗ ⌜ Forall (λ a, std W1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)⌝
       )%I with "[Hrel_stk_B]"  as "[Hrel_stk_B %Hrel_stk_B]".
     {
       iDestruct (big_sepL_sep with "Hrel_stk_B") as "[Hrel %Hrev]".
@@ -410,11 +405,13 @@ Section CMDC.
     }
 
     (* replace frm_init with (frm W1). *)
+    iDestruct ( sealing_map_monotone _ _ W1 with "HWseals_B") as "HWseals_B"
+    ; [ by subst W1 | auto |].
     iEval (cbn) in "Hct1".
     iApply (switcher_cc_specification _ W1 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hcsp_stk $HWreg_B $HWstd_full_B $Hrel_stk_B $Hcstk_frag
+              $Hcsp_stk $HWreg_B $HWstd_full_B $HWseals_B $Hrel_stk_B $Hcstk_frag
               $Hinterp_W1_B_f $HentryB_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -432,7 +429,7 @@ Section CMDC.
       "( _ & _ & _
       & %HW1_pubB_W2 & Hrel_stk_B & %Hdom_rmap' & Hclose_reg_B & %Hclose_reg_B
       & Hna & %Hcsp_bounds
-      & HWstd_full_B & HWreg_B
+      & HWstd_full_B & HWreg_B & HWseals_B
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -730,7 +727,7 @@ Section CMDC.
 
     iAssert (
         ( [∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W3 C a)
-          ∗ ⌜ Forall (λ a, W3.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)⌝
+          ∗ ⌜ Forall (λ a, std W3 !! a = Some Revoked) (finz.seq_between csp_b csp_e)⌝
       )%I with "[Hrel_stk_C]"  as "[Hrel_stk_C %Hrel_stk_C]".
     {
       iDestruct (big_sepL_sep with "Hrel_stk_C") as "[Hrel %Hrev]".
@@ -747,10 +744,12 @@ Section CMDC.
 
     iDestruct ( big_sepL2_length with "Hstk" ) as "%Hlen_stk".
 
+    iDestruct ( sealing_map_monotone _ _ W3 with "HWseals_C") as "HWseals_C"
+    ; [ by subst W3 W0 | auto |].
     iApply (switcher_cc_specification _ W3 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hstk $HWreg_C $HWstd_full_C $Hrel_stk_C $Hcstk_frag
+              $Hstk $HWreg_C $HWstd_full_C $HWseals_C $Hrel_stk_C $Hcstk_frag
               $Hinterp_W3_C_g $HentryC_g $HK]"); eauto; iFrame "%".
     { subst rmap''.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -768,7 +767,7 @@ Section CMDC.
       "( _ & _ & _
       & %HW1_pubC_4 & Hrel_stk_C & %Hdom_rmap'' & Hclose_reg_C & _
       & Hna & _
-      & HWstd_full_C & HWreg_C
+      & HWstd_full_C & HWreg_C & HWseals_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg'0 [Hca0 _] ] & [%warg1' [Hca1 _] ]
@@ -911,8 +910,8 @@ Section CMDC.
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ cmdc_main_data ]]
       ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
 
-      ∗ region W_init_B B ∗ sts_full_world W_init_B B
-      ∗ region W_init_C C ∗ sts_full_world W_init_C C
+      ∗ region W_init_B B ∗ sts_full_world W_init_B B ∗ sealing_map W_init_B B
+      ∗ region W_init_C C ∗ sts_full_world W_init_C C ∗ sealing_map W_init_C C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -939,8 +938,8 @@ Section CMDC.
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
-      & HWreg_B & HWstd_full_B
-      & HWreg_C & HWstd_full_C
+      & HWreg_B & HWstd_full_B & HWseals_B
+      & HWreg_C & HWstd_full_C & HWseals_C
       & HK
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g

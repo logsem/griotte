@@ -82,7 +82,7 @@ Section VAE.
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
-      ∗ region W0 C ∗ sts_full_world W0 C
+      ∗ region W0 C ∗ sts_full_world W0 C ∗ sealing_map W0 C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -110,7 +110,7 @@ Section VAE.
       & #Hawk_inv & #Hrel_ι
       & Hna
       & HPC & Hcgp & Hcsp & Hrmap
-      & Hr_C & Hsts_C
+      & Hr_C & Hsts_C & Hseals_C
       & HK
       & Hcstk_frag
       & #Hinterp_W0_C_f
@@ -264,10 +264,12 @@ Section VAE.
     }
 
     (* Apply the spec switcher call *)
+    iDestruct ( sealing_map_monotone _ _ W1 with "Hseals_C") as "Hseals_C"
+    ; [ by subst W1 | auto |].
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W1 $Hcstk_frag
+              $Hstk $Hr_C $Hsts_C $Hseals_C $Hfrm_close_W1 $Hcstk_frag
               $Hinterp_W1_C_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -283,7 +285,7 @@ Section VAE.
     iIntros (W2 rmap stk_mem l')
       "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & _
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C
+      & Hsts_C & Hr_C & Hseals_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
