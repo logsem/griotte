@@ -77,31 +77,44 @@ Section sealing_interp.
     let W' := (<o[ o := ws ]o> W) in
     o ∉ dom (seal_std W) ->
     seal_pred o Po -∗
-    sts_seals_std C o ws -∗
     (∀ w : Word, future_priv_mono C Po w) -∗
     ([∗ set] w ∈ ws, ▷ Po (W', C, w)) -∗
-    sealing_map_def W C -∗
-    sealing_map_def W' C.
+    sealing_map_def W C ∗ sts_full_world W C ==∗
+    sealing_map_def W' C ∗ sts_full_world W' C ∗ sts_seals_std C o ws.
   Proof.
     intros W'; subst W'.
-    iIntros (Ho) "Hseal_Po Hseal_ws Hmono_Po Hws_Po Hr".
+    iIntros (Ho) "Hseal_Po Hmono_Po Hws_Po [Hr Hsts]".
     rewrite /sealing_map_def.
-    iApply big_sepM_insert; first by apply not_elem_of_dom.
-    iFrame.
-    iApply big_sepM_mono; iFrame.
-    iIntros (o' ws' Hsome) "Hm".
-    iDestruct "Hm" as "($ & %Po' & Hpred & #Hmono & HPo)".
-    iExists Po'; iFrame "∗#".
-    pose proof (related_sts_priv_world_alloc_ot W o ws Ho) as Hrelated.
-    clear -Hrelated.
-    iStopProof.
-    induction ws' using set_ind_L; iIntros "[#Hmono Hs]"; first done.
-    rewrite big_sepS_union; last set_solver+H.
-    rewrite big_sepS_union; last set_solver+H.
-    iDestruct "Hs" as "[Hx Hs]".
-    iSplitL "Hx"; last ( iApply IHws'; iFrame "∗#" ).
-    rewrite !big_sepS_singleton.
-    iApply "Hmono"; eauto.
+    iMod (sts_alloc_seal_std _ _ _ ws with "[] [$Hsts]") as "[Hsts #Hseal]"; eauto.
+    iAssert (
+        [∗ map] k↦y ∈ W.2, sts_seals_std C k y ∗
+                                    ∃ Po0 : WORLD * CmptName * Word → iProp Σ,
+                                      seal_pred k Po0 ∗
+                                      (∀ w : Word, future_priv_mono C Po0 w) ∗
+                                      ([∗ set] w ∈ y, ▷ Po0 (<o[o:=ws]o>W, C, w))
+      )%I with "[Hr]" as "Hr".
+    {
+      iClear "Hseal".
+      clear Po.
+      iApply big_sepM_mono; last iFrame.
+      iIntros (o' wso' Hswo') "($ & %Po & Hspred & #Hmono & Hwso')".
+      iExists Po; iFrame "∗#".
+      pose proof (related_sts_priv_world_alloc_ot W o ws Ho) as Hrelated.
+      clear -Hrelated.
+      iStopProof.
+      induction wso' using set_ind_L; iIntros "[#Hmono Hs]"; first done.
+      rewrite big_sepS_union; last set_solver+H.
+      rewrite big_sepS_union; last set_solver+H.
+      iDestruct "Hs" as "[Hx Hs]".
+      iSplitL "Hx"; last ( iApply IHwso'; iFrame "∗#" ).
+      rewrite !big_sepS_singleton.
+      iApply "Hmono"; eauto.
+    }
+
+    iDestruct (big_sepM_insert _ _ o ws with "[$Hr $Hseal $Hseal_Po $Hmono_Po $Hws_Po]") as "Hr".
+    { by apply not_elem_of_dom. }
+    iModIntro.
+    by iFrame.
   Qed.
 
 
@@ -183,6 +196,16 @@ Section sealing_interp.
     rewrite insert_delete_eq.
     by iFrame.
   Qed.
+
+  Lemma sealing_map_alloc (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ) (o : OType) (ws : gset Word)  :
+    let W' := (<o[ o := ws ]o> W) in
+    o ∉ dom (seal_std W) ->
+    seal_pred o Po -∗
+    (∀ w : Word, future_priv_mono C Po w) -∗
+    ([∗ set] w ∈ ws, ▷ Po (W', C, w)) -∗
+    sealing_map W C ∗ sts_full_world W C ==∗
+    sealing_map W' C ∗ sts_full_world W' C ∗ sts_seals_std C o ws.
+  Proof. rewrite sealing_map_eq; apply sealing_map_def_alloc. Qed.
 
   Lemma sealing_map_update (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
     (o : OType) (ws ws' : gset Word)  :
