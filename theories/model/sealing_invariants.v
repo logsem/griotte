@@ -113,7 +113,7 @@ Section sealing_interp.
     ([∗ set] w ∈ ws', ▷ Po (W', C, w)) -∗
     sealing_map_def W C ∗ sts_full_world W C
     ==∗
-    sealing_map_def W' C ∗ sts_full_world W' C.
+    sealing_map_def W' C ∗ sts_full_world W' C ∗ sts_seals_std C o (ws' ∪ ws).
   Proof.
     intros W'; subst W'.
     iIntros (Ho) "Hspred_Po Hws_Po [Hr Hsts]".
@@ -192,7 +192,7 @@ Section sealing_interp.
     ([∗ set] w ∈ ws', ▷ Po (W', C, w)) -∗
     sealing_map W C ∗ sts_full_world W C
     ==∗
-    sealing_map W' C ∗ sts_full_world W' C.
+    sealing_map W' C ∗ sts_full_world W' C ∗ sts_seals_std C o (ws' ∪ ws).
   Proof. rewrite sealing_map_eq; apply sealing_map_def_update. Qed.
 
 
