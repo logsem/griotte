@@ -12,7 +12,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
   .
@@ -61,7 +61,7 @@ Section fundamental.
     { iModIntro; iNext.
       iIntros (W_ih C_ih cstk_ih Ws_ih Cs_ih r_ih p_ig g_ih b_ih e_ih a_ih)
         "%Hfull #Hregs Hmreg Hr Hsts Hcont %Hframe' Hown Htframe Hinterp".
-      iApply ("IH'" with "[%] [] [] [Hmreg] [$Hr] [$Hsts] [$] [$] [$]");eauto.
+      iApply ("IH'" with "[%] [] [] [Hmreg] [$Hr] [$Hsts] [$Hseals] [$] [$] [$]");eauto.
       done.
     }
     iIntros "#Hinv_interp".

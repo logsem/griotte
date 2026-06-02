@@ -8,7 +8,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
     {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
@@ -33,6 +33,7 @@ Section fundamental.
             -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r_ih)
             -∗ region W_ih C_ih
             -∗ sts_full_world W_ih C_ih
+            -∗ sealing_map W_ih C_ih
             -∗ interp_continuation cstk Ws Cs
             -∗ ⌜frame_match Ws Cs cstk W_ih C_ih⌝
             -∗ na_own logrel_nais ⊤
@@ -75,6 +76,7 @@ Section fundamental.
     -∗ interp_continuation cstk Ws Cs
     -∗ ⌜frame_match Ws Cs cstk W C⌝
     -∗ sts_full_world W C
+    -∗ sealing_map W C
     -∗ na_own logrel_nais ⊤
     -∗ cstack_frag cstk
     -∗ open_region W C a

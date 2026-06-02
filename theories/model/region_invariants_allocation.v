@@ -2,7 +2,7 @@ From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import proofmode.
 From stdpp Require Import list_relations.
 From cap_machine Require Export region_invariants multiple_updates.
-From cap_machine Require Import seal_store logrel interp_weakening.
+From cap_machine Require Import logrel interp_weakening.
 From cap_machine Require Import switcher.
 From cap_machine Require Import compartment_layout mkregion_helpers stdpp_extra disjoint_regions_tactics.
 Import uPred.
@@ -11,7 +11,7 @@ Section region_alloc.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
 
@@ -415,10 +415,10 @@ Section region_alloc.
         assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked)
                 = std_update_multiple W l1 Revoked) as ->.
         { rewrite /std_update.
-          destruct (std_update_multiple W l1 Revoked) as [] eqn:Heq.
+          destruct (std_update_multiple W l1 Revoked) as [ [Wstd' Wsts'] Wseal'] eqn:Heq.
           f_equiv; last done.
           simpl. rewrite insert_id//.
-          assert (o = std (std_update_multiple W l1 Revoked)) as ->;[rewrite Heq//|].
+          assert (Wstd' = std (std_update_multiple W l1 Revoked)) as ->;[rewrite Heq//|].
           apply std_sta_update_multiple_lookup_in_i;auto.
         }
         destruct (std_update_multiple W l1 Revoked) as [Wstd_sta Wloc] eqn:Heq.
@@ -706,7 +706,7 @@ Section region_alloc_cmpt.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
@@ -743,7 +743,7 @@ Section region_alloc_cmpt.
     { apply related_sts_pub_update_multiple.
       apply Forall_forall.
       intros a Ha.
-      assert (a ∉ dom W.1)
+      assert (a ∉ dom (std W))
         as Hadom by (by apply Hdata in Ha; rewrite -not_elem_of_dom in Ha).
       subst W2.
       intro Ha'.
@@ -765,7 +765,7 @@ Section region_alloc_cmpt.
     assert (Forall (fun a => a ∉ dom (std W3))
               (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt))) as Himports_W3.
     { apply Forall_forall; intros a Ha; cbn.
-      assert (a ∉ dom W.1)
+      assert (a ∉ dom (std W))
         as Hadom by (by apply Himports in Ha; rewrite -not_elem_of_dom in Ha).
       rewrite not_elem_of_dom.
       pose proof (cmpt_import_size C_cmpt) as H.
@@ -965,7 +965,7 @@ Section region_alloc_cmpt.
         apply elem_of_finz_seq_between in Ha''.
         iDestruct (big_sepL_elem_of with "Hrels") as "Hrel_a'"; eauto.
         assert (
-            (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent).1
+            (std (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent))
               !! a' = Some Permanent
           ) as Ha'_W.
         { by apply std_sta_update_multiple_lookup_in_i. }

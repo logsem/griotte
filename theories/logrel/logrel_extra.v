@@ -13,7 +13,7 @@ Section Logrel_extra.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
   .
@@ -154,7 +154,7 @@ Section Logrel_extra.
 
   Lemma monotone_revoke_list_sts_full_world_keep_interp W C (l : list Addr) (l' l_unk : list Addr) :
     ⊢ ⌜NoDup (l_unk ++ l')⌝ → ⌜NoDup l⌝ → ⌜(l_unk ++ l') ⊆+ l⌝ →
-    ⌜ Forall (λ a : finz MemNum, W.1 !! a = Some Temporary) l_unk ⌝ →
+    ⌜ Forall (λ a : finz MemNum, std W !! a = Some Temporary) l_unk ⌝ →
     ([∗ list] a' ∈ l',
          ⌜(std W) !! a' = Some Temporary⌝ ∗
           (
@@ -354,7 +354,7 @@ Section Logrel_extra.
      iMod ("IH" with "[] [] [] [] [$Hrel' $Hfull $Hr]") as "(Hfull & Hr & Hl & Hl')"; auto.
      iDestruct "Hr" as (M Mρ) "(HM & #Hdom & #Hdom' & Hr)".
      iDestruct "Hdom" as %Hdom. iDestruct "Hdom'" as %Hdom'. iClear "IH".
-     rewrite /revoke_list /=. destruct W as [ Wstd_sta Wloc].
+     rewrite /revoke_list /=. destruct W as [ [ Wstd_sta Wloc] Wseals].
      destruct (Wstd_sta !! x) eqn:Hsome.
      2: { iFrame. iModIntro. rewrite Hsome. iFrame. auto. }
      rewrite Hsome.
@@ -410,12 +410,12 @@ Section Logrel_extra.
   Proof.
     iIntros (Hdup) "(Hl & Hfull & Hr)".
     rewrite revoke_list_dom.
-    iAssert ( ⌜ Forall (λ a : finz MemNum, W.1 !! a = Some Temporary) l⌝ )%I with "[Hl]" as "%Htmp".
+    iAssert ( ⌜ Forall (λ a : finz MemNum, std W !! a = Some Temporary) l⌝ )%I with "[Hl]" as "%Htmp".
     { iDestruct (big_sepL_sep with "Hl") as "[% _]".
       iPureIntro; apply Forall_forall; intros a [k Ha]%list_elem_of_lookup; eapply H; done.
     }
     pose proof (extract_temps_split_world _ l Hdup Htmp) as (l_tmp_unk & Hnodup' & Hall_l).
-    assert (l_tmp_unk ++ l ⊆+ (map_to_list W.1).*1) as Hsub.
+    assert (l_tmp_unk ++ l ⊆+ (map_to_list (std W)).*1) as Hsub.
     { revert Hall_l Hnodup' Htmp Hdup.
       generalize dependent l_tmp_unk.
       induction l as [| x l]; intros l_unk Hall Hnodup_all Hall_l Hnodup_l.

@@ -12,7 +12,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
     {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
@@ -45,7 +45,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Subseg dst r1 r2) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hseals Hown Htframe".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Subseg with "[$Ha $Hmap]"); eauto.
@@ -72,7 +72,7 @@ Section fundamental.
       simplify_map_eq; map_simpl "Hmap".
 
       (* edestruct Hspdst as [??]. *)
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hseals] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       { cbn. intros. by repeat (rewrite lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
@@ -111,7 +111,7 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq; map_simpl "Hmap".
 
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hseals] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       { cbn. intros. by repeat (rewrite lookup_insert_is_Some'; right). }
       { iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).

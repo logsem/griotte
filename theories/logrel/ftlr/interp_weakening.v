@@ -9,7 +9,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
@@ -157,9 +157,9 @@ Section fundamental.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (W') "#Hfuture %g'' %Hflows !>".
-    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hcstk & Hframe)]".
+    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hseals & Hcont & Hown & Hcstk & Hframe)]".
     rewrite /interp_conf.
-    iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hcont Hframe Hown Hcstk"); eauto.
+    iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hseals Hcont Hframe Hown Hcstk"); eauto.
     iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
     destruct (isO p) eqn:HpO; auto.
     destruct (has_sreg_access p) eqn:HpXSR'; auto.
@@ -267,17 +267,18 @@ Section fundamental.
   Unshelve. all: exact W.
   Qed.
 
+  (* TODO move *)
+  Lemma borrow_sb_idempotent (sb : Sealable) :
+    (borrow_sb (borrow_sb sb)) = (borrow_sb sb).
+  Proof. by destruct sb; cbn. Qed.
+
   Lemma interp_borrowed_sealed (W : WORLD) (C : CmptName) (ot : OType) (sb : Sealable) :
     interp W C (WSealed ot sb) -∗ interp W C (WSealed ot (borrow_sb sb)).
   Proof.
     iIntros "Hinterp".
-    rewrite !fixpoint_interp1_eq /= /interp_sb.
-    iDestruct "Hinterp" as (P HpersP) "(Hmono & Hsealpred & _ & HPborrowed)".
-    opose proof (HpersP (W,C,_)) as HpersPborrowed; cbn in HpersPborrowed.
-    iDestruct "HPborrowed" as "#HPborrowed".
-    replace (borrow (WSealable (borrow_sb sb))) with (WSealable (borrow_sb sb))
-    by (destruct sb; auto).
-    iFrame "∗#%".
+    rewrite !fixpoint_interp1_eq /= /interp_sb /= borrow_sb_idempotent.
+    iApply sts_seals_std_weaken; last iFrame.
+    set_solver+.
   Qed.
 
   Lemma interp_deeplocal_word W C w : interp W C w ⊢ interp W C (deeplocal w).

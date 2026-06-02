@@ -9,7 +9,7 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
@@ -223,16 +223,7 @@ Section monotone.
   Proof.
     iIntros (Hrelated) "#Hinterp".
     rewrite !fixpoint_interp1_eq /= /interp_sb.
-    iDestruct "Hinterp" as (P Hpers) "(Hmono & Hseal_pred & HP & HPborrowed)".
-    iFrame "#%".
-    iApply later_sep_1; iNext.
-    iDestruct ("Hmono" $! _ W W' with "[] [$HP]") as "HP'"
-    ; rewrite /safeC /=
-    ; eauto.
-    iDestruct ("Hmono" $! _ W W' with "[] [$HPborrowed]") as "HPborrowed'"
-    ; rewrite /safeC /=
-    ; eauto.
-    iFrame "#".
+    done.
   Qed.
 
   Lemma interp_monotone_sentry W W' C p g b e a :
@@ -321,12 +312,48 @@ Section monotone.
       iPureIntro; eapply (region_state_pwl_monotone W W');eauto.
   Qed.
 
+  Lemma safe_to_seal_monotone C W W' b e :
+    related_sts_priv_world W W' ->
+    safe_to_seal W C interp b e -∗
+    safe_to_seal W' C interp b e.
+  Proof.
+    iIntros (Hrelated) "#Hw"; rewrite /safe_to_seal.
+    generalize (finz.seq_between b e) as l; intros l.
+    iApply big_sepL_mono; last done.
+    iIntros (k o Hk) "(%P & HP_pers & Hseal & %Hdom & Hwcond)".
+    iExists P; iFrame.
+    iPureIntro.
+    destruct Hrelated as (_ & _ & [ Hrelated_dom _ ]).
+    by apply Hrelated_dom.
+  Qed.
+
+  Lemma safe_to_unseal_monotone C W W' b e :
+    related_sts_priv_world W W' ->
+    safe_to_unseal W C interp b e -∗
+    safe_to_unseal W' C interp b e.
+  Proof.
+    iIntros (Hrelated) "#Hw"; rewrite /safe_to_seal.
+    generalize (finz.seq_between b e) as l; intros l.
+    iApply big_sepL_mono; last done.
+    iIntros (k o Hk) "(%P & HP_pers & Hseal & %Hdom & Hwcond)".
+    iExists P; iFrame.
+    iPureIntro.
+    destruct Hrelated as (_ & _ & [ Hrelated_dom _ ]).
+    by apply Hrelated_dom.
+  Qed.
+
   Lemma interp_monotone_sealrange (W W' : WORLD) C p g b e a :
     ⌜related_sts_priv_world W W'⌝
     -∗ interp W C (WSealRange p g b e a) -∗ interp W' C (WSealRange p g b e a).
   Proof.
     iIntros (Hrelated) "#Hw".
     rewrite !fixpoint_interp1_eq /=; auto.
+    iDestruct "Hw" as "[Hw_seal Hw_unseal]".
+    iSplitL "Hw_seal".
+    - destruct (permit_seal p); last done.
+      iApply safe_to_seal_monotone; eauto.
+    - destruct (permit_unseal p); last done.
+      iApply safe_to_unseal_monotone; eauto.
   Qed.
 
   Lemma interp_monotone (W W' : WORLD) C w :
@@ -562,9 +589,12 @@ Proof.
   destruct ρ;auto.
   - destruct (isWL p') eqn: HpwlP1 ; [|destruct (isDL p') eqn:HdwlP1]
     ; iModIntro; simpl ; iIntros (W0 W1) "% HIW0".
-    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
+    all: rewrite /interpC /safeC /=.
+    all: iApply interp_monotone_sealrange; eauto.
+    all: iPureIntro; by apply related_sts_pub_priv_world.
   - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
+    all: rewrite /interpC /safeC /=.
+    all: iApply interp_monotone_sealrange; eauto.
 Qed.
 
 Lemma interp_monotone_generalSd (W : WORLD) (C : CmptName) (ρ : region_type)

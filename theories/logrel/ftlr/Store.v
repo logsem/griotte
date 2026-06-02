@@ -13,7 +13,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
     {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
@@ -438,7 +438,7 @@ Section fundamental.
      ftlr_instr W C regs p p' g b e a w (Store dst src) ρ P cstk Ws Cs.
    Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono HmonoV Hw Hcont %Hframe Hsts Hseals Hown Htframe".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -521,7 +521,7 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq. rewrite insert_insert_eq.
 
-      iApply ("IH" with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); auto.
+      iApply ("IH" with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hseals] [$Hcont] [//] [$Hown] [$Htframe]"); auto.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { iApply wp_pure_step_later; auto. iNext; iIntros "_". iApply wp_value; auto.  }

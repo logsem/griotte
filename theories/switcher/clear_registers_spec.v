@@ -2,7 +2,7 @@ From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import memory_region rules proofmode.
 From iris.program_logic Require Export weakestpre.
-From cap_machine Require Export cap_lang seal_store region_invariants.
+From cap_machine Require Export cap_lang region_invariants.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine Require Import rules_base.
@@ -15,7 +15,7 @@ Section ClearRegistersMacro.
     {ceriseg:ceriseG Σ}
     {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
     {heapg : heapGS Σ}
     `{MP: MachineParameters}.
 

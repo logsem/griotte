@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
-From cap_machine Require Export cap_lang memory_region seal_store region_invariants.
+From cap_machine Require Export cap_lang memory_region region_invariants sealing_invariants.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine Require Import rules_base.
@@ -36,7 +36,8 @@ Section logrel.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
+    {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
@@ -178,6 +179,7 @@ Section logrel.
         ∗ registers_pointsto (<[PC:=wpc]> regs)
         ∗ region W C
         ∗ sts_full_world W C
+        ∗ sealing_map W C
         ∗ interp_cont cstk Ws Cs
         ∗ na_own logrel_nais ⊤
         ∗ cstack_frag cstk
@@ -550,13 +552,14 @@ Section logrel.
   Definition safe_to_seal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
        ∃ P : V, ⌜persistent_cond P⌝
-                ∗ (∀ w, future_priv_mono C (safeC P) w)
                 ∗ (seal_pred a (safeC P))
+                ∗ ⌜ a ∈ dom (seal_std W) ⌝
                 ∗ ▷ wcond P C interp)%I.
   Definition safe_to_unseal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
-       ∃ P : V, (∀ w, future_priv_mono C (safeC P) w)
+       ∃ P : V, ⌜persistent_cond P⌝
                 ∗ (seal_pred a (safeC P))
+                ∗ ⌜ a ∈ dom (seal_std W) ⌝
                 ∗ ▷ rcond P C RO interp)%I.
 
   Program Definition interp_sr (interp : V) : V :=
@@ -567,14 +570,8 @@ Section logrel.
     | _ => False end ) %I.
   Solve All Obligations with solve_proper.
 
-  Program Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (w : Word) :=
-    (∃ (P : V) ,
-        ⌜persistent_cond P⌝
-        ∗ (∀ w, future_priv_mono C (safeC P) w)
-        ∗ seal_pred o (safeC P)
-        ∗ ▷ P W C w
-        ∗ ▷ P W C (borrow w)
-    )%I.
+  Program Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (w : Word) : iPropO Σ :=
+    (sts_seals_std C o {[w ; borrow w ]})%I.
 
   Program Definition interp1 (interp : V) : V :=
     (λne W C w,
@@ -661,22 +658,23 @@ Section logrel.
     - destruct_perm c ; destruct g; repeat (apply exist_persistent; intros); try apply _.
     - destruct (permit_seal sr), (permit_unseal sr); rewrite /safe_to_seal /safe_to_unseal; apply _ .
     - apply _.
-    - apply exist_persistent; intros P.
-      unfold Persistent. iIntros "(%Hpers & #Hmono & #Hs & HP & HPborrowed)".
-      (* use knowledge about persistence *)
-      iAssert (<pers> ▷ P W C (WSealable sb))%I with "[ HP ]" as "HP".
-      { iApply later_persistently_1.
-        ospecialize (Hpers (W,C,_)); cbn in Hpers.
-        by iApply persistent_persistently_2.
-      }
-      iAssert (<pers> ▷ P W C (borrow (WSealable sb)))%I with "[ HPborrowed ]" as "HPborrowed".
-      { iApply later_persistently_1.
-        ospecialize (Hpers (W,C,_)); cbn in Hpers.
-        by iApply persistent_persistently_2.
-      }
-      iApply persistently_sep_2; iSplitR; auto.
-      iApply persistently_sep_2; iSplitR; auto; iFrame "Hs".
-      iApply persistently_sep_2;iFrame.
+    - apply _.
+    (* - apply exist_persistent; intros P. *)
+    (*   unfold Persistent. iIntros "(%Hpers & #Hmono & #Hs & HP & HPborrowed)". *)
+    (*   (* use knowledge about persistence *) *)
+    (*   iAssert (<pers> ▷ P W C (WSealable sb))%I with "[ HP ]" as "HP". *)
+    (*   { iApply later_persistently_1. *)
+    (*     ospecialize (Hpers (W,C,_)); cbn in Hpers. *)
+    (*     by iApply persistent_persistently_2. *)
+    (*   } *)
+    (*   iAssert (<pers> ▷ P W C (borrow (WSealable sb)))%I with "[ HPborrowed ]" as "HPborrowed". *)
+    (*   { iApply later_persistently_1. *)
+    (*     ospecialize (Hpers (W,C,_)); cbn in Hpers. *)
+    (*     by iApply persistent_persistently_2. *)
+    (*   } *)
+    (*   iApply persistently_sep_2; iSplitR; auto. *)
+    (*   iApply persistently_sep_2; iSplitR; auto; iFrame "Hs". *)
+    (*   iApply persistently_sep_2;iFrame. *)
   Qed.
 
   (* Non-curried version of interp *)

@@ -11,7 +11,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
     {cstackg : CSTACKG Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
@@ -31,7 +31,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Lea dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hseals Hown Htframe".
     iIntros "Hr Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_lea with "[$Ha $Hmap]"); eauto.
@@ -56,7 +56,7 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
       assert (is_Some (regs' !! csp)) as [??].
       { rewrite Hregs'. destruct (decide (dst = csp));simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
+      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hseals] [$Hcont] [//] [$Hown] [$Htframe]").
       - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
       - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
@@ -83,7 +83,7 @@ Section fundamental.
 
       assert (is_Some (regs' !! csp)) as [??].
       { rewrite Hregs'. destruct (decide (dst = csp));simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
+      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hseals] [$Hcont] [//] [$Hown] [$Htframe]").
       - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
       - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).

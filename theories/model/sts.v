@@ -42,7 +42,7 @@ Class STS_STD (B : Type) :=
 Definition seals_stdUR (O Wd : Type)
   {eqO: EqDecision O} {countO: Countable O}
   {eqWd: EqDecision Wd} {countWd: Countable Wd}
-  := authUR (gmapUR O (gset_disjUR Wd)).
+  := authUR (gmapUR O (gsetUR Wd)).
 Definition seals_std (O Wd : Type)
   {eqO: EqDecision O} {countO: Countable O}
   {eqWd: EqDecision Wd} {countWd: Countable Wd} :=
@@ -134,7 +134,7 @@ Section definitionsS.
     own (γr_loc C) (◯ {[ i := to_agree ((convert_rel rpub,convert_rel rpriv)) ]}).
 
   Definition sts_seals_std (C : CmptName) (o : O) (ws : gset Wd) : iProp Σ :=
-    own (γs_seals C) (◯ {[ o := (GSet ws)]}).
+    own (γs_seals C) (◯ {[ o := ws]}).
 
   Definition sts_full C (fs : STS_states) (fr : STS_rels) : iProp Σ
     := (own (A := sts_stateUR) (γs_loc C) (● (Excl <$> fs))
@@ -142,7 +142,7 @@ Section definitionsS.
   Definition sts_full_std C (fs : STS_std_states A B) : iProp Σ
     := own (A := sts_std_stateUR A B) (γs_std C) (● (Excl <$> fs))%I.
   Definition sts_full_seals_std C (fs : seals_std O Wd) : iProp Σ
-    := own (A := seals_stdUR O Wd) (γs_seals C) (● (GSet <$> fs))%I.
+    := own (A := seals_stdUR O Wd) (γs_seals C) (● fs)%I.
   Definition sts_full_world (W : WORLD) (C : CmptName) : iProp Σ :=
     (sts_full_std C (std W)) ∗ (sts_full C (loc W) (wrel W)) ∗ (sts_full_seals_std C (seal_std W)).
 
@@ -188,6 +188,8 @@ Section definitionsS.
     related_sts_seals_std (seal_std W) (seal_std W').
 
   Global Instance sts_rel_loc_Persistent C i rpub rpriv : Persistent (sts_rel_loc C i rpub rpriv).
+  Proof. apply _. Qed.
+  Global Instance sts_seals_std_Persistent C o ws : Persistent (sts_seals_std C o ws).
   Proof. apply _. Qed.
 
   Global Instance sts_rel_loc_Timeless C i rpub rpriv : Timeless (sts_rel_loc C i rpub rpriv).
@@ -768,13 +770,10 @@ Qed.
     specialize (Hv o).
     revert HR; rewrite /= singleton_included_l;
       intros [z [Hz HR]].
-    rewrite lookup_fmap in Hz Hv.
-    destruct (Wseals !! o) eqn:Heq; last (rewrite Heq in Hz; inversion Hz).
-    apply Some_included_1 in HR as [HR | HR].
-    - inversion HR; simplify_map_eq.
-      exists ws; split; auto.
-    - simplify_map_eq.
-      exists g; split; auto. set_solver+HR.
+    (* rewrite lookup_fmap in Hz Hv. *)
+    inversion Hz; simplify_eq; rewrite -H.
+    apply Some_included_1 in HR as [HR | HR]
+    ; simplify_map_eq; exists z; split; auto; set_solver+HR.
   Qed.
 
   (* Definition and notation for updating a standard or local state in the STS collection *)
@@ -797,6 +796,16 @@ Qed.
 
   Definition delete_std (W : WORLD) a : WORLD := (delete a (std W), cus W, seal_std W).
 
+  Lemma sts_seals_std_weaken (C : CmptName) (o : OType) (ws ws' : gset Word) :
+    ws' ⊆ ws ->
+    sts_seals_std C o ws -∗
+    sts_seals_std C o ws'.
+  Proof.
+    iIntros (Hsubseteq) "Hs".
+    iApply own_mono; last iFrame.
+    apply auth_frag_mono, singleton_included_mono.
+    set_solver.
+  Qed.
 
   Lemma sts_dealloc_std W C a b :
     sts_full_world W C ∗ sts_state_std C a b
@@ -848,14 +857,40 @@ Qed.
 
     iMod (own_update
             (A := seals_stdUR O Wd)
-            _ (● (GSet <$> Wseals))
-            ( (● (GSet <$> (<[o := ws ]>Wseals))) ⋅ ◯ ({[o := GSet ws]}))
+            _ (● Wseals)
+            ( (● (<[o := ws ]>Wseals)) ⋅ ◯ ({[o := ws]}))
             with "Hseals") as "[Hseals Hs]".
     { apply auth_update_alloc.
-      rewrite fmap_insert /=.
       apply: alloc_singleton_local_update; last done.
       apply (not_elem_of_dom).
-      rewrite dom_fmap. auto. }
+      auto.
+    }
+    iFrame. done.
+  Qed.
+
+  Lemma sts_update_seal_std W C (o : O) (ws ws' : gset Wd) :
+    seal_std W !! o = Some ws ->
+    sts_full_world W C ∗ sts_seals_std C o ws ==∗
+    sts_full_world (<o[ o := ws' ∪ ws ]o> W) C ∗ sts_seals_std C o (ws' ∪ ws).
+  Proof.
+    iIntros (Ho) "[Hsts Hf] /="; cbn in *.
+    rewrite /sts_full_world /sts_full /sts_seals_std /seals_std_update /=.
+    destruct W as [ [? ?] Wseals]. rewrite /sts_full_seals_std.
+    iDestruct "Hsts" as "(H1 & H2 & Hseals)"; cbn in *.
+
+    iCombine "Hseals Hf" as "Hseals".
+    iMod (own_update
+            (A := seals_stdUR O Wd)
+            _ (● Wseals ⋅ ◯ {[o := ws]})
+            ( (● (<[o := (ws' ∪ ws) ]>Wseals)) ⋅ ◯ ({[o := (ws' ∪ ws)]}))
+           with "Hseals") as "[Hseals Hs]".
+    { apply auth_update.
+      apply: singleton_local_update_any.
+      intros ws0 Ho'.
+      rewrite Ho in Ho'; simplify_eq.
+      apply gset_local_update.
+      set_solver+.
+    }
     iFrame. done.
   Qed.
 
@@ -1056,6 +1091,52 @@ Qed.
         intros x' y Hx' Hy. simplify_map_eq. left.
   Qed.
 
+  Lemma related_sts_pub_world_alloc_ot (W : WORLD) (o : O) (ws : gset Wd) :
+    o ∉ dom (seal_std W) ->
+    related_sts_pub_world W (<o[o:=ws]o>W).
+  Proof.
+    intros Ho.
+    destruct W as [ [Wstd Wcus] Wseals ].
+    split;[|split]; [ apply related_sts_std_pub_refl | apply related_sts_pub_refl | ]; cbn in *.
+    split.
+    - rewrite dom_insert_L; set_solver+.
+    - intros o' s s' Hs Hs'.
+      rewrite not_elem_of_dom in Ho.
+      destruct (decide (o = o')); simplify_map_eq.
+      rewrite Hs in Hs'; simplify_eq.
+      set_solver+.
+  Qed.
+
+  Lemma related_sts_priv_world_alloc_ot (W : WORLD) (o : O) (ws : gset Wd) :
+    o ∉ dom (seal_std W) ->
+    related_sts_priv_world W (<o[o:=ws]o>W).
+  Proof.
+    intros Ho.
+    by apply related_sts_pub_priv_world, related_sts_pub_world_alloc_ot.
+  Qed.
+
+  Lemma related_sts_pub_world_update_ot (W : WORLD) (o : O) (ws ws' : gset Wd) :
+    (seal_std W) !! o = Some ws ->
+    related_sts_pub_world W (<o[o:= ws' ∪ ws]o>W).
+  Proof.
+    intros Ho.
+    destruct W as [ [Wstd Wcus] Wseals ].
+    split;[|split]; [ apply related_sts_std_pub_refl | apply related_sts_pub_refl | ]; cbn in *.
+    split.
+    - rewrite dom_insert_L; set_solver+.
+    - intros o' s s' Hs Hs'.
+      destruct (decide (o = o')); simplify_map_eq.
+      + rewrite Ho in Hs; simplify_eq; set_solver+.
+      + rewrite Hs in Hs'; simplify_eq; set_solver+.
+  Qed.
+
+  Lemma related_sts_priv_world_update_ot (W : WORLD) (o : O) (ws ws' : gset Wd) :
+    (seal_std W) !! o = Some ws ->
+    related_sts_priv_world W (<o[o:= ws' ∪ ws]o>W).
+  Proof.
+    intros Ho.
+    by apply related_sts_pub_priv_world, related_sts_pub_world_update_ot.
+  Qed.
 
   Lemma related_sts_priv_rel
     (W1 W2 : WORLD) (ι : positive) (R : (positive → positive → Prop) * (positive → positive → Prop) ) :
