@@ -796,7 +796,7 @@ Qed.
 
   Definition delete_std (W : WORLD) a : WORLD := (delete a (std W), cus W, seal_std W).
 
-  Lemma sts_seals_std_weaken (C : CmptName) (o : OType) (ws ws' : gset Word) :
+  Lemma sts_seals_std_weaken (C : CmptName) (o : O) (ws ws' : gset Wd) :
     ws' ⊆ ws ->
     sts_seals_std C o ws -∗
     sts_seals_std C o ws'.
