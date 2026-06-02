@@ -71,7 +71,7 @@ Section DROE.
       ∗ codefrag pc_a droe_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ droe_main_data ]]
 
-      ∗ region W_init_C C ∗ sts_full_world W_init_C C
+      ∗ region W_init_C C ∗ sts_full_world W_init_C C ∗ sealing_map W_init_C C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -90,7 +90,7 @@ Section DROE.
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
-      & HWreg_C & HWstd_full_C
+      & HWreg_C & HWstd_full_C & HWseals_C
       & HK
       & Hcstk_frag
       & #Hinterp_Winit_C_g
@@ -276,7 +276,7 @@ Section DROE.
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W_init_C.1 !! a = Some Temporary⌝)%I as "Hstack_temporary".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W_init_C !! a = Some Temporary⌝)%I as "Hstack_temporary".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_Winit_C_csp"); eauto. }
 
     iMod (monotone_revoke_stack with "[$Hinterp_Winit_C_csp $HWstd_full_C $HWreg_C]")
@@ -439,11 +439,13 @@ Section DROE.
       done.
     }
 
+    iDestruct ( sealing_map_monotone _ _ W2 with "HWseals_C") as "HWseals_C"
+    ; [ by subst W2 W1 W0 | auto |].
     iEval (cbn) in "Hct1".
     iApply (switcher_cc_specification _ W2 with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hcsp_stk $HWreg_C $HWstd_full_C $Hcstk_frag
+              $Hcsp_stk $HWreg_C $HWstd_full_C $HWseals_C $Hcstk_frag
               $Hinterp_W1_C_f $HentryC_g $HK]"); eauto.
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -480,7 +482,7 @@ Section DROE.
       "( _ & _ & _
       & %HW1_pubB_W2 & Hrel_stk_B & %Hdom_rmap' & Hclose_reg_B & %Hclose_reg_B
       & Hna & %Hcsp_bounds
-      & HWstd_full_B & HWreg_B
+      & HWstd_full_B & HWseals_B & HWreg_B
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
