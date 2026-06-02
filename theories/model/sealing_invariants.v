@@ -195,5 +195,52 @@ Section sealing_interp.
     sealing_map W' C ∗ sts_full_world W' C ∗ sts_seals_std C o (ws' ∪ ws).
   Proof. rewrite sealing_map_eq; apply sealing_map_def_update. Qed.
 
+  Lemma sealing_map_seal_pred
+    (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers : ∀ WCv, Persistent (Po WCv)}
+    (ws : gset Word) :
+    seal_pred o Po -∗
+    sts_seals_std C o ws -∗
+    sealing_map W C -∗
+    sts_full_world W C -∗
+    ▷ (sealing_map W C ∗ sts_full_world W C ∗ [∗ set] w ∈ ws, Po (W, C, w)).
+  Proof.
+    iIntros "#Hspred Hseal Hseals Hsts".
+    iDestruct (sts_full_seals_std_subseteq with "Hsts Hseal") as "(%ws' & %Hws' & %Hws_sub)".
+    iEval (rewrite sealing_map_eq /sealing_map_def /=) in "Hseals".
+    iDestruct (big_sepM_lookup_acc with "Hseals") as "[H Hseals]"; first done.
+    iDestruct "H" as "(Hseal_ws & %Po' & #Hspred_Po' & #Hmono & HPos)".
+    iDestruct (seal_pred_agree with "Hspred Hspred_Po'") as "#Heq".
+    iNext.
+    assert ( (∀ w, Persistent (Po (W, C, w)))).
+    { intros w'; apply (Hpers (W,C,w')). }
+    iAssert ( [∗ set] w ∈ ws', Po (W, C, w))%I with "[HPos]" as "#HPs".
+    { iClear "Hspred Hspred_Po' Hmono"; clear.
+      iStopProof.
+      induction ws' using set_ind_L; iIntros "(#Heq & Hs)"; first done.
+      rewrite big_sepS_union; last set_solver+H.
+      rewrite big_sepS_union; last set_solver+H.
+      iDestruct "Hs" as "[Hx Hs]".
+      iSplitL "Hx"; last ( iApply IHws'; iFrame "∗#" ).
+      rewrite !big_sepS_singleton.
+      by iRewrite -("Heq" $! (W,C,x)) in "Hx".
+    }
+    iDestruct ("Hseals" with "[$Hseal_ws $Hspred_Po' $Hmono HPos]") as "Hseals".
+    { by iApply big_sepS_later; iNext. }
+    rewrite -/(sealing_map_def W C) -sealing_map_eq.
+    iFrame "∗#".
+    iApply big_sepS_subseteq; eauto.
+  Qed.
+
+  Lemma sealing_map_seal_pred_singleton (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : Word) :
+    seal_pred o Po -∗
+    sts_seals_std C o {[ w ]} -∗
+    sealing_map W C -∗
+    sts_full_world W C -∗
+    ▷ (sealing_map W C ∗ sts_full_world W C ∗ Po (W, C, w)).
+  Proof.
+    iIntros "#Hspred Hseal Hseals Hsts".
+    iDestruct (sealing_map_seal_pred with "Hspred Hseal Hseals Hsts") as "($ & $ & H)"; eauto.
+    by rewrite big_sepS_singleton.
+  Qed.
 
 End sealing_interp.

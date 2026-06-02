@@ -332,6 +332,7 @@ Section logrel.
          ∗ open_region_many W C callee_stk_region
          ∗ ([∗ list] a ; v ∈ callee_stk_region ; callee_stk_mem, closing_resources interp W C a v)
          ∗ sts_full_world W C
+         ∗ sealing_map W C
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk

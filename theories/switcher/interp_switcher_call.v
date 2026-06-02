@@ -10,7 +10,6 @@ From cap_machine Require Import switcher_preamble.
 From cap_machine Require Import interp_switcher_return.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
-
 Section fundamental.
   Context
     {Σ:gFunctors}
@@ -36,7 +35,7 @@ Section fundamental.
     na_inv logrel_nais Nswitcher switcher_inv
     ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
-    iIntros "#Hinv_switcher %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hr & Hsts & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros "#Hinv_switcher %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hr & Hsts & Hseals & Hcont & Hna & Hcstk & %Hframe)]".
     rewrite /registers_pointsto.
     iPoseProof fundamental_ih as "IH". (* used for weakening lemma later *)
 
@@ -622,7 +621,7 @@ Section fundamental.
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the FTLR *)
-        iApply ("IH" with "[] [] [$] [$] [$] [$] [%] [$] [$]"); eauto.
+        iApply ("IH" with "[] [] [$] [$] [$] [$] [$] [%] [$] [$]"); eauto.
         { iIntros (r); iPureIntro.
           clear -Hdom_rmap' Harg_rmap'.
           destruct (decide (r = PC)); simplify_map_eq; first done.
@@ -663,7 +662,7 @@ Section fundamental.
         iSpecialize ("Hinterp_wret" $! gcra (LocalityFlowsToReflexive gcra)).
         iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
         rewrite /interp_expr /=.
-        iDestruct ("Hinterp_wret" with "[$Hcont $Hrmap $Hr $Hsts $Hcstk $HH]") as "HA"; eauto.
+        iDestruct ("Hinterp_wret" with "[$Hcont $Hrmap $Hr $Hsts $Hseals $Hcstk $HH]") as "HA"; eauto.
         iSplitR; last (iPureIntro; simplify_map_eq; done).
         iSplit.
         * iIntros (r); iPureIntro.
@@ -802,15 +801,16 @@ Section fundamental.
     (* get the seal inv and compare with wsb *)
     iDestruct ("Hreg" $! ct1 with "[//] [//]") as "#Hct1v".
     rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher wsb)).
-    iDestruct "Hct1v" as (P HpersP) "(HmonoP & HPseal & HP & HPborrow)".
-    iDestruct (seal_pred_agree with "Hp_ot_switcher HPseal") as "Hagree".
-    iSpecialize ("Hagree" $! (W,C,WSealable wsb)).
+    iEval (cbn) in "Hct1v".
+    rewrite /interp_sb.
+    iAssert (sts_seals_std C ot_switcher {[WSealable wsb]}) as "#Hct1v'".
+    { iApply sts_seals_std_weaken; last iFrame "Hct1v"; last set_solver+. }
+    iDestruct (sealing_map_seal_pred_singleton with "Hp_ot_switcher Hct1v' Hseals Hsts")
+      as "(Hseals & Hsts & #HP)".
 
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
     rewrite /safeC.
-    iSimpl in "Hagree".
-    iRewrite -"Hagree" in "HP".
     iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & Hexec)". simpl fst. simpl snd.
     inversion Heq.
 

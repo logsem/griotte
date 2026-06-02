@@ -95,6 +95,7 @@ Section fundamental.
       assert (is_Some (<[dst:=WSealed a0 sb]> (<[PC:=WCap p g b e a]> regs) !! csp)) as [??].
       { destruct (decide (dst = csp)); simplify_map_eq=>//. }
 
+      (* TODO can I extract a lemma from here? *)
       unshelve iDestruct ("Hreg" $! r1 _ _ Hr1) as "HVsr"; eauto.
       rewrite (fixpoint_interp1_eq W C (WSealRange _ _ _ _ _)).
       iDestruct "HVsr" as "[Hss _]"; rewrite Hseal.

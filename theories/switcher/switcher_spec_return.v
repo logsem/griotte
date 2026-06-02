@@ -42,7 +42,7 @@ Section Switcher.
     frame_match Ws Cs cstk W0 C ->
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
     NoDup (l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : finz MemNum, W0.1 !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, (std W0) !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
 
     (* Switcher Invariant *)
     na_inv logrel_nais Nswitcher switcher_inv
@@ -52,6 +52,7 @@ Section Switcher.
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ sts_full_world Wcur C
+    ∗ sealing_map Wcur C
     ∗ na_own logrel_nais ⊤
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ region Wcur C
@@ -65,8 +66,8 @@ Section Switcher.
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hsts & Hna
-    & HPC & Hr & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
+      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK
+        & Hsts & Hseals & Hna & HPC & Hr & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hswitcher Hna")
@@ -789,10 +790,12 @@ Section Switcher.
       replace csp_b with (a_stk ^+ 4)%a by (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
       iDestruct (lc_fupd_elim_later with "[$] [$Hres]") as ">Hres".
 
+      iDestruct ( sealing_map_monotone_pub _ _ Wfixed with "Hseals") as "Hseals"
+      ; [apply close_list_std_seal_eq | apply close_list_related_sts_pub |].
 
       iApply ("Hexec_topmost_frm" with
                "[] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
-      $Hrmap $Hr $Hstk $Hstk' $Hsts $Hres $Hcont_K $Hcstk_frag $Hna]"); first done.
+      $Hrmap $Hr $Hstk $Hstk' $Hsts $Hseals $Hres $Hcont_K $Hcstk_frag $Hna]"); first done.
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we use the IH *)
@@ -828,6 +831,8 @@ Section Switcher.
       { destruct g; cbn; iPureIntro; [ apply  related_sts_priv_refl_world
                                      | apply related_sts_pub_refl_world].
       }
+      iDestruct ( sealing_map_monotone_pub _ _ Wfixed with "Hseals") as "Hseals"
+      ; [apply close_list_std_seal_eq | apply close_list_related_sts_pub |].
       iSpecialize ("Hcont" $! Wfixed with "Hfuture").
       iDestruct "Hlc" as "[Hlc _]"
       ; iDestruct (lc_fupd_elim_later with "[$] [$Hcont]") as ">Hcont'".
@@ -887,7 +892,7 @@ Section Switcher.
     frame_match Ws Cs cstk W0 C ->
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
     NoDup (l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : finz MemNum, W0.1 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, std W0 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
 
     (* Switcher Invariant *)
     na_inv logrel_nais Nswitcher switcher_inv
@@ -897,6 +902,7 @@ Section Switcher.
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ sts_full_world Wcur C
+    ∗ sealing_map Wcur C
     ∗ na_own logrel_nais ⊤
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ region Wcur C
@@ -910,8 +916,8 @@ Section Switcher.
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hsts & Hna
-    & HPC & Hr & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
+      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK
+        & Hsts & Hseals & Hna & HPC & Hr & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
     iApply switcher_ret_specification_gen; eauto.
     + intros a Ha.
       by apply Htemp_revoked.

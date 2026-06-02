@@ -42,7 +42,7 @@ Section helpers_switcher_adequacy.
     iIntros (cstk Ws Cs ???)
       "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
-                     & Hrmap & Hregion & Hworld & %Hcsp_sync & Htframe & Hna)".
+                     & Hrmap & Hregion & Hworld & Hseals & %Hcsp_sync & Htframe & Hna)".
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental with "Hinterp_PCC") as "H_jmp".
     iSpecialize ("H_jmp" $! cstk Ws Cs regs).

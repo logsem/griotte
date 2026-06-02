@@ -1459,6 +1459,11 @@ Section heap.
     apply conditional_close_list_dom_eq.
   Qed.
 
+  Lemma close_list_std_seal_eq W l :
+    seal_std W = seal_std (close_list l W).
+  Proof. rewrite /close_list //=. Qed.
+
+
   Lemma conditional_close_list_std_sta_same Wstd_sta ρ l i :
     i ∉ l → Wstd_sta !! i = conditional_close_list_std_sta ρ l Wstd_sta !! i.
   Proof.

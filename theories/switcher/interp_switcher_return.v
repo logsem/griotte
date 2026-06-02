@@ -94,7 +94,7 @@ Section fundamental.
     na_inv logrel_nais Nswitcher switcher_inv
     ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
-    iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hr & Hsts & Hcont_K & Hna & Hcstk & %Hfreq)]".
+    iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hr & Hsts & Hseals & Hcont_K & Hna & Hcstk & %Hfreq)]".
     rewrite /registers_pointsto.
 
     (* --- Extract scratch registers ct2 ctp --- *)
@@ -517,7 +517,7 @@ Section fundamental.
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
       iApply ("Hexec_topmost_frm" with
                "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk_register_save $Hstk $Hr $Hres $Hsts $Hcont_K $Hcstk_frag $Hna]").
+      $Hrmap $Hstk_register_save $Hstk $Hr $Hres $Hsts $Hseals $Hcont_K $Hcstk_frag $Hna]").
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we use the IH *)
@@ -790,7 +790,7 @@ Section fundamental.
         iSpecialize ("Hinterp_wret" $! g (LocalityFlowsToReflexive g)).
         iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
         rewrite /interp_expr /=.
-        iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hr $Hsts $Hcstk_frag $Hna]") as "HA"; eauto.
+        iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hr $Hsts $Hseals $Hcstk_frag $Hna]") as "HA"; eauto.
         iSplitR; last (iPureIntro; simplify_map_eq; done).
         iSplit.
         * iIntros (r); iPureIntro.

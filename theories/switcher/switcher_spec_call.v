@@ -75,6 +75,7 @@ Section Switcher.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ sts_full_world W C
+    ∗ sealing_map W C
     ∗ region W C
     ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a)
     ∗ ⌜ Forall (λ a, (std W) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
@@ -92,6 +93,7 @@ Section Switcher.
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
               (* Interpretation of the world *)
               ∗ sts_full_world W2 C
+              ∗ sealing_map W2 C
               ∗ open_region_many W2 C callee_stk_region
               ∗ ([∗ list] a ; v ∈ callee_stk_region ; stk_mem_h, closing_resources interp W2 C a v)
               ∗ cstack_frag cstk
@@ -129,6 +131,7 @@ Section Switcher.
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ sts_full_world W C
+              ∗ sealing_map W C
               ∗ region W C
               ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a)
               ∗ ⌜ Forall (λ a, (std W) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
@@ -145,7 +148,7 @@ Section Switcher.
   Proof.
 
     iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hsts & Hr & Hstk_val & %Hstk_revoked & Hcstk & Hcont & Hpost)".
+    & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hsts & Hseals & Hr & Hstk_val & %Hstk_revoked & Hcstk & Hcont & Hpost)".
     subst a_stk4.
     subst callee_stk_region.
 
@@ -658,18 +661,17 @@ Section Switcher.
       done.
     }
     rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher w_entry_point)).
-    iDestruct "Htarget_v" as (P HpersP) "(HmonoP & HPseal & HP & HPborrow)".
-    iDestruct (seal_pred_agree with "Hp_ot_switcher HPseal") as "Hagree".
-    iSpecialize ("Hagree" $! (W,C,WSealable w_entry_point)).
+    iEval (cbn) in "Htarget_v".
+    rewrite /interp_sb.
+    iAssert (sts_seals_std C ot_switcher {[WSealable w_entry_point]}) as "#Htarget_v'".
+    { iApply sts_seals_std_weaken; last iFrame "Htarget_v"; last set_solver+. }
+    iDestruct (sealing_map_seal_pred_singleton with "Hp_ot_switcher Htarget_v' Hseals Hsts")
+      as "(Hseals & Hsts & #HP)".
     iInstr "Hcode";[done|..].
     { rewrite /withinBounds. solve_addr. }
     rewrite /safeC.
-    iSimpl in "Hagree".
-    iRewrite -"Hagree" in "HP".
     iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & Hexec)". simpl fst. simpl snd.
     inversion Heq.
-
-    (* iDestruct (entry_agree _ nargs nargs0 with "Hentry Hentry'") as "<-". *)
 
     (* --- Load cs0 ct1 --- *)
     wp_instr.
@@ -817,7 +819,7 @@ Section Switcher.
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
     iAssert (
        [∗ list] y1 ∈ finz.seq_between a_stk4 e_stk,
-         closing_revoked_resources W C y1 ∗ ⌜W.1 !! y1 = Some Revoked⌝
+         closing_revoked_resources W C y1 ∗ ⌜std W !! y1 = Some Revoked⌝
       )%I with "[Hstk_val']" as "#Hstk_val0".
     { iClear "#".
       replace ((((a_stk ^+ 1) ^+ 1) ^+ 1) ^+ 1)%a with a_stk4 in Hstklen by solve_addr.
@@ -833,7 +835,7 @@ Section Switcher.
     }
     iAssert (
         [∗ list] y1;y2 ∈ finz.seq_between a_stk4 e_stk;region_addrs_zeroes a_stk4 e_stk,
-          (closing_revoked_resources W C y1 ∗ ⌜W.1 !! y1 = Some Revoked⌝) ∗ y1 ↦ₐ y2
+          (closing_revoked_resources W C y1 ∗ ⌜std W !! y1 = Some Revoked⌝) ∗ y1 ↦ₐ y2
       )%I with "[Hstk_val0 Hstk]" as "Hstk_val0'".
     { iDestruct "Hstk_val0" as "-#Hstk_val0".
       iClear "#".
@@ -847,7 +849,7 @@ Section Switcher.
     { apply finz_seq_between_NoDup. }
     { apply Forall_replicate_eq. }
 
-    iAssert (⌜Forall (λ k : finz MemNum, W.1 !! k = Some Revoked) (finz.seq_between a_stk4 e_stk)⌝)%I as %Hrev.
+    iAssert (⌜Forall (λ k : finz MemNum, std W !! k = Some Revoked) (finz.seq_between a_stk4 e_stk)⌝)%I as %Hrev.
     { iPureIntro.
       rewrite Forall_forall.
       clear-Hstk_revoked Hastk .
@@ -918,7 +920,7 @@ Section Switcher.
       replace (a_stk ^+ 4)%a with a_stk4 by solve_addr. iSplitR.
       { iFrame "Hstk4v". }
       iIntros (W' HW' ?????) "(HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
-      & Hca1 & #Hv' & % & Hregs & Hstk & Hstk' & Hr & Hcls & Hsts & Hcont & Hcstk & Own)".
+      & Hca1 & #Hv' & % & Hregs & Hstk & Hstk' & Hr & Hcls & Hsts & Hseals  & Hcont & Hcstk & Own)".
       iApply "Hpost";iLeft. simplify_eq.
       replace (a_stk ^+ 4)%a with a_stk4 by solve_addr.
       iFrame "∗#%".
@@ -955,6 +957,11 @@ Section Switcher.
     iDestruct (big_sepM_insert_2 with "[Hcgp] Hregs") as "Hregs";[iFrame|].
     iDestruct (big_sepM_insert_2 with "[HPC] Hregs") as "Hregs";[iFrame|].
 
+    iDestruct (sealing_map_monotone _ _
+                 (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary)
+                with "Hseals") as "Hseals"
+    ; [ by rewrite std_update_multiple_seals| |].
+    { apply related_sts_pub_priv_world; by apply related_sts_pub_update_multiple_temp. }
     cbn.
     iFrame.
     iSplit;last (iPureIntro; split ;[split|];[reflexivity|reflexivity|solve_addr]).
@@ -1077,6 +1084,7 @@ Section Switcher.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ sts_full_world W C
+    ∗ sealing_map W C
     ∗ region W C
     ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a)
     ∗ ⌜ Forall (λ a, (std W) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
@@ -1089,9 +1097,9 @@ Section Switcher.
               (* We receive a public future world of the world pre switcher call *)
             ⌜ NoDup (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk)
             ∧ ∀ a : finz MemNum,
-            W2.1 !! a = Some Temporary ↔ a ∈ l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk ⌝
+            std W2 !! a = Some Temporary ↔ a ∈ l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk ⌝
             ∗ close_list_resources C W2 l' false
-            ∗ ⌜ Forall (λ x, (revoke W2).1 !! x = Some Revoked) l' ⌝
+            ∗ ⌜ Forall (λ x, std (revoke W2) !! x = Some Revoked) l' ⌝
               ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
               ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
@@ -1101,6 +1109,7 @@ Section Switcher.
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
               (* Interpretation of the world *)
               ∗ sts_full_world (revoke W2) C
+              ∗ sealing_map (revoke W2) C
               ∗ region (revoke W2) C
               ∗ cstack_frag cstk
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
@@ -1122,7 +1131,7 @@ Section Switcher.
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
     iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hsts & Hr & #Hstk_val & %Hrevoked_stk & Hcstk & Hcont & Hpost)".
+    & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hsts & Hseals & Hr & #Hstk_val & %Hrevoked_stk & Hcstk & Hcont & Hpost)".
     subst a_stk4.
     subst callee_stk_region.
     iApply switcher_cc_specification_gen; eauto; iFrame "∗#%".
@@ -1132,7 +1141,7 @@ Section Switcher.
       iDestruct "H" as
         "(%Hrelated_pub_Wext_W2 & %Hdom_rmap
       & Hna & #Hinterp_W2_csp & %Hcsp_bounds
-      & Hsts_C & Hr_C & Hfrm_close_W2
+      & Hsts_C & Hseals_C & Hr_C & Hfrm_close_W2
       & Hcstk_frag & Hrel_stk_C
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 #Hinterp_wca0] ] & [%warg1 [Hca1 #Hinterp_wca1] ]
@@ -1182,6 +1191,8 @@ Section Switcher.
     iCombine "Hfrm_close_W2 Hrevoked_W2" as "Hfrm_close_W2".
     iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l']") as ">Hrevoked_l'".
     iDestruct (lc_fupd_elim_later with "[$] [$Hfrm_close_W2]") as ">[Hfrm_close_W2 %]".
+    iDestruct (sealing_map_monotone _ _ (revoke W') with "Hseals_C") as "Hseals_C"
+    ; [rewrite /revoke //= | apply revoke_related_sts_priv_world |].
     iApply "Hpost"; iFrame "∗%#".
     rewrite (finz_seq_between_split a_stk (a_stk^+4)%a); last (split; solve_addr).
     iEval (rewrite big_sepL_app).
@@ -1213,7 +1224,7 @@ Section Switcher.
            & Hna
            & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
            & Hrmap & Hstk_l & Hstk_h
-           & Hsts_C & Hr_C & Hclose & %Hrevoke_close
+           & Hsts_C & Hseals_C & Hr_C & Hclose & %Hrevoke_close
            & Hcstk_frag & HK & [Hlc Hlc'])".
       pose proof (extract_temps W) as [l_unk [Hlunk_nodup Hlunk] ].
       iMod ( monotone_revoke_keep _ _ l_unk with "[$Hsts_C $Hr_C]") as
@@ -1226,6 +1237,8 @@ Section Switcher.
           ▷ close_list_resources C W l_unk false
         )%I with "[Hrevoked_l]" as "Hrevoked_l"; first by (iNext; iFrame).
       iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l]") as ">Hrevoked_l".
+    iDestruct (sealing_map_monotone _ _ (revoke W) with "Hseals_C") as "Hseals_C"
+    ; [rewrite /revoke //= | apply revoke_related_sts_priv_world |].
 
       iSpecialize ("Hpost" $! (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk)
                                  Temporary) rmap' (stk_mem_l++stk_mem_h) l_unk).
@@ -1387,6 +1400,7 @@ Section Switcher.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ sts_full_world W C
+    ∗ sealing_map W C
     ∗ region W C
     ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a)
     ∗ ⌜ Forall (λ a, (std W) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
@@ -1398,9 +1412,9 @@ Section Switcher.
               (* We receive a public future world of the world pre switcher call *)
             ⌜ NoDup (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk)
             ∧ ∀ a : finz MemNum,
-            W2.1 !! a = Some Temporary ↔ a ∈ l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk ⌝
+            std W2 !! a = Some Temporary ↔ a ∈ l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk ⌝
             ∗ close_list_resources C W2 l' false
-            ∗ ⌜ Forall (λ x, (revoke W2).1 !! x = Some Revoked) l' ⌝
+            ∗ ⌜ Forall (λ x, std (revoke W2) !! x = Some Revoked) l' ⌝
               ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
               ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
@@ -1410,6 +1424,7 @@ Section Switcher.
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
               (* Interpretation of the world *)
               ∗ sts_full_world (revoke W2) C
+              ∗ sealing_map (revoke W2) C
               ∗ region (revoke W2) C
               ∗ cstack_frag cstk
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
@@ -1430,7 +1445,7 @@ Section Switcher.
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
     iIntros (a_stk4 target callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hr & Hstk_val & % & Hcstk & Hcont & Hpost)".
+    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hseals & Hr & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen_revoked _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ true)
             ; eauto; iFrame "∗#%".
     subst target; cbn.
@@ -1477,6 +1492,7 @@ Section Switcher.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ sts_full_world W C
+    ∗ sealing_map W C
     ∗ region W C
     ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a)
     ∗ ⌜ Forall (λ a, (std W) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
@@ -1488,9 +1504,9 @@ Section Switcher.
               (* We receive a public future world of the world pre switcher call *)
             ⌜ NoDup (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk)
             ∧ ∀ a : finz MemNum,
-            W2.1 !! a = Some Temporary ↔ a ∈ l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk ⌝
+            std W2 !! a = Some Temporary ↔ a ∈ l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk ⌝
             ∗ close_list_resources C W2 l' false
-            ∗ ⌜ Forall (λ x, (revoke W2).1 !! x = Some Revoked) l' ⌝
+            ∗ ⌜ Forall (λ x, std (revoke W2) !! x = Some Revoked) l' ⌝
               ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
               ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
@@ -1500,6 +1516,7 @@ Section Switcher.
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
               (* Interpretation of the world *)
               ∗ sts_full_world (revoke W2) C
+              ∗ sealing_map (revoke W2) C
               ∗ region (revoke W2) C
               ∗ cstack_frag cstk
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
@@ -1520,7 +1537,7 @@ Section Switcher.
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
   Proof.
     iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hr & Hstk_val & % & Hcstk & Hcont & Hpost)".
+    & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hsts & Hseals & Hr & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen_revoked _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ false)
             ; eauto; iFrame "∗#%".
   Qed.

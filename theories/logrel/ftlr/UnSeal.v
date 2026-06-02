@@ -24,9 +24,7 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
-
   (* Proving the meaning of unsealing in the LR sane. Note the use of the later in the result. *)
-  (* TODO ideally, I would not have to unfold sealing_map here *)
   Lemma unsealing_preserves_interp W C sb p0 g0 b0 e0 a0:
         permit_unseal p0 = true →
         withinBounds b0 e0 a0 = true →
@@ -46,31 +44,13 @@ Section fundamental.
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
     iDestruct "HSa0" as (P) "( %Hpers & HsealP & %Hdom & Hrcond)".
-
-    iDestruct (sts_full_seals_std_subseteq with "Hsts HVsd") as "(%ws & %Hws & %Hws_sub)".
-    iEval (rewrite sealing_map_eq /= /sealing_map_def) in "Hseals".
-    iDestruct (big_sepM_lookup_acc with "Hseals") as "[H Hseals]"; first done.
-    iDestruct "H" as "(Hseal & %Po & #Hspred_Po & #Hmono & HPos)".
-    iDestruct (seal_pred_agree with "HsealP Hspred_Po") as "Heq".
+    assert (∀ WCv : WORLD * CmptName * Word, Persistent (safeC P WCv)) as Hpers'.
+    { intros [ [W0 C0] w0 ]; rewrite /safeC //=; eapply (Hpers (W0, C0, w0)). }
+    iAssert (sts_seals_std C a0 {[WSealable sb]}) as "#HVsd'".
+    { iApply sts_seals_std_weaken; last iFrame "HVsd"; last set_solver+. }
+    iDestruct (sealing_map_seal_pred_singleton with "HsealP HVsd' Hseals Hsts") as "(Hseals & Hsts & #HP)".
     iNext.
-    assert ( (∀ w, Persistent (P W C w))).
-    { intros w; apply (Hpers (W,C,w)). }
-    iAssert ( [∗ set] w ∈ ws, P W C w)%I with "[HPos]" as "#HPs".
-    { iClear "HVsd Hss HsealP Hrcond Hspred_Po Hmono"; clear.
-      iStopProof.
-      induction ws using set_ind_L; iIntros "(#Heq & Hs)"; first done.
-      rewrite big_sepS_union; last set_solver+H.
-      rewrite big_sepS_union; last set_solver+H.
-      iDestruct "Hs" as "[Hx Hs]".
-      iSplitL "Hx"; last ( iApply IHws; iFrame "∗#" ).
-      rewrite !big_sepS_singleton.
-      iRewrite -("Heq" $! (W,C,x)) in "Hx".
-      by rewrite /safeC /=.
-    }
-    iDestruct (big_sepS_elem_of_acc _ _ (WSealable sb) with "HPs") as "[HP_sb _]"; first set_solver+Hws_sub.
-    iDestruct ("Hseals" with "[$Hseal $Hspred_Po $Hmono HPos]") as "Hseals".
-    { by iApply big_sepS_later; iNext. }
-    rewrite -/(sealing_map_def W C) -sealing_map_eq.
+    rewrite /safeC /=.
     iFrame.
     by iApply "Hrcond".
   Qed.
