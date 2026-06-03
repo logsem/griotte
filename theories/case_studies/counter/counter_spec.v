@@ -34,10 +34,12 @@ Section Counter.
   Proof.
     intros * Htemporaries_W0 Hrevoked_W3 Hrelated_pub_W1_W2.
 
-    destruct W0 as [W0_std W0_cus], W2 as [W2_std W2_cus]; cbn.
-    destruct Hrelated_pub_W1_W2 as [HW1_W2_std HW1_W2_cus].
-    split; cbn; cycle 1.
+    destruct W0 as [ [W0_std W0_cus] W0_seals],
+               W2 as [ [W2_std W2_cus] W2_seals]; cbn.
+    destruct Hrelated_pub_W1_W2 as (HW1_W2_std & HW1_W2_cus & HW1_W2_seals).
+    split;[|split];cbn; cycle 1.
     { eapply related_sts_pub_trans; eauto; eapply related_sts_pub_refl. }
+    { eapply related_sts_seals_trans; eauto; eapply related_sts_seals_std_refl. }
     destruct HW1_W2_std as [HW1_W2_std_dom HW1_W2_std_t].
     cbn in *.
     split.
@@ -55,7 +57,7 @@ Section Counter.
         intro Hcontra; apply H in Hcontra. by rewrite Ha0 in Hcontra.
       }
       apply revoke_lookup_Perm in Ha0.
-      assert (std (revoke ((W0_std, W0_cus))) !! a = Some Permanent) as Ha0' by done.
+      assert (std (revoke ((W0_std, W0_cus, W0_seals))) !! a = Some Permanent) as Ha0' by done.
       rewrite -(std_sta_update_multiple_lookup_same_i _ (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary)
         in Ha0'.
       2: {
@@ -79,9 +81,9 @@ Section Counter.
       assert (a ∈ l ++ finz.seq_between csp_b csp_e) as Ha_in.
       { destruct (Htemporaries_W0 a) as [? _]; by apply Htemporaries_W0. }
       apply revoke_lookup_Monotemp in Ha0.
-      assert (std (revoke ((W0_std, W0_cus))) !! a = Some Revoked) as Ha0' by done.
+      assert (std (revoke ((W0_std, W0_cus, W0_seals))) !! a = Some Revoked) as Ha0' by done.
       assert (
-          std ((std_update_multiple (revoke (W0_std, W0_cus)) (finz.seq_between (csp_b ^+ 4)%a csp_e)
+          std ((std_update_multiple (revoke (W0_std, W0_cus, W0_seals)) (finz.seq_between (csp_b ^+ 4)%a csp_e)
                   Temporary)) !! a =
           Some (if (decide (a ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e)))
                 then Temporary
@@ -150,7 +152,7 @@ Section Counter.
       ∗ cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
-      ∗ region W0 C ∗ sts_full_world W0 C
+      ∗ region W0 C ∗ sts_full_world W0 C ∗ sealing_map W0 C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -168,7 +170,7 @@ Section Counter.
             )
       "(#Hswitcher & #Hmem & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
-      & Hr_C & Hsts_C
+      & Hr_C & Hsts_C & Hseals_C
       & HK
       & Hcstk_frag
       & #Hinterp_W0_C_f & #Hentry_C_f
@@ -208,7 +210,7 @@ Section Counter.
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
@@ -351,10 +353,12 @@ Section Counter.
       iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
     }
 
+    iDestruct ( sealing_map_monotone _ _ W1 with "Hseals_C") as "Hseals_C"
+    ; [ by subst W1 | auto |].
     iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W1 $Hcstk_frag
+              $Hstk $Hr_C $Hsts_C $Hseals_C $Hfrm_close_W1 $Hcstk_frag
               $Hinterp_W1_C_f $Hentry_C_f $HK]"); eauto; last iFrame "∗%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -367,7 +371,7 @@ Section Counter.
     iIntros (W2 rmap' stk_mem l')
       "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & %Hfrm_close_W2
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C
+      & Hsts_C & Hseals_C & Hr_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -385,7 +389,7 @@ Section Counter.
       rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
     }
 
-    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W1.1) l ⌝)%I as "%Hrevoked_l_W".
+    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom (std W1)) l ⌝)%I as "%Hrevoked_l_W".
     {
       iPureIntro; apply Forall_forall; intros a Ha.
       rewrite Forall_forall in Hrevoked_l.
@@ -474,10 +478,12 @@ Section Counter.
     clear dependent wcs0 wcs1 wct0 wct1 a_fetch1 a_fetch2 a_callB a_ret.
     iClear "Hmem Hentry_C_f".
 
+    iDestruct ( sealing_map_monotone _ _ W3 with "Hseals_C") as "Hseals_C"
+    ; [ by subst W1 | apply related_sts_priv_refl_world |].
     destruct Hl_unk.
     iApply (switcher_ret_specification _ W0 (revoke W2)
              with
-             "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
+             "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hseals_C $Hna $HPC $Hr_C $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
     { eapply related_pub_W0_Wfixed ; eauto.
@@ -527,7 +533,7 @@ Section Counter.
                Hcgp_contiguous Himports_contiguous)
       "(#Hswitcher & #Hmain & #Hinterp_C_f & #HentryC_f)
       % % % % % %
-      (HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
+      (HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & Hseals_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as "(%Hfullrmap & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hinterp_rmap)".
     rewrite /interp_conf.
     rewrite /registers_pointsto.
