@@ -3,8 +3,8 @@ From iris.proofmode Require Import proofmode.
 From stdpp Require Import list_relations.
 From cap_machine Require Export region_invariants multiple_updates.
 From cap_machine Require Import logrel interp_weakening.
-From cap_machine Require Import switcher.
-From cap_machine Require Import compartment_layout mkregion_helpers stdpp_extra disjoint_regions_tactics.
+From cap_machine Require Import compartment_layout mkregion_helpers stdpp_extra
+  disjoint_regions_tactics switcher.
 Import uPred.
 
 Section region_alloc.
@@ -768,6 +768,7 @@ Section region_alloc_cmpt.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
+    {swlayout : switcherLayout}
   .
 
   Definition exported_entries_sealable (C_cmpt : cmpt) : list Sealable :=
@@ -777,10 +778,10 @@ Section region_alloc_cmpt.
 
   Definition exported_entries_words (C_cmpt : cmpt) : gset Word :=
     list_to_set (WSealable <$> (exported_entries_sealable C_cmpt)).
-  Definition exported_entries_sealed (C_cmpt : cmpt) (ot_switcher : OType) : gset Word :=
+  Definition exported_entries_sealed (C_cmpt : cmpt) : gset Word :=
     list_to_set (WSealed ot_switcher <$> (exported_entries_sealable C_cmpt)).
 
-  Definition std_update_compartment (W : WORLD) (C_cmpt : cmpt) (ot_switcher : OType) :=
+  Definition std_update_compartment (W : WORLD) (C_cmpt : cmpt) :=
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
@@ -789,14 +790,14 @@ Section region_alloc_cmpt.
     let Wimports := std_update_multiple Wdata imports_addrs Permanent in
     <o[ ot_switcher := exported_entries_words C_cmpt ]o> Wimports.
 
-  Lemma std_update_compartment_pub (W : WORLD) (C_cmpt : cmpt) (ot_switcher : OType) :
+  Lemma std_update_compartment_pub (W : WORLD) (C_cmpt : cmpt) :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     Forall (λ k, std W !! k = None) imports_addrs →
     Forall (λ k, std W !! k = None) code_addrs →
     Forall (λ k, std W !! k = None) data_addrs →
-    related_sts_pub_world W (std_update_compartment W C_cmpt ot_switcher).
+    related_sts_pub_world W (std_update_compartment W C_cmpt).
   Proof.
     intros * Himports Hcode Hdata.
     rewrite !Forall_forall in Himports, Hcode, Hdata.
@@ -877,11 +878,11 @@ Section region_alloc_cmpt.
   Qed.
 
   Lemma switcher_cmpt_disjoint_std_update_compartment
-    (W : WORLD) (C_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) (a : Addr) (ot_switcher : OType) :
+    (W : WORLD) (C_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) (a : Addr) :
     a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ->
     switcher_cmpt_disjoint C_cmpt switcher_cmpt ->
     std W !! a = None ->
-    std (std_update_compartment W C_cmpt ot_switcher) !! a = None.
+    std (std_update_compartment W C_cmpt) !! a = None.
   Proof.
     intros Ha Hc Ha_W.
     pose proof (cmpt_import_size C_cmpt) as H.
@@ -921,14 +922,14 @@ Section region_alloc_cmpt.
       solve_addr+H H' Hcontra.
   Qed.
 
-  Lemma alloc_compartment_interp_rel (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) (ot_switcher : OType)  :
+  Lemma alloc_compartment_interp_rel (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     let pcc_cap := (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
     let cgp_cap := (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
     let Winter := (std_update_multiple (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent) imports_addrs Permanent) in
-    let Wfinal := std_update_compartment W C_cmpt ot_switcher in
+    let Wfinal := std_update_compartment W C_cmpt in
 
     Forall (λ k, std W !! k = None) imports_addrs →
     Forall (λ k, std W !! k = None) code_addrs →
@@ -952,7 +953,7 @@ Section region_alloc_cmpt.
       sts_full_world Wfinal C
       ∗ sealing_map Wfinal C
       ∗ ([∗ list] v ∈ cmpt_imports C_cmpt, interpC (Wfinal, C, v) ∗ future_priv_mono C interpC v)
-      ∗ ([∗ set] v ∈ exported_entries_sealed C_cmpt ot_switcher, interp Wfinal C v)
+      ∗ ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp Wfinal C v)
     ) -∗
 
     sts_full_world W C -∗
@@ -967,7 +968,7 @@ Section region_alloc_cmpt.
     ∗ interp Wfinal C pcc_cap
     ∗ interp Wfinal C cgp_cap
     ∗ ([∗ list] v ∈ cmpt_imports C_cmpt, interp Wfinal C v)
-    ∗ ([∗ set] v ∈ exported_entries_sealed C_cmpt ot_switcher, interp Wfinal C v)
+    ∗ ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp Wfinal C v)
   .
   Proof.
     intros * Himports Hcode Hdata C_code C_data.
@@ -1084,7 +1085,7 @@ Section region_alloc_cmpt.
             (cmpt_imports C_cmpt)
             RX interpC ot_switcher
             (exported_entries_words C_cmpt)
-            (exported_entries_sealed C_cmpt ot_switcher)
+            (exported_entries_sealed C_cmpt)
            with "Hsts_C Hr_C Hseals_C HC_imports [Himport_interp]")
       as "(Hr_C & Hsts_C & Hseals_C & #HC_imports & Hinterp_imports & Hinterp_exports)".
     { apply finz_seq_between_NoDup. }
@@ -1232,14 +1233,14 @@ Section region_alloc_cmpt.
       iApply (monoReq_interp _ _ _ _ Permanent); done.
   Admitted.
 
-  Lemma alloc_compartment_interp (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) (ot_switcher : OType) :
+  Lemma alloc_compartment_interp (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     let pcc_cap := (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
     let cgp_cap := (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
     let Winter := (std_update_multiple (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent) imports_addrs Permanent) in
-    let Wfinal := std_update_compartment W C_cmpt ot_switcher in
+    let Wfinal := std_update_compartment W C_cmpt in
 
     Forall (λ k, std W !! k = None) imports_addrs →
     Forall (λ k, std W !! k = None) code_addrs →
@@ -1262,7 +1263,7 @@ Section region_alloc_cmpt.
       sts_full_world Wfinal C ∗
       sealing_map Wfinal C ∗
       ([∗ list] v ∈ cmpt_imports C_cmpt, interpC (Wfinal, C, v) ∗ future_priv_mono C interpC v) ∗
-      ([∗ set] v ∈ exported_entries_sealed C_cmpt ot_switcher, interp Wfinal C v)
+      ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp Wfinal C v)
     )
     -∗
 
@@ -1278,7 +1279,7 @@ Section region_alloc_cmpt.
     ∗ interp Wfinal C pcc_cap
     ∗ interp Wfinal C cgp_cap
     ∗ ([∗ list] v ∈ cmpt_imports C_cmpt, interp Wfinal C v)
-    ∗ ([∗ set] v ∈ exported_entries_sealed C_cmpt ot_switcher, interp Wfinal C v)
+    ∗ ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp Wfinal C v)
   .
   Proof.
     intros * Himports Hcode Hdata C_code C_data.
