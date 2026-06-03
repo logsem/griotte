@@ -162,7 +162,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_invg: na_invG Σ}.
-  Context {sts_preg: STS_preG Addr region_type Σ}.
+  Context {sts_preg: STS_preG Addr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {heappreg: heapGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -589,7 +589,7 @@ Section Adequacy.
       as "#Hinv_etbl_entry_awkward".
 
     (* Initialises the world for C *)
-    set (W0 := (∅, (∅, ∅))).
+    set (W0 := (∅, (∅, ∅), ∅)).
     iAssert (region W0 C) with "[HRELS_C]" as "Hr_C".
     { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
@@ -613,15 +613,21 @@ Section Adequacy.
     iDestruct (inv_alloc awkN _ (awk_inv C i _) with "[Hcgp_b Hst_i]") as ">#Hawk_inv".
     { iExists false; iFrame. }
 
-    iAssert (
-        interp W1 C
-          (WSealed (ot_switcher switcher_cmpt)
-             (SCap RO Global
+    iAssert (sealing_map W1 C)%I as "-#Hseals_C".
+    { rewrite sealing_map_eq /sealing_map_def; done. }
+
+    set (awk'_f := (SCap RO Global
                 (cmpt_exp_tbl_pcc main_cmpt)
                 (cmpt_exp_tbl_entries_end main_cmpt)
-                (cmpt_exp_tbl_entries_start main_cmpt)%a))
-      )%I as "#Hinterp_VAE".
+                (cmpt_exp_tbl_entries_start main_cmpt)%a)
+        ).
+    set (awk'_f' := borrow (WSealable awk'_f)).
+    set (W1' := <o[ ot_switcher := {[ WSealable awk_f; WSealable awk_f' ]}]o> W1).
+
+
+    iAssert (ot_switcher_prop W1' C (WSealable awk_f)) as "#ot_switcher_awk_f".
     {
+      subst awk_f.
       iEval (rewrite main_imports) in "Hinv_etbl_entry_awkward".
       pose proof (cmpt_exp_tbl_pcc_size main_cmpt) as H0.
       pose proof (cmpt_exp_tbl_cgp_size main_cmpt) as H1.
@@ -637,95 +643,185 @@ Section Adequacy.
         with ((cmpt_exp_tbl_pcc main_cmpt) ^+ 2)%a by solve_addr+H0 H1.
       replace (cmpt_exp_tbl_cgp main_cmpt)
         with (cmpt_exp_tbl_pcc main_cmpt ^+ 1)%a by solve_addr+H0.
-      iApply (vae_awkward_safe
-                _ _ _
-                _ _ _
-                _ _ W1 assertN switcherN vaeN vaeN
-             ); try iFrame "#"; eauto.
+
+      iApply (vae_awkward_spec _ _ _ _ _ _ _ _ _ _ _ C_f W1' assertN switcherN vaeN vaeN)
+      ; try iFrame "#"; eauto.
       + solve_ndisj.
       + solve_ndisj.
       + solve_ndisj.
       + solve_addr+H0 H1 H2.
       + solve_addr+H3 H4.
     }
+    iAssert (ot_switcher_prop W1' C (WSealable awk_f')) as "#ot_switcher_awk_f'".
+    { replace (WSealable awk_f') with (borrow (WSealable awk_f)) by (subst awk_f awk_f'; done).
+      by iApply ot_switcher_prop_borrow.
+    }
 
-    assert (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt)
-            = [cmpt_b_pcc C_cmpt; (cmpt_b_pcc C_cmpt ^+ 1)%a; (cmpt_b_pcc C_cmpt ^+ 2)%a]) as
-      C_imports_addr.
-    { pose proof (cmpt_import_size C_cmpt) as Hsize; rewrite C_imports in Hsize.
-      rewrite finz_seq_between_cons; last solve_addr+Hsize.
-      rewrite finz_seq_between_cons; last solve_addr+Hsize.
-      rewrite finz_seq_between_cons; last solve_addr+Hsize.
-      rewrite finz_seq_between_empty; last solve_addr+Hsize.
-      replace ((cmpt_b_pcc C_cmpt ^+ 1) ^+ 1)%a with
-        (cmpt_b_pcc C_cmpt ^+ 2)%a by solve_addr+Hsize.
+    assert (ot_switcher ∉ dom (seal_std W1)) as Hot_notin_W1.
+    { by subst W0 W1. }
+    iMod
+      (sealing_map_alloc W1 C ot_switcher_propC ot_switcher {[WSealable awk_f; WSealable awk_f' ]}
+        with "[$Hsealed_pred_ot_switcher] [ ] [ ] [$Hseals_C $Hsts_C]")
+      as "(Hseals_C & Hsts_C & Hseal_awk_f)"; first done.
+    { iIntros (w); iApply mono_priv_ot_switcher. }
+    { subst W1'.
+      set (Winter := (<o[ot_switcher:={[WSealable awk_f; WSealable awk_f']}]o>W1)).
+      rewrite -big_sepS_later; iNext.
+      iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first iFrame "ot_switcher_awk_f'".
+      iApply big_sepS_singleton; iFrame "ot_switcher_awk_f".
+    }
+    subst W1'; set (W1' := <o[ ot_switcher := {[ WSealable awk_f; WSealable awk_f' ]}]o> W1).
+
+    iAssert ( interp W1' C (WSealed ot_switcher awk_f)) as "#Hinterp_awk_f".
+    { by iEval (rewrite fixpoint_interp1_eq). }
+    iDestruct (region_monotone _ _ W1' with "Hr_C") as "Hr_C"; [|eauto|].
+    { subst W1'; by cbn. }
+    { subst W1'; apply related_sts_pub_world_update_ot. }
+
+
+    assert ( (exported_entries_sealable C_cmpt) ≡ₚ [C_f; C_g; C_f'; C_g']) as Hexported_entries_sealable.
+    { rewrite /exported_entries_sealable /C_f /C_f' /C_g /C_g'.
+      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1; rewrite C_exp_tbl /= in H1.
+      rewrite finz_seq_between_cons; last solve_addr+H1.
+      rewrite finz_seq_between_singleton; last solve_addr+H1.
       done.
     }
-
-    set (W4 := std_update_compartment W1 C_cmpt).
-    assert (related_sts_pub_world W1 (std_update_compartment W1 C_cmpt)) as Hrelated_pub_W1_W4.
-    { eapply std_update_compartment_pub; eauto ; (apply Forall_true; intros; done). }
+    assert ( (exported_entries_words C_cmpt) =
+             {[WSealable C_f
+               ; borrow (WSealable C_f)
+               ; WSealable C_g
+               ; borrow (WSealable C_g)
+           ]}
+           ) as Hexported_entries_words.
+    { rewrite /exported_entries_words Hexported_entries_sealable.
+      cbn; subst C_f' C_g'; set_solver+.
+    }
+    assert ( (exported_entries_sealed C_cmpt ot_switcher) =
+             {[WSealed ot_switcher C_f
+               ; WSealed ot_switcher C_f'
+               ; WSealed ot_switcher C_g
+               ; WSealed ot_switcher C_g'
+             ]}
+           ) as Hexported_entries_sealed.
+    { rewrite /exported_entries_sealed Hexported_entries_sealable.
+      cbn; subst C_f' C_g'; set_solver+.
+    }
 
     iMod (
-       alloc_compartment_interp with "[$HC_imports] [$HC_code] [$HC_data] [] [$Hsts_C] [$Hr_C]"
-      ) as "(Hsts_C & Hr_C & #HC_code & #HC_data & _)"; eauto.
+       alloc_compartment_interp _ _ _ _ ot_switcher with "[HC_imports] [HC_code] [HC_data] [] [$Hsts_C] [$Hr_C] [$Hseals_C]"
+      ) as "(Hsts_C & Hr_C & Hseals_C & #HC_code & #HC_data & _ & #HC_exports)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
-    {
-      rewrite C_imports.
-      iIntros "[#Hpcc_interp #Hcgp_interp]".
+    { rewrite C_imports.
 
-      (* Switcher cross-compartment *)
-      iApply big_sepL_cons; iSplitL.
+      iIntros "(#HC_code & #HC_data & Hsts_C & Hseals_C)".
+      match goal with
+      | H: _ |- context [  (sts_full_world ?W C) ] => set (Wpre := W)
+      end.
+      set ( Winter := (std_update_compartment W1' C_cmpt ot_switcher) ).
+
+      iAssert (ot_switcher_prop Winter C (WSealable C_f)) as "#ot_switcher_C_f".
       {
-        iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done.
+        iApply (ot_switcher_interp _ _ _ _ _ 0 offset_adv_f); eauto; last lia.
+        pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
+        pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
+        rewrite C_exp_tbl in H2.
+        solve_addr+H1 H2.
+      }
+      iDestruct (ot_switcher_prop_borrow with "ot_switcher_C_f") as "ot_switcher_C_f'".
+      iAssert (ot_switcher_prop Winter C (WSealable C_g)) as "#ot_switcher_C_g".
+      {
+        iApply (ot_switcher_interp _ _ _ _ _ 0 offset_adv_g); eauto; last lia.
+        pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
+        pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
+        rewrite C_exp_tbl in H2.
+        solve_addr+H1 H2.
+      }
+      iDestruct (ot_switcher_prop_borrow with "ot_switcher_C_g") as "ot_switcher_C_g'".
+
+      assert ( Winter = <o[ot_switcher:=exported_entries_words C_cmpt]o>Wpre ) as HWinter.
+      { rewrite /Winter /Wpre /std_update_compartment Hexported_entries_words; done. }
+
+      iMod
+        (sealing_map_update' Wpre C ot_switcher_propC ot_switcher (exported_entries_words C_cmpt)
+          with "[$Hsealed_pred_ot_switcher] [ ] [ ] [$Hseals_C $Hsts_C]")
+        as "(Hseals_C & Hsts_C & #Hseal_switcher)".
+      { iIntros (w); iApply mono_priv_ot_switcher. }
+      { rewrite -HWinter Hexported_entries_words.
+        rewrite -big_sepS_later; iNext.
+        iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_C_g'").
+        iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_C_g").
+        iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_C_f'").
+        iApply big_sepS_singleton; iFrame "ot_switcher_C_f".
+      }
+      rewrite -HWinter.
+      iFrame.
+      iModIntro.
+      rewrite Hexported_entries_sealed Hexported_entries_words.
+      rewrite /vae_entry_awkward_sb /awk_f.
+      subst C_g; set (C_g := (SCap RO Global _ _ ((cmpt_exp_tbl_entries_start C_cmpt) ^+1)%a)).
+      iAssert (interp Winter C (WSealed switcher.ot_switcher C_g)) as "#Hinterp_C_g".
+      { iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+        iApply (sts_seals_std_weaken with "Hseal_switcher"); set_solver+.
       }
 
-      (* VAE.awk *)
-      iApply big_sepL_cons; iSplitL.
-      { iSplit.
-        * pose proof (cmpt_exp_tbl_pcc_size main_cmpt) as H0.
-          pose proof (cmpt_exp_tbl_cgp_size main_cmpt) as H1.
-          replace (cmpt_exp_tbl_entries_start main_cmpt)
-            with ((cmpt_exp_tbl_pcc main_cmpt) ^+ 2)%a by solve_addr+H0 H1.
-          iApply interp_monotone_sd; auto.
-          iPureIntro.
-          apply related_sts_pub_priv_world.
-          eapply related_sts_pub_trans_world; eauto.
-          eapply related_sts_pub_refl_world.
-        * iIntros (??) "!> % ?".
-          rewrite /vae_exp_tbl_entry_awkward.
-          iApply interp_monotone_sd; auto.
-      }
+      iSplitR "Hseal_switcher".
+      (* Interp of imports *)
+      - (* Switcher cross-compartment *)
+        iApply big_sepL_cons; iSplitL.
+        { iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done. }
 
-      (* B.adv *)
-      iApply big_sepL_cons; iSplitL; last done.
-      iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
-      iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_g _ _ (nroot.@C)); eauto; last lia.
-      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
-      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
-      rewrite C_exp_tbl in H2.
-      solve_addr+H1 H2.
+        (* awk.f *)
+        iApply big_sepL_cons; iSplitL.
+        { iSplit.
+          * pose proof (cmpt_exp_tbl_pcc_size main_cmpt) as H0.
+            pose proof (cmpt_exp_tbl_cgp_size main_cmpt) as H1.
+            replace (cmpt_exp_tbl_entries_start main_cmpt)
+              with ((cmpt_exp_tbl_pcc main_cmpt) ^+ 2)%a by solve_addr+H0 H1.
+            iApply (interp_monotone_sd W1' Winter); auto.
+            iPureIntro.
+            apply related_sts_pub_priv_world.
+            subst Winter.
+            eapply std_update_compartment_pub; eauto
+            ; apply Forall_true; intros; done.
+          * iIntros (??) "!> % ?".
+            iApply interp_monotone_sd; auto.
+        }
+
+        (* C_g *)
+        iApply big_sepL_cons; iSplitL; last done.
+        iSplit; first done.
+        iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
+
+      (* Interp of exports *)
+      - iEval (rewrite union_comm_L)
+        ; iApply big_sepS_insert_2
+        ; first (iEval (rewrite fixpoint_interp1_eq /= /interp_sb)
+              ; iApply (sts_seals_std_weaken with "Hseal_switcher"); set_solver+).
+        iEval (rewrite union_comm_L)
+        ; iApply big_sepS_insert_2
+        ; first (iEval (rewrite fixpoint_interp1_eq /= /interp_sb)
+              ; iApply (sts_seals_std_weaken with "Hseal_switcher"); set_solver+).
+        iEval (rewrite union_comm_L)
+        ; iApply big_sepS_insert_2
+        ; first (iEval (rewrite fixpoint_interp1_eq /= /interp_sb)
+              ; iApply (sts_seals_std_weaken with "Hseal_switcher"); set_solver+).
+        iApply big_sepS_singleton
+        ; iEval (rewrite fixpoint_interp1_eq /= /interp_sb)
+        ; iApply (sts_seals_std_weaken with "Hseal_switcher"); set_solver+.
     }
 
-    iAssert
-      ( interp W4 C (WSealed (ot_switcher switcher_cmpt) C_f)
-      )%I as "Hinterp_C_f".
-    {
-      iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_f _ _ (nroot.@C)); eauto; last lia.
-      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
-      pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
-      rewrite C_exp_tbl in H2.
-      solve_addr+H1 H2.
-    }
+    match goal with
+    | H: _ |- context [  (sts_full_world ?W C) ] => set (W2 := W)
+    end.
 
-    assert (Forall (fun a => a ∉ dom (std W4))
+    assert (Forall (fun a => a ∉ dom (std W2))
               (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))) as Hswitcher_W4.
     { apply Forall_forall; intros a Ha; cbn.
       pose proof switcher_cmpt_disjoints as (_ & Hc).
       rewrite not_elem_of_dom.
-      eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
+      unshelve eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
     }
     iMod ( extend_region_temp_sepL2 _ _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
@@ -751,8 +847,23 @@ Section Adequacy.
     match goal with
     | H: _ |- context [  (sts_full_world ?W C) ] => set (Winit_C := W)
     end.
-    assert (related_sts_pub_world W4 Winit_C) as Hrelated_pub_W4_W5.
-    { apply related_sts_pub_update_multiple; auto. }
+    assert (related_sts_priv_world W2 Winit_C) as Hrelated_pub_W2_Winit_C.
+    { apply related_sts_pub_priv_world.
+      apply related_sts_pub_update_multiple; auto.
+    }
+
+    iDestruct (sealing_map_monotone _ _ Winit_C with "Hseals_C") as "Hseals_C"; auto.
+    { by rewrite std_update_multiple_seals. }
+
+    iAssert (interp Winit_C C
+               (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a)
+            )%I as "#Hinterp_pcc_C".
+    { iApply interp_monotone_nl; eauto. }
+
+    iAssert (interp Winit_C C
+               (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a)
+            )%I as "#Hinterp_cgp_C".
+    { iApply interp_monotone_nl; eauto. }
 
     iAssert (interp Winit_C C
                (WCap RWL Local (b_stack switcher_cmpt) (e_stack switcher_cmpt) (b_stack switcher_cmpt))
@@ -779,11 +890,16 @@ Section Adequacy.
       iApply (monoReq_interp _ _ _ _ Temporary); done.
     }
 
-
-    iDestruct (interp_monotone_sd with "[] [$Hinterp_C_f]") as "Hinterp_C_f'" ; eauto.
-    { iPureIntro. apply related_sts_pub_priv_world; eauto. }
+    iAssert
+      ( interp Winit_C C (WSealed ot_switcher C_f) )%I as "Hinterp_C_f".
+    { rewrite Hexported_entries_sealed.
+      iDestruct (big_sepS_elem_of_acc _ _ (WSealed ot_switcher C_f) with "HC_exports") as "[Hinterp_C_f _]"
+      ; first set_solver+.
+      iApply interp_monotone_sd; eauto.
+    }
 
     iClear "HC_etbl_pcc HC_etbl_cgp HC_etbl_C_f HC_etbl_C_g HC_code HC_data".
+
 
     (* Extract registers *)
     destruct Hreg as (HPC & Hcgp & Hcsp & Hreg).
@@ -812,10 +928,10 @@ Section Adequacy.
                  with "[ $Hassert $Hswitcher $Hmain_code
                          $Hinv_etbl_PCC $Hinv_etbl_CGP $Hinv_etbl_entry_awkward
                          $Hna
-                         $Hr_C $Hsts_C
+                         $Hr_C $Hsts_C $Hseals_C
                          $HPC $Hcgp $Hcsp $Hreg
                          $Hcstk_frag $Hinterp_stack_C
-                         $Hinterp_C_f' $Hentry_Cf $Hentry_awkf $Hentry_awkf'
+                         $Hinterp_C_f $Hentry_Cf $Hentry_awkf $Hentry_awkf'
                          $Hsealed_pred_ot_switcher
                         ]") as "Hspec"; eauto.
     { solve_ndisj. }
@@ -914,8 +1030,8 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type ; heapPreΣ
-              ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * CmptName * Word)
+              ; STS_preΣ Addr region_type OType Word; heapPreΣ
+              ; savedPredΣ (WorldT * CmptName * Word)
       ]).
   eapply (@cmdc_adequacy' Σ cnames B); eauto; try typeclasses eauto.
 Qed.
