@@ -443,14 +443,9 @@ Section Adequacy.
         as "(Hseals_C & Hsts_C & #Hseal_switcher)".
       { iIntros (w); iApply mono_priv_ot_switcher. }
       { rewrite -HWinter Hexported_entries_words.
-        destruct (decide (WSealable C_f = borrow (WSealable C_f))) as [Heq_sb|Heq_sb].
-        - rewrite -Heq_sb.
-          replace {[WSealable C_f; WSealable C_f]} with ({[WSealable C_f]} : gset Word) by set_solver+.
-          rewrite big_sepS_singleton.
-          done.
-        - rewrite big_sepS_insert; last set_solver+.
-          rewrite big_sepS_singleton.
-          iSplitL; done.
+        rewrite -big_sepS_later; iNext.
+        iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_C_f'").
+        iApply big_sepS_singleton; iFrame "ot_switcher_C_f".
       }
       rewrite -HWinter.
       iFrame.
