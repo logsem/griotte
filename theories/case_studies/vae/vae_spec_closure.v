@@ -60,7 +60,8 @@ Section VAE.
       + subst W2.
         rewrite /related_sts_priv_world /=.
         split; first apply related_sts_std_priv_refl.
-        split;[set_solver|split;[set_solver|] ].
+        split; last apply related_sts_seals_std_refl.
+        split; [set_solver|split;[set_solver|] ].
         intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
         repeat (split; first done).
         intros x y Hd Hd'.
@@ -73,7 +74,7 @@ Section VAE.
     assert ( related_sts_priv_world W3 W5 ) as Hrelated_priv_W3_W5.
     { eapply (related_sts_priv_trans_world _ W4); eauto.
       + apply revoke_related_sts_priv_world.
-      + destruct Hrelated_pub_W2_W3 as [HW2_W3_std (Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3)].
+      + destruct Hrelated_pub_W2_W3 as (HW2_W3_std & (Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3) & HW2_W3_seals).
         assert (∃ d_W3, loc W3 !! i = Some d_W3) as [d_W3 Hd_W3].
         { apply elem_of_dom.
           apply Hdom_loc_2_3.
@@ -101,14 +102,14 @@ Section VAE.
       + eapply (related_sts_priv_pub_trans_world _ W5); eauto.
     }
 
-    split; cbn; cycle 1.
-    - destruct W0 as [W0_std [W0_loc W0_rel] ],
-                 W3 as [W3_std [W3_loc W3_rel] ],
-                   W6 as [W6_std [W6_loc W6_rel] ]
+    split;[|split]; cbn; cycle 1.
+    - destruct W0 as [ [W0_std [W0_loc W0_rel] ] W0_seals],
+                 W3 as [ [W3_std [W3_loc W3_rel] ] W3_seals],
+                   W6 as [ [W6_std [W6_loc W6_rel] ] W6_seals]
                    ; cbn.
-      destruct Hrelated_pub_W2_W3 as [HW2_W3_std HW2_W3_cus].
-      destruct Hrelated_pub_W5_W6 as [HW5_W6_std HW5_W6_cus].
-      destruct Hrelated_priv_W0_W6 as [HW0_W6_std HW0_W6_cus].
+      destruct Hrelated_pub_W2_W3 as (HW2_W3_std & HW2_W3_cus & HW2_W3_seals).
+      destruct Hrelated_pub_W5_W6 as (HW5_W6_std & HW5_W6_cus & HW5_W6_seals).
+      destruct Hrelated_priv_W0_W6 as (HW0_W6_std & HW0_W6_cus & HW0_W6_seals).
       destruct HW0_W6_cus as (Hdom_loc_0_6 & Hdom_rel_0_6 & Hrtc_loc_0_6); cbn in *.
       split;[|split];auto.
       intros d rpub rpriv rpub' rpriv' HW0_rel HW6_rel.
@@ -147,6 +148,7 @@ Section VAE.
           ospecialize (Hrtc_loc_5_6 d_W3 d_W6 _ Hd_W6).
           { by simplify_map_eq. }
           done.
+    - by destruct Hrelated_priv_W0_W6 as (_ & _ & HW0_W6_seals).
     - cbn in *.
       split.
       {
@@ -269,7 +271,7 @@ Section VAE.
     rewrite /registers_pointsto.
     iDestruct (sts_full_rel_loc  with "Hsts_C Hsts_rel") as "%Hwrel_i_W0".
     assert (∃ b : bool, loc W0 !! i = Some (encode b)) as Hloc_i_W0.
-    { destruct Hpriv_W_W0 as [_ (?&_&Hpriv) ].
+    { destruct Hpriv_W_W0 as (_ & (?&_&Hpriv) & _).
       destruct Hloc_i_W.
       assert (is_Some (loc W0 !! i)) as [d Hloc_0] by (by apply elem_of_dom, H, elem_of_dom).
       specialize (Hpriv _ _ _ _ _ Hrel_i_W Hwrel_i_W0) as (_&_&Hpriv).
@@ -321,7 +323,7 @@ Section VAE.
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
@@ -433,6 +435,7 @@ Section VAE.
     { subst W2.
      rewrite /related_sts_priv_world /=.
      split; first apply related_sts_std_priv_refl.
+     split; last apply related_sts_seals_std_refl.
      split;[set_solver|split;[set_solver|] ].
      intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
      repeat (split; first done).
@@ -542,7 +545,7 @@ Section VAE.
     iIntros (W3 rmap stk_mem l')
       "( _ & _ & _ & %Hrelated_pub_2ext_W3 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W3 & %Hfrm_close_W3
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C & Hseals_C
+      & Hsts_C & Hseals_C & Hr_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -668,6 +671,7 @@ Section VAE.
     { subst W5.
      rewrite /related_sts_pub_world /=.
      split; first apply related_sts_std_pub_refl.
+     split; last apply related_sts_seals_std_refl.
      split;[set_solver|split;[set_solver|] ].
      intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
      repeat (split; first done).
@@ -739,7 +743,7 @@ Section VAE.
     iDestruct (sts_full_rel_loc  with "Hsts_C Hsts_rel") as "%Hwrel_i_W5".
     (* Apply the spec switcher call *)
     iDestruct ( sealing_map_monotone _ _ W5 with "Hseals_C") as "Hseals_C"
-    ; [ by subst W4 W5 | auto |].
+    ; [ by subst W4 W5 | by apply related_sts_pub_priv_world |].
     iApply (switcher_cc_specification_alt with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
@@ -757,7 +761,7 @@ Section VAE.
     iIntros (W6 rmap stk_mem l')
       "(_ & _ & _ & %Hrelated_pub_5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6 & %Hfrm_close_W6
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C & Hseals_C
+      & Hsts_C & Hseals_C & Hr_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -765,7 +769,7 @@ Section VAE.
     iEval (cbn) in "HPC".
 
     (* Derive some information necessary later *)
-    iAssert ( ⌜ Forall (λ k : finz MemNum, W5.1 !! k = Some Revoked) (finz.seq_between (csp_b ^+ 4)%a csp_e) ⌝)%I
+    iAssert ( ⌜ Forall (λ k : finz MemNum, std W5 !! k = Some Revoked) (finz.seq_between (csp_b ^+ 4)%a csp_e) ⌝)%I
       as "%Hrevoked_stk_W5".
     { iPureIntro.
       apply Forall_forall.
@@ -784,7 +788,7 @@ Section VAE.
     }
     clear Hrevoked_stk_W5.
 
-    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W6.1) l ⌝)%I as "%Hl_revoked_W6".
+    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom (std W6)) l ⌝)%I as "%Hl_revoked_W6".
     {
       iPureIntro; apply Forall_forall; intros a Ha.
       rewrite Forall_forall in Hrevoked_l.
@@ -851,7 +855,7 @@ Section VAE.
     iDestruct (sts_full_rel_loc  with "Hsts_C Hsts_rel") as "%Hwrel_i''".
     assert (loc W7 !! i = Some (encode true)); last simplify_eq.
     {
-      destruct Hrelated_pub_W5_W6 as [_ [Hdom1 [Hdom2 Htrans] ] ].
+      destruct Hrelated_pub_W5_W6 as (_ & [Hdom1 [Hdom2 Htrans] ] & _ ).
       specialize (Htrans i _ _ _ _ Hwrel_i_W5 Hwrel_i'') as [Heq1 [Heq2 Htrans] ]; eauto .
       assert (loc W5 !! i = Some (encode true)) by (by simplify_map_eq).
       specialize (Htrans _ _ H2 Hwst_i'').
@@ -923,7 +927,7 @@ Section VAE.
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap; set_solver+. }
 
     iDestruct ( sealing_map_monotone _ _ W7 with "Hseals_C") as "Hseals_C"
-    ; [ by subst W7 | auto |].
+    ; [ by subst W7 | apply related_sts_priv_refl_world |].
     iApply (switcher_ret_specification _ W0 W7
              with
              "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hseals_C $Hna $HPC $Hr_C $Hrevoked_l
@@ -942,76 +946,6 @@ Section VAE.
     { destruct Hl_unk; auto. }
     { iSplit; iApply interp_int. }
   Qed.
-
-  (* Lemma vae_awkward_safe *)
-
-  (*   (pc_b pc_e pc_a : Addr) *)
-  (*   (cgp_b cgp_e : Addr) *)
-
-  (*   (b_vae_exp_tbl e_vae_exp_tbl : Addr) *)
-
-  (*   (b_assert e_assert : Addr) (a_flag : Addr) *)
-  (*   (C_f : Sealable) *)
-
-  (*   (W : WORLD) *)
-
-  (*   (Nassert Nswitcher Nvae VAEN : namespace) *)
-  (*   i *)
-
-  (*   : *)
-
-  (*   let imports := *)
-  (*    vae_main_imports *)
-  (*      b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f *)
-  (*   in *)
-
-  (*   Nswitcher ## Nassert -> *)
-  (*   Nswitcher ## Nvae -> *)
-  (*   Nassert ## Nvae -> *)
-  (*   (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a -> *)
-  (*   SubBounds pc_b pc_e pc_a (pc_a ^+ length (vae_main_code ot_switcher))%a -> *)
-  (*   (pc_b + length imports)%a = Some pc_a -> *)
-  (*   (cgp_b + length vae_main_data)%a = Some cgp_e -> *)
-  (*   (exists b : bool, loc W !! i = Some (encode b)) -> *)
-  (*   wrel W !! i = *)
-  (*   Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) -> *)
-
-  (*   na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag) *)
-  (*   ∗ na_inv logrel_nais Nswitcher switcher_inv *)
-  (*   ∗ na_inv logrel_nais Nvae *)
-  (*       ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a (vae_main_code ot_switcher)) *)
-  (*   ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b) *)
-  (*   ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b) *)
-  (*   ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a) *)
-  (*       ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 1 (length (imports ++ VAE_main_code_init)))) *)
-  (*   ∗ WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) *)
-  (*       ↦□ₑ 1 *)
-  (*   ∗ WSealed ot_switcher (SCap RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) *)
-  (*       ↦□ₑ 1 *)
-  (*   ∗ seal_pred ot_switcher ot_switcher_propC *)
-  (*   ∗ (∃ ι, inv ι (awk_inv C i cgp_b)) *)
-  (*   ∗ sts_rel_loc (A:=Addr) C i awk_rel_pub awk_rel_priv *)
-  (*     -∗ *)
-  (*   interp W C *)
-  (*     (WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)). *)
-  (* Proof. *)
-  (*   intros imports; subst imports. *)
-  (*   iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae *)
-  (*              Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hloc_i_W Hrel_i_W) *)
-  (*     "(#Hassert & #Hswitcher *)
-  (*     & #Hvae_code *)
-  (*     & #Hvae_exp_PCC *)
-  (*     & #Hvae_exp_CGP *)
-  (*     & #Hvae_exp_awkward *)
-  (*     & #Hentry_VAE & #Hentry_VAE' & #Hot_switcher *)
-  (*     & [%ι #Hι] & #Hsts_rel)". *)
-  (*   iEval (rewrite fixpoint_interp1_eq /=). *)
-  (*   rewrite /interp_sb. *)
-  (*   iFrame "Hot_switcher". *)
-  (*   iSplit; [iPureIntro; apply persistent_cond_ot_switcher |]. *)
-  (*   iSplit; [iIntros (w); iApply mono_priv_ot_switcher|]. *)
-  (*   iSplit; iNext ; iApply vae_awkward_spec; try iFrame "#"; eauto. *)
-  (* Qed. *)
 
 
 End VAE.
