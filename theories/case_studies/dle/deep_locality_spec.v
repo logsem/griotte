@@ -126,7 +126,7 @@ Section DLE.
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
@@ -390,7 +390,7 @@ Section DLE.
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
       & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4 & %Hfrm_close_W4
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C $ Hseals_C
+      & Hr_C & Hseals_C & Hsts_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -431,7 +431,7 @@ Section DLE.
     iDestruct ( big_sepL_elem_of_extract _ (fun a => ▷ ∃ v, a ↦ₐ v)%I cgp_b with "[] [$Hrevoked_l']")
       as (l'') "(%Hl_unk'' & Hrevoked_l'' & >[%wcgpb Hcgp_b])".
     {
-      assert ( W4.1 !! cgp_b = Some Temporary ) as HW4.
+      assert ( std W4 !! cgp_b = Some Temporary ) as HW4.
       { eapply region_state_pub_temp; eauto.
         rewrite lookup_insert_ne; last solve_addr.
         by rewrite lookup_insert_eq.
@@ -526,7 +526,7 @@ Section DLE.
     }
 
     iDestruct ( sealing_map_monotone _ _ W5 with "Hseals_C") as "Hseals_C"
-    ; [ by subst W5 | auto |].
+    ; [ by subst W5 | apply related_sts_priv_refl_world |].
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
@@ -545,7 +545,7 @@ Section DLE.
       "( _ & _ & _
       & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6 & _
       & Hna & _
-      & Hsts_C & Hr_C $ Hseals_C
+      & Hr_C & Hseals_C & Hsts_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
