@@ -15,10 +15,11 @@ Section Switcher_KtK_Return.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
+    {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
   Implicit Types W : WORLD.
