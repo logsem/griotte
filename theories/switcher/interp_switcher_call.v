@@ -811,7 +811,7 @@ Section fundamental.
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
     rewrite /safeC.
-    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & Hexec)". simpl fst. simpl snd.
+    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & #Hentry_borrow & Hexec)". simpl fst. simpl snd.
     inversion Heq.
 
     (* --- Load cs0 ct1 --- *)

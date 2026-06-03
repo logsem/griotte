@@ -197,6 +197,7 @@ Section Switcher_preamble.
            ∗ inv (export_table_CGPN Cname) ( (b_tbl ^+ 1)%a ↦ₐ WCap RW Global bcgp ecgp bcgp)
            ∗ inv (export_table_entryN Cname a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
            ∗ (seal_capability w ot_switcher) ↦□ₑ nargs
+           ∗ (seal_capability (borrow w) ot_switcher) ↦□ₑ nargs
            ∗ □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point
                             (WCap RX Global bpcc epcc (bpcc ^+ off)%a)
@@ -223,7 +224,7 @@ Section Switcher_preamble.
     iEval (cbn).
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
-       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hcont)".
+       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
     iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
     iExists _,_.
     repeat (iSplit ; first done).
@@ -233,6 +234,19 @@ Section Switcher_preamble.
     iApply "Hcont".
     iPureIntro.
     by eapply related_sts_priv_trans_world.
+  Qed.
+
+  Lemma ot_switcher_prop_borrow (W : WORLD) (C : CmptName) ( w : Word ) :
+    ot_switcher_prop W C w -∗ ot_switcher_prop W C (borrow w).
+  Proof.
+    iIntros "Hot_switcher".
+    iEval (cbn) in "Hot_switcher".
+    iEval (cbn).
+    iDestruct "Hot_switcher" as
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
+       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
+    iFrame "#∗%".
+    iExists Local; iPureIntro; done.
   Qed.
 
   (** [cframe_interp] interprets a call-frame, i.e.,

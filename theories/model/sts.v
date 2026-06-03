@@ -788,11 +788,14 @@ Qed.
     (std W, ( (<[i := encode d ]>(loc W)), wrel W), seal_std W).
   Definition seals_std_update (W : WORLD) (o : O) (ws : gset Wd) :=
     (std W, cus W, (<[o := ws ]>(seal_std W))).
+  Definition seals_std_update_default (W : WORLD) (o : O) (ws : gset Wd) :=
+    (std W, cus W, (<[o := ws ∪ (default ∅ (seal_std W !! o)) ]>(seal_std W))).
 
   Notation "<s[ a := ρ ]s> W" := (std_update W a ρ) (at level 10, format "<s[ a := ρ ]s> W").
   Notation "<l[ a := ρ , r ]l> W" := (loc_alloc W a ρ r.1 r.2) (at level 10, format "<l[ a := ρ , r ]l> W").
   Notation "<l[ a := ρ ]l> W" := (loc_update W a ρ) (at level 10, format "<l[ a := ρ ]l> W").
-  Notation "<o[ o := s ]o> W" := (seals_std_update W o s) (at level 10, format "<o[ o := s ]o> W").
+  (* Notation "<o[ o := s ]o> W" := (seals_std_update W o s) (at level 10, format "<o[ o := s ]o> W"). *)
+  Notation "<o[ o := s ]o> W" := (seals_std_update_default W o s) (at level 10, format "<o[ o := s ]o> W").
 
   Definition delete_std (W : WORLD) a : WORLD := (delete a (std W), cus W, seal_std W).
 
@@ -854,6 +857,7 @@ Qed.
     rewrite /sts_full_world /sts_full /sts_seals_std /seals_std_update /=.
     destruct W as [ [? ?] Wseals]. rewrite /sts_full_seals_std.
     iIntros (Hfresh1) "(H1 & H2 & Hseals) /=".
+    assert (Wseals !! o = None) as -> by (rewrite -not_elem_of_dom //).
 
     iMod (own_update
             (A := seals_stdUR O Wd)
@@ -865,18 +869,20 @@ Qed.
       apply (not_elem_of_dom).
       auto.
     }
-    iFrame. done.
+    iFrame.
+    cbn. by rewrite union_empty_r_L.
   Qed.
 
   Lemma sts_update_seal_std W C (o : O) (ws ws' : gset Wd) :
     seal_std W !! o = Some ws ->
     sts_full_world W C ∗ sts_seals_std C o ws ==∗
-    sts_full_world (<o[ o := ws' ∪ ws ]o> W) C ∗ sts_seals_std C o (ws' ∪ ws).
+    sts_full_world (<o[ o := ws' ]o> W) C ∗ sts_seals_std C o (ws' ∪ ws).
   Proof.
     iIntros (Ho) "[Hsts Hf] /="; cbn in *.
     rewrite /sts_full_world /sts_full /sts_seals_std /seals_std_update /=.
     destruct W as [ [? ?] Wseals]. rewrite /sts_full_seals_std.
     iDestruct "Hsts" as "(H1 & H2 & Hseals)"; cbn in *.
+    rewrite Ho /=.
 
     iCombine "Hseals Hf" as "Hseals".
     iMod (own_update
@@ -891,7 +897,8 @@ Qed.
       apply gset_local_update.
       set_solver+.
     }
-    iFrame. done.
+    iFrame.
+    done.
   Qed.
 
   Definition fresh_cus_name (W : WORLD) :=
@@ -1091,52 +1098,47 @@ Qed.
         intros x' y Hx' Hy. simplify_map_eq. left.
   Qed.
 
-  Lemma related_sts_pub_world_alloc_ot (W : WORLD) (o : O) (ws : gset Wd) :
-    o ∉ dom (seal_std W) ->
+  Lemma related_sts_pub_world_update_ot (W : WORLD) (o : O) (ws : gset Wd) :
     related_sts_pub_world W (<o[o:=ws]o>W).
   Proof.
-    intros Ho.
-    destruct W as [ [Wstd Wcus] Wseals ].
-    split;[|split]; [ apply related_sts_std_pub_refl | apply related_sts_pub_refl | ]; cbn in *.
-    split.
-    - rewrite dom_insert_L; set_solver+.
-    - intros o' s s' Hs Hs'.
-      rewrite not_elem_of_dom in Ho.
-      destruct (decide (o = o')); simplify_map_eq.
-      rewrite Hs in Hs'; simplify_eq.
-      set_solver+.
-  Qed.
-
-  Lemma related_sts_priv_world_alloc_ot (W : WORLD) (o : O) (ws : gset Wd) :
-    o ∉ dom (seal_std W) ->
-    related_sts_priv_world W (<o[o:=ws]o>W).
-  Proof.
-    intros Ho.
-    by apply related_sts_pub_priv_world, related_sts_pub_world_alloc_ot.
-  Qed.
-
-  Lemma related_sts_pub_world_update_ot (W : WORLD) (o : O) (ws ws' : gset Wd) :
-    (seal_std W) !! o = Some ws ->
-    related_sts_pub_world W (<o[o:= ws' ∪ ws]o>W).
-  Proof.
-    intros Ho.
     destruct W as [ [Wstd Wcus] Wseals ].
     split;[|split]; [ apply related_sts_std_pub_refl | apply related_sts_pub_refl | ]; cbn in *.
     split.
     - rewrite dom_insert_L; set_solver+.
     - intros o' s s' Hs Hs'.
       destruct (decide (o = o')); simplify_map_eq.
-      + rewrite Ho in Hs; simplify_eq; set_solver+.
+      + set_solver+.
       + rewrite Hs in Hs'; simplify_eq; set_solver+.
   Qed.
 
-  Lemma related_sts_priv_world_update_ot (W : WORLD) (o : O) (ws ws' : gset Wd) :
-    (seal_std W) !! o = Some ws ->
-    related_sts_priv_world W (<o[o:= ws' ∪ ws]o>W).
+  Lemma related_sts_priv_world_update_ot (W : WORLD) (o : O) (ws : gset Wd) :
+    related_sts_priv_world W (<o[o:=ws]o>W).
   Proof.
-    intros Ho.
     by apply related_sts_pub_priv_world, related_sts_pub_world_update_ot.
   Qed.
+
+  (* Lemma related_sts_pub_world_update_ot (W : WORLD) (o : O) (ws ws' : gset Wd) : *)
+  (*   (seal_std W) !! o = Some ws -> *)
+  (*   related_sts_pub_world W (<o[o:= ws' ∪ ws]o>W). *)
+  (* Proof. *)
+  (*   intros Ho. *)
+  (*   destruct W as [ [Wstd Wcus] Wseals ]. *)
+  (*   split;[|split]; [ apply related_sts_std_pub_refl | apply related_sts_pub_refl | ]; cbn in *. *)
+  (*   split. *)
+  (*   - rewrite dom_insert_L; set_solver+. *)
+  (*   - intros o' s s' Hs Hs'. *)
+  (*     destruct (decide (o = o')); simplify_map_eq. *)
+  (*     + rewrite Ho in Hs; simplify_eq; set_solver+. *)
+  (*     + rewrite Hs in Hs'; simplify_eq; set_solver+. *)
+  (* Qed. *)
+
+  (* Lemma related_sts_priv_world_update_ot (W : WORLD) (o : O) (ws ws' : gset Wd) : *)
+  (*   (seal_std W) !! o = Some ws -> *)
+  (*   related_sts_priv_world W (<o[o:= ws' ∪ ws]o>W). *)
+  (* Proof. *)
+  (*   intros Ho. *)
+  (*   by apply related_sts_pub_priv_world, related_sts_pub_world_update_ot. *)
+  (* Qed. *)
 
   Lemma related_sts_priv_rel
     (W1 W2 : WORLD) (ι : positive) (R : (positive → positive → Prop) * (positive → positive → Prop) ) :
@@ -1192,4 +1194,4 @@ End STS.
 Notation "<s[ a := ρ ]s> W" := (std_update W a ρ) (at level 10, format "<s[ a := ρ ]s> W").
 Notation "<l[ a := ρ , r ]l> W" := (loc_alloc W a ρ r.1 r.2) (at level 10, format "<l[ a := ρ , r ]l> W").
 Notation "<l[ a := ρ ]l> W" := (loc_update W a ρ) (at level 10, format "<l[ a := ρ ]l> W").
-Notation "<o[ o := s ]o> W" := (seals_std_update W o s) (at level 10, format "<o[ o := s ]o> W").
+Notation "<o[ o := s ]o> W" := (seals_std_update_default W o s) (at level 10, format "<o[ o := s ]o> W").

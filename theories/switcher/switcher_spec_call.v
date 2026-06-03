@@ -670,7 +670,7 @@ Section Switcher.
     iInstr "Hcode";[done|..].
     { rewrite /withinBounds. solve_addr. }
     rewrite /safeC.
-    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & Hexec)". simpl fst. simpl snd.
+    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & #Hentry'_borrow & Hexec)". simpl fst. simpl snd.
     inversion Heq.
 
     (* --- Load cs0 ct1 --- *)

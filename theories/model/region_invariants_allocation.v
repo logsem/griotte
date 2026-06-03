@@ -698,6 +698,64 @@ Section region_alloc.
     }
   Qed.
 
+  Lemma extend_region_perm_sepL2_open'
+    {sealsg: sealStoreG Σ} E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} o ws ws_sealed:
+    let W' := (<o[ o := ws ]o> (std_update_multiple W l1 Permanent)) in
+    NoDup l1 ->
+    isO p = false ->
+    Forall (λ k, std W !! k = None) l1 →
+    sts_full_world W C
+    -∗ region W C
+    -∗ sealing_map W C
+    -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
+    -∗ (
+         ([∗ list] k ∈ l1, rel C k p φ)
+         ∗ sts_full_world (std_update_multiple W l1 Permanent) C
+         ∗ sealing_map (std_update_multiple W l1 Permanent) C
+         ==∗
+         sts_full_world W' C ∗
+         sealing_map W' C ∗
+         ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
+         ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
+       )
+
+    ={E}=∗
+
+    region W' C
+    ∗ sts_full_world W' C
+    ∗ sealing_map W' C
+    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v)
+    ∗ ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
+.
+  Proof.
+    intros W'; subst W'.
+    iIntros (HNoDup Hp Hl1) "Hsts Hreg Hseals Hl Hφ".
+    iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
+    "(Hreg & Hl & #Hrel & Hsts)"; auto.
+    { apply NoDup_nil. auto. }
+    { eapply disjoint_nil_r. }
+    { by rewrite -region_open_nil. }
+
+    iDestruct (sealing_map_monotone_pub _ _ (std_update_multiple W l1 Permanent) with "Hseals") as "Hseals".
+    { by rewrite std_update_multiple_seals. }
+    { apply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
+    }
+    iMod ("Hφ" with "[$Hrel $Hsts $Hseals]") as "(Hsts & Hseals & #Hφ & #Hφ')".
+    cbn; iFrame "Hrel Hsts".
+    iFrame "#".
+    iDestruct (big_sepL_sep with "Hφ") as "[Hφ'' Hmono]".
+    iDestruct (open_region_many_monotone _ _ (<o[o:=ws]o>(std_update_multiple W l1 Permanent)) with "Hreg") as "Hreg".
+    { auto. }
+    { apply related_sts_pub_world_update_ot. }
+    iMod (region_close_many with "Hrel Hreg Hl Hφ'' Hmono") as "Hreg"; eauto.
+    by iFrame.
+  Qed.
+
+
 End region_alloc.
 
 
@@ -712,25 +770,37 @@ Section region_alloc_cmpt.
     `{MP: MachineParameters}
   .
 
-  Definition std_update_compartment (W : WORLD) (C_cmpt : cmpt) :=
+  Definition exported_entries_sealable (C_cmpt : cmpt) : list Sealable :=
+    let export_tbl_addrs := finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) in
+    let exported_word g a := (SCap RO g (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt) a) in
+    ((exported_word Global) <$> export_tbl_addrs) ++ ((exported_word Local) <$> export_tbl_addrs).
+
+  Definition exported_entries_words (C_cmpt : cmpt) : gset Word :=
+    list_to_set (WSealable <$> (exported_entries_sealable C_cmpt)).
+  Definition exported_entries_sealed (C_cmpt : cmpt) (ot_switcher : OType) : gset Word :=
+    list_to_set (WSealed ot_switcher <$> (exported_entries_sealable C_cmpt)).
+
+  Definition std_update_compartment (W : WORLD) (C_cmpt : cmpt) (ot_switcher : OType) :=
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     let Wcode := std_update_multiple W code_addrs Permanent in
     let Wdata := std_update_multiple Wcode data_addrs Permanent in
-    std_update_multiple Wdata imports_addrs Permanent.
+    let Wimports := std_update_multiple Wdata imports_addrs Permanent in
+    <o[ ot_switcher := exported_entries_words C_cmpt ]o> Wimports.
 
-  Lemma std_update_compartment_pub (W : WORLD) (C_cmpt : cmpt) :
+  Lemma std_update_compartment_pub (W : WORLD) (C_cmpt : cmpt) (ot_switcher : OType) :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     Forall (λ k, std W !! k = None) imports_addrs →
     Forall (λ k, std W !! k = None) code_addrs →
     Forall (λ k, std W !! k = None) data_addrs →
-    related_sts_pub_world W (std_update_compartment W C_cmpt).
+    related_sts_pub_world W (std_update_compartment W C_cmpt ot_switcher).
   Proof.
     intros * Himports Hcode Hdata.
     rewrite !Forall_forall in Himports, Hcode, Hdata.
+    rewrite /std_update_compartment.
     set (W2 := std_update_multiple W (finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt)) Permanent).
     assert (related_sts_pub_world W W2) as Hrelated_pub_W_W2.
     { apply related_sts_pub_update_multiple.
@@ -738,6 +808,7 @@ Section region_alloc_cmpt.
       intros a Ha.
       by apply Hcode in Ha; rewrite -not_elem_of_dom in Ha.
     }
+    eapply related_sts_pub_trans_world; eauto.
     set (W3 := std_update_multiple W2 (finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)) Permanent).
     assert (related_sts_pub_world W2 W3) as Hrelated_pub_W2_W3.
     { apply related_sts_pub_update_multiple.
@@ -760,6 +831,8 @@ Section region_alloc_cmpt.
       rewrite /disjoint /set_disjoint_instance in Hdisjoint.
       apply (Hdisjoint a); auto.
     }
+    eapply related_sts_pub_trans_world; eauto.
+
     set (W4 := std_update_multiple W3 (finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt))
                  Permanent).
     assert (Forall (fun a => a ∉ dom (std W3))
@@ -796,15 +869,19 @@ Section region_alloc_cmpt.
     assert (related_sts_pub_world W3 W4) as Hrelated_pub_W3_W4.
     { apply related_sts_pub_update_multiple; auto. }
     eapply related_sts_pub_trans_world; eauto.
+
+    set (W5 := (<o[ot_switcher:= exported_entries_words C_cmpt]o>W4)).
+    assert (related_sts_pub_world W4 W5) as Hrelated_pub_W4_W5 by apply related_sts_pub_world_update_ot.
     eapply related_sts_pub_trans_world; eauto.
+    apply related_sts_pub_refl_world.
   Qed.
 
   Lemma switcher_cmpt_disjoint_std_update_compartment
-    (W : WORLD) (C_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) (a : Addr) :
+    (W : WORLD) (C_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) (a : Addr) (ot_switcher : OType) :
     a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ->
     switcher_cmpt_disjoint C_cmpt switcher_cmpt ->
     std W !! a = None ->
-    std (std_update_compartment W C_cmpt) !! a = None.
+    std (std_update_compartment W C_cmpt ot_switcher) !! a = None.
   Proof.
     intros Ha Hc Ha_W.
     pose proof (cmpt_import_size C_cmpt) as H.
@@ -844,13 +921,14 @@ Section region_alloc_cmpt.
       solve_addr+H H' Hcontra.
   Qed.
 
-  Lemma alloc_compartment_interp_rel (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName)  :
+  Lemma alloc_compartment_interp_rel (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) (ot_switcher : OType)  :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     let pcc_cap := (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
     let cgp_cap := (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
-    let Wfinal := std_update_compartment W C_cmpt in
+    let Winter := (std_update_multiple (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent) imports_addrs Permanent) in
+    let Wfinal := std_update_compartment W C_cmpt ot_switcher in
 
     Forall (λ k, std W !! k = None) imports_addrs →
     Forall (λ k, std W !! k = None) code_addrs →
@@ -867,25 +945,33 @@ Section region_alloc_cmpt.
       (
         ([∗ list] k ∈ (imports_addrs++code_addrs), rel C k RX interpC)
         ∗ ([∗ list] k ∈ (data_addrs), rel C k RW interpC)
+        ∗ sts_full_world Winter C
+        ∗ sealing_map Winter C
       )
-      -∗
-      ([∗ list] v ∈ cmpt_imports C_cmpt, interpC (Wfinal, C, v) ∗ future_priv_mono C interpC v)
+      ==∗
+      sts_full_world Wfinal C
+      ∗ sealing_map Wfinal C
+      ∗ ([∗ list] v ∈ cmpt_imports C_cmpt, interpC (Wfinal, C, v) ∗ future_priv_mono C interpC v)
+      ∗ ([∗ set] v ∈ exported_entries_sealed C_cmpt ot_switcher, interp Wfinal C v)
     ) -∗
 
     sts_full_world W C -∗
-    region W C
+    region W C -∗
+    sealing_map W C
 
     ={E}=∗
 
     sts_full_world Wfinal C
     ∗ region Wfinal C
+    ∗ sealing_map Wfinal C
     ∗ interp Wfinal C pcc_cap
     ∗ interp Wfinal C cgp_cap
     ∗ ([∗ list] v ∈ cmpt_imports C_cmpt, interp Wfinal C v)
+    ∗ ([∗ set] v ∈ exported_entries_sealed C_cmpt ot_switcher, interp Wfinal C v)
   .
   Proof.
     intros * Himports Hcode Hdata C_code C_data.
-    iIntros "HC_imports HC_code HC_data Himport_interp Hsts_C Hr_C".
+    iIntros "HC_imports HC_code HC_data Himport_interp Hsts_C Hr_C Hseals_C".
 
     iMod (extend_region_perm_sepL2 _ W C
             code_addrs (cmpt_code C_cmpt)
@@ -903,6 +989,15 @@ Section region_alloc_cmpt.
         iSplit; eauto.
         iApply future_priv_mono_interp_z.
       - iFrame.
+    }
+
+    set ( W1 := (std_update_multiple W code_addrs Permanent)).
+    iDestruct (sealing_map_monotone_pub _ _ W1 with "Hseals_C") as "Hseals_C".
+    { by rewrite std_update_multiple_seals. }
+    { apply related_sts_pub_update_multiple.
+      eapply Forall_impl; eauto.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
     }
 
     iMod (extend_region_perm_sepL2_open _ _ C
@@ -979,11 +1074,19 @@ Section region_alloc_cmpt.
         iSplit; first iApply monoReq_interp; eauto.
     }
 
-    iMod (extend_region_perm_sepL2_open _ _ C
+    set ( W2 := (std_update_multiple W1 data_addrs Permanent)).
+    iDestruct (sealing_map_monotone_pub _ _ W2 with "Hseals_C") as "Hseals_C".
+    { subst W2; by rewrite std_update_multiple_seals. }
+    { admit. }
+
+    iMod (extend_region_perm_sepL2_open' _ _ C
             imports_addrs
             (cmpt_imports C_cmpt)
-            RX interpC
-           with "Hsts_C Hr_C HC_imports [Himport_interp]") as "(Hr_C & Hsts_C & #HC_imports & Hinterp_imports)".
+            RX interpC ot_switcher
+            (exported_entries_words C_cmpt)
+            (exported_entries_sealed C_cmpt ot_switcher)
+           with "Hsts_C Hr_C Hseals_C HC_imports [Himport_interp]")
+      as "(Hr_C & Hsts_C & Hseals_C & #HC_imports & Hinterp_imports & Hinterp_exports)".
     { apply finz_seq_between_NoDup. }
     { done. }
     { apply Forall_forall.
@@ -1012,8 +1115,11 @@ Section region_alloc_cmpt.
         rewrite elem_of_finz_seq_between in Ha.
         apply elem_of_finz_seq_between; solve_addr+H H' Ha.
     }
-    { iIntros "#HC_imports".
-      iApply "Himport_interp"; iFrame "#".
+    {
+      iIntros "(#HC_imports & Hsts & Hseals)".
+      iMod ("Himport_interp" with "[$HC_code $HC_data $HC_imports $Hsts $Hseals]")
+        as "(Hsts & Hseals & Himport_interp & Hexports_interp)".
+      by iFrame.
     }
     iDestruct (big_sepL_sep with "Hinterp_imports") as "[$ _]".
     iFrame.
@@ -1087,6 +1193,7 @@ Section region_alloc_cmpt.
       }
       iSplit; last done.
       iApply (monoReq_interp _ _ _ _ Permanent); done.
+
     - iEval (rewrite fixpoint_interp1_eq /=).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
@@ -1123,15 +1230,16 @@ Section region_alloc_cmpt.
       }
       iSplit; last done.
       iApply (monoReq_interp _ _ _ _ Permanent); done.
-  Qed.
+  Admitted.
 
-  Lemma alloc_compartment_interp (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName)  :
+  Lemma alloc_compartment_interp (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) (ot_switcher : OType) :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     let pcc_cap := (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
     let cgp_cap := (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
-    let Wfinal := std_update_compartment W C_cmpt in
+    let Winter := (std_update_multiple (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent) imports_addrs Permanent) in
+    let Wfinal := std_update_compartment W C_cmpt ot_switcher in
 
     Forall (λ k, std W !! k = None) imports_addrs →
     Forall (λ k, std W !! k = None) code_addrs →
@@ -1144,31 +1252,42 @@ Section region_alloc_cmpt.
     ([∗ list] k;v ∈ code_addrs ; cmpt_code C_cmpt, k ↦ₐ v) -∗
     ([∗ list] k;v ∈ data_addrs ; cmpt_data C_cmpt, k ↦ₐ v) -∗
     (
-      (interp Wfinal C pcc_cap ∗ interp Wfinal C cgp_cap)
-      -∗
-      ([∗ list] v ∈ cmpt_imports C_cmpt, interpC (Wfinal, C, v) ∗ future_priv_mono C interpC v)
+      (
+        interp Wfinal C pcc_cap ∗
+        interp Wfinal C cgp_cap ∗
+        sts_full_world Winter C ∗
+        sealing_map Winter C
+      )
+      ==∗
+      sts_full_world Wfinal C ∗
+      sealing_map Wfinal C ∗
+      ([∗ list] v ∈ cmpt_imports C_cmpt, interpC (Wfinal, C, v) ∗ future_priv_mono C interpC v) ∗
+      ([∗ set] v ∈ exported_entries_sealed C_cmpt ot_switcher, interp Wfinal C v)
     )
     -∗
 
     sts_full_world W C -∗
-    region W C
+    region W C -∗
+    sealing_map W C
 
     ={E}=∗
 
     sts_full_world Wfinal C
     ∗ region Wfinal C
+    ∗ sealing_map Wfinal C
     ∗ interp Wfinal C pcc_cap
     ∗ interp Wfinal C cgp_cap
     ∗ ([∗ list] v ∈ cmpt_imports C_cmpt, interp Wfinal C v)
+    ∗ ([∗ set] v ∈ exported_entries_sealed C_cmpt ot_switcher, interp Wfinal C v)
   .
   Proof.
     intros * Himports Hcode Hdata C_code C_data.
-    iIntros "HC_imports HC_code HC_data Himport_interp Hsts_C Hr_C".
+    iIntros "HC_imports HC_code HC_data Himport_interp Hsts_C Hr_C Hseals_C".
     iApply (alloc_compartment_interp_rel with "[$] [$] [$] [Himport_interp] [$] [$]"); eauto.
-    iIntros "[#Hrel_pcc #Hrel_data]".
-    iApply "Himport_interp".
-    iSplit.
-    - iEval (rewrite fixpoint_interp1_eq /=).
+    iIntros "(#Hrel_pcc & #Hrel_data & Hsts & Hseals)".
+
+    iAssert (interp Wfinal C pcc_cap) as "#Hinterp_pcc".
+    { iEval (rewrite fixpoint_interp1_eq /=).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
       iExists RX, interp.
@@ -1232,7 +1351,10 @@ Section region_alloc_cmpt.
       }
       iSplit; last done.
       iApply (monoReq_interp _ _ _ _ Permanent); done.
-    - iEval (rewrite fixpoint_interp1_eq /=).
+    }
+
+    iAssert (interp Wfinal C cgp_cap) as "#Hinterp_cgp".
+    { iEval (rewrite fixpoint_interp1_eq /=).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
       iExists RW, interp.
@@ -1268,6 +1390,11 @@ Section region_alloc_cmpt.
       }
       iSplit; last done.
       iApply (monoReq_interp _ _ _ _ Permanent); done.
+    }
+
+    iMod ("Himport_interp" with "[$Hinterp_pcc $Hinterp_cgp $Hseals $Hsts]")
+      as "(Hsts & Hseals & Himport_interp & Hexports_interp)".
+    by iFrame.
   Qed.
 
 

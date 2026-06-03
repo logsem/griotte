@@ -91,10 +91,11 @@ Section helpers_switcher_adequacy.
     -∗ interp W C (WCap RX Global b_pcc e_pcc b_pcc)
     -∗ interp W C (WCap RW Global b_cgp e_cgp b_cgp)
     -∗ WSealed ot_switcher (SCap RO g_etbl b_etbl e_etbl a_etbl) ↦□ₑ args
+    -∗ WSealed ot_switcher (SCap RO Local b_etbl e_etbl a_etbl) ↦□ₑ args
     -∗ ot_switcher_prop W C (WCap RO g_etbl b_etbl e_etbl a_etbl).
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp Ha_etbl Hargs.
-    iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry #Hinterp_pcc #Hinterp_cgp #Hentry".
+    iIntros "#Hinv_switcher #Hinv_pcc #Hinv_cgp #Hinv_entry #Hinterp_pcc #Hinterp_cgp #Hentry #Hentry_borrow".
     iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, off.
     iFrame "#".
     iSplit ; first (by iPureIntro).

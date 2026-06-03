@@ -99,7 +99,7 @@ Section sealing_interp.
       iApply big_sepM_mono; last iFrame.
       iIntros (o' wso' Hswo') "($ & %Po & Hspred & #Hmono & Hwso')".
       iExists Po; iFrame "∗#".
-      pose proof (related_sts_priv_world_alloc_ot W o ws Ho) as Hrelated.
+      pose proof (related_sts_priv_world_update_ot W o ws) as Hrelated.
       clear -Hrelated.
       iStopProof.
       induction wso' using set_ind_L; iIntros "[#Hmono Hs]"; first done.
@@ -114,9 +114,11 @@ Section sealing_interp.
     iDestruct (big_sepM_insert _ _ o ws with "[$Hr $Hseal $Hseal_Po $Hmono_Po $Hws_Po]") as "Hr".
     { by apply not_elem_of_dom. }
     iModIntro.
-    by iFrame.
+    iFrame "#∗".
+    rewrite /seals_std_update_default.
+    rewrite not_elem_of_dom in Ho; rewrite Ho /= union_empty_r_L.
+    done.
   Qed.
-
 
   Lemma sealing_map_def_update (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
     (o : OType) (ws ws' : gset Word)  :
@@ -134,7 +136,7 @@ Section sealing_interp.
     iDestruct (big_sepM_delete with "Hr") as "[(Hseal & %Po' & Hpred & #Hmono & HPo) Hr]"; eauto.
     iMod (sts_update_seal_std _ _ _ _ ws' with "[$Hsts $Hseal]") as "[Hsts #Hseal]"; eauto.
     iDestruct (seal_pred_agree with "Hspred_Po Hpred") as "#Heq".
-    pose proof (related_sts_pub_world_update_ot W o ws ws' Ho) as Hrelated.
+    pose proof (related_sts_pub_world_update_ot W o (ws' ∪ ws)) as Hrelated.
     iAssert (
          ∃ Po0 : WORLD * CmptName * Word → iProp Σ,
            seal_pred o Po0 ∗
@@ -194,7 +196,41 @@ Section sealing_interp.
     iDestruct (big_sepM_insert with "[$Hr $H]") as "Hr"; eauto.
     { by simplify_map_eq. }
     rewrite insert_delete_eq.
+    iFrame "#∗".
+    rewrite /seals_std_update_default.
+    rewrite Ho /=.
+    replace (ws' ∪ ws ∪ ws) with (ws' ∪ ws) by set_solver+.
     by iFrame.
+  Qed.
+
+  Lemma sealing_map_def_update' (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
+    (o : OType) (ws : gset Word)  :
+    let W' := (<o[ o := ws ]o> W) in
+    seal_pred o Po -∗
+    (∀ w : Word, future_priv_mono C Po w) -∗
+    ([∗ set] w ∈ ws, ▷ Po (W', C, w)) -∗
+    sealing_map_def W C ∗ sts_full_world W C
+    ==∗
+    sealing_map_def W' C ∗ sts_full_world W' C ∗ sts_seals_std C o ws.
+  Proof.
+    intros W'; subst W'.
+    iIntros "Hspred_Po Hmono_Po Hws_Po [Hr Hsts]".
+    destruct ((seal_std W) !! o) eqn:Ho.
+    - iMod (sealing_map_def_update _ _ _ _ g ws with "[$Hspred_Po] [Hws_Po] [$Hr $Hsts]")
+        as "(Hseals & Hsts & Hseal)"; eauto.
+      { rewrite /seals_std_update_default Ho /=.
+        replace (ws ∪ g ∪ g) with (ws ∪ g) by set_solver+.
+        done.
+      }
+      iModIntro.
+      rewrite /seals_std_update_default Ho /=.
+      replace (ws ∪ g ∪ g) with (ws ∪ g) by set_solver+.
+      iFrame.
+      iApply sts_seals_std_weaken; last done; set_solver+.
+    - rewrite -not_elem_of_dom in Ho.
+      iMod (sealing_map_def_alloc _ _ _ _ ws Ho with "[$Hspred_Po] [$Hmono_Po] [Hws_Po] [$Hr $Hsts]")
+        as "(Hseals & Hsts & Hseal)"; eauto.
+      by iFrame.
   Qed.
 
   Lemma sealing_map_alloc (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ) (o : OType) (ws : gset Word)  :
@@ -217,6 +253,17 @@ Section sealing_interp.
     ==∗
     sealing_map W' C ∗ sts_full_world W' C ∗ sts_seals_std C o (ws' ∪ ws).
   Proof. rewrite sealing_map_eq; apply sealing_map_def_update. Qed.
+
+  Lemma sealing_map_update' (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
+    (o : OType) (ws : gset Word)  :
+    let W' := (<o[ o := ws ]o> W) in
+    seal_pred o Po -∗
+    (∀ w : Word, future_priv_mono C Po w) -∗
+    ([∗ set] w ∈ ws, ▷ Po (W', C, w)) -∗
+    sealing_map W C ∗ sts_full_world W C
+    ==∗
+    sealing_map W' C ∗ sts_full_world W' C ∗ sts_seals_std C o ws.
+  Proof. rewrite sealing_map_eq; apply sealing_map_def_update'. Qed.
 
   Lemma sealing_map_seal_pred
     (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers : ∀ WCv, Persistent (Po WCv)}
