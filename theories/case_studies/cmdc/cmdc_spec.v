@@ -429,7 +429,7 @@ Section CMDC.
       "( _ & _ & _
       & %HW1_pubB_W2 & Hrel_stk_B & %Hdom_rmap' & Hclose_reg_B & %Hclose_reg_B
       & Hna & %Hcsp_bounds
-      & HWstd_full_B & HWreg_B & HWseals_B
+      & HWstd_full_B & HWseals_B & HWreg_B
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -745,7 +745,7 @@ Section CMDC.
     iDestruct ( big_sepL2_length with "Hstk" ) as "%Hlen_stk".
 
     iDestruct ( sealing_map_monotone _ _ W3 with "HWseals_C") as "HWseals_C"
-    ; [ by subst W3 W0 | auto |].
+    ; [ by subst W3 | auto |].
     iApply (switcher_cc_specification _ W3 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
@@ -767,7 +767,7 @@ Section CMDC.
       "( _ & _ & _
       & %HW1_pubC_4 & Hrel_stk_C & %Hdom_rmap'' & Hclose_reg_C & _
       & Hna & _
-      & HWstd_full_C & HWreg_C & HWseals_C
+      & HWstd_full_C & HWseals_C & HWreg_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg'0 [Hca0 _] ] & [%warg1' [Hca1 _] ]
