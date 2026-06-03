@@ -362,7 +362,6 @@ Section sealing_interp.
     by rewrite normalise_sealed_words_singleton big_sepS_singleton.
   Qed.
 
-
   Local Definition sealing_map_open_def
     (W : WORLD)
     (C : CmptName)
