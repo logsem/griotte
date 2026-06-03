@@ -192,6 +192,7 @@ Section Adequacy.
   Definition assertN : namespace := nroot .@ "cmdc" .@ "assert_flag".
 
 
+  Local Notation ot_switcher := (ot_switcher switcher_cmpt).
   Lemma cmdc_adequacy' `{Layout: @memory_layout MP}
     (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
     (es: list cap_lang.expr):
@@ -217,7 +218,7 @@ Section Adequacy.
     iMod (gen_heap_init (reg:Reg)) as (reg_heapg) "(Hreg_ctx & Hreg & _)".
     iMod (gen_heap_init (sreg:SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
     iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
-    iMod (seal_store_init ({[ (ot_switcher switcher_cmpt) ]} : gset _)) as (seal_storeg) "Hseal_store".
+    iMod (seal_store_init ({[ ot_switcher ]} : gset _)) as (seal_storeg) "Hseal_store".
     set (
         B_f :=
        (WCap RO Global (cmpt_exp_tbl_pcc B_cmpt)
@@ -253,10 +254,10 @@ Section Adequacy.
     iMod (
        entry_init (
            {[
-               (seal_capability B_f (ot_switcher switcher_cmpt)) := 1;
-               (borrow (seal_capability B_f (ot_switcher switcher_cmpt))) := 1;
-               (seal_capability C_g (ot_switcher switcher_cmpt)) := 1;
-               (borrow (seal_capability C_g (ot_switcher switcher_cmpt))) := 1
+               (seal_capability B_f ot_switcher) := 1;
+               (borrow (seal_capability B_f ot_switcher)) := 1;
+               (seal_capability C_g ot_switcher) := 1;
+               (borrow (seal_capability C_g ot_switcher)) := 1
            ]}
 
          )
@@ -478,14 +479,14 @@ Section Adequacy.
     { rewrite /exported_entries_words Hexported_entries_sealable.
       cbn; subst B_f'; set_solver+.
     }
-    assert ( (exported_entries_sealed B_cmpt ot_switcher) = {[WSealed ot_switcher B_f; WSealed ot_switcher B_f']}) as Hexported_entries_sealed.
+    assert ( (exported_entries_sealed B_cmpt) = {[WSealed ot_switcher B_f; WSealed ot_switcher B_f']}) as Hexported_entries_sealed.
     { rewrite /exported_entries_sealed Hexported_entries_sealable.
       cbn; subst B_f'; set_solver+.
     }
 
 
     iMod (
-       alloc_compartment_interp _ _ B_cmpt _ ot_switcher with "[HB_imports] [HB_code] [HB_data] [] [$Hsts_B] [$Hr_B] [$Hseals_B]"
+       alloc_compartment_interp _ _ B_cmpt _ with "[HB_imports] [HB_code] [HB_data] [] [$Hsts_B] [$Hr_B] [$Hseals_B]"
       ) as "(Hsts_B & Hr_B & Hseals_B & #HB_code & #HB_data & _ & #HB_exports)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
@@ -496,7 +497,7 @@ Section Adequacy.
       match goal with
       | H: _ |- context [  (sts_full_world ?W B) ] => set (Wpre := W)
       end.
-      set ( Winter := (std_update_compartment (∅, (∅, ∅), ∅) B_cmpt ot_switcher) ).
+      set ( Winter := (std_update_compartment (∅, (∅, ∅), ∅) B_cmpt) ).
 
       iAssert (ot_switcher_prop Winter B (WSealable B_f)) as "#ot_switcher_B_f".
       {
@@ -673,13 +674,13 @@ Section Adequacy.
     { rewrite /exported_entries_words Hexported_entries_sealable.
       cbn; subst C_g'; set_solver+.
     }
-    assert ( (exported_entries_sealed C_cmpt ot_switcher) = {[WSealed ot_switcher C_g; WSealed ot_switcher C_g']}) as Hexported_entries_sealed.
+    assert ( (exported_entries_sealed C_cmpt) = {[WSealed ot_switcher C_g; WSealed ot_switcher C_g']}) as Hexported_entries_sealed.
     { rewrite /exported_entries_sealed Hexported_entries_sealable.
       cbn; subst C_g'; set_solver+.
     }
 
     iMod (
-       alloc_compartment_interp _ _ _ _ ot_switcher with "[HC_imports] [HC_code] [HC_data] [] [$Hsts_C] [$Hr_C] [$Hseals_C]"
+       alloc_compartment_interp with "[HC_imports] [HC_code] [HC_data] [] [$Hsts_C] [$Hr_C] [$Hseals_C]"
       ) as "(Hsts_C & Hr_C & Hseals_C & #HC_code & #HC_data & _ & #HC_exports)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
@@ -690,7 +691,7 @@ Section Adequacy.
       match goal with
       | H: _ |- context [  (sts_full_world ?W C) ] => set (Wpre := W)
       end.
-      set ( Winter := (std_update_compartment (∅, (∅, ∅), ∅) C_cmpt ot_switcher) ).
+      set ( Winter := (std_update_compartment (∅, (∅, ∅), ∅) C_cmpt) ).
 
       iAssert (ot_switcher_prop Winter C (WSealable C_g)) as "#ot_switcher_C_g".
       {

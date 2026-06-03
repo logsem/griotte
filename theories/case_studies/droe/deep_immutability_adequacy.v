@@ -156,12 +156,12 @@ Section Adequacy.
   Context `{MP: MachineParameters}.
   Context { HCNames : CNames = (list_to_set [C]) }.
 
-  Definition flagN : namespace := nroot .@ "cmdc" .@ "fail_flag".
-  Definition switcherN : namespace := nroot .@ "cmdc" .@ "switcher_flag".
-  Definition assertN : namespace := nroot .@ "cmdc" .@ "assert_flag".
+  Definition flagN : namespace := nroot .@ "droe" .@ "fail_flag".
+  Definition switcherN : namespace := nroot .@ "droe" .@ "switcher_flag".
+  Definition assertN : namespace := nroot .@ "droe" .@ "assert_flag".
 
-
-  Lemma cmdc_adequacy' `{Layout: @memory_layout MP}
+  Local Notation ot_switcher := (ot_switcher switcher_cmpt).
+  Lemma droe_adequacy' `{Layout: @memory_layout MP}
     (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
     (es: list cap_lang.expr):
     is_initial_registers reg →
@@ -186,7 +186,7 @@ Section Adequacy.
     iMod (gen_heap_init (reg:Reg)) as (reg_heapg) "(Hreg_ctx & Hreg & _)".
     iMod (gen_heap_init (sreg:SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
     iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
-    iMod (seal_store_init ({[ (ot_switcher switcher_cmpt) ]} : gset _)) as (seal_storeg) "Hseal_store".
+    iMod (seal_store_init ({[ ot_switcher ]} : gset _)) as (seal_storeg) "Hseal_store".
     set (
         C_f :=
        (WCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
@@ -196,8 +196,8 @@ Section Adequacy.
     iMod (
        entry_init (
            {[
-               (seal_capability C_f (ot_switcher switcher_cmpt)) := 1;
-               (borrow (seal_capability C_f (ot_switcher switcher_cmpt))) := 1
+               (seal_capability C_f ot_switcher) := 1;
+               (borrow (seal_capability C_f ot_switcher)) := 1
            ]}
 
          )
@@ -406,13 +406,13 @@ Section Adequacy.
     { rewrite /exported_entries_words Hexported_entries_sealable.
       cbn; subst C_f'; set_solver+.
     }
-    assert ( (exported_entries_sealed C_cmpt ot_switcher) = {[WSealed ot_switcher C_f; WSealed ot_switcher C_f']}) as Hexported_entries_sealed.
+    assert ( (exported_entries_sealed C_cmpt) = {[WSealed ot_switcher C_f; WSealed ot_switcher C_f']}) as Hexported_entries_sealed.
     { rewrite /exported_entries_sealed Hexported_entries_sealable.
       cbn; subst C_f'; set_solver+.
     }
 
     iMod (
-       alloc_compartment_interp _ _ _ _ ot_switcher with "[HC_imports] [HC_code] [HC_data] [] [$Hsts_C] [$Hr_C] [$Hseals_C]"
+       alloc_compartment_interp with "[HC_imports] [HC_code] [HC_data] [] [$Hsts_C] [$Hr_C] [$Hseals_C]"
       ) as "(Hsts_C & Hr_C & Hseals_C & #HC_code & #HC_data & _ & #HC_exports)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
@@ -423,7 +423,7 @@ Section Adequacy.
       match goal with
       | H: _ |- context [  (sts_full_world ?W C) ] => set (Wpre := W)
       end.
-      set ( Winter := (std_update_compartment (∅, (∅, ∅), ∅) C_cmpt ot_switcher) ).
+      set ( Winter := (std_update_compartment (∅, (∅, ∅), ∅) C_cmpt) ).
 
       iAssert (ot_switcher_prop Winter C (WSealable C_f)) as "#ot_switcher_C_f".
       {
@@ -746,7 +746,7 @@ Local Program Instance CmptNames_droe_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_droe; |}.
 
 (** END-TO-END THEOREM *)
-Theorem cmdc_adequacy `{Layout: memory_layout}
+Theorem droe_adequacy `{Layout: memory_layout}
   (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
   (es: list cap_lang.expr):
   is_initial_registers reg →
@@ -764,5 +764,5 @@ Proof.
               ; STS_preΣ Addr region_type OType Word ; heapPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)
       ]).
-  eapply (@cmdc_adequacy' Σ cnames B); eauto; try typeclasses eauto.
+  eapply (@droe_adequacy' Σ cnames B); eauto; try typeclasses eauto.
 Qed.
