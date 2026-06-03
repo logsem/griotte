@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import rules proofmode.
-From cap_machine Require Import fetch.
+From cap_machine Require Import fetch switcher.
 
 Section Counter_Main.
   Context `{MP: MachineParameters}.
@@ -65,11 +65,10 @@ Section Counter_Main.
 
   Definition counter_main_data : list Word := [WInt 0].
 
-  Definition counter_main_imports
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
+  Definition counter_main_imports `{!switcherLayout}
     (C_f : Sealable) : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
+      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
       WSealed ot_switcher C_f
     ].
 

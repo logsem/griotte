@@ -14,7 +14,7 @@ Section fundamental.
     {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
     {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
   Implicit Types W : WORLD.
@@ -152,7 +152,7 @@ Section fundamental.
     focus_block_nochangePC 12 "Hcode" as a5 Ha5 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     assert (a5 = a_switcher_return); [|simplify_eq].
     { cbn in Ha5.
-      clear -Ha5.
+      clear -Ha5 swlayoutwf.
       pose proof switcher_return_entry_point as Hret; cbn in Hret.
       pose proof switcher_call_entry_point as Hcall; cbn in Hcall.
       solve_addr.

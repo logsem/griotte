@@ -14,7 +14,7 @@ Section helpers_switcher_adequacy.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
   .
 
   Lemma fundamental_execute_entry_point

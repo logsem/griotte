@@ -122,22 +122,20 @@ int __cheri_compartment("known") run()
 
   Definition so_main_data : list Word := [].
 
-  Definition so_main_imports
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
-    (b_assert e_assert : Addr)
+  Definition so_main_imports `{!switcherLayout} `{!assertLayout}
     (B_adv : Sealable)
     : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
+      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
       WSentry RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_adv
     ].
 
-  Definition length_so_main_imports :=
+  Definition length_so_main_imports `{!switcherLayout} `{!assertLayout} :=
     length
-      (so_main_imports za za za za_ot za za (SCap RO Global za za za)).
+      (so_main_imports (SCap RO Global za za za)).
 
-  Definition so_exp_tbl_entry_f :=
+  Definition so_exp_tbl_entry_f `{!switcherLayout} `{!assertLayout} :=
     WInt (encode_entry_point 2
             (length_so_main_imports + (length SO_main_code_run))).
 
@@ -145,7 +143,7 @@ int __cheri_compartment("known") run()
     b_so_exp_tbl e_so_exp_tbl : Sealable :=
       SCap RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+2)%a.
 
-  Definition so_export_table_entries : list Word :=
+  Definition so_export_table_entries `{!switcherLayout} `{!assertLayout} : list Word :=
     [ so_exp_tbl_entry_f ].
 
 End SO_Main.

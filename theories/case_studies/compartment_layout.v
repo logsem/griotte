@@ -3,7 +3,7 @@ From cap_machine Require Import switcher assert.
 From cap_machine Require Import disjoint_regions_tactics mkregion_helpers.
 
 Section CmptLayout.
-  Context `{MP: MachineParameters} {swlayout : switcherLayout}.
+  Context `{MP: MachineParameters}.
 
   Record cmpt : Type :=
     mkCmpt {
@@ -76,6 +76,28 @@ Section CmptLayout.
 
   Record cmptSwitcher : Type :=
     mkCmptSwitcher {
+        b_switcher : Addr ;
+        e_switcher : Addr ;
+        a_switcher_call : Addr ;
+        a_switcher_return : Addr ;
+
+        ot_switcher : OType ;
+
+        b_trusted_stack : Addr;
+        e_trusted_stack : Addr;
+
+        switcher_size :
+        (a_switcher_call + length switcher_instrs)%a = Some e_switcher ;
+
+        switcher_call_entry_point :
+        (b_switcher + 1)%a = Some a_switcher_call ;
+
+        switcher_return_entry_point :
+        (b_switcher + (1 + length switcher_call_instrs) )%a = Some a_switcher_return ;
+
+        ot_switcher_size :
+        (ot_switcher < ot_switcher ^+ 1)%ot;
+
         trusted_stack_content : list Word;
 
         trusted_stack_size :
@@ -97,15 +119,27 @@ Section CmptLayout.
         ∧ (finz.seq_between b_switcher e_switcher) ## (finz.seq_between b_stack e_stack)
         ∧ (finz.seq_between b_trusted_stack e_trusted_stack) ## (finz.seq_between b_stack e_stack);
 
-        ot_switcher_size :
-        (ot_switcher < ot_switcher ^+ 1)%ot;
       }.
 
+
+  Global Instance cmptSwitcher_switcherLayout (switcher_cmpt : cmptSwitcher) : switcherLayout.
+  Proof.
+    refine (@mkSwitcherLayout
+              (b_switcher switcher_cmpt)
+              (e_switcher switcher_cmpt)
+              (a_switcher_call switcher_cmpt)
+              (a_switcher_return switcher_cmpt)
+              (ot_switcher switcher_cmpt)
+              (b_trusted_stack switcher_cmpt)
+              (e_trusted_stack switcher_cmpt)
+           ).
+  Defined.
+
   Definition cmpt_switcher_code_region (Cswitcher : cmptSwitcher) :=
-    (finz.seq_between b_switcher e_switcher).
+    (finz.seq_between (b_switcher Cswitcher) (e_switcher Cswitcher)).
 
   Definition cmpt_switcher_trusted_stack_region (Cswitcher : cmptSwitcher) :=
-    (finz.seq_between b_trusted_stack e_trusted_stack).
+    (finz.seq_between (b_trusted_stack Cswitcher) (e_trusted_stack Cswitcher)).
 
   Definition cmpt_switcher_stack_region (Cswitcher : cmptSwitcher) :=
     (finz.seq_between (b_stack Cswitcher) (e_stack Cswitcher)).
@@ -117,13 +151,13 @@ Section CmptLayout.
 
   Definition cmpt_switcher_code_mregion
     (Cswitcher : cmptSwitcher) : gmap Addr Word :=
-    let ot := ot_switcher in
+    let ot := (ot_switcher Cswitcher) in
     let switcher_sealing := (WSealRange (true,true) Global ot (ot^+1)%ot ot) in
-    mkregion b_switcher a_switcher_call [switcher_sealing]
-      ∪ mkregion a_switcher_call e_switcher switcher_instrs .
+    mkregion (b_switcher Cswitcher) (a_switcher_call Cswitcher) [switcher_sealing]
+      ∪ mkregion (a_switcher_call Cswitcher) (e_switcher Cswitcher) switcher_instrs .
   Definition cmpt_switcher_trusted_stack_mregion
      (Cswitcher : cmptSwitcher) : gmap Addr Word :=
-    mkregion b_trusted_stack e_trusted_stack (trusted_stack_content Cswitcher).
+    mkregion (b_trusted_stack Cswitcher) (e_trusted_stack Cswitcher) (trusted_stack_content Cswitcher).
   Definition cmpt_switcher_stack_mregion
      (Cswitcher : cmptSwitcher) : gmap Addr Word :=
     mkregion (b_stack Cswitcher) (e_stack Cswitcher) (stack_content Cswitcher).
@@ -156,6 +190,15 @@ Section CmptLayout.
         (finz.seq_between b_assert e_assert) ##
         (finz.seq_between flag_assert (flag_assert ^+ 1)%a)
       }.
+
+  Global Instance cmptAssert_assertLayout (assert_cmpt : cmptAssert) : assertLayout.
+  Proof.
+    refine (@mkAssertLayout
+              (b_assert assert_cmpt)
+              (e_assert assert_cmpt)
+              (flag_assert assert_cmpt)
+           ).
+  Defined.
 
   Definition cmpt_assert_code_region (Cassert : cmptAssert) :=
     (finz.seq_between (b_assert Cassert) (cap_assert Cassert)).
@@ -251,15 +294,15 @@ Section CmptLayout.
     dom (cmpt_switcher_code_mregion switcher_cmpt) =
     list_to_set (cmpt_switcher_code_region switcher_cmpt).
   Proof.
-    pose proof switcher_size.
-    pose proof switcher_call_entry_point.
+    pose proof (switcher_size switcher_cmpt).
+    pose proof (switcher_call_entry_point switcher_cmpt).
     rewrite /cmpt_switcher_code_mregion /cmpt_switcher_code_region.
     rewrite !dom_union_L.
     repeat rewrite dom_mkregion_eq; try solve_addr.
     rewrite (finz_seq_between_split
-               b_switcher
-               a_switcher_call
-               e_switcher); last solve_addr.
+               (b_switcher switcher_cmpt)
+               (a_switcher_call switcher_cmpt)
+               (e_switcher switcher_cmpt)); last solve_addr.
     set_solver.
   Qed.
   Lemma dom_switcher_trusted_stack_mregion (switcher_cmpt : cmptSwitcher) :
@@ -405,8 +448,8 @@ Section CmptLayout.
   Proof.
     apply map_disjoint_dom_2.
     pose proof (switcher_disjointness switcher_cmpt) as (_ & ? & ?).
-    pose proof switcher_call_entry_point.
-    pose proof switcher_size.
+    pose proof (switcher_call_entry_point switcher_cmpt).
+    pose proof (switcher_size switcher_cmpt).
     pose proof (trusted_stack_size switcher_cmpt).
     pose proof (stack_size switcher_cmpt).
     rewrite /cmpt_switcher_code_mregion /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_stack_mregion.
@@ -432,8 +475,8 @@ Section CmptLayout.
   Proof.
     apply map_disjoint_dom_2.
     pose proof (switcher_disjointness switcher_cmpt) as (? & _ & _).
-    pose proof switcher_call_entry_point.
-    pose proof switcher_size.
+    pose proof (switcher_call_entry_point switcher_cmpt).
+    pose proof (switcher_size switcher_cmpt).
     pose proof (trusted_stack_size switcher_cmpt).
     rewrite /cmpt_switcher_code_mregion /cmpt_switcher_trusted_stack_mregion.
     rewrite !dom_union_L.
@@ -452,13 +495,15 @@ Section CmptLayout.
   Qed.
 
   Lemma cmpt_switcher_code_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
-    mkregion b_switcher a_switcher_call
-      [WSealRange (true, true) Global ot_switcher (ot_switcher ^+ 1)%f ot_switcher]
-      ##ₘ mkregion a_switcher_call e_switcher switcher_instrs.
+    let ot := ot_switcher switcher_cmpt in
+    mkregion (b_switcher switcher_cmpt) (a_switcher_call switcher_cmpt)
+      [WSealRange (true, true) Global ot (ot ^+ 1)%f ot]
+      ##ₘ mkregion (a_switcher_call switcher_cmpt) (e_switcher switcher_cmpt) switcher_instrs.
   Proof.
+    intro ot ; subst ot.
     apply map_disjoint_dom_2.
-    pose proof switcher_call_entry_point.
-    pose proof switcher_size.
+    pose proof (switcher_call_entry_point switcher_cmpt).
+    pose proof (switcher_size switcher_cmpt).
     repeat rewrite dom_mkregion_eq; try (solve_addr).
     apply elem_of_disjoint.
     intros a Ha Ha'.

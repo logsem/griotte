@@ -14,7 +14,7 @@ Section Counter.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
   .
 
   Implicit Types W : WORLD.
@@ -117,7 +117,7 @@ Section Counter.
 
     :
 
-    let imports := counter_main_imports b_switcher e_switcher a_switcher_call ot_switcher C_f in
+    let imports := counter_main_imports C_f in
 
     Nswitcher ## Ncounter ->
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp ; cra]} ->
@@ -500,7 +500,7 @@ Section Counter.
     (Nswitcher Ncounter : namespace)
     :
 
-    let imports := counter_main_imports b_switcher e_switcher a_switcher_call ot_switcher C_f in
+    let imports := counter_main_imports C_f in
 
     Nswitcher ## Ncounter ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length counter_main_code)%a ->

@@ -13,7 +13,7 @@ Section CMDC.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
   Context {B C : CmptName}.
 
@@ -28,7 +28,6 @@ Section CMDC.
     (csp_b csp_e : Addr)
     (rmap : Reg)
 
-    (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f C_g : Sealable)
 
     (W_init_B : WORLD)
@@ -45,9 +44,7 @@ Section CMDC.
     (cstk : CSTK)
     :
 
-    let imports :=
-     cmdc_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f C_g
-    in
+    let imports := cmdc_main_imports B_f C_g in
 
     Nswitcher ## Nassert ->
 
@@ -864,7 +861,6 @@ Section CMDC.
     (csp_b csp_e : Addr)
     (rmap : Reg)
 
-    (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f C_g : Sealable)
 
     (W_init_B : WORLD)
@@ -881,9 +877,7 @@ Section CMDC.
     (cstk : CSTK)
     :
 
-    let imports :=
-     cmdc_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f C_g
-    in
+    let imports := cmdc_main_imports B_f C_g in
 
     Nswitcher ## Nassert ->
 
@@ -956,7 +950,7 @@ Section CMDC.
     iApply (wp_wand with "[-]").
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
-                b_assert e_assert a_flag B_f C_g W_init_B W_init_C
+                B_f C_g W_init_B W_init_C
                Ws Cs csp_content φ Nassert Nswitcher cstk); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".

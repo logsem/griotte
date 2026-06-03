@@ -14,7 +14,7 @@ Section LSE.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
 
   Context {C : CmptName}.
@@ -31,7 +31,6 @@ Section LSE.
     (b_lse_exp_tbl e_lse_exp_tbl : Addr)
     (g_lse_exp_tbl : Locality)
 
-    (b_assert e_assert : Addr) (a_flag : Addr)
     (C_f : Sealable)
 
     (W : WORLD)
@@ -40,10 +39,7 @@ Section LSE.
 
     :
 
-    let imports :=
-     lse_main_imports
-       b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
-    in
+    let imports := lse_main_imports C_f in
 
     Nswitcher ## Nassert ->
     Nswitcher ## Nlse ->
@@ -274,7 +270,6 @@ Section LSE.
 
     (b_lse_exp_tbl e_lse_exp_tbl : Addr)
 
-    (b_assert e_assert : Addr) (a_flag : Addr)
     (C_f : Sealable)
 
     (W : WORLD)
@@ -283,10 +278,7 @@ Section LSE.
 
     :
 
-    let imports :=
-     lse_main_imports
-       b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert C_f
-    in
+    let imports := lse_main_imports C_f in
 
     Nswitcher ## Nassert ->
     Nswitcher ## Nlse ->

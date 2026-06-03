@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import rules proofmode.
-From cap_machine Require Import fetch assert.
+From cap_machine Require Import fetch assert switcher.
 
 Section DLE_Main.
   Context `{MP: MachineParameters}.
@@ -83,12 +83,10 @@ Section DLE_Main.
 
   Definition dle_main_data : list Word := [WInt 0; WInt 0].
 
-  Definition dle_main_imports
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
-    (b_assert e_assert : Addr)
+  Definition dle_main_imports `{!switcherLayout} `{!assertLayout}
     (B_f : Sealable) : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
+      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
       WSentry RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_f
     ].
