@@ -81,7 +81,7 @@ Section KVS_preamble.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
     {kvsg:kvsG Σ}
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
@@ -1060,19 +1060,14 @@ Section KVS_preamble.
       ⌜ (finz.of_z ku) = Some a ⌝ ∗
       (* KVS resources *)
       ◯(ALLOC)[ku] s ∗
-      ([∗ set] kn ∈ s, ∃ w, (kvs_full_key ku kn) ⤇(KVS) w ∗ interp W C w ).
+      ([∗ set] kn ∈ s, ∃ w, (kvs_full_key ku kn) ⤇(KVS) w ∗
+                            (∀ W' , ⌜ related_sts_priv_world W W' ⌝ -∗ interp W' C w )
+      ).
 
-  (* TODO: We cannot initialise this predicate!
-     Because we need to allocate the invariant for some world W' (which requires to update),
-     but we don't know the world W' in advance!!
-
-     And we need to have monotonicity with W...
-   *)
   Program Definition kvs_otype_prop
     {KVS_layout : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
-    λne (W : WORLD) (C : CmptName) (w : Word),
-      (∀ W', ⌜related_sts_priv_world W W'⌝ -∗ na_inv logrel_nais (Nkvs_otype.@C) (kvs_otype_inv W' C w))%I.
+    λne (W : WORLD) (C : CmptName) (w : Word), (kvs_otype_inv W C w)%I.
   Next Obligation. solve_proper. Defined.
   Next Obligation. solve_proper. Defined.
   Next Obligation. solve_proper. Defined.
@@ -1082,10 +1077,6 @@ Section KVS_preamble.
     WORLD * CmptName * leibnizO Word -> iProp Σ :=
     safeC kvs_otype_prop.
 
-  Lemma persistent_cond_ot_kvs {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
-    persistent_cond kvs_otype_prop.
-  Proof. intros [ [] ] ; cbn; apply _. Qed.
-
   Lemma mono_priv_ot_kvs
     {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
     (C : CmptName) (w : Word) :
@@ -1094,8 +1085,14 @@ Section KVS_preamble.
     iIntros (W W' Hrelated_W_W').
     iModIntro.
     iIntros "Hot_kvs".
+    rewrite /kvs_otype_propC /safeC /= /kvs_otype_inv.
+    iDestruct "Hot_kvs" as "(%ku & %a & %s & % & % & % & ? & Hs)".
+    iExists ku, a, s; iFrame "∗%".
+    iApply (big_sepS_impl with "Hs").
+    iModIntro; iIntros (??) "(%w' & $ & H)".
     iIntros (W'' Hrelated_W'_W'').
-    iSpecialize ("Hot_kvs" $! W'' with "[%]"); last done.
+    iApply "H".
+    iPureIntro.
     by eapply related_sts_priv_trans_world.
   Qed.
 

@@ -11,7 +11,7 @@ Section KVS_spec_addOrUpdate_safe.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
     {kvsg:kvsG Σ}
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
@@ -54,6 +54,10 @@ Section KVS_spec_addOrUpdate_safe.
 
       ▷ isKVS (cgp_b ^+ 1)%a m s ∗
       ▷ seal_pred KVS_OTYPE kvs_otype_propC ∗
+
+      sealing_map W C ∗
+      sts_full_world W C ∗
+
       ▷ (na_own logrel_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
          cgp ↦ᵣ - ∗
@@ -79,7 +83,10 @@ Section KVS_spec_addOrUpdate_safe.
            ∨
              (* THERE IS NO EMPTY SLOT AVAILABLE *)
              (ca0 ↦ᵣ WInt ASM_FALSE ∗ isKVS (cgp_b ^+ 1)%a m s)
-         )
+         ) ∗
+
+         sealing_map W C ∗
+         sts_full_world W C
 
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
         )
@@ -87,7 +94,7 @@ Section KVS_spec_addOrUpdate_safe.
   Proof.
     iIntros (HN HsubBounds Hcgp_contiguous)
       "(Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_wca0 & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
-        Hcode & Hcgp_b & HKVS & Hspred & Hpost)".
+        Hcode & Hcgp_b & HKVS & Hspred & Hseals & Hsts & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -365,6 +372,9 @@ Section KVS_spec_addOrUpdate_safe.
       ct2 ↦ᵣ - ∗ (* scratch *)
       cnull ↦ᵣ - ∗
 
+      sealing_map W C ∗
+      sts_full_world W C ∗
+
       ▷ (na_own logrel_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
          cgp ↦ᵣ - ∗
@@ -375,14 +385,18 @@ Section KVS_spec_addOrUpdate_safe.
          ctp ↦ᵣ - ∗ (* scratch *)
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ -
+         cnull ↦ᵣ - ∗
+
+         sealing_map W C ∗
+         sts_full_world W C
+
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
     iIntros (Hnkvs_E Hnkvs_otype_E)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_ca0
-      & Hca1 & Hca2 & Hinterp_ca2 & Hctp & Hct1 & Hct2 & Hcnull & Hpost)".
+      & Hca1 & Hca2 & Hinterp_ca2 & Hctp & Hct1 & Hct2 & Hcnull & Hseals & Hsts & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
       as "( (%m & %s & >Himports & >Hcode & >Hcgp_b & HisKVS & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
