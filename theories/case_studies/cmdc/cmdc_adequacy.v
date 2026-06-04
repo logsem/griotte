@@ -467,7 +467,7 @@ Section Adequacy.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
 
     iAssert (sealing_map (∅, (∅, ∅), ∅) B)%I as "-#Hseals_B".
-    { rewrite sealing_map_eq /sealing_map_def; done. }
+    { iApply sealing_map_empty. }
 
     assert ( (exported_entries_sealable B_cmpt) ≡ₚ [B_f; B_f']) as Hexported_entries_sealable.
     { rewrite /exported_entries_sealable /B_f /B_f'.
@@ -661,7 +661,7 @@ Section Adequacy.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
 
     iAssert (sealing_map (∅, (∅, ∅), ∅) C)%I as "-#Hseals_C".
-    { rewrite sealing_map_eq /sealing_map_def; done. }
+    { iApply sealing_map_empty. }
 
     clear Hexported_entries_sealable Hexported_entries_words Hexported_entries_sealed.
     assert ( (exported_entries_sealable C_cmpt) ≡ₚ [C_g; C_g']) as Hexported_entries_sealable.

@@ -615,7 +615,7 @@ Section Adequacy.
     { iExists false; iFrame. }
 
     iAssert (sealing_map W1 C)%I as "-#Hseals_C".
-    { rewrite sealing_map_eq /sealing_map_def; done. }
+    { iApply sealing_map_empty. }
 
     set (awk'_f := (SCap RO Global
                 (cmpt_exp_tbl_pcc main_cmpt)

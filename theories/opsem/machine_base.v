@@ -1348,6 +1348,10 @@ Proof.
   destruct sb; cbn in *; auto; destruct g; cbn in *; auto.
 Qed.
 
+Lemma borrow_sb_idempotent (sb : Sealable) :
+  (borrow_sb (borrow_sb sb)) = (borrow_sb sb).
+Proof. by destruct sb; cbn. Qed.
+
 Ltac entry_point_inj :=
   try ( apply seal_capability_inj; auto )
   ; try (apply borrow_inj; auto)

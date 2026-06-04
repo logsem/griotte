@@ -267,11 +267,6 @@ Section fundamental.
   Unshelve. all: exact W.
   Qed.
 
-  (* TODO move *)
-  Lemma borrow_sb_idempotent (sb : Sealable) :
-    (borrow_sb (borrow_sb sb)) = (borrow_sb sb).
-  Proof. by destruct sb; cbn. Qed.
-
   Lemma interp_borrowed_sealed (W : WORLD) (C : CmptName) (ot : OType) (sb : Sealable) :
     interp W C (WSealed ot sb) -∗ interp W C (WSealed ot (borrow_sb sb)).
   Proof.

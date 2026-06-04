@@ -23,11 +23,14 @@ Section sealing_interp.
                  (∀ w, future_priv_mono C Po w) ∗
                  ( [∗ set] w ∈ ws, ▷ Po (W, C, w) )).
 
-  Definition sealing_map_aux : { x | x = @sealing_map_def }. by eexists. Qed.
+  Local Definition sealing_map_aux : { x | x = @sealing_map_def }. by eexists. Qed.
   Definition sealing_map := proj1_sig sealing_map_aux.
-  Definition sealing_map_eq : @sealing_map = @sealing_map_def := proj2_sig sealing_map_aux.
+  Local Definition sealing_map_eq : @sealing_map = @sealing_map_def := proj2_sig sealing_map_aux.
 
-  Lemma sealing_map_def_monotone (C : CmptName) (W W' : WORLD) :
+  Local Lemma sealing_map_def_empty (C : CmptName) : ⊢ (sealing_map_def (∅, (∅, ∅), ∅) C)%I.
+  Proof. iStartProof; rewrite /sealing_map_def ; done. Qed.
+
+  Local Lemma sealing_map_def_monotone (C : CmptName) (W W' : WORLD) :
     (seal_std W) = (seal_std W') ->
     related_sts_priv_world W W' →
     sealing_map_def W C -∗
@@ -51,29 +54,7 @@ Section sealing_interp.
     iApply "Hmono"; eauto.
   Qed.
 
-  Lemma sealing_map_monotone (C : CmptName) (W W' : WORLD) :
-    (seal_std W) = (seal_std W') ->
-    related_sts_priv_world W W' →
-    sealing_map W C -∗
-    sealing_map W' C.
-  Proof.
-    iIntros (HWseal Hrelated) "Hr".
-    rewrite sealing_map_eq.
-    iApply sealing_map_def_monotone; eauto.
-  Qed.
-
-  Lemma sealing_map_monotone_pub (C : CmptName) (W W' : WORLD) :
-    (seal_std W) = (seal_std W') ->
-    related_sts_pub_world W W' →
-    sealing_map W C -∗
-    sealing_map W' C.
-  Proof.
-    iIntros (HWseal Hrelated) "Hr".
-    apply related_sts_pub_priv_world in Hrelated.
-    iApply sealing_map_monotone; eauto.
-  Qed.
-
-  Lemma sealing_map_def_alloc (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ) (o : OType) (ws : gset Word)  :
+  Local Lemma sealing_map_def_alloc (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ) (o : OType) (ws : gset Word)  :
     let W' := (<o[ o := ws ]o> W) in
     o ∉ dom (seal_std W) ->
     seal_pred o Po -∗
@@ -120,7 +101,7 @@ Section sealing_interp.
     done.
   Qed.
 
-  Lemma sealing_map_def_update (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
+  Local Lemma sealing_map_def_update (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
     (o : OType) (ws ws' : gset Word)  :
     let W' := (<o[ o := ws' ∪ ws ]o> W) in
     (seal_std W) !! o = Some ws ->
@@ -203,7 +184,7 @@ Section sealing_interp.
     by iFrame.
   Qed.
 
-  Lemma sealing_map_def_update' (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
+  Local Lemma sealing_map_def_update' (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
     (o : OType) (ws : gset Word)  :
     let W' := (<o[ o := ws ]o> W) in
     seal_pred o Po -∗
@@ -233,6 +214,30 @@ Section sealing_interp.
       by iFrame.
   Qed.
 
+  Lemma sealing_map_empty (C : CmptName) : ⊢ (sealing_map (∅, (∅, ∅), ∅) C)%I.
+  Proof. rewrite sealing_map_eq; apply sealing_map_def_empty. Qed.
+
+  Lemma sealing_map_monotone (C : CmptName) (W W' : WORLD) :
+    (seal_std W) = (seal_std W') ->
+    related_sts_priv_world W W' →
+    sealing_map W C -∗
+    sealing_map W' C.
+  Proof.
+    iIntros (HWseal Hrelated) "Hr".
+    rewrite sealing_map_eq.
+    iApply sealing_map_def_monotone; eauto.
+  Qed.
+
+  Lemma sealing_map_monotone_pub (C : CmptName) (W W' : WORLD) :
+    (seal_std W) = (seal_std W') ->
+    related_sts_pub_world W W' →
+    sealing_map W C -∗
+    sealing_map W' C.
+  Proof.
+    iIntros (HWseal Hrelated) "Hr".
+    apply related_sts_pub_priv_world in Hrelated.
+    iApply sealing_map_monotone; eauto.
+  Qed.
   Lemma sealing_map_alloc (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ) (o : OType) (ws : gset Word)  :
     let W' := (<o[ o := ws ]o> W) in
     o ∉ dom (seal_std W) ->

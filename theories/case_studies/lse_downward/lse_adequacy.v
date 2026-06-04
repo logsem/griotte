@@ -538,7 +538,7 @@ Section Adequacy.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
 
     iAssert (sealing_map (∅, (∅, ∅), ∅) C)%I as "-#Hseals_C".
-    { rewrite sealing_map_eq /sealing_map_def; done. }
+    { iApply sealing_map_empty. }
 
 
     set (LSE_f := (SCap RO Global
