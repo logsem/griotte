@@ -7,14 +7,14 @@ From cap_machine Require Import mkregion_helpers.
 From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
-From cap_machine Require Import compartment_layout switcher_adequacy.
 From cap_machine Require Import disjoint_regions_tactics.
 From cap_machine Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From cap_machine Require Import compartment_layout switcher_adequacy.
+From cap_machine Require Import stdpp_extra.
 
 Class memory_layout `{MP: MachineParameters} := {
 
     (* switcher *)
-    switcher_layout : @switcherLayout MP;
     switcher_cmpt : cmptSwitcher;
 
     (* assert *)
@@ -51,8 +51,27 @@ Class memory_layout `{MP: MachineParameters} := {
 
     ot_kvs : OType;
     ot_kvs_size : (ot_kvs < ot_kvs ^+ 1)%ot;
-    ot_kvs_disjoint : ot_kvs ≠ ot_switcher ;
+    ot_kvs_disjoint : ot_kvs ≠ (ot_switcher switcher_cmpt) ;
   }.
+
+Local Instance memory_layout_switcherLayout `{memory_layout} : switcherLayout.
+Proof.
+  exact (cmptSwitcher_switcherLayout switcher_cmpt).
+Defined.
+
+Local Instance memory_layout_switcherLayoutWf `{memory_layout} : switcherLayoutWf.
+Proof.
+  pose proof (ot_switcher_size switcher_cmpt).
+  pose proof (switcher_size switcher_cmpt).
+  pose proof (switcher_call_entry_point switcher_cmpt).
+  pose proof (switcher_return_entry_point switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _); cbn in *; auto.
+Defined.
+
+Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
+Proof.
+  exact (cmptAssert_assertLayout assert_cmpt).
+Defined.
 
 Definition mk_initial_memory `{memory_layout} (mem: Mem) :=
   mk_initial_switcher switcher_cmpt ∪
@@ -67,11 +86,11 @@ Definition is_initial_registers `{memory_layout} (reg: Reg) :=
   reg !! csp = Some (WCap RWL Local (b_stack switcher_cmpt) (e_stack switcher_cmpt) (b_stack switcher_cmpt)) ∧
   (∀ (r: RegName), r ∉ ({[ PC; cgp; csp ]} : gset RegName) → reg !! r = Some (WInt 0)).
 
-Program Definition is_initial_sregisters `{@memory_layout MP} (sreg : SReg) :=
+Program Definition is_initial_sregisters `{memory_layout} (sreg : SReg) :=
   sreg !! MTDC = Some (WCap RWL Local
-                         (@b_trusted_stack MP switcher_layout)
-                         (@e_trusted_stack MP switcher_layout)
-                         (@b_trusted_stack MP switcher_layout)).
+                         (b_trusted_stack switcher_cmpt)
+                         (e_trusted_stack switcher_cmpt)
+                         (b_trusted_stack switcher_cmpt)).
 
 Local Instance memory_layout_kvs_layout `{memory_layout} : kvsLayout.
 Proof.
@@ -82,10 +101,10 @@ Proof.
 Defined.
 
 Definition is_initial_memory `{@memory_layout MP} `{kvs_users} (mem: Mem) :=
-  let b_switcher := (@b_switcher MP switcher_layout) in
-  let e_switcher := (@e_switcher MP switcher_layout) in
-  let a_switcher_call := (@a_switcher_call MP switcher_layout) in
-  let ot_switcher := (@ot_switcher MP switcher_layout) in
+  let b_switcher := (b_switcher switcher_cmpt) in
+  let e_switcher := (e_switcher switcher_cmpt) in
+  let a_switcher_call := (a_switcher_call switcher_cmpt) in
+  let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
     WSentry XSRW_ Local
       b_switcher
@@ -122,6 +141,7 @@ Definition is_initial_memory `{@memory_layout MP} `{kvs_users} (mem: Mem) :=
   (* instantiating B *)
   (cmpt_imports B_cmpt) = [
       switcher_entry;
+      (* TODO add that back *)
       (* kvs_user_seal_key kvs_user_key_B ; *)
       WSealed ot_switcher (KVS_addOrUpdate Global);
       WSealed ot_switcher (KVS_read Global);
@@ -187,7 +207,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_invg: na_invG Σ}.
-  Context {sts_preg: STS_preG Addr region_type Σ}.
+  Context {sts_preg: STS_preG Addr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {heappreg: heapGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -204,6 +224,7 @@ Section Adequacy.
   Definition assertN : namespace := nroot .@ "kvs" .@ "assert_flag".
   Definition kvsN : namespace := nroot .@ "kvs" .@ "code".
 
+  Local Notation ot_switcher := (ot_switcher switcher_cmpt).
   Lemma kvs_adequacy' `{Layout: @memory_layout MP}
     (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
     (es: list cap_lang.expr):
@@ -220,17 +241,6 @@ Section Adequacy.
     specialize (WPI (Seq (Instr Executable)) (reg, sreg, m) es (reg', sreg', m')
                   (state_is_good (reg', sreg', m'))).
     eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
-
-    set b_switcher := (@b_switcher MP switcher_layout).
-    set e_switcher := (@e_switcher MP switcher_layout).
-    set a_switcher_call := (@a_switcher_call MP switcher_layout).
-    set ot_switcher := (@ot_switcher MP switcher_layout).
-    set a_switcher_return := (@a_switcher_return MP switcher_layout).
-    set b_trusted_stack := (@b_trusted_stack MP switcher_layout).
-    set e_trusted_stack := (@e_trusted_stack MP switcher_layout).
-    set switcher_size := (@switcher_size MP switcher_layout).
-    set switcher_call_entry_point := (@switcher_call_entry_point MP switcher_layout).
-    set switcher_return_entry_point := (@switcher_return_entry_point MP switcher_layout).
 
     pose proof Hm as Hm'.
     destruct Hm as (Hm
@@ -469,10 +479,9 @@ Section Adequacy.
     pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg entry_g.
     pose kvsg := KvsG Σ kvs_heapg kvs_alloc_heapg.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
-    pose switcher_layout_g := (@switcher_layout MP Layout).
 
     pose proof (
-        @kvs_main_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _  switcher_layout_g
+        @kvs_main_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _
           kvsg _ _ _ _ B
       ) as Spec.
 
@@ -555,9 +564,7 @@ Section Adequacy.
 
     rewrite /cmpt_switcher_code_mregion.
     iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher_sealing Hswitcher]".
-    { eapply cmpt_switcher_code_stack_mregion_disjoint ; eauto.
-      exact switcher_cmpt.
-    }
+    { eapply cmpt_switcher_code_stack_mregion_disjoint ; eauto. }
     iEval (rewrite /mkregion) in "Hswitcher_sealing".
     rewrite finz_seq_between_singleton.
     2: { apply switcher_call_entry_point. }
@@ -572,11 +579,10 @@ Section Adequacy.
     iAssert ( switcher_preamble.switcher_inv )
       with "[Hswitcher Hswitcher_sealing Htrusted_stack Hcstk_full Hmtdc]" as "Hswitcher".
     {
-      rewrite /switcher_preamble.switcher_inv /codefrag /region_pointsto.
-      replace (a_switcher_call ^+ length switcher_instrs)%a
-        with e_switcher.
-      2: { pose proof switcher_size as H.
-           subst a_switcher_call e_switcher.
+      rewrite /switcher_preamble.switcher_inv /codefrag /region_pointsto /=.
+      replace ((a_switcher_call switcher_cmpt) ^+ length switcher_instrs)%a
+        with (e_switcher switcher_cmpt).
+      2: { pose proof (switcher_size switcher_cmpt) as H.
            solve_addr+H.
       }
       iFrame "∗#".
@@ -589,7 +595,6 @@ Section Adequacy.
       iDestruct "Htrusted_stack" as "[Hbase_stack Htrusted_stack]".
       iFrame.
       iSplitL; last (iPureIntro ; by rewrite finz_add_0).
-      subst switcher_layout_g.
       iSplit; iPureIntro; solve_addr.
     }
     iMod (na_inv_alloc logrel.logrel_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
@@ -837,7 +842,9 @@ Section Adequacy.
       cbn in *.
       solve_addr+H1 H2 H3.
     }
+
     iMod (seal_store_update_alloc _ ( kvs_otype_propC ) with "Hseal_store_kvs") as "#Hsealed_pred_ot_kvs".
+
     iMod (na_inv_alloc logrel.logrel_nais _ Nkvs kvs_inv
            with "[Hkvs_auth Hkvs_frags Hkvs_alloc_auth Hkvs_imports Hkvs_data Hkvs_code]") as "#Hkvs".
     { iNext.
@@ -863,24 +870,25 @@ Section Adequacy.
     }
 
     (* Initialises the world for B *)
-    set (W0 := (∅, (∅, ∅))).
+    set (W0 := (∅, (∅, ∅), ∅)).
     iAssert (region W0 B) with "[HRELS_B]" as "Hr_B".
     { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
       rewrite /region_map_def. by rewrite big_sepM_empty. }
 
-    iMod (
-       alloc_compartment_interp with "[HB_imports] [HB_code] [HB_data] [Halloc_1] [$Hsts_B] [$Hr_B]"
-      ) as "(Hsts_B & Hr_B & #HB_code & #HB_data & ?)"; eauto.
-    { apply Forall_true; intros; done. }
-    { apply Forall_true; intros; done. }
-    { apply Forall_true; intros; done. }
-    { rewrite B_imports.
-      iIntros "_".
-      iSplit; first (iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done).
+    iDestruct sealing_map_empty as "-#Hseals_B".
+    set ( adversary_imports :=
+            ({[ WSealable kvs_addOrUpdate ; WSealable kvs_addOrUpdate']}
+              ∪
+            {[ WSealable kvs_read ; WSealable kvs_read']}
+              ∪
+            {[ WSealable kvs_erase ; WSealable kvs_erase']} : gset Word)
+        ).
 
-      rewrite /interpC /safeC.
+    set (W1 := <o[ ot_switcher := adversary_imports]o> W0).
 
+    iAssert (ot_switcher_prop W1 B (WSealable kvs_addOrUpdate)) as "#ot_switcher_kvs_addOrUpdate".
+    {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       pose proof (cmpt_exp_tbl_cgp_size kvs_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H2.
@@ -888,50 +896,180 @@ Section Adequacy.
         with ((cmpt_exp_tbl_pcc kvs_cmpt) ^+ 2)%a by solve_addr+H0 H1.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ 1)%a by solve_addr+H0.
+      iApply kvs_addOrUpdate_entry_point_spec; try iFrame "#"; eauto.
+    }
 
-      (* KVS.addOrUpdate*)
-      iApply big_sepL_cons; iSplitL.
-      { cbn.
-        iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
-        rewrite fixpoint_interp1_eq /interp1 //= /interp_sb.
-        iExists _; iFrame "Hsealed_pred_ot_switcher".
-        iSplit; [iPureIntro; apply persistent_cond_ot_switcher |].
-        iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
-        iSplit; iNext ; iApply kvs_addOrUpdate_entry_point_spec; try iFrame "#"; eauto.
-      }
-      (* KVS.read*)
-      iApply big_sepL_cons; iSplitL.
-      { cbn.
-        iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
-        rewrite fixpoint_interp1_eq /interp1 //= /interp_sb.
-        iExists _; iFrame "Hsealed_pred_ot_switcher".
-        iSplit; [iPureIntro; apply persistent_cond_ot_switcher |].
-        iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
-        iSplit; iNext ; iApply kvs_read_entry_point_spec; try iFrame "#"; eauto.
-      }
-      (* KVS.erase*)
-      iApply big_sepL_cons; iSplitL.
-      { cbn.
-        iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
-        rewrite fixpoint_interp1_eq /interp1 //= /interp_sb.
-        iExists _; iFrame "Hsealed_pred_ot_switcher".
-        iSplit; [iPureIntro; apply persistent_cond_ot_switcher |].
-        iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
-        iSplit; iNext ; iApply kvs_erase_entry_point_spec; try iFrame "#"; eauto.
-      }
+    iAssert (ot_switcher_prop W1 B (WSealable kvs_read)) as "#ot_switcher_kvs_read".
+    {
+      pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
+      pose proof (cmpt_exp_tbl_cgp_size kvs_cmpt) as H1.
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H2.
+      replace (cmpt_exp_tbl_entries_start kvs_cmpt)
+        with ((cmpt_exp_tbl_pcc kvs_cmpt) ^+ 2)%a by solve_addr+H0 H1.
+      replace (cmpt_exp_tbl_cgp kvs_cmpt)
+        with (cmpt_exp_tbl_pcc kvs_cmpt ^+ 1)%a by solve_addr+H0.
+      iApply kvs_read_entry_point_spec; try iFrame "#"; eauto.
+    }
+
+    iAssert (ot_switcher_prop W1 B (WSealable kvs_erase)) as "#ot_switcher_kvs_erase".
+    {
+      pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
+      pose proof (cmpt_exp_tbl_cgp_size kvs_cmpt) as H1.
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H2.
+      replace (cmpt_exp_tbl_entries_start kvs_cmpt)
+        with ((cmpt_exp_tbl_pcc kvs_cmpt) ^+ 2)%a by solve_addr+H0 H1.
+      replace (cmpt_exp_tbl_cgp kvs_cmpt)
+        with (cmpt_exp_tbl_pcc kvs_cmpt ^+ 1)%a by solve_addr+H0.
+      iApply kvs_erase_entry_point_spec; try iFrame "#"; eauto.
+    }
+
+
+    assert (ot_switcher ∉ dom (seal_std W0)) as Hot_notin_W0.
+    { by subst W0. }
+    iMod
+      (sealing_map_alloc W0 B ot_switcher_propC ot_switcher adversary_imports
+        with "[$Hsealed_pred_ot_switcher] [ ] [ ] [$Hseals_B $Hsts_B]")
+      as "(Hseals_B & Hsts_B & Hseal_kvs_f)"; first done.
+    { iIntros (w); iApply mono_priv_ot_switcher. }
+    { rewrite {2}/adversary_imports.
+      rewrite 2!normalise_sealed_words_union.
+      rewrite !normalise_sealed_words_borrow.
+      iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_kvs_erase").
+      iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_kvs_read").
+      rewrite big_sepS_singleton; iFrame "ot_switcher_kvs_addOrUpdate".
+    }
+    subst W1; set (W1 := <o[ ot_switcher := adversary_imports]o> W0).
+
+    iAssert ( interp W1 B (WSealed ot_switcher kvs_addOrUpdate)) as "#Hinterp_kvs_addOrUpdate".
+    { iEval (rewrite fixpoint_interp1_eq); iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+. }
+    iAssert ( interp W1 B (WSealed ot_switcher kvs_read)) as "#Hinterp_kvs_read".
+    { iEval (rewrite fixpoint_interp1_eq); iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+. }
+    iAssert ( interp W1 B (WSealed ot_switcher kvs_erase)) as "#Hinterp_kvs_erase".
+    { iEval (rewrite fixpoint_interp1_eq); iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+. }
+
+    iDestruct (region_monotone _ _ W1 with "Hr_B") as "Hr_B"; [|eauto|].
+    { subst W1; by cbn. }
+    { subst W1; apply related_sts_pub_world_update_ot. }
+
+
+    assert ( (exported_entries_sealable B_cmpt) ≡ₚ [B_f; B_f']) as Hexported_entries_sealable.
+    { rewrite /exported_entries_sealable /B_f /B_f'.
+      pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1; rewrite B_exp_tbl /= in H1.
+      rewrite finz_seq_between_singleton; last solve_addr+H1.
       done.
     }
-
-    assert (
-        Forall
-          (λ k : finz MemNum, (std_update_compartment (∅, (∅, ∅)) B_cmpt).1 !! k = None)
-          (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
-      ) as Hstack_disjoint.
-    { apply Forall_forall; intros a Ha; cbn.
-      pose proof switcher_cmpt_disjoints as (_ & _ & HB).
-      eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
+    assert ( (exported_entries_words B_cmpt) = {[WSealable B_f ; borrow (WSealable B_f) ]}) as Hexported_entries_words.
+    { rewrite /exported_entries_words Hexported_entries_sealable.
+      cbn; subst B_f' ; set_solver+.
+    }
+    assert ( (exported_entries_sealed B_cmpt) = {[WSealed ot_switcher B_f ; WSealed ot_switcher B_f']}) as Hexported_entries_sealed.
+    { rewrite /exported_entries_sealed Hexported_entries_sealable.
+      cbn; subst B_f' ; set_solver+.
     }
 
+    iMod (
+       alloc_compartment_interp with "[HB_imports] [HB_code] [HB_data] [Halloc_1] [$Hsts_B] [$Hr_B] [$Hseals_B]"
+      ) as "(Hsts_B & Hr_B & Hseals_B & #HB_code & #HB_data & _ & #HB_exports)"; eauto.
+    { apply Forall_true; intros; done. }
+    { apply Forall_true; intros; done. }
+    { apply Forall_true; intros; done. }
+    { rewrite B_imports.
+
+      iIntros "(#HB_code & #HB_data & Hsts_B & Hseals_B)".
+      match goal with
+      | H: _ |- context [  (sts_full_world ?W B) ] => set (Wpre := W)
+      end.
+      set ( Winter := (std_update_compartment W1 B_cmpt) ).
+
+      iAssert (ot_switcher_prop Winter B (WSealable B_f)) as "#ot_switcher_B_f".
+      {
+        iApply (ot_switcher_interp _ _ _ _ _ 0 offset_adv_f); eauto; last lia.
+        pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
+        pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H2.
+        rewrite B_exp_tbl in H2.
+        solve_addr+H1 H2.
+      }
+
+      assert ( Winter = <o[ot_switcher:=exported_entries_words B_cmpt]o>Wpre ) as HWinter.
+      { rewrite /Winter /Wpre /std_update_compartment Hexported_entries_words; done. }
+
+      iMod
+        (sealing_map_update' Wpre B ot_switcher_propC ot_switcher (exported_entries_words B_cmpt)
+          with "[$Hsealed_pred_ot_switcher] [ ] [ ] [$Hseals_B $Hsts_B]")
+        as "(Hseals_B & Hsts_B & #Hseal_switcher)".
+      { iIntros (w); iApply mono_priv_ot_switcher. }
+      { rewrite -HWinter Hexported_entries_words.
+        rewrite normalise_sealed_words_borrow.
+        rewrite big_sepS_singleton; iFrame "ot_switcher_B_f".
+      }
+      rewrite -HWinter.
+      iFrame.
+      iModIntro.
+      rewrite Hexported_entries_sealed Hexported_entries_words.
+      iAssert (interp Winter B (WSealed switcher.ot_switcher B_f)) as "#Hinterp_B_f".
+      { iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+        iApply (sts_seals_std_weaken with "Hseal_switcher"); set_solver+.
+      }
+
+      iSplitR "Hseal_switcher".
+      (* Interp of imports *)
+      - (* Switcher cross-compartment *)
+        iApply big_sepL_cons; iSplitL.
+        { iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done. }
+
+        (* KVS.addOrUpdate *)
+        iApply big_sepL_cons; iSplitL.
+        { iSplit.
+          * iApply (interp_monotone_sd W1 Winter); auto.
+            iPureIntro.
+            apply related_sts_pub_priv_world.
+            subst Winter.
+            eapply std_update_compartment_pub; eauto ; apply Forall_true; intros; done.
+          * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
+        }
+        (* KVS.read *)
+        iApply big_sepL_cons; iSplitL.
+        { iSplit.
+          * iApply (interp_monotone_sd W1 Winter); auto.
+            iPureIntro.
+            apply related_sts_pub_priv_world.
+            subst Winter.
+            eapply std_update_compartment_pub; eauto ; apply Forall_true; intros; done.
+          * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
+        }
+        (* KVS.erase *)
+        iApply big_sepL_cons; iSplitL.
+        { iSplit.
+          * iApply (interp_monotone_sd W1 Winter); auto.
+            iPureIntro.
+            apply related_sts_pub_priv_world.
+            subst Winter.
+            eapply std_update_compartment_pub; eauto ; apply Forall_true; intros; done.
+          * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
+        }
+        done.
+
+      (* Interp of exports *)
+      - iEval (rewrite union_comm_L)
+        ; iApply big_sepS_insert_2
+        ; first (iEval (rewrite fixpoint_interp1_eq /= /interp_sb)
+              ; iApply (sts_seals_std_weaken with "Hseal_switcher"); set_solver+).
+        iApply big_sepS_singleton
+        ; iEval (rewrite fixpoint_interp1_eq /= /interp_sb)
+        ; iApply (sts_seals_std_weaken with "Hseal_switcher"); set_solver+.
+    }
+
+    match goal with
+    | H: _ |- context [  (sts_full_world ?W B) ] => set (W2 := W)
+    end.
+
+    assert (Forall (fun a => a ∉ dom (std W2))
+              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))) as Hswitcher_W4.
+    { apply Forall_forall; intros a Ha; cbn.
+      pose proof switcher_cmpt_disjoints as (_ & _ & HB).
+      rewrite not_elem_of_dom.
+      unshelve eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
+    }
     iMod ( extend_region_temp_sepL2 _ _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
              (stack_content switcher_cmpt)
@@ -939,9 +1077,11 @@ Section Adequacy.
            with "Hsts_B Hr_B [Hstack]")
            as "(Hr_B & #Hrel_stk_B & Hsts_B)".
     { done. }
-    { eapply Hstack_disjoint. }
-    {
-      iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
+    { eapply Forall_impl; eauto.
+      intros a Ha.
+      by rewrite -not_elem_of_dom.
+    }
+    { iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
                                  pointsto k (DfracOwn (pos_to_Qp 1)) v)) with "Hstack").
       intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
       pose proof (Forall_lookup_1 _ _ _ _ Hstack Hv2) as Hncap.
@@ -954,31 +1094,25 @@ Section Adequacy.
     match goal with
     | H: _ |- context [  (sts_full_world ?W B) ] => set (Winit_B := W)
     end.
+    assert (related_sts_priv_world W2 Winit_B) as Hrelated_pub_W2_Winit_B.
+    { apply related_sts_pub_priv_world.
+      apply related_sts_pub_update_multiple; auto.
+    }
+
+    iDestruct (sealing_map_monotone _ _ Winit_B with "Hseals_B") as "Hseals_B"; auto.
+    { by rewrite std_update_multiple_seals. }
 
     iAssert (interp Winit_B B
                (WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)%a)
             )%I as "#Hinterp_pcc_B".
-    { iApply interp_monotone_nl; eauto.
-      iPureIntro.
-      rewrite /Winit_B.
-      apply related_sts_pub_priv_world.
-      eapply related_sts_pub_update_multiple.
-      eapply Forall_impl; eauto.
-      intros a Ha; cbn in *.
-      by rewrite not_elem_of_dom.
-    }
+    { iApply interp_monotone_nl; eauto. }
+
     iAssert (interp Winit_B B
                (WCap RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)%a)
             )%I as "#Hinterp_cgp_B".
-    { iApply interp_monotone_nl; eauto.
-      iPureIntro.
-      rewrite /Winit_B.
-      apply related_sts_pub_priv_world.
-      eapply related_sts_pub_update_multiple.
-      eapply Forall_impl; eauto.
-      intros a Ha; cbn in *.
-      by rewrite not_elem_of_dom.
-    }
+    { iApply interp_monotone_nl; eauto. }
+
+
     iAssert (interp Winit_B B
                (WCap RWL Local (b_stack switcher_cmpt) (e_stack switcher_cmpt) (b_stack switcher_cmpt))
             )%I as "#Hinterp_stack_B".
@@ -1004,14 +1138,14 @@ Section Adequacy.
       iApply (monoReq_interp _ _ _ _ Temporary); done.
     }
 
-    iAssert ( interp Winit_B B (WSealed ot_switcher B_f)) with
-      "[HB_code Hr_B HB_data Hsts_B Hentry_Bf']" as "#Hinterp_B".
-    {iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_f); eauto; last lia.
-      pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
-      pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H2.
-      rewrite B_exp_tbl in H2.
-      solve_addr+H1 H2.
+    iAssert ( interp Winit_B B (WSealed ot_switcher B_f) )%I as "Hinterp_B_f".
+    {
+      rewrite Hexported_entries_sealed.
+      iDestruct (big_sepS_elem_of_acc _ _ (WSealed ot_switcher B_f) with "HB_exports") as "[Hinterp_B_f _]"
+      ; first set_solver+.
+      iApply interp_monotone_sd; eauto.
     }
+
     iClear "HB_etbl_pcc HB_etbl_cgp HB_etbl_B_f HB_code HB_data Hinterp_pcc_B Hinterp_cgp_B".
 
     (* Extract registers *)
@@ -1034,8 +1168,8 @@ Section Adequacy.
                         $Hna $HPC $Hcgp $Hcsp $Hreg
                         $Hmain_imports $Hmain_code $Hmain_data
                         $Halloc_0
-                        $Hr_B $Hsts_B $Hcstk_frag
-                        $Hinterp_B $Hentry_Bf $Hinterp_stack_B
+                        $Hr_B $Hsts_B $Hseals_B $Hcstk_frag
+                        $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto.
     { solve_ndisj. }
     { rewrite Hkvs_users_seals_reserved; set_solver+. }
@@ -1144,8 +1278,8 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type ; heapPreΣ
-              ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * CmptName * Word)
+              ; STS_preΣ Addr region_type OType Word ; heapPreΣ
+              ; savedPredΣ (WorldT * CmptName * Word)
               ;  gen_heapΣ nat kvs_entry ; gen_heapΣ Z (gset Z)
       ]).
   eapply (@kvs_adequacy' Σ cnames B); eauto; try typeclasses eauto.
