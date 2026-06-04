@@ -670,8 +670,10 @@ Section Switcher.
     iInstr "Hcode";[done|..].
     { rewrite /withinBounds. solve_addr. }
     rewrite /safeC.
-    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & #Hentry'_borrow & Hexec)". simpl fst. simpl snd.
-    inversion Heq.
+    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & #Hentry'_borrow & Hexec)".
+    simpl fst; simpl snd.
+    destruct w_entry_point; cbn in Heq; simplify_eq.
+    iEval (cbn) in "Hentry'"; iEval (cbn) in "Hentry'_borrow".
 
     (* --- Load cs0 ct1 --- *)
     wp_instr.
@@ -763,9 +765,9 @@ Section Switcher.
     iSplitL "Hargs".
     { destruct is_entry_point_known.
       + iDestruct "Hargs" as "(%nargs0 & Hentry & Hargs)".
-        iEval (cbn) in "Hentry'".
-        iDestruct (entry_agree _ nargs nargs0 with "Hentry' Hentry") as "<-".
-        iFrame.
+        destruct g.
+        * iDestruct (entry_agree _ nargs nargs0 with "Hentry' Hentry") as "<-"; iFrame.
+        * iDestruct (entry_agree _ nargs nargs0 with "Hentry'_borrow Hentry") as "<-"; iFrame.
       + iApply (big_sepM_impl with "Hargs").
         iIntros "!> %k %w' _ [$ Hinterp]".
         destruct ( decide (k ∈ dom_arg_rmap nargs) ) ; auto.

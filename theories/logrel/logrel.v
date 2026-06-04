@@ -548,6 +548,34 @@ Section logrel.
               end)%I.
   Solve All Obligations with auto;solve_proper.
 
+  (* NOTE : Using [force_global] is a bit like a hack,
+     waiting for an actual normalisation function for [sealing_map].
+
+     Having both [w] and [borrow w] in [sts_seals_std]
+     forces to have both P(w) and P(borrow w),
+     where P is the sealing predicate associated with [o].
+     The problem is that P is not Persistent in general,
+     and therefore, having both P(w) ∗ P(borrow w)
+     might not be possible.
+   *)
+  Definition unseal_cond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word), P W C (force_global w) -∗ interp W C w).
+  Global Instance unseal_cond_ne n :
+    Proper ((=) ==> (=) ==> dist n ==> dist n) unseal_cond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance unseal_contractive (P : V) (C : CmptName) (p : Perm) :
+    Contractive (λ interp, ▷ unseal_cond P C interp)%I.
+  Proof. solve_contractive. Qed.
+
+  Definition seal_cond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : Word), interp W C w -∗ P W C (force_global w)).
+  Global Instance seal_cond_ne n :
+    Proper ((=) ==> (=) ==> dist n ==> dist n) seal_cond.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Global Instance seal_contractive (P : V) (C : CmptName) (p : Perm) :
+    Contractive (λ interp, ▷ seal_cond P C interp)%I.
+  Proof. solve_contractive. Qed.
+
   (* (un)seal permission definitions *)
   (* Note the asymmetry: to seal values, we need to know that we are using a persistent predicate to create a value, whereas we do not need this information when unsealing values (it is provided by the `interp_sb` case). *)
   Definition safe_to_seal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
@@ -555,13 +583,13 @@ Section logrel.
        ∃ P : V, ⌜persistent_cond P⌝
                 ∗ (seal_pred a (safeC P))
                 ∗ ⌜ a ∈ dom (seal_std W) ⌝
-                ∗ ▷ wcond P C interp)%I.
+                ∗ ▷ seal_cond P C interp)%I.
   Definition safe_to_unseal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
        ∃ P : V, ⌜persistent_cond P⌝
                 ∗ (seal_pred a (safeC P))
                 ∗ ⌜ a ∈ dom (seal_std W) ⌝
-                ∗ ▷ rcond P C RO interp)%I.
+                ∗ ▷ unseal_cond P C interp)%I.
 
   Program Definition interp_sr (interp : V) : V :=
     λne W C w, (match w with

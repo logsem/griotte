@@ -26,26 +26,53 @@ Section fundamental.
   Implicit Types interp : (D).
 
   (* Proving the meaning of sealing in the LR sane *)
-  (* Lemma sealing_preserves_interp W C sb p0 g0 b0 e0 a0 wso: *)
-  (*       permit_seal p0 = true → *)
-  (*       withinBounds b0 e0 a0 = true → *)
-  (*       sts_seals_std C a0 wso -∗ *)
-  (*       interp W C (WSealable sb) -∗ *)
-  (*       interp W C (borrow (WSealable sb)) -∗ *)
-  (*       interp W C (WSealRange p0 g0 b0 e0 a0) -∗ *)
-  (*       interp W C (WSealed a0 sb). *)
-  (* Proof. *)
-  (*   iIntros (Hpseal Hwb) "#Hws #HVsb #HVsb_borrowed #HVsr". *)
-  (*   rewrite *)
-  (*     (fixpoint_interp1_eq W C (WSealRange _ _ _ _ _)) *)
-  (*     (fixpoint_interp1_eq W C (WSealed _ _)) /= Hpseal /interp_sb. *)
-  (*   iDestruct "HVsr" as "[Hss _]". *)
-  (*   apply seq_between_dist_Some in Hwb. *)
-  (*   iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto. *)
-  (*   iDestruct "HSa0" as (P) "(% & HsealP & HWcond)". *)
-  (*   iExists P. *)
-  (*   repeat iSplitR; auto; by iApply "HWcond". *)
-  (* Qed. *)
+  Lemma sealing_preserves_interp W C sb p g b e a :
+    permit_seal p = true ->
+    withinBounds b e a = true ->
+    interp W C (WSealable sb) -∗
+    interp W C (WSealRange p g b e a) -∗
+    sts_full_world W C -∗
+    sealing_map W C -∗
+    region W C
+    ==∗
+    ∃ W', ⌜ related_sts_pub_world W W' ⌝ ∗
+          sts_full_world W' C ∗
+          sealing_map W' C ∗
+          region W' C ∗
+          interp W' C (WSealed a sb).
+  Proof.
+    iIntros (Hseal Hwb) "#HVsb #HVsr Hsts Hseals Hr".
+    rewrite (fixpoint_interp1_eq W C (WSealRange _ _ _ _ _)).
+    iDestruct "HVsr" as "[Hss _]"; rewrite Hseal.
+    apply seq_between_dist_Some in Hwb.
+    iDestruct (big_sepL_elem_of_acc with "Hss") as "[HSa0 _]"; eauto.
+    { rewrite list_elem_of_lookup; eauto. }
+    iDestruct "HSa0" as "(%Po & %HPo_pers & Hsealpred & %Ha0_in_Wseals & #Hwcond_Po)".
+    rewrite elem_of_dom in Ha0_in_Wseals; destruct Ha0_in_Wseals as [ws Hws].
+    set (new_seals_words := ({[WSealable sb; borrow (WSealable sb)]} : gset Word)).
+    set ( W' := <o[ a := ( new_seals_words ∪ ws) ]o> W ).
+    assert (related_sts_pub_world W W') as Hrelated.
+    { by apply related_sts_pub_world_update_ot. }
+    iAssert ([∗ set] w0 ∈ normalise_sealed_words new_seals_words, ▷ (safeC Po) (W', C, w0))%I as "Hws".
+    {
+      subst new_seals_words.
+      rewrite normalise_sealed_words_union !normalise_sealed_words_singleton; cbn.
+      rewrite force_global_borrow_sb.
+      replace ( {[WSealable (force_global_sb sb); WSealable (force_global_sb sb)]} ) with
+        ({[WSealable (force_global_sb sb)]} : gset Word) by set_solver+.
+      rewrite big_sepS_singleton -/(force_global (WSealable sb)).
+      iNext; iApply "Hwcond_Po".
+      iApply (monotone.interp_monotone with "[%] [$HVsb]"); eauto.
+    }
+    iMod (sealing_map_update with "[$Hsealpred] [$Hws] [$Hseals $Hsts]") as "(Hseals & Hsts & #Hstd_seals)"; eauto.
+    iDestruct (region_monotone _ _ W' with "Hr") as "Hr"; auto.
+    subst W'.
+    iModIntro.
+    iExists _; iFrame "∗%".
+    iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+    iApply sts_seals_std_weaken; last iFrame "#".
+    set_solver+.
+  Qed.
 
   Lemma seal_case (W : WORLD)(C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
@@ -97,39 +124,8 @@ Section fundamental.
 
       (* TODO can I extract a lemma from here? *)
       unshelve iDestruct ("Hreg" $! r1 _ _ Hr1) as "HVsr"; eauto.
-      rewrite (fixpoint_interp1_eq W C (WSealRange _ _ _ _ _)).
-      iDestruct "HVsr" as "[Hss _]"; rewrite Hseal.
-      apply seq_between_dist_Some in Hwb.
-      iDestruct (big_sepL_elem_of_acc with "Hss") as "[HSa0 _]"; eauto.
-      { rewrite list_elem_of_lookup; eauto. }
-      iDestruct "HSa0" as "(%Po & %HPo_pers & Hsealpred & %Ha0_in_Wseals & #Hwcond_Po)".
-      rewrite elem_of_dom in Ha0_in_Wseals; destruct Ha0_in_Wseals as [ws Hws].
-      set ( W' := <o[ a0 := ({[WSealable sb; borrow (WSealable sb)]} ∪ ws) ]o> W ).
-      assert (related_sts_pub_world W W') as Hrelated.
-      { by apply related_sts_pub_world_update_ot. }
-      iAssert ([∗ set] w0 ∈ {[WSealable sb; borrow (WSealable sb)]}, ▷ (safeC Po) (W', C, w0))%I as "Hws".
-      {
-        iAssert (▷ (Po W' C (WSealable sb)))%I as "HPo_sb".
-        { iNext; iApply "Hwcond_Po".
-          iApply (monotone.interp_monotone with "[%] [$HVsb]"); eauto.
-        }
-        iAssert (▷ (Po W' C (WSealable (borrow_sb sb))))%I as "HPo_sb_borrowed".
-        { iNext; iApply "Hwcond_Po".
-          iApply (monotone.interp_monotone with "[%] [$HVsb_borrowed]"); eauto.
-        }
-
-        destruct (decide (WSealable sb = borrow (WSealable sb))) as [Heq_sb|Heq_sb].
-        - rewrite -Heq_sb.
-          replace {[WSealable sb; WSealable sb]} with ({[WSealable sb]} : gset Word) by set_solver+.
-          rewrite big_sepS_singleton.
-          by rewrite /safeC /=.
-        - rewrite big_sepS_insert; last set_solver.
-          rewrite big_sepS_singleton.
-          rewrite /safeC /=.
-          iSplitL; done.
-      }
-      iMod (sealing_map_update with "[$Hsealpred] [$Hws] [$Hseals $Hsts]") as "(Hseals & Hsts & #Hstd_seals)"; eauto.
-      iDestruct (region_monotone _ _ W' with "Hr") as "Hr"; auto.
+      iMod (sealing_preserves_interp with "HVsb HVsr Hsts Hseals Hr") as
+        "(%W' & %Hrelated & Hsts & Hseals & Hr & #HVsb')"; auto.
       eapply frame_match_mono in Hframe; eauto.
       iApply ("IH" $! _ _ _ _ _ (<[dst := _]> (<[PC := _]> regs))
                with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hseals] [$Hcont] [//] [$Hown] [$Htframe]")
@@ -138,10 +134,8 @@ Section fundamental.
       + iIntros (ri wi Hri Hregs_ri).
         destruct (decide (ri = dst)); simplify_map_eq.
         {
-          destruct (decide (dst = cnull)) ; first iApply interp_int.
-          iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
-          iApply sts_seals_std_weaken; last iFrame "#".
-          set_solver+.
+          destruct (decide (dst = cnull)) ; last done.
+          iApply interp_int.
         }
         {
           iApply (monotone.interp_monotone with "[] []"); eauto.

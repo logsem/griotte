@@ -628,10 +628,6 @@ Section Adequacy.
       + solve_addr+H0 H1 H2.
       + solve_addr+H3 H4.
     }
-    iAssert (ot_switcher_prop W0' C (WSealable SO_f')) as "#ot_switcher_SO_f_borrow".
-    { replace (WSealable SO_f') with (borrow (WSealable SO_f)) by (subst SO_f SO_f'; done).
-      by iApply ot_switcher_prop_borrow.
-    }
 
     assert (ot_switcher ∉ dom (seal_std W0)) as Hot_notin_W0.
     { by subst W0. }
@@ -641,14 +637,8 @@ Section Adequacy.
       as "(Hseals_C & Hsts_C & Hseal_SO_f)"; first done.
     { iIntros (w); iApply mono_priv_ot_switcher. }
     { subst W0'.
-      destruct (decide (WSealable SO_f = WSealable SO_f')) as [Heq_sb|Heq_sb].
-        - rewrite -Heq_sb.
-          replace {[WSealable SO_f; WSealable SO_f]} with ({[WSealable SO_f]} : gset Word) by set_solver+.
-          rewrite big_sepS_singleton.
-          done.
-        - rewrite big_sepS_insert; last set_solver+.
-          rewrite big_sepS_singleton.
-          iSplitL; done.
+      rewrite normalise_sealed_words_borrow.
+      rewrite big_sepS_singleton; iFrame "ot_switcher_SO_f".
     }
     subst W0'; set (W0' := <o[ ot_switcher := {[ WSealable SO_f; WSealable SO_f' ]}]o> W0).
 
@@ -666,11 +656,8 @@ Section Adequacy.
       done.
     }
     assert ( (exported_entries_words C_cmpt) =
-             {[WSealable C_f
-               ; borrow (WSealable C_f)
-               ; WSealable C_g
-               ; borrow (WSealable C_g)
-           ]}
+             {[WSealable C_f ; borrow (WSealable C_f) ]}
+               ∪ {[ WSealable C_g ; borrow (WSealable C_g)]}
            ) as Hexported_entries_words.
     { rewrite /exported_entries_words Hexported_entries_sealable.
       cbn; subst C_f' C_g'; set_solver+.
@@ -709,7 +696,6 @@ Section Adequacy.
         rewrite C_exp_tbl in H2.
         solve_addr+H1 H2.
       }
-      iDestruct (ot_switcher_prop_borrow with "ot_switcher_C_f") as "ot_switcher_C_f'".
       iAssert (ot_switcher_prop Winter C (WSealable C_g)) as "#ot_switcher_C_g".
       {
         iApply (ot_switcher_interp _ _ _ _ _ 0 offset_adv_g); eauto; last lia.
@@ -718,7 +704,6 @@ Section Adequacy.
         rewrite C_exp_tbl in H2.
         solve_addr+H1 H2.
       }
-      iDestruct (ot_switcher_prop_borrow with "ot_switcher_C_g") as "ot_switcher_C_g'".
 
       assert ( Winter = <o[ot_switcher:=exported_entries_words C_cmpt]o>Wpre ) as HWinter.
       { rewrite /Winter /Wpre /std_update_compartment Hexported_entries_words; done. }
@@ -729,10 +714,8 @@ Section Adequacy.
         as "(Hseals_C & Hsts_C & #Hseal_switcher)".
       { iIntros (w); iApply mono_priv_ot_switcher. }
       { rewrite -HWinter Hexported_entries_words.
-        rewrite -big_sepS_later; iNext.
-        iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_C_g'").
+        rewrite normalise_sealed_words_union !normalise_sealed_words_borrow.
         iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_C_g").
-        iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_C_f'").
         iApply big_sepS_singleton; iFrame "ot_switcher_C_f".
       }
       rewrite -HWinter.

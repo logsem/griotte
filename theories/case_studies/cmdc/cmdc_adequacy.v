@@ -507,7 +507,6 @@ Section Adequacy.
         rewrite B_exp_tbl in H2.
         solve_addr+H1 H2.
       }
-      iDestruct (ot_switcher_prop_borrow with "ot_switcher_B_f") as "ot_switcher_B_f'".
       assert ( Winter = <o[ot_switcher:=exported_entries_words B_cmpt]o>Wpre ) as HWinter.
       { rewrite /Winter /Wpre /std_update_compartment Hexported_entries_words; done. }
 
@@ -517,9 +516,8 @@ Section Adequacy.
         as "(Hseals_B & Hsts_B & #Hseal_switcher)".
       { iIntros (w); iApply mono_priv_ot_switcher. }
       { rewrite -HWinter Hexported_entries_words.
-        rewrite -big_sepS_later; iNext.
-        iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_B_f'").
-        iApply big_sepS_singleton; iFrame "ot_switcher_B_f".
+        rewrite normalise_sealed_words_borrow.
+        rewrite big_sepS_singleton; iFrame "ot_switcher_B_f".
       }
       rewrite -HWinter.
       iFrame.
@@ -701,7 +699,6 @@ Section Adequacy.
         rewrite C_exp_tbl in H2.
         solve_addr+H1 H2.
       }
-      iDestruct (ot_switcher_prop_borrow with "ot_switcher_C_g") as "ot_switcher_C_g'".
       assert ( Winter = <o[ot_switcher:=exported_entries_words C_cmpt]o>Wpre ) as HWinter.
       { rewrite /Winter /Wpre /std_update_compartment Hexported_entries_words; done. }
 
@@ -711,9 +708,8 @@ Section Adequacy.
         as "(Hseals_C & Hsts_C & #Hseal_switcher)".
       { iIntros (w); iApply mono_priv_ot_switcher. }
       { rewrite -HWinter Hexported_entries_words.
-        rewrite -big_sepS_later; iNext.
-        iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_C_g'").
-        iApply big_sepS_singleton; iFrame "ot_switcher_C_g".
+        rewrite normalise_sealed_words_borrow.
+        rewrite big_sepS_singleton; iFrame "ot_switcher_C_g".
       }
       rewrite -HWinter.
       iFrame.
