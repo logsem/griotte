@@ -1054,7 +1054,7 @@ Section KVS_preamble.
     (W : WORLD) (C : CmptName) (w : Word) : iProp Σ :=
     ∃ (ku : Z) (a : Addr) (s : gset Z),
       (* Shape of the capability*)
-      ⌜ w = WSealable (kvs_user_seal_key_scap a) ⌝ ∗
+      ⌜ w = WSealable (kvs_user_seal_key_scap Global a) ⌝ ∗
       (* Current address is the user key of the compartment *)
       ⌜ kvs_users_seals !! C = Some ku ⌝ ∗
       ⌜ (finz.of_z ku) = Some a ⌝ ∗

@@ -22,7 +22,7 @@ Section KVS_spec_read.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret : Word)
-    (user_key nkey : Z)
+    (user_key nkey : Z) (l_user_key : Locality)
     (m : kvs_map) (s : kvs_alloc)
     (w : Word)
     :
@@ -40,7 +40,7 @@ Section KVS_spec_read.
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key user_key ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -146,7 +146,8 @@ Section KVS_spec_read.
 
   Lemma KVS_read_spec_in
     (wret wca2 : Word)
-    (user_key nkey : Z) (w : Word)
+    (user_key nkey : Z) (l_user_key : Locality)
+    (w : Word)
     (E : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
@@ -163,7 +164,7 @@ Section KVS_spec_read.
       PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key user_key ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)

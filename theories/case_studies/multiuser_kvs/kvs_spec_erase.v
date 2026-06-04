@@ -25,7 +25,7 @@ Section KVS_spec_erase.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret : Word)
-    (user_key nkey : Z)
+    (user_key nkey : Z) (l_user_key : Locality)
     (idx : nat)
     (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
     :
@@ -44,7 +44,7 @@ Section KVS_spec_erase.
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key user_key ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to erase *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
@@ -174,7 +174,7 @@ Section KVS_spec_erase.
 
   Lemma KVS_erase_spec
     (wret : Word)
-    (user_key nkey : Z)
+    (user_key nkey : Z) (l_user_key : Locality)
     (s' : gset Z)
     (E : coPset)
     :
@@ -193,7 +193,7 @@ Section KVS_spec_erase.
       PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
       cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key user_key ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to erase *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
