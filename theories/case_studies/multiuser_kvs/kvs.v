@@ -444,11 +444,11 @@ Section KVS_Service.
 
   Definition kvs_full_key (user_key nkey : Z) := Z.lor (user_key ≪ 16) nkey.
 
-  Definition kvs_user_seal_key_scap {KVS : kvsLayout} (z : Z) :=
-    (SCap (O LG LM) Global 0%a 0%a (0 ^+ z)%a).
+  Definition kvs_user_seal_key_scap {KVS : kvsLayout} (g : Locality) (z : Z) :=
+    (SCap (O LG LM) g 0%a 0%a (0 ^+ z)%a).
 
-  Definition kvs_user_seal_key {KVS : kvsLayout} (z : Z) :=
-    WSealed KVS_OTYPE (kvs_user_seal_key_scap z).
+  Definition kvs_user_seal_key {KVS : kvsLayout} (g : Locality) (z : Z) :=
+    WSealed KVS_OTYPE (kvs_user_seal_key_scap g z).
 
 
 

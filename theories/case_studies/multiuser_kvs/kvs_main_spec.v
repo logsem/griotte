@@ -19,7 +19,7 @@ Section KVS_main_spec.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {kvsg:kvsG Σ} {KVS_layout : kvsLayout} {KVS_layout_Wf : kvsLayoutWf}
     {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
   .
@@ -87,7 +87,7 @@ Section KVS_main_spec.
       [[ cgp_b , cgp_e ]] ↦ₐ [[ (kvs_main_data KVS_USER_KEY_MAIN) ]] ∗
 
       ◯(ALLOC)[KVS_USER_KEY_MAIN] ∅ ∗
-      region W0 B ∗ sts_full_world W0 B ∗
+      region W0 B ∗ sts_full_world W0 B ∗ sealing_map W0 B ∗
 
       interp_continuation cstk Ws Cs ∗
       cstack_frag cstk ∗
@@ -115,7 +115,7 @@ Section KVS_main_spec.
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Halloc
-      & Hr_B & Hsts_B
+      & Hr_B & Hsts_B & Hseals_B
       & HK & Hcstk_frag
       & #Hinterp_W0_B_f
       & #HentryB_f
@@ -153,7 +153,7 @@ Section KVS_main_spec.
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_B $Hr_B]")
         as (l) "(%Hl_unk & Hsts_B & Hr_B & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
@@ -218,7 +218,7 @@ Section KVS_main_spec.
 
     (* Use switcher call KtK *)
     set ( rmap_arg :=
-           {[ ca0 := kvs_user_seal_key KVS_USER_KEY_MAIN;
+           {[ ca0 := kvs_user_seal_key Global KVS_USER_KEY_MAIN;
               ca1 := WInt 1%nat;
               ca2 := WInt 12%nat;
               ca3 := wca3;
@@ -284,7 +284,7 @@ Section KVS_main_spec.
     destruct ( decide (ca1 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
     destruct ( decide (ca2 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
     destruct ( decide (ca3 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [|_]; first done.
-    assert (wca0 = kvs_user_seal_key KVS_USER_KEY_MAIN) as -> by (subst rmap_arg ; simplify_map_eq; done).
+    assert (wca0 = kvs_user_seal_key Global KVS_USER_KEY_MAIN) as -> by (subst rmap_arg ; simplify_map_eq; done).
     assert (wca1 = WInt 1%nat) as -> by (subst rmap_arg ; simplify_map_eq; done).
     assert (wca2 = WInt 12%nat) as -> by (subst rmap_arg ; simplify_map_eq; done).
     simplify_eq.
@@ -473,10 +473,12 @@ Section KVS_main_spec.
       apply revoke_related_sts_priv_world.
     }
 
+    iDestruct ( sealing_map_monotone _ _ W1 with "Hseals_B") as "Hseals_B"
+    ; [ by subst W1 | apply revoke_related_sts_priv_world |].
     iApply (switcher_cc_specification _ W1 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hstk $Hr_B $Hsts_B $Hcstk $Hfrm_close_W1
+              $Hstk $Hr_B $Hsts_B $Hseals_B $Hcstk $Hfrm_close_W1
               $Hinterp_W1_B_f $HentryB_f $HK]"); eauto; iFrame "%".
     { repeat (rewrite dom_insert_L);repeat (rewrite dom_delete_L).
       rewrite Hdom_rmap'; set_solver.
@@ -492,7 +494,7 @@ Section KVS_main_spec.
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
       & %Hrelated_pub_W1ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & %Hfrm_close_W2
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C
+      & Hsts_C & Hr_C & Hseals_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -566,7 +568,7 @@ Section KVS_main_spec.
     (* Use switcher call KtK *)
     clear rmap_arg.
     set ( rmap_arg :=
-           {[ ca0 := kvs_user_seal_key KVS_USER_KEY_MAIN;
+           {[ ca0 := kvs_user_seal_key Global KVS_USER_KEY_MAIN;
               ca1 := WInt 1%nat;
               ca2 := wca2;
               ca3 := wca0;
@@ -631,7 +633,7 @@ Section KVS_main_spec.
     iClear "Hargs".
     destruct ( decide (ca0 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
     destruct ( decide (ca1 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
-    assert (wca7 = kvs_user_seal_key KVS_USER_KEY_MAIN) as -> by (subst rmap_arg ; simplify_map_eq; done).
+    assert (wca7 = kvs_user_seal_key Global KVS_USER_KEY_MAIN) as -> by (subst rmap_arg ; simplify_map_eq; done).
     assert (wca8 = WInt 1%nat) as -> by (subst rmap_arg ; simplify_map_eq;done).
     simplify_eq.
 

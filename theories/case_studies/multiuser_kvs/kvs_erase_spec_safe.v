@@ -16,13 +16,13 @@ Section KVS_spec_erase.
     {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
   .
 
   (*** KVS erase *)
   Lemma KVS_erase_spec_safe_pre
-    (W : WORLD) (C : CmptName)
+    (Wca0 W : WORLD) (C : CmptName)
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret wca0 wca1 : Word)
@@ -35,13 +35,14 @@ Section KVS_spec_erase.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_erase_instrs)%a ->
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
+    related_sts_priv_world Wca0 W ->
 
     ((* initial register file *)
       na_own logrel_nais E ∗
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ wca0 ∗ interp W C wca0 ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ wca0 ∗ interp Wca0 C wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ wca1 ∗ (* Key to erase *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -84,9 +85,9 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
-    iIntros (HN HsubBounds Hcgp_contiguous)
+    iIntros (HN HsubBounds Hcgp_contiguous Hrelated_Wca0_W)
       "(Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_wca0 & Hca1 & Hct1 & Hct2 & [%wcnull Hcnull] &
-        Hcode & Hcgp_b & HKVS & Hspred & Hseals & Hsts & Hpost)".
+        Hcode & Hcgp_b & HKVS & #Hspred & Hseals & Hsts & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -126,9 +127,11 @@ Section KVS_spec_erase.
     focus_block 2 "Hcode" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_check_uint.
     iApply (KVS_getFullKey_spec_safe with
-             "[- $Hna $HPC $Hcgp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hcgp_b $Hcode $Hspred]"); eauto; [|iNext].
+             "[- $HPC $Hcgp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hcgp_b $Hcode $Hspred $Hseals $Hsts]")
+    ; eauto; [|iNext].
     { rewrite /withinBounds; solve_addr. }
-    iIntros (user_key) "([%Huser_key_C ->] & #Hinv_kvs_ot & Hna & HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode)".
+    iIntros (l_user_key user_key)
+      "([%Huser_key_C ->] & HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode & #Hseal_ku & Hseals & Hsts)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
@@ -138,12 +141,13 @@ Section KVS_spec_erase.
 
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
-    iMod (na_inv_acc with "Hinv_kvs_ot Hna")
-      as "( (%ku & %a & %s' & >%Heq & >%Hku_C & >%Hku & Hot_res) & Hna & HP_close)"
-    ; eauto; simplify_eq; first solve_ndisj.
+    iDestruct (open_sealing_map_singleton with "Hspred Hseal_ku Hseals Hsts")
+                as "(Hseals & Hsts & Hres_open & HP)".
+    iDestruct "HP" as "(%ku & %a & %s' & >%Heq & >%Hku_C & >%Hku & Hot_res)".
     iDestruct (lc_fupd_elim_later with "[$] [$Hot_res]") as ">[Halloc Hkvs_frags]".
     pose proof (kvs_users_seals_bounds C user_key Huser_key_C) as Huser_key_bound.
     assert ( wf_kvs_full_key user_key nkey) as Hwk_fkey by (split; auto; lia).
+    cbn in Heq, Hku_C; simplify_eq.
 
     destruct ( decide ( nkey ∈ s' ) ) as [Hfkey_in_s|Hfkey_notin_s].
     (* The key has already been allocated *)
@@ -200,11 +204,13 @@ Section KVS_spec_erase.
         replace (cgp_b ^+ (2 + 2 * idx))%a  with ((cgp_b ^+ 1) ^+ (2 * idx + 1))%a by solve_addr+Hidx.
         iFrame.
       }
-      iMod ("HP_close" with "[$Hna $Halloc $Hkvs_frags]") as "Hna"; eauto.
-      {
-        iNext; iPureIntro; exists a; split; auto.
+
+      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
+        as "HP".
+      { iExists user_key, a, (s' ∖ {[nkey]}); iFrame "∗ %".
         by replace (z_of a) with user_key by solve_addr+Hku.
       }
+      iDestruct (close_sealing_map_singleton with "Hspred Hres_open HP Hseals") as "Hseals".
       iApply "Hpost"; iFrame.
 
     - iApply (KVS_search_spec_notin with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Halloc $Hcode]"); eauto.
@@ -228,22 +234,25 @@ Section KVS_spec_erase.
       iInstr "Hcode".
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-      iMod ("HP_close" with "[$Hna $Halloc $Hkvs_frags]") as "Hna"; eauto.
-      {
-        iNext; iPureIntro; exists a; split; auto.
+      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
+        as "HP".
+      { iExists user_key, a, s'; iFrame "∗ %".
         by replace (z_of a) with user_key by solve_addr+Hku.
       }
+      iDestruct (close_sealing_map_singleton with "Hspred Hres_open HP Hseals") as "Hseals".
       iApply "Hpost"; iFrame.
   Qed.
 
   Lemma KVS_erase_spec_safe
-    (W : WORLD) (C : CmptName)
+    (Wca0 W : WORLD) (C : CmptName)
     (wret wca0 wca1 : Word)
     (E : coPset)
     :
 
     ↑Nkvs ⊆ E ->
     ↑Nkvs_otype ⊆ E ->
+
+    related_sts_priv_world Wca0 W ->
 
     ( na_inv logrel_nais Nkvs kvs_inv ∗
       na_own logrel_nais E ∗
@@ -252,7 +261,7 @@ Section KVS_spec_erase.
       PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
       cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ wca0 ∗ interp W C wca0 ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ wca0 ∗ interp Wca0 C wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ wca1 ∗ (* Key to update *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -266,7 +275,7 @@ Section KVS_spec_erase.
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          (ca0 ↦ᵣ WInt ASM_TRUE ∨ ca0 ↦ᵣ WInt ASM_FALSE) ∗
-         ( (∃ w, ca1 ↦ᵣ w ∗ interp W C w) ∨ ca1 ↦ᵣ WInt 0 ) ∗
+         ca1 ↦ᵣ WInt 0 ∗
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
@@ -278,7 +287,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
   Proof.
-    iIntros (Hnkvs_E Hnkvs_otype_E)
+    iIntros (Hnkvs_E Hnkvs_otype_E Hrelated_Wca0_W)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_ca0
       & Hca1 & Hct1 & Hct2 & Hcnull & Hseals & Hsts & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
@@ -297,7 +306,7 @@ Section KVS_spec_erase.
     iApply (KVS_erase_spec_safe_pre with "[- $HPC]"); last iFrame "∗#"; eauto.
     { pose proof Nkvs_namespaces_disjoint as (?&?&?); solve_ndisj. }
     iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hcnull
-     & Hcode & Hcgp_b & HKVS )".
+     & Hcode & Hcgp_b & HKVS & Hsts & Hseals )".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     iDestruct "HKVS" as "[ (%idx & %ku & %kn & HKVS) | HKVS ]".
@@ -322,7 +331,8 @@ Section KVS_spec_erase.
     inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
     inv (export_table_entryN Nkvs_exp_tbl kvs_erase_exp_tbl_addr)
         (kvs_erase_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_erase) ∗
-    WSealed ot_switcher (SCap RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr) ↦□ₑ kvs_erase_nargs
+    WSealed ot_switcher (SCap RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr) ↦□ₑ kvs_erase_nargs ∗
+    WSealed ot_switcher (SCap RO Local b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr) ↦□ₑ kvs_erase_nargs
     -∗
     ot_switcher_prop W C (WCap RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr).
   Proof.
@@ -331,7 +341,7 @@ Section KVS_spec_erase.
       & #Hkvs_exp_PCC
       & #Hkvs_exp_CGP
       & #Hkvs_exp_addOrErase
-      & #Hentry_KVS
+      & #Hentry_KVS & #Hentry_KVS_borrow
       )".
 
     iExists g_kvs_exp_tbl, b_kvs_exp_tbl, e_kvs_exp_tbl, kvs_erase_exp_tbl_addr,
@@ -345,7 +355,7 @@ Section KVS_spec_erase.
     iSplit; first by (iPureIntro; rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off; solve_addr).
     iSplit; first (iPureIntro; rewrite /kvs_erase_nargs; lia).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & Hseals_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
@@ -379,7 +389,7 @@ Section KVS_spec_erase.
 
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
     iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
         as (l
@@ -388,17 +398,17 @@ Section KVS_spec_erase.
     iAssert (▷ close_list_resources C W0 l false)%I with "[Hrevoked_l]" as "Hrevoked_l".
     { rewrite /close_list_resources /close_addr_resources /if_later_P; iNext; iFrame. }
 
-    iApply KVS_erase_spec_safe; try solve_ndisj; iFrame "∗#".
+    iDestruct (sealing_map_monotone _ _ (revoke W0) with "Hseals_C") as "Hseals_C"
+    ; [ auto | apply revoke_related_sts_priv_world | ].
+    iApply (KVS_erase_spec_safe W0 (revoke W0)); try solve_ndisj; [|iFrame "∗#"].
+    { apply revoke_related_sts_priv_world.  }
 
-    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hcnull)".
+    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hcnull & Hsts_C & Hseals_C)".
     set (Wfixed := (close_list (l ++ finz.seq_between csp_b csp_e) (revoke W0))).
     iAssert (∃ wca0', ca0 ↦ᵣ wca0' ∗ interp Wfixed C wca0')%I with "[Hca0]" as "(%wca0' & Hca0 & #Hinterp_wca0')".
     { iDestruct "Hca0" as "[$|$]"; iApply interp_int. }
     iAssert (∃ wca1', ca1 ↦ᵣ wca1' ∗ interp Wfixed C wca1')%I with "[Hca1]" as "(%wca1' & Hca1 & #Hinterp_wca1')".
-    { iDestruct "Hca1" as "[(%&?&?)|$]"; [iExists _; iFrame|iApply interp_int].
-      iApply monotone.interp_monotone; last iFrame.
-      iPureIntro; apply related_pub_revoke_close_list; eauto.
-    }
+    { iFrame "Hca1"; iApply interp_int. }
 
 
     iDestruct "Hcnull" as "[% Hcnull]"; iDestruct (big_sepM_insert _ _ cnull with "[$Hrmap $Hcnull]") as "Hrmap".
@@ -415,7 +425,7 @@ Section KVS_spec_erase.
 
     iApply (switcher_ret_specification _ W0 (revoke W0)
              with
-             "[ $Hstk $Hcstk $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
+             "[ $Hstk $Hcstk $HK $Hsts_C $Hseals_C $Hna $HPC $Hr_C $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); last iFrame "∗#"; eauto.
     { apply related_pub_revoke_close_list; eauto. }

@@ -130,7 +130,7 @@ Section KVS_spec_read_safe.
              "[- $HPC $Hcgp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hcgp_b $Hcode $Hspred $Hseals $Hsts]")
     ; eauto; [|iNext].
     { rewrite /withinBounds; solve_addr. }
-    iIntros (user_key)
+    iIntros (l_user_key user_key)
       "([%Huser_key_C ->] & HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode & #Hseal_ku & Hseals & Hsts)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
@@ -194,9 +194,10 @@ Section KVS_spec_read_safe.
       }
       iAssert (interp W C w) as "#Hsafe_w".
       { iApply "Hinterp_w"; iPureIntro; cbn; apply related_sts_priv_refl_world. }
+
       iDestruct ("Hkvs_frags" with "[$Hkvs_frag $Hinterp_w]") as "Hkvs_frags".
 
-      iAssert (kvs_otype_propC (W, C, WSealable (kvs_user_seal_key_scap user_key))) with "[Halloc Hkvs_frags]"
+      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
         as "HP".
       { iExists user_key, a, s'; iFrame "∗ %".
         by replace (z_of a) with user_key by solve_addr+Hku.
@@ -228,7 +229,7 @@ Section KVS_spec_read_safe.
       iInstr "Hcode".
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-      iAssert (kvs_otype_propC (W, C, WSealable (kvs_user_seal_key_scap user_key))) with "[Halloc Hkvs_frags]"
+      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
         as "HP".
       { iExists user_key, a, s'; iFrame "∗ %".
         by replace (z_of a) with user_key by solve_addr+Hku.
