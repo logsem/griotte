@@ -25,7 +25,7 @@ Section KVS_getFullKey.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (rsealkey rkey rscratch : RegName)
-    (user_key nkey : Z)
+    (user_key nkey : Z) (l_user_key : Locality)
     :
     let instrs := (kvs_getFullKey_instrs rsealkey rsealkey rkey rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
@@ -39,7 +39,7 @@ Section KVS_getFullKey.
     (
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-      rsealkey ↦ᵣ kvs_user_seal_key user_key ∗
+      rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key ∗
       rkey ↦ᵣ WInt nkey ∗
       rscratch ↦ᵣ - ∗
 
@@ -126,8 +126,8 @@ Section KVS_getFullKey.
       sealing_map W C ∗
       sts_full_world W C ∗
 
-      ▷ ( ∀ user_key ,
-            ⌜ kvs_users_seals !! C = Some user_key ∧ wskey = kvs_user_seal_key user_key ⌝ ∗
+      ▷ ( ∀ l_user_key user_key ,
+            ⌜ kvs_users_seals !! C = Some user_key ∧ wskey = kvs_user_seal_key l_user_key user_key ⌝ ∗
             PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
             cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
             rsealkey ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
@@ -137,7 +137,7 @@ Section KVS_getFullKey.
             cgp_b ↦ₐ kvs_service_unsealing_key ∗
             codefrag pc_a instrs ∗
 
-            (sts_seals_std C KVS_OTYPE {[WSealable (kvs_user_seal_key_scap user_key)]}) ∗
+            (sts_seals_std C KVS_OTYPE {[WSealable (kvs_user_seal_key_scap l_user_key user_key)]}) ∗
 
             sealing_map W C ∗
             sts_full_world W C -∗
@@ -182,13 +182,15 @@ Section KVS_getFullKey.
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
     rewrite /kvs_otype_propC /safeC /= /kvs_otype_prop //= /kvs_otype_inv.
-    iDestruct "HP" as "(%ku & %a & %s & %Heq_sb & %Hku_C & %Hku & Halloc & Hfkeys)"; simplify_eq.
+    iDestruct "HP" as "(%ku & %a & %s & %Heq_sb & %Hku_C & %Hku & Halloc & Hfkeys)".
+    destruct wsb; rewrite /kvs_user_seal_key_scap in Heq_sb; cbn in Heq_sb; simplify_eq.
+    rewrite -/(kvs_user_seal_key_scap g a).
 
     (* geta rdst rdst; *)
     iInstr "Hcode".
     replace (finz.to_z (0 ^+ a)%a) with ku by solve_addr.
 
-    iAssert (kvs_otype_propC (W, C, WSealable (kvs_user_seal_key_scap a))) with "[Halloc Hfkeys]"
+    iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap g a))))) with "[Halloc Hfkeys]"
     as "HP".
     { iExists ku, a, s; iFrame "∗ %"; done. }
     iDestruct (close_sealing_map_singleton with "Hspred Hres_open HP Hseals") as "Hseals".
