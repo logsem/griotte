@@ -3,7 +3,7 @@ From cap_machine Require Import logrel rules.
 From cap_machine Require Import switcher kvs.
 From cap_machine Require Import proofmode.
 
-Definition kvs_entry : Type := (Z * Word).
+Definition kvs_entry : Type := option (Z * Word).
 Definition kvs_dom : gset nat := set_seq 0 SIZE_MAP.
 Definition kvs_map : Type := gmap nat kvs_entry.
 
@@ -59,12 +59,14 @@ Proof.
 Qed.
 
 Definition kvs_frag_idx_frac `{kvsG} (idx : nat) (k : Z) (w : Word) (q : dfrac) : iProp Σ :=
-  (pointsto (L:=nat) (V:=kvs_entry) idx q (k,w)).
+  (pointsto (L:=nat) (V:=kvs_entry) idx q (Some (k,w))).
 Notation "k '⤇(KVS){' q '}[' idx  ']' w" :=
   (kvs_frag_idx_frac idx k w q) (at level 20) : bi_scope.
 Notation "k '⤇(KVS){' q '}[' idx  ']' -" :=
   (∃ w, kvs_frag_idx_frac idx k w q)%I (at level 20) : bi_scope.
 
+Notation "idx ⤆(KVS) NONE" :=
+(pointsto (L:=nat) (V:=kvs_entry) idx (DfracOwn 1) None) (at level 20) : bi_scope.
 Notation "k '⤇(KVS)[' idx  ']' w" :=
   (kvs_frag_idx_frac idx k w (DfracOwn 1)) (at level 20) : bi_scope.
 Notation "k '⤇(KVS)[' idx  ']' -" :=
@@ -90,21 +92,26 @@ Section KVS_preamble.
   .
 
   Definition kvs_keys (m : kvs_map) : list Z :=
-    filter (fun k => k ≠ EMPTY_SLOT) (map_to_list m).*2.*1.
+    let list_opt_kv := (map_to_list m).*2 in
+    let default_kv := (default (EMPTY_SLOT, WInt DEFAULT_VAL)) <$> list_opt_kv in
+    let vals := default_kv.*1 in
+    filter (fun k => k ≠ EMPTY_SLOT) vals.
 
   Definition wf_kvs_map (m : kvs_map) : Prop :=
     dom m = kvs_dom ∧ NoDup (kvs_keys m).
 
-  Definition isKVS_entry_empty (idx : nat) (k : Z) : iProp Σ :=
-    (if (decide (k = EMPTY_SLOT)) then EMPTY_SLOT ⤇(KVS)[idx] (WInt DEFAULT_VAL) else True)%I.
-
-  Definition isKVS_entry (a : Addr) (idx : nat) (kw : Z * Word) : iProp Σ :=
-    let k := kw.1 in
-    let w := kw.2 in
-    (a ^+ (2*idx))%a ↦ₐ (WInt k) ∗
-    (a ^+ (2*idx + 1))%a ↦ₐ w ∗
-    isKVS_entry_empty idx k
-  .
+  Definition isKVS_entry (a : Addr) (idx : nat) (opt_kw : option (Z * Word)) : iProp Σ :=
+    match opt_kw with
+    | None =>
+        (a ^+ (3*idx))%a ↦ₐ WInt ASM_NONE ∗
+        (a ^+ (3*idx + 1))%a ↦ₐ WInt EMPTY_SLOT ∗
+        (a ^+ (3*idx + 2))%a ↦ₐ WInt DEFAULT_VAL ∗
+        idx ⤆(KVS) NONE
+    | Some (k, w) =>
+        (a ^+ (3*idx))%a ↦ₐ WInt ASM_SOME ∗
+        (a ^+ (3*idx + 1))%a ↦ₐ WInt k ∗
+        (a ^+ (3*idx + 2))%a ↦ₐ w
+    end.
 
   Definition kvs_alloc_elem_of (s : kvs_alloc) (ku kn : Z) :=
     (∃ sk, s !! ku = Some sk ∧ kn ∈ sk).
@@ -193,19 +200,20 @@ Section KVS_preamble.
     k ≠ EMPTY_SLOT ->
     wf_kvs_map m ->
     idx ≠ idx' ->
-    m !! idx = Some (k, w) ->
-    m !! idx' = Some (k', w') ->
+    m !! idx = Some (Some (k, w)) ->
+    m !! idx' = Some (Some (k', w')) ->
     k ≠ k'.
   Proof.
     intros Hk_ne_empty [_ Hkvs_uniqueness] Hidx_ne Hm_idx Hm_idx'.
     rewrite /kvs_keys in Hkvs_uniqueness.
-    rewrite -(insert_id m idx (k, w)) in Hkvs_uniqueness; last done.
+    rewrite -(insert_id m idx (Some (k, w))) in Hkvs_uniqueness; last done.
     rewrite -insert_delete_eq in Hkvs_uniqueness.
-    rewrite -(insert_id (<[idx:=(k, w)]> (delete idx m)) idx' (k', w')) in Hkvs_uniqueness; last by simplify_map_eq.
+    rewrite -(insert_id (<[idx:= Some (k, w)]> (delete idx m)) idx' (Some (k', w'))) in Hkvs_uniqueness; last by simplify_map_eq.
     rewrite -insert_delete_eq in Hkvs_uniqueness.
     rewrite -(insert_delete_ne _ idx idx') in Hkvs_uniqueness; auto.
     rewrite map_to_list_insert in Hkvs_uniqueness; last by simplify_map_eq.
     rewrite map_to_list_insert in Hkvs_uniqueness; last by simplify_map_eq.
+    rewrite 2!fmap_cons in Hkvs_uniqueness.
     cbn in Hkvs_uniqueness.
     destruct (decide (k' ≠ EMPTY_SLOT)); simplify_eq.
     - destruct (decide (k ≠ EMPTY_SLOT)); simplify_eq.
