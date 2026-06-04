@@ -26,6 +26,15 @@ Class memory_layout `{MP: MachineParameters} := {
     (* kvs compartment *)
     kvs_cmpt : cmpt ;
 
+    ot_kvs : OType;
+    ot_kvs_size : (ot_kvs < ot_kvs ^+ 1)%ot;
+    ot_kvs_disjoint : ot_kvs ≠ (ot_switcher switcher_cmpt) ;
+
+    kvs_user_key_K : Z;
+    kvs_user_key_B : Z;
+    kvs_user_key_wf : (0 <= kvs_user_key_K < MemNum - 1)%Z ∧ (0 <= kvs_user_key_B < MemNum - 1)%Z;
+    kvs_user_key_disjoints : kvs_user_key_K ≠ kvs_user_key_B;
+
     (* adv compartments B *)
     B_cmpt : cmpt ;
     offset_adv_f : nat;
@@ -49,9 +58,6 @@ Class memory_layout `{MP: MachineParameters} := {
     assert_switcher_disjoints :
     assert_switcher_disjoint assert_cmpt switcher_cmpt;
 
-    ot_kvs : OType;
-    ot_kvs_size : (ot_kvs < ot_kvs ^+ 1)%ot;
-    ot_kvs_disjoint : ot_kvs ≠ (ot_switcher switcher_cmpt) ;
   }.
 
 Local Instance memory_layout_switcherLayout `{memory_layout} : switcherLayout.
@@ -100,7 +106,7 @@ Proof.
             (cmpt_exp_tbl_pcc kvs_cmpt) (cmpt_exp_tbl_entries_end kvs_cmpt)).
 Defined.
 
-Definition is_initial_memory `{@memory_layout MP} `{kvs_users} (mem: Mem) :=
+Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   let b_switcher := (b_switcher switcher_cmpt) in
   let e_switcher := (e_switcher switcher_cmpt) in
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
@@ -118,8 +124,6 @@ Definition is_initial_memory `{@memory_layout MP} `{kvs_users} (mem: Mem) :=
       (cmpt_exp_tbl_entries_start B_cmpt)
   in
 
-  (* let kvs_user_key_B := default 0%Z (kvs_users_seals !! B) in *)
-
   mem = mk_initial_memory mem ∧
   (* instantiating main *)
   (cmpt_imports main_cmpt) =
@@ -129,7 +133,7 @@ Definition is_initial_memory `{@memory_layout MP} `{kvs_users} (mem: Mem) :=
     (b_assert assert_cmpt) (e_assert assert_cmpt)
     B_f) ∧
   (cmpt_code main_cmpt) = kvs_main_code ∧
-  (cmpt_data main_cmpt) = (kvs_main_data (default 0%Z (kvs_users_seals_reserved !! 0))) ∧
+  (cmpt_data main_cmpt) = (kvs_main_data kvs_user_key_K) ∧
   (cmpt_exp_tbl_entries main_cmpt) = [] ∧
 
   (* instantiating kvs *)
@@ -141,8 +145,7 @@ Definition is_initial_memory `{@memory_layout MP} `{kvs_users} (mem: Mem) :=
   (* instantiating B *)
   (cmpt_imports B_cmpt) = [
       switcher_entry;
-      (* TODO add that back *)
-      (* kvs_user_seal_key kvs_user_key_B ; *)
+      kvs_user_seal_key Global kvs_user_key_B ;
       WSealed ot_switcher (KVS_addOrUpdate Global);
       WSealed ot_switcher (KVS_read Global);
       WSealed ot_switcher (KVS_erase Global)
@@ -213,11 +216,16 @@ Section Adequacy.
   Context `{MP: MachineParameters}.
   Context { HCNames : CNames = (list_to_set [B]) }.
 
+  Context {Layout: memory_layout}.
+
+  Local Notation kvs_user_key_K_a := (0 ^+ kvs_user_key_K)%a.
+  Local Notation kvs_user_key_B_a := (0 ^+ kvs_user_key_B)%a.
+
   Context {kvs_preg: gen_heapGpreS nat kvs_entry Σ}.
   Context {kvs_alloc_preg: gen_heapGpreS Z (gset Z) Σ}.
   Context {KVS_users: kvs_users}.
-  Context { Hkvs_users_seals : kvs_users_seals = {[ B := 1%Z ]} }.
-  Context { Hkvs_users_seals_reserved : kvs_users_seals_reserved = [0%Z] }.
+  Context { Hkvs_users_seals : kvs_users_seals = {[ B := kvs_user_key_B ]} }.
+  Context { Hkvs_users_seals_reserved : kvs_users_seals_reserved = [kvs_user_key_K] }.
 
   Definition flagN : namespace := nroot .@ "kvs" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "kvs" .@ "switcher_flag".
@@ -225,12 +233,12 @@ Section Adequacy.
   Definition kvsN : namespace := nroot .@ "kvs" .@ "code".
 
   Local Notation ot_switcher := (ot_switcher switcher_cmpt).
-  Lemma kvs_adequacy' `{Layout: @memory_layout MP}
+  Lemma kvs_adequacy'
     (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
     (es: list cap_lang.expr):
     is_initial_registers reg →
     is_initial_sregisters sreg →
-    (@is_initial_memory _ _ cname _ ) m →
+    is_initial_memory m →
     rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m)) (es, (reg', sreg', m')) →
     m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
   Proof.
@@ -443,15 +451,17 @@ Section Adequacy.
     set (all_users_keys := (kvs_users_seals_reserved ++ (map_to_list kvs_users_seals).*2)).
     set (kvs_alloc_init := (list_to_map ( (fun k => (k,∅)) <$> all_users_keys) : kvs_alloc)).
     iMod (gen_heap_init (kvs_alloc_init : kvs_alloc)) as (kvs_alloc_heapg) "(Hkvs_alloc_auth & Hkvs_alloc_frag & _)".
-    assert ( kvs_alloc_init = {[ 0%Z := ∅ ; 1%Z := ∅ ]} ) as ->.
+    assert ( kvs_alloc_init = {[ kvs_user_key_K := ∅ ; kvs_user_key_B := ∅ ]} ) as ->.
     { subst kvs_alloc_init all_users_keys.
       rewrite Hkvs_users_seals Hkvs_users_seals_reserved. cbn.
       rewrite map_to_list_singleton /=.
       done.
     }
+    assert ( kvs_user_key_K ≠ kvs_user_key_B ) as Huser_keys_disjoint.
+    { pose proof kvs_user_key_disjoints; solve_addr. }
     rewrite big_sepM_insert; last by simplify_map_eq.
     rewrite big_sepM_insert; last by simplify_map_eq.
-    iDestruct "Hkvs_alloc_frag" as "(Halloc_0 & Halloc_1 & _)".
+    iDestruct "Hkvs_alloc_frag" as "(Halloc_K & Halloc_B & _)".
     iMod (gen_heap_init (kvs_map_init : kvs_map)) as (kvs_heapg) "(Hkvs_auth & Hkvs_frags & _)".
 
     assert kvs_namespaces as kvs_namespacesg.
@@ -486,9 +496,9 @@ Section Adequacy.
       ) as Spec.
 
     (* Notations *)
-    iAssert (◯(ALLOC)[ 0%Z ] ∅)%I with "Halloc_0" as "Halloc_0".
-    iAssert (◯(ALLOC)[ 1%Z ] ∅)%I with "Halloc_1" as "Halloc_1".
-    iAssert (●(ALLOC) {[0%Z := ∅; 1%Z := ∅]})%I with "Hkvs_alloc_auth" as "Hkvs_alloc_auth".
+    iAssert (◯(ALLOC)[ kvs_user_key_K ] ∅)%I with "Halloc_K" as "Halloc_K".
+    iAssert (◯(ALLOC)[ kvs_user_key_B ] ∅)%I with "Halloc_B" as "Halloc_B".
+    iAssert (●(ALLOC) {[kvs_user_key_K := ∅; kvs_user_key_B := ∅]})%I with "Hkvs_alloc_auth" as "Hkvs_alloc_auth".
     iAssert ([∗ map] idx↦kw ∈ kvs_map_init, kw.1 ⤇(KVS)[ idx ] kw.2)%I with "[Hkvs_frags]" as "Hkvs_frags".
     {
       iApply (big_sepM_impl with "Hkvs_frags").
@@ -862,7 +872,7 @@ Section Adequacy.
       { iPureIntro; apply kvs_alloc_synced_map_init.
         intros ku sk Hsk.
         clear -Hsk.
-        by destruct (decide (ku = 0%Z)); simplify_map_eq.
+        by destruct (decide (ku = kvs_user_key_K)); simplify_map_eq.
       }
       iEval (cbn).
       iApply (kvs_initial_map_init with "[$] [$]").
@@ -947,9 +957,45 @@ Section Adequacy.
     iAssert ( interp W1 B (WSealed ot_switcher kvs_erase)) as "#Hinterp_kvs_erase".
     { iEval (rewrite fixpoint_interp1_eq); iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+. }
 
-    iDestruct (region_monotone _ _ W1 with "Hr_B") as "Hr_B"; [|eauto|].
-    { subst W1; by cbn. }
-    { subst W1; apply related_sts_pub_world_update_ot. }
+
+    set ( kvs_user_key_B_sb := (kvs_user_seal_key_scap Global kvs_user_key_B)).
+    set ( kvs_user_key_B_sb' := borrow_sb kvs_user_key_B_sb).
+    set ( adversary_kvs_keys := ( {[ WSealable kvs_user_key_B_sb ; WSealable kvs_user_key_B_sb']} : gset Word)).
+    set (W1' := <o[ ot_kvs := adversary_kvs_keys ]o> W1).
+
+    iAssert (kvs_otype_prop W1' B (WSealable kvs_user_key_B_sb)) with "[Halloc_B]" as "ot_kvs_user_key_B".
+    {
+      iEval (rewrite /kvs_otype_prop /kvs_otype_inv /=).
+      iFrame "Halloc_B".
+      pose proof kvs_user_key_wf as [ Hkvs_user_key_wf_K Hkvs_user_key_wf_B ].
+      iExists kvs_user_key_B_a.
+      repeat iSplit; auto; iPureIntro.
+      + replace (z_of kvs_user_key_B_a) with kvs_user_key_B; first done.
+        solve_addr+Hkvs_user_key_wf_B.
+      + by rewrite Hkvs_users_seals; simplify_map_eq.
+      + solve_addr+Hkvs_user_key_wf_B.
+    }
+
+    assert (ot_kvs ∉ dom (seal_std W1)) as Hot_notin_W1.
+    { pose proof ot_kvs_disjoint as H.
+      subst W0 W1; rewrite dom_insert_L dom_empty_L; set_solver+H.
+    }
+    iMod
+      (sealing_map_alloc W1 B kvs_otype_propC ot_kvs adversary_kvs_keys
+        with "[$Hsealed_pred_ot_kvs] [ ] [ ot_kvs_user_key_B ] [$Hseals_B $Hsts_B]")
+      as "(Hseals_B & Hsts_B & Hseal_kvs_ku)"; first done.
+    { iIntros (w); iApply mono_priv_ot_kvs. }
+    { rewrite normalise_sealed_words_borrow.
+      rewrite big_sepS_singleton; iFrame "ot_kvs_user_key_B".
+    }
+    subst W1' ; set (W1' := <o[ ot_kvs := adversary_kvs_keys ]o> W1).
+
+    iAssert ( interp W1' B (WSealed ot_kvs kvs_user_key_B_sb)) as "#Hinterp_kvs_user_key_B".
+    { iEval (rewrite fixpoint_interp1_eq); iApply (sts_seals_std_weaken with "Hseal_kvs_ku") ; last set_solver+. }
+
+    iDestruct (region_monotone _ _ W1' with "Hr_B") as "Hr_B"; [|eauto|].
+    { subst W1'; by cbn. }
+    { subst W1' W1; eapply related_sts_pub_trans_world; eapply related_sts_pub_world_update_ot. }
 
 
     assert ( (exported_entries_sealable B_cmpt) ≡ₚ [B_f; B_f']) as Hexported_entries_sealable.
@@ -968,7 +1014,7 @@ Section Adequacy.
     }
 
     iMod (
-       alloc_compartment_interp with "[HB_imports] [HB_code] [HB_data] [Halloc_1] [$Hsts_B] [$Hr_B] [$Hseals_B]"
+       alloc_compartment_interp with "[HB_imports] [HB_code] [HB_data] [] [$Hsts_B] [$Hr_B] [$Hseals_B]"
       ) as "(Hsts_B & Hr_B & Hseals_B & #HB_code & #HB_data & _ & #HB_exports)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
@@ -979,7 +1025,7 @@ Section Adequacy.
       match goal with
       | H: _ |- context [  (sts_full_world ?W B) ] => set (Wpre := W)
       end.
-      set ( Winter := (std_update_compartment W1 B_cmpt) ).
+      set ( Winter := (std_update_compartment W1' B_cmpt) ).
 
       iAssert (ot_switcher_prop Winter B (WSealable B_f)) as "#ot_switcher_B_f".
       {
@@ -1011,40 +1057,47 @@ Section Adequacy.
         iApply (sts_seals_std_weaken with "Hseal_switcher"); set_solver+.
       }
 
+      assert (related_sts_priv_world W1' Winter) as Hrelated_W1'_Winter.
+      {
+        apply related_sts_pub_priv_world.
+        subst Winter.
+        eapply std_update_compartment_pub; eauto ; apply Forall_true; intros; done.
+      }
+      assert (related_sts_priv_world W1 Winter) as Hrelated_W1_Winter.
+      {
+        eapply related_sts_priv_trans_world; eauto.
+        apply related_sts_pub_priv_world.
+        subst W1'.
+        apply related_sts_pub_world_update_ot.
+      }
       iSplitR "Hseal_switcher".
       (* Interp of imports *)
       - (* Switcher cross-compartment *)
         iApply big_sepL_cons; iSplitL.
         { iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done. }
 
+        (* KVS sealed user key *)
+        iApply big_sepL_cons; iSplitL.
+        { iSplit.
+          * iApply (interp_monotone_sd W1' Winter); auto.
+          * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
+        }
         (* KVS.addOrUpdate *)
         iApply big_sepL_cons; iSplitL.
         { iSplit.
           * iApply (interp_monotone_sd W1 Winter); auto.
-            iPureIntro.
-            apply related_sts_pub_priv_world.
-            subst Winter.
-            eapply std_update_compartment_pub; eauto ; apply Forall_true; intros; done.
           * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
         }
         (* KVS.read *)
         iApply big_sepL_cons; iSplitL.
         { iSplit.
           * iApply (interp_monotone_sd W1 Winter); auto.
-            iPureIntro.
-            apply related_sts_pub_priv_world.
-            subst Winter.
-            eapply std_update_compartment_pub; eauto ; apply Forall_true; intros; done.
           * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
         }
         (* KVS.erase *)
         iApply big_sepL_cons; iSplitL.
         { iSplit.
           * iApply (interp_monotone_sd W1 Winter); auto.
-            iPureIntro.
-            apply related_sts_pub_priv_world.
-            subst Winter.
-            eapply std_update_compartment_pub; eauto ; apply Forall_true; intros; done.
           * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
         }
         done.
@@ -1157,9 +1210,6 @@ Section Adequacy.
     replace (cmpt_exp_tbl_cgp kvs_cmpt) with (b_kvs_exp_tbl ^+ 1)%a
                                              by (pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H; cbn; solve_addr+H).
 
-    replace ( (default 0%Z (kvs_users_seals_reserved !! 0)) ) with 0%Z
-    by (rewrite Hkvs_users_seals_reserved; simplify_map_eq; set_solver+).
-
     iPoseProof (Spec _ _ _ _ _ _ _ _
                   _ _ _ _ _ _
                   [] [] [] assertN switcherN
@@ -1167,7 +1217,7 @@ Section Adequacy.
                         $Hkvs_etbl_pcc $Hkvs_etbl_cgp $Hkvs_etbl_entries_addOrUpdate $Hkvs_etbl_entries_read
                         $Hna $HPC $Hcgp $Hcsp $Hreg
                         $Hmain_imports $Hmain_code $Hmain_data
-                        $Halloc_0
+                        $Halloc_K
                         $Hr_B $Hsts_B $Hseals_B $Hcstk_frag
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto.
@@ -1207,8 +1257,6 @@ Section Adequacy.
     }
     { pose proof (cmpt_data_size main_cmpt) as Hmain_data.
       rewrite main_data in Hmain_data.
-      replace ( (default 0%Z (kvs_users_seals_reserved !! 0)) )
-        with 0%Z in Hmain_data by (rewrite Hkvs_users_seals_reserved; simplify_map_eq; set_solver+).
       done.
     }
     { pose proof (cmpt_import_size main_cmpt) as Hmain_imports.
@@ -1243,9 +1291,11 @@ Defined.
 Local Program Instance CmptNames_kvs_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_kvs; |}.
 
-Local Instance choice_kvs_users_seals : kvs_users.
+Local Instance choice_kvs_users_seals `{Layout : memory_layout} : kvs_users.
 Proof.
-  refine (Build_kvs_users CmptNames_kvs_CmptNameG {[B := 1%Z]} _ _ [0%Z] _ _).
+  pose proof kvs_user_key_wf as [ Hkvs_user_key_wf_K Hkvs_user_key_wf_B ].
+  pose proof kvs_user_key_disjoints as Hkvs_user_key_disjoints.
+  refine (Build_kvs_users CmptNames_kvs_CmptNameG {[B := kvs_user_key_B]} _ _ [kvs_user_key_K] _ _).
   - intros C.
     rewrite dom_singleton_L.
     apply elem_of_singleton.
@@ -1254,10 +1304,10 @@ Proof.
     by apply list_elem_of_singleton.
   - intros C ku HC.
     destruct (decide (C = B)); simplify_map_eq.
-    compute; done.
+    solve_addr.
   - apply Forall_singleton; done.
   - rewrite map_to_list_singleton list_fmap_singleton /=.
-    apply NoDup_cons; split; [set_solver+|].
+    apply NoDup_cons; split; [set_solver|].
     apply NoDup_singleton.
 Defined.
 
@@ -1283,4 +1333,7 @@ Proof.
               ;  gen_heapΣ nat kvs_entry ; gen_heapΣ Z (gset Z)
       ]).
   eapply (@kvs_adequacy' Σ cnames B); eauto; try typeclasses eauto.
+  (* NOTE unclear why I have to unfold so much *)
+  + rewrite /kvs_users_seals /= /choice_kvs_users_seals /=; destruct kvs_user_key_wf; done.
+  + rewrite /kvs_users_seals_reserved /= /choice_kvs_users_seals /=; destruct kvs_user_key_wf; done.
 Qed.
