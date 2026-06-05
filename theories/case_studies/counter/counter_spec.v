@@ -391,7 +391,7 @@ Section Counter.
     }
     iMod (
        world_interp_revoked_by_separation_many_with_temp_resources with "[$Hworld_interp_C $Hrevoked_l]"
-      ) as "(Hrevoked_l & Hworld_interp_C & %HW2_revoked_l)".
+      ) as "(Hworld_interp_C & Hrevoked_l & %HW2_revoked_l)".
     { apply Forall_forall; intros a Ha.
       rewrite Forall_forall in Hrevoked_l_W.
       apply Hrevoked_l_W in Ha.

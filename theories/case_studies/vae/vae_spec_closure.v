@@ -795,7 +795,7 @@ Section VAE.
 
     iMod (
        world_interp_revoked_by_separation_many_with_temp_resources with "[$Hworld_interp_C $Hrevoked_l]"
-      ) as "(Hrevoked_l & Hworld_interp_C & %Hl_revoked_W7)".
+      ) as "(Hworld_interp_C & Hrevoked_l & %Hl_revoked_W7)".
     { apply Forall_forall; intros a Ha.
       rewrite Forall_forall in Hl_revoked_W6.
       apply Hl_revoked_W6 in Ha.

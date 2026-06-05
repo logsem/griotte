@@ -4,7 +4,7 @@ From cap_machine Require Import rules logrel logrel_extra monotone proofmode reg
 From cap_machine Require Import fetch_spec assert_spec checkints checkra check_no_overlap_spec.
 From cap_machine Require Import
   switcher interp_switcher_call switcher_spec_call switcher_spec_return.
-From cap_machine Require Import world_ghost_theory world_ghost_theory_interface.
+From cap_machine Require Import world_ghost_theory_interface stack_object_helpers.
 From cap_machine Require Import stack_object.
 From cap_machine Require Import proofmode.
 
@@ -1023,7 +1023,7 @@ Section SO.
     set (W5 := revoke W4).
 
     (* Derive a bunch of disjointness properties that will be necessary later *)
-    iMod (world_interp_revoked_by_separation_close_list_resources
+    iMod (world_interp_revoked_by_separation_many_with_temp_resources
            with "[$Hrevoked_l_revoked_W0_no_be $Hworld_interp_C]")
       as "(Hworld_interp_C & Hrevoked_l_revoked_W0_no_be & %Hrevoked_l_revoked_W0_no_be_W5)".
     { apply Forall_forall.
@@ -1038,8 +1038,7 @@ Section SO.
       { apply Hl_revoked_W0_temporaries; apply elem_of_app ; by left. }
       rewrite elem_of_dom; done.
     }
-    (* FIXME *)
-    iMod (world_interp_revoked_by_separation_close_list_resources with "[$Hl_revoked_W4 $Hworld_interp_C]")
+    iMod (world_interp_revoked_by_separation_many_with_temp_resources with "[$Hl_revoked_W4 $Hworld_interp_C]")
       as "(Hworld_interp_C & Hl_revoked_W4 & %Hrevoked_l_revoked_W4_W5)".
     { apply Forall_forall.
       intros x Hx.

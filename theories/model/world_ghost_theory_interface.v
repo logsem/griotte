@@ -21,7 +21,6 @@ Section world_ghost_theory_interface.
 
   (* TODO sort the lemma defined here:
      - avoid re-defining lemmas already existing in initial world_ghost_theory.v
-     - move the "one-time use" lemma into a helper file for each specific example
      - move actually useful lemmas in world_ghost_theory.v
    *)
 
@@ -76,6 +75,25 @@ Section world_ghost_theory_interface.
     by rewrite -region_open_prepare.
   Qed.
 
+  (* TODO essentially like al instance of open_world_interp + see open_world_perm *)
+  Lemma open_world_interp_perm W C a p φ :
+    (std W) !! a = Some Permanent →
+    rel C a p φ ∗ world_interp W C -∗
+    ∃ v, world_interp_open W C [a]
+         ∗ sts_state_std C a Permanent
+         ∗ a ↦ₐ v
+         ∗ ⌜isO p = false⌝
+         ∗ ▷ future_priv_mono C φ v
+         ∗ ▷ φ (W,C,v).
+  Proof.
+    rewrite world_interp_eq /world_interp_def.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (?) "(Hrel & [Hr Hsts])".
+    iDestruct (
+        region_open_perm with "[$Hrel $Hr $Hsts]"
+      ) as (v) "(? & $ & $ & $ & $ & $ & $)"; auto.
+    by rewrite region_open_prepare.
+  Qed.
 
   (* TODO only used on CMDC adequacy *)
   Lemma world_interp_extend_revoked_sepL2 E W C l1 p φ `{∀ Wv, Persistent (φ Wv)}:
@@ -90,24 +108,6 @@ Section world_ghost_theory_interface.
     rewrite world_interp_eq /world_interp_def.
     iIntros (?) "[Hr Hsts]".
     iMod (extend_region_revoked_sepL2 with "Hsts Hr") as "($&$&$)"; auto.
-  Qed.
-
-  (* TODO only used in stack object example *)
-  Lemma world_interp_revoked_by_separation
-    (W : WORLD) (C' : CmptName)
-    (a : Addr) (w : Word) :
-    a ∈ dom (std W) →
-    world_interp W C'
-    ∗ a ↦ₐ w
-    ==∗
-    world_interp W C'
-    ∗ a ↦ₐ w
-    ∗ ⌜ std W !! a = Some Revoked ⌝
-  .
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "([Hr Hsts] & Ha)".
-    iMod (revoked_by_separation with "[$Hr $Hsts $Ha]") as "($&$&$)";auto.
   Qed.
 
   (* TODO used in many places *)
@@ -129,109 +129,21 @@ Section world_ghost_theory_interface.
       as "($ & $ & $ & $)"; auto.
   Qed.
 
-  (* TODO used in counter closure and vae closure *)
+  (* TODO used in counter closure, vae closure and stack_object_closure *)
   Lemma world_interp_revoked_by_separation_many_with_temp_resources
     (W W' : WORLD) (C' : CmptName)
     (la : list Addr) :
     Forall (λ a, a ∈ dom (std W')) la →
+    world_interp W' C' ∗
     close_list_resources C' W la false
-    ∗ world_interp W' C'
     ==∗
-    close_list_resources C' W la false
-    ∗ world_interp W' C'
-    ∗ ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
+    world_interp W' C' ∗
+    close_list_resources C' W la false ∗
+    ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (Hin) "(Hl & Hsts & Hr)"; cbn.
+    iIntros (Hin) "([Hr Hsts] & Hl)"; cbn.
     iMod (revoked_by_separation_many_with_temp_resources with "[$Hsts $Hr $Hl]") as "($ & $ & $ & $)"; auto.
-  Qed.
-
-  (* TODO only used in stack object example *)
-  Lemma world_interp_revoked_by_separation_close_list_resources B W' W la :
-    Forall (λ a : finz MemNum, a ∈ dom (std W)) la →
-    world_interp W B
-    ∗ close_list_resources B W' la false
-    ==∗
-    world_interp W B
-    ∗ close_list_resources B W' la false
-    ∗ ⌜Forall (λ a : finz MemNum, std W !! a = Some Revoked) la⌝.
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "([Hr Hsts] & Hres)".
-    iMod (revoked_by_separation_close_list_resources with "[$Hr $Hsts $Hres]") as "($&$&$)"; auto.
-  Qed.
-
-  (* TODO only used in stack object example *)
-  Lemma reinstate_close_list W W' C' (l : list Addr) :
-    related_sts_pub_world W (close_list l W') ->
-    world_interp W' C' ∗ (close_list_resources C' W l false)
-    ==∗
-    world_interp (reinstate W' l) C'.
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (Hrelated) "( [Hr Hsts] & Htemp)".
-    iMod (monotone_close_list_region with "[] [$Hsts $Hr $Htemp]") as "[$ $]"; auto.
-  Qed.
-
-  (* TODO only used in stack object example *)
-  Lemma open_world_interp_list (W : WORLD) (C' : CmptName)
-    (l : list (Addr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
-    (l' : list Addr)
-    :
-
-    let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
-    NoDup la ->
-    la ## l' ->
-    Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
-    Forall (fun '(a,p,φ,ρ) => (std W) !! a = Some ρ) l ->
-
-    ([∗ list] '(a,p,φ,ρ) ∈ l, rel C' a p φ)
-    ∗ world_interp_open W C' l' -∗
-
-    ∃ lv,
-      world_interp_open W C' (la++l')
-      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C' a ρ)
-      ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v)
-      ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C' φ p v ρ)
-      ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C',v))
-      ∗ ⌜ length lv = length la ⌝
-      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
-  .
-  Proof.
-    intros la.
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (????) "(Hrels & [Hr Hsts])".
-    iDestruct (region_open_list W C' l l' with "[$Hrels $Hr $Hsts]") as
-      "(% & $ & $ & $ & $ & $ & $ & $)"; auto.
-  Qed.
-
-  (* TODO only used in stack object example *)
-  Lemma close_world_interp_list (W : WORLD) (C' : CmptName)
-    (l : list (Addr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
-    (l' : list Addr)
-    (lv : list Word)
-    :
-
-    let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
-    length l = length lv ->
-    NoDup la ->
-    la ## l' ->
-    Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
-    Forall (fun '(a,p,φ,ρ) => ∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)) l ->
-
-    world_interp_open W C' (la++l')
-    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C' a ρ)
-    ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v)
-    ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C' φ p v ρ)
-    ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C',v))
-    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, rel C' a p φ)
-    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
-      -∗ world_interp_open W C' l'.
-  Proof.
-    intros la.
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (?????) "([Hr $] & Hstd & Hv & Hmono & Hφ & Hrel & Hp)".
-    iDestruct (region_close_list with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hp]") as "$"; auto.
   Qed.
 
   (* TODO "core" part of the interface *)
@@ -411,26 +323,6 @@ Section world_ghost_theory_interface.
     rewrite world_interp_eq /world_interp_def.
     iIntros (??) "[Hr Hsts] Hres".
     iMod (extend_region_temp_sepL2 with "Hsts Hr Hres") as "($&$&$)"; auto.
-  Qed.
-
-  (* TODO essentially like al instance of open_world_interp + see open_world_perm *)
-  Lemma open_world_interp_perm W C a p φ :
-    (std W) !! a = Some Permanent →
-    rel C a p φ ∗ world_interp W C -∗
-    ∃ v, world_interp_open W C [a]
-         ∗ sts_state_std C a Permanent
-         ∗ a ↦ₐ v
-         ∗ ⌜isO p = false⌝
-         ∗ ▷ future_priv_mono C φ v
-         ∗ ▷ φ (W,C,v).
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (?) "(Hrel & [Hr Hsts])".
-    iDestruct (
-        region_open_perm with "[$Hrel $Hr $Hsts]"
-      ) as (v) "(? & $ & $ & $ & $ & $ & $)"; auto.
-    by rewrite region_open_prepare.
   Qed.
 
 
