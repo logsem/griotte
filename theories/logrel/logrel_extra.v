@@ -129,7 +129,6 @@ Section Logrel_extra.
        apply Forall_cons in Hlv; destruct Hlv as [<- Hlv].
        cbn.
        iDestruct "Hl" as "[( [Hclose %Hrevoke] & Ha) Hl]".
-       (* iDestruct (big_sepL2_cons with "Hl") as "(Hclose & %Hrevoke & Ha)". *)
        iAssert (⌜ Forall (λ k : finz MemNum, std W !! k = Some Revoked) la ⌝)%I
          with "[Hl]" as "%Hrevoked".
        { rewrite !big_sepL2_sep.
@@ -447,7 +446,7 @@ Section Logrel_extra.
   Qed.
 
   (* revoke stack, with unknown p and φ *)
-  Lemma monotone_revoke_stack W C b e a :
+  Lemma monotone_revoke_stack_pre W C b e a :
     let la := finz.seq_between b e in
 
     interp W C (WCap RWL Local b e a)
@@ -512,7 +511,7 @@ Section Logrel_extra.
         by apply Hl'.
   Qed.
 
-  Lemma monotone_revoke_stack_alt W C b e a :
+  Lemma monotone_revoke_stack W C b e a :
     let la := finz.seq_between b e in
 
     interp W C (WCap RWL Local b e a)
@@ -530,7 +529,7 @@ Section Logrel_extra.
       ∗ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
   Proof.
     iIntros (la) "(#Hinterp & Hsts & Hr)".
-    iMod (monotone_revoke_stack with "[$Hinterp $Hsts $Hr]") as (l) "($ & $ & $ & Hstk & $ & $ & $)".
+    iMod (monotone_revoke_stack_pre with "[$Hinterp $Hsts $Hr]") as (l) "($ & $ & $ & Hstk & $ & $ & $)".
     iModIntro.
     rewrite -bi.later_sep.
     iNext.
@@ -680,6 +679,30 @@ Section Logrel_extra.
     iDestruct "H" as (???) "(Hstd&Hφ&Hmono&Hrcond&Hrel&?&?&%&%&%&%)".
     destruct p.
     destruct dl,dro; try done; by iApply "Hrcond".
+  Qed.
+
+  (* TODO move somewhere else *)
+  Lemma world_interp_revoke_stack W C b e a :
+    let la := finz.seq_between b e in
+
+    interp W C (WCap RWL Local b e a)
+    ∗ world_interp W C
+    ==∗
+    ∃ l_unk_temp,
+      ⌜ NoDup (l_unk_temp ++ la) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l_unk_temp ++ la))⌝
+      ∗ world_interp (revoke W) C
+      ∗ ▷ ([∗ list] a ∈ la, closing_revoked_resources W C a)
+      ∗ ▷ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) la⌝
+      ∗ ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]])
+      ∗ close_list_resources C W l_unk_temp true
+      ∗ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
+  Proof.
+    intros la.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "(Hinterp & [Hr Hsts])".
+    iMod (monotone_revoke_stack with "[$Hinterp $Hr $ Hsts]")
+        as (l) "($ & $ & $ & $ & $ & $ & $)".
+    done.
   Qed.
 
 End Logrel_extra.

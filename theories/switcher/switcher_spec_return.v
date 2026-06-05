@@ -7,7 +7,7 @@ From cap_machine Require Import multiple_updates region_invariants_revocation.
 From cap_machine Require Export switcher switcher_preamble.
 From stdpp Require Import base.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
-From cap_machine Require Export logrel_extra world_ghost_theory_interface_post_logrel.
+From cap_machine Require Export logrel_extra world_ghost_theory_interface switcher_helpers.
 
 
 Section Switcher.

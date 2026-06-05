@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
 From cap_machine Require Import logrel logrel_extra rules.
 From cap_machine Require Import fetch_spec assert_spec switcher_spec_call cmdc.
-From cap_machine Require Import world_ghost_theory world_ghost_theory_interface world_ghost_theory_interface_post_logrel.
+From cap_machine Require Import world_ghost_theory world_ghost_theory_interface.
 From cap_machine Require Import proofmode.
 
 Section CMDC.

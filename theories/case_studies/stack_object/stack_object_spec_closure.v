@@ -4,7 +4,7 @@ From cap_machine Require Import rules logrel logrel_extra monotone proofmode reg
 From cap_machine Require Import fetch_spec assert_spec checkints checkra check_no_overlap_spec.
 From cap_machine Require Import
   switcher interp_switcher_call switcher_spec_call switcher_spec_return.
-From cap_machine Require Import world_ghost_theory world_ghost_theory_interface world_ghost_theory_interface_post_logrel.
+From cap_machine Require Import world_ghost_theory world_ghost_theory_interface.
 From cap_machine Require Import stack_object.
 From cap_machine Require Import proofmode.
 

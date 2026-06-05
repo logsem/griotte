@@ -601,7 +601,6 @@ Section Adequacy.
     set (W1 := (<l[i:=false,(awk_rel_pub, awk_rel_priv)]l>W0)).
     iDestruct (world_interp_alloc_loc _ C false awk_rel_pub awk_rel_priv with "Hworld_interp_C")
       as ">(Hworld_interp_C & %Hloc_fresh & %Hcus_fresh & Hst_i & #Hrel_i)"; auto.
-    { by intros Ha Ha'. }
 
     assert (related_sts_priv_world W0 W1) as Hpriv_W0_W1.
     { subst W1 i.

@@ -7,7 +7,7 @@ From cap_machine Require Import wp_rules_interp switcher_macros_spec.
 From cap_machine Require Import rules proofmode monotone.
 From cap_machine Require Import fundamental.
 From cap_machine Require Import switcher_preamble.
-From cap_machine Require Import interp_switcher_return.
+From cap_machine Require Import interp_switcher_return switcher_helpers.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 

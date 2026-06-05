@@ -5,7 +5,7 @@ From cap_machine Require Export logrel logrel_extra monotone.
 From cap_machine Require Import fundamental.
 From cap_machine Require Import switcher_preamble.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
-From cap_machine Require Export logrel_extra world_ghost_theory_interface_post_logrel.
+From cap_machine Require Export logrel_extra world_ghost_theory_interface switcher_helpers.
 
 Section fundamental.
   Context

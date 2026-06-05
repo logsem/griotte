@@ -6,7 +6,7 @@ From cap_machine Require Import logrel fundamental interp_weakening memory_regio
 From cap_machine Require Import multiple_updates region_invariants_revocation.
 From cap_machine Require Export switcher switcher_preamble.
 From stdpp Require Import base.
-From cap_machine Require Import logrel_extra switcher_macros_spec.
+From cap_machine Require Import logrel_extra switcher_macros_spec switcher_helpers.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 

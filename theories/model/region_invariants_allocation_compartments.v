@@ -6,7 +6,7 @@ From cap_machine Require Import seal_store logrel interp_weakening.
 From cap_machine Require Import switcher.
 From cap_machine Require Import compartment_layout mkregion_helpers stdpp_extra disjoint_regions_tactics.
 From cap_machine Require Import region_invariants_allocation.
-From cap_machine Require Import world_ghost_theory_interface_post_logrel.
+From cap_machine Require Import world_ghost_theory_interface.
 Import uPred.
 
 Section region_alloc_cmpt.
