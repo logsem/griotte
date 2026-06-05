@@ -152,6 +152,43 @@ Section Logrel_extra.
        by iFrame.
    Qed.
 
+  Lemma submseteq_dom (l : list Addr) (Wstd_sta : gmap Addr region_type) :
+    Forall (λ i : Addr, Wstd_sta !! i = Some Temporary) l
+    → NoDup l → l ⊆+ (map_to_list Wstd_sta).*1.
+  Proof.
+    generalize l.
+    induction Wstd_sta using map_ind.
+    + intros l' Htemps Hdup. destruct l'; auto. inversion Htemps. subst. discriminate.
+    + intros l' Htemps Hdup. rewrite map_to_list_insert; auto.
+      cbn.
+      (* destruct on i being an element of l'! *)
+      destruct (decide (i ∈ l')).
+      ++ apply list_elem_of_split in e as [l1 [l2 Heq] ].
+         rewrite Heq -Permutation_middle.
+         apply submseteq_skip.
+         rewrite Heq in Hdup.
+         apply NoDup_app in Hdup as [Hdup1 [Hdisj Hdup2] ].
+         apply NoDup_cons in Hdup2 as [Helem2 Hdup2].
+         assert (i ∉ l1) as Helem1.
+         { intros Hin. specialize (Hdisj i Hin). apply not_elem_of_cons in Hdisj as [Hcontr _]. done. }
+         apply IHWstd_sta.
+         +++ revert Htemps. repeat rewrite Forall_forall. intros Htemps.
+             intros j Hin.
+             assert (j ≠ i) as Hne.
+             { intros Hcontr; subst. apply elem_of_app in Hin as [Hcontr | Hcontr]; congruence. }
+             rewrite -(Htemps j);[rewrite lookup_insert_ne;auto|].
+             subst. apply elem_of_app. apply elem_of_app in Hin as [Hin | Hin]; [left;auto|right].
+             apply elem_of_cons;by right.
+         +++ apply NoDup_app; repeat (split;auto).
+             intros j Hj. specialize (Hdisj j Hj). apply not_elem_of_cons in Hdisj as [_ Hl2];auto.
+      ++ apply submseteq_cons. apply IHWstd_sta; auto.
+         revert Htemps. repeat rewrite Forall_forall. intros Htemps j Hin.
+         specialize (Htemps j Hin).
+         assert (i ≠ j) as Hneq; [intros Hcontr; subst; congruence|].
+         rewrite lookup_insert_ne in Htemps;auto.
+  Qed.
+
+
   Lemma monotone_revoke_list_sts_full_world_keep_interp W C (l : list Addr) (l' l_unk : list Addr) :
     ⊢ ⌜NoDup (l_unk ++ l')⌝ → ⌜NoDup l⌝ → ⌜(l_unk ++ l') ⊆+ l⌝ →
     ⌜ Forall (λ a : finz MemNum, W.1 !! a = Some Temporary) l_unk ⌝ →
@@ -385,6 +422,33 @@ Section Logrel_extra.
      revert Hin Hdom'. clear; intros Hin Hdom; rewrite Hdom; set_solver.
   Qed.
 
+  (* We also want to be able to split the extracted temporary regions into known and unknown *)
+  Lemma extract_temps_split_world W l :
+    NoDup l ->
+    Forall (λ (a : Addr), (std W) !! a = Some Temporary) l ->
+    ∃ l', NoDup (l' ++ l) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l' ++ l)).
+  Proof.
+    intros Hdup HForall.
+    pose proof (extract_temps W) as [l' [Hdup' Hl'] ].
+    revert HForall; rewrite Forall_forall =>HForall.
+    exists (list_difference l' l). split.
+    - apply NoDup_app. split;[|split].
+      + apply NoDup_list_difference. auto.
+      + intros a Ha. apply list_elem_of_difference in Ha as [_ Ha]; auto.
+      + auto.
+    - intros a. split.
+      + intros Htemp.
+        destruct (decide (a ∈ list_difference l' l));[by apply elem_of_app;left|].
+        apply elem_of_app;right. apply Hl' in Htemp.
+        assert (not (a ∈ l' ∧ a ∉ l)) as Hnot.
+        { intros Hcontr. apply list_elem_of_difference in Hcontr. contradiction. }
+        destruct (decide (a ∈ l)); auto.
+        assert (a ∈ l' ∧ a ∉ l) as Hcontr; auto. apply Hnot in Hcontr. done.
+      + intros Hin. apply elem_of_app in Hin as [Hin | Hin].
+        ++ apply list_elem_of_difference in Hin as [Hinl Hninl'].
+           by apply Hl'.
+        ++ by apply HForall.
+  Qed.
   Lemma monotone_revoke_sts_full_world_keep_interp W C (l : list Addr) :
     ⌜NoDup l⌝ -∗
     ([∗ list] a' ∈ l,
