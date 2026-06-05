@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
 From cap_machine Require Import logrel logrel_extra rules.
 From cap_machine Require Import fetch_spec assert_spec switcher_spec_call cmdc.
+From cap_machine Require Import world_ghost_theory world_ghost_theory_interface world_ghost_theory_interface_post_logrel.
 From cap_machine Require Import proofmode.
 
 Section CMDC.
@@ -82,8 +83,8 @@ Section CMDC.
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ cmdc_main_data ]]
       ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
 
-      ∗ region W_init_B B ∗ sts_full_world W_init_B B
-      ∗ region W_init_C C ∗ sts_full_world W_init_C C
+      ∗ world_interp W_init_B B
+      ∗ world_interp W_init_C C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -110,8 +111,8 @@ Section CMDC.
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
-      & HWreg_B & HWstd_full_B
-      & HWreg_C & HWstd_full_C
+      & Hworld_interp_B
+      & Hworld_interp_C
       & HK
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
@@ -294,21 +295,16 @@ Section CMDC.
       destruct Hcgp_b_stk; [left|right]; solve_addr.
     }
 
-    iMod (extend_region_perm _ _ _ _ _ RW interpC
-        with "[] [$HWstd_full_B] [$HWreg_B] [$Hcgp_b] []")
-      as "(HWreg_B & Hrel_cgp_b & HWstd_full_B)".
+    iMod (world_interp_extend_perm _ _ _ _ _ RW interpC
+        with "[] [$Hworld_interp_B] [$Hcgp_b] []")
+      as "(Hworld_interp_B & Hrel_cgp_b)".
     { done. }
     { done. }
     { iApply future_priv_mono_interp_z. }
-    { rewrite /interpC /safeC; cbn; iEval (rewrite fixpoint_interp1_eq); done. }
+    { rewrite /interpC; cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
     (* Update the frame invariant of B *)
     set (W1 := (<s[cgp_b:=Permanent]s>W_init_B)).
-    (* set (W1' := switcher_world_upon_jmp W1 [] (finz.seq_between (csp_b ^+ 4)%a csp_e) ). *)
-    (* assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1. *)
-    (* { subst W1. *)
-    (*   by eapply related_sts_priv_world_fresh_Permanent. *)
-    (* } *)
     iAssert ( ⌜ Forall (fun a => std W_init_B !! a = Some Revoked) (finz.seq_between csp_b csp_e) ⌝ )%I
       as "%Hrevoked_stack_B".
     {
@@ -341,9 +337,6 @@ Section CMDC.
     assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1.
     { subst W1.
       eapply related_sts_priv_world_fresh_Permanent.
-      (* eapply related_sts_priv_trans_world; eauto. *)
-      (* eapply related_sts_priv_world_switcher_upon_jmp ; eauto. *)
-      (* apply disjoint_nil_l. *)
     }
 
     iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
@@ -414,7 +407,7 @@ Section CMDC.
     iApply (switcher_cc_specification _ W1 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hcsp_stk $HWreg_B $HWstd_full_B $Hrel_stk_B $Hcstk_frag
+              $Hcsp_stk $Hworld_interp_B $Hrel_stk_B $Hcstk_frag
               $Hinterp_W1_B_f $HentryB_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -432,7 +425,7 @@ Section CMDC.
       "( _ & _ & _
       & %HW1_pubB_W2 & Hrel_stk_B & %Hdom_rmap' & Hclose_reg_B & %Hclose_reg_B
       & Hna & %Hcsp_bounds
-      & HWstd_full_B & HWreg_B
+      & Hworld_interp_B
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -531,8 +524,8 @@ Section CMDC.
 
     (* we open the world to get the points-to predicate *)
     iDestruct (
-       region_open_perm with "[$Hrel_cgp_b $HWreg_B $HWstd_full_B]"
-      ) as (v) "(HWreg_B & HWstd_full_B & Hstd_cgp_b & Hcgp_b & _ & HmonoR & #Hinterp_wcpgb)"; auto.
+       open_world_interp_perm with "[$Hrel_cgp_b $Hworld_interp_B]"
+      ) as (v) "(Hworld_interp_B & Hstd_cgp_b & Hcgp_b & _ & HmonoR & #Hinterp_wcpgb)"; auto.
     {
       eapply (monotone.region_state_priv_perm W2_B); eauto.
       eapply revoke_related_sts_priv_world.
@@ -640,13 +633,13 @@ Section CMDC.
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_c]") as "%Hcgp_c_stk".
 
     (* We add the newly shared address in the world of C *)
-    iMod (extend_region_perm _ _ _ _ _ RW interpC
-           with "[] [$HWstd_full_C] [$HWreg_C] [$Hcgp_c] []")
-      as "(HWreg_C & Hrel_cgp_c & HWstd_full_C)".
+    iMod (world_interp_extend_perm _ _ _ _ _ RW interpC
+        with "[] [$Hworld_interp_C] [$Hcgp_c] []")
+      as "(Hworld_interp_C & Hrel_cgp_c)".
     { done. }
     { done. }
     { iApply future_priv_mono_interp_z. }
-    { rewrite /interpC /safeC; cbn; iEval (rewrite fixpoint_interp1_eq); done. }
+    { rewrite /interpC; cbn; iEval (rewrite fixpoint_interp1_eq); done. }
 
     set (W3 := (<s[cgp_c:=Permanent]s>W_init_C)).
     assert (related_sts_priv_world W_init_C W3) as HWinit_privC_W3.
@@ -750,7 +743,7 @@ Section CMDC.
     iApply (switcher_cc_specification _ W3 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hstk $HWreg_C $HWstd_full_C $Hrel_stk_C $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hrel_stk_C $Hcstk_frag
               $Hinterp_W3_C_g $HentryC_g $HK]"); eauto; iFrame "%".
     { subst rmap''.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -768,7 +761,7 @@ Section CMDC.
       "( _ & _ & _
       & %HW1_pubC_4 & Hrel_stk_C & %Hdom_rmap'' & Hclose_reg_C & _
       & Hna & _
-      & HWstd_full_C & HWreg_C
+      & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg'0 [Hca0 _] ] & [%warg1' [Hca1 _] ]
@@ -911,8 +904,8 @@ Section CMDC.
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ cmdc_main_data ]]
       ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
 
-      ∗ region W_init_B B ∗ sts_full_world W_init_B B
-      ∗ region W_init_C C ∗ sts_full_world W_init_C C
+      ∗ world_interp W_init_B B
+      ∗ world_interp W_init_C C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -939,8 +932,8 @@ Section CMDC.
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
-      & HWreg_B & HWstd_full_B
-      & HWreg_C & HWstd_full_C
+      & Hworld_interp_B
+      & Hworld_interp_C
       & HK
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g

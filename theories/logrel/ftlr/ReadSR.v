@@ -32,11 +32,11 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (ReadSR dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     destruct (has_sreg_access p) eqn:HpXRS.
-    { iClear "IH Hreg Hinva Hrcond Hwcond Hmono HmonoV Hw Hsts Htframe Hown Hr Hstate Ha Hmap".
+    { iClear "IH Hreg Hinva Hrcond Hwcond Hmono HmonoV Hw Hworld_interp Htframe Hown Hstate Ha Hmap".
       iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv_interp".
       destruct (isO p) eqn: HnO.
       { destruct Hp as [Hexec _]

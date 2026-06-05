@@ -3,7 +3,8 @@ From cap_machine Require Import logrel interp_weakening monotone.
 From cap_machine Require Import vae vae_helper vae_spec_closure vae_spec.
 From cap_machine Require Import switcher assert_spec logrel.
 From cap_machine Require Import mkregion_helpers.
-From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
+From cap_machine Require Import
+  region_invariants_revocation region_invariants_allocation region_invariants_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From cap_machine Require Import disjoint_regions_tactics.
@@ -303,7 +304,7 @@ Section Adequacy.
     set (awk_f' := (SCap RO Local _ _ (cmpt_exp_tbl_pcc main_cmpt ^+ 2)%a)).
     clear Hneq_Cf_Cg Hneq_Cg_awkf Hneq_Cf_awkf.
 
-    unshelve iMod (gen_sts_init 0) as (stsg) "Hsts"; eauto. (*XX*)
+    iMod (gen_sts_init) as (stsg) "Hsts". (*XX*)
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
     iMod (heap_init) as (heapg) "HRELS".
 
@@ -318,6 +319,13 @@ Section Adequacy.
 
     pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg entry_g.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
+
+    set (W0 := (∅, (∅, ∅))).
+    iAssert (region W0 C) with "[HRELS_C]" as "Hr_C".
+    { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
+      rewrite /= !dom_empty_L //. repeat iSplit; eauto.
+      rewrite /region_map_def. by rewrite big_sepM_empty. }
+    iDestruct (world_interp_init with "[$Hr_C $Hsts_C]") as "Hworld_interp_C".
 
     pose proof (
         @vae_init_spec Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _ _ C
@@ -588,27 +596,18 @@ Section Adequacy.
             )%I with "Hmain_etbl_entries")%I
       as "#Hinv_etbl_entry_awkward".
 
-    (* Initialises the world for C *)
-    set (W0 := (∅, (∅, ∅))).
-    iAssert (region W0 C) with "[HRELS_C]" as "Hr_C".
-    { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
-      rewrite /= !dom_empty_L //. repeat iSplit; eauto.
-      rewrite /region_map_def. by rewrite big_sepM_empty. }
-
-
     (* Allocate the custom invariant *)
-    iDestruct (sts_alloc_loc _ C false awk_rel_pub awk_rel_priv with "Hsts_C")
-      as ">(Hsts_C & %Hloc_fresh & %Hcus_fresh & Hst_i & #Hrel_i)".
     set (i := (fresh_cus_name W0)).
     set (W1 := (<l[i:=false,(awk_rel_pub, awk_rel_priv)]l>W0)).
+    iDestruct (world_interp_alloc_loc _ C false awk_rel_pub awk_rel_priv with "Hworld_interp_C")
+      as ">(Hworld_interp_C & %Hloc_fresh & %Hcus_fresh & Hst_i & #Hrel_i)"; auto.
+    { by intros Ha Ha'. }
+
     assert (related_sts_priv_world W0 W1) as Hpriv_W0_W1.
     { subst W1 i.
       apply related_sts_pub_priv_world.
       eapply related_sts_pub_world_fresh_loc; eauto.
     }
-
-    iMod (update_region_revoked_update_loc with "Hsts_C Hr_C") as "[Hr_C Hsts_C]"; auto.
-    { by intros Ha Ha'. }
 
     iDestruct (inv_alloc awkN _ (awk_inv C i _) with "[Hcgp_b Hst_i]") as ">#Hawk_inv".
     { iExists false; iFrame. }
@@ -667,8 +666,8 @@ Section Adequacy.
     { eapply std_update_compartment_pub; eauto ; (apply Forall_true; intros; done). }
 
     iMod (
-       alloc_compartment_interp with "[$HC_imports] [$HC_code] [$HC_data] [] [$Hsts_C] [$Hr_C]"
-      ) as "(Hsts_C & Hr_C & #HC_code & #HC_data & _)"; eauto.
+       alloc_compartment_interp with "[$HC_imports] [$HC_code] [$HC_data] [] [$Hworld_interp_C]"
+      ) as "(Hworld_interp_C & #HC_code & #HC_data & _)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
@@ -727,12 +726,12 @@ Section Adequacy.
       rewrite not_elem_of_dom.
       eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
     }
-    iMod ( extend_region_temp_sepL2 _ _ _
+    iMod ( world_interp_extend_temp_sepL2 _ _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
              (stack_content switcher_cmpt)
              RWL interpC
-           with "Hsts_C Hr_C [Hstack]")
-           as "(Hr_C & #Hrel_stk_C & Hsts_C)".
+           with "Hworld_interp_C [Hstack]")
+           as "(Hworld_interp_C & #Hrel_stk_C)".
     { done. }
     { eapply Forall_impl; eauto.
       intros a Ha.
@@ -743,13 +742,13 @@ Section Adequacy.
       intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
       pose proof (Forall_lookup_1 _ _ _ _ Hstack Hv2) as Hncap.
       destruct v2; [| by inversion Hncap..].
-      rewrite /interpC /safeC fixpoint_interp1_eq /=.
+      rewrite /interpC fixpoint_interp1_eq /=.
       iSplit; eauto.
       iApply future_pub_mono_interp_z.
     }
 
     match goal with
-    | H: _ |- context [  (sts_full_world ?W C) ] => set (Winit_C := W)
+    | H: _ |- context [  (world_interp ?W C) ] => set (Winit_C := W)
     end.
     assert (related_sts_pub_world W4 Winit_C) as Hrelated_pub_W4_W5.
     { apply related_sts_pub_update_multiple; auto. }
@@ -812,7 +811,7 @@ Section Adequacy.
                  with "[ $Hassert $Hswitcher $Hmain_code
                          $Hinv_etbl_PCC $Hinv_etbl_CGP $Hinv_etbl_entry_awkward
                          $Hna
-                         $Hr_C $Hsts_C
+                         $Hworld_interp_C
                          $HPC $Hcgp $Hcsp $Hreg
                          $Hcstk_frag $Hinterp_stack_C
                          $Hinterp_C_f' $Hentry_Cf $Hentry_awkf $Hentry_awkf'

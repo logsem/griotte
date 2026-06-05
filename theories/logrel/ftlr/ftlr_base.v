@@ -31,8 +31,7 @@ Section fundamental.
             full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
             -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r_ih)
-            -∗ region W_ih C_ih
-            -∗ sts_full_world W_ih C_ih
+            -∗ world_interp W_ih C_ih
             -∗ interp_continuation cstk Ws Cs
             -∗ ⌜frame_match Ws Cs cstk W_ih C_ih⌝
             -∗ na_own logrel_nais ⊤
@@ -74,10 +73,9 @@ Section fundamental.
     -∗ ▷ P W C w
     -∗ interp_continuation cstk Ws Cs
     -∗ ⌜frame_match Ws Cs cstk W C⌝
-    -∗ sts_full_world W C
+    -∗ world_interp_open W C [a]
     -∗ na_own logrel_nais ⊤
     -∗ cstack_frag cstk
-    -∗ open_region W C a
     -∗ sts_state_std C a ρ
     -∗ a ↦ₐ w
     -∗ PC ↦ᵣ (WCap p g b e a)

@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From cap_machine Require Import rules logrel logrel_extra monotone register_tactics.
 From cap_machine Require Import fetch_spec assert_spec switcher_spec_call deep_locality.
+From cap_machine Require Import world_ghost_theory world_ghost_theory_interface world_ghost_theory_interface_post_logrel.
 From cap_machine Require Import proofmode.
 
 Section DLE.
@@ -72,7 +73,7 @@ Section DLE.
       ∗ codefrag pc_a dle_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ dle_main_data ]]
 
-      ∗ region W0 C ∗ sts_full_world W0 C
+      ∗ world_interp W0 C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -91,7 +92,7 @@ Section DLE.
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
-      & Hr_C & Hsts_C
+      & Hworld_interp_C
       & HK
       & Hcstk_frag
       & #Hinterp_W0_C_f
@@ -129,8 +130,8 @@ Section DLE.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l) "(%Hl_unk & Hsts_C & Hr_C & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
+        as (l) "(%Hl_unk & Hworld_interp_C & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_a]") as "%Hcgp_a_stk".
     set (W1 := revoke W0).
@@ -229,14 +230,14 @@ Section DLE.
     (* -- Update the world and prove interp of the the argument in `ca0` -- *)
 
     (* First, extend the world such that `cgp_b` is interp with RW_DL access *)
-    iMod (extend_region_temp _ _ _ _ _ RW_DL interpC
-        with "[] [$Hsts_C] [$Hr_C] [$Hcgp_b] []")
-      as "(Hr_C & #Hrel_cgp_b & Hsts_C)"; auto.
+    iMod (world_interp_extend_temp _ _ _ _ _ RW_DL interpC
+        with "[] [$Hworld_interp_C] [$Hcgp_b] []")
+      as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
     { by rewrite -revoke_dom_eq. }
     { iApply future_pub_mono_interp_z. }
-    { rewrite /interpC /safeC; iApply interp_int. }
+    { rewrite /interpC; iApply interp_int. }
     match goal with
-    | _ : _ |- context [ region ?W' ] => set (W2 := W')
+    | _ : _ |- context [ world_interp ?W' ] => set (W2 := W')
     end.
 
     (* And prove that the RW_DL capability pointing to it is safe *)
@@ -261,9 +262,9 @@ Section DLE.
     }
 
     (* Second, extend the world such that `cgp_b+1` is interp_dl with RW_DL access *)
-    iMod (extend_region_temp _ _ _ _ _ RW_DL (safeC interp_dl)
-        with "[] [$Hsts_C] [$Hr_C] [$Hcgp_a] []")
-      as "(Hr_C & Hrel_cgp_a & Hsts_C)";auto.
+    iMod (world_interp_extend_temp _ _ _ _ _ RW_DL (safeC interp_dl)
+        with "[] [$Hworld_interp_C] [$Hcgp_a] []")
+      as "(Hworld_interp_C & Hrel_cgp_a)";auto.
     { subst W2.
       cbn; rewrite dom_insert_L not_elem_of_union; split.
       + rewrite not_elem_of_singleton; solve_addr+Hcgp_contiguous.
@@ -271,7 +272,7 @@ Section DLE.
     }
     { iApply future_pub_mono_interp_dl. }
     match goal with
-    | _ : _ |- context [ region ?W' ] => set (W3 := W')
+    | _ : _ |- context [ world_interp ?W' ] => set (W3 := W')
     end.
 
     (* And prove that the RW_DL capability pointing to it is safe *)
@@ -370,7 +371,7 @@ Section DLE.
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W3 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hfrm_close_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -387,7 +388,7 @@ Section DLE.
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
       & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4 & %Hfrm_close_W4
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C
+      & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -525,7 +526,7 @@ Section DLE.
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W5 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hfrm_close_W5 $Hcstk_frag
               $Hinterp_W5_C_f $HentryC_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -540,7 +541,7 @@ Section DLE.
       "( _ & _ & _
       & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6 & _
       & Hna & _
-      & Hsts_C & Hr_C
+      & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]

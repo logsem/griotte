@@ -4,6 +4,7 @@ From cap_machine Require Import rules logrel logrel_extra monotone proofmode reg
 From cap_machine Require Import fetch_spec assert_spec checkints checkra check_no_overlap_spec.
 From cap_machine Require Import
   switcher interp_switcher_call switcher_spec_call switcher_spec_return.
+From cap_machine Require Import world_ghost_theory world_ghost_theory_interface world_ghost_theory_interface_post_logrel.
 From cap_machine Require Import stack_object.
 From cap_machine Require Import proofmode.
 
@@ -126,7 +127,7 @@ Section SO.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
@@ -226,9 +227,9 @@ Section SO.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
+    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l_revoked_W0) "([%Hl_revoked_W0_nodup %Hl_revoked_W0_temporaries]
-                 & Hsts_C & Hr_C
+                 & Hworld_interp_C
                  & #Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk]
                  & [Hl_revoked_W0 %Hl_revoked_W0])".
 
@@ -358,7 +359,7 @@ Section SO.
      - open the world
      - change the shape of the resources obtained from the open world in a more usable way
      *)
-    rewrite region_open_nil.
+    (* rewrite region_open_nil. *)
     iDestruct (read_allowed_inv_full_cap with "Hinterp_wca0_W0") as "Hinterp_wca0_invs"; auto.
     iAssert (
         ∃ (wca0_invs : list (finz MemNum * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type)),
@@ -400,8 +401,10 @@ Section SO.
         iPureIntro.
         apply Forall_cons; split; auto.
     }
-    iDestruct (region_open_list with "[$Hrels_wca0 $Hr_C $Hsts_C]") as
-      "(%wca0_lv_perma & Hr_C & Hsts_C & Hsts_std_wca0 & Hla_be_permanents_lv & Hwca0_mono & Hwca0_φs
+
+    rewrite -open_empty.
+    iDestruct (open_world_interp_list with "[$Hrels_wca0 $Hworld_interp_C]") as
+      "(%wca0_lv_perma & Hworld_interp_C & Hsts_std_wca0 & Hla_be_permanents_lv & Hwca0_mono & Hwca0_φs
      & %Hlength_wca0_lv & Hwca0_pO)".
     { rewrite Hwca0_invs_perma.
       subst la_be_permanents.
@@ -514,9 +517,10 @@ Section SO.
         iDestruct "Hl" as "[$ Hl]".
         iApply IHl; eauto.
     }
-    iDestruct (region_close_list W1 C wca0_invs [] with
-             "[$Hr_C $Hsts_std_wca0 $Hla_be_permanents_lv $Hwca0_mono $Hwca0_φs $Hrels_wca0 $Hwca0_pO]"
-      ) as "Hr_C".
+
+    iDestruct (close_world_interp_list W1 C wca0_invs [] with
+             "[$Hworld_interp_C $Hsts_std_wca0 $Hla_be_permanents_lv $Hwca0_mono $Hwca0_φs $Hrels_wca0 $Hwca0_pO]"
+      ) as "Hworld_interp_C".
     { by rewrite Hlength_wca0_lv length_fmap. }
     { rewrite Hwca0_invs_perma. apply NoDup_filter, finz_seq_between_NoDup. }
     { set_solver+. }
@@ -526,7 +530,7 @@ Section SO.
       destruct Hx as [_ ->]; done.
     }
     { auto. }
-    rewrite -region_open_nil.
+    rewrite open_empty.
 
     (* Update the world and insert [la_be_temporaries].
        It means that we need to prove that they are safe to share in the revoked world.
@@ -618,9 +622,9 @@ Section SO.
       iFrame.
       iApply ("IH" $! lφ lp lv with "[%] [%] [%] [$] [$] [$] [$] [$] [$]"); eauto.
     }
-    iMod (monotone_close_list_region W1 W1 C la_be_temporaries with
-      "[] [$Hsts_C $Hr_C $Hla_be_temporaries_closing_resources]") as "[Hsts_C Hr_C]".
-    { iPureIntro; apply close_list_related_sts_pub. }
+    iMod (reinstate_close_list W1 W1 C la_be_temporaries with
+      "[$Hworld_interp_C $Hla_be_temporaries_closing_resources]") as "Hworld_interp_C".
+    { apply close_list_related_sts_pub. }
     set ( W2 := (close_list la_be_temporaries W1)).
 
     (* The passed object is safe to share in the world [W2] *)
@@ -851,16 +855,16 @@ Section SO.
         { apply elem_of_app; right; done. }
         by specialize (Hl_revoked_W0_temporaries a_stk1); apply Hl_revoked_W0_temporaries in Ha.
       + (* apply Hwcond_Pastk1, but remove the later... *)
-        rewrite /safeC /=.
+        rewrite /=.
         iApply "Hwcond_Pastk1'".
         iApply interp_int.
     }
 
     (* Insert the allocated SO [a_stk1] in the world *)
-    iMod (monotone_close_list_region W2 W2 C [a_stk1] with
-      "[] [$Hsts_C $Hr_C $Hastk1_closing_resources]") as "[Hsts_C Hr_C]".
-    { iPureIntro; apply close_list_related_sts_pub. }
-    set (W3 := close_list _ W2).
+    iMod (reinstate_close_list W2 W2 C [a_stk1] with
+      "[$Hworld_interp_C $Hastk1_closing_resources]") as "Hworld_interp_C".
+    { apply close_list_related_sts_pub. }
+    set (W3 := reinstate W2 _).
     assert (related_sts_pub_world W2 W3) as Hrelated_pub_W2_W3.
     { apply close_list_related_sts_pub. }
     assert (related_sts_priv_world W0 W3) as Hrelated_priv_W0_W3.
@@ -983,7 +987,7 @@ Section SO.
     iApply (switcher_cc_specification_alt with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W3 $Hcstk
+              $Hstk $Hworld_interp_C $Hfrm_close_W3 $Hcstk
               $Hinterp_W3_wct1 $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -1000,7 +1004,7 @@ Section SO.
       "( [%Hl_revoked_W4_nodup %Hl_revoked_W4_temporaries] & Hl_revoked_W4 & %Hl_revoked_W4
       & %Hrelated_pub_2ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4 & %Hfrm_close_W4
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C
+      & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -1019,8 +1023,9 @@ Section SO.
     set (W5 := revoke W4).
 
     (* Derive a bunch of disjointness properties that will be necessary later *)
-    iMod (revoked_by_separation_close_list_resources with "[$Hrevoked_l_revoked_W0_no_be $Hr_C $Hsts_C]")
-      as "(Hr_C & Hsts_C & Hrevoked_l_revoked_W0_no_be & %Hrevoked_l_revoked_W0_no_be_W5)".
+    iMod (world_interp_revoked_by_separation_close_list_resources
+           with "[$Hrevoked_l_revoked_W0_no_be $Hworld_interp_C]")
+      as "(Hworld_interp_C & Hrevoked_l_revoked_W0_no_be & %Hrevoked_l_revoked_W0_no_be_W5)".
     { apply Forall_forall.
       intros x Hx.
       subst l_revoked_W0_no_be.
@@ -1033,8 +1038,9 @@ Section SO.
       { apply Hl_revoked_W0_temporaries; apply elem_of_app ; by left. }
       rewrite elem_of_dom; done.
     }
-    iMod (revoked_by_separation_close_list_resources with "[$Hl_revoked_W4 $Hr_C $Hsts_C]")
-      as "(Hr_C & Hsts_C & Hl_revoked_W4 & %Hrevoked_l_revoked_W4_W5)".
+    (* FIXME *)
+    iMod (world_interp_revoked_by_separation_close_list_resources with "[$Hl_revoked_W4 $Hworld_interp_C]")
+      as "(Hworld_interp_C & Hl_revoked_W4 & %Hrevoked_l_revoked_W4_W5)".
     { apply Forall_forall.
       intros x Hx.
       rewrite -revoke_dom_eq.
@@ -1042,14 +1048,15 @@ Section SO.
       { apply Hl_revoked_W4_temporaries; apply elem_of_app ; by left. }
       rewrite elem_of_dom; done.
     }
-    iMod (revoked_by_separation_many with "[$Hstk $Hr_C $Hsts_C]")
-      as "(Hr_C & Hsts_C & Hstk & %Hstk_W5)".
+    iMod (world_interp_revoked_by_separation_many with "[$Hstk $Hworld_interp_C]")
+      as "(Hworld_interp_C & Hstk & %Hstk_W5)".
     { eapply Forall_impl; eauto; cbn.
       intros x Hx.
       rewrite elem_of_dom; done.
     }
-    iMod (revoked_by_separation with "[$Hastk0 $Hr_C $Hsts_C]")
-      as "(Hr_C & Hsts_C & Hastk0 & %Hastk0_W5)".
+
+    iMod (world_interp_revoked_by_separation with "[$Hastk0 $Hworld_interp_C]")
+      as "(Hworld_interp_C & Hastk0 & %Hastk0_W5)".
     {
       rewrite -revoke_dom_eq.
       eapply elem_of_mono_pub; eauto.
@@ -1425,7 +1432,7 @@ Section SO.
     (* Apply the generalised version of the return to switcher specification *)
     iApply (switcher_ret_specification_gen _ W0 W5
              with
-             "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hna $HPC $Hr_C
+             "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC
              $Hrmap $Hca0 $Hca1 $Hcsp $Hrevoked]"
            ); eauto.
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }

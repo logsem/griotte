@@ -3,7 +3,8 @@ From cap_machine Require Import logrel interp_weakening monotone.
 From cap_machine Require Import cmdc cmdc_spec.
 From cap_machine Require Import switcher assert_spec logrel.
 From cap_machine Require Import mkregion_helpers.
-From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
+From cap_machine Require Import
+  region_invariants_revocation region_invariants_allocation region_invariants_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From cap_machine Require Import disjoint_regions_tactics.
@@ -282,7 +283,7 @@ Section Adequacy.
 
 
 
-    unshelve iMod (gen_sts_init 0) as (stsg) "Hsts"; eauto. (*XX*)
+    iMod (gen_sts_init) as (stsg) "Hsts". (*XX*)
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
     iMod (heap_init) as (heapg) "HRELS".
 
@@ -300,6 +301,19 @@ Section Adequacy.
 
     pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg entry_g.
     pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
+
+    set (W0 := (∅, (∅, ∅))).
+    iAssert (region W0 B) with "[HRELS_B]" as "Hr_B".
+    { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
+      rewrite /= !dom_empty_L //. repeat iSplit; eauto.
+      rewrite /region_map_def. by rewrite big_sepM_empty. }
+    iDestruct (world_interp_init with "[$Hr_B $Hsts_B]") as "Hworld_interp_B".
+
+    iAssert (region W0 C) with "[HRELS_C]" as "Hr_C".
+    { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
+      rewrite /= !dom_empty_L //. repeat iSplit; eauto.
+      rewrite /region_map_def. by rewrite big_sepM_empty. }
+    iDestruct (world_interp_init with "[$Hr_C $Hsts_C]") as "Hworld_interp_C".
 
     pose proof (
         @cmdc_spec_full Σ ceriseg seal_storeg _ _ _ logrel_na_invs _ _ _ _ _ B C
@@ -429,14 +443,9 @@ Section Adequacy.
     }
 
     (* Initialises the world for B *)
-    iAssert (region (∅, (∅, ∅)) B) with "[HRELS_B]" as "Hr_B".
-    { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
-      rewrite /= !dom_empty_L //. repeat iSplit; eauto.
-      rewrite /region_map_def. by rewrite big_sepM_empty. }
-
     iMod (
-       alloc_compartment_interp with "[$HB_imports] [$HB_code] [$HB_data] [] [$Hsts_B] [$Hr_B]"
-      ) as "(Hsts_B & Hr_B & #HB_code & #HB_data & _)"; eauto.
+       alloc_compartment_interp with "[$HB_imports] [$HB_code] [$HB_data] [] [$Hworld_interp_B]"
+      ) as "(Hworld_interp_B & #HB_code & #HB_data & _)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
@@ -456,15 +465,15 @@ Section Adequacy.
       eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
     }
 
-    iMod ( extend_region_revoked_sepL2 _ _ _
+    iMod ( world_interp_extend_revoked_sepL2 _ _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
              RWL interpC
-           with "[$Hsts_B] [$Hr_B]")
-           as "(Hr_B & Hrel_stk_B & Hsts_B)".
+           with "[$Hworld_interp_B]")
+           as "(Hworld_interp_B & Hrel_stk_B)".
     { eapply Hstack_disjoint_B. }
 
     match goal with
-    | H: _ |- context [  (sts_full_world ?W B) ] => set (Winit_B := W)
+    | H: _ |- context [  (world_interp ?W B) ] => set (Winit_B := W)
     end.
 
 
@@ -525,7 +534,7 @@ Section Adequacy.
     }
 
     iAssert ( interp Winit_B B (WSealed (ot_switcher switcher_cmpt) B_f)) with
-      "[HB_code Hr_B HB_data Hsts_B Hentry_Bf']" as "#Hinterp_B".
+      "[HB_code HB_data Hentry_Bf']" as "#Hinterp_B".
     { iApply (ot_switcher_interp_entry _ _ _ _ 1 1); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H2.
@@ -568,14 +577,9 @@ Section Adequacy.
     }
 
     (* Initialises the world for C *)
-    iAssert (region (∅, (∅, ∅)) C) with "[HRELS_C]" as "Hr_C".
-    { rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
-      rewrite /= !dom_empty_L //. repeat iSplit; eauto.
-      rewrite /region_map_def. by rewrite big_sepM_empty. }
-
     iMod (
-       alloc_compartment_interp with "[$HC_imports] [$HC_code] [$HC_data] [] [$Hsts_C] [$Hr_C]"
-      ) as "(Hsts_C & Hr_C & #HC_code & #HC_data & _)"; eauto.
+       alloc_compartment_interp with "[$HC_imports] [$HC_code] [$HC_data] [] [$Hworld_interp_C]"
+      ) as "(Hworld_interp_C & #HC_code & #HC_data & _)"; eauto.
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
     { apply Forall_true; intros; done. }
@@ -595,15 +599,15 @@ Section Adequacy.
       eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
     }
 
-    iMod ( extend_region_revoked_sepL2 _ _ _
+    iMod ( world_interp_extend_revoked_sepL2 _ _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
              RWL interpC
-           with "[$Hsts_C] [$Hr_C]")
-           as "(Hr_C & Hrel_stk_C & Hsts_C)".
+           with "[$Hworld_interp_C]")
+           as "(Hworld_interp_C & Hrel_stk_C)".
     { eapply Hstack_disjoint_C. }
 
     match goal with
-    | H: _ |- context [  (sts_full_world ?W C) ] => set (Winit_C := W)
+    | H: _ |- context [  (world_interp ?W C) ] => set (Winit_C := W)
     end.
 
 
@@ -664,7 +668,7 @@ Section Adequacy.
     }
 
     iAssert ( interp Winit_C C (WSealed (ot_switcher switcher_cmpt) C_g)) with
-      "[HC_code Hr_C HC_data Hsts_C Hentry_Cg']" as "#Hinterp_C".
+      "[HC_code HC_data Hentry_Cg']" as "#Hinterp_C".
     { iApply (ot_switcher_interp_entry _ _ _ _ 1 1); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
@@ -735,7 +739,7 @@ Section Adequacy.
                   _ _ _ _ _
                   [] [] _ (fun _ => True)%I assertN switcherN []
                  with "[ $Hassert $Hswitcher $Hna
-                        $Hr_B $Hr_C $Hsts_B $Hsts_C
+                        $Hworld_interp_B $Hworld_interp_C
                         $HPC $Hcgp $Hcsp $Hreg
                         $Hmain_imports $Hmain_code $Hmain_data $Hstack
                         $Hinterp_B $Hinterp_C $Hcstk_frag $Hrel_stk_B $Hrel_stk_C

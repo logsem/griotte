@@ -157,9 +157,9 @@ Section fundamental.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (W') "#Hfuture %g'' %Hflows !>".
-    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hcstk & Hframe)]".
+    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hworld_interp & Hcont & Hown & Hcstk & Hframe)]".
     rewrite /interp_conf.
-    iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hcont Hframe Hown Hcstk"); eauto.
+    iApply ("IH" with "Hfull Hmap Hreg Hworld_interp Hcont Hframe Hown Hcstk"); eauto.
     iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
     destruct (isO p) eqn:HpO; auto.
     destruct (has_sreg_access p) eqn:HpXSR'; auto.
@@ -439,7 +439,7 @@ Section fundamental.
   Proof.
     iModIntro.
     iIntros (W W') "%Hrelated Hinterp".
-    rewrite /interpC /safeC /=. iEval (rewrite fixpoint_interp1_eq);done.
+    rewrite /interpC /=. iEval (rewrite fixpoint_interp1_eq);done.
   Qed.
 
   Lemma future_pub_mono_interp_z (C : CmptName) (z : Z) :
@@ -447,7 +447,7 @@ Section fundamental.
   Proof.
     iModIntro.
     iIntros (W W') "%Hrelated Hinterp".
-    rewrite /interpC /safeC /=.
+    rewrite /interpC /=.
     iEval (rewrite fixpoint_interp1_eq); done.
   Qed.
 
@@ -456,7 +456,7 @@ Section fundamental.
   Proof.
     iModIntro.
     iIntros (W W') "%Hrelated Hinterp".
-    rewrite /interpC /safeC /=.
+    rewrite /interpC /=.
     iApply interp_monotone_nl_cap; eauto.
   Qed.
 

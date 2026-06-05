@@ -31,8 +31,8 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Lea dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_lea with "[$Ha $Hmap]"); eauto.
     { by rewrite lookup_insert_eq. }
@@ -52,11 +52,11 @@ Section fundamental.
       { destruct (decide (PC = dst)); simplify_map_eq; auto. }
 
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
+      iDestruct (close_world_interp with "[$Hstate $Hworld_interp $Ha $HmonoV Hw]") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
       assert (is_Some (regs' !! csp)) as [??].
       { rewrite Hregs'. destruct (decide (dst = csp));simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
+      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]").
       - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
       - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
@@ -78,12 +78,12 @@ Section fundamental.
       { destruct (decide (PC = dst)); simplify_map_eq; auto. }
 
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
+      iDestruct (close_world_interp with "[$Hstate $Hworld_interp $Ha $HmonoV Hw]") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
       assert (is_Some (regs' !! csp)) as [??].
       { rewrite Hregs'. destruct (decide (dst = csp));simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
+      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]").
       - cbn; intros; subst regs'. by repeat (apply lookup_insert_is_Some'; right).
       - iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).

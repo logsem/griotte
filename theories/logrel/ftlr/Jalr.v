@@ -41,8 +41,8 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Hcstk".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hworld_interp Hown Hcstk".
+    iIntros "Hstate Ha HPC Hmap".
     iInsert "Hmap" PC.
     iApply (wp_Jalr with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -93,11 +93,11 @@ Section fundamental.
       destruct_word wsrc; cbn in Hwsrc; try discriminate.
       { destruct c; inv Hwsrc.
         iNext ; iIntros "_".
-        iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
+        iDestruct (close_world_interp with "[$Hstate $Hworld_interp $Ha $HmonoV Hw]") as "Hworld_interp"; eauto.
         { destruct ρ;auto;contradiction. }
         rewrite !insert_reg_insert insert_reg_commute //.
         iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry p g b e pc_a']ᵣ> regs) with
-                 "[%] [] [$Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$]") ; eauto.
+                 "[%] [] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$]") ; eauto.
         - intros; cbn.
           rewrite lookup_insert_is_Some.
           destruct (decide (rdst = x)); auto; right; split; auto.
@@ -131,10 +131,10 @@ Section fundamental.
       iSpecialize ("Hinterp_src" with "Hfuture").
       pose proof (LocalityFlowsToReflexive g0) as Hg0.
       iSpecialize ("Hinterp_src" $! g0 Hg0).
-      iDestruct (region_close with "[$Hstate $Hr Hw $Ha $HmonoV]") as "Hr"; eauto.
+      iDestruct (close_world_interp with "[$Hstate $Hworld_interp Hw $Ha $HmonoV]") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
       rewrite !insert_reg_insert insert_reg_commute //.
-      iDestruct ("Hinterp_src" with "[$Hmap $Hr $Hsts $Hcstk $Hown $Hcont]") as "HA"; eauto.
+      iDestruct ("Hinterp_src" with "[$Hmap $Hworld_interp $Hcstk $Hown $Hcont]") as "HA"; eauto.
       iNext.
       repeat (cbn; iSplit; auto).
       + iIntros (ri); cbn; iPureIntro.

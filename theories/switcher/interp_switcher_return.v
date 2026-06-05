@@ -5,6 +5,7 @@ From cap_machine Require Export logrel logrel_extra monotone.
 From cap_machine Require Import fundamental.
 From cap_machine Require Import switcher_preamble.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
+From cap_machine Require Export logrel_extra world_ghost_theory_interface_post_logrel.
 
 Section fundamental.
   Context
@@ -94,7 +95,7 @@ Section fundamental.
     na_inv logrel_nais Nswitcher switcher_inv
     ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
-    iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hr & Hsts & Hcont_K & Hna & Hcstk & %Hfreq)]".
+    iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
     rewrite /registers_pointsto.
 
     (* --- Extract scratch registers ct2 ctp --- *)
@@ -247,27 +248,26 @@ Section fundamental.
           ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
           ∗ ▷ ([∗ list] a ; v ∈ la ; lv, ▷ closing_resources interp W C a v)
           ∗ ⌜if (is_untrusted_caller ccrel) then True else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wret ∧ wastk3 = wcgp0)⌝
-          ∗ open_region_many W C la
-          ∗ sts_full_world W C
+          ∗ world_interp_open W C la
       )%I
-      with "[Hcframe_interp Hr Hsts]" as "Hcframe_interp"
+      with "[Hcframe_interp Hworld_interp]" as "Hcframe_interp"
     ; [|iDestruct "Hcframe_interp" as
-        (wastk wastk1 wastk2 wastk3) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hclose_res & %Hwastks & Hr & Hsts)"
+        (wastk wastk1 wastk2 wastk3) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hclose_res & %Hwastks & Hworld_interp)"
       ].
     {
       rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
       destruct (is_untrusted_caller ccrel); cycle 1.
       * iExists wcs2, wcs3, wret, wcgp0.
-        iEval (rewrite region_open_nil) in "Hr"; iFrame "Hr Hsts".
+        iEval (rewrite -open_empty) in "Hworld_interp"; iFrame "Hworld_interp".
         iDestruct "Hcframe_interp" as "($&$&$&$)".
         cbn.
         iSplit;first done.
         iPureIntro.
         repeat (split;auto).
-      * iEval (rewrite region_open_nil) in "Hr".
-        iDestruct (region_open_list_interp_gen _ _ (finz.seq_between a_stk (a_stk^+4)%a)
-                    with "[$Hinterp_callee_wstk $Hr $Hsts]")
-                    as "(Hr & Hsts & Hres)"; auto.
+      * iEval (rewrite -open_empty) in "Hworld_interp".
+        iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk (a_stk^+4)%a)
+                with "[$Hinterp_callee_wstk $Hworld_interp]")
+                    as "(Hworld_interp & Hres)"; auto.
         { eapply finz_seq_between_NoDup. }
         { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
           apply elem_of_finz_seq_between in Ha'; solve_addr.
@@ -350,9 +350,9 @@ Section fundamental.
        The following massage the context for getting the points-to of the rest
        of the callee's frame out of the world, while keeping around the closing resources.
      *)
-    iDestruct (region_open_list_interp_gen _ _ (finz.seq_between (a_stk^+4)%a e_stk)
-                with "[$Hinterp_callee_wstk $Hr $Hsts]")
-                    as "(Hr & Hsts & Hres)"; auto.
+    iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between (a_stk^+4)%a e_stk)
+                with "[$Hinterp_callee_wstk $Hworld_interp]")
+      as "(Hworld_interp & Hres)"; auto.
     { eapply finz_seq_between_NoDup. }
     { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
       apply elem_of_finz_seq_between in Ha'.
@@ -491,7 +491,7 @@ Section fundamental.
     destruct (is_untrusted_caller ccrel) eqn:Hccrel ; cycle 1.
     - (* Case where caller is trusted, we use the continuation relation K *)
       destruct Hwastks as (-> & -> & -> & ->).
-      iEval (rewrite app_nil_r) in "Hr".
+      iEval (rewrite app_nil_r) in "Hworld_interp".
       (* We massage the context to get the necessary shape to apply the continuation relation *)
       iAssert (([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, closing_resources interp W C a (WInt 0)))%I
         with "[Hres]" as "Hres".
@@ -517,7 +517,7 @@ Section fundamental.
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
       iApply ("Hexec_topmost_frm" with
                "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk_register_save $Hstk $Hr $Hres $Hsts $Hcont_K $Hcstk_frag $Hna]").
+      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]").
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we use the IH *)
@@ -545,7 +545,7 @@ Section fundamental.
         iApply (IHla with "[Hres H]"); last iFrame; eauto.
       }
 
-      iDestruct (region_close_list_interp_gen with "[$Hr $Hres]") as "Hr".
+      iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hres]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
       { clear -He_a1 Ha_stk4.
         assert (a_stk ∉ finz.seq_between (a_stk ^+ 4)%a e_stk)
@@ -618,12 +618,12 @@ Section fundamental.
         iApply (IHla with "[Hres H]"); last iFrame; eauto.
       }
 
-      iEval (rewrite -(app_nil_r (finz.seq_between a_stk (a_stk ^+ 4)%a))) in "Hr".
-      iDestruct (region_close_list_interp_gen with "[$Hr $Hclose_res]") as "Hr".
+      iEval (rewrite -(app_nil_r (finz.seq_between a_stk (a_stk ^+ 4)%a))) in "Hworld_interp".
+      iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hclose_res]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
       { set_solver. }
       { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
-      rewrite -region_open_nil.
+      rewrite open_empty.
 
 
       destruct ( decide (isCorrectPC (updatePcPerm wastk2))) as [HcorrectWret|HcorrectWret]; cycle 1.
@@ -746,7 +746,7 @@ Section fundamental.
       + (* wret was a regular capability: apply the FTLR *)
         iPoseProof ( fundamental W C (WCap p g b e a) with "Hinterp_wstk2") as "IH".
         rewrite /interp_expression /=.
-        iApply ("IH" with "[- $Hr $Hsts $Hcont_K $Hna $Hcstk_frag $Hrmap]"); eauto.
+        iApply ("IH" with "[- $Hworld_interp $Hcont_K $Hna $Hcstk_frag $Hrmap]"); eauto.
         repeat iSplit;auto.
         { iIntros (r); iPureIntro.
           clear -Hdom_rmap' Harg_rmap'.
@@ -790,7 +790,7 @@ Section fundamental.
         iSpecialize ("Hinterp_wret" $! g (LocalityFlowsToReflexive g)).
         iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
         rewrite /interp_expr /=.
-        iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hr $Hsts $Hcstk_frag $Hna]") as "HA"; eauto.
+        iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hworld_interp $Hcstk_frag $Hna]") as "HA"; eauto.
         iSplitR; last (iPureIntro; simplify_map_eq; done).
         iSplit.
         * iIntros (r); iPureIntro.

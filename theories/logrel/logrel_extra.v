@@ -22,6 +22,7 @@ Section Logrel_extra.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
+  (* TODO simplify and clear the revoke_resources / closing_revoked_resources *)
   Definition revoke_resources W C a :=
     (∃ v (φ : V) p,
         φ W C v
@@ -83,7 +84,7 @@ Section Logrel_extra.
     iSplit.
     { iIntros (v) "!>".
       iIntros (W0 W1 Hrelated) "Hinterp".
-      rewrite /safeC /=.
+      rewrite /=.
       iApply monotone.interp_monotone; eauto.
     }
     iSplit; first (iApply zcond_interp).

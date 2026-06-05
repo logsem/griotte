@@ -82,7 +82,7 @@ Section VAE.
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
-      ∗ region W0 C ∗ sts_full_world W0 C
+      ∗ world_interp W0 C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -110,7 +110,7 @@ Section VAE.
       & #Hawk_inv & #Hrel_ι
       & Hna
       & HPC & Hcgp & Hcsp & Hrmap
-      & Hr_C & Hsts_C
+      & Hworld_interp_C
       & HK
       & Hcstk_frag
       & #Hinterp_W0_C_f
@@ -142,8 +142,8 @@ Section VAE.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l) "(%Hl_unk & Hsts_C & Hr_C & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
+        as (l) "(%Hl_unk & Hworld_interp_C & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     set (W1 := revoke W0).
 
     (* --------------------------------------------------------------- *)
@@ -161,7 +161,7 @@ Section VAE.
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iMod (inv_acc with "Hawk_inv") as "(>(%b & Hst_i & Hcgp_b) & Hclose_awk)"; auto.
-    iDestruct (sts_full_state_loc  with "Hsts_C Hst_i") as "%Hloc_i_1".
+    iDestruct (world_interp_loc_valid with "Hworld_interp_C Hst_i") as "%Hloc_i_1".
     rewrite Hloc_i_0 in Hloc_i_1; simplify_eq.
     iApply (wp_store_success_z with "[$HPC $Hi $Hcgp $Hcgp_b]"); try solve_pure.
     { apply withinBounds_true_iff; solve_addr. }
@@ -267,7 +267,7 @@ Section VAE.
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W1 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hfrm_close_W1 $Hcstk_frag
               $Hinterp_W1_C_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -283,7 +283,7 @@ Section VAE.
     iIntros (W2 rmap stk_mem l')
       "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & _
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C
+      & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]

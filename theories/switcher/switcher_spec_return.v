@@ -7,7 +7,7 @@ From cap_machine Require Import multiple_updates region_invariants_revocation.
 From cap_machine Require Export switcher switcher_preamble.
 From stdpp Require Import base.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
-From cap_machine Require Export logrel_extra.
+From cap_machine Require Export logrel_extra world_ghost_theory_interface_post_logrel.
 
 
 Section Switcher.
@@ -51,10 +51,9 @@ Section Switcher.
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
-    ∗ sts_full_world Wcur C
+    ∗ world_interp Wcur C
     ∗ na_own logrel_nais ⊤
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
-    ∗ region Wcur C
     ∗ close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
@@ -65,8 +64,8 @@ Section Switcher.
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hsts & Hna
-    & HPC & Hr & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
+      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
+    & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hswitcher Hna")
@@ -631,13 +630,12 @@ Section Switcher.
     (* Fix the world! *)
     iAssert (
         |={⊤}=>
-          sts_full_world Wfixed C
-          ∗ region Wfixed C
+          world_interp Wfixed C
           ∗ (if (is_untrusted_caller ccrel)
              then True
              else [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]]
             )
-      )%I with "[Hsts Hr Hstk' Hstk Hrevoked Hlc'']" as ">(Hsts & Hr & Hstk')".
+      )%I with "[Hworld_interp Hstk' Hstk Hrevoked Hlc'']" as ">(Hworld_interp & Hstk')".
     {
       iAssert ( ▷( close_list_resources_gen C Wcur (l++(finz.seq_between csp_b csp_e)) (finz.seq_between csp_b csp_e) false) )%I with "[Hstk]" as "Hstk".
       {
@@ -680,8 +678,8 @@ Section Switcher.
 
       destruct (is_untrusted_caller ccrel).
       - (* caller is untrusted, we need to re-instate the whole stack frame *)
-        iMod (monotone_close_list_region_gen _ _ _ (l++closing_region) with
-               "[$Hr $Hsts Hrevoked Hstk Hstk']") as "[Hsts Hr]"; last by iFrame.
+        iMod (reinstate_close_list_gen _ _ (l++closing_region) with
+               "[$Hworld_interp Hrevoked Hstk Hstk']") as "Hworld_interp"; last by iFrame.
         iDestruct "Hrevoked" as (l') "(%Hl & Hclose_list_res & (Hrev0 & Hrev1 & Hrev2 & Hrev3 & _) )".
         rewrite /close_list_resources_gen.
         rewrite big_sepL_app.
@@ -734,8 +732,8 @@ Section Switcher.
 
       - (* caller is trusted, we need only need re-instate callee's stack frame *)
         iFrame "Hstk'".
-        iMod (monotone_close_list_region_gen _ _ _ (l++closing_region) with
-               "[$Hr $Hsts Hrevoked Hstk]") as "[Hsts Hr]"; last by iFrame.
+        iMod (reinstate_close_list_gen _ _ (l++closing_region) with
+               "[$Hworld_interp Hrevoked Hstk]") as "Hworld_interp"; last by iFrame.
         rewrite /close_list_resources_gen big_sepL_app.
         iFrame.
     }
@@ -749,10 +747,10 @@ Section Switcher.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
 
-    iEval (rewrite region_open_nil) in "Hr".
-    iDestruct (region_open_list_interp_gen _ _ (finz.seq_between a_stk4 csp_e) []
-                with "[$Hinterp_callee_wstk' $Hr $Hsts]")
-      as "(Hr & Hsts & Hres)"; auto.
+    iEval (rewrite -open_empty) in "Hworld_interp".
+    iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk4 csp_e) []
+                with "[$Hinterp_callee_wstk' $Hworld_interp]")
+      as "(Hworld_interp & Hres)"; auto.
     { apply finz_seq_between_NoDup. }
     { apply Forall_forall; intros y Hy.
       rewrite elem_of_finz_seq_between in Hy.
@@ -792,7 +790,7 @@ Section Switcher.
 
       iApply ("Hexec_topmost_frm" with
                "[] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
-      $Hrmap $Hr $Hstk $Hstk' $Hsts $Hres $Hcont_K $Hcstk_frag $Hna]"); first done.
+      $Hrmap $Hworld_interp $Hstk $Hstk' $Hres $Hcont_K $Hcstk_frag $Hna]"); first done.
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we use the IH *)
@@ -896,10 +894,9 @@ Section Switcher.
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
-    ∗ sts_full_world Wcur C
+    ∗ world_interp Wcur C
     ∗ na_own logrel_nais ⊤
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
-    ∗ region Wcur C
     ∗ close_list_resources C W0 l false
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
@@ -910,8 +907,8 @@ Section Switcher.
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hsts & Hna
-    & HPC & Hr & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
+      "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
+    & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
     iApply switcher_ret_specification_gen; eauto.
     + intros a Ha.
       by apply Htemp_revoked.

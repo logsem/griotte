@@ -36,7 +36,7 @@ Section fundamental.
     na_inv logrel_nais Nswitcher switcher_inv
     ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
-    iIntros "#Hinv_switcher %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hr & Hsts & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros "#Hinv_switcher %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
     rewrite /registers_pointsto.
     iPoseProof fundamental_ih as "IH". (* used for weakening lemma later *)
 
@@ -264,10 +264,10 @@ Section fundamental.
     (* --- Store csp cs0 --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_store_interp with "[$HPC $Hi Hcsp Hcs0 $Hr $Hsts]"); try solve_pure.
+    iApply (wp_store_interp with "[$HPC $Hi Hcsp Hcs0 $Hworld_interp]"); try solve_pure.
     { iFrame. iFrame "#". by iApply "Hreg";eauto. }
     iIntros "!>" (v) "[-> | (% & % & % & % & % & -> & -> & HPC & Hi & Hcs0
-    & Hcsp & Hr & Hsts & %Hcanstore & %bounds)] /=".
+    & Hcsp & Hworld_interp & %Hcanstore & %bounds)] /=".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
@@ -287,11 +287,11 @@ Section fundamental.
     (* --- Store csp cs1 --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hr $Hsts]"); try solve_pure.
+    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hworld_interp]"); try solve_pure.
     { iFrame. iSplit;[by iApply "Hreg";eauto|].
       by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcs1
-    & Hcsp & Hr & Hsts & _)] /=".
+    & Hcsp & Hworld_interp & _)] /=".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
@@ -308,11 +308,11 @@ Section fundamental.
     (* --- Store csp cra --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcra $Hr $Hsts]"); try solve_pure.
+    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcra $Hworld_interp]"); try solve_pure.
     { iFrame. iSplit;[by iApply "Hreg";eauto|].
       by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcra
-    & Hcsp & Hr & Hsts & _)] /=".
+    & Hcsp & Hworld_interp & _)] /=".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
@@ -330,11 +330,11 @@ Section fundamental.
     (* --- Store csp cs1 --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hr $Hsts]"); try solve_pure.
+    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hworld_interp]"); try solve_pure.
     { iFrame. iSplit;[by iApply "Hreg";eauto|].
       by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcgp
-    & Hcsp & Hr & Hsts & _ & %bounds')] /=".
+    & Hcsp & Hworld_interp & _ & %bounds')] /=".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
@@ -396,10 +396,10 @@ Section fundamental.
       (* Load cgp csp; *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hr $Hsts]"); try solve_pure.
+      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hworld_interp]"); try solve_pure.
       { iFrame. by iApply (interp_lea with "Hspv"). }
       iIntros "!>" (v) "[-> | (%wcgp & -> & HPC & Hi & Hcsp
-    & Hcgp & #Hinterp_wcgp & Hr & Hsts & _ & _)] /=".
+    & Hcgp & #Hinterp_wcgp & Hworld_interp & _ & _)] /=".
       { wp_pure; wp_end; iIntros "%Hcontr";done. }
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
@@ -409,10 +409,10 @@ Section fundamental.
       (* Load cra csp; *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcra $Hr $Hsts]"); try solve_pure.
+      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcra $Hworld_interp]"); try solve_pure.
       { iFrame. by iApply (interp_lea with "Hspv"). }
       iIntros "!>" (v) "[-> | (%wcra & -> & HPC & Hi & Hcsp
-    & Hcra & #Hinterp_wcra & Hr & Hsts & _ & _)] /=".
+    & Hcra & #Hinterp_wcra & Hworld_interp & _ & _)] /=".
       { wp_pure; wp_end; iIntros "%Hcontr";done. }
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
@@ -422,10 +422,10 @@ Section fundamental.
       (* Load cs1 csp; *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hr $Hsts]"); try solve_pure.
+      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hworld_interp]"); try solve_pure.
       { iFrame. by iApply (interp_lea with "Hspv"). }
       iIntros "!>" (v) "[-> | (%wcs1 & -> & HPC & Hi & Hcsp
-    & Hcs1 & #Hinterp_wcs1 & Hr & Hsts & _ & _)] /=".
+    & Hcs1 & #Hinterp_wcs1 & Hworld_interp & _ & _)] /=".
       { wp_pure; wp_end; iIntros "%Hcontr";done. }
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
@@ -435,10 +435,10 @@ Section fundamental.
       (* Load cs0 csp; *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs0 $Hr $Hsts]"); try solve_pure.
+      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs0 $Hworld_interp]"); try solve_pure.
       { iFrame. by iApply (interp_lea with "Hspv"). }
       iIntros "!>" (v) "[-> | (%wcs0 & -> & HPC & Hi & Hcsp
-    & Hcs0 & #Hinterp_wcs0 & Hr & Hsts & _ & _)] /=".
+    & Hcs0 & #Hinterp_wcs0 & Hworld_interp & _ & _)] /=".
       { wp_pure; wp_end; iIntros "%Hcontr";done. }
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
@@ -622,7 +622,7 @@ Section fundamental.
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the FTLR *)
-        iApply ("IH" with "[] [] [$] [$] [$] [$] [%] [$] [$]"); eauto.
+        iApply ("IH" with "[] [] [$] [$] [$] [%] [$] [$]"); eauto.
         { iIntros (r); iPureIntro.
           clear -Hdom_rmap' Harg_rmap'.
           destruct (decide (r = PC)); simplify_map_eq; first done.
@@ -663,7 +663,7 @@ Section fundamental.
         iSpecialize ("Hinterp_wret" $! gcra (LocalityFlowsToReflexive gcra)).
         iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
         rewrite /interp_expr /=.
-        iDestruct ("Hinterp_wret" with "[$Hcont $Hrmap $Hr $Hsts $Hcstk $HH]") as "HA"; eauto.
+        iDestruct ("Hinterp_wret" with "[$Hcont $Hrmap $Hworld_interp $Hcstk $HH]") as "HA"; eauto.
         iSplitR; last (iPureIntro; simplify_map_eq; done).
         iSplit.
         * iIntros (r); iPureIntro.
@@ -739,12 +739,12 @@ Section fundamental.
     (* ----- Clear stack -----  *)
     (* -----------------------  *)
     focus_block 5 "Hcode" as a_clear_stk1 Ha_clear_stk1 "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_stack_chop.
-    iApply (clear_stack_interp_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hr $Hsts]"); try solve_pure.
+    iApply (clear_stack_interp_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hworld_interp]"); try solve_pure.
     iSplit.
     { iApply interp_weakeningEO;eauto. all: solve_addr. }
     iSplitL;cycle 1.
     { iIntros "!> %Hcontr"; done. }
-    iIntros "!> ((HPC & Hcsp & Hcs0 & Hcs1 & Hcode) & Hr & Hsts)".
+    iIntros "!> ((HPC & Hcsp & Hcs0 & Hcs1 & Hcode) & Hworld_interp)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* -----------------------  *)
@@ -808,7 +808,6 @@ Section fundamental.
 
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
-    rewrite /safeC.
     iSimpl in "Hagree".
     iRewrite -"Hagree" in "HP".
     iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & Hexec)". simpl fst. simpl snd.

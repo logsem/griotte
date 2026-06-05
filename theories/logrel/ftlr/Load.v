@@ -322,8 +322,11 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Load dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate Ha HPC Hmap".
+    (* TODO fix the proof to *only* use world_interp *)
+    rewrite world_interp_open_eq /world_interp_open_def -region_open_prepare.
+    iDestruct "Hworld_interp" as "[Hr Hsts]".
     iInsert "Hmap" PC.
     iClear "Hwcond".
     iDestruct (if_dec_later with "Hrcond") as "Hrcond'"; iClear "Hrcond".
@@ -392,12 +395,14 @@ Section fundamental.
         iIntros (a1); inversion a1.
       }
 
-      iDestruct (region_close with "[$Hstate $Ha $Hr $HmonoV]") as "Hr"; eauto.
+      iAssert (world_interp_open W C [a]) with "[Hr Hsts]" as "Hworld_interp".
+      { rewrite world_interp_open_eq /world_interp_open_def -region_open_prepare; iFrame. }
+      iDestruct (close_world_interp with "[$Hstate $Ha $Hworld_interp $HmonoV]") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
       assert (is_Some (regs' !! csp)) as [? ?].
       { rewrite XX lookup_insert_ne//.
         destruct (decide (dst = csp));simplify_map_eq =>//. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]").
+      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]").
       { cbn. intros. subst regs'.
         rewrite lookup_insert_is_Some.
         destruct (decide (PC = x6)); [ auto | right; split; auto].

@@ -248,7 +248,7 @@ Section pre_STS.
         rewrite bool_decide_eq_false_2; [done|set_solver].
   Qed.
 
-  Lemma gen_sts_init (d : nat) :
+  Lemma gen_sts_init :
     ⊢ |==> ∃ (stsg : STSG A B Σ), ([∗ set] C ∈ CNames, sts_full_world (∅,(∅,∅)) C) .
   Proof.
     iMod gen_sts_std_init as (γsstd) "Hstd".

@@ -5,6 +5,7 @@ From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine Require Import rules_base.
 From cap_machine Require Export call_stack.
+From cap_machine Require Export world_ghost_theory world_ghost_theory_interface.
 Import uPred.
 
 Ltac auto_equiv :=
@@ -50,7 +51,7 @@ Section logrel.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Definition safeC (P : V) :=
+  Notation safeC P :=
     (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
 
   Program Definition safeUC (P : WORLD * CmptName * leibnizO Word → iPropO Σ) : V :=
@@ -176,8 +177,7 @@ Section logrel.
        ∀ cstk Ws Cs regs,
        ( interp_reg interp W C regs
         ∗ registers_pointsto (<[PC:=wpc]> regs)
-        ∗ region W C
-        ∗ sts_full_world W C
+        ∗ world_interp W C
         ∗ interp_cont cstk Ws Cs
         ∗ na_own logrel_nais ⊤
         ∗ cstack_frag cstk
@@ -224,6 +224,7 @@ Section logrel.
   Proof. solve_contractive. Qed.
 
 
+  (* TODO simplify and clean the opening_resources / closing_resources *)
   Definition opening_resources (interp : V) W C a :=
     (∃ v φ p ρ,
       sts_state_std C a ρ
@@ -327,9 +328,8 @@ Section logrel.
          ∗ [[ a_stk , astk4 ]] ↦ₐ [[ stk_mem_l ]]
          ∗ [[ astk4 , e_stk ]] ↦ₐ [[ stk_mem_h ]]
          (* World interpretation *)
-         ∗ open_region_many W C callee_stk_region
+         ∗ world_interp_open W C callee_stk_region
          ∗ ([∗ list] a ; v ∈ callee_stk_region ; callee_stk_mem, closing_resources interp W C a v)
-         ∗ sts_full_world W C
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk
@@ -1112,3 +1112,6 @@ Section logrel.
   Qed.
 
 End logrel.
+
+Notation safeC P :=
+  (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).

@@ -438,8 +438,11 @@ Section fundamental.
      ftlr_instr W C regs p p' g b e a w (Store dst src) ρ P cstk Ws Cs.
    Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate Ha HPC Hmap".
+    (* TODO fix the proof to *only* use world_interp *)
+    rewrite world_interp_open_eq /world_interp_open_def -region_open_prepare.
+    iDestruct "Hworld_interp" as "[Hr Hsts]".
     iInsert "Hmap" PC.
 
     (* To read out PC's name later, and needed when calling wp_load *)
@@ -517,11 +520,13 @@ Section fundamental.
 
       iDestruct (switch_monotonicity_formulation with "HmonoV") as "HmonoV"; auto.
 
-      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV $HSVInterp]") as "Hr"; eauto.
+      iAssert (world_interp_open W C [a]) with "[Hr Hsts]" as "Hworld_interp".
+      { rewrite world_interp_open_eq /world_interp_open_def -region_open_prepare; iFrame. }
+      iDestruct (close_world_interp with "[$Hstate $Hworld_interp $Ha $HmonoV $HSVInterp]") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq. rewrite insert_insert_eq.
 
-      iApply ("IH" with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); auto.
+      iApply ("IH" with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); auto.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { iApply wp_pure_step_later; auto. iNext; iIntros "_". iApply wp_value; auto.  }
