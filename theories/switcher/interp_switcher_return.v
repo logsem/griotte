@@ -238,54 +238,13 @@ Section fundamental.
     cbn.
     iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
     iEval (cbn) in "Hinterp_callee_wstk".
-    iAssert (
-        ∃ wastk wastk1 wastk2 wastk3,
-        let la := (if (is_untrusted_caller ccrel) then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in
-        let lv := (if (is_untrusted_caller ccrel) then [wastk;wastk1;wastk2;wastk3] else []) in
-          a_stk ↦ₐ wastk
-          ∗ (a_stk ^+ 1)%a ↦ₐ wastk1
-          ∗ (a_stk ^+ 2)%a ↦ₐ wastk2
-          ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
-          ∗ ▷ ([∗ list] a ; v ∈ la ; lv, ▷ closing_resources interp W C a v)
-          ∗ ⌜if (is_untrusted_caller ccrel) then True else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wret ∧ wastk3 = wcgp0)⌝
-          ∗ world_interp_open W C la
-      )%I
-      with "[Hcframe_interp Hworld_interp]" as "Hcframe_interp"
-    ; [|iDestruct "Hcframe_interp" as
-        (wastk wastk1 wastk2 wastk3) "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hclose_res & %Hwastks & Hworld_interp)"
-      ].
-    {
-      rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
-      destruct (is_untrusted_caller ccrel); cycle 1.
-      * iExists wcs2, wcs3, wret, wcgp0.
-        iEval (rewrite -open_empty) in "Hworld_interp"; iFrame "Hworld_interp".
-        iDestruct "Hcframe_interp" as "($&$&$&$)".
-        cbn.
-        iSplit;first done.
-        iPureIntro.
-        repeat (split;auto).
-      * iEval (rewrite -open_empty) in "Hworld_interp".
-        iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk (a_stk^+4)%a)
-                with "[$Hinterp_callee_wstk $Hworld_interp]")
-                    as "(Hworld_interp & Hres)"; auto.
-        { eapply finz_seq_between_NoDup. }
-        { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
-          apply elem_of_finz_seq_between in Ha'; solve_addr.
-        }
-        { set_solver. }
-        do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
-        rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
-        cbn.
-        replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
-        replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
-        cbn.
-        iDestruct "Hres" as "(Hres0 & Hres1 & Hres2 & Hres3 & _)".
-        iDestruct (opening_closing_resources with "Hres0") as (wastk) "[Hres0 $]".
-        iDestruct (opening_closing_resources with "Hres1") as (wastk1) "[Hres1 $]".
-        iDestruct (opening_closing_resources with "Hres2") as (wastk2) "[Hres2 $]".
-        iDestruct (opening_closing_resources with "Hres3") as (wastk3) "[Hres3 $]".
-        iFrame.
-    }
+
+    iDestruct (open_world_interp_cframe with "[$Hcframe_interp $Hworld_interp]")
+      as "(%wastk & %wastk1 & %wastk2 & %wastk3
+          & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3
+          & Hclose_res & %Hwastks & Hworld_interp)";
+    eauto.
+
     (* With the points-to in hand, we can now continue the execution of the code *)
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
@@ -344,54 +303,15 @@ Section fundamental.
 
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
-
     (* Before clearing the stack, the lemma [clear_stack_spec] requires
        a specific shape for the points-to resources of the stack.
        The following massage the context for getting the points-to of the rest
        of the callee's frame out of the world, while keeping around the closing resources.
      *)
-    iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between (a_stk^+4)%a e_stk)
+    iDestruct (open_world_interp_callee_stack
                 with "[$Hinterp_callee_wstk $Hworld_interp]")
-      as "(Hworld_interp & Hres)"; auto.
-    { eapply finz_seq_between_NoDup. }
-    { clear- Hb_a4 He_a1 ; apply Forall_forall; intros a' Ha'.
-      apply elem_of_finz_seq_between in Ha'.
-      rewrite /is_untrusted_caller_frm; cbn.
-      destruct (is_untrusted_caller ccrel); solve_addr.
-    }
-    {
-      destruct (is_untrusted_caller ccrel); last set_solver.
-      set (la := finz.seq_between (a_stk ^+ 4)%a e_stk).
-      assert ( a_stk ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
-      assert ( (a_stk ^+ 1)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
-      assert ( (a_stk ^+ 2)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
-      assert ( (a_stk ^+ 3)%a ∉ la) by (subst la; apply not_elem_of_finz_seq_between; solve_addr+).
-      do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
-      rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
-      replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
-      replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
-      set_solver.
-    }
-    iAssert (∃ (lv : list Word),
-                ⌜ length lv = length (finz.seq_between (a_stk ^+ 4)%a e_stk) ⌝
-                ∗ ▷ ([∗ list] a ; v ∈ finz.seq_between (a_stk ^+ 4)%a e_stk ; lv, closing_resources interp W C a v)
-                ∗ ([∗ list] a ; v ∈ finz.seq_between (a_stk ^+ 4)%a e_stk  ; lv, a ↦ₐ v)
-            )%I
-             with "[Hres]"
-      as (lv Hlen_lv) "[Hres Hstk]".
-    {
-      iClear "#"; clear.
-      iStopProof.
-      generalize (finz.seq_between (a_stk ^+ 4)%a e_stk).
-      induction l; cbn; iIntros "Hres".
-      - iExists []; cbn; done.
-      - iDestruct "Hres" as "[Ha Hres]".
-        iDestruct (IHl with "Hres") as (lv) "(%Hlen & Hres & Hlv)".
-        iDestruct ( opening_closing_resources with "Ha" ) as (va) "[Hres_a Ha]".
-        iExists (va::lv).
-        iFrame.
-        iPureIntro ; cbn ; lia.
-    }
+      as "(Hworld_interp & (%lv & %Hlen_lv & Hstk & Hres))"; eauto.
+
     iAssert ([[ a_stk , e_stk ]] ↦ₐ [[wastk :: wastk1 :: wastk2 :: wastk3 :: lv]])%I
       with "[Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hstk]" as "Hstk".
     {
@@ -492,27 +412,9 @@ Section fundamental.
     - (* Case where caller is trusted, we use the continuation relation K *)
       destruct Hwastks as (-> & -> & -> & ->).
       iEval (rewrite app_nil_r) in "Hworld_interp".
+
       (* We massage the context to get the necessary shape to apply the continuation relation *)
-      iAssert (([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk, closing_resources interp W C a (WInt 0)))%I
-        with "[Hres]" as "Hres".
-      {
-        iClear "#".
-        clear -Hlen_lv.
-        iStopProof.
-        revert Hlen_lv.
-        generalize dependent lv.
-        generalize (finz.seq_between (a_stk ^+ 4)%a e_stk) as la.
-        induction la; iIntros (lv Hlen) "H"; destruct lv as [|v lv]; simplify_eq; cbn; first done.
-        iDestruct "H" as "[Ha H]".
-        iDestruct (closing_resources_zeroed with "Ha") as "$".
-        by iApply (IHla with "H").
-      }
-      iAssert (([∗ list] a ; v ∈ finz.seq_between (a_stk ^+ 4)%a e_stk ; lv' , closing_resources interp W C a v))%I
-        with "[Hres]" as "Hres".
-      { rewrite /region_pointsto.
-        iApply big_sepL2_replicate_r; auto.
-        by rewrite finz_seq_between_length.
-      }
+      iDestruct (closing_resources_zeros with "Hres") as "Hres"; auto.
 
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
       iApply ("Hexec_topmost_frm" with
@@ -522,29 +424,7 @@ Section fundamental.
 
     - (* Case where caller is untrusted, we use the IH *)
 
-      iAssert (
-          ([∗ list] a ; v ∈ finz.seq_between (a_stk ^+ 4)%a e_stk ; lv', a ↦ₐ v ∗ closing_resources interp W C a v)
-        )%I with "[Hres Hstk]" as "Hres".
-      { iClear "#".
-        clear -Hlen_lv Hlv'.
-        rewrite /region_pointsto.
-        iStopProof.
-        assert (length lv' = length (finz.seq_between (a_stk ^+ 4)%a e_stk)) as Hlen_lv'.
-        { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
-        revert Hlen_lv Hlen_lv' Hlv'.
-        generalize dependent lv.
-        generalize dependent lv'.
-        generalize (finz.seq_between (a_stk ^+ 4)%a e_stk) as la.
-        induction la; iIntros (lv' lv Hlen' Hlen Hlv') "H"
-        ; destruct lv as [|v lv]; simplify_eq; cbn
-        ; destruct lv' as [|v' lv']; simplify_eq; cbn
-        ; first done.
-        iDestruct "H" as "[ [Hclose Hres] [Ha H] ]"; iFrame.
-        apply Forall_cons in Hlv' ; destruct Hlv' as [-> Hlv'].
-        iDestruct (closing_resources_zeroed with "Hclose") as "$".
-        iApply (IHla with "[Hres H]"); last iFrame; eauto.
-      }
-
+      iDestruct (closing_resources_zeros' with "[$Hres $Hstk]") as "Hres"; auto.
       iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hres]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
       { clear -He_a1 Ha_stk4.
@@ -581,7 +461,6 @@ Section fundamental.
         iDestruct (closing_resources_interp with "Hclose_wastk3") as "$".
       }
 
-
       clear lv' Hlv'.
       set (lv' := region_addrs_zeroes a_stk (a_stk ^+ 4)%a).
       assert (Forall (λ y : Word, y = WInt 0) lv') as Hlv'.
@@ -590,32 +469,10 @@ Section fundamental.
         by apply Forall_replicate.
       }
 
-      iAssert (
-          ([∗ list] a ; v ∈ finz.seq_between a_stk (a_stk ^+ 4)%a ; lv', a ↦ₐ v ∗ closing_resources interp W C a v)
-        )%I with "[Hclose_res Hstk_register_save]" as "Hclose_res".
-      { iClear "#".
-        clear -Hlv' Ha_stk4.
-        rewrite /region_pointsto.
-        iStopProof.
-        assert (length lv' = length (finz.seq_between a_stk (a_stk ^+ 4)%a)) as Hlen_lv'.
-        { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
-        assert (length [wastk; wastk1; wastk2; wastk3] = length (finz.seq_between a_stk (a_stk ^+ 4)%a)) as Hlen_lv.
-        { cbn. rewrite finz_seq_between_length.
-          do 4 (rewrite finz_dist_S; last solve_addr+Ha_stk4).
-          by rewrite finz_dist_0; last solve_addr+Ha_stk4.
-        }
-        revert Hlen_lv' Hlen_lv Hlv'.
-        generalize [wastk; wastk1; wastk2; wastk3] as lv.
-        generalize dependent lv'.
-        generalize (finz.seq_between a_stk (a_stk ^+ 4)%a) as la.
-        induction la; iIntros (lv' lv Hlen' Hlen Hlv') "H"
-        ; destruct lv as [|v lv]; simplify_eq; cbn
-        ; destruct lv' as [|v' lv']; simplify_eq; cbn
-        ; try done.
-        iDestruct "H" as "[ [Hclose Hres] [Ha H] ]"; iFrame.
-        apply Forall_cons in Hlv' ; destruct Hlv' as [-> Hlv'].
-        iDestruct (closing_resources_zeroed with "Hclose") as "$".
-        iApply (IHla with "[Hres H]"); last iFrame; eauto.
+      iDestruct (closing_resources_zeros' with "[$Hclose_res $Hstk_register_save]") as "Hclose_res"; auto.
+      { cbn; rewrite finz_seq_between_length.
+        do 4 (rewrite finz_dist_S; last solve_addr+Ha_stk4).
+        by rewrite finz_dist_0; last solve_addr+Ha_stk4.
       }
 
       iEval (rewrite -(app_nil_r (finz.seq_between a_stk (a_stk ^+ 4)%a))) in "Hworld_interp".

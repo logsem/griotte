@@ -214,6 +214,7 @@ Section Switcher.
        but remember that we revoked the world,
        so the callee needs to pass the revoked addresses!
      *)
+    (* TODO make a lemma *)
     iAssert (
         |={⊤}=>
         ∃ wastk wastk1 wastk2 wastk3,
@@ -628,6 +629,7 @@ Section Switcher.
     iDestruct "Hlc" as "[Hlc Hlc'']".
 
     (* Fix the world! *)
+    (* TODO make a lemma *)
     iAssert (
         |={⊤}=>
           world_interp Wfixed C
@@ -747,41 +749,21 @@ Section Switcher.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
 
-    iEval (rewrite -open_empty) in "Hworld_interp".
-    iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk4 csp_e) []
-                with "[$Hinterp_callee_wstk' $Hworld_interp]")
-      as "(Hworld_interp & Hres)"; auto.
-    { apply finz_seq_between_NoDup. }
-    { apply Forall_forall; intros y Hy.
-      rewrite elem_of_finz_seq_between in Hy.
-      subst a_stk.
-      solve_addr+Ha_stk4 Hb_a4 He_a1 Hy.
-    }
-    { set_solver+. }
-
-      iAssert (∃ (lv : list Word),
-                  ⌜ length lv = length (finz.seq_between a_stk4 csp_e) ⌝
-                  ∗ ▷ ([∗ list] a ; v ∈ (finz.seq_between a_stk4 csp_e) ; lv, closing_resources interp Wfixed C a v)
-                  ∗ ([∗ list] a ; v ∈ (finz.seq_between a_stk4 csp_e)  ; lv, a ↦ₐ v)
-              )%I
-        with "[Hres]"
-        as (lv Hlen_lv) "[Hres Hstk]".
-      {
-        replace a_stk4 with csp_b by solve_addr+Ha_stk4 Hb_a4 He_a1.
-        replace (a_stk ^+ 4)%a with csp_b by (subst a_stk;solve_addr+Ha_stk4 Hb_a4 He_a1).
-        iClear "#"; clear.
-        iStopProof.
-        generalize Wfixed; clear; intros W.
-        generalize (finz.seq_between csp_b csp_e).
-        induction l; cbn; iIntros "Hres".
-        - iExists []; cbn; done.
-        - iDestruct "Hres" as "[Ha Hres]".
-          iDestruct (IHl with "Hres") as (lv) "(%Hlen & Hres & Hlv)".
-          iDestruct ( opening_closing_resources with "Ha" ) as (va) "[Hres_a Ha]".
-          iExists (va::lv).
-          iFrame.
-          iPureIntro ; cbn ; lia.
+      iEval (rewrite -open_empty) in "Hworld_interp".
+      iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk4 csp_e) []
+                  with "[$Hinterp_callee_wstk' $Hworld_interp]")
+        as "(Hworld_interp & Hres)"; auto.
+      { apply finz_seq_between_NoDup. }
+      { apply Forall_forall; intros y Hy.
+        rewrite elem_of_finz_seq_between in Hy.
+        subst a_stk.
+        solve_addr+Ha_stk4 Hb_a4 He_a1 Hy.
       }
+      { set_solver+. }
+
+      iDestruct (decompose_opening_to_closing_resources with "Hres")
+        as (lv Hlen_lv) "[Hres Hstk]".
+
       rewrite app_nil_r.
       replace a_stk4 with csp_b by solve_addr+Ha_stk4 Hb_a4 He_a1.
       replace csp_b with (a_stk ^+ 4)%a by (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
