@@ -75,6 +75,53 @@ Section world_ghost_theory_interface.
     by rewrite -region_open_prepare.
   Qed.
 
+  (* TODO cleanup *)
+  Lemma open_world_interp_next
+    (W : WORLD) (C : CmptName)
+    (φ : WORLD * CmptName * Word → iProp Σ)
+    (als : list Addr) (a : Addr) (p : Perm) (ρ : region_type)
+    (Hρnotrevoked : ρ <> Revoked) :
+    a ∉ als →
+    std W !! a = Some ρ →
+    ⊢ world_interp_open W C als
+    ∗ rel C a p φ
+    -∗ ∃ v : Word,
+        world_interp_open W C (a :: als)
+        ∗ sts_state_std C a ρ
+        ∗ a ↦ₐ v
+        ∗ ▷ monotonicity_guarantees_region C φ p v ρ
+        ∗ ▷ φ (W, C, v)
+        ∗ ⌜isO p = false⌝.
+  Proof.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (??) "([Hr Hsts] & Hrel)".
+    iDestruct (region_open_next _ _ _ _ a p ρ with "[$Hrel $Hr $Hsts]") as "(%&$&$&$&$&$)"; auto.
+  Qed.
+
+  (* TODO cleanup *)
+  Lemma close_world_interp_next
+    (W : WORLD) (C : CmptName)
+    (φ : WORLD * CmptName * Word → iProp Σ)
+    `{forall Wv, Persistent (φ Wv)}
+    (als : list Addr) (a : Addr) (p : Perm) (v : Word) (ρ : region_type)
+    (Hρnotrevoked : ρ <> Revoked) :
+    a ∉ als
+    → sts_state_std C a ρ
+    ∗ world_interp_open W C (a :: als)
+    ∗ a ↦ₐ v
+    ∗ ⌜isO p = false⌝
+    ∗ monotonicity_guarantees_region C φ p v ρ
+    ∗ ▷ φ (W, C, v)
+    ∗ rel C a p φ
+      -∗ world_interp_open W C als.
+  Proof.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (?) "(Hstd & [Hr Hsts] & Ha & Hp & Hmono & HP & Hrel)".
+    iDestruct (region_close_next with "[$Hstd $Hr $Ha $Hp $Hmono $HP $Hrel]") as "$"; auto.
+  Qed.
+
+
+
   (* TODO essentially like al instance of open_world_interp + see open_world_perm *)
   Lemma open_world_interp_perm W C a p φ :
     (std W) !! a = Some Permanent →
