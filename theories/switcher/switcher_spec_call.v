@@ -356,6 +356,7 @@ Section Switcher.
     destruct ( (a_tstk + 1 <? e_trusted_stack)%Z) eqn:Hsize_tstk
     ; iEval (cbn) in "Hctp"
     ; cycle 1.
+    (* TODO lemma *)
     {
       iInstr "Hcode".
       (* --- Jmp  Lswitch_trusted_stack_exhausted_z --- *)

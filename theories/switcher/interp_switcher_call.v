@@ -179,6 +179,7 @@ Section fundamental.
 
     (* --- Jnz 2 ct2 --- *)
     destruct (decide ((g0 - encodeLoc Local)%Z = 0)) as [Hg0'|];cycle 1.
+    (* TODO LEMMA *)
     { (* g ≠ Local *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
@@ -374,6 +375,7 @@ Section fundamental.
     destruct ( (a_tstk + 1 <? e_trusted_stack)%Z) eqn:Hsize_tstk
     ; iEval (cbn) in "Hctp"
     ; cycle 1.
+    (* TODO LEMMA *)
     {
       iInstr "Hcode".
       (* --- Jmp  Lswitch_trusted_stack_exhausted_z --- *)

@@ -241,7 +241,7 @@ Section fundamental.
 
     iDestruct (open_world_interp_cframe with "[$Hcframe_interp $Hworld_interp]")
       as "(%wastk & %wastk1 & %wastk2 & %wastk3
-          & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3
+          & Hstk'
           & Hclose_res & %Hwastks & Hworld_interp)";
     eauto.
 
@@ -272,29 +272,42 @@ Section fundamental.
     iInstr "Hcode".
     { by transitivity (Some (a_stk ^+ 3)%a); solve_addr+Ha_stk4. }
     (* Load cgp csp *)
+
+    iDestruct (big_sepL2_lookup_acc _ _ _ 3 (a_stk ^+3)%a wastk3 with "Hstk'") as "[Ha Hstk']"; auto.
+    { erewrite (finz_seq_between_lookup _ _ 3 4); try solve_addr+Hb_a4 Ha_stk4. }
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
+    iDestruct ("Hstk'" with "Ha") as "Hstk'".
     iEval (cbn) in "Hcgp".
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
     { by transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
     (* Load ca2 csp *)
+    iDestruct (big_sepL2_lookup_acc _ _ _ 2 (a_stk ^+2)%a wastk2 with "Hstk'") as "[Ha Hstk']"; auto.
+    { erewrite (finz_seq_between_lookup _ _ 2 4); try solve_addr+Hb_a4 Ha_stk4. }
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
+    iDestruct ("Hstk'" with "Ha") as "Hstk'".
     iEval (cbn) in "Hca2".
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
     { by transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
     (* Load cs1 csp *)
+    iDestruct (big_sepL2_lookup_acc _ _ _ 1 (a_stk ^+1)%a wastk1 with "Hstk'") as "[Ha Hstk']"; auto.
+    { erewrite (finz_seq_between_lookup _ _ 1 4); try solve_addr+Hb_a4 Ha_stk4. }
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
+    iDestruct ("Hstk'" with "Ha") as "Hstk'".
     iEval (cbn) in "Hcs1".
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
     { by transitivity (Some a_stk); solve_addr. }
     (* Load cs0 csp *)
+    iDestruct (big_sepL2_lookup_acc _ _ _ 0 a_stk wastk with "Hstk'") as "[Ha Hstk']"; auto.
+    { erewrite (finz_seq_between_lookup _ _ 0 4); try solve_addr+Hb_a4 Ha_stk4. }
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
+    iDestruct ("Hstk'" with "Ha") as "Hstk'".
     iEval (cbn) in "Hcs0".
     (* GetE ct0 csp *)
     iInstr "Hcode".
@@ -313,14 +326,12 @@ Section fundamental.
       as "(Hworld_interp & (%lv & %Hlen_lv & Hstk & Hres))"; eauto.
 
     iAssert ([[ a_stk , e_stk ]] ↦ₐ [[wastk :: wastk1 :: wastk2 :: wastk3 :: lv]])%I
-      with "[Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hstk]" as "Hstk".
+      with "[Hstk' Hstk]" as "Hstk".
     {
-      iAssert ([[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ lv ]])%I with "[$Hstk]" as "Hstk".
-      iDestruct (region_pointsto_cons with "[$Ha_stk3 $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
-      iDestruct (region_pointsto_cons with "[$Ha_stk2 $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
-      iDestruct (region_pointsto_cons with "[$Ha_stk1 $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
-      iDestruct (region_pointsto_cons with "[$Ha_stk $Hstk]") as "Hstk"; [solve_addr+Ha_stk4|solve_addr+He_a1|].
-      iFrame.
+      iDestruct (region_pointsto_split a_stk e_stk (a_stk^+4)%a with "[$Hstk' $Hstk]") as "H"
+      ; [solve_addr+He_a1| | done].
+      repeat (rewrite finz_dist_S; [|solve_addr+He_a1]).
+      by rewrite finz_dist_0; [|solve_addr+He_a1].
     }
 
     (* We continue the execution *)
@@ -428,19 +439,9 @@ Section fundamental.
       iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hres]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
       { clear -He_a1 Ha_stk4.
-        assert (a_stk ∉ finz.seq_between (a_stk ^+ 4)%a e_stk)
-          by (by apply not_elem_of_finz_seq_between; solve_addr+).
-        assert ( (a_stk ^+ 1)%a ∉ finz.seq_between (a_stk ^+ 4)%a e_stk)
-          by (by apply not_elem_of_finz_seq_between; solve_addr+).
-        assert ( (a_stk ^+ 2)%a ∉ finz.seq_between (a_stk ^+ 4)%a e_stk)
-          by (by apply not_elem_of_finz_seq_between; solve_addr+).
-        assert ( (a_stk ^+ 3)%a ∉ finz.seq_between (a_stk ^+ 4)%a e_stk)
-          by (by apply not_elem_of_finz_seq_between; solve_addr+).
-        do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
-        rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
-        replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
-        replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
-        set_solver.
+        intros a Ha Ha'.
+        apply elem_of_finz_seq_between in Ha, Ha'.
+        solve_addr.
       }
       { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
 
