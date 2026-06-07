@@ -91,7 +91,7 @@ Section Switcher.
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
               (* Interpretation of the world *)
               ∗ world_interp_open W2 C callee_stk_region
-              ∗ ([∗ list] a ; v ∈ callee_stk_region ; stk_mem_h, closing_resources interp W2 C a v)
+              ∗ StackWorldResources interp W2 C callee_stk_region stk_mem_h
               ∗ cstack_frag cstk
               ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
@@ -1131,16 +1131,10 @@ Section Switcher.
 
       iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
       iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
-      iAssert (
-          [∗ list] a ; v ∈ finz.seq_between (a_stk ^+ 4)%a e_stk ; stk_mem_h, a ↦ₐ v ∗ closing_resources interp W' C a v
-        )%I with "[Hfrm_close_W2 Hstk_h]" as "Hfrm_close_W2".
-      { rewrite /region_pointsto.
-        iDestruct (big_sepL2_sep  with "[$Hstk_h $Hfrm_close_W2]") as "$".
-      }
       iEval (rewrite <- (app_nil_r (finz.seq_between (a_stk ^+ 4)%a e_stk))) in "Hworld_interp_C".
 
       iDestruct (close_world_interp_opening_resources
-                  with "[$Hworld_interp_C $Hfrm_close_W2]")
+                  with "[$Hworld_interp_C $Hfrm_close_W2 $Hstk_h]")
         as "Hworld_interp_C".
       { apply finz_seq_between_NoDup. }
       { set_solver+. }
@@ -1173,7 +1167,6 @@ Section Switcher.
     iDestruct (region_pointsto_split with "[$Hstk_l $Hstk_h]") as "Hstk"; auto.
     { solve_addr+ Hcsp_bounds. }
     { by rewrite finz_seq_between_length in Hlen_stk_l. }
-    (* iAssert (▷ (close_list_resources C W' l' false))%I with "[Hrevoked_l']" as "Hrevoked_l'" ; first (iNext ; iFrame). *)
     iCombine "Hfrm_close_W2 Hrevoked_W2" as "Hfrm_close_W2".
     iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l']") as ">Hrevoked_l'".
     iDestruct (lc_fupd_elim_later with "[$] [$Hfrm_close_W2]") as ">[Hfrm_close_W2 %]".
@@ -1212,9 +1205,9 @@ Section Switcher.
         apply Hlunk.
         by apply list_elem_of_lookup_2 in H.
       }
-      iAssert (
-          ▷ close_list_resources C W l_unk false
-        )%I with "[Hrevoked_l]" as "Hrevoked_l"; first by (iNext; iFrame).
+      (* iAssert ( *)
+      (*     ▷ close_list_resources C W l_unk false *)
+      (*   )%I with "[Hrevoked_l]" as "Hrevoked_l"; first by (iNext; iFrame). *)
       iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l]") as ">Hrevoked_l".
 
       iSpecialize ("Hpost" $! (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk)
@@ -1262,7 +1255,8 @@ Section Switcher.
               apply Hlunk in Ha; done.
       }
       iSplitL "Hrevoked_l".
-      { iApply (RevokedResources_mono_pub with "Hrevoked_l"); auto.
+      {
+        iApply (RevokedResources_mono_pub with "Hrevoked_l"); auto.
         eapply related_sts_pub_update_multiple_temp.
         rewrite (finz_seq_between_split a_stk (a_stk^+4)%a) in Hrevoked_stk; last (split; solve_addr).
         apply revoked_addresses_app in Hrevoked_stk as [? ?]; auto.

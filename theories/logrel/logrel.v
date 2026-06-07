@@ -223,45 +223,50 @@ Section logrel.
     Contractive (λ interp, ▷ wcond P C interp)%I.
   Proof. solve_contractive. Qed.
 
+  Definition persistent_cond (P:V) := (∀ WCv, Persistent (P WCv.1.1 WCv.1.2  WCv.2)).
 
   (* TODO simplify and clean the opening_resources / closing_resources *)
-  Definition opening_resources (interp : V) W C a :=
-    (∃ v φ p ρ,
-      sts_state_std C a ρ
-      ∗ ▷ (φ (W, C, v))
-      ∗ ▷ (monotonicity_guarantees_region C φ p v ρ)
-      ∗ a ↦ₐ v
-      ∗ ▷ rcond (safeUC φ) C p interp
-      ∗ ▷ wcond (safeUC φ) C interp
-      ∗ rel C a p φ
-      ∗ ⌜ ρ ≠ Revoked ⌝
-      ∗ ⌜ isO p = false ⌝
-      ∗ ⌜ isDRO p = false ⌝
-      ∗ ⌜ isDL p = false ⌝
-      ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝)%I.
 
-  Definition closing_resources (interp : V) W C a w : iProp Σ :=
-    ∃ φ p ρ,
-      (sts_state_std C a ρ
-       ∗ (φ (W, C, w))
-       ∗ (monotonicity_guarantees_region C φ p w ρ)
-       ∗ rcond (safeUC φ) C p interp
-       ∗ wcond (safeUC φ) C interp
-       ∗ rel C a p φ
-       ∗ ⌜ ρ ≠ Revoked ⌝
-       ∗ ⌜ isO p = false ⌝
-       ∗ ⌜ isDRO p = false ⌝
-       ∗ ⌜ isDL p = false ⌝
-       ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝
+  (** [φ] is a safety predicate for the stack (RWL capability), derived from interp *)
+  Definition valid_stk_interp (interp : V) (C : CmptName) (φ : V) (p : Perm) : iProp Σ :=
+    mono_pub C (safeC φ) ∗
+    zcond φ C ∗
+    rcond φ C p interp ∗
+    wcond φ C interp ∗
+    ⌜ persistent_cond φ ⌝.
+
+  Global Instance valid_interp_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) valid_stk_interp.
+  Proof. rewrite /valid_stk_interp; solve_proper. Qed.
+
+  (* TODO make it as close as possible from closing_revoked_resources,
+     such that we can unify StackWorldResources with StackRevokedResources,
+     if possible!! Because even if
+     StackWorldResources is for an open world,
+     and StackRevokedResources is for the revoked world,
+     I think they carry the same meaning (ie. the StackWorldResources )
+   *)
+  Definition StackWorldResource (interp : V) (W : WORLD) (C : CmptName) (a : Addr) (w : Word) : iProp Σ :=
+    ∃ (φ : V) (p : Perm),
+      (sts_state_std C a Temporary
+       ∗ (φ W C w)
+       ∗ (mono_temporary C p (safeC φ) w)
+       ∗ rel C a p (safeC φ)
+       ∗ valid_stk_interp interp C φ p
+       ∗ ⌜ PermFlowsTo RWL p ⌝
       )%I.
+  Definition StackWorldResources (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) : iProp Σ :=
+    ([∗ list] a ; v ∈ la ; lw, StackWorldResource interp W C a v).
 
-  Global Instance closing_resources_ne n :
-    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) closing_resources.
-  Proof.
-    intros interp interp0 Heq ????????????.
-    rewrite /closing_resources.
-    repeat (f_equiv; auto).
-  Qed.
+  (* Definition opening_resources (W : WORLD) (C : CmptName) (a : Addr) (interp : V) : iProp Σ := *)
+  (*   ∃ w, a ↦ₐ w ∗ closing_resources W C a w interp. *)
+
+  Global Instance StackWorldResource_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackWorldResource.
+  Proof. rewrite /StackWorldResource; solve_proper. Qed.
+  Global Instance StackWorldResources_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackWorldResources.
+  Proof. rewrite /StackWorldResources; solve_proper. Qed.
 
   (** [interp_cont_exec] provides a WP rule for the continuation relation.
       It matches the states of the machine at the point where the switcher returns to the caller.
@@ -329,7 +334,7 @@ Section logrel.
          ∗ [[ astk4 , e_stk ]] ↦ₐ [[ stk_mem_h ]]
          (* World interpretation *)
          ∗ world_interp_open W C callee_stk_region
-         ∗ ([∗ list] a ; v ∈ callee_stk_region ; callee_stk_mem, closing_resources interp W C a v)
+         ∗ StackWorldResources interp W C callee_stk_region callee_stk_mem
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk
@@ -475,8 +480,6 @@ Section logrel.
     apply interp_expr_ne;auto.
     apply interp_cont_ne;auto.
   Qed.
-
-  Definition persistent_cond (P:V) := (∀ WCv, Persistent (P WCv.1.1 WCv.1.2  WCv.2)).
 
   (* interp definitions *)
 

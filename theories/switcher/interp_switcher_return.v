@@ -323,7 +323,7 @@ Section fundamental.
      *)
     iDestruct (open_world_interp_callee_stack
                 with "[$Hinterp_callee_wstk $Hworld_interp]")
-      as "(Hworld_interp & (%lv & %Hlen_lv & Hstk & Hres))"; eauto.
+      as "(Hworld_interp & (%lv & Hstk & Hres))"; eauto.
 
     iAssert ([[ a_stk , e_stk ]] ↦ₐ [[wastk :: wastk1 :: wastk2 :: wastk3 :: lv]])%I
       with "[Hstk' Hstk]" as "Hstk".
@@ -425,7 +425,9 @@ Section fundamental.
       iEval (rewrite app_nil_r) in "Hworld_interp".
 
       (* We massage the context to get the necessary shape to apply the continuation relation *)
-      iDestruct (closing_resources_zeros with "Hres") as "Hres"; auto.
+      iDestruct (StackWorldResources_length with "Hres" ) as "%Hlen_lv".
+      iDestruct (big_sepL2_length with "Hstk") as "%Hlen_lv'".
+      iDestruct (StackWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
 
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
       iApply ("Hexec_topmost_frm" with
@@ -435,8 +437,10 @@ Section fundamental.
 
     - (* Case where caller is untrusted, we use the IH *)
 
-      iDestruct (closing_resources_zeros' with "[$Hres $Hstk]") as "Hres"; auto.
-      iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hres]") as "Hworld_interp".
+      iDestruct (StackWorldResources_length with "Hres" ) as "%Hlen_lv".
+      iDestruct (big_sepL2_length with "Hstk") as "%Hlen_lv'".
+      iDestruct (StackWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
+      iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk $Hres]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
       { clear -He_a1 Ha_stk4.
         intros a Ha Ha'.
@@ -456,31 +460,25 @@ Section fundamental.
         replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
         replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
         iDestruct "Hclose_res" as "(Hclose_wastk & Hclose_wastk1 & Hclose_wastk2 & Hclose_wastk3 & _)".
-        iDestruct (closing_resources_interp with "Hclose_wastk") as "$".
-        iDestruct (closing_resources_interp with "Hclose_wastk1") as "$".
-        iDestruct (closing_resources_interp with "Hclose_wastk2") as "$".
-        iDestruct (closing_resources_interp with "Hclose_wastk3") as "$".
+        iDestruct (StackWorldResource_interp with "Hclose_wastk") as "$".
+        iDestruct (StackWorldResource_interp with "Hclose_wastk1") as "$".
+        iDestruct (StackWorldResource_interp with "Hclose_wastk2") as "$".
+        iDestruct (StackWorldResource_interp with "Hclose_wastk3") as "$".
       }
 
-      clear lv' Hlv'.
+      clear Hlen_lv' Hlen_lv Hlv' lv'.
       set (lv' := region_addrs_zeroes a_stk (a_stk ^+ 4)%a).
       assert (Forall (λ y : Word, y = WInt 0) lv') as Hlv'.
-      { subst lv'.
-        rewrite /region_addrs_zeroes.
-        by apply Forall_replicate.
-      }
+      { subst lv'; rewrite /region_addrs_zeroes; by apply Forall_replicate. }
 
-      iDestruct (closing_resources_zeros' with "[$Hclose_res $Hstk_register_save]") as "Hclose_res"; auto.
-      { cbn; rewrite finz_seq_between_length.
-        do 4 (rewrite finz_dist_S; last solve_addr+Ha_stk4).
-        by rewrite finz_dist_0; last solve_addr+Ha_stk4.
-      }
-
+      iDestruct (StackWorldResources_length with "Hclose_res" ) as "%Hlen_lv".
+      iDestruct (big_sepL2_length with "Hstk_register_save") as "%Hlen_lv'".
+      iDestruct (StackWorldResources_zeros _ _ _ _ lv' with "Hclose_res") as "Hclose_res"; auto.
       iEval (rewrite -(app_nil_r (finz.seq_between a_stk (a_stk ^+ 4)%a))) in "Hworld_interp".
-      iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hclose_res]") as "Hworld_interp".
+      iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk_register_save $Hclose_res]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
       { set_solver. }
-      { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
+      { subst lv'; by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
       rewrite open_world_interp_empty.
 
 

@@ -418,6 +418,7 @@ Section DLE.
     set (W5 := revoke W4).
 
     (* -- extract cgp_b out of the revoked -- *)
+    (* TODO lemma *)
     iDestruct ( big_sepL_elem_of_extract _ (fun a => ▷ ∃ v, a ↦ₐ v)%I cgp_b with "[] [$Hrevoked_l']")
       as (l'') "(%Hl_unk'' & Hrevoked_l'' & >[%wcgpb Hcgp_b])".
     {
@@ -432,7 +433,7 @@ Section DLE.
       apply elem_of_app in HW4 as [?|?]; try done.
     }
     { by destruct Hl_unk' as [Hl_unk' _]; apply NoDup_app in Hl_unk' as (? & _ & _). }
-    { iClear "#"; clear; iIntros (a) "(%&%&%& (%&_&$&?) &_)". }
+    { iClear "#"; clear; cbn. iIntros (a) "(%&%&%& _ &  (%&_&$&?) )". }
 
     (* simplify the knowledge about the new rmap *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".

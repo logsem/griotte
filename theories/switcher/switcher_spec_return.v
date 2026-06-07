@@ -377,7 +377,7 @@ Section Switcher.
       iEval (rewrite -open_world_interp_empty) in "Hworld_interp".
       iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk4 csp_e) []
                   with "[$Hinterp_callee_wstk' $Hworld_interp]")
-        as "(Hworld_interp & Hres)"; auto.
+        as "(Hworld_interp & (%lv & Hstk & Hres))"; auto.
       { apply finz_seq_between_NoDup. }
       { apply Forall_forall; intros y Hy.
         rewrite elem_of_finz_seq_between in Hy.
@@ -385,14 +385,11 @@ Section Switcher.
         solve_addr+Ha_stk4 Hb_a4 He_a1 Hy.
       }
       { set_solver+. }
-
-      iDestruct (decompose_opening_to_closing_resources with "Hres")
-        as (lv Hlen_lv) "[Hres Hstk]".
+      iDestruct (lc_fupd_elim_later with "[$] [$Hres]") as ">Hres".
 
       rewrite app_nil_r.
       replace a_stk4 with csp_b by solve_addr+Ha_stk4 Hb_a4 He_a1.
       replace csp_b with (a_stk ^+ 4)%a by (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
-      iDestruct (lc_fupd_elim_later with "[$] [$Hres]") as ">Hres".
       replace ((a_stk ^+ 4) ^+ -4)%a with a_stk by (subst a_stk ; solve_addr+Ha_stk4 Hb_a4 He_a1).
 
 
@@ -505,7 +502,7 @@ Section Switcher.
     ∗ world_interp Wcur C
     ∗ na_own logrel_nais ⊤
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
-    ∗ close_list_resources C W0 l false
+    ∗ RevokedResources W0 C l
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
@@ -520,6 +517,10 @@ Section Switcher.
     iApply switcher_ret_specification_gen; eauto.
     iFrame "∗#".
     iApply close_list_resources_gen_eq; eauto.
+    rewrite /close_list_resources /close_addr_resources /RevokedResources.
+    iApply (big_sepL_impl with "Hclose_list_res").
+    iModIntro; iIntros (k ka Hka) "(%pa & %Pa & $ & $ & (%va & ($ & $ & $ & ?)))".
+    by rewrite mono_temporary_eq.
   Qed.
 
 End Switcher.

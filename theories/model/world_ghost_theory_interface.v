@@ -109,15 +109,27 @@ Section world_ghost_theory_interface.
     (la : list Addr) :
     Forall (λ a, a ∈ dom (std W')) la →
     world_interp W' C' ∗
-    close_list_resources C' W la false
+    RevokedResources W C' la
     ==∗
     world_interp W' C' ∗
-    close_list_resources C' W la false ∗
+    RevokedResources W C' la ∗
     ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
   Proof.
     rewrite world_interp_eq /world_interp_def.
     iIntros (Hin) "([Hr Hsts] & Hl)"; cbn.
-    iMod (revoked_by_separation_many_with_temp_resources with "[$Hsts $Hr $Hl]") as "($ & $ & $ & $)"; auto.
+    iMod (revoked_by_separation_many_with_temp_resources with "[$Hsts $Hr Hl]") as "(H & $ & $ & $)"; auto.
+    { iApply (big_sepL_impl with "Hl").
+      iModIntro; iIntros (k ka Hka) "(%pa & %Pa & %Hpers_Pa & Hrel & Htmp_res)".
+      iDestruct "Htmp_res" as "(%va & Hpa_O & Ha & Hmono & HPa)".
+      rewrite mono_temporary_eq.
+      iFrame "∗%".
+    }
+    iApply (big_sepL_impl with "H").
+    rewrite /close_addr_resources.
+    iModIntro; iModIntro; iIntros (k ka Hka) "(%pa & %Pa & %Hpers_Pa & Htmp_res & Hrel)".
+    iDestruct "Htmp_res" as "(%va & Hpa_O & Ha & Hmono & HPa)".
+    rewrite -mono_temporary_eq.
+    iFrame "∗%".
   Qed.
 
   (* TODO "core" part of the interface *)

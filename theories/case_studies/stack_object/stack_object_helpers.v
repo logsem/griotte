@@ -105,4 +105,24 @@ Section stack_object_helpers.
     iDestruct (region_close_list with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hp]") as "$"; auto.
   Qed.
 
+  (* TODO temporary lemma, waiting to get rid off close_list_resources *)
+  Lemma RevokedResources_close_list_resources_eq (W : WORLD) ( C : CmptName ) (l : list Addr) :
+    RevokedResources W C l ⊣⊢ close_list_resources C W l false.
+  Proof.
+    iSplit; iIntros "H"; iApply (big_sepL_impl with "H")
+    ; iModIntro ; iIntros (k ka Hka) "H".
+    + iDestruct "H" as "(% &% & $ & $ & [% ($&$&$&?)])"; by rewrite mono_temporary_eq.
+    + iDestruct "H" as "(% &% & $ & [% ($&$&?&$)] & $)"; by rewrite mono_temporary_eq.
+  Qed.
+
+  Lemma RevokedResources_separation_many_alt
+    (C1 C2 : CmptName) (W1 W2 : WORLD) (l1 l2 : list Addr) :
+    RevokedResources W1 C1 l1
+    ∗ RevokedResources W2 C2 l2
+      -∗ ⌜ l1 ## l2 ⌝.
+  Proof.
+    rewrite !RevokedResources_close_list_resources_eq.
+    apply close_list_resources_separation_many_alt.
+  Qed.
+
 End stack_object_helpers.

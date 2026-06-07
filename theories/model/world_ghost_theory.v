@@ -95,13 +95,17 @@ Section world_ghost_theory.
     (a : Addr) (p : Perm) Φ (w : Word) (ρ : region_type) : iProp Σ :=
     ⌜ isO p = false ⌝ ∗ a ↦ₐ w ∗ Φ (W,C,w) ∗ mono_invariant C p Φ w ρ.
 
-  (* TODO that is "essentially" close_list_resources,
-     defined in regions_invariant_revocation.v,
-     only missing is_later.
-     This is essentially like RevokedResources in logrel_extra.v
-   *)
-  Definition RevokedRes (W : WORLD) (C : CmptName) (s : list Addr) : iProp Σ :=
+  (* TODO this is the same as [close_list_resources]... use this instead!! *)
+  Definition RevokedResources (W : WORLD) (C : CmptName) (s : list Addr) : iProp Σ :=
     [∗ list] a ∈ s, (∃ pa Φa, ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗ rel C a pa Φa ∗ ∃ wa, TmpRes W C a pa Φa wa).
+
+  Global Instance RevokedResources_Permutation_proper (W : WORLD) (C : CmptName) :
+    Proper (Permutation ==> equiv) (RevokedResources W C).
+  Proof. iIntros (l l' Hl); rewrite /RevokedResources; setoid_rewrite Hl; done. Defined.
+
+  Lemma RevokedResources_app (W : WORLD) (C' : CmptName) (l l' : list Addr) :
+    RevokedResources W C' (l++l') ⊣⊢ RevokedResources W C' l ∗ RevokedResources W C' l'.
+  Proof. apply big_sepL_app. Qed.
 
   Definition reinstate (W : WORLD) (s : list Addr) := close_list s W.
 
@@ -281,7 +285,7 @@ Section world_ghost_theory.
     ( ∀ a, a ∈ s ↔ (std W) !! a = Some Temporary ) →
     world_interp W C
     ==∗
-    world_interp (revoke W) C ∗ ▷ RevokedRes W C s.
+    world_interp (revoke W) C ∗ ▷ RevokedResources W C s.
   Proof.
     rewrite world_interp_eq /world_interp_def.
     iIntros (Hnodup HaS) "[Hr Hsts]".
@@ -309,7 +313,7 @@ Section world_ghost_theory.
   Lemma world_interp_restore_world (W W' : WORLD) (C : CmptName) (s : list Addr) :
     related_sts_pub_world W (reinstate W' s) →
     world_interp W' C -∗
-    RevokedRes W C s
+    RevokedResources W C s
     ==∗
     world_interp (reinstate W' s) C.
   Proof.
@@ -373,5 +377,25 @@ Section world_ghost_theory.
     iSplitL "Ha HΦ Hmono"; iFrame.
     iIntros (w') "($&$&$)"; done.
   Qed.
+
+  Lemma RevokedResources_mono_pub (W W' : WORLD) (C : CmptName) (l_unk la : list Addr) :
+    related_sts_pub_world W W' ->
+    RevokedResources W C l_unk -∗
+    RevokedResources W' C l_unk.
+  Proof.
+    iIntros (Hrelated) "H".
+    rewrite /RevokedResources.
+    iApply (big_sepL_impl with "H").
+    iIntros "!> %k %a %Ha H".
+    iDestruct "H" as (pa Pa) "($ & $ & (%va & $ & $ & Hp & #Hmono))"; iFrame "Hmono".
+    iAssert (future_pub_mono C Pa va) as "HmonoP".
+    { rewrite mono_temporary_eq.
+      destruct (isWL pa); auto.
+      destruct (isDL pa); auto.
+      by iApply future_priv_mono_is_future_pub_mono.
+    }
+    iApply "HmonoP"; eauto.
+  Qed.
+
 
 End world_ghost_theory.

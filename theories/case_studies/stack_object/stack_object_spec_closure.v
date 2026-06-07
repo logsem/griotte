@@ -344,15 +344,10 @@ Section SO.
       rewrite {1}Hla_be_temporaries_l.
       apply filter_complement_list.
     }
-    (* Eliminate the later of [close_list_resources] *)
-    iAssert (▷ (close_list_resources C W0 l_revoked_W0 false))%I with "[Hl_revoked_W0]" as "Hl_revoked_W0".
-    { rewrite /close_list_resources /close_addr_resources.
-      iNext; done.
-    }
+    (* Eliminate the later of [RevokedResources] *)
     iDestruct (lc_fupd_elim_later with "[$] [$Hl_revoked_W0]") as ">Hl_revoked_W0".
-    rewrite /close_list_resources.
     iEval (setoid_rewrite Hl_wca0_l') in "Hl_revoked_W0".
-    iDestruct (big_sepL_app with "Hl_revoked_W0") as "[Hrevoked_la_be_temporaries Hrevoked_l_revoked_W0_no_be]".
+    iDestruct (RevokedResources_app with "Hl_revoked_W0") as "[Hrevoked_la_be_temporaries Hrevoked_l_revoked_W0_no_be]".
 
     (* Open the world for the Permanent addresses [la_be_permanents]:
      - get the list of predicates [φs] and [rel] from the validity predicate of [wca0]
@@ -478,10 +473,11 @@ Section SO.
       iInduction (l) as [| a l]; first (iExists [],[],[]; cbn; done).
       iDestruct "Hrevoked_la_be_temporaries" as "[Ha Hl]".
       iDestruct ("IHl" with "Hl") as "Hl".
-      iDestruct "Ha" as (p P HpersP) "[Ha Hrel_a]".
-      iDestruct "Ha" as (v) "(HpO & Hv & Hmono & HP)".
+      iDestruct "Ha" as (p P HpersP) "[Hrel_a Ha]".
+      iDestruct "Ha" as (v) "(HpO & Hv & HP & HmonoP)".
       iDestruct "Hl" as (lp lP lv) "(% & % & % & %Hpers_lP & Hrels & HpOs & Hvs & Hmonos & HPs)".
       iExists (p::lp), (P::lP), (v::lv).
+      rewrite mono_temporary_eq.
       iFrame.
       iFrame "%".
       iPureIntro.
@@ -1022,7 +1018,6 @@ Section SO.
       rewrite !elem_of_finz_seq_between in Hx |- *; solve_addr+Hx.
     }
     set (W5 := revoke W4).
-
     (* Derive a bunch of disjointness properties that will be necessary later *)
     iMod (world_interp_revoked_by_separation_many_with_temp_resources
            with "[$Hrevoked_l_revoked_W0_no_be $Hworld_interp_C]")
@@ -1206,8 +1201,7 @@ Section SO.
        [l_revoked_W0] and [l_revoked_W4], but they have some overlap.
        So we need to separe them into disjoint lists.
      *)
-    rewrite -/(close_list_resources C W0 l_revoked_W0_no_be false).
-    iDestruct (close_list_resources_separation_many_alt with "[$Hrevoked_l_revoked_W0_no_be $Hl_revoked_W4]") as "%Hdisjoint_l_revoked_W0_no_be_l_revoked_W4".
+    iDestruct (RevokedResources_separation_many_alt with "[$Hrevoked_l_revoked_W0_no_be $Hl_revoked_W4]") as "%Hdisjoint_l_revoked_W0_no_be_l_revoked_W4".
     assert (∃ l_revoked_W4_no_astk1, l_revoked_W4 ≡ₚ a_stk1::l_revoked_W4_no_astk1 ∧ a_stk1 ∉ l_revoked_W4_no_astk1) as (l_revoked_W4_no_astk1 & Hl_revoked_W4_astk1 & Ha_stk1_l_revoked_W4_no_astk1).
     {
       clear -Hastk1_l_revoked_W4 Hl_revoked_W4_nodup.
@@ -1219,12 +1213,12 @@ Section SO.
       apply NoDup_cons in Hnodup; destruct Hnodup as [? _]; done.
     }
     iAssert (
-       close_list_resources C W4 l_revoked_W4_no_astk1 false
-       ∗ close_addr_resources C W4 a_stk1 false
+       RevokedResources W4 C l_revoked_W4_no_astk1
+       ∗ RevokedResources W4 C [a_stk1]
       )%I with "[Hl_revoked_W4]" as "[Hl_revoked_W4 Ha_stk1]".
-    { rewrite /close_list_resources.
-      setoid_rewrite Hl_revoked_W4_astk1.
-      iDestruct "Hl_revoked_W4" as "[$ $]".
+    { setoid_rewrite Hl_revoked_W4_astk1.
+      replace (a_stk1 :: l_revoked_W4_no_astk1) with ( [a_stk1] ++ l_revoked_W4_no_astk1) by done.
+      iDestruct (RevokedResources_app with "Hl_revoked_W4") as "[$ $]".
     }
     set (l_revoked_W4_no_astk1_no_wca0 := filter (fun a => a ∉ la_be_temporaries) l_revoked_W4_no_astk1).
     set (l_revoked_W4_no_astk1_wca0 := filter (fun a => a ∈ la_be_temporaries) l_revoked_W4_no_astk1).
@@ -1335,7 +1329,10 @@ Section SO.
     }
     (* ... and use it for showing that we can close the resources of [l_revoked_W4_no_astk1] *)
     iAssert (close_list_resources_gen C W5 closing_list l_revoked_W4_no_astk1 false) with "[Hl_revoked_W4]" as "Hl_revoked_W4".
-    { iApply close_list_resources_gen_eq; eauto. }
+    { iApply close_list_resources_gen_eq; eauto.
+      rewrite RevokedResources_close_list_resources_eq.
+      done.
+    }
 
     (* Show that fixing the world [W0] with [closing_list] is public future world... *)
     assert (related_sts_pub_world W0 (close_list closing_list W5)) as Hrelated_pub_W0_Wfixed.
@@ -1392,7 +1389,10 @@ Section SO.
     }
     (* ... and use it for showing that we can close the resources of [l_revoked_W0_no_be] *)
     iAssert (close_list_resources_gen C W5 closing_list l_revoked_W0_no_be false) with "[Hrevoked_l_revoked_W0_no_be]" as "Hrevoked_l_revoked_W0_no_be".
-    { iApply close_list_resources_gen_eq; eauto. }
+    { iApply close_list_resources_gen_eq; eauto.
+      rewrite RevokedResources_close_list_resources_eq.
+      done.
+    }
 
     (* Derive some separation properties that will be requires later *)
     iAssert (
@@ -1404,7 +1404,12 @@ Section SO.
       iDestruct (big_sepL_app with "Hl_revoked_W4") as "[$ $]".
     }
     iDestruct (close_list_resources_gen_separation with "[$Hastk0] [$Hl_revoked_W4_no_wca0]") as "%Hcsp_b_notin_l_revoked_W4_no_astk1_no_wca0".
-    iDestruct (close_addr_list_gen_resources_separation with "[$Ha_stk1] [$Hl_revoked_W4_no_wca0]") as "%Hastk_1_notin_l_revoked_W4_no_astk1_no_wca0".
+    iDestruct (close_addr_list_gen_resources_separation with "[Ha_stk1] [$Hl_revoked_W4_no_wca0]") as "%Hastk_1_notin_l_revoked_W4_no_astk1_no_wca0".
+    { iClear "#".
+      rewrite /RevokedResources /close_addr_resources /=.
+      iDestruct "Ha_stk1" as "[ (%pa & %Pa & $ & $ & (%va & $ & $ & $ & ?)) _ ]".
+      by rewrite mono_temporary_eq.
+    }
     iDestruct (close_list_resources_gen_separation_many
                  with "[$Hstk] [$Hl_revoked_W4_no_wca0]") as "%Hfrm_notin_l_revoked_W4_no_astk1_no_wca0".
     (* Combine all the revoked addresses [closing_list_revoked_addresses] that will
@@ -1420,10 +1425,7 @@ Section SO.
     { rewrite /close_list_resources_gen; iApply big_sepL_app; iFrame. }
 
     (* Reconstruct the stack region *)
-    rewrite /close_addr_resources.
-    iDestruct "Ha_stk1" as (???) "[Ha_stk1 _]".
-    iEval (cbn) in "Ha_stk1".
-    iDestruct "Ha_stk1" as (?) "(_ & Ha_stk1 & _)".
+    iDestruct "Ha_stk1" as "[ (%pa & %Pa & _ & _ & (%va & _ & Ha_stk1 & _ & _)) _ ]".
     iDestruct (region_pointsto_cons with "[$Ha_stk1 $Hstk]") as "Hstk"; auto.
     { solve_addr+Hcsp_size' Hastk2. }
     iDestruct (region_pointsto_cons with "[$Hastk0 $Hstk]") as "Hstk"; auto.
