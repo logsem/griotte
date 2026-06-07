@@ -48,7 +48,6 @@ Section fundamental.
     → isCorrectPC (WCap p g b e a)
     → (b <= a)%a ∧ (a < e)%a
     → PermFlowsTo p p'
-    → isO p' = false
     → (persistent_cond P)
     → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
@@ -65,19 +64,13 @@ Section fundamental.
           then ▷ wcond P C interp
           else emp)
     -∗ monoReq W C a p' P
-    -∗ (▷ (if decide (ρ = Temporary)
-           then (if isWL p'
-                 then future_pub_mono C (safeC P) w
-                 else (if isDL p' then future_pub_mono C (safeC P) w else future_priv_mono C (safeC P) w))
-           else future_priv_mono C (safeC P) w))
-    -∗ ▷ P W C w
+    -∗ ▷ WorldRes W C a p' (safeC P) w ρ
     -∗ interp_continuation cstk Ws Cs
     -∗ ⌜frame_match Ws Cs cstk W C⌝
     -∗ world_interp_open W C [a]
     -∗ na_own logrel_nais ⊤
     -∗ cstack_frag cstk
     -∗ sts_state_std C a ρ
-    -∗ a ↦ₐ w
     -∗ PC ↦ᵣ (WCap p g b e a)
     -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
     -∗ WP Instr Executable

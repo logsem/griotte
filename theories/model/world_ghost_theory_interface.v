@@ -24,53 +24,6 @@ Section world_ghost_theory_interface.
      - move actually useful lemmas in world_ghost_theory.v
    *)
 
-  (* TODO use everywhere: clean *)
-  Lemma close_world_interp W C a φ p v (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
-    ρ = Temporary ∨ ρ = Permanent →
-    sts_state_std C a ρ
-    ∗ world_interp_open W C [a]
-    ∗ a ↦ₐ v
-    ∗ ⌜isO p = false⌝
-    ∗ (if (decide (ρ = Temporary))
-       then ( if isWL p
-              then future_pub_mono C φ v
-              else (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v))
-       else future_priv_mono C φ v)
-    ∗ ▷ φ (W,C,v)
-    ∗ rel C a p φ
-      -∗ world_interp W C.
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    rewrite world_interp_open_eq /world_interp_open_def.
-    rewrite -region_open_prepare.
-    iIntros (Htp) "(Hstate & [Hreg_open $] & Hl & Hp & HmonoV & Hφ & Hrel)".
-    iApply (region_close with "[$Hstate $Hreg_open $Hl $Hp $HmonoV $Hφ $Hrel]"); eauto.
-  Qed.
-
-  (* TODO use everywhere: clean *)
-  Lemma open_world_interp W C a p φ (ρ : region_type) :
-    ρ = Temporary ∨ ρ = Permanent →
-    (std W) !! a = Some ρ →
-    rel C a p φ ∗ world_interp W C -∗
-    ∃ v, world_interp_open W C [a]
-         ∗ sts_state_std C a ρ
-         ∗ a ↦ₐ v
-         ∗ ⌜isO p = false⌝
-         ∗ (▷ if (decide (ρ = Temporary))
-              then ( if isWL p
-                     then future_pub_mono C φ v
-                     else (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v))
-              else future_priv_mono C φ v)
-         ∗ ▷ φ (W,C,v).
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Hne Htemp) "(Hrel & Hreg & Hfull)".
-    iDestruct (region_open with "[$Hrel $Hreg $Hfull]") as (v) "(Hr & Hfull & Hstate & Hl & Hp & Hmono & φ)"; eauto.
-    iFrame.
-    by rewrite -region_open_prepare.
-  Qed.
-
   (* TODO cleanup *)
   Lemma open_world_interp_next
     (W : WORLD) (C : CmptName)

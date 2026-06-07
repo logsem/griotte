@@ -431,10 +431,12 @@ Section fundamental.
      (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
      ftlr_instr W C regs p p' g b e a w (Store dst src) ρ P cstk Ws Cs.
    Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe".
-    iIntros "Hstate Ha HPC Hmap".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
+
+    iDestruct (WorldRes_acc' with "WorldRes") as " [ (>Ha & Hinterp & HmonoV) WorldRes ]".
 
     (* To read out PC's name later, and needed when calling wp_load *)
     assert(∀ x : RegName, is_Some (<[PC:=WCap p g b e a]> regs !! x)) as Hsome'.
@@ -499,6 +501,7 @@ Section fundamental.
       destruct Hincr as (?&?&?&?&?&?&?&?&?).
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
+      rewrite mono_invariant_eq.
       iDestruct (switch_monotonicity_formulation with "HmonoV") as "HmonoV"; [eauto..|].
 
       (* assert that the PC *)
@@ -506,12 +509,14 @@ Section fundamental.
       (* Step 4: return all the resources we had in order to close the second location
          in the region, in the cases where we need to *)
       iDestruct (mem_map_recover_res
-                  with "HStoreMem Hreg Hinv_interp Hw [Hwcond] [Hmono] [HmonoV] Hmem")
+                  with "HStoreMem Hreg Hinv_interp Hinterp [Hwcond] [Hmono] [HmonoV] Hmem")
         as (w') "(Hworld_interp & Ha & HSVInterp & HmonoV)"; eauto.
 
       iDestruct (switch_monotonicity_formulation with "HmonoV") as "HmonoV"; auto.
+      rewrite /monotonicity_guarantees_decide -mono_invariant_eq.
 
-      iDestruct (close_world_interp with "[$Hstate $Hworld_interp $Ha $HmonoV $HSVInterp]") as "Hworld_interp"; eauto.
+      iDestruct ("WorldRes" with "[$Ha $HSVInterp $HmonoV]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq. rewrite insert_insert_eq.
 

@@ -44,10 +44,13 @@ Section fundamental.
      (ρ : region_type) (dst : RegName) (r1 r2 : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w (Subseg dst r1 r2) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe".
-    iIntros "Hstate Ha HPC Hmap".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
+
+    iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
+
     iApply (wp_Subseg with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -67,8 +70,11 @@ Section fundamental.
 
       iApply wp_pure_step_later; auto.
       iNext ; iIntros "_".
-      iDestruct (close_world_interp with "[$Hstate $Hworld_interp $Ha $HmonoV Hw]") as "Hworld_interp"; eauto.
+
+      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
+
       simplify_map_eq; map_simpl "Hmap".
 
       (* edestruct Hspdst as [??]. *)
@@ -107,8 +113,11 @@ Section fundamental.
 
       iApply wp_pure_step_later; auto.
       iNext ; iIntros "_".
-      iDestruct (close_world_interp with "[$Hstate $Hworld_interp $Ha $HmonoV Hw]") as "Hworld_interp"; eauto.
+
+      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
+
       simplify_map_eq; map_simpl "Hmap".
 
       iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ᵣ> _) with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.

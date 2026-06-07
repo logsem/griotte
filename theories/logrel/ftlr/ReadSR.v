@@ -31,12 +31,15 @@ Section fundamental.
     (w : Word) (ρ : region_type) (dst : RegName) (src : SRegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w (ReadSR dst src) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe".
-    iIntros "Hstate Ha HPC Hmap".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
+
+    iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
+
     destruct (has_sreg_access p) eqn:HpXRS.
-    { iClear "IH Hreg Hinva Hrcond Hwcond Hmono HmonoV Hw Hworld_interp Htframe Hown Hstate Ha Hmap".
+    { iClear "IH Hreg Hinva Hrcond Hwcond Hmono Hworld_interp Htframe Hown Hstate Ha Hmap".
       iEval (rewrite !fixpoint_interp1_eq interp1_eq) in "Hinv_interp".
       destruct (isO p) eqn: HnO.
       { destruct Hp as [Hexec _]

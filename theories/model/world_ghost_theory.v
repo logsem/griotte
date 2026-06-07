@@ -58,6 +58,17 @@ Section world_ghost_theory.
         destruct H; done.
   Qed.
 
+  Global Instance mono_permanent_Persistent C Φ w:
+    Persistent (mono_permanent C Φ w).
+  Proof. apply _. Qed.
+  Global Instance mono_temporary_Persistent C p Φ w:
+    Persistent (mono_temporary C p Φ w).
+  Proof. rewrite /mono_temporary; destruct ( decide (isWL p = true ∨ isDL p = true) ); apply _. Qed.
+
+  Global Instance mono_invariant_Persistent C p Φ w ρ:
+    Persistent (mono_invariant C p Φ w ρ).
+  Proof. rewrite /mono_invariant; destruct ( decide (ρ = Temporary) ); apply _. Qed.
+
   Lemma mono_invariant_eq (C : CmptName) (p : Perm) (Φ : Vc) (w : Word) (ρ : region_type) :
     mono_invariant C p Φ w ρ
     ⊣⊢
@@ -340,8 +351,27 @@ Section world_ghost_theory.
   Proof.
     iIntros "(#Hp&Ha&HΦ&Hmono)".
     iSplitL "Ha HΦ Hmono"; iFrame.
-    iIntros (w') "($&$&$)".
-    done.
+    iIntros (w') "($&$&$)"; done.
+  Qed.
+
+  Lemma WorldRes_acc (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) ρ :
+    WorldRes W C a p Φ w ρ -∗
+    ( a ↦ₐ w ∗ Φ (W,C,w) ) ∗
+    ( ( a ↦ₐ w ∗ Φ (W,C,w) ) -∗ WorldRes W C a p Φ w ρ ).
+  Proof.
+    iIntros "(Hp&Ha&HΦ&Hmono)".
+    iSplitL "Ha HΦ"; iFrame.
+    iIntros "[Ha HΦ]"; iFrame "∗#".
+  Qed.
+
+  Lemma WorldRes_acc' (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) ρ :
+    WorldRes W C a p Φ w ρ -∗
+    ( a ↦ₐ w ∗ Φ (W,C,w) ∗ mono_invariant C p Φ w ρ ) ∗
+    ( ∀ w', ( a ↦ₐ w' ∗ Φ (W,C,w') ∗ mono_invariant C p Φ w' ρ ) -∗ WorldRes W C a p Φ w' ρ ).
+  Proof.
+    iIntros "(#Hp&Ha&HΦ&Hmono)".
+    iSplitL "Ha HΦ Hmono"; iFrame.
+    iIntros (w') "($&$&$)"; done.
   Qed.
 
 End world_ghost_theory.

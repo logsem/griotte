@@ -31,10 +31,13 @@ Section fundamental.
      (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w (Mov dst src) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe".
-    iIntros "Hstate Ha HPC Hmap".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
+
+    iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
+
     iApply (wp_Mov with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -56,8 +59,11 @@ Section fundamental.
       destruct (decide (dst = PC)) as [HdstPC|HdstPC]; simplify_map_eq.
       { map_simpl "Hmap".
         destruct src; simpl in *; try discriminate.
-        iDestruct (close_world_interp with "[$Hstate $Hworld_interp $Ha $HmonoV Hw]") as "Hworld_interp"; eauto.
+
+        iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+        iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
         { destruct ρ;auto;contradiction. }
+
         destruct (decide (r = PC)).
         { simplify_map_eq.
           iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
@@ -81,8 +87,11 @@ Section fundamental.
         iApply (interp_weakening with "IH Hr0"); eauto; try reflexivity; try solve_addr.
       }
       { map_simpl "Hmap".
-        iDestruct (close_world_interp with "[$Hstate $Hworld_interp $Ha $HmonoV Hw]") as "Hworld_interp"; eauto.
+
+        iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+        iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
         { destruct ρ;auto;contradiction. }
+
         assert (is_Some (<[dst:=w0]> regs !! csp)) as [??].
         { destruct (decide (dst = csp));simplify_map_eq =>//. }
         iApply ("IH" $! _ _ _ _ _ (<[dst:=w0]ᵣ> _) with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.

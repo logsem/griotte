@@ -318,16 +318,24 @@ Section fundamental.
     (w : Word) (ρ : region_type) (dst src : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w (Load dst src) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe".
-    iIntros "Hstate Ha HPC Hmap".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
+
+    iDestruct (WorldRes_acc with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
+
+
+    (* intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi. *)
+    (* iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe". *)
+    (* iIntros "Hstate Ha HPC Hmap". *)
+    (* iInsert "Hmap" PC. *)
     iClear "Hwcond".
     iDestruct (if_dec_later with "Hrcond") as "Hrcond'"; iClear "Hrcond".
 
     assert (Persistent (▷ P W C w)) as HpersP.
     { apply later_persistent. specialize (Hpers (W,C,w)). auto. }
-    iDestruct "Hw" as "#Hw".
+    iDestruct "Hinterp" as "#Hw".
 
     (* To read out PC's name later, and needed when calling wp_load *)
     assert(∀ x : RegName, is_Some (<[PC:=WCap p g b e a]> regs !! x)) as Hsome'.
@@ -389,8 +397,10 @@ Section fundamental.
         iIntros (a1); inversion a1.
       }
 
-      iDestruct (close_world_interp with "[$Hstate $Ha $Hworld_interp $HmonoV]") as "Hworld_interp"; eauto.
+      iDestruct ("WorldRes" with "[$Ha $Hw]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
+
       assert (is_Some (regs' !! csp)) as [? ?].
       { rewrite XX lookup_insert_ne//.
         destruct (decide (dst = csp));simplify_map_eq =>//. }
