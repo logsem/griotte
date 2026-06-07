@@ -385,6 +385,7 @@ Section CMDC.
       by eexists.
     }
 
+    (* TODO use StackRevokedResources instead *)
     iAssert (
         ( [∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 B a)
           ∗ ⌜ Forall (λ a, W1.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)⌝
@@ -523,14 +524,17 @@ Section CMDC.
     }
 
     (* we open the world to get the points-to predicate *)
+    rewrite -(open_world_interp_empty _ B).
     iDestruct (
-       open_world_interp_perm with "[$Hrel_cgp_b $Hworld_interp_B]"
-      ) as (v) "(Hworld_interp_B & Hstd_cgp_b & Hcgp_b & _ & HmonoR & #Hinterp_wcpgb)"; auto.
+       open_world_interp_permanent with "[$Hworld_interp_B] [$Hrel_cgp_b]"
+      ) as "(Hworld_interp_B & Hstd_cgp_b & [%v PermRes_cgp_b] )"; auto.
+    { set_solver+. }
     {
       eapply (monotone.region_state_priv_perm W2_B); eauto.
       eapply revoke_related_sts_priv_world.
     }
-
+    iEval (cbn) in "PermRes_cgp_b".
+    iDestruct (PermRes_acc with "PermRes_cgp_b") as "[ (>Hcgp_b & Hcgp_b_interp) PermRes_cgp_b]".
     (* Store cgp 42%Z *)
     iInstr "Hcode".
     { solve_addr. }

@@ -494,9 +494,11 @@ Section DROE.
       apply not_elem_of_finz_seq_between in Hcgp_b_stk.
       destruct Hcgp_b_stk; [left|right]; solve_addr.
     }
+    rewrite -open_world_interp_empty.
     iDestruct (
-       open_world_interp_perm with "[$Hrel_cgp_b $Hworld_interp_B]"
-      ) as (v) "(Hworld_interp_B & Hstd_cgp_b & Hcgp_b & %Hp & Hmono & Hφ_cgp_b)"; auto.
+       open_world_interp_permanent with "[$Hworld_interp_B] [$Hrel_cgp_b]"
+      ) as "(Hworld_interp_B & Hstd_cgp_b & [%v PermRes_cgp_b] )"; auto.
+    { set_solver+. }
     {
       eapply (monotone.region_state_priv_perm W2_B); eauto.
       { eapply revoke_related_sts_priv_world. }
@@ -506,14 +508,16 @@ Section DROE.
       rewrite lookup_insert_ne; last solve_addr+Hcgp_contiguous.
       by rewrite lookup_insert_eq.
     }
+    iEval (cbn) in "PermRes_cgp_b".
 
     (* Mov cs0 cra; *)
     iInstr "Hcode".
-    cbn; iDestruct "Hφ_cgp_b" as "[-> Hinterp_cgp_b']".
-
+    iDestruct (PermRes_acc with "PermRes_cgp_b") as "[ [Hcgp_b Hcgp_b_interp] PermRes_cgp_b]".
+    iEval (cbn) in "Hcgp_b_interp"; iDestruct "Hcgp_b_interp" as "[ % Hcgp_b_interp ]"; simplify_eq.
     (* Load ct0 cgp  *)
     iInstr "Hcode".
     { split; [done| solve_addr]. }
+    iDestruct ("PermRes_cgp_b" with "[$Hcgp_b $Hcgp_b_interp]") as "PermRes_cgp_b"; auto.
     (* Mov ct1 42  *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

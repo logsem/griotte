@@ -1145,7 +1145,7 @@ Section Switcher.
       { apply finz_seq_between_NoDup. }
       { set_solver+. }
       { by rewrite finz_seq_between_length in Hlen_stk_l. }
-      rewrite open_empty.
+      rewrite open_world_interp_empty.
 
       iMod (world_interp_revoked_by_separation_many with "[$Hworld_interp_C $Hstk_l]")
         as "(Hworld_interp_C & Hstk_l & %Hstk_l_revoked)".

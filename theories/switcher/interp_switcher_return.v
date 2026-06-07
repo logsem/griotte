@@ -481,7 +481,7 @@ Section fundamental.
       { apply finz_seq_between_NoDup. }
       { set_solver. }
       { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
-      rewrite open_empty.
+      rewrite open_world_interp_empty.
 
 
       destruct ( decide (isCorrectPC (updatePcPerm wastk2))) as [HcorrectWret|HcorrectWret]; cycle 1.

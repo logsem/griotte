@@ -402,7 +402,7 @@ Section SO.
         apply Forall_cons; split; auto.
     }
 
-    rewrite -open_empty.
+    rewrite -open_world_interp_empty.
     iDestruct (open_world_interp_list with "[$Hrels_wca0 $Hworld_interp_C]") as
       "(%wca0_lv_perma & Hworld_interp_C & Hsts_std_wca0 & Hla_be_permanents_lv & Hwca0_mono & Hwca0_φs
      & %Hlength_wca0_lv & Hwca0_pO)".
@@ -531,7 +531,7 @@ Section SO.
       destruct Hx as [_ ->]; done.
     }
     { auto. }
-    rewrite open_empty.
+    rewrite open_world_interp_empty.
 
     (* Update the world and insert [la_be_temporaries].
        It means that we need to prove that they are safe to share in the revoked world.

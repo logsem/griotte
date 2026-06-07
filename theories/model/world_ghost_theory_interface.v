@@ -24,10 +24,6 @@ Section world_ghost_theory_interface.
      - move actually useful lemmas in world_ghost_theory.v
    *)
 
-  Lemma world_interp_init (W : WORLD) (C : CmptName) :
-    region W C ∗ sts_full_world W C -∗ world_interp W C.
-  Proof. rewrite world_interp_eq /world_interp_def; iIntros "[? ?]"; iFrame. Qed.
-
   (* TODO use everywhere: clean *)
   Lemma close_world_interp W C a φ p v (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
     ρ = Temporary ∨ ρ = Permanent →
@@ -118,28 +114,6 @@ Section world_ghost_theory_interface.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros (?) "(Hstd & [Hr Hsts] & Ha & Hp & Hmono & HP & Hrel)".
     iDestruct (region_close_next with "[$Hstd $Hr $Ha $Hp $Hmono $HP $Hrel]") as "$"; auto.
-  Qed.
-
-
-
-  (* TODO essentially like al instance of open_world_interp + see open_world_perm *)
-  Lemma open_world_interp_perm W C a p φ :
-    (std W) !! a = Some Permanent →
-    rel C a p φ ∗ world_interp W C -∗
-    ∃ v, world_interp_open W C [a]
-         ∗ sts_state_std C a Permanent
-         ∗ a ↦ₐ v
-         ∗ ⌜isO p = false⌝
-         ∗ ▷ future_priv_mono C φ v
-         ∗ ▷ φ (W,C,v).
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (?) "(Hrel & [Hr Hsts])".
-    iDestruct (
-        region_open_perm with "[$Hrel $Hr $Hsts]"
-      ) as (v) "(? & $ & $ & $ & $ & $ & $)"; auto.
-    by rewrite region_open_prepare.
   Qed.
 
   (* TODO only used on CMDC adequacy *)

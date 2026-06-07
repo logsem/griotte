@@ -155,7 +155,7 @@ Section switcher_helper.
     rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
     destruct (is_untrusted_caller ccrel); cycle 1.
     * iExists wcs2, wcs3, wret, wcgp0.
-      iEval (rewrite -open_empty) in "Hworld_interp"; iFrame "Hworld_interp".
+      iEval (rewrite -open_world_interp_empty) in "Hworld_interp"; iFrame "Hworld_interp".
       iSplitL "Hcframe_interp"; auto.
       iDestruct "Hcframe_interp" as "(?&?&?&?)".
       iApply (region_pointsto_cons _ (a_stk ^+ 1)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
@@ -163,7 +163,7 @@ Section switcher_helper.
       iApply (region_pointsto_cons _ (a_stk ^+ 3)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
       iApply (region_pointsto_cons _ (a_stk ^+ 4)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
       by rewrite /region_pointsto finz_seq_between_empty.
-    * iEval (rewrite -open_empty) in "Hworld_interp".
+    * iEval (rewrite -open_world_interp_empty) in "Hworld_interp".
       iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk (a_stk^+4)%a)
                   with "[$Hinterp_callee_wstk $Hworld_interp]")
         as "(Hworld_interp & Hres)"; auto.

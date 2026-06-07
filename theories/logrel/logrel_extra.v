@@ -23,6 +23,9 @@ Section Logrel_extra.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
   (* TODO simplify and clear the revoke_resources / closing_revoked_resources *)
+  (* TODO define prediate is_interp or something that keeps track of the fact that
+     φ is essentially a safety predicate *)
+  (* TODO this looks like opening_resources from logrel.v, but specialised for Temporary *)
   Definition revoke_resources W C a :=
     (∃ v (φ : V) p,
         φ W C v
@@ -745,6 +748,8 @@ Section Logrel_extra.
     destruct dl,dro; try done; by iApply "Hrcond".
   Qed.
 
+  (* TODO considering [closing_revoked_from_rel_stack],
+     we should be able to obtain StackRevokedResources from list of rel !!  *)
   Definition StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) : iProp Σ :=
     ([∗ list] a ∈ la, closing_revoked_resources W C a).
 

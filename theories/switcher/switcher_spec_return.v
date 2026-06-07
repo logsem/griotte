@@ -374,7 +374,7 @@ Section Switcher.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
 
-      iEval (rewrite -open_empty) in "Hworld_interp".
+      iEval (rewrite -open_world_interp_empty) in "Hworld_interp".
       iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk4 csp_e) []
                   with "[$Hinterp_callee_wstk' $Hworld_interp]")
         as "(Hworld_interp & Hres)"; auto.
