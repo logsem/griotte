@@ -445,6 +445,7 @@ Section SO.
     assert (Forall (λ a : finz MemNum, (revoke W0).1 !! a = Some Revoked) la_be_temporaries) as
       Hrevoked_la_be_temporaries.
     { clear - Hl_wca0_l' Hl_revoked_W0.
+      rewrite /revoked_addresses in Hl_revoked_W0.
       setoid_rewrite Hl_wca0_l' in Hl_revoked_W0.
       apply Forall_app in Hl_revoked_W0 as [? ?].
       auto.
@@ -1185,7 +1186,7 @@ Section SO.
         replace (a_stk1 ^+1)%a with a_stk2 in Ha by solve_addr+Hcsp_size' Hastk2 Hastk1 Hcsp_bounds.
         apply elem_of_cons in Ha as [Ha | Ha]; simplify_eq; first auto.
         apply elem_of_cons in Ha as [Ha | Ha]; simplify_eq.
-        { rewrite Forall_forall in Hl_revoked_W4; apply Hl_revoked_W4 in Hastk1_l_revoked_W4; auto. }
+        { rewrite /revoked_addresses Forall_forall in Hl_revoked_W4; apply Hl_revoked_W4 in Hastk1_l_revoked_W4; auto. }
         rewrite Forall_forall in Hstk_W5; apply Hstk_W5 in Ha; auto.
       - setoid_rewrite Hl_wca0_l' in Ha.
         apply elem_of_app in Ha as [Ha|Ha]; cycle 1.
@@ -1257,7 +1258,7 @@ Section SO.
             + rewrite list_elem_of_singleton in Hx'; simplify_eq; done.
             + rewrite close_list_lookup_not_in; eauto.
               apply close_list_lookup_in; eauto.
-              rewrite Forall_forall in Hl_revoked_W0; apply Hl_revoked_W0; auto.
+              rewrite /revoked_addresses Forall_forall in Hl_revoked_W0; apply Hl_revoked_W0; auto.
           }
           apply list_elem_of_filter in Hx_temp as [Hx_temp_W0 Hx_temp].
           subst la_be_temporaries.
@@ -1510,12 +1511,15 @@ Section SO.
           rewrite elem_of_disjoint in Hfrm_notin_l_revoked_W4_no_astk1_no_wca0.
           eapply Hfrm_notin_l_revoked_W4_no_astk1_no_wca0; eauto.
     }
-    { intros x Hx.
-      specialize (Hl_revoked_W0_temporaries x); apply Hl_revoked_W0_temporaries in Hx.
-      apply elem_of_app in Hx as [Hx | Hx].
-      + apply elem_of_app; left.
-        apply elem_of_app; left; done.
-      + apply elem_of_app; right; done.
+    {
+    intros x.
+    specialize (Hl_revoked_W0_temporaries x).
+    intros Hx.
+    apply Hl_revoked_W0_temporaries in Hx.
+    apply elem_of_app in Hx as [Hx | Hx].
+    * apply elem_of_app; left.
+      apply elem_of_app; left; done.
+    * apply elem_of_app; right; done.
     }
     { iSplit; iApply interp_int. }
   Qed.

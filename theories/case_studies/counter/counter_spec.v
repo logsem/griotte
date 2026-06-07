@@ -340,12 +340,12 @@ Section Counter.
     iClear "Hinterp_W0_C_f".
 
     (* Prepare the closing resources for the switcher call spec *)
-    iAssert (([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 C a)
-      )%I with "[Hfrm_close_W0]" as "Hfrm_close_W1".
+    iDestruct (StackRevokedResources_mono_priv _ W1 with "Hfrm_close_W0") as "Hfrm_close_W1"; auto.
+    iAssert (⌜ revoked_addresses W1 l ⌝)%I as "%Hrevoked_l_W".
     {
-      iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "Hclose".
-      iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
+      iPureIntro; apply Forall_forall; intros a Ha.
+      rewrite /revoked_addresses Forall_forall in Hrevoked_l.
+      by apply Hrevoked_l in Ha.
     }
 
     iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ rmap_arg with
@@ -382,22 +382,16 @@ Section Counter.
       rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
     }
 
-    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W1.1) l ⌝)%I as "%Hrevoked_l_W".
-    {
-      iPureIntro; apply Forall_forall; intros a Ha.
-      rewrite Forall_forall in Hrevoked_l.
-      apply Hrevoked_l in Ha.
-      by rewrite elem_of_dom.
-    }
     iMod (
        world_interp_revoked_by_separation_many_with_temp_resources with "[$Hworld_interp_C $Hrevoked_l]"
       ) as "(Hworld_interp_C & Hrevoked_l & %HW2_revoked_l)".
     { apply Forall_forall; intros a Ha.
-      rewrite Forall_forall in Hrevoked_l_W.
+      rewrite /revoked_addresses Forall_forall in Hrevoked_l_W.
       apply Hrevoked_l_W in Ha.
       destruct Hrelated_pub_W1_W2 as [ [Hdom _ ] _].
       rewrite -revoke_dom_eq.
-      by apply Hdom.
+      apply Hdom.
+      rewrite elem_of_dom; eauto.
     }
 
     iMod (
@@ -413,7 +407,7 @@ Section Counter.
       { rewrite !elem_of_finz_seq_between in Hx |- *.
         solve_addr+Hcsp_bounds Hx.
       }
-      rewrite Forall_forall in Hrevoked_W0.
+      rewrite /revoked_addresses Forall_forall in Hrevoked_W0.
       eexists.
       by apply Hrevoked_W0.
     }
@@ -481,6 +475,7 @@ Section Counter.
       apply Forall_app; split; auto.
     }
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
+    { by intros a; destruct (H0 a). }
     { iSplit; iApply interp_int. }
   Qed.
 

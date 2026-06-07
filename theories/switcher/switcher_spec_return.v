@@ -41,8 +41,9 @@ Section Switcher.
     dom rmap = all_registers_s ∖ ({[ PC ; csp ; ca0 ; ca1 ]} ) ->
     frame_match Ws Cs cstk W0 C ->
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
+    (* NOTE: there is only one side of the implication... *)
     NoDup (l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : finz MemNum, W0.1 !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, std W0 !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
 
     (* Switcher Invariant *)
     na_inv logrel_nais Nswitcher switcher_inv
@@ -224,13 +225,11 @@ Section Switcher.
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcgp".
-
-    (* --- Lea csp (-1)%Z --- *)
+    (* Lea csp (-1)%Z *)
     iInstr "Hcode".
     { by transitivity (Some (a_stk ^+ 2)%a); subst a_stk; solve_addr+Ha_stk4. }
     replace ((csp_b ^+ -4) ^+ 3)%a with (a_stk ^+ 3)%a by (subst a_stk; solve_addr+Ha_stk4).
     replace ((csp_b ^+ -4) ^+ 2)%a with (a_stk ^+ 2)%a by (subst a_stk; solve_addr+Ha_stk4).
-
     (* Load ca2 csp *)
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; subst a_stk; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
@@ -494,7 +493,7 @@ Section Switcher.
     frame_match Ws Cs cstk W0 C ->
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
     NoDup (l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : finz MemNum, W0.1 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, std W0 !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
 
     (* Switcher Invariant *)
     na_inv logrel_nais Nswitcher switcher_inv
@@ -519,10 +518,8 @@ Section Switcher.
       "(#Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
     & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
     iApply switcher_ret_specification_gen; eauto.
-    + intros a Ha.
-      by apply Htemp_revoked.
-    + iFrame "∗#".
-      iApply close_list_resources_gen_eq; eauto.
+    iFrame "∗#".
+    iApply close_list_resources_gen_eq; eauto.
   Qed.
 
 End Switcher.

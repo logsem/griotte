@@ -96,13 +96,13 @@ Section switcher_helper.
     ∗ world_interp W C
     ==∗
     world_interp (revoke W) C
-    ∗ close_list_resources C W l true
-    ∗ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l⌝.
+    ∗ ▷ RevokedResources W C l
+    ∗ ⌜ revoked_addresses (revoke W) l ⌝.
   Proof.
-    rewrite world_interp_eq /world_interp_def.
+    rewrite world_interp_eq /world_interp_def /revoked_addresses.
     iIntros (Hdup) "(Hl & [Hr Hsts] )".
     iMod ( monotone_revoke_keep _ _ l with "[$Hr $Hsts Hl]") as
-      "($ & $ & $ & $)"; auto.
+      "($ & $ & ? & $)"; auto.
   Qed.
 
   (* TODO This theorem is essentially [reinstate_world], but with different RevokedResources *)

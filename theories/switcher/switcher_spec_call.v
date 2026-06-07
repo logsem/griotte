@@ -75,8 +75,8 @@ Section Switcher.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_interp W C
-    ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a)
-    ∗ ⌜ Forall (λ a, (std W) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
+    ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
+    ∗ ⌜ revoked_addresses W (finz.seq_between a_stk e_stk) ⌝
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
 
@@ -127,8 +127,7 @@ Section Switcher.
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ world_interp W C
-              ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a)
-              ∗ ⌜ Forall (λ a, (std W) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
+              ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
               ∗ cstack_frag cstk
               ∗ interp_continuation cstk Ws Cs
               ∗ £ 2
@@ -822,7 +821,7 @@ Section Switcher.
       iApply big_sepL_sep; iFrame.
       iPureIntro.
       intros k a Ha; cbn.
-      rewrite Forall_forall in Hstk_revoked.
+      rewrite /revoked_addresses Forall_forall in Hstk_revoked.
       apply Hstk_revoked.
       apply list_elem_of_lookup_2 in Ha.
       rewrite !elem_of_finz_seq_between in Ha |- *.
@@ -843,12 +842,12 @@ Section Switcher.
     { apply finz_seq_between_NoDup. }
     { apply Forall_replicate_eq. }
 
-    iAssert (⌜Forall (λ k : finz MemNum, W.1 !! k = Some Revoked) (finz.seq_between a_stk4 e_stk)⌝)%I as %Hrev.
+    iAssert (⌜ revoked_addresses W (finz.seq_between a_stk4 e_stk) ⌝)%I as %Hrev.
     { iPureIntro.
-      rewrite Forall_forall.
       clear-Hstk_revoked Hastk .
+      rewrite /revoked_addresses Forall_forall.
+      rewrite /revoked_addresses Forall_forall in Hstk_revoked.
       intros a Ha; cbn.
-      rewrite Forall_forall in Hstk_revoked.
       apply Hstk_revoked.
       rewrite !elem_of_finz_seq_between in Ha |- *.
       solve_addr.
@@ -1073,8 +1072,8 @@ Section Switcher.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_interp W C
-    ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a)
-    ∗ ⌜ Forall (λ a, (std W) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
+    ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
+    ∗ ⌜ revoked_addresses W (finz.seq_between a_stk e_stk) ⌝
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
 
@@ -1082,34 +1081,32 @@ Section Switcher.
     (* POST-CONDITION *)
     ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : Reg) (stk_mem : list Word) l',
               (* We receive a public future world of the world pre switcher call *)
-            ⌜ NoDup (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk)
-            ∧ ∀ a : finz MemNum,
-            W2.1 !! a = Some Temporary ↔ a ∈ l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk ⌝
-            ∗ close_list_resources C W2 l' false
-            ∗ ⌜ Forall (λ x, (revoke W2).1 !! x = Some Revoked) l' ⌝
-              ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-              ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
-              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
-              ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W2 C a)
-              ∗ ⌜ Forall (λ a, std (revoke W2) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
-              ∗ na_own logrel_nais ⊤
-              ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
-              (* Interpretation of the world *)
-              ∗ world_interp (revoke W2) C
-              ∗ cstack_frag cstk
-              ∗ PC ↦ᵣ updatePcPerm wcra_caller
-              (* cgp is restored, cra points to the next  *)
-              ∗ cgp ↦ᵣ wcgp_caller
-              ∗ cra ↦ᵣ wcra_caller
-              ∗ cs0 ↦ᵣ wcs0_caller
-              ∗ cs1 ↦ᵣ  wcs1_caller
-              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
-              ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
-              ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
-              ∗ interp_continuation cstk Ws Cs
-            -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+            ⌜ extract_temporaries_condition W2 (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk) ⌝
+            ∗ RevokedResources W2 C l'
+            ∗ ⌜ revoked_addresses (revoke W2) l' ⌝
+            ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
+            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+            ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+            ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
+            ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
+            ∗ na_own logrel_nais ⊤
+            ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+            (* Interpretation of the world *)
+            ∗ world_interp (revoke W2) C
+            ∗ cstack_frag cstk
+            ∗ PC ↦ᵣ updatePcPerm wcra_caller
+            (* cgp is restored, cra points to the next  *)
+            ∗ cgp ↦ᵣ wcgp_caller
+            ∗ cra ↦ᵣ wcra_caller
+            ∗ cs0 ↦ᵣ wcs0_caller
+            ∗ cs1 ↦ᵣ  wcs1_caller
+            ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+            ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
+            ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
+            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+            ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+            ∗ interp_continuation cstk Ws Cs
+              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
 
 
     ⊢ WP Seq (Instr Executable)
@@ -1166,7 +1163,7 @@ Section Switcher.
           rewrite elem_of_finz_seq_between in Ha.
           solve_addr.
         }
-        rewrite Forall_forall in Hrevoked_stk.
+        rewrite /revoked_addresses Forall_forall in Hrevoked_stk.
         apply Hrevoked_stk in H.
         done.
     }
@@ -1176,32 +1173,26 @@ Section Switcher.
     iDestruct (region_pointsto_split with "[$Hstk_l $Hstk_h]") as "Hstk"; auto.
     { solve_addr+ Hcsp_bounds. }
     { by rewrite finz_seq_between_length in Hlen_stk_l. }
-    iAssert (▷ (close_list_resources C W' l' false))%I with "[Hrevoked_l']" as "Hrevoked_l'" ; first (iNext ; iFrame).
+    (* iAssert (▷ (close_list_resources C W' l' false))%I with "[Hrevoked_l']" as "Hrevoked_l'" ; first (iNext ; iFrame). *)
     iCombine "Hfrm_close_W2 Hrevoked_W2" as "Hfrm_close_W2".
     iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l']") as ">Hrevoked_l'".
     iDestruct (lc_fupd_elim_later with "[$] [$Hfrm_close_W2]") as ">[Hfrm_close_W2 %]".
     iApply "Hpost"; iFrame "∗%#".
-    rewrite (finz_seq_between_split a_stk (a_stk^+4)%a); last (split; solve_addr).
-    iEval (rewrite big_sepL_app).
     iSplitL "Hfrm_close_W2"; cycle 1.
     { iPureIntro.
-      rewrite !Forall_forall in H,Hstk_l_revoked |- *.
+      rewrite (finz_seq_between_split a_stk (a_stk^+4)%a); last (split; solve_addr).
+      rewrite !/revoked_addresses !Forall_forall in H,Hstk_l_revoked |- *.
       intros x Hx; cbn.
       apply elem_of_app in Hx; destruct Hx as [Hx|Hx].
-      + apply revoke_lookup_Revoked.
-        apply Hstk_l_revoked.
-        done.
-      + apply H.
-        done.
+      + apply revoke_lookup_Revoked; apply Hstk_l_revoked; done.
+      + apply H; done.
     }
-    iFrame.
-    iDestruct (big_sepL_app with "Hstk_val") as "[Hstk _]".
-    iApply (big_sepL_impl with "Hstk").
-    iIntros "!> %k %a %Ha H".
-    rewrite /closing_revoked_resources.
-    iDestruct "H" as (P p ?) "(HP & $ & $ & #Hz & $ & $ & $ & $)"; iFrame "Hz".
-    iExists Hpers.
-    iApply "Hz"; eauto.
+    iApply (StackRevokedResources_mono_priv with "Hstk_val").
+    eapply related_sts_priv_pub_trans_world; eauto.
+    apply related_sts_pub_priv_world.
+    eapply related_sts_pub_update_multiple_temp.
+    rewrite (finz_seq_between_split a_stk (a_stk^+4)%a) in Hrevoked_stk; last (split; solve_addr).
+    apply revoked_addresses_app in Hrevoked_stk as [? ?]; auto.
 
     + clear W' stk_mem_l stk_mem_h.
       set (stk_mem_l := [wcs0_caller; wcs1_caller; wcra_caller; wcgp_caller]).
@@ -1211,7 +1202,7 @@ Section Switcher.
            & Hna
            & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
            & Hrmap & Hstk_l & Hstk_h
-           & Hworld_interp_C & Hclose & %Hrevoke_close
+           & Hworld_interp_C & Hclose
            & Hcstk_frag & HK & [Hlc Hlc'])".
       pose proof (extract_temps W) as [l_unk [Hlunk_nodup Hlunk] ].
 
@@ -1237,8 +1228,8 @@ Section Switcher.
              solve_addr.
            }
            rewrite list_elem_of_lookup in Ha'; destruct Ha' as [? ?].
-           rewrite Forall_forall in Hrevoke_close.
-           eapply Hrevoke_close; eauto.
+           rewrite /revoked_addresses Forall_forall in Hrevoked_stk.
+           eapply Hrevoked_stk; eauto.
            by apply list_elem_of_lookup_2 in H.
       }
       iApply "Hpost"; iFrame "∗%#".
@@ -1249,7 +1240,7 @@ Section Switcher.
           split; last by apply finz_seq_between_NoDup.
           intros a Ha. apply Hlunk in Ha.
           intro Ha'.
-          rewrite Forall_forall in Hrevoked_stk.
+          rewrite /revoked_addresses  Forall_forall in Hrevoked_stk.
            assert (a ∈ finz.seq_between a_stk e_stk) as Ha''.
            { rewrite elem_of_finz_seq_between.
              rewrite elem_of_finz_seq_between in Ha'.
@@ -1271,26 +1262,10 @@ Section Switcher.
               apply Hlunk in Ha; done.
       }
       iSplitL "Hrevoked_l".
-      { iApply (big_sepL_impl with "Hrevoked_l").
-        iIntros "!> %k %a %Ha H".
-        iDestruct "H" as (p P) "($ & Htemp & $)".
-        rewrite /temp_resources.
-        iDestruct "Htemp" as (v) "($ & $ & #Hmono & Hp)"; iFrame "Hmono".
-        iAssert (future_pub_mono C P v) as "HmonoP".
-        { destruct (isWL p); auto.
-          destruct (isDL p); auto.
-          by iApply future_priv_mono_is_future_pub_mono.
-        }
-        iApply "HmonoP"; eauto.
-        iPureIntro.
-        apply related_sts_pub_update_multiple_temp.
-        apply Forall_forall.
-        intros x Hx.
-        assert (x ∈ finz.seq_between a_stk e_stk) as [xk Hx']%list_elem_of_lookup.
-        { rewrite !elem_of_finz_seq_between in Hx |- *; solve_addr. }
-        rewrite Forall_forall in Hrevoke_close.
-        eapply Hrevoke_close; eauto.
-        by apply list_elem_of_lookup_2 in Hx'.
+      { iApply (RevokedResources_mono_pub with "Hrevoked_l"); auto.
+        eapply related_sts_pub_update_multiple_temp.
+        rewrite (finz_seq_between_split a_stk (a_stk^+4)%a) in Hrevoked_stk; last (split; solve_addr).
+        apply revoked_addresses_app in Hrevoked_stk as [? ?]; auto.
       }
       iSplit.
       {
@@ -1305,24 +1280,11 @@ Section Switcher.
         apply list_elem_of_lookup; eauto.
       }
       iSplitL "Hclose".
-      {iApply (big_sepL_impl with "Hclose").
-       iIntros "!> %k %a %Ha Hclose".
-       rewrite /closing_revoked_resources.
-       iDestruct "Hclose" as (P p ?) "(HP & $ & #Hmono & $ & $ & $ & $ & $)"; iFrame "Hmono".
-       iExists Hpers.
-       iApply "Hmono"; eauto.
-       iPureIntro.
-       apply related_sts_pub_update_multiple_temp.
-       apply Forall_forall.
-       intros a' Ha'.
-       assert ( a' ∈ finz.seq_between a_stk e_stk ) as Ha''.
-       {
-         apply elem_of_finz_seq_between in Ha'.
-         apply elem_of_finz_seq_between.
-         solve_addr.
-       }
-       rewrite Forall_forall in Hrevoked_stk.
-       eapply Hrevoked_stk; eauto.
+      { iApply (StackRevokedResources_mono_priv with "Hclose"); auto.
+        apply related_sts_pub_priv_world.
+        eapply related_sts_pub_update_multiple_temp.
+        rewrite (finz_seq_between_split a_stk (a_stk^+4)%a) in Hrevoked_stk; last (split; solve_addr).
+        apply revoked_addresses_app in Hrevoked_stk as [? ?]; auto.
       }
       iSplit; first iPureIntro.
       { eapply Forall_impl; eauto.
@@ -1386,42 +1348,40 @@ Section Switcher.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_interp W C
-    ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a)
-    ∗ ⌜ Forall (λ a, (std W) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
+    ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
+    ∗ ⌜ revoked_addresses W (finz.seq_between a_stk e_stk) ⌝
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
 
     (* POST-CONDITION *)
     ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : Reg) (stk_mem : list Word) l',
               (* We receive a public future world of the world pre switcher call *)
-            ⌜ NoDup (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk)
-            ∧ ∀ a : finz MemNum,
-            W2.1 !! a = Some Temporary ↔ a ∈ l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk ⌝
-            ∗ close_list_resources C W2 l' false
-            ∗ ⌜ Forall (λ x, (revoke W2).1 !! x = Some Revoked) l' ⌝
-              ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-              ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
-              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
-              ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W2 C a)
-              ∗ ⌜ Forall (λ a, (std (revoke W2)) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
-              ∗ na_own logrel_nais ⊤
-              ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
-              (* Interpretation of the world *)
-              ∗ world_interp (revoke W2) C
-              ∗ cstack_frag cstk
-              ∗ PC ↦ᵣ updatePcPerm wcra_caller
-              (* cgp is restored, cra points to the next  *)
-              ∗ cgp ↦ᵣ wcgp_caller
-              ∗ cra ↦ᵣ wcra_caller
-              ∗ cs0 ↦ᵣ wcs0_caller
-              ∗ cs1 ↦ᵣ  wcs1_caller
-              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
-              ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
-              ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
-              ∗ interp_continuation cstk Ws Cs
-            -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+            ⌜ extract_temporaries_condition W2 (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk) ⌝
+            ∗ RevokedResources W2 C l'
+            ∗ ⌜ revoked_addresses (revoke W2) l' ⌝
+            ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
+            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+            ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+            ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
+            ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
+            ∗ na_own logrel_nais ⊤
+            ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+            (* Interpretation of the world *)
+            ∗ world_interp (revoke W2) C
+            ∗ cstack_frag cstk
+            ∗ PC ↦ᵣ updatePcPerm wcra_caller
+            (* cgp is restored, cra points to the next  *)
+            ∗ cgp ↦ᵣ wcgp_caller
+            ∗ cra ↦ᵣ wcra_caller
+            ∗ cs0 ↦ᵣ wcs0_caller
+            ∗ cs1 ↦ᵣ  wcs1_caller
+            ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+            ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
+            ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
+            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+            ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+            ∗ interp_continuation cstk Ws Cs
+              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
 
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
@@ -1474,42 +1434,40 @@ Section Switcher.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_interp W C
-    ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W C a)
-    ∗ ⌜ Forall (λ a, (std W) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
+    ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
+    ∗ ⌜ revoked_addresses W (finz.seq_between a_stk e_stk) ⌝
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
 
     (* POST-CONDITION *)
     ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : Reg) (stk_mem : list Word) l',
-              (* We receive a public future world of the world pre switcher call *)
-            ⌜ NoDup (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk)
-            ∧ ∀ a : finz MemNum,
-            W2.1 !! a = Some Temporary ↔ a ∈ l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk ⌝
-            ∗ close_list_resources C W2 l' false
-            ∗ ⌜ Forall (λ x, (revoke W2).1 !! x = Some Revoked) l' ⌝
-              ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-              ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
-              ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
-              ∗ ([∗ list] a ∈ (finz.seq_between a_stk e_stk), closing_revoked_resources W2 C a)
-              ∗ ⌜ Forall (λ a, (std (revoke W2)) !! a = Some Revoked) (finz.seq_between a_stk e_stk) ⌝
-              ∗ na_own logrel_nais ⊤
-              ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
-              (* Interpretation of the world *)
-              ∗ world_interp (revoke W2) C
-              ∗ cstack_frag cstk
-              ∗ PC ↦ᵣ updatePcPerm wcra_caller
-              (* cgp is restored, cra points to the next  *)
-              ∗ cgp ↦ᵣ wcgp_caller
-              ∗ cra ↦ᵣ wcra_caller
-              ∗ cs0 ↦ᵣ wcs0_caller
-              ∗ cs1 ↦ᵣ  wcs1_caller
-              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
-              ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
-              ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
-              ∗ interp_continuation cstk Ws Cs
-            -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+            (* We receive a public future world of the world pre switcher call *)
+            ⌜ extract_temporaries_condition W2 (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk) ⌝
+            ∗ RevokedResources W2 C l'
+            ∗ ⌜ revoked_addresses (revoke W2) l' ⌝
+            ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
+            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+            ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
+            ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
+            ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
+            ∗ na_own logrel_nais ⊤
+            ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+            (* Interpretation of the world *)
+            ∗ world_interp (revoke W2) C
+            ∗ cstack_frag cstk
+            ∗ PC ↦ᵣ updatePcPerm wcra_caller
+            (* cgp is restored, cra points to the next  *)
+            ∗ cgp ↦ᵣ wcgp_caller
+            ∗ cra ↦ᵣ wcra_caller
+            ∗ cs0 ↦ᵣ wcs0_caller
+            ∗ cs1 ↦ᵣ  wcs1_caller
+            ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+            ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
+            ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
+            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+            ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
+            ∗ interp_continuation cstk Ws Cs
+              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
 
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.

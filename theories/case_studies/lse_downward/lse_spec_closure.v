@@ -259,7 +259,7 @@ Section LSE.
       auto.
     }
     { destruct Hl_unk; auto. }
-    { destruct Hl_unk; auto. }
+    { intros a; destruct Hl_unk as [_ Hl_unk]; destruct (Hl_unk a); auto. }
     { iSplit; iApply interp_int. }
   Qed.
 

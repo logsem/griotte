@@ -745,6 +745,66 @@ Section Logrel_extra.
     destruct dl,dro; try done; by iApply "Hrcond".
   Qed.
 
+  Definition StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) : iProp Σ :=
+    ([∗ list] a ∈ la, closing_revoked_resources W C a).
+
+  Definition extract_temporaries_condition (W : WORLD) (la : list Addr) :=
+      NoDup la ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ la).
+
+  Definition revoked_addresses (W : WORLD) (la : list Addr) :=
+    Forall (λ a, std W !! a = Some Revoked) la.
+
+  Definition RevokedResources (W : WORLD) (C : CmptName) (l : list Addr) :=
+    close_list_resources C W l false.
+
+  Lemma StackRevokedResources_mono_priv (W W' : WORLD) (C : CmptName) (la : list Addr) :
+    related_sts_priv_world W W' ->
+    StackRevokedResources W C la -∗
+    StackRevokedResources W' C la.
+  Proof.
+    iIntros (Hrelated) "H".
+    iApply (big_sepL_impl with "H").
+    iModIntro. iIntros (???) "H".
+    iApply mono_priv_closing_revoked_resources; eauto.
+  Qed.
+
+  Lemma StackRevokedResources_app
+    (W : WORLD) ( C : CmptName ) ( la la' : list Addr ) :
+    StackRevokedResources W C (la++la') ⊣⊢
+    (StackRevokedResources W C la ∗
+     StackRevokedResources W C la')%I.
+  Proof. rewrite /StackRevokedResources; apply big_sepL_app. Qed.
+
+  Lemma RevokedResources_mono_pub (W W' : WORLD) (C : CmptName) (l_unk la : list Addr) :
+    related_sts_pub_world W W' ->
+    RevokedResources W C l_unk -∗
+    RevokedResources W' C l_unk.
+  Proof.
+    iIntros (Hrelated) "H".
+    rewrite /RevokedResources.
+    iApply (big_sepL_impl with "H").
+    iIntros "!> %k %a %Ha H".
+    iDestruct "H" as (p P) "($ & Htemp & $)".
+    rewrite /temp_resources.
+    iDestruct "Htemp" as (v) "($ & $ & #Hmono & Hp)"; iFrame "Hmono".
+    iAssert (future_pub_mono C P v) as "HmonoP".
+    { destruct (isWL p); auto.
+      destruct (isDL p); auto.
+      by iApply future_priv_mono_is_future_pub_mono.
+    }
+    iApply "HmonoP"; eauto.
+  Qed.
+
+  Lemma revoked_addresses_app (W : WORLD) (la la' : list Addr) :
+    revoked_addresses W (la++la') <-> revoked_addresses W la ∧ revoked_addresses W la'.
+  Proof. rewrite /revoked_addresses; apply Forall_app. Qed.
+
+  Lemma extract_temporaries_condition_lookup (W : WORLD) (l : list Addr) (a : Addr) :
+    extract_temporaries_condition W l ->
+    a ∈ l ->
+    std W !! a = Some Temporary.
+  Proof. intros [_ H] Ha; by apply H in Ha. Qed.
+
   (* TODO move somewhere else *)
   Lemma world_interp_revoke_stack W C b e a :
     let la := finz.seq_between b e in
@@ -753,20 +813,20 @@ Section Logrel_extra.
     ∗ world_interp W C
     ==∗
     ∃ l_unk_temp,
-      ⌜ NoDup (l_unk_temp ++ la) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l_unk_temp ++ la))⌝
+      ⌜ extract_temporaries_condition W (l_unk_temp ++ la) ⌝
       ∗ world_interp (revoke W) C
-      ∗ ▷ ([∗ list] a ∈ la, closing_revoked_resources W C a)
-      ∗ ▷ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) la⌝
+      ∗ ▷ StackRevokedResources W C la
+      ∗ ▷ ⌜revoked_addresses (revoke W) la⌝
       ∗ ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]])
-      ∗ close_list_resources C W l_unk_temp true
-      ∗ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
+      ∗ ▷ RevokedResources W C l_unk_temp
+      ∗ ⌜revoked_addresses (revoke W) l_unk_temp⌝.
   Proof.
     intros la.
     rewrite world_interp_eq /world_interp_def.
     iIntros "(Hinterp & [Hr Hsts])".
     iMod (monotone_revoke_stack with "[$Hinterp $Hr $ Hsts]")
-        as (l) "($ & $ & $ & $ & $ & $ & $)".
-    done.
+        as (l) "($ & $ & $ & $ & $ & $ & ? & $)".
+    iModIntro; iNext ; iFrame.
   Qed.
 
 End Logrel_extra.

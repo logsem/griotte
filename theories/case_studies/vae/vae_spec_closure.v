@@ -491,20 +491,13 @@ Section VAE.
     }
 
     (* Prepare the closing resources for the switcher call spec *)
-    iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W2 C a)
-      )%I with "[Hfrm_close_W0]" as "Hfrm_close_W2".
-    {
-      iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "Hclose".
-      iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
-    }
-    assert (Forall (λ a, W2.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)) as Hfrm_close_W2.
-    { apply Forall_forall.
+    iDestruct (StackRevokedResources_mono_priv _ W2 with "Hfrm_close_W0") as "Hfrm_close_W2"; auto.
+    assert ( revoked_addresses W2 (finz.seq_between csp_b csp_e) ) as Hfrm_close_W2.
+    { rewrite /revoked_addresses Forall_forall.
       intros a Ha.
       subst W2 W1.
       cbn.
-      by rewrite Forall_forall in Hfrm_close_W0; eapply Hfrm_close_W0.
+      by rewrite /revoked_addresses Forall_forall in Hfrm_close_W0; eapply Hfrm_close_W0.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -706,20 +699,13 @@ Section VAE.
     }
 
     (* Prepare the closing resources for the switcher call spec *)
-    iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W5 C a)
-      )%I with "[Hfrm_close_W3]" as "Hfrm_close_W5".
-    {
-      iApply (big_sepL_impl with "Hfrm_close_W3").
-      iModIntro; iIntros (k a Ha) "Hclose".
-      iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
-    }
-    assert (Forall (λ a, W5.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)) as Hfrm_close_W5.
-    { apply Forall_forall.
+    iDestruct (StackRevokedResources_mono_priv _ W5 with "Hfrm_close_W3") as "Hfrm_close_W5"; auto.
+    assert ( revoked_addresses W5 (finz.seq_between csp_b csp_e) ) as Hfrm_close_W5.
+    { rewrite /revoked_addresses Forall_forall.
       intros a Ha.
       subst W5 W4.
       cbn.
-      by rewrite Forall_forall in Hfrm_close_W3; eapply Hfrm_close_W3.
+      by rewrite /revoked_addresses Forall_forall in Hfrm_close_W3; eapply Hfrm_close_W3.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -756,17 +742,17 @@ Section VAE.
     iEval (cbn) in "HPC".
 
     (* Derive some information necessary later *)
-    iAssert ( ⌜ Forall (λ k : finz MemNum, W5.1 !! k = Some Revoked) (finz.seq_between (csp_b ^+ 4)%a csp_e) ⌝)%I
+    iAssert ( ⌜ revoked_addresses W5 (finz.seq_between (csp_b ^+ 4)%a csp_e)⌝)%I
       as "%Hrevoked_stk_W5".
     { iPureIntro.
-      apply Forall_forall.
+      rewrite /revoked_addresses Forall_forall.
       intros x Hx.
       assert (x ∈ finz.seq_between csp_b csp_e) as Hx'.
       {
         rewrite (finz_seq_between_split csp_b (csp_b ^+ 4)%a csp_e); last solve_addr.
         rewrite elem_of_app; by right.
       }
-      by rewrite Forall_forall in Hfrm_close_W5 ; apply Hfrm_close_W5.
+      by rewrite /revoked_addresses Forall_forall in Hfrm_close_W5 ; apply Hfrm_close_W5.
     }
     assert (related_sts_pub_world W5 W6) as Hrelated_pub_W5_W6.
     { clear -Hrelated_pub_5ext_W6 Hrevoked_stk_W5.
@@ -778,7 +764,7 @@ Section VAE.
     iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W6.1) l ⌝)%I as "%Hl_revoked_W6".
     {
       iPureIntro; apply Forall_forall; intros a Ha.
-      rewrite Forall_forall in Hrevoked_l.
+      rewrite /revoked_addresses Forall_forall in Hrevoked_l.
       apply Hrevoked_l in Ha.
       cbn.
       assert (a ∈ dom (std W2)) as Ha2.
@@ -929,7 +915,7 @@ Section VAE.
       rewrite -H0; auto.
     }
     { destruct Hl_unk; auto. }
-    { destruct Hl_unk; auto. }
+    { intros a; destruct Hl_unk as [_ Hl_unk]; destruct (Hl_unk a); auto. }
     { iSplit; iApply interp_int. }
   Qed.
 

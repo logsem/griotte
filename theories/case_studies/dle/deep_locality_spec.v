@@ -344,19 +344,10 @@ Section DLE.
     iAssert (interp W3 C (WSealed ot_switcher C_f)) as "#Hinterp_W3_C_f".
     { iApply interp_monotone_sd; eauto. }
     iClear "Hinterp_W0_C_f".
-
-    (* Prepare the closing resources for the switcher call spec *)
-    iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W3 C a)
-      )%I with "[Hfrm_close_W0]" as "#Hfrm_close_W3".
+    iDestruct (StackRevokedResources_mono_priv _ W3 with "Hfrm_close_W0") as "Hfrm_close_W3"; auto.
+    assert ( revoked_addresses W3 (finz.seq_between csp_b csp_e) ) as Hfrm_close_W3.
     {
-      iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "Hclose".
-      iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
-    }
-    assert (Forall (λ a, W3.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)) as Hfrm_close_W3.
-    {
-      apply Forall_forall.
+      rewrite /revoked_addresses Forall_forall.
       intros x Hx.
       assert (x ≠ (cgp_b ^+ 1)%a).
       { intros Hx'; simplify_eq; set_solver+Hx Hcgp_a_stk. }
@@ -364,9 +355,10 @@ Section DLE.
       { intros Hx'; simplify_eq; set_solver+Hx Hcgp_b_stk. }
       simplify_map_eq.
       apply list_elem_of_lookup_1 in Hx; destruct Hx as [? Hx].
-      rewrite Forall_forall in Hfrm_close_W0; apply Hfrm_close_W0.
+      rewrite /revoked_addresses Forall_forall in Hfrm_close_W0; apply Hfrm_close_W0.
       eapply list_elem_of_lookup_2; eauto.
     }
+
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
@@ -512,16 +504,7 @@ Section DLE.
     iClear "Hinterp_W3_C_f".
 
     (* Prepare the closing resources for the switcher call spec *)
-    iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W5 C a)
-      )%I with "[Hfrm_close_W3 Hfrm_close_W4]" as "#Hfrm_close_W5".
-    {
-      iDestruct "Hfrm_close_W3" as "Hclose_W3".
-      iDestruct "Hfrm_close_W4" as "Hclose_W4".
-      iApply (big_sepL_impl with "Hclose_W4").
-      iModIntro; iIntros (k a Ha) "Hclose'".
-      iApply mono_priv_closing_revoked_resources; eauto.
-    }
+    iDestruct (StackRevokedResources_mono_priv _ W5 with "Hfrm_close_W4") as "#Hfrm_close_W5"; auto.
 
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
