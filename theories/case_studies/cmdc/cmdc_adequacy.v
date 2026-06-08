@@ -543,17 +543,13 @@ Section Adequacy.
     }
     iClear "HB_etbl_pcc HB_etbl_cgp HB_etbl_entries HB_code HB_data Hinterp_pcc_B Hinterp_cgp_B".
 
-    iAssert ([∗ list] a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ,
-               rel B a RWL interpC ∗ ⌜ std Winit_B !! a = Some Revoked ⌝ )%I with "[Hrel_stk_B]"
-    as "Hrel_stk_B".
-    { rewrite big_sepL_sep; iFrame.
-      iPureIntro.
-      intros k a Ha ; cbn.
-      subst Winit_B ; clear -Ha.
-      apply std_sta_update_multiple_lookup_in_i.
-      rewrite list_elem_of_lookup; naive_solver.
+    assert ( revoked_addresses Winit_B ( finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ) ) as Hrevoked_stack_B.
+    { subst Winit_B.
+      rewrite /revoked_addresses Forall_forall.
+      intros a Ha.
+      by apply std_sta_update_multiple_lookup_in_i.
     }
-
+    iDestruct ( StackWorldResources_from_rel_stack with "Hrel_stk_B" ) as "Hrel_stk_B"; eauto.
 
     (* CMPT C *)
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_C".
@@ -677,16 +673,13 @@ Section Adequacy.
     }
     iClear "HC_etbl_pcc HC_etbl_cgp HC_etbl_entries HC_code HC_data Hinterp_pcc_C Hinterp_cgp_C".
 
-    iAssert ([∗ list] a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ,
-               rel C a RWL interpC ∗ ⌜ std Winit_C !! a = Some Revoked ⌝ )%I with "[Hrel_stk_C]"
-    as "Hrel_stk_C".
-    { rewrite big_sepL_sep; iFrame.
-      iPureIntro.
-      intros k a Ha ; cbn.
-      subst Winit_C ; clear -Ha.
-      apply std_sta_update_multiple_lookup_in_i.
-      rewrite list_elem_of_lookup; naive_solver.
+    assert ( revoked_addresses Winit_C ( finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ) ) as Hrevoked_stack_C.
+    { subst Winit_C.
+      rewrite /revoked_addresses Forall_forall.
+      intros a Ha.
+      by apply std_sta_update_multiple_lookup_in_i.
     }
+    iDestruct ( StackWorldResources_from_rel_stack with "Hrel_stk_C" ) as "Hrel_stk_C"; eauto.
 
     (* CMPT MAIN *)
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_main".

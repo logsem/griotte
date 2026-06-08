@@ -8,7 +8,7 @@ From stdpp Require Import base.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 
-Section Logrel_extra.
+Section WorldInterpStack.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
@@ -22,8 +22,6 @@ Section Logrel_extra.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  (* TODO this file is some specialisation for stack management !! rename the file *)
-
   Lemma region_open_list_interp_gen (W : WORLD) (C : CmptName)
     (la la' : list Addr) (g : Locality) (b e a : Addr) :
     NoDup la ->
@@ -36,13 +34,13 @@ Section Logrel_extra.
     -∗
     open_region_many W C (la++la') ∗
     sts_full_world W C ∗
-    (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ ▷ StackWorldResources interp W C la lv)
+    (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ ▷ StackOpenWorldResources interp W C la lv)
   .
   Proof.
     induction la; intros Hnodup Hin Hdis ;
       iIntros "(#Hinterp & Hr & Hsts)"; cbn in * |- *.
     - iFrame.
-      iExists []; rewrite /StackWorldResources; iSplit; iFrame; [|iNext]; done.
+      iExists []; rewrite /StackOpenWorldResources /StackWorldResources; iSplit; iFrame; [|iNext; iSplit]; try done.
     - apply Forall_cons in Hin; destruct Hin as [Hin_a0 Hin].
       apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
@@ -79,6 +77,8 @@ Section Logrel_extra.
       iDestruct "Hopen_res" as (lv) "[Hlv Hopen_res]".
       iExists (va::lv); iFrame.
       iNext.
+      cbn.
+      iDestruct "Hopen_res" as "[??]"; iFrame.
       iExists P, p'; iFrame "∗#%".
       iSplit.
       + by rewrite mono_temporary_eq Hwl_p'.
@@ -95,7 +95,7 @@ Section Logrel_extra.
 
     open_region_many W C (la++la') ∗
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
-    StackWorldResources interp W C la lv
+    StackOpenWorldResources interp W C la lv
     -∗
     open_region_many W C la'
   .
@@ -106,10 +106,8 @@ Section Logrel_extra.
     - by iFrame.
     - destruct lv as [| v lv ]; simplify_eq.
       cbn.
-      iDestruct "Hclose_res" as "[ Hclose_res_a Hclose_res ]".
+      iDestruct "Hclose_res" as "[ [(%Pa & %pa & HPa & Hmono & Hrel_a & Hvalid & %Hp) Hclose_res] [Hstd_a Hstates] ]".
       iDestruct "Ha" as "[Ha Hlv]".
-      rewrite /StackWorldResource.
-      iDestruct "Hclose_res_a" as "(%Pa & %pa & Hstd_a & HPa & Hmono & Hrel_a & Hvalid & %Hp)".
       apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
@@ -126,11 +124,9 @@ Section Logrel_extra.
         ; [set_solver+Hcontra Hnotin|set_solver+Hcontra Ha_notin_l'].
       }
       { by apply isWL_nonO in Hwl_pa. }
-      iDestruct (IHla with "[$Hr $Hclose_res $Hlv]") as "IH"; eauto.
+      iDestruct (IHla with "[$Hr $Hclose_res $Hstates $Hlv]") as "IH"; eauto.
   Qed.
 
-
-  (* TODO moved from switcher_help *)
   Lemma open_world_interp_opening_resources (W : WORLD) (C : CmptName)
     (la la' : list Addr) (g : Locality) (b e a : Addr) :
     NoDup la ->
@@ -142,7 +138,7 @@ Section Logrel_extra.
       -∗
 
     world_interp_open W C (la++la') ∗
-    (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ ▷ StackWorldResources interp W C la lv)
+    (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ ▷ StackOpenWorldResources interp W C la lv)
   .
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
@@ -150,7 +146,7 @@ Section Logrel_extra.
     iDestruct (region_open_list_interp_gen _ _ _ _
                 with "[$Hinterp $Hr $Hsts]") as "[$ $]"; eauto.
   Qed.
-  (* TODO moved from switcher_help *)
+
   Lemma close_world_interp_opening_resources (W : WORLD) (C : CmptName)
   (lv : list Word)
   (la la' : list Addr):
@@ -161,7 +157,7 @@ Section Logrel_extra.
 
     world_interp_open W C (la++la') ∗
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
-    StackWorldResources interp W C la lv
+    StackOpenWorldResources interp W C la lv
     -∗
     world_interp_open W C la'.
   Proof.
@@ -170,11 +166,12 @@ Section Logrel_extra.
     iDestruct (region_close_list_interp_gen with "[$Hres $Hr]") as "$"; eauto.
   Qed.
 
-  (* TODO simplify and clear the revoke_resources / closing_revoked_resources *)
-  (* TODO define prediate is_interp or something that keeps track of the fact that
-     φ is essentially a safety predicate *)
-  (* TODO this looks like opening_resources from logrel.v, but specialised for Temporary *)
-  Definition revoke_resources W C a :=
+
+  (* NOTE the following defines predicates and lemmas that are used for
+     the purpose of simplifying the proofs, but should only be used locally.
+     We defined better resources below
+   *)
+  Local Definition revoke_resources W C a :=
     (∃ v (φ : V) p,
         φ W C v
         ∗ (monotonicity_guarantees_region C (safeC φ) p v Temporary)
@@ -187,7 +184,7 @@ Section Logrel_extra.
         ∗ ⌜ PermFlowsTo RWL p ⌝
         ∗ ⌜ persistent_cond φ ⌝)%I.
 
-  Definition closing_revoked_resources W C a :=
+  Local Definition closing_revoked_resources W C a :=
     (∃ (φ : V) p (Hpers : persistent_cond φ) ,
         φ W C (WInt 0)
         ∗ (monotonicity_guarantees_region C (safeC φ) p (WInt 0) Temporary)
@@ -197,7 +194,7 @@ Section Logrel_extra.
         ∗ wcond φ C interp
         ∗ rel C a p (safeC φ)
         ∗ ⌜ PermFlowsTo RWL p ⌝)%I.
-  Global Instance closing_revoked_persistent W C a : Persistent (closing_revoked_resources W C a).
+  Local  Instance closing_revoked_persistent W C a : Persistent (closing_revoked_resources W C a).
   Proof.
     rewrite /closing_revoked_resources.
     apply bi.exist_persistent; intros φ.
@@ -209,7 +206,7 @@ Section Logrel_extra.
     tc_solve.
   Defined.
 
-  Lemma close_revoked_resources W C a :
+  Local Lemma close_revoked_resources W C a :
     revoke_resources W C a -∗ (∃ v, closing_revoked_resources W C a ∗ a ↦ₐ v).
   Proof.
     iIntros "H".
@@ -225,7 +222,7 @@ Section Logrel_extra.
     all: iEval (rewrite fixpoint_interp1_eq); done.
   Qed.
 
-  Lemma closing_revoked_from_rel_stack W C a :
+  Local Lemma closing_revoked_from_rel_stack W C a :
     rel C a RWL interpC -∗ closing_revoked_resources W C a.
   Proof.
     iIntros "Hrel".
@@ -243,7 +240,7 @@ Section Logrel_extra.
     iApply wcond_interp.
   Qed.
 
-  Lemma mono_priv_closing_revoked_resources W W' c a :
+  Local Lemma mono_priv_closing_revoked_resources W W' c a :
     related_sts_priv_world W W' ->
     closing_revoked_resources W c a -∗
     closing_revoked_resources W' c a.
@@ -253,17 +250,15 @@ Section Logrel_extra.
     iApply "Hzcond"; done.
   Qed.
 
-   Lemma update_region_revoked_temp_pwl_multiple' E W C la lv :
+  Local Lemma update_region_revoked_temp_pwl_multiple' E W C la lv :
      NoDup la →
      Forall (eq (WInt 0)) lv ->
+     Forall (fun a => (std W) !! a = Some Revoked) la ->
 
      sts_full_world W C -∗
      region W C -∗
-     ([∗ list] a;v ∈ la;lv ,
-        (closing_revoked_resources W C a
-        ∗ ⌜(std W) !! a = Some Revoked ⌝)
-        ∗ a ↦ₐ v
-     )
+     ([∗ list] a ∈ la, closing_revoked_resources W C a) -∗
+     ([∗ list] a;v ∈ la;lv, a ↦ₐ v)
 
      ={E}=∗
 
@@ -271,7 +266,7 @@ Section Logrel_extra.
      ∗ sts_full_world (std_update_multiple W la Temporary) C.
    Proof.
      generalize dependent lv; induction la
-     ; iIntros (lv HNoDup Hlv) "Hworld Hregion Hl"; cbn.
+     ; iIntros (lv HNoDup Hlv Hrev) "Hworld Hregion Hres Hl"; cbn.
      - by iFrame.
      - iDestruct (big_sepL2_length with "Hl") as "%Hlen_lv".
        destruct lv as [|v lv] ; first (by cbn in Hlen_lv).
@@ -279,23 +274,16 @@ Section Logrel_extra.
        apply NoDup_cons in HNoDup; destruct HNoDup as [Ha_la HNoDup].
        apply Forall_cons in Hlv; destruct Hlv as [<- Hlv].
        cbn.
-       iDestruct "Hl" as "[( [Hclose %Hrevoke] & Ha) Hl]".
-       iAssert (⌜ Forall (λ k : finz MemNum, std W !! k = Some Revoked) la ⌝)%I
-         with "[Hl]" as "%Hrevoked".
-       { rewrite !big_sepL2_sep.
-         iDestruct "Hl" as "([_ Hl]&_)".
-         rewrite big_sepL2_const_sepL_l.
-         iDestruct "Hl" as "[_ %]".
-         iPureIntro.
-         by apply Forall_lookup.
-       }
+       iDestruct "Hl" as "[Ha Hl]".
+       iDestruct "Hres" as "[Hclose Hres]".
+       apply Forall_cons in Hrev as [Hrev_a Hrevoked].
        pose proof (related_sts_pub_update_multiple_temp W la Hrevoked) as Hrelated.
        iDestruct "Hclose" as (???) "(Hφ & #Hmono & HmonoR & Hzcond & Hrcond & Hwcond & Hrel & %Hp )".
        rewrite /monotonicity_guarantees_region.
        opose proof (isWL_flowsto _ _ Hp _) as Hp'; first done.
        rewrite Hp'.
        iDestruct ("Hmono" with "[] [$]") as "Hφ"; eauto.
-       iMod (IHla with "Hworld Hregion Hl") as "[Hregion Hworld]"; eauto.
+       iMod (IHla with "Hworld Hregion Hres Hl") as "[Hregion Hworld]"; eauto.
        iMod (update_region_revoked_temp_pwl with "Hmono Hworld Hregion Ha Hφ Hrel")
          as "[Hregion Hworld]" ;auto.
        { rewrite std_sta_update_multiple_lookup_same_i; auto. }
@@ -340,7 +328,7 @@ Section Logrel_extra.
   Qed.
 
 
-  Lemma monotone_revoke_list_sts_full_world_keep_interp W C (l : list Addr) (l' l_unk : list Addr) :
+  Local Lemma monotone_revoke_list_sts_full_world_keep_interp W C (l : list Addr) (l' l_unk : list Addr) :
     ⊢ ⌜NoDup (l_unk ++ l')⌝ → ⌜NoDup l⌝ → ⌜(l_unk ++ l') ⊆+ l⌝ →
     ⌜ Forall (λ a : finz MemNum, W.1 !! a = Some Temporary) l_unk ⌝ →
     ([∗ list] a' ∈ l',
@@ -600,7 +588,8 @@ Section Logrel_extra.
            by apply Hl'.
         ++ by apply HForall.
   Qed.
-  Lemma monotone_revoke_sts_full_world_keep_interp W C (l : list Addr) :
+
+  Local Lemma monotone_revoke_sts_full_world_keep_interp W C (l : list Addr) :
     ⌜NoDup l⌝ -∗
     ([∗ list] a' ∈ l,
          ⌜(std W) !! a' = Some Temporary⌝ ∗
@@ -661,7 +650,7 @@ Section Logrel_extra.
   Qed.
 
   (* revoke stack, with unknown p and φ *)
-  Lemma monotone_revoke_stack_pre W C b e a :
+  Local Lemma monotone_revoke_stack_pre W C b e a :
     let la := finz.seq_between b e in
 
     interp W C (WCap RWL Local b e a)
@@ -726,7 +715,7 @@ Section Logrel_extra.
         by apply Hl'.
   Qed.
 
-  Lemma monotone_revoke_stack W C b e a :
+  Local Lemma monotone_revoke_stack W C b e a :
     let la := finz.seq_between b e in
 
     interp W C (WCap RWL Local b e a)
@@ -766,11 +755,23 @@ Section Logrel_extra.
     }
   Qed.
 
-  (* TODO ^ ABOVE SHOULD BE REPHRASED USING [StackWorldResources] INSTEAD !! ^ *)
+  Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
+    StackWorldResource interp W C a v -∗
+    StackWorldResource interp W C a (WInt 0).
+  Proof.
+    iIntros "(%Pa & %pa & HPa & Hmono & $ & ($&#Hzcond&#Hrcond&#Hwcond&%) & $)"; iFrame "#%".
+    specialize (H (W,C,v)).
+    iSplitR "Hmono".
+    + iApply "Hwcond"; iApply interp_int.
+    + rewrite /mono_temporary.
+      destruct ( decide (isWL pa = true ∨ isDL pa = true) )
+      ; iIntros (???) "!>H /="; iApply "Hzcond"; done.
+  Qed.
 
   Lemma StackWorldResource_interp W C a w :
     StackWorldResource interp W C a w -∗ interp W C w.
-    iIntros "(%Pa & %pa & ? & HPa & ? & ? & (?&?&Hrcond&?&%) & %)".
+  Proof.
+    iIntros "(%Pa & %pa & HPa & ? & ? & (?&?&Hrcond&?&%) & %)".
     iDestruct ("Hrcond" with "HPa") as "HPa'".
     rewrite /load_word.
     destruct ( isDRO pa ) eqn:Hpa.
@@ -780,12 +781,104 @@ Section Logrel_extra.
     done.
   Qed.
 
-  (* TODO considering [closing_revoked_from_rel_stack],
-     we should be able to obtain StackRevokedResources from list of rel !!  *)
+  Lemma StackWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
+    StackWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
+  Proof. iIntros "H"; iApply (big_sepL2_length with "H"). Qed.
 
-  (* TODO: I think that StackRevokedResources is essentially StackWorldResources *)
+  Lemma StackOpenWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
+    StackOpenWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
+  Proof. iIntros "[H _]"; iApply (big_sepL2_length with "H"). Qed.
+
+  Lemma StackWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
+    length lv' = length la ->
+    Forall (λ y : Word, y = WInt 0) lv' ->
+    StackWorldResources interp W C la lv -∗
+    StackWorldResources interp W C la lv'.
+  Proof.
+    iIntros (Hzeros Hlen_lv') "H".
+    iDestruct ( StackWorldResources_length with "H" ) as "%Hlen_lv".
+    iStopProof.
+    move: lv lv' Hzeros Hlen_lv Hlen_lv'.
+    induction la; iIntros (lv lv' Hlen_lv' Hlen_lv Hzeros ) "H"
+    ; destruct lv as [|v lv]; auto
+    ; destruct lv' as [|v' lv']; try done.
+    simplify_eq.
+    apply Forall_cons in Hzeros as [-> Hzeros].
+    iDestruct "H" as "[Ha H]".
+    iSplitL "Ha"; first by iApply StackWorldResource_zero.
+    iApply (IHla lv lv'); eauto.
+  Qed.
+
+  Lemma StackOpenWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
+    length lv' = length la ->
+    Forall (λ y : Word, y = WInt 0) lv' ->
+    StackOpenWorldResources interp W C la lv -∗
+    StackOpenWorldResources interp W C la lv'.
+  Proof.
+    iIntros (Hzeros Hlen_lv') "[H $]".
+    iDestruct (StackWorldResources_zeros with "H") as "$"; auto.
+  Qed.
+
+
   Definition StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) : iProp Σ :=
+    StackWorldResources interp W C la (replicate (length la) (WInt 0)).
+
+  Global Instance StackWorldResource_Persistent
+    (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
+    Persistent (StackWorldResource interp W C a v).
+  Proof.
+    assert ( forall interp W C a v,
+               StackWorldResource interp W C a v ⊣⊢
+                 (
+                   (∃ (φ : V) (p : Perm) (_ : Persistent (φ W C v)),
+                       ((φ W C v)
+                        ∗ (mono_temporary C p (safeC φ) v)
+                        ∗ rel C a p (safeC φ)
+                        ∗ valid_stk_interp interp C φ p
+                        ∗ ⌜ PermFlowsTo RWL p ⌝
+                       )%I
+                   )
+                 )) as Heq.
+    {
+      rewrite /StackWorldResource.
+      intros.
+      iSplit; iIntros "H".
+      - iDestruct "H" as "(%&%&?&?&?&(?&?&?&?&%)&?)"; iFrame.
+        pose proof (H (W0,C0,v0)) as H'; iExists H'; done.
+      - iDestruct "H" as "(%&%&%&?&?&?&(?&?&?&?&?)&?)"; iFrame.
+    }
+    rewrite Heq; apply _. Qed.
+
+  Global Instance StackWorldResources_Persistent
+    (W : WORLD) (C : CmptName) (la : list Addr) (lv : list Word) :
+    Persistent (StackWorldResources interp W C la lv).
+  Proof. apply _. Qed.
+
+  Global Instance StackRevokedResources_Persistent W C la : Persistent (StackRevokedResources W C la).
+  Proof. apply _. Qed.
+
+  Local Lemma StackWorldResource_eq (W : WORLD) (C : CmptName) (a : Addr) :
+    StackWorldResource interp W C a (WInt 0) ⊣⊢ closing_revoked_resources W C a.
+  Proof.
+    rewrite /StackWorldResource /closing_revoked_resources.
+    rewrite /monotonicity_guarantees_region /valid_stk_interp.
+    iSplit.
+    - iIntros "(%P & %p & HP & Hmono & Hrel & (Hmono' & Hzcond & Hrcond & Hwcond & %Hpers) & Hp)" ; iFrame "∗%".
+      rewrite mono_temporary_eq.
+      iExists Hpers.
+      destruct (isWL p); [| destruct (isDL p)]; iFrame.
+    - iIntros "(%P & %p & %Hpers & Hmono & Hmono' & Hzcond & Hrcond & Hwcond & Hrel & ? & ?)" ; iFrame "∗%".
+      rewrite mono_temporary_eq.
+      destruct (isWL p); [| destruct (isDL p)]; iFrame.
+  Qed.
+
+  Local Lemma StackRevokedResources_eq (W : WORLD) (C : CmptName) (la : list Addr) :
+    StackRevokedResources W C la ⊣⊢
     ([∗ list] a ∈ la, closing_revoked_resources W C a).
+  Proof.
+    induction la; cbn; first done.
+    rewrite -IHla StackWorldResource_eq; done.
+  Qed.
 
   Definition extract_temporaries_condition (W : WORLD) (la : list Addr) :=
       NoDup la ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ la).
@@ -799,6 +892,7 @@ Section Logrel_extra.
     StackRevokedResources W' C la.
   Proof.
     iIntros (Hrelated) "H".
+    rewrite !StackRevokedResources_eq.
     iApply (big_sepL_impl with "H").
     iModIntro. iIntros (???) "H".
     iApply mono_priv_closing_revoked_resources; eauto.
@@ -809,7 +903,7 @@ Section Logrel_extra.
     StackRevokedResources W C (la++la') ⊣⊢
     (StackRevokedResources W C la ∗
      StackRevokedResources W C la')%I.
-  Proof. rewrite /StackRevokedResources; apply big_sepL_app. Qed.
+  Proof. rewrite !StackRevokedResources_eq; apply big_sepL_app. Qed.
 
   Lemma revoked_addresses_app (W : WORLD) (la la' : list Addr) :
     revoked_addresses W (la++la') <-> revoked_addresses W la ∧ revoked_addresses W la'.
@@ -820,6 +914,7 @@ Section Logrel_extra.
     a ∈ l ->
     std W !! a = Some Temporary.
   Proof. intros [_ H] Ha; by apply H in Ha. Qed.
+
 
   (* TODO move somewhere else ??? *)
   Lemma world_interp_revoke_stack W C b e a :
@@ -841,7 +936,8 @@ Section Logrel_extra.
     rewrite world_interp_eq /world_interp_def.
     iIntros "(Hinterp & [Hr Hsts])".
     iMod (monotone_revoke_stack with "[$Hinterp $Hr $ Hsts]")
-        as (l) "($ & $ & $ & $ & $ & $ & Hres & $)".
+        as (l) "($ & $ & $ & Hres' & $ & $ & Hres & $)".
+    rewrite StackRevokedResources_eq; iFrame.
     iModIntro; iNext ; iFrame.
     rewrite /RevokedResources.
     iApply (big_sepL_impl with "Hres"); iFrame.
@@ -851,4 +947,63 @@ Section Logrel_extra.
     by rewrite mono_temporary_eq.
   Qed.
 
-End Logrel_extra.
+  Lemma world_interp_reinstate_stack E W C la lv :
+    NoDup la →
+    Forall (eq (WInt 0)) lv ->
+    revoked_addresses W la ->
+
+    world_interp W C -∗
+    StackRevokedResources W C la -∗
+    ([∗ list] a;v ∈ la;lv,  a ↦ₐ v)
+
+    ={E}=∗
+
+    world_interp (std_update_multiple W la Temporary) C.
+  Proof.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros (???) "[Hr Hsts] Hres Hl".
+    rewrite StackRevokedResources_eq.
+    iMod (update_region_revoked_temp_pwl_multiple'
+           with "Hsts Hr [Hres] [Hl]") as "[$ $]"; eauto.
+  Qed.
+
+  Lemma StackWorldResources_StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) (lv : list Word) :
+    StackWorldResources interp W C la lv -∗
+    StackRevokedResources W C la.
+  Proof.
+    iIntros "H".
+    iApply (StackWorldResources_zeros with "H").
+    + by rewrite length_replicate.
+    + by apply Forall_replicate.
+  Qed.
+
+  Lemma StackWorldResource_from_rel_stack W C a :
+    rel C a RWL interpC -∗ StackWorldResource interp W C a (WInt 0).
+  Proof.
+    iIntros "Hrel".
+    iExists interp, RWL; cbn. iFrame.
+    iSplit; first (iApply interp_int).
+    iSplit; first (iApply future_pub_mono_interp_z).
+    iSplit; last done.
+    iSplit.
+    { iIntros (v) "!>".
+      iIntros (W0 W1 Hrelated) "Hinterp".
+      rewrite /=.
+      iApply monotone.interp_monotone; eauto.
+    }
+    iSplit; first (iApply zcond_interp).
+    iSplit; first (iApply rcond_interp).
+    iSplit; first (iApply wcond_interp).
+    iPureIntro. apply persistent_cond_interp.
+  Qed.
+
+  Lemma StackWorldResources_from_rel_stack W C la :
+    ([∗ list] a ∈ la, rel C a RWL interpC) -∗
+    StackWorldResources interp W C la (replicate (length la) (WInt 0)).
+  Proof.
+    induction la; [iIntros "H" | iIntros "[Ha H]"]; first done; cbn.
+    iDestruct (IHla with "H") as "$".
+    iDestruct ( StackWorldResource_from_rel_stack with "Ha" ) as "$".
+  Qed.
+
+End WorldInterpStack.

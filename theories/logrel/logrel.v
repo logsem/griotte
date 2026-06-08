@@ -225,8 +225,6 @@ Section logrel.
 
   Definition persistent_cond (P:V) := (∀ WCv, Persistent (P WCv.1.1 WCv.1.2  WCv.2)).
 
-  (* TODO simplify and clean the opening_resources / closing_resources *)
-
   (** [φ] is a safety predicate for the stack (RWL capability), derived from interp *)
   Definition valid_stk_interp (interp : V) (C : CmptName) (φ : V) (p : Perm) : iProp Σ :=
     mono_pub C (safeC φ) ∗
@@ -239,17 +237,9 @@ Section logrel.
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) valid_stk_interp.
   Proof. rewrite /valid_stk_interp; solve_proper. Qed.
 
-  (* TODO make it as close as possible from closing_revoked_resources,
-     such that we can unify StackWorldResources with StackRevokedResources,
-     if possible!! Because even if
-     StackWorldResources is for an open world,
-     and StackRevokedResources is for the revoked world,
-     I think they carry the same meaning (ie. the StackWorldResources )
-   *)
   Definition StackWorldResource (interp : V) (W : WORLD) (C : CmptName) (a : Addr) (w : Word) : iProp Σ :=
     ∃ (φ : V) (p : Perm),
-      (sts_state_std C a Temporary
-       ∗ (φ W C w)
+      ((φ W C w)
        ∗ (mono_temporary C p (safeC φ) w)
        ∗ rel C a p (safeC φ)
        ∗ valid_stk_interp interp C φ p
@@ -257,9 +247,8 @@ Section logrel.
       )%I.
   Definition StackWorldResources (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) : iProp Σ :=
     ([∗ list] a ; v ∈ la ; lw, StackWorldResource interp W C a v).
-
-  (* Definition opening_resources (W : WORLD) (C : CmptName) (a : Addr) (interp : V) : iProp Σ := *)
-  (*   ∃ w, a ↦ₐ w ∗ closing_resources W C a w interp. *)
+  Definition StackOpenWorldResources (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) : iProp Σ :=
+    StackWorldResources interp W C la lw ∗ ([∗ list] a ∈ la, sts_state_std C a Temporary).
 
   Global Instance StackWorldResource_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackWorldResource.
@@ -267,6 +256,9 @@ Section logrel.
   Global Instance StackWorldResources_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackWorldResources.
   Proof. rewrite /StackWorldResources; solve_proper. Qed.
+  Global Instance StackOpenWorldResources_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackOpenWorldResources.
+  Proof. rewrite /StackOpenWorldResources; solve_proper. Qed.
 
   (** [interp_cont_exec] provides a WP rule for the continuation relation.
       It matches the states of the machine at the point where the switcher returns to the caller.
@@ -334,7 +326,7 @@ Section logrel.
          ∗ [[ astk4 , e_stk ]] ↦ₐ [[ stk_mem_h ]]
          (* World interpretation *)
          ∗ world_interp_open W C callee_stk_region
-         ∗ StackWorldResources interp W C callee_stk_region callee_stk_mem
+         ∗ StackOpenWorldResources interp W C callee_stk_region callee_stk_mem
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk

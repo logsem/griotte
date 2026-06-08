@@ -6,7 +6,7 @@ From cap_machine Require Import logrel fundamental interp_weakening memory_regio
 From cap_machine Require Import multiple_updates region_invariants_revocation.
 From cap_machine Require Export switcher switcher_preamble.
 From stdpp Require Import base.
-From cap_machine Require Import logrel_extra switcher_macros_spec switcher_helpers.
+From cap_machine Require Import world_interp_stack switcher_macros_spec switcher_helpers.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 
@@ -91,7 +91,7 @@ Section Switcher.
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
               (* Interpretation of the world *)
               ∗ world_interp_open W2 C callee_stk_region
-              ∗ StackWorldResources interp W2 C callee_stk_region stk_mem_h
+              ∗ StackOpenWorldResources interp W2 C callee_stk_region stk_mem_h
               ∗ cstack_frag cstk
               ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
@@ -809,49 +809,22 @@ Section Switcher.
     (* --- Close the world with the cleared stack --- *)
 
     rewrite {1}(finz_seq_between_split _ a_stk4);[|solve_addr].
-    iDestruct (big_sepL_app with "Hstk_val") as "[#Hstk_val_save Hstk_val']".
-    iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
-    iAssert (
-       [∗ list] y1 ∈ finz.seq_between a_stk4 e_stk,
-         closing_revoked_resources W C y1 ∗ ⌜W.1 !! y1 = Some Revoked⌝
-      )%I with "[Hstk_val']" as "#Hstk_val0".
-    { iClear "#".
-      replace ((((a_stk ^+ 1) ^+ 1) ^+ 1) ^+ 1)%a with a_stk4 in Hstklen by solve_addr.
-      clear-Hstk_revoked Hastk .
-      iApply big_sepL_sep; iFrame.
-      iPureIntro.
-      intros k a Ha; cbn.
+    iDestruct (StackRevokedResources_app with "Hstk_val") as "[#Hstk_val_save #Hstk_val']".
+
+    assert (revoked_addresses W (finz.seq_between a_stk4 e_stk)) as Hrev.
+    { clear-Hstk_revoked Hastk.
       rewrite /revoked_addresses Forall_forall in Hstk_revoked.
+      rewrite /revoked_addresses Forall_forall.
+      intros a Ha.
       apply Hstk_revoked.
-      apply list_elem_of_lookup_2 in Ha.
       rewrite !elem_of_finz_seq_between in Ha |- *.
       solve_addr.
     }
-    iAssert (
-        [∗ list] y1;y2 ∈ finz.seq_between a_stk4 e_stk;region_addrs_zeroes a_stk4 e_stk,
-          (closing_revoked_resources W C y1 ∗ ⌜W.1 !! y1 = Some Revoked⌝) ∗ y1 ↦ₐ y2
-      )%I with "[Hstk_val0 Hstk]" as "Hstk_val0'".
-    { iDestruct "Hstk_val0" as "-#Hstk_val0".
-      iClear "#".
-      rewrite /region_pointsto.
-      iDestruct (big_sepL2_to_big_sepL_l with "Hstk_val0") as "H"; eauto.
-      iApply ( big_sepL2_sep); iFrame.
-    }
 
-    iMod (world_interp_reinstate_stack with "Hworld_interp [$Hstk_val0']") as "Hworld_interp".
+    iMod (world_interp_reinstate_stack with "Hworld_interp Hstk_val' Hstk") as "Hworld_interp"; auto.
     { apply finz_seq_between_NoDup. }
     { apply Forall_replicate_eq. }
 
-    iAssert (⌜ revoked_addresses W (finz.seq_between a_stk4 e_stk) ⌝)%I as %Hrev.
-    { iPureIntro.
-      clear-Hstk_revoked Hastk .
-      rewrite /revoked_addresses Forall_forall.
-      rewrite /revoked_addresses Forall_forall in Hstk_revoked.
-      intros a Ha; cbn.
-      apply Hstk_revoked.
-      rewrite !elem_of_finz_seq_between in Ha |- *.
-      solve_addr.
-    }
     iSpecialize ("Hexec" $!
                    (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary)
                   with "[]").
@@ -887,9 +860,10 @@ Section Switcher.
     iApply "Hexec".
     iAssert (interp (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) C (WCap RWL Local a_stk4 e_stk a_stk)) as "Hstk4v".
     { iApply fixpoint_interp1_eq. iSimpl.
-      iApply (big_sepL_impl with "Hstk_val0").
-      iIntros "!>" (k a Ha) "(Hr & _)".
-      iDestruct "Hr" as (φ p Hpers) "(Hφ & Hmono & HmonoR & Hzcond & Hrcond & Hwcond & Hrel & %Hperm_flow)".
+      rewrite {2}/StackRevokedResources /StackWorldResources big_sepL2_replicate_r; last done.
+      iApply (big_sepL_impl with "Hstk_val'").
+      iIntros "!>" (k a Ha) "Hr".
+      iDestruct "Hr" as (φ p) "(Hφ & Hmono & Hrel & (HmonoR & Hzcond & Hrcond & Hwcond & Hpers) & %Hperm_flow)".
       iExists p,φ.
       iFrame "∗#%".
       iSplit.
@@ -925,12 +899,11 @@ Section Switcher.
       iSplit.
       { iPureIntro; repeat split; solve_addr+Hastk_inbounds Hastk3_inbounds Hastk. }
 
-      iDestruct (big_sepL_sep with "Hstk_val0") as "[_ H]".
-      iApply (big_sepL_mono with "H").
-      iIntros (?? Hin) "%". iPureIntro.
+      clear -Hrev HW'.
+      iPureIntro; intros k a Ha; cbn.
       eapply region_state_pub_temp;[apply HW'|].
       apply std_sta_update_multiple_lookup_in_i.
-      apply list_elem_of_lookup. eauto.
+      apply list_elem_of_lookup; eauto.
     }
     iSplitR.
     { iPureIntro; simpl; split; [|split]; auto.

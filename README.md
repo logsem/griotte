@@ -158,7 +158,7 @@ The organisation of the `theories/` folder is as follows.
 
 - `logrel.v`: The definition of the unary logical relation.
 
-- `logrel_extra.v`: A collections of lemmas related to world manipulation
+- `world_interp_stack.v`: A collections of lemmas related to world manipulation
   in presence of safe-to-share.
 
 - `monotone.v`: Proof of the monotonicity of the value relation with regards to

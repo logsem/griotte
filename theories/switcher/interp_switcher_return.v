@@ -1,11 +1,11 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base list_relations.
-From cap_machine Require Export logrel logrel_extra monotone.
+From cap_machine Require Export logrel monotone.
 From cap_machine Require Import fundamental.
 From cap_machine Require Import switcher_preamble.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
-From cap_machine Require Export logrel_extra world_ghost_theory_interface switcher_helpers.
+From cap_machine Require Export world_interp_stack world_ghost_theory_interface switcher_helpers.
 
 Section fundamental.
   Context
@@ -425,9 +425,9 @@ Section fundamental.
       iEval (rewrite app_nil_r) in "Hworld_interp".
 
       (* We massage the context to get the necessary shape to apply the continuation relation *)
-      iDestruct (StackWorldResources_length with "Hres" ) as "%Hlen_lv".
+      (* iDestruct (StackOpenWorldResources_length with "Hres" ) as "%Hlen_lv". *)
       iDestruct (big_sepL2_length with "Hstk") as "%Hlen_lv'".
-      iDestruct (StackWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
+      iDestruct (StackOpenWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
 
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
       iApply ("Hexec_topmost_frm" with
@@ -437,9 +437,8 @@ Section fundamental.
 
     - (* Case where caller is untrusted, we use the IH *)
 
-      iDestruct (StackWorldResources_length with "Hres" ) as "%Hlen_lv".
       iDestruct (big_sepL2_length with "Hstk") as "%Hlen_lv'".
-      iDestruct (StackWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
+      iDestruct (StackOpenWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
       iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk $Hres]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
       { clear -He_a1 Ha_stk4.
@@ -459,6 +458,7 @@ Section fundamental.
         rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
         replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
         replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
+        iDestruct "Hclose_res" as "[ Hclose_res Hstates ]".
         iDestruct "Hclose_res" as "(Hclose_wastk & Hclose_wastk1 & Hclose_wastk2 & Hclose_wastk3 & _)".
         iDestruct (StackWorldResource_interp with "Hclose_wastk") as "$".
         iDestruct (StackWorldResource_interp with "Hclose_wastk1") as "$".
@@ -466,14 +466,13 @@ Section fundamental.
         iDestruct (StackWorldResource_interp with "Hclose_wastk3") as "$".
       }
 
-      clear Hlen_lv' Hlen_lv Hlv' lv'.
+      clear Hlen_lv' Hlv' lv'.
       set (lv' := region_addrs_zeroes a_stk (a_stk ^+ 4)%a).
       assert (Forall (λ y : Word, y = WInt 0) lv') as Hlv'.
       { subst lv'; rewrite /region_addrs_zeroes; by apply Forall_replicate. }
 
-      iDestruct (StackWorldResources_length with "Hclose_res" ) as "%Hlen_lv".
       iDestruct (big_sepL2_length with "Hstk_register_save") as "%Hlen_lv'".
-      iDestruct (StackWorldResources_zeros _ _ _ _ lv' with "Hclose_res") as "Hclose_res"; auto.
+      iDestruct (StackOpenWorldResources_zeros _ _ _ _ lv' with "Hclose_res") as "Hclose_res"; auto.
       iEval (rewrite -(app_nil_r (finz.seq_between a_stk (a_stk ^+ 4)%a))) in "Hworld_interp".
       iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk_register_save $Hclose_res]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }

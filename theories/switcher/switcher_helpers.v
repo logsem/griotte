@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
-From cap_machine Require Import logrel logrel_extra monotone interp_weakening fundamental.
+From cap_machine Require Import logrel world_interp_stack monotone interp_weakening fundamental.
 From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
 From cap_machine Require Export world_ghost_theory world_ghost_theory_interface.
 From cap_machine Require Import switcher_preamble.
@@ -26,25 +26,21 @@ Section switcher_helper.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Lemma world_interp_reinstate_stack  E W C la lv :
-    NoDup la →
-    Forall (eq (WInt 0)) lv ->
-
-    world_interp W C -∗
-    ([∗ list] a;v ∈ la;lv ,
-       (closing_revoked_resources W C a
-        ∗ ⌜(std W) !! a = Some Revoked ⌝)
-       ∗ a ↦ₐ v
-    )
-
-    ={E}=∗
-
-    world_interp (std_update_multiple W la Temporary) C.
+  Lemma RevokedResources_eq (W : WORLD) (C : CmptName) (l : list Addr) :
+   RevokedResources W C l ⊣⊢ close_list_resources C W l false.
   Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (??) "[Hr Hsts] Hres".
-    iMod (update_region_revoked_temp_pwl_multiple'
-           with "Hsts Hr [$Hres]") as "[ $ $ ]"; eauto.
+    iSplit; iIntros "H".
+    - iApply (big_sepL_impl with "H").
+      iModIntro; iIntros (k ka Hka) "(%pa & %Pa & %Hpers_Pa & Hrel & Htmp_res)".
+      iDestruct "Htmp_res" as "(%va & Hpa_O & Ha & Hmono & HPa)".
+      iFrame "∗%".
+      rewrite mono_temporary_eq.
+      iFrame.
+    - iApply (big_sepL_impl with "H").
+      iModIntro; iIntros (k ka Hka) "(%pa & %Pa & %Hpers_Pa & Htmp_res & Hrel)".
+      iDestruct "Htmp_res" as "(%va & Hpa_O & Ha & Hmono & HPa)".
+      iFrame "∗%".
+      by rewrite mono_temporary_eq.
   Qed.
 
   (* TODO This theorem is essentially [revoke_world], but with different RevokedResources *)
@@ -61,13 +57,8 @@ Section switcher_helper.
     iIntros (Hdup) "(Hl & [Hr Hsts] )".
     iMod ( monotone_revoke_keep _ _ l with "[$Hr $Hsts Hl]") as
       "($ & $ & Hres & $)"; auto.
-    rewrite /RevokedResources.
-    iModIntro; iNext.
-    iApply (big_sepL_impl with "Hres").
-    iModIntro; iIntros (k ka Hka) "(%pa & %Pa & %Hpers_Pa & Htmp_res & Hrel)".
-    iDestruct "Htmp_res" as "(%va & Hpa_O & Ha & Hmono & HPa)".
-    iFrame "∗%".
-    by rewrite mono_temporary_eq.
+    rewrite RevokedResources_eq.
+    by iModIntro; iNext.
   Qed.
 
   (* TODO This theorem is essentially [reinstate_world], but with different RevokedResources *)
@@ -110,7 +101,7 @@ Section switcher_helper.
       let la := (if (is_untrusted_caller ccrel) then finz.seq_between a_stk (a_stk ^+ 4)%a else []) in
       let lv := (if (is_untrusted_caller ccrel) then [wastk;wastk1;wastk2;wastk3] else []) in
       ([[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ [wastk;wastk1;wastk2;wastk3] ]])
-      ∗ ▷ StackWorldResources interp W C la lv
+      ∗ ▷ StackOpenWorldResources interp W C la lv
       ∗ (⌜if (is_untrusted_caller ccrel)
          then True
          else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wret ∧ wastk3 = wcgp0)⌝)
@@ -122,7 +113,7 @@ Section switcher_helper.
     destruct (is_untrusted_caller ccrel); cycle 1.
     * iExists wcs2, wcs3, wret, wcgp0.
       iEval (rewrite -open_world_interp_empty) in "Hworld_interp"; iFrame "Hworld_interp".
-      rewrite /StackWorldResources.
+      rewrite /StackOpenWorldResources /StackWorldResources.
       iSplitL "Hcframe_interp"; auto.
       iDestruct "Hcframe_interp" as "(?&?&?&?)".
       iApply (region_pointsto_cons _ (a_stk ^+ 1)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
@@ -159,13 +150,12 @@ Section switcher_helper.
         replace ( ((a_stk ^+ 3) ^+ 1)%a ) with ((a_stk ^+ 4))%a by solve_addr+He_a1.
         rewrite finz_seq_between_empty; last solve_addr+He_a1.
         done.
-      - iNext. rewrite /StackWorldResources.
+      - iNext. 
+        rewrite /StackOpenWorldResources.
+        iDestruct "Hres" as "[Hres $]".
+        rewrite /StackWorldResources.
         repeat (iDestruct (big_sepL2_cons with "Hres") as "[$ Hres]").
   Qed.
-
-  Lemma StackWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
-    StackWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
-  Proof. iIntros "H"; iApply (big_sepL2_length with "H"). Qed.
 
   Lemma open_world_interp_callee_stack (W : WORLD) (C : CmptName) (b_stk e_stk a_stk a_stk4 : Addr)
     ccrel
@@ -188,7 +178,7 @@ Section switcher_helper.
     world_interp_open W C (l_callee_stack_frame ++ l_register_save_area) ∗
     (∃ (lv : list Word),
         ([∗ list] a ; v ∈ l_callee_stack_frame ; lv, a ↦ₐ v)
-        ∗ ▷ StackWorldResources interp W C l_callee_stack_frame lv
+        ∗ ▷ StackOpenWorldResources interp W C l_callee_stack_frame lv
     )
   .
   Proof.
@@ -221,38 +211,30 @@ Section switcher_helper.
   Qed.
 
 
+  Definition CloseRes_gen (Wcur Wfixed : WORLD) (C : CmptName)
+    (csp_b csp_e a_stk : Addr) (l : list Addr ) ccrel : iProp Σ :=
+    ( if (is_untrusted_caller ccrel)
+      then
+        ( ∃ l',
+            ⌜ l ≡ₚ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a]++l' ⌝
+            ∗ close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l' false
+            ∗ ([∗ list] a ∈ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a],
+                 ∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
+                   ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
+                                                    ∗ (⌜isO p = false⌝
+                                                       ∗ (if isWL p
+                                                          then future_pub_mono C φ (WInt 0)
+                                                          else if isDL p then future_pub_mono C φ (WInt 0) else future_priv_mono C φ (WInt 0)
+                                                         )
+                                                       ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ φ (W0', C, WInt 0)))
+                                                    ∗ rel C a p φ
+              )
+        )
+      else
+        (close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false)
+    )%I.
+
   (* TODO The result matches the excepted shape for E_K *)
-  Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
-    StackWorldResource interp W C a v -∗
-    StackWorldResource interp W C a (WInt 0).
-  Proof.
-    iIntros "(%Pa & %pa & $ & HPa & Hmono & $ & ($&#Hzcond&#Hrcond&#Hwcond&%) & $)"; iFrame "#%".
-    specialize (H (W,C,v)).
-    iSplitR "Hmono".
-    + iApply "Hwcond"; iApply interp_int.
-    + rewrite /mono_temporary.
-      destruct ( decide (isWL pa = true ∨ isDL pa = true) )
-      ; iIntros (???) "!>H /="; iApply "Hzcond"; done.
-  Qed.
-
-    Lemma StackWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
-    length lv = length la ->
-    length lv' = length la ->
-    Forall (λ y : Word, y = WInt 0) lv' ->
-    StackWorldResources interp W C la lv -∗
-    StackWorldResources interp W C la lv'.
-  Proof.
-    move: lv lv'.
-    induction la; iIntros (lv lv' Hlen_lv Hlen_lv' Hzeros) "H"
-    ; destruct lv as [|v lv]; auto
-    ; destruct lv' as [|v' lv']; try done.
-    simplify_eq.
-    apply Forall_cons in Hzeros as [-> Hzeros].
-    iDestruct "H" as "[Ha H]".
-    iSplitL "Ha"; first by iApply StackWorldResource_zero.
-    iApply (IHla lv lv'); eauto.
-  Qed.
-
   (* TODO ONLY USED RETURN SPEC *)
     Lemma open_world_interp_cframe_gen
     (W0 Wcur : WORLD) (C : CmptName) (b_stk csp_b csp_e a_stk4 : Addr) (l : list Addr)
@@ -306,26 +288,7 @@ Section switcher_helper.
           (* TODO HOW IS THE FOLLOWING USED ???? Surely we don't need something so detailed:
              It is only used by world_interp_stack_fixing exactly as it is!
            *)
-          ∗ ( if (is_untrusted_caller ccrel)
-              then
-                ( ∃ l',
-                    ⌜ l ≡ₚ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a]++l' ⌝
-                    ∗ close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l' false
-                    ∗ ([∗ list] a ∈ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a],
-                         ∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-                           ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝
-                                                            ∗ (⌜isO p = false⌝
-                                                               ∗ (if isWL p
-                                                                  then future_pub_mono C φ (WInt 0)
-                                                                  else if isDL p then future_pub_mono C φ (WInt 0) else future_priv_mono C φ (WInt 0)
-                                                                 )
-                                                               ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ φ (W0', C, WInt 0)))
-                                                            ∗ rel C a p φ
-                      )
-                )
-              else
-                (close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false)
-            )
+          ∗ CloseRes_gen Wcur Wfixed C csp_b csp_e a_stk l ccrel
       )
     .
     Proof.
@@ -333,6 +296,7 @@ Section switcher_helper.
       iIntros (Hb_a4 He_a1 Ha_stk4 Htemp_revoked Hnodup_revoked Hrelated_pub_W0_Wfixed)
         "#Hinterp_callee_wstk Hcframe_interp Hclose_list_res Hlc".
       rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
+      rewrite /CloseRes_gen.
       destruct (is_untrusted_caller ccrel); cycle 1.
       * iExists wcs0, wcs1, wret, wcgp.
         iDestruct "Hcframe_interp" as "($&$&$&$)". iFrame.
@@ -584,26 +548,8 @@ Section switcher_helper.
       [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]] -∗
       [[a_stk4,csp_e]]↦ₐ[[region_addrs_zeroes a_stk4 csp_e]] -∗
 
-      (if is_untrusted_caller ccrel
-       then
-         ∃ l' : list (finz MemNum),
-           ⌜l ≡ₚ [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a] ++ l'⌝ ∗
-           close_list_resources_gen C Wcur (l ++ closing_region) l' false ∗
-           ([∗ list] a ∈ [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a],
-              ∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
-                ⌜∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝ ∗
-                                                 (⌜isO p = false⌝ ∗
-                                                  (if isWL p
-                                                   then future_pub_mono C φ (WInt 0)
-                                                   else
-                                                     if isDL p
-                                                     then future_pub_mono C φ (WInt 0)
-                                                     else future_priv_mono C φ (WInt 0)) ∗
-                                                  ∃ W0' : WORLD,
-                                                    ⌜related_sts_pub_world W0' (close_list (l ++ closing_region) Wcur)⌝ ∗
-                                                    φ (W0', C, WInt 0)) ∗
-                                                 rel C a p φ)
-       else close_list_resources_gen C Wcur (l ++ closing_region) l false) -∗
+      CloseRes_gen Wcur Wfixed C csp_b csp_e a_stk l ccrel -∗
+
       £ 1 -∗
       |={⊤}=>
             world_interp Wfixed C
@@ -656,6 +602,7 @@ Section switcher_helper.
       }
       iDestruct (lc_fupd_elim_later with "[$] [$Hstk]") as ">Hstk".
 
+      rewrite /CloseRes_gen.
       destruct (is_untrusted_caller ccrel).
       - (* caller is untrusted, we need to re-instate the whole stack frame *)
         iMod (reinstate_close_list_gen _ _ (l++closing_region) with

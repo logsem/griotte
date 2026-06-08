@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
+From cap_machine Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
 From cap_machine Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
 From cap_machine Require Import vae vae_helper vae_spec_closure.
 From cap_machine Require Import proofmode.
@@ -243,14 +243,7 @@ Section VAE.
     }
 
     (* Prepare the closing resources for the switcher call spec *)
-    iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 C a)
-      )%I with "[Hfrm_close_W0]" as "#Hfrm_close_W1".
-    {
-      iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "Hclose".
-      iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
-    }
+    iDestruct (StackRevokedResources_mono_priv _ W1 with "Hfrm_close_W0") as "#Hfrm_close_W1"; eauto.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     iMod ("Hvae_close" with "[$Hna Himport_assert Himport_switcher Himport_C_f Himports_main $Hcode_main]")

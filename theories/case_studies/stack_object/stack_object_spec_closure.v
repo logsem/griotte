@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
+From cap_machine Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
 From cap_machine Require Import fetch_spec assert_spec checkints checkra check_no_overlap_spec.
 From cap_machine Require Import
   switcher interp_switcher_call switcher_spec_call switcher_spec_return.
@@ -959,15 +959,8 @@ Section SO.
       apply elem_of_finz_seq_between.
       solve_addr+Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size.
     }
-    iAssert (
-        ([∗ list] a ∈ finz.seq_between a_stk2 csp_e, closing_revoked_resources W3 C a)
-      )%I with "[Hfrm_close_W0]" as "Hfrm_close_W3".
-    { replace (((csp_b ^+ 1) ^+ 1)%a)
-        with a_stk2%a by solve_addr+Hastk2 Hastk1 Hcsp_size'.
-      iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a' Ha') "Hclose".
-      iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
-    }
+    iDestruct (StackRevokedResources_mono_priv _ W3 with "Hfrm_close_W0") as "Hfrm_close_W3"; eauto.
+    replace ((csp_b ^+ 1) ^+ 1)%a with a_stk2 by solve_addr.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     iMod ("Hso_code_close" with "[$Hna Himport_assert Himport_switcher Himport_C_f Himports_main $Hcode_main]")

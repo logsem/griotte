@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
+From cap_machine Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
 From cap_machine Require Import fetch_spec assert_spec switcher switcher_spec_return.
 From cap_machine Require Import lse.
 From cap_machine Require Import proofmode.
@@ -140,8 +140,7 @@ Section LSE.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
-        as (l
-           ) "(%Hl_unk & Hworld_interp_C & #Hfrm_close_W0 & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
+        as (l) "(%Hl_unk & Hworld_interp_C & #Hfrm_close_W0 & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
 
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
