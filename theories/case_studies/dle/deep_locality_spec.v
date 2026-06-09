@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules logrel monotone register_tactics.
+From cap_machine Require Import rules logrel monotone interp_weakening.
 From cap_machine Require Import fetch_spec assert_spec switcher_spec_call deep_locality.
 From cap_machine Require Import world_ghost_theory world_interp_stack.
-From cap_machine Require Import proofmode.
+From cap_machine Require Import proofmode register_tactics.
 
 Section DLE.
   Context
@@ -228,12 +228,12 @@ Section DLE.
     (* -- Update the world and prove interp of the the argument in `ca0` -- *)
 
     (* First, extend the world such that `cgp_b` is interp with RW_DL access *)
-    iMod (world_interp_extend_temp _ _ _ _ _ RW_DL interpC
-        with "[] [$Hworld_interp_C] [$Hcgp_b] []")
+    iDestruct ( init_TmpRes W1 C cgp_b RW_DL interpC with "[] [$Hcgp_b] []" ) as "TmpRes_cgp_b"; auto.
+    { iApply future_pub_mono_interp_z. }
+    { iApply interp_int. }
+    iMod (world_interp_extend_temp with "Hworld_interp_C TmpRes_cgp_b")
       as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
     { by rewrite -revoke_dom_eq. }
-    { iApply future_pub_mono_interp_z. }
-    { rewrite /interpC; iApply interp_int. }
     match goal with
     | _ : _ |- context [ world_interp ?W' ] => set (W2 := W')
     end.
@@ -260,15 +260,15 @@ Section DLE.
     }
 
     (* Second, extend the world such that `cgp_b+1` is interp_dl with RW_DL access *)
-    iMod (world_interp_extend_temp _ _ _ _ _ RW_DL (safeC interp_dl)
-        with "[] [$Hworld_interp_C] [$Hcgp_a] []")
+    iDestruct ( init_TmpRes W2 C (cgp_b ^+ 1)%a RW_DL (safeC interp_dl) with "[] [$Hcgp_a] []" ) as "TmpRes_cgp_a"; auto.
+    { iApply future_pub_mono_interp_dl. }
+    iMod (world_interp_extend_temp with "Hworld_interp_C TmpRes_cgp_a")
       as "(Hworld_interp_C & Hrel_cgp_a)";auto.
     { subst W2.
       cbn; rewrite dom_insert_L not_elem_of_union; split.
       + rewrite not_elem_of_singleton; solve_addr+Hcgp_contiguous.
       + by rewrite -revoke_dom_eq.
     }
-    { iApply future_pub_mono_interp_dl. }
     match goal with
     | _ : _ |- context [ world_interp ?W' ] => set (W3 := W')
     end.
@@ -496,8 +496,8 @@ Section DLE.
 
     (* Show that the entry point to C_f is still safe in W5 *)
     iAssert (interp W5 C (WSealed ot_switcher C_f)) as "#Hinterp_W5_C_f".
-    { iApply monotone.interp_monotone_sd; eauto.
-      iApply monotone.interp_monotone_sd; eauto.
+    { iApply interp_monotone_sd; eauto.
+      iApply interp_monotone_sd; eauto.
       iPureIntro; apply related_sts_pub_priv_world; auto.
     }
     iClear "Hinterp_W3_C_f".

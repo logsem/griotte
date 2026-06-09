@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules.
+From cap_machine Require Import logrel rules interp_weakening.
 From cap_machine Require Import fetch_spec switcher_spec_call counter.
 From cap_machine Require Import switcher_spec_return world_interp_stack.
 From cap_machine Require Import proofmode.

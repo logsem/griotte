@@ -1172,10 +1172,7 @@ Section Switcher.
 
       iMod ( world_interp_revoke _ _ l_unk with "[$Hworld_interp_C]") as
         "(Hworld_interp_C & Hrevoked_l & %Hrevoked_l)"; auto.
-      { iPureIntro; intros; auto.
-        apply Hlunk.
-        by apply list_elem_of_lookup_2 in H.
-      }
+      { split; auto. }
       iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l]") as ">Hrevoked_l".
 
       iSpecialize ("Hpost" $! (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk)

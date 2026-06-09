@@ -10,11 +10,6 @@ Import uPred.
 (* CMRA for saved predicates *)
 (** M_interp *)
 
-Notation STS := (leibnizO (STS_states * STS_rels)).
-Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
-Notation WORLD := (prodO STS_STD STS).
-Notation WorldT := (((STS_std_states Addr region_type) * (STS_states * STS_rels)) : Type).
-
 (** REL: saved predicates associating Address to gname and permission *)
 Definition relUR : ucmra :=
   (gmapUR Addr (agreeR (leibnizO (gname * Perm)))).

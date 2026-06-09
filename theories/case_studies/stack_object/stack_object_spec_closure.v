@@ -396,7 +396,7 @@ Section SO.
         apply Forall_cons; split; auto.
     }
 
-    rewrite -open_world_interp_empty.
+    rewrite open_world_interp_empty.
     iDestruct (open_world_interp_list with "[$Hrels_wca0 $Hworld_interp_C]") as
       "(%wca0_lv_perma & Hworld_interp_C & Hsts_std_wca0 & Hla_be_permanents_lv & Hwca0_mono & Hwca0_φs
      & %Hlength_wca0_lv & Hwca0_pO)".
@@ -526,7 +526,7 @@ Section SO.
       destruct Hx as [_ ->]; done.
     }
     { auto. }
-    rewrite open_world_interp_empty.
+    rewrite -open_world_interp_empty.
 
     (* Update the world and insert [la_be_temporaries].
        It means that we need to prove that they are safe to share in the revoked world.
@@ -619,8 +619,13 @@ Section SO.
       iApply ("IH" $! lφ lp lv with "[%] [%] [%] [$] [$] [$] [$] [$] [$]"); eauto.
     }
     iMod (world_interp_restore_world W1 W1 C la_be_temporaries with
-      "[$Hworld_interp_C $Hla_be_temporaries_closing_resources]") as "Hworld_interp_C".
+      "[$Hworld_interp_C] [ Hla_be_temporaries_closing_resources ]") as "Hworld_interp_C".
     { apply close_list_related_sts_pub. }
+    { iClear "#".
+      iApply (big_sepL_impl with "Hla_be_temporaries_closing_resources").
+      iModIntro; iIntros (k ka Hka) "(%&%&$&(%&$&$&?&$)&$)".
+      by rewrite mono_temporary_eq.
+    }
     set ( W2 := (close_list la_be_temporaries W1)).
 
     (* The passed object is safe to share in the world [W2] *)
@@ -858,8 +863,13 @@ Section SO.
 
     (* Insert the allocated SO [a_stk1] in the world *)
     iMod (world_interp_restore_world W2 W2 C [a_stk1] with
-      "[$Hworld_interp_C $Hastk1_closing_resources]") as "Hworld_interp_C".
+      "[$Hworld_interp_C] [ Hastk1_closing_resources ]") as "Hworld_interp_C".
     { apply close_list_related_sts_pub. }
+    { iClear "#".
+      iApply (big_sepL_impl with "Hastk1_closing_resources").
+      iModIntro; iIntros (k ka Hka) "(%&%&$&(%&$&$&?&$)&$)".
+      by rewrite mono_temporary_eq.
+    }
     set (W3 := reinstate W2 _).
     assert (related_sts_pub_world W2 W3) as Hrelated_pub_W2_W3.
     { apply close_list_related_sts_pub. }
@@ -1322,7 +1332,7 @@ Section SO.
     (* ... and use it for showing that we can close the resources of [l_revoked_W4_no_astk1] *)
     iAssert (close_list_resources_gen C W5 closing_list l_revoked_W4_no_astk1 false) with "[Hl_revoked_W4]" as "Hl_revoked_W4".
     { iApply close_list_resources_gen_eq; eauto.
-      rewrite RevokedResources_close_list_resources_eq.
+      rewrite world_ghost_theory.RevokedResources_eq.
       done.
     }
 
@@ -1382,7 +1392,7 @@ Section SO.
     (* ... and use it for showing that we can close the resources of [l_revoked_W0_no_be] *)
     iAssert (close_list_resources_gen C W5 closing_list l_revoked_W0_no_be false) with "[Hrevoked_l_revoked_W0_no_be]" as "Hrevoked_l_revoked_W0_no_be".
     { iApply close_list_resources_gen_eq; eauto.
-      rewrite RevokedResources_close_list_resources_eq.
+      rewrite world_ghost_theory.RevokedResources_eq.
       done.
     }
 

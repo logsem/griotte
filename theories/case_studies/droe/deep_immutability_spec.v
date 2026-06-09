@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules.
+From cap_machine Require Import rules logrel monotone interp_weakening.
 From cap_machine Require Import fetch_spec assert_spec switcher_spec_call deep_immutability.
 From cap_machine Require Import world_ghost_theory world_interp_stack.
 From cap_machine Require Import proofmode.
@@ -283,10 +283,8 @@ Section DROE.
 
     set (rmap' := (delete ca5 _)).
 
-    iMod (world_interp_extend_perm _ _ _ _ _ RO_DRO (safeC (interp_dro_eq (WInt 42)))
-        with "[] [$Hworld_interp_C] [$Hcgp_b] []")
-      as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
-    { by rewrite -revoke_dom_eq. }
+    iDestruct ( init_PermRes W1 C cgp_b RO_DRO (safeC (interp_dro_eq (WInt 42)))
+                with "[] [$Hcgp_b] []" ) as "PermRes_cgp_b"; auto.
     { rewrite /future_priv_mono.
       iIntros "!>" (W W' Hrelated) "H"; cbn.
       iSplitR; [done | by rewrite !fixpoint_interp1_eq].
@@ -294,6 +292,9 @@ Section DROE.
     { cbn.
       iSplitR; [done | by rewrite !fixpoint_interp1_eq].
     }
+    iMod (world_interp_extend_perm with "Hworld_interp_C PermRes_cgp_b")
+      as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
+    { by rewrite -revoke_dom_eq. }
 
     match goal with
     | _ : _ |- context [ world_interp ?W' ] => set (W2 := W')
@@ -331,20 +332,21 @@ Section DROE.
         by rewrite lookup_insert_eq.
     }
 
-    iMod (world_interp_extend_perm _ _ _ _ _ RO_DRO (safeC (interp_dro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
-        with "[] [$Hworld_interp_C] [$Hcgp_a] []")
+    iDestruct ( init_PermRes W2 C (cgp_b ^+1)%a RO_DRO  (safeC (interp_dro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+                with "[] [$Hcgp_a] []" ) as "PermRes_cgp_a"; auto.
+    { rewrite /future_priv_mono.
+      iIntros "!>" (W W' Hrelared) "[% H]"; cbn.
+      iSplitR; [done |].
+      iApply interp_monotone_nl; eauto.
+    }
+    { cbn; iSplit; done. }
+    iMod (world_interp_extend_perm with "Hworld_interp_C PermRes_cgp_a")
       as "(Hworld_interp_C & #Hrel_cgp_a)"; auto.
     { subst W1.
       cbn; rewrite dom_insert_L not_elem_of_union; split.
       + rewrite not_elem_of_singleton; solve_addr+Hcgp_contiguous.
       + by rewrite -revoke_dom_eq.
     }
-    { rewrite /future_priv_mono.
-      iIntros "!>" (W W' Hrelared) "[% H]"; cbn.
-      iSplitR; [done |].
-      iApply monotone.interp_monotone_nl; eauto.
-    }
-    { cbn. iSplit; done. }
 
     match goal with
     | _ : _ |- context [ world_interp ?W' ] => set (W3 := W')
@@ -357,7 +359,7 @@ Section DROE.
     }
 
     iAssert (interp W3 C (WSealed ot_switcher C_f)) as "#Hinterp_W3_C_f".
-    { iApply monotone.interp_monotone_sd; eauto. }
+    { iApply interp_monotone_sd; eauto. }
 
     iAssert (interp W3 C (WCap RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_C_a".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
@@ -492,15 +494,15 @@ Section DROE.
       apply not_elem_of_finz_seq_between in Hcgp_b_stk.
       destruct Hcgp_b_stk; [left|right]; solve_addr.
     }
-    rewrite -open_world_interp_empty.
+    rewrite open_world_interp_empty.
     iDestruct (
        open_world_interp_permanent with "[$Hworld_interp_B] [$Hrel_cgp_b]"
       ) as "(Hworld_interp_B & Hstd_cgp_b & [%v PermRes_cgp_b] )"; auto.
     { set_solver+. }
     {
-      eapply (monotone.region_state_priv_perm W2_B); eauto.
+      eapply (region_state_priv_perm W2_B); eauto.
       { eapply revoke_related_sts_priv_world. }
-      eapply monotone.region_state_pub_perm; eauto.
+      eapply region_state_pub_perm; eauto.
       rewrite std_sta_update_multiple_lookup_same_i; auto.
       subst W2 W1.
       rewrite lookup_insert_ne; last solve_addr+Hcgp_contiguous.

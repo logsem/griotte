@@ -675,7 +675,7 @@ Section world_ghost_theory.
   (* Pre-allocate safety invariant: extend the world with several Revoked safety invariants. *)
   Lemma world_interp_extend_revoked_sepL2
     {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (la : list Addr) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)}:
     Forall (λ k, std W !! k = None) la →
     world_interp W C
@@ -805,11 +805,6 @@ Section world_ghost_theory.
 
   (** * Initialition of the world interpretation and resources. *)
 
-  (* Initialise the world *)
-  Lemma world_interp_init (W : WORLD) (C : CmptName) :
-    region W C ∗ sts_full_world W C -∗ world_interp W C.
-  Proof. rewrite world_interp_eq /world_interp_def; iIntros "[? ?]"; iFrame. Qed.
-
   (* Initialise the permanent resources *)
   Definition init_PermRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) :
     isO p = false ->
@@ -820,15 +815,15 @@ Section world_ghost_theory.
     PermRes W C a p Φ w.
     Proof. iIntros (HpO) "Hmono Ha HΦ"; iFrame; done. Qed.
 
-  (* Initialise the temporary resources *)
-  Definition init_TmpRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) :
-    isO p = false ->
-    (if isWL p then future_pub_mono C Φ w else
-       (if isDL p then future_pub_mono C Φ w else future_priv_mono C Φ w))-∗
-    a ↦ₐ w -∗
-    Φ (W,C,w)
-    -∗
-    TmpRes W C a p Φ w.
+    (* Initialise the temporary resources *)
+    Definition init_TmpRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) :
+      isO p = false ->
+      (if isWL p then future_pub_mono C Φ w else
+         (if isDL p then future_pub_mono C Φ w else future_priv_mono C Φ w))-∗
+      a ↦ₐ w -∗
+      Φ (W,C,w)
+      -∗
+      TmpRes W C a p Φ w.
     Proof. rewrite -mono_temporary_eq; iIntros (HpO) "Hmono Ha HΦ"; iFrame; done. Qed.
 
     Definition init_WorldRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) (ρ: region_type) :
@@ -845,3 +840,34 @@ Section world_ghost_theory.
     Qed.
 
 End world_ghost_theory.
+
+(** * Initialise the world in the adequacy theorem *)
+Section world_interp_Pre.
+  Context {Σ:gFunctors}
+          {Cname : CmptNameG}
+          {ceriseg : ceriseG Σ}
+          {sts_preg: STS_preG Addr region_type Σ} {relpreg : relGpreS Σ}.
+
+  Lemma world_interp_init :
+    ⊢ |==> (∃ (relg: relGS Σ) (stsg : STSG Addr region_type Σ),
+            [∗ set] C ∈ CNames, world_interp (∅, (∅,∅)) C).
+  Proof.
+    iMod (gen_sts_init) as (stsg) "Hsts". (*XX*)
+    iMod (rel_init) as (relg) "HRELS".
+    set (Wempty := (∅, (∅,∅))).
+    iAssert ([∗ set] C ∈ CNames, region Wempty C)%I with "[HRELS]" as "Hr".
+    { iApply (big_sepS_impl with "HRELS").
+      iModIntro; iIntros (C HC) "HRELS".
+      rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
+      rewrite /= !dom_empty_L //. repeat iSplit; eauto.
+      rewrite /region_map_def. by rewrite big_sepM_empty.
+    }
+    iCombine "Hr" "Hsts" as "H".
+    rewrite -big_sepS_sep.
+    iModIntro; iExists relg, stsg.
+    iApply (big_sepS_impl with "H").
+    iModIntro; iIntros (C HC) "H".
+    by rewrite world_interp_eq /world_interp_def.
+  Qed.
+
+End world_interp_Pre.

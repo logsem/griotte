@@ -654,4 +654,31 @@ Section CmptLayout.
   Definition is_initial_data_word (B_cmpt : cmpt) :=
     (fun w => is_z w ∨ in_region w (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)).
 
+  Lemma exported_entry_point_disjoint
+    (C1_cmpt C2_cmpt : cmpt) (p1 p2 : Perm) (g1 g2 : Locality) (a1 a2 : Addr):
+    C1_cmpt ## C2_cmpt ->
+    (WCap p1 g1 (cmpt_exp_tbl_pcc C1_cmpt) (cmpt_exp_tbl_entries_end C1_cmpt) a1)
+      ≠
+      (WCap p2 g2 (cmpt_exp_tbl_pcc C2_cmpt) (cmpt_exp_tbl_entries_end C2_cmpt) a2).
+  Proof.
+    intros Hdisjoint H ; simplify_eq.
+    rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdisjoint.
+    assert (
+        cmpt_exp_tbl_region C1_cmpt  ## cmpt_exp_tbl_region C2_cmpt
+      ) as Hdis by set_solver+Hdisjoint.
+    rewrite /cmpt_exp_tbl_region in Hdis.
+    apply stdpp_extra.list_to_set_disj in Hdis.
+    rewrite H1 H2 in Hdis.
+    assert (
+        list_to_set
+          (finz.seq_between (cmpt_exp_tbl_pcc C2_cmpt) (cmpt_exp_tbl_entries_end C2_cmpt))
+          ≠ (∅ : gset Addr)
+      ) as Hemp; last set_solver.
+    pose proof (cmpt_exp_tbl_pcc_size C2_cmpt) as Hc.
+    pose proof (cmpt_exp_tbl_cgp_size C2_cmpt) as Hc'.
+    pose proof (cmpt_exp_tbl_entries_size C2_cmpt) as Hc''.
+    rewrite finz_seq_between_cons ; last (solve_addr+ Hc Hc' Hc'').
+    set_solver+.
+  Qed.
+
 End CmptLayout.

@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules.
+From cap_machine Require Import logrel rules monotone interp_weakening.
 From cap_machine Require Import fetch_spec assert_spec switcher_spec_call cmdc.
 From cap_machine Require Import world_ghost_theory world_interp_stack.
 From cap_machine Require Import proofmode.
@@ -295,13 +295,12 @@ Section CMDC.
       destruct Hcgp_b_stk; [left|right]; solve_addr.
     }
 
-    iMod (world_interp_extend_perm _ _ _ _ _ RW interpC
-        with "[] [$Hworld_interp_B] [$Hcgp_b] []")
-      as "(Hworld_interp_B & Hrel_cgp_b)".
-    { done. }
+    iDestruct ( init_PermRes W_init_B B cgp_b RW interpC with "[] [$Hcgp_b] []" ) as "PermRes_cgp_b".
     { done. }
     { iApply future_priv_mono_interp_z. }
-    { rewrite /interpC; cbn; iEval (rewrite fixpoint_interp1_eq); done. }
+    { iApply interp_int. }
+    iMod (world_interp_extend_perm with "Hworld_interp_B PermRes_cgp_b")
+      as "(Hworld_interp_B & Hrel_cgp_b)"; auto.
 
     (* Update the frame invariant of B *)
     set (W1 := (<s[cgp_b:=Permanent]s>W_init_B)).
@@ -319,7 +318,7 @@ Section CMDC.
     }
 
     iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
-    { iApply monotone.interp_monotone_sd; eauto. }
+    { iApply interp_monotone_sd; eauto. }
 
     iAssert (interp W1 B (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_W1_B_b".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
@@ -466,7 +465,7 @@ Section CMDC.
     { transitivity (Some cgp_b%a); auto; subst cgp_c; solve_addr. }
 
     assert (std W2_B !! cgp_b = Some Permanent) as HW2_B_cpg_b.
-    { eapply monotone.region_state_pub_perm in HW1_pubB_W2; eauto.
+    { eapply region_state_pub_perm in HW1_pubB_W2; eauto.
       subst W1.
       (* TODO lemma *)
       rewrite std_update_multiple_insert_commute; last done.
@@ -474,13 +473,13 @@ Section CMDC.
     }
 
     (* we open the world to get the points-to predicate *)
-    rewrite -(open_world_interp_empty _ B).
+    rewrite (open_world_interp_empty _ B).
     iDestruct (
        open_world_interp_permanent with "[$Hworld_interp_B] [$Hrel_cgp_b]"
       ) as "(Hworld_interp_B & Hstd_cgp_b & [%v PermRes_cgp_b] )"; auto.
     { set_solver+. }
     {
-      eapply (monotone.region_state_priv_perm W2_B); eauto.
+      eapply (region_state_priv_perm W2_B); eauto.
       eapply revoke_related_sts_priv_world.
     }
     iEval (cbn) in "PermRes_cgp_b".
@@ -587,13 +586,12 @@ Section CMDC.
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_c]") as "%Hcgp_c_stk".
 
     (* We add the newly shared address in the world of C *)
-    iMod (world_interp_extend_perm _ _ _ _ _ RW interpC
-        with "[] [$Hworld_interp_C] [$Hcgp_c] []")
-      as "(Hworld_interp_C & Hrel_cgp_c)".
-    { done. }
+    iDestruct ( init_PermRes W_init_C C cgp_c RW interpC with "[] [$Hcgp_c] []" ) as "PermRes_cgp_c".
     { done. }
     { iApply future_priv_mono_interp_z. }
-    { rewrite /interpC; cbn; iEval (rewrite fixpoint_interp1_eq); done. }
+    { iApply interp_int. }
+    iMod (world_interp_extend_perm with "Hworld_interp_C PermRes_cgp_c")
+      as "(Hworld_interp_C & Hrel_cgp_c)"; auto.
 
     set (W3 := (<s[cgp_c:=Permanent]s>W_init_C)).
     assert (related_sts_priv_world W_init_C W3) as HWinit_privC_W3.
@@ -610,7 +608,7 @@ Section CMDC.
     }
 
     iAssert (interp W3 C (WSealed ot_switcher C_g)) as "#Hinterp_W3_C_g".
-    { iApply monotone.interp_monotone_sd; eauto. }
+    { iApply interp_monotone_sd; eauto. }
 
     iAssert (interp W3 C (WCap RW Global cgp_c (cgp_c ^+ 1)%a cgp_c)) as "#Hinterp_W3_C_c".
     { subst cgp_c.
