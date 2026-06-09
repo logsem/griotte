@@ -8,9 +8,8 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
   .
 
@@ -34,7 +33,7 @@ Section fundamental.
             -∗ world_interp W_ih C_ih
             -∗ interp_continuation cstk Ws Cs
             -∗ ⌜frame_match Ws Cs cstk W_ih C_ih⌝
-            -∗ na_own logrel_nais ⊤
+            -∗ na_own cerise_nais ⊤
             -∗ cstack_frag cstk
             -∗ □ interp W_ih C_ih (WCap p_ih g_ih b_ih e_ih a_ih)
             -∗ interp_conf W_ih C_ih))%I.
@@ -68,7 +67,7 @@ Section fundamental.
     -∗ interp_continuation cstk Ws Cs
     -∗ ⌜frame_match Ws Cs cstk W C⌝
     -∗ world_interp_open W C [a]
-    -∗ na_own logrel_nais ⊤
+    -∗ na_own cerise_nais ⊤
     -∗ cstack_frag cstk
     -∗ sts_state_std C a ρ
     -∗ PC ↦ᵣ (WCap p g b e a)
@@ -76,7 +75,7 @@ Section fundamental.
     -∗ WP Instr Executable
         {{ v, WP Seq (cap_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝
-                        → na_own logrel_nais ⊤}} }}.
+                        → na_own cerise_nais ⊤}} }}.
 
   Definition ftlr_instr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)

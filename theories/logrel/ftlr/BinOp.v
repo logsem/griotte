@@ -13,9 +13,8 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
   .
 

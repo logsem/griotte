@@ -1,17 +1,12 @@
-From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import proofmode.
-From stdpp Require Import list_relations.
-From cap_machine Require Export region_invariants multiple_updates.
-From cap_machine Require Import switcher.
-From cap_machine Require Import compartment_layout mkregion_helpers stdpp_extra disjoint_regions_tactics.
-Import uPred.
+From cap_machine Require Export stdpp_extra iris_extra region_invariants sts_multiple_updates.
 
 Section region_alloc.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ}
-    {heapg : heapGS Σ}
+    {relg : relGS Σ}
     `{MP: MachineParameters}.
 
   Implicit Types W : WORLD.

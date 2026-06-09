@@ -183,7 +183,7 @@ Section Adequacy.
   Context {na_invg: na_invG Σ}.
   Context {sts_preg: STS_preG Addr region_type Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
-  Context {heappreg: heapGpreS Σ}.
+  Context {relpreg: relGpreS Σ}.
   Context `{MP: MachineParameters}.
   Context { HCNames : CNames = (list_to_set [B;C]) }.
   Context { HCNamesNoDup : NoDup [B;C] }.
@@ -285,7 +285,7 @@ Section Adequacy.
 
     iMod (gen_sts_init) as (stsg) "Hsts". (*XX*)
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
-    iMod (heap_init) as (heapg) "HRELS".
+    iMod (rel_init) as (relg) "HRELS".
 
     iDestruct (big_sepS_elements with "Hsts") as "Hsts".
     iDestruct (big_sepS_elements with "HRELS") as "HRELS".
@@ -297,10 +297,10 @@ Section Adequacy.
     iDestruct (big_sepL_cons with "HRELS") as "[HRELS_B HRELS_C]".
     iDestruct (big_sepL_cons with "HRELS_C") as "[HRELS_C _]".
 
-    iMod (@na_alloc Σ na_invg) as (logrel_nais) "Hna".
+    iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
 
     pose ceriseg := CeriseG Σ Hinv mem_heapg reg_heapg sreg_heapg entry_g.
-    pose logrel_na_invs := Build_logrel_na_invs _ na_invg logrel_nais.
+    pose logrel_na_invs := Build_logrel_na_invs _ na_invg cerise_nais.
 
     set (W0 := (∅, (∅, ∅))).
     iAssert (region W0 B) with "[HRELS_B]" as "Hr_B".
@@ -374,7 +374,7 @@ Section Adequacy.
       + apply (assert_cap_size assert_cmpt).
       + by rewrite (assert_flag_size assert_cmpt).
     }
-    iMod (na_inv_alloc logrel.logrel_nais _ assertN _ with "Hassert") as "#Hassert".
+    iMod (na_inv_alloc logrel.cerise_nais _ assertN _ with "Hassert") as "#Hassert".
 
     (* Switcher *)
     rewrite /mk_initial_switcher.
@@ -419,7 +419,7 @@ Section Adequacy.
       iSplitL; last (iPureIntro ; by rewrite finz_add_0).
       iSplit; iPureIntro; solve_addr.
     }
-    iMod (na_inv_alloc logrel.logrel_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
+    iMod (na_inv_alloc logrel.cerise_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
 
     (* CMPT B *)
     iEval (rewrite /mk_initial_cmpt) in "Hcmpt_B".
@@ -924,7 +924,7 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type ; heapPreΣ
+              ; STS_preΣ Addr region_type ; relPreΣ
               ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * CmptName * Word)
       ]).
   eapply (@cmdc_adequacy' Σ cnames B C); eauto; try typeclasses eauto.

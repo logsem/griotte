@@ -1,8 +1,7 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
-From cap_machine Require Import logrel world_interp_stack rules.
+From cap_machine Require Import logrel rules.
 From cap_machine Require Import fetch_spec switcher_spec_call counter.
-From cap_machine Require Import switcher_spec_return.
+From cap_machine Require Import switcher_spec_return world_interp_stack.
 From cap_machine Require Import proofmode.
 
 Section Counter.
@@ -10,8 +9,7 @@ Section Counter.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -131,16 +129,16 @@ Section Counter.
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
 
     (
-      na_inv logrel_nais Nswitcher switcher_inv
+      na_inv cerise_nais Nswitcher switcher_inv
       (* initial memory layout *)
-      ∗ na_inv logrel_nais Ncounter
+      ∗ na_inv cerise_nais Ncounter
           ( ∃ (cnt : Z),
             [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
             ∗ codefrag pc_a counter_main_code
             ∗ [[ cgp_b, cgp_e ]] ↦ₐ [[ [WInt cnt] ]]
             ∗ ⌜ (0 <= cnt)%Z ⌝
           )
-      ∗ na_own logrel_nais ⊤
+      ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
@@ -159,7 +157,7 @@ Section Counter.
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
       ∗ interp W0 C (WCap RWL Local csp_b csp_e csp_b)
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_counter Hrmap_dom Hrmap_init HsubBounds
@@ -383,7 +381,7 @@ Section Counter.
     }
 
     iMod (
-       world_interp_revoked_by_separation_many_with_temp_resources with "[$Hworld_interp_C $Hrevoked_l]"
+       world_interp_revoked_by_separation_many_with_RevokedResources with "[$Hworld_interp_C $Hrevoked_l]"
       ) as "(Hworld_interp_C & Hrevoked_l & %HW2_revoked_l)".
     { apply Forall_forall; intros a Ha.
       rewrite /revoked_addresses Forall_forall in Hrevoked_l_W.
@@ -500,9 +498,9 @@ Section Counter.
     (cgp_b + length counter_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     (* initial memory layout *)
-    ∗ na_inv logrel_nais Ncounter
+    ∗ na_inv cerise_nais Ncounter
         ( ∃ (cnt : Z),
             [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
             ∗ codefrag pc_a counter_main_code

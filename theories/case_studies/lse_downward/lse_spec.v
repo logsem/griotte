@@ -1,18 +1,16 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
+From cap_machine Require Import rules logrel monotone.
 From cap_machine Require Import fetch_spec assert_spec switcher switcher_spec_call.
-From cap_machine Require Import world_ghost_theory world_ghost_theory_interface.
 From cap_machine Require Import lse lse_spec_closure.
-From cap_machine Require Import proofmode.
+From cap_machine Require Import world_ghost_theory world_interp_stack.
+From cap_machine Require Import proofmode register_tactics.
 
 Section LSE.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -62,9 +60,9 @@ Section LSE.
 
     frame_match Ws Cs cstk W0 C ->
     (
-      na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv logrel_nais Nswitcher switcher_inv
-      ∗ na_inv logrel_nais LSEN
+      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_inv cerise_nais LSEN
           ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
            ∗ codefrag pc_a lse_main_code
            ∗ cgp_b ↦ₐ WInt 2
@@ -73,7 +71,7 @@ Section LSE.
       ∗ inv (export_table_CGPN LSEN) ((b_lse_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
       ∗ inv (export_table_entryN LSEN (b_lse_exp_tbl ^+ 2)%a)
           ((b_lse_exp_tbl ^+ 2)%a ↦ₐ lse_exp_tbl_entry_f)
-      ∗ na_own logrel_nais ⊤
+      ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
@@ -96,7 +94,7 @@ Section LSE.
       ∗ WSealed ot_switcher (SCap RO Local b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
       ∗ seal_pred ot_switcher ot_switcher_propC
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_assert HNswitcher_lse HNassert_lse Hsize_lse_exp_tbl Hrmap_dom Hrmap_init HsubBounds

@@ -13,9 +13,8 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
   .
 
@@ -119,7 +118,7 @@ Section fundamental.
                 then ∃ p' (P':D) w,
                     ⌜PermFlowsTo p p'⌝
                     ∗ ⌜ persistent_cond P' ⌝
-                    ∗ a ↦ₐ w
+                    ∗ ▷ a ↦ₐ w
                     ∗ if_later_P has_later (zcond P' C)
                     ∗ (if writeAllowed p
                        then if_later_P has_later (wcond P' C interp)
@@ -191,12 +190,12 @@ Section fundamental.
 
       destruct HH as [ρ' [Hstd' Hnotrevoked'] ].
       (* We can finally frame off Hsts here, since it is no longer needed after opening the region*)
-      iDestruct (open_world_interp_next _ _ _ _ a0 p'' ρ' with "[$Hrel'' $Hworld_interp]")
-        as (w0) "($ & Hstate' & Ha0 & Hfuture & Hval)"; eauto.
-      { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
+      iDestruct (open_world_interp_next _ _ _ a0 p'' _ ρ' with "Hrel'' Hworld_interp")
+        as "(Hworld & Hstate' & [%w0 (?&?&?&?)] )"; eauto.
+      { apply not_elem_of_cons; split; auto. apply not_elem_of_nil. }
+      { destruct ρ'; simplify_eq; [by left | by right]. }
       iExists p'',P''.
       rewrite Hra.
-      iFrame "∗#".
       iAssert (if readAllowed p0 then ▷ rcond P'' C p'' interp else True)%I as "Hrcond0".
       { destruct (readAllowed p0) eqn:Hra''; last done.
         eapply readAllowed_flowsto in Hflp''; eauto.
@@ -204,7 +203,10 @@ Section fundamental.
       }
       iFrame "∗#".
       iSplitR;[iPureIntro ; destruct p0,p'; done|].
-      iSplitR; try (iPureIntro; done).
+      repeat (iSplitR; try (iPureIntro; done)).
+      cbn.
+      iNext.
+      rewrite mono_invariant_monotonicity_guarantees_region; eauto.
     - simplify_eq; iFrame.
       iApply interp_hpf_eq; eauto.
   Qed.
@@ -372,19 +374,22 @@ Section fundamental.
       rewrite insert_insert_eq memMap_resource_2ne; last auto.
       iDestruct "Hmem" as  "[Ha1 Hpc_a]".
       iFrame.
-      iDestruct (close_world_interp_next with "[$Hworld_interp $Ha1 $Hrel' $Hstate' HmonoV]") as "Hworld_interp"; eauto.
+
+      iDestruct (close_world_interp_next with "Hworld_interp Hstate' Hrel' [Ha1 HmonoV]") as "Hworld_interp"; eauto.
       { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
-      { iSplit.
-        { iPureIntro ; clear -Hflp' Hwa; destruct p0,p'; cbn in *; try done.
-          destruct rx, rx0, w, w0 ; cbn in *; try done.
-        }
-        destruct (writeAllowed p0) eqn:Hwa'; cycle 1.
-        { destruct p0, p'; cbn in *; try congruence;  inv Hflp'. }
-        iDestruct ("Hwcond'" with "HVstorev1") as "HP'storev".
-        iFrame "#".
-        iApply monotonicity_guarantees_region_canStore ; eauto.
-        by eapply canStore_flowsto.
+      { destruct ρ1; simplify_eq; naive_solver. }
+      iFrame "∗#%".
+      iSplit.
+      { iPureIntro ; clear -Hflp' Hwa; destruct p0,p'; cbn in *; try done.
+        destruct rx, rx0, w, w0 ; cbn in *; try done.
       }
+      destruct (writeAllowed p0) eqn:Hwa'; cycle 1.
+      { destruct p0, p'; cbn in *; try congruence;  inv Hflp'. }
+      iDestruct ("Hwcond'" with "HVstorev1") as "HP'storev".
+      iFrame "#".
+      iDestruct (monotonicity_guarantees_region_canStore with "HmonoR'") as "HmonoR''" ; eauto.
+      { by eapply canStore_flowsto. }
+      rewrite mono_invariant_monotonicity_guarantees_region; eauto.
     + subst a0. iDestruct "HStoreRes" as "[-> [HStoreRes %]]".
       rewrite insert_insert_eq -memMap_resource_1.
       rewrite lookup_insert_eq in Ha0; inversion Ha0; simplify_eq.
@@ -436,7 +441,7 @@ Section fundamental.
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
 
-    iDestruct (WorldRes_acc' with "WorldRes") as " [ (>Ha & Hinterp & HmonoV) WorldRes ]".
+    iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoV) WorldRes ]".
 
     (* To read out PC's name later, and needed when calling wp_load *)
     assert(∀ x : RegName, is_Some (<[PC:=WCap p g b e a]> regs !! x)) as Hsome'.

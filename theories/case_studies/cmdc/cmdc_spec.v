@@ -1,8 +1,7 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
-From cap_machine Require Import logrel world_interp_stack rules.
+From cap_machine Require Import logrel rules.
 From cap_machine Require Import fetch_spec assert_spec switcher_spec_call cmdc.
-From cap_machine Require Import world_ghost_theory world_ghost_theory_interface.
+From cap_machine Require Import world_ghost_theory world_interp_stack.
 From cap_machine Require Import proofmode.
 
 Section CMDC.
@@ -10,8 +9,7 @@ Section CMDC.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -69,9 +67,9 @@ Section CMDC.
     revoked_addresses W_init_C (finz.seq_between csp_b csp_e) ->
 
     (
-      na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv logrel_nais Nswitcher switcher_inv
-      ∗ na_own logrel_nais ⊤
+      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
@@ -102,9 +100,9 @@ Section CMDC.
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
       ∗ StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e)
 
-      ∗ ▷ (na_own logrel_nais ⊤
-              -∗ WP Instr Halted {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ∗ ▷ (na_own cerise_nais ⊤
+              -∗ WP Instr Halted {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
@@ -797,9 +795,9 @@ Section CMDC.
     revoked_addresses W_init_C (finz.seq_between csp_b csp_e) ->
 
     (
-      na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv logrel_nais Nswitcher switcher_inv
-      ∗ na_own logrel_nais ⊤
+      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
@@ -830,8 +828,8 @@ Section CMDC.
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
       ∗ StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e)
 
-      ∗ ▷ ( na_own logrel_nais ⊤
-              -∗ WP Instr Halted {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+      ∗ ▷ ( na_own cerise_nais ⊤
+              -∗ WP Instr Halted {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
       ⊢ WP Seq (Instr Executable) {{ λ v, True }})%I.
   Proof.
     intros imports; subst imports.

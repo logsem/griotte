@@ -10,8 +10,7 @@ Section helpers_switcher_adequacy.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -20,7 +19,7 @@ Section helpers_switcher_adequacy.
   Lemma fundamental_execute_entry_point
     (W : WORLD) (C : CmptName) ( b_pcc e_pcc b_cgp e_cgp : Addr )
     (args off : nat) (Nswitcher : namespace) :
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     ⊢ interp W C (WCap RX Global b_pcc e_pcc b_pcc) -∗
     interp W C (WCap RW Global b_cgp e_cgp b_cgp) -∗
     □ ∀ (W' : WORLD),
@@ -84,7 +83,7 @@ Section helpers_switcher_adequacy.
     let e_cgp := (cmpt_e_cgp C_cmpt) in
     (entries_etbl <= a_etbl < e_etbl)%a
     → 0 <= args < 7
-    → na_inv logrel_nais Nswitcher switcher_inv
+    → na_inv cerise_nais Nswitcher switcher_inv
     ⊢ inv (export_table_PCCN CNAME) (b_etbl ↦ₐ WCap RX Global b_pcc e_pcc b_pcc)
     -∗ inv (export_table_CGPN CNAME) (b_etbl1 ↦ₐ WCap RW Global b_cgp e_cgp b_cgp)
     -∗ inv (export_table_entryN CNAME a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))
@@ -141,7 +140,7 @@ Section helpers_switcher_adequacy.
     let e_cgp := (cmpt_e_cgp C_cmpt) in
     (entries_etbl <= a_etbl < e_etbl)%a
     → 0 <= args < 7
-    → na_inv logrel_nais Nswitcher switcher_inv
+    → na_inv cerise_nais Nswitcher switcher_inv
     ⊢ inv (export_table_PCCN CNAME) (b_etbl ↦ₐ WCap RX Global b_pcc e_pcc b_pcc)
     -∗ inv (export_table_CGPN CNAME) (b_etbl1 ↦ₐ WCap RW Global b_cgp e_cgp b_cgp)
     -∗ inv (export_table_entryN CNAME a_etbl) (a_etbl ↦ₐ WInt (encode_entry_point args off))

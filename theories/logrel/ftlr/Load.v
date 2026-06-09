@@ -12,9 +12,8 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
   .
 
@@ -60,7 +59,7 @@ Section fundamental.
           then ∃ w p' (P:D),
               ⌜PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ a ↦ₐ w
+              ∗ ▷ a ↦ₐ w
               ∗ (region_open_resources W C a [pc_a] p' (safeC P) w true)
               ∗ ▷ rcond P C p' interp
           else world_interp_open W C [pc_a] ∗ ⌜PermFlowsTo p pc_p⌝)
@@ -144,11 +143,14 @@ Section fundamental.
     destruct HH as (ρ0 & Hstd & Hnotrevoked).
     (* We can finally frame off Hsts here,
             since it is no longer needed after opening the region*)
-    iDestruct (open_world_interp_next _ _ _ _ a p0 ρ0 with "[$Hrel0 $Hworld_interp]")
-      as (w0) "($ & Hstate' & Ha0 & Hfuture & Hval & _)"; eauto.
-    { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
+    iDestruct (open_world_interp_next _ _ _ a p0 _ ρ0 with "Hrel0 Hworld_interp")
+      as "(Hworld & Hstate' & [%w0 (?&?&?&?)] )"; eauto.
+    { apply not_elem_of_cons; split; auto. apply not_elem_of_nil. }
+    { destruct ρ0; simplify_eq; [by left | by right]. }
     iExists w0,p0,P0.
     iFrame "∗#%".
+    iNext.
+    rewrite mono_invariant_monotonicity_guarantees_region; eauto.
   Qed.
 
   Lemma load_res_implies_mem_map
@@ -305,10 +307,12 @@ Section fundamental.
       assert (isO p' = false) as HpO'.
       { eapply readAllowed_flowsto, readAllowed_nonO in Hflp''; auto.
       }
-      iDestruct (close_world_interp_next with "[$Hworld_interp $Ha $Hrel' $Hstate' $Hfuture]")
-        as "Hr"; eauto.
+      iDestruct (close_world_interp_next with "Hworld_interp Hstate' Hrel' [Ha Hfuture]") as "$"; eauto.
       { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
-      iFrame.
+      { destruct ρ1; simplify_eq; naive_solver. }
+      { iFrame "∗#%".
+        rewrite mono_invariant_monotonicity_guarantees_region; eauto.
+      }
       iDestruct ("Hrcond'" with "HV") as "HV'".
       iApply interp_weakening_word_load; eauto.
   Qed.
@@ -325,11 +329,6 @@ Section fundamental.
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
 
-
-    (* intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi. *)
-    (* iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hworld_interp Hown Htframe". *)
-    (* iIntros "Hstate Ha HPC Hmap". *)
-    (* iInsert "Hmap" PC. *)
     iClear "Hwcond".
     iDestruct (if_dec_later with "Hrcond") as "Hrcond'"; iClear "Hrcond".
 

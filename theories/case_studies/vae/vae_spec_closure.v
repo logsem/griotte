@@ -1,18 +1,16 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
+From cap_machine Require Import rules logrel interp_weakening monotone.
 From cap_machine Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
-From cap_machine Require Import world_ghost_theory world_ghost_theory_interface.
 From cap_machine Require Import vae vae_helper.
-From cap_machine Require Import proofmode.
+From cap_machine Require Import world_ghost_theory world_interp_stack.
+From cap_machine Require Import proofmode register_tactics.
 
 Section VAE.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -227,9 +225,9 @@ Section VAE.
     wrel W !! i =
     Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
 
-    na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv logrel_nais Nswitcher switcher_inv
-    ∗ na_inv logrel_nais Nvae
+    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv cerise_nais Nvae
         ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a vae_main_code)
     ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
@@ -780,7 +778,7 @@ Section VAE.
     set (W7 := revoke W6).
 
     iMod (
-       world_interp_revoked_by_separation_many_with_temp_resources with "[$Hworld_interp_C $Hrevoked_l]"
+       world_interp_revoked_by_separation_many_with_RevokedResources with "[$Hworld_interp_C $Hrevoked_l]"
       ) as "(Hworld_interp_C & Hrevoked_l & %Hl_revoked_W7)".
     { apply Forall_forall; intros a Ha.
       rewrite Forall_forall in Hl_revoked_W6.
@@ -948,9 +946,9 @@ Section VAE.
     wrel W !! i =
     Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
 
-    na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv logrel_nais Nswitcher switcher_inv
-    ∗ na_inv logrel_nais Nvae
+    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv cerise_nais Nvae
         ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a vae_main_code)
     ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)

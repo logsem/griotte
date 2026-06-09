@@ -3,11 +3,11 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From cap_machine Require Import ftlr_base interp_weakening.
 From cap_machine Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
-From cap_machine Require Import multiple_updates region_invariants_revocation.
+From cap_machine Require Import sts_multiple_updates region_invariants_revocation.
 From cap_machine Require Export switcher switcher_preamble.
 From stdpp Require Import base.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
-From cap_machine Require Export world_interp_stack world_ghost_theory_interface switcher_helpers.
+From cap_machine Require Export world_ghost_theory world_interp_stack switcher_helpers.
 
 
 Section Switcher.
@@ -15,8 +15,7 @@ Section Switcher.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -46,14 +45,14 @@ Section Switcher.
     (∀ a : finz MemNum, std W0 !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
 
     (* Switcher Invariant *)
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
-    ∗ na_own logrel_nais ⊤
+    ∗ na_own cerise_nais ⊤
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
@@ -61,7 +60,7 @@ Section Switcher.
     ∗ ca1 ↦ᵣ wca1
     ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
     ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
@@ -374,7 +373,7 @@ Section Switcher.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
 
-      iEval (rewrite -open_world_interp_empty) in "Hworld_interp".
+      iEval (rewrite open_world_interp_empty) in "Hworld_interp".
       iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk4 csp_e) []
                   with "[$Hinterp_callee_wstk' $Hworld_interp]")
         as "(Hworld_interp & (%lv & Hstk & Hres))"; auto.
@@ -493,14 +492,14 @@ Section Switcher.
     (∀ a : finz MemNum, std W0 !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
 
     (* Switcher Invariant *)
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
-    ∗ na_own logrel_nais ⊤
+    ∗ na_own cerise_nais ⊤
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ RevokedResources W0 C l
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
@@ -508,7 +507,7 @@ Section Switcher.
     ∗ ca1 ↦ᵣ wca1
     ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
     ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)

@@ -5,15 +5,14 @@ From cap_machine Require Export logrel monotone.
 From cap_machine Require Import fundamental.
 From cap_machine Require Import switcher_preamble.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
-From cap_machine Require Export world_interp_stack world_ghost_theory_interface switcher_helpers.
+From cap_machine Require Export world_ghost_theory world_interp_stack switcher_helpers.
 
 Section fundamental.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -92,7 +91,7 @@ Section fundamental.
    *)
 
   Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
@@ -478,7 +477,7 @@ Section fundamental.
       { apply finz_seq_between_NoDup. }
       { set_solver. }
       { subst lv'; by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
-      rewrite open_world_interp_empty.
+      rewrite -open_world_interp_empty.
 
 
       destruct ( decide (isCorrectPC (updatePcPerm wastk2))) as [HcorrectWret|HcorrectWret]; cycle 1.
@@ -676,7 +675,7 @@ Section fundamental.
   Qed.
 
   Lemma interp_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "#Hinv".

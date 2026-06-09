@@ -2,7 +2,7 @@ From iris.algebra Require Import auth agree gmap excl excl_auth.
 From iris.base_logic Require Export invariants.
 From iris.proofmode Require Import proofmode.
 From stdpp Require Import finite.
-From cap_machine Require Import stdpp_extra addr_reg.
+From cap_machine Require Export stdpp_extra addr_reg.
 Import uPred.
 
 Class CmptNameG := CmptNameS {

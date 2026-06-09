@@ -3,11 +3,10 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From cap_machine Require Import ftlr_base interp_weakening interp_switcher_return.
 From cap_machine Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
-From cap_machine Require Import multiple_updates region_invariants_revocation.
-From cap_machine Require Export switcher switcher_preamble.
-From stdpp Require Import base.
-From cap_machine Require Import world_interp_stack switcher_macros_spec switcher_helpers.
-From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
+From cap_machine Require Import sts_multiple_updates region_invariants_revocation.
+From cap_machine Require Export switcher switcher_preamble switcher_macros_spec switcher_helpers.
+From cap_machine Require Import world_ghost_theory world_interp_stack.
+From cap_machine Require Import map_simpl register_tactics proofmode.
 
 
 Section Switcher.
@@ -15,8 +14,7 @@ Section Switcher.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -42,10 +40,10 @@ Section Switcher.
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
 
     (* PRE-CONDITION *)
-    ∗ na_own logrel_nais ⊤
+    ∗ na_own cerise_nais ⊤
     (* Registers *)
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
@@ -86,7 +84,7 @@ Section Switcher.
               (* We receive a public future world of the world pre switcher call *)
               ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
-              ∗ na_own logrel_nais ⊤
+              ∗ na_own cerise_nais ⊤
               ∗ interp W2 C (WCap RWL Local a_stk4 e_stk a_stk4)
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
               (* Interpretation of the world *)
@@ -110,7 +108,7 @@ Section Switcher.
             ( (* POST-CONDITION --- the call didn't went through, trusted stack exhausted *)
               ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
-              ∗ na_own logrel_nais ⊤
+              ∗ na_own cerise_nais ⊤
               (* Registers are preserved *)
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
               ∗ cgp ↦ᵣ wcgp_caller
@@ -133,11 +131,11 @@ Section Switcher.
               ∗ £ 2
             )
           )
-            -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+            -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
   )
 
     ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
 
     iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
@@ -1012,10 +1010,10 @@ Section Switcher.
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
 
     (* PRE-CONDITION *)
-    ∗ na_own logrel_nais ⊤
+    ∗ na_own cerise_nais ⊤
     (* Registers *)
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
@@ -1062,7 +1060,7 @@ Section Switcher.
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
-            ∗ na_own logrel_nais ⊤
+            ∗ na_own cerise_nais ⊤
             ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
@@ -1079,11 +1077,11 @@ Section Switcher.
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
             ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
-              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
 
 
     ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & #Hstk_val & %Hrevoked_stk & Hcstk & Hcont & Hpost)".
@@ -1112,7 +1110,7 @@ Section Switcher.
       { apply finz_seq_between_NoDup. }
       { set_solver+. }
       { by rewrite finz_seq_between_length in Hlen_stk_l. }
-      rewrite open_world_interp_empty.
+      rewrite -open_world_interp_empty.
 
       iMod (world_interp_revoked_by_separation_many with "[$Hworld_interp_C $Hstk_l]")
         as "(Hworld_interp_C & Hstk_l & %Hstk_l_revoked)".
@@ -1172,15 +1170,12 @@ Section Switcher.
            & Hcstk_frag & HK & [Hlc Hlc'])".
       pose proof (extract_temps W) as [l_unk [Hlunk_nodup Hlunk] ].
 
-      iMod ( world_interp_revoke_keep _ _ l_unk with "[$Hworld_interp_C]") as
+      iMod ( world_interp_revoke _ _ l_unk with "[$Hworld_interp_C]") as
         "(Hworld_interp_C & Hrevoked_l & %Hrevoked_l)"; auto.
       { iPureIntro; intros; auto.
         apply Hlunk.
         by apply list_elem_of_lookup_2 in H.
       }
-      (* iAssert ( *)
-      (*     ▷ close_list_resources C W l_unk false *)
-      (*   )%I with "[Hrevoked_l]" as "Hrevoked_l"; first by (iNext; iFrame). *)
       iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l]") as ">Hrevoked_l".
 
       iSpecialize ("Hpost" $! (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk)
@@ -1288,10 +1283,10 @@ Section Switcher.
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
 
     (* PRE-CONDITION *)
-    ∗ na_own logrel_nais ⊤
+    ∗ na_own cerise_nais ⊤
     (* Registers *)
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
@@ -1331,7 +1326,7 @@ Section Switcher.
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
-            ∗ na_own logrel_nais ⊤
+            ∗ na_own cerise_nais ⊤
             ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
@@ -1348,10 +1343,10 @@ Section Switcher.
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
             ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
-              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
 
     ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (a_stk4 target callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
@@ -1377,10 +1372,10 @@ Section Switcher.
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
 
     (* PRE-CONDITION *)
-    ∗ na_own logrel_nais ⊤
+    ∗ na_own cerise_nais ⊤
     (* Registers *)
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
@@ -1417,7 +1412,7 @@ Section Switcher.
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
-            ∗ na_own logrel_nais ⊤
+            ∗ na_own cerise_nais ⊤
             ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
@@ -1434,10 +1429,10 @@ Section Switcher.
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
             ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
-              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})
+              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
 
     ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".

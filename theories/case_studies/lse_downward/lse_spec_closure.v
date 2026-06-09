@@ -1,17 +1,16 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
+From cap_machine Require Import rules logrel monotone interp_weakening.
 From cap_machine Require Import fetch_spec assert_spec switcher switcher_spec_return.
 From cap_machine Require Import lse.
-From cap_machine Require Import proofmode.
+From cap_machine Require Import world_interp_stack.
+From cap_machine Require Import proofmode register_tactics.
 
 Section LSE.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -49,9 +48,9 @@ Section LSE.
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
 
-    na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv logrel_nais Nswitcher switcher_inv
-    ∗ na_inv logrel_nais Nlse
+    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv cerise_nais Nlse
         ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
          ∗ codefrag pc_a lse_main_code
          ∗ cgp_b ↦ₐ WInt 2
@@ -287,9 +286,9 @@ Section LSE.
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
 
-    na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv logrel_nais Nswitcher switcher_inv
-    ∗ na_inv logrel_nais Nlse
+    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv cerise_nais Nlse
         ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
          ∗ codefrag pc_a lse_main_code
          ∗ cgp_b ↦ₐ WInt 2

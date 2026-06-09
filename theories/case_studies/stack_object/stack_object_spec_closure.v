@@ -4,7 +4,7 @@ From cap_machine Require Import rules logrel world_interp_stack monotone proofmo
 From cap_machine Require Import fetch_spec assert_spec checkints checkra check_no_overlap_spec.
 From cap_machine Require Import
   switcher interp_switcher_call switcher_spec_call switcher_spec_return.
-From cap_machine Require Import world_ghost_theory_interface stack_object_helpers.
+From cap_machine Require Import world_ghost_theory stack_object_helpers world_std_revocation.
 From cap_machine Require Import stack_object.
 From cap_machine Require Import proofmode.
 
@@ -14,8 +14,7 @@ Section SO.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -95,9 +94,9 @@ Section SO.
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length so_main_data)%a = Some cgp_e ->
 
-    na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv logrel_nais Nswitcher switcher_inv
-    ∗ na_inv logrel_nais Nso
+    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv cerise_nais Nso
         ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
     ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
@@ -619,7 +618,7 @@ Section SO.
       iFrame.
       iApply ("IH" $! lφ lp lv with "[%] [%] [%] [$] [$] [$] [$] [$] [$]"); eauto.
     }
-    iMod (reinstate_close_list W1 W1 C la_be_temporaries with
+    iMod (world_interp_restore_world W1 W1 C la_be_temporaries with
       "[$Hworld_interp_C $Hla_be_temporaries_closing_resources]") as "Hworld_interp_C".
     { apply close_list_related_sts_pub. }
     set ( W2 := (close_list la_be_temporaries W1)).
@@ -858,7 +857,7 @@ Section SO.
     }
 
     (* Insert the allocated SO [a_stk1] in the world *)
-    iMod (reinstate_close_list W2 W2 C [a_stk1] with
+    iMod (world_interp_restore_world W2 W2 C [a_stk1] with
       "[$Hworld_interp_C $Hastk1_closing_resources]") as "Hworld_interp_C".
     { apply close_list_related_sts_pub. }
     set (W3 := reinstate W2 _).
@@ -1012,7 +1011,7 @@ Section SO.
     }
     set (W5 := revoke W4).
     (* Derive a bunch of disjointness properties that will be necessary later *)
-    iMod (world_interp_revoked_by_separation_many_with_temp_resources
+    iMod (world_interp_revoked_by_separation_many_with_RevokedResources
            with "[$Hrevoked_l_revoked_W0_no_be $Hworld_interp_C]")
       as "(Hworld_interp_C & Hrevoked_l_revoked_W0_no_be & %Hrevoked_l_revoked_W0_no_be_W5)".
     { apply Forall_forall.
@@ -1027,7 +1026,7 @@ Section SO.
       { apply Hl_revoked_W0_temporaries; apply elem_of_app ; by left. }
       rewrite elem_of_dom; done.
     }
-    iMod (world_interp_revoked_by_separation_many_with_temp_resources with "[$Hl_revoked_W4 $Hworld_interp_C]")
+    iMod (world_interp_revoked_by_separation_many_with_RevokedResources with "[$Hl_revoked_W4 $Hworld_interp_C]")
       as "(Hworld_interp_C & Hl_revoked_W4 & %Hrevoked_l_revoked_W4_W5)".
     { apply Forall_forall.
       intros x Hx.
@@ -1194,7 +1193,7 @@ Section SO.
        [l_revoked_W0] and [l_revoked_W4], but they have some overlap.
        So we need to separe them into disjoint lists.
      *)
-    iDestruct (RevokedResources_separation_many_alt with "[$Hrevoked_l_revoked_W0_no_be $Hl_revoked_W4]") as "%Hdisjoint_l_revoked_W0_no_be_l_revoked_W4".
+    iDestruct (RevokedResources_disjoint with "[$Hrevoked_l_revoked_W0_no_be $Hl_revoked_W4]") as "%Hdisjoint_l_revoked_W0_no_be_l_revoked_W4".
     assert (∃ l_revoked_W4_no_astk1, l_revoked_W4 ≡ₚ a_stk1::l_revoked_W4_no_astk1 ∧ a_stk1 ∉ l_revoked_W4_no_astk1) as (l_revoked_W4_no_astk1 & Hl_revoked_W4_astk1 & Ha_stk1_l_revoked_W4_no_astk1).
     {
       clear -Hastk1_l_revoked_W4 Hl_revoked_W4_nodup.
@@ -1545,9 +1544,9 @@ Section SO.
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length so_main_data)%a = Some cgp_e ->
 
-    na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv logrel_nais Nswitcher switcher_inv
-    ∗ na_inv logrel_nais Nso
+    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv cerise_nais Nso
         ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
     ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)

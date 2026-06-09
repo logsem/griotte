@@ -1,21 +1,17 @@
-From iris.algebra Require Import gmap agree auth.
 From iris.proofmode Require Import proofmode.
-From stdpp Require Import list_relations.
-From cap_machine Require Export region_invariants multiple_updates.
-From cap_machine Require Import seal_store logrel interp_weakening.
+From cap_machine Require Export region_invariants sts_multiple_updates.
+From cap_machine Require Import logrel interp_weakening.
 From cap_machine Require Import switcher.
-From cap_machine Require Import compartment_layout mkregion_helpers stdpp_extra disjoint_regions_tactics.
-From cap_machine Require Import region_invariants_allocation.
-From cap_machine Require Import world_ghost_theory_interface.
-Import uPred.
+From cap_machine Require Import compartment_layout mkregion_helpers disjoint_regions_tactics.
+From cap_machine Require Import world_ghost_theory.
+From cap_machine Require Import stdpp_extra.
 
 Section region_alloc_cmpt.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -152,7 +148,7 @@ Section region_alloc_cmpt.
       solve_addr+H H' Hcontra.
   Qed.
 
-  Lemma alloc_compartment_interp_rel (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName)  :
+  Lemma alloc_compartment_interp_rel {E : coPset} (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName)  :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
@@ -191,9 +187,10 @@ Section region_alloc_cmpt.
   .
   Proof.
     intros * Himports Hcode Hdata C_code C_data.
+
     iIntros "HC_imports HC_code HC_data Himport_interp Hworld_interp_C".
 
-    iMod (world_interp_extend_perm_sepL2 _ W C
+    iMod (world_interp_extend_perm_sepL2 W C
             code_addrs (cmpt_code C_cmpt)
             RX interpC
            with "Hworld_interp_C [HC_code]") as "(Hworld_interp_C & #HC_code)".
@@ -205,13 +202,15 @@ Section region_alloc_cmpt.
       - intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
         pose proof (Forall_lookup_1 _ _ _ _ C_code Hv2) as Hncap.
         destruct v2; [| by inversion Hncap..].
-        rewrite /interpC fixpoint_interp1_eq /=.
+        rewrite fixpoint_interp1_eq /=.
         iSplit; eauto.
+        iSplit; eauto.
+        rewrite /mono_permanent.
         iApply future_priv_mono_interp_z.
       - iFrame.
     }
 
-    iMod (world_interp_extend_perm_sepL2_open _ _ C
+    iMod (world_interp_extend_perm_sepL2_open _ C
             data_addrs
             (cmpt_data C_cmpt)
             RW interpC
@@ -251,9 +250,9 @@ Section region_alloc_cmpt.
       destruct w as [| [|] | |] ; cbn in Hw; destruct Hw as [Hw|Hw]; cbn in Hw; try done
       ; [|destruct g ; last done].
       - iSplit; last iApply future_priv_mono_interp_z.
-        by rewrite /interpC fixpoint_interp1_eq /=.
+        by rewrite fixpoint_interp1_eq /=.
       - iSplit; last iApply future_priv_mono_interp_global.
-        rewrite /interpC fixpoint_interp1_eq interp1_eq.
+        rewrite fixpoint_interp1_eq interp1_eq.
         destruct Hw as (Hp & Hb & He).
         destruct (isO p) eqn:HpO; first done.
         destruct (has_sreg_access p) eqn:HpXSR.
@@ -285,7 +284,7 @@ Section region_alloc_cmpt.
         iSplit; first iApply monoReq_interp; eauto.
     }
 
-    iMod (world_interp_extend_perm_sepL2_open _ _ C
+    iMod (world_interp_extend_perm_sepL2_open _ C
             imports_addrs
             (cmpt_imports C_cmpt)
             RX interpC
@@ -431,7 +430,7 @@ Section region_alloc_cmpt.
       iApply (monoReq_interp _ _ _ _ Permanent); done.
   Qed.
 
-  Lemma alloc_compartment_interp (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName)  :
+  Lemma alloc_compartment_interp {E : coPset} (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName)  :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in

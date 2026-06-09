@@ -11,8 +11,7 @@ Section wp_interp.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
@@ -117,8 +116,7 @@ Section wp_interp.
     iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
       as "(Hworld_interp & Hstate & (%w & WorldRes) )"
     ; [|eauto|]; [ destruct ρ;auto;done|].
-    iDestruct (WorldRes_acc' with "WorldRes")
-      as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
+    iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
 
     iApply (wp_store_success_reg _ _ _ _ _ _ _ _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
@@ -283,8 +281,7 @@ Section wp_interp.
     iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
       as "(Hworld_interp & Hstate & (%w & WorldRes) )"
     ; [|eauto|]; [ destruct ρ;auto;done|].
-    iDestruct (WorldRes_acc' with "WorldRes")
-      as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
+    iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
     iApply (wp_store_success_z _ _ _ _ _ _ _ _ rdst with "[$HPC Hi Hdst Ha]")
     ; try iFrame

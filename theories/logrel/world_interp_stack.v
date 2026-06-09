@@ -1,11 +1,8 @@
-From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
-From iris.program_logic Require Import weakestpre adequacy lifting.
-From cap_machine Require Import ftlr_base interp_weakening.
-From cap_machine Require Import logrel interp_weakening memory_region rules proofmode monotone.
-From cap_machine Require Import multiple_updates region_invariants_revocation.
-From stdpp Require Import base.
-From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
+From cap_machine Require Import rules logrel monotone interp_weakening.
+From cap_machine Require Import sts_multiple_updates region_invariants_revocation.
+From cap_machine Require Import memory_region proofmode map_simpl register_tactics.
+From cap_machine Require Export world_ghost_theory.
 
 
 Section WorldInterpStack.
@@ -13,14 +10,15 @@ Section WorldInterpStack.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+
+  (* TODO do some cleanup + documentation here *)
 
   Lemma region_open_list_interp_gen (W : WORLD) (C : CmptName)
     (la la' : list Addr) (g : Locality) (b e a : Addr) :
@@ -291,7 +289,7 @@ Section WorldInterpStack.
        by iFrame.
    Qed.
 
-  Lemma submseteq_dom (l : list Addr) (Wstd_sta : gmap Addr region_type) :
+  Local Lemma submseteq_dom (l : list Addr) (Wstd_sta : gmap Addr region_type) :
     Forall (λ i : Addr, Wstd_sta !! i = Some Temporary) l
     → NoDup l → l ⊆+ (map_to_list Wstd_sta).*1.
   Proof.
@@ -561,34 +559,6 @@ Section WorldInterpStack.
      revert Hin Hdom'. clear; intros Hin Hdom; rewrite Hdom; set_solver.
   Qed.
 
-  (* We also want to be able to split the extracted temporary regions into known and unknown *)
-  Lemma extract_temps_split_world W l :
-    NoDup l ->
-    Forall (λ (a : Addr), (std W) !! a = Some Temporary) l ->
-    ∃ l', NoDup (l' ++ l) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l' ++ l)).
-  Proof.
-    intros Hdup HForall.
-    pose proof (extract_temps W) as [l' [Hdup' Hl'] ].
-    revert HForall; rewrite Forall_forall =>HForall.
-    exists (list_difference l' l). split.
-    - apply NoDup_app. split;[|split].
-      + apply NoDup_list_difference. auto.
-      + intros a Ha. apply list_elem_of_difference in Ha as [_ Ha]; auto.
-      + auto.
-    - intros a. split.
-      + intros Htemp.
-        destruct (decide (a ∈ list_difference l' l));[by apply elem_of_app;left|].
-        apply elem_of_app;right. apply Hl' in Htemp.
-        assert (not (a ∈ l' ∧ a ∉ l)) as Hnot.
-        { intros Hcontr. apply list_elem_of_difference in Hcontr. contradiction. }
-        destruct (decide (a ∈ l)); auto.
-        assert (a ∈ l' ∧ a ∉ l) as Hcontr; auto. apply Hnot in Hcontr. done.
-      + intros Hin. apply elem_of_app in Hin as [Hin | Hin].
-        ++ apply list_elem_of_difference in Hin as [Hinl Hninl'].
-           by apply Hl'.
-        ++ by apply HForall.
-  Qed.
-
   Local Lemma monotone_revoke_sts_full_world_keep_interp W C (l : list Addr) :
     ⌜NoDup l⌝ -∗
     ([∗ list] a' ∈ l,
@@ -823,36 +793,6 @@ Section WorldInterpStack.
   Definition StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) : iProp Σ :=
     StackWorldResources interp W C la (replicate (length la) (WInt 0)).
 
-  Global Instance StackWorldResource_Persistent
-    (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
-    Persistent (StackWorldResource interp W C a v).
-  Proof.
-    assert ( forall interp W C a v,
-               StackWorldResource interp W C a v ⊣⊢
-                 (
-                   (∃ (φ : V) (p : Perm) (_ : Persistent (φ W C v)),
-                       ((φ W C v)
-                        ∗ (mono_temporary C p (safeC φ) v)
-                        ∗ rel C a p (safeC φ)
-                        ∗ valid_stk_interp interp C φ p
-                        ∗ ⌜ PermFlowsTo RWL p ⌝
-                       )%I
-                   )
-                 )) as Heq.
-    {
-      rewrite /StackWorldResource.
-      intros.
-      iSplit; iIntros "H".
-      - iDestruct "H" as "(%&%&?&?&?&(?&?&?&?&%)&?)"; iFrame.
-        pose proof (H (W0,C0,v0)) as H'; iExists H'; done.
-      - iDestruct "H" as "(%&%&%&?&?&?&(?&?&?&?&?)&?)"; iFrame.
-    }
-    rewrite Heq; apply _. Qed.
-
-  Global Instance StackWorldResources_Persistent
-    (W : WORLD) (C : CmptName) (la : list Addr) (lv : list Word) :
-    Persistent (StackWorldResources interp W C la lv).
-  Proof. apply _. Qed.
 
   Global Instance StackRevokedResources_Persistent W C la : Persistent (StackRevokedResources W C la).
   Proof. apply _. Qed.
@@ -879,9 +819,6 @@ Section WorldInterpStack.
     induction la; cbn; first done.
     rewrite -IHla StackWorldResource_eq; done.
   Qed.
-
-  Definition extract_temporaries_condition (W : WORLD) (la : list Addr) :=
-      NoDup la ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ la).
 
   Definition revoked_addresses (W : WORLD) (la : list Addr) :=
     Forall (λ a, std W !! a = Some Revoked) la.
@@ -916,7 +853,6 @@ Section WorldInterpStack.
   Proof. intros [_ H] Ha; by apply H in Ha. Qed.
 
 
-  (* TODO move somewhere else ??? *)
   Lemma world_interp_revoke_stack W C b e a :
     let la := finz.seq_between b e in
 

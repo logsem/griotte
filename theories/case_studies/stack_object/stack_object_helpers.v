@@ -9,7 +9,7 @@ Section stack_object_helpers.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
   Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
@@ -17,34 +17,17 @@ Section stack_object_helpers.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Lemma world_interp_revoked_by_separation
-    (W : WORLD) (C' : CmptName)
-    (a : Addr) (w : Word) :
-    a ∈ dom (std W) →
-    world_interp W C'
-    ∗ a ↦ₐ w
-    ==∗
-    world_interp W C'
-    ∗ a ↦ₐ w
-    ∗ ⌜ std W !! a = Some Revoked ⌝
-  .
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (?) "([Hr Hsts] & Ha)".
-    iMod (revoked_by_separation with "[$Hr $Hsts $Ha]") as "($&$&$)";auto.
-  Qed.
-
   (* TODO This theorem is essentially [reinstate_world], but with different RevokedResources *)
-  Lemma reinstate_close_list W W' C' (l : list Addr) :
-    related_sts_pub_world W (close_list l W') ->
-    world_interp W' C' ∗ (close_list_resources C' W l false)
-    ==∗
-    world_interp (reinstate W' l) C'.
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros (Hrelated) "( [Hr Hsts] & Htemp)".
-    iMod (monotone_close_list_region with "[] [$Hsts $Hr $Htemp]") as "[$ $]"; auto.
-  Qed.
+  (* Lemma reinstate_close_list W W' C' (l : list Addr) : *)
+  (*   related_sts_pub_world W (close_list l W') -> *)
+  (*   world_interp W' C' ∗ (close_list_resources C' W l false) *)
+  (*   ==∗ *)
+  (*   world_interp (reinstate W' l) C'. *)
+  (* Proof. *)
+  (*   rewrite world_interp_eq /world_interp_def. *)
+  (*   iIntros (Hrelated) "( [Hr Hsts] & Htemp)". *)
+  (*   iMod (monotone_close_list_region with "[] [$Hsts $Hr $Htemp]") as "[$ $]"; auto. *)
+  (* Qed. *)
 
   Lemma open_world_interp_list (W : WORLD) (C' : CmptName)
     (l : list (Addr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
@@ -103,26 +86,6 @@ Section stack_object_helpers.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros (?????) "([Hr $] & Hstd & Hv & Hmono & Hφ & Hrel & Hp)".
     iDestruct (region_close_list with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hp]") as "$"; auto.
-  Qed.
-
-  (* TODO temporary lemma, waiting to get rid off close_list_resources *)
-  Lemma RevokedResources_close_list_resources_eq (W : WORLD) ( C : CmptName ) (l : list Addr) :
-    RevokedResources W C l ⊣⊢ close_list_resources C W l false.
-  Proof.
-    iSplit; iIntros "H"; iApply (big_sepL_impl with "H")
-    ; iModIntro ; iIntros (k ka Hka) "H".
-    + iDestruct "H" as "(% &% & $ & $ & [% ($&$&$&?)])"; by rewrite mono_temporary_eq.
-    + iDestruct "H" as "(% &% & $ & [% ($&$&?&$)] & $)"; by rewrite mono_temporary_eq.
-  Qed.
-
-  Lemma RevokedResources_separation_many_alt
-    (C1 C2 : CmptName) (W1 W2 : WORLD) (l1 l2 : list Addr) :
-    RevokedResources W1 C1 l1
-    ∗ RevokedResources W2 C2 l2
-      -∗ ⌜ l1 ## l2 ⌝.
-  Proof.
-    rewrite !RevokedResources_close_list_resources_eq.
-    apply close_list_resources_separation_many_alt.
   Qed.
 
 End stack_object_helpers.

@@ -1,9 +1,7 @@
-From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
-From iris.program_logic Require Import weakestpre adequacy lifting.
-From cap_machine Require Import logrel world_interp_stack monotone interp_weakening fundamental.
-From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
-From cap_machine Require Export world_ghost_theory world_ghost_theory_interface.
+From cap_machine Require Import logrel monotone interp_weakening fundamental.
+From cap_machine Require Import region_invariants_revocation.
+From cap_machine Require Export world_ghost_theory world_interp_stack.
 From cap_machine Require Import switcher_preamble.
 
 Section switcher_helper.
@@ -12,8 +10,7 @@ Section switcher_helper.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -26,42 +23,7 @@ Section switcher_helper.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Lemma RevokedResources_eq (W : WORLD) (C : CmptName) (l : list Addr) :
-   RevokedResources W C l ⊣⊢ close_list_resources C W l false.
-  Proof.
-    iSplit; iIntros "H".
-    - iApply (big_sepL_impl with "H").
-      iModIntro; iIntros (k ka Hka) "(%pa & %Pa & %Hpers_Pa & Hrel & Htmp_res)".
-      iDestruct "Htmp_res" as "(%va & Hpa_O & Ha & Hmono & HPa)".
-      iFrame "∗%".
-      rewrite mono_temporary_eq.
-      iFrame.
-    - iApply (big_sepL_impl with "H").
-      iModIntro; iIntros (k ka Hka) "(%pa & %Pa & %Hpers_Pa & Htmp_res & Hrel)".
-      iDestruct "Htmp_res" as "(%va & Hpa_O & Ha & Hmono & HPa)".
-      iFrame "∗%".
-      by rewrite mono_temporary_eq.
-  Qed.
-
-  (* TODO This theorem is essentially [revoke_world], but with different RevokedResources *)
-  Lemma world_interp_revoke_keep W C l :
-    NoDup l ->
-    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝)
-    ∗ world_interp W C
-    ==∗
-    world_interp (revoke W) C
-    ∗ ▷ RevokedResources W C l
-    ∗ ⌜ revoked_addresses (revoke W) l ⌝.
-  Proof.
-    rewrite world_interp_eq /world_interp_def /revoked_addresses.
-    iIntros (Hdup) "(Hl & [Hr Hsts] )".
-    iMod ( monotone_revoke_keep _ _ l with "[$Hr $Hsts Hl]") as
-      "($ & $ & Hres & $)"; auto.
-    rewrite RevokedResources_eq.
-    by iModIntro; iNext.
-  Qed.
-
-  (* TODO This theorem is essentially [reinstate_world], but with different RevokedResources *)
+  (* This lemma is a more general version of [world_interp_restore_world]. *)
   Lemma reinstate_close_list_gen W C (l : list Addr) :
     ⊢ world_interp W C
     ∗ close_list_resources_gen C W l l false
@@ -74,7 +36,7 @@ Section switcher_helper.
     done.
   Qed.
 
-  (* TODO understand how [close_list_resources_gen] is being used! *)
+  (** Helper lemmas for switcher. *)
   (* TODO USED IN INTERP RETURN *)
   Lemma open_world_interp_cframe
     (W : WORLD) (C : CmptName) (b_stk e_stk a_stk a_stk4 : Addr)
@@ -112,7 +74,7 @@ Section switcher_helper.
     rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
     destruct (is_untrusted_caller ccrel); cycle 1.
     * iExists wcs2, wcs3, wret, wcgp0.
-      iEval (rewrite -open_world_interp_empty) in "Hworld_interp"; iFrame "Hworld_interp".
+      iEval (rewrite open_world_interp_empty) in "Hworld_interp"; iFrame "Hworld_interp".
       rewrite /StackOpenWorldResources /StackWorldResources.
       iSplitL "Hcframe_interp"; auto.
       iDestruct "Hcframe_interp" as "(?&?&?&?)".
@@ -121,7 +83,7 @@ Section switcher_helper.
       iApply (region_pointsto_cons _ (a_stk ^+ 3)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
       iApply (region_pointsto_cons _ (a_stk ^+ 4)%a); [solve_addr+Ha_stk4|solve_addr+He_a1|]; iFrame.
       by rewrite /region_pointsto finz_seq_between_empty.
-    * iEval (rewrite -open_world_interp_empty) in "Hworld_interp".
+    * iEval (rewrite open_world_interp_empty) in "Hworld_interp".
       iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk (a_stk^+4)%a)
                   with "[$Hinterp_callee_wstk $Hworld_interp]")
         as "(Hworld_interp & Hres)"; auto.
@@ -150,7 +112,7 @@ Section switcher_helper.
         replace ( ((a_stk ^+ 3) ^+ 1)%a ) with ((a_stk ^+ 4))%a by solve_addr+He_a1.
         rewrite finz_seq_between_empty; last solve_addr+He_a1.
         done.
-      - iNext. 
+      - iNext.
         rewrite /StackOpenWorldResources.
         iDestruct "Hres" as "[Hres $]".
         rewrite /StackWorldResources.
@@ -234,8 +196,6 @@ Section switcher_helper.
         (close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false)
     )%I.
 
-  (* TODO The result matches the excepted shape for E_K *)
-  (* TODO ONLY USED RETURN SPEC *)
     Lemma open_world_interp_cframe_gen
     (W0 Wcur : WORLD) (C : CmptName) (b_stk csp_b csp_e a_stk4 : Addr) (l : list Addr)
     (wret wcgp wcs0 wcs1 : Word) (ccrel : caller_callee_relation) :
@@ -285,9 +245,6 @@ Section switcher_helper.
                )
              else True
             )
-          (* TODO HOW IS THE FOLLOWING USED ???? Surely we don't need something so detailed:
-             It is only used by world_interp_stack_fixing exactly as it is!
-           *)
           ∗ CloseRes_gen Wcur Wfixed C csp_b csp_e a_stk l ccrel
       )
     .
@@ -513,7 +470,6 @@ Section switcher_helper.
       }
     }
 
-    (* TODO surely there's a way to generalise and use a list instead of one-by-one *)
     iDestruct (lc_fupd_elim_later with "[$] [$H]") as ">H".
     iModIntro.
     iDestruct "H" as (l') "($ & $ & (%&%&%&%& $&$&$&$&(%W0'&%HW0'&H0)&(%W1'&%HW1'&H1)&(%W2'&%HW2'&H2)&(%W3'&%HW3'&H3)) & ($&$&$&?))".
@@ -524,7 +480,6 @@ Section switcher_helper.
     iFrame.
     Qed.
 
-    (* TODO generalize or something?? *)
     Lemma world_interp_stack_fixing
       (Wcur W0 : WORLD) (C : CmptName)
       (a_stk4 b_stk csp_b csp_e : Addr) (l : list Addr)

@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules proofmode.
+From cap_machine Require Import rules proofmode.
 From cap_machine Require Import fetch_spec.
 From cap_machine Require Export assert.
 
@@ -11,7 +11,6 @@ Section Assert_subroutine.
   Context
     {Σ : gFunctors}
       {ceriseg: ceriseG Σ}
-      {nainv: logrel_na_invs Σ}
       {MP: MachineParameters}
   .
 
@@ -54,15 +53,15 @@ Section Assert_subroutine.
     ( n1 n2 flag : Z ) ( wret wnull : Word)
     (N : namespace) (E : coPset) (φ : language.val cap_lang -> iProp Σ) :
     ↑N ⊆ E →
-    (  na_inv logrel_nais N (assert_inv pc_b pc_e a_flag)
-     ∗ na_own logrel_nais E
+    (  na_inv cerise_nais N (assert_inv pc_b pc_e a_flag)
+     ∗ na_own cerise_nais E
      ∗ PC ↦ᵣ WCap RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
      ∗ cnull ↦ᵣ wnull
      ∗ a_flag ↦ₐ WInt flag
-     ∗ ▷ (na_own logrel_nais E
+     ∗ ▷ (na_own cerise_nais E
           ∗ PC ↦ᵣ updatePcPerm wret
           ∗ cra ↦ᵣ wret
           ∗ ct0 ↦ᵣ WInt 0
@@ -109,14 +108,14 @@ Section Assert_subroutine.
     (N : namespace) (E : coPset) (φ : language.val cap_lang -> iProp Σ) :
     ↑N ⊆ E →
     n1 = n2 →
-    (  na_inv logrel_nais N (assert_inv pc_b pc_e a_flag)
-     ∗ na_own logrel_nais E
+    (  na_inv cerise_nais N (assert_inv pc_b pc_e a_flag)
+     ∗ na_own cerise_nais E
      ∗ PC ↦ᵣ WCap RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
      ∗ cnull ↦ᵣ wnull
-     ∗ ▷ (na_own logrel_nais E
+     ∗ ▷ (na_own cerise_nais E
           ∗ PC ↦ᵣ updatePcPerm wret
           ∗ cra ↦ᵣ wret
           ∗ ct0 ↦ᵣ WInt 0%Z
@@ -146,7 +145,6 @@ Section Assert.
   Context
     {Σ : gFunctors}
       {ceriseg: ceriseG Σ}
-      {nainv: logrel_na_invs Σ}
       {MP: MachineParameters}
   .
 
@@ -165,8 +163,8 @@ Section Assert.
 
     ↑N ⊆ E →
     n1 = n2 →
-    (  na_inv logrel_nais N (assert_inv b_assert e_assert a_flag)
-     ∗ na_own logrel_nais E
+    (  na_inv cerise_nais N (assert_inv b_assert e_assert a_flag)
+     ∗ na_own cerise_nais E
      ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
      ∗ rdst ↦ᵣ wdst
      ∗ rscratch1 ↦ᵣ w1
@@ -177,7 +175,7 @@ Section Assert.
      ∗ cnull ↦ᵣ wnull
      ∗ codefrag pc_a assert_macro
      ∗ (pc_b ^+ n)%a ↦ₐ (WSentry RX g_assert b_assert e_assert b_assert)
-     ∗ ▷ (na_own logrel_nais E
+     ∗ ▷ (na_own cerise_nais E
           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
           ∗ rdst ↦ᵣ WInt 0
           ∗ rscratch1 ↦ᵣ WInt 0

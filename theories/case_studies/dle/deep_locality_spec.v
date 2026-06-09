@@ -1,8 +1,7 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel world_interp_stack monotone register_tactics.
+From cap_machine Require Import rules logrel monotone register_tactics.
 From cap_machine Require Import fetch_spec assert_spec switcher_spec_call deep_locality.
-From cap_machine Require Import world_ghost_theory world_ghost_theory_interface.
+From cap_machine Require Import world_ghost_theory world_interp_stack.
 From cap_machine Require Import proofmode.
 
 Section DLE.
@@ -10,8 +9,7 @@ Section DLE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -58,9 +56,9 @@ Section DLE.
 
     frame_match Ws Cs cstk W0 C ->
     (
-      na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv logrel_nais Nswitcher switcher_inv
-      ∗ na_own logrel_nais ⊤
+      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
@@ -83,7 +81,7 @@ Section DLE.
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
       ∗ interp W0 C (WCap RWL Local csp_b csp_e csp_b)
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds

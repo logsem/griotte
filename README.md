@@ -128,7 +128,7 @@ The organisation of the `theories/` folder is as follows.
 
 ## Model of the Kripke worlds `model/`
 
-- `region_invariants_definitions.v`: 
+- `world_std_sts.v`:
   Definitions of the standard world and the standard invariant states.
   Also contains lemmas about standard transitions
 
@@ -136,7 +136,7 @@ The organisation of the `theories/` folder is as follows.
   resources map *sharedResources*. Contains some lemmas for "opening" and
   "closing" the map, akin to opening and closing invariants.
 
-- `multiple_updates.v`: Auxiliary definitions to reason about multiple updates
+- `sts_multiple_updates.v`: Auxiliary definitions to reason about multiple updates
   to a world.
 
 - `region_invariants_revocation.v`: Lemmas for revoking standard resources
@@ -148,7 +148,9 @@ The organisation of the `theories/` folder is as follows.
 - `sts.v`: The definition of *stsCollection*, and associated lemmas. In particular:
   priv/pub/temporal future world relations (all these definitions are 
   parameterised by the standard states and three relations over them transitions. 
-  These are instantiated in `region_invariants_definitions.v`)
+  These are instantiated in `world_std_sts.v`)
+
+- TODO the rest
   
 ## Logical relation and FTLR `logrel/`
 
