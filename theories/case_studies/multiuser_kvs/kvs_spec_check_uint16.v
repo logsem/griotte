@@ -9,7 +9,6 @@ Section KVS_check_uint16.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {kvsg:kvsG Σ}
-    {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -43,9 +42,9 @@ Section KVS_check_uint16.
                 ( rdst ↦ᵣ WInt ASM_FALSE ∗ ⌜ ¬ (is_uint16 nkey) ⌝ )
             )
             -∗
-            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hrv Hrdst)
@@ -129,9 +128,9 @@ Section KVS_check_uint16.
           codefrag pc_a instrs ∗
           rdst ↦ᵣ WInt ASM_TRUE
           -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & Hcode & Hpost)".

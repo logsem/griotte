@@ -11,9 +11,8 @@ Section KVS_getFullKey.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ}
-    {heapg : heapGS Σ}
+    {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -55,9 +54,9 @@ Section KVS_getFullKey.
           cgp_b ↦ₐ kvs_service_unsealing_key ∗
           codefrag pc_a instrs -∗
 
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hbounds_cgp Hbounds_user_key Hrscratch Hrsealkey Hkey)
@@ -123,8 +122,7 @@ Section KVS_getFullKey.
       codefrag pc_a instrs ∗
       seal_pred KVS_OTYPE kvs_otype_propC ∗
 
-      sealing_map W C ∗
-      sts_full_world W C ∗
+      world_interp W C ∗
 
       ▷ ( ∀ l_user_key user_key ,
             ⌜ kvs_users_seals !! C = Some user_key ∧ wskey = kvs_user_seal_key l_user_key user_key ⌝ ∗
@@ -139,19 +137,19 @@ Section KVS_getFullKey.
 
             (sts_seals_std C KVS_OTYPE {[WSealable (kvs_user_seal_key_scap l_user_key user_key)]}) ∗
 
-            sealing_map W C ∗
-            sts_full_world W C -∗
+            world_interp W C
+            -∗
 
-            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hbounds_cgp HN Hrscratch Hrsealkey Hkey Hrelated_Wskey_W)
       "(HPC & Hcgp & Hrsealkey
       & Hinterp_wskey & Hrkey & [%wscratch Hrscratch]
       & Hcgp_b & Hcode & #Hspred
-      & Hseals & Hsts
+      & Hworld
       & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
@@ -177,11 +175,11 @@ Section KVS_getFullKey.
     iEval (rewrite fixpoint_interp1_eq /= /interp_sb) in "Hinterp_wskey".
     iAssert (sts_seals_std C KVS_OTYPE {[WSealable wsb]}) as "#Hinterp_wskey'".
     { iApply sts_seals_std_weaken; last iFrame "Hinterp_wskey"; last set_solver+. }
-    iDestruct (open_sealing_map_singleton with "Hspred Hinterp_wskey' Hseals Hsts")
-                as "(Hseals & Hsts & Hres_open & HP)".
+    iDestruct (sopen_world_interp_singleton with "Hspred Hinterp_wskey' Hworld")
+                as "(Hworld & Hres_open & HP)".
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
-    rewrite /kvs_otype_propC /safeC /= /kvs_otype_prop //= /kvs_otype_inv.
+    rewrite /kvs_otype_propC /= /kvs_otype_prop //= /kvs_otype_inv.
     iDestruct "HP" as "(%ku & %a & %s & %Heq_sb & %Hku_C & %Hku & Halloc & Hfkeys)".
     destruct wsb; rewrite /kvs_user_seal_key_scap in Heq_sb; cbn in Heq_sb; simplify_eq.
     rewrite -/(kvs_user_seal_key_scap g a).
@@ -193,7 +191,7 @@ Section KVS_getFullKey.
     iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap g a))))) with "[Halloc Hfkeys]"
     as "HP".
     { iExists ku, a, s; iFrame "∗ %"; done. }
-    iDestruct (close_sealing_map_singleton with "Hspred Hres_open HP Hseals") as "Hseals".
+    iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
     (* lshiftl rdst rdst 16; *)
     iInstr "Hcode".

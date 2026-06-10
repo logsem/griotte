@@ -1,12 +1,7 @@
-From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
-From iris.program_logic Require Import weakestpre adequacy lifting.
-From cap_machine Require Import ftlr_base interp_weakening.
-From cap_machine Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
-From cap_machine Require Import multiple_updates region_invariants_revocation.
+From cap_machine Require Import memory_region rules proofmode.
 From cap_machine Require Export switcher switcher_preamble.
-From stdpp Require Import base.
-From cap_machine Require Import logrel_extra switcher_macros_spec.
+From cap_machine Require Import switcher_macros_spec.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 
@@ -16,8 +11,7 @@ Section Switcher_KtK_Call.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ}
-    {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -44,10 +38,10 @@ Section Switcher_KtK_Call.
         ct2 ↦ᵣ WInt 0 ∗
         csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
         codefrag pc_a switcher_instrs_0 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_0 len_switcher_0; subst switcher_instrs_0 len_switcher_0.
     iIntros (Hsub_reg) "(HPC & Hctp & Hct2 & Hcsp & Hcode & Hpost)".
@@ -93,10 +87,10 @@ Section Switcher_KtK_Call.
         ctp ↦ᵣ WInt (encodeLoc Local) ∗
         csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
         codefrag pc_a switcher_instrs_1 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_1 len_switcher_1; subst switcher_instrs_1 len_switcher_1.
     iIntros (Hsub_reg) "(HPC & Hctp & Hct2 & Hcsp & Hcode & Hpost)".
@@ -157,11 +151,11 @@ Section Switcher_KtK_Call.
             ⌜ (b_stk <= a_stk)%a ∧ (b_stk <= (a_stk ^+ 3)%a < e_stk)%a ∧ is_Some (a_stk + 4)%a ⌝ ∗
             ⌜ stk_mem' = drop 4 stk_mem ⌝ ∗
             codefrag pc_a switcher_instrs_2 -∗
-            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
           )
       )
     ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_2 len_switcher_2; subst switcher_instrs_2 len_switcher_2.
     iIntros (Hsub_reg) "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hstk & Hcode & Hpost)".
@@ -313,10 +307,10 @@ Section Switcher_KtK_Call.
             [[a_tstk1,e_trusted_stack]]↦ₐ[[tstk_next]] ∗
             codefrag pc_a switcher_instrs_3
           )
-          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_3 len_switcher_3 a_tstk1 a_tstk2; subst switcher_instrs_3 len_switcher_3.
     iIntros (Hsub_reg Hbounds_tstk_b Hbounds_tstk_e Hpc_fail)
@@ -407,10 +401,10 @@ Section Switcher_KtK_Call.
         cs1 ↦ᵣ WInt a_stk ∗
         csp ↦ᵣ WCap RWL Local a_stk e_stk a_stk ∗
         codefrag pc_a switcher_instrs_4 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_4 len_switcher_4; subst switcher_instrs_4 len_switcher_4.
     iIntros (Hsub_reg Hastk) "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode & Hpost)".
@@ -445,10 +439,10 @@ Section Switcher_KtK_Call.
         cs1 ↦ᵣ WInt (pc_b - (pc_a ^+ 1)%a) ∗
         pc_b ↦ₐ wpc_b ∗
         codefrag pc_a switcher_instrs_6 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_6 len_switcher_6; subst switcher_instrs_6 len_switcher_6.
     iIntros (Hsub_reg) "(HPC & Hcs0 & Hcs1 & Hpc_b & Hcode & Hpost)".
@@ -511,10 +505,10 @@ Section Switcher_KtK_Call.
         ct1 ↦ᵣ WCap RO Global btbl_tgt etbl_tgt atbl_tgt ∗
         ct2 ↦ᵣ WInt nargs ∗
         codefrag pc_a switcher_instrs_7 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_7 len_switcher_7 wct1; subst switcher_instrs_7 len_switcher_7 wct1.
     iIntros (Hsub_reg Hot_bounds atbl_tgt_inbounds Hnargs)
@@ -577,10 +571,10 @@ Section Switcher_KtK_Call.
         cgp ↦ᵣ wcgp_tgt ∗
         cra ↦ᵣ WCap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a ∗
         codefrag pc_a switcher_instrs_8 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
     ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_8 len_switcher_8 wct1; subst switcher_instrs_8 len_switcher_8 wct1.
     iIntros (Hsub_reg atbl_tgt_inbounds Hbtbl_tgt1)
@@ -676,11 +670,11 @@ Section Switcher_KtK_Call.
              (a_stk ^+ 2)%a ↦ₐ wcra ∗
              (a_stk ^+ 3)%a ↦ₐ wcgp ∗
              codefrag pc_a switcher_instrs_16 -∗
-             WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+             WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
            )
       )
     ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_16 len_switcher_16; subst switcher_instrs_16 len_switcher_16.
     iIntros (Hsub_reg Hpca_next Hbstk Hbstk')
@@ -770,7 +764,7 @@ Section Switcher_KtK_Call.
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
 
     (* Entry Point Invariant *)
     ∗ inv (export_table_PCCN Nexp_tbl)             ( btbl_tgt ↦ₐ WCap RX Global bpcc_tgt epcc_tgt bpcc_tgt)
@@ -779,7 +773,7 @@ Section Switcher_KtK_Call.
 
 
     (* PRE-CONDITION *)
-    ∗ na_own logrel_nais E
+    ∗ na_own cerise_nais E
     (* Registers *)
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
@@ -804,7 +798,7 @@ Section Switcher_KtK_Call.
     ∗ ▷ ( (∃ arg_rmap' rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
               ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
-              ∗ na_own logrel_nais E
+              ∗ na_own cerise_nais E
               (* Registers *)
               ∗ PC ↦ᵣ WCap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
               ∗ cgp ↦ᵣ WCap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
@@ -830,7 +824,7 @@ Section Switcher_KtK_Call.
             (
               ∃ rmap' stk_mem',
                 ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-                ∗ na_own logrel_nais E
+                ∗ na_own cerise_nais E
                 (* Registers *)
                 ∗ PC ↦ᵣ updatePcPerm wcra_caller
                 ∗ cgp ↦ᵣ wcgp_caller
@@ -849,10 +843,10 @@ Section Switcher_KtK_Call.
                 (* Interpretation of the world and stack, at the moment of the switcher_call *)
                 ∗ cstack_frag cstk
             )
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
     ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros astk4 wct1_caller callee_stk_region frame.
     iIntros (HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hdom Harg_rmap)

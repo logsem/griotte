@@ -9,9 +9,8 @@ Section KVS_spec_read.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -64,9 +63,9 @@ Section KVS_spec_read.
          cgp_b ↦ₐ kvs_service_unsealing_key ∗
          isKVS (cgp_b ^+ 1)%a m s ∗
          fkey ⤇(KVS) w
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
     iIntros (HsubBounds Hbounds_user_key Hnkey_is_uint16 Hcgp_contiguous)
@@ -157,8 +156,8 @@ Section KVS_spec_read.
     (0 <= user_key < top)%Z ->
     is_uint16 nkey ->
 
-    ( na_inv logrel_nais Nkvs kvs_inv ∗
-      na_own logrel_nais E ∗
+    ( na_inv cerise_nais Nkvs kvs_inv ∗
+      na_own cerise_nais E ∗
 
       (* initial register file *)
       PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
@@ -172,7 +171,7 @@ Section KVS_spec_read.
 
       fkey ⤇(KVS) w ∗
 
-      ▷ (na_own logrel_nais E ∗
+      ▷ (na_own cerise_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -182,9 +181,9 @@ Section KVS_spec_read.
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
          fkey ⤇(KVS) w
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
     iIntros (Hnkvs_E Hbounds_user_key His_uint16_nkey)
