@@ -1,12 +1,7 @@
-From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
-From iris.program_logic Require Import weakestpre adequacy lifting.
-From cap_machine Require Import ftlr_base interp_weakening.
-From cap_machine Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
-From cap_machine Require Import multiple_updates region_invariants_revocation.
+From cap_machine Require Import memory_region rules proofmode.
 From cap_machine Require Export switcher switcher_preamble.
-From stdpp Require Import base.
-From cap_machine Require Import logrel_extra switcher_macros_spec.
+From cap_machine Require Import switcher_macros_spec.
 From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
 
 
@@ -16,8 +11,7 @@ Section Switcher_KtK_Return.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ}
-    {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -56,11 +50,11 @@ Section Switcher_KtK_Return.
     dom rmap = all_registers_s ∖ ({[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
 
     (* Switcher Invariant *)
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
 
     (* PRE-CONDITION *)
     (* NA token*)
-    ∗ na_own logrel_nais E
+    ∗ na_own cerise_nais E
     (* Registers *)
     ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
     (* Callee-saved registers *)
@@ -86,7 +80,7 @@ Section Switcher_KtK_Return.
             (
               ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
               (* NA token*)
-              ∗ na_own logrel_nais E
+              ∗ na_own cerise_nais E
               (* Registers *)
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
               ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller ∗ cs0 ↦ᵣ wcs0_caller ∗ cs1 ↦ᵣ wcs1_caller
@@ -104,11 +98,11 @@ Section Switcher_KtK_Return.
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ cstack_frag cstk
 
-                -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+                -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
             )
         )
     ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}.
+      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros astk4 frame.
     iIntros (HE Hdom)
@@ -200,11 +194,6 @@ Section Switcher_KtK_Return.
     iInstr "Hcode" with "Hlc".
     { transitivity (Some (a_stk ^+ 3)%a); solve_addr+Ha_stk4. }
 
-    (* set (stk_len := finz.dist (a_stk ^+ 4)%a csp_e). *)
-    (* set (stk_ws := repeat (WInt 0) stk_len). *)
-    (* simpl. *)
-
-
     (* --- Load cgp csp --- *)
     iInstr "Hcode".
     { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
@@ -213,8 +202,6 @@ Section Switcher_KtK_Return.
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
     { by transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
-    (* replace ((csp_b ^+ -4) ^+ 3)%a with (a_stk ^+ 3)%a by (subst a_stk; solve_addr+Ha_stk4). *)
-    (* replace ((csp_b ^+ -4) ^+ 2)%a with (a_stk ^+ 2)%a by (subst a_stk; solve_addr+Ha_stk4). *)
 
     (* Load cra csp *)
     iInstr "Hcode".

@@ -81,9 +81,8 @@ Section KVS_preamble.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -1085,7 +1084,7 @@ Section KVS_preamble.
     iIntros (W W' Hrelated_W_W').
     iModIntro.
     iIntros "Hot_kvs".
-    rewrite /kvs_otype_propC /safeC /= /kvs_otype_inv.
+    rewrite /kvs_otype_propC /= /kvs_otype_inv.
     iDestruct "Hot_kvs" as "(%ku & %a & %s & % & % & % & ? & Hs)".
     iExists ku, a, s; iFrame "∗%".
     iApply (big_sepS_impl with "Hs").
