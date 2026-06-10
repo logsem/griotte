@@ -483,7 +483,7 @@ Section CMDC.
       eapply revoke_related_sts_priv_world.
     }
     iEval (cbn) in "Hcgp_b".
-    iDestruct (Hacc with "Hcgp_b") as "[ (>Hcgp_b & Hcgp_b_interp) Hcgp_b]".
+    iDestruct (PermRes_acc with "Hcgp_b") as "[ (>Hcgp_b & Hcgp_b_interp) Hcgp_b_close]".
     (* Store cgp 42%Z *)
     iInstr "Hcode".
     { solve_addr. }
