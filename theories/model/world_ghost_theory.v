@@ -52,6 +52,13 @@ Section world_ghost_theory.
   Definition world_interp_open := proj1_sig world_interp_open_aux.
   Definition world_interp_open_eq : @world_interp_open = @world_interp_open_def := proj2_sig world_interp_open_aux.
 
+  (** Definition of [world_interp_sopen].
+      The sealing resources of the otype [o] are not owned by the world interpretation. *)
+  Definition world_interp_sopen_def (W : WORLD) (C : CmptName) (o : OType) : iProp Σ :=
+    region W C ∗ sts_full_world W C ∗ sealing_map_open W C o.
+  Definition world_interp_sopen_aux : { x | x = @world_interp_sopen_def }. by eexists. Qed.
+  Definition world_interp_sopen := proj1_sig world_interp_sopen_aux.
+  Definition world_interp_sopen_eq : @world_interp_sopen = @world_interp_sopen_def := proj2_sig world_interp_sopen_aux.
 
   (** Definition of safety resources *)
   Definition mono_temporary (C : CmptName) (p : Perm) (Φ : Vc) (w : Word) : iProp Σ :=
@@ -882,6 +889,8 @@ Section world_ghost_theory.
   Qed.
 
   (** ** Interface with sealing map *)
+
+  (* Access the sealing resources, for free if it is persistent *)
   Lemma world_interp_seal_pred_singleton (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : Word) :
     seal_pred o Po -∗
     sts_seals_std C o {[ w ]} -∗
@@ -894,6 +903,7 @@ Section world_ghost_theory.
     by rewrite normalise_sealed_words_singleton big_sepS_singleton.
   Qed.
 
+  (* Access the sealing resources when the world is open (memory), for free if it is persistent *)
   Lemma world_interp_open_seal_pred_singleton
     (W : WORLD) (C : CmptName) (s : list Addr) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : Word) :
     seal_pred o Po -∗
@@ -907,6 +917,7 @@ Section world_ghost_theory.
     by rewrite normalise_sealed_words_singleton big_sepS_singleton.
   Qed.
 
+  (* Update a sealing predicate in the world *)
   Lemma world_interp_sealing_update (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
     (o : OType) (ws ws' : gset Word)  :
     let W' := (<o[ o := ws' ∪ ws ]o> W) in
@@ -926,6 +937,7 @@ Section world_ghost_theory.
     apply related_sts_pub_world_update_ot.
   Qed.
 
+  (* Update a sealing predicate in the world *)
   Lemma world_interp_sealing_update' (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
     (o : OType) (ws : gset Word)  :
     let W' := (<o[ o := ws ]o> W) in
@@ -945,6 +957,7 @@ Section world_ghost_theory.
     apply related_sts_pub_world_update_ot.
   Qed.
 
+  (* Update a sealing predicate in an open world (memory) *)
   Lemma world_interp_open_sealing_update'
     (W : WORLD) (C : CmptName) (s : list Addr) (Po : WORLD * CmptName * Word → iProp Σ)
     (o : OType) (ws : gset Word)  :
@@ -965,6 +978,7 @@ Section world_ghost_theory.
     apply related_sts_pub_world_update_ot.
   Qed.
 
+  (* Allocate a new sealing predicate in the world *)
   Lemma world_interp_salloc
     (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ) (o : OType) (ws : gset Word)  :
     let W' := (<o[ o := ws ]o> W) in
@@ -981,6 +995,36 @@ Section world_ghost_theory.
     iMod (sealing_map_alloc with "Hpred Hmono Hs [$Hsts $Hseals]") as "($&$&$)"; auto.
     iApply (region_monotone with "Hr"); auto.
     apply related_sts_pub_world_update_ot.
+  Qed.
+
+  (* Open the world on a sealing predicate to obtain the sealing resources. *)
+  Lemma sopen_world_interp_singleton (W : WORLD) (C : CmptName) (o : OType) (Po : Vc) (w : Word) :
+    seal_pred o Po -∗
+    sts_seals_std C o {[w]} -∗
+    world_interp W C
+    -∗
+    world_interp_sopen W C o ∗
+    ▷ (sealing_map_resource_open W C o Po {[w]} ∗ (Po (W, C, force_global w))).
+  Proof.
+    rewrite world_interp_eq /world_interp_def.
+    rewrite world_interp_sopen_eq /world_interp_sopen_def.
+    iIntros "Hspred Hseal [$ [Hsts Hseals] ]".
+    iDestruct (open_sealing_map_singleton with "Hspred Hseal Hseals Hsts") as "($ & $ & Hws)"; auto.
+  Qed.
+
+  (* Close the world on a sealing predicate and relinquish the sealing resources. *)
+  Lemma sclose_world_interp_singleton (W : WORLD) (C : CmptName) (o : OType) (Po : Vc) (w : Word) :
+    seal_pred o Po -∗
+    sealing_map_resource_open W C o Po {[w]} -∗
+    Po (W, C, force_global w) -∗
+    world_interp_sopen W C o
+    -∗
+    world_interp W C.
+  Proof.
+    rewrite world_interp_eq /world_interp_def.
+    rewrite world_interp_sopen_eq /world_interp_sopen_def.
+    iIntros "Hspred Hseal HPo [$ [$ Hseals] ]".
+    iDestruct (close_sealing_map_singleton with "Hspred Hseal HPo Hseals") as "$".
   Qed.
 
   (** ** Initialisation of the world interpretation and resources. *)
