@@ -466,6 +466,12 @@ Section world_ghost_theory.
   Definition extract_temporaries_condition (W : WORLD) (la : list Addr) :=
       NoDup la ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ la).
 
+  Lemma extract_temporaries_condition_lookup (W : WORLD) (l : list Addr) (a : Addr) :
+    extract_temporaries_condition W l ->
+    a ∈ l ->
+    std W !! a = Some Temporary.
+  Proof. intros [_ H] Ha; by apply H in Ha. Qed.
+
   Lemma extract_temporaries_condition_revoke W s :
     extract_temporaries_condition W s -> Forall (λ a, std (revoke W) !! a = Some Revoked) s.
   Proof.
