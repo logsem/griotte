@@ -4,7 +4,7 @@ From cap_machine Require Import deep_immutability deep_immutability_spec.
 From cap_machine Require Import switcher assert_spec logrel.
 From cap_machine Require Import mkregion_helpers.
 From cap_machine Require Import
-  region_invariants_revocation region_invariants_allocation region_invariants_allocation_compartments.
+  region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From cap_machine Require Import disjoint_regions_tactics.
