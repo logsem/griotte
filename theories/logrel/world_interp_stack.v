@@ -32,8 +32,9 @@ Section WorldInterpStack.
     -∗
     open_region_many W C (la++la') ∗
     sts_full_world W C ∗
-    (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ ▷ StackOpenWorldResources interp W C la lv)
-  .
+    (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
+           ▷ StackOpenWorldResources interp W C la lv
+    ).
   Proof.
     induction la; intros Hnodup Hin Hdis ;
       iIntros "(#Hinterp & Hr & Hsts)"; cbn in * |- *.
@@ -131,12 +132,13 @@ Section WorldInterpStack.
     Forall (fun a' : Addr => (b <= a' < e)%a ) la ->
     la ## la' ->
 
-    interp W C (WCap RWL g b e a)
-    ∗ world_interp_open W C la'
-      -∗
+    interp W C (WCap RWL g b e a) ∗
+    world_interp_open W C la'
+    -∗
 
     world_interp_open W C (la++la') ∗
-    (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ ▷ StackOpenWorldResources interp W C la lv)
+    (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
+           ▷ StackOpenWorldResources interp W C la lv)
   .
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
@@ -165,68 +167,79 @@ Section WorldInterpStack.
   Qed.
 
 
-  (* NOTE the following defines predicates and lemmas that are used for
-     the purpose of simplifying the proofs, but should only be used locally.
-     We defined better resources below
-   *)
-  Local Definition revoke_resources W C a :=
-    (∃ v (φ : V) p,
-        φ W C v
-        ∗ (monotonicity_guarantees_region C (safeC φ) p v Temporary)
-        ∗ mono_pub C (safeC φ)
-        ∗ a ↦ₐ v
-        ∗ zcond φ C
-        ∗ rcond φ C p interp
-        ∗ wcond φ C interp
-        ∗ rel C a p (safeC φ)
-        ∗ ⌜ PermFlowsTo RWL p ⌝
-        ∗ ⌜ persistent_cond φ ⌝)%I.
 
-  Local Definition closing_revoked_resources W C a :=
-    (∃ (φ : V) p (Hpers : persistent_cond φ) ,
-        φ W C (WInt 0)
-        ∗ (monotonicity_guarantees_region C (safeC φ) p (WInt 0) Temporary)
-        ∗ mono_pub C (safeC φ)
-        ∗ zcond φ C
-        ∗ rcond φ C p interp
-        ∗ wcond φ C interp
-        ∗ rel C a p (safeC φ)
-        ∗ ⌜ PermFlowsTo RWL p ⌝)%I.
-  Local  Instance closing_revoked_persistent W C a : Persistent (closing_revoked_resources W C a).
+  Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
+    StackWorldResource interp W C a v -∗
+    StackWorldResource interp W C a (WInt 0).
   Proof.
-    rewrite /closing_revoked_resources.
-    apply bi.exist_persistent; intros φ.
-    apply bi.exist_persistent; intros p.
-    apply bi.exist_persistent; intros Hpers.
-    repeat (apply bi.sep_persistent;try tc_solve).
-    rewrite /persistent_cond in Hpers.
-    specialize (Hpers (W,C,WInt 0)).
-    tc_solve.
-  Defined.
-
-  Local Lemma close_revoked_resources W C a :
-    revoke_resources W C a -∗ (∃ v, closing_revoked_resources W C a ∗ a ↦ₐ v).
-  Proof.
-    iIntros "H".
-    iDestruct "H" as (w φ p) "(?&?&?&?&?&?&#Hwcond&?&?&%)".
-    iFrame "∗#".
-    iExists H.
-    iSplit.
-    { iApply "Hwcond"; iEval (rewrite fixpoint_interp1_eq); done. }
-    rewrite /monotonicity_guarantees_region.
-    destruct (isWL p); [|destruct (isDL p)].
-    all: iModIntro; iIntros (W0 W1 ?) "?".
-    all: iApply "Hwcond".
-    all: iEval (rewrite fixpoint_interp1_eq); done.
+    iIntros "(%Pa & %pa & HPa & Hmono & $ & ($&#Hzcond&#Hrcond&#Hwcond&%) & $)"; iFrame "#%".
+    specialize (H (W,C,v)).
+    iSplitR "Hmono".
+    + iApply "Hwcond"; iApply interp_int.
+    + rewrite /mono_temporary.
+      destruct ( decide (isWL pa = true ∨ isDL pa = true) )
+      ; iIntros (???) "!>H /="; iApply "Hzcond"; done.
   Qed.
 
-  Local Lemma closing_revoked_from_rel_stack W C a :
-    rel C a RWL interpC -∗ closing_revoked_resources W C a.
+  Lemma StackWorldResource_interp W C a w :
+    StackWorldResource interp W C a w -∗ interp W C w.
+  Proof.
+    iIntros "(%Pa & %pa & HPa & ? & ? & (?&?&Hrcond&?&%) & %)".
+    iDestruct ("Hrcond" with "HPa") as "HPa'".
+    rewrite /load_word.
+    destruct ( isDRO pa ) eqn:Hpa.
+    { eapply isDRO_flowsto in Hpa; eauto; done. }
+    destruct ( isDL pa ) eqn:Hpa'.
+    { eapply isDL_flowsto in Hpa'; eauto; done. }
+    done.
+  Qed.
+
+  Lemma StackWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
+    StackWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
+  Proof. iIntros "H"; iApply (big_sepL2_length with "H"). Qed.
+
+  Lemma StackOpenWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
+    StackOpenWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
+  Proof. iIntros "[H _]"; iApply (big_sepL2_length with "H"). Qed.
+
+  Lemma StackWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
+    length lv' = length la ->
+    Forall (λ y : Word, y = WInt 0) lv' ->
+    StackWorldResources interp W C la lv -∗
+    StackWorldResources interp W C la lv'.
+  Proof.
+    iIntros (Hzeros Hlen_lv') "H".
+    iDestruct ( StackWorldResources_length with "H" ) as "%Hlen_lv".
+    iStopProof.
+    move: lv lv' Hzeros Hlen_lv Hlen_lv'.
+    induction la; iIntros (lv lv' Hlen_lv' Hlen_lv Hzeros ) "H"
+    ; destruct lv as [|v lv]; auto
+    ; destruct lv' as [|v' lv']; try done.
+    simplify_eq.
+    apply Forall_cons in Hzeros as [-> Hzeros].
+    iDestruct "H" as "[Ha H]".
+    iSplitL "Ha"; first by iApply StackWorldResource_zero.
+    iApply (IHla lv lv'); eauto.
+  Qed.
+
+  Lemma StackOpenWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
+    length lv' = length la ->
+    Forall (λ y : Word, y = WInt 0) lv' ->
+    StackOpenWorldResources interp W C la lv -∗
+    StackOpenWorldResources interp W C la lv'.
+  Proof.
+    iIntros (Hzeros Hlen_lv') "[H $]".
+    iDestruct (StackWorldResources_zeros with "H") as "$"; auto.
+  Qed.
+
+  Lemma StackWorldResource_from_rel_stack W C a :
+    rel C a RWL interpC -∗ StackWorldResource interp W C a (WInt 0).
   Proof.
     iIntros "Hrel".
-    iExists interp, RWL, persistent_cond_interp; cbn. iFrame.
+    iExists interp, RWL; cbn. iFrame.
     iSplit; first (iApply interp_int).
     iSplit; first (iApply future_pub_mono_interp_z).
+    iSplit; last done.
     iSplit.
     { iIntros (v) "!>".
       iIntros (W0 W1 Hrelated) "Hinterp".
@@ -235,18 +248,62 @@ Section WorldInterpStack.
     }
     iSplit; first (iApply zcond_interp).
     iSplit; first (iApply rcond_interp).
-    iApply wcond_interp.
+    iSplit; first (iApply wcond_interp).
+    iPureIntro. apply persistent_cond_interp.
   Qed.
 
-  Local Lemma mono_priv_closing_revoked_resources W W' c a :
-    related_sts_priv_world W W' ->
-    closing_revoked_resources W c a -∗
-    closing_revoked_resources W' c a.
+  Lemma StackWorldResources_from_rel_stack W C la :
+    ([∗ list] a ∈ la, rel C a RWL interpC) -∗
+    StackWorldResources interp W C la (replicate (length la) (WInt 0)).
   Proof.
-    iIntros (Hrelated) "(%&%&%&?&?&#Hmono&#Hzcond&#Hrcond&#Hwcond&?)".
-    iExists _,_,Hpers; iFrame "∗#".
+    induction la; [iIntros "H" | iIntros "[Ha H]"]; first done; cbn.
+    iDestruct (IHla with "H") as "$".
+    iDestruct ( StackWorldResource_from_rel_stack with "Ha" ) as "$".
+  Qed.
+
+
+  Definition StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) : iProp Σ :=
+    StackWorldResources interp W C la (replicate (length la) (WInt 0)).
+
+
+  Global Instance StackRevokedResources_Persistent W C la : Persistent (StackRevokedResources W C la).
+  Proof. apply _. Qed.
+
+  Lemma StackRevokedResources_app
+    (W : WORLD) ( C : CmptName ) ( la la' : list Addr ) :
+    StackRevokedResources W C (la++la') ⊣⊢
+    (StackRevokedResources W C la ∗
+     StackRevokedResources W C la')%I.
+  Proof. rewrite /StackRevokedResources /StackWorldResources.
+         rewrite length_app replicate_add.
+         iSplit; [iIntros "H" | iIntros "[H1 H2]"].
+         - iDestruct (big_sepL2_app' with "H") as "[$ $]".
+           by rewrite length_replicate.
+         - iApply big_sepL2_app'; last iFrame.
+           by rewrite length_replicate.
+  Qed.
+
+  Lemma StackRevokedResources_mono_priv (W W' : WORLD) (C : CmptName) (la : list Addr) :
+    related_sts_priv_world W W' ->
+    StackRevokedResources W C la -∗
+    StackRevokedResources W' C la.
+  Proof.
+    iIntros (Hrelated) "H".
+    rewrite /StackRevokedResources /StackWorldResources.
+    iApply (big_sepL2_impl with "H").
+    iModIntro. iIntros (?????) "H".
+    apply lookup_replicate in H0 as [-> ?].
+    iDestruct "H" as "[%P [%p (HP&#Hmono&#Hrel&(#Hmono'&#Hzcond&#Hwcond&#Hrcond&%Hpers)&%Hp) ] ]"
+    ; pose proof (Hpers (W,C, WInt 0))
+    ; iDestruct "HP" as "#HP".
+    iFrame "∗#%".
     iApply "Hzcond"; done.
   Qed.
+
+  (* NOTE
+     The following defines predicates and lemmas that are prove with respect to the model.
+     They are not meant to be understood or used by a Griotte user.
+   *)
 
   Local Lemma update_region_revoked_temp_pwl_multiple' E W C la lv :
      NoDup la →
@@ -255,7 +312,7 @@ Section WorldInterpStack.
 
      sts_full_world W C -∗
      region W C -∗
-     ([∗ list] a ∈ la, closing_revoked_resources W C a) -∗
+     StackRevokedResources W C la -∗
      ([∗ list] a;v ∈ la;lv, a ↦ₐ v)
 
      ={E}=∗
@@ -276,8 +333,10 @@ Section WorldInterpStack.
        iDestruct "Hres" as "[Hclose Hres]".
        apply Forall_cons in Hrev as [Hrev_a Hrevoked].
        pose proof (related_sts_pub_update_multiple_temp W la Hrevoked) as Hrelated.
-       iDestruct "Hclose" as (???) "(Hφ & #Hmono & HmonoR & Hzcond & Hrcond & Hwcond & Hrel & %Hp )".
-       rewrite /monotonicity_guarantees_region.
+       iDestruct "Hclose" as "[%P [%p (HP&#Hmono&#Hrel&(#Hmono'&#Hzcond&#Hwcond&#Hrcond&%Hpers)&%Hp) ] ]"
+       ; pose proof (Hpers (W,C, WInt 0))
+       ; iDestruct "HP" as "#HP".
+       rewrite mono_temporary_eq.
        opose proof (isWL_flowsto _ _ Hp _) as Hp'; first done.
        rewrite Hp'.
        iDestruct ("Hmono" with "[] [$]") as "Hφ"; eauto.
@@ -345,11 +404,11 @@ Section WorldInterpStack.
     ==∗
     (sts_full_world (revoke_list l W) C
      ∗ region W C
-     ∗ ([∗ list] a' ∈ l', ▷ revoke_resources W C a')
-     ∗ close_list_resources C W l_unk true
+     ∗ ([∗ list] a' ∈ l', ▷ (∃ v , StackWorldResource interp W C a' v ∗ a' ↦ₐ v))
+     ∗ ▷ RevokedResources W C l_unk
     ).
   Proof.
-   rewrite region_eq /region_def /= /close_list_resources /close_addr_resources.
+   rewrite region_eq /region_def /= /RevokedResources.
     iInduction (l) as [|x l] "IH" forall (l' l_unk)
     ; iIntros (Hdup' Hdup Hsub Htmp) "(#Hrel' & Hfull & Hr)".
     {
@@ -423,7 +482,7 @@ Section WorldInterpStack.
         iDestruct (internal_eq_iff with "Hφeq") as "Hφeq'".
         iDestruct ("Hφeq'" with "Hφ0") as "HP"; iFrame "HP".
         rewrite rel_eq /rel_def; iFrame "Hγpred Hφ".
-        rewrite /monotonicity_guarantees_region.
+        rewrite mono_temporary_eq.
         iSplit.
         {
           destruct (isWL p0).
@@ -514,7 +573,8 @@ Section WorldInterpStack.
      destruct W as [ Wstd_sta Wloc].
      iDestruct (saved_pred_agree _ _ _ _ _ (Wstd_sta, Wloc, C, v) with "Hφ Hsaved") as "#Hφeq". iFrame.
      iDestruct (internal_eq_iff with "Hφeq") as "Hφeq'".
-     iSplitL "HmonoV";[|by iNext; iApply "Hφeq'"].
+     rewrite mono_temporary_eq.
+     iSplitL "HmonoV";[by iNext; iApply "Hφeq'"|].
      all: destruct (isWL p0).
      +++ iApply future_pub_mono_eq_pred; auto.
      +++ destruct (isDL p0).
@@ -579,8 +639,8 @@ Section WorldInterpStack.
       ⌜ NoDup (l_unk_temp ++ l) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l_unk_temp ++ l))⌝
     ∗ sts_full_world (revoke W) C
     ∗ region W C
-    ∗ ([∗ list] a ∈ l, ▷ revoke_resources W C a)
-    ∗ close_list_resources C W l_unk_temp true.
+    ∗ ([∗ list] a' ∈ l, ▷ (∃ v , StackWorldResource interp W C a' v ∗ a' ↦ₐ v))
+    ∗ ▷ RevokedResources W C l_unk_temp.
   Proof.
     iIntros (Hdup) "(Hl & Hfull & Hr)".
     rewrite revoke_list_dom.
@@ -631,9 +691,9 @@ Section WorldInterpStack.
       ⌜ NoDup (l_unk_temp ++ la) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l_unk_temp ++ la))⌝
     ∗ sts_full_world (revoke W) C
     ∗ region (revoke W) C
-    ∗ ([∗ list] a ∈ la, ▷ revoke_resources W C a)
+    ∗ ([∗ list] a ∈ la, ▷ (∃ v , StackWorldResource interp W C a v ∗ a ↦ₐ v))
     ∗ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) la⌝
-    ∗ close_list_resources C W l_unk_temp true
+    ∗ ▷ RevokedResources W C l_unk_temp
     ∗ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
   Proof.
     iIntros (la) "(#Hinterp & HW & Hr)".
@@ -696,10 +756,10 @@ Section WorldInterpStack.
       ⌜ NoDup (l_unk_temp ++ la) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l_unk_temp ++ la))⌝
       ∗ sts_full_world (revoke W) C
       ∗ region (revoke W) C
-      ∗ ▷ ([∗ list] a ∈ la, closing_revoked_resources W C a)
+      ∗ ▷ StackRevokedResources W C la
       ∗ ▷ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) la⌝
       ∗ ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]])
-      ∗ close_list_resources C W l_unk_temp true
+      ∗ ▷ RevokedResources W C l_unk_temp
       ∗ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
   Proof.
     iIntros (la) "(#Hinterp & Hsts & Hr)".
@@ -707,140 +767,22 @@ Section WorldInterpStack.
     iModIntro.
     rewrite -bi.later_sep.
     iNext.
-    iAssert (
-        ([∗ list] a ∈ la,
-           closing_revoked_resources W C a
-           ∗ ∃ v, a ↦ₐ v
-        )
-      )%I with "[Hstk]" as "Hstk".
-    {
-      iApply (big_sepL_impl with "Hstk").
-      iModIntro; iIntros (k x Hx) "Hrev".
-      iDestruct (close_revoked_resources with "Hrev") as (v) "[$ $]".
-    }
-    { rewrite !big_sepL_sep.
-      iDestruct "Hstk" as "(Hclose & Hv)".
-      iFrame.
-      by iApply region_addrs_exists.
-    }
-  Qed.
-
-  Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
-    StackWorldResource interp W C a v -∗
-    StackWorldResource interp W C a (WInt 0).
-  Proof.
-    iIntros "(%Pa & %pa & HPa & Hmono & $ & ($&#Hzcond&#Hrcond&#Hwcond&%) & $)"; iFrame "#%".
-    specialize (H (W,C,v)).
-    iSplitR "Hmono".
-    + iApply "Hwcond"; iApply interp_int.
-    + rewrite /mono_temporary.
-      destruct ( decide (isWL pa = true ∨ isDL pa = true) )
-      ; iIntros (???) "!>H /="; iApply "Hzcond"; done.
-  Qed.
-
-  Lemma StackWorldResource_interp W C a w :
-    StackWorldResource interp W C a w -∗ interp W C w.
-  Proof.
-    iIntros "(%Pa & %pa & HPa & ? & ? & (?&?&Hrcond&?&%) & %)".
-    iDestruct ("Hrcond" with "HPa") as "HPa'".
-    rewrite /load_word.
-    destruct ( isDRO pa ) eqn:Hpa.
-    { eapply isDRO_flowsto in Hpa; eauto; done. }
-    destruct ( isDL pa ) eqn:Hpa'.
-    { eapply isDL_flowsto in Hpa'; eauto; done. }
-    done.
-  Qed.
-
-  Lemma StackWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
-    StackWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
-  Proof. iIntros "H"; iApply (big_sepL2_length with "H"). Qed.
-
-  Lemma StackOpenWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
-    StackOpenWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
-  Proof. iIntros "[H _]"; iApply (big_sepL2_length with "H"). Qed.
-
-  Lemma StackWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
-    length lv' = length la ->
-    Forall (λ y : Word, y = WInt 0) lv' ->
-    StackWorldResources interp W C la lv -∗
-    StackWorldResources interp W C la lv'.
-  Proof.
-    iIntros (Hzeros Hlen_lv') "H".
-    iDestruct ( StackWorldResources_length with "H" ) as "%Hlen_lv".
+    iClear "Hinterp".
+    subst la.
     iStopProof.
-    move: lv lv' Hzeros Hlen_lv Hlen_lv'.
-    induction la; iIntros (lv lv' Hlen_lv' Hlen_lv Hzeros ) "H"
-    ; destruct lv as [|v lv]; auto
-    ; destruct lv' as [|v' lv']; try done.
-    simplify_eq.
-    apply Forall_cons in Hzeros as [-> Hzeros].
-    iDestruct "H" as "[Ha H]".
-    iSplitL "Ha"; first by iApply StackWorldResource_zero.
-    iApply (IHla lv lv'); eauto.
-  Qed.
-
-  Lemma StackOpenWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list Word) :
-    length lv' = length la ->
-    Forall (λ y : Word, y = WInt 0) lv' ->
-    StackOpenWorldResources interp W C la lv -∗
-    StackOpenWorldResources interp W C la lv'.
-  Proof.
-    iIntros (Hzeros Hlen_lv') "[H $]".
-    iDestruct (StackWorldResources_zeros with "H") as "$"; auto.
-  Qed.
-
-
-  Definition StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) : iProp Σ :=
-    StackWorldResources interp W C la (replicate (length la) (WInt 0)).
-
-
-  Global Instance StackRevokedResources_Persistent W C la : Persistent (StackRevokedResources W C la).
-  Proof. apply _. Qed.
-
-  Local Lemma StackWorldResource_eq (W : WORLD) (C : CmptName) (a : Addr) :
-    StackWorldResource interp W C a (WInt 0) ⊣⊢ closing_revoked_resources W C a.
-  Proof.
-    rewrite /StackWorldResource /closing_revoked_resources.
-    rewrite /monotonicity_guarantees_region /valid_stk_interp.
-    iSplit.
-    - iIntros "(%P & %p & HP & Hmono & Hrel & (Hmono' & Hzcond & Hrcond & Hwcond & %Hpers) & Hp)" ; iFrame "∗%".
-      rewrite mono_temporary_eq.
-      iExists Hpers.
-      destruct (isWL p); [| destruct (isDL p)]; iFrame.
-    - iIntros "(%P & %p & %Hpers & Hmono & Hmono' & Hzcond & Hrcond & Hwcond & Hrel & ? & ?)" ; iFrame "∗%".
-      rewrite mono_temporary_eq.
-      destruct (isWL p); [| destruct (isDL p)]; iFrame.
-  Qed.
-
-  Local Lemma StackRevokedResources_eq (W : WORLD) (C : CmptName) (la : list Addr) :
-    StackRevokedResources W C la ⊣⊢
-    ([∗ list] a ∈ la, closing_revoked_resources W C a).
-  Proof.
-    induction la; cbn; first done.
-    rewrite -IHla StackWorldResource_eq; done.
+    rewrite /region_pointsto.
+    generalize (finz.seq_between b e) as la.
+    induction la; iIntros "H"; cbn.
+    { iFrame; iExists []; done. }
+    iDestruct "H" as "[ (%v & Hres & Hv) IH]".
+    iDestruct (IHla with "IH") as "(Hres' & [%stk Hstk])".
+    iSplitR "Hv Hstk".
+    - iDestruct (StackWorldResource_zero with "Hres") as "Hres"; iFrame.
+    - iExists (v::stk); iFrame.
   Qed.
 
   Definition revoked_addresses (W : WORLD) (la : list Addr) :=
     Forall (λ a, std W !! a = Some Revoked) la.
-
-  Lemma StackRevokedResources_mono_priv (W W' : WORLD) (C : CmptName) (la : list Addr) :
-    related_sts_priv_world W W' ->
-    StackRevokedResources W C la -∗
-    StackRevokedResources W' C la.
-  Proof.
-    iIntros (Hrelated) "H".
-    rewrite !StackRevokedResources_eq.
-    iApply (big_sepL_impl with "H").
-    iModIntro. iIntros (???) "H".
-    iApply mono_priv_closing_revoked_resources; eauto.
-  Qed.
-
-  Lemma StackRevokedResources_app
-    (W : WORLD) ( C : CmptName ) ( la la' : list Addr ) :
-    StackRevokedResources W C (la++la') ⊣⊢
-    (StackRevokedResources W C la ∗
-     StackRevokedResources W C la')%I.
-  Proof. rewrite !StackRevokedResources_eq; apply big_sepL_app. Qed.
 
   Lemma revoked_addresses_app (W : WORLD) (la la' : list Addr) :
     revoked_addresses W (la++la') <-> revoked_addresses W la ∧ revoked_addresses W la'.
@@ -868,19 +810,11 @@ Section WorldInterpStack.
       ∗ ▷ RevokedResources W C l_unk_temp
       ∗ ⌜revoked_addresses (revoke W) l_unk_temp⌝.
   Proof.
-    intros la.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros "(Hinterp & [Hr Hsts])".
-    iMod (monotone_revoke_stack with "[$Hinterp $Hr $ Hsts]")
-        as (l) "($ & $ & $ & Hres' & $ & $ & Hres & $)".
-    rewrite StackRevokedResources_eq; iFrame.
-    iModIntro; iNext ; iFrame.
-    rewrite /RevokedResources.
-    iApply (big_sepL_impl with "Hres"); iFrame.
-    iModIntro; iIntros (k ka Hka) "(%pa & %Pa & %Hpers_Pa & Htmp_res & Hrel)".
-    iDestruct "Htmp_res" as "(%va & Hpa_O & Ha & Hmono & HPa)".
-    iFrame "∗%".
-    by rewrite mono_temporary_eq.
+     rewrite world_interp_eq /world_interp_def.
+     iIntros "(Hinterp & [Hr Hsts])".
+     iMod (monotone_revoke_stack with "[$Hinterp $Hr $ Hsts]")
+        as (l) "($ & $ & $ & $ & $ & $ & $ & $)".
+     done.
   Qed.
 
   Lemma world_interp_reinstate_stack E W C la lv :
@@ -898,48 +832,8 @@ Section WorldInterpStack.
   Proof.
     rewrite world_interp_eq /world_interp_def.
     iIntros (???) "[Hr Hsts] Hres Hl".
-    rewrite StackRevokedResources_eq.
     iMod (update_region_revoked_temp_pwl_multiple'
            with "Hsts Hr [Hres] [Hl]") as "[$ $]"; eauto.
-  Qed.
-
-  Lemma StackWorldResources_StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) (lv : list Word) :
-    StackWorldResources interp W C la lv -∗
-    StackRevokedResources W C la.
-  Proof.
-    iIntros "H".
-    iApply (StackWorldResources_zeros with "H").
-    + by rewrite length_replicate.
-    + by apply Forall_replicate.
-  Qed.
-
-  Lemma StackWorldResource_from_rel_stack W C a :
-    rel C a RWL interpC -∗ StackWorldResource interp W C a (WInt 0).
-  Proof.
-    iIntros "Hrel".
-    iExists interp, RWL; cbn. iFrame.
-    iSplit; first (iApply interp_int).
-    iSplit; first (iApply future_pub_mono_interp_z).
-    iSplit; last done.
-    iSplit.
-    { iIntros (v) "!>".
-      iIntros (W0 W1 Hrelated) "Hinterp".
-      rewrite /=.
-      iApply monotone.interp_monotone; eauto.
-    }
-    iSplit; first (iApply zcond_interp).
-    iSplit; first (iApply rcond_interp).
-    iSplit; first (iApply wcond_interp).
-    iPureIntro. apply persistent_cond_interp.
-  Qed.
-
-  Lemma StackWorldResources_from_rel_stack W C la :
-    ([∗ list] a ∈ la, rel C a RWL interpC) -∗
-    StackWorldResources interp W C la (replicate (length la) (WInt 0)).
-  Proof.
-    induction la; [iIntros "H" | iIntros "[Ha H]"]; first done; cbn.
-    iDestruct (IHla with "H") as "$".
-    iDestruct ( StackWorldResource_from_rel_stack with "Ha" ) as "$".
   Qed.
 
 End WorldInterpStack.
