@@ -33,7 +33,7 @@ Section world_ghost_theory.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  (** * Definitions of world interpretation *)
+  (** ** Definitions of world interpretation *)
 
   (** Definition of [world_interp].
       All safety resources of the addresses in the world are owned by the world interpretation. *)
@@ -64,7 +64,7 @@ Section world_ghost_theory.
      then mono_temporary C p Φ w
      else mono_permanent C Φ w).
 
-  (** * Definitions of safety resources *)
+  (** ** Definitions of safety resources *)
 
   (** Temporary Safety Resources *)
   Definition TmpRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) Φ (w : Word) : iProp Σ :=
@@ -87,7 +87,7 @@ Section world_ghost_theory.
   Definition reinstate (W : WORLD) (s : list Addr) := close_list s W.
 
 
-  (** * Lemmas about monotonicity *)
+  (** ** Lemmas about monotonicity *)
   Global Instance mono_temporary_Persistent C p Φ w:
     Persistent (mono_temporary C p Φ w).
   Proof. rewrite /mono_temporary; destruct ( decide (isWL p = true ∨ isDL p = true) ); apply _. Qed.
@@ -144,7 +144,7 @@ Section world_ghost_theory.
     all: destruct (isDL p); auto.
   Qed.
 
-  (** * Lemmas about the safety resources *)
+  (** ** Lemmas about the safety resources *)
 
   (* For internal use only, links [RevokedResources] from the clean interface with
      [close_list_resources] from the internal model *)
@@ -247,7 +247,7 @@ Section world_ghost_theory.
      because we usually revoke the world instead. *)
 
 
-  (** * World Ghost Theory *)
+  (** ** World Ghost Theory *)
 
   (* The combination of the safety invariant [rel C a p ϕ] and
      the (closed) world interpretation [world_interp]
@@ -289,7 +289,7 @@ Section world_ghost_theory.
   Qed.
 
 
-  (** * World opening/closing *)
+  (** ** World opening/closing *)
 
   (* A closed world is like a world open on no addresses. *)
   Lemma open_world_interp_empty (W : WORLD) (C : CmptName) :
@@ -459,7 +459,7 @@ Section world_ghost_theory.
     set_solver+.
   Qed.
 
-  (** * Lemma for world Revocation and Restoration. *)
+  (** ** Lemma for world Revocation and Restoration. *)
 
   (* [extract_temporaries_condition] states that [la] is the full set of addresses
      that are Temporary in [W]. *)
@@ -482,7 +482,6 @@ Section world_ghost_theory.
   Qed.
 
   (* Revocation of the world *)
-  (* TODO can I remove the last condition and only use [extract_temporaries_condition_revoke] ?? *)
   Lemma world_interp_revoke W C s :
     extract_temporaries_condition W s ->
     world_interp W C
@@ -502,8 +501,7 @@ Section world_ghost_theory.
   (* Restoration of the world, after revocation.
 
      NOTE [world_interp_restore_world] is not use in practice,
-     because we use a more general version of the lemma.
-   *)
+     because we use a more general version of the lemma. *)
   Lemma world_interp_restore_world (W W' : WORLD) (C : CmptName) (s : list Addr) :
     related_sts_pub_world W (reinstate W' s) →
     world_interp W' C -∗
@@ -532,7 +530,8 @@ Section world_ghost_theory.
     iMod (monotone_close_list_region with "[%] [$Hsts $Hr $H]") as "[$ $]"; eauto.
   Qed.
 
-  (** * Revocation by separation.
+  (** ** Revocation by separation.
+
       The following lemmas are useful lemmas to know that same addresses are in the Revoked state in the world.
       When one owns the points-to predicate of an address [a], that the world is closed,
       but that it exists a safety predicate for [a],
@@ -593,7 +592,7 @@ Section world_ghost_theory.
     iMod (revoked_by_separation_many_with_temp_resources with "[$Hsts $Hr Hl]") as "(H & $ & $ & $)"; auto.
   Qed.
 
-  (** * Extension the world interpretation for safety invariants. *)
+  (** ** Extension the world interpretation for safety invariants. *)
 
   (* Extend the world with a permanent safety invariant. *)
   Lemma world_interp_extend_perm
@@ -729,7 +728,7 @@ Section world_ghost_theory.
 
 
 
-  (** * Interface with custom world. *)
+  (** ** Interface with custom world. *)
 
   (* Allocation of a new custom invariant in the world. *)
   Lemma world_interp_alloc_loc
@@ -809,7 +808,7 @@ Section world_ghost_theory.
 
 
 
-  (** * Initialition of the world interpretation and resources. *)
+  (** ** Initialisation of the world interpretation and resources. *)
 
   (* Initialise the permanent resources *)
   Definition init_PermRes (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (Φ : Vc) (w : Word) :
@@ -847,7 +846,7 @@ Section world_ghost_theory.
 
 End world_ghost_theory.
 
-(** * Initialise the world in the adequacy theorem *)
+(** ** Initialise the world in the adequacy theorem *)
 Section world_interp_Pre.
   Context {Σ:gFunctors}
           {Cname : CmptNameG}

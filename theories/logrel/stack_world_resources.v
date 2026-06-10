@@ -17,8 +17,7 @@ Section Stack_World_Resources.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
 
-  (** * Lemmas about [StackWorldResource], [StackWorldResources] and [StackOpenWorldResources] *)
-
+  (** ** Lemmas about [StackWorldResource], [StackWorldResources] and [StackOpenWorldResources] *)
 
   (* Length *)
   Lemma StackWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
@@ -147,7 +146,7 @@ Section Stack_World_Resources.
   Qed.
 
 
-  (** * Definition [StackRevokedResources] *)
+  (** ** Definition [StackRevokedResources] *)
 
   (** [StackRevokedResources] corresponds to the safety resources of a stack
       that had been revoked and cleared.
