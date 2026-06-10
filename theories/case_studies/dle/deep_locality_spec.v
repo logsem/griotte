@@ -129,7 +129,7 @@ Section DLE.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
-        as (l) "(%Hl_unk & Hworld_interp_C & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+        as (l) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_a]") as "%Hcgp_a_stk".
     set (W1 := revoke W0).
@@ -342,8 +342,8 @@ Section DLE.
     iAssert (interp W3 C (WSealed ot_switcher C_f)) as "#Hinterp_W3_C_f".
     { iApply interp_monotone_sd; eauto. }
     iClear "Hinterp_W0_C_f".
-    iDestruct (StackRevokedResources_mono_priv _ W3 with "Hfrm_close_W0") as "Hfrm_close_W3"; auto.
-    assert ( revoked_addresses W3 (finz.seq_between csp_b csp_e) ) as Hfrm_close_W3.
+    iDestruct (StackRevokedResources_mono_priv _ W3 with "Hstack_revoked_W0") as "Hstack_revoked_W3"; auto.
+    assert ( revoked_addresses W3 (finz.seq_between csp_b csp_e) ) as Hstack_revoked_W3.
     {
       rewrite /revoked_addresses Forall_forall.
       intros x Hx.
@@ -353,7 +353,7 @@ Section DLE.
       { intros Hx'; simplify_eq; set_solver+Hx Hcgp_b_stk. }
       simplify_map_eq.
       apply list_elem_of_lookup_1 in Hx; destruct Hx as [? Hx].
-      rewrite /revoked_addresses Forall_forall in Hfrm_close_W0; apply Hfrm_close_W0.
+      rewrite /revoked_addresses Forall_forall in Hstack_revoked_W0; apply Hstack_revoked_W0.
       eapply list_elem_of_lookup_2; eauto.
     }
 
@@ -361,7 +361,7 @@ Section DLE.
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hfrm_close_W3 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -376,7 +376,7 @@ Section DLE.
     iNext.
     iIntros (W4 rmap stk_mem l')
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
-      & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4 & %Hfrm_close_W4
+      & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W4 & %Hstack_revoked_W4
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
@@ -503,12 +503,12 @@ Section DLE.
     iClear "Hinterp_W3_C_f".
 
     (* Prepare the closing resources for the switcher call spec *)
-    iDestruct (StackRevokedResources_mono_priv _ W5 with "Hfrm_close_W4") as "#Hfrm_close_W5"; auto.
+    iDestruct (StackRevokedResources_mono_priv _ W5 with "Hstack_revoked_W4") as "#Hstack_revoked_W5"; auto.
 
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hfrm_close_W5 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
               $Hinterp_W5_C_f $HentryC_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -521,7 +521,7 @@ Section DLE.
     clear dependent warg0 warg1 rmap stk_mem.
     iIntros (W6 rmap stk_mem l0)
       "( _ & _ & _
-      & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6 & _
+      & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hstack_revoked_W6 & _
       & Hna & _
       & Hworld_interp_C
       & Hcstk_frag

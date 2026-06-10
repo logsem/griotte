@@ -142,7 +142,7 @@ Section VAE.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
-        as (l) "(%Hl_unk & Hworld_interp_C & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+        as (l) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     set (W1 := revoke W0).
 
     (* --------------------------------------------------------------- *)
@@ -242,7 +242,7 @@ Section VAE.
     }
 
     (* Prepare the closing resources for the switcher call spec *)
-    iDestruct (StackRevokedResources_mono_priv _ W1 with "Hfrm_close_W0") as "#Hfrm_close_W1"; eauto.
+    iDestruct (StackRevokedResources_mono_priv _ W1 with "Hstack_revoked_W0") as "#Hstack_revoked_W1"; eauto.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     iMod ("Hvae_close" with "[$Hna Himport_assert Himport_switcher Himport_C_f Himports_main $Hcode_main]")
@@ -259,7 +259,7 @@ Section VAE.
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hfrm_close_W1 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag
               $Hinterp_W1_C_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -273,7 +273,7 @@ Section VAE.
     clear stk_mem.
     iNext.
     iIntros (W2 rmap stk_mem l')
-      "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & _
+      "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W2 & _
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag

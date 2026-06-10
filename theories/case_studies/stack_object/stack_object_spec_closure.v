@@ -229,7 +229,7 @@ Section SO.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l_revoked_W0) "([%Hl_revoked_W0_nodup %Hl_revoked_W0_temporaries]
                  & Hworld_interp_C
-                 & #Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk]
+                 & #Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk]
                  & [Hl_revoked_W0 %Hl_revoked_W0])".
 
     set (W1 := revoke W0).
@@ -935,12 +935,12 @@ Section SO.
     }
 
     rewrite (finz_seq_between_cons csp_b csp_e); last solve_addr+Hcsp_size.
-    iEval (cbn) in "Hfrm_close_W0".
-    iDestruct "Hfrm_close_W0" as "[Hfrm_close_W0_a_stk1 Hfrm_close_W0]".
+    iEval (cbn) in "Hstack_revoked_W0".
+    iDestruct "Hstack_revoked_W0" as "[Hstack_revoked_W0_a_stk1 Hstack_revoked_W0]".
     rewrite (finz_seq_between_cons ((csp_b ^+ 1)%a) csp_e)
     ; last solve_addr+Hcsp_size Hcsp_size' Hastk1.
-    iEval (cbn) in "Hfrm_close_W0".
-    iDestruct "Hfrm_close_W0" as "[Hfrm_close_W0_a_stk2 Hfrm_close_W0]".
+    iEval (cbn) in "Hstack_revoked_W0".
+    iDestruct "Hstack_revoked_W0" as "[Hstack_revoked_W0_a_stk2 Hstack_revoked_W0]".
     (* Prepare the closing resources for the switcher call spec *)
     assert (
         Forall (λ k : finz MemNum, W3.1 !! k = Some Revoked) (finz.seq_between a_stk2 csp_e)
@@ -968,7 +968,7 @@ Section SO.
       apply elem_of_finz_seq_between.
       solve_addr+Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size.
     }
-    iDestruct (StackRevokedResources_mono_priv _ W3 with "Hfrm_close_W0") as "Hfrm_close_W3"; eauto.
+    iDestruct (StackRevokedResources_mono_priv _ W3 with "Hstack_revoked_W0") as "Hstack_revoked_W3"; eauto.
     replace ((csp_b ^+ 1) ^+ 1)%a with a_stk2 by solve_addr.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -986,7 +986,7 @@ Section SO.
     iApply (switcher_cc_specification_alt with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hfrm_close_W3 $Hcstk
+              $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk
               $Hinterp_W3_wct1 $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -1001,7 +1001,7 @@ Section SO.
     iNext.
     iIntros (W4 rmap stk_mem l_revoked_W4)
       "( [%Hl_revoked_W4_nodup %Hl_revoked_W4_temporaries] & Hl_revoked_W4 & %Hl_revoked_W4
-      & %Hrelated_pub_2ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4 & %Hfrm_close_W4
+      & %Hrelated_pub_2ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W4 & %Hstack_revoked_W4
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag

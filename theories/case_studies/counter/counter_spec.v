@@ -209,7 +209,7 @@ Section Counter.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
-        as (l) "(%Hl_unk & Hworld_interp_C & #Hfrm_close_W0 & >%Hrevoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+        as (l) "(%Hl_unk & Hworld_interp_C & #Hstack_revoked_W0 & >%Hrevoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
 
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
@@ -338,7 +338,7 @@ Section Counter.
     iClear "Hinterp_W0_C_f".
 
     (* Prepare the closing resources for the switcher call spec *)
-    iDestruct (StackRevokedResources_mono_priv _ W1 with "Hfrm_close_W0") as "Hfrm_close_W1"; auto.
+    iDestruct (StackRevokedResources_mono_priv _ W1 with "Hstack_revoked_W0") as "Hstack_revoked_W1"; auto.
     iAssert (⌜ revoked_addresses W1 l ⌝)%I as "%Hrevoked_l_W".
     {
       iPureIntro; apply Forall_forall; intros a Ha.
@@ -349,7 +349,7 @@ Section Counter.
     iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hstk $Hworld_interp_C $Hfrm_close_W1 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag
               $Hinterp_W1_C_f $Hentry_C_f $HK]"); eauto; last iFrame "∗%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -360,7 +360,7 @@ Section Counter.
 
     iNext. subst rmap'; clear stk_mem.
     iIntros (W2 rmap' stk_mem l')
-      "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & %Hfrm_close_W2
+      "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W2 & %Hstack_revoked_W2
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag

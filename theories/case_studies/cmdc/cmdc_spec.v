@@ -117,7 +117,7 @@ Section CMDC.
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & #HentryB_f & #HentryC_g
-      & Hrel_stk_B & Hrel_stk_C
+      & Hstack_revoked_B & Hstack_revoked_C
       & Hφ)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
     iDestruct (big_sepL2_length with "Hcsp_stk") as "%Hlen_stack".
@@ -295,11 +295,11 @@ Section CMDC.
       destruct Hcgp_b_stk; [left|right]; solve_addr.
     }
 
-    iDestruct ( init_PermRes W_init_B B cgp_b RW interpC with "[] [$Hcgp_b] []" ) as "PermRes_cgp_b".
+    iDestruct ( init_PermRes W_init_B B cgp_b RW interpC with "[] [$Hcgp_b] []" ) as "Hcgp_b".
     { done. }
     { iApply future_priv_mono_interp_z. }
     { iApply interp_int. }
-    iMod (world_interp_extend_perm with "Hworld_interp_B PermRes_cgp_b")
+    iMod (world_interp_extend_perm with "Hworld_interp_B Hcgp_b")
       as "(Hworld_interp_B & Hrel_cgp_b)"; auto.
 
     (* Update the frame invariant of B *)
@@ -351,13 +351,13 @@ Section CMDC.
       done.
     }
 
-    iDestruct (StackRevokedResources_mono_priv with "Hrel_stk_B") as "Hrel_stk_B"; eauto.
+    iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_B") as "Hstack_revoked_B"; eauto.
 
     iEval (cbn) in "Hct1".
     iApply (switcher_cc_specification _ W1 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hcsp_stk $Hworld_interp_B $Hrel_stk_B $Hcstk_frag
+              $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B $Hcstk_frag
               $Hinterp_W1_B_f $HentryB_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -373,7 +373,7 @@ Section CMDC.
     iNext. subst rmap'.
     iIntros (W2_B rmap' stk_mem l)
       "( _ & _ & _
-      & %HW1_pubB_W2 & Hrel_stk_B & %Hdom_rmap' & Hclose_reg_B & %Hclose_reg_B
+      & %HW1_pubB_W2 & Hstack_revoked_B & %Hdom_rmap' & Hclose_reg_B & %Hclose_reg_B
       & Hna & %Hcsp_bounds
       & Hworld_interp_B
       & Hcstk_frag
@@ -476,14 +476,14 @@ Section CMDC.
     rewrite (open_world_interp_empty _ B).
     iDestruct (
        open_world_interp_permanent with "[$Hworld_interp_B] [$Hrel_cgp_b]"
-      ) as "(Hworld_interp_B & Hstd_cgp_b & [%v PermRes_cgp_b] )"; auto.
+      ) as "(Hworld_interp_B & Hstd_cgp_b & [%v Hcgp_b] )"; auto.
     { set_solver+. }
     {
       eapply (region_state_priv_perm W2_B); eauto.
       eapply revoke_related_sts_priv_world.
     }
-    iEval (cbn) in "PermRes_cgp_b".
-    iDestruct (PermRes_acc with "PermRes_cgp_b") as "[ (>Hcgp_b & Hcgp_b_interp) PermRes_cgp_b]".
+    iEval (cbn) in "Hcgp_b".
+    iDestruct (Hacc with "Hcgp_b") as "[ (>Hcgp_b & Hcgp_b_interp) Hcgp_b]".
     (* Store cgp 42%Z *)
     iInstr "Hcode".
     { solve_addr. }
@@ -586,11 +586,11 @@ Section CMDC.
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_c]") as "%Hcgp_c_stk".
 
     (* We add the newly shared address in the world of C *)
-    iDestruct ( init_PermRes W_init_C C cgp_c RW interpC with "[] [$Hcgp_c] []" ) as "PermRes_cgp_c".
+    iDestruct ( init_PermRes W_init_C C cgp_c RW interpC with "[] [$Hcgp_c] []" ) as "Hcgp_c".
     { done. }
     { iApply future_priv_mono_interp_z. }
     { iApply interp_int. }
-    iMod (world_interp_extend_perm with "Hworld_interp_C PermRes_cgp_c")
+    iMod (world_interp_extend_perm with "Hworld_interp_C Hcgp_c")
       as "(Hworld_interp_C & Hrel_cgp_c)"; auto.
 
     set (W3 := (<s[cgp_c:=Permanent]s>W_init_C)).
@@ -641,12 +641,12 @@ Section CMDC.
       done.
     }
 
-    iDestruct (StackRevokedResources_mono_priv with "Hrel_stk_C") as "Hrel_stk_C"; eauto.
+    iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_C") as "Hstack_revoked_C"; eauto.
 
     iApply (switcher_cc_specification _ W3 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hstk $Hworld_interp_C $Hrel_stk_C $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_C $Hcstk_frag
               $Hinterp_W3_C_g $HentryC_g $HK]"); eauto; iFrame "%".
     { subst rmap''.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -662,7 +662,7 @@ Section CMDC.
     iNext. subst rmap''. clear dependent stk_mem.
     iIntros (W4_C rmap'' stk_mem l)
       "( _ & _ & _
-      & %HW1_pubC_4 & Hrel_stk_C & %Hdom_rmap'' & Hclose_reg_C & _
+      & %HW1_pubC_4 & Hstack_revoked_C & %Hdom_rmap'' & Hclose_reg_C & _
       & Hna & _
       & Hworld_interp_C
       & Hcstk_frag
@@ -843,7 +843,7 @@ Section CMDC.
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & #HentryB_f & #HentryC_g
-      & Hrel_stk_B & Hrel_stk_C
+      & Hstack_revoked_B & Hstack_revoked_C
       & Hφ)".
     iApply (wp_wand with "[-]").
     { iApply (cmdc_spec

@@ -1094,7 +1094,7 @@ Section Switcher.
       iDestruct "H" as
         "(%Hrelated_pub_Wext_W2 & %Hdom_rmap
       & Hna & #Hinterp_W2_csp & %Hcsp_bounds
-      & Hworld_interp_C & Hfrm_close_W2
+      & Hworld_interp_C & Hstack_revoked_W2
       & Hcstk_frag & Hrel_stk_C
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 #Hinterp_wca0] ] & [%warg1 [Hca1 #Hinterp_wca1] ]
@@ -1105,7 +1105,7 @@ Section Switcher.
       iEval (rewrite <- (app_nil_r (finz.seq_between (a_stk ^+ 4)%a e_stk))) in "Hworld_interp_C".
 
       iDestruct (close_world_interp_opening_resources
-                  with "[$Hworld_interp_C $Hfrm_close_W2 $Hstk_h]")
+                  with "[$Hworld_interp_C $Hstack_revoked_W2 $Hstk_h]")
         as "Hworld_interp_C".
       { apply finz_seq_between_NoDup. }
       { set_solver+. }
@@ -1134,15 +1134,15 @@ Section Switcher.
     }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W2_csp $Hworld_interp_C]")
-      as (l') "(%Hl_unk' & Hworld_interp_C & Hfrm_close_W2 & Hrevoked_W2 & >[%stk_mem_h' Hstk_h] & [Hrevoked_l' %Hrevoked_W2_l'])".
+      as (l') "(%Hl_unk' & Hworld_interp_C & Hstack_revoked_W2 & Hrevoked_W2 & >[%stk_mem_h' Hstk_h] & [Hrevoked_l' %Hrevoked_W2_l'])".
     iDestruct (region_pointsto_split with "[$Hstk_l $Hstk_h]") as "Hstk"; auto.
     { solve_addr+ Hcsp_bounds. }
     { by rewrite finz_seq_between_length in Hlen_stk_l. }
-    iCombine "Hfrm_close_W2 Hrevoked_W2" as "Hfrm_close_W2".
+    iCombine "Hstack_revoked_W2 Hrevoked_W2" as "Hstack_revoked_W2".
     iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l']") as ">Hrevoked_l'".
-    iDestruct (lc_fupd_elim_later with "[$] [$Hfrm_close_W2]") as ">[Hfrm_close_W2 %]".
+    iDestruct (lc_fupd_elim_later with "[$] [$Hstack_revoked_W2]") as ">[Hstack_revoked_W2 %]".
     iApply "Hpost"; iFrame "∗%#".
-    iSplitL "Hfrm_close_W2"; cycle 1.
+    iSplitL "Hstack_revoked_W2"; cycle 1.
     { iPureIntro.
       rewrite (finz_seq_between_split a_stk (a_stk^+4)%a); last (split; solve_addr).
       rewrite !/revoked_addresses !Forall_forall in H,Hstk_l_revoked |- *.

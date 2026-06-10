@@ -325,7 +325,7 @@ Section VAE.
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l
-           ) "(%Hl_unk & Hworld_interp_C & #Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+           ) "(%Hl_unk & Hworld_interp_C & #Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
 
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
@@ -489,13 +489,13 @@ Section VAE.
     }
 
     (* Prepare the closing resources for the switcher call spec *)
-    iDestruct (StackRevokedResources_mono_priv _ W2 with "Hfrm_close_W0") as "Hfrm_close_W2"; auto.
-    assert ( revoked_addresses W2 (finz.seq_between csp_b csp_e) ) as Hfrm_close_W2.
+    iDestruct (StackRevokedResources_mono_priv _ W2 with "Hstack_revoked_W0") as "Hstack_revoked_W2"; auto.
+    assert ( revoked_addresses W2 (finz.seq_between csp_b csp_e) ) as Hstack_revoked_W2.
     { rewrite /revoked_addresses Forall_forall.
       intros a Ha.
       subst W2 W1.
       cbn.
-      by rewrite /revoked_addresses Forall_forall in Hfrm_close_W0; eapply Hfrm_close_W0.
+      by rewrite /revoked_addresses Forall_forall in Hstack_revoked_W0; eapply Hstack_revoked_W0.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -513,7 +513,7 @@ Section VAE.
     iApply (switcher_cc_specification_alt with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hfrm_close_W2 $Hcstk
+              $Hstk $Hworld_interp_C $Hstack_revoked_W2 $Hcstk
               $Hinterp_W2_wct1 $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -527,7 +527,7 @@ Section VAE.
     clear dependent wct1 wct0 wct2 wct3 wcs0 wcs1 rmap stk_mem.
     iNext.
     iIntros (W3 rmap stk_mem l')
-      "( _ & _ & _ & %Hrelated_pub_2ext_W3 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W3 & %Hfrm_close_W3
+      "( _ & _ & _ & %Hrelated_pub_2ext_W3 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W3 & %Hstack_revoked_W3
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
@@ -697,13 +697,13 @@ Section VAE.
     }
 
     (* Prepare the closing resources for the switcher call spec *)
-    iDestruct (StackRevokedResources_mono_priv _ W5 with "Hfrm_close_W3") as "Hfrm_close_W5"; auto.
-    assert ( revoked_addresses W5 (finz.seq_between csp_b csp_e) ) as Hfrm_close_W5.
+    iDestruct (StackRevokedResources_mono_priv _ W5 with "Hstack_revoked_W3") as "Hstack_revoked_W5"; auto.
+    assert ( revoked_addresses W5 (finz.seq_between csp_b csp_e) ) as Hstack_revoked_W5.
     { rewrite /revoked_addresses Forall_forall.
       intros a Ha.
       subst W5 W4.
       cbn.
-      by rewrite /revoked_addresses Forall_forall in Hfrm_close_W3; eapply Hfrm_close_W3.
+      by rewrite /revoked_addresses Forall_forall in Hstack_revoked_W3; eapply Hstack_revoked_W3.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -718,7 +718,7 @@ Section VAE.
     iApply (switcher_cc_specification_alt with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hfrm_close_W5 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
               $Hinterp_W5_wca0 $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -730,7 +730,7 @@ Section VAE.
     clear dependent wct1 wct0 warg0 warg1 rmap stk_mem Hcsp_bounds.
     iNext.
     iIntros (W6 rmap stk_mem l')
-      "(_ & _ & _ & %Hrelated_pub_5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6 & %Hfrm_close_W6
+      "(_ & _ & _ & %Hrelated_pub_5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hstack_revoked_W6 & %Hstack_revoked_W6
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
@@ -750,7 +750,7 @@ Section VAE.
         rewrite (finz_seq_between_split csp_b (csp_b ^+ 4)%a csp_e); last solve_addr.
         rewrite elem_of_app; by right.
       }
-      by rewrite /revoked_addresses Forall_forall in Hfrm_close_W5 ; apply Hfrm_close_W5.
+      by rewrite /revoked_addresses Forall_forall in Hstack_revoked_W5 ; apply Hstack_revoked_W5.
     }
     assert (related_sts_pub_world W5 W6) as Hrelated_pub_W5_W6.
     { clear -Hrelated_pub_5ext_W6 Hrevoked_stk_W5.

@@ -149,7 +149,7 @@ Section DROE.
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_Winit_C_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_Winit_C_csp $Hworld_interp_C]")
-        as (l) "(%Hl_unk & Hworld_interp_C & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+        as (l) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_a]") as "%Hcgp_a_stk".
     set (W1 := revoke W_init_C).
@@ -404,8 +404,8 @@ Section DROE.
       done.
     }
 
-    iDestruct (StackRevokedResources_mono_priv _ W3 with "Hfrm_close_W0") as "Hfrm_close_W3"; auto.
-    assert ( revoked_addresses W3 (finz.seq_between csp_b csp_e) ) as Hfrm_close_W3.
+    iDestruct (StackRevokedResources_mono_priv _ W3 with "Hstack_revoked_W0") as "Hstack_revoked_W3"; auto.
+    assert ( revoked_addresses W3 (finz.seq_between csp_b csp_e) ) as Hstack_revoked_W3.
     {
       rewrite /revoked_addresses Forall_forall.
       intros x Hx.
@@ -415,7 +415,7 @@ Section DROE.
       { intros Hx'; simplify_eq; set_solver+Hx Hcgp_b_stk. }
       simplify_map_eq.
       apply list_elem_of_lookup_1 in Hx; destruct Hx as [? Hx].
-      rewrite /revoked_addresses Forall_forall in Hfrm_close_W0; apply Hfrm_close_W0.
+      rewrite /revoked_addresses Forall_forall in Hstack_revoked_W0; apply Hstack_revoked_W0.
       eapply list_elem_of_lookup_2; eauto.
     }
 
@@ -423,7 +423,7 @@ Section DROE.
     iApply (switcher_cc_specification _ W3 with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hfrm_close_W3 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_g $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
