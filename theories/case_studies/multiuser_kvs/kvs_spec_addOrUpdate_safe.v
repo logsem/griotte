@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel rules.
 From cap_machine Require Import
   switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
-From cap_machine Require Import region_invariants_revocation wp_rules_interp logrel_extra interp_weakening.
+From cap_machine Require Import region_invariants_revocation wp_rules_interp interp_weakening.
 From cap_machine Require Import switcher_preamble switcher_spec_return.
 From cap_machine Require Import proofmode map_simpl.
 
@@ -11,9 +11,8 @@ Section KVS_spec_addOrUpdate_safe.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -38,7 +37,7 @@ Section KVS_spec_addOrUpdate_safe.
     related_sts_priv_world Wca W ->
 
     ( (* initial register file *)
-      na_own logrel_nais E ∗
+      na_own cerise_nais E ∗
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
@@ -57,10 +56,9 @@ Section KVS_spec_addOrUpdate_safe.
       ▷ isKVS (cgp_b ^+ 1)%a m s ∗
       ▷ seal_pred KVS_OTYPE kvs_otype_propC ∗
 
-      sealing_map W C ∗
-      sts_full_world W C ∗
+      world_interp W C ∗
 
-      ▷ (na_own logrel_nais E ∗
+      ▷ (na_own cerise_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -87,16 +85,15 @@ Section KVS_spec_addOrUpdate_safe.
              (ca0 ↦ᵣ WInt ASM_FALSE ∗ isKVS (cgp_b ^+ 1)%a m s)
          ) ∗
 
-         sealing_map W C ∗
-         sts_full_world W C
+         world_interp W C
 
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     iIntros (HN HsubBounds Hcgp_contiguous Hrelated_Wca_W)
       "(Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_wca0 & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
-        Hcode & Hcgp_b & HKVS & #Hspred & Hseals & Hsts & Hpost)".
+        Hcode & Hcgp_b & HKVS & #Hspred & Hworld & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -139,10 +136,10 @@ Section KVS_spec_addOrUpdate_safe.
     ; clear dependent Ha_check_uint.
 
     iApply (KVS_getFullKey_spec_safe with
-             "[- $HPC $Hcgp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hcgp_b $Hcode $Hspred $Hseals $Hsts]"); eauto; [|iNext].
+             "[- $HPC $Hcgp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hcgp_b $Hcode $Hspred $Hworld]"); eauto; [|iNext].
     { rewrite /withinBounds; solve_addr. }
     iIntros (l_user_key user_key)
-      "([%Huser_key_C ->] & HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode & #Hseal_ku & Hseals & Hsts)".
+      "([%Huser_key_C ->] & HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode & #Hseal_ku & Hworld)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
@@ -152,8 +149,8 @@ Section KVS_spec_addOrUpdate_safe.
 
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
-    iDestruct (open_sealing_map_singleton with "Hspred Hseal_ku Hseals Hsts")
-                as "(Hseals & Hsts & Hres_open & HP)".
+    iDestruct (sopen_world_interp_singleton with "Hspred Hseal_ku Hworld")
+                as "(Hworld & Hres_open & HP)".
     iDestruct "HP" as "(%ku & %a & %s' & >%Heq & >%Hku_C & >%Hku & Hot_res)".
     iDestruct (lc_fupd_elim_later with "[$] [$Hot_res]") as ">[Halloc Hkvs_frags]".
     pose proof (kvs_users_seals_bounds C user_key Huser_key_C) as Huser_key_bound.
@@ -233,9 +230,9 @@ Section KVS_spec_addOrUpdate_safe.
       { iExists user_key, a, s'; iFrame "∗ %".
         by replace (z_of a) with user_key by solve_addr+Hku.
       }
-      iDestruct (close_sealing_map_singleton with "Hspred Hres_open HP Hseals") as "Hseals".
+      iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
-      iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b Hsts Hseals".
+      iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b Hworld".
       iLeft; iExists idx, (user_key, nkey), wca2; iFrame.
 
     (* The key has never been allocated *)
@@ -335,9 +332,9 @@ Section KVS_spec_addOrUpdate_safe.
         { iExists user_key, a, ({[nkey]} ∪ s'); iFrame "∗ %".
           by replace (z_of a) with user_key by solve_addr+Hku.
         }
-        iDestruct (close_sealing_map_singleton with "Hspred Hres_open HP Hseals") as "Hseals".
+        iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
-        iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b Hsts Hseals".
+        iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b Hworld".
         iRight; iLeft; iExists idx, (user_key, nkey), wca2; iFrame.
       + (* no empty slot found *)
         (* Sub ct1 ct1 (-1) *)
@@ -359,9 +356,9 @@ Section KVS_spec_addOrUpdate_safe.
         { iExists user_key, a, s'; iFrame "∗ %".
           by replace (z_of a) with user_key by solve_addr+Hku.
         }
-        iDestruct (close_sealing_map_singleton with "Hspred Hres_open HP Hseals") as "Hseals".
+        iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
-        iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b Hsts Hseals".
+        iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b Hworld".
         iRight; iRight; iFrame.
   Qed.
 
@@ -376,8 +373,8 @@ Section KVS_spec_addOrUpdate_safe.
 
     related_sts_priv_world Wca W ->
 
-    ( na_inv logrel_nais Nkvs kvs_inv ∗
-      na_own logrel_nais E ∗
+    ( na_inv cerise_nais Nkvs kvs_inv ∗
+      na_own cerise_nais E ∗
 
       (* initial register file *)
       PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -391,10 +388,9 @@ Section KVS_spec_addOrUpdate_safe.
       ct2 ↦ᵣ - ∗ (* scratch *)
       cnull ↦ᵣ - ∗
 
-      sealing_map W C ∗
-      sts_full_world W C ∗
+      world_interp W C ∗
 
-      ▷ (na_own logrel_nais E ∗
+      ▷ (na_own cerise_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -406,16 +402,15 @@ Section KVS_spec_addOrUpdate_safe.
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
 
-         sealing_map W C ∗
-         sts_full_world W C
+         world_interp W C
 
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     iIntros (Hnkvs_E Hnkvs_otype_E Hrelated_Wca_W)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_ca0
-      & Hca1 & Hca2 & Hinterp_ca2 & Hctp & Hct1 & Hct2 & Hcnull & Hseals & Hsts & Hpost)".
+      & Hca1 & Hca2 & Hinterp_ca2 & Hctp & Hct1 & Hct2 & Hcnull & Hworld & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
       as "( (%m & %s & >Himports & >Hcode & >Hcgp_b & HisKVS & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
@@ -433,7 +428,7 @@ Section KVS_spec_addOrUpdate_safe.
     { pose proof Nkvs_namespaces_disjoint as (?&?&?); solve_ndisj. }
 
     iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
-              & Hcnull & Hcode & Hcgp_b & HKVS & Hsts & Hseals)".
+              & Hcnull & Hcode & Hcgp_b & HKVS & Hworld)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     iDestruct "HKVS" as
@@ -453,8 +448,8 @@ Section KVS_spec_addOrUpdate_safe.
     (Nswitcher : namespace)
     :
 
-    na_inv logrel_nais Nkvs kvs_inv ∗
-    na_inv logrel_nais Nswitcher switcher_inv ∗
+    na_inv cerise_nais Nkvs kvs_inv ∗
+    na_inv cerise_nais Nswitcher switcher_inv ∗
     inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
     inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
     inv (export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr)
@@ -483,7 +478,7 @@ Section KVS_spec_addOrUpdate_safe.
     iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr).
     iSplit; first (iPureIntro; rewrite /kvs_addOrUpdate_nargs; lia).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & Hseals_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
@@ -527,19 +522,13 @@ Section KVS_spec_addOrUpdate_safe.
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l
-           ) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
-    destruct Hl_unk as [Hl_unk Htemps].
-    iAssert (▷ close_list_resources C W0 l false)%I with "[Hrevoked_l]" as "Hrevoked_l".
-    { rewrite /close_list_resources /close_addr_resources /if_later_P; iNext; iFrame. }
+    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_C]")
+        as (l) "(%Hl_unk & Hworld_C & #Hstack_revoked_W0 & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
+    set (W1 := revoke W0).
+    assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
 
-    iDestruct (sealing_map_monotone _ _ (revoke W0) with "Hseals_C") as "Hseals_C"
-    ; [ auto | apply revoke_related_sts_priv_world | ].
-    iApply (KVS_addOrupdate_spec_safe W0 (revoke W0)); try solve_ndisj; [|iFrame "∗#"].
-    { apply revoke_related_sts_priv_world.  }
-
-    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull & Hsts_C & Hseals_C)".
+    iApply (KVS_addOrupdate_spec_safe W0 (revoke W0)); try solve_ndisj; iFrame "∗#".
+    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull & Hworld_C)".
     iAssert (∃ zca0, ca0 ↦ᵣ WInt zca0)%I with "[Hca0]" as "[%zca0 Hca0]".
     { iDestruct "Hca0" as "[$|$]". }
 
@@ -560,9 +549,10 @@ Section KVS_spec_addOrUpdate_safe.
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
     map_simpl "Hrmap".
 
+    destruct Hl_unk as [ Hnodup Htemps ]; auto.
     iApply (switcher_ret_specification _ W0 (revoke W0)
              with
-             "[ $Hstk $Hcstk $HK $Hsts_C $Hseals_C $Hna $HPC $Hr_C $Hrevoked_l
+             "[ $Hstk $Hcstk $HK $Hworld_C $Hna $HPC $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ) ; eauto; last iFrame "∗#".
     { apply related_pub_revoke_close_list; eauto. }
@@ -571,6 +561,7 @@ Section KVS_spec_addOrUpdate_safe.
       repeat (rewrite dom_delete_L).
       rewrite Hrmap_init. set_solver+. }
     { subst csp_b. destruct Hsync_csp as [Hsync_csp <-]; eauto. }
+    { intros a Ha; apply Htemps; done. }
     { iSplit; iApply interp_int. }
   Qed.
 

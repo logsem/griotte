@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel rules.
 From cap_machine Require Import
   switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
-From cap_machine Require Import region_invariants_revocation wp_rules_interp logrel_extra interp_weakening.
+From cap_machine Require Import region_invariants_revocation wp_rules_interp interp_weakening.
 From cap_machine Require Import switcher_preamble switcher_spec_return.
 From cap_machine Require Import proofmode map_simpl.
 
@@ -11,9 +11,8 @@ Section KVS_spec_addOrUpdate.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {nainv: logrel_na_invs Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -74,9 +73,9 @@ Section KVS_spec_addOrUpdate.
          codefrag pc_a kvs_addOrUpdate_instrs ∗
          cgp_b ↦ₐ kvs_service_unsealing_key
 
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
     iIntros (HsubBounds Hbounds_user_key His_uint16_nkey Hcgp_contiguous HcanStore_wca2)
@@ -184,8 +183,8 @@ Section KVS_spec_addOrUpdate.
 
     canStore RW wca2 = true ->
 
-    ( na_inv logrel_nais Nkvs kvs_inv ∗
-      na_own logrel_nais E ∗
+    ( na_inv cerise_nais Nkvs kvs_inv ∗
+      na_own cerise_nais E ∗
 
       (* initial register file *)
       PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -201,7 +200,7 @@ Section KVS_spec_addOrUpdate.
 
       fkey ⤇(KVS) - ∗
 
-      ▷ (na_own logrel_nais E ∗
+      ▷ (na_own cerise_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -213,9 +212,9 @@ Section KVS_spec_addOrUpdate.
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
          fkey ⤇(KVS) wca2
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
     iIntros (Hnkvs_E Hbounds_user_key His_uint16_nkey HcanStore_wca2)
@@ -312,9 +311,9 @@ Section KVS_spec_addOrUpdate.
               )
           )
           -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
     iIntros (HsubBounds Hbounds_user_key His_uint16_nkey Hcgp_contiguous HcanStore_wca2 Hs')
@@ -468,8 +467,8 @@ Section KVS_spec_addOrUpdate.
 
     canStore RW wca2 = true ->
 
-    ( na_inv logrel_nais Nkvs kvs_inv ∗
-      na_own logrel_nais E ∗
+    ( na_inv cerise_nais Nkvs kvs_inv ∗
+      na_own cerise_nais E ∗
 
       (* initial register file *)
       PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -485,7 +484,7 @@ Section KVS_spec_addOrUpdate.
 
       ◯(ALLOC)[user_key] s ∗
 
-      ▷ (na_own logrel_nais E ∗
+      ▷ (na_own cerise_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -509,9 +508,9 @@ Section KVS_spec_addOrUpdate.
                ◯(ALLOC)[user_key] s
              )
          )
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
     iIntros (Hnkvs_E Hbounds_user_key His_uint16_nkey HcanStore_wca2 Hs)

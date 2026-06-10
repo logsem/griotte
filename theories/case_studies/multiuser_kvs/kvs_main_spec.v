@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel rules.
 From cap_machine Require Import
-  region_invariants_revocation wp_rules_interp logrel_extra interp_weakening.
+  region_invariants_revocation wp_rules_interp interp_weakening.
 From cap_machine Require Import
   assert_spec fetch_spec.
 From cap_machine Require Import
@@ -15,8 +15,7 @@ Section KVS_main_spec.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -64,16 +63,16 @@ Section KVS_main_spec.
 
     frame_match Ws Cs cstk W0 B ->
     (
-      na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
-      na_inv logrel_nais Nswitcher switcher_inv ∗
-      na_inv logrel_nais Nkvs kvs_inv ∗
+      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
+      na_inv cerise_nais Nswitcher switcher_inv ∗
+      na_inv cerise_nais Nkvs kvs_inv ∗
 
       inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
       inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
       inv (export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) (kvs_addOrUpdate_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_addOrUpdate) ∗
       inv (export_table_entryN Nkvs_exp_tbl kvs_read_exp_tbl_addr) (kvs_read_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_read) ∗
 
-      na_own logrel_nais ⊤ ∗
+      na_own cerise_nais ⊤ ∗
 
       (* initial register file *)
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
@@ -87,7 +86,7 @@ Section KVS_main_spec.
       [[ cgp_b , cgp_e ]] ↦ₐ [[ (kvs_main_data KVS_USER_KEY_MAIN) ]] ∗
 
       ◯(ALLOC)[KVS_USER_KEY_MAIN] ∅ ∗
-      region W0 B ∗ sts_full_world W0 B ∗ sealing_map W0 B ∗
+      world_interp W0 B ∗
 
       interp_continuation cstk Ws Cs ∗
       cstack_frag cstk ∗
@@ -103,7 +102,7 @@ Section KVS_main_spec.
 
       seal_pred ot_switcher ot_switcher_propC
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_assert HKVS_USER_KEY_MAIN Hrmap_dom Hrmap_init HsubBounds
@@ -115,7 +114,7 @@ Section KVS_main_spec.
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Halloc
-      & Hr_B & Hsts_B & Hseals_B
+      & Hworld_B
       & HK & Hcstk_frag
       & #Hinterp_W0_B_f
       & #HentryB_f
@@ -155,9 +154,10 @@ Section KVS_main_spec.
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_B $Hr_B]")
-        as (l) "(%Hl_unk & Hsts_B & Hr_B & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_B]")
+        as (l) "(%Hl_unk & Hworld_B & #Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l _])".
     set (W1 := revoke W0).
+    assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
 
     (* --------------------------------------------------------------- *)
     (* ----------------- Start the proof of the code ----------------- *)
@@ -459,26 +459,21 @@ Section KVS_main_spec.
     iInsertList "Hrmap" [ctp].
 
     iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
-    { iApply monotone.interp_monotone_sd; eauto.
-      iPureIntro; apply revoke_related_sts_priv_world.
-    }
+    { iApply monotone.interp_monotone_sd; eauto. }
 
-    iAssert (
-        ( [∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 B a)
-      )%I with "[Hfrm_close_W0]"  as "Hfrm_close_W1".
+    assert ( revoked_addresses W1 (finz.seq_between csp_b csp_e) ) as Hstack_revoked_W1.
     {
-      iApply (big_sepL_impl with "Hfrm_close_W0").
-      iIntros (k a Ha) "!> Hfrm_close_W0".
-      iDestruct (mono_priv_closing_revoked_resources with "Hfrm_close_W0") as "$"; auto.
-      apply revoke_related_sts_priv_world.
+      rewrite /revoked_addresses Forall_forall.
+      rewrite /revoked_addresses Forall_forall in Hstack_revoked_W0.
+      intros a Ha; cbn in *.
+      by apply Hstack_revoked_W0.
     }
+    iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_W0") as "Hstack_revoked_W1"; eauto.
 
-    iDestruct ( sealing_map_monotone _ _ W1 with "Hseals_B") as "Hseals_B"
-    ; [ by subst W1 | apply revoke_related_sts_priv_world |].
     iApply (switcher_cc_specification _ W1 _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hstk $Hr_B $Hsts_B $Hseals_B $Hcstk $Hfrm_close_W1
+              $Hstk $Hworld_B $Hcstk $Hstack_revoked_W1
               $Hinterp_W1_B_f $HentryB_f $HK]"); eauto; iFrame "%".
     { repeat (rewrite dom_insert_L);repeat (rewrite dom_delete_L).
       rewrite Hdom_rmap'; set_solver.
@@ -494,7 +489,7 @@ Section KVS_main_spec.
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
       & %Hrelated_pub_W1ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & %Hfrm_close_W2
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C & Hseals_C
+      & Hworld_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
