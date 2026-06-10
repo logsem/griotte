@@ -279,8 +279,10 @@ Section logrel.
   Qed.
 
   (** [StackWorldResources] keeps track of the safety resources of the stack region [la] containing words [lw].
-      This is mostly bookkeeping resources for shared stack region, and usually comes hand-to-hand with revoking/reinstating
-      or opening/closing the world. *)
+
+      This resources comes hand-to-hand with revoking/reinstating or opening/closing the world.
+      This is mostly bookkeeping resources, and the user would usually only passes it around.
+   *)
   Definition StackWorldResources (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) : iProp Σ :=
     ([∗ list] a ; v ∈ la ; lw, StackWorldResource interp W C a v).
   Global Instance StackWorldResources_ne n :
@@ -293,7 +295,10 @@ Section logrel.
 
   (** [StackOpenWorldResources] keeps track of the safety resources of the stack region [la] containing words [lw],
       but also owns the fragmental view of the world for the stack region.
-      This resource is obtained by opening shared stack region, and is used to reinstate it later. *)
+      This resource is obtained by opening shared stack region, and is used to reinstate it later.
+
+      This is mostly bookkeeping resources, and the user would usually only passes it around.
+   *)
   Definition StackOpenWorldResources (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) : iProp Σ :=
     StackWorldResources interp W C la lw ∗ ([∗ list] a ∈ la, sts_state_std C a Temporary).
   Global Instance StackOpenWorldResources_ne n :
@@ -459,6 +464,7 @@ Section logrel.
     Proper (dist n ==> dist n) (interp_cont).
   Proof. solve_proper. Qed.
 
+  (** Execute condition of the logical relation *)
   Definition exec_cond
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality) (b e : Addr)
@@ -485,6 +491,16 @@ Section logrel.
       apply interp_cont_ne;auto. }
     Qed.
 
+  (** Enter condition of the logical relation
+      Describes that, for a sentry capability to be safe to share,
+      its unsealed version must be safe to execute.
+
+      The world must be any future world of [W], public for local and private for global,
+      because the world can evolve before invoking the capability.
+
+      The locality must be any lower locality,
+      because the locality of a sentry capability can be weakened.
+ *)
   Definition enter_cond
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality) (b e a : Addr)
@@ -511,10 +527,11 @@ Section logrel.
     apply interp_cont_ne;auto.
   Qed.
 
-  (* interp definitions *)
+  (** * Definitions interp *)
 
 
-  (*
+  (** Interp of the world state
+
       -------------------------------------------------------------
       |          |         nwl           |          pwl           |
       -------------------------------------------------------------
@@ -535,7 +552,23 @@ Section logrel.
     end.
 
   (* For simplicity we might want to have the following statement in validity of caps.
-     However, it is strictly not necessary since it can be derived form full_sts_world *)
+     However, it is strictly not necessary since it can be derived form [world_interp].
+
+     NOTE I actually think that it is necessary in Griotte, for proving the FTLR,
+     and in particular the Store case.
+
+     I don't have all the details in mind, but it comes from the fact that,
+     in previous versions, having [wcond] implied having [rcond],
+     and having both could derive P is [interp].
+     And it enabled to derive the monotonicity requirement for the stored value.
+
+     But in Griotte, not only we don't have [wcond] -> [rcond],
+     but also having both does not necessarily means that P is [interp].
+     And we can't use this for deriving monotonicity of the stored value.
+
+     Therefore, we need to have [monoReq] is the definition of the logrel,
+     to derive the monotonicity requirements of any values that can be stored
+     with the capability. *)
 
   Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) :=
     (match (std W) !! a with
@@ -547,9 +580,12 @@ Section logrel.
         | _ => True
         end)%I.
 
+  (** Interp trivially holds for integers. *)
   Definition interp_z : V := λne _ _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
+  (** Interp trivially holds for O-permission capability. *)
   Definition interp_cap_O : V := λne _ _ _, True%I.
 
+  (** Interp for sentry in [enter_cond]. *)
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
                 | WSentry p g b e a => □ enter_cond W C p g b e a interp
@@ -557,6 +593,7 @@ Section logrel.
                 end)%I.
   Solve All Obligations with solve_proper.
 
+  (** Interp for memory capability. *)
   Program Definition interp_cap (interp : V) : V :=
     λne W C w, (match w with
               | WCap (O _ _) _ _ _ _
@@ -592,6 +629,7 @@ Section logrel.
                 ∗ (seal_pred a (safeC P))
                 ∗ ▷ rcond P C RO interp)%I.
 
+  (** Interp for sealing capability. *)
   Program Definition interp_sr (interp : V) : V :=
     λne W C w, (match w with
     | WSealRange p g b e a =>
@@ -600,6 +638,7 @@ Section logrel.
     | _ => False end ) %I.
   Solve All Obligations with solve_proper.
 
+  (** Interp for sealed capability. *)
   Program Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (w : Word) :=
     (∃ (P : V) ,
         ⌜persistent_cond P⌝
@@ -609,6 +648,7 @@ Section logrel.
         ∗ ▷ P W C (borrow w)
     )%I.
 
+  (** Definition of interp, pre-fixpoint. *)
   Program Definition interp1 (interp : V) : V :=
     (λne W C w,
     match w return _ with
@@ -621,6 +661,8 @@ Section logrel.
     end)%I.
   Solve All Obligations with solve_proper.
 
+  (** To be able to use the fixpoint combinator to define [interp],
+      we need to show that all case of [interp] are contractive. *)
   Global Instance interp_cap_O_contractive :
     Contractive (interp_cap_O).
   Proof. solve_contractive. Qed.
@@ -670,6 +712,7 @@ Section logrel.
     + rewrite /interp_sb; solve_contractive.
     Qed.
 
+  (** Definition of [interp] via the fixpoint combinator. *)
   Lemma fixpoint_interp1_eq (W : WORLD) (C : CmptName) (w : leibnizO Word) :
     fixpoint (interp1) W C w ≡ interp1 (fixpoint (interp1)) W C w.
   Proof. exact: (fixpoint_unfold (interp1) W C w). Qed.
@@ -685,6 +728,7 @@ Section logrel.
     interp_continuation ≡ interp_cont (fixpoint interp1).
   Proof. rewrite /interp_continuation /interp /= //. Qed.
 
+  (** We have, and we _WANT_, [interp] to be Persistent *)
   Global Instance interp_persistent W C w : Persistent (interp W C w).
   Proof.
     intros. destruct_word w; simpl; rewrite fixpoint_interp1_eq; simpl.

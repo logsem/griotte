@@ -150,7 +150,12 @@ Section Stack_World_Resources.
   (** * Definition [StackRevokedResources] *)
 
   (** [StackRevokedResources] corresponds to the safety resources of a stack
-      that had been revoked and cleared. *)
+      that had been revoked and cleared.
+
+      This resources comes hand-to-hand with revoking/reinstating or opening/closing the
+      stack region of the world.
+      This is mostly bookkeeping resources, and the user would usually only passes it around.
+ *)
 
   Definition StackRevokedResources (W : WORLD) (C : CmptName) (la : list Addr) : iProp Σ :=
     StackWorldResources interp W C la (replicate (length la) (WInt 0)).
