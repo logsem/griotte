@@ -2,7 +2,7 @@ From iris.algebra Require Import auth agree gmap excl excl_auth.
 From iris.base_logic Require Export invariants.
 From iris.proofmode Require Import proofmode.
 From stdpp Require Import finite.
-From cap_machine Require Import stdpp_extra addr_reg.
+From cap_machine Require Export stdpp_extra addr_reg.
 Import uPred.
 
 Class CmptNameG := CmptNameS {
@@ -248,7 +248,7 @@ Section pre_STS.
         rewrite bool_decide_eq_false_2; [done|set_solver].
   Qed.
 
-  Lemma gen_sts_init (d : nat) :
+  Lemma gen_sts_init :
     ⊢ |==> ∃ (stsg : STSG A B Σ), ([∗ set] C ∈ CNames, sts_full_world (∅,(∅,∅)) C) .
   Proof.
     iMod gen_sts_std_init as (γsstd) "Hstd".

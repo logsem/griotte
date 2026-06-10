@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
 From cap_machine Require Import logrel memory_region rules proofmode.
-From cap_machine Require Import multiple_updates region_invariants_revocation.
+From cap_machine Require Import sts_multiple_updates region_invariants_revocation.
 From cap_machine Require Import bitblast.
 From cap_machine Require Export switcher.
 From cap_machine Require Export clear_stack_spec clear_registers_spec.
@@ -11,9 +11,8 @@ Section Switcher_preamble.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .
@@ -145,13 +144,12 @@ Section Switcher_preamble.
          ∗ ⌜frame_match Ws Cs cstk W C⌝
          ∗ (execute_entry_point_register wpcc wcgp (WCap RWL Local a_stk4 e_stk a_stk4) nargs W C regs)
          ∗ registers_pointsto regs
-         ∗ region W C
-         ∗ sts_full_world W C
+         ∗ world_interp W C
          (* The 2nd condition [a_stk = (a_stk4 ^+ -4)%a] is necessary,
             because ((a_stk ^+4)%a ^+ -4)%a is not necessarily [a_stk] due to finite integers. *)
          ∗ ⌜csp_sync cstk a_stk e_stk ∧ a_stk = (a_stk4 ^+ -4)%a⌝
          ∗ cstack_frag cstk
-         ∗ na_own logrel_nais ⊤
+         ∗ na_own cerise_nais ⊤
            -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.

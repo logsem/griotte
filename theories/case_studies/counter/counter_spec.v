@@ -1,8 +1,7 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening.
-From cap_machine Require Import logrel logrel_extra rules.
+From cap_machine Require Import logrel rules interp_weakening.
 From cap_machine Require Import fetch_spec switcher_spec_call counter.
-From cap_machine Require Import switcher_spec_return.
+From cap_machine Require Import switcher_spec_return world_interp_stack.
 From cap_machine Require Import proofmode.
 
 Section Counter.
@@ -10,8 +9,7 @@ Section Counter.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -131,16 +129,16 @@ Section Counter.
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
 
     (
-      na_inv logrel_nais Nswitcher switcher_inv
+      na_inv cerise_nais Nswitcher switcher_inv
       (* initial memory layout *)
-      ∗ na_inv logrel_nais Ncounter
+      ∗ na_inv cerise_nais Ncounter
           ( ∃ (cnt : Z),
             [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
             ∗ codefrag pc_a counter_main_code
             ∗ [[ cgp_b, cgp_e ]] ↦ₐ [[ [WInt cnt] ]]
             ∗ ⌜ (0 <= cnt)%Z ⌝
           )
-      ∗ na_own logrel_nais ⊤
+      ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
@@ -149,7 +147,7 @@ Section Counter.
       ∗ cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
-      ∗ region W0 C ∗ sts_full_world W0 C
+      ∗ world_interp W0 C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -159,7 +157,7 @@ Section Counter.
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
       ∗ interp W0 C (WCap RWL Local csp_b csp_e csp_b)
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_counter Hrmap_dom Hrmap_init HsubBounds
@@ -167,7 +165,7 @@ Section Counter.
             )
       "(#Hswitcher & #Hmem & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
-      & Hr_C & Hsts_C
+      & Hworld_interp_C
       & HK
       & Hcstk_frag
       & #Hinterp_W0_C_f & #Hentry_C_f
@@ -210,10 +208,8 @@ Section Counter.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l
-           ) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & >%Hrevoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
-    (* iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk". *)
+    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
+        as (l) "(%Hl_unk & Hworld_interp_C & #Hstack_revoked_W0 & >%Hrevoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
 
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
@@ -342,18 +338,18 @@ Section Counter.
     iClear "Hinterp_W0_C_f".
 
     (* Prepare the closing resources for the switcher call spec *)
-    iAssert (([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W1 C a)
-      )%I with "[Hfrm_close_W0]" as "Hfrm_close_W1".
+    iDestruct (StackRevokedResources_mono_priv _ W1 with "Hstack_revoked_W0") as "Hstack_revoked_W1"; auto.
+    iAssert (⌜ revoked_addresses W1 l ⌝)%I as "%Hrevoked_l_W".
     {
-      iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "Hclose".
-      iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
+      iPureIntro; apply Forall_forall; intros a Ha.
+      rewrite /revoked_addresses Forall_forall in Hrevoked_l.
+      by apply Hrevoked_l in Ha.
     }
 
     iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W1 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag
               $Hinterp_W1_C_f $Hentry_C_f $HK]"); eauto; last iFrame "∗%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -364,9 +360,9 @@ Section Counter.
 
     iNext. subst rmap'; clear stk_mem.
     iIntros (W2 rmap' stk_mem l')
-      "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & %Hfrm_close_W2
+      "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W2 & %Hstack_revoked_W2
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C
+      & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -384,27 +380,21 @@ Section Counter.
       rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
     }
 
-    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W1.1) l ⌝)%I as "%Hrevoked_l_W".
-    {
-      iPureIntro; apply Forall_forall; intros a Ha.
-      rewrite Forall_forall in Hrevoked_l.
-      apply Hrevoked_l in Ha.
-      by rewrite elem_of_dom.
-    }
     iMod (
-       revoked_by_separation_many_with_temp_resources with "[$Hsts_C $Hr_C $Hrevoked_l]"
-      ) as "(Hrevoked_l & Hsts_C & Hr_C & %HW2_revoked_l)".
+       world_interp_revoked_by_separation_many_with_RevokedResources with "[$Hworld_interp_C $Hrevoked_l]"
+      ) as "(Hworld_interp_C & Hrevoked_l & %HW2_revoked_l)".
     { apply Forall_forall; intros a Ha.
-      rewrite Forall_forall in Hrevoked_l_W.
+      rewrite /revoked_addresses Forall_forall in Hrevoked_l_W.
       apply Hrevoked_l_W in Ha.
       destruct Hrelated_pub_W1_W2 as [ [Hdom _ ] _].
       rewrite -revoke_dom_eq.
-      by apply Hdom.
+      apply Hdom.
+      rewrite elem_of_dom; eauto.
     }
 
     iMod (
-       revoked_by_separation_many with "[$Hsts_C $Hr_C $Hstk]"
-      ) as "(Hsts_C & Hr_C & Hstk & %Hrevoked_stk')".
+       world_interp_revoked_by_separation_many with "[$Hworld_interp_C $Hstk]"
+      ) as "(Hworld_interp_C & Hstk & %Hrevoked_stk')".
     { apply Forall_forall; intros x Hx.
       destruct Hrelated_pub_W1_W2 as [ [Hdom _ ] _].
       rewrite -revoke_dom_eq.
@@ -415,7 +405,7 @@ Section Counter.
       { rewrite !elem_of_finz_seq_between in Hx |- *.
         solve_addr+Hcsp_bounds Hx.
       }
-      rewrite Forall_forall in Hrevoked_W0.
+      rewrite /revoked_addresses Forall_forall in Hrevoked_W0.
       eexists.
       by apply Hrevoked_W0.
     }
@@ -476,13 +466,14 @@ Section Counter.
     destruct Hl_unk.
     iApply (switcher_ret_specification _ W0 (revoke W2)
              with
-             "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
+             "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
     { eapply related_pub_W0_Wfixed ; eauto.
       apply Forall_app; split; auto.
     }
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
+    { by intros a; destruct (H0 a). }
     { iSplit; iApply interp_int. }
   Qed.
 
@@ -507,9 +498,9 @@ Section Counter.
     (cgp_b + length counter_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    na_inv logrel_nais Nswitcher switcher_inv
+    na_inv cerise_nais Nswitcher switcher_inv
     (* initial memory layout *)
-    ∗ na_inv logrel_nais Ncounter
+    ∗ na_inv cerise_nais Ncounter
         ( ∃ (cnt : Z),
             [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
             ∗ codefrag pc_a counter_main_code
@@ -526,7 +517,7 @@ Section Counter.
                Hcgp_contiguous Himports_contiguous)
       "(#Hswitcher & #Hmain & #Hinterp_C_f & #HentryC_f)
       % % % % % %
-      (HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
+      (HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as "(%Hfullrmap & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hinterp_rmap)".
     rewrite /interp_conf.
     rewrite /registers_pointsto.

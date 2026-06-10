@@ -128,27 +128,52 @@ The organisation of the `theories/` folder is as follows.
 
 ## Model of the Kripke worlds `model/`
 
-- `region_invariants_definitions.v`: 
+*The internal model is not supposed to be used by the user of Griotte.*
+
+- `sts.v`:
+  The definition of *stsCollection* (named *sts_full_world* in the implementation),
+  and associated lemmas. In particular:
+  private and public future world relations (all these definitions are
+  parameterised by the standard states and two relations over them transitions.
+  These are instantiated in `world_std_sts.v`).
+
+- `world_std_sts.v`:
   Definitions of the standard world and the standard invariant states.
-  Also contains lemmas about standard transitions
+  Also contains lemmas about standard transitions.
 
-- `region_invariants.v`: Definitions for standard resources, and the shared
-  resources map *sharedResources*. Contains some lemmas for "opening" and
-  "closing" the map, akin to opening and closing invariants.
+- `sts_multiple_updates.v`:
+  Auxiliary definitions to reason about multiple updates to a world.
 
-- `multiple_updates.v`: Auxiliary definitions to reason about multiple updates
-  to a world.
-
-- `region_invariants_revocation.v`: Lemmas for revoking standard resources
+- `world_std_revocation.v`:
+  Definitions and lemmas to revoke (and restore) the world
   (setting *Temporary* invariants to a *Revoked* state).
 
-- `region_invariants_allocation.v`: Lemmas for allocating a range of standard
-  resources.
+- `world_ghost_resources.v`:
+  Defines the ghost resources needed to interpret the world.
 
-- `sts.v`: The definition of *stsCollection*, and associated lemmas. In particular:
-  priv/pub/temporal future world relations (all these definitions are 
-  parameterised by the standard states and three relations over them transitions. 
-  These are instantiated in `region_invariants_definitions.v`)
+- `region_invariants.v`:
+  Definitions for standard resources, and the shared
+  resources map *sharedResources* (named *region* in the implementation).
+  Contains some lemmas for "opening" and "closing" the map,
+  akin to opening and closing invariants.
+
+- `region_invariants_revocation.v`:
+  Lemmas for revoking standard resources in the world interpretation.
+
+- `region_invariants_allocation.v`:
+  Lemmas for allocating a range of standard resources.
+
+- `world_interp_allocation_compartments.v`:
+  Lemmas for allocating standard resources for adversary compartments.
+
+- `model_interp_stack.v`:
+  Definitions and lemmas specific to reasoning about the stack region.
+
+## Interface of Kripke World for the user `model/`
+
+- `world_ghost_theory.v`:
+  Ghost theory of world interpretation.
+  Clean interface with the model to ease the proofs for the user.
   
 ## Logical relation and FTLR `logrel/`
 
@@ -158,7 +183,7 @@ The organisation of the `theories/` folder is as follows.
 
 - `logrel.v`: The definition of the unary logical relation.
 
-- `logrel_extra.v`: A collections of lemmas related to world manipulation
+- `world_interp_stack.v`: A collections of lemmas related to world manipulation
   in presence of safe-to-share.
 
 - `monotone.v`: Proof of the monotonicity of the value relation with regards to
@@ -168,6 +193,14 @@ The organisation of the `theories/` folder is as follows.
   Relations*. Each case (one for each instruction) is proved in a separate file
   (located in the `ftlr/` folder), which are all imported and applied in this
   file.
+
+- `stack_world_resources.v`:
+  Definition of resources to have a clean interface with manipulation
+  of the world, for stack region.
+
+- `world_interp_stack.v`:
+  Extension of the ghost theory of world interpretation,
+  specific to stack region.
 
 ## Switcher `switcher/`
 
@@ -180,16 +213,21 @@ The organisation of the `theories/` folder is as follows.
 - `switcher_preamble.v`: Definition of the switcher's invariant and 
   sealing predicate for the export table's otype.
   
+- `switcher_helpers.v`: Helpers lemmas to prove the switcher specifications.
+
 - `interp_switcher_{call,return}.v`: Proof that the switcher's 
   sentries are safe to execute
 
 - `switcher_spec_{call,return}.v`: Specification and proofs
   of the switcher's sentries for known code, invoking unknown code.
 
+
 ## Case studies `case_studies`
 
 - `switcher_adequacy.v`: Proof of validity of the adversaries exported 
 cross-compartment sealed entry points.
+
+- `adequacy_helpers.v`: Helper lemmas for adequacy theorems.
 
 - `compartment_layout.v`: Definition of regular compartment's memory layout,
   switcher's memory layout, and assert library memory layout.
@@ -200,6 +238,8 @@ For each examples `<name>`:
 - `name.v`: contains the code, the initial data, the import table and export table of the known
 compartment.
 - `name_spec{_*}.v` contains the specifications of the example.
+- `name_spec{_*}_closure.v` contains the specifications of the example,
+  when an entry point for known code is involved.
 - `name_adequacy.v` contains the end-to-end theorem of the example.
 
 The case studies are:

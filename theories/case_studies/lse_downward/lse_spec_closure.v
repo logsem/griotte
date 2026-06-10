@@ -1,17 +1,16 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel logrel_extra monotone proofmode register_tactics.
+From cap_machine Require Import rules logrel monotone interp_weakening.
 From cap_machine Require Import fetch_spec assert_spec switcher switcher_spec_return.
 From cap_machine Require Import lse.
-From cap_machine Require Import proofmode.
+From cap_machine Require Import world_interp_stack.
+From cap_machine Require Import proofmode register_tactics.
 
 Section LSE.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -49,9 +48,9 @@ Section LSE.
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
 
-    na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv logrel_nais Nswitcher switcher_inv
-    ∗ na_inv logrel_nais Nlse
+    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv cerise_nais Nlse
         ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
          ∗ codefrag pc_a lse_main_code
          ∗ cgp_b ↦ₐ WInt 2
@@ -84,7 +83,7 @@ Section LSE.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hr_C & Hsts_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
@@ -139,9 +138,8 @@ Section LSE.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l
-           ) "(%Hl_unk & Hsts_C & Hr_C & #Hfrm_close_W0 & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
+    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
+        as (l) "(%Hl_unk & Hworld_interp_C & #Hstack_revoked_W0 & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
 
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
@@ -243,7 +241,7 @@ Section LSE.
 
     iApply (switcher_ret_specification _ W0 W1
              with
-             "[ $Hswitcher $Hstk $Hcstk $HK $Hsts_C $Hna $HPC $Hr_C $Hrevoked_l
+             "[ $Hswitcher $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
     { apply related_pub_revoke_close_list.
@@ -259,7 +257,7 @@ Section LSE.
       auto.
     }
     { destruct Hl_unk; auto. }
-    { destruct Hl_unk; auto. }
+    { intros a; destruct Hl_unk as [_ Hl_unk]; destruct (Hl_unk a); auto. }
     { iSplit; iApply interp_int. }
   Qed.
 
@@ -288,9 +286,9 @@ Section LSE.
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
 
-    na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv logrel_nais Nswitcher switcher_inv
-    ∗ na_inv logrel_nais Nlse
+    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv cerise_nais Nlse
         ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
          ∗ codefrag pc_a lse_main_code
          ∗ cgp_b ↦ₐ WInt 2

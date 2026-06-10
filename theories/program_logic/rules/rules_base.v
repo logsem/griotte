@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From iris.base_logic Require Export invariants gen_heap.
+From iris.base_logic Require Export invariants na_invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth.
 From cap_machine Require Export cap_lang iris_extra stdpp_extra.
@@ -91,10 +91,19 @@ Section entryPre.
 
 End entryPre.
 
+
+(* Non atomic invariants *)
+Class cerise_na_invs Σ :=
+  {
+    na_invG :: na_invG Σ;
+    cerise_nais : na_inv_pool_name;
+  }.
+
 (* CMRA for Cerise *)
 Class ceriseG Σ :=
   CeriseG {
       cerise_invG : invGS Σ;
+      cerise_nainvG :: cerise_na_invs Σ;
       mem_gen_memG :: gen_heapGS Addr Word Σ; (* memory *)
       reg_gen_regG :: gen_heapGS RegName Word Σ; (* register *)
       sreg_gen_regG :: gen_heapGS SRegName Word Σ; (* system register *)

@@ -11,8 +11,7 @@ Section wp_interp.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
@@ -42,8 +41,7 @@ Section wp_interp.
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ wdst
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
@@ -55,15 +53,14 @@ Section wp_interp.
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap p g b e a
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
            ∗ ⌜ canStore p wsrc = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
           )
        }}}.
   Proof.
     iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ)
-      "(#Hinterp_src & #Hinterp_dst & HPC & Hi & Hsrc & Hdst & Hregion & Hworld)".
+      "(#Hinterp_src & #Hinterp_dst & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
     iIntros "Hφ".
 
     destruct (is_cap wdst) eqn:Hcap;cycle 1.
@@ -116,8 +113,11 @@ Section wp_interp.
 
     iDestruct (write_allowed_inv _ _ a with "Hinterp_dst") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
-    iDestruct (region_open with "[$]") as (v) "(Hr & Hsts & Hstate & Ha & %Hno & _ & _)";[|done|].
-    { destruct ρ;auto. done. }
+    iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
+      as "(Hworld_interp & Hstate & (%w & WorldRes) )"
+    ; [|eauto|]; [ destruct ρ;auto;done|].
+    iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
+
 
     iApply (wp_store_success_reg _ _ _ _ _ _ _ _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
     ; try iFrame
@@ -125,21 +125,24 @@ Section wp_interp.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hi & Hsrc & Hdst & Ha)".
 
-    iDestruct (region_close
-                with "[$Hstate $Hr $Ha $Hrel]")
-      as "Hregion".
-    { rewrite /safeC. auto. }
-    { destruct ρ; naive_solver. }
-    { iFrame "%". rewrite /safeC /=.
+    iAssert (P W C wsrc) as "Hinterp'".
+    {
       iDestruct ("Hwcond" with "Hinterp_src") as "HP".
       iFrame "HP".
-      rewrite /monoReq Hρ.
+    }
+    iAssert (mono_invariant C p' (safeC P) wsrc ρ) as "Hmono'".
+    {
+      rewrite /monoReq Hρ mono_invariant_eq.
       destruct ρ;[simpl..|exfalso;done].
       - destruct (isWL p');auto.
         destruct (isDL p'); first done.
-       by (iSpecialize ("Hmono" with "[%]");[eapply canStore_flowsto;eauto|]).
+        by (iSpecialize ("Hmono" with "[%]");[eapply canStore_flowsto;eauto|]).
       - by (iSpecialize ("Hmono" with "[%]");[eapply canStore_flowsto;eauto|]).
     }
+
+    iDestruct ("WorldRes" with "[$Ha $Hinterp' $Hmono']") as "WorldRes".
+    iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes") as "Hworld_interp"; eauto.
+    { destruct ρ;auto;contradiction. }
 
     iApply "Hφ"; iRight; iFrame "∗%".
     iSplit; first done.
@@ -163,8 +166,7 @@ Section wp_interp.
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ (WCap p g b e a)
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
@@ -174,15 +176,14 @@ Section wp_interp.
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap p g b e a
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
            ∗ ⌜ canStore p wsrc = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
           )
        }}}.
   Proof.
     iIntros (Hdecode_wi Hcorrect_pc Hpca' ? ? φ)
-      "(#Hinterp_src & #Hinterp_dst & HPC & Hi & Hsrc & Hdst & Hregion & Hworld)".
+      "(#Hinterp_src & #Hinterp_dst & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
     iIntros "Hφ".
     iApply (wp_store_interp with "[-Hφ]");eauto;[iFrame "∗ #"|].
     iNext. iIntros (ret) "[? | (%&%&%&%&%&%&?&?&?&?&?&?&?&%&%)]"
@@ -204,8 +205,7 @@ Section wp_interp.
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rdst ↦ᵣ wdst
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
@@ -216,15 +216,14 @@ Section wp_interp.
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ rdst ↦ᵣ WCap p g b e a
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(b <= a < e)%a ⌝
           )
        }}}.
   Proof.
     iIntros (Hdecode_wi Hcorrect_pc Hpca' ? φ)
-      "(#Hinterp_dst & HPC & Hi & Hdst & Hregion & Hworld)".
+      "(#Hinterp_dst & HPC & Hi & Hdst & Hworld_interp)".
     iIntros "Hφ".
 
     destruct (is_cap wdst) eqn:Hcap;cycle 1.
@@ -279,8 +278,10 @@ Section wp_interp.
 
     iDestruct (write_allowed_inv _ _ a with "Hinterp_dst") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
-    iDestruct (region_open with "[$]") as (v) "(Hr & Hsts & Hstate & Ha & %Hno & _ & _)";[|done|].
-    { destruct ρ;auto. done. }
+    iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
+      as "(Hworld_interp & Hstate & (%w & WorldRes) )"
+    ; [|eauto|]; [ destruct ρ;auto;done|].
+    iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
     iApply (wp_store_success_z _ _ _ _ _ _ _ _ rdst with "[$HPC Hi Hdst Ha]")
     ; try iFrame
@@ -289,20 +290,21 @@ Section wp_interp.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hi & Hdst & Ha)".
 
-    iDestruct (region_close
-                with "[$Hstate $Hr $Ha $Hrel]")
-      as "Hregion".
-    { rewrite /safeC. auto. }
-    { destruct ρ; naive_solver. }
-    { iFrame "%". rewrite /safeC /=.
-      iSplitL;[|iApply "Hwcond";iClear "∗ #"; by rewrite !fixpoint_interp1_eq /=].
-      rewrite /monoReq Hρ.
+    iAssert (P W C (WInt z)) as "Hinterp'".
+    { iApply "Hwcond"; iApply interp_int. }
+    iAssert (mono_invariant C p' (safeC P) (WInt z) ρ) as "Hmono'".
+    {
+      rewrite /monoReq Hρ mono_invariant_eq.
       destruct ρ;[simpl..|exfalso;done].
       - destruct (isWL p');auto.
-        destruct (isDL p') ; first done.
+        destruct (isDL p'); first done.
         by (iSpecialize ("Hmono" $! (WInt z) with "[%]");[eapply canStore_flowsto;eauto|]).
       - by (iSpecialize ("Hmono" $! (WInt z) with "[%]");[eapply canStore_flowsto;eauto|]).
     }
+
+    iDestruct ("WorldRes" with "[$Ha $Hinterp' $Hmono']") as "WorldRes".
+    iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes") as "Hworld_interp"; eauto.
+    { destruct ρ;auto;contradiction. }
 
     iApply "Hφ"; iRight; iFrame "∗%".
     iSplit; first done.
@@ -323,8 +325,7 @@ Section wp_interp.
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rdst ↦ᵣ (WCap p g b e a)
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
@@ -333,18 +334,17 @@ Section wp_interp.
            ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ rdst ↦ᵣ WCap p g b e a
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(b <= a < e)%a ⌝
           )
        }}}.
   Proof.
     iIntros (Hdecode_wi Hcorrect_pc Hpca' ? φ)
-      "(#Hinterp_dst & HPC & Hi & Hdst & Hregion & Hworld)".
+      "(#Hinterp_dst & HPC & Hi & Hdst & Hworld_interp)".
     iIntros "Hφ".
     iApply (wp_store_interp_z with "[-Hφ]");eauto;[iFrame "∗ #"|].
-    iNext. iIntros (ret) "[? | (%&%&%&%&%&%&?&?&?&?&?&?&?&%&%)]"
+    iNext. iIntros (ret) "[? | (%&%&%&%&%&%&?&?&?&?&?&?&%&%)]"
     ; iApply "Hφ" ; auto.
     iRight. simplify_eq.  iFrame.
     auto.
@@ -462,8 +462,7 @@ Section wp_interp.
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ wdst
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
@@ -475,15 +474,14 @@ Section wp_interp.
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ WCap p g b e a
            ∗ rdst ↦ᵣ wload ∗ interp W C wload
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
            ∗ ⌜ readAllowed p = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
           )
        }}}.
   Proof.
     iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ)
-      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hregion & Hworld)".
+      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
     iIntros "Hφ".
 
     destruct (is_cap wsrc) eqn:Hcap;cycle 1.
@@ -538,23 +536,22 @@ Section wp_interp.
 
     iDestruct (read_allowed_inv _ _ a with "Hinterp_src") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
-    iDestruct (region_open with "[$]") as (v) "(Hr & Hsts & Hstate & Ha & %Hno & HmonoV & HφV)";[|done|].
-    { destruct ρ;auto. done. }
+    iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
+      as "(Hworld_interp & Hstate & (%w & WorldRes) )"
+    ; [|eauto|]; [ destruct ρ;auto;done|].
+    iDestruct (WorldRes_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes ]".
 
     iApply (wp_load_success_alt _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
     ; try iFrame
     ; try solve_pure.
     { split; auto. rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
-    pose proof (Hpers (W, C, v)).
-    iDestruct "HφV" as "#HφV".
+    pose proof (Hpers (W, C, w)).
+    iDestruct "Hinterp" as "#HφV /=".
 
-    iDestruct (region_close
-                with "[$Hstate $Hr $Ha $Hrel $HmonoV $HφV]")
-      as "Hregion".
-    { rewrite /safeC. auto. }
-    { destruct ρ; naive_solver. }
-    { iFrame "%". }
+    iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
+    iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes") as "Hworld_interp"; eauto.
+    { destruct ρ;auto;contradiction. }
 
     iApply "Hφ"; iRight; iFrame "∗%".
     iSplit; first done.
@@ -580,8 +577,7 @@ Section wp_interp.
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ (WCap p g b e a)
            ∗ rdst ↦ᵣ wdst
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
@@ -592,15 +588,14 @@ Section wp_interp.
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ (WCap p g b e a)
            ∗ rdst ↦ᵣ wload ∗ interp W C wload
-           ∗ region W C
-           ∗ sts_full_world W C
+           ∗ world_interp W C
            ∗ ⌜ readAllowed p = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
           )
        }}}.
   Proof.
     iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ)
-      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hregion & Hworld)".
+      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
     iIntros "Hφ".
     iApply (wp_load_interp with "[-Hφ]");eauto;[iFrame "∗ #"|].
     iNext. iIntros (ret) "[? | (%&%&%&%&%&%&%&?&?&?&?&?&?&?&?&%&%)]"

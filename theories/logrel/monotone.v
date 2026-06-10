@@ -9,8 +9,7 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -227,10 +226,8 @@ Section monotone.
     iFrame "#%".
     iApply later_sep_1; iNext.
     iDestruct ("Hmono" $! _ W W' with "[] [$HP]") as "HP'"
-    ; rewrite /safeC /=
     ; eauto.
     iDestruct ("Hmono" $! _ W W' with "[] [$HPborrowed]") as "HPborrowed'"
-    ; rewrite /safeC /=
     ; eauto.
     iFrame "#".
   Qed.
@@ -562,9 +559,9 @@ Proof.
   destruct ρ;auto.
   - destruct (isWL p') eqn: HpwlP1 ; [|destruct (isDL p') eqn:HdwlP1]
     ; iModIntro; simpl ; iIntros (W0 W1) "% HIW0".
-    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
+    all: rewrite /interpC /= !fixpoint_interp1_eq;done.
   - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    all: rewrite /interpC /safeC /= !fixpoint_interp1_eq;done.
+    all: rewrite /interpC /= !fixpoint_interp1_eq;done.
 Qed.
 
 Lemma interp_monotone_generalSd (W : WORLD) (C : CmptName) (ρ : region_type)

@@ -5,6 +5,7 @@ From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From cap_machine Require Import rules_base.
 From cap_machine Require Export call_stack.
+From cap_machine Require Export world_ghost_theory.
 Import uPred.
 
 Ltac auto_equiv :=
@@ -23,12 +24,6 @@ Ltac auto_equiv :=
 
 Ltac solve_proper ::= (repeat intros ?; simpl; auto_equiv).
 
-Class logrel_na_invs Σ :=
-  {
-    logrel_na_invG :: na_invG Σ;
-    logrel_nais : na_inv_pool_name;
-  }.
-
 (** interp : is a unary logical relation. *)
 Section logrel.
 
@@ -36,8 +31,7 @@ Section logrel.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -50,7 +44,7 @@ Section logrel.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Definition safeC (P : V) :=
+  Notation safeC P :=
     (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
 
   Program Definition safeUC (P : WORLD * CmptName * leibnizO Word → iPropO Σ) : V :=
@@ -106,7 +100,7 @@ Section logrel.
 
   Definition interp_conf (W : WORLD) (C : CmptName) : iProp Σ :=
     (WP Seq (Instr Executable)
-       {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
 
   (** [frame_match] expresses that the call stack [cstk], the stack of worlds [Ws] and compartments [Cs],
       match with the current world [W] and compartment [C].
@@ -176,10 +170,9 @@ Section logrel.
        ∀ cstk Ws Cs regs,
        ( interp_reg interp W C regs
         ∗ registers_pointsto (<[PC:=wpc]> regs)
-        ∗ region W C
-        ∗ sts_full_world W C
+        ∗ world_interp W C
         ∗ interp_cont cstk Ws Cs
-        ∗ na_own logrel_nais ⊤
+        ∗ na_own cerise_nais ⊤
         ∗ cstack_frag cstk
         ∗ ⌜frame_match Ws Cs cstk W C⌝
           -∗ interp_conf W C)
@@ -195,8 +188,14 @@ Section logrel.
   Qed.
 
   (* Condition definitions *)
+  (** [zcond] states that if the safety predicate [P] is safe for some integer in some world,
+      then this integer is safe in any worlds.
+      We don't have simply [□ ∀ W z, P W C (WInt z)], because for RO capabilities,
+      we might not have [P W C (WInt z)] !
+   *)
   Definition zcond (P : V) (C : CmptName) : iProp Σ :=
     (□ ∀ (W1 W2: WORLD) (z : Z), P W1 C (WInt z) -∗ P W2 C (WInt z)).
+    (* (□ ∀ (W1 W2: WORLD) (z : Z), P W1 C (WInt z) -∗ P W2 C (WInt z)). *)
   Global Instance zcond_ne n :
     Proper ((=) ==> (=) ==> dist n) zcond.
   Proof. solve_proper_prepare.
@@ -205,6 +204,10 @@ Section logrel.
     Contractive (λ interp, ▷ zcond P C)%I.
   Proof. solve_contractive. Qed.
 
+  (** [rcond] states that the safety predicate [P] implies [interp],
+      downgraded to the permission with which it is loaded, due to deep permissions.
+      It comes from the fact that loading from memory gives a value that respects [P],
+      and therefore we need to [P] to be safe to share (ie., [interp]). *)
   Definition rcond (P : V) (C : CmptName) (p : Perm) (interp : V) : iProp Σ :=
     (□ ∀ (W: WORLD) (w : Word), P W C w -∗ interp W C (load_word p w)).
   Global Instance rcond_ne n :
@@ -214,6 +217,9 @@ Section logrel.
     Contractive (λ interp, ▷ rcond P C p interp)%I.
   Proof. solve_contractive. Qed.
 
+  (** [wcond] states that [interp] implies the safety predicate [P].
+      It comes from the fact that storing in memory consists of storing
+      a value that is safe to share, but we need to store a value respecting [P]. *)
   Definition wcond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
     (□ ∀ (W: WORLD) (w : Word), interp W C w -∗ P W C w).
   Global Instance wcond_ne n :
@@ -223,44 +229,81 @@ Section logrel.
     Contractive (λ interp, ▷ wcond P C interp)%I.
   Proof. solve_contractive. Qed.
 
+  (** [persistent_cond] states that the safety predicate [P] is persistent. *)
+  Definition persistent_cond (P:V) := (∀ WCv, Persistent (P WCv.1.1 WCv.1.2  WCv.2)).
 
-  Definition opening_resources (interp : V) W C a :=
-    (∃ v φ p ρ,
-      sts_state_std C a ρ
-      ∗ ▷ (φ (W, C, v))
-      ∗ ▷ (monotonicity_guarantees_region C φ p v ρ)
-      ∗ a ↦ₐ v
-      ∗ ▷ rcond (safeUC φ) C p interp
-      ∗ ▷ wcond (safeUC φ) C interp
-      ∗ rel C a p φ
-      ∗ ⌜ ρ ≠ Revoked ⌝
-      ∗ ⌜ isO p = false ⌝
-      ∗ ⌜ isDRO p = false ⌝
-      ∗ ⌜ isDL p = false ⌝
-      ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝)%I.
+  (** [valid_stk_interp] is a predicate stating that the safety predicate [φ]
+      is a safety predicate for the stack (RWL capability). *)
+  Definition valid_stk_interp (interp : V) (C : CmptName) (φ : V) (p : Perm) : iProp Σ :=
+    mono_pub C (safeC φ) ∗
+    zcond φ C ∗
+    rcond φ C p interp ∗
+    wcond φ C interp ∗
+    ⌜ persistent_cond φ ⌝.
+  Global Instance valid_interp_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) valid_stk_interp.
+  Proof. rewrite /valid_stk_interp; solve_proper. Qed.
 
-  Definition closing_resources (interp : V) W C a w : iProp Σ :=
-    ∃ φ p ρ,
-      (sts_state_std C a ρ
-       ∗ (φ (W, C, w))
-       ∗ (monotonicity_guarantees_region C φ p w ρ)
-       ∗ rcond (safeUC φ) C p interp
-       ∗ wcond (safeUC φ) C interp
-       ∗ rel C a p φ
-       ∗ ⌜ ρ ≠ Revoked ⌝
-       ∗ ⌜ isO p = false ⌝
-       ∗ ⌜ isDRO p = false ⌝
-       ∗ ⌜ isDL p = false ⌝
-       ∗ ⌜ forall Wv, Persistent (φ Wv) ⌝
-      )%I.
-
-  Global Instance closing_resources_ne n :
-    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) closing_resources.
+  (** [StackWorldResource] keeps track of the safety resources of a stack address [a] containing word [w].
+      Note that it does not own the points-to predicate (a ↦ₐ w). *)
+  Definition StackWorldResource (interp : V) (W : WORLD) (C : CmptName) (a : Addr) (w : Word) : iProp Σ :=
+    ∃ (φ : V) (p : Perm),
+      φ W C w ∗
+      mono_temporary C p (safeC φ) w ∗
+      rel C a p (safeC φ) ∗
+      valid_stk_interp interp C φ p ∗
+      ⌜ PermFlowsTo RWL p ⌝.
+  Global Instance StackWorldResource_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackWorldResource.
+  Proof. rewrite /StackWorldResource; solve_proper. Qed.
+  Global Instance StackWorldResource_Persistent
+    (interp : V) (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
+    Persistent (StackWorldResource interp W C a v).
   Proof.
-    intros interp interp0 Heq ????????????.
-    rewrite /closing_resources.
-    repeat (f_equiv; auto).
+    assert ( forall interp W C a v,
+               StackWorldResource interp W C a v ⊣⊢
+                 (
+                   (∃ (φ : V) (p : Perm) (_ : Persistent (φ W C v)),
+                       ((φ W C v)
+                        ∗ (mono_temporary C p (safeC φ) v)
+                        ∗ rel C a p (safeC φ)
+                        ∗ valid_stk_interp interp C φ p
+                        ∗ ⌜ PermFlowsTo RWL p ⌝
+                       )%I
+                   )
+                 )) as Heq; last (rewrite Heq; apply _).
+    rewrite /StackWorldResource.
+    intros.
+    iSplit; [iIntros "(%&%&?&?&?&(?&?&?&?&%Hpers)&?)" | iIntros "(%&%&%&?&?&?&(?&?&?&?&?)&?)"]; iFrame.
+    pose proof (Hpers (W0,C0,v0)) as H'; iExists H'; done.
   Qed.
+
+  (** [StackWorldResources] keeps track of the safety resources of the stack region [la] containing words [lw].
+
+      This resources comes hand-to-hand with revoking/reinstating or opening/closing the world.
+      This is mostly bookkeeping resources, and the user would usually only passes it around.
+   *)
+  Definition StackWorldResources (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) : iProp Σ :=
+    ([∗ list] a ; v ∈ la ; lw, StackWorldResource interp W C a v).
+  Global Instance StackWorldResources_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackWorldResources.
+  Proof. rewrite /StackWorldResources; solve_proper. Qed.
+  Global Instance StackWorldResources_Persistent
+    (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lv : list Word) :
+    Persistent (StackWorldResources interp W C la lv).
+  Proof. apply _. Qed.
+
+  (** [StackOpenWorldResources] keeps track of the safety resources of the stack region [la] containing words [lw],
+      but also owns the fragmental view of the world for the stack region.
+      This resource is obtained by opening shared stack region, and is used to reinstate it later.
+
+      This is mostly bookkeeping resources, and the user would usually only passes it around.
+   *)
+  Definition StackOpenWorldResources (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) : iProp Σ :=
+    StackWorldResources interp W C la lw ∗ ([∗ list] a ∈ la, sts_state_std C a Temporary).
+  Global Instance StackOpenWorldResources_ne n :
+    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackOpenWorldResources.
+  Proof. rewrite /StackOpenWorldResources; solve_proper. Qed.
 
   (** [interp_cont_exec] provides a WP rule for the continuation relation.
       It matches the states of the machine at the point where the switcher returns to the caller.
@@ -327,17 +370,16 @@ Section logrel.
          ∗ [[ a_stk , astk4 ]] ↦ₐ [[ stk_mem_l ]]
          ∗ [[ astk4 , e_stk ]] ↦ₐ [[ stk_mem_h ]]
          (* World interpretation *)
-         ∗ open_region_many W C callee_stk_region
-         ∗ ([∗ list] a ; v ∈ callee_stk_region ; callee_stk_mem, closing_resources interp W C a v)
-         ∗ sts_full_world W C
+         ∗ world_interp_open W C callee_stk_region
+         (* Bookkeeping resources for the opened world *)
+         ∗ StackOpenWorldResources interp W C callee_stk_region callee_stk_mem
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk
-         ∗ na_own logrel_nais ⊤
+         ∗ na_own cerise_nais ⊤
            -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.
-
   Global Instance interp_cont_exec_ne n :
     Proper (dist n ==> dist n ==> dist n) (interp_cont_exec).
   Proof. solve_proper. Qed.
@@ -401,7 +443,6 @@ Section logrel.
     | _,_,_ =>  False%I
     end.
   Solve All Obligations with ( solve_proper; split; intros ; (intros [?  [] ]; done) ).
-
   Global Instance interp_cont_aux_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) (interp_cont_aux).
   Proof.
@@ -423,6 +464,7 @@ Section logrel.
     Proper (dist n ==> dist n) (interp_cont).
   Proof. solve_proper. Qed.
 
+  (** Execute condition of the logical relation *)
   Definition exec_cond
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality) (b e : Addr)
@@ -449,6 +491,16 @@ Section logrel.
       apply interp_cont_ne;auto. }
     Qed.
 
+  (** Enter condition of the logical relation
+      Describes that, for a sentry capability to be safe to share,
+      its unsealed version must be safe to execute.
+
+      The world must be any future world of [W], public for local and private for global,
+      because the world can evolve before invoking the capability.
+
+      The locality must be any lower locality,
+      because the locality of a sentry capability can be weakened.
+ *)
   Definition enter_cond
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality) (b e a : Addr)
@@ -463,7 +515,6 @@ Section logrel.
     solve_proper_prepare.
     solve_proper.
   Qed.
-
   Global Instance enter_cond_contractive W C p g b e a :
     Contractive (λ interp, enter_cond W C p g b e a interp).
   Proof.
@@ -476,12 +527,11 @@ Section logrel.
     apply interp_cont_ne;auto.
   Qed.
 
-  Definition persistent_cond (P:V) := (∀ WCv, Persistent (P WCv.1.1 WCv.1.2  WCv.2)).
-
-  (* interp definitions *)
+  (** * Definitions interp *)
 
 
-  (*
+  (** Interp of the world state
+
       -------------------------------------------------------------
       |          |         nwl           |          pwl           |
       -------------------------------------------------------------
@@ -502,7 +552,23 @@ Section logrel.
     end.
 
   (* For simplicity we might want to have the following statement in validity of caps.
-     However, it is strictly not necessary since it can be derived form full_sts_world *)
+     However, it is strictly not necessary since it can be derived form [world_interp].
+
+     NOTE I actually think that it is necessary in Griotte, for proving the FTLR,
+     and in particular the Store case.
+
+     I don't have all the details in mind, but it comes from the fact that,
+     in previous versions, having [wcond] implied having [rcond],
+     and having both could derive P is [interp].
+     And it enabled to derive the monotonicity requirement for the stored value.
+
+     But in Griotte, not only we don't have [wcond] -> [rcond],
+     but also having both does not necessarily means that P is [interp].
+     And we can't use this for deriving monotonicity of the stored value.
+
+     Therefore, we need to have [monoReq] is the definition of the logrel,
+     to derive the monotonicity requirements of any values that can be stored
+     with the capability. *)
 
   Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) :=
     (match (std W) !! a with
@@ -514,9 +580,12 @@ Section logrel.
         | _ => True
         end)%I.
 
+  (** Interp trivially holds for integers. *)
   Definition interp_z : V := λne _ _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
+  (** Interp trivially holds for O-permission capability. *)
   Definition interp_cap_O : V := λne _ _ _, True%I.
 
+  (** Interp for sentry in [enter_cond]. *)
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
                 | WSentry p g b e a => □ enter_cond W C p g b e a interp
@@ -524,6 +593,7 @@ Section logrel.
                 end)%I.
   Solve All Obligations with solve_proper.
 
+  (** Interp for memory capability. *)
   Program Definition interp_cap (interp : V) : V :=
     λne W C w, (match w with
               | WCap (O _ _) _ _ _ _
@@ -559,6 +629,7 @@ Section logrel.
                 ∗ (seal_pred a (safeC P))
                 ∗ ▷ rcond P C RO interp)%I.
 
+  (** Interp for sealing capability. *)
   Program Definition interp_sr (interp : V) : V :=
     λne W C w, (match w with
     | WSealRange p g b e a =>
@@ -567,6 +638,7 @@ Section logrel.
     | _ => False end ) %I.
   Solve All Obligations with solve_proper.
 
+  (** Interp for sealed capability. *)
   Program Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (w : Word) :=
     (∃ (P : V) ,
         ⌜persistent_cond P⌝
@@ -576,6 +648,7 @@ Section logrel.
         ∗ ▷ P W C (borrow w)
     )%I.
 
+  (** Definition of interp, pre-fixpoint. *)
   Program Definition interp1 (interp : V) : V :=
     (λne W C w,
     match w return _ with
@@ -588,6 +661,8 @@ Section logrel.
     end)%I.
   Solve All Obligations with solve_proper.
 
+  (** To be able to use the fixpoint combinator to define [interp],
+      we need to show that all case of [interp] are contractive. *)
   Global Instance interp_cap_O_contractive :
     Contractive (interp_cap_O).
   Proof. solve_contractive. Qed.
@@ -637,6 +712,7 @@ Section logrel.
     + rewrite /interp_sb; solve_contractive.
     Qed.
 
+  (** Definition of [interp] via the fixpoint combinator. *)
   Lemma fixpoint_interp1_eq (W : WORLD) (C : CmptName) (w : leibnizO Word) :
     fixpoint (interp1) W C w ≡ interp1 (fixpoint (interp1)) W C w.
   Proof. exact: (fixpoint_unfold (interp1) W C w). Qed.
@@ -650,10 +726,9 @@ Section logrel.
 
   Lemma interp_continuation_eq :
     interp_continuation ≡ interp_cont (fixpoint interp1).
-  Proof.
-    rewrite /interp_continuation /interp /= //.
-  Qed.
+  Proof. rewrite /interp_continuation /interp /= //. Qed.
 
+  (** We have, and we _WANT_, [interp] to be Persistent *)
   Global Instance interp_persistent W C w : Persistent (interp W C w).
   Proof.
     intros. destruct_word w; simpl; rewrite fixpoint_interp1_eq; simpl.
@@ -680,7 +755,7 @@ Section logrel.
   Qed.
 
   (* Non-curried version of interp *)
-  Definition interpC := safeC interp.
+  Notation interpC := (safeC interp).
 
   Lemma interp1_eq interp (W: WORLD) (C : CmptName) p g b e a:
     ((interp1 interp W C (WCap p g b e a)) ≡
@@ -1112,3 +1187,7 @@ Section logrel.
   Qed.
 
 End logrel.
+
+Notation safeC P :=
+  (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
+Notation interpC := (safeC interp).

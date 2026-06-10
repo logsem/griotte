@@ -13,8 +13,7 @@ Section switcher_macros.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
@@ -41,20 +40,19 @@ Section switcher_macros.
       ∗ interp W C (WCap csp_p csp_g csp_b csp_e csp_a)
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
       ∗ codefrag pc_a (clear_stack_instrs r1 r2)
-      ∗ region W C
-      ∗ sts_full_world W C
+      ∗ world_interp W C
       ∗ ▷ ( (PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
              ∗ csp ↦ᵣ WCap csp_p csp_g csp_b csp_e csp_a
              ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap csp_p csp_g csp_b csp_e csp_e
              ∗ codefrag pc_a (clear_stack_instrs r1 r2))
-             ∗ region W C ∗ sts_full_world W C
+            ∗ world_interp W C
             -∗ WP Seq (Instr Executable) {{ φ }})
       ∗ ▷ φ FailedV
     )
       ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
     iIntros (Hpc_exec Hbounds Hr1cnull Hr2cnull)
-      "(HPC & Hcsp & Hinterp & Hr1 & Hr2 & Hcode & Hr & Hsts & Hφ & Hfailed)".
+      "(HPC & Hcsp & Hinterp & Hr1 & Hr2 & Hcode & Hworld_interp & Hφ & Hfailed)".
     codefrag_facts "Hcode". clear H0.
 
     (* --- Sub r1 r2 r1 --- *)
@@ -89,10 +87,10 @@ Section switcher_macros.
       (* --- Store r2 0%Z --- *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (wp_store_interp_z_cap with "[$HPC $Hi $Hr $Hsts Hr2]"); try solve_pure.
+      iApply (wp_store_interp_z_cap with "[$HPC $Hi $Hworld_interp Hr2]"); try solve_pure.
       { iFrame "∗ #". }
       iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hr2
-      & Hr & Hsts & %Hwa & _)] /=".
+      & Hworld_interp & %Hwa & _)] /=".
       { wp_pure. wp_end. iFrame. }
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
@@ -116,7 +114,7 @@ Section switcher_macros.
 
       (* IH *)
       replace (csp_a - csp_e + 1)%Z with (f - csp_e)%Z by solve_addr.
-      iApply ("IH" $! f with "[] Hr Hsts Hφ Hfailed Hct2 Hcode HPC Hr2 Hcsp").
+      iApply ("IH" $! f with "[] Hworld_interp Hφ Hfailed Hct2 Hcode HPC Hr2 Hcsp").
       iApply interp_lea;eauto.
       destruct csp_p,rx,w;auto. done.
   Qed.

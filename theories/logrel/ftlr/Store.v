@@ -13,9 +13,8 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
   .
 
@@ -90,7 +89,7 @@ Section fundamental.
         sts_state_std C l ρ
         ∗ ⌜std W !! l = Some ρ⌝
         ∗ ⌜ρ ≠ Revoked⌝
-        ∗ open_region_many W C (l :: ls)
+        ∗ world_interp_open W C (l :: ls)
         ∗ if_later_P
             has_later
             (monotonicity_guarantees_region C (safeC P) p v ρ )
@@ -119,7 +118,7 @@ Section fundamental.
                 then ∃ p' (P':D) w,
                     ⌜PermFlowsTo p p'⌝
                     ∗ ⌜ persistent_cond P' ⌝
-                    ∗ a ↦ₐ w
+                    ∗ ▷ a ↦ₐ w
                     ∗ if_later_P has_later (zcond P' C)
                     ∗ (if writeAllowed p
                        then if_later_P has_later (wcond P' C interp)
@@ -129,8 +128,8 @@ Section fundamental.
                        else True)
                     ∗ monoReq W C a p' P'
                     ∗ (region_open_resources W C a [pc_a] p' (safeC P') w P' has_later)
-                else open_region W C pc_a ∗ ⌜PermFlowsTo p pc_p⌝  )
-          else open_region W C pc_a)%I.
+                else world_interp_open W C [pc_a] ∗ ⌜PermFlowsTo p pc_p⌝  )
+          else world_interp_open W C [pc_a])%I.
 
   Definition allow_store_mem W C r1 r2 (regs : Reg) pc_a (pc_p : Perm) pc_w (mem : Mem)
     (has_later : bool) :=
@@ -152,8 +151,8 @@ Section fundamental.
                     ∗ monoReq W C a p' P'
                     ∗ ⌜mem = <[a:=w]> (<[pc_a:=pc_w]> ∅)⌝
                     ∗ (region_open_resources W C a [pc_a] p' (safeC P') w P' has_later)
-                else  ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region W C pc_a  ∗ ⌜PermFlowsTo p pc_p⌝)
-          else  ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ open_region W C pc_a)%I.
+                else  ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ world_interp_open W C [pc_a]  ∗ ⌜PermFlowsTo p pc_p⌝)
+          else  ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ world_interp_open W C [pc_a])%I.
 
   Lemma create_store_res
     (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
@@ -166,13 +165,10 @@ Section fundamental.
     → word_of_argument (<[PC:=WCap p g b e a]> regs) r2 = Some storev
     → (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → interp W C v)
     -∗ rel C a p' (safeC P)
-    -∗ open_region W C a
-    -∗ sts_full_world W C
-    -∗ allow_store_res W C r1 r2 (<[PC:=WCap p g b e a]> regs) a p' true
-    ∗ sts_full_world W C.
+    -∗ world_interp_open W C [a]
+    -∗ allow_store_res W C r1 r2 (<[PC:=WCap p g b e a]> regs) a p' true.
   Proof.
-    iIntros (HVr1 Hfl Hwoa) "#Hreg #Hinva Hr Hsts".
-    do 6 (iApply sep_exist_r; iExists _).
+    iIntros (HVr1 Hfl Hwoa) "#Hreg #Hinva Hworld_interp".
     iFrame "%".
     case_decide as Hallows; last by iFrame.
     case_decide as Haeq.
@@ -189,18 +185,17 @@ Section fundamental.
         as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hrcond'' & Hwcond'' & HmonoR'')"; auto
       ; first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
 
-      iDestruct (region_open_prepare with "Hr") as "Hr".
       iDestruct (writeAllowed_valid_cap_implies with "Hvsrc") as %HH; eauto.
       { rewrite /withinBounds Hge; solve_addr. }
 
       destruct HH as [ρ' [Hstd' Hnotrevoked'] ].
       (* We can finally frame off Hsts here, since it is no longer needed after opening the region*)
-      iDestruct (region_open_next _ _ _ _ a0 p'' ρ' with "[$Hrel'' $Hr $Hsts]")
-        as (w0) "($ & Hstate' & Hr & Ha0 & Hfuture & Hval)"; eauto.
-      { apply not_elem_of_cons. split; auto. apply not_elem_of_nil. }
+      iDestruct (open_world_interp_next _ _ _ a0 p'' _ ρ' with "Hrel'' Hworld_interp")
+        as "(Hworld & Hstate' & [%w0 (?&?&?&?)] )"; eauto.
+      { apply not_elem_of_cons; split; auto. apply not_elem_of_nil. }
+      { destruct ρ'; simplify_eq; [by left | by right]. }
       iExists p'',P''.
       rewrite Hra.
-      iFrame "∗#".
       iAssert (if readAllowed p0 then ▷ rcond P'' C p'' interp else True)%I as "Hrcond0".
       { destruct (readAllowed p0) eqn:Hra''; last done.
         eapply readAllowed_flowsto in Hflp''; eauto.
@@ -208,7 +203,10 @@ Section fundamental.
       }
       iFrame "∗#".
       iSplitR;[iPureIntro ; destruct p0,p'; done|].
-      iSplitR; try (iPureIntro; done).
+      repeat (iSplitR; try (iPureIntro; done)).
+      cbn.
+      iNext.
+      rewrite mono_invariant_monotonicity_guarantees_region; eauto.
     - simplify_eq; iFrame.
       iApply interp_hpf_eq; eauto.
   Qed.
@@ -315,7 +313,7 @@ Section fundamental.
     -∗ monotonicity_guarantees_region C (safeC P) pc_p' pc_w ρ
     -∗ ([∗ map] a0↦w0 ∈ <[a0 := storev]> mem0, a0 ↦ₐ w0)
     -∗ ∃ v,
-        open_region W C pc_a
+        world_interp_open W C [pc_a]
         ∗ pc_a ↦ₐ v
         ∗ P W C v
         ∗ monotonicity_guarantees_region C (safeC P) pc_p' v ρ.
@@ -372,25 +370,26 @@ Section fundamental.
       iDestruct "HStoreRes"
         as (p' P' w' Hflp' HpersP') "(#Hzcond' & #Hwcond' & #Hrcond' & #HmonoR' & -> & HStoreRes)".
       rewrite lookup_insert_eq in Ha0; inversion Ha0; clear Ha0; subst.
-      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & Hr & #HmonoV & Hrel')".
+      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & Hworld_interp & #HmonoV & Hrel')".
       rewrite insert_insert_eq memMap_resource_2ne; last auto.
       iDestruct "Hmem" as  "[Ha1 Hpc_a]".
       iFrame.
-      iDestruct (region_close_next with "[$Hr $Ha1 $Hrel' $Hstate' HmonoV]") as "Hr"; eauto.
+
+      iDestruct (close_world_interp_next with "Hworld_interp Hstate' Hrel' [Ha1 HmonoV]") as "Hworld_interp"; eauto.
       { apply not_elem_of_cons; split; [auto|apply not_elem_of_nil]. }
-      { iSplit.
-        { iPureIntro ; clear -Hflp' Hwa; destruct p0,p'; cbn in *; try done.
-          destruct rx, rx0, w, w0 ; cbn in *; try done.
-        }
-        destruct (writeAllowed p0) eqn:Hwa'; cycle 1.
-        { destruct p0, p'; cbn in *; try congruence;  inv Hflp'. }
-        iDestruct ("Hwcond'" with "HVstorev1") as "HP'storev".
-        iFrame "#".
-        iApply monotonicity_guarantees_region_canStore ; eauto.
-        by eapply canStore_flowsto.
+      { destruct ρ1; simplify_eq; naive_solver. }
+      iFrame "∗#%".
+      iSplit.
+      { iPureIntro ; clear -Hflp' Hwa; destruct p0,p'; cbn in *; try done.
+        destruct rx, rx0, w, w0 ; cbn in *; try done.
       }
-      iDestruct (region_open_prepare with "Hr") as "$".
+      destruct (writeAllowed p0) eqn:Hwa'; cycle 1.
+      { destruct p0, p'; cbn in *; try congruence;  inv Hflp'. }
+      iDestruct ("Hwcond'" with "HVstorev1") as "HP'storev".
       iFrame "#".
+      iDestruct (monotonicity_guarantees_region_canStore with "HmonoR'") as "HmonoR''" ; eauto.
+      { by eapply canStore_flowsto. }
+      rewrite mono_invariant_monotonicity_guarantees_region; eauto.
     + subst a0. iDestruct "HStoreRes" as "[-> [HStoreRes %]]".
       rewrite insert_insert_eq -memMap_resource_1.
       rewrite lookup_insert_eq in Ha0; inversion Ha0; simplify_eq.
@@ -437,10 +436,12 @@ Section fundamental.
      (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
      ftlr_instr W C regs p p' g b e a w (Store dst src) ρ P cstk Ws Cs.
    Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
+
+    iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoV) WorldRes ]".
 
     (* To read out PC's name later, and needed when calling wp_load *)
     assert(∀ x : RegName, is_Some (<[PC:=WCap p g b e a]> regs !! x)) as Hsome'.
@@ -479,7 +480,7 @@ Section fundamental.
 
     (* Step 1: open the region, if necessary,
        and store all the resources obtained from the region in allow_load_res *)
-    iDestruct (create_store_res with "Hreg Hinva Hr Hsts") as "[HStoreRes Hsts]"; eauto.
+    iDestruct (create_store_res with "Hreg Hinva Hworld_interp") as "HStoreRes"; eauto.
     (* Clear helper values; they exist in the existential now *)
     clear HVdst p0 g0 b0 e0 a0 Hwoa storev.
 
@@ -505,6 +506,7 @@ Section fundamental.
       destruct Hincr as (?&?&?&?&?&?&?&?&?).
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
+      rewrite mono_invariant_eq.
       iDestruct (switch_monotonicity_formulation with "HmonoV") as "HmonoV"; [eauto..|].
 
       (* assert that the PC *)
@@ -512,16 +514,18 @@ Section fundamental.
       (* Step 4: return all the resources we had in order to close the second location
          in the region, in the cases where we need to *)
       iDestruct (mem_map_recover_res
-                  with "HStoreMem Hreg Hinv_interp Hw [Hwcond] [Hmono] [HmonoV] Hmem")
-        as (w') "(Hr & Ha & HSVInterp & HmonoV)"; eauto.
+                  with "HStoreMem Hreg Hinv_interp Hinterp [Hwcond] [Hmono] [HmonoV] Hmem")
+        as (w') "(Hworld_interp & Ha & HSVInterp & HmonoV)"; eauto.
 
       iDestruct (switch_monotonicity_formulation with "HmonoV") as "HmonoV"; auto.
+      rewrite /monotonicity_guarantees_decide -mono_invariant_eq.
 
-      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV $HSVInterp]") as "Hr"; eauto.
+      iDestruct ("WorldRes" with "[$Ha $HSVInterp $HmonoV]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
       simplify_map_eq. rewrite insert_insert_eq.
 
-      iApply ("IH" with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]"); auto.
+      iApply ("IH" with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); auto.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { iApply wp_pure_step_later; auto. iNext; iIntros "_". iApply wp_value; auto.  }

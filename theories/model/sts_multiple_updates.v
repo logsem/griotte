@@ -1,18 +1,17 @@
-From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants.
 From Stdlib Require Import Eqdep_dec List.
 From stdpp Require Import countable list_relations.
+From cap_machine Require Import sts world_std_sts.
+From cap_machine Require Export stdpp_extra.
 
 Section std_updates.
 
   (* --------------------------------------------------------------------------------- *)
   (* ----------------------- UPDATING MULTIPLE REGION STATES ------------------------- *)
+  (* --------------------------------------------------------------------------------- *)
 
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ}
-    {heapg : heapGS Σ}
     `{MP: MachineParameters}.
 
   Implicit Types W : WORLD.

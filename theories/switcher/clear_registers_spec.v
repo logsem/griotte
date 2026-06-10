@@ -16,7 +16,7 @@ Section ClearRegistersMacro.
     {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type Σ}
-    {heapg : heapGS Σ}
+    {relg : relGS Σ}
     `{MP: MachineParameters}.
 
   Implicit Types W : WORLD.

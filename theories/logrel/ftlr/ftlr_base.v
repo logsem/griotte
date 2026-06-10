@@ -8,9 +8,8 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
   .
 
@@ -31,11 +30,10 @@ Section fundamental.
             full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
             -∗ registers_pointsto (<[PC:= WCap p_ih g_ih b_ih e_ih a_ih]> r_ih)
-            -∗ region W_ih C_ih
-            -∗ sts_full_world W_ih C_ih
+            -∗ world_interp W_ih C_ih
             -∗ interp_continuation cstk Ws Cs
             -∗ ⌜frame_match Ws Cs cstk W_ih C_ih⌝
-            -∗ na_own logrel_nais ⊤
+            -∗ na_own cerise_nais ⊤
             -∗ cstack_frag cstk
             -∗ □ interp W_ih C_ih (WCap p_ih g_ih b_ih e_ih a_ih)
             -∗ interp_conf W_ih C_ih))%I.
@@ -49,7 +47,6 @@ Section fundamental.
     → isCorrectPC (WCap p g b e a)
     → (b <= a)%a ∧ (a < e)%a
     → PermFlowsTo p p'
-    → isO p' = false
     → (persistent_cond P)
     → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
     → std W !! a = Some ρ
@@ -66,26 +63,19 @@ Section fundamental.
           then ▷ wcond P C interp
           else emp)
     -∗ monoReq W C a p' P
-    -∗ (▷ (if decide (ρ = Temporary)
-           then (if isWL p'
-                 then future_pub_mono C (safeC P) w
-                 else (if isDL p' then future_pub_mono C (safeC P) w else future_priv_mono C (safeC P) w))
-           else future_priv_mono C (safeC P) w))
-    -∗ ▷ P W C w
+    -∗ ▷ WorldRes W C a p' (safeC P) w ρ
     -∗ interp_continuation cstk Ws Cs
     -∗ ⌜frame_match Ws Cs cstk W C⌝
-    -∗ sts_full_world W C
-    -∗ na_own logrel_nais ⊤
+    -∗ world_interp_open W C [a]
+    -∗ na_own cerise_nais ⊤
     -∗ cstack_frag cstk
-    -∗ open_region W C a
     -∗ sts_state_std C a ρ
-    -∗ a ↦ₐ w
     -∗ PC ↦ᵣ (WCap p g b e a)
     -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
     -∗ WP Instr Executable
         {{ v, WP Seq (cap_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝
-                        → na_own logrel_nais ⊤}} }}.
+                        → na_own cerise_nais ⊤}} }}.
 
   Definition ftlr_instr (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)

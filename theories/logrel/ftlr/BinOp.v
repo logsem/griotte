@@ -13,9 +13,8 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    {nainv: logrel_na_invs Σ}
     `{MP: MachineParameters}
   .
 
@@ -26,6 +25,17 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
+
+  Lemma WorldRes_acc (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) Φ (w : Word) ρ :
+    WorldRes W C a p Φ w ρ -∗
+    ( a ↦ₐ w ∗ Φ (W,C,w) ) ∗
+    ( ( a ↦ₐ w ∗ Φ (W,C,w) ) -∗ WorldRes W C a p Φ w ρ ).
+  Proof.
+    iIntros "(Hp&Ha&HΦ&Hmono)".
+    iSplitL "Ha HΦ"; iFrame.
+    iIntros "[Ha HΦ]"; iFrame "∗#".
+  Qed.
+
 
   Lemma binop_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg) (p p' : Perm)
     (g : Locality) (b e a : Addr) (w : Word) (ρ : region_type) (dst : RegName)
@@ -41,10 +51,12 @@ Section fundamental.
        decodeInstrW w = Lt dst r1 r2
       ) cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp HO Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono #HmonoV Hw Hcont %Hframe Hsts Hown Htframe".
-    iIntros "Hr Hstate Ha HPC Hmap".
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
+
+    iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
     iApply (wp_BinOp with "[$Ha $Hmap]"); eauto.
     { simplify_map_eq; auto. }
@@ -59,12 +71,14 @@ Section fundamental.
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       assert (dst <> PC) as HdstPC by (intros ->; rewrite lookup_insert_eq in H1; done).
       rewrite lookup_insert_ne in H1; eauto; simplify_map_eq.
-      iDestruct (region_close with "[$Hstate $Hr $Ha $HmonoV Hw]") as "Hr"; eauto.
+
+      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
       assert (is_Some (<[dst:=WInt (rules_BinOp.denote (decodeInstrW w) n1 n2)]> (<[PC:=WCap x x0 x1 x2 x3]> regs) !! csp)) as [??].
       { destruct (decide (dst = csp)); simplify_map_eq=>//. }
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hr] [$Hsts] [$Hcont] [//] [$Hown] [$Htframe]")
+      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> (<[PC:=_]> regs)) with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]")
       ; eauto.
       + intro; cbn. by repeat (rewrite lookup_insert_is_Some'; right).
       + iIntros (ri wi Hri Hregs_ri).

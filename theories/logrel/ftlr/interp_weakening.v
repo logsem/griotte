@@ -9,8 +9,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -157,9 +156,9 @@ Section fundamental.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (W') "#Hfuture %g'' %Hflows !>".
-    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hregion & Hsts & Hcont & Hown & Hcstk & Hframe)]".
+    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hworld_interp & Hcont & Hown & Hcstk & Hframe)]".
     rewrite /interp_conf.
-    iApply ("IH" with "Hfull Hmap Hreg Hregion Hsts Hcont Hframe Hown Hcstk"); eauto.
+    iApply ("IH" with "Hfull Hmap Hreg Hworld_interp Hcont Hframe Hown Hcstk"); eauto.
     iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
     destruct (isO p) eqn:HpO; auto.
     destruct (has_sreg_access p) eqn:HpXSR'; auto.
@@ -390,20 +389,13 @@ Section fundamental.
     intros W; apply _.
   Qed.
   Lemma zcond_interp C : ⊢ zcond interp C.
-  Proof.
-    by iModIntro; iIntros (W1 W2 w) "_"; iApply interp_int.
-  Qed.
+  Proof. by iModIntro; iIntros (W1 W2 w) "_"; iApply interp_int. Qed.
 
   Lemma wcond_interp C : ⊢ wcond interp C interp.
-  Proof.
-    by iModIntro; iIntros (W1 w) "?".
-  Qed.
+  Proof. by iModIntro; iIntros (W1 w) "?". Qed.
 
   Lemma rcond_interp C p : ⊢ rcond interp C p interp.
-  Proof.
-    iModIntro; iIntros (W1 w) "?".
-    by iApply interp_load_word.
-  Qed.
+  Proof. iModIntro; iIntros (W1 w) "?"; by iApply interp_load_word. Qed.
 
   Lemma monoReq_interp (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (ρ : region_type) :
     (std W) !! a = Some ρ
@@ -439,7 +431,8 @@ Section fundamental.
   Proof.
     iModIntro.
     iIntros (W W') "%Hrelated Hinterp".
-    rewrite /interpC /safeC /=. iEval (rewrite fixpoint_interp1_eq);done.
+    rewrite /=.
+    iEval (rewrite fixpoint_interp1_eq);done.
   Qed.
 
   Lemma future_pub_mono_interp_z (C : CmptName) (z : Z) :
@@ -447,7 +440,7 @@ Section fundamental.
   Proof.
     iModIntro.
     iIntros (W W') "%Hrelated Hinterp".
-    rewrite /interpC /safeC /=.
+    rewrite /=.
     iEval (rewrite fixpoint_interp1_eq); done.
   Qed.
 
@@ -456,7 +449,7 @@ Section fundamental.
   Proof.
     iModIntro.
     iIntros (W W') "%Hrelated Hinterp".
-    rewrite /interpC /safeC /=.
+    rewrite /=.
     iApply interp_monotone_nl_cap; eauto.
   Qed.
 
@@ -483,10 +476,7 @@ Section fundamental.
   Proof. by iModIntro; iIntros (W1 W2 w) "_"; iApply interp_int. Qed.
 
   Lemma wcond_interp_dl C : ⊢ wcond interp_dl C interp.
-  Proof.
-    iIntros "!> %W %w H".
-    by iApply interp_deeplocal_word; iApply interp_borrow_word.
-  Qed.
+  Proof. iIntros "!> %W %w H". by iApply interp_deeplocal_word; iApply interp_borrow_word. Qed.
 
   Lemma rcond_interp_dl C p : isDL p = true -> ⊢ rcond interp_dl C p interp.
   Proof.
@@ -497,10 +487,7 @@ Section fundamental.
   Qed.
 
   Lemma mono_pub_interp_dl C : ⊢ mono_pub C (safeC interp_dl).
-  Proof.
-    iIntros (?) "!> %W %W' %Hrelated H"; cbn.
-    iApply interp_monotone; auto.
-  Qed.
+  Proof. iIntros (?) "!> %W %W' %Hrelated H"; cbn. iApply interp_monotone; auto. Qed.
 
   Program Definition interp_dro_eq (w : Word) : V :=
     (λne (W : WORLD) (B : leibnizO CmptName) (v : leibnizO Word)
@@ -511,10 +498,7 @@ Section fundamental.
   Proof. intros W; apply _. Qed.
 
   Lemma zcond_interp_dro_eq C w : ⊢ zcond (interp_dro_eq w) C.
-  Proof. iModIntro; iIntros (W1 W2 w') "[<- ?]".
-         iSplit; first done.
-         iApply interp_int.
-  Qed.
+  Proof. iModIntro; iIntros (W1 W2 w') "[<- ?]"; iSplit; [done | iApply interp_int]. Qed.
 
   Lemma rcond_interp_dro_eq C w p : isDRO p = true -> ⊢ rcond (interp_dro_eq w) C p interp.
   Proof.

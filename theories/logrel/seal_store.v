@@ -64,7 +64,7 @@ Section Store.
   Context `{!sealStoreG Σ}
       {Cname : CmptNameG}
       {stsg : STSG Addr region_type Σ}
-      {heapg : heapGS Σ}.
+      {relg : relGS Σ}.
   Implicit Types W : WORLD.
 
   Definition seal_pred (o : OType) (P : WORLD * CmptName * Word → iProp Σ) :=

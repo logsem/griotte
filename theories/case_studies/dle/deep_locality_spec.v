@@ -1,16 +1,15 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel logrel_extra monotone register_tactics.
+From cap_machine Require Import rules logrel monotone interp_weakening.
 From cap_machine Require Import fetch_spec assert_spec switcher_spec_call deep_locality.
-From cap_machine Require Import proofmode.
+From cap_machine Require Import world_ghost_theory world_interp_stack.
+From cap_machine Require Import proofmode register_tactics.
 
 Section DLE.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {heapg : heapGS Σ}
-    {nainv: logrel_na_invs Σ}
+    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -57,9 +56,9 @@ Section DLE.
 
     frame_match Ws Cs cstk W0 C ->
     (
-      na_inv logrel_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv logrel_nais Nswitcher switcher_inv
-      ∗ na_own logrel_nais ⊤
+      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
       ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
@@ -72,7 +71,7 @@ Section DLE.
       ∗ codefrag pc_a dle_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ dle_main_data ]]
 
-      ∗ region W0 C ∗ sts_full_world W0 C
+      ∗ world_interp W0 C
 
       ∗ interp_continuation cstk Ws Cs
 
@@ -82,7 +81,7 @@ Section DLE.
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
       ∗ interp W0 C (WCap RWL Local csp_b csp_e csp_b)
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own logrel_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
@@ -91,7 +90,7 @@ Section DLE.
       "(#Hassert & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
-      & Hr_C & Hsts_C
+      & Hworld_interp_C
       & HK
       & Hcstk_frag
       & #Hinterp_W0_C_f
@@ -129,8 +128,8 @@ Section DLE.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
-    iMod (monotone_revoke_stack_alt with "[$Hinterp_W0_csp $Hsts_C $Hr_C]")
-        as (l) "(%Hl_unk & Hsts_C & Hr_C & Hfrm_close_W0 & >%Hfrm_close_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
+        as (l) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_a]") as "%Hcgp_a_stk".
     set (W1 := revoke W0).
@@ -229,14 +228,14 @@ Section DLE.
     (* -- Update the world and prove interp of the the argument in `ca0` -- *)
 
     (* First, extend the world such that `cgp_b` is interp with RW_DL access *)
-    iMod (extend_region_temp _ _ _ _ _ RW_DL interpC
-        with "[] [$Hsts_C] [$Hr_C] [$Hcgp_b] []")
-      as "(Hr_C & #Hrel_cgp_b & Hsts_C)"; auto.
-    { by rewrite -revoke_dom_eq. }
+    iDestruct ( init_TmpRes W1 C cgp_b RW_DL interpC with "[] [$Hcgp_b] []" ) as "TmpRes_cgp_b"; auto.
     { iApply future_pub_mono_interp_z. }
-    { rewrite /interpC /safeC; iApply interp_int. }
+    { iApply interp_int. }
+    iMod (world_interp_extend_temp with "Hworld_interp_C TmpRes_cgp_b")
+      as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
+    { by rewrite -revoke_dom_eq. }
     match goal with
-    | _ : _ |- context [ region ?W' ] => set (W2 := W')
+    | _ : _ |- context [ world_interp ?W' ] => set (W2 := W')
     end.
 
     (* And prove that the RW_DL capability pointing to it is safe *)
@@ -261,17 +260,17 @@ Section DLE.
     }
 
     (* Second, extend the world such that `cgp_b+1` is interp_dl with RW_DL access *)
-    iMod (extend_region_temp _ _ _ _ _ RW_DL (safeC interp_dl)
-        with "[] [$Hsts_C] [$Hr_C] [$Hcgp_a] []")
-      as "(Hr_C & Hrel_cgp_a & Hsts_C)";auto.
+    iDestruct ( init_TmpRes W2 C (cgp_b ^+ 1)%a RW_DL (safeC interp_dl) with "[] [$Hcgp_a] []" ) as "TmpRes_cgp_a"; auto.
+    { iApply future_pub_mono_interp_dl. }
+    iMod (world_interp_extend_temp with "Hworld_interp_C TmpRes_cgp_a")
+      as "(Hworld_interp_C & Hrel_cgp_a)";auto.
     { subst W2.
       cbn; rewrite dom_insert_L not_elem_of_union; split.
       + rewrite not_elem_of_singleton; solve_addr+Hcgp_contiguous.
       + by rewrite -revoke_dom_eq.
     }
-    { iApply future_pub_mono_interp_dl. }
     match goal with
-    | _ : _ |- context [ region ?W' ] => set (W3 := W')
+    | _ : _ |- context [ world_interp ?W' ] => set (W3 := W')
     end.
 
     (* And prove that the RW_DL capability pointing to it is safe *)
@@ -343,19 +342,10 @@ Section DLE.
     iAssert (interp W3 C (WSealed ot_switcher C_f)) as "#Hinterp_W3_C_f".
     { iApply interp_monotone_sd; eauto. }
     iClear "Hinterp_W0_C_f".
-
-    (* Prepare the closing resources for the switcher call spec *)
-    iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W3 C a)
-      )%I with "[Hfrm_close_W0]" as "#Hfrm_close_W3".
+    iDestruct (StackRevokedResources_mono_priv _ W3 with "Hstack_revoked_W0") as "Hstack_revoked_W3"; auto.
+    assert ( revoked_addresses W3 (finz.seq_between csp_b csp_e) ) as Hstack_revoked_W3.
     {
-      iApply (big_sepL_impl with "Hfrm_close_W0").
-      iModIntro; iIntros (k a Ha) "Hclose".
-      iDestruct (mono_priv_closing_revoked_resources with "Hclose") as "$"; auto.
-    }
-    assert (Forall (λ a, W3.1 !! a = Some Revoked) (finz.seq_between csp_b csp_e)) as Hfrm_close_W3.
-    {
-      apply Forall_forall.
+      rewrite /revoked_addresses Forall_forall.
       intros x Hx.
       assert (x ≠ (cgp_b ^+ 1)%a).
       { intros Hx'; simplify_eq; set_solver+Hx Hcgp_a_stk. }
@@ -363,14 +353,15 @@ Section DLE.
       { intros Hx'; simplify_eq; set_solver+Hx Hcgp_b_stk. }
       simplify_map_eq.
       apply list_elem_of_lookup_1 in Hx; destruct Hx as [? Hx].
-      rewrite Forall_forall in Hfrm_close_W0; apply Hfrm_close_W0.
+      rewrite /revoked_addresses Forall_forall in Hstack_revoked_W0; apply Hstack_revoked_W0.
       eapply list_elem_of_lookup_2; eauto.
     }
+
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W3 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -385,9 +376,9 @@ Section DLE.
     iNext.
     iIntros (W4 rmap stk_mem l')
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
-      & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W4 & %Hfrm_close_W4
+      & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W4 & %Hstack_revoked_W4
       & Hna & %Hcsp_bounds
-      & Hsts_C & Hr_C
+      & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
@@ -425,6 +416,7 @@ Section DLE.
     set (W5 := revoke W4).
 
     (* -- extract cgp_b out of the revoked -- *)
+    (* TODO lemma *)
     iDestruct ( big_sepL_elem_of_extract _ (fun a => ▷ ∃ v, a ↦ₐ v)%I cgp_b with "[] [$Hrevoked_l']")
       as (l'') "(%Hl_unk'' & Hrevoked_l'' & >[%wcgpb Hcgp_b])".
     {
@@ -439,7 +431,7 @@ Section DLE.
       apply elem_of_app in HW4 as [?|?]; try done.
     }
     { by destruct Hl_unk' as [Hl_unk' _]; apply NoDup_app in Hl_unk' as (? & _ & _). }
-    { iClear "#"; clear; iIntros (a) "(%&%&%& (%&_&$&?) &_)". }
+    { iClear "#"; clear; cbn. iIntros (a) "(%&%&%& _ &  (%&_&$&?) )". }
 
     (* simplify the knowledge about the new rmap *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
@@ -504,28 +496,19 @@ Section DLE.
 
     (* Show that the entry point to C_f is still safe in W5 *)
     iAssert (interp W5 C (WSealed ot_switcher C_f)) as "#Hinterp_W5_C_f".
-    { iApply monotone.interp_monotone_sd; eauto.
-      iApply monotone.interp_monotone_sd; eauto.
+    { iApply interp_monotone_sd; eauto.
+      iApply interp_monotone_sd; eauto.
       iPureIntro; apply related_sts_pub_priv_world; auto.
     }
     iClear "Hinterp_W3_C_f".
 
     (* Prepare the closing resources for the switcher call spec *)
-    iAssert (
-        ([∗ list] a ∈ finz.seq_between csp_b csp_e, closing_revoked_resources W5 C a)
-      )%I with "[Hfrm_close_W3 Hfrm_close_W4]" as "#Hfrm_close_W5".
-    {
-      iDestruct "Hfrm_close_W3" as "Hclose_W3".
-      iDestruct "Hfrm_close_W4" as "Hclose_W4".
-      iApply (big_sepL_impl with "Hclose_W4").
-      iModIntro; iIntros (k a Ha) "Hclose'".
-      iApply mono_priv_closing_revoked_resources; eauto.
-    }
+    iDestruct (StackRevokedResources_mono_priv _ W5 with "Hstack_revoked_W4") as "#Hstack_revoked_W5"; auto.
 
     iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hr_C $Hsts_C $Hfrm_close_W5 $Hcstk_frag
+              $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
               $Hinterp_W5_C_f $HentryC_f $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
@@ -538,9 +521,9 @@ Section DLE.
     clear dependent warg0 warg1 rmap stk_mem.
     iIntros (W6 rmap stk_mem l0)
       "( _ & _ & _
-      & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hfrm_close_W6 & _
+      & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hstack_revoked_W6 & _
       & Hna & _
-      & Hsts_C & Hr_C
+      & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
