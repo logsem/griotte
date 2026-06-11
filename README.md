@@ -264,7 +264,15 @@ The case studies are:
 The file `assumptions.v` prints the assumptions of the FTLR,
 and then of each end-to-end theorems of the case studies.
 
-They all are closed under context, so the assumptions are:
+The only axiom our theorems depend on is functional,
+which is well-known to be compatible with Rocq's internal theory.
+```
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+```
+
+Moreover, our theorem make the following assumptions:
 - The typeclass `MachineParameters` from `theories/opsem/machine_parameters.v`,
   which defines well-formed encode/decode functions for instructions and permissions.
 - The typeclass `memory_layout` from the respective `*_adequacy.v*` files,
