@@ -167,7 +167,7 @@ Section Adequacy.
   Definition assertN : namespace := nroot .@ "lse" .@ "assert_flag".
   Definition lseN : namespace := nroot .@ "lse" .@ "code".
 
-  Lemma cmdc_adequacy' `{Layout: @memory_layout MP}
+  Lemma lse_adequacy' `{Layout: @memory_layout MP}
     (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
     (es: list cap_lang.expr):
     is_initial_registers reg →
@@ -631,5 +631,5 @@ Proof.
               ; STS_preΣ Addr region_type ; relPreΣ
               ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * CmptName * Word)
       ]).
-  eapply (@cmdc_adequacy' Σ cnames B); eauto; try typeclasses eauto.
+  eapply (@lse_adequacy' Σ cnames B); eauto; try typeclasses eauto.
 Qed.
