@@ -259,6 +259,25 @@ The case studies are:
 - `stack_object/`: Example showing that the switcher can support stack objects,
   but requires additional checks.
 
+## Assumptions `theories/assumptions.v`
+
+The file `assumptions.v` prints the assumptions of the FTLR,
+and then of each end-to-end theorems of the case studies.
+
+The only axiom our theorems depend on is functional,
+which is well-known to be compatible with Rocq's internal theory.
+```
+FunctionalExtensionality.functional_extensionality_dep :
+  forall (A : Type) (B : A -> Type) (f g : forall x : A, B x),
+  (forall x : A, f x = g x) -> f = g
+```
+
+Moreover, our theorem make the following assumptions:
+- The typeclass `MachineParameters` from `theories/opsem/machine_parameters.v`,
+  which defines well-formed encode/decode functions for instructions and permissions.
+- The typeclass `memory_layout` from the respective `*_adequacy.v*` files,
+  which defines the memory layout in the initial state of the machine.
+
 # Differences with the paper
 
 Some definitions have different names from the paper.

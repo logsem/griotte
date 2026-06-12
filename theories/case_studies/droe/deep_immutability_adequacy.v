@@ -157,12 +157,12 @@ Section Adequacy.
   Context `{MP: MachineParameters}.
   Context { HCNames : CNames = (list_to_set [C]) }.
 
-  Definition flagN : namespace := nroot .@ "cmdc" .@ "fail_flag".
-  Definition switcherN : namespace := nroot .@ "cmdc" .@ "switcher_flag".
-  Definition assertN : namespace := nroot .@ "cmdc" .@ "assert_flag".
+  Definition flagN : namespace := nroot .@ "droe" .@ "fail_flag".
+  Definition switcherN : namespace := nroot .@ "droe" .@ "switcher_flag".
+  Definition assertN : namespace := nroot .@ "droe" .@ "assert_flag".
 
 
-  Lemma cmdc_adequacy' `{Layout: @memory_layout MP}
+  Lemma droe_adequacy' `{Layout: @memory_layout MP}
     (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
     (es: list cap_lang.expr):
     is_initial_registers reg →
@@ -544,7 +544,7 @@ Local Program Instance CmptNames_droe_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_droe; |}.
 
 (** END-TO-END THEOREM *)
-Theorem cmdc_adequacy `{Layout: memory_layout}
+Theorem droe_adequacy `{Layout: memory_layout}
   (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
   (es: list cap_lang.expr):
   is_initial_registers reg →
@@ -562,5 +562,5 @@ Proof.
               ; STS_preΣ Addr region_type ; relPreΣ
               ; savedPredΣ (((STS_std_states Addr region_type) * (STS_states * STS_rels)) * CmptName * Word)
       ]).
-  eapply (@cmdc_adequacy' Σ cnames B); eauto; try typeclasses eauto.
+  eapply (@droe_adequacy' Σ cnames B); eauto; try typeclasses eauto.
 Qed.
