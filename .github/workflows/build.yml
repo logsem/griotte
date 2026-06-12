@@ -80,16 +80,9 @@ jobs:
         run: opam exec -- make html
 
       - name: Deploy docs (if main branch)
+        if: ${{ github.ref_name == 'ci-fix' }}
         uses: peaceiris/actions-gh-pages@v4
-        if: ${{ steps.get_branch.outputs.branch == 'main' }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./html
-          destination_dir: dev
-
-
-      - name: Debug branch
-        run: |
-          echo "branch='${{ steps.get_branch.outputs.branch }}'"
-          echo "ref='${{ github.ref }}'"
-          echo "ref_name='${{ github.ref_name }}'"
+          destination_dir: test
