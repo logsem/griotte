@@ -1,0 +1,320 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+    <div id="header">
+        <span class="left">
+            <span class="modulename"> <script> document.write(document.title) </script> </span>
+        </span>
+
+        <span class="button" id="toggle-proofs"></span>
+
+        <span class="right">
+            <a href="./">Project Page</a>
+            <a href="./indexpage.html"> Index </a>
+            <a href="./toc.html"> Table of Contents </a>
+        </span>
+    </div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+        <div id="main">
+            <h1>Griotte: Verified Compartmentalisation via Capabilities</h1>
+            <h4>
+              <a href="https://junerousseau.github.io">June Rousseau</a>,
+              <a href="https://www.cs.au.dk/~ageorges/">Aïna Linn Georges</a>,
+              <a href="https://jeanpichon.github.io/">Jean Pichon-Pharabod</a>,
+              <a href="https://www.cs.au.dk/~birke/">Lars Birkedal</a></h4>
+
+            <p>The complete list of modules in the development can be found in
+                the <a href="toc.html">Table of Contents</a>. We give below an overview of
+                the contents of the formalization.
+            </p>
+
+            <h2>Operational semantics</h2>
+            <ul>
+                <li><a href="cap_machine.addr_reg.html">addr_reg</a>:
+                    Defines registers and the set of (finite) memory addresses.
+                </li>
+
+                <li><a href="cap_machine.machine_base.html">machine_base</a>: Contains
+                    the syntax (permissions, capability, instructions, ...) of the
+                    capability machine.
+                </li>
+
+                <li><a href="cap_machine.machine_parameters.html">machine_parameters</a>:
+                    Defines a number of "settings" for the machine, that parameterize
+                    the whole development (e.g. the specific encoding scheme for
+                    instructions, etc.).
+                </li>
+
+                <li><a href="cap_machine.cap_lang.html">cap_lang</a>: Defines the
+                    operational semantics of the machine, and the embedding of the capability
+                    machine language into Iris.
+                </li>
+            </ul>
+
+            <h2>Program logic</h2>
+            <ul>
+                <li><a href="cap_machine.rules.rules_base.html">rules.rules_base</a>:
+                    Contains some of the core resource algebras for the program logic,
+                    namely the definition for points to predicates with permissions.
+                </li>
+
+                <li><a href="cap_machine.rules.html">rules</a>: Imports all the Hoare
+                    triple rules for each instruction. These rules are separated into separate
+                    files (located in the <code>rules/</code> folder).
+                </li>
+            </ul>
+
+            <h2>Model of Kripke World</h2>
+            <ul>
+              <li><a href="cap_machine.model.sts.html">sts</a>:
+                The definition of <i>stsCollection</i> (named <i>sts_full_world</i> in the implementation),
+                and associated lemmas. In particular:
+                private and public future world relations (all these definitions are
+                parameterised by the standard states and two relations over them transitions.
+                These are instantiated in <a href="cap_machine.model.world_std_sts.html">world_std_sts</a>).
+              </li>
+
+              <li><a href="cap_machine.model.world_std_sts.html">world_std_std</a>:
+                Definitions of the standard world and the standard invariant states.
+                Also contains lemmas about standard transitions.
+              </li>
+
+              <li><a href="cap_machine.model.sts_multiple_updates.html">sts_multiple_updates</a>:
+                Auxiliary definitions to reason about multiple updates to a world.
+              </li>
+
+              <li><a href="cap_machine.model.world_ghost_resources.html">world_ghost_resources</a>:
+                Defines the ghost resources needed to interpret the world.
+              </li>
+
+              <li><a href="cap_machine.model.region_invariants.html">region_invariants</a>:
+                Definitions for standard resources, and the shared
+                resources map <i>sharedResources</i> (named <i>region</i> in the implementation).
+                Contains some lemmas for "opening" and "closing" the map,
+                akin to opening and closing invariants.
+              </li>
+
+              <li><a href="cap_machine.model.region_invariants_revocation.html">region_invariants_revocation</a>:
+                Lemmas for revoking standard resources in the world interpretation.
+              </li>
+
+              <li><a href="cap_machine.model.region_invariants_allocation.html">region_invariants_allocation</a>:
+                Lemmas for allocating a range of standard resources.
+              </li>
+
+              <li><a href="cap_machine.model.model_interp_stack.html">model_interp_stack</a>:
+                Definitions and lemmas specific to reasoning about the stack region.
+              </li>
+            </ul>
+            
+            <h2>Interface with Kripke World</h2>
+            Interface of Krikpe World for the user
+            <ul>
+
+              <li><a href="cap_machine.model.world_ghost_theory.html">world_ghost_theory</a>:
+                Ghost theory of world interpretation.
+                Clean interface with the model to ease the proofs for the user.
+              </li>
+
+              <li><a href="cap_machine.model.world_interp_allocation_compartment.html">world_interp_allocation_compartment</a>:
+                Lemmas for allocating standard resources for adversary compartments.
+              </li>
+
+              <li><a href="cap_machine.model.world_interp_stack.html">world_interp_stack</a>:
+                Extension of the ghost theory of world interpretation,
+                specific to stack region.
+              </li>
+            </ul>
+
+
+            <h2>Logical relation</h2>
+            <ul>
+              <li><a href="cap_machine.logrel.call_stack.html">call_stack</a>:
+                Definitions of the logical call-stack resources.
+                </li>
+
+              <li><a href="cap_machine.logrel.logrel.html">logrel</a>:
+                The definition of the unary logical relation.
+                </li>
+
+              <li><a href="cap_machine.logrel.fundamental.html">fundamental</a>:
+                Establishes
+                the <i>fundamental theorem of our logical relation</i>. Each case (one
+                for each instruction) is proved in a separate file (located in
+                the <code>ftlr/</code> folder), which are all imported and applied
+                in this file.
+              </li>
+            </ul>
+
+            <h2>Switcher</h2>
+            <ul>
+              <li><a href="cap_machine.switcher.switcher.html">switcher</a>:
+                Code of the switcher.
+              </li>
+
+              <li><a href="cap_machine.switcher.switcher_preamble.html">switcher_preamble</a>:
+                Definition of the switcher's invariant and 
+                sealing predicate for the export table's otype.
+              </li>
+
+              <li><a href="cap_machine.switcher.interp_switcher_call.html">interp_switcher_call</a>:
+              Proof that the switcher's cross-compartment call sentry is safe to execute
+              </li>
+
+              <li><a href="cap_machine.switcher.interp_switcher_return.html">interp_switcher_return</a>:
+              Proof that the switcher's cross-compartment return sentry is safe to execute
+              </li>
+
+              <li><a href="cap_machine.switcher.switcher_spec_call.html">switcher_spec_call</a>:
+              Specification and proofs of the switcher's cross-compartment call sentry for known code, invoking unknown code.
+              </li>
+
+              <li><a href="cap_machine.switcher.switcher_spec_return.html">switcher_spec_return</a>:
+              Specification and proofs of the switcher's cross-compartment return sentry for known code, invoking unknown code.
+              </li>
+            </ul>
+
+            <h2>Case studies</h2>
+
+            <h3>Compartmentalisation (CMDC) Example</h3>
+            Example showcasing IMUD.
+
+            <ul>
+              <li><a href="cap_machine.case_studies.cmdc.cmdc.html">cmdc</a>:
+                Code of the compartmentalisation example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.cmdc.cmdc_spec.html">cmdc_spec</a>:
+                Specification of the compartmentalisation example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.cmdc.cmdc_adequacy.html">cmdc_adequacy</a>:
+                End-to-end theorem of the compartmentalisation example.
+                On particular, the final theorem is 
+              <a href="cap_machine.case_studies.cmdc.cmdc_adequacy.html#cmdc_adequacy">cmdc_adequacy</a>.
+              </li>
+            </ul>
+
+            
+            <h3>Deep Locality (DLE) Example</h3>
+            Example showcasing the novel deep locality permission.
+
+            <ul>
+              <li><a href="cap_machine.case_studies.dle.deep_locality.html">deep_locality</a>:
+                Code of the deep locality example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.dle.deep_locality_spec.html">deep_locality_spec</a>:
+                Specification of the deep locality example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.dle.deep_locality_adequacy.html">deep_locality_adequacy</a>:
+                End-to-end theorem of the deep locality example.
+                On particular, the final theorem is 
+              <a href="cap_machine.case_studies.dle.deep_locality_adequacy.html#dle_adequacy">dle_adequacy</a>.
+              </li>
+            </ul>
+            
+            <h3>Deep Immutability (DROE) Example</h3>
+            Example showcasing the novel deep immutability permission.
+
+            <ul>
+              <li><a href="cap_machine.case_studies.droe.deep_immutability.html">deep_immutability</a>:
+                Code of the deep immutability example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.droe.deep_immutability_spec.html">deep_immutability_spec</a>:
+                Specification of the deep immutability example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.droe.deep_immutability_adequacy.html">deep_immutability_adequacy</a>:
+                End-to-end theorem of the deep immutability example.
+                On particular, the final theorem is 
+              <a href="cap_machine.case_studies.droe.deep_immutability_adequacy.html#droe_adequacy">droe_adequacy</a>.
+              </li>
+            </ul>
+
+            <h3>Very Awkward Example (VAE)</h3>
+            Example showcasing that the switcher implements Well-Bracketed Control Flow.
+
+            <ul>
+              <li><a href="cap_machine.case_studies.vae.vae.html">vae</a>:
+                Code of the VAE example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.vae.vae_spec.html">vae_spec</a>:
+                Specification of the VAE example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.vae.vae_spec_closure.html">vae_spec_closure</a>:
+                Specification of closure involved in the VAE example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.vae.vae_adequacy.html">vae_adequacy</a>:
+                End-to-end theorem of the VAE example.
+                On particular, the final theorem is 
+              <a href="cap_machine.case_studies.vae.vae_adequacy.html#vae_adequacy">vae_adequacy</a>.
+              </li>
+            </ul>
+
+
+            <h3>Protection Against Dangling Pointers (LSE Downward) Example</h3>
+            Example showcasing that the switcher implements protection against dangling pointers.
+
+            <ul>
+              <li><a href="cap_machine.case_studies.lse_downward.lse.html">lse</a>:
+                Code of the LSE downward example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.lse_downward.lse_spec.html">lse_spec</a>:
+                Specification of the LSE downward example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.lse_downward.lse_spec_closure.html">lse_spec_closure</a>:
+                Specification of closure involved in the LSE downward example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.lse_downward.lse_adequacy.html">lse_adequacy</a>:
+                End-to-end theorem of the LSE downward example.
+                On particular, the final theorem is 
+              <a href="cap_machine.case_studies.lse_downward.lse_adequacy.html#lse_adequacy">lse_adequacy</a>.
+              </li>
+            </ul>
+
+            <h3>Stack Object (SO) Example</h3>
+            Example showcasing that we can use stack objects.
+
+            <ul>
+              <li><a href="cap_machine.case_studies.stack_object.stack_object.html">stack_object</a>:
+                Code of the stack object example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.stack_object.stack_object_spec.html">stack_object_spec</a>:
+                Specification of the stack object example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.stack_object.stack_object_spec_closure.html">stack_object_spec_closure</a>:
+                Specification of closure involved in the stack object example.
+              </li>
+
+              <li><a href="cap_machine.case_studies.stack_object.stack_object_adequacy.html">stack_object_adequacy</a>:
+                End-to-end theorem of the stack object example.
+                On particular, the final theorem is 
+              <a href="cap_machine.case_studies.stack_object.stack_object_adequacy.html#so_adequacy">so_adequacy</a>.
+              </li>
+            </ul>
+
+        </div>
+    </div>
+</body>
+
+</html>

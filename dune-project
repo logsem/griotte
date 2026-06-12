@@ -18,7 +18,7 @@
  (name griotte)
  (synopsis "Griotte")
  (description "Griotte")
- (depends ocaml dune rocq-iris equations)
+ (depends ocaml dune odoc rocq-iris equations)
  (tags
   (Rocq CHERIoT "capability machine" Iris)))
 

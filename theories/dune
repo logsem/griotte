@@ -3,10 +3,15 @@
 (rocq.theory
  (name cap_machine)
  (package griotte)
+ (rocqdoc_header ../rocqdoc_extra/header.html)
+ (rocqdoc_footer ../rocqdoc_extra/footer.html)
  (rocqdoc_flags
-  --utf8 --parse-comments --toc --lib-subtitles
-  --external https://plv.mpi-sws.org/coqdoc/stdpp/ stdpp
-  --external https://plv.mpi-sws.org/coqdoc/iris/ iris)
+   --external https://plv.mpi-sws.org/coqdoc/stdpp/ stdpp
+   --external https://plv.mpi-sws.org/coqdoc/iris/ iris
+   --toc --toc-depth 2 --html --interpolate
+   --index indexpage --no-lib-name --parse-comments
+   --utf8 --lib-subtitles
+ )
  (flags :standard
         -w -convert_concl_no_check
         -w -several-object-files
