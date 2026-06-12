@@ -16,7 +16,6 @@ on:
   push:
     branches:
       - main
-      - docwebsite
 
 jobs:
   build:
@@ -86,10 +85,3 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./html
           destination_dir: dev
-
-      - name: Deploy docs (any branch, temporarily)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./html
-          destination_dir: test
