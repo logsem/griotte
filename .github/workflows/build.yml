@@ -87,9 +87,8 @@ jobs:
           publish_dir: ./html
           destination_dir: dev
 
-      - name: Deploy docs (if docwebsite branch)
+      - name: Deploy docs (any branch, temporarily)
         uses: peaceiris/actions-gh-pages@v4
-        if: ${{ steps.get_branch.outputs.branch == 'docwebsite' }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./html
