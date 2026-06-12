@@ -16,6 +16,7 @@ on:
   push:
     branches:
       - main
+      - ci-fix
 
 jobs:
   build:
@@ -53,7 +54,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
 
-      - name: Install Rocq and Iris (deps only)
+      - name: Install Rocq and Iris (deps only- name: Debug branch
+  run: |
+    echo "branch='${{ steps.get_branch.outputs.branch }}'"
+    echo "ref='${{ github.ref }}'"
+    echo "ref_name='${{ github.ref_name }}'")
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
           eval "$(opam env)"
@@ -85,3 +90,10 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./html
           destination_dir: dev
+
+
+          - name: Debug branch
+            run: |
+              echo "branch='${{ steps.get_branch.outputs.branch }}'"
+              echo "ref='${{ github.ref }}'"
+              echo "ref_name='${{ github.ref_name }}'"
