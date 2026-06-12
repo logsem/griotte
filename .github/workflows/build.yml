@@ -1,4 +1,4 @@
-name: Test Compilation for OCaml
+name: Compilation for Griotte
 
 # Prevent parallel CI: Stop every workflow of a branch
 concurrency:
@@ -74,3 +74,14 @@ jobs:
           eval "$(opam env)"
           opam exec -- dune build --display short -j ${{ env.JOBS_LIMIT }} --trace-file griotte.trc
           ./pretty-print-trace.sh griotte.trc
+
+      - name: Build docs
+        run: opam exec -- make html
+
+      - name: Deploy docs (if main branch)
+        uses: peaceiris/actions-gh-pages@v4
+        if: ${{ steps.get_branch.outputs.branch == 'main' }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./html
+          destination_dir: dev
