@@ -163,9 +163,6 @@ The organisation of the `theories/` folder is as follows.
 - `region_invariants_allocation.v`:
   Lemmas for allocating a range of standard resources.
 
-- `world_interp_allocation_compartments.v`:
-  Lemmas for allocating standard resources for adversary compartments.
-
 - `model_interp_stack.v`:
   Definitions and lemmas specific to reasoning about the stack region.
 
@@ -174,6 +171,13 @@ The organisation of the `theories/` folder is as follows.
 - `world_ghost_theory.v`:
   Ghost theory of world interpretation.
   Clean interface with the model to ease the proofs for the user.
+
+- `world_interp_allocation_compartments.v`:
+  Lemmas for allocating standard resources for adversary compartments.
+
+- `world_interp_stack.v`:
+  Extension of the ghost theory of world interpretation,
+  specific to stack region.
   
 ## Logical relation and FTLR `logrel/`
 
@@ -186,7 +190,7 @@ The organisation of the `theories/` folder is as follows.
 - `world_interp_stack.v`: A collections of lemmas related to world manipulation
   in presence of safe-to-share.
 
-- `monotone.v`: Proof of the monotonicity of the value relation with regards to
+- `ftlr/monotone.v`: Proof of the monotonicity of the value relation with regards to
   public future worlds, and private future worlds for non local words.
 
 - `fundamental.v`: Contains *Fundamental Theorem of Logical
@@ -197,10 +201,6 @@ The organisation of the `theories/` folder is as follows.
 - `stack_world_resources.v`:
   Definition of resources to have a clean interface with manipulation
   of the world, for stack region.
-
-- `world_interp_stack.v`:
-  Extension of the ghost theory of world interpretation,
-  specific to stack region.
 
 ## Switcher `switcher/`
 

@@ -297,4 +297,5 @@ Makefile.coq
 Makefile.coq.conf
 
 _build/
+html/
 *.trc
