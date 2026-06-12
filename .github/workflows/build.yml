@@ -35,13 +35,6 @@ jobs:
             rocq-released: https://rocq-prover.org/opam/released
             default: https://github.com/ocaml/opam-repository.git
 
-      - name: List files
-        run: find . -name '*opam'
-
-      - name: Debug hash
-        run: |
-          echo "hash=${{ hashFiles('opam') }}"
-
       - name: Cache opam
         id: cache-opam
         uses: actions/cache@v4
