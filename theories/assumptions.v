@@ -7,7 +7,9 @@ From cap_machine Require
   stack_object_adequacy
   vae_adequacy
 .
+(** Uncomment the following to print assumptions.  *)
 
+(*
 Goal True. idtac "
 Assumptions of fundamental theorem:". Abort.
 Print Assumptions fundamental.fundamental.
@@ -35,3 +37,4 @@ Print Assumptions stack_object_adequacy.so_adequacy.
 Goal True. idtac "
 Assumptions of Very Awkward Example (VAE) end-to-end theorem:". Abort.
 Print Assumptions vae_adequacy.vae_adequacy.
+*)
