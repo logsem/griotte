@@ -1,0 +1,237 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+  <div id="header">
+    <span class="left">
+      <span class="modulename"> <script> document.write(document.title) </script> </span>
+    </span>
+
+    <span class="button" id="toggle-proofs"></span>
+
+    <span class="right">
+      <a href="./">Project Page</a>
+      <a href="./indexpage.html"> Index </a>
+      <a href="./toc.html"> Table of Contents </a>
+    </span>
+</div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+    <div id="main">
+<h1 class="libtitle">cap_machine.logrel.call_stack</h1>
+
+<div class="code">
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.proofmode</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.algebra</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#"><span class="id" title="library">excl_auth</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.base_logic</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.own.html#"><span class="id" title="library">own</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">cap_machine</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="cap_machine.opsem.cap_lang.html#"><span class="id" title="library">cap_lang</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The relationship between the caller and the callee determines
+    the guarantees that the continuation K provides when popping a frame;
+    and conversely, the obligations that we need to prove when pushing a frame.
+ 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Inductive</span> <a id="caller_callee_relation" class="idref" href="#caller_callee_relation"><span class="id" title="definition, inductive"><span id="caller_callee_relation_rect" class="id"><span id="caller_callee_relation_ind" class="id"><span id="caller_callee_relation_rec" class="id"><span id="caller_callee_relation_sind" class="id">caller_callee_relation</span></span></span></span></span></a> : <span class="id" title="keyword">Type</span> :=<br/>
+| <a id="Unknown_to_Unknown" class="idref" href="#Unknown_to_Unknown"><span class="id" title="constructor">Unknown_to_Unknown</span></a><br/>
+| <a id="Unknown_to_Known" class="idref" href="#Unknown_to_Known"><span class="id" title="constructor">Unknown_to_Known</span></a><br/>
+| <a id="Known_to_Unknown" class="idref" href="#Known_to_Unknown"><span class="id" title="constructor">Known_to_Unknown</span></a><br/>
+| <a id="Known_to_Known" class="idref" href="#Known_to_Known"><span class="id" title="constructor">Known_to_Known</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Definition</span> <a id="is_untrusted_caller" class="idref" href="#is_untrusted_caller"><span class="id" title="definition">is_untrusted_caller</span></a> (<a id="r:3" class="idref" href="#r:3"><span class="id" title="binder">r</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#caller_callee_relation"><span class="id" title="inductive">caller_callee_relation</span></a>) :=<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">match</span> <a class="idref" href="cap_machine.logrel.call_stack.html#r:3"><span class="id" title="variable">r</span></a> <span class="id" title="keyword">with</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="cap_machine.logrel.call_stack.html#Unknown_to_Unknown"><span class="id" title="constructor">Unknown_to_Unknown</span></a> | <a class="idref" href="cap_machine.logrel.call_stack.html#Unknown_to_Known"><span class="id" title="constructor">Unknown_to_Known</span></a> ⇒ <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#true"><span class="id" title="constructor">true</span></a><br/>
+&nbsp;&nbsp;| <a class="idref" href="cap_machine.logrel.call_stack.html#Known_to_Unknown"><span class="id" title="constructor">Known_to_Unknown</span></a> | <a class="idref" href="cap_machine.logrel.call_stack.html#Known_to_Known"><span class="id" title="constructor">Known_to_Known</span></a> ⇒ <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a><br/>
+&nbsp;&nbsp;<span class="id" title="keyword">end</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Definition</span> <a id="is_known_to_known" class="idref" href="#is_known_to_known"><span class="id" title="definition">is_known_to_known</span></a> (<a id="r:5" class="idref" href="#r:5"><span class="id" title="binder">r</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#caller_callee_relation"><span class="id" title="inductive">caller_callee_relation</span></a>) :=<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">match</span> <a class="idref" href="cap_machine.logrel.call_stack.html#r:5"><span class="id" title="variable">r</span></a> <span class="id" title="keyword">with</span><br/>
+&nbsp;&nbsp;| <a class="idref" href="cap_machine.logrel.call_stack.html#Known_to_Known"><span class="id" title="constructor">Known_to_Known</span></a> ⇒ <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#true"><span class="id" title="constructor">true</span></a><br/>
+&nbsp;&nbsp;| <a class="idref" href="cap_machine.logrel.call_stack.html#Unknown_to_Unknown"><span class="id" title="constructor">Unknown_to_Unknown</span></a> | <a class="idref" href="cap_machine.logrel.call_stack.html#Unknown_to_Known"><span class="id" title="constructor">Unknown_to_Known</span></a> | <a class="idref" href="cap_machine.logrel.call_stack.html#Known_to_Unknown"><span class="id" title="constructor">Known_to_Unknown</span></a> ⇒ <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a><br/>
+&nbsp;&nbsp;<span class="id" title="keyword">end</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="is_untrusted_caller_is_not_known_to_known" class="idref" href="#is_untrusted_caller_is_not_known_to_known"><span class="id" title="lemma">is_untrusted_caller_is_not_known_to_known</span></a> (<a id="r:7" class="idref" href="#r:7"><span class="id" title="binder">r</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#caller_callee_relation"><span class="id" title="inductive">caller_callee_relation</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="cap_machine.logrel.call_stack.html#is_untrusted_caller"><span class="id" title="definition">is_untrusted_caller</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#r:7"><span class="id" title="variable">r</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#true"><span class="id" title="constructor">true</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#is_known_to_known"><span class="id" title="definition">is_known_to_known</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#r:7"><span class="id" title="variable">r</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a>.<br/>
+<span class="id" title="keyword">Proof</span>. <span class="id" title="tactic">intros</span> <span class="id" title="var">Huntrusted</span>; <span class="id" title="tactic">destruct</span> <span class="id" title="var">r</span>; <span class="id" title="var">cbn</span> <span class="id" title="tactic">in</span> *; <span class="id" title="tactic">auto</span>. <span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+A calls stack <span class="inlinecode"><a class="idref" href="cap_machine.logrel.call_stack.html#cstack"><span class="id" title="abbreviation">cstack</span></a></span> is a list of call-frames <span class="inlinecode"><a class="idref" href="cap_machine.logrel.call_stack.html#cframe"><span class="id" title="record">cframe</span></a></span>,
+    and they contain the content of the callee-saved registers,
+    kept track by the switcher.
+
+<div class="paragraph"> </div>
+
+<ul class="doclist">
+<li> <span class="inlinecode"><a class="idref" href="cap_machine.logrel.call_stack.html#wret"><span class="id" title="projection">wret</span></a></span> records the value of <span class="inlinecode"><a class="idref" href="cap_machine.opsem.addr_reg.html#cra"><span class="id" title="definition">cra</span></a></span>, the return pointer of the caller
+
+</li>
+<li> <span class="inlinecode"><a class="idref" href="cap_machine.logrel.call_stack.html#wcgp"><span class="id" title="projection">wcgp</span></a></span> records the value of <span class="inlinecode"><a class="idref" href="cap_machine.opsem.addr_reg.html#cgp"><span class="id" title="definition">cgp</span></a></span>, the global data (compartment's memory) of the caller
+
+</li>
+<li> <span class="inlinecode"><a class="idref" href="cap_machine.logrel.call_stack.html#wcs0"><span class="id" title="projection">wcs0</span></a></span> records the value of <span class="inlinecode"><a class="idref" href="cap_machine.opsem.addr_reg.html#cs0"><span class="id" title="definition">cs0</span></a></span>, general purpose register
+
+</li>
+<li> <span class="inlinecode"><a class="idref" href="cap_machine.logrel.call_stack.html#wcs1"><span class="id" title="projection">wcs1</span></a></span> records the value of <span class="inlinecode"><a class="idref" href="cap_machine.opsem.addr_reg.html#cs1"><span class="id" title="definition">cs1</span></a></span>, general purpose register
+
+</li>
+<li> <span class="inlinecode"><a class="idref" href="cap_machine.logrel.call_stack.html#b_stk"><span class="id" title="projection">b_stk</span></a></span>, <span class="inlinecode"><a class="idref" href="cap_machine.logrel.call_stack.html#a_stk"><span class="id" title="projection">a_stk</span></a></span> and  <span class="inlinecode"><a class="idref" href="cap_machine.logrel.call_stack.html#e_stk"><span class="id" title="projection">e_stk</span></a></span> records the bounds of the stack capability <span class="inlinecode"><a class="idref" href="cap_machine.opsem.addr_reg.html#csp"><span class="id" title="definition">csp</span></a></span>,
+
+</li>
+</ul>
+    the (compartment) stack frame of the caller
+
+<div class="paragraph"> </div>
+
+    Finally, <span class="inlinecode"><a class="idref" href="cap_machine.logrel.call_stack.html#ccrel"><span class="id" title="projection">ccrel</span></a></span> tracks the caller-callee relationship.
+    In case of know-to-known, we trust the caller and the callee to properly
+    keep track of the continuation themselves, and therefore the continuation is trivial.
+
+<div class="paragraph"> </div>
+
+    In addition, if the caller topmost frame is unknown,
+    the callee-saved registers values are stored in the compartment's stack,
+    and the way to handle the points-to predicates
+    depend on whether the region is shared.
+    More explanation in the switcher's invariant.
+ 
+</div>
+<div class="code">
+<span class="id" title="keyword">Record</span> <a id="cframe" class="idref" href="#cframe"><span class="id" title="record">cframe</span></a> := <span class="id" title="var">MkCFrame</span> {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="wret" class="idref" href="#wret"><span class="id" title="projection">wret</span></a> : <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="wcgp" class="idref" href="#wcgp"><span class="id" title="projection">wcgp</span></a> : <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="wcs0" class="idref" href="#wcs0"><span class="id" title="projection">wcs0</span></a> : <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="wcs1" class="idref" href="#wcs1"><span class="id" title="projection">wcs1</span></a> : <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="b_stk" class="idref" href="#b_stk"><span class="id" title="projection">b_stk</span></a> : <a class="idref" href="cap_machine.opsem.addr_reg.html#Addr"><span class="id" title="abbreviation">Addr</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="a_stk" class="idref" href="#a_stk"><span class="id" title="projection">a_stk</span></a> : <a class="idref" href="cap_machine.opsem.addr_reg.html#Addr"><span class="id" title="abbreviation">Addr</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="e_stk" class="idref" href="#e_stk"><span class="id" title="projection">e_stk</span></a> : <a class="idref" href="cap_machine.opsem.addr_reg.html#Addr"><span class="id" title="abbreviation">Addr</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="ccrel" class="idref" href="#ccrel"><span class="id" title="projection">ccrel</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#caller_callee_relation"><span class="id" title="inductive">caller_callee_relation</span></a>;<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="keyword">Definition</span> <a id="is_untrusted_caller_frm" class="idref" href="#is_untrusted_caller_frm"><span class="id" title="definition">is_untrusted_caller_frm</span></a> (<a id="frm:17" class="idref" href="#frm:17"><span class="id" title="binder">frm</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#cframe"><span class="id" title="record">cframe</span></a>) :=<br/>
+&nbsp;&nbsp;<a class="idref" href="cap_machine.logrel.call_stack.html#is_untrusted_caller"><span class="id" title="definition">is_untrusted_caller</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#frm:17"><span class="id" title="variable">frm</span></a>.(<a class="idref" href="cap_machine.logrel.call_stack.html#ccrel"><span class="id" title="projection">ccrel</span></a>).<br/>
+<span class="id" title="keyword">Definition</span> <a id="is_known_to_known_frm" class="idref" href="#is_known_to_known_frm"><span class="id" title="definition">is_known_to_known_frm</span></a> (<a id="frm:18" class="idref" href="#frm:18"><span class="id" title="binder">frm</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#cframe"><span class="id" title="record">cframe</span></a>) :=<br/>
+&nbsp;&nbsp;<a class="idref" href="cap_machine.logrel.call_stack.html#is_known_to_known"><span class="id" title="definition">is_known_to_known</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#frm:18"><span class="id" title="variable">frm</span></a>.(<a class="idref" href="cap_machine.logrel.call_stack.html#ccrel"><span class="id" title="projection">ccrel</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="is_untrusted_caller_is_not_known_to_known_frm" class="idref" href="#is_untrusted_caller_is_not_known_to_known_frm"><span class="id" title="lemma">is_untrusted_caller_is_not_known_to_known_frm</span></a> (<a id="frm:19" class="idref" href="#frm:19"><span class="id" title="binder">frm</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#cframe"><span class="id" title="record">cframe</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="cap_machine.logrel.call_stack.html#is_untrusted_caller_frm"><span class="id" title="definition">is_untrusted_caller_frm</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#frm:19"><span class="id" title="variable">frm</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#true"><span class="id" title="constructor">true</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#is_known_to_known_frm"><span class="id" title="definition">is_known_to_known_frm</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#frm:19"><span class="id" title="variable">frm</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a>.<br/>
+<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> /<a class="idref" href="cap_machine.logrel.call_stack.html#is_untrusted_caller_frm"><span class="id" title="definition">is_untrusted_caller_frm</span></a> /<a class="idref" href="cap_machine.logrel.call_stack.html#is_known_to_known_frm"><span class="id" title="definition">is_known_to_known_frm</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="cap_machine.logrel.call_stack.html#is_untrusted_caller_is_not_known_to_known"><span class="id" title="lemma">is_untrusted_caller_is_not_known_to_known</span></a>.<br/>
+<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Notation</span> <a id="cstack" class="idref" href="#cstack"><span class="id" title="abbreviation">cstack</span></a> := (<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cframe"><span class="id" title="record">cframe</span></a>).<br/>
+<span class="id" title="keyword">Notation</span> <a id="CSTK" class="idref" href="#CSTK"><span class="id" title="abbreviation">CSTK</span></a> := (<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.ofe.html#leibnizO"><span class="id" title="abbreviation">leibnizO</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstack"><span class="id" title="abbreviation">cstack</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">Definition</span> <a id="cstackR" class="idref" href="#cstackR"><span class="id" title="definition">cstackR</span></a> := <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#excl_authR"><span class="id" title="definition">excl_authR</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#CSTK"><span class="id" title="abbreviation">CSTK</span></a>.<br/>
+<span class="id" title="keyword">Definition</span> <a id="cstackUR" class="idref" href="#cstackUR"><span class="id" title="definition">cstackUR</span></a> := <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#excl_authUR"><span class="id" title="definition">excl_authUR</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#CSTK"><span class="id" title="abbreviation">CSTK</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Class</span> <a id="CSTACK_preG" class="idref" href="#CSTACK_preG"><span class="id" title="record">CSTACK_preG</span></a> <a id="f8cd4500ff4fee5cd966dfeb97ee3847" class="idref" href="#f8cd4500ff4fee5cd966dfeb97ee3847"><span class="id" title="binder">Σ</span></a> :=<br/>
+&nbsp;&nbsp;{ <a id="cstack_preG" class="idref" href="#cstack_preG"><span class="id" title="projection">cstack_preG</span></a> :: <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.own.html#inG"><span class="id" title="class">inG</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#f8cd4500ff4fee5cd966dfeb97ee3847"><span class="id" title="variable">Σ</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstackUR"><span class="id" title="definition">cstackUR</span></a>; }.<br/>
+
+<br/>
+<span class="id" title="keyword">Class</span> <a id="CSTACKG" class="idref" href="#CSTACKG"><span class="id" title="record">CSTACKG</span></a> <a id="3eadb2a0aeaeef49bd6cd27b7316c266" class="idref" href="#3eadb2a0aeaeef49bd6cd27b7316c266"><span class="id" title="binder">Σ</span></a> :=<br/>
+&nbsp;&nbsp;{ <a id="cstack_inG" class="idref" href="#cstack_inG"><span class="id" title="projection">cstack_inG</span></a> :: <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.own.html#inG"><span class="id" title="class">inG</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#3eadb2a0aeaeef49bd6cd27b7316c266"><span class="id" title="variable">Σ</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstackUR"><span class="id" title="definition">cstackUR</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="91f5c6336348ad7e10f364a514fdd076" class="idref" href="#91f5c6336348ad7e10f364a514fdd076"><span class="id" title="projection">γcstack</span></a> : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#gname"><span class="id" title="definition">gname</span></a>;<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="keyword">Definition</span> <a id="9029ff5c440a3d933eae80c165a24383" class="idref" href="#9029ff5c440a3d933eae80c165a24383"><span class="id" title="definition">CSTACK_preΣ</span></a> :=<br/>
+&nbsp;&nbsp;<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#8ed86267cb76025deed5ef60f2c33991"><span class="id" title="notation">#[</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#GFunctor"><span class="id" title="constructor">GFunctor</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstackUR"><span class="id" title="definition">cstackUR</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#8ed86267cb76025deed5ef60f2c33991"><span class="id" title="notation">]</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Instance</span> <a id="10573f7dd6df994a33725197353314b8" class="idref" href="#10573f7dd6df994a33725197353314b8"><span class="id" title="instance">subG_CSTACK_preΣ</span></a> {<a id="2ce23d418d95c371330ae00e4301f160" class="idref" href="#2ce23d418d95c371330ae00e4301f160"><span class="id" title="binder">Σ</span></a>} :<br/>
+&nbsp;&nbsp;<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#subG"><span class="id" title="class">subG</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#9029ff5c440a3d933eae80c165a24383"><span class="id" title="definition">CSTACK_preΣ</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#2ce23d418d95c371330ae00e4301f160"><span class="id" title="variable">Σ</span></a> <span class="id" title="notation">→</span> <a class="idref" href="cap_machine.logrel.call_stack.html#CSTACK_preG"><span class="id" title="class">CSTACK_preG</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#2ce23d418d95c371330ae00e4301f160"><span class="id" title="variable">Σ</span></a>.<br/>
+<span class="id" title="keyword">Proof</span>. <span class="id" title="var">solve_inG</span>. <span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="CStack" class="idref" href="#CStack"><span class="id" title="section">CStack</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<a id="6ca09db04b265374ef36d0004f2eb86d" class="idref" href="#6ca09db04b265374ef36d0004f2eb86d"><span class="id" title="variable">Σ</span></a> : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#gFunctors"><span class="id" title="record">gFunctors</span></a>} {<a id="CStack.cstackg" class="idref" href="#CStack.cstackg"><span class="id" title="variable">cstackg</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#CSTACKG"><span class="id" title="class">CSTACKG</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#eb789037a8f6adae4a3a57f4d9f80b3c"><span class="id" title="variable">Σ</span></a>} .<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="cstack_full" class="idref" href="#cstack_full"><span class="id" title="definition">cstack_full</span></a> (<a id="cstk:30" class="idref" href="#cstk:30"><span class="id" title="binder">cstk</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#cstack"><span class="id" title="abbreviation">cstack</span></a>) : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#iProp_solution.iProp"><span class="id" title="abbreviation">iProp</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#6ca09db04b265374ef36d0004f2eb86d"><span class="id" title="variable">Σ</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;:= <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.own.html#own"><span class="id" title="definition">own</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#91f5c6336348ad7e10f364a514fdd076"><span class="id" title="method">γcstack</span></a> (<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#22dd6fff0d788c356bb928c373f951ae"><span class="id" title="notation">●</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#22dd6fff0d788c356bb928c373f951ae"><span class="id" title="notation">E</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#22dd6fff0d788c356bb928c373f951ae"><span class="id" title="notation">(</span></a><a class="idref" href="cap_machine.logrel.call_stack.html#cstk:30"><span class="id" title="variable">cstk</span></a> : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.ofe.html#leibnizO"><span class="id" title="abbreviation">leibnizO</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstack"><span class="id" title="abbreviation">cstack</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#22dd6fff0d788c356bb928c373f951ae"><span class="id" title="notation">)</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#cstackUR"><span class="id" title="definition">cstackUR</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="cstack_frag" class="idref" href="#cstack_frag"><span class="id" title="definition">cstack_frag</span></a> (<a id="cstk:31" class="idref" href="#cstk:31"><span class="id" title="binder">cstk</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#cstack"><span class="id" title="abbreviation">cstack</span></a>) : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#iProp_solution.iProp"><span class="id" title="abbreviation">iProp</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#6ca09db04b265374ef36d0004f2eb86d"><span class="id" title="variable">Σ</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;:= <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.own.html#own"><span class="id" title="definition">own</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#91f5c6336348ad7e10f364a514fdd076"><span class="id" title="method">γcstack</span></a> (<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#e627ac72e6e86605e4aa3dae6fd0b604"><span class="id" title="notation">◯</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#e627ac72e6e86605e4aa3dae6fd0b604"><span class="id" title="notation">E</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#e627ac72e6e86605e4aa3dae6fd0b604"><span class="id" title="notation">(</span></a><a class="idref" href="cap_machine.logrel.call_stack.html#cstk:31"><span class="id" title="variable">cstk</span></a> : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.ofe.html#leibnizO"><span class="id" title="abbreviation">leibnizO</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstack"><span class="id" title="abbreviation">cstack</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#e627ac72e6e86605e4aa3dae6fd0b604"><span class="id" title="notation">)</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#cstackUR"><span class="id" title="definition">cstackUR</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="cstack_agree" class="idref" href="#cstack_agree"><span class="id" title="lemma">cstack_agree</span></a> (<a id="cstk:32" class="idref" href="#cstk:32"><span class="id" title="binder">cstk</span></a> <a id="cstk':33" class="idref" href="#cstk':33"><span class="id" title="binder">cstk'</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#cstack"><span class="id" title="abbreviation">cstack</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.logrel.call_stack.html#cstack_full"><span class="id" title="definition">cstack_full</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstk:32"><span class="id" title="variable">cstk</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#0f70793a7efc24c230ef5e3a6ac95b68"><span class="id" title="notation">-∗</span></a><br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.logrel.call_stack.html#cstack_frag"><span class="id" title="definition">cstack_frag</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstk':33"><span class="id" title="variable">cstk'</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#6e96398fec71e244af9dd75e40876ca6"><span class="id" title="notation">-∗</span></a><br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#08ba0c98aaa0db435a5f99ebae3ae8e7"><span class="id" title="notation">⌜</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstk:32"><span class="id" title="variable">cstk</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstk':33"><span class="id" title="variable">cstk'</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#08ba0c98aaa0db435a5f99ebae3ae8e7"><span class="id" title="notation">⌝</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iIntros</span> "Hfull Hfrag".<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> /<a class="idref" href="cap_machine.logrel.call_stack.html#cstack_full"><span class="id" title="definition">cstack_full</span></a> /<a class="idref" href="cap_machine.logrel.call_stack.html#cstack_frag"><span class="id" title="definition">cstack_frag</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iCombine</span> "Hfull Hfrag" <span class="id" title="keyword">as</span> "H".<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iDestruct</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.ltac_tactics.html#c65a9d4b357f2165cc71fe44c81db669"><span class="id" title="notation">(</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.own.html#own_valid"><span class="id" title="lemma">own_valid</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.ltac_tactics.html#c65a9d4b357f2165cc71fe44c81db669"><span class="id" title="notation">with</span></a> "H"<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.ltac_tactics.html#c65a9d4b357f2165cc71fe44c81db669"><span class="id" title="notation">)</span></a> <span class="id" title="keyword">as</span> "%H".<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">by</span> <span class="id" title="tactic">apply</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#excl_auth_agree_L"><span class="id" title="lemma">excl_auth_agree_L</span></a> <span class="id" title="tactic">in</span> <span class="id" title="var">H</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="cstack_update" class="idref" href="#cstack_update"><span class="id" title="lemma">cstack_update</span></a> (<a id="cstk:34" class="idref" href="#cstk:34"><span class="id" title="binder">cstk</span></a> <a id="cstk':35" class="idref" href="#cstk':35"><span class="id" title="binder">cstk'</span></a> <a id="cstk'':36" class="idref" href="#cstk'':36"><span class="id" title="binder">cstk''</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#cstack"><span class="id" title="abbreviation">cstack</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.logrel.call_stack.html#cstack_full"><span class="id" title="definition">cstack_full</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstk:34"><span class="id" title="variable">cstk</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#0f70793a7efc24c230ef5e3a6ac95b68"><span class="id" title="notation">-∗</span></a><br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.logrel.call_stack.html#cstack_frag"><span class="id" title="definition">cstack_frag</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstk':35"><span class="id" title="variable">cstk'</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.updates.html#04b855eff9d58bf18fcc1fd1ead61e24"><span class="id" title="notation">==∗</span></a><br/>
+&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.logrel.call_stack.html#cstack_full"><span class="id" title="definition">cstack_full</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstk'':36"><span class="id" title="variable">cstk''</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#17a7b93bfefac02a752836d54e5bc9da"><span class="id" title="notation">∗</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstack_frag"><span class="id" title="definition">cstack_frag</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstk'':36"><span class="id" title="variable">cstk''</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iIntros</span> "Hfull Hfrag".<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> /<a class="idref" href="cap_machine.logrel.call_stack.html#cstack_full"><span class="id" title="definition">cstack_full</span></a> /<a class="idref" href="cap_machine.logrel.call_stack.html#cstack_frag"><span class="id" title="definition">cstack_frag</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iCombine</span> "Hfull Hfrag" <span class="id" title="keyword">as</span> "H".<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iMod</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.ltac_tactics.html#c65a9d4b357f2165cc71fe44c81db669"><span class="id" title="notation">(</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.own.html#own_update"><span class="id" title="lemma">own_update</span></a> <span class="id" title="var">_</span> <span class="id" title="var">_</span> <span class="id" title="var">_</span>  <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.ltac_tactics.html#c65a9d4b357f2165cc71fe44c81db669"><span class="id" title="notation">with</span></a> "H" <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.ltac_tactics.html#c65a9d4b357f2165cc71fe44c81db669"><span class="id" title="notation">)</span></a> <span class="id" title="keyword">as</span> "H".<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{ <span class="id" title="tactic">apply</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#excl_auth_update"><span class="id" title="lemma">excl_auth_update</span></a>. }<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iDestruct</span> "H" <span class="id" title="keyword">as</span> "[? ?]".<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">by</span> <span class="id" title="var">iFrame</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="cap_machine.logrel.call_stack.html#CStack"><span class="id" title="section">CStack</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="pre_CSTACK" class="idref" href="#pre_CSTACK"><span class="id" title="section">pre_CSTACK</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<a id="60517a470659991401975cb01e88ad2c" class="idref" href="#60517a470659991401975cb01e88ad2c"><span class="id" title="variable">Σ</span></a> : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.iprop.html#gFunctors"><span class="id" title="record">gFunctors</span></a>} {<a id="pre_CSTACK.cstackg" class="idref" href="#pre_CSTACK.cstackg"><span class="id" title="variable">cstackg</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#CSTACK_preG"><span class="id" title="class">CSTACK_preG</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#01696af10e39986da2e9d1f22eb04999"><span class="id" title="variable">Σ</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="gen_cstack_init" class="idref" href="#gen_cstack_init"><span class="id" title="lemma">gen_cstack_init</span></a> (<a id="cstk:39" class="idref" href="#cstk:39"><span class="id" title="binder">cstk</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#cstack"><span class="id" title="abbreviation">cstack</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#b7d65d242d889c3e37aca6013a51bfad"><span class="id" title="notation">⊢</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.updates.html#be9a2343da4fe37e3ed47c88e1c47b1e"><span class="id" title="notation">|==&gt;</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.updates.html#be9a2343da4fe37e3ed47c88e1c47b1e"><span class="id" title="notation">(</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#6a949150dff4dc18cd2632b730bdfc23"><span class="id" title="notation">∃</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#6a949150dff4dc18cd2632b730bdfc23"><span class="id" title="notation">(</span></a><a id="cstackg:40" class="idref" href="#cstackg:40"><span class="id" title="binder">cstackg</span></a> : <a class="idref" href="cap_machine.logrel.call_stack.html#CSTACKG"><span class="id" title="class">CSTACKG</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#60517a470659991401975cb01e88ad2c"><span class="id" title="variable">Σ</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#6a949150dff4dc18cd2632b730bdfc23"><span class="id" title="notation">),</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstack_full"><span class="id" title="definition">cstack_full</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstk:39"><span class="id" title="variable">cstk</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.interface.html#17a7b93bfefac02a752836d54e5bc9da"><span class="id" title="notation">∗</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstack_frag"><span class="id" title="definition">cstack_frag</span></a> <a class="idref" href="cap_machine.logrel.call_stack.html#cstk:39"><span class="id" title="variable">cstk</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.bi.updates.html#be9a2343da4fe37e3ed47c88e1c47b1e"><span class="id" title="notation">)</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iMod</span> (<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.own.html#own_alloc"><span class="id" title="lemma">own_alloc</span></a> (<span class="id" title="var">A</span>:=<a class="idref" href="cap_machine.logrel.call_stack.html#cstackUR"><span class="id" title="definition">cstackUR</span></a>) (<a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#22dd6fff0d788c356bb928c373f951ae"><span class="id" title="notation">●</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#22dd6fff0d788c356bb928c373f951ae"><span class="id" title="notation">E</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#22dd6fff0d788c356bb928c373f951ae"><span class="id" title="notation">(</span></a><span class="id" title="var">cstk</span> : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.ofe.html#leibnizO"><span class="id" title="abbreviation">leibnizO</span></a> <span class="id" title="var">_</span><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#22dd6fff0d788c356bb928c373f951ae"><span class="id" title="notation">)</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.cmra.html#15e23efdc9fbc1bcf2fece03abcbccd7"><span class="id" title="notation">⋅</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#e627ac72e6e86605e4aa3dae6fd0b604"><span class="id" title="notation">◯</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#e627ac72e6e86605e4aa3dae6fd0b604"><span class="id" title="notation">E</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#e627ac72e6e86605e4aa3dae6fd0b604"><span class="id" title="notation">(</span></a><span class="id" title="var">cstk</span> : <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.ofe.html#leibnizO"><span class="id" title="abbreviation">leibnizO</span></a> <span class="id" title="var">_</span><a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#e627ac72e6e86605e4aa3dae6fd0b604"><span class="id" title="notation">)</span></a> )) <span class="id" title="keyword">as</span> (<span class="id" title="var">γcstack</span>) "Hcstack"<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;; <span class="id" title="tactic">first</span> <span class="id" title="tactic">by</span> <span class="id" title="tactic">apply</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.lib.excl_auth.html#excl_auth_valid"><span class="id" title="lemma">excl_auth_valid</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">iModIntro</span>. <span class="id" title="var">iExists</span> (<a class="idref" href="cap_machine.logrel.call_stack.html#Build_CSTACKG"><span class="id" title="constructor">Build_CSTACKG</span></a> <span class="id" title="var">_</span> <span class="id" title="var">_</span> <span class="id" title="var">γcstack</span>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">by</span> <span class="id" title="tactic">rewrite</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.own.html#own_op"><span class="id" title="lemma">own_op</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="cap_machine.logrel.call_stack.html#pre_CSTACK"><span class="id" title="section">pre_CSTACK</span></a>.<br/>
+</div>
+</div>
+<div id="footer">
+  Generated by <a href="http://coq.inria.fr/">coqdoc</a> and improved with <a href="https://github.com/tebbi/coqdocjs">CoqdocJS</a>
+</div>
+</div>
+</body>
+
+</html>
