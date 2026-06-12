@@ -54,11 +54,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
 
-      - name: Install Rocq and Iris (deps only- name: Debug branch
-  run: |
-    echo "branch='${{ steps.get_branch.outputs.branch }}'"
-    echo "ref='${{ github.ref }}'"
-    echo "ref_name='${{ github.ref_name }}'")
+      - name: Install Rocq and Iris (deps only)
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
           eval "$(opam env)"
@@ -92,8 +88,8 @@ jobs:
           destination_dir: dev
 
 
-          - name: Debug branch
-            run: |
-              echo "branch='${{ steps.get_branch.outputs.branch }}'"
-              echo "ref='${{ github.ref }}'"
-              echo "ref_name='${{ github.ref_name }}'"
+      - name: Debug branch
+        run: |
+          echo "branch='${{ steps.get_branch.outputs.branch }}'"
+          echo "ref='${{ github.ref }}'"
+          echo "ref_name='${{ github.ref_name }}'"
