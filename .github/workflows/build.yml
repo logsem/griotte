@@ -38,6 +38,10 @@ jobs:
       - name: List files
         run: find . -name '*opam'
 
+      - name: Debug hash
+        run: |
+          echo "hash=${{ hashFiles('opam') }}"
+
       - name: Cache opam
         id: cache-opam
         uses: actions/cache@v4
@@ -45,7 +49,7 @@ jobs:
           cache-name: cache-opam
         with:
           path: ${{ env.OPAM_LOCAL }}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('./opam') }}
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('opam') }}
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
 
