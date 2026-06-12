@@ -16,6 +16,7 @@ on:
   push:
     branches:
       - main
+      - ci-fix
 
 jobs:
   build:
@@ -26,7 +27,6 @@ jobs:
       OPAM_LOCAL: "_opam"
       OCAML_VERSION: "5.4.0"
       JOBS_LIMIT: "2"
-      DUNE_CACHE_ROOT: "/home/runner/.cache/dune"
 
     steps:
       - name: Checkout code
@@ -58,16 +58,6 @@ jobs:
         run: |
           eval "$(opam env)"
           opam install . --deps-only -y
-
-      - name: Cache Dune _build directory
-        id: cache-build
-        uses: actions/cache@v4
-        with:
-          path: _build
-          key: |
-            dune-build-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-${{ hashFiles('*.opam.locked', 'dune-project') }}
-          restore-keys: |
-            dune-build-${{ runner.os }}-ocaml${{ env.OCAML_VERSION }}-
 
       - name: Build
         run: |
