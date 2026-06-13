@@ -39,34 +39,47 @@
 
             <h2>Operational semantics</h2>
             <ul>
-                <li><a href="griotte.machine_base.html">machine_base</a>: Contains
-                    the syntax (permissions, capability, instructions, ...) of the
-                    capability machine.
+              <li><a href="griotte.opsem.machine_base.html">machine_base</a>:
+                Contains the syntax (permissions, capability, instructions, ...)
+                of the capability machine.
                 </li>
 
-                <li><a href="griotte.machine_parameters.html">machine_parameters</a>:
+                <li><a href="griotte.opsem.machine_parameters.html">machine_parameters</a>:
                     Defines a number of "settings" for the machine, that parameterize
                     the whole development (e.g. the specific encoding scheme for
                     instructions, etc.).
                 </li>
 
-                <li><a href="griotte.griotte_lang.html">griotte_lang</a>: Defines the
-                    operational semantics of the machine, and the embedding of the capability
-                    machine language into Iris.
+                <li><a href="griotte.opsem.griotte_opsem.html">griotte_opsem</a>:
+                  Defines the operational semantics of the machine.
                 </li>
             </ul>
 
             <h2>Program logic</h2>
             <ul>
-                <li><a href="griotte.rules.rules_base.html">rules.rules_base</a>:
-                    Contains some of the core resource algebras for the program logic,
-                    namely the definition for points to predicates with permissions.
-                </li>
+              <li><a href="griotte.program_logic.griotte_lang.html">griotte_lang</a>:
+                Defines the embedding of the capability machine language into Iris.
+              </li>
 
-                <li><a href="griotte.rules.html">rules</a>: Imports all the Hoare
-                    triple rules for each instruction. These rules are separated into separate
-                    files (located in the <code>rules/</code> folder).
-                </li>
+              <li><a href="griotte.program_logic.entry.html">entry</a>:
+                Defines the resource algebra for entry points,
+                which keeps track of the number of arguments of exported entry points.
+              </li>
+
+              <li><a href="griotte.program_logic.cerise_instance.html">cerise_instance</a>:
+                Defines the core resource algebras for the Cerise / Griotte program logic,
+                namely the definition for points to predicates.
+              </li>
+
+              <li><a href="griotte.program_logic.memory_region.html">memory_region</a>:
+                Defines points-to predicates for range of addresses.
+              </li>
+
+              <li><a href="griotte.program_logic.rules.html">rules</a>:
+                Imports all the Hoare triple rules for each instruction.
+                These rules are separated into separate files
+                (located in the <code>rules/</code> folder).
+              </li>
             </ul>
 
             <h2>Model of Kripke World</h2>
