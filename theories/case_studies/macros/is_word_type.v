@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
+From griotte Require Import rules proofmode.
 
 Section Is_WordType.
   Context
@@ -38,7 +38,7 @@ Section Is_WordType_spec.
     (r r1 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w w1 wtype : Word)
-    (φ : language.val cap_lang → iPropI Σ) :
+    (φ : language.val griotte_lang → iPropI Σ) :
 
     let is_int := (is_int_instrs r r1) in
     let a_last := (pc_a ^+ length is_int)%a in
@@ -90,7 +90,7 @@ Section Is_WordType_spec.
     (r r1 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w w1 wtype : Word)
-    (φ : language.val cap_lang → iPropI Σ) :
+    (φ : language.val griotte_lang → iPropI Σ) :
 
     let is_memory_cap := (is_memory_cap_instrs r r1) in
     let a_last := (pc_a ^+ length is_memory_cap)%a in

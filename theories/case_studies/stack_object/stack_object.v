@@ -1,6 +1,6 @@
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Import fetch assert switcher.
-From cap_machine Require Import checkra checkints check_no_overlap.
+From griotte Require Import rules proofmode.
+From griotte Require Import fetch assert switcher.
+From griotte Require Import checkra checkints check_no_overlap.
 
 Section SO_Main.
   Context `{MP: MachineParameters}.
@@ -85,7 +85,7 @@ int __cheri_compartment("known") run()
         (* allocate stack object *)
         Mov ca1 csp;
         GetA cs0 ca1;
-        machine_base.Add cs1 cs0 1%Z;
+        machine_instructions.Add cs1 cs0 1%Z;
         Subseg ca1 cs0 cs1;
         Store ca1 0%Z;  (* ca1 := (RWL, Local, csp_b+1, csp_b+2, csp_b+1) // csp_b+1 := 0 *)
         Lea csp 1%Z

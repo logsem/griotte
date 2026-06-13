@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import memory_region.
+From griotte Require Import memory_region.
 
 
 (* This file contains definition and lemmas for contiguous address regions *)

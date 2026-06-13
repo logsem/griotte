@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Import fetch switcher.
+From griotte Require Import rules proofmode.
+From griotte Require Import fetch switcher.
 
 Section Counter_Main.
   Context `{MP: MachineParameters}.

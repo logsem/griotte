@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules logrel monotone interp_weakening.
-From cap_machine Require Import fetch_spec assert_spec switcher_spec_call deep_locality.
-From cap_machine Require Import world_ghost_theory world_interp_stack.
-From cap_machine Require Import proofmode register_tactics.
+From griotte Require Import rules logrel monotone interp_weakening.
+From griotte Require Import fetch_spec assert_spec switcher_spec_call deep_locality.
+From griotte Require Import world_ghost_theory world_interp_stack.
+From griotte Require Import proofmode register_tactics.
 
 Section DLE.
   Context

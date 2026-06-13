@@ -1,11 +1,11 @@
-From cap_machine Require Export
+From iris.proofmode Require Import proofmode.
+From iris.program_logic Require Import weakestpre lifting.
+From griotte Require Export logrel interp_weakening monotone.
+From griotte Require Export
+  ftlr_base
   Jmp Jnz Jalr Mov Load Store BinOp Restrict
   Subseg Get Lea Seal UnSeal ReadSR WriteSR.
-From cap_machine Require Export ftlr_base.
-From iris.proofmode Require Import proofmode.
-From iris.program_logic Require Import weakestpre adequacy lifting.
-From stdpp Require Import base.
-From cap_machine Require Export logrel register_tactics.
+From griotte Require Import register_tactics.
 
 Section fundamental.
   Context

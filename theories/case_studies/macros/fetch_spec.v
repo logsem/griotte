@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Export fetch.
+From griotte Require Import rules proofmode.
+From griotte Require Export fetch.
 
 Section Fetch.
   Context
@@ -12,7 +12,7 @@ Section Fetch.
     (n : Z) (rdst rscratch1 rscratch2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (wentry wdst w1 w2 : Word)
-    (φ : language.val cap_lang → iPropI Σ) :
+    (φ : language.val griotte_lang → iPropI Σ) :
 
     let fetch_ := (fetch_instrs n rdst rscratch1 rscratch2) in
     let a_last := (pc_a ^+ length fetch_)%a in

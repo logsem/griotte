@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Import is_word_type lea_to_base.
+From griotte Require Import rules proofmode.
+From griotte Require Import is_word_type lea_to_base.
 
 Section Checkra.
   Context
@@ -108,7 +108,7 @@ Section Checkra_spec.
     (rsrc r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (wsrc w1 w2 : Word)
-    (φ : language.val cap_lang → iPropI Σ) :
+    (φ : language.val griotte_lang → iPropI Σ) :
 
     let checkra_ := (checkra_instrs rsrc r1 r2) in
     let a_last := (pc_a ^+ length checkra_)%a in

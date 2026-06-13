@@ -1,13 +1,13 @@
 (* Program logic rules for machine instructions are split into several files,
    with one file for each instruction, which we import below. *)
-From cap_machine Require Export
+From griotte Require Export
      rules_Get rules_Load rules_Store rules_BinOp
      rules_Lea rules_Mov rules_Restrict rules_Subseg
      rules_Jmp rules_Jnz rules_Jalr
      rules_Seal rules_UnSeal
      rules_ReadSR rules_WriteSR.
 
-(* Program specifications
+(** Program specifications
 
    There is a small discrepancy between how program specifications are written
    in the paper and in the Coq development.
@@ -52,5 +52,7 @@ From cap_machine Require Export
 From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 
+(* Reexport CMRA for Griotte *)
+From griotte Require Export cerise_instance entry.
 (* Reexport resources for registers and memory *)
-From cap_machine Require Export rules_base.
+From griotte Require Export memory_region rules_base machine_instructions.

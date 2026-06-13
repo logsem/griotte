@@ -1,7 +1,7 @@
 From iris.algebra Require Import gmap agree auth excl_auth.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Export stdpp_extra rules_base.
-From cap_machine Require Export sts world_std_sts world_ghost_resources.
+From griotte Require Export stdpp_extra rules_base.
+From griotte Require Export sts world_std_sts world_ghost_resources.
 
   (*** Interpretation of the standard world *)
 

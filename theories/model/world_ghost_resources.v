@@ -1,8 +1,8 @@
 From iris.algebra Require Import gmap agree auth excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-From cap_machine Require Export stdpp_extra cap_lang.
-From cap_machine Require Export sts world_std_sts.
+From griotte Require Export stdpp_extra griotte_lang.
+From griotte Require Export sts world_std_sts.
 Import uPred.
 
 (** CMRA for heap and its predicates. Contains: *)

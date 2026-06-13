@@ -1,10 +1,10 @@
 From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel memory_region rules proofmode.
-From cap_machine Require Import sts_multiple_updates region_invariants_revocation.
-From cap_machine Require Import bitblast.
-From cap_machine Require Export switcher.
-From cap_machine Require Export clear_stack_spec clear_registers_spec.
+From griotte Require Import logrel memory_region rules proofmode.
+From griotte Require Import sts_multiple_updates region_invariants_revocation.
+From griotte Require Import bitblast.
+From griotte Require Export switcher.
+From griotte Require Export clear_stack_spec clear_registers_spec.
 
 Section Switcher_preamble.
   Context

@@ -1,11 +1,11 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base list_relations.
-From cap_machine Require Export logrel monotone.
-From cap_machine Require Import fundamental.
-From cap_machine Require Import switcher_preamble.
-From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
-From cap_machine Require Export world_ghost_theory world_interp_stack switcher_helpers.
+From griotte Require Export logrel monotone.
+From griotte Require Import fundamental.
+From griotte Require Import switcher_preamble.
+From griotte Require Import map_simpl register_tactics proofmode.
+From griotte Require Export world_ghost_theory world_interp_stack switcher_helpers.
 
 Section fundamental.
   Context

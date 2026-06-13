@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules logrel monotone interp_weakening.
-From cap_machine Require Import memory_region proofmode.
-From cap_machine Require Import world_ghost_theory.
+From griotte Require Import rules logrel monotone interp_weakening.
+From griotte Require Import memory_region proofmode.
+From griotte Require Import world_ghost_theory.
 
 
 Section Stack_World_Resources.

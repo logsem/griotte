@@ -8,7 +8,29 @@ through the switcher.
 
 # Building the proofs
 
-## Installing the dependencies
+## With Docker
+
+Build the Docker image.
+``` sh
+$ docker build -t griotte:griotte .
+```
+
+Run the loaded image in a container.
+
+``` sh
+$ docker run -it --hostname griotte --rm griotte:griotte
+```
+
+It will open a container with a shell, at `/home/rocq/griotte`, under the `rocq` user.
+The directory contains the source of the artifact and all the dependencies to build it.
+
+``` sh
+rocq@griotte:~/griotte$ make
+```
+
+## Without Docker
+
+### Installing the dependencies
 
 Clone this repository
 ```
@@ -19,7 +41,6 @@ If you forgot `--recursive`
 ```
 git submodule update --init
 ```
-
 
 ### With Nix.
 
@@ -60,7 +81,7 @@ those, two options:
     opam repo add rocq-released https://rocq-prover.org/opam/released
     opam update
     # Install dependencies (skip if already installed)
-    opam install dune.3.20.2
+    opam install dune.3.21.0
     opam install rocq-core.9.1.1 rocq-stdlib.9.0.0 rocq-stdpp.1.13.0 rocq-stdpp-bitvector.1.13.0 rocq-iris.4.5.0 rocq-equations.1.3.1+9.1
 ```
 
@@ -77,7 +98,7 @@ failed).
 dune build --display short -jN  # replace N with the number of CPU cores of your machine
 ```
 
-We recommend that you have **32Gb of RAM+swap**. Please be aware that the
+We recommend that you have **16Gb of RAM+swap**. Please be aware that the
 development takes around 1 to 2 hours to compile. 
 
 ## Checking for admits
@@ -91,7 +112,9 @@ The organisation of the `theories/` folder is as follows.
 
 ## Operational semantics `opsem/`
 
-- `addr_reg.v`: Defines registers and the set of (finite) memory addresses.
+- `registers.v`: Defines registers.
+- `addresses.v`: Defines memory addresses.
+- `otypes.v`: Defines otypes.
 
 - `machine_base.v`: Contains the syntax (permissions, capability, instructions,
   ...) of the capability machine.
@@ -100,7 +123,7 @@ The organisation of the `theories/` folder is as follows.
   parameterize the whole development (e.g. the specific encoding scheme for
   instructions, etc.).
 
-- `cap_lang.v`: Defines the operational semantics of the machine, and the
+- `griotte_lang.v`: Defines the operational semantics of the machine, and the
   embedding of the capability machine language into Iris.
 
 ## Program logic `program_logic/`
@@ -264,6 +287,9 @@ The case studies are:
 The file `assumptions.v` prints the assumptions of the FTLR,
 and then of each end-to-end theorems of the case studies.
 
+Uncomment the file to check the assumptions. 
+Be aware that it can be long to execute (10-15 minutes).
+
 The only axiom our theorems depend on is functional,
 which is well-known to be compatible with Rocq's internal theory.
 ```
@@ -299,8 +325,10 @@ for an executing program is Seq (Instr Executable).
 
 In the model:
 
-| *name in paper*     | *name in mechanisation* |
-|---------------------|-------------------------|
-| stsCollection       | full_sts_world          |
-| sharedResources     | region                  |
-| temporal transition | std_rel_pub        |
+| *name in paper*    | *name in mechanisation* |
+|--------------------|-------------------------|
+| stsCollection      | full_sts_world          |
+| sharedResources    | region                  |
+| stsRes             | world_interp            |
+| public transition  | std_rel_pub             |
+| private transition | std_rel_priv            |

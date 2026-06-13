@@ -1,6 +1,6 @@
-From cap_machine Require Import proofmode machine_parameters.
-From cap_machine Require Import switcher assert.
-From cap_machine Require Import disjoint_regions_tactics mkregion_helpers.
+From griotte Require Import proofmode machine_parameters.
+From griotte Require Import switcher assert.
+From griotte Require Import disjoint_regions_tactics mkregion_helpers.
 
 Section CmptLayout.
   Context `{MP: MachineParameters}.

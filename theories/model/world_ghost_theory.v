@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
-From cap_machine Require Export world_std_revocation sts_multiple_updates.
-From cap_machine Require Export stdpp_extra iris_extra.
+From griotte Require Import region_invariants_revocation region_invariants_allocation.
+From griotte Require Export world_std_revocation sts_multiple_updates.
+From griotte Require Export stdpp_extra iris_extra.
 
   (*** World Ghost Theory *)
 

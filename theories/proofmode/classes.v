@@ -1,6 +1,6 @@
 From Stdlib Require Import ZArith.
 From stdpp Require Import base option.
-From cap_machine Require Import machine_base machine_parameters addr_reg.
+From griotte Require Import machine_base machine_parameters.
 From machine_utils Require Export classes.
 
 (* Helper classes, complementing the ones from machine_utils *)

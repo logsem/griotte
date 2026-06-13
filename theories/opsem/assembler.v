@@ -1,5 +1,5 @@
 From stdpp Require Export strings gmap.
-From cap_machine Require Export -(coercions) addr_reg machine_base.
+From griotte Require Export -(coercions) machine_base.
 
 Module Asm_Griotte.
 
@@ -280,88 +280,88 @@ Module Asm_Griotte.
     match i with
     | Jmp rimm =>
         rimm' ← assemble_arg rimm env;
-        Some (machine_base.Jmp rimm')
+        Some (machine_instructions.Jmp rimm')
     | Jnz rimm rcond =>
         rimm' ← assemble_arg rimm env;
-        Some (machine_base.Jnz rimm' rcond)
+        Some (machine_instructions.Jnz rimm' rcond)
     | Jalr rdst rsrc =>
-        Some (machine_base.Jalr rdst rsrc)
+        Some (machine_instructions.Jalr rdst rsrc)
     | Mov dst src  =>
         src ← assemble_arg src env;
-        Some (machine_base.Mov dst src)
+        Some (machine_instructions.Mov dst src)
     | Load dst src =>
-        Some (machine_base.Load dst src)
+        Some (machine_instructions.Load dst src)
     | Store dst src =>
         src ← assemble_arg src env;
-        Some (machine_base.Store dst src)
+        Some (machine_instructions.Store dst src)
     | Lt dst r1 r2 =>
         w1 ← assemble_arg r1 env;
         w2 ← assemble_arg r2 env;
-        Some (machine_base.Lt dst w1 w2)
+        Some (machine_instructions.Lt dst w1 w2)
     | Add dst r1 r2 =>
         w1 ← assemble_arg r1 env;
         w2 ← assemble_arg r2 env;
-        Some (machine_base.Add dst w1 w2)
+        Some (machine_instructions.Add dst w1 w2)
     | Sub dst r1 r2 =>
         w1 ← assemble_arg r1 env;
         w2 ← assemble_arg r2 env;
-        Some (machine_base.Sub dst w1 w2)
+        Some (machine_instructions.Sub dst w1 w2)
     | Mul dst r1 r2 =>
         w1 ← assemble_arg r1 env;
         w2 ← assemble_arg r2 env;
-        Some (machine_base.Mul dst w1 w2)
+        Some (machine_instructions.Mul dst w1 w2)
     | LAnd dst r1 r2 =>
         w1 ← assemble_arg r1 env;
         w2 ← assemble_arg r2 env;
-        Some (machine_base.LAnd dst w1 w2)
+        Some (machine_instructions.LAnd dst w1 w2)
     | LOr dst r1 r2 =>
         w1 ← assemble_arg r1 env;
         w2 ← assemble_arg r2 env;
-        Some (machine_base.LOr dst w1 w2)
+        Some (machine_instructions.LOr dst w1 w2)
     | LShiftL dst r1 r2 =>
         w1 ← assemble_arg r1 env;
         w2 ← assemble_arg r2 env;
-        Some (machine_base.LShiftL dst w1 w2)
+        Some (machine_instructions.LShiftL dst w1 w2)
     | LShiftR dst r1 r2 =>
         w1 ← assemble_arg r1 env;
         w2 ← assemble_arg r2 env;
-        Some (machine_base.LShiftR dst w1 w2)
+        Some (machine_instructions.LShiftR dst w1 w2)
     | Lea dst r =>
         w ← assemble_arg r env;
-        Some (machine_base.Lea dst w)
+        Some (machine_instructions.Lea dst w)
     | Restrict dst r =>
         w ← assemble_arg r env;
-        Some (machine_base.Restrict dst w)
+        Some (machine_instructions.Restrict dst w)
     | Subseg dst r1 r2 =>
         w1 ← assemble_arg r1 env;
         w2 ← assemble_arg r2 env;
-        Some (machine_base.Subseg dst w1 w2)
+        Some (machine_instructions.Subseg dst w1 w2)
     | GetB dst src =>
-        Some (machine_base.GetB dst src)
+        Some (machine_instructions.GetB dst src)
     | GetE dst src =>
-        Some (machine_base.GetE dst src)
+        Some (machine_instructions.GetE dst src)
     | GetA dst src =>
-        Some (machine_base.GetA dst src)
+        Some (machine_instructions.GetA dst src)
     | GetP dst src =>
-        Some (machine_base.GetP dst src)
+        Some (machine_instructions.GetP dst src)
     | GetL dst src =>
-        Some (machine_base.GetL dst src)
+        Some (machine_instructions.GetL dst src)
     | GetWType dst src =>
-        Some (machine_base.GetWType dst src)
+        Some (machine_instructions.GetWType dst src)
     | GetOType dst src =>
-        Some (machine_base.GetOType dst src)
+        Some (machine_instructions.GetOType dst src)
     | Seal dst r1 r2 =>
-        Some (machine_base.Seal dst r1 r2)
+        Some (machine_instructions.Seal dst r1 r2)
     | UnSeal dst r1 r2 =>
-        Some (machine_base.UnSeal dst r1 r2)
+        Some (machine_instructions.UnSeal dst r1 r2)
     | ReadSR dst src =>
-        Some (machine_base.ReadSR dst src)
+        Some (machine_instructions.ReadSR dst src)
     | WriteSR dst src =>
-        Some (machine_base.WriteSR dst src)
+        Some (machine_instructions.WriteSR dst src)
     | Fail=>
-        Some (machine_base.Fail)
+        Some (machine_instructions.Fail)
     | Halt=>
-        Some (machine_base.Halt)
+        Some (machine_instructions.Halt)
     end.
 
   Definition assemble_aux (l: list asm_code) (env : gmap string nat) : option (list instr) :=
@@ -412,7 +412,7 @@ Module Asm_Griotte.
   Definition revert_regs (r : RegName) : RegName :=
     match r with
     | PC => PC
-    | addr_reg.R n H =>
+    | registers.R n H =>
         match n with
         | 0 => cnull
         | 1 => cra
@@ -446,7 +446,7 @@ Module Asm_Griotte.
         | 29 => ct4
         | 30 => ct5
         | 31 => ct6
-        | _ => addr_reg.R n H
+        | _ => registers.R n H
         end
     end.
 
@@ -458,130 +458,130 @@ Module Asm_Griotte.
 
   Definition revert_regs_instr (i : instr) : instr :=
     match i with
-    | machine_base.Jmp rimm =>
+    | machine_instructions.Jmp rimm =>
         let rimm := revert_regs_arg rimm in
-        (machine_base.Jmp rimm)
-    | machine_base.Jnz rimm rcond =>
+        (machine_instructions.Jmp rimm)
+    | machine_instructions.Jnz rimm rcond =>
         let rimm := revert_regs_arg rimm in
         let rcond := revert_regs rcond in
-        (machine_base.Jnz rimm rcond)
-    | machine_base.Jalr rdst rsrc =>
+        (machine_instructions.Jnz rimm rcond)
+    | machine_instructions.Jalr rdst rsrc =>
         let rdst := revert_regs rdst in
         let rsrc := revert_regs rsrc in
-        (machine_base.Jalr rdst rsrc)
-    | machine_base.Mov dst src  =>
+        (machine_instructions.Jalr rdst rsrc)
+    | machine_instructions.Mov dst src  =>
         let dst := revert_regs dst in
         let src := revert_regs_arg src in
-        (machine_base.Mov dst src)
-    | machine_base.Load dst src =>
+        (machine_instructions.Mov dst src)
+    | machine_instructions.Load dst src =>
         let dst := revert_regs dst in
         let src := revert_regs src in
-        (machine_base.Load dst src)
-    | machine_base.Store dst src =>
+        (machine_instructions.Load dst src)
+    | machine_instructions.Store dst src =>
         let dst := revert_regs dst in
         let src := revert_regs_arg src in
-        (machine_base.Store dst src)
-    | machine_base.Lt dst r1 r2 =>
+        (machine_instructions.Store dst src)
+    | machine_instructions.Lt dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs_arg r1 in
         let r2 := revert_regs_arg r2 in
-        (machine_base.Lt dst r1 r2)
-    | machine_base.Add dst r1 r2 =>
+        (machine_instructions.Lt dst r1 r2)
+    | machine_instructions.Add dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs_arg r1 in
         let r2 := revert_regs_arg r2 in
-        (machine_base.Add dst r1 r2)
-    | machine_base.Sub dst r1 r2 =>
+        (machine_instructions.Add dst r1 r2)
+    | machine_instructions.Sub dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs_arg r1 in
         let r2 := revert_regs_arg r2 in
-        (machine_base.Sub dst r1 r2)
-    | machine_base.Mul dst r1 r2 =>
+        (machine_instructions.Sub dst r1 r2)
+    | machine_instructions.Mul dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs_arg r1 in
         let r2 := revert_regs_arg r2 in
-        (machine_base.Mul dst r1 r2)
-    | machine_base.LAnd dst r1 r2 =>
+        (machine_instructions.Mul dst r1 r2)
+    | machine_instructions.LAnd dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs_arg r1 in
         let r2 := revert_regs_arg r2 in
-        (machine_base.LAnd dst r1 r2)
-    | machine_base.LOr dst r1 r2 =>
+        (machine_instructions.LAnd dst r1 r2)
+    | machine_instructions.LOr dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs_arg r1 in
         let r2 := revert_regs_arg r2 in
-        (machine_base.LOr dst r1 r2)
-    | machine_base.LShiftL dst r1 r2 =>
+        (machine_instructions.LOr dst r1 r2)
+    | machine_instructions.LShiftL dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs_arg r1 in
         let r2 := revert_regs_arg r2 in
-        (machine_base.LShiftL dst r1 r2)
-    | machine_base.LShiftR dst r1 r2 =>
+        (machine_instructions.LShiftL dst r1 r2)
+    | machine_instructions.LShiftR dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs_arg r1 in
         let r2 := revert_regs_arg r2 in
-        (machine_base.LShiftR dst r1 r2)
-    | machine_base.Lea dst r =>
+        (machine_instructions.LShiftR dst r1 r2)
+    | machine_instructions.Lea dst r =>
         let dst := revert_regs dst in
         let r := revert_regs_arg r in
-        (machine_base.Lea dst r)
-    | machine_base.Restrict dst r =>
+        (machine_instructions.Lea dst r)
+    | machine_instructions.Restrict dst r =>
         let dst := revert_regs dst in
         let r := revert_regs_arg r in
-        (machine_base.Restrict dst r)
-    | machine_base.Subseg dst r1 r2 =>
+        (machine_instructions.Restrict dst r)
+    | machine_instructions.Subseg dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs_arg r1 in
         let r2 := revert_regs_arg r2 in
-        (machine_base.Subseg dst r1 r2)
-    | machine_base.GetB dst src =>
+        (machine_instructions.Subseg dst r1 r2)
+    | machine_instructions.GetB dst src =>
         let dst := revert_regs dst in
         let src := revert_regs src in
-        (machine_base.GetB dst src)
-    | machine_base.GetE dst src =>
+        (machine_instructions.GetB dst src)
+    | machine_instructions.GetE dst src =>
         let dst := revert_regs dst in
         let src := revert_regs src in
-        (machine_base.GetE dst src)
-    | machine_base.GetA dst src =>
+        (machine_instructions.GetE dst src)
+    | machine_instructions.GetA dst src =>
         let dst := revert_regs dst in
         let src := revert_regs src in
-        (machine_base.GetA dst src)
-    | machine_base.GetP dst src =>
+        (machine_instructions.GetA dst src)
+    | machine_instructions.GetP dst src =>
         let dst := revert_regs dst in
         let src := revert_regs src in
-        (machine_base.GetP dst src)
-    | machine_base.GetL dst src =>
+        (machine_instructions.GetP dst src)
+    | machine_instructions.GetL dst src =>
         let dst := revert_regs dst in
         let src := revert_regs src in
-        (machine_base.GetL dst src)
-    | machine_base.GetWType dst src =>
+        (machine_instructions.GetL dst src)
+    | machine_instructions.GetWType dst src =>
         let dst := revert_regs dst in
         let src := revert_regs src in
-        (machine_base.GetWType dst src)
-    | machine_base.GetOType dst src =>
+        (machine_instructions.GetWType dst src)
+    | machine_instructions.GetOType dst src =>
         let dst := revert_regs dst in
         let src := revert_regs src in
-        (machine_base.GetOType dst src)
-    | machine_base.Seal dst r1 r2 =>
+        (machine_instructions.GetOType dst src)
+    | machine_instructions.Seal dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs r1 in
         let r2 := revert_regs r2 in
-        (machine_base.Seal dst r1 r2)
-    | machine_base.UnSeal dst r1 r2 =>
+        (machine_instructions.Seal dst r1 r2)
+    | machine_instructions.UnSeal dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs r1 in
         let r2 := revert_regs r2 in
-        (machine_base.UnSeal dst r1 r2)
-    | machine_base.ReadSR dst src =>
+        (machine_instructions.UnSeal dst r1 r2)
+    | machine_instructions.ReadSR dst src =>
         let dst := revert_regs dst in
-        (machine_base.ReadSR dst src)
-    | machine_base.WriteSR dst src =>
+        (machine_instructions.ReadSR dst src)
+    | machine_instructions.WriteSR dst src =>
         let src := revert_regs src in
-        (machine_base.WriteSR dst src)
-    | machine_base.Fail=>
-        (machine_base.Fail)
-    | machine_base.Halt=>
-        (machine_base.Halt)
+        (machine_instructions.WriteSR dst src)
+    | machine_instructions.Fail=>
+        (machine_instructions.Fail)
+    | machine_instructions.Halt=>
+        (machine_instructions.Halt)
     end.
 
   Definition revert_regs_code (assembled_code : list instr) : list instr :=
@@ -642,6 +642,9 @@ Module Asm_Griotte.
   Definition writesr dst src := (ASM_Instr (WriteSR dst src)).
   Definition fail:= (ASM_Instr Fail).
   Definition halt:= (ASM_Instr Halt).
+
+  Definition ret:= (ASM_Instr (Jalr cnull cra)).
+
   Notation "# s" := (ASM_Label s) (at level 50).
 
 End Asm_Griotte.

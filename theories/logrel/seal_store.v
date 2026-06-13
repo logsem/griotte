@@ -1,8 +1,8 @@
 From iris.algebra Require Import gmap auth excl csum.
 From iris.base_logic Require Import lib.own saved_prop.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import cap_lang stdpp_extra.
-From cap_machine Require Export region_invariants.
+From griotte Require Import griotte_lang stdpp_extra.
+From griotte Require Export region_invariants.
 
 
 (* No Excl' here: do not want the valid option element, as this disallows us from changing the branch in the sum type *)

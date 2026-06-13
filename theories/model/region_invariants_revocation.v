@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Export stdpp_extra iris_extra region_invariants world_std_revocation.
+From griotte Require Export stdpp_extra iris_extra region_invariants world_std_revocation.
 
   (*** REVOCATION OF THE WORLD INTERPRETATION *)
 

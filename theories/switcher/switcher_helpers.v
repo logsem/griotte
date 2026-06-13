@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel monotone interp_weakening fundamental.
-From cap_machine Require Import region_invariants_revocation.
-From cap_machine Require Export world_ghost_theory world_interp_stack.
-From cap_machine Require Import switcher_preamble.
+From griotte Require Import logrel monotone interp_weakening fundamental.
+From griotte Require Import region_invariants_revocation.
+From griotte Require Export world_ghost_theory world_interp_stack.
+From griotte Require Import switcher_preamble.
 
 Section switcher_helper.
 

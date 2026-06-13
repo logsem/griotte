@@ -1,14 +1,14 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine Require Export logrel region_invariants bitblast.
-From cap_machine Require Import interp_weakening.
-From cap_machine Require Import wp_rules_interp switcher_macros_spec.
-From cap_machine Require Import rules proofmode monotone.
-From cap_machine Require Import fundamental.
-From cap_machine Require Import switcher_preamble.
-From cap_machine Require Import interp_switcher_return switcher_helpers.
-From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
+From griotte Require Export logrel region_invariants bitblast.
+From griotte Require Import interp_weakening.
+From griotte Require Import wp_rules_interp switcher_macros_spec.
+From griotte Require Import rules proofmode monotone.
+From griotte Require Import fundamental.
+From griotte Require Import switcher_preamble.
+From griotte Require Import interp_switcher_return switcher_helpers.
+From griotte Require Import map_simpl register_tactics proofmode.
 
 
 Section fundamental.

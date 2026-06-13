@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import excl_auth.
 From iris.base_logic Require Import own.
-From cap_machine Require Import cap_lang.
+From griotte Require Import griotte_lang.
 
 
 (** The relationship between the caller and the callee determines

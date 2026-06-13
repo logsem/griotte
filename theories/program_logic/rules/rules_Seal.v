@@ -2,15 +2,15 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
-From cap_machine Require Export rules_base.
+From griotte Require Export rules_base.
 
-Section cap_lang_rules.
+Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types r : RegName.
-  Implicit Types v : cap_lang.val.
+  Implicit Types v : griotte_lang.val.
   Implicit Types w : Word.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
@@ -37,7 +37,7 @@ Section cap_lang_rules.
       incrementPC (<[ dst := WSealed a sb ]ᵣ> regs) = None →
       Seal_failure regs dst src1 src2 regs.
 
-  Inductive Seal_spec (regs: Reg) (dst: RegName) (src1 src2: RegName) (regs': Reg): cap_lang.val -> Prop :=
+  Inductive Seal_spec (regs: Reg) (dst: RegName) (src1 src2: RegName) (regs': Reg): griotte_lang.val -> Prop :=
   | Seal_spec_success p g b e a sb:
       regs !!ᵣ src1 = Some (WSealRange p g b e a) →
       regs !!ᵣ src2 = Some (WSealable sb) →
@@ -369,4 +369,4 @@ Section cap_lang_rules.
     { by simplify_map_eq. }
   Qed.
 
-End cap_lang_rules.
+End griotte_lang_rules.

@@ -1,7 +1,4 @@
-From Stdlib Require Import ZArith.
-From stdpp Require Import base.
-From cap_machine Require Import machine_base.
-From iris.proofmode Require Import proofmode.
+From griotte Require Import machine_base.
 
 Class MachineParameters := {
     decodeInstr : Z → instr;

@@ -1,4 +1,4 @@
-From cap_machine Require Import machine_parameters assembler.
+From griotte Require Import machine_parameters assembler.
 
 Section Fetch.
   Import Asm_Griotte.

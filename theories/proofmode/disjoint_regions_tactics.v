@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From stdpp Require Import sets list.
-From cap_machine Require Import addr_reg memory_region.
+From griotte Require Import addresses memory_region.
 
 Definition ByReflexivity (P: Prop) :=
   P.
@@ -10,7 +10,7 @@ Definition AddrRegionRange (l: list Addr) (b e: Addr) :=
   ∀ a, a ∈ l → (b <= a)%a ∧ (a < e)%a.
 
 Lemma AddrRegionRange_singleton a :
-  ByReflexivity (eqb_addr a top = false) →
+  ByReflexivity (eqb_addr a addresses.top = false) →
   AddrRegionRange [a] a (a^+1)%a.
 Proof.
   unfold ByReflexivity. cbn. intros ?%Z.eqb_neq.

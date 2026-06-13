@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
-From cap_machine Require Import stdpp_extra.
+From griotte Require Import stdpp_extra.
 
 Lemma big_sepM_to_big_sepL {Σ : gFunctors} {A B : Type} `{EqDecision A} `{Countable A}
       (r : gmap A B) (lr : list A) (φ : A → B → iProp Σ) :

@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Import fetch assert switcher.
+From griotte Require Import rules proofmode.
+From griotte Require Import fetch assert switcher.
 
 Section CMDC_Main.
   Context `{MP: MachineParameters}.
@@ -82,5 +82,8 @@ Section CMDC_Main.
       WSealed ot_switcher B_f;
       WSealed ot_switcher C_g
     ].
+
+  Definition cmdc_B_f_args : nat := 1.
+  Definition cmdc_C_g_args : nat := 1.
 
 End CMDC_Main.

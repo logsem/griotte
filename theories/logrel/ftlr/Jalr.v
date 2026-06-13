@@ -1,10 +1,10 @@
-From cap_machine Require Export logrel.
+From griotte Require Export logrel.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine Require Import ftlr_base interp_weakening.
-From cap_machine Require Import rules_base rules_Jalr.
-From cap_machine.proofmode Require Import map_simpl register_tactics.
+From griotte Require Import ftlr_base interp_weakening.
+From griotte Require Import rules_base rules_Jalr.
+From griotte Require Import map_simpl register_tactics.
 
 Section fundamental.
   Context

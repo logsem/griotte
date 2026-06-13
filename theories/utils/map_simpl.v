@@ -1,5 +1,5 @@
 From stdpp Require Import gmap.
-From cap_machine Require Import stdpp_extra.
+From griotte Require Import stdpp_extra.
 From iris.proofmode Require Import proofmode.
 From Equations Require Import Equations.
 

@@ -1,15 +1,15 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel interp_weakening monotone.
-From cap_machine Require Import stack_object stack_object_spec_closure stack_object_spec.
-From cap_machine Require Import switcher assert_spec logrel.
-From cap_machine Require Import mkregion_helpers.
-From cap_machine Require Import
+From griotte Require Import logrel interp_weakening monotone.
+From griotte Require Import stack_object stack_object_spec_closure stack_object_spec.
+From griotte Require Import switcher assert_spec logrel.
+From griotte Require Import mkregion_helpers.
+From griotte Require Import
   region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
-From cap_machine Require Import disjoint_regions_tactics.
-From cap_machine Require Import switcher_preamble interp_switcher_call interp_switcher_return.
-From cap_machine Require Import compartment_layout switcher_adequacy adequacy_helpers.
+From griotte Require Import disjoint_regions_tactics.
+From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers.
 
 Class memory_layout `{MP: MachineParameters} := {
 
@@ -177,7 +177,7 @@ Section Adequacy.
 
   Lemma so_adequacy' `{Layout: @memory_layout MP}
     (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
-    (es: list cap_lang.expr):
+    (es: list griotte_lang.expr):
     is_initial_registers reg →
     is_initial_sregisters sreg →
     is_initial_memory m →
@@ -185,7 +185,7 @@ Section Adequacy.
     m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
   Proof.
     intros Hreg Hsreg Hm Hstep.
-    pose proof (@wp_invariance Σ cap_lang _ NotStuck) as WPI. cbn in WPI.
+    pose proof (@wp_invariance Σ griotte_lang _ NotStuck) as WPI. cbn in WPI.
     pose (fun (c: ExecConf) => c.2 !! (flag_assert assert_cmpt) = Some (WInt 0%Z)) as state_is_good.
     specialize (WPI (Seq (Instr Executable)) (reg, sreg, m) es (reg', sreg', m')
                   (state_is_good (reg', sreg', m'))).
@@ -663,7 +663,7 @@ Local Program Instance CmptNames_so_CmptNameG : CmptNameG :=
 (** END-TO-END THEOREM *)
 Theorem so_adequacy `{Layout: memory_layout}
   (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
-  (es: list cap_lang.expr)
+  (es: list griotte_lang.expr)
   :
   is_initial_registers reg →
   is_initial_sregisters sreg →

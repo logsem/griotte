@@ -1,10 +1,10 @@
 From Stdlib Require Import Eqdep_dec List.
-From cap_machine Require Import rules.
-From cap_machine Require Export iris_extra memory_region.
-From cap_machine.proofmode Require Import classes tactics_helpers proofmode_instr_rules.
-From cap_machine.proofmode Require Export class_instances solve_pure solve_addr_extra.
+From griotte Require Import rules.
+From griotte Require Export iris_extra memory_region.
+From griotte Require Import classes tactics_helpers proofmode_instr_rules.
+From griotte Require Export class_instances solve_pure solve_addr_extra.
 From iris.proofmode Require Import proofmode spec_patterns coq_tactics ltac_tactics reduction.
-From cap_machine.proofmode Require Export NamedProp.
+From griotte Require Export NamedProp.
 From machine_utils Require Export tactics.
 From iris.bi Require Import bi.
 Import bi.

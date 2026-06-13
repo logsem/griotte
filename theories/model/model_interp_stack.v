@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules logrel monotone interp_weakening.
-From cap_machine Require Import sts_multiple_updates region_invariants_revocation.
-From cap_machine Require Import memory_region proofmode map_simpl register_tactics.
-From cap_machine Require Export world_ghost_theory stack_world_resources.
+From griotte Require Import rules logrel monotone interp_weakening.
+From griotte Require Import sts_multiple_updates region_invariants_revocation.
+From griotte Require Import memory_region proofmode map_simpl register_tactics.
+From griotte Require Export world_ghost_theory stack_world_resources.
 
 Section WorldInterpStack.
   Context

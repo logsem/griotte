@@ -1,6 +1,5 @@
-From stdpp Require Import base.
 From iris.program_logic Require Import language.
-From cap_machine Require Import machine_parameters machine_base cap_lang.
+From griotte Require Import machine_parameters machine_base griotte_lang.
 
 (* The operational semantics as an interpreter: this effectively "runs" the
    machine until it fails or halts (or we run out of fuel). *)
@@ -48,7 +47,7 @@ Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag
         then (
             let a := match pc with
                      | WCap _ _ _ _ a => a
-                     | _ => top (* dummy *)
+                     | _ => addresses.top (* dummy *)
                      end
             in
             let p := match pc with

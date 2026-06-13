@@ -1,9 +1,9 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
-From cap_machine Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
-From cap_machine Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
-From cap_machine Require Import stack_object stack_object_spec_closure.
-From cap_machine Require Import proofmode.
+From griotte Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
+From griotte Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
+From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
+From griotte Require Import stack_object stack_object_spec_closure.
+From griotte Require Import proofmode.
 
 Section SO.
   Context

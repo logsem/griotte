@@ -2,7 +2,7 @@ From Ltac2 Require Import Ltac2 Control Fresh.
 Set Default Proof Mode "Classic".
 From iris.proofmode Require Import reduction proofmode.
 From iris.proofmode Require Import environments.
-From cap_machine Require Import stdpp_extra rules_base map_simpl.
+From griotte Require Import stdpp_extra rules_base map_simpl.
 
 Section denote_domain.
    Variable K: Type.

@@ -1,24 +1,14 @@
 From Stdlib Require Import Eqdep_dec. (* Needed to prove decidable equality on RegName *)
 From Stdlib.micromega Require Import ZifyClasses.
-From stdpp Require Import gmap fin_maps list.
-From Stdlib Require Import ssreflect.
-From cap_machine Require Import stdpp_extra.
+From stdpp Require Import gmap list countable.
 From machine_utils Require Export finz.
+From griotte Require Export stdpp_extra.
 
 (* No longer a coercion in Coq >= 8.14*)
 Local Coercion Z.of_nat : nat >-> Z.
 
-(* We assume a fixed set of registers, and a finite set of memory addresses.
-
-   The exact size of the address space does not matter, it could be made a
-   parameter of the machine.
-*)
-
+(* We assume a fixed set of registers *)
 Definition RegNum: nat := 31.
-Definition MemNum: Z := 2000000.
-Definition ONum: Z := 1000.
-Global Opaque MemNum.
-Global Opaque ONum.
 
 (* ---------------------------------- Registers ----------------------------------------*)
 
@@ -110,7 +100,7 @@ Proof.
                 (λ n : nat, MTDC)
                 1%nat).
  - by intro sr; destruct sr.
- - by intro sr; destruct sr.
+ - intro sr; destruct sr; lia.
  - lia.
 Defined.
 
@@ -119,7 +109,7 @@ Defined.
 
 Definition Z_of_regname (r: RegName): Z.
   destruct r as [|n fin].
-  + exact 0.
+  + exact 0%Z.
   + exact (S n).
 Defined.
 
@@ -309,68 +299,5 @@ Proof.
   rewrite elem_of_subseteq. intros ? _. apply all_registers_s_correct.
 Qed.
 
-Lemma regmap_full_dom {A} (r: gmap RegName A):
-  (∀ x, is_Some (r !! x)) →
-  dom r = all_registers_s.
-Proof.
-  intros Hfull. apply (anti_symm subseteq); rewrite elem_of_subseteq.
-  - intros rr _. apply all_registers_s_correct.
-  - intros rr _. rewrite elem_of_dom. apply Hfull.
-Qed.
-
 Global Opaque cnull cra csp cgp ctp ct0 ct1 ct2 cs0 cs1 ca0 ca1 ca2 ca3 ca4 ca5 ca6 ca7
         cs2 cs3 cs4 cs5 cs6 cs7 cs8 cs9 cs10 cs11 ct3 ct4 ct5 ct6.
-
-(* -------------------------------- Memory addresses -----------------------------------*)
-
-Notation Addr := (finz MemNum).
-Declare Scope Addr_scope.
-Delimit Scope Addr_scope with a.
-
-Notation "a1 <= a2 < a3" := (@finz.le_lt MemNum a1 a2 a3) : Addr_scope.
-Notation "a1 <= a2" := (@finz.le MemNum a1 a2) : Addr_scope.
-Notation "a1 <=? a2" := (@finz.leb MemNum a1 a2) : Addr_scope.
-Notation "a1 < a2" := (@finz.lt MemNum a1 a2) : Addr_scope.
-Notation "a1 <? a2" := (@finz.ltb MemNum a1 a2) : Addr_scope.
-Notation "a1 + z" := (@finz.incr MemNum a1 z) : Addr_scope.
-Notation "a ^+ off" := (@finz.incr_default MemNum a off) (at level 50) : Addr_scope.
-
-Notation z_to_addr := (@finz.of_z MemNum).
-Notation z_of := (@finz.to_z MemNum).
-
-Notation za := (@finz.FinZ MemNum 0%Z eq_refl eq_refl).
-Notation top := (finz.largest za : Addr).
-Notation "0" := (za) : Addr_scope.
-
-Notation eqb_addr := (λ (a1 a2: Addr), Z.eqb a1 a2).
-Notation "a1 =? a2" := (eqb_addr a1 a2) : Addr_scope.
-
-Notation addr_incr_eq := (finz_incr_eq).
-
-Global Open Scope general_if_scope.
-(* ---------------------------------- OTypes ----------------------------------------*)
-
-(* Number of otypes in our system *)
-Notation OType := (finz ONum).
-Declare Scope OType_scope.
-Delimit Scope OType_scope with ot.
-
-Notation "a1 <= a2 < a3" := (@finz.le_lt ONum a1 a2 a3) : OType_scope.
-Notation "a1 <= a2" := (@finz.le ONum a1 a2) : OType_scope.
-Notation "a1 <=? a2" := (@finz.leb ONum a1 a2) : OType_scope.
-Notation "a1 < a2" := (@finz.lt ONum a1 a2) : OType_scope.
-Notation "a1 <? a2" := (@finz.ltb ONum a1 a2) : OType_scope.
-Notation "a1 + z" := (@finz.incr ONum a1 z) : OType_scope.
-Notation "a ^+ off" := (@finz.incr_default ONum a off) (at level 50) : OType_scope.
-
-Notation z_to_otype := (@finz.of_z ONum).
-Notation z_of_ot := (@finz.to_z ONum).
-
-Notation za_ot := (@finz.FinZ ONum 0%Z eq_refl eq_refl).
-Notation top_ot := (finz.largest za : OType).
-Notation "0" := (za_ot) : OType_scope.
-
-Notation eqb_otype := (λ (a1 a2: OType), Z.eqb a1 a2).
-Notation "a1 =? a2" := (eqb_otype a1 a2) : OType_scope.
-
-Notation otype_incr_eq := (finz_incr_eq).
