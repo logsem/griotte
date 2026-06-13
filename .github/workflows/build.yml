@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+      - tweak-ci
 
 jobs:
   build:
