@@ -42,9 +42,9 @@ jobs:
           cache-name: cache-opam
         with:
           path: ${{ env.OPAM_LOCAL }}
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('opam') }}
+          key: ${{ runner.os }}-ocaml-${{ env.OCAML_VERSION }}-${{ env.cache-name }}-${{ hashFiles('opam') }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-ocaml-${{ env.OCAML_VERSION }}-${{ env.cache-name }}-
 
       # We force saving the cache of dune at every build because increment compilation will take care of the rest
       # If we don't, it's
