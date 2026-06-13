@@ -17,7 +17,7 @@ jobs:
 
     env:
       OPAM_LOCAL: "_opam"
-      OCAML_VERSION: "5.4.0"
+      OCAML_VERSION: "4.14.0"
       JOBS_LIMIT: "2"
 
     steps:
