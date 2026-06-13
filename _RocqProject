@@ -1,4 +1,4 @@
--Q _build/default/theories/ cap_machine
+-Q _build/default/theories/ griotte
 -Q _build/default/machine_utils/theories/ machine_utils
 
 -arg -w -arg -convert_concl_no_check

@@ -1,6 +1,6 @@
 From Stdlib Require Import ZArith Lia.
 From stdpp Require Import list.
-From cap_machine Require Import addr_reg.
+From griotte Require Import addresses.
 From machine_utils Require Import solve_finz.
 
 Ltac zify_addr := zify_finz.
@@ -124,7 +124,7 @@ Proof. solve_addr. Qed.
 
 (* TODO generalise in finz *)
 Lemma finz_seq_top n :
-  finz.seq addr_reg.top n = repeat addr_reg.top n.
+  finz.seq addresses.top n = repeat addresses.top n.
 Proof.
   induction n; auto.
   simpl. f_equiv.

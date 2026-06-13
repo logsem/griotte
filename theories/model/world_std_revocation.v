@@ -1,5 +1,5 @@
-From cap_machine Require Export sts world_std_sts sts_multiple_updates.
-From cap_machine Require Export stdpp_extra.
+From griotte Require Export sts world_std_sts sts_multiple_updates.
+From griotte Require Export stdpp_extra.
 
 Section world_std_revocation.
   Context {Σ:gFunctors}

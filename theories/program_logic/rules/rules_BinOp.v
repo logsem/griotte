@@ -2,25 +2,25 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
-From cap_machine Require Import machine_base.
-From cap_machine Require Export rules_base.
+From griotte Require Export rules_base.
+From griotte Require Import machine_base.
 
-Section cap_lang_rules.
+Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : cap_lang.expr.
+  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : cap_lang.val.
+  Implicit Types v : griotte_lang.val.
   Implicit Types w : Word.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
 
   Definition denote (i: instr) (n1 n2: Z): Z :=
     match i with
-    | Add _ _ _ => (n1 + n2)%Z
+    | machine_instructions.Add _ _ _ => (n1 + n2)%Z
     | Sub _ _ _ => (n1 - n2)%Z
     | Mul _ _ _ => (n1 * n2)%Z
     | LAnd _ _ _ => (Z.land n1 n2)
@@ -32,7 +32,7 @@ Section cap_lang_rules.
     end.
 
   Definition is_BinOp (i: instr) (r: RegName) (arg1 arg2: Z + RegName) :=
-    i = Add r arg1 arg2 ∨
+    i = machine_instructions.Add r arg1 arg2 ∨
     i = Sub r arg1 arg2 ∨
     i = Mul r arg1 arg2 ∨
     i = LAnd r arg1 arg2 ∨
@@ -61,7 +61,7 @@ Section cap_lang_rules.
       incrementPC (<[ dst := WInt (denote i n1 n2) ]ᵣ> regs) = None ->
       BinOp_failure i regs dst rv1 rv2 regs'.
 
-  Inductive BinOp_spec (i: instr) (regs: Reg) (dst: RegName) (rv1 rv2: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
+  Inductive BinOp_spec (i: instr) (regs: Reg) (dst: RegName) (rv1 rv2: Z + RegName) (regs': Reg): griotte_lang.val -> Prop :=
   | BinOp_spec_success n1 n2:
       z_of_argument regs rv1 = Some n1 ->
       z_of_argument regs rv2 = Some n2 ->
@@ -584,7 +584,7 @@ Section cap_lang_rules.
     { (* Failure, done *) by iApply "Hφ". }
   Qed.
 
-End cap_lang_rules.
+End griotte_lang_rules.
 
 (* Hints to automate proofs of is_BinOp *)
 Lemma is_BinOp_Add dst arg1 arg2 :

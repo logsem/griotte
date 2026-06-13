@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine Require Export logrel.
+From griotte Require Export logrel.
 
 Section fundamental.
   Context
@@ -73,7 +73,7 @@ Section fundamental.
     -∗ PC ↦ᵣ (WCap p g b e a)
     -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
     -∗ WP Instr Executable
-        {{ v, WP Seq (cap_lang.of_val v)
+        {{ v, WP Seq (griotte_lang.of_val v)
                  {{ v0, ⌜v0 = HaltedV⌝
                         → na_own cerise_nais ⊤}} }}.
 

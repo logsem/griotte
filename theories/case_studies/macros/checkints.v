@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Import is_word_type lea_to_base.
+From griotte Require Import rules proofmode.
+From griotte Require Import is_word_type lea_to_base.
 
 Section Checkints.
   Context
@@ -60,7 +60,7 @@ Section Checkints_spec.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w1 w2 : Word) (l : list Addr) (ws : list Word)
     (p : Perm) (g : Locality) (b e a : Addr)
-    (φ : language.val cap_lang → iPropI Σ) :
+    (φ : language.val griotte_lang → iPropI Σ) :
 
     let checkints_loop := (checkints_loop_instrs r r1 r2) in
     let a_last := (pc_a ^+ length (checkints_loop_instrs r r1 r2))%a in
@@ -241,7 +241,7 @@ Section Checkints_spec.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w1 w2 : Word) (l : list Addr) (ws : list Word)
     (p : Perm) (g : Locality) (b e a : Addr)
-    (φ : language.val cap_lang → iPropI Σ) :
+    (φ : language.val griotte_lang → iPropI Σ) :
 
     let checkints := (checkints_instrs r r1 r2) in
     let a_last := (pc_a ^+ length checkints)%a in

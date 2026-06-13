@@ -1,4 +1,4 @@
-From cap_machine Require
+From griotte Require
   fundamental
   cmdc_adequacy
   deep_locality_adequacy

@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import memory_region rules proofmode.
-From cap_machine Require Export clear_stack.
+From griotte Require Import memory_region rules proofmode.
+From griotte Require Export clear_stack.
 
 Section ClearStackMacro.
   Context {Σ:gFunctors}

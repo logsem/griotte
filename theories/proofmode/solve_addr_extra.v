@@ -1,4 +1,4 @@
-From cap_machine Require Import machine_base classes.
+From griotte Require Import machine_base classes.
 From machine_utils Require Import solve_finz.
 
 (* Extend [solve_finz] to handle more pure arithmetic goals from

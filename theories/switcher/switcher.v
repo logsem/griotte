@@ -1,5 +1,5 @@
-From cap_machine Require Import machine_parameters assembler.
-From cap_machine Require Export clear_stack clear_registers.
+From griotte Require Import machine_parameters assembler.
+From griotte Require Export clear_stack clear_registers.
 
 Class switcherLayout : Type :=
   mkSwitcherLayout {
@@ -139,7 +139,7 @@ Section Switcher.
       ; (* Clear the register file *)
       (#".Lswitch_callee_dead_zeros"::clear_registers_post_call_asm)
       ; (* Return to caller  *)
-      [jalr cnull cra]
+      [ ret ]
     ].
 
   Definition switcher_failure_asm : list (list asm_code) :=

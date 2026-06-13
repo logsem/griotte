@@ -1,13 +1,13 @@
 From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
-From cap_machine Require Import ftlr_base interp_weakening.
-From cap_machine Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
-From cap_machine Require Import sts_multiple_updates region_invariants_revocation.
-From cap_machine Require Export switcher switcher_preamble.
+From griotte Require Import ftlr_base interp_weakening.
+From griotte Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
+From griotte Require Import sts_multiple_updates region_invariants_revocation.
+From griotte Require Export switcher switcher_preamble.
 From stdpp Require Import base.
-From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
-From cap_machine Require Export world_ghost_theory world_interp_stack switcher_helpers.
+From griotte Require Import map_simpl register_tactics proofmode.
+From griotte Require Export world_ghost_theory world_interp_stack switcher_helpers.
 
 
 Section Switcher.

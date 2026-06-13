@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules monotone interp_weakening.
-From cap_machine Require Import fetch_spec assert_spec switcher_spec_call cmdc.
-From cap_machine Require Import world_ghost_theory world_interp_stack.
-From cap_machine Require Import proofmode.
+From griotte Require Import logrel rules monotone interp_weakening.
+From griotte Require Import fetch_spec assert_spec switcher_spec_call cmdc.
+From griotte Require Import world_ghost_theory world_interp_stack.
+From griotte Require Import proofmode.
 
 Section CMDC.
   Context
@@ -37,7 +37,7 @@ Section CMDC.
 
     (csp_content : list Word)
 
-    (φ : language.val cap_lang -> iProp Σ)
+    (φ : language.val griotte_lang -> iProp Σ)
     (Nassert Nswitcher : namespace)
 
     (cstk : CSTK)
@@ -767,7 +767,7 @@ Section CMDC.
 
     (csp_content : list Word)
 
-    (φ : language.val cap_lang -> iProp Σ)
+    (φ : language.val griotte_lang -> iProp Σ)
     (Nassert Nswitcher : namespace)
 
     (cstk : CSTK)

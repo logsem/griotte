@@ -1,140 +1,9 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
-From iris.algebra Require Import frac auth.
-From cap_machine Require Export cap_lang iris_extra stdpp_extra.
-From cap_machine Require Export machine_base.
-From iris.algebra Require Import frac gmap.
-
-
-Definition entryR : cmra :=
-  (agreeR (leibnizO nat)).
-
-Class entryGpreS Σ := EntryGpreS {
-  entryPreG_rel :: inG Σ entryR;
-}.
-
-Class entryGS Σ := EntryGS {
-  entryG_rel :: inG Σ entryR;
-  γentry : Word -> gname
-}.
-
-Definition entryPreΣ :=
-  #[ GFunctor entryR ].
-
-Instance subG_entryPreΣ {Σ} :
-  subG entryPreΣ Σ →
-  entryGpreS Σ.
-Proof. solve_inG. Qed.
-
-Section ENTRY_defs.
-  Context {Σ:gFunctors} {entryg : entryGS Σ}.
-
-  Definition ENTRY_def (w : Word) (n : nat) : iProp Σ :=
-    own (γentry w) (to_agree n).
-  Definition ENTRY_aux : { x | x = @ENTRY_def }. by eexists. Qed.
-  Definition ENTRY := proj1_sig ENTRY_aux.
-  Definition ENTRY_eq : @ENTRY = @ENTRY_def := proj2_sig ENTRY_aux.
-  Notation "w ↦□ₑ n" :=(ENTRY w n) (at level 20) : bi_scope.
-
-  Lemma entry_agree w n1 n2:
-    w ↦□ₑ n1 -∗ w ↦□ₑ n2 -∗ ⌜n1 = n2⌝.
-  Proof.
-    iIntros "H1 H2".
-    rewrite ENTRY_eq /ENTRY_def.
-    iCombine "H1 H2" as "H".
-    iDestruct (own_valid with "H") as "%".
-    apply to_agree_op_inv in H.
-    done.
-  Qed.
-  Global Instance persistent_entry w n : Persistent (w ↦□ₑ n)%I.
-  Proof.
-    rewrite ENTRY_eq /ENTRY_def.
-    apply _.
-  Defined.
-
-
-End ENTRY_defs.
-Notation "w ↦□ₑ n" :=  (ENTRY w n) (at level 20) : bi_scope.
-
-Section entryPre.
-  Context {Σ:gFunctors} {entrypreg : entryGpreS Σ}.
-
-
-  Lemma entry_rel_init (m : gmap Word nat) :
-    ⊢ |==> (∃ γentry, ([∗ map] w↦n ∈ m, own (γentry w) (to_agree n))).
-  Proof.
-
-    induction m using map_ind.
-    - iModIntro.
-      iExists ( λ w, encode w).
-      by iApply big_sepM_empty.
-    - iMod IHm as (γentry) "IH".
-      iMod (own_alloc (A:= entryR) (to_agree x)) as (γx) "Hrel" ; first done.
-      iModIntro.
-      iExists (λ w, if (bool_decide (w = i)) then γx else γentry w).
-      iApply (big_sepM_insert with "[IH Hrel]");auto.
-      rewrite bool_decide_eq_true_2; auto; iFrame.
-      iApply (big_sepM_mono with "IH").
-      iIntros (k n Hk) "H".
-      rewrite bool_decide_eq_false_2; [done|].
-      by intros ->; rewrite H in Hk.
-  Qed.
-
-  Lemma entry_init m :
-    ⊢ |==> ∃ (entryg: entryGS Σ), ([∗ map] w↦n ∈ m, w ↦□ₑ n).
-  Proof.
-    iMod entry_rel_init as (γ) "H".
-    iExists (EntryGS _ _ _).
-    by rewrite ENTRY_eq /ENTRY_def.
-  Qed.
-
-End entryPre.
-
-
-(* Non atomic invariants *)
-Class cerise_na_invs Σ :=
-  {
-    na_invG :: na_invG Σ;
-    cerise_nais : na_inv_pool_name;
-  }.
-
-(* CMRA for Cerise *)
-Class ceriseG Σ :=
-  CeriseG {
-      cerise_invG : invGS Σ;
-      cerise_nainvG :: cerise_na_invs Σ;
-      mem_gen_memG :: gen_heapGS Addr Word Σ; (* memory *)
-      reg_gen_regG :: gen_heapGS RegName Word Σ; (* register *)
-      sreg_gen_regG :: gen_heapGS SRegName Word Σ; (* system register *)
-      entryG :: entryGS Σ (* entry point *)
-    }.
-
-(* invariants for memory, and a state interpretation for (mem,reg) *)
-Global Instance memG_irisG `{MachineParameters} `{!ceriseG Σ} : irisGS cap_lang Σ := {
-  iris_invGS := cerise_invG;
-  state_interp σ _ κs _ := (((gen_heap_interp (reg σ))
-                            ∗ (gen_heap_interp (sreg σ)))
-                            ∗ (gen_heap_interp (mem σ)))%I;
-  fork_post _ := True%I;
-  num_laters_per_step _ := 0;
-  state_interp_mono _ _ _ _ := fupd_intro _ _
-}.
-
-(* Points to predicates for registers *)
-Notation "r ↦ᵣ{ q } w" := (pointsto (L:=RegName) (V:=Word) r q w)
-  (at level 20, q at level 50, format "r  ↦ᵣ{ q }  w") : bi_scope.
-Notation "r ↦ᵣ w" := (pointsto (L:=RegName) (V:=Word) r (DfracOwn 1) w) (at level 20) : bi_scope.
-
-(* Points to predicates for system registers *)
-Notation "sr ↦ₛᵣ{ q } w" := (pointsto (L:=SRegName) (V:=Word) sr q w)
-  (at level 20, q at level 50, format "sr  ↦ₛᵣ{ q }  w") : bi_scope.
-Notation "sr ↦ₛᵣ w" := (pointsto (L:=SRegName) (V:=Word) sr (DfracOwn 1) w) (at level 20) : bi_scope.
-
-(* Points to predicates for memory *)
-Notation "a ↦ₐ{ q } w" := (pointsto (L:=Addr) (V:=Word) a q w)
-  (at level 20, q at level 50, format "a  ↦ₐ{ q }  w") : bi_scope.
-Notation "a ↦ₐ w" := (pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) w) (at level 20) : bi_scope.
+From iris.algebra Require Import frac auth gmap.
+From griotte Require Export iris_extra stdpp_extra griotte_lang.
+From griotte Require Export machine_base cerise_instance register_file machine_instructions.
 
 (* --------------------------- LTAC DEFINITIONS ----------------------------------- *)
 
@@ -144,22 +13,22 @@ Ltac inv_base_step :=
          | H : to_val _ = Some _ |- _ => apply of_to_val in H
          | H : _ = of_val ?v |- _ =>
            is_var v; destruct v; first[discriminate H|injection H as H]
-         | H : cap_lang.prim_step ?e _ _ _ _ _ |- _ =>
+         | H : griotte_lang.prim_step ?e _ _ _ _ _ |- _ =>
            try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable *)
            (*    and can thus better be avoided. *)
            let φ := fresh "φ" in
            inversion H as [| φ]; subst φ; clear H
          end.
 
-Section cap_lang_rules.
+Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : cap_lang.expr.
+  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : cap_lang.val.
+  Implicit Types v : griotte_lang.val.
   Implicit Types w : Word.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
@@ -392,8 +261,8 @@ Section cap_lang_rules.
 
   Program Definition wp_lift_atomic_base_step_no_fork_determ {s E Φ} e1 :
     to_val e1 = None →
-    (∀ (σ1:cap_lang.state) ns κ κs nt, state_interp σ1 ns (κ ++ κs) nt ={E}=∗
-     ∃ κ e2 (σ2:cap_lang.state) efs, ⌜cap_lang.prim_step e1 σ1 κ e2 σ2 efs⌝ ∗
+    (∀ (σ1:griotte_lang.state) ns κ κs nt, state_interp σ1 ns (κ ++ κs) nt ={E}=∗
+     ∃ κ e2 (σ2:griotte_lang.state) efs, ⌜griotte_lang.prim_step e1 σ1 κ e2 σ2 efs⌝ ∗
       (▷ |==> (state_interp σ2 (S ns) κs nt ∗ from_option Φ False (to_val e2))))
       ⊢ WP e1 @ s; E {{ Φ }}.
   Proof.
@@ -407,7 +276,7 @@ Section cap_lang_rules.
     - iNext. iIntros (? ? ?) "H".
       iDestruct "H" as %Hs1.
       iDestruct "H1" as %Hs2.
-      destruct (cap_lang_determ _ _ _ _ _ _ _ _ _ _ Hs1 Hs2) as [Heq1 [Heq2 [Heq3 Heq4]]].
+      destruct (griotte_lang_determ _ _ _ _ _ _ _ _ _ _ Hs1 Hs2) as [Heq1 [Heq2 [Heq3 Heq4]]].
       subst. iMod "H2". iIntros "_".
       iModIntro. iFrame. inv Hs1; auto.
   Qed.
@@ -721,7 +590,7 @@ Section cap_lang_rules.
   Qed.
 
   (* ----------------------------------- FAIL RULES ---------------------------------- *)
-  (* Bind Scope expr_scope with language.expr cap_lang. *)
+  (* Bind Scope expr_scope with language.expr griotte_lang. *)
 
   Lemma wp_notCorrectPC:
     forall E w,
@@ -844,7 +713,7 @@ Section cap_lang_rules.
     PureExec True 1 (Seq (Instr NextI)) (Seq (Instr Executable)).
   Proof. by solve_exec_pure. Qed.
 
-End cap_lang_rules.
+End griotte_lang_rules.
 
 (* Used to close the failing cases of the ftlr.
   - Hcont is the (iris) name of the closing hypothesis (usually "Hφ")
@@ -890,7 +759,7 @@ Definition regs_of (i: instr): gset RegName :=
   | GetL r1 r2 => {[ r1; r2 ]}
   | GetOType dst src => {[ dst; src ]}
   | GetWType dst src => {[ dst; src ]}
-  | machine_base.Add r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
+  | machine_instructions.Add r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Sub r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | Mul r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
   | LAnd r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2

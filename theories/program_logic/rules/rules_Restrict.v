@@ -2,16 +2,16 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
-From cap_machine Require Export rules_base.
+From griotte Require Export rules_base.
 
-Section cap_lang_rules.
+Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : cap_lang.expr.
+  Implicit Types c : griotte_lang.expr.
   Implicit Types r : RegName.
-  Implicit Types v : cap_lang.val.
+  Implicit Types v : griotte_lang.val.
   Implicit Types w : Word.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
@@ -65,7 +65,7 @@ Section cap_lang_rules.
       incrementPC (<[ dst := WSealRange p' g' b e a ]ᵣ> regs) = None →
       Restrict_failure regs dst src.
 
-  Inductive Restrict_spec (regs: Reg) (dst: RegName) (src: Z + RegName) (regs': Reg): cap_lang.val -> Prop :=
+  Inductive Restrict_spec (regs: Reg) (dst: RegName) (src: Z + RegName) (regs': Reg): griotte_lang.val -> Prop :=
   | Restrict_spec_success_cap p g b e a n p' g':
       regs !!ᵣ dst = Some (WCap p g b e a) →
       z_of_argument regs src = Some n →
@@ -450,4 +450,4 @@ Section cap_lang_rules.
        incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
 
-End cap_lang_rules.
+End griotte_lang_rules.

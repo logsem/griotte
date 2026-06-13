@@ -1,5 +1,6 @@
-From stdpp Require Import ssreflect.
-From stdpp Require Import countable gmap list.
+From stdpp Require Import countable.
+From stdpp Require Export ssreflect.
+From stdpp Require Export base gmap list.
 
 Local Coercion Z.of_nat : nat >-> Z.
 Lemma i_div i n m :

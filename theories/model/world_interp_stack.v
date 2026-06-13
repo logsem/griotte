@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules logrel.
-From cap_machine Require Import memory_region proofmode.
-From cap_machine Require Export world_ghost_theory stack_world_resources.
-From cap_machine Require Import model_interp_stack.
+From griotte Require Import rules logrel.
+From griotte Require Import memory_region proofmode.
+From griotte Require Export world_ghost_theory stack_world_resources.
+From griotte Require Import model_interp_stack.
 
 
 Section WorldInterpStack.

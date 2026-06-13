@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
+From griotte Require Import rules proofmode.
 
 Section Lea_To_Base.
   Context
@@ -30,7 +30,7 @@ Section Lea_To_Base_spec.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w1 w2 : Word)
     (p : Perm) (g : Locality) (b e a : Addr)
-    (φ : language.val cap_lang → iPropI Σ) :
+    (φ : language.val griotte_lang → iPropI Σ) :
 
     let lea_to_base := (lea_to_base_instrs r r1 r2) in
     let a_last := (pc_a ^+ length lea_to_base)%a in

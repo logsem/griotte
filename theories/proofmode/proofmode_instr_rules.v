@@ -1,4 +1,4 @@
-From cap_machine Require Import rules.
+From griotte Require Import rules machine_instructions.
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
@@ -28,7 +28,7 @@ Ltac dispatch_BinOp r1 x1 x2 cont :=
   end.
 
 Ltac dispatch_instr_rule instr cont :=
-  let instr := eval unfold machine_base.regn, machine_base.cst in instr in
+  let instr := eval unfold register_file.regn, register_file.cst in instr in
   lazymatch instr with
   (* Mov *)
   | Mov PC (inr PC) => cont (@wp_move_success_reg_samePC)

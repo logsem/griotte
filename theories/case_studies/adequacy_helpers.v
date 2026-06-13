@@ -1,9 +1,9 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
-From cap_machine Require Import switcher_preamble assert_spec.
-From cap_machine Require Import rules seal_store call_stack.
-From cap_machine Require Import mkregion_helpers memory_region disjoint_regions_tactics.
-From cap_machine Require Import switcher_adequacy compartment_layout.
+From griotte Require Import switcher_preamble assert_spec.
+From griotte Require Import rules seal_store call_stack.
+From griotte Require Import mkregion_helpers memory_region disjoint_regions_tactics.
+From griotte Require Import switcher_adequacy compartment_layout.
 
 
 Section adequacy_helpers.

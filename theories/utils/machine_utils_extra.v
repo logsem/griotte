@@ -1,7 +1,6 @@
 From Stdlib Require Import ssreflect Eqdep_dec.
 From machine_utils Require Export finz.
-From iris.proofmode Require Import proofmode.
-From cap_machine Require Export solve_addr stdpp_extra.
+From griotte Require Export solve_addr stdpp_extra.
 
 Definition withinBounds {z} (b e a : finz z): bool :=
   (b <=? a)%f && (a <? e)%f.

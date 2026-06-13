@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Export cap_lang sts.
-From cap_machine Require Export stdpp_extra.
+From griotte Require Export griotte_lang sts.
+From griotte Require Export stdpp_extra.
 
 Section world_standard_sts.
 

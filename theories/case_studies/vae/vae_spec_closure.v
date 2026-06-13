@@ -1,9 +1,9 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules logrel interp_weakening monotone.
-From cap_machine Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
-From cap_machine Require Import vae vae_helper.
-From cap_machine Require Import world_ghost_theory world_interp_stack.
-From cap_machine Require Import proofmode register_tactics.
+From griotte Require Import rules logrel interp_weakening monotone.
+From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
+From griotte Require Import vae vae_helper.
+From griotte Require Import world_ghost_theory world_interp_stack.
+From griotte Require Import proofmode register_tactics.
 
 Section VAE.
   Context

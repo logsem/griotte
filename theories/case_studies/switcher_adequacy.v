@@ -1,9 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel interp_weakening monotone.
-From cap_machine Require Import switcher logrel fundamental.
+From griotte Require Import logrel fundamental.
 From iris.base_logic Require Import invariants.
-From cap_machine Require Import compartment_layout.
-From cap_machine Require Import switcher_preamble interp_switcher_call interp_switcher_return.
+From griotte Require Import compartment_layout.
+From griotte Require Import switcher_preamble interp_switcher_call interp_switcher_return.
 
 Section helpers_switcher_adequacy.
   Context

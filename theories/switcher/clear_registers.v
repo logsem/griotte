@@ -1,4 +1,4 @@
-From cap_machine Require Import machine_parameters assembler.
+From griotte Require Import machine_parameters assembler.
 
 Section ClearStackMacro.
   Import Asm_Griotte.
@@ -12,7 +12,7 @@ Section ClearStackMacro.
   Definition rclear_instrs (l : list RegName) : list Word :=
     encodeInstrsW (rclear l).
   Definition rclear_instrs' (l : list RegName) : list Word
-    := (fun r => (encodeInstrW (machine_base.Mov r (inl 0%Z)))) <$> l.
+    := (fun r => (encodeInstrW (machine_instructions.Mov r (inl 0%Z)))) <$> l.
 
   Definition registers_pre_call_skip : list RegName :=
     [ca0;ca1;ca2;ca3;ca4;ca5;ct0].

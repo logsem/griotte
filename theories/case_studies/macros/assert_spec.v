@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Import fetch_spec.
-From cap_machine Require Export assert.
+From griotte Require Import rules proofmode.
+From griotte Require Import fetch_spec.
+From griotte Require Export assert.
 
 (* Assert routine *)
 
@@ -51,7 +51,7 @@ Section Assert_subroutine.
   Lemma assert_subroutine_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
     ( n1 n2 flag : Z ) ( wret wnull : Word)
-    (N : namespace) (E : coPset) (φ : language.val cap_lang -> iProp Σ) :
+    (N : namespace) (E : coPset) (φ : language.val griotte_lang -> iProp Σ) :
     ↑N ⊆ E →
     (  na_inv cerise_nais N (assert_inv pc_b pc_e a_flag)
      ∗ na_own cerise_nais E
@@ -105,7 +105,7 @@ Section Assert_subroutine.
   Lemma assert_subroutine_success_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
     ( n1 n2 flag : Z ) ( wret wnull : Word)
-    (N : namespace) (E : coPset) (φ : language.val cap_lang -> iProp Σ) :
+    (N : namespace) (E : coPset) (φ : language.val griotte_lang -> iProp Σ) :
     ↑N ⊆ E →
     n1 = n2 →
     (  na_inv cerise_nais N (assert_inv pc_b pc_e a_flag)
@@ -153,7 +153,7 @@ Section Assert.
     (pc_g : Locality) (pc_p : Perm) (pc_b pc_e pc_a : Addr)
     (g_assert : Locality) (b_assert e_assert a_flag : Addr)
     (n1 n2 : Z) (wdst wcra w1 w2 wnull : Word)
-    (N : namespace) (E : coPset) (φ : language.val cap_lang -> iProp Σ) :
+    (N : namespace) (E : coPset) (φ : language.val griotte_lang -> iProp Σ) :
 
     let assert_macro := assert_instrs n rdst rscratch1 rscratch2 in
     let a_last := (pc_a ^+ length assert_macro)%a in

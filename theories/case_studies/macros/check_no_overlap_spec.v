@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Export check_no_overlap.
+From griotte Require Import rules proofmode.
+From griotte Require Export check_no_overlap.
 
 Section Check_No_Overlap_spec.
   Context
@@ -15,7 +15,7 @@ Section Check_No_Overlap_spec.
     (w1 w2 : Word)
     (p1 : Perm) (g1 : Locality) (b1 e1 a1 : Addr)
     (p2 : Perm) (g2 : Locality) (b2 e2 a2 : Addr)
-    (φ : language.val cap_lang → iPropI Σ) :
+    (φ : language.val griotte_lang → iPropI Σ) :
 
     let check_no_overlap := (check_no_overlap_instrs rsrc1 rsrc2 r1 r2) in
     let a_last := (pc_a ^+ length check_no_overlap)%a in

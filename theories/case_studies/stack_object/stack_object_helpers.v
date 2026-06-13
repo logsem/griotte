@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre.
-From cap_machine Require Import region_invariants_revocation region_invariants_allocation.
-From cap_machine Require Export world_ghost_theory.
+From griotte Require Import region_invariants_revocation region_invariants_allocation.
+From griotte Require Export world_ghost_theory.
 
 Section stack_object_helpers.
 

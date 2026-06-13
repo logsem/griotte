@@ -1,5 +1,5 @@
 EXTRA_DIR = rocqdoc_extra
-BUILD_DOC_DIR = _build/default/theories/cap_machine.html
+BUILD_DOC_DIR = _build/default/theories/griotte.html
 PUBLISH_DIR = html
 
 .PHONY: all theories rocqdoc html

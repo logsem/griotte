@@ -91,7 +91,9 @@ The organisation of the `theories/` folder is as follows.
 
 ## Operational semantics `opsem/`
 
-- `addr_reg.v`: Defines registers and the set of (finite) memory addresses.
+- `registers.v`: Defines registers.
+- `addresses.v`: Defines memory addresses.
+- `otypes.v`: Defines otypes.
 
 - `machine_base.v`: Contains the syntax (permissions, capability, instructions,
   ...) of the capability machine.
@@ -100,7 +102,7 @@ The organisation of the `theories/` folder is as follows.
   parameterize the whole development (e.g. the specific encoding scheme for
   instructions, etc.).
 
-- `cap_lang.v`: Defines the operational semantics of the machine, and the
+- `griotte_lang.v`: Defines the operational semantics of the machine, and the
   embedding of the capability machine language into Iris.
 
 ## Program logic `program_logic/`

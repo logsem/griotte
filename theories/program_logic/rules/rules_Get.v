@@ -2,18 +2,18 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
-From cap_machine Require Export rules_base.
+From griotte Require Export rules_base.
 
-Section cap_lang_rules.
+Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : cap_lang.expr.
+  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types o : OType.
   Implicit Types r : RegName.
-  Implicit Types v : cap_lang.val.
+  Implicit Types v : griotte_lang.val.
   Implicit Types w : Word.
   Implicit Types reg : gmap RegName Word.
   Implicit Types ms : gmap Addr Word.
@@ -136,7 +136,7 @@ Section cap_lang_rules.
         incrementPC (<[ dst := WInt z ]ᵣ> regs) = None →
         Get_failure i regs dst src.
 
-  Inductive Get_spec (i: instr) (regs: Reg) (dst src: RegName) (regs': Reg): cap_lang.val -> Prop :=
+  Inductive Get_spec (i: instr) (regs: Reg) (dst src: RegName) (regs': Reg): griotte_lang.val -> Prop :=
     | Get_spec_success w z:
         regs !!ᵣ src = Some w →
         denote i w = Some z →
@@ -402,7 +402,7 @@ Section cap_lang_rules.
     { (* Failure, done *) by iApply "Hφ"; iLeft. }
   Qed.
 
-End cap_lang_rules.
+End griotte_lang_rules.
 
 (* Hints to automate proofs of is_Get *)
 

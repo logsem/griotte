@@ -1,12 +1,12 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import memory_region rules proofmode.
+From griotte Require Import memory_region rules proofmode.
 From iris.program_logic Require Export weakestpre.
-From cap_machine Require Export cap_lang seal_store region_invariants.
+From griotte Require Export griotte_lang seal_store region_invariants.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-From cap_machine Require Import rules_base.
-From cap_machine Require Export clear_registers.
+From griotte Require Import rules_base.
+From griotte Require Export clear_registers.
 
 
 Section ClearRegistersMacro.

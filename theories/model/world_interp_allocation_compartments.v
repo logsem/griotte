@@ -1,10 +1,10 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Export region_invariants sts_multiple_updates.
-From cap_machine Require Import logrel interp_weakening.
-From cap_machine Require Import switcher.
-From cap_machine Require Import compartment_layout mkregion_helpers disjoint_regions_tactics.
-From cap_machine Require Import world_ghost_theory.
-From cap_machine Require Import stdpp_extra.
+From griotte Require Export region_invariants sts_multiple_updates.
+From griotte Require Import logrel interp_weakening.
+From griotte Require Import switcher.
+From griotte Require Import compartment_layout mkregion_helpers disjoint_regions_tactics.
+From griotte Require Import world_ghost_theory.
+From griotte Require Import stdpp_extra.
 
 Section region_alloc_cmpt.
   Context

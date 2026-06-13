@@ -1,7 +1,7 @@
 From Stdlib Require Import Eqdep_dec List.
 From stdpp Require Import countable list_relations.
-From cap_machine Require Import sts world_std_sts.
-From cap_machine Require Export stdpp_extra.
+From griotte Require Import sts world_std_sts.
+From griotte Require Export stdpp_extra.
 
 Section std_updates.
 
@@ -304,9 +304,9 @@ Section std_updates.
 
    (* lemmas for updating a repetition of top *)
    Lemma std_update_multiple_dom_top_sta W n ρ a :
-     a ≠ addr_reg.top ->
+     a ≠ addresses.top ->
      a ∉ dom (std W) →
-     a ∉ dom (std (std_update_multiple W (repeat addr_reg.top n) ρ)).
+     a ∉ dom (std (std_update_multiple W (repeat addresses.top n) ρ)).
    Proof.
      intros Hne Hnin.
      induction n; auto.
@@ -318,7 +318,7 @@ Section std_updates.
    Qed.
 
    Lemma std_update_multiple_dom_sta_i W n ρ a i :
-     a ≠ addr_reg.top → (i > 0)%Z →
+     a ≠ addresses.top → (i > 0)%Z →
      a ∉ dom (std W) →
      a ∉ dom (std (std_update_multiple W (finz.seq ((a ^+ i)%a) n) ρ)).
    Proof.

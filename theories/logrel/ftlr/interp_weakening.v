@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From cap_machine Require Import addr_reg memory_region monotone.
-From cap_machine Require Export logrel ftlr_base.
+From griotte Require Import memory_region monotone.
+From griotte Require Export logrel ftlr_base.
 
 Section fundamental.
   Context

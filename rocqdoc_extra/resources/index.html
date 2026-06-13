@@ -39,22 +39,18 @@
 
             <h2>Operational semantics</h2>
             <ul>
-                <li><a href="cap_machine.addr_reg.html">addr_reg</a>:
-                    Defines registers and the set of (finite) memory addresses.
-                </li>
-
-                <li><a href="cap_machine.machine_base.html">machine_base</a>: Contains
+                <li><a href="griotte.machine_base.html">machine_base</a>: Contains
                     the syntax (permissions, capability, instructions, ...) of the
                     capability machine.
                 </li>
 
-                <li><a href="cap_machine.machine_parameters.html">machine_parameters</a>:
+                <li><a href="griotte.machine_parameters.html">machine_parameters</a>:
                     Defines a number of "settings" for the machine, that parameterize
                     the whole development (e.g. the specific encoding scheme for
                     instructions, etc.).
                 </li>
 
-                <li><a href="cap_machine.cap_lang.html">cap_lang</a>: Defines the
+                <li><a href="griotte.griotte_lang.html">griotte_lang</a>: Defines the
                     operational semantics of the machine, and the embedding of the capability
                     machine language into Iris.
                 </li>
@@ -62,12 +58,12 @@
 
             <h2>Program logic</h2>
             <ul>
-                <li><a href="cap_machine.rules.rules_base.html">rules.rules_base</a>:
+                <li><a href="griotte.rules.rules_base.html">rules.rules_base</a>:
                     Contains some of the core resource algebras for the program logic,
                     namely the definition for points to predicates with permissions.
                 </li>
 
-                <li><a href="cap_machine.rules.html">rules</a>: Imports all the Hoare
+                <li><a href="griotte.rules.html">rules</a>: Imports all the Hoare
                     triple rules for each instruction. These rules are separated into separate
                     files (located in the <code>rules/</code> folder).
                 </li>
@@ -75,43 +71,43 @@
 
             <h2>Model of Kripke World</h2>
             <ul>
-              <li><a href="cap_machine.model.sts.html">sts</a>:
+              <li><a href="griotte.model.sts.html">sts</a>:
                 The definition of <i>stsCollection</i> (named <i>sts_full_world</i> in the implementation),
                 and associated lemmas. In particular:
                 private and public future world relations (all these definitions are
                 parameterised by the standard states and two relations over them transitions.
-                These are instantiated in <a href="cap_machine.model.world_std_sts.html">world_std_sts</a>).
+                These are instantiated in <a href="griotte.model.world_std_sts.html">world_std_sts</a>).
               </li>
 
-              <li><a href="cap_machine.model.world_std_sts.html">world_std_std</a>:
+              <li><a href="griotte.model.world_std_sts.html">world_std_std</a>:
                 Definitions of the standard world and the standard invariant states.
                 Also contains lemmas about standard transitions.
               </li>
 
-              <li><a href="cap_machine.model.sts_multiple_updates.html">sts_multiple_updates</a>:
+              <li><a href="griotte.model.sts_multiple_updates.html">sts_multiple_updates</a>:
                 Auxiliary definitions to reason about multiple updates to a world.
               </li>
 
-              <li><a href="cap_machine.model.world_ghost_resources.html">world_ghost_resources</a>:
+              <li><a href="griotte.model.world_ghost_resources.html">world_ghost_resources</a>:
                 Defines the ghost resources needed to interpret the world.
               </li>
 
-              <li><a href="cap_machine.model.region_invariants.html">region_invariants</a>:
+              <li><a href="griotte.model.region_invariants.html">region_invariants</a>:
                 Definitions for standard resources, and the shared
                 resources map <i>sharedResources</i> (named <i>region</i> in the implementation).
                 Contains some lemmas for "opening" and "closing" the map,
                 akin to opening and closing invariants.
               </li>
 
-              <li><a href="cap_machine.model.region_invariants_revocation.html">region_invariants_revocation</a>:
+              <li><a href="griotte.model.region_invariants_revocation.html">region_invariants_revocation</a>:
                 Lemmas for revoking standard resources in the world interpretation.
               </li>
 
-              <li><a href="cap_machine.model.region_invariants_allocation.html">region_invariants_allocation</a>:
+              <li><a href="griotte.model.region_invariants_allocation.html">region_invariants_allocation</a>:
                 Lemmas for allocating a range of standard resources.
               </li>
 
-              <li><a href="cap_machine.model.model_interp_stack.html">model_interp_stack</a>:
+              <li><a href="griotte.model.model_interp_stack.html">model_interp_stack</a>:
                 Definitions and lemmas specific to reasoning about the stack region.
               </li>
             </ul>
@@ -120,16 +116,16 @@
             Interface of Krikpe World for the user
             <ul>
 
-              <li><a href="cap_machine.model.world_ghost_theory.html">world_ghost_theory</a>:
+              <li><a href="griotte.model.world_ghost_theory.html">world_ghost_theory</a>:
                 Ghost theory of world interpretation.
                 Clean interface with the model to ease the proofs for the user.
               </li>
 
-              <li><a href="cap_machine.model.world_interp_allocation_compartment.html">world_interp_allocation_compartment</a>:
+              <li><a href="griotte.model.world_interp_allocation_compartment.html">world_interp_allocation_compartment</a>:
                 Lemmas for allocating standard resources for adversary compartments.
               </li>
 
-              <li><a href="cap_machine.model.world_interp_stack.html">world_interp_stack</a>:
+              <li><a href="griotte.model.world_interp_stack.html">world_interp_stack</a>:
                 Extension of the ghost theory of world interpretation,
                 specific to stack region.
               </li>
@@ -138,15 +134,15 @@
 
             <h2>Logical relation</h2>
             <ul>
-              <li><a href="cap_machine.logrel.call_stack.html">call_stack</a>:
+              <li><a href="griotte.logrel.call_stack.html">call_stack</a>:
                 Definitions of the logical call-stack resources.
                 </li>
 
-              <li><a href="cap_machine.logrel.logrel.html">logrel</a>:
+              <li><a href="griotte.logrel.logrel.html">logrel</a>:
                 The definition of the unary logical relation.
                 </li>
 
-              <li><a href="cap_machine.logrel.fundamental.html">fundamental</a>:
+              <li><a href="griotte.logrel.fundamental.html">fundamental</a>:
                 Establishes
                 the <i>fundamental theorem of our logical relation</i>. Each case (one
                 for each instruction) is proved in a separate file (located in
@@ -157,28 +153,28 @@
 
             <h2>Switcher</h2>
             <ul>
-              <li><a href="cap_machine.switcher.switcher.html">switcher</a>:
+              <li><a href="griotte.switcher.switcher.html">switcher</a>:
                 Code of the switcher.
               </li>
 
-              <li><a href="cap_machine.switcher.switcher_preamble.html">switcher_preamble</a>:
+              <li><a href="griotte.switcher.switcher_preamble.html">switcher_preamble</a>:
                 Definition of the switcher's invariant and 
                 sealing predicate for the export table's otype.
               </li>
 
-              <li><a href="cap_machine.switcher.interp_switcher_call.html">interp_switcher_call</a>:
+              <li><a href="griotte.switcher.interp_switcher_call.html">interp_switcher_call</a>:
               Proof that the switcher's cross-compartment call sentry is safe to execute
               </li>
 
-              <li><a href="cap_machine.switcher.interp_switcher_return.html">interp_switcher_return</a>:
+              <li><a href="griotte.switcher.interp_switcher_return.html">interp_switcher_return</a>:
               Proof that the switcher's cross-compartment return sentry is safe to execute
               </li>
 
-              <li><a href="cap_machine.switcher.switcher_spec_call.html">switcher_spec_call</a>:
+              <li><a href="griotte.switcher.switcher_spec_call.html">switcher_spec_call</a>:
               Specification and proofs of the switcher's cross-compartment call sentry for known code, invoking unknown code.
               </li>
 
-              <li><a href="cap_machine.switcher.switcher_spec_return.html">switcher_spec_return</a>:
+              <li><a href="griotte.switcher.switcher_spec_return.html">switcher_spec_return</a>:
               Specification and proofs of the switcher's cross-compartment return sentry for known code, invoking unknown code.
               </li>
             </ul>
@@ -189,18 +185,18 @@
             Example showcasing IMUD.
 
             <ul>
-              <li><a href="cap_machine.case_studies.cmdc.cmdc.html">cmdc</a>:
+              <li><a href="griotte.case_studies.cmdc.cmdc.html">cmdc</a>:
                 Code of the compartmentalisation example.
               </li>
 
-              <li><a href="cap_machine.case_studies.cmdc.cmdc_spec.html">cmdc_spec</a>:
+              <li><a href="griotte.case_studies.cmdc.cmdc_spec.html">cmdc_spec</a>:
                 Specification of the compartmentalisation example.
               </li>
 
-              <li><a href="cap_machine.case_studies.cmdc.cmdc_adequacy.html">cmdc_adequacy</a>:
+              <li><a href="griotte.case_studies.cmdc.cmdc_adequacy.html">cmdc_adequacy</a>:
                 End-to-end theorem of the compartmentalisation example.
                 On particular, the final theorem is 
-              <a href="cap_machine.case_studies.cmdc.cmdc_adequacy.html#cmdc_adequacy">cmdc_adequacy</a>.
+              <a href="griotte.case_studies.cmdc.cmdc_adequacy.html#cmdc_adequacy">cmdc_adequacy</a>.
               </li>
             </ul>
 
@@ -209,18 +205,18 @@
             Example showcasing the novel deep locality permission.
 
             <ul>
-              <li><a href="cap_machine.case_studies.dle.deep_locality.html">deep_locality</a>:
+              <li><a href="griotte.case_studies.dle.deep_locality.html">deep_locality</a>:
                 Code of the deep locality example.
               </li>
 
-              <li><a href="cap_machine.case_studies.dle.deep_locality_spec.html">deep_locality_spec</a>:
+              <li><a href="griotte.case_studies.dle.deep_locality_spec.html">deep_locality_spec</a>:
                 Specification of the deep locality example.
               </li>
 
-              <li><a href="cap_machine.case_studies.dle.deep_locality_adequacy.html">deep_locality_adequacy</a>:
+              <li><a href="griotte.case_studies.dle.deep_locality_adequacy.html">deep_locality_adequacy</a>:
                 End-to-end theorem of the deep locality example.
                 On particular, the final theorem is 
-              <a href="cap_machine.case_studies.dle.deep_locality_adequacy.html#dle_adequacy">dle_adequacy</a>.
+              <a href="griotte.case_studies.dle.deep_locality_adequacy.html#dle_adequacy">dle_adequacy</a>.
               </li>
             </ul>
             
@@ -228,18 +224,18 @@
             Example showcasing the novel deep immutability permission.
 
             <ul>
-              <li><a href="cap_machine.case_studies.droe.deep_immutability.html">deep_immutability</a>:
+              <li><a href="griotte.case_studies.droe.deep_immutability.html">deep_immutability</a>:
                 Code of the deep immutability example.
               </li>
 
-              <li><a href="cap_machine.case_studies.droe.deep_immutability_spec.html">deep_immutability_spec</a>:
+              <li><a href="griotte.case_studies.droe.deep_immutability_spec.html">deep_immutability_spec</a>:
                 Specification of the deep immutability example.
               </li>
 
-              <li><a href="cap_machine.case_studies.droe.deep_immutability_adequacy.html">deep_immutability_adequacy</a>:
+              <li><a href="griotte.case_studies.droe.deep_immutability_adequacy.html">deep_immutability_adequacy</a>:
                 End-to-end theorem of the deep immutability example.
                 On particular, the final theorem is 
-              <a href="cap_machine.case_studies.droe.deep_immutability_adequacy.html#droe_adequacy">droe_adequacy</a>.
+              <a href="griotte.case_studies.droe.deep_immutability_adequacy.html#droe_adequacy">droe_adequacy</a>.
               </li>
             </ul>
 
@@ -247,22 +243,22 @@
             Example showcasing that the switcher implements Well-Bracketed Control Flow.
 
             <ul>
-              <li><a href="cap_machine.case_studies.vae.vae.html">vae</a>:
+              <li><a href="griotte.case_studies.vae.vae.html">vae</a>:
                 Code of the VAE example.
               </li>
 
-              <li><a href="cap_machine.case_studies.vae.vae_spec.html">vae_spec</a>:
+              <li><a href="griotte.case_studies.vae.vae_spec.html">vae_spec</a>:
                 Specification of the VAE example.
               </li>
 
-              <li><a href="cap_machine.case_studies.vae.vae_spec_closure.html">vae_spec_closure</a>:
+              <li><a href="griotte.case_studies.vae.vae_spec_closure.html">vae_spec_closure</a>:
                 Specification of closure involved in the VAE example.
               </li>
 
-              <li><a href="cap_machine.case_studies.vae.vae_adequacy.html">vae_adequacy</a>:
+              <li><a href="griotte.case_studies.vae.vae_adequacy.html">vae_adequacy</a>:
                 End-to-end theorem of the VAE example.
                 On particular, the final theorem is 
-              <a href="cap_machine.case_studies.vae.vae_adequacy.html#vae_adequacy">vae_adequacy</a>.
+              <a href="griotte.case_studies.vae.vae_adequacy.html#vae_adequacy">vae_adequacy</a>.
               </li>
             </ul>
 
@@ -271,22 +267,22 @@
             Example showcasing that the switcher implements protection against dangling pointers.
 
             <ul>
-              <li><a href="cap_machine.case_studies.lse_downward.lse.html">lse</a>:
+              <li><a href="griotte.case_studies.lse_downward.lse.html">lse</a>:
                 Code of the LSE downward example.
               </li>
 
-              <li><a href="cap_machine.case_studies.lse_downward.lse_spec.html">lse_spec</a>:
+              <li><a href="griotte.case_studies.lse_downward.lse_spec.html">lse_spec</a>:
                 Specification of the LSE downward example.
               </li>
 
-              <li><a href="cap_machine.case_studies.lse_downward.lse_spec_closure.html">lse_spec_closure</a>:
+              <li><a href="griotte.case_studies.lse_downward.lse_spec_closure.html">lse_spec_closure</a>:
                 Specification of closure involved in the LSE downward example.
               </li>
 
-              <li><a href="cap_machine.case_studies.lse_downward.lse_adequacy.html">lse_adequacy</a>:
+              <li><a href="griotte.case_studies.lse_downward.lse_adequacy.html">lse_adequacy</a>:
                 End-to-end theorem of the LSE downward example.
                 On particular, the final theorem is 
-              <a href="cap_machine.case_studies.lse_downward.lse_adequacy.html#lse_adequacy">lse_adequacy</a>.
+              <a href="griotte.case_studies.lse_downward.lse_adequacy.html#lse_adequacy">lse_adequacy</a>.
               </li>
             </ul>
 
@@ -294,22 +290,22 @@
             Example showcasing that we can use stack objects.
 
             <ul>
-              <li><a href="cap_machine.case_studies.stack_object.stack_object.html">stack_object</a>:
+              <li><a href="griotte.case_studies.stack_object.stack_object.html">stack_object</a>:
                 Code of the stack object example.
               </li>
 
-              <li><a href="cap_machine.case_studies.stack_object.stack_object_spec.html">stack_object_spec</a>:
+              <li><a href="griotte.case_studies.stack_object.stack_object_spec.html">stack_object_spec</a>:
                 Specification of the stack object example.
               </li>
 
-              <li><a href="cap_machine.case_studies.stack_object.stack_object_spec_closure.html">stack_object_spec_closure</a>:
+              <li><a href="griotte.case_studies.stack_object.stack_object_spec_closure.html">stack_object_spec_closure</a>:
                 Specification of closure involved in the stack object example.
               </li>
 
-              <li><a href="cap_machine.case_studies.stack_object.stack_object_adequacy.html">stack_object_adequacy</a>:
+              <li><a href="griotte.case_studies.stack_object.stack_object_adequacy.html">stack_object_adequacy</a>:
                 End-to-end theorem of the stack object example.
                 On particular, the final theorem is 
-              <a href="cap_machine.case_studies.stack_object.stack_object_adequacy.html#so_adequacy">so_adequacy</a>.
+              <a href="griotte.case_studies.stack_object.stack_object_adequacy.html#so_adequacy">so_adequacy</a>.
               </li>
             </ul>
 

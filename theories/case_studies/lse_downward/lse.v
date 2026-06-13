@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Import fetch assert switcher.
+From griotte Require Import rules proofmode.
+From griotte Require Import fetch assert switcher.
 
 Section LSE_Main.
   Context `{MP: MachineParameters}.
@@ -72,7 +72,7 @@ int __cheri_compartment("known") run()
     (* push a := (RW, Global, a, a+1, a) *)
     encodeInstrsW [
         GetB cs0 cgp;
-        machine_base.Add cs1 cs0 1;
+        machine_instructions.Add cs1 cs0 1;
         Subseg cgp cs0 cs1; (* cgp := (RW, Global, a, a+1, a) *)
         (* csp = (RWL, Local, bstk, estk, bstk)  *)
         Store csp cgp; (* bstk -> (RW, Global, a, a+1, a) *)
