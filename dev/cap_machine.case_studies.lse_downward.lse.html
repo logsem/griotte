@@ -1,0 +1,188 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+  <div id="header">
+    <span class="left">
+      <span class="modulename"> <script> document.write(document.title) </script> </span>
+    </span>
+
+    <span class="button" id="toggle-proofs"></span>
+
+    <span class="right">
+      <a href="./">Project Page</a>
+      <a href="./indexpage.html"> Index </a>
+      <a href="./toc.html"> Table of Contents </a>
+    </span>
+</div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+    <div id="main">
+<h1 class="libtitle">cap_machine.case_studies.lse_downward.lse</h1>
+
+<div class="code">
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.algebra</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.frac.html#"><span class="id" title="library">frac</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.proofmode</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">cap_machine</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="cap_machine.program_logic.rules.html#"><span class="id" title="library">rules</span></a> <a class="idref" href="cap_machine.proofmode.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">cap_machine</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="cap_machine.case_studies.macros.fetch.html#"><span class="id" title="library">fetch</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#"><span class="id" title="library">assert</span></a> <a class="idref" href="cap_machine.switcher.switcher.html#"><span class="id" title="library">switcher</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="LSE_Main" class="idref" href="#LSE_Main"><span class="id" title="section">LSE_Main</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<a id="LSE_Main.MP" class="idref" href="#LSE_Main.MP"><span class="id" title="variable">MP</span></a>: <a class="idref" href="cap_machine.opsem.machine_parameters.html#MachineParameters"><span class="id" title="class">MachineParameters</span></a>}.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+CHERIoT code for the LSE downward example
+
+<div class="paragraph"> </div>
+
+      ```
+int a = 2;
+
+<div class="paragraph"> </div>
+
+void <i>_cheri_compartment("known") f(void)
+{
+  int *y;             // allocate an address on top of the stack frame
+  *y = &amp;a;            // push the (global) capability pointing to `a` on top of the stack frame
+  assert ( a == 2 );  // check the integrity of `a`
+	return;
+}
+
+<div class="paragraph"> </div>
+
+int <i>_cheri_compartment("known") run()
+{
+	// call unknown program
+	adv();
+	return 0;
+}
+      ```
+
+<div class="paragraph"> </div>
+
+   
+<div class="paragraph"> </div>
+
+ The LSE downward example relies on protection against dangling pointers.
+      In short, a global capability points-to the CGP address `a` and contains 2.
+      The function `f` ( a closure ) pushes the capability on top of the stack,
+      and checks integrity of `a` (ie., it contains 2).
+
+<div class="paragraph"> </div>
+
+      The correctness of the example relies on the fact that,
+      when `f` returns, its stack frame is popped
+      (in CHERIoT, understand cleared by the switcher)
+      and the content is not accessible by the caller anymore.
+   
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;PSEUDO-CODE:<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;run:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;set&nbsp;a&nbsp;:=&nbsp;2<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;call&nbsp;B.adv<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;halt<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;f:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;push&nbsp;(RW,&nbsp;Global,&nbsp;a,&nbsp;a+1,&nbsp;a)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;assert&nbsp;(a&nbsp;==&nbsp;2)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return<br/>
+&nbsp;&nbsp;&nbsp;*)</span><br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="LSE_main_code_run" class="idref" href="#LSE_main_code_run"><span class="id" title="definition">LSE_main_code_run</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;set&nbsp;a&nbsp;:=&nbsp;2&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_parameters.html#encodeInstrsW"><span class="id" title="definition">encodeInstrsW</span></a> <span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Store"><span class="id" title="constructor">Store</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cgp"><span class="id" title="definition">cgp</span></a> 2<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;call&nbsp;B.adv&nbsp;LSE.awkward&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a> <a class="idref" href="cap_machine.case_studies.macros.fetch.html#fetch_instrs"><span class="id" title="definition">fetch_instrs</span></a> 0 <a class="idref" href="cap_machine.opsem.addr_reg.html#ct0"><span class="id" title="definition">ct0</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs0"><span class="id" title="definition">cs0</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs1"><span class="id" title="definition">cs1</span></a> <span class="comment">(*&nbsp;ct0&nbsp;-&gt;&nbsp;switcher&nbsp;entry&nbsp;point&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a> <a class="idref" href="cap_machine.case_studies.macros.fetch.html#fetch_instrs"><span class="id" title="definition">fetch_instrs</span></a> 2 <a class="idref" href="cap_machine.opsem.addr_reg.html#ct1"><span class="id" title="definition">ct1</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs0"><span class="id" title="definition">cs0</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs1"><span class="id" title="definition">cs1</span></a> <span class="comment">(*&nbsp;ct1&nbsp;-&gt;&nbsp;{B.adv}_(ot_switcher)&nbsp;&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_parameters.html#encodeInstrsW"><span class="id" title="definition">encodeInstrsW</span></a> <span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Jalr"><span class="id" title="constructor">Jalr</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cra"><span class="id" title="definition">cra</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct0"><span class="id" title="definition">ct0</span></a><span class="id" title="notation">;</span> <span class="comment">(*&nbsp;jmp&nbsp;to&nbsp;entry&nbsp;point&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Halt"><span class="id" title="constructor">Halt</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="LSE_main_code_f" class="idref" href="#LSE_main_code_f"><span class="id" title="definition">LSE_main_code_f</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;push&nbsp;a&nbsp;:=&nbsp;(RW,&nbsp;Global,&nbsp;a,&nbsp;a+1,&nbsp;a)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_parameters.html#encodeInstrsW"><span class="id" title="definition">encodeInstrsW</span></a> <span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#GetB"><span class="id" title="constructor">GetB</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs0"><span class="id" title="definition">cs0</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cgp"><span class="id" title="definition">cgp</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Add"><span class="id" title="constructor">machine_base.Add</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs1"><span class="id" title="definition">cs1</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs0"><span class="id" title="definition">cs0</span></a> 1<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Subseg"><span class="id" title="constructor">Subseg</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cgp"><span class="id" title="definition">cgp</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs0"><span class="id" title="definition">cs0</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs1"><span class="id" title="definition">cs1</span></a><span class="id" title="notation">;</span> <span class="comment">(*&nbsp;cgp&nbsp;:=&nbsp;(RW,&nbsp;Global,&nbsp;a,&nbsp;a+1,&nbsp;a)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;csp&nbsp;=&nbsp;(RWL,&nbsp;Local,&nbsp;bstk,&nbsp;estk,&nbsp;bstk)&nbsp;&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Store"><span class="id" title="constructor">Store</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#csp"><span class="id" title="definition">csp</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cgp"><span class="id" title="definition">cgp</span></a><span class="id" title="notation">;</span> <span class="comment">(*&nbsp;bstk&nbsp;-&gt;&nbsp;(RW,&nbsp;Global,&nbsp;a,&nbsp;a+1,&nbsp;a)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;--&nbsp;assert&nbsp;(a&nbsp;==&nbsp;2)&nbsp;--&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Load"><span class="id" title="constructor">Load</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct0"><span class="id" title="definition">ct0</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cgp"><span class="id" title="definition">cgp</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Mov"><span class="id" title="constructor">Mov</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct1"><span class="id" title="definition">ct1</span></a> 2<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#assert_instrs"><span class="id" title="definition">assert_instrs</span></a> 1 <a class="idref" href="cap_machine.opsem.addr_reg.html#cgp"><span class="id" title="definition">cgp</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs0"><span class="id" title="definition">cs0</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cs1"><span class="id" title="definition">cs1</span></a> <span class="comment">(*&nbsp;asserts&nbsp;that&nbsp;(&nbsp;*ct0&nbsp;=&nbsp;*ct1&nbsp;)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a> <a class="idref" href="cap_machine.opsem.machine_parameters.html#encodeInstrsW"><span class="id" title="definition">encodeInstrsW</span></a> <span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;return&nbsp;0&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Mov"><span class="id" title="constructor">Mov</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ca0"><span class="id" title="definition">ca0</span></a> 0%<span class="id" title="var">Z</span><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Mov"><span class="id" title="constructor">Mov</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ca1"><span class="id" title="definition">ca1</span></a> 0%<span class="id" title="var">Z</span><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#Jalr"><span class="id" title="constructor">Jalr</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cnull"><span class="id" title="definition">cnull</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cra"><span class="id" title="definition">cra</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="lse_main_code" class="idref" href="#lse_main_code"><span class="id" title="definition">lse_main_code</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;:= <a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#LSE_main_code_run"><span class="id" title="definition">LSE_main_code_run</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a> <a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#LSE_main_code_f"><span class="id" title="definition">LSE_main_code_f</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="lse_main_data" class="idref" href="#lse_main_data"><span class="id" title="definition">lse_main_data</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a> := <span class="id" title="notation">[</span><a class="idref" href="cap_machine.opsem.machine_base.html#WInt"><span class="id" title="constructor">WInt</span></a> 2<span class="id" title="notation">]</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="lse_main_imports" class="idref" href="#lse_main_imports"><span class="id" title="definition">lse_main_imports</span></a> `{<a id="H:2" class="idref" href="#H:2"><span class="id" title="binder">!</span></a><a id="H:2" class="idref" href="#H:2"><span class="id" title="binder">switcherLayout</span></a>} `{<a id="H0:3" class="idref" href="#H0:3"><span class="id" title="binder">!</span></a><a id="H0:3" class="idref" href="#H0:3"><span class="id" title="binder">assertLayout</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(<a id="B_adv:4" class="idref" href="#B_adv:4"><span class="id" title="binder">B_adv</span></a> : <a class="idref" href="cap_machine.opsem.machine_base.html#Sealable"><span class="id" title="inductive">Sealable</span></a>)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;: <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#WSentry"><span class="id" title="constructor">WSentry</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#XSRW_"><span class="id" title="abbreviation">XSRW_</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Local"><span class="id" title="constructor">Local</span></a> <a class="idref" href="cap_machine.switcher.switcher.html#b_switcher"><span class="id" title="method">b_switcher</span></a> <a class="idref" href="cap_machine.switcher.switcher.html#e_switcher"><span class="id" title="method">e_switcher</span></a> <a class="idref" href="cap_machine.switcher.switcher.html#a_switcher_call"><span class="id" title="method">a_switcher_call</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#WSentry"><span class="id" title="constructor">WSentry</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#RX"><span class="id" title="abbreviation">RX</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Global"><span class="id" title="constructor">Global</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#b_assert"><span class="id" title="method">b_assert</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#e_assert"><span class="id" title="method">e_assert</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#b_assert"><span class="id" title="method">b_assert</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#WSealed"><span class="id" title="constructor">WSealed</span></a> <a class="idref" href="cap_machine.switcher.switcher.html#ot_switcher"><span class="id" title="method">ot_switcher</span></a> <a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#B_adv:4"><span class="id" title="variable">B_adv</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="length_lse_main_imports" class="idref" href="#length_lse_main_imports"><span class="id" title="definition">length_lse_main_imports</span></a> `{<a id="H:5" class="idref" href="#H:5"><span class="id" title="binder">!</span></a><a id="H:5" class="idref" href="#H:5"><span class="id" title="binder">switcherLayout</span></a>} `{<a id="H0:6" class="idref" href="#H0:6"><span class="id" title="binder">!</span></a><a id="H0:6" class="idref" href="#H0:6"><span class="id" title="binder">assertLayout</span></a>} :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#length"><span class="id" title="definition">length</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#lse_main_imports"><span class="id" title="definition">lse_main_imports</span></a> (<a class="idref" href="cap_machine.opsem.machine_base.html#SCap"><span class="id" title="constructor">SCap</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#RO"><span class="id" title="abbreviation">RO</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Global"><span class="id" title="constructor">Global</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#za"><span class="id" title="abbreviation">za</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#za"><span class="id" title="abbreviation">za</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#za"><span class="id" title="abbreviation">za</span></a>)).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="lse_exp_tbl_entry_f" class="idref" href="#lse_exp_tbl_entry_f"><span class="id" title="definition">lse_exp_tbl_entry_f</span></a> `{<a id="H:7" class="idref" href="#H:7"><span class="id" title="binder">!</span></a><a id="H:7" class="idref" href="#H:7"><span class="id" title="binder">switcherLayout</span></a>} `{<a id="H0:8" class="idref" href="#H0:8"><span class="id" title="binder">!</span></a><a id="H0:8" class="idref" href="#H0:8"><span class="id" title="binder">assertLayout</span></a>} :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#WInt"><span class="id" title="constructor">WInt</span></a> (<a class="idref" href="cap_machine.switcher.switcher.html#encode_entry_point"><span class="id" title="definition">encode_entry_point</span></a> 0<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#length_lse_main_imports"><span class="id" title="definition">length_lse_main_imports</span></a> <span class="id" title="notation">+</span> <span class="id" title="notation">(</span><a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#length"><span class="id" title="definition">length</span></a> <a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#LSE_main_code_run"><span class="id" title="definition">LSE_main_code_run</span></a><span class="id" title="notation">)</span>)).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="lse_entry_f_sb" class="idref" href="#lse_entry_f_sb"><span class="id" title="definition">lse_entry_f_sb</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="b_lse_exp_tbl:9" class="idref" href="#b_lse_exp_tbl:9"><span class="id" title="binder">b_lse_exp_tbl</span></a> <a id="e_lse_exp_tbl:10" class="idref" href="#e_lse_exp_tbl:10"><span class="id" title="binder">e_lse_exp_tbl</span></a> : <a class="idref" href="cap_machine.opsem.machine_base.html#Sealable"><span class="id" title="inductive">Sealable</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_base.html#SCap"><span class="id" title="constructor">SCap</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#RO"><span class="id" title="abbreviation">RO</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Global"><span class="id" title="constructor">Global</span></a> <a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#b_lse_exp_tbl:9"><span class="id" title="variable">b_lse_exp_tbl</span></a> <a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#e_lse_exp_tbl:10"><span class="id" title="variable">e_lse_exp_tbl</span></a> (<a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#b_lse_exp_tbl:9"><span class="id" title="variable">b_lse_exp_tbl</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#58e53c8acf01fb8822eb5bae448055ec"><span class="id" title="notation">^+</span></a>2)%<span class="id" title="var">a</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="lse_export_table_entries" class="idref" href="#lse_export_table_entries"><span class="id" title="definition">lse_export_table_entries</span></a> `{<a id="H:11" class="idref" href="#H:11"><span class="id" title="binder">!</span></a><a id="H:11" class="idref" href="#H:11"><span class="id" title="binder">switcherLayout</span></a>} `{<a id="H0:12" class="idref" href="#H0:12"><span class="id" title="binder">!</span></a><a id="H0:12" class="idref" href="#H0:12"><span class="id" title="binder">assertLayout</span></a>} : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">[</span> <a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#lse_exp_tbl_entry_f"><span class="id" title="definition">lse_exp_tbl_entry_f</span></a> <span class="id" title="notation">]</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="cap_machine.case_studies.lse_downward.lse.html#LSE_Main"><span class="id" title="section">LSE_Main</span></a>.<br/>
+</div>
+</div>
+<div id="footer">
+  Generated by <a href="http://coq.inria.fr/">coqdoc</a> and improved with <a href="https://github.com/tebbi/coqdocjs">CoqdocJS</a>
+</div>
+</div>
+</body>
+
+</html>

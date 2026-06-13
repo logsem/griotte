@@ -1,0 +1,120 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+  <div id="header">
+    <span class="left">
+      <span class="modulename"> <script> document.write(document.title) </script> </span>
+    </span>
+
+    <span class="button" id="toggle-proofs"></span>
+
+    <span class="right">
+      <a href="./">Project Page</a>
+      <a href="./indexpage.html"> Index </a>
+      <a href="./toc.html"> Table of Contents </a>
+    </span>
+</div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+    <div id="main">
+<h1 class="libtitle">cap_machine.case_studies.macros.assert</h1>
+
+<div class="code">
+<span class="id" title="keyword">From</span> <span class="id" title="var">cap_machine</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="cap_machine.opsem.machine_parameters.html#"><span class="id" title="library">machine_parameters</span></a> <a class="idref" href="cap_machine.opsem.assembler.html#"><span class="id" title="library">assembler</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">cap_machine</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="cap_machine.case_studies.macros.fetch.html#"><span class="id" title="library">fetch</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Class</span> <a id="assertLayout" class="idref" href="#assertLayout"><span class="id" title="record">assertLayout</span></a> : <span class="id" title="keyword">Type</span> :=<br/>
+&nbsp;&nbsp;<span class="id" title="var">mkAssertLayout</span> {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="b_assert" class="idref" href="#b_assert"><span class="id" title="projection">b_assert</span></a> : <a class="idref" href="cap_machine.opsem.addr_reg.html#Addr"><span class="id" title="abbreviation">Addr</span></a> ;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="e_assert" class="idref" href="#e_assert"><span class="id" title="projection">e_assert</span></a> : <a class="idref" href="cap_machine.opsem.addr_reg.html#Addr"><span class="id" title="abbreviation">Addr</span></a> ;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="a_flag" class="idref" href="#a_flag"><span class="id" title="projection">a_flag</span></a> : <a class="idref" href="cap_machine.opsem.addr_reg.html#Addr"><span class="id" title="abbreviation">Addr</span></a> ;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="Assert_Code" class="idref" href="#Assert_Code"><span class="id" title="section">Assert_Code</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Import</span> <a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte"><span class="id" title="module">Asm_Griotte</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Local Coercion</span> <span class="id" title="definition">Z.of_nat</span> <span class="id" title="definition">:</span> <span class="id" title="definition">nat</span> <span class="id" title="definition">&gt;-&gt;</span> <span class="id" title="definition">Z</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<a id="Assert_Code.MP" class="idref" href="#Assert_Code.MP"><span class="id" title="variable">MP</span></a>: <a class="idref" href="cap_machine.opsem.machine_parameters.html#MachineParameters"><span class="id" title="class">MachineParameters</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Maintains&nbsp;a&nbsp;flag&nbsp;storing&nbsp;whether&nbsp;an&nbsp;assert&nbsp;has&nbsp;failed.&nbsp;*)</span><br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Asserts&nbsp;(ct0&nbsp;==&nbsp;ct1).&nbsp;Jumps&nbsp;back&nbsp;to&nbsp;cra.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Clobbers&nbsp;cra,&nbsp;ct0,&nbsp;ct1.<br/>
+&nbsp;&nbsp;&nbsp;*)</span><br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="assert_subroutine_asm_pre" class="idref" href="#assert_subroutine_asm_pre"><span class="id" title="definition">assert_subroutine_asm_pre</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.sub"><span class="id" title="definition">sub</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct0"><span class="id" title="definition">ct0</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct0"><span class="id" title="definition">ct0</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct1"><span class="id" title="definition">ct1</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.jnz"><span class="id" title="definition">jnz</span></a> ("assert_fail")%<span class="id" title="var">asm</span> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct0"><span class="id" title="definition">ct0</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#8c8d65d1567e1863c131cfdaff3b1814"><span class="id" title="notation">#</span></a>"assert_success"<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.mov"><span class="id" title="definition">mov</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct0"><span class="id" title="definition">ct0</span></a> 0<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.mov"><span class="id" title="definition">mov</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct1"><span class="id" title="definition">ct1</span></a> 0<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.jalr"><span class="id" title="definition">jalr</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cnull"><span class="id" title="definition">cnull</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cra"><span class="id" title="definition">cra</span></a><span class="id" title="notation">;</span> <span class="comment">(*&nbsp;return&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#8c8d65d1567e1863c131cfdaff3b1814"><span class="id" title="notation">#</span></a>"assert_fail"<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.mov"><span class="id" title="definition">mov</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct1"><span class="id" title="definition">ct1</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#PC"><span class="id" title="constructor">PC</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.lea"><span class="id" title="definition">lea</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct1"><span class="id" title="definition">ct1</span></a> ("cap_flag"<a class="idref" href="cap_machine.opsem.assembler.html#2733ab2016619fc02b3d36256ab31aa5"><span class="id" title="notation">+</span></a>1)%<span class="id" title="var">asm</span><span class="id" title="notation">;</span> <span class="comment">(*&nbsp;pointer&nbsp;to&nbsp;cap:&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.load"><span class="id" title="definition">load</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct1"><span class="id" title="definition">ct1</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct1"><span class="id" title="definition">ct1</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.store"><span class="id" title="definition">store</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct1"><span class="id" title="definition">ct1</span></a> 1<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.mov"><span class="id" title="definition">mov</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct0"><span class="id" title="definition">ct0</span></a> 0<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.mov"><span class="id" title="definition">mov</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#ct1"><span class="id" title="definition">ct1</span></a> 0<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.jalr"><span class="id" title="definition">jalr</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cnull"><span class="id" title="definition">cnull</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cra"><span class="id" title="definition">cra</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#8c8d65d1567e1863c131cfdaff3b1814"><span class="id" title="notation">#</span></a>"cap_flag"<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;cap:&nbsp;(RW,&nbsp;flag,&nbsp;end,&nbsp;flag)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;flag:&nbsp;&lt;0&nbsp;or&nbsp;1&gt;&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;end*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="assert_subroutine_asm_env" class="idref" href="#assert_subroutine_asm_env"><span class="id" title="definition">assert_subroutine_asm_env</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Eval</span> <span class="id" title="keyword">vm_compute</span> <span class="id" title="tactic">in</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#:::x_'.2'"><span class="id" title="notation">(</span></a><a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.compute_asm_code_env"><span class="id" title="definition">compute_asm_code_env</span></a> (<a class="idref" href="cap_machine.case_studies.macros.assert.html#assert_subroutine_asm_pre"><span class="id" title="definition">assert_subroutine_asm_pre</span></a>)<a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#:::x_'.2'"><span class="id" title="notation">).2</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="assert_subroutine_asm" class="idref" href="#assert_subroutine_asm"><span class="id" title="definition">assert_subroutine_asm</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Eval</span> <span class="id" title="tactic">compute</span> <span class="id" title="tactic">in</span> <a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.resolve_labels_macros"><span class="id" title="definition">resolve_labels_macros</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#assert_subroutine_asm_pre"><span class="id" title="definition">assert_subroutine_asm_pre</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#assert_subroutine_asm_env"><span class="id" title="definition">assert_subroutine_asm_env</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="assert_subroutine" class="idref" href="#assert_subroutine"><span class="id" title="definition">assert_subroutine</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#instr"><span class="id" title="inductive">instr</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Eval</span> <span class="id" title="tactic">compute</span> <span class="id" title="tactic">in</span> <a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.assemble"><span class="id" title="definition">assemble</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#assert_subroutine_asm"><span class="id" title="definition">assert_subroutine_asm</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="assert_subroutine_instrs" class="idref" href="#assert_subroutine_instrs"><span class="id" title="definition">assert_subroutine_instrs</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.machine_parameters.html#encodeInstrsW"><span class="id" title="definition">encodeInstrsW</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#assert_subroutine"><span class="id" title="definition">assert_subroutine</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;assert&nbsp;macros:<br/>
+&nbsp;&nbsp;&nbsp;-&nbsp;fetch&nbsp;the&nbsp;assert&nbsp;entry&nbsp;point&nbsp;an&nbsp;the&nbsp;n-th&nbsp;position&nbsp;in&nbsp;the&nbsp;import&nbsp;table<br/>
+&nbsp;&nbsp;&nbsp;-&nbsp;execute&nbsp;the&nbsp;assert&nbsp;subroutine<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;-&nbsp;rdst,&nbsp;rscratch1&nbsp;and&nbsp;rscratch2&nbsp;are&nbsp;all&nbsp;clobbered<br/>
+&nbsp;&nbsp;&nbsp;*)</span><br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="assert_asm" class="idref" href="#assert_asm"><span class="id" title="definition">assert_asm</span></a> (<a id="n:6" class="idref" href="#n:6"><span class="id" title="binder">n</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Numbers.BinNums.html#Z"><span class="id" title="inductive">Z</span></a>) (<a id="rdst:7" class="idref" href="#rdst:7"><span class="id" title="binder">rdst</span></a> <a id="rscratch1:8" class="idref" href="#rscratch1:8"><span class="id" title="binder">rscratch1</span></a> <a id="rscratch2:9" class="idref" href="#rscratch2:9"><span class="id" title="binder">rscratch2</span></a> : <a class="idref" href="cap_machine.opsem.addr_reg.html#RegName"><span class="id" title="inductive">RegName</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">[</span> <a class="idref" href="cap_machine.case_studies.macros.fetch.html#fetch_asm"><span class="id" title="definition">fetch_asm</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#n:6"><span class="id" title="variable">n</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rdst:7"><span class="id" title="variable">rdst</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rscratch1:8"><span class="id" title="variable">rscratch1</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rscratch2:9"><span class="id" title="variable">rscratch2</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.mov"><span class="id" title="definition">mov</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rscratch1:8"><span class="id" title="variable">rscratch1</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cra"><span class="id" title="definition">cra</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.jalr"><span class="id" title="definition">jalr</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cra"><span class="id" title="definition">cra</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rdst:7"><span class="id" title="variable">rdst</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.mov"><span class="id" title="definition">mov</span></a> <a class="idref" href="cap_machine.opsem.addr_reg.html#cra"><span class="id" title="definition">cra</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rscratch1:8"><span class="id" title="variable">rscratch1</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.mov"><span class="id" title="definition">mov</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rscratch1:8"><span class="id" title="variable">rscratch1</span></a> 0<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.mov"><span class="id" title="definition">mov</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rdst:7"><span class="id" title="variable">rdst</span></a> 0<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="assembled_assert" class="idref" href="#assembled_assert"><span class="id" title="definition">assembled_assert</span></a> (<a id="n:10" class="idref" href="#n:10"><span class="id" title="binder">n</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Numbers.BinNums.html#Z"><span class="id" title="inductive">Z</span></a>) (<a id="rdst:11" class="idref" href="#rdst:11"><span class="id" title="binder">rdst</span></a> <a id="rscratch1:12" class="idref" href="#rscratch1:12"><span class="id" title="binder">rscratch1</span></a> <a id="rscratch2:13" class="idref" href="#rscratch2:13"><span class="id" title="binder">rscratch2</span></a> : <a class="idref" href="cap_machine.opsem.addr_reg.html#RegName"><span class="id" title="inductive">RegName</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Eval</span> <span class="id" title="tactic">compute</span> <span class="id" title="tactic">in</span> <a class="idref" href="cap_machine.opsem.assembler.html#Asm_Griotte.assemble_block"><span class="id" title="definition">assemble_block</span></a> (<a class="idref" href="cap_machine.case_studies.macros.assert.html#assert_asm"><span class="id" title="definition">assert_asm</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#n:10"><span class="id" title="variable">n</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rdst:11"><span class="id" title="variable">rdst</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rscratch1:12"><span class="id" title="variable">rscratch1</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rscratch2:13"><span class="id" title="variable">rscratch2</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="assert_instrs" class="idref" href="#assert_instrs"><span class="id" title="definition">assert_instrs</span></a> (<a id="n:14" class="idref" href="#n:14"><span class="id" title="binder">n</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Numbers.BinNums.html#Z"><span class="id" title="inductive">Z</span></a>) (<a id="rdst:15" class="idref" href="#rdst:15"><span class="id" title="binder">rdst</span></a> <a id="rscratch1:16" class="idref" href="#rscratch1:16"><span class="id" title="binder">rscratch1</span></a> <a id="rscratch2:17" class="idref" href="#rscratch2:17"><span class="id" title="binder">rscratch2</span></a> : <a class="idref" href="cap_machine.opsem.addr_reg.html#RegName"><span class="id" title="inductive">RegName</span></a>) : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="cap_machine.opsem.machine_base.html#Word"><span class="id" title="inductive">Word</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="definition">concat</span> (<a class="idref" href="cap_machine.opsem.machine_parameters.html#encodeInstrsW"><span class="id" title="definition">encodeInstrsW</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#2eea06883886179dcc86cdc5a1870594"><span class="id" title="notation">&lt;$&gt;</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#2eea06883886179dcc86cdc5a1870594"><span class="id" title="notation">(</span></a><a class="idref" href="cap_machine.case_studies.macros.assert.html#assembled_assert"><span class="id" title="definition">assembled_assert</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#n:14"><span class="id" title="variable">n</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rdst:15"><span class="id" title="variable">rdst</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rscratch1:16"><span class="id" title="variable">rscratch1</span></a> <a class="idref" href="cap_machine.case_studies.macros.assert.html#rscratch2:17"><span class="id" title="variable">rscratch2</span></a><a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#2eea06883886179dcc86cdc5a1870594"><span class="id" title="notation">)</span></a>).<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="cap_machine.case_studies.macros.assert.html#Assert_Code"><span class="id" title="section">Assert_Code</span></a>.<br/>
+</div>
+</div>
+<div id="footer">
+  Generated by <a href="http://coq.inria.fr/">coqdoc</a> and improved with <a href="https://github.com/tebbi/coqdocjs">CoqdocJS</a>
+</div>
+</div>
+</body>
+
+</html>
