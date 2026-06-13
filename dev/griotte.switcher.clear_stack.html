@@ -1,0 +1,74 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+  <div id="header">
+    <span class="left">
+      <span class="modulename"> <script> document.write(document.title) </script> </span>
+    </span>
+
+    <span class="button" id="toggle-proofs"></span>
+
+    <span class="right">
+      <a href="./">Project Page</a>
+      <a href="./indexpage.html"> Index </a>
+      <a href="./toc.html"> Table of Contents </a>
+    </span>
+</div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+    <div id="main">
+<h1 class="libtitle">griotte.switcher.clear_stack</h1>
+
+<div class="code">
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="griotte.opsem.machine_parameters.html#"><span class="id" title="library">machine_parameters</span></a> <a class="idref" href="griotte.opsem.assembler.html#"><span class="id" title="library">assembler</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="ClearStackMacro" class="idref" href="#ClearStackMacro"><span class="id" title="section">ClearStackMacro</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Import</span> <a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte"><span class="id" title="module">Asm_Griotte</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Local Coercion</span> <span class="id" title="definition">Z.of_nat</span> <span class="id" title="definition">:</span> <span class="id" title="definition">nat</span> <span class="id" title="definition">&gt;-&gt;</span> <span class="id" title="definition">Z</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<a id="ClearStackMacro.MP" class="idref" href="#ClearStackMacro.MP"><span class="id" title="variable">MP</span></a>: <a class="idref" href="griotte.opsem.machine_parameters.html#MachineParameters"><span class="id" title="class">MachineParameters</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Expects&nbsp;r1&nbsp;:=&nbsp;e_stk&nbsp;;&nbsp;r2&nbsp;:=&nbsp;a_stk&nbsp;*)</span><br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="clear_stack_asm_pre" class="idref" href="#clear_stack_asm_pre"><span class="id" title="definition">clear_stack_asm_pre</span></a> (<a id="r1:2" class="idref" href="#r1:2"><span class="id" title="binder">r1</span></a> <a id="r2:3" class="idref" href="#r2:3"><span class="id" title="binder">r2</span></a> : <a class="idref" href="griotte.opsem.registers.html#RegName"><span class="id" title="inductive">RegName</span></a>) : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.asm_code"><span class="id" title="inductive">asm_code</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.sub"><span class="id" title="definition">sub</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r1:2"><span class="id" title="variable">r1</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r2:3"><span class="id" title="variable">r2</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r1:2"><span class="id" title="variable">r1</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.mov"><span class="id" title="definition">mov</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r2:3"><span class="id" title="variable">r2</span></a> <a class="idref" href="griotte.opsem.registers.html#csp"><span class="id" title="definition">csp</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#8c8d65d1567e1863c131cfdaff3b1814"><span class="id" title="notation">#</span></a>"loop_start"<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.jnz"><span class="id" title="definition">jnz</span></a> ("loop_body")%<span class="id" title="var">asm</span> <a class="idref" href="griotte.switcher.clear_stack.html#r1:2"><span class="id" title="variable">r1</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.jmp"><span class="id" title="definition">jmp</span></a> ("loop_end")%<span class="id" title="var">asm</span><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#8c8d65d1567e1863c131cfdaff3b1814"><span class="id" title="notation">#</span></a>"loop_body"<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.store"><span class="id" title="definition">store</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r2:3"><span class="id" title="variable">r2</span></a> 0<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.lea"><span class="id" title="definition">lea</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r2:3"><span class="id" title="variable">r2</span></a> 1<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.add"><span class="id" title="definition">add</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r1:2"><span class="id" title="variable">r1</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r1:2"><span class="id" title="variable">r1</span></a> 1<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.jmp"><span class="id" title="definition">jmp</span></a> ("loop_start")%<span class="id" title="var">asm</span><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.assembler.html#8c8d65d1567e1863c131cfdaff3b1814"><span class="id" title="notation">#</span></a>"loop_end"<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="clear_stack_asm_env" class="idref" href="#clear_stack_asm_env"><span class="id" title="definition">clear_stack_asm_env</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Eval</span> <span class="id" title="keyword">vm_compute</span> <span class="id" title="tactic">in</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#:::x_'.2'"><span class="id" title="notation">(</span></a><a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.compute_asm_code_env"><span class="id" title="definition">compute_asm_code_env</span></a> (<a class="idref" href="griotte.switcher.clear_stack.html#clear_stack_asm_pre"><span class="id" title="definition">clear_stack_asm_pre</span></a> <a class="idref" href="griotte.opsem.registers.html#PC"><span class="id" title="constructor">PC</span></a> <a class="idref" href="griotte.opsem.registers.html#PC"><span class="id" title="constructor">PC</span></a>)<a class="idref" href="https://plv.mpi-sws.org/coqdoc/stdpp//stdpp.base.html#:::x_'.2'"><span class="id" title="notation">).2</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="clear_stack_asm" class="idref" href="#clear_stack_asm"><span class="id" title="definition">clear_stack_asm</span></a> (<a id="r1:4" class="idref" href="#r1:4"><span class="id" title="binder">r1</span></a> <a id="r2:5" class="idref" href="#r2:5"><span class="id" title="binder">r2</span></a> : <a class="idref" href="griotte.opsem.registers.html#RegName"><span class="id" title="inductive">RegName</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Eval</span> <span class="id" title="tactic">compute</span> <span class="id" title="tactic">in</span> <a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.resolve_labels_macros"><span class="id" title="definition">resolve_labels_macros</span></a> (<a class="idref" href="griotte.switcher.clear_stack.html#clear_stack_asm_pre"><span class="id" title="definition">clear_stack_asm_pre</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r1:4"><span class="id" title="variable">r1</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r2:5"><span class="id" title="variable">r2</span></a>) <a class="idref" href="griotte.switcher.clear_stack.html#clear_stack_asm_env"><span class="id" title="definition">clear_stack_asm_env</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="clear_stack" class="idref" href="#clear_stack"><span class="id" title="definition">clear_stack</span></a> (<a id="r1:6" class="idref" href="#r1:6"><span class="id" title="binder">r1</span></a> <a id="r2:7" class="idref" href="#r2:7"><span class="id" title="binder">r2</span></a> : <a class="idref" href="griotte.opsem.registers.html#RegName"><span class="id" title="inductive">RegName</span></a>) : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="griotte.opsem.machine_instructions.html#instr"><span class="id" title="inductive">instr</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Eval</span> <span class="id" title="tactic">compute</span> <span class="id" title="tactic">in</span> <a class="idref" href="griotte.opsem.assembler.html#Asm_Griotte.assemble"><span class="id" title="definition">assemble</span></a> (<a class="idref" href="griotte.switcher.clear_stack.html#clear_stack_asm"><span class="id" title="definition">clear_stack_asm</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r1:6"><span class="id" title="variable">r1</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r2:7"><span class="id" title="variable">r2</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="clear_stack_instrs" class="idref" href="#clear_stack_instrs"><span class="id" title="definition">clear_stack_instrs</span></a> (<a id="r1:8" class="idref" href="#r1:8"><span class="id" title="binder">r1</span></a> <a id="r2:9" class="idref" href="#r2:9"><span class="id" title="binder">r2</span></a> : <a class="idref" href="griotte.opsem.registers.html#RegName"><span class="id" title="inductive">RegName</span></a>) : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="griotte.opsem.machine_word.html#Word"><span class="id" title="inductive">Word</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_parameters.html#encodeInstrsW"><span class="id" title="definition">encodeInstrsW</span></a> (<a class="idref" href="griotte.switcher.clear_stack.html#clear_stack"><span class="id" title="definition">clear_stack</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r1:8"><span class="id" title="variable">r1</span></a> <a class="idref" href="griotte.switcher.clear_stack.html#r2:9"><span class="id" title="variable">r2</span></a>).<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="griotte.switcher.clear_stack.html#ClearStackMacro"><span class="id" title="section">ClearStackMacro</span></a>.<br/>
+</div>
+</div>
+<div id="footer">
+  Generated by <a href="http://coq.inria.fr/">coqdoc</a> and improved with <a href="https://github.com/tebbi/coqdocjs">CoqdocJS</a>
+</div>
+</div>
+</body>
+
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+  <div id="header">
+    <span class="left">
+      <span class="modulename"> <script> document.write(document.title) </script> </span>
+    </span>
+
+    <span class="button" id="toggle-proofs"></span>
+
+    <span class="right">
+      <a href="./">Project Page</a>
+      <a href="./indexpage.html"> Index </a>
+      <a href="./toc.html"> Table of Contents </a>
+    </span>
+</div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+    <div id="main">
+<h1 class="libtitle">griotte.program_logic.rules</h1>
+
+<div class="code">
+<span class="comment">(*&nbsp;Program&nbsp;logic&nbsp;rules&nbsp;for&nbsp;machine&nbsp;instructions&nbsp;are&nbsp;split&nbsp;into&nbsp;several&nbsp;files,<br/>
+&nbsp;&nbsp;&nbsp;with&nbsp;one&nbsp;file&nbsp;for&nbsp;each&nbsp;instruction,&nbsp;which&nbsp;we&nbsp;import&nbsp;below.&nbsp;*)</span><br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.program_logic.rules.rules_Get.html#"><span class="id" title="library">rules_Get</span></a> <a class="idref" href="griotte.program_logic.rules.rules_Load.html#"><span class="id" title="library">rules_Load</span></a> <a class="idref" href="griotte.program_logic.rules.rules_Store.html#"><span class="id" title="library">rules_Store</span></a> <a class="idref" href="griotte.program_logic.rules.rules_BinOp.html#"><span class="id" title="library">rules_BinOp</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.program_logic.rules.rules_Lea.html#"><span class="id" title="library">rules_Lea</span></a> <a class="idref" href="griotte.program_logic.rules.rules_Mov.html#"><span class="id" title="library">rules_Mov</span></a> <a class="idref" href="griotte.program_logic.rules.rules_Restrict.html#"><span class="id" title="library">rules_Restrict</span></a> <a class="idref" href="griotte.program_logic.rules.rules_Subseg.html#"><span class="id" title="library">rules_Subseg</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.program_logic.rules.rules_Jmp.html#"><span class="id" title="library">rules_Jmp</span></a> <a class="idref" href="griotte.program_logic.rules.rules_Jnz.html#"><span class="id" title="library">rules_Jnz</span></a> <a class="idref" href="griotte.program_logic.rules.rules_Jalr.html#"><span class="id" title="library">rules_Jalr</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.program_logic.rules.rules_Seal.html#"><span class="id" title="library">rules_Seal</span></a> <a class="idref" href="griotte.program_logic.rules.rules_UnSeal.html#"><span class="id" title="library">rules_UnSeal</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.program_logic.rules.rules_ReadSR.html#"><span class="id" title="library">rules_ReadSR</span></a> <a class="idref" href="griotte.program_logic.rules.rules_WriteSR.html#"><span class="id" title="library">rules_WriteSR</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Program specifications
+
+<div class="paragraph"> </div>
+
+   There is a small discrepancy between how program specifications are written
+   in the paper and in the Coq development.
+
+<div class="paragraph"> </div>
+
+   The paper presenting Cerise distinguishes between three kinds of program
+   specifications:
+
+<div class="paragraph"> </div>
+
+   ⟨P⟩ → ⟨s. Q⟩   single instruction
+   {P} ⇝ {s. Q}   code fragment
+   {P} ⇝ ∙        complete safe execution
+
+<div class="paragraph"> </div>
+
+   In this Coq development, we express specifications using slightly more
+   primitive constructs: Iris' standard notion of weakest-precondition (WP) and
+   Hoare triples. Specifications from the paper can be seen as sugar for these
+   constructs, as follows:
+
+<div class="paragraph"> </div>
+
+<ul class="doclist">
+<li> single instruction: instead of ⟨P⟩ → ⟨s. Q⟩, we write:
+
+<div class="paragraph"> </div>
+
+     <a href="{ P ">{ P </a>} Instr Executable <a href="{ s. Q ">{ s. Q </a>}
+
+<div class="paragraph"> </div>
+
+     (see for instance <span class="inlinecode"><span class="id" title="var">rules_Subseg.wp_subseg_success_lr</span></span>)
+
+<div class="paragraph"> </div>
+
+
+</li>
+<li> code fragment: instead of {P} ⇝ {s. Q}, we write:
+
+<div class="paragraph"> </div>
+
+     ∀φ, P ∗ (Q -∗ WP Seq (Instr Executable) <a href=" φ "> φ </a>) ⊢ WP Seq (Instr Executable) <a href=" φ "> φ </a>
+
+<div class="paragraph"> </div>
+
+    (see for instance <span class="inlinecode"><span class="id" title="var">examples.macros_new.rclear_spec</span></span>)
+
+<div class="paragraph"> </div>
+
+
+</li>
+<li> complete safe execution: instead of {P} ⇝ ∙, we write:
+
+<div class="paragraph"> </div>
+
+     P -∗ WP Seq (Instr Executable) <a href=" λ _, True "> λ _, True </a>
+
+<div class="paragraph"> </div>
+
+    (see for instance <span class="inlinecode"><span class="id" title="var">examples.minimal_counter.counter_full_run_spec</span></span>)
+
+</li>
+</ul>
+
+<div class="paragraph"> </div>
+
+  Rules for sequencing specifications then all become consequences of the
+  general "bind rule" for weakest preconditions
+  <span class="inlinecode"><span class="id" title="var">iris.program_logic.weakestpre.wp_bind</span></span>. (Thanks to our definition of
+  "evaluation contexts" corresponding to instruction sequencing.) Similarly, the
+  "frame rule" is simply a consequence of a generic property of weakest
+  preconditions <span class="inlinecode"><span class="id" title="var">iris.program_logic.weakestpre.wp_strong_mono</span></span>.
+
+</div>
+<div class="code">
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.base_logic</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.invariants.html#"><span class="id" title="library">invariants</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.base_logic.lib.gen_heap.html#"><span class="id" title="library">gen_heap</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.program_logic</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.program_logic.weakestpre.html#"><span class="id" title="library">weakestpre</span></a> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.program_logic.ectx_lifting.html#"><span class="id" title="library">ectx_lifting</span></a>.<br/>
+
+<br/>
+<span class="comment">(*&nbsp;Reexport&nbsp;CMRA&nbsp;for&nbsp;Griotte&nbsp;*)</span><br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span> <a class="idref" href="griotte.program_logic.cerise_instance.html#"><span class="id" title="library">cerise_instance</span></a> <a class="idref" href="griotte.program_logic.entry.html#"><span class="id" title="library">entry</span></a>.<br/>
+<span class="comment">(*&nbsp;Reexport&nbsp;resources&nbsp;for&nbsp;registers&nbsp;and&nbsp;memory&nbsp;*)</span><br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span> <a class="idref" href="griotte.program_logic.memory_region.html#"><span class="id" title="library">memory_region</span></a> <a class="idref" href="griotte.program_logic.rules.rules_base.html#"><span class="id" title="library">rules_base</span></a> <a class="idref" href="griotte.opsem.machine_instructions.html#"><span class="id" title="library">machine_instructions</span></a>.<br/>
+</div>
+</div>
+<div id="footer">
+  Generated by <a href="http://coq.inria.fr/">coqdoc</a> and improved with <a href="https://github.com/tebbi/coqdocjs">CoqdocJS</a>
+</div>
+</div>
+</body>
+
+</html>

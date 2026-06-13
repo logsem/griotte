@@ -1,0 +1,141 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<link href="coqdocjs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="config.js"></script>
+<script type="text/javascript" src="coqdocjs.js"></script>
+</head>
+
+<body onload="document.getElementById('content').focus()">
+  <div id="header">
+    <span class="left">
+      <span class="modulename"> <script> document.write(document.title) </script> </span>
+    </span>
+
+    <span class="button" id="toggle-proofs"></span>
+
+    <span class="right">
+      <a href="./">Project Page</a>
+      <a href="./indexpage.html"> Index </a>
+      <a href="./toc.html"> Table of Contents </a>
+    </span>
+</div>
+    <div id="content" tabindex="-1" onblur="document.getElementById('content').focus()">
+    <div id="main">
+<h1 class="libtitle">griotte.case_studies.droe.deep_immutability</h1>
+
+<div class="code">
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.algebra</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.algebra.frac.html#"><span class="id" title="library">frac</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">iris.proofmode</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="https://plv.mpi-sws.org/coqdoc/iris//iris.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="griotte.program_logic.rules.html#"><span class="id" title="library">rules</span></a> <a class="idref" href="griotte.proofmode.proofmode.html#"><span class="id" title="library">proofmode</span></a>.<br/>
+<span class="id" title="keyword">From</span> <span class="id" title="var">griotte</span> <span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="griotte.case_studies.macros.fetch.html#"><span class="id" title="library">fetch</span></a> <a class="idref" href="griotte.case_studies.macros.assert.html#"><span class="id" title="library">assert</span></a> <a class="idref" href="griotte.switcher.switcher.html#"><span class="id" title="library">switcher</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="DROE_Main" class="idref" href="#DROE_Main"><span class="id" title="section">DROE_Main</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<a id="DROE_Main.MP" class="idref" href="#DROE_Main.MP"><span class="id" title="variable">MP</span></a>: <a class="idref" href="griotte.opsem.machine_parameters.html#MachineParameters"><span class="id" title="class">MachineParameters</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;PSEUDO-CODE:<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;set&nbsp;b&nbsp;:=&nbsp;42<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;set&nbsp;a&nbsp;:=&nbsp;(RW,&nbsp;Global,&nbsp;b,&nbsp;b+1,&nbsp;b)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;call&nbsp;B.adv&nbsp;(RO_DRO,&nbsp;Global,&nbsp;a,&nbsp;a+1,&nbsp;a)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;assert&nbsp;(b&nbsp;==&nbsp;42)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return&nbsp;0<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;*)</span><br/>
+
+<br/>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Expect:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;pc&nbsp;&nbsp;:=&nbsp;(RX,&nbsp;Global,&nbsp;b_main,&nbsp;e_main,&nbsp;b_main_code)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cgp&nbsp;:=&nbsp;(RW,&nbsp;Global,&nbsp;b,&nbsp;e,&nbsp;b)<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;b_main&nbsp;+&nbsp;0&nbsp;:&nbsp;WSentry&nbsp;XSRW_&nbsp;b_switcher&nbsp;e_switcher&nbsp;a_cc_switcher<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;b_main&nbsp;+&nbsp;1&nbsp;:&nbsp;WSentry&nbsp;RX&nbsp;b_assert&nbsp;e_assert&nbsp;a_assert<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;b_main&nbsp;+&nbsp;2&nbsp;:&nbsp;WSealed&nbsp;ot_switcher&nbsp;B.f<br/>
+<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data&nbsp;after&nbsp;initial&nbsp;setup:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+----------------+&nbsp;b<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;42&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+----------------+&nbsp;a<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;(RW,G,b,b+1,b)&nbsp;|<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+----------------+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;...&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|<br/>
+<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;*)</span><br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="droe_main_code" class="idref" href="#droe_main_code"><span class="id" title="definition">droe_main_code</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="griotte.opsem.machine_word.html#Word"><span class="id" title="inductive">Word</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">let</span> <a id="ro_dro:2" class="idref" href="#ro_dro:2"><span class="id" title="binder">ro_dro</span></a> := (<a class="idref" href="griotte.opsem.machine_parameters.html#encodePermPair"><span class="id" title="method">encodePermPair</span></a> <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">(</span></a><a class="idref" href="griotte.opsem.permissions.html#RO_DRO"><span class="id" title="abbreviation">RO_DRO</span></a><a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">,</span></a> <a class="idref" href="griotte.opsem.permissions.html#Global"><span class="id" title="constructor">Global</span></a><a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">)</span></a>) <span class="id" title="tactic">in</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_parameters.html#encodeInstrsW"><span class="id" title="definition">encodeInstrsW</span></a> <span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;"main_b_code"; *)</span><br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;set&nbsp;b&nbsp;&lt;-&nbsp;42&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Store"><span class="id" title="constructor">Store</span></a> <a class="idref" href="griotte.opsem.registers.html#cgp"><span class="id" title="definition">cgp</span></a> 42%<span class="id" title="var">Z</span><span class="id" title="notation">;</span>     <span class="comment">(*&nbsp;b&nbsp;&lt;-&nbsp;42&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Mov"><span class="id" title="constructor">Mov</span></a> <a class="idref" href="griotte.opsem.registers.html#ct0"><span class="id" title="definition">ct0</span></a> <a class="idref" href="griotte.opsem.registers.html#cgp"><span class="id" title="definition">cgp</span></a><span class="id" title="notation">;</span>        <span class="comment">(*&nbsp;ct0&nbsp;:=&nbsp;(RW,&nbsp;Global,&nbsp;b,&nbsp;e,&nbsp;b)&nbsp;*)</span><br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;set&nbsp;a&nbsp;&lt;-&nbsp;(RW,&nbsp;Global,&nbsp;b,&nbsp;b+1,&nbsp;b)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#GetB"><span class="id" title="constructor">GetB</span></a> <a class="idref" href="griotte.opsem.registers.html#ct1"><span class="id" title="definition">ct1</span></a> <a class="idref" href="griotte.opsem.registers.html#cgp"><span class="id" title="definition">cgp</span></a><span class="id" title="notation">;</span>       <span class="comment">(*&nbsp;ct1&nbsp;:=&nbsp;b&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Add"><span class="id" title="constructor">Add</span></a> <a class="idref" href="griotte.opsem.registers.html#ct2"><span class="id" title="definition">ct2</span></a> <a class="idref" href="griotte.opsem.registers.html#ct1"><span class="id" title="definition">ct1</span></a> 1%<span class="id" title="var">Z</span><span class="id" title="notation">;</span>    <span class="comment">(*&nbsp;ct2&nbsp;:=&nbsp;b+1&nbsp;=&nbsp;a&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Subseg"><span class="id" title="constructor">Subseg</span></a> <a class="idref" href="griotte.opsem.registers.html#ct0"><span class="id" title="definition">ct0</span></a> <a class="idref" href="griotte.opsem.registers.html#ct1"><span class="id" title="definition">ct1</span></a> <a class="idref" href="griotte.opsem.registers.html#ct2"><span class="id" title="definition">ct2</span></a><span class="id" title="notation">;</span> <span class="comment">(*&nbsp;ct0&nbsp;:=&nbsp;(RW,&nbsp;Global,&nbsp;b,&nbsp;b+1,&nbsp;b)&nbsp;*)</span><br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Lea"><span class="id" title="constructor">Lea</span></a> <a class="idref" href="griotte.opsem.registers.html#cgp"><span class="id" title="definition">cgp</span></a> 1%<span class="id" title="var">Z</span><span class="id" title="notation">;</span>        <span class="comment">(*&nbsp;cgp&nbsp;:=&nbsp;(RW,&nbsp;Global,&nbsp;b,&nbsp;e,&nbsp;b+1)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Store"><span class="id" title="constructor">Store</span></a> <a class="idref" href="griotte.opsem.registers.html#cgp"><span class="id" title="definition">cgp</span></a> <a class="idref" href="griotte.opsem.registers.html#ct0"><span class="id" title="definition">ct0</span></a><span class="id" title="notation">;</span>      <span class="comment">(*&nbsp;a&nbsp;&lt;-&nbsp;(RW,&nbsp;Global,&nbsp;b,&nbsp;b+1,&nbsp;b)&nbsp;*)</span><br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;call&nbsp;B.f&nbsp;(RO_DRO,&nbsp;Global,&nbsp;a,&nbsp;a+1,a)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Mov"><span class="id" title="constructor">Mov</span></a> <a class="idref" href="griotte.opsem.registers.html#ca0"><span class="id" title="definition">ca0</span></a> <a class="idref" href="griotte.opsem.registers.html#cgp"><span class="id" title="definition">cgp</span></a><span class="id" title="notation">;</span>         <span class="comment">(*&nbsp;ca0&nbsp;:=&nbsp;(RW,&nbsp;Global,&nbsp;b,&nbsp;e,&nbsp;b+1)&nbsp;=&nbsp;(RW,&nbsp;Global,&nbsp;b,&nbsp;e,&nbsp;a)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Lea"><span class="id" title="constructor">Lea</span></a> <a class="idref" href="griotte.opsem.registers.html#cgp"><span class="id" title="definition">cgp</span></a> (-1)%<span class="id" title="var">Z</span><span class="id" title="notation">;</span>       <span class="comment">(*&nbsp;cgp&nbsp;:=&nbsp;(RW,&nbsp;Global,&nbsp;b,&nbsp;e,&nbsp;b)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Add"><span class="id" title="constructor">Add</span></a> <a class="idref" href="griotte.opsem.registers.html#ct1"><span class="id" title="definition">ct1</span></a> <a class="idref" href="griotte.opsem.registers.html#ct2"><span class="id" title="definition">ct2</span></a> 1%<span class="id" title="var">Z</span><span class="id" title="notation">;</span>     <span class="comment">(*&nbsp;ct1&nbsp;:=&nbsp;a+1&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Subseg"><span class="id" title="constructor">Subseg</span></a> <a class="idref" href="griotte.opsem.registers.html#ca0"><span class="id" title="definition">ca0</span></a> <a class="idref" href="griotte.opsem.registers.html#ct2"><span class="id" title="definition">ct2</span></a> <a class="idref" href="griotte.opsem.registers.html#ct1"><span class="id" title="definition">ct1</span></a><span class="id" title="notation">;</span>  <span class="comment">(*&nbsp;ca0&nbsp;:=&nbsp;(RW,&nbsp;Global,&nbsp;a,&nbsp;a+1,&nbsp;a)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Restrict"><span class="id" title="constructor">Restrict</span></a> <a class="idref" href="griotte.opsem.registers.html#ca0"><span class="id" title="definition">ca0</span></a> <a class="idref" href="griotte.case_studies.droe.deep_immutability.html#ro_dro:2"><span class="id" title="variable">ro_dro</span></a>  <span class="comment">(*&nbsp;ca0&nbsp;:=&nbsp;(RO_DRO,&nbsp;Global,&nbsp;a,&nbsp;a+1,&nbsp;a)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a> <a class="idref" href="griotte.case_studies.macros.fetch.html#fetch_instrs"><span class="id" title="definition">fetch_instrs</span></a> 0 <a class="idref" href="griotte.opsem.registers.html#ct0"><span class="id" title="definition">ct0</span></a> <a class="idref" href="griotte.opsem.registers.html#ct1"><span class="id" title="definition">ct1</span></a> <a class="idref" href="griotte.opsem.registers.html#ct2"><span class="id" title="definition">ct2</span></a> <span class="comment">(*&nbsp;ct0&nbsp;-&gt;&nbsp;switcher&nbsp;entry&nbsp;point&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a> <a class="idref" href="griotte.case_studies.macros.fetch.html#fetch_instrs"><span class="id" title="definition">fetch_instrs</span></a> 2 <a class="idref" href="griotte.opsem.registers.html#ct1"><span class="id" title="definition">ct1</span></a> <a class="idref" href="griotte.opsem.registers.html#ct2"><span class="id" title="definition">ct2</span></a> <a class="idref" href="griotte.opsem.registers.html#ct3"><span class="id" title="definition">ct3</span></a> <span class="comment">(*&nbsp;ct1&nbsp;-&gt;&nbsp;{B.f}_(ot_switcher)&nbsp;&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_parameters.html#encodeInstrsW"><span class="id" title="definition">encodeInstrsW</span></a> <span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Mov"><span class="id" title="constructor">Mov</span></a> <a class="idref" href="griotte.opsem.registers.html#cs0"><span class="id" title="definition">cs0</span></a> <a class="idref" href="griotte.opsem.registers.html#cra"><span class="id" title="definition">cra</span></a><span class="id" title="notation">;</span> <span class="comment">(*&nbsp;stores&nbsp;the&nbsp;return-to-switcher&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;clear&nbsp;the&nbsp;arguments&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Jalr"><span class="id" title="constructor">Jalr</span></a> <a class="idref" href="griotte.opsem.registers.html#cra"><span class="id" title="definition">cra</span></a> <a class="idref" href="griotte.opsem.registers.html#ct0"><span class="id" title="definition">ct0</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Mov"><span class="id" title="constructor">Mov</span></a> <a class="idref" href="griotte.opsem.registers.html#cra"><span class="id" title="definition">cra</span></a> <a class="idref" href="griotte.opsem.registers.html#cs0"><span class="id" title="definition">cs0</span></a><span class="id" title="notation">;</span> <span class="comment">(*&nbsp;restores&nbsp;the&nbsp;return-to-switcher&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;--&nbsp;return&nbsp;from&nbsp;the&nbsp;call&nbsp;--&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;assert&nbsp;b&nbsp;==&nbsp;42&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Load"><span class="id" title="constructor">Load</span></a> <a class="idref" href="griotte.opsem.registers.html#ct0"><span class="id" title="definition">ct0</span></a> <a class="idref" href="griotte.opsem.registers.html#cgp"><span class="id" title="definition">cgp</span></a><span class="id" title="notation">;</span> <span class="comment">(*&nbsp;ct0&nbsp;-&gt;&nbsp;c&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Mov"><span class="id" title="constructor">Mov</span></a> <a class="idref" href="griotte.opsem.registers.html#ct1"><span class="id" title="definition">ct1</span></a> 42%<span class="id" title="var">Z</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a> <a class="idref" href="griotte.case_studies.macros.assert.html#assert_instrs"><span class="id" title="definition">assert_instrs</span></a> 1 <a class="idref" href="griotte.opsem.registers.html#ct2"><span class="id" title="definition">ct2</span></a> <a class="idref" href="griotte.opsem.registers.html#ct3"><span class="id" title="definition">ct3</span></a> <a class="idref" href="griotte.opsem.registers.html#ct4"><span class="id" title="definition">ct4</span></a> <span class="comment">(*&nbsp;asserts&nbsp;that&nbsp;(&nbsp;*ct0&nbsp;=&nbsp;*ct1&nbsp;)&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#bc347c51eaf667706ae54503b26d52c6"><span class="id" title="notation">++</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_parameters.html#encodeInstrsW"><span class="id" title="definition">encodeInstrsW</span></a> <span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;erase&nbsp;returned&nbsp;values&nbsp;from&nbsp;the&nbsp;call&nbsp;*)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Mov"><span class="id" title="constructor">Mov</span></a> <a class="idref" href="griotte.opsem.registers.html#ca0"><span class="id" title="definition">ca0</span></a> 0<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Mov"><span class="id" title="constructor">Mov</span></a> <a class="idref" href="griotte.opsem.registers.html#ca1"><span class="id" title="definition">ca1</span></a> 0<span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_instructions.html#Halt"><span class="id" title="constructor">Halt</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;"main_e" *)</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="droe_main_data" class="idref" href="#droe_main_data"><span class="id" title="definition">droe_main_data</span></a> : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="griotte.opsem.machine_word.html#Word"><span class="id" title="inductive">Word</span></a> := <span class="id" title="notation">[</span><a class="idref" href="griotte.opsem.machine_word.html#WInt"><span class="id" title="constructor">WInt</span></a> 0<span class="id" title="notation">;</span> <a class="idref" href="griotte.opsem.machine_word.html#WInt"><span class="id" title="constructor">WInt</span></a> 0<span class="id" title="notation">]</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="droe_main_imports" class="idref" href="#droe_main_imports"><span class="id" title="definition">droe_main_imports</span></a> `{<a id="H:3" class="idref" href="#H:3"><span class="id" title="binder">!</span></a><a id="H:3" class="idref" href="#H:3"><span class="id" title="binder">switcherLayout</span></a>} `{<a id="H0:4" class="idref" href="#H0:4"><span class="id" title="binder">!</span></a><a id="H0:4" class="idref" href="#H0:4"><span class="id" title="binder">assertLayout</span></a>}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(<a id="B_f:5" class="idref" href="#B_f:5"><span class="id" title="binder">B_f</span></a> : <a class="idref" href="griotte.opsem.machine_word.html#Sealable"><span class="id" title="inductive">Sealable</span></a>) : <a class="idref" href="http://rocq-prover.org/doc/V9.1.1/stdlib//Corelib.Init.Datatypes.html#list"><span class="id" title="inductive">list</span></a> <a class="idref" href="griotte.opsem.machine_word.html#Word"><span class="id" title="inductive">Word</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">[</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_word.html#WSentry"><span class="id" title="constructor">WSentry</span></a> <a class="idref" href="griotte.opsem.permissions.html#XSRW_"><span class="id" title="abbreviation">XSRW_</span></a> <a class="idref" href="griotte.opsem.permissions.html#Local"><span class="id" title="constructor">Local</span></a> <a class="idref" href="griotte.switcher.switcher.html#b_switcher"><span class="id" title="method">b_switcher</span></a> <a class="idref" href="griotte.switcher.switcher.html#e_switcher"><span class="id" title="method">e_switcher</span></a> <a class="idref" href="griotte.switcher.switcher.html#a_switcher_call"><span class="id" title="method">a_switcher_call</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_word.html#WSentry"><span class="id" title="constructor">WSentry</span></a> <a class="idref" href="griotte.opsem.permissions.html#RX"><span class="id" title="abbreviation">RX</span></a> <a class="idref" href="griotte.opsem.permissions.html#Global"><span class="id" title="constructor">Global</span></a> <a class="idref" href="griotte.case_studies.macros.assert.html#b_assert"><span class="id" title="method">b_assert</span></a> <a class="idref" href="griotte.case_studies.macros.assert.html#e_assert"><span class="id" title="method">e_assert</span></a> <a class="idref" href="griotte.case_studies.macros.assert.html#b_assert"><span class="id" title="method">b_assert</span></a><span class="id" title="notation">;</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="griotte.opsem.machine_word.html#WSealed"><span class="id" title="constructor">WSealed</span></a> <a class="idref" href="griotte.switcher.switcher.html#ot_switcher"><span class="id" title="method">ot_switcher</span></a> <a class="idref" href="griotte.case_studies.droe.deep_immutability.html#B_f:5"><span class="id" title="variable">B_f</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">]</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="griotte.case_studies.droe.deep_immutability.html#DROE_Main"><span class="id" title="section">DROE_Main</span></a>.<br/>
+</div>
+</div>
+<div id="footer">
+  Generated by <a href="http://coq.inria.fr/">coqdoc</a> and improved with <a href="https://github.com/tebbi/coqdocjs">CoqdocJS</a>
+</div>
+</div>
+</body>
+
+</html>
