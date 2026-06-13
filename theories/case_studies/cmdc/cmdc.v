@@ -83,4 +83,7 @@ Section CMDC_Main.
       WSealed ot_switcher C_g
     ].
 
+  Definition cmdc_B_f_args : nat := 1.
+  Definition cmdc_C_g_args : nat := 1.
+
 End CMDC_Main.
