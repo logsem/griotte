@@ -77,7 +77,7 @@ failed).
 dune build --display short -jN  # replace N with the number of CPU cores of your machine
 ```
 
-We recommend that you have **32Gb of RAM+swap**. Please be aware that the
+We recommend that you have **16Gb of RAM+swap**. Please be aware that the
 development takes around 1 to 2 hours to compile. 
 
 ## Checking for admits
@@ -301,8 +301,10 @@ for an executing program is Seq (Instr Executable).
 
 In the model:
 
-| *name in paper*     | *name in mechanisation* |
-|---------------------|-------------------------|
-| stsCollection       | full_sts_world          |
-| sharedResources     | region                  |
-| temporal transition | std_rel_pub        |
+| *name in paper*    | *name in mechanisation* |
+|--------------------|-------------------------|
+| stsCollection      | full_sts_world          |
+| sharedResources    | region                  |
+| stsRes             | world_interp            |
+| public transition  | std_rel_pub             |
+| private transition | std_rel_priv            |
