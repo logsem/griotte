@@ -11,7 +11,7 @@ Section std_updates.
 
   Context {Σ:gFunctors}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
     `{MP: MachineParameters}.
 
   Implicit Types W : WORLD.
@@ -43,15 +43,21 @@ Section std_updates.
      induction l; auto.
    Qed.
 
-   Lemma std_update_multiple_proj_eq W Wloc l ρ :
-     ( ( std (std_update_multiple W l ρ) , Wloc)) = std_update_multiple ( (std W, Wloc)) l ρ.
+   Lemma std_update_multiple_seals W l ρ :
+     seal_std (std_update_multiple W l ρ) = seal_std W.
+   Proof.
+     induction l; auto.
+   Qed.
+
+   Lemma std_update_multiple_proj_eq W Wloc Wseals l ρ :
+     ( ( std (std_update_multiple W l ρ) , Wloc , Wseals)) = std_update_multiple ( (std W, Wloc,  Wseals)) l ρ.
    Proof.
      destruct W as [Wsta Wloc']. simpl. induction l; auto.
      simpl. rewrite -IHl. auto.
    Qed.
 
-   Lemma std_update_multiple_std_sta_eq W Wloc l ρ :
-     std (std_update_multiple W l ρ) = std (std_update_multiple ((std W, Wloc)) l ρ).
+   Lemma std_update_multiple_std_sta_eq W Wloc  Wseals l ρ :
+     std (std_update_multiple W l ρ) = std (std_update_multiple ((std W, Wloc,  Wseals)) l ρ).
    Proof.
      destruct W as [Wsta Wloc']. simpl. induction l; auto.
      simpl. rewrite -IHl. auto.
@@ -285,11 +291,14 @@ Section std_updates.
      related_sts_pub_world (std_update_multiple W l ρ) (std_update_multiple W' l ρ).
    Proof.
      intros Hrelated.
-     destruct W as [Wstd_sta [Wloc_sta Wloc_rel] ].
-     destruct W' as [ Wstd_sta' [Wloc_sta' Wloc_rel'] ].
-     destruct Hrelated as [ [Hstd_dom1 Hstd_related ] Hcus_related].
+     destruct W as [ [Wstd_sta [Wloc_sta Wloc_rel] ] Wseals ].
+     destruct W' as [ [ Wstd_sta' [Wloc_sta' Wloc_rel']  ] Wseals' ].
+     destruct Hrelated as ([Hstd_dom1 Hstd_related ] & Hcus_related & Wseals_related).
      simpl in *.
-     split;[clear Hcus_related|by repeat rewrite std_update_multiple_loc_rel std_update_multiple_loc_sta].
+     split;[|split]
+     ; [clear Hcus_related
+       |by repeat rewrite std_update_multiple_loc_rel std_update_multiple_loc_sta
+       |by repeat rewrite std_update_multiple_seals].
      split.
      - apply std_update_multiple_std_sta_dom_monotone. auto.
      - intros i x y Hx Hy.
@@ -418,8 +427,8 @@ Section std_updates.
      std_update_multiple (std_update_multiple W l ρ1) l ρ2 = std_update_multiple W l ρ2.
    Proof.
      induction l;auto.
-     simpl. destruct W as [Wstd Wloc]. rewrite /std_update /=.
-     rewrite !std_update_multiple_cus /=; f_equiv.
+     simpl. destruct W as [ [Wstd Wloc] Wseals]. rewrite /std_update /=.
+     rewrite !std_update_multiple_cus !std_update_multiple_seals /=; do 2 f_equiv.
      apply map_eq'. intros k v.
      destruct (decide (a = k)).
      + subst. rewrite !lookup_insert_eq. auto.
@@ -446,7 +455,7 @@ Section std_updates.
   Proof.
     intros Ha.
     rewrite /related_sts_pub_world /=.
-    split;[|apply related_sts_pub_refl].
+    split;[|split];[|apply related_sts_pub_refl|apply related_sts_seals_std_refl].
     rewrite /related_sts_pub. split.
     - rewrite dom_insert_L. set_solver.
     - intros i x y Hx Hy.
@@ -488,7 +497,7 @@ Section std_updates.
    Proof.
      intros Ha.
      rewrite /related_sts_pub_world /=.
-     split;[|apply related_sts_pub_refl].
+     split;[|split];[|apply related_sts_pub_refl|apply related_sts_seals_std_refl].
      rewrite /related_sts_pub. split.
      - rewrite dom_insert_L. set_solver.
      - intros i x y Hx Hy.
@@ -509,7 +518,7 @@ Section std_updates.
    Proof.
      intros Ha.
      rewrite /related_sts_pub_world /=.
-     split;[|apply related_sts_pub_refl].
+     split;[|split];[|apply related_sts_pub_refl|apply related_sts_seals_std_refl].
      rewrite /related_sts_pub. split.
      - rewrite dom_insert_L. set_solver.
      - intros i x y Hx Hy.

@@ -14,7 +14,7 @@ Section SO.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -102,8 +102,8 @@ Section SO.
     ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
         ((b_so_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run))))
-    ∗ WSealed ot_switcher (SCap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)
-        ↦□ₑ 2
+    ∗ WSealed ot_switcher (SCap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
+    ∗ WSealed ot_switcher (SCap RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
     ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
     ot_switcher_prop W C (WCap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a).
@@ -116,7 +116,8 @@ Section SO.
       & #Hso_exp_PCC
       & #Hso_exp_CGP
       & #Hso_exp_awkward
-      & #Hentry_SO & #Hot_switcher)".
+      & #Hentry_SO & #Hentry_SO_borrow
+      & #Hot_switcher)".
     iExists g_so_exp_tbl, b_so_exp_tbl, e_so_exp_tbl, (b_so_exp_tbl ^+ 2)%a,
     pc_b, pc_e, cgp_b, cgp_e, 2, _, SON.
     iFrame "#".
@@ -223,7 +224,7 @@ Section SO.
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
@@ -263,8 +264,8 @@ Section SO.
       apply Forall_cons in Hl as [Ha Hl]
       ; apply IHl in Hl
       ; destruct Ha as [Ha | Ha]
-      ; [ assert (W0.1 !! a ≠ Some Temporary) as Ha' by (intro ; simplify_map_eq)
-        | assert (W0.1 !! a ≠ Some Permanent) as Ha' by (intro ; simplify_map_eq) ]
+      ; [ assert (std W0 !! a ≠ Some Temporary) as Ha' by (intro ; simplify_map_eq)
+        | assert (std W0 !! a ≠ Some Permanent) as Ha' by (intro ; simplify_map_eq) ]
       ; rewrite (decide_True _ _ Ha); auto; rewrite (decide_False _ _ Ha'); auto
       ; cbn ; [|rewrite -Permutation_middle] ; rewrite -Hl; done.
     }
@@ -368,12 +369,12 @@ Section SO.
       setoid_rewrite Hwca0_range.
       iDestruct (big_sepL_app with "Hinterp_wca0_invs") as "[H _]".
       iDestruct "H" as "#H".
-      assert (Forall (λ a : finz MemNum, W0.1 !! a = Some Permanent) la_be_permanents) as Hla_be_permanents.
+      assert (Forall (λ a : finz MemNum, std W0 !! a = Some Permanent) la_be_permanents) as Hla_be_permanents.
       { subst la_be_permanents.
         clear.
         induction (finz.seq_between b e); first done.
         cbn.
-        destruct ( decide (W0.1 !! a = Some Permanent) ); last done.
+        destruct ( decide (std W0 !! a = Some Permanent) ); last done.
         apply Forall_cons; split ;auto.
       }
       generalize la_be_permanents, Hla_be_permanents.
@@ -436,7 +437,7 @@ Section SO.
         iDestruct "Hl" as "[$ Hl]".
         iApply IHl; eauto.
     }
-    assert (Forall (λ a : finz MemNum, (revoke W0).1 !! a = Some Revoked) la_be_temporaries) as
+    assert (Forall (λ a : finz MemNum, std (revoke W0) !! a = Some Revoked) la_be_temporaries) as
       Hrevoked_la_be_temporaries.
     { clear - Hl_wca0_l' Hl_revoked_W0.
       rewrite /revoked_addresses in Hl_revoked_W0.
@@ -846,7 +847,7 @@ Section SO.
       { by apply isWL_nonO. }
       rewrite /monoReq !Hpastk1_wl.
       iSplit.
-      + replace (W0.1 !! a_stk1) with (Some Temporary); first iApply "Hmono_Pastk1".
+      + replace (std W0 !! a_stk1) with (Some Temporary); first iApply "Hmono_Pastk1".
         assert (a_stk1 ∈ finz.seq_between csp_b csp_e) as Hastk1_range.
         { rewrite elem_of_finz_seq_between.
           solve_addr+Hastk1 Hcsp_size' Hcsp_size.
@@ -876,12 +877,12 @@ Section SO.
     assert (related_sts_priv_world W0 W3) as Hrelated_priv_W0_W3.
     { eapply related_sts_priv_pub_trans_world; eauto. }
 
-    assert (W0.1 !! a_stk1 = Some Temporary) as Ha_stk1_W0.
+    assert (std W0 !! a_stk1 = Some Temporary) as Ha_stk1_W0.
     { apply Hl_revoked_W0_temporaries.
       apply elem_of_app; right.
       apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'.
     }
-    assert (W3.1 !! a_stk1 = Some Temporary) as Ha_stk1_W3.
+    assert (std W3 !! a_stk1 = Some Temporary) as Ha_stk1_W3.
     {
       apply close_list_lookup_in; last set_solver+.
       rewrite close_list_lookup_not_in.
@@ -943,7 +944,7 @@ Section SO.
     iDestruct "Hstack_revoked_W0" as "[Hstack_revoked_W0_a_stk2 Hstack_revoked_W0]".
     (* Prepare the closing resources for the switcher call spec *)
     assert (
-        Forall (λ k : finz MemNum, W3.1 !! k = Some Revoked) (finz.seq_between a_stk2 csp_e)
+        Forall (λ k : finz MemNum, std W3 !! k = Some Revoked) (finz.seq_between a_stk2 csp_e)
       ) as HW3_revoked_callee_frm.
     {
       apply Forall_forall; intros x Hx.
@@ -1275,7 +1276,7 @@ Section SO.
         ; apply list_elem_of_filter in Hx as [Hx Hx']; first done.
         assert (x ∈ finz.seq_between b e)
           as Hx_be by (by apply list_elem_of_filter in Hx as [_ ?]).
-        assert ( W0.1 !! x = Some Temporary )
+        assert ( std W0 !! x = Some Temporary )
           as Hx_W0 by (by apply list_elem_of_filter in Hx as [? _]).
         apply Hl_revoked_W0_temporaries in Hx_W0.
         apply elem_of_app in Hx_W0 as [Hx_W0|Hx_W0]; auto.
@@ -1310,8 +1311,8 @@ Section SO.
         + apply elem_of_app; right.
           rewrite elem_of_finz_seq_between; solve_addr+Hcsp_size' Hastk1.
       }
-      destruct W4 as [W4std W4cus]; cbn.
-      split; cbn; last apply related_sts_pub_refl.
+      destruct W4 as [ [W4std W4cus] W4seals]; cbn.
+      split;[|split]; [ | apply related_sts_pub_refl | apply related_sts_seals_std_refl ];cbn.
       split; first (by setoid_rewrite <- close_list_dom_eq; setoid_rewrite <- revoke_dom_eq).
       clear a.
       intros a ρ4 ρ5 Ha_4 Ha_6.
@@ -1345,15 +1346,22 @@ Section SO.
         apply elem_of_app in Ha as [Ha|Ha]; last (by apply elem_of_app; right).
          by do 2 (apply elem_of_app; left).
       }
-      destruct W0 as [W0std W0cus]; cbn.
-      destruct W4 as [W4std W4cus]; cbn.
-      split; cbn; cycle 1.
-      { destruct Hrelated_priv_W0_W3 as [_ H_W0_W3].
-        destruct Hrelated_pub_W3_W4 as [_ H_W3_W4].
+      destruct W0 as [ [W0std W0cus] W0seals ]; cbn.
+      destruct W4 as [ [W4std W4cus] W4seals ]; cbn.
+      split;[|split]; cbn; cycle 1.
+      { destruct Hrelated_priv_W0_W3 as (_ & H_W0_W3 & _).
+        destruct Hrelated_pub_W3_W4 as (_ & H_W3_W4 & _).
         clear -H_W0_W3 H_W3_W4.
         cbn in *.
         eapply related_sts_pub_trans; eauto.
         apply related_sts_pub_refl.
+      }
+      { destruct Hrelated_priv_W0_W3 as (_ & _ & H_W0_W3).
+        destruct Hrelated_pub_W3_W4 as (_ & _ & H_W3_W4).
+        clear -H_W0_W3 H_W3_W4.
+        cbn in *.
+        eapply related_sts_seals_trans; eauto.
+        apply related_sts_seals_std_refl.
       }
       split.
       {
@@ -1378,7 +1386,7 @@ Section SO.
       - (* Permanent in W0 *)
         assert (std W3 !! a = Some Permanent) as Ha_3.
         { eapply region_state_priv_perm; eauto. }
-        assert (std (W4std, W4cus) !! a = Some Permanent) as Ha_4.
+        assert (std (W4std, W4cus, W4seals) !! a = Some Permanent) as Ha_4.
         { eapply region_state_priv_perm; eauto.
           by apply related_sts_pub_priv_world.
         }
@@ -1526,66 +1534,6 @@ Section SO.
     * apply elem_of_app; right; done.
     }
     { iSplit; iApply interp_int. }
-  Qed.
-
-
-  Lemma stack_object_f_spec_safe
-
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-
-    (b_so_exp_tbl e_so_exp_tbl : Addr)
-
-    (C_f : Sealable)
-
-    (W : WORLD)
-
-    (Nassert Nswitcher Nso SON : namespace)
-
-    :
-
-    let imports := so_main_imports C_f in
-
-    Nswitcher ## Nassert ->
-    Nswitcher ## Nso ->
-    Nassert ## Nso ->
-    (b_so_exp_tbl <= b_so_exp_tbl ^+ 2 < e_so_exp_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
-    (pc_b + length imports)%a = Some pc_a ->
-    (cgp_b + length so_main_data)%a = Some cgp_e ->
-
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv cerise_nais Nswitcher switcher_inv
-    ∗ na_inv cerise_nais Nso
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
-    ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
-    ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
-        ((b_so_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run))))
-    ∗ WSealed ot_switcher (SCap RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)
-        ↦□ₑ 2
-    ∗ WSealed ot_switcher (SCap RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)
-        ↦□ₑ 2
-    ∗ seal_pred ot_switcher ot_switcher_propC
-      -∗
-    interp W C
-      (WSealed ot_switcher (SCap RO Global b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a)).
-  Proof.
-    intros imports.
-    iIntros (Hswitcher_assert HNswitcher_so HNassert_so
-               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size)
-      "(#Hassert & #Hswitcher
-      & #Hso_code
-      & #Hso_exp_PCC
-      & #Hso_exp_CGP
-      & #Hso_exp_awkward
-      & #Hentry_SO & #Hentry_SO' & #Hot_switcher)".
-    iEval (rewrite fixpoint_interp1_eq /=).
-    rewrite /interp_sb.
-    iFrame "Hot_switcher".
-    iSplit; [iPureIntro; apply persistent_cond_ot_switcher |].
-    iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
-    iSplit; iNext ; iApply stack_object_f_spec; try iFrame "#"; eauto.
   Qed.
 
 End SO.

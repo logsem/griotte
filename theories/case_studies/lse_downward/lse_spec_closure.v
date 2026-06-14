@@ -10,7 +10,7 @@ Section LSE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -59,8 +59,8 @@ Section LSE.
     ∗ inv (export_table_CGPN LSEN) ((b_lse_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN LSEN (b_lse_exp_tbl ^+ 2)%a)
         ((b_lse_exp_tbl ^+ 2)%a ↦ₐ lse_exp_tbl_entry_f)
-    ∗ WSealed ot_switcher (SCap RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a)
-        ↦□ₑ 0
+    ∗ WSealed ot_switcher (SCap RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
+    ∗ WSealed ot_switcher (SCap RO Local b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
     ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
     ot_switcher_prop W C (WCap RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a).
@@ -73,7 +73,8 @@ Section LSE.
       & #Hlse_exp_PCC
       & #Hlse_exp_CGP
       & #Hlse_exp_f
-      & #Hentry_LSE & #Hot_switcher)".
+      & #Hentry_LSE & #Hentry_LSE_borrow
+      & #Hot_switcher)".
     iExists g_lse_exp_tbl, b_lse_exp_tbl, e_lse_exp_tbl, (b_lse_exp_tbl ^+ 2)%a,
     pc_b, pc_e, cgp_b, cgp_e, 0, _, LSEN.
     iFrame "#".
@@ -135,7 +136,7 @@ Section LSE.
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
@@ -260,69 +261,5 @@ Section LSE.
     { intros a; destruct Hl_unk as [_ Hl_unk]; destruct (Hl_unk a); auto. }
     { iSplit; iApply interp_int. }
   Qed.
-
-  Lemma lse_awkward_safe
-
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-
-    (b_lse_exp_tbl e_lse_exp_tbl : Addr)
-
-    (C_f : Sealable)
-
-    (W : WORLD)
-
-    (Nassert Nswitcher Nlse LSEN : namespace)
-
-    :
-
-    let imports := lse_main_imports C_f in
-
-    Nswitcher ## Nassert ->
-    Nswitcher ## Nlse ->
-    Nassert ## Nlse ->
-    (b_lse_exp_tbl <= b_lse_exp_tbl ^+ 2 < e_lse_exp_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ->
-    (pc_b + length imports)%a = Some pc_a ->
-    (cgp_b + length lse_main_data)%a = Some cgp_e ->
-
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv cerise_nais Nswitcher switcher_inv
-    ∗ na_inv cerise_nais Nlse
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
-         ∗ codefrag pc_a lse_main_code
-         ∗ cgp_b ↦ₐ WInt 2
-        )
-    ∗ inv (export_table_PCCN LSEN) (b_lse_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN LSEN) ((b_lse_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
-    ∗ inv (export_table_entryN LSEN (b_lse_exp_tbl ^+ 2)%a)
-        ((b_lse_exp_tbl ^+ 2)%a ↦ₐ lse_exp_tbl_entry_f)
-    ∗ WSealed ot_switcher (SCap RO Global b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a)
-        ↦□ₑ 0
-    ∗ WSealed ot_switcher (SCap RO Local b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a)
-        ↦□ₑ 0
-    ∗ seal_pred ot_switcher ot_switcher_propC
-      -∗
-    interp W C
-      (WSealed ot_switcher (SCap RO Global b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a)).
-  Proof.
-    intros imports; subst imports.
-    iIntros (Hswitcher_assert HNswitcher_lse HNassert_lse
-               Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size)
-      "(#Hassert & #Hswitcher
-      & #Hlse_code
-      & #Hlse_exp_PCC
-      & #Hlse_exp_CGP
-      & #Hlse_exp_awkward
-      & #Hentry_LSE & #Hentry_LSE' & #Hot_switcher
-      )".
-    iEval (rewrite fixpoint_interp1_eq /=).
-    rewrite /interp_sb.
-    iFrame "Hot_switcher".
-    iSplit; [iPureIntro; apply persistent_cond_ot_switcher |].
-    iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
-    iSplit; iNext ; iApply lse_f_spec; try iFrame "#"; eauto.
-  Qed.
-
 
 End LSE.

@@ -7,27 +7,16 @@ Section stack_object_helpers.
 
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG} {CNames : gset CmptName}
+    {stsg : STSG Addr region_type OType Word Σ}
+    {relg : relGS Σ}
     `{MP: MachineParameters}
   .
   Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-
-  (* TODO This theorem is essentially [reinstate_world], but with different RevokedResources *)
-  (* Lemma reinstate_close_list W W' C' (l : list Addr) : *)
-  (*   related_sts_pub_world W (close_list l W') -> *)
-  (*   world_interp W' C' ∗ (close_list_resources C' W l false) *)
-  (*   ==∗ *)
-  (*   world_interp (reinstate W' l) C'. *)
-  (* Proof. *)
-  (*   rewrite world_interp_eq /world_interp_def. *)
-  (*   iIntros (Hrelated) "( [Hr Hsts] & Htemp)". *)
-  (*   iMod (monotone_close_list_region with "[] [$Hsts $Hr $Htemp]") as "[$ $]"; auto. *)
-  (* Qed. *)
 
   Lemma open_world_interp_list (W : WORLD) (C' : CmptName)
     (l : list (Addr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
@@ -55,7 +44,7 @@ Section stack_object_helpers.
   Proof.
     intros la.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (????) "(Hrels & [Hr Hsts])".
+    iIntros (????) "(Hrels & [Hr [Hsts Hseals] ])".
     iDestruct (region_open_list W C' l l' with "[$Hrels $Hr $Hsts]") as
       "(% & $ & $ & $ & $ & $ & $ & $)"; auto.
   Qed.
@@ -84,7 +73,7 @@ Section stack_object_helpers.
   Proof.
     intros la.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (?????) "([Hr $] & Hstd & Hv & Hmono & Hφ & Hrel & Hp)".
+    iIntros (?????) "([Hr $ ] & Hstd & Hv & Hmono & Hφ & Hrel & Hp)".
     iDestruct (region_close_list with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hp]") as "$"; auto.
   Qed.
 

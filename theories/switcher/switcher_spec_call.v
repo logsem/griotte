@@ -14,7 +14,7 @@ Section Switcher.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -653,17 +653,18 @@ Section Switcher.
       done.
     }
     rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher w_entry_point)).
-    iDestruct "Htarget_v" as (P HpersP) "(HmonoP & HPseal & HP & HPborrow)".
-    iDestruct (seal_pred_agree with "Hp_ot_switcher HPseal") as "Hagree".
-    iSpecialize ("Hagree" $! (W,C,WSealable w_entry_point)).
+    iEval (cbn) in "Htarget_v".
+    rewrite /interp_sb.
+    iAssert (sts_seals_std C ot_switcher {[WSealable w_entry_point]}) as "#Htarget_v'".
+    { iApply sts_seals_std_weaken; last iFrame "Htarget_v"; last set_solver+. }
+    iDestruct (world_interp_seal_pred_singleton with "Hp_ot_switcher Htarget_v' Hworld_interp")
+      as "(Hworld_interp & #HP)".
     iInstr "Hcode";[done|..].
     { rewrite /withinBounds. solve_addr. }
-    iSimpl in "Hagree".
-    iRewrite -"Hagree" in "HP".
-    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & Hexec)". simpl fst. simpl snd.
-    inversion Heq.
-
-    (* iDestruct (entry_agree _ nargs nargs0 with "Hentry Hentry'") as "<-". *)
+    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & #Hentry'_borrow & Hexec)".
+    simpl fst; simpl snd.
+    destruct w_entry_point; cbn in Heq; simplify_eq.
+    iEval (cbn) in "Hentry'"; iEval (cbn) in "Hentry'_borrow".
 
     (* --- Load cs0 ct1 --- *)
     wp_instr.
@@ -755,9 +756,9 @@ Section Switcher.
     iSplitL "Hargs".
     { destruct is_entry_point_known.
       + iDestruct "Hargs" as "(%nargs0 & Hentry & Hargs)".
-        iEval (cbn) in "Hentry'".
-        iDestruct (entry_agree _ nargs nargs0 with "Hentry' Hentry") as "<-".
-        iFrame.
+        destruct g.
+        * iDestruct (entry_agree _ nargs nargs0 with "Hentry' Hentry") as "<-"; iFrame.
+        * iDestruct (entry_agree _ nargs nargs0 with "Hentry'_borrow Hentry") as "<-"; iFrame.
       + iApply (big_sepM_impl with "Hargs").
         iIntros "!> %k %w' _ [$ Hinterp]".
         destruct ( decide (k ∈ dom_arg_rmap nargs) ) ; auto.
