@@ -11,13 +11,12 @@ From griotte Require Import interp_switcher_return switcher_helpers.
 From griotte Require Import map_simpl register_tactics proofmode.
 From griotte Require Import switcher_spec_call_blocks switcher_spec_return_blocks.
 
-
 Section fundamental.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -849,17 +848,19 @@ Section fundamental.
     (* get the seal inv and compare with wsb *)
     iDestruct ("Hreg" $! ct1 with "[//] [//]") as "#Hct1v".
     rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher wsb)).
-    iDestruct "Hct1v" as (P HpersP) "(HmonoP & HPseal & HP & HPborrow)".
-    iDestruct (seal_pred_agree with "Hp_ot_switcher HPseal") as "Hagree".
-    iSpecialize ("Hagree" $! (W,C,WSealable wsb)).
+    iEval (cbn) in "Hct1v".
+    rewrite /interp_sb.
+    iAssert (sts_seals_std C ot_switcher {[WSealable wsb]}) as "#Hct1v'".
+    { iApply sts_seals_std_weaken; last iFrame "Hct1v"; last set_solver+. }
+    iDestruct (world_interp_seal_pred_singleton with "Hp_ot_switcher Hct1v' Hworld_interp")
+      as "(Hworld_interp & #HP)".
 
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
-    iSimpl in "Hagree".
-    iRewrite -"Hagree" in "HP".
-    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & Hexec)".
-    simpl fst. simpl snd.
-    inversion Heq.
+    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & #Hentry_borrow & Hexec)".
+    simpl fst; simpl snd.
+    destruct wsb; cbn in Heq; simplify_eq.
+    iEval (cbn) in "Hentry"; iEval (cbn) in "Hentry_borrow".
     iApply (switcher_call_block_7_after_unseal_spec with
       "[- $Htbl3 $HPC $Hcs0 $Hct1 $Hct2 $Hcode]"); eauto; iNext.
     iIntros "(HPC & Hcs0 & Hct1 & Hct2 & Hcode)".

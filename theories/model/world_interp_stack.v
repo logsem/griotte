@@ -10,7 +10,7 @@ Section WorldInterpStack.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
@@ -39,7 +39,7 @@ Section WorldInterpStack.
   .
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (???) "(#Hinterp & [Hr Hsts] )"; cbn in * |- *.
+    iIntros (???) "(#Hinterp & [Hr [Hsts $ ] ] )"; cbn in * |- *.
     iDestruct (region_open_list_interp_gen _ _ _ _
                 with "[$Hinterp $Hr $Hsts]") as "[$ $]"; eauto.
   Qed.
@@ -59,7 +59,7 @@ Section WorldInterpStack.
    world_interp_open W C la'.
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (???) "([Hr Hsts] & Hres )"; cbn in * |- *.
+    iIntros (???) "([Hr [Hsts $ ] ] & Hres )"; cbn in * |- *.
     iDestruct (region_close_list_interp_gen with "[$Hres $Hr]") as "$"; eauto.
   Qed.
 
@@ -79,9 +79,11 @@ Section WorldInterpStack.
       ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
   Proof.
      rewrite world_interp_eq /world_interp_def.
-     iIntros "(Hinterp & [Hr Hsts])".
+     iIntros "(Hinterp & [Hr [Hsts Hseals ] ])".
      iMod (monotone_revoke_stack with "[$Hinterp $Hr $ Hsts]")
         as (l) "($ & $ & $ & $ & $ & $ & $ & $)"; eauto.
+    iDestruct (sealing_map_monotone with "Hseals") as "$"; auto.
+    apply revoke_related_sts_priv_world.
   Qed.
 
   Lemma world_interp_reinstate_stack
@@ -99,9 +101,12 @@ Section WorldInterpStack.
     world_interp (std_update_multiple W la Temporary) C.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros (???) "[Hr Hsts] Hres Hl".
+    iIntros (???) "[Hr [Hsts Hseals ] ] Hres Hl".
     iMod (update_region_revoked_temp_pwl_multiple
            with "Hsts Hr [Hres] [Hl]") as "[$ $]"; eauto.
+    iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    - by rewrite std_update_multiple_seals.
+    - apply related_sts_pub_update_multiple_temp; done.
   Qed.
 
 End WorldInterpStack.

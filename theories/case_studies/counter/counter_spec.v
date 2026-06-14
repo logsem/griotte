@@ -9,7 +9,7 @@ Section Counter.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -31,10 +31,12 @@ Section Counter.
   Proof.
     intros * Htemporaries_W0 Hrevoked_W3 Hrelated_pub_W1_W2.
 
-    destruct W0 as [W0_std W0_cus], W2 as [W2_std W2_cus]; cbn.
-    destruct Hrelated_pub_W1_W2 as [HW1_W2_std HW1_W2_cus].
-    split; cbn; cycle 1.
+    destruct W0 as [ [W0_std W0_cus] W0_seals],
+               W2 as [ [W2_std W2_cus] W2_seals]; cbn.
+    destruct Hrelated_pub_W1_W2 as (HW1_W2_std & HW1_W2_cus & HW1_W2_seals).
+    split;[|split];cbn; cycle 1.
     { eapply related_sts_pub_trans; eauto; eapply related_sts_pub_refl. }
+    { eapply related_sts_seals_trans; eauto; eapply related_sts_seals_std_refl. }
     destruct HW1_W2_std as [HW1_W2_std_dom HW1_W2_std_t].
     cbn in *.
     split.
@@ -52,7 +54,7 @@ Section Counter.
         intro Hcontra; apply H in Hcontra. by rewrite Ha0 in Hcontra.
       }
       apply revoke_lookup_Perm in Ha0.
-      assert (std (revoke ((W0_std, W0_cus))) !! a = Some Permanent) as Ha0' by done.
+      assert (std (revoke ((W0_std, W0_cus, W0_seals))) !! a = Some Permanent) as Ha0' by done.
       rewrite -(std_sta_update_multiple_lookup_same_i _ (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary)
         in Ha0'.
       2: {
@@ -76,9 +78,9 @@ Section Counter.
       assert (a ∈ l ++ finz.seq_between csp_b csp_e) as Ha_in.
       { destruct (Htemporaries_W0 a) as [? _]; by apply Htemporaries_W0. }
       apply revoke_lookup_Monotemp in Ha0.
-      assert (std (revoke ((W0_std, W0_cus))) !! a = Some Revoked) as Ha0' by done.
+      assert (std (revoke ((W0_std, W0_cus, W0_seals))) !! a = Some Revoked) as Ha0' by done.
       assert (
-          std ((std_update_multiple (revoke (W0_std, W0_cus)) (finz.seq_between (csp_b ^+ 4)%a csp_e)
+          std ((std_update_multiple (revoke (W0_std, W0_cus, W0_seals)) (finz.seq_between (csp_b ^+ 4)%a csp_e)
                   Temporary)) !! a =
           Some (if (decide (a ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e)))
                 then Temporary
@@ -205,7 +207,7 @@ Section Counter.
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")

@@ -254,6 +254,19 @@ Definition load_word_perm (pload p : Perm) :=
                          )
   end.
 
+Definition force_global_sb (sb : Sealable) :=
+  match sb with
+  | SSealRange sp _ b e a => SSealRange sp Global b e a
+  | SCap p _ b e a => SCap p Global b e a
+  end.
+
+Definition force_global (w : Word) :=
+  match w with
+  | WSealable sb => WSealable (force_global_sb sb)
+  | WSentry p _ b e a => WSentry p Global b e a
+  | WSealed ot sb => WSealed ot (force_global_sb sb)
+  | _ => w
+  end.
 
 
 Definition PermFlowsToCap (p: Perm) (w: Word) : bool :=
@@ -625,6 +638,18 @@ Proof.
   destruct w as [| [|] | |]; cbn in *; simplify_eq; auto.
   destruct sb; cbn in *; auto; destruct g; cbn in *; auto.
 Qed.
+
+Lemma borrow_sb_idempotent (sb : Sealable) :
+  (borrow_sb (borrow_sb sb)) = (borrow_sb sb).
+Proof. by destruct sb; cbn. Qed.
+
+Lemma force_global_borrow_sb (sb : Sealable) :
+  (force_global_sb (borrow_sb sb)) = (force_global_sb sb).
+Proof. by destruct sb; cbn. Qed.
+
+Lemma force_global_borrow (w : Word) :
+  (force_global (borrow w)) = (force_global w).
+Proof. destruct w ; cbn; auto; rewrite force_global_borrow_sb; done.  Qed.
 
 Ltac entry_point_inj :=
   try ( apply seal_capability_inj; auto )

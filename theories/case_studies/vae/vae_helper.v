@@ -6,7 +6,7 @@ Section VAE_helper.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -116,6 +116,7 @@ Section VAE_helper.
     intros Hloc Hrel.
     rewrite /related_sts_priv_world /=.
     split; first apply related_sts_std_priv_refl.
+    split; last apply related_sts_seals_std_refl.
     split; [set_solver|split;[set_solver|] ].
     intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
     repeat (split; first done).
@@ -137,6 +138,7 @@ Section VAE_helper.
     intros Hloc Hrel.
     rewrite /related_sts_pub_world /=.
     split; first apply related_sts_std_pub_refl.
+    split; last apply related_sts_seals_std_refl.
     split; [set_solver|split;[set_solver|] ].
     intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
     repeat (split; first done).
@@ -157,7 +159,7 @@ Section VAE_helper.
     wrel W !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
     exists b' : bool, loc W' !! i = Some (encode b').
   Proof.
-    intros (_ & (Hdom_loc & Hdom_rel & Hrtc)) Hloc Hrel.
+    intros (_ & (Hdom_loc & Hdom_rel & Hrtc) & _) Hloc Hrel.
     assert (is_Some (loc W' !! i)) as [d' Hloc'].
     { apply elem_of_dom, Hdom_loc, elem_of_dom. eauto. }
     assert (is_Some (wrel W' !! i)) as [rr Hrel'].
@@ -177,7 +179,7 @@ Section VAE_helper.
     wrel W !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
     loc W' !! i = Some (encode true).
   Proof.
-    intros (_ & (Hdom_loc & Hdom_rel & Hrtc)) Hloc Hrel.
+    intros (_ & (Hdom_loc & Hdom_rel & Hrtc) & _) Hloc Hrel.
     assert (is_Some (loc W' !! i)) as [d' Hloc'].
     { apply elem_of_dom, Hdom_loc, elem_of_dom. eauto. }
     assert (is_Some (wrel W' !! i)) as [rr Hrel'].
@@ -226,7 +228,8 @@ Section VAE_helper.
       + apply revoke_related_sts_priv_world.
       + destruct Hrelated_pub_W2_W3 as
           (HW2_W3_std &
-           (Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3)).
+           (Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3) &
+           HW2_W3_seals).
         assert (exists d_W3, loc W3 !! i = Some d_W3) as [d_W3 Hd_W3].
         { apply elem_of_dom.
           apply Hdom_loc_2_3.
@@ -257,17 +260,16 @@ Section VAE_helper.
       + eapply (related_sts_priv_pub_trans_world _ W5); eauto.
     }
 
-    split; cbn; cycle 1.
-    - destruct W0 as [W0_std [W0_loc W0_rel] ].
-      destruct W3 as [W3_std [W3_loc W3_rel] ].
-      destruct W6 as [W6_std [W6_loc W6_rel] ].
-      cbn.
+    split; [|split]; cbn; cycle 1.
+    - destruct W0 as [ [W0_std [W0_loc W0_rel] ] W0_seals],
+          W3 as [ [W3_std [W3_loc W3_rel] ] W3_seals],
+          W6 as [ [W6_std [W6_loc W6_rel] ] W6_seals]; cbn.
       destruct Hrelated_pub_W2_W3 as
-        (HW2_W3_std & HW2_W3_cus).
+        (HW2_W3_std & HW2_W3_cus & HW2_W3_seals).
       destruct Hrelated_pub_W5_W6 as
-        (HW5_W6_std & HW5_W6_cus).
+        (HW5_W6_std & HW5_W6_cus & HW5_W6_seals).
       destruct Hrelated_priv_W0_W6 as
-        (HW0_W6_std & HW0_W6_cus).
+        (HW0_W6_std & HW0_W6_cus & HW0_W6_seals).
       destruct HW0_W6_cus as
         (Hdom_loc_0_6 & Hdom_rel_0_6 & Hrtc_loc_0_6); cbn in *.
       split; [|split]; auto.
@@ -312,6 +314,7 @@ Section VAE_helper.
           ospecialize (Hrtc_loc_5_6 d_W3 d_W6 _ Hd_W6);
             first by simplify_map_eq.
           done.
+    - by destruct Hrelated_priv_W0_W6 as (_ & _ & HW0_W6_seals).
     - cbn in *.
       split.
       { intros a Ha.

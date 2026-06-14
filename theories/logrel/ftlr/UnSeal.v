@@ -11,7 +11,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -23,29 +23,34 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
-
   (* Proving the meaning of unsealing in the LR sane. Note the use of the later in the result. *)
-  Lemma unsealing_preserves_interp W C sb p0 g0 b0 e0 a0:
+  Lemma unsealing_preserves_interp W C sb p0 g0 b0 e0 a0 s:
         permit_unseal p0 = true →
         withinBounds b0 e0 a0 = true →
         interp W C (WSealed a0 sb) -∗
         interp W C (WSealRange p0 g0 b0 e0 a0) -∗
-        ▷ interp W C (WSealable sb).
+        world_interp_open W C s
+        -∗
+        ▷ (interp W C (WSealable sb) ∗
+           world_interp_open W C s).
   Proof.
-    iIntros (Hpseal Hwb) "#HVsd #HVsr".
+    iIntros (Hpseal Hwb) "#HVsd #HVsr Hworld_interp".
     rewrite
       (fixpoint_interp1_eq W C (WSealRange _ _ _ _ _))
       (fixpoint_interp1_eq W C (WSealed _ _)) /= Hpseal /interp_sb.
     iDestruct "HVsr" as "[_ Hss]".
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
-    iDestruct "HSa0" as (P) "( #Hmono & HsealP & HWcond)".
-    iDestruct "HVsd" as (P') "(% & #Hmono' & HsealP' & HP' & HPborrowed')".
-    iDestruct (seal_pred_agree with "HsealP HsealP'") as "Hequiv".
-    iSpecialize ("Hequiv" $! (W,C,(WSealable sb))).
+    iDestruct "HSa0" as (P) "( %Hpers & HsealP & %Hdom & Hrcond)".
+    assert (∀ WCv : WORLD * CmptName * Word, Persistent (safeC P WCv)) as Hpers'.
+    { intros [ [W0 C0] w0 ]; rewrite //=; eapply (Hpers (W0, C0, w0)). }
+    iAssert (sts_seals_std C a0 {[WSealable sb]}) as "#HVsd'".
+    { iApply sts_seals_std_weaken; last iFrame "HVsd"; last set_solver+. }
+    iDestruct (world_interp_open_seal_pred_singleton with "HsealP HVsd' Hworld_interp") as "(Hworld_interp & #HP)".
+    iNext.
     rewrite /=.
-    iAssert (▷ P W C (WSealable sb))%I as "HP". { iNext; by iRewrite "Hequiv". }
-    by iApply "HWcond".
+    iFrame.
+    by iApply "Hrcond".
   Qed.
 
   Lemma unseal_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
@@ -86,7 +91,8 @@ Section fundamental.
     unshelve iDestruct ("Hreg" $! r1 _ _ Hr1) as "HVsr"; eauto.
     unshelve iDestruct ("Hreg" $! r2 _ _ Hr2) as "HVsd"; eauto.
     (* Generate interp instance before step, so we get rid of the later *)
-    iDestruct (unsealing_preserves_interp with "HVsd HVsr") as "HVsb"; auto.
+    iDestruct (unsealing_preserves_interp with "HVsd HVsr Hworld_interp")
+      as "(#HVsb & Hworld_interp)"; auto.
 
     iApply wp_pure_step_later; auto; iNext; iIntros "_".
 

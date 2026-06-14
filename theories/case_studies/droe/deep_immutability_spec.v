@@ -9,7 +9,7 @@ Section DROE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -145,7 +145,7 @@ Section DROE.
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W_init_C.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜(std W_init_C) !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_Winit_C_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_Winit_C_csp $Hworld_interp_C]")

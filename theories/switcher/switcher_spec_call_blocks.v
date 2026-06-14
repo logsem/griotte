@@ -8,7 +8,7 @@ Section Switcher_Call_Blocks.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -703,12 +703,12 @@ Section Switcher_Call_Blocks.
     (b_stk <= (a_stk ^+ 3)%a < e_stk)%a ->
 
     PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
-    (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
-    (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
-    (∃ wcgp', cgp ↦ᵣ wcgp') ∗
-    (∃ wcra', cra ↦ᵣ wcra') ∗
-    (∃ wca0, ca0 ↦ᵣ wca0) ∗
-    (∃ wca1, ca1 ↦ᵣ wca1) ∗
+    cs0 ↦ᵣ - ∗
+    cs1 ↦ᵣ - ∗
+    cgp ↦ᵣ - ∗
+    cra ↦ᵣ - ∗
+    ca0 ↦ᵣ - ∗
+    ca1 ↦ᵣ - ∗
     csp ↦ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
     a_stk ↦ₐ wcs0 ∗
     (a_stk ^+ 1)%a ↦ₐ wcs1 ∗

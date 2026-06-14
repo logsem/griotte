@@ -11,7 +11,7 @@ Section VAE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -89,8 +89,8 @@ Section VAE.
     ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
         ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 1 (length (imports ++ VAE_main_code_init))))
-    ∗ WSealed ot_switcher (SCap RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
-        ↦□ₑ 1
+    ∗ WSealed ot_switcher (SCap RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
+    ∗ WSealed ot_switcher (SCap RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
     ∗ seal_pred ot_switcher ot_switcher_propC
     (* invariant for d *)
     ∗ (∃ ι, inv ι (awk_inv C i cgp_b))
@@ -106,7 +106,8 @@ Section VAE.
       & #Hvae_exp_PCC
       & #Hvae_exp_CGP
       & #Hvae_exp_awkward
-      & #Hentry_VAE & #Hot_switcher
+      & #Hentry_VAE & #Hentry_VAE_borrow
+      & #Hot_switcher
       & [%awkN #HawkN] & #Hsts_rel)".
     iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl, (b_vae_exp_tbl ^+ 2)%a,
     pc_b, pc_e, cgp_b, cgp_e, 1, _, VAEN.
@@ -124,7 +125,7 @@ Section VAE.
     rewrite /registers_pointsto.
     iDestruct (world_interp_rel_loc_valid  with "Hworld_interp_C Hsts_rel") as "%Hwrel_i_W0".
     assert (∃ b : bool, loc W0 !! i = Some (encode b)) as Hloc_i_W0.
-    { destruct Hpriv_W_W0 as [_ (?&_&Hpriv) ].
+    { destruct Hpriv_W_W0 as (_ & (?&_&Hpriv) & _).
       destruct Hloc_i_W.
       assert (is_Some (loc W0 !! i)) as [d Hloc_0] by (by apply elem_of_dom, H, elem_of_dom).
       specialize (Hpriv _ _ _ _ _ Hrel_i_W Hwrel_i_W0) as (_&_&Hpriv).
@@ -176,7 +177,7 @@ Section VAE.
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜W0.1 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
@@ -575,7 +576,7 @@ Section VAE.
     }
     clear Hrevoked_stk_W5.
 
-    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom W6.1) l ⌝)%I as "%Hl_revoked_W6".
+    iAssert (⌜ Forall (λ a : finz MemNum, a ∈ dom (std W6)) l ⌝)%I as "%Hl_revoked_W6".
     {
       iPureIntro; apply Forall_forall; intros a Ha.
       rewrite /revoked_addresses Forall_forall in Hrevoked_l.
@@ -716,72 +717,6 @@ Section VAE.
     { destruct Hl_unk; auto. }
     { intros a; destruct Hl_unk as [_ Hl_unk]; destruct (Hl_unk a); auto. }
     { iSplit; iApply interp_int. }
-  Qed.
-
-  Lemma vae_awkward_safe
-
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-
-    (b_vae_exp_tbl e_vae_exp_tbl : Addr)
-
-    (C_f : Sealable)
-
-    (W : WORLD)
-
-    (Nassert Nswitcher Nvae VAEN : namespace)
-    i
-
-    :
-
-    let imports := vae_main_imports C_f in
-
-    Nswitcher ## Nassert ->
-    Nswitcher ## Nvae ->
-    Nassert ## Nvae ->
-    (b_vae_exp_tbl <= b_vae_exp_tbl ^+ 2 < e_vae_exp_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ->
-    (pc_b + length imports)%a = Some pc_a ->
-    (cgp_b + length vae_main_data)%a = Some cgp_e ->
-    (exists b : bool, loc W !! i = Some (encode b)) ->
-    wrel W !! i =
-    Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
-
-    na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv cerise_nais Nswitcher switcher_inv
-    ∗ na_inv cerise_nais Nvae
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a vae_main_code)
-    ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
-    ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
-        ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 1 (length (imports ++ VAE_main_code_init))))
-    ∗ WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
-        ↦□ₑ 1
-    ∗ WSealed ot_switcher (SCap RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)
-        ↦□ₑ 1
-    ∗ seal_pred ot_switcher ot_switcher_propC
-    ∗ (∃ ι, inv ι (awk_inv C i cgp_b))
-    ∗ sts_rel_loc (A:=Addr) C i awk_rel_pub awk_rel_priv
-      -∗
-    interp W C
-      (WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a)).
-  Proof.
-    intros imports; subst imports.
-    iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae
-               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hloc_i_W Hrel_i_W)
-      "(#Hassert & #Hswitcher
-      & #Hvae_code
-      & #Hvae_exp_PCC
-      & #Hvae_exp_CGP
-      & #Hvae_exp_awkward
-      & #Hentry_VAE & #Hentry_VAE' & #Hot_switcher
-      & [%ι #Hι] & #Hsts_rel)".
-    iEval (rewrite fixpoint_interp1_eq /=).
-    rewrite /interp_sb.
-    iFrame "Hot_switcher".
-    iSplit; [iPureIntro; apply persistent_cond_ot_switcher |].
-    iSplit; [iIntros (w); iApply mono_priv_ot_switcher|].
-    iSplit; iNext ; iApply vae_awkward_spec; try iFrame "#"; eauto.
   Qed.
 
 
