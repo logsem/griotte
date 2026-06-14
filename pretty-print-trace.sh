@@ -24,20 +24,21 @@
 
 set -euo pipefail
 
-# ---------- helpers ----------
 usage() {
     cat <<EOF >&2
-Usage: $0 <trace‑json-file>
+Usage: $0 <trace-json-file>
 
-Pretty‑print a table of the .vo files produced by each coqc command,
-showing the time each command took (format 0m00.41s) and a total line.
+Pretty-print a table of .vo files with:
+  - compilation time per file
+  - heap usage (if available)
+  - total build time (Alias builder)
 
 Requires: jq, awk
 EOF
     exit 1
 }
 
-# ---------- argument check ----------
+# ---------- args ----------
 if [[ $# -ne 1 ]]; then
     usage
 fi
@@ -49,57 +50,101 @@ if [[ ! -f "$TRACE_FILE" ]]; then
     exit 1
 fi
 
-# ---------- main pipeline ----------
+# ---------- total time (from Alias builder) ----------
+TOTAL_SEC=$(
+  jq -r '
+    .[]
+    | select(.name=="Alias builder: .")
+    | (.dur / 1000000)
+  ' "$TRACE_FILE"
+)
+
+# fallback if missing
+TOTAL_SEC=${TOTAL_SEC:-0}
+
+# ---------- main data ----------
 jq -r '
-  .[]                                   # each element of the top‑level array
-  | select(.name == "coqc")             # keep only coqc commands
-  | .dur as $dur_us                     # duration in micro‑seconds
-
-  # walk over the files produced by this invocation
-  | (.args.target_files // [])[]         # empty list if the key is missing
-  | select(endswith(".vo"))             # keep only *.vo files
-
-  # strip the leading “_build/default/”
-  | sub("^_build/default/"; "") as $file
-
-  # µs → seconds (floating point)
+  .[]
+  | select(.name == "rocq")
+  | .dur as $dur_us
   | ($dur_us / 1000000) as $sec
 
-  # output:  <seconds><TAB><file>
-  | "\($sec)\t\($file)"
+  | (
+      (.args.stdout // "")
+      | match("total heap size = ([0-9]+) kbytes")?
+      | .captures[0].string
+    ) as $heap
+
+  | (.args.target_files // [])[]
+  | select(endswith(".vo"))
+  | sub("^_build/default/"; "") as $file
+
+  | "\($sec)\t\($heap // 0)\t\($file)"
 ' "$TRACE_FILE" |
-# sort by numeric duration, descending (largest first)
 sort -nr -k1,1 |
-awk -F'\t' '
-BEGIN{
-    # Header (first column width = 12 chars, second = 40 chars)
-    col1_width = 12
-    col2_width = 40
-    printf "%-*s | %-*s\n", col1_width, "Time", col2_width, "File Name"
-    printf "%s-+-%s\n", \
-           gensub(/./, "-", "g", sprintf("%*s", col1_width, "")), \
-           gensub(/./, "-", "g", sprintf("%*s", col2_width, ""))
+awk -F'\t' -v total_sec="$TOTAL_SEC" '
+BEGIN {
+    col1 = 12
+    col2 = 10
+    col3 = 50
+
+    max_heap = 0
+    max_file = "-"
+
+    printf "%-*s | %-*s | %-*s\n",
+        col1, "Time",
+        col2, "Heap",
+        col3, "File"
+
+    for (i=0;i<col1;i++) printf "-"
+    printf "-+-"
+    for (i=0;i<col2;i++) printf "-"
+    printf "-+-"
+    for (i=0;i<col3;i++) printf "-"
+    printf "\n"
 }
+
 {
-    sec  = $1 + 0               # duration in seconds (numeric)
-    file = $2
+    sec  = $1 + 0
+    heap = ($2 ~ /^[0-9]+$/ ? $2 : 0) + 0
+    file = $3
 
-    total += sec                # accumulate total time (seconds)
+    if (heap > max_heap) {
+       max_heap = heap
+       max_file = file
+       }
 
-    # split seconds into whole minutes + remaining seconds (2 decimals)
-    min = int(sec/60)
-    rem = sec - min*60
+    min = int(sec / 60)
+    rem = sec - min * 60
+    time = sprintf("%dm%05.2fs", min, rem)
 
-    # build the time string once
-    time_str = sprintf("%dm%05.2fs", min, rem)
+    heap_gib = heap / (1024 * 1024)
+    heap_str = (heap > 0 ? sprintf("%.2f GiB", heap_gib) : "-")
 
-    # print each line, left‑justified in the fixed‑width column
-    printf "%-*s | %s\n", col1_width, time_str, file
+    printf "%-*s | %-*s | %s\n",
+        col1, time,
+        col2, heap_str,
+        file
 }
-END{
-    # ----- total line (same format, labelled “Total”) -----
-    tot_min = int(total/60)
-    tot_sec = total - tot_min*60
-    total_str = sprintf("%dm%05.2fs", tot_min, tot_sec)
-    printf "%-*s | %s\n", col1_width, total_str, "Total"
-}'
+
+END {
+    # ----- total time row -----
+    min = int(total_sec / 60)
+    rem = total_sec - min * 60
+    total = sprintf("%dm%05.2fs", min, rem)
+
+    printf "%-*s | %-*s | %s\n",
+        col1, total,
+        col2, "-",
+        "Total time"
+
+        # ----- max heap row -----
+        max_gib = max_heap / (1024 * 1024)
+        max_str = (max_heap > 0 ? sprintf("%.2f GiB", max_gib) : "-")
+
+        printf "%-*s | %-*s | %s\n",
+        col1, "-",
+        col2, max_str,
+        "Max memory usage (" max_file ")"
+}
+'
