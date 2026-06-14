@@ -16,7 +16,7 @@ Section Switcher.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -43,7 +43,7 @@ Section Switcher.
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
     (* NOTE: there is only one side of the implication... *)
     NoDup (l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : finz MemNum, std W0 !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, (std W0) !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
 
     (* Switcher Invariant *)
     na_inv cerise_nais Nswitcher switcher_inv

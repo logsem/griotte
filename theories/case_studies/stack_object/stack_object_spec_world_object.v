@@ -91,7 +91,7 @@ Section SO_World_Object.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type Σ}
+    {stsg : STSG Addr region_type OType Word Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
 
