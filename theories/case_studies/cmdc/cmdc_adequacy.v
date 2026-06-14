@@ -268,10 +268,10 @@ Section Adequacy.
     iMod (
        entry_init (
            {[
-               (seal_capability B_f (ot_switcher switcher_cmpt)) := cmdc_B_f_args;
-               (borrow (seal_capability B_f (ot_switcher switcher_cmpt))) := cmdc_B_f_args;
-               (seal_capability C_g (ot_switcher switcher_cmpt)) := cmdc_C_g_args;
-               (borrow (seal_capability C_g (ot_switcher switcher_cmpt))) := cmdc_C_g_args
+               (seal_capability B_f ot_switcher) := cmdc_B_f_args;
+               (borrow (seal_capability B_f ot_switcher)) := cmdc_B_f_args;
+               (seal_capability C_g ot_switcher) := cmdc_C_g_args;
+               (borrow (seal_capability C_g ot_switcher)) := cmdc_C_g_args
            ]}
 
          )
@@ -424,7 +424,8 @@ Section Adequacy.
 
       iAssert (ot_switcher_prop Winter B (WSealable B_f)) as "#ot_switcher_B_f".
       {
-        iApply (ot_switcher_interp _ _ _ _ _ 1 1); eauto; last lia.
+        iApply (ot_switcher_interp _ _ _ _ _ cmdc_B_f_args offset_B_f); eauto
+        ; last (rewrite /cmdc_B_f_args; lia).
         pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
         pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H2.
         rewrite B_exp_tbl in H2.
@@ -558,7 +559,8 @@ Section Adequacy.
 
       iAssert (ot_switcher_prop Winter C (WSealable C_g)) as "#ot_switcher_C_g".
       {
-        iApply (ot_switcher_interp _ _ _ _ _ 1 1); eauto; last lia.
+        iApply (ot_switcher_interp _ _ _ _ _ cmdc_C_g_args offset_C_g); eauto
+        ; last (rewrite /cmdc_C_g_args; lia).
         pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
         pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
         rewrite C_exp_tbl in H2.
@@ -640,6 +642,13 @@ Section Adequacy.
             )%I as "#Hinterp_cgp_C".
     { iApply interp_monotone_nl; eauto. }
 
+    iAssert ( interp Winit_C C (WSealed ot_switcher C_g)) as "#Hinterp_C_g".
+    { rewrite Hexported_entries_sealed.
+      iDestruct (big_sepS_elem_of_acc _ _ (WSealed ot_switcher C_g) with "HC_exports") as "[Hinterp_C_g _]"
+      ; first set_solver+.
+      iApply interp_monotone_sd; eauto.
+    }
+
     (* Bonus for CMDC - We already derive the revoked stack resources  *)
     assert ( revoked_addresses Winit_C ( finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ) ) as Hrevoked_stack_C.
     { subst Winit_C.
@@ -650,13 +659,6 @@ Section Adequacy.
     iDestruct ( StackWorldResources_from_rel_stack with "Hrel_stk_C" ) as "Hrevoked_stack_C"; eauto.
     iClear "HC_etbl_pcc HC_etbl_cgp HC_code HC_data Hinterp_pcc_C Hinterp_cgp_C".
 
-    iAssert ( interp Winit_C C (WSealed ot_switcher C_g)) as "#Hinterp_C_g".
-    { rewrite Hexported_entries_sealed.
-      iDestruct (big_sepS_elem_of_acc _ _ (WSealed ot_switcher C_g) with "HC_exports") as "[Hinterp_C_g _]"
-      ; first set_solver+.
-      iApply interp_monotone_sd; eauto.
-    }
-    iClear "HC_etbl_pcc HC_etbl_cgp HC_code HC_data Hinterp_pcc_C Hinterp_cgp_C".
 
     (* 11 - Extract registers *)
     destruct Hreg as (HPC & Hcgp & Hcsp & Hreg).
