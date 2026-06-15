@@ -17,17 +17,17 @@ Section KVS_search.
   Lemma KVS_search_spec_in `{KVS : kvsLayout}
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
-    (rkey ridx rscratch : RegName)
+    (rkey ridx ridx_empty rscratch : RegName)
     (m : kvs_map) (s : kvs_alloc) (idx : nat) (fkey : Z) (w : Word)
     :
-    let instrs := (kvs_search_instrs rkey ridx rscratch) in
+    let instrs := (kvs_search_instrs rkey ridx ridx_empty rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
-    ((cgp_b + (2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
-    fkey ≠ EMPTY_SLOT ->
+    ((cgp_b + (3*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
 
     rscratch ≠ cnull ->
     ridx ≠ cnull ->
+    ridx_empty ≠ cnull ->
     rkey ≠ cnull ->
 
     (
@@ -35,6 +35,7 @@ Section KVS_search.
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       rkey ↦ᵣ WInt fkey ∗
       ridx ↦ᵣ - ∗
+      ridx_empty ↦ᵣ - ∗
       rscratch ↦ᵣ - ∗
 
       isKVS cgp_b m s ∗
@@ -43,19 +44,20 @@ Section KVS_search.
       codefrag pc_a instrs ∗
       ▷ (
           PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (2*idx) )%a ∗
+          cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (3*idx) )%a ∗
           rkey ↦ᵣ WInt fkey ∗
           ridx ↦ᵣ WInt idx ∗
+          ridx_empty ↦ᵣ - ∗
           rscratch ↦ᵣ - ∗
 
           isKVS_open cgp_b m s idx ∗
-          (cgp_b ^+ (2*idx))%a ↦ₐ WInt fkey ∗
-          (cgp_b ^+ (2*idx + 1))%a ↦ₐ w ∗
-          isKVS_entry_empty idx fkey ∗
-
-          ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (2 * idx + 1))%a = true ⌝ ∗
-
+          (cgp_b ^+ (3*idx))%a ↦ₐ WInt ASM_SOME ∗
+          (cgp_b ^+ (3*idx + 1))%a ↦ₐ WInt fkey ∗
+          (cgp_b ^+ (3*idx + 2))%a ↦ₐ w ∗
           fkey ⤇(KVS)[idx] w ∗
+
+          ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (3 * idx + 2))%a = true ⌝ ∗
+
           codefrag pc_a instrs -∗
 
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -63,22 +65,28 @@ Section KVS_search.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (HsubBounds Hbounds_cgp Hcgp_bound Hfkey_ne_empty Hrscratch Hridx Hkey)
-      "(HPC & Hcgp & Hrkey & [%widx Hridx] & Hrscratch & HKVS & Hkvs_frag & Hcode & Hpost)".
+    iIntros (HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx Hridx_empty Hkey)
+      "(HPC & Hcgp & Hrkey & [%widx Hridx] & [%widx_empty Hridx_empty] & Hrscratch
+      & HKVS & Hkvs_frag & Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
-    (* Mov ridx 0 *)
+
+    (* mov ridx 0%Z; *)
+    iInstr "Hcode".
+    (* mov ridx_empty (-1)%Z; *)
     iInstr "Hcode".
 
     remember 0%Z as n.
     iAssert (⌜ (0 <= n <= SIZE_MAP)%Z ⌝)%I as "%Hn"; first (iPureIntro ; lia).
-    rewrite{2} (_ : (cgp_b = (cgp_b ^+ (2 * n))%a)); last by solve_addr.
-    assert (forall i, (0 <= i < Z.to_nat n) -> ∃ (k : Z) (w : Word),  m !! i = Some (k,w) ∧ k ≠ fkey)
+    rewrite{2} (_ : (cgp_b = (cgp_b ^+ (3 * n))%a)); last by solve_addr.
+    assert (forall i, (0 <= i < Z.to_nat n) -> ∀ (k : Z) (w : Word),
+                m !! i = Some (Some (k,w)) -> k ≠ fkey)
     as Hfkey_notin_nfirst.
     { rewrite Heqn; intros i Hi; lia. }
     clear Heqn.
+    generalize ((if decide (ridx_empty = cnull) then (Z.of_nat 0) else (-1)%Z) ); intros nidx_empty.
 
-    iLöb as "IH" forall (n Hn Hfkey_notin_nfirst).
+    iLöb as "IH" forall (n nidx_empty Hn Hfkey_notin_nfirst).
 
     (* sub rscratch SIZE_MAP ridx; *)
     iDestruct "Hrscratch" as "[%wrscratch Hrscratch]".
@@ -96,8 +104,7 @@ Section KVS_search.
       iDestruct (isKVS_indom_idx with "HKVS") as "%Hidx".
       { by apply elem_of_dom_2 in Hm_idx. }
       exfalso.
-      apply Hfkey_notin_nfirst in Hidx as (k' & w' & Hm_idx' & Hneq_keys).
-      rewrite Hm_idx in Hm_idx'; simplify_eq.
+      eapply Hfkey_notin_nfirst; eauto.
     }
     assert (0 ≤ n < SIZE_MAP)%Z as Hn' by lia.
     (* jnz (".loop_body")%asm rscratch; *)
@@ -106,75 +113,297 @@ Section KVS_search.
 
     destruct (decide (Z.of_nat idx = n)%Z) as [<- | Hneq'].
     - iDestruct (open_isKVS_kvs_frag_idx with "[$HKVS $Hkvs_frag]") as "(HKVS & (Hbk & Hbw & Hfkey) & Hkvs_frag)".
-      replace (cgp_b ^+ 2 * idx)%a  with (cgp_b ^+ (2 * idx))%a by solve_addr+Hn.
       (* load rscratch cgp; *)
       iInstr "Hcode".
       { split; [done |solve_addr]. }
-      (* sub rscratch rkey rscratch; *)
-      iInstr "Hcode".
-      (* jnz (".not_same_key")%asm rscratch; *)
-      replace (fkey - (fkey, w).1)%Z with 0%Z by (cbn;lia).
-      iInstr "Hcode".
-      (* jmp (".loop_end_found")%asm; *)
+      iEval (cbn) in "Hrscratch".
+      (* jnz (".some_index")%asm rscratch; *)
       iInstr "Hcode".
 
-      cbn.
+      (* lea cgp 1; *)
+      iInstr "Hcode".
+      { transitivity (Some ((cgp_b ^+ (3 * idx + 1))%a)); solve_addr. }
+      (* load rscratch cgp; *)
+      iInstr "Hcode".
+      { split; [done |solve_addr]. }
+      iEval (cbn) in "Hrscratch".
+      (* sub rscratch rkey rscratch; *)
+      iInstr "Hcode".
+      replace (fkey - fkey)%Z with 0%Z by (cbn;lia).
+      (* jnz (".not_same_key")%asm rscratch; *)
+      iInstr "Hcode".
+      (* lea cgp (-1)%Z; *)
+      iInstr "Hcode".
+      { transitivity (Some (cgp_b ^+ 3 * idx)%a); solve_addr. }
+      (* jmp (".loop_end_found")%asm; *)
+      iInstr "Hcode".
       iApply "Hpost"; iFrame.
       iPureIntro; rewrite /withinBounds; solve_addr.
 
     - iDestruct (open_isKVS_kvs_frag_idx_diff _ _ _ _ (Z.to_nat n) with "[$HKVS $Hkvs_frag]")
-        as "(%k' & %w' & %Hkk' & %Hm_idx' & HKVS  & Hkvs_frag & (Hbk & Hbw & Hfkey))"
+        as "(%opt_kw' & Hkvs_frag & HKVS & %Hm_idx' & Hkvs_entry & %Hopt_kw')"
       ; auto; try lia.
-      replace (cgp_b ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (2 * n))%a by solve_addr+Hn.
-      replace (cgp_b ^+ (2 * Z.to_nat n + 1))%a with (cgp_b ^+ (2 * n + 1))%a by solve_addr+Hn.
+      rewrite /isKVS_entry.
+      iAssert (
+          (cgp_b ^+ 3 * Z.to_nat n)%a ↦ₐ
+            (match opt_kw' with
+             | Some (k,w) => WInt ASM_SOME
+             | None => WInt ASM_NONE
+             end)
+          ∗
+            (cgp_b ^+ (3 * Z.to_nat n + 1))%a ↦ₐ
+              (match opt_kw' with
+               | Some (k,w) => WInt k
+               | None => WInt EMPTY_SLOT
+               end)
+          ∗
+            (cgp_b ^+ (3 * Z.to_nat n + 2))%a ↦ₐ
+              (match opt_kw' with
+               | Some (k,w) => w
+               | None => WInt DEFAULT_VAL
+               end)
+          ∗ (match opt_kw' with | Some _ => True | None => (Z.to_nat n) ⤆(KVS) NONE end)
+        )%I with "[Hkvs_entry]" as "(Hn0 & Hn1 & Hn2 & Hfkey)".
+      { destruct opt_kw' as [ [k' w'] | ]; iFrame.
+        iDestruct "Hkvs_entry" as "($&$&$)"; auto.
+      }
+      replace (cgp_b ^+ 3 * Z.to_nat n)%a  with (cgp_b ^+ (3 * n))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (3 * Z.to_nat n + 1))%a with (cgp_b ^+ (3 * n + 1))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (3 * Z.to_nat n + 2))%a with (cgp_b ^+ (3 * n + 2))%a by solve_addr+Hn.
       (* load rscratch cgp; *)
       iInstr "Hcode".
       { split; [done | solve_addr]. }
-      (* sub rscratch rkey rscratch; *)
-      iInstr "Hcode".
-      (* jnz (".not_same_key")%asm rscratch; *)
-      iInstr "Hcode".
-      { injection; cbn; lia. }
-      (* lea cgp 2; *)
-      iInstr "Hcode".
-      { transitivity (Some ( (cgp_b ^+ (2 * (n+1)))%a)); solve_addr. }
-      (* add ridx ridx 1; *)
-      iInstr "Hcode".
-      (* jmp (".loop_start"); *)
-      iInstr "Hcode".
-      { transitivity (Some ( (pc_a ^+ 1)%a)); solve_addr. }
+      iEval (cbn) in "Hrscratch".
 
-      iDestruct (close_isKVS with "[$HKVS Hbk Hbw Hfkey]") as "HKVS";eauto.
-      {
-        replace (cgp_b ^+ (2 * n))%a with (cgp_b ^+ 2 * Z.to_nat n)%a by solve_addr+Hn.
-        replace (cgp_b ^+ (2 * n + 1))%a  with (cgp_b ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
-        iFrame.
-      }
+      destruct opt_kw' as [ [k' w'] | ].
+      + (* jnz (".some_index")%asm rscratch; *)
+        iInstr "Hcode".
+        (* lea cgp 1; *)
+        iInstr "Hcode".
+        { transitivity (Some ((cgp_b ^+ (3 * n + 1))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        (* load rscratch cgp; *)
+        iInstr "Hcode".
+        { split; [done | solve_addr]. }
+        (* sub rscratch rkey rscratch; *)
+        iInstr "Hcode".
+        (* jnz (".not_same_key")%asm rscratch; *)
+        iInstr "Hcode".
+        { injection; cbn; intro; apply Hopt_kw'; cbn; lia. }
+        (* lea cgp 2; *)
+        iInstr "Hcode".
+        { transitivity (Some ( (cgp_b ^+ (3 * (n+1)))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        (* add ridx ridx 1; *)
+        iInstr "Hcode".
+        (* jmp (".loop_start"); *)
+        iInstr "Hcode".
+        { transitivity (Some ( (pc_a ^+ 2)%a)); solve_addr. }
 
-      iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$HKVS] [$Hkvs_frag] [$Hpost] [$Hcode] [$HPC] [$Hridx]").
-      + iPureIntro; lia.
-      + iPureIntro.
-        intros idx' Hidx'_bound.
-        destruct (decide (idx' = Z.to_nat n)%Z) as [-> | Hidx']; eauto.
-        apply Hfkey_notin_nfirst; lia.
+        iDestruct (close_isKVS with "[$HKVS Hn0 Hn1 Hn2]") as "HKVS";eauto.
+        {
+          replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
+          replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+          iFrame.
+        }
+
+        iApply ("IH" with
+                 "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$HKVS] [$Hkvs_frag] [$Hpost] [$Hridx] [$Hcode] [$HPC] [$Hridx_empty]").
+        * iPureIntro; lia.
+        * iPureIntro.
+          intros idx0 Hidx0_bound k0 w0 Hidx0.
+          destruct (decide (idx0 = Z.to_nat n)%Z) as [-> | Hidx']; eauto.
+          { rewrite Hm_idx' in Hidx0; simplify_map_eq; done. }
+          { eapply Hfkey_notin_nfirst; eauto; lia. }
+      + (* jnz (".some_index")%asm rscratch; *)
+        iInstr "Hcode".
+        (* mov ridx_empty ridx; *)
+        iInstr "Hcode".
+        (* lea cgp 3; *)
+        iInstr "Hcode".
+        { transitivity (Some ((cgp_b ^+ 3 * (n + 1))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        (* add ridx ridx 1; *)
+        iInstr "Hcode".
+        (* jmp (".loop_start"); *)
+        iInstr "Hcode".
+        { transitivity (Some ( (pc_a ^+ 2)%a)); solve_addr. }
+        iDestruct (close_isKVS with "[$HKVS Hn0 Hn1 Hn2 Hfkey]") as "HKVS";eauto.
+        {
+          replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
+          replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+          iFrame.
+        }
+
+        iApply ("IH" with
+                 "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$HKVS] [$Hkvs_frag] [$Hpost] [$Hridx] [$Hcode] [$HPC] [$Hridx_empty]").
+        * iPureIntro; lia.
+        * iPureIntro.
+          intros idx0 Hidx0_bound k0 w0 Hidx0.
+          destruct (decide (idx0 = Z.to_nat n)%Z) as [-> | Hidx']; eauto.
+          { rewrite Hm_idx' in Hidx0; simplify_map_eq; done. }
+          { eapply Hfkey_notin_nfirst; eauto; lia. }
   Qed.
 
-  Lemma KVS_search_spec_notin `{KVS : kvsLayout}
+  (* Lemma KVS_search_spec_notin `{KVS : kvsLayout} *)
+  (*   (pc_b pc_e pc_a : Addr) *)
+  (*   (cgp_b cgp_e : Addr) *)
+  (*   (rkey ridx ridx_empty rscratch : RegName) *)
+  (*   (m : kvs_map) (s : kvs_alloc) (s' : gset Z) (ku kn : z) *)
+  (*   : *)
+  (*   let instrs := (kvs_search_instrs rkey ridx ridx_empty rscratch) in *)
+  (*   let fkey := kvs_full_key ku kn in *)
+  (*   SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a -> *)
+  (*   withinBounds cgp_b cgp_e cgp_b = true -> *)
+  (*   ((cgp_b + (3*SIZE_MAP)%Z)%a = Some cgp_e)%a -> *)
+  (*   kn ∉ s' -> *)
+  (*   wf_kvs_full_key ku kn -> *)
+
+  (*   rscratch ≠ cnull -> *)
+  (*   ridx ≠ cnull -> *)
+  (*   ridx_empty ≠ cnull -> *)
+  (*   rkey ≠ cnull -> *)
+
+  (*   ( *)
+  (*     PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗ *)
+  (*     cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗ *)
+  (*     rkey ↦ᵣ WInt fkey ∗ *)
+  (*     ridx ↦ᵣ - ∗ *)
+  (*     ridx_empty ↦ᵣ - ∗ *)
+  (*     rscratch ↦ᵣ - ∗ *)
+
+  (*     isKVS cgp_b m s ∗ *)
+  (*     ◯(ALLOC)[ku] s' ∗ *)
+
+  (*     codefrag pc_a instrs ∗ *)
+  (*     ▷ ( ∀ (idx : nat), *)
+  (*         PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗ *)
+  (*         cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗ *)
+  (*         rkey ↦ᵣ WInt fkey ∗ *)
+  (*         ridx ↦ᵣ WInt (-1) ∗ *)
+  (*         ridx_empty ↦ᵣ WInt idx  ∗ *)
+  (*         rscratch ↦ᵣ - ∗ *)
+
+  (*         isKVS_open cgp_b m s idx ∗ *)
+  (*         (cgp_b ^+ (3*idx))%a ↦ₐ WInt ASM_NONE ∗ *)
+  (*         (cgp_b ^+ (3*idx + 1))%a ↦ₐ WInt EMPTY_SLOT ∗ *)
+  (*         (cgp_b ^+ (3*idx + 2))%a ↦ₐ WInt DEFAULT_VAL ∗ *)
+  (*         idx ⤆(KVS) NONE ∗ *)
+
+  (*         ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (3 * idx + 2))%a = true ⌝ ∗ *)
+
+  (*         ◯(ALLOC)[ku] s' ∗ *)
+
+  (*         codefrag pc_a instrs -∗ *)
+
+  (*         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} *)
+  (*       ) *)
+  (*     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I. *)
+  (* Proof. *)
+  (*   intros instrs fkey ; subst instrs. *)
+  (*   iIntros (HsubBounds Hbounds_cgp Hcgp_bound Hs' Hwf_full_key Hrscratch Hridx Hridx_empty Hkey) *)
+  (*     "(HPC & Hcgp & Hrkey & [%wridx Hridx] & [%wridx_empty Hridx_empty] & Hrscratch & HKVS & Halloc & Hcode & Hpost)". *)
+  (*   codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0. *)
+
+  (*   (* Mov ridx 0 *) *)
+  (*   iInstr "Hcode". *)
+  (*   (* Mov ridx 0 *) *)
+  (*   iInstr "Hcode". *)
+  (*   destruct (decide (ridx_empty = cnull)) as [|_]; first done. *)
+  (*   remember (-1)%Z as idx_empty. *)
+
+  (*   remember 0%Z as n. *)
+  (*   iAssert (⌜ (0 <= n <= SIZE_MAP)%Z ⌝)%I as "%Hn"; first (iPureIntro ; lia). *)
+  (*   rewrite{2} (_ : cgp_b = (cgp_b ^+ (3 * n))%a); last by solve_addr. *)
+  (*   assert (forall i, (0 <= i < Z.to_nat n) -> ∀ (k : Z) (w : Word), *)
+  (*               m !! i = Some (Some (k,w)) -> k ≠ fkey) *)
+  (*   as Hfkey_notin_nfirst. *)
+  (*   { rewrite Heqn; intros i Hi; lia. } *)
+  (*   clear Heqn. *)
+
+  (*   iLöb as "IH" forall (n Hn Hfkey_notin_nfirst). *)
+
+  (*   (* sub rscratch SIZE_MAP ridx; *) *)
+  (*   iDestruct "Hrscratch" as "[%wrscratch Hrscratch]". *)
+  (*   iInstr "Hcode". *)
+  (*   replace 16 with SIZE_MAP by (by rewrite /SIZE_MAP). *)
+  (*   destruct (decide ((SIZE_MAP - n) = 0)%Z) as [Hneq|Hneq]. *)
+  (*   { (* End of the loop. *) *)
+  (*     rewrite Hneq. *)
+  (*     assert ( n = SIZE_MAP ) as -> by lia. *)
+
+  (*     (* jnz (".loop_body")%asm rscratch; *) *)
+  (*     iInstr "Hcode". *)
+  (*     (* jmp (".loop_end_not_found")%asm; *) *)
+  (*     iInstr "Hcode". *)
+
+  (*     (* lea cgp (-(3*SIZE_MAP))%Z; *) *)
+  (*     iInstr "Hcode". *)
+  (*     { transitivity (Some cgp_b); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. } *)
+  (*     (* mov ridx (-1)%Z; *) *)
+  (*     iInstr "Hcode". *)
+  (*     rewrite decide_False //=. *)
+  (*     iApply "Hpost"; iFrame. *)
+  (*   } *)
+  (*   assert (0 ≤ n < SIZE_MAP)%Z as Hn' by lia. *)
+  (*   (* jnz (".loop_body")%asm rscratch; *) *)
+  (*   iInstr "Hcode". *)
+  (*   { by injection. } *)
+
+  (* iDestruct (open_isKVS_not_alloc _ _ _ _ (Z.to_nat n) with "HKVS Halloc") *)
+  (*   as "(%kidx' & %widx & %Hkidx_ne & %Hm_kidx & HKVS & Halloc & (Hbk & Hbw & Hfkey))" ; eauto; [lia|]. *)
+  (* replace (cgp_b ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (2 * n))%a by solve_addr+Hn. *)
+  (* replace (cgp_b ^+ (2 * Z.to_nat n + 1))%a with (cgp_b ^+ (1 + 2 * n))%a by solve_addr+Hn. *)
+
+  (* (* load rscratch cgp; *) *)
+  (* iInstr "Hcode". *)
+  (* { split; [done | solve_addr]. } *)
+  (* (* sub rscratch rkey rscratch; *) *)
+  (* iInstr "Hcode". *)
+  (* (* jnz (".not_same_key")%asm rscratch; *) *)
+  (* iInstr "Hcode". *)
+  (* { injection; cbn; lia. } *)
+  (* (* lea cgp 2; *) *)
+  (* iInstr "Hcode". *)
+  (* { transitivity (Some ( (cgp_b ^+ (2 * (n+1)))%a)); solve_addr. } *)
+  (* (* add ridx ridx 1; *) *)
+  (* iInstr "Hcode". *)
+  (* (* jmp (".loop_start"); *) *)
+  (* iInstr "Hcode". *)
+  (* { transitivity (Some ( (pc_a ^+ 1)%a)); solve_addr. } *)
+
+  (* iDestruct (close_isKVS with "[$HKVS Hbk Hbw Hfkey]") as "HKVS";eauto. *)
+  (* { *)
+  (*   replace (cgp_b ^+ (2 * n))%a with (cgp_b ^+ 2 * Z.to_nat n)%a by solve_addr+Hn. *)
+  (*   replace (cgp_b ^+ (1 + 2 * n))%a  with (cgp_b ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn. *)
+  (*   iFrame. *)
+  (* } *)
+
+  (* iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$HKVS] [$Halloc] [$Hpost] [$Hcode] [$HPC] [$Hridx]"). *)
+  (*   + iPureIntro; lia. *)
+  (*   + iPureIntro. *)
+  (*     intros idx' Hidx'_bound. *)
+  (*     destruct (decide (idx' = Z.to_nat n)%Z) as [-> | Hidx']; eauto. *)
+  (*     apply Hfkey_notin_nfirst; lia. *)
+  (* Qed. *)
+
+  Lemma KVS_search_spec_empty_slot `{KVS : kvsLayout}
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
-    (rkey ridx rscratch : RegName)
+    (rkey ridx ridx_empty rscratch : RegName)
     (m : kvs_map) (s : kvs_alloc) (s' : gset Z) (ku kn : Z)
     :
-    let instrs := (kvs_search_instrs rkey ridx rscratch) in
+    let instrs := (kvs_search_instrs rkey ridx ridx_empty  rscratch) in
     let fkey := kvs_full_key ku kn in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
-    ((cgp_b + (2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
+    ((cgp_b + (3*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
+
     kn ∉ s' ->
     wf_kvs_full_key ku kn ->
 
     rscratch ≠ cnull ->
     ridx ≠ cnull ->
+    ridx_empty ≠ cnull ->
     rkey ≠ cnull ->
 
     (
@@ -182,150 +411,31 @@ Section KVS_search.
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       rkey ↦ᵣ WInt fkey ∗
       ridx ↦ᵣ - ∗
+      ridx_empty ↦ᵣ - ∗
       rscratch ↦ᵣ - ∗
 
       isKVS cgp_b m s ∗
       ◯(ALLOC)[ku] s' ∗
 
       codefrag pc_a instrs ∗
-      ▷ (
-          PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-          rkey ↦ᵣ WInt fkey ∗
-          ridx ↦ᵣ WInt (-1) ∗
-          rscratch ↦ᵣ - ∗
-
-          isKVS cgp_b m s ∗
-          ◯(ALLOC)[ku] s' ∗
-
-          codefrag pc_a instrs -∗
-
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-        )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
-  Proof.
-    intros instrs fkey ; subst instrs.
-    iIntros (HsubBounds Hbounds_cgp Hcgp_bound Hs' Hwf_full_key Hrscratch Hridx Hkey)
-      "(HPC & Hcgp & Hrkey & [%wridx Hridx] & Hrscratch & HKVS & Halloc & Hcode & Hpost)".
-    codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
-
-    (* Mov ridx 0 *)
-    iInstr "Hcode".
-
-    remember 0%Z as n.
-    iAssert (⌜ (0 <= n <= SIZE_MAP)%Z ⌝)%I as "%Hn"; first (iPureIntro ; lia).
-    rewrite{2} (_ : cgp_b = (cgp_b ^+ (2 * n))%a); last by solve_addr.
-    assert (forall i, (0 <= i < Z.to_nat n) -> ∃ (k : Z) (w : Word),  m !! i = Some (k,w) ∧ k ≠ fkey)
-    as Hfkey_notin_nfirst.
-    { rewrite Heqn; intros i Hi; lia. }
-    clear Heqn.
-
-    iLöb as "IH" forall (n Hn Hfkey_notin_nfirst).
-
-    (* sub rscratch SIZE_MAP ridx; *)
-    iDestruct "Hrscratch" as "[%wrscratch Hrscratch]".
-    iInstr "Hcode".
-    replace 16 with SIZE_MAP by (by rewrite /SIZE_MAP).
-    destruct (decide ((SIZE_MAP - n) = 0)%Z) as [Hneq|Hneq].
-    { (* End of the loop. *)
-      rewrite Hneq.
-      assert ( n = SIZE_MAP ) as -> by lia.
-
-      (* jnz (".loop_body")%asm rscratch; *)
-      iInstr "Hcode".
-      (* jmp (".loop_end_not_found")%asm; *)
-      iInstr "Hcode".
-
-      (* lea cgp (-(2*SIZE_MAP))%Z; *)
-      iInstr "Hcode".
-      { transitivity (Some cgp_b); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
-      (* mov ridx (-1)%Z; *)
-      iInstr "Hcode".
-      rewrite decide_False //=.
-      iApply "Hpost"; iFrame.
-    }
-    assert (0 ≤ n < SIZE_MAP)%Z as Hn' by lia.
-    (* jnz (".loop_body")%asm rscratch; *)
-    iInstr "Hcode".
-    { by injection. }
-
-  iDestruct (open_isKVS_not_alloc _ _ _ _ (Z.to_nat n) with "HKVS Halloc")
-    as "(%kidx' & %widx & %Hkidx_ne & %Hm_kidx & HKVS & Halloc & (Hbk & Hbw & Hfkey))" ; eauto; [lia|].
-  replace (cgp_b ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (2 * n))%a by solve_addr+Hn.
-  replace (cgp_b ^+ (2 * Z.to_nat n + 1))%a with (cgp_b ^+ (1 + 2 * n))%a by solve_addr+Hn.
-
-  (* load rscratch cgp; *)
-  iInstr "Hcode".
-  { split; [done | solve_addr]. }
-  (* sub rscratch rkey rscratch; *)
-  iInstr "Hcode".
-  (* jnz (".not_same_key")%asm rscratch; *)
-  iInstr "Hcode".
-  { injection; cbn; lia. }
-  (* lea cgp 2; *)
-  iInstr "Hcode".
-  { transitivity (Some ( (cgp_b ^+ (2 * (n+1)))%a)); solve_addr. }
-  (* add ridx ridx 1; *)
-  iInstr "Hcode".
-  (* jmp (".loop_start"); *)
-  iInstr "Hcode".
-  { transitivity (Some ( (pc_a ^+ 1)%a)); solve_addr. }
-
-  iDestruct (close_isKVS with "[$HKVS Hbk Hbw Hfkey]") as "HKVS";eauto.
-  {
-    replace (cgp_b ^+ (2 * n))%a with (cgp_b ^+ 2 * Z.to_nat n)%a by solve_addr+Hn.
-    replace (cgp_b ^+ (1 + 2 * n))%a  with (cgp_b ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
-    iFrame.
-  }
-
-  iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$HKVS] [$Halloc] [$Hpost] [$Hcode] [$HPC] [$Hridx]").
-    + iPureIntro; lia.
-    + iPureIntro.
-      intros idx' Hidx'_bound.
-      destruct (decide (idx' = Z.to_nat n)%Z) as [-> | Hidx']; eauto.
-      apply Hfkey_notin_nfirst; lia.
-  Qed.
-
-  Lemma KVS_search_spec_empty_slot `{KVS : kvsLayout}
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-    (rkey ridx rscratch : RegName)
-    (m : kvs_map) (s : kvs_alloc)
-    :
-    let instrs := (kvs_search_instrs rkey ridx rscratch) in
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
-    withinBounds cgp_b cgp_e cgp_b = true ->
-    ((cgp_b + (2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
-
-    rscratch ≠ cnull ->
-    ridx ≠ cnull ->
-    rkey ≠ cnull ->
-
-    (
-      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-      rkey ↦ᵣ WInt EMPTY_SLOT ∗
-      ridx ↦ᵣ - ∗
-      rscratch ↦ᵣ - ∗
-
-      isKVS cgp_b m s ∗
-
-      codefrag pc_a instrs ∗
       ▷ ( (* An empty slot was found*)
           ( ∃ idx_empty_slot : nat,
             (
             PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-            cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (2*idx_empty_slot))%a ∗
-            rkey ↦ᵣ WInt EMPTY_SLOT ∗
-            ridx ↦ᵣ WInt idx_empty_slot ∗
+            cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (3*idx_empty_slot))%a ∗
+            rkey ↦ᵣ WInt fkey ∗
+            ridx ↦ᵣ WInt (-1)%Z ∗
+            ridx_empty ↦ᵣ WInt idx_empty_slot ∗
             rscratch ↦ᵣ - ∗
 
+            ◯(ALLOC)[ku] s' ∗
             isKVS_open cgp_b m s idx_empty_slot ∗
-            (cgp_b ^+ (2*idx_empty_slot))%a ↦ₐ WInt EMPTY_SLOT ∗
-            (cgp_b ^+ (2*idx_empty_slot + 1))%a ↦ₐ WInt DEFAULT_VAL ∗
-            EMPTY_SLOT ⤇(KVS)[ idx_empty_slot ] WInt DEFAULT_VAL ∗
+            (cgp_b ^+ (3*idx_empty_slot))%a ↦ₐ WInt ASM_NONE ∗
+            (cgp_b ^+ (3*idx_empty_slot + 1))%a ↦ₐ WInt EMPTY_SLOT ∗
+            (cgp_b ^+ (3*idx_empty_slot + 2))%a ↦ₐ WInt DEFAULT_VAL ∗
+            idx_empty_slot ⤆(KVS) NONE ∗
 
-            ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (2 * idx_empty_slot + 1))%a = true ⌝ ∗
+            ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (3 * idx_empty_slot + 1))%a = true ⌝ ∗
             ⌜ 0 <= idx_empty_slot ⌝ ∗
 
             codefrag pc_a instrs
@@ -335,10 +445,12 @@ Section KVS_search.
             (
               PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
               cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-              rkey ↦ᵣ WInt EMPTY_SLOT ∗
+              rkey ↦ᵣ WInt fkey ∗
               ridx ↦ᵣ WInt (-1) ∗
+              ridx_empty ↦ᵣ WInt (-1) ∗
               rscratch ↦ᵣ - ∗
 
+              ◯(ALLOC)[ku] s' ∗
               isKVS cgp_b m s ∗
 
               codefrag pc_a instrs
@@ -347,23 +459,33 @@ Section KVS_search.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    intros instrs ; subst instrs.
-    iIntros (HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx Hkey)
-      "(HPC & Hcgp & Hrkey & [%wridx Hridx] & Hrscratch & HKVS & Hcode & Hpost)".
+    intros instrs fkey ; subst instrs.
+    iIntros (HsubBounds Hbounds_cgp Hcgp_bound Hs' Hwf_full_key Hrscratch Hridx Hridx_empty Hkey)
+      "(HPC & Hcgp & Hrkey & [%wridx Hridx] & [%wridx_empty Hridx_empty] & Hrscratch & HKVS & Halloc & Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
-    (* Mov ridx 0 *)
+    (* mov ridx 0%Z; *)
     iInstr "Hcode".
+    (* mov ridx_empty (-1)%Z; *)
+    iInstr "Hcode".
+    destruct (decide (ridx_empty = cnull)) as [|_]; first done.
+    remember (-1)%Z as idx_empty.
+    (* TODO I probably need another condition that says something about
+       None and idx_empty *)
+    (* clear Heqidx_empty; generalize idx_empty; clear idx_empty; intros idx_empty. *)
 
     remember 0%Z as n.
     iAssert (⌜ (0 <= n <= SIZE_MAP)%Z ⌝)%I as "%Hn"; first (iPureIntro ; lia).
-    rewrite{2} (_ : cgp_b = (cgp_b ^+ (2 * n))%a); last by solve_addr.
-    assert (forall i, (0 <= i < Z.to_nat n) -> ∃ (k : Z) (w : Word),  m !! i = Some (k,w) ∧ k ≠ EMPTY_SLOT)
+    rewrite{2} (_ : cgp_b = (cgp_b ^+ (3 * n))%a); last by solve_addr.
+    assert (forall i, (0 <= i < Z.to_nat n) -> ∀ (k : Z) (w : Word), m !! i = Some (Some (k,w)) -> k ≠ fkey)
     as Hfkey_notin_nfirst.
     { rewrite Heqn; intros i Hi; lia. }
-    clear Heqn.
+    assert (forall i, (0 <= i < Z.to_nat n) -> m !! i ≠ Some None -> idx_empty = (-1)%Z)
+    as Hfkey_idx_empty_nfirst.
+    { rewrite Heqn; intros i Hi; lia. }
+    clear Heqn Heqidx_empty.
 
-    iLöb as "IH" forall (n Hn Hfkey_notin_nfirst).
+    iLöb as "IH" forall (idx_empty n Hn Hfkey_notin_nfirst Hfkey_idx_empty_nfirst).
 
     (* sub rscratch SIZE_MAP ridx; *)
     iDestruct "Hrscratch" as "[%wrscratch Hrscratch]".
@@ -379,13 +501,16 @@ Section KVS_search.
       (* jmp (".loop_end_not_found")%asm; *)
       iInstr "Hcode".
 
-      (* lea cgp (-(2*SIZE_MAP))%Z; *)
+      (* lea cgp (-(3*SIZE_MAP))%Z; *)
       iInstr "Hcode".
       { transitivity (Some cgp_b); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
       (* mov ridx (-1)%Z; *)
       iInstr "Hcode".
       rewrite decide_False //=.
-      iApply "Hpost"; iRight; iFrame.
+      iApply "Hpost".
+      (* TODO depends if there is an existing empty slot *)
+      (* iRight; iFrame. *)
+      admit.
     }
     assert (0 ≤ n < SIZE_MAP)%Z as Hn' by lia.
     (* jnz (".loop_body")%asm rscratch; *)

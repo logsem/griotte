@@ -374,7 +374,7 @@ Section KVS_Service.
     end.
 
   Definition kvs_data :=
-    repeat_list [WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP.
+    repeat_list [WInt ASM_NONE;WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP.
 
   Definition length_kvs_data := length kvs_data.
 
