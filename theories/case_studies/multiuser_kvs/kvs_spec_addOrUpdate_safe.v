@@ -4,7 +4,7 @@ From griotte Require Import
   switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
 From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
 From griotte Require Import switcher_preamble switcher_spec_return.
-From griotte Require Import proofmode map_simpl.
+From griotte Require Import proofmode map_simpl register_tactics.
 
 Section KVS_spec_addOrUpdate_safe.
   Context
@@ -51,9 +51,9 @@ Section KVS_spec_addOrUpdate_safe.
 
       (* initial memory layout *)
       codefrag pc_a kvs_addOrUpdate_instrs ∗
-      cgp_b ↦ₐ kvs_service_unsealing_key ∗
+      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
 
-      ▷ isKVS (cgp_b ^+ 1)%a m s ∗
+      ▷ isKVS cgp_b m s ∗
       ▷ seal_pred KVS_OTYPE kvs_otype_propC ∗
 
       world_interp W C ∗
@@ -70,19 +70,19 @@ Section KVS_spec_addOrUpdate_safe.
          cnull ↦ᵣ - ∗
 
          codefrag pc_a kvs_addOrUpdate_instrs ∗
-         cgp_b ↦ₐ kvs_service_unsealing_key ∗
+         (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
          (
            (* THERE IS AN EMPTY SLOT AVAILABLE*)
            (∃ idx (k : Z*Z) w,
-               (ca0 ↦ᵣ WInt ASM_TRUE ∗ isKVS (cgp_b ^+ 1)%a (<[idx := (kvs_full_key k.1 k.2, w)]> m) s))
+               (ca0 ↦ᵣ WInt ASM_TRUE ∗ isKVS cgp_b (<[idx := (kvs_full_key k.1 k.2, w)]> m) s))
            ∨
              (* THERE IS AN EMPTY SLOT AVAILABLE *)
              (∃ idx (k : Z*Z) w,
                  ca0 ↦ᵣ WInt ASM_TRUE ∗
-                 isKVS (cgp_b ^+ 1)%a (<[ idx := (kvs_full_key k.1 k.2, w)]> m) (kvs_alloc_insert s k.1 {[k.2]} ) )
+                 isKVS cgp_b (<[ idx := (kvs_full_key k.1 k.2, w)]> m) (kvs_alloc_insert s k.1 {[k.2]} ) )
            ∨
              (* THERE IS NO EMPTY SLOT AVAILABLE *)
-             (ca0 ↦ᵣ WInt ASM_FALSE ∗ isKVS (cgp_b ^+ 1)%a m s)
+             (ca0 ↦ᵣ WInt ASM_FALSE ∗ isKVS cgp_b m s)
          ) ∗
 
          world_interp W C
@@ -93,14 +93,14 @@ Section KVS_spec_addOrUpdate_safe.
   Proof.
     iIntros (HN HsubBounds Hcgp_contiguous Hrelated_Wca_W)
       "(Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_wca0 & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
-        Hcode & Hcgp_b & HKVS & #Hspred & Hworld & Hpost)".
+        Hcode & Ha_unsealing & HKVS & #Hspred & Hworld & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
     rewrite /kvs_addOrUpdate_instrs /assembled_kvs_addOrUpdate.
-    rewrite -/(kvs_getFullKey ca0 ca0 ca1 ct1).
+    rewrite -/(kvs_getFullKey ctp ca0 ca1 ct1 ct2).
     rewrite -/(kvs_search ca0 ct1 ct2).
     rewrite -/(kvs_search ctp ct1 ct2).
     rewrite -/(kvs_check_uint16 ca1 ct1).
@@ -136,19 +136,17 @@ Section KVS_spec_addOrUpdate_safe.
     ; clear dependent Ha_check_uint.
 
     iApply (KVS_getFullKey_spec_safe with
-             "[- $HPC $Hcgp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hcgp_b $Hcode $Hspred $Hworld]"); eauto; [|iNext].
-    { rewrite /withinBounds; solve_addr. }
+             "[- $HPC $Hctp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Hcode $Hspred $Hworld]")
+    ; eauto; iNext.
     iIntros (l_user_key user_key)
-      "([%Huser_key_C ->] & HPC & Hcgp & Hca0 & Hca1 & Hct1 & Hcgp_b & Hcode & #Hseal_ku & Hworld)".
+      "([%Huser_key_C ->] & HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Hcode & #Hseal_ku & Hworld)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
     iInstr "Hcode" with "Hlc".
-    { transitivity (Some (cgp_b ^+ 1)%a); [solve_addr|done]. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
-    iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
     iDestruct (sopen_world_interp_singleton with "Hspred Hseal_ku Hworld")
                 as "(Hworld & Hres_open & HP)".
     iDestruct "HP" as "(%ku & %a & %s' & >%Heq & >%Hku_C & >%Hku & Hot_res)".
@@ -180,7 +178,7 @@ Section KVS_spec_addOrUpdate_safe.
       { injection; intros; lia. }
       (* Lea cgp 1 *)
       iInstr "Hcode".
-      { transitivity ( Some ((cgp_b ^+ (2 + 2 * idx))%a) ); solve_addr+Hcgp_idx Hidx. }
+      { transitivity ( Some ((cgp_b ^+ (2 * idx + 1))%a) ); solve_addr+Hcgp_idx Hidx. }
       (* Store cgp (inr ca2) *)
       destruct (canStore RW wca2) eqn:HcanStore_wca2; cycle 1.
       {
@@ -211,8 +209,8 @@ Section KVS_spec_addOrUpdate_safe.
       iDestruct (close_isKVS with "[$HKVS Hcgp_key Hcgp_val]") as "HKVS";eauto.
       { by simplify_map_eq. }
       {
-        replace (cgp_b ^+ (1 + 2 * idx))%a with ((cgp_b ^+ 1) ^+ 2 * idx)%a by solve_addr+Hidx.
-        replace (cgp_b ^+ (2 + 2 * idx))%a  with ((cgp_b ^+ 1) ^+ (2 * idx + 1))%a by solve_addr+Hidx.
+        replace (cgp_b ^+ (2 * idx))%a with (cgp_b ^+ 2 * idx)%a by solve_addr+Hidx.
+        replace (cgp_b ^+ (2 * idx + 1))%a  with (cgp_b ^+ (2 * idx + 1))%a by solve_addr+Hidx.
         iFrame.
         rewrite /isKVS_entry_empty /=.
         destruct (decide (kvs_full_key user_key nkey = EMPTY_SLOT)); done.
@@ -232,7 +230,7 @@ Section KVS_spec_addOrUpdate_safe.
       }
       iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
-      iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b Hworld".
+      iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Ha_unsealing Hworld".
       iLeft; iExists idx, (user_key, nkey), wca2; iFrame.
 
     (* The key has never been allocated *)
@@ -248,7 +246,6 @@ Section KVS_spec_addOrUpdate_safe.
       (* Jnz 5 ct1 *)
       iInstr "Hcode".
       (* Mov ctp (-1) *)
-      iDestruct "Hctp" as "[%wctp Hctp]".
       iInstr "Hcode".
       destruct (decide (ctp = cnull)); first done.
       (* Jmp 6 *)
@@ -282,7 +279,7 @@ Section KVS_spec_addOrUpdate_safe.
         iInstr_close "Hcode".
         (* Lea cgp 1 *)
         iInstr "Hcode".
-        { transitivity ( Some ((cgp_b ^+ (2 + 2 * idx))%a) ); solve_addr+Hcgp_idx Hidx. }
+        { transitivity ( Some ((cgp_b ^+ (2 * idx + 1))%a) ); solve_addr+Hcgp_idx Hidx. }
         (* Store cgp ca2 *)
         destruct (canStore RW wca2) eqn:HcanStore_wca2; cycle 1.
         {
@@ -310,8 +307,8 @@ Section KVS_spec_addOrUpdate_safe.
         iDestruct (close_isKVS with "[$HKVS Hcgp_key Hcgp_val]") as "HKVS";eauto.
         { by simplify_map_eq. }
         {
-          replace (cgp_b ^+ (1 + 2 * idx))%a with ((cgp_b ^+ 1) ^+ 2 * idx)%a by solve_addr+Hidx.
-          replace (cgp_b ^+ (2 + 2 * idx))%a  with ((cgp_b ^+ 1) ^+ (2 * idx + 1))%a by solve_addr+Hidx.
+          replace (cgp_b ^+ (2 * idx))%a with (cgp_b ^+ 2 * idx)%a by solve_addr+Hidx.
+          replace (cgp_b ^+ (2 * idx + 1))%a  with (cgp_b ^+ (2 * idx + 1))%a by solve_addr+Hidx.
           iFrame.
           rewrite /isKVS_entry_empty /=.
           destruct (decide (kvs_full_key user_key nkey = EMPTY_SLOT)); try done.
@@ -334,7 +331,7 @@ Section KVS_spec_addOrUpdate_safe.
         }
         iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
-        iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b Hworld".
+        iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Ha_unsealing Hworld".
         iRight; iLeft; iExists idx, (user_key, nkey), wca2; iFrame.
       + (* no empty slot found *)
         (* Sub ct1 ct1 (-1) *)
@@ -358,7 +355,7 @@ Section KVS_spec_addOrUpdate_safe.
         }
         iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
-        iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Hcgp_b Hworld".
+        iApply "Hpost"; iFrame "Hna HPC Hcgp Hcra Hctp Hct1 Hct2 Hca1 Hca2 Hcnull Hcode Ha_unsealing Hworld".
         iRight; iRight; iFrame.
   Qed.
 
@@ -412,13 +409,19 @@ Section KVS_spec_addOrUpdate_safe.
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_ca0
       & Hca1 & Hca2 & Hinterp_ca2 & Hctp & Hct1 & Hct2 & Hcnull & Hworld & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%m & %s & >Himports & >Hcode & >Hcgp_b & HisKVS & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (%m & %s & >Himports & >Hcode & HisKVS & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
     assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)%a) as HSubBounds.
     { solve_addr. }
     codefrag_facts "Hcode"; rename H into Hpc_contiguous.
+    rewrite /kvs_imports /kvs.kvs_imports_pre.
+    assert ((KVS_pcc_b + 1)%a = Some (KVS_pcc_b ^+ 1)%a) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    assert ((KVS_pcc_b ^+ 1)%a <= KVS_pcc_b')%a  by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    assert ((KVS_pcc_b ^+ 1 + 1)%a = Some (KVS_pcc_b')%a) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    iDestruct (region_pointsto_cons with "Himports") as "[Himports_sw Himports]"; eauto.
+    iDestruct (region_pointsto_single with "Himports") as "(% & Ha_unsealing & %Heq)"; eauto; simplify_eq.
 
     rewrite /kvs_service_instrs.
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
@@ -428,13 +431,17 @@ Section KVS_spec_addOrUpdate_safe.
     { pose proof Nkvs_namespaces_disjoint as (?&?&?); solve_ndisj. }
 
     iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
-              & Hcnull & Hcode & Hcgp_b & HKVS & Hworld)".
+              & Hcnull & Hcode & Ha_unsealing & HKVS & Hworld)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     iDestruct "HKVS" as
       "[ (%idx & %k & %w & Hca0 & HKVS) | [ (%idx & %k & %w & Hca0 & HKVS) | (Hca0 & HKVS) ] ]".
-    all: iMod ("Hkvs_inv_close" with "[$Hna $Himports $Hcode $Hcgp_b $HKVS $Hspred]") as "Hna".
-    all: iApply "Hpost"; iFrame.
+    all: iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HKVS $Hspred]") as "Hna"
+    ; auto; last ( iApply "Hpost"; iFrame ; try (iLeft; iFrame; done) ; try (iRight; iFrame; done)).
+    all: iNext.
+    all: iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
+    all: iApply (region_pointsto_cons with "[Ha_unsealing]"); eauto; [solve_addr+|]; iFrame.
+    all: rewrite /region_pointsto finz_seq_between_empty; auto; solve_addr+.
   Qed.
 
 
@@ -485,33 +492,15 @@ Section KVS_spec_addOrUpdate_safe.
     rewrite /registers_pointsto.
 
     (* Extract the registers that we will need *)
-    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
-    (* General purpose registers *)
-    assert ( is_Some (rmap !! ctp) ) as [wctp Hwctp].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ctp with "Hrmap") as "[Hctp Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct1) ) as [wct1 Hwct1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct2) ) as [wct2 Hwct2].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! cnull) ) as [wcnull Hwcnull].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
-    (* Argument registers *)
-    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca2) ) as [wca2 Hwca2].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq.
+    assert ( is_Some (rmap !! ctp) ) as [wctp Hwctp] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
+    assert ( is_Some (rmap !! ct1) ) as [wct1 Hwct1] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
+    assert ( is_Some (rmap !! ct2) ) as [wct2 Hwct2] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
+    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
+    assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
+    assert ( is_Some (rmap !! ca2) ) as [wca2 Hwca2] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
+    assert ( is_Some (rmap !! cnull) ) as [wcnull Hwcnull] by ( apply Hrmap_init; rewrite Hrmap_dom ; done ).
+    iExtractList "Hrmap" [PC; cgp; cra ; csp ] as ["HPC"; "Hcgp"; "Hcra"; "Hcsp"].
+    iExtractList "Hrmap" [ct1; ct2; ctp; cnull; ca0; ca1; ca2] as ["Hct1"; "Hct2"; "Hctp"; "Hcnull"; "Hca0"; "Hca1"; "Hca2"].
 
     iAssert (interp W0 C wca0) as "#Hinterp_wca0".
     { iApply "Hinterp_rmap"; eauto; by rewrite /kvs_addOrUpdate_nargs. }

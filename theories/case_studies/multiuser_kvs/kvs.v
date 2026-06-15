@@ -32,20 +32,28 @@ Section KVS_Service.
   Definition ASM_TRUE : Z := 0.
   Definition ASM_FALSE : Z := (-1).
 
-  Definition kvs_getFullKey_asm (rdst rsealkey rkey rscratch : RegName) : list asm_code :=
-    [
+  Definition UNSEALING_USER_KEY_OFFSET := 1.
+
+  Definition kvs_getFullKey_asm (rdst rsealkey rkey rscratch1 rscratch2 : RegName) : list asm_code :=
+    [(* fetch sealing key from imports *)
+      mov rdst PC;
+      getb rscratch1 rdst;
+      geta rscratch2 rdst;
+      sub rscratch1 rscratch1 rscratch2;
+      lea rdst rscratch1;
+      lea rdst UNSEALING_USER_KEY_OFFSET;
+      load rdst rdst;
       (* get full key *)
-      load rscratch cgp;
-      unseal rdst rscratch rsealkey;
+      unseal rdst rdst rsealkey;
       geta rdst rdst;
       lshiftl rdst rdst 16;
       lor rdst rdst rkey
     ].
 
-  Definition kvs_getFullKey (rdst rsealkey rkey rscratch : RegName) :=
-    Eval compute in assemble (kvs_getFullKey_asm rdst rsealkey rkey rscratch).
-  Definition kvs_getFullKey_instrs (rdst rsealkey rkey rscratch : RegName) : list Word :=
-    encodeInstrsW (kvs_getFullKey rdst rsealkey rkey rscratch).
+  Definition kvs_getFullKey (rdst rsealkey rkey rscratch1 rscratch2 : RegName) :=
+    Eval compute in assemble (kvs_getFullKey_asm rdst rsealkey rkey rscratch1 rscratch2).
+  Definition kvs_getFullKey_instrs (rdst rsealkey rkey rscratch1 rscratch2 : RegName) : list Word :=
+    encodeInstrsW (kvs_getFullKey rdst rsealkey rkey rscratch1 rscratch2).
 
   (* TODO we could consider encoding option Z as:
      - [?]0 -> None
@@ -186,10 +194,10 @@ Section KVS_Service.
         #".addOrUpdate_uint16_check_pass"
       ]
       ;
-      (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
+      (kvs_getFullKey_asm ctp ca0 ca1 ct1 ct2)
       (* ca0 contains the full key *)
       ;
-      [ lea cgp 1 ] ;
+      [ mov ca0 ctp ] ;
       (kvs_search_asm ca0 ct1 ct2) ;
       [
         sub ct1 ct1 (-1)%Z;
@@ -257,10 +265,10 @@ Section KVS_Service.
         #".read_uint16_check_pass"
       ]
       ;
-      (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
+      (kvs_getFullKey_asm ctp ca0 ca1 ct1 ct2)
       (* ca0 contains the full key *)
       ;
-      [ lea cgp 1 ] ;
+      [ mov ca0 ctp ] ;
       (kvs_search_asm ca0 ct1 ct2) ;
       [
         sub ct1 ct1 (-1)%Z;
@@ -306,10 +314,10 @@ Section KVS_Service.
         #".erase_uint16_check_pass"
       ]
       ;
-      (kvs_getFullKey_asm ca0 ca0 ca1 ct1)
+      (kvs_getFullKey_asm ctp ca0 ca1 ct1 ct2)
       (* ca0 contains the full key *)
       ;
-      [ lea cgp 1 ] ;
+      [ mov ca0 ctp ] ;
       (kvs_search_asm ca0 ct1 ct2) ;
       [
         sub ct1 ct1 (-1)%Z;
@@ -338,14 +346,18 @@ Section KVS_Service.
   Definition kvs_service_instrs : list Word :=
     kvs_addOrUpdate_instrs ++ kvs_read_instrs ++ kvs_erase_instrs.
 
-  Definition kvs_imports
-    (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
+
+  Local Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
+    WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
+
+  Local Definition kvs_imports_pre (b_switcher e_switcher a_cc_switcher : Addr) (KVS_OTYPE : OType) (ot_switcher : OType)
     : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher
+      WSentry XSRW_ Local b_switcher e_switcher a_cc_switcher;
+      (kvs_service_unsealing_key_pre KVS_OTYPE)
     ].
 
-  Definition length_kvs_imports := length (kvs_imports za za za za_ot).
+  Definition length_kvs_imports := length (kvs_imports_pre za za za za_ot za_ot).
 
   Fixpoint repeat_list `{A : Type} (l : list A) (n : nat) : list A :=
     match n with
@@ -353,16 +365,10 @@ Section KVS_Service.
     | S n => l ++ repeat_list l n
     end.
 
-  Definition kvs_initial_map :=
+  Definition kvs_data :=
     repeat_list [WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP.
 
-  Local Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
-    WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
-
-  Local Definition kvs_data_pre (KVS_OTYPE : OType) : list Word :=
-    (kvs_service_unsealing_key_pre KVS_OTYPE) :: kvs_initial_map.
-
-  Definition length_kvs_data := length (kvs_data_pre za_ot).
+  Definition length_kvs_data := length kvs_data.
 
   Definition kvs_nb_exports : Z := 3.
   Definition length_kvs_exports_tbl : Z := 2 + kvs_nb_exports.
@@ -440,7 +446,8 @@ Section KVS_Service.
 
   Definition kvs_service_unsealing_key {KVS : kvsLayout} :=
     WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
-  Definition kvs_data {KVS : kvsLayout} := kvs_data_pre KVS_OTYPE.
+  Definition kvs_imports {KVS : kvsLayout} (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType) :=
+    kvs_imports_pre b_switcher e_switcher a_cc_switcher KVS_OTYPE ot_switcher.
 
   Definition kvs_full_key (user_key nkey : Z) := Z.lor (user_key ≪ 16) nkey.
 
