@@ -1,14 +1,14 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules.
-From cap_machine Require Import
+From griotte Require Import logrel rules.
+From griotte Require Import
   region_invariants_revocation wp_rules_interp interp_weakening.
-From cap_machine Require Import
+From griotte Require Import
   assert_spec fetch_spec.
-From cap_machine Require Import
+From griotte Require Import
   switcher switcher_preamble switcher_spec_call switcher_spec_KtK_call switcher_spec_KtK_return.
-From cap_machine Require Import
+From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main.
-From cap_machine Require Import map_simpl register_tactics proofmode.
+From griotte Require Import map_simpl register_tactics proofmode.
 
 Section KVS_main_spec.
   Context

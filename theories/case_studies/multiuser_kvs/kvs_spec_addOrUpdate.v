@@ -1,10 +1,10 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules.
-From cap_machine Require Import
+From griotte Require Import logrel rules.
+From griotte Require Import
   switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
-From cap_machine Require Import region_invariants_revocation wp_rules_interp interp_weakening.
-From cap_machine Require Import switcher_preamble switcher_spec_return.
-From cap_machine Require Import proofmode map_simpl.
+From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
+From griotte Require Import switcher_preamble switcher_spec_return.
+From griotte Require Import proofmode map_simpl.
 
 Section KVS_spec_addOrUpdate.
   Context
@@ -32,7 +32,7 @@ Section KVS_spec_addOrUpdate.
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
-    (0 <= user_key < top)%Z ->
+    (0 <= user_key < addresses.top)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -178,7 +178,7 @@ Section KVS_spec_addOrUpdate.
 
     ↑Nkvs ⊆ E ->
 
-    (0 <= user_key < top)%Z ->
+    (0 <= user_key < addresses.top)%Z ->
     is_uint16 nkey ->
 
     canStore RW wca2 = true ->
@@ -254,7 +254,7 @@ Section KVS_spec_addOrUpdate.
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
-    (0 <= user_key < top)%Z ->
+    (0 <= user_key < addresses.top)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -461,7 +461,7 @@ Section KVS_spec_addOrUpdate.
 
     ↑Nkvs ⊆ E ->
 
-    (0 <= user_key < top)%Z ->
+    (0 <= user_key < addresses.top)%Z ->
     is_uint16 nkey ->
     nkey ∉ s ->
 

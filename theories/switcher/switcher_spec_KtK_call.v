@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import memory_region rules proofmode.
-From cap_machine Require Export switcher switcher_preamble.
-From cap_machine Require Import switcher_macros_spec.
-From cap_machine.proofmode Require Import map_simpl register_tactics proofmode.
+From griotte Require Import memory_region rules proofmode.
+From griotte Require Export switcher switcher_preamble.
+From griotte Require Import switcher_macros_spec.
+From griotte Require Import map_simpl register_tactics proofmode.
 
 
 Section Switcher_KtK_Call.
@@ -258,7 +258,6 @@ Section Switcher_KtK_Call.
     iPureIntro; repeat split; solve_addr.
   Qed.
 
-  (* TODO: add the failing case *)
   Lemma switcher_cc_spec_3
     pc_b pc_e pc_a
     b_trusted_stack e_trusted_stack a_tstk tstk_next
