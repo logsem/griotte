@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules.
-From cap_machine Require Import switcher kvs.
-From cap_machine Require Import proofmode.
-From cap_machine Require Export kvs_preamble.
+From griotte Require Import logrel rules.
+From griotte Require Import switcher kvs.
+From griotte Require Import proofmode.
+From griotte Require Export kvs_preamble.
 
 Section KVS_check_uint16.
   Context

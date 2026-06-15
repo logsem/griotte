@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules.
-From cap_machine Require Import
+From griotte Require Import logrel rules.
+From griotte Require Import
   switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
-From cap_machine Require Import proofmode.
+From griotte Require Import proofmode.
 
 Section KVS_spec_read.
   Context
@@ -29,7 +29,7 @@ Section KVS_spec_read.
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
-    (0 <= user_key < top)%Z ->
+    (0 <= user_key < addresses.top)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -153,7 +153,7 @@ Section KVS_spec_read.
 
     ↑Nkvs ⊆ E ->
 
-    (0 <= user_key < top)%Z ->
+    (0 <= user_key < addresses.top)%Z ->
     is_uint16 nkey ->
 
     ( na_inv cerise_nais Nkvs kvs_inv ∗

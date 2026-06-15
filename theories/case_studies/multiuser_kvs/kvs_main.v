@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import rules proofmode.
-From cap_machine Require Import kvs fetch assert.
+From griotte Require Import rules proofmode.
+From griotte Require Import kvs fetch assert.
 
 Section KVS_Main.
   Context `{MP: MachineParameters}.

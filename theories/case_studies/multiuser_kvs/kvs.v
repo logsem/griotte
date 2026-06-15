@@ -1,6 +1,6 @@
-From cap_machine Require Import machine_parameters assembler.
-From cap_machine Require Import bitblast.
-From cap_machine Require Import switcher.
+From griotte Require Import machine_parameters assembler.
+From griotte Require Import bitblast.
+From griotte Require Import switcher.
 
 Section KVS_Service.
   Import Asm_Griotte.

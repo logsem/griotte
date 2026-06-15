@@ -1,9 +1,9 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules.
-From cap_machine Require Import switcher kvs.
-From cap_machine Require Import proofmode.
-From cap_machine Require Export kvs_preamble.
-From cap_machine Require Import wp_rules_interp.
+From griotte Require Import logrel rules.
+From griotte Require Import switcher kvs.
+From griotte Require Import proofmode.
+From griotte Require Export kvs_preamble.
+From griotte Require Import wp_rules_interp.
 
 Section KVS_getFullKey.
   Context
@@ -29,7 +29,7 @@ Section KVS_getFullKey.
     let instrs := (kvs_getFullKey_instrs rsealkey rsealkey rkey rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
-    (0 <= user_key < addr_reg.top)%Z ->
+    (0 <= user_key < addresses.top)%Z ->
 
     rscratch ≠ cnull ->
     rsealkey ≠ cnull ->

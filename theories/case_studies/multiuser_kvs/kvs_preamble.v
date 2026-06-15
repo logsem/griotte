@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
-From cap_machine Require Import logrel rules.
-From cap_machine Require Import switcher kvs.
-From cap_machine Require Import proofmode.
+From griotte Require Import logrel rules.
+From griotte Require Import switcher kvs.
+From griotte Require Import proofmode.
 
 Definition kvs_entry : Type := (Z * Word).
 Definition kvs_dom : gset nat := set_seq 0 SIZE_MAP.
@@ -20,10 +20,10 @@ Class kvs_users {Cname : CmptNameG} :=
   {
     kvs_users_seals : gmap CmptName Z;
     kvs_users_seals_dom : forall (C : CmptName), C ∈ dom kvs_users_seals;
-    kvs_users_seals_bounds : ∀ C ku, kvs_users_seals !! C = Some ku -> (0 <= ku < top)%Z;
+    kvs_users_seals_bounds : ∀ C ku, kvs_users_seals !! C = Some ku -> (0 <= ku < addresses.top)%Z;
 
     kvs_users_seals_reserved : list Z;
-    kvs_users_seals_reserved_bounds : Forall (fun k => (0 <= k < top)%Z) kvs_users_seals_reserved;
+    kvs_users_seals_reserved_bounds : Forall (fun k => (0 <= k < addresses.top)%Z) kvs_users_seals_reserved;
 
     kvs_users_seals_unique: NoDup (kvs_users_seals_reserved ++ (map_to_list kvs_users_seals).*2)
   }.
