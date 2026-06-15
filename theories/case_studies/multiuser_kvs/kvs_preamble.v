@@ -374,11 +374,11 @@ Section KVS_preamble.
 
   Lemma kvs_initial_map_init (b e : Addr) :
     (b + (2 * SIZE_MAP))%a = Some e ->
-    ([[b,e]]↦ₐ[[kvs_initial_map]]) -∗
+    ([[b,e]]↦ₐ[[kvs_data]]) -∗
     ([∗ map] idx↦kw ∈ kvs_map_init, kw.1 ⤇(KVS)[ idx ] kw.2) -∗
     [∗ map] idx↦kw ∈ kvs_map_init, isKVS_entry b idx kw.
     Proof.
-      rewrite /kvs_map_init /kvs_initial_map.
+      rewrite /kvs_map_init /kvs_data.
       generalize dependent e.
       replace b with (b^+(2*0%nat))%a by solve_addr.
       rewrite {3}(_ : (b^+(2*0%nat))%a = b); last solve_addr.
@@ -1102,8 +1102,7 @@ Section KVS_preamble.
     ∃ (m : kvs_map) (s : kvs_alloc),
       [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ imports ]] ∗
       codefrag KVS_pcc_b' kvs_service_instrs ∗
-      KVS_cgp_b ↦ₐ kvs_service_unsealing_key ∗
-      isKVS (KVS_cgp_b ^+ 1)%a m s ∗
+      isKVS KVS_cgp_b m s ∗
       seal_pred KVS_OTYPE kvs_otype_propC.
 
 End KVS_preamble.

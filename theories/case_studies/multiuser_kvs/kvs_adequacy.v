@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import
-  kvs kvs_main kvs_preamble kvs_main_spec kvs_spec_addOrUpdate_safe kvs_spec_read_safe kvs_erase_spec_safe.
+  kvs kvs_main kvs_preamble kvs_main_spec kvs_spec_addOrUpdate_safe kvs_spec_read_safe kvs_spec_erase_safe.
 From griotte Require Import switcher assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
@@ -128,12 +128,13 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   (* instantiating main *)
   (cmpt_imports main_cmpt) =
   (kvs_main_imports
+    kvs_user_key_K
     b_switcher e_switcher
     a_switcher_call ot_switcher
     (b_assert assert_cmpt) (e_assert assert_cmpt)
     B_f) ∧
   (cmpt_code main_cmpt) = kvs_main_code ∧
-  (cmpt_data main_cmpt) = (kvs_main_data kvs_user_key_K) ∧
+  (cmpt_data main_cmpt) = (kvs_main_data) ∧
   (cmpt_exp_tbl_entries main_cmpt) = [] ∧
 
   (* instantiating kvs *)
@@ -598,12 +599,9 @@ Section Adequacy.
            with "[Hkvs_auth Hkvs_frags Hkvs_alloc_auth Hkvs_imports Hkvs_data Hkvs_code]") as "#Hkvs".
     { iNext.
       rewrite /kvs_inv.
-      rewrite kvs_data /kvs.kvs_data /kvs.kvs_data_pre.
+      rewrite kvs_data /kvs_data.
       pose proof (cmpt_data_size kvs_cmpt) as H.
-      rewrite kvs_data /kvs.kvs_data /kvs.kvs_data_pre in H.
-      iDestruct (region_pointsto_cons with "Hkvs_data") as "[Hkvs_cgp_b Hkvs_data]".
-      { transitivity ( Some ((cmpt_b_cgp kvs_cmpt ^+ 1)%a) ); solve_addr+H. }
-      { solve_addr+H. }
+      rewrite kvs_data /kvs_data in H.
       iFrame "∗#".
       iSplit.
       { iPureIntro; apply wf_kvs_map_kvs_map_init. }

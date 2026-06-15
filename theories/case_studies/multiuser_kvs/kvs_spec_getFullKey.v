@@ -22,36 +22,38 @@ Section KVS_getFullKey.
   (*** Specification for known code *)
   Lemma KVS_getFullKey_spec
     (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-    (rsealkey rkey rscratch : RegName)
+    (rdst rsealkey rkey rscratch1 rscratch2 : RegName)
     (user_key nkey : Z) (l_user_key : Locality)
     :
-    let instrs := (kvs_getFullKey_instrs rsealkey rsealkey rkey rscratch) in
+    let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
-    withinBounds cgp_b cgp_e cgp_b = true ->
     (0 <= user_key < addresses.top)%Z ->
 
-    rscratch ≠ cnull ->
+    rscratch1 ≠ cnull ->
+    rscratch2 ≠ cnull ->
     rsealkey ≠ cnull ->
     rkey ≠ cnull ->
+    rdst ≠ cnull ->
 
     (
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+      rdst ↦ᵣ - ∗
       rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key ∗
       rkey ↦ᵣ WInt nkey ∗
-      rscratch ↦ᵣ - ∗
+      rscratch1 ↦ᵣ - ∗
+      rscratch2 ↦ᵣ - ∗
 
-      cgp_b ↦ₐ kvs_service_unsealing_key ∗
+      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
       codefrag pc_a instrs ∗
       ▷ (
           PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-          rsealkey ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
+          rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
+          rsealkey ↦ᵣ WSealed KVS_OTYPE (kvs_user_seal_key_scap l_user_key user_key) ∗
           rkey ↦ᵣ WInt nkey ∗
-          rscratch ↦ᵣ kvs_service_unsealing_key ∗
+          rscratch1 ↦ᵣ WInt (pc_b - pc_a) ∗
+          rscratch2 ↦ᵣ WInt pc_a ∗
 
-          cgp_b ↦ₐ kvs_service_unsealing_key ∗
+          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
           codefrag pc_a instrs -∗
 
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -59,25 +61,37 @@ Section KVS_getFullKey.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (HsubBounds Hbounds_cgp Hbounds_user_key Hrscratch Hrsealkey Hkey)
-      "(HPC & Hcgp & Hrsealkey & Hrkey & [%wscratch Hrscratch] & Hcgp_b & Hcode & Hpost)".
+    iIntros (HsubBounds Hbounds_user_key Hrscratch1 Hrscratch2 Hrsealkey Hkey Hdst)
+      "(HPC & [%wdst Hrdst] & Hrsealkey & Hrkey & [%wscratch1 Hrscratch1] & [%wscratch2 Hrscratch2]
+      & Ha_unsealing & Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
-
-    (* load rscratch cgp; *)
+    assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea;[solve_addr|].
+    assert ((pc_b + UNSEALING_USER_KEY_OFFSET)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a) as Hpc_bn
+    ;[rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr|].
+    (* mov rdst PC; *)
     iInstr "Hcode".
-    { split; done. }
-    iEval (cbn) in "Hrscratch".
-
+    (* getb rscratch1 rdst; *)
+    iInstr "Hcode".
+    (* geta rscratch2 rdst; *)
+    iInstr "Hcode".
+    (* sub rscratch1 rscratch1 rscratch2; *)
+    iInstr "Hcode".
+    (* lea rdst rscratch1; *)
+    iInstr "Hcode".
+    (* lea rdst UNSEALING_USER_KEY_OFFSET; *)
+    iInstr "Hcode".
+    (* load rdst rdst; *)
+    iInstr "Hcode".
+    { rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr. }
     (* unseal rdst rsealkey rscratch; *)
     iInstr "Hcode"; first done.
     { rewrite /withinBounds; pose proof KVS_OTYPE_size; solve_addr. }
     (* geta rdst rdst; *)
     iInstr "Hcode".
-
     (* lshiftl rdst rdst 16; *)
     iInstr "Hcode".
     (* lor rdst rdst rkey *)
@@ -88,6 +102,7 @@ Section KVS_getFullKey.
       replace (@finz.to_z MemNum (0 ^+ user_key)%a) with user_key; first done.
       solve_addr.
     }
+
     iApply "Hpost"; iFrame.
   Qed.
 
@@ -95,30 +110,31 @@ Section KVS_getFullKey.
   Lemma KVS_getFullKey_spec_safe
     (Wskey W : WORLD) (C : CmptName)
     (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-    (rsealkey rkey rscratch : RegName)
+    (rdst rsealkey rkey rscratch1 rscratch2 : RegName)
     (wskey : Word) (nkey : Z)
     ( E : coPset )
     :
-    let instrs := (kvs_getFullKey_instrs rsealkey rsealkey rkey rscratch) in
+    let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
-    withinBounds cgp_b cgp_e cgp_b = true ->
 
     ↑Nkvs_otype ⊆ E ->
 
-    rscratch ≠ cnull ->
+    rscratch1 ≠ cnull ->
+    rscratch2 ≠ cnull ->
     rsealkey ≠ cnull ->
     rkey ≠ cnull ->
+    rdst ≠ cnull ->
 
     related_sts_priv_world Wskey W ->
 
     (PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
+      rdst ↦ᵣ - ∗
       rsealkey ↦ᵣ wskey ∗ interp Wskey C wskey ∗
       rkey ↦ᵣ WInt nkey ∗
-      rscratch ↦ᵣ - ∗
+      rscratch1 ↦ᵣ - ∗
+      rscratch2 ↦ᵣ - ∗
 
-      cgp_b ↦ₐ kvs_service_unsealing_key ∗
+      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
       codefrag pc_a instrs ∗
       seal_pred KVS_OTYPE kvs_otype_propC ∗
 
@@ -127,12 +143,13 @@ Section KVS_getFullKey.
       ▷ ( ∀ l_user_key user_key ,
             ⌜ kvs_users_seals !! C = Some user_key ∧ wskey = kvs_user_seal_key l_user_key user_key ⌝ ∗
             PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-            cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-            rsealkey ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
+            rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
+            rsealkey ↦ᵣ WSealed KVS_OTYPE (kvs_user_seal_key_scap l_user_key user_key) ∗
             rkey ↦ᵣ WInt nkey ∗
-            rscratch ↦ᵣ kvs_service_unsealing_key ∗
+            rscratch1 ↦ᵣ WInt (pc_b - pc_a) ∗
+            rscratch2 ↦ᵣ WInt pc_a ∗
 
-            cgp_b ↦ₐ kvs_service_unsealing_key ∗
+            (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
             codefrag pc_a instrs ∗
 
             (sts_seals_std C KVS_OTYPE {[WSealable (kvs_user_seal_key_scap l_user_key user_key)]}) ∗
@@ -145,10 +162,10 @@ Section KVS_getFullKey.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (HsubBounds Hbounds_cgp HN Hrscratch Hrsealkey Hkey Hrelated_Wskey_W)
-      "(HPC & Hcgp & Hrsealkey
-      & Hinterp_wskey & Hrkey & [%wscratch Hrscratch]
-      & Hcgp_b & Hcode & #Hspred
+    iIntros (HsubBounds HN Hrscratch1 Hrscratch2 Hrsealkey Hkey Hdst Hrelated_Wskey_W)
+      "(HPC & [%wdst Hrdst] & Hrsealkey
+      & Hinterp_wskey & Hrkey & [%wscratch1 Hrscratch1]  & [%wscratch2 Hrscratch2]
+      & Ha_unsealing & Hcode & #Hspred
       & Hworld
       & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -157,16 +174,31 @@ Section KVS_getFullKey.
     (* ----------------- Start the proof ----------------- *)
     (* --------------------------------------------------- *)
 
-    (* load rscratch cgp; *)
+    assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea;[solve_addr|].
+    assert ((pc_b + UNSEALING_USER_KEY_OFFSET)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a) as Hpc_bn
+    ;[rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr|].
+    (* mov rdst PC; *)
     iInstr "Hcode".
-    { split; done. }
-    iEval (cbn) in "Hrscratch".
+    (* getb rscratch1 rdst; *)
+    iInstr "Hcode".
+    (* geta rscratch2 rdst; *)
+    iInstr "Hcode".
+    (* sub rscratch1 rscratch1 rscratch2; *)
+    iInstr "Hcode".
+    (* lea rdst rscratch1; *)
+    iInstr "Hcode".
+    (* lea rdst UNSEALING_USER_KEY_OFFSET; *)
+    iInstr "Hcode".
+    (* load rdst rdst; *)
+    iInstr "Hcode".
+    { rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr. }
+    iEval (cbn) in "Hrdst".
 
     (* unseal rdst rsealkey rscratch; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_unseal_unknown with "[$HPC $Hi $Hrscratch $Hrsealkey]"); try solve_pure.
-    iIntros "!>" (ret) "[-> | (% & % & % & % & % & %wsb & -> & HPC & Hi & Hrsealkey & Hrscratch & %Heq & % & %spec)]".
+    iApply (wp_unseal_unknown' with "[$HPC $Hi $Hrdst $Hrsealkey]"); try solve_pure.
+    iIntros "!>" (ret) "[-> | (% & % & % & % & % & %wsb & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec)]".
     { wp_pure; wp_end; iIntros "%Hcontr";done. }
     simplify_eq.
     iDestruct (monotone.interp_monotone_sd with "[] Hinterp_wskey") as "Hinterp_wskey"; auto.

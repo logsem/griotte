@@ -23,7 +23,7 @@ Section KVS_search.
     let instrs := (kvs_search_instrs rkey ridx rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
-    ((cgp_b + (1 + 2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
+    ((cgp_b + (2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
     fkey ≠ EMPTY_SLOT ->
 
     rscratch ≠ cnull ->
@@ -32,28 +32,28 @@ Section KVS_search.
 
     (
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ 1 )%a ∗
+      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       rkey ↦ᵣ WInt fkey ∗
       ridx ↦ᵣ - ∗
       rscratch ↦ᵣ - ∗
 
-      isKVS (cgp_b ^+ 1)%a m s ∗
+      isKVS cgp_b m s ∗
       fkey ⤇(KVS)[idx] w ∗
 
       codefrag pc_a instrs ∗
       ▷ (
           PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (1+2*idx) )%a ∗
+          cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (2*idx) )%a ∗
           rkey ↦ᵣ WInt fkey ∗
           ridx ↦ᵣ WInt idx ∗
           rscratch ↦ᵣ - ∗
 
-          isKVS_open (cgp_b ^+ 1)%a m s idx ∗
-          (cgp_b ^+ (1+2*idx))%a ↦ₐ WInt fkey ∗
-          (cgp_b ^+ (2+2*idx))%a ↦ₐ w ∗
+          isKVS_open cgp_b m s idx ∗
+          (cgp_b ^+ (2*idx))%a ↦ₐ WInt fkey ∗
+          (cgp_b ^+ (2*idx + 1))%a ↦ₐ w ∗
           isKVS_entry_empty idx fkey ∗
 
-          ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (2 + 2 * idx))%a = true ⌝ ∗
+          ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (2 * idx + 1))%a = true ⌝ ∗
 
           fkey ⤇(KVS)[idx] w ∗
           codefrag pc_a instrs -∗
@@ -72,7 +72,7 @@ Section KVS_search.
 
     remember 0%Z as n.
     iAssert (⌜ (0 <= n <= SIZE_MAP)%Z ⌝)%I as "%Hn"; first (iPureIntro ; lia).
-    rewrite{1} (_ : (cgp_b ^+ 1)%a = (cgp_b ^+ (1 + 2 * n))%a); last by solve_addr.
+    rewrite{2} (_ : (cgp_b = (cgp_b ^+ (2 * n))%a)); last by solve_addr.
     assert (forall i, (0 <= i < Z.to_nat n) -> ∃ (k : Z) (w : Word),  m !! i = Some (k,w) ∧ k ≠ fkey)
     as Hfkey_notin_nfirst.
     { rewrite Heqn; intros i Hi; lia. }
@@ -106,8 +106,7 @@ Section KVS_search.
 
     destruct (decide (Z.of_nat idx = n)%Z) as [<- | Hneq'].
     - iDestruct (open_isKVS_kvs_frag_idx with "[$HKVS $Hkvs_frag]") as "(HKVS & (Hbk & Hbw & Hfkey) & Hkvs_frag)".
-      replace ((cgp_b ^+ 1) ^+ 2 * idx)%a  with (cgp_b ^+ (1 + 2 * idx))%a by solve_addr+Hn.
-      replace ((cgp_b ^+ 1) ^+ (2 * idx + 1))%a with (cgp_b ^+ (2 + 2 * idx))%a by solve_addr+Hn.
+      replace (cgp_b ^+ 2 * idx)%a  with (cgp_b ^+ (2 * idx))%a by solve_addr+Hn.
       (* load rscratch cgp; *)
       iInstr "Hcode".
       { split; [done |solve_addr]. }
@@ -126,8 +125,8 @@ Section KVS_search.
     - iDestruct (open_isKVS_kvs_frag_idx_diff _ _ _ _ (Z.to_nat n) with "[$HKVS $Hkvs_frag]")
         as "(%k' & %w' & %Hkk' & %Hm_idx' & HKVS  & Hkvs_frag & (Hbk & Hbw & Hfkey))"
       ; auto; try lia.
-      replace ((cgp_b ^+ 1) ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (1 + 2 * n))%a by solve_addr+Hn.
-      replace ((cgp_b ^+ 1) ^+ (2 * Z.to_nat n + 1))%a with (cgp_b ^+ (2 + 2 * n))%a by solve_addr+Hn.
+      replace (cgp_b ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (2 * n))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (2 * Z.to_nat n + 1))%a with (cgp_b ^+ (2 * n + 1))%a by solve_addr+Hn.
       (* load rscratch cgp; *)
       iInstr "Hcode".
       { split; [done | solve_addr]. }
@@ -138,7 +137,7 @@ Section KVS_search.
       { injection; cbn; lia. }
       (* lea cgp 2; *)
       iInstr "Hcode".
-      { transitivity (Some ( (cgp_b ^+ (1 + 2 * (n+1)))%a)); solve_addr. }
+      { transitivity (Some ( (cgp_b ^+ (2 * (n+1)))%a)); solve_addr. }
       (* add ridx ridx 1; *)
       iInstr "Hcode".
       (* jmp (".loop_start"); *)
@@ -147,8 +146,8 @@ Section KVS_search.
 
       iDestruct (close_isKVS with "[$HKVS Hbk Hbw Hfkey]") as "HKVS";eauto.
       {
-        replace (cgp_b ^+ (1 + 2 * n))%a with ((cgp_b ^+ 1) ^+ 2 * Z.to_nat n)%a by solve_addr+Hn.
-        replace (cgp_b ^+ (2 + 2 * n))%a  with ((cgp_b ^+ 1) ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
+        replace (cgp_b ^+ (2 * n))%a with (cgp_b ^+ 2 * Z.to_nat n)%a by solve_addr+Hn.
+        replace (cgp_b ^+ (2 * n + 1))%a  with (cgp_b ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
         iFrame.
       }
 
@@ -170,7 +169,7 @@ Section KVS_search.
     let fkey := kvs_full_key ku kn in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
-    ((cgp_b + (1 + 2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
+    ((cgp_b + (2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
     kn ∉ s' ->
     wf_kvs_full_key ku kn ->
 
@@ -180,23 +179,23 @@ Section KVS_search.
 
     (
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ 1 )%a ∗
+      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       rkey ↦ᵣ WInt fkey ∗
       ridx ↦ᵣ - ∗
       rscratch ↦ᵣ - ∗
 
-      isKVS (cgp_b ^+ 1)%a m s ∗
+      isKVS cgp_b m s ∗
       ◯(ALLOC)[ku] s' ∗
 
       codefrag pc_a instrs ∗
       ▷ (
           PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ 1)%a ∗
+          cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
           rkey ↦ᵣ WInt fkey ∗
           ridx ↦ᵣ WInt (-1) ∗
           rscratch ↦ᵣ - ∗
 
-          isKVS (cgp_b ^+ 1)%a m s ∗
+          isKVS cgp_b m s ∗
           ◯(ALLOC)[ku] s' ∗
 
           codefrag pc_a instrs -∗
@@ -215,7 +214,7 @@ Section KVS_search.
 
     remember 0%Z as n.
     iAssert (⌜ (0 <= n <= SIZE_MAP)%Z ⌝)%I as "%Hn"; first (iPureIntro ; lia).
-    rewrite{1} (_ : (cgp_b ^+ 1)%a = (cgp_b ^+ (1 + 2 * n))%a); last by solve_addr.
+    rewrite{2} (_ : cgp_b = (cgp_b ^+ (2 * n))%a); last by solve_addr.
     assert (forall i, (0 <= i < Z.to_nat n) -> ∃ (k : Z) (w : Word),  m !! i = Some (k,w) ∧ k ≠ fkey)
     as Hfkey_notin_nfirst.
     { rewrite Heqn; intros i Hi; lia. }
@@ -239,7 +238,7 @@ Section KVS_search.
 
       (* lea cgp (-(2*SIZE_MAP))%Z; *)
       iInstr "Hcode".
-      { transitivity (Some (cgp_b ^+ 1)%a); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
+      { transitivity (Some cgp_b); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
       (* mov ridx (-1)%Z; *)
       iInstr "Hcode".
       rewrite decide_False //=.
@@ -252,8 +251,8 @@ Section KVS_search.
 
   iDestruct (open_isKVS_not_alloc _ _ _ _ (Z.to_nat n) with "HKVS Halloc")
     as "(%kidx' & %widx & %Hkidx_ne & %Hm_kidx & HKVS & Halloc & (Hbk & Hbw & Hfkey))" ; eauto; [lia|].
-  replace ((cgp_b ^+ 1) ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (1 + 2 * n))%a by solve_addr+Hn.
-  replace ((cgp_b ^+ 1) ^+ (2 * Z.to_nat n + 1))%a with (cgp_b ^+ (2 + 2 * n))%a by solve_addr+Hn.
+  replace (cgp_b ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (2 * n))%a by solve_addr+Hn.
+  replace (cgp_b ^+ (2 * Z.to_nat n + 1))%a with (cgp_b ^+ (1 + 2 * n))%a by solve_addr+Hn.
 
   (* load rscratch cgp; *)
   iInstr "Hcode".
@@ -265,7 +264,7 @@ Section KVS_search.
   { injection; cbn; lia. }
   (* lea cgp 2; *)
   iInstr "Hcode".
-  { transitivity (Some ( (cgp_b ^+ (1 + 2 * (n+1)))%a)); solve_addr. }
+  { transitivity (Some ( (cgp_b ^+ (2 * (n+1)))%a)); solve_addr. }
   (* add ridx ridx 1; *)
   iInstr "Hcode".
   (* jmp (".loop_start"); *)
@@ -274,8 +273,8 @@ Section KVS_search.
 
   iDestruct (close_isKVS with "[$HKVS Hbk Hbw Hfkey]") as "HKVS";eauto.
   {
-    replace (cgp_b ^+ (1 + 2 * n))%a with ((cgp_b ^+ 1) ^+ 2 * Z.to_nat n)%a by solve_addr+Hn.
-    replace (cgp_b ^+ (2 + 2 * n))%a  with ((cgp_b ^+ 1) ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
+    replace (cgp_b ^+ (2 * n))%a with (cgp_b ^+ 2 * Z.to_nat n)%a by solve_addr+Hn.
+    replace (cgp_b ^+ (1 + 2 * n))%a  with (cgp_b ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
     iFrame.
   }
 
@@ -296,7 +295,7 @@ Section KVS_search.
     let instrs := (kvs_search_instrs rkey ridx rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
-    ((cgp_b + (1 + 2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
+    ((cgp_b + (2*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
 
     rscratch ≠ cnull ->
     ridx ≠ cnull ->
@@ -304,29 +303,29 @@ Section KVS_search.
 
     (
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ 1 )%a ∗
+      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       rkey ↦ᵣ WInt EMPTY_SLOT ∗
       ridx ↦ᵣ - ∗
       rscratch ↦ᵣ - ∗
 
-      isKVS (cgp_b ^+ 1)%a m s ∗
+      isKVS cgp_b m s ∗
 
       codefrag pc_a instrs ∗
       ▷ ( (* An empty slot was found*)
           ( ∃ idx_empty_slot : nat,
             (
             PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-            cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (1+2*idx_empty_slot))%a ∗
+            cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (2*idx_empty_slot))%a ∗
             rkey ↦ᵣ WInt EMPTY_SLOT ∗
             ridx ↦ᵣ WInt idx_empty_slot ∗
             rscratch ↦ᵣ - ∗
 
-            isKVS_open (cgp_b ^+ 1)%a m s idx_empty_slot ∗
-            (cgp_b ^+ (1+2*idx_empty_slot))%a ↦ₐ WInt EMPTY_SLOT ∗
-            (cgp_b ^+ (2+2*idx_empty_slot))%a ↦ₐ WInt DEFAULT_VAL ∗
+            isKVS_open cgp_b m s idx_empty_slot ∗
+            (cgp_b ^+ (2*idx_empty_slot))%a ↦ₐ WInt EMPTY_SLOT ∗
+            (cgp_b ^+ (2*idx_empty_slot + 1))%a ↦ₐ WInt DEFAULT_VAL ∗
             EMPTY_SLOT ⤇(KVS)[ idx_empty_slot ] WInt DEFAULT_VAL ∗
 
-            ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (2 + 2 * idx_empty_slot))%a = true ⌝ ∗
+            ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (2 * idx_empty_slot + 1))%a = true ⌝ ∗
             ⌜ 0 <= idx_empty_slot ⌝ ∗
 
             codefrag pc_a instrs
@@ -335,12 +334,12 @@ Section KVS_search.
           ∨ (* No empty slot found*)
             (
               PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-              cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ 1)%a ∗
+              cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
               rkey ↦ᵣ WInt EMPTY_SLOT ∗
               ridx ↦ᵣ WInt (-1) ∗
               rscratch ↦ᵣ - ∗
 
-              isKVS (cgp_b ^+ 1)%a m s ∗
+              isKVS cgp_b m s ∗
 
               codefrag pc_a instrs
             ) -∗
@@ -358,7 +357,7 @@ Section KVS_search.
 
     remember 0%Z as n.
     iAssert (⌜ (0 <= n <= SIZE_MAP)%Z ⌝)%I as "%Hn"; first (iPureIntro ; lia).
-    rewrite{1} (_ : (cgp_b ^+ 1)%a = (cgp_b ^+ (1 + 2 * n))%a); last by solve_addr.
+    rewrite{2} (_ : cgp_b = (cgp_b ^+ (2 * n))%a); last by solve_addr.
     assert (forall i, (0 <= i < Z.to_nat n) -> ∃ (k : Z) (w : Word),  m !! i = Some (k,w) ∧ k ≠ EMPTY_SLOT)
     as Hfkey_notin_nfirst.
     { rewrite Heqn; intros i Hi; lia. }
@@ -382,7 +381,7 @@ Section KVS_search.
 
       (* lea cgp (-(2*SIZE_MAP))%Z; *)
       iInstr "Hcode".
-      { transitivity (Some (cgp_b ^+ 1)%a); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
+      { transitivity (Some cgp_b); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
       (* mov ridx (-1)%Z; *)
       iInstr "Hcode".
       rewrite decide_False //=.
@@ -395,8 +394,8 @@ Section KVS_search.
 
   iDestruct (open_isKVS _ _ _ (Z.to_nat n) with "HKVS") as "(%kidx' & %widx & %Hm_kidx & HKVS & (Hbk & Hbw & Hfkey))"
   ; eauto; [lia|].
-  replace ((cgp_b ^+ 1) ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (1 + 2 * n))%a by solve_addr+Hn.
-  replace ((cgp_b ^+ 1) ^+ (2 * Z.to_nat n + 1))%a with (cgp_b ^+ (2 + 2 * n))%a by solve_addr+Hn.
+  replace (cgp_b ^+ 2 * Z.to_nat n)%a  with (cgp_b ^+ (2 * n))%a by solve_addr+Hn.
+  replace (cgp_b ^+ (2 * Z.to_nat n + 1))%a with (cgp_b ^+ (2 * n + 1))%a by solve_addr+Hn.
   iEval (cbn) in "Hbk"; iEval (cbn) in "Hbw"; iEval (cbn) in "Hfkey".
 
   (* load rscratch cgp; *)
@@ -415,8 +414,8 @@ Section KVS_search.
     iInstr "Hcode".
 
     iDestruct (isKVS_open_valid with "HKVS Hfkey") as "%Hm_kidx_eq"; simplify_map_eq.
-    replace (cgp_b ^+ (1 + 2 * n))%a with (cgp_b ^+ (1 + 2 * Z.to_nat n))%a by solve_addr+Hn.
-    replace (cgp_b ^+ (2 + 2 * n))%a  with (cgp_b ^+ (2 + 2 * Z.to_nat n))%a by solve_addr+Hn.
+    replace (cgp_b ^+ (2 * n))%a with (cgp_b ^+ (2 * Z.to_nat n))%a by solve_addr+Hn.
+    replace (cgp_b ^+ (2 * n + 1))%a  with (cgp_b ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
 
 
     assert (((Z.of_nat (Z.to_nat n))) = n) as Hn_eq by lia.
@@ -431,7 +430,7 @@ Section KVS_search.
     { injection; cbn; lia. }
     (* lea cgp 2; *)
     iInstr "Hcode".
-    { transitivity (Some ( (cgp_b ^+ (1 + 2 * (n+1)))%a)); solve_addr. }
+    { transitivity (Some ( (cgp_b ^+ (2 * (n+1)))%a)); solve_addr. }
     (* add ridx ridx 1; *)
     iInstr "Hcode".
     (* jmp (".loop_start"); *)
@@ -440,8 +439,8 @@ Section KVS_search.
 
     iDestruct (close_isKVS with "[$HKVS Hbk Hbw Hfkey]") as "HKVS";eauto.
     {
-      replace (cgp_b ^+ (1 + 2 * n))%a with ((cgp_b ^+ 1) ^+ 2 * Z.to_nat n)%a by solve_addr+Hn.
-      replace (cgp_b ^+ (2 + 2 * n))%a  with ((cgp_b ^+ 1) ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (2 * n))%a with (cgp_b ^+ 2 * Z.to_nat n)%a by solve_addr+Hn.
+      replace (cgp_b ^+ (2 * n + 1))%a  with (cgp_b ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
       rewrite /isKVS_entry /isKVS_entry_empty /= decide_False //.
       iFrame.
     }

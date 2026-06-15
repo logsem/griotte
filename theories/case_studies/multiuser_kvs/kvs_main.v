@@ -29,16 +29,14 @@ Section KVS_Main.
   Definition KVS_INSERT_OFFSET := 3.
   Definition KVS_READ_OFFSET := 4.
   Definition KVS_ERASE_OFFSET := 5.
-
-  Definition SEALED_USER_KEY_OFFSET := 0.
+  Definition SEALED_USER_KEY_OFFSET := 6.
 
   Definition kvs_main_code : list Word :=
-    encodeInstrsW [
+    fetch_instrs SEALED_USER_KEY_OFFSET cs1 ct0 ct1 (* cs1 -> switcher entry point *)
+    ++ encodeInstrsW [
       (* #"main_code"; *)
-
       (* addOrUpdate(sealedUserKey, 1, 12) *)
-      Lea cgp SEALED_USER_KEY_OFFSET; (* TODO remove *)
-      Load ca0 cgp;
+      Mov ca0 cs1;
       Mov ca1 1;
       Mov ca2 12
       ]
@@ -62,8 +60,7 @@ Section KVS_Main.
     (* res = read(sealedUserKey, 1) *)
     ++ encodeInstrsW [
       (* read(sealedUserKey, 1)*)
-      Lea cgp SEALED_USER_KEY_OFFSET; (* TODO remove *)
-      Load ca0 cgp;
+      Mov ca0 cs1;
       Mov ca1 1
     ]
     ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
@@ -85,9 +82,10 @@ Section KVS_Main.
     ++ encodeInstrsW [ Halt ]
   .
 
-  Definition kvs_main_data {KVS : kvsLayout} (KVS_USER_KEY_MAIN : Z) : list Word := [kvs_user_seal_key Global KVS_USER_KEY_MAIN].
+  Definition kvs_main_data  : list Word := [].
 
   Definition kvs_main_imports {KVS : kvsLayout}
+    (KVS_USER_KEY_MAIN : Z)
     (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
     (b_assert e_assert : Addr)
     (B_f : Sealable) : list Word :=
@@ -97,7 +95,8 @@ Section KVS_Main.
       WSealed ot_switcher B_f;
       WSealed ot_switcher (KVS_addOrUpdate Global);
       WSealed ot_switcher (KVS_read Global);
-      WSealed ot_switcher (KVS_erase Global)
+      WSealed ot_switcher (KVS_erase Global);
+      (kvs_user_seal_key Global KVS_USER_KEY_MAIN)
     ].
 
 End KVS_Main.
