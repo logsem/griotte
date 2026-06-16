@@ -73,7 +73,7 @@ Section KVS_spec_erase.
 
          (
            (∃ idx ku kn,
-             isKVS cgp_b (<[ idx := (EMPTY_SLOT, WInt DEFAULT_VAL) ]> m) (kvs_alloc_delete s ku {[kn]}))
+             isKVS cgp_b (<[ idx := None ]> m) (kvs_alloc_delete s ku {[kn]}))
          ∨
              (isKVS cgp_b m s)
          ) ∗
@@ -94,7 +94,7 @@ Section KVS_spec_erase.
     (* --------------------------------------------------- *)
     rewrite /kvs_erase_instrs /assembled_kvs_erase.
     rewrite -/(kvs_getFullKey ctp ca0 ca1 ct1 ct2).
-    rewrite -/(kvs_search ca0 ct1 ct2).
+    rewrite -/(kvs_search ca0 ctp ct1 ct2).
     rewrite -/(kvs_check_uint16 ca1 ct1).
 
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
@@ -152,14 +152,12 @@ Section KVS_spec_erase.
       iDestruct (big_sepS_delete with "Hkvs_frags")
         as "[ [%w [ [%idx Hkvs_frag] Hinterp_w] ] Hkvs_frags]"
       ; eauto; iEval (cbn) in "Hkvs_frag".
-      iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
+      iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
       { rewrite /withinBounds; solve_addr. }
-      { apply kvs_full_key_not_empty; auto. }
-      iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val  & Hfkey & %Hcgp_idx & Hkvs_frag & Hcode)".
+      iNext; iIntros "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & HKVS & Hcgp_opt & Hcgp_key & Hcgp_val & Hkvs_frag & %Hcgp_idx & Hcode)".
       iDestruct (isKVS_open_valid with "HKVS Hkvs_frag") as "%Hm_idx".
       iDestruct (isKVS_open_indom_idx with "HKVS") as "%Hidx".
       { by apply elem_of_dom_2 in Hm_idx. }
-      iEval (cbn) in "Hfkey".
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
 
@@ -174,7 +172,18 @@ Section KVS_spec_erase.
       { solve_addr+Hcgp_idx. }
       (* Lea cgp 1 *)
       iInstr "Hcode".
-      { transitivity ( Some ((cgp_b ^+ (2 * idx + 1))%a) ); solve_addr+Hcgp_idx Hidx. }
+      { transitivity ( Some ((cgp_b ^+ (3 * idx + 1))%a) ); solve_addr+Hcgp_idx Hidx. }
+      (* Store cgp (inr ca2) *)
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (rules_Store.wp_store_success_z with "[$HPC $Hi $Hcgp $Hcgp_key]"); try solve_pure.
+      { solve_addr+Hcgp_idx. }
+      iNext; iIntros "(HPC & Hi & Hcgp & Hcgp_key)".
+      wp_pure.
+      iInstr_close "Hcode".
+      (* Lea cgp 1 *)
+      iInstr "Hcode".
+      { transitivity ( Some ((cgp_b ^+ (3 * idx + 2))%a) ); solve_addr+Hcgp_idx Hidx. }
       (* Store cgp (inr ca2) *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
@@ -182,7 +191,6 @@ Section KVS_spec_erase.
       iNext; iIntros "(HPC & Hi & Hcgp & Hcgp_val)".
       wp_pure.
       iInstr_close "Hcode".
-
       (* Mov ca0 0 *)
       iInstr "Hcode".
       (* Mov ca1 0 *)
@@ -194,13 +202,9 @@ Section KVS_spec_erase.
       iMod (isKVS_open_delete _ _ _ _ idx user_key nkey _ with "HKVS Halloc Hkvs_frag") as
         "(HKVS & Halloc & Hkvs_frag)"; auto.
 
-      iDestruct (close_isKVS with "[$HKVS Hcgp_key Hcgp_val Hkvs_frag]") as "HKVS";eauto.
+      iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val Hkvs_frag]") as "HKVS";eauto.
       { by simplify_map_eq. }
-      {
-        replace (cgp_b ^+ (2 * idx ))%a with (cgp_b ^+ 2 * idx)%a by solve_addr+Hidx.
-        replace (cgp_b ^+ (2 * idx + 1))%a  with (cgp_b ^+ (2 * idx + 1))%a by solve_addr+Hidx.
-        iFrame.
-      }
+      { iFrame. }
 
       iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
         as "HP".
@@ -210,34 +214,69 @@ Section KVS_spec_erase.
       iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
       iApply "Hpost"; iFrame.
 
-    - iApply (KVS_search_spec_notin with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Halloc $Hcode]"); eauto.
+    (* The key has never been allocated *)
+    - iApply (KVS_search_spec_empty_slot with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HKVS $Halloc $Hcode]"); eauto.
       { rewrite /withinBounds; solve_addr. }
-      iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Halloc & Hcode)".
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+      iNext; iIntros "[
+      (%idx_empty & HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & Halloc & HKVS
+      & Hcgp_opt & Hcgp_key & Hcgp_val & Hfkey & %Hcgp_bounds & %Hidx_empty & Hcode)
+      | (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & Halloc & HKVS & Hcode) ]".
+      all: subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-      focus_block 5 "Hcode" as a_erase Ha_erase "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
-      (* Sub ct1 ct1 (-1) *)
-      iInstr "Hcode".
-      replace (-1 - -1)%Z with 0%Z by lia.
-      (* Jnz 5 ct1 *)
-      iInstr "Hcode".
-      (* Jmp 4 *)
-      iInstr "Hcode".
-      (* Mov ca0 0 *)
-      iInstr "Hcode".
-      (* Mov ca1 0 *)
-      iInstr "Hcode".
-      (* Jalr cnull cra *)
-      iInstr "Hcode".
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+      + (* No empty found *)
 
-      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
-        as "HP".
-      { iExists user_key, a, s'; iFrame "∗ %".
-        by replace (z_of a) with user_key by solve_addr+Hku.
-      }
-      iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
-      iApply "Hpost"; iFrame.
+        focus_block 5 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
+        (* sub ctp ctp (-1)%Z; *)
+        iInstr "Hcode".
+        replace (-1 - -1)%Z with 0%Z by lia.
+        (* jnz (".read_key_found")%asm ctp; *)
+        iInstr "Hcode".
+        (* mov ca0 ASM_FALSE; *)
+        iInstr "Hcode".
+        (* mov ca1 0; *)
+        iInstr "Hcode".
+        (* jmp (".read_key_ret")%asm; *)
+        iInstr "Hcode".
+        (* jalr cnull cra *)
+        iInstr "Hcode".
+        subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
+          as "HP".
+        { iExists user_key, a, s'; iFrame "∗ %".
+          by replace (z_of a) with user_key by solve_addr+Hku.
+        }
+        iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
+        iDestruct (isKVS_open_valid_None with "HKVS Hfkey") as "%".
+        iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val Hfkey]") as "HKVS";eauto.
+        { iFrame. }
+        iApply "Hpost"; iFrame.
+
+      + (* Empty found, but it does not matter here *)
+        focus_block 5 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
+        (* sub ctp ctp (-1)%Z; *)
+        iInstr "Hcode".
+        replace (-1 - -1)%Z with 0%Z by lia.
+        (* jnz (".read_key_found")%asm ctp; *)
+        iInstr "Hcode".
+        (* mov ca0 ASM_FALSE; *)
+        iInstr "Hcode".
+        (* mov ca1 0; *)
+        iInstr "Hcode".
+        (* jmp (".read_key_ret")%asm; *)
+        iInstr "Hcode".
+        (* jalr cnull cra *)
+        iInstr "Hcode".
+        subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
+          as "HP".
+        { iExists user_key, a, s'; iFrame "∗ %".
+          by replace (z_of a) with user_key by solve_addr+Hku.
+        }
+        iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
+
+        iApply "Hpost"; iFrame.
   Qed.
 
   Lemma KVS_erase_spec_safe

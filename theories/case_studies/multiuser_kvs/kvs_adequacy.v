@@ -458,13 +458,7 @@ Section Adequacy.
     iAssert (◯(ALLOC)[ kvs_user_key_K ] ∅)%I with "Halloc_K" as "Halloc_K".
     iAssert (◯(ALLOC)[ kvs_user_key_B ] ∅)%I with "Halloc_B" as "Halloc_B".
     iAssert (●(ALLOC) {[kvs_user_key_K := ∅; kvs_user_key_B := ∅]})%I with "Hkvs_alloc_auth" as "Hkvs_alloc_auth".
-    iAssert ([∗ map] idx↦kw ∈ kvs_map_init, kw.1 ⤇(KVS)[ idx ] kw.2)%I with "[Hkvs_frags]" as "Hkvs_frags".
-    {
-      iApply (big_sepM_impl with "Hkvs_frags").
-      iModIntro; iIntros (k v Hk) "H".
-      destruct v; cbn.
-      iFrame.
-    }
+    iDestruct (kvs_initial_map_init_None with "[Hkvs_frags]") as "Hkvs_frags"; first iFrame.
 
     (* Get initial sregister mtdc *)
     iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; eauto.
@@ -612,7 +606,7 @@ Section Adequacy.
         by destruct (decide (ku = kvs_user_key_K)); simplify_map_eq.
       }
       iEval (cbn).
-      iApply (kvs_initial_map_init with "[$] [$]").
+      iApply (kvs_initial_map_init with "[$] [Hkvs_frags]"); last iFrame.
       rewrite /SIZE_MAP; solve_addr+H.
     }
 
