@@ -17,36 +17,273 @@ Section sealing_interp.
   (* TODO Use an actual normalisation function, which only keeps the highest authority! *)
   (* The normalisation function ensures that there's no duplicates in the set,
      modulo the locality. *)
+  Definition normalise_sealed_words_aux (s : list Word) : list Word :=
+    foldr
+      (fun w acc =>
+         if (isGlobalWord w)
+         then
+           w::(filter (fun w' => (w' ≠ (borrow w))) acc)
+         else
+           match find (fun w' => bool_decide (w' = (force_global w))) acc with
+           | None => w::acc
+           | Some w' => acc
+           end
+      )
+      []
+      s.
+
+  Lemma normalise_sealed_words_aux_empty :
+    normalise_sealed_words_aux [] = [].
+  Proof. by rewrite /normalise_sealed_words_aux /=. Qed.
+
+  Lemma normalise_sealed_words_aux_spec4 (l : list Word) (w : Word) :
+    NoDup l ->
+    ( w ∉ l -> w ∉ ( normalise_sealed_words_aux l ) ).
+  Proof.
+    move: w.
+    induction l as [| w' l ] ; intros w Hnodup Hw.
+    {  rewrite normalise_sealed_words_aux_empty; set_solver+. }
+    apply not_elem_of_cons in Hw as [Hww' Hw].
+    apply NoDup_cons in Hnodup as [Hlw' Hnodup].
+    pose proof (IHl w Hnodup Hw) as IH.
+    rewrite /normalise_sealed_words_aux.
+    rewrite foldr_cons -/(normalise_sealed_words_aux l).
+    destruct (isGlobalWord w').
+    - apply not_elem_of_cons; split; auto.
+      rewrite list_elem_of_filter.
+      intro Hcontra; destruct Hcontra as [? Hin]; done.
+    - destruct ( find (λ w'0 : Word, bool_decide (w'0 = force_global w')) (normalise_sealed_words_aux l) ) eqn:Hfind
+      ; set_solver.
+  Qed.
+  Lemma isGlobal_force_global w : is_z w = false -> isGlobalWord (force_global w) = true.
+  Proof. intros; destruct_word w; cbn in *; auto. destruct sb; cbn; done. Qed.
+  Lemma isGlobal_force_global' w : is_z (force_global w) = false -> isGlobalWord (force_global w) = true.
+  Proof. intros; destruct_word w; cbn in *; auto. destruct sb; cbn; done. Qed.
+
+  Lemma normalise_sealed_words_aux_spec3_1 (l : list Word) (w : Word) :
+    NoDup l ->
+    Forall (fun w => is_z w = false) l ->
+    ( (borrow w) ∉ l ∧ (force_global w) ∈ l ->
+        (force_global w) ∈ ( normalise_sealed_words_aux l )
+    ).
+  Proof.
+    move: w.
+    induction l as [| w' l ] ; intros w Hnodup Hz [Hborrow Hglobal].
+    { by apply elem_of_nil in Hglobal. }
+    apply not_elem_of_cons in Hborrow as [Hborrow_w' Hborrow_l].
+    apply NoDup_cons in Hnodup as [Hl_w' Hnodup_l].
+    apply Forall_cons in Hz as [Hz_w' Hz_l].
+    apply elem_of_cons in Hglobal as [? | Hglobal] ; simplify_eq.
+    - rewrite /normalise_sealed_words_aux.
+      rewrite foldr_cons -/(normalise_sealed_words_aux l).
+      rewrite isGlobal_force_global'; auto.
+      set_solver+.
+    - rewrite /normalise_sealed_words_aux.
+      rewrite foldr_cons -/(normalise_sealed_words_aux l).
+      destruct ( isGlobalWord w' ) eqn:Hglobal_w'.
+      + apply elem_of_cons.
+        destruct (decide ( force_global w = w' )) as [? | Hneq]; first by left.
+        right.
+        apply list_elem_of_filter.
+        split.
+        { admit. }
+        apply IHl; auto.
+      + destruct ( find (λ w'0 : Word, bool_decide (w'0 = force_global w')) (normalise_sealed_words_aux l) ).
+        * apply IHl; auto.
+        * apply elem_of_cons; right; apply IHl; auto.
+  Admitted.
+
+  Lemma normalise_sealed_words_aux_spec3_2 (l : list Word) (w : Word) :
+    NoDup l ->
+    Forall (fun w => is_z w = false) l ->
+    ( (borrow w) ∉ l ∧ (force_global w) ∈ l ->
+        (borrow w) ∉ ( normalise_sealed_words_aux l )
+    ).
+  Proof.
+    move: w.
+    induction l as [| w' l ] ; intros w Hnodup Hz [Hborrow Hglobal].
+    { by apply elem_of_nil in Hglobal. }
+    apply not_elem_of_cons in Hborrow as [Hborrow_w' Hborrow_l].
+    apply NoDup_cons in Hnodup as [Hl_w' Hnodup_l].
+    apply Forall_cons in Hz as [Hz_w' Hz_l].
+    apply elem_of_cons in Hglobal as [? | Hglobal] ; simplify_eq.
+    - rewrite /normalise_sealed_words_aux.
+      rewrite foldr_cons -/(normalise_sealed_words_aux l).
+      rewrite isGlobal_force_global'; auto.
+      apply not_elem_of_cons.
+      split.
+      { admit. }
+      intro Hcontra; apply list_elem_of_filter in Hcontra as [Hcontra ?].
+      apply Hcontra.
+      admit.
+    - rewrite /normalise_sealed_words_aux.
+      rewrite foldr_cons -/(normalise_sealed_words_aux l).
+      destruct ( isGlobalWord w' ) eqn:Hglobal_w'.
+      + apply not_elem_of_cons.
+        split; auto.
+        intro Hcontra; apply list_elem_of_filter in Hcontra as [Hcontra ?].
+        eapply IHl; eauto.
+      + destruct ( find (λ w'0 : Word, bool_decide (w'0 = force_global w')) (normalise_sealed_words_aux l) ).
+        * eapply IHl; eauto.
+        * apply not_elem_of_cons; split; auto.
+  Admitted.
+
+  Lemma normalise_sealed_words_aux_spec3 (l : list Word) (w : Word) :
+    NoDup l ->
+    Forall (fun w => is_z w = false) l ->
+    ( (borrow w) ∉ l ∧ (force_global w) ∈ l ->
+        (force_global w) ∈ ( normalise_sealed_words_aux l ) ∧
+        (borrow w) ∉ ( normalise_sealed_words_aux l )
+    ).
+  Proof.
+    intros Hl Hz H.
+    split; [ apply normalise_sealed_words_aux_spec3_1| apply normalise_sealed_words_aux_spec3_2]; done.
+  Qed.
+
+  Lemma isGlobalWord_borrow w : isGlobalWord (borrow w) = false.
+  Proof. destruct_word w ; auto; destruct sb; auto. Qed.
+
+  Lemma normalise_sealed_words_aux_spec1_1 (l : list Word) (w : Word) :
+    NoDup l ->
+    Forall (fun w => is_z w = false) l ->
+    ( (borrow w) ∈ l ∧ (force_global w) ∈ l ->
+        (force_global w) ∈ ( normalise_sealed_words_aux l )
+    ).
+  Proof.
+    move: w.
+    induction l as [| w' l ] ; intros w Hnodup Hz [Hborrow Hglobal].
+    { by apply elem_of_nil in Hglobal. }
+    apply NoDup_cons in Hnodup as [Hl_w' Hnodup_l].
+    apply Forall_cons in Hz as [Hz_w' Hz_l].
+    rewrite /normalise_sealed_words_aux.
+    rewrite foldr_cons -/(normalise_sealed_words_aux l).
+    apply elem_of_cons in Hglobal as [? | Hglobal]; simplify_eq.
+    { rewrite isGlobal_force_global'; auto.
+      apply elem_of_cons; by left.
+    }
+    apply elem_of_cons in Hborrow as [? | Hborrow]; simplify_eq.
+    - rewrite isGlobalWord_borrow.
+      destruct ( find (λ w' : Word, bool_decide (w' = force_global (borrow w))) (normalise_sealed_words_aux l) ) eqn:Hfind.
+      + apply find_some in Hfind as [Hfind Hfind'].
+        apply list_elem_of_In in Hfind.
+        rewrite bool_decide_eq_true in Hfind'; simplify_eq.
+        by rewrite force_global_borrow in Hfind.
+      + apply elem_of_cons; right.
+        apply normalise_sealed_words_aux_spec3_1; auto.
+    - destruct ( isGlobalWord w' ) eqn:Hw'.
+      + apply elem_of_cons; right.
+        apply list_elem_of_filter; split; first admit.
+        auto.
+      + destruct ( find (λ w'0 : Word, bool_decide (w'0 = force_global w'))
+                     (normalise_sealed_words_aux l) ); auto.
+        apply elem_of_cons; right; auto.
+  Admitted.
+
+  Lemma normalise_sealed_words_aux_spec1_2 (l : list Word) (w : Word) :
+    NoDup l ->
+    Forall (fun w => is_z w = false) l ->
+    ( (borrow w) ∈ l ∧ (force_global w) ∈ l ->
+        (borrow w) ∉ ( normalise_sealed_words_aux l )
+    ).
+  Proof.
+    move: w.
+    induction l as [| w' l ] ; intros w Hnodup Hz [Hborrow Hglobal].
+    { by apply elem_of_nil in Hglobal. }
+    apply NoDup_cons in Hnodup as [Hl_w' Hnodup_l].
+    apply Forall_cons in Hz as [Hz_w' Hz_l].
+    rewrite /normalise_sealed_words_aux.
+    rewrite foldr_cons -/(normalise_sealed_words_aux l).
+    apply elem_of_cons in Hglobal as [? | Hglobal]; simplify_eq.
+    { apply elem_of_cons in Hborrow as [?|Hborrow]; first admit.
+      rewrite isGlobal_force_global'; auto.
+      apply not_elem_of_cons; split; first admit.
+      intro H; apply list_elem_of_filter in H as [H ?]; apply H.
+      admit.
+    }
+    apply elem_of_cons in Hborrow as [? | Hborrow]; simplify_eq.
+    - rewrite isGlobalWord_borrow.
+      destruct ( find (λ w' : Word, bool_decide (w' = force_global (borrow w))) (normalise_sealed_words_aux l) ) eqn:Hfind.
+      + apply normalise_sealed_words_aux_spec4; auto.
+      + exfalso.
+        opose proof (find_none _ _ Hfind (force_global w) _) as H.
+        { apply list_elem_of_In.
+          apply normalise_sealed_words_aux_spec3_1; auto.
+        }
+        cbn in *.
+        rewrite bool_decide_eq_false force_global_borrow in H; simplify_eq.
+    - destruct ( isGlobalWord w' ) eqn:Hw'.
+      + apply not_elem_of_cons; split; first admit.
+        intro H; apply list_elem_of_filter in H as [? ?];auto.
+        eapply IHl; eauto.
+      + destruct ( find (λ w'0 : Word, bool_decide (w'0 = force_global w'))
+                     (normalise_sealed_words_aux l)) eqn:Hfind; auto.
+        apply not_elem_of_cons; split; auto.
+        intro; simplify_eq; set_solver.
+  Admitted.
+
+  Lemma normalise_sealed_words_aux_spec (l : list Word) (w : Word) :
+    NoDup l ->
+    ( (borrow w) ∈ l ∧ (force_global w) ∈ l ->
+        (force_global w) ∈ ( normalise_sealed_words_aux l ) ∧
+        (borrow w) ∉ ( normalise_sealed_words_aux l )
+    )
+    ∧
+    ( (borrow w) ∈ l ∧ (force_global w) ∉ l ->
+        (force_global w) ∉ ( normalise_sealed_words_aux l ) ∧
+        (borrow w) ∈ ( normalise_sealed_words_aux l )
+    )
+    ∧
+    ( (borrow w) ∉ l ∧ (force_global w) ∈ l ->
+        (force_global w) ∈ ( normalise_sealed_words_aux l ) ∧
+        (borrow w) ∉ ( normalise_sealed_words_aux l )
+    )
+    ∧
+    ( w ∉ l -> w ∉ ( normalise_sealed_words_aux l ) ).
+  Proof.
+  Admitted.
+
+  (* Lemma normalise_sealed_words_aux_empty : *)
+  (*   normalise_sealed_words_aux [] = []. *)
+  (* Proof. by rewrite /normalise_sealed_words_aux /=. Qed. *)
+
+  (* Lemma normalise_sealed_words_aux_union (s s' : list Word) : *)
+  (*   normalise_sealed_words_aux (s ++ s') = (normalise_sealed_words_aux s) ∪ (normalise_sealed_words_aux s'). *)
+  (* Proof. by rewrite /normalise_sealed_words_aux set_map_union_L. Qed. *)
+
   Definition normalise_sealed_words (s : gset Word) : gset Word :=
-    set_map (fun w => force_global w) s.
+    list_to_set (normalise_sealed_words_aux (filter (fun w => is_z w = false) (elements s))).
 
   Lemma normalise_sealed_words_empty :
     normalise_sealed_words ∅ = ∅.
-  Proof. by rewrite /normalise_sealed_words set_map_empty. Qed.
+  (* Proof. by rewrite /normalise_sealed_words set_map_empty. Qed. *)
+  Admitted.
 
-  Lemma normalise_sealed_words_union (s s' : gset Word) :
-    normalise_sealed_words (s ∪ s') = (normalise_sealed_words s) ∪ (normalise_sealed_words s').
-  Proof. by rewrite /normalise_sealed_words set_map_union_L. Qed.
+  (* Lemma normalise_sealed_words_union (s s' : gset Word) : *)
+  (*   normalise_sealed_words (s ∪ s') = (normalise_sealed_words s) ∪ (normalise_sealed_words s'). *)
+  (* Proof. by rewrite /normalise_sealed_words set_map_union_L. Qed. *)
 
   Lemma normalise_sealed_words_singleton (w : Word) :
-    normalise_sealed_words {[w]} = {[ force_global w ]}.
-  Proof. by rewrite /normalise_sealed_words set_map_singleton_L. Qed.
+    normalise_sealed_words {[w]} = {[ w ]}.
+  (* Proof. by rewrite /normalise_sealed_words set_map_singleton_L. Qed. *)
+  Admitted.
 
   Lemma normalise_sealed_words_mono (s s' : gset Word) :
     s ⊆ s' ->
     normalise_sealed_words s ⊆ normalise_sealed_words s'.
   Proof.
     intros Hs.
-    rewrite /normalise_sealed_words. apply set_map_mono; eauto.
-    rewrite /pointwise_relation; intros a; done.
-  Qed.
+  (*   rewrite /normalise_sealed_words. apply set_map_mono; eauto. *)
+  (*   rewrite /pointwise_relation; intros a; done. *)
+  (* Qed. *)
+  Admitted.
 
   Lemma normalise_sealed_words_borrow (w : Word) :
-    normalise_sealed_words {[w; borrow w]} = {[ force_global w ]}.
+    normalise_sealed_words {[w; borrow w]} = {[ w ]}.
   Proof.
-    rewrite normalise_sealed_words_union !normalise_sealed_words_singleton force_global_borrow.
-    set_solver+.
-  Qed.
+  (*   rewrite normalise_sealed_words_union !normalise_sealed_words_singleton force_global_borrow. *)
+  (*   set_solver+. *)
+  (* Qed. *)
+  Admitted.
 
   Local Definition sealing_map_def
     (W : WORLD)
