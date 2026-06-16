@@ -162,7 +162,7 @@ Section KVS_search.
                | Some (k,w) => w
                | None => WInt DEFAULT_VAL
                end)
-          ∗ (match opt_kw' with | Some _ => True | None => (Z.to_nat n) ⤆(KVS) NONE end)
+          ∗ (match opt_kw' with | Some _ => True | None => (Z.to_nat n) ⤇(KVS) NONE end)
         )%I with "[Hkvs_entry]" as "(Hn0 & Hn1 & Hn2 & Hfkey)".
       { destruct opt_kw' as [ [k' w'] | ]; iFrame.
         iDestruct "Hkvs_entry" as "($&$&$)"; auto.
@@ -291,7 +291,7 @@ Section KVS_search.
             (cgp_b ^+ (3*idx_empty_slot))%a ↦ₐ WInt ASM_NONE ∗
             (cgp_b ^+ (3*idx_empty_slot + 1))%a ↦ₐ WInt EMPTY_SLOT ∗
             (cgp_b ^+ (3*idx_empty_slot + 2))%a ↦ₐ WInt DEFAULT_VAL ∗
-            idx_empty_slot ⤆(KVS) NONE ∗
+            idx_empty_slot ⤇(KVS) NONE ∗
 
             ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (3 * idx_empty_slot + 2))%a = true ⌝ ∗
             ⌜ 0 <= idx_empty_slot ⌝ ∗
@@ -422,7 +422,7 @@ Section KVS_search.
                | Some (k,w) => w
                | None => WInt DEFAULT_VAL
                end)
-          ∗ (match opt_kwidx with | Some _ => True | None => (Z.to_nat n) ⤆(KVS) NONE end)
+          ∗ (match opt_kwidx with | Some _ => True | None => (Z.to_nat n) ⤇(KVS) NONE end)
         )%I with "[Hfkey]" as "(Hn0 & Hn1 & Hn2 & Hfkey)".
       { destruct opt_kwidx as [ [kidx widx] | ]; iFrame.
         iDestruct "Hfkey" as "($&$&$)"; auto.
@@ -564,7 +564,7 @@ Section KVS_search.
                | Some (k,w) => w
                | None => WInt DEFAULT_VAL
                end)
-          ∗ (match opt_kwidx with | Some _ => True | None => (Z.to_nat n) ⤆(KVS) NONE end)
+          ∗ (match opt_kwidx with | Some _ => True | None => (Z.to_nat n) ⤇(KVS) NONE end)
         )%I with "[Hfkey]" as "(Hn0 & Hn1 & Hn2 & Hfkey)".
       { destruct opt_kwidx as [ [kidx widx] | ]; iFrame.
         iDestruct "Hfkey" as "($&$&$)"; auto.
