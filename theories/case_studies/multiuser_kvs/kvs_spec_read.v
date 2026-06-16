@@ -80,7 +80,7 @@ Section KVS_spec_read.
     (* --------------------------------------------------- *)
     rewrite /kvs_read_instrs /assembled_kvs_read.
     rewrite -/(kvs_getFullKey ctp ca0 ca1 ct1 ct2).
-    rewrite -/(kvs_search ca0 ct1 ct2).
+    rewrite -/(kvs_search ca0 ctp ct1 ct2).
     rewrite -/(kvs_check_uint16 ca1 ct1).
 
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
@@ -106,10 +106,9 @@ Section KVS_spec_read.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
-    iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
+    iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
-    { apply kvs_full_key_not_empty; split; auto; lia. }
-    iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val  & Hfkey & %Hcgp_idx & Hkvs_frag & Hcode)".
+    iNext; iIntros "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & HKVS & Hcgp_opt & Hcgp_key & Hcgp_val & Hkvs_frag & %Hcgp_idx & Hcode)".
     iDestruct (isKVS_open_valid with "HKVS Hkvs_frag") as "%Hm_idx".
     iDestruct (isKVS_open_indom_idx with "HKVS") as "%Hidx".
     { by apply elem_of_dom_2 in Hm_idx. }
@@ -123,7 +122,7 @@ Section KVS_spec_read.
     { injection; intros; lia. }
     (* Lea cgp 1 *)
     iInstr "Hcode".
-    { transitivity ( Some ((cgp_b ^+ (2 * idx + 1))%a) ); solve_addr+Hcgp_idx Hidx. }
+    { transitivity ( Some ((cgp_b ^+ (3 * idx + 2))%a) ); solve_addr+Hcgp_idx Hidx. }
     (* Load ca1 cgp *)
     iInstr "Hcode".
     { split; done. }
@@ -133,12 +132,8 @@ Section KVS_spec_read.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    iDestruct (close_isKVS with "[$HKVS Hcgp_key Hcgp_val Hfkey]") as "HKVS";eauto.
-    {
-      replace (cgp_b ^+ (2 * idx))%a with (cgp_b ^+ 2 * idx)%a by solve_addr+Hidx.
-      replace (cgp_b ^+ (2 * idx + 1))%a  with (cgp_b ^+ (2 * idx + 1))%a by solve_addr+Hidx.
-      iFrame.
-    }
+    iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val]") as "HKVS";eauto.
+    { iFrame. }
     iApply "Hpost"; iFrame.
   Qed.
 

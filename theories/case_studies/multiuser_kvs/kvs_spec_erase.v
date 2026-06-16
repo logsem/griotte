@@ -67,7 +67,7 @@ Section KVS_spec_erase.
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
-         isKVS cgp_b (<[ idx := (EMPTY_SLOT, WInt DEFAULT_VAL) ]> m) (kvs_alloc_delete s user_key {[nkey]}) ∗
+         isKVS cgp_b (<[ idx := None ]> m) (kvs_alloc_delete s user_key {[nkey]}) ∗
          ◯(ALLOC)[user_key] ( s' ∖ {[ nkey ]} ) ∗
 
          codefrag pc_a kvs_erase_instrs ∗
@@ -88,7 +88,7 @@ Section KVS_spec_erase.
     (* --------------------------------------------------- *)
     rewrite /kvs_erase_instrs /assembled_kvs_erase.
     rewrite -/(kvs_getFullKey ctp ca0 ca1 ct1 ct2).
-    rewrite -/(kvs_search ca0 ct1 ct2).
+    rewrite -/(kvs_search ca0 ctp ct1 ct2).
     rewrite -/(kvs_check_uint16 ca1 ct1).
 
     focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
@@ -114,56 +114,49 @@ Section KVS_spec_erase.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
-    iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
+    iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
-    { apply kvs_full_key_not_empty; split; auto; lia. }
-    iNext; iIntros "(HPC & Hcgp & Hca0 & Hct1 & Hct2 & HKVS & Hcgp_key & Hcgp_val  & Hfkey & %Hcgp_idx & Hkvs_frag & Hcode)".
+    iNext; iIntros "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & HKVS & Hcgp_opt & Hcgp_key & Hcgp_val & Hkvs_frag & %Hcgp_idx & Hcode)".
     iDestruct (isKVS_open_valid with "HKVS Hkvs_frag") as "%Hm_idx".
     iDestruct (isKVS_open_indom_idx with "HKVS") as "%Hidx".
     { by apply elem_of_dom_2 in Hm_idx. }
-    iEval (cbn) in "Hfkey".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 5 "Hcode" as a_erase Ha_erase "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
-    (* Sub ct1 ct1 (-1) *)
+    (* sub ctp ctp (-1)%Z; *)
     iInstr "Hcode".
-    (* Jnz 5 ct1 *)
+    (* jnz (".erase_key_found")%asm ctp; *)
     iInstr "Hcode".
     { injection; intros; lia. }
-    (* Store cgp (-1) *)
+    (* store cgp ASM_NONE; *)
     iInstr "Hcode".
     { solve_addr+Hcgp_idx. }
-    (* Lea cgp 1 *)
+    (* lea cgp 1; *)
     iInstr "Hcode".
-    { transitivity ( Some ((cgp_b ^+ (2 * idx + 1))%a) ); solve_addr+Hcgp_idx Hidx. }
-    (* Store cgp (inr ca2) *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (rules_Store.wp_store_success_z with "[$HPC $Hi $Hcgp $Hcgp_val]"); try solve_pure.
-    iNext; iIntros "(HPC & Hi & Hcgp & Hcgp_val)".
-    wp_pure.
-    iInstr_close "Hcode".
-
-    (* Mov ca0 0 *)
+    { transitivity ( Some ((cgp_b ^+ (3 * idx + 1))%a) ); solve_addr+Hcgp_idx Hidx. }
+    (* store cgp EMPTY_SLOT; *)
     iInstr "Hcode".
-    (* Mov ca1 0 *)
+    { solve_addr+Hcgp_idx. }
+    (* lea cgp 1; *)
     iInstr "Hcode".
-    (* Jalr cnull cra *)
+    { transitivity ( Some ((cgp_b ^+ (3 * idx + 2))%a) ); solve_addr+Hcgp_idx Hidx. }
+    (* store cgp DEFAULT_VAL; *)
+    iInstr "Hcode".
+    (* mov ca0 0; *)
+    iInstr "Hcode".
+    (* mov ca1 0; *)
+    iInstr "Hcode".
+    (* jalr cnull cra *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     iMod (isKVS_open_delete _ _ _ _ idx user_key nkey _ with "HKVS Halloc Hkvs_frag") as
       "(HKVS & Halloc & Hkvs_frag)"; auto.
     { rewrite /wf_kvs_full_key; split; auto; lia. }
-    (* iDestruct (kvs_frag_kvs_empty_not_empty_slot with "Hkvs_frag Hfkey") as "%Hk". *)
 
-    iDestruct (close_isKVS with "[$HKVS Hcgp_key Hcgp_val Hkvs_frag]") as "HKVS";eauto.
+    iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val Hkvs_frag]") as "HKVS";eauto.
     { by simplify_map_eq. }
-    {
-      replace (cgp_b ^+ (2 * idx))%a with (cgp_b ^+ 2 * idx)%a by solve_addr+Hidx.
-      replace (cgp_b ^+ (2 * idx + 1))%a  with (cgp_b ^+ (2 * idx + 1))%a by solve_addr+Hidx.
-      iFrame.
-    }
+    { iFrame. }
 
     iApply "Hpost"; iFrame.
   Qed.

@@ -439,7 +439,7 @@ Section KVS_Service.
 
   (* Meta information about erase entry point *)
   Definition kvs_erase_nargs : nat := 2.
-  Definition kvs_erase_pcc_off := (length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_erase_instrs).
+  Definition kvs_erase_pcc_off := (length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_read_instrs).
   Definition kvs_erase_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_erase_pcc_off)%a.
   Definition kvs_exp_tbl_entry_erase :=
     WInt (encode_entry_point kvs_erase_nargs kvs_erase_pcc_off).
