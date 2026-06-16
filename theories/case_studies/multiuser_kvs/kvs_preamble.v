@@ -460,6 +460,26 @@ Section KVS_preamble.
       set_solver.
   Qed.
 
+  Lemma elem_of_kvs_map_init (idx : nat) (opt_kv : kvs_entry) :
+    kvs_map_init !! idx = Some opt_kv -> opt_kv = None.
+  Proof.
+    intros Hidx.
+    rewrite /kvs_map_init in Hidx.
+    apply elem_of_list_to_map_2 in Hidx.
+    apply list_elem_of_fmap in Hidx as (n&?&Hidx); simplify_eq.
+    done.
+  Qed.
+
+  Lemma kvs_initial_map_init_None :
+  ([∗ map] l↦v ∈ kvs_map_init, pointsto l (DfracOwn 1) v) -∗
+  ([∗ map] idx↦_ ∈ kvs_map_init, idx⤆(KVS) NONE).
+  Proof.
+    iIntros "Hkvs_frags".
+    iApply (big_sepM_impl with "Hkvs_frags").
+    iModIntro; iIntros (k v Hk) "H".
+    apply elem_of_kvs_map_init in Hk; simplify_eq; iFrame.
+  Qed.
+
   Lemma kvs_initial_map_init (b e : Addr) :
     (b + (3 * SIZE_MAP))%a = Some e ->
     ([[b,e]]↦ₐ[[kvs_data]]) -∗
