@@ -422,7 +422,7 @@ Section KVS_search.
           ( ∃ idx_empty_slot : nat,
             (
             PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-            cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (3*idx_empty_slot))%a ∗
+            cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
             rkey ↦ᵣ WInt fkey ∗
             ridx ↦ᵣ WInt (-1)%Z ∗
             ridx_empty ↦ᵣ WInt idx_empty_slot ∗
@@ -472,6 +472,9 @@ Section KVS_search.
     iInstr "Hcode".
     destruct (decide (ridx_empty = cnull)) as [|_]; first done.
     remember (-1)%Z as idx_empty.
+    rewrite {1}Heqidx_empty.
+    rewrite {1}Heqidx_empty.
+    rewrite {1}Heqidx_empty.
     (* TODO I probably need another condition that says something about
        None and idx_empty *)
     (* clear Heqidx_empty; generalize idx_empty; clear idx_empty; intros idx_empty. *)
@@ -482,29 +485,29 @@ Section KVS_search.
     assert (forall i, (0 <= i < Z.to_nat n) -> ∀ (k : Z) (w : Word), m !! i = Some (Some (k,w)) -> k ≠ fkey)
     as Hfkey_notin_nfirst.
     { rewrite Heqn; intros i Hi; lia. }
-    (* assert (forall i, (0 <= i < Z.to_nat n) -> m !! i ≠ Some None -> idx_empty = (-1)%Z) *)
-    (* as Hfkey_idx_empty_nfirst. *)
-    (* { rewrite Heqn; intros i Hi; lia. } *)
-    (* assert ( forall i, (0 <= i < Z.to_nat n) -> m !! i ≠ Some None) as Hall_not_empty. *)
-    (* { rewrite Heqn; intros i Hi; lia. } *)
-    replace idx_empty with
-      (if (decide (Forall (fun idx => m !! idx ≠ Some None) (seq 0 (Z.to_nat n))))
-       then (-1)%Z
-       else 0%Z
-      ).
-    2: { case_decide; first done.
-         apply neg_Forall_Exists_neg in H.
-         2: { intros n0.
-              destruct (m !! n0); last by left.
-              destruct o ; [by left|right].
-              intro; simplify_eq.
-         }
-         rewrite Heqn /= in H.
-         apply Exists_nil in H; done.
+
+    iAssert (
+       if (decide ((Forall (fun idx => m !! idx ≠ Some None) (seq 0 (Z.to_nat n)))))
+       then (isKVS cgp_b m s ∗
+             ridx_empty ↦ᵣ WInt (-1)
+            )
+       else ( ∃ (idx_empty : nat),
+                ⌜ 0 <= idx_empty < (Z.to_nat n)⌝ ∗
+                isKVS_open cgp_b m s idx_empty ∗
+                (cgp_b ^+ 3 * idx_empty)%a ↦ₐ WInt ASM_NONE ∗
+                (cgp_b ^+ (3 * idx_empty + 1))%a ↦ₐ WInt EMPTY_SLOT ∗
+                (cgp_b ^+ (3 * idx_empty + 2))%a ↦ₐ WInt DEFAULT_VAL ∗
+                pointsto idx_empty (DfracOwn 1) None ∗
+                ridx_empty ↦ᵣ WInt idx_empty
+            )
+      )%I with "[HKVS Hridx_empty]" as "Hloop_inv".
+    {
+      destruct ( decide (Forall (λ idx : nat, m !! idx ≠ Some None) (seq 0 (Z.to_nat n))) ) as [|Hcontra]; rewrite Heqidx_empty; iFrame.
+      exfalso; apply Hcontra.
+      rewrite Heqn /=; apply Forall_nil; done.
     }
     clear Heqn Heqidx_empty.
 
-    (* iLöb as "IH" forall (idx_empty n Hn Hfkey_notin_nfirst Hfkey_idx_empty_nfirst Hall_not_empty). *)
     iLöb as "IH" forall (n Hn Hfkey_notin_nfirst).
 
     (* sub rscratch SIZE_MAP ridx; *)
@@ -520,42 +523,33 @@ Section KVS_search.
       iInstr "Hcode".
       (* jmp (".loop_end_not_found")%asm; *)
       iInstr "Hcode".
-
       (* lea cgp (-(3*SIZE_MAP))%Z; *)
       iInstr "Hcode".
       { transitivity (Some cgp_b); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
       (* mov ridx (-1)%Z; *)
       iInstr "Hcode".
-      rewrite (decide_False (Z.of_nat 0) ) //=.
-      iApply "Hpost".
-      case_decide; first ( iRight; iFrame).
-      iLeft; iFrame.
-      apply neg_Forall_Exists_neg in H.
-      2: { intros n0.
-           destruct (m !! n0); last by left.
-           destruct o ; [by left|right].
-           intro; simplify_eq.
-      }
-      apply List.Exists_exists in H as (nidx & Hnidx & Hidx); simplify_eq.
-      assert (m !! nidx = Some None) as Hidx'.
-      { destruct (m !! nidx); auto; cycle 1.
-        * exfalso; apply Hidx; done.
-        * destruct o; last done.
-          exfalso; apply Hidx; done.
-      }
-      iExists nidx.
-      (* destruct (decide (Forall )) *)
-      (* TODO depends if there is an existing empty slot *)
-      (* iRight; iFrame. *)
-      admit.
+      rewrite (decide_False (Z.of_nat 0)); last done.
+
+      destruct ( decide ( (Forall (λ idx : nat, m !! idx ≠ Some None) (seq 0 (Z.to_nat SIZE_MAP))) )) as [Hnone|Hnone].
+      - iDestruct "Hloop_inv" as "(HKVS & Hridx_empty)".
+        iApply "Hpost"; iRight; iFrame.
+
+      - iDestruct "Hloop_inv" as
+          "(%idx_empty_found & %Hidx_empty_found & HKVS & Hn0 & Hn1 & Hn2 & Hfkey & Hridx_empty)".
+        iApply "Hpost"; iLeft; iFrame.
+        iPureIntro; split; solve_addr.
     }
     assert (0 ≤ n < SIZE_MAP)%Z as Hn' by lia.
     (* jnz (".loop_body")%asm rscratch; *)
     iInstr "Hcode".
     { by injection. }
 
-  iDestruct (open_isKVS_not_alloc _ _ _ _ (Z.to_nat n) with "HKVS Halloc")
-    as "(%opt_kwidx & %Hm_kwidx & HKVS & Halloc & Hfkey & %Hneq_fkey)" ; eauto; [lia|].
+    destruct ( decide (Forall (λ idx : nat, m !! idx ≠ Some None) (seq 0 (Z.to_nat n))) ) as [Hnone | Hnone].
+    - (* No empty slot have been found yet *)
+      iDestruct "Hloop_inv" as "(HKVS & Hridx_empty)".
+
+      iDestruct (open_isKVS_not_alloc _ _ _ _ (Z.to_nat n) with "HKVS Halloc")
+        as "(%opt_kwidx & %Hm_kwidx & HKVS & Halloc & Hfkey & %Hneq_fkey)" ; eauto; [lia|].
 
       iAssert (
           (cgp_b ^+ 3 * Z.to_nat n)%a ↦ₐ
@@ -586,11 +580,12 @@ Section KVS_search.
 
       (* load rscratch cgp; *)
       iInstr "Hcode".
-      { split; [done | solve_addr]. }
+      { split; [done |solve_addr]. }
       iEval (cbn) in "Hrscratch".
 
       destruct opt_kwidx as [ [kidx widx] | ].
-      + (* jnz (".some_index")%asm rscratch; *)
+      + (* This is not an empty slot. Because we know that fkey ∉ s, the key will not match *)
+        (* jnz (".some_index")%asm rscratch; *)
         iInstr "Hcode".
 
         (* lea cgp 1; *)
@@ -598,12 +593,14 @@ Section KVS_search.
         { transitivity (Some ((cgp_b ^+ (3 * n + 1))%a)); solve_addr+Hn Hn' Hcgp_bound. }
         (* load rscratch cgp; *)
         iInstr "Hcode".
-        { split; [done | solve_addr]. }
+        { split; [done |solve_addr]. }
         (* sub rscratch rkey rscratch; *)
         iInstr "Hcode".
+        assert ( WInt (fkey - kidx)%Z ≠ WInt 0 ) as Hfkey_neq.
+        { injection; intro; simplify_eq; apply Hneq_fkey; cbn; lia. }
         (* jnz (".not_same_key")%asm rscratch; *)
         iInstr "Hcode".
-        { intro; simplify_eq; subst fkey; cbn in * ; lia. }
+
         (* lea cgp 2; *)
         iInstr "Hcode".
         { transitivity (Some ((cgp_b ^+ (3 * n + 3))%a)); solve_addr+Hn Hn' Hcgp_bound. }
@@ -620,70 +617,213 @@ Section KVS_search.
           replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
           iFrame.
         }
+        replace (cgp_b ^+ (3 * n + 3))%a with (cgp_b ^+ (3 * (n + 1)))%a by solve_addr+ Hn Hn' Hcgp_bound.
 
-        iApply ("IH" with "[] [] [Hcgp] [$Hrkey] [$Hrscratch] [$HKVS]
-        [$Halloc] [Hpost] [$Hridx] [$Hcode] [$HPC] [Hridx_empty]").
+        iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$Halloc]
+         [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hridx_empty]").
         * iPureIntro; lia.
         * iPureIntro.
           intros idx0 Hidx0_bound k0 w0 Hidx0.
           destruct (decide (idx0 = Z.to_nat n)%Z) as [-> | Hidx']; eauto.
           { rewrite Hm_kwidx in Hidx0; simplify_map_eq; done. }
           { eapply Hfkey_notin_nfirst; eauto; lia. }
-        * admit.
-        * admit.
-        * admit.
+        * case_decide as Hnone'; iFrame.
+          exfalso.
+          apply Hnone'.
+          replace ( (seq 0 (Z.to_nat (n + 1))) ) with ( (seq 0 (Z.to_nat n)) ++ [Z.to_nat n] ).
+          2: {
+            replace [Z.to_nat n] with (seq (Z.to_nat n) 1) by done.
+            rewrite -seq_app.
+            replace (Z.to_nat n + 1) with (Z.to_nat (n + 1)) by lia.
+            done.
+          }
+          apply Forall_app; split; auto.
+          apply Forall_singleton.
+          rewrite Hm_kwidx; done.
+      + (* This is an empty slot. We will update ridx_empty and keep KVS open *)
+
+        (* jnz (".some_index")%asm rscratch; *)
+        iInstr "Hcode".
+        (* mov ridx_empty ridx; *)
+        iInstr "Hcode".
+        (* lea cgp 3; *)
+        iInstr "Hcode".
+        { transitivity (Some ((cgp_b ^+ (3 * (n + 1)))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        (* add ridx ridx 1; *)
+        iInstr "Hcode".
+        (* jmp (".loop_start"); *)
+        iInstr "Hcode".
+        { transitivity (Some ( (pc_a ^+ 2)%a)); solve_addr. }
+
+        rewrite {6}(_ : n = (Z.of_nat (Z.to_nat n))); last lia.
+        replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
+        replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
+        replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+        iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$Halloc]
+         [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hridx_empty Hn0 Hn1 Hn2 Hfkey]").
+        * iPureIntro; lia.
+        * iPureIntro.
+          intros idx0 Hidx0_bound k0 w0 Hidx0.
+          destruct (decide (idx0 = Z.to_nat n)%Z) as [-> | Hidx']; eauto.
+          { rewrite Hm_kwidx in Hidx0; simplify_map_eq; done. }
+          { eapply Hfkey_notin_nfirst; eauto; lia. }
+        * case_decide as Hnone'; iFrame; last (iPureIntro; lia).
+          exfalso.
+          replace ( (seq 0 (Z.to_nat (n + 1))) ) with ( (seq 0 (Z.to_nat n)) ++ [Z.to_nat n] ) in Hnone'.
+          2: {
+            replace [Z.to_nat n] with (seq (Z.to_nat n) 1) by done.
+            rewrite -seq_app.
+            replace (Z.to_nat n + 1) with (Z.to_nat (n + 1)) by lia.
+            done.
+          }
+          apply Forall_app in Hnone' as [_ Hnone'].
+          apply (Forall_singleton _ (Z.to_nat n)) in Hnone'; cbn in *.
+          done.
+
+    - (* An empty slot have already been found *)
+      iDestruct "Hloop_inv" as
+        "(%idx_empty_found & %Hidx_empty_found & HKVS & Hn0 & Hn1 & Hn2 & Hfkey & Hridx_empty)".
+
+      iDestruct (isKVS_open_valid_None with "HKVS Hfkey") as "%Hidx_empty_found'".
+
+      iDestruct (close_isKVS with "[$HKVS Hn0 Hn1 Hn2 Hfkey]") as "HKVS";eauto.
+      { iFrame. }
 
 
-  (* sub rscratch rkey rscratch; *)
-  iInstr "Hcode".
+      iDestruct (open_isKVS_not_alloc _ _ _ _ (Z.to_nat n) with "HKVS Halloc")
+        as "(%opt_kwidx & %Hm_kwidx & HKVS & Halloc & Hfkey & %Hneq_fkey)" ; eauto; [lia|].
 
-  rewrite /isKVS_entry_empty.
-  destruct (decide (kidx' = EMPTY_SLOT)) as [Hkidx'_empty |  Hkidx'_empty]; simplify_eq.
-  - (* Empty slot found *)
-    replace (Z.sub EMPTY_SLOT EMPTY_SLOT) with 0%Z by lia.
-    (* jnz (".not_same_key")%asm rscratch; *)
-    iInstr "Hcode".
-    (* jmp (".loop_end_found")%asm; *)
-    iInstr "Hcode".
+      iAssert (
+          (cgp_b ^+ 3 * Z.to_nat n)%a ↦ₐ
+            (match opt_kwidx with
+             | Some (k,w) => WInt ASM_SOME
+             | None => WInt ASM_NONE
+             end)
+          ∗
+            (cgp_b ^+ (3 * Z.to_nat n + 1))%a ↦ₐ
+              (match opt_kwidx with
+               | Some (k,w) => WInt k
+               | None => WInt EMPTY_SLOT
+               end)
+          ∗
+            (cgp_b ^+ (3 * Z.to_nat n + 2))%a ↦ₐ
+              (match opt_kwidx with
+               | Some (k,w) => w
+               | None => WInt DEFAULT_VAL
+               end)
+          ∗ (match opt_kwidx with | Some _ => True | None => (Z.to_nat n) ⤆(KVS) NONE end)
+        )%I with "[Hfkey]" as "(Hn0 & Hn1 & Hn2 & Hfkey)".
+      { destruct opt_kwidx as [ [kidx widx] | ]; iFrame.
+        iDestruct "Hfkey" as "($&$&$)"; auto.
+      }
+      replace (cgp_b ^+ 3 * Z.to_nat n)%a  with (cgp_b ^+ (3 * n))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (3 * Z.to_nat n + 1))%a with (cgp_b ^+ (3 * n + 1))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (3 * Z.to_nat n + 2))%a with (cgp_b ^+ (3 * n + 2))%a by solve_addr+Hn.
 
-    iDestruct (isKVS_open_valid with "HKVS Hfkey") as "%Hm_kidx_eq"; simplify_map_eq.
-    replace (cgp_b ^+ (2 * n))%a with (cgp_b ^+ (2 * Z.to_nat n))%a by solve_addr+Hn.
-    replace (cgp_b ^+ (2 * n + 1))%a  with (cgp_b ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
+      (* load rscratch cgp; *)
+      iInstr "Hcode".
+      { split; [done |solve_addr]. }
+      iEval (cbn) in "Hrscratch".
 
 
-    assert (((Z.of_nat (Z.to_nat n))) = n) as Hn_eq by lia.
-    rewrite -{1}Hn_eq.
-    iApply "Hpost"; iLeft; iFrame.
-    iPureIntro; rewrite /withinBounds; solve_addr.
+      destruct opt_kwidx as [ [kidx widx] | ].
+      + (* This is not an empty slot. Because we know that fkey ∉ s, the key will not match *)
+        (* jnz (".some_index")%asm rscratch; *)
+        iInstr "Hcode".
 
-  - (* Empty slot not found *)
+        (* lea cgp 1; *)
+        iInstr "Hcode".
+        { transitivity (Some ((cgp_b ^+ (3 * n + 1))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        (* load rscratch cgp; *)
+        iInstr "Hcode".
+        { split; [done |solve_addr]. }
+        (* sub rscratch rkey rscratch; *)
+        iInstr "Hcode".
+        assert ( WInt (fkey - kidx)%Z ≠ WInt 0 ) as Hfkey_neq.
+        { injection; intro; simplify_eq; apply Hneq_fkey; cbn; lia. }
+        (* jnz (".not_same_key")%asm rscratch; *)
+        iInstr "Hcode".
 
-    (* jnz (".not_same_key")%asm rscratch; *)
-    iInstr "Hcode".
-    { injection; cbn; lia. }
-    (* lea cgp 2; *)
-    iInstr "Hcode".
-    { transitivity (Some ( (cgp_b ^+ (2 * (n+1)))%a)); solve_addr. }
-    (* add ridx ridx 1; *)
-    iInstr "Hcode".
-    (* jmp (".loop_start"); *)
-    iInstr "Hcode".
-    { transitivity (Some ( (pc_a ^+ 1)%a)); solve_addr. }
+        (* lea cgp 2; *)
+        iInstr "Hcode".
+        { transitivity (Some ((cgp_b ^+ (3 * n + 3))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        (* add ridx ridx 1; *)
+        iInstr "Hcode".
+        (* jmp (".loop_start"); *)
+        iInstr "Hcode".
+        { transitivity (Some ( (pc_a ^+ 2)%a)); solve_addr. }
 
-    iDestruct (close_isKVS with "[$HKVS Hbk Hbw Hfkey]") as "HKVS";eauto.
-    {
-      replace (cgp_b ^+ (2 * n))%a with (cgp_b ^+ 2 * Z.to_nat n)%a by solve_addr+Hn.
-      replace (cgp_b ^+ (2 * n + 1))%a  with (cgp_b ^+ (2 * Z.to_nat n + 1))%a by solve_addr+Hn.
-      rewrite /isKVS_entry /isKVS_entry_empty /= decide_False //.
-      iFrame.
-    }
+        iDestruct (close_isKVS with "[$HKVS Hn0 Hn1 Hn2 Hfkey]") as "HKVS";eauto.
+        {
+          replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
+          replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+          iFrame.
+        }
+        replace (cgp_b ^+ (3 * n + 3))%a with (cgp_b ^+ (3 * (n + 1)))%a by solve_addr + Hn Hn' Hcgp_bound.
 
-    iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$HKVS] [$Hpost] [$Hcode] [$HPC] [$Hridx]").
-    + iPureIntro; lia.
-    + iPureIntro.
-      intros idx' Hidx'_bound.
-      destruct (decide (idx' = Z.to_nat n)%Z) as [-> | Hidx']; eauto.
-      apply Hfkey_notin_nfirst; lia.
+        iDestruct (open_isKVS_not_alloc _ _ _ _ idx_empty_found with "HKVS Halloc")
+          as "(%opt_kwidx_empty & %Hm_kwidx_empty & HKVS & Halloc & Hfkey & %Hneq_fkey_empty)" ; eauto; [lia|].
+        rewrite Hidx_empty_found' in Hm_kwidx_empty; simplify_eq.
+        iDestruct "Hfkey" as "(Hn0 & Hn1 & Hn2 & Hfkey)".
+
+        iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$Halloc]
+         [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hn0 Hn1 Hn2 Hfkey Hridx_empty]").
+        * iPureIntro; lia.
+        * iPureIntro.
+          intros idx0 Hidx0_bound k0 w0 Hidx0.
+          clear Hidx_empty_found.
+          destruct (decide (idx0 = Z.to_nat n)%Z) as [-> | Hidx']; eauto.
+          { rewrite Hm_kwidx in Hidx0; simplify_map_eq; done. }
+          { eapply Hfkey_notin_nfirst; eauto; lia. }
+        * case_decide as Hnone'; iFrame; last (iPureIntro; lia).
+          exfalso.
+          rewrite Forall_forall in Hnone'.
+          specialize (Hnone' idx_empty_found).
+          apply Hnone'; auto.
+          apply elem_of_seq; lia.
+
+
+      + (* This is an empty slot. We will update ridx_empty and keep KVS open *)
+
+        (* jnz (".some_index")%asm rscratch; *)
+        iInstr "Hcode".
+        (* mov ridx_empty ridx; *)
+        iInstr "Hcode".
+        (* lea cgp 3; *)
+        iInstr "Hcode".
+        { transitivity (Some ((cgp_b ^+ (3 * (n + 1)))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        (* add ridx ridx 1; *)
+        iInstr "Hcode".
+        (* jmp (".loop_start"); *)
+        iInstr "Hcode".
+        { transitivity (Some ( (pc_a ^+ 2)%a)); solve_addr. }
+
+        rewrite {6}(_ : n = (Z.of_nat (Z.to_nat n))); last lia.
+        replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
+        replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
+        replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+        iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$Halloc]
+         [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hridx_empty Hn0 Hn1 Hn2 Hfkey]").
+        * iPureIntro; lia.
+        * iPureIntro.
+          intros idx0 Hidx0_bound k0 w0 Hidx0.
+          clear Hidx_empty_found.
+          destruct (decide (idx0 = Z.to_nat n)%Z) as [-> | Hidx']; eauto.
+          { rewrite Hm_kwidx in Hidx0; simplify_map_eq; done. }
+          { eapply Hfkey_notin_nfirst; eauto; lia. }
+        * case_decide as Hnone'; iFrame; last (iPureIntro; lia).
+          exfalso.
+          replace ( (seq 0 (Z.to_nat (n + 1))) ) with ( (seq 0 (Z.to_nat n)) ++ [Z.to_nat n] ) in Hnone'.
+          2: {
+            replace [Z.to_nat n] with (seq (Z.to_nat n) 1) by done.
+            rewrite -seq_app.
+            replace (Z.to_nat n + 1) with (Z.to_nat (n + 1)) by lia.
+            done.
+          }
+          apply Forall_app in Hnone' as [_ Hnone'].
+          apply (Forall_singleton _ (Z.to_nat n)) in Hnone'; cbn in *.
+          done.
   Qed.
 
 End KVS_search.
