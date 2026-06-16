@@ -209,18 +209,8 @@ Section KVS_Service.
         (* key was not found, we need to check if there's a empty slot available *)
         #".addOrUpdate_key_not_found";
         (* we need to find an empty slot *)
-        sub ct1 ct1 (-1)%Z;
-        jnz (".addOrUpdate_empty_slot_found")%asm ct1;
-
-        (* key was found, we know that [cgp] points-to it *)
-        #".addOrUpdate_key_found";
-        (* update the value *)
-        lea cgp 1;
-        store cgp ca2;
-        (* return true *)
-        mov ca0 ASM_TRUE;
-        mov ca1 0;
-        jalr cnull cra;
+        sub ctp ct1 (-1)%Z;
+        jnz (".addOrUpdate_empty_slot_found")%asm ctp;
 
         (* no empty slot found, return false *)
         #".addOrUpdate_empty_slot_not_found";
@@ -230,6 +220,9 @@ Section KVS_Service.
         (* empty slot found: insert some/key/value *)
 
         #".addOrUpdate_empty_slot_found";
+        (* make cgp points to the empty index *)
+        mul ct1 ct1 3;
+        lea cgp ct1;
         (* insert Some *)
         store cgp ASM_SOME;
         lea cgp 1;
@@ -241,7 +234,18 @@ Section KVS_Service.
         (* return true *)
         mov ca0 ASM_TRUE;
         mov ca1 0;
+        jalr cnull cra;
+
+        (* key was found, we know that [cgp] points-to it *)
+        #".addOrUpdate_key_found";
+        (* update the value *)
+        lea cgp 2;
+        store cgp ca2;
+        (* return true *)
+        mov ca0 ASM_TRUE;
+        mov ca1 0;
         jalr cnull cra
+
       ]
     ].
   Definition assembled_kvs_addOrUpdate' := Eval vm_compute in (assemble_block kvs_addOrUpdate_asm).

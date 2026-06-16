@@ -65,7 +65,7 @@ Notation "k '⤇(KVS){' q '}[' idx  ']' w" :=
 Notation "k '⤇(KVS){' q '}[' idx  ']' -" :=
   (∃ w, kvs_frag_idx_frac idx k w q)%I (at level 20) : bi_scope.
 
-Notation "idx ⤆(KVS) NONE" :=
+Notation "idx '⤆(KVS)' 'NONE'" :=
   (pointsto (L:=nat) (V:=kvs_entry) idx (DfracOwn 1) None) (at level 20) : bi_scope.
 Notation "k '⤇(KVS)[' idx  ']' w" :=
   (kvs_frag_idx_frac idx k w (DfracOwn 1)) (at level 20) : bi_scope.
