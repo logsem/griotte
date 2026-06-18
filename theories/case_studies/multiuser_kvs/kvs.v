@@ -478,38 +478,31 @@ Section KVS_Service.
     b = c -> Z.land a b = Z.land a c.
   Proof. intros ->; done. Qed.
 
-  (* TODO any better way to prove this? *)
+  Lemma Z_testbit_mask_N_true (N : nat) :
+    forall n, (0 ≤ n < N)%Z -> Z.testbit (2 ^ N - 1) n = true.
+  Proof.
+    intros n Hn.
+    replace (2 ^ N - 1)%Z with (Z.pred (2 ^ N)) by done.
+    rewrite -Z.ones_equiv.
+    bitblast.
+  Qed.
+
   Lemma Z_testbit_mask_16_true (n : Z) :
     (0 ≤ n < 16)%Z -> Z.testbit (2 ^ 16 - 1) n = true.
+  Proof. eapply (Z_testbit_mask_N_true 16). Qed.
+
+  Lemma Z_testbit_mask_N_false (N : nat) :
+    forall n, (0 ≤ n)%Z -> ¬(0 ≤ n < N)%Z -> Z.testbit (2 ^ N - 1) n = false.
   Proof.
-    intros H.
-    destruct (decide (n = 0)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 1)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 2)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 3)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 4)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 5)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 6)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 7)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 8)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 9)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 10)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 11)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 12)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 13)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 14)%Z); simplify_eq; first bitblast.
-    destruct (decide (n = 15)%Z); simplify_eq; first bitblast.
-    lia.
+    intros n Hn Hn'.
+    replace (2 ^ N - 1)%Z with (Z.pred (2 ^ N)) by done.
+    rewrite -Z.ones_equiv.
+    bitblast.
   Qed.
+
   Lemma Z_testbit_mask_16_false (n : Z) :
     (0 ≤ n)%Z -> ¬(0 ≤ n < 16)%Z -> Z.testbit (2 ^ 16 - 1) n = false.
-  Proof.
-    intros H1 H2.
-    apply Z.bits_above_log2; first lia.
-    apply Z.log2_lt_pow2; first lia.
-    assert (2^16 <= 2^n)%Z by (apply Z.pow_le_mono_r_iff; lia).
-    lia.
-  Qed.
+  Proof. eapply (Z_testbit_mask_N_false 16). Qed.
 
   Definition is_uint16 ( z : Z ) : Prop := (UINT16_MIN <= z < UINT16_MAX)%Z.
   Definition wf_kvs_full_key (ku kn : Z) : Prop := (0 <= ku)%Z ∧ is_uint16 kn.
