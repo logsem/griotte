@@ -32,7 +32,7 @@ Section KVS_spec_addOrUpdate_safe.
     ↑Nkvs_otype ⊆ E ->
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
-    (cgp_b + length kvs_data)%a = Some cgp_e ->
+    (cgp_b + length_kvs_data)%a = Some cgp_e ->
 
     related_sts_priv_world Wca W ->
 
@@ -94,6 +94,7 @@ Section KVS_spec_addOrUpdate_safe.
     iIntros (HN HsubBounds Hcgp_contiguous Hrelated_Wca_W)
       "(Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_wca0 & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
         Hcode & Ha_unsealing & HKVS & #Hspred & Hworld & Hpost)".
+    rewrite /length_kvs_data /= in Hcgp_contiguous.
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -394,7 +395,7 @@ Section KVS_spec_addOrUpdate_safe.
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_ca0
       & Hca1 & Hca2 & Hinterp_ca2 & Hctp & Hct1 & Hct2 & Hcnull & Hworld & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%m & %s & >Himports & >Hcode & HisKVS & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (%m & %s & %next_free_uk & >Himports & >Hcgp_e & >Hcode & HisKVS & Hfree_uk_alloc & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
@@ -421,7 +422,7 @@ Section KVS_spec_addOrUpdate_safe.
 
     iDestruct "HKVS" as
       "[ (%idx & %k & %w & Hca0 & HKVS) | [ (%idx & %k & %w & Hca0 & HKVS) | (Hca0 & HKVS) ] ]".
-    all: iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HKVS $Hspred]") as "Hna"
+    all: iMod ("Hkvs_inv_close" with "[$Hcode $Hcgp_e Himports_sw Ha_unsealing $HKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna"
     ; auto; last ( iApply "Hpost"; iFrame ; try (iLeft; iFrame; done) ; try (iRight; iFrame; done)).
     all: iNext.
     all: iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.

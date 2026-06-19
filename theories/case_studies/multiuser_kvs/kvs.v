@@ -1,6 +1,6 @@
 From griotte Require Import machine_parameters assembler.
 From griotte Require Import bitblast.
-From griotte Require Import switcher.
+From griotte Require Import switcher fetch.
 
 Section KVS_Service.
   Import Asm_Griotte.
@@ -13,7 +13,7 @@ Section KVS_Service.
       TODO description of the service
    *)
   (*
-    Import+UNSEALING_USER_KEY_OFFSET  : [U, Global, OUserKey, OUserKey + 1, OUserKey]
+    Import+SEALING_USER_KEY_OFFSET  : [SU, Global, OUserKey, OUserKey + 1, OUserKey]
 
     ca0 : sealedUserKey
     ca1 : key
@@ -26,6 +26,7 @@ Section KVS_Service.
     cgp45 : option15
     cgp46 : key15
     cgp47 : val15
+    cgp48 : next_free_user_key
    *)
   Definition SIZE_MAP := 16.
 
@@ -40,6 +41,8 @@ Section KVS_Service.
 
   Definition ASM_SIZEOF_KVS_ENTRY : Z := 3.
   Definition UNSEALING_USER_KEY_OFFSET := 1.
+
+  Definition OFFSET_NEXT_FREE_SEALED_USER_KEY : Z := ASM_SIZEOF_KVS_ENTRY * SIZE_MAP .
 
   Definition kvs_getFullKey_asm (rdst rsealkey rkey rscratch1 rscratch2 : RegName) : list asm_code :=
     [(* fetch sealing key from imports *)
@@ -353,12 +356,43 @@ Section KVS_Service.
   Definition kvs_erase_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_erase).
 
 
+  (** Initialise.
+      Arguments: ()
+      Return values:
+      - [ca0]: if (successfull initialisation) then ASM_SOME else ASM_NONE
+      - [ca1]: if (successfull initialisation) then fresh_sealed_user_key else -
+   *)
+  Definition kvs_initialise_asm : list (list asm_code) :=
+    [
+      fetch_asm UNSEALING_USER_KEY_OFFSET ct0 ctp ct1;
+      [
+        (* Get current next_free_sealed_user_key *)
+        lea cgp OFFSET_NEXT_FREE_SEALED_USER_KEY;
+        load ct1 cgp;
+        geta ctp ct1;
+        lt ctp ctp MemNum; (* ctp := if (ctp < MemNum) then 1 else 0 *)
+        jnz (".initialise_next_free_available")%asm ctp;
+        #".initialise_next_free_not_available";
+        mov ca0 ASM_NONE;
+        ret;
+        #".initialise_next_free_available";
+        mov ca0 ASM_SOME;
+        seal ca1 ct0 ct1;
+        lea ct1 1;
+        store cgp ct1;
+        ret
+      ]
+    ].
+  Definition assembled_kvs_initialise' := Eval vm_compute in (assemble_block kvs_initialise_asm).
+  Definition assembled_kvs_initialise  := Eval cbv in (revert_regs_code_block assembled_kvs_initialise').
+  Definition kvs_initialise_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_initialise).
+
   Definition kvs_service_instrs : list Word :=
-    kvs_addOrUpdate_instrs ++ kvs_read_instrs ++ kvs_erase_instrs.
+    kvs_addOrUpdate_instrs ++ kvs_read_instrs ++ kvs_erase_instrs ++ kvs_initialise_instrs.
 
 
   Local Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
-    WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
+    WSealRange (true, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
 
   Local Definition kvs_imports_pre (b_switcher e_switcher a_cc_switcher : Addr) (KVS_OTYPE : OType) (ot_switcher : OType)
     : list Word :=
@@ -375,12 +409,21 @@ Section KVS_Service.
     | S n => l ++ repeat_list l n
     end.
 
-  Definition kvs_data :=
-    repeat_list [WInt ASM_NONE;WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP.
+  Definition kvs_user_seal_key_scap (g : Locality) (z : Z) :=
+    (SCap (O LG LM) g 0%a 0%a (0 ^+ z)%a).
 
-  Definition length_kvs_data := length kvs_data.
+  Definition kvs_user_seal_key_scap_init (init_user_key : Z) :=
+    WSealable (kvs_user_seal_key_scap Global init_user_key).
 
-  Definition kvs_nb_exports : Z := 3.
+  Definition kvs_data_kvs_region :=
+    (repeat_list [WInt ASM_NONE;WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP).
+
+  Definition kvs_data (init_user_key : Z) :=
+    kvs_data_kvs_region ++ [kvs_user_seal_key_scap_init init_user_key].
+
+  Definition length_kvs_data := length (kvs_data 0).
+
+  Definition kvs_nb_exports : Z := 4.
   Definition length_kvs_exports_tbl : Z := 2 + kvs_nb_exports.
 
   Class kvsLayout : Type :=
@@ -446,27 +489,37 @@ Section KVS_Service.
   Definition KVS_erase {KVS : kvsLayout} (g : Locality) : Sealable :=
     SCap RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr%a.
 
+  Definition kvs_initialise_nargs : nat := 0.
+  Definition kvs_initialise_pcc_off := (length_kvs_imports
+                                         + length kvs_addOrUpdate_instrs
+                                         + length kvs_read_instrs
+                                         + length kvs_erase_instrs).
+  Definition kvs_initialise_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_initialise_pcc_off)%a.
+  Definition kvs_exp_tbl_entry_initialise :=
+    WInt (encode_entry_point kvs_initialise_nargs kvs_initialise_pcc_off).
+  Definition kvs_initialise_exp_tbl_off : nat := 5.
+  Definition kvs_initialise_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_initialise_exp_tbl_off)%a.
+  Definition KVS_initialise {KVS : kvsLayout} (g : Locality) : Sealable :=
+    SCap RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_initialise_exp_tbl_addr.
+
   (* Export table of KVS service *)
   Definition kvs_export_table_entries : list Word :=
     [ kvs_exp_tbl_entry_addOrUpdate;
       kvs_exp_tbl_entry_read;
-      kvs_exp_tbl_entry_erase
+      kvs_exp_tbl_entry_erase;
+      kvs_exp_tbl_entry_initialise
     ].
 
 
   Definition kvs_service_unsealing_key {KVS : kvsLayout} :=
-    WSealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
+    WSealRange (true, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
   Definition kvs_imports {KVS : kvsLayout} (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType) :=
     kvs_imports_pre b_switcher e_switcher a_cc_switcher KVS_OTYPE ot_switcher.
 
   Definition kvs_full_key (user_key nkey : Z) := Z.lor (user_key ≪ 16) nkey.
 
-  Definition kvs_user_seal_key_scap {KVS : kvsLayout} (g : Locality) (z : Z) :=
-    (SCap (O LG LM) g 0%a 0%a (0 ^+ z)%a).
-
   Definition kvs_user_seal_key {KVS : kvsLayout} (g : Locality) (z : Z) :=
     WSealed KVS_OTYPE (kvs_user_seal_key_scap g z).
-
 
 
   Lemma shiftr_inj (a a' b : Z) :
@@ -549,6 +602,10 @@ Ltac solve_addr_kvs :=
   repeat match goal with
     | H : context [ ASM_SIZEOF_KVS_ENTRY ] |- _ => rewrite /ASM_SIZEOF_KVS_ENTRY in H
     | _ : _ |- context [ ASM_SIZEOF_KVS_ENTRY ] => rewrite /ASM_SIZEOF_KVS_ENTRY
+    | H : context [ SIZE_MAP ] |- _ => rewrite /SIZE_MAP in H
+    | _ : _ |- context [ SIZE_MAP ] => rewrite /SIZE_MAP
+    | H : context [ OFFSET_NEXT_FREE_SEALED_USER_KEY ] |- _ => rewrite /OFFSET_NEXT_FREE_SEALED_USER_KEY in H
+    | _ : _ |- context [ OFFSET_NEXT_FREE_SEALED_USER_KEY ] => rewrite /OFFSET_NEXT_FREE_SEALED_USER_KEY
     end
   ; solve_addr.
 

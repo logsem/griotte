@@ -23,7 +23,7 @@ Section KVS_search.
     let instrs := (kvs_search_instrs rkey ridx ridx_empty rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
-    ((cgp_b + (ASM_SIZEOF_KVS_ENTRY*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
+    ((cgp_b + length_kvs_data)%a = Some cgp_e)%a ->
 
     rscratch ≠ cnull ->
     ridx ≠ cnull ->
@@ -68,6 +68,7 @@ Section KVS_search.
     iIntros (HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx Hridx_empty Hkey)
       "(HPC & Hcgp & Hrkey & [%widx Hridx] & [%widx_empty Hridx_empty] & Hrscratch
       & HKVS & Hkvs_frag & Hcode & Hpost)".
+    rewrite /length_kvs_data /= in Hcgp_bound.
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
 
@@ -256,7 +257,7 @@ Section KVS_search.
     let fkey := kvs_full_key ku kn in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
-    ((cgp_b + (ASM_SIZEOF_KVS_ENTRY*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
+    ((cgp_b + length_kvs_data)%a = Some cgp_e) ->
 
     kn ∉ s' ->
     wf_kvs_full_key ku kn ->
@@ -322,6 +323,7 @@ Section KVS_search.
     intros instrs fkey ; subst instrs.
     iIntros (HsubBounds Hbounds_cgp Hcgp_bound Hs' Hwf_full_key Hrscratch Hridx Hridx_empty Hkey)
       "(HPC & Hcgp & Hrkey & [%wridx Hridx] & [%wridx_empty Hridx_empty] & Hrscratch & HKVS & Halloc & Hcode & Hpost)".
+    rewrite /length_kvs_data /= in Hcgp_bound.
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* mov ridx 0%Z; *)

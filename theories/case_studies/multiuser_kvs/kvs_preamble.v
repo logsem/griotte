@@ -480,13 +480,13 @@ Section KVS_preamble.
     apply elem_of_kvs_map_init in Hk; simplify_eq; iFrame.
   Qed.
 
-  Lemma kvs_initial_map_init (b e : Addr) :
+  Lemma kvs_initial_map_init (b e : Addr) (init_user_key : Z) :
     (b + (ASM_SIZEOF_KVS_ENTRY * SIZE_MAP))%a = Some e ->
-    ([[b,e]]↦ₐ[[kvs_data]]) -∗
+    ([[b,e]]↦ₐ[[ kvs_data_kvs_region ]]) -∗
     ([∗ map] idx↦opt_kw ∈ kvs_map_init, idx ⤇(KVS) NONE) -∗
     [∗ map] idx↦kw ∈ kvs_map_init, isKVS_entry b idx kw.
   Proof.
-    rewrite /kvs_map_init /kvs_data.
+    rewrite /kvs_map_init /kvs_data_kvs_region.
     generalize dependent e.
     replace b with (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat))%a by solve_addr.
     rewrite {3}(_ : (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat))%a = b); last solve_addr.
@@ -517,7 +517,7 @@ Section KVS_preamble.
     - iApply (IHn (b ^+ (ASM_SIZEOF_KVS_ENTRY * (k + (S n))))%a with "[Hmem] [$Hfrags]"); first solve_addr+Hbe.
       replace (b ^+ ASM_SIZEOF_KVS_ENTRY * S k)%a with (b ^+ (ASM_SIZEOF_KVS_ENTRY * k + ASM_SIZEOF_KVS_ENTRY))%a by solve_addr.
       replace e with (b ^+ ASM_SIZEOF_KVS_ENTRY * (k + S n))%a by solve_addr.
-      done.
+       done.
   Qed.
 
   Lemma wf_kvs_map_insert (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
@@ -1225,10 +1225,12 @@ Section KVS_preamble.
     let imports :=
       kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
     in
-    ∃ (m : kvs_map) (s : kvs_alloc),
+    ∃ (m : kvs_map) (s : kvs_alloc) (next_free_user_key : Z),
       [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ imports ]] ∗
+      (KVS_cgp_b ^+ OFFSET_NEXT_FREE_SEALED_USER_KEY)%a  ↦ₐ (kvs_user_seal_key_scap_init next_free_user_key) ∗
       codefrag KVS_pcc_b' kvs_service_instrs ∗
       isKVS KVS_cgp_b m s ∗
+      ([∗ list] uk ∈ (seqZ next_free_user_key (MemNum-next_free_user_key)), ◯(ALLOC)[uk] ∅) ∗
       seal_pred KVS_OTYPE kvs_otype_propC.
 
 End KVS_preamble.
