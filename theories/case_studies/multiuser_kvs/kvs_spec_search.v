@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
+From griotte Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import switcher kvs.
-From griotte Require Import proofmode.
 From griotte Require Export kvs_preamble.
 
 Section KVS_search.
@@ -23,7 +23,7 @@ Section KVS_search.
     let instrs := (kvs_search_instrs rkey ridx ridx_empty rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
-    ((cgp_b + (3*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
+    ((cgp_b + (ASM_SIZEOF_KVS_ENTRY*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
 
     rscratch ≠ cnull ->
     ridx ≠ cnull ->
@@ -44,19 +44,19 @@ Section KVS_search.
       codefrag pc_a instrs ∗
       ▷ (
           PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (3*idx) )%a ∗
+          cgp ↦ᵣ WCap RW Global cgp_b cgp_e (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx) )%a ∗
           rkey ↦ᵣ WInt fkey ∗
           ridx ↦ᵣ WInt idx ∗
           ridx_empty ↦ᵣ - ∗
           rscratch ↦ᵣ - ∗
 
           isKVS_open cgp_b m s idx ∗
-          (cgp_b ^+ (3*idx))%a ↦ₐ WInt ASM_SOME ∗
-          (cgp_b ^+ (3*idx + 1))%a ↦ₐ WInt fkey ∗
-          (cgp_b ^+ (3*idx + 2))%a ↦ₐ w ∗
+          (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_SOME ∗
+          (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 1))%a ↦ₐ WInt fkey ∗
+          (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 2))%a ↦ₐ w ∗
           fkey ⤇(KVS)[idx] w ∗
 
-          ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (3 * idx + 2))%a = true ⌝ ∗
+          ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a = true ⌝ ∗
 
           codefrag pc_a instrs -∗
 
@@ -78,7 +78,7 @@ Section KVS_search.
 
     remember 0%Z as n.
     iAssert (⌜ (0 <= n <= SIZE_MAP)%Z ⌝)%I as "%Hn"; first (iPureIntro ; lia).
-    rewrite{2} (_ : (cgp_b = (cgp_b ^+ (3 * n))%a)); last by solve_addr.
+    rewrite{2} (_ : (cgp_b = (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a)); last by solve_addr.
     assert (forall i, (0 <= i < Z.to_nat n) -> ∀ (k : Z) (w : Word),
                 m !! i = Some (Some (k,w)) -> k ≠ fkey)
     as Hfkey_notin_nfirst.
@@ -122,7 +122,7 @@ Section KVS_search.
 
       (* lea cgp 1; *)
       iInstr "Hcode".
-      { transitivity (Some ((cgp_b ^+ (3 * idx + 1))%a)); solve_addr. }
+      { transitivity (Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 1))%a)); solve_addr. }
       (* load rscratch cgp; *)
       iInstr "Hcode".
       { split; [done |solve_addr]. }
@@ -134,7 +134,7 @@ Section KVS_search.
       iInstr "Hcode".
       (* lea cgp (-1)%Z; *)
       iInstr "Hcode".
-      { transitivity (Some (cgp_b ^+ 3 * idx)%a); solve_addr. }
+      { transitivity (Some (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * idx)%a); solve_addr. }
       (* jmp (".loop_end_found")%asm; *)
       iInstr "Hcode".
       iApply "Hpost"; iFrame.
@@ -145,7 +145,7 @@ Section KVS_search.
       ; auto; try lia.
       rewrite /isKVS_entry.
       iAssert (
-          (cgp_b ^+ 3 * Z.to_nat n)%a ↦ₐ
+          (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a ↦ₐ
             (match opt_kw' with
              | Some (k,w) => WInt ASM_SOME
              | None => WInt ASM_NONE
@@ -153,25 +153,25 @@ Section KVS_search.
           ∗
             (match opt_kw' with
              | Some (k,w) =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 1))%a ↦ₐ (WInt k)
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a ↦ₐ (WInt k)
              | None =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 1))%a ↦ₐ -
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a ↦ₐ -
              end)
           ∗
             (match opt_kw' with
              | Some (k,w) =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 2))%a ↦ₐ w
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a ↦ₐ w
              | None =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 2))%a ↦ₐ -
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a ↦ₐ -
              end)
           ∗ (match opt_kw' with | Some _ => True | None => (Z.to_nat n) ⤇(KVS) NONE end)
         )%I with "[Hkvs_entry]" as "(Hn0 & Hn1 & Hn2 & Hfkey)".
       { destruct opt_kw' as [ [k' w'] | ]; iFrame.
         iDestruct "Hkvs_entry" as "($&$&$)"; auto.
       }
-      replace (cgp_b ^+ 3 * Z.to_nat n)%a  with (cgp_b ^+ (3 * n))%a by solve_addr+Hn.
-      replace (cgp_b ^+ (3 * Z.to_nat n + 1))%a with (cgp_b ^+ (3 * n + 1))%a by solve_addr+Hn.
-      replace (cgp_b ^+ (3 * Z.to_nat n + 2))%a with (cgp_b ^+ (3 * n + 2))%a by solve_addr+Hn.
+      replace (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a by solve_addr+Hn.
       (* load rscratch cgp; *)
       iInstr "Hcode".
       { split; [done | solve_addr]. }
@@ -182,7 +182,7 @@ Section KVS_search.
         iInstr "Hcode".
         (* lea cgp 1; *)
         iInstr "Hcode".
-        { transitivity (Some ((cgp_b ^+ (3 * n + 1))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        { transitivity (Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a)); last done; solve_addr+Hn Hn' Hcgp_bound. }
         (* load rscratch cgp; *)
         iInstr "Hcode".
         { split; [done | solve_addr]. }
@@ -193,7 +193,7 @@ Section KVS_search.
         { injection; cbn; intro; apply Hopt_kw'; cbn; lia. }
         (* lea cgp 2; *)
         iInstr "Hcode".
-        { transitivity (Some ( (cgp_b ^+ (3 * (n+1)))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        { transitivity (Some ( (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n+1)))%a)); last done; solve_addr+Hn Hn' Hcgp_bound. }
         (* add ridx ridx 1; *)
         iInstr "Hcode".
         (* jmp (".loop_start"); *)
@@ -202,9 +202,9 @@ Section KVS_search.
 
         iDestruct (close_isKVS with "[$HKVS Hn0 Hn1 Hn2]") as "HKVS";eauto.
         {
-          replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
-          replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
-          replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a with (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a by solve_addr+Hn.
           iFrame.
         }
 
@@ -220,9 +220,9 @@ Section KVS_search.
         iInstr "Hcode".
         (* mov ridx_empty ridx; *)
         iInstr "Hcode".
-        (* lea cgp 3; *)
+        (* lea cgp ASM_SIZEOF_KVS_ENTRY; *)
         iInstr "Hcode".
-        { transitivity (Some ((cgp_b ^+ 3 * (n + 1))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        { transitivity (Some ((cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * (n + 1))%a)); solve_addr+Hn Hn' Hcgp_bound. }
         (* add ridx ridx 1; *)
         iInstr "Hcode".
         (* jmp (".loop_start"); *)
@@ -230,9 +230,9 @@ Section KVS_search.
         { transitivity (Some ( (pc_a ^+ 2)%a)); solve_addr. }
         iDestruct (close_isKVS with "[$HKVS Hn0 Hn1 Hn2 Hfkey]") as "HKVS";eauto.
         {
-          replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
-          replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
-          replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a with (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a by solve_addr+Hn.
           iFrame.
         }
 
@@ -256,7 +256,7 @@ Section KVS_search.
     let fkey := kvs_full_key ku kn in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds cgp_b cgp_e cgp_b = true ->
-    ((cgp_b + (3*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
+    ((cgp_b + (ASM_SIZEOF_KVS_ENTRY*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
 
     kn ∉ s' ->
     wf_kvs_full_key ku kn ->
@@ -290,12 +290,12 @@ Section KVS_search.
 
             ◯(ALLOC)[ku] s' ∗
             isKVS_open cgp_b m s idx_empty_slot ∗
-            (cgp_b ^+ (3*idx_empty_slot))%a ↦ₐ WInt ASM_NONE ∗
-            (cgp_b ^+ (3*idx_empty_slot + 1))%a ↦ₐ - ∗
-            (cgp_b ^+ (3*idx_empty_slot + 2))%a ↦ₐ - ∗
+            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx_empty_slot))%a ↦ₐ WInt ASM_NONE ∗
+            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx_empty_slot + 1))%a ↦ₐ - ∗
+            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx_empty_slot + 2))%a ↦ₐ - ∗
             idx_empty_slot ⤇(KVS) NONE ∗
 
-            ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (3 * idx_empty_slot + 2))%a = true ⌝ ∗
+            ⌜ withinBounds cgp_b cgp_e (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty_slot + 2))%a = true ⌝ ∗
             ⌜ 0 <= idx_empty_slot ⌝ ∗
 
             codefrag pc_a instrs
@@ -336,7 +336,7 @@ Section KVS_search.
 
     remember 0%Z as n.
     iAssert (⌜ (0 <= n <= SIZE_MAP)%Z ⌝)%I as "%Hn"; first (iPureIntro ; lia).
-    rewrite{2} (_ : cgp_b = (cgp_b ^+ (3 * n))%a); last by solve_addr.
+    rewrite{2} (_ : cgp_b = (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a); last by solve_addr.
     assert (forall i, (0 <= i < Z.to_nat n) -> ∀ (k : Z) (w : Word), m !! i = Some (Some (k,w)) -> k ≠ fkey)
     as Hfkey_notin_nfirst.
     { rewrite Heqn; intros i Hi; lia. }
@@ -349,9 +349,9 @@ Section KVS_search.
        else ( ∃ (idx_empty : nat),
                 ⌜ 0 <= idx_empty < (Z.to_nat n)⌝ ∗
                 isKVS_open cgp_b m s idx_empty ∗
-                (cgp_b ^+ 3 * idx_empty)%a ↦ₐ WInt ASM_NONE ∗
-                (cgp_b ^+ (3 * idx_empty + 1))%a ↦ₐ - ∗
-                (cgp_b ^+ (3 * idx_empty + 2))%a ↦ₐ - ∗
+                (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * idx_empty)%a ↦ₐ WInt ASM_NONE ∗
+                (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 1))%a ↦ₐ - ∗
+                (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 2))%a ↦ₐ - ∗
                 pointsto idx_empty (DfracOwn 1) None ∗
                 ridx_empty ↦ᵣ WInt idx_empty
             )
@@ -378,7 +378,7 @@ Section KVS_search.
       iInstr "Hcode".
       (* jmp (".loop_end_not_found")%asm; *)
       iInstr "Hcode".
-      (* lea cgp (-(3*SIZE_MAP))%Z; *)
+      (* lea cgp (-(ASM_SIZEOF_KVS_ENTRY*SIZE_MAP))%Z; *)
       iInstr "Hcode".
       { transitivity (Some cgp_b); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
       (* mov ridx (-1)%Z; *)
@@ -407,7 +407,7 @@ Section KVS_search.
         as "(%opt_kwidx & %Hm_kwidx & HKVS & Halloc & Hfkey & %Hneq_fkey)" ; eauto; [lia|].
 
       iAssert (
-          (cgp_b ^+ 3 * Z.to_nat n)%a ↦ₐ
+          (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a ↦ₐ
             (match opt_kwidx with
              | Some (k,w) => WInt ASM_SOME
              | None => WInt ASM_NONE
@@ -415,25 +415,25 @@ Section KVS_search.
           ∗
             (match opt_kwidx with
              | Some (k,w) =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 1))%a ↦ₐ (WInt k)
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a ↦ₐ (WInt k)
              | None =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 1))%a ↦ₐ -
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a ↦ₐ -
              end)
           ∗
             (match opt_kwidx with
              | Some (k,w) =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 2))%a ↦ₐ w
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a ↦ₐ w
              | None =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 2))%a ↦ₐ -
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a ↦ₐ -
              end)
           ∗ (match opt_kwidx with | Some _ => True | None => (Z.to_nat n) ⤇(KVS) NONE end)
         )%I with "[Hfkey]" as "(Hn0 & Hn1 & Hn2 & Hfkey)".
       { destruct opt_kwidx as [ [kidx widx] | ]; iFrame.
         iDestruct "Hfkey" as "($&$&$)"; auto.
       }
-      replace (cgp_b ^+ 3 * Z.to_nat n)%a  with (cgp_b ^+ (3 * n))%a by solve_addr+Hn.
-      replace (cgp_b ^+ (3 * Z.to_nat n + 1))%a with (cgp_b ^+ (3 * n + 1))%a by solve_addr+Hn.
-      replace (cgp_b ^+ (3 * Z.to_nat n + 2))%a with (cgp_b ^+ (3 * n + 2))%a by solve_addr+Hn.
+      replace (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a by solve_addr+Hn.
 
       (* load rscratch cgp; *)
       iInstr "Hcode".
@@ -447,7 +447,7 @@ Section KVS_search.
 
         (* lea cgp 1; *)
         iInstr "Hcode".
-        { transitivity (Some ((cgp_b ^+ (3 * n + 1))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        { transitivity (Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a)); last done; solve_addr+Hn Hn' Hcgp_bound. }
         (* load rscratch cgp; *)
         iInstr "Hcode".
         { split; [done |solve_addr]. }
@@ -460,7 +460,7 @@ Section KVS_search.
 
         (* lea cgp 2; *)
         iInstr "Hcode".
-        { transitivity (Some ((cgp_b ^+ (3 * n + 3))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        { transitivity (Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + ASM_SIZEOF_KVS_ENTRY))%a)) ; last done; solve_addr+Hn Hn' Hcgp_bound. }
         (* add ridx ridx 1; *)
         iInstr "Hcode".
         (* jmp (".loop_start"); *)
@@ -469,12 +469,12 @@ Section KVS_search.
 
         iDestruct (close_isKVS with "[$HKVS Hn0 Hn1 Hn2 Hfkey]") as "HKVS";eauto.
         {
-          replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
-          replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
-          replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a with (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a by solve_addr+Hn.
           iFrame.
         }
-        replace (cgp_b ^+ (3 * n + 3))%a with (cgp_b ^+ (3 * (n + 1)))%a by solve_addr+ Hn Hn' Hcgp_bound.
+        replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + ASM_SIZEOF_KVS_ENTRY))%a with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a by solve_addr+ Hn Hn' Hcgp_bound.
 
         iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$Halloc]
          [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hridx_empty]").
@@ -503,9 +503,9 @@ Section KVS_search.
         iInstr "Hcode".
         (* mov ridx_empty ridx; *)
         iInstr "Hcode".
-        (* lea cgp 3; *)
+        (* lea cgp ASM_SIZEOF_KVS_ENTRY; *)
         iInstr "Hcode".
-        { transitivity (Some ((cgp_b ^+ (3 * (n + 1)))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        { transitivity (Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a)); solve_addr+Hn Hn' Hcgp_bound. }
         (* add ridx ridx 1; *)
         iInstr "Hcode".
         (* jmp (".loop_start"); *)
@@ -513,9 +513,9 @@ Section KVS_search.
         { transitivity (Some ( (pc_a ^+ 2)%a)); solve_addr. }
 
         rewrite {6}(_ : n = (Z.of_nat (Z.to_nat n))); last lia.
-        replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
-        replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
-        replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+        replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a with (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a by solve_addr+Hn.
+        replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a by solve_addr+Hn.
+        replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a by solve_addr+Hn.
         iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$Halloc]
          [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hridx_empty Hn0 Hn1 Hn2 Hfkey]").
         * iPureIntro; lia.
@@ -551,7 +551,7 @@ Section KVS_search.
         as "(%opt_kwidx & %Hm_kwidx & HKVS & Halloc & Hfkey & %Hneq_fkey)" ; eauto; [lia|].
 
       iAssert (
-          (cgp_b ^+ 3 * Z.to_nat n)%a ↦ₐ
+          (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a ↦ₐ
             (match opt_kwidx with
              | Some (k,w) => WInt ASM_SOME
              | None => WInt ASM_NONE
@@ -559,25 +559,25 @@ Section KVS_search.
           ∗
             (match opt_kwidx with
              | Some (k,w) =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 1))%a ↦ₐ (WInt k)
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a ↦ₐ (WInt k)
              | None =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 1))%a ↦ₐ -
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a ↦ₐ -
              end)
           ∗
             (match opt_kwidx with
              | Some (k,w) =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 2))%a ↦ₐ w
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a ↦ₐ w
              | None =>
-                 (cgp_b ^+ (3 * Z.to_nat n + 2))%a ↦ₐ -
+                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a ↦ₐ -
              end)
           ∗ (match opt_kwidx with | Some _ => True | None => (Z.to_nat n) ⤇(KVS) NONE end)
         )%I with "[Hfkey]" as "(Hn0 & Hn1 & Hn2 & Hfkey)".
       { destruct opt_kwidx as [ [kidx widx] | ]; iFrame.
         iDestruct "Hfkey" as "($&$&$)"; auto.
       }
-      replace (cgp_b ^+ 3 * Z.to_nat n)%a  with (cgp_b ^+ (3 * n))%a by solve_addr+Hn.
-      replace (cgp_b ^+ (3 * Z.to_nat n + 1))%a with (cgp_b ^+ (3 * n + 1))%a by solve_addr+Hn.
-      replace (cgp_b ^+ (3 * Z.to_nat n + 2))%a with (cgp_b ^+ (3 * n + 2))%a by solve_addr+Hn.
+      replace (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a by solve_addr+Hn.
+      replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a by solve_addr+Hn.
 
       (* load rscratch cgp; *)
       iInstr "Hcode".
@@ -592,7 +592,7 @@ Section KVS_search.
 
         (* lea cgp 1; *)
         iInstr "Hcode".
-        { transitivity (Some ((cgp_b ^+ (3 * n + 1))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        { transitivity (Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a)); last done; solve_addr+Hn Hn' Hcgp_bound. }
         (* load rscratch cgp; *)
         iInstr "Hcode".
         { split; [done |solve_addr]. }
@@ -605,7 +605,7 @@ Section KVS_search.
 
         (* lea cgp 2; *)
         iInstr "Hcode".
-        { transitivity (Some ((cgp_b ^+ (3 * n + 3))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        { transitivity (Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + ASM_SIZEOF_KVS_ENTRY))%a)) ; last done; solve_addr+Hn Hn' Hcgp_bound. }
         (* add ridx ridx 1; *)
         iInstr "Hcode".
         (* jmp (".loop_start"); *)
@@ -614,12 +614,12 @@ Section KVS_search.
 
         iDestruct (close_isKVS with "[$HKVS Hn0 Hn1 Hn2 Hfkey]") as "HKVS";eauto.
         {
-          replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
-          replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
-          replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a with (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a by solve_addr+Hn.
+          replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a by solve_addr+Hn.
           iFrame.
         }
-        replace (cgp_b ^+ (3 * n + 3))%a with (cgp_b ^+ (3 * (n + 1)))%a by solve_addr + Hn Hn' Hcgp_bound.
+        replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + ASM_SIZEOF_KVS_ENTRY))%a with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a by solve_addr + Hn Hn' Hcgp_bound.
 
         iDestruct (open_isKVS_not_alloc _ _ _ _ idx_empty_found with "HKVS Halloc")
           as "(%opt_kwidx_empty & %Hm_kwidx_empty & HKVS & Halloc & Hfkey & %Hneq_fkey_empty)" ; eauto; [lia|].
@@ -649,9 +649,9 @@ Section KVS_search.
         iInstr "Hcode".
         (* mov ridx_empty ridx; *)
         iInstr "Hcode".
-        (* lea cgp 3; *)
+        (* lea cgp ASM_SIZEOF_KVS_ENTRY; *)
         iInstr "Hcode".
-        { transitivity (Some ((cgp_b ^+ (3 * (n + 1)))%a)); solve_addr+Hn Hn' Hcgp_bound. }
+        { transitivity (Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a)); solve_addr+Hn Hn' Hcgp_bound. }
         (* add ridx ridx 1; *)
         iInstr "Hcode".
         (* jmp (".loop_start"); *)
@@ -659,9 +659,9 @@ Section KVS_search.
         { transitivity (Some ( (pc_a ^+ 2)%a)); solve_addr. }
 
         rewrite {6}(_ : n = (Z.of_nat (Z.to_nat n))); last lia.
-        replace (cgp_b ^+ (3 * n))%a with (cgp_b ^+ 3 * Z.to_nat n)%a by solve_addr+Hn.
-        replace (cgp_b ^+ (3 * n + 1))%a  with (cgp_b ^+ (3 * Z.to_nat n + 1))%a by solve_addr+Hn.
-        replace (cgp_b ^+ (3 * n + 2))%a  with (cgp_b ^+ (3 * Z.to_nat n + 2))%a by solve_addr+Hn.
+        replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a with (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * Z.to_nat n)%a by solve_addr+Hn.
+        replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 1))%a by solve_addr+Hn.
+        replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a  with (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * Z.to_nat n + 2))%a by solve_addr+Hn.
         iApply ("IH" with "[] [] [$Hcgp] [$Hrkey] [$Hrscratch] [$Halloc]
          [$Hpost] [$Hridx] [$Hcode] [$HPC] [HKVS Hridx_empty Hn0 Hn1 Hn2 Hfkey]").
         * iPureIntro; lia.

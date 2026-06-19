@@ -1,10 +1,10 @@
 From iris.proofmode Require Import proofmode.
+From griotte Require Import proofmode map_simpl register_tactics.
 From griotte Require Import logrel rules.
-From griotte Require Import
-  switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
 From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
 From griotte Require Import switcher_preamble switcher_spec_return.
-From griotte Require Import proofmode map_simpl register_tactics.
+From griotte Require Import
+  switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
 
 Section KVS_spec_read_safe.
   Context
@@ -167,7 +167,7 @@ Section KVS_spec_read_safe.
       { injection; intros; lia. }
       (* Lea cgp 1 *)
       iInstr "Hcode".
-      { transitivity ( Some ((cgp_b ^+ (3 * idx + 2))%a) ); solve_addr+Hcgp_idx Hidx. }
+      { transitivity ( Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx Hidx. }
       (* Load ca1 cgp *)
       iInstr "Hcode".
       { split; done. }
