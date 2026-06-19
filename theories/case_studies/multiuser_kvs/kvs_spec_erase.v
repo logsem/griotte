@@ -131,17 +131,6 @@ Section KVS_spec_erase.
     (* store cgp ASM_NONE; *)
     iInstr "Hcode".
     { solve_addr+Hcgp_idx. }
-    (* lea cgp 1; *)
-    iInstr "Hcode".
-    { transitivity ( Some ((cgp_b ^+ (3 * idx + 1))%a) ); solve_addr+Hcgp_idx Hidx. }
-    (* store cgp EMPTY_SLOT; *)
-    iInstr "Hcode".
-    { solve_addr+Hcgp_idx. }
-    (* lea cgp 1; *)
-    iInstr "Hcode".
-    { transitivity ( Some ((cgp_b ^+ (3 * idx + 2))%a) ); solve_addr+Hcgp_idx Hidx. }
-    (* store cgp DEFAULT_VAL; *)
-    iInstr "Hcode".
     (* mov ca0 0; *)
     iInstr "Hcode".
     (* mov ca1 0; *)

@@ -356,7 +356,7 @@ Section KVS_spec_addOrUpdate.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "[
     (%idx_empty & HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & Halloc & HKVS
-    & Hcgp_opt & Hcgp_key & Hcgp_val & Hfkey & %Hcgp_bounds & %Hidx_empty & Hcode)
+    & Hcgp_opt & [%wkey Hcgp_key] & [%wval Hcgp_val] & Hfkey & %Hcgp_bounds & %Hidx_empty & Hcode)
     | (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & HKVS & Halloc & Hcode) ]".
     all: subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
