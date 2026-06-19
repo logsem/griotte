@@ -339,10 +339,6 @@ Section KVS_Service.
         #".erase_key_found";
         (* erase the key *)
         store cgp ASM_NONE;
-        lea cgp 1;
-        store cgp EMPTY_SLOT;
-        lea cgp 1;
-        store cgp DEFAULT_VAL;
         #".erase_return";
         (* return void *)
         mov ca0 0;

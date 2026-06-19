@@ -170,27 +170,6 @@ Section KVS_spec_erase.
       (* Store cgp (-1) *)
       iInstr "Hcode".
       { solve_addr+Hcgp_idx. }
-      (* Lea cgp 1 *)
-      iInstr "Hcode".
-      { transitivity ( Some ((cgp_b ^+ (3 * idx + 1))%a) ); solve_addr+Hcgp_idx Hidx. }
-      (* Store cgp (inr ca2) *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Store.wp_store_success_z with "[$HPC $Hi $Hcgp $Hcgp_key]"); try solve_pure.
-      { solve_addr+Hcgp_idx. }
-      iNext; iIntros "(HPC & Hi & Hcgp & Hcgp_key)".
-      wp_pure.
-      iInstr_close "Hcode".
-      (* Lea cgp 1 *)
-      iInstr "Hcode".
-      { transitivity ( Some ((cgp_b ^+ (3 * idx + 2))%a) ); solve_addr+Hcgp_idx Hidx. }
-      (* Store cgp (inr ca2) *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Store.wp_store_success_z with "[$HPC $Hi $Hcgp $Hcgp_val]"); try solve_pure.
-      iNext; iIntros "(HPC & Hi & Hcgp & Hcgp_val)".
-      wp_pure.
-      iInstr_close "Hcode".
       (* Mov ca0 0 *)
       iInstr "Hcode".
       (* Mov ca1 0 *)

@@ -109,8 +109,8 @@ Section KVS_preamble.
     match opt_kw with
     | None =>
         (a ^+ (3*idx))%a ↦ₐ WInt ASM_NONE ∗
-        (a ^+ (3*idx + 1))%a ↦ₐ WInt EMPTY_SLOT ∗
-        (a ^+ (3*idx + 2))%a ↦ₐ WInt DEFAULT_VAL ∗
+        (a ^+ (3*idx + 1))%a ↦ₐ - ∗
+        (a ^+ (3*idx + 2))%a ↦ₐ - ∗
         idx ⤇(KVS) NONE
     | Some (k, w) =>
         (a ^+ (3*idx))%a ↦ₐ WInt ASM_SOME ∗
