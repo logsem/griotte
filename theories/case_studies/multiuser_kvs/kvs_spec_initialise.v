@@ -5,8 +5,6 @@ From griotte Require Import region_invariants_revocation wp_rules_interp interp_
 From griotte Require Import switcher_preamble switcher_spec_return.
 From griotte Require Import switcher fetch_spec kvs kvs_preamble.
 
-
-
 Section KVS_spec_initialise.
   Context
     {Σ:gFunctors}
@@ -47,7 +45,8 @@ Section KVS_spec_initialise.
       (* initial memory layout *)
       codefrag pc_a kvs_initialise_instrs ∗
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-      (cgp_b ^+ OFFSET_NEXT_FREE_SEALED_USER_KEY)%a ↦ₐ (kvs_user_seal_key_scap_init next_free_uk) ∗
+      (cgp_b ^+ OFFSET_NEXT_FREE_SEALED_USER_KEY)%a ↦ₐ WInt next_free_uk ∗
+      (cgp_b ^+ OFFSET_SCAP_USER_KEY)%a ↦ₐ kvs_user_seal_key_scap_init ∗
 
       ▷ ([∗ list] uk ∈ (seqZ_between next_free_uk MAX_USER_KEY), ◯(ALLOC)[uk] ∅) ∗
 
@@ -68,11 +67,11 @@ Section KVS_spec_initialise.
          codefrag pc_a kvs_initialise_instrs ∗
          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
          (cgp_b ^+ OFFSET_NEXT_FREE_SEALED_USER_KEY)%a ↦ₐ
-           (kvs_user_seal_key_scap_init
-              (if ( next_free_uk <? MAX_USER_KEY)%Z
-               then (next_free_uk + 1)%Z
-               else next_free_uk)
-           ) ∗
+           WInt (if   (next_free_uk <? MAX_USER_KEY)%Z
+                 then (next_free_uk + 1)%Z
+                 else next_free_uk)
+         ∗
+         (cgp_b ^+ OFFSET_SCAP_USER_KEY)%a ↦ₐ kvs_user_seal_key_scap_init ∗
 
          (
            if ( next_free_uk <? MAX_USER_KEY)%Z
@@ -86,7 +85,7 @@ Section KVS_spec_initialise.
   Proof.
     iIntros (Hnext_free_bounds HsubBounds Hcgp_contiguous)
       "(HPC & Hcgp & Hcra & [%wca0 Hca0] & [%wca1 Hca1] & [%wct0 Hct0] & [%wct1 Hct1] & [%wctp Hctp] & [%wcnull Hcnull] & Hcode
-      & Ha_unsealing & Ha_next_free_uk & Hnext_free_alloc & Hpost)".
+      & Ha_unsealing & Ha_next_free_uk & Ha_uk_scap & Hnext_free_alloc & Hpost)".
     rewrite /length_kvs_data /= in Hcgp_contiguous.
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
@@ -111,86 +110,73 @@ Section KVS_spec_initialise.
     iInstr "Hcode".
     { split; auto; solve_addr. }
     iEval (cbn) in "Hct1".
-    (* geta ctp ct1; *)
-    iInstr "Hcode".
     (* lt ctp ctp MemNum; (* ctp := if (ctp < MemNum) then 1 else 0 *) *)
     iInstr "Hcode".
     Transparent MemNum.
     replace 1999999%Z with MAX_USER_KEY.
     2: { rewrite /MAX_USER_KEY /MemNum; lia. }
 
-    destruct ( ((0 ^+ next_free_uk)%a <? MAX_USER_KEY)%Z ) eqn:Hnext_free_uk; iEval (cbn) in "Hctp".
+    destruct ( (next_free_uk <? MAX_USER_KEY)%Z ) eqn:Hnext_free_uk; iEval (cbn) in "Hctp".
     - apply Z.ltb_lt in Hnext_free_uk.
-      assert ( (next_free_uk <? MAX_USER_KEY)%Z = true ) as Hnext_free_uk_true.
-      {
-        apply Z.ltb_lt.
-        rewrite /MAX_USER_KEY /MemNum.
-        rewrite /MAX_USER_KEY {5}/MemNum in Hnext_free_uk.
-        replace (2000000 - 1)%Z with 1999999%Z by lia.
-        replace (2000000 - 1)%Z with 1999999%Z in Hnext_free_uk by lia.
-        clear -Hnext_free_bounds Hnext_free_uk.
-        Set Printing Coercions.
-        rewrite /z_of in Hnext_free_uk.
-        rewrite /finz.incr_default in Hnext_free_uk.
-        rewrite /finz.incr in Hnext_free_uk.
-        destruct ( Z.lt_dec (z_of 0%a + next_free_uk)%Z MemNum ) eqn:H1; try solve_addr.
-        - admit.
-        - admit.
-          destruct (Z.le_dec 0 (z_of 0%a + next_free_uk)%Z) eqn:H2; try solve_addr.
-        destruct ( (0 + next_free_uk)%a ) eqn:H.
-        destruct next_free_uk; try lia
-        destruct ( (0 + next_free_uk)%a ) eqn:H; try solve_addr.
-        destruct ( finz.largest 0%a ) eqn:H'; try solve_addr.
-      }
-      rewrite Hnext_free_uk_true.
       (* jnz (".initialise_next_free_available")%asm ctp; *)
       iInstr "Hcode".
-      (* mov ca0 ASM_TRUE; *)
+      (* add ca0 ct1 1%Z; *)
       iInstr "Hcode".
-      (* seal ca1 ct0 ct1; *)
-      iInstr "Hcode"; auto.
-      { pose proof KVS_OTYPE_size; solve_addr. }
-      (* lea ct1 1; *)
-      iInstr "Hcode".
-      { transitivity (Some (0 ^+ (next_free_uk + 1)%Z)%a); auto.
-        apply Z.ltb_lt in Hnext_free_uk_true.
-        assert ( (z_of (0 ^+ next_free_uk)%a < MemNum)%Z ).
-        { solve_addr. }
-        solve_addr.
-      }
-      (* store cgp ct1; *)
+      (* store cgp ca0; *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (rules_Store.wp_store_success_reg with "[$HPC $Hi $Hct1 $Hcgp $Ha_next_free_uk]")
+      iApply (rules_Store.wp_store_success_reg with "[$HPC $Hi $Hca0 $Hcgp $Ha_next_free_uk]")
       ; try solve_pure; auto.
       { solve_addr. }
-      iNext; iIntros "(HPC & Hi & Hct1 & Hcgp & Ha_next_free_uk)".
+      iNext; iIntros "(HPC & Hi & Hca0 & Hcgp & Ha_next_free_uk)".
       wp_pure.
       iInstr_close "Hcode".
+      (* lea cgp 1; *)
+      iInstr "Hcode".
+      { transitivity (Some ( (cgp_b ^+ OFFSET_SCAP_USER_KEY)%a )); auto; solve_addr. }
+      (* load ctp cgp; *)
+      iInstr "Hcode".
+      { split; auto; solve_addr. }
+      iEval (cbn) in "Hctp".
+      (* lea ctp ct1; *)
+      iInstr "Hcode".
+      { transitivity ( Some ( (0 ^+ next_free_uk)%a ) ); auto.
+        rewrite addr_incr_zero_nat.
+        apply finz_incr_Some_prove_spec; split; [|split]; try solve_addr.
+        - replace (z_of 0%a) with 0%Z by solve_addr.
+          rewrite /MAX_USER_KEY /MemNum in Hnext_free_uk.
+          rewrite /MemNum.
+          lia.
+        - replace (z_of 0%a) with 0%Z by solve_addr.
+          rewrite /finz.incr_default /finz.incr.
+          destruct ( Z.lt_dec (0%a + next_free_uk)%Z MemNum ); try solve_addr.
+          { destruct (Z.le_dec 0%Z (0%a + next_free_uk)%Z); first done.
+            exfalso; apply n.
+            replace (z_of 0%a) with 0%Z by solve_addr.
+            lia.
+          }
+          exfalso; apply n.
+          replace (z_of 0%a) with 0%Z by solve_addr.
+          rewrite /MAX_USER_KEY /MemNum in Hnext_free_uk.
+          rewrite /MemNum.
+          lia.
+      }
+      (* seal ca1 ct0 ctp; *)
+      iInstr "Hcode"; auto.
+      { pose proof KVS_OTYPE_size; solve_addr. }
+      (* mov ca0 ASM_TRUE; *)
+      iInstr "Hcode".
       (* ret *)
       iInstr "Hcode".
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
       iApply "Hpost".
-      iFrame "HPC Hcgp Hcra Hca0 Hca1 Hct1 Hct0 Hctp Hcnull Hcode Ha_unsealing Ha_next_free_uk".
-      rewrite seqZ_cons.
-      { iDestruct "Hnext_free_alloc" as "[$ H]".
-        by replace ( (Z.pred (MemNum - next_free_uk)) ) with (MemNum - (next_free_uk + 1))%Z by lia.
-      }
-      rewrite /MemNum.
-      rewrite /MemNum in Hnext_free_uk_true.
-      apply Z.ltb_lt in Hnext_free_uk_true.
+      iFrame "HPC Hcgp Hcra Hca0 Hca1 Hct1 Hct0 Hctp Hcnull Hcode Ha_unsealing Ha_next_free_uk Ha_uk_scap".
+      rewrite seqZ_between_cons.
+      { iDestruct "Hnext_free_alloc" as "[$ $]". }
       lia.
 
     - apply Z.ltb_ge in Hnext_free_uk.
-      assert ( (next_free_uk <? MemNum)%Z = false ) as ->.
-      {
-        rewrite /MemNum.
-        apply Z.ltb_ge.
-        lia.
-        solve_addr.
-        admit.
-      }
       (* jnz (".initialise_next_free_available")%asm ctp; *)
       iInstr "Hcode".
       (* mov ca0 ASM_FALSE; *)
@@ -202,8 +188,8 @@ Section KVS_spec_initialise.
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
       iApply "Hpost".
-      iFrame "HPC Hcgp Hcra Hca0 Hca1 Hct1 Hct0 Hctp Hcnull Hcode Ha_unsealing Ha_next_free_uk Hnext_free_alloc".
-  Admitted.
+      iFrame "HPC Hcgp Hcra Hca0 Hca1 Hct1 Hct0 Hctp Hcnull Hcode Ha_unsealing Ha_next_free_uk Hnext_free_alloc Ha_uk_scap".
+  Qed.
 
   Lemma KVS_initialise_spec
     (wret : Word)
@@ -236,7 +222,7 @@ Section KVS_spec_initialise.
          cnull ↦ᵣ - ∗
          (
            ( ∃ next_free_uk,
-               ⌜ (0 <= next_free_uk < MemNum)%Z ⌝ ∗
+               ⌜ (0 <= next_free_uk < MAX_USER_KEY)%Z ⌝ ∗
                ca0 ↦ᵣ WInt ASM_TRUE ∗
                ca1 ↦ᵣ (kvs_user_seal_key Global next_free_uk) ∗
                ◯(ALLOC)[next_free_uk] ∅
@@ -255,8 +241,9 @@ Section KVS_spec_initialise.
     iIntros (Hnkvs_E)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hctp & Hcnull & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%m & %s & %next_free_uk & >Himports & >Hcgp_e & >Hcode
-            & HisKVS & >%Hwf_free_uk & Hfree_uk_alloc & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (%m & %s & %next_free_uk & >Himports & >Ha_next_uk & >Ha_uk_scap & >Hcode
+            & HisKVS & >%Hwf_free_uk & Hfree_uk_alloc & #Hspred)
+            & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
@@ -276,13 +263,13 @@ Section KVS_spec_initialise.
     replace (KVS_pcc_b ^+ 1)%a with (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a by (rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr+).
     iApply (KVS_initialise_spec_pre with "[- $HPC]"); last iFrame; eauto.
     iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct0 & Hct1
-              & Hcnull & Hcode & Ha_unsealing & Hcgp_e & Hfree_uk_alloc)".
+              & Hcnull & Hcode & Ha_unsealing & Ha_next_uk & Ha_uk_scap & Hfree_uk_alloc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    destruct ( (next_free_uk <? MemNum)%Z ) eqn:Hfree.
+    destruct ( (next_free_uk <? MAX_USER_KEY)%Z ) eqn:Hfree.
     - iDestruct "Hfree_uk_alloc" as "[Hfree_uk_alloc Halloc]".
-      assert (0 <= next_free_uk + 1 <= MemNum )%Z by (apply Z.ltb_lt in Hfree; lia).
-      iMod ("Hkvs_inv_close" with "[$Hcode $Hcgp_e Himports_sw Ha_unsealing $HisKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna" ; auto.
+      assert (0 <= next_free_uk + 1 <= MAX_USER_KEY )%Z by (apply Z.ltb_lt in Hfree; lia).
+      iMod ("Hkvs_inv_close" with "[$Hcode $Ha_next_uk $Ha_uk_scap Himports_sw Ha_unsealing $HisKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna" ; auto.
       { iNext.
         iSplit; last done.
         iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
@@ -294,7 +281,7 @@ Section KVS_spec_initialise.
       iPureIntro; auto.
       apply Z.ltb_lt in Hfree.
       lia.
-    - iMod ("Hkvs_inv_close" with "[$Hcode $Hcgp_e Himports_sw Ha_unsealing $HisKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna" ; auto.
+    - iMod ("Hkvs_inv_close" with "[$Hcode $Ha_next_uk $Ha_uk_scap Himports_sw Ha_unsealing $HisKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna" ; auto.
       { iNext.
         iSplit; last done.
         iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.

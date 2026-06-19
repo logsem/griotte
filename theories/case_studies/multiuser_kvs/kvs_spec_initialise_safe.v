@@ -69,8 +69,9 @@ Section KVS_spec_initialise_safe.
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0
       & Hca1 & Hct0 & Hct1 & Hctp & Hcnull & Hworld & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%m & %s & %next_free_uk & >Himports & >Hcgp_e & >Hcode
-            & HisKVS & >%Hwf_free_uk & Hfree_uk_alloc & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (%m & %s & %next_free_uk & >Himports & >Ha_next_uk & >Ha_uk_scap & >Hcode
+            & HisKVS & >%Hwf_free_uk & Hfree_uk_alloc & #Hspred)
+            & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
@@ -90,13 +91,13 @@ Section KVS_spec_initialise_safe.
       as -> by (rewrite /kvs_initialise_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_initialise).
     iApply (KVS_initialise_spec_pre with "[- $HPC]"); last iFrame "∗#"; eauto.
     iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct0 & Hct1
-              & Hcnull & Hcode & Ha_unsealing & Hcgp_e & Hfree_uk_alloc)".
+              & Hcnull & Hcode & Ha_unsealing & Ha_next_uk & Ha_uk_scap & Hfree_uk_alloc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    destruct ((next_free_uk <? MemNum)%Z) eqn:Hnext_free.
+    destruct ((next_free_uk <? MAX_USER_KEY)%Z) eqn:Hnext_free.
     - iDestruct "Hfree_uk_alloc" as "[Hfree_uk_alloc Halloc]".
-      assert (0 <= next_free_uk + 1 <= MemNum )%Z as Hnext_free' by (apply Z.ltb_lt in Hnext_free; lia).
-      iMod ("Hkvs_inv_close" with "[$Hcode $Hcgp_e Himports_sw Ha_unsealing $HisKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna" ; auto.
+      assert (0 <= next_free_uk + 1 <= MAX_USER_KEY )%Z as Hnext_free' by (apply Z.ltb_lt in Hnext_free; lia).
+      iMod ("Hkvs_inv_close" with "[$Hcode $Ha_next_uk $Ha_uk_scap Himports_sw Ha_unsealing $HisKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna" ; auto.
       { iNext.
         iSplit; last done.
         iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
@@ -113,6 +114,7 @@ Section KVS_spec_initialise_safe.
         iEval (rewrite /kvs_otype_prop /kvs_otype_inv /=).
         iFrame "Halloc".
         iExists ( 0 ^+ next_free_uk)%a.
+        rewrite /MAX_USER_KEY in Hnext_free.
         repeat iSplit; auto; iPureIntro.
         + rewrite /kvs_uk_sb.
           replace (z_of (0 ^+ next_free_uk)%a) with next_free_uk; first done.
@@ -120,7 +122,7 @@ Section KVS_spec_initialise_safe.
           solve_addr+Hnext_free Hwf_free_uk.
         + solve_addr+Hnext_free Hwf_free_uk.
         + solve_addr+Hnext_free Hwf_free_uk.
-        + solve_addr+Hnext_free Hwf_free_uk.
+        + rewrite /MAX_USER_KEY; solve_addr+Hnext_free Hwf_free_uk.
       }
 
       iMod
@@ -141,7 +143,7 @@ Section KVS_spec_initialise_safe.
       iPureIntro.
       subst W'.
       right; eexists; done.
-    - iMod ("Hkvs_inv_close" with "[$Hcode $Hcgp_e Himports_sw Ha_unsealing $HisKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna" ; auto.
+    - iMod ("Hkvs_inv_close" with "[$Hcode $Ha_next_uk $Ha_uk_scap Himports_sw Ha_unsealing $HisKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna" ; auto.
       { iNext.
         iSplit; last done.
         iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.

@@ -145,7 +145,7 @@ Section KVS_spec_read_safe.
     iDestruct (lc_fupd_elim_later with "[$] [$Hot_res]") as ">[Halloc Hkvs_frags]".
     assert ( wf_kvs_full_key user_key nkey) as Hwk_fkey by (split; auto; lia).
     assert (ku = user_key).
-    { cbn in Heq; simplify_eq; solve_addr. }
+    { cbn in Heq; simplify_eq; rewrite /MAX_USER_KEY in Hku_bounds; solve_addr. }
     cbn in Heq; simplify_eq.
 
     destruct ( decide ( nkey ∈ s' ) ) as [Hfkey_in_s|Hfkey_notin_s].
@@ -309,8 +309,9 @@ Section KVS_spec_read_safe.
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_ca0
       & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Hworld & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%m & %s & %next_free_uk & >Himports & >Hcgp_e & >Hcode
-            & HisKVS & >%Hwf_free_uk & Hfree_uk_alloc & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (%m & %s & %next_free_uk & >Himports & >Ha_next_uk & >Ha_uk_scap & >Hcode
+            & HisKVS & >%Hwf_free_uk & Hfree_uk_alloc & #Hspred)
+            & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
@@ -335,7 +336,7 @@ Section KVS_spec_read_safe.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     iDestruct "Hres" as "[ (%w & Hca0 & Hca1 & Hinterp_w) | (Hca0 & Hca1) ]".
-    all: iMod ("Hkvs_inv_close" with "[$Hcode $Hcgp_e Himports_sw Ha_unsealing $HKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna"
+    all: iMod ("Hkvs_inv_close" with "[$Hcode $Ha_next_uk $Ha_uk_scap Himports_sw Ha_unsealing $HKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna"
     ; last ( iApply "Hpost"; iFrame); try (iLeft; iFrame).
     all: iNext.
     all: iSplit; last done.

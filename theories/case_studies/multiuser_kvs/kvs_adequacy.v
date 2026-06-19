@@ -37,11 +37,6 @@ Class memory_layout `{MP: MachineParameters} := {
     ot_kvs_size : (ot_kvs < ot_kvs ^+ 1)%ot;
     ot_kvs_disjoint : ot_kvs ≠ (ot_switcher switcher_cmpt) ;
 
-    (* kvs_user_key_K : Z; *)
-    (* kvs_user_key_B : Z; *)
-    (* kvs_user_key_wf : (0 <= kvs_user_key_K < MemNum - 1)%Z ∧ (0 <= kvs_user_key_B < MemNum - 1)%Z; *)
-    (* kvs_user_key_disjoints : kvs_user_key_K ≠ kvs_user_key_B; *)
-
     (* adv compartments B *)
     B_cmpt : cmpt ;
     offset_adv_f : nat;
@@ -224,9 +219,6 @@ Section Adequacy.
   Context { HCNames : CNames = (list_to_set [B]) }.
 
   Context {Layout: memory_layout}.
-
-  Local Notation kvs_user_key_K_a := (0 ^+ kvs_user_key_K)%a.
-  Local Notation kvs_user_key_B_a := (0 ^+ kvs_user_key_B)%a.
 
   Context {kvs_preg: gen_heapGpreS nat kvs_entry Σ}.
   Context {kvs_alloc_preg: gen_heapGpreS Z (gset Z) Σ}.
@@ -735,14 +727,30 @@ Section Adequacy.
         apply finz_incr_iff_dist in H1 as [? H1].
         done.
       }
-      iDestruct (region_pointsto_single with "Hcgp_e") as "(%&Hcgp_e&%)"; simplify_eq.
+      iDestruct (region_pointsto_cons with "Hcgp_e") as "[Ha_next_uk Ha_uk_scap]"; simplify_eq.
+      { transitivity (Some ( KVS_cgp_b ^+ OFFSET_SCAP_USER_KEY)%a); auto.
+        rewrite /OFFSET_SCAP_USER_KEY /OFFSET_NEXT_FREE_SEALED_USER_KEY /ASM_SIZEOF_KVS_ENTRY /SIZE_MAP.
+        cbn in *.
+        solve_addr+H.
+      }
+      {
+        rewrite /OFFSET_SCAP_USER_KEY /OFFSET_NEXT_FREE_SEALED_USER_KEY /ASM_SIZEOF_KVS_ENTRY /SIZE_MAP.
+        cbn in *.
+        solve_addr+H.
+      }
+      iDestruct (region_pointsto_single with "Ha_uk_scap") as "(%&Ha_uk_scap&%)"; simplify_eq.
       { cbn in *.
-        rewrite /OFFSET_NEXT_FREE_SEALED_USER_KEY /ASM_SIZEOF_KVS_ENTRY /SIZE_MAP.
+        rewrite /OFFSET_SCAP_USER_KEY /OFFSET_NEXT_FREE_SEALED_USER_KEY /ASM_SIZEOF_KVS_ENTRY /SIZE_MAP.
+        cbn in *.
         solve_addr+H.
       }
       iFrame.
       iSplit; cycle 1.
-      { iPureIntro; solve_addr. }
+      { iPureIntro.
+        Transparent MemNum.
+        rewrite /MAX_USER_KEY /MemNum.
+        Opaque MemNum.
+        lia. }
       iSplit.
       { iPureIntro; apply wf_kvs_map_kvs_map_init. }
       iSplit.

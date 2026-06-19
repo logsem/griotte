@@ -1237,7 +1237,8 @@ Section KVS_preamble.
     in
     ∃ (m : kvs_map) (s : kvs_alloc) (next_free_user_key : Z),
       [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ imports ]] ∗
-      (KVS_cgp_b ^+ OFFSET_NEXT_FREE_SEALED_USER_KEY)%a  ↦ₐ (kvs_user_seal_key_scap_init next_free_user_key) ∗
+      (KVS_cgp_b ^+ OFFSET_NEXT_FREE_SEALED_USER_KEY)%a  ↦ₐ (WInt next_free_user_key) ∗
+      (KVS_cgp_b ^+ OFFSET_SCAP_USER_KEY)%a  ↦ₐ kvs_user_seal_key_scap_init ∗
       codefrag KVS_pcc_b' kvs_service_instrs ∗
       isKVS KVS_cgp_b m s ∗
       ⌜ (0 <= next_free_user_key <= MAX_USER_KEY)%Z ⌝ ∗

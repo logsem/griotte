@@ -43,6 +43,7 @@ Section KVS_Service.
   Definition UNSEALING_USER_KEY_OFFSET := 1.
 
   Definition OFFSET_NEXT_FREE_SEALED_USER_KEY : Z := ASM_SIZEOF_KVS_ENTRY * SIZE_MAP .
+  Definition OFFSET_SCAP_USER_KEY : Z := OFFSET_NEXT_FREE_SEALED_USER_KEY + 1 .
 
   Definition kvs_getFullKey_asm (rdst rsealkey rkey rscratch1 rscratch2 : RegName) : list asm_code :=
     [(* fetch sealing key from imports *)
@@ -370,18 +371,20 @@ Section KVS_Service.
         (* Get current next_free_sealed_user_key *)
         lea cgp OFFSET_NEXT_FREE_SEALED_USER_KEY;
         load ct1 cgp;
-        geta ctp ct1;
-        lt ctp ctp MAX_USER_KEY; (* ctp := if (ctp < MAX_USER_KEY) then 1 else 0 *)
+        lt ctp ct1 MAX_USER_KEY; (* ctp := if (ctp < MAX_USER_KEY) then 1 else 0 *)
         jnz (".initialise_next_free_available")%asm ctp;
         #".initialise_next_free_not_available";
         mov ca0 ASM_FALSE;
         mov ca1 0;
         ret;
         #".initialise_next_free_available";
+        add ca0 ct1 1%Z;
+        store cgp ca0;
+        lea cgp 1;
+        load ctp cgp;
+        lea ctp ct1;
+        seal ca1 ct0 ctp;
         mov ca0 ASM_TRUE;
-        seal ca1 ct0 ct1;
-        lea ct1 1;
-        store cgp ct1;
         ret
       ]
     ].
@@ -414,14 +417,14 @@ Section KVS_Service.
   Definition kvs_user_seal_key_scap (g : Locality) (z : Z) :=
     (SCap (O LG LM) g 0%a 0%a (0 ^+ z)%a).
 
-  Definition kvs_user_seal_key_scap_init (init_user_key : Z) :=
-    WSealable (kvs_user_seal_key_scap Global init_user_key).
+  Definition kvs_user_seal_key_scap_init :=
+    WSealable (kvs_user_seal_key_scap Global 0%Z).
 
   Definition kvs_data_kvs_region :=
     (repeat_list [WInt ASM_NONE;WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP).
 
   Definition kvs_data (init_user_key : Z) :=
-    kvs_data_kvs_region ++ [kvs_user_seal_key_scap_init init_user_key].
+    kvs_data_kvs_region ++ [ WInt init_user_key ; kvs_user_seal_key_scap_init ].
 
   Definition length_kvs_data := length (kvs_data 0).
 
@@ -608,6 +611,8 @@ Ltac solve_addr_kvs :=
     | _ : _ |- context [ SIZE_MAP ] => rewrite /SIZE_MAP
     | H : context [ OFFSET_NEXT_FREE_SEALED_USER_KEY ] |- _ => rewrite /OFFSET_NEXT_FREE_SEALED_USER_KEY in H
     | _ : _ |- context [ OFFSET_NEXT_FREE_SEALED_USER_KEY ] => rewrite /OFFSET_NEXT_FREE_SEALED_USER_KEY
+    | H : context [ OFFSET_SCAP_USER_KEY ] |- _ => rewrite /OFFSET_SCAP_USER_KEY in H
+    | _ : _ |- context [ OFFSET_SCAP_USER_KEY ] => rewrite /OFFSET_SCAP_USER_KEY
     end
   ; solve_addr.
 
