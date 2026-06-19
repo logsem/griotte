@@ -1,10 +1,10 @@
 From iris.proofmode Require Import proofmode.
+From griotte Require Import proofmode map_simpl register_tactics.
 From griotte Require Import logrel rules.
-From griotte Require Import
-  switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
 From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
 From griotte Require Import switcher_preamble switcher_spec_return.
-From griotte Require Import proofmode map_simpl register_tactics.
+From griotte Require Import
+  switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
 
 Section KVS_spec_addOrUpdate_safe.
   Context
@@ -175,7 +175,7 @@ Section KVS_spec_addOrUpdate_safe.
       { injection; intros; lia. }
       (* Lea cgp 2 *)
       iInstr "Hcode".
-      { transitivity ( Some ((cgp_b ^+ (3 * idx + 2))%a) ); solve_addr+Hcgp_idx Hidx. }
+      { transitivity ( Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx Hidx. }
       (* Store cgp (inr ca2) *)
       destruct (canStore RW wca2) eqn:HcanStore_wca2; cycle 1.
       {
@@ -244,17 +244,17 @@ Section KVS_spec_addOrUpdate_safe.
         (* jnz (".addOrUpdate_empty_slot_found")%asm ctp; *)
         iInstr "Hcode".
         { intro; simplify_eq; lia. }
-        (* mul ct1 ct1 3 *)
+        (* mul ct1 ct1 ASM_SIZEOF_KVS_ENTRY *)
         iInstr "Hcode".
         (* lea cgp ct1; *)
         iInstr "Hcode".
-        { transitivity (Some (cgp_b ^+ 3 * idx_empty)%a); solve_addr+ Hidx_empty Hcgp_bounds. }
+        { transitivity (Some (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * idx_empty)%a); solve_addr+ Hidx_empty Hcgp_bounds. }
         (* store cgp ASM_SOME; *)
         iInstr "Hcode".
         { solve_addr+Hcgp_bounds. }
         (* lea cgp 1; *)
         iInstr "Hcode".
-        { transitivity (Some (cgp_b ^+ (3 * idx_empty + 1))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
+        { transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 1))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
         (* store cgp ca0; *)
         iInstr_lookup "Hcode" as "Hi" "Hcode".
         wp_instr.
@@ -266,7 +266,7 @@ Section KVS_spec_addOrUpdate_safe.
         iInstr_close "Hcode".
         (* lea cgp 1; *)
         iInstr "Hcode".
-        { transitivity (Some (cgp_b ^+ (3 * idx_empty + 2))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
+        { transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 2))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
         (* store cgp ca2; *)
         destruct (canStore RW wca2) eqn:HcanStore_wca2; cycle 1.
         {

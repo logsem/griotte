@@ -13,18 +13,19 @@ Section KVS_Service.
       TODO description of the service
    *)
   (*
+    Import+UNSEALING_USER_KEY_OFFSET  : [U, Global, OUserKey, OUserKey + 1, OUserKey]
+
     ca0 : sealedUserKey
     ca1 : key
     ca2 : val
 
-    cgp0  : [U, Global, OUserKey, OUserKey + 1, OUserKey]
-    cgp1  : option0
-    cgp2  : key0
-    cgp3  : val0
+    cgp0  : option0
+    cgp1  : key0
+    cgp2  : val0
     ...   : ...
-    cgp46 : option15
-    cgp47 : key15
-    cgp48 : val15
+    cgp45 : option15
+    cgp46 : key15
+    cgp47 : val15
    *)
   Definition SIZE_MAP := 16.
 
@@ -37,6 +38,7 @@ Section KVS_Service.
   Definition ASM_NONE : Z := 0.
   Definition ASM_SOME : Z := 1.
 
+  Definition ASM_SIZEOF_KVS_ENTRY : Z := 3.
   Definition UNSEALING_USER_KEY_OFFSET := 1.
 
   Definition kvs_getFullKey_asm (rdst rsealkey rkey rscratch1 rscratch2 : RegName) : list asm_code :=
@@ -97,7 +99,7 @@ Section KVS_Service.
       jnz (".some_index")%asm rscratch;
       #".none_index";
       mov ridx_empty ridx;
-      lea cgp 3;
+      lea cgp ASM_SIZEOF_KVS_ENTRY;
       add ridx ridx 1;
       jmp (".loop_start");
       #".some_index";
@@ -116,7 +118,7 @@ Section KVS_Service.
       add ridx ridx 1;
       jmp (".loop_start");
       #".loop_end_not_found";
-      lea cgp (-(3*SIZE_MAP))%Z;
+      lea cgp (-(ASM_SIZEOF_KVS_ENTRY*SIZE_MAP))%Z;
       mov ridx (-1)%Z;
       #".loop_end_found"
     ].
@@ -221,7 +223,7 @@ Section KVS_Service.
 
         #".addOrUpdate_empty_slot_found";
         (* make cgp points to the empty index *)
-        mul ct1 ct1 3;
+        mul ct1 ct1 ASM_SIZEOF_KVS_ENTRY;
         lea cgp ct1;
         (* insert Some *)
         store cgp ASM_SOME;
@@ -542,3 +544,14 @@ Section KVS_Service.
   Qed.
 
 End KVS_Service.
+
+Ltac solve_addr_kvs :=
+  repeat match goal with
+    | H : context [ ASM_SIZEOF_KVS_ENTRY ] |- _ => rewrite /ASM_SIZEOF_KVS_ENTRY in H
+    | _ : _ |- context [ ASM_SIZEOF_KVS_ENTRY ] => rewrite /ASM_SIZEOF_KVS_ENTRY
+    end
+  ; solve_addr.
+
+Tactic Notation "solve_addr" := solve_addr_kvs.
+Tactic Notation "solve_addr" "-" hyp_list(Hs) := clear Hs; solve_addr_kvs.
+Tactic Notation "solve_addr" "+" hyp_list(Hs) := clear -Hs; solve_addr_kvs.

@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
+From griotte Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import switcher kvs.
-From griotte Require Import proofmode.
 
 Definition kvs_entry : Type := option (Z * Word).
 Definition kvs_dom : gset nat := set_seq 0 SIZE_MAP.
@@ -108,14 +108,14 @@ Section KVS_preamble.
   Definition isKVS_entry (a : Addr) (idx : nat) (opt_kw : option (Z * Word)) : iProp Σ :=
     match opt_kw with
     | None =>
-        (a ^+ (3*idx))%a ↦ₐ WInt ASM_NONE ∗
-        (a ^+ (3*idx + 1))%a ↦ₐ - ∗
-        (a ^+ (3*idx + 2))%a ↦ₐ - ∗
+        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_NONE ∗
+        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 1))%a ↦ₐ - ∗
+        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 2))%a ↦ₐ - ∗
         idx ⤇(KVS) NONE
     | Some (k, w) =>
-        (a ^+ (3*idx))%a ↦ₐ WInt ASM_SOME ∗
-        (a ^+ (3*idx + 1))%a ↦ₐ WInt k ∗
-        (a ^+ (3*idx + 2))%a ↦ₐ w
+        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_SOME ∗
+        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 1))%a ↦ₐ WInt k ∗
+        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 2))%a ↦ₐ w
     end.
 
   Definition kvs_alloc_elem_of (s : kvs_alloc) (ku kn : Z) :=
@@ -481,15 +481,15 @@ Section KVS_preamble.
   Qed.
 
   Lemma kvs_initial_map_init (b e : Addr) :
-    (b + (3 * SIZE_MAP))%a = Some e ->
+    (b + (ASM_SIZEOF_KVS_ENTRY * SIZE_MAP))%a = Some e ->
     ([[b,e]]↦ₐ[[kvs_data]]) -∗
     ([∗ map] idx↦opt_kw ∈ kvs_map_init, idx ⤇(KVS) NONE) -∗
     [∗ map] idx↦kw ∈ kvs_map_init, isKVS_entry b idx kw.
   Proof.
     rewrite /kvs_map_init /kvs_data.
     generalize dependent e.
-    replace b with (b^+(3*0%nat))%a by solve_addr.
-    rewrite {3}(_ : (b^+(3*0%nat))%a = b); last solve_addr.
+    replace b with (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat))%a by solve_addr.
+    rewrite {3}(_ : (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat))%a = b); last solve_addr.
     generalize 0 as k.
     induction SIZE_MAP; iIntros (k e Hbe) "Hmem Hfrags"; cbn; first done.
     specialize (IHn (S k)).
@@ -509,14 +509,14 @@ Section KVS_preamble.
       apply elem_of_seq in Hcontra; cbn in *.
       lia.
     }
-    iDestruct (region_pointsto_cons _ (b ^+ ((3 * k)+1))%a with "Hmem") as "[Hb0 Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
-    iDestruct (region_pointsto_cons _ (b ^+ ((3 * k)+2))%a with "Hmem") as "[Hb1 Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
-    iDestruct (region_pointsto_cons _ (b ^+ ((3 * k)+3))%a with "Hmem") as "[Hb2 Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
+    iDestruct (region_pointsto_cons _ (b ^+ ((ASM_SIZEOF_KVS_ENTRY * k)+1))%a with "Hmem") as "[Hb0 Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
+    iDestruct (region_pointsto_cons _ (b ^+ ((ASM_SIZEOF_KVS_ENTRY * k)+2))%a with "Hmem") as "[Hb1 Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
+    iDestruct (region_pointsto_cons _ (b ^+ ((ASM_SIZEOF_KVS_ENTRY * k)+ASM_SIZEOF_KVS_ENTRY))%a with "Hmem") as "[Hb2 Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
     iSplitL "Hf Hb0 Hb1 Hb2".
     - iFrame.
-    - iApply (IHn (b ^+ (3 * (k + (S n))))%a with "[Hmem] [$Hfrags]"); first solve_addr+Hbe.
-      replace (b ^+ 3 * S k)%a with (b ^+ (3 * k + 3))%a by solve_addr.
-      replace e with (b ^+ 3 * (k + S n))%a by solve_addr.
+    - iApply (IHn (b ^+ (ASM_SIZEOF_KVS_ENTRY * (k + (S n))))%a with "[Hmem] [$Hfrags]"); first solve_addr+Hbe.
+      replace (b ^+ ASM_SIZEOF_KVS_ENTRY * S k)%a with (b ^+ (ASM_SIZEOF_KVS_ENTRY * k + ASM_SIZEOF_KVS_ENTRY))%a by solve_addr.
+      replace e with (b ^+ ASM_SIZEOF_KVS_ENTRY * (k + S n))%a by solve_addr.
       done.
   Qed.
 
