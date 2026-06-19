@@ -16,7 +16,7 @@ Section KVS_getFullKey.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
-    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
   (*** Specification for known code *)
@@ -27,7 +27,7 @@ Section KVS_getFullKey.
     :
     let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
-    (0 <= user_key < addresses.top)%Z ->
+    (0 <= user_key < MemNum)%Z ->
 
     rscratch1 ≠ cnull ->
     rscratch2 ≠ cnull ->
@@ -141,7 +141,7 @@ Section KVS_getFullKey.
       world_interp W C ∗
 
       ▷ ( ∀ l_user_key user_key ,
-            ⌜ kvs_users_seals !! C = Some user_key ∧ wskey = kvs_user_seal_key l_user_key user_key ⌝ ∗
+            ⌜ wskey = kvs_user_seal_key l_user_key user_key ∧ (0 <= user_key < MemNum)%Z ⌝ ∗
             PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
             rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
             rsealkey ↦ᵣ WSealed KVS_OTYPE (kvs_user_seal_key_scap l_user_key user_key) ∗
@@ -212,7 +212,7 @@ Section KVS_getFullKey.
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
     rewrite /kvs_otype_propC /= /kvs_otype_prop //= /kvs_otype_inv.
-    iDestruct "HP" as "(%ku & %a & %s & %Heq_sb & %Hku_C & %Hku & Halloc & Hfkeys)".
+    iDestruct "HP" as "(%ku & %a & %s & %Heq_sb & %Hku & Halloc & Hfkeys)".
     destruct wsb; rewrite /kvs_user_seal_key_scap in Heq_sb; cbn in Heq_sb; simplify_eq.
     rewrite -/(kvs_user_seal_key_scap g a).
 
@@ -233,7 +233,7 @@ Section KVS_getFullKey.
     replace (Z.lor (ku ≪ 16) nkey) with (kvs_full_key ku nkey) by solve_addr.
     replace (z_of a) with ku by solve_addr+Hku.
     iApply "Hpost"; iFrame "∗#".
-    iPureIntro; split; auto.
+    iPureIntro; split; auto; solve_addr.
   Qed.
 
 End KVS_getFullKey.

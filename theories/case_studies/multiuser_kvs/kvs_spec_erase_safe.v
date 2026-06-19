@@ -16,7 +16,7 @@ Section KVS_spec_erase.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
-    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
   (*** KVS erase *)
@@ -130,7 +130,7 @@ Section KVS_spec_erase.
              "[- $HPC $Hctp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Hcode $Hspred $Hworld]")
     ; eauto; iNext.
     iIntros (l_user_key user_key)
-      "([%Huser_key_C ->] & HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Hcode & #Hseal_ku & Hworld)".
+      "([-> %Huser_key_bounds] & HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Hcode & #Hseal_ku & Hworld)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
@@ -141,11 +141,12 @@ Section KVS_spec_erase.
     iEval (replace (cgp_b ^+ 1)%a with (cgp_b ^+ (1+2*0))%a) in "Hcgp".
     iDestruct (sopen_world_interp_singleton with "Hspred Hseal_ku Hworld")
                 as "(Hworld & Hres_open & HP)".
-    iDestruct "HP" as "(%ku & %a & %s' & >%Heq & >%Hku_C & >%Hku & Hot_res)".
+    iDestruct "HP" as "(%ku & %a & %s' & >%Heq & >%Hku & >%Hku_bounds & Hot_res)".
     iDestruct (lc_fupd_elim_later with "[$] [$Hot_res]") as ">[Halloc Hkvs_frags]".
-    pose proof (kvs_users_seals_bounds C user_key Huser_key_C) as Huser_key_bound.
     assert ( wf_kvs_full_key user_key nkey) as Hwk_fkey by (split; auto; lia).
-    cbn in Heq, Hku_C; simplify_eq.
+    assert (ku = user_key).
+    { cbn in Heq; simplify_eq; solve_addr. }
+    cbn in Heq; simplify_eq.
 
     destruct ( decide ( nkey ∈ s' ) ) as [Hfkey_in_s|Hfkey_notin_s].
     (* The key has already been allocated *)
@@ -307,7 +308,8 @@ Section KVS_spec_erase.
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_ca0
       & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Hworld & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%m & %s & %next_free_uk & >Himports & >Hcgp_e & >Hcode & HisKVS & Hfree_uk_alloc & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (%m & %s & %next_free_uk & >Himports & >Hcgp_e & >Hcode
+            & HisKVS & >%Hwf_free_uk & Hfree_uk_alloc & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
@@ -334,6 +336,7 @@ Section KVS_spec_erase.
     iDestruct "HKVS" as "[ (%idx & %ku & %kn & HKVS) | HKVS ]".
     all: iMod ("Hkvs_inv_close" with "[Himports_sw $Hcode $Hcgp_e Ha_unsealing $HKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna" ; last (iApply "Hpost"; iFrame).
     all: iNext.
+    all: iSplit; last done.
     all: iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
     all: iApply (region_pointsto_cons with "[Ha_unsealing]"); eauto; [solve_addr+|]; iFrame.
     all: rewrite /region_pointsto finz_seq_between_empty; auto; solve_addr+.

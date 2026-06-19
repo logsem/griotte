@@ -7,7 +7,7 @@ From griotte Require Import
 From griotte Require Import
   switcher switcher_preamble switcher_spec_call switcher_spec_KtK_call switcher_spec_KtK_return.
 From griotte Require Import
-  kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main.
+  kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_spec_initialise kvs_main.
 From griotte Require Import map_simpl register_tactics proofmode.
 
 Section KVS_main_spec.
@@ -20,7 +20,7 @@ Section KVS_main_spec.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {kvsg:kvsG Σ} {KVS_layout : kvsLayout} {KVS_layout_Wf : kvsLayoutWf}
-    {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    {KVS_namespaces : kvs_namespaces}
   .
 
   Context {B : CmptName}.
@@ -34,7 +34,6 @@ Section KVS_main_spec.
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
     (rmap : Reg)
-    (KVS_USER_KEY_MAIN : Z)
 
     (b_assert e_assert : Addr) (a_flag : Addr)
     (B_f : Sealable)
@@ -48,11 +47,10 @@ Section KVS_main_spec.
     :
 
     let imports :=
-      kvs_main_imports KVS_USER_KEY_MAIN b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f
+      kvs_main_imports b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f
     in
 
     Nswitcher ## Nassert ->
-    KVS_USER_KEY_MAIN ∈ kvs_users_seals_reserved ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -71,6 +69,7 @@ Section KVS_main_spec.
       inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
       inv (export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) (kvs_addOrUpdate_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_addOrUpdate) ∗
       inv (export_table_entryN Nkvs_exp_tbl kvs_read_exp_tbl_addr) (kvs_read_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_read) ∗
+      inv (export_table_entryN Nkvs_exp_tbl kvs_initialise_exp_tbl_addr) (kvs_initialise_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_initialise) ∗
 
       na_own cerise_nais ⊤ ∗
 
@@ -85,7 +84,6 @@ Section KVS_main_spec.
       codefrag pc_a kvs_main_code ∗
       [[ cgp_b , cgp_e ]] ↦ₐ [[ (kvs_main_data) ]] ∗
 
-      ◯(ALLOC)[KVS_USER_KEY_MAIN] ∅ ∗
       world_interp W0 B ∗
 
       interp_continuation cstk Ws Cs ∗
@@ -105,15 +103,15 @@ Section KVS_main_spec.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_assert HKVS_USER_KEY_MAIN Hrmap_dom Hrmap_init HsubBounds
+    iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hframe_match
             )
       "(#Hassert & #Hswitcher
-      & #Hkvs & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_addOrUpdate & #Hkvs_exp_tbl_read
+      & #Hkvs & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp
+      & #Hkvs_exp_tbl_addOrUpdate & #Hkvs_exp_tbl_read & #Hkvs_exp_tbl_initialise
       & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
-      & Halloc
       & Hworld_B
       & HK & Hcstk_frag
       & #Hinterp_W0_B_f
@@ -145,11 +143,11 @@ Section KVS_main_spec.
     { transitivity (Some (pc_b ^+ KVS_ERASE_OFFSET)%a); auto ; rewrite /KVS_READ_OFFSET /KVS_ERASE_OFFSET ; solve_addr. }
     { rewrite /KVS_ERASE_OFFSET; solve_addr. }
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_kvs_erase Himports_main]".
-    { transitivity (Some (pc_b ^+ SEALED_USER_KEY_OFFSET)%a); auto ; rewrite /KVS_ERASE_OFFSET /SEALED_USER_KEY_OFFSET ; solve_addr. }
-    { rewrite /SEALED_USER_KEY_OFFSET; solve_addr. }
+    { transitivity (Some (pc_b ^+ KVS_INITIALISE_OFFSET)%a); auto ; rewrite /KVS_ERASE_OFFSET /KVS_INITIALISE_OFFSET ; solve_addr. }
+    { rewrite /KVS_INITIALISE_OFFSET; solve_addr. }
     (* Extract the sealed user key *)
-    iDestruct (region_pointsto_single with "Himports_main") as "(% & Himport_sealed_user_key & %Heq)"; simplify_eq.
-    { rewrite /SEALED_USER_KEY_OFFSET ; rewrite /kvs_main_imports //= in Himports_contiguous ; solve_addr + Himports_contiguous. }
+    iDestruct (region_pointsto_single with "Himports_main") as "(% & Himport_kvs_initialise & %Heq)"; simplify_eq.
+    { rewrite /KVS_INITIALISE_OFFSET ; rewrite /kvs_main_imports //= in Himports_contiguous ; solve_addr + Himports_contiguous. }
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
@@ -167,31 +165,7 @@ Section KVS_main_spec.
     (* ------------------------------------------------------------------ *)
     (* ------- BLOCK 0 and 1 : addOrUpdate(sealedUserKey, 1, 12) -------- *)
     (* ------------------------------------------------------------------ *)
-
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hcs1 $Hct0 $Hct1 $Himport_sealed_user_key $Hcode]"); eauto.
-    { rewrite /SEALED_USER_KEY_OFFSET; solve_addr. }
-    iNext ; iIntros "(HPC & Hcs1 & Hct0 & Hct1 & Hcode & Himport_sealed_user_key)".
-    iEval (cbn) in "Hcs1".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    focus_block 1 "Hcode_main" as a_main1 Ha_main1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    (* Mov ca0 cs1; *)
-    iInstr "Hcode".
-    (* Mov ca1 1; *)
-    iInstr "Hcode".
-    destruct ( decide (ca1 = cnull) ) as [|_] ; first done.
-    (* Mov ca2 12 *)
-    iInstr "Hcode".
-    destruct ( decide (ca2 = cnull) ) as [|_]; first done.
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    (* --------------------------------------------------- *)
-    (* -------------- BLOCK 2 and 3 : FETCH -------------- *)
-    (* --------------------------------------------------- *)
-
-    focus_block 2 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont
-    ; clear dependent a_main1.
     iApply (fetch_spec with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
     { rewrite /SWITCHER_CALL_OFFSET; solve_addr. }
     replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
@@ -200,19 +174,16 @@ Section KVS_main_spec.
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    focus_block 3 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont
-    ; clear dependent a_fetch1.
-    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_kvs_addOrUpdate]"); eauto.
-    { rewrite /KVS_INSERT_OFFSET; solve_addr. }
-    iNext ; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_kvs_addOrUpdate)".
+    focus_block 1 "Hcode_main" as a_main1 Ha_main1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Himport_kvs_initialise $Hcode]"); eauto.
+    { rewrite /KVS_INITIALISE_OFFSET; solve_addr. }
+    iNext ; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_kvs_initialise)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 4: INSERT ----------------- *)
-    (* --------------------------------------------------- *)
-    focus_block 4 "Hcode_main" as a_insert_kvs Ha_insert_kvs "Hcode" "Hcont"; iHide "Hcont" as hcont
-    ; clear dependent a_fetch2.
+    focus_block 2 "Hcode_main" as a_main2 Ha_main2 "Hcode" "Hcont"; iHide "Hcont" as hcont
+    ; clear dependent a_main1.
+    (* Jalr cra ctp *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -222,9 +193,9 @@ Section KVS_main_spec.
 
     (* Use switcher call KtK *)
     set ( rmap_arg :=
-           {[ ca0 := kvs_user_seal_key Global KVS_USER_KEY_MAIN;
-              ca1 := WInt 1%nat;
-              ca2 := WInt 12%nat;
+           {[ ca0 := wca0;
+              ca1 := wca1;
+              ca2 := wca2;
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
@@ -244,18 +215,225 @@ Section KVS_main_spec.
     iApply (switcher_cc_specification_known_to_known
               _ _ _ _ _ _ _ _ _ rmap_arg rmap'
              with
-             "[- $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
+             "[- $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_initialise
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
                  $Hstk $Hcstk_frag
+                 ]"); auto.
+    { rewrite /kvs_initialise_exp_tbl_addr /kvs_initialise_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
+    { solve_addr+Hkvs_exp_tbl_size. }
+    { rewrite /kvs_initialise_exp_tbl_addr /kvs_initialise_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
+    { rewrite /kvs_initialise_nargs; lia. }
+    {  subst rmap'.
+       rewrite dom_insert_L.
+       repeat (rewrite dom_delete_L).
+       rewrite Hrmap_dom /dom_arg_rmap /=.
+       set_solver+.
+    }
+    { subst rmap_arg; set_solver. }
+    iNext.
+    iIntros "[
+    (%arg_rmap_init & %rmap_init & %Hdom_arg_rmap_init & %Hdom_rmap_init
+    & Hna & HPC & Hcgp & Hcra & Hcsp & Hargs & Hrmap & Hstk & Hcstk)
+    |
+    (%rmap_init & %stk_mem' & %Hdom_rmap_init & Hna
+    & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1 & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag
+    )
+    ]"
+    ; iEval (cbn) in "HPC"
+    ; cycle 1.
+    {
+      focus_block 3 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
+      ; clear dependent a_main2.
+      (* Jnz 2 ca0 *)
+      iInstr "Hcode".
+      (* Halt *)
+      iInstr "Hcode".
+      wp_end; iIntros (_); iFrame "Hna".
+    }
+    clear wct0.
+    iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
+      as ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
+          "[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]";"[Hct0 %Hwct0]"].
+    iClear "Hargs".
+    simplify_eq.
+
+    assert ( is_Some (rmap_init !! ctp) ) as [wctp' Hwctp'].
+    { apply elem_of_dom; rewrite Hdom_rmap_init; subst rmap'; set_solver+. }
+    assert ( is_Some (rmap_init !! ct1) ) as [wct1' Hwct1'].
+    { apply elem_of_dom; rewrite Hdom_rmap_init; subst rmap'; set_solver+. }
+    assert ( is_Some (rmap_init !! ct2) ) as [wct2' Hwct2'].
+    { apply elem_of_dom; rewrite Hdom_rmap_init; subst rmap'.
+      rewrite dom_insert_L.
+      repeat (rewrite dom_delete_L).
+      rewrite Hrmap_dom /dom_arg_rmap /=.
+      set_solver+.
+    }
+    assert ( is_Some (rmap_init !! cnull) ) as [wcnull' Hwcnull'].
+    { apply elem_of_dom; rewrite Hdom_rmap_init; subst rmap'.
+      rewrite dom_insert_L.
+      repeat (rewrite dom_delete_L).
+      rewrite Hrmap_dom /dom_arg_rmap /=.
+      set_solver+.
+    }
+    iExtractList "Hrmap" [cs0;cs1;ctp;ct1;ct2;cnull]
+      as ["[Hcs0 %Hcs0]";"[Hcs1 %Hcs1]";"[Hctp %Hctp]";"[Hct1 %Hct1]";"[Hct2 %Hct2]";"[Hcnull %Hcnull]"]
+    ; simplify_eq.
+
+    (* Use spec initialise known *)
+    iApply (KVS_initialise_spec
+      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hctp $Hct0 $Hct1 $Hcnull]")
+    ; auto.
+    iNext;
+      iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & [% Hct0] & [% Hct1] & [% Hctp] & [% Hcnull] & Hres)".
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+
+    iInsertList "Hrmap" [ctp;ct1;ct2;cnull;ca2;ca3;ca4;ca5;ct0].
+
+    iDestruct "Hres" as "[ (%KVS_USER_KEY_MAIN & %HKVS_USER_KEY_MAIN_bounds & Hca0 & Hca1 & Halloc) | (Hca0 & [%wca1' Hca1]) ]"; cycle 1.
+    { (* Case where there was not more empty slot *)
+      (* Use switcher return KtK *)
+      iApply (switcher_cc_specification_return_known_to_known
+             with
+             "[- $Hswitcher
+                 $Hna $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hrmap
+                 $Hstk $Hcstk
+                 ]"); auto.
+      {
+        repeat (rewrite dom_insert_L).
+        repeat (rewrite dom_delete_L).
+        rewrite Hdom_rmap_init; subst rmap'.
+        repeat (rewrite dom_insert_L).
+        repeat (rewrite dom_delete_L).
+        rewrite Hrmap_dom.
+        set_solver+.
+      }
+      subst rmap'.
+      iNext; iIntros (rmap')
+               "(%Hdom_rmap' & Hna & HPC & Hcgp & Hcra
+                             & Hcs0 & Hcs1 & Hcsp & Hca0
+                             & Hca1 & Hrmap & Hstk)".
+      iEval (cbn) in "HPC".
+
+      focus_block 3 "Hcode_main" as a_blk_4' Ha_blk_4' "Hcode" "Hcont"; iHide "Hcont" as hcont.
+      (* Jnz 2 ca0 *)
+      iInstr "Hcode".
+      (* Halt *)
+      iInstr "Hcode".
+      wp_end; iIntros (_); iFrame "Hna".
+    }
+
+    iApply (switcher_cc_specification_return_known_to_known
+             with
+             "[- $Hswitcher
+                 $Hna $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hrmap
+                 $Hstk $Hcstk
+                 ]"); auto.
+    {
+      repeat (rewrite dom_insert_L).
+      repeat (rewrite dom_delete_L).
+      rewrite Hdom_rmap_init; subst rmap'.
+      repeat (rewrite dom_insert_L).
+      repeat (rewrite dom_delete_L).
+      rewrite Hrmap_dom.
+      set_solver+.
+    }
+    subst rmap'.
+    iNext; iIntros (rmap')
+             "(%Hdom_rmap' & Hna & HPC & Hcgp & Hcra
+                             & Hcs0 & Hcs1 & Hcsp & Hca0
+                             & Hca1 & Hrmap & Hstk & Hcstk)".
+    iEval (cbn) in "HPC".
+    iExtractList "Hrmap" [ctp;ct0;ct1;ca2] as ["[Hctp %]";"[Hct0 %]";"[Hct1 %]";"[Hca2 %]"]; simplify_eq.
+
+    focus_block 3 "Hcode_main" as a_blk_3  Ha_blk_3 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Jnz 2 ca0 *)
+    iInstr "Hcode".
+    (* Jmp 2 *)
+    iInstr "Hcode".
+    (* Mov cs1 ca1 *)
+    iInstr "Hcode".
+    (* Mov ca0 cs1 *)
+    iInstr "Hcode".
+    destruct ( decide (ca0 = cnull) ) as [|_] ; first done.
+    (* Mov ca1 1 *)
+    iInstr "Hcode".
+    destruct ( decide (ca1 = cnull) ) as [|_] ; first done.
+    (* Mov ca2 12 *)
+    iInstr "Hcode".
+    destruct ( decide (ca2 = cnull) ) as [|_] ; first done.
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    (* --------------------------------------------------- *)
+    (* -------------- BLOCK 2 and 3 : FETCH -------------- *)
+    (* --------------------------------------------------- *)
+
+    focus_block 4 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (fetch_spec with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
+    { rewrite /SWITCHER_CALL_OFFSET; solve_addr. }
+    replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
+    iFrame "Himport_switcher".
+    iNext ; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hcode & Himport_switcher)".
+    iEval (cbn) in "Hctp".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    focus_block 5 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont
+    ; clear dependent a_fetch1.
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_kvs_addOrUpdate]"); eauto.
+    { rewrite /KVS_INSERT_OFFSET; solve_addr. }
+    iNext ; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_kvs_addOrUpdate)".
+    iEval (cbn) in "Hct1".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    (* --------------------------------------------------- *)
+    (* ----------------- BLOCK 4: INSERT ----------------- *)
+    (* --------------------------------------------------- *)
+    focus_block 6 "Hcode_main" as a_insert_kvs Ha_insert_kvs "Hcode" "Hcont"; iHide "Hcont" as hcont
+    ; clear dependent a_fetch2.
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    (* pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size. *)
+    rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
+    clear rmap_arg wca3 wca4 wca5.
+    iExtractList "Hrmap" [ca3;ca4;ca5] as ["[Hca3 %]"; "[Hca4 %]"; "[Hca5 %]"].
+
+    (* Use switcher call KtK *)
+    set ( rmap_arg :=
+           {[ ca0 := kvs_user_seal_key Global KVS_USER_KEY_MAIN;
+              ca1 := WInt 1%nat;
+              ca2 := WInt 12%nat;
+              ca3 := wca3;
+              ca4 := wca4;
+              ca5 := wca5;
+              ct0 := WInt 0
+           ]} : Reg
+        ).
+
+    iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg )%I
+      with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
+    { subst rmap_arg.
+      repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
+      done.
+    }
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+    iInsertList "Hrmap" [ctp].
+    set (rmap'' := <[ctp := _]> _ ).
+
+    iApply (switcher_cc_specification_known_to_known
+              _ _ _ _ _ _ _ _ _ rmap_arg rmap''
+             with
+             "[- $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
+                 $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
+                 $Hstk $Hcstk
                  ]"); auto.
     { rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
     { solve_addr+Hkvs_exp_tbl_size. }
     { rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
     { rewrite /kvs_addOrUpdate_nargs; lia. }
-    {  subst rmap'.
+    {  subst rmap''.
        rewrite dom_insert_L.
        repeat (rewrite dom_delete_L).
-       rewrite Hrmap_dom /dom_arg_rmap /=.
+       rewrite Hdom_rmap' /dom_arg_rmap /=.
        set_solver+.
     }
     { subst rmap_arg; set_solver. }
@@ -271,15 +449,15 @@ Section KVS_main_spec.
     ; iEval (cbn) in "HPC"
     ; cycle 1.
     {
-      focus_block 5 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
-      ; clear dependent a_insert_kvs.
+      focus_block 7 "Hcode_main" as a_blk_4'  Ha_blk_4' "Hcode" "Hcont"; iHide "Hcont" as hcont.
       (* Jnz 2 ca0 *)
       iInstr "Hcode".
       (* Halt *)
       iInstr "Hcode".
       wp_end; iIntros (_); iFrame "Hna".
     }
-    clear wca0 wca1 wca2 wct0.
+    simplify_eq.
+    clear wca0 wca1 wca2.
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
       as ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
           "[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]";"[Hct0 %Hwct0]"].
@@ -293,22 +471,23 @@ Section KVS_main_spec.
     assert (wca2 = WInt 12%nat) as -> by (subst rmap_arg ; simplify_map_eq; done).
     simplify_eq.
 
+    clear Hwctp' Hwct1' Hwct2' Hwcnull'.
     assert ( is_Some (rmap_add !! ctp) ) as [wctp' Hwctp'].
-    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap'; set_solver+. }
+    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap''; set_solver+. }
     assert ( is_Some (rmap_add !! ct1) ) as [wct1' Hwct1'].
-    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap'; set_solver+. }
+    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap''; set_solver+. }
     assert ( is_Some (rmap_add !! ct2) ) as [wct2' Hwct2'].
-    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap'.
+    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap''.
       rewrite dom_insert_L.
       repeat (rewrite dom_delete_L).
-      rewrite Hrmap_dom /dom_arg_rmap /=.
+      rewrite Hdom_rmap' /dom_arg_rmap /=.
       set_solver+.
     }
     assert ( is_Some (rmap_add !! cnull) ) as [wcnull' Hwcnull'].
-    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap'.
+    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap''.
       rewrite dom_insert_L.
       repeat (rewrite dom_delete_L).
-      rewrite Hrmap_dom /dom_arg_rmap /=.
+      rewrite Hdom_rmap' /dom_arg_rmap /=.
       set_solver+.
     }
     iExtractList "Hrmap" [cs0;cs1;ctp;ct1;ct2;cnull]
@@ -319,10 +498,6 @@ Section KVS_main_spec.
     iApply (KVS_add_spec
       with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull $Halloc]")
     ; auto.
-    { pose proof kvs_users_seals_reserved_bounds as H_ukey_bounds.
-      rewrite Forall_forall in H_ukey_bounds.
-      by apply H_ukey_bounds in HKVS_USER_KEY_MAIN.
-    }
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     { set_solver+. }
     iNext;
@@ -344,20 +519,22 @@ Section KVS_main_spec.
       {
         repeat (rewrite dom_insert_L).
         repeat (rewrite dom_delete_L).
-        rewrite Hdom_rmap_add; subst rmap'.
+        rewrite Hdom_rmap_add; subst rmap''.
         repeat (rewrite dom_insert_L).
         repeat (rewrite dom_delete_L).
-        rewrite Hrmap_dom.
+        rewrite Hdom_rmap'.
         set_solver+.
       }
-      subst rmap'.
+      subst rmap''.
+      rename rmap' into rmap''.
+      rename Hdom_rmap' into Hdom_rmap''.
       iNext; iIntros (rmap')
                "(%Hdom_rmap' & Hna & HPC & Hcgp & Hcra
                              & Hcs0 & Hcs1 & Hcsp & Hca0
                              & Hca1 & Hrmap & Hstk)".
       iEval (cbn) in "HPC".
 
-      focus_block 5 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
+      focus_block 7 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
       ; clear dependent a_insert_kvs.
       (* Jnz 2 ca0 *)
       iInstr "Hcode".
@@ -375,20 +552,21 @@ Section KVS_main_spec.
     {
       repeat (rewrite dom_insert_L).
       repeat (rewrite dom_delete_L).
-      rewrite Hdom_rmap_add; subst rmap'.
+      rewrite Hdom_rmap_add; subst rmap''.
       repeat (rewrite dom_insert_L).
       repeat (rewrite dom_delete_L).
-      rewrite Hrmap_dom.
+      rewrite Hdom_rmap'.
       set_solver+.
     }
-    subst rmap'.
+    subst rmap''.
+    clear dependent Hwctp' rmap_arg rmap_add arg_rmap_add Hdom_rmap' rmap'.
     iNext; iIntros (rmap')
              "(%Hdom_rmap' & Hna & HPC & Hcgp & Hcra
                              & Hcs0 & Hcs1 & Hcsp & Hca0
                              & Hca1 & Hrmap & Hstk & Hcstk)".
     iEval (cbn) in "HPC".
 
-    focus_block 5 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 7 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_insert_kvs.
     (* Jnz 2 ca0 *)
     iInstr "Hcode".
@@ -402,14 +580,13 @@ Section KVS_main_spec.
     destruct ( decide (ca0 = cnull) ) as [|_] ; first done.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    clear dependent Hwctp' rmap_arg rmap_add arg_rmap_add.
     clear wcra wctp wct1 wcs0 w w0 w1 w2 w3 w4 w5.
     iExtractList "Hrmap" [ctp;ct0;ct1] as ["[Hctp %]";"[Hct0 %]";"[Hct1 %]"]; simplify_eq.
 
     (* --------------------------------------------------- *)
     (* -------------- BLOCK 6 and 7 : FETCH -------------- *)
     (* --------------------------------------------------- *)
-    focus_block 6 "Hcode_main" as a_fetch1  Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 8 "Hcode_main" as a_fetch1  Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_blk_4.
     iApply (fetch_spec with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
     { rewrite /SWITCHER_CALL_OFFSET; solve_addr. }
@@ -419,7 +596,7 @@ Section KVS_main_spec.
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    focus_block 7 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 9 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_fetch1.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_B_f]"); eauto.
     { rewrite /ADV_F_OFFSET; solve_addr. }
@@ -430,7 +607,7 @@ Section KVS_main_spec.
     (* --------------------------------------------------- *)
     (* ----------------- BLOCK 8: CALL B ----------------- *)
     (* --------------------------------------------------- *)
-    focus_block 8 "Hcode_main" as a_call Ha_call "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 10 "Hcode_main" as a_call Ha_call "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_fetch2.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -518,7 +695,7 @@ Section KVS_main_spec.
     (* ---------------------------------------------------------- *)
     (* ----------------- BLOCK 9: PREPARE READ  ----------------- *)
     (* ---------------------------------------------------------- *)
-    focus_block 9 "Hcode_main" as a_blk Ha_blk "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 11 "Hcode_main" as a_blk Ha_blk "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_call.
     (* Mov ca0 cs1 *)
     iInstr "Hcode".
@@ -530,7 +707,7 @@ Section KVS_main_spec.
     (* ----------------------------------------------------- *)
     (* -------------- BLOCK 10 and 11 : FETCH -------------- *)
     (* ----------------------------------------------------- *)
-    focus_block 10 "Hcode_main" as a_fetch1  Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 12 "Hcode_main" as a_fetch1  Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_blk.
     iApply (fetch_spec with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
     { rewrite /SWITCHER_CALL_OFFSET; solve_addr. }
@@ -540,7 +717,7 @@ Section KVS_main_spec.
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    focus_block 11 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 13 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_fetch1.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_kvs_read]"); eauto.
     { rewrite /KVS_READ_OFFSET; solve_addr. }
@@ -552,7 +729,7 @@ Section KVS_main_spec.
     (* -------------------------------------------------- *)
     (* ----------------- BLOCK 12: READ ----------------- *)
     (* -------------------------------------------------- *)
-    focus_block 12 "Hcode_main" as a_insert_kvs Ha_insert_kvs "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 14 "Hcode_main" as a_insert_kvs Ha_insert_kvs "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_fetch2.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -565,9 +742,9 @@ Section KVS_main_spec.
            {[ ca0 := kvs_user_seal_key Global KVS_USER_KEY_MAIN;
               ca1 := WInt 1%nat;
               ca2 := wca2;
-              ca3 := wca0;
-              ca4 := wca1;
-              ca5 := wca6;
+              ca3 := wca3;
+              ca4 := wca4;
+              ca5 := wca5;
               ct0 := WInt 0
            ]} : Reg
         ).
@@ -611,7 +788,7 @@ Section KVS_main_spec.
     ; iEval (cbn) in "HPC"
     ; cycle 1.
     {
-      focus_block 13 "Hcode_main" as a_assert1  Ha_assert1 "Hcode" "Hcont"; iHide "Hcont" as hcont
+      focus_block 15 "Hcode_main" as a_assert1  Ha_assert1 "Hcode" "Hcont"; iHide "Hcont" as hcont
       ; clear dependent a_insert_kvs.
       (* Jnz 2 ca0 *)
       iInstr "Hcode".
@@ -627,8 +804,8 @@ Section KVS_main_spec.
     iClear "Hargs".
     destruct ( decide (ca0 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
     destruct ( decide (ca1 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
-    assert (wca7 = kvs_user_seal_key Global KVS_USER_KEY_MAIN) as -> by (subst rmap_arg ; simplify_map_eq; done).
-    assert (wca8 = WInt 1%nat) as -> by (subst rmap_arg ; simplify_map_eq;done).
+    assert (wca0 = kvs_user_seal_key Global KVS_USER_KEY_MAIN) as -> by (subst rmap_arg ; simplify_map_eq; done).
+    assert (wca1 = WInt 1%nat) as -> by (subst rmap_arg ; simplify_map_eq;done).
     simplify_eq.
 
     assert ( is_Some (rmap_read !! ct1) ) as [wct1' Hwct1'].
@@ -655,10 +832,6 @@ Section KVS_main_spec.
     iApply (KVS_read_spec_in
       with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcnull $Hfkey]")
     ; auto.
-    { pose proof kvs_users_seals_reserved_bounds as H_ukey_bounds.
-      rewrite Forall_forall in H_ukey_bounds.
-      by apply H_ukey_bounds in HKVS_USER_KEY_MAIN.
-    }
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     iNext;
       iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & Hca0 & Hca1
@@ -695,7 +868,7 @@ Section KVS_main_spec.
     (* -------------------------------------------------- *)
     (* ---------------- BLOCK 13: ASSERT ---------------- *)
     (* -------------------------------------------------- *)
-    focus_block 13 "Hcode_main" as a_assert1  Ha_assert1 "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 15 "Hcode_main" as a_assert1  Ha_assert1 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_insert_kvs.
     (* Jnz 2 ca0 *)
     iInstr "Hcode".
@@ -711,7 +884,7 @@ Section KVS_main_spec.
     (* -------------------------------------------------- *)
     (* ---------------- BLOCK 14: ASSERT ---------------- *)
     (* -------------------------------------------------- *)
-    focus_block 14 "Hcode_main" as a_assert2  Ha_assert2 "Hcode" "Hcont"; iHide "Hcont" as hcont
+    focus_block 16 "Hcode_main" as a_assert2  Ha_assert2 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_assert1.
     iApply (assert_success_spec with
              "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
@@ -724,7 +897,7 @@ Section KVS_main_spec.
     (* ---------------------------------------------------- *)
     (* ------------------ BLOCK 15: HALT ------------------ *)
     (* ---------------------------------------------------- *)
-    focus_block 15 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    focus_block 17 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Halt *)
     iInstr "Hcode".
     wp_end; iIntros "_"; iFrame.

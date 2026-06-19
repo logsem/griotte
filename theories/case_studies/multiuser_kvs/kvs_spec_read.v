@@ -14,7 +14,7 @@ Section KVS_spec_read.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
-    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
   Lemma KVS_read_spec_in_pre
@@ -29,7 +29,7 @@ Section KVS_spec_read.
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
-    (0 <= user_key < addresses.top)%Z ->
+    (0 <= user_key < MemNum)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length_kvs_data)%a = Some cgp_e ->
@@ -148,7 +148,7 @@ Section KVS_spec_read.
 
     ↑Nkvs ⊆ E ->
 
-    (0 <= user_key < addresses.top)%Z ->
+    (0 <= user_key < MemNum)%Z ->
     is_uint16 nkey ->
 
     ( na_inv cerise_nais Nkvs kvs_inv ∗
@@ -186,7 +186,8 @@ Section KVS_spec_read.
     iIntros (Hnkvs_E Hbounds_user_key His_uint16_nkey)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Hfkey & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%m & %s & %next_free_uk & >Himports & >Hcgp_e & >Hcode & HisKVS & Hfree_uk_alloc & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (%m & %s & %next_free_uk & >Himports & >Hcgp_e & >Hcode
+            & HisKVS & >%Hwf_free_uk & Hfree_uk_alloc & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
@@ -210,6 +211,7 @@ Section KVS_spec_read.
 
     iMod ("Hkvs_inv_close" with "[$Hcode $Hcgp_e Himports_sw Ha_unsealing $HKVS $Hfree_uk_alloc $Hspred $Hna]") as "Hna" ; auto.
     { iNext.
+      iSplit; last done.
       iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
       iApply (region_pointsto_cons with "[Ha_unsealing]"); eauto; [solve_addr+|]; iFrame.
       rewrite /region_pointsto finz_seq_between_empty; auto; solve_addr+.

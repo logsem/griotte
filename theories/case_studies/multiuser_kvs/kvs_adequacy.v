@@ -1,7 +1,14 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import
-  kvs kvs_main kvs_preamble kvs_main_spec kvs_spec_addOrUpdate_safe kvs_spec_read_safe kvs_spec_erase_safe.
+  kvs
+  kvs_main
+  kvs_preamble
+  kvs_main_spec
+  kvs_spec_addOrUpdate_safe
+  kvs_spec_read_safe
+  kvs_spec_erase_safe
+  kvs_spec_initialise_safe.
 From griotte Require Import switcher assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
@@ -30,10 +37,10 @@ Class memory_layout `{MP: MachineParameters} := {
     ot_kvs_size : (ot_kvs < ot_kvs ^+ 1)%ot;
     ot_kvs_disjoint : ot_kvs ≠ (ot_switcher switcher_cmpt) ;
 
-    kvs_user_key_K : Z;
-    kvs_user_key_B : Z;
-    kvs_user_key_wf : (0 <= kvs_user_key_K < MemNum - 1)%Z ∧ (0 <= kvs_user_key_B < MemNum - 1)%Z;
-    kvs_user_key_disjoints : kvs_user_key_K ≠ kvs_user_key_B;
+    (* kvs_user_key_K : Z; *)
+    (* kvs_user_key_B : Z; *)
+    (* kvs_user_key_wf : (0 <= kvs_user_key_K < MemNum - 1)%Z ∧ (0 <= kvs_user_key_B < MemNum - 1)%Z; *)
+    (* kvs_user_key_disjoints : kvs_user_key_K ≠ kvs_user_key_B; *)
 
     (* adv compartments B *)
     B_cmpt : cmpt ;
@@ -128,7 +135,6 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   (* instantiating main *)
   (cmpt_imports main_cmpt) =
   (kvs_main_imports
-    kvs_user_key_K
     b_switcher e_switcher
     a_switcher_call ot_switcher
     (b_assert assert_cmpt) (e_assert assert_cmpt)
@@ -140,16 +146,16 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   (* instantiating kvs *)
   (cmpt_imports kvs_cmpt) = kvs_imports b_switcher e_switcher a_switcher_call ot_switcher ∧
   (cmpt_code kvs_cmpt) = kvs_service_instrs ∧
-  (cmpt_data kvs_cmpt) = kvs_data ∧
+  (cmpt_data kvs_cmpt) = kvs_data 0%Z ∧
   (cmpt_exp_tbl_entries kvs_cmpt) = kvs_export_table_entries ∧
 
   (* instantiating B *)
   (cmpt_imports B_cmpt) = [
       switcher_entry;
-      kvs_user_seal_key Global kvs_user_key_B ;
       WSealed ot_switcher (KVS_addOrUpdate Global);
       WSealed ot_switcher (KVS_read Global);
-      WSealed ot_switcher (KVS_erase Global)
+      WSealed ot_switcher (KVS_erase Global);
+      WSealed ot_switcher (KVS_initialise Global)
     ] ∧
   Forall is_z (cmpt_code B_cmpt) ∧ (* only instructions *)
   Forall (is_initial_data_word B_cmpt) (cmpt_data B_cmpt) ∧
@@ -224,9 +230,6 @@ Section Adequacy.
 
   Context {kvs_preg: gen_heapGpreS nat kvs_entry Σ}.
   Context {kvs_alloc_preg: gen_heapGpreS Z (gset Z) Σ}.
-  Context {KVS_users: kvs_users}.
-  Context { Hkvs_users_seals : kvs_users_seals = {[ B := kvs_user_key_B ]} }.
-  Context { Hkvs_users_seals_reserved : kvs_users_seals_reserved = [kvs_user_key_K] }.
 
   Definition flagN : namespace := nroot .@ "kvs" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "kvs" .@ "switcher_flag".
@@ -278,6 +281,11 @@ Section Adequacy.
              (cmpt_exp_tbl_pcc kvs_cmpt) (cmpt_exp_tbl_entries_end kvs_cmpt)
              (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_erase_exp_tbl_off)%a)
         ).
+    set (kvs_initialise :=
+          (WCap RO Global
+             (cmpt_exp_tbl_pcc kvs_cmpt) (cmpt_exp_tbl_entries_end kvs_cmpt)
+             (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_initialise_exp_tbl_off)%a)
+        ).
     iMod (gen_heap_init (reg:Reg)) as (reg_heapg) "(Hreg_ctx & Hreg & _)".
     iMod (gen_heap_init (sreg:SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
     iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
@@ -291,7 +299,9 @@ Section Adequacy.
                (seal_capability kvs_read ot_switcher) := kvs_read_nargs;
                (borrow (seal_capability kvs_read ot_switcher)) := kvs_read_nargs;
                (seal_capability kvs_erase ot_switcher) := kvs_erase_nargs;
-               (borrow (seal_capability kvs_erase ot_switcher)) := kvs_erase_nargs
+               (borrow (seal_capability kvs_erase ot_switcher)) := kvs_erase_nargs;
+               (seal_capability kvs_initialise ot_switcher) := kvs_initialise_nargs;
+               (borrow (seal_capability kvs_initialise ot_switcher)) := kvs_initialise_nargs
            ]}
 
          )
@@ -340,27 +350,40 @@ Section Adequacy.
         solve_addr+H1 H2 H3.
     }
 
-    set (all_users_keys := (kvs_users_seals_reserved ++ (map_to_list kvs_users_seals).*2)).
-    set (kvs_alloc_init := (list_to_map ( (fun k => (k,∅)) <$> all_users_keys) : kvs_alloc)).
-    iMod (gen_heap_init (kvs_alloc_init : kvs_alloc)) as (kvs_alloc_heapg) "(Hkvs_alloc_auth & Hkvs_alloc_frag & _)".
-    assert ( kvs_alloc_init = {[ kvs_user_key_K := ∅ ; kvs_user_key_B := ∅ ]} ) as ->.
-    { subst kvs_alloc_init all_users_keys.
-      rewrite Hkvs_users_seals Hkvs_users_seals_reserved. cbn.
-      rewrite map_to_list_singleton /=.
-      done.
+    assert (∃ (kvs_alloc_init : kvs_alloc),
+               elements (dom kvs_alloc_init) ≡ₚ seqZ_between 0%Z MAX_USER_KEY
+               ∧ forall k v, kvs_alloc_init !! k = Some v ->  v = ∅)
+             as ( kvs_alloc_init & Hkvs_alloc_init_elements & Hkvs_alloc_init_empty )
+    .
+    { exists ( (list_to_map ( (fun k => (k,∅)) <$> seqZ_between 0%Z MAX_USER_KEY) : kvs_alloc) ).
+      split.
+      - rewrite dom_list_to_map_L elements_list_to_set.
+        + clear.
+          generalize (seqZ_between 0 MAX_USER_KEY).
+          induction l; cbn; first done.
+          by rewrite IHl.
+        + apply NoDup_fmap_fst; auto.
+          { intros.
+            apply list_elem_of_fmap in H as (?&?&H); simplify_eq.
+            apply list_elem_of_fmap in H0 as (?&?&H0); simplify_eq.
+            done.
+          }
+          apply NoDup_fmap.
+          { by intros a b Hab; simplify_eq. }
+          apply NoDup_seqZ.
+      - intros k v Hk.
+        apply elem_of_list_to_map_2 in Hk.
+        apply list_elem_of_fmap in Hk as (?&?&Hk); simplify_eq.
+        done.
     }
-    assert ( kvs_user_key_K ≠ kvs_user_key_B ) as Huser_keys_disjoint.
-    { pose proof kvs_user_key_disjoints; solve_addr. }
-    rewrite (big_sepM_insert _ _ kvs_user_key_K); last by simplify_map_eq.
-    rewrite (big_sepM_insert _ _ kvs_user_key_B); last by simplify_map_eq.
-    iDestruct "Hkvs_alloc_frag" as "(Halloc_K & Halloc_B & _)".
+    iMod (gen_heap_init (kvs_alloc_init : kvs_alloc)) as (kvs_alloc_heapg) "(Hkvs_alloc_auth & Hkvs_alloc_frag & _)".
     iMod (gen_heap_init (kvs_map_init : kvs_map)) as (kvs_heapg) "(Hkvs_auth & Hkvs_frags & _)".
 
     pose kvsg := KvsG Σ kvs_heapg kvs_alloc_heapg.
 
     pose proof (
         @kvs_main_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _
-          kvsg _ _ _ _ B
+          kvsg _ _ _ B
       ) as Spec.
 
 
@@ -378,6 +401,12 @@ Section Adequacy.
       done.
     }
     assert (B_f ≠ kvs_erase) as Hneq_Bf_kvs_erase.
+    { symmetry.
+      pose proof cmpts_disjoints as (_&_&Hdisjoint).
+      apply exported_entry_point_disjoint.
+      done.
+    }
+    assert (B_f ≠ kvs_initialise) as Hneq_Bf_kvs_initialise.
     { symmetry.
       pose proof cmpts_disjoints as (_&_&Hdisjoint).
       apply exported_entry_point_disjoint.
@@ -405,9 +434,42 @@ Section Adequacy.
       rewrite kvs_exp_tbl /kvs_export_table_entries /= in H1.
       solve_addr+H H1 Hc Hc'.
     }
+    assert (kvs_addOrUpdate ≠ kvs_initialise) as Hneq_kvs_addOrUpdate_kvs_initialise.
+    { subst kvs_addOrUpdate kvs_initialise
+      ; rewrite /kvs_addOrUpdate_exp_tbl_off /kvs_initialise_exp_tbl_off
+      ; intro
+      ; simplify_eq.
+      pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as Hc.
+      pose proof (cmpt_exp_tbl_cgp_size kvs_cmpt) as Hc'.
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H1.
+      rewrite kvs_exp_tbl /kvs_export_table_entries /= in H1.
+      solve_addr+H H1 Hc Hc'.
+    }
     assert (kvs_read ≠ kvs_erase) as Hneq_kvs_read_kvs_erase.
     { subst kvs_read kvs_erase
       ; rewrite /kvs_read_exp_tbl_off /kvs_erase_exp_tbl_off
+      ; intro
+      ; simplify_eq.
+      pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as Hc.
+      pose proof (cmpt_exp_tbl_cgp_size kvs_cmpt) as Hc'.
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H1.
+      rewrite kvs_exp_tbl /kvs_export_table_entries /= in H1.
+      solve_addr+H H1 Hc Hc'.
+    }
+    assert (kvs_read ≠ kvs_initialise) as Hneq_kvs_read_kvs_initialise.
+    { subst kvs_read kvs_initialise
+      ; rewrite /kvs_read_exp_tbl_off /kvs_initialise_exp_tbl_off
+      ; intro
+      ; simplify_eq.
+      pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as Hc.
+      pose proof (cmpt_exp_tbl_cgp_size kvs_cmpt) as Hc'.
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H1.
+      rewrite kvs_exp_tbl /kvs_export_table_entries /= in H1.
+      solve_addr+H H1 Hc Hc'.
+    }
+    assert (kvs_erase ≠ kvs_initialise) as Hneq_kvs_erase_kvs_initialise.
+    { subst kvs_erase kvs_initialise
+      ; rewrite /kvs_erase_exp_tbl_off /kvs_initialise_exp_tbl_off
       ; intro
       ; simplify_eq.
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as Hc.
@@ -441,7 +503,13 @@ Section Adequacy.
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_kvs_erase' Hentries]".
     rewrite delete_id
     ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
-    subst B_f kvs_addOrUpdate kvs_read kvs_erase; cbn.
+    iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_kvs_initialise Hentries]".
+    rewrite delete_id
+    ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
+    iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_kvs_initialise' Hentries]".
+    rewrite delete_id
+    ; last (repeat ( rewrite lookup_insert_ne ; [| entry_point_inj] ) ; done ).
+    subst B_f kvs_addOrUpdate kvs_read kvs_erase kvs_initialise; cbn.
     set (B_f := (SCap RO Global _ _ (cmpt_exp_tbl_entries_start B_cmpt))).
     set (B_f' := (SCap RO Local _ _ (cmpt_exp_tbl_entries_start B_cmpt))).
     set (kvs_addOrUpdate := (SCap RO Global _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_addOrUpdate_exp_tbl_off)%a)).
@@ -450,14 +518,48 @@ Section Adequacy.
     set (kvs_read' := (SCap RO Local _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_read_exp_tbl_off)%a)).
     set (kvs_erase := (SCap RO Global _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_erase_exp_tbl_off)%a)).
     set (kvs_erase' := (SCap RO Local _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_erase_exp_tbl_off)%a)).
+    set (kvs_initialise := (SCap RO Global _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_initialise_exp_tbl_off)%a)).
+    set (kvs_initialise' := (SCap RO Local _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_initialise_exp_tbl_off)%a)).
     clear Hneq_Bf_kvs_addOrUpdate Hneq_Bf_kvs_read Hneq_Bf_kvs_erase
-      Hneq_kvs_addOrUpdate_kvs_read Hneq_kvs_addOrUpdate_kvs_erase Hneq_kvs_read_kvs_erase.
-
+      Hneq_kvs_addOrUpdate_kvs_read Hneq_kvs_addOrUpdate_kvs_erase Hneq_kvs_read_kvs_erase
+      Hneq_Bf_kvs_initialise Hneq_kvs_addOrUpdate_kvs_initialise Hneq_kvs_read_kvs_initialise Hneq_kvs_erase_kvs_initialise.
 
     (* Notations *)
-    iAssert (◯(ALLOC)[ kvs_user_key_K ] ∅)%I with "Halloc_K" as "Halloc_K".
-    iAssert (◯(ALLOC)[ kvs_user_key_B ] ∅)%I with "Halloc_B" as "Halloc_B".
-    iAssert (●(ALLOC) {[kvs_user_key_K := ∅; kvs_user_key_B := ∅]})%I with "Hkvs_alloc_auth" as "Hkvs_alloc_auth".
+    iAssert ([∗ list] uk ∈ (seqZ_between 0%Z MAX_USER_KEY), ◯(ALLOC)[uk] ∅)%I with "[Hkvs_alloc_frag]"
+    as "Halloc_frag".
+    {
+      iClear "#".
+      clear -Hkvs_alloc_init_elements Hkvs_alloc_init_empty.
+      iStopProof.
+      move: Hkvs_alloc_init_empty Hkvs_alloc_init_elements.
+      generalize (seqZ_between 0 MAX_USER_KEY).
+      induction kvs_alloc_init using map_ind; intros l Hl Hl'; iIntros "H".
+      { rewrite dom_empty_L elements_empty in Hl'.
+        rewrite -Hl'.
+        done.
+      }
+      rewrite dom_insert_L in Hl'.
+      rewrite elements_disj_union in Hl'; cycle 1.
+      { apply disjoint_singleton_l; apply not_elem_of_dom; done. }
+      rewrite elements_singleton in Hl'.
+      cbn in Hl'.
+      apply Permutation_cons_inv_l in Hl' as (?&?&?&?); simplify_eq.
+      assert ((x0 ++ i :: x1) ≡ₚ (i :: (x0++x1))).
+      {
+        rewrite (Permutation_app_comm x0 x1).
+        rewrite (Permutation_app_comm x0 _).
+        set_solver+.
+      }
+      rewrite H0.
+      cbn.
+      assert (x = ∅) as -> by (by eapply (Hl i); simplify_map_eq).
+      iDestruct (big_sepM_insert with "H") as "[$ H]"; auto.
+      iApply IHkvs_alloc_init; auto.
+      intros k ws Hk.
+      apply (Hl k).
+      destruct (decide ( k = i )); simplify_map_eq; auto.
+    }
+    iAssert (●(ALLOC) kvs_alloc_init)%I with "Hkvs_alloc_auth" as "Hkvs_alloc_auth".
     iDestruct (kvs_initial_map_init_None with "[Hkvs_frags]") as "Hkvs_frags"; first iFrame.
 
     (* Get initial sregister mtdc *)
@@ -540,12 +642,18 @@ Section Adequacy.
       pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H1.
       rewrite kvs_exp_tbl in H1; solve_addr+H1.
     }
+    rewrite (finz_seq_between_cons ((((cmpt_exp_tbl_entries_start kvs_cmpt) ^+ _) ^+ _) ^+ _ )%a).
+    2: {
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H1.
+      rewrite kvs_exp_tbl in H1; solve_addr+H1.
+    }
+    rewrite big_sepL2_cons.
     rewrite big_sepL2_cons.
     rewrite big_sepL2_cons.
     rewrite big_sepL2_cons.
     iDestruct "Hkvs_etbl_entries"
       as "(Hkvs_etbl_entries_addOrUpdate & Hkvs_etbl_entries_read
-          & Hkvs_etbl_entries_erase & _)".
+          & Hkvs_etbl_entries_erase & Hkvs_etbl_entries_initialise & _)".
 
     iMod (inv_alloc (switcher_preamble.export_table_PCCN Nkvs_exp_tbl) ⊤ _
            with "Hkvs_etbl_pcc")%I as "#Hkvs_etbl_pcc".
@@ -557,6 +665,8 @@ Section Adequacy.
            with "Hkvs_etbl_entries_read")%I as "#Hkvs_etbl_entries_read".
     iMod (inv_alloc (switcher_preamble.export_table_entryN Nkvs_exp_tbl kvs_erase_exp_tbl_addr) ⊤ _
            with "Hkvs_etbl_entries_erase")%I as "#Hkvs_etbl_entries_erase".
+    iMod (inv_alloc (switcher_preamble.export_table_entryN Nkvs_exp_tbl kvs_initialise_exp_tbl_addr) ⊤ _
+           with "Hkvs_etbl_entries_initialise")%I as "#Hkvs_etbl_entries_initialise".
 
     replace (cmpt_exp_tbl_entries_start kvs_cmpt ^+ 1)%a with kvs_read_exp_tbl_addr; cycle 1.
     {
@@ -577,6 +687,16 @@ Section Adequacy.
       cbn in *.
       solve_addr+H1 H2 H3.
     }
+    replace (kvs_erase_exp_tbl_addr ^+ 1)%a with kvs_initialise_exp_tbl_addr; cycle 1.
+    {
+      pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H1.
+      pose proof (cmpt_exp_tbl_cgp_size kvs_cmpt) as H2.
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H3; rewrite kvs_exp_tbl /kvs_export_table_entries in H3.
+      rewrite /kvs_erase_exp_tbl_addr /kvs_erase_exp_tbl_off.
+      rewrite /kvs_initialise_exp_tbl_addr /kvs_initialise_exp_tbl_off.
+      cbn in *.
+      solve_addr+H1 H2 H3.
+    }
     replace (cmpt_exp_tbl_entries_start kvs_cmpt) with kvs_addOrUpdate_exp_tbl_addr; cycle 1.
     {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H1.
@@ -590,24 +710,51 @@ Section Adequacy.
     iMod (seal_store_update_alloc _ ( kvs_otype_propC ) with "Hseal_store_kvs") as "#Hsealed_pred_ot_kvs".
 
     iMod (na_inv_alloc cerise_nais _ Nkvs kvs_inv
-           with "[Hkvs_auth Hkvs_frags Hkvs_alloc_auth Hkvs_imports Hkvs_data Hkvs_code]") as "#Hkvs".
+           with "[Hkvs_auth Hkvs_frags Hkvs_alloc_auth Hkvs_imports Hkvs_data Hkvs_code Halloc_frag]") as "#Hkvs".
     { iNext.
       rewrite /kvs_inv.
       rewrite kvs_data /kvs_data.
       pose proof (cmpt_data_size kvs_cmpt) as H.
       rewrite kvs_data /kvs_data in H.
       iFrame "∗#".
+      rewrite /kvs.kvs_data.
+      iDestruct (region_pointsto_split _ _ (KVS_cgp_b ^+ OFFSET_NEXT_FREE_SEALED_USER_KEY)%a
+                                       with "Hkvs_data") as "[Hkvs Hcgp_e]".
+      {
+        pose proof (cmpt_data_size kvs_cmpt) as Hcgp_size.
+        rewrite kvs_data in Hcgp_size.
+        rewrite /kvs.kvs_data in Hcgp_size.
+        cbn in *.
+        split; rewrite /OFFSET_NEXT_FREE_SEALED_USER_KEY /ASM_SIZEOF_KVS_ENTRY /SIZE_MAP; solve_addr+Hcgp_size.
+      }
+      { cbn.
+        rewrite /OFFSET_NEXT_FREE_SEALED_USER_KEY /ASM_SIZEOF_KVS_ENTRY /SIZE_MAP.
+        assert (
+            (cmpt_b_cgp kvs_cmpt + 48%nat)%a = Some (cmpt_b_cgp kvs_cmpt ^+ 3 * 16%nat)%a
+          ) as H1 by solve_addr.
+        apply finz_incr_iff_dist in H1 as [? H1].
+        done.
+      }
+      iDestruct (region_pointsto_single with "Hcgp_e") as "(%&Hcgp_e&%)"; simplify_eq.
+      { cbn in *.
+        rewrite /OFFSET_NEXT_FREE_SEALED_USER_KEY /ASM_SIZEOF_KVS_ENTRY /SIZE_MAP.
+        solve_addr+H.
+      }
+      iFrame.
+      iSplit; cycle 1.
+      { iPureIntro; solve_addr. }
       iSplit.
       { iPureIntro; apply wf_kvs_map_kvs_map_init. }
       iSplit.
       { iPureIntro; apply kvs_alloc_synced_map_init.
         intros ku sk Hsk.
-        clear -Hsk.
-        by destruct (decide (ku = kvs_user_key_K)); simplify_map_eq.
+        clear -Hsk Hkvs_alloc_init_empty.
+        eapply (Hkvs_alloc_init_empty ku); auto.
       }
       iEval (cbn).
       iApply (kvs_initial_map_init with "[$] [Hkvs_frags]"); last iFrame.
-      rewrite /SIZE_MAP; solve_addr+H.
+      cbn in *.
+      rewrite /OFFSET_NEXT_FREE_SEALED_USER_KEY /SIZE_MAP /ASM_SIZEOF_KVS_ENTRY; solve_addr+H.
     }
 
     (* Initialises the world for B *)
@@ -617,7 +764,9 @@ Section Adequacy.
               ∪
             {[ WSealable kvs_read ; WSealable kvs_read']}
               ∪
-            {[ WSealable kvs_erase ; WSealable kvs_erase']} : gset Word)
+            {[ WSealable kvs_erase ; WSealable kvs_erase']}
+              ∪
+            {[ WSealable kvs_initialise ; WSealable kvs_initialise']} : gset Word)
         ).
 
     set (W1 := <o[ ot_switcher := adversary_imports]o> W0).
@@ -658,6 +807,17 @@ Section Adequacy.
       iApply kvs_erase_entry_point_spec; try iFrame "#"; eauto.
     }
 
+    iAssert (ot_switcher_prop W1 B (WSealable kvs_initialise)) as "#ot_switcher_kvs_initialise".
+    {
+      pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
+      pose proof (cmpt_exp_tbl_cgp_size kvs_cmpt) as H1.
+      pose proof (cmpt_exp_tbl_entries_size kvs_cmpt) as H2.
+      replace (cmpt_exp_tbl_entries_start kvs_cmpt)
+        with ((cmpt_exp_tbl_pcc kvs_cmpt) ^+ 2)%a by solve_addr+H0 H1.
+      replace (cmpt_exp_tbl_cgp kvs_cmpt)
+        with (cmpt_exp_tbl_pcc kvs_cmpt ^+ 1)%a by solve_addr+H0.
+      iApply kvs_initialise_entry_point_spec; try iFrame "#"; eauto.
+    }
 
     assert (ot_switcher ∉ dom (seal_std W0)) as Hot_notin_W0.
     { by subst W0. }
@@ -667,8 +827,9 @@ Section Adequacy.
       as "(Hworld_B & Hseal_kvs_f)"; first done.
     { iIntros (w); iApply mono_priv_ot_switcher. }
     { rewrite {2}/adversary_imports.
-      rewrite 2!normalise_sealed_words_union.
+      rewrite 3!normalise_sealed_words_union.
       rewrite !normalise_sealed_words_borrow.
+      iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_kvs_initialise").
       iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_kvs_erase").
       iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_kvs_read").
       rewrite big_sepS_singleton; iFrame "ot_switcher_kvs_addOrUpdate".
@@ -681,42 +842,14 @@ Section Adequacy.
     { iEval (rewrite fixpoint_interp1_eq); iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+. }
     iAssert ( interp W1 B (WSealed ot_switcher kvs_erase)) as "#Hinterp_kvs_erase".
     { iEval (rewrite fixpoint_interp1_eq); iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+. }
+    iAssert ( interp W1 B (WSealed ot_switcher kvs_initialise)) as "#Hinterp_kvs_initialise".
+    { iEval (rewrite fixpoint_interp1_eq); iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+. }
 
-
-    set ( kvs_user_key_B_sb := (kvs_user_seal_key_scap Global kvs_user_key_B)).
-    set ( kvs_user_key_B_sb' := borrow_sb kvs_user_key_B_sb).
-    set ( adversary_kvs_keys := ( {[ WSealable kvs_user_key_B_sb ; WSealable kvs_user_key_B_sb']} : gset Word)).
-    set (W1' := <o[ ot_kvs := adversary_kvs_keys ]o> W1).
-
-    iAssert (kvs_otype_prop W1' B (WSealable kvs_user_key_B_sb)) with "[Halloc_B]" as "ot_kvs_user_key_B".
-    {
-      iEval (rewrite /kvs_otype_prop /kvs_otype_inv /=).
-      iFrame "Halloc_B".
-      pose proof kvs_user_key_wf as [ Hkvs_user_key_wf_K Hkvs_user_key_wf_B ].
-      iExists kvs_user_key_B_a.
-      repeat iSplit; auto; iPureIntro.
-      + replace (z_of kvs_user_key_B_a) with kvs_user_key_B; first done.
-        solve_addr+Hkvs_user_key_wf_B.
-      + by rewrite Hkvs_users_seals; simplify_map_eq.
-      + solve_addr+Hkvs_user_key_wf_B.
-    }
 
     assert (ot_kvs ∉ dom (seal_std W1)) as Hot_notin_W1.
     { pose proof ot_kvs_disjoint as H.
       subst W0 W1; rewrite dom_insert_L dom_empty_L; set_solver+H.
     }
-    iMod
-      (world_interp_salloc W1 B kvs_otype_propC ot_kvs adversary_kvs_keys
-        with "[$Hsealed_pred_ot_kvs] [ ] [ ot_kvs_user_key_B ] [$Hworld_B]")
-      as "(Hworld_B & Hseal_kvs_ku)"; first done.
-    { iIntros (w); iApply mono_priv_ot_kvs. }
-    { rewrite normalise_sealed_words_borrow.
-      rewrite big_sepS_singleton; iFrame "ot_kvs_user_key_B".
-    }
-    subst W1' ; set (W1' := <o[ ot_kvs := adversary_kvs_keys ]o> W1).
-
-    iAssert ( interp W1' B (WSealed ot_kvs kvs_user_key_B_sb)) as "#Hinterp_kvs_user_key_B".
-    { iEval (rewrite fixpoint_interp1_eq); iApply (sts_seals_std_weaken with "Hseal_kvs_ku") ; last set_solver+. }
 
     assert ( (exported_entries_sealable B_cmpt) ≡ₚ [B_f; B_f']) as Hexported_entries_sealable.
     { rewrite /exported_entries_sealable /B_f /B_f'.
@@ -745,7 +878,7 @@ Section Adequacy.
       match goal with
       | H: _ |- context [  (world_interp_open ?W B) ] => set (Wpre := W)
       end.
-      set ( Winter := (std_update_compartment W1' B_cmpt) ).
+      set ( Winter := (std_update_compartment W1 B_cmpt) ).
 
       iAssert (ot_switcher_prop Winter B (WSealable B_f)) as "#ot_switcher_B_f".
       {
@@ -777,18 +910,11 @@ Section Adequacy.
         iApply (sts_seals_std_weaken with "Hseal_switcher"); set_solver+.
       }
 
-      assert (related_sts_priv_world W1' Winter) as Hrelated_W1'_Winter.
+      assert (related_sts_priv_world W1 Winter) as Hrelated_W1_Winter.
       {
         apply related_sts_pub_priv_world.
         subst Winter.
         eapply std_update_compartment_pub; eauto ; apply Forall_true; intros; done.
-      }
-      assert (related_sts_priv_world W1 Winter) as Hrelated_W1_Winter.
-      {
-        eapply related_sts_priv_trans_world; eauto.
-        apply related_sts_pub_priv_world.
-        subst W1'.
-        apply related_sts_pub_world_update_ot.
       }
       iSplitR "Hseal_switcher".
       (* Interp of imports *)
@@ -796,12 +922,6 @@ Section Adequacy.
         iApply big_sepL_cons; iSplitL.
         { iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done. }
 
-        (* KVS sealed user key *)
-        iApply big_sepL_cons; iSplitL.
-        { iSplit.
-          * iApply (interp_monotone_sd W1' Winter); auto.
-          * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
-        }
         (* KVS.addOrUpdate *)
         iApply big_sepL_cons; iSplitL.
         { iSplit.
@@ -815,6 +935,12 @@ Section Adequacy.
           * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
         }
         (* KVS.erase *)
+        iApply big_sepL_cons; iSplitL.
+        { iSplit.
+          * iApply (interp_monotone_sd W1 Winter); auto.
+          * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
+        }
+        (* KVS.initialise *)
         iApply big_sepL_cons; iSplitL.
         { iSplit.
           * iApply (interp_monotone_sd W1 Winter); auto.
@@ -929,18 +1055,19 @@ Section Adequacy.
                                              by (pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H; cbn; solve_addr+H).
 
     iPoseProof (Spec _ _ _ _ _ _ _ _
-                  _ _ _ _ _ _
+                  _ _ _ _ _
                   [] [] [] assertN switcherN
                  with "[ $Hassert $Hswitcher $Hkvs
-                        $Hkvs_etbl_pcc $Hkvs_etbl_cgp $Hkvs_etbl_entries_addOrUpdate $Hkvs_etbl_entries_read
+                        $Hkvs_etbl_pcc $Hkvs_etbl_cgp
+                        $Hkvs_etbl_entries_addOrUpdate
+                        $Hkvs_etbl_entries_read
+                        $Hkvs_etbl_entries_initialise
                         $Hna $HPC $Hcgp $Hcsp $Hreg
                         $Hmain_imports $Hmain_code $Hmain_data
-                        $Halloc_K
                         $Hworld_B $Hcstk_frag
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto.
     { solve_ndisj. }
-    { rewrite Hkvs_users_seals_reserved; set_solver+. }
     { rewrite !dom_delete_L.
       rewrite regmap_full_dom; first done.
       intros r.
@@ -1009,26 +1136,6 @@ Defined.
 Local Program Instance CmptNames_kvs_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_kvs; |}.
 
-Local Instance choice_kvs_users_seals `{Layout : memory_layout} : kvs_users.
-Proof.
-  pose proof kvs_user_key_wf as [ Hkvs_user_key_wf_K Hkvs_user_key_wf_B ].
-  pose proof kvs_user_key_disjoints as Hkvs_user_key_disjoints.
-  refine (Build_kvs_users CmptNames_kvs_CmptNameG {[B := kvs_user_key_B]} _ _ [kvs_user_key_K] _ _).
-  - intros C.
-    rewrite dom_singleton_L.
-    apply elem_of_singleton.
-    pose proof (finite.elem_of_enum C).
-    cbn in *.
-    by apply list_elem_of_singleton.
-  - intros C ku HC.
-    destruct (decide (C = B)); simplify_map_eq.
-    solve_addr.
-  - apply Forall_singleton; done.
-  - rewrite map_to_list_singleton list_fmap_singleton /=.
-    apply NoDup_cons; split; [set_solver|].
-    apply NoDup_singleton.
-Defined.
-
 (** END-TO-END THEOREM *)
 Theorem kvs_adequacy `{Layout: memory_layout}
   (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
@@ -1051,7 +1158,4 @@ Proof.
               ; gen_heapΣ nat kvs_entry ; gen_heapΣ Z (gset Z)
       ]).
   eapply (@kvs_adequacy' Σ cnames B); eauto; try typeclasses eauto.
-  (* NOTE unclear why I have to unfold so much *)
-  + rewrite /kvs_users_seals /= /choice_kvs_users_seals /=; destruct kvs_user_key_wf; done.
-  + rewrite /kvs_users_seals_reserved /= /choice_kvs_users_seals /=; destruct kvs_user_key_wf; done.
 Qed.

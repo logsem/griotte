@@ -355,6 +355,7 @@ Section KVS_Service.
   Definition assembled_kvs_erase  := Eval cbv in (revert_regs_code_block assembled_kvs_erase').
   Definition kvs_erase_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_erase).
 
+  Definition MAX_USER_KEY := (MemNum-1)%Z.
 
   (** Initialise.
       Arguments: ()
@@ -370,13 +371,14 @@ Section KVS_Service.
         lea cgp OFFSET_NEXT_FREE_SEALED_USER_KEY;
         load ct1 cgp;
         geta ctp ct1;
-        lt ctp ctp MemNum; (* ctp := if (ctp < MemNum) then 1 else 0 *)
+        lt ctp ctp MAX_USER_KEY; (* ctp := if (ctp < MAX_USER_KEY) then 1 else 0 *)
         jnz (".initialise_next_free_available")%asm ctp;
         #".initialise_next_free_not_available";
-        mov ca0 ASM_NONE;
+        mov ca0 ASM_FALSE;
+        mov ca1 0;
         ret;
         #".initialise_next_free_available";
-        mov ca0 ASM_SOME;
+        mov ca0 ASM_TRUE;
         seal ca1 ct0 ct1;
         lea ct1 1;
         store cgp ct1;
