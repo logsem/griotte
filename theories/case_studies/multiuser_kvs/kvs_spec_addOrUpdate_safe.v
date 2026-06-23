@@ -16,7 +16,7 @@ Section KVS_spec_addOrUpdate_safe.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
-    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
   (*** Specification from unknown *)
@@ -138,7 +138,7 @@ Section KVS_spec_addOrUpdate_safe.
              "[- $HPC $Hctp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Hcode $Hspred $Hworld]")
     ; eauto; iNext.
     iIntros (l_user_key user_key)
-      "([%Huser_key_C ->] & HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Hcode & #Hseal_ku & Hworld)".
+      "([-> %Hbounds_uk] & HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Hcode & #Hseal_ku & Hworld)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
@@ -148,11 +148,12 @@ Section KVS_spec_addOrUpdate_safe.
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
     iDestruct (sopen_world_interp_singleton with "Hspred Hseal_ku Hworld")
                 as "(Hworld & Hres_open & HP)".
-    iDestruct "HP" as "(%ku & %a & %s' & >%Heq & >%Hku_C & >%Hku & Hot_res)".
+    iDestruct "HP" as "(%ku & %a & %s' & >%Heq & >%Hku & >%Hbounds & Hot_res)".
     iDestruct (lc_fupd_elim_later with "[$] [$Hot_res]") as ">[Halloc Hkvs_frags]".
-    pose proof (kvs_users_seals_bounds C user_key Huser_key_C) as Huser_key_bound.
     assert ( wf_kvs_full_key user_key nkey) as Hwk_fkey by (split; auto; lia).
-    cbn in Heq, Hku_C; simplify_eq.
+    assert (ku = user_key).
+    { cbn in Heq; simplify_eq; rewrite /MAX_USER_KEY in Hbounds; solve_addr. }
+    cbn in Heq; simplify_eq.
 
     destruct ( decide ( nkey ∈ s' ) ) as [Hfkey_in_s|Hfkey_notin_s].
     (* The key has already been allocated *)

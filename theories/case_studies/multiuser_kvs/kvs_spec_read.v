@@ -14,7 +14,7 @@ Section KVS_spec_read.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
-    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
   Lemma KVS_read_spec_in_pre
@@ -29,7 +29,7 @@ Section KVS_spec_read.
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
-    (0 <= user_key < addresses.top)%Z ->
+    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -147,7 +147,7 @@ Section KVS_spec_read.
 
     ↑Nkvs ⊆ E ->
 
-    (0 <= user_key < addresses.top)%Z ->
+    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     ( na_inv cerise_nais Nkvs kvs_inv ∗

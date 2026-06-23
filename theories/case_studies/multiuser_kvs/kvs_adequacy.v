@@ -32,7 +32,7 @@ Class memory_layout `{MP: MachineParameters} := {
 
     kvs_user_key_K : Z;
     kvs_user_key_B : Z;
-    kvs_user_key_wf : (0 <= kvs_user_key_K < MemNum - 1)%Z ∧ (0 <= kvs_user_key_B < MemNum - 1)%Z;
+    kvs_user_key_wf : (0 <= kvs_user_key_K < MAX_USER_KEY)%Z ∧ (0 <= kvs_user_key_B < MAX_USER_KEY)%Z;
     kvs_user_key_disjoints : kvs_user_key_K ≠ kvs_user_key_B;
 
     (* adv compartments B *)
@@ -224,9 +224,9 @@ Section Adequacy.
 
   Context {kvs_preg: gen_heapGpreS nat kvs_entry Σ}.
   Context {kvs_alloc_preg: gen_heapGpreS Z (gset Z) Σ}.
-  Context {KVS_users: kvs_users}.
-  Context { Hkvs_users_seals : kvs_users_seals = {[ B := kvs_user_key_B ]} }.
-  Context { Hkvs_users_seals_reserved : kvs_users_seals_reserved = [kvs_user_key_K] }.
+  (* Context {KVS_users: kvs_users}. *)
+  (* Context { Hkvs_users_seals : kvs_users_seals = {[ B := kvs_user_key_B ]} }. *)
+  (* Context { Hkvs_users_seals_reserved : kvs_users_seals_reserved = [kvs_user_key_K] }. *)
 
   Definition flagN : namespace := nroot .@ "kvs" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "kvs" .@ "switcher_flag".
@@ -340,15 +340,11 @@ Section Adequacy.
         solve_addr+H1 H2 H3.
     }
 
-    set (all_users_keys := (kvs_users_seals_reserved ++ (map_to_list kvs_users_seals).*2)).
+    set (all_users_keys := [kvs_user_key_K;kvs_user_key_B]).
     set (kvs_alloc_init := (list_to_map ( (fun k => (k,∅)) <$> all_users_keys) : kvs_alloc)).
     iMod (gen_heap_init (kvs_alloc_init : kvs_alloc)) as (kvs_alloc_heapg) "(Hkvs_alloc_auth & Hkvs_alloc_frag & _)".
     assert ( kvs_alloc_init = {[ kvs_user_key_K := ∅ ; kvs_user_key_B := ∅ ]} ) as ->.
-    { subst kvs_alloc_init all_users_keys.
-      rewrite Hkvs_users_seals Hkvs_users_seals_reserved. cbn.
-      rewrite map_to_list_singleton /=.
-      done.
-    }
+    { subst kvs_alloc_init all_users_keys; done. }
     assert ( kvs_user_key_K ≠ kvs_user_key_B ) as Huser_keys_disjoint.
     { pose proof kvs_user_key_disjoints; solve_addr. }
     rewrite (big_sepM_insert _ _ kvs_user_key_K); last by simplify_map_eq.
@@ -360,7 +356,7 @@ Section Adequacy.
 
     pose proof (
         @kvs_main_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _
-          kvsg _ _ _ _ B
+          kvsg _ _ _ B
       ) as Spec.
 
 
@@ -694,10 +690,13 @@ Section Adequacy.
       iFrame "Halloc_B".
       pose proof kvs_user_key_wf as [ Hkvs_user_key_wf_K Hkvs_user_key_wf_B ].
       iExists kvs_user_key_B_a.
+      rewrite /MAX_USER_KEY in Hkvs_user_key_wf_B.
+      rewrite /MAX_USER_KEY.
       repeat iSplit; auto; iPureIntro.
       + replace (z_of kvs_user_key_B_a) with kvs_user_key_B; first done.
         solve_addr+Hkvs_user_key_wf_B.
-      + by rewrite Hkvs_users_seals; simplify_map_eq.
+      + solve_addr+Hkvs_user_key_wf_B.
+      + solve_addr+Hkvs_user_key_wf_B.
       + solve_addr+Hkvs_user_key_wf_B.
     }
 
@@ -940,7 +939,7 @@ Section Adequacy.
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto.
     { solve_ndisj. }
-    { rewrite Hkvs_users_seals_reserved; set_solver+. }
+    { pose proof kvs_user_key_wf as [ Hkvs_user_key_wf_K _ ]; auto. }
     { rewrite !dom_delete_L.
       rewrite regmap_full_dom; first done.
       intros r.
@@ -1009,26 +1008,6 @@ Defined.
 Local Program Instance CmptNames_kvs_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_kvs; |}.
 
-Local Instance choice_kvs_users_seals `{Layout : memory_layout} : kvs_users.
-Proof.
-  pose proof kvs_user_key_wf as [ Hkvs_user_key_wf_K Hkvs_user_key_wf_B ].
-  pose proof kvs_user_key_disjoints as Hkvs_user_key_disjoints.
-  refine (Build_kvs_users CmptNames_kvs_CmptNameG {[B := kvs_user_key_B]} _ _ [kvs_user_key_K] _ _).
-  - intros C.
-    rewrite dom_singleton_L.
-    apply elem_of_singleton.
-    pose proof (finite.elem_of_enum C).
-    cbn in *.
-    by apply list_elem_of_singleton.
-  - intros C ku HC.
-    destruct (decide (C = B)); simplify_map_eq.
-    solve_addr.
-  - apply Forall_singleton; done.
-  - rewrite map_to_list_singleton list_fmap_singleton /=.
-    apply NoDup_cons; split; [set_solver|].
-    apply NoDup_singleton.
-Defined.
-
 (** END-TO-END THEOREM *)
 Theorem kvs_adequacy `{Layout: memory_layout}
   (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
@@ -1051,7 +1030,4 @@ Proof.
               ; gen_heapΣ nat kvs_entry ; gen_heapΣ Z (gset Z)
       ]).
   eapply (@kvs_adequacy' Σ cnames B); eauto; try typeclasses eauto.
-  (* NOTE unclear why I have to unfold so much *)
-  + rewrite /kvs_users_seals /= /choice_kvs_users_seals /=; destruct kvs_user_key_wf; done.
-  + rewrite /kvs_users_seals_reserved /= /choice_kvs_users_seals /=; destruct kvs_user_key_wf; done.
 Qed.
