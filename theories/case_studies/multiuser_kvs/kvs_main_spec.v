@@ -20,7 +20,7 @@ Section KVS_main_spec.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {kvsg:kvsG Σ} {KVS_layout : kvsLayout} {KVS_layout_Wf : kvsLayoutWf}
-    {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    {KVS_namespaces : kvs_namespaces}
   .
 
   Context {B : CmptName}.
@@ -52,7 +52,8 @@ Section KVS_main_spec.
     in
 
     Nswitcher ## Nassert ->
-    KVS_USER_KEY_MAIN ∈ kvs_users_seals_reserved ->
+
+    (0 <= KVS_USER_KEY_MAIN < MAX_USER_KEY)%Z ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -319,10 +320,6 @@ Section KVS_main_spec.
     iApply (KVS_add_spec
       with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull $Halloc]")
     ; auto.
-    { pose proof kvs_users_seals_reserved_bounds as H_ukey_bounds.
-      rewrite Forall_forall in H_ukey_bounds.
-      by apply H_ukey_bounds in HKVS_USER_KEY_MAIN.
-    }
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     { set_solver+. }
     iNext;
@@ -655,10 +652,6 @@ Section KVS_main_spec.
     iApply (KVS_read_spec_in
       with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcnull $Hfkey]")
     ; auto.
-    { pose proof kvs_users_seals_reserved_bounds as H_ukey_bounds.
-      rewrite Forall_forall in H_ukey_bounds.
-      by apply H_ukey_bounds in HKVS_USER_KEY_MAIN.
-    }
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     iNext;
       iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & Hca0 & Hca1

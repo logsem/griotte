@@ -502,8 +502,9 @@ Section KVS_Service.
     (0 ≤ n)%Z -> ¬(0 ≤ n < 16)%Z -> Z.testbit (2 ^ 16 - 1) n = false.
   Proof. eapply (Z_testbit_mask_N_false 16). Qed.
 
+  Definition MAX_USER_KEY := (MemNum-1)%Z.
   Definition is_uint16 ( z : Z ) : Prop := (UINT16_MIN <= z < UINT16_MAX)%Z.
-  Definition wf_kvs_full_key (ku kn : Z) : Prop := (0 <= ku)%Z ∧ is_uint16 kn.
+  Definition wf_kvs_full_key (ku kn : Z) : Prop := (0 <= ku < MAX_USER_KEY)%Z ∧ is_uint16 kn.
 
   Lemma kvs_full_key_inj (uk1 nk1 uk2 nk2 : Z) :
     wf_kvs_full_key uk1 nk1 ->

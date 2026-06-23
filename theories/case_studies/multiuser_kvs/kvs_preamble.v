@@ -16,18 +16,6 @@ Class kvsG Σ :=
       kvs_alloc_genG :: gen_heapGS Z (gset Z) Σ;
     }.
 
-Class kvs_users {Cname : CmptNameG} :=
-  {
-    kvs_users_seals : gmap CmptName Z;
-    kvs_users_seals_dom : forall (C : CmptName), C ∈ dom kvs_users_seals;
-    kvs_users_seals_bounds : ∀ C ku, kvs_users_seals !! C = Some ku -> (0 <= ku < addresses.top)%Z;
-
-    kvs_users_seals_reserved : list Z;
-    kvs_users_seals_reserved_bounds : Forall (fun k => (0 <= k < addresses.top)%Z) kvs_users_seals_reserved;
-
-    kvs_users_seals_unique: NoDup (kvs_users_seals_reserved ++ (map_to_list kvs_users_seals).*2)
-  }.
-
 Definition allocated_keys_auth `{kvsG} ( m : kvs_alloc) : iProp Σ :=
   (gen_heap_interp (L:=Z) (V:= gset Z) m).
 Definition allocated_keys_frag `{kvsG} (ku : Z) ( s : gset Z ) : iProp Σ :=
@@ -1175,14 +1163,14 @@ Section KVS_preamble.
     }.
 
   Definition kvs_otype_inv
-    {KVS_layout : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout} {KVS_namespaces : kvs_namespaces}
     (W : WORLD) (C : CmptName) (w : Word) : iProp Σ :=
     ∃ (ku : Z) (a : Addr) (s : gset Z),
       (* Shape of the capability*)
       ⌜ w = WSealable (kvs_user_seal_key_scap Global a) ⌝ ∗
       (* Current address is the user key of the compartment *)
-      ⌜ kvs_users_seals !! C = Some ku ⌝ ∗
       ⌜ (finz.of_z ku) = Some a ⌝ ∗
+      ⌜ (0 <= ku < MAX_USER_KEY)%Z ⌝ ∗
       (* KVS resources *)
       ◯(ALLOC)[ku] s ∗
       ([∗ set] kn ∈ s, ∃ w, (kvs_full_key ku kn) ⤇(KVS) w ∗
@@ -1190,20 +1178,18 @@ Section KVS_preamble.
       ).
 
   Program Definition kvs_otype_prop
-    {KVS_layout : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
+    {KVS_layout : kvsLayout} {KVS_namespaces : kvs_namespaces} :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
     λne (W : WORLD) (C : CmptName) (w : Word), (kvs_otype_inv W C w)%I.
-  Next Obligation. solve_proper. Defined.
-  Next Obligation. solve_proper. Defined.
-  Next Obligation. solve_proper. Defined.
+  Solve All Obligations with solve_proper.
 
   Definition kvs_otype_propC
-    {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} :
+    {KVS : kvsLayout} {KVS_namespaces : kvs_namespaces} :
     WORLD * CmptName * leibnizO Word -> iProp Σ :=
     safeC kvs_otype_prop.
 
   Lemma mono_priv_ot_kvs
-    {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    {KVS : kvsLayout} {KVS_namespaces : kvs_namespaces}
     (C : CmptName) (w : Word) :
     ⊢ future_priv_mono C kvs_otype_propC w.
   Proof.
@@ -1221,7 +1207,7 @@ Section KVS_preamble.
     by eapply related_sts_priv_trans_world.
   Qed.
 
-  Definition kvs_inv {KVS : kvsLayout} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces} : iProp Σ :=
+  Definition kvs_inv {KVS : kvsLayout} {KVS_namespaces : kvs_namespaces} : iProp Σ :=
     let imports :=
       kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
     in

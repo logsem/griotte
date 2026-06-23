@@ -16,7 +16,7 @@ Section KVS_spec_addOrUpdate.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
-    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_users: kvs_users} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
   (*** KVS update *)
@@ -32,7 +32,7 @@ Section KVS_spec_addOrUpdate.
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
-    (0 <= user_key < addresses.top)%Z ->
+    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -166,7 +166,7 @@ Section KVS_spec_addOrUpdate.
 
     ↑Nkvs ⊆ E ->
 
-    (0 <= user_key < addresses.top)%Z ->
+    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     canStore RW wca2 = true ->
@@ -253,7 +253,7 @@ Section KVS_spec_addOrUpdate.
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
-    (0 <= user_key < addresses.top)%Z ->
+    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -452,7 +452,7 @@ Section KVS_spec_addOrUpdate.
 
     ↑Nkvs ⊆ E ->
 
-    (0 <= user_key < addresses.top)%Z ->
+    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
     nkey ∉ s ->
 
