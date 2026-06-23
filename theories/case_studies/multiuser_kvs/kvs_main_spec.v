@@ -94,14 +94,7 @@ Section KVS_main_spec.
 
       interp W0 B (WSealed ot_switcher B_f) ∗
       (WSealed ot_switcher B_f) ↦□ₑ 0 ∗
-      interp W0 B (WCap RWL Local csp_b csp_e csp_b) ∗
-
-      WSealed ot_switcher (KVS_addOrUpdate Global) ↦□ₑ kvs_addOrUpdate_nargs ∗
-      WSealed ot_switcher (KVS_addOrUpdate Local) ↦□ₑ kvs_addOrUpdate_nargs ∗
-      WSealed ot_switcher (KVS_read Global) ↦□ₑ kvs_read_nargs ∗
-      WSealed ot_switcher (KVS_read Local) ↦□ₑ kvs_read_nargs ∗
-
-      seal_pred ot_switcher ot_switcher_propC
+      interp W0 B (WCap RWL Local csp_b csp_e csp_b)
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -120,9 +113,6 @@ Section KVS_main_spec.
       & #Hinterp_W0_B_f
       & #HentryB_f
       & #Hinterp_W0_csp
-      & #Hentry_addOrUpdate & #Hentry_addOrUpdate'
-      & #Hentry_read & #Hentry_read'
-      & #Hot_switcher
       )".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
     (* --- Extract registers ca0 ca1 ct0 ctp ct1 ct2 ct3 cs0 cs1 --- *)
