@@ -576,6 +576,40 @@ Section CmptLayout.
         apply elem_of_app. by right.
     - rewrite elem_of_disjoint in H1; eapply H1; eauto.
   Qed.
+  Lemma cmpt_static_sealed_disjoint (B_cmpt : cmpt) :
+    cmpt_pcc_mregion B_cmpt ∪ cmpt_cgp_mregion B_cmpt ##ₘ cmpt_static_sealed_mregion B_cmpt .
+  Proof.
+    apply map_disjoint_dom_2.
+    pose proof (cmpt_disjointness B_cmpt) as Hdis.
+    rewrite !disjoint_list_cons in Hdis.
+    destruct Hdis as (?&?&?&_&_).
+    rewrite !union_list_cons in H,H0,H1.
+    rewrite union_list_nil in H,H0,H1.
+    rewrite /union /Union_list in H,H0,H1.
+    rewrite /empty /Empty_list in H,H0,H1.
+    rewrite app_nil_r in H,H0,H1.
+    rewrite /cmpt_pcc_mregion /cmpt_cgp_mregion /cmpt_static_sealed_mregion.
+
+    pose proof (cmpt_import_size B_cmpt).
+    pose proof (cmpt_code_size B_cmpt).
+    pose proof (cmpt_data_size B_cmpt).
+    pose proof (cmpt_static_sealed_size B_cmpt).
+
+    rewrite !dom_union_L.
+    repeat rewrite dom_mkregion_eq; try (solve_addr).
+    rewrite -(list_to_set_app_L (finz.seq_between (cmpt_b_pcc B_cmpt) (cmpt_a_code B_cmpt)) _).
+    rewrite -!finz_seq_between_split; try solve_addr.
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite !elem_of_list_to_set in Ha,Ha'.
+    rewrite !elem_of_union in Ha.
+    rewrite !elem_of_list_to_set in Ha,Ha'.
+    destruct Ha as [ Ha | Ha].
+    - rewrite elem_of_disjoint in H; eapply H; eauto.
+      rewrite !elem_of_app. by right;left.
+    - rewrite elem_of_disjoint in H0; eapply H0; eauto.
+      rewrite !elem_of_app. by left.
+  Qed.
   Lemma cmpt_cgp_disjoint (B_cmpt : cmpt) :
     cmpt_pcc_mregion B_cmpt ##ₘ cmpt_cgp_mregion B_cmpt .
   Proof.

@@ -139,11 +139,10 @@ Section KVS_getFullKey.
 
       world_interp W C ∗
 
-      ▷ ( ∀ (l_user_key : Locality) (user_key_addr : Addr) (user_key : Z) ,
-            ⌜ wskey = kvs_user_seal_key l_user_key user_key_addr
-            ∧ (0 <= user_key < MAX_USER_KEY)%Z
-            ∧ withinBounds user_key (user_key ^+1)%a user_key
-                ⌝ ∗
+      ▷ ( ∀ (s : gset Z) (l_user_key : Locality) (user_key_addr : Addr) (user_key : Z) ,
+            ⌜ wskey = kvs_user_seal_key l_user_key user_key_addr ⌝ ∗
+            ⌜ (0 <= user_key < MAX_USER_KEY)%Z ⌝ ∗
+            ⌜ withinBounds user_key_addr (user_key_addr ^+1)%a user_key_addr = true ⌝ ∗
             PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
             rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
             rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
@@ -154,10 +153,12 @@ Section KVS_getFullKey.
             (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
             codefrag pc_a instrs ∗
             user_key_addr ↦ₐ WInt user_key ∗
+            sealing_map_resource_open W C KVS_OTYPE kvs_otype_propC {[WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)]} ∗
+            ◯(ALLOC)[ user_key ] s ∗
+            ([∗ set] kn ∈ s, ∃ w : Word, kvs_full_key user_key kn⤇(KVS) w ∗ ∀ W' : WORLD
+             , ⌜related_sts_priv_world W W'⌝ -∗ interp W' C w) ∗
 
-            (sts_seals_std C KVS_OTYPE {[WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)]}) ∗
-
-            world_interp W C
+            world_interp_sopen W C KVS_OTYPE
             -∗
 
             WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -222,18 +223,13 @@ Section KVS_getFullKey.
     (* load rdst rdst; *)
     iInstr "Hcode".
 
-    iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap g a))))) with "[Ha Halloc Hfkeys]"
-    as "HP".
-    { iExists ku, a, s; iFrame "∗ %"; done. }
-    iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
-
     (* lshiftl rdst rdst 16; *)
     iInstr "Hcode".
     (* lor rdst rdst rkey *)
     iInstr "Hcode".
 
-    iApply "Hpost"; iFrame "∗#".
-    iPureIntro; split; [|split]; auto.
+    iApply "Hpost"; iFrame "∗#%".
+    iPureIntro; auto.
   Qed.
 
 End KVS_getFullKey.

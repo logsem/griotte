@@ -357,7 +357,7 @@ Section Adequacy.
 
     (* 7.3 CMPT B *)
     iMod (initialise_adversary_compartment (Σ := Σ) _ B with "Hcmpt_B")
-      as "(HB_imports & HB_code & HB_data & #HB_etbl_pcc & #HB_etbl_cgp & #HB_etbl_entries)".
+      as "(HB_imports & HB_code & HB_data & _ & #HB_etbl_pcc & #HB_etbl_cgp & #HB_etbl_entries)".
     iEval (rewrite B_exp_tbl) in "HB_etbl_entries".
     rewrite (finz_seq_between_singleton (cmpt_exp_tbl_entries_start B_cmpt)%a).
     2: {
@@ -368,7 +368,7 @@ Section Adequacy.
 
     (* 7.4 CMPT B *)
     iMod (initialise_adversary_compartment (Σ := Σ) _ C with "Hcmpt_C")
-      as "(HC_imports & HC_code & HC_data & #HC_etbl_pcc & #HC_etbl_cgp & #HC_etbl_entries)".
+      as "(HC_imports & HC_code & HC_data & _ & #HC_etbl_pcc & #HC_etbl_cgp & #HC_etbl_entries)".
     iEval (rewrite C_exp_tbl) in "HC_etbl_entries".
     rewrite (finz_seq_between_singleton (cmpt_exp_tbl_entries_start C_cmpt)%a).
     2: {
@@ -379,7 +379,7 @@ Section Adequacy.
 
     (* 7.5 CMPT MAIN *)
     iMod (initialise_compartment (Σ := Σ) with "Hcmpt_main")
-      as "(Hmain_imports & Hmain_code & Hmain_data & Hmain_etbl_pcc & Hmain_etbl_cgp & Hmain_etbl_entries)".
+      as "(Hmain_imports & Hmain_code & Hmain_data & _ & Hmain_etbl_pcc & Hmain_etbl_cgp & Hmain_etbl_entries)".
     iAssert (
       codefrag (cmpt_a_code main_cmpt) (cmpt_code main_cmpt)
      )%I with "[Hmain_code]" as "Hmain_code".
