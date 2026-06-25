@@ -83,9 +83,10 @@ Section KVS_Main.
   .
 
   Definition kvs_main_data  : list Word := [].
+  Definition kvs_main_static_sealed ( KVS_USER_KEY_MAIN : Z ) : list Word := [ WInt KVS_USER_KEY_MAIN ].
 
   Definition kvs_main_imports {KVS : kvsLayout}
-    (KVS_USER_KEY_MAIN : Z)
+    (kvs_main_static_sealed_addr : Addr)
     (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType)
     (b_assert e_assert : Addr)
     (B_f : Sealable) : list Word :=
@@ -96,7 +97,7 @@ Section KVS_Main.
       WSealed ot_switcher (KVS_addOrUpdate Global);
       WSealed ot_switcher (KVS_read Global);
       WSealed ot_switcher (KVS_erase Global);
-      (kvs_user_seal_key Global KVS_USER_KEY_MAIN)
+      (kvs_user_seal_key Global kvs_main_static_sealed_addr)
     ].
 
 End KVS_Main.

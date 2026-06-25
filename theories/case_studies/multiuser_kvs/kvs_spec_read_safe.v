@@ -129,8 +129,9 @@ Section KVS_spec_read_safe.
     iApply (KVS_getFullKey_spec_safe with
              "[- $HPC $Hctp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Hcode $Hspred $Hworld]")
     ; eauto; iNext.
-    iIntros (l_user_key user_key)
-      "([-> %Hbounds_uk] & HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Hcode & #Hseal_ku & Hworld)".
+    iIntros (l_user_key user_key_addr user_key)
+      "((-> & %Hbounds_uk & %Hbound_a_uk) & HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2
+      & Ha_unsealing & Ha_user_key & Hcode & #Hseal_ku & Hworld)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
@@ -186,7 +187,8 @@ Section KVS_spec_read_safe.
 
       iDestruct ("Hkvs_frags" with "[$Hkvs_frag $Hinterp_w]") as "Hkvs_frags".
 
-      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
+      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)))))
+        with "[Ha_user_key Halloc Hkvs_frags]"
         as "HP".
       { iExists user_key, a, s'; iFrame "∗ %".
         by replace (z_of a) with user_key by solve_addr+Hku.
@@ -222,8 +224,9 @@ Section KVS_spec_read_safe.
         iInstr "Hcode".
         subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
-          as "HP".
+        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)))))
+        with "[Ha_user_key Halloc Hkvs_frags]"
+        as "HP".
         { iExists user_key, a, s'; iFrame "∗ %".
           by replace (z_of a) with user_key by solve_addr+Hku.
         }
@@ -250,8 +253,9 @@ Section KVS_spec_read_safe.
         iInstr "Hcode".
         subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
-          as "HP".
+        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)))))
+        with "[Ha_user_key Halloc Hkvs_frags]"
+        as "HP".
         { iExists user_key, a, s'; iFrame "∗ %".
           by replace (z_of a) with user_key by solve_addr+Hku.
         }

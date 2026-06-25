@@ -32,6 +32,7 @@ Section KVS_main_spec.
 
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
+    (sealed_b sealed_e : Addr)
     (csp_b csp_e : Addr)
     (rmap : Reg)
     (KVS_USER_KEY_MAIN : Z)
@@ -85,6 +86,7 @@ Section KVS_main_spec.
       [[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗
       codefrag pc_a kvs_main_code ∗
       [[ cgp_b , cgp_e ]] ↦ₐ [[ (kvs_main_data) ]] ∗
+      [[ sealed_b , sealed_e ]] ↦ₐ [[ kvs_main_static_sealed KVS_USER_KEY_MAIN ]] ∗
 
       ◯(ALLOC)[KVS_USER_KEY_MAIN] ∅ ∗
       world_interp W0 B ∗

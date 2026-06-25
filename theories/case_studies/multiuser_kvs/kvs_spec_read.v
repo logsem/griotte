@@ -21,7 +21,7 @@ Section KVS_spec_read.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret : Word)
-    (user_key nkey : Z) (l_user_key : Locality)
+    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_map) (s : kvs_alloc)
     (w : Word)
     :
@@ -29,6 +29,7 @@ Section KVS_spec_read.
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
+    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
     (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
@@ -39,7 +40,7 @@ Section KVS_spec_read.
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
@@ -49,6 +50,7 @@ Section KVS_spec_read.
       (* initial memory layout *)
       codefrag pc_a kvs_read_instrs ∗
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+      user_key_addr ↦ₐ WInt user_key ∗
 
       ▷ isKVS cgp_b m s ∗
       fkey ⤇(KVS) w ∗
@@ -63,6 +65,7 @@ Section KVS_spec_read.
          cnull ↦ᵣ - ∗
          codefrag pc_a kvs_read_instrs ∗
          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+         user_key_addr ↦ₐ WInt user_key ∗
          isKVS cgp_b m s ∗
          fkey ⤇(KVS) w
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -70,8 +73,9 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (HsubBounds Hbounds_user_key Hnkey_is_uint16 Hcgp_contiguous)
-      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & [%wcnull Hcnull] & Hcode & Ha_unsealing & HKVS & Hkvs_frag & Hpost)".
+    iIntros (HsubBounds Hbounds_a_user_key Hbounds_user_key Hnkey_is_uint16 Hcgp_contiguous)
+      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & [%wcnull Hcnull] & Hcode
+       & Ha_unsealing & Ha_user_key & HKVS & Hkvs_frag & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
     iDestruct (kvs_frag_kvs_frag_idx with "Hkvs_frag") as "(%idx & Hkvs_frag)".
 
@@ -97,8 +101,8 @@ Section KVS_spec_read.
 
     focus_block 2 "Hcode" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_check_uint.
-    iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Hcode]") ; eauto; iNext.
-    iIntros "(HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Hcode)".
+    iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Ha_user_key $Hcode]") ; eauto; iNext.
+    iIntros "(HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Ha_user_key & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
@@ -139,7 +143,7 @@ Section KVS_spec_read.
 
   Lemma KVS_read_spec_in
     (wret wca2 : Word)
-    (user_key nkey : Z) (l_user_key : Locality)
+    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
     (w : Word)
     (E : coPset)
     :
@@ -149,6 +153,7 @@ Section KVS_spec_read.
 
     (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
+    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
     ( na_inv cerise_nais Nkvs kvs_inv ∗
       na_own cerise_nais E ∗
@@ -157,12 +162,14 @@ Section KVS_spec_read.
       PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
       cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to read *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
       ctp ↦ᵣ - ∗ (* scratch *)
       cnull ↦ᵣ - ∗
+
+      user_key_addr ↦ₐ WInt user_key ∗
 
       fkey ⤇(KVS) w ∗
 
@@ -176,14 +183,15 @@ Section KVS_spec_read.
          ct2 ↦ᵣ - ∗ (* scratch *)
          ctp ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
+         user_key_addr ↦ₐ WInt user_key ∗
          fkey ⤇(KVS) w
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hbounds_user_key His_uint16_nkey)
-      "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Hfkey & Hpost)".
+    iIntros (Hnkvs_E Hbounds_user_key His_uint16_nkey Hbounds_a_user_key)
+      "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Ha_user_key & Hfkey & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
       as "( (%m & %s & >Himports & >Hcode & HKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
@@ -204,7 +212,7 @@ Section KVS_spec_read.
     assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
     iApply (KVS_read_spec_in_pre with "[- $HPC]"); last iFrame; eauto.
     iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
-              & Hcnull & Hcode & Ha_unsealing & HKVS & Hfkey)".
+              & Hcnull & Hcode & Ha_unsealing & Ha_user_key & HKVS & Hfkey)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HKVS $Hspred]") as "Hna" ; auto.

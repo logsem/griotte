@@ -14,6 +14,9 @@ Section CmptLayout.
         cmpt_b_cgp : Addr;
         cmpt_e_cgp : Addr;
 
+        cmpt_b_static_sealed : Addr;
+        cmpt_e_static_sealed : Addr;
+
         cmpt_exp_tbl_pcc : Addr;
         cmpt_exp_tbl_cgp : Addr;
         cmpt_exp_tbl_entries_start : Addr;
@@ -22,11 +25,13 @@ Section CmptLayout.
         cmpt_imports : list Word;
         cmpt_code : list Word;
         cmpt_data : list Word;
+        cmpt_static_sealed : list Word;
         cmpt_exp_tbl_entries : list Word;
 
         cmpt_import_size : (cmpt_b_pcc + length cmpt_imports)%a = Some cmpt_a_code;
         cmpt_code_size : (cmpt_a_code + length cmpt_code)%a = Some cmpt_e_pcc;
         cmpt_data_size : (cmpt_b_cgp + length cmpt_data)%a = Some cmpt_e_cgp;
+        cmpt_static_sealed_size : (cmpt_b_static_sealed + length cmpt_static_sealed)%a = Some cmpt_e_static_sealed;
         cmpt_exp_tbl_pcc_size : (cmpt_exp_tbl_pcc + 1)%a = Some cmpt_exp_tbl_cgp;
         cmpt_exp_tbl_cgp_size : (cmpt_exp_tbl_cgp + 1)%a = Some cmpt_exp_tbl_entries_start;
         cmpt_exp_tbl_entries_size : (cmpt_exp_tbl_entries_start + length cmpt_exp_tbl_entries)%a = Some cmpt_exp_tbl_entries_end;
@@ -35,6 +40,7 @@ Section CmptLayout.
         ## [
             (finz.seq_between cmpt_b_pcc cmpt_e_pcc) ;
             (finz.seq_between cmpt_b_cgp cmpt_e_cgp) ;
+            (finz.seq_between cmpt_b_static_sealed cmpt_e_static_sealed) ;
             (finz.seq_between cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end)
           ]
       }.
@@ -45,11 +51,14 @@ Section CmptLayout.
   Definition cmpt_cgp_region (C : cmpt) : list Addr :=
     (finz.seq_between (cmpt_b_cgp C) (cmpt_e_cgp C)).
 
+  Definition cmpt_static_sealed_region (C : cmpt) : list Addr :=
+    (finz.seq_between (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)).
+
   Definition cmpt_exp_tbl_region (C : cmpt) : list Addr :=
     (finz.seq_between (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)).
 
   Definition cmpt_region (C : cmpt) : list Addr :=
-   (cmpt_pcc_region C) ∪ (cmpt_cgp_region C) ∪ (cmpt_exp_tbl_region C).
+   (cmpt_pcc_region C) ∪ (cmpt_cgp_region C) ∪ (cmpt_static_sealed_region C) ∪ (cmpt_exp_tbl_region C).
 
   Definition disjoint_cmpt (C1 C2 : cmpt) : Prop :=
     cmpt_region C1 ## cmpt_region C2.
@@ -61,6 +70,8 @@ Section CmptLayout.
       mkregion (cmpt_a_code C) (cmpt_e_pcc C) (cmpt_code C).
   Definition cmpt_cgp_mregion (C: cmpt) : gmap Addr Word :=
     mkregion (cmpt_b_cgp C) (cmpt_e_cgp C) (cmpt_data C).
+  Definition cmpt_static_sealed_mregion (C: cmpt) : gmap Addr Word :=
+    mkregion (cmpt_b_static_sealed C) (cmpt_e_static_sealed C) (cmpt_static_sealed C).
   Definition cmpt_exp_tbl_mregion (C: cmpt) : gmap Addr Word :=
     let pcc_word := WCap RX Global (cmpt_b_pcc C) (cmpt_e_pcc C) (cmpt_b_pcc C) in
     let cgp_word := WCap RW Global (cmpt_b_cgp C) (cmpt_e_cgp C) (cmpt_b_cgp C) in
@@ -72,6 +83,7 @@ Section CmptLayout.
   Definition mk_initial_cmpt (C : cmpt) : gmap Addr Word :=
     cmpt_pcc_mregion C ∪
     cmpt_cgp_mregion C ∪
+    cmpt_static_sealed_mregion C ∪
     cmpt_exp_tbl_mregion C.
 
   Record cmptSwitcher : Type :=
@@ -254,6 +266,13 @@ Section CmptLayout.
     rewrite /cmpt_cgp_mregion /cmpt_cgp_region.
     repeat rewrite dom_mkregion_eq; try solve_addr.
   Qed.
+  Lemma dom_cmpt_static_sealed_mregion (A_cmpt : cmpt) :
+    dom (cmpt_static_sealed_mregion A_cmpt) = list_to_set (cmpt_static_sealed_region A_cmpt).
+  Proof.
+    pose proof (cmpt_static_sealed_size A_cmpt).
+    rewrite /cmpt_static_sealed_mregion /cmpt_static_sealed_region.
+    repeat rewrite dom_mkregion_eq; try solve_addr.
+  Qed.
   Lemma dom_cmpt_exp_tbl_mregion (A_cmpt : cmpt) :
     dom (cmpt_exp_tbl_mregion A_cmpt) = list_to_set (cmpt_exp_tbl_region A_cmpt).
   Proof.
@@ -283,9 +302,10 @@ Section CmptLayout.
     rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdis.
     apply stdpp_extra.list_to_set_disj in Hdis.
     repeat rewrite list_to_set_app_L in Hdis.
-    do 4 rewrite dom_union_L.
+    do 6 rewrite dom_union_L.
     rewrite !dom_cmpt_pcc_mregion.
     rewrite !dom_cmpt_cgp_mregion.
+    rewrite !dom_cmpt_static_sealed_mregion.
     rewrite !dom_cmpt_exp_tbl_mregion.
     done.
   Qed.
@@ -354,11 +374,11 @@ Section CmptLayout.
     rewrite /switcher_cmpt_disjoint /cmpt_switcher_region /cmpt_region in Hdis.
     apply stdpp_extra.list_to_set_disj in Hdis.
     repeat rewrite list_to_set_app_L in Hdis.
-
     rewrite /mk_initial_cmpt /mk_initial_switcher.
-    do 4 rewrite dom_union_L.
+    do 5 rewrite dom_union_L.
     rewrite !dom_cmpt_pcc_mregion.
     rewrite !dom_cmpt_cgp_mregion.
+    rewrite !dom_cmpt_static_sealed_mregion.
     rewrite !dom_cmpt_exp_tbl_mregion.
     rewrite !dom_switcher_code_mregion.
     rewrite !dom_switcher_trusted_stack_mregion.
@@ -377,9 +397,10 @@ Section CmptLayout.
     repeat rewrite list_to_set_app_L in Hdis.
 
     rewrite /mk_initial_cmpt /mk_initial_assert.
-    do 4 rewrite dom_union_L.
+    do 5 rewrite dom_union_L.
     rewrite !dom_cmpt_pcc_mregion.
     rewrite !dom_cmpt_cgp_mregion.
+    rewrite !dom_cmpt_static_sealed_mregion.
     rewrite !dom_cmpt_exp_tbl_mregion.
     rewrite !dom_assert_code_mregion.
     rewrite !dom_assert_cap_mregion.
@@ -513,22 +534,23 @@ Section CmptLayout.
   Qed.
 
   Lemma cmpt_exp_tbl_disjoint (B_cmpt : cmpt) :
-    cmpt_pcc_mregion B_cmpt ∪ cmpt_cgp_mregion B_cmpt ##ₘ cmpt_exp_tbl_mregion B_cmpt.
+    cmpt_pcc_mregion B_cmpt ∪ cmpt_cgp_mregion B_cmpt ∪ cmpt_static_sealed_mregion B_cmpt ##ₘ cmpt_exp_tbl_mregion B_cmpt.
   Proof.
     apply map_disjoint_dom_2.
     pose proof (cmpt_disjointness B_cmpt) as Hdis.
     rewrite !disjoint_list_cons in Hdis.
-    destruct Hdis as (?&?&_&_).
-    rewrite !union_list_cons in H,H0.
-    rewrite union_list_nil in H,H0.
-    rewrite /union /Union_list in H,H0.
-    rewrite /empty /Empty_list in H,H0.
-    rewrite app_nil_r in H,H0.
-    rewrite /cmpt_pcc_mregion /cmpt_cgp_mregion /cmpt_exp_tbl_mregion.
+    destruct Hdis as (?&?&?&_&_).
+    rewrite !union_list_cons in H,H0,H1.
+    rewrite union_list_nil in H,H0,H1.
+    rewrite /union /Union_list in H,H0,H1.
+    rewrite /empty /Empty_list in H,H0,H1.
+    rewrite app_nil_r in H,H0,H1.
+    rewrite /cmpt_pcc_mregion /cmpt_cgp_mregion /cmpt_static_sealed_mregion /cmpt_exp_tbl_mregion.
 
     pose proof (cmpt_import_size B_cmpt).
     pose proof (cmpt_code_size B_cmpt).
     pose proof (cmpt_data_size B_cmpt).
+    pose proof (cmpt_static_sealed_size B_cmpt).
     pose proof (cmpt_exp_tbl_pcc_size B_cmpt).
     pose proof (cmpt_exp_tbl_cgp_size B_cmpt).
     pose proof (cmpt_exp_tbl_entries_size B_cmpt).
@@ -547,9 +569,12 @@ Section CmptLayout.
     rewrite !elem_of_union in Ha.
     rewrite !elem_of_list_to_set in Ha,Ha'.
     destruct Ha as [ Ha | Ha].
-    - rewrite elem_of_disjoint in H; eapply H; eauto.
-      rewrite !elem_of_app. by right.
-    - rewrite elem_of_disjoint in H0; eapply H0; eauto.
+    - destruct Ha as [ Ha | Ha].
+      + rewrite elem_of_disjoint in H; eapply H; eauto.
+        rewrite !elem_of_app. by right;right.
+      + rewrite elem_of_disjoint in H0; eapply H0; eauto.
+        apply elem_of_app. by right.
+    - rewrite elem_of_disjoint in H1; eapply H1; eauto.
   Qed.
   Lemma cmpt_cgp_disjoint (B_cmpt : cmpt) :
     cmpt_pcc_mregion B_cmpt ##ₘ cmpt_cgp_mregion B_cmpt .
