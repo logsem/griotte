@@ -1036,7 +1036,7 @@ Proof.
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ Addr region_type OType Word ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)
-              ; gen_heapΣ nat kvs_entry ; gen_heapΣ Z (gset Z)
+              ; gen_heapΣ nat kvs_entry ; gen_heapΣ Z kvs_user_map
       ]).
   eapply (@kvs_adequacy' Σ cnames B); eauto; try typeclasses eauto.
 Qed.
