@@ -148,6 +148,8 @@ Section region_alloc_cmpt.
         eapply elem_of_union;eauto.
       + eapply elem_of_union;eauto.
         left; eapply elem_of_union;eauto.
+        left; eauto.
+        eapply elem_of_union;eauto.
     }
     rewrite std_sta_update_multiple_lookup_same_i.
     2: { intro Hcontra.
@@ -157,6 +159,8 @@ Section region_alloc_cmpt.
            eapply elem_of_union;eauto.
          + eapply elem_of_union;eauto.
            left;eapply elem_of_union;eauto.
+           left.
+           eapply elem_of_union;eauto.
     }
     rewrite std_sta_update_multiple_lookup_same_i; first done.
     intro Hcontra.
@@ -164,6 +168,8 @@ Section region_alloc_cmpt.
     + rewrite /cmpt_switcher_region. eapply elem_of_union;eauto.
     + eapply elem_of_union;eauto.
       left;eapply elem_of_union;eauto.
+      left.
+      eapply elem_of_union;eauto.
       left.
       rewrite !elem_of_finz_seq_between in Hcontra |- *.
       solve_addr+H H' Hcontra.

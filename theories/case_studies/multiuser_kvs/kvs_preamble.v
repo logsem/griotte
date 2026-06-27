@@ -1168,9 +1168,11 @@ Section KVS_preamble.
     ∃ (ku : Z) (a : Addr) (s : gset Z),
       (* Shape of the capability*)
       ⌜ w = WSealable (kvs_user_seal_key_scap Global a) ⌝ ∗
-      (* Current address is the user key of the compartment *)
-      ⌜ (finz.of_z ku) = Some a ⌝ ∗
+      ⌜ withinBounds a (a^+1)%a a = true ⌝ ∗
+      (* User key is well-formed *)
       ⌜ (0 <= ku < MAX_USER_KEY)%Z ⌝ ∗
+      (* Payload contains the user key *)
+      a ↦ₐ WInt ku ∗
       (* KVS resources *)
       ◯(ALLOC)[ku] s ∗
       ([∗ set] kn ∈ s, ∃ w, (kvs_full_key ku kn) ⤇(KVS) w ∗
@@ -1197,7 +1199,7 @@ Section KVS_preamble.
     iModIntro.
     iIntros "Hot_kvs".
     rewrite /kvs_otype_propC /= /kvs_otype_inv.
-    iDestruct "Hot_kvs" as "(%ku & %a & %s & % & % & % & ? & Hs)".
+    iDestruct "Hot_kvs" as "(%ku & %a & %s & % & % & % & ? & ? & Hs)".
     iExists ku, a, s; iFrame "∗%".
     iApply (big_sepS_impl with "Hs").
     iModIntro; iIntros (??) "(%w' & $ & H)".

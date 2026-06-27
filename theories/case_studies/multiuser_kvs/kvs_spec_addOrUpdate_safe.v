@@ -137,8 +137,9 @@ Section KVS_spec_addOrUpdate_safe.
     iApply (KVS_getFullKey_spec_safe with
              "[- $HPC $Hctp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Hcode $Hspred $Hworld]")
     ; eauto; iNext.
-    iIntros (l_user_key user_key)
-      "([-> %Hbounds_uk] & HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Hcode & #Hseal_ku & Hworld)".
+    iIntros (s' l_user_key user_key_addr user_key)
+      "(-> & %Hbounds_uk & %Hbounds_a_user_key & HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2
+      & Ha_unsealing & Hcode & Ha_user_key & Hres_open & Halloc & Hkvs_frags & Hworld)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
@@ -146,14 +147,7 @@ Section KVS_spec_addOrUpdate_safe.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
-    iDestruct (sopen_world_interp_singleton with "Hspred Hseal_ku Hworld")
-                as "(Hworld & Hres_open & HP)".
-    iDestruct "HP" as "(%ku & %a & %s' & >%Heq & >%Hku & >%Hbounds & Hot_res)".
-    iDestruct (lc_fupd_elim_later with "[$] [$Hot_res]") as ">[Halloc Hkvs_frags]".
     assert ( wf_kvs_full_key user_key nkey) as Hwk_fkey by (split; auto; lia).
-    assert (ku = user_key).
-    { cbn in Heq; simplify_eq; rewrite /MAX_USER_KEY in Hbounds; solve_addr. }
-    cbn in Heq; simplify_eq.
 
     destruct ( decide ( nkey ∈ s' ) ) as [Hfkey_in_s|Hfkey_notin_s].
     (* The key has already been allocated *)
@@ -214,10 +208,11 @@ Section KVS_spec_addOrUpdate_safe.
         + eapply (canStore_global_nonisWL RW); done.
       }
 
-      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
+      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)))))
+        with "[Ha_user_key Halloc Hkvs_frags]"
         as "HP".
-      { iExists user_key, a, s'; iFrame "∗ %".
-        by replace (z_of a) with user_key by solve_addr+Hku.
+      { iExists user_key, user_key_addr, s'; iFrame "∗ %".
+        iPureIntro; auto.
       }
       iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
@@ -304,10 +299,12 @@ Section KVS_spec_addOrUpdate_safe.
           + eapply (canStore_global_nonisWL RW); done.
         }
 
-        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
-          as "HP".
-        { iExists user_key, a, ({[nkey]} ∪ s'); iFrame "∗ %".
-          by replace (z_of a) with user_key by solve_addr+Hku.
+
+        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)))))
+        with "[Ha_user_key Halloc Hkvs_frags]"
+        as "HP".
+        { iExists user_key, user_key_addr, ({[nkey]} ∪ s'); iFrame "∗ %".
+          iPureIntro; auto.
         }
         iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
@@ -334,10 +331,11 @@ Section KVS_spec_addOrUpdate_safe.
         iInstr "Hcode".
         subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key))))) with "[Halloc Hkvs_frags]"
-          as "HP".
-        { iExists user_key, a, s'; iFrame "∗ %".
-          by replace (z_of a) with user_key by solve_addr+Hku.
+        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)))))
+        with "[Ha_user_key Halloc Hkvs_frags]"
+        as "HP".
+        { iExists user_key, user_key_addr, s'; iFrame "∗ %".
+          iPureIntro; auto.
         }
         iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 

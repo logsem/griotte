@@ -24,7 +24,7 @@ Section KVS_spec_erase.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret : Word)
-    (user_key nkey : Z) (l_user_key : Locality)
+    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
     (idx : nat)
     (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
     :
@@ -32,6 +32,7 @@ Section KVS_spec_erase.
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_erase_instrs)%a ->
+    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
     (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
@@ -43,7 +44,7 @@ Section KVS_spec_erase.
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to erase *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
@@ -53,6 +54,7 @@ Section KVS_spec_erase.
       (* initial memory layout *)
       codefrag pc_a kvs_erase_instrs ∗
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+      user_key_addr ↦ₐ WInt user_key ∗
 
       ▷ isKVS cgp_b m s ∗
       ◯(ALLOC)[user_key] s' ∗
@@ -71,16 +73,17 @@ Section KVS_spec_erase.
          ◯(ALLOC)[user_key] ( s' ∖ {[ nkey ]} ) ∗
 
          codefrag pc_a kvs_erase_instrs ∗
-         (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key
+         (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+         user_key_addr ↦ₐ WInt user_key
 
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (HsubBounds Hbounds_user_key His_uint16_nkey Hcgp_contiguous Hs')
+    iIntros (HsubBounds Hbounds_a_user_key Hbounds_user_key His_uint16_nkey Hcgp_contiguous Hs')
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
-        Hcode & Ha_unsealing & HKVS & Halloc & [%fkey_w Hkvs_frag] & Hpost)".
+        Hcode & Ha_unsealing & Ha_user_key & HKVS & Halloc & [%fkey_w Hkvs_frag] & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -105,8 +108,8 @@ Section KVS_spec_erase.
 
     focus_block 2 "Hcode" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_check_uint.
-    iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Hcode]") ; eauto; iNext.
-    iIntros "(HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Hcode)".
+    iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Ha_user_key $Hcode]") ; eauto; iNext.
+    iIntros "(HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Ha_user_key & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
@@ -152,7 +155,7 @@ Section KVS_spec_erase.
 
   Lemma KVS_erase_spec
     (wret : Word)
-    (user_key nkey : Z) (l_user_key : Locality)
+    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
     (s' : gset Z)
     (E : coPset)
     :
@@ -163,6 +166,7 @@ Section KVS_spec_erase.
 
     (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
+    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
     ( na_inv cerise_nais Nkvs kvs_inv ∗
       na_own cerise_nais E ∗
@@ -171,12 +175,14 @@ Section KVS_spec_erase.
       PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
       cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to erase *)
       ctp ↦ᵣ - ∗ (* scratch *)
       ct1 ↦ᵣ - ∗ (* scratch *)
       ct2 ↦ᵣ - ∗ (* scratch *)
       cnull ↦ᵣ - ∗
+
+      user_key_addr ↦ₐ WInt user_key ∗
 
       ◯(ALLOC)[user_key] s' ∗
       fkey ⤇(KVS) - ∗
@@ -191,15 +197,16 @@ Section KVS_spec_erase.
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
+         user_key_addr ↦ₐ WInt user_key ∗
          ◯(ALLOC)[user_key] ( s' ∖ {[ nkey ]} )
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hs' Hbounds_user_key His_uint16_nkey)
+    iIntros (Hnkvs_E Hs' Hbounds_user_key His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
-        & Halloc & [ %wfkey [%idx Hfkey] ] & Hpost)".
+        & Ha_user_key & Halloc & [ %wfkey [%idx Hfkey] ] & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
       as "( (%m & %s & >Himports & >Hcode  & HisKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
@@ -220,7 +227,7 @@ Section KVS_spec_erase.
     assert (a_erase = kvs_erase_pcc_addr) as -> by (rewrite /kvs_erase_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_erase).
     iApply (KVS_erase_spec_pre with "[- $HPC]"); last iFrame; eauto.
     iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2
-              & Hcnull & HKVS & Halloc & Hcode & Ha_unsealing)".
+              & Hcnull & HKVS & Halloc & Hcode & Ha_unsealing & Ha_user_key)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HKVS $Hspred]") as "Hna" ; auto.

@@ -23,11 +23,13 @@ Section KVS_getFullKey.
   Lemma KVS_getFullKey_spec
     (pc_b pc_e pc_a : Addr)
     (rdst rsealkey rkey rscratch1 rscratch2 : RegName)
-    (user_key nkey : Z) (l_user_key : Locality)
+    (user_key nkey : Z) (l_user_key : Locality) ( user_key_addr : Addr )
     :
     let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     (0 <= user_key < MAX_USER_KEY)%Z ->
+    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+
 
     rscratch1 ≠ cnull ->
     rscratch2 ≠ cnull ->
@@ -38,22 +40,25 @@ Section KVS_getFullKey.
     (
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       rdst ↦ᵣ - ∗
-      rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key ∗
+      rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
       rkey ↦ᵣ WInt nkey ∗
       rscratch1 ↦ᵣ - ∗
       rscratch2 ↦ᵣ - ∗
 
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+      user_key_addr ↦ₐ WInt user_key ∗
+
       codefrag pc_a instrs ∗
       ▷ (
           PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
-          rsealkey ↦ᵣ WSealed KVS_OTYPE (kvs_user_seal_key_scap l_user_key user_key) ∗
+          rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
           rkey ↦ᵣ WInt nkey ∗
           rscratch1 ↦ᵣ WInt (pc_b - pc_a) ∗
           rscratch2 ↦ᵣ WInt pc_a ∗
 
           (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+          user_key_addr ↦ₐ WInt user_key ∗
           codefrag pc_a instrs -∗
 
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -61,9 +66,9 @@ Section KVS_getFullKey.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (HsubBounds Hbounds_user_key Hrscratch1 Hrscratch2 Hrsealkey Hkey Hdst)
+    iIntros (HsubBounds Hbounds_user_key Hbounds_user_key_addr Hrscratch1 Hrscratch2 Hrsealkey Hkey Hdst)
       "(HPC & [%wdst Hrdst] & Hrsealkey & Hrkey & [%wscratch1 Hrscratch1] & [%wscratch2 Hrscratch2]
-      & Ha_unsealing & Hcode & Hpost)".
+      & Ha_unsealing & Ha_user_key & Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -90,19 +95,12 @@ Section KVS_getFullKey.
     (* unseal rdst rsealkey rscratch; *)
     iInstr "Hcode"; first done.
     { rewrite /withinBounds; pose proof KVS_OTYPE_size; solve_addr. }
-    (* geta rdst rdst; *)
+    (* load rdst rdst; *)
     iInstr "Hcode".
     (* lshiftl rdst rdst 16; *)
     iInstr "Hcode".
     (* lor rdst rdst rkey *)
     iInstr "Hcode".
-
-    replace (Z.lor ((0 ^+ user_key)%a ≪ 16) nkey) with (kvs_full_key user_key nkey).
-    2: {
-      replace (@finz.to_z MemNum (0 ^+ user_key)%a) with user_key; first done.
-      rewrite /MAX_USER_KEY in Hbounds_user_key.
-      solve_addr.
-    }
 
     iApply "Hpost"; iFrame.
   Qed.
@@ -141,21 +139,26 @@ Section KVS_getFullKey.
 
       world_interp W C ∗
 
-      ▷ ( ∀ l_user_key user_key ,
-            ⌜ wskey = kvs_user_seal_key l_user_key user_key ∧ (0 <= user_key < MAX_USER_KEY)%Z ⌝ ∗
+      ▷ ( ∀ (s : gset Z) (l_user_key : Locality) (user_key_addr : Addr) (user_key : Z) ,
+            ⌜ wskey = kvs_user_seal_key l_user_key user_key_addr ⌝ ∗
+            ⌜ (0 <= user_key < MAX_USER_KEY)%Z ⌝ ∗
+            ⌜ withinBounds user_key_addr (user_key_addr ^+1)%a user_key_addr = true ⌝ ∗
             PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
             rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
-            rsealkey ↦ᵣ WSealed KVS_OTYPE (kvs_user_seal_key_scap l_user_key user_key) ∗
+            rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
             rkey ↦ᵣ WInt nkey ∗
             rscratch1 ↦ᵣ WInt (pc_b - pc_a) ∗
             rscratch2 ↦ᵣ WInt pc_a ∗
 
             (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
             codefrag pc_a instrs ∗
+            user_key_addr ↦ₐ WInt user_key ∗
+            sealing_map_resource_open W C KVS_OTYPE kvs_otype_propC {[WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)]} ∗
+            ◯(ALLOC)[ user_key ] s ∗
+            ([∗ set] kn ∈ s, ∃ w : Word, kvs_full_key user_key kn⤇(KVS) w ∗ ∀ W' : WORLD
+             , ⌜related_sts_priv_world W W'⌝ -∗ interp W' C w) ∗
 
-            (sts_seals_std C KVS_OTYPE {[WSealable (kvs_user_seal_key_scap l_user_key user_key)]}) ∗
-
-            world_interp W C
+            world_interp_sopen W C KVS_OTYPE
             -∗
 
             WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -213,28 +216,20 @@ Section KVS_getFullKey.
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
     rewrite /kvs_otype_propC /= /kvs_otype_prop //= /kvs_otype_inv.
-    iDestruct "HP" as "(%ku & %a & %s & %Heq_sb & %Hku & %Hbounds & Halloc & Hfkeys)".
+    iDestruct "HP" as "(%ku & %a & %s & %Heq_sb & %Hku & %Hbounds & Ha & Halloc & Hfkeys)".
     destruct wsb; rewrite /kvs_user_seal_key_scap in Heq_sb; cbn in Heq_sb; simplify_eq.
     rewrite -/(kvs_user_seal_key_scap g a).
 
-    (* geta rdst rdst; *)
+    (* load rdst rdst; *)
     iInstr "Hcode".
-    replace (finz.to_z (0 ^+ a)%a) with ku by solve_addr.
-
-    iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap g a))))) with "[Halloc Hfkeys]"
-    as "HP".
-    { iExists ku, a, s; iFrame "∗ %"; done. }
-    iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
     (* lshiftl rdst rdst 16; *)
     iInstr "Hcode".
     (* lor rdst rdst rkey *)
     iInstr "Hcode".
 
-    replace (Z.lor (ku ≪ 16) nkey) with (kvs_full_key ku nkey) by solve_addr.
-    replace (z_of a) with ku by solve_addr+Hku.
-    iApply "Hpost"; iFrame "∗#".
-    iPureIntro; split; auto.
+    iApply "Hpost"; iFrame "∗#%".
+    iPureIntro; auto.
   Qed.
 
 End KVS_getFullKey.

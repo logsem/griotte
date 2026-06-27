@@ -52,7 +52,7 @@ Section KVS_Service.
       load rdst rdst;
       (* get full key *)
       unseal rdst rdst rsealkey;
-      geta rdst rdst;
+      load rdst rdst;
       lshiftl rdst rdst 16;
       lor rdst rdst rkey
     ].
@@ -461,11 +461,11 @@ Section KVS_Service.
 
   Definition kvs_full_key (user_key nkey : Z) := Z.lor (user_key ≪ 16) nkey.
 
-  Definition kvs_user_seal_key_scap {KVS : kvsLayout} (g : Locality) (z : Z) :=
-    (SCap (O LG LM) g 0%a 0%a (0 ^+ z)%a).
+  Definition kvs_user_seal_key_scap {KVS : kvsLayout} (g : Locality) (a : Addr) :=
+    (SCap RO g a (a ^+ 1)%a a).
 
-  Definition kvs_user_seal_key {KVS : kvsLayout} (g : Locality) (z : Z) :=
-    WSealed KVS_OTYPE (kvs_user_seal_key_scap g z).
+  Definition kvs_user_seal_key {KVS : kvsLayout} (g : Locality) (a : Addr) :=
+    WSealed KVS_OTYPE (kvs_user_seal_key_scap g a).
 
 
 
