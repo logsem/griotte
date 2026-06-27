@@ -66,13 +66,9 @@ Notation "●(KVS) m" := (gen_heap_interp (m : kvs_map)) (at level 20) : bi_scop
 Section KVS_preamble.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {ceriseg:ceriseG Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
   Definition kvs_keys (m : kvs_map) : list Z :=
@@ -1290,14 +1286,38 @@ Section KVS_preamble.
     by rewrite /kvs_logical_kvs_delete Hvalid /=.
   Qed.
 
-  Class kvs_namespaces :=
-    {
-      Nkvs : namespace;
-      Nkvs_otype : namespace;
-      Nkvs_exp_tbl : namespace;
-      Nkvs_namespaces_disjoint :
-      Nkvs ## Nkvs_otype ∧ Nkvs ## Nkvs_exp_tbl ∧ Nkvs_otype ## Nkvs_exp_tbl
-    }.
+End KVS_preamble.
+
+Definition kvs_user_map_auth `{kvsG} (uk : Z) (m : kvs_user_map) : iProp Σ := uk ↦(KVS_USER) m.
+Definition kvs_user_map_frag `{kvsG} (uk mk : Z) ( w : Word ) : iProp Σ := kvs_full_key uk mk ⤇(KVS) w.
+
+Notation "'◯↪KVS[' uk ']' m" := (kvs_user_map_auth uk m)%I (at level 20) : bi_scope.
+Notation "mk '↦(KVS)[' uk ']' w" := (kvs_user_map_frag uk mk w)%I (at level 20) : bi_scope.
+Notation "mk '↦(KVS)[' uk ']' -" := (∃ w, mk ↦(KVS)[ uk ] w)%I (at level 20) : bi_scope.
+
+Class kvs_namespaces :=
+  {
+    Nkvs : namespace;
+    Nkvs_otype : namespace;
+    Nkvs_exp_tbl : namespace;
+    Nkvs_namespaces_disjoint :
+    Nkvs ## Nkvs_otype ∧ Nkvs ## Nkvs_exp_tbl ∧ Nkvs_otype ## Nkvs_exp_tbl
+  }.
+
+
+Section KVS_preamble_public.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {kvsg:kvsG Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
+
+
 
   Definition kvs_otype_inv
     {KVS_layout : kvsLayout} {KVS_namespaces : kvs_namespaces}
@@ -1309,8 +1329,8 @@ Section KVS_preamble.
       (* Payload contains the user key *)
       a ↦ₐ WInt uk ∗
       (* KVS resources *)
-      uk ↦(KVS_USER) m ∗
-      ([∗ map] mk↦w ∈ m, (kvs_full_key uk mk) ⤇(KVS) w ∗
+      ◯↪KVS[ uk ] m ∗
+      ([∗ map] mk↦w ∈ m, mk ↦(KVS)[uk] w ∗
                          (∀ W' , ⌜ related_sts_priv_world W W' ⌝ -∗ interp W' C w )
       ).
 
@@ -1354,6 +1374,8 @@ Section KVS_preamble.
       isKVS KVS_cgp_b m s ∗
       seal_pred KVS_OTYPE kvs_otype_propC.
 
-End KVS_preamble.
+End KVS_preamble_public.
 
 Global Opaque kvs_map_init.
+Global Opaque kvs_user_map_auth.
+Global Opaque kvs_user_map_frag.
