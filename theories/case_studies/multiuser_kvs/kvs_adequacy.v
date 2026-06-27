@@ -227,7 +227,7 @@ Section Adequacy.
   Local Notation kvs_user_key_B_a := (0 ^+ kvs_user_key_B)%a.
 
   Context {kvs_preg: gen_heapGpreS nat kvs_entry Σ}.
-  Context {kvs_alloc_preg: gen_heapGpreS Z (gset Z) Σ}.
+  Context {kvs_alloc_preg: gen_heapGpreS Z kvs_user_map Σ}.
   (* Context {KVS_users: kvs_users}. *)
   (* Context { Hkvs_users_seals : kvs_users_seals = {[ B := kvs_user_key_B ]} }. *)
   (* Context { Hkvs_users_seals_reserved : kvs_users_seals_reserved = [kvs_user_key_K] }. *)
@@ -345,8 +345,8 @@ Section Adequacy.
     }
 
     set (all_users_keys := [kvs_user_key_K;kvs_user_key_B]).
-    set (kvs_alloc_init := (list_to_map ( (fun k => (k,∅)) <$> all_users_keys) : kvs_alloc)).
-    iMod (gen_heap_init (kvs_alloc_init : kvs_alloc)) as (kvs_alloc_heapg) "(Hkvs_alloc_auth & Hkvs_alloc_frag & _)".
+    set (kvs_alloc_init := (list_to_map ( (fun k => (k,∅)) <$> all_users_keys) : kvs_logical_map)).
+    iMod (gen_heap_init (kvs_alloc_init : kvs_logical_map)) as (kvs_alloc_heapg) "(Hkvs_alloc_auth & Hkvs_alloc_frag & _)".
     assert ( kvs_alloc_init = {[ kvs_user_key_K := ∅ ; kvs_user_key_B := ∅ ]} ) as ->.
     { subst kvs_alloc_init all_users_keys; done. }
     assert ( kvs_user_key_K ≠ kvs_user_key_B ) as Huser_keys_disjoint.
@@ -455,9 +455,9 @@ Section Adequacy.
 
 
     (* Notations *)
-    iAssert (◯(ALLOC)[ kvs_user_key_K ] ∅)%I with "Halloc_K" as "Halloc_K".
-    iAssert (◯(ALLOC)[ kvs_user_key_B ] ∅)%I with "Halloc_B" as "Halloc_B".
-    iAssert (●(ALLOC) {[kvs_user_key_K := ∅; kvs_user_key_B := ∅]})%I with "Hkvs_alloc_auth" as "Hkvs_alloc_auth".
+    iAssert (kvs_user_key_K ↦(KVS_USER) ∅)%I with "Halloc_K" as "Halloc_K".
+    iAssert (kvs_user_key_B ↦(KVS_USER) ∅)%I with "Halloc_B" as "Halloc_B".
+    iAssert (↪●KVS_USERS {[kvs_user_key_K := ∅; kvs_user_key_B := ∅]})%I with "Hkvs_alloc_auth" as "Hkvs_alloc_auth".
     iDestruct (kvs_initial_map_init_None with "[Hkvs_frags]") as "Hkvs_frags"; first iFrame.
 
     (* Get initial sregister mtdc *)

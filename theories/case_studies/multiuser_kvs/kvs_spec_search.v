@@ -18,7 +18,7 @@ Section KVS_search.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (rkey ridx ridx_empty rscratch : RegName)
-    (m : kvs_map) (s : kvs_alloc) (idx : nat) (fkey : Z) (w : Word)
+    (m : kvs_map) (lm : kvs_logical_map) (idx : nat) (fkey : Z) (w : Word)
     :
     let instrs := (kvs_search_instrs rkey ridx ridx_empty rscratch) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
@@ -38,7 +38,7 @@ Section KVS_search.
       ridx_empty ↦ᵣ - ∗
       rscratch ↦ᵣ - ∗
 
-      isKVS cgp_b m s ∗
+      isKVS cgp_b m lm ∗
       fkey ⤇(KVS)[idx] w ∗
 
       codefrag pc_a instrs ∗
@@ -50,7 +50,7 @@ Section KVS_search.
           ridx_empty ↦ᵣ - ∗
           rscratch ↦ᵣ - ∗
 
-          isKVS_open cgp_b m s idx ∗
+          isKVS_open cgp_b m lm idx ∗
           (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_SOME ∗
           (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 1))%a ↦ₐ WInt fkey ∗
           (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 2))%a ↦ₐ w ∗
@@ -229,7 +229,7 @@ Section KVS_search.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (rkey ridx ridx_empty rscratch : RegName)
-    (m : kvs_map) (s : kvs_alloc) (s' : gset Z) (ku kn : Z)
+    (m : kvs_map) (lm : kvs_logical_map) (umap : kvs_user_map) (ku kn : Z)
     :
     let instrs := (kvs_search_instrs rkey ridx ridx_empty  rscratch) in
     let fkey := kvs_full_key ku kn in
@@ -237,7 +237,7 @@ Section KVS_search.
     withinBounds cgp_b cgp_e cgp_b = true ->
     ((cgp_b + (ASM_SIZEOF_KVS_ENTRY*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
 
-    kn ∉ s' ->
+    kn ∉ dom umap ->
     is_uint16 kn ->
 
     rscratch ≠ cnull ->
@@ -253,8 +253,8 @@ Section KVS_search.
       ridx_empty ↦ᵣ - ∗
       rscratch ↦ᵣ - ∗
 
-      isKVS cgp_b m s ∗
-      ◯(ALLOC)[ku] s' ∗
+      isKVS cgp_b m lm ∗
+      ku ↦(KVS_USER) umap ∗
 
       codefrag pc_a instrs ∗
       ▷ ( (* An empty slot was found*)
@@ -267,8 +267,8 @@ Section KVS_search.
             ridx_empty ↦ᵣ WInt idx_empty_slot ∗
             rscratch ↦ᵣ - ∗
 
-            ◯(ALLOC)[ku] s' ∗
-            isKVS_open cgp_b m s idx_empty_slot ∗
+            ku ↦(KVS_USER) umap ∗
+            isKVS_open cgp_b m lm idx_empty_slot ∗
             (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx_empty_slot))%a ↦ₐ WInt ASM_NONE ∗
             (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx_empty_slot + 1))%a ↦ₐ - ∗
             (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx_empty_slot + 2))%a ↦ₐ - ∗
@@ -289,8 +289,8 @@ Section KVS_search.
               ridx_empty ↦ᵣ WInt (-1) ∗
               rscratch ↦ᵣ - ∗
 
-              ◯(ALLOC)[ku] s' ∗
-              isKVS cgp_b m s ∗
+              ku ↦(KVS_USER) umap ∗
+              isKVS cgp_b m lm ∗
 
               codefrag pc_a instrs
             ) -∗
@@ -322,12 +322,12 @@ Section KVS_search.
 
     iAssert (
        if (decide ((Forall (fun idx => m !! idx ≠ Some None) (seq 0 (Z.to_nat n)))))
-       then (isKVS cgp_b m s ∗
+       then (isKVS cgp_b m lm ∗
              ridx_empty ↦ᵣ WInt (-1)
             )
        else ( ∃ (idx_empty : nat),
                 ⌜ 0 <= idx_empty < (Z.to_nat n)⌝ ∗
-                isKVS_open cgp_b m s idx_empty ∗
+                isKVS_open cgp_b m lm idx_empty ∗
                 (cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * idx_empty)%a ↦ₐ WInt ASM_NONE ∗
                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 1))%a ↦ₐ - ∗
                 (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 2))%a ↦ₐ - ∗

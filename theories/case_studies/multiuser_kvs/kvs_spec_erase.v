@@ -27,7 +27,7 @@ Section KVS_spec_erase.
     (wret : Word)
     (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
     (idx : nat)
-    (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
+    (m : kvs_map) (lm : kvs_logical_map) (umap : kvs_user_map)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
@@ -38,7 +38,7 @@ Section KVS_spec_erase.
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
-    nkey ∈ s' ->
+    (* nkey ∈ dom umap -> *)
 
     ((* initial register file *)
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
@@ -56,8 +56,8 @@ Section KVS_spec_erase.
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ isKVS cgp_b m s ∗
-      ▷ ◯(ALLOC)[user_key] s' ∗
+      ▷ isKVS cgp_b m lm ∗
+      ▷ user_key ↦(KVS_USER) umap ∗
       ▷ fkey ⤇(KVS)[ idx ] - ∗
 
       ▷ (PC ↦ᵣ updatePcPerm wret ∗
@@ -69,8 +69,8 @@ Section KVS_spec_erase.
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
-         isKVS cgp_b (<[ idx := None ]> m) (kvs_alloc_delete s user_key {[nkey]}) ∗
-         ◯(ALLOC)[user_key] ( s' ∖ {[ nkey ]} ) ∗
+         isKVS cgp_b (<[ idx := None ]> m) (kvs_logical_kvs_delete lm user_key nkey) ∗
+         user_key ↦(KVS_USER) (delete nkey umap) ∗
 
          codefrag pc_a kvs_erase_instrs ∗
          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
@@ -155,13 +155,12 @@ Section KVS_spec_erase.
   Lemma KVS_erase_spec_in
     (wret : Word)
     (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
-    (s' : gset Z)
+    (umap : kvs_user_map)
     (E : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
     ↑Nkvs ⊆ E ->
-    nkey ∈ s' ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -182,7 +181,7 @@ Section KVS_spec_erase.
 
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ ◯(ALLOC)[user_key] s' ∗
+      ▷ user_key ↦(KVS_USER) umap ∗
       ▷ fkey ⤇(KVS) - ∗
 
       ▷ (na_own cerise_nais E ∗
@@ -196,13 +195,13 @@ Section KVS_spec_erase.
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
          user_key_addr ↦ₐ WInt user_key ∗
-         ◯(ALLOC)[user_key] ( s' ∖ {[ nkey ]} )
+         user_key ↦(KVS_USER) (delete nkey umap)
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hs' His_uint16_nkey Hbounds_a_user_key)
+    iIntros (Hnkvs_E His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
         & Ha_user_key & Halloc & [ %wfkey [%idx Hfkey] ] & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
@@ -242,7 +241,7 @@ Section KVS_spec_erase.
     (cgp_b cgp_e : Addr)
     (wret : Word)
     (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
-    (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
+    (m : kvs_map) (lm : kvs_logical_map) (umap : kvs_user_map)
     :
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_erase_instrs)%a ->
@@ -251,7 +250,7 @@ Section KVS_spec_erase.
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
-    nkey ∉ s' ->
+    nkey ∉ dom umap ->
 
     ((* initial register file *)
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
@@ -269,8 +268,8 @@ Section KVS_spec_erase.
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ isKVS cgp_b m s ∗
-      ▷ ◯(ALLOC)[user_key] s' ∗
+      ▷ isKVS cgp_b m lm ∗
+      ▷ user_key ↦(KVS_USER) umap ∗
 
       ▷ (PC ↦ᵣ updatePcPerm wret ∗
          cgp ↦ᵣ - ∗
@@ -281,8 +280,8 @@ Section KVS_spec_erase.
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
-         isKVS cgp_b m s ∗
-         ◯(ALLOC)[user_key] s' ∗
+         isKVS cgp_b m lm ∗
+         user_key ↦(KVS_USER) umap ∗
 
          codefrag pc_a kvs_erase_instrs ∗
          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
@@ -383,11 +382,11 @@ Section KVS_spec_erase.
   Lemma KVS_erase_spec_notin
     (wret : Word)
     (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
-    (s' : gset Z)
+    (umap : kvs_user_map)
     (E : coPset)
     :
     ↑Nkvs ⊆ E ->
-    nkey ∉ s' ->
+    nkey ∉ dom umap ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -408,7 +407,7 @@ Section KVS_spec_erase.
 
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ ◯(ALLOC)[user_key] s' ∗
+      ▷ user_key ↦(KVS_USER) umap ∗
 
       ▷ (na_own cerise_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
@@ -421,7 +420,7 @@ Section KVS_spec_erase.
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
          user_key_addr ↦ₐ WInt user_key ∗
-         ◯(ALLOC)[user_key] s'
+         user_key ↦(KVS_USER) umap
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
@@ -587,7 +586,6 @@ Section KVS_spec_erase.
     (wret : Word)
     (wca0 : Word)
     (nkey : Z)
-    (m : kvs_map) (s : kvs_alloc)
     :
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_erase_instrs)%a ->

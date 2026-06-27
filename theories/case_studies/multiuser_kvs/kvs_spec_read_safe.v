@@ -104,9 +104,9 @@ Section KVS_spec_read_safe.
     destruct wsb as [ p_user_key l_user_key | ] ; simplify_eq.
 
     (* Either the map key is already allocated, or it is not *)
-    destruct ( decide (nkey ∈ s') ) as [Hs' | Hs'].
-    - iDestruct (big_sepS_elem_of_acc with "Hfkeys")
-        as "[ [%w [ [%idx Hkvs_frag] #Hinterp_w] ] Hfkeys]"
+    destruct (s' !! nkey)  as [ w | ] eqn:Hnkey.
+    - iDestruct (big_sepM_lookup_acc with "Hfkeys")
+        as "[ [ [%idx Hkvs_frag] #Hinterp_w] Hfkeys]"
       ; eauto; iEval (cbn) in "Hkvs_frag".
       iApply KVS_read_spec_in; last iFrame "∗#"; eauto.
       iNext.
@@ -127,6 +127,7 @@ Section KVS_spec_read_safe.
       iPureIntro; apply related_sts_priv_refl_world.
 
     - iApply KVS_read_spec_notin; last iFrame "∗#"; eauto.
+      { by rewrite not_elem_of_dom. }
       iNext.
       iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull
                 & Ha & Halloc)".

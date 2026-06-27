@@ -102,9 +102,9 @@ Section KVS_spec_erase.
     destruct wsb as [ p_user_key l_user_key | ] ; simplify_eq.
 
     (* Either the map key is already allocated, or it is not *)
-    destruct ( decide (nkey ∈ s') ) as [Hs' | Hs'].
-    - iDestruct (big_sepS_delete with "Hfkeys")
-        as "[ [%w [ [%idx Hkvs_frag] Hinterp_w] ] Hfkeys]"
+    destruct (s' !! nkey)  as [ w | ] eqn:Hnkey.
+    - iDestruct (big_sepM_delete with "Hfkeys")
+        as "[ [ [%idx Hkvs_frag] #Hinterp_w] Hfkeys]"
       ; eauto; iEval (cbn) in "Hkvs_frag".
       iApply KVS_erase_spec_in; last iFrame "∗#"; eauto.
       iNext.

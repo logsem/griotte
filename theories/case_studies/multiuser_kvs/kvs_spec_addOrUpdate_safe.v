@@ -104,17 +104,16 @@ Section KVS_spec_addOrUpdate_safe.
     destruct wsb as [ p_user_key l_user_key | ] ; simplify_eq.
 
     (* Either the map key is already allocated, or it is not *)
-    destruct ( decide (nkey ∈ s') ) as [Hs' | Hs'].
-    - iDestruct (big_sepS_elem_of_acc with "Hfkeys")
-        as "[ [%w [ [%idx Hkvs_frag] #Hinterp_w] ] Hfkeys]"
+    destruct (s' !! nkey)  as [ w | ] eqn:Hnkey.
+    - iDestruct (big_sepM_delete with "Hfkeys")
+        as "[ [ [%idx Hkvs_frag] #Hinterp_w] Hfkeys]"
       ; eauto; iEval (cbn) in "Hkvs_frag".
       iApply KVS_update_spec; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(%Hcan_store & Hna
                 & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
-                & Ha & Hkvs_frag)".
-
-      iDestruct ("Hfkeys" with "[$Hkvs_frag Hinterp_wca2]") as "Hfkeys".
+                & Ha & Halloc & Hkvs_frag)".
+      iDestruct ( big_sepM_insert_delete with "[$Hfkeys $Hkvs_frag Hinterp_wca2 ]") as "Hfkeys".
       { cbn ; iIntros (W' Hrelated_W_W').
         iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
         + eapply related_sts_priv_trans_world; eauto.
@@ -123,12 +122,13 @@ Section KVS_spec_addOrUpdate_safe.
       iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
         with "[Ha Halloc Hfkeys]"
         as "HP".
-      { iFrame "∗%#"; iPureIntro; auto. }
+      { iFrame "∗%#". iPureIntro; auto. }
       iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
       iApply "Hpost"; iFrame.
 
     - iApply KVS_add_spec; last iFrame "∗#"; eauto.
+      { by rewrite not_elem_of_dom. }
       iNext.
       iIntros "(Hna
                 & HPC & Hgcp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
@@ -139,8 +139,8 @@ Section KVS_spec_addOrUpdate_safe.
         "[ (%Hcan_store & Hca0 & Halloc & Hkvs_frag)
            | (Hca0 & Halloc)
          ]".
-      + iDestruct ( big_sepS_insert with "[Hkvs_frag $Hfkeys]") as "Hfkeys";eauto.
-        { iExists wca2; iFrame.
+      + iDestruct ( big_sepM_insert with "[Hkvs_frag $Hfkeys]") as "Hfkeys";eauto.
+        { iSplit; first (iExists idx; iFrame).
           cbn; iIntros (W' Hrelated_W_W').
           iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
           + eapply related_sts_priv_trans_world; eauto.

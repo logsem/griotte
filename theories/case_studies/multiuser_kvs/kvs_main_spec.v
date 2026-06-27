@@ -87,7 +87,7 @@ Section KVS_main_spec.
       [[ cgp_b , cgp_e ]] ↦ₐ [[ (kvs_main_data) ]] ∗
       [[ static_sealed_b , static_sealed_e ]] ↦ₐ [[ kvs_main_static_sealed KVS_USER_KEY_MAIN ]] ∗
 
-      ◯(ALLOC)[KVS_USER_KEY_MAIN] ∅ ∗
+      KVS_USER_KEY_MAIN ↦(KVS_USER) ∅ ∗
       world_interp W0 B ∗
 
       interp_continuation cstk Ws Cs ∗

@@ -24,7 +24,7 @@ Section KVS_spec_read.
     (cgp_b cgp_e : Addr)
     (wret : Word)
     (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
-    (m : kvs_map) (s : kvs_alloc)
+    (m : kvs_map) (lm : kvs_logical_map)
     (w : Word)
     :
 
@@ -53,23 +53,24 @@ Section KVS_spec_read.
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ isKVS cgp_b m s ∗
+      ▷ isKVS cgp_b m lm ∗
       ▷ fkey ⤇(KVS) w ∗
-      ▷ (PC ↦ᵣ updatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
-         ca1 ↦ᵣ w ∗ (* result of the read *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
-         ctp ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ - ∗
-         codefrag pc_a kvs_read_instrs ∗
-         (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-         user_key_addr ↦ₐ WInt user_key ∗
-         isKVS cgp_b m s ∗
-         fkey ⤇(KVS) w
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+      ▷ (
+          PC ↦ᵣ updatePcPerm wret ∗
+          cgp ↦ᵣ - ∗
+          cra ↦ᵣ - ∗
+          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
+          ca1 ↦ᵣ w ∗ (* result of the read *)
+          ct1 ↦ᵣ - ∗ (* scratch *)
+          ct2 ↦ᵣ - ∗ (* scratch *)
+          ctp ↦ᵣ - ∗ (* scratch *)
+          cnull ↦ᵣ - ∗
+          codefrag pc_a kvs_read_instrs ∗
+          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+          user_key_addr ↦ₐ WInt user_key ∗
+          isKVS cgp_b m lm ∗
+          fkey ⤇(KVS) w
+          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -231,7 +232,7 @@ Section KVS_spec_read.
     (cgp_b cgp_e : Addr)
     (wret : Word)
     (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
-    (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
+    (m : kvs_map) (lm : kvs_logical_map) (umap : kvs_user_map)
     :
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
@@ -240,7 +241,7 @@ Section KVS_spec_read.
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
-    nkey ∉ s' ->
+    nkey ∉ dom umap ->
 
     (
       (* initial register file *)
@@ -259,24 +260,24 @@ Section KVS_spec_read.
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ isKVS cgp_b m s ∗
-      ▷ ◯(ALLOC)[user_key] s' ∗
+      ▷ isKVS cgp_b m lm ∗
+      ▷ user_key ↦(KVS_USER) umap ∗
 
       ▷ (PC ↦ᵣ updatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: the key does not exist in the map *)
-         ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
-         ctp ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ - ∗
-         codefrag pc_a kvs_read_instrs ∗
-         (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-         user_key_addr ↦ₐ WInt user_key ∗
-         isKVS cgp_b m s ∗
-         ◯(ALLOC)[user_key] s'
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+          cgp ↦ᵣ - ∗
+          cra ↦ᵣ - ∗
+          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: the key does not exist in the map *)
+          ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
+          ct1 ↦ᵣ - ∗ (* scratch *)
+          ct2 ↦ᵣ - ∗ (* scratch *)
+          ctp ↦ᵣ - ∗ (* scratch *)
+          cnull ↦ᵣ - ∗
+          codefrag pc_a kvs_read_instrs ∗
+          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+          user_key_addr ↦ₐ WInt user_key ∗
+          isKVS cgp_b m lm ∗
+          user_key ↦(KVS_USER) umap
+          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -370,7 +371,7 @@ Section KVS_spec_read.
   Lemma KVS_read_spec_notin
     (wret wca2 : Word)
     (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
-    (s' : gset Z)
+    (umap : kvs_user_map)
     (E : coPset)
     :
     ↑Nkvs ⊆ E ->
@@ -378,7 +379,7 @@ Section KVS_spec_read.
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
-    nkey ∉ s' ->
+    nkey ∉ dom umap ->
 
     ( na_inv cerise_nais Nkvs kvs_inv ∗
       na_own cerise_nais E ∗
@@ -396,7 +397,7 @@ Section KVS_spec_read.
 
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ ◯(ALLOC)[user_key] s' ∗
+      ▷ user_key ↦(KVS_USER) umap ∗
 
       ▷ (na_own cerise_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
@@ -409,7 +410,7 @@ Section KVS_spec_read.
          ctp ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
          user_key_addr ↦ₐ WInt user_key ∗
-         ◯(ALLOC)[user_key] s'
+         user_key ↦(KVS_USER) umap
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
@@ -574,7 +575,6 @@ Section KVS_spec_read.
     (wret : Word)
     (wca0 : Word)
     (nkey : Z)
-    (m : kvs_map) (s : kvs_alloc)
     :
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
