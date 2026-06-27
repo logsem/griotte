@@ -105,7 +105,7 @@ Section KVS_check_uint16.
     iSplit; eauto.
   Qed.
 
-  Lemma KVS_check_uint16_spec_known `{KVS : kvsLayout}
+  Lemma KVS_check_uint16_spec_is_uint16 `{KVS : kvsLayout}
     (pc_b pc_e pc_a : Addr)
     (rv rdst : RegName) (nkey : Z)
     :
@@ -127,6 +127,49 @@ Section KVS_check_uint16.
           rv ↦ᵣ WInt nkey ∗
           codefrag pc_a instrs ∗
           rdst ↦ᵣ WInt ASM_TRUE
+          -∗
+          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+        )
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+  Proof.
+    intros instrs ; subst instrs.
+    iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & Hcode & Hpost)".
+    iApply (KVS_check_uint16_spec with "[- $HPC $Hrv $Hrdst $Hcode]"); eauto.
+    iNext; iIntros (nkey') "(%Hnkey_eq & HPC & Hrv & Hcode & [ (Hrdst & %Hnkey') | (Hrdst & %Hnkey')] )"; simplify_eq.
+    iApply "Hpost"; iFrame.
+  Qed.
+
+  Definition word_is_uint16 (w : Word) : Prop :=
+    match w with
+    | WInt z => is_uint16 z
+    | _ => False
+    end.
+
+  Global Instance word_is_uint16_dec (w : Word ) : Decision (word_is_uint16 w).
+  Proof. destruct w; solve_decision. Qed.
+
+  Lemma KVS_check_uint16_spec_not_uint16 `{KVS : kvsLayout}
+    (pc_b pc_e pc_a : Addr)
+    (rv rdst : RegName) (wrv : Word)
+    :
+    let instrs := (kvs_check_uint16_instrs rv rdst) in
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
+    ¬ word_is_uint16 wrv ->
+
+    rv ≠ cnull ->
+    rdst ≠ cnull ->
+
+    (
+      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
+      rv ↦ᵣ wrv ∗
+      rdst ↦ᵣ - ∗
+      codefrag pc_a instrs ∗
+
+      ▷ (
+          PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          rv ↦ᵣ wrv ∗
+          codefrag pc_a instrs ∗
+          rdst ↦ᵣ WInt ASM_FALSE
           -∗
           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )

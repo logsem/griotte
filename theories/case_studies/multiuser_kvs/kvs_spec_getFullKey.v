@@ -106,6 +106,72 @@ Section KVS_getFullKey.
   Qed.
 
   (*** Specification for unknown code *)
+  Lemma KVS_getFullKey_spec_invalid_sealed_user_key
+    (pc_b pc_e pc_a : Addr)
+    (rdst rsealkey rkey rscratch1 rscratch2 : RegName)
+    ( wsealkey : Word )
+    :
+    let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
+
+    is_sealed_with_o wsealkey KVS_OTYPE = false ->
+
+    rscratch1 ≠ cnull ->
+    rscratch2 ≠ cnull ->
+    rsealkey ≠ cnull ->
+    rdst ≠ cnull ->
+
+    (
+      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
+      rdst ↦ᵣ - ∗
+      rsealkey ↦ᵣ wsealkey ∗
+      rscratch1 ↦ᵣ - ∗
+      rscratch2 ↦ᵣ - ∗
+
+      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
+
+      codefrag pc_a instrs
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+  Proof.
+    intros instrs ; subst instrs.
+    iIntros (HsubBounds Hnot_sealed_with_kvs_otype Hrscratch1 Hrscratch2 Hrsealkey Hdst)
+      "(HPC & [%wdst Hrdst] & Hrsealkey & [%wscratch1 Hrscratch1] & [%wscratch2 Hrscratch2]
+      & Ha_unsealing & Hcode)".
+    codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
+
+    (* --------------------------------------------------- *)
+    (* ----------------- Start the proof ----------------- *)
+    (* --------------------------------------------------- *)
+    assert ((pc_a + (pc_b - pc_a))%a = Some pc_b) as Hlea;[solve_addr|].
+    assert ((pc_b + UNSEALING_USER_KEY_OFFSET)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a) as Hpc_bn
+    ;[rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr|].
+    (* mov rdst PC; *)
+    iInstr "Hcode".
+    (* getb rscratch1 rdst; *)
+    iInstr "Hcode".
+    (* geta rscratch2 rdst; *)
+    iInstr "Hcode".
+    (* sub rscratch1 rscratch1 rscratch2; *)
+    iInstr "Hcode".
+    (* lea rdst rscratch1; *)
+    iInstr "Hcode".
+    (* lea rdst UNSEALING_USER_KEY_OFFSET; *)
+    iInstr "Hcode".
+    (* load rdst rdst; *)
+    iInstr "Hcode".
+    { rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr. }
+    (* unseal rdst rsealkey rscratch; *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_unseal_unknown' with "[$HPC $Hi $Hrdst $Hrsealkey]"); try solve_pure.
+    iIntros "!>" (ret) "[-> | (% & % & % & % & % & %wsb & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec)]".
+    { wp_pure; wp_end; iIntros "%Hcontr";done. }
+    rewrite spec in Hnot_sealed_with_kvs_otype.
+    rewrite /kvs_service_unsealing_key /load_word //= in Heq; simplify_eq.
+    cbn in Hnot_sealed_with_kvs_otype.
+    by rewrite Z.eqb_neq in Hnot_sealed_with_kvs_otype.
+  Qed.
+
   Lemma KVS_getFullKey_spec_safe
     (Wskey W : WORLD) (C : CmptName)
     (pc_b pc_e pc_a : Addr)

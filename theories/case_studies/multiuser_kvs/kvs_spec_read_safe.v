@@ -4,7 +4,7 @@ From griotte Require Import logrel rules.
 From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
 From griotte Require Import switcher_preamble switcher_spec_return.
 From griotte Require Import
-  switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
+  switcher kvs kvs_preamble kvs_spec_check_uint16 kvs_spec_read.
 
 Section KVS_spec_read_safe.
   Context
@@ -20,243 +20,6 @@ Section KVS_spec_read_safe.
   .
 
   (*** Specification from unknown *)
-  Lemma KVS_read_spec_safe_pre
-    (Wca0 W : WORLD) (C : CmptName)
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-    (wret wca0 wca1 : Word)
-    (m : kvs_map) (s : kvs_alloc)
-    ( E : coPset )
-    :
-
-    ↑Nkvs_otype ⊆ E ->
-
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
-    (cgp_b + length kvs_data)%a = Some cgp_e ->
-
-    related_sts_priv_world Wca0 W ->
-
-    ( (* initial register file *)
-      na_own cerise_nais E ∗
-      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ wca0 ∗ interp Wca0 C wca0 ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ wca1 ∗ (* Key to update *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
-
-      (* initial memory layout *)
-      codefrag pc_a kvs_read_instrs ∗
-      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-
-      ▷ isKVS cgp_b m s ∗
-      ▷ seal_pred KVS_OTYPE kvs_otype_propC ∗
-
-      world_interp W C ∗
-
-      ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-
-         cra ↦ᵣ - ∗
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
-         ctp ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ - ∗
-
-         codefrag pc_a kvs_read_instrs ∗
-         (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-
-         isKVS cgp_b m s ∗
-         (
-           (* THE KEY WAS FOUND *)
-           (∃ w, ca0 ↦ᵣ WInt ASM_TRUE ∗ ca1 ↦ᵣ w ∗ interp W C w)
-           ∨ (* THE KEY WAS NOT FOUND *)
-           (ca0 ↦ᵣ WInt ASM_FALSE ∗ ca1 ↦ᵣ WInt 0 )
-         ) ∗
-
-         world_interp W C
-
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-        )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
-  Proof.
-    iIntros (HN HsubBounds Hcgp_contiguous Hrelated_Wca0_W)
-      "(Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0 & Hca1 & Hct1 & Hct2 & Hctp & [%wcnull Hcnull] &
-        Hcode & Ha_unsealing & HKVS & #Hspred & Hworld & Hpost)".
-    codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
-
-    (* --------------------------------------------------- *)
-    (* ----------------- Start the proof ----------------- *)
-    (* --------------------------------------------------- *)
-    rewrite /kvs_read_instrs /assembled_kvs_read.
-    rewrite -/(kvs_getFullKey ctp ca0 ca1 ct1 ct2).
-    rewrite -/(kvs_search ca0 ctp ct1 ct2).
-    rewrite -/(kvs_check_uint16 ca1 ct1).
-
-    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (KVS_check_uint16_spec with "[- $HPC $Hca1 $Hct1 $Hcode]"); eauto;iNext.
-    iIntros (nkey) "(-> & HPC & Hca1 & Hcode & Hct1)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-
-    focus_block 1 "Hcode" as a_check_uint Ha_check_uint "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iDestruct "Hct1" as "[ (Hct1 & %Hnkey_uint16) | (Hct1 & %Hnkey_uint16)]"; cycle 1.
-    {
-      (* jnz (".read_not_uint16")%asm ct1; *)
-      iInstr "Hcode".
-      (* mov ca0 ASM_FALSE; *)
-      iInstr "Hcode".
-      (* mov ca1 0; *)
-      iInstr "Hcode".
-      (* jalr cnull cra; *)
-      iInstr "Hcode".
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-      destruct (decide (ca0 = cnull)) as [|_]; first done.
-      iApply "Hpost"; iFrame.
-    }
-    (* jnz (".read_not_uint16")%asm ct1; *)
-    iInstr "Hcode".
-    (* jmp (".read_uint16_check_pass")%asm; *)
-    iInstr "Hcode".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-
-    focus_block 2 "Hcode" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcont" as hcont
-    ; clear dependent Ha_check_uint.
-
-    iApply (KVS_getFullKey_spec_safe with
-             "[- $HPC $Hctp $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Hcode $Hspred $Hworld]")
-    ; eauto; iNext.
-    iIntros (s' l_user_key user_key_addr user_key)
-      "(-> & %Hbounds_uk & %Hbounds_a_user_key & HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2
-      & Ha_unsealing & Hcode & Ha_user_key & Hres_open & Halloc & Hkvs_frags & Hworld)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-
-    focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
-    iInstr "Hcode" with "Hlc".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-
-    focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
-    assert ( wf_kvs_full_key user_key nkey) as Hwk_fkey by (split; auto; lia).
-
-    destruct ( decide ( nkey ∈ s' ) ) as [Hfkey_in_s|Hfkey_notin_s].
-    (* The key has already been allocated *)
-    - iDestruct (big_sepS_elem_of_acc with "Hkvs_frags")
-        as "[ [%w [ [%idx Hkvs_frag] Hinterp_w] ] Hkvs_frags]"
-      ; eauto; iEval (cbn) in "Hkvs_frag".
-      iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
-      { rewrite /withinBounds; solve_addr. }
-      iNext; iIntros "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & HKVS & Hcgp_opt & Hcgp_key & Hcgp_val & Hkvs_frag & %Hcgp_idx & Hcode)".
-      iDestruct (isKVS_open_valid with "HKVS Hkvs_frag") as "%Hm_idx".
-      iDestruct (isKVS_open_indom_idx with "HKVS") as "%Hidx".
-      { by apply elem_of_dom_2 in Hm_idx. }
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-
-      focus_block 5 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
-      (* Sub ct1 ct1 (-1) *)
-      iInstr "Hcode".
-      (* Jnz 5 ct1 *)
-      iInstr "Hcode".
-      { injection; intros; lia. }
-      (* Lea cgp 1 *)
-      iInstr "Hcode".
-      { transitivity ( Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx Hidx. }
-      (* Load ca1 cgp *)
-      iInstr "Hcode".
-      { split; done. }
-      iEval (cbn) in "Hca1".
-      (* Mov ca1 0 *)
-      iInstr "Hcode".
-      (* Jalr cnull cra *)
-      iInstr "Hcode".
-      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-
-      iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val]") as "HKVS";eauto.
-      { iFrame. }
-      iAssert (interp W C w) as "#Hsafe_w".
-      { iApply "Hinterp_w"; iPureIntro; cbn; apply related_sts_priv_refl_world. }
-
-      iDestruct ("Hkvs_frags" with "[$Hkvs_frag $Hinterp_w]") as "Hkvs_frags".
-
-      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)))))
-        with "[Ha_user_key Halloc Hkvs_frags]"
-        as "HP".
-      { iExists user_key, user_key_addr, s'; iFrame "∗ %".
-        iPureIntro; auto.
-      }
-      iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
-      iApply "Hpost"; iFrame.
-      iLeft; iFrame "∗#".
-
-    (* The key has never been allocated *)
-    - iApply (KVS_search_spec_empty_slot with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HKVS $Halloc $Hcode]"); eauto.
-      { rewrite /withinBounds; solve_addr. }
-      iNext; iIntros "[
-      (%idx_empty & HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & Halloc & HKVS
-      & Hcgp_opt & Hcgp_key & Hcgp_val & Hfkey & %Hcgp_bounds & %Hidx_empty & Hcode)
-      | (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & Halloc & HKVS & Hcode) ]".
-      all: subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-
-      + (* No empty found *)
-
-        focus_block 5 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
-        (* sub ctp ctp (-1)%Z; *)
-        iInstr "Hcode".
-        replace (-1 - -1)%Z with 0%Z by lia.
-        (* jnz (".read_key_found")%asm ctp; *)
-        iInstr "Hcode".
-        (* mov ca0 ASM_FALSE; *)
-        iInstr "Hcode".
-        (* mov ca1 0; *)
-        iInstr "Hcode".
-        (* jmp (".read_key_ret")%asm; *)
-        iInstr "Hcode".
-        (* jalr cnull cra *)
-        iInstr "Hcode".
-        subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-
-        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)))))
-        with "[Ha_user_key Halloc Hkvs_frags]"
-        as "HP".
-        { iExists user_key, user_key_addr, s'; iFrame "∗ %".
-          iPureIntro; auto.
-        }
-        iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
-        iDestruct (isKVS_open_valid_None with "HKVS Hfkey") as "%".
-        iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val Hfkey]") as "HKVS";eauto.
-        { iFrame. }
-        iApply "Hpost"; iFrame.
-
-      + (* Empty found, but it does not matter here *)
-        focus_block 5 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
-        (* sub ctp ctp (-1)%Z; *)
-        iInstr "Hcode".
-        replace (-1 - -1)%Z with 0%Z by lia.
-        (* jnz (".read_key_found")%asm ctp; *)
-        iInstr "Hcode".
-        (* mov ca0 ASM_FALSE; *)
-        iInstr "Hcode".
-        (* mov ca1 0; *)
-        iInstr "Hcode".
-        (* jmp (".read_key_ret")%asm; *)
-        iInstr "Hcode".
-        (* jalr cnull cra *)
-        iInstr "Hcode".
-        subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-
-        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key user_key_addr)))))
-        with "[Ha_user_key Halloc Hkvs_frags]"
-        as "HP".
-        { iExists user_key, user_key_addr, s'; iFrame "∗ %".
-          iPureIntro; auto.
-        }
-        iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
-
-        iApply "Hpost"; iFrame.
-  Qed.
-
   Lemma KVS_read_spec_safe
     (Wca0 W : WORLD) (C : CmptName)
     (wret wca0 wca1 : Word)
@@ -302,10 +65,10 @@ Section KVS_spec_read_safe.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     iIntros (Hnkvs_E Hnkvs_otype_E Hrelated_Wca0_W)
-      "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hinterp_ca0
+      "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
       & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Hworld & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%m & %s & >Himports & >Hcode & HisKVS & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (%m & %s & >Himports & >Hcode & HKVS & #Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
@@ -321,21 +84,104 @@ Section KVS_spec_read_safe.
 
     rewrite /kvs_service_instrs.
     focus_block_nochangePC 1 "Hcode" as a_read Ha_read "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    assert (a_read = kvs_read_pcc_addr)
-      as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
-    iApply (KVS_read_spec_safe_pre with "[- $HPC]"); last iFrame "∗#"; eauto.
-    { pose proof Nkvs_namespaces_disjoint as (?&?&?); solve_ndisj. }
-    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hct1 & Hct2 & Hctp & Hcnull
-     & Hcode & Ha_unsealing & HKVS & Hres & Hworld)".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+    assert (a_read = kvs_read_pcc_addr) as -> by (rewrite /kvs_read_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_read).
 
-    iDestruct "Hres" as "[ (%w & Hca0 & Hca1 & Hinterp_w) | (Hca0 & Hca1) ]".
-    all: iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HKVS $Hspred]") as "Hna"
-    ; last ( iApply "Hpost"; iFrame); try (iLeft; iFrame).
-    all: iNext.
-    all: iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
-    all: iApply (region_pointsto_cons with "[Ha_unsealing]"); eauto; [solve_addr+|]; iFrame.
-    all: rewrite /region_pointsto finz_seq_between_empty; auto; solve_addr+.
+
+    (* Destruct validity map key *)
+    destruct (decide (word_is_uint16 wca1)) as [Hwca1_uint16|Hwca1_uint16]; cycle 1.
+    { (* the map key argument is not a uint16 *)
+      iApply KVS_read_spec_not_uint16_map_key; eauto; iFrame.
+      iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull & Hcode)".
+      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+      iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HKVS $Hspred]") as "Hna"
+      ; last ( iApply "Hpost"; iFrame); try (iLeft; iFrame).
+      iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
+      iApply (region_pointsto_cons with "[Ha_unsealing]"); eauto; [solve_addr+|]; iFrame.
+      rewrite /region_pointsto finz_seq_between_empty; auto; solve_addr+.
+    }
+    destruct wca1 as [nkey| | | ]; cbn in Hwca1_uint16; try done.
+
+
+    (* Destruct validity user key *)
+    destruct ( is_sealed_with_o wca0 KVS_OTYPE ) eqn:Hwca0_sealed_with_kvs_ot; cycle 1.
+    { (* the user key argument is not a valid sealed user key *)
+      iApply KVS_read_spec_invalid_sealed_user_key; eauto; iFrame.
+    }
+    (* The inputs are valid. *)
+    rewrite /is_sealed_with_o in Hwca0_sealed_with_kvs_ot.
+    destruct wca0 as [ | | | ot wsb ]; try done.
+    rewrite Z.eqb_eq in Hwca0_sealed_with_kvs_ot.
+    assert (ot = KVS_OTYPE) by solve_addr+Hwca0_sealed_with_kvs_ot; simplify_eq.
+
+
+    (* Open sealing predicate of sealed user key *)
+    iDestruct (monotone.interp_monotone_sd with "[] Hinterp_wca0") as "Hinterp_wca0_W"; auto.
+    iEval (rewrite fixpoint_interp1_eq /= /interp_sb) in "Hinterp_wca0".
+    iAssert (▷ sts_seals_std C KVS_OTYPE {[WSealable wsb]})%I as "#Hinterp_wca0'".
+    { iApply sts_seals_std_weaken; last iFrame "Hinterp_wca0"; last set_solver+. }
+    iAssert (▷ world_interp W C)%I with "Hworld" as "Hworld".
+
+    iDestruct (sopen_world_interp_singleton with "Hspred Hinterp_wca0' Hworld")
+                as "(Hworld & Hres_open & HP)".
+    rewrite /kvs_otype_propC /= /kvs_otype_prop //= /kvs_otype_inv.
+    iDestruct "HP" as "(%ku & %a & %s' & Heq_sb & Hku & Hbounds & Ha & Halloc & Hfkeys)".
+
+    (* Either the map key is already allocated, or it is not *)
+    destruct ( decide (nkey ∈ s') ) as [Hs' | Hs'].
+    - iDestruct (big_sepS_elem_of_acc with "Hfkeys")
+        as "[ [%w [ [%idx Hkvs_frag] #Hinterp_w] ] Hfkeys]"
+      ; eauto; iEval (cbn) in "Hkvs_frag".
+      iApply KVS_read_spec_in_pre_gen; last iFrame; eauto.
+      iNext; iNext.
+      iIntros "(%Heq_sb & %Hku & %Hbounds
+                & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Hcode
+                & Ha_unsealing & Ha & HKVS & Hkvs_frag)".
+      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+      destruct wsb as [ ? l_user_key ? ? ? | ]; cbn in Hbounds; simplify_eq.
+      iDestruct ("Hfkeys" with "[$Hkvs_frag $Hinterp_w]") as "Hfkeys".
+
+      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
+        with "[Ha Halloc Hfkeys]"
+        as "HP".
+      { iFrame "∗%"; iPureIntro; auto. }
+      iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
+
+      iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HKVS $Hspred]") as "Hna".
+      {
+        iNext.
+        iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
+        iApply (region_pointsto_cons with "[Ha_unsealing]"); eauto; [solve_addr+|]; iFrame.
+        rewrite /region_pointsto finz_seq_between_empty; auto; solve_addr+.
+      }
+      iApply "Hpost"; iFrame.
+      iLeft; iFrame.
+      iApply "Hinterp_w".
+      iPureIntro; apply related_sts_priv_refl_world.
+
+    - iApply KVS_read_spec_notin_pre_gen; last iFrame; eauto.
+      iNext; iNext.
+      iIntros "(%Heq_sb & %Hku & %Hbounds
+                & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Hcode
+                & Ha_unsealing & Ha & HKVS & Halloc)".
+      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+      destruct wsb as [ ? l_user_key ? ? ? | ]; cbn in Hbounds; simplify_eq.
+
+      iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
+        with "[Ha Halloc Hfkeys]"
+        as "HP".
+      { iFrame "∗%"; iPureIntro; auto. }
+      iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
+
+      iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HKVS $Hspred]") as "Hna".
+      {
+        iNext.
+        iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
+        iApply (region_pointsto_cons with "[Ha_unsealing]"); eauto; [solve_addr+|]; iFrame.
+        rewrite /region_pointsto finz_seq_between_empty; auto; solve_addr+.
+      }
+      iApply "Hpost"; iFrame.
   Qed.
 
 
