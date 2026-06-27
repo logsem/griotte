@@ -32,6 +32,7 @@ Section KVS_main_spec.
 
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
+    (static_sealed_b static_sealed_e : Addr)
     (csp_b csp_e : Addr)
     (rmap : Reg)
     (KVS_USER_KEY_MAIN : Z)
@@ -48,7 +49,7 @@ Section KVS_main_spec.
     :
 
     let imports :=
-      kvs_main_imports KVS_USER_KEY_MAIN b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f
+      kvs_main_imports static_sealed_b b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f
     in
 
     Nswitcher ## Nassert ->
@@ -59,6 +60,7 @@ Section KVS_main_spec.
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
 
+    (static_sealed_b + length (kvs_main_static_sealed KVS_USER_KEY_MAIN))%a = Some static_sealed_e ->
     (cgp_b + length (kvs_main_data))%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
@@ -85,6 +87,7 @@ Section KVS_main_spec.
       [[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗
       codefrag pc_a kvs_main_code ∗
       [[ cgp_b , cgp_e ]] ↦ₐ [[ (kvs_main_data) ]] ∗
+      [[ static_sealed_b , static_sealed_e ]] ↦ₐ [[ kvs_main_static_sealed KVS_USER_KEY_MAIN ]] ∗
 
       ◯(ALLOC)[KVS_USER_KEY_MAIN] ∅ ∗
       world_interp W0 B ∗
@@ -100,13 +103,13 @@ Section KVS_main_spec.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_assert HKVS_USER_KEY_MAIN Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hframe_match
+               Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hframe_match
             )
       "(#Hassert & #Hswitcher
       & #Hkvs & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_addOrUpdate & #Hkvs_exp_tbl_read
       & Hna
       & HPC & Hcgp & Hcsp & Hrmap
-      & Himports_main & Hcode_main & Hcgp_main
+      & Himports_main & Hcode_main & Hcgp_main & Hstatic_sealed_main
       & Halloc
       & Hworld_B
       & HK & Hcstk_frag
@@ -115,6 +118,8 @@ Section KVS_main_spec.
       & #Hinterp_W0_csp
       )".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
+    assert (withinBounds static_sealed_b (static_sealed_b ^+ 1)%a static_sealed_b = true)
+      as Hstatic_sealed_b by solve_addr.
     (* --- Extract registers ca0 ca1 ct0 ctp ct1 ct2 ct3 cs0 cs1 --- *)
     iExtractList "Hrmap" [cra;ca0;ca1;ca2;ctp;ct0;ct1;cs0;cs1]
       as ["Hcra"; "Hca0"; "Hca1"; "Hca2"; "Hctp"; "Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
@@ -141,6 +146,9 @@ Section KVS_main_spec.
     (* Extract the sealed user key *)
     iDestruct (region_pointsto_single with "Himports_main") as "(% & Himport_sealed_user_key & %Heq)"; simplify_eq.
     { rewrite /SEALED_USER_KEY_OFFSET ; rewrite /kvs_main_imports //= in Himports_contiguous ; solve_addr + Himports_contiguous. }
+    (* Extract the static sealed user key address  *)
+    iDestruct (region_pointsto_single with "Hstatic_sealed_main") as "(% & Hstatic_sealed_b & %Heq')" ; last (rewrite /kvs_main_static_sealed in Heq' ; simplify_eq).
+    { rewrite /kvs_main_static_sealed //= in Hstatic_sealed_contiguous. }
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
@@ -213,7 +221,7 @@ Section KVS_main_spec.
 
     (* Use switcher call KtK *)
     set ( rmap_arg :=
-           {[ ca0 := kvs_user_seal_key Global KVS_USER_KEY_MAIN;
+           {[ ca0 := kvs_user_seal_key Global static_sealed_b;
               ca1 := WInt 1%nat;
               ca2 := WInt 12%nat;
               ca3 := wca3;
@@ -279,7 +287,7 @@ Section KVS_main_spec.
     destruct ( decide (ca1 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
     destruct ( decide (ca2 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
     destruct ( decide (ca3 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [|_]; first done.
-    assert (wca0 = kvs_user_seal_key Global KVS_USER_KEY_MAIN) as -> by (subst rmap_arg ; simplify_map_eq; done).
+    assert (wca0 = kvs_user_seal_key Global static_sealed_b) as -> by (subst rmap_arg ; simplify_map_eq; done).
     assert (wca1 = WInt 1%nat) as -> by (subst rmap_arg ; simplify_map_eq; done).
     assert (wca2 = WInt 12%nat) as -> by (subst rmap_arg ; simplify_map_eq; done).
     simplify_eq.
@@ -308,13 +316,13 @@ Section KVS_main_spec.
 
     (* Use spec addOrUpdate known *)
     iApply (KVS_add_spec
-      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull $Halloc]")
+      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull $Hstatic_sealed_b $Halloc]")
     ; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     { set_solver+. }
     iNext;
       iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & Hca1 & [% Hca2]
-                    & [% Hctp] & [% Hct1] & [% Hct2] & [% Hcnull] & Hres)".
+                    & [% Hctp] & [% Hct1] & [% Hct2] & [% Hcnull] & Hstatic_sealed_b & Hres)".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
 
     iInsertList "Hrmap" [ctp;ct1;ct2;cnull;ca2;ca3;ca4;ca5;ct0].
@@ -549,7 +557,7 @@ Section KVS_main_spec.
     (* Use switcher call KtK *)
     clear rmap_arg.
     set ( rmap_arg :=
-           {[ ca0 := kvs_user_seal_key Global KVS_USER_KEY_MAIN;
+           {[ ca0 := kvs_user_seal_key Global static_sealed_b;
               ca1 := WInt 1%nat;
               ca2 := wca2;
               ca3 := wca0;
@@ -614,7 +622,7 @@ Section KVS_main_spec.
     iClear "Hargs".
     destruct ( decide (ca0 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
     destruct ( decide (ca1 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
-    assert (wca7 = kvs_user_seal_key Global KVS_USER_KEY_MAIN) as -> by (subst rmap_arg ; simplify_map_eq; done).
+    assert (wca7 = kvs_user_seal_key Global static_sealed_b) as -> by (subst rmap_arg ; simplify_map_eq; done).
     assert (wca8 = WInt 1%nat) as -> by (subst rmap_arg ; simplify_map_eq;done).
     simplify_eq.
 
@@ -640,12 +648,12 @@ Section KVS_main_spec.
 
     (* Use spec readOrUpdate known *)
     iApply (KVS_read_spec_in
-      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcnull $Hfkey]")
+      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcnull $Hstatic_sealed_b $Hfkey]")
     ; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     iNext;
       iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & Hca0 & Hca1
-                & [% Hct1] & [% Hct2] & [% Hctp] & [% Hcnull] & Hfkey)".
+                & [% Hct1] & [% Hct2] & [% Hctp] & [% Hcnull] & Hstatic_sealed_b & Hfkey)".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
 
     iInsertList "Hrmap" [ct1;ct2;ctp;cnull;ca2;ca3;ca4;ca5;ct0].
