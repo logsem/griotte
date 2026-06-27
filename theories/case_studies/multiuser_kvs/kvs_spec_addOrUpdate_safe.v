@@ -91,6 +91,7 @@ Section KVS_spec_addOrUpdate_safe.
     rewrite Z.eqb_eq in Hwca0_sealed_with_kvs_ot.
     assert (ot = KVS_OTYPE) by solve_addr+Hwca0_sealed_with_kvs_ot; simplify_eq.
 
+
     (* Open sealing predicate of sealed user key *)
     iDestruct (monotone.interp_monotone_sd with "[] Hinterp_wca0") as "Hinterp_wca0_W"; auto.
     iEval (rewrite fixpoint_interp1_eq /= /interp_sb) in "Hinterp_wca0".
@@ -106,7 +107,7 @@ Section KVS_spec_addOrUpdate_safe.
     (* Either the map key is already allocated, or it is not *)
     destruct (s' !! nkey)  as [ w | ] eqn:Hnkey.
     - iDestruct (big_sepM_delete with "Hfkeys")
-        as "[ [ [%idx Hkvs_frag] #Hinterp_w] Hfkeys]"
+        as "[ [ Hkvs_frag #Hinterp_w] Hfkeys]"
       ; eauto; iEval (cbn) in "Hkvs_frag".
       iApply KVS_update_spec; last iFrame "∗#"; eauto.
       iNext.
@@ -140,7 +141,7 @@ Section KVS_spec_addOrUpdate_safe.
            | (Hca0 & Halloc)
          ]".
       + iDestruct ( big_sepM_insert with "[Hkvs_frag $Hfkeys]") as "Hfkeys";eauto.
-        { iSplit; first (iExists idx; iFrame).
+        { iSplit; first iFrame.
           cbn; iIntros (W' Hrelated_W_W').
           iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
           + eapply related_sts_priv_trans_world; eauto.
@@ -178,6 +179,7 @@ Section KVS_spec_addOrUpdate_safe.
     seal_pred KVS_OTYPE kvs_otype_propC ∗
     na_inv cerise_nais Nkvs kvs_inv ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
+    seal_pred KVS_OTYPE kvs_otype_propC ∗
     inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
     inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
     inv (export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr)
