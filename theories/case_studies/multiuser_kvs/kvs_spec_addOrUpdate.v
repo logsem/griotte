@@ -161,7 +161,7 @@ Section KVS_spec_addOrUpdate.
 
     iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val]") as "HKVS";eauto.
     { by simplify_map_eq. }
-    { iFrame. }
+    { iApply destruct_isKVS_entry; first solve_addr; iFrame. }
 
     iApply "Hpost"; iFrame "∗%"; done.
   Qed.
@@ -436,7 +436,7 @@ Section KVS_spec_addOrUpdate.
       iMod (isKVS_open_insert _ _ _ _ _ _ _ wca2 with "HKVS Halloc Hfkey") as "(HKVS & Halloc & Hfkey)"; eauto.
       iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val]") as "HKVS";eauto.
       { by simplify_map_eq. }
-      { iFrame. }
+      { iApply destruct_isKVS_entry; first solve_addr; iFrame. }
 
       iApply "Hpost"; iFrame "∗%".
       iLeft ; iFrame; done.
