@@ -139,7 +139,7 @@ Section KVS_spec_read.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val]") as "HKVS";eauto.
-    { iFrame. }
+    { iApply destruct_isKVS_entry; first solve_addr; iFrame. }
     iApply "Hpost"; iFrame "∗%".
   Qed.
 
@@ -349,7 +349,7 @@ Section KVS_spec_read.
 
         iDestruct (isKVS_open_valid_None with "HKVS Hfkey") as "%".
         iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val Hfkey]") as "HKVS";eauto.
-        { iFrame. }
+        { iApply destruct_isKVS_entry; first solve_addr; iFrame. }
         iApply "Hpost"; iFrame "∗%"; done.
 
       + (* Empty found, but it does not matter here *)

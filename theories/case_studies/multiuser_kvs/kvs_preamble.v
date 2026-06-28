@@ -93,18 +93,114 @@ Section KVS_preamble.
   Definition wf_kvs_map (m : kvs_map) : Prop :=
     dom m = kvs_dom ∧ NoDup (kvs_keys m).
 
-  Definition isKVS_entry (a : Addr) (idx : nat) (opt_kw : option (Z * Word)) : iProp Σ :=
+  Definition option_pair_ASM (opt_kw : kvs_entry) (wuk wmk : Word) :=
     match opt_kw with
-    | None =>
-        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_NONE ∗
-        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 1))%a ↦ₐ - ∗
-        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 2))%a ↦ₐ - ∗
-        idx ⤇(KVS) NONE
-    | Some (k, w) =>
-        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_SOME ∗
-        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 1))%a ↦ₐ WInt k ∗
-        (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx + 2))%a ↦ₐ w
+    | None => [WInt ASM_NONE; wuk; wmk]
+    | Some (k, w) => [ WInt ASM_SOME; WInt k; w]
     end.
+
+  Definition isKVS_entry (a : Addr) (idx : nat) (opt_kw : kvs_entry) : iProp Σ :=
+    ∃ (wuk wmk : Word),
+    [[ (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a, (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a ]]
+      ↦ₐ [[ option_pair_ASM opt_kw wuk wmk ]]
+    ∗ (match opt_kw with | None => idx ⤇(KVS) NONE | Some _ => True end).
+
+  Lemma destruct_isKVS_entry_Some (a : Addr) (idx : nat) (k : Z) (w : Word) :
+  (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
+  = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
+    ->
+
+    isKVS_entry a idx (Some (k, w)) ⊣⊢
+    ( (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_SOME ∗
+      (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a ↦ₐ WInt k ∗
+      (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a ↦ₐ w).
+  Proof.
+    intros H.
+    iSplit; iIntros "H".
+    - iDestruct "H" as "(%&%&H&_)".
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a with "H") as
+        "[$ H]"; try solve_addr.
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a with "H") as
+        "[$ H]"; try solve_addr.
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3))%a with "H") as
+        "[$ H]"; try solve_addr.
+    - iDestruct "H" as "(?&?&?)".
+      iExists (WInt 0), (WInt 0).
+      iSplit; last done.
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a)
+      ; [solve_addr | solve_addr | iFrame].
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a)
+      ; [solve_addr | solve_addr | iFrame].
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3))%a)
+      ; [solve_addr | solve_addr | iFrame].
+      rewrite /region_pointsto.
+      rewrite finz_seq_between_empty; done.
+  Qed.
+
+  Lemma destruct_isKVS_entry_None (a : Addr) (idx : nat) :
+  (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
+  = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
+    ->
+
+    isKVS_entry a idx None ⊣⊢
+    ( (∃ wuk wmk,
+        ( (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_NONE ∗
+          (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a ↦ₐ wuk ∗
+          (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a ↦ₐ wmk))
+    ∗ idx ⤇(KVS) NONE).
+  Proof.
+    intros H.
+    iSplit; iIntros "H".
+    - iDestruct "H" as "(%&%&H&$)".
+      iExists wuk, wmk.
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a with "H") as
+        "[$ H]"; try solve_addr.
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a with "H") as
+        "[$ H]"; try solve_addr.
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3))%a with "H") as
+        "[$ H]"; try solve_addr.
+    - iDestruct "H" as "[  (%wuk&%wmk&?&?&?) $]".
+      iExists wuk, wmk.
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a)
+      ; [solve_addr | solve_addr | iFrame].
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a)
+      ; [solve_addr | solve_addr | iFrame].
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3))%a)
+      ; [solve_addr | solve_addr | iFrame].
+      rewrite /region_pointsto.
+      rewrite finz_seq_between_empty; done.
+  Qed.
+
+  Lemma destruct_isKVS_entry (a : Addr) (idx : nat) (opt_kw : kvs_entry) :
+  (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
+  = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
+    ->
+
+    isKVS_entry a idx opt_kw ⊣⊢
+        ( (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a
+            ↦ₐ ( match opt_kw with | None => WInt ASM_NONE | Some _ => WInt ASM_SOME end )
+          ∗
+          ( match opt_kw with
+            | None => (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a ↦ₐ -
+            | Some (k,_) => (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a ↦ₐ WInt k
+            end )
+          ∗
+          ( match opt_kw with
+            | None => (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a ↦ₐ -
+            | Some (_,w) => (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a ↦ₐ w
+            end )
+          ∗ (match opt_kw with | None => idx ⤇(KVS) NONE | Some _ => True end)
+        ).
+  Proof.
+    intros H.
+    destruct opt_kw as [ [k w] |]; cbn.
+    - rewrite destruct_isKVS_entry_Some; auto.
+      iSplit; [iIntros "($&$&$)"| iIntros "($&$&$&_)"].
+    - rewrite destruct_isKVS_entry_None; auto.
+      iSplit; iIntros "H"; eauto.
+      + iDestruct "H" as "[  (%&%&($&$&$)) $]".
+      + iDestruct "H" as "($ & [% $] & [% $] & $)".
+  Qed.
 
   Definition kvs_alloc_elem_of (s : kvs_alloc) (ku kn : Z) :=
     (∃ sk, s !! ku = Some sk ∧ kn ∈ sk).
@@ -374,25 +470,6 @@ Section KVS_preamble.
     rewrite kvs_keys_insert_None; auto.
   Qed.
 
-  (* Lemma NoDup_kvs_keys_insert *)
-  (*   (m : kvs_map) (idx : nat) (opt_kw : kvs_entry) : *)
-  (*   m !! idx = None -> *)
-  (*   NoDup (kvs_keys m) -> *)
-  (*   NoDup (kvs_keys (<[idx:= opt_kw]> m)). *)
-  (* Proof. *)
-  (*   destruct opt_kw as [ [??] | ]; intros Hidx Hnodup *)
-  (*   ; [ apply NoDup_kvs_keys_insert_Some | apply NoDup_kvs_keys_insert_None ]; auto. *)
-  (*   intros Hidx Hnodup. *)
-  (*   rewrite kvs_keys_insert_None; auto. *)
-  (* Qed. *)
-
-  (* Lemma kvs_keys_empty_slot (m : kvs_map) : EMPTY_SLOT ∉ kvs_keys m. *)
-  (* Proof. *)
-  (*   rewrite /kvs_keys. *)
-  (*   intros Hcontra. *)
-  (*   apply list_elem_of_filter in Hcontra as [? _]; done. *)
-  (* Qed. *)
-
   Definition kvs_map_init : kvs_map :=
     list_to_map ((fun n => (n, None)) <$> (seq 0 SIZE_MAP)).
 
@@ -480,6 +557,7 @@ Section KVS_preamble.
     rewrite {3}(_ : (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat))%a = b); last solve_addr.
     generalize 0 as k.
     induction SIZE_MAP; iIntros (k e Hbe) "Hmem Hfrags"; cbn; first done.
+
     specialize (IHn (S k)).
     iDestruct (big_sepM_insert with "Hfrags") as "[Hf Hfrags]".
     { apply not_elem_of_list_to_map.
@@ -497,10 +575,19 @@ Section KVS_preamble.
       apply elem_of_seq in Hcontra; cbn in *.
       lia.
     }
-    iDestruct (region_pointsto_cons _ (b ^+ ((ASM_SIZEOF_KVS_ENTRY * k)+1))%a with "Hmem") as "[Hb0 Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
-    iDestruct (region_pointsto_cons _ (b ^+ ((ASM_SIZEOF_KVS_ENTRY * k)+2))%a with "Hmem") as "[Hb1 Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
-    iDestruct (region_pointsto_cons _ (b ^+ ((ASM_SIZEOF_KVS_ENTRY * k)+ASM_SIZEOF_KVS_ENTRY))%a with "Hmem") as "[Hb2 Hmem]"; [solve_addr+Hbe|solve_addr+Hbe|].
-    iSplitL "Hf Hb0 Hb1 Hb2".
+
+    replace (WInt ASM_NONE :: WInt EMPTY_SLOT :: WInt DEFAULT_VAL :: _)
+      with (
+       [WInt ASM_NONE ; WInt EMPTY_SLOT ; WInt DEFAULT_VAL] ++
+         (repeat_list [WInt ASM_NONE; WInt EMPTY_SLOT; WInt DEFAULT_VAL] n)
+      ) by done.
+
+    iDestruct (region_pointsto_split
+                 (b ^+ ASM_SIZEOF_KVS_ENTRY * k)%a _ (b ^+ ((ASM_SIZEOF_KVS_ENTRY * k)+ASM_SIZEOF_KVS_ENTRY))%a
+                 with "Hmem") as "[Hasm_idx Hmem]"
+    ; [ solve_addr+Hbe | symmetry; apply finz_incr_iff_dist; solve_addr+Hbe | ].
+
+    iSplitL "Hf Hasm_idx".
     - iFrame.
     - iApply (IHn (b ^+ (ASM_SIZEOF_KVS_ENTRY * (k + (S n))))%a with "[Hmem] [$Hfrags]"); first solve_addr+Hbe.
       replace (b ^+ ASM_SIZEOF_KVS_ENTRY * S k)%a with (b ^+ (ASM_SIZEOF_KVS_ENTRY * k + ASM_SIZEOF_KVS_ENTRY))%a by solve_addr.

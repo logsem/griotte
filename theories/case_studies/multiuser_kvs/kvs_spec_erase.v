@@ -149,7 +149,7 @@ Section KVS_spec_erase.
 
     iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val Hkvs_frag]") as "HKVS";eauto.
     { by simplify_map_eq. }
-    { iFrame. }
+    { iApply destruct_isKVS_entry; first solve_addr; iFrame. }
 
     iApply "Hpost"; iFrame "∗%"; done.
   Qed.
@@ -363,7 +363,7 @@ Section KVS_spec_erase.
 
       iDestruct (isKVS_open_valid_None with "HKVS Hfkey") as "%".
       iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val Hfkey]") as "HKVS";eauto.
-      { iFrame. }
+      { iApply destruct_isKVS_entry; first solve_addr; iFrame. }
       iApply "Hpost"; iFrame "∗%"; done.
 
     + (* Empty found, but it does not matter here *)
