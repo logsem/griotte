@@ -205,21 +205,22 @@ Section KVS_spec_addOrUpdate.
       ▷ ◯↪KVS[ user_key ] m ∗
       ▷ nkey ↦(KVS)[user_key] - ∗
 
-      ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
-         ca1 ↦ᵣ WInt 0 ∗
-         ca2 ↦ᵣ - ∗
-         ctp ↦ᵣ - ∗ (* scratch *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ - ∗
-         user_key_addr ↦ₐ WInt user_key ∗
+      ▷ ( ⌜ canStore RW wca2 = true ⌝ ∗
+          na_own cerise_nais E ∗
+          PC ↦ᵣ updatePcPerm wret ∗
+          cgp ↦ᵣ - ∗
+          cra ↦ᵣ - ∗
+          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
+          ca1 ↦ᵣ WInt 0 ∗
+          ca2 ↦ᵣ - ∗
+          ctp ↦ᵣ - ∗ (* scratch *)
+          ct1 ↦ᵣ - ∗ (* scratch *)
+          ct2 ↦ᵣ - ∗ (* scratch *)
+          cnull ↦ᵣ - ∗
+          user_key_addr ↦ₐ WInt user_key ∗
 
-         ◯↪KVS[ user_key ] (<[nkey := wca2]> m) ∗
-         nkey ↦(KVS)[user_key] wca2
+          ◯↪KVS[ user_key ] (<[nkey := wca2]> m) ∗
+          nkey ↦(KVS)[user_key] wca2
 
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -302,8 +303,7 @@ Section KVS_spec_addOrUpdate.
       ▷ isKVS cgp_b mkvs lm ∗
       ▷ ◯↪KVS[ user_key ] m ∗
 
-      ▷ (
-          PC ↦ᵣ updatePcPerm wret ∗
+      ▷ (PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca1 ↦ᵣ WInt 0 ∗
@@ -470,7 +470,7 @@ Section KVS_spec_addOrUpdate.
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
       iApply "Hpost"; iFrame "∗%".
-      iRight ; iFrame; done.
+      iRight ; iFrame.
   Qed.
 
   Lemma KVS_add_spec
@@ -560,9 +560,7 @@ Section KVS_spec_addOrUpdate.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
       as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
     iApply (KVS_add_spec_pre with "[- $HPC]"); last iFrame "∗#%"; eauto.
-    iSplit; first done.
-    iNext ; iIntros "( % & % & %
-              & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+    iNext ; iIntros "(HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
               & Hcnull & Hcode & Ha_unsealing & Ha_user_key &
               [ (%idx & % & Hca0 & HKVS & Halloc & Hfkey) | (Hca0 & HKVS & Halloc) ]
               )".
@@ -711,8 +709,7 @@ Section KVS_spec_addOrUpdate.
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
-    (
-      (* initial register file *)
+    ((* initial register file *)
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
