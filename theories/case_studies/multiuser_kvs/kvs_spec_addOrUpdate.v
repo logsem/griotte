@@ -20,11 +20,11 @@ Section KVS_spec_addOrUpdate.
   .
 
   (*** KVS INSERT: Key in the KVS *)
-  Lemma KVS_update_spec_pre_gen
+  Lemma KVS_update_spec_pre
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret wca2 : Word)
-    (user_key nkey : Z) (wsb : Sealable) (user_key_addr : Addr)
+    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
     (idx : nat)
     (m : kvs_map) (s : kvs_alloc)
     :
@@ -32,20 +32,17 @@ Section KVS_spec_addOrUpdate.
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
+    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
-    (
-      ▷▷ ⌜ withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ⌝ ∗
-      ▷▷ ⌜ (0 <= user_key < MAX_USER_KEY)%Z ⌝ ∗
-      ▷▷ ⌜WSealable (force_global_sb wsb) = WSealable (kvs_user_seal_key_scap Global user_key_addr)⌝ ∗
-
-      (* initial register file *)
+    ((* initial register file *)
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ WSealed KVS_OTYPE wsb ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
       ca2 ↦ᵣ wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
@@ -56,16 +53,12 @@ Section KVS_spec_addOrUpdate.
       (* initial memory layout *)
       codefrag pc_a kvs_addOrUpdate_instrs ∗
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-      ▷▷ user_key_addr ↦ₐ WInt user_key ∗
+      user_key_addr ↦ₐ WInt user_key ∗
 
       ▷ isKVS cgp_b m s ∗
-      ▷▷ fkey ⤇(KVS)[idx] - ∗
+      ▷ fkey ⤇(KVS)[ idx ] - ∗
 
-      ▷▷ (
-          ⌜ withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ⌝ ∗
-          ⌜ (0 <= user_key < MAX_USER_KEY)%Z ⌝ ∗
-          ⌜WSealable (force_global_sb wsb) = WSealable (kvs_user_seal_key_scap Global user_key_addr)⌝ ∗
-          ⌜ canStore RW wca2 = true ⌝ ∗
+      ▷ ( ⌜ canStore RW wca2 = true ⌝ ∗
           PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -87,9 +80,8 @@ Section KVS_spec_addOrUpdate.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (HsubBounds His_uint16_nkey Hcgp_contiguous)
-      "(Hbounds_a_user_key & Hbounds_user_key & Heq_wsb
-        & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
+    iIntros (HsubBounds Hbounds_a_user_key Hbounds_user_key His_uint16_nkey Hcgp_contiguous)
+      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
         & Hcode & Ha_unsealing & Ha_user_key & HKVS & [%fkey_w Hkvs_frag] & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
@@ -112,10 +104,6 @@ Section KVS_spec_addOrUpdate.
     (* jmp (".addOrUpdate_uint16_check_pass")%asm; *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-    iDestruct "Heq_wsb" as "%Heq_wsb".
-    iDestruct "Hbounds_a_user_key" as "%Hbounds_a_user_key".
-    iDestruct "Hbounds_user_key" as "%Hbounds_user_key".
-    destruct wsb; simplify_eq.
 
     focus_block 2 "Hcode" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_check_uint.
@@ -178,75 +166,6 @@ Section KVS_spec_addOrUpdate.
     iApply "Hpost"; iFrame "∗%"; done.
   Qed.
 
-  Lemma KVS_update_spec_pre
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-    (wret wca2 : Word)
-    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
-    (idx : nat)
-    (m : kvs_map) (s : kvs_alloc)
-    :
-
-    let fkey := (kvs_full_key user_key nkey) in
-
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
-    (0 <= user_key < MAX_USER_KEY)%Z ->
-    is_uint16 nkey ->
-
-    (cgp_b + length kvs_data)%a = Some cgp_e ->
-
-    ((* initial register file *)
-      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
-      ca2 ↦ᵣ wca2 ∗ (* New value *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
-
-      (* initial memory layout *)
-      codefrag pc_a kvs_addOrUpdate_instrs ∗
-      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-      user_key_addr ↦ₐ WInt user_key ∗
-
-      ▷ isKVS cgp_b m s ∗
-      fkey ⤇(KVS)[ idx ] - ∗
-
-      ▷ (PC ↦ᵣ updatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
-         ca1 ↦ᵣ WInt 0 ∗
-         ca2 ↦ᵣ - ∗
-         ctp ↦ᵣ - ∗ (* scratch *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ - ∗
-         isKVS cgp_b (<[ idx := Some (fkey, wca2) ]> m) s ∗
-         fkey ⤇(KVS)[idx] wca2 ∗
-         codefrag pc_a kvs_addOrUpdate_instrs ∗
-         (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-         user_key_addr ↦ₐ WInt user_key
-
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-        )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
-  Proof.
-    intros fkey.
-    iIntros (HsubBounds Hbounds_a_user_key Hbounds_user_key His_uint16_nkey Hcgp_contiguous)
-      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
-        Hcode & Ha_unsealing & Ha_user_key & HKVS & Hkvs_frag & Hpost)".
-    iApply KVS_update_spec_pre_gen; eauto; iFrame "∗%".
-    iSplit; first (iPureIntro;done).
-    iNext;iNext.
-    iIntros "(%Heq_sb & %Hku & %Hbounds & % & Hres)".
-    iApply "Hpost"; iFrame.
-  Qed.
-
   Lemma KVS_update_spec
     (wret wca2 : Word)
     (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
@@ -277,22 +196,23 @@ Section KVS_spec_addOrUpdate.
 
       user_key_addr ↦ₐ WInt user_key ∗
 
-      fkey ⤇(KVS) - ∗
+      ▷ fkey ⤇(KVS) - ∗
 
-      ▷ (na_own cerise_nais E ∗
-         PC ↦ᵣ updatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
-         ca1 ↦ᵣ WInt 0 ∗
-         ca2 ↦ᵣ - ∗
-         ctp ↦ᵣ - ∗ (* scratch *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
-         cnull ↦ᵣ - ∗
-         user_key_addr ↦ₐ WInt user_key ∗
-         fkey ⤇(KVS) wca2
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+      ▷ ( ⌜ canStore RW wca2 = true ⌝ ∗
+          na_own cerise_nais E ∗
+          PC ↦ᵣ updatePcPerm wret ∗
+          cgp ↦ᵣ - ∗
+          cra ↦ᵣ - ∗
+          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
+          ca1 ↦ᵣ WInt 0 ∗
+          ca2 ↦ᵣ - ∗
+          ctp ↦ᵣ - ∗ (* scratch *)
+          ct1 ↦ᵣ - ∗ (* scratch *)
+          ct2 ↦ᵣ - ∗ (* scratch *)
+          cnull ↦ᵣ - ∗
+          user_key_addr ↦ₐ WInt user_key ∗
+          fkey ⤇(KVS) wca2
+          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -320,7 +240,7 @@ Section KVS_spec_addOrUpdate.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
       as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
     iApply (KVS_update_spec_pre with "[- $HPC]"); last iFrame; eauto.
-    iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+    iNext; iIntros "(%Hcan_store & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
               & Hcnull & HKVS & Hfkey & Hcode & Ha_unsealing & Ha_user_key)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
@@ -330,21 +250,23 @@ Section KVS_spec_addOrUpdate.
       iApply (region_pointsto_cons with "[Ha_unsealing]"); eauto; [solve_addr+|]; iFrame.
       rewrite /region_pointsto finz_seq_between_empty; auto; solve_addr+.
     }
-    iApply "Hpost"; iFrame.
+    iApply "Hpost"; iFrame; done.
   Qed.
 
   (*** KVS INSERT: Key not in the KVS *)
-  Lemma KVS_add_spec_pre_gen
+  Lemma KVS_add_spec_pre
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret wca2 : Word)
-    (user_key nkey : Z) (wsb : Sealable) (user_key_addr : Addr)
+    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
+    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -352,16 +274,11 @@ Section KVS_spec_addOrUpdate.
     nkey ∉ s' ->
 
     (
-      ▷▷ ⌜ withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ⌝ ∗
-      ▷▷ ⌜ (0 <= user_key < MAX_USER_KEY)%Z ⌝ ∗
-      ▷▷ ⌜WSealable (force_global_sb wsb) = WSealable (kvs_user_seal_key_scap Global user_key_addr)⌝ ∗
-
-
       (* initial register file *)
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ WSealed KVS_OTYPE wsb ∗ (* Sealed User Key *)
+      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
       ca2 ↦ᵣ wca2 ∗ (* New value *)
       ctp ↦ᵣ - ∗ (* scratch *)
@@ -372,15 +289,12 @@ Section KVS_spec_addOrUpdate.
       (* initial memory layout *)
       codefrag pc_a kvs_addOrUpdate_instrs ∗
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-      ▷▷ user_key_addr ↦ₐ WInt user_key ∗
+      user_key_addr ↦ₐ WInt user_key ∗
 
       ▷ isKVS cgp_b m s ∗
-      ▷▷ ◯(ALLOC)[user_key] s' ∗
+      ▷ ◯(ALLOC)[user_key] s' ∗
 
-      ▷▷ (
-          ⌜ withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ⌝ ∗
-          ⌜ (0 <= user_key < MAX_USER_KEY)%Z ⌝ ∗
-          ⌜WSealable (force_global_sb wsb) = WSealable (kvs_user_seal_key_scap Global user_key_addr)⌝ ∗
+      ▷ (
           PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -416,9 +330,8 @@ Section KVS_spec_addOrUpdate.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (HsubBounds His_uint16_nkey Hcgp_contiguous Hs')
-      "(Hbounds_a_user_key & Hbounds_user_key & Heq_wsb
-        & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & [%wctp Hctp] & Hct1 & Hct2 & [%wcnull Hcnull]
+    iIntros (HsubBounds Hbounds_a_user_key Hbounds_user_key His_uint16_nkey Hcgp_contiguous Hs')
+      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & [%wctp Hctp] & Hct1 & Hct2 & [%wcnull Hcnull]
         & Hcode & Ha_unsealing & Ha_user_key & HKVS & Halloc & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
@@ -440,10 +353,6 @@ Section KVS_spec_addOrUpdate.
     (* jmp (".addOrUpdate_uint16_check_pass")%asm; *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-    iDestruct "Heq_wsb" as "%Heq_wsb".
-    iDestruct "Hbounds_a_user_key" as "%Hbounds_a_user_key".
-    iDestruct "Hbounds_user_key" as "%Hbounds_user_key".
-    destruct wsb; simplify_eq.
 
     focus_block 2 "Hcode" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_check_uint.
@@ -530,7 +439,6 @@ Section KVS_spec_addOrUpdate.
       { iFrame. }
 
       iApply "Hpost"; iFrame "∗%".
-      iSplit; first done.
       iLeft ; iFrame; done.
 
     - (* No empty slot found *)
@@ -556,96 +464,9 @@ Section KVS_spec_addOrUpdate.
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
       iApply "Hpost"; iFrame "∗%".
-      iSplit; first done.
-      iRight ; iFrame.
+      iRight ; iFrame; done.
   Qed.
 
-
-  Lemma KVS_add_spec_pre
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-    (wret wca2 : Word)
-    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
-    (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
-    :
-
-    let fkey := (kvs_full_key user_key nkey) in
-
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
-    (0 <= user_key < MAX_USER_KEY)%Z ->
-    is_uint16 nkey ->
-
-    (cgp_b + length kvs_data)%a = Some cgp_e ->
-
-    nkey ∉ s' ->
-
-    (
-      (* initial register file *)
-      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey ∗ (* Key to update *)
-      ca2 ↦ᵣ wca2 ∗ (* New value *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
-      cnull ↦ᵣ - ∗
-
-      (* initial memory layout *)
-      codefrag pc_a kvs_addOrUpdate_instrs ∗
-      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-      user_key_addr ↦ₐ WInt user_key ∗
-
-      ▷ isKVS cgp_b m s ∗
-      ◯(ALLOC)[user_key] s' ∗
-
-      ▷ (
-          PC ↦ᵣ updatePcPerm wret ∗
-          cgp ↦ᵣ - ∗
-          cra ↦ᵣ - ∗
-          ca1 ↦ᵣ WInt 0 ∗
-          ca2 ↦ᵣ - ∗
-          ctp ↦ᵣ - ∗ (* scratch *)
-          ct1 ↦ᵣ - ∗ (* scratch *)
-          ct2 ↦ᵣ - ∗ (* scratch *)
-          cnull ↦ᵣ - ∗
-          codefrag pc_a kvs_addOrUpdate_instrs ∗
-          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
-          user_key_addr ↦ₐ WInt user_key ∗
-          (
-            (* THERE IS AN EMPTY SLOT AVAILABLE*)
-            (∃ idx,
-                ⌜ canStore RW wca2 = true ⌝ ∗
-                ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
-                isKVS cgp_b (<[ idx := Some (fkey, wca2) ]> m) ( kvs_alloc_insert s user_key {[nkey]}) ∗
-                ◯(ALLOC)[user_key] ( {[ nkey ]} ∪ s') ∗
-                fkey ⤇(KVS)[ idx ] wca2
-            )
-            ∨
-              (* THERE IS NO EMPTY SLOT AVAILABLE*)
-              (
-                ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: no empty slot available *)
-                isKVS cgp_b m s ∗
-                ◯(ALLOC)[user_key] s'
-              )
-          )
-          -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-        )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
-  Proof.
-    intros fkey.
-    iIntros (HsubBounds Hbounds_a_user_key  Hbounds_user_key His_uint16_nkey Hcgp_contiguous Hs')
-      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & [%wctp Hctp] & Hct1 & Hct2 & [%wcnull Hcnull] &
-        Hcode & Ha_unsealing & Ha_user_key & HKVS & Halloc & Hpost)".
-    iApply KVS_add_spec_pre_gen; eauto; iFrame "∗%".
-    iSplit; first (iPureIntro;done).
-    iNext;iNext.
-    iIntros "(%Heq_sb & %Hku & %Hbounds & Hres)".
-    iApply "Hpost"; iFrame.
-  Qed.
 
   Lemma KVS_add_spec
     (wret wca2 : Word)
@@ -679,7 +500,7 @@ Section KVS_spec_addOrUpdate.
 
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ◯(ALLOC)[user_key] s' ∗
+      ▷ ◯(ALLOC)[user_key] s' ∗
 
       ▷ (na_own cerise_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
@@ -695,6 +516,7 @@ Section KVS_spec_addOrUpdate.
          (
            (* THERE IS AN EMPTY SLOT AVAILABLE*)
            (
+             ⌜ canStore RW wca2 = true ⌝ ∗
              ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
              ◯(ALLOC)[user_key] ( {[ nkey ]} ∪ s') ∗
              fkey ⤇(KVS) wca2
@@ -750,7 +572,7 @@ Section KVS_spec_addOrUpdate.
 
   (*** KVS INSERT: Ill-formed inputs *)
 
-  Lemma KVS_addOrUpdate_spec_not_uint16_map_key
+  Lemma KVS_addOrUpdate_spec_not_uint16_map_key_pre
     (pc_b pc_e pc_a : Addr)
     (wret : Word)
     (wca1 : Word)
@@ -813,7 +635,63 @@ Section KVS_spec_addOrUpdate.
     iApply "Hpost"; iFrame.
   Qed.
 
-  Lemma KVS_addOrUpdate_spec_invalid_sealed_user_key
+  Lemma KVS_addOrUpdate_spec_not_uint16_map_key
+    (wret : Word)
+    (wca1 : Word)
+    (E : coPset)
+    :
+
+    ↑Nkvs ⊆ E ->
+
+    ¬ word_is_uint16 wca1 ->
+
+    ( na_inv cerise_nais Nkvs kvs_inv ∗
+      na_own cerise_nais E ∗
+
+      (* initial register file *)
+      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cra ↦ᵣ wret ∗
+      ca0 ↦ᵣ - ∗
+      ca1 ↦ᵣ wca1 ∗ (* Key to addOrUpdate *)
+      ct1 ↦ᵣ - ∗ (* scratch *)
+      cnull ↦ᵣ - ∗
+
+      ▷ (na_own cerise_nais E ∗
+         PC ↦ᵣ updatePcPerm wret ∗
+         cra ↦ᵣ - ∗
+         ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
+         ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
+         ct1 ↦ᵣ - ∗ (* scratch *)
+         cnull ↦ᵣ -
+         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+        )
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+  Proof.
+    iIntros (HE Hnkey_is_uint16)
+      "(#Hkvs_inv & Hna & HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull & Hpost)".
+    iMod (na_inv_acc with "Hkvs_inv Hna")
+      as "( (%mkvs & %s & >Himports & >Hcode & HKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
+    pose proof (Hcgp_continuous := KVS_size_data).
+    pose proof (HKVS_pcc_b' := KVS_size_imports).
+    pose proof (Hcode_continuous := KVS_size_code).
+    assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)%a) as HSubBounds.
+    { solve_addr. }
+    codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
+
+    rewrite /kvs_service_instrs.
+    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
+      as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
+    iApply ( KVS_addOrUpdate_spec_not_uint16_map_key_pre ); eauto; iFrame.
+    iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull & Hcode)".
+
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    iMod ("Hkvs_inv_close" with "[$Hna $Hcode $Himports $HKVS $Hspred]") as "Hna".
+    iApply "Hpost"; iFrame.
+  Qed.
+
+  Lemma KVS_addOrUpdate_spec_invalid_sealed_user_key_pre
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret : Word)
@@ -875,6 +753,60 @@ Section KVS_spec_addOrUpdate.
     focus_block 2 "Hcode" as a_get_full_key Ha_get_full_key "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_check_uint.
     iApply (KVS_getFullKey_spec_invalid_sealed_user_key with "[- $HPC $Hctp $Hca0 $Hct1 $Hct2 $Ha_unsealing $Hcode]") ; eauto; iNext.
+  Qed.
+
+  Lemma KVS_addOrUpdate_spec_invalid_sealed_user_key
+    (wret : Word)
+    (wca0 : Word)
+    (nkey : Z)
+    (E : coPset)
+    :
+
+    ↑Nkvs ⊆ E ->
+
+    is_uint16 nkey ->
+    is_sealed_with_o wca0 KVS_OTYPE = false ->
+
+    ( na_inv cerise_nais Nkvs kvs_inv ∗
+      na_own cerise_nais E ∗
+
+      (* initial register file *)
+      PC ↦ᵣ WCap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ wret ∗
+      ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ WInt nkey ∗ (* Key to addOrUpdate *)
+      ct1 ↦ᵣ - ∗ (* scratch *)
+      ct2 ↦ᵣ - ∗ (* scratch *)
+      ctp ↦ᵣ - ∗ (* scratch *)
+      cnull ↦ᵣ -
+
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+  Proof.
+    iIntros (HE Hnkey_is_uint16 Hwca0)
+      "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull)".
+
+    iMod (na_inv_acc with "Hkvs_inv Hna")
+      as "( (%mkvs & %s & >Himports & >Hcode & HKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
+    pose proof (Hcgp_continuous := KVS_size_data).
+    pose proof (HKVS_pcc_b' := KVS_size_imports).
+    pose proof (Hcode_continuous := KVS_size_code).
+    assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)%a) as HSubBounds.
+    { solve_addr. }
+    codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
+
+    rewrite /kvs_imports /kvs.kvs_imports_pre.
+    assert ((KVS_pcc_b + 1)%a = Some (KVS_pcc_b ^+ 1)%a) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    assert ((KVS_pcc_b ^+ 1)%a <= KVS_pcc_b')%a  by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    assert ((KVS_pcc_b ^+ 1 + 1)%a = Some (KVS_pcc_b')%a) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    iDestruct (region_pointsto_cons with "Himports") as "[Himports_sw Himports]"; eauto.
+    iDestruct (region_pointsto_single with "Himports") as "(% & Ha_unsealing & %Heq)"; eauto; simplify_eq.
+
+    rewrite /kvs_service_instrs.
+    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
+      as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
+    iApply ( KVS_addOrUpdate_spec_invalid_sealed_user_key_pre ); eauto; iFrame.
   Qed.
 
 End KVS_spec_addOrUpdate.
