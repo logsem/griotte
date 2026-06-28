@@ -1383,6 +1383,27 @@ Section KVS_preamble_public.
       isKVS KVS_cgp_b m s ∗
       seal_pred KVS_OTYPE kvs_otype_propC.
 
+  Lemma kvs_pointsto_valid
+    (a : Addr) (mkvs : kvs_map) (lm : kvs_logical_map)
+    (m : kvs_user_map) (uk mk : Z) (w : Word) :
+      wf_kvs_full_key uk mk ->
+      isKVS a mkvs lm -∗
+      ◯↪KVS[ uk ] m -∗
+      mk ↦(KVS)[uk] w
+      -∗
+      ⌜ m !! mk = Some w ⌝.
+  Proof.
+    iIntros (Hwf_key) "(%Hwk_kvs & %Hsynced & Hkvs & Hlkvs & _) Hm Hmk".
+    rewrite /kvs_user_map_auth /kvs_user_map_frag.
+    iDestruct ( kvs_logical_kvs_valid with "Hlkvs Hm") as "%Huk".
+    iDestruct "Hmk" as "[%idx Hmk]".
+    iDestruct (kvs_valid with "Hkvs Hmk" ) as "%Hidx".
+    specialize (Hsynced (uk,mk) w Hwf_key); cbn in *.
+    assert ( kvs_elem_of_kvs mkvs (kvs_full_key uk mk) w ) as H by (eexists;eauto).
+    apply Hsynced in H as (?&?&?); simplify_eq.
+    done.
+  Qed.
+
 End KVS_preamble_public.
 
 Global Opaque kvs_map_init.
