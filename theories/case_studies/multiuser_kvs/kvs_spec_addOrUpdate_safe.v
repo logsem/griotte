@@ -179,7 +179,6 @@ Section KVS_spec_addOrUpdate_safe.
     seal_pred KVS_OTYPE kvs_otype_propC ∗
     na_inv cerise_nais Nkvs kvs_inv ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
-    seal_pred KVS_OTYPE kvs_otype_propC ∗
     inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
     inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
     inv (export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr)

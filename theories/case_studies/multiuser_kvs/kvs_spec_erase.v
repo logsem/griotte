@@ -38,8 +38,6 @@ Section KVS_spec_erase.
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
-    (* nkey ∈ dom umap -> *)
-
     ((* initial register file *)
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
@@ -81,7 +79,7 @@ Section KVS_spec_erase.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (HsubBounds Hbounds_a_user_key His_uint16_nkey Hcgp_contiguous Hs')
+    iIntros (HsubBounds Hbounds_user_key His_uint16_nkey Hcgp_contiguous)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
         Hcode & Ha_unsealing & Ha_user_key & HKVS & Halloc & [%fkey_w Hkvs_frag] & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.

@@ -104,7 +104,7 @@ Section KVS_spec_erase.
     (* Either the map key is already allocated, or it is not *)
     destruct (s' !! nkey)  as [ w | ] eqn:Hnkey.
     - iDestruct (big_sepM_delete with "Hfkeys")
-        as "[ [ [%idx Hkvs_frag] #Hinterp_w] Hfkeys]"
+        as "[ [ Hkvs_frag #Hinterp_w] Hfkeys]"
       ; eauto; iEval (cbn) in "Hkvs_frag".
       iApply KVS_erase_spec_in; last iFrame "∗#"; eauto.
       iNext.
@@ -120,6 +120,7 @@ Section KVS_spec_erase.
       iApply "Hpost"; iFrame.
 
     - iApply KVS_erase_spec_notin; last iFrame "∗#"; eauto.
+      { by rewrite not_elem_of_dom. }
       iNext.
       iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull
                 & Ha & Halloc)".

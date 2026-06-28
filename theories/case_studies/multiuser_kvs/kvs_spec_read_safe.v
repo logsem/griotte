@@ -106,7 +106,7 @@ Section KVS_spec_read_safe.
     (* Either the map key is already allocated, or it is not *)
     destruct (s' !! nkey)  as [ w | ] eqn:Hnkey.
     - iDestruct (big_sepM_lookup_acc with "Hfkeys")
-        as "[ [ [%idx Hkvs_frag] #Hinterp_w] Hfkeys]"
+        as "[ [ Hkvs_frag #Hinterp_w] Hfkeys]"
       ; eauto; iEval (cbn) in "Hkvs_frag".
       iApply KVS_read_spec_in; last iFrame "∗#"; eauto.
       iNext.

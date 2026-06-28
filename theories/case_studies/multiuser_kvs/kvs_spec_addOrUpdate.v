@@ -250,7 +250,7 @@ Section KVS_spec_addOrUpdate.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
       as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
     iApply (KVS_update_spec_pre with "[- $HPC]"); last iFrame; eauto.
-    iNext; iIntros "(%Hcan_store & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+    iNext; iIntros (idx) "(%Hcan_store & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
               & Hcnull & HKVS & Halloc & Hfkey & Hcode & Ha_unsealing & Ha_user_key)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
