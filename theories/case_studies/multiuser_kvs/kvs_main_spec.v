@@ -327,7 +327,7 @@ Section KVS_main_spec.
 
     iInsertList "Hrmap" [ctp;ct1;ct2;cnull;ca2;ca3;ca4;ca5;ct0].
 
-    iDestruct "Hres" as "[(Hca0 & Halloc & Hfkey) | (Hca0 & Halloc)]"; cycle 1.
+    iDestruct "Hres" as "[(_ & Hca0 & Halloc & Hfkey) | (Hca0 & Halloc)]"; cycle 1.
     { (* Case where there was not more empty slot *)
       (* Use switcher return KtK *)
       iApply (switcher_cc_specification_return_known_to_known
