@@ -32,7 +32,6 @@ Section KVS_spec_read.
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
-    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -75,7 +74,7 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (HsubBounds Hbounds_a_user_key Hbounds_user_key Hnkey_is_uint16 Hcgp_contiguous)
+    iIntros (HsubBounds Hbounds_a_user_key Hnkey_is_uint16 Hcgp_contiguous)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & [%wcnull Hcnull] & Hcode
        & Ha_unsealing & Ha_user_key & HKVS & Hkvs_frag & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -153,7 +152,6 @@ Section KVS_spec_read.
 
     ↑Nkvs ⊆ E ->
 
-    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
@@ -192,7 +190,7 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hbounds_user_key His_uint16_nkey Hbounds_a_user_key)
+    iIntros (Hnkvs_E His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Ha_user_key & Hfkey & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
       as "( (%m & %s & >Himports & >Hcode & HKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
@@ -238,7 +236,6 @@ Section KVS_spec_read.
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
-    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -283,7 +280,7 @@ Section KVS_spec_read.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (HsubBounds Hbounds_a_user_key Hbounds_user_key Hnkey_is_uint16 Hcgp_contiguous Hs')
+    iIntros (HsubBounds Hbounds_a_user_key Hnkey_is_uint16 Hcgp_contiguous Hs')
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & [%wcnull Hcnull] & Hcode
        & Ha_unsealing & Ha_user_key & HKVS & Halloc & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -312,8 +309,6 @@ Section KVS_spec_read.
     ; clear dependent Ha_check_uint.
     iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Ha_user_key $Hcode]") ; eauto; iNext.
     iIntros "(HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Ha_user_key & Hcode)".
-    assert ( wf_kvs_full_key user_key nkey ) as Hwf_fullkey.
-    { split; auto; lia. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
@@ -380,7 +375,6 @@ Section KVS_spec_read.
     :
     ↑Nkvs ⊆ E ->
 
-    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
@@ -420,7 +414,7 @@ Section KVS_spec_read.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (Hnkvs_E Hbounds_user_key His_uint16_nkey Hbounds_a_user_key Hs')
+    iIntros (Hnkvs_E His_uint16_nkey Hbounds_a_user_key Hs')
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Ha_user_key & Hfkey & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
       as "( (%m & %s & >Himports & >Hcode & HKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.

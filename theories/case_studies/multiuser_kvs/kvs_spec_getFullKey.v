@@ -27,7 +27,6 @@ Section KVS_getFullKey.
     :
     let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
-    (0 <= user_key < MAX_USER_KEY)%Z ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
 
@@ -66,7 +65,7 @@ Section KVS_getFullKey.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (HsubBounds Hbounds_user_key Hbounds_user_key_addr Hrscratch1 Hrscratch2 Hrsealkey Hkey Hdst)
+    iIntros (HsubBounds Hbounds_user_key_addr Hrscratch1 Hrscratch2 Hrsealkey Hkey Hdst)
       "(HPC & [%wdst Hrdst] & Hrsealkey & Hrkey & [%wscratch1 Hrscratch1] & [%wscratch2 Hrscratch2]
       & Ha_unsealing & Ha_user_key & Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -207,7 +206,6 @@ Section KVS_getFullKey.
 
       ▷ ( ∀ (s : gset Z) (l_user_key : Locality) (user_key_addr : Addr) (user_key : Z) ,
             ⌜ wskey = kvs_user_seal_key l_user_key user_key_addr ⌝ ∗
-            ⌜ (0 <= user_key < MAX_USER_KEY)%Z ⌝ ∗
             ⌜ withinBounds user_key_addr (user_key_addr ^+1)%a user_key_addr = true ⌝ ∗
             PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
             rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
@@ -282,7 +280,7 @@ Section KVS_getFullKey.
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
     rewrite /kvs_otype_propC /= /kvs_otype_prop //= /kvs_otype_inv.
-    iDestruct "HP" as "(%ku & %a & %s & %Heq_sb & %Hku & %Hbounds & Ha & Halloc & Hfkeys)".
+    iDestruct "HP" as "(%ku & %a & %s & %Heq_sb & %Hbounds & Ha & Halloc & Hfkeys)".
     destruct wsb; rewrite /kvs_user_seal_key_scap in Heq_sb; cbn in Heq_sb; simplify_eq.
     rewrite -/(kvs_user_seal_key_scap g a).
 

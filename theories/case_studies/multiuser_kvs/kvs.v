@@ -502,16 +502,14 @@ Section KVS_Service.
     (0 ≤ n)%Z -> ¬(0 ≤ n < 16)%Z -> Z.testbit (2 ^ 16 - 1) n = false.
   Proof. eapply (Z_testbit_mask_N_false 16). Qed.
 
-  Definition MAX_USER_KEY := (MemNum-1)%Z.
   Definition is_uint16 ( z : Z ) : Prop := (UINT16_MIN <= z < UINT16_MAX)%Z.
-  Definition wf_kvs_full_key (ku kn : Z) : Prop := (0 <= ku < MAX_USER_KEY)%Z ∧ is_uint16 kn.
 
   Lemma kvs_full_key_inj (uk1 nk1 uk2 nk2 : Z) :
-    wf_kvs_full_key uk1 nk1 ->
-    wf_kvs_full_key uk2 nk2 ->
+    is_uint16 nk1 ->
+    is_uint16 nk2 ->
     (kvs_full_key uk1 nk1 = kvs_full_key uk2 nk2)%Z -> uk1 = uk2 ∧ nk1 = nk2.
   Proof.
-    intros [Huk1 Hnk1] [Huk2 Hnk2] Heq.
+    intros Hnk1 Hnk2 Heq.
     unfold kvs_full_key in Heq.
     unfold is_uint16, UINT16_MIN, UINT16_MAX in Hnk1, Hnk2.
     split.
@@ -529,19 +527,6 @@ Section KVS_Service.
         - rewrite Z_testbit_mask_16_false; auto.
       }
       by apply land_inj.
-  Qed.
-
-  Lemma kvs_full_key_not_empty (ku kn : Z) :
-    wf_kvs_full_key ku kn ->
-    (kvs_full_key ku kn ≠ EMPTY_SLOT)%Z.
-  Proof.
-    intros [Hku Hkn].
-    unfold EMPTY_SLOT.
-    enough (0 <= kvs_full_key ku kn)%Z; first lia.
-    unfold kvs_full_key.
-    unfold is_uint16, UINT16_MIN, UINT16_MAX in Hkn.
-    apply Z.lor_nonneg; split; last lia.
-    apply Z.shiftl_nonneg; lia.
   Qed.
 
 End KVS_Service.

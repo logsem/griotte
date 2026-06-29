@@ -244,7 +244,7 @@ Section KVS_preamble.
   Qed.
 
   Definition kvs_alloc_synced (m : kvs_map) (s : kvs_alloc) : Prop :=
-    ∀ k, wf_kvs_full_key k.1 k.2 ->
+    ∀ k, is_uint16 k.2 ->
          ( kvs_alloc_elem_of s k.1 k.2 ↔ (kvs_full_key k.1 k.2) ∈ kvs_keys m).
 
   Definition isKVS
@@ -612,11 +612,11 @@ Section KVS_preamble.
 
   Local Lemma kvs_alloc_synced_insert_1 (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn ku' kn' : Z) (w : Word) :
     let fkey := kvs_full_key ku kn in
-    wf_kvs_full_key ku kn ->
+    is_uint16 kn ->
     m !! idx = Some None ->
     fkey ∉ kvs_keys m ->
     kvs_alloc_synced m s ->
-    wf_kvs_full_key ku' kn' ->
+    is_uint16 kn' ->
     kvs_alloc_elem_of (kvs_alloc_insert s ku {[kn]}) ku' kn' ->
     kvs_full_key ku' kn' ∈ kvs_keys (<[idx:= Some (fkey, w)]> m).
   Proof.
@@ -651,11 +651,11 @@ Section KVS_preamble.
 
   Local Lemma kvs_alloc_synced_insert_2 (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn ku' kn' : Z) (w : Word) :
     let fkey := kvs_full_key ku kn in
-    wf_kvs_full_key ku kn ->
+    is_uint16 kn ->
     m !! idx = Some None ->
     fkey ∉ kvs_keys m ->
     kvs_alloc_synced m s ->
-    wf_kvs_full_key ku' kn' ->
+    is_uint16 kn' ->
     kvs_full_key ku' kn' ∈ kvs_keys (<[idx:= Some (fkey, w)]> m) ->
     kvs_alloc_elem_of (kvs_alloc_insert s ku {[kn]}) ku' kn'.
   Proof.
@@ -689,7 +689,7 @@ Section KVS_preamble.
 
   Lemma kvs_alloc_synced_insert (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn : Z) (w : Word) :
     let fkey := kvs_full_key ku kn in
-    wf_kvs_full_key ku kn ->
+    is_uint16 kn ->
     m !! idx = Some None ->
     fkey ∉ kvs_keys m ->
     kvs_alloc_synced m s ->
@@ -879,7 +879,7 @@ Section KVS_preamble.
     (b : Addr) (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
     (idx : nat) (ku kn : Z) :
     let fkey := kvs_full_key ku kn in
-    wf_kvs_full_key ku kn ->
+    is_uint16 kn ->
     (0 ≤ idx < SIZE_MAP)%Z →
     kn ∉ s' →
     isKVS b m s -∗
@@ -985,7 +985,7 @@ Section KVS_preamble.
   Lemma isKVS_open_insert (a : Addr) (m : kvs_map) (s : kvs_alloc) (s' : gset Z) (idx : nat) (ku kn : Z) (w : Word) :
     let k := kvs_full_key ku kn in
     kn ∉ s' →
-    wf_kvs_full_key ku kn ->
+    is_uint16 kn ->
     isKVS_open a m s idx -∗
     ◯(ALLOC)[ku] s' -∗
     idx ⤇(KVS) NONE
@@ -1044,10 +1044,10 @@ Section KVS_preamble.
 
   Local Lemma kvs_alloc_synced_delete_1 (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn ku' kn' : Z) (w : Word) :
     let fkey := kvs_full_key ku kn in
-    wf_kvs_full_key ku kn ->
+    is_uint16 kn ->
     m !! idx = Some (Some (fkey, w)) ->
     kvs_alloc_synced m s ->
-    wf_kvs_full_key ku' kn' ->
+    is_uint16 kn' ->
     kvs_alloc_elem_of (kvs_alloc_delete s ku {[kn]}) ku' kn' ->
     kvs_full_key ku' kn' ∈ kvs_keys (<[idx:=None]> m).
   Proof.
@@ -1120,11 +1120,11 @@ Section KVS_preamble.
 
   Local Lemma kvs_alloc_synced_delete_2 (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn ku' kn' : Z) (w : Word) :
     let fkey := kvs_full_key ku kn in
-    wf_kvs_full_key ku kn ->
+    is_uint16 kn ->
     m !! idx = Some (Some (fkey, w)) ->
     NoDup (kvs_keys m) ->
     kvs_alloc_synced m s ->
-    wf_kvs_full_key ku' kn' ->
+    is_uint16 kn' ->
     kvs_full_key ku' kn' ∈ kvs_keys (<[idx:=None]> m) ->
     kvs_alloc_elem_of (kvs_alloc_delete s ku {[kn]}) ku' kn'.
   Proof.
@@ -1152,7 +1152,7 @@ Section KVS_preamble.
   Lemma kvs_alloc_synced_delete (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn : Z) (w : Word) :
     let fkey := kvs_full_key ku kn in
     NoDup (kvs_keys m) ->
-    wf_kvs_full_key ku kn ->
+    is_uint16 kn ->
     m !! idx = Some (Some (fkey, w)) ->
     kvs_alloc_synced m s ->
     kvs_alloc_synced (<[idx:=None]> m) (kvs_alloc_delete s ku {[kn]}).
@@ -1213,7 +1213,7 @@ Section KVS_preamble.
     (idx : nat) (ku kn : Z) (w : Word) :
     let k := kvs_full_key ku kn in
     kn ∈ s' →
-    wf_kvs_full_key ku kn ->
+    is_uint16 kn ->
     isKVS_open a m s idx -∗
     ◯(ALLOC)[ku] s' -∗
     k ⤇(KVS)[ idx ] w
@@ -1256,8 +1256,6 @@ Section KVS_preamble.
       (* Shape of the capability*)
       ⌜ w = WSealable (kvs_user_seal_key_scap Global a) ⌝ ∗
       ⌜ withinBounds a (a^+1)%a a = true ⌝ ∗
-      (* User key is well-formed *)
-      ⌜ (0 <= ku < MAX_USER_KEY)%Z ⌝ ∗
       (* Payload contains the user key *)
       a ↦ₐ WInt ku ∗
       (* KVS resources *)
@@ -1286,7 +1284,7 @@ Section KVS_preamble.
     iModIntro.
     iIntros "Hot_kvs".
     rewrite /kvs_otype_propC /= /kvs_otype_inv.
-    iDestruct "Hot_kvs" as "(%ku & %a & %s & % & % & % & ? & ? & Hs)".
+    iDestruct "Hot_kvs" as "(%ku & %a & %s & % & % & ? & ? & Hs)".
     iExists ku, a, s; iFrame "∗%".
     iApply (big_sepS_impl with "Hs").
     iModIntro; iIntros (??) "(%w' & $ & H)".
