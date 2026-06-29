@@ -34,7 +34,6 @@ Section KVS_spec_erase.
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_erase_instrs)%a ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
-    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -82,7 +81,7 @@ Section KVS_spec_erase.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (HsubBounds Hbounds_a_user_key Hbounds_user_key His_uint16_nkey Hcgp_contiguous Hs')
+    iIntros (HsubBounds Hbounds_a_user_key His_uint16_nkey Hcgp_contiguous Hs')
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
         Hcode & Ha_unsealing & Ha_user_key & HKVS & Halloc & [%fkey_w Hkvs_frag] & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -145,7 +144,6 @@ Section KVS_spec_erase.
 
     iMod (isKVS_open_delete _ _ _ _ idx user_key nkey _ with "HKVS Halloc Hkvs_frag") as
       "(HKVS & Halloc & Hkvs_frag)"; auto.
-    { rewrite /wf_kvs_full_key; split; auto; lia. }
 
     iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val Hkvs_frag]") as "HKVS";eauto.
     { by simplify_map_eq. }
@@ -165,7 +163,6 @@ Section KVS_spec_erase.
     ↑Nkvs ⊆ E ->
     nkey ∈ s' ->
 
-    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
@@ -205,7 +202,7 @@ Section KVS_spec_erase.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hs' Hbounds_user_key His_uint16_nkey Hbounds_a_user_key)
+    iIntros (Hnkvs_E Hs' His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
         & Ha_user_key & Halloc & [ %wfkey [%idx Hfkey] ] & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
@@ -250,7 +247,6 @@ Section KVS_spec_erase.
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_erase_instrs)%a ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
-    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
@@ -296,7 +292,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (HsubBounds Hbounds_a_user_key Hbounds_user_key His_uint16_nkey Hcgp_contiguous Hs')
+    iIntros (HsubBounds Hbounds_a_user_key His_uint16_nkey Hcgp_contiguous Hs')
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull] &
         Hcode & Ha_unsealing & Ha_user_key & HKVS & Halloc & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -325,8 +321,6 @@ Section KVS_spec_erase.
     ; clear dependent Ha_check_uint.
     iApply (KVS_getFullKey_spec with "[- $HPC $Hctp $Hca0 $Hca1 $Hct1 $Hct2 $Ha_unsealing $Ha_user_key $Hcode]") ; eauto; iNext.
     iIntros "(HPC & Hctp & Hca0 & Hca1 & Hct1 & Hct2 & Ha_unsealing & Ha_user_key & Hcode)".
-    assert ( wf_kvs_full_key user_key nkey ) as Hwf_fullkey.
-    { split; auto; lia. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 3 "Hcode" as a_lea Ha_lea "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear dependent Ha_get_full_key.
@@ -395,7 +389,6 @@ Section KVS_spec_erase.
     ↑Nkvs ⊆ E ->
     nkey ∉ s' ->
 
-    (0 <= user_key < MAX_USER_KEY)%Z ->
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
@@ -433,7 +426,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (Hnkvs_E Hs' Hbounds_user_key His_uint16_nkey Hbounds_a_user_key)
+    iIntros (Hnkvs_E Hs' His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
         & Ha_user_key & Halloc & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")

@@ -32,7 +32,6 @@ Class memory_layout `{MP: MachineParameters} := {
 
     kvs_user_key_K : Z;
     kvs_user_key_B : Z;
-    kvs_user_key_wf : (0 <= kvs_user_key_K < MAX_USER_KEY)%Z ∧ (0 <= kvs_user_key_B < MAX_USER_KEY)%Z;
     kvs_user_key_disjoints : kvs_user_key_K ≠ kvs_user_key_B;
 
     (* adv compartments B *)
@@ -700,7 +699,6 @@ Section Adequacy.
     {
       iEval (rewrite /kvs_otype_prop /kvs_otype_inv /=).
       iFrame "Halloc_B Ha_user_key_B".
-      pose proof kvs_user_key_wf as [ Hkvs_user_key_wf_K Hkvs_user_key_wf_B ].
       repeat iSplit; auto; iPureIntro; try lia.
       subst user_key_addr_B.
       pose proof (cmpt_static_sealed_size B_cmpt) as H.
@@ -947,7 +945,6 @@ Section Adequacy.
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto.
     { solve_ndisj. }
-    { pose proof kvs_user_key_wf as [ Hkvs_user_key_wf_K _ ]; auto. }
     { rewrite !dom_delete_L.
       rewrite regmap_full_dom; first done.
       intros r.

@@ -54,8 +54,6 @@ Section KVS_main_spec.
 
     Nswitcher ## Nassert ->
 
-    (0 <= KVS_USER_KEY_MAIN < MAX_USER_KEY)%Z ->
-
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
@@ -102,7 +100,7 @@ Section KVS_main_spec.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_assert HKVS_USER_KEY_MAIN Hrmap_dom Hrmap_init HsubBounds
+    iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hframe_match
             )
       "(#Hassert & #Hswitcher

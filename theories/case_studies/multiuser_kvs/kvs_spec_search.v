@@ -238,7 +238,7 @@ Section KVS_search.
     ((cgp_b + (ASM_SIZEOF_KVS_ENTRY*SIZE_MAP)%Z)%a = Some cgp_e)%a ->
 
     kn ∉ s' ->
-    wf_kvs_full_key ku kn ->
+    is_uint16 kn ->
 
     rscratch ≠ cnull ->
     ridx ≠ cnull ->

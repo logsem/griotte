@@ -98,7 +98,7 @@ Section KVS_spec_erase.
     iDestruct (sopen_world_interp_singleton with "Hspred Hinterp_wca0' Hworld")
                 as "(Hworld & Hres_open & HP)".
     rewrite /kvs_otype_propC /= /kvs_otype_prop //= /kvs_otype_inv.
-    iDestruct "HP" as "(%ku & %a & %s' & >%Heq_sb & >%Hku & >%Hbounds & >Ha & Halloc & Hfkeys)".
+    iDestruct "HP" as "(%ku & %a & %s' & >%Heq_sb & >%Hbounds & >Ha & Halloc & Hfkeys)".
     destruct wsb as [ p_user_key l_user_key | ] ; simplify_eq.
 
     (* Either the map key is already allocated, or it is not *)
