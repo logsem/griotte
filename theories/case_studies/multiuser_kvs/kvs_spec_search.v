@@ -143,7 +143,7 @@ Section KVS_search.
       iApply "Hpost"; iFrame.
       iPureIntro; rewrite /withinBounds; solve_addr.
 
-    - iDestruct (kvs_physical_map_open_diff _ _ _ (Z.to_nat n) with "HKVS")
+    - iDestruct (kvs_physical_map_open_neq _ _ _ (Z.to_nat n) with "HKVS")
         as "(%opt_kw' & HKVS & %Hm_idx' & Hkvs_entry & %Hopt_kw')"
       ; eauto; try lia.
       iDestruct (destruct_physical_kvs_entry with "Hkvs_entry") as "(Hn0 & Hn1 & Hn2)"; first solve_addr.

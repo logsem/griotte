@@ -148,8 +148,7 @@ Section KVS_spec_erase.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    iAssert (  ⌜ wf_kvs_physical_map pkvs ⌝ )%I as "[%_ %Hnodup_pkvs_keys]"
-    ; first ( iDestruct "HKVS" as "[$ _]" ).
+    iDestruct (is_physical_kvs_open_wf with "HKVS") as "[%_ %Hnodup_pkvs_keys]".
     iDestruct (kvs_physical_map_close_delete with "[$HKVS] [Hcgp_opt Hcgp_key Hcgp_val]")
       as "HKVS"; eauto.
     { iApply destruct_physical_kvs_entry; first solve_addr; iFrame. }
