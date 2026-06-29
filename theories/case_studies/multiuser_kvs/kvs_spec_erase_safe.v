@@ -97,36 +97,32 @@ Section KVS_spec_erase.
 
     iDestruct (sopen_world_interp_singleton with "Hspred Hinterp_wca0' Hworld")
                 as "(Hworld & Hres_open & HP)".
-    rewrite /kvs_otype_propC /= /kvs_otype_prop //= /kvs_otype_inv.
-    iDestruct "HP" as "(%ku & %a & %s' & >%Heq_sb & >%Hbounds & >Ha & Halloc & Hfkeys)".
-    destruct wsb as [ p_user_key l_user_key | ] ; simplify_eq.
+    iDestruct "HP" as "(%uk & %a & %m & >%Heq_sb & >%Hbounds & >Ha & Hm & #Hm_interp)".
+    destruct wsb as [ p_user_key l_user_key | ] ; cbn in * ; simplify_eq.
 
     (* Either the map key is already allocated, or it is not *)
-    destruct (s' !! nkey)  as [ w | ] eqn:Hnkey.
-    - iDestruct (big_sepM_delete with "Hfkeys")
-        as "[ [ Hkvs_frag #Hinterp_w] Hfkeys]"
-      ; eauto; iEval (cbn) in "Hkvs_frag".
-      iApply KVS_erase_spec_in; last iFrame "∗#"; eauto.
+    destruct (m !! nkey)  as [ w | ] eqn:Hnkey.
+    - iApply KVS_erase_spec_in; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull
-                & Ha & Halloc)".
+                & Ha & Hm)".
 
+      iDestruct (big_sepM_delete with "Hm_interp") as "[ _ Hm_interp']"; eauto.
       iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
-        with "[Ha Halloc Hfkeys]"
+        with "[$Ha $Hm $Hm_interp']"
         as "HP".
-      { iFrame "∗%#"; iPureIntro; auto. }
+      { iFrame "∗%"; auto. }
       iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
       iApply "Hpost"; iFrame.
 
     - iApply KVS_erase_spec_notin; last iFrame "∗#"; eauto.
-      { by rewrite not_elem_of_dom. }
       iNext.
       iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull
-                & Ha & Halloc)".
+                & Ha & Hm)".
 
       iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
-        with "[Ha Halloc Hfkeys]"
+        with "[$Ha $Hm $Hm_interp]"
         as "HP".
       { iFrame "∗%"; iPureIntro; auto. }
       iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".

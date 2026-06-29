@@ -87,7 +87,7 @@ Section KVS_main_spec.
       [[ cgp_b , cgp_e ]] ↦ₐ [[ (kvs_main_data) ]] ∗
       [[ static_sealed_b , static_sealed_e ]] ↦ₐ [[ kvs_main_static_sealed KVS_USER_KEY_MAIN ]] ∗
 
-      KVS_USER_KEY_MAIN ↦(KVS_USER) ∅ ∗
+      KVS_USER_KEY_MAIN ↦(LKVS) ∅ ∗
       world_interp W0 B ∗
 
       interp_continuation cstk Ws Cs ∗
@@ -108,7 +108,7 @@ Section KVS_main_spec.
       & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hstatic_sealed_main
-      & Halloc
+      & Hm
       & Hworld_B
       & HK & Hcstk_frag
       & #Hinterp_W0_B_f
@@ -314,10 +314,9 @@ Section KVS_main_spec.
 
     (* Use spec addOrUpdate known *)
     iApply (KVS_add_spec
-      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull $Hstatic_sealed_b $Halloc]")
+      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull $Hstatic_sealed_b $Hm]")
     ; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
-    { set_solver+. }
     iNext;
       iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & Hca1 & [% Hca2]
                     & [% Hctp] & [% Hct1] & [% Hct2] & [% Hcnull] & Hstatic_sealed_b & Hres)".
@@ -325,7 +324,7 @@ Section KVS_main_spec.
 
     iInsertList "Hrmap" [ctp;ct1;ct2;cnull;ca2;ca3;ca4;ca5;ct0].
 
-    iDestruct "Hres" as "[(_ & Hca0 & Halloc & Hfkey) | (Hca0 & Halloc)]"; cycle 1.
+    iDestruct "Hres" as "[(_ & Hca0 & Hm) | (Hca0 & Hm)]"; cycle 1.
     { (* Case where there was not more empty slot *)
       (* Use switcher return KtK *)
       iApply (switcher_cc_specification_return_known_to_known
@@ -646,12 +645,12 @@ Section KVS_main_spec.
 
     (* Use spec readOrUpdate known *)
     iApply (KVS_read_spec_in
-      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcnull $Hstatic_sealed_b $Hfkey]")
+      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcnull $Hstatic_sealed_b $Hm]")
     ; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     iNext;
       iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & Hca0 & Hca1
-                & [% Hct1] & [% Hct2] & [% Hctp] & [% Hcnull] & Hstatic_sealed_b & Hfkey)".
+                & [% Hct1] & [% Hct2] & [% Hctp] & [% Hcnull] & Hstatic_sealed_b & Hm)".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
 
     iInsertList "Hrmap" [ct1;ct2;ctp;cnull;ca2;ca3;ca4;ca5;ct0].

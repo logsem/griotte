@@ -19,15 +19,13 @@ Section KVS_spec_addOrUpdate.
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
-  Transparent kvs_user_map_auth.
-  Transparent kvs_user_map_frag.
   (*** KVS INSERT: Key in the KVS *)
   Lemma KVS_update_spec_pre
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret wca2 : Word)
-    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
-    (mkvs : kvs_map) (lm : kvs_logical_map) (m : kvs_user_map)
+    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (lkvs : kvs_logical_map) (m : kvs_user_map)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
@@ -37,6 +35,8 @@ Section KVS_spec_addOrUpdate.
     is_uint16 nkey ->
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
+
+    is_Some (m !! nkey) ->
 
     ((* initial register file *)
       PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
@@ -55,11 +55,11 @@ Section KVS_spec_addOrUpdate.
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ isKVS cgp_b mkvs lm ∗
-      ▷ ◯↪KVS[ user_key ] m ∗
-      ▷ nkey ↦(KVS)[user_key] - ∗
+      ▷ ↪●LKVS lkvs ∗
+      ▷ is_logical_kvs cgp_b lkvs ∗
+      ▷ user_key ↦(LKVS) m ∗
 
-      ▷ ( ∀ (idx : nat),
+      ▷ (
           ⌜ canStore RW wca2 = true ⌝ ∗
           PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ - ∗
@@ -71,9 +71,11 @@ Section KVS_spec_addOrUpdate.
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
           cnull ↦ᵣ - ∗
-          isKVS cgp_b (<[ idx := Some (fkey, wca2) ]> mkvs) (kvs_logical_kvs_insert lm user_key nkey wca2) ∗
-          ◯↪KVS[ user_key ] ( <[nkey:=wca2]> m ) ∗
-          nkey ↦(KVS)[user_key] wca2 ∗
+
+          ↪●LKVS (<<[ (user_key, nkey):= wca2 ]>> lkvs) ∗
+          is_logical_kvs cgp_b (<<[ (user_key, nkey):= wca2 ]>> lkvs) ∗
+          user_key ↦(LKVS) (<[ nkey := wca2 ]> m) ∗
+
           codefrag pc_a kvs_addOrUpdate_instrs ∗
           (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
           user_key_addr ↦ₐ WInt user_key
@@ -83,9 +85,10 @@ Section KVS_spec_addOrUpdate.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (HsubBounds Hbounds_a_user_key His_uint16_nkey Hcgp_contiguous)
+    iIntros (HsubBounds Hbounds_a_user_key His_uint16_nkey Hcgp_contiguous [wnkey Hm_nkey])
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
-        & Hcode & Ha_unsealing & Ha_user_key & HKVS & Halloc & [%fkey_w Hkvs_frag] & Hpost)".
+        & Hcode & Ha_unsealing & Ha_user_key
+        & Hlkvs_auth & (%pkvs & >%Hsync & HKVS) & Hm & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -118,15 +121,16 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    iEval (rewrite /kvs_user_map_frag) in "Hkvs_frag".
-    iDestruct "Hkvs_frag" as "[%idx Hkvs_frag]".
+    iDestruct ( kvs_logical_kvs_valid with "Hlkvs_auth Hm" ) as "%Hlkvs_user_key".
+    pose proof (kvs_synced_logical_lookup_Some _ _ _ _ _ _
+                  His_uint16_nkey Hsync Hlkvs_user_key Hm_nkey)
+      as (idx & Hpkvs_idx).
+
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
-    iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HKVS $Hkvs_frag $Hcode]"); eauto.
+    iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HKVS $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
-    iNext; iIntros "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & HKVS & Hcgp_opt & Hcgp_key & Hcgp_val & Hkvs_frag & %Hcgp_idx & Hcode)".
-    iDestruct (isKVS_open_valid with "HKVS Hkvs_frag") as "%Hm_idx".
-    iDestruct (isKVS_open_indom_idx with "HKVS") as "%Hidx".
-    { by apply elem_of_dom_2 in Hm_idx. }
+    iNext; iIntros "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & Hcgp_opt & Hcgp_key & Hcgp_val
+                    & HKVS & %Hcgp_idx & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 5 "Hcode" as a_addOrUpdate Ha_addOrUpdate "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_search.
@@ -137,7 +141,7 @@ Section KVS_spec_addOrUpdate.
     { injection; intros; lia. }
     (* Lea cgp 2 *)
     iInstr "Hcode".
-    { transitivity ( Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); last done; solve_addr+Hcgp_idx Hidx. }
+    { transitivity ( Some ((cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); last done; solve_addr+Hcgp_idx. }
     (* Store cgp (inr ca2) *)
     destruct (canStore RW wca2) eqn:HcanStore_wca2; cycle 1.
     {
@@ -162,19 +166,23 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    iMod (isKVS_open_update _ _ _ _ _ _ _  _ wca2 with "HKVS Hkvs_frag Halloc")
-      as "(HKVS & Hkvs_frag & Halloc)"; auto.
-
-    iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val]") as "HKVS";eauto.
-    { by simplify_map_eq. }
+    iAssert (  ⌜ wf_kvs_physical_map pkvs ⌝ )%I as "[%_ %Hnodup_pkvs_keys]"
+    ; first ( iDestruct "HKVS" as "[$ _]" ).
+    iDestruct (kvs_physical_map_close_update with "[$HKVS] [Hcgp_opt Hcgp_key Hcgp_val]")
+      as "HKVS"; eauto.
     { iApply destruct_physical_kvs_entry; first solve_addr; iFrame. }
+
+    iMod ( kvs_logical_kvs_update user_key _ _ (<[nkey := wca2]> m) with "Hlkvs_auth Hm" ) as "[Hlkvs_auth Hm]".
+    replace ( <[user_key:=<[nkey:=wca2]> m]> lkvs ) with ( <<[ (user_key, nkey):= wca2 ]>> lkvs ).
+    2: { rewrite /kvs_logical_kvs_insert Hlkvs_user_key //. }
+    eapply (kvs_synced_logical_kvs_update _ _ _ _ _ wca2) in Hsync; eauto.
 
     iApply "Hpost"; iFrame "∗%"; done.
   Qed.
 
   Lemma KVS_update_spec
     (wret wca2 : Word)
-    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
+    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
     (E : coPset)
     :
@@ -184,6 +192,8 @@ Section KVS_spec_addOrUpdate.
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+
+    is_Some (m !! nkey) ->
 
     ( na_inv cerise_nais Nkvs kvs_inv ∗
       na_own cerise_nais E ∗
@@ -202,8 +212,7 @@ Section KVS_spec_addOrUpdate.
 
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ ◯↪KVS[ user_key ] m ∗
-      ▷ nkey ↦(KVS)[user_key] - ∗
+      ▷ user_key ↦(LKVS) m ∗
 
       ▷ ( ⌜ canStore RW wca2 = true ⌝ ∗
           na_own cerise_nais E ∗
@@ -219,19 +228,18 @@ Section KVS_spec_addOrUpdate.
           cnull ↦ᵣ - ∗
           user_key_addr ↦ₐ WInt user_key ∗
 
-          ◯↪KVS[ user_key ] (<[nkey := wca2]> m) ∗
-          nkey ↦(KVS)[user_key] wca2
+          user_key ↦(LKVS) (<[nkey := wca2]> m)
 
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E His_uint16_nkey Hbounds_a_user_key)
+    iIntros (Hnkvs_E His_uint16_nkey Hbounds_a_user_key Hm_nkey)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
-      & Ha_user_key & Halloc & [ %wfkey Hfkey ] & Hpost)".
+      & Ha_user_key & Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%mkvs & %s & >Himports & >Hcode & HisKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (>Himports & >Hcode & (%lkvs & Hlkvs_auth & HKVS) & Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
@@ -250,11 +258,11 @@ Section KVS_spec_addOrUpdate.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
       as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
     iApply (KVS_update_spec_pre with "[- $HPC]"); last iFrame; eauto.
-    iNext; iIntros (idx) "(%Hcan_store & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
-              & Hcnull & HKVS & Halloc & Hfkey & Hcode & Ha_unsealing & Ha_user_key)".
+    iNext; iIntros "(%Hcan_store & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+              & Hcnull & Hlkvs_auth & HKVS & Hm & Hcode & Ha_unsealing & Ha_user_key)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HKVS $Hspred]") as "Hna" ; auto.
+    iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $Hlkvs_auth $HKVS $Hspred]") as "Hna" ; auto.
     { iNext.
       iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
       iApply (region_pointsto_cons with "[Ha_unsealing]"); eauto; [solve_addr+|]; iFrame.
@@ -268,8 +276,8 @@ Section KVS_spec_addOrUpdate.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (wret wca2 : Word)
-    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
-    (mkvs : kvs_map) (lm : kvs_logical_map) (m : kvs_user_map)
+    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
+    (lkvs : kvs_logical_map) (m : kvs_user_map)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
@@ -280,7 +288,7 @@ Section KVS_spec_addOrUpdate.
 
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
-    nkey ∉ dom m ->
+    m !! nkey = None ->
 
     (
       (* initial register file *)
@@ -300,8 +308,9 @@ Section KVS_spec_addOrUpdate.
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ isKVS cgp_b mkvs lm ∗
-      ▷ ◯↪KVS[ user_key ] m ∗
+      ▷ ↪●LKVS lkvs ∗
+      ▷ is_logical_kvs cgp_b lkvs ∗
+      ▷ user_key ↦(LKVS) m ∗
 
       ▷ (PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ - ∗
@@ -317,19 +326,20 @@ Section KVS_spec_addOrUpdate.
           user_key_addr ↦ₐ WInt user_key ∗
           (
             (* THERE IS AN EMPTY SLOT AVAILABLE*)
-            (∃ idx,
-                ⌜ canStore RW wca2 = true ⌝ ∗
-                ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
-                isKVS cgp_b (<[ idx := Some (fkey, wca2) ]> mkvs) ( kvs_logical_kvs_insert lm user_key nkey wca2) ∗
-                ◯↪KVS[ user_key ] ( <[nkey := wca2]> m ) ∗
-                nkey ↦(KVS)[user_key] wca2
+            ( ⌜ canStore RW wca2 = true ⌝ ∗
+              ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
+
+              ↪●LKVS (<<[ ( user_key, nkey ) := wca2 ]>> lkvs) ∗
+              is_logical_kvs cgp_b (<<[ ( user_key, nkey ) := wca2 ]>> lkvs) ∗
+              user_key ↦(LKVS) (<[ nkey := wca2 ]> m)
             )
             ∨
               (* THERE IS NO EMPTY SLOT AVAILABLE*)
               (
                 ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: no empty slot available *)
-                isKVS cgp_b mkvs lm ∗
-                ◯↪KVS[ user_key ] m
+                ↪●LKVS lkvs ∗
+                is_logical_kvs cgp_b lkvs ∗
+                user_key ↦(LKVS) m
               )
           )
           -∗
@@ -338,9 +348,10 @@ Section KVS_spec_addOrUpdate.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (HsubBounds Hbounds_a_user_key His_uint16_nkey Hcgp_contiguous Hs')
+    iIntros (HsubBounds Hbounds_a_user_key His_uint16_nkey Hcgp_contiguous Hm_nkey)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & [%wctp Hctp] & Hct1 & Hct2 & [%wcnull Hcnull]
-        & Hcode & Ha_unsealing & Ha_user_key & HKVS & Halloc & Hpost)".
+        & Hcode & Ha_unsealing & Ha_user_key
+        & Hlkvs_auth & (%pkvs & >%Hsync & HKVS) & Hm & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -372,13 +383,19 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
+    iDestruct ( kvs_logical_kvs_valid with "Hlkvs_auth Hm" ) as "%Hlkvs_user_key".
+    pose proof (kvs_synced_logical_lookup_None _ _ _ _ _
+                  His_uint16_nkey Hsync Hlkvs_user_key Hm_nkey)
+      as Hpkvs_idx.
+
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
-    iApply (KVS_search_spec_empty_slot with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HKVS $Halloc $Hcode]"); eauto.
+    iApply (KVS_search_spec_empty_slot with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HKVS $Hcode]"); eauto.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "[
-    (%idx_empty & HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & Halloc & HKVS
-    & Hcgp_opt & [%wkey Hcgp_key] & [%wval Hcgp_val] & Hfkey & %Hcgp_bounds & %Hidx_empty & Hcode)
-    | (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & HKVS & Halloc & Hcode) ]".
+    (%idx_empty & HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & HKVS
+    & Hcgp_opt & [%wkey Hcgp_key] & [%wval Hcgp_val] & %Hcgp_bounds
+    & %Hidx_empty & %Hpkvs_idx_empty & Hcode)
+    | (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & HKVS & Hcode) ]".
     all: subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     - (* An empty slot was found *)
@@ -439,10 +456,17 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-      iMod (isKVS_open_insert _ _ _ _ _ _ _ wca2 with "HKVS Halloc Hfkey") as "(HKVS & Halloc & Hfkey)"; eauto.
-      iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val]") as "HKVS";eauto.
-      { by simplify_map_eq. }
+      iAssert (  ⌜ wf_kvs_physical_map pkvs ⌝ )%I as "[%_ %Hnodup_pkvs_keys]"
+      ; first ( iDestruct "HKVS" as "[$ _]" ).
+      iDestruct (kvs_physical_map_close_insert with "[$HKVS] [Hcgp_opt Hcgp_key Hcgp_val]")
+        as "HKVS"; eauto.
       { iApply destruct_physical_kvs_entry; first solve_addr; iFrame. }
+
+      iMod ( kvs_logical_kvs_update user_key _ _ (<[nkey := wca2]> m) with "Hlkvs_auth Hm" ) as "[Hlkvs_auth Hm]".
+      replace ( <[user_key:=<[nkey:=wca2]> m]> lkvs ) with ( <<[ (user_key, nkey):= wca2 ]>> lkvs ).
+      2: { rewrite /kvs_logical_kvs_insert Hlkvs_user_key //. }
+      eapply (kvs_synced_logical_kvs_insert _ _ _ _ _ wca2) in Hsync; eauto.
+
 
       iApply "Hpost"; iFrame "∗%".
       iLeft ; iFrame; done.
@@ -475,7 +499,7 @@ Section KVS_spec_addOrUpdate.
 
   Lemma KVS_add_spec
     (wret wca2 : Word)
-    (user_key nkey : Z) (l_user_key : Locality) (user_key_addr : Addr)
+    (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
     (E : coPset)
     :
@@ -485,7 +509,8 @@ Section KVS_spec_addOrUpdate.
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
-    nkey ∉ dom m ->
+
+    m !! nkey = None ->
 
     ( na_inv cerise_nais Nkvs kvs_inv ∗
       na_own cerise_nais E ∗
@@ -504,7 +529,7 @@ Section KVS_spec_addOrUpdate.
 
       user_key_addr ↦ₐ WInt user_key ∗
 
-      ▷ ◯↪KVS[ user_key ] m ∗
+      ▷ user_key ↦(LKVS) m ∗
 
       ▷ (na_own cerise_nais E ∗
          PC ↦ᵣ updatePcPerm wret ∗
@@ -522,14 +547,13 @@ Section KVS_spec_addOrUpdate.
            (
              ⌜ canStore RW wca2 = true ⌝ ∗
              ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
-             ◯↪KVS[ user_key ] ( <[nkey := wca2 ]> m) ∗
-             nkey ↦(KVS)[user_key] wca2
+             user_key ↦(LKVS) (<[ nkey := wca2 ]> m)
            )
            ∨
              (* THERE IS NO EMPTY SLOT AVAILABLE*)
              (
                ca0 ↦ᵣ WInt ASM_FALSE ∗ (* FALSE: no empty slot available *)
-               ◯↪KVS[ user_key ] m
+               user_key ↦(LKVS) m
              )
          )
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -537,11 +561,11 @@ Section KVS_spec_addOrUpdate.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E His_uint16_nkey Hbounds_a_user_key Hs')
+    iIntros (Hnkvs_E His_uint16_nkey Hbounds_a_user_key Hm_nkey)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
-      & Ha_user_key & Halloc & Hpost)".
+      & Ha_user_key & Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%mkvs & %s & >Himports & >Hcode & HisKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (>Himports & >Hcode & (%lkvs & Hlkvs_auth & HKVS) & Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
@@ -561,12 +585,13 @@ Section KVS_spec_addOrUpdate.
       as -> by (rewrite /kvs_addOrUpdate_pcc_addr /kvs_addOrUpdate_pcc_off; solve_addr+HKVS_pcc_b').
     iApply (KVS_add_spec_pre with "[- $HPC]"); last iFrame "∗#%"; eauto.
     iNext ; iIntros "(HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
-              & Hcnull & Hcode & Ha_unsealing & Ha_user_key &
-              [ (%idx & % & Hca0 & HKVS & Halloc & Hfkey) | (Hca0 & HKVS & Halloc) ]
+              & Hcnull & Hcode & Ha_unsealing & Ha_user_key
+              & [ (%Hcan_store & Hca0 & Hlkvs_auth & HKVS & Hm)
+                | (Hca0 & Hlkvs_auth & HKVS & Hm) ]
               )".
 
     all: subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-    all: iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HKVS $Hspred]") as "Hna"
+    all: iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $Hlkvs_auth $HKVS $Hspred]") as "Hna"
     ; auto; last ( iApply "Hpost"; iFrame ; try (iLeft; iFrame; done) ; try (iRight; iFrame; done)).
     all: iNext.
     all: iApply (region_pointsto_cons with "[Ha_unsealing Himports_sw]"); eauto; iFrame.
@@ -674,7 +699,7 @@ Section KVS_spec_addOrUpdate.
     iIntros (HE Hnkey_is_uint16)
       "(#Hkvs_inv & Hna & HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%mkvs & %s & >Himports & >Hcode & HKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (>Himports & >Hcode & HKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
@@ -787,9 +812,8 @@ Section KVS_spec_addOrUpdate.
   Proof.
     iIntros (HE Hnkey_is_uint16 Hwca0)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull)".
-
     iMod (na_inv_acc with "Hkvs_inv Hna")
-      as "( (%mkvs & %s & >Himports & >Hcode & HKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
+      as "( (>Himports & >Hcode & HKVS & Hspred) & Hna & Hkvs_inv_close)"; eauto.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).

@@ -30,8 +30,8 @@ Class memory_layout `{MP: MachineParameters} := {
     ot_kvs_size : (ot_kvs < ot_kvs ^+ 1)%ot;
     ot_kvs_disjoint : ot_kvs ≠ (ot_switcher switcher_cmpt) ;
 
-    kvs_user_key_K : Z;
-    kvs_user_key_B : Z;
+    kvs_user_key_K : user_key_t;
+    kvs_user_key_B : user_key_t;
     kvs_user_key_disjoints : kvs_user_key_K ≠ kvs_user_key_B;
 
     (* adv compartments B *)
@@ -226,11 +226,7 @@ Section Adequacy.
   Local Notation kvs_user_key_K_a := (0 ^+ kvs_user_key_K)%a.
   Local Notation kvs_user_key_B_a := (0 ^+ kvs_user_key_B)%a.
 
-  Context {kvs_preg: gen_heapGpreS nat kvs_entry Σ}.
-  Context {kvs_alloc_preg: gen_heapGpreS Z kvs_user_map Σ}.
-  (* Context {KVS_users: kvs_users}. *)
-  (* Context { Hkvs_users_seals : kvs_users_seals = {[ B := kvs_user_key_B ]} }. *)
-  (* Context { Hkvs_users_seals_reserved : kvs_users_seals_reserved = [kvs_user_key_K] }. *)
+  Context {kvs_alloc_preg: gen_heapGpreS user_key_t kvs_user_map Σ}.
 
   Definition flagN : namespace := nroot .@ "kvs" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "kvs" .@ "switcher_flag".
@@ -345,18 +341,18 @@ Section Adequacy.
     }
 
     set (all_users_keys := [kvs_user_key_K;kvs_user_key_B]).
-    set (kvs_alloc_init := (list_to_map ( (fun k => (k,∅)) <$> all_users_keys) : kvs_logical_map)).
-    iMod (gen_heap_init (kvs_alloc_init : kvs_logical_map)) as (kvs_alloc_heapg) "(Hkvs_alloc_auth & Hkvs_alloc_frag & _)".
-    assert ( kvs_alloc_init = {[ kvs_user_key_K := ∅ ; kvs_user_key_B := ∅ ]} ) as ->.
-    { subst kvs_alloc_init all_users_keys; done. }
+    set (lkvs_init := (list_to_map ( (fun k => (k,∅)) <$> all_users_keys) : kvs_logical_map)).
+    iMod (gen_heap_init (lkvs_init : kvs_logical_map))
+      as (kvs_logical_heapg) "(Hlkvs_auth & Hlkvs_frag & _)".
+    assert ( lkvs_init = {[ kvs_user_key_K := ∅ ; kvs_user_key_B := ∅ ]} ) as ->.
+    { subst lkvs_init all_users_keys; done. }
     assert ( kvs_user_key_K ≠ kvs_user_key_B ) as Huser_keys_disjoint.
     { pose proof kvs_user_key_disjoints; solve_addr. }
     rewrite (big_sepM_insert _ _ kvs_user_key_K); last by simplify_map_eq.
     rewrite (big_sepM_insert _ _ kvs_user_key_B); last by simplify_map_eq.
-    iDestruct "Hkvs_alloc_frag" as "(Halloc_K & Halloc_B & _)".
-    iMod (gen_heap_init (kvs_map_init : kvs_map)) as (kvs_heapg) "(Hkvs_auth & Hkvs_frags & _)".
+    iDestruct "Hlkvs_frag" as "(Hm_K & Hm_B & _)".
 
-    pose kvsg := KvsG Σ kvs_heapg kvs_alloc_heapg.
+    pose kvsg := KvsG Σ kvs_logical_heapg.
 
     pose proof (
         @kvs_main_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _
@@ -452,13 +448,6 @@ Section Adequacy.
     set (kvs_erase' := (SCap RO Local _ _ (cmpt_exp_tbl_pcc kvs_cmpt ^+ kvs_erase_exp_tbl_off)%a)).
     clear Hneq_Bf_kvs_addOrUpdate Hneq_Bf_kvs_read Hneq_Bf_kvs_erase
       Hneq_kvs_addOrUpdate_kvs_read Hneq_kvs_addOrUpdate_kvs_erase Hneq_kvs_read_kvs_erase.
-
-
-    (* Notations *)
-    iAssert (kvs_user_key_K ↦(KVS_USER) ∅)%I with "Halloc_K" as "Halloc_K".
-    iAssert (kvs_user_key_B ↦(KVS_USER) ∅)%I with "Halloc_B" as "Halloc_B".
-    iAssert (↪●KVS_USERS {[kvs_user_key_K := ∅; kvs_user_key_B := ∅]})%I with "Hkvs_alloc_auth" as "Hkvs_alloc_auth".
-    iDestruct (kvs_initial_map_init_None with "[Hkvs_frags]") as "Hkvs_frags"; first iFrame.
 
     (* Get initial sregister mtdc *)
     iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; eauto.
@@ -597,24 +586,25 @@ Section Adequacy.
     iMod (seal_store_update_alloc _ ( kvs_otype_propC ) with "Hseal_store_kvs") as "#Hsealed_pred_ot_kvs".
 
     iMod (na_inv_alloc cerise_nais _ Nkvs kvs_inv
-           with "[Hkvs_auth Hkvs_frags Hkvs_alloc_auth Hkvs_imports Hkvs_data Hkvs_code]") as "#Hkvs".
+           with "[Hlkvs_auth Hkvs_imports Hkvs_data Hkvs_code]") as "#Hkvs".
     { iNext.
       rewrite /kvs_inv.
       rewrite kvs_data /kvs_data.
       pose proof (cmpt_data_size kvs_cmpt) as H.
       rewrite kvs_data /kvs_data in H.
       iFrame "∗#".
-      iSplit.
-      { iPureIntro; apply wf_kvs_map_kvs_map_init. }
+      rewrite /is_logical_kvs.
+      iExists kvs_physical_map_init.
       iSplit.
       { iPureIntro; apply kvs_alloc_synced_map_init.
         intros ku sk Hsk.
         clear -Hsk.
         by destruct (decide (ku = kvs_user_key_K)); simplify_map_eq.
       }
+      iSplit.
+      { iPureIntro; apply wf_kvs_physical_map_kvs_physical_map_init. }
       iEval (cbn).
-      iApply (kvs_initial_map_init with "[$] [Hkvs_frags]"); last iFrame.
-      rewrite /SIZE_MAP; solve_addr+H.
+      iApply (kvs_initial_map_init with "Hkvs_data"); rewrite /SIZE_MAP; solve_addr+H.
     }
 
     (* Initialises the world for B *)
@@ -695,10 +685,10 @@ Section Adequacy.
     set ( adversary_kvs_keys := ( {[ WSealable kvs_user_key_B_sb ; WSealable kvs_user_key_B_sb']} : gset Word)).
     set (W1' := <o[ ot_kvs := adversary_kvs_keys ]o> W1).
 
-    iAssert (kvs_otype_prop W1' B (WSealable kvs_user_key_B_sb)) with "[Halloc_B Ha_user_key_B]" as "ot_kvs_user_key_B".
+    iAssert (kvs_otype_prop W1' B (WSealable kvs_user_key_B_sb)) with "[Hm_B Ha_user_key_B]" as "ot_kvs_user_key_B".
     {
       iEval (rewrite /kvs_otype_prop /kvs_otype_inv /=).
-      iFrame "Halloc_B Ha_user_key_B".
+      iFrame "Hm_B Ha_user_key_B".
       repeat iSplit; auto; iPureIntro; try lia.
       subst user_key_addr_B.
       pose proof (cmpt_static_sealed_size B_cmpt) as H.
@@ -940,7 +930,7 @@ Section Adequacy.
                         $Hkvs_etbl_pcc $Hkvs_etbl_cgp $Hkvs_etbl_entries_addOrUpdate $Hkvs_etbl_entries_read
                         $Hna $HPC $Hcgp $Hcsp $Hreg
                         $Hmain_imports $Hmain_code $Hmain_data $Hmain_static_sealed
-                        $Halloc_K
+                        $Hm_K
                         $Hworld_B $Hcstk_frag
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto.
@@ -1036,7 +1026,7 @@ Proof.
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ Addr region_type OType Word ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)
-              ; gen_heapΣ nat kvs_entry ; gen_heapΣ Z kvs_user_map
+              ; gen_heapΣ user_key_t kvs_user_map
       ]).
   eapply (@kvs_adequacy' Σ cnames B); eauto; try typeclasses eauto.
 Qed.
