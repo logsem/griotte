@@ -1019,7 +1019,7 @@ Section KVS_preamble.
     (m : kvs_map) (lm : kvs_logical_map) (idx : nat) (uk mk : Z) (w : Word) :
     let k := kvs_full_key uk mk in
     NoDup (kvs_keys m) ->
-    wf_kvs_full_key uk mk ->
+    is_uint16 mk ->
     (∃ w', m !! idx = Some ( Some (k, w'))) ->
     kvs_synced_logical_kvs m lm ->
     kvs_synced_logical_kvs (<[idx:= Some (k, w)]> m) (kvs_logical_kvs_insert lm uk mk w).
@@ -1074,7 +1074,7 @@ Section KVS_preamble.
     (a : Addr) (m : kvs_map) (lm : kvs_logical_map) (umap : kvs_user_map)
     (idx : nat) (uk mk : Z) (w w' : Word) :
     let k := kvs_full_key uk mk in
-    wf_kvs_full_key uk mk ->
+    is_uint16 mk ->
     isKVS_open a m lm idx -∗
     k ⤇(KVS)[ idx ] w -∗
     uk ↦(KVS_USER) umap
@@ -1386,7 +1386,7 @@ Section KVS_preamble_public.
   Lemma kvs_pointsto_valid
     (a : Addr) (mkvs : kvs_map) (lm : kvs_logical_map)
     (m : kvs_user_map) (uk mk : Z) (w : Word) :
-      wf_kvs_full_key uk mk ->
+      is_uint16 mk ->
       isKVS a mkvs lm -∗
       ◯↪KVS[ uk ] m -∗
       mk ↦(KVS)[uk] w

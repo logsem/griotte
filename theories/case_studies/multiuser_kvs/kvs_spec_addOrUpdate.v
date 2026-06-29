@@ -163,7 +163,7 @@ Section KVS_spec_addOrUpdate.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     iMod (isKVS_open_update _ _ _ _ _ _ _  _ wca2 with "HKVS Hkvs_frag Halloc")
-      as "(HKVS & Hkvs_frag & Halloc)"; first ( split; auto ).
+      as "(HKVS & Hkvs_frag & Halloc)"; auto.
 
     iDestruct (close_isKVS with "[$HKVS Hcgp_opt Hcgp_key Hcgp_val]") as "HKVS";eauto.
     { by simplify_map_eq. }
