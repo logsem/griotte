@@ -3,82 +3,25 @@ From griotte Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import switcher kvs.
 
-Definition kvs_entry : Type := option (Z * Word).
+
+Definition user_key_t := Z.
+Definition map_key_t := Z.
+Definition full_key_t := Z.
+Definition kvs_idx_t := nat.
+
+Definition kvs_physical_entry : Type := option (full_key_t * Word).
 Definition kvs_dom : gset nat := set_seq 0 SIZE_MAP.
-Definition kvs_map : Type := gmap nat kvs_entry.
+Definition kvs_physical_map : Type := gmap kvs_idx_t kvs_physical_entry.
 
-Definition kvs_alloc : Type := gmap Z (gset Z).
 
-(* CMRA for KVS *)
-Class kvsG Σ :=
-  KvsG {
-      kvs_genG :: gen_heapGS nat kvs_entry Σ;
-      kvs_alloc_genG :: gen_heapGS Z (gset Z) Σ;
-    }.
-
-Definition allocated_keys_auth `{kvsG} ( m : kvs_alloc) : iProp Σ :=
-  (gen_heap_interp (L:=Z) (V:= gset Z) m).
-Definition allocated_keys_frag `{kvsG} (ku : Z) ( s : gset Z ) : iProp Σ :=
-  pointsto (L:=Z) (V:= gset Z) ku (DfracOwn 1) s.
-
-Notation "●(ALLOC) s" := (allocated_keys_auth s)%I (at level 20) : bi_scope.
-Notation "◯(ALLOC)[ k ] s" := (allocated_keys_frag k s)%I (at level 20) : bi_scope.
-
-Lemma allocated_keys_valid `{kvsG} (ku : Z) (m : kvs_alloc) (s : gset Z) :
-  ●(ALLOC) m -∗ ◯(ALLOC)[ ku ] s -∗ ⌜ m !! ku = Some s  ⌝.
-Proof.
-  iIntros "Hauth Hfrag".
-  by iDestruct (gen_heap_valid with "Hauth Hfrag") as "%Hvalid".
-Qed.
-
-Lemma allocated_keys_union `{kvsG} (ku : Z) ( m : kvs_alloc) (s' s'' : gset Z) :
-  ●(ALLOC) m -∗ ◯(ALLOC)[ku] s' ==∗ ●(ALLOC) (<[ ku := (s'' ∪ s') ]> m) ∗ ◯(ALLOC)[ku] (s'' ∪ s').
-Proof.
-  iIntros "Hauth Hfrag".
-  by iMod (gen_heap_update m ku _ (s'' ∪ s') with "Hauth Hfrag") as "[$ $]".
-Qed.
-
-Lemma allocated_keys_insert `{kvsG} (ku : Z) (kn : Z) ( m : kvs_alloc) (s' : gset Z) :
-  ●(ALLOC) m -∗ ◯(ALLOC)[ku] s' ==∗
-  ●(ALLOC) (<[ ku := ({[kn]} ∪ s') ]> m) ∗ ◯(ALLOC)[ku] ( {[kn]} ∪ s').
-Proof.
-  iIntros "Hs Hs'".
-  iMod (allocated_keys_union with "Hs Hs'") as "[$ $]" ; last done.
-Qed.
-
-Definition kvs_frag_idx_frac `{kvsG} (idx : nat) (k : Z) (w : Word) (q : dfrac) : iProp Σ :=
-  (pointsto (L:=nat) (V:=kvs_entry) idx q (Some (k,w))).
-Notation "k '⤇(KVS){' q '}[' idx  ']' w" :=
-  (kvs_frag_idx_frac idx k w q) (at level 20) : bi_scope.
-Notation "k '⤇(KVS){' q '}[' idx  ']' -" :=
-  (∃ w, kvs_frag_idx_frac idx k w q)%I (at level 20) : bi_scope.
-
-Notation "idx '⤇(KVS)' 'NONE'" :=
-  (pointsto (L:=nat) (V:=kvs_entry) idx (DfracOwn 1) None) (at level 20) : bi_scope.
-Notation "k '⤇(KVS)[' idx  ']' w" :=
-  (kvs_frag_idx_frac idx k w (DfracOwn 1)) (at level 20) : bi_scope.
-Notation "k '⤇(KVS)[' idx  ']' -" :=
-  (∃ w, kvs_frag_idx_frac idx k w (DfracOwn 1))%I (at level 20) : bi_scope.
-
-Definition kvs_frag `{kvsG} (k : Z ) (w : Word) : iProp Σ := ∃ idx, k ⤇(KVS)[ idx ] w.
-Notation "k '⤇(KVS)' w" := (kvs_frag k w) (at level 20) : bi_scope.
-Notation "k '⤇(KVS)' -" := (∃ w, kvs_frag k w)%I (at level 20) : bi_scope.
-
-Notation "●(KVS) m" := (gen_heap_interp (m : kvs_map)) (at level 20) : bi_scope.
-
-Section KVS_preamble.
+Section KVS_physical_map.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ}
+    {ceriseg:ceriseG Σ}
     `{MP: MachineParameters}
-    {swlayout : switcherLayout}
   .
 
-  Definition kvs_keys (m : kvs_map) : list Z :=
+  Definition kvs_keys (pkvs : kvs_physical_map) : list full_key_t :=
     map_fold (
         (fun _ opt_kv acc =>
            match opt_kv with
@@ -88,36 +31,69 @@ Section KVS_preamble.
         )
       )
       []
-      m.
+      pkvs.
 
-  Definition wf_kvs_map (m : kvs_map) : Prop :=
-    dom m = kvs_dom ∧ NoDup (kvs_keys m).
+  Definition wf_kvs_physical_map (pkvs : kvs_physical_map) : Prop :=
+    dom pkvs = kvs_dom ∧ NoDup (kvs_keys pkvs).
 
-  Definition option_pair_ASM (opt_kw : kvs_entry) (wuk wmk : Word) :=
+  Definition option_pair_ASM_Some (k : full_key_t) (w : Word) :=
+    [ WInt ASM_SOME; WInt k; w].
+  Definition option_pair_ASM_None (wuk wmk : Word) :=
+    [ WInt ASM_NONE; wuk; wmk].
+
+  Definition option_pair_ASM (opt_kw : kvs_physical_entry) (wuk wmk : Word) :=
     match opt_kw with
-    | None => [WInt ASM_NONE; wuk; wmk]
-    | Some (k, w) => [ WInt ASM_SOME; WInt k; w]
+    | None => option_pair_ASM_None wuk wmk
+    | Some (k, w) => option_pair_ASM_Some k w
     end.
 
-  Definition isKVS_entry (a : Addr) (idx : nat) (opt_kw : kvs_entry) : iProp Σ :=
+  Definition physical_kvs_entry
+    (a : Addr) (idx : kvs_idx_t) (opt_kw : kvs_physical_entry) : iProp Σ :=
+    let a_opt_idx := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a in
+    let a_opt_idx_next := (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a in
     ∃ (wuk wmk : Word),
-    [[ (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a, (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a ]]
-      ↦ₐ [[ option_pair_ASM opt_kw wuk wmk ]]
-    ∗ (match opt_kw with | None => idx ⤇(KVS) NONE | Some _ => True end).
+      [[ a_opt_idx, a_opt_idx_next ]] ↦ₐ [[ option_pair_ASM opt_kw wuk wmk ]].
 
-  Lemma destruct_isKVS_entry_Some (a : Addr) (idx : nat) (k : Z) (w : Word) :
+  Definition physical_kvs_entry' (a : Addr) (idx : kvs_idx_t) (opt_kw : kvs_physical_entry) : iProp Σ :=
+    let a_opt := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a in
+    let a_key := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a in
+    let a_val := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a in
+    ( a_opt ↦ₐ ( match opt_kw with | None => WInt ASM_NONE | Some _ => WInt ASM_SOME end ) ) ∗
+    ( match opt_kw with
+      | None =>       a_key ↦ₐ -
+      | Some (k,_) => a_key ↦ₐ WInt k
+      end ) ∗
+    ( match opt_kw with
+      | None =>       a_val ↦ₐ -
+      | Some (_,w) => a_val ↦ₐ w
+      end).
+
+  Definition physical_kvs_entry_some' (a : Addr) (idx : kvs_idx_t) (k : full_key_t) (w : Word) : iProp Σ :=
+    let a_opt := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a in
+    let a_key := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a in
+    let a_val := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a in
+    ( a_opt ↦ₐ WInt ASM_SOME ∗
+      a_key ↦ₐ WInt k ∗
+      a_val ↦ₐ w).
+
+  Definition physical_kvs_entry_none' (a : Addr) (idx : kvs_idx_t) : iProp Σ :=
+    let a_opt := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a in
+    let a_key := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a in
+    let a_val := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a in
+    ( a_opt ↦ₐ WInt ASM_NONE ∗
+      a_key ↦ₐ - ∗
+      a_val ↦ₐ -).
+
+  Lemma destruct_physical_kvs_entry_some (a : Addr) (idx : kvs_idx_t) (k : full_key_t) (w : Word) :
   (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
   = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
     ->
 
-    isKVS_entry a idx (Some (k, w)) ⊣⊢
-    ( (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_SOME ∗
-      (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a ↦ₐ WInt k ∗
-      (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a ↦ₐ w).
+    physical_kvs_entry a idx (Some (k, w)) ⊣⊢ physical_kvs_entry_some' a idx k w.
   Proof.
     intros H.
     iSplit; iIntros "H".
-    - iDestruct "H" as "(%&%&H&_)".
+    - iDestruct "H" as "(%&%&H)".
       iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a with "H") as
         "[$ H]"; try solve_addr.
       iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a with "H") as
@@ -126,7 +102,6 @@ Section KVS_preamble.
         "[$ H]"; try solve_addr.
     - iDestruct "H" as "(?&?&?)".
       iExists (WInt 0), (WInt 0).
-      iSplit; last done.
       iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a)
       ; [solve_addr | solve_addr | iFrame].
       iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a)
@@ -137,29 +112,23 @@ Section KVS_preamble.
       rewrite finz_seq_between_empty; done.
   Qed.
 
-  Lemma destruct_isKVS_entry_None (a : Addr) (idx : nat) :
-  (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
-  = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
+  Lemma destruct_physical_kvs_entry_None (a : Addr) (idx : kvs_idx_t) :
+    (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
+    = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
     ->
 
-    isKVS_entry a idx None ⊣⊢
-    ( (∃ wuk wmk,
-        ( (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_NONE ∗
-          (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a ↦ₐ wuk ∗
-          (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a ↦ₐ wmk))
-    ∗ idx ⤇(KVS) NONE).
+      physical_kvs_entry a idx None ⊣⊢ physical_kvs_entry_none' a idx.
   Proof.
     intros H.
     iSplit; iIntros "H".
-    - iDestruct "H" as "(%&%&H&$)".
-      iExists wuk, wmk.
+    - iDestruct "H" as "(%&%&H)".
       iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a with "H") as
         "[$ H]"; try solve_addr.
       iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a with "H") as
         "[$ H]"; try solve_addr.
       iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3))%a with "H") as
         "[$ H]"; try solve_addr.
-    - iDestruct "H" as "[  (%wuk&%wmk&?&?&?) $]".
+    - iDestruct "H" as "( ? & [%wuk ?] & [%wmk ?] )".
       iExists wuk, wmk.
       iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a)
       ; [solve_addr | solve_addr | iFrame].
@@ -171,102 +140,50 @@ Section KVS_preamble.
       rewrite finz_seq_between_empty; done.
   Qed.
 
-  Lemma destruct_isKVS_entry (a : Addr) (idx : nat) (opt_kw : kvs_entry) :
+  Lemma destruct_physical_kvs_entry (a : Addr) (idx : kvs_idx_t) (opt_kw : kvs_physical_entry) :
   (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
   = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
     ->
 
-    isKVS_entry a idx opt_kw ⊣⊢
-        ( (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a
-            ↦ₐ ( match opt_kw with | None => WInt ASM_NONE | Some _ => WInt ASM_SOME end )
-          ∗
-          ( match opt_kw with
-            | None => (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a ↦ₐ -
-            | Some (k,_) => (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a ↦ₐ WInt k
-            end )
-          ∗
-          ( match opt_kw with
-            | None => (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a ↦ₐ -
-            | Some (_,w) => (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a ↦ₐ w
-            end )
-          ∗ (match opt_kw with | None => idx ⤇(KVS) NONE | Some _ => True end)
-        ).
+    physical_kvs_entry a idx opt_kw ⊣⊢ physical_kvs_entry' a idx opt_kw.
   Proof.
     intros H.
     destruct opt_kw as [ [k w] |]; cbn.
-    - rewrite destruct_isKVS_entry_Some; auto.
-      iSplit; [iIntros "($&$&$)"| iIntros "($&$&$&_)"].
-    - rewrite destruct_isKVS_entry_None; auto.
-      iSplit; iIntros "H"; eauto.
-      + iDestruct "H" as "[  (%&%&($&$&$)) $]".
-      + iDestruct "H" as "($ & [% $] & [% $] & $)".
+    - rewrite destruct_physical_kvs_entry_some; auto.
+    - rewrite destruct_physical_kvs_entry_None; auto.
   Qed.
 
-  Definition kvs_alloc_elem_of (s : kvs_alloc) (ku kn : Z) :=
-    (∃ sk, s !! ku = Some sk ∧ kn ∈ sk).
+  Definition is_physical_kvs (a : Addr) (pkvs : kvs_physical_map) : iProp Σ :=
+    ⌜ wf_kvs_physical_map pkvs ⌝ ∗ [∗ map] idx ↦ opt_kw ∈ pkvs, physical_kvs_entry a idx opt_kw.
 
-  Local Lemma kvs_alloc_not_elem_of (s : kvs_alloc) (ku kn : Z) :
-    ¬ kvs_alloc_elem_of s ku kn ->
-    s !! ku = None ∨ ∃ sk, s !! ku = Some sk ∧ kn ∉ sk.
+  Definition is_physical_kvs_open
+    (a : Addr) (pkvs : kvs_physical_map) (open_idx : kvs_idx_t) : iProp Σ :=
+    ⌜ wf_kvs_physical_map pkvs ⌝ ∗
+    [∗ map] idx ↦ opt_kw ∈ (delete open_idx pkvs), physical_kvs_entry a idx opt_kw.
+
+  Lemma is_physical_kvs_wf (a : Addr) (pkvs : kvs_physical_map) :
+    is_physical_kvs a pkvs -∗ ⌜ wf_kvs_physical_map pkvs ⌝.
+  Proof. iIntros "[$ _]". Qed.
+
+  Lemma is_physical_kvs_open_wf (a : Addr) (pkvs : kvs_physical_map) (idx : kvs_idx_t) :
+    is_physical_kvs_open a pkvs idx -∗ ⌜ wf_kvs_physical_map pkvs ⌝.
+  Proof. iIntros "[$ _]". Qed.
+
+  Lemma wf_kvs_indom_idx (pkvs : kvs_physical_map) (idx : kvs_idx_t) :
+    idx ∈ dom pkvs ->
+    wf_kvs_physical_map pkvs ->
+    0 <= idx < SIZE_MAP.
   Proof.
-    rewrite /kvs_alloc_elem_of.
-    intros H.
-    destruct (s !! ku) eqn:H' ;[right|left]; auto.
-    exists g.
-    destruct (decide (kn ∈ g)); auto.
-    exfalso; apply H.
-    exists g; split; auto.
+    intros Hm_idx [Hkvs_dom _].
+    rewrite Hkvs_dom /kvs_dom in Hm_idx.
+    apply elem_of_set_seq in Hm_idx.
+    lia.
   Qed.
 
-  Definition kvs_alloc_insert (s : kvs_alloc) (ku : Z) (ks : gset Z) :=
-   <[ku := ks ∪ (default ∅ (s !! ku)) ]> s.
-
-  Definition kvs_alloc_delete (s : kvs_alloc) (ku : Z) (ks : gset Z) :=
-   <[ku := (default ∅ (s !! ku)) ∖ ks ]> s.
-
-  Lemma kvs_alloc_insert_lookup_eq s ku ks sk :
-    kvs_alloc_insert s ku ks !! ku = Some sk ->
-    sk = ks ∪ default ∅ (s !! ku).
-  Proof.
-    intros H.
-    rewrite /kvs_alloc_insert in H; simplify_map_eq.
-    done.
-  Qed.
-
-  Lemma kvs_alloc_insert_lookup_ne s ku ku' ks sk :
-    ku ≠ ku' ->
-    kvs_alloc_insert s ku ks !! ku' = Some sk ->
-    s !! ku' = Some sk.
-  Proof.
-    intros Hk H.
-    rewrite /kvs_alloc_insert in H; simplify_map_eq.
-    done.
-  Qed.
-
-  Definition kvs_alloc_synced (m : kvs_map) (s : kvs_alloc) : Prop :=
-    ∀ k, is_uint16 k.2 ->
-         ( kvs_alloc_elem_of s k.1 k.2 ↔ (kvs_full_key k.1 k.2) ∈ kvs_keys m).
-
-  Definition isKVS
-    (a : Addr) (m : kvs_map) (s : kvs_alloc) : iProp Σ :=
-    ⌜ wf_kvs_map m ⌝ ∗
-    ●(KVS) m ∗
-    ●(ALLOC) s ∗
-    ⌜ kvs_alloc_synced m s ⌝ ∗
-    [∗ map] idx ↦ kw ∈ m, isKVS_entry a idx kw.
-
-  Definition isKVS_open
-    (a : Addr) (m : kvs_map) (s : kvs_alloc) (open_idx : nat) : iProp Σ :=
-    ⌜ wf_kvs_map m ⌝ ∗
-    ●(KVS) m ∗
-    ●(ALLOC) s ∗
-    ⌜ kvs_alloc_synced m s ⌝ ∗
-    [∗ map] idx ↦ kw ∈ (delete open_idx m), isKVS_entry a idx kw.
-
-  Lemma wf_kvs_is_Some (m : kvs_map) (idx : nat)  :
-    wf_kvs_map m ->
+  Lemma wf_kvs_is_Some (pkvs : kvs_physical_map) (idx : kvs_idx_t)  :
+    wf_kvs_physical_map pkvs ->
     0 <= idx < SIZE_MAP ->
-    is_Some (m !! idx).
+    is_Some (pkvs !! idx).
   Proof.
     intros [Hkvs_dom _] Hidx.
     apply elem_of_dom.
@@ -274,15 +191,28 @@ Section KVS_preamble.
     by apply elem_of_set_seq.
   Qed.
 
-  Lemma wf_kvs_indom_idx (m : kvs_map) (idx : nat) :
-    idx ∈ dom m ->
-    wf_kvs_map m ->
-    0 <= idx < SIZE_MAP.
+  Lemma kvs_physical_map_indom_idx (pkvs : kvs_physical_map) (a : Addr) (idx : kvs_idx_t) :
+    idx ∈ dom pkvs ->
+    is_physical_kvs a pkvs -∗
+    ⌜ 0 <= idx < SIZE_MAP ⌝.
   Proof.
-    intros Hm_idx [Hkvs_dom _].
-    rewrite Hkvs_dom /kvs_dom in Hm_idx.
-    apply elem_of_set_seq in Hm_idx.
-    lia.
+    iIntros (Hm_idx) "(%Hwf_kvs & _)"; iPureIntro.
+    by eapply wf_kvs_indom_idx.
+  Qed.
+
+  Lemma kvs_physical_map_open_in
+    (a : Addr) (pkvs : kvs_physical_map)
+    (idx : kvs_idx_t) (k : full_key_t) (w : Word) :
+
+    pkvs !! idx = Some (Some (k, w)) ->
+
+    is_physical_kvs a pkvs -∗
+    is_physical_kvs_open a pkvs idx ∗ physical_kvs_entry a idx (Some (k, w)).
+  Proof.
+    iIntros (Hpkvs_idx) "[%Hwf_pkvs HKVS]".
+    rewrite -{1}(insert_id pkvs idx (Some (k,w))); last done.
+    iDestruct (big_sepM_insert_delete with "HKVS") as "[$ HKVS]".
+    iFrame; eauto.
   Qed.
 
   Global Instance Permutation_Reflexive {A} : Reflexive (@Permutation A).
@@ -294,9 +224,9 @@ Section KVS_preamble.
   Global Instance Permutation_PreOrder {A} : PreOrder (@Permutation A).
   Proof. split; apply _. Qed.
 
-  Local Instance Proper_get_kvs_key (opt_kv : kvs_entry) :
+  Local Instance Proper_get_kvs_key (opt_kv : kvs_physical_entry) :
   Proper (Permutation ==> Permutation)
-    (λ acc : list Z, match opt_kv with
+    (λ acc : list full_key_t, match opt_kv with
                      | Some kv => kv.1 :: acc
                      | None => acc
                      end).
@@ -314,7 +244,6 @@ Section KVS_preamble.
     econstructor.
   Qed.
 
-
   Lemma kvs_keys_insert_Some idx k w m :
     m !! idx = None ->
     kvs_keys (<[idx:=Some (k, w)]> m) ≡ₚ (k :: kvs_keys m).
@@ -327,18 +256,18 @@ Section KVS_preamble.
     econstructor.
   Qed.
 
-  Lemma wf_kvs_neq (m : kvs_map) (idx idx' : nat) (k k' : Z) (w w' : Word) :
-    wf_kvs_map m ->
+  Lemma wf_kvs_neq (pkvs : kvs_physical_map) (idx idx' : nat) (k k' : full_key_t) (w w' : Word) :
+    wf_kvs_physical_map pkvs ->
     idx ≠ idx' ->
-    m !! idx = Some (Some (k, w)) ->
-    m !! idx' = Some (Some (k', w')) ->
+    pkvs !! idx = Some (Some (k, w)) ->
+    pkvs !! idx' = Some (Some (k', w')) ->
     k ≠ k'.
   Proof.
     intros [_ Hkvs_uniqueness] Hidx_ne Hm_idx Hm_idx'.
-    rewrite -(insert_id m idx (Some (k, w))) in Hkvs_uniqueness; last done.
+    rewrite -(insert_id pkvs idx (Some (k, w))) in Hkvs_uniqueness; last done.
     rewrite -insert_delete_eq in Hkvs_uniqueness.
     rewrite kvs_keys_insert_Some in Hkvs_uniqueness; last by simplify_map_eq.
-    rewrite -(insert_id (delete idx m) idx' (Some (k', w'))) in Hkvs_uniqueness; last by simplify_map_eq.
+    rewrite -(insert_id (delete idx pkvs) idx' (Some (k', w'))) in Hkvs_uniqueness; last by simplify_map_eq.
     rewrite -insert_delete_eq in Hkvs_uniqueness.
     rewrite kvs_keys_insert_Some in Hkvs_uniqueness; last by simplify_map_eq.
     apply NoDup_cons in Hkvs_uniqueness as [Hk _ ].
@@ -346,54 +275,123 @@ Section KVS_preamble.
     done.
   Qed.
 
+  Lemma kvs_physical_map_open_neq
+    (a : Addr) (pkvs : kvs_physical_map) (idx idx' : nat) (k : full_key_t) (w : Word):
+    pkvs !! idx = Some (Some (k, w)) ->
+    0 <= idx' < SIZE_MAP ->
+    idx ≠ idx' ->
+    is_physical_kvs a pkvs -∗
+    ∃ opt_kw',
+      is_physical_kvs_open a pkvs idx' ∗
+      ⌜ pkvs !! idx' = Some opt_kw' ⌝ ∗
+      physical_kvs_entry a idx' opt_kw' ∗
+      ⌜ match opt_kw' with | Some kw' => k ≠ kw'.1 | None => True end ⌝.
+  Proof.
+    iIntros (Hpkvs_idx Hidx' Hidx_ne) "[%Hwf_kvs HKVS]".
+    pose proof (wf_kvs_is_Some _ _ Hwf_kvs Hidx') as [ opt_kw' Hm_idx' ].
+    iExists opt_kw'.
+    rewrite -{1}(insert_id pkvs idx' opt_kw'); last done.
+    iDestruct (big_sepM_insert_delete with "HKVS") as "[ Hk' HKVS]".
+    iFrame "∗%".
+    iPureIntro.
+    destruct opt_kw' as [ [k' w'] |]; auto.
+    pose proof (wf_kvs_neq _ _ _ _ _ _ _ Hwf_kvs Hidx_ne Hpkvs_idx Hm_idx') as Hkk'.
+    done.
+  Qed.
+
+
+  Lemma kvs_physical_map_close
+    (a : Addr) (pkvs : kvs_physical_map) (idx : kvs_idx_t) (opt_kwidx : kvs_physical_entry):
+    pkvs !! idx = Some opt_kwidx ->
+
+    is_physical_kvs_open a pkvs idx -∗
+    physical_kvs_entry a idx opt_kwidx -∗
+    is_physical_kvs a pkvs.
+  Proof.
+    iIntros (Hidx) "[%Hwf_kvs HKVS] Hentry"; cbn.
+    iDestruct (big_sepM_delete with "[$HKVS $Hentry]") as "HKVS"; eauto.
+    iFrame; eauto.
+  Qed.
+
   Lemma kvs_keys_empty : kvs_keys ∅ = [].
   Proof. rewrite /kvs_keys map_fold_empty; done. Qed.
 
-  Lemma elem_of_kvs_keys_1 (m : kvs_map) (k : Z) :
-    k ∈ kvs_keys m -> (∃ idx w, m !! idx = Some (Some (k, w))).
+  Definition kvs_elem_of_kvs (pkvs : kvs_physical_map) (k : full_key_t) ( w : Word ) :=
+    (∃ idx, pkvs !! idx = Some (Some (k, w))).
+  Lemma elem_of_kvs_keys_1 (pkvs : kvs_physical_map) (k : full_key_t) :
+    k ∈ kvs_keys pkvs -> (∃ w, kvs_elem_of_kvs pkvs k w).
   Proof.
     move: k.
-    induction m using map_ind ; intros k Hk.
+    induction pkvs using map_ind ; intros k Hk.
     { rewrite kvs_keys_empty in Hk; set_solver+Hk. }
     destruct x as [ [k' w'] |].
     - rewrite kvs_keys_insert_Some in Hk; auto.
       apply elem_of_cons in Hk as [ -> | Hk].
-      + exists i, w' ; simplify_map_eq; done.
-      + apply IHm in Hk.
-        destruct Hk as (idx & w & Hidx).
-        exists idx, w.
+      + exists w', i ; simplify_map_eq; done.
+      + apply IHpkvs in Hk.
+        destruct Hk as (w & idx & Hidx).
+        exists w, idx.
         assert (i ≠ idx) by (intro; simplify_map_eq;done).
         simplify_map_eq; done.
     - rewrite kvs_keys_insert_None in Hk; auto.
-      apply IHm in Hk.
-      destruct Hk as (idx & w & Hidx).
-      exists idx, w.
+      apply IHpkvs in Hk.
+      destruct Hk as (w & idx & Hidx).
+      exists w, idx.
       assert (i ≠ idx) by (intro; simplify_map_eq;done).
       simplify_map_eq; done.
   Qed.
 
-  Lemma elem_of_kvs_keys_2 (m : kvs_map) (k : Z) :
-    (∃ idx w, m !! idx = Some (Some (k, w))) ->
-    k ∈ kvs_keys m.
+  Lemma elem_of_kvs_keys_2 (pkvs : kvs_physical_map) (k : full_key_t) :
+    (∃ w, kvs_elem_of_kvs pkvs k w) ->
+    k ∈ kvs_keys pkvs.
   Proof.
-    intros (idx & w & Hidx).
-    rewrite -(insert_id m idx (Some (k, w))); last done.
+    intros (w & idx & Hidx).
+    rewrite -(insert_id pkvs idx (Some (k, w))); last done.
     rewrite -insert_delete_eq.
     rewrite kvs_keys_insert_Some; last by simplify_map_eq.
     apply elem_of_cons; by left.
   Qed.
 
-  Lemma elem_of_kvs_keys (m : kvs_map) (k : Z) :
-    k ∈ kvs_keys m ↔ (∃ idx w, m !! idx = Some (Some (k, w))).
+  Lemma elem_of_kvs_keys (pkvs : kvs_physical_map) (k : full_key_t) :
+    k ∈ kvs_keys pkvs ↔ (∃ w, kvs_elem_of_kvs pkvs k w).
   Proof. split ; [apply elem_of_kvs_keys_1 | apply elem_of_kvs_keys_2]. Qed.
 
-  Lemma NoDup_kvs_keys_update (m : kvs_map) (idx : nat) (k : Z) (w w' : Word) :
-    m !! idx = Some (Some (k, w)) ->
-    NoDup (kvs_keys m) ->
-    NoDup (kvs_keys (<[idx := Some (k, w') ]>m)).
+  Lemma kvs_physical_map_open_notin
+    (a : Addr) (pkvs : kvs_physical_map)
+    (idx : kvs_idx_t) (uk : user_key_t) (mk : map_key_t) :
+    let fkey := kvs_full_key uk mk in
+    is_uint16 mk ->
+    (0 ≤ idx < SIZE_MAP)%Z →
+    fkey ∉ kvs_keys pkvs ->
+    is_physical_kvs a pkvs -∗
+    ∃ opt_kwidx,
+      ⌜ pkvs !! idx = Some opt_kwidx ⌝ ∗
+      is_physical_kvs_open a pkvs idx ∗
+      physical_kvs_entry a idx opt_kwidx ∗
+      ⌜ match opt_kwidx with | Some kwidx => kwidx.1 ≠ fkey | None => True end ⌝.
+  Proof.
+    intros fkey Hwf_full_key Hidx Hs'.
+    iIntros "[%Hwf_kvs HKVS]".
+    assert ( is_Some (pkvs !! idx) ) as [ opt_kwidx Hm_idx].
+    { apply wf_kvs_is_Some; auto; lia. }
+    rewrite -{1}(insert_id pkvs idx opt_kwidx); last done.
+    iDestruct (big_sepM_insert_delete with "HKVS") as "[Hkvs_entry HKVS]".
+    iFrame "∗%".
+    iPureIntro.
+    destruct opt_kwidx as [ [ kidx widx ]|]; auto.
+    cbn.
+    assert ( kidx ∈ kvs_keys pkvs ) as Hkidx; last set_solver.
+    apply elem_of_kvs_keys; eexists _,_; eauto.
+  Qed.
+
+  Lemma NoDup_kvs_keys_update
+    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w w' : Word) :
+    pkvs !! idx = Some (Some (k, w)) ->
+    NoDup (kvs_keys pkvs) ->
+    NoDup (kvs_keys (<[idx := Some (k, w') ]>pkvs)).
   Proof.
     move: idx k w w'.
-    induction m using map_ind; intros idx k w w' Hk Hnodup; first simplify_map_eq.
+    induction pkvs using map_ind; intros idx k w w' Hk Hnodup; first simplify_map_eq.
     destruct (decide (idx = i)); simplify_map_eq.
     - rewrite insert_insert_eq.
       rewrite kvs_keys_insert_Some; auto.
@@ -403,27 +401,57 @@ Section KVS_preamble.
       + rewrite kvs_keys_insert_Some in Hnodup; auto.
         rewrite kvs_keys_insert_Some; simplify_map_eq; auto.
         apply NoDup_cons in Hnodup as [HkX Hnodup].
-        apply NoDup_cons; split; last (eapply IHm; eauto).
+        apply NoDup_cons; split; last (eapply IHpkvs; eauto).
         intro Hcontra.
-        apply elem_of_kvs_keys in Hcontra as (idx0 & w0 & H0).
+        apply elem_of_kvs_keys in Hcontra as (w0 & idx0 & H0).
         apply HkX.
         apply elem_of_kvs_keys; auto.
         destruct (decide (idx = idx0)); simplify_map_eq.
-        { exists idx0, w; done. }
-        { exists idx0, w0; done. }
+        { exists w, idx0; done. }
+        { exists w0, idx0; done. }
       + rewrite kvs_keys_insert_None in Hnodup; auto.
         rewrite kvs_keys_insert_None; simplify_map_eq; auto.
-        eapply IHm; eauto.
+        eapply IHpkvs; eauto.
+  Qed.
+
+  Lemma wf_kvs_physical_map_update
+    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : Word) :
+    (∃ w', pkvs !! idx = Some (Some (k, w'))) ->
+    wf_kvs_physical_map pkvs ->
+    wf_kvs_physical_map (<[idx:= Some (k, w)]> pkvs).
+  Proof.
+    intros [w' Hidx] (Hkvs_dom & Hkvs_unique).
+    split.
+    - rewrite dom_insert_L -Hkvs_dom.
+      assert (idx ∈ dom pkvs).
+      { apply elem_of_dom; eauto. }
+      set_solver.
+    - eapply NoDup_kvs_keys_update; eauto.
+  Qed.
+
+  Lemma kvs_physical_map_close_update
+    (a : Addr) (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : Word):
+    (∃ w' : Word, pkvs !! idx = Some (Some (k, w'))) ->
+
+    is_physical_kvs_open a pkvs idx -∗
+    physical_kvs_entry a idx (Some (k,w)) -∗
+    is_physical_kvs a (<[idx:= Some (k,w)]> pkvs).
+  Proof.
+    iIntros (Hidx) "[%Hwf_kvs HKVS] Hentry"; cbn.
+    iDestruct (big_sepM_insert_delete with "[$HKVS $Hentry]") as "HKVS"; eauto.
+    iFrame; eauto.
+    iPureIntro.
+    eapply wf_kvs_physical_map_update; eauto.
   Qed.
 
   Lemma NoDup_kvs_keys_insert_Some
-    (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
-    k ∉ kvs_keys m ->
-    NoDup (kvs_keys m) ->
-    NoDup (kvs_keys (<[idx:= Some (k, w)]> m)).
+    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : Word) :
+    k ∉ kvs_keys pkvs ->
+    NoDup (kvs_keys pkvs) ->
+    NoDup (kvs_keys (<[idx:= Some (k, w)]> pkvs)).
   Proof.
     move: idx k w.
-    induction m using map_ind; intros idx k w Hk Hnodup.
+    induction pkvs using map_ind; intros idx k w Hk Hnodup.
     { rewrite kvs_keys_insert_Some; simplify_map_eq; auto.
       rewrite kvs_keys_empty.
       apply NoDup_singleton.
@@ -450,7 +478,7 @@ Section KVS_preamble.
         apply NoDup_cons; split; auto.
         intro Hcontra.
         apply elem_of_kvs_keys in Hcontra.
-        destruct Hcontra as (idx0&w0&Hcontra).
+        destruct Hcontra as (w0&idx0&Hcontra).
         destruct (decide (idx0 = idx)); simplify_map_eq.
         apply Hk'.
         apply elem_of_kvs_keys.
@@ -460,22 +488,689 @@ Section KVS_preamble.
         rewrite kvs_keys_insert_None; simplify_map_eq; auto.
   Qed.
 
-  Lemma NoDup_kvs_keys_insert_None
-    (m : kvs_map) (idx : nat) :
-    m !! idx = None ->
+  Lemma wf_kvs_physical_map_insert
+    (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : Word) :
+    pkvs !! idx = Some None ->
+    k ∉ kvs_keys pkvs ->
+    wf_kvs_physical_map pkvs ->
+    wf_kvs_physical_map (<[idx:= Some (k, w)]> pkvs).
+  Proof.
+    intros Hidx Hk (Hkvs_dom & Hkvs_unique).
+    split.
+    - rewrite dom_insert_L -Hkvs_dom.
+      assert (idx ∈ dom pkvs).
+      { apply elem_of_dom; eauto. }
+      set_solver.
+    - eapply NoDup_kvs_keys_insert_Some; eauto.
+  Qed.
+
+  Lemma kvs_physical_map_close_insert
+    (a : Addr) (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w : Word):
+    pkvs !! idx = Some None ->
+    k ∉ kvs_keys pkvs ->
+
+    is_physical_kvs_open a pkvs idx -∗
+    physical_kvs_entry a idx (Some (k,w)) -∗
+    is_physical_kvs a (<[idx:= Some (k,w)]> pkvs).
+  Proof.
+    iIntros (Hidx Hk) "[%Hwf_kvs HKVS] Hentry"; cbn.
+    iDestruct (big_sepM_insert_delete with "[$HKVS $Hentry]") as "HKVS"; eauto.
+    iFrame; eauto.
+    iPureIntro.
+    eapply wf_kvs_physical_map_insert; eauto.
+  Qed.
+
+  Lemma NoDup_kvs_keys_delete
+    (pkvs : kvs_physical_map) (idx : kvs_idx_t)  :
+    NoDup (kvs_keys pkvs) ->
+    NoDup (kvs_keys (<[idx:=None]> pkvs)).
+  Proof.
+    generalize dependent idx.
+    induction pkvs using map_ind; intros idx Hnodup; first simplify_map_eq.
+    { rewrite kvs_keys_insert_None; auto. }
+    destruct (decide (idx = i)); simplify_map_eq.
+    - rewrite insert_insert_eq.
+      rewrite kvs_keys_insert_None; auto.
+      destruct x as [ [] |].
+      + rewrite kvs_keys_insert_Some in Hnodup; auto.
+        apply NoDup_cons in Hnodup as [ _ Hnodup ]; auto.
+      + rewrite kvs_keys_insert_None in Hnodup; auto.
+    - rewrite insert_insert_ne; auto.
+      destruct x as [ [ k' w' ] |].
+      + rewrite kvs_keys_insert_Some in Hnodup; auto.
+        apply NoDup_cons in Hnodup as [ Hk' Hnodup ]; auto.
+        rewrite kvs_keys_insert_Some; simplify_map_eq; auto.
+        apply NoDup_cons; split ; auto.
+        intro Hk. apply elem_of_kvs_keys in Hk as (?&idx_k&?); simplify_eq.
+        destruct (decide (idx_k = idx)); simplify_map_eq.
+        apply Hk'.
+        apply elem_of_kvs_keys; eexists _,_ ; eauto.
+      + rewrite kvs_keys_insert_None in Hnodup; auto.
+        rewrite kvs_keys_insert_None; simplify_map_eq; auto.
+  Qed.
+
+  Lemma wf_kvs_physical_map_delete (pkvs : kvs_physical_map) (idx : kvs_idx_t) :
+    (is_Some (pkvs !! idx)) ->
+    wf_kvs_physical_map pkvs ->
+    wf_kvs_physical_map (<[idx:=None]> pkvs).
+  Proof.
+    intros [w' Hidx] (Hkvs_dom & Hkvs_unique).
+    split.
+    - rewrite dom_insert_L -Hkvs_dom.
+      assert (idx ∈ dom pkvs).
+      { apply elem_of_dom; eauto. }
+      set_solver.
+    - eapply NoDup_kvs_keys_delete; eauto.
+  Qed.
+
+  Lemma kvs_physical_map_close_delete
+    (a : Addr) (pkvs : kvs_physical_map) (idx : kvs_idx_t) :
+    is_Some (pkvs !! idx) ->
+
+    is_physical_kvs_open a pkvs idx -∗
+    physical_kvs_entry a idx None -∗
+    is_physical_kvs a (<[idx:= None ]> pkvs).
+  Proof.
+    iIntros (Hidx) "[%Hwf_kvs HKVS] Hentry"; cbn.
+    iDestruct (big_sepM_insert_delete with "[$HKVS $Hentry]") as "HKVS"; eauto.
+    iFrame; eauto.
+    iPureIntro.
+    eapply wf_kvs_physical_map_delete; eauto.
+  Qed.
+
+End KVS_physical_map.
+
+
+Definition kvs_user_map : Type := gmap map_key_t Word.
+Definition kvs_logical_map : Type := gmap user_key_t kvs_user_map.
+
+(* CMRA for KVS *)
+Class kvsLogicalG Σ :=
+  LogicalKvsG {
+      kvs_logical_genG :: gen_heapGS user_key_t kvs_user_map Σ;
+    }.
+
+Notation "'↪●LKVS' lkvs" :=
+  ( gen_heap_interp (L:=user_key_t) (V:= kvs_user_map) lkvs )%I (at level 20) : bi_scope.
+Notation "uk '↦(LKVS)[' dq ']' m" :=
+  (pointsto (L:=user_key_t) (V:= kvs_user_map) uk dq m)%I (at level 20) : bi_scope.
+Notation "uk '↦(LKVS)' m" :=
+  (uk ↦(LKVS)[ (DfracOwn 1) ] m)%I (at level 20) : bi_scope.
+
+Lemma kvs_logical_kvs_valid `{kvsLogicalG}
+  (uk : user_key_t) (lkvs : kvs_logical_map) (m : kvs_user_map) :
+  ↪●LKVS lkvs  -∗ uk ↦(LKVS) m -∗ ⌜ lkvs !! uk = Some m ⌝.
+Proof.
+  iIntros "Hauth Hfrag".
+  by iDestruct (gen_heap_valid with "Hauth Hfrag") as "%Hvalid".
+Qed.
+
+Lemma kvs_logical_kvs_update `{kvsLogicalG}
+  (uk : user_key_t) (lkvs : kvs_logical_map) (m m' : kvs_user_map) :
+  ↪●LKVS lkvs -∗ uk ↦(LKVS) m
+  ==∗
+  ↪●LKVS (<[uk := m']> lkvs) ∗ uk ↦(LKVS) m'.
+Proof.
+  iIntros "Hauth Hfrag".
+  by iMod (gen_heap_update lkvs uk _ m' with "Hauth Hfrag") as "[$ $]".
+Qed.
+
+
+Section KVS_logical_map.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    {kvslogicalg:kvsLogicalG Σ}
+    `{MP: MachineParameters}
+  .
+
+
+  Definition kvs_elem_of_logical_kvs
+    (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) ( w : Word ) :=
+    (∃ ukvs, lkvs !! uk = Some ukvs ∧  ukvs !! mk = Some w).
+
+  Definition kvs_synced_logical_kvs (pkvs : kvs_physical_map) (lkvs : kvs_logical_map) : Prop :=
+    ∀ (k : user_key_t * map_key_t) (w : Word),
+    is_uint16 k.2 ->
+    ( kvs_elem_of_logical_kvs lkvs k.1 k.2 w ↔ kvs_elem_of_kvs pkvs (kvs_full_key k.1 k.2) w).
+
+  Definition is_logical_kvs (a : Addr) (lkvs : kvs_logical_map) : iProp Σ :=
+    ∃ (pkvs : kvs_physical_map),
+      ⌜ kvs_synced_logical_kvs pkvs lkvs ⌝ ∗ is_physical_kvs a pkvs.
+
+  Definition logical_kvs_inv (a : Addr) : iProp Σ :=
+      ∃ (lkvs : kvs_logical_map), ↪●LKVS lkvs ∗ (is_logical_kvs a lkvs).
+
+
+  Lemma kvs_synced_logical_lookup_Some
+    (pkvs : kvs_physical_map) (lkvs : kvs_logical_map) (m : kvs_user_map)
+    (uk : user_key_t) (mk : map_key_t) (w : Word) :
+    let fkey := kvs_full_key uk mk in
+    is_uint16 mk ->
+    kvs_synced_logical_kvs pkvs lkvs ->
+    lkvs !! uk = Some m ->
+    m !! mk = Some w ->
+    ∃ idx, pkvs !! idx = Some (Some (fkey, w)).
+  Proof.
+    rewrite /kvs_synced_logical_kvs.
+    intros Huint16_mk Hsync Hlkvs_uk Hm_mk.
+    specialize (Hsync (uk,mk) w Huint16_mk); cbn in *.
+    apply Hsync.
+    eexists; split; eauto.
+  Qed.
+
+  Lemma kvs_synced_logical_lookup_None
+    (pkvs : kvs_physical_map) (lkvs : kvs_logical_map) (m : kvs_user_map)
+    (uk : user_key_t) (mk : map_key_t) :
+    let fkey := kvs_full_key uk mk in
+    is_uint16 mk ->
+    kvs_synced_logical_kvs pkvs lkvs ->
+    lkvs !! uk = Some m ->
+    m !! mk = None ->
+    fkey ∉ kvs_keys pkvs.
+  Proof.
+    rewrite /kvs_synced_logical_kvs.
+    intros Huint16_mk Hsync Hlkvs_uk Hm_mk.
+    intros Hcontra.
+    apply elem_of_kvs_keys in Hcontra as (w & Hcontra).
+    specialize (Hsync (uk,mk) w Huint16_mk); cbn in *.
+    apply Hsync in Hcontra as (m'&Hm'&Hcontra); simplify_map_eq.
+  Qed.
+
+
+  Definition kvs_logical_kvs_insert
+    (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) (w : Word) :=
+   <[uk := (<[ mk := w ]> (default ∅ (lkvs !! uk))) ]> lkvs.
+
+  Notation "<<[ ( uk , mk ) := w ]>> lkvs" :=
+    (kvs_logical_kvs_insert lkvs uk mk w) (at level 10).
+
+  Lemma kvs_logical_kvs_insert_lookup_eq
+    (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) (w : Word) (m : kvs_user_map) :
+    (<<[ ( uk, mk ) := w ]>> lkvs) !! uk = Some m ->
+    m = <[mk := w]> (default ∅ (lkvs !! uk)).
+  Proof.
+    intros H.
+    rewrite /kvs_logical_kvs_insert in H; simplify_map_eq.
+    done.
+  Qed.
+
+  Lemma kvs_logical_kvs_insert_lookup_ne
+    (lkvs : kvs_logical_map) (uk uk' : user_key_t) (mk : map_key_t) (w : Word) (m : kvs_user_map) :
+    uk ≠ uk' ->
+    (<<[ ( uk, mk ) := w ]>> lkvs) !! uk' = Some m ->
+    lkvs !! uk' = Some m.
+  Proof.
+    intros Hk H.
+    rewrite /kvs_logical_kvs_insert in H; simplify_map_eq.
+    done.
+  Qed.
+
+  Lemma NoDup_kvs_keys_elem_of m idx uk mk w idx' uk' mk' w' :
+    let f := kvs_full_key uk mk in
+    let f' := kvs_full_key uk' mk' in
     NoDup (kvs_keys m) ->
-    NoDup (kvs_keys (<[idx:= None]> m)).
+    idx ≠ idx' ->
+    m !! idx = Some (Some (f, w)) ->
+    m !! idx' = Some (Some (f', w')) ->
+    uk' ≠ uk ∨ mk' ≠ mk.
+  Proof.
+    intros f f'.
+    induction m using map_ind; intros Hnodup Hidx_ne Hm_idx Hm_idx'; first set_solver.
+    simplify_map_eq.
+    destruct x as [ [kx wx] |]; cycle 1.
+    - rewrite kvs_keys_insert_None in Hnodup; auto.
+      assert (idx ≠ i) as Hidx_i_ne by (intro; simplify_map_eq; done).
+      assert (idx' ≠ i) as Hidx'_i_ne by (intro; simplify_map_eq; done).
+      simplify_map_eq.
+      auto.
+    - rewrite kvs_keys_insert_Some in Hnodup; auto.
+      apply NoDup_cons in Hnodup as [Hkx_not_elem_kvs_keys Hnodup].
+      destruct (decide (idx = i)); simplify_map_eq.
+      + (* idx = i *)
+        assert (f' ∈ kvs_keys m) as Hf'.
+        { apply elem_of_kvs_keys; eexists _,_; eauto. }
+        destruct (decide (uk' = uk)); simplify_eq; [right|left]; auto.
+        destruct (decide (mk' = mk)); simplify_eq; auto.
+      + destruct (decide (idx' = i)); simplify_map_eq.
+        * (* idx ≠ i ∧ idx' = i *)
+          assert (f ∈ kvs_keys m) as Hf.
+          { apply elem_of_kvs_keys; eexists _,_; eauto. }
+          destruct (decide (uk' = uk)); simplify_eq; [right|left]; auto.
+          destruct (decide (mk' = mk)); simplify_eq; auto.
+        * (* idx ≠ i ∧ idx' ≠ i *)
+          eapply IHm; eauto.
+  Qed.
+
+  Lemma kvs_synced_logical_kvs_update
+    (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
+    (idx : kvs_idx_t)
+    (uk : user_key_t) (mk : map_key_t) (w : Word) :
+    let k := kvs_full_key uk mk in
+    NoDup (kvs_keys pkvs) ->
+    is_uint16 mk ->
+    (∃ w', pkvs !! idx = Some ( Some (k, w'))) ->
+    kvs_synced_logical_kvs pkvs lkvs ->
+    kvs_synced_logical_kvs (<[idx:= Some (k, w)]> pkvs) (<<[ ( uk, mk ) := w ]>> lkvs).
+  Proof.
+    intros k.
+    intros Hnodup Hwf [w' Hidx] Halloc [ku kn] w'' Hwf'.
+    specialize (Halloc (ku, kn) w'' Hwf'); cbn in *.
+    split; intros Hk.
+    - rewrite /kvs_elem_of_logical_kvs in Hk.
+      destruct Hk as (umap & Hlm & Hkn).
+      destruct (decide (ku = uk)); simplify_map_eq.
+      + apply kvs_logical_kvs_insert_lookup_eq in Hlm; simplify_eq.
+        destruct (decide (kn = mk)); simplify_map_eq.
+        * eexists idx; simplify_map_eq; done.
+        * assert ( kvs_elem_of_kvs pkvs (kvs_full_key uk kn) w'' ) as (idx'&?).
+          { apply Halloc. eexists;split;eauto.
+            destruct (lkvs !! uk) eqn:Hlkvs; try (rewrite Hlkvs in Hkn); cbn in * ; simplify_eq.
+            set_solver.
+          }
+          eexists idx'.
+          destruct (decide (idx = idx')); simplify_map_eq; cbn in *.
+          ** rewrite Hidx in H; simplify_map_eq.
+             apply kvs_full_key_inj in H as [? ?]; eauto; simplify_eq.
+          ** by simplify_map_eq.
+      + apply kvs_logical_kvs_insert_lookup_ne in Hlm; simplify_eq; auto.
+        assert ( kvs_elem_of_logical_kvs lkvs ku kn w'') as Hk'.
+        { eexists ; split; eauto. }
+        eapply Halloc in Hk' as (idx' & Hk).
+        destruct (decide (idx = idx')); simplify_map_eq; cbn in *.
+        ** rewrite Hidx in Hk; simplify_map_eq.
+           apply kvs_full_key_inj in Hk as [? ?]; eauto; simplify_eq.
+        ** by eexists idx'; simplify_map_eq.
+    - destruct Hk as (idx' & Hk).
+      destruct (decide (idx = idx')); simplify_map_eq; cbn in *.
+      + apply kvs_full_key_inj in Hk as [? ?]; eauto; simplify_eq.
+        rewrite /kvs_elem_of_logical_kvs /kvs_logical_kvs_insert.
+        destruct (lkvs !! ku) as [umap|] eqn:Humap ; simplify_map_eq.
+        * by eexists; split; eauto; simplify_map_eq.
+        * by eexists; split; eauto; simplify_map_eq.
+      + assert ( kvs_elem_of_logical_kvs lkvs ku kn w'' ) as (umap&Hlm&Hkn).
+        { apply Halloc; eexists; eauto. }
+        rewrite /kvs_elem_of_logical_kvs /kvs_logical_kvs_insert.
+        destruct (decide (uk = ku)); simplify_map_eq; cycle 1.
+        * eexists; split; eauto.
+        * destruct (decide (kn = mk)); simplify_map_eq.
+          ** eexists; split; eauto.
+             subst k.
+             eapply (NoDup_kvs_keys_elem_of pkvs idx ku mk _ idx' ku mk) in Hnodup; eauto.
+             destruct Hnodup as [|]; done.
+          ** by eexists; split; eauto; simplify_map_eq.
+  Qed.
+
+  Local Lemma kvs_synced_logical_kvs_insert_1
+    (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
+    (idx : kvs_idx_t)
+    (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : Word) :
+    let fkey := kvs_full_key uk mk in
+    is_uint16 mk ->
+    pkvs !! idx = Some None ->
+    kvs_synced_logical_kvs pkvs lkvs ->
+    is_uint16 mk' ->
+    kvs_elem_of_logical_kvs (<<[ ( uk, mk ) := w ]>> lkvs) uk' mk' w' ->
+    kvs_elem_of_kvs (<[idx:= Some (fkey, w)]> pkvs) (kvs_full_key uk' mk') w'.
+  Proof.
+    intros fkey Hwf_full_key Hidx Halloc Hwf_full_key' Hk.
+    destruct Hk as (umap & Huk' & Hmk').
+    destruct (decide (uk = uk')); simplify_map_eq.
+    - apply kvs_logical_kvs_insert_lookup_eq in Huk'; simplify_map_eq.
+      destruct (decide (mk' = mk)) as [Hmk_eq | Hmk_eq]; simplify_map_eq.
+      + eexists idx; simplify_map_eq; done.
+      + specialize (Halloc (uk', mk') w' Hwf_full_key'); cbn in *.
+        rewrite /kvs_elem_of_logical_kvs in Halloc.
+        destruct ( lkvs !! uk' ) as [umap_uk|] eqn:Hlkvs; try (rewrite Hlm in Hmk'); last set_solver+Hmk'.
+        cbn in Hmk'.
+        assert (∃ umap : kvs_user_map, Some umap_uk = Some umap
+                                       ∧ umap !! mk' = Some w') as IH.
+        { exists umap_uk; split; auto. }
+        apply Halloc in IH.
+        destruct IH as (idx' & Hk).
+        destruct (decide (idx = idx')); simplify_map_eq; cbn in *; eauto.
+        by eexists idx'; simplify_map_eq.
+    - apply kvs_logical_kvs_insert_lookup_ne in Huk'; auto; simplify_map_eq.
+      assert (∃ umap : kvs_user_map, lkvs !! uk' = Some umap ∧ umap !! mk' = Some w') as IH.
+      { exists umap; split; auto. }
+      specialize (Halloc (uk', mk') w' Hwf_full_key'); cbn in *.
+      rewrite /kvs_elem_of_logical_kvs in Halloc.
+      apply Halloc in IH.
+      destruct IH as (idx' & Hk).
+      destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
+      by eexists idx'; simplify_map_eq.
+  Qed.
+
+  Local Lemma kvs_synced_logical_kvs_insert_2
+    (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
+    (idx : kvs_idx_t)
+    (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : Word) :
+    let fkey := kvs_full_key uk mk in
+    is_uint16 mk ->
+    pkvs !! idx = Some None ->
+    fkey ∉ kvs_keys pkvs ->
+    kvs_synced_logical_kvs pkvs lkvs ->
+    is_uint16 mk' ->
+    kvs_elem_of_kvs (<[idx:= Some (fkey, w)]> pkvs) (kvs_full_key uk' mk') w' ->
+    kvs_elem_of_logical_kvs (<<[ ( uk, mk ) := w ]>> lkvs) uk' mk' w'.
+  Proof.
+    intros fkey Hwf_full_key Hidx Hkfree Halloc Hwf_full_key' Hk.
+    specialize (Halloc (uk', mk') w' Hwf_full_key') as IH.
+    destruct Hk as (idx' & Hk).
+    destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
+    - apply kvs_full_key_inj in Hk as [ -> -> ]; eauto.
+      rewrite /kvs_logical_kvs_insert;simplify_map_eq.
+      rewrite /kvs_elem_of_logical_kvs;simplify_map_eq.
+      exists (<[mk':=w']> (default ∅ (lkvs !! uk'))); split; auto.
+      by simplify_map_eq.
+    - rewrite /kvs_logical_kvs_insert;simplify_map_eq.
+      rewrite /kvs_elem_of_logical_kvs;simplify_map_eq.
+      assert ( kvs_elem_of_kvs pkvs (kvs_full_key uk' mk') w' ) as IHm.
+      { eexists; eauto. }
+      destruct (decide (uk = uk')); simplify_map_eq.
+      + destruct (decide (mk = mk')); simplify_map_eq.
+        * apply (iffLRn (elem_of_kvs_keys pkvs fkey)) in Hkfree.
+          exfalso; apply Hkfree; eexists _,_; eauto.
+        * apply IH in IHm as (umap & Humap & Humap').
+          by eexists ; split; eauto; simplify_map_eq.
+      + apply IH in IHm as (umap & Humap & Humap').
+        eexists ; split; eauto.
+  Qed.
+
+  Lemma kvs_synced_logical_kvs_insert
+    (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
+    (idx : kvs_idx_t)
+    (uk : user_key_t) (mk : map_key_t) (w : Word) :
+    let fkey := kvs_full_key uk mk in
+    is_uint16 mk ->
+    pkvs !! idx = Some None ->
+    fkey ∉ kvs_keys pkvs ->
+    kvs_synced_logical_kvs pkvs lkvs ->
+    kvs_synced_logical_kvs (<[idx:=Some (fkey, w)]> pkvs) (<<[ ( uk, mk ) := w ]>> lkvs).
+  Proof.
+    intros fkey Hwf_full_key Hidx Hk_free Halloc.
+    intros [uk' mk'] Hwf_full_key'.
+    cbn.
+    split; intros Hk.
+    - eapply kvs_synced_logical_kvs_insert_1; eauto.
+    - eapply kvs_synced_logical_kvs_insert_2; eauto.
+  Qed.
+
+
+  Definition kvs_logical_kvs_delete
+    (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) :=
+    <[uk := (delete mk (default ∅ (lkvs !! uk))) ]> lkvs.
+
+  Notation "lkvs <∖> ( uk , mk )" :=
+    (kvs_logical_kvs_delete lkvs uk mk) (at level 10).
+
+  Lemma kvs_logical_kvs_delete_lookup_eq
+    (lkvs : kvs_logical_map) (uk : user_key_t) (mk : map_key_t) (m : kvs_user_map) :
+    (lkvs <∖> (uk, mk)) !! uk = Some m ->
+    m = delete mk (default ∅ (lkvs !! uk)).
+  Proof.
+    intros H.
+    rewrite /kvs_logical_kvs_delete in H; simplify_map_eq.
+    done.
+  Qed.
+
+  Lemma kvs_logical_kvs_delete_lookup_ne
+    (lkvs : kvs_logical_map) (uk uk' : user_key_t) (mk : map_key_t) (m : kvs_user_map) :
+    uk ≠ uk' ->
+    (lkvs <∖> (uk, mk)) !! uk' = Some m ->
+    lkvs !! uk' = Some m.
+  Proof.
+    intros Hk H.
+    rewrite /kvs_logical_kvs_delete in H; simplify_map_eq.
+    done.
+  Qed.
+
+  Local Lemma kvs_synced_logical_kvs_delete_1
+    (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
+    (idx : kvs_idx_t)
+    (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : Word) :
+    let fkey := kvs_full_key uk mk in
+    is_uint16 mk ->
+    pkvs !! idx = Some (Some (fkey, w)) ->
+    kvs_synced_logical_kvs pkvs lkvs ->
+    is_uint16 mk' ->
+    kvs_elem_of_logical_kvs (lkvs <∖> (uk, mk)) uk' mk' w' ->
+    kvs_elem_of_kvs (<[idx:= None]> pkvs) (kvs_full_key uk' mk') w'.
+  Proof.
+    intros fkey Hwf_full_key Hidx Halloc Hwf_full_key' Hk.
+    destruct Hk as (umap & Huk' & Hmk').
+    destruct (decide (uk = uk')); simplify_map_eq.
+    - apply kvs_logical_kvs_delete_lookup_eq in Huk'; simplify_map_eq.
+      assert ( mk ≠ mk' ) as Hmk_eq ; simplify_map_eq.
+      { intro; simplify_map_eq. }
+        destruct ( lkvs !! uk' ) as [umap_uk|] eqn:Hlm; try (rewrite Hlm in Hmk') ; last set_solver+Hmk'.
+      cbn in *.
+      assert ( kvs_elem_of_logical_kvs lkvs uk' mk' w') as Helem.
+      { eexists; split;eauto. }
+      specialize (Halloc (uk', mk') w' Hwf_full_key'); cbn in *.
+      apply Halloc in Helem as (idx'&Hidx').
+      eexists idx'.
+      destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
+      rewrite Hidx in Hidx'; simplify_map_eq.
+      apply kvs_full_key_inj in Hidx' as [_ ->]; eauto; done.
+    - apply kvs_logical_kvs_delete_lookup_ne in Huk'; auto; simplify_map_eq.
+      assert (∃ umap : kvs_user_map, lkvs !! uk' = Some umap ∧ umap !! mk' = Some w') as IH.
+      { exists umap; split; auto. }
+      apply (Halloc (uk', mk') w' Hwf_full_key') in IH as (idx'&Hidx').
+      destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
+      * rewrite Hidx in Hidx'; simplify_map_eq.
+        apply kvs_full_key_inj in Hidx' as [-> ->] ;eauto; done.
+      * by exists idx'; simplify_map_eq.
+  Qed.
+
+  Local Lemma kvs_synced_logical_kvs_delete_2
+    (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
+    (idx : kvs_idx_t)
+    (uk uk' : user_key_t) (mk mk' : map_key_t) (w w' : Word) :
+    let fkey := kvs_full_key uk mk in
+    is_uint16 mk ->
+    pkvs !! idx = Some (Some (fkey, w)) ->
+    NoDup (kvs_keys pkvs) ->
+    kvs_synced_logical_kvs pkvs lkvs ->
+    is_uint16 mk' ->
+    kvs_elem_of_kvs (<[idx:= None]> pkvs) (kvs_full_key uk' mk') w' ->
+    kvs_elem_of_logical_kvs (lkvs <∖> (uk, mk)) uk' mk' w'.
+  Proof.
+    intros fkey Hwf_full_key Hidx Hnodup Halloc Hwf_full_key' Hk.
+    specialize (Halloc (uk', mk') w' Hwf_full_key') as IH'.
+    cbn in *.
+    destruct Hk as (idx' & Hk).
+
+    destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
+    assert (kvs_elem_of_kvs pkvs (kvs_full_key uk' mk') w') as IHm'.
+    { eexists; eauto. }
+
+    apply IH' in IHm' as (umap' & Humap' & Hmk'_in_umap').
+    assert (kvs_full_key uk mk ∈ kvs_keys pkvs) as IHm.
+    { apply elem_of_kvs_keys; eexists _,_; eauto. }
+    rewrite /kvs_logical_kvs_delete.
+    destruct (decide (uk = uk')); simplify_map_eq; cycle 1.
+    { exists umap'; split; simplify_map_eq;eauto. }
+    eexists (delete mk umap'); split; simplify_map_eq; eauto.
+    destruct (decide (mk = mk')); simplify_map_eq; try done.
+
+    eapply (NoDup_kvs_keys_elem_of pkvs idx uk' mk' _ idx' uk' mk') in Hnodup; eauto.
+    destruct Hnodup as [ | ]; done.
+  Qed.
+
+  Lemma kvs_synced_logical_kvs_delete
+    (pkvs : kvs_physical_map) (lkvs : kvs_logical_map)
+    (idx : kvs_idx_t)
+    (uk : user_key_t) (mk : map_key_t) (w : Word) :
+    let fkey := kvs_full_key uk mk in
+    NoDup (kvs_keys pkvs) ->
+    is_uint16 mk ->
+    pkvs !! idx = Some (Some (fkey, w)) ->
+    kvs_synced_logical_kvs pkvs lkvs ->
+    kvs_synced_logical_kvs (<[idx:=None]> pkvs) (lkvs <∖> (uk, mk)).
+  Proof.
+    intros fkey Hnodup Hwf_full_key Hidx Halloc.
+    intros [uk' mk'] Hwf_full_key'.
+    cbn.
+    split; intros Hk.
+    - eapply (kvs_synced_logical_kvs_delete_1 pkvs lkvs idx uk uk' mk mk'); eauto.
+    - eapply (kvs_synced_logical_kvs_delete_2 pkvs lkvs idx uk uk' mk mk'); eauto.
+  Qed.
+
+
+End KVS_logical_map.
+
+Class kvsUserG Σ :=
+  UserKvsG {
+      kvs_user_genG :: ghost_mapG Σ map_key_t (option Word);
+      γkvs_user : user_key_t -> gname;
+    }.
+
+Notation "uk '↪●UKVS' ukvs" :=
+  ( ghost_map_auth (K:=map_key_t) (V:= option Word) (γkvs_user uk) 1%Qp ukvs)%I (at level 20) : bi_scope.
+Notation "k '↦(UKVS)[' dq ']' o" :=
+  ( ghost_map_elem (K:=map_key_t) (V:= option Word) (γkvs_user k.1) k.2 dq o)%I (at level 20) : bi_scope.
+Notation "k '↦(UKVS)' o" :=
+  (k ↦(UKVS)[ (DfracOwn 1) ] o)%I (at level 20) : bi_scope.
+
+Notation "k '↦(KVS)' w" :=
+  (k ↦(UKVS) (Some w))%I (at level 20) : bi_scope.
+Notation "k '↦(KVS)' -" :=
+  (∃ w, k ↦(KVS) w)%I (at level 20) : bi_scope.
+Notation "k '↦(KVS)' ⊥" :=
+  (k ↦(UKVS) None)%I (at level 20) : bi_scope.
+
+Definition kvs_logical_user_map : Type := gmap map_key_t (option Word).
+
+Lemma kvs_user_kvs_valid `{kvsUserG}
+  (uk : user_key_t) (mk : map_key_t) (ukvs : kvs_logical_user_map ) (o : option Word) :
+  uk ↪●UKVS ukvs  -∗ (uk,mk) ↦(UKVS) o -∗ ⌜ ukvs !! mk = Some o ⌝.
+Proof.
+  iIntros "Hauth Hfrag".
+  by iDestruct (ghost_map_lookup with "Hauth Hfrag") as "%Hvalid".
+Qed.
+
+Lemma kvs_user_kvs_update `{kvsUserG}
+  (uk : user_key_t) (mk : map_key_t) (ukvs : kvs_logical_user_map) (o o' : option Word) :
+  uk ↪●UKVS ukvs -∗ (uk,mk) ↦(UKVS) o
+  ==∗
+  uk ↪●UKVS (<[mk := o']> ukvs) ∗ (uk,mk) ↦(UKVS) o'.
+Proof.
+  iIntros "Hauth Hfrag".
+  by iMod (ghost_map_update o' with "Hauth Hfrag") as "[$ $]".
+Qed.
+
+
+Section KVS_user_map.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    {kvslogicalg:kvsLogicalG Σ}
+    {kvsuserg:kvsUserG Σ}
+    `{MP: MachineParameters}
+  .
+
+  Definition kvs_synced_logical_user_kvs
+    (m : kvs_user_map) (ukvs : kvs_logical_user_map) : Prop :=
+    forall (mk : map_key_t),
+    is_Some (ukvs !! mk) <-> (ukvs !! mk) = Some (m !! mk).
+
+  Definition is_logical_user_kvs (uk : user_key_t) (ukvs : kvs_logical_user_map) : iProp Σ :=
+    ∃ (m : kvs_user_map),
+      uk ↦(LKVS) m ∗
+      ⌜ kvs_synced_logical_user_kvs m ukvs ⌝.
+
+
+  Lemma kvs_synced_logical_user_kvs_Some
+    (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) (w : Word) :
+    kvs_synced_logical_user_kvs m ukvs ->
+    ukvs !! uk = Some (Some w) ->
+    m !! uk = Some w.
+  Proof.
+    intros Hsync Hukvs.
+    specialize (Hsync uk) as [Hsync _].
+    ospecialize (Hsync _); eauto.
+    rewrite Hsync in Hukvs; simplify_eq; first done.
+  Qed.
+
+  Lemma kvs_synced_logical_user_kvs_None
+    (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) :
+    kvs_synced_logical_user_kvs m ukvs ->
+    ukvs !! uk = Some None ->
+    m !! uk = None.
+  Proof.
+    intros Hsync Hukvs.
+    specialize (Hsync uk) as [Hsync _].
+    ospecialize (Hsync _); eauto.
+    rewrite Hsync in Hukvs; simplify_eq; first done.
+  Qed.
+
+  Lemma kvs_synced_logical_user_kvs_insert
+    (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) (w : Word) :
+    kvs_synced_logical_user_kvs m ukvs ->
+    kvs_synced_logical_user_kvs (<[uk:=w]> m) ( <[uk:=Some w]> ukvs ).
+  Proof.
+    intros Hsync uk'; split.
+    - intros [wuk Hukvs].
+      destruct (decide (uk = uk')); simplify_map_eq; first done.
+      specialize (Hsync uk') as [Hsync _].
+      ospecialize (Hsync _); eauto.
+      rewrite Hsync in Hukvs; simplify_eq; first done.
+    - intros Hukvs.
+      destruct (decide (uk = uk')); simplify_map_eq; first done.
+      done.
+  Qed.
+
+  Lemma kvs_synced_logical_user_kvs_delete
+    (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) :
+    kvs_synced_logical_user_kvs m ukvs ->
+    kvs_synced_logical_user_kvs (delete uk m) ( <[uk:=None]> ukvs ).
+  Proof.
+    intros Hsync uk'; split.
+    - intros [wuk Hukvs].
+      destruct (decide (uk = uk')); simplify_map_eq; first done.
+      specialize (Hsync uk') as [Hsync _].
+      ospecialize (Hsync _); eauto.
+      rewrite Hsync in Hukvs; simplify_eq; first done.
+    - intros Hukvs.
+      destruct (decide (uk = uk')); simplify_map_eq; first done.
+      done.
+  Qed.
+
+End KVS_user_map.
+
+
+Class kvsG Σ :=
+  KvsG {
+      kvs_logicalG :: kvsLogicalG Σ;
+      kvs_userG :: kvsUserG Σ;
+    }.
+
+
+Section KVS_init.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    {kvsg:kvsG Σ}
+    `{MP: MachineParameters}
+  .
+
+  Lemma NoDup_kvs_keys_insert_None
+    (pkvs : kvs_physical_map) (idx : kvs_idx_t) :
+    pkvs !! idx = None ->
+    NoDup (kvs_keys pkvs) ->
+    NoDup (kvs_keys (<[idx:= None]> pkvs)).
   Proof.
     intros Hidx Hnodup.
     rewrite kvs_keys_insert_None; auto.
   Qed.
 
-  Definition kvs_map_init : kvs_map :=
+  Definition kvs_physical_map_init : kvs_physical_map :=
     list_to_map ((fun n => (n, None)) <$> (seq 0 SIZE_MAP)).
 
-  Lemma wf_kvs_map_kvs_map_init : wf_kvs_map kvs_map_init.
+  Lemma wf_kvs_physical_map_kvs_physical_map_init : wf_kvs_physical_map kvs_physical_map_init.
   Proof.
-    rewrite /kvs_map_init /wf_kvs_map /kvs_dom.
+    rewrite /kvs_physical_map_init /wf_kvs_physical_map /kvs_dom.
     generalize 0 as k.
     induction SIZE_MAP; intros k; cbn.
     - split.
@@ -496,9 +1191,9 @@ Section KVS_preamble.
         lia.
   Qed.
 
-  Lemma kvs_keys_map_init : kvs_keys kvs_map_init ≡ₚ [].
+  Lemma kvs_keys_map_init : kvs_keys kvs_physical_map_init ≡ₚ [].
   Proof.
-    rewrite /kvs_map_init.
+    rewrite /kvs_physical_map_init.
     generalize 0 as k.
     induction SIZE_MAP; intros k; cbn.
     - by rewrite kvs_keys_empty.
@@ -512,61 +1207,52 @@ Section KVS_preamble.
       lia.
   Qed.
 
-  Lemma kvs_alloc_synced_map_init (m : kvs_alloc) :
-    (∀ ku sk, m !! ku = Some sk -> sk = ∅) ->
-    kvs_alloc_synced kvs_map_init m.
+  Lemma kvs_not_elem_of_kvs_physical_map_init_lookup k w :
+    ¬ (kvs_elem_of_kvs kvs_physical_map_init k w).
   Proof.
-    intros Hm.
-    intros [ku kn] Hwf_k; cbn in *.
-    split; intros Hkvs; exfalso.
-    - destruct Hkvs as (sk & Hk & Hsk).
-      apply Hm in Hk; set_solver.
-    - rewrite kvs_keys_map_init in Hkvs.
-      set_solver.
+    intros Hkvs.
+    cbn in Hkvs.
+    rewrite /kvs_elem_of_kvs in Hkvs.
+    destruct Hkvs as [idx Hkvs].
+    repeat (destruct idx; simplify_map_eq).
   Qed.
 
-  Lemma elem_of_kvs_map_init (idx : nat) (opt_kv : kvs_entry) :
-    kvs_map_init !! idx = Some opt_kv -> opt_kv = None.
+  Lemma kvs_alloc_synced_map_init (lkvs : kvs_logical_map) :
+    (∀ (uk : user_key_t) (m : kvs_user_map),
+       lkvs !! uk = Some m -> m = ∅) ->
+    kvs_synced_logical_kvs kvs_physical_map_init lkvs.
+  Proof.
+    intros Hm.
+    intros [uk mk] w Hwf_k; cbn in *.
+    split; intros Hkvs; exfalso.
+    - destruct Hkvs as (m & Huk & Hm_uk).
+      apply Hm in Huk; set_solver.
+    - eapply kvs_not_elem_of_kvs_physical_map_init_lookup; eauto.
+  Qed.
+
+  Lemma elem_of_kvs_physical_map_init (idx : nat) (opt_kv : kvs_physical_entry) :
+    kvs_physical_map_init !! idx = Some opt_kv -> opt_kv = None.
   Proof.
     intros Hidx.
-    rewrite /kvs_map_init in Hidx.
+    rewrite /kvs_physical_map_init in Hidx.
     apply elem_of_list_to_map_2 in Hidx.
     apply list_elem_of_fmap in Hidx as (n&?&Hidx); simplify_eq.
     done.
   Qed.
 
-  Lemma kvs_initial_map_init_None :
-  ([∗ map] l↦v ∈ kvs_map_init, pointsto l (DfracOwn 1) v) -∗
-  ([∗ map] idx↦_ ∈ kvs_map_init, idx⤇(KVS) NONE).
-  Proof.
-    iIntros "Hkvs_frags".
-    iApply (big_sepM_impl with "Hkvs_frags").
-    iModIntro; iIntros (k v Hk) "H".
-    apply elem_of_kvs_map_init in Hk; simplify_eq; iFrame.
-  Qed.
-
   Lemma kvs_initial_map_init (b e : Addr) :
     (b + (ASM_SIZEOF_KVS_ENTRY * SIZE_MAP))%a = Some e ->
     ([[b,e]]↦ₐ[[kvs_data]]) -∗
-    ([∗ map] idx↦opt_kw ∈ kvs_map_init, idx ⤇(KVS) NONE) -∗
-    [∗ map] idx↦kw ∈ kvs_map_init, isKVS_entry b idx kw.
+    [∗ map] idx↦kw ∈ kvs_physical_map_init, physical_kvs_entry b idx kw.
   Proof.
-    rewrite /kvs_map_init /kvs_data.
+    rewrite /kvs_physical_map_init /kvs_data.
     generalize dependent e.
     replace b with (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat))%a by solve_addr.
     rewrite {3}(_ : (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat))%a = b); last solve_addr.
     generalize 0 as k.
-    induction SIZE_MAP; iIntros (k e Hbe) "Hmem Hfrags"; cbn; first done.
+    induction SIZE_MAP; iIntros (k e Hbe) "Hmem"; cbn; first done.
 
     specialize (IHn (S k)).
-    iDestruct (big_sepM_insert with "Hfrags") as "[Hf Hfrags]".
-    { apply not_elem_of_list_to_map.
-      intro Hcontra.
-      apply list_elem_of_fmap in Hcontra as ([idx opt_kw ] & ? & Hcontra); simplify_eq.
-      apply list_elem_of_fmap in Hcontra as (k' & ? & Hcontra); simplify_eq.
-      apply elem_of_seq in Hcontra; cbn in *.
-      lia.
-    }
     iApply big_sepM_insert.
     { apply not_elem_of_list_to_map.
       intro Hcontra.
@@ -587,723 +1273,173 @@ Section KVS_preamble.
                  with "Hmem") as "[Hasm_idx Hmem]"
     ; [ solve_addr+Hbe | symmetry; apply finz_incr_iff_dist; solve_addr+Hbe | ].
 
-    iSplitL "Hf Hasm_idx".
+    iSplitL "Hasm_idx".
     - iFrame.
-    - iApply (IHn (b ^+ (ASM_SIZEOF_KVS_ENTRY * (k + (S n))))%a with "[Hmem] [$Hfrags]"); first solve_addr+Hbe.
+    - iApply (IHn (b ^+ (ASM_SIZEOF_KVS_ENTRY * (k + (S n))))%a with "[Hmem]"); first solve_addr+Hbe.
       replace (b ^+ ASM_SIZEOF_KVS_ENTRY * S k)%a with (b ^+ (ASM_SIZEOF_KVS_ENTRY * k + ASM_SIZEOF_KVS_ENTRY))%a by solve_addr.
       replace e with (b ^+ ASM_SIZEOF_KVS_ENTRY * (k + S n))%a by solve_addr.
       done.
   Qed.
 
-  Lemma wf_kvs_map_insert (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
-    m !! idx = Some None ->
-    k ∉ kvs_keys m ->
-    wf_kvs_map m ->
-    wf_kvs_map (<[idx:= Some (k, w)]> m).
+End KVS_init.
+
+Class kvs_namespaces :=
+  {
+    Nkvs : namespace;
+    Nkvs_otype : namespace;
+    Nkvs_exp_tbl : namespace;
+    Nkvs_namespaces_disjoint :
+    Nkvs ## Nkvs_otype ∧
+    Nkvs ## Nkvs_exp_tbl ∧
+    Nkvs_otype ## Nkvs_exp_tbl
+  }.
+
+Definition kvs_all_map_keys : gset map_key_t :=
+  list_to_set (seqZ UINT16_MIN UINT16_MAX).
+Definition kvs_logical_user_map_init : kvs_logical_user_map :=
+  gset_to_gmap None kvs_all_map_keys.
+
+Lemma kvs_logical_user_init_pre
+  {Σ : gFunctors}
+  {kvs_logical_user_preg : ghost_mapG Σ map_key_t (option Word) }
+  (all_user_keys : gset user_key_t) (init_logical_user_map : kvs_logical_user_map) :
+  ⊢ |==> (∃ (γf : user_key_t -> gname),
+          ([∗ set] uk ∈ all_user_keys,
+             ( ghost_map_auth (γf uk) 1 init_logical_user_map ∗
+               [∗ map] k ↦ v ∈ init_logical_user_map, k ↪[(γf uk)] v ))).
+Proof.
+  induction all_user_keys as [|uk all_uk Hall_uk IHg] using set_ind_L.
+  - iModIntro.
+    iExists ( λ uk, encode uk).
+    by iApply big_sepS_empty.
+  - iMod IHg as (γf) "IH".
+    iMod (ghost_map_alloc init_logical_user_map) as (γuk) "Huk".
+    iModIntro.
+    iExists (λ uk', if (bool_decide (uk' = uk)) then γuk else γf uk').
+
+    iApply (big_sepS_union_2 with "[Huk]").
+    + iApply (big_sepS_singleton).
+      by rewrite bool_decide_eq_true_2.
+    + iApply (big_sepS_mono with "IH").
+      iIntros (uk' Huk') "Huk".
+      rewrite bool_decide_eq_false_2; [done|set_solver].
+Qed.
+
+
+Lemma kvs_logical_user_map_init_None `{ kvsUserG Σ } (uk : user_key_t) :
+  ([∗ map] k↦v ∈ kvs_logical_user_map_init, k ↪[γkvs_user uk] v) -∗
+  ([∗ set] mk ∈ kvs_all_map_keys, (uk, mk)↦(KVS) ⊥).
+Proof.
+  iIntros "H".
+  iApply (big_sepM_gset_to_gmap (fun (mk : map_key_t) (o : option Word) => mk ↪[γkvs_user uk] o)%I _ None).
+  rewrite /kvs_logical_user_map_init.
+  iFrame "H".
+Qed.
+
+Lemma kvs_logical_user_map_init_lookup (mk : map_key_t) :
+  is_Some (kvs_logical_user_map_init !! mk) ->
+  kvs_logical_user_map_init !! mk = Some None.
+Proof.
+  intros Hmk.
+  rewrite -elem_of_dom dom_gset_to_gmap in Hmk.
+  rewrite lookup_gset_to_gmap.
+  rewrite option_guard_True; auto.
+Qed.
+
+Lemma kvs_synced_logical_user_kvs_init :
+  kvs_synced_logical_user_kvs ∅ kvs_logical_user_map_init.
+Proof.
+  intros mk; split.
+  - intros Hmk; rewrite kvs_logical_user_map_init_lookup; done.
+  - intros Hmk; rewrite Hmk; eexists (∅ !! mk); auto.
+Qed.
+
+
+
+Section KVS_preamble.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {kvsg:kvsG Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
+
+  Definition logical_user_kvs_inv (uk : user_key_t) : iProp Σ :=
+    ∃ (ukvs : kvs_logical_user_map),
+      uk ↪●UKVS ukvs ∗ is_logical_user_kvs uk ukvs.
+
+  Lemma is_uint16_in_kvs_all_map_keys (mk : map_key_t) :
+    is_uint16 mk <-> (mk ∈ kvs_all_map_keys).
   Proof.
-    intros Hidx Hk (Hkvs_dom & Hkvs_unique).
-    split.
-    - rewrite dom_insert_L -Hkvs_dom.
-      assert (idx ∈ dom m).
-      { apply elem_of_dom; eauto. }
-      set_solver.
-    - eapply NoDup_kvs_keys_insert_Some; eauto.
+    rewrite elem_of_list_to_set elem_of_seqZ /is_uint16.
+    replace ( UINT16_MIN + UINT16_MAX )%Z with UINT16_MAX by (rewrite /UINT16_MIN ;lia).
+    lia.
   Qed.
-
-  Local Lemma kvs_alloc_synced_insert_1 (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn ku' kn' : Z) (w : Word) :
-    let fkey := kvs_full_key ku kn in
-    is_uint16 kn ->
-    m !! idx = Some None ->
-    fkey ∉ kvs_keys m ->
-    kvs_alloc_synced m s ->
-    is_uint16 kn' ->
-    kvs_alloc_elem_of (kvs_alloc_insert s ku {[kn]}) ku' kn' ->
-    kvs_full_key ku' kn' ∈ kvs_keys (<[idx:= Some (fkey, w)]> m).
-  Proof.
-    intros fkey Hwf_full_key Hidx Hk_free Halloc Hwf_full_key' Hk.
-    destruct Hk as (sk & Hku' & Hkn').
-    destruct (decide (ku = ku')); simplify_map_eq.
-    - apply kvs_alloc_insert_lookup_eq in Hku'; simplify_map_eq.
-      apply elem_of_union in Hkn'; destruct Hkn' as [Hkn' | Hkn'].
-      + apply elem_of_singleton in Hkn' ; simplify_eq.
-        eapply elem_of_kvs_keys.
-        by exists idx, w; simplify_map_eq.
-      + specialize (Halloc (ku', kn') Hwf_full_key'); cbn in *.
-        rewrite /kvs_alloc_elem_of in Halloc.
-        destruct ( s !! ku' ) as [s_ku|]; last set_solver+Hkn'.
-        cbn in Hkn'.
-        assert ((∃ sk : gset Z, Some s_ku = Some sk ∧ kn' ∈ sk)) as IH.
-        { exists s_ku; split; auto. }
-        apply Halloc in IH.
-        apply elem_of_kvs_keys in IH as (idx' & v' & Hk).
-        eapply elem_of_kvs_keys.
-        destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
-        by eexists idx', v'; simplify_map_eq.
-    - apply kvs_alloc_insert_lookup_ne in Hku'; auto; simplify_map_eq.
-      eapply elem_of_kvs_keys.
-      assert (∃ sk : gset Z, s !! ku' = Some sk ∧ kn' ∈ sk) as IH.
-      { exists sk; split; auto. }
-      apply (Halloc (ku', kn') Hwf_full_key') in IH.
-      apply elem_of_kvs_keys in IH as (idx' & v' & Hk).
-      destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
-      by eexists idx', v'; simplify_map_eq.
-  Qed.
-
-  Local Lemma kvs_alloc_synced_insert_2 (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn ku' kn' : Z) (w : Word) :
-    let fkey := kvs_full_key ku kn in
-    is_uint16 kn ->
-    m !! idx = Some None ->
-    fkey ∉ kvs_keys m ->
-    kvs_alloc_synced m s ->
-    is_uint16 kn' ->
-    kvs_full_key ku' kn' ∈ kvs_keys (<[idx:= Some (fkey, w)]> m) ->
-    kvs_alloc_elem_of (kvs_alloc_insert s ku {[kn]}) ku' kn'.
-  Proof.
-    intros fkey Hwf_full_key Hidx Hk_free Halloc Hwf_full_key' Hk.
-    specialize (Halloc (ku', kn') Hwf_full_key') as IH.
-    apply elem_of_kvs_keys in Hk as (idx' & v' & Hk).
-    destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
-    - apply kvs_full_key_inj in H as [ -> -> ]; eauto.
-      rewrite /kvs_alloc_insert;simplify_map_eq.
-      apply (iffRLn (Halloc (ku',kn') Hwf_full_key')) in Hk_free.
-      apply kvs_alloc_not_elem_of in Hk_free as [Hkfree|Hkfree]; eauto; cbn in *.
-      + rewrite Hkfree /default /= union_empty_r_L.
-        exists {[kn']}; split; eauto;simplify_map_eq;set_solver+.
-      + destruct Hkfree as (sk' & Hsk'' & Hkn''); simplify_map_eq.
-        exists ({[kn']} ∪ sk'); split; eauto;simplify_map_eq; set_solver+.
-    - assert (kvs_full_key ku' kn' ∈ kvs_keys m) as IHm.
-      { apply elem_of_kvs_keys; eauto. }
-      apply IH in IHm as (sk & Hsk & Hsk').
-      apply (iffRLn (Halloc (ku,kn) Hwf_full_key)) in Hk_free.
-      apply kvs_alloc_not_elem_of in Hk_free as [Hkfree|Hkfree]; cbn in *.
-      + rewrite /kvs_alloc_insert Hkfree /default union_empty_r_L.
-        assert (ku ≠ ku') by (intro;simplify_map_eq).
-        exists sk;split; simplify_map_eq; eauto.
-      + destruct Hkfree as (sk' & Hsk'' & Hkn''); simplify_map_eq.
-        rewrite /kvs_alloc_insert.
-        rewrite Hsk'' /default /=.
-        destruct (decide (ku = ku')); simplify_map_eq.
-        * eexists; split; simplify_map_eq; eauto;apply elem_of_union; by right.
-        * exists sk; split; simplify_map_eq;eauto.
-  Qed.
-
-  Lemma kvs_alloc_synced_insert (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn : Z) (w : Word) :
-    let fkey := kvs_full_key ku kn in
-    is_uint16 kn ->
-    m !! idx = Some None ->
-    fkey ∉ kvs_keys m ->
-    kvs_alloc_synced m s ->
-    kvs_alloc_synced (<[idx:=Some (fkey, w)]> m) ( kvs_alloc_insert s ku {[kn]}).
-  Proof.
-    intros fkey Hwf_full_key Hidx Hk_free Halloc.
-    rewrite /kvs_alloc_synced.
-    intros [ku' kn'] Hwf_full_key'.
-    cbn.
-    split; intros Hk.
-    - eapply kvs_alloc_synced_insert_1; eauto.
-    - eapply kvs_alloc_synced_insert_2; eauto.
-  Qed.
-
-  Lemma wf_kvs_map_update (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
-    (∃ w', m !! idx = Some (Some (k, w'))) ->
-    wf_kvs_map m ->
-    wf_kvs_map (<[idx:= Some (k, w)]> m).
-  Proof.
-    intros [w' Hidx] (Hkvs_dom & Hkvs_unique).
-    split.
-    - rewrite dom_insert_L -Hkvs_dom.
-      assert (idx ∈ dom m).
-      { apply elem_of_dom; eauto. }
-      set_solver.
-    - eapply NoDup_kvs_keys_update; eauto.
-  Qed.
-
-  Lemma kvs_frag_kvs_frag_idx (k : Z) (w : Word) :
-    k ⤇(KVS) w -∗ ∃ idx, k ⤇(KVS)[idx] w.
-  Proof. rewrite /kvs_frag; iIntros "?"; done. Qed.
-
-  Lemma kvs_frag_idx_kvs_frag (k : Z) (w : Word) (idx : nat) :
-    k ⤇(KVS)[idx] w -∗ k ⤇(KVS) w.
-  Proof. rewrite /kvs_frag; iIntros "$".  Qed.
-
-  Lemma kvs_auth_insert (a : Addr) (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
-    ●(KVS) m -∗ idx ⤇(KVS) NONE
-    ==∗
-    ●(KVS) (<[idx:= Some (k, w)]> m) ∗ k ⤇(KVS)[ idx ] w.
-  Proof.
-    iIntros "Hkvs_auth Hkvs_frag".
-    by iMod (gen_heap_update m idx _ (Some (k,w)) with "Hkvs_auth Hkvs_frag") as "[$ $]".
-  Qed.
-
-  Lemma kvs_auth_update (a : Addr) (m : kvs_map) (idx : nat) (k k' : Z) (w w' : Word) :
-    ●(KVS) m -∗ k ⤇(KVS)[ idx ] w
-    ==∗
-    ●(KVS) (<[idx:= Some (k', w')]> m) ∗ k' ⤇(KVS)[ idx ] w'.
-  Proof.
-    iIntros "Hkvs_auth Hkvs_frag".
-    by iMod (gen_heap_update m idx _ (Some (k',w')) with "Hkvs_auth Hkvs_frag") as "[$ $]".
-  Qed.
-
-  Lemma kvs_auth_delete (a : Addr) (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
-    ●(KVS) m -∗ k ⤇(KVS)[ idx ] w
-    ==∗
-    ●(KVS) (<[idx:= None]> m) ∗ idx ⤇(KVS) NONE.
-  Proof.
-    iIntros "Hkvs_auth Hkvs_frag".
-    by iMod (gen_heap_update m idx _ None with "Hkvs_auth Hkvs_frag") as "[$ $]".
-  Qed.
-
-  Lemma kvs_frag_idx_dupl_false idx k k' w w' :
-    k ⤇(KVS)[ idx ] w -∗ k' ⤇(KVS)[ idx ] w' -∗ False.
-  Proof.
-    iIntros "H1 H2".
-    iDestruct (pointsto_valid_2 with "H1 H2") as %?.
-    destruct H; eapply dfrac_full_exclusive in H; auto.
-  Qed.
-
-  Lemma kvs_valid_None (m : kvs_map) (idx : nat) :
-    ●(KVS) m -∗
-    idx ⤇(KVS) NONE -∗
-    ⌜ m !! idx = Some None ⌝.
-  Proof.
-    iIntros "Hkvs_auth Hk".
-    by iDestruct (gen_heap_valid with "Hkvs_auth Hk") as "%Hidx'".
-  Qed.
-
-  Lemma kvs_valid (m : kvs_map) (idx : nat) (k : Z) (w : Word) :
-    ●(KVS) m -∗
-    k ⤇(KVS)[idx] w -∗
-    ⌜ m !! idx = Some (Some (k, w)) ⌝.
-  Proof.
-    iIntros "Hkvs_auth Hk".
-    by iDestruct (gen_heap_valid with "Hkvs_auth Hk") as "%Hidx'".
-  Qed.
-
-  Lemma isKVS_valid (m : kvs_map) (s : kvs_alloc) (a : Addr) (idx : nat) (k : Z) (w : Word) :
-    isKVS a m s -∗
-    k ⤇(KVS)[idx] w -∗
-    ⌜ m !! idx = Some (Some (k, w)) ⌝.
-  Proof.
-    iIntros "(%Hwf_kvs & Hkvs_auth & _) Hk".
-    by iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hidx'".
-  Qed.
-
-  Lemma isKVS_valid_None (m : kvs_map) (s : kvs_alloc) (a : Addr) (idx : nat) :
-    isKVS a m s -∗
-    idx ⤇(KVS) NONE -∗
-    ⌜ m !! idx = Some None ⌝.
-  Proof.
-    iIntros "(%Hwf_kvs & Hkvs_auth & _) Hk".
-    by iDestruct (kvs_valid_None with "Hkvs_auth Hk") as "%Hidx'".
-  Qed.
-
-  Lemma isKVS_open_valid (m : kvs_map) (s : kvs_alloc) (a : Addr) (idx idx' : nat) (k : Z) (w : Word) :
-    isKVS_open a m s idx' -∗
-    k ⤇(KVS)[idx] w -∗
-    ⌜ m !! idx = Some (Some (k, w)) ⌝.
-  Proof.
-    iIntros "(%Hwf_kvs & Hkvs_auth & _) Hk".
-    by iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hidx'".
-  Qed.
-
-  Lemma isKVS_open_valid_None (m : kvs_map) (s : kvs_alloc) (a : Addr) (idx idx' : nat) :
-    isKVS_open a m s idx' -∗
-    idx ⤇(KVS) NONE -∗
-    ⌜ m !! idx = Some None ⌝.
-  Proof.
-    iIntros "(%Hwf_kvs & Hkvs_auth & _) Hk".
-    by iDestruct (kvs_valid_None with "Hkvs_auth Hk") as "%Hidx'".
-  Qed.
-
-  Lemma open_isKVS_kvs_frag_idx
-    (b : Addr) (m : kvs_map) (s : kvs_alloc)
-    (idx : nat) (k : Z) (w : Word) :
-    isKVS b m s ∗
-    k ⤇(KVS)[idx] w -∗
-    isKVS_open b m s idx ∗
-    isKVS_entry b idx (Some (k, w)) ∗
-    k ⤇(KVS)[idx] w.
-  Proof.
-    iIntros "( (%Hwf_kvs & Hkvs_auth & Halloc & %Hwf_alloc & HKVS) & Hk)".
-    iDestruct (gen_heap_valid with "Hkvs_auth Hk") as "%Hidx'".
-    rewrite -{2}(insert_id m idx (Some (k,w))); last done.
-    iDestruct (big_sepM_insert_delete with "HKVS") as "[Hkvs_entry HKVS]".
-    iFrame; eauto.
-  Qed.
-
-  Lemma isKVS_indom_idx (m : kvs_map) (s : kvs_alloc) (a : Addr) (idx : nat) :
-    idx ∈ dom m ->
-    isKVS a m s -∗
-    ⌜ 0 <= idx < SIZE_MAP ⌝.
-  Proof.
-    iIntros (Hm_idx) "(%Hwf_kvs & _)"; iPureIntro.
-    by eapply wf_kvs_indom_idx.
-  Qed.
-
-  Lemma isKVS_open_indom_idx (m : kvs_map) (s : kvs_alloc) (a : Addr) (idx idx' : nat) :
-    idx ∈ dom m ->
-    isKVS_open a m s idx' -∗
-    ⌜ 0 <= idx < SIZE_MAP ⌝.
-  Proof.
-    iIntros (Hm_idx) "(%Hwf_kvs & _)"; iPureIntro.
-    by eapply wf_kvs_indom_idx.
-  Qed.
-
-  Lemma open_isKVS_kvs_frag_idx_diff
-    (b : Addr) (m : kvs_map) (s : kvs_alloc) (idx idx' : nat) (k : Z) (w : Word):
-    0 <= idx' < SIZE_MAP ->
-    idx ≠ idx' ->
-    isKVS b m s ∗
-    k ⤇(KVS)[ idx ] w -∗
-    ∃ opt_kw',
-      k ⤇(KVS)[ idx ] w ∗
-      isKVS_open b m s idx' ∗
-      ⌜ m !! idx' = Some opt_kw' ⌝ ∗
-      isKVS_entry b idx' opt_kw' ∗
-      ⌜ match opt_kw' with | Some kw' => k ≠ kw'.1 | None => True end ⌝.
-  Proof.
-    iIntros (Hidx' Hidx_ne) "( (%Hwf_kvs & Hkvs_auth & Halloc & %Hwf_alloc & HKVS) & Hk)".
-    iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hm_idx".
-    pose proof (wf_kvs_is_Some _ _ Hwf_kvs Hidx') as [ opt_kw' Hm_idx' ].
-    iExists opt_kw'.
-    rewrite -{2}(insert_id m idx' opt_kw'); last done.
-    iDestruct (big_sepM_insert_delete with "HKVS") as "[ Hk' HKVS]".
-    iFrame "∗%".
-    iPureIntro.
-    destruct opt_kw' as [ [k' w'] |]; auto.
-    pose proof (wf_kvs_neq _ _ _ _ _ _ _ Hwf_kvs Hidx_ne Hm_idx Hm_idx') as Hkk'.
-    done.
-  Qed.
-
-  Lemma open_isKVS_not_alloc
-    (b : Addr) (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
-    (idx : nat) (ku kn : Z) :
-    let fkey := kvs_full_key ku kn in
-    is_uint16 kn ->
-    (0 ≤ idx < SIZE_MAP)%Z →
-    kn ∉ s' →
-    isKVS b m s -∗
-    ◯(ALLOC)[ku] s' -∗
-    ∃ opt_kwidx,
-      ⌜ m !! idx = Some opt_kwidx ⌝ ∗
-      isKVS_open b m s idx ∗
-      ◯(ALLOC)[ku] s' ∗
-      isKVS_entry b idx opt_kwidx ∗
-      ⌜ match opt_kwidx with | Some kwidx => kwidx.1 ≠ fkey | None => True end ⌝.
-  Proof.
-    intros fkey Hwf_full_key Hidx Hs'.
-    iIntros "(%Hwf_kvs & Hkvs_auth & Halloc & %Hwf_alloc & HKVS) Hk".
-    iDestruct ( allocated_keys_valid with "Halloc Hk" ) as "%Hss'".
-    assert (fkey ∉ kvs_keys m) as Hfkey_not_allocated.
-    { intro Hcontra; apply (Hwf_alloc (ku, kn)) in Hcontra.
-      2: { by cbn. }
-      rewrite /kvs_alloc_synced in Hwf_alloc.
-      rewrite /kvs_alloc_elem_of in Hcontra.
-      set_solver.
-    }
-    iFrame.
-    assert ( is_Some (m !! idx) ) as [ opt_kwidx Hm_idx].
-    { apply wf_kvs_is_Some; auto; lia. }
-    rewrite -{1}(insert_id m idx opt_kwidx); last done.
-    iDestruct (big_sepM_insert_delete with "HKVS") as "[Hkvs_entry HKVS]".
-    iFrame "∗%".
-    iPureIntro.
-    destruct opt_kwidx as [ [ kidx widx ]|]; auto.
-    cbn.
-    assert ( kidx ∈ kvs_keys m ) as Hkidx by (apply elem_of_kvs_keys; eauto).
-    set_solver.
-  Qed.
-
-  Lemma open_isKVS
-    (b : Addr) (m : kvs_map) (s : kvs_alloc)
-    (idx : nat) :
-    (0 ≤ idx < SIZE_MAP)%Z →
-    isKVS b m s -∗
-    ∃ opt_kwidx,
-      ⌜ m !! idx = Some opt_kwidx ⌝ ∗
-      isKVS_open b m s idx ∗
-      isKVS_entry b idx opt_kwidx.
-  Proof.
-    intros Hidx.
-    iIntros "(%Hwf_kvs & Hkvs_auth & Halloc & %Hwf_alloc & HKVS)".
-    iFrame.
-    assert ( is_Some (m !! idx) ) as [ opt_kwidx Hm_idx].
-    { apply wf_kvs_is_Some; auto; lia. }
-    rewrite -{1}(insert_id m idx opt_kwidx); last done.
-    iDestruct (big_sepM_insert_delete with "HKVS") as "[Hkvs_entry HKVS]".
-    iFrame "∗%".
-  Qed.
-
-  Lemma close_isKVS
-    (b : Addr) (m : kvs_map) (s : kvs_alloc) (idx : nat) (opt_kwidx : kvs_entry):
-    m !! idx = Some opt_kwidx ->
-    isKVS_open b m s idx ∗
-    isKVS_entry b idx opt_kwidx -∗
-    isKVS b m s.
-  Proof.
-    iIntros (Hidx) "[(%Hwf_kvs & Hkvs_auth & Halloc & %Hwf_alloc & HKVS) Hkvs_entry]"; cbn.
-    iDestruct (big_sepM_delete with "[$HKVS $Hkvs_entry]") as "HKVS"; eauto.
-    iFrame; eauto.
-  Qed.
-
-  Lemma kvs_alloc_synced_update (m : kvs_map) (s : kvs_alloc) (idx : nat) (k : Z) (w : Word) :
-    (∃ w', m !! idx = Some ( Some (k, w'))) ->
-    kvs_alloc_synced m s ->
-    kvs_alloc_synced (<[idx:= Some (k, w)]> m) s.
-  Proof.
-    intros [w' Hidx] Halloc.
-    rewrite /kvs_alloc_synced.
-    intros [ku kn].
-    specialize (Halloc (ku, kn)); cbn in *.
-    split; intros Hk.
-    - apply Halloc in Hk; auto.
-      apply elem_of_kvs_keys in Hk as (idx' & v' & Hk).
-      destruct (decide (idx = idx')); simplify_eq; cbn in *.
-      + by eapply elem_of_kvs_keys; eauto; eexists idx',_; simplify_map_eq.
-      + by eapply elem_of_kvs_keys; eauto; eexists idx',_; simplify_map_eq.
-    - apply Halloc; auto.
-      apply elem_of_kvs_keys in Hk as (idx' & v' & Hk).
-      destruct (decide (idx = idx')); simplify_eq; cbn in *.
-      + by eapply elem_of_kvs_keys; eauto; eexists idx',_; simplify_map_eq.
-      + by eapply elem_of_kvs_keys; eauto; eexists idx',_; simplify_map_eq.
-  Qed.
-
-  Lemma isKVS_open_update (a : Addr) (m : kvs_map) (s : kvs_alloc) (idx : nat) (k : Z) (w w' : Word) :
-    isKVS_open a m s idx -∗ k ⤇(KVS)[ idx ] w
-    ==∗
-    isKVS_open a (<[idx:= Some (k, w')]> m) s idx ∗ k ⤇(KVS)[ idx ] w'.
-  Proof.
-    iIntros "(%Hwf_kvs & Hkvs_auth & Halloc & %Hwf_alloc & HKVS) Hk".
-    iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hm_idx".
-    iMod (kvs_auth_update a m idx _ k _ w' with "Hkvs_auth Hk") as "[$ $]".
-    eapply (wf_kvs_map_update _ _ _ w') in Hwf_kvs; eauto.
-    eapply (kvs_alloc_synced_update _ _ _ _ w') in Hwf_alloc; eauto.
-    rewrite delete_insert_eq.
-    by iFrame "∗ %".
-  Qed.
-
-  Lemma isKVS_open_insert (a : Addr) (m : kvs_map) (s : kvs_alloc) (s' : gset Z) (idx : nat) (ku kn : Z) (w : Word) :
-    let k := kvs_full_key ku kn in
-    kn ∉ s' →
-    is_uint16 kn ->
-    isKVS_open a m s idx -∗
-    ◯(ALLOC)[ku] s' -∗
-    idx ⤇(KVS) NONE
-    ==∗
-    isKVS_open a (<[idx:= Some (k, w)]> m) (kvs_alloc_insert s ku {[kn]}) idx ∗
-    ◯(ALLOC)[ku] ({[kn]} ∪ s') ∗
-    k ⤇(KVS)[ idx ] w.
-  Proof.
-    intro k.
-    iIntros (Hs' Hwf_kvs_full_key)
-      "(%Hwf_kvs & Hkvs_auth & Halloc_auth & %Hwf_alloc & HKVS) Halloc_frag Hk".
-    iDestruct (allocated_keys_valid with "Halloc_auth Halloc_frag") as "%Hvalid".
-    iDestruct (kvs_valid_None with "Hkvs_auth Hk") as "%Hm_idx".
-    iMod (kvs_auth_insert a m idx k w with "Hkvs_auth Hk") as "[$ $]".
-    iMod ( allocated_keys_insert ku kn with "Halloc_auth Halloc_frag") as "[Halloc_auth Halloc_frag]".
-    rewrite /kvs_alloc_synced in Hwf_alloc.
-    assert (k ∉ kvs_keys m) as Hk_notin_keys.
-    { intro Hcontra; apply Hs'.
-      apply (Hwf_alloc (ku,kn) Hwf_kvs_full_key) in Hcontra.
-      destruct Hcontra as (?&?&?); simplify_map_eq; done.
-    }
-    eapply (wf_kvs_map_insert _ _ _ w) in Hwf_kvs; eauto.
-    eapply (kvs_alloc_synced_insert _ _ _ _ _ w) in Hwf_alloc; eauto.
-    rewrite delete_insert_eq.
-    subst k.
-    iFrame "∗ %".
-    by rewrite /kvs_alloc_insert Hvalid /=.
-  Qed.
-
-  Lemma allocated_keys_delete `{kvsG} (ku : Z) (kn : Z) ( m : kvs_alloc) (s' : gset Z) :
-    ●(ALLOC) m -∗ ◯(ALLOC)[ku] s' ==∗
-    ●(ALLOC) (<[ ku := (s' ∖ {[kn]}) ]> m) ∗ ◯(ALLOC)[ku] (s' ∖ {[kn]}).
-  Proof.
-    iIntros "Hs Hs'".
-    by iMod (gen_heap_update m ku _ (s' ∖ {[kn]}) with "Hs Hs'") as "[$ $]".
-  Qed.
-
-  Lemma kvs_alloc_delete_lookup_eq s ku ks sk :
-    kvs_alloc_delete s ku ks !! ku = Some sk ->
-    sk = default ∅ (s !! ku) ∖ ks.
-  Proof.
-    intros H.
-    rewrite /kvs_alloc_delete in H; simplify_map_eq.
-    done.
-  Qed.
-
-  Lemma kvs_alloc_delete_lookup_ne s ku ku' ks sk :
-    ku ≠ ku' ->
-    kvs_alloc_delete s ku ks !! ku' = Some sk ->
-    s !! ku' = Some sk.
-  Proof.
-    intros Hk H.
-    rewrite /kvs_alloc_delete in H; simplify_map_eq.
-    done.
-  Qed.
-
-  Local Lemma kvs_alloc_synced_delete_1 (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn ku' kn' : Z) (w : Word) :
-    let fkey := kvs_full_key ku kn in
-    is_uint16 kn ->
-    m !! idx = Some (Some (fkey, w)) ->
-    kvs_alloc_synced m s ->
-    is_uint16 kn' ->
-    kvs_alloc_elem_of (kvs_alloc_delete s ku {[kn]}) ku' kn' ->
-    kvs_full_key ku' kn' ∈ kvs_keys (<[idx:=None]> m).
-  Proof.
-    intros fkey Hwf_full_key Hidx Halloc Hwf_full_key' Hk.
-    destruct Hk as (sk & Hku' & Hkn').
-    destruct (decide (ku = ku')); simplify_map_eq.
-    - apply kvs_alloc_delete_lookup_eq in Hku'; simplify_map_eq.
-      apply elem_of_difference in Hkn' as [Hkn' Hkn'_ne].
-      apply not_elem_of_singleton in Hkn'_ne.
-      cbn in *.
-      specialize (Halloc (ku', kn') Hwf_full_key'); cbn in *.
-      assert ( kvs_alloc_elem_of s ku' kn' ).
-      {
-        rewrite /kvs_alloc_elem_of.
-        destruct ( s !! ku' ) as [s_ku|]; last set_solver+Hkn'.
-        eauto.
-      }
-      apply Halloc in H.
-      eapply elem_of_kvs_keys in H as (idx' & w' & H).
-      eapply elem_of_kvs_keys; auto.
-      destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
-      * apply kvs_full_key_inj in H as [_ ->]; eauto; done.
-      * by exists idx', w'; simplify_map_eq.
-    - apply kvs_alloc_delete_lookup_ne in Hku'; auto; simplify_map_eq.
-      eapply elem_of_kvs_keys.
-      assert (∃ sk : gset Z, s !! ku' = Some sk ∧ kn' ∈ sk) as IH.
-      { exists sk; split; auto. }
-      apply (Halloc (ku', kn') Hwf_full_key') in IH.
-      apply elem_of_kvs_keys in IH as (idx' & v' & Hk).
-      destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
-      * apply kvs_full_key_inj in H as [-> ->] ;eauto; done.
-      * by exists idx', v'; simplify_map_eq.
-  Qed.
-
-  Lemma NoDup_kvs_keys_elem_of m idx ku kn w idx' ku' kn' w' :
-    let f := kvs_full_key ku kn in
-    let f' := kvs_full_key ku' kn' in
-    NoDup (kvs_keys m) ->
-    idx ≠ idx' ->
-    m !! idx = Some (Some (f, w)) ->
-    m !! idx' = Some (Some (f', w')) ->
-    ku' ≠ ku ∨ kn' ≠ kn.
-  Proof.
-    intros f f'.
-    induction m using map_ind; intros Hnodup Hidx_ne Hm_idx Hm_idx'; first set_solver.
-    simplify_map_eq.
-    destruct x as [ [kx wx] |]; cycle 1.
-    - rewrite kvs_keys_insert_None in Hnodup; auto.
-      assert (idx ≠ i) as Hidx_i_ne by (intro; simplify_map_eq; done).
-      assert (idx' ≠ i) as Hidx'_i_ne by (intro; simplify_map_eq; done).
-      simplify_map_eq.
-      auto.
-    - rewrite kvs_keys_insert_Some in Hnodup; auto.
-      apply NoDup_cons in Hnodup as [Hkx_not_elem_kvs_keys Hnodup].
-      destruct (decide (idx = i)); simplify_map_eq.
-      + (* idx = i *)
-        assert (f' ∈ kvs_keys m) as Hf'.
-        { apply elem_of_kvs_keys; eexists _,_; eauto. }
-        destruct (decide (ku' = ku)); simplify_eq; [right|left]; auto.
-        destruct (decide (kn' = kn)); simplify_eq; auto.
-      + destruct (decide (idx' = i)); simplify_map_eq.
-        * (* idx ≠ i ∧ idx' = i *)
-          assert (f ∈ kvs_keys m) as Hf.
-          { apply elem_of_kvs_keys; eexists _,_; eauto. }
-          destruct (decide (ku' = ku)); simplify_eq; [right|left]; auto.
-          destruct (decide (kn' = kn)); simplify_eq; auto.
-        * (* idx ≠ i ∧ idx' ≠ i *)
-          eapply IHm; eauto.
-  Qed.
-
-  Local Lemma kvs_alloc_synced_delete_2 (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn ku' kn' : Z) (w : Word) :
-    let fkey := kvs_full_key ku kn in
-    is_uint16 kn ->
-    m !! idx = Some (Some (fkey, w)) ->
-    NoDup (kvs_keys m) ->
-    kvs_alloc_synced m s ->
-    is_uint16 kn' ->
-    kvs_full_key ku' kn' ∈ kvs_keys (<[idx:=None]> m) ->
-    kvs_alloc_elem_of (kvs_alloc_delete s ku {[kn]}) ku' kn'.
-  Proof.
-    intros fkey Hwf_full_key Hidx Hnodup Halloc Hwf_full_key' Hk.
-    specialize (Halloc (ku', kn') Hwf_full_key') as IH'.
-    cbn in *.
-    apply elem_of_kvs_keys in Hk as (idx' & v' & Hk).
-
-    destruct (decide (idx = idx')); simplify_map_eq; cbn in *; auto.
-    assert (kvs_full_key ku' kn' ∈ kvs_keys m) as IHm'.
-    { apply elem_of_kvs_keys; eauto. }
-
-    apply IH' in IHm' as (sk' & Hsk' & Hkn'_in_sk').
-    assert (kvs_full_key ku kn ∈ kvs_keys m) as IHm.
-    { apply elem_of_kvs_keys; eauto. }
-    rewrite /kvs_alloc_delete.
-    destruct (decide (ku = ku')); simplify_map_eq; cycle 1.
-    { exists sk'; split; simplify_map_eq;eauto. }
-    eexists; split; simplify_map_eq; eauto;apply elem_of_difference; split; auto.
-    apply not_elem_of_singleton.
-    eapply (NoDup_kvs_keys_elem_of m idx ku' kn _ idx' ku' kn') in Hnodup; eauto.
-    destruct Hnodup as [ | ]; auto.
-  Qed.
-
-  Lemma kvs_alloc_synced_delete (m : kvs_map) ( s : kvs_alloc ) (idx : nat) (ku kn : Z) (w : Word) :
-    let fkey := kvs_full_key ku kn in
-    NoDup (kvs_keys m) ->
-    is_uint16 kn ->
-    m !! idx = Some (Some (fkey, w)) ->
-    kvs_alloc_synced m s ->
-    kvs_alloc_synced (<[idx:=None]> m) (kvs_alloc_delete s ku {[kn]}).
-  Proof.
-    intros fkey Hnodup Hwf_full_key Hidx Halloc.
-    rewrite /kvs_alloc_synced.
-    intros [ku' kn'] Hwf_full_key'.
-    cbn.
-    split; intros Hk.
-    - eapply (kvs_alloc_synced_delete_1 m s idx ku kn ku' kn'); eauto.
-    - eapply (kvs_alloc_synced_delete_2 m s idx ku kn ku' kn'); eauto.
-  Qed.
-
-  Lemma NoDup_kvs_keys_delete
-    (m : kvs_map) (idx : nat)  :
-    NoDup (kvs_keys m) ->
-    NoDup (kvs_keys (<[idx:=None]> m)).
-  Proof.
-    generalize dependent idx.
-    induction m using map_ind; intros idx Hnodup; first simplify_map_eq.
-    { rewrite kvs_keys_insert_None; auto. }
-    destruct (decide (idx = i)); simplify_map_eq.
-    - rewrite insert_insert_eq.
-      rewrite kvs_keys_insert_None; auto.
-      destruct x as [ [] |].
-      + rewrite kvs_keys_insert_Some in Hnodup; auto.
-        apply NoDup_cons in Hnodup as [ _ Hnodup ]; auto.
-      + rewrite kvs_keys_insert_None in Hnodup; auto.
-    - rewrite insert_insert_ne; auto.
-      destruct x as [ [ k' w' ] |].
-      + rewrite kvs_keys_insert_Some in Hnodup; auto.
-        apply NoDup_cons in Hnodup as [ Hk' Hnodup ]; auto.
-        rewrite kvs_keys_insert_Some; simplify_map_eq; auto.
-        apply NoDup_cons; split ; auto.
-        intro Hk. apply elem_of_kvs_keys in Hk as (idx_k&?&?); simplify_eq.
-        destruct (decide (idx_k = idx)); simplify_map_eq.
-        apply Hk'.
-        apply elem_of_kvs_keys; eexists _,_ ; eauto.
-      + rewrite kvs_keys_insert_None in Hnodup; auto.
-        rewrite kvs_keys_insert_None; simplify_map_eq; auto.
-  Qed.
-
-  Lemma wf_kvs_map_delete (m : kvs_map) (idx : nat) (k : Z) :
-    (is_Some (m !! idx)) ->
-    wf_kvs_map m ->
-    wf_kvs_map (<[idx:=None]> m).
-  Proof.
-    intros [w' Hidx] (Hkvs_dom & Hkvs_unique).
-    split.
-    - rewrite dom_insert_L -Hkvs_dom.
-      assert (idx ∈ dom m).
-      { apply elem_of_dom; eauto. }
-      set_solver.
-    - eapply NoDup_kvs_keys_delete; eauto.
-  Qed.
-
-  Lemma isKVS_open_delete (a : Addr) (m : kvs_map) (s : kvs_alloc) (s' : gset Z)
-    (idx : nat) (ku kn : Z) (w : Word) :
-    let k := kvs_full_key ku kn in
-    kn ∈ s' →
-    is_uint16 kn ->
-    isKVS_open a m s idx -∗
-    ◯(ALLOC)[ku] s' -∗
-    k ⤇(KVS)[ idx ] w
-    ==∗
-    isKVS_open a (<[idx:=None]> m) (kvs_alloc_delete s ku {[kn]}) idx ∗
-    ◯(ALLOC)[ku] (s' ∖ {[ kn ]}) ∗
-    idx ⤇(KVS) NONE.
-  Proof.
-    intro k.
-    iIntros (Hs' Hwf_kvs_full_key)
-      "(%Hwf_kvs & Hkvs_auth & Halloc_auth & %Hwf_alloc & HKVS) Halloc_frag Hk".
-    iDestruct (allocated_keys_valid with "Halloc_auth Halloc_frag") as "%Hvalid".
-    iDestruct (kvs_valid with "Hkvs_auth Hk") as "%Hm_idx".
-    iMod (kvs_auth_delete a m idx _ _ with "Hkvs_auth Hk") as "[$ $]".
-
-    iMod ( allocated_keys_delete ku kn with "Halloc_auth Halloc_frag") as "[Halloc_auth Halloc_frag]".
-    assert (NoDup (kvs_keys m)) as Hnodup by ( by destruct Hwf_kvs ).
-    rewrite /kvs_alloc_synced in Hwf_alloc.
-    eapply (wf_kvs_map_delete _ _) in Hwf_kvs; eauto.
-    eapply (kvs_alloc_synced_delete _ _ _ _ _ w) in Hwf_alloc; eauto.
-    rewrite delete_insert_eq.
-    subst k.
-    iFrame "∗ %".
-    by rewrite /kvs_alloc_delete Hvalid /=.
-  Qed.
-
-  Class kvs_namespaces :=
-    {
-      Nkvs : namespace;
-      Nkvs_otype : namespace;
-      Nkvs_exp_tbl : namespace;
-      Nkvs_namespaces_disjoint :
-      Nkvs ## Nkvs_otype ∧ Nkvs ## Nkvs_exp_tbl ∧ Nkvs_otype ## Nkvs_exp_tbl
-    }.
 
   Definition kvs_otype_inv
-    {KVS_layout : kvsLayout} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout}
     (W : WORLD) (C : CmptName) (w : Word) : iProp Σ :=
-    ∃ (ku : Z) (a : Addr) (s : gset Z),
+    ∃ (uk : user_key_t) (a : Addr),
       (* Shape of the capability*)
       ⌜ w = WSealable (kvs_user_seal_key_scap Global a) ⌝ ∗
       ⌜ withinBounds a (a^+1)%a a = true ⌝ ∗
       (* Payload contains the user key *)
-      a ↦ₐ WInt ku ∗
+      a ↦ₐ WInt uk ∗
       (* KVS resources *)
-      ◯(ALLOC)[ku] s ∗
-      ([∗ set] kn ∈ s, ∃ w, (kvs_full_key ku kn) ⤇(KVS) w ∗
-                            (∀ W' , ⌜ related_sts_priv_world W W' ⌝ -∗ interp W' C w )
+      (logical_user_kvs_inv uk) ∗
+      ([∗ set] mk ∈ kvs_all_map_keys,
+         (∃ (w : Word), (uk,mk)↦(KVS) w ∗ (∀ W' , ⌜ related_sts_priv_world W W' ⌝ -∗ interp W' C w ))
+         ∨
+           (uk,mk)↦(KVS) ⊥
       ).
 
   Program Definition kvs_otype_prop
-    {KVS_layout : kvsLayout} {KVS_namespaces : kvs_namespaces} :
+    {KVS_layout : kvsLayout} :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
     λne (W : WORLD) (C : CmptName) (w : Word), (kvs_otype_inv W C w)%I.
   Solve All Obligations with solve_proper.
 
-  Definition kvs_otype_propC
-    {KVS : kvsLayout} {KVS_namespaces : kvs_namespaces} :
-    WORLD * CmptName * leibnizO Word -> iProp Σ :=
+  Definition kvs_otype_propC {KVS : kvsLayout} : WORLD * CmptName * leibnizO Word -> iProp Σ :=
     safeC kvs_otype_prop.
 
-  Lemma mono_priv_ot_kvs
-    {KVS : kvsLayout} {KVS_namespaces : kvs_namespaces}
-    (C : CmptName) (w : Word) :
+  Lemma mono_priv_ot_kvs {KVS : kvsLayout} (C : CmptName) (w : Word) :
     ⊢ future_priv_mono C kvs_otype_propC w.
   Proof.
     iIntros (W W' Hrelated_W_W').
     iModIntro.
     iIntros "Hot_kvs".
     rewrite /kvs_otype_propC /= /kvs_otype_inv.
-    iDestruct "Hot_kvs" as "(%ku & %a & %s & % & % & ? & ? & Hs)".
-    iExists ku, a, s; iFrame "∗%".
+    iDestruct "Hot_kvs" as "(%ku & %a & % & % & ? & ? & Hs)".
+    iExists ku, a; iFrame "∗%".
     iApply (big_sepS_impl with "Hs").
-    iModIntro; iIntros (??) "(%w' & $ & H)".
+    iModIntro; iIntros (??) "[ (%w' & H' & H) | $ ]".
+    iLeft; iFrame.
     iIntros (W'' Hrelated_W'_W'').
     iApply "H".
     iPureIntro.
     by eapply related_sts_priv_trans_world.
   Qed.
 
-  Definition kvs_inv {KVS : kvsLayout} {KVS_namespaces : kvs_namespaces} : iProp Σ :=
+  Definition kvs_inv {KVS : kvsLayout} : iProp Σ :=
     let imports :=
       kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
     in
-    ∃ (m : kvs_map) (s : kvs_alloc),
       [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ imports ]] ∗
       codefrag KVS_pcc_b' kvs_service_instrs ∗
-      isKVS KVS_cgp_b m s ∗
+      logical_kvs_inv KVS_cgp_b ∗
       seal_pred KVS_OTYPE kvs_otype_propC.
+
 
 End KVS_preamble.
 
-Global Opaque kvs_map_init.
+Global Opaque kvs_physical_map_init.
+
+Notation "<<[ ( uk , mk ) := w ]>> lkvs" :=
+  (kvs_logical_kvs_insert lkvs uk mk w) (at level 10).
+
+Notation "lkvs <∖> ( uk , mk )" :=
+  (kvs_logical_kvs_delete lkvs uk mk) (at level 10).
