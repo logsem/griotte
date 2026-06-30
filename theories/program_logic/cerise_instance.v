@@ -1,4 +1,4 @@
-From iris.base_logic Require Export invariants na_invariants gen_heap.
+From iris.base_logic Require Export invariants na_invariants gen_heap ghost_map.
 From iris.program_logic Require Export weakestpre.
 From griotte Require Import griotte_lang entry.
 

@@ -1,6 +1,4 @@
 From iris.proofmode Require Import proofmode.
-From iris.base_logic Require Import ghost_map.
-From iris.algebra Require Import gmap_view.
 From griotte Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import switcher kvs.
@@ -1288,17 +1286,74 @@ End KVS_init.
 Class kvs_namespaces :=
   {
     Nkvs : namespace;
-    Nkvs_user : namespace;
     Nkvs_otype : namespace;
     Nkvs_exp_tbl : namespace;
     Nkvs_namespaces_disjoint :
     Nkvs ## Nkvs_otype ∧
     Nkvs ## Nkvs_exp_tbl ∧
-    Nkvs ## Nkvs_user ∧
-    Nkvs_user ## Nkvs_otype ∧
-    Nkvs_user ## Nkvs_exp_tbl ∧
     Nkvs_otype ## Nkvs_exp_tbl
   }.
+
+Definition kvs_all_map_keys : gset map_key_t :=
+  list_to_set (seqZ UINT16_MIN UINT16_MAX).
+Definition kvs_logical_user_map_init : kvs_logical_user_map :=
+  gset_to_gmap None kvs_all_map_keys.
+
+Lemma kvs_logical_user_init_pre
+  {Σ : gFunctors}
+  {kvs_logical_user_preg : ghost_mapG Σ map_key_t (option Word) }
+  (all_user_keys : gset user_key_t) (init_logical_user_map : kvs_logical_user_map) :
+  ⊢ |==> (∃ (γf : user_key_t -> gname),
+          ([∗ set] uk ∈ all_user_keys,
+             ( ghost_map_auth (γf uk) 1 init_logical_user_map ∗
+               [∗ map] k ↦ v ∈ init_logical_user_map, k ↪[(γf uk)] v ))).
+Proof.
+  induction all_user_keys as [|uk all_uk Hall_uk IHg] using set_ind_L.
+  - iModIntro.
+    iExists ( λ uk, encode uk).
+    by iApply big_sepS_empty.
+  - iMod IHg as (γf) "IH".
+    iMod (ghost_map_alloc init_logical_user_map) as (γuk) "Huk".
+    iModIntro.
+    iExists (λ uk', if (bool_decide (uk' = uk)) then γuk else γf uk').
+
+    iApply (big_sepS_union_2 with "[Huk]").
+    + iApply (big_sepS_singleton).
+      by rewrite bool_decide_eq_true_2.
+    + iApply (big_sepS_mono with "IH").
+      iIntros (uk' Huk') "Huk".
+      rewrite bool_decide_eq_false_2; [done|set_solver].
+Qed.
+
+
+Lemma kvs_logical_user_map_init_None `{ kvsUserG Σ } (uk : user_key_t) :
+  ([∗ map] k↦v ∈ kvs_logical_user_map_init, k ↪[γkvs_user uk] v) -∗
+  ([∗ set] mk ∈ kvs_all_map_keys, (uk, mk)↦(KVS) ⊥).
+Proof.
+  iIntros "H".
+  iApply (big_sepM_gset_to_gmap (fun (mk : map_key_t) (o : option Word) => mk ↪[γkvs_user uk] o)%I _ None).
+  rewrite /kvs_logical_user_map_init.
+  iFrame "H".
+Qed.
+
+Lemma kvs_logical_user_map_init_lookup (mk : map_key_t) :
+  is_Some (kvs_logical_user_map_init !! mk) ->
+  kvs_logical_user_map_init !! mk = Some None.
+Proof.
+  intros Hmk.
+  rewrite -elem_of_dom dom_gset_to_gmap in Hmk.
+  rewrite lookup_gset_to_gmap.
+  rewrite option_guard_True; auto.
+Qed.
+
+Lemma kvs_synced_logical_user_kvs_init :
+  kvs_synced_logical_user_kvs ∅ kvs_logical_user_map_init.
+Proof.
+  intros mk; split.
+  - intros Hmk; rewrite kvs_logical_user_map_init_lookup; done.
+  - intros Hmk; rewrite Hmk; eexists (∅ !! mk); auto.
+Qed.
+
 
 
 Section KVS_preamble.
@@ -1313,18 +1368,33 @@ Section KVS_preamble.
     {swlayout : switcherLayout}
   .
 
+  Definition logical_user_kvs_inv (uk : user_key_t) : iProp Σ :=
+    ∃ (ukvs : kvs_logical_user_map),
+      uk ↪●UKVS ukvs ∗ is_logical_user_kvs uk ukvs.
+
+  Lemma is_uint16_in_kvs_all_map_keys (mk : map_key_t) :
+    is_uint16 mk <-> (mk ∈ kvs_all_map_keys).
+  Proof.
+    rewrite elem_of_list_to_set elem_of_seqZ /is_uint16.
+    replace ( UINT16_MIN + UINT16_MAX )%Z with UINT16_MAX by (rewrite /UINT16_MIN ;lia).
+    lia.
+  Qed.
+
   Definition kvs_otype_inv
     {KVS_layout : kvsLayout}
     (W : WORLD) (C : CmptName) (w : Word) : iProp Σ :=
-    ∃ (uk : user_key_t) (a : Addr) (m : kvs_user_map),
+    ∃ (uk : user_key_t) (a : Addr),
       (* Shape of the capability*)
       ⌜ w = WSealable (kvs_user_seal_key_scap Global a) ⌝ ∗
       ⌜ withinBounds a (a^+1)%a a = true ⌝ ∗
       (* Payload contains the user key *)
       a ↦ₐ WInt uk ∗
       (* KVS resources *)
-      uk ↦(LKVS) m ∗
-      ([∗ map] mk↦w ∈ m, (∀ W' , ⌜ related_sts_priv_world W W' ⌝ -∗ interp W' C w )
+      (logical_user_kvs_inv uk) ∗
+      ([∗ set] mk ∈ kvs_all_map_keys,
+         (∃ (w : Word), (uk,mk)↦(KVS) w ∗ (∀ W' , ⌜ related_sts_priv_world W W' ⌝ -∗ interp W' C w ))
+         ∨
+           (uk,mk)↦(KVS) ⊥
       ).
 
   Program Definition kvs_otype_prop
@@ -1343,10 +1413,11 @@ Section KVS_preamble.
     iModIntro.
     iIntros "Hot_kvs".
     rewrite /kvs_otype_propC /= /kvs_otype_inv.
-    iDestruct "Hot_kvs" as "(%ku & %a & %s & % & % & ? & ? & Hs)".
-    iExists ku, a, s; iFrame "∗%".
-    iApply (big_sepM_impl with "Hs").
-    iModIntro; iIntros (???) "H".
+    iDestruct "Hot_kvs" as "(%ku & %a & % & % & ? & ? & Hs)".
+    iExists ku, a; iFrame "∗%".
+    iApply (big_sepS_impl with "Hs").
+    iModIntro; iIntros (??) "[ (%w' & H' & H) | $ ]".
+    iLeft; iFrame.
     iIntros (W'' Hrelated_W'_W'').
     iApply "H".
     iPureIntro.
@@ -1362,9 +1433,6 @@ Section KVS_preamble.
       logical_kvs_inv KVS_cgp_b ∗
       seal_pred KVS_OTYPE kvs_otype_propC.
 
-  Definition logical_user_kvs_inv (uk : user_key_t) : iProp Σ :=
-    ∃ (ukvs : kvs_logical_user_map),
-      uk ↪●UKVS ukvs ∗ is_logical_user_kvs uk ukvs.
 
 End KVS_preamble.
 

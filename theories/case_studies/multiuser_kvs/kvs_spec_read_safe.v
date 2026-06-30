@@ -99,35 +99,39 @@ Section KVS_spec_read_safe.
 
     iDestruct (sopen_world_interp_singleton with "Hspred Hinterp_wca0' Hworld")
                 as "(Hworld & Hres_open & HP)".
-    iDestruct "HP" as "(%uk & %a & %m & >%Heq_sb & >%Hbounds & >Ha & Hm & #Hm_interp)".
+    iDestruct "HP" as "(%uk & %a & >%Heq_sb & >%Hbounds & >Ha & HLUKVS & Hinterp)".
     destruct wsb as [ p_user_key l_user_key | ] ; cbn in * ; simplify_eq.
 
+    assert (nkey ∈ kvs_all_map_keys) as Hnkey_is_map_key by rewrite -is_uint16_in_kvs_all_map_keys //.
+    iDestruct (big_sepS_delete with "Hinterp") as "[Hinterp_nkey Hinterp]"; eauto.
+
     (* Either the map key is already allocated, or it is not *)
-    destruct (m !! nkey)  as [ w | ] eqn:Hnkey.
-    - iApply KVS_read_spec_in_layer_2; last iFrame "∗#"; eauto.
+    iDestruct "Hinterp_nkey" as "[ (%w & >Hney & #Hinterp_nkey) | >Hnkey ]".
+    - iApply KVS_read_spec_in; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull
-                & Ha & Hm)".
+                & Ha & HLUKVS & Hnkey)".
 
+      iDestruct (big_sepS_delete with "[$Hinterp Hnkey Hinterp_nkey]") as "Hinterp"; eauto.
       iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
-        with "[$Ha $Hm $Hm_interp]"
+        with "[$Ha $HLUKVS $Hinterp]"
         as "HP".
       { iFrame "∗%"; iPureIntro; auto. }
       iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
       iApply "Hpost"; iFrame.
       iLeft; iFrame.
-      iDestruct (big_sepM_lookup with "Hm_interp") as "Hw_interp"; eauto.
-      iApply "Hw_interp".
+      iApply "Hinterp_nkey".
       iPureIntro; apply related_sts_priv_refl_world.
 
-    - iApply KVS_read_spec_notin_layer_2; last iFrame "∗#"; eauto.
+    - iApply KVS_read_spec_notin; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull
-                & Ha & Hm)".
+                & Ha & HLUKVS & Hnkey)".
 
+      iDestruct (big_sepS_delete with "[$Hinterp $Hnkey]") as "Hinterp"; eauto.
       iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
-        with "[$Ha $Hm $Hm_interp]"
+        with "[$Ha $HLUKVS $Hinterp]"
         as "HP".
       { iFrame "∗%"; iPureIntro; auto. }
       iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".

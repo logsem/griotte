@@ -279,13 +279,11 @@ Section KVS_spec_addOrUpdate.
     let fkey := (kvs_full_key user_key nkey) in
 
     ↑Nkvs ⊆ E ->
-    ↑Nkvs_user.@user_key ⊆ E ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
     ( na_inv cerise_nais Nkvs kvs_inv ∗
-      na_inv cerise_nais (Nkvs_user.@user_key) (logical_user_kvs_inv user_key) ∗
       na_own cerise_nais E ∗
 
       (* initial register file *)
@@ -302,6 +300,7 @@ Section KVS_spec_addOrUpdate.
 
       user_key_addr ↦ₐ WInt user_key ∗
 
+      ▷ logical_user_kvs_inv user_key ∗
       ▷ (user_key, nkey) ↦(KVS) - ∗
 
       ▷ ( ⌜ canStore RW wca2 = true ⌝ ∗
@@ -318,6 +317,7 @@ Section KVS_spec_addOrUpdate.
           cnull ↦ᵣ - ∗
           user_key_addr ↦ₐ WInt user_key ∗
 
+          logical_user_kvs_inv user_key ∗
           (user_key, nkey) ↦(KVS) wca2
 
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -325,24 +325,24 @@ Section KVS_spec_addOrUpdate.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hnkvs_user_E His_uint16_nkey Hbounds_a_user_key)
-      "(#Hkvs_inv & #Hkvs_user_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
-      & Ha_user_key & [%wk >Hk] & Hpost)".
-    iMod (na_inv_acc with "Hkvs_user_inv Hna")
-      as "( (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & Hna & Hkvs_user_inv_close)"; eauto.
+    iIntros (Hnkvs_E His_uint16_nkey Hbounds_a_user_key)
+      "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+      & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & [%wk >Hk] & Hpost)".
 
     iDestruct (kvs_user_kvs_valid with "Hukvs_auth Hk") as "%Hk".
     opose proof (kvs_synced_logical_user_kvs_Some _ _ _ _ _ Hk) as Hm_kvs; eauto.
 
-    iApply (KVS_update_spec_layer_2 with "[- $HPC]"); last iFrame "∗#"; eauto.
-    { pose proof Nkvs_namespaces_disjoint as (?&?&?&?&?&?); solve_ndisj. }
-    iNext; iIntros "(%Hcan_store & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
-              & Ha_user_key & Hm)".
+    iApply (KVS_update_spec_layer_2
+             with "[- $Hkvs_inv $Hna
+                    $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
+                    $Ha_user_key $Hm]"); eauto.
+    iNext; iIntros "(%Hcan_store & Hna
+                     & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+                     & Ha_user_key & Hm)".
 
     iMod ( kvs_user_kvs_update _ _ _ _ (Some wca2) with "Hukvs_auth Hk" ) as "[Hukvs_auth Hk]".
     apply (kvs_synced_logical_user_kvs_insert _ _ nkey wca2) in Hsync.
-
-    iMod ("Hkvs_user_inv_close" with "[$Hna $Hukvs_auth $Hm]") as "Hna" ; auto.
+    iAssert (logical_user_kvs_inv user_key)%I with "[$Hm $Hukvs_auth]" as "Hlukvs"; auto.
 
     iApply "Hpost"; iFrame; done.
   Qed.
@@ -682,13 +682,11 @@ Section KVS_spec_addOrUpdate.
     let fkey := (kvs_full_key user_key nkey) in
 
     ↑Nkvs ⊆ E ->
-    ↑Nkvs_user.@user_key ⊆ E ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
     ( na_inv cerise_nais Nkvs kvs_inv ∗
-      na_inv cerise_nais (Nkvs_user.@user_key) (logical_user_kvs_inv user_key) ∗
       na_own cerise_nais E ∗
 
       (* initial register file *)
@@ -705,6 +703,7 @@ Section KVS_spec_addOrUpdate.
 
       user_key_addr ↦ₐ WInt user_key ∗
 
+      ▷ logical_user_kvs_inv user_key ∗
       ▷ (user_key, nkey) ↦(KVS) ⊥ ∗
 
       ▷ (na_own cerise_nais E ∗
@@ -718,6 +717,7 @@ Section KVS_spec_addOrUpdate.
          ct2 ↦ᵣ - ∗ (* scratch *)
          cnull ↦ᵣ - ∗
          user_key_addr ↦ₐ WInt user_key ∗
+         logical_user_kvs_inv user_key ∗
          (
            (* THERE IS AN EMPTY SLOT AVAILABLE*)
            (
@@ -737,27 +737,28 @@ Section KVS_spec_addOrUpdate.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hnkvs_user_E His_uint16_nkey Hbounds_a_user_key)
-      "(#Hkvs_inv & #Hkvs_user_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
-      & Ha_user_key & >Hk & Hpost)".
-    iMod (na_inv_acc with "Hkvs_user_inv Hna")
-      as "( (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & Hna & Hkvs_user_inv_close)"; eauto.
+    iIntros (Hnkvs_E His_uint16_nkey Hbounds_a_user_key)
+      "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+      & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
 
     iDestruct (kvs_user_kvs_valid with "Hukvs_auth Hk") as "%Hk".
     opose proof (kvs_synced_logical_user_kvs_None _ _ _ _ Hk) as Hm_kvs; eauto.
 
-    iApply (KVS_add_spec_layer_2 with "[- $HPC]"); last iFrame "∗#"; eauto.
-    { pose proof Nkvs_namespaces_disjoint as (?&?&?&?&?&?); solve_ndisj. }
+
+    iApply (KVS_add_spec_layer_2
+             with "[- $Hkvs_inv $Hna
+                    $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
+                    $Ha_user_key $Hm]"); eauto.
     iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
               & Ha_user_key
               & [ (%Hcan_store & Hca0 & Hm) | (Hca0 & Hm) ] )".
 
     - iMod ( kvs_user_kvs_update _ _ _ _ (Some wca2) with "Hukvs_auth Hk" ) as "[Hukvs_auth Hk]".
       apply (kvs_synced_logical_user_kvs_insert _ _ nkey wca2) in Hsync.
-      iMod ("Hkvs_user_inv_close" with "[$Hna $Hukvs_auth $Hm]") as "Hna" ; auto.
+      iAssert (logical_user_kvs_inv user_key)%I with "[$Hm $Hukvs_auth]" as "Hlukvs"; auto.
       iApply "Hpost"; iFrame; iLeft; iFrame; done.
 
-    - iMod ("Hkvs_user_inv_close" with "[$Hna $Hukvs_auth $Hm]") as "Hna" ; auto.
+    - iAssert (logical_user_kvs_inv user_key)%I with "[$Hm $Hukvs_auth]" as "Hlukvs"; auto.
       iApply "Hpost"; iFrame; iRight; iFrame; done.
   Qed.
 
