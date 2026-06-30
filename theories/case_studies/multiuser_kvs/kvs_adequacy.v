@@ -227,6 +227,7 @@ Section Adequacy.
   Local Notation kvs_user_key_B_a := (0 ^+ kvs_user_key_B)%a.
 
   Context {kvs_alloc_preg: gen_heapGpreS user_key_t kvs_user_map Σ}.
+  Context {kvs_logical_user_preg : ghost_map.ghost_mapG Σ user_key_t (option Word) }.
 
   Definition flagN : namespace := nroot .@ "kvs" .@ "fail_flag".
   Definition switcherN : namespace := nroot .@ "kvs" .@ "switcher_flag".
@@ -319,7 +320,12 @@ Section Adequacy.
 
     assert kvs_namespaces as kvs_namespacesg.
     {
-      refine (Build_kvs_namespaces (kvsN .@ "Nkvs") (kvsN .@ "Nkvs_otype") (kvsN .@ "Nkvs_exp_tbl") _).
+      refine (Build_kvs_namespaces
+                (kvsN .@ "Nkvs")
+                (kvsN .@ "Nkvs_user")
+                (kvsN .@ "Nkvs_otype")
+                (kvsN .@ "Nkvs_exp_tbl")
+                _).
       split;try solve_ndisj.
     }
     assert kvsLayoutWf as kvsLayoutWfg.
@@ -352,7 +358,21 @@ Section Adequacy.
     rewrite (big_sepM_insert _ _ kvs_user_key_B); last by simplify_map_eq.
     iDestruct "Hlkvs_frag" as "(Hm_K & Hm_B & _)".
 
-    pose kvsg := KvsG Σ kvs_logical_heapg.
+    iMod ( ghost_map.ghost_map_alloc ({[ 1%Z := None ]} : kvs_logical_user_map ) ) as "(%γK & HK_auth & HK_frag )".
+    iMod ( ghost_map.ghost_map_alloc (∅ : kvs_logical_user_map ) ) as "(%γB & HB_auth & HB_frag )".
+    pose kvslogicalg := LogicalKvsG Σ kvs_logical_heapg.
+    set ( γkvs_user_f :=
+        (fun (uk : user_key_t) =>
+           let map_kvs_user_gnames :=
+             ({[ kvs_user_key_K := γK ; kvs_user_key_B := γB ]} : gmap user_key_t positive)
+           in
+           default xH ( map_kvs_user_gnames !! uk )
+      )).
+    pose kvsuserg := UserKvsG Σ kvs_logical_user_preg γkvs_user_f.
+    pose kvsg := KvsG Σ kvslogicalg kvsuserg.
+    replace γB with (γkvs_user kvs_user_key_B) by ( cbn; rewrite /γkvs_user_f; simplify_map_eq; done).
+    replace γK with (γkvs_user kvs_user_key_K) by ( cbn; rewrite /γkvs_user_f; simplify_map_eq; done).
+    rewrite big_sepM_singleton.
 
     pose proof (
         @kvs_main_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _
@@ -605,6 +625,17 @@ Section Adequacy.
       { iPureIntro; apply wf_kvs_physical_map_kvs_physical_map_init. }
       iEval (cbn).
       iApply (kvs_initial_map_init with "Hkvs_data"); rewrite /SIZE_MAP; solve_addr+H.
+    }
+
+    iMod (na_inv_alloc cerise_nais _ (Nkvs_user.@kvs_user_key_K) (logical_user_kvs_inv kvs_user_key_K)
+           with "[HK_auth Hm_K]") as "#Hkvs_logical_user_K".
+    {
+      iNext; iFrame.
+      iPureIntro.
+      intros mk.
+      split.
+      - by intros [w Hmk]; simplify_map_eq.
+      - by intros H; simplify_map_eq.
     }
 
     (* Initialises the world for B *)
@@ -926,11 +957,11 @@ Section Adequacy.
     iPoseProof (Spec _ _ _ _ _ _ _ _ _ _
                   _ _ _ _ _ _
                   [] [] [] assertN switcherN
-                 with "[ $Hassert $Hswitcher $Hkvs
+                 with "[ $Hassert $Hswitcher $Hkvs $Hkvs_logical_user_K
                         $Hkvs_etbl_pcc $Hkvs_etbl_cgp $Hkvs_etbl_entries_addOrUpdate $Hkvs_etbl_entries_read
                         $Hna $HPC $Hcgp $Hcsp $Hreg
                         $Hmain_imports $Hmain_code $Hmain_data $Hmain_static_sealed
-                        $Hm_K
+                        $HK_frag
                         $Hworld_B $Hcstk_frag
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto.
@@ -1027,6 +1058,7 @@ Proof.
               ; STS_preΣ Addr region_type OType Word ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)
               ; gen_heapΣ user_key_t kvs_user_map
+              ; ghost_map.ghost_mapΣ user_key_t (option Word)
       ]).
   eapply (@kvs_adequacy' Σ cnames B); eauto; try typeclasses eauto.
 Qed.

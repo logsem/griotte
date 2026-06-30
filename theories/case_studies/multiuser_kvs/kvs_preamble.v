@@ -587,8 +587,8 @@ Definition kvs_user_map : Type := gmap map_key_t Word.
 Definition kvs_logical_map : Type := gmap user_key_t kvs_user_map.
 
 (* CMRA for KVS *)
-Class kvsG Σ :=
-  KvsG {
+Class kvsLogicalG Σ :=
+  LogicalKvsG {
       kvs_logical_genG :: gen_heapGS user_key_t kvs_user_map Σ;
     }.
 
@@ -599,7 +599,7 @@ Notation "uk '↦(LKVS)[' dq ']' m" :=
 Notation "uk '↦(LKVS)' m" :=
   (uk ↦(LKVS)[ (DfracOwn 1) ] m)%I (at level 20) : bi_scope.
 
-Lemma kvs_logical_kvs_valid `{kvsG}
+Lemma kvs_logical_kvs_valid `{kvsLogicalG}
   (uk : user_key_t) (lkvs : kvs_logical_map) (m : kvs_user_map) :
   ↪●LKVS lkvs  -∗ uk ↦(LKVS) m -∗ ⌜ lkvs !! uk = Some m ⌝.
 Proof.
@@ -607,7 +607,7 @@ Proof.
   by iDestruct (gen_heap_valid with "Hauth Hfrag") as "%Hvalid".
 Qed.
 
-Lemma kvs_logical_kvs_update `{kvsG}
+Lemma kvs_logical_kvs_update `{kvsLogicalG}
   (uk : user_key_t) (lkvs : kvs_logical_map) (m m' : kvs_user_map) :
   ↪●LKVS lkvs -∗ uk ↦(LKVS) m
   ==∗
@@ -617,11 +617,12 @@ Proof.
   by iMod (gen_heap_update lkvs uk _ m' with "Hauth Hfrag") as "[$ $]".
 Qed.
 
+
 Section KVS_logical_map.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
-    {kvsg:kvsG Σ}
+    {kvslogicalg:kvsLogicalG Σ}
     `{MP: MachineParameters}
   .
 
@@ -1021,6 +1022,131 @@ Section KVS_logical_map.
 
 End KVS_logical_map.
 
+Class kvsUserG Σ :=
+  UserKvsG {
+      kvs_user_genG :: ghost_mapG Σ map_key_t (option Word);
+      γkvs_user : user_key_t -> gname;
+    }.
+
+Notation "uk '↪●UKVS' ukvs" :=
+  ( ghost_map_auth (K:=map_key_t) (V:= option Word) (γkvs_user uk) 1%Qp ukvs)%I (at level 20) : bi_scope.
+Notation "k '↦(UKVS)[' dq ']' o" :=
+  ( ghost_map_elem (K:=map_key_t) (V:= option Word) (γkvs_user k.1) k.2 dq o)%I (at level 20) : bi_scope.
+Notation "k '↦(UKVS)' o" :=
+  (k ↦(UKVS)[ (DfracOwn 1) ] o)%I (at level 20) : bi_scope.
+
+Notation "k '↦(KVS)' w" :=
+  (k ↦(UKVS) (Some w))%I (at level 20) : bi_scope.
+Notation "k '↦(KVS)' -" :=
+  (∃ w, k ↦(KVS) w)%I (at level 20) : bi_scope.
+Notation "k '↦(KVS)' ⊥" :=
+  (k ↦(UKVS) None)%I (at level 20) : bi_scope.
+
+Definition kvs_logical_user_map : Type := gmap map_key_t (option Word).
+
+Lemma kvs_user_kvs_valid `{kvsUserG}
+  (uk : user_key_t) (mk : map_key_t) (ukvs : kvs_logical_user_map ) (o : option Word) :
+  uk ↪●UKVS ukvs  -∗ (uk,mk) ↦(UKVS) o -∗ ⌜ ukvs !! mk = Some o ⌝.
+Proof.
+  iIntros "Hauth Hfrag".
+  by iDestruct (ghost_map_lookup with "Hauth Hfrag") as "%Hvalid".
+Qed.
+
+Lemma kvs_user_kvs_update `{kvsUserG}
+  (uk : user_key_t) (mk : map_key_t) (ukvs : kvs_logical_user_map) (o o' : option Word) :
+  uk ↪●UKVS ukvs -∗ (uk,mk) ↦(UKVS) o
+  ==∗
+  uk ↪●UKVS (<[mk := o']> ukvs) ∗ (uk,mk) ↦(UKVS) o'.
+Proof.
+  iIntros "Hauth Hfrag".
+  by iMod (ghost_map_update o' with "Hauth Hfrag") as "[$ $]".
+Qed.
+
+
+Section KVS_user_map.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    {kvslogicalg:kvsLogicalG Σ}
+    {kvsuserg:kvsUserG Σ}
+    `{MP: MachineParameters}
+  .
+
+  Definition kvs_synced_logical_user_kvs
+    (m : kvs_user_map) (ukvs : kvs_logical_user_map) : Prop :=
+    forall (mk : map_key_t),
+    is_Some (ukvs !! mk) <-> (ukvs !! mk) = Some (m !! mk).
+
+  Definition is_logical_user_kvs (uk : user_key_t) (ukvs : kvs_logical_user_map) : iProp Σ :=
+    ∃ (m : kvs_user_map),
+      uk ↦(LKVS) m ∗
+      ⌜ kvs_synced_logical_user_kvs m ukvs ⌝.
+
+
+  Lemma kvs_synced_logical_user_kvs_Some
+    (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) (w : Word) :
+    kvs_synced_logical_user_kvs m ukvs ->
+    ukvs !! uk = Some (Some w) ->
+    m !! uk = Some w.
+  Proof.
+    intros Hsync Hukvs.
+    specialize (Hsync uk) as [Hsync _].
+    ospecialize (Hsync _); eauto.
+    rewrite Hsync in Hukvs; simplify_eq; first done.
+  Qed.
+
+  Lemma kvs_synced_logical_user_kvs_None
+    (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) :
+    kvs_synced_logical_user_kvs m ukvs ->
+    ukvs !! uk = Some None ->
+    m !! uk = None.
+  Proof.
+    intros Hsync Hukvs.
+    specialize (Hsync uk) as [Hsync _].
+    ospecialize (Hsync _); eauto.
+    rewrite Hsync in Hukvs; simplify_eq; first done.
+  Qed.
+
+  Lemma kvs_synced_logical_user_kvs_insert
+    (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) (w : Word) :
+    kvs_synced_logical_user_kvs m ukvs ->
+    kvs_synced_logical_user_kvs (<[uk:=w]> m) ( <[uk:=Some w]> ukvs ).
+  Proof.
+    intros Hsync uk'; split.
+    - intros [wuk Hukvs].
+      destruct (decide (uk = uk')); simplify_map_eq; first done.
+      specialize (Hsync uk') as [Hsync _].
+      ospecialize (Hsync _); eauto.
+      rewrite Hsync in Hukvs; simplify_eq; first done.
+    - intros Hukvs.
+      destruct (decide (uk = uk')); simplify_map_eq; first done.
+      done.
+  Qed.
+
+  Lemma kvs_synced_logical_user_kvs_delete
+    (m : kvs_user_map) (ukvs : kvs_logical_user_map) (uk : user_key_t) :
+    kvs_synced_logical_user_kvs m ukvs ->
+    kvs_synced_logical_user_kvs (delete uk m) ( <[uk:=None]> ukvs ).
+  Proof.
+    intros Hsync uk'; split.
+    - intros [wuk Hukvs].
+      destruct (decide (uk = uk')); simplify_map_eq; first done.
+      specialize (Hsync uk') as [Hsync _].
+      ospecialize (Hsync _); eauto.
+      rewrite Hsync in Hukvs; simplify_eq; first done.
+    - intros Hukvs.
+      destruct (decide (uk = uk')); simplify_map_eq; first done.
+      done.
+  Qed.
+
+End KVS_user_map.
+
+
+Class kvsG Σ :=
+  KvsG {
+      kvs_logicalG :: kvsLogicalG Σ;
+      kvs_userG :: kvsUserG Σ;
+    }.
 
 
 Section KVS_init.
@@ -1162,10 +1288,16 @@ End KVS_init.
 Class kvs_namespaces :=
   {
     Nkvs : namespace;
+    Nkvs_user : namespace;
     Nkvs_otype : namespace;
     Nkvs_exp_tbl : namespace;
     Nkvs_namespaces_disjoint :
-    Nkvs ## Nkvs_otype ∧ Nkvs ## Nkvs_exp_tbl ∧ Nkvs_otype ## Nkvs_exp_tbl
+    Nkvs ## Nkvs_otype ∧
+    Nkvs ## Nkvs_exp_tbl ∧
+    Nkvs ## Nkvs_user ∧
+    Nkvs_user ## Nkvs_otype ∧
+    Nkvs_user ## Nkvs_exp_tbl ∧
+    Nkvs_otype ## Nkvs_exp_tbl
   }.
 
 
@@ -1182,7 +1314,7 @@ Section KVS_preamble.
   .
 
   Definition kvs_otype_inv
-    {KVS_layout : kvsLayout} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout}
     (W : WORLD) (C : CmptName) (w : Word) : iProp Σ :=
     ∃ (uk : user_key_t) (a : Addr) (m : kvs_user_map),
       (* Shape of the capability*)
@@ -1196,19 +1328,15 @@ Section KVS_preamble.
       ).
 
   Program Definition kvs_otype_prop
-    {KVS_layout : kvsLayout} {KVS_namespaces : kvs_namespaces} :
+    {KVS_layout : kvsLayout} :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ):=
     λne (W : WORLD) (C : CmptName) (w : Word), (kvs_otype_inv W C w)%I.
   Solve All Obligations with solve_proper.
 
-  Definition kvs_otype_propC
-    {KVS : kvsLayout} {KVS_namespaces : kvs_namespaces} :
-    WORLD * CmptName * leibnizO Word -> iProp Σ :=
+  Definition kvs_otype_propC {KVS : kvsLayout} : WORLD * CmptName * leibnizO Word -> iProp Σ :=
     safeC kvs_otype_prop.
 
-  Lemma mono_priv_ot_kvs
-    {KVS : kvsLayout} {KVS_namespaces : kvs_namespaces}
-    (C : CmptName) (w : Word) :
+  Lemma mono_priv_ot_kvs {KVS : kvsLayout} (C : CmptName) (w : Word) :
     ⊢ future_priv_mono C kvs_otype_propC w.
   Proof.
     iIntros (W W' Hrelated_W_W').
@@ -1225,7 +1353,7 @@ Section KVS_preamble.
     by eapply related_sts_priv_trans_world.
   Qed.
 
-  Definition kvs_inv {KVS : kvsLayout} {KVS_namespaces : kvs_namespaces} : iProp Σ :=
+  Definition kvs_inv {KVS : kvsLayout} : iProp Σ :=
     let imports :=
       kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
     in
@@ -1233,6 +1361,10 @@ Section KVS_preamble.
       codefrag KVS_pcc_b' kvs_service_instrs ∗
       logical_kvs_inv KVS_cgp_b ∗
       seal_pred KVS_OTYPE kvs_otype_propC.
+
+  Definition logical_user_kvs_inv (uk : user_key_t) : iProp Σ :=
+    ∃ (ukvs : kvs_logical_user_map),
+      uk ↪●UKVS ukvs ∗ is_logical_user_kvs uk ukvs.
 
 End KVS_preamble.
 

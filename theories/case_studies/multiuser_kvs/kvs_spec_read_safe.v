@@ -104,7 +104,7 @@ Section KVS_spec_read_safe.
 
     (* Either the map key is already allocated, or it is not *)
     destruct (m !! nkey)  as [ w | ] eqn:Hnkey.
-    - iApply KVS_read_spec_in; last iFrame "∗#"; eauto.
+    - iApply KVS_read_spec_in_layer_2; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull
                 & Ha & Hm)".
@@ -121,7 +121,7 @@ Section KVS_spec_read_safe.
       iApply "Hw_interp".
       iPureIntro; apply related_sts_priv_refl_world.
 
-    - iApply KVS_read_spec_notin; last iFrame "∗#"; eauto.
+    - iApply KVS_read_spec_notin_layer_2; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull
                 & Ha & Hm)".

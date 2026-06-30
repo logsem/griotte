@@ -105,7 +105,7 @@ Section KVS_spec_addOrUpdate_safe.
 
     (* Either the map key is already allocated, or it is not *)
     destruct (m !! nkey)  as [ w | ] eqn:Hnkey.
-    - iApply KVS_update_spec; last iFrame "∗#"; eauto.
+    - iApply KVS_update_spec_layer_2; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(%Hcan_store & Hna
                 & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
@@ -127,7 +127,7 @@ Section KVS_spec_addOrUpdate_safe.
 
       iApply "Hpost"; iFrame.
 
-    - iApply KVS_add_spec; last iFrame "∗#"; eauto.
+    - iApply KVS_add_spec_layer_2; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(Hna
                 & HPC & Hgcp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull

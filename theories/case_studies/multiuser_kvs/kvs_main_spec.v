@@ -67,6 +67,7 @@ Section KVS_main_spec.
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
       na_inv cerise_nais Nswitcher switcher_inv ∗
       na_inv cerise_nais Nkvs kvs_inv ∗
+      na_inv cerise_nais (Nkvs_user.@KVS_USER_KEY_MAIN) (logical_user_kvs_inv KVS_USER_KEY_MAIN) ∗
 
       inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
       inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
@@ -87,7 +88,7 @@ Section KVS_main_spec.
       [[ cgp_b , cgp_e ]] ↦ₐ [[ (kvs_main_data) ]] ∗
       [[ static_sealed_b , static_sealed_e ]] ↦ₐ [[ kvs_main_static_sealed KVS_USER_KEY_MAIN ]] ∗
 
-      KVS_USER_KEY_MAIN ↦(LKVS) ∅ ∗
+      (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥ ∗
       world_interp W0 B ∗
 
       interp_continuation cstk Ws Cs ∗
@@ -104,11 +105,12 @@ Section KVS_main_spec.
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hframe_match
             )
       "(#Hassert & #Hswitcher
-      & #Hkvs & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_addOrUpdate & #Hkvs_exp_tbl_read
+      & #Hkvs & #Hkvs_user
+      & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_addOrUpdate & #Hkvs_exp_tbl_read
       & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hstatic_sealed_main
-      & Hm
+      & Hkvs_1
       & Hworld_B
       & HK & Hcstk_frag
       & #Hinterp_W0_B_f
@@ -314,7 +316,7 @@ Section KVS_main_spec.
 
     (* Use spec addOrUpdate known *)
     iApply (KVS_add_spec
-      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull $Hstatic_sealed_b $Hm]")
+      with "[- $Hkvs $Hkvs_user $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull $Hstatic_sealed_b $Hkvs_1]")
     ; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     iNext;
@@ -324,7 +326,7 @@ Section KVS_main_spec.
 
     iInsertList "Hrmap" [ctp;ct1;ct2;cnull;ca2;ca3;ca4;ca5;ct0].
 
-    iDestruct "Hres" as "[(_ & Hca0 & Hm) | (Hca0 & Hm)]"; cycle 1.
+    iDestruct "Hres" as "[(_ & Hca0 & Hkvs_1) | (Hca0 & Hkvs_1)]"; cycle 1.
     { (* Case where there was not more empty slot *)
       (* Use switcher return KtK *)
       iApply (switcher_cc_specification_return_known_to_known
@@ -645,12 +647,12 @@ Section KVS_main_spec.
 
     (* Use spec readOrUpdate known *)
     iApply (KVS_read_spec_in
-      with "[- $Hkvs $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcnull $Hstatic_sealed_b $Hm]")
+      with "[- $Hkvs $Hkvs_user $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcnull $Hstatic_sealed_b $Hkvs_1]")
     ; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
     iNext;
       iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & Hca0 & Hca1
-                & [% Hct1] & [% Hct2] & [% Hctp] & [% Hcnull] & Hstatic_sealed_b & Hm)".
+                & [% Hct1] & [% Hct2] & [% Hctp] & [% Hcnull] & Hstatic_sealed_b & Hkvs_1)".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
 
     iInsertList "Hrmap" [ct1;ct2;ctp;cnull;ca2;ca3;ca4;ca5;ct0].
