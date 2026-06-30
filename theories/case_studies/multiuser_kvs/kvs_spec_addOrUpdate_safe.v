@@ -5,6 +5,7 @@ From griotte Require Import region_invariants_revocation wp_rules_interp interp_
 From griotte Require Import switcher_preamble switcher_spec_return.
 From griotte Require Import
   switcher kvs kvs_preamble kvs_spec_check_uint16 kvs_spec_addOrUpdate.
+From iris.base_logic Require Import ghost_map.
 
 Section KVS_spec_addOrUpdate_safe.
   Context
@@ -91,6 +92,7 @@ Section KVS_spec_addOrUpdate_safe.
     rewrite Z.eqb_eq in Hwca0_sealed_with_kvs_ot.
     assert (ot = KVS_OTYPE) by solve_addr+Hwca0_sealed_with_kvs_ot; simplify_eq.
 
+
     (* Open sealing predicate of sealed user key *)
     iDestruct (monotone.interp_monotone_sd with "[] Hinterp_wca0") as "Hinterp_wca0_W"; auto.
     iEval (rewrite fixpoint_interp1_eq /= /interp_sb) in "Hinterp_wca0".
@@ -99,31 +101,32 @@ Section KVS_spec_addOrUpdate_safe.
 
     iDestruct (sopen_world_interp_singleton with "Hspred Hinterp_wca0' Hworld")
                 as "(Hworld & Hres_open & HP)".
-    rewrite /kvs_otype_propC /= /kvs_otype_prop //= /kvs_otype_inv.
-    iDestruct "HP" as "(%ku & %a & %s' & >%Heq_sb & >%Hbounds & >Ha & Halloc & Hfkeys)".
-    destruct wsb as [ p_user_key l_user_key | ] ; simplify_eq.
+    iDestruct "HP" as "(%uk & %a & >%Heq_sb & >%Hbounds & >Ha & HLUKVS & Hinterp)".
+    destruct wsb as [ p_user_key l_user_key | ] ; cbn in * ; simplify_eq.
+
+    assert (nkey ∈ kvs_all_map_keys) as Hnkey_is_map_key by rewrite -is_uint16_in_kvs_all_map_keys //.
+    iDestruct (big_sepS_delete with "Hinterp") as "[Hinterp_nkey Hinterp]"; eauto.
 
     (* Either the map key is already allocated, or it is not *)
-    destruct ( decide (nkey ∈ s') ) as [Hs' | Hs'].
-    - iDestruct (big_sepS_elem_of_acc with "Hfkeys")
-        as "[ [%w [ [%idx Hkvs_frag] #Hinterp_w] ] Hfkeys]"
-      ; eauto; iEval (cbn) in "Hkvs_frag".
-      iApply KVS_update_spec; last iFrame "∗#"; eauto.
+    iDestruct "Hinterp_nkey" as "[ (%w & >Hney & #Hinterp_nkey) | >Hnkey ]".
+    - iApply KVS_update_spec; last iFrame "∗#"; eauto.
       iNext.
       iIntros "(%Hcan_store & Hna
                 & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
-                & Ha & Hkvs_frag)".
+                & Ha & HLUKVS & Hnkey)".
 
-      iDestruct ("Hfkeys" with "[$Hkvs_frag Hinterp_wca2]") as "Hfkeys".
+      iAssert ( ∀ W' : WORLD, ⌜related_sts_priv_world W W'⌝ -∗ interp W' C wca2 )%I as "Hw_interp".
       { cbn ; iIntros (W' Hrelated_W_W').
         iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
         + eapply related_sts_priv_trans_world; eauto.
         + eapply (canStore_global_nonisWL RW); done.
       }
+      iDestruct (big_sepS_delete _ _ nkey with "[$Hinterp Hnkey Hw_interp]") as "Hinterp"; eauto.
+
       iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
-        with "[Ha Halloc Hfkeys]"
+        with "[$Ha $HLUKVS $Hinterp]"
         as "HP".
-      { iFrame "∗%#"; iPureIntro; auto. }
+      { iFrame "∗%"; auto. }
       iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
       iApply "Hpost"; iFrame.
@@ -133,32 +136,32 @@ Section KVS_spec_addOrUpdate_safe.
       iIntros "(Hna
                 & HPC & Hgcp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
                 & Ha
-                & Hrest)".
+                & HLUKVS & Hrest)".
 
       iDestruct "Hrest" as
-        "[ (%Hcan_store & Hca0 & Halloc & Hkvs_frag)
-           | (Hca0 & Halloc)
+        "[ (%Hcan_store & Hca0 & Hnkey)
+           | (Hca0 & Hnkey)
          ]".
-      + iDestruct ( big_sepS_insert with "[Hkvs_frag $Hfkeys]") as "Hfkeys";eauto.
-        { iExists wca2; iFrame.
-          cbn; iIntros (W' Hrelated_W_W').
+      + iAssert ( ∀ W' : WORLD, ⌜related_sts_priv_world W W'⌝ -∗ interp W' C wca2 )%I as "Hw_interp".
+        { cbn ; iIntros (W' Hrelated_W_W').
           iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
           + eapply related_sts_priv_trans_world; eauto.
           + eapply (canStore_global_nonisWL RW); done.
         }
-
+        iDestruct ( big_sepS_delete  with "[$Hinterp Hnkey Hw_interp]") as "Hinterp"; eauto.
         iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
-          with "[Ha Halloc Hfkeys]"
+          with "[$Ha $HLUKVS $Hinterp]"
           as "HP".
-        { iFrame "∗%"; iPureIntro; auto. }
+        { iFrame "∗%"; auto. }
         iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
         iApply "Hpost"; iFrame.
 
-      + iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
-          with "[Ha Halloc Hfkeys]"
+      + iDestruct ( big_sepS_delete with "[$Hinterp $Hnkey]") as "Hinterp"; eauto.
+        iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
+          with "[$Ha $HLUKVS $Hinterp]"
           as "HP".
-        { iFrame "∗%"; iPureIntro; auto. }
+        { iFrame "∗%"; auto. }
         iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
 
         iApply "Hpost"; iFrame.
