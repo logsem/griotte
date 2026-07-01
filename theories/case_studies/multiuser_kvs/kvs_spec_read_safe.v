@@ -26,13 +26,15 @@ Section KVS_spec_read_safe.
     (E : coPset)
     :
 
-    ↑Nkvs ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ E ->
+    ↑(Nkvs.@"logical") ⊆ E ->
     ↑Nkvs_otype ⊆ E ->
 
     related_sts_priv_world Wca0 W ->
 
     ( seal_pred KVS_OTYPE kvs_otype_propC ∗
-      na_inv cerise_nais Nkvs kvs_inv ∗
+      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
+      na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
       na_own cerise_nais E ∗
 
       (* initial register file *)
@@ -65,8 +67,8 @@ Section KVS_spec_read_safe.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (Hnkvs_E Hnkvs_otype_E Hrelated_Wca0_W)
-      "(#Hspred & #Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
+    iIntros (Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca0_W)
+      "(#Hspred & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
       & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Hworld & Hpost)".
 
     (* Destruct validity map key *)
@@ -113,6 +115,7 @@ Section KVS_spec_read_safe.
                 & Ha & HLUKVS & Hnkey)".
 
       iDestruct (big_sepS_delete with "[$Hinterp Hnkey Hinterp_nkey]") as "Hinterp"; eauto.
+      { rewrite /safe_kvs_pointsto; eauto. }
       iAssert (kvs_otype_propC (W, C, (force_global (WSealable (kvs_user_seal_key_scap l_user_key a)))))
         with "[$Ha $HLUKVS $Hinterp]"
         as "HP".
@@ -151,7 +154,8 @@ Section KVS_spec_read_safe.
     :
 
     seal_pred KVS_OTYPE kvs_otype_propC ∗
-    na_inv cerise_nais Nkvs kvs_inv ∗
+    na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
+    na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
     inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
     inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
@@ -163,7 +167,7 @@ Section KVS_spec_read_safe.
     ot_switcher_prop W C (WCap RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr).
   Proof.
     iIntros
-      "(#Hspred & #Hinv_kvs & #Hinv_switcher
+      "(#Hspred & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher
       & #Hkvs_exp_PCC
       & #Hkvs_exp_CGP
       & #Hkvs_exp_addOrRead

@@ -230,7 +230,7 @@ Section KVS_search.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (rkey ridx ridx_empty rscratch : RegName)
-    (pkvs : kvs_physical_map) (ukvs : kvs_user_map) (uk : user_key_t) (mk : map_key_t)
+    (pkvs : kvs_physical_map) (uk : user_key_t) (mk : map_key_t)
     :
     let instrs := (kvs_search_instrs rkey ridx ridx_empty  rscratch) in
     let fkey := kvs_full_key uk mk in
