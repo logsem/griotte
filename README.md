@@ -173,12 +173,18 @@ The organisation of the `theories/` folder is as follows.
 
 - `world_ghost_resources.v`:
   Defines the ghost resources needed to interpret the world.
+  Also defines the resources for sealing predicates.
 
 - `region_invariants.v`:
   Definitions for standard resources, and the shared
   resources map *sharedResources* (named *region* in the implementation).
   Contains some lemmas for "opening" and "closing" the map,
   akin to opening and closing invariants.
+
+- `sealing_invariants.v`:
+  Definitions of the sealing part of the world.
+  Contains allocations, opening, and closing lemmas
+  for the sealing map.
 
 - `region_invariants_revocation.v`:
   Lemmas for revoking standard resources in the world interpretation.
@@ -201,19 +207,18 @@ The organisation of the `theories/` folder is as follows.
 - `world_interp_stack.v`:
   Extension of the ghost theory of world interpretation,
   specific to stack region.
+
   
 ## Logical relation and FTLR `logrel/`
 
 - `call_stack`: Definitions of the logical call-stack resources.
-
-- `seal_store.v`: Definitions of the resources for sealing predicates.
 
 - `logrel.v`: The definition of the unary logical relation.
 
 - `world_interp_stack.v`: A collections of lemmas related to world manipulation
   in presence of safe-to-share.
 
-- `ftlr/monotone.v`: Proof of the monotonicity of the value relation with regards to
+- `monotone.v`: Proof of the monotonicity of the value relation with regards to
   public future worlds, and private future worlds for non local words.
 
 - `fundamental.v`: Contains *Fundamental Theorem of Logical
@@ -224,6 +229,9 @@ The organisation of the `theories/` folder is as follows.
 - `stack_world_resources.v`:
   Definition of resources to have a clean interface with manipulation
   of the world, for stack region.
+
+- `wp_rules_interp.v`:
+  Collection of WP rules with relying on safe-to-share arguments.
 
 ## Switcher `switcher/`
 
@@ -282,6 +290,16 @@ The case studies are:
 - `stack_object/`: Example showing that the switcher can support stack objects,
   but requires additional checks.
 
+## KVS example `case_studies/multiuser_kvs`
+This case study is the multiuser KVS.
+- `kvs.v`: contains the KVS compartment: code, initial data, import and export tables.
+- `kvs_preamble.v`: contains the layers of resources necessary to prove the KVS layered specifications.
+- `kvs_spec_*.v`: contain the (known) specifications for the KVS functions.
+- `kvs_spec_*_safe_.v`: contain the proof that the KVS entry points are safe to execute (invoked by an adversary).
+- `kvs_main.v` contains the client of the KVS: code, initial data, import and export tables.
+- `kvs_main_spec.v`: contains the specification and proof of correctness of the client.
+- `kvs_adequacy.v`: contains the end-to-end theorem of the KVS case study.
+
 ## Assumptions `theories/assumptions.v`
 
 The file `assumptions.v` prints the assumptions of the FTLR,
@@ -332,3 +350,12 @@ In the model:
 | stsRes             | world_interp            |
 | public transition  | std_rel_pub             |
 | private transition | std_rel_priv            |
+
+# For CPP27
+For CPP27, we highlight more specifically:
+- The directory `theories/case_studies/multiser_kvs` containing the KVS example.
+- The file `theories/model/sealing_invariants.v` containing our adaptation of the world for
+  non-persistent sealing predicates.
+- The file `theories/model/world_ghost_theory.v:891` containing
+  the interface used by the user to interact with Kripke worlds,
+  and the lemmas specifics to sealing.
