@@ -7,11 +7,27 @@ Section KVS_Service.
   Context `{MP: MachineParameters}.
   Local Coercion Z.of_nat : nat >-> Z.
 
+  (* Encoding of type constructors into ASM *)
+  Definition ASM_TRUE : Z := 0.
+  Definition ASM_FALSE : Z := (-1).
+
+  Definition ASM_NONE : Z := 0.
+  Definition ASM_SOME : Z := 1.
+
+
   (** Multiuser KVS service inspired from
       https://github.com/vmurali/cheriot-rtos/blob/service/examples/11.service/service.cc
 
-      TODO description of the service
+      The multiuser KVS is a key-value store service where a single, global data structure
+      contains multiple databases and is maintained by a single compartment, the KVS service.
+      Each users have access to their unique (sealed) user key,
+      and only the KVS compartment can unseal them to read the user key value.
+
+      Because each users have only access to their own, unique sealed user key,
+      we know that multiple, mutually distrustful users cannot read or change
+      the other users' sub-KVS.
    *)
+
   (*
     Import+UNSEALING_USER_KEY_OFFSET  : [U, Global, OUserKey, OUserKey + 1, OUserKey]
 
@@ -32,15 +48,18 @@ Section KVS_Service.
   Definition EMPTY_SLOT : Z := -1.
   Definition DEFAULT_VAL : Z := 0.
 
-  Definition ASM_TRUE : Z := 0.
-  Definition ASM_FALSE : Z := (-1).
-
-  Definition ASM_NONE : Z := 0.
-  Definition ASM_SOME : Z := 1.
-
   Definition ASM_SIZEOF_KVS_ENTRY : Z := 3.
   Definition UNSEALING_USER_KEY_OFFSET := 1.
 
+  (** CHERIoT-C++ code of `getFullKey`:
+<<
+FKeyT getFullKey(Sealed<UKeyT> suk, MKeyT mk) {
+TokenKey kvsSKey = STATIC_SEALING_TYPE(SUKeyT);
+int16_t uk = token_unseal(kvsSKey, suk)->value;
+return (uk << 16 | mk);
+}
+>>
+   *)
   Definition kvs_getFullKey_asm (rdst rsealkey rkey rscratch1 rscratch2 : RegName) : list asm_code :=
     [(* fetch sealing key from imports *)
       mov rdst PC;
@@ -66,6 +85,26 @@ Section KVS_Service.
       It is slightly less faithful to the original code,
       but it accomplishes the same,
       and it will make it easier to verify.
+   *)
+
+  (** CHERIoT-C++ code of `search`:
+<<
+struct searchResult {
+  optional<int> idx;
+  int idxEmp;
+};
+
+searchResult search(FKeyT fk) {
+  int idxEmpty = -1;
+  for (int i = 0; i < SIZE; i++) {
+    if(entries[i]) {
+      if(entries[i]->first == fk)
+      { return {.idx = i, .idxEmp = idxEmpty} ; }
+    } else { idxEmpty = i; }
+  }
+  return {.idx = nullopt, .idxEmp = idxEmpty};
+}
+>>
    *)
 
   (** KVS Search:
@@ -135,6 +174,15 @@ Section KVS_Service.
   Definition UINT16_MIN : Z := 0.
   Definition UINT16_MAX : Z := 2 ^ 16.
 
+
+  (** CHERIoT-C++ code of `dyn_check_uint16`:
+<<
+bool dyn_check_uint16(MKeyT mk) {
+    return (0 <= mk && mk < UINT16_MAX);
+}
+>>
+   *)
+
   (**  KVS uint16 check:
        This macros checks whether the argument [rv] is a correct UINT16,
        and in particular that UINT16_MIN <= [rv] < UINT16_MAX.
@@ -172,6 +220,28 @@ Section KVS_Service.
   Definition kvs_check_uint16_instrs (rv rdst : RegName) : list Word :=
     encodeInstrsW (kvs_check_uint16 rv rdst).
 
+
+  (** CHERIoT-C++ code of `insert`:
+<<
+bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
+{
+  if ( !dyn_check_uint16( mk ) ) { return false; }
+  FKeyT fk = getFullKey(suk, mk);
+
+  // Search if the full key already exists
+  searchResult res = kvs_search(fk);
+  // The key exists and is updated
+  if ( res.idx.has_value() )
+  { entries[res.idx.value()]->second = val; return true; }
+  // The key does not exists, check if there is an empty spot
+  if (res.idxEmp != -1) {
+    entries[res.idxEmp] = {fk, val};
+    return true;
+  }
+  return false;
+}
+>>
+   *)
 
   (** AddOrUpdate.
       Arguments:
@@ -255,6 +325,24 @@ Section KVS_Service.
   Definition kvs_addOrUpdate_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_addOrUpdate).
 
 
+  (** CHERIoT-C++ code of `read`:
+<<
+optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
+{
+    if ( !dyn_check_uint16( mk ) ) { return nullopt; }
+    FKeyT fk = getFullKey(suk, mk);
+
+    // Search if the full key exists
+    searchResult res = kvs_search(fk);
+    // The key exists and is read
+    if ( res.idx.has_value() )
+    { return entries[res.idx.value()]->second; }
+    // The key is not found
+    return nullopt;
+}
+>>
+   *)
+
   (** Read.
       Arguments:
       - [ca0] contains the sealed user key
@@ -304,6 +392,22 @@ Section KVS_Service.
   Definition assembled_kvs_read' := Eval vm_compute in (assemble_block kvs_read_asm).
   Definition assembled_kvs_read  := Eval cbv in (revert_regs_code_block assembled_kvs_read').
   Definition kvs_read_instrs : list Word := concat (encodeInstrsW <$> assembled_kvs_read).
+
+  (** CHERIoT-C++ code of `erase`:
+<<
+void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
+{
+    if ( !dyn_check_uint16( mk ) ) { return; }
+    FKeyT fk = getFullKey(suk, mk);
+
+    // Search if the full key already exists
+    searchResult res = kvs_search(fk);
+    // The key exists and is erased
+    if ( res.idx.has_value() )
+    { entries[res.idx.value()] = nullopt; }
+}
+>>
+   *)
 
   (** Erase.
       Arguments:
