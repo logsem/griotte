@@ -89,20 +89,15 @@ return (uk << 16 | mk);
 
   (** CHERIoT-C++ code of `search`:
 <<
-struct searchResult {
-  optional<int> idx;
-  int idxEmp;
-};
-
-searchResult search(FKeyT fk) {
+pair<int, int> search(FKeyT fk) {
   int idxEmpty = -1;
   for (int i = 0; i < SIZE; i++) {
     if(entries[i]) {
       if(entries[i]->first == fk)
-      { return {.idx = i, .idxEmp = idxEmpty} ; }
+      { return {i, idxEmpty} ; }
     } else { idxEmpty = i; }
   }
-  return {.idx = nullopt, .idxEmp = idxEmpty};
+  return {-1, idxEmpty};
 }
 >>
    *)
@@ -229,13 +224,13 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
   FKeyT fk = getFullKey(suk, mk);
 
   // Search if the full key already exists
-  searchResult res = kvs_search(fk);
+  pair<int, int> res = search(fk);
   // The key exists and is updated
-  if ( res.idx.has_value() )
-  { entries[res.idx.value()]->second = val; return true; }
+  if ( res.first != -1 )
+  { entries[res.first]->second = val; return true; }
   // The key does not exists, check if there is an empty spot
-  if (res.idxEmp != -1) {
-    entries[res.idxEmp] = {fk, val};
+  if (res.second != -1) {
+    entries[res.second] = {fk, val};
     return true;
   }
   return false;
@@ -333,10 +328,10 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
     FKeyT fk = getFullKey(suk, mk);
 
     // Search if the full key exists
-    searchResult res = kvs_search(fk);
+    pair<int, int> res = search(fk);
     // The key exists and is read
-    if ( res.idx.has_value() )
-    { return entries[res.idx.value()]->second; }
+    if ( res.first != -1 )
+    { return entries[res.second]->second; }
     // The key is not found
     return nullopt;
 }
@@ -401,10 +396,10 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     FKeyT fk = getFullKey(suk, mk);
 
     // Search if the full key already exists
-    searchResult res = kvs_search(fk);
+    pair<int, int> res = search(fk);
     // The key exists and is erased
-    if ( res.idx.has_value() )
-    { entries[res.idx.value()] = nullopt; }
+    if ( res.first != -1 )
+    { entries[res.second] = nullopt; }
 }
 >>
    *)
