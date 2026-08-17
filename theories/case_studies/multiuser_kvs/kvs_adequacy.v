@@ -347,33 +347,43 @@ Section Adequacy.
     }
 
     (* Initialise the KVS resources *)
-    iMod (ghost_var_alloc kvs_physical_map_init) as (γpkvs) "[Hpkvs Hpkvs']".
+
+    (* Separate all compartments (part 1) *)
+    rewrite {2}Hm.
+    rewrite /mk_initial_memory.
+    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_B]".
+    { eapply mk_initial_cmpt_B_disjoint; eauto. }
+    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_kvs]".
+    { eapply mk_initial_cmpt_kvs_disjoint; eauto. }
+    (* KVS CMPT (part 1) *)
+    iMod (initialise_compartment (Σ := Σ) with "Hcmpt_kvs")
+      as "(Hkvs_imports & Hkvs_code & Hkvs_data & _ & Hkvs_etbl_pcc & Hkvs_etbl_cgp & Hkvs_etbl_entries)".
+    iAssert (
+      codefrag (cmpt_a_code kvs_cmpt) (cmpt_code kvs_cmpt)
+     )%I with "[Hkvs_code]" as "Hkvs_code".
+    { rewrite /codefrag.
+      replace (cmpt_a_code kvs_cmpt ^+ length (cmpt_code kvs_cmpt))%a
+        with (cmpt_e_pcc kvs_cmpt).
+      2: { pose proof (cmpt_code_size kvs_cmpt) as H ; solve_addr+H. }
+      done.
+    }
+    rewrite kvs_imports kvs_code.
+    rewrite /kvs_inv kvs_data /kvs_data.
+
+    iMod (user_kvs_init {[ kvs_user_key_K ; kvs_user_key_B ]}
+           with "[$Hkvs_imports $Hkvs_code $Hkvs_data]")
+      as (γpkvs kvs_logical_heapg γf) "(#Hkvs & #Hkvs_logical & Hlukvs)".
     pose kvsphysicalg := Build_KvsPhysicalG Σ kvs_physical_user_preg γpkvs.
-
-    set (all_users_keys := [kvs_user_key_K;kvs_user_key_B]).
-    set (lkvs_init := (list_to_map ( (fun k => (k,∅)) <$> all_users_keys) : kvs_logical_map)).
-    iMod (gen_heap_init (lkvs_init : kvs_logical_map))
-      as (kvs_logical_heapg) "(Hlkvs_auth & Hlkvs_frag & _)".
-    assert ( lkvs_init = {[ kvs_user_key_K := ∅ ; kvs_user_key_B := ∅ ]} ) as ->.
-    { subst lkvs_init all_users_keys; done. }
-    assert ( kvs_user_key_K ≠ kvs_user_key_B ) as Huser_keys_disjoint.
-    { pose proof kvs_user_key_disjoints; solve_addr. }
-    rewrite (big_sepM_insert _ _ kvs_user_key_K); last by simplify_map_eq.
-    rewrite (big_sepM_insert _ _ kvs_user_key_B); last by simplify_map_eq.
-    iDestruct "Hlkvs_frag" as "(Hm_K & Hm_B & _)".
     pose kvslogicalg := Build_KvsLogicalG Σ kvs_logical_heapg.
-
-    iMod ( kvs_logical_user_init_pre {[ kvs_user_key_K ; kvs_user_key_B ]} kvs_logical_user_map_init) as (γf) "Hlukvs".
     pose kvsuserg := Build_KvsUserG Σ kvs_logical_user_preg γf.
     pose kvsg := KvsG Σ kvsphysicalg kvslogicalg kvsuserg.
+
+    assert ( kvs_user_key_K ≠ kvs_user_key_B ) as Huser_keys_disjoint.
+    { pose proof kvs_user_key_disjoints; solve_addr. }
     iDestruct (big_sepS_delete _ _ kvs_user_key_K with "Hlukvs")
-      as "[ [HK_lukvs_auth HK_lukvs_frag] Hlukvs]"; first by set_solver+.
+      as "[ [Hkvs_logical_user_K HK_lukvs_frag] Hlukvs]"; first by set_solver+.
     iDestruct (big_sepS_delete _ _ kvs_user_key_B with "Hlukvs")
-      as "[ [HB_lukvs_auth HB_lukvs_frag] _]"; first by set_solver+Huser_keys_disjoint.
-    iDestruct (kvs_logical_user_map_init_None kvs_user_key_K with "[HK_lukvs_frag]") as "HK_lukvs_frag".
-    { cbn; iFrame. }
-    iDestruct (kvs_logical_user_map_init_None kvs_user_key_B with "[HB_lukvs_frag]") as "HB_lukvs_frag".
-    { cbn; iFrame. }
+      as "[ [Hkvs_logical_user_B HB_lukvs_frag] _]"; first by set_solver+Huser_keys_disjoint.
 
     pose proof (
         @kvs_main_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _
@@ -472,13 +482,7 @@ Section Adequacy.
     (* Get initial sregister mtdc *)
     iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; eauto.
 
-    (* Separate all compartments *)
-    rewrite {2}Hm.
-    rewrite /mk_initial_memory.
-    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_B]".
-    { eapply mk_initial_cmpt_B_disjoint; eauto. }
-    iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_kvs]".
-    { eapply mk_initial_cmpt_kvs_disjoint; eauto. }
+    (* Separate all compartments (part 2) *)
     iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_main]".
     { eapply mk_initial_cmpt_main_disjoint; eauto. }
     iDestruct (big_sepM_union with "Hmem") as "[Hcmpt_switcher Hcmpt_assert]".
@@ -526,19 +530,7 @@ Section Adequacy.
     rewrite main_imports main_code main_static_sealed.
     rewrite main_exp_tbl.
 
-    (* CMPT KVS *)
-    iMod (initialise_compartment (Σ := Σ) with "Hcmpt_kvs")
-      as "(Hkvs_imports & Hkvs_code & Hkvs_data & _ & Hkvs_etbl_pcc & Hkvs_etbl_cgp & Hkvs_etbl_entries)".
-    iAssert (
-      codefrag (cmpt_a_code kvs_cmpt) (cmpt_code kvs_cmpt)
-     )%I with "[Hkvs_code]" as "Hkvs_code".
-    { rewrite /codefrag.
-      replace (cmpt_a_code kvs_cmpt ^+ length (cmpt_code kvs_cmpt))%a
-        with (cmpt_e_pcc kvs_cmpt).
-      2: { pose proof (cmpt_code_size kvs_cmpt) as H ; solve_addr+H. }
-      done.
-    }
-    rewrite kvs_imports kvs_code.
+    (* CMPT KVS (part 2) *)
     rewrite kvs_exp_tbl.
     iEval (rewrite /region_pointsto /kvs_export_table_entries) in "Hkvs_etbl_entries".
     rewrite (finz_seq_between_cons (cmpt_exp_tbl_entries_start kvs_cmpt)).
@@ -562,6 +554,8 @@ Section Adequacy.
     iDestruct "Hkvs_etbl_entries"
       as "(Hkvs_etbl_entries_addOrUpdate & Hkvs_etbl_entries_read
           & Hkvs_etbl_entries_erase & _)".
+
+    iMod (seal_store_update_alloc _ ( kvs_otype_propC ) with "Hseal_store_kvs") as "#Hsealed_pred_ot_kvs".
 
     iMod (inv_alloc (switcher_preamble.export_table_PCCN Nkvs_exp_tbl) ⊤ _
            with "Hkvs_etbl_pcc")%I as "#Hkvs_etbl_pcc".
@@ -602,38 +596,6 @@ Section Adequacy.
       cbn in *.
       solve_addr+H1 H2 H3.
     }
-
-    iMod (seal_store_update_alloc _ ( kvs_otype_propC ) with "Hseal_store_kvs") as "#Hsealed_pred_ot_kvs".
-
-    (* Allocate the KVS invariants *)
-    iMod (na_inv_alloc cerise_nais _ (Nkvs.@"physical") kvs_inv
-           with "[Hkvs_imports Hkvs_data Hkvs_code Hpkvs']") as "#Hkvs".
-    { iNext.
-      rewrite /kvs_inv kvs_data /kvs_data.
-      pose proof (cmpt_data_size kvs_cmpt) as H.
-      rewrite kvs_data /kvs_data in H.
-      iFrame "∗#".
-      rewrite /is_physical_kvs.
-      iSplit.
-      { iPureIntro; apply wf_kvs_physical_map_kvs_physical_map_init. }
-      iEval (cbn).
-      iApply (kvs_initial_map_init with "Hkvs_data"); rewrite /SIZE_MAP; solve_addr+H.
-    }
-
-    iMod (na_inv_alloc cerise_nais _ (Nkvs.@"logical") logical_kvs_inv
-           with "[Hlkvs_auth Hpkvs]") as "#Hkvs_logical".
-    { iNext.
-      iFrame.
-      iPureIntro; apply kvs_alloc_synced_map_init.
-      intros ku sk Hsk; clear -Hsk.
-      by destruct (decide (ku = kvs_user_key_K)); simplify_map_eq.
-    }
-
-    iAssert (user_kvs_inv kvs_user_key_K) with "[$Hm_K $HK_lukvs_auth]" as "Hkvs_logical_user_K".
-    { iPureIntro; apply kvs_synced_logical_user_kvs_init. }
-
-    iAssert (user_kvs_inv kvs_user_key_B) with "[$Hm_B $HB_lukvs_auth]" as "Hkvs_logical_user_B".
-    { iPureIntro; apply kvs_synced_logical_user_kvs_init. }
 
     (* Initialises the world for B *)
 
@@ -936,7 +898,7 @@ Section Adequacy.
       ; first set_solver+.
       iApply interp_monotone_sd; eauto.
     }
-    
+
     iDestruct (big_sepS_elem_of _ _ 1%Z with "HK_lukvs_frag") as "HK_lukvs_1".
     { eapply is_uint16_in_kvs_all_map_keys; split; rewrite /UINT16_MIN /UINT16_MAX; lia. }
 
