@@ -1478,4 +1478,110 @@ Section KVS_preamble.
 
 End KVS_preamble.
 
+Section UserKvsInit.
+    Context
+      {Σ:gFunctors}
+        {ceriseg:ceriseG Σ}
+        {sealsg: sealStoreG Σ}
+        `{MP: MachineParameters}
+        {KVS : kvsLayout} {kvslayoutwf : kvsLayoutWf} { kvsnames : kvs_namespaces }
+        {swlayout : switcherLayout}
+
+    .
+  Context {kvs_alloc_preg: gen_heapGpreS user_key_t kvs_user_map Σ}.
+  Context {kvs_physical_user_preg : ghost_varG Σ kvs_physical_map }.
+  Context {kvs_logical_user_preg : ghost_mapG Σ user_key_t (option Word) }.
+
+  (** Initialisation of the user kvs resources, assuming an initial empty KVS.
+     `UK` is the _finite_ set of user keys that we want to initialise. *)
+  Lemma user_kvs_init
+    {E : coPset}
+    (UK : gset user_key_t)
+    :
+    let imports :=
+      @kvs_imports KVS b_switcher e_switcher a_switcher_call ot_switcher
+    in
+
+    (
+      [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ imports ]]
+      ∗ codefrag KVS_pcc_b' kvs_service_instrs
+      ∗ [[KVS_cgp_b,KVS_cgp_e]]↦ₐ[[kvs.kvs_data]]
+    )
+    ={E}=∗
+    (
+      ∃ (γpkvs : gname)
+        (kvs_logical_heapg : gen_heapGS user_key_t kvs_user_map Σ)
+        (γf : user_key_t -> gname),
+        let kvsphysicalg := Build_KvsPhysicalG Σ kvs_physical_user_preg γpkvs in
+        let kvslogicalg := Build_KvsLogicalG Σ kvs_logical_heapg in
+        let kvsuserg := Build_KvsUserG Σ kvs_logical_user_preg γf in
+        let kvsg := KvsG Σ kvsphysicalg kvslogicalg kvsuserg in
+        na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
+        na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
+        ([∗ set] uk ∈ UK,
+           (user_kvs_inv uk
+            ∗ [∗ set] mk ∈ kvs_all_map_keys, (uk, mk)↦(KVS) ⊥))
+    )
+  .
+  Proof.
+    intros kvs_imports.
+    iIntros "(Hkvs_imports & Hkvs_code & Hkvs_data)".
+    iMod (ghost_var_alloc kvs_physical_map_init) as (γpkvs) "[Hpkvs Hpkvs']".
+    pose kvsphysicalg := Build_KvsPhysicalG Σ kvs_physical_user_preg γpkvs.
+    set (lkvs_init := (gset_to_gmap ∅ UK : kvs_logical_map)).
+    iMod (gen_heap_init (lkvs_init : kvs_logical_map))
+      as (kvs_logical_heapg) "(Hlkvs_auth & Hlkvs_frag & _)".
+    pose kvslogicalg := Build_KvsLogicalG Σ kvs_logical_heapg.
+    iMod ( kvs_logical_user_init_pre UK kvs_logical_user_map_init) as (γf) "Hlukvs".
+    pose kvsuserg := Build_KvsUserG Σ kvs_logical_user_preg γf.
+    pose kvsg := KvsG Σ kvsphysicalg kvslogicalg kvsuserg.
+    iExists γpkvs, kvs_logical_heapg, γf.
+
+    (* Allocate the KVS invariants *)
+    iMod (na_inv_alloc cerise_nais _ (Nkvs.@"physical") kvs_inv
+           with "[Hkvs_imports Hkvs_data Hkvs_code Hpkvs']") as "#Hkvs".
+    { iNext.
+      iFrame "∗#".
+      rewrite /is_physical_kvs.
+      iSplit.
+      { iPureIntro; apply wf_kvs_physical_map_kvs_physical_map_init. }
+      iEval (cbn).
+      pose proof KVS_size_data as Hdata_size.
+      iApply (kvs_initial_map_init with "Hkvs_data"); rewrite /SIZE_MAP;solve_addr+Hdata_size.
+    }
+
+    iMod (na_inv_alloc cerise_nais _ (Nkvs.@"logical") logical_kvs_inv
+           with "[Hlkvs_auth Hpkvs]") as "#Hkvs_logical".
+    { iNext.
+      iFrame.
+      iPureIntro; apply kvs_alloc_synced_map_init.
+      intros ku sk Hsk; clear -Hsk.
+      rewrite /lkvs_init in Hsk.
+      rewrite gset_to_gmap_set_to_map lookup_set_to_map in Hsk.
+      + destruct Hsk as (uk & Huk & ?); simplify_eq; done.
+      + intros uk uk' Huk Huk' Heq; cbn in Heq; done.
+    }
+
+    iFrame "#".
+    iClear "Hkvs Hkvs_logical".
+    iModIntro.
+    subst lkvs_init.
+    iStopProof.
+
+    induction UK using set_ind_L; iIntros "(Hlkvs_frag & Hlukvs)"; first done.
+    rewrite !big_sepS_union; try set_solver+H.
+    iDestruct "Hlukvs" as "[Hlukvs Hlukvs_IH]".
+    rewrite gset_to_gmap_union_singleton.
+    iDestruct (big_sepM_insert with "Hlkvs_frag") as "[Hlkvs_frag Hlkvs_frag_IH]".
+    { by apply lookup_gset_to_gmap_None. }
+    iSplitL "Hlkvs_frag Hlukvs".
+    - iApply big_sepS_singleton; rewrite big_sepS_singleton.
+      iDestruct "Hlukvs" as "[$ Hlukvs]"; iFrame.
+      iSplit; first (iPureIntro; apply kvs_synced_logical_user_kvs_init).
+      iApply kvs_logical_user_map_init_None; iFrame.
+    - iApply IHUK; iFrame.
+  Qed.
+
+End UserKvsInit.
+
 Global Opaque kvs_physical_map_init.
