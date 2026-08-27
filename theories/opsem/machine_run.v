@@ -133,3 +133,66 @@ Proof.
       econstructor.
     + cbn. apply Hc.
 Qed.
+
+(** A computable, single-step presentation of [step].  Unlike [machine_run],
+    this retains the resulting machine state, which makes it the entry point
+    used by extracted interpreters.  Administrative [NextI] transitions are
+    deliberately left visible: clients that expose one step per instruction
+    can normalize [NextI] to [Executable] without executing another
+    instruction. *)
+Definition machine_step `{MachineParameters} (c : Conf) : option Conf :=
+  match c with
+  | (Executable, (r, sr, m) as φ) =>
+      match r !! PC with
+      | None => Some (Failed, φ)
+      | Some pc =>
+          if isCorrectPCb pc then
+            match pc with
+            | WCap p _ _ _ a =>
+                match m !! a with
+                | None => Some (Failed, φ)
+                | Some wa => Some (exec (decodeInstrW wa) p φ)
+                end
+            | _ => Some (Failed, φ) (* impossible after [isCorrectPCb] *)
+            end
+          else Some (Failed, φ)
+      end
+  | _ => None
+  end.
+
+Lemma machine_step_sound `{MachineParameters} c c' :
+  machine_step c = Some c' → step c c'.
+Proof.
+  intros Hstep. destruct c as [cf [[r sr] m]].
+  destruct cf; try discriminate. cbn in Hstep.
+  destruct (r !! PC) as [pc|] eqn:Hpc.
+  - destruct (isCorrectPCb pc) eqn:Hcorrect.
+    + apply isCorrectPCb_isCorrectPC in Hcorrect.
+      destruct pc as [z|[p g b e a|sp g b e o]|p g b e a|o sb];
+        try by inversion Hcorrect.
+      destruct (m !! a) as [wa|] eqn:Hmem.
+      * destruct (exec (decodeInstrW wa) p (r, sr, m)) as [cf' φ'] eqn:Hexec.
+        inversion Hstep; subst.
+        eapply (step_exec_instr (r, sr, m) p g b e a
+                  (decodeInstrW wa) (cf', φ') wa); eauto.
+      * inversion Hstep; subst. eapply step_exec_memfail; eauto.
+    + inversion Hstep; subst. eapply step_exec_corrfail; eauto.
+      by apply isCorrectPCb_nisCorrectPC.
+  - inversion Hstep; subst. by apply step_exec_regfail.
+Qed.
+
+Lemma machine_step_complete `{MachineParameters} c c' :
+  step c c' -> machine_step c = Some c'.
+Proof.
+  intros Hstep. inversion Hstep; subst; destruct φ as [[r sr] m]; cbn in *.
+  - rewrite /machine_step /= H0. reflexivity.
+  - rewrite /machine_step /= H0.
+    apply isCorrectPCb_nisCorrectPC in H1. rewrite H1. reflexivity.
+  - rewrite /machine_step /= H0.
+    destruct (isCorrectPCb (WCap p g b e a)); [rewrite H1 | ]; reflexivity.
+  - rewrite /machine_step /= H0.
+    assert (Hcorrect : isCorrectPCb (WCap p g b e a) = true).
+    { apply isCorrectPCb_isCorrectPC. exact H2. }
+    rewrite Hcorrect H1.
+    destruct (exec (decodeInstrW wa) p (r, sr, m)). reflexivity.
+Qed.

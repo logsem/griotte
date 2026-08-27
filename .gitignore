@@ -299,3 +299,5 @@ Makefile.coq.conf
 _build/
 html/
 *.trc
+/extraction/griotte_extracted.ml
+/extraction/griotte_extracted.mli
