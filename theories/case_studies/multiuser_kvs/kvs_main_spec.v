@@ -5,7 +5,7 @@ From griotte Require Import
 From griotte Require Import
   assert_spec fetch_spec.
 From griotte Require Import
-  switcher switcher_preamble switcher_spec_call switcher_spec_KtK_call switcher_spec_KtK_return.
+  switcher switcher_preamble switcher_spec_call switcher_spec_KtK.
 From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main.
 From griotte Require Import map_simpl register_tactics proofmode.
@@ -241,12 +241,30 @@ Section KVS_main_spec.
     iInsertList "Hrmap" [ctp].
     set (rmap' := <[ctp := _]> _ ).
 
-    iApply (switcher_cc_specification_known_to_known
-              _ _ _ _ _ _ _ _ _ rmap_arg rmap'
+    iPoseProof (KVS_add_spec_known_to_known
+                  (WCap RW Global cgp_b cgp_e cgp_b)
+                  (WSentry RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+                  (WInt 0) (kvs_user_seal_key Global static_sealed_b)
+                  csp_b csp_e csp_b rmap_arg cstk ⊤
+                  KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
+                 with "[Hkvs Hkvs_logical]") as "HKVS_f"; auto.
+    { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
+
+    iApply (switcher_cc_specification_known_to_known_end_to_end
+              Nswitcher
+              (WCap RW Global cgp_b cgp_e cgp_b)
+              (WSentry RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+              (WInt 0) (kvs_user_seal_key Global static_sealed_b)
+              csp_b csp_e csp_b stk_mem rmap_arg rmap' cstk
+              kvs_addOrUpdate_nargs ⊤ Nkvs_exp_tbl
+              b_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr e_kvs_exp_tbl
+              KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
+              kvs_addOrUpdate_pcc_off
              with
              "[- $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
                  $Hstk $Hcstk_frag
+                 $HKVS_f
                  ]"); auto.
     { rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
     { solve_addr+Hkvs_exp_tbl_size. }
@@ -259,14 +277,16 @@ Section KVS_main_spec.
        set_solver+.
     }
     { subst rmap_arg; set_solver. }
+    iSplitL "Hkvs Hkvs_logical Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
     iNext.
     iIntros "[
-    (%arg_rmap_add & %rmap_add & %Hdom_arg_rmap_add & %Hdom_rmap_add
-    & Hna & HPC & Hcgp & Hcra & Hcsp & Hargs & Hrmap & Hstk & Hcstk)
+    (%wca0_ret & %wca1_ret & %rmap_ret & %Hdom_rmap_ret
+    & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
+    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & HKVS_post)
     |
-    (%rmap_add & %stk_mem' & %Hdom_rmap_add & Hna
-    & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1 & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag
-    )
+    (%rmap_ret & %stk_mem' & %Hdom_rmap_ret & Hna
+    & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1
+    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag & HKVS_pre)
     ]"
     ; iEval (cbn) in "HPC"
     ; cycle 1.
@@ -279,80 +299,13 @@ Section KVS_main_spec.
       iInstr "Hcode".
       wp_end; iIntros (_); iFrame "Hna".
     }
-    clear wca0 wca1 wca2 wct0.
-    iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
-      as ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
-          "[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]";"[Hct0 %Hwct0]"].
-    iClear "Hargs".
-    destruct ( decide (ca0 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
-    destruct ( decide (ca1 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
-    destruct ( decide (ca2 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
-    destruct ( decide (ca3 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [|_]; first done.
-    assert (wca0 = kvs_user_seal_key Global static_sealed_b) as -> by (subst rmap_arg ; simplify_map_eq; done).
-    assert (wca1 = WInt 1%nat) as -> by (subst rmap_arg ; simplify_map_eq; done).
-    assert (wca2 = WInt 12%nat) as -> by (subst rmap_arg ; simplify_map_eq; done).
-    simplify_eq.
-
-    assert ( is_Some (rmap_add !! ctp) ) as [wctp' Hwctp'].
-    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap'; set_solver+. }
-    assert ( is_Some (rmap_add !! ct1) ) as [wct1' Hwct1'].
-    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap'; set_solver+. }
-    assert ( is_Some (rmap_add !! ct2) ) as [wct2' Hwct2'].
-    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap'.
-      rewrite dom_insert_L.
-      repeat (rewrite dom_delete_L).
-      rewrite Hrmap_dom /dom_arg_rmap /=.
-      set_solver+.
-    }
-    assert ( is_Some (rmap_add !! cnull) ) as [wcnull' Hwcnull'].
-    { apply elem_of_dom; rewrite Hdom_rmap_add; subst rmap'.
-      rewrite dom_insert_L.
-      repeat (rewrite dom_delete_L).
-      rewrite Hrmap_dom /dom_arg_rmap /=.
-      set_solver+.
-    }
-    iExtractList "Hrmap" [cs0;cs1;ctp;ct1;ct2;cnull]
-      as ["[Hcs0 %Hcs0]";"[Hcs1 %Hcs1]";"[Hctp %Hctp]";"[Hct1 %Hct1]";"[Hct2 %Hct2]";"[Hcnull %Hcnull]"]
-    ; simplify_eq.
-
-    (* Use spec addOrUpdate known *)
-    iApply (KVS_add_spec
-      with "[- $Hkvs $Hkvs_logical $Hna $HPC $Hcgp $Hcra $ Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
-      $Hstatic_sealed_b $HLUKVS $Hkvs_1]")
-    ; auto.
-    { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
-    iNext;
-      iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & Hca1 & [% Hca2]
-                    & [% Hctp] & [% Hct1] & [% Hct2] & [% Hcnull] & Hstatic_sealed_b & HLUKVS & Hres)".
-    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-
-    iInsertList "Hrmap" [ctp;ct1;ct2;cnull;ca2;ca3;ca4;ca5;ct0].
-
-    iDestruct "Hres" as "[(_ & Hca0 & Hkvs_1) | (Hca0 & Hkvs_1)]"; cycle 1.
-    { (* Case where there was not more empty slot *)
-      (* Use switcher return KtK *)
-      iApply (switcher_cc_specification_return_known_to_known
-             with
-             "[- $Hswitcher
-                 $Hna $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hrmap
-                 $Hstk $Hcstk
-                 ]"); auto.
-      {
-        repeat (rewrite dom_insert_L).
-        repeat (rewrite dom_delete_L).
-        rewrite Hdom_rmap_add; subst rmap'.
-        repeat (rewrite dom_insert_L).
-        repeat (rewrite dom_delete_L).
-        rewrite Hrmap_dom.
-        set_solver+.
-      }
-      subst rmap'.
-      iNext; iIntros (rmap')
-               "(%Hdom_rmap' & Hna & HPC & Hcgp & Hcra
-                             & Hcs0 & Hcs1 & Hcsp & Hca0
-                             & Hca1 & Hrmap & Hstk)".
-      iEval (cbn) in "HPC".
-
+    iDestruct "HKVS_post"
+      as "(Hstatic_sealed_b & HLUKVS & %Hwca1_ret
+           & [(%Hcan_store & %Hwca0_ret & Hkvs_1)
+             | (%Hwca0_ret & Hkvs_1)])".
+    all: subst wca1_ret.
+    2: { (* Case where there was not more empty slot *)
+      subst wca0_ret.
       focus_block 5 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
       ; clear dependent a_insert_kvs.
       (* Jnz 2 ca0 *)
@@ -361,29 +314,8 @@ Section KVS_main_spec.
       iInstr "Hcode".
       wp_end; iIntros (_); iFrame "Hna".
     }
+    subst wca0_ret.
     (* Case where insert succeeded  *)
-    iApply (switcher_cc_specification_return_known_to_known
-             with
-             "[- $Hswitcher
-                 $Hna $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hrmap
-                 $Hstk $Hcstk
-                 ]"); auto.
-    {
-      repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hdom_rmap_add; subst rmap'.
-      repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hrmap_dom.
-      set_solver+.
-    }
-    subst rmap'.
-    iNext; iIntros (rmap')
-             "(%Hdom_rmap' & Hna & HPC & Hcgp & Hcra
-                             & Hcs0 & Hcs1 & Hcsp & Hca0
-                             & Hca1 & Hrmap & Hstk & Hcstk)".
-    iEval (cbn) in "HPC".
-
     focus_block 5 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_insert_kvs.
     (* Jnz 2 ca0 *)
@@ -398,8 +330,6 @@ Section KVS_main_spec.
     destruct ( decide (ca0 = cnull) ) as [|_] ; first done.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    clear dependent Hwctp' rmap_arg rmap_add arg_rmap_add.
-    clear wcra wctp wct1 wcs0 w w0 w1 w2 w3 w4 w5.
     iExtractList "Hrmap" [ctp;ct0;ct1] as ["[Hctp %]";"[Hct0 %]";"[Hct1 %]"]; simplify_eq.
 
     (* --------------------------------------------------- *)
@@ -436,6 +366,8 @@ Section KVS_main_spec.
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as
       ["[Hca2 %]";"[Hca3 %]";"[Hca4 %]";"[Hca5 %]"]; simplify_eq.
 
+    iClear "HKVS_f".
+    clear rmap_arg.
     set ( rmap_arg :=
            {[ ca0 := WInt 0;
               ca1 := WInt 0;
@@ -476,14 +408,15 @@ Section KVS_main_spec.
               $Hstk $Hworld_B $Hcstk $Hstack_revoked_W1
               $Hinterp_W1_B_f $HentryB_f $HK]"); eauto; iFrame "%".
     { repeat (rewrite dom_insert_L);repeat (rewrite dom_delete_L).
-      rewrite Hdom_rmap'; set_solver.
+      rewrite Hdom_rmap_ret; set_solver.
     }
     { by rewrite /is_arg_rmap. }
     iSplitL "Hrmap_arg".
     { iApply (big_sepM_impl with "Hrmap_arg").
       iModIntro; iIntros (r w Hr) "[$ ?]".
     }
-    clear dependent rmap rmap' stk_mem.
+    clear dependent rmap.
+    clear stk_mem.
     iNext.
     iIntros (W2 rmap stk_mem l')
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
@@ -557,52 +490,72 @@ Section KVS_main_spec.
 
     (* Use switcher call KtK *)
     clear rmap_arg.
-    set ( rmap_arg :=
+    set ( rmap_arg_read :=
            {[ ca0 := kvs_user_seal_key Global static_sealed_b;
               ca1 := WInt 1%nat;
-              ca2 := wca2;
-              ca3 := wca0;
-              ca4 := wca1;
-              ca5 := wca6;
+              ca2 := wca6;
+              ca3 := wca7;
+              ca4 := wca8;
+              ca5 := wca9;
               ct0 := WInt 0
            ]} : Reg
         ).
 
-    iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg )%I
-      with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
-    { subst rmap_arg.
+    iAssert ([∗ map] rarg↦warg ∈ rmap_arg_read, rarg ↦ᵣ warg )%I
+      with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg_read".
+    { subst rmap_arg_read.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
       done.
     }
     iInsertList "Hrmap" [ctp].
-    set (rmap' := <[ctp := _]> _ ).
+    set (rmap_read_call := <[ctp := _]> _ ).
 
-    iApply (switcher_cc_specification_known_to_known
-              _ _ _ _ _ _ _ _ _ rmap_arg rmap'
+    iPoseProof (KVS_read_spec_known_to_known
+      (WCap RW Global cgp_b cgp_e cgp_b)
+      (WSentry RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+      (WInt 0) (kvs_user_seal_key Global static_sealed_b)
+      csp_b csp_e csp_b rmap_arg_read cstk ⊤
+      KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
+      with "[Hkvs Hkvs_logical]") as "HKVS_f"; auto.
+    { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
+
+    iApply (switcher_cc_specification_known_to_known_end_to_end
+              Nswitcher
+              (WCap RW Global cgp_b cgp_e cgp_b)
+              (WSentry RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+              (WInt 0) (kvs_user_seal_key Global static_sealed_b)
+              csp_b csp_e csp_b stk_mem rmap_arg_read rmap_read_call cstk
+              kvs_read_nargs ⊤ Nkvs_exp_tbl
+              b_kvs_exp_tbl kvs_read_exp_tbl_addr e_kvs_exp_tbl
+              KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
+              kvs_read_pcc_off
              with
              "[- $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
-                 $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-                 $Hstk $Hcstk_frag
+                 $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
+                 $Hrmap_arg_read $Hrmap $Hstk $Hcstk_frag
+                 $HKVS_f
                  ]"); auto.
     { rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
     { solve_addr+Hkvs_exp_tbl_size. }
     { rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
     { rewrite /kvs_read_nargs; lia. }
-    {  subst rmap'.
+    {  subst rmap_read_call.
        rewrite dom_insert_L.
        repeat (rewrite dom_delete_L).
        rewrite Hdom_rmap /dom_arg_rmap /=.
        set_solver+.
     }
-    { subst rmap_arg; set_solver. }
+    { subst rmap_arg_read; set_solver. }
+    iSplitL "Hkvs Hkvs_logical Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
     iNext.
     iIntros "[
-    (%arg_rmap_read & %rmap_read & %Hdom_arg_rmap_read & %Hdom_rmap_read
-    & Hna & HPC & Hcgp & Hcra & Hcsp & Hargs & Hrmap & Hstk & Hcstk)
+    (%wca0_ret & %wca1_ret & %rmap_read & %Hdom_rmap_read
+    & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
+    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & HKVS_read_post)
     |
     (%rmap_read & %stk_mem' & %Hdom_rmap_read & Hna
-    & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1 & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag
-    )
+    & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1
+    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag & HKVS_read_pre)
     ]"
     ; iEval (cbn) in "HPC"
     ; cycle 1.
@@ -615,73 +568,9 @@ Section KVS_main_spec.
       iInstr "Hcode".
       wp_end; iIntros (_); iFrame "Hna".
     }
-
-
-    iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
-      as ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
-          "[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]";"[Hct0 %Hwct0]"].
-    iClear "Hargs".
-    destruct ( decide (ca0 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
-    destruct ( decide (ca1 ∈ dom_arg_rmap kvs_addOrUpdate_nargs) ) as [_|]; last done.
-    assert (wca7 = kvs_user_seal_key Global static_sealed_b) as -> by (subst rmap_arg ; simplify_map_eq; done).
-    assert (wca8 = WInt 1%nat) as -> by (subst rmap_arg ; simplify_map_eq;done).
-    simplify_eq.
-
-    assert ( is_Some (rmap_read !! ct1) ) as [wct1' Hwct1'].
-    { apply elem_of_dom; rewrite Hdom_rmap_read; subst rmap'; set_solver+. }
-    assert ( is_Some (rmap_read !! ct2) ) as [wct2' Hwct2'].
-    { apply elem_of_dom; rewrite Hdom_rmap_read; subst rmap'.
-      rewrite dom_insert_L.
-      repeat (rewrite dom_delete_L).
-      rewrite Hdom_rmap /dom_arg_rmap /=.
-      set_solver+.
-    }
-    assert ( is_Some (rmap_read !! cnull) ) as [wcnull' Hwcnull'].
-    { apply elem_of_dom; rewrite Hdom_rmap_read; subst rmap'.
-      rewrite dom_insert_L.
-      repeat (rewrite dom_delete_L).
-      rewrite Hdom_rmap /dom_arg_rmap /=.
-      set_solver+.
-    }
-    iExtractList "Hrmap" [cs0;cs1;ct1;ct2;ctp;cnull]
-      as ["[Hcs0 %Hcs0]";"[Hcs1 %Hcs1]";"[Hct1 %Hct1]";"[Hct2 %Hct2]";"[Hctp %Hctp]";"[Hcnull %Hcnull]"]
-    ; simplify_eq.
-
-    (* Use spec readOrUpdate known *)
-    iApply (KVS_read_spec_in
-      with "[- $Hkvs $Hkvs_logical $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp $Hcnull
-            $Hstatic_sealed_b $HLUKVS $Hkvs_1]")
-    ; auto.
-    { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
-    iNext;
-      iIntros "(Hna & HPC & [% Hcgp] & [% Hcra] & Hca0 & Hca1
-                & [% Hct1] & [% Hct2] & [% Hctp] & [% Hcnull] & Hstatic_sealed_b & HLUKVS & Hkvs_1)".
-    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-
-    iInsertList "Hrmap" [ct1;ct2;ctp;cnull;ca2;ca3;ca4;ca5;ct0].
-
-    (* use KtK return spec  *)
-    iApply (switcher_cc_specification_return_known_to_known
-             with
-             "[- $Hswitcher
-                 $Hna $HPC $Hcgp $Hcra $Hcsp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hrmap
-                 $Hstk $Hcstk
-                 ]"); auto.
-    {
-      repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hdom_rmap_read; subst rmap'.
-      repeat (rewrite dom_insert_L).
-      repeat (rewrite dom_delete_L).
-      rewrite Hdom_rmap.
-      set_solver+.
-    }
-    clear dependent rmap.
-    iNext; iIntros (rmap)
-             "(%Hdom_rmap & Hna & HPC & Hcgp & Hcra
-                             & Hcs0 & Hcs1 & Hcsp & Hca0
-                             & Hca1 & Hrmap & Hstk & Hcstk)".
-    iEval (cbn) in "HPC".
+    iDestruct "HKVS_read_post"
+      as "(Hstatic_sealed_b & HLUKVS & Hkvs_1 & %Hwca0_ret & %Hwca1_ret)".
+    subst wca0_ret wca1_ret.
 
     iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull] as
       ["[Hct0 %]";"[Hct1 %]";"[Hct2 %]";"[Hct3 %]";"[Hct4 %]";"[Hcnull %]"]; simplify_eq.

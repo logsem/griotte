@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode map_simpl.
 From griotte Require Import logrel rules.
 From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
-From griotte Require Import switcher_preamble switcher_spec_return.
+From griotte Require Import switcher_preamble switcher_spec_return switcher_spec_KtK register_tactics.
 From griotte Require Import
   switcher kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16.
 
@@ -1062,6 +1062,103 @@ Section KVS_spec_erase.
     focus_block_nochangePC 2 "Hcode" as a_erase Ha_erase "Hcode" "Hcont"; iHide "Hcont" as hcont.
     assert (a_erase = kvs_erase_pcc_addr) as -> by (rewrite /kvs_erase_pcc_addr ; cbn in * ; solve_addr+Hcode_continuous HKVS_pcc_b' Ha_erase).
     iApply ( KVS_erase_spec_invalid_sealed_user_key_pre ); eauto; iFrame.
+  Qed.
+
+  Lemma KVS_erase_spec_known_to_known
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
+    (b_stk e_stk a_stk : Addr)
+    (arg_rmap : Reg) (cstk : CSTK) (E : coPset)
+    (user_key : user_key_t) (nkey : map_key_t)
+    (l_user_key : Locality) (user_key_addr : Addr) :
+    ↑(Nkvs.@"physical") ⊆ E ->
+    ↑(Nkvs.@"logical") ⊆ E ->
+    is_uint16 nkey ->
+    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    arg_rmap !! ca0 = Some (kvs_user_seal_key l_user_key user_key_addr) ->
+    arg_rmap !! ca1 = Some (WInt nkey) ->
+    na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
+    na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
+    ⊢
+    switcher_cc_specification_known_to_known_function
+      (user_key_addr ↦ₐ WInt user_key ∗
+       user_kvs_inv user_key ∗
+       (user_key, nkey) ↦(KVS) -)
+      (λ wca0 wca1,
+         user_key_addr ↦ₐ WInt user_key ∗
+         user_kvs_inv user_key ∗
+         (user_key, nkey) ↦(KVS) ⊥ ∗
+         ⌜ wca0 = WInt 0 ⌝ ∗
+         ⌜ wca1 = WInt 0 ⌝)
+      wcgp_caller wcra_caller wcs0_caller wcs1_caller
+      b_stk e_stk a_stk arg_rmap cstk kvs_erase_nargs E
+      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_erase_pcc_off.
+  Proof.
+    iIntros (Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).
+    rewrite /switcher_cc_specification_known_to_known_function.
+    iIntros "[ #Hkvs #Hkvs_logical ]" (arg_rmap' rmap')
+       "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
+       & Hargs & Hrmap & Hstk & Hcstk
+       & (Huser_key & Huser_kvs & [%wold Hkey])
+       & Hpost)".
+    iEval (cbn) in "HPC".
+
+    iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
+      as ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
+          "[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]";
+          "[Hct0 %Hwct0]"]
+    ; iClear "Hargs".
+    destruct (decide (ca0 ∈ dom_arg_rmap kvs_erase_nargs)) as [_|]; last done.
+    destruct (decide (ca1 ∈ dom_arg_rmap kvs_erase_nargs)) as [_|]; last done.
+    destruct (decide (ca2 ∈ dom_arg_rmap kvs_erase_nargs)) as [|_]; first done.
+    simplify_eq.
+
+    assert (is_Some (rmap' !! ctp)) as [wctp Hwctp].
+    { apply elem_of_dom. rewrite Hrmap' /dom_arg_rmap /=. set_solver+. }
+    assert (is_Some (rmap' !! ct1)) as [wct1 Hwct1].
+    { apply elem_of_dom. rewrite Hrmap' /dom_arg_rmap /=. set_solver+. }
+    assert (is_Some (rmap' !! ct2)) as [wct2 Hwct2].
+    { apply elem_of_dom. rewrite Hrmap' /dom_arg_rmap /=. set_solver+. }
+    assert (is_Some (rmap' !! cnull)) as [wcnull Hwcnull].
+    { apply elem_of_dom. rewrite Hrmap' /dom_arg_rmap /=. set_solver+. }
+    iExtractList "Hrmap" [cs0;cs1;ctp;ct1;ct2;cnull]
+      as ["[Hcs0 %Hcs0]";"[Hcs1 %Hcs1]";"[Hctp %Hctp]";
+          "[Hct1 %Hct1]";"[Hct2 %Hct2]";"[Hcnull %Hcnull]"]
+    ; simplify_eq.
+
+    iApply (KVS_erase_spec_in with
+      "[- $Hkvs $Hkvs_logical $Hna $HPC $Hcgp $Hcra
+       $Hca0 $Hca1 $Hctp $Hct1 $Hct2 $Hcnull
+       $Huser_key $Huser_kvs $Hkey]"); auto.
+    iNext.
+    iIntros "(Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra]
+              & Hca0 & Hca1 & [%wctp Hctp] & [%wct1 Hct1]
+              & [%wct2 Hct2] & [%wcnull Hcnull]
+              & Huser_key & Huser_kvs & Hkey)".
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+    iInsertList "Hrmap" [ctp;ct1;ct2;cnull;ca2;ca3;ca4;ca5;ct0].
+    set (rmap_ret0 := delete cs1 (delete cs0 rmap')).
+    set (rmap_ret1 := <[ctp := wctp]> rmap_ret0).
+    set (rmap_ret2 := <[ct1 := wct1]> rmap_ret1).
+    set (rmap_ret3 := <[ct2 := wct2]> rmap_ret2).
+    set (rmap_ret4 := <[cnull := wcnull]> rmap_ret3).
+    set (rmap_ret5 := <[ca2 := WInt 0]> rmap_ret4).
+    set (rmap_ret6 := <[ca3 := WInt 0]> rmap_ret5).
+    set (rmap_ret7 := <[ca4 := WInt 0]> rmap_ret6).
+    set (rmap_ret8 := <[ca5 := WInt 0]> rmap_ret7).
+    set (rmap_ret := <[ct0 := WInt 0]> rmap_ret8).
+    iEval (cbn) in "HPC".
+
+    iApply ("Hpost" $! (WInt 0) (WInt 0) rmap_ret
+              (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
+    iSplit.
+    { iPureIntro.
+      rewrite /rmap_ret /rmap_ret8 /rmap_ret7 /rmap_ret6 /rmap_ret5
+        /rmap_ret4 /rmap_ret3 /rmap_ret2 /rmap_ret1 /rmap_ret0.
+      repeat (rewrite dom_insert_L).
+      repeat (rewrite dom_delete_L).
+      rewrite Hrmap' /dom_arg_rmap /=. set_solver+. }
+    iFrame.
+    iFrame. iSplit; done.
   Qed.
 
 End KVS_spec_erase.
