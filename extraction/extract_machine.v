@@ -22,6 +22,10 @@ Definition sreg_insert (srs : SReg) (sr : SRegName) (w : Word) : SReg :=
 Definition mem_insert (m : Mem) (a : Addr) (w : Word) : Mem :=
   <[a := w]> m.
 
+Definition reg_elements (rs : Reg) : list (RegName * Word) := map_to_list rs.
+Definition sreg_elements (srs : SReg) : list (SRegName * Word) := map_to_list srs.
+Definition mem_elements (m : Mem) : list (Addr * Word) := map_to_list m.
+
 (** Prototype extraction entry point.  The generated module deliberately
     retains [MachineParameters] as a runtime record: the concrete encoding is
     supplied by the OCaml adapter and is therefore part of the trusted base. *)
@@ -37,8 +41,9 @@ values. It also erases the laws of MachineParameters: the OCaml-supplied
 encoding functions and adapter must satisfy those laws and are trusted.
 Generated Obj.magic casts rely on the extractor and on well-formed inputs.".
 
-Extraction "extraction/griotte_extracted.ml"
+Extraction "griotte_extracted.ml"
   machine_step
   reg_empty sreg_empty mem_empty
   reg_lookup sreg_lookup mem_lookup
-  reg_insert sreg_insert mem_insert.
+  reg_insert sreg_insert mem_insert
+  reg_elements sreg_elements mem_elements.

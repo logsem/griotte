@@ -1,0 +1,10 @@
+(rule
+ (targets griotte_extracted.ml griotte_extracted.mli)
+ (deps
+  extract_machine.v
+  ../theories/opsem/machine_run.vo)
+ (action
+  (run rocq compile
+   -Q ../theories griotte
+   -Q ../machine_utils/theories machine_utils
+   extract_machine.v)))
