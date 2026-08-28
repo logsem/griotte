@@ -104,10 +104,8 @@
             release.${pin.version}.sha256 = "${pin.sha256}";
             version = pin.version;
           };
-      in {
-        theories = let
-          # NOTE: Remove `coq-record-update` and `equations` when available in Nix's `RocqPackages`
-          equations = rocq.pkgs.mkRocqDerivation {
+        # NOTE: Remove `coq-record-update` and `equations` when available in Nix's `RocqPackages`
+        equations = rocq.pkgs.mkRocqDerivation {
             pname = "equations";
             owner = "mattam82";
             repo = "Coq-Equations";
@@ -153,8 +151,8 @@
             version = "0.0.0";
           };
 
-        in
-          rocq.pkgs.mkRocqDerivation {
+      in {
+        theories = rocq.pkgs.mkRocqDerivation {
             inherit meta version;
 
             pname = name;
@@ -166,6 +164,31 @@
             preBuild = "dune() { command dune $@ --display=short; }";
             useDune = true;
           };
+        extraction = rocq.pkgs.mkRocqDerivation {
+          inherit meta version;
+
+          pname = "${name}-extraction";
+          opam-name = "${name}-extraction";
+          src = ./.;
+
+          useDune = true;
+          propagatedBuildInputs = [machine_utils equations];
+
+          buildPhase = ''
+            runHook preBuild
+            dune build extraction/griotte_extracted.ml extraction/griotte_extracted.mli
+            runHook postBuild
+          '';
+
+          installPhase = ''
+            runHook preInstall
+            install -Dm644 _build/default/extraction/griotte_extracted.ml \
+              $out/griotte_extracted.ml
+            install -Dm644 _build/default/extraction/griotte_extracted.mli \
+              $out/griotte_extracted.mli
+            runHook postInstall
+          '';
+        };
         default = packages.theories;
       };
 
