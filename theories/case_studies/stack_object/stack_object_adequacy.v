@@ -62,7 +62,7 @@ Proof.
   exact (cmptAssert_assertLayout assert_cmpt).
 Defined.
 
-Definition mk_initial_memory `{memory_layout} (mem: Mem) :=
+Definition mk_initial_memory `{memory_layout} :=
   mk_initial_switcher switcher_cmpt ∪
     mk_initial_assert assert_cmpt ∪
     mk_initial_cmpt main_cmpt ∪
@@ -105,7 +105,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
       ((cmpt_exp_tbl_entries_start C_cmpt) ^+ 1)%a
   in
 
-  mem = mk_initial_memory mem
+  mem = mk_initial_memory
   (* instantiating main *)
   ∧ (cmpt_imports main_cmpt) = so_main_imports C_f
   ∧ (cmpt_code main_cmpt) = so_main_code
@@ -121,7 +121,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   ]
   ∧ Forall is_z (cmpt_code C_cmpt) (* only instructions *)
   ∧ Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt)
-  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point 0 offset_adv_f); WInt (encode_entry_point 0 offset_adv_g)]
+  ∧ (cmpt_exp_tbl_entries C_cmpt) = [WInt (encode_entry_point 0 offset_adv_f); WInt (encode_entry_point 2 offset_adv_g)]
 
   (* initial stack *)
   ∧ Forall is_z (stack_content switcher_cmpt)
@@ -219,8 +219,8 @@ Section Adequacy.
            {[
                (seal_capability C_f (ot_switcher switcher_cmpt)) := 0;
                (borrow (seal_capability C_f (ot_switcher switcher_cmpt))) := 0;
-               (seal_capability C_g (ot_switcher switcher_cmpt)) := 0;
-               (borrow (seal_capability C_g (ot_switcher switcher_cmpt))) := 0;
+               (seal_capability C_g (ot_switcher switcher_cmpt)) := 2;
+               (borrow (seal_capability C_g (ot_switcher switcher_cmpt))) := 2;
                (seal_capability SO_f (ot_switcher switcher_cmpt)) := 2;
                (borrow (seal_capability SO_f (ot_switcher switcher_cmpt))) := 2
            ]}
@@ -468,7 +468,7 @@ Section Adequacy.
       (* B.adv *)
       iApply big_sepL_cons; iSplitL; last done.
       iSplit; last (iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto).
-      iApply (ot_switcher_interp_entry _ _ _ _ 0 offset_adv_g _ _ (nroot.@C)); eauto; last lia.
+      iApply (ot_switcher_interp_entry _ _ _ _ 2 offset_adv_g _ _ (nroot.@C)); eauto; last lia.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
       pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
       rewrite C_exp_tbl in H2.
