@@ -78,7 +78,7 @@ Proof.
   exact (cmptAssert_assertLayout assert_cmpt).
 Defined.
 
-Definition mk_initial_memory `{memory_layout} (mem: Mem) :=
+Definition mk_initial_memory `{memory_layout} :=
   mk_initial_switcher switcher_cmpt ∪
     mk_initial_assert assert_cmpt ∪
     mk_initial_cmpt main_cmpt ∪
@@ -125,7 +125,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   let kvs_user_key_K_addr := cmpt_b_static_sealed main_cmpt in
   let kvs_user_key_B_addr := cmpt_b_static_sealed B_cmpt in
 
-  mem = mk_initial_memory mem ∧
+  mem = mk_initial_memory ∧
   (* instantiating main *)
   (cmpt_imports main_cmpt) =
   (kvs_main_imports
@@ -149,10 +149,10 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   (* instantiating B *)
   (cmpt_imports B_cmpt) = [
       switcher_entry;
-      kvs_user_seal_key Global kvs_user_key_B_addr ;
       WSealed ot_switcher (KVS_addOrUpdate Global);
       WSealed ot_switcher (KVS_read Global);
-      WSealed ot_switcher (KVS_erase Global)
+      WSealed ot_switcher (KVS_erase Global);
+      kvs_user_seal_key Global kvs_user_key_B_addr
     ] ∧
   Forall is_z (cmpt_code B_cmpt) ∧ (* only instructions *)
   Forall (is_initial_data_word B_cmpt) (cmpt_data B_cmpt) ∧
@@ -778,12 +778,6 @@ Section Adequacy.
         iApply big_sepL_cons; iSplitL.
         { iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done. }
 
-        (* KVS sealed user key *)
-        iApply big_sepL_cons; iSplitL.
-        { iSplit.
-          * iApply (interp_monotone_sd W1' Winter); auto.
-          * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
-        }
         (* KVS.addOrUpdate *)
         iApply big_sepL_cons; iSplitL.
         { iSplit.
@@ -800,6 +794,12 @@ Section Adequacy.
         iApply big_sepL_cons; iSplitL.
         { iSplit.
           * iApply (interp_monotone_sd W1 Winter); auto.
+          * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
+        }
+        (* KVS sealed user key *)
+        iApply big_sepL_cons; iSplitL.
+        { iSplit.
+          * iApply (interp_monotone_sd W1' Winter); auto.
           * iIntros (??) "!> % ?"; iApply interp_monotone_sd; auto.
         }
         done.
