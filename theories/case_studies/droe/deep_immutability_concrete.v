@@ -70,28 +70,14 @@ Ltac unfold_droe_addresses_in H :=
     droe_stack_b, droe_stack_e, droe_trusted_stack_b,
     droe_trusted_stack_e, droe_switcher_otype in H.
 
-Definition droe_C_outer_load : instr.
-Proof.
-  constructor 5.
-  - exact ct0.
-  - exact ca0.
-Defined.
-
-Definition droe_C_inner_load : instr.
-Proof.
-  constructor 5.
-  - exact ct0.
-  - exact ct0.
-Defined.
-
 (** The concrete adversary follows the outer read-only capability in [ca0],
     reads through the nested capability, and stores the observed word in its
     own data cell before returning. It therefore directly tests whether the
     supposedly deeply immutable value can be observed through the nesting. *)
 Definition droe_C_code : list Word :=
   encodeInstrsW [
-    droe_C_outer_load;
-    droe_C_inner_load;
+    Load ct0 ca0;
+    Load ct0 ct0;
     Store cgp ct0;
     Jalr cnull cra
   ].
@@ -268,7 +254,7 @@ Proof.
   - apply Forall_replicate; done.
 Qed.
 
-Theorem droe_concrete_adequacy reg' sreg' mem' es :
+Lemma droe_concrete_adequacy reg' sreg' mem' es :
   rtc erased_step
     ([Seq (Instr Executable)],
       (droe_initial_registers, droe_initial_sregisters, droe_initial_memory))

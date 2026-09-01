@@ -13,80 +13,80 @@ Local Notation "'A' z" :=
 Local Notation "'OT' z" :=
   (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
 
-Definition cmdc_main_pcc_begin : Addr := A 9.
+Definition cmdc_main_pcc_b : Addr := A 9.
 Definition cmdc_main_code_start : Addr := A 13.
-Definition cmdc_main_pcc_end : Addr := A 98.
-Definition cmdc_B_pcc_begin : Addr := A 98.
+Definition cmdc_main_pcc_e : Addr := A 98.
+Definition cmdc_B_pcc_b : Addr := A 98.
 Definition cmdc_B_code_start : Addr := A 99.
-Definition cmdc_B_pcc_end : Addr := A 102.
-Definition cmdc_C_pcc_begin : Addr := A 102.
+Definition cmdc_B_pcc_e : Addr := A 102.
+Definition cmdc_C_pcc_b : Addr := A 102.
 Definition cmdc_C_code_start : Addr := A 103.
-Definition cmdc_C_pcc_end : Addr := A 105.
-Definition cmdc_main_data_begin : Addr := A 105.
-Definition cmdc_main_data_end : Addr := A 107.
-Definition cmdc_B_data_begin : Addr := A 107.
-Definition cmdc_B_data_end : Addr := A 108.
-Definition cmdc_C_data_begin : Addr := A 108.
-Definition cmdc_C_data_end : Addr := A 109.
+Definition cmdc_C_pcc_e : Addr := A 105.
+Definition cmdc_main_data_b : Addr := A 105.
+Definition cmdc_main_data_e : Addr := A 107.
+Definition cmdc_B_data_b : Addr := A 107.
+Definition cmdc_B_data_e : Addr := A 108.
+Definition cmdc_C_data_b : Addr := A 108.
+Definition cmdc_C_data_e : Addr := A 109.
 Definition cmdc_main_exports_pcc : Addr := A 109.
 Definition cmdc_main_exports_cgp : Addr := A 110.
-Definition cmdc_main_exports_entries_begin : Addr := A 111.
-Definition cmdc_main_exports_entries_end : Addr := A 111.
+Definition cmdc_main_exports_entries_b : Addr := A 111.
+Definition cmdc_main_exports_entries_e : Addr := A 111.
 Definition cmdc_B_exports_pcc : Addr := A 111.
 Definition cmdc_B_exports_cgp : Addr := A 112.
-Definition cmdc_B_exports_entries_begin : Addr := A 113.
-Definition cmdc_B_exports_entries_end : Addr := A 114.
+Definition cmdc_B_exports_entries_b : Addr := A 113.
+Definition cmdc_B_exports_entries_e : Addr := A 114.
 Definition cmdc_C_exports_pcc : Addr := A 114.
 Definition cmdc_C_exports_cgp : Addr := A 115.
-Definition cmdc_C_exports_entries_begin : Addr := A 116.
-Definition cmdc_C_exports_entries_end : Addr := A 117.
-Definition cmdc_assert_begin : Addr := A 117.
+Definition cmdc_C_exports_entries_b : Addr := A 116.
+Definition cmdc_C_exports_entries_e : Addr := A 117.
+Definition cmdc_assert_b : Addr := A 117.
 Definition cmdc_assert_cap : Addr := A 129.
-Definition cmdc_assert_end : Addr := A 130.
+Definition cmdc_assert_e : Addr := A 130.
 Definition cmdc_assert_flag : Addr := A 130.
-Definition cmdc_switcher_begin : Addr := A 131.
+Definition cmdc_switcher_b : Addr := A 131.
 Definition cmdc_switcher_call : Addr := A 132.
 Definition cmdc_switcher_return : Addr := A 220.
-Definition cmdc_switcher_end : Addr := A 282.
+Definition cmdc_switcher_e : Addr := A 282.
 Definition cmdc_switcher_sealing_type : OType := OT 9.
-Definition cmdc_trusted_stack_begin : Addr := A 4096.
-Definition cmdc_trusted_stack_end : Addr := A 4196.
-Definition cmdc_stack_begin : Addr := A 1024.
-Definition cmdc_stack_end : Addr := A 1124.
+Definition cmdc_trusted_stack_b : Addr := A 4096.
+Definition cmdc_trusted_stack_e : Addr := A 4196.
+Definition cmdc_stack_b : Addr := A 1024.
+Definition cmdc_stack_e : Addr := A 1124.
 
 Ltac unfold_cmdc_addresses :=
-  unfold cmdc_main_pcc_begin, cmdc_main_code_start, cmdc_main_pcc_end,
-    cmdc_B_pcc_begin, cmdc_B_code_start, cmdc_B_pcc_end,
-    cmdc_C_pcc_begin, cmdc_C_code_start, cmdc_C_pcc_end,
-    cmdc_main_data_begin, cmdc_main_data_end, cmdc_B_data_begin,
-    cmdc_B_data_end, cmdc_C_data_begin, cmdc_C_data_end,
+  unfold cmdc_main_pcc_b, cmdc_main_code_start, cmdc_main_pcc_e,
+    cmdc_B_pcc_b, cmdc_B_code_start, cmdc_B_pcc_e,
+    cmdc_C_pcc_b, cmdc_C_code_start, cmdc_C_pcc_e,
+    cmdc_main_data_b, cmdc_main_data_e, cmdc_B_data_b,
+    cmdc_B_data_e, cmdc_C_data_b, cmdc_C_data_e,
     cmdc_main_exports_pcc, cmdc_main_exports_cgp,
-    cmdc_main_exports_entries_begin, cmdc_main_exports_entries_end,
-    cmdc_B_exports_pcc, cmdc_B_exports_cgp, cmdc_B_exports_entries_begin,
-    cmdc_B_exports_entries_end, cmdc_C_exports_pcc, cmdc_C_exports_cgp,
-    cmdc_C_exports_entries_begin, cmdc_C_exports_entries_end,
-    cmdc_assert_begin, cmdc_assert_cap, cmdc_assert_end, cmdc_assert_flag,
-    cmdc_switcher_begin, cmdc_switcher_call, cmdc_switcher_return,
-    cmdc_switcher_end, cmdc_switcher_sealing_type,
-    cmdc_trusted_stack_begin, cmdc_trusted_stack_end,
-    cmdc_stack_begin, cmdc_stack_end.
+    cmdc_main_exports_entries_b, cmdc_main_exports_entries_e,
+    cmdc_B_exports_pcc, cmdc_B_exports_cgp, cmdc_B_exports_entries_b,
+    cmdc_B_exports_entries_e, cmdc_C_exports_pcc, cmdc_C_exports_cgp,
+    cmdc_C_exports_entries_b, cmdc_C_exports_entries_e,
+    cmdc_assert_b, cmdc_assert_cap, cmdc_assert_e, cmdc_assert_flag,
+    cmdc_switcher_b, cmdc_switcher_call, cmdc_switcher_return,
+    cmdc_switcher_e, cmdc_switcher_sealing_type,
+    cmdc_trusted_stack_b, cmdc_trusted_stack_e,
+    cmdc_stack_b, cmdc_stack_e.
 
 Ltac unfold_cmdc_addresses_in H :=
-  unfold cmdc_main_pcc_begin, cmdc_main_code_start, cmdc_main_pcc_end,
-    cmdc_B_pcc_begin, cmdc_B_code_start, cmdc_B_pcc_end,
-    cmdc_C_pcc_begin, cmdc_C_code_start, cmdc_C_pcc_end,
-    cmdc_main_data_begin, cmdc_main_data_end, cmdc_B_data_begin,
-    cmdc_B_data_end, cmdc_C_data_begin, cmdc_C_data_end,
+  unfold cmdc_main_pcc_b, cmdc_main_code_start, cmdc_main_pcc_e,
+    cmdc_B_pcc_b, cmdc_B_code_start, cmdc_B_pcc_e,
+    cmdc_C_pcc_b, cmdc_C_code_start, cmdc_C_pcc_e,
+    cmdc_main_data_b, cmdc_main_data_e, cmdc_B_data_b,
+    cmdc_B_data_e, cmdc_C_data_b, cmdc_C_data_e,
     cmdc_main_exports_pcc, cmdc_main_exports_cgp,
-    cmdc_main_exports_entries_begin, cmdc_main_exports_entries_end,
-    cmdc_B_exports_pcc, cmdc_B_exports_cgp, cmdc_B_exports_entries_begin,
-    cmdc_B_exports_entries_end, cmdc_C_exports_pcc, cmdc_C_exports_cgp,
-    cmdc_C_exports_entries_begin, cmdc_C_exports_entries_end,
-    cmdc_assert_begin, cmdc_assert_cap, cmdc_assert_end, cmdc_assert_flag,
-    cmdc_switcher_begin, cmdc_switcher_call, cmdc_switcher_return,
-    cmdc_switcher_end, cmdc_switcher_sealing_type,
-    cmdc_trusted_stack_begin, cmdc_trusted_stack_end,
-    cmdc_stack_begin, cmdc_stack_end in H.
+    cmdc_main_exports_entries_b, cmdc_main_exports_entries_e,
+    cmdc_B_exports_pcc, cmdc_B_exports_cgp, cmdc_B_exports_entries_b,
+    cmdc_B_exports_entries_e, cmdc_C_exports_pcc, cmdc_C_exports_cgp,
+    cmdc_C_exports_entries_b, cmdc_C_exports_entries_e,
+    cmdc_assert_b, cmdc_assert_cap, cmdc_assert_e, cmdc_assert_flag,
+    cmdc_switcher_b, cmdc_switcher_call, cmdc_switcher_return,
+    cmdc_switcher_e, cmdc_switcher_sealing_type,
+    cmdc_trusted_stack_b, cmdc_trusted_stack_e,
+    cmdc_stack_b, cmdc_stack_e in H.
 
 (** The concrete adversary consists of two unknown compartments. Compartment
     [B] writes [7] through the capability it receives and also saves that
@@ -94,25 +94,32 @@ Ltac unfold_cmdc_addresses_in H :=
     capability. Together they exercise the main program's cross-compartment
     capability discipline. *)
 Definition cmdc_B_code : list Word :=
-  encodeInstrsW [Store ca0 7%Z; Store csp ca0; Jalr cnull cra].
+  encodeInstrsW [
+    Store ca0 7%Z;
+    Store csp ca0;
+    Jalr cnull cra
+  ].
 Definition cmdc_C_code : list Word :=
-  encodeInstrsW [Store ca0 9%Z; Jalr cnull cra].
+  encodeInstrsW [
+    Store ca0 9%Z;
+    Jalr cnull cra
+  ].
 Definition cmdc_B_data : list Word := [WInt 0].
 Definition cmdc_C_data : list Word := [WInt 0].
 Definition cmdc_B_imports : list Word :=
-  [WSentry XSRW_ Local cmdc_switcher_begin cmdc_switcher_end cmdc_switcher_call].
+  [WSentry XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
 Definition cmdc_C_imports : list Word :=
-  [WSentry XSRW_ Local cmdc_switcher_begin cmdc_switcher_end cmdc_switcher_call].
+  [WSentry XSRW_ Local cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call].
 Definition cmdc_B_exports : list Word := [WInt (encode_entry_point 1 1)].
 Definition cmdc_C_exports : list Word := [WInt (encode_entry_point 1 1)].
 
 Program Definition cmdc_concrete_cmptSwitcher : cmptSwitcher.
 Proof.
   refine (@mkCmptSwitcher machine_parameters_instance
-    cmdc_switcher_begin cmdc_switcher_end cmdc_switcher_call
+    cmdc_switcher_b cmdc_switcher_e cmdc_switcher_call
     cmdc_switcher_return cmdc_switcher_sealing_type
-    cmdc_trusted_stack_begin cmdc_trusted_stack_end _ _ _ _
-    (replicate 100 (WInt 0)) _ eq_refl cmdc_stack_begin cmdc_stack_end
+    cmdc_trusted_stack_b cmdc_trusted_stack_e _ _ _ _
+    (replicate 100 (WInt 0)) _ eq_refl cmdc_stack_b cmdc_stack_e
     (replicate 100 (WInt 0)) _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -128,8 +135,8 @@ Defined.
 
 Program Definition cmdc_concrete_cmptAssert : cmptAssert.
 Proof.
-  refine (@mkCmptAssert machine_parameters_instance cmdc_assert_begin
-    cmdc_assert_end cmdc_assert_cap cmdc_assert_flag _ _ _ _).
+  refine (@mkCmptAssert machine_parameters_instance cmdc_assert_b
+    cmdc_assert_e cmdc_assert_cap cmdc_assert_flag _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -151,20 +158,20 @@ Proof.
 Defined.
 
 Definition cmdc_B_f : Sealable :=
-  SCap RO Global cmdc_B_exports_pcc cmdc_B_exports_entries_end
-    cmdc_B_exports_entries_begin.
+  SCap RO Global cmdc_B_exports_pcc cmdc_B_exports_entries_e
+    cmdc_B_exports_entries_b.
 Definition cmdc_C_g : Sealable :=
-  SCap RO Global cmdc_C_exports_pcc cmdc_C_exports_entries_end
-    cmdc_C_exports_entries_begin.
+  SCap RO Global cmdc_C_exports_pcc cmdc_C_exports_entries_e
+    cmdc_C_exports_entries_b.
 Definition cmdc_main_imports_concrete : list Word :=
   cmdc_main_imports cmdc_B_f cmdc_C_g.
 
 Program Definition cmdc_concrete_main_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt cmdc_main_pcc_begin cmdc_main_code_start cmdc_main_pcc_end
-    cmdc_main_data_begin cmdc_main_data_end cmdc_main_exports_pcc
-    cmdc_main_exports_cgp cmdc_main_exports_entries_begin
-    cmdc_main_exports_entries_end cmdc_main_imports_concrete cmdc_main_code
+  refine (@mkCmpt cmdc_main_pcc_b cmdc_main_code_start cmdc_main_pcc_e
+    cmdc_main_data_b cmdc_main_data_e cmdc_main_exports_pcc
+    cmdc_main_exports_cgp cmdc_main_exports_entries_b
+    cmdc_main_exports_entries_e cmdc_main_imports_concrete cmdc_main_code
     cmdc_main_data [] _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -177,9 +184,9 @@ Defined.
 
 Program Definition cmdc_concrete_B_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt cmdc_B_pcc_begin cmdc_B_code_start cmdc_B_pcc_end
-    cmdc_B_data_begin cmdc_B_data_end cmdc_B_exports_pcc cmdc_B_exports_cgp
-    cmdc_B_exports_entries_begin cmdc_B_exports_entries_end cmdc_B_imports
+  refine (@mkCmpt cmdc_B_pcc_b cmdc_B_code_start cmdc_B_pcc_e
+    cmdc_B_data_b cmdc_B_data_e cmdc_B_exports_pcc cmdc_B_exports_cgp
+    cmdc_B_exports_entries_b cmdc_B_exports_entries_e cmdc_B_imports
     cmdc_B_code cmdc_B_data cmdc_B_exports _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -192,9 +199,9 @@ Defined.
 
 Program Definition cmdc_concrete_C_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt cmdc_C_pcc_begin cmdc_C_code_start cmdc_C_pcc_end
-    cmdc_C_data_begin cmdc_C_data_end cmdc_C_exports_pcc cmdc_C_exports_cgp
-    cmdc_C_exports_entries_begin cmdc_C_exports_entries_end cmdc_C_imports
+  refine (@mkCmpt cmdc_C_pcc_b cmdc_C_code_start cmdc_C_pcc_e
+    cmdc_C_data_b cmdc_C_data_e cmdc_C_exports_pcc cmdc_C_exports_cgp
+    cmdc_C_exports_entries_b cmdc_C_exports_entries_e cmdc_C_imports
     cmdc_C_code cmdc_C_data cmdc_C_exports _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -239,16 +246,16 @@ Proof.
 Defined.
 
 Definition cmdc_initial_registers : Reg :=
-  <[PC := WCap RX Global cmdc_main_pcc_begin cmdc_main_pcc_end
+  <[PC := WCap RX Global cmdc_main_pcc_b cmdc_main_pcc_e
       cmdc_main_code_start]>
-  (<[cgp := WCap RW Global cmdc_main_data_begin cmdc_main_data_end
-      cmdc_main_data_begin]>
-  (<[csp := WCap RWL Local cmdc_stack_begin cmdc_stack_end cmdc_stack_begin]>
+  (<[cgp := WCap RW Global cmdc_main_data_b cmdc_main_data_e
+      cmdc_main_data_b]>
+  (<[csp := WCap RWL Local cmdc_stack_b cmdc_stack_e cmdc_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition cmdc_initial_sregisters : SReg :=
-  <[MTDC := WCap RWL Local cmdc_trusted_stack_begin cmdc_trusted_stack_end
-      cmdc_trusted_stack_begin]> ∅.
+  <[MTDC := WCap RWL Local cmdc_trusted_stack_b cmdc_trusted_stack_e
+      cmdc_trusted_stack_b]> ∅.
 
 Definition cmdc_initial_memory : Mem := mk_initial_memory.
 
@@ -286,7 +293,7 @@ Proof.
   - rewrite /cmdc_C_data; repeat constructor; done.
 Qed.
 
-Theorem cmdc_concrete_adequacy reg' sreg' mem' es :
+Lemma cmdc_concrete_adequacy reg' sreg' mem' es :
   rtc erased_step
     ([Seq (Instr Executable)],
       (cmdc_initial_registers, cmdc_initial_sregisters, cmdc_initial_memory))
