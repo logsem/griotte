@@ -218,11 +218,12 @@ Program Definition vae_concrete_main_cmpt : cmpt.
 Proof.
   refine (@mkCmpt
     vae_main_pcc_b vae_main_code_start vae_main_pcc_e
-    vae_main_data_b vae_main_data_e
+    vae_main_data_b vae_main_data_e vae_main_data_e vae_main_data_e
     vae_main_exports_pcc vae_main_exports_cgp
     vae_main_exports_entries_b vae_main_exports_entries_e
-    vae_main_imports_concrete vae_main_code vae_main_data vae_export_table_entries
-    _ _ _ _ _ _ _).
+    vae_main_imports_concrete vae_main_code vae_main_data [] vae_export_table_entries
+    _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -236,11 +237,12 @@ Program Definition vae_concrete_C_cmpt : cmpt.
 Proof.
   refine (@mkCmpt
     vae_C_pcc_b vae_C_code_start vae_C_pcc_e
-    vae_C_data_b vae_C_data_e
+    vae_C_data_b vae_C_data_e vae_C_data_e vae_C_data_e
     vae_C_exports_pcc vae_C_exports_cgp
     vae_C_exports_entries_b vae_C_exports_entries_e
-    vae_C_imports vae_C_code vae_C_data vae_C_exports
-    _ _ _ _ _ _ _).
+    vae_C_imports vae_C_code vae_C_data [] vae_C_exports
+    _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.

@@ -189,11 +189,12 @@ Program Definition lse_concrete_main_cmpt : cmpt.
 Proof.
   refine (@mkCmpt
     lse_main_pcc_b lse_main_code_start lse_main_pcc_e
-    lse_main_data_b lse_main_data_e
+    lse_main_data_b lse_main_data_e lse_main_data_e lse_main_data_e
     lse_main_exports_pcc lse_main_exports_cgp
     lse_main_exports_entries_b lse_main_exports_entries_e
-    lse_main_imports_concrete lse_main_code lse_main_data lse_export_table_entries
-    _ _ _ _ _ _ _).
+    lse_main_imports_concrete lse_main_code lse_main_data [] lse_export_table_entries
+    _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -207,11 +208,12 @@ Program Definition lse_concrete_C_cmpt : cmpt.
 Proof.
   refine (@mkCmpt
     lse_C_pcc_b lse_C_code_start lse_C_pcc_e
-    lse_C_data_b lse_C_data_e
+    lse_C_data_b lse_C_data_e lse_C_data_e lse_C_data_e
     lse_C_exports_pcc lse_C_exports_cgp
     lse_C_exports_entries_b lse_C_exports_entries_e
-    lse_C_imports lse_C_code lse_C_data lse_C_exports
-    _ _ _ _ _ _ _).
+    lse_C_imports lse_C_code lse_C_data [] lse_C_exports
+    _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.

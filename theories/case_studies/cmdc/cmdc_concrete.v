@@ -169,10 +169,12 @@ Definition cmdc_main_imports_concrete : list Word :=
 Program Definition cmdc_concrete_main_cmpt : cmpt.
 Proof.
   refine (@mkCmpt cmdc_main_pcc_b cmdc_main_code_start cmdc_main_pcc_e
-    cmdc_main_data_b cmdc_main_data_e cmdc_main_exports_pcc
+    cmdc_main_data_b cmdc_main_data_e cmdc_main_data_e cmdc_main_data_e
+    cmdc_main_exports_pcc
     cmdc_main_exports_cgp cmdc_main_exports_entries_b
     cmdc_main_exports_entries_e cmdc_main_imports_concrete cmdc_main_code
-    cmdc_main_data [] _ _ _ _ _ _ _).
+    cmdc_main_data [] [] _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -185,9 +187,11 @@ Defined.
 Program Definition cmdc_concrete_B_cmpt : cmpt.
 Proof.
   refine (@mkCmpt cmdc_B_pcc_b cmdc_B_code_start cmdc_B_pcc_e
-    cmdc_B_data_b cmdc_B_data_e cmdc_B_exports_pcc cmdc_B_exports_cgp
+    cmdc_B_data_b cmdc_B_data_e cmdc_B_data_e cmdc_B_data_e
+    cmdc_B_exports_pcc cmdc_B_exports_cgp
     cmdc_B_exports_entries_b cmdc_B_exports_entries_e cmdc_B_imports
-    cmdc_B_code cmdc_B_data cmdc_B_exports _ _ _ _ _ _ _).
+    cmdc_B_code cmdc_B_data [] cmdc_B_exports _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -200,9 +204,11 @@ Defined.
 Program Definition cmdc_concrete_C_cmpt : cmpt.
 Proof.
   refine (@mkCmpt cmdc_C_pcc_b cmdc_C_code_start cmdc_C_pcc_e
-    cmdc_C_data_b cmdc_C_data_e cmdc_C_exports_pcc cmdc_C_exports_cgp
+    cmdc_C_data_b cmdc_C_data_e cmdc_C_data_e cmdc_C_data_e
+    cmdc_C_exports_pcc cmdc_C_exports_cgp
     cmdc_C_exports_entries_b cmdc_C_exports_entries_e cmdc_C_imports
-    cmdc_C_code cmdc_C_data cmdc_C_exports _ _ _ _ _ _ _).
+    cmdc_C_code cmdc_C_data [] cmdc_C_exports _ _ _ _ _ _ _ _).
+  - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
