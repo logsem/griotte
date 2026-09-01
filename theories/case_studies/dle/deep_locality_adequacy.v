@@ -60,7 +60,7 @@ Proof.
   exact (cmptAssert_assertLayout assert_cmpt).
 Defined.
 
-Definition mk_initial_memory `{memory_layout} (mem: Mem) :=
+Definition mk_initial_memory `{memory_layout} :=
   mk_initial_switcher switcher_cmpt ∪
     mk_initial_assert assert_cmpt ∪
     mk_initial_cmpt main_cmpt ∪
@@ -97,7 +97,7 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
       (cmpt_exp_tbl_entries_start C_cmpt)
   in
 
-  mem = mk_initial_memory mem
+  mem = mk_initial_memory
   (* instantiating main *)
   ∧ (cmpt_imports main_cmpt) = dle_main_imports C_f
   ∧ (cmpt_code main_cmpt) = dle_main_code
