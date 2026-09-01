@@ -123,6 +123,8 @@ The organisation of the `theories/` folder is as follows.
   parameterize the whole development (e.g. the specific encoding scheme for
   instructions, etc.).
 
+- `machine_parameters_instance.v`: Defines a concrete instance of the typeclass `MachineParameters`.
+
 - `griotte_lang.v`: Defines the operational semantics of the machine, and the
   embedding of the capability machine language into Iris.
 
@@ -264,6 +266,8 @@ compartment.
 - `name_spec{_*}_closure.v` contains the specifications of the example,
   when an entry point for known code is involved.
 - `name_adequacy.v` contains the end-to-end theorem of the example.
+- `name_concrete_adequacy.v` contains a concrete implementation of the adequacy with a concrete
+instance of the machine and a concrete adversary.
 
 The case studies are:
 - `cmdc/`: Canonically Mutually Distrustful Compartmentalisation example.
