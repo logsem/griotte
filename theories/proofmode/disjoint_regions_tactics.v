@@ -113,5 +113,83 @@ Lemma addr_disjoint_list_cons (l: list Addr) ll :
 Proof. intros. rewrite disjoint_list_cons; auto. Qed.
 #[export] Hint Resolve addr_disjoint_list_cons : disj_regions.
 
+(** Select a pair of distinct address regions from one opaque
+    [disjoint_list] certificate. The concrete-layout proofs use this lemma to
+    share one ordered partition without unfolding its proof at every layout
+    field. *)
+Local Lemma addr_disjoint_list_lookup_lt
+    (regions : list (list Addr)) (i j : nat)
+    (ri rj : list Addr) :
+  ## regions ->
+  regions !! i = Some ri ->
+  regions !! j = Some rj ->
+  (i < j)%nat ->
+  ri ## rj.
+Proof.
+  revert regions j ri rj.
+  induction i as [|i IHi];
+    intros regions j ri rj Hdis Hi Hj Hij.
+  - destruct regions as [|r regions]; simpl in Hi; [done |].
+    simplify_eq.
+    destruct j as [|j]; [lia |].
+    simpl in Hj.
+    rewrite disjoint_list_cons in Hdis.
+    destruct Hdis as [Hr _].
+    eapply disjoint_mono_r; [| exact Hr].
+    intros x Hx.
+    rewrite elem_of_union_list.
+    exists rj; split; [eapply list_elem_of_lookup_2; exact Hj | exact Hx].
+  - destruct regions as [|r regions]; simpl in Hi; [done |].
+    destruct j as [|j]; [lia |].
+    simpl in Hi, Hj.
+    rewrite disjoint_list_cons in Hdis.
+    destruct Hdis as [_ Hdis].
+    eapply IHi; [exact Hdis | exact Hi | exact Hj | lia].
+Qed.
+
+Lemma addr_disjoint_list_lookup
+    (regions : list (list Addr)) (i j : nat)
+    (ri rj : list Addr) :
+  ## regions ->
+  regions !! i = Some ri ->
+  regions !! j = Some rj ->
+  i <> j ->
+  ri ## rj.
+Proof.
+  intros Hdis Hi Hj Hij.
+  destruct (Nat.lt_trichotomy i j) as [Hij' | Heq_or].
+  - eapply addr_disjoint_list_lookup_lt; eauto.
+  - destruct Heq_or as [Hij' | Hji].
+    + exfalso. apply Hij. exact Hij'.
+    + symmetry. eapply addr_disjoint_list_lookup_lt; eauto.
+Qed.
+
+(** Find an atomic region in a transparent partition. Matching is
+    intentionally syntactic: a missing or duplicated atom should make a
+    concrete-layout proof fail immediately instead of starting broad proof
+    search. *)
+Ltac addr_partition_index region regions :=
+  lazymatch regions with
+  | region :: _ => constr:(0%nat)
+  | _ :: ?regions' =>
+      let i := addr_partition_index region regions' in
+      constr:(S i)
+  end.
+
+Ltac solve_addr_partition_pair regions Hdis :=
+  lazymatch goal with
+  | |- ?r1 ## ?r2 =>
+      let regions' := eval hnf in regions in
+      let i := addr_partition_index r1 regions' in
+      let j := addr_partition_index r2 regions' in
+      eapply (addr_disjoint_list_lookup regions i j r1 r2);
+      [ exact Hdis | reflexivity | reflexivity | lia ]
+  end.
+
+Ltac solve_addr_partition_disjoint regions Hdis :=
+  rewrite !(@disjoint_union_l Addr (list Addr) _ _ _ _ _)
+          !(@disjoint_union_r Addr (list Addr) _ _ _ _ _);
+  repeat split; solve_addr_partition_pair regions Hdis.
+
 Ltac disj_regions :=
   once (typeclasses eauto with disj_regions).

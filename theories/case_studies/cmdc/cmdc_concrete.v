@@ -212,37 +212,210 @@ Proof.
   - unfold_cmdc_addresses; disj_regions.
 Defined.
 
-Ltac solve_cmdc_concrete_disjoint :=
-  unfold disjoint_cmpt, switcher_cmpt_disjoint, assert_cmpt_disjoint,
-       assert_switcher_disjoint, cmpt_region, cmpt_pcc_region, cmpt_cgp_region,
-       cmpt_exp_tbl_region, cmpt_switcher_region, cmpt_switcher_code_region,
-       cmpt_switcher_trusted_stack_region, cmpt_switcher_stack_region,
-       cmpt_assert_region, cmpt_assert_code_region, cmpt_assert_cap_region,
-       cmpt_assert_flag_region, cmdc_concrete_cmptSwitcher,
-       cmdc_concrete_cmptAssert, cmdc_concrete_main_cmpt,
-       cmdc_concrete_B_cmpt, cmdc_concrete_C_cmpt;
-  cbn [cmpt_b_pcc cmpt_e_pcc cmpt_b_cgp cmpt_e_cgp
-       cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end b_switcher e_switcher
-       b_trusted_stack e_trusted_stack b_stack e_stack b_assert cap_assert
-       e_assert flag_assert];
-  intros x Hx Hx';
-  repeat (rewrite elem_of_app in Hx || rewrite elem_of_app in Hx');
-  repeat (rewrite elem_of_finz_seq_between in Hx ||
-          rewrite elem_of_finz_seq_between in Hx');
-  unfold_cmdc_addresses_in Hx;
-  unfold_cmdc_addresses_in Hx';
-  naive_solver (solve_addr).
+(** All nonempty concrete regions, ordered by their addresses. The three
+    compartment static-sealed ranges are empty and are deliberately omitted.
+    Keeping this definition transparent makes the ordering auditable and lets
+    the four layout fields reuse one checked disjointness certificate. *)
+Definition cmdc_concrete_region_partition : list (list Addr) :=
+  [ finz.seq_between cmdc_main_pcc_b cmdc_main_pcc_e;
+    finz.seq_between cmdc_B_pcc_b cmdc_B_pcc_e;
+    finz.seq_between cmdc_C_pcc_b cmdc_C_pcc_e;
+    finz.seq_between cmdc_main_data_b cmdc_main_data_e;
+    finz.seq_between cmdc_B_data_b cmdc_B_data_e;
+    finz.seq_between cmdc_C_data_b cmdc_C_data_e;
+    finz.seq_between cmdc_main_exports_pcc cmdc_main_exports_entries_e;
+    finz.seq_between cmdc_B_exports_pcc cmdc_B_exports_entries_e;
+    finz.seq_between cmdc_C_exports_pcc cmdc_C_exports_entries_e;
+    finz.seq_between cmdc_assert_b cmdc_assert_cap;
+    finz.seq_between cmdc_assert_cap cmdc_assert_e;
+    finz.seq_between cmdc_assert_flag (cmdc_assert_flag ^+ 1)%a;
+    finz.seq_between cmdc_switcher_b cmdc_switcher_e;
+    finz.seq_between cmdc_stack_b cmdc_stack_e;
+    finz.seq_between cmdc_trusted_stack_b cmdc_trusted_stack_e
+  ].
+
+Lemma cmdc_concrete_region_partition_disjoint :
+  ## cmdc_concrete_region_partition.
+Proof.
+  rewrite /cmdc_concrete_region_partition.
+  unfold_cmdc_addresses.
+  disj_regions.
+Qed.
+
+(** These four opaque projections are the proof fields of [memory_layout].
+    Their explicit region forms avoid reducing the large transparent concrete
+    records; the empty static-sealed ranges are removed before selecting
+    pairwise facts from the shared certificate. *)
+Local Lemma cmdc_concrete_cmpts_disjoints :
+  cmdc_concrete_main_cmpt ## cmdc_concrete_B_cmpt
+  ∧ cmdc_concrete_main_cmpt ## cmdc_concrete_C_cmpt
+  ∧ cmdc_concrete_B_cmpt ## cmdc_concrete_C_cmpt.
+Proof.
+  change
+    ((finz.seq_between cmdc_main_pcc_b cmdc_main_pcc_e ∪
+      finz.seq_between cmdc_main_data_b cmdc_main_data_e ∪
+      finz.seq_between cmdc_main_data_e cmdc_main_data_e ∪
+      finz.seq_between cmdc_main_exports_pcc cmdc_main_exports_entries_e)
+       ##
+     (finz.seq_between cmdc_B_pcc_b cmdc_B_pcc_e ∪
+      finz.seq_between cmdc_B_data_b cmdc_B_data_e ∪
+      finz.seq_between cmdc_B_data_e cmdc_B_data_e ∪
+      finz.seq_between cmdc_B_exports_pcc cmdc_B_exports_entries_e)
+     /\
+     (finz.seq_between cmdc_main_pcc_b cmdc_main_pcc_e ∪
+      finz.seq_between cmdc_main_data_b cmdc_main_data_e ∪
+      finz.seq_between cmdc_main_data_e cmdc_main_data_e ∪
+      finz.seq_between cmdc_main_exports_pcc cmdc_main_exports_entries_e)
+       ##
+     (finz.seq_between cmdc_C_pcc_b cmdc_C_pcc_e ∪
+      finz.seq_between cmdc_C_data_b cmdc_C_data_e ∪
+      finz.seq_between cmdc_C_data_e cmdc_C_data_e ∪
+      finz.seq_between cmdc_C_exports_pcc cmdc_C_exports_entries_e)
+     /\
+     (finz.seq_between cmdc_B_pcc_b cmdc_B_pcc_e ∪
+      finz.seq_between cmdc_B_data_b cmdc_B_data_e ∪
+      finz.seq_between cmdc_B_data_e cmdc_B_data_e ∪
+      finz.seq_between cmdc_B_exports_pcc cmdc_B_exports_entries_e)
+       ##
+     (finz.seq_between cmdc_C_pcc_b cmdc_C_pcc_e ∪
+      finz.seq_between cmdc_C_data_b cmdc_C_data_e ∪
+      finz.seq_between cmdc_C_data_e cmdc_C_data_e ∪
+      finz.seq_between cmdc_C_exports_pcc cmdc_C_exports_entries_e)).
+  pose proof cmdc_concrete_region_partition_disjoint as Hpartition.
+  rewrite (finz_seq_between_empty cmdc_main_data_e cmdc_main_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty cmdc_B_data_e cmdc_B_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty cmdc_C_data_e cmdc_C_data_e);
+    last solve_addr.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma cmdc_concrete_switcher_cmpt_disjoints :
+  switcher_cmpt_disjoint
+    cmdc_concrete_main_cmpt cmdc_concrete_cmptSwitcher
+  ∧ switcher_cmpt_disjoint
+      cmdc_concrete_B_cmpt cmdc_concrete_cmptSwitcher
+  ∧ switcher_cmpt_disjoint
+      cmdc_concrete_C_cmpt cmdc_concrete_cmptSwitcher.
+Proof.
+  change
+    ((finz.seq_between cmdc_switcher_b cmdc_switcher_e ∪
+      finz.seq_between cmdc_trusted_stack_b cmdc_trusted_stack_e ∪
+      finz.seq_between cmdc_stack_b cmdc_stack_e)
+       ##
+     (finz.seq_between cmdc_main_pcc_b cmdc_main_pcc_e ∪
+      finz.seq_between cmdc_main_data_b cmdc_main_data_e ∪
+      finz.seq_between cmdc_main_data_e cmdc_main_data_e ∪
+      finz.seq_between cmdc_main_exports_pcc cmdc_main_exports_entries_e)
+     /\
+     (finz.seq_between cmdc_switcher_b cmdc_switcher_e ∪
+      finz.seq_between cmdc_trusted_stack_b cmdc_trusted_stack_e ∪
+      finz.seq_between cmdc_stack_b cmdc_stack_e)
+       ##
+     (finz.seq_between cmdc_B_pcc_b cmdc_B_pcc_e ∪
+      finz.seq_between cmdc_B_data_b cmdc_B_data_e ∪
+      finz.seq_between cmdc_B_data_e cmdc_B_data_e ∪
+      finz.seq_between cmdc_B_exports_pcc cmdc_B_exports_entries_e)
+     /\
+     (finz.seq_between cmdc_switcher_b cmdc_switcher_e ∪
+      finz.seq_between cmdc_trusted_stack_b cmdc_trusted_stack_e ∪
+      finz.seq_between cmdc_stack_b cmdc_stack_e)
+       ##
+     (finz.seq_between cmdc_C_pcc_b cmdc_C_pcc_e ∪
+      finz.seq_between cmdc_C_data_b cmdc_C_data_e ∪
+      finz.seq_between cmdc_C_data_e cmdc_C_data_e ∪
+      finz.seq_between cmdc_C_exports_pcc cmdc_C_exports_entries_e)).
+  pose proof cmdc_concrete_region_partition_disjoint as Hpartition.
+  rewrite (finz_seq_between_empty cmdc_main_data_e cmdc_main_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty cmdc_B_data_e cmdc_B_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty cmdc_C_data_e cmdc_C_data_e);
+    last solve_addr.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma cmdc_concrete_assert_cmpt_disjoints :
+  assert_cmpt_disjoint
+    cmdc_concrete_main_cmpt cmdc_concrete_cmptAssert
+  ∧ assert_cmpt_disjoint
+      cmdc_concrete_B_cmpt cmdc_concrete_cmptAssert
+  ∧ assert_cmpt_disjoint
+      cmdc_concrete_C_cmpt cmdc_concrete_cmptAssert.
+Proof.
+  change
+    ((finz.seq_between cmdc_assert_b cmdc_assert_cap ∪
+      finz.seq_between cmdc_assert_cap cmdc_assert_e ∪
+      finz.seq_between cmdc_assert_flag (cmdc_assert_flag ^+ 1)%a)
+       ##
+     (finz.seq_between cmdc_main_pcc_b cmdc_main_pcc_e ∪
+      finz.seq_between cmdc_main_data_b cmdc_main_data_e ∪
+      finz.seq_between cmdc_main_data_e cmdc_main_data_e ∪
+      finz.seq_between cmdc_main_exports_pcc cmdc_main_exports_entries_e)
+     /\
+     (finz.seq_between cmdc_assert_b cmdc_assert_cap ∪
+      finz.seq_between cmdc_assert_cap cmdc_assert_e ∪
+      finz.seq_between cmdc_assert_flag (cmdc_assert_flag ^+ 1)%a)
+       ##
+     (finz.seq_between cmdc_B_pcc_b cmdc_B_pcc_e ∪
+      finz.seq_between cmdc_B_data_b cmdc_B_data_e ∪
+      finz.seq_between cmdc_B_data_e cmdc_B_data_e ∪
+      finz.seq_between cmdc_B_exports_pcc cmdc_B_exports_entries_e)
+     /\
+     (finz.seq_between cmdc_assert_b cmdc_assert_cap ∪
+      finz.seq_between cmdc_assert_cap cmdc_assert_e ∪
+      finz.seq_between cmdc_assert_flag (cmdc_assert_flag ^+ 1)%a)
+       ##
+     (finz.seq_between cmdc_C_pcc_b cmdc_C_pcc_e ∪
+      finz.seq_between cmdc_C_data_b cmdc_C_data_e ∪
+      finz.seq_between cmdc_C_data_e cmdc_C_data_e ∪
+      finz.seq_between cmdc_C_exports_pcc cmdc_C_exports_entries_e)).
+  pose proof cmdc_concrete_region_partition_disjoint as Hpartition.
+  rewrite (finz_seq_between_empty cmdc_main_data_e cmdc_main_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty cmdc_B_data_e cmdc_B_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty cmdc_C_data_e cmdc_C_data_e);
+    last solve_addr.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma cmdc_concrete_assert_switcher_disjoints :
+  assert_switcher_disjoint
+    cmdc_concrete_cmptAssert cmdc_concrete_cmptSwitcher.
+Proof.
+  change
+    ((finz.seq_between cmdc_assert_b cmdc_assert_cap ∪
+      finz.seq_between cmdc_assert_cap cmdc_assert_e ∪
+      finz.seq_between cmdc_assert_flag (cmdc_assert_flag ^+ 1)%a)
+       ##
+     (finz.seq_between cmdc_switcher_b cmdc_switcher_e ∪
+      finz.seq_between cmdc_trusted_stack_b cmdc_trusted_stack_e ∪
+      finz.seq_between cmdc_stack_b cmdc_stack_e)).
+  pose proof cmdc_concrete_region_partition_disjoint as Hpartition.
+  solve_addr_partition_disjoint cmdc_concrete_region_partition Hpartition.
+Qed.
 
 Global Instance cmdc_concrete_layout : memory_layout.
 Proof.
-  refine (@Build_memory_layout machine_parameters_instance
-    cmdc_concrete_cmptSwitcher cmdc_concrete_cmptAssert
-    cmdc_concrete_main_cmpt cmdc_concrete_B_cmpt 1
-    cmdc_concrete_C_cmpt 1 _ _ _ _).
-  - repeat split; solve_cmdc_concrete_disjoint.
-  - repeat split; solve_cmdc_concrete_disjoint.
-  - repeat split; solve_cmdc_concrete_disjoint.
-  - solve_cmdc_concrete_disjoint.
+  exact
+    (@Build_memory_layout
+       machine_parameters_instance
+       cmdc_concrete_cmptSwitcher
+       cmdc_concrete_cmptAssert
+       cmdc_concrete_main_cmpt
+       cmdc_concrete_B_cmpt
+       1
+       cmdc_concrete_C_cmpt
+       1
+       cmdc_concrete_cmpts_disjoints
+       cmdc_concrete_switcher_cmpt_disjoints
+       cmdc_concrete_assert_cmpt_disjoints
+       cmdc_concrete_assert_switcher_disjoints).
 Defined.
 
 Definition cmdc_initial_registers : Reg :=

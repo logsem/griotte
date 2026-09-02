@@ -186,35 +186,146 @@ Proof.
   - unfold_dle_addresses; disj_regions.
 Defined.
 
-Ltac solve_dle_concrete_disjoint :=
-  unfold disjoint_cmpt, switcher_cmpt_disjoint, assert_cmpt_disjoint,
-       assert_switcher_disjoint, cmpt_region, cmpt_pcc_region, cmpt_cgp_region,
-       cmpt_exp_tbl_region, cmpt_switcher_region, cmpt_switcher_code_region,
-       cmpt_switcher_trusted_stack_region, cmpt_switcher_stack_region,
-       cmpt_assert_region, cmpt_assert_code_region, cmpt_assert_cap_region,
-       cmpt_assert_flag_region, dle_concrete_cmptSwitcher,
-       dle_concrete_cmptAssert, dle_concrete_main_cmpt, dle_concrete_C_cmpt;
-  cbn [cmpt_b_pcc cmpt_e_pcc cmpt_b_cgp cmpt_e_cgp
-       cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end
-       b_switcher e_switcher b_trusted_stack e_trusted_stack
-       b_stack e_stack b_assert cap_assert e_assert flag_assert];
-  intros x Hx Hx';
-  repeat (rewrite elem_of_app in Hx || rewrite elem_of_app in Hx');
-  repeat (rewrite elem_of_finz_seq_between in Hx ||
-          rewrite elem_of_finz_seq_between in Hx');
-  unfold_dle_addresses_in Hx;
-  unfold_dle_addresses_in Hx';
-  naive_solver (solve_addr).
+(** All nonempty concrete regions, in increasing address order. The two
+    compartment static-sealed ranges are empty and deliberately omitted. *)
+Definition dle_concrete_region_partition : list (list Addr) :=
+  [ finz.seq_between dle_main_pcc_b dle_main_pcc_e;
+    finz.seq_between dle_C_pcc_b dle_C_pcc_e;
+    finz.seq_between dle_main_data_b dle_main_data_e;
+    finz.seq_between dle_C_data_b dle_C_data_e;
+    finz.seq_between dle_main_exports_pcc dle_main_exports_entries_e;
+    finz.seq_between dle_C_exports_pcc dle_C_exports_entries_e;
+    finz.seq_between dle_assert_b dle_assert_cap;
+    finz.seq_between dle_assert_cap dle_assert_e;
+    finz.seq_between dle_assert_flag (dle_assert_flag ^+ 1)%a;
+    finz.seq_between dle_switcher_b dle_switcher_e;
+    finz.seq_between dle_stack_b dle_stack_e;
+    finz.seq_between dle_trusted_stack_b dle_trusted_stack_e
+  ].
+
+Lemma dle_concrete_region_partition_disjoint :
+  ## dle_concrete_region_partition.
+Proof.
+  rewrite /dle_concrete_region_partition.
+  unfold_dle_addresses.
+  disj_regions.
+Qed.
+
+Local Lemma dle_concrete_cmpts_disjoints :
+  dle_concrete_main_cmpt ## dle_concrete_C_cmpt.
+Proof.
+  change
+    ((finz.seq_between dle_main_pcc_b dle_main_pcc_e ∪
+      finz.seq_between dle_main_data_b dle_main_data_e ∪
+      finz.seq_between dle_main_data_e dle_main_data_e ∪
+      finz.seq_between dle_main_exports_pcc dle_main_exports_entries_e)
+       ##
+     (finz.seq_between dle_C_pcc_b dle_C_pcc_e ∪
+      finz.seq_between dle_C_data_b dle_C_data_e ∪
+      finz.seq_between dle_C_data_e dle_C_data_e ∪
+      finz.seq_between dle_C_exports_pcc dle_C_exports_entries_e)).
+  pose proof dle_concrete_region_partition_disjoint as Hpartition.
+  rewrite (finz_seq_between_empty dle_main_data_e dle_main_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty dle_C_data_e dle_C_data_e);
+    last solve_addr.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma dle_concrete_switcher_cmpt_disjoints :
+  switcher_cmpt_disjoint
+    dle_concrete_main_cmpt dle_concrete_cmptSwitcher
+  ∧ switcher_cmpt_disjoint
+      dle_concrete_C_cmpt dle_concrete_cmptSwitcher.
+Proof.
+  change
+    ((finz.seq_between dle_switcher_b dle_switcher_e ∪
+      finz.seq_between dle_trusted_stack_b dle_trusted_stack_e ∪
+      finz.seq_between dle_stack_b dle_stack_e)
+       ##
+     (finz.seq_between dle_main_pcc_b dle_main_pcc_e ∪
+      finz.seq_between dle_main_data_b dle_main_data_e ∪
+      finz.seq_between dle_main_data_e dle_main_data_e ∪
+      finz.seq_between dle_main_exports_pcc dle_main_exports_entries_e)
+     /\
+     (finz.seq_between dle_switcher_b dle_switcher_e ∪
+      finz.seq_between dle_trusted_stack_b dle_trusted_stack_e ∪
+      finz.seq_between dle_stack_b dle_stack_e)
+       ##
+     (finz.seq_between dle_C_pcc_b dle_C_pcc_e ∪
+      finz.seq_between dle_C_data_b dle_C_data_e ∪
+      finz.seq_between dle_C_data_e dle_C_data_e ∪
+      finz.seq_between dle_C_exports_pcc dle_C_exports_entries_e)).
+  pose proof dle_concrete_region_partition_disjoint as Hpartition.
+  rewrite (finz_seq_between_empty dle_main_data_e dle_main_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty dle_C_data_e dle_C_data_e);
+    last solve_addr.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma dle_concrete_assert_cmpt_disjoints :
+  assert_cmpt_disjoint dle_concrete_main_cmpt dle_concrete_cmptAssert
+  ∧ assert_cmpt_disjoint dle_concrete_C_cmpt dle_concrete_cmptAssert.
+Proof.
+  change
+    ((finz.seq_between dle_assert_b dle_assert_cap ∪
+      finz.seq_between dle_assert_cap dle_assert_e ∪
+      finz.seq_between dle_assert_flag (dle_assert_flag ^+ 1)%a)
+       ##
+     (finz.seq_between dle_main_pcc_b dle_main_pcc_e ∪
+      finz.seq_between dle_main_data_b dle_main_data_e ∪
+      finz.seq_between dle_main_data_e dle_main_data_e ∪
+      finz.seq_between dle_main_exports_pcc dle_main_exports_entries_e)
+     /\
+     (finz.seq_between dle_assert_b dle_assert_cap ∪
+      finz.seq_between dle_assert_cap dle_assert_e ∪
+      finz.seq_between dle_assert_flag (dle_assert_flag ^+ 1)%a)
+       ##
+     (finz.seq_between dle_C_pcc_b dle_C_pcc_e ∪
+      finz.seq_between dle_C_data_b dle_C_data_e ∪
+      finz.seq_between dle_C_data_e dle_C_data_e ∪
+      finz.seq_between dle_C_exports_pcc dle_C_exports_entries_e)).
+  pose proof dle_concrete_region_partition_disjoint as Hpartition.
+  rewrite (finz_seq_between_empty dle_main_data_e dle_main_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty dle_C_data_e dle_C_data_e);
+    last solve_addr.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma dle_concrete_assert_switcher_disjoints :
+  assert_switcher_disjoint
+    dle_concrete_cmptAssert dle_concrete_cmptSwitcher.
+Proof.
+  change
+    ((finz.seq_between dle_assert_b dle_assert_cap ∪
+      finz.seq_between dle_assert_cap dle_assert_e ∪
+      finz.seq_between dle_assert_flag (dle_assert_flag ^+ 1)%a)
+       ##
+     (finz.seq_between dle_switcher_b dle_switcher_e ∪
+      finz.seq_between dle_trusted_stack_b dle_trusted_stack_e ∪
+      finz.seq_between dle_stack_b dle_stack_e)).
+  pose proof dle_concrete_region_partition_disjoint as Hpartition.
+  solve_addr_partition_disjoint dle_concrete_region_partition Hpartition.
+Qed.
 
 Global Instance dle_concrete_layout : memory_layout.
 Proof.
-  refine (@Build_memory_layout machine_parameters_instance
-    dle_concrete_cmptSwitcher dle_concrete_cmptAssert
-    dle_concrete_main_cmpt dle_concrete_C_cmpt _ _ _ _).
-  - solve_dle_concrete_disjoint.
-  - split; solve_dle_concrete_disjoint.
-  - split; solve_dle_concrete_disjoint.
-  - solve_dle_concrete_disjoint.
+  exact
+    (@Build_memory_layout
+       machine_parameters_instance
+       dle_concrete_cmptSwitcher
+       dle_concrete_cmptAssert
+       dle_concrete_main_cmpt
+       dle_concrete_C_cmpt
+       dle_concrete_cmpts_disjoints
+       dle_concrete_switcher_cmpt_disjoints
+       dle_concrete_assert_cmpt_disjoints
+       dle_concrete_assert_switcher_disjoints).
 Defined.
 
 Definition dle_initial_registers : Reg :=

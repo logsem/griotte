@@ -250,35 +250,133 @@ Proof.
   - unfold_vae_addresses; disj_regions.
 Defined.
 
-Ltac solve_vae_concrete_disjoint :=
-  unfold disjoint_cmpt, switcher_cmpt_disjoint, assert_cmpt_disjoint,
-       assert_switcher_disjoint, cmpt_region, cmpt_pcc_region, cmpt_cgp_region,
-       cmpt_exp_tbl_region, cmpt_switcher_region, cmpt_switcher_code_region,
-       cmpt_switcher_trusted_stack_region, cmpt_switcher_stack_region,
-       cmpt_assert_region, cmpt_assert_code_region, cmpt_assert_cap_region,
-       cmpt_assert_flag_region, vae_concrete_cmptSwitcher,
-       vae_concrete_cmptAssert, vae_concrete_main_cmpt, vae_concrete_C_cmpt;
-  cbn [cmpt_b_pcc cmpt_e_pcc cmpt_b_cgp cmpt_e_cgp
-       cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end
-       b_switcher e_switcher b_trusted_stack e_trusted_stack
-       b_stack e_stack b_assert cap_assert e_assert flag_assert];
-  intros x Hx Hx';
-  repeat (rewrite elem_of_app in Hx || rewrite elem_of_app in Hx');
-  repeat (rewrite elem_of_finz_seq_between in Hx ||
-          rewrite elem_of_finz_seq_between in Hx');
-  unfold_vae_addresses_in Hx;
-  unfold_vae_addresses_in Hx';
-  naive_solver (solve_addr).
+(** All nonempty concrete regions, in increasing address order. The two
+    compartment static-sealed ranges are empty and deliberately omitted. *)
+Definition vae_concrete_region_partition : list (list Addr) :=
+  [ finz.seq_between vae_main_pcc_b vae_main_pcc_e;
+    finz.seq_between vae_C_pcc_b vae_C_pcc_e;
+    finz.seq_between vae_main_data_b vae_main_data_e;
+    finz.seq_between vae_C_data_b vae_C_data_e;
+    finz.seq_between vae_main_exports_pcc vae_main_exports_entries_e;
+    finz.seq_between vae_C_exports_pcc vae_C_exports_entries_e;
+    finz.seq_between vae_assert_b vae_assert_cap;
+    finz.seq_between vae_assert_cap vae_assert_e;
+    finz.seq_between vae_assert_flag (vae_assert_flag ^+ 1)%a;
+    finz.seq_between vae_switcher_b vae_switcher_e;
+    finz.seq_between vae_stack_b vae_stack_e;
+    finz.seq_between vae_trusted_stack_b vae_trusted_stack_e
+  ].
+
+Lemma vae_concrete_region_partition_disjoint :
+  ## vae_concrete_region_partition.
+Proof.
+  rewrite /vae_concrete_region_partition.
+  unfold_vae_addresses.
+  disj_regions.
+Qed.
+
+Local Lemma vae_concrete_cmpts_disjoints :
+  vae_concrete_main_cmpt ## vae_concrete_C_cmpt.
+Proof.
+  change
+    ((finz.seq_between vae_main_pcc_b vae_main_pcc_e ∪
+      finz.seq_between vae_main_data_b vae_main_data_e ∪
+      finz.seq_between vae_main_data_e vae_main_data_e ∪
+      finz.seq_between vae_main_exports_pcc vae_main_exports_entries_e)
+       ##
+     (finz.seq_between vae_C_pcc_b vae_C_pcc_e ∪
+      finz.seq_between vae_C_data_b vae_C_data_e ∪
+      finz.seq_between vae_C_data_e vae_C_data_e ∪
+      finz.seq_between vae_C_exports_pcc vae_C_exports_entries_e)).
+  pose proof vae_concrete_region_partition_disjoint as Hpartition.
+  rewrite (finz_seq_between_empty vae_main_data_e vae_main_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty vae_C_data_e vae_C_data_e);
+    last solve_addr.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint vae_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma vae_concrete_switcher_cmpt_disjoints :
+  switcher_cmpt_disjoint vae_concrete_main_cmpt vae_concrete_cmptSwitcher
+  ∧ switcher_cmpt_disjoint vae_concrete_C_cmpt vae_concrete_cmptSwitcher.
+Proof.
+  change
+    ((finz.seq_between vae_switcher_b vae_switcher_e ∪
+      finz.seq_between vae_trusted_stack_b vae_trusted_stack_e ∪
+      finz.seq_between vae_stack_b vae_stack_e) ##
+     (finz.seq_between vae_main_pcc_b vae_main_pcc_e ∪
+      finz.seq_between vae_main_data_b vae_main_data_e ∪
+      finz.seq_between vae_main_data_e vae_main_data_e ∪
+      finz.seq_between vae_main_exports_pcc vae_main_exports_entries_e) /\
+     (finz.seq_between vae_switcher_b vae_switcher_e ∪
+      finz.seq_between vae_trusted_stack_b vae_trusted_stack_e ∪
+      finz.seq_between vae_stack_b vae_stack_e) ##
+     (finz.seq_between vae_C_pcc_b vae_C_pcc_e ∪
+      finz.seq_between vae_C_data_b vae_C_data_e ∪
+      finz.seq_between vae_C_data_e vae_C_data_e ∪
+      finz.seq_between vae_C_exports_pcc vae_C_exports_entries_e)).
+  pose proof vae_concrete_region_partition_disjoint as Hpartition.
+  rewrite (finz_seq_between_empty vae_main_data_e vae_main_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty vae_C_data_e vae_C_data_e);
+    last solve_addr.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint vae_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma vae_concrete_assert_cmpt_disjoints :
+  assert_cmpt_disjoint vae_concrete_main_cmpt vae_concrete_cmptAssert
+  ∧ assert_cmpt_disjoint vae_concrete_C_cmpt vae_concrete_cmptAssert.
+Proof.
+  change
+    ((finz.seq_between vae_assert_b vae_assert_cap ∪
+      finz.seq_between vae_assert_cap vae_assert_e ∪
+      finz.seq_between vae_assert_flag (vae_assert_flag ^+ 1)%a) ##
+     (finz.seq_between vae_main_pcc_b vae_main_pcc_e ∪
+      finz.seq_between vae_main_data_b vae_main_data_e ∪
+      finz.seq_between vae_main_data_e vae_main_data_e ∪
+      finz.seq_between vae_main_exports_pcc vae_main_exports_entries_e) /\
+     (finz.seq_between vae_assert_b vae_assert_cap ∪
+      finz.seq_between vae_assert_cap vae_assert_e ∪
+      finz.seq_between vae_assert_flag (vae_assert_flag ^+ 1)%a) ##
+     (finz.seq_between vae_C_pcc_b vae_C_pcc_e ∪
+      finz.seq_between vae_C_data_b vae_C_data_e ∪
+      finz.seq_between vae_C_data_e vae_C_data_e ∪
+      finz.seq_between vae_C_exports_pcc vae_C_exports_entries_e)).
+  pose proof vae_concrete_region_partition_disjoint as Hpartition.
+  rewrite (finz_seq_between_empty vae_main_data_e vae_main_data_e);
+    last solve_addr.
+  rewrite (finz_seq_between_empty vae_C_data_e vae_C_data_e);
+    last solve_addr.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint vae_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma vae_concrete_assert_switcher_disjoints :
+  assert_switcher_disjoint vae_concrete_cmptAssert vae_concrete_cmptSwitcher.
+Proof.
+  change
+    ((finz.seq_between vae_assert_b vae_assert_cap ∪
+      finz.seq_between vae_assert_cap vae_assert_e ∪
+      finz.seq_between vae_assert_flag (vae_assert_flag ^+ 1)%a) ##
+     (finz.seq_between vae_switcher_b vae_switcher_e ∪
+      finz.seq_between vae_trusted_stack_b vae_trusted_stack_e ∪
+      finz.seq_between vae_stack_b vae_stack_e)).
+  pose proof vae_concrete_region_partition_disjoint as Hpartition.
+  solve_addr_partition_disjoint vae_concrete_region_partition Hpartition.
+Qed.
 
 Global Instance vae_concrete_layout : memory_layout.
 Proof.
-  refine (@Build_memory_layout machine_parameters_instance
-    vae_concrete_cmptSwitcher vae_concrete_cmptAssert
-    vae_concrete_main_cmpt vae_concrete_C_cmpt 3 34 _ _ _ _).
-  - solve_vae_concrete_disjoint.
-  - split; solve_vae_concrete_disjoint.
-  - split; solve_vae_concrete_disjoint.
-  - solve_vae_concrete_disjoint.
+  exact
+    (@Build_memory_layout machine_parameters_instance
+       vae_concrete_cmptSwitcher vae_concrete_cmptAssert
+       vae_concrete_main_cmpt vae_concrete_C_cmpt 3 34
+       vae_concrete_cmpts_disjoints
+       vae_concrete_switcher_cmpt_disjoints
+       vae_concrete_assert_cmpt_disjoints
+       vae_concrete_assert_switcher_disjoints).
 Defined.
 
 Definition vae_initial_registers : Reg :=
