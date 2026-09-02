@@ -31,20 +31,18 @@ Section KVS_Main.
   Definition KVS_ERASE_OFFSET := 5.
   Definition SEALED_USER_KEY_OFFSET := 6.
 
-  Definition kvs_main_code : list Word :=
-    fetch_instrs SEALED_USER_KEY_OFFSET cs1 ct0 ct1 (* cs1 -> switcher entry point *)
-    ++ encodeInstrsW [
+  (** Multi-instruction fragments and semantic phases used by the main proof. *)
+  Definition kvs_main_add_args_instrs : list Word :=
+    encodeInstrsW [
       (* #"main_code"; *)
       (* addOrUpdate(sealedUserKey, 1, 12) *)
       Mov ca0 cs1;
       Mov ca1 1;
       Mov ca2 12
-      ]
-    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
-    ++ fetch_instrs KVS_INSERT_OFFSET ct1 ct0 cs0    (* ct1 -> {KVS.addOrUpdate}_(ot_switcher)  *)
-    ++ encodeInstrsW [ Jalr cra ctp ]
-    (* adv.f() *)
-    ++ encodeInstrsW [
+    ].
+
+  Definition kvs_main_add_result_instrs : list Word :=
+    encodeInstrsW [
       (* check if inserted *)
       Jnz 2 ca0;  (* ca0 = 0 if inserted. So, jumps if no empty slot *)
       (* case INSERT_PASS *)
@@ -53,21 +51,18 @@ Section KVS_Main.
       Halt;
       (* case INSERT_PASS *)
       Mov ca0 0;
-      Mov ca1 0 ]
-    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
-    ++ fetch_instrs ADV_F_OFFSET ct1 ct0 cs0         (* ct1 -> {adv.f}_(ot_switcher)  *)
-    ++ encodeInstrsW [ Jalr cra ctp ]
-    (* res = read(sealedUserKey, 1) *)
-    ++ encodeInstrsW [
+      Mov ca1 0
+    ].
+
+  Definition kvs_main_read_args_instrs : list Word :=
+    encodeInstrsW [
       (* read(sealedUserKey, 1)*)
       Mov ca0 cs1;
       Mov ca1 1
-    ]
-    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
-    ++ fetch_instrs KVS_READ_OFFSET ct1 ct0 cs0      (* ct1 -> {KVS.read}_(ot_switcher)  *)
-    ++ encodeInstrsW [ Jalr cra ctp ]
-    (* assert (ret == 12) *)
-    ++ encodeInstrsW [
+    ].
+
+  Definition kvs_main_read_result_instrs : list Word :=
+    encodeInstrsW [
       (* check if ENOTENOUGHTRUSTEDSTACK *)
       Jnz 2 ca0;  (* ca0 = 0 if NOT ENOTENOUGHTRUSTEDSTACK. *)
       (* case PASS *)
@@ -77,10 +72,50 @@ Section KVS_Main.
       (* case PASS *)
       Mov ct0 ca1;
       Mov ct1 12
-    ]
+    ].
+
+  Definition kvs_main_add_phase_instrs : list Word :=
+    fetch_instrs SEALED_USER_KEY_OFFSET cs1 ct0 ct1
+    ++ kvs_main_add_args_instrs
+    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1
+    ++ fetch_instrs KVS_INSERT_OFFSET ct1 ct0 cs0
+    ++ encodeInstrsW [Jalr cra ctp]
+    ++ kvs_main_add_result_instrs.
+
+  Definition kvs_main_adversary_phase_instrs : list Word :=
+    fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1
+    ++ fetch_instrs ADV_F_OFFSET ct1 ct0 cs0
+    ++ encodeInstrsW [Jalr cra ctp].
+
+  Definition kvs_main_read_assert_phase_instrs : list Word :=
+    kvs_main_read_args_instrs
+    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1
+    ++ fetch_instrs KVS_READ_OFFSET ct1 ct0 cs0
+    ++ encodeInstrsW [Jalr cra ctp]
+    ++ kvs_main_read_result_instrs
+    ++ assert_instrs ASSERT_OFFSET ct2 ct3 ct4
+    ++ encodeInstrsW [Halt].
+
+  Definition kvs_main_code : list Word :=
+    fetch_instrs SEALED_USER_KEY_OFFSET cs1 ct0 ct1 (* cs1 -> switcher entry point *)
+    ++ kvs_main_add_args_instrs
+    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
+    ++ fetch_instrs KVS_INSERT_OFFSET ct1 ct0 cs0    (* ct1 -> {KVS.addOrUpdate}_(ot_switcher)  *)
+    ++ encodeInstrsW [Jalr cra ctp]
+    (* adv.f() *)
+    ++ kvs_main_add_result_instrs
+    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
+    ++ fetch_instrs ADV_F_OFFSET ct1 ct0 cs0         (* ct1 -> {adv.f}_(ot_switcher)  *)
+    ++ encodeInstrsW [Jalr cra ctp]
+    (* res = read(sealedUserKey, 1) *)
+    ++ kvs_main_read_args_instrs
+    ++ fetch_instrs SWITCHER_CALL_OFFSET ctp ct0 ct1 (* ctp -> switcher entry point *)
+    ++ fetch_instrs KVS_READ_OFFSET ct1 ct0 cs0      (* ct1 -> {KVS.read}_(ot_switcher)  *)
+    ++ encodeInstrsW [Jalr cra ctp]
+    (* assert (ret == 12) *)
+    ++ kvs_main_read_result_instrs
     ++ assert_instrs ASSERT_OFFSET ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
-    ++ encodeInstrsW [ Halt ]
-  .
+    ++ encodeInstrsW [Halt].
 
   Definition kvs_main_data  : list Word := [].
   Definition kvs_main_static_sealed ( KVS_USER_KEY_MAIN : Z ) : list Word := [ WInt KVS_USER_KEY_MAIN ].
