@@ -5,7 +5,7 @@ From griotte Require Import ftlr_base interp_weakening interp_switcher_return.
 From griotte Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
 From griotte Require Import sts_multiple_updates region_invariants_revocation.
 From griotte Require Export switcher switcher_preamble switcher_macros_spec switcher_helpers.
-From griotte Require Import world_ghost_theory world_interp_stack.
+From griotte Require Import switcher_spec_call_blocks world_ghost_theory world_interp_stack.
 From griotte Require Import map_simpl register_tactics proofmode.
 
 
@@ -140,7 +140,6 @@ Section Switcher.
 
     iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & Hstk_val & %Hstk_revoked & Hcstk & Hcont & Hpost)".
-    subst a_stk4.
     subst callee_stk_region.
 
     assert ( exists wr0, rmap !! ct2 = Some wr0) as [wr0 Hwr0].
@@ -187,145 +186,36 @@ Section Switcher.
     (* ----- Lswitch_csp_check_perm ------  *)
     (* -----------------------------------  *)
     focus_block_0 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
-
-    (* --- GetP ct2 csp --- *)
-    iInstr "Hcode".
-
-    (* ---  Mov ctp (encodePerm RWL) --- *)
-    iInstr "Hcode".
-
-    (* --- Sub ct2 ct2 ctp --- *)
-    iInstr "Hcode".
-
-    (* --- Jnz 2 ct2 --- *)
-    replace ( match MP with
-                 | {| encodePerm := encodePerm |} => encodePerm
-                 end  ) with encodePerm by done.
-    replace ( (if decide (ctp = cnull) then 0 else encodePerm RWL)%Z )
-      with ( encodePerm RWL ) by (destruct (decide _); done).
-    replace (encodePerm RWL - encodePerm RWL)%Z with 0%Z by lia.
-    iInstr "Hcode".
-
+    iApply (switcher_call_block_0_spec with
+      "[- $HPC $Hctp $Hct2 $Hcsp $Hcode]"); eauto; iFrame; iNext.
+    iIntros "(HPC & Hctp & Hct2 & Hcsp & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* -----------------------------------  *)
     (* ------ Lswitch_csp_check_loc ------  *)
     (* -----------------------------------  *)
     focus_block 1 "Hcode" as a_csp_check_loc Ha_csp_check_loc "Hcode" "Hcls"; iHide "Hcls" as hcont.
-
-    (* --- GetL ct2 csp --- *)
-    iInstr "Hcode".
-
-    (* --- Mov ctp (encodeLoc Local) --- *)
-    iInstr "Hcode".
-
-    (* --- Sub ct2 ct2 ctp --- *)
-    iInstr "Hcode".
-
-    (* --- Jnz 2 ct2 --- *)
-    replace ( match MP with
-                 | {| encodeLoc := encodeLoc |} => encodeLoc
-                 end  ) with encodeLoc by done.
-    replace ( (if decide (ctp = cnull) then 0 else encodeLoc Local )%Z )
-      with ( encodeLoc Local ) by (destruct (decide _); done).
-    replace (encodeLoc Local - encodeLoc Local)%Z with 0%Z by lia.
-    iInstr "Hcode".
-
+    iApply (switcher_call_block_1_spec with
+      "[- $HPC $Hctp $Hct2 $Hcsp $Hcode]"); eauto; iFrame; iNext.
+    iIntros "(HPC & Hctp & Hct2 & Hcsp & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* -----------------------------------  *)
     (* ---- Lswitch_entry_first_spill ----  *)
     (* -----------------------------------  *)
     focus_block 2 "Hcode" as a_entry_first_spill Ha_entry_first_spill "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_csp_check_loc.
-
-    (* --- Store csp cs0 --- *)
-    iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
-    rewrite finz_seq_between_length in Hstklen.
-    destruct (decide (b_stk <= a_stk < e_stk)%a) as [Hastk_inbounds|Hastk_inbounds]; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs0 $Hcsp]") ; try solve_pure.
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk_inbounds.
-    destruct stk_mem as [|w0 stk_mem]; simplify_eq.
-    assert (is_Some (a_stk + 1)%a) as [a_stk1 Hastk1];[solve_addr+Hastk_inbounds|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk Hstk]"; eauto.
-    { solve_addr+Hastk_inbounds Hastk1. }
-
-    iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
-
-    (* --- Lea csp 1 --- *)
-    iInstr "Hcode".
-
-
-    (* --- Store csp cs1 --- *)
-    destruct (decide (b_stk <= (a_stk ^+ 1)%a < e_stk)%a) as [Hastk1_inbounds|Hastk1_inbounds]; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcs1 $Hcsp]") ; try solve_pure.
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk1_inbounds.
-    destruct stk_mem as [|w1 stk_mem]; simplify_eq.
-    assert (is_Some (a_stk1 + 1)%a) as [a_stk2 Hastk2];[solve_addr+Hastk1 Hastk1_inbounds|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk1 Hstk]"; eauto.
-    { solve_addr+Hastk1_inbounds Hastk1 Hastk2. }
-
-    iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
-
-    (* --- Lea csp 1 --- *)
-    iInstr "Hcode".
-
-    (* --- Store csp cra --- *)
-    destruct (decide (b_stk <= (a_stk ^+ 2)%a < e_stk)%a) as [Hastk2_inbounds|Hastk2_inbounds]; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcra $Hcsp]") ; try solve_pure.
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk2_inbounds.
-    destruct stk_mem as [|w2 stk_mem]; simplify_eq.
-    assert (is_Some (a_stk2 + 1)%a) as [a_stk3 Hastk3];[solve_addr+Hastk1 Hastk2 Hastk2_inbounds|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk2 Hstk]"; eauto.
-    { solve_addr+Hastk2_inbounds Hastk1 Hastk2 Hastk3. }
-
-    iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
-
-    (* --- Lea csp 1 --- *)
-    iInstr "Hcode".
-
-    (* --- Store csp cgp --- *)
-    destruct (decide (b_stk <= (a_stk ^+ 3)%a < e_stk)%a) as [Hastk3_inbounds|Hastk3_inbounds]; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcgp $Hcsp]") ; try solve_pure.
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    rewrite finz_dist_S in Hstklen; last solve_addr+Hastk3_inbounds.
-    destruct stk_mem as [|w3 stk_mem]; simplify_eq.
-    assert (is_Some (a_stk3 + 1)%a) as [a_stk4 Hastk4];[solve_addr+Hastk1 Hastk2 Hastk3 Hastk3_inbounds|].
-    iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk3 Hstk]"; eauto.
-    { solve_addr+Hastk3_inbounds Hastk1 Hastk2 Hastk3 Hastk4. }
-    assert ((a_stk + 4)%a = Some a_stk4) as Hastk by solve_addr.
-    assert ((a_stk ^+4)%a = a_stk4) as -> by solve_addr.
-
-    iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
-
-    (* --- Lea csp 1 --- *)
-    iInstr "Hcode".
+    iApply (switcher_call_block_2_spec with
+      "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hcode]"); eauto; iNext.
+    iIntros (stk_mem')
+      "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp
+        & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hstk
+        & %Hastk_bounds_all & %Hstk_mem' & Hcode)".
+    destruct Hastk_bounds_all as [Hastk_bstk Hastk_bounds_all].
+    destruct Hastk_bounds_all as [Hastk_bounds Hastk_some].
+    destruct Hastk_some as [a_stk4' Hastk_some].
+    subst stk_mem'.
+    assert ((a_stk + 4)%a = Some a_stk4) as Hastk by
+      (unfold a_stk4; rewrite (finz_incr_eq Hastk_some); exact Hastk_some).
 
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
@@ -333,140 +223,50 @@ Section Switcher.
     (* ----- Lswitch_trusted_stack_push -----  *)
     (* --------------------------------------  *)
     focus_block 3 "Hcode" as a_tstack_push Ha_tstack_push "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_entry_first_spill.
-
-    (* --- ReadSR ct2 mtdc --- *)
-    iInstr "Hcode".
-
-    (* --- GetA cs0 ct2 --- *)
-    iInstr "Hcode".
-
-    (* --- Add cs0 cs0 1%Z --- *)
-    iInstr "Hcode".
-
-    (* --- GetE ctp ct2 --- *)
-    iInstr "Hcode".
-
-    (* --- Sub ctp ctp cs0 --- *)
-    iInstr "Hcode".
-
-    (* --- Jnz 2%Z ctp --- *)
-    destruct ( (a_tstk + 1 <? e_trusted_stack)%Z) eqn:Hsize_tstk
-    ; iEval (cbn) in "Hctp"
+    iApply (switcher_call_block_3_spec with
+      "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); eauto.
+    { solve_addr+Ha_tstack_push Hcont_switcher_region. }
+    iNext.
+    iIntros "[
+      (%tstk_next' & HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc
+        & Ha_tstk1 & Htstk & %Ha_tstk1_facts & %Htstk_next' & Hcode & Hlc)
+      |
+      (%Htskt & HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc & Htstk & Hcode)
+    ]"
+    ; [destruct Ha_tstk1_facts as [Ha_tstk2 Ha_tstk1_bound] | ]
+    ; unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont
     ; cycle 1.
-    (* TODO lemma *)
     {
-      iInstr "Hcode".
-      (* --- Jmp  Lswitch_trusted_stack_exhausted_z --- *)
-      iInstr "Hcode".
-      { set (Lswitch_trusted_stack_exhausted := default 0 (switcher_labels !! ".Lswitch_trusted_stack_exhausted")).
-        transitivity (Some ((a_switcher_call ^+ Lswitch_trusted_stack_exhausted)%a)); auto.
-        subst Lswitch_trusted_stack_exhausted; rewrite /switcher_labels; simplify_map_eq.
-        solve_addr+Ha_tstack_push Hsize.
-      }
-      iEval (simplify_map_eq) in "HPC".
-      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-
       (* ----------------------------------------------  *)
       (* ------ Lswitch_trusted_stack_exhausted -------  *)
       (* ----------------------------------------------  *)
+      iAssert ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg)%I
+        with "[Hargs]" as "Hargs".
+      { destruct is_entry_point_known.
+        + iDestruct "Hargs" as "(% & _ & Hargs)".
+          iApply (big_sepM_impl with "Hargs"); eauto.
+          iIntros (r w Hr) "!> [$ _]".
+        + iApply (big_sepM_impl with "Hargs"); eauto.
+          iIntros (r w Hr) "!> [$ _]".
+      }
+      iExtractList "Hargs" [ca0; ca1] as ["Hca0"; "Hca1"].
+
       focus_block 16 "Hcode" as a_tstk_exhausted Ha_tstk_exhausted "Hcode" "Hcls"; iHide "Hcls" as hcont.
-      (* Lea csp (-1)%Z; *)
-      iInstr "Hcode".
-      { transitivity (Some a_stk3); auto; solve_addr+Hastk4. }
-      (* Load cgp csp; *)
-      iInstr "Hcode".
-      { split; auto. solve_addr. }
-      (* Lea csp (-1)%Z; *)
-      iInstr "Hcode".
-      { transitivity (Some a_stk2); auto; solve_addr+Hastk3. }
-      (* Load cra csp; *)
-      iInstr "Hcode".
-      { split; auto. solve_addr. }
-      (* Lea csp (-1)%Z; *)
-      iInstr "Hcode".
-      { transitivity (Some a_stk1); auto; solve_addr+Hastk2. }
-      (* Load cra cs1; *)
-      iInstr "Hcode".
-      { split; auto. solve_addr. }
-      (* Lea csp (-1)%Z; *)
-      iInstr "Hcode".
-      { transitivity (Some a_stk); auto; solve_addr+Hastk1. }
-      (* Load cra cs0; *)
-      iInstr "Hcode".
-      { split; auto. solve_addr. }
-
-
-      iAssert (
-          (∃ wca0, ca0 ↦ᵣ wca0)
-          ∗ (∃ wca1, ca1 ↦ᵣ wca1)
-          ∗ (∃ wca2, ca2 ↦ᵣ wca2)
-          ∗ (∃ wca3, ca3 ↦ᵣ wca3)
-          ∗ (∃ wca4, ca4 ↦ᵣ wca4)
-          ∗ (∃ wca5, ca5 ↦ᵣ wca5)
-          ∗ (∃ wct0, ct0 ↦ᵣ wct0)
-        )%I with "[Hargs]" as
-          "([%wca0 Hca0]
-          & [%wca1 Hca1]
-          & [%wca2 Hca2]
-          & [%wca3 Hca3]
-          & [%wca4 Hca4]
-          & [%wca5 Hca5]
-          & [%wct0 Hct0]
-          )".
-      { iAssert ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg )%I with "[Hargs]" as "Hargs".
-        { destruct is_entry_point_known.
-          + iDestruct "Hargs" as "(% & _ & Hargs)".
-            iApply (big_sepM_impl with "Hargs"); eauto.
-            iIntros (r w Hr) "!> [$ _]".
-          + iApply (big_sepM_impl with "Hargs"); eauto.
-            iIntros (r w Hr) "!> [$ _]".
-        }
-        assert (∃ wca0, arg_rmap !! ca0 = Some wca0) as [wca0 Hwca0].
-        { apply elem_of_dom; rewrite Hrdom /=; set_solver+. }
-        assert (∃ wca1, arg_rmap !! ca1 = Some wca1) as [wca1 Hwca1].
-        { apply elem_of_dom; rewrite Hrdom /=; set_solver+. }
-        assert (∃ wca2, arg_rmap !! ca2 = Some wca2) as [wca2 Hwca2].
-        { apply elem_of_dom; rewrite Hrdom /=; set_solver+. }
-        assert (∃ wca3, arg_rmap !! ca3 = Some wca3) as [wca3 Hwca3].
-        { apply elem_of_dom; rewrite Hrdom /=; set_solver+. }
-        assert (∃ wca4, arg_rmap !! ca4 = Some wca4) as [wca4 Hwca4].
-        { apply elem_of_dom; rewrite Hrdom /=; set_solver+. }
-        assert (∃ wca5, arg_rmap !! ca5 = Some wca5) as [wca5 Hwca5].
-        { apply elem_of_dom; rewrite Hrdom /=; set_solver+. }
-        assert (∃ wct0, arg_rmap !! ct0 = Some wct0) as [wct0 Hwct0].
-        { apply elem_of_dom; rewrite Hrdom /=; set_solver+. }
-        rewrite -(insert_id arg_rmap ca0 wca0); auto.
-        iDestruct (big_sepM_insert_delete with "Hargs") as "[$ Hargs]".
-        rewrite -(insert_id (delete ca0 _) ca1 wca1); last by simplify_map_eq.
-        iDestruct (big_sepM_insert_delete with "Hargs") as "[$ Hargs]".
-        rewrite -(insert_id (delete ca1 _) ca2 wca2); last by simplify_map_eq.
-        iDestruct (big_sepM_insert_delete with "Hargs") as "[$ Hargs]".
-        rewrite -(insert_id (delete ca2 _) ca3 wca3); last by simplify_map_eq.
-        iDestruct (big_sepM_insert_delete with "Hargs") as "[$ Hargs]".
-        rewrite -(insert_id (delete ca3 _) ca4 wca4); last by simplify_map_eq.
-        iDestruct (big_sepM_insert_delete with "Hargs") as "[$ Hargs]".
-        rewrite -(insert_id (delete ca4 _) ca5 wca5); last by simplify_map_eq.
-        iDestruct (big_sepM_insert_delete with "Hargs") as "[$ Hargs]".
-        rewrite -(insert_id (delete ca5 _) ct0 wct0); last by simplify_map_eq.
-        iDestruct (big_sepM_insert_delete with "Hargs") as "[$ Hargs]".
-      }
-
-      (* Mov ca0 ENOTENOUGHTRUSTEDSTACK; *)
-      iInstr "Hcode".
-      (* Mov ca1 0; *)
-      iInstr "Hcode" with "Hlc".
-      (* Jmp Lswitch_callee_dead_zeros_z *)
-      iInstr "Hcode".
-      { set (Lswitch_callee_dead_zeros := default 0 (switcher_labels !! ".Lswitch_callee_dead_zeros")).
-        transitivity (Some ((a_switcher_call ^+ Lswitch_callee_dead_zeros)%a)); auto.
-        subst Lswitch_callee_dead_zeros; rewrite /switcher_labels; simplify_map_eq.
-        solve_addr.
-      }
-      iEval (simplify_map_eq) in "HPC".
+      iApply (switcher_call_block_16_spec with
+        "[- $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hcsp
+          $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]"); eauto.
+      { solve_addr+Ha_tstk_exhausted Hcont_switcher_region. }
+      iNext.
+      iIntros "(HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
+        & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc)".
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
       (* ---- clear registers  ---- *)
       focus_block 14 "Hcode" as a7 Ha7 "Hcode" "Hcls"; iHide "Hcls" as hcont.
+
+      iExtractList "Hargs" [ca2; ca3; ca4; ca5; ct0]
+        as ["Hca2"; "Hca3"; "Hca4"; "Hca5"; "Hct0"].
+      iClear "Hargs".
 
       iDestruct (big_sepM_insert_2 with "[Hctp] Hregs") as "Hregs";[iFrame|].
       rewrite insert_delete_eq.
@@ -527,63 +327,40 @@ Section Switcher.
       iApply ("Hpost" $! W _ [] [] with "[-]"); iRight; iFrame "∗%".
       iSplit.
       { iPureIntro.
-        split; first solve_addr+Hastk Hastk_inbounds.
-        split; first solve_addr+Hastk Hastk3_inbounds Hastk_inbounds.
+        split; first solve_addr+Hastk Hastk_bstk.
+        split; first solve_addr+Hastk Hastk_bounds Hastk_bstk.
         done.
       }
-      iApply region_pointsto_cons; eauto; first solve_addr.
+      iApply region_pointsto_cons; eauto.
+      { instantiate (1 := (a_stk ^+ 1)%a); solve_addr+Hastk. }
+      { solve_addr+Hastk. }
       iFrame.
-      iApply region_pointsto_cons; eauto; first solve_addr.
+      iApply region_pointsto_cons; eauto.
+      { instantiate (1 := (a_stk ^+ 2)%a); solve_addr+Hastk. }
+      { solve_addr+Hastk. }
       iFrame.
-      iApply region_pointsto_cons; eauto; first solve_addr.
+      iApply region_pointsto_cons; eauto.
+      { instantiate (1 := (a_stk ^+ 3)%a); solve_addr+Hastk. }
+      { solve_addr+Hastk. }
       iFrame.
-      iApply region_pointsto_cons; eauto; first solve_addr.
+      iApply region_pointsto_cons; eauto.
+      { instantiate (1 := (a_stk ^+ 4)%a); solve_addr+Hastk. }
+      { solve_addr+Hastk. }
       iFrame.
       rewrite /region_pointsto.
       rewrite (finz_seq_between_empty a_stk4 a_stk4); last solve_addr.
       done.
     }
-    iInstr "Hcode" with "Hlc".
-
-    (* --- Lea ct2 1 --- *)
-    assert ( ∃ f3, (a_tstk + 1)%a = Some f3) as [f3 Htastk] by (exists (a_tstk ^+ 1)%a; solve_addr+Hsize_tstk).
-    iInstr "Hcode" with "Hlc".
-
-    (* --- Store ct2 csp --- *)
-    iDestruct (big_sepL2_length with "Htstk") as %Hlen.
-    erewrite finz_incr_eq in Hlen;[|eauto].
-    rewrite finz_seq_between_length in Hlen.
-    destruct tstk_next.
-    { exfalso.
-      rewrite /= /finz.dist Z2Nat.inj_sub in Hlen;[|solve_addr].
-      assert (e_trusted_stack = f3) as Heq;[solve_addr|].
-      subst. solve_addr. }
-    assert (is_Some (f3 + 1)%a) as [f4 Hf4];[solve_addr|].
-    iDestruct (region_pointsto_cons _ f4 with "Htstk") as "[Hf3 Htstk]";[solve_addr|solve_addr|].
-    replace (a_tstk ^+ 1)%a with f3 by solve_addr.
-    iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
-
-    (* --- WriteSR mtdc ct2 --- *)
-    iInstr "Hcode".
-
-    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+    subst tstk_next'.
 
     (* ------------------------------  *)
     (* ----- Lswitch_stack_chop -----  *)
     (* ------------------------------  *)
     focus_block 4 "Hcode" as a_stack_chop Ha_stack_chop "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_tstack_push.
-
-    (* --- GetE cs0 csp --- *)
-    iInstr "Hcode".
-
-    (* --- GetA cs1 csp --- *)
-    iInstr "Hcode".
-
-    (* --- Subseg csp cs1 cs0 --- *)
-    iInstr "Hcode".
-    { rewrite /isWithin. solve_addr. }
-
+    iApply (switcher_call_block_4_spec with
+      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto; [|iNext].
+    { rewrite /isWithin; solve_addr+Hastk_bounds. }
+    iIntros "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* -----------------------  *)
@@ -601,35 +378,9 @@ Section Switcher.
     (* -----------------------  *)
     focus_block 6 "Hcode" as a_LoadCapPCC Ha_LoadCapPCC "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_clear_stk1.
-
-    (* --- GetB cs1 PC --- *)
-    iInstr "Hcode".
-
-    (* --- GetA cs0 PC --- *)
-    iInstr "Hcode".
-
-    (* --- Sub cs1 cs1 cs0 --- *)
-    iInstr "Hcode".
-
-    (* --- Mov cs0 PC --- *)
-    iInstr "Hcode".
-
-    (* --- Lea cs0 cs1 --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_lea_success_reg with "[$HPC $Hi $Hcs0 $Hcs1]");auto;[solve_pure..| |].
-    { instantiate (1:=(b_switcher ^+ 2)%a). solve_addr. }
-    iIntros "!> (HPC & Hi & Hcs1 & Hcs0)".
-    wp_pure.
-    iSpecialize ("Hcode" with "[$]").
-
-    (* --- Lea cs0 -2 --- *)
-    iInstr "Hcode".
-    { instantiate (1:= b_switcher). solve_addr. }
-
-    (* --- Load cs0 cs0 --- *)
-    iInstr "Hcode".
-
+    iApply (switcher_call_block_6_spec with
+      "[- $HPC $Hcs0 $Hcs1 $Hb_switcher $Hcode]"); eauto; iNext.
+    iIntros "(HPC & Hcs0 & Hcs1 & Hb_switcher & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* ------------------------------  *)
@@ -664,21 +415,9 @@ Section Switcher.
     inversion Heq.
 
     (* iDestruct (entry_agree _ nargs nargs0 with "Hentry Hentry'") as "<-". *)
-
-    (* --- Load cs0 ct1 --- *)
-    wp_instr.
-    iInv "Htbl3" as ">Ha_tbl" "Hcls_tbl".
-    iInstr "Hcode".
-    { split;auto. rewrite /withinBounds. solve_addr. }
-    iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
-    wp_pure.
-
-    (* --- LAnd ct2 cs0 7 --- *)
-    iInstr "Hcode".
-
-    (* --- LShiftR cs0 cs0 3 --- *)
-    iInstr "Hcode".
-
+    iApply (switcher_call_block_7_after_unseal_spec with
+      "[- $Htbl3 $HPC $Hcs0 $Hct1 $Hct2 $Hcode]"); eauto; iNext.
+    iIntros "(HPC & Hcs0 & Hct1 & Hct2 & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* ------------------------------  *)
@@ -686,55 +425,10 @@ Section Switcher.
     (* ------------------------------  *)
     focus_block 8 "Hcode" as a_callee_load Ha_callee_load "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_unseal_entry.
-
-
-    (* --- GetB cgp ct1 --- *)
-    iInstr "Hcode".
-
-    (* --- GetA cs1 ct1 --- *)
-    iInstr "Hcode".
-
-    (* --- Sub cs1 cgp cs1 --- *)
-    iInstr "Hcode".
-
-    (* --- Lea ct1 cs1 --- *)
-    iInstr "Hcode".
-    { instantiate (1:=b_tbl); solve_addr. }
-
-    (* --- Load cra ct1 --- *)
-    wp_instr.
-    iInv "Htbl1" as ">Hb_tbl" "Hcls_tbl".
-    iInstr "Hcode".
-    { split;auto. rewrite /withinBounds. solve_addr. }
-    iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
-    wp_pure.
-
-    (* --- Lea ct1 1 --- *)
-    iInstr "Hcode".
-    { instantiate (1:=(b_tbl ^+ 1)%a). solve_addr. }
-
-    (* --- Load cgp ct1 --- *)
-    wp_instr.
-    iInv "Htbl2" as ">Hb_tbl" "Hcls_tbl".
-    iInstr "Hcode".
-    { split;auto. rewrite /withinBounds. solve_addr. }
-    iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
-    wp_pure.
-
-    (* --- Lea cra cs0 --- *)
-    destruct (bpcc + encode_entry_point nargs off ≫ 3)%a eqn:Hentry;cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_reg with "[$HPC $Hi $Hcs0 $Hcra]")
-      ; try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    iInstr "Hcode".
-
-    (* --- Add ct2 ct2 1 --- *)
-    iInstr "Hcode".
-
-    (* clear registers except parameters *)
+    iApply (switcher_call_block_8_spec with
+      "[- $Htbl1 $Htbl2 $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hcgp $Hcra $Hcode]");
+      eauto; iNext.
+    iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* ---------------------------------------- *)
@@ -743,7 +437,6 @@ Section Switcher.
     focus_block 9 "Hcode" as a_clear Ha_clear "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_callee_load.
 
-    rewrite encode_entry_point_eq_nargs;last lia.
     iApply (clear_registers_pre_call_skip_spec
               _ _ _ _ _ arg_rmap (nargs+1)
              with "[- $HPC $Hcode]")
@@ -806,11 +499,11 @@ Section Switcher.
 
     (* --- Close the world with the cleared stack --- *)
 
-    rewrite {1}(finz_seq_between_split _ a_stk4);[|solve_addr].
+    rewrite {1}(finz_seq_between_split _ (a_stk ^+ 4)%a);[|solve_addr].
     iDestruct (StackRevokedResources_app with "Hstk_val") as "[#Hstk_val_save #Hstk_val']".
 
-    assert (revoked_addresses W (finz.seq_between a_stk4 e_stk)) as Hrev.
-    { clear-Hstk_revoked Hastk.
+    assert (revoked_addresses W (finz.seq_between (a_stk ^+ 4)%a e_stk)) as Hrev.
+    { clear-Hstk_revoked Hastk_some.
       rewrite /revoked_addresses Forall_forall in Hstk_revoked.
       rewrite /revoked_addresses Forall_forall.
       intros a Ha.
@@ -824,7 +517,7 @@ Section Switcher.
     { apply Forall_replicate_eq. }
 
     iSpecialize ("Hexec" $!
-                   (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary)
+                   (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary)
                   with "[]").
     { iPureIntro.
       apply related_sts_pub_priv_world.
@@ -832,31 +525,29 @@ Section Switcher.
     iInstr "Hcode".
     iSpecialize ("Hexec" $!
                    (frame :: cstk)
-                   ((std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) :: Ws)
+                   ((std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) :: Ws)
                    (C::Cs)).
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     rewrite /load_word. iSimpl in "Hcgp".
 
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq'. subst.
     iMod (cstack_update _ _ (frame :: cstk) with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
-    iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hf3 Hstk_interp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3]") as "HH".
-    { iNext. iExists f3,tstk_next.
+    iMod ("Hclose_switcher_inv" with
+      "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Ha_tstk1 Hstk_interp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3]") as "HH".
+    { iNext. iExists (a_tstk ^+ 1)%a,(drop 1 tstk_next).
       iFrame "Hmtdc Hb_switcher Hp_ot_switcher".
-      rewrite (finz_incr_eq Hf4). simpl.
-      replace (f3 ^+ -1)%a with a_tstk by solve_addr+Htastk.
+      rewrite (finz_incr_eq Ha_tstk2). simpl.
+      replace ((a_tstk ^+ 1)%a ^+ -1)%a with a_tstk by solve_addr+Ha_tstk2.
       iSplit;[auto|]. iFrame "Htstk Hstk_interp".
-      iSplit;[iPureIntro;solve_addr|].
-      iSplit;[iPureIntro;solve_addr|].
+      iSplit;[iPureIntro; solve_addr+Hbounds_tstk_b Ha_tstk2 Ha_tstk1_bound|].
+      iSplit;[iPureIntro; solve_addr+Ha_tstk2 Hlen_cstk|].
       iFrame; cbn.
-      replace (a_stk ^+ 1)%a with a_stk1 by solve_addr+Hastk1.
-      replace (a_stk ^+ 2)%a with a_stk2 by solve_addr+Hastk1 Hastk2.
-      replace (a_stk ^+ 3)%a with a_stk3 by solve_addr+Hastk1 Hastk2 Hastk3.
-      replace (a_stk ^+ 4)%a with a_stk4 by solve_addr+Hastk.
       iFrame. iPureIntro.
-      rewrite Hastk. split;[solve_addr|]. split;[solve_addr|eauto]. }
+      rewrite Hastk_some. split;[solve_addr|]. split;[solve_addr|eauto]. }
 
     iApply "Hexec".
-    iAssert (interp (std_update_multiple W (finz.seq_between a_stk4 e_stk) Temporary) C (WCap RWL Local a_stk4 e_stk a_stk)) as "Hstk4v".
+    iAssert (interp (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) C
+      (WCap RWL Local (a_stk ^+ 4)%a e_stk a_stk)) as "Hstk4v".
     { iApply fixpoint_interp1_eq. iSimpl.
       rewrite {2}/StackRevokedResources /StackWorldResources big_sepL2_replicate_r; last done.
       iApply (big_sepL_impl with "Hstk_val'").
@@ -882,12 +573,11 @@ Section Switcher.
     { simpl.
       iFrame.
       iEval (cbn).
-      replace (a_stk ^+ 4)%a with a_stk4 by solve_addr. iSplitR.
+      iSplitR.
       { iFrame "Hstk4v". }
       iIntros (W' HW' ?????) "(HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
       & Hca1 & #Hv' & % & Hregs & Hstk & Hstk' & Hworld_interp & Hcls & Hcont & Hcstk & Own)".
       iApply "Hpost";iLeft. simplify_eq.
-      replace (a_stk ^+ 4)%a with a_stk4 by solve_addr.
       iFrame "∗#%".
       iSplit.
       {
@@ -895,7 +585,7 @@ Section Switcher.
         iApply (interp_lea with "Hstk4v"); done.
       }
       iSplit.
-      { iPureIntro; repeat split; solve_addr+Hastk_inbounds Hastk3_inbounds Hastk. }
+      { iPureIntro; repeat split; solve_addr+Hastk_bstk Hastk_bounds Hastk_some. }
 
       clear -Hrev HW'.
       iPureIntro; intros k a Ha; cbn.
@@ -938,8 +628,7 @@ Section Switcher.
       apply elem_of_difference. split;[apply all_registers_s_correct|set_solver]. }
 
     repeat iSplit.
-    - clear-Hentry. iPureIntro. simplify_map_eq. repeat f_equiv.
-      rewrite encode_entry_point_eq_off in Hentry. solve_addr.
+    - iPureIntro. simplify_map_eq. reflexivity.
     - iPureIntro. clear. simplify_map_eq. auto.
     - iPureIntro.
       simplify_map_eq.
@@ -947,11 +636,8 @@ Section Switcher.
       pose proof switcher_return_entry_point.
       cbn in *.
       do 2 (f_equal; auto). solve_addr.
-    - iPureIntro. clear -Hastk. simplify_map_eq.
-      replace a_stk4 with (a_stk^+4)%a by solve_addr+Hastk.
-      done.
-    - replace a_stk4 with (a_stk^+4)%a by solve_addr+Hastk.
-      iApply (interp_lea with "Hstk4v"); first done.
+    - iPureIntro. clear -Hastk_some. simplify_map_eq. done.
+    - iApply (interp_lea with "Hstk4v"); first done.
     - iIntros (r v Hr Hv).
       assert (r ∉ ({[ PC ; cgp ; cra ; csp ]} : gset RegName)) as Hr'.
       {
@@ -1436,7 +1122,5 @@ Section Switcher.
     iApply (switcher_cc_specification_gen_revoked _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ false)
             ; eauto; iFrame "∗#%".
   Qed.
-
-  (* TODO More modularity in the proofs *)
 
 End Switcher.
