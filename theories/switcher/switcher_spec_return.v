@@ -5,6 +5,7 @@ From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
 From griotte Require Import sts_multiple_updates region_invariants_revocation.
 From griotte Require Export switcher switcher_preamble.
+From griotte Require Import switcher_spec_return_blocks.
 From stdpp Require Import base.
 From griotte Require Import map_simpl register_tactics proofmode.
 From griotte Require Export world_ghost_theory world_interp_stack switcher_helpers.
@@ -110,56 +111,21 @@ Section Switcher.
     iExtract "Hrmap" ct1 as "Hct1".
 
     (* --- ReadSR ctp mtdc --- *)
-    iInstr "Hcode"; try solve_pure.
+    iInstr "Hcode".
 
-    (* --- Load csp ctp --- *)
-    destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Load.wp_load_fail_not_withinbounds with "[HPC Hi Hctp Hcsp]")
-      ; try iFrame
-      ; try solve_pure.
-      { rewrite /withinBounds.
-        apply andb_false_iff; right.
-        solve_addr+Htstk_ae.
-      }
-      iNext; iIntros "_".
-      wp_pure; wp_end ; by iIntros (?).
-    }
 
     iDestruct (cstack_agree with "Hcstk_full [$]") as %Heq; subst cstk'.
 
     destruct cstk as [|frm cstk]; iEval (cbn) in "Hstk_interp"; cbn in Hlen_cstk.
     { (* no caller, return subroutine fails *)
       replace a_tstk with (b_trusted_stack)%a by solve_addr.
-      iInstr "Hcode".
-      { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr ]. }
-      (* Lea ctp (-1)%Z *)
-      destruct (decide (b_trusted_stack <= (b_trusted_stack ^+ -1))%a) as [Hb_trusted_stack1'|Hb_trusted_stack1'].
-      {
-        assert ((b_trusted_stack + -1) = None)%a by solve_addr+Hb_trusted_stack1'.
-        iInstr_lookup "Hcode" as "Hi" "Hcode".
-        wp_instr.
-        iApply (rules_Lea.wp_Lea_fail_none_z with "[HPC Hi Hctp]")
-        ; try iFrame
-        ; try solve_pure.
-        iNext; iIntros "_".
-        wp_pure; wp_end ; by iIntros (?).
-      }
-      assert (is_Some (b_trusted_stack + -1))%a as [b_trusted_stack1 Hb_trusted_stack1] by solve_addr+Hb_trusted_stack1'.
-      clear Hb_trusted_stack1'.
-      iInstr "Hcode".
-      (* WriteSR mtdc ctp *)
-      iInstr "Hcode".
-      (* Lea csp (-1)%Z *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Lea.wp_Lea_fail_integer with "[HPC Hi Hcsp]")
-      ; try iFrame
-      ; try solve_pure.
-      iNext; iIntros "_".
-      wp_pure; wp_end ; by iIntros (?).
+      iApply (switcher_return_block_12_load_spec with
+        "[- $HPC $Hctp $Hcsp $Hstk_interp $Hcode]"); eauto.
+      { solve_addr. }
+      iNext; iIntros
+        "(HPC & Hctp & Hcsp & Hstk_interp & %Htstk_ae & Hcode)".
+      iApply (switcher_return_block_12_empty_spec with
+        "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]"); eauto.
     }
 
     destruct Ws as [|Wprev Ws],Cs;try done. simpl in Hframe.
@@ -179,31 +145,16 @@ Section Switcher.
     iEval (cbn) in "HK"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
 
-    iInstr "Hcode".
-    { split;auto. rewrite /withinBounds. solve_addr. }
+    iApply (switcher_return_block_12_load_spec with
+      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]"); eauto.
+    iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & Hcode)".
 
-    (* --- Lea ctp -1 --- *)
-    destruct (decide (a_tstk <= (a_tstk ^+ -1))%a) as [Ha_tstk1'|Ha_tstk1'].
-    {
-      assert ((a_tstk + -1) = None)%a by solve_addr+Ha_tstk1'.
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Lea.wp_Lea_fail_none_z with "[HPC Hi Hctp]")
-      ; try iFrame
-      ; try solve_pure.
-      iNext; iIntros "_".
-      wp_pure; wp_end ; by iIntros (?).
-    }
-    assert (is_Some (a_tstk + -1))%a as [a_tstk1 Ha_tstk1] by solve_addr+Ha_tstk1'.
-    iInstr "Hcode".
-    replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr.
-
-    (* --- WriteSR mtdc ctp --- *)
-    iInstr "Hcode".
-
-    (* --- Lea csp -1 --- *)
-    iInstr "Hcode" with "Hlc".
-    { transitivity (Some (a_stk ^+ 3)%a); subst a_stk; solve_addr+Ha_stk4. }
+    iApply (switcher_return_block_12_pop_spec with
+      "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]").
+    { solve_addr. }
+    { rewrite (finz_incr_eq Ha_stk4); exact Ha_stk4. }
+    iNext; iIntros
+      "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & Hcode & Hlc)".
 
     set (stk_len := finz.dist (a_stk ^+ 4)%a csp_e).
     set (stk_ws := repeat (WInt 0) stk_len).
@@ -220,37 +171,13 @@ Section Switcher.
       as "(%wastk & %wastk1 & %wastk2 & %wastk3 &
             Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)";eauto.
 
-    (* --- Load cgp csp --- *)
-    iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
-    iEval (cbn) in "Hcgp".
-    (* Lea csp (-1)%Z *)
-    iInstr "Hcode".
-    { by transitivity (Some (a_stk ^+ 2)%a); subst a_stk; solve_addr+Ha_stk4. }
-    replace ((csp_b ^+ -4) ^+ 3)%a with (a_stk ^+ 3)%a by (subst a_stk; solve_addr+Ha_stk4).
-    replace ((csp_b ^+ -4) ^+ 2)%a with (a_stk ^+ 2)%a by (subst a_stk; solve_addr+Ha_stk4).
-    (* Load ca2 csp *)
-    iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; subst a_stk; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
-    iEval (cbn) in "Hca2".
-    (* Lea csp (-1)%Z *)
-    iInstr "Hcode".
-    { by transitivity (Some (a_stk ^+ 1)%a); subst a_stk; solve_addr+Ha_stk4. }
-    (* Load cs1 csp *)
-    iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; subst a_stk; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
-    iEval (cbn) in "Hcs1".
-    (* Lea csp (-1)%Z *)
-    iInstr "Hcode".
-    { by transitivity (Some a_stk); subst a_stk; solve_addr. }
-    (* Load cs0 csp *)
-    iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; subst a_stk; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
-    iEval (cbn) in "Hcs0".
-    (* GetE ct0 csp *)
-    iInstr "Hcode" with "Hlc".
-    (* GetA ct1 csp *)
-    iInstr "Hcode" with "Hlc'".
+    iApply (switcher_return_block_12_restore_spec with
+      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
+        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]"); eauto.
+    iNext; iIntros
+      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
+        & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc)".
+    iDestruct "Hlc" as "[Hlc Hlc']".
 
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
@@ -299,28 +226,12 @@ Section Switcher.
 
 
     focus_block 15 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    (* Jalr cnull cra *)
-    iAssert (⌜map_Forall (λ (_ : RegName) (x : Word), x = WInt 0) arg_rmap' ⌝)%I as
-      "%Harg_rmap'_zeroes".
-    { iDestruct (big_sepM_sep with "Hrmap") as "[_ %]"; auto. }
-    iExtract "Hrmap" cnull as "[Hcnull %]".
-    iInstr "Hcode" with "Hlc".
-    iAssert ( ∃ wnull, cnull ↦ᵣ wnull ∗ ⌜ wnull = WInt 0⌝ )%I with "[Hcnull]" as (wnull) "Hcnull".
-    { iFrame; done. }
-    iInsert "Hrmap" cnull.
-    iAssert (⌜ <[cnull := wnull]> arg_rmap' = arg_rmap' ⌝)%I as "%Harg_rmap'_id".
-    { iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hint]".
-      iPureIntro.
-      clear -Harg_rmap' Hint Harg_rmap'_zeroes.
-      assert (is_Some (arg_rmap' !! cnull)) as [? Hcnull] by (rewrite -elem_of_dom Harg_rmap' ; set_solver).
-      apply insert_id.
-      pose proof (map_Forall_insert_1_1 _ _ _ _ Hint); cbn in *.
-      rewrite H.
-      rewrite Hcnull.
-      by eapply map_Forall_lookup in Hcnull; eauto; cbn in *; simplify_map_eq.
-    }
-    rewrite Harg_rmap'_id.
-    clear dependent Harg_rmap'_id Harg_rmap'_zeroes wcnull wnull.
+    iApply (switcher_return_block_15_spec with
+      "[- $HPC $Hcra $Hrmap $Hcode]").
+    { solve_addr. }
+    { apply elem_of_dom; rewrite Harg_rmap'; set_solver. }
+    iNext; iIntros "(HPC & Hcra & Hrmap & Hcode & Hlc_ret)".
+    iCombine "Hlc Hlc_ret" as "Hlc".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
     iHide "Hcode" as hcode.

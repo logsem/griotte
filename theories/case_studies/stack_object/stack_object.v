@@ -70,6 +70,43 @@ int __cheri_compartment("known") run()
 
   Definition so_secret : Z := 42.
 
+  Definition so_f_alloc_instrs : list Word :=
+    encodeInstrsW [
+      (* push (secret_val) on csp_b *)
+      Store csp so_secret;
+      Lea csp 1;
+      (* allocate stack object *)
+      Mov ca1 csp;
+      GetA cs0 ca1;
+      machine_instructions.Add cs1 cs0 1%Z;
+      Subseg ca1 cs0 cs1;
+      Store ca1 0%Z;
+      Lea csp 1%Z
+    ].
+
+  Definition so_f_call_instrs : list Word :=
+    encodeInstrsW [
+      Mov cs0 cra;
+      Mov cs1 ct1;
+      Jalr cra ct0
+    ].
+
+  Definition so_f_assert_prep_instrs : list Word :=
+    encodeInstrsW [
+      Lea csp (-2)%Z;
+      Load ct0 csp;
+      Mov ct1 so_secret
+    ].
+
+  Definition so_f_return_instrs : list Word :=
+    encodeInstrsW [
+      (* return a *)
+      Mov cra cs0;
+      Mov ca0 0%Z;
+      Mov ca1 0%Z;
+      Jalr cnull cra
+    ].
+
   Definition SO_main_code_f : list Word :=
     (* ca0 := warg0 / ca1 := fun_g *)
     encodeInstrsW [
@@ -78,44 +115,18 @@ int __cheri_compartment("known") run()
       ++ checkra_instrs ca0 cs0 cs1
       ++ check_no_overlap_instrs ca0 csp cs0 cs1
       ++ checkints_instrs ca0 cs0 cs1
-      ++ encodeInstrsW [
-        (* push (secret_val) on csp_b *)
-        Store csp so_secret;
-        Lea csp 1;
-        (* allocate stack object *)
-        Mov ca1 csp;
-        GetA cs0 ca1;
-        machine_instructions.Add cs1 cs0 1%Z;
-        Subseg ca1 cs0 cs1;
-        Store ca1 0%Z;  (* ca1 := (RWL, Local, csp_b+1, csp_b+2, csp_b+1) // csp_b+1 := 0 *)
-        Lea csp 1%Z
-      ]
+      ++ so_f_alloc_instrs
       (* call g () *)
       ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
       ++
-      encodeInstrsW [
-        Mov cs0 cra; (* cs0 -> return-to-switcher *)
-        Mov cs1 ct1; (* cs1 -> fun_g *)
-        Jalr cra ct0 (* jmp to g *)
-      ]
+      so_f_call_instrs
       ++
       (* assert csp_b *)
-      encodeInstrsW [
-        Lea csp (-2)%Z;
-        Load ct0 csp;      (* ct0 -> y *)
-        Mov ct1 so_secret (* ct1 -> 2 *)
-      ]
+      so_f_assert_prep_instrs
       ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
       (* return cra *)
       ++
-      encodeInstrsW [
-        Mov cra cs0; (* cra -> return_to-switcher *)
-
-        (* return a *)
-        Mov ca0 0%Z;
-        Mov ca1 0%Z;
-        Jalr cnull cra
-      ].
+      so_f_return_instrs.
 
   Definition so_main_code : list Word
     := SO_main_code_run ++ SO_main_code_f.

@@ -9,6 +9,7 @@ From griotte Require Import fundamental.
 From griotte Require Import switcher_preamble.
 From griotte Require Import interp_switcher_return switcher_helpers.
 From griotte Require Import map_simpl register_tactics proofmode.
+From griotte Require Import switcher_spec_call_blocks switcher_spec_return_blocks.
 
 
 Section fundamental.
@@ -30,6 +31,387 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
+
+  Local Lemma interp_switcher_call_blocks_0_1_spec
+      (wcsp wct2 wctp : Word) :
+    SubBounds b_switcher e_switcher a_switcher_call
+      (a_switcher_call ^+ length switcher_instrs)%a ->
+    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    csp ↦ᵣ wcsp ∗
+    ct2 ↦ᵣ wct2 ∗
+    ctp ↦ᵣ wctp ∗
+    codefrag a_switcher_call switcher_instrs ∗
+    ▷ (
+      ((⌜rules_Get.denote (GetP ct2 csp) wcsp = Some (encodePerm RWL)⌝ ∗
+         ⌜rules_Get.denote (GetL ct2 csp) wcsp = Some (encodeLoc Local)⌝ ∗
+         PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ 8)%a ∗
+         csp ↦ᵣ wcsp ∗
+         ct2 ↦ᵣ WInt 0 ∗
+         ctp ↦ᵣ WInt (encodeLoc Local) ∗
+         codefrag a_switcher_call switcher_instrs)
+       ∨
+       (∃ zct2 zctp,
+          PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ 147)%a ∗
+          csp ↦ᵣ wcsp ∗
+          ct2 ↦ᵣ WInt zct2 ∗
+          ctp ↦ᵣ WInt zctp ∗
+          codefrag a_switcher_call switcher_instrs))
+      -∗ WP Seq (Instr Executable)
+          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+    ⊢ WP Seq (Instr Executable)
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    iIntros (Hsub) "(HPC & Hcsp & Hct2 & Hctp & Hcode & Hpost)".
+    rewrite /switcher_instrs /assembled_switcher.
+    repeat (iEval (cbn [fmap list_fmap]) in "Hcode").
+    repeat (iEval (cbn [concat]) in "Hcode").
+
+    focus_block_0 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_Get_unknown with "[$HPC $Hi $Hct2 $Hcsp]"); try solve_pure.
+    iIntros "!>" (v) "[-> | (%p0 & %Hp0 & Hcap_wstk & -> & HPC & Hi & Hcsp & Hct2)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+    (* --- Mov ctp (encodePerm RWL) --- *)
+    iInstr "Hcode".
+    (* --- Sub ct2 ct2 ctp --- *)
+    iInstr "Hcode".
+    destruct (decide ((p0 - encodePerm RWL)%Z = 0)) as [Hp0'|]; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
+      { intros Hcontr; inversion Hcontr; done. }
+      { transitivity (Some (a_switcher_call ^+ 147)%a); auto.
+        pose proof switcher_size. pose proof switcher_call_entry_point.
+        solve_addr. }
+      iIntros "!> (HPC & Hi & Hct2)".
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+      iApply "Hpost"; iRight.
+      iExists _,_. iFrame.
+    }
+
+    rewrite Hp0'.
+    (* --- Jnz (".Lcommon_force_unwind")%asm ct2 --- *)
+    iInstr "Hcode".
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+
+    focus_block 1 "Hcode" as a_csp_check_loc Ha_csp_check_loc "Hcode" "Hcls";
+      iHide "Hcls" as hcont.
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_Get_unknown with "[$HPC $Hi $Hct2 $Hcsp]"); try solve_pure.
+    iIntros "!>" (v) "[-> | (%g0 & %Hg0 & _ & -> & HPC & Hi & Hcsp & Hct2)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+    (* --- Mov ctp (encodeLoc Local) --- *)
+    iInstr "Hcode".
+    (* --- Sub ct2 ct2 ctp --- *)
+    iInstr "Hcode".
+    destruct (decide ((g0 - encodeLoc Local)%Z = 0)) as [Hg0'|]; cycle 1.
+    {
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
+      { intros Hcontr; inversion Hcontr; done. }
+      { transitivity (Some (a_switcher_call ^+ 147)%a); auto.
+        pose proof switcher_size. pose proof switcher_call_entry_point.
+        solve_addr. }
+      iIntros "!> (HPC & Hi & Hct2)".
+      iEval (simplify_map_eq) in "HPC".
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+      iApply "Hpost"; iRight.
+      iExists _,_. iFrame.
+    }
+
+    rewrite Hg0'.
+    (* --- Jnz (".Lcommon_force_unwind")%asm ct2 --- *)
+    iInstr "Hcode".
+    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+    assert (p0 = encodePerm RWL)%Z by lia; subst p0.
+    assert (g0 = encodeLoc Local)%Z by lia; subst g0.
+    iApply "Hpost"; iLeft.
+    iFrame "∗ %".
+    rewrite (_ : (a_csp_check_loc ^+ 4)%a = (a_switcher_call ^+ 8)%a).
+    { iFrame. }
+    solve_addr+Ha_csp_check_loc.
+  Qed.
+
+  Local Lemma interp_switcher_call_block_2_spec
+      (W : WORLD) (C : CmptName)
+      pc_a wcsp wcs0 wcs1 wcra wcgp :
+    SubBounds b_switcher e_switcher pc_a
+      (pc_a ^+ length (switcher_instrs_n 2))%a ->
+    rules_Get.denote (GetP ct2 csp) wcsp = Some (encodePerm RWL) ->
+    rules_Get.denote (GetL ct2 csp) wcsp = Some (encodeLoc Local) ->
+    interp W C wcsp ∗
+    interp W C wcs0 ∗
+    interp W C wcs1 ∗
+    interp W C wcra ∗
+    interp W C wcgp ∗
+    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    cs0 ↦ᵣ wcs0 ∗
+    cs1 ↦ᵣ wcs1 ∗
+    cra ↦ᵣ wcra ∗
+    cgp ↦ᵣ wcgp ∗
+    csp ↦ᵣ wcsp ∗
+    world_interp W C ∗
+    codefrag pc_a (switcher_instrs_n 2) ∗
+    ▷ (
+      (∀ b e a,
+        ⌜wcsp = WCap RWL Local b e a⌝ ∗
+        ⌜(b <= a)%a ∧ (b <= (a ^+ 3)%a < e)%a ∧ is_Some (a + 4)%a⌝ ∗
+        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher
+          (pc_a ^+ length (switcher_instrs_n 2))%a ∗
+        cs0 ↦ᵣ wcs0 ∗
+        cs1 ↦ᵣ wcs1 ∗
+        cra ↦ᵣ wcra ∗
+        cgp ↦ᵣ wcgp ∗
+        csp ↦ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
+        world_interp W C ∗
+        codefrag pc_a (switcher_instrs_n 2) -∗
+        WP Seq (Instr Executable)
+          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}))
+    ⊢ WP Seq (Instr Executable)
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    iIntros (Hsub Hperm Hloc)
+      "(#Hspv & #Hcs0v & #Hcs1v & #Hcrav & #Hcgpv &
+        HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hworld_interp & Hcode & Hpost)".
+    codefrag_facts "Hcode". clear H0.
+    rewrite /switcher_instrs_n /assembled_switcher_n.
+
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_interp with "[$HPC $Hi Hcsp Hcs0 $Hworld_interp]"); try solve_pure.
+    { iFrame. iFrame "#". }
+    iIntros "!>" (v) "[-> | (% & % & % & % & % & -> & -> & HPC & Hi & Hcs0
+        & Hcsp & Hworld_interp & %Hcanstore & %bounds)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+    cbn in Hperm,Hloc; simplify_eq.
+    assert (encodePerm p = encodePerm RWL)%Z as ?%encodePerm_inj by congruence.
+    simplify_eq.
+    assert (encodeLoc g = encodeLoc Local)%Z as ?%encodeLoc_inj by congruence.
+    simplify_eq.
+
+    destruct (a + 1)%a eqn:Ha1; cycle 1.
+    { iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    (* --- Lea csp 1 --- *)
+    iInstr "Hcode".
+
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hworld_interp]"); try solve_pure.
+    { iFrame. iSplit; first iFrame "#".
+      by iApply (interp_lea with "Hspv"). }
+    iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcs1 & Hcsp & Hworld_interp & _)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+
+    destruct (f + 1)%a eqn:Ha2; cycle 1.
+    { iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    (* --- Lea csp 1 --- *)
+    iInstr "Hcode".
+
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcra $Hworld_interp]"); try solve_pure.
+    { iFrame. iSplit; first iFrame "#".
+      by iApply (interp_lea with "Hspv"). }
+    iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcra & Hcsp & Hworld_interp & _)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+
+    destruct (f0 + 1)%a eqn:Ha3; cycle 1.
+    { iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    (* --- Lea csp 1 --- *)
+    iInstr "Hcode".
+
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hworld_interp]"); try solve_pure.
+    { iFrame. iSplit; first iFrame "#".
+      by iApply (interp_lea with "Hspv"). }
+    iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcgp & Hcsp & Hworld_interp & _ & %bounds')] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+
+    destruct (f1 + 1)%a eqn:Ha4; cycle 1.
+    { iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
+      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    (* --- Lea csp 1 --- *)
+    iInstr "Hcode".
+
+    replace f2 with (a ^+ 4)%a by solve_addr.
+    iApply ("Hpost" $! b e a).
+    iFrame.
+    iPureIntro; split; first reflexivity.
+    repeat split; solve_addr.
+  Qed.
+
+  Local Lemma interp_switcher_call_block_16_spec
+      (W : WORLD) (C : CmptName)
+      pc_a b e a
+      wcs0_old wcs1_old wcra_old wcgp_old wca0_old wca1_old :
+    SubBounds b_switcher e_switcher pc_a
+      (pc_a ^+ length (switcher_instrs_n 16))%a ->
+    (pc_a ^+ 10 + (-36))%a = Some (pc_a ^+ (-26))%a ->
+    (b <= a)%a ->
+    (b <= (a ^+ 3)%a < e)%a ->
+    interp W C (WCap RWL Local b e a) ∗
+    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    cs0 ↦ᵣ wcs0_old ∗
+    cs1 ↦ᵣ wcs1_old ∗
+    cra ↦ᵣ wcra_old ∗
+    cgp ↦ᵣ wcgp_old ∗
+    ca0 ↦ᵣ wca0_old ∗
+    ca1 ↦ᵣ wca1_old ∗
+    csp ↦ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
+    world_interp W C ∗
+    codefrag pc_a (switcher_instrs_n 16) ∗
+    ▷ (
+      (∀ wcs0 wcs1 wcra wcgp,
+        interp W C wcs0 ∗
+        interp W C wcs1 ∗
+        interp W C wcra ∗
+        interp W C wcgp ∗
+        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ (-26))%a ∗
+        cs0 ↦ᵣ wcs0 ∗
+        cs1 ↦ᵣ wcs1 ∗
+        cra ↦ᵣ wcra ∗
+        cgp ↦ᵣ wcgp ∗
+        ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
+        ca1 ↦ᵣ WInt 0 ∗
+        csp ↦ᵣ WCap RWL Local b e a ∗
+        world_interp W C ∗
+        codefrag pc_a (switcher_instrs_n 16) -∗
+        WP Seq (Instr Executable)
+          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}))
+    ⊢ WP Seq (Instr Executable)
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    iIntros (Hsub Hjmp Hb Ha)
+      "(#Hspv & HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hca1 &
+        Hcsp & Hworld_interp & Hcode & Hpost)".
+    codefrag_facts "Hcode". clear H0.
+    rewrite /switcher_instrs_n /assembled_switcher_n.
+
+    (* --- Lea csp (inl (-1)%Z) --- *)
+    iInstr "Hcode".
+    { transitivity (Some (a ^+ 3)%a); solve_addr. }
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hworld_interp]"); try solve_pure.
+    { iFrame. by iApply (interp_lea with "Hspv"). }
+    iIntros "!>" (v) "[-> | (%wcgp & -> & HPC & Hi & Hcsp &
+        Hcgp & #Hinterp_wcgp & Hworld_interp & _ & _)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+
+    (* --- Lea csp (inl (-1)%Z) --- *)
+    iInstr "Hcode".
+    { transitivity (Some (a ^+ 2)%a); solve_addr. }
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcra $Hworld_interp]"); try solve_pure.
+    { iFrame. by iApply (interp_lea with "Hspv"). }
+    iIntros "!>" (v) "[-> | (%wcra & -> & HPC & Hi & Hcsp &
+        Hcra & #Hinterp_wcra & Hworld_interp & _ & _)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+
+    (* --- Lea csp (inl (-1)%Z) --- *)
+    iInstr "Hcode".
+    { transitivity (Some (a ^+ 1)%a); solve_addr. }
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hworld_interp]"); try solve_pure.
+    { iFrame. by iApply (interp_lea with "Hspv"). }
+    iIntros "!>" (v) "[-> | (%wcs1 & -> & HPC & Hi & Hcsp &
+        Hcs1 & #Hinterp_wcs1 & Hworld_interp & _ & _)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+
+    (* --- Lea csp (inl (-1)%Z) --- *)
+    iInstr "Hcode".
+    { transitivity (Some a); solve_addr. }
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs0 $Hworld_interp]"); try solve_pure.
+    { iFrame. by iApply (interp_lea with "Hspv"). }
+    iIntros "!>" (v) "[-> | (%wcs0 & -> & HPC & Hi & Hcsp &
+        Hcs0 & #Hinterp_wcs0 & Hworld_interp & _ & _)] /=".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    wp_pure.
+    iSpecialize ("Hcode" with "[$]").
+
+    (* --- Mov ca0 (inl (-141)%Z) --- *)
+    iInstr "Hcode".
+    (* --- Mov ca1 (inl 0%Z) --- *)
+    iInstr "Hcode".
+    (* --- Jmp (".Lswitch_callee_dead_zeros")%asm --- *)
+    iInstr "Hcode".
+
+    iApply ("Hpost" $! wcs0 wcs1 wcra wcgp).
+    iFrame "∗ #".
+  Qed.
+
+  Local Lemma interp_switcher_call_block_17_spec
+      pc_a wca0 wca1 :
+    SubBounds b_switcher e_switcher pc_a
+      (pc_a ^+ length (switcher_instrs_n 17))%a ->
+    (pc_a ^+ 2 + (-61))%a = Some a_switcher_return ->
+    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    ca0 ↦ᵣ wca0 ∗
+    ca1 ↦ᵣ wca1 ∗
+    codefrag pc_a (switcher_instrs_n 17) ∗
+    ▷ (
+      PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+      ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
+      ca1 ↦ᵣ WInt 0 ∗
+      codefrag pc_a (switcher_instrs_n 17) -∗
+      WP Seq (Instr Executable)
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+    ⊢ WP Seq (Instr Executable)
+        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    iIntros (Hsub Hret) "(HPC & Hca0 & Hca1 & Hcode & Hpost)".
+    codefrag_facts "Hcode". clear H0.
+    rewrite /switcher_instrs_n /assembled_switcher_n.
+    (* --- Mov ca0 (inl (-1)%Z) --- *)
+    iInstr "Hcode".
+    (* --- Mov ca1 (inl 0%Z) --- *)
+    iInstr "Hcode".
+    (* --- Jmp (".Lswitcher_after_compartment_call")%asm --- *)
+    iInstr "Hcode".
+    iApply "Hpost"; iFrame.
+  Qed.
 
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv
@@ -67,399 +449,133 @@ Section fundamental.
 
     iDestruct ("Hreg" $! csp with "[//] [//]") as "#Hspv".
 
+    iApply (interp_switcher_call_blocks_0_1_spec with
+      "[- $HPC $Hcsp $Hct2 $Hctp $Hcode]"); first done.
+    iNext; iIntros "[(%Hperm & %Hloc & HPC & Hcsp & Hct2 & Hctp & Hcode)
+                    | (%zct2 & %zctp & HPC & Hcsp & Hct2 & Hctp & Hcode)]";
+      cycle 1.
+    {
+      rewrite /switcher_instrs /assembled_switcher.
+      repeat (iEval (cbn [fmap list_fmap]) in "Hcode").
+      repeat (iEval (cbn [concat]) in "Hcode").
+      focus_block 17 "Hcode" as a_force_unwind Ha_force_unwind "Hcode" "Hcls";
+        iHide "Hcls" as hcont.
+      specialize (Hfull_rmap ca0) as HH; destruct HH as [? ?].
+      specialize (Hfull_rmap ca1) as HH; destruct HH as [? ?].
+      iExtract "Hrmap" ca0 as "Hca0".
+      iExtract "Hrmap" ca1 as "Hca1".
+      iApply (interp_switcher_call_block_17_spec with
+        "[- $HPC $Hca0 $Hca1 $Hcode]"); eauto.
+      { cbn [length encodeInstrsW] in Ha_force_unwind.
+        pose proof switcher_return_entry_point.
+        pose proof switcher_call_entry_point.
+        pose proof switcher_size.
+        solve_addr. }
+      iNext; iIntros "(HPC & Hca0 & Hca1 & Hcode)".
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+      iMod ("Hclose_switcher_inv" with
+        "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
+      { iNext. iExists _,_. iFrame "∗ # %".
+        iPureIntro; split; auto. }
+
+      iInsertList "Hrmap" [csp;ctp;ct2;ca0;ca1;PC].
+      iApply interp_expr_switcher_return; iFrame "∗%#".
+      rewrite /interp_reg /=.
+      iSplit.
+      + rewrite /full_map.
+        iIntros (r); iPureIntro.
+        destruct (decide (r = ca1)); first by simplify_map_eq.
+        destruct (decide (r = ca0)); first by simplify_map_eq.
+        destruct (decide (r = ct2)); first by simplify_map_eq.
+        destruct (decide (r = ctp)); first by simplify_map_eq.
+        destruct (decide (r = csp)); first by simplify_map_eq.
+        simplify_map_eq. apply Hfull_rmap.
+      + iIntros (r w HrPC Hr).
+        destruct (decide (r = ca1)); first (simplify_map_eq; iApply interp_int).
+        destruct (decide (r = ca0)); first (simplify_map_eq; iApply interp_int).
+        destruct (decide (r = ct2)); first (simplify_map_eq; iApply interp_int).
+        destruct (decide (r = ctp)); first (simplify_map_eq; iApply interp_int).
+        destruct (decide (r = csp)); simplify_map_eq; iApply "Hreg"; eauto.
+    }
+
     rewrite /switcher_instrs /assembled_switcher.
     repeat (iEval (cbn [fmap list_fmap]) in "Hcode").
     repeat (iEval (cbn [concat]) in "Hcode").
-    assert (SubBounds b_switcher e_switcher a_switcher_call (a_switcher_call ^+ (length switcher_instrs))%a).
-    { pose proof switcher_size.
-      pose proof switcher_call_entry_point.
-      solve_addr.
-    }
 
-    (* -----------------------------------  *)
-    (* ----- Lswitch_csp_check_perm ------  *)
-    (* -----------------------------------  *)
-    focus_block_0 "Hcode" as "Hcode" "Hcls"; iHide "Hcls" as hcont.
-    (* --- GetP ct2 csp --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_Get_unknown with "[$HPC $Hi $Hct2 $Hcsp]"); try solve_pure.
-    iIntros "!>" (v) "[-> | (%p0 & %Hp0 & Hcap_wstk & -> & HPC & Hi & Hcsp & Hct2)] /=".
-    { wp_pure. wp_end. iIntros "%Hcontr";done. }
-    wp_pure.
-    iSpecialize ("Hcode" with "[$]").
-
-    (* ---  Mov ctp (encodePerm RWL) --- *)
-    iInstr "Hcode".
-
-    (* --- Sub ct2 ct2 ctp --- *)
-    iInstr "Hcode".
-
-    (* --- Jnz 2 ct2 --- *)
-    destruct (decide ((p0 - encodePerm RWL)%Z = 0)) as [Hp0'|];cycle 1.
-    { (* p ≠ RWL *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
-      { intros Hcontr; inversion Hcontr; done. }
-      iIntros "!> (HPC & Hi & Hct2)".
-      wp_pure.
-      iSpecialize ("Hcode" with "[$]").
-      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-
-      (* -----------------------------------  *)
-      (* ------ Lcommon_force_unwind -------  *)
-      (* -----------------------------------  *)
-      focus_block 17 "Hcode" as a_force_unwind Ha_force_unwind "Hcode" "Hcls"; iHide "Hcls" as hcont.
-      specialize (Hfull_rmap ca0) as HH;destruct HH as [? ?].
-      specialize (Hfull_rmap ca1) as HH;destruct HH as [? ?].
-      iExtract "Hrmap" ca0 as "Hca0".
-      iExtract "Hrmap" ca1 as "Hca1".
-      (* Mov ca0 ECOMPARTMENTFAIL; *)
-      iInstr "Hcode".
-      (* Mov ca1 0; *)
-      iInstr "Hcode".
-      (* Jmp Lswitcher_after_compartment_call_z *)
-      iInstr "Hcode".
-      { transitivity (Some a_switcher_return); last done.
-        pose proof switcher_return_entry_point.
-        solve_addr.
-      }
-      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-      iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
-      { iNext. iExists _,_. iFrame "∗ # %".
-        iPureIntro; split; auto.
-      }
-
-      iInsertList "Hrmap" [csp;ctp;ct2;ca0;ca1;PC].
-      iApply interp_expr_switcher_return; iFrame "∗%#".
-      rewrite /interp_reg /=.
-      iSplit.
-      + rewrite /full_map.
-        iIntros (r) ; iPureIntro.
-        destruct (decide (r = ca1)); first by simplify_map_eq.
-        destruct (decide (r = ca0)); first by simplify_map_eq.
-        destruct (decide (r = ct2)); first by simplify_map_eq.
-        destruct (decide (r = ctp)); first by simplify_map_eq.
-        destruct (decide (r = csp)); first by simplify_map_eq.
-        simplify_map_eq.
-        apply Hfull_rmap.
-      + iIntros (r w HrPC Hr).
-        destruct (decide (r = ca1)); first (simplify_map_eq ; iApply interp_int).
-        destruct (decide (r = ca0)); first (simplify_map_eq ; iApply interp_int).
-        destruct (decide (r = ct2)); first (simplify_map_eq ; iApply interp_int).
-        destruct (decide (r = ctp)); first (simplify_map_eq ; iApply interp_int).
-        destruct (decide (r = csp)); simplify_map_eq ; iApply "Hreg"; eauto.
-    }
-
-    (* p = RWL *)
-    rewrite Hp0'.
-    iInstr "Hcode".
-    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-
-    (* -----------------------------------  *)
-    (* ------ Lswitch_csp_check_loc ------  *)
-    (* -----------------------------------  *)
-    focus_block 1 "Hcode" as a_csp_check_loc Ha_csp_check_loc "Hcode" "Hcls"; iHide "Hcls" as hcont.
-    (* --- GetL ct2 csp --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_Get_unknown with "[$HPC $Hi $Hct2 $Hcsp]"); try solve_pure.
-    iIntros "!>" (v) "[-> | (%g0 & %Hg0 & _ & -> & HPC & Hi & Hcsp & Hct2)] /=".
-    { wp_pure. wp_end. iIntros "%Hcontr";done. }
-    wp_pure.
-    iSpecialize ("Hcode" with "[$]").
-
-    (* --- Mov ctp (encodeLoc Local) --- *)
-    iInstr "Hcode".
-
-    (* --- Sub ct2 ct2 ctp --- *)
-    iInstr "Hcode".
-
-    (* --- Jnz 2 ct2 --- *)
-    destruct (decide ((g0 - encodeLoc Local)%Z = 0)) as [Hg0'|];cycle 1.
-    (* TODO LEMMA *)
-    { (* g ≠ Local *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_jnz_success_jmp_z with "[$HPC $Hi $Hct2]"); try solve_pure.
-      { intros Hcontr; inversion Hcontr; done. }
-      { set (Lcommon_force_unwind := default 0 (switcher_labels !! ".Lcommon_force_unwind")).
-        transitivity (Some ((a_switcher_call ^+ Lcommon_force_unwind)%a)); auto.
-        subst Lcommon_force_unwind; rewrite /switcher_labels; simplify_map_eq.
-        solve_addr+Ha_csp_check_loc Hcont_switcher_region.
-      }
-      iIntros "!> (HPC & Hi & Hct2)".
-      iEval (simplify_map_eq) in "HPC".
-      wp_pure.
-      iSpecialize ("Hcode" with "[$]").
-      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-
-      (* -----------------------------------  *)
-      (* ------ Lcommon_force_unwind -------  *)
-      (* -----------------------------------  *)
-      focus_block 17 "Hcode" as a_force_unwind Ha_force_unwind "Hcode" "Hcls"; iHide "Hcls" as hcont.
-      specialize (Hfull_rmap ca0) as HH;destruct HH as [? ?].
-      specialize (Hfull_rmap ca1) as HH;destruct HH as [? ?].
-      iExtract "Hrmap" ca0 as "Hca0".
-      iExtract "Hrmap" ca1 as "Hca1".
-      (* Mov ca0 ECOMPARTMENTFAIL; *)
-      iInstr "Hcode".
-      (* Mov ca1 0; *)
-      iInstr "Hcode".
-      (* Jmp Lswitcher_after_compartment_call_z *)
-      iInstr "Hcode".
-      { transitivity (Some a_switcher_return); last done.
-        pose proof switcher_return_entry_point.
-        solve_addr.
-      }
-      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-      iMod ("Hclose_switcher_inv" with "[$Hcode $Hna Hb_switcher $Hcstk_full Hmtdc Htstk Hstk_interp]") as "HH".
-      { iNext. iExists _,_. iFrame "∗ # %".
-        iPureIntro; split; auto.
-      }
-
-      iInsertList "Hrmap" [csp;ctp;ct2;ca0;ca1;PC].
-      iApply interp_expr_switcher_return; iFrame "∗%#".
-      rewrite /interp_reg /=.
-      iSplit.
-      + rewrite /full_map.
-        iIntros (r) ; iPureIntro.
-        destruct (decide (r = ca1)); first by simplify_map_eq.
-        destruct (decide (r = ca0)); first by simplify_map_eq.
-        destruct (decide (r = ct2)); first by simplify_map_eq.
-        destruct (decide (r = ctp)); first by simplify_map_eq.
-        destruct (decide (r = csp)); first by simplify_map_eq.
-        simplify_map_eq.
-        apply Hfull_rmap.
-      + iIntros (r w HrPC Hr).
-        destruct (decide (r = ca1)); first (simplify_map_eq ; iApply interp_int).
-        destruct (decide (r = ca0)); first (simplify_map_eq ; iApply interp_int).
-        destruct (decide (r = ct2)); first (simplify_map_eq ; iApply interp_int).
-        destruct (decide (r = ctp)); first (simplify_map_eq ; iApply interp_int).
-        destruct (decide (r = csp)); simplify_map_eq ; iApply "Hreg"; eauto.
-    }
-    rewrite Hg0'.
-    (* g = Local *)
-    iInstr "Hcode".
-
-    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-
-    specialize (Hfull_rmap cs0) as HH;destruct HH as [? ?].
-    specialize (Hfull_rmap cs1) as HH;destruct HH as [? ?].
-    specialize (Hfull_rmap cra) as HH;destruct HH as [? ?].
-    specialize (Hfull_rmap cgp) as HH;destruct HH as [? ?].
-    specialize (Hfull_rmap ct1) as HH;destruct HH as [? ?].
+    specialize (Hfull_rmap cs0) as HH; destruct HH as [wcs0 Hwcs0].
+    specialize (Hfull_rmap cs1) as HH; destruct HH as [wcs1 Hwcs1].
+    specialize (Hfull_rmap cra) as HH; destruct HH as [wcra Hwcra].
+    specialize (Hfull_rmap cgp) as HH; destruct HH as [wcgp Hwcgp].
+    specialize (Hfull_rmap ct1) as HH; destruct HH as [wct1 Hwct1].
     iExtract "Hrmap" cs0 as "Hcs0".
     iExtract "Hrmap" cs1 as "Hcs1".
     iExtract "Hrmap" cra as "Hcra".
     iExtract "Hrmap" cgp as "Hcgp".
     iExtract "Hrmap" ct1 as "Hct1".
+    iAssert (interp W C wcs0) as "#Hcs0v".
+    { iApply "Hreg"; eauto; done. }
+    iAssert (interp W C wcs1) as "#Hcs1v".
+    { iApply "Hreg"; eauto; done. }
+    iAssert (interp W C wcra) as "#Hcrav".
+    { iApply "Hreg"; eauto; done. }
+    iAssert (interp W C wcgp) as "#Hcgpv".
+    { iApply "Hreg"; eauto; done. }
 
     (* -----------------------------------  *)
     (* ---- Lswitch_entry_first_spill ----  *)
     (* -----------------------------------  *)
-    focus_block 2 "Hcode" as a_entry_first_spill Ha_entry_first_spill "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_csp_check_loc.
-
-    (* --- Store csp cs0 --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_store_interp with "[$HPC $Hi Hcsp Hcs0 $Hworld_interp]"); try solve_pure.
-    { iFrame. iFrame "#". by iApply "Hreg";eauto. }
-    iIntros "!>" (v) "[-> | (% & % & % & % & % & -> & -> & HPC & Hi & Hcs0
-    & Hcsp & Hworld_interp & %Hcanstore & %bounds)] /=".
-    { wp_pure. wp_end. iIntros "%Hcontr";done. }
-    wp_pure.
-    iSpecialize ("Hcode" with "[$]").
-    cbn in Hp0,Hg0; simplify_eq.
-    assert (encodePerm p = encodePerm RWL)%Z as ?%encodePerm_inj by lia; simplify_eq; clear Hp0'.
-    assert (encodeLoc g = encodeLoc Local)%Z as ?%encodeLoc_inj by lia; simplify_eq; clear Hg0'.
-
-    (* --- Lea csp 1 --- *)
-    destruct (a + 1)%a eqn:Ha1;cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]")
-      ; try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done. }
-    iInstr "Hcode".
-
-    (* --- Store csp cs1 --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hworld_interp]"); try solve_pure.
-    { iFrame. iSplit;[by iApply "Hreg";eauto|].
-      by iApply (interp_lea with "Hspv"). }
-    iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcs1
-    & Hcsp & Hworld_interp & _)] /=".
-    { wp_pure. wp_end. iIntros "%Hcontr";done. }
-    wp_pure.
-    iSpecialize ("Hcode" with "[$]").
-
-    (* --- Lea csp 1 --- *)
-    destruct (f + 1)%a eqn:Ha2;cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]")
-      ; try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done. }
-    iInstr "Hcode".
-
-    (* --- Store csp cra --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcra $Hworld_interp]"); try solve_pure.
-    { iFrame. iSplit;[by iApply "Hreg";eauto|].
-      by iApply (interp_lea with "Hspv"). }
-    iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcra
-    & Hcsp & Hworld_interp & _)] /=".
-    { wp_pure. wp_end. iIntros "%Hcontr";done. }
-    wp_pure.
-    iSpecialize ("Hcode" with "[$]").
-
-    (* --- Lea csp 1 --- *)
-    destruct (f0 + 1)%a eqn:Ha3;cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]")
-      ; try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done. }
-    iInstr "Hcode".
-
-
-    (* --- Store csp cs1 --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hworld_interp]"); try solve_pure.
-    { iFrame. iSplit;[by iApply "Hreg";eauto|].
-      by iApply (interp_lea with "Hspv"). }
-    iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcgp
-    & Hcsp & Hworld_interp & _ & %bounds')] /=".
-    { wp_pure. wp_end. iIntros "%Hcontr";done. }
-    wp_pure.
-    iSpecialize ("Hcode" with "[$]").
-
-    (* --- Lea csp 1 --- *)
-    destruct (f1 + 1)%a eqn:Ha4;cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]")
-      ; try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done. }
-    iInstr "Hcode".
-
+    focus_block 2 "Hcode" as a_entry_first_spill Ha_entry_first_spill "Hcode" "Hcls";
+      iHide "Hcls" as hcont.
+    iApply (interp_switcher_call_block_2_spec with
+      "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hworld_interp $Hcode]"); eauto.
+    iFrame "∗ #".
+    iNext; iIntros (b e a)
+      "(%Hwcsp & %Hstk_bounds & HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hworld_interp & Hcode)".
+    simplify_eq.
+    destruct Hstk_bounds as [Hba Hstk_bounds].
+    destruct Hstk_bounds as [Hba3 Hsome4].
+    destruct Hsome4 as [f2 Ha4_total].
+    assert (is_Some (a + 1)%a) as [f Ha1] by solve_addr+Ha4_total.
+    assert (is_Some (f + 1)%a) as [f0 Ha2] by solve_addr+Ha4_total Ha1.
+    assert (is_Some (f0 + 1)%a) as [f1 Ha3] by solve_addr+Ha4_total Ha1 Ha2.
+    assert ((f1 + 1)%a = Some f2) as Ha4 by solve_addr+Ha4_total Ha1 Ha2 Ha3.
+    assert ((b <= a < e)%a) as bounds by solve_addr+Hba Hba3.
+    assert ((b <= f1 < e)%a) as bounds' by solve_addr+Hba Hba3 Ha1 Ha2 Ha3.
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* --------------------------------------  *)
     (* ----- Lswitch_trusted_stack_push -----  *)
     (* --------------------------------------  *)
     focus_block 3 "Hcode" as a_tstack_push Ha_tstack_push "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_entry_first_spill.
-
-    (* --- ReadSR ct2 mtdc --- *)
-    iInstr "Hcode".
-
-    (* --- GetA cs0 ct2 --- *)
-    iInstr "Hcode".
-
-    (* --- Add cs0 cs0 1%Z --- *)
-    iInstr "Hcode".
-
-    (* --- GetE ctp ct2 --- *)
-    iInstr "Hcode".
-
-    (* --- Sub ctp ctp cs0 --- *)
-    iInstr "Hcode".
-
-    (* --- Jnz 2%Z ctp --- *)
-    destruct ( (a_tstk + 1 <? e_trusted_stack)%Z) eqn:Hsize_tstk
-    ; iEval (cbn) in "Hctp"
-    ; cycle 1.
-    (* TODO LEMMA *)
+    iApply (switcher_call_block_3_spec with
+      "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); eauto.
+    { solve_addr+Ha_tstack_push Hcont_switcher_region. }
+    iNext.
+    iIntros "[
+      (%tstk_next' & HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc & Hf3 & Htstk
+        & %Htstk_facts & %Htstk_next' & Hcode & Hlc)
+      |
+      (%Hsize_tstk & HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc & Htstk & Hcode)
+    ]";
+      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont;
+      cycle 1.
     {
-      iInstr "Hcode".
-      (* --- Jmp  Lswitch_trusted_stack_exhausted_z --- *)
-      iInstr "Hcode".
-      { set (Lswitch_trusted_stack_exhausted := default 0 (switcher_labels !! ".Lswitch_trusted_stack_exhausted")).
-        transitivity (Some ((a_switcher_call ^+ Lswitch_trusted_stack_exhausted)%a)); auto.
-        subst Lswitch_trusted_stack_exhausted; rewrite /switcher_labels; simplify_map_eq.
-        solve_addr+Ha_tstack_push Hsize.
-      }
-      iEval (simplify_map_eq) in "HPC".
-      unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
-
       (* ----------------------------------------------  *)
       (* ------ Lswitch_trusted_stack_exhausted -------  *)
       (* ----------------------------------------------  *)
       focus_block 16 "Hcode" as a_tstk_exhausted Ha_tstk_exhausted "Hcode" "Hcls"; iHide "Hcls" as hcont.
-      (* Lea csp (-1)%Z; *)
-      iInstr "Hcode".
-      { transitivity (Some f1); auto; solve_addr. }
-      (* Load cgp csp; *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hworld_interp]"); try solve_pure.
-      { iFrame. by iApply (interp_lea with "Hspv"). }
-      iIntros "!>" (v) "[-> | (%wcgp & -> & HPC & Hi & Hcsp
-    & Hcgp & #Hinterp_wcgp & Hworld_interp & _ & _)] /=".
-      { wp_pure; wp_end; iIntros "%Hcontr";done. }
-      wp_pure.
-      iSpecialize ("Hcode" with "[$]").
-      (* Lea csp (-1)%Z; *)
-      iInstr "Hcode".
-      { transitivity (Some f0); auto. solve_addr+Ha3. }
-      (* Load cra csp; *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcra $Hworld_interp]"); try solve_pure.
-      { iFrame. by iApply (interp_lea with "Hspv"). }
-      iIntros "!>" (v) "[-> | (%wcra & -> & HPC & Hi & Hcsp
-    & Hcra & #Hinterp_wcra & Hworld_interp & _ & _)] /=".
-      { wp_pure; wp_end; iIntros "%Hcontr";done. }
-      wp_pure.
-      iSpecialize ("Hcode" with "[$]").
-      (* Lea csp (-1)%Z; *)
-      iInstr "Hcode".
-      { transitivity (Some f); auto. solve_addr+Ha2. }
-      (* Load cs1 csp; *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hworld_interp]"); try solve_pure.
-      { iFrame. by iApply (interp_lea with "Hspv"). }
-      iIntros "!>" (v) "[-> | (%wcs1 & -> & HPC & Hi & Hcsp
-    & Hcs1 & #Hinterp_wcs1 & Hworld_interp & _ & _)] /=".
-      { wp_pure; wp_end; iIntros "%Hcontr";done. }
-      wp_pure.
-      iSpecialize ("Hcode" with "[$]").
-      (* Lea csp (-1)%Z; *)
-      iInstr "Hcode".
-      { transitivity (Some a); auto. solve_addr+Ha1. }
-      (* Load cs0 csp; *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs0 $Hworld_interp]"); try solve_pure.
-      { iFrame. by iApply (interp_lea with "Hspv"). }
-      iIntros "!>" (v) "[-> | (%wcs0 & -> & HPC & Hi & Hcsp
-    & Hcs0 & #Hinterp_wcs0 & Hworld_interp & _ & _)] /=".
-      { wp_pure; wp_end; iIntros "%Hcontr";done. }
-      wp_pure.
-      iSpecialize ("Hcode" with "[$]").
-
       specialize (Hfull_rmap ca0) as HH;destruct HH as [? ?].
       specialize (Hfull_rmap ca1) as HH;destruct HH as [? ?].
       iExtract "Hrmap" ca0 as "Hca0".
       iExtract "Hrmap" ca1 as "Hca1".
-      (* Mov ca0 ENOTENOUGHTRUSTEDSTACK; *)
-      iInstr "Hcode".
-      (* Mov ca1 0; *)
-      iInstr "Hcode".
-      (* Jmp Lswitch_callee_dead_zeros_z *)
-      iInstr "Hcode".
-      { set (Lswitch_callee_dead_zeros := default 0 (switcher_labels !! ".Lswitch_callee_dead_zeros")).
-        transitivity (Some ((a_switcher_call ^+ Lswitch_callee_dead_zeros)%a)); auto.
-        subst Lswitch_callee_dead_zeros; rewrite /switcher_labels; simplify_map_eq.
-        solve_addr.
-      }
-      iEval (simplify_map_eq) in "HPC".
+      iApply (interp_switcher_call_block_16_spec with
+        "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hca0 $Hca1 $Hcsp $Hworld_interp $Hcode]");
+        eauto.
+      { solve_addr+Ha_tstk_exhausted Hcont_switcher_region. }
+      iFrame "∗ #".
+      iNext; iIntros (wcs0' wcs1' wcra' wcgp')
+        "(#Hinterp_wcs0 & #Hinterp_wcs1 & #Hinterp_wcra & #Hinterp_wcgp &
+          HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hca1 & Hcsp & Hworld_interp & Hcode)".
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
       (* ---- clear registers  ---- *)
@@ -479,28 +595,10 @@ Section fundamental.
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
       focus_block 15 "Hcode" as a10 Ha10 "Hcode" "Hcsl"; iHide "Hcsl" as hcont.
-      (* Jalr cnull cra *)
-      iAssert (⌜map_Forall (λ (_ : RegName) (x : Word), x = WInt 0) arg_rmap' ⌝)%I as
-        "%Harg_rmap'_zeroes".
-      { iDestruct (big_sepM_sep with "Hrmap") as "[_ %]"; auto. }
-      iExtract "Hrmap" cnull as "[Hcnull %]".
-      iInstr "Hcode" with "Hlc".
-      iAssert ( ∃ wnull, cnull ↦ᵣ wnull ∗ ⌜ wnull = WInt 0⌝ )%I with "[Hcnull]" as (wnull) "Hcnull".
-      { iFrame; done. }
-      iInsert "Hrmap" cnull.
-      iAssert (⌜ <[cnull := wnull]> arg_rmap' = arg_rmap' ⌝)%I as "%Harg_rmap'_id".
-      { iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hint]".
-        iPureIntro.
-        clear -Harg_rmap' Hint Harg_rmap'_zeroes.
-        assert (is_Some (arg_rmap' !! cnull)) as [? Hcnull] by (rewrite -elem_of_dom Harg_rmap' ; set_solver).
-        apply insert_id.
-        pose proof (map_Forall_insert_1_1 _ _ _ _ Hint); cbn in *.
-        rewrite H.
-        rewrite Hcnull.
-        by eapply map_Forall_lookup in Hcnull; eauto; cbn in *; simplify_map_eq.
-      }
-      rewrite Harg_rmap'_id.
-      clear dependent Harg_rmap'_id Harg_rmap'_zeroes wcnull wnull.
+      iApply (switcher_return_block_15_spec with
+        "[- $HPC $Hcra $Hrmap $Hcode]"); eauto.
+      { rewrite -elem_of_dom Harg_rmap'. set_solver. }
+      iNext; iIntros "(HPC & Hcra & Hrmap & Hcode & Hlc)".
       unfocus_block "Hcode" "Hcsl" as "Hcode"; subst hcont.
 
     (* Close the switcher's invariant *)
@@ -600,7 +698,7 @@ Section fundamental.
       }
       iDestruct (big_sepM_insert_delete with "[$Hrmap $Hcsp]") as "Hrmap".
 
-      destruct ( decide (isCorrectPC (updatePcPerm wcra))) as [HcorrectWret|HcorrectWret]; cycle 1.
+      destruct ( decide (isCorrectPC (updatePcPerm wcra'))) as [HcorrectWret|HcorrectWret]; cycle 1.
       { (* The PC is not correct, the execution will crash *)
         iApply (wp_bind (fill [SeqCtx])).
         iApply (wp_notCorrectPC with "HPC"); first done.
@@ -617,9 +715,9 @@ Section fundamental.
       }
       iDestruct (big_sepM_insert_delete with "[$Hrmap $HPC]") as "Hrmap".
 
-    rewrite -(insert_id (<[PC:=updatePcPerm wcra]> _) PC (updatePcPerm wcra))
+    rewrite -(insert_id (<[PC:=updatePcPerm wcra']> _) PC (updatePcPerm wcra'))
     ; last (clear;simplify_map_eq; done).
-    destruct wcra as [ z | [pcra gcra bcra ecra acra|]  | pcra gcra bcra ecra acra | ot sb ] ; iEval (cbn) in "Hrmap".
+    destruct wcra' as [ z | [pcra gcra bcra ecra acra|]  | pcra gcra bcra ecra acra | ot sb ] ; iEval (cbn) in "Hrmap".
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the FTLR *)
@@ -693,47 +791,21 @@ Section fundamental.
           iPureIntro.
           rewrite lookup_delete_ne; eauto.
     }
-    iInstr "Hcode".
-
-    (* --- Lea ct2 1 --- *)
-    assert ( ∃ f3, (a_tstk + 1)%a = Some f3) as [f3 Hastk] by (exists (a_tstk ^+ 1)%a; solve_addr+Hsize_tstk).
-    iInstr "Hcode".
-
-    (* --- Store ct2 csp --- *)
-    iDestruct (big_sepL2_length with "Htstk") as %Hlen.
-    erewrite finz_incr_eq in Hlen;[|eauto].
-    rewrite finz_seq_between_length in Hlen.
-    destruct tstk_next.
-    { exfalso.
-      rewrite /= /finz.dist Z2Nat.inj_sub in Hlen;[|solve_addr].
-      assert (e_trusted_stack = f3) as Heq;[solve_addr|].
-      subst. solve_addr. }
-    assert (is_Some (f3 + 1)%a) as [f4 Hf4];[solve_addr|].
-    iDestruct (region_pointsto_cons _ f4 with "Htstk") as "[Hf3 Htstk]";[solve_addr|solve_addr|].
-    replace (a_tstk ^+ 1)%a with f3 by solve_addr.
-    iInstr "Hcode".
-    { solve_addr. }
-
-    (* --- WriteSR mtdc ct2 --- *)
-    iInstr "Hcode".
-
-    unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
+    destruct Htstk_facts as [Hf4 Hsize_tstk].
+    subst tstk_next'.
+    set (f3 := (a_tstk ^+ 1)%a) in *.
+    set (f4 := (a_tstk ^+ 2)%a) in *.
+    assert ((a_tstk + 1)%a = Some f3) as Hastk by
+      (unfold f3 in *; solve_addr+Hf4 Hsize_tstk).
 
     (* ------------------------------  *)
     (* ----- Lswitch_stack_chop -----  *)
     (* ------------------------------  *)
     focus_block 4 "Hcode" as a_stack_chop Ha_stack_chop "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_tstack_push.
-
-    (* --- GetE cs0 csp --- *)
-    iInstr "Hcode".
-
-    (* --- GetA cs1 csp --- *)
-    iInstr "Hcode".
-
-    (* --- Subseg csp cs1 cs0 --- *)
-    iInstr "Hcode".
-    { solve_addr. }
-
+    iApply (switcher_call_block_4_spec with
+      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto; [|iNext].
+    { rewrite /isWithin. solve_addr+Hba3 Ha4_total. }
+    iIntros "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
     (* -----------------------  *)
@@ -753,35 +825,9 @@ Section fundamental.
     (* -----------------------  *)
     focus_block 6 "Hcode" as a_LoadCapPCC Ha_LoadCapPCC "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_clear_stk1.
-
-    (* --- GetB cs1 PC --- *)
-    iInstr "Hcode".
-
-    (* --- GetA cs0 PC --- *)
-    iInstr "Hcode".
-
-    (* --- Sub cs1 cs1 cs0 --- *)
-    iInstr "Hcode".
-
-    (* --- Mov cs0 PC --- *)
-    iInstr "Hcode".
-
-    (* --- Lea cs0 cs1 --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_lea_success_reg with "[$HPC $Hi $Hcs0 $Hcs1]"); auto; [solve_pure..| |].
-    { instantiate (1:=(b_switcher ^+ 2)%a). solve_addr. }
-    iIntros "!> (HPC & Hi & Hcs1 & Hcs0)".
-    wp_pure.
-    iSpecialize ("Hcode" with "[$]").
-
-    (* --- Lea cs0 -2 --- *)
-    iInstr "Hcode".
-    { instantiate (1:= b_switcher). solve_addr. }
-
-    (* --- Load cs0 cs0 --- *)
-    iInstr "Hcode".
-
+    iApply (switcher_call_block_6_spec with
+      "[- $HPC $Hcs0 $Hcs1 $Hb_switcher $Hcode]"); eauto; iNext.
+    iIntros "(HPC & Hcs0 & Hcs1 & Hb_switcher & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
 
@@ -811,23 +857,12 @@ Section fundamental.
     iSpecialize ("Hcode" with "[$]").
     iSimpl in "Hagree".
     iRewrite -"Hagree" in "HP".
-    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & Hexec)". simpl fst. simpl snd.
+    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & Hexec)".
+    simpl fst. simpl snd.
     inversion Heq.
-
-    (* --- Load cs0 ct1 --- *)
-    wp_instr.
-    iInv "Htbl3" as ">Ha_tbl" "Hcls_tbl".
-    iInstr "Hcode".
-    { split;auto. solve_addr. }
-    iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
-    wp_pure.
-
-    (* --- LAnd ct2 cs0 7 --- *)
-    iInstr "Hcode".
-
-    (* --- LShiftR cs0 cs0 3 --- *)
-    iInstr "Hcode".
-
+    iApply (switcher_call_block_7_after_unseal_spec with
+      "[- $Htbl3 $HPC $Hcs0 $Hct1 $Hct2 $Hcode]"); eauto; iNext.
+    iIntros "(HPC & Hcs0 & Hct1 & Hct2 & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
 
@@ -836,55 +871,10 @@ Section fundamental.
     (* ------------------------------  *)
     focus_block 8 "Hcode" as a_callee_load Ha_callee_load "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_unseal_entry.
-
-
-    (* --- GetB cgp ct1 --- *)
-    iInstr "Hcode".
-
-    (* --- GetA cs1 ct1 --- *)
-    iInstr "Hcode".
-
-    (* --- Sub cs1 cgp cs1 --- *)
-    iInstr "Hcode".
-
-    (* --- Lea ct1 cs1 --- *)
-    iInstr "Hcode".
-    { instantiate (1:=b_tbl). solve_addr-. }
-
-    (* --- Load cra ct1 --- *)
-    wp_instr.
-    iInv "Htbl1" as ">Hb_tbl" "Hcls_tbl".
-    iInstr "Hcode".
-    { split;auto. solve_addr. }
-    iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
-    wp_pure.
-
-    (* --- Lea ct1 1 --- *)
-    iInstr "Hcode".
-    { instantiate (1:=(b_tbl ^+ 1)%a). solve_addr. }
-
-    (* --- Load cgp ct1 --- *)
-    wp_instr.
-    iInv "Htbl2" as ">Hb_tbl" "Hcls_tbl".
-    iInstr "Hcode".
-    { split;auto. solve_addr. }
-    iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
-    wp_pure.
-
-    (* --- Lea cra cs0 --- *)
-    destruct (bpcc + encode_entry_point nargs off ≫ 3)%a eqn:Hentry;cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_reg with "[$HPC $Hi $Hcs0 $Hcra]")
-      ; try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    iInstr "Hcode".
-
-    (* --- Add ct2 ct2 1 --- *)
-    iInstr "Hcode".
-
-    (* clear registers except parameters *)
+    iApply (switcher_call_block_8_spec with
+      "[- $Htbl1 $Htbl2 $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hcgp $Hcra $Hcode]");
+      eauto; iNext.
+    iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
 
@@ -902,7 +892,6 @@ Section fundamental.
     iDestruct (big_sepM_union with "Hrmap") as "[Hparams Hrest]".
     { apply map_disjoint_filter_complement. }
 
-    rewrite encode_entry_point_eq_nargs;last lia.
     iApply (clear_registers_pre_call_skip_spec _ _ _ _ _ _ (nargs+1) with "[- $HPC $Hcode]"); try solve_pure.
     { instantiate (1:=filter (λ v : RegName * Word, (Pf v)%type) rmap').
       rewrite /is_arg_rmap /dom_arg_rmap.
@@ -1033,8 +1022,7 @@ Section fundamental.
       apply elem_of_difference. split;[apply all_registers_s_correct|set_solver].
     }
     repeat iSplit.
-    - clear-Hentry. iPureIntro. simplify_map_eq. repeat f_equiv.
-      rewrite encode_entry_point_eq_off in Hentry. solve_addr.
+    - iPureIntro. simplify_map_eq. reflexivity.
     - iPureIntro. clear. simplify_map_eq. auto.
     - iPureIntro.
       simplify_map_eq.

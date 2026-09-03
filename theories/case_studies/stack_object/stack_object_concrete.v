@@ -207,35 +207,136 @@ Proof.
   - unfold_so_addresses; disj_regions.
 Defined.
 
-Ltac solve_so_concrete_disjoint :=
-  unfold disjoint_cmpt, switcher_cmpt_disjoint, assert_cmpt_disjoint,
-       assert_switcher_disjoint, cmpt_region, cmpt_pcc_region, cmpt_cgp_region,
-       cmpt_exp_tbl_region, cmpt_switcher_region, cmpt_switcher_code_region,
-       cmpt_switcher_trusted_stack_region, cmpt_switcher_stack_region,
-       cmpt_assert_region, cmpt_assert_code_region, cmpt_assert_cap_region,
-       cmpt_assert_flag_region, so_concrete_cmptSwitcher,
-       so_concrete_cmptAssert, so_concrete_main_cmpt, so_concrete_C_cmpt;
-  cbn [cmpt_b_pcc cmpt_e_pcc cmpt_b_cgp cmpt_e_cgp
-       cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end
-       b_switcher e_switcher b_trusted_stack e_trusted_stack
-       b_stack e_stack b_assert cap_assert e_assert flag_assert];
-  intros x Hx Hx';
-  repeat (rewrite elem_of_app in Hx || rewrite elem_of_app in Hx');
-  repeat (rewrite elem_of_finz_seq_between in Hx ||
-          rewrite elem_of_finz_seq_between in Hx');
-  unfold_so_addresses_in Hx; unfold_so_addresses_in Hx';
-  cbn in Hx, Hx';
-  intuition solve_addr.
+(** All nonempty concrete regions, in increasing address order. The empty
+    main data region and both empty static-sealed ranges are omitted. *)
+Definition so_concrete_region_partition : list (list Addr) :=
+  [ finz.seq_between so_main_pcc_b so_main_pcc_e;
+    finz.seq_between so_C_pcc_b so_C_pcc_e;
+    finz.seq_between so_C_data_b so_C_data_e;
+    finz.seq_between so_main_exports_pcc so_main_exports_entries_e;
+    finz.seq_between so_C_exports_pcc so_C_exports_entries_e;
+    finz.seq_between so_assert_b so_assert_cap;
+    finz.seq_between so_assert_cap so_assert_e;
+    finz.seq_between so_assert_flag (so_assert_flag ^+ 1)%a;
+    finz.seq_between so_switcher_b so_switcher_e;
+    finz.seq_between so_stack_b so_stack_e;
+    finz.seq_between so_trusted_stack_b so_trusted_stack_e
+  ].
+
+Lemma so_concrete_region_partition_disjoint :
+  ## so_concrete_region_partition.
+Proof.
+  rewrite /so_concrete_region_partition.
+  unfold_so_addresses.
+  disj_regions.
+Qed.
+
+Local Lemma so_main_data_region_empty :
+  finz.seq_between so_main_data_b so_main_data_e = [].
+Proof.
+  apply finz_seq_between_empty.
+  unfold_so_addresses; solve_addr.
+Qed.
+
+Local Lemma so_C_static_region_empty :
+  finz.seq_between so_C_data_e so_C_data_e = [].
+Proof.
+  apply finz_seq_between_empty.
+  unfold_so_addresses; solve_addr.
+Qed.
+
+Local Lemma so_concrete_cmpts_disjoints :
+  so_concrete_main_cmpt ## so_concrete_C_cmpt.
+Proof.
+  change
+    ((finz.seq_between so_main_pcc_b so_main_pcc_e ∪
+      finz.seq_between so_main_data_b so_main_data_e ∪
+      finz.seq_between so_main_data_e so_main_data_e ∪
+      finz.seq_between so_main_exports_pcc so_main_exports_entries_e) ##
+     (finz.seq_between so_C_pcc_b so_C_pcc_e ∪
+      finz.seq_between so_C_data_b so_C_data_e ∪
+      finz.seq_between so_C_data_e so_C_data_e ∪
+      finz.seq_between so_C_exports_pcc so_C_exports_entries_e)).
+  pose proof so_concrete_region_partition_disjoint as Hpartition.
+  rewrite so_main_data_region_empty so_C_static_region_empty.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma so_concrete_switcher_cmpt_disjoints :
+  switcher_cmpt_disjoint so_concrete_main_cmpt so_concrete_cmptSwitcher
+  ∧ switcher_cmpt_disjoint so_concrete_C_cmpt so_concrete_cmptSwitcher.
+Proof.
+  change
+    ((finz.seq_between so_switcher_b so_switcher_e ∪
+      finz.seq_between so_trusted_stack_b so_trusted_stack_e ∪
+      finz.seq_between so_stack_b so_stack_e) ##
+     (finz.seq_between so_main_pcc_b so_main_pcc_e ∪
+      finz.seq_between so_main_data_b so_main_data_e ∪
+      finz.seq_between so_main_data_e so_main_data_e ∪
+      finz.seq_between so_main_exports_pcc so_main_exports_entries_e) /\
+     (finz.seq_between so_switcher_b so_switcher_e ∪
+      finz.seq_between so_trusted_stack_b so_trusted_stack_e ∪
+      finz.seq_between so_stack_b so_stack_e) ##
+     (finz.seq_between so_C_pcc_b so_C_pcc_e ∪
+      finz.seq_between so_C_data_b so_C_data_e ∪
+      finz.seq_between so_C_data_e so_C_data_e ∪
+      finz.seq_between so_C_exports_pcc so_C_exports_entries_e)).
+  pose proof so_concrete_region_partition_disjoint as Hpartition.
+  rewrite so_main_data_region_empty so_C_static_region_empty.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma so_concrete_assert_cmpt_disjoints :
+  assert_cmpt_disjoint so_concrete_main_cmpt so_concrete_cmptAssert
+  ∧ assert_cmpt_disjoint so_concrete_C_cmpt so_concrete_cmptAssert.
+Proof.
+  change
+    ((finz.seq_between so_assert_b so_assert_cap ∪
+      finz.seq_between so_assert_cap so_assert_e ∪
+      finz.seq_between so_assert_flag (so_assert_flag ^+ 1)%a) ##
+     (finz.seq_between so_main_pcc_b so_main_pcc_e ∪
+      finz.seq_between so_main_data_b so_main_data_e ∪
+      finz.seq_between so_main_data_e so_main_data_e ∪
+      finz.seq_between so_main_exports_pcc so_main_exports_entries_e) /\
+     (finz.seq_between so_assert_b so_assert_cap ∪
+      finz.seq_between so_assert_cap so_assert_e ∪
+      finz.seq_between so_assert_flag (so_assert_flag ^+ 1)%a) ##
+     (finz.seq_between so_C_pcc_b so_C_pcc_e ∪
+      finz.seq_between so_C_data_b so_C_data_e ∪
+      finz.seq_between so_C_data_e so_C_data_e ∪
+      finz.seq_between so_C_exports_pcc so_C_exports_entries_e)).
+  pose proof so_concrete_region_partition_disjoint as Hpartition.
+  rewrite so_main_data_region_empty so_C_static_region_empty.
+  rewrite !(@union_empty_r Addr (list Addr) _ _ _ _ _).
+  solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
+Qed.
+
+Local Lemma so_concrete_assert_switcher_disjoints :
+  assert_switcher_disjoint so_concrete_cmptAssert so_concrete_cmptSwitcher.
+Proof.
+  change
+    ((finz.seq_between so_assert_b so_assert_cap ∪
+      finz.seq_between so_assert_cap so_assert_e ∪
+      finz.seq_between so_assert_flag (so_assert_flag ^+ 1)%a) ##
+     (finz.seq_between so_switcher_b so_switcher_e ∪
+      finz.seq_between so_trusted_stack_b so_trusted_stack_e ∪
+      finz.seq_between so_stack_b so_stack_e)).
+  pose proof so_concrete_region_partition_disjoint as Hpartition.
+  solve_addr_partition_disjoint so_concrete_region_partition Hpartition.
+Qed.
 
 Global Instance so_concrete_layout : memory_layout.
 Proof.
-  refine (@Build_memory_layout machine_parameters_instance
-    so_concrete_cmptSwitcher so_concrete_cmptAssert
-    so_concrete_main_cmpt so_concrete_C_cmpt 3 40 _ _ _ _).
-  - solve_so_concrete_disjoint.
-  - split; solve_so_concrete_disjoint.
-  - split; solve_so_concrete_disjoint.
-  - solve_so_concrete_disjoint.
+  exact
+    (@Build_memory_layout machine_parameters_instance
+       so_concrete_cmptSwitcher so_concrete_cmptAssert
+       so_concrete_main_cmpt so_concrete_C_cmpt 3 40
+       so_concrete_cmpts_disjoints
+       so_concrete_switcher_cmpt_disjoints
+       so_concrete_assert_cmpt_disjoints
+       so_concrete_assert_switcher_disjoints).
 Defined.
 
 Definition so_initial_registers : Reg :=

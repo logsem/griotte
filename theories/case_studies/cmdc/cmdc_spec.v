@@ -3,6 +3,7 @@ From griotte Require Import logrel rules monotone interp_weakening.
 From griotte Require Import fetch_spec assert_spec switcher_spec_call cmdc.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import proofmode register_tactics map_simpl.
+From griotte Require Import cmdc_spec_helper.
 
 Section CMDC.
   Context
@@ -208,106 +209,38 @@ Section CMDC.
     iInstr "Hcode".
 
 
-    (* Relinquish [Hcgp_b] and prove that the capability pointing to it is safe to share *)
+    (* The call helper starts after [Jalr]. The caller proves separation of
+       [shared_addr] here because it owns both pointsto predicates.
+       [cmdc_call_adv_block_spec] then relinquishes [shared_addr] into the
+       world, replacing its direct pointsto ownership with a permanent shared
+       relation while it performs the switcher protocol. Here [shared_addr] is
+       instantiated with [cgp_b]. *)
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_b]") as "%Hcgp_b_stk".
-    assert ( cgp_b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_b_stk'.
-    { clear -Hcgp_b_stk.
-      apply not_elem_of_finz_seq_between.
-      apply not_elem_of_finz_seq_between in Hcgp_b_stk.
-      destruct Hcgp_b_stk; [left|right]; solve_addr.
-    }
-
-    iDestruct ( init_PermRes W_init_B B cgp_b RW interpC with "[] [$Hcgp_b] []" ) as "Hcgp_b".
-    { done. }
-    { iApply future_priv_mono_interp_z. }
-    { iApply interp_int. }
-    iMod (world_interp_extend_perm with "Hworld_interp_B Hcgp_b")
-      as "(Hworld_interp_B & Hrel_cgp_b)"; auto.
-
-
-    set (W1 := (<s[cgp_b:=Permanent]s>W_init_B)).
-    assert (related_sts_priv_world W_init_B W1) as HWinit_privB_W1.
-    { subst W1; eapply related_sts_priv_world_fresh_Permanent. }
-
-    iAssert (interp W1 B (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_W1_B_b".
-    { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
-      rewrite (finz_seq_between_cons cgp_b); last solve_addr.
-      rewrite (finz_seq_between_empty (cgp_b ^+ 1)%a); last solve_addr.
-      iApply big_sepL_singleton.
-      iExists RW, interp.
-      iEval (cbn).
-      iSplit; first done.
-      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
-      iSplit; first iFrame "Hrel_cgp_b".
-      iSplit; first (iNext ; by iApply zcond_interp).
-      iSplit; first (iNext ; by iApply rcond_interp).
-      iSplit; first (iNext ; by iApply wcond_interp).
-      subst W1.
-      iSplit.
-      + iApply (monoReq_interp _ _ _ _  Permanent); last done.
-        rewrite /std_update.
-        by rewrite lookup_insert_eq.
-      + iPureIntro.
-        by rewrite lookup_insert_eq.
-    }
-
-    (* Prove that the adversary's entry point is safe to share *)
-    iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
-    { iApply interp_monotone_sd; eauto. }
-
-    (* Prepare the argument registers for the call to the adversary *)
     iExtractList "Hrmap" [ca1;ca2;ca3;ca4;ca5] as ["Hca1";"Hca2";"Hca3";"Hca4";"Hca5"].
-    set ( rmap_arg :=
-           {[ ca0 := WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b;
-              ca1 := wca1;
-              ca2 := wca2;
-              ca3 := wca3;
-              ca4 := wca4;
-              ca5 := wca5;
-              ct0 := WInt 0
-           ]} : Reg
-        ).
-    iAssert ( [∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg
-                                            ∗ if decide (rarg ∈ dom_arg_rmap cmdc_B_f_args)
-                                              then interp W1 B warg
-                                              else True )%I
-      with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
-    { subst rmap_arg; rewrite /cmdc_B_f_args.
-      repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
-      done.
-    }
-
     iInsertList "Hrmap" [ctp].
     repeat (rewrite -delete_insert_ne //).
-    set (rmap' := (delete ca5 _)).
-
-
-    (* Prepare the stack resources required by the cross-compartment call specification *)
-    assert ( revoked_addresses W1 (finz.seq_between csp_b csp_e) ) as Hrevoked_stack_B_W1.
-    { rewrite /revoked_addresses Forall_forall.
-      rewrite /revoked_addresses Forall_forall in Hrevoked_stack_B.
-      intros a Ha; cbn in *.
-      rewrite lookup_insert_ne; last (intros ->; set_solver+Hcgp_b_stk Ha).
-      by apply Hrevoked_stack_B.
-    }
-    iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_B") as "Hstack_revoked_B"; eauto.
-
+    set (rmap_call_B := (delete ca5 _)).
     iEval (cbn) in "Hct1".
-    iApply (switcher_cc_specification _ W1 with
-             "[- $Hswitcher $Hna
-              $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap $Hrmap_arg
-              $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B $Hcstk_frag
-              $Hinterp_W1_B_f $HentryB_f $HK]"); eauto; iFrame "%".
-    { subst rmap'.
+    iApply (cmdc_call_adv_block_spec
+      Nswitcher W_init_B B cgp_b (cgp_b ^+ 1)%a B_f with
+      "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
+       $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0 $Hrmap
+       $Hcgp_b $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B
+       $Hcstk_frag $HK $Hinterp_Winit_B_f $HentryB_f]").
+    { solve_addr. }
+    { exact Hcgp_b. }
+    { exact Hcgp_b_stk. }
+    { exact Hrevoked_stack_B. }
+    { solve_addr. }
+    { subst rmap_call_B.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hrmap_dom; set_solver.
     }
-    { by rewrite /is_arg_rmap. }
 
-    iNext. subst rmap'.
+    iNext. subst rmap_call_B.
     iIntros (W2_B rmap' stk_mem l)
-      "( _ & _ & _
-      & %HW1_pubB_W2 & Hstack_revoked_B & %Hdom_rmap' & Hclose_reg_B & %Hclose_reg_B
+      "( _ & _ & _ & _ & _
+      & %HW2_B_cgp_b & #Hrel_cgp_b & %Hdom_rmap' & Hstack_revoked_B & _
       & Hna & %Hcsp_bounds
       & Hworld_interp_B
       & Hcstk_frag
@@ -315,18 +248,7 @@ Section CMDC.
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK)" ; clear l.
     iEval (cbn) in "HPC".
-
-    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
-    iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
-    assert (∀ r : RegName, r ∈ dom rmap' → rmap' !! r = Some (WInt 0)) as Hrmap_init'.
-    { intros r Hr.
-      rewrite elem_of_dom in Hr. destruct Hr as [wr Hr].
-      pose proof Hr as Hr'.
-      eapply map_Forall_lookup in Hr'; eauto.
-      by cbn in Hr' ; simplify_eq.
-    }
-    iClear "Hrmap_zero".
-
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
 
     (* ---- extract the needed registers ----  *)
     iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ct3;ct4;cnull]
@@ -366,26 +288,11 @@ Section CMDC.
     iInstr "Hcode".
     { transitivity (Some cgp_b%a); auto; subst cgp_c; solve_addr. }
 
-    (* we open the world to get the points-to predicate *)
-    (* We know that cgp_b is Permanent because of private future world transition
-       preserves Permanent invariant. *)
-    assert (std W2_B !! cgp_b = Some Permanent) as HW2_B_cpg_b.
-    { eapply region_state_pub_perm in HW1_pubB_W2; eauto.
-      subst W1.
-      (* TODO lemma *)
-      rewrite std_update_multiple_insert_commute; last done.
-      rewrite !lookup_insert_eq; done.
-    }
-
     rewrite (open_world_interp_empty _ B).
     iDestruct (
        open_world_interp_permanent with "[$Hworld_interp_B] [$Hrel_cgp_b]"
       ) as "(Hworld_interp_B & Hstd_cgp_b & [%v Hcgp_b] )"; auto.
     { set_solver+. }
-    {
-      eapply (region_state_priv_perm W2_B); eauto.
-      eapply revoke_related_sts_priv_world.
-    }
     iEval (cbn) in "Hcgp_b".
     iDestruct (PermRes_acc with "Hcgp_b") as "[ (>Hcgp_b & Hcgp_b_interp) Hcgp_b_close]".
 
@@ -432,101 +339,37 @@ Section CMDC.
     focus_block 8 "Hcode_main" as a_callC Ha_callC "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iInstr "Hcode".
 
-    (* Relinquish [Hcgp_c] and prove that the capability pointing to it is safe to share *)
+    (* As for call B, the caller establishes separation first. Then
+       [cmdc_call_adv_block_spec] relinquishes [shared_addr] into the world,
+       replacing direct pointsto ownership with a permanent shared relation;
+       here [shared_addr] is instantiated with [cgp_c]. *)
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_c]") as "%Hcgp_c_stk".
-
-    iDestruct ( init_PermRes W_init_C C cgp_c RW interpC with "[] [$Hcgp_c] []" ) as "Hcgp_c".
-    { done. }
-    { iApply future_priv_mono_interp_z. }
-    { iApply interp_int. }
-    iMod (world_interp_extend_perm with "Hworld_interp_C Hcgp_c")
-      as "(Hworld_interp_C & Hrel_cgp_c)"; auto.
-
-    set (W3 := (<s[cgp_c:=Permanent]s>W_init_C)).
-    assert (related_sts_priv_world W_init_C W3) as HWinit_privC_W3.
-    { subst W3; by eapply related_sts_priv_world_fresh_Permanent. }
-
-    iAssert (interp W3 C (WCap RW Global cgp_c (cgp_c ^+ 1)%a cgp_c)) as "#Hinterp_W3_C_c".
-    { subst cgp_c.
-      iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
-      rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
-      rewrite (finz_seq_between_empty ((cgp_b ^+ 1) ^+ 1)%a); last solve_addr.
-      iApply big_sepL_singleton.
-      iExists RW, interp.
-      iEval (cbn).
-      iSplit; first done.
-      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
-      iSplit; first iFrame "Hrel_cgp_c".
-      iSplit; first (iNext ; by iApply zcond_interp).
-      iSplit; first (iNext ; by iApply rcond_interp).
-      iSplit; first (iNext ; by iApply wcond_interp).
-      subst W3.
-      iSplit.
-      + iApply (monoReq_interp _ _ _ _  Permanent); last done.
-        by rewrite lookup_insert_eq.
-      + iPureIntro.
-        by rewrite lookup_insert_eq.
-    }
-
-
-    (* Prove that the adversary's entry point is safe to share *)
-    iAssert (interp W3 C (WSealed ot_switcher C_g)) as "#Hinterp_W3_C_g".
-    { iApply interp_monotone_sd; eauto. }
-
-
-    (* Prepare the argument registers for the call to the adversary *)
-    clear rmap_arg wca0 wca1 wca2 wca3 wca4 wca5.
+    clear wca0 wca1 wca2 wca3 wca4 wca5.
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as ["Hca2";"Hca3";"Hca4";"Hca5"].
-    set ( rmap_arg :=
-           {[ ca0 := WCap RW Global cgp_c%a (cgp_c ^+ 1)%a cgp_c%a;
-              ca1 := WInt 0;
-              ca2 := wca2;
-              ca3 := wca3;
-              ca4 := wca4;
-              ca5 := wca5;
-              ct0 := WInt 0
-           ]} : Reg
-        ).
-    iAssert ( [∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg
-                                            ∗ if decide (rarg ∈ dom_arg_rmap cmdc_C_g_args)
-                                              then interp W3 C warg
-                                              else True )%I
-      with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
-    { subst rmap_arg; rewrite /cmdc_C_g_args.
-      repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
-      done.
-    }
-
     iInsertList "Hrmap" [cnull;ct4;ct3;ct2;ctp].
     repeat (rewrite -delete_insert_ne //).
-    set (rmap'' := (delete ca5 _)).
+    set (rmap_call_C := (delete ca5 _)).
 
-
-    (* Prepare the stack resources required by the cross-compartment call specification *)
-    assert ( revoked_addresses W3 (finz.seq_between csp_b csp_e) ) as Hrevoked_stack_C_W3.
-    { rewrite /revoked_addresses Forall_forall.
-      rewrite /revoked_addresses Forall_forall in Hrevoked_stack_C.
-      intros a Ha; cbn in *.
-      rewrite lookup_insert_ne; last (intros ->; set_solver+Hcgp_c_stk Ha).
-      by apply Hrevoked_stack_C.
-    }
-    iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_C") as "Hstack_revoked_C"; eauto.
-
-    iApply (switcher_cc_specification _ W3 with
-             "[- $Hswitcher $Hna
-              $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap $Hrmap_arg
-              $Hstk $Hworld_interp_C $Hstack_revoked_C $Hcstk_frag
-              $Hinterp_W3_C_g $HentryC_g $HK]"); eauto; iFrame "%".
-    { subst rmap''.
+    iApply (cmdc_call_adv_block_spec
+      Nswitcher W_init_C C cgp_c (cgp_c ^+ 1)%a C_g with
+      "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
+       $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0 $Hrmap
+       $Hcgp_c $Hstk $Hworld_interp_C $Hstack_revoked_C
+       $Hcstk_frag $HK $Hinterp_Winit_C_g $HentryC_g]").
+    { subst cgp_c. solve_addr. }
+    { subst cgp_c. exact Hcgp_c. }
+    { exact Hcgp_c_stk. }
+    { exact Hrevoked_stack_C. }
+    { solve_addr. }
+    { subst rmap_call_C.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       rewrite Hdom_rmap'; set_solver.
     }
-    { by rewrite /is_arg_rmap. }
 
-    iNext. subst rmap''. clear dependent stk_mem.
+    iNext. subst rmap_call_C. clear dependent stk_mem.
     iIntros (W4_C rmap'' stk_mem l)
-      "( _ & _ & _
-      & %HW1_pubC_4 & Hstack_revoked_C & %Hdom_rmap'' & Hclose_reg_C & _
+      "( _ & _ & _ & _ & _ & _ & _
+      & %Hdom_rmap'' & Hstack_revoked_C & _
       & Hna & _
       & Hworld_interp_C
       & Hcstk_frag
@@ -534,17 +377,7 @@ Section CMDC.
       & [%warg'0 [Hca0 _] ] & [%warg1' [Hca1 _] ]
       & Hrmap & Hstk & HK)" ; clear l.
     iEval (cbn) in "HPC".
-
-    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
-    iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero'".
-    assert (∀ r : RegName, r ∈ dom rmap'' → rmap'' !! r = Some (WInt 0)) as Hrmap_init''.
-    { intros r Hr.
-      rewrite elem_of_dom in Hr. destruct Hr as [wr Hr].
-      pose proof Hr as Hr'.
-      eapply map_Forall_lookup in Hr'; eauto.
-      by cbn in Hr' ; simplify_eq.
-    }
-    iClear "Hrmap_zero".
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
 
     (* ---- extract the needed registers ----  *)
     clear wctp wct0 wct1 wct2 wct3 wct4 wcnull.
