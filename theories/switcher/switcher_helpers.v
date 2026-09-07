@@ -386,7 +386,7 @@ Section switcher_helper.
       iDestruct "Hv2" as (? P2 ?) "[Hv2 #Hrel2]".
       iDestruct "Hv3" as (? P3 ?) "[Hv3 #Hrel3]".
       iClear "Hinterp_callee_wstk".
-      iFrame "#".
+      iFrame "Hrel0 Hrel1 Hrel2 Hrel3".
       iDestruct "Hv0" as (W0') "[%HW0' (%v0 & % & [$ [#H0 H0']])]".
       iDestruct "Hv1" as (W1') "[%HW1' (%v1 & % & [$ [#H1 H1']])]".
       iDestruct "Hv2" as (W2') "[%HW2' (%v2 & % & [$ [#H2 H2']])]".
@@ -396,14 +396,14 @@ Section switcher_helper.
       iDestruct (rel_agree _ _ (safeC φ_astk1) P1 with "[$Hrel_astk1 $Hrel1]") as "[<- HP1]".
       iDestruct (rel_agree _ _ (safeC φ_astk2) P2 with "[$Hrel_astk2 $Hrel2]") as "[<- HP2]".
       iDestruct (rel_agree _ _ (safeC φ_astk3) P3 with "[$Hrel_astk3 $Hrel3]") as "[<- HP3]".
-      rewrite (readAllowed_flowsto RWL p_astk0); auto.
-      rewrite (readAllowed_flowsto RWL p_astk1); auto.
-      rewrite (readAllowed_flowsto RWL p_astk2); auto.
-      rewrite (readAllowed_flowsto RWL p_astk3); auto.
-      rewrite (isWL_flowsto RWL p_astk0); auto.
-      rewrite (isWL_flowsto RWL p_astk1); auto.
-      rewrite (isWL_flowsto RWL p_astk2); auto.
-      rewrite (isWL_flowsto RWL p_astk3); auto.
+      rewrite (readAllowed_flowsto RWL p_astk0 Hp_astk0 eq_refl)
+        (readAllowed_flowsto RWL p_astk1 Hp_astk1 eq_refl)
+        (readAllowed_flowsto RWL p_astk2 Hp_astk2 eq_refl)
+        (readAllowed_flowsto RWL p_astk3 Hp_astk3 eq_refl)
+        (isWL_flowsto RWL p_astk0 Hp_astk0 eq_refl)
+        (isWL_flowsto RWL p_astk1 Hp_astk1 eq_refl)
+        (isWL_flowsto RWL p_astk2 Hp_astk2 eq_refl)
+        (isWL_flowsto RWL p_astk3 Hp_astk3 eq_refl).
       iNext.
       iRewrite - ("HP0" $! (W0',C,v0)) in "H0'".
       iRewrite - ("HP1" $! (W1',C,v1)) in "H1'".
@@ -416,15 +416,16 @@ Section switcher_helper.
       iSplitR.
       {
         rewrite /load_word.
-        rewrite (notisDRO_flowsfrom RWL p_astk0); eauto.
-        rewrite (notisDRO_flowsfrom RWL p_astk1); eauto.
-        rewrite (notisDRO_flowsfrom RWL p_astk2); eauto.
-        rewrite (notisDRO_flowsfrom RWL p_astk3); eauto.
-        rewrite (notisDL_flowsfrom RWL p_astk0); eauto.
-        rewrite (notisDL_flowsfrom RWL p_astk1); eauto.
-        rewrite (notisDL_flowsfrom RWL p_astk2); eauto.
-        rewrite (notisDL_flowsfrom RWL p_astk3); eauto.
-        iFrame "#%".
+        rewrite (notisDRO_flowsfrom RWL p_astk0 Hp_astk0 eq_refl).
+        rewrite (notisDRO_flowsfrom RWL p_astk1 Hp_astk1 eq_refl).
+        rewrite (notisDRO_flowsfrom RWL p_astk2 Hp_astk2 eq_refl).
+        rewrite (notisDRO_flowsfrom RWL p_astk3 Hp_astk3 eq_refl).
+        rewrite (notisDL_flowsfrom RWL p_astk0 Hp_astk0 eq_refl).
+        rewrite (notisDL_flowsfrom RWL p_astk1 Hp_astk1 eq_refl).
+        rewrite (notisDL_flowsfrom RWL p_astk2 Hp_astk2 eq_refl).
+        rewrite (notisDL_flowsfrom RWL p_astk3 Hp_astk3 eq_refl).
+        iFrame "Hinterp0 Hinterp1 Hinterp2 Hinterp3".
+        iFrame "%".
       }
       iSplitL "H0 H0'".
       { iSplitR "H0'"; first iFrame "%".
