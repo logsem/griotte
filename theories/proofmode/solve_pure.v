@@ -4,6 +4,8 @@ From griotte Require Import machine_base machine_parameters solve_addr.
 From griotte Require Export solve_addr_extra classes class_instances.
 From griotte Require Import rules_Get rules_BinOp.
 From machine_utils Require Export solve_pure.
+From Ltac2 Require Import Ltac2.
+Set Default Proof Mode "Classic".
 
 Ltac solve_pure_addr := solve_pure_finz.
 
@@ -141,6 +143,38 @@ Proof. auto. Qed.
 #[export] Hint Extern 1 (denote (GetWType _ _) ?w = Some _) =>
   (eapply getwtype_denote ; reflexivity) : solve_pure.
 #[export] Hint Extern 1 (rules_Get.denote _ _ = Some _) => reflexivity : solve_pure. (* unification fails if lhs has evars *)
+
+Ltac griotte_freeze_hyp_once1 h :=
+  let P := type of h in
+  lazymatch type of P with
+  | Prop =>
+      lazymatch P with
+      | InCtx _ => fail
+      | _ => change P with (InCtx P) in h
+      end
+  | _ => fail
+  end.
+
+Ltac2 griotte_freeze_hyp_once (h : ident) :=
+  ltac1:(h |- griotte_freeze_hyp_once1 h) (Ltac1.of_ident h).
+
+Ltac2 rec griotte_freeze_hyps_once_aux hyps :=
+  match hyps with
+  | [] => ()
+  | (h, _, _) :: hyps =>
+      let _ := Control.case (fun _ => griotte_freeze_hyp_once h) in
+      griotte_freeze_hyps_once_aux hyps
+  end.
+
+Ltac2 griotte_freeze_hyps_once () :=
+  griotte_freeze_hyps_once_aux (List.rev (Control.hyps ())).
+
+Ltac2 solve_pure_iinstr () :=
+  first [ assumption
+        | discriminate
+        | griotte_freeze_hyps_once ();
+          typeclasses_eauto with solve_pure typeclass_instances;
+          ltac1:(unfreeze_hyps) ].
 
 (* Tests *)
 
