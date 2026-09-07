@@ -4,6 +4,8 @@ From griotte Require Import machine_base machine_parameters solve_addr.
 From griotte Require Export solve_addr_extra classes class_instances.
 From griotte Require Import rules_Get rules_BinOp.
 From machine_utils Require Export solve_pure.
+From Ltac2 Require Import Ltac2.
+Set Default Proof Mode "Classic".
 
 Ltac solve_pure_addr := solve_pure_finz.
 
@@ -142,6 +144,38 @@ Proof. auto. Qed.
   (eapply getwtype_denote ; reflexivity) : solve_pure.
 #[export] Hint Extern 1 (rules_Get.denote _ _ = Some _) => reflexivity : solve_pure. (* unification fails if lhs has evars *)
 
+Ltac griotte_freeze_hyp_once1 h :=
+  let P := type of h in
+  lazymatch type of P with
+  | Prop =>
+      lazymatch P with
+      | InCtx _ => fail
+      | _ => change P with (InCtx P) in h
+      end
+  | _ => fail
+  end.
+
+Ltac2 griotte_freeze_hyp_once (h : ident) :=
+  ltac1:(h |- griotte_freeze_hyp_once1 h) (Ltac1.of_ident h).
+
+Ltac2 rec griotte_freeze_hyps_once_aux hyps :=
+  match hyps with
+  | [] => ()
+  | (h, _, _) :: hyps =>
+      let _ := Control.case (fun _ => griotte_freeze_hyp_once h) in
+      griotte_freeze_hyps_once_aux hyps
+  end.
+
+Ltac2 griotte_freeze_hyps_once () :=
+  griotte_freeze_hyps_once_aux (List.rev (Control.hyps ())).
+
+Ltac2 solve_pure_iinstr () :=
+  first [ assumption
+        | discriminate
+        | griotte_freeze_hyps_once ();
+          typeclasses_eauto with solve_pure typeclass_instances;
+          ltac1:(unfreeze_hyps) ].
+
 (* Tests *)
 
 Goal forall (r_t1 PC: RegName) `{MachineParameters}, exists r1 r2,
@@ -178,3 +212,88 @@ Goal forall (P: Prop), P → P. intros. solve_pure. Qed.
 Goal forall w, canStore RWL w = true. Proof. intros. solve_pure. Qed.
 Goal has_sreg_access XSRW_ = true. Proof. solve_pure. Qed.
 Goal has_sreg_access RW = false. Proof. solve_pure. Qed.
+
+Module SolvePureIInstrTests.
+
+Local Ltac solve_pure_iinstr_test := ltac2:(solve_pure_iinstr ()).
+
+Goal forall (r_t1 PC: RegName) `{MachineParameters}, exists r1 r2,
+  decodeInstrW (encodeInstrW (Mov r_t1 PC)) = Mov r1 r2 ∧
+  r1 = r_t1 ∧ r2 = inr PC.
+Proof. do 2 eexists. repeat apply conj; first solve_pure_iinstr_test. all: reflexivity. Qed.
+
+Goal forall p g b e a,
+  executeAllowed p = true →
+  SubBounds b e a (a ^+ 5)%a →
+  ContiguousRegion a 5 →
+  isCorrectPC (WCap p g b e a).
+Proof. intros. solve_pure_iinstr_test. Qed.
+
+Goal forall (r_t1 r_t2: RegName), exists r1 r2,
+  is_Get (GetB r_t2 r_t1) r1 r2 ∧
+  r1 = r_t2 ∧ r2 = r_t1.
+Proof. do 2 eexists. repeat apply conj; first solve_pure_iinstr_test. all: reflexivity. Qed.
+
+Goal forall p g b e a,
+  executeAllowed p = true →
+  SubBounds b e a (a ^+ 5)%a →
+  ContiguousRegion a 5 →
+  isCorrectPC (WCap p g b e (a ^+ 1)%a).
+Proof. intros. solve_pure_iinstr_test. Qed.
+
+Goal forall (r_t1 r_t2 r_t3: RegName), exists r1 r2 r3,
+  is_BinOp (Sub r_t2 r_t2 r_t3) r1 (inr r2) (inr r3) ∧
+  r1 = r_t2 ∧ r2 = r_t2 ∧ r3 = r_t3.
+Proof. do 3 eexists. repeat apply conj; first solve_pure_iinstr_test. all: reflexivity. Qed.
+
+Goal forall (P: Prop), P → P. intros. solve_pure_iinstr_test. Qed.
+
+Goal forall w, canStore RWL w = true. Proof. intros. solve_pure_iinstr_test. Qed.
+Goal has_sreg_access XSRW_ = true. Proof. solve_pure_iinstr_test. Qed.
+Goal has_sreg_access RW = false. Proof. solve_pure_iinstr_test. Qed.
+
+Class TestNeed (P : Prop) := {
+  test_need : P;
+  test_token : True
+}.
+
+Lemma test_need_InCtx P : InCtx P -> TestNeed P.
+Proof. intros HP. split; [exact HP|exact I]. Qed.
+#[local] Hint Resolve test_need_InCtx : solve_pure.
+
+Goal forall (P Q : Prop), P -> Q -> TestNeed P.
+Proof. intros. solve_pure_iinstr_test. Qed.
+
+Goal forall (P Q : Prop), InCtx P -> Q -> Q.
+Proof.
+  intros P Q HP HQ.
+  Fail assert False by solve_pure_iinstr_test.
+  lazymatch type of HP with InCtx P => idtac end.
+  lazymatch type of HQ with Q => idtac end.
+  exact HQ.
+Qed.
+
+Goal forall (P : Prop) (p : P) (R : P -> Prop),
+    R p -> TestNeed P.
+Proof. intros P p R HR. solve_pure_iinstr_test. Qed.
+
+Goal forall (P : Prop) (p : P), TestNeed P.
+Proof. intros P p. pose (q := p). solve_pure_iinstr_test. Qed.
+
+Class TestBare (P : Prop) := {
+  test_bare : P;
+  test_bare_token : True
+}.
+
+#[local] Instance test_bare_from_prop P (HP : P) : TestBare P :=
+  {| test_bare := HP; test_bare_token := I |}.
+
+Goal forall (P : Prop), P -> exists Q : Prop, TestBare Q.
+Proof.
+  intros P HP. eexists.
+  Fail solve_pure_iinstr_test.
+  instantiate (1 := P).
+  constructor; [exact HP|exact I].
+Qed.
+
+End SolvePureIInstrTests.
