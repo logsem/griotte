@@ -684,6 +684,55 @@ Section logrel.
     end)%I.
   Solve All Obligations with solve_proper.
 
+  Local Definition interp_cap_body
+      (interp : WORLD -n> leibnizO CmptName -n> leibnizO Word -n> iPropO Σ)
+      (W : WORLD) (C : CmptName) (p : Perm) (g : Locality)
+      (b e : Addr) : iProp Σ :=
+    ([∗ list] a ∈ finz.seq_between b e,
+      ∃ (p' : Perm)
+        (P : WORLD -n> leibnizO CmptName -n> leibnizO Word -n> iPropO Σ),
+        ⌜PermFlowsTo p p'⌝
+        ∧ ⌜persistent_cond P⌝
+        ∧ rel C a p' (safeC P)
+        ∧ ▷ zcond P C
+        ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
+        ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
+        ∧ monoReq W C a p' P
+        ∧ ⌜if isWL p then region_state_pwl W a
+            else region_state_nwl W a g⌝)%I.
+
+  Local Instance interp_cap_body_contractive W C p g b e :
+    Contractive (λ interp, interp_cap_body interp W C p g b e).
+  Proof.
+    rewrite /interp_cap_body.
+    solve_contractive.
+  Qed.
+
+  Local Instance interp_cap_body_persistent interp W C p g b e :
+    Persistent (interp_cap_body interp W C p g b e).
+  Proof. apply _. Qed.
+
+  Local Lemma interp_cap_body_eq interp W C p g b e :
+    interp_cap_body interp W C p g b e ≡
+    ([∗ list] a ∈ finz.seq_between b e,
+      ∃ (p' : Perm)
+        (P : WORLD -n> leibnizO CmptName -n> leibnizO Word -n> iPropO Σ),
+        ⌜PermFlowsTo p p'⌝
+        ∗ ⌜persistent_cond P⌝
+        ∗ rel C a p' (safeC P)
+        ∗ ▷ zcond P C
+        ∗ (if readAllowed p' then ▷ rcond P C p' interp else True)
+        ∗ (if writeAllowed p' then ▷ wcond P C interp else True)
+        ∗ monoReq W C a p' P
+        ∗ ⌜if isWL p then region_state_pwl W a
+            else region_state_nwl W a g⌝)%I.
+  Proof.
+    rewrite /interp_cap_body.
+    apply big_sepL_proper; intros k a' Ha'.
+    do 3 f_equiv. intros P.
+    by rewrite !bi.persistent_and_sep.
+  Qed.
+
   (** To be able to use the fixpoint combinator to define [interp],
       we need to show that all case of [interp] are contractive. *)
   Global Instance interp_cap_O_contractive :
@@ -693,21 +742,24 @@ Section logrel.
   Global Instance interp_sentry_contractive :
     Contractive (interp_sentry).
   Proof.
-    solve_proper_prepare.
-    destruct_word x2; auto.
-    destruct sd ; auto.
-    destruct rx,w,g; auto.
-    all: solve_contractive.
+    intros n x y Hdist W C w.
+    destruct_word w; cbn [interp_sentry]; try reflexivity.
+    change (dist n (□ enter_cond W C sd g b e a x)%I
+                   (□ enter_cond W C sd g b e a y)%I).
+    f_equiv. by apply enter_cond_contractive.
   Qed.
 
   Global Instance interp_cap_contractive :
     Contractive (interp_cap).
   Proof.
-    solve_proper_prepare.
-    destruct_word x2; auto.
-    destruct c ; auto.
-    destruct rx,w,g; auto.
-    par: solve_contractive.
+    intros n x y Hdist W C w.
+    destruct_word w; try reflexivity.
+    destruct c as [rx wp dl dro].
+    destruct rx, wp, g; try reflexivity.
+    all: match goal with
+    | |- context [WCap ?p ?g _ _ _] =>
+        exact (interp_cap_body_contractive W C p g b e n x y Hdist)
+    end.
   Qed.
 
   Global Instance interp_sr_contractive :
@@ -725,15 +777,14 @@ Section logrel.
   Proof.
     intros n x y Hdistn W C w.
     rewrite /interp1.
-    destruct_word w; [auto|..].
-    + destruct c; first auto.
-      destruct rx,w,dl,dro.
-      par: try (by apply interp_cap_O_contractive).
-      par: by apply interp_cap_contractive.
-    + by apply interp_sr_contractive.
-    + by apply interp_sentry_contractive.
-    + rewrite /interp_sb; solve_contractive.
-    Qed.
+    destruct_word w; [reflexivity|..].
+    - destruct c as [rx wp dl dro].
+      destruct rx, wp; try reflexivity;
+        exact (interp_cap_contractive n x y Hdistn W C _).
+    - exact (interp_sr_contractive n x y Hdistn W C _).
+    - exact (interp_sentry_contractive n x y Hdistn W C _).
+    - reflexivity.
+  Qed.
 
   (** Definition of [interp] via the fixpoint combinator. *)
   Lemma fixpoint_interp1_eq (W : WORLD) (C : CmptName) (w : leibnizO Word) :
@@ -754,10 +805,25 @@ Section logrel.
   (** We have, and we _WANT_, [interp] to be Persistent *)
   Global Instance interp_persistent W C w : Persistent (interp W C w).
   Proof.
-    intros. destruct_word w; simpl; rewrite fixpoint_interp1_eq; simpl.
+    rewrite /interp fixpoint_interp1_eq.
+    destruct_word w.
     - apply _.
-    - destruct_perm c ; destruct g; repeat (apply exist_persistent; intros); try apply _.
-    - destruct (permit_seal sr), (permit_unseal sr); rewrite /safe_to_seal /safe_to_unseal; apply _ .
+    - destruct c as [rx wp dl dro].
+      destruct rx, wp, g;
+        first [ apply bi.pure_persistent
+              | match goal with
+                | |- context [WCap ?p ?g _ _ _] =>
+                    exact
+                      (interp_cap_body_persistent
+                         (fixpoint interp1) W C p g b e)
+                end ].
+    - change (Persistent
+        ((if permit_seal sr
+          then safe_to_seal W C interp b e else True) ∗
+         (if permit_unseal sr
+          then safe_to_unseal W C interp b e else True))%I).
+      destruct (permit_seal sr), (permit_unseal sr);
+        rewrite /safe_to_seal /safe_to_unseal; apply _.
     - apply _.
     - apply _.
   Qed.
@@ -784,27 +850,16 @@ Section logrel.
                     ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
                ∗ (⌜ if isWL p then g = Local else True⌝))%I).
   Proof.
-    iSplit.
-    { iIntros "HA".
-      destruct (isO p) eqn:HnotO; subst; auto.
-      destruct p; cbn.
-      destruct rx ; destruct w ; try (cbn in HnotO ; congruence); auto.
-      all: destruct g ;auto ; try (iSplit;eauto).
-      all: try (iApply (big_sepL_mono with "HA"); intros k a' ?; iIntros "H").
-      all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a')").
-      all: try (iExists p',P ; iFrame "#∗"; repeat (iSplit;[done|];done)).
-    }
-    { iIntros "A".
-      destruct (isO p) eqn:HnotO; subst; auto.
-      { destruct_perm p ; cbn in *;auto;try congruence. }
-      destruct (has_sreg_access p) eqn:HnotXSR; subst; auto.
-      iDestruct "A" as "(A & %)".
-      destruct_perm p; cbn in HnotO,HnotXSR; try congruence; auto.
-      all: destruct g eqn:Hg; simplify_eq ; eauto ; cbn.
-      all: try (iApply (big_sepL_mono with "A"); intros; iIntros "H").
-      all: try (iDestruct "H" as (p' P Hflp' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a')").
-      all: try (iExists p',P ; iFrame "#∗"; repeat (iSplit;[done|];done)).
-    }
+    pose proof (interp_cap_body_eq interp W C p g b e) as Hbody.
+    destruct p as [rx wp dl dro].
+    destruct rx, wp, g; cbn [isO has_sreg_access isWL].
+    all: rewrite -?Hbody.
+    all: rewrite ?(bi.pure_True (Local = Local) eq_refl).
+    all: try
+      (rewrite (bi.pure_False (Global = Local)); [|discriminate]).
+    all: rewrite ?bi.sep_True.
+    all: try (rewrite (comm bi_sep _ False%I) bi.sep_False).
+    all: reflexivity.
   Qed.
 
 
