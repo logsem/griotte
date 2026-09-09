@@ -74,7 +74,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[ [ [Hr Hsr] Hm] Hst] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -94,7 +94,7 @@ Section griotte_lang_rules.
     (* Now we start splitting on the different cases in the UnSeal spec, and prove them one at a time *)
      destruct (is_sealr r1v) eqn:Hr1v.
      2:{ (* Failure: the source has the wrong shape *)
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        {
          unfold is_sealr in Hr1v.
          destruct_word r1v; by simplify_pair_eq.
@@ -104,7 +104,7 @@ Section griotte_lang_rules.
      destruct r1v as [ | [ | t p g b e a ] | | ]; try inversion Hr1v. clear Hr1v.
      destruct (is_sealed r2v) eqn:Hr2v.
      2:{ (* Failure: the source has the wrong shape *)
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        {
          unfold is_sealed in Hr2v.
          destruct_word r2v; by simplify_pair_eq.
@@ -162,7 +162,7 @@ Section griotte_lang_rules.
 
      (* Success *)
      rewrite /update_reg /= in Hstep.
-     eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+     eapply (incrementPC_success_updatePC _ sr m st) in Hregs'
        as (t1 & p1 & g1 & b1 & e1 & a1 & a_pc1 & HPC'' & Ha_pc' & HuPC & ->).
      eapply updatePC_success_incl in HuPC. 2: by eapply insert_mono.
      rewrite HuPC in Hstep; clear HuPC; inversion Hstep; clear Hstep; subst c σ2. cbn.

@@ -164,15 +164,15 @@ Qed.
   Qed.
 
   Lemma step_exec_inv
-    (regs: Reg) (sregs : SReg) (mem : Mem)
+    (regs: Reg) (sregs : SReg) (mem : Mem) (shadow : ShadowTbl)
     (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (w : Word)
     (instr : instr) (c: ConfFlag) (σ: ExecConf) :
     regs !! PC = Some (WCap t p g b e a) →
     isCorrectPC (WCap t p g b e a) →
     mem !! a = Some w →
     decodeInstrW w = instr →
-    step (Executable, (regs, sregs, mem)) (c, σ) →
-    exec instr p (regs, sregs, mem) = (c, σ).
+    step (Executable, (regs, sregs, mem, shadow)) (c, σ) →
+    exec instr p (regs, sregs, mem, shadow) = (c, σ).
   Proof.
     intros HPC Hpc Hm Hinstr. inversion 1; cbn in *.
     1,2,3: congruence.
@@ -218,6 +218,7 @@ Qed.
     all: repeat destruct (sreg _ !! _); cbn in *; repeat case_match.
     all: repeat destruct (finz.incr _ _); cbn in *; repeat case_match.
     all: repeat destruct (mem _ !! _); cbn in *; repeat case_match.
+    all: repeat destruct (shadowtbl _ !! _); cbn in *; repeat case_match.
     all: simplify_eq; try by exfalso.
     all: try apply updatePC_some in Heqo as [φ' Heqo]; eauto.
     all: try apply updatePC_gen_some in Heqo as [φ' Heqo]; eauto.

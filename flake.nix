@@ -84,6 +84,68 @@
         };
       };
 
+      # rocq-mcp still invokes the pre-Rocq-9 `coqc` command.  Keep the
+      # compatibility shim local to this development environment.
+      coqcCompat = pkgs.writeShellScriptBin "coqc" ''
+        exec ${rocq.pkgs.rocq-core}/bin/rocq compile "$@"
+      '';
+
+      # coq-lsp was removed from the pinned nixpkgs Rocq package set. Build
+      # the release for Rocq 9.1 against this project's exact Rocq/OCaml
+      # toolchain; `pet` from this package is the backend used by rocq-mcp.
+      coqLsp = rocq.pkgs.mkRocqDerivation rec {
+        pname = "coq-lsp";
+        owner = "rocq-community";
+        namePrefix = [];
+        version = "0.2.5+9.1";
+        release.${version}.sha256 = "sha256-PzIgo15zI3JjibT8GzyHdTwofd3IF6eRmUc47NveH70=";
+
+        useDune = true;
+        nativeBuildInputs = [pkgs.makeWrapper];
+        propagatedBuildInputs = with ocaml.pkgs; [
+          cmdliner
+          logs
+          lwt
+          menhir
+          ppx_deriving_yojson
+          ppx_hash
+          ppx_import
+          ppx_sexp_conv
+          result
+          sexplib
+          tyxml
+          uri
+          yojson
+        ];
+
+        # Avoid coq-lsp's optional build-metadata dependency. The pinned
+        # nixpkgs splits that library out of Dune 3.20, while this project
+        # intentionally overrides the Dune executable to 3.21.
+        postPatch = ''
+          sed -i 's/  dune-build-info))/))/' controller/dune
+          sed -i '/match Build_info.V1.version () with/,+2c\    "${version}"' controller/lsp_core.ml
+        '';
+
+        installPhase = ''
+          runHook preInstall
+          dune install --prefix=$out --libdir $OCAMLFIND_DESTDIR
+          for bin in $out/bin/*; do
+            wrapProgram "$bin" \
+              --prefix OCAMLPATH : $OCAMLFIND_DESTDIR \
+              --prefix OCAMLPATH : $OCAMLPATH
+          done
+          runHook postInstall
+        '';
+      };
+
+      # rocq-mcp has no tagged release yet, so pin the source revision used by
+      # Codex instead of resolving the moving main branch on every launch.
+      rocqMcp = pkgs.writeShellScriptBin "griotte-rocq-mcp" ''
+        exec ${pkgs.uv}/bin/uvx \
+          --from git+https://github.com/LLM4Rocq/rocq-mcp.git@6983113d0844c0b7f987c79dab13988445109bfb \
+          rocq-mcp "$@"
+      '';
+
     in rec {
       packages = let
         mkDepRocqDerivation = pin: {
@@ -169,9 +231,15 @@
         default = packages.theories;
       };
 
-      devShells.default = pkgs.mkShell (with packages; {
-        inputsFrom = with packages; [theories];
-      });
+      devShells.default = pkgs.mkShell {
+        inputsFrom = [packages.theories];
+        packages = [
+          coqcCompat
+          coqLsp
+          pkgs.uv
+          rocqMcp
+        ];
+      };
 
     });
 }

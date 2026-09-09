@@ -2,6 +2,7 @@ From stdpp Require Import countable.
 From griotte Require Import machine_base machine_parameters.
 
 Local Open Scope Z_scope.
+Local Transparent MemNum.
 
 Local Definition encode_countable `{Countable A} (x : A) : Z :=
   Z.pos (encode x).
@@ -67,32 +68,52 @@ Local Lemma encode_word_type_correct :
 Proof. intros w w'. destruct_word w; destruct_word w'; done. Qed.
 
 Local Instance machine_parameters_instance : MachineParameters := {|
-  decodeInstr := decode_countable Fail;
-  encodeInstr := encode_countable;
-  decode_encode_instr_inv := decode_encode_countable Fail;
+  instruction_encoding_mixin := {|
+    decodeInstr := decode_countable Fail;
+    encodeInstr := encode_countable;
+    decode_encode_instr_inv := decode_encode_countable Fail
+  |};
+  permission_encoding_mixin := {|
+    encodePerm := encode_countable;
+    encodePerm_inj := encode_countable_inj;
+    decodePerm := decode_countable (O LG LM);
 
-  encodePerm := encode_countable;
-  encodePerm_inj := encode_countable_inj;
-  decodePerm := decode_countable (O LG LM);
+    encodeLoc := encode_countable;
+    encodeLoc_inj := encode_countable_inj;
 
-  encodeLoc := encode_countable;
-  encodeLoc_inj := encode_countable_inj;
+    decodePermPair := decode_countable ((O LG LM), Local);
+    encodePermPair := encode_countable;
+    decode_encode_permPair_inv := decode_encode_countable ((O LG LM), Local);
 
-  decodePermPair := decode_countable ((O LG LM), Local);
-  encodePermPair := encode_countable;
-  decode_encode_permPair_inv := decode_encode_countable ((O LG LM), Local);
+    encodeSealPerms := encode_countable;
+    encodeSealPerms_inj := encode_countable_inj;
+    decodeSealPerms := decode_countable (false, false);
+    decode_encode_seal_perms_inv := decode_encode_countable (false, false);
 
-  encodeSealPerms := encode_countable;
-  encodeSealPerms_inj := encode_countable_inj;
-  decodeSealPerms := decode_countable (false, false);
-  decode_encode_seal_perms_inv := decode_encode_countable (false, false);
-
-  decodeSealPermPair := decode_countable ((false, false), Local);
-  encodeSealPermPair := encode_countable;
-  decode_encode_SealPermPair_inv :=
-    decode_encode_countable ((false, false), Local);
-
-  encodeWordType := encode_word_type;
-  decodeWordType := decode_word_type;
-  encodeWordType_correct := encode_word_type_correct
+    decodeSealPermPair := decode_countable ((false, false), Local);
+    encodeSealPermPair := encode_countable;
+    decode_encode_SealPermPair_inv :=
+      decode_encode_countable ((false, false), Local)
+  |};
+  word_encoding_mixin := {|
+    encodeWordType := encode_word_type;
+    decodeWordType := decode_word_type;
+    encodeWordType_correct := encode_word_type_correct
+  |};
+  heap_mixin := {|
+    heap_b := 0%a;
+    heap_e := @finz.FinZ MemNum 1%Z eq_refl eq_refl;
+    heap_valid := ltac:(solve_addr)
+  |};
+  shadow_mixin := {|
+    shadow_b := @finz.FinZ MemNum 2%Z eq_refl eq_refl;
+    shadow_e := @finz.FinZ MemNum 3%Z eq_refl eq_refl;
+    shadow_valid := ltac:(solve_addr)
+  |};
+  heap_shadow_disjoint := ltac:(
+    unfold disjoint; intros a Hheap Hshadow;
+    rewrite !elem_of_finz_seq_between in Hheap;
+    rewrite !elem_of_finz_seq_between in Hshadow;
+    unfold finz.le_lt in Hheap; unfold finz.le_lt in Hshadow;
+    cbn in Hheap; cbn in Hshadow; lia)
 |}.

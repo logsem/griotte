@@ -69,6 +69,8 @@ Section Checkints_spec.
     l ≡ₚ (finz.seq_between b e) ->
     (b <= a < e)%a ->
     readAllowed p = true ->
+    disjoint_from_shadow b e →
+    Forall (λ w, is_heap_cap w = false) ws →
     Forall (λ w,
               (∃ k, ws !! k = Some w ∧ (∃ a', l !! k = Some a' ∧ (b <= a' < a)%a ))
               ->
@@ -96,7 +98,7 @@ Section Checkints_spec.
     ⊢ WP Seq (Instr Executable) {{ v, φ v }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
-    iIntros (Hvpc Hcont Hl Hae Hra Hall Hrcnull Hr1cnull Hr2cnull)
+    iIntros (Hvpc Hcont Hl Hae Hra Hdisjoint Hnot_heap Hall Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & >Hmem & Hφ & #Hfailed)".
     iLöb as "IH" forall ( a Hae Hall w1 w2).
     iDestruct (big_sepL2_length with "Hcode") as %Hlength.
@@ -142,6 +144,12 @@ Section Checkints_spec.
     rewrite Ha' Hlw.
     iDestruct ( big_sepL2_app' with "Hmem") as "[Hmem1 Hmem]"; auto.
     iDestruct ( big_sepL2_cons with "Hmem") as "[Ha Hmem2]"; auto.
+    assert (is_shadow_address a = false) as Hnot_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact Hdisjoint.
+      apply withinBounds_true_iff; solve_addr. }
+    assert (is_heap_cap w = false) as Hw_not_heap.
+    { rewrite Forall_forall in Hnot_heap. apply Hnot_heap.
+      rewrite Hlw. apply elem_of_app; right. by apply elem_of_cons; left. }
     iInstr "Hcode".
     iDestruct ( big_sepL2_cons (λ _ a v, a ↦ₐ v)%I with "[$Ha $Hmem2]") as "Hmem"; auto.
     iDestruct ( big_sepL2_app (λ _ a v, a ↦ₐ v)%I with "[$Hmem1] [$Hmem]") as "Hmem"; auto.
@@ -292,6 +300,8 @@ Section Checkints_spec.
     SubBounds pc_b pc_e pc_a a_last →
     l ≡ₚ (finz.seq_between b e) ->
     readAllowed p = true ->
+    disjoint_from_shadow b e →
+    Forall (λ w, is_heap_cap w = false) ws →
     r ≠ cnull ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
@@ -316,7 +326,7 @@ Section Checkints_spec.
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
-    iIntros (Hvpc Hcont Hl Hra Hrcnull Hr1cnull Hr2cnull)
+    iIntros (Hvpc Hcont Hl Hra Hdisjoint Hnot_heap Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & >Hmem & Hφ & #Hfailed)".
     destruct (decide (t = true ∨ (e <= b)%a)) as [Htag_or_empty | Hbad].
     2: { destruct t; first (exfalso; apply Hbad; auto).

@@ -1,12 +1,14 @@
 From griotte Require Import machine_base.
 
-Class MachineParameters := {
+Class InstructionEncoding := {
     decodeInstr : Z → instr;
     encodeInstr : instr → Z;
 
     decode_encode_instr_inv :
     forall (i: instr), decodeInstr (encodeInstr i) = i;
+  }.
 
+Class PermissionEncoding := {
     encodePerm : Perm → Z;
     encodePerm_inj : Inj eq eq encodePerm;
     decodePerm : Z → Perm;
@@ -32,7 +34,9 @@ Class MachineParameters := {
 
     decode_encode_SealPermPair_inv :
     forall pl, decodeSealPermPair (encodeSealPermPair pl) = pl;
+  }.
 
+Class WordEncoding := {
     encodeWordType : Word -> Z;
     decodeWordType : Z -> Word;
     encodeWordType_correct :
@@ -45,6 +49,61 @@ Class MachineParameters := {
             | _, _ => encodeWordType w <> encodeWordType w'
             end;
   }.
+
+Class HeapRegion := {
+    heap_b : Addr;
+    heap_e : Addr;
+    heap_valid : (heap_b < heap_e)%a;
+  }.
+
+Class ShadowRegion := {
+    shadow_b : Addr;
+    shadow_e : Addr;
+    shadow_valid : (shadow_b < shadow_e)%a;
+  }.
+
+Class MachineParameters := {
+    instruction_encoding_mixin :: InstructionEncoding;
+    permission_encoding_mixin :: PermissionEncoding;
+    word_encoding_mixin :: WordEncoding;
+    (* Machine parameters for the heap and the shadow regions *)
+    heap_mixin :: HeapRegion;
+    shadow_mixin :: ShadowRegion;
+    heap_shadow_disjoint :
+    (finz.seq_between heap_b heap_e) ##
+      (finz.seq_between shadow_b shadow_e);
+  }.
+
+(* Region predicates shared by the operational semantics and specifications. *)
+Definition is_heap_address `{HeapRegion} (a : Addr) : bool :=
+  withinBounds heap_b heap_e a.
+
+Definition is_shadow_address `{ShadowRegion} (a : Addr) : bool :=
+  withinBounds shadow_b shadow_e a.
+
+(* Only ordinary capabilities are checked for revocation, using their base. *)
+Definition is_heap_cap `{HeapRegion} (w : Word) : bool :=
+  match w with
+  | WCap _ _ _ b _ _ => is_heap_address b
+  | _ => false
+  end.
+
+Definition disjoint_from_shadow `{ShadowRegion} (b e : Addr) : Prop :=
+  finz.seq_between b e ## finz.seq_between shadow_b shadow_e.
+
+Definition disjoint_from_heap `{HeapRegion} (b e : Addr) : Prop :=
+  finz.seq_between b e ## finz.seq_between heap_b heap_e.
+
+Lemma disjoint_from_shadow_not_in `{ShadowRegion} (b e a : Addr) :
+  disjoint_from_shadow b e →
+  withinBounds b e a = true →
+  is_shadow_address a = false.
+Proof.
+  intros Hdisjoint Hbounds. apply not_true_is_false. intros Hshadow.
+  apply withinBounds_true_iff in Hbounds, Hshadow.
+  rewrite /disjoint_from_shadow elem_of_disjoint in Hdisjoint.
+  eapply Hdisjoint; apply elem_of_finz_seq_between; eauto.
+Qed.
 
 (* Lift the encoding / decoding between Z and instructions on Words: simplify
    fail on capabilities. *)

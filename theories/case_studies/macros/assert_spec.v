@@ -53,6 +53,9 @@ Section Assert_subroutine.
     ( n1 n2 flag : Z ) ( wret wnull : Word)
     (N : namespace) (E : coPset) (φ : language.val griotte_lang -> iProp Σ) :
     ↑N ⊆ E →
+    disjoint_from_shadow pc_b pc_e →
+    is_shadow_address a_flag = false →
+    is_heap_address a_flag = false →
     (  na_inv cerise_nais N (assert_inv pc_b pc_e a_flag)
      ∗ na_own cerise_nais E
      ∗ PC ↦ᵣ WCap true RX pc_g pc_b pc_e pc_b
@@ -71,7 +74,8 @@ Section Assert_subroutine.
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
-    iIntros (HNE) "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hflag & Hφ)".
+    iIntros (HNE Hcode_shadow Hflag_not_shadow Hflag_not_heap)
+      "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hflag & Hφ)".
     iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hpc_e & %He_flag & Hcap)".
     destruct He_flag as [e_flag He_flag].
@@ -93,6 +97,11 @@ Section Assert_subroutine.
       iInstr "Hprog".
       iInstr "Hprog".
       rewrite (_: (pc_b ^+ 12)%a = cap_addr); [|solve_addr].
+      assert (is_shadow_address cap_addr = false) as Hcap_not_shadow.
+      { eapply disjoint_from_shadow_not_in; first exact Hcode_shadow.
+        apply withinBounds_true_iff; solve_addr. }
+      assert (is_heap_cap (WCap true RW Global a_flag (a_flag ^+ 1)%a a_flag) = false)
+        as Hcap_not_heap by exact Hflag_not_heap.
       iInstr "Hprog".
       iInstr "Hprog".
       iGo "Hprog".
@@ -160,6 +169,7 @@ Section Assert.
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
     withinBounds pc_b pc_e (pc_b ^+ n)%a = true ->
+    disjoint_from_shadow pc_b pc_e →
 
     ↑N ⊆ E →
     n1 = n2 →
@@ -190,7 +200,7 @@ Section Assert.
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.
     intros assert_macro a_last; subst assert_macro a_last.
-    iIntros (Hpc_exec HsubBounds Hinbounds HNE Heq)
+    iIntros (Hpc_exec HsubBounds Hinbounds Hcode_shadow HNE Heq)
       "(#Hinv & Hna & HPC & Hrdst & Hrscratch1 & Hrscratch2 & Hcra & Hct0 & Hct1 & Hcnull & Hcode & Hpc_bn & Hφ)".
     codefrag_facts "Hcode".
     rewrite /assert_instrs /assembled_assert.

@@ -91,7 +91,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[ [ [Hr Hsr] Hm] Hst] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -111,7 +111,7 @@ Section griotte_lang_rules.
     (* Failure: arg1 is not an integer *)
     { unfold z_of_argument in Hn1. destruct arg1 as [| r0]; [ congruence |].
       destruct (Hri r0) as [r0v [Hr'0 Hr0]]; first by unfold regs_of_argument; set_solver+.
-      assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+      assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
       { rewrite Hr'0 in Hn1.
         destruct_word r0v; try congruence.
         all: destruct_or! Hinstr; rewrite Hinstr /= in Hstep.
@@ -124,7 +124,7 @@ Section griotte_lang_rules.
     (* Failure: arg2 is not an integer *)
     { unfold z_of_argument in Hn2. destruct arg2 as [| r0]; [ congruence |].
       destruct (Hri r0) as [r0v [Hr'0 Hr0]]; first by unfold regs_of_argument; set_solver+.
-      assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+      assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
       {
         rewrite Hr'0 in Hn2. destruct_word r0v; try congruence.
         all: destruct_or! Hinstr; rewrite Hinstr /= Hn1 in Hstep; cbn in Hstep.
@@ -132,7 +132,7 @@ Section griotte_lang_rules.
       iFail "Hφ" BinOp_fail_nonconst2. }
     apply (z_of_arg_mono _ r) in Hn2; auto.
 
-    assert (exec_opt i pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst (WInt (denote i n1 n2)))) as HH.
+    assert (exec_opt i pc_p (r, sr, m, st) = updatePC (update_reg (r, sr, m, st) dst (WInt (denote i n1 n2)))) as HH.
     { all: destruct_or! Hinstr; rewrite Hinstr /= /update_reg /= in Hstep |- *; auto.
       all: by rewrite Hn1 Hn2; cbn. }
     rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
@@ -140,8 +140,8 @@ Section griotte_lang_rules.
     destruct (incrementPC (<[ dst := WInt (denote i n1 n2) ]ᵣ> regs))
       as [regs'|] eqn:Hregs'; pose proof Hregs' as H'regs'; cycle 1.
     (* Failure: Cannot increment PC *)
-    { apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) in Hregs'.
-      eapply updatePC_fail_incl with (sregs':=sr) (m':=m) in Hregs'.
+    { apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) (shadow:=st) in Hregs'.
+      eapply updatePC_fail_incl with (sregs':=sr) (m':=m) (shadow':=st) in Hregs'.
       2: by apply lookup_insert_is_Some'; eauto.
       2: by apply insert_mono; eauto.
       simplify_pair_eq.
@@ -151,9 +151,9 @@ Section griotte_lang_rules.
 
     (* Success *)
 
-    eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+    eapply (incrementPC_success_updatePC _ sr m st) in Hregs'
       as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-    eapply updatePC_success_incl with (sregs':= sr) (m':=m) in HuPC.
+    eapply updatePC_success_incl with (sregs':= sr) (m':=m) (shadow':=st) in HuPC.
     2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
     simplify_pair_eq. iFrame.
     iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.

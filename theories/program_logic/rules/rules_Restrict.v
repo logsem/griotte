@@ -106,7 +106,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[ [ [Hr Hsr] Hm] Hst] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -129,7 +129,7 @@ Section griotte_lang_rules.
        odestruct (Hri r0) as [r0v [Hr'0 Hr0]].
        { unfold regs_of_argument. set_solver+. }
        rewrite Hr0 Hr'0 in Hwsrc Hstep.
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        { destruct_word r0v; cbn in Hstep; try congruence; by simplify_pair_eq. }
        iFailWP "Hφ" Restrict_fail_src_nonz. }
     apply (z_of_arg_mono _ r) in Hwsrc; auto. rewrite Hwsrc in Hstep; simpl in Hstep.
@@ -137,7 +137,7 @@ Section griotte_lang_rules.
     destruct (is_mutable_range wdst) eqn:Hwdst.
      2: { (* Failure: wdst is not of the right type *)
        unfold is_mutable_range in Hwdst.
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        { destruct wdst as [ | [t p b e a | ] | | ]; try by inversion Hwdst.
          all: try by simplify_pair_eq.
        }
@@ -160,15 +160,15 @@ Section griotte_lang_rules.
           + by rewrite lookup_insert_is_Some'; eauto.
           + by apply insert_mono; eauto.
         }
-        apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+        apply (incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+        assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
                                                    by (destruct p; inversion Hstep; auto).
         iFailWP "Hφ" Restrict_fail_invalidated_PC_cap.
       }
 
-      eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+      eapply (incrementPC_success_updatePC _ sr m st) in Hregs'
           as (t'' & p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-      eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
+      eapply updatePC_success_incl with (sregs':=sr) (m':=m) (shadow':=st) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
       { destruct_perm p; cbn in *; eauto. }
       simplify_pair_eq.
@@ -190,15 +190,15 @@ Section griotte_lang_rules.
           + by rewrite lookup_insert_is_Some'; eauto.
           + by apply insert_mono; eauto.
         }
-        apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+        apply (incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+        assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
                                                    by (destruct p; inversion Hstep; auto).
         iFailWP "Hφ" Restrict_fail_PC_overflow_cap.
       }
 
-      eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+      eapply (incrementPC_success_updatePC _ sr m st) in Hregs'
           as (t'' & p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-      eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
+      eapply updatePC_success_incl with (sregs':=sr) (m':=m) (shadow':=st) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
       { destruct_perm p; cbn in *; eauto. }
       simplify_pair_eq.
@@ -223,14 +223,14 @@ Section griotte_lang_rules.
           + by rewrite lookup_insert_is_Some'; eauto.
           + by apply insert_mono; eauto.
         }
-        apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+        apply (incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+        assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
                                                    by (destruct p; inversion Hstep; auto).
         iFailWP "Hφ" Restrict_fail_invalidated_PC_sr. }
 
-      eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+      eapply (incrementPC_success_updatePC _ sr m st) in Hregs'
           as (t'' & p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-      eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
+      eapply updatePC_success_incl with (sregs':=sr) (m':=m) (shadow':=st) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
       { destruct p; cbn in Hstep; eauto. }
       simplify_pair_eq.
@@ -252,14 +252,14 @@ Section griotte_lang_rules.
           + by rewrite lookup_insert_is_Some'; eauto.
           + by apply insert_mono; eauto.
         }
-        apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+        apply (incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+        assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
                                                    by (destruct p; inversion Hstep; auto).
         iFailWP "Hφ" Restrict_fail_PC_overflow_sr. }
 
-      eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+      eapply (incrementPC_success_updatePC _ sr m st) in Hregs'
           as (t'' & p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-      eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
+      eapply updatePC_success_incl with (sregs':=sr) (m':=m) (shadow':=st) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
       { destruct p; cbn in Hstep; eauto. }
       simplify_pair_eq.

@@ -101,7 +101,7 @@ Section griotte_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
      iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[ [ [Hr Hsr] Hm] Hst] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
      iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
      pose proof (lookup_weaken _ _ _ _ HPC Hregs).
      iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -124,7 +124,7 @@ Section griotte_lang_rules.
        odestruct (Hri r0) as [r0v [Hr'0 Hr0]].
        { unfold regs_of_argument. set_solver+. }
        rewrite Hr0 Hr'0 in Harg Hstep.
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        { destruct_word r0v; cbn in Hstep; try congruence; by simplify_pair_eq. }
        iFailWP "Hφ" Lea_fail_rv_nonconst. }
      apply (z_of_arg_mono _ r) in Harg; auto. rewrite Harg in Hstep; cbn in Hstep.
@@ -132,7 +132,7 @@ Section griotte_lang_rules.
      destruct (is_mutable_range r1v) eqn:Hr1v.
      2: { (* Failure: r1v is not of the right type *)
        unfold is_mutable_range in Hr1v.
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        { destruct r1v as [ | [t p b e a | ] | | ]; try by inversion Hr1v.
          all: by simplify_pair_eq. }
        iFailWP "Hφ" Lea_fail_allowed. }
@@ -153,8 +153,8 @@ Section griotte_lang_rules.
            + simplify_map_eq. by rewrite lookup_insert_is_Some'; eauto.
            + by apply insert_mono; eauto.
          }
-         apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+         apply (incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+         assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
              by (destruct p; inversion Hstep; auto).
          iFailWP "Hφ" Lea_fail_overflow_cap. }
 
@@ -183,13 +183,13 @@ Section griotte_lang_rules.
            + simplify_map_eq. by rewrite lookup_insert_is_Some'; eauto.
            + by apply insert_mono; eauto.
          }
-         apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+         apply (incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+         assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
              by (destruct p; inversion Hstep; auto).
          iFailWP "Hφ" Lea_fail_overflow_PC_cap. }
 
        (* Success *)
-       eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+       eapply (incrementPC_success_updatePC _ sr m st) in Hregs'
          as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
        eapply updatePC_success_incl in HuPC. 2: by eapply insert_mono; eauto.
        rewrite HuPC in Hstep; clear HuPC.
@@ -214,8 +214,8 @@ Section griotte_lang_rules.
          { eapply incrementPC_overflow_mono; first eapply Hregs'.
            + simplify_map_eq; by rewrite lookup_insert_is_Some'; eauto.
            + by apply insert_mono; eauto. }
-         apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+         apply (incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+         assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
              by (destruct p; inversion Hstep; auto).
          iFailWP "Hφ" Lea_fail_overflow_sr. }
 
@@ -243,13 +243,13 @@ Section griotte_lang_rules.
          { eapply incrementPC_overflow_mono; first eapply Hregs'.
            + simplify_map_eq; by rewrite lookup_insert_is_Some'; eauto.
            + by apply insert_mono; eauto. }
-         apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-         assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
+         apply (incrementPC_fail_updatePC _ sr m st) in HH. rewrite HH in Hstep.
+         assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->)
              by (destruct p; inversion Hstep; auto).
          iFailWP "Hφ" Lea_fail_overflow_PC_sr. }
 
        (* Success *)
-       eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+       eapply (incrementPC_success_updatePC _ sr m st) in Hregs'
          as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
        eapply updatePC_success_incl in HuPC. 2: by eapply insert_mono; eauto.
        rewrite HuPC in Hstep; clear HuPC.

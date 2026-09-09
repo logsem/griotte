@@ -5,5 +5,5 @@ From griotte Require Export solve_addr machine_utils_extra.
 From griotte Require Export
   addresses otypes registers
   permissions machine_word
-  memory register_file
+  memory register_file shadow_table
   machine_instructions.

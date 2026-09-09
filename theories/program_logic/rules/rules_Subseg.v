@@ -111,7 +111,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[ [ [Hr Hsr] Hm] Hst] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -130,7 +130,7 @@ Section griotte_lang_rules.
     destruct (is_mutable_range wdst) eqn:Hwdst.
      2: { (* Failure: wdst is not of the right type *)
        unfold is_mutable_range in Hwdst.
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        { destruct wdst as [ | [t p b e a | ] | | ]; try by inversion Hwdst.
          all: try by simplify_pair_eq.
          all: repeat destruct (addr_of_argument r _); cbn in *; simplify_pair_eq; auto. }
@@ -146,12 +146,12 @@ Section griotte_lang_rules.
       destruct (Hri rn) as [wv [Hwv Hwv']]; first (unfold regs_of_argument; set_solver+).
       by rewrite /z_of_argument Hwv Hwv'. }
     destruct (z_of_argument regs src1) as [n1 |] eqn:Hn1.
-    2: { assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+    2: { assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
          { destruct_word wdst; cbn in Hwdst; try discriminate;
            rewrite -Hz1 /= in Hstep; by simplify_pair_eq. }
          iFailWP "Hφ" Subseg_fail_src1_nonz. }
     destruct (z_of_argument regs src2) as [n2 |] eqn:Hn2.
-    2: { assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+    2: { assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
          { destruct_word wdst; cbn in Hwdst; try discriminate;
            rewrite -Hz1 -Hz2 /= in Hstep; by simplify_pair_eq. }
          iFailWP "Hφ" Subseg_fail_src2_nonz. }
@@ -161,8 +161,8 @@ Section griotte_lang_rules.
           Subseg_spec regs dst src1 src2 regs' NextIV) ∧
         (incrementPC (<[dst := w']ᵣ> regs) = None →
           Subseg_failure regs dst src1 src2 regs) ∧
-        (match updatePC (update_reg (r, sr, m) dst w') with
-         | Some conf => conf | None => (Failed, (r, sr, m)) end) = (c, σ2)) as (w' & Hsuccess & Hfailure & Hupdate).
+        (match updatePC (update_reg (r, sr, m, st) dst w') with
+         | Some conf => conf | None => (Failed, (r, sr, m, st)) end) = (c, σ2)) as (w' & Hsuccess & Hfailure & Hupdate).
     { destruct wdst as [ | [t p g b e a | t p g b e a] | | ];
         try discriminate Hwdst.
       - rewrite -Hz1 -Hz2 /= in Hstep.
@@ -188,10 +188,10 @@ Section griotte_lang_rules.
          { eapply incrementPC_overflow_mono; first exact Hregs'.
            - by rewrite lookup_insert_is_Some'; eauto.
            - by apply insert_mono. }
-         apply (incrementPC_fail_updatePC _ sr m) in HH.
+         apply (incrementPC_fail_updatePC _ sr m st) in HH.
          rewrite HH in Hstep. inversion Hstep; subst c σ2.
          iFailWP "Hφ" Hfailure. }
-    eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+    eapply (incrementPC_success_updatePC _ sr m st) in Hregs'
       as (t' & p' & g' & b' & e' & a' & a_pc' & HPC' & Ha_pc' & HuPC & ->).
     eapply updatePC_success_incl in HuPC; last by eapply insert_mono.
     rewrite HuPC in Hstep. inversion Hstep; subst c σ2. cbn.

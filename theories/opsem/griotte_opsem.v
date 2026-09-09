@@ -1,7 +1,7 @@
-From griotte Require Export stdpp_extra.
+From griotte Require Export stdpp_extra machine_utils_extra.
 From griotte Require Export machine_base machine_parameters machine_instructions.
 
-Definition ExecConf := (Reg * SReg * Mem)%type.
+Definition ExecConf := (Reg * SReg * Mem * ShadowTbl)%type.
 
 Inductive ConfFlag : Type :=
 | Executable
@@ -11,17 +11,19 @@ Inductive ConfFlag : Type :=
 
 Definition Conf: Type := ConfFlag * ExecConf.
 
-Definition reg (ϕ: ExecConf) := (fst (fst ϕ)).
-Definition sreg (ϕ: ExecConf) := (snd (fst ϕ)).
-Definition mem (ϕ: ExecConf) := snd ϕ.
+Definition reg (ϕ: ExecConf) := (fst (fst (fst ϕ))).
+Definition sreg (ϕ: ExecConf) := (snd (fst (fst ϕ))).
+Definition mem (ϕ: ExecConf) := (snd (fst ϕ)).
+Definition shadowtbl (ϕ: ExecConf) := snd ϕ.
 
 Definition update_reg (φ: ExecConf) (r: RegName) (w: Word): ExecConf :=
-  (<[r:=w]ᵣ>(reg φ), sreg φ, mem φ).
+  (<[r:=w]ᵣ>(reg φ), sreg φ, mem φ, shadowtbl φ).
 Definition update_sreg (φ: ExecConf) (sr: SRegName) (w: Word): ExecConf :=
-  (reg φ, <[sr:=w]>(sreg φ), mem φ).
+  (reg φ, <[sr:=w]>(sreg φ), mem φ, shadowtbl φ).
 Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
-  (reg φ, sreg φ, <[a:=w]>(mem φ)).
-
+  (reg φ, sreg φ, <[a:=w]>(mem φ), shadowtbl φ).
+Definition update_shadowtbl (φ: ExecConf) (a: Addr) (b: bool): ExecConf :=
+  (reg φ, sreg φ, mem φ, <[a:=b]> (shadowtbl φ)).
 
 (* Note that the `None` values here also undo any previous changes that were tentatively made in the same step. This is more consistent across the board. *)
 Definition updatePC_gen (φ: ExecConf) (imm : Z): option Conf :=
@@ -68,6 +70,7 @@ Definition otype_of_argument regs src : option OType :=
 
 Section opsem.
   Context `{MachineParameters}.
+  Definition get_shadow_address (a : Addr) : Addr := a.
 
   Definition exec_opt (i: instr) (plevel : Perm) (φ: ExecConf): option Conf :=
     match i with
@@ -103,8 +106,26 @@ Section opsem.
       | WCap true p g b e a =>
         ea ← (a + imm)%a;
         if readAllowed p && withinBounds b e ea then
-          asrc ← (mem φ) !! ea;
-          updatePC (update_reg φ dst (load_word p asrc))
+          if (is_shadow_address ea)
+          then
+            b_revoked ← (shadowtbl φ) !! ea;
+            updatePC (update_reg φ dst (WInt (bool_to_Z b_revoked)))
+          else
+            asrc ← (mem φ) !! ea;
+            match asrc with
+            | WCap t' p' g' b' e' a' =>
+                if (is_heap_address b')
+                then
+                  b_revoked ← (shadowtbl φ) !! b';
+                  let loaded_word :=
+                    if (b_revoked : bool)
+                    then (clear_tag (load_word p asrc))
+                    else (load_word p asrc)
+                  in
+                  updatePC (update_reg φ dst loaded_word)
+                else updatePC (update_reg φ dst (load_word p asrc))
+            | _ => updatePC (update_reg φ dst (load_word p asrc))
+            end
         else None
       | _ => None
       end
@@ -115,7 +136,16 @@ Section opsem.
       | WCap true p g b e a =>
         ea ← (a + imm)%a;
         if writeAllowed p && withinBounds b e ea then
-          updatePC (update_mem φ ea (store_word p tostore))
+          if (is_shadow_address ea)
+          then
+            (* FIXME what should be the behavior of storing not 0 or 1? *)
+            match tostore with
+            | WInt 0 => updatePC (update_shadowtbl φ ea false)
+            | WInt 1 => updatePC (update_shadowtbl φ ea true)
+            | _ => None
+            end
+          else
+            updatePC (update_mem φ ea (store_word p tostore))
         else None
       | _ => None
       end
@@ -312,6 +342,9 @@ Section opsem.
       exec i plevel φ = (Failed, φ).
   Proof. unfold exec. by intros * ->. Qed.
 
+(* TODO I don't think that we need to check whether PC
+   is in the heap memory or not, at least it's not the case
+   in cheriot-sail *)
   Inductive step: Conf → Conf → Prop :=
   | step_exec_regfail:
       forall φ,
@@ -335,5 +368,6 @@ Section opsem.
         decodeInstrW wa = i →
         exec i p φ = c →
         step (Executable, φ) (c.1, c.2).
+
 
 End opsem.

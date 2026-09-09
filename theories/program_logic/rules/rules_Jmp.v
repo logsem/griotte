@@ -51,7 +51,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [Hr Hsr] Hm ] /=". destruct σ1 as [ [r sr] m]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[ [ [Hr Hsr] Hm] Hst] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -74,7 +74,7 @@ Section griotte_lang_rules.
        odestruct (Hri rimm) as [rimmv [Hrimm' Hrimm]].
        { unfold regs_of_argument. set_solver+. }
        rewrite Hrimm Hrimm' in Himm Hstep.
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->).
        { destruct_word rimmv; cbn in Hstep; try congruence; by simplify_pair_eq. }
        iFailWP "Hφ" Jmp_fail_no_imm. }
      apply (z_of_arg_mono _ r) in Himm; auto.
@@ -87,13 +87,13 @@ Section griotte_lang_rules.
        assert (incrementPC_gen r imm = None) as HH.
        { eapply incrementPC_gen_overflow_mono; first eapply Hregs' ; eauto.
        }
-       apply (incrementPC_gen_fail_updatePC_gen _ sr m) in HH. rewrite HH in Hstep.
-       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->) by (inversion Hstep; auto).
+       apply (incrementPC_gen_fail_updatePC_gen _ sr m st) in HH. rewrite HH in Hstep.
+       assert (c = Failed ∧ σ2 = (r, sr, m, st)) as (-> & ->) by (inversion Hstep; auto).
        iFailWP "Hφ" Jmp_fail_PC_overflow. }
 
-       eapply (incrementPC_gen_success_updatePC_gen _ sr m _ imm) in Hregs'
+       eapply (incrementPC_gen_success_updatePC_gen _ sr m st _ imm) in Hregs'
          as (t'' & p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-       eapply updatePC_gen_success_incl with (sregs':=sr) (m':=m) in HuPC; eauto.
+       eapply updatePC_gen_success_incl with (sregs':=sr) (m':=m) (shadow':=st) in HuPC; eauto.
        rewrite HuPC in Hstep.
        eassert ((c, σ2) = (NextI, _)) as HH.
        { cbn in *; eauto. }

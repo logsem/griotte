@@ -16,6 +16,7 @@ Section ClearStackMacro.
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs r1 r2))%a ->
     (csp_b <= csp_a)%a -> (csp_a <= csp_e)%a ->
+    disjoint_from_shadow csp_b csp_e →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
@@ -33,7 +34,7 @@ Section ClearStackMacro.
     )
       ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    iIntros (Hpc_exec Hbounds Hbounds1 Hbounds2 Hr1cnull Hr2cnull)
+    iIntros (Hpc_exec Hbounds Hbounds1 Hbounds2 Hdisjoint Hr1cnull Hr2cnull)
       "(HPC & Hcsp & Hr1 & Hr2 & Hcode & Hstack & Hφ)".
     codefrag_facts "Hcode".
 
@@ -82,6 +83,8 @@ Section ClearStackMacro.
       rewrite (region_pointsto_cons _ (csp_a ^+ 1)%a); [| solve_addr | solve_addr].
       iDestruct "Hstack" as "[Ha Hstack]".
       iApply (wp_store_success_z with "[$HPC $Hi $Hr2 $Ha]"); try solve_pure.
+      { eapply disjoint_from_shadow_not_in; first exact Hdisjoint.
+        apply withinBounds_true_iff; solve_addr. }
       { apply withinBounds_true_iff; solve_addr. }
       iIntros "!> (HPC & Hi & Hr2 & Ha)".
       wp_pure.
