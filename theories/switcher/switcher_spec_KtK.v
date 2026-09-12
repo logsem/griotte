@@ -109,6 +109,17 @@ Section Switcher_KtK.
     let a_stk4 := (a_stk ^+ 4)%a in
     let wct1_caller :=
       WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
+    disjoint_from_heap b_stk e_stk ->
+    disjoint_from_shadow b_stk e_stk ->
+    is_heap_cap wcgp_caller = false ->
+    is_heap_cap wcra_caller = false ->
+    is_heap_cap wcs0_caller = false ->
+    is_heap_cap wcs1_caller = false ->
+    is_shadow_address atbl_tgt = false ->
+    is_shadow_address btbl_tgt = false ->
+    is_shadow_address (btbl_tgt ^+ 1)%a = false ->
+    is_heap_address bpcc_tgt = false ->
+    is_heap_address bcgp_tgt = false ->
     ↑Nswitcher ⊆ E ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt < (btbl_tgt ^+ 1))%a ->
@@ -187,7 +198,9 @@ Section Switcher_KtK.
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_stk4 wct1_caller.
-    iIntros (HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hdom Harg_rmap)
+    iIntros (Hstk_heap Hstk_shadow Hwcgp_nonheap Hwcra_nonheap Hwcs0_nonheap Hwcs1_nonheap
+             Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap
+             HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hdom Harg_rmap)
       "(#Hswitcher & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
        & Hargs & Hregs & Hstk & Hcstk & HP & Hf & Hpost)".
@@ -279,6 +292,12 @@ Section Switcher_KtK.
                   with
                   "[$Hswitcher $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
                     $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk $Hretpost]").
+        { exact Hstk_heap. }
+        { exact Hstk_shadow. }
+        { exact Hwcgp_nonheap. }
+        { exact Hwcra_nonheap. }
+        { exact Hwcs0_nonheap. }
+        { exact Hwcs1_nonheap. }
         { exact HE. }
         { exact Hrmap_ret. }
       }

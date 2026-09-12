@@ -1,5 +1,6 @@
 From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
+From griotte Require Import switcher_load_spec.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
@@ -120,7 +121,7 @@ Section Switcher.
     { (* no caller, return subroutine fails *)
       replace a_tstk with (b_trusted_stack)%a by solve_addr.
       iApply (switcher_return_block_12_load_spec with
-        "[- $HPC $Hctp $Hcsp $Hstk_interp $Hcode]"); eauto.
+        "[- $HPC $Hctp $Hcsp $Hstk_interp $Hcode]"); eauto using trusted_stack_disjoint_from_shadow.
       { solve_addr. }
       iNext; iIntros
         "(HPC & Hctp & Hcsp & Hstk_interp & %Htstk_ae & Hcode)".
@@ -136,7 +137,7 @@ Section Switcher.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "[Ha_tstk (%HWF & Hcframe_interp)]".
-    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
+    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_shadow & Hstk_heap & Hsaved_nonheap).
     cbn in Hcsp_sync; destruct Hcsp_sync as [ Ha He ]; simplify_eq.
     set (a_stk := (csp_b ^+ -4)%a).
 
@@ -145,8 +146,12 @@ Section Switcher.
     iEval (cbn) in "HK"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
 
+    assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
+    { apply not_true_is_false. intros Hheap. apply withinBounds_true_iff in Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
+      eapply (Hstk_heap b_stk); apply elem_of_finz_seq_between; [solve_addr|exact Hheap]. }
     iApply (switcher_return_block_12_load_spec with
-      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]"); eauto.
+      "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]"); eauto using trusted_stack_disjoint_from_shadow.
     iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & Hcode)".
 
     iApply (switcher_return_block_12_pop_spec with
@@ -172,10 +177,12 @@ Section Switcher.
       as "(%wastk & %wastk1 & %wastk2 & %wastk3 &
             Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)";eauto.
 
-    iApply (switcher_return_block_12_restore_spec with
+    iApply (switcher_return_block_12_restore_general_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]"); eauto.
-    iNext; iIntros
+    iNext. iIntros (rstk3 rstk2 rstk1 rstk0) "%Hloaded".
+    destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
+    iIntros
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
         & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc)".
     iDestruct "Hlc" as "[Hlc Hlc']".
@@ -281,9 +288,12 @@ Section Switcher.
 
     rewrite /is_untrusted_caller_frm /=
     ; rewrite /is_untrusted_caller_frm /= in Hframe
-    ; destruct (is_untrusted_caller ccrel); cycle 1.
+    ; destruct (is_untrusted_caller ccrel) eqn:Hccrel; cycle 1.
     - (* Case where caller is trusted, we use the continuation *)
       destruct Hwastks as (-> & -> & -> & ->).
+      specialize (Hsaved_nonheap Hccrel) as (Hsaved_cgp & Hsaved_ret & Hsaved_cs0 & Hsaved_cs1).
+      apply stack_load_result_nonheap in Hr0, Hr1, Hr2, Hr3; auto.
+      subst rstk0 rstk1 rstk2 rstk3.
 
       iEval (rewrite open_world_interp_empty) in "Hworld_interp".
       iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between a_stk4 csp_e) []
@@ -311,6 +321,20 @@ Section Switcher.
     - (* Case where caller is untrusted, we use the IH *)
 
       iDestruct "Hinterp_wfrm" as "#(Hinterp_wstk0 & Hinterp_wstk1 & Hinterp_wstk2 & Hinterp_wstk3)".
+      iAssert (interp Wfixed C rstk0) as "#Hinterp_rstk0".
+      { destruct Hr0 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
+      iClear "Hinterp_wstk0". iRename "Hinterp_rstk0" into "Hinterp_wstk0".
+      iAssert (interp Wfixed C rstk1) as "#Hinterp_rstk1".
+      { destruct Hr1 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
+      iClear "Hinterp_wstk1". iRename "Hinterp_rstk1" into "Hinterp_wstk1".
+      iAssert (interp Wfixed C rstk2) as "#Hinterp_rstk2".
+      { destruct Hr2 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
+      iClear "Hinterp_wstk2". iRename "Hinterp_rstk2" into "Hinterp_wstk2".
+      iAssert (interp Wfixed C rstk3) as "#Hinterp_rstk3".
+      { destruct Hr3 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
+      iClear "Hinterp_wstk3". iRename "Hinterp_rstk3" into "Hinterp_wstk3".
+      rename wastk into raw_stk0, wastk1 into raw_stk1, wastk2 into raw_stk2, wastk3 into raw_stk3.
+      rename rstk0 into wastk, rstk1 into wastk1, rstk2 into wastk2, rstk3 into wastk3.
       iClear "Hexec_topmost_frm".
 
       iDestruct (jmp_or_fail_spec with "[$Hinterp_wstk2]") as "Hcont".

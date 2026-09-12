@@ -6,6 +6,19 @@ From griotte Require Import bitblast.
 From griotte Require Export switcher.
 From griotte Require Export clear_stack_spec clear_registers_spec.
 
+Lemma switcher_disjoint_subseg `{MP : MachineParameters} b e b' e' :
+  (b <= b')%a -> (e' <= e)%a ->
+  disjoint_from_shadow b e ∧ disjoint_from_heap b e ->
+  disjoint_from_shadow b' e' ∧ disjoint_from_heap b' e'.
+Proof.
+  intros Hb He [Hs Hh].
+  rewrite /disjoint_from_shadow elem_of_disjoint in Hs |- *.
+  rewrite /disjoint_from_heap elem_of_disjoint in Hh |- *.
+  split; intros x Hx Hregion; [eapply Hs|eapply Hh]; try exact Hregion;
+    apply elem_of_finz_seq_between; apply elem_of_finz_seq_between in Hx;
+    solve_addr.
+Qed.
+
 Section Switcher_preamble.
   Context
     {Σ:gFunctors}
@@ -191,6 +204,11 @@ Section Switcher_preamble.
            ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
            ∗ ⌜ (0 <= nargs <= 7 )%nat ⌝
            ∗ ⌜ is_Some (bpcc + off)%a ⌝
+           ∗ ⌜ is_shadow_address a_tbl = false ⌝
+           ∗ ⌜ is_shadow_address b_tbl = false ⌝
+           ∗ ⌜ is_shadow_address (b_tbl ^+ 1)%a = false ⌝
+           ∗ ⌜ is_heap_address bpcc = false ⌝
+           ∗ ⌜ is_heap_address bcgp = false ⌝
            ∗ inv (export_table_PCCN Cname) ( b_tbl ↦ₐ WCap true RX Global bpcc epcc bpcc)
            ∗ inv (export_table_CGPN Cname) ( (b_tbl ^+ 1)%a ↦ₐ WCap true RW Global bcgp ecgp bcgp)
            ∗ inv (export_table_entryN Cname a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
@@ -222,7 +240,8 @@ Section Switcher_preamble.
     iEval (cbn).
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
-       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
+       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
+      "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
     iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
     iExists _,_.
     repeat (iSplit ; first done).
@@ -242,7 +261,8 @@ Section Switcher_preamble.
     iEval (cbn).
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
-       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
+       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
+      "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
     iFrame "#∗%".
     iExists Local; iPureIntro; done.
   Qed.
@@ -271,7 +291,11 @@ Section Switcher_preamble.
     let a_stk := frm.(a_stk) in
     let e_stk := frm.(e_stk) in
     a_tstk ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
-    ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ⌝ ∗
+    ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
+      disjoint_from_shadow b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ∧
+      (is_untrusted_caller_frm frm = false ->
+       is_heap_cap frm.(wcgp) = false ∧ is_heap_cap frm.(wret) = false ∧
+       is_heap_cap frm.(wcs0) = false ∧ is_heap_cap frm.(wcs1) = false) ⌝ ∗
     cframe_stk_own frm%I.
 
   (** [cstack_interp] interprets a call-stack.

@@ -525,6 +525,21 @@ Section fundamental.
     (* Step 3:  derive the non-spatial conditions over the memory map*)
     iDestruct (mem_map_implies_pure_conds imm with "HStoreMem") as %(HReadPC & HStoreAP); auto.
 
+    iAssert (⌜∀ p0 g0 b0 e0 a0 ea0,
+      reg_allows_store_imm (<[PC:=WCap true p g b e a]> regs) dst imm p0 g0 b0 e0 a0 ea0 →
+      is_shadow_address ea0 = false⌝)%I as %Hnonshadow.
+    { iIntros (p0 g0 b0 e0 a0 ea0 (Hdst & Hadd & Hwa & Hwb)).
+      assert (dst ≠ cnull) as Hdst_null.
+      { intros ->. simplify_map_eq.
+        destruct (regs !! cnull) eqn:Hnull; rewrite Hnull in Hdst; discriminate. }
+      rewrite lookup_reg_not_cnull in Hdst; last exact Hdst_null.
+      destruct (decide (dst = PC)) as [->|Hdst_pc].
+      - rewrite lookup_insert_eq in Hdst. inversion Hdst; subst.
+        iApply (interp_cap_not_shadow with "Hinv_interp"); eauto using writeAllowed_nonO.
+      - rewrite lookup_insert_ne in Hdst; last done.
+        iApply (interp_cap_not_shadow with "[Hreg]"); eauto using writeAllowed_nonO.
+        by iApply "Hreg".
+    }
     iApply (wp_store_imm with "[Hmap HMemRes]"); eauto.
     { by rewrite lookup_insert_eq. }
     { rewrite /subseteq /map_subseteq. intros rr _.

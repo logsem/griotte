@@ -157,7 +157,7 @@ Proof.
     vae_trusted_stack_b vae_trusted_stack_e
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
-    vae_stack_b vae_stack_e (replicate 100 (WInt 0)) _ _).
+    vae_stack_b vae_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -168,6 +168,17 @@ Proof.
     repeat split; unfold disjoint, set_disjoint_instance;
       intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
       solve_addr.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'.
+    rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - reflexivity.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition vae_concrete_cmptAssert : cmptAssert.
@@ -216,12 +227,13 @@ Definition vae_C_exports : list Word :=
 
 Program Definition vae_concrete_main_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     vae_main_pcc_b vae_main_code_start vae_main_pcc_e
     vae_main_data_b vae_main_data_e vae_main_data_e vae_main_data_e
     vae_main_exports_pcc vae_main_exports_cgp
     vae_main_exports_entries_b vae_main_exports_entries_e
     vae_main_imports_concrete vae_main_code vae_main_data [] vae_export_table_entries
+    _ _ _ _ _ _ _ _
     _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -231,16 +243,37 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_vae_addresses; disj_regions.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - reflexivity.
+  - reflexivity.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition vae_concrete_C_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     vae_C_pcc_b vae_C_code_start vae_C_pcc_e
     vae_C_data_b vae_C_data_e vae_C_data_e vae_C_data_e
     vae_C_exports_pcc vae_C_exports_cgp
     vae_C_exports_entries_b vae_C_exports_entries_e
     vae_C_imports vae_C_code vae_C_data [] vae_C_exports
+    _ _ _ _ _ _ _ _
     _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -250,6 +283,26 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_vae_addresses; disj_regions.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - reflexivity.
+  - reflexivity.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 (** All nonempty concrete regions, in increasing address order. The two

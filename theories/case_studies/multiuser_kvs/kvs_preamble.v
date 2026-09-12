@@ -1443,6 +1443,7 @@ Section KVS_preamble.
       (* Shape of the capability*)
       ⌜ w = WSealable (kvs_user_seal_key_scap Global a) ⌝ ∗
       ⌜ withinBounds a (a^+1)%a a = true ⌝ ∗
+      ⌜ is_shadow_address a = false ⌝ ∗
       (* Payload contains the user key *)
       a ↦ₐ WInt uk ∗
       (* KVS resources *)
@@ -1465,7 +1466,7 @@ Section KVS_preamble.
     iModIntro.
     iIntros "Hot_kvs".
     rewrite /kvs_otype_propC /= /kvs_otype_inv.
-    iDestruct "Hot_kvs" as "(%ku & %a & % & % & ? & ? & Hs)".
+    iDestruct "Hot_kvs" as "(%ku & %a & % & % & % & ? & ? & Hs)".
     iExists ku, a; iFrame "∗%".
     iApply (big_sepS_impl with "Hs").
     iModIntro; iIntros (??) "[ (%w' & H' & H) | $ ]".

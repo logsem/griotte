@@ -72,7 +72,9 @@ Proof.
   pose proof (switcher_size switcher_cmpt).
   pose proof (switcher_call_entry_point switcher_cmpt).
   pose proof (switcher_return_entry_point switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _); cbn in *; auto.
+  pose proof (trusted_stack_disjoint_from_shadow switcher_cmpt).
+  pose proof (switcher_base_not_shadow switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
 Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
@@ -331,7 +333,7 @@ Section Adequacy.
       split;try solve_ndisj.
     }
     assert kvsLayoutWf as kvsLayoutWfg.
-    { refine (mkKvsLayoutWf _ _ _ _ _ _); cbn.
+    { refine (mkKvsLayoutWf _ _ _ _ _ _ _ _ _ _ _); cbn.
       - apply ot_kvs_size.
       - pose proof (cmpt_import_size kvs_cmpt) as H.
         by rewrite kvs_imports in H.
@@ -346,6 +348,11 @@ Section Adequacy.
         rewrite /length_kvs_exports_tbl /kvs_nb_exports.
         cbn in *.
         solve_addr+H1 H2 H3.
+      - exact (cmpt_cgp_disjoint_from_shadow kvs_cmpt).
+      - exact (cmpt_pcc_disjoint_from_shadow kvs_cmpt).
+      - exact (cmpt_exp_tbl_disjoint_from_shadow kvs_cmpt).
+      - exact (cmpt_pcc_base_not_heap kvs_cmpt).
+      - exact (cmpt_cgp_base_not_heap kvs_cmpt).
     }
 
     (* Initialise the KVS resources *)
@@ -681,6 +688,12 @@ Section Adequacy.
         pose proof (cmpt_static_sealed_size B_cmpt) as H.
         rewrite B_static_sealed in H.
         solve_addr+H.
+      - iPureIntro. subst user_key_addr_B.
+        eapply disjoint_from_shadow_not_in.
+        + exact (cmpt_static_sealed_disjoint_from_shadow B_cmpt).
+        + apply withinBounds_true_iff.
+          pose proof (cmpt_static_sealed_size B_cmpt) as H.
+          rewrite B_static_sealed in H. solve_addr+H.
       - iApply (big_sepS_impl with "HB_lukvs_frag").
         iModIntro; iIntros (mk Hmk) "$".
     }

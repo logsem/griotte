@@ -126,6 +126,9 @@ Section wp_interp.
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
 
+    iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ a with "Hinterp_dst") as %Hnot_shadow.
+    { eapply writeAllowed_nonO; eauto. }
+    { apply withinBounds_true_iff; solve_addr. }
     iApply (wp_store_success_reg_store_word _ _ _ _ _ _ _ _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
     ; try iFrame
     ; try solve_pure.
@@ -300,6 +303,9 @@ Section wp_interp.
     ; [|eauto|]; [ destruct ρ;auto;done|].
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
+    iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ a with "Hinterp_dst") as %Hnot_shadow.
+    { eapply writeAllowed_nonO; eauto. }
+    { apply withinBounds_true_iff; solve_addr. }
     iApply (wp_store_success_z _ _ _ _ _ _ _ _ rdst with "[$HPC Hi Hdst Ha]")
     ; try iFrame
     ; try solve_pure
@@ -720,12 +726,28 @@ Section wp_interp.
     ; [|eauto|]; [ destruct ρ;auto;done|].
     iDestruct (WorldRes_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes ]".
 
-    iApply (wp_load_success_alt _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
-    ; try iFrame
-    ; try solve_pure.
-    { split; auto. rewrite /withinBounds; solve_addr. }
-    iNext; iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
-    pose proof (Hpers (W, C, w)).
+    iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ a with "Hinterp_src") as %Hnot_shadow.
+    { eapply readAllowed_nonO; eauto. }
+    { apply withinBounds_true_iff; solve_addr. }
+    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
+    iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
+    iApply (wp_load E pc_p pc_g pc_b pc_e pc_a rdst rsrc wi with "[$Hmap $Hmem]")
+      ; eauto; simplify_map_eq; eauto.
+    { by rewrite !dom_insert; set_solver+. }
+    { exists p, g, b, e, a. split.
+      - unfold read_reg_inr. by simplify_map_eq.
+      - case_decide; last done. exists w. by simplify_map_eq. }
+    { intros p0 g0 b0 e0 a0 (Hsrc0 & _). simplify_map_eq. done. }
+    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 a0 loadv actualv Hallow Hlookup Hactual Hinc|].
+    2: { iApply "Hφ". by iLeft. }
+    destruct Hallow as (Hsrc0 & _). simplify_map_eq.
+    unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
+    rewrite (insert_insert_ne _ rdst PC) // insert_insert_eq.
+    rewrite (insert_insert_ne _ rdst rsrc) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
+    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+    pose proof (Hpers (W, C, loadv)).
     iDestruct "Hinterp" as "#HφV /=".
 
     iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
@@ -736,6 +758,7 @@ Section wp_interp.
     iSplit; first done.
     iSplit; first done.
     iSplit; last solve_addr.
+    destruct Hactual as [-> | ->]; last iApply interp_clear_tag.
     iDestruct ("Hwcond" with "HφV") as "H"; cbn.
     iApply interp_weakening_word_load; eauto.
   Qed.

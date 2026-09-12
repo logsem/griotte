@@ -61,6 +61,7 @@ Section WorldInterpStack.
       {
         rewrite fixpoint_interp1_eq /=.
         destruct g; auto.
+        iDestruct "Hinterp" as "[Hinterp _]".
         iDestruct (big_sepL_elem_of with "Hinterp") as "Ha".
         {  rewrite elem_of_finz_seq_between; eauto. }
         iDestruct "Ha" as "(%pa & %Pa & _ & _ & _ & _ & _ & _ & _ & %Hstate)".

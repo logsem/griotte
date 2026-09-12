@@ -52,6 +52,24 @@ Section fundamental.
     iApply enter_cond_weakening;auto.
   Qed.
 
+  Local Lemma disjoint_regions_subseg b e b' e' :
+    (b <= b')%a → (e' <= e)%a →
+    disjoint_from_shadow b e ∧ disjoint_from_heap b e →
+    disjoint_from_shadow b' e' ∧ disjoint_from_heap b' e'.
+  Proof.
+    intros Hb He [Hshadow Hheap].
+    rewrite /disjoint_from_shadow elem_of_disjoint in Hshadow.
+    rewrite /disjoint_from_heap elem_of_disjoint in Hheap.
+    rewrite /disjoint_from_shadow /disjoint_from_heap !elem_of_disjoint.
+    split; intros a Ha Hregion.
+    - eapply Hshadow; last exact Hregion.
+      apply elem_of_finz_seq_between in Ha.
+      apply elem_of_finz_seq_between; solve_addr.
+    - eapply Hheap; last exact Hregion.
+      apply elem_of_finz_seq_between in Ha.
+      apply elem_of_finz_seq_between; solve_addr.
+  Qed.
+
   Lemma interp_weakeningEO W C t p p' g g' b b' e e' a a' :
     isO p = false →
     isO p' = false →
@@ -69,13 +87,16 @@ Section fundamental.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
       with false by (symmetry; eapply nothas_sreg_access_flowsfrom; eauto).
-    iDestruct "HA" as "[#A %Hpwl_cond]".
+    iDestruct "HA" as "[#A %Hconditions]".
+    destruct Hconditions as [Hpwl_cond Hregions].
+    pose proof (disjoint_regions_subseg _ _ _ _ Hb He Hregions) as Hregions'.
     iSplit; cycle 1.
-    { case_eq (isWL p'); intros Hpwl'; auto.
+    { iPureIntro. split; last exact Hregions'.
+      case_eq (isWL p'); intros Hpwl'; auto.
       pose proof (isWL_flowsto p' p Hp Hpwl') as Hpwl.
       rewrite Hpwl in Hpwl_cond.
       destruct g; try congruence.
-      destruct g'; simpl in Hl; try tauto. auto.
+      destruct g'; simpl in Hl; tauto.
     }
 
     case_eq (isWL p'); intros Hpwl'; auto.
@@ -156,7 +177,9 @@ Section fundamental.
     rewrite !fixpoint_interp1_eq !interp1_eq /=.
     rewrite HpnotO.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
-    iDestruct "HA" as "[#A %Hpwl_cond]".
+    iDestruct "HA" as "[#A %Hconditions]".
+    destruct Hconditions as [Hpwl_cond Hregions].
+    pose proof (disjoint_regions_subseg _ _ _ _ Hb He Hregions) as Hregions'.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (W') "#Hfuture %g'' %Hflows !>".
@@ -168,9 +191,10 @@ Section fundamental.
     destruct (has_sreg_access p) eqn:HpXSR'; auto.
     iSplit; cycle 1.
     {
+      iPureIntro. split; last exact Hregions'.
       destruct (isWL p) eqn:Hpwl; auto.
       simplify_eq.
-      destruct g',g'' ; auto.
+      destruct g',g''; inversion Hl; inversion Hflows; auto.
     }
     destruct (decide (b' < e'))%a; cycle 1.
     { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }

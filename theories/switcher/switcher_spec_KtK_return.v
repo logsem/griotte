@@ -43,6 +43,13 @@ Section Switcher_KtK_Return.
            |}
     in
 
+    disjoint_from_heap b_stk e_stk ->
+    disjoint_from_shadow b_stk e_stk ->
+    is_heap_cap wcgp_caller = false ->
+    is_heap_cap wcra_caller = false ->
+    is_heap_cap wcs0_caller = false ->
+    is_heap_cap wcs1_caller = false ->
+
     (* NA mask *)
     ↑Nswitcher ⊆ E ->
 
@@ -105,7 +112,7 @@ Section Switcher_KtK_Return.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros astk4 frame.
-    iIntros (HE Hdom)
+    iIntros (Hstk_heap Hstk_shadow Hwcgp_nonheap Hwcra_nonheap Hwcs0_nonheap Hwcs1_nonheap HE Hdom)
       "(#Hswitcher & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
       & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
 
@@ -156,10 +163,17 @@ Section Switcher_KtK_Return.
     iDestruct "Hcframe_interp" as "[Ha_tstk Hcframe_interp]".
     iDestruct "Hcframe_interp" as "(%HWF & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
     rewrite -/(cstack_interp cstk (a_tstk ^+ -1)%a).
-    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4]).
+    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & _).
 
 
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact trusted_stack_disjoint_from_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { rewrite /is_heap_cap. apply not_true_is_false. intros Hheap.
+      apply withinBounds_true_iff in Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
+      eapply (Hstk_heap b_stk); apply elem_of_finz_seq_between; [solve_addr|exact Hheap]. }
+    { split;auto;rewrite /withinBounds;solve_addr. }
 
     (* --- Lea ctp -1 --- *)
     assert (is_Some (a_tstk + -1))%a as [a_tstk1 Ha_tstk1].
@@ -175,6 +189,9 @@ Section Switcher_KtK_Return.
 
     (* --- Load cgp csp --- *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcgp".
 
     (* --- Lea csp (-1)%Z --- *)
@@ -182,15 +199,24 @@ Section Switcher_KtK_Return.
 
     (* Load cra csp *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
     (* Load cs1 csp *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcs1".
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
     (* Load cs0 csp *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcs0".
     (* GetE ct0 csp *)
     iInstr "Hcode" with "Hlc".

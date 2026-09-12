@@ -98,7 +98,7 @@ Proof.
     droe_trusted_stack_b droe_trusted_stack_e
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
-    droe_stack_b droe_stack_e (replicate 100 (WInt 0)) _ _).
+    droe_stack_b droe_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -109,6 +109,17 @@ Proof.
     repeat split; unfold disjoint, set_disjoint_instance;
       intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
       solve_addr.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'.
+    rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - reflexivity.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition droe_concrete_cmptAssert : cmptAssert.
@@ -143,12 +154,13 @@ Definition droe_main_imports_concrete : list Word :=
 
 Program Definition droe_concrete_main_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     droe_main_pcc_b droe_main_code_a droe_main_pcc_e
     droe_main_cgp_b droe_main_cgp_e droe_main_cgp_e droe_main_cgp_e
     droe_main_exp_pcc droe_main_exp_cgp
     droe_main_exp_entries_b droe_main_exp_entries_e
     droe_main_imports_concrete droe_main_code droe_main_data [] []
+    _ _ _ _ _ _ _ _
     _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -158,16 +170,37 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_droe_addresses; disj_regions.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - reflexivity.
+  - reflexivity.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition droe_concrete_C_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt
+  refine (@mkCmpt machine_parameters_instance
     droe_C_pcc_b droe_C_code_a droe_C_pcc_e
     droe_C_cgp_b droe_C_cgp_e droe_C_cgp_e droe_C_cgp_e
     droe_C_exp_pcc droe_C_exp_cgp
     droe_C_exp_entries_b droe_C_exp_entries_e
     droe_C_imports droe_C_code droe_C_data [] droe_C_exports
+    _ _ _ _ _ _ _ _
     _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -177,6 +210,26 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_droe_addresses; disj_regions.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - reflexivity.
+  - reflexivity.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 (** All nonempty concrete regions, in increasing address order. The two

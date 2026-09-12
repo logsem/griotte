@@ -391,21 +391,38 @@ Section fundamental.
     (* Step 4: move the later outside, so that we can remove it after applying wp_load *)
     iDestruct (allow_load_mem_later imm with "HLoadMem") as "HLoadMem"; auto.
 
-    iApply (wp_load_imm with "[Hmap HMemRes]"); eauto.
+    iAssert (⌜∀ p0 g0 b0 e0 a0 ea0,
+      reg_allows_load_imm (<[PC:=WCap true p g b e a]> regs) src imm p0 g0 b0 e0 a0 ea0 →
+      is_shadow_address ea0 = false⌝)%I as %Hnonshadow.
+    { iIntros (p0 g0 b0 e0 a0 ea0 (Hsrc & Hadd & Hra & Hwb)).
+      assert (src ≠ cnull) as Hsrc_null.
+      { intros ->. simplify_map_eq.
+        destruct (regs !! cnull) eqn:Hnull; rewrite Hnull in Hsrc; discriminate. }
+      rewrite lookup_reg_not_cnull in Hsrc; last exact Hsrc_null.
+      destruct (decide (src = PC)) as [->|Hsrc_pc].
+      - rewrite lookup_insert_eq in Hsrc. inversion Hsrc; subst.
+        iApply (interp_cap_not_shadow with "Hinv_interp"); eauto using readAllowed_nonO.
+      - rewrite lookup_insert_ne in Hsrc; last done.
+        iApply (interp_cap_not_shadow with "[Hreg]"); eauto using readAllowed_nonO.
+        by iApply "Hreg".
+    }
+    iApply (wp_load_memory_imm with "[Hmap HMemRes]"); eauto.
     { by rewrite lookup_insert_eq. }
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. rewrite lookup_insert_is_Some'; eauto. }
     { iSplitR "Hmap"; auto. }
     iNext. iIntros (regs' retv). iDestruct 1 as (HSpec) "[Hmem Hmap]".
 
-    destruct HSpec as [ * Hreg_load Hmem_a Hincr|].
+    destruct HSpec as [p0 g0 b0 e0 a0 ea0 loadv actualv Hreg_load Hmem_a Hactual Hincr|].
     { apply incrementPC_Some_inv in Hincr.
       destruct Hincr as (tpc&?&?&?&?&?&?&?&?&XX).
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
       (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)
       iDestruct (mem_map_recover_res imm with "Hinv_interp Hreg Hrcond' Hw Hmem HLoadMem") as
-        "[Hworld_interp [Ha #HLVInterp ] ]"; eauto.
+        "[Hworld_interp [Ha #Hnormal ] ]"; eauto.
+      iAssert (interp W C actualv) as "#HLVInterp".
+      { destruct Hactual as [-> | ->]; first done. iApply interp_clear_tag. }
 
       (* Exceptional success case: we do not apply the induction hypothesis in case we have a faulty PC*)
       destruct tpc; cycle 1.
@@ -454,8 +471,7 @@ Section fundamental.
        {
         destruct (decide (PC = dst)); simplify_map_eq; cycle 1.
         + iApply (interp_next_PC with "Hinv_interp"); eauto.
-        + rewrite H.
-          iApply (interp_weakening with "IH HLVInterp"); eauto; try solve_addr; try done.
+        + iApply (interp_weakening with "IH HLVInterp"); eauto; try solve_addr; try done.
        }
     }
     { iApply wp_pure_step_later; auto.

@@ -46,6 +46,13 @@ Section CMDC.
 
     let imports := cmdc_main_imports B_f C_g in
 
+    disjoint_from_shadow pc_b pc_e ->
+    is_shadow_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
+    is_shadow_address (cgp_b ^+ 1)%a = false ->
+    is_heap_address (cgp_b ^+ 1)%a = false ->
+    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_heap csp_b csp_e ->
     Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
@@ -104,7 +111,8 @@ Section CMDC.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
+               Hstk_shadow Hstk_heap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
                Hrevoked_stack_B Hrevoked_stack_C)
       "(#Hassert & #Hswitcher & Hna
@@ -122,6 +130,8 @@ Section CMDC.
     iDestruct (big_sepL2_length with "Hcsp_stk") as "%Hlen_stack".
 
     (* Extract the needed registers from the register map *)
+    assert (rmap !! cs1 = Some (WInt 0)) as Hcs1_init.
+    { apply Hrmap_init. rewrite Hrmap_dom; set_solver. }
     iExtractList "Hrmap" [ca0;ctp;ct0;ct1;cs0;cs1;cra]
       as ["Hca0";"Hctp";"Hct0";"Hct1";"Hcs0";"Hcs1";"Hcra"].
 
@@ -179,7 +189,9 @@ Section CMDC.
     (* --------------------------------------------------- *)
 
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)
+      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto; try done.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -188,7 +200,7 @@ Section CMDC.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_B_f]"); eauto.
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_B_f]"); eauto; try done.
     { solve_addr. }
     iNext ; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_B_f)".
     iEval (cbn) in "Hcs0".
@@ -223,6 +235,14 @@ Section CMDC.
        $Hcgp_b $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B
        $Hcstk_frag $HK $Hinterp_Winit_B_f $HentryB_f]").
     { solve_addr. }
+    { exact Hcgp_shadow. }
+    { exact Hcgp_heap. }
+    { exact Hstk_shadow. }
+    { exact Hstk_heap. }
+    { exact Hcgp_heap. }
+    { done. }
+    { done. }
+    { done. }
     { exact Hcgp_b. }
     { exact Hcgp_b_stk. }
     { exact Hrevoked_stack_B. }
@@ -251,6 +271,8 @@ Section CMDC.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
+    { done. }
+    { split; [done| solve_addr]. }
     (* Mov ct1 0  *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -308,7 +330,9 @@ Section CMDC.
     (* --------------------------------------------------- *)
 
     focus_block 6 "Hcode_main" as a_fetch3 Ha_fetch3 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)
+      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto; try done.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -317,7 +341,7 @@ Section CMDC.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     focus_block 7 "Hcode_main" as a_fetch4 Ha_fetch4 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_C_g]"); eauto.
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_C_g]"); eauto; try done.
     { solve_addr. }
     iNext ; iIntros "(HPC & Hcs0 & Hct0 & Hct1 & Hcode & Himport_C_g)".
     iEval (cbn) in "Hcs0".
@@ -348,6 +372,14 @@ Section CMDC.
        $Hcgp_c $Hstk $Hworld_interp_C $Hstack_revoked_C
        $Hcstk_frag $HK $Hinterp_Winit_C_g $HentryC_g]").
     { subst cgp_c. solve_addr. }
+    { exact Hcgp1_shadow. }
+    { exact Hcgp1_heap. }
+    { exact Hstk_shadow. }
+    { exact Hstk_heap. }
+    { exact Hcgp_heap. }
+    { done. }
+    { done. }
+    { done. }
     { subst cgp_c. exact Hcgp_c. }
     { exact Hcgp_c_stk. }
     { exact Hrevoked_stack_C. }
@@ -377,6 +409,8 @@ Section CMDC.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
+    { done. }
+    { split; [done| solve_addr]. }
     (* Mov ct1 42  *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -430,6 +464,13 @@ Section CMDC.
 
     let imports := cmdc_main_imports B_f C_g in
 
+    disjoint_from_shadow pc_b pc_e ->
+    is_shadow_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
+    is_shadow_address (cgp_b ^+ 1)%a = false ->
+    is_heap_address (cgp_b ^+ 1)%a = false ->
+    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_heap csp_b csp_e ->
     Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
@@ -484,7 +525,8 @@ Section CMDC.
       ⊢ WP Seq (Instr Executable) {{ λ v, True }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
+               Hstk_shadow Hstk_heap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
                Hrevoked_stack_B Hrevoked_stack_C)
       "(#Hassert & #Hswitcher & Hna

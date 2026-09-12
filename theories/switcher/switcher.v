@@ -220,7 +220,12 @@ Section Switcher.
         (b_switcher + (1 + length switcher_call_instrs) )%a = Some a_switcher_return ;
 
         ot_switcher_size :
-        (ot_switcher < ot_switcher ^+ 1)%ot
+        (ot_switcher < ot_switcher ^+ 1)%ot;
+
+        trusted_stack_disjoint_from_shadow :
+        disjoint_from_shadow b_trusted_stack e_trusted_stack;
+
+        switcher_base_not_shadow : is_shadow_address b_switcher = false
       }.
 
 End Switcher.

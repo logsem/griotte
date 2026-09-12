@@ -436,7 +436,8 @@ Section monotone.
     rewrite !fixpoint_interp1_eq !interp1_eq.
     destruct (isO p); first done.
     destruct (has_sreg_access p); first done.
-    iDestruct "Hw" as "[Hw %Hlocal]".
+    iDestruct "Hw" as "[Hw %Hconditions]".
+    pose proof (proj1 Hconditions) as Hlocal.
     destruct (isWL p) eqn:Hwl; first congruence.
     iSplit; last done.
     iApply (big_sepL_mono with "Hw").

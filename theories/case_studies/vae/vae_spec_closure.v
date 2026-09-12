@@ -70,6 +70,11 @@ Section VAE.
 
     let imports := vae_main_imports C_f in
 
+    is_shadow_address cgp_b = false ->
+    disjoint_from_shadow b_vae_exp_tbl e_vae_exp_tbl ->
+    disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
+    is_heap_address cgp_b = false ->
     Nswitcher ## Nassert ->
     Nswitcher ## Nvae ->
     Nassert ## Nvae ->
@@ -100,7 +105,8 @@ Section VAE.
     ot_switcher_prop W C (WCap true RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a).
   Proof.
     intros imports.
-    iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae
+    iIntros (Hcgp_shadow Hexports_shadow Hpc_shadow Hpc_heap Hcgp_heap
+               Hswitcher_assert HNswitcher_vae HNassert_vae
                Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hloc_i_W Hrel_i_W)
       "(#Hassert & #Hswitcher
       & #Hvae_code
@@ -118,6 +124,13 @@ Section VAE.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
@@ -178,6 +191,8 @@ Section VAE.
 
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
+    iDestruct (interp_cap_disjoint with "Hinterp_W0_csp")
+      as %[Hstk_shadow Hstk_heap]; first done.
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
@@ -232,7 +247,9 @@ Section VAE.
     (* --------------------------------------------------- *)
 
     focus_block 5 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_awkward.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)
+      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto; try done.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -342,7 +359,7 @@ Section VAE.
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W2 $Hcstk
-              $Hinterp_W2_wct1 $HK]"); eauto; iFrame "%".
+              $Hinterp_W2_wct1 $HK]"); eauto; try done; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       apply regmap_full_dom in Hrmap_init.
@@ -464,7 +481,9 @@ Section VAE.
     (* --------------------------------------------------- *)
 
     focus_block 8 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_awkward.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)
+      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto; try done.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".

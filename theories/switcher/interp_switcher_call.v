@@ -514,6 +514,7 @@ Section fundamental.
     destruct Hstk_bounds as [Hba Hstk_bounds].
     destruct Hstk_bounds as [Hba3 Hsome4].
     destruct Hsome4 as [f2 Ha4_total].
+    iDestruct (interp_cap_disjoint with "Hspv") as %[Hstk_shadow Hstk_heap]; first done.
     assert (is_Some (a + 1)%a) as [f Ha1] by solve_addr+Ha4_total.
     assert (is_Some (f + 1)%a) as [f0 Ha2] by solve_addr+Ha4_total Ha1.
     assert (is_Some (f0 + 1)%a) as [f1 Ha3] by solve_addr+Ha4_total Ha1 Ha2.
@@ -527,7 +528,7 @@ Section fundamental.
     (* --------------------------------------  *)
     focus_block 3 "Hcode" as a_tstack_push Ha_tstack_push "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_entry_first_spill.
     iApply (switcher_call_block_3_spec with
-      "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); eauto.
+      "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); eauto using trusted_stack_disjoint_from_shadow.
     { solve_addr+Ha_tstack_push Hcont_switcher_region. }
     iNext.
     iIntros "[
@@ -806,7 +807,7 @@ Section fundamental.
     focus_block 6 "Hcode" as a_LoadCapPCC Ha_LoadCapPCC "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_clear_stk1.
     iApply (switcher_call_block_6_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hb_switcher $Hcode]"); eauto; iNext.
+      "[- $HPC $Hcs0 $Hcs1 $Hb_switcher $Hcode]"); eauto using switcher_base_not_shadow; iNext.
     iIntros "(HPC & Hcs0 & Hcs1 & Hb_switcher & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
@@ -855,7 +856,7 @@ Section fundamental.
     iSpecialize ("Hcode" with "[$]").
     iDestruct "HP" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME
-       Heq Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some)
+       Heq Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
       "(Htbl1 & Htbl2 & Htbl3 & #Hentry & #Hentry_borrow & Hexec)".
     simpl fst; simpl snd.
     destruct wsb; cbn in Heq; simplify_eq.
@@ -977,7 +978,7 @@ Section fundamental.
       replace f2 with (a^+4)%a by solve_addr.
       replace a_tstk with (f3 ^+ -1)%a by solve_addr.
       iFrame. simpl. iPureIntro.
-      repeat (split;auto);[solve_addr..|repeat f_equiv;solve_addr].
+      repeat (split;auto); try solve_addr; try (repeat f_equiv; solve_addr).
     }
 
     iApply "Hexec".

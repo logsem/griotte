@@ -146,7 +146,7 @@ Section region_alloc_cmpt.
       apply (Hc a).
       + rewrite /cmpt_switcher_region.
         eapply elem_of_union;eauto.
-      + eapply elem_of_union;eauto.
+      + rewrite /cmpt_region. eapply elem_of_union;eauto.
         left; eapply elem_of_union;eauto.
         left; eauto.
         eapply elem_of_union;eauto.
@@ -157,7 +157,7 @@ Section region_alloc_cmpt.
          apply (Hc a); eauto.
          + rewrite /cmpt_switcher_region.
            eapply elem_of_union;eauto.
-         + eapply elem_of_union;eauto.
+         + rewrite /cmpt_region. eapply elem_of_union;eauto.
            left;eapply elem_of_union;eauto.
            left.
            eapply elem_of_union;eauto.
@@ -166,7 +166,7 @@ Section region_alloc_cmpt.
     intro Hcontra.
     apply (Hc a); eauto.
     + rewrite /cmpt_switcher_region. eapply elem_of_union;eauto.
-    + eapply elem_of_union;eauto.
+    + rewrite /cmpt_region. eapply elem_of_union;eauto.
       left;eapply elem_of_union;eauto.
       left.
       eapply elem_of_union;eauto.
@@ -219,6 +219,10 @@ Section region_alloc_cmpt.
   .
   Proof.
     intros * Himports Hcode Hdata C_code C_data.
+    pose proof (cmpt_pcc_disjoint_from_shadow C_cmpt) as Hpcc_shadow.
+    pose proof (cmpt_pcc_disjoint_from_heap C_cmpt) as Hpcc_heap.
+    pose proof (cmpt_cgp_disjoint_from_shadow C_cmpt) as Hcgp_shadow.
+    pose proof (cmpt_cgp_disjoint_from_heap C_cmpt) as Hcgp_heap.
     iIntros "HC_imports HC_code HC_data Himport_interp Hworld_C".
 
     iMod (world_interp_extend_perm_sepL2 W C
@@ -273,7 +277,7 @@ Section region_alloc_cmpt.
     }
     {
       iClear "#".
-      clear -C_data.
+      clear -C_data Hcgp_shadow Hcgp_heap.
       generalize dependent (cmpt_data C_cmpt); iIntros (l Hl).
       iIntros "#Hrels".
       iInduction (l) as [| w l] "IH"; first done.
@@ -296,7 +300,18 @@ Section region_alloc_cmpt.
           rewrite !andb_True in Hp.
           destruct Hp as [ [ [] ] ]; done.
         }
-        iSplit; last done.
+        iSplit; cycle 1.
+        { iPureIntro. split; first done.
+          assert (finz.seq_between b e ⊆
+            finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)) as Hbounds.
+          { intros a' Ha'. apply elem_of_finz_seq_between in Ha'.
+            apply elem_of_finz_seq_between; solve_addr. }
+          split.
+          - rewrite /disjoint_from_shadow in Hcgp_shadow |- *.
+            set_solver+Hbounds Hcgp_shadow.
+          - rewrite /disjoint_from_heap in Hcgp_heap |- *.
+            set_solver+Hbounds Hcgp_heap.
+        }
         iApply big_sepL_forall; cbn.
         iIntros (k a' Ha').
         apply list_elem_of_lookup_2, elem_of_finz_seq_between in Ha'.
@@ -378,6 +393,7 @@ Section region_alloc_cmpt.
 
     iSplit.
     - iEval (rewrite fixpoint_interp1_eq /=).
+      iSplit; last (iPureIntro; auto).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
       iExists RX, interp.
@@ -439,6 +455,7 @@ Section region_alloc_cmpt.
       iApply (monoReq_interp _ _ _ _ Permanent); done.
 
     - iEval (rewrite fixpoint_interp1_eq /=).
+      iSplit; last (iPureIntro; auto).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
       iExists RW, interp.
@@ -520,12 +537,17 @@ Section region_alloc_cmpt.
   .
   Proof.
     intros * Himports Hcode Hdata C_code C_data.
+    pose proof (cmpt_pcc_disjoint_from_shadow C_cmpt) as Hpcc_shadow.
+    pose proof (cmpt_pcc_disjoint_from_heap C_cmpt) as Hpcc_heap.
+    pose proof (cmpt_cgp_disjoint_from_shadow C_cmpt) as Hcgp_shadow.
+    pose proof (cmpt_cgp_disjoint_from_heap C_cmpt) as Hcgp_heap.
     iIntros "HC_imports HC_code HC_data Himport_interp Hworld_C".
     iApply (alloc_compartment_interp_rel with "[$] [$] [$] [Himport_interp] [$]"); eauto.
     iIntros "(#Hrel_pcc & #Hrel_data & Hworld_C)".
 
     iAssert (interp Wfinal C pcc_cap) as "#Hinterp_pcc".
     { iEval (rewrite fixpoint_interp1_eq /=).
+      iSplit; last (iPureIntro; auto).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
       iExists RX, interp.
@@ -593,6 +615,7 @@ Section region_alloc_cmpt.
 
     iAssert (interp Wfinal C cgp_cap) as "#Hinterp_cgp".
     { iEval (rewrite fixpoint_interp1_eq /=).
+      iSplit; last (iPureIntro; auto).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
       iExists RW, interp.

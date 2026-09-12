@@ -601,7 +601,7 @@ Section logrel.
               | WCap t (BPerm _ WL _ _) Global _ _ _ (* WL Global capabilities are never safe-to-share *)
                 => False
               | WCap t p g b e a =>
-                  [∗ list] a ∈ (finz.seq_between b e),
+                  ([∗ list] a ∈ (finz.seq_between b e),
                     ∃ (p' : Perm) (P:V),
                       ⌜PermFlowsTo p p'⌝
                       ∧ ⌜persistent_cond P⌝
@@ -610,7 +610,8 @@ Section logrel.
                       ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
                       ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
                       ∧ monoReq W C a p' P
-                      ∧ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝
+                      ∧ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
+                  ∗ ⌜disjoint_from_shadow b e ∧ disjoint_from_heap b e⌝
               | _ => False
               end)%I.
   Solve All Obligations with auto;solve_proper.
@@ -759,7 +760,12 @@ Section logrel.
     destruct rx, wp, g; try reflexivity.
     all: match goal with
     | |- context [WCap _ ?p ?g _ _ _] =>
-        exact (interp_cap_body_contractive W C p g b e n x y Hdist)
+        change (dist n
+          (interp_cap_body x W C p g b e ∗
+            ⌜disjoint_from_shadow b e ∧ disjoint_from_heap b e⌝)%I
+          (interp_cap_body y W C p g b e ∗
+            ⌜disjoint_from_shadow b e ∧ disjoint_from_heap b e⌝)%I);
+        f_equiv; exact (interp_cap_body_contractive W C p g b e n x y Hdist)
     end.
   Qed.
 
@@ -836,8 +842,10 @@ Section logrel.
         first [ apply bi.pure_persistent
               | match goal with
                 | |- context [WCap _ ?p ?g _ _ _] =>
-                    exact (interp_cap_body_persistent
-                      (fixpoint interp1) W C p g b e)
+                    change (Persistent
+                      (interp_cap_body (fixpoint interp1) W C p g b e ∗
+                        ⌜disjoint_from_shadow b e ∧ disjoint_from_heap b e⌝)%I);
+                    apply _
                 end ].
     - change (Persistent
         ((if permit_seal sr
@@ -871,20 +879,47 @@ Section logrel.
                     ∗ (if writeAllowed p' then ▷ (wcond P C interp) else True)
                     ∗ monoReq W C a p' P
                     ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
-               ∗ (⌜ if isWL p then g = Local else True⌝))%I).
+               ∗ ⌜(if isWL p then g = Local else True) ∧
+                    disjoint_from_shadow b e ∧ disjoint_from_heap b e⌝)%I).
   Proof.
     pose proof (interp_cap_body_eq interp W C p g b e) as Hbody.
     destruct p as [rx wp dl dro].
     destruct rx, wp, g; cbn [isO has_sreg_access isWL].
     all: rewrite -?Hbody.
+    all: rewrite ?bi.pure_and ?bi.persistent_and_sep.
     all: rewrite ?(bi.pure_True (Local = Local) eq_refl).
     all: try
       (rewrite (bi.pure_False (Global = Local)); [|discriminate]).
-    all: rewrite ?bi.sep_True.
+    all: rewrite ?bi.sep_True ?bi.True_sep ?bi.False_sep.
     all: try (rewrite (comm bi_sep _ False%I) bi.sep_False).
+    all: rewrite ?bi.sep_False ?bi.False_sep.
+    all: rewrite -?(bi.persistent_and_sep ⌜disjoint_from_shadow b e⌝
+      ⌜disjoint_from_heap b e⌝) -?bi.pure_and.
     all: reflexivity.
   Qed.
 
+
+  Lemma interp_cap_disjoint (W : WORLD) (C : CmptName) p g b e a :
+    isO p = false →
+    interp W C (WCap true p g b e a) -∗
+    ⌜disjoint_from_shadow b e ∧ disjoint_from_heap b e⌝.
+  Proof.
+    iIntros (HnonO) "Hinterp".
+    rewrite fixpoint_interp1_eq interp1_eq HnonO.
+    destruct (has_sreg_access p); first done.
+    iDestruct "Hinterp" as "[_ %Hregions]".
+    iPureIntro. naive_solver.
+  Qed.
+
+  Lemma interp_cap_not_shadow (W : WORLD) (C : CmptName) p g b e a a' :
+    isO p = false →
+    withinBounds b e a' = true →
+    interp W C (WCap true p g b e a) -∗ ⌜is_shadow_address a' = false⌝.
+  Proof.
+    iIntros (HnonO Hbounds) "Hinterp".
+    iDestruct (interp_cap_disjoint with "Hinterp") as %[Hshadow Hheap]; auto.
+    iPureIntro. eapply disjoint_from_shadow_not_in; eauto.
+  Qed.
 
   (* Inversion lemmas about interp  *)
   (* Inversion lemmas about about when R-capability *)

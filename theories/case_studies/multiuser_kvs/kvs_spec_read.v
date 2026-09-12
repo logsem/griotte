@@ -28,6 +28,9 @@ Section KVS_spec_read.
 
     let fkey := (kvs_full_key user_key nkey) in
 
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address user_key_addr = false ->
+    is_heap_cap w = false ->
     SubBounds KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr (kvs_read_pcc_addr ^+ length kvs_read_instrs)%a ->
     (KVS_cgp_b + length kvs_data)%a = Some KVS_cgp_e ->
 
@@ -77,7 +80,7 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
         & Hcode & Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
@@ -113,7 +116,7 @@ Section KVS_spec_read.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
-    iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HPKVS $Hcode]"); eauto.
+    iApply (KVS_search_spec_in with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HPKVS $Hcode]"); eauto using KVS_cgp_disjoint_from_shadow.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & Hcgp_opt & Hcgp_key & Hcgp_val
                     & HPKVS & %Hcgp_idx & Hcode)".
@@ -128,6 +131,9 @@ Section KVS_spec_read.
     iInstr "Hcode".
     (* Load ca1 cgp *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
+      exact Hcgp_idx. }
+    { split; done. }
     (* Mov ca1 0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
@@ -149,6 +155,9 @@ Section KVS_spec_read.
 
     let fkey := (kvs_full_key user_key nkey) in
 
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address user_key_addr = false ->
+    is_heap_cap w = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
 
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -199,7 +208,7 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey)
       "(#Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
         & Ha_user_key
@@ -264,6 +273,9 @@ Section KVS_spec_read.
     :
     let fkey := (kvs_full_key user_key nkey) in
 
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address user_key_addr = false ->
+    is_heap_cap w = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
     ↑(Nkvs.@"logical") ⊆ E ->
 
@@ -311,7 +323,7 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
       "(#Hkvs_inv & #Hkvs_logical_inv & Hna
       & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
       & Ha_user_key & Hm & Hpost)".
@@ -343,6 +355,9 @@ Section KVS_spec_read.
     :
     let fkey := (kvs_full_key user_key nkey) in
 
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address user_key_addr = false ->
+    is_heap_cap w = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
     ↑(Nkvs.@"logical") ⊆ E ->
 
@@ -390,7 +405,7 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
        & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
 
@@ -420,6 +435,8 @@ Section KVS_spec_read.
 
     let fkey := (kvs_full_key user_key nkey) in
 
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address user_key_addr = false ->
     SubBounds KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr (kvs_read_pcc_addr ^+ length kvs_read_instrs)%a ->
     (KVS_cgp_b + length kvs_data)%a = Some KVS_cgp_e ->
 
@@ -469,7 +486,7 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
         & Hcode & Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
@@ -499,7 +516,7 @@ Section KVS_spec_read.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 4 "Hcode" as a_search Ha_search "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_lea.
-    iApply (KVS_search_spec_empty_slot with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HPKVS $Hcode]"); eauto.
+    iApply (KVS_search_spec_empty_slot with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HPKVS $Hcode]"); eauto using KVS_cgp_disjoint_from_shadow.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "[
     (%idx_empty & HPC & Hcgp & Hca0 & Hctp & Hct1 & Hct2 & HPKVS
@@ -559,6 +576,8 @@ Section KVS_spec_read.
 
     let fkey := (kvs_full_key user_key nkey) in
 
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
 
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -608,7 +627,7 @@ Section KVS_spec_read.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros fkey.
-    iIntros (Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey)
       "(#Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
         & Ha_user_key
@@ -669,6 +688,8 @@ Section KVS_spec_read.
     (E : coPset)
     :
 
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
     ↑(Nkvs.@"logical") ⊆ E ->
 
@@ -715,7 +736,7 @@ Section KVS_spec_read.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
       "(#Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
         & Ha_user_key & Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_logical_inv Hna")
@@ -743,6 +764,8 @@ Section KVS_spec_read.
     (E : coPset)
     :
 
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
     ↑(Nkvs.@"logical") ⊆ E ->
 
@@ -789,7 +812,7 @@ Section KVS_spec_read.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
 
@@ -936,6 +959,7 @@ Section KVS_spec_read.
     (nkey : Z)
     :
 
+    is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_read_instrs)%a ->
     is_uint16 nkey ->
     (is_sealed_with_o wca0 KVS_OTYPE = false \/ get_tag wca0 = false) ->
@@ -960,7 +984,7 @@ Section KVS_spec_read.
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (HsubBounds Hnkey_is_uint16 Hwca0 Hcgp_contiguous)
+    iIntros (Hunsealing_shadow HsubBounds Hnkey_is_uint16 Hwca0 Hcgp_contiguous)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp
       & [%wcnull Hcnull] & Hcode & Ha_unsealing)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -998,6 +1022,7 @@ Section KVS_spec_read.
     (E : coPset)
     :
 
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
 
     is_uint16 nkey ->
@@ -1019,7 +1044,7 @@ Section KVS_spec_read.
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (HE Hnkey_is_uint16 Hwca0)
+    iIntros (Hunsealing_shadow HE Hnkey_is_uint16 Hwca0)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull)".
 
     iMod (na_inv_acc with "Hkvs_inv Hna")
@@ -1050,6 +1075,9 @@ Section KVS_spec_read.
     (arg_rmap : Reg) (cstk : CSTK) (E : coPset)
     (user_key : user_key_t) (nkey : map_key_t)
     (l_user_key : Locality) (user_key_addr : Addr) (w : Word) :
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address user_key_addr = false ->
+    is_heap_cap w = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
     ↑(Nkvs.@"logical") ⊆ E ->
     is_uint16 nkey ->
@@ -1073,7 +1101,7 @@ Section KVS_spec_read.
       b_stk e_stk a_stk arg_rmap cstk kvs_read_nargs E
       KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_read_pcc_off.
   Proof.
-    iIntros (Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).
+    iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros "[ #Hkvs #Hkvs_logical ]" (arg_rmap' rmap')
       "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp

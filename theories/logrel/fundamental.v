@@ -95,7 +95,7 @@ Section fundamental.
       replace (isO (BPerm _ WL _ _)) with false by (cbn; destruct rx; done).
       cbn.
       destruct rx; auto.
-      iDestruct "Hinv_interp" as "[_ Hcontra]"; done.
+      iDestruct "Hinv_interp" as "[_ %Hcontra]". naive_solver.
     }
 
     iPoseProof "Hinv_interp" as "#Hinv".

@@ -27,6 +27,7 @@ Section KVS_spec_addOrUpdate_safe.
     (E : coPset)
     :
 
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
     ↑(Nkvs.@"logical") ⊆ E ->
     ↑Nkvs_otype ⊆ E ->
@@ -70,7 +71,7 @@ Section KVS_spec_addOrUpdate_safe.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W)
+    iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W)
       "(#Hspred & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
       & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & Hcnull & Hworld & Hpost)".
 
@@ -109,7 +110,7 @@ Section KVS_spec_addOrUpdate_safe.
 
     iDestruct (sopen_world_interp_singleton with "Hspred Hinterp_wca0' Hworld")
                 as "(Hworld & Hres_open & HP)".
-    iDestruct "HP" as "(%uk & %a & >%Heq_sb & >%Hbounds & >Ha & HLUKVS & Hinterp)".
+    iDestruct "HP" as "(%uk & %a & >%Heq_sb & >%Hbounds & >%Huser_key_shadow & >Ha & HLUKVS & Hinterp)".
     destruct wsb as [ t_user_key p_user_key l_user_key | ] ; cbn in * ; simplify_eq.
 
     assert (nkey ∈ kvs_all_map_keys) as Hnkey_is_map_key by rewrite -is_uint16_in_kvs_all_map_keys //.
@@ -226,6 +227,21 @@ Section KVS_spec_addOrUpdate_safe.
     iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr).
     iSplit; first (iPureIntro; rewrite /kvs_addOrUpdate_nargs; lia).
     iSplit; first (iPureIntro; exists KVS_pcc_b'; exact KVS_size_imports).
+    iSplit.
+    { iPureIntro. eapply disjoint_from_shadow_not_in.
+      - exact kvs_exp_tbl_disjoint_from_shadow.
+      - apply withinBounds_true_iff.
+        rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr. }
+    iSplit.
+    { iPureIntro. eapply disjoint_from_shadow_not_in.
+      - exact kvs_exp_tbl_disjoint_from_shadow.
+      - apply withinBounds_true_iff; solve_addr. }
+    iSplit.
+    { iPureIntro. eapply disjoint_from_shadow_not_in.
+      - exact kvs_exp_tbl_disjoint_from_shadow.
+      - apply withinBounds_true_iff; solve_addr. }
+    iSplit; first (iPureIntro; exact KVS_pcc_base_not_heap).
+    iSplit; first (iPureIntro; exact KVS_cgp_base_not_heap).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
@@ -258,7 +274,16 @@ Section KVS_spec_addOrUpdate_safe.
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
 
-    iApply (KVS_addOrupdate_spec_safe W0 (revoke W0)); try solve_ndisj; iFrame "∗#".
+    assert (is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false)
+      as Hunsealing_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact KVS_pcc_disjoint_from_shadow.
+      apply withinBounds_true_iff.
+      pose proof KVS_size_imports as Himports.
+      pose proof KVS_size_code as Hcode_size.
+      rewrite /length_kvs_imports in Himports.
+      rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr+Himports Hcode_size. }
+    iApply (KVS_addOrupdate_spec_safe W0 (revoke W0) _ _ _ _ _ _ Hunsealing_shadow);
+      try solve_ndisj; iFrame "∗#".
     iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull & Hworld_C)".
     iAssert (∃ zca0, ca0 ↦ᵣ WInt zca0)%I with "[Hca0]" as "[%zca0 Hca0]".
     { iDestruct "Hca0" as "[$|$]". }

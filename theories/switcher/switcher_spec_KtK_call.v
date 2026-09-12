@@ -58,9 +58,7 @@ Section Switcher_KtK_Call.
     iInstr "Hcode".
 
     (* --- Jnz 2 ct2 --- *)
-    replace ( match MP with
-              | {| encodePerm := encodePerm |} => encodePerm
-              end  ) with encodePerm by done.
+    fold (@permission_encoding_mixin MP). fold encodePerm.
     replace ( (if decide (ctp = cnull) then 0 else encodePerm RWL)%Z )
       with ( encodePerm RWL ) by (destruct (decide _); done).
     replace (encodePerm RWL - encodePerm RWL)%Z with 0%Z by lia.
@@ -108,9 +106,7 @@ Section Switcher_KtK_Call.
     cbn.
 
     (* --- Jnz 2 ct2 --- *)
-    replace ( match MP with
-                 | {| encodeLoc := encodeLoc |} => encodeLoc
-                 end  ) with encodeLoc by done.
+    fold (@permission_encoding_mixin MP). fold encodeLoc.
     replace ( (if decide (ctp = cnull) then 0 else encodeLoc Local )%Z )
       with ( encodeLoc Local ) by (destruct (decide _); done).
     replace (encodeLoc Local - encodeLoc Local)%Z with 0%Z by lia.
@@ -126,6 +122,7 @@ Section Switcher_KtK_Call.
     stk_mem :
     let switcher_instrs_2 := (switcher_instrs_n 2) in
     let len_switcher_2 := length switcher_instrs_2 in
+    disjoint_from_shadow b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_2)%a ->
 
     PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
@@ -158,7 +155,7 @@ Section Switcher_KtK_Call.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_2 len_switcher_2; subst switcher_instrs_2 len_switcher_2.
-    iIntros (Hsub_reg) "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hstk & Hcode & Hpost)".
+    iIntros (Hstk_shadow Hsub_reg) "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hstk & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -177,6 +174,9 @@ Section Switcher_KtK_Call.
     { solve_addr+Hastk_inbounds Hastk1. }
 
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
@@ -195,6 +195,9 @@ Section Switcher_KtK_Call.
     { solve_addr+Hastk1_inbounds Hastk1 Hastk2. }
 
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
@@ -212,6 +215,9 @@ Section Switcher_KtK_Call.
     { solve_addr+Hastk2_inbounds Hastk1 Hastk2 Hastk3. }
 
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
@@ -230,6 +236,9 @@ Section Switcher_KtK_Call.
     assert ((a_stk + 4)%a = Some a_stk4) as Hastk by solve_addr.
 
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
@@ -251,6 +260,7 @@ Section Switcher_KtK_Call.
     let len_switcher_3 := length switcher_instrs_3 in
     let a_tstk1 := (a_tstk ^+ 1)%a in
     let a_tstk2 := (a_tstk ^+ 2)%a in
+    disjoint_from_shadow b_trusted_stack e_trusted_stack ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_3)%a ->
     (b_trusted_stack <= a_tstk)%a ->
     (a_tstk <= e_trusted_stack)%a ->
@@ -297,7 +307,7 @@ Section Switcher_KtK_Call.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_3 len_switcher_3 a_tstk1 a_tstk2; subst switcher_instrs_3 len_switcher_3.
-    iIntros (Hsub_reg Hbounds_tstk_b Hbounds_tstk_e Hpc_fail)
+    iIntros (Htstk_shadow Hsub_reg Hbounds_tstk_b Hbounds_tstk_e Hpc_fail)
       "(HPC & Hcs0 & Hctp & Hct2 & Hcsp & Hmtdc & Htstk & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -351,6 +361,9 @@ Section Switcher_KtK_Call.
     iDestruct (region_pointsto_cons _ f4 with "Htstk") as "[Hf3 Htstk]";[solve_addr|solve_addr|].
     replace (a_tstk ^+ 1)%a with f3 by solve_addr.
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Htstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds; solve_addr. }
 
     (* --- WriteSR mtdc ct2 --- *)
     iInstr "Hcode".
@@ -411,6 +424,8 @@ Section Switcher_KtK_Call.
     wcs0 wcs1 wpc_b :
     let switcher_instrs_6 := (switcher_instrs_n 6) in
     let len_switcher_6 := length switcher_instrs_6 in
+    is_shadow_address pc_b = false ->
+    is_heap_cap wpc_b = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_6)%a ->
 
     PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
@@ -429,7 +444,7 @@ Section Switcher_KtK_Call.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_6 len_switcher_6; subst switcher_instrs_6 len_switcher_6.
-    iIntros (Hsub_reg) "(HPC & Hcs0 & Hcs1 & Hpc_b & Hcode & Hpost)".
+    iIntros (Hpc_b_shadow Hwpc_b_nonheap Hsub_reg) "(HPC & Hcs0 & Hcs1 & Hpc_b & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -471,6 +486,7 @@ Section Switcher_KtK_Call.
     let switcher_instrs_7 := (switcher_instrs_n 7) in
     let len_switcher_7 := length switcher_instrs_7 in
     let wct1 := WSealed o (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
+    is_shadow_address atbl_tgt = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_7)%a ->
     (o < o ^+ 1)%ot ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
@@ -494,7 +510,7 @@ Section Switcher_KtK_Call.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_7 len_switcher_7 wct1; subst switcher_instrs_7 len_switcher_7 wct1.
-    iIntros (Hsub_reg Hot_bounds atbl_tgt_inbounds Hnargs)
+    iIntros (Hatbl_shadow Hsub_reg Hot_bounds atbl_tgt_inbounds Hnargs)
       "(#Hinv_exp_tbl_entry & HPC & Hcs0 & Hct1 & wtc2 & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -507,6 +523,8 @@ Section Switcher_KtK_Call.
     wp_instr.
     iInv "Hinv_exp_tbl_entry" as ">Ha_tbl" "Hcls_tbl".
     iInstr "Hcode".
+    { done. }
+    { split;auto. rewrite /withinBounds. solve_addr. }
     iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
     wp_pure.
 
@@ -530,6 +548,10 @@ Section Switcher_KtK_Call.
     let switcher_instrs_8 := (switcher_instrs_n 8) in
     let len_switcher_8 := length switcher_instrs_8 in
     let wct1 := WCap true RO Global btbl_tgt etbl_tgt atbl_tgt in
+    is_shadow_address btbl_tgt = false ->
+    is_shadow_address (btbl_tgt ^+ 1)%a = false ->
+    is_heap_address bpcc_tgt = false ->
+    is_heap_cap wcgp_tgt = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_8)%a ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt ^+ 1 < atbl_tgt)%a ->
@@ -559,7 +581,7 @@ Section Switcher_KtK_Call.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_8 len_switcher_8 wct1; subst switcher_instrs_8 len_switcher_8 wct1.
-    iIntros (Hsub_reg atbl_tgt_inbounds Hbtbl_tgt1 Hentry)
+    iIntros (Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hwcgp_nonheap Hsub_reg atbl_tgt_inbounds Hbtbl_tgt1 Hentry)
       "(#Hinv_exp_tbl_pcc & Hinv_exp_tbl_cgp & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -609,6 +631,11 @@ Section Switcher_KtK_Call.
     wcgp wcra wcs0 wcs1 b_stk e_stk a_stk :
     let switcher_instrs_16 := (switcher_instrs_n 16) in
     let len_switcher_16 := length switcher_instrs_16 in
+    disjoint_from_shadow b_stk e_stk ->
+    is_heap_cap wcgp = false ->
+    is_heap_cap wcra = false ->
+    is_heap_cap wcs1 = false ->
+    is_heap_cap wcs0 = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
 
     (pc_a ^+ 10 + -36)%a = Some (pc_a ^+ -26)%a ->
@@ -649,7 +676,7 @@ Section Switcher_KtK_Call.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_16 len_switcher_16; subst switcher_instrs_16 len_switcher_16.
-    iIntros (Hsub_reg Hpca_next Hbstk Hbstk')
+    iIntros (Hstk_shadow Hwcgp_nonheap Hwcra_nonheap Hwcs1_nonheap Hwcs0_nonheap Hsub_reg Hpca_next Hbstk Hbstk')
       "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0] & [%wca1 Hca1]
       & Hcsp & Hastk0 & Hastk1 & Hastk2 & Hastk3 & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
@@ -659,18 +686,30 @@ Section Switcher_KtK_Call.
     iInstr "Hcode".
     (* Load cgp csp; *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { split; solve_addr. }
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     (* Load cra csp; *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { split; solve_addr. }
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     (* Load cs1 csp; *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { split; solve_addr. }
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     (* Load cs0 csp; *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { split; solve_addr. }
     (* Mov ca0 (inl (-141)%Z); *)
     iInstr "Hcode".
     destruct (decide (ca0 = cnull))as [|_]; first done.
@@ -714,7 +753,19 @@ Section Switcher_KtK_Call.
            |}
     in
 
+    disjoint_from_shadow b_stk e_stk ->
+    is_heap_cap wcgp_caller = false ->
+    is_heap_cap wcra_caller = false ->
+    is_heap_cap wcs0_caller = false ->
+    is_heap_cap wcs1_caller = false ->
+    is_shadow_address atbl_tgt = false ->
+    is_shadow_address btbl_tgt = false ->
+    is_shadow_address (btbl_tgt ^+ 1)%a = false ->
+    is_heap_address bpcc_tgt = false ->
+    is_heap_address bcgp_tgt = false ->
+
     (* (* NA mask *) *)
+    disjoint_from_heap b_stk e_stk ->
     ↑Nswitcher ⊆ E ->
 
     (* Well formed entry point *)
@@ -814,7 +865,8 @@ Section Switcher_KtK_Call.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros astk4 wct1_caller callee_stk_region frame.
-    iIntros (HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hdom Harg_rmap)
+    iIntros (Hstk_shadow Hwcgp_nonheap Hwcra_nonheap Hwcs0_nonheap Hwcs1_nonheap
+             Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_nonheap Hbcgp_nonheap Hstk_heap HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hdom Harg_rmap)
       "(#Hswitcher & Hinv_exp_tbl_pcc & Hinv_exp_tbl_cgp & Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
 
@@ -887,7 +939,7 @@ Section Switcher_KtK_Call.
     (* ----- Lswitch_trusted_stack_push -----  *)
     (* --------------------------------------  *)
     focus_block 3 "Hcode" as a_tstack_push Ha_tstack_push "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_entry_first_spill.
-    iApply (switcher_cc_spec_3 with "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); eauto.
+    iApply (switcher_cc_spec_3 with "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); eauto using trusted_stack_disjoint_from_shadow.
     { solve_addr+Ha_tstack_push Hcont_switcher_region. }
     iNext.
     iIntros "[
@@ -979,6 +1031,10 @@ Section Switcher_KtK_Call.
     iApply (clear_stack_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hstk]"); try solve_pure.
     { solve_addr+. }
     { solve_addr. }
+    { rewrite /disjoint_from_shadow elem_of_disjoint in Hstk_shadow |- *.
+      intros x Hx Hshadow. eapply Hstk_shadow; last exact Hshadow.
+      apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.
+      solve_addr. }
     iIntros "!> (HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
@@ -987,7 +1043,7 @@ Section Switcher_KtK_Call.
     (* -----------------------  *)
     focus_block 6 "Hcode" as a_LoadCapPCC Ha_LoadCapPCC "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_clear_stk1.
-    iApply (switcher_cc_spec_6 with "[- $HPC $Hcs0 $Hcs1 $Hb_switcher $Hcode]"); eauto; iNext.
+    iApply (switcher_cc_spec_6 with "[- $HPC $Hcs0 $Hcs1 $Hb_switcher $Hcode]"); eauto using switcher_base_not_shadow; iNext.
     iIntros "(HPC & Hcs0 & Hcs1 & Hb_switcher & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 

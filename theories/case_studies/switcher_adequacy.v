@@ -120,6 +120,22 @@ Section helpers_switcher_adequacy.
     }
     iSplit; first (iPureIntro ; lia).
     iSplit; first (iPureIntro; exact Hentry).
+    pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as Htbl_pcc.
+    pose proof (cmpt_exp_tbl_cgp_size C_cmpt) as Htbl_cgp.
+    iSplit.
+    { iPureIntro. eapply disjoint_from_shadow_not_in.
+      - exact (cmpt_exp_tbl_disjoint_from_shadow C_cmpt).
+      - apply withinBounds_true_iff. subst entries_etbl e_etbl. solve_addr. }
+    iSplit.
+    { iPureIntro. eapply disjoint_from_shadow_not_in.
+      - exact (cmpt_exp_tbl_disjoint_from_shadow C_cmpt).
+      - apply withinBounds_true_iff. subst b_etbl entries_etbl e_etbl. solve_addr. }
+    iSplit.
+    { iPureIntro. eapply disjoint_from_shadow_not_in.
+      - exact (cmpt_exp_tbl_disjoint_from_shadow C_cmpt).
+      - apply withinBounds_true_iff. subst b_etbl entries_etbl e_etbl. solve_addr. }
+    iSplit; first (iPureIntro; exact (cmpt_pcc_base_not_heap C_cmpt)).
+    iSplit; first (iPureIntro; exact (cmpt_cgp_base_not_heap C_cmpt)).
     iSplit.
     { subst b_etbl1 b_etbl.
       replace (cmpt_exp_tbl_cgp C_cmpt ) with (cmpt_exp_tbl_pcc C_cmpt ^+ 1)%a; auto.

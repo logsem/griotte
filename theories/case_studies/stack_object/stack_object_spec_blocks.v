@@ -14,6 +14,7 @@ Section Stack_Object_Blocks.
       (wca1 wcs0 wcs1 : Word) (stk_mem : list Word) :
     let instrs := so_f_alloc_instrs in
     let len := length instrs in
+    disjoint_from_shadow csp_b csp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
     ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
@@ -43,7 +44,7 @@ Section Stack_Object_Blocks.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros instrs len. subst instrs len.
-    iIntros (Hsub) "(HPC & Hcsp & Hca1 & Hcs0 & Hcs1 & Hstk & Hcode & Hpost)".
+    iIntros (Hstk_shadow Hsub) "(HPC & Hcsp & Hca1 & Hcs0 & Hcs1 & Hstk & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /so_f_alloc_instrs.
 
@@ -61,6 +62,9 @@ Section Stack_Object_Blocks.
     { solve_addr+Hcsp_size Hastk1. }
     (* --- Store csp so_secret --- *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds; solve_addr+Hcsp_size. }
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
     (* --- Mov ca1 csp --- *)
@@ -117,6 +121,9 @@ Section Stack_Object_Blocks.
     iInstr "Hcode".
     (* --- Store ca1 0 --- *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
 
@@ -172,6 +179,7 @@ Section Stack_Object_Blocks.
       (wct0 wct1 : Word) :
     let instrs := so_f_assert_prep_instrs in
     let len := length instrs in
+    disjoint_from_shadow csp_b csp_e ->
     (csp_b + 2)%a = Some a_stk2 ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
@@ -193,7 +201,7 @@ Section Stack_Object_Blocks.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros instrs len. subst instrs len.
-    iIntros (Hastk2 Hsub) "(HPC & Hcsp & Hct0 & Hct1 & Hsecret & Hcode & Hpost)".
+    iIntros (Hstk_shadow Hastk2 Hsub) "(HPC & Hcsp & Hct0 & Hct1 & Hsecret & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /so_f_assert_prep_instrs.
     (* --- Lea csp (-2)%Z --- *)
@@ -205,6 +213,10 @@ Section Stack_Object_Blocks.
     }
     (* --- Load ct0 csp --- *)
     iInstr "Hcode".
+    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      rewrite /withinBounds; solve_addr. }
+    { done. }
+    { split; auto. rewrite /withinBounds. solve_addr. }
     (* --- Mov ct1 so_secret --- *)
     iInstr "Hcode".
     iApply "Hpost"; iFrame.

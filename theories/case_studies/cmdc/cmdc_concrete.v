@@ -120,7 +120,7 @@ Proof.
     cmdc_switcher_return cmdc_switcher_sealing_type
     cmdc_trusted_stack_b cmdc_trusted_stack_e _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl cmdc_stack_b cmdc_stack_e
-    (replicate 100 (WInt 0)) _ _).
+    (replicate 100 (WInt 0)) _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -131,6 +131,17 @@ Proof.
     repeat split; unfold disjoint, set_disjoint_instance;
       intros x Hx Hx'; rewrite !elem_of_finz_seq_between in Hx, Hx';
       solve_addr.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'.
+    rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - reflexivity.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition cmdc_concrete_cmptAssert : cmptAssert.
@@ -168,12 +179,13 @@ Definition cmdc_main_imports_concrete : list Word :=
 
 Program Definition cmdc_concrete_main_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt cmdc_main_pcc_b cmdc_main_code_start cmdc_main_pcc_e
+  refine (@mkCmpt machine_parameters_instance cmdc_main_pcc_b cmdc_main_code_start cmdc_main_pcc_e
     cmdc_main_data_b cmdc_main_data_e cmdc_main_data_e cmdc_main_data_e
     cmdc_main_exports_pcc
     cmdc_main_exports_cgp cmdc_main_exports_entries_b
     cmdc_main_exports_entries_e cmdc_main_imports_concrete cmdc_main_code
-    cmdc_main_data [] [] _ _ _ _ _ _ _ _).
+    cmdc_main_data [] [] _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -182,15 +194,36 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_cmdc_addresses; disj_regions.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - reflexivity.
+  - reflexivity.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition cmdc_concrete_B_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt cmdc_B_pcc_b cmdc_B_code_start cmdc_B_pcc_e
+  refine (@mkCmpt machine_parameters_instance cmdc_B_pcc_b cmdc_B_code_start cmdc_B_pcc_e
     cmdc_B_data_b cmdc_B_data_e cmdc_B_data_e cmdc_B_data_e
     cmdc_B_exports_pcc cmdc_B_exports_cgp
     cmdc_B_exports_entries_b cmdc_B_exports_entries_e cmdc_B_imports
-    cmdc_B_code cmdc_B_data [] cmdc_B_exports _ _ _ _ _ _ _ _).
+    cmdc_B_code cmdc_B_data [] cmdc_B_exports _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -199,15 +232,36 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_cmdc_addresses; disj_regions.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - reflexivity.
+  - reflexivity.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition cmdc_concrete_C_cmpt : cmpt.
 Proof.
-  refine (@mkCmpt cmdc_C_pcc_b cmdc_C_code_start cmdc_C_pcc_e
+  refine (@mkCmpt machine_parameters_instance cmdc_C_pcc_b cmdc_C_code_start cmdc_C_pcc_e
     cmdc_C_data_b cmdc_C_data_e cmdc_C_data_e cmdc_C_data_e
     cmdc_C_exports_pcc cmdc_C_exports_cgp
     cmdc_C_exports_entries_b cmdc_C_exports_entries_e cmdc_C_imports
-    cmdc_C_code cmdc_C_data [] cmdc_C_exports _ _ _ _ _ _ _ _).
+    cmdc_C_code cmdc_C_data [] cmdc_C_exports _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -216,6 +270,26 @@ Proof.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - unfold_cmdc_addresses; disj_regions.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - reflexivity.
+  - reflexivity.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 (** All nonempty concrete regions, ordered by their addresses. The three
@@ -475,18 +549,18 @@ Proof.
   - rewrite /cmdc_C_data; repeat constructor; done.
 Qed.
 
-Lemma cmdc_concrete_adequacy reg' sreg' mem' es :
+Lemma cmdc_concrete_adequacy reg' sreg' mem' sh sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (cmdc_initial_registers, cmdc_initial_sregisters, cmdc_initial_memory))
-    (es, (reg', sreg', mem')) ->
+      (cmdc_initial_registers, cmdc_initial_sregisters, cmdc_initial_memory, sh))
+    (es, (reg', sreg', mem', sh')) ->
   mem' !! cmdc_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@cmdc_adequacy machine_parameters_instance cmdc_concrete_layout
       cmdc_initial_registers reg' cmdc_initial_sregisters sreg'
-      cmdc_initial_memory mem' es cmdc_initial_registers_correct
+      cmdc_initial_memory mem' sh sh' es cmdc_initial_registers_correct
       cmdc_initial_sregisters_correct cmdc_initial_memory_correct Hrun)
     as Hadequacy.
   cbn [cmdc_concrete_layout cmdc_concrete_cmptAssert] in Hadequacy.
@@ -500,22 +574,22 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem cmdc_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem',
+  ∃ reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
         (cmdc_initial_registers, cmdc_initial_sregisters,
-         cmdc_initial_memory))
-      ([Instr Halted], (reg', sreg', mem'))
+         cmdc_initial_memory, ∅))
+      ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! cmdc_assert_flag = Some (WInt 0%Z).
 Proof.
   edestruct (
     machine_run_correct 10000 Executable
       (cmdc_initial_registers, cmdc_initial_sregisters,
-       cmdc_initial_memory)
+       cmdc_initial_memory, ∅)
       Halted
-  ) as [[[reg' sreg'] mem'] Hsteps].
+  ) as [[[[reg' sreg'] mem'] sh'] Hsteps].
   { vm_compute; reflexivity. }
-  exists reg', sreg', mem'. split.
+  exists reg', sreg', mem', sh'. split.
   - exact Hsteps.
   - eapply cmdc_concrete_adequacy. exact Hsteps.
 Qed.

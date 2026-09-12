@@ -58,7 +58,9 @@ Proof.
   pose proof (switcher_size switcher_cmpt).
   pose proof (switcher_call_entry_point switcher_cmpt).
   pose proof (switcher_return_entry_point switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _); cbn in *; auto.
+  pose proof (trusted_stack_disjoint_from_shadow switcher_cmpt).
+  pose proof (switcher_base_not_shadow switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
 Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
@@ -432,6 +434,13 @@ Section Adequacy.
 
       iApply (vae_awkward_spec _ _ _ _ _ _ _ _ C_f W1' assertN switcherN vaeN vaeN)
       ; try iFrame "#"; eauto.
+      + eapply disjoint_from_shadow_not_in;
+          first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
+        apply withinBounds_true_iff; solve_addr+H5.
+      + exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt).
+      + exact (cmpt_pcc_disjoint_from_shadow main_cmpt).
+      + exact (cmpt_pcc_base_not_heap main_cmpt).
+      + exact (cmpt_cgp_base_not_heap main_cmpt).
       + solve_ndisj.
       + solve_ndisj.
       + solve_ndisj.

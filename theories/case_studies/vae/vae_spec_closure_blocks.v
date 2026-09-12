@@ -64,6 +64,7 @@ Section VAE_Awkward_Blocks.
     SubBounds pc_b pc_e pc_a (pc_a ^+ 1)%a ->
     ContiguousRegion pc_a 1 ->
     (cgp_b < cgp_e)%a ->
+    is_shadow_address cgp_b = false ->
     related_sts_priv_world W W' ->
     revoke_condition W ->
     (exists old : bool, loc W !! i = Some (encode old)) ->
@@ -86,7 +87,7 @@ Section VAE_Awkward_Blocks.
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    intros W' z Hsub Hcont1 Hcgp_bounds Hrelated Hrevoke Hloc Hrel.
+    intros W' z Hsub Hcont1 Hcgp_bounds Hcgp_shadow Hrelated Hrevoke Hloc Hrel.
     subst W' z.
     iIntros "(#Hawk & #Hsts & Hworld & HPC & Hcgp & Hcode & Hpost)".
     codefrag_facts "Hcode".
@@ -218,6 +219,7 @@ Section VAE_Awkward_Blocks.
       (wct0 wct1 : Word) :
     SubBounds pc_b pc_e pc_code (pc_code ^+ 6)%a ->
     (cgp_b < cgp_e)%a ->
+    is_shadow_address cgp_b = false ->
     related_sts_pub_world Wtrue Wbase ->
     loc Wtrue !! i = Some (encode true) ->
     wrel Wtrue !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
@@ -246,7 +248,7 @@ Section VAE_Awkward_Blocks.
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hsub Hcgp_bounds Hrelated Htrue Hrel)
+    iIntros (Hsub Hcgp_bounds Hcgp_shadow Hrelated Htrue Hrel)
       "(#Hawk & #Hsts & Hworld & HPC & Hcgp & Hct0 & Hct1 & Hcode & Hpost)".
     codefrag_facts "Hcode". try clear H0.
     iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -257,7 +259,7 @@ Section VAE_Awkward_Blocks.
     pose proof (awk_loc_true_mono_pub Wtrue Wbase i Hrelated Htrue Hrel) as Hnow.
     rewrite Hloc in Hnow; simplify_eq.
     iApply (wp_load_success_alt with "[$HPC $Hi $Hct0 $Hcgp $Hflag]");
-      try solve_pure.
+      try solve_pure; try done.
     { split; last apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
     iIntros "!> (HPC & Hct0 & Hi & Hcgp & Hflag)".
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".

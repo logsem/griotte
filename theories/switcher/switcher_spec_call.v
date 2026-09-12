@@ -36,6 +36,12 @@ Section Switcher.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
+    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_heap b_stk e_stk ->
+    is_heap_cap wcgp_caller = false ->
+    is_heap_cap wcra_caller = false ->
+    is_heap_cap wcs0_caller = false ->
+    is_heap_cap wcs1_caller = false ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
@@ -138,7 +144,8 @@ Section Switcher.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
 
-    iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hwcgp_nonheap Hwcra_nonheap Hwcs0_nonheap Hwcs1_nonheap
+             Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & Hstk_val & %Hstk_revoked & Hcstk & Hcont & Hpost)".
     subst callee_stk_region.
 
@@ -224,7 +231,7 @@ Section Switcher.
     (* --------------------------------------  *)
     focus_block 3 "Hcode" as a_tstack_push Ha_tstack_push "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_entry_first_spill.
     iApply (switcher_call_block_3_spec with
-      "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); eauto.
+      "[- $HPC $Hcs0 $Hctp $Hct2 $Hcsp $Hmtdc $Htstk $Hcode]"); eauto using trusted_stack_disjoint_from_shadow.
     { solve_addr+Ha_tstack_push Hcont_switcher_region. }
     iNext.
     iIntros "[
@@ -370,6 +377,10 @@ Section Switcher.
     iApply (clear_stack_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hstk]"); try solve_pure.
     { solve_addr+. }
     { solve_addr. }
+    { rewrite /disjoint_from_shadow elem_of_disjoint in Hstk_shadow |- *.
+      intros x Hx Hshadow. eapply Hstk_shadow; last exact Hshadow.
+      apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.
+      solve_addr. }
     iIntros "!> (HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
@@ -379,7 +390,7 @@ Section Switcher.
     focus_block 6 "Hcode" as a_LoadCapPCC Ha_LoadCapPCC "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_clear_stk1.
     iApply (switcher_call_block_6_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hb_switcher $Hcode]"); eauto; iNext.
+      "[- $HPC $Hcs0 $Hcs1 $Hb_switcher $Hcode]"); eauto using switcher_base_not_shadow; iNext.
     iIntros "(HPC & Hcs0 & Hcs1 & Hb_switcher & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
@@ -420,7 +431,7 @@ Section Switcher.
     wp_pure.
     iDestruct "HP" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME
-       Heq Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some)
+       Heq Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
       "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & #Hentry'_borrow & Hexec)".
     simpl fst; simpl snd.
     destruct w_entry_point; cbn in Heq; simplify_eq.
@@ -553,12 +564,16 @@ Section Switcher.
       iSplit;[iPureIntro; solve_addr+Ha_tstk2 Hlen_cstk|].
       iFrame; cbn.
       iFrame. iPureIntro.
-      rewrite Hastk_some. split;[solve_addr|]. split;[solve_addr|eauto]. }
+      rewrite Hastk_some. repeat split; auto; solve_addr. }
 
     iApply "Hexec".
     iAssert (interp (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) C
       (WCap true RWL Local (a_stk ^+ 4)%a e_stk a_stk)) as "Hstk4v".
     { iApply fixpoint_interp1_eq. iSimpl.
+      iSplit; last first.
+      { iPureIntro.
+        eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption].
+        solve_addr. }
       rewrite {2}/StackRevokedResources /StackWorldResources big_sepL2_replicate_r; last done.
       iApply (big_sepL_impl with "Hstk_val'").
       iIntros "!>" (k a Ha) "Hr".
@@ -702,6 +717,12 @@ Section Switcher.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
+    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_heap b_stk e_stk ->
+    is_heap_cap wcgp_caller = false ->
+    is_heap_cap wcra_caller = false ->
+    is_heap_cap wcs0_caller = false ->
+    is_heap_cap wcs1_caller = false ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
@@ -779,11 +800,14 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hwcgp_nonheap Hwcra_nonheap Hwcs0_nonheap Hwcs1_nonheap Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & #Hstk_val & %Hrevoked_stk & Hcstk & Hcont & Hpost)".
     subst a_stk4.
     subst callee_stk_region.
-    iApply switcher_cc_specification_gen; eauto; iFrame "∗#%".
+    iApply (switcher_cc_specification_gen Nswitcher W C
+      wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
+      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs is_entry_point_known);
+      eauto; iFrame "∗#%".
     iIntros (W' rmap' stk_mem_l stk_mem_h).
     iNext; iIntros "[H|H]".
     + clear stk_mem.
@@ -972,6 +996,12 @@ Section Switcher.
     let a_stk4 := (a_stk ^+ 4)%a in
     let wct1_caller := WSealed ot_switcher w_entry_point in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
+    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_heap b_stk e_stk ->
+    is_heap_cap wcgp_caller = false ->
+    is_heap_cap wcra_caller = false ->
+    is_heap_cap wcs0_caller = false ->
+    is_heap_cap wcs1_caller = false ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
@@ -1041,9 +1071,10 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 target callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    iIntros (a_stk4 target callee_stk_region Hstk_shadow Hstk_heap Hwcgp_nonheap Hwcra_nonheap Hwcs0_nonheap Hwcs1_nonheap Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
-    iApply (switcher_cc_specification_gen_revoked _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ true)
+    iApply (switcher_cc_specification_gen_revoked _ _ _
+      wcgp_caller wcra_caller wcs0_caller wcs1_caller _ _ _ _ _ _ _ _ _ _ true)
             ; eauto; iFrame "∗#%".
     subst target; cbn.
     destruct ( (ot_switcher =? ot_switcher)%Z ); eauto.
@@ -1061,6 +1092,12 @@ Section Switcher.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
+    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_heap b_stk e_stk ->
+    is_heap_cap wcgp_caller = false ->
+    is_heap_cap wcra_caller = false ->
+    is_heap_cap wcs0_caller = false ->
+    is_heap_cap wcs1_caller = false ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
 
@@ -1127,9 +1164,10 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (a_stk4 callee_stk_region Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+    iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hwcgp_nonheap Hwcra_nonheap Hwcs0_nonheap Hwcs1_nonheap Hdom Hrdom) "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
-    iApply (switcher_cc_specification_gen_revoked _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ false)
+    iApply (switcher_cc_specification_gen_revoked _ _ _
+      wcgp_caller wcra_caller wcs0_caller wcs1_caller _ _ _ _ _ _ _ _ _ _ false)
             ; eauto; iFrame "∗#%".
   Qed.
 

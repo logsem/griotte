@@ -76,7 +76,9 @@ Proof.
   pose proof (switcher_size switcher_cmpt).
   pose proof (switcher_call_entry_point switcher_cmpt).
   pose proof (switcher_return_entry_point switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _); cbn in *; auto.
+  pose proof (trusted_stack_disjoint_from_shadow switcher_cmpt).
+  pose proof (switcher_base_not_shadow switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
 Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
@@ -209,6 +211,7 @@ Section Adequacy.
   Context {cname : CmptNameG}.
   Context {B C : CmptName}.
   Context {inv_preg: invGpreS Σ}.
+  Context {shadow_preg: gen_heapGpreS Addr bool Σ}.
   Context {mem_preg: gen_heapGpreS Addr Word Σ}.
   Context {reg_preg: gen_heapGpreS RegName Word Σ}.
   Context {sreg_preg: gen_heapGpreS SRegName Word Σ}.
@@ -229,20 +232,20 @@ Section Adequacy.
 
   Local Notation ot_switcher := (ot_switcher switcher_cmpt).
   Lemma cmdc_adequacy' `{Layout: @memory_layout MP}
-    (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
+    (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
     (es: list griotte_lang.expr):
     is_initial_registers reg →
     is_initial_sregisters sreg →
     is_initial_memory m →
-    rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m)) (es, (reg', sreg', m')) →
+    rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
     m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
   Proof.
     (* 1 - We use the Iris adequacy theorem *)
     intros Hreg Hsreg Hm Hstep.
     pose proof (@wp_invariance Σ griotte_lang _ NotStuck) as WPI. cbn in WPI.
-    pose (fun (c: ExecConf) => c.2 !! (flag_assert assert_cmpt) = Some (WInt 0%Z)) as state_is_good.
-    specialize (WPI (Seq (Instr Executable)) (reg, sreg, m) es (reg', sreg', m')
-                  (state_is_good (reg', sreg', m'))).
+    pose (fun (c: ExecConf) => mem c !! (flag_assert assert_cmpt) = Some (WInt 0%Z)) as state_is_good.
+    specialize (WPI (Seq (Instr Executable)) (reg, sreg, m, sh) es (reg', sreg', m', sh')
+                  (state_is_good (reg', sreg', m', sh'))).
     eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
 
     pose proof Hm as Hm'.
@@ -268,6 +271,7 @@ Section Adequacy.
     iMod (gen_heap_init (reg:Reg)) as (reg_heapg) "(Hreg_ctx & Hreg & _)".
     iMod (gen_heap_init (sreg:SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
     iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
+    iMod (gen_heap_init sh) as (shadow_heapg) "(Hshadow_ctx & _ & _)".
     (* 3.2 The entry point resources, to keep track of the number of arguments. *)
     iMod (
        entry_init (
@@ -285,7 +289,7 @@ Section Adequacy.
     iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
     (* 3.4 We instantiate the CeriseG typeclass. *)
     pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
-    pose ceriseg := CeriseG Σ Hinv cerise_na_invs mem_heapg reg_heapg sreg_heapg entry_g.
+    pose ceriseg := CeriseG Σ Hinv cerise_na_invs mem_heapg shadow_heapg reg_heapg sreg_heapg entry_g.
 
     (* 3.5 The call stack resource, initialised to empty. *)
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
@@ -673,9 +677,35 @@ Section Adequacy.
     iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[Hcsp Hreg]"; first by simplify_map_eq.
 
     (* 12 - We can apply the specification! *)
+    assert (is_shadow_address (cmpt_b_cgp main_cmpt) = false) as Hmain_shadow.
+    { eapply disjoint_from_shadow_not_in;
+        first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
+      apply withinBounds_true_iff.
+      pose proof (cmpt_data_size main_cmpt) as Hsize.
+      rewrite main_data in Hsize; cbn in Hsize; solve_addr+Hsize. }
+    assert (is_shadow_address (cmpt_b_cgp main_cmpt ^+ 1)%a = false) as Hmain1_shadow.
+    { eapply disjoint_from_shadow_not_in;
+        first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
+      apply withinBounds_true_iff.
+      pose proof (cmpt_data_size main_cmpt) as Hsize.
+      rewrite main_data in Hsize; cbn in Hsize; solve_addr+Hsize. }
+    assert (is_heap_address (cmpt_b_cgp main_cmpt ^+ 1)%a = false) as Hmain1_heap.
+    { apply not_true_is_false; intros Hheap.
+      pose proof (cmpt_cgp_disjoint_from_heap main_cmpt) as Hdisjoint.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hdisjoint.
+      eapply (Hdisjoint (cmpt_b_cgp main_cmpt ^+ 1)%a).
+      - apply elem_of_finz_seq_between.
+        pose proof (cmpt_data_size main_cmpt) as Hsize.
+        rewrite main_data in Hsize; cbn in Hsize; solve_addr+Hsize.
+      - apply elem_of_finz_seq_between. by apply withinBounds_true_iff in Hheap. }
     iPoseProof (Spec _ _ _ _ _ _ _
                   _ _ _ _ _
                   [] [] _ (fun _ => True)%I assertN switcherN []
+                  (cmpt_pcc_disjoint_from_shadow main_cmpt)
+                  Hmain_shadow (cmpt_cgp_base_not_heap main_cmpt)
+                  Hmain1_shadow Hmain1_heap
+                  (stack_disjoint_from_shadow switcher_cmpt)
+                  (stack_disjoint_from_heap switcher_cmpt)
                  with "[ $Hassert $Hswitcher $Hna
                         $Hworld_B $Hworld_C
                         $HPC $Hcgp $Hcsp $Hreg
@@ -797,12 +827,14 @@ Section Adequacy.
 
     (* We use the post-condition *)
     iModIntro.
-    iExists (fun σ _ _ => ( ((gen_heap_interp σ.1.1) ∗ (gen_heap_interp σ.1.2)) ∗ (gen_heap_interp σ.2)))%I.
+    iExists (fun σ _ _ =>
+      (((gen_heap_interp (griotte_opsem.reg σ) ∗ gen_heap_interp (griotte_opsem.sreg σ))
+        ∗ gen_heap_interp (mem σ)) ∗ gen_heap_interp (shadowtbl σ)))%I.
     iExists (fun _ => True)%I. cbn. iFrame.
 
     (* We open the assert invariant,
        which contains the points-to predicate of the assert flag pointing to zero *)
-    iIntros "[ [Hreg' Hsreg'] Hmem']". iExists (⊤ ∖ ↑flagN).
+    iIntros "([[Hreg' Hsreg'] Hmem'] & _)". iExists (⊤ ∖ ↑flagN).
     iInv flagN as ">Hflag" "Hclose".
     (* By validity of the heap RA, we can deduce that the memory address,
        in the level of the opsem, is zero *)
@@ -829,18 +861,18 @@ Local Program Instance CmptNames_CMDC_CmptNameG : CmptNameG :=
 
 (** END-TO-END THEOREM *)
 Theorem cmdc_adequacy `{Layout: memory_layout}
-  (reg reg': Reg) (sreg sreg': SReg) (m m': Mem)
+  (reg reg': Reg) (sreg sreg': SReg) (m m': Mem) (sh sh': ShadowTbl)
   (es: list griotte_lang.expr):
   is_initial_registers reg →
   is_initial_sregisters sreg →
   is_initial_memory m →
-  rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m)) (es, (reg', sreg', m')) →
+  rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
   m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
 Proof.
   intros ? ? ? ?.
   set ( cnames := CmptNames_CMDC_CmptNameG ).
   set (Σ := #[invΣ
-              ; gen_heapΣ Addr Word; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
+              ; gen_heapΣ Addr Word; gen_heapΣ Addr bool; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ Addr region_type OType Word ; relPreΣ

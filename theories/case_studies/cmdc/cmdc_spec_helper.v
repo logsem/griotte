@@ -48,6 +48,14 @@ Section CMDC_Call_Phase.
          ct0 := WInt 0 ]} in
     let callee_stk_region := finz.seq_between (a_stk ^+ 4)%a e_stk in
     (shared_addr + 1)%a = Some shared_addr_e ->
+    is_shadow_address shared_addr = false ->
+    is_heap_address shared_addr = false ->
+    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_heap b_stk e_stk ->
+    is_heap_cap wcgp = false ->
+    is_heap_cap wcra = false ->
+    is_heap_cap wcs0 = false ->
+    is_heap_cap wcs1 = false ->
     shared_addr ∉ dom (std W0) ->
     shared_addr ∉ finz.seq_between b_stk e_stk ->
     revoked_addresses W0 (finz.seq_between b_stk e_stk) ->
@@ -117,7 +125,9 @@ Section CMDC_Call_Phase.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Wcall shared_addr_cap target_word arg_rmap callee_stk_region
-      Hshared_addr_e Hshared_addr_fresh Hshared_addr_stk Hrevoked_stk
+      Hshared_addr_e Hshared_shadow Hshared_heap Hstk_shadow Hstk_heap
+      Hcgp_heap Hcra_heap Hcs0_heap Hcs1_heap
+      Hshared_addr_fresh Hshared_addr_stk Hrevoked_stk
       Hstk_lower Hrmap_dom).
     iIntros "(Hpre & Hcont)".
     iDestruct "Hpre" as
@@ -144,6 +154,15 @@ Section CMDC_Call_Phase.
     iAssert (interp Wcall C shared_addr_cap) as "#Hshared_addr_cap".
     { subst shared_addr_cap.
       iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
+      iSplitL; last first.
+      { iPureIntro.
+        split; rewrite /disjoint_from_shadow /disjoint_from_heap elem_of_disjoint;
+          intros a Ha Hr; apply elem_of_finz_seq_between in Ha, Hr;
+          assert (a = shared_addr) as -> by solve_addr+Ha Hshared_addr_e.
+        - apply withinBounds_true_iff in Hr.
+          change (is_shadow_address shared_addr = true) in Hr; congruence.
+        - apply withinBounds_true_iff in Hr.
+          change (is_heap_address shared_addr = true) in Hr; congruence. }
       rewrite (finz_seq_between_cons shared_addr); last solve_addr.
       rewrite (finz_seq_between_empty (shared_addr ^+ 1)%a);
         last solve_addr+Hshared_addr_e.
@@ -207,6 +226,12 @@ Section CMDC_Call_Phase.
       "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
        $Hargs $Hrmap $Hstk $Hworld $Hstack_revoked $Hcstk $HK
        $Htarget_call $Hentry]").
+    - exact Hstk_shadow.
+    - exact Hstk_heap.
+    - exact Hcgp_heap.
+    - exact Hcra_heap.
+    - exact Hcs0_heap.
+    - exact Hcs1_heap.
     - exact Hrmap_dom.
     - subst arg_rmap. by rewrite /is_arg_rmap.
     - iSplit; first done.

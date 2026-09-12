@@ -26,6 +26,8 @@ Section KVS_getFullKey.
     (user_key nkey : Z) (l_user_key : Locality) ( user_key_addr : Addr )
     :
     let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
+    is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address user_key_addr = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
 
@@ -65,7 +67,7 @@ Section KVS_getFullKey.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (HsubBounds Hbounds_user_key_addr Hrscratch1 Hrscratch2 Hrsealkey Hkey Hdst)
+    iIntros (Hunsealing_shadow Huser_key_shadow HsubBounds Hbounds_user_key_addr Hrscratch1 Hrscratch2 Hrsealkey Hkey Hdst)
       "(HPC & [%wdst Hrdst] & Hrsealkey & Hrkey & [%wscratch1 Hrscratch1] & [%wscratch2 Hrscratch2]
       & Ha_unsealing & Ha_user_key & Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -90,10 +92,13 @@ Section KVS_getFullKey.
     iInstr "Hcode".
     (* load rdst rdst; *)
     iInstr "Hcode".
+    { done. }
+    { rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr. }
     (* unseal rdst rsealkey rscratch; *)
     iInstr "Hcode".
     (* load rdst rdst; *)
     iInstr "Hcode".
+    { done. }
     (* lshiftl rdst rdst 16; *)
     iInstr "Hcode".
     (* lor rdst rdst rkey *)
@@ -109,6 +114,7 @@ Section KVS_getFullKey.
     ( wsealkey : Word )
     :
     let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
+    is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
 
     (is_sealed_with_o wsealkey KVS_OTYPE = false \/ get_tag wsealkey = false) ->
@@ -131,7 +137,7 @@ Section KVS_getFullKey.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros instrs ; subst instrs.
-    iIntros (HsubBounds Hnot_sealed_with_kvs_otype Hrscratch1 Hrscratch2 Hrsealkey Hdst)
+    iIntros (Hunsealing_shadow HsubBounds Hnot_sealed_with_kvs_otype Hrscratch1 Hrscratch2 Hrsealkey Hdst)
       "(HPC & [%wdst Hrdst] & Hrsealkey & [%wscratch1 Hrscratch1] & [%wscratch2 Hrscratch2]
       & Ha_unsealing & Hcode)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -156,6 +162,8 @@ Section KVS_getFullKey.
     iInstr "Hcode".
     (* load rdst rdst; *)
     iInstr "Hcode".
+    { done. }
+    { rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr. }
     (* unseal rdst rsealkey rscratch; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
