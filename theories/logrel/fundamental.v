@@ -4,7 +4,7 @@ From griotte Require Export logrel interp_weakening monotone.
 From griotte Require Export
   ftlr_base
   Jmp Jnz Jalr Mov Load Store BinOp Restrict
-  Subseg Get Lea Seal UnSeal ReadSR WriteSR.
+  Subseg Get ClearTag Lea Seal UnSeal ReadSR WriteSR.
 From griotte Require Import register_tactics.
 
 Section fundamental.
@@ -30,8 +30,8 @@ Section fundamental.
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality)
     (b e a : Addr) :
-    ⊢ interp W C (WCap p g b e a) →
-      interp_expression W C (WCap p g b e a).
+    ⊢ interp W C (WCap true p g b e a) →
+      interp_expression W C (WCap true p g b e a).
   Proof.
     iIntros "#Hinv_interp".
     iIntros (cstk Ws Cs regs) "[[Hfull Hreg] [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]".
@@ -66,7 +66,7 @@ Section fundamental.
     iIntros "#Hinv_interp".
     iDestruct "Hfull" as "%". iDestruct "Hreg" as "#Hreg".
     iApply (wp_bind (fill [SeqCtx])).
-    destruct (decide (isCorrectPC (WCap p g b e a))) as [HcorrectPC|] ; cycle 1.
+    destruct (decide (isCorrectPC (WCap true p g b e a))) as [HcorrectPC|] ; cycle 1.
     { (* Not correct PC *)
       rewrite /registers_pointsto.
       iExtract "Hmreg" PC as "HPC".
@@ -345,12 +345,24 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
       iApply wp_pure_step_later; auto; iNext ; iIntros "_".
       iApply wp_value; auto.
+    + (* GetTag *)
+      iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ _ (GetTag _ _) with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
+               [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
+               [$Hstate] [$HPC] [Hmreg]"); eauto.
+    + (* ClearTag *)
+      iApply (cleartag_case with
+               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
+               [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
+               [$Hstate] [$HPC] [Hmreg]"); eauto.
   Qed.
 
   Theorem fundamental W C w :
     ⊢ interp W C w -∗ interp_expression W C w.
   Proof.
-    iIntros "Hw"; destruct w as [| [c | ] | | ].
+    iIntros "Hw"; destruct w as [| [ [] c | ] | | ].
     2: { iApply fundamental_cap; done. }
     all: iIntros (????) "(? & Hreg & ?)"; unfold interp_conf.
     all: iApply (wp_wand with "[-]"); [ | iIntros (?) "H"; iApply "H"].
@@ -365,7 +377,7 @@ Section fundamental.
   (* The fundamental theorem implies the exec_cond *)
   Lemma interp_exec_cond W C p g b e a:
     executeAllowed p = true ->
-    ⊢ interp W C (WCap p g b e a) -∗ exec_cond W C p g b e interp.
+    ⊢ interp W C (WCap true p g b e a) -∗ exec_cond W C p g b e interp.
   Proof.
     iIntros (Hp) "#Hw".
     iIntros (a0 W' Hin) "#Hfuture". iModIntro.
@@ -381,9 +393,9 @@ Section fundamental.
 
   (* We can use the above fact to create a special "jump or fail pattern" when jumping to an unknown adversary *)
   Lemma exec_wp W C p g b e a :
-    isCorrectPC (WCap p g b e a) ->
+    isCorrectPC (WCap true p g b e a) ->
     ⊢ exec_cond W C p g b e interp -∗
-    ∀ W', future_world g W W' → ▷ (interp_expr interp (interp_cont interp) W' C (WCap p g b e a)).
+    ∀ W', future_world g W W' → ▷ (interp_expr interp (interp_cont interp) W' C (WCap true p g b e a)).
   Proof.
     iIntros (Hvpc) "Hexec".
     rewrite /exec_cond /enter_cond.
@@ -414,11 +426,14 @@ Section fundamental.
     ⊢ interp W C w -∗ ▷ (interp_expression W C (updatePcPerm w)).
   Proof.
     iIntros "#Hw".
-    assert ( ( (∃ p g b e a, w = WSentry p g b e a))
+    destruct (get_tag w) eqn:Htag.
+    2: { iNext. iApply fundamental. iApply interp_untagged.
+         by rewrite get_tag_updatePcPerm Htag. }
+    assert ( ( (∃ p g b e a, w = WSentry true p g b e a))
             ∨ updatePcPerm w = w)
       as [ Hw | ->].
     {
-      destruct w as [ | [ | ] | | ]; eauto. unfold updatePcPerm.
+      destruct_word w; try destruct t; cbn in Htag; try discriminate; eauto. unfold updatePcPerm.
       eauto; try naive_solver.
     }
     { destruct Hw as (p & g & b & e & a & ->).
@@ -438,7 +453,7 @@ Section fundamental.
      -∗ (if decide (isCorrectPC (updatePcPerm w))
          then
            (∃ p g b e a,
-               (⌜w = WCap p g b e a ∨ w = WSentry p g b e a ⌝
+               (⌜w = WCap true p g b e a ∨ w = WSentry true p g b e a ⌝
                 ∗ □ ∀ W', future_world g W W'
                           → ▷ (interp_expr interp (interp_cont interp) W' C) (updatePcPerm w)))
          else φ FailedV ∗ PC ↦ᵣ updatePcPerm w

@@ -26,15 +26,15 @@ Section Switcher_Call_Blocks.
     let len_switcher_0 := length switcher_instrs_0 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_0)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     ctp ↦ᵣ wctp ∗
     ct2 ↦ᵣ wct2 ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     codefrag pc_a switcher_instrs_0 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_0)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_0)%a ∗
         ctp ↦ᵣ WInt (encodePerm RWL) ∗
         ct2 ↦ᵣ WInt 0 ∗
-        csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+        csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
         codefrag pc_a switcher_instrs_0 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
@@ -75,15 +75,15 @@ Section Switcher_Call_Blocks.
     let len_switcher_1 := length switcher_instrs_1 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_1)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     ctp ↦ᵣ wctp ∗
     ct2 ↦ᵣ wct2 ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     codefrag pc_a switcher_instrs_1 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_1)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_1)%a ∗
         ct2 ↦ᵣ WInt 0 ∗
         ctp ↦ᵣ WInt (encodeLoc Local) ∗
-        csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+        csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
         codefrag pc_a switcher_instrs_1 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
@@ -126,21 +126,21 @@ Section Switcher_Call_Blocks.
     let len_switcher_2 := length switcher_instrs_2 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_2)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
     cgp ↦ᵣ wcgp ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     [[a_stk,e_stk]]↦ₐ[[stk_mem]] ∗
     codefrag pc_a switcher_instrs_2 ∗
     ▷ ( ∀ stk_mem',
-          ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_2)%a ∗
+          ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_2)%a ∗
             cs0 ↦ᵣ wcs0 ∗
             cs1 ↦ᵣ wcs1 ∗
             cra ↦ᵣ wcra ∗
             cgp ↦ᵣ wcgp ∗
-            csp ↦ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+            csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
             a_stk ↦ₐ wcs0 ∗
             (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
             (a_stk ^+ 2)%a ↦ₐ wcra ∗
@@ -270,22 +270,22 @@ Section Switcher_Call_Blocks.
 
     (pc_a ^+ 6 + 114)%a = Some (pc_a ^+ 120)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     ctp ↦ᵣ wctp ∗
     ct2 ↦ᵣ wct2 ∗
     csp ↦ᵣ wstk ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     [[a_tstk1,e_trusted_stack]]↦ₐ[[tstk_next]] ∗
     codefrag pc_a switcher_instrs_3 ∗
     ▷  (
         (∃ tstk_next',
-            PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_3)%a ∗
+            PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_3)%a ∗
               cs0 ↦ᵣ WInt (a_tstk1) ∗
               ctp ↦ᵣ WInt 1 ∗
-              ct2 ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+              ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
               csp ↦ᵣ wstk ∗
-              mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+              mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
               a_tstk1 ↦ₐ wstk ∗
               [[a_tstk2,e_trusted_stack]]↦ₐ[[tstk_next']] ∗
               ⌜ (a_tstk1 + 1)%a = Some a_tstk2 ∧ (a_tstk1 < e_trusted_stack)%a ⌝ ∗
@@ -296,12 +296,12 @@ Section Switcher_Call_Blocks.
         ∨
           (
             ⌜ ¬ (a_tstk + 1 < e_trusted_stack)%Z ⌝ ∗
-            PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 120)%a ∗
+            PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 120)%a ∗
             cs0 ↦ᵣ WInt (a_tstk + 1) ∗
             ctp ↦ᵣ WInt 0 ∗
-            ct2 ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+            ct2 ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
             csp ↦ᵣ wstk ∗
-            mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+            mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
             [[a_tstk1,e_trusted_stack]]↦ₐ[[tstk_next]] ∗
             codefrag pc_a switcher_instrs_3
           )
@@ -389,15 +389,15 @@ Section Switcher_Call_Blocks.
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_4)%a ->
     (isWithin a_stk e_stk b_stk e_stk = true) ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     codefrag pc_a switcher_instrs_4 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_4)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_4)%a ∗
         cs0 ↦ᵣ WInt e_stk ∗
         cs1 ↦ᵣ WInt a_stk ∗
-        csp ↦ᵣ WCap RWL Local a_stk e_stk a_stk ∗
+        csp ↦ᵣ WCap true RWL Local a_stk e_stk a_stk ∗
         codefrag pc_a switcher_instrs_4 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
@@ -427,12 +427,12 @@ Section Switcher_Call_Blocks.
     let len_switcher_6 := length switcher_instrs_6 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_6)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     pc_b ↦ₐ wpc_b ∗
     codefrag pc_a switcher_instrs_6 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_6)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_6)%a ∗
         cs0 ↦ᵣ wpc_b ∗
         cs1 ↦ᵣ WInt (pc_b - (pc_a ^+ 1)%a) ∗
         pc_b ↦ₐ wpc_b ∗
@@ -496,14 +496,14 @@ Section Switcher_Call_Blocks.
 
     inv (export_table_entryN Nexp_tbl atbl_tgt)
       (atbl_tgt ↦ₐ WInt (encode_entry_point nargs off_tgt)) ∗
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
     cs0 ↦ᵣ wcs0 ∗
-    ct1 ↦ᵣ WCap RO g btbl_tgt etbl_tgt atbl_tgt ∗
+    ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt atbl_tgt ∗
     ct2 ↦ᵣ wct2 ∗
     codefrag pc_a switcher_instrs_7 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
-        ct1 ↦ᵣ WCap RO g btbl_tgt etbl_tgt atbl_tgt ∗
+        ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt atbl_tgt ∗
         ct2 ↦ᵣ WInt nargs ∗
         codefrag pc_a switcher_instrs_7 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -544,7 +544,7 @@ Section Switcher_Call_Blocks.
     Nexp_tbl nargs off_tgt :
     let switcher_instrs_7 := (switcher_instrs_n 7) in
     let len_switcher_7 := length switcher_instrs_7 in
-    let wct1 := WSealed o (SCap RO Global btbl_tgt etbl_tgt atbl_tgt) in
+    let wct1 := WSealed o (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_7)%a ->
     (o < o ^+ 1)%ot ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
@@ -552,14 +552,14 @@ Section Switcher_Call_Blocks.
 
     inv (export_table_entryN Nexp_tbl atbl_tgt)
       (atbl_tgt ↦ₐ WInt (encode_entry_point nargs off_tgt)) ∗
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
-    cs0 ↦ᵣ WSealRange (true, true) Global o (o ^+ 1)%ot o ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
+    cs0 ↦ᵣ WSealRange true (true, true) Global o (o ^+ 1)%ot o ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
     codefrag pc_a switcher_instrs_7 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
-        ct1 ↦ᵣ WCap RO Global btbl_tgt etbl_tgt atbl_tgt ∗
+        ct1 ↦ᵣ WCap true RO Global btbl_tgt etbl_tgt atbl_tgt ∗
         ct2 ↦ᵣ WInt nargs ∗
         codefrag pc_a switcher_instrs_7 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -574,7 +574,7 @@ Section Switcher_Call_Blocks.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
     (* --- UnSeal ct1 cs0 ct1 --- *)
-    iInstr "Hcode";[done|..].
+    iInstr "Hcode"; try done.
     { rewrite /withinBounds; solve_addr. }
 
 
@@ -606,14 +606,14 @@ Section Switcher_Call_Blocks.
     Nexp_tbl nargs off_tgt :
     let switcher_instrs_8 := (switcher_instrs_n 8) in
     let len_switcher_8 := length switcher_instrs_8 in
-    let wct1 := WCap RO g btbl_tgt etbl_tgt atbl_tgt in
+    let wct1 := WCap true RO g btbl_tgt etbl_tgt atbl_tgt in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_8)%a ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt ^+ 1 < atbl_tgt)%a ->
 
-    inv (export_table_PCCN Nexp_tbl) (btbl_tgt ↦ₐ WCap RX Global bpcc_tgt epcc_tgt bpcc_tgt) ∗
+    inv (export_table_PCCN Nexp_tbl) (btbl_tgt ↦ₐ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt) ∗
     inv (export_table_CGPN Nexp_tbl) ((btbl_tgt ^+ 1)%a ↦ₐ wcgp_tgt) ∗
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ WInt off_tgt ∗
     cs1 ↦ᵣ wcs1 ∗
     ct1 ↦ᵣ wct1 ∗
@@ -621,13 +621,13 @@ Section Switcher_Call_Blocks.
     cgp ↦ᵣ wcgp ∗
     cra ↦ᵣ wcra ∗
     codefrag pc_a switcher_instrs_8 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_8)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_8)%a ∗
         cs0 ↦ᵣ WInt off_tgt ∗
         cs1 ↦ᵣ WInt (btbl_tgt - atbl_tgt) ∗
-        ct1 ↦ᵣ WCap RO g btbl_tgt etbl_tgt (btbl_tgt ^+ 1)%a ∗
+        ct1 ↦ᵣ WCap true RO g btbl_tgt etbl_tgt (btbl_tgt ^+ 1)%a ∗
         ct2 ↦ᵣ WInt (nargs + 1) ∗
         cgp ↦ᵣ wcgp_tgt ∗
-        cra ↦ᵣ WCap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a ∗
+        cra ↦ᵣ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a ∗
         codefrag pc_a switcher_instrs_8 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
       )
@@ -702,27 +702,27 @@ Section Switcher_Call_Blocks.
     (b_stk <= a_stk)%a ->
     (b_stk <= (a_stk ^+ 3)%a < e_stk)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
     (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
     (∃ wcgp', cgp ↦ᵣ wcgp') ∗
     (∃ wcra', cra ↦ᵣ wcra') ∗
     (∃ wca0, ca0 ↦ᵣ wca0) ∗
     (∃ wca1, ca1 ↦ᵣ wca1) ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
     a_stk ↦ₐ wcs0 ∗
     (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
     (a_stk ^+ 2)%a ↦ₐ wcra ∗
     (a_stk ^+ 3)%a ↦ₐ wcgp ∗
     codefrag pc_a switcher_instrs_16 ∗
-    ▷  (( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
+    ▷  (( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
              cs0 ↦ᵣ wcs0 ∗
              cs1 ↦ᵣ wcs1 ∗
              cgp ↦ᵣ wcgp ∗
              cra ↦ᵣ wcra ∗
              ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
              ca1 ↦ᵣ WInt 0 ∗
-             csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+             csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
              a_stk ↦ₐ wcs0 ∗
              (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
              (a_stk ^+ 2)%a ↦ₐ wcra ∗

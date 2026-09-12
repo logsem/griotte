@@ -37,8 +37,8 @@ Section griotte_lang_rules.
 
   Lemma wp_Jmp Ep pc_p pc_g pc_b pc_e pc_a w rimm regs :
     decodeInstrW w = Jmp rimm ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Jmp rimm) ⊆ dom regs →
 
     {{{ ▷ pc_a ↦ₐ w ∗
@@ -92,7 +92,7 @@ Section griotte_lang_rules.
        iFailWP "Hφ" Jmp_fail_PC_overflow. }
 
        eapply (incrementPC_gen_success_updatePC_gen _ sr m _ imm) in Hregs'
-         as (p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+         as (t'' & p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
        eapply updatePC_gen_success_incl with (sregs':=sr) (m':=m) in HuPC; eauto.
        rewrite HuPC in Hstep.
        eassert ((c, σ2) = (NextI, _)) as HH.
@@ -106,14 +106,14 @@ Section griotte_lang_rules.
 
    Lemma wp_jmp_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
      decodeInstrW w = Jmp (inl imm) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
          ∗ ▷ pc_a ↦ₐ w
      }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
-         PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
          ∗ pc_a ↦ₐ w
      }}}.
    Proof.
@@ -127,27 +127,27 @@ Section griotte_lang_rules.
      destruct Hspec as [| * Hfail].
      { (* Success *)
        iApply "Hφ". iFrame.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
        rewrite insert_insert_eq //.
        iDestruct (regs_of_map_1 with "Hmap") as "(?&?)"; eauto; iFrame. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto ; congruence.
+       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto ; congruence.
      }
    Qed.
 
    Lemma wp_jmp_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_a' w rimm imm:
      decodeInstrW w = Jmp (inr rimm) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
      rimm ≠ cnull ->
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
          ∗ ▷ pc_a ↦ₐ w
          ∗ ▷ rimm ↦ᵣ WInt imm
      }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
-         PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
          ∗ pc_a ↦ₐ w
          ∗ rimm ↦ᵣ WInt imm
      }}}.
@@ -161,12 +161,12 @@ Section griotte_lang_rules.
      destruct Hspec as [| * Hfail].
      { (* Success *)
        iApply "Hφ". iFrame.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
        rewrite insert_insert_eq //.
        iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
      { (* Failure (contradiction) *)
        destruct Hfail; simplify_map_eq; eauto; try congruence.
-       incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto ; congruence.
+       incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto ; congruence.
      }
    Qed.
 

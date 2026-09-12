@@ -52,10 +52,10 @@ Section Switcher_KtK.
              all_registers_s ∖
                ({[ PC ; cgp ; cra ; csp ]} ∪ dom_arg_rmap 8) ⌝
        ∗ na_own cerise_nais E
-       ∗ PC ↦ᵣ WCap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
-       ∗ cgp ↦ᵣ WCap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-       ∗ cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return
-       ∗ csp ↦ᵣ WCap RWL Local a_stk4 e_stk a_stk4
+       ∗ PC ↦ᵣ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
+       ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+       ∗ cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return
+       ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
        ∗ ([∗ map] rarg↦warg ∈ arg_rmap',
             rarg ↦ᵣ warg
             ∗ if decide (rarg ∈ dom_arg_rmap nargs)
@@ -72,10 +72,10 @@ Section Switcher_KtK.
                     all_registers_s ∖
                       {[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
               ∗ na_own cerise_nais E
-              ∗ PC ↦ᵣ WCap XSRW_ Local
+              ∗ PC ↦ᵣ WCap true XSRW_ Local
                           b_switcher e_switcher a_switcher_return
               ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
-              ∗ csp ↦ᵣ WCap RWL Local a_stk4 e_stk a_stk4
+              ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
               ∗ ca0 ↦ᵣ wca0
               ∗ ca1 ↦ᵣ wca1
               ∗ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w)
@@ -108,7 +108,7 @@ Section Switcher_KtK.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let wct1_caller :=
-      WSealed ot_switcher (SCap RO Global btbl_tgt etbl_tgt atbl_tgt) in
+      WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     ↑Nswitcher ⊆ E ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt < (btbl_tgt ^+ 1))%a ->
@@ -121,16 +121,16 @@ Section Switcher_KtK.
 
     na_inv cerise_nais Nswitcher switcher_inv
     ∗ inv (export_table_PCCN Nexp_tbl)
-        (btbl_tgt ↦ₐ WCap RX Global bpcc_tgt epcc_tgt bpcc_tgt)
+        (btbl_tgt ↦ₐ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt)
     ∗ inv (export_table_CGPN Nexp_tbl)
-        ((btbl_tgt ^+ 1)%a ↦ₐ WCap RW Global bcgp_tgt ecgp_tgt bcgp_tgt)
+        ((btbl_tgt ^+ 1)%a ↦ₐ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt)
     ∗ inv (export_table_entryN Nexp_tbl atbl_tgt)
         (atbl_tgt ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off_tgt))
     ∗ na_own cerise_nais E
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
-    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     ∗ ct1 ↦ᵣ wct1_caller
     ∗ cs0 ↦ᵣ wcs0_caller
     ∗ cs1 ↦ᵣ wcs1_caller
@@ -154,7 +154,7 @@ Section Switcher_KtK.
            ∗ cra ↦ᵣ wcra_caller
            ∗ cs0 ↦ᵣ wcs0_caller
            ∗ cs1 ↦ᵣ wcs1_caller
-           ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+           ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
            ∗ ca0 ↦ᵣ wca0
            ∗ ca1 ↦ᵣ wca1
            ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
@@ -171,7 +171,7 @@ Section Switcher_KtK.
            ∗ PC ↦ᵣ updatePcPerm wcra_caller
            ∗ cgp ↦ᵣ wcgp_caller
            ∗ cra ↦ᵣ wcra_caller
-           ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+           ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
            ∗ cs0 ↦ᵣ wcs0_caller
            ∗ cs1 ↦ᵣ wcs1_caller
            ∗ ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK
@@ -216,10 +216,10 @@ Section Switcher_KtK.
                    all_registers_s ∖
                      {[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
              ∗ na_own cerise_nais E
-             ∗ PC ↦ᵣ WCap XSRW_ Local
+             ∗ PC ↦ᵣ WCap true XSRW_ Local
                          b_switcher e_switcher a_switcher_return
              ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
-             ∗ csp ↦ᵣ WCap RWL Local a_stk4 e_stk a_stk4
+             ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
              ∗ ca0 ↦ᵣ wca0
              ∗ ca1 ↦ᵣ wca1
              ∗ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w)
@@ -252,7 +252,7 @@ Section Switcher_KtK.
                ∗ cra ↦ᵣ wcra_caller
                ∗ cs0 ↦ᵣ wcs0_caller
                ∗ cs1 ↦ᵣ wcs1_caller
-               ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+               ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
                ∗ ca0 ↦ᵣ wca0
                ∗ ca1 ↦ᵣ wca1
                ∗ ([∗ map] r↦w ∈ rmap_final,

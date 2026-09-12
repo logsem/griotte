@@ -93,7 +93,7 @@ Definition dle_C_code : list Word :=
 Definition dle_C_data : list Word := [WInt 0].
 
 Definition dle_C_imports : list Word :=
-  [WSentry XSRW_ Local dle_switcher_b dle_switcher_e dle_switcher_call].
+  [WSentry true XSRW_ Local dle_switcher_b dle_switcher_e dle_switcher_call].
 
 Definition dle_C_exports : list Word :=
   [WInt (encode_entry_point 1 1)].
@@ -144,7 +144,7 @@ Proof.
 Defined.
 
 Definition dle_C_f : Sealable :=
-  SCap RO Global dle_C_exports_pcc dle_C_exports_entries_e
+  SCap true RO Global dle_C_exports_pcc dle_C_exports_entries_e
     dle_C_exports_entries_b.
 
 Definition dle_main_imports_concrete : list Word :=
@@ -331,14 +331,14 @@ Proof.
 Defined.
 
 Definition dle_initial_registers : Reg :=
-  <[PC := WCap RX Global dle_main_pcc_b dle_main_pcc_e dle_main_code_start]>
-  (<[cgp := WCap RW Global dle_main_data_b dle_main_data_e
+  <[PC := WCap true RX Global dle_main_pcc_b dle_main_pcc_e dle_main_code_start]>
+  (<[cgp := WCap true RW Global dle_main_data_b dle_main_data_e
       dle_main_data_b]>
-  (<[csp := WCap RWL Local dle_stack_b dle_stack_e dle_stack_b]>
+  (<[csp := WCap true RWL Local dle_stack_b dle_stack_e dle_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition dle_initial_sregisters : SReg :=
-  <[MTDC := WCap RWL Local dle_trusted_stack_b dle_trusted_stack_e
+  <[MTDC := WCap true RWL Local dle_trusted_stack_b dle_trusted_stack_e
       dle_trusted_stack_b]> ∅.
 
 Definition dle_initial_memory : Mem := mk_initial_memory.

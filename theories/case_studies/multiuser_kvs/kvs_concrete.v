@@ -241,14 +241,14 @@ Proof.
 Defined.
 
 Definition kvs_B_f : Sealable :=
-  SCap RO Global kvs_B_exports_pcc kvs_B_exports_entries_e
+  SCap true RO Global kvs_B_exports_pcc kvs_B_exports_entries_e
     kvs_B_exports_entries_b.
 Definition kvs_main_imports_concrete : list Word :=
   kvs_main_imports kvs_main_static_sealed_b
     kvs_switcher_b kvs_switcher_e kvs_switcher_call
     kvs_switcher_sealing_type kvs_assert_b kvs_assert_e kvs_B_f.
 Definition kvs_B_imports : list Word :=
-  [ WSentry XSRW_ Local kvs_switcher_b kvs_switcher_e kvs_switcher_call
+  [ WSentry true XSRW_ Local kvs_switcher_b kvs_switcher_e kvs_switcher_call
   ; WSealed kvs_switcher_sealing_type (KVS_addOrUpdate Global)
   ; WSealed kvs_switcher_sealing_type (KVS_read Global)
   ; WSealed kvs_switcher_sealing_type (KVS_erase Global)
@@ -460,15 +460,15 @@ Proof.
 Defined.
 
 Definition kvs_initial_registers : Reg :=
-  <[PC := WCap RX Global kvs_main_pcc_b kvs_main_pcc_e
+  <[PC := WCap true RX Global kvs_main_pcc_b kvs_main_pcc_e
       kvs_main_code_start]>
-  (<[cgp := WCap RW Global kvs_main_data_b kvs_main_data_e
+  (<[cgp := WCap true RW Global kvs_main_data_b kvs_main_data_e
       kvs_main_data_b]>
-  (<[csp := WCap RWL Local kvs_stack_b kvs_stack_e kvs_stack_b]>
+  (<[csp := WCap true RWL Local kvs_stack_b kvs_stack_e kvs_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition kvs_initial_sregisters : SReg :=
-  <[MTDC := WCap RWL Local kvs_trusted_stack_b kvs_trusted_stack_e
+  <[MTDC := WCap true RWL Local kvs_trusted_stack_b kvs_trusted_stack_e
       kvs_trusted_stack_b]> ∅.
 
 Definition kvs_initial_memory : Mem := mk_initial_memory.

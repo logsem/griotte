@@ -45,6 +45,26 @@ Ltac dispatch_instr_rule instr cont :=
   | GetA ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetOType ?r1 ?r2 => dispatch_Get r1 r2 cont
   | GetWType ?r1 ?r2 => dispatch_Get r1 r2 cont
+  | GetTag PC PC => cont (@wp_GetTag_PC_failure)
+  | GetTag PC cnull => cont (@wp_GetTag_cnull_toPC)
+  | GetTag PC _ => cont (@wp_GetTag_toPC_failure)
+  | GetTag cnull cnull => cont (@wp_GetTag_cnull)
+  | GetTag cnull PC => cont (@wp_GetTag_PC_to_cnull)
+  | GetTag cnull _ => cont (@wp_GetTag_to_cnull)
+  | GetTag _ cnull => cont (@wp_GetTag_from_cnull)
+  | GetTag ?r1 ?r2 => dispatch_Get r1 r2 cont
+  (* ClearTag *)
+  | ClearTag PC PC => cont (@wp_ClearTag_PC)
+  | ClearTag PC cnull => cont (@wp_ClearTag_cnull_toPC)
+  | ClearTag PC _ =>
+    (cont (@wp_ClearTag_toPC) || cont (@wp_ClearTag_toPC_failure))
+  | ClearTag cnull cnull => cont (@wp_ClearTag_cnull)
+  | ClearTag cnull PC => cont (@wp_ClearTag_PC_to_cnull)
+  | ClearTag cnull _ => cont (@wp_ClearTag_to_cnull)
+  | ClearTag _ cnull => cont (@wp_ClearTag_from_cnull)
+  | ClearTag _ PC => cont (@wp_ClearTag_fromPC)
+  | ClearTag ?r ?r => cont (@wp_ClearTag_same_success)
+  | ClearTag _ _ => cont (@wp_ClearTag_success)
   (* BinOp *)
   | Add ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   | Sub ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont

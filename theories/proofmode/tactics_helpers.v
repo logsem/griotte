@@ -8,12 +8,12 @@ Section helpers.
 
   (* ---------------------------- Helper Lemmas --------------------------------------- *)
   Definition isCorrectPC_range p g b e a0 an :=
-    ∀ ai, (a0 <= ai)%a ∧ (ai < an)%a → isCorrectPC (WCap p g b e ai).
+    ∀ ai, (a0 <= ai)%a ∧ (ai < an)%a → isCorrectPC (WCap true p g b e ai).
 
   Lemma isCorrectPC_inrange p g b (e a0 an a: Addr) :
     isCorrectPC_range p g b e a0 an →
     (a0 <= a < an)%Z →
-    isCorrectPC (WCap p g b e a).
+    isCorrectPC (WCap true p g b e a).
   Proof.
     unfold isCorrectPC_range. move=> /(_ a) HH ?. apply HH. eauto.
   Qed.
@@ -22,7 +22,7 @@ Section helpers.
     isCorrectPC_range p g b e a0 an →
     contiguous_between l a0 an →
     a ∈ l →
-    isCorrectPC (WCap p g b e a).
+    isCorrectPC (WCap true p g b e a).
   Proof.
     intros Hr Hc Hin.
     eapply isCorrectPC_inrange; eauto.
@@ -35,7 +35,7 @@ Section helpers.
     executeAllowed p = true.
   Proof.
     intros Hr H0n.
-    assert (isCorrectPC (WCap p g b e a0)) as HH by (apply Hr; solve_addr).
+    assert (isCorrectPC (WCap true p g b e a0)) as HH by (apply Hr; solve_addr).
     inversion HH; auto.
   Qed.
 

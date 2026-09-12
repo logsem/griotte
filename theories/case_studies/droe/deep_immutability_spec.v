@@ -60,9 +60,9 @@ Section DROE.
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -78,7 +78,7 @@ Section DROE.
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
-      ∗ interp W_init_C C (WCap RWL Local csp_b csp_e csp_b)
+      ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e csp_b)
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -262,13 +262,13 @@ Section DROE.
     iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by simplify_map_eq.
 
     set ( rmap_arg :=
-           {[ ca0 := WCap RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
+           {[ ca0 := WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
               ca1 := wca1;
               ca2 := wca2;
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
 
@@ -300,7 +300,7 @@ Section DROE.
     | _ : _ |- context [ world_interp ?W' ] => set (W2 := W')
     end.
 
-    iAssert (interp W2 C (WCap RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
+    iAssert (interp W2 C (WCap true RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
@@ -332,7 +332,7 @@ Section DROE.
         by rewrite lookup_insert_eq.
     }
 
-    iDestruct ( init_PermRes W2 C (cgp_b ^+1)%a RO_DRO  (safeC (interp_dro_eq (WCap RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+    iDestruct ( init_PermRes W2 C (cgp_b ^+1)%a RO_DRO  (safeC (interp_dro_eq (WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
                 with "[] [$Hcgp_a] []" ) as "PermRes_cgp_a"; auto.
     { rewrite /future_priv_mono.
       iIntros "!>" (W W' Hrelared) "[% H]"; cbn.
@@ -361,7 +361,7 @@ Section DROE.
     iAssert (interp W3 C (WSealed ot_switcher C_f)) as "#Hinterp_W3_C_f".
     { iApply interp_monotone_sd; eauto. }
 
-    iAssert (interp W3 C (WCap RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_C_a".
+    iAssert (interp W3 C (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_C_a".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.

@@ -68,13 +68,13 @@ Definition mk_initial_memory `{memory_layout} :=
 
 
 Definition is_initial_registers `{memory_layout} (reg: Reg) :=
-  reg !! PC = Some (WCap RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt) (cmpt_a_code main_cmpt)) ∧
-  reg !! cgp = Some (WCap RW Global (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt) (cmpt_b_cgp main_cmpt)) ∧
-  reg !! csp = Some (WCap RWL Local (b_stack switcher_cmpt) (e_stack switcher_cmpt) (b_stack switcher_cmpt)) ∧
+  reg !! PC = Some (WCap true RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt) (cmpt_a_code main_cmpt)) ∧
+  reg !! cgp = Some (WCap true RW Global (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt) (cmpt_b_cgp main_cmpt)) ∧
+  reg !! csp = Some (WCap true RWL Local (b_stack switcher_cmpt) (e_stack switcher_cmpt) (b_stack switcher_cmpt)) ∧
   (∀ (r: RegName), r ∉ ({[ PC; cgp; csp ]} : gset RegName) → reg !! r = Some (WInt 0)).
 
 Program Definition is_initial_sregisters `{@memory_layout MP} (sreg : SReg) :=
-  sreg !! MTDC = Some (WCap RWL Local
+  sreg !! MTDC = Some (WCap true RWL Local
                          (b_trusted_stack switcher_cmpt)
                          (e_trusted_stack switcher_cmpt)
                          (b_trusted_stack switcher_cmpt)).
@@ -85,13 +85,13 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
   let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
-    WSentry XSRW_ Local
+    WSentry true XSRW_ Local
       b_switcher
       e_switcher
       a_switcher_call
   in
   let C_f :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc C_cmpt)
       (cmpt_exp_tbl_entries_end C_cmpt)
       (cmpt_exp_tbl_entries_start C_cmpt)
@@ -186,7 +186,7 @@ Section Adequacy.
                    ).
     set (
         C_f :=
-       (WCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
+       (WCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
          (cmpt_exp_tbl_entries_start C_cmpt))
       ).
     iMod (gen_heap_init (reg:Reg)) as (reg_heapg) "(Hreg_ctx & Hreg & _)".
@@ -228,9 +228,9 @@ Section Adequacy.
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cf' Hentries]"
     ; repeat (rewrite delete_insert_ne ; last (subst C_f ; intro ; simplify_eq; by rewrite H H0 H1 in Hneq_entries)).
     subst C_f; cbn.
-    set (C_f := (SCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
+    set (C_f := (SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
                    (cmpt_exp_tbl_entries_start C_cmpt))).
-    set (C_f' := (SCap RO Local (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
+    set (C_f' := (SCap true RO Local (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
                    (cmpt_exp_tbl_entries_start C_cmpt))).
 
     (* Get initial sregister mtdc *)
@@ -393,17 +393,17 @@ Section Adequacy.
     }
 
     iAssert (interp Winit_C C
-               (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a)
+               (WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a)
             )%I as "#Hinterp_pcc_C".
     { iApply interp_monotone_nl; eauto. }
 
     iAssert (interp Winit_C C
-               (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a)
+               (WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a)
             )%I as "#Hinterp_cgp_C".
     { iApply interp_monotone_nl; eauto. }
 
     iAssert (interp Winit_C C
-               (WCap RWL Local (b_stack switcher_cmpt) (e_stack switcher_cmpt) (b_stack switcher_cmpt))
+               (WCap true RWL Local (b_stack switcher_cmpt) (e_stack switcher_cmpt) (b_stack switcher_cmpt))
             )%I as "#Hinterp_stack_C".
     { iEval (rewrite fixpoint_interp1_eq /=).
       iApply big_sepL_intro; iModIntro.

@@ -89,14 +89,14 @@ Section VAE_Main.
     (B_adv : Sealable)
     : list Word :=
     [
-      WSentry XSRW_ Local b_switcher e_switcher a_switcher_call;
-      WSentry RX Global b_assert e_assert b_assert;
+      WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
+      WSentry true RX Global b_assert e_assert b_assert;
       WSealed ot_switcher B_adv
     ].
 
   Definition length_vae_main_imports `{!switcherLayout} `{!assertLayout} :=
     length
-      (vae_main_imports (SCap RO Global za za za)).
+      (vae_main_imports (SCap true RO Global za za za)).
 
   Definition vae_exp_tbl_entry_awkward `{!switcherLayout} `{!assertLayout} :=
     WInt (encode_entry_point 1
@@ -104,7 +104,7 @@ Section VAE_Main.
 
   Definition vae_entry_awkward_sb
     b_vae_exp_tbl e_vae_exp_tbl : Sealable :=
-      SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+2)%a.
+      SCap true RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+2)%a.
 
   Definition vae_export_table_entries `{!switcherLayout} `{!assertLayout} : list Word :=
     [ vae_exp_tbl_entry_awkward ].

@@ -45,11 +45,11 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
     (* Registers *)
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ wct1_caller
     ∗ (if is_sealed_with_o wct1_caller ot_switcher then interp W C wct1_caller else True)
@@ -85,7 +85,7 @@ Section Switcher.
               ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
               ∗ na_own cerise_nais ⊤
-              ∗ interp W2 C (WCap RWL Local a_stk4 e_stk a_stk4)
+              ∗ interp W2 C (WCap true RWL Local a_stk4 e_stk a_stk4)
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
               (* Interpretation of the world *)
               ∗ world_interp_open W2 C callee_stk_region
@@ -95,7 +95,7 @@ Section Switcher.
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
               (* cgp is restored, cra points to the next  *)
               ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller ∗ cs0 ↦ᵣ wcs0_caller ∗ cs1 ↦ᵣ  wcs1_caller
-              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
               ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
               ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
@@ -115,7 +115,7 @@ Section Switcher.
               ∗ cra ↦ᵣ wcra_caller
               ∗ cs0 ↦ᵣ wcs0_caller
               ∗ cs1 ↦ᵣ wcs1_caller
-              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
               ∗ ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK
               ∗ ca1 ↦ᵣ WInt 0
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
@@ -403,15 +403,22 @@ Section Switcher.
       replace ot with ot_switcher by solve_addr.
       done.
     }
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_rules_interp.wp_unseal_unknown_sealed with "[$HPC $Hi $Hcs0 $Hct1]");
+      try done; try solve_pure.
+    iIntros "!>" (ret) "[-> | (%wsb & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Htag)]".
+    { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    simplify_eq. rename wsb into w_entry_point.
+    iSpecialize ("Hcode" with "[$]").
     rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher w_entry_point)).
-    iEval (cbn) in "Htarget_v".
+    iEval (cbn; rewrite Htag) in "Htarget_v".
     rewrite /interp_sb.
     iAssert (sts_seals_std C ot_switcher {[WSealable w_entry_point]}) as "#Htarget_v'".
     { iApply sts_seals_std_weaken; last iFrame "Htarget_v"; last set_solver+. }
     iDestruct (world_interp_seal_pred_singleton with "Hp_ot_switcher Htarget_v' Hworld_interp")
       as "(Hworld_interp & #HP)".
-    iInstr "Hcode"; [done|..].
-    { rewrite /withinBounds; solve_addr. }
+    wp_pure.
     iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & #Hentry'_borrow & Hexec)".
     simpl fst; simpl snd.
     destruct w_entry_point; cbn in Heq; simplify_eq.
@@ -548,7 +555,7 @@ Section Switcher.
 
     iApply "Hexec".
     iAssert (interp (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) C
-      (WCap RWL Local (a_stk ^+ 4)%a e_stk a_stk)) as "Hstk4v".
+      (WCap true RWL Local (a_stk ^+ 4)%a e_stk a_stk)) as "Hstk4v".
     { iApply fixpoint_interp1_eq. iSimpl.
       rewrite {2}/StackRevokedResources /StackWorldResources big_sepL2_replicate_r; last done.
       iApply (big_sepL_impl with "Hstk_val'").
@@ -702,11 +709,11 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
     (* Registers *)
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ wct1_caller
     ∗ (if is_sealed_with_o wct1_caller ot_switcher then interp W C wct1_caller else True)
@@ -758,7 +765,7 @@ Section Switcher.
             ∗ cra ↦ᵣ wcra_caller
             ∗ cs0 ↦ᵣ wcs0_caller
             ∗ cs1 ↦ᵣ  wcs1_caller
-            ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+            ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
             ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
@@ -972,11 +979,11 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
     (* Registers *)
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller ∗ wct1_caller ↦□ₑ nargs
     ∗ cs0 ↦ᵣ wcs0_caller
@@ -1021,7 +1028,7 @@ Section Switcher.
             ∗ cra ↦ᵣ wcra_caller
             ∗ cs0 ↦ᵣ wcs0_caller
             ∗ cs1 ↦ᵣ  wcs1_caller
-            ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+            ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
             ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
@@ -1061,11 +1068,11 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
     (* Registers *)
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
     ∗ cra ↦ᵣ wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ wct1_caller ∗ (if is_sealed_with_o wct1_caller ot_switcher then interp W C wct1_caller else True)
     ∗ cs0 ↦ᵣ wcs0_caller
@@ -1107,7 +1114,7 @@ Section Switcher.
             ∗ cra ↦ᵣ wcra_caller
             ∗ cs0 ↦ᵣ wcs0_caller
             ∗ cs1 ↦ᵣ  wcs1_caller
-            ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+            ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
             ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )

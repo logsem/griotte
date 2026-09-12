@@ -25,12 +25,12 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  Lemma subseg_interp_preserved W C p g b b' e e' a :
+  Lemma subseg_interp_preserved W C t p g b b' e e' a :
       (b <= b')%a ->
       (e' <= e)%a ->
       ftlr_IH -∗
-      interp W C (WCap p g b e a) -∗
-      interp W C (WCap p g b' e' a).
+      interp W C (WCap t p g b e a) -∗
+      interp W C (WCap t p g b' e' a).
   Proof.
     intros Hb He. iIntros "#IH Hinterp".
     iApply (interp_weakening with "IH Hinterp"); eauto.
@@ -62,9 +62,9 @@ Section fundamental.
                         ; cycle 2.
     { iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto. }
-    { apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
+    { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
 
-      assert (a'' = a ∧ p'' = p∧ g'' = g) as (-> & -> & ->).
+      assert (t'' = true ∧ a'' = a ∧ p'' = p∧ g'' = g) as (-> & -> & -> & ->).
       { destruct (decide (PC = dst)); simplify_map_eq; auto. }
 
       iApply wp_pure_step_later; auto.
@@ -105,9 +105,9 @@ Section fundamental.
       }
     }
 
-    { apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
+    { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
 
-      assert (a'' = a ∧ p'' = p∧ g'' = g) as (-> & -> & ->).
+      assert (t'' = true ∧ a'' = a ∧ p'' = p∧ g'' = g) as (-> & -> & -> & ->).
       { destruct (decide (PC = dst)); simplify_map_eq; auto. }
 
       iApply wp_pure_step_later; auto.

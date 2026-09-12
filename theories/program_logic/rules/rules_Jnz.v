@@ -53,8 +53,8 @@ Section griotte_lang_rules.
 
   Lemma wp_Jnz Ep pc_p pc_g pc_b pc_e pc_a w rimm rcond regs :
     decodeInstrW w = Jnz rimm rcond ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Jnz rimm rcond) ⊆ dom regs →
 
     {{{ ▷ pc_a ↦ₐ w ∗
@@ -110,7 +110,7 @@ Section griotte_lang_rules.
         iFailWP "Hφ" Jnz_fail_PC_overflow_jmp. }
 
       eapply (incrementPC_gen_success_updatePC_gen _ sr m _ imm) in Hregs'
-          as (p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+          as (t'' & p'' & g'' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
       eapply updatePC_gen_success_incl with (sregs':=sr) (m':=m) in HuPC; eauto.
       rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
@@ -128,7 +128,7 @@ Section griotte_lang_rules.
         iFailWP "Hφ" Jnz_fail_PC_overflow_next. }
 
       destruct (incrementPC_success_updatePC _ sr m _ HX)
-        as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+        as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
       eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC; eauto. rewrite HuPC in Hstep.
       simplify_pair_eq.
       iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
@@ -138,18 +138,18 @@ Section griotte_lang_rules.
 
   Lemma wp_jnz_success_jmp_z E rcond pc_p pc_g pc_b pc_e pc_a pc_a' w imm wcond :
     decodeInstrW w = Jnz (inl imm) rcond →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     wcond ≠ WInt 0%Z →
     (pc_a + imm)%a = Some pc_a' ->
     rcond ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rcond ↦ᵣ wcond
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ rcond ↦ᵣ wcond
           }}}.
@@ -169,30 +169,30 @@ Section griotte_lang_rules.
     destruct Hspec as [ | | Hfail ].
     { exfalso; simplify_map_eq; congruence. }
     { iApply "Hφ". iFrame. simplify_map_eq.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
       rewrite insert_insert_eq.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { destruct Hfail; simplify_map_eq; eauto; try congruence.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
     }
   Qed.
 
   Lemma wp_jnz_success_jmp_reg E rcond rimm pc_p pc_g pc_b pc_e pc_a pc_a' w imm wcond :
     decodeInstrW w = Jnz (inl imm) rcond →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     wcond ≠ WInt 0%Z →
     (pc_a + imm)%a = Some pc_a' ->
     rcond ≠ cnull ->
     rimm ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rimm ↦ᵣ WInt imm
         ∗ ▷ rcond ↦ᵣ wcond
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ rimm ↦ᵣ WInt imm
           ∗ rcond ↦ᵣ wcond
@@ -213,28 +213,28 @@ Section griotte_lang_rules.
     destruct Hspec as [ | | Hfail ].
     { exfalso; simplify_map_eq; congruence. }
     { iApply "Hφ". iFrame. simplify_map_eq.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
       rewrite insert_insert_eq.
       iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
     { destruct Hfail; simplify_map_eq; eauto; try congruence.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
     }
   Qed.
 
   Lemma wp_jnz_success_jmp_same E rcond pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
     decodeInstrW w = Jnz (inr rcond) rcond →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     imm ≠ 0%Z →
     (pc_a + imm)%a = Some pc_a' ->
     rcond ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rcond ↦ᵣ WInt imm
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
         ∗ ▷ rcond ↦ᵣ WInt imm
           }}}.
@@ -253,25 +253,25 @@ Section griotte_lang_rules.
     destruct Hspec as [ | | Hfail ].
     { exfalso; simplify_map_eq; congruence. }
     { iApply "Hφ". iFrame. simplify_map_eq.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
       rewrite insert_insert_eq.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { destruct Hfail; simplify_map_eq; eauto; try congruence.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
     }
   Qed.
 
   Lemma wp_jnz_success_jmpPC_z E pc_p pc_g pc_b pc_e pc_a pc_a' w imm:
     decodeInstrW w = Jnz (inl imm) PC →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + imm)%a = Some pc_a' ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           }}}.
   Proof.
@@ -283,27 +283,27 @@ Section griotte_lang_rules.
     destruct Hspec as [ | | Hfail ].
     { exfalso; simplify_map_eq; congruence. }
     { iApply "Hφ". iFrame. simplify_map_eq.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
       rewrite insert_insert_eq.
       iDestruct (regs_of_map_1 with "Hmap") as "?"; eauto; iFrame. }
     { destruct Hfail; simplify_map_eq; eauto; try congruence.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
     }
   Qed.
 
   Lemma wp_jnz_success_jmpPC_reg E rimm pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
     decodeInstrW w = Jnz (inl imm) PC →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + imm)%a = Some pc_a' ->
     rimm ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rimm ↦ᵣ WInt imm
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ rimm ↦ᵣ WInt imm
           }}}.
@@ -317,25 +317,25 @@ Section griotte_lang_rules.
     destruct Hspec as [ | | Hfail ].
     { exfalso; simplify_map_eq; congruence. }
     { iApply "Hφ". iFrame. simplify_map_eq.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq.
       rewrite insert_insert_eq.
       iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
     { destruct Hfail; simplify_map_eq; eauto; try congruence.
-      incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+      incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
     }
   Qed.
 
   Lemma wp_jnz_success_next_z E rcond pc_p pc_g pc_b pc_e pc_a pc_a' w imm :
     decodeInstrW w = Jnz (inl imm) rcond →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rcond ↦ᵣ WInt 0%Z }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ rcond ↦ᵣ WInt 0%Z }}}.
   Proof.
@@ -352,24 +352,24 @@ Section griotte_lang_rules.
     { destruct (decide (rcond = cnull)); cbn in *; done. }
     { destruct Hfail; simplify_map_eq; eauto; try congruence.
       all: destruct (decide (rcond = cnull)); cbn in *; try done.
-      all: incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
+      all: incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence.
     }
   Qed.
 
   (* TODO ideally, I would like to not require the register rimm *)
   Lemma wp_jnz_success_next_reg E rimm rcond pc_p pc_g pc_b pc_e pc_a pc_a' w wimm :
     decodeInstrW w = Jnz (inr rimm) rcond →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rimm ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ rimm ↦ᵣ wimm
         ∗ ▷ rcond ↦ᵣ WInt 0%Z }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ rimm ↦ᵣ wimm
           ∗ rcond ↦ᵣ WInt 0%Z }}}.
@@ -387,7 +387,7 @@ Section griotte_lang_rules.
     { destruct (decide (rcond = cnull)); cbn in *; done. }
     { destruct Hfail; simplify_map_eq; eauto; try congruence.
       all: destruct (decide (rcond = cnull)); cbn in *; try done.
-      all: try (incrementPC_inv as (?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence).
+      all: try (incrementPC_inv as (?&?&?&?&?&?&?&?&?&?); simplify_map_eq; eauto; congruence).
     }
   Qed.
 

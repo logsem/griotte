@@ -19,14 +19,14 @@ Section ClearStackMacro.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-      ∗ csp ↦ᵣ WCap RWL csp_g csp_b csp_e csp_a
+    ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+      ∗ csp ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_a
       ∗ r1 ↦ᵣ WInt csp_e ∗ r2 ↦ᵣ WInt csp_a
       ∗ codefrag pc_a (clear_stack_instrs r1 r2)
       ∗ ([[ csp_a , csp_e ]] ↦ₐ [[ ws ]])
-      ∗ ▷ ( (PC ↦ᵣ WCap pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
-             ∗ csp ↦ᵣ WCap RWL csp_g csp_b csp_e csp_a
-             ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap RWL csp_g csp_b csp_e csp_e
+      ∗ ▷ ( (PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs r1 r2))%a
+             ∗ csp ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_a
+             ∗ r1 ↦ᵣ WInt 0 ∗ r2 ↦ᵣ WCap true RWL csp_g csp_b csp_e csp_e
              ∗ codefrag pc_a (clear_stack_instrs r1 r2)
              ∗ ([[ csp_a , csp_e ]] ↦ₐ [[region_addrs_zeroes csp_a csp_e]]))
         -∗ WP Seq (Instr Executable) {{ φ }})
@@ -43,7 +43,7 @@ Section ClearStackMacro.
     (* --- Mov r2 csp --- *)
     iInstr "Hcode".
 
-    remember (WCap RWL csp_g csp_b csp_e csp_a) as sp.
+    remember (WCap true RWL csp_g csp_b csp_e csp_a) as sp.
     rewrite{2} Heqsp. clear Heqsp.
     iAssert (⌜(csp_b <= csp_a)%a ⌝)%I as "-#Hbounds1"; first done.
     iAssert (⌜(csp_a <= csp_e)%a ⌝)%I as "-#Hbounds2"; first done.

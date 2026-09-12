@@ -19,9 +19,9 @@ Section Stack_Object_Resources.
     [[pc_b, pc_a]] ↦ₐ [[so_main_imports C_f]]
     ⊣⊢
       pc_b ↦ₐ
-        WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+        WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
       ∗ (pc_b ^+ 1)%a ↦ₐ
-        WSentry RX Global b_assert e_assert b_assert
+        WSentry true RX Global b_assert e_assert b_assert
       ∗ (pc_b ^+ 2)%a ↦ₐ WSealed ot_switcher C_f
       ∗ region_pointsto (pc_b ^+ 3)%a pc_a [].
   Proof.
@@ -62,7 +62,7 @@ Section Stack_Object_Region_Resources.
 
   Lemma stack_object_open_region_for_checkints
       (W0 : WORLD) (C : CmptName)
-      (p : Perm) (g : Locality) (b e cur : Addr)
+      (t : bool) (p : Perm) (g : Locality) (b e cur : Addr)
       (csp_b csp_e : Addr)
       (l_revoked : list Addr) (stk_mem : list Word) :
     let W1 := revoke W0 in
@@ -74,7 +74,8 @@ Section Stack_Object_Region_Resources.
       W0 (l_revoked ++ finz.seq_between csp_b csp_e) ->
     object ## finz.seq_between csp_b csp_e ->
     readAllowed p = true ->
-    interp W0 C (WCap p g b e cur)
+    (t = true ∨ (e <= b)%a) ->
+    interp W0 C (WCap t p g b e cur)
     ∗ world_interp W1 C
     ∗ ▷ RevokedResources W0 C l_revoked
     ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
@@ -94,11 +95,32 @@ Section Stack_Object_Region_Resources.
           ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
           ∗ interp
               (close_list temps W1) C
-              (WCap p g b e (finz.max b e))).
+              (WCap t p g b e (finz.max b e))).
   Proof.
     intros W1 object temps perms rest.
-    iIntros (Hextract Hobject_stack Hread)
+    iIntros (Hextract Hobject_stack Hread Htag_or_empty)
       "(#Hinterp_wca0_W0 & Hworld_interp_C & Hl_revoked & Hstk & Hlc)".
+    destruct t; cycle 1.
+    { destruct Htag_or_empty as [Htag | Hempty]; first discriminate.
+      assert (finz.seq_between b e = []) as Hrange by
+        (apply finz_seq_between_empty; exact Hempty).
+      assert (object = []) as -> by (subst object; exact Hrange).
+      assert (temps = []) as -> by
+        (subst temps; rewrite /so_object_temporaries /so_object_addresses Hrange; done).
+      assert (perms = []) as -> by
+        (subst perms; rewrite /so_object_permanents /so_object_addresses Hrange; done).
+      assert (rest = l_revoked) as ->.
+      { subst rest. rewrite /so_revoked_without_object /so_object_temporaries
+          /so_object_addresses Hrange /=.
+        change (filter (fun a : Addr => a ∉ []) l_revoked = l_revoked).
+        clear -l_revoked. induction l_revoked as [|x xs IH]; first done.
+        rewrite filter_cons_True; last set_solver. by rewrite IH. }
+      rewrite close_list_empty /=.
+      iDestruct (lc_fupd_elim_later with "Hlc Hl_revoked") as ">Hl_revoked".
+      iModIntro. iExists []. iSplit; first done. iSplit; first done.
+      iSplit; first done. iNext. iIntros "_".
+      iModIntro. iFrame. iApply interp_untagged; done.
+    }
     destruct Hextract as [Hrevoked_nodup Hrevoked_temps].
 
     (* Classify the readable object region, then partition it into permanent
@@ -432,7 +454,7 @@ Section Stack_Object_Region_Resources.
     }
     set (W2 := close_list temps W1).
 
-    iAssert (interp W2 C (WCap p g b e (finz.max b e)))%I
+    iAssert (interp W2 C (WCap true p g b e (finz.max b e)))%I
       as "#Hinterp_wca0_W2".
     { iEval (rewrite fixpoint_interp1_eq interp1_eq).
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_wca0_W0".
@@ -482,7 +504,7 @@ Section Stack_Object_Region_Resources.
     std W0 !! a_stk1 = Some Temporary ->
     std W2 !! a_stk1 = Some Revoked ->
     related_sts_priv_world W0 W2 ->
-    interp W0 C (WCap RWL Local stack_b stack_e stack_a)
+    interp W0 C (WCap true RWL Local stack_b stack_e stack_a)
     ∗ world_interp W2 C
     ∗ a_stk1 ↦ₐ WInt 0
     ∗ £ 1
@@ -490,7 +512,7 @@ Section Stack_Object_Region_Resources.
       world_interp W3 C
       ∗ ⌜related_sts_pub_world W2 W3⌝
       ∗ ⌜std W3 !! a_stk1 = Some Temporary⌝
-      ∗ interp W3 C (WCap RWL Local a_stk1 a_stk2 a_stk1).
+      ∗ interp W3 C (WCap true RWL Local a_stk1 a_stk2 a_stk1).
   Proof.
     intros W3 Ha_stk2 Hbounds Ha_stk1_W0 Ha_stk1_W2 Hpriv.
     iIntros "(#Hinterp_stack & Hworld_interp & Ha_stk1 & Hlc)".
@@ -548,7 +570,7 @@ Section Stack_Object_Region_Resources.
     assert (std W3 !! a_stk1 = Some Temporary) as Ha_stk1_W3.
     { apply close_list_lookup_in; auto; set_solver+. }
 
-    iAssert (interp W3 C (WCap RWL Local a_stk1 a_stk2 a_stk1))%I
+    iAssert (interp W3 C (WCap true RWL Local a_stk1 a_stk2 a_stk1))%I
       as "#Hinterp_fresh".
     { iEval (rewrite fixpoint_interp1_eq interp1_eq).
       cbn.

@@ -27,13 +27,13 @@ Section Switcher_Return_Blocks.
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (b_trusted_stack <= a_tstk)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
-    ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 1)%a ∗
+    ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     csp ↦ᵣ wcsp ∗
     a_tstk ↦ₐ wtstk ∗
     codefrag pc_a switcher_instrs_12 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
-        ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
+        ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
         csp ↦ᵣ wtstk ∗
         a_tstk ↦ₐ wtstk ∗
         ⌜ (a_tstk < e_trusted_stack)%a ⌝ ∗
@@ -78,10 +78,10 @@ Section Switcher_Return_Blocks.
     let len_switcher_12 := length switcher_instrs_12 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
-    ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
+    ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
     csp ↦ᵣ WInt 0 ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack b_trusted_stack ∗
     codefrag pc_a switcher_instrs_12
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -132,17 +132,17 @@ Section Switcher_Return_Blocks.
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
-    ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk4 ∗
-    mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
+    ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk4 ∗
+    mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk ∗
     codefrag pc_a switcher_instrs_12 ∗
     ▷ ( (∃ a_tstk1,
             ⌜ (a_tstk + -1)%a = Some a_tstk1 ⌝ ∗
-            PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
-            ctp ↦ᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
-            csp ↦ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
-            mtdc ↦ₛᵣ WCap RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+            PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
+            ctp ↦ᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
+            csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
+            mtdc ↦ₛᵣ WCap true RWL Local b_trusted_stack e_trusted_stack a_tstk1 ∗
             codefrag pc_a switcher_instrs_12 ∗
             £ 1)
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -196,27 +196,27 @@ Section Switcher_Return_Blocks.
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 5)%a ∗
     cgp ↦ᵣ wcgp_old ∗
     cra ↦ᵣ wcra_old ∗
     cs1 ↦ᵣ wcs1_old ∗
     cs0 ↦ᵣ wcs0_old ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
-    csp ↦ᵣ WCap RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
+    csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 3)%a ∗
     a_stk ↦ₐ wcs0 ∗
     (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
     (a_stk ^+ 2)%a ↦ₐ wcra ∗
     (a_stk ^+ 3)%a ↦ₐ wcgp ∗
     codefrag pc_a switcher_instrs_12 ∗
-    ▷ ( PC ↦ᵣ WCap XSRW_ Local pc_b pc_e (pc_a ^+ 14)%a ∗
+    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 14)%a ∗
         cgp ↦ᵣ wcgp ∗
         cra ↦ᵣ wcra ∗
         cs1 ↦ᵣ wcs1 ∗
         cs0 ↦ᵣ wcs0 ∗
         ct0 ↦ᵣ WInt e_stk ∗
         ct1 ↦ᵣ WInt a_stk ∗
-        csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk ∗
+        csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
         a_stk ↦ₐ wcs0 ∗
         (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
         (a_stk ^+ 2)%a ↦ₐ wcra ∗
@@ -283,7 +283,7 @@ Section Switcher_Return_Blocks.
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_15)%a ->
     is_Some (rmap !! cnull) ->
 
-    PC ↦ᵣ WCap XSRW_ Local pc_b pc_e pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) ∗
     codefrag pc_a switcher_instrs_15 ∗

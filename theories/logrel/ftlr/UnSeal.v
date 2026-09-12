@@ -28,16 +28,18 @@ Section fundamental.
         permit_unseal p0 = true →
         withinBounds b0 e0 a0 = true →
         interp W C (WSealed a0 sb) -∗
-        interp W C (WSealRange p0 g0 b0 e0 a0) -∗
+        interp W C (WSealRange true p0 g0 b0 e0 a0) -∗
         world_interp_open W C s
         -∗
         ▷ (interp W C (WSealable sb) ∗
            world_interp_open W C s).
   Proof.
     iIntros (Hpseal Hwb) "#HVsd #HVsr Hworld_interp".
+    destruct (get_tag_sealable sb) eqn:Htag.
+    2: { iNext. iFrame. iApply interp_untagged. done. }
     rewrite
-      (fixpoint_interp1_eq W C (WSealRange _ _ _ _ _))
-      (fixpoint_interp1_eq W C (WSealed _ _)) /= Hpseal /interp_sb.
+      (fixpoint_interp1_eq W C (WSealRange true _ _ _ _ _))
+      (fixpoint_interp1_eq W C (WSealed _ _)) /= Htag Hpseal /interp_sb.
     iDestruct "HVsr" as "[_ Hss]".
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
@@ -71,13 +73,13 @@ Section fundamental.
       apply elem_of_dom. apply lookup_insert_is_Some'; eauto. }
 
     iIntros "!>" (regs' retv). iDestruct 1 as (HSpec) "[Ha Hmap]".
-    destruct HSpec as [ * Hr1 Hr2 Hunseal Hwb HincrPC | ]; cycle 1.
+    destruct HSpec as [ * Hr1 Hr2 Htag Hunseal Hwb HincrPC | ]; cycle 1.
     {
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.
     }
 
-    apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
+    apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
 
     assert (r1 ≠ PC) as Hne1.
     { destruct (decide (PC = r1)); last auto. simplify_map_eq; auto. }

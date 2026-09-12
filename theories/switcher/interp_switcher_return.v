@@ -93,7 +93,7 @@ Section fundamental.
 
   Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_return).
+    ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
     rewrite /registers_pointsto.
@@ -515,12 +515,12 @@ Section fundamental.
     rewrite -(insert_id (<[PC:=updatePcPerm wastk2]> _) PC (updatePcPerm wastk2))
     ; last (clear;simplify_map_eq; done).
     rewrite /is_untrusted_caller_frm /= Hccrel in Hfreq.
-    destruct wastk2 as [ z | [p g b
-                                e a|]  | p g b e a | ot sb ] ; iEval (cbn) in "Hrmap".
+    destruct wastk2 as [ z | [t p g b e a|] | t p g b e a | ot sb ];
+      iEval (cbn) in "Hrmap".
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the FTLR *)
-        iPoseProof ( fundamental W C (WCap p g b e a) with "Hinterp_wstk2") as "IH".
+        iPoseProof ( fundamental W C (WCap true p g b e a) with "Hinterp_wstk2") as "IH".
         rewrite /interp_expression /=.
         iApply ("IH" with "[- $Hworld_interp $Hcont_K $Hna $Hcstk_frag $Hrmap]"); eauto.
         repeat iSplit;auto.
@@ -554,7 +554,7 @@ Section fundamental.
         }
 
       + (* wret was a sentry capability: apply the def of safe for sentry *)
-        iAssert (interp W C (WSentry p g b e a)) as "#Hinterp_wret'" ; first done.
+        iAssert (interp W C (WSentry true p g b e a)) as "#Hinterp_wret'" ; first done.
         iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wstk2".
         iDestruct "Hinterp_wstk2" as "#Hinterp_wret".
         rewrite /enter_cond.
@@ -598,7 +598,7 @@ Section fundamental.
 
   Lemma interp_switcher_return (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_return).
+    ⊢ interp W C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.

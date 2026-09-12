@@ -69,7 +69,9 @@ Module Asm_Griotte.
   | ReadSR (dst: RegName) (src: SRegName)
   | WriteSR (dst: SRegName) (src: RegName)
   | Fail
-  | Halt.
+  | Halt
+  | GetTag (dst src: RegName)
+  | ClearTag (dst src: RegName).
 
   Inductive asm_code : Type :=
   | ASM_Label (s : string)
@@ -199,6 +201,10 @@ Module Asm_Griotte.
         Some (GetP dst src)
     | GetL dst src =>
         Some (GetL dst src)
+    | GetTag dst src =>
+        Some (GetTag dst src)
+    | ClearTag dst src =>
+        Some (ClearTag dst src)
     | GetWType dst src =>
         Some (GetWType dst src)
     | GetOType dst src =>
@@ -346,6 +352,10 @@ Module Asm_Griotte.
         Some (machine_instructions.GetP dst src)
     | GetL dst src =>
         Some (machine_instructions.GetL dst src)
+    | GetTag dst src =>
+        Some (machine_instructions.GetTag dst src)
+    | ClearTag dst src =>
+        Some (machine_instructions.ClearTag dst src)
     | GetWType dst src =>
         Some (machine_instructions.GetWType dst src)
     | GetOType dst src =>
@@ -554,6 +564,14 @@ Module Asm_Griotte.
         let dst := revert_regs dst in
         let src := revert_regs src in
         (machine_instructions.GetL dst src)
+    | machine_instructions.GetTag dst src =>
+        let dst := revert_regs dst in
+        let src := revert_regs src in
+        (machine_instructions.GetTag dst src)
+    | machine_instructions.ClearTag dst src =>
+        let dst := revert_regs dst in
+        let src := revert_regs src in
+        (machine_instructions.ClearTag dst src)
     | machine_instructions.GetWType dst src =>
         let dst := revert_regs dst in
         let src := revert_regs src in
@@ -634,6 +652,8 @@ Module Asm_Griotte.
   Definition geta dst src := (ASM_Instr (GetA dst src)).
   Definition getp dst src := (ASM_Instr (GetP dst src)).
   Definition getl dst src := (ASM_Instr (GetL dst src)).
+  Definition gettag dst src := (ASM_Instr (GetTag dst src)).
+  Definition cleartag dst src := (ASM_Instr (ClearTag dst src)).
   Definition getwtype dst src := (ASM_Instr (GetWType dst src)).
   Definition getotype dst src := (ASM_Instr (GetOType dst src)).
   Definition seal dst r1 r2 := (ASM_Instr (Seal dst r1 r2)).

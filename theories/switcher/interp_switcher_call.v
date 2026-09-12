@@ -35,7 +35,7 @@ Section fundamental.
       (wcsp wct2 wctp : Word) :
     SubBounds b_switcher e_switcher a_switcher_call
       (a_switcher_call ^+ length switcher_instrs)%a ->
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
     csp ↦ᵣ wcsp ∗
     ct2 ↦ᵣ wct2 ∗
     ctp ↦ᵣ wctp ∗
@@ -43,14 +43,14 @@ Section fundamental.
     ▷ (
       ((⌜rules_Get.denote (GetP ct2 csp) wcsp = Some (encodePerm RWL)⌝ ∗
          ⌜rules_Get.denote (GetL ct2 csp) wcsp = Some (encodeLoc Local)⌝ ∗
-         PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ 8)%a ∗
+         PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ 8)%a ∗
          csp ↦ᵣ wcsp ∗
          ct2 ↦ᵣ WInt 0 ∗
          ctp ↦ᵣ WInt (encodeLoc Local) ∗
          codefrag a_switcher_call switcher_instrs)
        ∨
        (∃ zct2 zctp,
-          PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ 147)%a ∗
+          PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ 147)%a ∗
           csp ↦ᵣ wcsp ∗
           ct2 ↦ᵣ WInt zct2 ∗
           ctp ↦ᵣ WInt zctp ∗
@@ -155,7 +155,7 @@ Section fundamental.
     interp W C wcs1 ∗
     interp W C wcra ∗
     interp W C wcgp ∗
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
     cs1 ↦ᵣ wcs1 ∗
     cra ↦ᵣ wcra ∗
@@ -165,15 +165,15 @@ Section fundamental.
     codefrag pc_a (switcher_instrs_n 2) ∗
     ▷ (
       (∀ b e a,
-        ⌜wcsp = WCap RWL Local b e a⌝ ∗
+        ⌜wcsp = WCap true RWL Local b e a⌝ ∗
         ⌜(b <= a)%a ∧ (b <= (a ^+ 3)%a < e)%a ∧ is_Some (a + 4)%a⌝ ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher
           (pc_a ^+ length (switcher_instrs_n 2))%a ∗
         cs0 ↦ᵣ wcs0 ∗
         cs1 ↦ᵣ wcs1 ∗
         cra ↦ᵣ wcra ∗
         cgp ↦ᵣ wcgp ∗
-        csp ↦ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
+        csp ↦ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
         world_interp W C ∗
         codefrag pc_a (switcher_instrs_n 2) -∗
         WP Seq (Instr Executable)
@@ -280,15 +280,15 @@ Section fundamental.
     (pc_a ^+ 10 + (-36))%a = Some (pc_a ^+ (-26))%a ->
     (b <= a)%a ->
     (b <= (a ^+ 3)%a < e)%a ->
-    interp W C (WCap RWL Local b e a) ∗
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    interp W C (WCap true RWL Local b e a) ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     cs0 ↦ᵣ wcs0_old ∗
     cs1 ↦ᵣ wcs1_old ∗
     cra ↦ᵣ wcra_old ∗
     cgp ↦ᵣ wcgp_old ∗
     ca0 ↦ᵣ wca0_old ∗
     ca1 ↦ᵣ wca1_old ∗
-    csp ↦ᵣ WCap RWL Local b e (a ^+ 4)%a ∗
+    csp ↦ᵣ WCap true RWL Local b e (a ^+ 4)%a ∗
     world_interp W C ∗
     codefrag pc_a (switcher_instrs_n 16) ∗
     ▷ (
@@ -297,14 +297,14 @@ Section fundamental.
         interp W C wcs1 ∗
         interp W C wcra ∗
         interp W C wcgp ∗
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher (pc_a ^+ (-26))%a ∗
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ (-26))%a ∗
         cs0 ↦ᵣ wcs0 ∗
         cs1 ↦ᵣ wcs1 ∗
         cra ↦ᵣ wcra ∗
         cgp ↦ᵣ wcgp ∗
         ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
         ca1 ↦ᵣ WInt 0 ∗
-        csp ↦ᵣ WCap RWL Local b e a ∗
+        csp ↦ᵣ WCap true RWL Local b e a ∗
         world_interp W C ∗
         codefrag pc_a (switcher_instrs_n 16) -∗
         WP Seq (Instr Executable)
@@ -386,12 +386,12 @@ Section fundamental.
     SubBounds b_switcher e_switcher pc_a
       (pc_a ^+ length (switcher_instrs_n 17))%a ->
     (pc_a ^+ 2 + (-61))%a = Some a_switcher_return ->
-    PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher pc_a ∗
+    PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag pc_a (switcher_instrs_n 17) ∗
     ▷ (
-      PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+      PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
       ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
       ca1 ↦ᵣ WInt 0 ∗
       codefrag pc_a (switcher_instrs_n 17) -∗
@@ -414,7 +414,7 @@ Section fundamental.
 
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ interp_expr interp (interp_cont interp) W C (WCap XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     iIntros "#Hinv_switcher %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
     rewrite /registers_pointsto.
@@ -716,7 +716,8 @@ Section fundamental.
 
     rewrite -(insert_id (<[PC:=updatePcPerm wcra']> _) PC (updatePcPerm wcra'))
     ; last (clear;simplify_map_eq; done).
-    destruct wcra' as [ z | [pcra gcra bcra ecra acra|]  | pcra gcra bcra ecra acra | ot sb ] ; iEval (cbn) in "Hrmap".
+    destruct wcra' as [ z | [tcra pcra gcra bcra ecra acra|] | tcra pcra gcra bcra ecra acra | ot sb ];
+      iEval (cbn) in "Hrmap".
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the FTLR *)
@@ -749,7 +750,7 @@ Section fundamental.
           iPureIntro.
           rewrite lookup_delete_ne; eauto.
         }
-      + iAssert (interp W C (WSentry pcra gcra bcra ecra acra)) as "#Hinterp_wret'" ; first done.
+      + iAssert (interp W C (WSentry true pcra gcra bcra ecra acra)) as "#Hinterp_wret'" ; first done.
         iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wcra".
         iDestruct "Hinterp_wcra" as "#Hinterp_wret".
         rewrite /enter_cond.
@@ -841,14 +842,14 @@ Section fundamental.
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_unseal_unknown with "[$HPC $Hi $Hcs0 $Hct1]"); try solve_pure.
-    iIntros "!>" (ret) "[-> | (% & % & % & % & % & %wsb & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & % & %spec)]".
+    iIntros "!>" (ret) "[-> | (% & % & % & % & % & %wsb & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & % & %spec & %Htag)]".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
     simplify_eq.
 
     (* get the seal inv and compare with wsb *)
     iDestruct ("Hreg" $! ct1 with "[//] [//]") as "#Hct1v".
     rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher wsb)).
-    iEval (cbn) in "Hct1v".
+    iEval (cbn; rewrite Htag) in "Hct1v".
     rewrite /interp_sb.
     iAssert (sts_seals_std C ot_switcher {[WSealable wsb]}) as "#Hct1v'".
     { iApply sts_seals_std_weaken; last iFrame "Hct1v"; last set_solver+. }
@@ -1075,7 +1076,7 @@ Section fundamental.
 
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) (Nswitcher : namespace) :
     na_inv cerise_nais Nswitcher switcher_inv
-    ⊢ interp W C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp W C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.

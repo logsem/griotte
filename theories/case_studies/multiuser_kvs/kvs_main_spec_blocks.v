@@ -37,10 +37,10 @@ Section KVS_Main_Blocks.
       [[kvs_main_imports static_sealed_b b_switcher e_switcher
           a_switcher_call ot_switcher b_assert e_assert B_f]]
     ⊣⊢
-      pc_b ↦ₐ WSentry XSRW_ Local
+      pc_b ↦ₐ WSentry true XSRW_ Local
         b_switcher e_switcher a_switcher_call
       ∗ (pc_b ^+ ASSERT_OFFSET)%a ↦ₐ
-        WSentry RX Global b_assert e_assert b_assert
+        WSentry true RX Global b_assert e_assert b_assert
       ∗ (pc_b ^+ ADV_F_OFFSET)%a ↦ₐ WSealed ot_switcher B_f
       ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ
         WSealed ot_switcher (KVS_addOrUpdate Global)
@@ -165,9 +165,9 @@ Section KVS_Main_Blocks.
         ({[PC; cgp; cra; csp; ct1; cs0; cs1]} ∪ dom_arg_rmap 8) ->
     na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp ∗ cra ↦ᵣ wcra
-    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     ∗ ct1 ↦ᵣ WSealed ot_switcher target
     ∗ interp W C (WSealed ot_switcher target)
     ∗ (WSealed ot_switcher target) ↦□ₑ 0
@@ -206,7 +206,7 @@ Section KVS_Main_Blocks.
         ∗ PC ↦ᵣ updatePcPerm wcra
         ∗ cgp ↦ᵣ wcgp ∗ cra ↦ᵣ wcra
         ∗ cs0 ↦ᵣ wcs0 ∗ cs1 ↦ᵣ wcs1
-        ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+        ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
         ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
         ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
         ∗ ([∗ map] r ↦ w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
@@ -254,19 +254,19 @@ Section KVS_Main_Blocks.
     ∗ na_inv cerise_nais (Nkvs.@"physical") kvs_inv
     ∗ na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
     ∗ inv (export_table_PCCN Nkvs_exp_tbl)
-        (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b)
+        (b_kvs_exp_tbl ↦ₐ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b)
     ∗ inv (export_table_CGPN Nkvs_exp_tbl)
         ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ
-          WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b)
+          WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b)
     ∗ inv (export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr)
         (kvs_addOrUpdate_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_addOrUpdate)
     ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-    ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
-    ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+    ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+    ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
+    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
     ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ w)
     ∗ pc_b ↦ₐ
-        WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+        WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ
         WSealed ot_switcher (KVS_addOrUpdate Global)
     ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET)%a ↦ₐ
@@ -281,13 +281,13 @@ Section KVS_Main_Blocks.
         ⌜dom rmap_ret =
           all_registers_s ∖ {[PC; csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝
         ∗ na_own cerise_nais ⊤
-        ∗ PC ↦ᵣ WCap RX Global pc_b pc_e
+        ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e
             (pc_a ^+ length kvs_main_add_phase_instrs)%a
-        ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
+        ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
         ∗ (∃ wcra, cra ↦ᵣ wcra)
         ∗ cs0 ↦ᵣ WInt 0
         ∗ cs1 ↦ᵣ kvs_user_seal_key Global static_sealed_b
-        ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+        ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
         ∗ ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0
         ∗ ([∗ map] r ↦ w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
         ∗ [[csp_b, csp_e]] ↦ₐ
@@ -297,7 +297,7 @@ Section KVS_Main_Blocks.
         ∗ user_kvs_inv KVS_USER_KEY_MAIN
         ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) WInt 12
         ∗ pc_b ↦ₐ
-            WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+            WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
         ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ
             WSealed ot_switcher (KVS_addOrUpdate Global)
         ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET)%a ↦ₐ
@@ -387,8 +387,8 @@ Section KVS_Main_Blocks.
     set (rmap' := <[ctp := _]> _ ).
 
     iPoseProof (KVS_add_spec_known_to_known
-                  (WCap RW Global cgp_b cgp_e cgp_b)
-                  (WSentry RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+                  (WCap true RW Global cgp_b cgp_e cgp_b)
+                  (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
                   (WInt 0) (kvs_user_seal_key Global static_sealed_b)
                   csp_b csp_e csp_b rmap_arg cstk ⊤
                   KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
@@ -397,8 +397,8 @@ Section KVS_Main_Blocks.
 
     iApply (switcher_cc_specification_known_to_known_end_to_end
               Nswitcher
-              (WCap RW Global cgp_b cgp_e cgp_b)
-              (WSentry RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+              (WCap true RW Global cgp_b cgp_e cgp_b)
+              (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               (WInt 0) (kvs_user_seal_key Global static_sealed_b)
               csp_b csp_e csp_b stk_mem rmap_arg rmap' cstk
               kvs_addOrUpdate_nargs ⊤ Nkvs_exp_tbl
@@ -503,21 +503,21 @@ Section KVS_Main_Blocks.
     ∗ na_inv cerise_nais (Nkvs.@"physical") kvs_inv
     ∗ na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
     ∗ inv (export_table_PCCN Nkvs_exp_tbl)
-        (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b)
+        (b_kvs_exp_tbl ↦ₐ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b)
     ∗ inv (export_table_CGPN Nkvs_exp_tbl)
         ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ
-          WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b)
+          WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b)
     ∗ inv (export_table_entryN Nkvs_exp_tbl kvs_read_exp_tbl_addr)
         (kvs_read_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_read)
     ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ᵣ WCap RX Global pc_b pc_e
+    ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e
         (pc_a ^+ length
           (kvs_main_add_phase_instrs ++
            kvs_main_adversary_phase_instrs))%a
-    ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
+    ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
     ∗ cra ↦ᵣ wcra ∗ cs0 ↦ᵣ wcs0
     ∗ cs1 ↦ᵣ kvs_user_seal_key Global static_sealed_b
-    ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
     ∗ ca0 ↦ᵣ wca0 ∗ ca1 ↦ᵣ wca1
     ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
     ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
@@ -526,11 +526,11 @@ Section KVS_Main_Blocks.
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) WInt 12
     ∗ pc_b ↦ₐ
-        WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+        WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ (pc_b ^+ KVS_READ_OFFSET)%a ↦ₐ
         WSealed ot_switcher (KVS_read Global)
     ∗ (pc_b ^+ ASSERT_OFFSET)%a ↦ₐ
-        WSentry RX Global b_assert e_assert b_assert
+        WSentry true RX Global b_assert e_assert b_assert
     ∗ codefrag pc_a kvs_main_code
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
@@ -611,8 +611,8 @@ Section KVS_Main_Blocks.
     set (rmap_read_call := <[ctp := _]> _ ).
 
     iPoseProof (KVS_read_spec_known_to_known
-      (WCap RW Global cgp_b cgp_e cgp_b)
-      (WSentry RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+      (WCap true RW Global cgp_b cgp_e cgp_b)
+      (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
       (WInt 0) (kvs_user_seal_key Global static_sealed_b)
       csp_b csp_e csp_b rmap_arg_read cstk ⊤
       KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
@@ -621,8 +621,8 @@ Section KVS_Main_Blocks.
 
     iApply (switcher_cc_specification_known_to_known_end_to_end
               Nswitcher
-              (WCap RW Global cgp_b cgp_e cgp_b)
-              (WSentry RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+              (WCap true RW Global cgp_b cgp_e cgp_b)
+              (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
               (WInt 0) (kvs_user_seal_key Global static_sealed_b)
               csp_b csp_e csp_b stk_mem rmap_arg_read rmap_read_call cstk
               kvs_read_nargs ⊤ Nkvs_exp_tbl

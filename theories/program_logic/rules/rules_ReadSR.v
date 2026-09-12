@@ -20,11 +20,11 @@ Section griotte_lang_rules.
 
   Inductive ReadSR_failure (regs: Reg) (sregs : SReg) (dst: RegName) (src: SRegName) :=
   | ReadSR_fail_nonxrs p g b e a:
-      regs !! PC = Some (WCap p g b e a) →
+      regs !! PC = Some (WCap true p g b e a) →
       has_sreg_access p = false ->
       ReadSR_failure regs sregs dst src
   | ReadSR_fail_incrPC p g b e a w:
-      regs !! PC = Some (WCap p g b e a) →
+      regs !! PC = Some (WCap true p g b e a) →
       sregs !! src = Some w →
       incrementPC (<[ dst := w ]ᵣ> regs) = None →
       ReadSR_failure regs sregs dst src
@@ -34,7 +34,7 @@ Section griotte_lang_rules.
   (regs: Reg) (sregs: SReg) (dst: RegName) (src: SRegName) (regs': Reg)
     : griotte_lang.val -> Prop :=
   | ReadSR_spec_success p g b e a w:
-      regs !! PC = Some (WCap p g b e a) →
+      regs !! PC = Some (WCap true p g b e a) →
       has_sreg_access p = true ->
       sregs !! src = Some w →
       incrementPC (<[ dst := w ]ᵣ> regs) = Some regs' →
@@ -45,8 +45,8 @@ Section griotte_lang_rules.
 
   Lemma wp_ReadSR Ep pc_p pc_g pc_b pc_e pc_a w dst src regs sregs :
     decodeInstrW w = ReadSR dst src ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (ReadSR dst src) ⊆ dom regs →
     (if (has_sreg_access pc_p)
     then sregs_of (ReadSR dst src) ⊆ dom sregs
@@ -104,7 +104,7 @@ Section griotte_lang_rules.
     }
 
     eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-      as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+      as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
     eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto.
     rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
     iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
@@ -115,18 +115,18 @@ Section griotte_lang_rules.
 
   Lemma wp_readsr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w dst wdst src wsrc :
     decodeInstrW w = ReadSR dst src →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ wdst
         ∗ ▷ src ↦ₛᵣ wsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ dst ↦ᵣ wsrc
           ∗ src ↦ₛᵣ wsrc }}}.
@@ -154,20 +154,20 @@ Section griotte_lang_rules.
     }
   Qed.
 
-  Lemma wp_readsr_success_toPC E pc_p pc_g pc_b pc_e pc_a w src p g b e a a':
+  Lemma wp_readsr_success_toPC E pc_p pc_g pc_b pc_e pc_a w src (t : bool) p g b e a a':
     decodeInstrW w = ReadSR PC src →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (a + 1)%a = Some a' →
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ src ↦ₛᵣ WCap p g b e a }}}
+        ∗ ▷ src ↦ₛᵣ WCap t p g b e a }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap p g b e a'
+          PC ↦ᵣ WCap t p g b e a'
           ∗ pc_a ↦ₐ w
-          ∗ src ↦ₛᵣ WCap p g b e a }}}.
+          ∗ src ↦ₛᵣ WCap t p g b e a }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' ϕ) "(>HPC & >Hpc_a & >Hsrc) Hφ".
     iDestruct (map_of_regs_1 with "HPC") as "Hmap".

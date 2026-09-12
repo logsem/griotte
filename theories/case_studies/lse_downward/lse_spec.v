@@ -67,16 +67,16 @@ Section LSE.
            ∗ codefrag pc_a lse_main_code
            ∗ cgp_b ↦ₐ WInt 2
           )
-      ∗ inv (export_table_PCCN LSEN) (b_lse_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-      ∗ inv (export_table_CGPN LSEN) ((b_lse_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
+      ∗ inv (export_table_PCCN LSEN) (b_lse_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
+      ∗ inv (export_table_CGPN LSEN) ((b_lse_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
       ∗ inv (export_table_entryN LSEN (b_lse_exp_tbl ^+ 2)%a)
           ((b_lse_exp_tbl ^+ 2)%a ↦ₐ lse_exp_tbl_entry_f)
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -88,10 +88,10 @@ Section LSE.
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
-      ∗ interp W0 C (WCap RWL Local csp_b csp_e csp_b)
+      ∗ interp W0 C (WCap true RWL Local csp_b csp_e csp_b)
 
-      ∗ WSealed ot_switcher (SCap RO Global b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
-      ∗ WSealed ot_switcher (SCap RO Local b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
+      ∗ WSealed ot_switcher (SCap true RO Global b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
+      ∗ WSealed ot_switcher (SCap true RO Local b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a) ↦□ₑ 0
       ∗ seal_pred ot_switcher ot_switcher_propC
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
@@ -202,7 +202,7 @@ Section LSE.
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
 

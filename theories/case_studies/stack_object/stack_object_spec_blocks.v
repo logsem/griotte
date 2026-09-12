@@ -15,8 +15,8 @@ Section Stack_Object_Blocks.
     let instrs := so_f_alloc_instrs in
     let len := length instrs in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-    ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
     ∗ ca1 ↦ᵣ wca1
     ∗ cs0 ↦ᵣ wcs0
     ∗ cs1 ↦ᵣ wcs1
@@ -28,9 +28,9 @@ Section Stack_Object_Blocks.
         ∗ ⌜(csp_b < a_stk1)%a ∧ (a_stk1 < a_stk2)%a ∧
             (a_stk2 <= csp_e)%a⌝
         ∗ ⌜stk_mem = w0 :: w1 :: stk_mem'⌝
-        ∗ PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ len)%a
-        ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e a_stk2
-        ∗ ca1 ↦ᵣ WCap RWL Local a_stk1 a_stk2 a_stk1
+        ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ len)%a
+        ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2
+        ∗ ca1 ↦ᵣ WCap true RWL Local a_stk1 a_stk2 a_stk1
         ∗ cs0 ↦ᵣ WInt (a_stk1 : Z)
         ∗ cs1 ↦ᵣ WInt (a_stk2 : Z)
         ∗ csp_b ↦ₐ WInt so_secret
@@ -128,17 +128,17 @@ Section Stack_Object_Blocks.
     let instrs := so_f_call_instrs in
     let len := length instrs in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
     ∗ cra ↦ᵣ wra
-    ∗ ct0 ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ ct0 ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ ct1 ↦ᵣ wcallback
     ∗ cs0 ↦ᵣ WInt 0
     ∗ cs1 ↦ᵣ WInt 0
     ∗ codefrag pc_a instrs
     ∗ ▷ (
-        PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
-        ∗ cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ len)%a
-        ∗ ct0 ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+        PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+        ∗ cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ len)%a
+        ∗ ct0 ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
         ∗ ct1 ↦ᵣ wcallback
         ∗ cs0 ↦ᵣ wra
         ∗ cs1 ↦ᵣ wcallback
@@ -168,15 +168,15 @@ Section Stack_Object_Blocks.
     let len := length instrs in
     (csp_b + 2)%a = Some a_stk2 ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-    ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e a_stk2
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2
     ∗ ct0 ↦ᵣ wct0
     ∗ ct1 ↦ᵣ wct1
     ∗ csp_b ↦ₐ WInt so_secret
     ∗ codefrag pc_a instrs
     ∗ ▷ (
-        PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ len)%a
-        ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ len)%a
+        ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
         ∗ ct0 ↦ᵣ WInt so_secret
         ∗ ct1 ↦ᵣ WInt so_secret
         ∗ csp_b ↦ₐ WInt so_secret
@@ -216,7 +216,7 @@ Section Stack_Object_Blocks.
     let instrs := so_f_return_instrs in
     let len := length instrs in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
     ∗ cra ↦ᵣ wcra
     ∗ cs0 ↦ᵣ wret
     ∗ ca0 ↦ᵣ wca0

@@ -118,15 +118,15 @@ Section Checkra_spec.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ rsrc ↦ᵣ wsrc
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag pc_a checkra_
-    ∗ ▷ ( (∃ p g b e a,
-          ⌜ readAllowed p = true ∧ wsrc = WCap p g b e a⌝
-          ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
-          ∗ rsrc ↦ᵣ WCap p g b e a
+    ∗ ▷ ( (∃ t p g b e a,
+          ⌜ readAllowed p = true ∧ wsrc = WCap t p g b e a⌝
+          ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+          ∗ rsrc ↦ᵣ WCap t p g b e a
           ∗ r1 ↦ᵣ WInt 0%Z
           ∗ r2 ↦ᵣ WInt 0%Z
           ∗ codefrag pc_a checkra_ )
@@ -160,7 +160,7 @@ Section Checkra_spec.
       by wp_end.
     }
     destruct_word wsrc; cbn in His_cap_wsrc; try done.
-    pose proof (encodeWordType_correct (WCap c g b e a) wt_cap) as Hwtype ; cbn in Hwtype.
+    pose proof (encodeWordType_correct (WCap t c g b e a) wt_cap) as Hwtype ; cbn in Hwtype.
     rewrite Hwtype.
     replace (encodeWordType wt_cap - encodeWordType wt_cap)%Z with 0%Z by lia.
     iInstr "Hcode".

@@ -24,7 +24,8 @@ Section Is_WordType.
   Definition is_int_instrs (r r1 : RegName) : list Word :=
    is_word_type_instrs r r1 wt_int.
   Definition is_memory_cap_instrs (r r1 : RegName) : list Word :=
-   is_word_type_instrs r r1 wt_cap.
+   is_word_type_instrs r r1 wt_cap ++
+   encodeInstrsW [GetTag r1 r; Sub r1 r1 1; Jnz 2 r1; Jmp 2; Fail].
 End Is_WordType.
 
 Section Is_WordType_spec.
@@ -47,11 +48,11 @@ Section Is_WordType_spec.
     r ≠ cnull ->
     r1 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ w
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ codefrag pc_a is_int
-    ∗ ▷ ( ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
+    ∗ ▷ ( ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
             ∗ r ↦ᵣ w ∗ ⌜ ∃ z, w = WInt z ⌝
             ∗ r1 ↦ᵣ WInt 0%Z
             ∗ codefrag pc_a is_int)
@@ -99,13 +100,13 @@ Section Is_WordType_spec.
     r ≠ cnull ->
     r1 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ w
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ codefrag pc_a is_memory_cap
     ∗ ▷ ( (∃ p g b e a,
-            PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
-            ∗ r ↦ᵣ WCap p g b e a
+            PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+            ∗ r ↦ᵣ WCap true p g b e a
             ∗ r1 ↦ᵣ WInt 0%Z
             ∗ codefrag pc_a is_memory_cap)
               -∗ WP Seq (Instr Executable) {{ φ }}
@@ -123,10 +124,11 @@ Section Is_WordType_spec.
     - destruct_word w; cbn in *; try done.
       iInstr "Hprog".
       iInstr "Hprog".
-      replace (encodeWordType (WCap c g b e a) - encodeWordType wt_cap)%Z with 0%Z.
-      2: { rewrite (encodeWordType_correct_cap c g b e a (O LG LM) Global 0%a 0%a 0%a) /wt_cap; lia. }
-      iGo "Hprog".
-      iApply "Hφ"; iFrame.
+      replace (encodeWordType (WCap t c g b e a) - encodeWordType wt_cap)%Z with 0%Z.
+      2: { rewrite (encodeWordType_correct_cap t c g b e a true (O LG LM) Global 0%a 0%a 0%a) /wt_cap; lia. }
+      destruct t; cbn.
+      + iGo "Hprog". iApply "Hφ"; iFrame.
+      + iGo "Hprog". wp_end; iApply "Hfailed".
     - iGo "Hprog".
       { apply getwtype_denote. }
       assert (WInt (encodeWordType w - encodeWordType wt_cap) ≠ WInt 0).

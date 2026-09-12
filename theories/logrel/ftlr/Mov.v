@@ -46,13 +46,7 @@ Section fundamental.
     destruct HSpec; cycle 1.
     - iApply wp_pure_step_later; auto. iNext; iIntros "_".
       iApply wp_value; auto.
-    - incrementPC_inv; simplify_map_eq.
-      rename x into p0
-      ; rename x0 into g0
-      ; rename x1 into b0
-      ; rename x2 into e0
-      ; rename x3 into a0
-      ; rename x4 into a0'.
+    - incrementPC_inv as (t0 & p0 & g0 & b0 & e0 & a0 & a0' & ? & ? & ?); simplify_map_eq.
       iApply wp_pure_step_later; auto; iNext; iIntros "_".
 
       destruct (decide (dst = PC)) as [HdstPC|HdstPC]; simplify_map_eq.
@@ -72,7 +66,15 @@ Section fundamental.
         assert (r ≠ cnull); simplify_map_eq.
         { intros ->; simplify_map_eq.
           destruct (regs !! cnull) eqn:Heq; rewrite Heq in H; cbn in *; try done. }
-        iDestruct ("Hreg" $! r (WCap p0 g0 b0 e0 a0) n H ) as "Hr0".
+        iDestruct ("Hreg" $! r (WCap t0 p0 g0 b0 e0 a0) n H ) as "Hr0".
+        destruct t0; cycle 1.
+        { iApply (wp_bind (fill [SeqCtx])).
+          iExtract "Hmap" PC as "HPC".
+          iApply (wp_notCorrectPC_tag with "HPC"); first done.
+          iNext; iIntros "HPC /=".
+          iApply wp_pure_step_later; auto; iNext; iIntros "_".
+          iApply wp_value; auto.
+        }
         destruct (executeAllowed p0) eqn:Hpft; cycle 1.
         { iApply (wp_bind (fill [SeqCtx])).
           iExtract "Hmap" PC as "HPC".

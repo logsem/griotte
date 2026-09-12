@@ -46,7 +46,7 @@ Section Assert_subroutine.
        ⌜(b_assert + length assert_subroutine_instrs)%a = Some cap_addr⌝ ∗
        ⌜(cap_addr + 1)%a = Some e_assert⌝ ∗
        ⌜is_Some (a_flag + 1)%a⌝ ∗
-       cap_addr ↦ₐ WCap RW Global a_flag (a_flag ^+1)%a a_flag).
+       cap_addr ↦ₐ WCap true RW Global a_flag (a_flag ^+1)%a a_flag).
 
   Lemma assert_subroutine_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
@@ -55,7 +55,7 @@ Section Assert_subroutine.
     ↑N ⊆ E →
     (  na_inv cerise_nais N (assert_inv pc_b pc_e a_flag)
      ∗ na_own cerise_nais E
-     ∗ PC ↦ᵣ WCap RX pc_g pc_b pc_e pc_b
+     ∗ PC ↦ᵣ WCap true RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
@@ -110,7 +110,7 @@ Section Assert_subroutine.
     n1 = n2 →
     (  na_inv cerise_nais N (assert_inv pc_b pc_e a_flag)
      ∗ na_own cerise_nais E
-     ∗ PC ↦ᵣ WCap RX pc_g pc_b pc_e pc_b
+     ∗ PC ↦ᵣ WCap true RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
@@ -165,7 +165,7 @@ Section Assert.
     n1 = n2 →
     (  na_inv cerise_nais N (assert_inv b_assert e_assert a_flag)
      ∗ na_own cerise_nais E
-     ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
      ∗ rdst ↦ᵣ wdst
      ∗ rscratch1 ↦ᵣ w1
      ∗ rscratch2 ↦ᵣ w2
@@ -174,9 +174,9 @@ Section Assert.
      ∗ ct1 ↦ᵣ WInt n2
      ∗ cnull ↦ᵣ wnull
      ∗ codefrag pc_a assert_macro
-     ∗ (pc_b ^+ n)%a ↦ₐ (WSentry RX g_assert b_assert e_assert b_assert)
+     ∗ (pc_b ^+ n)%a ↦ₐ (WSentry true RX g_assert b_assert e_assert b_assert)
      ∗ ▷ (na_own cerise_nais E
-          ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
+          ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
           ∗ rdst ↦ᵣ WInt 0
           ∗ rscratch1 ↦ᵣ WInt 0
           ∗ rscratch2 ↦ᵣ WInt 0
@@ -185,7 +185,7 @@ Section Assert.
           ∗ ct1 ↦ᵣ WInt 0
           ∗ cnull ↦ᵣ WInt 0
           ∗ codefrag pc_a assert_macro
-          ∗ (pc_b ^+ n)%a ↦ₐ (WSentry RX g_assert b_assert e_assert b_assert)
+          ∗ (pc_b ^+ n)%a ↦ₐ (WSentry true RX g_assert b_assert e_assert b_assert)
           -∗ WP Seq (Instr Executable) {{ φ }})
      ⊢ WP Seq (Instr Executable) {{ φ }})%I.
   Proof.

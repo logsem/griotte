@@ -91,18 +91,18 @@ Definition mk_initial_memory `{memory_layout} :=
 (** We describe the initial register file. *)
 Definition is_initial_registers `{memory_layout} (reg: Reg) :=
   (* pc points-to main's PCC *)
-  reg !! PC = Some (WCap RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt) (cmpt_a_code main_cmpt)) ∧
+  reg !! PC = Some (WCap true RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt) (cmpt_a_code main_cmpt)) ∧
   (* cgp points-to main's CGP *)
-  reg !! cgp = Some (WCap RW Global (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt) (cmpt_b_cgp main_cmpt)) ∧
+  reg !! cgp = Some (WCap true RW Global (cmpt_b_cgp main_cmpt) (cmpt_e_cgp main_cmpt) (cmpt_b_cgp main_cmpt)) ∧
   (* csp points-to the stack pointer (defined by the switcher's compartment) *)
-  reg !! csp = Some (WCap RWL Local (b_stack switcher_cmpt) (e_stack switcher_cmpt) (b_stack switcher_cmpt)) ∧
+  reg !! csp = Some (WCap true RWL Local (b_stack switcher_cmpt) (e_stack switcher_cmpt) (b_stack switcher_cmpt)) ∧
   (* all the other registers are initialised at 0 *)
   (∀ (r: RegName), r ∉ ({[ PC; cgp; csp ]} : gset RegName) → reg !! r = Some (WInt 0)).
 
 (** We describe the initial sregister file, ie., mtdc,
     which contains the trusted stack capability. *)
 Program Definition is_initial_sregisters `{@memory_layout MP} (sreg : SReg) :=
-  sreg !! MTDC = Some (WCap RWL Local
+  sreg !! MTDC = Some (WCap true RWL Local
                          (b_trusted_stack switcher_cmpt)
                          (e_trusted_stack switcher_cmpt)
                          (b_trusted_stack switcher_cmpt)).
@@ -114,19 +114,19 @@ Definition is_initial_memory `{@memory_layout MP} (mem: Mem) :=
   let a_switcher_call := (a_switcher_call switcher_cmpt) in
   let ot_switcher := (ot_switcher switcher_cmpt) in
   let switcher_entry :=
-    WSentry XSRW_ Local
+    WSentry true XSRW_ Local
       b_switcher
       e_switcher
       a_switcher_call
   in
   let B_f :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc B_cmpt)
       (cmpt_exp_tbl_entries_end B_cmpt)
       (cmpt_exp_tbl_entries_start B_cmpt)
   in
   let C_g :=
-    SCap RO Global
+    SCap true RO Global
       (cmpt_exp_tbl_pcc C_cmpt)
       (cmpt_exp_tbl_entries_end C_cmpt)
       (cmpt_exp_tbl_entries_start C_cmpt)
@@ -251,11 +251,11 @@ Section Adequacy.
     (* 2 - We give a name to the exported entry points for which we want
        to know the number of arguments. *)
     set (B_f :=
-       (WCap RO Global (cmpt_exp_tbl_pcc B_cmpt)
+       (WCap true RO Global (cmpt_exp_tbl_pcc B_cmpt)
                          (cmpt_exp_tbl_entries_end B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt))
       ).
     set (C_g :=
-       (WCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
+       (WCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
          (cmpt_exp_tbl_entries_start C_cmpt))
       ).
 
@@ -322,13 +322,13 @@ Section Adequacy.
     iDestruct (big_sepM_insert_delete with "Hentries") as "[#Hentry_Cg' _]"
     ; repeat (rewrite delete_insert_ne ; last (subst B_f C_g ; intro ; simplify_eq; by rewrite H H0 H1 in Hneq_entries)).
     subst B_f C_g; cbn.
-    set (B_f := (SCap RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
+    set (B_f := (SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
                    (cmpt_exp_tbl_entries_start B_cmpt))).
-    set (B_f' := (SCap RO Local (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
+    set (B_f' := (SCap true RO Local (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
                    (cmpt_exp_tbl_entries_start B_cmpt))).
-    set (C_g := (SCap RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
+    set (C_g := (SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
                    (cmpt_exp_tbl_entries_start C_cmpt))).
-    set (C_g' := (SCap RO Local (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
+    set (C_g' := (SCap true RO Local (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
                    (cmpt_exp_tbl_entries_start C_cmpt))).
 
     (* 6 - Get initial sregister mtdc *)
@@ -498,12 +498,12 @@ Section Adequacy.
     }
 
     iAssert (interp Winit_B B
-               (WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)%a)
+               (WCap true RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)%a)
             )%I as "#Hinterp_pcc_B".
     { iApply interp_monotone_nl; eauto. }
 
     iAssert (interp Winit_B B
-               (WCap RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)%a)
+               (WCap true RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)%a)
             )%I as "#Hinterp_cgp_B".
     { iApply interp_monotone_nl; eauto. }
 
@@ -633,12 +633,12 @@ Section Adequacy.
     }
 
     iAssert (interp Winit_C C
-               (WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a)
+               (WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a)
             )%I as "#Hinterp_pcc_C".
     { iApply interp_monotone_nl; eauto. }
 
     iAssert (interp Winit_C C
-               (WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a)
+               (WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a)
             )%I as "#Hinterp_cgp_C".
     { iApply interp_monotone_nl; eauto. }
 

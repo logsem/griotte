@@ -73,8 +73,8 @@ Section CmptLayout.
   Definition cmpt_static_sealed_mregion (C: cmpt) : gmap Addr Word :=
     mkregion (cmpt_b_static_sealed C) (cmpt_e_static_sealed C) (cmpt_static_sealed C).
   Definition cmpt_exp_tbl_mregion (C: cmpt) : gmap Addr Word :=
-    let pcc_word := WCap RX Global (cmpt_b_pcc C) (cmpt_e_pcc C) (cmpt_b_pcc C) in
-    let cgp_word := WCap RW Global (cmpt_b_cgp C) (cmpt_e_cgp C) (cmpt_b_cgp C) in
+    let pcc_word := WCap true RX Global (cmpt_b_pcc C) (cmpt_e_pcc C) (cmpt_b_pcc C) in
+    let cgp_word := WCap true RW Global (cmpt_b_cgp C) (cmpt_e_cgp C) (cmpt_b_cgp C) in
     mkregion (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_cgp C) [pcc_word] ∪
       mkregion (cmpt_exp_tbl_cgp C) (cmpt_exp_tbl_entries_start C) [cgp_word] ∪
       mkregion (cmpt_exp_tbl_entries_start C) (cmpt_exp_tbl_entries_end C) (cmpt_exp_tbl_entries C)
@@ -164,7 +164,7 @@ Section CmptLayout.
   Definition cmpt_switcher_code_mregion
     (Cswitcher : cmptSwitcher) : gmap Addr Word :=
     let ot := (ot_switcher Cswitcher) in
-    let switcher_sealing := (WSealRange (true,true) Global ot (ot^+1)%ot ot) in
+    let switcher_sealing := (WSealRange true (true,true) Global ot (ot^+1)%ot ot) in
     mkregion (b_switcher Cswitcher) (a_switcher_call Cswitcher) [switcher_sealing]
       ∪ mkregion (a_switcher_call Cswitcher) (e_switcher Cswitcher) switcher_instrs .
   Definition cmpt_switcher_trusted_stack_mregion
@@ -227,7 +227,7 @@ Section CmptLayout.
     mkregion (b_assert Cassert) (cap_assert Cassert) assert_subroutine_instrs.
   Definition cmpt_assert_cap_mregion (Cassert : cmptAssert) :=
     mkregion (cap_assert Cassert) (e_assert Cassert)
-      [WCap RW Global (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a (flag_assert Cassert)].
+      [WCap true RW Global (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a (flag_assert Cassert)].
   Definition cmpt_assert_flag_mregion (Cassert : cmptAssert) :=
     mkregion (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a [WInt 0].
 
@@ -518,7 +518,7 @@ Section CmptLayout.
   Lemma cmpt_switcher_code_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
     let ot := ot_switcher switcher_cmpt in
     mkregion (b_switcher switcher_cmpt) (a_switcher_call switcher_cmpt)
-      [WSealRange (true, true) Global ot (ot ^+ 1)%f ot]
+      [WSealRange true (true, true) Global ot (ot ^+ 1)%f ot]
       ##ₘ mkregion (a_switcher_call switcher_cmpt) (e_switcher switcher_cmpt) switcher_instrs.
   Proof.
     intro ot ; subst ot.
@@ -654,9 +654,9 @@ Section CmptLayout.
   Qed.
   Lemma cmpt_exp_tbl_entries_disjoint (B_cmpt : cmpt) :
     mkregion (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_cgp B_cmpt)
-      [WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
+      [WCap true RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
       ∪ mkregion (cmpt_exp_tbl_cgp B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt)
-      [WCap RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)]
+      [WCap true RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)]
       ##ₘ mkregion (cmpt_exp_tbl_entries_start B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt) (cmpt_exp_tbl_entries B_cmpt).
   Proof.
     apply map_disjoint_dom_2.
@@ -685,9 +685,9 @@ Section CmptLayout.
 
   Lemma cmpt_exp_tbl_pcc_cgp_disjoint (B_cmpt : cmpt) :
     mkregion (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_cgp B_cmpt)
-      [WCap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
+      [WCap true RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
       ##ₘ mkregion (cmpt_exp_tbl_cgp B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt)
-      [WCap RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)].
+      [WCap true RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt)].
   Proof.
     apply map_disjoint_dom_2.
     pose proof (cmpt_exp_tbl_pcc_size B_cmpt).
@@ -704,7 +704,7 @@ Section CmptLayout.
 
   Definition in_region (w : Word) (b e : Addr) :=
     match w with
-    | WSealable (SCap p Global b' e' a) =>
+    | WSealable (SCap _ p Global b' e' a) =>
         PermFlowsTo p RW (* at most RW capability: excludes WL, excludes XSR *)
         ∧ (b <= b')%a /\ (e' <= e)%a (* in between the bounds *)
     | _ => False
@@ -714,11 +714,11 @@ Section CmptLayout.
     (fun w => is_z w ∨ in_region w (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)).
 
   Lemma exported_entry_point_disjoint
-    (C1_cmpt C2_cmpt : cmpt) (p1 p2 : Perm) (g1 g2 : Locality) (a1 a2 : Addr):
+    (C1_cmpt C2_cmpt : cmpt) (t1 t2 : bool) (p1 p2 : Perm) (g1 g2 : Locality) (a1 a2 : Addr):
     C1_cmpt ## C2_cmpt ->
-    (WCap p1 g1 (cmpt_exp_tbl_pcc C1_cmpt) (cmpt_exp_tbl_entries_end C1_cmpt) a1)
+    (WCap t1 p1 g1 (cmpt_exp_tbl_pcc C1_cmpt) (cmpt_exp_tbl_entries_end C1_cmpt) a1)
       ≠
-      (WCap p2 g2 (cmpt_exp_tbl_pcc C2_cmpt) (cmpt_exp_tbl_entries_end C2_cmpt) a2).
+      (WCap t2 p2 g2 (cmpt_exp_tbl_pcc C2_cmpt) (cmpt_exp_tbl_entries_end C2_cmpt) a2).
   Proof.
     intros Hdisjoint H ; simplify_eq.
     rewrite /disjoint /Cmpt_Disjoint /disjoint_cmpt /cmpt_region in Hdisjoint.
@@ -727,7 +727,7 @@ Section CmptLayout.
       ) as Hdis by set_solver+Hdisjoint.
     rewrite /cmpt_exp_tbl_region in Hdis.
     apply stdpp_extra.list_to_set_disj in Hdis.
-    rewrite H1 H2 in Hdis.
+    rewrite H2 H3 in Hdis.
     assert (
         list_to_set
           (finz.seq_between (cmpt_exp_tbl_pcc C2_cmpt) (cmpt_exp_tbl_entries_end C2_cmpt))

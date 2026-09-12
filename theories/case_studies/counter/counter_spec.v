@@ -143,10 +143,10 @@ Section Counter.
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
-      ∗ cra ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_return
+      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+      ∗ cra ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       ∗ world_interp W0 C
@@ -157,7 +157,7 @@ Section Counter.
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
-      ∗ interp W0 C (WCap RWL Local csp_b csp_e csp_b)
+      ∗ interp W0 C (WCap true RWL Local csp_b csp_e csp_b)
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -236,7 +236,6 @@ Section Counter.
     wp_instr.
     iApply (wp_store_success_reg with "[$HPC $Hi $Hcs0 $Hcgp $Hcgp_b]") ; try solve_pure.
     { rewrite /withinBounds; solve_addr. }
-    { done. }
     iIntros "!> (HPC & Hi & Hcs0 & Hcgp & Hcgp_b)".
     iDestruct ("Hcode" with "Hi") as "Hcode".
     wp_pure.
@@ -315,7 +314,7 @@ Section Counter.
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
 
@@ -512,7 +511,7 @@ Section Counter.
     ∗ interp W0 C (WSealed ot_switcher C_f)
     ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
     ⊢ execute_entry_point
-      (WCap RX Global pc_b pc_e pc_a) (WCap RW Global cgp_b cgp_e cgp_b) 0 W0 C.
+      (WCap true RX Global pc_b pc_e pc_a) (WCap true RW Global cgp_b cgp_e cgp_b) 0 W0 C.
   Proof.
     intros imports; subst imports.
     iIntros (HNswitcher_counter HsubBounds

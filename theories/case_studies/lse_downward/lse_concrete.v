@@ -172,13 +172,13 @@ Proof.
 Defined.
 
 Definition lse_C_f : Sealable :=
-  SCap RO Global lse_C_exports_pcc lse_C_exports_entries_e
+  SCap true RO Global lse_C_exports_pcc lse_C_exports_entries_e
     lse_C_exports_entries_b.
 
 Definition lse_main_imports_concrete : list Word := lse_main_imports lse_C_f.
 
 Definition lse_C_imports : list Word :=
-  [ WSentry XSRW_ Local lse_switcher_b lse_switcher_e lse_switcher_call
+  [ WSentry true XSRW_ Local lse_switcher_b lse_switcher_e lse_switcher_call
   ; WSealed lse_switcher_sealing_type
       (lse_entry_f_sb lse_main_exports_pcc lse_main_exports_entries_e)
   ].
@@ -367,14 +367,14 @@ Proof.
 Defined.
 
 Definition lse_initial_registers : Reg :=
-  <[PC := WCap RX Global lse_main_pcc_b lse_main_pcc_e lse_main_code_start]>
-  (<[cgp := WCap RW Global lse_main_data_b lse_main_data_e
+  <[PC := WCap true RX Global lse_main_pcc_b lse_main_pcc_e lse_main_code_start]>
+  (<[cgp := WCap true RW Global lse_main_data_b lse_main_data_e
       lse_main_data_b]>
-  (<[csp := WCap RWL Local lse_stack_b lse_stack_e lse_stack_b]>
+  (<[csp := WCap true RWL Local lse_stack_b lse_stack_e lse_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition lse_initial_sregisters : SReg :=
-  <[MTDC := WCap RWL Local lse_trusted_stack_b lse_trusted_stack_e
+  <[MTDC := WCap true RWL Local lse_trusted_stack_b lse_trusted_stack_e
       lse_trusted_stack_b]> ∅.
 
 Definition lse_initial_memory : Mem := mk_initial_memory.

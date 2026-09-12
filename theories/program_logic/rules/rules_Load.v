@@ -18,7 +18,7 @@ Section griotte_lang_rules.
   Implicit Types ms : gmap Addr Word.
 
   Definition reg_allows_load (regs : Reg) (r : RegName) p g b e a  :=
-    regs !!ᵣ r = Some (WCap p g b e a) ∧
+    regs !!ᵣ r = Some (WCap true p g b e a) ∧
     readAllowed p = true ∧ withinBounds b e a = true.
 
   Inductive Load_failure (regs: Reg) (r1 r2: RegName) (mem : gmap Addr Word) :=
@@ -26,13 +26,16 @@ Section griotte_lang_rules.
       regs !!ᵣ r2 = Some w ->
       is_cap w = false →
       Load_failure regs r1 r2 mem
+  | Load_fail_tag p g b e a:
+      regs !!ᵣ r2 = Some (WCap false p g b e a) →
+      Load_failure regs r1 r2 mem
   | Load_fail_bounds p g b e a:
-      regs !!ᵣ r2 = Some (WCap p g b e a) ->
+      regs !!ᵣ r2 = Some (WCap true p g b e a) ->
       (readAllowed p = false ∨ withinBounds b e a = false) →
       Load_failure regs r1 r2 mem
   (* Notice how the None below also includes all cases where we read an inl value into the PC, because then incrementing it will fail *)
   | Load_fail_invalid_PC p g b e a loadv:
-      regs !!ᵣ r2 = Some (WCap p g b e a) ->
+      regs !!ᵣ r2 = Some (WCap true p g b e a) ->
       mem !! a = Some loadv →
       incrementPC (<[ r1 := (load_word p loadv) ]ᵣ> regs) = None ->
       Load_failure regs r1 r2 mem
@@ -54,7 +57,7 @@ Section griotte_lang_rules.
     Load_spec regs r1 r2 regs' mem FailedV.
 
   Definition allow_load_map_or_true r (regs : Reg) (mem : gmap Addr Word):=
-    ∃ p g b e a, read_reg_inr regs r p g b e a ∧
+    ∃ t p g b e a, read_reg_inr regs r t p g b e a ∧
       if decide (reg_allows_load regs r p g b e a) then
         ∃ w, mem !! a = Some w
       else True.
@@ -63,7 +66,7 @@ Section griotte_lang_rules.
     ∀ (r2 : RegName) (mem0 : gmap Addr Word) (r : Reg) (p : Perm)
       (g : Locality) (b e a : Addr),
       allow_load_map_or_true r2 r mem0
-      → r !!ᵣ r2 = Some (WCap p g b e a)
+      → r !!ᵣ r2 = Some (WCap true p g b e a)
       → readAllowed p = true
       → withinBounds b e a = true
       → ∃ (loadv : Word),
@@ -71,7 +74,7 @@ Section griotte_lang_rules.
   Proof.
     intros r2 mem0 r p g b e a HaLoad Hr2v Hra Hwb.
     unfold allow_load_map_or_true, read_reg_inr in HaLoad.
-    destruct HaLoad as (?&?&?&?&?& Hrinr & Hmem).
+    destruct HaLoad as (t&?&?&?&?&?& Hrinr & Hmem).
     assert (r2 ≠ cnull).
     { intros -> ; simplify_map_eq.
       destruct (r !! cnull); cbn in * ; done.
@@ -80,7 +83,7 @@ Section griotte_lang_rules.
     rewrite Hr2v in Hrinr. inversion Hrinr; subst.
     case_decide as Hrega.
     - exact Hmem.
-    - assert (r !!ᵣ r2 = Some (WCap x x0 x1 x2 x3)); eauto.
+    - assert (r !!ᵣ r2 = Some (WCap true x x0 x1 x2 x3)); eauto.
       { by simplify_map_eq. }
       contradiction Hrega. done.
   Qed.
@@ -88,7 +91,7 @@ Section griotte_lang_rules.
   Lemma mem_eq_implies_allow_load_map:
     ∀ (regs : Reg)(mem : gmap Addr Word)(r2 : RegName) (w : Word) p g b e a,
       mem = <[a:=w]> ∅
-      → regs !!ᵣ r2 = Some (WCap p g b e a)
+      → regs !!ᵣ r2 = Some (WCap true p g b e a)
       → allow_load_map_or_true r2 regs mem.
   Proof.
     intros regs mem r2 w p g b e a Hmem Hrr2.
@@ -97,7 +100,7 @@ Section griotte_lang_rules.
       destruct (regs !! cnull); cbn in * ; done.
     }
     simplify_map_eq.
-    exists p,g,b,e,a; split.
+    exists true,p,g,b,e,a; split.
     - unfold read_reg_inr. by rewrite Hrr2.
     - case_decide; last done.
       exists w. simplify_map_eq. auto.
@@ -108,7 +111,7 @@ Section griotte_lang_rules.
       (w w' : Word) p g b e a,
       a ≠ pc_a
       → mem = <[pc_a:=w]> (<[a:=w']> ∅)
-      → regs !!ᵣ r2 = Some (WCap p g b e a)
+      → regs !!ᵣ r2 = Some (WCap true p g b e a)
       → allow_load_map_or_true r2 regs mem.
   Proof.
     intros regs mem r2 pc_a w w' p g b e a H4 Hrr2 Hreg2.
@@ -117,7 +120,7 @@ Section griotte_lang_rules.
       destruct (regs !! cnull); cbn in * ; done.
     }
     simplify_map_eq.
-    exists p,g,b,e,a; split.
+    exists true,p,g,b,e,a; split.
     - unfold read_reg_inr. by rewrite Hreg2.
     - case_decide; last done.
       exists w'. simplify_map_eq. auto.
@@ -129,7 +132,7 @@ Section griotte_lang_rules.
       (if (a =? pc_a)%a
        then mem = <[pc_a:=w]> ∅
        else mem = <[pc_a:=w]> (<[a:=w']> ∅))
-      → regs !!ᵣ r2 = Some (WCap p g b e a)
+      → regs !!ᵣ r2 = Some (WCap true p g b e a)
       → allow_load_map_or_true r2 regs mem.
   Proof.
     intros regs mem r2 pc_a w w' p g b e a H4 Hrr2.
@@ -165,8 +168,8 @@ Section griotte_lang_rules.
      pc_p pc_g pc_b pc_e pc_a
      r1 r2 w mem (dfracs : gmap Addr dfrac) regs :
    decodeInstrW w = Load r1 r2 →
-   isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-   regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+   isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+   regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs_of (Load r1 r2) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_map_or_true r2 regs mem →
@@ -216,7 +219,12 @@ Section griotte_lang_rules.
        }
         iFailWP "Hφ" Load_fail_const.
      }
-     destruct r2v as [ | [p g b e a | ] | | ]; try inversion Hr2v. clear Hr2v.
+     destruct r2v as [ | [t p g b e a | ] | | ]; try inversion Hr2v. clear Hr2v.
+     destruct t.
+     2: {
+       inversion Hstep; subst c σ2.
+       iFailWP "Hφ" Load_fail_tag.
+     }
 
     destruct (readAllowed p && withinBounds b e a) eqn:HRA.
     2 : { (* Failure: r2 is either not within bounds or doesnt allow reading *)
@@ -252,7 +260,7 @@ Section griotte_lang_rules.
     (* Success *)
     rewrite /update_reg /= in Hstep.
     eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-      as (p1 & g1 & b1 & e1 & a1 & a_pc1 & HPC'' & Ha_pc' & HuPC & ->).
+      as (t1 & p1 & g1 & b1 & e1 & a1 & a_pc1 & HPC'' & Ha_pc' & HuPC & ->).
     eapply updatePC_success_incl in HuPC. 2: by eapply insert_mono.
     rewrite HuPC in Hstep; clear HuPC; inversion Hstep; clear Hstep; subst c σ2. cbn.
     iFrame.
@@ -271,8 +279,8 @@ Section griotte_lang_rules.
      pc_p pc_g pc_b pc_e pc_a
      r1 r2 w mem regs dq :
    decodeInstrW w = Load r1 r2 →
-   isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-   regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+   isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+   regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs_of (Load r1 r2) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_load_map_or_true r2 regs mem →
@@ -294,23 +302,23 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' dq dq' :
     decodeInstrW w = Load r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
           ∗ ▷ r1 ↦ᵣ w''
-          ∗ ▷ r2 ↦ᵣ WCap p g b e a
+          ∗ ▷ r2 ↦ᵣ WCap true p g b e a
           ∗ (if (eqb_addr a pc_a) then emp else ▷ a ↦ₐ{dq'} w') }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
              ∗ r1 ↦ᵣ (if (eqb_addr a pc_a) then (load_word p w) else (load_word p w'))
              ∗ pc_a ↦ₐ{dq} w
-             ∗ r2 ↦ᵣ WCap p g b e a
+             ∗ r2 ↦ᵣ WCap true p g b e a
              ∗ (if (eqb_addr a pc_a) then emp else a ↦ₐ{dq'} w') }}}.
   Proof.
     iIntros (Hinstr Hvpc [Hra Hwb] Hpca' Hcnull Hcnull' φ)
@@ -339,7 +347,7 @@ Section griotte_lang_rules.
        rewrite (insert_insert_ne _ PC r1) // insert_insert_eq (insert_insert_ne _ r1 PC) // insert_insert_eq.
        iDestruct (regs_of_map_3 with "[$Hmap]") as "[HPC [Hr1 Hr2] ]"; eauto.
        iApply "Hφ". iFrame.
-       by destruct (a0 =? x3)%Z.
+       by destruct (a0 =? x4)%Z.
      }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; [destruct o|].
@@ -349,23 +357,23 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_notinstr E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' dq dq' :
     decodeInstrW w = Load r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
           ∗ ▷ r1 ↦ᵣ w''
-          ∗ ▷ r2 ↦ᵣ WCap p g b e a
+          ∗ ▷ r2 ↦ᵣ WCap true p g b e a
           ∗ ▷ a ↦ₐ{dq'} w' }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
              ∗ r1 ↦ᵣ load_word p w'
              ∗ pc_a ↦ₐ{dq} w
-             ∗ r2 ↦ᵣ WCap p g b e a
+             ∗ r2 ↦ᵣ WCap true p g b e a
              ∗ a ↦ₐ{dq'} w' }}}.
   Proof.
     intros. iIntros "(>HPC & >Hpc_a & >Hr1 & >Hr2 & >Ha)".
@@ -393,22 +401,22 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_frominstr E r1 r2 pc_p pc_g pc_b pc_e pc_a w w'' p g b e pc_a' dq :
     decodeInstrW w = Load r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e pc_a = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
           ∗ ▷ r1 ↦ᵣ w''
-          ∗ ▷ r2 ↦ᵣ WCap p g b e pc_a }}}
+          ∗ ▷ r2 ↦ᵣ WCap true p g b e pc_a }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
              ∗ r1 ↦ᵣ load_word p w
              ∗ pc_a ↦ₐ{dq} w
-             ∗ r2 ↦ᵣ WCap p g b e pc_a }}}.
+             ∗ r2 ↦ᵣ WCap true p g b e pc_a }}}.
   Proof.
     intros. iIntros "(>HPC & >Hpc_a & >Hr1 & >Hr2)".
     iIntros "Hφ". iApply (wp_load_success with "[$HPC $Hpc_a $Hr1 $Hr2]"); eauto.
@@ -419,19 +427,19 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_same E r1 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' dq dq' :
     decodeInstrW w = Load r1 r1 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ WCap p g b e a
+          ∗ ▷ r1 ↦ᵣ WCap true p g b e a
           ∗ (if (a =? pc_a)%a then emp else ▷ a ↦ₐ{dq'} w') }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
              ∗ r1 ↦ᵣ (if (a =? pc_a)%a then load_word p w else load_word p w')
              ∗ pc_a ↦ₐ{dq} w
              ∗ (if (a =? pc_a)%a then emp else a ↦ₐ{dq'} w') }}}.
@@ -462,7 +470,7 @@ Section griotte_lang_rules.
        simplify_map_eq.
        rewrite (insert_insert_ne _ PC r1) // insert_insert_eq (insert_insert_ne _ r1 PC) // insert_insert_eq.
        iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hr1]"; eauto. iFrame.
-       by destruct (a0 =? x3)%Z.
+       by destruct (a0 =? x4)%Z.
      }
      { (* Failure (contradiction) *)
        destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto; [ destruct o |]; congruence. }
@@ -470,19 +478,19 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_same_notinstr E r1 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' dq dq' :
     decodeInstrW w = Load r1 r1 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ WCap p g b e a
+          ∗ ▷ r1 ↦ᵣ WCap true p g b e a
           ∗ ▷ a ↦ₐ{dq'} w' }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
              ∗ r1 ↦ᵣ load_word p w'
              ∗ pc_a ↦ₐ{dq} w
              ∗ a ↦ₐ{dq'} w' }}}.
@@ -509,18 +517,18 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_same_frominstr E r1 pc_p pc_g pc_b pc_e pc_a w p g b e pc_a' dq :
     decodeInstrW w = Load r1 r1 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true →
     withinBounds b e pc_a = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ WCap p g b e pc_a }}}
+          ∗ ▷ r1 ↦ᵣ WCap true p g b e pc_a }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
              ∗ r1 ↦ᵣ load_word p w
              ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
@@ -533,23 +541,23 @@ Section griotte_lang_rules.
 
   (* If a points to a capability, the load into PC success if its address can be incr *)
   Lemma wp_load_success_PC E r2 pc_p pc_g pc_b pc_e pc_a w
-        p g b e a p' g' b' e' a' a'' :
+        p g b e a (t : bool) p' g' b' e' a' a'' :
     decodeInstrW w = Load PC r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (a' + 1)%a = Some a'' →
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
-          ∗ ▷ r2 ↦ᵣ WCap p g b e a
-          ∗ ▷ a ↦ₐ WCap p' g' b' e' a' }}}
+          ∗ ▷ r2 ↦ᵣ WCap true p g b e a
+          ∗ ▷ a ↦ₐ WCap t p' g' b' e' a' }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ load_word p (WCap p' g' b' e' a'')
+          PC ↦ᵣ load_word p (WCap t p' g' b' e' a'')
              ∗ pc_a ↦ₐ w
-             ∗ r2 ↦ᵣ WCap p g b e a
-             ∗ a ↦ₐ WCap p' g' b' e' a' }}}.
+             ∗ r2 ↦ᵣ WCap true p g b e a
+             ∗ a ↦ₐ WCap t p' g' b' e' a' }}}.
   Proof.
     iIntros (Hinstr Hvpc [Hra Hwb] Hpca' Hcnull φ)
             "(>HPC & >Hi & >Hr2 & >Hr2a) Hφ".
@@ -578,6 +586,7 @@ Section griotte_lang_rules.
        destruct Hfail.
        + simplify_map_eq; eauto.
        + simplify_map_eq; eauto.
+       + simplify_map_eq; eauto.
          destruct o ; congruence.
        + simplify_map_eq; eauto.
          rewrite /load_word in e3 |- *.
@@ -589,16 +598,16 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_fromPC E r1 pc_p pc_g pc_b pc_e pc_a pc_a' w w'' dq :
     decodeInstrW w = Load r1 PC →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ{dq} w
           ∗ ▷ r1 ↦ᵣ w'' }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
              ∗ pc_a ↦ₐ{dq} w
              ∗ r1 ↦ᵣ load_word pc_p w }}}.
   Proof.
@@ -632,23 +641,23 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_alt E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a pc_a' :
     decodeInstrW w = Load r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
           ∗ ▷ r1 ↦ᵣ w''
-          ∗ ▷ r2 ↦ᵣ WCap p g b e a
+          ∗ ▷ r2 ↦ᵣ WCap true p g b e a
           ∗ ▷ a ↦ₐ w' }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
              ∗ r1 ↦ᵣ load_word p w'
              ∗ pc_a ↦ₐ w
-             ∗ r2 ↦ᵣ WCap p g b e a
+             ∗ r2 ↦ᵣ WCap true p g b e a
              ∗ a ↦ₐ w' }}}.
   Proof.
     iIntros (Hinstr Hvpc [Hra Hwb] Hpca' Hcnull Hcnull' φ) "(>HPC & >Hi & >Hr1 & >Hr2 & >Hr2a) Hφ".
@@ -659,18 +668,18 @@ Section griotte_lang_rules.
 
   Lemma wp_load_success_same_alt E r1 pc_p pc_g pc_b pc_e pc_a w w' p g b e a pc_a' :
     decodeInstrW w = Load r1 r1 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = true ∧ withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
-          ∗ ▷ r1 ↦ᵣ WCap p g b e a
+          ∗ ▷ r1 ↦ᵣ WCap true p g b e a
           ∗ ▷ a ↦ₐ w'}}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
              ∗ r1 ↦ᵣ load_word p w'
              ∗ pc_a ↦ₐ w
              ∗ a ↦ₐ w' }}}.
@@ -683,10 +692,10 @@ Section griotte_lang_rules.
 
   Lemma wp_load_fail_not_cap E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' wsrc :
     decodeInstrW w = Load r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     is_cap wsrc = false ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
           ∗ ▷ r1 ↦ᵣ w''
           ∗ ▷ r2 ↦ᵣ wsrc
@@ -701,7 +710,7 @@ Section griotte_lang_rules.
      { by rewrite !dom_insert; set_solver+. }
      { rewrite /allow_load_map_or_true.
        destruct_word wsrc; cbn in *; try done.
-       all: eexists RO, Global, za, za, za. (* dummy values *)
+       all: eexists true, RO, Global, za, za, za. (* dummy values *)
        all: split; rewrite /read_reg_inr; first by simplify_map_eq.
        all: rewrite /reg_allows_load; simplify_map_eq.
        all: rewrite decide_False; first done.
@@ -722,14 +731,14 @@ Section griotte_lang_rules.
 
   Lemma wp_load_fail_not_ra E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a :
     decodeInstrW w = Load r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     readAllowed p = false ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
           ∗ ▷ r1 ↦ᵣ w''
-          ∗ ▷ r2 ↦ᵣ WCap p g b e a
+          ∗ ▷ r2 ↦ᵣ WCap true p g b e a
     }}}
        Instr Executable @ E
        {{{ RET FailedV; True }}}.
@@ -740,7 +749,7 @@ Section griotte_lang_rules.
      iApply (wp_load with "[$Hmap $Hi]"); eauto; simplify_map_eq; eauto.
      { by rewrite !dom_insert; set_solver+. }
      { rewrite /allow_load_map_or_true.
-       exists p, g, b, e, a.
+       exists true, p, g, b, e, a.
        split.
        + rewrite /read_reg_inr; by simplify_map_eq.
        + rewrite /reg_allows_load; simplify_map_eq.
@@ -761,14 +770,14 @@ Section griotte_lang_rules.
 
   Lemma wp_load_fail_not_withinbounds E r1 r2 pc_p pc_g pc_b pc_e pc_a w w' w'' p g b e a :
     decodeInstrW w = Load r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds b e a = false →
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
           ∗ ▷ r1 ↦ᵣ w''
-          ∗ ▷ r2 ↦ᵣ WCap p g b e a
+          ∗ ▷ r2 ↦ᵣ WCap true p g b e a
     }}}
        Instr Executable @ E
        {{{ RET FailedV; True }}}.
@@ -779,7 +788,7 @@ Section griotte_lang_rules.
      iApply (wp_load with "[$Hmap $Hi]"); eauto; simplify_map_eq; eauto.
      { by rewrite !dom_insert; set_solver+. }
      { rewrite /allow_load_map_or_true.
-       exists p, g, b, e, a.
+       exists true, p, g, b, e, a.
        split.
        + rewrite /read_reg_inr; by simplify_map_eq.
        + rewrite /reg_allows_load; simplify_map_eq.
@@ -796,6 +805,37 @@ Section griotte_lang_rules.
        by rewrite H5 in Hbounds.
      }
      by iApply "Hφ".
+  Qed.
+
+  (* Untagged authority fails before reading the target memory. *)
+  Lemma wp_load_fail_tag E pc_p pc_g pc_b pc_e pc_a
+      w dst src regs wa :
+    decodeInstrW w = Load dst src →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !!ᵣ src = Some wa →
+    get_tag wa = false →
+    {{{ ▷ pc_a ↦ₐ w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ E
+    {{{ RET FailedV; pc_a ↦ₐ w ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
+  Proof.
+    iIntros (Hinstr Hvpc HPC Hsrc Htag φ) "(>Hpc_a & >Hmap) Hφ".
+    iApply wp_lift_atomic_base_step_no_fork; auto.
+    iIntros (σ1 ns l1 l2 nt) "[[Hr Hsr] Hm] /=".
+    destruct σ1 as [[r sr] m]; cbn.
+    iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
+    have ? := lookup_weaken _ _ _ _ HPC Hregs.
+    have Hsrc' := lookup_reg_weaken _ _ _ _ Hsrc Hregs.
+    iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
+    iNext. iIntros (e2 σ2 efs Hpstep).
+    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+    iIntros "_". iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
+    rewrite /exec /= Hsrc' /= in Hstep.
+    assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+    { destruct wa as [| [t p g b e a|] | |]; cbn in Htag;
+        by simplify_pair_eq. }
+    cbn; iFrame; iApply "Hφ"; iFrame. done.
   Qed.
 
 End griotte_lang_rules.

@@ -22,7 +22,7 @@ Section VAE_Awkward_Blocks.
        ca3 := WInt 0;
        ca4 := WInt 0;
        ca5 := WInt 0;
-       ct0 := WSentry XSRW_ Local
+       ct0 := WSentry true XSRW_ Local
          b_switcher e_switcher a_switcher_call ]}.
 
   Lemma vae_call_adv_arg_rmap_is_arg :
@@ -39,13 +39,13 @@ Section VAE_Awkward_Blocks.
     ∗ ca3 ↦ᵣ WInt 0
     ∗ ca4 ↦ᵣ WInt 0
     ∗ ca5 ↦ᵣ WInt 0
-    ∗ ct0 ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ ct0 ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
     -∗ [∗ map] rarg ↦ warg ∈ vae_call_adv_arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg.
   Proof.
     iIntros "(#Hswitcher & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0)".
     iAssert (interp W C (WInt 0)) as "#Hint".
     { iApply interp_int. }
-    iAssert (interp W C (WSentry XSRW_ Local
+    iAssert (interp W C (WSentry true XSRW_ Local
       b_switcher e_switcher a_switcher_call)) as "#Hcall".
     { iApply (interp_switcher_call with "Hswitcher"). }
     rewrite /vae_call_adv_arg_rmap.
@@ -73,13 +73,13 @@ Section VAE_Awkward_Blocks.
     inv awkN (awk_inv C i cgp_b)
     ∗ sts_rel_loc (A := Addr) C i awk_rel_pub awk_rel_priv
     ∗ world_interp W C
-    ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-    ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
+    ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+    ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
     ∗ codefrag pc_a (encodeInstrsW (Store cgp z :: tail))
 
     ∗ ▷ (world_interp W' C
-        ∗ PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ 1)%a
-        ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
+        ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 1)%a
+        ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
         ∗ codefrag pc_a (encodeInstrsW (Store cgp z :: tail))
         -∗ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -129,19 +129,19 @@ Section VAE_Awkward_Blocks.
     let len := length instrs in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
 
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
     ∗ cra ↦ᵣ wra
     ∗ ca0 ↦ᵣ wcallback
-    ∗ ct0 ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ ct0 ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ ct1 ↦ᵣ wct1
     ∗ cs0 ↦ᵣ wcs0
     ∗ cs1 ↦ᵣ wcs1
     ∗ codefrag pc_a instrs
 
-    ∗ ▷ (PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
-        ∗ cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ len)%a
+    ∗ ▷ (PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+        ∗ cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ len)%a
         ∗ ca0 ↦ᵣ WInt 0
-        ∗ ct0 ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+        ∗ ct0 ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
         ∗ ct1 ↦ᵣ wcallback
         ∗ cs0 ↦ᵣ wra
         ∗ cs1 ↦ᵣ wcallback
@@ -177,19 +177,19 @@ Section VAE_Awkward_Blocks.
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
     ContiguousRegion pc_a len ->
 
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
     ∗ cra ↦ᵣ wra
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
-    ∗ ct0 ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ ct0 ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cs0 ↦ᵣ wcs0
     ∗ codefrag pc_a instrs
 
-    ∗ ▷ (PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
-        ∗ cra ↦ᵣ WSentry RX Global pc_b pc_e (pc_a ^+ len)%a
+    ∗ ▷ (PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+        ∗ cra ↦ᵣ WSentry true RX Global pc_b pc_e (pc_a ^+ len)%a
         ∗ ca0 ↦ᵣ WInt 0
         ∗ ca1 ↦ᵣ WInt 0
-        ∗ ct0 ↦ᵣ WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+        ∗ ct0 ↦ᵣ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
         ∗ cs0 ↦ᵣ wra
         ∗ codefrag pc_a instrs
         -∗ WP Seq (Instr Executable)
@@ -225,8 +225,8 @@ Section VAE_Awkward_Blocks.
     inv awkN (awk_inv C i cgp_b)
     ∗ sts_rel_loc (A := Addr) C i awk_rel_pub awk_rel_priv
     ∗ world_interp (revoke Wbase) C
-    ∗ PC ↦ᵣ WCap RX Global pc_b pc_e (pc_code ^+ 4)%a
-    ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
+    ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_code ^+ 4)%a
+    ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
     ∗ ct0 ↦ᵣ wct0
     ∗ ct1 ↦ᵣ wct1
     ∗ codefrag pc_code (encodeInstrsW [
@@ -234,8 +234,8 @@ Section VAE_Awkward_Blocks.
         Load ct0 cgp; Mov ct1 1])
 
     ∗ ▷ (world_interp (revoke Wbase) C
-        ∗ PC ↦ᵣ WCap RX Global pc_b pc_e (pc_code ^+ 6)%a
-        ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
+        ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_code ^+ 6)%a
+        ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
         ∗ ct0 ↦ᵣ WInt 1
         ∗ ct1 ↦ᵣ WInt 1
         ∗ codefrag pc_code (encodeInstrsW [
@@ -277,7 +277,7 @@ Section VAE_Awkward_Blocks.
     let len := length instrs in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
 
-    PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
+    PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
     ∗ cra ↦ᵣ wcra
     ∗ cs0 ↦ᵣ wret
     ∗ ca0 ↦ᵣ wca0

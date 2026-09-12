@@ -20,11 +20,11 @@ Section griotte_lang_rules.
 
   Inductive WriteSR_failure (regs: Reg) (sregs : SReg) (dst: SRegName) (src: RegName) :=
   | WriteSR_fail_nonxrs p g b e a:
-      regs !! PC = Some (WCap p g b e a) →
+      regs !! PC = Some (WCap true p g b e a) →
       has_sreg_access p = false ->
       WriteSR_failure regs sregs dst src
   | WriteSR_fail_incrPC p g b e a w:
-      regs !! PC = Some (WCap p g b e a) →
+      regs !! PC = Some (WCap true p g b e a) →
       regs !!ᵣ src = Some w →
       incrementPC regs = None →
       WriteSR_failure regs sregs dst src
@@ -34,7 +34,7 @@ Section griotte_lang_rules.
     (regs regs': Reg) (sregs sregs': SReg) (dst: SRegName) (src: RegName)
     : griotte_lang.val -> Prop :=
   | WriteSR_spec_success p g b e a w:
-    regs !! PC = Some (WCap p g b e a) →
+    regs !! PC = Some (WCap true p g b e a) →
     has_sreg_access p = true ->
     regs !!ᵣ src = Some w →
     incrementPC regs = Some regs' →
@@ -47,8 +47,8 @@ Section griotte_lang_rules.
 
   Lemma wp_WriteSR Ep pc_p pc_g pc_b pc_e pc_a w dst src regs sregs :
     decodeInstrW w = WriteSR dst src ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (WriteSR dst src) ⊆ dom regs →
     (if (has_sreg_access pc_p)
     then sregs_of (WriteSR dst src) ⊆ dom sregs
@@ -104,30 +104,28 @@ Section griotte_lang_rules.
     }
 
     eapply (incrementPC_success_updatePC _ (<[dst:=wsrc]> sr) m) in Hregs'
-      as (p' & g' & b' & e' & a'' & a''' & HPC'' & a_pc' & HuPC & ->).
+      as (t' & p' & g' & b' & e' & a'' & a''' & HPC'' & a_pc' & HuPC & ->).
     eapply updatePC_success_incl with (sregs':=<[dst:=wsrc]>sr) (m':=m) in HuPC; eauto.
     rewrite HuPC in Hstep. simplify_pair_eq. iFrame.
     iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
     iMod ((gen_heap_update_inSepM _ _ dst) with "Hsr Hsmap") as "[Hsr Hsmap]"; eauto.
     iFrame. iModIntro. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
-    rewrite /incrementPC in H'regs'; simplify_map_eq.
-    by rewrite HPC in HPC''; inv HPC''.
   Qed.
 
   Lemma wp_writesr_success E pc_p pc_g pc_b pc_e pc_a pc_a' w dst wdst src wsrc :
     decodeInstrW w = WriteSR dst src →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ₛᵣ wdst
         ∗ ▷ src ↦ᵣ wsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ dst ↦ₛᵣ wsrc
           ∗ src ↦ᵣ wsrc }}}.
@@ -157,18 +155,18 @@ Section griotte_lang_rules.
 
   Lemma wp_writesr_success_fromPC E pc_p pc_g pc_b pc_e pc_a pc_a' w dst wdst :
     decodeInstrW w = WriteSR dst PC →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ₛᵣ wdst }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ dst ↦ₛᵣ WCap pc_p pc_g pc_b pc_e pc_a }}}.
+          ∗ dst ↦ₛᵣ WCap true pc_p pc_g pc_b pc_e pc_a }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_1 with "HPC") as "Hmap".

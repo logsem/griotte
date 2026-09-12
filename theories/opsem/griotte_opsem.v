@@ -26,9 +26,9 @@ Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
 (* Note that the `None` values here also undo any previous changes that were tentatively made in the same step. This is more consistent across the board. *)
 Definition updatePC_gen (φ: ExecConf) (imm : Z): option Conf :=
   match (reg φ) !! PC with
-  | Some (WCap p g b e a) =>
+  | Some (WCap t p g b e a) =>
     match (a + imm)%a with
-    | Some a' => let φ' := (update_reg φ PC (WCap p g b e a')) in
+    | Some a' => let φ' := (update_reg φ PC (WCap t p g b e a')) in
                 Some (NextI, φ')
     | None => None
     end
@@ -87,11 +87,11 @@ Section opsem.
         wrsrc ← (reg φ) !!ᵣ rsrc;
         wpc ← (reg φ) !! PC;
         match wpc with
-        | (WCap p g b e a) =>
+        | (WCap t p g b e a) =>
             match (a + 1)%a with
             | Some a' =>
                 let φ_next := (update_reg φ PC (updatePcPerm wrsrc)) in
-                let φ_dst := (update_reg φ_next rdst (WSentry p g b e a')) in
+                let φ_dst := (update_reg φ_next rdst (WSentry t p g b e a')) in
                 Some (NextI, φ_dst)
             | None => None
             end
@@ -100,7 +100,7 @@ Section opsem.
     | Load dst src =>
       wsrc ← (reg φ) !!ᵣ src;
       match wsrc with
-      | WCap p g b e a =>
+      | WCap true p g b e a =>
         if readAllowed p && withinBounds b e a then
           asrc ← (mem φ) !! a;
           updatePC (update_reg φ dst (load_word p asrc))
@@ -111,7 +111,7 @@ Section opsem.
       tostore ← word_of_argument (reg φ) ρ;
       wdst ← (reg φ) !!ᵣ dst;
       match wdst with
-      | WCap p g b e a =>
+      | WCap true p g b e a =>
         if writeAllowed p && withinBounds b e a && canStore p tostore then
           updatePC (update_mem φ a tostore)
         else None
@@ -124,14 +124,14 @@ Section opsem.
       n ← z_of_argument (reg φ) ρ;
       wdst ← (reg φ) !!ᵣ dst;
       match wdst with
-      | WCap p g b e a =>
+      | WCap t p g b e a =>
           match (a + n)%a with
-          | Some a' => updatePC (update_reg φ dst (WCap p g b e a'))
+          | Some a' => updatePC (update_reg φ dst (WCap t p g b e a'))
           | None => None
           end
-      | WSealRange p g b e a =>
+      | WSealRange t p g b e a =>
          match (a + n)%ot with
-          | Some a' => updatePC (update_reg φ dst (WSealRange p g b e a'))
+          | Some a' => updatePC (update_reg φ dst (WSealRange t p g b e a'))
           | None => None
           end
       | _ => None
@@ -140,15 +140,15 @@ Section opsem.
       n ← z_of_argument (reg φ) ρ ;
       wdst ← (reg φ) !!ᵣ dst;
       match wdst with
-      | WCap p g b e a =>
+      | WCap t p g b e a =>
           let (p',g') := decodePermPair n in
           if PermFlowsTo p' p && LocalityFlowsTo g' g then
-            updatePC (update_reg φ dst (WCap p' g' b e a))
+            updatePC (update_reg φ dst (WCap t p' g' b e a))
           else None
-      | WSealRange p g b e a =>
+      | WSealRange t p g b e a =>
             let (p',g') := decodeSealPermPair n in
             if SealPermFlowsTo p' p && LocalityFlowsTo g' g  then
-              updatePC (update_reg φ dst (WSealRange p' g' b e a))
+              updatePC (update_reg φ dst (WSealRange t p' g' b e a))
             else None
       | _ => None
       end
@@ -187,58 +187,58 @@ Section opsem.
   | Subseg dst ρ1 ρ2 =>
     wdst ← (reg φ) !!ᵣ dst;
     match wdst with
-    | WCap p g b e a =>
+    | WCap t p g b e a =>
       a1 ← addr_of_argument (reg φ) ρ1;
       a2 ← addr_of_argument (reg φ) ρ2;
       if isWithin a1 a2 b e then
-        updatePC (update_reg φ dst (WCap p g a1 a2 a))
+        updatePC (update_reg φ dst (WCap t p g a1 a2 a))
       else None
-    | WSealRange p g b e a =>
+    | WSealRange t p g b e a =>
       o1 ← otype_of_argument (reg φ) ρ1;
       o2 ← otype_of_argument (reg φ) ρ2;
       if isWithin o1 o2 b e then
-        updatePC (update_reg φ dst (WSealRange p g o1 o2 a))
+        updatePC (update_reg φ dst (WSealRange t p g o1 o2 a))
       else None
     | _ => None
     end
   | GetA dst r =>
     wr ← (reg φ) !!ᵣ r;
     match wr with
-    | WCap _ _ _ _ a
-    | WSentry _ _ _ _ a
-    | WSealRange _ _ _ _ a => updatePC (update_reg φ dst (WInt a))
+    | WCap t _ _ _ _ a
+    | WSentry t _ _ _ _ a
+    | WSealRange t _ _ _ _ a => updatePC (update_reg φ dst (WInt a))
     | _ => None
     end
   | GetB dst r =>
     wr ← (reg φ) !!ᵣ r;
     match wr with
-    | WCap _ _ b _ _
-    | WSentry _ _ b _ _
-    | WSealRange _ _ b _ _ => updatePC (update_reg φ dst (WInt b))
+    | WCap t _ _ b _ _
+    | WSentry t _ _ b _ _
+    | WSealRange t _ _ b _ _ => updatePC (update_reg φ dst (WInt b))
     | _ => None
     end
   | GetE dst r =>
     wr ← (reg φ) !!ᵣ r;
     match wr with
-    | WCap _ _ _ e _
-    | WSentry _ _ _ e _
-    | WSealRange _ _ _ e _ => updatePC (update_reg φ dst (WInt e))
+    | WCap t _ _ _ e _
+    | WSentry t _ _ _ e _
+    | WSealRange t _ _ _ e _ => updatePC (update_reg φ dst (WInt e))
     | _ => None
     end
   | GetP dst r =>
     wr ← (reg φ) !!ᵣ r;
     match wr with
-    | WCap p _ _ _ _
-    | WSentry p _ _ _ _ => updatePC (update_reg φ dst (WInt (encodePerm p)))
-    | WSealRange p _ _ _ _ => updatePC (update_reg φ dst (WInt (encodeSealPerms p)))
+    | WCap t p _ _ _ _
+    | WSentry t p _ _ _ _ => updatePC (update_reg φ dst (WInt (encodePerm p)))
+    | WSealRange t p _ _ _ _ => updatePC (update_reg φ dst (WInt (encodeSealPerms p)))
     | _ => None
     end
   | GetL dst r =>
     wr ← (reg φ) !!ᵣ r;
     match wr with
-    | WCap _ l _ _ _
-    | WSentry _ l _ _ _
-    | WSealRange _ l _ _ _ => updatePC (update_reg φ dst (WInt (encodeLoc l)))
+    | WCap t _ l _ _ _
+    | WSentry t _ l _ _ _
+    | WSealRange t _ l _ _ _ => updatePC (update_reg φ dst (WInt (encodeLoc l)))
     | _ => None
     end
 
@@ -253,12 +253,20 @@ Section opsem.
   | GetWType dst r =>
     wr ← (reg φ) !!ᵣ r; updatePC (update_reg φ dst (WInt (encodeWordType wr)))
 
+  | GetTag dst src =>
+    wsrc ← (reg φ) !!ᵣ src;
+    updatePC (update_reg φ dst (WInt (Z.b2z (get_tag wsrc))))
+
+  | ClearTag dst src =>
+    wsrc ← (reg φ) !!ᵣ src;
+    updatePC (update_reg φ dst (clear_tag wsrc))
+
   | Seal dst r1 r2 =>
     wr1 ← (reg φ) !!ᵣ r1;
     wr2 ← (reg φ) !!ᵣ r2;
     match wr1,wr2 with
-    | WSealRange p g b e a, WSealable sb =>
-      if permit_seal p && withinBounds b e a then updatePC (update_reg φ dst (WSealed a sb))
+    | WSealRange true p g b e a, WSealable sb =>
+      if get_tag_sealable sb && permit_seal p && withinBounds b e a then updatePC (update_reg φ dst (WSealed a sb))
       else None
     | _, _ => None
     end
@@ -266,8 +274,8 @@ Section opsem.
     wr1 ← (reg φ) !!ᵣ r1;
     wr2 ← (reg φ) !!ᵣ r2;
     match wr1, wr2 with
-    | WSealRange p g b e a, WSealed a' sb =>
-        if decide (permit_unseal p = true ∧ withinBounds b e a = true ∧ a' = a) then updatePC (update_reg φ dst (WSealable sb))
+    | WSealRange true p g b e a, WSealed a' sb =>
+        if decide (get_tag_sealable sb = true ∧ permit_unseal p = true ∧ withinBounds b e a = true ∧ a' = a) then updatePC (update_reg φ dst (WSealable sb))
         else None
     | _,_ => None
     end
@@ -308,14 +316,14 @@ Section opsem.
         step (Executable, φ) (Failed, φ)
   | step_exec_memfail:
       forall φ p g b e a,
-        (reg φ) !! PC = Some (WCap p g b e a) →
+        (reg φ) !! PC = Some (WCap true p g b e a) →
         (mem φ) !! a = None →
         step (Executable, φ) (Failed, φ)
   | step_exec_instr:
       forall φ p g b e a i c wa,
-        (reg φ) !! PC = Some (WCap p g b e a) → (* only works for caps *)
+        (reg φ) !! PC = Some (WCap true p g b e a) → (* only works for caps *)
         (mem φ) !! a = Some wa →
-        isCorrectPC (WCap p g b e a) →
+        isCorrectPC (WCap true p g b e a) →
         decodeInstrW wa = i →
         exec i p φ = c →
         step (Executable, φ) (c.1, c.2).

@@ -61,9 +61,9 @@ Section DLE.
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -79,7 +79,7 @@ Section DLE.
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
-      ∗ interp W0 C (WCap RWL Local csp_b csp_e csp_b)
+      ∗ interp W0 C (WCap true RWL Local csp_b csp_e csp_b)
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -239,7 +239,7 @@ Section DLE.
     end.
 
     (* And prove that the RW_DL capability pointing to it is safe *)
-    iAssert (interp W2 C (WCap RW_DL Local cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
+    iAssert (interp W2 C (WCap true RW_DL Local cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
     { iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
@@ -274,7 +274,7 @@ Section DLE.
     end.
 
     (* And prove that the RW_DL capability pointing to it is safe *)
-    iAssert (interp W3 C (WCap RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_cgp_a".
+    iAssert (interp W3 C (WCap true RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_cgp_a".
     { iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
@@ -310,13 +310,13 @@ Section DLE.
       as ["Hca1"; "Hca2"; "Hca3"; "Hca4"; "Hca5"].
 
     set ( rmap_arg :=
-           {[ ca0 := WCap RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
+           {[ ca0 := WCap true RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
               ca1 := wca1;
               ca2 := wca2;
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
 
@@ -474,7 +474,7 @@ Section DLE.
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
     set (rmap' := (delete ca5 _)).

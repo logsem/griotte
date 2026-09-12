@@ -66,8 +66,8 @@ Section VAE.
       ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ na_inv cerise_nais Nvae_code
           ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a vae_main_code)
-      ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-      ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
+      ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
+      ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
       ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
           ((b_vae_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 1 (length (imports ++ VAE_main_code_init))))
       ∗ inv awkN (awk_inv C i cgp_b)
@@ -75,9 +75,9 @@ Section VAE.
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
-      ∗ PC ↦ᵣ WCap RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b
+      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -89,10 +89,10 @@ Section VAE.
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ (WSealed ot_switcher C_f) ↦□ₑ 0
-      ∗ interp W0 C (WCap RWL Local csp_b csp_e csp_b)
+      ∗ interp W0 C (WCap true RWL Local csp_b csp_e csp_b)
 
-      ∗ WSealed ot_switcher (SCap RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
-      ∗ WSealed ot_switcher (SCap RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
+      ∗ WSealed ot_switcher (SCap true RO Global b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
+      ∗ WSealed ot_switcher (SCap true RO Local b_vae_exp_tbl e_vae_exp_tbl (b_vae_exp_tbl ^+ 2)%a) ↦□ₑ 1
       ∗ seal_pred ot_switcher ot_switcher_propC
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
@@ -214,7 +214,7 @@ Section VAE.
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
 

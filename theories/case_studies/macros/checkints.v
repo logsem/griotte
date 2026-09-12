@@ -77,14 +77,14 @@ Section Checkints_spec.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-    ∗ ▷ r ↦ᵣ (WCap p g b e a)
+    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ∗ ▷ r ↦ᵣ (WCap true p g b e a)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag pc_a checkints_loop
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-    ∗ ▷ ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
-         ∗ r ↦ᵣ WCap p g b e (finz.max b e)
+    ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+         ∗ r ↦ᵣ WCap true p g b e (finz.max b e)
          ∗ r1 ↦ᵣ WInt 0%Z
          ∗ r2 ↦ᵣ WInt e%Z
          ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
@@ -236,11 +236,62 @@ Section Checkints_spec.
       }
   Qed.
 
+  (* A nonempty untagged range fails at the first Load; no ownership of
+     the claimed object cells is needed. *)
+  Lemma checkints_fail_untagged
+    (r r1 r2 : RegName)
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
+    (w1 w2 : Word) (p : Perm) (g : Locality) (b e a : Addr)
+    (φ : language.val griotte_lang → iPropI Σ) :
+    executeAllowed pc_p = true →
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (checkints_instrs r r1 r2))%a →
+    (b < e)%a →
+    r ≠ cnull → r1 ≠ cnull → r2 ≠ cnull →
+    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ∗ ▷ r ↦ᵣ WCap false p g b e a
+    ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2
+    ∗ ▷ codefrag pc_a (checkints_instrs r r1 r2)
+    ∗ □ (▷ φ FailedV)
+    ⊢ WP Seq (Instr Executable) {{ φ }}.
+  Proof.
+    iIntros (Hvpc Hcont Hbe Hrcnull Hr1cnull Hr2cnull)
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & #Hfailed)".
+    codefrag_facts "Hcode".
+    rename H into HcontRegion; clear H0.
+    rewrite /checkints_instrs.
+
+    focus_block_0 "Hcode" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (lea_to_base_spec with "[- $HPC $Hr $Hr1 $Hr2 $Hcode]"); eauto.
+    iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & Hcode)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+
+    focus_block 1 "Hcode" as a_init Ha_init "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iInstr "Hcode".
+    iInstr "Hcode".
+    iInstr "Hcode".
+    iInstr "Hcode".
+    apply Z.ltb_lt in Hbe; rewrite Hbe; cbn.
+    replace (1 - 1%nat)%Z with 0%Z by lia.
+    iInstr "Hcode".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+    focus_block 2 "Hcode" as a_loop Ha_loop "Hcode" "Hcont".
+    rewrite /checkints_loop_instrs.
+    focus_block_0 "Hcode" as "Hcode" "Hcont_loop".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iDestruct (map_of_regs_3 with "HPC Hr Hr1") as "[Hmap (% & % & %)]".
+    iApply (wp_load_fail_tag _ _ _ _ _ _ _ _ _ _ (WCap false p g b e b)
+      with "[$Hi $Hmap]"); eauto; try solve_pure; try (by simplify_map_eq).
+    { constructor; auto; solve_addr. }
+    iNext; iIntros "_".
+    wp_pure; wp_end. iApply "Hfailed".
+  Qed.
+
   Lemma checkints_spec
     (r r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w1 w2 : Word) (l : list Addr) (ws : list Word)
-    (p : Perm) (g : Locality) (b e a : Addr)
+    (t : bool) (p : Perm) (g : Locality) (b e a : Addr)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let checkints := (checkints_instrs r r1 r2) in
@@ -253,14 +304,14 @@ Section Checkints_spec.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
-    ∗ ▷ r ↦ᵣ (WCap p g b e a)
+    ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+    ∗ ▷ r ↦ᵣ (WCap t p g b e a)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag pc_a checkints
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-    ∗ ▷ ( PC ↦ᵣ WCap pc_p pc_g pc_b pc_e a_last
-         ∗ r ↦ᵣ WCap p g b e (finz.max b e)
+    ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
+         ∗ r ↦ᵣ WCap t p g b e (finz.max b e)
          ∗ r1 ↦ᵣ WInt 0%Z
          ∗ r2 ↦ᵣ WInt 0%Z
          ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
@@ -275,6 +326,10 @@ Section Checkints_spec.
     intros checkints a_last ; subst checkints a_last.
     iIntros (Hvpc Hcont Hl Hra Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & >Hmem & Hφ & #Hfailed)".
+    destruct (decide (t = true ∨ (e <= b)%a)) as [Htag_or_empty | Hbad].
+    2: { destruct t; first (exfalso; apply Hbad; auto).
+         iApply (checkints_fail_untagged with "[$HPC $Hr $Hr1 $Hr2 $Hcode $Hfailed]"); eauto.
+         solve_addr. }
     iDestruct (big_sepL2_length with "Hcode") as %Hlength.
     iDestruct (big_sepL2_length with "Hmem") as %Hlength_mem
     ; setoid_rewrite Hl in Hlength_mem.
@@ -311,6 +366,7 @@ Section Checkints_spec.
       done.
     }
 
+    assert (t = true) as -> by (destruct Htag_or_empty; auto; solve_addr).
     apply Z.ltb_lt in Hbe; rewrite Hbe; cbn.
     replace (1 - 1%nat)%Z with 0%Z by lia.
     iInstr "Hcode".

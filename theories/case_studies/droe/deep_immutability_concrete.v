@@ -85,7 +85,7 @@ Definition droe_C_code : list Word :=
 Definition droe_C_data : list Word := [WInt 0].
 
 Definition droe_C_imports : list Word :=
-  [WSentry XSRW_ Local droe_switcher_b droe_switcher_e droe_switcher_call].
+  [WSentry true XSRW_ Local droe_switcher_b droe_switcher_e droe_switcher_call].
 
 Definition droe_C_exports : list Word :=
   [WInt (encode_entry_point 1 1)].
@@ -136,7 +136,7 @@ Proof.
 Defined.
 
 Definition droe_C_f : Sealable :=
-  SCap RO Global droe_C_exp_pcc droe_C_exp_entries_e droe_C_exp_entries_b.
+  SCap true RO Global droe_C_exp_pcc droe_C_exp_entries_e droe_C_exp_entries_b.
 
 Definition droe_main_imports_concrete : list Word :=
   droe_main_imports droe_C_f.
@@ -322,13 +322,13 @@ Proof.
 Defined.
 
 Definition droe_initial_registers : Reg :=
-  <[PC := WCap RX Global droe_main_pcc_b droe_main_pcc_e droe_main_code_a]>
-  (<[cgp := WCap RW Global droe_main_cgp_b droe_main_cgp_e droe_main_cgp_b]>
-  (<[csp := WCap RWL Local droe_stack_b droe_stack_e droe_stack_b]>
+  <[PC := WCap true RX Global droe_main_pcc_b droe_main_pcc_e droe_main_code_a]>
+  (<[cgp := WCap true RW Global droe_main_cgp_b droe_main_cgp_e droe_main_cgp_b]>
+  (<[csp := WCap true RWL Local droe_stack_b droe_stack_e droe_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition droe_initial_sregisters : SReg :=
-  <[MTDC := WCap RWL Local droe_trusted_stack_b droe_trusted_stack_e
+  <[MTDC := WCap true RWL Local droe_trusted_stack_b droe_trusted_stack_e
       droe_trusted_stack_b]> ∅.
 
 Definition droe_initial_memory : Mem := mk_initial_memory.

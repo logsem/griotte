@@ -37,9 +37,9 @@ Class MachineParameters := {
     decodeWordType : Z -> Word;
     encodeWordType_correct :
     forall w w', match w,w' with
-            | WCap _ _ _ _ _, WCap _ _ _ _ _ => encodeWordType w = encodeWordType w'
-            | WSentry _ _ _ _ _, WSentry _ _ _ _ _ => encodeWordType w = encodeWordType w'
-            | WSealRange _ _ _ _ _, WSealRange _ _ _ _ _ => encodeWordType w = encodeWordType w'
+            | WCap _ _ _ _ _ _, WCap _ _ _ _ _ _ => encodeWordType w = encodeWordType w'
+            | WSentry _ _ _ _ _ _, WSentry _ _ _ _ _ _ => encodeWordType w = encodeWordType w'
+            | WSealRange _ _ _ _ _ _, WSealRange _ _ _ _ _ _ => encodeWordType w = encodeWordType w'
             | WSealed _ _, WSealed _ _ => encodeWordType w = encodeWordType w'
             | WInt _, WInt _ => encodeWordType w = encodeWordType w'
             | _, _ => encodeWordType w <> encodeWordType w'
@@ -86,10 +86,10 @@ Proof. eapply cancel_inj. Qed.
 
 
 Section word_type_encoding.
-  Definition wt_cap := WCap (O LG LM) Global 0%a 0%a 0%a.
-  Definition wt_sentry := WSentry (O LG LM) Global 0%a 0%a 0%a.
-  Definition wt_sealrange := WSealRange (false, false) Global 0%ot 0%ot 0%ot.
-  Definition wt_sealed := WSealed 0%ot (SCap (O LG LM) Global 0%a 0%a 0%a).
+  Definition wt_cap := WCap true (O LG LM) Global 0%a 0%a 0%a.
+  Definition wt_sentry := WSentry true (O LG LM) Global 0%a 0%a 0%a.
+  Definition wt_sealrange := WSealRange true (false, false) Global 0%ot 0%ot 0%ot.
+  Definition wt_sealed := WSealed 0%ot (SCap true (O LG LM) Global 0%a 0%a 0%a).
   Definition wt_int := WInt 0.
 End word_type_encoding.
 
@@ -104,14 +104,14 @@ Ltac solve_encodeWordType :=
 
 Ltac simpl_encodeWordType :=
   match goal with
-  | H: _ |- context G [encodeWordType (WCap ?g ?p ?b ?e ?a)] =>
-      rewrite (_: encodeWordType (WCap p g b e a) = encodeWordType wt_cap) ; last solve_encodeWordType
+  | H: _ |- context G [encodeWordType (WCap ?t ?p ?g ?b ?e ?a)] =>
+      rewrite (_: encodeWordType (WCap t p g b e a) = encodeWordType wt_cap) ; last solve_encodeWordType
 
-  | H: _ |- context G [encodeWordType (WSentry ?g ?p ?b ?e ?a)] =>
-      rewrite (_: encodeWordType (WSentry p g b e a) = encodeWordType wt_cap) ; last solve_encodeWordType
+  | H: _ |- context G [encodeWordType (WSentry ?t ?p ?g ?b ?e ?a)] =>
+      rewrite (_: encodeWordType (WSentry t p g b e a) = encodeWordType wt_sentry) ; last solve_encodeWordType
 
-  | H: _ |- context G [encodeWordType (WSealRange ?p ?g ?b ?e ?a)] =>
-      rewrite (_: encodeWordType (WSealRange p g b e a) = encodeWordType wt_sealrange) ; last solve_encodeWordType
+  | H: _ |- context G [encodeWordType (WSealRange ?t ?p ?g ?b ?e ?a)] =>
+      rewrite (_: encodeWordType (WSealRange t p g b e a) = encodeWordType wt_sealrange) ; last solve_encodeWordType
 
   | H: _ |- context G [encodeWordType (WInt ?n)] =>
       rewrite (_: encodeWordType (WInt n) = encodeWordType wt_int) ; last solve_encodeWordType
@@ -120,13 +120,13 @@ Ltac simpl_encodeWordType :=
       rewrite (_: encodeWordType (WSealed o s) = encodeWordType wt_sealed) ; last solve_encodeWordType
   end.
 
-Lemma encodeWordType_correct_cap `{MachineParameters} : forall p g b e a p' g' b' e' a',
-  encodeWordType (WCap p g b e a) = encodeWordType (WCap p' g' b' e' a').
+Lemma encodeWordType_correct_cap `{MachineParameters} : forall t p g b e a t' p' g' b' e' a',
+  encodeWordType (WCap t p g b e a) = encodeWordType (WCap t' p' g' b' e' a').
   intros; solve_encodeWordType.
 Qed.
 
-Lemma encodeWordType_correct_sentry `{MachineParameters} : forall p g b e a p' g' b' e' a',
-  encodeWordType (WSentry p g b e a) = encodeWordType (WSentry p' g' b' e' a').
+Lemma encodeWordType_correct_sentry `{MachineParameters} : forall t p g b e a t' p' g' b' e' a',
+  encodeWordType (WSentry t p g b e a) = encodeWordType (WSentry t' p' g' b' e' a').
   intros; solve_encodeWordType.
 Qed.
 
@@ -135,8 +135,8 @@ Lemma encodeWordType_correct_int `{MachineParameters} : forall z z',
   intros; solve_encodeWordType.
 Qed.
 
-Lemma encodeWordType_correct_sealrange `{MachineParameters} : forall p g b e a p' g' b' e' a',
-  encodeWordType (WSealRange p g b e a) = encodeWordType (WSealRange p' g' b' e' a').
+Lemma encodeWordType_correct_sealrange `{MachineParameters} : forall t p g b e a t' p' g' b' e' a',
+  encodeWordType (WSealRange t p g b e a) = encodeWordType (WSealRange t' p' g' b' e' a').
 Proof.
   intros; solve_encodeWordType.
 Qed.

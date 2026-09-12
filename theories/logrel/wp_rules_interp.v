@@ -30,14 +30,14 @@ Section wp_interp.
     (wi wsrc wdst : Word)
     :
     decodeInstrW wi = Store rdst (inr rsrc) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
      {{{ interp W C wsrc
            ∗ interp W C wdst
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ wdst
@@ -47,12 +47,12 @@ Section wp_interp.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           ( ∃ p g b e a,
-           ⌜ wdst = WCap p g b e a ⌝
+           ⌜ wdst = WCap true p g b e a ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ WCap p g b e a
+           ∗ rdst ↦ᵣ WCap true p g b e a
            ∗ world_interp W C
            ∗ ⌜ canStore p wsrc = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -68,7 +68,15 @@ Section wp_interp.
       iApply (wp_store_fail_reg_not_cap _ _ _ _ _ _ _ rdst rsrc with "[$]")
       ; try solve_pure.
       iIntros "!> _". iApply "Hφ"; by iLeft. }
-    destruct wdst;try done. destruct sb; try done.
+    destruct wdst; try done. destruct sb; try done.
+    destruct tag; cycle 1.
+    {
+      iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap %Hdistinct]".
+      try (destruct Hdistinct as (? & ? & ?)).
+      iApply (wp_store_fail_tag _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a)
+                with "[$Hi $Hmap]"); eauto; try (by simplify_map_eq).
+      iNext; iIntros "_". iApply "Hφ"; by iLeft.
+    }
 
     destruct (decide (canStore p wsrc = true))%a as [Hstore_src|Hstore_src]; cycle 1.
     {
@@ -155,27 +163,27 @@ Section wp_interp.
     (wi wsrc : Word)
     :
     decodeInstrW wi = Store rdst (inr rsrc) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
      {{{ interp W C wsrc
-           ∗ interp W C (WCap p g b e a)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ interp W C (WCap true p g b e a)
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ (WCap p g b e a)
+           ∗ rdst ↦ᵣ (WCap true p g b e a)
            ∗ world_interp W C
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           (⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ WCap p g b e a
+           ∗ rdst ↦ᵣ WCap true p g b e a
            ∗ world_interp W C
            ∗ ⌜ canStore p wsrc = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -197,12 +205,12 @@ Section wp_interp.
     (wi wdst : Word) (z : Z)
     :
     decodeInstrW wi = Store rdst (inl z) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rdst ≠ cnull ->
 
      {{{ interp W C wdst
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rdst ↦ᵣ wdst
            ∗ world_interp W C
@@ -211,11 +219,11 @@ Section wp_interp.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           ( ∃ p g b e a,
-           ⌜ wdst = WCap p g b e a ⌝
+           ⌜ wdst = WCap true p g b e a ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
-           ∗ rdst ↦ᵣ WCap p g b e a
+           ∗ rdst ↦ᵣ WCap true p g b e a
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -231,7 +239,15 @@ Section wp_interp.
       iApply (wp_store_fail_z_not_cap with "[$]")
       ; try solve_pure; eauto.
       iIntros "!> _". iApply "Hφ"; by iLeft. }
-    destruct wdst;try done. destruct sb; try done.
+    destruct wdst; try done. destruct sb; try done.
+    destruct tag; cycle 1.
+    {
+      iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %Hdistinct]".
+      try (destruct Hdistinct as (? & ? & ?)).
+      iApply (wp_store_fail_tag _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a)
+                with "[$Hi $Hmap]"); eauto; try (by simplify_map_eq).
+      iNext; iIntros "_". iApply "Hφ"; by iLeft.
+    }
 
     destruct (decide (writeAllowed p = true))%a as [Hstore_src|Hstore_src]; cycle 1.
     {
@@ -317,23 +333,23 @@ Section wp_interp.
     (wi : Word) (z : Z)
     :
     decodeInstrW wi = Store rdst (inl z) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rdst ≠ cnull ->
 
-     {{{  interp W C (WCap p g b e a)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{  interp W C (WCap true p g b e a)
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
-           ∗ rdst ↦ᵣ (WCap p g b e a)
+           ∗ rdst ↦ᵣ (WCap true p g b e a)
            ∗ world_interp W C
      }}}
        Instr Executable @ E
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           (⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
-           ∗ rdst ↦ᵣ WCap p g b e a
+           ∗ rdst ↦ᵣ WCap true p g b e a
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -352,12 +368,12 @@ Section wp_interp.
 
   Lemma wp_unseal_unknown E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
     decodeInstrW wi = UnSeal r2 r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{  PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{  PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ wi
           ∗ r1 ↦ᵣ wsealr
           ∗ r2 ↦ᵣ wsealed
@@ -367,12 +383,13 @@ Section wp_interp.
           ⌜ retv = FailedV ⌝
           ∨ ∃ psr gsr bsr esr asr wsb,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
               ∗ r1 ↦ᵣ wsealr
               ∗ r2 ↦ᵣ WSealable wsb
-              ∗ ⌜ wsealr = (WSealRange psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
+              ∗ ⌜ wsealr = (WSealRange true psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
               ∗ ⌜ wsealed = WSealed asr wsb ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
@@ -384,8 +401,11 @@ Section wp_interp.
 
     destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].
     simplify_map_eq.
-    apply incrementPC_Some_inv in H8.
-    destruct H8 as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
+    match goal with
+    | Hinc : incrementPC _ = Some _ |- _ =>
+        apply incrementPC_Some_inv in Hinc;
+        destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
+    end.
     rewrite lookup_insert_ne // lookup_insert_eq in HPC.
     simplify_eq.
     iExists p, g, b, e, a, sb.
@@ -400,12 +420,12 @@ Section wp_interp.
 
   Lemma wp_unseal_unknown' E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
     decodeInstrW wi = UnSeal r1 r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{  PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{  PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ wi
           ∗ r1 ↦ᵣ wsealr
           ∗ r2 ↦ᵣ wsealed
@@ -415,12 +435,13 @@ Section wp_interp.
           ⌜ retv = FailedV ⌝
           ∨ ∃ psr gsr bsr esr asr wsb,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
               ∗ r1 ↦ᵣ WSealable wsb
               ∗ r2 ↦ᵣ wsealed
-              ∗ ⌜ wsealr = (WSealRange psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
+              ∗ ⌜ wsealr = (WSealRange true psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
               ∗ ⌜ wsealed = WSealed asr wsb ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
@@ -432,8 +453,11 @@ Section wp_interp.
 
     destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].
     simplify_map_eq.
-    apply incrementPC_Some_inv in H8.
-    destruct H8 as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
+    match goal with
+    | Hinc : incrementPC _ = Some _ |- _ =>
+        apply incrementPC_Some_inv in Hinc;
+        destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
+    end.
     rewrite lookup_insert_ne // lookup_insert_eq in HPC.
     simplify_eq.
     iExists p, g, b, e, a, sb.
@@ -447,16 +471,16 @@ Section wp_interp.
 
   Lemma wp_unseal_unknown_sealed E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 psr gsr bsr esr asr wsealed  :
     decodeInstrW wi = UnSeal r2 r1 r2 →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     permit_unseal psr = true ->
     (bsr <= asr < esr)%ot ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{  PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{  PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ wi
-          ∗ r1 ↦ᵣ WSealRange psr gsr bsr esr asr
+          ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
           ∗ r2 ↦ᵣ wsealed
     }}}
       Instr Executable @ E
@@ -464,11 +488,12 @@ Section wp_interp.
           ⌜ retv = FailedV ⌝
           ∨ ∃ wsb,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
-              ∗ r1 ↦ᵣ WSealRange psr gsr bsr esr asr
+              ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
               ∗ r2 ↦ᵣ WSealable wsb
               ∗ ⌜ wsealed = WSealed asr wsb ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' Hpsr Hsr ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
@@ -480,8 +505,11 @@ Section wp_interp.
 
     destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].
     simplify_map_eq.
-    apply incrementPC_Some_inv in H8.
-    destruct H8 as ( ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->).
+    match goal with
+    | Hinc : incrementPC _ = Some _ |- _ =>
+        apply incrementPC_Some_inv in Hinc;
+        destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
+    end.
     rewrite lookup_insert_ne // lookup_insert_eq in HPC.
     simplify_eq.
     iExists sb.
@@ -499,13 +527,13 @@ Section wp_interp.
     (wi wsrc wdst : Word)
     :
     decodeInstrW wi = Load rdst rsrc →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
      {{{ interp W C wsrc
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ wdst
@@ -515,11 +543,11 @@ Section wp_interp.
        {{{ retv, RET retv;
            ⌜ retv = FailedV ⌝ ∨
           ( ∃ p g b e a wload,
-           ⌜ wsrc = WCap p g b e a ⌝
+           ⌜ wsrc = WCap true p g b e a ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ WCap p g b e a
+           ∗ rsrc ↦ᵣ WCap true p g b e a
            ∗ rdst ↦ᵣ wload ∗ interp W C wload
            ∗ world_interp W C
            ∗ ⌜ readAllowed p = true ⌝
@@ -540,6 +568,13 @@ Section wp_interp.
       iApply "Hφ"; by iLeft.
     }
     destruct wsrc;try done. destruct sb; try done.
+    destruct tag; cycle 1.
+    {
+      iDestruct (map_of_regs_3 with "HPC Hdst Hsrc") as "[Hmap (%&%&%)]".
+      iApply (wp_load_fail_tag _ _ _ _ _ _ _ _ _ _ (WCap false p g b e a)
+                with "[$Hi $Hmap]"); eauto; try (by simplify_map_eq).
+      iNext; iIntros "_". iApply "Hφ"; by iLeft.
+    }
 
     destruct (decide (readAllowed p = true))%a as [Hra_src|Hra_src]; cycle 1.
     {
@@ -614,15 +649,15 @@ Section wp_interp.
     (wi wdst : Word)
     :
     decodeInstrW wi = Load rdst rsrc →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
-     {{{ interp W C (WCap p g b e a)
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ interp W C (WCap true p g b e a)
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ (WCap p g b e a)
+           ∗ rsrc ↦ᵣ (WCap true p g b e a)
            ∗ rdst ↦ᵣ wdst
            ∗ world_interp W C
      }}}
@@ -631,9 +666,9 @@ Section wp_interp.
            ⌜ retv = FailedV ⌝ ∨
           (∃ wload,
               ⌜ retv = NextIV ⌝
-           ∗ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ (WCap p g b e a)
+           ∗ rsrc ↦ᵣ (WCap true p g b e a)
            ∗ rdst ↦ᵣ wload ∗ interp W C wload
            ∗ world_interp W C
            ∗ ⌜ readAllowed p = true ⌝

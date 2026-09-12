@@ -70,17 +70,17 @@ Section KVS_main_spec.
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
 
-      inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
-      inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
+      inv (export_table_PCCN Nkvs_exp_tbl) (b_kvs_exp_tbl ↦ₐ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b) ∗
+      inv (export_table_CGPN Nkvs_exp_tbl) ((b_kvs_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b) ∗
       inv (export_table_entryN Nkvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr) (kvs_addOrUpdate_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_addOrUpdate) ∗
       inv (export_table_entryN Nkvs_exp_tbl kvs_read_exp_tbl_addr) (kvs_read_exp_tbl_addr ↦ₐ kvs_exp_tbl_entry_read) ∗
 
       na_own cerise_nais ⊤ ∗
 
       (* initial register file *)
-      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap RW Global cgp_b cgp_e cgp_b ∗
-      csp ↦ᵣ WCap RWL Local csp_b csp_e csp_b ∗
+      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
+      csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
       ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
 
       (* initial memory layout *)
@@ -98,7 +98,7 @@ Section KVS_main_spec.
 
       interp W0 B (WSealed ot_switcher B_f) ∗
       (WSealed ot_switcher B_f) ↦□ₑ 0 ∗
-      interp W0 B (WCap RWL Local csp_b csp_e csp_b)
+      interp W0 B (WCap true RWL Local csp_b csp_e csp_b)
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
@@ -204,7 +204,7 @@ Section KVS_main_spec.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iInsertList "Hrmap" [ctp].
     set (rmap_B :=
-      <[ctp := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call]>
+      <[ctp := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call]>
         (delete ca5 (delete ca4 (delete ca3
           (delete ca2 (delete ct1 (delete ct0 rmap_ret))))))).
     set (stk_mem_B := region_addrs_zeroes csp_b csp_e).
@@ -222,8 +222,8 @@ Section KVS_main_spec.
     iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_W0") as "Hstack_revoked_W1"; eauto.
 
     iApply (kvs_main_adversary_phase_spec Nswitcher W1 B
-             (WCap RW Global cgp_b cgp_e cgp_b)
-             (WSentry RX Global pc_b pc_e (a_call ^+ 1)%a)
+             (WCap true RW Global cgp_b cgp_e cgp_b)
+             (WSentry true RX Global pc_b pc_e (a_call ^+ 1)%a)
              (WInt 0) (kvs_user_seal_key Global static_sealed_b)
              csp_b csp_e csp_b B_f stk_mem_B rmap_B cstk Ws Cs).
     { subst rmap_B.
@@ -257,7 +257,7 @@ Section KVS_main_spec.
     iApply (kvs_main_read_assert_phase_spec
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap warg0 warg1
-      (WSentry RX Global pc_b pc_e (a_call ^+ 1)%a) (WInt 0)
+      (WSentry true RX Global pc_b pc_e (a_call ^+ 1)%a) (WInt 0)
       KVS_USER_KEY_MAIN b_assert e_assert a_flag Nassert Nswitcher
       stk_mem cstk with
       "[- $Hassert $Hswitcher $Hkvs $Hkvs_logical

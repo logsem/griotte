@@ -48,9 +48,9 @@ Section fundamental.
       iNext; iIntros "_".
       iApply wp_value; auto. }
 
-    { apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs').
+    { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& ? & HPC & Z & Hregs').
 
-      assert (p'' = p ∧ g'' = g ∧ b'' = b ∧ e'' = e) as (-> & -> & -> & ->).
+      assert (t'' = true ∧ p'' = p ∧ g'' = g ∧ b'' = b ∧ e'' = e) as (-> & -> & -> & -> & ->).
       { destruct (decide (PC = dst)); simplify_map_eq; auto. }
 
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
@@ -76,9 +76,9 @@ Section fundamental.
       - iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
-    { apply incrementPC_Some_inv in HincrPC as (p''&g''&b''&e''&a''& ? & HPC & Z & Hregs').
+    { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& ? & HPC & Z & Hregs').
 
-      assert (p'' = p ∧ g'' = g ∧ b'' = b ∧ e'' = e) as (-> & -> & -> & ->).
+      assert (t'' = true ∧ p'' = p ∧ g'' = g ∧ b'' = b ∧ e'' = e) as (-> & -> & -> & -> & ->).
       { destruct (decide (PC = dst)); simplify_map_eq; auto. }
 
       iApply wp_pure_step_later; auto. iNext; iIntros "_".

@@ -31,7 +31,7 @@ Section WorldInterpStack.
     Forall (fun a' : Addr => (b <= a' < e)%a ) la ->
     la ## la' ->
 
-    interp W C (WCap RWL g b e a) ∗
+    interp W C (WCap true RWL g b e a) ∗
     open_region_many W C la' ∗
     sts_full_world W C
     -∗
@@ -236,7 +236,7 @@ Section WorldInterpStack.
   Lemma monotone_revoke_stack W C b e a :
     let la := finz.seq_between b e in
 
-    interp W C (WCap RWL Local b e a)
+    interp W C (WCap true RWL Local b e a)
     ∗ sts_full_world W C
     ∗ region W C
     ==∗

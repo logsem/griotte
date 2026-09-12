@@ -18,7 +18,7 @@ Section griotte_lang_rules.
   Implicit Types ms : gmap Addr Word.
 
   Definition reg_allows_store (regs : Reg) (r : RegName) p g b e a (storev : Word) :=
-    regs !!ᵣ r = Some (WCap p g b e a) ∧
+    regs !!ᵣ r = Some (WCap true p g b e a) ∧
     writeAllowed p = true ∧ withinBounds b e a = true /\
     (canStore p storev = true).
 
@@ -27,12 +27,15 @@ Section griotte_lang_rules.
       regs !!ᵣ r1 = Some w ->
       is_cap w = false →
       Store_failure regs r1 r2 mem
+  | Store_fail_tag p g b e a:
+      regs !!ᵣ r1 = Some (WCap false p g b e a) →
+      Store_failure regs r1 r2 mem
   | Store_fail_bounds p g b e a:
-      regs !!ᵣ r1 = Some(WCap p g b e a) ->
+      regs !!ᵣ r1 = Some(WCap true p g b e a) ->
       (writeAllowed p = false ∨ withinBounds b e a = false) →
       Store_failure regs r1 r2 mem
   | Store_fail_invalid_locality p g b e a storev:
-      regs !!ᵣ r1 = Some(WCap p g b e a) ->
+      regs !!ᵣ r1 = Some(WCap true p g b e a) ->
       word_of_argument regs r2 = Some storev ->
       canStore p storev = false ->
       Store_failure regs r1 r2 mem
@@ -59,8 +62,8 @@ Section griotte_lang_rules.
 
   Definition allow_store_map_or_true
     (r1 : RegName) (r2 : Z + RegName) (regs : Reg) (mem : Mem):=
-    ∃ p g b e a storev,
-      read_reg_inr regs r1 p g b e a ∧ word_of_argument regs r2 = Some storev ∧
+    ∃ t p g b e a storev,
+      read_reg_inr regs r1 t p g b e a ∧ word_of_argument regs r2 = Some storev ∧
       if decide (reg_allows_store regs r1 p g b e a storev) then
         ∃ w, mem !! a = Some w
       else True.
@@ -69,7 +72,7 @@ Section griotte_lang_rules.
     ∀ (r1 : RegName)(r2 : Z + RegName) (mem0 : gmap Addr Word) (r : Reg)
       (p : Perm) (g : Locality) (b e a : Addr) storev,
       allow_store_map_or_true r1 r2 r mem0
-      → r !!ᵣ r1 = Some (WCap p g b e a)
+      → r !!ᵣ r1 = Some (WCap true p g b e a)
       → word_of_argument r r2 = Some storev
       → writeAllowed p = true
       → withinBounds b e a = true
@@ -84,7 +87,7 @@ Section griotte_lang_rules.
     }
     simplify_map_eq.
     unfold allow_store_map_or_true, read_reg_inr in HaStore.
-    destruct HaStore as (?&?&?&?&?&?&Hrinr&Hwo&Hmem).
+    destruct HaStore as (t&?&?&?&?&?&?&Hrinr&Hwo&Hmem).
     rewrite Hr2v in Hrinr. inversion Hrinr; subst.
     case_decide as HAL.
     - auto.
@@ -96,7 +99,7 @@ Section griotte_lang_rules.
   Lemma mem_eq_implies_allow_store_map:
     ∀ (regs : Reg)(mem : Mem)(r1 : RegName)(r2 : Z + RegName)(w storev : Word) p g b e a,
       mem = <[a:=w]> ∅
-      → regs !!ᵣ r1 = Some (WCap p g b e a)
+      → regs !!ᵣ r1 = Some (WCap true p g b e a)
       → word_of_argument regs r2 = Some storev
       → allow_store_map_or_true r1 r2 regs mem.
   Proof.
@@ -106,7 +109,7 @@ Section griotte_lang_rules.
       destruct (regs !! cnull); cbn in * ; done.
     }
     simplify_map_eq.
-    exists p,g,b,e,a,storev; split.
+    exists true,p,g,b,e,a,storev; split.
     - unfold read_reg_inr. by rewrite Hrr2.
     - case_decide; last done.
       split; auto. exists w. simplify_map_eq. auto.
@@ -117,7 +120,7 @@ Section griotte_lang_rules.
       (w w' storev : Word) p g b e a,
       a ≠ pc_a
       → mem = <[pc_a:= w]> (<[a:= w']> ∅)
-      → regs !!ᵣ r1 = Some (WCap p g b e a)
+      → regs !!ᵣ r1 = Some (WCap true p g b e a)
       → word_of_argument regs r2 = Some storev
       → allow_store_map_or_true r1 r2 regs mem.
   Proof.
@@ -127,7 +130,7 @@ Section griotte_lang_rules.
       destruct (regs !! cnull); cbn in * ; done.
     }
     simplify_map_eq.
-    exists p,g,b,e,a,storev; split.
+    exists true,p,g,b,e,a,storev; split.
     - unfold read_reg_inr. by rewrite Hreg1.
     - case_decide; last done.
       split; auto. exists w'. simplify_map_eq. split; auto.
@@ -139,7 +142,7 @@ Section griotte_lang_rules.
       (if (a =? pc_a)%a
        then mem = <[pc_a:= w]> ∅
        else mem = <[pc_a:= w]> (<[a:= w']> ∅))
-      → regs !!ᵣ r1 = Some (WCap p g b e a)
+      → regs !!ᵣ r1 = Some (WCap true p g b e a)
       → word_of_argument regs r2 = Some storev
       → allow_store_map_or_true r1 r2 regs mem.
   Proof.
@@ -160,8 +163,8 @@ Section griotte_lang_rules.
      pc_p pc_g pc_b pc_e pc_a
      r1 (r2 : Z + RegName) w mem regs :
    decodeInstrW w = Store r1 r2 →
-   isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-   regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+   isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+   regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
    regs_of (Store r1 r2) ⊆ dom regs →
    mem !! pc_a = Some w →
    allow_store_map_or_true r1 r2 regs mem →
@@ -213,7 +216,12 @@ Section griotte_lang_rules.
        }
        iFailWP "Hφ" Store_fail_const.
      }
-     destruct r1v as [ | [p g b e a | ] | | ]; try inversion Hr1v. clear Hr1v.
+     destruct r1v as [ | [t p g b e a | ] | | ]; try inversion Hr1v. clear Hr1v.
+     destruct t.
+     2: {
+       inversion Hstep; subst c σ2.
+       iFailWP "Hφ" Store_fail_tag.
+     }
 
      destruct (writeAllowed p && withinBounds b e a) eqn:HWA.
      2 : { (* Failure: r2 is either not within bounds or doesnt allow reading *)
@@ -256,7 +264,7 @@ Section griotte_lang_rules.
      (* Success *)
      rewrite /update_mem /= in Hstep.
      eapply (incrementPC_success_updatePC _ sr (<[a:=storev]> m)) in Hregs'
-         as (p1 & g1 & b1 & e1 & a1 & a'1 & a_pc1 & HPC'' & HuPC & ->).
+         as (t1 & p1 & g1 & b1 & e1 & a1 & a'1 & a_pc1 & HPC'' & HuPC & ->).
      eapply (updatePC_success_incl _ (<[a:=storev]> m)) in HuPC. 2: by eauto.
      rewrite HuPC in Hstep; clear HuPC; inversion Hstep; clear Hstep; subst c σ2; cbn in *.
 
@@ -271,15 +279,15 @@ Section griotte_lang_rules.
 
   Lemma wp_store_success_z_PC E pc_p pc_g pc_b pc_e pc_a pc_a' w z :
      decodeInstrW w = Store PC (inl z) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed pc_p = true →
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w }}}
        Instr Executable @ E
        {{{ RET NextIV;
-           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ (WInt z) }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' Hwa φ)
@@ -312,18 +320,18 @@ Section griotte_lang_rules.
 
    Lemma wp_store_success_reg_PC E src wsrc pc_p pc_g pc_b pc_e pc_a pc_a' w :
      decodeInstrW w = Store PC (inr src) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed pc_p = true →
      canStore pc_p wsrc = true ->
      src ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ src ↦ᵣ wsrc }}}
        Instr Executable @ E
        {{{ RET NextIV;
-           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wsrc
               ∗ src ↦ᵣ wsrc }}}.
    Proof.
@@ -346,8 +354,8 @@ Section griotte_lang_rules.
        rewrite memMap_resource_1.
        incrementPC_inv.
        simplify_map_eq.
-       assert (x3  = a ) as ->.
-       { destruct (decide (x3 = a )); auto; simplify_map_eq. }
+       assert (x4 = a) as ->.
+       { destruct (decide (x4 = a)); auto; simplify_map_eq. }
        rewrite !insert_insert_eq.
        iDestruct (regs_of_map_2 with "[$Hmap]") as "[HPC Hsrc]"; eauto.
        iFrame.
@@ -362,17 +370,17 @@ Section griotte_lang_rules.
 
    Lemma wp_store_success_reg_PC_same E pc_p pc_g pc_b pc_e pc_a pc_a' w w' :
      decodeInstrW w = Store PC (inr PC) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed pc_p = true →
-     canStore pc_p (WCap pc_p pc_g pc_b pc_e pc_a) = true ->
+     canStore pc_p (WCap true pc_p pc_g pc_b pc_e pc_a) = true ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w }}}
        Instr Executable @ E
        {{{ RET NextIV;
-           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ WCap pc_p pc_g pc_b pc_e pc_a }}}.
+           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ WCap true pc_p pc_g pc_b pc_e pc_a }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Hwa HcanStore φ)
             "(>HPC & >Hi) Hφ".
@@ -404,19 +412,19 @@ Section griotte_lang_rules.
    Lemma wp_store_success_same E pc_p pc_g pc_b pc_e pc_a pc_a' w dst z w'
          p g b e :
      decodeInstrW w = Store dst (inl z) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e pc_a = true →
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ dst ↦ᵣ WCap p g b e pc_a }}}
+           ∗ ▷ dst ↦ᵣ WCap true p g b e pc_a }}}
        Instr Executable @ E
        {{{ RET NextIV;
-           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ (WInt z)
-              ∗ dst ↦ᵣ WCap p g b e pc_a }}}.
+              ∗ dst ↦ᵣ WCap true p g b e pc_a }}}.
     Proof.
      iIntros (Hinstr Hvpc Hpca' Hwa Hwb ? φ)
             "(>HPC & >Hi & >Hdst) Hφ".
@@ -450,20 +458,20 @@ Section griotte_lang_rules.
    Lemma wp_store_success_reg_same' E pc_p pc_g pc_b pc_e pc_a pc_a' w dst
          p g b e :
      decodeInstrW w = Store dst (inr dst) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e pc_a = true →
-     canStore p (WCap p g b e pc_a) = true ->
+     canStore p (WCap true p g b e pc_a) = true ->
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ dst ↦ᵣ WCap p g b e pc_a }}}
+           ∗ ▷ dst ↦ᵣ WCap true p g b e pc_a }}}
        Instr Executable @ E
        {{{ RET NextIV;
-           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ WCap p g b e pc_a
-              ∗ dst ↦ᵣ WCap p g b e pc_a }}}.
+           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ WCap true p g b e pc_a
+              ∗ dst ↦ᵣ WCap true p g b e pc_a }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore ? φ)
             "(>HPC & >Hi & >Hdst) Hφ".
@@ -495,23 +503,23 @@ Section griotte_lang_rules.
    Lemma wp_store_success_reg_same_a E pc_p pc_g pc_b pc_e pc_a pc_a' w dst src
          p g b e w'' :
       decodeInstrW w = Store dst (inr src) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e pc_a = true →
      canStore p w'' = true ->
      src ≠ cnull ->
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ src ↦ᵣ w''
-           ∗ ▷ dst ↦ᵣ WCap p g b e pc_a }}}
+           ∗ ▷ dst ↦ᵣ WCap true p g b e pc_a }}}
        Instr Executable @ E
        {{{ RET NextIV;
-           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ w''
               ∗ src ↦ᵣ w''
-              ∗ dst ↦ᵣ WCap p g b e pc_a}}}.
+              ∗ dst ↦ᵣ WCap true p g b e pc_a}}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore ?? φ)
              "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
@@ -543,24 +551,24 @@ Section griotte_lang_rules.
    Lemma wp_store_success_reg E pc_p pc_g pc_b pc_e pc_a pc_a' w dst src w'
          p g b e a w'' :
       decodeInstrW w = Store dst (inr src) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e a = true →
      canStore p w'' = true ->
      src ≠ cnull ->
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ src ↦ᵣ w''
-           ∗ ▷ dst ↦ᵣ WCap p g b e a
+           ∗ ▷ dst ↦ᵣ WCap true p g b e a
            ∗ ▷ a ↦ₐ w' }}}
        Instr Executable @ E
        {{{ RET NextIV;
-           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ w
               ∗ src ↦ᵣ w''
-              ∗ dst ↦ᵣ WCap p g b e a
+              ∗ dst ↦ᵣ WCap true p g b e a
               ∗ a ↦ₐ w'' }}}.
     Proof.
       iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore ?? φ)
@@ -594,22 +602,22 @@ Section griotte_lang_rules.
    Lemma wp_store_success_reg_same E pc_p pc_g pc_b pc_e pc_a pc_a' w dst w'
          p g b e a :
      decodeInstrW w = Store dst (inr dst) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e a = true →
-     canStore p (WCap p g b e a) = true ->
+     canStore p (WCap true p g b e a) = true ->
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ dst ↦ᵣ WCap p g b e a
+           ∗ ▷ dst ↦ᵣ WCap true p g b e a
            ∗ ▷ a ↦ₐ w' }}}
        Instr Executable @ E
        {{{ RET NextIV;
-           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ w
-              ∗ dst ↦ᵣ WCap p g b e a
-              ∗ a ↦ₐ WCap p g b e a }}}.
+              ∗ dst ↦ᵣ WCap true p g b e a
+              ∗ a ↦ₐ WCap true p g b e a }}}.
    Proof.
     iIntros (Hinstr Hvpc Hpca' Hwa Hwb HcanStore ? φ)
              "(>HPC & >Hi & >Hdst & >Hsrca) Hφ".
@@ -642,20 +650,20 @@ Section griotte_lang_rules.
    Lemma wp_store_success_z E pc_p pc_g pc_b pc_e pc_a pc_a' w dst z w'
          p g b e a :
      decodeInstrW w = Store dst (inl z) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      writeAllowed p = true → withinBounds b e a = true →
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ dst ↦ᵣ WCap p g b e a
+           ∗ ▷ dst ↦ᵣ WCap true p g b e a
            ∗ ▷ a ↦ₐ w' }}}
        Instr Executable @ E
        {{{ RET NextIV;
-           PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ w
-              ∗ dst ↦ᵣ WCap p g b e a
+              ∗ dst ↦ᵣ WCap true p g b e a
               ∗ a ↦ₐ WInt z }}}.
    Proof.
      iIntros (Hinstr Hvpc Hpca' Hwa Hwb ? φ)
@@ -690,11 +698,11 @@ Section griotte_lang_rules.
    Lemma wp_store_fail_reg_not_cap E pc_p pc_g pc_b pc_e pc_a w
      dst src wdst wstore :
       decodeInstrW w = Store dst (inr src) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      is_cap wdst = false ->
      src ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ src ↦ᵣ wstore
            ∗ ▷ dst ↦ᵣ wdst
@@ -710,7 +718,7 @@ Section griotte_lang_rules.
     iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
     { rewrite /allow_store_map_or_true.
-      eexists _,_,_,_,_,_; eauto.
+      eexists true,_,_,_,_,_,_; eauto.
       simplify_map_eq.
       split; [|split]; eauto.
       - rewrite /read_reg_inr; simplify_map_eq.
@@ -739,11 +747,11 @@ Section griotte_lang_rules.
     Lemma wp_store_fail_z_not_cap E pc_p pc_g pc_b pc_e pc_a w
      dst z wdst :
       decodeInstrW w = Store dst (inl z) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      is_cap wdst = false ->
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ dst ↦ᵣ wdst
      }}}
@@ -758,7 +766,7 @@ Section griotte_lang_rules.
     iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
     { rewrite /allow_store_map_or_true.
-      eexists _,_,_,_,_,_; eauto.
+      eexists true,_,_,_,_,_,_; eauto.
       simplify_map_eq.
       split; [|split]; eauto.
       - rewrite /read_reg_inr; simplify_map_eq.
@@ -786,15 +794,15 @@ Section griotte_lang_rules.
    Lemma wp_store_fail_reg_perm E pc_p pc_g pc_b pc_e pc_a w dst src
          p g b e a w'' :
       decodeInstrW w = Store dst (inr src) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      canStore p w'' = false ->
      src ≠ cnull ->
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ src ↦ᵣ w''
-           ∗ ▷ dst ↦ᵣ WCap p g b e a
+           ∗ ▷ dst ↦ᵣ WCap true p g b e a
      }}}
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
@@ -807,7 +815,7 @@ Section griotte_lang_rules.
     iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
     { rewrite /allow_store_map_or_true.
-      eexists p,g,b,e,a,w''.
+      eexists true,p,g,b,e,a,w''.
       split.
       { rewrite /read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert_eq.
@@ -839,13 +847,13 @@ Section griotte_lang_rules.
     Lemma wp_store_fail_z_perm E pc_p pc_g pc_b pc_e pc_a w dst
          p g b e a z :
       decodeInstrW w = Store dst (inl z) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      writeAllowed p = false ->
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ dst ↦ᵣ WCap p g b e a
+           ∗ ▷ dst ↦ᵣ WCap true p g b e a
      }}}
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
@@ -858,7 +866,7 @@ Section griotte_lang_rules.
     iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
     { rewrite /allow_store_map_or_true.
-      eexists p,g,b,e,a,_.
+      eexists true,p,g,b,e,a,_.
       split.
       { rewrite /read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_eq.
@@ -890,15 +898,15 @@ Section griotte_lang_rules.
    Lemma wp_store_fail_reg E pc_p pc_g pc_b pc_e pc_a w dst src
          p g b e a w'' :
       decodeInstrW w = Store dst (inr src) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      withinBounds b e a = false →
      src ≠ cnull ->
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
            ∗ ▷ src ↦ᵣ w''
-           ∗ ▷ dst ↦ᵣ WCap p g b e a
+           ∗ ▷ dst ↦ᵣ WCap true p g b e a
      }}}
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
@@ -911,7 +919,7 @@ Section griotte_lang_rules.
     iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
     { rewrite /allow_store_map_or_true.
-      eexists p,g,b,e,a,w''.
+      eexists true,p,g,b,e,a,w''.
       split.
       { rewrite /read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert_eq.
@@ -943,13 +951,13 @@ Section griotte_lang_rules.
     Lemma wp_store_fail_z E pc_p pc_g pc_b pc_e pc_a w dst
          p g b e a z :
       decodeInstrW w = Store dst (inl z) →
-     isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      withinBounds b e a = false →
      dst ≠ cnull ->
 
-     {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ ▷ pc_a ↦ₐ w
-           ∗ ▷ dst ↦ᵣ WCap p g b e a
+           ∗ ▷ dst ↦ᵣ WCap true p g b e a
      }}}
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
@@ -962,7 +970,7 @@ Section griotte_lang_rules.
     iApply (wp_store _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
     { rewrite /allow_store_map_or_true.
-      eexists p,g,b,e,a,_.
+      eexists true,p,g,b,e,a,_.
       split.
       { rewrite /read_reg_inr.
         by rewrite lookup_insert_ne // lookup_insert_eq.
@@ -989,5 +997,37 @@ Section griotte_lang_rules.
        destruct X; try incrementPC_inv; simplify_map_eq; eauto; by iApply "Hφ".
      }
     Qed.
+
+  (* Untagged authority fails before writing the target memory. *)
+  Lemma wp_store_fail_tag E pc_p pc_g pc_b pc_e pc_a
+      w dst (src : Z + RegName) regs wa :
+    decodeInstrW w = Store dst src →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !!ᵣ dst = Some wa →
+    get_tag wa = false →
+    {{{ ▷ pc_a ↦ₐ w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ E
+    {{{ RET FailedV; pc_a ↦ₐ w ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
+  Proof.
+    iIntros (Hinstr Hvpc HPC Hsrc Htag φ) "(>Hpc_a & >Hmap) Hφ".
+    iApply wp_lift_atomic_base_step_no_fork; auto.
+    iIntros (σ1 ns l1 l2 nt) "[[Hr Hsr] Hm] /=".
+    destruct σ1 as [[r sr] m]; cbn.
+    iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
+    have ? := lookup_weaken _ _ _ _ HPC Hregs.
+    have Hsrc' := lookup_reg_weaken _ _ _ _ Hsrc Hregs.
+    iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
+    iNext. iIntros (e2 σ2 efs Hpstep).
+    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+    iIntros "_". iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
+    rewrite /exec /= Hsrc' /= in Hstep.
+    assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+    { destruct (word_of_argument r src) eqn:Harg; rewrite Harg in Hstep; cbn in Hstep.
+      all: destruct wa as [| [t p g b e a|] | |]; cbn in Htag;
+        by simplify_pair_eq. }
+    cbn; iFrame; iApply "Hφ"; iFrame. done.
+  Qed.
 
  End griotte_lang_rules.

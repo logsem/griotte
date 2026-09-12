@@ -73,7 +73,7 @@ Section adequacy_helpers.
       ([∗ map] k↦y ∈ mk_initial_switcher switcher_cmpt, k ↦ₐ y) -∗
       can_alloc_pred (ot_switcher switcher_cmpt) -∗
       cstack_full [] -∗
-      mtdc ↦ₛᵣ WCap RWL Local (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
+      mtdc ↦ₛᵣ WCap true RWL Local (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
       ={E}=∗
       seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
       na_inv cerise_nais switcherN switcher_inv ∗
@@ -129,8 +129,8 @@ Section adequacy_helpers.
     Qed.
 
     Lemma initialise_compartment ( C_cmpt : cmpt ) :
-      let PCC := WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
-      let CGP := WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
+      let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
+      let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
       ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ y)
       ==∗
       [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ cmpt_imports C_cmpt ]] ∗
@@ -186,8 +186,8 @@ Section adequacy_helpers.
     Qed.
 
     Lemma initialise_adversary_compartment {E : coPset} ( C_cmpt : cmpt ) ( C : CmptName ) :
-      let PCC := WCap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
-      let CGP := WCap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
+      let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
+      let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
       let exp_tbl_addrs := (finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)) in
       ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ y)
       ={E}=∗

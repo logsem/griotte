@@ -51,9 +51,9 @@ Proof.
   intros HH. unshelve epose proof (lookup_reg_weaken _ _ _ _ _ HH); eauto.
 Qed.
 
-Lemma word_of_argument_inr (regs: Reg) (arg: Z + RegName) p g b e a:
-  word_of_argument regs arg = Some (WCap p g b e a) →
-  (∃ r : RegName, arg = inr r ∧ regs !!ᵣ r = Some (WCap p g b e a)).
+Lemma word_of_argument_inr (regs: Reg) (arg: Z + RegName) (t : bool) p g b e a:
+  word_of_argument regs arg = Some (WCap t p g b e a) →
+  (∃ r : RegName, arg = inr r ∧ regs !!ᵣ r = Some (WCap t p g b e a)).
 Proof.
   intros HStoreV.
   unfold word_of_argument in HStoreV.
@@ -165,10 +165,10 @@ Qed.
 
   Lemma step_exec_inv
     (regs: Reg) (sregs : SReg) (mem : Mem)
-    (p : Perm) (g : Locality) (b e a : Addr) (w : Word)
+    (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (w : Word)
     (instr : instr) (c: ConfFlag) (σ: ExecConf) :
-    regs !! PC = Some (WCap p g b e a) →
-    isCorrectPC (WCap p g b e a) →
+    regs !! PC = Some (WCap t p g b e a) →
+    isCorrectPC (WCap t p g b e a) →
     mem !! a = Some w →
     decodeInstrW w = instr →
     step (Executable, (regs, sregs, mem)) (c, σ) →

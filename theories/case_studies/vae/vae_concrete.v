@@ -195,17 +195,17 @@ Proof.
 Defined.
 
 Definition vae_C_f : Sealable :=
-  SCap RO Global vae_C_exports_pcc vae_C_exports_entries_e
+  SCap true RO Global vae_C_exports_pcc vae_C_exports_entries_e
     vae_C_exports_entries_b.
 
 Definition vae_C_g : Sealable :=
-  SCap RO Global vae_C_exports_pcc vae_C_exports_entries_e
+  SCap true RO Global vae_C_exports_pcc vae_C_exports_entries_e
     (vae_C_exports_entries_b ^+ 1)%a.
 
 Definition vae_main_imports_concrete : list Word := vae_main_imports vae_C_f.
 
 Definition vae_C_imports : list Word :=
-  [ WSentry XSRW_ Local vae_switcher_b vae_switcher_e vae_switcher_call
+  [ WSentry true XSRW_ Local vae_switcher_b vae_switcher_e vae_switcher_call
   ; WSealed vae_switcher_sealing_type
       (vae_entry_awkward_sb vae_main_exports_pcc vae_main_exports_entries_e)
   ; WSealed vae_switcher_sealing_type vae_C_g
@@ -382,14 +382,14 @@ Proof.
 Defined.
 
 Definition vae_initial_registers : Reg :=
-  <[PC := WCap RX Global vae_main_pcc_b vae_main_pcc_e vae_main_code_start]>
-  (<[cgp := WCap RW Global vae_main_data_b vae_main_data_e
+  <[PC := WCap true RX Global vae_main_pcc_b vae_main_pcc_e vae_main_code_start]>
+  (<[cgp := WCap true RW Global vae_main_data_b vae_main_data_e
       vae_main_data_b]>
-  (<[csp := WCap RWL Local vae_stack_b vae_stack_e vae_stack_b]>
+  (<[csp := WCap true RWL Local vae_stack_b vae_stack_e vae_stack_b]>
     (gset_to_gmap (WInt 0) all_registers_s))).
 
 Definition vae_initial_sregisters : SReg :=
-  <[MTDC := WCap RWL Local vae_trusted_stack_b vae_trusted_stack_e
+  <[MTDC := WCap true RWL Local vae_trusted_stack_b vae_trusted_stack_e
       vae_trusted_stack_b]> ∅.
 
 Definition vae_initial_memory : Mem := mk_initial_memory.

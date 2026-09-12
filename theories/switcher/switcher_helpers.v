@@ -47,7 +47,7 @@ Section switcher_helper.
     (a_stk ^+ 3 < e_stk)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
 
-    interp W C (WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
+    interp W C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
     cframe_stk_own {|
         wret := wret;
         wcgp := wcgp0;
@@ -134,7 +134,7 @@ Section switcher_helper.
     (a_stk ^+ 3 < e_stk)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
 
-    interp W C (WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
+    interp W C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) e_stk a_stk) ∗
     world_interp_open W C l_register_save_area
     -∗
 
@@ -211,7 +211,7 @@ Section switcher_helper.
       NoDup (l ++ finz.seq_between csp_b csp_e) ->
       related_sts_pub_world W0 Wfixed ->
 
-      interp W0 C (WCap RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk) -∗
+      interp W0 C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk) -∗
       cframe_stk_own
         {|
           wret := wret;
@@ -498,7 +498,7 @@ Section switcher_helper.
 
       related_sts_pub_world W0 Wfixed ->
       interp W0 C
-        (WCap RWL Local
+        (WCap true RWL Local
            (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e
            a_stk) -∗
       world_interp Wcur C -∗
@@ -524,10 +524,10 @@ Section switcher_helper.
       {
         replace a_stk4 with (a_stk ^+4)%a by (subst a_stk; solve_addr+Ha_stk4 He_a1).
         replace (a_stk ^+4)%a with csp_b by (subst a_stk; solve_addr+Ha_stk4 He_a1).
-        iAssert (interp W0 C (WCap RWL Local csp_b csp_e a_stk)) as "Hvalid".
+        iAssert (interp W0 C (WCap true RWL Local csp_b csp_e a_stk)) as "Hvalid".
         {
           rewrite /is_untrusted_caller_frm /=; destruct (is_untrusted_caller ccrel); auto.
-          iApply (interp_weakening _ _ _ _ _ _ b_stk csp_b with "[]Hinterp_callee_wstk"); auto.
+          iApply (interp_weakening _ _ true _ _ _ _ b_stk csp_b with "[]Hinterp_callee_wstk"); auto.
           + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
           + subst a_stk; solve_addr+Ha_stk4 He_a1 Hb_a4.
           + iApply fundamental_ih.

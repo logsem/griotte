@@ -37,7 +37,7 @@ Section KVS_getFullKey.
     rdst ≠ cnull ->
 
     (
-      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
+      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
       rdst ↦ᵣ - ∗
       rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
       rkey ↦ᵣ WInt nkey ∗
@@ -49,7 +49,7 @@ Section KVS_getFullKey.
 
       codefrag pc_a instrs ∗
       ▷ (
-          PC ↦ᵣ WCap RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
           rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
           rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
           rkey ↦ᵣ WInt nkey ∗
@@ -92,7 +92,7 @@ Section KVS_getFullKey.
     iInstr "Hcode".
     { rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr. }
     (* unseal rdst rsealkey rscratch; *)
-    iInstr "Hcode"; first done.
+    iInstr "Hcode"; try done.
     { rewrite /withinBounds; pose proof KVS_OTYPE_size; solve_addr. }
     (* load rdst rdst; *)
     iInstr "Hcode".
@@ -113,7 +113,7 @@ Section KVS_getFullKey.
     let instrs := (kvs_getFullKey_instrs rdst rsealkey rkey rscratch1 rscratch2) in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
 
-    is_sealed_with_o wsealkey KVS_OTYPE = false ->
+    (is_sealed_with_o wsealkey KVS_OTYPE = false \/ get_tag wsealkey = false) ->
 
     rscratch1 ≠ cnull ->
     rscratch2 ≠ cnull ->
@@ -121,7 +121,7 @@ Section KVS_getFullKey.
     rdst ≠ cnull ->
 
     (
-      PC ↦ᵣ WCap RX Global pc_b pc_e pc_a ∗
+      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
       rdst ↦ᵣ - ∗
       rsealkey ↦ᵣ wsealkey ∗
       rscratch1 ↦ᵣ - ∗
@@ -163,8 +163,10 @@ Section KVS_getFullKey.
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_unseal_unknown' with "[$HPC $Hi $Hrdst $Hrsealkey]"); try solve_pure.
-    iIntros "!>" (ret) "[-> | (% & % & % & % & % & %wsb & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec)]".
+    iIntros "!>" (ret) "[-> | (% & % & % & % & % & %wsb & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec & %Htag)]".
     { wp_pure; wp_end; iIntros "%Hcontr";done. }
+    destruct Hnot_sealed_with_kvs_otype as [Hnot_sealed_with_kvs_otype | Hclear].
+    2: { rewrite spec /= Htag in Hclear; done. }
     rewrite spec in Hnot_sealed_with_kvs_otype.
     rewrite /kvs_service_unsealing_key /load_word //= in Heq; simplify_eq.
     cbn in Hnot_sealed_with_kvs_otype.

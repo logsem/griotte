@@ -56,11 +56,11 @@ Section Switcher_KtK_Return.
     (* NA token*)
     ∗ na_own cerise_nais E
     (* Registers *)
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     (* Callee-saved registers *)
     ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap RWL Local a_stk4 e_stk a_stk4
+    ∗ csp ↦ᵣ WCap true RWL Local a_stk4 e_stk a_stk4
     (* Return values *)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
@@ -85,7 +85,7 @@ Section Switcher_KtK_Return.
               ∗ PC ↦ᵣ updatePcPerm wcra_caller
               ∗ cgp ↦ᵣ wcgp_caller ∗ cra ↦ᵣ wcra_caller ∗ cs0 ↦ᵣ wcs0_caller ∗ cs1 ↦ᵣ wcs1_caller
               (* Stack register *)
-              ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
               (* Return values *)
               ∗ ca0 ↦ᵣ wca0
               ∗ ca1 ↦ᵣ wca1

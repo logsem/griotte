@@ -101,15 +101,15 @@ Section SO.
     ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais Nso
         ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
-    ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap RX Global pc_b pc_e pc_b)
-    ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap RW Global cgp_b cgp_e cgp_b)
+    ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
+    ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
         ((b_so_exp_tbl ^+ 2)%a ↦ₐ WInt (encode_entry_point 2 (length (imports ++ SO_main_code_run))))
-    ∗ WSealed ot_switcher (SCap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
-    ∗ WSealed ot_switcher (SCap RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
+    ∗ WSealed ot_switcher (SCap true RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
+    ∗ WSealed ot_switcher (SCap true RO Local b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a) ↦□ₑ 2
     ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
-    ot_switcher_prop W C (WCap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a).
+    ot_switcher_prop W C (WCap true RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl (b_so_exp_tbl ^+ 2)%a).
   Proof.
     intros imports.
     iIntros (Hswitcher_assert HNswitcher_so HNassert_so
@@ -198,7 +198,7 @@ Section SO.
     focus_block 4 "Hcode_main" as a_checkra Ha_checkra "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_f.
     iApply (checkra_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     iSplitL; last ( iModIntro; iNext ; iIntros (?); done).
-    iNext ; iIntros "H"; iDestruct "H" as (p g b e a) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
+    iNext ; iIntros "H"; iDestruct "H" as (t p g b e a) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* ------------------------------------------------------ *)
@@ -216,6 +216,12 @@ Section SO.
     (* ------------------------------------------------------- *)
     focus_block 6 "Hcode_main" as a_checkints Ha_checkints "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_check_overlap.
+
+    destruct (decide (t = true ∨ (e <= b)%a)) as [Htag_or_empty | Hbad].
+    2: { destruct t; first (exfalso; apply Hbad; auto).
+         iApply (checkints_fail_untagged ca0 cs0 cs1 with "[- $HPC $Hca0 $Hcs1 $Hcs0 $Hcode]"); eauto.
+         { solve_addr. }
+         iModIntro; iNext; iIntros (?); done. }
 
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
@@ -289,13 +295,14 @@ Section SO.
 
     (* Get the list of permissions, predicates and words for the [la_be_temporaries]. *)
     iMod (stack_object_open_region_for_checkints
-      W0 C p g b e a csp_b csp_e l_revoked_W0 stk_mem
+      W0 C t p g b e a csp_b csp_e l_revoked_W0 stk_mem
       with "[$Hinterp_wca0_W0 $Hworld_interp_C $Hl_revoked_W0 $Hstk $Hlc]")
       as (wca0_lvs)
         "(%Hwca0_lvs_length & %Hwca0_range & Hwca0_lvs & Hrestore_wca0)".
     { split; eauto. }
     { exact Hno_overlap. }
     { exact Hp. }
+    { exact Htag_or_empty. }
 
     (* Apply the checkint specification*)
     iApply (checkints_spec
@@ -375,13 +382,13 @@ Section SO.
     iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by simplify_map_eq.
 
     set ( rmap_arg :=
-           {[ ca0 := WCap p g b e (finz.max b e);
-              ca1 := WCap RWL Local a_stk1 a_stk2 a_stk1;
+           {[ ca0 := WCap t p g b e (finz.max b e);
+              ca1 := WCap true RWL Local a_stk1 a_stk2 a_stk1;
               ca2 := wca2;
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry XSRW_ Local b_switcher e_switcher a_switcher_call
+              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
            ]} : Reg
         ).
 
@@ -456,7 +463,7 @@ Section SO.
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
     { subst rmap_arg.
       iAssert (interp W3 C (WInt 0)) as "Hinterp_0"; first iApply interp_int.
-      iAssert (interp W3 C (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)) as
+      iAssert (interp W3 C (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)) as
         "Hinterp_sw_call"; first iApply interp_switcher_call; auto.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
       done.

@@ -20,63 +20,63 @@ Section griotte_lang_rules.
       regs !!ᵣ dst = Some w →
       is_mutable_range w = false →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_src1_nonaddr p g b e a:
-      regs !!ᵣ dst = Some (WCap p g b e a) →
+  | Subseg_fail_src1_nonaddr (t : bool) p g b e a:
+      regs !!ᵣ dst = Some (WCap t p g b e a) →
       addr_of_argument regs src1 = None →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_src2_nonaddr p g b e a:
-      regs !!ᵣ dst = Some (WCap p g b e a) →
+  | Subseg_fail_src2_nonaddr (t : bool) p g b e a:
+      regs !!ᵣ dst = Some (WCap t p g b e a) →
       addr_of_argument regs src2 = None →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_src1_nonotype p g b e a:
-      regs !!ᵣ dst = Some (WSealRange p g b e a) →
+  | Subseg_fail_src1_nonotype (t : bool) p g b e a:
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
       otype_of_argument regs src1 = None →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_src2_nonotype p g b e a:
-      regs !!ᵣ dst = Some (WSealRange p g b e a) →
+  | Subseg_fail_src2_nonotype (t : bool) p g b e a:
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
       otype_of_argument regs src2 = None →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_not_iswithin_cap p g b e a a1 a2 :
-      regs !!ᵣ dst = Some (WCap p g b e a) →
+  | Subseg_fail_not_iswithin_cap (t : bool) p g b e a a1 a2 :
+      regs !!ᵣ dst = Some (WCap t p g b e a) →
       addr_of_argument regs src1 = Some a1 →
       addr_of_argument regs src2 = Some a2 →
       isWithin a1 a2 b e = false →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_incrPC_cap p g b e a a1 a2 :
-      regs !!ᵣ dst = Some (WCap p g b e a) →
+  | Subseg_fail_incrPC_cap (t : bool) p g b e a a1 a2 :
+      regs !!ᵣ dst = Some (WCap t p g b e a) →
       addr_of_argument regs src1 = Some a1 →
       addr_of_argument regs src2 = Some a2 →
       isWithin a1 a2 b e = true →
-      incrementPC (<[ dst := WCap p g a1 a2 a ]ᵣ> regs) = None →
+      incrementPC (<[ dst := WCap t p g a1 a2 a ]ᵣ> regs) = None →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_not_iswithin_sr p g b e a a1 a2 :
-      regs !!ᵣ dst = Some (WSealRange p g b e a) →
+  | Subseg_fail_not_iswithin_sr (t : bool) p g b e a a1 a2 :
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
       otype_of_argument regs src1 = Some a1 →
       otype_of_argument regs src2 = Some a2 →
       isWithin a1 a2 b e = false →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_incrPC_sr p g b e a a1 a2 :
-      regs !!ᵣ dst = Some (WSealRange p g b e a) →
+  | Subseg_fail_incrPC_sr (t : bool) p g b e a a1 a2 :
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
       otype_of_argument regs src1 = Some a1 →
       otype_of_argument regs src2 = Some a2 →
       isWithin a1 a2 b e = true →
-      incrementPC (<[ dst := WSealRange p g a1 a2 a ]ᵣ> regs) = None →
+      incrementPC (<[ dst := WSealRange t p g a1 a2 a ]ᵣ> regs) = None →
       Subseg_failure regs dst src1 src2 regs.
 
   Inductive Subseg_spec (regs: Reg) (dst: RegName) (src1 src2: Z + RegName) (regs': Reg): griotte_lang.val -> Prop :=
-  | Subseg_spec_success_cap p g b e a a1 a2:
-      regs !!ᵣ dst = Some (WCap p g b e a) ->
+  | Subseg_spec_success_cap (t : bool) p g b e a a1 a2:
+      regs !!ᵣ dst = Some (WCap t p g b e a) ->
       addr_of_argument regs src1 = Some a1 ->
       addr_of_argument regs src2 = Some a2 ->
       isWithin a1 a2 b e = true ->
-      incrementPC (<[ dst := WCap p g a1 a2 a ]ᵣ> regs) = Some regs' ->
+      incrementPC (<[ dst := WCap t p g a1 a2 a ]ᵣ> regs) = Some regs' ->
       Subseg_spec regs dst src1 src2 regs' NextIV
-  | Subseg_spec_success_sr p g b e a a1 a2:
-      regs !!ᵣ dst = Some (WSealRange p g b e a) ->
+  | Subseg_spec_success_sr (t : bool) p g b e a a1 a2:
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) ->
       otype_of_argument regs src1 = Some a1 ->
       otype_of_argument regs src2 = Some a2 ->
       isWithin a1 a2 b e = true ->
-      incrementPC (<[ dst := WSealRange p g a1 a2 a ]ᵣ> regs) = Some regs' ->
+      incrementPC (<[ dst := WSealRange t p g a1 a2 a ]ᵣ> regs) = Some regs' ->
       Subseg_spec regs dst src1 src2 regs' NextIV
   | Subseg_spec_failure :
       Subseg_failure regs dst src1 src2 regs' →
@@ -84,8 +84,8 @@ Section griotte_lang_rules.
 
   Lemma wp_Subseg Ep pc_p pc_g pc_b pc_e pc_a w dst src1 src2 regs :
     decodeInstrW w = Subseg dst src1 src2 ->
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
-    regs !! PC = Some (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Subseg dst src1 src2) ⊆ dom regs →
 
     {{{ ▷ pc_a ↦ₐ w ∗
@@ -118,13 +118,13 @@ Section griotte_lang_rules.
      2: { (* Failure: wdst is not of the right type *)
        unfold is_mutable_range in Hwdst.
        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-       { destruct wdst as [ | [p b e a | ] | | ]; try by inversion Hwdst.
+       { destruct wdst as [ | [t p b e a | ] | | ]; try by inversion Hwdst.
          all: try by simplify_pair_eq.
          all: repeat destruct (addr_of_argument r _); cbn in *; simplify_pair_eq; auto. }
        iFailWP "Hφ" Subseg_fail_allowed. }
 
     (* Now the proof splits depending on the type of value in wdst *)
-    destruct wdst as [ | [p g b e a | p g b e a] | | ].
+    destruct wdst as [ | [t p g b e a | t p g b e a] | | ].
     1,4,5: inversion Hwdst.
 
     (* First, the case where r1v is a capability *)
@@ -173,9 +173,9 @@ Section griotte_lang_rules.
       destruct (isWithin a1 a2 b e) eqn:Hiw; cycle 1.
       { destruct p; try congruence; inv Hstep ; iFailWP "Hφ" Subseg_fail_not_iswithin_cap. }
 
-      destruct (incrementPC (<[ dst := (WCap p g a1 a2 a) ]ᵣ> regs)) eqn:Hregs';
+      destruct (incrementPC (<[ dst := (WCap t p g a1 a2 a) ]ᵣ> regs)) eqn:Hregs';
         pose proof Hregs' as H'regs'; cycle 1.
-      { assert (incrementPC (<[ dst := (WCap p g a1 a2 a) ]ᵣ> r) = None) as HH.
+      { assert (incrementPC (<[ dst := (WCap t p g a1 a2 a) ]ᵣ> r) = None) as HH.
         { eapply incrementPC_overflow_mono; first eapply Hregs'.
             + by rewrite lookup_insert_is_Some'; eauto.
             + by apply insert_mono; eauto.
@@ -187,7 +187,7 @@ Section griotte_lang_rules.
         iFailWP "Hφ" Subseg_fail_incrPC_cap. }
 
       eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-          as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+          as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
       eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
       { destruct_perm p; cbn in Hstep; eauto. }
@@ -243,9 +243,9 @@ Section griotte_lang_rules.
       destruct (isWithin a1 a2 b e) eqn:Hiw; cycle 1.
       { destruct p; try congruence; inv Hstep ; iFailWP "Hφ" Subseg_fail_not_iswithin_sr. }
 
-      destruct (incrementPC (<[ dst := (WSealRange p g a1 a2 a) ]ᵣ> regs)) eqn:Hregs';
+      destruct (incrementPC (<[ dst := (WSealRange t p g a1 a2 a) ]ᵣ> regs)) eqn:Hregs';
         pose proof Hregs' as H'regs'; cycle 1.
-      { assert (incrementPC (<[ dst := (WSealRange p g a1 a2 a) ]ᵣ> r) = None) as HH.
+      { assert (incrementPC (<[ dst := (WSealRange t p g a1 a2 a) ]ᵣ> r) = None) as HH.
         { eapply incrementPC_overflow_mono; first eapply Hregs'.
           + by rewrite lookup_insert_is_Some'; eauto.
           + by apply insert_mono; eauto.
@@ -256,7 +256,7 @@ Section griotte_lang_rules.
         iFailWP "Hφ" Subseg_fail_incrPC_sr. }
 
       eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-        as (p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
+        as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
       eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
       eassert ((c, σ2) = (NextI, _)) as HH.
       { destruct p; cbn in Hstep; eauto. }
@@ -267,9 +267,9 @@ Section griotte_lang_rules.
       iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor 2; eauto.
   Qed.
 
-  Lemma wp_subseg_success E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 p g b e a n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 (t : bool) p g b e a n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg dst (inr r1) (inr r2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -277,18 +277,18 @@ Section griotte_lang_rules.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WCap p g b e a
+        ∗ ▷ dst ↦ᵣ WCap t p g b e a
         ∗ ▷ r1 ↦ᵣ WInt n1
         ∗ ▷ r2 ↦ᵣ WInt n2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
           ∗ r2 ↦ᵣ WInt n2
-          ∗ dst ↦ᵣ WCap p g a1 a2 a
+          ∗ dst ↦ᵣ WCap t p g a1 a2 a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' Hcnull Hcnull' Hcnull'' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
@@ -313,25 +313,25 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_same E pc_p pc_g pc_b pc_e pc_a w dst r1 p g b e a n1 a1 pc_a' :
+  Lemma wp_subseg_success_same E pc_p pc_g pc_b pc_e pc_a w dst r1 (t : bool) p g b e a n1 a1 pc_a' :
     decodeInstrW w = Subseg dst (inr r1) (inr r1) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 →
     isWithin a1 a1 b e = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WCap p g b e a
+        ∗ ▷ dst ↦ᵣ WCap t p g b e a
         ∗ ▷ r1 ↦ᵣ WInt n1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
-          ∗ dst ↦ᵣ WCap p g a1 a1 a
+          ∗ dst ↦ᵣ WCap t p g a1 a1 a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
@@ -356,25 +356,25 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_l E pc_p pc_g pc_b pc_e pc_a w dst r2 p g b e a n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_l E pc_p pc_g pc_b pc_e pc_a w dst r2 (t : bool) p g b e a n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg dst (inl n1) (inr r2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WCap p g b e a
+        ∗ ▷ dst ↦ᵣ WCap t p g b e a
         ∗ ▷ r2 ↦ᵣ WInt n2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r2 ↦ᵣ WInt n2
-          ∗ dst ↦ᵣ WCap p g a1 a2 a
+          ∗ dst ↦ᵣ WCap t p g a1 a2 a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
@@ -399,25 +399,25 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_r E pc_p pc_g pc_b pc_e pc_a w dst r1 p g b e a n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_r E pc_p pc_g pc_b pc_e pc_a w dst r1 (t : bool) p g b e a n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg dst (inr r1) (inl n2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WCap p g b e a
+        ∗ ▷ dst ↦ᵣ WCap t p g b e a
         ∗ ▷ r1 ↦ᵣ WInt n1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
-          ∗ dst ↦ᵣ WCap p g a1 a2 a
+          ∗ dst ↦ᵣ WCap t p g a1 a2 a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
@@ -441,22 +441,22 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_lr E pc_p pc_g pc_b pc_e pc_a w dst p g b e a n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_lr E pc_p pc_g pc_b pc_e pc_a w dst (t : bool) p g b e a n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg dst (inl n1) (inl n2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WCap p g b e a }}}
+        ∗ ▷ dst ↦ᵣ WCap t p g b e a }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ dst ↦ᵣ WCap p g a1 a2 a
+          ∗ dst ↦ᵣ WCap t p g a1 a2 a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
@@ -479,20 +479,20 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_fail_lr E pc_p pc_g pc_b pc_e pc_a w dst p g b e a n1 n2 a1 a2 :
+  Lemma wp_subseg_fail_lr E pc_p pc_g pc_b pc_e pc_a w dst (t : bool) p g b e a n1 n2 a1 a2 :
     decodeInstrW w = Subseg dst (inl n1) (inl n2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     ¬ (isWithin a1 a2 b e = true) →
     dst ≠ cnull ->
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ ▷ pc_a ↦ₐ w
-          ∗ ▷ dst ↦ᵣ WCap p g b e a }}}
+          ∗ ▷ dst ↦ᵣ WCap t p g b e a }}}
       Instr Executable @ E
       {{{ RET FailedV;
-          ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+          ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
             ∗ ▷ pc_a ↦ₐ w
-            ∗ ▷ dst ↦ᵣ WCap p g b e a }}}.
+            ∗ ▷ dst ↦ᵣ WCap t p g b e a }}}.
   Proof.
     iIntros (? ? ? ? Hncond ? ?) "(>HPC & >Hpc_a & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
@@ -513,20 +513,20 @@ Section griotte_lang_rules.
 
   Lemma wp_subseg_success_pc E pc_p pc_g pc_b pc_e pc_a w r1 r2 n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg PC (inr r1) (inr r2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ r1 ↦ᵣ WInt n1
         ∗ ▷ r2 ↦ᵣ WInt n2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g a1 a2 pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g a1 a2 pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
           ∗ r2 ↦ᵣ WInt n2
@@ -555,18 +555,18 @@ Section griotte_lang_rules.
 
   Lemma wp_subseg_success_pc_same E pc_p pc_g pc_b pc_e pc_a w r1 n1 a1 pc_a' :
     decodeInstrW w = Subseg PC (inr r1) (inr r1) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 →
     isWithin a1 a1 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ r1 ↦ᵣ WInt n1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g a1 a1 pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g a1 a1 pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
       }}}.
@@ -594,18 +594,18 @@ Section griotte_lang_rules.
 
   Lemma wp_subseg_success_pc_l E pc_p pc_g pc_b pc_e pc_a w r2 n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg PC (inl n1) (inr r2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ r2 ↦ᵣ WInt n2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g a1 a2 pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g a1 a2 pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r2 ↦ᵣ WInt n2
       }}}.
@@ -633,18 +633,18 @@ Section griotte_lang_rules.
 
   Lemma wp_subseg_success_pc_r E pc_p pc_g pc_b pc_e pc_a w r1 n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg PC (inr r1) (inl n2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ r1 ↦ᵣ WInt n1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g a1 a2 pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g a1 a2 pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
       }}}.
@@ -672,16 +672,16 @@ Section griotte_lang_rules.
 
   Lemma wp_subseg_success_pc_lr E pc_p pc_g pc_b pc_e pc_a w n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg PC (inl n1) (inl n2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
     (pc_a + 1)%a = Some pc_a' →
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g a1 a2 pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g a1 a2 pc_a'
           ∗ pc_a ↦ₐ w
       }}}.
   Proof.
@@ -707,9 +707,9 @@ Section griotte_lang_rules.
 
    (* Similar rules in case we have a SealRange instead of a capability, where some cases are impossible, because a SealRange is not a valid PC *)
 
-  Lemma wp_subseg_success_sr E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 p g b e a n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_sr E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 (t : bool) p g b e a n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg dst (inr r1) (inr r2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
@@ -717,18 +717,18 @@ Section griotte_lang_rules.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WSealRange p g b e a
+        ∗ ▷ dst ↦ᵣ WSealRange t p g b e a
         ∗ ▷ r1 ↦ᵣ WInt n1
         ∗ ▷ r2 ↦ᵣ WInt n2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
           ∗ r2 ↦ᵣ WInt n2
-          ∗ dst ↦ᵣ WSealRange p g a1 a2 a
+          ∗ dst ↦ᵣ WSealRange t p g a1 a2 a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ??? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
@@ -752,25 +752,25 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_same_sr E pc_p pc_g pc_b pc_e pc_a w dst r1 p g b e a n1 a1 pc_a' :
+  Lemma wp_subseg_success_same_sr E pc_p pc_g pc_b pc_e pc_a w dst r1 (t : bool) p g b e a n1 a1 pc_a' :
     decodeInstrW w = Subseg dst (inr r1) (inr r1) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_otype n1 = Some a1 →
     isWithin a1 a1 b e = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WSealRange p g b e a
+        ∗ ▷ dst ↦ᵣ WSealRange t p g b e a
         ∗ ▷ r1 ↦ᵣ WInt n1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
-          ∗ dst ↦ᵣ WSealRange p g a1 a1 a
+          ∗ dst ↦ᵣ WSealRange t p g a1 a1 a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
@@ -794,25 +794,25 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_l_sr E pc_p pc_g pc_b pc_e pc_a w dst r2 p g b e a n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_l_sr E pc_p pc_g pc_b pc_e pc_a w dst r2 (t : bool) p g b e a n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg dst (inl n1) (inr r2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WSealRange p g b e a
+        ∗ ▷ dst ↦ᵣ WSealRange t p g b e a
         ∗ ▷ r2 ↦ᵣ WInt n2 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r2 ↦ᵣ WInt n2
-          ∗ dst ↦ᵣ WSealRange p g a1 a2 a
+          ∗ dst ↦ᵣ WSealRange t p g a1 a2 a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
@@ -836,25 +836,25 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_r_sr E pc_p pc_g pc_b pc_e pc_a w dst r1 p g b e a n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_r_sr E pc_p pc_g pc_b pc_e pc_a w dst r1 (t : bool) p g b e a n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg dst (inr r1) (inl n2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WSealRange p g b e a
+        ∗ ▷ dst ↦ᵣ WSealRange t p g b e a
         ∗ ▷ r1 ↦ᵣ WInt n1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
-          ∗ dst ↦ᵣ WSealRange p g a1 a2 a
+          ∗ dst ↦ᵣ WSealRange t p g a1 a2 a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
@@ -878,22 +878,22 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  Lemma wp_subseg_success_lr_sr E pc_p pc_g pc_b pc_e pc_a w dst p g b e a n1 n2 a1 a2 pc_a' :
+  Lemma wp_subseg_success_lr_sr E pc_p pc_g pc_b pc_e pc_a w dst (t : bool) p g b e a n1 n2 a1 a2 pc_a' :
     decodeInstrW w = Subseg dst (inl n1) (inl n2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_otype n1 = Some a1 → z_to_otype n2 = Some a2 →
     isWithin a1 a2 b e = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WSealRange p g b e a }}}
+        ∗ ▷ dst ↦ᵣ WSealRange t p g b e a }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a'
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
           ∗ pc_a ↦ₐ w
-          ∗ dst ↦ᵣ WSealRange p g a1 a2 a
+          ∗ dst ↦ᵣ WSealRange t p g a1 a2 a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
@@ -917,26 +917,26 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma wp_subseg_fail_src2_nonaddr
-    E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 p g b e a n1 n2 :
+    E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 (t : bool) p g b e a n1 n2 :
     decodeInstrW w = Subseg dst (inr r1) (inr r2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n2 = None →
     dst ≠ cnull ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WCap p g b e a
+        ∗ ▷ dst ↦ᵣ WCap t p g b e a
         ∗ ▷ r1 ↦ᵣ WInt n1
         ∗ ▷ r2 ↦ᵣ WInt n2 }}}
       Instr Executable @ E
       {{{ RET FailedV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
           ∗ r2 ↦ᵣ WInt n2
-          ∗ dst ↦ᵣ WCap p g b e a
+          ∗ dst ↦ᵣ WCap t p g b e a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn2 ??? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
@@ -961,9 +961,9 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
   Lemma wp_subseg_fail_not_iswithin_cap
-    E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 p g b e a n1 n2 a1 a2 :
+    E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 (t : bool) p g b e a n1 n2 a1 a2 :
     decodeInstrW w = Subseg dst (inr r1) (inr r2) →
-    isCorrectPC (WCap pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = false →
@@ -971,18 +971,18 @@ Section griotte_lang_rules.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ ▷ PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WCap p g b e a
+        ∗ ▷ dst ↦ᵣ WCap t p g b e a
         ∗ ▷ r1 ↦ᵣ WInt n1
         ∗ ▷ r2 ↦ᵣ WInt n2 }}}
       Instr Executable @ E
       {{{ RET FailedV;
-          PC ↦ᵣ WCap pc_p pc_g pc_b pc_e pc_a
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ w
           ∗ r1 ↦ᵣ WInt n1
           ∗ r2 ↦ᵣ WInt n2
-          ∗ dst ↦ᵣ WCap p g b e a
+          ∗ dst ↦ᵣ WCap t p g b e a
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hn2 Hwt ??? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".

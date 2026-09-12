@@ -36,7 +36,7 @@ Section CMDC_Call_Phase.
       (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     let Wcall := <s[shared_addr := Permanent]s>W0 in
     let shared_addr_cap :=
-      WCap RW Global shared_addr shared_addr_e shared_addr in
+      WCap true RW Global shared_addr shared_addr_e shared_addr in
     let target_word := WSealed ot_switcher target in
     let arg_rmap : Reg :=
       {[ ca0 := shared_addr_cap;
@@ -58,10 +58,10 @@ Section CMDC_Call_Phase.
 
     (na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ᵣ WCap XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp
     ∗ cra ↦ᵣ wcra
-    ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
     ∗ ct1 ↦ᵣ target_word
     ∗ cs0 ↦ᵣ wcs0
     ∗ cs1 ↦ᵣ wcs1
@@ -106,7 +106,7 @@ Section CMDC_Call_Phase.
         ∗ cra ↦ᵣ wcra
         ∗ cs0 ↦ᵣ wcs0
         ∗ cs1 ↦ᵣ wcs1
-        ∗ csp ↦ᵣ WCap RWL Local b_stk e_stk a_stk
+        ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
         ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp Wret C warg0)
         ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp Wret C warg1)
         ∗ ([∗ map] r ↦ w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
