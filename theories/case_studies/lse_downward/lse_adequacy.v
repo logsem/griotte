@@ -25,6 +25,8 @@ Class memory_layout `{MP: MachineParameters} := {
     (* adv compartments C *)
     C_cmpt : cmpt ;
     offset_adv_f : nat;
+    offset_adv_f_valid :
+      is_Some (cmpt_b_pcc C_cmpt + offset_adv_f%nat)%a;
 
     (* disjointness *)
     cmpts_disjoints :
@@ -377,6 +379,10 @@ Section Adequacy.
       + solve_ndisj.
       + solve_addr+H0 H1 H2.
       + solve_addr+H3 H4.
+      + rewrite /length_lse_main_imports /lse_main_imports /LSE_main_code_run /=.
+        rewrite /lse_main_imports /= in H3.
+        rewrite /lse_main_code /LSE_main_code_run /LSE_main_code_f /= in H4.
+        solve_addr+H3 H4.
     }
 
     assert (ot_switcher ∉ dom (seal_std W0)) as Hot_notin_W0.
@@ -434,6 +440,7 @@ Section Adequacy.
 
       iAssert (ot_switcher_prop Winter C (WSealable C_f)) as "#ot_switcher_C_f".
       {
+        pose proof offset_adv_f_valid as Hentry_some.
         iApply (ot_switcher_interp _ _ _ _ _ 0 offset_adv_f); eauto; last lia.
         pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
         pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.

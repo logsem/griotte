@@ -381,7 +381,7 @@ Section wp_interp.
       Instr Executable @ E
       {{{ retv, RET retv;
           ⌜ retv = FailedV ⌝
-          ∨ ∃ psr gsr bsr esr asr wsb,
+          ∨ (∃ psr gsr bsr esr asr wsb,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
@@ -389,7 +389,17 @@ Section wp_interp.
               ∗ r2 ↦ᵣ WSealable wsb
               ∗ ⌜ wsealr = (WSealRange true psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
               ∗ ⌜ wsealed = WSealed asr wsb ⌝
-              ∗ ⌜ get_tag_sealable wsb = true ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝ )
+          ∨ ∃ tsr psr gsr bsr esr asr ot sb,
+              ⌜ retv = NextIV ⌝
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ wi
+              ∗ r1 ↦ᵣ wsealr
+              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable sb)
+              ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr ⌝
+              ∗ ⌜ wsealed = WSealed ot sb ⌝
+              ∗ ⌜ tsr && get_tag_sealable sb && permit_unseal psr &&
+                    withinBounds bsr esr asr && (ot =? asr)%Z = false ⌝
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
@@ -399,23 +409,44 @@ Section wp_interp.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].
-    simplify_map_eq.
-    match goal with
-    | Hinc : incrementPC _ = Some _ |- _ =>
-        apply incrementPC_Some_inv in Hinc;
-        destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
-    end.
-    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
-    simplify_eq.
-    iExists p, g, b, e, a, sb.
-    rewrite (insert_insert_ne _ _ PC) //.
-    rewrite (insert_insert_ne _ _ r1) //.
-    rewrite !insert_insert_eq.
-    iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
-    iFrame; done.
+    destruct Hspec as [ | | ].
+    { iApply "Hφ". iRight. iLeft.
+      simplify_map_eq.
+      match goal with
+      | Hinc : incrementPC _ = Some _ |- _ =>
+          apply incrementPC_Some_inv in Hinc;
+          destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
+      end.
+      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
+      simplify_eq.
+      iExists p, g, b, e, a, sb.
+      rewrite (insert_insert_ne _ _ PC) //.
+      rewrite (insert_insert_ne _ _ r1) //.
+      rewrite !insert_insert_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iFrame; done.
+    }
+    { iApply "Hφ". iRight. iRight.
+      simplify_map_eq.
+      match goal with
+      | Hinc : incrementPC _ = Some _ |- _ =>
+          apply incrementPC_Some_inv in Hinc;
+          destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
+      end.
+      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
+      simplify_eq.
+      iExists t, p, g, b, e, a, a', sb.
+      rewrite (insert_insert_ne _ _ PC) //.
+      rewrite (insert_insert_ne _ _ r1) //.
+      rewrite !insert_insert_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iFrame; done.
+    }
+    { iApply "Hφ". by iLeft. }
   Qed.
 
   Lemma wp_unseal_unknown' E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
@@ -433,7 +464,7 @@ Section wp_interp.
       Instr Executable @ E
       {{{ retv, RET retv;
           ⌜ retv = FailedV ⌝
-          ∨ ∃ psr gsr bsr esr asr wsb,
+          ∨ (∃ psr gsr bsr esr asr wsb,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
@@ -441,7 +472,17 @@ Section wp_interp.
               ∗ r2 ↦ᵣ wsealed
               ∗ ⌜ wsealr = (WSealRange true psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
               ∗ ⌜ wsealed = WSealed asr wsb ⌝
-              ∗ ⌜ get_tag_sealable wsb = true ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝ )
+          ∨ ∃ tsr psr gsr bsr esr asr ot sb,
+              ⌜ retv = NextIV ⌝
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ wi
+              ∗ r1 ↦ᵣ WSealable (clear_tag_sealable sb)
+              ∗ r2 ↦ᵣ wsealed
+              ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr ⌝
+              ∗ ⌜ wsealed = WSealed ot sb ⌝
+              ∗ ⌜ tsr && get_tag_sealable sb && permit_unseal psr &&
+                    withinBounds bsr esr asr && (ot =? asr)%Z = false ⌝
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
@@ -451,22 +492,42 @@ Section wp_interp.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].
-    simplify_map_eq.
-    match goal with
-    | Hinc : incrementPC _ = Some _ |- _ =>
-        apply incrementPC_Some_inv in Hinc;
-        destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
-    end.
-    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
-    simplify_eq.
-    iExists p, g, b, e, a, sb.
-    rewrite (insert_insert_ne _ _ PC) //.
-    rewrite !insert_insert_eq.
-    iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
-    iFrame; done.
+    destruct Hspec as [ | | ].
+    { iApply "Hφ". iRight. iLeft.
+      simplify_map_eq.
+      match goal with
+      | Hinc : incrementPC _ = Some _ |- _ =>
+          apply incrementPC_Some_inv in Hinc;
+          destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
+      end.
+      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
+      simplify_eq.
+      iExists p, g, b, e, a, sb.
+      rewrite (insert_insert_ne _ _ PC) //.
+      rewrite !insert_insert_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iFrame; done.
+    }
+    { iApply "Hφ". iRight. iRight.
+      simplify_map_eq.
+      match goal with
+      | Hinc : incrementPC _ = Some _ |- _ =>
+          apply incrementPC_Some_inv in Hinc;
+          destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
+      end.
+      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
+      simplify_eq.
+      iExists t, p, g, b, e, a, a', sb.
+      rewrite (insert_insert_ne _ _ PC) //.
+      rewrite !insert_insert_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iFrame; done.
+    }
+    { iApply "Hφ". by iLeft. }
   Qed.
 
   Lemma wp_unseal_unknown_sealed E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 psr gsr bsr esr asr wsealed  :
@@ -486,14 +547,22 @@ Section wp_interp.
       Instr Executable @ E
       {{{ retv, RET retv;
           ⌜ retv = FailedV ⌝
-          ∨ ∃ wsb,
+          ∨ (∃ wsb,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
               ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
               ∗ r2 ↦ᵣ WSealable wsb
               ∗ ⌜ wsealed = WSealed asr wsb ⌝
-              ∗ ⌜ get_tag_sealable wsb = true ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝ )
+          ∨ ∃ ot sb,
+              ⌜ retv = NextIV ⌝
+              ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ pc_a ↦ₐ wi
+              ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
+              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable sb)
+              ∗ ⌜ wsealed = WSealed ot sb ⌝
+              ∗ ⌜ get_tag_sealable sb && (ot =? asr)%Z = false ⌝
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' Hpsr Hsr ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
@@ -503,23 +572,48 @@ Section wp_interp.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [ | ]; iApply "Hφ"; [iRight | by iLeft].
-    simplify_map_eq.
-    match goal with
-    | Hinc : incrementPC _ = Some _ |- _ =>
-        apply incrementPC_Some_inv in Hinc;
-        destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
-    end.
-    rewrite lookup_insert_ne // lookup_insert_eq in HPC.
-    simplify_eq.
-    iExists sb.
-    rewrite (insert_insert_ne _ _ PC) //.
-    rewrite (insert_insert_ne _ _ r1) //.
-    rewrite !insert_insert_eq.
-    iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
-    iFrame; done.
+    destruct Hspec as [ | | ].
+    { iApply "Hφ". iRight. iLeft.
+      simplify_map_eq.
+      match goal with
+      | Hinc : incrementPC _ = Some _ |- _ =>
+          apply incrementPC_Some_inv in Hinc;
+          destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
+      end.
+      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
+      simplify_eq.
+      iExists sb.
+      rewrite (insert_insert_ne _ _ PC) //.
+      rewrite (insert_insert_ne _ _ r1) //.
+      rewrite !insert_insert_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      iFrame; done.
+    }
+    { iApply "Hφ". iRight. iRight.
+      simplify_map_eq.
+      match goal with
+      | Hinc : incrementPC _ = Some _ |- _ =>
+          apply incrementPC_Some_inv in Hinc;
+          destruct Hinc as (tpc & ppc & gpc & bpc & epc & apc & apc' & HPC & Hapc' & ->)
+      end.
+      rewrite lookup_insert_ne // lookup_insert_eq in HPC.
+      simplify_eq.
+      iExists a', sb.
+      rewrite (insert_insert_ne _ _ PC) //.
+      rewrite (insert_insert_ne _ _ r1) //.
+      rewrite !insert_insert_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
+      iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
+      match goal with Hinvalid : _ && withinBounds ?bb ?ee ?aa && _ = false |- _ =>
+        assert (Hwithin : withinBounds bb ee aa = true) by (rewrite /withinBounds; solve_addr);
+        rewrite Hpsr Hwithin !andb_true_r /= in Hinvalid
+      end.
+      iFrame; done.
+    }
+    { iApply "Hφ". by iLeft. }
   Qed.
 
   Lemma wp_load_interp (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)

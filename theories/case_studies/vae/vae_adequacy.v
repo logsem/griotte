@@ -26,6 +26,10 @@ Class memory_layout `{MP: MachineParameters} := {
     C_cmpt : cmpt ;
     offset_adv_f : nat;
     offset_adv_g : nat;
+    offset_adv_f_valid :
+      is_Some (cmpt_b_pcc C_cmpt + offset_adv_f%nat)%a;
+    offset_adv_g_valid :
+      is_Some (cmpt_b_pcc C_cmpt + offset_adv_g%nat)%a;
 
     (* disjointness *)
     cmpts_disjoints :
@@ -433,6 +437,9 @@ Section Adequacy.
       + solve_ndisj.
       + solve_addr+H0 H1 H2.
       + solve_addr+H3 H4.
+      + rewrite app_length.
+        rewrite /vae_main_code !app_length in H4.
+        solve_addr+H3 H4.
     }
 
     assert (ot_switcher ∉ dom (seal_std W1)) as Hot_notin_W1.
@@ -493,6 +500,7 @@ Section Adequacy.
 
       iAssert (ot_switcher_prop Winter C (WSealable C_f)) as "#ot_switcher_C_f".
       {
+        pose proof offset_adv_f_valid as Hentry_some.
         iApply (ot_switcher_interp _ _ _ _ _ 0 offset_adv_f); eauto; last lia.
         pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
         pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.
@@ -501,6 +509,7 @@ Section Adequacy.
       }
       iAssert (ot_switcher_prop Winter C (WSealable C_g)) as "#ot_switcher_C_g".
       {
+        pose proof offset_adv_g_valid as Hentry_some.
         iApply (ot_switcher_interp _ _ _ _ _ 0 offset_adv_g); eauto; last lia.
         pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
         pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.

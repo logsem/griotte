@@ -371,14 +371,16 @@ Qed.
 
 Global Instance vae_concrete_layout : memory_layout.
 Proof.
-  exact
+  refine
     (@Build_memory_layout machine_parameters_instance
        vae_concrete_cmptSwitcher vae_concrete_cmptAssert
        vae_concrete_main_cmpt vae_concrete_C_cmpt 3 34
+       _ _
        vae_concrete_cmpts_disjoints
        vae_concrete_switcher_cmpt_disjoints
        vae_concrete_assert_cmpt_disjoints
        vae_concrete_assert_switcher_disjoints).
+  all: vm_compute; eauto.
 Defined.
 
 Definition vae_initial_registers : Reg :=

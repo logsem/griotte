@@ -77,26 +77,44 @@ Section Stack_Object_Blocks.
 
     destruct (decide ((a_stk1 < csp_e)%a)) as [Hcsp_size'|Hcsp_size']; cycle 1.
     {
-      destruct (z_to_addr (a_stk1 + 1))%a as [a_stk2|] eqn:Hastk2; cycle 1.
-      + iInstr_lookup "Hcode" as "Hi" "Hcode".
-        wp_instr.
-        iApply (wp_subseg_fail_src2_nonaddr with "[$HPC $Hi $Hca1 $Hcs0 $Hcs1]"); try solve_pure.
-        iIntros "!> _".
-        wp_pure; wp_end; iIntros (?); done.
-      + iInstr_lookup "Hcode" as "Hi" "Hcode".
-        wp_instr.
-        iApply (wp_subseg_fail_not_iswithin_cap with "[$HPC $Hi $Hca1 $Hcs0 $Hcs1]"); try solve_pure.
-        { eauto. }
-        {
-          assert (csp_e < a_stk2)%a as Hcsp_e_stk2
-            by solve_addr+Hastk1 Hcsp_size Hcsp_size' Hastk2.
-          rewrite /isWithin.
-          apply andb_false_iff.
-          right.
-          solve_addr+Hcsp_e_stk2.
-        }
-        iIntros "!> _".
-        wp_pure; wp_end; iIntros (?); done.
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iDestruct (map_of_regs_4 with "HPC Hcs0 Hcs1 Hca1") as "[Hmap (%&%&%&%&%&%)]".
+      iApply (wp_Subseg with "[$Hi $Hmap]"); try solve_pure; try (by simplify_map_eq).
+      { constructor; auto; solve_addr. }
+      { unfold regs_of; rewrite !dom_insert; set_solver+. }
+      iNext; iIntros (regs' retv) "(%Hspec & Hi & Hmap)".
+      destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                        | * Hdst Hz1 Hz2 Hbounds Hincr
+                        | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                        | * Hdst Hz1 Hz2 Hbounds Hincr
+                        | Hfail].
+      5: { wp_pure; wp_end; iIntros (?); done. }
+      all: unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with
+        | Hinc : context [isWithin ?b' ?e' ?b ?e] |- _ =>
+            assert (isWithin b' e' b e = false) as Houtside
+              by (rewrite /isWithin; solve_addr);
+            rewrite Houtside /= in Hinc
+        end.
+      all: incrementPC_inv; simplify_map_eq.
+      all: match goal with
+        | Hpc : (?base ^+ 5 + 1)%a = Some ?a_next |- _ =>
+            replace a_next with (base ^+ 6)%a in * by solve_addr
+        end.
+      all: rewrite (insert_insert_ne _ PC ca1) // insert_insert_eq
+        (insert_insert_ne _ cs1 ca1) // (insert_insert_ne _ cs0 ca1) //
+        (insert_insert_ne _ PC ca1) // insert_insert_eq.
+      all: iDestruct (regs_of_map_4 with "Hmap") as "(Hca1 & HPC & Hcs0 & Hcs1)"; eauto.
+      all: wp_pure.
+      all: iSpecialize ("Hcode" with "Hi").
+      all: iInstr_lookup "Hcode" as "Hi" "Hcode".
+      all: wp_instr.
+      all: iDestruct (map_of_regs_2 with "HPC Hca1") as "[Hmap %]".
+      all: iApply (wp_store_fail_tag _ _ _ _ _ _ _ ca1 (inl 0%Z) _ _
+        with "[$Hi $Hmap]"); eauto; try solve_pure; try (by simplify_map_eq; reflexivity).
+      all: try (constructor; auto; solve_addr).
+      all: iNext; iIntros "_"; wp_pure; wp_end; iIntros (?); done.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
     rewrite finz_seq_between_length in Hstklen'.

@@ -190,6 +190,7 @@ Section Switcher_preamble.
            ∗ ⌜ (b_tbl < (b_tbl ^+1))%a ⌝
            ∗ ⌜ ((b_tbl ^+1) < a_tbl)%a ⌝
            ∗ ⌜ (0 <= nargs <= 7 )%nat ⌝
+           ∗ ⌜ is_Some (bpcc + off)%a ⌝
            ∗ inv (export_table_PCCN Cname) ( b_tbl ↦ₐ WCap true RX Global bpcc epcc bpcc)
            ∗ inv (export_table_CGPN Cname) ( (b_tbl ^+ 1)%a ↦ₐ WCap true RW Global bcgp ecgp bcgp)
            ∗ inv (export_table_entryN Cname a_tbl) ( a_tbl ↦ₐ WInt (encode_entry_point (Z.of_nat nargs) off))
@@ -221,7 +222,7 @@ Section Switcher_preamble.
     iEval (cbn).
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
-       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
+       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry &#Hentry_borrow & #Hcont)".
     iFrame "Hinvpcc Hinvcgp Hinventry Hentry".
     iExists _,_.
     repeat (iSplit ; first done).
@@ -241,7 +242,7 @@ Section Switcher_preamble.
     iEval (cbn).
     iDestruct "Hot_switcher" as
       (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
-       Hatbl Hbtbl Hbtbl1 Hnargs) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
+       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some) "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
     iFrame "#∗%".
     iExists Local; iPureIntro; done.
   Qed.

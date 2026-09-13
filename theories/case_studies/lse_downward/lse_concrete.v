@@ -352,7 +352,7 @@ Qed.
 
 Global Instance lse_concrete_layout : memory_layout.
 Proof.
-  exact
+  refine
     (@Build_memory_layout
        machine_parameters_instance
        lse_concrete_cmptSwitcher
@@ -360,10 +360,12 @@ Proof.
        lse_concrete_main_cmpt
        lse_concrete_C_cmpt
        2
+       _
        lse_concrete_cmpts_disjoints
        lse_concrete_switcher_cmpt_disjoints
        lse_concrete_assert_cmpt_disjoints
        lse_concrete_assert_switcher_disjoints).
+  vm_compute; eauto.
 Defined.
 
 Definition lse_initial_registers : Reg :=

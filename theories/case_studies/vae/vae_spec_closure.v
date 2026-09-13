@@ -77,6 +77,7 @@ Section VAE.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ->
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
+    is_Some (pc_b + length (imports ++ VAE_main_code_init))%a ->
     (exists b : bool, loc W !! i = Some (encode b)) ->
     wrel W !! i =
     Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
@@ -100,7 +101,7 @@ Section VAE.
   Proof.
     intros imports.
     iIntros (Hswitcher_assert HNswitcher_vae HNassert_vae
-               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hloc_i_W Hrel_i_W)
+               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hloc_i_W Hrel_i_W)
       "(#Hassert & #Hswitcher
       & #Hvae_code
       & #Hvae_exp_PCC
@@ -117,6 +118,7 @@ Section VAE.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
+    iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as

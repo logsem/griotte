@@ -408,7 +408,7 @@ Qed.
 
 Global Instance cmdc_concrete_layout : memory_layout.
 Proof.
-  exact
+  refine
     (@Build_memory_layout
        machine_parameters_instance
        cmdc_concrete_cmptSwitcher
@@ -416,12 +416,15 @@ Proof.
        cmdc_concrete_main_cmpt
        cmdc_concrete_B_cmpt
        1
+       _
        cmdc_concrete_C_cmpt
        1
+       _
        cmdc_concrete_cmpts_disjoints
        cmdc_concrete_switcher_cmpt_disjoints
        cmdc_concrete_assert_cmpt_disjoints
        cmdc_concrete_assert_switcher_disjoints).
+  all: vm_compute; eauto.
 Defined.
 
 Definition cmdc_initial_registers : Reg :=

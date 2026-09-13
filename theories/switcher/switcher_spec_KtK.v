@@ -114,6 +114,7 @@ Section Switcher_KtK.
     (btbl_tgt < (btbl_tgt ^+ 1))%a ->
     ((btbl_tgt ^+ 1) < atbl_tgt)%a ->
     (0 <= nargs <= 7)%nat ->
+    is_Some (bpcc_tgt + off_tgt)%a ->
     dom rmap =
       all_registers_s ∖
         ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
@@ -186,7 +187,7 @@ Section Switcher_KtK.
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros a_stk4 wct1_caller.
-    iIntros (HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hdom Harg_rmap)
+    iIntros (HE Hatbl Hbtbl0 Hbtbl1 Hnargs Hentry Hdom Harg_rmap)
       "(#Hswitcher & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
        & Hargs & Hregs & Hstk & Hcstk & HP & Hf & Hpost)".

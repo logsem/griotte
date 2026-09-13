@@ -219,6 +219,7 @@ Section KVS_spec_addOrUpdate_safe.
     iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr).
     iSplit; first by (iPureIntro; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr).
     iSplit; first (iPureIntro; rewrite /kvs_addOrUpdate_nargs; lia).
+    iSplit; first (iPureIntro; exists KVS_pcc_b'; exact KVS_size_imports).
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as

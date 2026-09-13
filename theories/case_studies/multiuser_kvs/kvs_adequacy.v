@@ -37,6 +37,8 @@ Class memory_layout `{MP: MachineParameters} := {
     (* adv compartments B *)
     B_cmpt : cmpt ;
     offset_adv_f : nat;
+    offset_adv_f_valid :
+      is_Some (cmpt_b_pcc B_cmpt + offset_adv_f%nat)%a;
 
     (* disjointness *)
     cmpts_disjoints :
@@ -731,6 +733,7 @@ Section Adequacy.
 
       iAssert (ot_switcher_prop Winter B (WSealable B_f)) as "#ot_switcher_B_f".
       {
+        pose proof offset_adv_f_valid as Hentry_some.
         iApply (ot_switcher_interp _ _ _ _ _ 0 offset_adv_f); eauto; last lia.
         pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H1.
         pose proof (cmpt_exp_tbl_entries_size B_cmpt) as H2.

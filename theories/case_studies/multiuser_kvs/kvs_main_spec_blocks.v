@@ -415,6 +415,7 @@ Section KVS_Main_Blocks.
     { solve_addr+Hkvs_exp_tbl_size. }
     { rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
     { rewrite /kvs_addOrUpdate_nargs; lia. }
+    { exists KVS_pcc_b'; exact KVS_size_imports. }
     {  subst rmap'.
        rewrite dom_insert_L.
        repeat (rewrite dom_delete_L).
@@ -639,6 +640,11 @@ Section KVS_Main_Blocks.
     { solve_addr+Hkvs_exp_tbl_size. }
     { rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
     { rewrite /kvs_read_nargs; lia. }
+    { pose proof KVS_size_imports as Himports.
+      pose proof KVS_size_code as Hcode.
+      rewrite /kvs_service_instrs !app_length in Hcode.
+      rewrite /kvs_read_pcc_off; solve_addr.
+    }
     {  subst rmap_read_call.
        rewrite dom_insert_L.
        repeat (rewrite dom_delete_L).

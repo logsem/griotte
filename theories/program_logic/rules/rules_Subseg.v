@@ -20,63 +20,76 @@ Section griotte_lang_rules.
       regs !!ᵣ dst = Some w →
       is_mutable_range w = false →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_src1_nonaddr (t : bool) p g b e a:
+  | Subseg_fail_src1_nonz :
+      z_of_argument regs src1 = None →
+      Subseg_failure regs dst src1 src2 regs
+  | Subseg_fail_src2_nonz :
+      z_of_argument regs src2 = None →
+      Subseg_failure regs dst src1 src2 regs
+  | Subseg_fail_incrPC_cap (t : bool) p g b e a n1 n2 a1 a2 :
       regs !!ᵣ dst = Some (WCap t p g b e a) →
-      addr_of_argument regs src1 = None →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      z_to_addr n1 = Some a1 →
+      z_to_addr n2 = Some a2 →
+      incrementPC (<[ dst := WCap (t && isWithin a1 a2 b e) p g a1 a2 a ]ᵣ> regs) = None →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_src2_nonaddr (t : bool) p g b e a:
+  | Subseg_fail_incrPC_unrepresentable_cap (t : bool) p g b e a n1 n2 :
       regs !!ᵣ dst = Some (WCap t p g b e a) →
-      addr_of_argument regs src2 = None →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      (z_to_addr n1 = None ∨ z_to_addr n2 = None) →
+      incrementPC (<[ dst := WCap false p g b e a ]ᵣ> regs) = None →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_src1_nonotype (t : bool) p g b e a:
+  | Subseg_fail_incrPC_sr (t : bool) p g b e a n1 n2 a1 a2 :
       regs !!ᵣ dst = Some (WSealRange t p g b e a) →
-      otype_of_argument regs src1 = None →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      z_to_otype n1 = Some a1 →
+      z_to_otype n2 = Some a2 →
+      incrementPC (<[ dst := WSealRange (t && isWithin a1 a2 b e) p g a1 a2 a ]ᵣ> regs) = None →
       Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_src2_nonotype (t : bool) p g b e a:
+  | Subseg_fail_incrPC_unrepresentable_sr (t : bool) p g b e a n1 n2 :
       regs !!ᵣ dst = Some (WSealRange t p g b e a) →
-      otype_of_argument regs src2 = None →
-      Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_not_iswithin_cap (t : bool) p g b e a a1 a2 :
-      regs !!ᵣ dst = Some (WCap t p g b e a) →
-      addr_of_argument regs src1 = Some a1 →
-      addr_of_argument regs src2 = Some a2 →
-      isWithin a1 a2 b e = false →
-      Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_incrPC_cap (t : bool) p g b e a a1 a2 :
-      regs !!ᵣ dst = Some (WCap t p g b e a) →
-      addr_of_argument regs src1 = Some a1 →
-      addr_of_argument regs src2 = Some a2 →
-      isWithin a1 a2 b e = true →
-      incrementPC (<[ dst := WCap t p g a1 a2 a ]ᵣ> regs) = None →
-      Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_not_iswithin_sr (t : bool) p g b e a a1 a2 :
-      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
-      otype_of_argument regs src1 = Some a1 →
-      otype_of_argument regs src2 = Some a2 →
-      isWithin a1 a2 b e = false →
-      Subseg_failure regs dst src1 src2 regs
-  | Subseg_fail_incrPC_sr (t : bool) p g b e a a1 a2 :
-      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
-      otype_of_argument regs src1 = Some a1 →
-      otype_of_argument regs src2 = Some a2 →
-      isWithin a1 a2 b e = true →
-      incrementPC (<[ dst := WSealRange t p g a1 a2 a ]ᵣ> regs) = None →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      (z_to_otype n1 = None ∨ z_to_otype n2 = None) →
+      incrementPC (<[ dst := WSealRange false p g b e a ]ᵣ> regs) = None →
       Subseg_failure regs dst src1 src2 regs.
 
-  Inductive Subseg_spec (regs: Reg) (dst: RegName) (src1 src2: Z + RegName) (regs': Reg): griotte_lang.val -> Prop :=
-  | Subseg_spec_success_cap (t : bool) p g b e a a1 a2:
-      regs !!ᵣ dst = Some (WCap t p g b e a) ->
-      addr_of_argument regs src1 = Some a1 ->
-      addr_of_argument regs src2 = Some a2 ->
-      isWithin a1 a2 b e = true ->
-      incrementPC (<[ dst := WCap t p g a1 a2 a ]ᵣ> regs) = Some regs' ->
+  (* Both operands must be integers. If either endpoint cannot be represented,
+     the instruction clears the tag and preserves both original endpoints. *)
+  Inductive Subseg_spec (regs : Reg) (dst : RegName)
+      (src1 src2 : Z + RegName) (regs' : Reg) : griotte_lang.val → Prop :=
+  | Subseg_spec_success_cap (t : bool) p g b e a n1 n2 a1 a2 :
+      regs !!ᵣ dst = Some (WCap t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      z_to_addr n1 = Some a1 →
+      z_to_addr n2 = Some a2 →
+      incrementPC (<[ dst := WCap (t && isWithin a1 a2 b e) p g a1 a2 a ]ᵣ> regs) = Some regs' →
       Subseg_spec regs dst src1 src2 regs' NextIV
-  | Subseg_spec_success_sr (t : bool) p g b e a a1 a2:
-      regs !!ᵣ dst = Some (WSealRange t p g b e a) ->
-      otype_of_argument regs src1 = Some a1 ->
-      otype_of_argument regs src2 = Some a2 ->
-      isWithin a1 a2 b e = true ->
-      incrementPC (<[ dst := WSealRange t p g a1 a2 a ]ᵣ> regs) = Some regs' ->
+  | Subseg_spec_unrepresentable_cap (t : bool) p g b e a n1 n2 :
+      regs !!ᵣ dst = Some (WCap t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      (z_to_addr n1 = None ∨ z_to_addr n2 = None) →
+      incrementPC (<[ dst := WCap false p g b e a ]ᵣ> regs) = Some regs' →
+      Subseg_spec regs dst src1 src2 regs' NextIV
+  | Subseg_spec_success_sr (t : bool) p g b e a n1 n2 a1 a2 :
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      z_to_otype n1 = Some a1 →
+      z_to_otype n2 = Some a2 →
+      incrementPC (<[ dst := WSealRange (t && isWithin a1 a2 b e) p g a1 a2 a ]ᵣ> regs) = Some regs' →
+      Subseg_spec regs dst src1 src2 regs' NextIV
+  | Subseg_spec_unrepresentable_sr (t : bool) p g b e a n1 n2 :
+      regs !!ᵣ dst = Some (WSealRange t p g b e a) →
+      z_of_argument regs src1 = Some n1 →
+      z_of_argument regs src2 = Some n2 →
+      (z_to_otype n1 = None ∨ z_to_otype n2 = None) →
+      incrementPC (<[ dst := WSealRange false p g b e a ]ᵣ> regs) = Some regs' →
       Subseg_spec regs dst src1 src2 regs' NextIV
   | Subseg_spec_failure :
       Subseg_failure regs dst src1 src2 regs' →
@@ -123,148 +136,72 @@ Section griotte_lang_rules.
          all: repeat destruct (addr_of_argument r _); cbn in *; simplify_pair_eq; auto. }
        iFailWP "Hφ" Subseg_fail_allowed. }
 
-    (* Now the proof splits depending on the type of value in wdst *)
-    destruct wdst as [ | [t p g b e a | t p g b e a] | | ].
-    1,4,5: inversion Hwdst.
+    (* Both supported forms read the integer operands before conversion. *)
+    assert (Hz1 : z_of_argument regs src1 = z_of_argument r src1).
+    { destruct src1 as [n | rn]; first done.
+      destruct (Hri rn) as [wv [Hwv Hwv']]; first (unfold regs_of_argument; set_solver+).
+      by rewrite /z_of_argument Hwv Hwv'. }
+    assert (Hz2 : z_of_argument regs src2 = z_of_argument r src2).
+    { destruct src2 as [n | rn]; first done.
+      destruct (Hri rn) as [wv [Hwv Hwv']]; first (unfold regs_of_argument; set_solver+).
+      by rewrite /z_of_argument Hwv Hwv'. }
+    destruct (z_of_argument regs src1) as [n1 |] eqn:Hn1.
+    2: { assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+         { destruct_word wdst; cbn in Hwdst; try discriminate;
+           rewrite -Hz1 /= in Hstep; by simplify_pair_eq. }
+         iFailWP "Hφ" Subseg_fail_src1_nonz. }
+    destruct (z_of_argument regs src2) as [n2 |] eqn:Hn2.
+    2: { assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
+         { destruct_word wdst; cbn in Hwdst; try discriminate;
+           rewrite -Hz1 -Hz2 /= in Hstep; by simplify_pair_eq. }
+         iFailWP "Hφ" Subseg_fail_src2_nonz. }
 
-    (* First, the case where r1v is a capability *)
-    + destruct (addr_of_argument regs src1) as [a1|] eqn:Ha1;
-        pose proof Ha1 as H'a1; cycle 1.
-      { destruct src1 as [| r1] eqn:?; cbn in Ha1, Hstep.
-        { rewrite Ha1 /= in Hstep.
-          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-          { repeat case_match; inv Hstep; auto. }
-          iFailWP "Hφ" Subseg_fail_src1_nonaddr. }
-        subst src1.
-        destruct (Hri r1) as [r1v [Hr'1 Hr1]] ; first (by unfold regs_of_argument; set_solver+).
-        rewrite /addr_of_argument /= Hr'1 in Ha1.
-        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-        { destruct r1v ; simplify_pair_eq.
-          all: unfold addr_of_argument, z_of_argument at 2 in Hstep.
-          all: rewrite /= Hr1 ?Ha1 /= in Hstep.
-          all: inv Hstep; auto.
-        }
-        repeat case_match; try congruence.
-        all: iFailWP "Hφ" Subseg_fail_src1_nonaddr. }
-      apply (addr_of_arg_mono _ r) in Ha1; auto. rewrite Ha1 /= in Hstep.
-
-      destruct (addr_of_argument regs src2) as [a2|] eqn:Ha2;
-        pose proof Ha2 as H'a2; cycle 1.
-      { destruct src2 as [| r2] eqn:?; cbn in Ha2, Hstep.
-        { rewrite Ha2 /= in Hstep.
-          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-          { repeat case_match; inv Hstep; auto. }
-          iFailWP "Hφ" Subseg_fail_src2_nonaddr.
-        }
-        subst src2.
-        destruct (Hri r2) as [r2v [Hr'2 Hr2]]; first (by unfold regs_of_argument; set_solver+).
-        rewrite /addr_of_argument /= Hr'2 in Ha2.
-        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-        { destruct r2v ; simplify_pair_eq.
-          all: unfold addr_of_argument, z_of_argument  in Hstep.
-          all: rewrite /= Hr2 ?Ha2 /= in Hstep.
-          all: inv Hstep; auto.
-        }
-        repeat case_match; try congruence.
-        all: iFailWP "Hφ" Subseg_fail_src2_nonaddr. }
-      apply (addr_of_arg_mono _ r) in Ha2; auto. rewrite Ha2 /= in Hstep.
-      rewrite /update_reg /= in Hstep.
-
-      destruct (isWithin a1 a2 b e) eqn:Hiw; cycle 1.
-      { destruct p; try congruence; inv Hstep ; iFailWP "Hφ" Subseg_fail_not_iswithin_cap. }
-
-      destruct (incrementPC (<[ dst := (WCap t p g a1 a2 a) ]ᵣ> regs)) eqn:Hregs';
-        pose proof Hregs' as H'regs'; cycle 1.
-      { assert (incrementPC (<[ dst := (WCap t p g a1 a2 a) ]ᵣ> r) = None) as HH.
-        { eapply incrementPC_overflow_mono; first eapply Hregs'.
-            + by rewrite lookup_insert_is_Some'; eauto.
-            + by apply insert_mono; eauto.
-        }
-        apply (incrementPC_fail_updatePC _ sr m) in HH.
-        rewrite HH in Hstep.
-        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
-            by (destruct p; inversion Hstep; auto).
-        iFailWP "Hφ" Subseg_fail_incrPC_cap. }
-
-      eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-          as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-      eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
-      eassert ((c, σ2) = (NextI, _)) as HH.
-      { destruct_perm p; cbn in Hstep; eauto. }
-      simplify_pair_eq. iFrame.
-      iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
-      { apply is_Some_lookup_reg; done. }
-      iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
-      iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor; eauto.
-    (* Now, the case where wsrc is a capability *)
-    + destruct (otype_of_argument regs src1) as [a1|] eqn:Ha1;
-        pose proof Ha1 as H'a1; cycle 1.
-      { destruct src1 as [| r1] eqn:?; cbn in Ha1, Hstep.
-        { rewrite Ha1 /= in Hstep.
-          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-          { repeat case_match; inv Hstep; auto. }
-          iFailWP "Hφ" Subseg_fail_src1_nonotype.
-        }
-        subst src1.
-        destruct (Hri r1) as [r1v [Hr'1 Hr1]]; first (by unfold regs_of_argument; set_solver+).
-        rewrite /otype_of_argument /= Hr'1 in Ha1.
-        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-        { destruct r1v ; simplify_pair_eq.
-          all: unfold otype_of_argument, z_of_argument at 2 in Hstep.
-          all: rewrite /= Hr1 ?Ha1 /= in Hstep.
-          all: inv Hstep; auto.
-        }
-        repeat case_match; try congruence.
-        all: iFailWP "Hφ" Subseg_fail_src1_nonotype. }
-      apply (otype_of_arg_mono _ r) in Ha1; auto. rewrite Ha1 /= in Hstep.
-
-      destruct (otype_of_argument regs src2) as [a2|] eqn:Ha2;
-        pose proof Ha2 as H'a2; cycle 1.
-      { destruct src2 as [| r2] eqn:?; cbn in Ha2, Hstep.
-        { rewrite Ha2 /= in Hstep.
-          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-          { repeat case_match; inv Hstep; auto. }
-          iFailWP "Hφ" Subseg_fail_src2_nonotype.
-        }
-        subst src2.
-        destruct (Hri r2) as [r2v [Hr'2 Hr2]]; first (by unfold regs_of_argument; set_solver+).
-          rewrite /otype_of_argument /= Hr'2 in Ha2.
-          assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
-          { destruct r2v ; simplify_pair_eq.
-            all: unfold otype_of_argument, z_of_argument  in Hstep.
-            all: rewrite /= Hr2 ?Ha2 /= in Hstep.
-            all: inv Hstep; auto.
-          }
-          repeat case_match; try congruence.
-          all: iFailWP "Hφ" Subseg_fail_src2_nonotype. }
-      apply (otype_of_arg_mono _ r) in Ha2; auto. rewrite Ha2 /= in Hstep.
-      rewrite /update_reg /= in Hstep.
-
-      destruct (isWithin a1 a2 b e) eqn:Hiw; cycle 1.
-      { destruct p; try congruence; inv Hstep ; iFailWP "Hφ" Subseg_fail_not_iswithin_sr. }
-
-      destruct (incrementPC (<[ dst := (WSealRange t p g a1 a2 a) ]ᵣ> regs)) eqn:Hregs';
-        pose proof Hregs' as H'regs'; cycle 1.
-      { assert (incrementPC (<[ dst := (WSealRange t p g a1 a2 a) ]ᵣ> r) = None) as HH.
-        { eapply incrementPC_overflow_mono; first eapply Hregs'.
-          + by rewrite lookup_insert_is_Some'; eauto.
-          + by apply insert_mono; eauto.
-        }
-        apply (incrementPC_fail_updatePC _ sr m) in HH. rewrite HH in Hstep.
-        assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->)
-            by (destruct p; inversion Hstep; auto).
-        iFailWP "Hφ" Subseg_fail_incrPC_sr. }
-
-      eapply (incrementPC_success_updatePC _ sr m) in Hregs'
-        as (t' & p' & g' & b' & e' & a'' & a''' & a_pc' & HPC'' & HuPC & ->).
-      eapply updatePC_success_incl with (sregs':=sr) (m':=m) in HuPC. 2: by eapply insert_mono; eauto. rewrite HuPC in Hstep.
-      eassert ((c, σ2) = (NextI, _)) as HH.
-      { destruct p; cbn in Hstep; eauto. }
-      simplify_pair_eq. iFrame.
-      iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
-      { apply is_Some_lookup_reg; done. }
-      iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
-      iFrame. iApply "Hφ". iFrame. iPureIntro. econstructor 2; eauto.
+    assert (∃ w',
+        (∀ regs', incrementPC (<[dst := w']ᵣ> regs) = Some regs' →
+          Subseg_spec regs dst src1 src2 regs' NextIV) ∧
+        (incrementPC (<[dst := w']ᵣ> regs) = None →
+          Subseg_failure regs dst src1 src2 regs) ∧
+        (match updatePC (update_reg (r, sr, m) dst w') with
+         | Some conf => conf | None => (Failed, (r, sr, m)) end) = (c, σ2)) as (w' & Hsuccess & Hfailure & Hupdate).
+    { destruct wdst as [ | [t p g b e a | t p g b e a] | | ];
+        try discriminate Hwdst.
+      - rewrite -Hz1 -Hz2 /= in Hstep.
+        destruct (z_to_addr n1) as [a1 |] eqn:Ha1;
+          destruct (z_to_addr n2) as [a2 |] eqn:Ha2;
+          eexists; (split; [|split; [|exact Hstep]]); intros.
+        all: first [solve [eapply Subseg_spec_success_cap; eauto]
+                    | solve [eapply Subseg_spec_unrepresentable_cap; eauto]
+                    | solve [eapply Subseg_fail_incrPC_cap; eauto]
+                    | solve [eapply Subseg_fail_incrPC_unrepresentable_cap; eauto]].
+      - rewrite -Hz1 -Hz2 /= in Hstep.
+        destruct (z_to_otype n1) as [a1 |] eqn:Ha1;
+          destruct (z_to_otype n2) as [a2 |] eqn:Ha2;
+          eexists; (split; [|split; [|exact Hstep]]); intros.
+        all: first [solve [eapply Subseg_spec_success_sr; eauto]
+                    | solve [eapply Subseg_spec_unrepresentable_sr; eauto]
+                    | solve [eapply Subseg_fail_incrPC_sr; eauto]
+                    | solve [eapply Subseg_fail_incrPC_unrepresentable_sr; eauto]]. }
+    clear Hstep. rename Hupdate into Hstep.
+    rewrite /update_reg /= in Hstep.
+    destruct (incrementPC (<[ dst := w' ]ᵣ> regs)) as [regs' |] eqn:Hregs'.
+    2: { assert (incrementPC (<[ dst := w' ]ᵣ> r) = None) as HH.
+         { eapply incrementPC_overflow_mono; first exact Hregs'.
+           - by rewrite lookup_insert_is_Some'; eauto.
+           - by apply insert_mono. }
+         apply (incrementPC_fail_updatePC _ sr m) in HH.
+         rewrite HH in Hstep. inversion Hstep; subst c σ2.
+         iFailWP "Hφ" Hfailure. }
+    eapply (incrementPC_success_updatePC _ sr m) in Hregs'
+      as (t' & p' & g' & b' & e' & a' & a_pc' & HPC' & Ha_pc' & HuPC & ->).
+    eapply updatePC_success_incl in HuPC; last by eapply insert_mono.
+    rewrite HuPC in Hstep. inversion Hstep; subst c σ2. cbn.
+    iFrame.
+    iMod ((gen_heap_update_inSepM _ _ dst) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+    { apply is_Some_lookup_reg; done. }
+    iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
+    iFrame. iModIntro. iApply "Hφ". iFrame.
+    iPureIntro. apply Hsuccess. reflexivity.
+    Unshelve. all: auto.
   Qed.
 
   Lemma wp_subseg_success E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 (t : bool) p g b e a n1 n2 a1 a2 pc_a' :
@@ -297,19 +234,30 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
-              (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame. }
-     { (* Success with WSealRange (contradiction) *)
-        simplify_map_eq. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
+            (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
+    iDestruct (regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -340,19 +288,30 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
-              (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
+            (insert_insert_ne _ PC dst) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -383,19 +342,30 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
-              (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
+            (insert_insert_ne _ PC dst) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -426,18 +396,30 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
-              (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence. }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
+            (insert_insert_ne _ PC dst) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -465,50 +447,30 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq insert_insert_ne // insert_insert_eq.
-      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence. }
-    Unshelve. all: auto.
-  Qed.
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC dst) // insert_insert_eq insert_insert_ne // insert_insert_eq.
+    iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
 
-  Lemma wp_subseg_fail_lr E pc_p pc_g pc_b pc_e pc_a w dst (t : bool) p g b e a n1 n2 a1 a2 :
-    decodeInstrW w = Subseg dst (inl n1) (inl n2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
-    ¬ (isWithin a1 a2 b e = true) →
-    dst ≠ cnull ->
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-          ∗ ▷ pc_a ↦ₐ w
-          ∗ ▷ dst ↦ᵣ WCap t p g b e a }}}
-      Instr Executable @ E
-      {{{ RET FailedV;
-          ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-            ∗ ▷ pc_a ↦ₐ w
-            ∗ ▷ dst ↦ᵣ WCap t p g b e a }}}.
-  Proof.
-    iIntros (? ? ? ? Hncond ? ?) "(>HPC & >Hpc_a & >Hdst) Hφ".
-    iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
-    iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-    destruct Hspec as [| | * Hfail].
-    { (* Success (contradiction) *)
-      exfalso. apply Hncond. simplify_map_eq.
-      repeat match goal with H : _ |- _ =>
-                               apply addr_of_argument_Some_inv in H as (?&?&[?|(?&?&?)]) end; by simplify_eq. }
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Failure *)
-      destruct Hfail; cbn in *; simplify_map_eq.
-      all: iApply "Hφ"; iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
+    Unshelve. all: auto.
   Qed.
 
   Lemma wp_subseg_success_pc E pc_p pc_g pc_b pc_e pc_a w r1 r2 n1 n2 a1 a2 pc_a' :
@@ -538,18 +500,29 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite !insert_insert_eq.
-      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      try destruct_perm pc_p; cbn in *; congruence. }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite !insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -577,18 +550,29 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
-      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      all: try destruct_perm pc_p; cbn in *; congruence. }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
+    iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -616,18 +600,29 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC r2) // insert_insert_eq insert_insert_ne // insert_insert_eq.
-      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      all: try destruct_perm pc_p; cbn in *; congruence. }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC r2) // insert_insert_eq insert_insert_ne // insert_insert_eq.
+    iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -655,18 +650,29 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
-      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      all: try destruct_perm pc_p; cbn in *; congruence. }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
+    iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -690,18 +696,29 @@ Section griotte_lang_rules.
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite !insert_insert_eq.
-      iDestruct (regs_of_map_1 with "Hmap") as "?"; eauto; iFrame. }
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      all: try destruct_perm pc_p; cbn in *; congruence. }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite !insert_insert_eq.
+    iDestruct (regs_of_map_1 with "Hmap") as "?"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -737,18 +754,30 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success with WCap (contradiction) *)
-       simplify_map_eq. }
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
-              (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
+            (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
+    iDestruct (regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -779,18 +808,30 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
-              (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
+            (insert_insert_ne _ PC dst) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -821,18 +862,30 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
-              (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
+            (insert_insert_ne _ PC dst) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -863,18 +916,30 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
-              (insert_insert_ne _ PC dst) // insert_insert_eq.
-      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
+            (insert_insert_ne _ PC dst) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame.
+
     Unshelve. all: auto.
   Qed.
 
@@ -902,108 +967,29 @@ Section griotte_lang_rules.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
 
-    destruct Hspec as [| | * Hfail].
-    { (* Success with WSealRange (contradiction) *)
-      simplify_map_eq. }
-    { (* Success *)
-      iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
-      unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
-      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq insert_insert_ne // insert_insert_eq.
-      iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame. }
-    { (* Failure (contradiction) *)
-      destruct Hfail; try incrementPC_inv; unfold otype_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; congruence. }
-    Unshelve. all: auto.
-  Qed.
+    destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
+                      | * Hdst Hz1 Hz2 Hbounds Hincr
+                      | Hfail].
+    5: { destruct Hfail; unfold z_of_argument in *; simplify_map_eq.
+      all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+        destruct Hbad; congruence
+      end.
+      match goal with Hincr : incrementPC _ = None |- _ =>
+        rewrite Hwb ?andb_true_r in Hincr
+      end.
+      incrementPC_inv; simplify_map_eq; eauto. congruence. }
+    all: unfold z_of_argument in *; simplify_map_eq.
+    all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
+      destruct Hbad; congruence
+    end.
+    rewrite Hwb ?andb_true_r in Hincr.
+    iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+    unfold otype_of_argument, z_of_argument in *. simplify_map_eq.
+    rewrite (insert_insert_ne _ PC dst) // insert_insert_eq insert_insert_ne // insert_insert_eq.
+    iDestruct (regs_of_map_2 with "Hmap") as "(?&?)"; eauto; iFrame.
 
-  Lemma wp_subseg_fail_src2_nonaddr
-    E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 (t : bool) p g b e a n1 n2 :
-    decodeInstrW w = Subseg dst (inr r1) (inr r2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    z_to_addr n2 = None →
-    dst ≠ cnull ->
-    r1 ≠ cnull ->
-    r2 ≠ cnull ->
-
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-        ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WCap t p g b e a
-        ∗ ▷ r1 ↦ᵣ WInt n1
-        ∗ ▷ r2 ↦ᵣ WInt n2 }}}
-      Instr Executable @ E
-      {{{ RET FailedV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-          ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
-          ∗ r2 ↦ᵣ WInt n2
-          ∗ dst ↦ᵣ WCap t p g b e a
-      }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hn2 ??? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
-    iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
-    iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      unfold addr_of_argument, z_of_argument in *; simplify_map_eq.
-    }
-    { (* Success with WSealRange (contradiction) *)
-      unfold addr_of_argument, z_of_argument in *; simplify_map_eq.
-    }
-    { iApply "Hφ".
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      all: iFrame.
-      all: iDestruct (regs_of_map_4 with "Hmap") as "($&$&$&$)"; eauto.
-    }
-    Unshelve. all: auto.
-  Qed.
-  Lemma wp_subseg_fail_not_iswithin_cap
-    E pc_p pc_g pc_b pc_e pc_a w dst r1 r2 (t : bool) p g b e a n1 n2 a1 a2 :
-    decodeInstrW w = Subseg dst (inr r1) (inr r2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    z_to_addr n1 = Some a1 →
-    z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
-    dst ≠ cnull ->
-    r1 ≠ cnull ->
-    r2 ≠ cnull ->
-
-    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-        ∗ ▷ pc_a ↦ₐ w
-        ∗ ▷ dst ↦ᵣ WCap t p g b e a
-        ∗ ▷ r1 ↦ᵣ WInt n1
-        ∗ ▷ r2 ↦ᵣ WInt n2 }}}
-      Instr Executable @ E
-      {{{ RET FailedV;
-          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-          ∗ pc_a ↦ₐ w
-          ∗ r1 ↦ᵣ WInt n1
-          ∗ r2 ↦ᵣ WInt n2
-          ∗ dst ↦ᵣ WCap t p g b e a
-      }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwt ??? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
-    iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
-    iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
-    { by unfold regs_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
-
-    destruct Hspec as [| | * Hfail].
-    { (* Success *)
-      unfold addr_of_argument, z_of_argument in *; simplify_map_eq.
-      by rewrite H11 in Hwt.
-    }
-    { (* Success with WSealRange (contradiction) *)
-      unfold addr_of_argument, z_of_argument in *; simplify_map_eq.
-    }
-    { iApply "Hφ".
-      destruct Hfail; try incrementPC_inv; unfold addr_of_argument, z_of_argument in *.
-      all: simplify_map_eq; eauto; try congruence.
-      iDestruct (regs_of_map_4 with "Hmap") as "($&$&$&$)"; eauto.
-    }
     Unshelve. all: auto.
   Qed.
 

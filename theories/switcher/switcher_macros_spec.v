@@ -90,19 +90,14 @@ Section switcher_macros.
       iApply (wp_store_interp_z_cap with "[$HPC $Hi $Hworld_interp Hr2]"); try solve_pure.
       { iFrame "∗ #". }
       iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hr2
-      & Hworld_interp & %Hwa & _)] /=".
+      & Hworld_interp & %Hwa & %Hstorebounds)] /=".
       { wp_pure. wp_end. iFrame. }
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
 
       (* --- Lea r2 1 --- *)
-      destruct (csp_a + 1)%a eqn:Ha;cycle 1.
-      { iInstr_lookup "Hcode" as "Hi" "Hcode".
-        wp_instr.
-        iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hr2]")
-        ; try solve_pure
-        ; eauto.
-        iIntros "!> _". wp_pure. wp_end. iFrame. }
+      assert (is_Some (csp_a + 1)%a) as [f Ha].
+      { solve_addr. }
       iInstr "Hcode".
 
       (* --- Add r1 r1 1 --- *)

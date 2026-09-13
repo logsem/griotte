@@ -152,6 +152,7 @@ Section Switcher.
     iApply (switcher_return_block_12_pop_spec with
       "[- $HPC $Hctp $Hcsp $Hmtdc $Hcode]").
     { solve_addr. }
+    { solve_addr+Hlen_cstk. }
     { rewrite (finz_incr_eq Ha_stk4); exact Ha_stk4. }
     iNext; iIntros
       "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & Hcode & Hlc)".

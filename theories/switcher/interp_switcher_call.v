@@ -202,11 +202,7 @@ Section fundamental.
     assert (encodeLoc g = encodeLoc Local)%Z as ?%encodeLoc_inj by congruence.
     simplify_eq.
 
-    destruct (a + 1)%a eqn:Ha1; cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    assert (is_Some (a + 1)%a) as [f Ha1] by solve_addr+bounds.
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
 
@@ -215,16 +211,12 @@ Section fundamental.
     iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hworld_interp]"); try solve_pure.
     { iFrame. iSplit; first iFrame "#".
       by iApply (interp_lea with "Hspv"). }
-    iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcs1 & Hcsp & Hworld_interp & _)] /=".
+    iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcs1 & Hcsp & Hworld_interp & _ & %bounds2)] /=".
     { wp_pure. wp_end. iIntros "%Hcontr"; done. }
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
 
-    destruct (f + 1)%a eqn:Ha2; cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    assert (is_Some (f + 1)%a) as [f0 Ha2] by solve_addr+bounds2.
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
 
@@ -233,16 +225,12 @@ Section fundamental.
     iApply (wp_store_interp_cap with "[$HPC $Hi Hcsp Hcra $Hworld_interp]"); try solve_pure.
     { iFrame. iSplit; first iFrame "#".
       by iApply (interp_lea with "Hspv"). }
-    iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcra & Hcsp & Hworld_interp & _)] /=".
+    iIntros "!>" (v) "[-> | (-> & HPC & Hi & Hcra & Hcsp & Hworld_interp & _ & %bounds3)] /=".
     { wp_pure. wp_end. iIntros "%Hcontr"; done. }
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
 
-    destruct (f0 + 1)%a eqn:Ha3; cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    assert (is_Some (f0 + 1)%a) as [f1 Ha3] by solve_addr+bounds3.
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
 
@@ -256,11 +244,7 @@ Section fundamental.
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
 
-    destruct (f1 + 1)%a eqn:Ha4; cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    assert (is_Some (f1 + 1)%a) as [f2 Ha4] by solve_addr+bounds'.
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
 
@@ -842,8 +826,35 @@ Section fundamental.
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_unseal_unknown with "[$HPC $Hi $Hcs0 $Hct1]"); try solve_pure.
-    iIntros "!>" (ret) "[-> | (% & % & % & % & % & %wsb & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & % & %spec & %Htag)]".
+    iIntros "!>" (ret)
+      "[-> |
+       [(% & % & % & % & % & %wsb & -> & HPC & Hi & Hcs0 & Hct1
+         & %Heq & %Hpermit & %Hsealed & %Htag)
+       |(%tsr & %psr & %gsr & %bsr & %esr & %asr & %ot & %sb
+         & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Hsealed & %Hinvalid)]]".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
+    2: {
+      simplify_eq.
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      destruct sb as
+        [tcap pcap gcap bcap ecap acap | tsr psr' gsr' bsr' esr' asr'].
+      - iEval (cbn [clear_tag_sealable]) in "Hct1".
+        iDestruct (map_of_regs_3 with "HPC Hcs0 Hct1") as "[Hmap (%&%&%)]".
+        iApply (rules_Load.wp_load_fail_tag _ _ _ _ _ _ _ cs0 ct1 _
+                  (WCap false pcap gcap bcap ecap acap) with "[$Hi $Hmap]");
+          eauto; try solve_pure; try (by simplify_map_eq).
+        iNext; iIntros "_".
+        wp_pure; wp_end; iIntros "%Hcontr"; done.
+      - iEval (cbn [clear_tag_sealable]) in "Hct1".
+        iDestruct (map_of_regs_3 with "HPC Hcs0 Hct1") as "[Hmap (%&%&%)]".
+        iApply (rules_Load.wp_load_fail_tag _ _ _ _ _ _ _ cs0 ct1 _
+                  (WSealRange false psr' gsr' bsr' esr' asr') with "[$Hi $Hmap]");
+          eauto; try solve_pure; try (by simplify_map_eq).
+        iNext; iIntros "_".
+        wp_pure; wp_end; iIntros "%Hcontr"; done. }
     simplify_eq.
 
     (* get the seal inv and compare with wsb *)
@@ -858,7 +869,10 @@ Section fundamental.
 
     wp_pure.
     iSpecialize ("Hcode" with "[$]").
-    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry & #Hentry_borrow & Hexec)".
+    iDestruct "HP" as
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME
+       Heq Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some)
+      "(Htbl1 & Htbl2 & Htbl3 & #Hentry & #Hentry_borrow & Hexec)".
     simpl fst; simpl snd.
     destruct wsb; cbn in Heq; simplify_eq.
     iEval (cbn) in "Hentry"; iEval (cbn) in "Hentry_borrow".

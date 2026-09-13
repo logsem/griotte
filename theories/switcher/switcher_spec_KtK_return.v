@@ -172,18 +172,8 @@ Section Switcher_KtK_Return.
     { split;auto;rewrite /withinBounds;solve_addr. }
 
     (* --- Lea ctp -1 --- *)
-    destruct (decide (a_tstk <= (a_tstk ^+ -1))%a) as [Ha_tstk1'|Ha_tstk1'].
-    {
-      assert ((a_tstk + -1) = None)%a by solve_addr+Ha_tstk1'.
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Lea.wp_Lea_fail_none_z with "[HPC Hi Hctp]")
-      ; try iFrame
-      ; try solve_pure.
-      iNext; iIntros "_".
-      wp_pure; wp_end ; by iIntros (?).
-    }
-    assert (is_Some (a_tstk + -1))%a as [a_tstk1 Ha_tstk1] by solve_addr+Ha_tstk1'.
+    assert (is_Some (a_tstk + -1))%a as [a_tstk1 Ha_tstk1].
+    { cbn in Hlen_cstk. solve_addr+Hlen_cstk. }
     iInstr "Hcode".
     replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr.
 

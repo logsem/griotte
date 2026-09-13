@@ -390,36 +390,51 @@ Section Switcher.
     ; clear dependent Ha_LoadCapPCC.
 
     (* --- UnSeal ct1 cs0 ct1 --- *)
-    destruct (is_sealed_with_o wct1_caller ot_switcher) eqn:Hwct1_caller; cycle 1.
-    { (* wct1_caller is not sealed with ot_switcher, so the next instruction will fail *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_unseal_nomatch_r2 with "[$HPC $Hi $Hct1 $Hcs0]") ; try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
-    assert (∃ w_entry_point, wct1_caller = WSealed ot_switcher w_entry_point ) as [w_entry_point ->].
-    { destruct wct1_caller as [ | [] | |]; cbn in Hwct1_caller; try discriminate.
-      exists sb. apply Z.eqb_eq in Hwct1_caller.
-      replace ot with ot_switcher by solve_addr.
-      done.
-    }
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_rules_interp.wp_unseal_unknown_sealed with "[$HPC $Hi $Hcs0 $Hct1]");
       try done; try solve_pure.
-    iIntros "!>" (ret) "[-> | (%wsb & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Htag)]".
+    iIntros "!>" (ret)
+      "[-> |
+       [(%wsb & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Htag)
+       |(%ot & %sb & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Hinvalid)]]".
     { wp_pure. wp_end. iIntros "%Hcontr"; done. }
+    2: {
+      simplify_eq.
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      destruct sb as
+        [tcap pcap gcap bcap ecap acap | tsr psr' gsr' bsr' esr' asr'].
+      - iEval (cbn [clear_tag_sealable]) in "Hct1".
+        iDestruct (map_of_regs_3 with "HPC Hcs0 Hct1") as "[Hmap (%&%&%)]".
+        iApply (rules_Load.wp_load_fail_tag _ _ _ _ _ _ _ cs0 ct1 _
+                  (WCap false pcap gcap bcap ecap acap) with "[$Hi $Hmap]");
+          eauto; try solve_pure; try (by simplify_map_eq).
+        iNext; iIntros "_".
+        wp_pure; wp_end; iIntros "%Hcontr"; done.
+      - iEval (cbn [clear_tag_sealable]) in "Hct1".
+        iDestruct (map_of_regs_3 with "HPC Hcs0 Hct1") as "[Hmap (%&%&%)]".
+        iApply (rules_Load.wp_load_fail_tag _ _ _ _ _ _ _ cs0 ct1 _
+                  (WSealRange false psr' gsr' bsr' esr' asr') with "[$Hi $Hmap]");
+          eauto; try solve_pure; try (by simplify_map_eq).
+        iNext; iIntros "_".
+        wp_pure; wp_end; iIntros "%Hcontr"; done. }
     simplify_eq. rename wsb into w_entry_point.
-    iSpecialize ("Hcode" with "[$]").
-    rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher w_entry_point)).
-    iEval (cbn; rewrite Htag) in "Htarget_v".
-    rewrite /interp_sb.
+    iSpecialize ("Hcode" with "Hi").
+    iEval (rewrite /is_sealed_with_o Z.eqb_refl) in "Htarget_v".
+    iEval (rewrite /interp fixpoint_interp1_eq /= Htag /interp_sb)
+      in "Htarget_v".
     iAssert (sts_seals_std C ot_switcher {[WSealable w_entry_point]}) as "#Htarget_v'".
     { iApply sts_seals_std_weaken; last iFrame "Htarget_v"; last set_solver+. }
     iDestruct (world_interp_seal_pred_singleton with "Hp_ot_switcher Htarget_v' Hworld_interp")
       as "(Hworld_interp & #HP)".
     wp_pure.
-    iDestruct "HP" as (??????????? Heq????) "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & #Hentry'_borrow & Hexec)".
+    iDestruct "HP" as
+      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME
+       Heq Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some)
+      "(Htbl1 & Htbl2 & Htbl3 & #Hentry' & #Hentry'_borrow & Hexec)".
     simpl fst; simpl snd.
     destruct w_entry_point; cbn in Heq; simplify_eq.
     iEval (cbn) in "Hentry'"; iEval (cbn) in "Hentry'_borrow".

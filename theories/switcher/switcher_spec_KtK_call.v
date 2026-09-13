@@ -551,6 +551,7 @@ Section Switcher_KtK_Call.
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_8)%a ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt ^+ 1 < atbl_tgt)%a ->
+    is_Some (bpcc_tgt + off_tgt)%a ->
 
     inv (export_table_PCCN Nexp_tbl) (btbl_tgt ↦ₐ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt) ∗
     inv (export_table_CGPN Nexp_tbl) ((btbl_tgt ^+ 1)%a ↦ₐ wcgp_tgt) ∗
@@ -576,7 +577,7 @@ Section Switcher_KtK_Call.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_8 len_switcher_8 wct1; subst switcher_instrs_8 len_switcher_8 wct1.
-    iIntros (Hsub_reg atbl_tgt_inbounds Hbtbl_tgt1)
+    iIntros (Hsub_reg atbl_tgt_inbounds Hbtbl_tgt1 Hentry)
       "(#Hinv_exp_tbl_pcc & Hinv_exp_tbl_cgp & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -615,19 +616,13 @@ Section Switcher_KtK_Call.
     wp_pure.
 
     (* --- Lea cra cs0 --- *)
-    destruct (bpcc_tgt + off_tgt)%a eqn:Hentry;cycle 1.
-    { iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_Lea_fail_none_reg with "[$HPC $Hi $Hcs0 $Hcra]")
-      ; try solve_pure.
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
-    }
+    destruct Hentry as [a_entry Hentry].
     iInstr "Hcode".
 
     (* --- Add ct2 ct2 1 --- *)
     iInstr "Hcode".
 
-    replace f with (bpcc_tgt ^+ off_tgt)%a by solve_addr.
+    replace a_entry with (bpcc_tgt ^+ off_tgt)%a by solve_addr.
     iApply "Hpost"; iFrame.
   Qed.
 
@@ -757,6 +752,7 @@ Section Switcher_KtK_Call.
     (btbl_tgt < (btbl_tgt ^+1))%a →
     ((btbl_tgt ^+1) < atbl_tgt)%a  →
     (0 <= nargs <= 7 )%nat →
+    is_Some (bpcc_tgt + off_tgt)%a →
 
     (* Well formed register map *)
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
@@ -848,7 +844,7 @@ Section Switcher_KtK_Call.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros astk4 wct1_caller callee_stk_region frame.
-    iIntros (HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hdom Harg_rmap)
+    iIntros (HE atbl_tgt_inbounds btbl_tgt0 btbl_tgt1 Hnargs Hentry Hdom Harg_rmap)
       "(#Hswitcher & Hinv_exp_tbl_pcc & Hinv_exp_tbl_cgp & Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
 

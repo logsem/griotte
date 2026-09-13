@@ -333,14 +333,16 @@ Qed.
 
 Global Instance so_concrete_layout : memory_layout.
 Proof.
-  exact
+  refine
     (@Build_memory_layout machine_parameters_instance
        so_concrete_cmptSwitcher so_concrete_cmptAssert
        so_concrete_main_cmpt so_concrete_C_cmpt 3 40
+       _ _
        so_concrete_cmpts_disjoints
        so_concrete_switcher_cmpt_disjoints
        so_concrete_assert_cmpt_disjoints
        so_concrete_assert_switcher_disjoints).
+  all: vm_compute; eauto.
 Defined.
 
 Definition so_initial_registers : Reg :=

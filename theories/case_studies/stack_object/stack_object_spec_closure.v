@@ -96,6 +96,7 @@ Section SO.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
     (pc_b + length imports)%a = Some pc_a ->
     (cgp_b + length so_main_data)%a = Some cgp_e ->
+    is_Some (pc_b + length (imports ++ SO_main_code_run))%a ->
 
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv cerise_nais Nswitcher switcher_inv
@@ -113,7 +114,7 @@ Section SO.
   Proof.
     intros imports.
     iIntros (Hswitcher_assert HNswitcher_so HNassert_so
-               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size)
+               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher
       & #Hso_code
       & #Hso_exp_PCC
@@ -129,6 +130,7 @@ Section SO.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
+    iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as

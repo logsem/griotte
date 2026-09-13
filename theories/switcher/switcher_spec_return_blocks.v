@@ -99,8 +99,19 @@ Section Switcher_Return_Blocks.
       assert ((b_trusted_stack + -1) = None)%a by solve_addr+Hb_trusted_stack1'.
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (rules_Lea.wp_Lea_fail_none_z with "[HPC Hi Hctp]")
-      ; try iFrame
+      iApply (rules_Lea.wp_lea_overflow_z with "[$HPC $Hi $Hctp]")
+      ; try solve_pure.
+      iNext; iIntros "(HPC & Hi & Hctp)".
+      wp_pure.
+      iSpecialize ("Hcode" with "[$]").
+
+      (* --- WriteSR mtdc ctp --- *)
+      iInstr "Hcode".
+
+      (* --- Lea csp (-1)%Z --- *)
+      iInstr_lookup "Hcode" as "Hi" "Hcode".
+      wp_instr.
+      iApply (rules_Lea.wp_Lea_fail_integer with "[$HPC $Hi $Hcsp]")
       ; try solve_pure.
       iNext; iIntros "_".
       wp_pure; wp_end; by iIntros (?).
@@ -130,6 +141,7 @@ Section Switcher_Return_Blocks.
     let switcher_instrs_12 := switcher_instrs_n 12 in
     let len_switcher_12 := length switcher_instrs_12 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
+    (b_trusted_stack < a_tstk)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
 
     PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ 2)%a ∗
@@ -152,24 +164,13 @@ Section Switcher_Return_Blocks.
   Proof.
     intros switcher_instrs_12 len_switcher_12.
     subst switcher_instrs_12 len_switcher_12.
-    iIntros (Hsub_reg Ha_stk4) "(HPC & Hctp & Hcsp & Hmtdc & Hcode & Hpost)".
+    iIntros (Hsub_reg Hnonempty Ha_stk4) "(HPC & Hctp & Hcsp & Hmtdc & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
     (* --- Lea ctp (-1)%Z --- *)
-    destruct (decide (a_tstk <= (a_tstk ^+ -1))%a) as [Ha_tstk1'|Ha_tstk1'].
-    {
-      assert ((a_tstk + -1) = None)%a by solve_addr+Ha_tstk1'.
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Lea.wp_Lea_fail_none_z with "[HPC Hi Hctp]")
-      ; try iFrame
-      ; try solve_pure.
-      iNext; iIntros "_".
-      wp_pure; wp_end; by iIntros (?).
-    }
     assert (is_Some (a_tstk + -1))%a as [a_tstk1 Ha_tstk1]
-      by solve_addr+Ha_tstk1'.
+      by solve_addr+Hnonempty.
     iInstr "Hcode".
     replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr.
 

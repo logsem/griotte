@@ -190,6 +190,13 @@ Section KVS_spec_read_safe.
     iSplit; first by (iPureIntro; rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr).
     iSplit; first by (iPureIntro; rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr).
     iSplit; first (iPureIntro; rewrite /kvs_read_nargs; lia).
+    iSplit.
+    { iPureIntro.
+      pose proof KVS_size_imports as Himports.
+      pose proof KVS_size_code as Hcode.
+      rewrite /kvs_service_instrs !app_length in Hcode.
+      rewrite /kvs_read_pcc_off; solve_addr.
+    }
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as

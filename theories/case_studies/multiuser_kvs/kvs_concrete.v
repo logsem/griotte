@@ -449,10 +449,11 @@ Proof.
     kvs_concrete_cmptSwitcher kvs_concrete_cmptAssert
     kvs_concrete_main_cmpt kvs_concrete_KVS_cmpt
     kvs_service_sealing_type _ _ 1 2 _ kvs_concrete_B_cmpt 5
-    _ _ _ _).
+    _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - lia.
+  - vm_compute; eauto.
   - repeat split; solve_kvs_cmpt_disjoint.
   - repeat split; solve_kvs_switcher_disjoint.
   - repeat split; solve_kvs_assert_disjoint.

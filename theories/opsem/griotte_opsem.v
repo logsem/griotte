@@ -127,12 +127,12 @@ Section opsem.
       | WCap t p g b e a =>
           match (a + n)%a with
           | Some a' => updatePC (update_reg φ dst (WCap t p g b e a'))
-          | None => None
+          | None => updatePC (update_reg φ dst (WCap false p g b e a))
           end
       | WSealRange t p g b e a =>
          match (a + n)%ot with
           | Some a' => updatePC (update_reg φ dst (WSealRange t p g b e a'))
-          | None => None
+          | None => updatePC (update_reg φ dst (WSealRange false p g b e a))
           end
       | _ => None
       end
@@ -142,14 +142,12 @@ Section opsem.
       match wdst with
       | WCap t p g b e a =>
           let (p',g') := decodePermPair n in
-          if PermFlowsTo p' p && LocalityFlowsTo g' g then
-            updatePC (update_reg φ dst (WCap t p' g' b e a))
-          else None
+          let new_tag := t && PermFlowsTo p' p && LocalityFlowsTo g' g in
+          updatePC (update_reg φ dst (WCap new_tag p' g' b e a))
       | WSealRange t p g b e a =>
-            let (p',g') := decodeSealPermPair n in
-            if SealPermFlowsTo p' p && LocalityFlowsTo g' g  then
-              updatePC (update_reg φ dst (WSealRange t p' g' b e a))
-            else None
+          let (p',g') := decodeSealPermPair n in
+          let new_tag := t && SealPermFlowsTo p' p && LocalityFlowsTo g' g in
+          updatePC (update_reg φ dst (WSealRange new_tag p' g' b e a))
       | _ => None
       end
     | machine_instructions.Add dst ρ1 ρ2 =>
@@ -188,17 +186,23 @@ Section opsem.
     wdst ← (reg φ) !!ᵣ dst;
     match wdst with
     | WCap t p g b e a =>
-      a1 ← addr_of_argument (reg φ) ρ1;
-      a2 ← addr_of_argument (reg φ) ρ2;
-      if isWithin a1 a2 b e then
-        updatePC (update_reg φ dst (WCap t p g a1 a2 a))
-      else None
+      n1 ← z_of_argument (reg φ) ρ1;
+      n2 ← z_of_argument (reg φ) ρ2;
+      match z_to_addr n1, z_to_addr n2 with
+      | Some a1, Some a2 =>
+        let new_tag := t && isWithin a1 a2 b e in
+        updatePC (update_reg φ dst (WCap new_tag p g a1 a2 a))
+      | _, _ => updatePC (update_reg φ dst (WCap false p g b e a))
+      end
     | WSealRange t p g b e a =>
-      o1 ← otype_of_argument (reg φ) ρ1;
-      o2 ← otype_of_argument (reg φ) ρ2;
-      if isWithin o1 o2 b e then
-        updatePC (update_reg φ dst (WSealRange t p g o1 o2 a))
-      else None
+      n1 ← z_of_argument (reg φ) ρ1;
+      n2 ← z_of_argument (reg φ) ρ2;
+      match z_to_otype n1, z_to_otype n2 with
+      | Some o1, Some o2 =>
+        let new_tag := t && isWithin o1 o2 b e in
+        updatePC (update_reg φ dst (WSealRange new_tag p g o1 o2 a))
+      | _, _ => updatePC (update_reg φ dst (WSealRange false p g b e a))
+      end
     | _ => None
     end
   | GetA dst r =>
@@ -265,18 +269,21 @@ Section opsem.
     wr1 ← (reg φ) !!ᵣ r1;
     wr2 ← (reg φ) !!ᵣ r2;
     match wr1,wr2 with
-    | WSealRange true p g b e a, WSealable sb =>
-      if get_tag_sealable sb && permit_seal p && withinBounds b e a then updatePC (update_reg φ dst (WSealed a sb))
-      else None
+    | WSealRange ta p g b e a, WSealable sb =>
+      let new_tag := ta && get_tag_sealable sb && permit_seal p && withinBounds b e a in
+      let sb' := if new_tag then sb else clear_tag_sealable sb in
+      updatePC (update_reg φ dst (WSealed a sb'))
     | _, _ => None
     end
   | UnSeal dst r1 r2 =>
     wr1 ← (reg φ) !!ᵣ r1;
     wr2 ← (reg φ) !!ᵣ r2;
     match wr1, wr2 with
-    | WSealRange true p g b e a, WSealed a' sb =>
-        if decide (get_tag_sealable sb = true ∧ permit_unseal p = true ∧ withinBounds b e a = true ∧ a' = a) then updatePC (update_reg φ dst (WSealable sb))
-        else None
+    | WSealRange ta p g b e a, WSealed a' sb =>
+      let new_tag := ta && get_tag_sealable sb && permit_unseal p && withinBounds b e a
+                       && (a' =? a)%Z in
+      let sb' := if new_tag then sb else clear_tag_sealable sb in
+      updatePC (update_reg φ dst (WSealable sb'))
     | _,_ => None
     end
   | ReadSR dst src =>
