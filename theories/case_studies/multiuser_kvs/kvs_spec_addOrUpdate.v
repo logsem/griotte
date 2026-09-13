@@ -58,7 +58,6 @@ Section KVS_spec_addOrUpdate.
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
 
       ▷ (
-          ⌜ canStore RW wca2 = true ⌝ ∗
           PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -74,7 +73,7 @@ Section KVS_spec_addOrUpdate.
           (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ kvs_service_unsealing_key ∗
           user_key_addr ↦ₐ WInt user_key ∗
 
-          is_physical_kvs KVS_cgp_b (<[idx := Some (fkey, wca2)]> pkvs)
+          is_physical_kvs KVS_cgp_b (<[idx := Some (fkey, store_word RW wca2)]> pkvs)
 
           -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -136,17 +135,9 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); last done; solve_addr+Hcgp_idx. }
     (* Store cgp (inr ca2) *)
-    destruct (canStore RW wca2) eqn:HcanStore_wca2; cycle 1.
-    {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Store.wp_store_fail_reg_perm with "[$HPC $Hi $Hca2 $Hcgp]"); try solve_pure.
-      iNext; iIntros "_".
-      wp_pure; wp_end; iIntros "%Hcontr";done.
-    }
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (rules_Store.wp_store_success_reg with "[$HPC $Hi $Hca2 $Hcgp $Hcgp_val]"); try solve_pure.
+    iApply (rules_Store.wp_store_success_reg_store_word with "[$HPC $Hi $Hca2 $Hcgp $Hcgp_val]"); try solve_pure.
     iNext; iIntros "(HPC & Hi & Hca2 & Hcgp & Hcgp_val)".
     wp_pure.
     iInstr_close "Hcode".
@@ -207,7 +198,6 @@ Section KVS_spec_addOrUpdate.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ (
-          ⌜ canStore RW wca2 = true ⌝ ∗
           na_own cerise_nais E ∗
 
           PC ↦ᵣ updatePcPerm wret ∗
@@ -223,9 +213,9 @@ Section KVS_spec_addOrUpdate.
 
           user_key_addr ↦ₐ WInt user_key ∗
 
-          ↪●LKVS (<<[ (user_key, nkey):= wca2 ]>> lkvs) ∗
-          is_logical_kvs (<<[ (user_key, nkey):= wca2 ]>> lkvs) ∗
-          user_key ↦(LKVS) (<[ nkey := wca2 ]> m)
+          ↪●LKVS (<<[ (user_key, nkey):= store_word RW wca2 ]>> lkvs) ∗
+          is_logical_kvs (<<[ (user_key, nkey):= store_word RW wca2 ]>> lkvs) ∗
+          user_key ↦(LKVS) (<[ nkey := store_word RW wca2 ]> m)
 
           -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -274,13 +264,13 @@ Section KVS_spec_addOrUpdate.
              "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); eauto.
-    iNext; iIntros "(%Hcan_store & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
+    iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
                      & Hcode & Ha_unsealing & Ha_user_key
                      & HPKVS )".
     rewrite Heq_addr.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
-    iMod (kvs_physical_kvs_update (<[idx:=Some (kvs_full_key user_key nkey, wca2)]> pkvs) with
+    iMod (kvs_physical_kvs_update (<[idx:=Some (kvs_full_key user_key nkey, store_word RW wca2)]> pkvs) with
            "Hpkvs_frag Hpkvs_frag'") as "[Hpkvs_frag Hpkvs_frag']".
 
     iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HPKVS $Hpkvs_frag']") as "Hna" ; auto.
@@ -291,10 +281,10 @@ Section KVS_spec_addOrUpdate.
     }
 
     iDestruct "Hnodup_pkvs" as "%Hnodup_pkvs".
-    iMod ( kvs_logical_kvs_update user_key _ _ (<[nkey := wca2]> m) with "Hlkvs_auth Hm" ) as "[Hlkvs_auth Hm]".
-    replace ( <[user_key:=<[nkey:=wca2]> m]> lkvs ) with ( <<[ (user_key, nkey):= wca2 ]>> lkvs ).
+    iMod ( kvs_logical_kvs_update user_key _ _ (<[nkey := store_word RW wca2]> m) with "Hlkvs_auth Hm" ) as "[Hlkvs_auth Hm]".
+    replace ( <[user_key:=<[nkey:=store_word RW wca2]> m]> lkvs ) with ( <<[ (user_key, nkey):= store_word RW wca2 ]>> lkvs ).
     2: { rewrite /kvs_logical_kvs_insert Hlkvs_user_key //. }
-    eapply (kvs_synced_logical_kvs_update _ _ _ _ _ wca2) in Hsync; eauto.
+    eapply (kvs_synced_logical_kvs_update _ _ _ _ _ (store_word RW wca2)) in Hsync; eauto.
 
     iApply "Hpost"; iFrame; done.
   Qed.
@@ -335,8 +325,7 @@ Section KVS_spec_addOrUpdate.
 
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ ( ⌜ canStore RW wca2 = true ⌝ ∗
-          na_own cerise_nais E ∗
+      ▷ ( na_own cerise_nais E ∗
           PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -349,7 +338,7 @@ Section KVS_spec_addOrUpdate.
           cnull ↦ᵣ - ∗
           user_key_addr ↦ₐ WInt user_key ∗
 
-          user_key ↦(LKVS) (<[nkey := wca2]> m)
+          user_key ↦(LKVS) (<[nkey := store_word RW wca2]> m)
 
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -370,7 +359,7 @@ Section KVS_spec_addOrUpdate.
                  $Hlkvs_auth $HLKVS $Hm]"); last iFrame; eauto.
     {  solve_ndisj. }
 
-    iNext; iIntros "(%Hcan_store & Hna
+    iNext; iIntros "(Hna
                      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
                      & Ha_user_key
                      & Hlkvs_auth & HLKVS & Hm)".
@@ -414,8 +403,7 @@ Section KVS_spec_addOrUpdate.
       ▷ user_kvs_inv user_key ∗
       ▷ (user_key, nkey) ↦(KVS) - ∗
 
-      ▷ ( ⌜ canStore RW wca2 = true ⌝ ∗
-          na_own cerise_nais E ∗
+      ▷ ( na_own cerise_nais E ∗
           PC ↦ᵣ updatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -429,7 +417,7 @@ Section KVS_spec_addOrUpdate.
           user_key_addr ↦ₐ WInt user_key ∗
 
           user_kvs_inv user_key ∗
-          (user_key, nkey) ↦(KVS) wca2
+          (user_key, nkey) ↦(KVS) (store_word RW wca2)
 
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -449,13 +437,13 @@ Section KVS_spec_addOrUpdate.
                     $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2 $Hcnull
                     $Ha_user_key
                     $Hm]"); eauto.
-    iNext; iIntros "(%Hcan_store & Hna
+    iNext; iIntros "(Hna
                      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
                      & Ha_user_key
                      & Hm)".
 
-    iMod ( kvs_user_kvs_update _ _ _ _ (Some wca2) with "Hukvs_auth Hk" ) as "[Hukvs_auth Hk]".
-    apply (kvs_synced_logical_user_kvs_insert _ _ nkey wca2) in Hsync.
+    iMod ( kvs_user_kvs_update _ _ _ _ (Some (store_word RW wca2)) with "Hukvs_auth Hk" ) as "[Hukvs_auth Hk]".
+    apply (kvs_synced_logical_user_kvs_insert _ _ nkey (store_word RW wca2)) in Hsync.
     iAssert (user_kvs_inv user_key)%I with "[$Hm $Hukvs_auth]" as "Hlukvs"; auto.
 
     iApply "Hpost"; iFrame; done.
@@ -517,10 +505,9 @@ Section KVS_spec_addOrUpdate.
             ( ∃ idx_empty,
 
               ⌜ pkvs !! idx_empty = Some None ⌝ ∗
-              ⌜ canStore RW wca2 = true ⌝ ∗
               ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
 
-              is_physical_kvs KVS_cgp_b (<[idx_empty := Some (fkey, wca2)]> pkvs)
+              is_physical_kvs KVS_cgp_b (<[idx_empty := Some (fkey, store_word RW wca2)]> pkvs)
             )
             ∨
               (* THERE IS NO EMPTY SLOT AVAILABLE*)
@@ -618,17 +605,9 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
       { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 2))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       (* store cgp ca2; *)
-      destruct (canStore RW wca2) eqn:HcanStore_wca2; cycle 1.
-      {
-        iInstr_lookup "Hcode" as "Hi" "Hcode".
-        wp_instr.
-        iApply (rules_Store.wp_store_fail_reg_perm with "[$HPC $Hi $Hca2 $Hcgp]"); try solve_pure.
-        iNext; iIntros "_".
-        wp_pure; wp_end; iIntros "%Hcontr";done.
-      }
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (rules_Store.wp_store_success_reg with "[$HPC $Hi $Hca2 $Hcgp $Hcgp_val]"); try solve_pure.
+      iApply (rules_Store.wp_store_success_reg_store_word with "[$HPC $Hi $Hca2 $Hcgp $Hcgp_val]"); try solve_pure.
       iNext; iIntros "(HPC & Hi & Hca2 & Hcgp & Hcgp_val)".
       wp_pure.
       iInstr_close "Hcode".
@@ -731,12 +710,11 @@ Section KVS_spec_addOrUpdate.
 
           (
             (* THERE IS AN EMPTY SLOT AVAILABLE*)
-            ( ⌜ canStore RW wca2 = true ⌝ ∗
-              ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
+            ( ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
 
-              ↪●LKVS (<<[ ( user_key, nkey ) := wca2 ]>> lkvs) ∗
-              is_logical_kvs (<<[ ( user_key, nkey ) := wca2 ]>> lkvs) ∗
-              user_key ↦(LKVS) (<[ nkey := wca2 ]> m)
+              ↪●LKVS (<<[ ( user_key, nkey ) := store_word RW wca2 ]>> lkvs) ∗
+              is_logical_kvs (<<[ ( user_key, nkey ) := store_word RW wca2 ]>> lkvs) ∗
+              user_key ↦(LKVS) (<[ nkey := store_word RW wca2 ]> m)
             )
             ∨
               (* THERE IS NO EMPTY SLOT AVAILABLE*)
@@ -795,11 +773,11 @@ Section KVS_spec_addOrUpdate.
               $HPKVS]"); eauto.
     iNext; iIntros "(HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
                      & Hcode & Ha_unsealing & Ha_user_key
-                     & [ (%idx_empty & %Hidx_empty & %Hcan_store & Hca0 & HPKVS)
+                     & [ (%idx_empty & %Hidx_empty & Hca0 & HPKVS)
                          | (Hca0 & HPKVS)
                        ] )".
     all: rewrite Heq_addr; subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
-    - iMod (kvs_physical_kvs_update (<[idx_empty:=Some (kvs_full_key user_key nkey, wca2)]> pkvs) with
+    - iMod (kvs_physical_kvs_update (<[idx_empty:=Some (kvs_full_key user_key nkey, store_word RW wca2)]> pkvs) with
              "Hpkvs_frag Hpkvs_frag'") as "[Hpkvs_frag Hpkvs_frag']".
       iMod ("Hkvs_inv_close" with "[$Hna $Hcode Himports_sw Ha_unsealing $HPKVS $Hpkvs_frag']") as "Hna" ; auto.
       { iNext.
@@ -808,10 +786,10 @@ Section KVS_spec_addOrUpdate.
         rewrite /region_pointsto finz_seq_between_empty; auto; solve_addr+.
       }
 
-      iMod ( kvs_logical_kvs_update user_key _ _ (<[nkey := wca2]> m) with "Hlkvs_auth Hm" ) as "[Hlkvs_auth Hm]".
-      replace ( <[user_key:=<[nkey:=wca2]> m]> lkvs ) with ( <<[ (user_key, nkey):= wca2 ]>> lkvs ).
+      iMod ( kvs_logical_kvs_update user_key _ _ (<[nkey := store_word RW wca2]> m) with "Hlkvs_auth Hm" ) as "[Hlkvs_auth Hm]".
+      replace ( <[user_key:=<[nkey:=store_word RW wca2]> m]> lkvs ) with ( <<[ (user_key, nkey):= store_word RW wca2 ]>> lkvs ).
       2: { rewrite /kvs_logical_kvs_insert Hlkvs_user_key //. }
-      eapply (kvs_synced_logical_kvs_insert _ _ _ _ _ wca2) in Hsync; eauto.
+      eapply (kvs_synced_logical_kvs_insert _ _ _ _ _ (store_word RW wca2)) in Hsync; eauto.
 
 
       iApply "Hpost"; iFrame "∗%".
@@ -878,9 +856,8 @@ Section KVS_spec_addOrUpdate.
          (
            (* THERE IS AN EMPTY SLOT AVAILABLE*)
            (
-             ⌜ canStore RW wca2 = true ⌝ ∗
              ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
-             user_key ↦(LKVS) (<[ nkey := wca2 ]> m)
+             user_key ↦(LKVS) (<[ nkey := store_word RW wca2 ]> m)
            )
            ∨
              (* THERE IS NO EMPTY SLOT AVAILABLE*)
@@ -910,7 +887,7 @@ Section KVS_spec_addOrUpdate.
     iNext; iIntros "(Hna
                      & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
                      & Ha_user_key
-                     & [ (%Hcan_store & Hca0 & Hlkvs_auth & HLKVS & Hm)
+                     & [ (Hca0 & Hlkvs_auth & HLKVS & Hm)
                      | (Hca0 & Hlkvs_auth & HLKVS & Hm)
                      ])".
     - iMod ("Hkvs_logical_inv_close" with "[$Hna $Hlkvs_auth $HLKVS]") as "Hna" ; auto.
@@ -970,9 +947,8 @@ Section KVS_spec_addOrUpdate.
          (
            (* THERE IS AN EMPTY SLOT AVAILABLE*)
            (
-             ⌜ canStore RW wca2 = true ⌝ ∗
              ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: an empty slot is available and is updated *)
-             (user_key, nkey) ↦(KVS) wca2
+             (user_key, nkey) ↦(KVS) (store_word RW wca2)
            )
            ∨
              (* THERE IS NO EMPTY SLOT AVAILABLE*)
@@ -1001,10 +977,10 @@ Section KVS_spec_addOrUpdate.
                     $Ha_user_key $Hm]"); eauto.
     iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
               & Ha_user_key
-              & [ (%Hcan_store & Hca0 & Hm) | (Hca0 & Hm) ] )".
+              & [ (Hca0 & Hm) | (Hca0 & Hm) ] )".
 
-    - iMod ( kvs_user_kvs_update _ _ _ _ (Some wca2) with "Hukvs_auth Hk" ) as "[Hukvs_auth Hk]".
-      apply (kvs_synced_logical_user_kvs_insert _ _ nkey wca2) in Hsync.
+    - iMod ( kvs_user_kvs_update _ _ _ _ (Some (store_word RW wca2)) with "Hukvs_auth Hk" ) as "[Hukvs_auth Hk]".
+      apply (kvs_synced_logical_user_kvs_insert _ _ nkey (store_word RW wca2)) in Hsync.
       iAssert (user_kvs_inv user_key)%I with "[$Hm $Hukvs_auth]" as "Hlukvs"; auto.
       iApply "Hpost"; iFrame; iLeft; iFrame; done.
 
@@ -1273,9 +1249,8 @@ Section KVS_spec_addOrUpdate.
          user_key_addr ↦ₐ WInt user_key ∗
          user_kvs_inv user_key ∗
          ⌜ wca1 = WInt 0 ⌝ ∗
-         ((⌜ canStore RW wnew = true ⌝ ∗
-           ⌜ wca0 = WInt ASM_TRUE ⌝ ∗
-           (user_key, nkey) ↦(KVS) wnew)
+         ((⌜ wca0 = WInt ASM_TRUE ⌝ ∗
+           (user_key, nkey) ↦(KVS) (store_word RW wnew))
           ∨
           (⌜ wca0 = WInt ASM_FALSE ⌝ ∗
            (user_key, nkey) ↦(KVS) ⊥)))
@@ -1339,7 +1314,7 @@ Section KVS_spec_addOrUpdate.
     set (rmap_ret := <[ct0 := WInt 0]> rmap_ret8).
     iEval (cbn) in "HPC".
 
-    iDestruct "Hres" as "[(%Hcan_store & Hca0 & Hkey) | (Hca0 & Hkey)]".
+    iDestruct "Hres" as "[(Hca0 & Hkey) | (Hca0 & Hkey)]".
     - iApply ("Hpost" $! (WInt ASM_TRUE) (WInt 0) rmap_ret
                 (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit.
@@ -1351,7 +1326,7 @@ Section KVS_spec_addOrUpdate.
         rewrite Hrmap' /dom_arg_rmap /=. set_solver+. }
       iFrame.
       iFrame. iSplit; first done. iLeft.
-      iSplit; first done. iSplit; first done. iFrame.
+      iSplit; first done. iFrame.
     - iApply ("Hpost" $! (WInt ASM_FALSE) (WInt 0) rmap_ret
                 (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit.

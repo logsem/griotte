@@ -447,7 +447,7 @@ Section KVS_Main_Blocks.
     }
     iDestruct "HKVS_post"
       as "(Hstatic_sealed_b & HLUKVS & %Hwca1_ret
-           & [(%Hcan_store & %Hwca0_ret & Hkvs_1)
+           & [(%Hwca0_ret & Hkvs_1)
              | (%Hwca0_ret & Hkvs_1)])".
     all: subst wca1_ret.
     2: { (* Case where there was not more empty slot *)

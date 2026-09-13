@@ -54,7 +54,7 @@ Section wp_interp.
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap true p g b e a
            ∗ world_interp W C
-           ∗ ⌜ canStore p wsrc = true ⌝
+           ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
           )
        }}}.
@@ -78,16 +78,15 @@ Section wp_interp.
       iNext; iIntros "_". iApply "Hφ"; by iLeft.
     }
 
-    destruct (decide (canStore p wsrc = true))%a as [Hstore_src|Hstore_src]; cycle 1.
+    destruct (decide (writeAllowed p = true))%a as [Hp_stk_wa|Hp_stk_wa]; cycle 1.
     {
       iApply (wp_store_fail_reg_perm with "[HPC Hi Hdst Hsrc]")
       ; try iFrame
       ; try solve_pure.
-      { by destruct ( canStore p wsrc ); auto. }
+      { by destruct (writeAllowed p); auto. }
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
     }
-    pose proof ( canStore_writeAllowed p wsrc Hstore_src ) as Hp_stk_wa.
     destruct (decide (b <= a))%a as [Hba|Hba]; cycle 1.
     {
       iApply (wp_store_fail_reg with "[HPC Hi Hdst Hsrc]")
@@ -127,25 +126,27 @@ Section wp_interp.
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
 
-    iApply (wp_store_success_reg _ _ _ _ _ _ _ _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
+    iApply (wp_store_success_reg_store_word _ _ _ _ _ _ _ _ rdst rsrc with "[$HPC Hi Hsrc Hdst Ha]")
     ; try iFrame
     ; try solve_pure.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hi & Hsrc & Hdst & Ha)".
 
-    iAssert (P W C wsrc) as "Hinterp'".
+    iAssert (P W C (store_word p wsrc)) as "Hinterp'".
     {
-      iDestruct ("Hwcond" with "Hinterp_src") as "HP".
-      iFrame "HP".
+      iApply "Hwcond".
+      rewrite /store_word.
+      destruct (canStore p wsrc); first done.
+      iApply interp_clear_tag.
     }
-    iAssert (mono_invariant C p' (safeC P) wsrc ρ) as "Hmono'".
+    iAssert (mono_invariant C p' (safeC P) (store_word p wsrc) ρ) as "Hmono'".
     {
       rewrite /monoReq Hρ mono_invariant_eq.
       destruct ρ;[simpl..|exfalso;done].
       - destruct (isWL p');auto.
         destruct (isDL p'); first done.
-        by (iSpecialize ("Hmono" with "[%]");[eapply canStore_flowsto;eauto|]).
-      - by (iSpecialize ("Hmono" with "[%]");[eapply canStore_flowsto;eauto|]).
+        by (iSpecialize ("Hmono" with "[%]");[eapply canStore_store_word_flowsto;eauto|]).
+      - by (iSpecialize ("Hmono" with "[%]");[eapply canStore_store_word_flowsto;eauto|]).
     }
 
     iDestruct ("WorldRes" with "[$Ha $Hinterp' $Hmono']") as "WorldRes".
@@ -185,7 +186,7 @@ Section wp_interp.
            ∗ rsrc ↦ᵣ wsrc
            ∗ rdst ↦ᵣ WCap true p g b e a
            ∗ world_interp W C
-           ∗ ⌜ canStore p wsrc = true ⌝
+           ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
           )
        }}}.

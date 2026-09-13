@@ -90,8 +90,8 @@ Ltac dispatch_instr_rule instr cont :=
      cont (@wp_load_success_frominstr))
   (* Store *)
   | Store PC (inl _) => cont (@wp_store_success_z_PC)
-  | Store PC (inr PC) => cont (@wp_store_success_reg_PC_same)
-  | Store PC (inr _) => cont (@wp_store_success_reg_PC)
+  | Store PC (inr PC) => cont (@wp_store_success_reg_PC_same_store_word)
+  | Store PC (inr _) => cont (@wp_store_success_reg_PC_store_word)
   | Store _ (inl _) =>
     (cont (@wp_store_success_same) ||
      cont (@wp_store_success_z))
@@ -99,11 +99,11 @@ Ltac dispatch_instr_rule instr cont :=
   (*   (cont (@wp_store_success_reg_frominstr_same) || *)
   (*    cont (@wp_store_success_reg_frominstr)) *)
   | Store ?r (inr ?r) =>
-    (cont (@wp_store_success_reg_same') ||
-     cont (@wp_store_success_reg_same))
+    (cont (@wp_store_success_reg_same'_store_word) ||
+     cont (@wp_store_success_reg_same_store_word))
   | Store _ (inr _) =>
-    (cont (@wp_store_success_reg_same_a) ||
-     cont (@wp_store_success_reg))
+    (cont (@wp_store_success_reg_same_a_store_word) ||
+     cont (@wp_store_success_reg_store_word))
   (* Jnz *)
   (* | Jnz PC PC => cont (@wp_jnz_success_jmpPC) *) (* FAIL *)
   | Jnz (inl _) PC => cont (@wp_jnz_success_jmpPC_z)

@@ -313,6 +313,10 @@ Section Adequacy.
 
       iAssert (ot_switcher_prop Winter C (WSealable C_f)) as "#ot_switcher_C_f".
       {
+        assert (is_Some (cmpt_b_pcc C_cmpt + 1%nat)%a) as Hentry_C.
+        { exists (cmpt_a_code C_cmpt).
+          pose proof (cmpt_import_size C_cmpt) as Himports_size.
+          by rewrite C_imports /= in Himports_size. }
         iApply (ot_switcher_interp _ _ _ _ _ 1 1); eauto; last lia.
         pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H1.
         pose proof (cmpt_exp_tbl_entries_size C_cmpt) as H2.

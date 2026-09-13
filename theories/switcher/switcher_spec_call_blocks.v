@@ -252,6 +252,7 @@ Section Switcher_Call_Blocks.
     replace (a_stk2) with (a_stk ^+2)%a by solve_addr.
     replace (a_stk3) with (a_stk ^+3)%a by solve_addr.
     replace (a_stk4) with (a_stk ^+4)%a by solve_addr.
+    repeat rewrite store_word_isWL; try reflexivity.
     iApply ("Hpost" $! stk_mem). iFrame.
     iPureIntro; repeat split; solve_addr.
   Qed.
@@ -373,6 +374,7 @@ Section Switcher_Call_Blocks.
 
     replace (@finz.to_z MemNum f3)%Z with ((@finz.to_z MemNum a_tstk) + 1)%Z by solve_addr.
     replace f4 with a_tstk2 by (subst a_tstk2; solve_addr).
+    repeat rewrite store_word_isWL; try reflexivity.
     iApply "Hpost"; iLeft; iFrame.
     iPureIntro; split;[split|].
     - subst a_tstk2; solve_addr.

@@ -112,8 +112,8 @@ Section opsem.
       wdst ← (reg φ) !!ᵣ dst;
       match wdst with
       | WCap true p g b e a =>
-        if writeAllowed p && withinBounds b e a && canStore p tostore then
-          updatePC (update_mem φ a tostore)
+        if writeAllowed p && withinBounds b e a then
+          updatePC (update_mem φ a (store_word p tostore))
         else None
       | _ => None
       end

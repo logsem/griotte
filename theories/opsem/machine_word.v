@@ -197,6 +197,9 @@ Definition canStore (p: Perm) (w: Word): bool :=
   then isWL p
   else writeAllowed p.
 
+Definition store_word (p : Perm) (w : Word) : Word :=
+  if canStore p w then w else clear_tag w.
+
 Definition readAllowedWord (w : Word) : Prop :=
   match w with
   | WCap true p _ _ _ _ => readAllowed p = true
@@ -441,6 +444,66 @@ Lemma canStoreRWL (w : Word) : canStore RWL w = true.
 Proof.
   rewrite /canStore.
   destruct (isLocalWord w); done.
+Qed.
+
+(* Lemmas about store_word *)
+
+Lemma store_word_cases p w :
+  store_word p w = w ∨ store_word p w = clear_tag w.
+Proof. rewrite /store_word. destruct (canStore p w); auto. Qed.
+
+Lemma store_word_isWL p w :
+  isWL p = true → store_word p w = w.
+Proof.
+  intros Hp. rewrite /store_word.
+  destruct p; cbn in Hp |- *; try congruence.
+  destruct w0; cbn in Hp |- *; try congruence.
+  rewrite /canStore. by destruct (isLocalWord w).
+Qed.
+
+Lemma store_word_not_local p w :
+  writeAllowed p = true → isLocalWord w = false → store_word p w = w.
+Proof. intros Hp Hw. by rewrite /store_word /canStore Hw Hp. Qed.
+
+Lemma store_word_untagged p w :
+  get_tag w = false → store_word p w = w.
+Proof.
+  intros Hw. rewrite /store_word.
+  destruct (canStore p w); first done.
+  by apply clear_tag_untagged.
+Qed.
+
+Lemma store_word_canStore p w :
+  canStore p w = true → store_word p w = w.
+Proof.
+  intros Hstore. by rewrite /store_word Hstore.
+Qed.
+
+Lemma get_tag_store_word p w :
+  get_tag (store_word p w) = true → get_tag w = true.
+Proof.
+  destruct (store_word_cases p w) as [-> | ->]; first done.
+  by rewrite get_tag_clear_tag.
+Qed.
+
+Lemma canStore_store_word p w :
+  writeAllowed p = true → canStore p (store_word p w) = true.
+Proof.
+  intros Hp. rewrite /store_word.
+  destruct (canStore p w) eqn:Hstore; cbn; first done.
+  rewrite canStore_untagged; auto using get_tag_clear_tag.
+Qed.
+
+Lemma canStore_store_word_flowsto p p' w :
+  PermFlowsTo p p' →
+  writeAllowed p = true →
+  canStore p' (store_word p w) = true.
+Proof.
+  intros Hfl Hp. rewrite /store_word.
+  destruct (canStore p w) eqn:Hstore; cbn.
+  - by eapply canStore_flowsto.
+  - rewrite canStore_untagged; auto using get_tag_clear_tag.
+    by eapply writeAllowed_flowsto.
 Qed.
 
 (* Lemmas about load_word *)

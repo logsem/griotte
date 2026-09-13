@@ -147,6 +147,20 @@ Proof. auto. Qed.
    rewrite (canStore_untagged p w); [reflexivity | first [reflexivity | apply get_tag_clear_tag]]) : solve_pure.
 #[export] Hint Resolve get_tag_clear_tag get_tag_clear_tag_sealable : solve_pure.
 
+(* store_word *)
+#[export] Hint Extern 1 (store_word WLO ?w = ?w) =>
+  apply store_word_isWL; reflexivity : solve_pure.
+#[export] Hint Extern 1 (store_word RWL ?w = ?w) =>
+  apply store_word_isWL; reflexivity : solve_pure.
+#[export] Hint Extern 1 (store_word RWLX ?w = ?w) =>
+  apply store_word_isWL; reflexivity : solve_pure.
+#[export] Hint Extern 1 (?w = store_word WLO ?w) =>
+  symmetry; apply store_word_isWL; reflexivity : solve_pure.
+#[export] Hint Extern 1 (?w = store_word RWL ?w) =>
+  symmetry; apply store_word_isWL; reflexivity : solve_pure.
+#[export] Hint Extern 1 (?w = store_word RWLX ?w) =>
+  symmetry; apply store_word_isWL; reflexivity : solve_pure.
+
 (* denote - required for Get *)
 #[export] Hint Extern 1 (rules_Get.denote (GetTag _ _) _ = Some _) =>
   apply gettag_denote : solve_pure.
@@ -220,6 +234,7 @@ Proof. do 3 eexists. repeat apply conj; first solve_pure. all: reflexivity. Qed.
 Goal forall (P: Prop), P → P. intros. solve_pure. Qed.
 
 Goal forall w, canStore RWL w = true. Proof. intros. solve_pure. Qed.
+Goal forall w, store_word RWL w = w. Proof. intros. solve_pure. Qed.
 Goal has_sreg_access XSRW_ = true. Proof. solve_pure. Qed.
 Goal has_sreg_access RW = false. Proof. solve_pure. Qed.
 
@@ -259,6 +274,7 @@ Proof. do 3 eexists. repeat apply conj; first solve_pure_iinstr_test. all: refle
 Goal forall (P: Prop), P → P. intros. solve_pure_iinstr_test. Qed.
 
 Goal forall w, canStore RWL w = true. Proof. intros. solve_pure_iinstr_test. Qed.
+Goal forall w, store_word RWL w = w. Proof. intros. solve_pure_iinstr_test. Qed.
 Goal has_sreg_access XSRW_ = true. Proof. solve_pure_iinstr_test. Qed.
 Goal has_sreg_access RW = false. Proof. solve_pure_iinstr_test. Qed.
 
