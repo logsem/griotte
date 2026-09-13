@@ -146,7 +146,6 @@ Section DLE.
 
     (* Store cgp 42%Z; *)
     iInstr "Hcode".
-    { solve_addr. }
     (* Mov ct0 cgp; *)
     iInstr "Hcode".
 
@@ -156,12 +155,9 @@ Section DLE.
     iInstr "Hcode".
     (* Subseg ct0 ct1 ct2; *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
 
     (* Lea cgp 1%Z; *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
     (* Store cgp ct0; *)
     (* NOTE for some reason, iInstr doesnt work here *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -176,19 +172,12 @@ Section DLE.
     iInstr "Hcode".
     (* Lea cgp (-1)%Z; *)
     iInstr "Hcode".
-    { transitivity (Some cgp_b); auto; solve_addr. }
     (* Add ct1 ct2 1%Z; *)
     iInstr "Hcode".
     (* Subseg ca0 ct2 ct1; *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
     (* Restrict ca0 rw_dl *)
     iInstr "Hcode".
-    { by rewrite decode_encode_permPair_inv. }
-    { solve_pure. }
-    { solve_pure. }
 
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -454,7 +443,6 @@ Section DLE.
 
     (* Store cgp 42%Z; *)
     iInstr "Hcode".
-    { solve_addr+Hcgp_contiguous. }
     (* Mov ca0 0%Z; *)
     iInstr "Hcode".
     (* Mov ct0 cs0; *)
@@ -547,7 +535,6 @@ Section DLE.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
-    { split; [done| solve_addr]. }
     (* Mov ct1 42  *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

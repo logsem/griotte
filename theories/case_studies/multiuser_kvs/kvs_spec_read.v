@@ -124,13 +124,10 @@ Section KVS_spec_read.
     iInstr "Hcode".
     (* Jnz 5 ct1 *)
     iInstr "Hcode".
-    { injection; intros; lia. }
     (* Lea cgp 1 *)
     iInstr "Hcode".
-    { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); solve_addr+Hcgp_idx. }
     (* Load ca1 cgp *)
     iInstr "Hcode".
-    { split; done. }
     (* Mov ca1 0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)

@@ -89,12 +89,12 @@ Section Assert_subroutine.
       { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
       iApply "Hφ". iFrame. rewrite Z.eqb_refl //. }
     { (* n1 ≠ n2 *)
-      iInstr "Hprog". { assert (n1 - n2 ≠ 0)%Z by lia. congruence. }
+      iInstr "Hprog".
       iInstr "Hprog".
       iInstr "Hprog".
       rewrite (_: (pc_b ^+ 12)%a = cap_addr); [|solve_addr].
-      iInstr "Hprog"; first solve_addr.
-      iInstr "Hprog"; first solve_addr.
+      iInstr "Hprog".
+      iInstr "Hprog".
       iGo "Hprog".
       iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
       { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }

@@ -1,7 +1,8 @@
 From Stdlib Require Import Eqdep_dec List.
 From griotte Require Import rules.
 From griotte Require Export iris_extra memory_region.
-From griotte Require Import classes tactics_helpers proofmode_instr_rules.
+From griotte Require Import classes tactics_helpers proofmode_instr_support
+  proofmode_instr_rules.
 From griotte Require Export class_instances solve_pure solve_addr_extra.
 From iris.proofmode Require Import proofmode spec_patterns coq_tactics ltac_tactics reduction.
 From griotte Require Export NamedProp.
@@ -689,7 +690,8 @@ Ltac instr_lookup0 hprog hi hcont :=
   let hprog := constr:(hprog:ident) in
   lazymatch goal with |- context [ Esnoc _ hprog (codefrag ?a_base _) ] =>
   lazymatch goal with |- context [ Esnoc _ ?hpc (PC ↦ᵣ (WCap _ _ _ _ _ ?pc_a))%I ] =>
-    let base_off := eval unfold as_weak_addr_incr in (@as_weak_addr_incr pc_a a_base _ _) in
+    let base_off := eval unfold as_weak_addr_incr in
+      (@as_weak_addr_incr pc_a a_base _ _) in
     lazymatch base_off with
     | (?base, ?off) =>
       iPoseProofCore (codefrag_lookup_acc _ _ off with hprog) as false (fun H =>
@@ -698,7 +700,7 @@ Ltac instr_lookup0 hprog hi hcont :=
         |pm_reduce; tc_solve
         |pm_reduce];
         rewrite ?addr_incr_zero ?addr_incr_zero_nat
-      )
+     )
      end
   end end.
 
@@ -759,10 +761,22 @@ Tactic Notation "iCombine_ident" constr(H1) constr(H2) "as" constr(pat) :=
   iCombine_ident [H1;H2] as pat.
 
 
+Ltac instr_finish hprog hlc hlc' :=
+  instr_close hprog;
+  rewrite ?addr_incr_zero ?addr_incr_zero_nat;
+  repeat (replace (WInt (if decide (_ = cnull) then 0 else 0)) with (WInt 0)
+            by (destruct (decide _); done));
+  try wp_pure_lc hlc';
+  try (iCombine_ident (INamed hlc) hlc' as (INamed hlc)).
+
+Ltac instr_apply_rule hprog hlc hlc' rule :=
+  iApplyCapAuto rule;
+  [ .. | instr_finish hprog hlc hlc' ].
+
 (* TODO: find a way of displaying an error message if iApplyCapAuto fails,
    displaying the rule it was called on, and without silencing iApplyCapAuto's
    own error messages? *)
-Ltac instr_using dispatch hprog hlc:=
+Ltac instr_using_rule dispatch apply_rule hprog hlc :=
   let hi := iFresh in
   let hcont := iFresh in
   let hlc' :=
@@ -774,20 +788,95 @@ Ltac instr_using dispatch hprog hlc:=
   iInstr_lookup hprog as hi hcont;
   try wp_instr;
   instr_get_rule_using dispatch hi ltac:(fun rule =>
-                             iApplyCapAuto rule;
-                             [ .. | instr_close hprog
-                                    ; repeat (replace ( WInt (if decide (_ = cnull) then 0 else 0) ) with (WInt 0) by (destruct (decide _); done))
-                                    ; try wp_pure_lc hlc'
-                                    ; try (iCombine_ident (INamed hlc) hlc' as (INamed hlc))
-                          ])
-.
+    apply_rule hprog hlc hlc' rule).
+
+Ltac instr_using dispatch hprog hlc :=
+  instr_using_rule dispatch instr_apply_rule hprog hlc.
+
+(* Automatic selection treats every owned machine resource as input. This is
+   deliberately conservative: an unrelated unresolved machine-word evar makes
+   automatic selection fail rather than allowing rule unification to choose it. *)
+Ltac instr_auto_ground x :=
+  let x' := eval cbv in x in without_evars x'.
+
+Ltac instr_auto_guard_env env :=
+  lazymatch env with
+  | Esnoc ?env _ (?r ↦ᵣ ?w)%I =>
+      instr_auto_guard_env env; instr_auto_ground r; instr_auto_ground w
+  | Esnoc ?env _ (?r ↦ₛᵣ ?w)%I =>
+      instr_auto_guard_env env; instr_auto_ground r; instr_auto_ground w
+  | Esnoc ?env _ (?a ↦ₐ{?dq} ?w)%I =>
+      instr_auto_guard_env env;
+      instr_auto_ground a; instr_auto_ground dq; instr_auto_ground w
+  | Esnoc ?env _ _ => instr_auto_guard_env env
+  | _ => idtac
+  end.
+
+Ltac instr_auto_guard :=
+  let Δ := iGetCtx in
+  lazymatch Δ with
+  | {| environments.env_intuitionistic := ?intuitionistic;
+       environments.env_spatial := ?spatial;
+       environments.env_counter := _ |} =>
+      instr_auto_guard_env intuitionistic;
+      instr_auto_guard_env spatial
+  end.
+
+(* [unshelve] prepends newly surfaced obligations to the existing main
+   continuation. Require every such prefix goal to close and leave only that
+   final continuation to the caller. *)
+Ltac2 instr_auto_close_shelves () :=
+  Control.extend []
+    (fun _ => ltac1:(first [pm_reflexivity | tc_solve]))
+    [(fun _ => ())].
+
+(* Side conditions are solved inside the dispatcher's continuation. Hence a
+   failed premise proof backtracks to the next rule of that dispatcher before
+   automatic selection considers a different outcome. The surrounding
+   [unshelve] also exposes any obligations created by [iApplyCapAuto] after its
+   internal unification has finished. *)
+Ltac instr_auto_apply_success hprog hlc hlc' rule :=
+  instr_auto_guard;
+  unshelve (iApplyCapAuto rule;
+    [ instr_auto_solve_success .. | instr_finish hprog hlc hlc' ]);
+  ltac2:(instr_auto_close_shelves ()).
+
+Ltac instr_auto_apply_invalidation hprog hlc hlc' rule :=
+  instr_auto_guard;
+  unshelve (iApplyCapAuto rule;
+    [ instr_auto_solve_invalidation .. | instr_finish hprog hlc hlc' ]);
+  ltac2:(instr_auto_close_shelves ()).
+
+Ltac instr_auto_apply_failure hprog hlc hlc' rule :=
+  instr_auto_guard;
+  unshelve (iApplyCapAuto rule;
+    [ instr_auto_solve_failure .. | instr_finish hprog hlc hlc' ]);
+  ltac2:(instr_auto_close_shelves ()).
+
+Ltac instr_apply_invalidation hprog hlc hlc' rule :=
+  iApplyCapAuto rule;
+  [ try instr_auto_solve_invalidation; instr_guard_invalidation_premise ..
+  | instr_finish hprog hlc hlc'; try done ].
+
+Ltac instr_auto hprog hlc :=
+  instr_auto_guard;
+  first [ instr_using_rule dispatch_instr_rule
+            instr_auto_apply_success hprog hlc
+        | instr_normalize_register_aliases;
+          instr_using_rule dispatch_instr_invalidation
+            instr_auto_apply_invalidation hprog hlc
+        | instr_using_rule dispatch_instr_failure
+            instr_auto_apply_failure hprog hlc
+        | fail "iInstr could not prove an outcome; use iInstr_success, iInstr_invalidate, or iInstr_fail" ].
 (* The success interface preserves the ordinary instruction-rule dispatch,
    including instructions whose specified behavior is Halt or Fail. *)
 Ltac instr_lc hprog hlc := instr_using dispatch_instr_rule hprog hlc.
 Tactic Notation "iInstr_success" constr(H) := instr_lc H "_".
 Tactic Notation "iInstr_success" constr(H) "with" constr(Hlc) := instr_lc H Hlc.
-Tactic Notation "iInstr" constr(H) := iInstr_success H.
-Tactic Notation "iInstr" constr(H) "with" constr(Hlc) := iInstr_success H with Hlc.
+Tactic Notation "iInstr_auto" constr(H) := instr_auto H "_".
+Tactic Notation "iInstr_auto" constr(H) "with" constr(Hlc) := instr_auto H Hlc.
+Tactic Notation "iInstr" constr(H) := iInstr_auto H.
+Tactic Notation "iInstr" constr(H) "with" constr(Hlc) := iInstr_auto H with Hlc.
 Tactic Notation "iInstr_fail" constr(H) :=
   instr_using dispatch_instr_failure H "_";
   try solve [solve_instr_failure | by simplify_map_eq].
@@ -796,9 +885,13 @@ Tactic Notation "iInstr_fail" constr(H) "with" constr(Hlc) :=
   try solve [solve_instr_failure | by simplify_map_eq].
 
 Tactic Notation "iInstr_invalidate" constr(H) :=
-  instr_using dispatch_instr_invalidation H "_"; try solve_instr_map.
+  instr_auto_guard;
+  instr_normalize_register_aliases;
+  instr_using_rule dispatch_instr_invalidation instr_apply_invalidation H "_".
 Tactic Notation "iInstr_invalidate" constr(H) "with" constr(Hlc) :=
-  instr_using dispatch_instr_invalidation H Hlc; try solve_instr_map.
+  instr_auto_guard;
+  instr_normalize_register_aliases;
+  instr_using_rule dispatch_instr_invalidation instr_apply_invalidation H Hlc.
 
 Ltac2 rec iGo hprog :=
   let stop_if_at_least_two_goals () :=

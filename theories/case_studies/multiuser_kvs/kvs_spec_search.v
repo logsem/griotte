@@ -120,19 +120,21 @@ Section KVS_search.
     (* jnz (".loop_body")%asm rscratch; *)
     iInstr "Hcode".
     (* load rscratch cgp; *)
-    iInstr "Hcode". { split; [done | solve_addr]. }
+    iInstr "Hcode".
     (* jnz (".some_index")%asm rscratch; *)
     iInstr "Hcode".
     (* mov ridx_empty ridx; *)
     iInstr "Hcode".
     (* lea cgp ASM_SIZEOF_KVS_ENTRY; *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a); solve_addr. }
     (* add ridx ridx 1; *)
     iInstr "Hcode".
     (* jmp (".loop_start")%asm; *)
-    iInstr "Hcode". { transitivity (Some (pc_a ^+ 2)%a); solve_addr. }
+    iInstr "Hcode".
     iApply "Hpost". iFrame.
+    replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a with
+      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 3))%a by solve_addr.
+    iFrame.
   Qed.
 
   Lemma kvs_search_found_iteration_spec `{KVS : kvsLayout}
@@ -197,15 +199,12 @@ Section KVS_search.
     iInstr "Hcode".
     (* load rscratch cgp; *)
     iInstr "Hcode".
-    { split; [done | solve_addr]. }
     (* jnz (".some_index")%asm rscratch; *)
     iInstr "Hcode".
     (* lea cgp 1; *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a); [solve_addr | done]. }
     (* load rscratch cgp; *)
     iInstr "Hcode".
-    { split; [done | solve_addr]. }
     (* sub rscratch rkey rscratch; *)
     iInstr "Hcode".
     destruct (decide (fkey = kidx)) as [-> | Hneq].
@@ -213,7 +212,7 @@ Section KVS_search.
       (* jnz (".not_same_key")%asm rscratch; *)
       iInstr "Hcode".
       (* lea cgp (-1)%Z; *)
-      iInstr "Hcode"; first (transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a); solve_addr).
+      iInstr "Hcode".
       (* jmp (".loop_end_found")%asm; *)
       iInstr "Hcode".
       iApply "Hpost". iLeft. iFrame. done.
@@ -221,12 +220,15 @@ Section KVS_search.
       (* jnz (".not_same_key")%asm rscratch; *)
       iInstr "Hcode".
       (* lea cgp 2; *)
-      iInstr "Hcode"; first (transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a); [solve_addr | done]).
+      iInstr "Hcode".
       (* add ridx ridx 1; *)
       iInstr "Hcode".
       (* jmp (".loop_start")%asm; *)
-      iInstr "Hcode"; first (transitivity (Some (pc_a ^+ 2)%a); solve_addr).
-      iApply "Hpost". iRight. iFrame. done.
+      iInstr "Hcode".
+      iApply "Hpost". iRight. iFrame.
+      replace (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a with
+        (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 3))%a by solve_addr.
+      iFrame. done.
   Qed.
 
   Definition kvs_search_outcome_resources `{KVS : kvsLayout}
@@ -284,7 +286,6 @@ Section KVS_search.
     iInstr "Hcode".
     (* lea cgp (-(ASM_SIZEOF_KVS_ENTRY*SIZE_MAP))%Z; *)
     iInstr "Hcode".
-    { transitivity (Some cgp_b); rewrite /SIZE_MAP in Hcgp_bound |- *; solve_addr. }
     (* mov ridx (-1)%Z; *)
     iInstr "Hcode".
     rewrite (decide_False (Z.of_nat 0)); last done.

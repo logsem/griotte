@@ -126,10 +126,8 @@ Section KVS_spec_erase.
     iInstr "Hcode".
     (* jnz (".erase_key_found")%asm ctp; *)
     iInstr "Hcode".
-    { injection; intros; lia. }
     (* store cgp ASM_NONE; *)
     iInstr "Hcode".
-    { solve_addr+Hcgp_idx. }
     (* mov ca0 0; *)
     iInstr "Hcode".
     (* mov ca1 0; *)

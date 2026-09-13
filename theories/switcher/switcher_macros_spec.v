@@ -105,7 +105,6 @@ Section switcher_macros.
 
       (* --- Jmp -5 --- *)
       iInstr "Hcode".
-      { instantiate (1:=(pc_a ^+ 2)%a). solve_addr. }
 
       (* IH *)
       replace (csp_a - csp_e + 1)%Z with (f - csp_e)%Z by solve_addr.

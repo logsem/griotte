@@ -63,7 +63,6 @@ Section ClearRegistersMacro.
     codefrag_facts "Hcode".
 
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ 1)%a); auto; solve_addr. }
     destruct (decide (l = [])).
     { subst l. iApply "Hcont". iFrame.
       replace (delete r rmap) with (∅ : Reg).

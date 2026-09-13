@@ -403,9 +403,8 @@ Section Switcher.
       simplify_eq.
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
-      iInstr_fail "Hcode".
-      iNext; iIntros "_".
-      wp_pure; wp_end; iIntros "%Hcontr"; done. }
+      iInstr "Hcode".
+      wp_end; iIntros "%Hcontr"; done. }
     simplify_eq. rename wsb into w_entry_point.
     iSpecialize ("Hcode" with "Hi").
     iEval (rewrite /is_sealed_with_o Z.eqb_refl) in "Htarget_v".

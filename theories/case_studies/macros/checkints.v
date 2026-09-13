@@ -143,7 +143,6 @@ Section Checkints_spec.
     iDestruct ( big_sepL2_app' with "Hmem") as "[Hmem1 Hmem]"; auto.
     iDestruct ( big_sepL2_cons with "Hmem") as "[Ha Hmem2]"; auto.
     iInstr "Hcode".
-    { split; auto; solve_addr. }
     iDestruct ( big_sepL2_cons (λ _ a v, a ↦ₐ v)%I with "[$Ha $Hmem2]") as "Hmem"; auto.
     iDestruct ( big_sepL2_app (λ _ a v, a ↦ₐ v)%I with "[$Hmem1] [$Hmem]") as "Hmem"; auto.
     rewrite - Ha' - Hlw.
@@ -157,12 +156,11 @@ Section Checkints_spec.
 
     focus_block 2 "Hcode" as a_cond Ha_cond "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear Ha_checkint a_checkint.
     iInstr "Hcode".
-    { transitivity (Some (a^+1)%a); auto; solve_addr. }
     iInstr "Hcode".
     iInstr "Hcode".
     iInstr "Hcode".
     destruct (decide ((a + 1%nat)%Z < e)%Z) as [Hae' | Hae']; cycle 1.
-    - replace (a ^+ 1)%a with e by solve_addr.
+    - replace (a ^+ 1%nat)%a with e by solve_addr.
       replace (e <? e)%Z with false by solve_addr.
       iInstr "Hcode".
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
@@ -204,10 +202,10 @@ Section Checkints_spec.
         rewrite Hlw1; subst la1.
         rewrite length_take_le; last (eapply Nat.lt_le_incl, lookup_lt_Some; eauto).
         done.
-    - replace ((a ^+ 1)%a <? e)%Z with true by solve_addr.
+    - replace ((a ^+ 1%nat)%a <? e)%Z with true by solve_addr.
       iInstr "Hcode".
-      { transitivity (Some pc_a); auto; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+      replace (a_cond ^+ _)%a with pc_a by solve_addr.
       iApply ("IH" with "[] [] [$] [$] [$] [$] [$] [$] [$]"); eauto.
       { iPureIntro; solve_addr. }
       { iPureIntro.
@@ -277,9 +275,8 @@ Section Checkints_spec.
     focus_block 2 "Hcode" as a_loop Ha_loop "Hcode" "Hcont".
     rewrite /checkints_loop_instrs.
     focus_block_0 "Hcode" as "Hcode" "Hcont_loop".
-    iInstr_fail "Hcode".
-    iNext; iIntros "_".
-    wp_pure; wp_end. iApply "Hfailed".
+    iInstr "Hcode".
+    wp_end. iApply "Hfailed".
   Qed.
 
   Lemma checkints_spec
@@ -347,7 +344,6 @@ Section Checkints_spec.
       apply Z.ltb_nlt in Hbe; rewrite Hbe ; cbn.
       replace (0 - 1%nat)%Z with (-1)%Z by lia.
       iInstr "Hcode".
-      { transitivity (Some (a_init ^+ 16)%a); auto; solve_addr. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
       focus_block 3 "Hcode" as a_end Ha_end "Hcode" "Hcont"; iHide "Hcont" as hcont; clear Ha_init a_init.
       iInstr "Hcode".

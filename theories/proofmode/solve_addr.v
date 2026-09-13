@@ -4,7 +4,11 @@ From griotte Require Import addresses.
 From machine_utils Require Import solve_finz.
 
 Ltac zify_addr := zify_finz.
-Tactic Notation "solve_addr" := solve_finz.
+(* Clients can extend preprocessing for domain constants. Keeping this a
+   shared tactic also makes the extension visible inside previously defined
+   tactics, such as instruction automation. *)
+Ltac solve_addr_prepare := idtac.
+Tactic Notation "solve_addr" := solve_addr_prepare; solve_finz.
 Tactic Notation "solve_addr" "-" hyp_list(Hs) := clear Hs; solve_addr.
 Tactic Notation "solve_addr" "+" hyp_list(Hs) := clear -Hs; solve_addr.
 

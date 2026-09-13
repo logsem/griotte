@@ -140,18 +140,13 @@ Section Switcher_KtK_Return.
     iExtract "Hregs" ct1 as "Hct1".
 
     (* --- ReadSR ctp mtdc --- *)
-    iInstr "Hcode"; try solve_pure.
+    iInstr "Hcode".
 
     (* --- Load csp ctp --- *)
     destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
     {
-      iInstr_fail "Hcode".
-      { rewrite /withinBounds.
-        apply andb_false_iff; right.
-        solve_addr+Htstk_ae.
-      }
-      iNext; iIntros "_".
-      wp_pure; wp_end ; by iIntros (?).
+      iInstr "Hcode".
+      wp_end; by iIntros (?).
     }
 
     iDestruct (cstack_agree with "Hcstk_full [$]") as %Heq; subst cstk'.
@@ -165,7 +160,6 @@ Section Switcher_KtK_Return.
 
 
     iInstr "Hcode".
-    { split;auto;rewrite /withinBounds;solve_addr. }
 
     (* --- Lea ctp -1 --- *)
     assert (is_Some (a_tstk + -1))%a as [a_tstk1 Ha_tstk1].
@@ -178,33 +172,25 @@ Section Switcher_KtK_Return.
 
     (* --- Lea csp -1 --- *)
     iInstr "Hcode" with "Hlc".
-    { transitivity (Some (a_stk ^+ 3)%a); solve_addr+Ha_stk4. }
 
     (* --- Load cgp csp --- *)
     iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcgp".
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
-    { by transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
     (* Load cra csp *)
     iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
-    { by transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
     (* Load cs1 csp *)
     iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcs1".
     (* Lea csp (-1)%Z *)
     iInstr "Hcode".
-    { by transitivity (Some a_stk); solve_addr. }
     (* Load cs0 csp *)
     iInstr "Hcode".
-    { split ; [ solve_pure | rewrite le_addr_withinBounds ; solve_addr+Ha_stk4 Hb_a4 He_a1 ]. }
     iEval (cbn) in "Hcs0".
     (* GetE ct0 csp *)
     iInstr "Hcode" with "Hlc".

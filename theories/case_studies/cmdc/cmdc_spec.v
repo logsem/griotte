@@ -159,24 +159,19 @@ Section CMDC.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Store cgp 0%Z; *)
     iInstr "Hcode".
-    { solve_addr. }
     iHide "Hφ" as hφ.
     (* Mov ca0 cgp; *)
     iInstr "Hcode".
     (* Lea cgp 1%Z; *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
     (* Store cgp 0%Z; *)
     iInstr "Hcode".
-    { solve_addr. }
     (* GetA ct0 ca0; *)
     iInstr "Hcode".
     (* Add ct1 ct0 1%Z; *)
     iInstr "Hcode".
     (* Subseg ca0 ct0 ct1  *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* --------------------------------------------------- *)
@@ -256,7 +251,6 @@ Section CMDC.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
-    { split; [done| solve_addr]. }
     (* Mov ct1 0  *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -278,7 +272,6 @@ Section CMDC.
     (* --------------- BLOCK 5: PREP CALL ---------------- *)
     (* --------------------------------------------------- *)
 
-    set (cgp_c := (cgp_b ^+ 1)%a).
     focus_block 5 "Hcode_main" as a_prepC Ha_prepC "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Mov ca0 cgp  *)
     iInstr "Hcode".
@@ -286,7 +279,6 @@ Section CMDC.
     iInstr "Hcode".
     (* Lea cgp (-1)%Z *)
     iInstr "Hcode".
-    { transitivity (Some cgp_b%a); auto; subst cgp_c; solve_addr. }
 
     rewrite (open_world_interp_empty _ B).
     iDestruct (
@@ -298,7 +290,6 @@ Section CMDC.
 
     (* Store cgp 42%Z *)
     iInstr "Hcode".
-    { solve_addr. }
 
     (* GetA ct0 ca0 *)
     iInstr "Hcode".
@@ -308,8 +299,8 @@ Section CMDC.
 
     (* Subseg ca0 ct0 ct1 *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_c ^+1)%a); auto; subst cgp_c; solve_addr. }
-    { subst cgp_c; solve_addr. }
+    set (cgp_c := (cgp_b ^+ 1)%a).
+    replace (cgp_b ^+ 2)%a with (cgp_c ^+ 1)%a by (subst cgp_c; solve_addr).
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* --------------------------------------------------- *)
@@ -386,7 +377,6 @@ Section CMDC.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
-    { split; [done| solve_addr]. }
     (* Mov ct1 42  *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

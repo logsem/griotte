@@ -49,10 +49,8 @@ Section Stack_Object_Blocks.
 
     destruct (decide ((csp_b < csp_e)%a)) as [Hcsp_size|Hcsp_size]; cycle 1.
     {
-      iInstr_fail "Hcode".
-      { rewrite /withinBounds; solve_addr+Hcsp_size. }
-      iIntros "!> _".
-      wp_pure; wp_end; iIntros (?); done.
+      iInstr "Hcode".
+      wp_end; iIntros (?); done.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
     rewrite finz_seq_between_length in Hstklen.
@@ -63,7 +61,6 @@ Section Stack_Object_Blocks.
     { solve_addr+Hcsp_size Hastk1. }
     (* --- Store csp so_secret --- *)
     iInstr "Hcode".
-    { rewrite /withinBounds; solve_addr+Hcsp_size. }
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
     (* --- Mov ca1 csp --- *)
@@ -106,8 +103,8 @@ Section Stack_Object_Blocks.
       all: iDestruct (regs_of_map_4 with "Hmap") as "(Hca1 & HPC & Hcs0 & Hcs1)"; eauto.
       all: wp_pure.
       all: iSpecialize ("Hcode" with "Hi").
-      all: iInstr_fail "Hcode".
-      all: iNext; iIntros "_"; wp_pure; wp_end; iIntros (?); done.
+      all: iInstr "Hcode".
+      all: wp_end; iIntros (?); done.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
     rewrite finz_seq_between_length in Hstklen'.
@@ -118,16 +115,14 @@ Section Stack_Object_Blocks.
     { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     (* --- Subseg ca1 cs0 cs1 --- *)
     iInstr "Hcode".
-    { transitivity (Some a_stk2); auto. solve_addr+Hastk2. }
-    { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     (* --- Store ca1 0 --- *)
     iInstr "Hcode".
-    { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
 
     replace (a_stk1 ^+ 1)%a with a_stk2 by solve_addr+Hastk2.
     replace ((a_stk1 : Z) + 1)%Z with (a_stk2 : Z) by solve_addr+Hastk2.
+    replace (csp_b ^+ 2)%a with a_stk2 by solve_addr.
 
     iApply ("Hpost" $! a_stk1 a_stk2 w0 w1 stk_mem).
     iFrame.
@@ -203,17 +198,13 @@ Section Stack_Object_Blocks.
     rewrite /so_f_assert_prep_instrs.
     (* --- Lea csp (-2)%Z --- *)
     iInstr "Hcode".
-    { transitivity (Some csp_b); auto. solve_addr+Hastk2. }
     destruct (decide (csp_b < csp_e)%a) as [Hcsp_size|Hcsp_size]; cycle 1.
     {
-      iInstr_fail "Hcode".
-      { rewrite /withinBounds. apply andb_false_iff. right. solve_addr+Hcsp_size. }
-      iNext; iIntros "_".
-      wp_pure; wp_end; by iIntros (?).
+      iInstr "Hcode".
+      wp_end; by iIntros (?).
     }
     (* --- Load ct0 csp --- *)
     iInstr "Hcode".
-    { split; auto. rewrite /withinBounds. solve_addr. }
     (* --- Mov ct1 so_secret --- *)
     iInstr "Hcode".
     iApply "Hpost"; iFrame.

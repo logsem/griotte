@@ -546,8 +546,12 @@ Section griotte_lang_rules.
        incrementPC_inv; simplify_map_eq; eauto. congruence. }
    Qed.
 
-  (* Exact register-map continuation, including aliases and special registers. *)
-  Lemma wp_restrict_invalidated_cap E pc_p pc_g pc_b pc_e pc_a
+End griotte_lang_rules.
+
+Section instruction_outcomes.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+
+  Local Lemma restrict_invalidated_map_cap E pc_p pc_g pc_b pc_e pc_a
       w dst src regs regs' (t : bool) p g b e a n p' g' :
     decodeInstrW w = Restrict dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -577,7 +581,7 @@ Section griotte_lang_rules.
   Qed.
 
   (* Exact register-map continuation, including aliases and special registers. *)
-  Lemma wp_restrict_invalidated_sr E pc_p pc_g pc_b pc_e pc_a
+  Local Lemma restrict_invalidated_map_sr E pc_p pc_g pc_b pc_e pc_a
       w dst src regs regs' (t : bool) p g b e a n p' g' :
     decodeInstrW w = Restrict dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -606,4 +610,202 @@ Section griotte_lang_rules.
       end; congruence.
   Qed.
 
-End griotte_lang_rules.
+  (* Restrict: immediate and register operands, including effective cnull reads. *)
+  Lemma wp_restrict_invalidated_z E pc_p pc_g pc_b pc_e pc_a pc_a' w dst (t : bool) p g b e a n p' g' :
+    decodeInstrW w = Restrict dst (inl n) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull →
+    (p', g') = decodePermPair n →
+    PermFlowsTo p' p && LocalityFlowsTo g' g = false →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ dst ↦ᵣ WCap t p g b e a }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+        ∗ pc_a ↦ₐ w
+        ∗ dst ↦ᵣ WCap false p' g' b e a }}}.
+  Proof.
+    iIntros (Hinstr Hpc Hincr Hnull Hdecode Hreject φ) "(>HPC & >Hmem & >Hr1) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %Hne]".
+    iApply (restrict_invalidated_map_cap E _ _ _ _ _ w _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e
+        pc_a']> (<[dst := WCap false p' g' b e a]> (∅ : Reg))) t p g b e a n p' g' with "[$Hmem
+        $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+      try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
+                 repeat case_decide; simplify_eq; cbn; eauto].
+    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
+      apply f_equal; apply map_eq; intros;
+      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
+    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
+      iApply (regs_of_map_2 with "Hmap"); eauto.
+  Qed.
+
+  Lemma wp_restrict_invalidated_reg E pc_p pc_g pc_b pc_e pc_a pc_a' w dst (t : bool) p g b e a n p'
+      g' src (ws : Word) :
+    decodeInstrW w = Restrict dst (inr src) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull →
+    (if decide (src = cnull) then WInt 0 else ws) = WInt n →
+    (p', g') = decodePermPair n →
+    PermFlowsTo p' p && LocalityFlowsTo g' g = false →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ dst ↦ᵣ WCap t p g b e a
+        ∗ ▷ src ↦ᵣ ws }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+        ∗ pc_a ↦ₐ w
+        ∗ dst ↦ᵣ WCap false p' g' b e a
+        ∗ src ↦ᵣ ws }}}.
+  Proof.
+    iIntros (Hinstr Hpc Hincr Hnull Hread Hdecode Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
+    destruct Hne as (? & ? & ?).
+    iApply (restrict_invalidated_map_cap E _ _ _ _ _ w _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e
+        pc_a']> (<[dst := WCap false p' g' b e a]> (<[src := ws]> (∅ : Reg)))) t p g b e a n p' g'
+        with "[$Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+      try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
+                 repeat case_decide; simplify_eq; cbn; eauto].
+    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
+      apply f_equal; apply map_eq; intros;
+      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
+    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
+      iApply (regs_of_map_3 with "Hmap"); eauto.
+  Qed.
+
+  Lemma wp_restrict_invalidated_z_sr E pc_p pc_g pc_b pc_e pc_a pc_a' w dst (t : bool) p g b e a n p' g' :
+    decodeInstrW w = Restrict dst (inl n) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull →
+    (p', g') = decodeSealPermPair n →
+    SealPermFlowsTo p' p && LocalityFlowsTo g' g = false →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ dst ↦ᵣ WSealRange t p g b e a }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+        ∗ pc_a ↦ₐ w
+        ∗ dst ↦ᵣ WSealRange false p' g' b e a }}}.
+  Proof.
+    iIntros (Hinstr Hpc Hincr Hnull Hdecode Hreject φ) "(>HPC & >Hmem & >Hr1) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %Hne]".
+    iApply (restrict_invalidated_map_sr E _ _ _ _ _ w _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e
+        pc_a']> (<[dst := WSealRange false p' g' b e a]> (∅ : Reg))) t p g b e a n p' g' with
+        "[$Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+      try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
+                 repeat case_decide; simplify_eq; cbn; eauto].
+    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
+      apply f_equal; apply map_eq; intros;
+      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
+    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
+      iApply (regs_of_map_2 with "Hmap"); eauto.
+  Qed.
+
+  Lemma wp_restrict_invalidated_reg_sr E pc_p pc_g pc_b pc_e pc_a pc_a' w dst (t : bool) p g b e a n
+      p' g' src (ws : Word) :
+    decodeInstrW w = Restrict dst (inr src) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull →
+    (if decide (src = cnull) then WInt 0 else ws) = WInt n →
+    (p', g') = decodeSealPermPair n →
+    SealPermFlowsTo p' p && LocalityFlowsTo g' g = false →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ dst ↦ᵣ WSealRange t p g b e a
+        ∗ ▷ src ↦ᵣ ws }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+        ∗ pc_a ↦ₐ w
+        ∗ dst ↦ᵣ WSealRange false p' g' b e a
+        ∗ src ↦ᵣ ws }}}.
+  Proof.
+    iIntros (Hinstr Hpc Hincr Hnull Hread Hdecode Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
+    destruct Hne as (? & ? & ?).
+    iApply (restrict_invalidated_map_sr E _ _ _ _ _ w _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e
+        pc_a']> (<[dst := WSealRange false p' g' b e a]> (<[src := ws]> (∅ : Reg)))) t p g b e a n
+        p' g' with "[$Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+      try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
+                 repeat case_decide; simplify_eq; cbn; eauto].
+    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
+      apply f_equal; apply map_eq; intros;
+      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
+    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
+      iApply (regs_of_map_3 with "Hmap"); eauto.
+  Qed.
+
+  Lemma wp_restrict_invalidated_z_PC E pc_p pc_g pc_b pc_e pc_a pc_a' w n p' g' :
+    decodeInstrW w = Restrict PC (inl n) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    (p', g') = decodePermPair n →
+    PermFlowsTo p' pc_p && LocalityFlowsTo g' pc_g = false →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap false p' g' pc_b pc_e pc_a'
+        ∗ pc_a ↦ₐ w }}}.
+  Proof.
+    iIntros (Hinstr Hpc Hincr Hdecode Hreject φ) "(>HPC & >Hmem) Hφ".
+    iDestruct (map_of_regs_1 with "HPC") as "Hmap".
+    iApply (restrict_invalidated_map_cap E _ _ _ _ _ w _ _ _ (<[PC := WCap false p' g' pc_b pc_e
+        pc_a']> (∅ : Reg)) true pc_p pc_g pc_b pc_e pc_a n p' g' with "[$Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+      try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
+                 repeat case_decide; simplify_eq; cbn; eauto].
+    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
+      apply f_equal; apply map_eq; intros;
+      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
+    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
+      iApply (regs_of_map_1 with "Hmap").
+  Qed.
+
+  Lemma wp_restrict_invalidated_reg_PC E pc_p pc_g pc_b pc_e pc_a pc_a' w n p' g' src (ws : Word) :
+    decodeInstrW w = Restrict PC (inr src) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    (if decide (src = cnull) then WInt 0 else ws) = WInt n →
+    (p', g') = decodePermPair n →
+    PermFlowsTo p' pc_p && LocalityFlowsTo g' pc_g = false →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ src ↦ᵣ ws }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap false p' g' pc_b pc_e pc_a'
+        ∗ pc_a ↦ₐ w
+        ∗ src ↦ᵣ ws }}}.
+  Proof.
+    iIntros (Hinstr Hpc Hincr Hread Hdecode Hreject φ) "(>HPC & >Hmem & >Hr1) Hφ".
+    iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %Hne]".
+    iApply (restrict_invalidated_map_cap E _ _ _ _ _ w _ _ _ (<[PC := WCap false p' g' pc_b pc_e
+        pc_a']> (<[src := ws]> (∅ : Reg))) true pc_p pc_g pc_b pc_e pc_a n p' g' with "[$Hmem
+        $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+      try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
+                 repeat case_decide; simplify_eq; cbn; eauto].
+    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
+      apply f_equal; apply map_eq; intros;
+      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
+    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
+      iApply (regs_of_map_2 with "Hmap"); eauto.
+  Qed.
+End instruction_outcomes.

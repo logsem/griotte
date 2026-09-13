@@ -169,15 +169,11 @@ Section LSE.
     iInstr "Hcode".
     (* Subseg cgp cs0 cs1; *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1%nat)%a); [solve_addr+Hcgp_size|reflexivity]. }
-    { solve_addr+Hcgp_size. }
     (* Store csp cgp; *)
     destruct ( decide ((csp_b < csp_e)%a) ) as [Hcsp_size|Hcsp_size]; cycle 1.
     {
-      iInstr_fail "Hcode".
-      { rewrite /withinBounds; solve_addr+Hcsp_size. }
-      iIntros "!> _".
-      wp_pure; wp_end; iIntros (?); done.
+      iInstr "Hcode".
+      wp_end; iIntros (?); done.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
     rewrite finz_seq_between_length in Hstklen.
@@ -187,10 +183,8 @@ Section LSE.
     iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk Hstk]"; eauto.
     { solve_addr+Hcsp_size Hastk1. }
     iInstr "Hcode".
-    { rewrite /withinBounds; solve_addr+Hcsp_size. }
     (* Load ct0 cgp; *)
     iInstr "Hcode".
-    { split; [solve_pure| solve_addr+Hcgp_size]. }
     (* Mov ct1 2; *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

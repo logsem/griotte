@@ -90,10 +90,8 @@ Section KVS_getFullKey.
     iInstr "Hcode".
     (* load rdst rdst; *)
     iInstr "Hcode".
-    { rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr. }
     (* unseal rdst rsealkey rscratch; *)
-    iInstr "Hcode"; try done.
-    { rewrite /withinBounds; pose proof KVS_OTYPE_size; solve_addr. }
+    iInstr "Hcode".
     (* load rdst rdst; *)
     iInstr "Hcode".
     (* lshiftl rdst rdst 16; *)
@@ -158,7 +156,6 @@ Section KVS_getFullKey.
     iInstr "Hcode".
     (* load rdst rdst; *)
     iInstr "Hcode".
-    { rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr. }
     (* unseal rdst rsealkey rscratch; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
@@ -178,9 +175,8 @@ Section KVS_getFullKey.
     }
     wp_pure.
     iSpecialize ("Hcode" with "Hi").
-    iInstr_fail "Hcode".
-    iNext; iIntros "_".
-    wp_pure; wp_end; iIntros "%Hcontr"; done.
+    iInstr "Hcode".
+    wp_end; iIntros "%Hcontr"; done.
   Qed.
 
 End KVS_getFullKey.

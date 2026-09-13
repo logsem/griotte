@@ -1,7 +1,8 @@
 From iris.proofmode Require Import coq_tactics.
 From iris.bi Require Import bi.
 Import bi.
-From griotte Require Import rules instr_outcome_rules solve_pure machine_instructions.
+From griotte Require Import rules solve_pure machine_instructions
+  proofmode_instr_support.
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
@@ -164,304 +165,100 @@ Ltac dispatch_instr_rule instr cont :=
   | _ => fail "No suitable rule found for instruction" instr
   end.
 
-(* Concrete maps share one owned entry for operand aliases, including PC and
-   cnull. Reading cnull still requires its physical register resource. *)
-(* Equality is an input to dispatch: never instantiate register operands or
-   split symbolic alias cases to choose a rule. *)
-Ltac instr_same_register r1 r2 :=
-  let r1' := eval cbv in r1 in
-  let r2' := eval cbv in r2 in
-  let checked := constr:(ltac:(without_evars r1'; without_evars r2'; exact I) : True) in
-  match goal with
-  | _ => let H := constr:(ltac:(constr_eq r1 r2; reflexivity) : r1 = r2) in constr:(true)
-  | _ => let eq := eval vm_compute in (bool_decide (r1 = r2)) in
-         lazymatch eq with true => constr:(true) | false => constr:(false) end
-  | _ => let H := constr:(ltac:(first [congruence | solve_pure]) : r1 = r2) in constr:(true)
-  | _ => let H := constr:(ltac:(first [congruence | solve_pure]) : r1 ≠ r2) in constr:(false)
-  end.
-
-Ltac instr_map_contains regs r :=
-  lazymatch regs with
-  | <[?rr := ?ww]> ?tail =>
-    let eq := instr_same_register rr r in
-    lazymatch eq with true => constr:(true) | false => instr_map_contains tail r end
-  | _ => constr:(false)
-  end.
-
-Ltac instr_register_map rs :=
-  lazymatch rs with
-  | nil => constr:(∅ : Reg)
-  | ?r :: ?rs =>
-    let tail := instr_register_map rs in
-    let found := instr_map_contains tail r in
-    lazymatch found with
-    | true => tail
-    | false => match goal with
-      | |- context [ Esnoc _ _ (?rr ↦ᵣ ?w)%I ] =>
-        let eq := instr_same_register rr r in
-        lazymatch eq with
-        | true => constr:(<[rr := w]> tail : Reg)
-        end
-      end
-    end
-  end.
-
-Ltac instr_argument_registers arg rest :=
-  let arg := eval cbv [regn cst] in arg in
-  lazymatch arg with
-  | inl _ => rest
-  | inr ?r => constr:(r :: rest)
-  end.
-
-Ltac instr_map instr :=
-  let instr := eval cbv [regn cst] in instr in
-  let rs := lazymatch instr with
-    | Lea ?dst ?src => instr_argument_registers src constr:([PC; dst])
-    | Restrict ?dst ?src => instr_argument_registers src constr:([PC; dst])
-    | Subseg ?dst ?s1 ?s2 =>
-      let rest := instr_argument_registers s2 constr:([PC; dst]) in
-      instr_argument_registers s1 rest
-    | Seal ?dst ?s1 ?s2 => constr:([PC; dst; s1; s2])
-    | UnSeal ?dst ?s1 ?s2 => constr:([PC; dst; s1; s2])
-    | Load ?dst ?src => constr:([PC; dst; src])
-    | Store ?dst ?src => instr_argument_registers src constr:([PC; dst])
-    | _ => eval vm_compute in (elements ({[PC]} ∪ regs_of instr))
-    end in
-  instr_register_map rs.
-
-Ltac instr_expand_map_rule rule cont :=
-  let expanded := constr:(ltac:(
-    let H := fresh "Hrule" in
-    pose proof rule as H;
-    repeat match type of H with
-    | context [big_sepM ?P (<[?rr := ?ww]> ?mm)] =>
-      let Pnone := constr:(mm !! rr = None) in
-      let Hnone := constr:(ltac:(rewrite ?lookup_insert ?lookup_empty;
-                                 repeat case_decide; simplify_eq; done) : Pnone) in
-      setoid_rewrite (big_sepM_insert P mm rr ww Hnone) in H
-    end;
-    try setoid_rewrite big_sepM_empty in H;
-    try setoid_rewrite sep_emp in H;
-    exact H)) in
-  cont expanded.
-
-Ltac dispatch_instr_failure instr cont :=
-  let regs := instr_map instr in
+Ltac dispatch_generic_failure instr cont :=
+  let regs := instr_failure_registers instr in
   lazymatch goal with
   | |- context [ Esnoc _ _ (PC ↦ᵣ WCap true ?p ?g ?b ?e ?a)%I ] =>
-    let rule := constr:(fun E => @wp_instr_failed _ _ _ E p g b e a
-                         (encodeInstrW instr) instr regs) in
-    instr_expand_map_rule rule cont
-  end.
-
-(* Read and update the concrete ownership map without unfolding word metadata. *)
-Ltac instr_map_word regs r :=
-  lazymatch regs with
-  | <[?rr := ?ww]> ?tail =>
-    let eq := instr_same_register rr r in
-    lazymatch eq with true => ww | false => instr_map_word tail r end
-  end.
-
-Ltac instr_read regs r :=
-  let null := instr_same_register r cnull in
-  lazymatch null with true => constr:(WInt 0) | false => instr_map_word regs r end.
-
-Ltac instr_argument regs arg :=
-  let arg := eval cbv [regn cst] in arg in
-  lazymatch arg with
-  | inl ?n => n
-  | inr ?r => let w := instr_read regs r in
-              lazymatch w with WInt ?n => n end
-  end.
-
-Ltac instr_map_update regs r w :=
-  lazymatch regs with
-  | <[?rr := ?ww]> ?tail =>
-    let eq := instr_same_register rr r in
-    lazymatch eq with
-    | true => constr:(<[rr := w]> tail : Reg)
-    | false => let rest := instr_map_update tail r w in
-               constr:(<[rr := ww]> rest : Reg)
+    lazymatch regs with
+    | [] => cont (fun E => @wp_instr_failed_0 _ _ _ E p g b e a
+                            (encodeInstrW instr) instr)
+    | [(?r1, ?w1)] => cont (fun E => @wp_instr_failed_1 _ _ _ E p g b e a
+                                     (encodeInstrW instr) instr r1 w1)
+    | [(?r1, ?w1); (?r2, ?w2)] =>
+        cont (fun E => @wp_instr_failed_2 _ _ _ E p g b e a
+                         (encodeInstrW instr) instr r1 w1 r2 w2)
+    | [(?r1, ?w1); (?r2, ?w2); (?r3, ?w3)] =>
+        cont (fun E => @wp_instr_failed_3 _ _ _ E p g b e a
+                         (encodeInstrW instr) instr r1 w1 r2 w2 r3 w3)
     end
   end.
 
-Ltac instr_result regs dst word :=
-  let null := instr_same_register dst cnull in
-  let written := lazymatch null with true => constr:(WInt 0) | false => word end in
-  let updated := instr_map_update regs dst written in
-  let pc := instr_map_word updated PC in
-  lazymatch pc with
-  | WCap ?t ?p ?g ?b ?e ?a =>
-    instr_map_update updated PC (WCap t p g b e (a ^+ 1)%a)
-  | _ => fail "The invalidated result cannot advance PC; use iInstr_fail"
-  end.
+Ltac dispatch_instr_failure instr cont :=
+  first [ dispatch_generic_failure instr cont
+        | fail "No immediate-failure provider found for instruction" instr ].
 
-Ltac instr_decode_cap n :=
-  lazymatch n with
-  | encodePermPair ?pair => pair
-  | _ => match goal with
-         | H : decodePermPair n = ?pair |- _ => pair
-         | H : ?pair = decodePermPair n |- _ => pair
-         | _ => constr:((fst (decodePermPair n), snd (decodePermPair n)))
-         end
-  end.
-
-Ltac instr_decode_sr n :=
-  lazymatch n with
-  | encodeSealPermPair ?pair => pair
-  | _ => match goal with
-         | H : decodeSealPermPair n = ?pair |- _ => pair
-         | H : ?pair = decodeSealPermPair n |- _ => pair
-         | _ => constr:((fst (decodeSealPermPair n), snd (decodeSealPermPair n)))
-         end
-  end.
-
-Ltac instr_endpoint convert n fallback :=
-  lazymatch n with
-  | finz.to_z ?a => a
-  | _ => match goal with H : convert n = Some ?a |- _ => a
-                         | _ => fallback end
-  end.
-
+(* Like ordinary success dispatch, invalidation selects explicit-resource
+   lemmas. Add an instruction case and its necessary alias/operand variants;
+   resource preparation and side-condition handling belong to the caller. *)
 Ltac dispatch_instr_invalidation instr cont :=
   let instr := eval cbv [regn cst] in instr in
-  let regs := instr_map instr in
-  let pc := instr_map_word regs PC in
-  lazymatch pc with WCap true ?pp ?pg ?pb ?pe ?pa =>
   lazymatch instr with
-  | Lea ?dst ?src =>
-    let wd := instr_read regs dst in
-    let n := instr_argument regs src in
-    lazymatch wd with
-    | WCap ?t ?p ?g ?b ?e ?a =>
-      let result := instr_result regs dst (WCap false p g b e a) in
-      let rule := constr:(fun E => @wp_lea_invalidated_cap _ _ _ E pp pg pb pe pa
-                        (encodeInstrW instr) dst src regs result t p g b e a n) in
-      instr_expand_map_rule rule cont
-    | WSealRange ?t ?p ?g ?b ?e ?a =>
-      let result := instr_result regs dst (WSealRange false p g b e a) in
-      let rule := constr:(fun E => @wp_lea_invalidated_sr _ _ _ E pp pg pb pe pa
-                        (encodeInstrW instr) dst src regs result t p g b e a n) in
-      instr_expand_map_rule rule cont
-    end
-  | Restrict ?dst ?src =>
-    let wd := instr_read regs dst in
-    let n := instr_argument regs src in
-    lazymatch wd with
-    | WCap ?t ?p ?g ?b ?e ?a =>
-      let pair := instr_decode_cap n in
-      let p' := eval cbn in (fst pair) in
-      let g' := eval cbn in (snd pair) in
-      let result := instr_result regs dst (WCap false p' g' b e a) in
-      let rule := constr:(fun E => @wp_restrict_invalidated_cap _ _ _ E pp pg pb pe pa
-                        (encodeInstrW instr) dst src regs result t p g b e a n p' g') in
-      instr_expand_map_rule rule cont
-    | WSealRange ?t ?p ?g ?b ?e ?a =>
-      let pair := instr_decode_sr n in
-      let p' := eval cbn in (fst pair) in
-      let g' := eval cbn in (snd pair) in
-      let result := instr_result regs dst (WSealRange false p' g' b e a) in
-      let rule := constr:(fun E => @wp_restrict_invalidated_sr _ _ _ E pp pg pb pe pa
-                        (encodeInstrW instr) dst src regs result t p g b e a n p' g') in
-      instr_expand_map_rule rule cont
-    end
-  | Seal ?dst ?src1 ?src2 =>
-    let w1 := instr_read regs src1 in
-    let w2 := instr_read regs src2 in
-    lazymatch w1 with WSealRange ?t ?p ?g ?b ?e ?a =>
-    lazymatch w2 with WSealable ?sb =>
-      let result := instr_result regs dst (WSealed a (clear_tag_sealable sb)) in
-      let rule := constr:(fun E => @wp_seal_invalidated _ _ _ E pp pg pb pe pa
-                        (encodeInstrW instr) dst src1 src2 regs result t p g b e a sb) in
-      instr_expand_map_rule rule cont
-    end end
-  | UnSeal ?dst ?src1 ?src2 =>
-    let w1 := instr_read regs src1 in
-    let w2 := instr_read regs src2 in
-    lazymatch w1 with WSealRange ?t ?p ?g ?b ?e ?a =>
-    lazymatch w2 with WSealed ?a' ?sb =>
-      let word := eval cbn [clear_tag_sealable] in (WSealable (clear_tag_sealable sb)) in
-      let result := instr_result regs dst word in
-      let rule := constr:(fun E => @wp_unseal_invalidated _ _ _ E pp pg pb pe pa
-                        (encodeInstrW instr) dst src1 src2 regs result t p g b e a a' sb) in
-      instr_expand_map_rule rule cont
-    end end
-  | Subseg ?dst ?src1 ?src2 =>
-    let wd := instr_read regs dst in
-    let n1 := instr_argument regs src1 in
-    let n2 := instr_argument regs src2 in
-    lazymatch wd with
-    | WCap ?t ?p ?g ?b ?e ?a =>
-      first [
-        let overflow := constr:(ltac:(first [left; solve_pure | right; solve_pure | assumption]) :
-                                  z_to_addr n1 = None ∨ z_to_addr n2 = None) in
-        let result := instr_result regs dst (WCap false p g b e a) in
-        let rule := constr:(fun E => @wp_subseg_unrepresentable_cap _ _ _ E pp pg pb pe pa
-                          (encodeInstrW instr) dst src1 src2 regs result t p g b e a n1 n2) in
-        instr_expand_map_rule rule cont
-      | let a1 := instr_endpoint constr:(z_to_addr) n1 ((0 ^+ n1)%a) in
-        let a2 := instr_endpoint constr:(z_to_addr) n2 ((0 ^+ n2)%a) in
-        let result := instr_result regs dst (WCap false p g a1 a2 a) in
-        let rule := constr:(fun E => @wp_subseg_invalidated_cap _ _ _ E pp pg pb pe pa
-                          (encodeInstrW instr) dst src1 src2 regs result t p g b e a n1 n2 a1 a2) in
-        instr_expand_map_rule rule cont ]
-    | WSealRange ?t ?p ?g ?b ?e ?a =>
-      first [
-        let overflow := constr:(ltac:(first [left; solve_pure | right; solve_pure | assumption]) :
-                                  z_to_otype n1 = None ∨ z_to_otype n2 = None) in
-        let result := instr_result regs dst (WSealRange false p g b e a) in
-        let rule := constr:(fun E => @wp_subseg_unrepresentable_sr _ _ _ E pp pg pb pe pa
-                          (encodeInstrW instr) dst src1 src2 regs result t p g b e a n1 n2) in
-        instr_expand_map_rule rule cont
-      | let a1 := instr_endpoint constr:(z_to_otype) n1 ((0 ^+ n1)%ot) in
-        let a2 := instr_endpoint constr:(z_to_otype) n2 ((0 ^+ n2)%ot) in
-        let result := instr_result regs dst (WSealRange false p g a1 a2 a) in
-        let rule := constr:(fun E => @wp_subseg_invalidated_sr _ _ _ E pp pg pb pe pa
-                          (encodeInstrW instr) dst src1 src2 regs result t p g b e a n1 n2 a1 a2) in
-        instr_expand_map_rule rule cont ]
-    end
-  | _ => fail "iInstr_invalidate supports Lea, Restrict, Subseg, Seal, and UnSeal"
-  end end.
-
-Ltac solve_instr_map :=
-  first [solve_pure | done | solve [left; solve_pure | right; solve_pure] |
-    (rewrite ?decode_encode_permPair_inv ?decode_encode_SealPermPair_inv; done) |
-    (rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver) |
-    (rewrite /z_of_argument /lookup_reg ?lookup_insert ?lookup_empty;
-     repeat case_decide; simplify_eq; done) |
-    (rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert;
-     repeat case_decide; simplify_eq; cbn [clear_tag_sealable];
-     match goal with |- context [ (?a + 1)%a ] =>
-       let Pincr := constr:((a + 1)%a = Some (a ^+ 1)%a) in
-       let H := constr:(ltac:(solve_pure) : Pincr) in
-       rewrite H /=
-     end; apply f_equal; apply map_eq; intros;
-     rewrite !lookup_insert; repeat case_decide; simplify_eq; done)].
-
-Ltac instr_known_registers entries owned full Hincl :=
-  lazymatch entries with
-  | <[?r := ?w]> ?tail =>
-    let Hlookup := fresh "Hreg" in
-    assert (full !! r = Some w) as Hlookup by
-      (apply (lookup_weaken owned full r w); [rewrite ?lookup_insert ?lookup_empty; repeat case_decide; simplify_eq; done | exact Hincl]);
-    instr_known_registers tail owned full Hincl
-  | _ => idtac
+  (* Lea: reuse the existing overflow rules. *)
+  | Lea PC (inr _) => cont (@wp_lea_overflow_reg_PC)
+  | Lea PC (inl _) => cont (@wp_lea_overflow_z_PC)
+  | Lea _ (inr _) => (cont (@wp_lea_overflow_reg) || cont (@wp_lea_overflow_reg_sr))
+  | Lea _ (inl _) => (cont (@wp_lea_overflow_z) || cont (@wp_lea_overflow_z_sr))
+  (* Restrict *)
+  | Restrict PC (inr _) => cont (@wp_restrict_invalidated_reg_PC)
+  | Restrict PC (inl _) => cont (@wp_restrict_invalidated_z_PC)
+  | Restrict _ (inr _) =>
+      (cont (@wp_restrict_invalidated_reg) || cont (@wp_restrict_invalidated_reg_sr))
+  | Restrict _ (inl _) =>
+      (cont (@wp_restrict_invalidated_z) || cont (@wp_restrict_invalidated_z_sr))
+  (* Subseg: conversion overflow has priority over representable rejection.
+     The explicit-mode caller requires overflow evidence before committing. *)
+  | Subseg PC (inr ?r) (inr ?r) =>
+      (cont (@wp_subseg_unrepresentable_pc_same) ||
+       cont (@wp_subseg_invalidated_pc_same))
+  | Subseg PC (inr _) (inr _) =>
+      (cont (@wp_subseg_unrepresentable_pc) ||
+       cont (@wp_subseg_invalidated_pc))
+  | Subseg PC (inl _) (inr _) =>
+      (cont (@wp_subseg_unrepresentable_pc_l) ||
+       cont (@wp_subseg_invalidated_pc_l))
+  | Subseg PC (inr _) (inl _) =>
+      (cont (@wp_subseg_unrepresentable_pc_r) ||
+       cont (@wp_subseg_invalidated_pc_r))
+  | Subseg PC (inl _) (inl _) =>
+      (cont (@wp_subseg_unrepresentable_pc_lr) ||
+       cont (@wp_subseg_invalidated_pc_lr))
+  | Subseg _ (inr ?r) (inr ?r) =>
+      (cont (@wp_subseg_unrepresentable_same) ||
+       cont (@wp_subseg_unrepresentable_same_sr) ||
+       cont (@wp_subseg_invalidated_same) ||
+       cont (@wp_subseg_invalidated_same_sr))
+  | Subseg _ (inr _) (inr _) =>
+      (cont (@wp_subseg_unrepresentable) ||
+       cont (@wp_subseg_unrepresentable_sr) ||
+       cont (@wp_subseg_invalidated) ||
+       cont (@wp_subseg_invalidated_sr))
+  | Subseg _ (inl _) (inr _) =>
+      (cont (@wp_subseg_unrepresentable_l) ||
+       cont (@wp_subseg_unrepresentable_l_sr) ||
+       cont (@wp_subseg_invalidated_l) ||
+       cont (@wp_subseg_invalidated_l_sr))
+  | Subseg _ (inr _) (inl _) =>
+      (cont (@wp_subseg_unrepresentable_r) ||
+       cont (@wp_subseg_unrepresentable_r_sr) ||
+       cont (@wp_subseg_invalidated_r) ||
+       cont (@wp_subseg_invalidated_r_sr))
+  | Subseg _ (inl _) (inl _) =>
+      (cont (@wp_subseg_unrepresentable_lr) ||
+       cont (@wp_subseg_unrepresentable_lr_sr) ||
+       cont (@wp_subseg_invalidated_lr) ||
+       cont (@wp_subseg_invalidated_lr_sr))
+  (* Seal *)
+  | Seal ?r ?r PC => cont (@wp_seal_invalidated_PC_eq)
+  | Seal _ _ PC => cont (@wp_seal_invalidated_PC)
+  | Seal ?r ?r ?r => cont (@wp_seal_invalidated_all)
+  | Seal _ ?r ?r => cont (@wp_seal_invalidated_same)
+  | Seal ?r ?r _ => cont (@wp_seal_invalidated_r1)
+  | Seal ?r _ ?r => cont (@wp_seal_invalidated_r2)
+  | Seal _ _ _ => cont (@wp_seal_invalidated)
+  (* UnSeal *)
+  | UnSeal PC _ _ => cont (@wp_unseal_invalidated_PC)
+  | UnSeal ?r ?r _ => cont (@wp_unseal_invalidated_r1)
+  | UnSeal ?r _ ?r => cont (@wp_unseal_invalidated_r2)
+  | UnSeal _ _ _ => cont (@wp_unseal_invalidated)
+  | _ => fail "No invalidation rule found for instruction" instr
   end.
-
-Ltac solve_instr_failure :=
-  intros;
-  match goal with
-  | Hincl : ?owned ⊆ ?full |- _ =>
-    instr_known_registers owned owned full Hincl
-  end;
-  rewrite /exec /exec_opt /= /word_of_argument /z_of_argument /lookup_reg;
-  repeat match goal with
-  | H : ?lhs = ?rhs |- context [?lhs] => progress (rewrite H; cbn)
-  end;
-  try (rewrite /updatePC /updatePC_gen /update_reg /reg /sreg /mem /= /insert_reg;
-       rewrite ?lookup_insert /=; simplify_map_eq; rewrite ?lookup_insert /=);
-  repeat match goal with
-  | H : ?lhs = ?rhs |- context [?lhs] => progress (rewrite H; cbn)
-  end;
-  try done;
-  try solve_pure.

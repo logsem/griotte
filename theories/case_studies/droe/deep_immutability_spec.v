@@ -166,7 +166,6 @@ Section DROE.
 
     (* Store cgp 42%Z; *)
     iInstr "Hcode".
-    { solve_addr. }
     (* Mov ct0 cgp; *)
     iInstr "Hcode".
 
@@ -176,12 +175,9 @@ Section DROE.
     iInstr "Hcode".
     (* Subseg ct0 ct1 ct2; *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
 
     (* Lea cgp 1%Z; *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
     (* Store cgp ct0; *)
     (* NOTE for some reason, iInstr doesnt work here lol *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -196,19 +192,12 @@ Section DROE.
     iInstr "Hcode".
     (* Lea cgp (-1)%Z; *)
     iInstr "Hcode".
-    { transitivity (Some cgp_b); auto; solve_addr. }
     (* Add ct1 ct2 1%Z; *)
     iInstr "Hcode".
     (* Subseg ca0 ct2 ct1; *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
     (* Restrict ca0 ro_dro *)
     iInstr "Hcode".
-    { by rewrite decode_encode_permPair_inv. }
-    { solve_pure. }
-    { solve_pure. }
 
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -516,7 +505,6 @@ Section DROE.
     iEval (cbn) in "Hcgp_b_interp"; iDestruct "Hcgp_b_interp" as "[ % Hcgp_b_interp ]"; simplify_eq.
     (* Load ct0 cgp  *)
     iInstr "Hcode".
-    { split; [done| solve_addr]. }
     iDestruct ("PermRes_cgp_b" with "[$Hcgp_b $Hcgp_b_interp]") as "PermRes_cgp_b"; auto.
     (* Mov ct1 42  *)
     iInstr "Hcode".

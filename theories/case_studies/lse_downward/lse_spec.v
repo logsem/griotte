@@ -157,7 +157,6 @@ Section LSE.
 
     (* Store cgp 0%Z; *)
     iInstr "Hcode".
-    { apply withinBounds_true_iff; solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* --------------------------------------------------- *)

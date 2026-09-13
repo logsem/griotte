@@ -77,7 +77,6 @@ Section Is_WordType_spec.
       iApply "Hφ"; iFrame.
       iPureIntro; eexists; done.
     - iGo "Hprog".
-      { apply getwtype_denote. }
       assert (WInt (encodeWordType w - encodeWordType wt_int) ≠ WInt 0).
       { pose proof (encodeWordType_correct w wt_int) as Hencode ; cbn in Hencode.
         intro H; injection H; intro Hcontra.
@@ -130,7 +129,6 @@ Section Is_WordType_spec.
       + iGo "Hprog". iApply "Hφ"; iFrame.
       + iGo "Hprog". wp_end; iApply "Hfailed".
     - iGo "Hprog".
-      { apply getwtype_denote. }
       assert (WInt (encodeWordType w - encodeWordType wt_cap) ≠ WInt 0).
       { pose proof (encodeWordType_correct w wt_cap) as Hencode ; cbn in Hencode.
         intro H; injection H; intro Hcontra.

@@ -53,17 +53,11 @@ Section Switcher_Return_Blocks.
     (* --- Load csp ctp --- *)
     destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
     {
-      iInstr_fail "Hcode".
-      { rewrite /withinBounds.
-        apply andb_false_iff; right.
-        solve_addr+Htstk_ae.
-      }
-      iNext; iIntros "_".
-      wp_pure; wp_end; by iIntros (?).
+      iInstr "Hcode".
+      wp_end; by iIntros (?).
     }
 
     iInstr "Hcode".
-    { split; auto. rewrite /withinBounds. solve_addr. }
     iApply "Hpost"; iFrame. iPureIntro; exact Htstk_ae.
   Qed.
 
@@ -93,15 +87,14 @@ Section Switcher_Return_Blocks.
       as [Hb_trusted_stack1'|Hb_trusted_stack1'].
     {
       assert ((b_trusted_stack + -1) = None)%a by solve_addr+Hb_trusted_stack1'.
-      iInstr_invalidate "Hcode".
+      iInstr "Hcode".
 
       (* --- WriteSR mtdc ctp --- *)
       iInstr "Hcode".
 
       (* --- Lea csp (-1)%Z --- *)
-      iInstr_fail "Hcode".
-      iNext; iIntros "_".
-      wp_pure; wp_end; by iIntros (?).
+      iInstr "Hcode".
+      wp_end; by iIntros (?).
     }
     assert (is_Some (b_trusted_stack + -1))%a
       as [b_trusted_stack1 Hb_trusted_stack1] by solve_addr+Hb_trusted_stack1'.
@@ -112,9 +105,8 @@ Section Switcher_Return_Blocks.
     iInstr "Hcode".
 
     (* --- Lea csp (-1)%Z --- *)
-    iInstr_fail "Hcode".
-    iNext; iIntros "_".
-    wp_pure; wp_end; by iIntros (?).
+    iInstr "Hcode".
+    wp_end; by iIntros (?).
   Qed.
 
   Lemma switcher_return_block_12_pop_spec
@@ -162,7 +154,6 @@ Section Switcher_Return_Blocks.
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode" with "Hlc".
-    { transitivity (Some (a_stk ^+ 3)%a); solve_addr+Ha_stk4. }
 
     iApply "Hpost". iExists a_tstk1. iFrame.
     iPureIntro; exact Ha_tstk1.
@@ -222,31 +213,24 @@ Section Switcher_Return_Blocks.
 
     (* --- Load cgp csp --- *)
     iInstr "Hcode".
-    { split; [solve_pure|rewrite le_addr_withinBounds; solve_addr+Ha_stk4 Hb_a4 He_a1]. }
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
-    { transitivity (Some (a_stk ^+ 2)%a); solve_addr+Ha_stk4. }
 
     (* --- Load cra csp --- *)
     iInstr "Hcode".
-    { split; [solve_pure|rewrite le_addr_withinBounds; solve_addr+Ha_stk4 Hb_a4 He_a1]. }
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
-    { transitivity (Some (a_stk ^+ 1)%a); solve_addr+Ha_stk4. }
 
     (* --- Load cs1 csp --- *)
     iInstr "Hcode".
-    { split; [solve_pure|rewrite le_addr_withinBounds; solve_addr+Ha_stk4 Hb_a4 He_a1]. }
 
     (* --- Lea csp (-1)%Z --- *)
     iInstr "Hcode".
-    { transitivity (Some a_stk); solve_addr. }
 
     (* --- Load cs0 csp --- *)
     iInstr "Hcode".
-    { split; [solve_pure|rewrite le_addr_withinBounds; solve_addr+Ha_stk4 Hb_a4 He_a1]. }
 
     (* --- GetE ct0 csp --- *)
     iInstr "Hcode" with "Hlc".

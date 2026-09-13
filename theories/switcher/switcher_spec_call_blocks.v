@@ -165,9 +165,8 @@ Section Switcher_Call_Blocks.
     rewrite finz_seq_between_length in Hstklen.
     destruct (decide (b_stk <= a_stk < e_stk)%a) as [Hastk_inbounds|Hastk_inbounds]; cycle 1.
     {
-      iInstr_fail "Hcode".
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+      iInstr "Hcode".
+      wp_end. iIntros "%Hcontr";done.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk_inbounds.
     destruct stk_mem as [|w0 stk_mem]; simplify_eq.
@@ -176,7 +175,6 @@ Section Switcher_Call_Blocks.
     { solve_addr+Hastk_inbounds Hastk1. }
 
     iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
@@ -185,9 +183,8 @@ Section Switcher_Call_Blocks.
     (* --- Store csp cs1 --- *)
     destruct (decide (b_stk <= (a_stk ^+ 1)%a < e_stk)%a) as [Hastk1_inbounds|Hastk1_inbounds]; cycle 1.
     {
-      iInstr_fail "Hcode".
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+      iInstr "Hcode".
+      wp_end. iIntros "%Hcontr";done.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk1_inbounds.
     destruct stk_mem as [|w1 stk_mem]; simplify_eq.
@@ -196,7 +193,6 @@ Section Switcher_Call_Blocks.
     { solve_addr+Hastk1_inbounds Hastk1 Hastk2. }
 
     iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
@@ -204,9 +200,8 @@ Section Switcher_Call_Blocks.
     (* --- Store csp cra --- *)
     destruct (decide (b_stk <= (a_stk ^+ 2)%a < e_stk)%a) as [Hastk2_inbounds|Hastk2_inbounds]; cycle 1.
     {
-      iInstr_fail "Hcode".
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+      iInstr "Hcode".
+      wp_end. iIntros "%Hcontr";done.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk2_inbounds.
     destruct stk_mem as [|w2 stk_mem]; simplify_eq.
@@ -215,7 +210,6 @@ Section Switcher_Call_Blocks.
     { solve_addr+Hastk2_inbounds Hastk1 Hastk2 Hastk3. }
 
     iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
@@ -223,9 +217,8 @@ Section Switcher_Call_Blocks.
     (* --- Store csp cgp --- *)
     destruct (decide (b_stk <= (a_stk ^+ 3)%a < e_stk)%a) as [Hastk3_inbounds|Hastk3_inbounds]; cycle 1.
     {
-      iInstr_fail "Hcode".
-      { rewrite /withinBounds; solve_addr. }
-      iIntros "!> _". wp_pure. wp_end. iIntros "%Hcontr";done.
+      iInstr "Hcode".
+      wp_end. iIntros "%Hcontr";done.
     }
     rewrite finz_dist_S in Hstklen; last solve_addr+Hastk3_inbounds.
     destruct stk_mem as [|w3 stk_mem]; simplify_eq.
@@ -235,7 +228,6 @@ Section Switcher_Call_Blocks.
     assert ((a_stk + 4)%a = Some a_stk4) as Hastk by solve_addr.
 
     iInstr "Hcode".
-    { rewrite /withinBounds. solve_addr. }
 
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
@@ -358,7 +350,6 @@ Section Switcher_Call_Blocks.
     iDestruct (region_pointsto_cons _ f4 with "Htstk") as "[Hf3 Htstk]";[solve_addr|solve_addr|].
     replace (a_tstk ^+ 1)%a with f3 by solve_addr.
     iInstr "Hcode".
-    { rewrite /withinBounds; solve_addr. }
 
     (* --- WriteSR mtdc ct2 --- *)
     iInstr "Hcode".
@@ -464,7 +455,6 @@ Section Switcher_Call_Blocks.
 
     (* --- Lea cs0 -2 --- *)
     iInstr "Hcode".
-    { instantiate (1:= pc_b); solve_addr. }
 
     (* --- Load cs0 cs0 --- *)
     iInstr "Hcode".
@@ -516,7 +506,6 @@ Section Switcher_Call_Blocks.
     wp_instr.
     iInv "Hinv_exp_tbl_entry" as ">Ha_tbl" "Hcls_tbl".
     iInstr "Hcode".
-    { split; auto. rewrite /withinBounds. solve_addr. }
     iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
     wp_pure.
 
@@ -568,15 +557,13 @@ Section Switcher_Call_Blocks.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
     (* --- UnSeal ct1 cs0 ct1 --- *)
-    iInstr "Hcode"; try done.
-    { rewrite /withinBounds; solve_addr. }
+    iInstr "Hcode".
 
 
     (* --- Load cs0 ct1 --- *)
     wp_instr.
     iInv "Hinv_exp_tbl_entry" as ">Ha_tbl" "Hcls_tbl".
     iInstr "Hcode".
-    { split;auto. rewrite /withinBounds. solve_addr. }
     iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
     wp_pure.
 
@@ -646,25 +633,21 @@ Section Switcher_Call_Blocks.
 
     (* --- Lea ct1 cs1 --- *)
     iInstr "Hcode".
-    { instantiate (1:=btbl_tgt); solve_addr. }
 
     (* --- Load cra ct1 --- *)
     wp_instr.
     iInv "Hinv_exp_tbl_pcc" as ">Hb_tbl" "Hcls_tbl".
     iInstr "Hcode".
-    { split;auto. rewrite /withinBounds; solve_addr. }
     iMod ("Hcls_tbl" with "[$]") as "_"; iModIntro.
     wp_pure.
 
     (* --- Lea ct1 1 --- *)
     iInstr "Hcode".
-    { instantiate (1:=(btbl_tgt ^+ 1)%a); solve_addr. }
 
     (* --- Load cgp ct1 --- *)
     wp_instr.
     iInv "Hinv_exp_tbl_cgp" as ">Hb_tbl" "Hcls_tbl".
     iInstr "Hcode".
-    { split;auto. rewrite /withinBounds; solve_addr. }
     iMod ("Hcls_tbl" with "[$]") as "_"; iModIntro.
     wp_pure.
 
@@ -733,28 +716,20 @@ Section Switcher_Call_Blocks.
 
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
-    { transitivity ( Some (a_stk ^+ 3)%a) ; solve_addr. }
     (* Load cgp csp; *)
     iInstr "Hcode".
-    { split; solve_addr. }
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
-    { transitivity ( Some (a_stk ^+ 2)%a) ; solve_addr. }
     (* Load cra csp; *)
     iInstr "Hcode".
-    { split; solve_addr. }
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
-    { transitivity ( Some (a_stk ^+ 1)%a) ; solve_addr. }
     (* Load cs1 csp; *)
     iInstr "Hcode".
-    { split; solve_addr. }
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
-    { transitivity ( Some a_stk ) ; solve_addr. }
     (* Load cs0 csp; *)
     iInstr "Hcode".
-    { split; solve_addr. }
     (* Mov ca0 (inl (-141)%Z); *)
     iInstr "Hcode".
     destruct (decide (ca0 = cnull))as [|_]; first done.

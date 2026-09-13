@@ -225,7 +225,6 @@ Section Counter.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Load ca0 cgp; *)
     iInstr "Hcode".
-    { split; first done. apply withinBounds_true_iff; solve_addr. }
 
     (* Add ca0 ca0 1%Z; *)
     iInstr "Hcode".

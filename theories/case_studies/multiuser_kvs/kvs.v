@@ -630,13 +630,17 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
 End KVS_Service.
 
-Ltac solve_addr_kvs :=
+Global Ltac solve_addr.solve_addr_prepare ::=
   repeat match goal with
     | H : context [ ASM_SIZEOF_KVS_ENTRY ] |- _ => rewrite /ASM_SIZEOF_KVS_ENTRY in H
     | _ : _ |- context [ ASM_SIZEOF_KVS_ENTRY ] => rewrite /ASM_SIZEOF_KVS_ENTRY
-    end
-  ; solve_addr.
-
-Tactic Notation "solve_addr" := solve_addr_kvs.
-Tactic Notation "solve_addr" "-" hyp_list(Hs) := clear Hs; solve_addr_kvs.
-Tactic Notation "solve_addr" "+" hyp_list(Hs) := clear -Hs; solve_addr_kvs.
+    | H : context [ SIZE_MAP ] |- _ => rewrite /SIZE_MAP in H
+    | _ : _ |- context [ SIZE_MAP ] => rewrite /SIZE_MAP
+    | H : context [ UNSEALING_USER_KEY_OFFSET ] |- _ => rewrite /UNSEALING_USER_KEY_OFFSET in H
+    | _ : _ |- context [ UNSEALING_USER_KEY_OFFSET ] => rewrite /UNSEALING_USER_KEY_OFFSET
+    end;
+  try match goal with
+  | Hwf : @kvsLayoutWf ?mp ?layout |- _ =>
+      let Hsize := fresh "Hotype_size" in
+      pose proof (@KVS_OTYPE_size mp layout Hwf) as Hsize
+  end.

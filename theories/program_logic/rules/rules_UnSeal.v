@@ -364,8 +364,12 @@ Section griotte_lang_rules.
     Unshelve. all: auto.
   Qed.
 
-  (* This map-based rule includes source/destination aliases and PC/cnull. *)
-  Lemma wp_unseal_invalidated E pc_p pc_g pc_b pc_e pc_a
+End griotte_lang_rules.
+
+Section instruction_outcomes.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+
+  Local Lemma unseal_invalidated_map E pc_p pc_g pc_b pc_e pc_a
       w dst src1 src2 regs regs' (t : bool) p g b e a a' sb :
     decodeInstrW w = UnSeal dst src1 src2 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -400,4 +404,151 @@ Section griotte_lang_rules.
       end.
   Qed.
 
-End griotte_lang_rules.
+  (* UnSeal: the PC-destination case advances the unsealed payload cursor. *)
+  Lemma wp_unseal_invalidated E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 r2 (t : bool) p g b e a (o :
+      OType) sb dst (wd : Word) :
+    decodeInstrW w = UnSeal dst r1 r2 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull →
+    r2 ≠ cnull →
+    t && get_tag_sealable (sb) && permit_unseal p && withinBounds b e a && (o =? a)%Z = false →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a
+        ∗ ▷ r2 ↦ᵣ WSealed o (sb)
+        ∗ ▷ dst ↦ᵣ wd }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+        ∗ pc_a ↦ₐ w
+        ∗ r1 ↦ᵣ WSealRange t p g b e a
+        ∗ r2 ↦ᵣ WSealed o (sb)
+        ∗ dst ↦ᵣ (if decide (dst = cnull) then WInt 0 else WSealable (clear_tag_sealable (sb))) }}}.
+  Proof.
+    iIntros (Hinstr Hpc Hincr Hnull1 Hnull2 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2 & >Hr3) Hφ".
+    iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hr3") as "[Hmap %Hne]".
+    destruct Hne as (? & ? & ? & ? & ? & ?).
+    iApply (unseal_invalidated_map E _ _ _ _ _ w _ _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e
+        pc_a']> (<[r1 := WSealRange t p g b e a]> (<[r2 := WSealed o (sb)]> (<[dst := (if decide
+        (dst = cnull) then WInt 0 else WSealable (clear_tag_sealable (sb)))]> (∅ : Reg))))) t p g b
+        e a o (sb) with "[$Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+      try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
+                 repeat case_decide; simplify_eq; cbn; eauto].
+    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
+      apply f_equal; apply map_eq; intros;
+      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
+    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
+      iApply (regs_of_map_4 with "Hmap"); eauto.
+  Qed.
+
+  Lemma wp_unseal_invalidated_r1 E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 r2 (t : bool) p g b e a (o :
+      OType) sb :
+    decodeInstrW w = UnSeal r1 r1 r2 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull →
+    r2 ≠ cnull →
+    t && get_tag_sealable (sb) && permit_unseal p && withinBounds b e a && (o =? a)%Z = false →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a
+        ∗ ▷ r2 ↦ᵣ WSealed o (sb) }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+        ∗ pc_a ↦ₐ w
+        ∗ r1 ↦ᵣ WSealable (clear_tag_sealable (sb))
+        ∗ r2 ↦ᵣ WSealed o (sb) }}}.
+  Proof.
+    iIntros (Hinstr Hpc Hincr Hnull1 Hnull2 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
+    destruct Hne as (? & ? & ?).
+    iApply (unseal_invalidated_map E _ _ _ _ _ w _ _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e
+        pc_a']> (<[r1 := WSealable (clear_tag_sealable (sb))]> (<[r2 := WSealed o (sb)]> (∅ :
+        Reg)))) t p g b e a o (sb) with "[$Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+      try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
+                 repeat case_decide; simplify_eq; cbn; eauto].
+    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
+      apply f_equal; apply map_eq; intros;
+      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
+    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
+      iApply (regs_of_map_3 with "Hmap"); eauto.
+  Qed.
+
+  Lemma wp_unseal_invalidated_r2 E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 r2 (t : bool) p g b e a (o :
+      OType) sb :
+    decodeInstrW w = UnSeal r2 r1 r2 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull →
+    r2 ≠ cnull →
+    t && get_tag_sealable (sb) && permit_unseal p && withinBounds b e a && (o =? a)%Z = false →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a
+        ∗ ▷ r2 ↦ᵣ WSealed o (sb) }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+        ∗ pc_a ↦ₐ w
+        ∗ r1 ↦ᵣ WSealRange t p g b e a
+        ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (sb)) }}}.
+  Proof.
+    iIntros (Hinstr Hpc Hincr Hnull1 Hnull2 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
+    destruct Hne as (? & ? & ?).
+    iApply (unseal_invalidated_map E _ _ _ _ _ w _ _ _ _ (<[PC := WCap true pc_p pc_g pc_b pc_e
+        pc_a']> (<[r1 := WSealRange t p g b e a]> (<[r2 := WSealable (clear_tag_sealable (sb))]> (∅
+        : Reg)))) t p g b e a o (sb) with "[$Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+      try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
+                 repeat case_decide; simplify_eq; cbn; eauto].
+    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
+      apply f_equal; apply map_eq; intros;
+      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
+    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
+      iApply (regs_of_map_3 with "Hmap"); eauto.
+  Qed.
+
+  Lemma wp_unseal_invalidated_PC E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 r2 (t : bool) p g b e a (o :
+      OType) (t' : bool) p' g' b' e' a' :
+    decodeInstrW w = UnSeal PC r1 r2 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (a' + 1)%a = Some pc_a' →
+    r1 ≠ cnull →
+    r2 ≠ cnull →
+    t && get_tag_sealable (SCap t' p' g' b' e' a') && permit_unseal p && withinBounds b e a && (o =? a)%Z = false →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ w
+        ∗ ▷ r1 ↦ᵣ WSealRange t p g b e a
+        ∗ ▷ r2 ↦ᵣ WSealed o (SCap t' p' g' b' e' a') }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap false p' g' b' e' pc_a'
+        ∗ pc_a ↦ₐ w
+        ∗ r1 ↦ᵣ WSealRange t p g b e a
+        ∗ r2 ↦ᵣ WSealed o (SCap t' p' g' b' e' a') }}}.
+  Proof.
+    iIntros (Hinstr Hpc Hincr Hnull1 Hnull2 Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap %Hne]".
+    destruct Hne as (? & ? & ?).
+    iApply (unseal_invalidated_map E _ _ _ _ _ w _ _ _ _ (<[PC := WCap false p' g' b' e' pc_a']>
+        (<[r1 := WSealRange t p g b e a]> (<[r2 := WSealed o (SCap t' p' g' b' e' a')]> (∅ : Reg))))
+        t p g b e a o (SCap t' p' g' b' e' a') with "[$Hmem $Hmap]"); eauto;
+      try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
+      try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
+                 repeat case_decide; simplify_eq; cbn; eauto].
+    - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
+      repeat case_decide; simplify_eq; cbn; rewrite Hincr;
+      apply f_equal; apply map_eq; intros;
+      rewrite !lookup_insert; repeat case_decide; simplify_eq; done.
+    - iNext. iIntros "[Hmem Hmap]". iApply "Hφ". iFrame "Hmem".
+      iApply (regs_of_map_3 with "Hmap"); eauto.
+  Qed.
+End instruction_outcomes.

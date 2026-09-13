@@ -304,7 +304,6 @@ Section fundamental.
 
     (* --- Lea csp (inl (-1)%Z) --- *)
     iInstr "Hcode".
-    { transitivity (Some (a ^+ 3)%a); solve_addr. }
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hworld_interp]"); try solve_pure.
@@ -317,7 +316,6 @@ Section fundamental.
 
     (* --- Lea csp (inl (-1)%Z) --- *)
     iInstr "Hcode".
-    { transitivity (Some (a ^+ 2)%a); solve_addr. }
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcra $Hworld_interp]"); try solve_pure.
@@ -330,7 +328,6 @@ Section fundamental.
 
     (* --- Lea csp (inl (-1)%Z) --- *)
     iInstr "Hcode".
-    { transitivity (Some (a ^+ 1)%a); solve_addr. }
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hworld_interp]"); try solve_pure.
@@ -343,7 +340,6 @@ Section fundamental.
 
     (* --- Lea csp (inl (-1)%Z) --- *)
     iInstr "Hcode".
-    { transitivity (Some a); solve_addr. }
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs0 $Hworld_interp]"); try solve_pure.
@@ -837,9 +833,8 @@ Section fundamental.
       simplify_eq.
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
-      iInstr_fail "Hcode".
-      iNext; iIntros "_".
-      wp_pure; wp_end; iIntros "%Hcontr"; done. }
+      iInstr "Hcode".
+      wp_end; iIntros "%Hcontr"; done. }
     simplify_eq.
 
     (* get the seal inv and compare with wsb *)
