@@ -403,24 +403,9 @@ Section Switcher.
       simplify_eq.
       wp_pure.
       iSpecialize ("Hcode" with "[$]").
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      destruct sb as
-        [tcap pcap gcap bcap ecap acap | tsr psr' gsr' bsr' esr' asr'].
-      - iEval (cbn [clear_tag_sealable]) in "Hct1".
-        iDestruct (map_of_regs_3 with "HPC Hcs0 Hct1") as "[Hmap (%&%&%)]".
-        iApply (rules_Load.wp_load_fail_tag _ _ _ _ _ _ _ cs0 ct1 _
-                  (WCap false pcap gcap bcap ecap acap) with "[$Hi $Hmap]");
-          eauto; try solve_pure; try (by simplify_map_eq).
-        iNext; iIntros "_".
-        wp_pure; wp_end; iIntros "%Hcontr"; done.
-      - iEval (cbn [clear_tag_sealable]) in "Hct1".
-        iDestruct (map_of_regs_3 with "HPC Hcs0 Hct1") as "[Hmap (%&%&%)]".
-        iApply (rules_Load.wp_load_fail_tag _ _ _ _ _ _ _ cs0 ct1 _
-                  (WSealRange false psr' gsr' bsr' esr' asr') with "[$Hi $Hmap]");
-          eauto; try solve_pure; try (by simplify_map_eq).
-        iNext; iIntros "_".
-        wp_pure; wp_end; iIntros "%Hcontr"; done. }
+      iInstr_fail "Hcode".
+      iNext; iIntros "_".
+      wp_pure; wp_end; iIntros "%Hcontr"; done. }
     simplify_eq. rename wsb into w_entry_point.
     iSpecialize ("Hcode" with "Hi").
     iEval (rewrite /is_sealed_with_o Z.eqb_refl) in "Htarget_v".

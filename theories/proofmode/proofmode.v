@@ -559,9 +559,90 @@ Ltac2 reintro_cap_resources tbl :=
   iNamedIntro ().
 
 (* cleanup *)
+Ltac prove_cap_word_condition P :=
+  constr:(ltac:(first [done | solve_pure]) : P).
+
+Ltac cap_word_bool b :=
+  match goal with
+  | _ => let H := prove_cap_word_condition constr:(b = true) in constr:((true, H))
+  | _ => let H := prove_cap_word_condition constr:(b = false) in constr:((false, H))
+  end.
+
+Ltac simplify_store_word p w :=
+  without_evars p; without_evars w;
+  first [
+    let H := prove_cap_word_condition constr:(isWL p = true) in
+    rewrite (store_word_isWL p w H)
+  | let H := prove_cap_word_condition constr:(get_tag w = false) in
+    rewrite (store_word_untagged p w H)
+  | let H := prove_cap_word_condition constr:(canStore p w = true) in
+    rewrite (store_word_canStore p w H)
+  | let Hp := prove_cap_word_condition constr:(writeAllowed p = true) in
+    let Hw := prove_cap_word_condition constr:(isLocalWord w = false) in
+    rewrite (store_word_not_local p w Hp Hw)
+  | let H := prove_cap_word_condition constr:(canStore p w = false) in
+    let P := constr:(store_word p w = clear_tag w) in
+    let Heq := constr:(ltac:(by rewrite /store_word H) : P) in
+    rewrite Heq ].
+
+Ltac simplify_load_word p w :=
+  without_evars p; without_evars w;
+  first [
+    lazymatch w with
+    | WInt ?z => rewrite (load_word_int p z)
+    | WCap ?t ?pw ?g ?b ?e ?a => rewrite (load_word_cap t p pw g b e a)
+    | WSentry ?t ?pw ?g ?b ?e ?a => rewrite (load_word_sentry t p pw g b e a)
+    | WSealRange ?t ?pw ?g ?b ?e ?a => rewrite (load_word_sealrange t p pw g b e a)
+    | WSealed ?o ?sb => rewrite (load_word_sealed p o sb)
+    end
+  | let dl := cap_word_bool constr:(isDL p) in
+    let dro := cap_word_bool constr:(isDRO p) in
+    lazymatch dl with (?bdl, ?Hdl) =>
+    lazymatch dro with (?bdro, ?Hdro) =>
+      let result := constr:(if bdro then readonly (if bdl then deeplocal (borrow w) else w)
+                            else (if bdl then deeplocal (borrow w) else w)) in
+      let P := constr:(load_word p w = result) in
+      let Heq := constr:(ltac:(by rewrite /load_word Hdl Hdro) : P) in
+      rewrite Heq
+    end end ].
+
+Ltac reduce_cap_word :=
+  cbn [store_word canStore isLocalWord isLocalSealable isLocal isWL writeAllowed andb
+       load_word load_word_perm isDL isDRO
+       borrow borrow_sb deeplocal deeplocal_sb deeplocal_perm
+       readonly readonly_sb readonly_perm
+       clear_tag clear_tag_sealable get_tag get_tag_sealable].
+
+(* Rewrite known word shapes and use available tag/permission facts before
+   reducing definitions. Symbolic variables are supported; unresolved evars
+   use reduction only, since rewriting could instantiate an operand to match
+   a lemma. Neither path splits unknown tag or permission conditions. *)
+Ltac simplify_cap_word_known :=
+  repeat progress (
+    rewrite ?get_tag_clear_tag ?get_tag_clear_tag_sealable
+            ?get_tag_load_word ?get_tag_borrow ?get_tag_deeplocal
+            ?get_tag_readonly ?get_tag_force_global ?get_tag_updatePcPerm
+            ?clear_tag_idempotent ?clear_tag_sealable_idempotent
+            ?borrow_sb_idempotent ?force_global_borrow ?force_global_borrow_sb;
+    repeat match goal with
+    | |- context [store_word ?p ?w] => simplify_store_word p w
+    | |- context [load_word ?p ?w] => simplify_load_word p w
+    | |- context [clear_tag ?w] =>
+      without_evars w;
+      let H := prove_cap_word_condition constr:(get_tag w = false) in
+      rewrite (clear_tag_untagged w H)
+    end;
+    reduce_cap_word).
+
+Ltac simplify_cap_word :=
+  let G := match goal with |- ?G => G end in
+  tryif (has_evar G || match goal with x := ?v |- _ => has_evar v end)
+  then reduce_cap_word else simplify_cap_word_known.
+
 (* TODO: make this extensible. Remove updatePcPerm? unfolding sometimes causes issues. *)
 Ltac2 iApplyCapAuto_cleanup () :=
-  cbn [rules_Get.denote rules_BinOp.denote updatePcPerm].
+  cbn [rules_Get.denote rules_BinOp.denote updatePcPerm];
+  ltac1:(simplify_cap_word).
 
 (* iApplyCapAutoCore *)
 
@@ -604,7 +685,7 @@ Proof. solve_addr. Qed.
 Lemma addr_incr_zero_nat (a: Addr) : (a ^+ 0%nat)%a = a.
 Proof. solve_addr. Qed.
 
-Ltac iInstr_lookup0 hprog hi hcont :=
+Ltac instr_lookup0 hprog hi hcont :=
   let hprog := constr:(hprog:ident) in
   lazymatch goal with |- context [ Esnoc _ hprog (codefrag ?a_base _) ] =>
   lazymatch goal with |- context [ Esnoc _ ?hpc (PC ↦ᵣ (WCap _ _ _ _ _ ?pc_a))%I ] =>
@@ -622,9 +703,9 @@ Ltac iInstr_lookup0 hprog hi hcont :=
   end end.
 
 Tactic Notation "iInstr_lookup" constr(hprog) "as" constr(hi) constr(hcont) :=
-  iInstr_lookup0 hprog hi hcont.
+  instr_lookup0 hprog hi hcont.
 
-Ltac iInstr_get_rule0 hi cont :=
+Ltac instr_get_rule_using dispatch hi cont :=
   let hi := constr:(hi:ident) in
   once (
     (lazymatch goal with |- context [ Esnoc _ hi (_ ↦ₐ encodeInstrW ?instr)%I ] => idtac end
@@ -633,12 +714,15 @@ Ltac iInstr_get_rule0 hi cont :=
          end + fail "" hi "not found"))
   );
   lazymatch goal with |- context [ Esnoc _ hi (_ ↦ₐ encodeInstrW ?instr)%I ] =>
-    dispatch_instr_rule instr cont
+    dispatch instr cont
   end.
 
-Tactic Notation "iInstr_get_rule" constr(hi) tactic(cont) := iInstr_get_rule0 hi cont.
+Ltac instr_get_rule0 hi cont :=
+  instr_get_rule_using dispatch_instr_rule hi cont.
 
-Ltac iInstr_close hprog :=
+Tactic Notation "iInstr_get_rule" constr(hi) tactic(cont) := instr_get_rule0 hi cont.
+
+Ltac instr_close hprog :=
   (* because of iApplyCapAuto's context shuffling, [hi] and [hcont]
      are not valid anymore... recover them. *)
   (* XXX make this a bit more robust *)
@@ -651,6 +735,8 @@ Ltac iInstr_close hprog :=
     |pm_reduce];
     iRename hcont into hprog
   end end.
+
+Tactic Notation "iInstr_close" constr(H) := instr_close H.
 
 (* NOTE: iCombine doesn't allow to pass IAnon, so here it is *)
 Tactic Notation "iCombine_ident" constr(Hs) "as" constr(pat) :=
@@ -676,7 +762,7 @@ Tactic Notation "iCombine_ident" constr(H1) constr(H2) "as" constr(pat) :=
 (* TODO: find a way of displaying an error message if iApplyCapAuto fails,
    displaying the rule it was called on, and without silencing iApplyCapAuto's
    own error messages? *)
-Ltac iInstr_lc hprog hlc:=
+Ltac instr_using dispatch hprog hlc:=
   let hi := iFresh in
   let hcont := iFresh in
   let hlc' :=
@@ -687,16 +773,32 @@ Ltac iInstr_lc hprog hlc:=
   in
   iInstr_lookup hprog as hi hcont;
   try wp_instr;
-  iInstr_get_rule hi ltac:(fun rule =>
+  instr_get_rule_using dispatch hi ltac:(fun rule =>
                              iApplyCapAuto rule;
-                             [ .. | iInstr_close hprog
+                             [ .. | instr_close hprog
                                     ; repeat (replace ( WInt (if decide (_ = cnull) then 0 else 0) ) with (WInt 0) by (destruct (decide _); done))
                                     ; try wp_pure_lc hlc'
                                     ; try (iCombine_ident (INamed hlc) hlc' as (INamed hlc))
                           ])
 .
-Tactic Notation "iInstr" constr(H):= iInstr_lc H "_".
-Tactic Notation "iInstr" constr(H) "with" constr(Hlc):= iInstr_lc H Hlc.
+(* The success interface preserves the ordinary instruction-rule dispatch,
+   including instructions whose specified behavior is Halt or Fail. *)
+Ltac instr_lc hprog hlc := instr_using dispatch_instr_rule hprog hlc.
+Tactic Notation "iInstr_success" constr(H) := instr_lc H "_".
+Tactic Notation "iInstr_success" constr(H) "with" constr(Hlc) := instr_lc H Hlc.
+Tactic Notation "iInstr" constr(H) := iInstr_success H.
+Tactic Notation "iInstr" constr(H) "with" constr(Hlc) := iInstr_success H with Hlc.
+Tactic Notation "iInstr_fail" constr(H) :=
+  instr_using dispatch_instr_failure H "_";
+  try solve [solve_instr_failure | by simplify_map_eq].
+Tactic Notation "iInstr_fail" constr(H) "with" constr(Hlc) :=
+  instr_using dispatch_instr_failure H Hlc;
+  try solve [solve_instr_failure | by simplify_map_eq].
+
+Tactic Notation "iInstr_invalidate" constr(H) :=
+  instr_using dispatch_instr_invalidation H "_"; try solve_instr_map.
+Tactic Notation "iInstr_invalidate" constr(H) "with" constr(Hlc) :=
+  instr_using dispatch_instr_invalidation H Hlc; try solve_instr_map.
 
 Ltac2 rec iGo hprog :=
   let stop_if_at_least_two_goals () :=

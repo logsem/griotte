@@ -205,7 +205,6 @@ Section Assert.
     unfocus_block "Hfetch" "Hcont" as "Hcode".
     focus_block 1 "Hcode" as a_assert Ha_assert "Hassert" "Hcont".
     iGo "Hassert".
-    rewrite load_word_sentry.
     iEval (cbn) in "HPC".
     iApply (assert_subroutine_success_spec with "[-]"); eauto; iFrame "#∗".
     iNext; iIntros "(Hna & HPC & Hcra & Hct0 & Hct1 & Hcnull )".

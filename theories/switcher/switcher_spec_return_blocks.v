@@ -53,11 +53,7 @@ Section Switcher_Return_Blocks.
     (* --- Load csp ctp --- *)
     destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
     {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Load.wp_load_fail_not_withinbounds with "[HPC Hi Hctp Hcsp]")
-      ; try iFrame
-      ; try solve_pure.
+      iInstr_fail "Hcode".
       { rewrite /withinBounds.
         apply andb_false_iff; right.
         solve_addr+Htstk_ae.
@@ -97,22 +93,13 @@ Section Switcher_Return_Blocks.
       as [Hb_trusted_stack1'|Hb_trusted_stack1'].
     {
       assert ((b_trusted_stack + -1) = None)%a by solve_addr+Hb_trusted_stack1'.
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Lea.wp_lea_overflow_z with "[$HPC $Hi $Hctp]")
-      ; try solve_pure.
-      iNext; iIntros "(HPC & Hi & Hctp)".
-      wp_pure.
-      iSpecialize ("Hcode" with "[$]").
+      iInstr_invalidate "Hcode".
 
       (* --- WriteSR mtdc ctp --- *)
       iInstr "Hcode".
 
       (* --- Lea csp (-1)%Z --- *)
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Lea.wp_Lea_fail_integer with "[$HPC $Hi $Hcsp]")
-      ; try solve_pure.
+      iInstr_fail "Hcode".
       iNext; iIntros "_".
       wp_pure; wp_end; by iIntros (?).
     }
@@ -125,11 +112,7 @@ Section Switcher_Return_Blocks.
     iInstr "Hcode".
 
     (* --- Lea csp (-1)%Z --- *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (rules_Lea.wp_Lea_fail_integer with "[HPC Hi Hcsp]")
-    ; try iFrame
-    ; try solve_pure.
+    iInstr_fail "Hcode".
     iNext; iIntros "_".
     wp_pure; wp_end; by iIntros (?).
   Qed.

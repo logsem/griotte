@@ -145,11 +145,7 @@ Section Switcher_KtK_Return.
     (* --- Load csp ctp --- *)
     destruct (decide (a_tstk < e_trusted_stack)%a) as [Htstk_ae|Htstk_ae]; cycle 1.
     {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Load.wp_load_fail_not_withinbounds with "[HPC Hi Hctp Hcsp]")
-      ; try iFrame
-      ; try solve_pure.
+      iInstr_fail "Hcode".
       { rewrite /withinBounds.
         apply andb_false_iff; right.
         solve_addr+Htstk_ae.

@@ -277,12 +277,7 @@ Section Checkints_spec.
     focus_block 2 "Hcode" as a_loop Ha_loop "Hcode" "Hcont".
     rewrite /checkints_loop_instrs.
     focus_block_0 "Hcode" as "Hcode" "Hcont_loop".
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iDestruct (map_of_regs_3 with "HPC Hr Hr1") as "[Hmap (% & % & %)]".
-    iApply (wp_load_fail_tag _ _ _ _ _ _ _ _ _ _ (WCap false p g b e b)
-      with "[$Hi $Hmap]"); eauto; try solve_pure; try (by simplify_map_eq).
-    { constructor; auto; solve_addr. }
+    iInstr_fail "Hcode".
     iNext; iIntros "_".
     wp_pure; wp_end. iApply "Hfailed".
   Qed.

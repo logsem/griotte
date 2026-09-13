@@ -49,9 +49,7 @@ Section Stack_Object_Blocks.
 
     destruct (decide ((csp_b < csp_e)%a)) as [Hcsp_size|Hcsp_size]; cycle 1.
     {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_z with "[$HPC $Hi $Hcsp]"); try solve_pure.
+      iInstr_fail "Hcode".
       { rewrite /withinBounds; solve_addr+Hcsp_size. }
       iIntros "!> _".
       wp_pure; wp_end; iIntros (?); done.
@@ -108,12 +106,7 @@ Section Stack_Object_Blocks.
       all: iDestruct (regs_of_map_4 with "Hmap") as "(Hca1 & HPC & Hcs0 & Hcs1)"; eauto.
       all: wp_pure.
       all: iSpecialize ("Hcode" with "Hi").
-      all: iInstr_lookup "Hcode" as "Hi" "Hcode".
-      all: wp_instr.
-      all: iDestruct (map_of_regs_2 with "HPC Hca1") as "[Hmap %]".
-      all: iApply (wp_store_fail_tag _ _ _ _ _ _ _ ca1 (inl 0%Z) _ _
-        with "[$Hi $Hmap]"); eauto; try solve_pure; try (by simplify_map_eq; reflexivity).
-      all: try (constructor; auto; solve_addr).
+      all: iInstr_fail "Hcode".
       all: iNext; iIntros "_"; wp_pure; wp_end; iIntros (?); done.
     }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen'.
@@ -213,10 +206,7 @@ Section Stack_Object_Blocks.
     { transitivity (Some csp_b); auto. solve_addr+Hastk2. }
     destruct (decide (csp_b < csp_e)%a) as [Hcsp_size|Hcsp_size]; cycle 1.
     {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (rules_Load.wp_load_fail_not_withinbounds with "[HPC Hi Hcsp Hct0]");
-        try iFrame; try solve_pure.
+      iInstr_fail "Hcode".
       { rewrite /withinBounds. apply andb_false_iff. right. solve_addr+Hcsp_size. }
       iNext; iIntros "_".
       wp_pure; wp_end; by iIntros (?).

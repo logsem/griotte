@@ -174,9 +174,7 @@ Section LSE.
     (* Store csp cgp; *)
     destruct ( decide ((csp_b < csp_e)%a) ) as [Hcsp_size|Hcsp_size]; cycle 1.
     {
-      iInstr_lookup "Hcode" as "Hi" "Hcode".
-      wp_instr.
-      iApply (wp_store_fail_reg with "[$HPC $Hi $Hcgp $Hcsp]"); try solve_pure.
+      iInstr_fail "Hcode".
       { rewrite /withinBounds; solve_addr+Hcsp_size. }
       iIntros "!> _".
       wp_pure; wp_end; iIntros (?); done.

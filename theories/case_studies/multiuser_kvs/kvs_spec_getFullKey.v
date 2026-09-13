@@ -178,27 +178,9 @@ Section KVS_getFullKey.
     }
     wp_pure.
     iSpecialize ("Hcode" with "Hi").
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    destruct sb as [t p g b e a | t p g b e a].
-    - iEval (cbn [clear_tag_sealable]) in "Hrdst".
-      iDestruct (map_of_regs_2 with "HPC Hrdst") as "[Hmap %Hmap]".
-      iApply (wp_load_fail_tag _ _ _ _ _ _ _ rdst rdst _
-        (WCap false p g b e a) with "[$Hi $Hmap]");
-        eauto; try solve_pure; try (by simplify_map_eq).
-      { constructor; auto; solve_addr. }
-      { rewrite lookup_reg_not_cnull //; simplify_map_eq; done. }
-      iNext; iIntros "_".
-      wp_pure; wp_end; iIntros "%Hcontr"; done.
-    - iEval (cbn [clear_tag_sealable]) in "Hrdst".
-      iDestruct (map_of_regs_2 with "HPC Hrdst") as "[Hmap %Hmap]".
-      iApply (wp_load_fail_tag _ _ _ _ _ _ _ rdst rdst _
-        (WSealRange false p g b e a) with "[$Hi $Hmap]");
-        eauto; try solve_pure; try (by simplify_map_eq).
-      { constructor; auto; solve_addr. }
-      { rewrite lookup_reg_not_cnull //; simplify_map_eq; done. }
-      iNext; iIntros "_".
-      wp_pure; wp_end; iIntros "%Hcontr"; done.
+    iInstr_fail "Hcode".
+    iNext; iIntros "_".
+    wp_pure; wp_end; iIntros "%Hcontr"; done.
   Qed.
 
 End KVS_getFullKey.
