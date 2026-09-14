@@ -26,7 +26,7 @@ Section VAE_Main.
 
   Definition VAE_main_code_init : list Word :=
     (* set a := 0 *)
-    encodeInstrsW [Store cgp 0]
+    encodeInstrsW [Store cgp 0 0]
     (* call B.adv VAE.awkward *)
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
     ++ fetch_instrs 2 ct1 cs0 cs1 (* ct1 -> {B.f}_(ot_switcher)  *)
@@ -38,7 +38,7 @@ Section VAE_Main.
 
   Definition VAE_main_code_f (ot_switcher : OType) : list Word :=
     (* set a := 0 *)
-    encodeInstrsW [Store cgp 0]
+    encodeInstrsW [Store cgp 0 0]
     (* call g () *)
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)
     ++
@@ -51,7 +51,7 @@ Section VAE_Main.
     ]
     (* set a := 1 *)
     ++ encodeInstrsW [
-      Store cgp 1;
+      Store cgp 1 0;
       Mov cra cs0; (* cra -> return_to-switcher *)
       Mov ct1 cs1  (* ct1 -> fun_g *)
     ]
@@ -65,7 +65,7 @@ Section VAE_Main.
       Jalr cra ct0; (* jmp to arg_1 *)
 
       (* assert (a == 1) *)
-      Load ct0 cgp; (* ct0 -> a *)
+      Load ct0 cgp 0; (* ct0 -> a *)
       Mov ct1 1%Z  (* ct1 -> 1 *)
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)

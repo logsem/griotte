@@ -388,7 +388,7 @@ Section instruction_outcomes.
       end; try congruence.
   Qed.
 
-  (* UnSeal: the PC-destination case advances the unsealed payload cursor. *)
+  (* UnSeal: the PC-destination case advances the unsealed payload current address. *)
   Lemma wp_unseal_invalidated E pc_p pc_g pc_b pc_e pc_a pc_a' w r1 r2 (t : bool) p g b e a (o :
       OType) sb dst (wd : Word) :
     decodeInstrW w = UnSeal dst r1 r2 →

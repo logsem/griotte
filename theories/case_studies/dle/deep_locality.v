@@ -35,7 +35,7 @@ Section DLE_Main.
       (* #"main_b_code"; *)
 
       (* set b <- 0 *)
-      Store cgp 0%Z;      (* b <- 0 *)
+      Store cgp 0%Z 0;      (* b <- 0 *)
       Mov ct0 cgp;        (* ct0 := (RW, Global, b, e, b) *)
 
       (* set a <- (RW, Global, b, b+1, b) *)
@@ -44,7 +44,7 @@ Section DLE_Main.
       Subseg ct0 ct1 ct2; (* ct0 := (RW, Global, b, b+1, b) *)
 
       Lea cgp 1%Z;        (* cgp := (RW, Global, b, e, b+1) *)
-      Store cgp ct0;      (* a <- (RW, Global, b, b+1, b) *)
+      Store cgp ct0 0;      (* a <- (RW, Global, b, b+1, b) *)
       (* call B.f (RW-DL, Local, a, a+1, a) *)
       Mov ca0 cgp;         (* ca0 := (RW, Global, b, e, b+1) = (RW, Global, b, e, a) *)
       Lea cgp (-1)%Z;      (* cgp := (RW, Global, b, e, b) *)
@@ -62,7 +62,7 @@ Section DLE_Main.
       (* switcher_call to B.f *)
       Jalr cra ct0;
       (* set b := 42 *)
-      Store cgp 42%Z;      (* b <- 0 *)
+      Store cgp 42%Z 0;      (* b <- 0 *)
       (* call B.adv null *)
       Mov ca0 0%Z;
       Mov ct0 cs0; (* ct0 -> switcher entry point *)
@@ -70,7 +70,7 @@ Section DLE_Main.
       (* switcher_call to B.f *)
       Jalr cra ct0;
       (* assert (b==42) *)
-      Load ct0 cgp; (* ct0 -> b *)
+      Load ct0 cgp 0; (* ct0 -> b *)
       Mov ct1 42%Z  (* ct1 -> 42 *)
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)

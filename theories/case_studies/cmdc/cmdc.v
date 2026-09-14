@@ -20,12 +20,12 @@ Section CMDC_Main.
       (* #"main_b_code"; *)
 
       (* set b <- 0 *)
-      Store cgp 0%Z;
+      Store cgp 0%Z 0;
       Mov ca0 cgp;
 
       (* set c <- 0 *)
       Lea cgp 1%Z;
-      Store cgp 0%Z;
+      Store cgp 0%Z 0;
 
       (* call B.f b *)
       GetA ct0 ca0;
@@ -38,7 +38,7 @@ Section CMDC_Main.
     encodeInstrsW [
       Jalr cra ctp;
       (* assert c == 0 *)
-      Load ct0 cgp; (* ct0 -> c *)
+      Load ct0 cgp 0; (* ct0 -> c *)
       Mov ct1 0%Z
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
@@ -50,7 +50,7 @@ Section CMDC_Main.
 
       (* set b <- 42 *)
       Lea cgp (-1)%Z;
-      Store cgp 42%Z;
+      Store cgp 42%Z 0;
 
       (* call C.g c *)
       GetA ct0 ca0;
@@ -63,7 +63,7 @@ Section CMDC_Main.
     encodeInstrsW [
       Jalr cra ctp;
       (* assert b == 42 *)
-      Load ct0 cgp; (* ct0 -> c *)
+      Load ct0 cgp 0; (* ct0 -> c *)
       Mov ct1 42%Z
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)

@@ -1088,6 +1088,15 @@ Section logrel.
     by apply elem_of_finz_seq_between.
   Qed.
 
+  Lemma interp_cap_cur_addr W C t p g b e a a' :
+    interp W C (WCap t p g b e a) ≡
+    interp W C (WCap t p g b e a').
+  Proof.
+    destruct t.
+    - rewrite !fixpoint_interp1_eq !interp1_eq. reflexivity.
+    - rewrite !interp_untagged_eq; done.
+  Qed.
+
   Lemma writeAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a:
     writeAllowed p = true ->
     withinBounds b e a = true ->
@@ -1108,6 +1117,17 @@ Section logrel.
     destruct (isWL p); simplify_eq.
     + naive_solver.
     + destruct g; naive_solver.
+  Qed.
+
+  Lemma writeAllowed_valid_cap_implies_at W C p g b e a ea :
+    writeAllowed p = true →
+    withinBounds b e ea = true →
+    interp W C (WCap true p g b e a) -∗
+    ⌜∃ ρ, std W !! ea = Some ρ ∧ ρ <> Revoked⌝.
+  Proof.
+    intros Hwa Hb.
+    rewrite (interp_cap_cur_addr W C true p g b e a ea).
+    apply writeAllowed_valid_cap_implies; done.
   Qed.
 
   Lemma writeAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a':
@@ -1233,7 +1253,7 @@ Section logrel.
       rewrite lookup_insert_ne in Hsome; auto.
       iDestruct ("Hreg" $! r w n Hsome) as "Hinterp_w".
       destruct_word w; try destruct t; cbn in * ; try done.
-      destruct Hvw as [Hvw ->].
+      apply withinBounds_le_addr in Hvw.
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
       replace (isO c) with false.
       2: { eapply readAllowed_nonO in Hrar ;done. }
@@ -1243,7 +1263,7 @@ Section logrel.
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
       ; eauto; iClear "Hinterp_w".
       apply readAllowed_flowsto in Hflc1; auto.
-      iDestruct (rel_agree C a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
+      iDestruct (rel_agree C a _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
     - (* wcond *)
       destruct (decide (writeAllowed_a_in_regs (<[PC:=WCap true p g b e a]> regs) a))
@@ -1258,7 +1278,7 @@ Section logrel.
       rewrite lookup_insert_ne in Hsome; auto.
       iDestruct ("Hreg" $! r w n Hsome) as "Hinterp_w".
       destruct_word w; try destruct t; cbn in * ; try done.
-      destruct Hvw as [Hvw ->].
+      apply withinBounds_le_addr in Hvw.
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_w".
       replace (isO c) with false.
       2: { eapply writeAllowed_nonO in Hwaw ;done. }
@@ -1268,7 +1288,7 @@ Section logrel.
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
       ; eauto; iClear "Hinterp_w".
       apply writeAllowed_flowsto in Hflc1; auto.
-      iDestruct (rel_agree C a0 _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
+      iDestruct (rel_agree C a _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
   Qed.
 

@@ -75,12 +75,12 @@ Section VAE_Awkward_Blocks.
     ∗ world_interp W C
     ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
     ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-    ∗ codefrag pc_a (encodeInstrsW (Store cgp z :: tail))
+    ∗ codefrag pc_a (encodeInstrsW (Store cgp z 0 :: tail))
 
     ∗ ▷ (world_interp W' C
         ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 1)%a
         ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-        ∗ codefrag pc_a (encodeInstrsW (Store cgp z :: tail))
+        ∗ codefrag pc_a (encodeInstrsW (Store cgp z 0 :: tail))
         -∗ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable)
@@ -231,7 +231,7 @@ Section VAE_Awkward_Blocks.
     ∗ ct1 ↦ᵣ wct1
     ∗ codefrag pc_code (encodeInstrsW [
         Mov cs0 cra; Mov ca0 0; Mov ca1 0; Jalr cra ct0;
-        Load ct0 cgp; Mov ct1 1])
+        Load ct0 cgp 0; Mov ct1 1])
 
     ∗ ▷ (world_interp (revoke Wbase) C
         ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_code ^+ 6)%a
@@ -240,7 +240,7 @@ Section VAE_Awkward_Blocks.
         ∗ ct1 ↦ᵣ WInt 1
         ∗ codefrag pc_code (encodeInstrsW [
             Mov cs0 cra; Mov ca0 0; Mov ca1 0; Jalr cra ct0;
-            Load ct0 cgp; Mov ct1 1])
+            Load ct0 cgp 0; Mov ct1 1])
         -∗ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable)

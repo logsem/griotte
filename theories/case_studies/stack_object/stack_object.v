@@ -73,14 +73,14 @@ int __cheri_compartment("known") run()
   Definition so_f_alloc_instrs : list Word :=
     encodeInstrsW [
       (* push (secret_val) on csp_b *)
-      Store csp so_secret;
+      Store csp so_secret 0;
       Lea csp 1;
       (* allocate stack object *)
       Mov ca1 csp;
       GetA cs0 ca1;
       machine_instructions.Add cs1 cs0 1%Z;
       Subseg ca1 cs0 cs1;
-      Store ca1 0%Z;
+      Store ca1 0%Z 0;
       Lea csp 1%Z
     ].
 
@@ -94,7 +94,7 @@ int __cheri_compartment("known") run()
   Definition so_f_assert_prep_instrs : list Word :=
     encodeInstrsW [
       Lea csp (-2)%Z;
-      Load ct0 csp;
+      Load ct0 csp 0;
       Mov ct1 so_secret
     ].
 

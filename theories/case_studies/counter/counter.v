@@ -36,10 +36,10 @@ Section Counter_Main.
       (* #"main_b_code"; *)
 
       (* get a *)
-      Load cs0 cgp;
+      Load cs0 cgp 0;
       (* set a := a + 1 *)
       Add cs0 cs0 1%Z;
-      Store cgp cs0
+      Store cgp cs0 0
       (* call C_f*)
     ]
     ++ fetch_instrs 0 ct0 cs0 cs1 (* ct0 -> switcher entry point *)

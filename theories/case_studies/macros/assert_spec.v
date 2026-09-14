@@ -28,8 +28,8 @@ Section Assert_subroutine.
       (* failure case *)
       Mov ct1 PC; (* pointer to cap: *)
       Lea ct1 7; (* pointer to cap: *)
-      Load ct1 ct1;
-      Store ct1 1;
+      Load ct1 ct1 0;
+      Store ct1 1 0;
       Mov ct0 0;
       Mov ct1 0;
       Jalr cnull cra (* return *)

@@ -85,8 +85,8 @@ Definition dle_C_code : list Word :=
     GetWType ct0 ca0;
     Sub ct0 ct0 (encodeWordType wt_cap);
     Jnz 3%Z ct0;
-    Load ct0 ca0;
-    Store ct0 7%Z;
+    Load ct0 ca0 0;
+    Store ct0 7%Z 0;
     Jalr cnull cra
   ].
 

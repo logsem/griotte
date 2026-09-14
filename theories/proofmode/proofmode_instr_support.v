@@ -103,8 +103,8 @@ Ltac instr_failure_registers instr :=
       instr_argument_registers s1 rest
     | Seal ?dst ?s1 ?s2 => constr:([PC; dst; s1; s2])
     | UnSeal ?dst ?s1 ?s2 => constr:([PC; dst; s1; s2])
-    | Load ?dst ?src => constr:([PC; dst; src])
-    | Store ?dst ?src => instr_argument_registers src constr:([PC; dst])
+    | Load ?dst ?src _ => constr:([PC; dst; src])
+    | Store ?dst ?src _ => instr_argument_registers src constr:([PC; dst])
     | _ => eval vm_compute in (elements ({[PC]} ∪ regs_of instr))
     end in
   instr_register_words rs.
@@ -112,9 +112,12 @@ Ltac instr_failure_registers instr :=
 Ltac solve_instr_failure :=
   intros;
   rewrite /exec /exec_opt /= /word_of_argument /z_of_argument /lookup_reg;
-  repeat match goal with
-  | H : ?lhs = ?rhs |- context [?lhs] => progress (rewrite H; cbn)
-  end;
+  rewrite ?finz_add_0 /=;
+  repeat first [
+    progress (rewrite finz_add_0 /=)
+  | match goal with
+    | H : ?lhs = ?rhs |- context [?lhs] => progress (rewrite H; cbn)
+    end ];
   repeat match goal with
   | sb : Sealable |- context [clear_tag_sealable (machine_word.unseal _ ?x)] =>
       constr_eq sb x; destruct sb; cbn
@@ -123,9 +126,11 @@ Ltac solve_instr_failure :=
   end;
   try (rewrite /updatePC /updatePC_gen /update_reg /reg /sreg /mem /= /insert_reg;
        rewrite ?lookup_insert /=; simplify_map_eq; rewrite ?lookup_insert /=);
-  repeat match goal with
-  | H : ?lhs = ?rhs |- context [?lhs] => progress (rewrite H; cbn)
-  end;
+  repeat first [
+    progress (rewrite finz_add_0 /=)
+  | match goal with
+    | H : ?lhs = ?rhs |- context [?lhs] => progress (rewrite H; cbn)
+    end ];
   try done;
   try solve_pure.
 

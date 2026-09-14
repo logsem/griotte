@@ -478,7 +478,7 @@ Section VAE.
     assert (SubBounds pc_b pc_e a_call_g2 (a_call_g2 ^+ 4)%a)
       as Hcall2_subbounds by solve_addr.
     iApply (vae_awkward_call2_prep_spec pc_b pc_e a_call_g2 _ _ _ _
-      [Load ct0 cgp; Mov ct1 1]
+      [Load ct0 cgp 0; Mov ct1 1]
       with "[- $HPC $Hcra $Hca0 $Hca1 $Hct0 $Hcs0 $Hcode]"); eauto.
     iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct0 & Hcs0 & Hcode)".
 

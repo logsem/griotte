@@ -9,7 +9,7 @@ Section Checkints.
 
 
   Definition checkints_loop_instrs (r r1 r2 : RegName) : list Word :=
-    encodeInstrsW [Load r1 r]
+    encodeInstrsW [Load r1 r 0]
       ++ is_int_instrs r1 r2
       ++ encodeInstrsW
       [ (* is an integer *)

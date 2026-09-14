@@ -80,13 +80,13 @@ Ltac unfold_so_addresses_in H :=
     before returning to the main program. *)
 Definition so_C_code : list Word :=
   encodeInstrsW [
-    Store csp cra;
+    Store csp cra 0;
     Lea csp 1%Z;
     Mov ca0 csp;
     GetA cs0 ca0;
     machine_instructions.Add cs1 cs0 1%Z;
     Subseg ca0 cs0 cs1;
-    Store ca0 0%Z;
+    Store ca0 0%Z 0;
     Lea csp 1%Z;
     Mov ctp PC;
     GetB cs0 ctp;
@@ -95,13 +95,13 @@ Definition so_C_code : list Word :=
     Lea ctp cs0;
     Mov ct0 ctp;
     Lea ct0 0%Z;
-    Load ct0 ct0;
+    Load ct0 ct0 0;
     Mov ct1 ctp;
     Lea ct1 1%Z;
-    Load ct1 ct1;
+    Load ct1 ct1 0;
     Mov ca1 ctp;
     Lea ca1 2%Z;
-    Load ca1 ca1;
+    Load ca1 ca1 0;
     Mov cs0 0%Z;
     Mov cs1 0%Z;
     Mov cs0 cra;
@@ -109,7 +109,7 @@ Definition so_C_code : list Word :=
     Jalr cra ct0;
     Lea csp (-1)%Z;
     Lea csp (-1)%Z;
-    Load cra csp;
+    Load cra csp 0;
     Mov ca0 0%Z;
     Mov ca1 0%Z;
     Mov ct0 0%Z;
@@ -118,8 +118,8 @@ Definition so_C_code : list Word :=
     Mov cs1 0%Z;
     Jalr cnull cra;
     Lea ca0 (-1)%Z;
-    Store ca0 7%Z;
-    Store ca1 9%Z;
+    Store ca0 7%Z 0;
+    Store ca1 9%Z 0;
     Jalr cnull cra
   ].
 

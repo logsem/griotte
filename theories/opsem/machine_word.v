@@ -212,9 +212,11 @@ Definition writeAllowedWord (w : Word) : Prop :=
   | _ => False
   end.
 
+(** A capability authorizes an address within its bounds independently of
+    its current address: Load and Store may supply a signed immediate. *)
 Definition hasValidAddress (w : Word) (a : Addr) : Prop :=
   match w with
-  | WCap t _ _ b e a' => (b ≤ a' ∧ a' < e)%Z ∧ a = a'
+  | WCap _ _ _ b e _ => withinBounds b e a = true
   | _ => False
   end.
 

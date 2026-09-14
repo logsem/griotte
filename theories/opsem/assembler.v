@@ -44,8 +44,8 @@ Module Asm_Griotte.
   | Jnz (rimm : asm_expr + RegName) (rcond: RegName)
   | Jalr (rdst: RegName) (rsrc: RegName)
   | Mov (dst: RegName) (src: asm_expr + RegName)
-  | Load (dst src: RegName)
-  | Store (dst: RegName) (src: asm_expr + RegName)
+  | Load (dst src: RegName) (imm: asm_expr)
+  | Store (dst: RegName) (src: asm_expr + RegName) (imm: asm_expr)
   | Lt (dst: RegName) (r1 r2: asm_expr + RegName)
   | Add (dst: RegName) (r1 r2: asm_expr + RegName)
   | Sub (dst: RegName) (r1 r2: asm_expr + RegName)
@@ -144,11 +144,13 @@ Module Asm_Griotte.
     | Mov dst src  =>
         src ← resolve_labels_arg src env current_n;
         Some (Mov dst src)
-    | Load dst src =>
-        Some (Load dst src)
-    | Store dst src =>
+    | Load dst src imm =>
+        off ← eval_asm_expr imm env current_n;
+        Some (Load dst src (Asm_z off))
+    | Store dst src imm =>
         src ← resolve_labels_arg src env current_n;
-        Some (Store dst src)
+        off ← eval_asm_expr imm env current_n;
+        Some (Store dst src (Asm_z off))
     | Lt dst r1 r2 =>
         w1 ← resolve_labels_arg r1 env current_n;
         w2 ← resolve_labels_arg r2 env current_n;
@@ -295,11 +297,13 @@ Module Asm_Griotte.
     | Mov dst src  =>
         src ← assemble_arg src env;
         Some (machine_instructions.Mov dst src)
-    | Load dst src =>
-        Some (machine_instructions.Load dst src)
-    | Store dst src =>
+    | Load dst src imm =>
+        off ← eval_asm_expr imm env 0;
+        Some (machine_instructions.Load dst src off)
+    | Store dst src imm =>
         src ← assemble_arg src env;
-        Some (machine_instructions.Store dst src)
+        off ← eval_asm_expr imm env 0;
+        Some (machine_instructions.Store dst src off)
     | Lt dst r1 r2 =>
         w1 ← assemble_arg r1 env;
         w2 ← assemble_arg r2 env;
@@ -483,14 +487,14 @@ Module Asm_Griotte.
         let dst := revert_regs dst in
         let src := revert_regs_arg src in
         (machine_instructions.Mov dst src)
-    | machine_instructions.Load dst src =>
+    | machine_instructions.Load dst src imm =>
         let dst := revert_regs dst in
         let src := revert_regs src in
-        (machine_instructions.Load dst src)
-    | machine_instructions.Store dst src =>
+        (machine_instructions.Load dst src imm)
+    | machine_instructions.Store dst src imm =>
         let dst := revert_regs dst in
         let src := revert_regs_arg src in
-        (machine_instructions.Store dst src)
+        (machine_instructions.Store dst src imm)
     | machine_instructions.Lt dst r1 r2 =>
         let dst := revert_regs dst in
         let r1 := revert_regs_arg r1 in
@@ -634,8 +638,12 @@ Module Asm_Griotte.
   Definition jalr rdst rsrc := (ASM_Instr (Jalr rdst rsrc)).
 
   Definition mov dst src  := (ASM_Instr (Mov dst src)).
-  Definition load dst src := (ASM_Instr (Load dst src)).
-  Definition store dst src := (ASM_Instr (Store dst src)).
+  (** Offsets are signed displacements in memory cells. Label expressions use
+      the same instruction-relative resolution as the other immediates. *)
+  Definition load_imm dst src imm := ASM_Instr (Load dst src imm).
+  Definition store_imm dst src imm := ASM_Instr (Store dst src imm).
+  Definition load dst src := load_imm dst src (Asm_z 0).
+  Definition store dst src := store_imm dst src (Asm_z 0).
   Definition lt dst r1 r2 := (ASM_Instr (Lt dst r1 r2)).
   Definition add dst r1 r2 := (ASM_Instr (Add dst r1 r2)).
   Definition sub dst r1 r2 := (ASM_Instr (Sub dst r1 r2)).

@@ -78,7 +78,7 @@ Ltac unfold_lse_addresses_in H :=
     restores its return capability and returns to the caller. *)
 Definition lse_C_code : list Word :=
   encodeInstrsW [
-    Store csp cra;
+    Store csp cra 0;
     Lea csp 1%Z;
 
     Mov ct0 PC;
@@ -87,7 +87,7 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct0 cs0;
     Lea ct0 0%Z;
-    Load ct0 ct0;
+    Load ct0 ct0 0;
     Mov cs0 0%Z;
     Mov ct1 PC;
     GetB cs0 ct1;
@@ -95,7 +95,7 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct1 cs0;
     Lea ct1 1%Z;
-    Load ct1 ct1;
+    Load ct1 ct1 0;
     Mov cs0 0%Z;
     Jalr cra ct0;
 
@@ -105,7 +105,7 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct0 cs0;
     Lea ct0 0%Z;
-    Load ct0 ct0;
+    Load ct0 ct0 0;
     Mov cs0 0%Z;
     Mov ct1 PC;
     GetB cs0 ct1;
@@ -113,12 +113,12 @@ Definition lse_C_code : list Word :=
     Sub cs0 cs0 cs1;
     Lea ct1 cs0;
     Lea ct1 1%Z;
-    Load ct1 ct1;
+    Load ct1 ct1 0;
     Mov cs0 0%Z;
     Jalr cra ct0;
 
     Lea csp (-1)%Z;
-    Load cra csp;
+    Load cra csp 0;
     Mov ca0 0%Z;
     Mov ca1 0%Z;
     Jalr cnull cra

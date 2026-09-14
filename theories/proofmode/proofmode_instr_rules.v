@@ -84,30 +84,68 @@ Ltac dispatch_instr_rule instr cont :=
   | Lea _ (inr _) => (cont (@wp_lea_success_reg) || cont (@wp_lea_success_reg_sr))
   | Lea _ (inl _) => (cont (@wp_lea_success_z) || cont (@wp_lea_success_z_sr))
   (* Load *)
-  | Load PC _ => cont (@wp_load_success_PC)
-  | Load _ PC => cont (@wp_load_success_fromPC)
-  | Load ?r ?r =>
-    (cont (@wp_load_success_same_notinstr) ||
+  | Load PC PC _ => cont (@wp_load_success_PC_PC_imm)
+  | Load PC _ 0 => cont (@wp_load_success_PC)
+  | Load _ PC 0 => cont (@wp_load_success_fromPC)
+  | Load ?r ?r 0 =>
+    (cont (fun MP Σ ceriseg E r1 pc_p pc_g pc_b pc_e pc_a w w' =>
+       @wp_load_success_same_notinstr MP Σ ceriseg E r1 pc_p pc_g pc_b pc_e pc_a w w' (WInt 0)) ||
      cont (@wp_load_success_same_frominstr))
-  | Load _ _ =>
+  | Load _ _ 0 =>
     (cont (@wp_load_success_notinstr) ||
      cont (@wp_load_success_frominstr))
   (* Store *)
-  | Store PC (inl _) => cont (@wp_store_success_z_PC)
-  | Store PC (inr PC) => cont (@wp_store_success_reg_PC_same_store_word)
-  | Store PC (inr _) => cont (@wp_store_success_reg_PC_store_word)
-  | Store _ (inl _) =>
-    (cont (@wp_store_success_same) ||
+  | Store PC (inl _) 0 => cont (@wp_store_success_z_PC)
+  | Store PC (inr PC) 0 =>
+    cont (fun MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_a' w =>
+      @wp_store_success_reg_PC_same_store_word MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_a' w (WInt 0))
+  | Store PC (inr _) 0 => cont (@wp_store_success_reg_PC_store_word)
+  | Store _ (inl _) 0 =>
+    (cont (fun MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_a' w dst z =>
+       @wp_store_success_same MP Σ ceriseg E pc_p pc_g pc_b pc_e pc_a pc_a' w dst z (WInt 0)) ||
      cont (@wp_store_success_z))
-  (* | Store _ (inr PC) => *)
-  (*   (cont (@wp_store_success_reg_frominstr_same) || *)
-  (*    cont (@wp_store_success_reg_frominstr)) *)
-  | Store ?r (inr ?r) =>
+  | Store _ (inr PC) 0 =>
+    (cont (@wp_store_success_reg_fromPC_same_a_store_word_imm) ||
+     cont (@wp_store_success_reg_fromPC_store_word_imm))
+  | Store ?r (inr ?r) 0 =>
     (cont (@wp_store_success_reg_same'_store_word) ||
      cont (@wp_store_success_reg_same_store_word))
-  | Store _ (inr _) =>
+  | Store _ (inr _) 0 =>
     (cont (@wp_store_success_reg_same_a_store_word) ||
      cont (@wp_store_success_reg_store_word))
+  (* Immediate accesses use the effective address in their memory resources. *)
+  | Load PC _ _ => cont (@wp_load_success_PC_imm)
+  | Load _ PC _ =>
+    (cont (@wp_load_success_fromPC_notinstr_imm) ||
+     cont (@wp_load_success_fromPC_frominstr_imm))
+  | Load ?r ?r _ =>
+    (cont (@wp_load_success_same_notinstr_imm) ||
+     cont (@wp_load_success_same_frominstr_imm))
+  | Load _ _ _ =>
+    (cont (@wp_load_success_notinstr_imm) ||
+     cont (@wp_load_success_frominstr_imm))
+  (* Store *)
+  | Store PC (inl _) _ =>
+    (cont (@wp_store_success_z_PC_same_a_imm) ||
+     cont (@wp_store_success_z_PC_imm))
+  | Store PC (inr PC) _ =>
+    (cont (@wp_store_success_reg_PC_same_same_a_store_word_imm) ||
+     cont (@wp_store_success_reg_PC_same_store_word_imm))
+  | Store PC (inr _) _ =>
+    (cont (@wp_store_success_reg_PC_same_a_store_word_imm) ||
+     cont (@wp_store_success_reg_PC_store_word_imm))
+  | Store _ (inl _) _ =>
+    (cont (@wp_store_success_same_imm) ||
+     cont (@wp_store_success_z_imm))
+  | Store _ (inr PC) _ =>
+    (cont (@wp_store_success_reg_fromPC_same_a_store_word_imm) ||
+     cont (@wp_store_success_reg_fromPC_store_word_imm))
+  | Store ?r (inr ?r) _ =>
+    (cont (@wp_store_success_reg_same'_store_word_imm) ||
+     cont (@wp_store_success_reg_same_store_word_imm))
+  | Store _ (inr _) _ =>
+    (cont (@wp_store_success_reg_same_a_store_word_imm) ||
+     cont (@wp_store_success_reg_store_word_imm))
   (* Jnz *)
   (* | Jnz PC PC => cont (@wp_jnz_success_jmpPC) *) (* FAIL *)
   | Jnz (inl _) PC => cont (@wp_jnz_success_jmpPC_z)

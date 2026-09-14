@@ -97,23 +97,25 @@ Section opsem.
             end
         | _ => None
         end
-    | Load dst src =>
+    | Load dst src imm =>
       wsrc ← (reg φ) !!ᵣ src;
       match wsrc with
       | WCap true p g b e a =>
-        if readAllowed p && withinBounds b e a then
-          asrc ← (mem φ) !! a;
+        ea ← (a + imm)%a;
+        if readAllowed p && withinBounds b e ea then
+          asrc ← (mem φ) !! ea;
           updatePC (update_reg φ dst (load_word p asrc))
         else None
       | _ => None
       end
-    | Store dst ρ =>
+    | Store dst ρ imm =>
       tostore ← word_of_argument (reg φ) ρ;
       wdst ← (reg φ) !!ᵣ dst;
       match wdst with
       | WCap true p g b e a =>
-        if writeAllowed p && withinBounds b e a then
-          updatePC (update_mem φ a (store_word p tostore))
+        ea ← (a + imm)%a;
+        if writeAllowed p && withinBounds b e ea then
+          updatePC (update_mem φ ea (store_word p tostore))
         else None
       | _ => None
       end

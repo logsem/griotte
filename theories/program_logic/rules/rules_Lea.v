@@ -143,7 +143,7 @@ Section griotte_lang_rules.
 
      (* First, the case where r1v is a capability *)
      + destruct (a + argz)%a as [ a' |] eqn:Hoffset; cycle 1.
-       { (* Cursor overflow invalidates; PC advancement may still roll back. *)
+       { (* Current-address overflow invalidates; PC advancement may still roll back. *)
        rewrite /update_reg /= in Hstep.
        destruct (incrementPC (<[ r1 := WCap false p g b e a ]ᵣ> regs)) as [ regs' |] eqn:Hregs';
          pose proof Hregs' as Hregs'2; cycle 1.
@@ -205,7 +205,7 @@ Section griotte_lang_rules.
        eapply Lea_spec_success_cap; eauto.
     (* Now, the case where r1v is a sealrange *)
      + destruct (a + argz)%ot as [ a' |] eqn:Hoffset; cycle 1.
-       { (* Cursor overflow invalidates; PC advancement may still roll back. *)
+       { (* Current-address overflow invalidates; PC advancement may still roll back. *)
        rewrite /update_reg /= in Hstep.
        destruct (incrementPC (<[ r1 := WSealRange false p g b e a ]ᵣ> regs)) as [ regs' |] eqn:Hregs';
          pose proof Hregs' as Hregs'2; cycle 1.

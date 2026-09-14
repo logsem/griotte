@@ -76,9 +76,9 @@ Ltac unfold_droe_addresses_in H :=
     supposedly deeply immutable value can be observed through the nesting. *)
 Definition droe_C_code : list Word :=
   encodeInstrsW [
-    Load ct0 ca0;
-    Load ct0 ct0;
-    Store cgp ct0;
+    Load ct0 ca0 0;
+    Load ct0 ct0 0;
+    Store cgp ct0 0;
     Jalr cnull cra
   ].
 

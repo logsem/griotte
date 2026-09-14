@@ -95,13 +95,13 @@ Ltac unfold_cmdc_addresses_in H :=
     capability discipline. *)
 Definition cmdc_B_code : list Word :=
   encodeInstrsW [
-    Store ca0 7%Z;
-    Store csp ca0;
+    Store ca0 7%Z 0;
+    Store csp ca0 0;
     Jalr cnull cra
   ].
 Definition cmdc_C_code : list Word :=
   encodeInstrsW [
-    Store ca0 9%Z;
+    Store ca0 9%Z 0;
     Jalr cnull cra
   ].
 Definition cmdc_B_data : list Word := [WInt 0].

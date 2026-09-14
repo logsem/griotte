@@ -5,8 +5,8 @@ Inductive instr: Type :=
 | Jnz (rimm : Z + RegName) (rcond: RegName)
 | Jalr (rdst: RegName) (rsrc: RegName) (* jumps to wsrc, rdst receives return cap *)
 | Mov (dst: RegName) (src: Z + RegName)
-| Load (dst src: RegName)
-| Store (dst: RegName) (src: Z + RegName)
+| Load (dst src: RegName) (imm: Z)
+| Store (dst: RegName) (src: Z + RegName) (imm: Z)
 | Lt (dst: RegName) (r1 r2: Z + RegName)
 | Add (dst: RegName) (r1 r2: Z + RegName)
 | Sub (dst: RegName) (r1 r2: Z + RegName)
@@ -46,8 +46,8 @@ Proof.
       | Jmp r => GenNode 0 [GenLeaf (inr r)]
       | Jnz r1 r2 => GenNode 1 [GenLeaf (inr r1); GenLeaf (inl (inl r2))]
       | Mov dst src => GenNode 2 [GenLeaf (inl (inl dst)); GenLeaf (inr src)]
-      | Load dst src => GenNode 3 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))]
-      | Store dst src => GenNode 4 [GenLeaf (inl (inl dst)); GenLeaf (inr src)]
+      | Load dst src imm => GenNode 3 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr (inl imm))]
+      | Store dst src imm => GenNode 4 [GenLeaf (inl (inl dst)); GenLeaf (inr src); GenLeaf (inr (inl imm))]
       | Lt dst r1 r2 => GenNode 5 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | Add dst r1 r2 => GenNode 6 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
       | Sub dst r1 r2 => GenNode 7 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)]
@@ -83,8 +83,8 @@ Proof.
       | GenNode 0 [GenLeaf (inr r) ] => Jmp r
       | GenNode 1 [GenLeaf (inr r1); GenLeaf (inl (inl r2))] => Jnz r1 r2
       | GenNode 2 [GenLeaf (inl (inl dst)); GenLeaf (inr src)] => Mov dst src
-      | GenNode 3 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src))] => Load dst src
-      | GenNode 4 [GenLeaf (inl (inl dst)); GenLeaf (inr src)] => Store dst src
+      | GenNode 3 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr (inl imm))] => Load dst src imm
+      | GenNode 4 [GenLeaf (inl (inl dst)); GenLeaf (inr src); GenLeaf (inr (inl imm))] => Store dst src imm
       | GenNode 5 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Lt dst r1 r2
       | GenNode 6 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Add dst r1 r2
       | GenNode 7 [GenLeaf (inl (inl dst)); GenLeaf (inr r1); GenLeaf (inr r2)] => Sub dst r1 r2

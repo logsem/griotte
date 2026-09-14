@@ -43,7 +43,7 @@ Section DROE_Main.
       (* #"main_b_code"; *)
 
       (* set b <- 42 *)
-      Store cgp 42%Z;     (* b <- 42 *)
+      Store cgp 42%Z 0;     (* b <- 42 *)
       Mov ct0 cgp;        (* ct0 := (RW, Global, b, e, b) *)
 
       (* set a <- (RW, Global, b, b+1, b) *)
@@ -52,7 +52,7 @@ Section DROE_Main.
       Subseg ct0 ct1 ct2; (* ct0 := (RW, Global, b, b+1, b) *)
 
       Lea cgp 1%Z;        (* cgp := (RW, Global, b, e, b+1) *)
-      Store cgp ct0;      (* a <- (RW, Global, b, b+1, b) *)
+      Store cgp ct0 0;      (* a <- (RW, Global, b, b+1, b) *)
 
       (* call B.f (RO_DRO, Global, a, a+1,a) *)
       Mov ca0 cgp;         (* ca0 := (RW, Global, b, e, b+1) = (RW, Global, b, e, a) *)
@@ -71,7 +71,7 @@ Section DROE_Main.
       Mov cra cs0; (* restores the return-to-switcher *)
       (* -- return from the call -- *)
       (* assert b == 42 *)
-      Load ct0 cgp; (* ct0 -> c *)
+      Load ct0 cgp 0; (* ct0 -> c *)
       Mov ct1 42%Z
     ]
     ++ assert_instrs 1 ct2 ct3 ct4 (* asserts that ( *ct0 = *ct1 ) *)
