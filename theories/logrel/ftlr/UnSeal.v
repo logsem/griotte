@@ -24,19 +24,19 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
   (* Proving the meaning of unsealing in the LR sane. Note the use of the later in the result. *)
-  Lemma unsealing_preserves_interp W C sb p0 g0 b0 e0 a0 s:
+  Lemma unsealing_preserves_interp W C sb p0 g0 b0 e0 a0 o s:
         permit_unseal p0 = true →
-        withinBounds b0 e0 a0 = true →
-        interp W C (WSealed a0 sb) -∗
+        withinBounds b0 e0 o = true →
+        interp W C (WSealed o sb) -∗
         interp W C (WSealRange true p0 g0 b0 e0 a0) -∗
         world_interp_open W C s
         -∗
-        ▷ (interp W C (WSealable sb) ∗
+        ▷ (interp W C (WSealable (machine_word.unseal g0 sb)) ∗
            world_interp_open W C s).
   Proof.
     iIntros (Hpseal Hwb) "#HVsd #HVsr Hworld_interp".
     destruct (get_tag_sealable sb) eqn:Htag.
-    2: { iNext. iFrame. iApply interp_untagged. done. }
+    2: { iNext. iFrame. iApply interp_untagged. by rewrite /= get_tag_unseal Htag. }
     rewrite
       (fixpoint_interp1_eq W C (WSealRange true _ _ _ _ _))
       (fixpoint_interp1_eq W C (WSealed _ _)) /= Htag Hpseal /interp_sb.
@@ -46,13 +46,16 @@ Section fundamental.
     iDestruct "HSa0" as (P) "( %Hpers & HsealP & %Hdom & Hrcond)".
     assert (∀ WCv : WORLD * CmptName * Word, Persistent (safeC P WCv)) as Hpers'.
     { intros [ [W0 C0] w0 ]; rewrite //=; eapply (Hpers (W0, C0, w0)). }
-    iAssert (sts_seals_std C a0 {[WSealable sb]}) as "#HVsd'".
+    iAssert (sts_seals_std C o {[WSealable sb]}) as "#HVsd'".
     { iApply sts_seals_std_weaken; last iFrame "HVsd"; last set_solver+. }
     iDestruct (world_interp_open_seal_pred_singleton with "HsealP HVsd' Hworld_interp") as "(Hworld_interp & #HP)".
     iNext.
     rewrite /=.
     iFrame.
-    by iApply "Hrcond".
+    destruct g0.
+    - rewrite unseal_global. by iApply "Hrcond".
+    - rewrite unseal_local.
+      iApply (interp_borrow_word W C (WSealable sb)). by iApply "Hrcond".
   Qed.
 
   Lemma unseal_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
@@ -104,9 +107,9 @@ Section fundamental.
       { (* PC ≠ dst *)
         rewrite insert_reg_insert_commute; auto.
         simplify_map_eq; map_simpl "Hmap".
-        assert (is_Some (<[dst:=WSealable sb]ᵣ> regs !! csp)) as [??].
+        assert (is_Some (<[dst:=WSealable (machine_word.unseal g0 sb)]ᵣ> regs !! csp)) as [??].
         { destruct (decide (dst = csp));simplify_map_eq=>//. }
-        iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealable sb]ᵣ> regs)
+        iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealable (machine_word.unseal g0 sb)]ᵣ> regs)
                  with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]")
         ; eauto.
         + cbn; intros. by repeat (rewrite lookup_insert_is_Some'; right).
@@ -124,6 +127,9 @@ Section fundamental.
       }
       { (* PC = dst *)
         simplify_map_eq; map_simpl "Hmap".
+        iEval (rewrite HPC) in "HVsb".
+        assert (t'' = true) as ->.
+        { have Hout := get_tag_unseal g0 sb. by rewrite HPC /= Htag in Hout. }
         destruct (executeAllowed p'') eqn:Hpft.
         - iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]")
           ; eauto.

@@ -396,7 +396,7 @@ Section Switcher.
       try done; try solve_pure.
     iIntros "!>" (ret)
       "[-> |
-       [(%wsb & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Htag)
+       [(%o & %wsb & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Htag & %Hrange)
        |(%ot & %sb & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Hinvalid)]]".
     { wp_pure. wp_end. iIntros "%Hcontr"; done. }
     2: {
@@ -406,6 +406,9 @@ Section Switcher.
       iInstr "Hcode".
       wp_end; iIntros "%Hcontr"; done. }
     simplify_eq. rename wsb into w_entry_point.
+    apply withinBounds_le_addr in Hrange.
+    assert (o = ot_switcher) as -> by solve_addr.
+    iEval (rewrite unseal_global) in "Hct1".
     iSpecialize ("Hcode" with "Hi").
     iEval (rewrite /is_sealed_with_o Z.eqb_refl) in "Htarget_v".
     iEval (rewrite /interp fixpoint_interp1_eq /= Htag /interp_sb)

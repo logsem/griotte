@@ -280,9 +280,8 @@ Section opsem.
     wr2 ← (reg φ) !!ᵣ r2;
     match wr1, wr2 with
     | WSealRange ta p g b e a, WSealed a' sb =>
-      let new_tag := ta && get_tag_sealable sb && permit_unseal p && withinBounds b e a
-                       && (a' =? a)%Z in
-      let sb' := if new_tag then sb else clear_tag_sealable sb in
+      let new_tag := ta && get_tag_sealable sb && permit_unseal p && withinBounds b e a' in
+      let sb' := if new_tag then unseal g sb else clear_tag_sealable (unseal g sb) in
       updatePC (update_reg φ dst (WSealable sb'))
     | _,_ => None
     end

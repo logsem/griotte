@@ -824,8 +824,8 @@ Section fundamental.
     iApply (wp_unseal_unknown with "[$HPC $Hi $Hcs0 $Hct1]"); try solve_pure.
     iIntros "!>" (ret)
       "[-> |
-       [(% & % & % & % & % & %wsb & -> & HPC & Hi & Hcs0 & Hct1
-         & %Heq & %Hpermit & %Hsealed & %Htag)
+       [(% & % & % & % & % & %o & %wsb & -> & HPC & Hi & Hcs0 & Hct1
+         & %Heq & %Hpermit & %Hsealed & %Htag & %Hrange)
        |(%tsr & %psr & %gsr & %bsr & %esr & %asr & %ot & %sb
          & -> & HPC & Hi & Hcs0 & Hct1 & %Heq & %Hsealed & %Hinvalid)]]".
     { wp_pure. wp_end. iIntros "%Hcontr";done. }
@@ -836,6 +836,10 @@ Section fundamental.
       iInstr "Hcode".
       wp_end; iIntros "%Hcontr"; done. }
     simplify_eq.
+
+    apply withinBounds_le_addr in Hrange.
+    assert (o = ot_switcher) as -> by solve_addr.
+    iEval (rewrite unseal_global) in "Hct1".
 
     (* get the seal inv and compare with wsb *)
     iDestruct ("Hreg" $! ct1 with "[//] [//]") as "#Hct1v".

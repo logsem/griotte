@@ -610,7 +610,7 @@ Ltac simplify_load_word p w :=
 Ltac reduce_cap_word :=
   cbn [store_word canStore isLocalWord isLocalSealable isLocal isWL writeAllowed andb
        load_word load_word_perm isDL isDRO
-       borrow borrow_sb deeplocal deeplocal_sb deeplocal_perm
+       machine_word.unseal unseal_locality borrow borrow_sb deeplocal deeplocal_sb deeplocal_perm
        readonly readonly_sb readonly_perm
        clear_tag clear_tag_sealable get_tag get_tag_sealable].
 
@@ -620,7 +620,8 @@ Ltac reduce_cap_word :=
    a lemma. Neither path splits unknown tag or permission conditions. *)
 Ltac simplify_cap_word_known :=
   repeat progress (
-    rewrite ?get_tag_clear_tag ?get_tag_clear_tag_sealable
+    rewrite ?get_tag_clear_tag ?get_tag_clear_tag_sealable ?get_tag_unseal
+            ?unseal_global ?unseal_local
             ?get_tag_load_word ?get_tag_borrow ?get_tag_deeplocal
             ?get_tag_readonly ?get_tag_force_global ?get_tag_updatePcPerm
             ?clear_tag_idempotent ?clear_tag_sealable_idempotent

@@ -116,6 +116,8 @@ Ltac solve_instr_failure :=
   | H : ?lhs = ?rhs |- context [?lhs] => progress (rewrite H; cbn)
   end;
   repeat match goal with
+  | sb : Sealable |- context [clear_tag_sealable (machine_word.unseal _ ?x)] =>
+      constr_eq sb x; destruct sb; cbn
   | sb : Sealable |- context [clear_tag_sealable ?x] =>
       constr_eq sb x; destruct sb; cbn
   end;
@@ -232,8 +234,20 @@ Ltac instr_auto_solve_within_bounds :=
     (apply andb_false_iff; first [left; solve_addr | right; solve_addr]) |
     (apply andb_true_iff; split; solve_addr)].
 
+(* A known rejected factor suffices even when other authorization checks
+   remain symbolic. This constructs a proof without splitting input values. *)
+Ltac instr_auto_solve_bool :=
+  first [assumption | reflexivity |
+    lazymatch goal with
+    | |- _ && _ = false =>
+        apply andb_false_iff;
+        first [left; instr_auto_solve_bool | right; instr_auto_solve_bool]
+    | |- _ && _ = true =>
+        apply andb_true_iff; split; instr_auto_solve_bool
+    end].
+
 Ltac instr_auto_solve_premise :=
-  first [ltac2:(solve_pure_iinstr ()) | solve_addr |
+  first [ltac2:(solve_pure_iinstr ()) | instr_auto_solve_bool | solve_addr |
     instr_auto_solve_within_bounds |
     (rewrite le_addr_withinBounds; solve_addr) |
     (split; first [ltac2:(solve_pure_iinstr ()) | solve_addr |

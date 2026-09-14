@@ -382,25 +382,26 @@ Section wp_interp.
       Instr Executable @ E
       {{{ retv, RET retv;
           ⌜ retv = FailedV ⌝
-          ∨ (∃ psr gsr bsr esr asr wsb,
+          ∨ (∃ psr gsr bsr esr asr ot wsb,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
               ∗ r1 ↦ᵣ wsealr
-              ∗ r2 ↦ᵣ WSealable wsb
+              ∗ r2 ↦ᵣ WSealable (machine_word.unseal gsr wsb)
               ∗ ⌜ wsealr = (WSealRange true psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
-              ∗ ⌜ wsealed = WSealed asr wsb ⌝
-              ∗ ⌜ get_tag_sealable wsb = true ⌝ )
+              ∗ ⌜ wsealed = WSealed ot wsb ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝
+              ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
           ∨ ∃ tsr psr gsr bsr esr asr ot sb,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
               ∗ r1 ↦ᵣ wsealr
-              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable sb)
+              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb))
               ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr ⌝
               ∗ ⌜ wsealed = WSealed ot sb ⌝
               ∗ ⌜ tsr && get_tag_sealable sb && permit_unseal psr &&
-                    withinBounds bsr esr asr && (ot =? asr)%Z = false ⌝
+                    withinBounds bsr esr ot = false ⌝
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
@@ -420,7 +421,7 @@ Section wp_interp.
       end.
       rewrite lookup_insert_ne // lookup_insert_eq in HPC.
       simplify_eq.
-      iExists p, g, b, e, a, sb.
+      iExists p, g, b, e, a, o, sb.
       rewrite (insert_insert_ne _ _ PC) //.
       rewrite (insert_insert_ne _ _ r1) //.
       rewrite !insert_insert_eq.
@@ -465,25 +466,26 @@ Section wp_interp.
       Instr Executable @ E
       {{{ retv, RET retv;
           ⌜ retv = FailedV ⌝
-          ∨ (∃ psr gsr bsr esr asr wsb,
+          ∨ (∃ psr gsr bsr esr asr ot wsb,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
-              ∗ r1 ↦ᵣ WSealable wsb
+              ∗ r1 ↦ᵣ WSealable (machine_word.unseal gsr wsb)
               ∗ r2 ↦ᵣ wsealed
               ∗ ⌜ wsealr = (WSealRange true psr gsr bsr esr asr) ⌝ ∗ ⌜ permit_unseal psr = true ⌝
-              ∗ ⌜ wsealed = WSealed asr wsb ⌝
-              ∗ ⌜ get_tag_sealable wsb = true ⌝ )
+              ∗ ⌜ wsealed = WSealed ot wsb ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝
+              ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
           ∨ ∃ tsr psr gsr bsr esr asr ot sb,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
-              ∗ r1 ↦ᵣ WSealable (clear_tag_sealable sb)
+              ∗ r1 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb))
               ∗ r2 ↦ᵣ wsealed
               ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr ⌝
               ∗ ⌜ wsealed = WSealed ot sb ⌝
               ∗ ⌜ tsr && get_tag_sealable sb && permit_unseal psr &&
-                    withinBounds bsr esr asr && (ot =? asr)%Z = false ⌝
+                    withinBounds bsr esr ot = false ⌝
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
@@ -503,7 +505,7 @@ Section wp_interp.
       end.
       rewrite lookup_insert_ne // lookup_insert_eq in HPC.
       simplify_eq.
-      iExists p, g, b, e, a, sb.
+      iExists p, g, b, e, a, o, sb.
       rewrite (insert_insert_ne _ _ PC) //.
       rewrite !insert_insert_eq.
       iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
@@ -548,22 +550,23 @@ Section wp_interp.
       Instr Executable @ E
       {{{ retv, RET retv;
           ⌜ retv = FailedV ⌝
-          ∨ (∃ wsb,
+          ∨ (∃ ot wsb,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
               ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
-              ∗ r2 ↦ᵣ WSealable wsb
-              ∗ ⌜ wsealed = WSealed asr wsb ⌝
-              ∗ ⌜ get_tag_sealable wsb = true ⌝ )
+              ∗ r2 ↦ᵣ WSealable (machine_word.unseal gsr wsb)
+              ∗ ⌜ wsealed = WSealed ot wsb ⌝
+              ∗ ⌜ get_tag_sealable wsb = true ⌝
+              ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
           ∨ ∃ ot sb,
               ⌜ retv = NextIV ⌝
               ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ wi
               ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
-              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable sb)
+              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (machine_word.unseal gsr sb))
               ∗ ⌜ wsealed = WSealed ot sb ⌝
-              ∗ ⌜ get_tag_sealable sb && (ot =? asr)%Z = false ⌝
+              ∗ ⌜ get_tag_sealable sb && withinBounds bsr esr ot = false ⌝
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' Hpsr Hsr ?? ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
@@ -583,7 +586,7 @@ Section wp_interp.
       end.
       rewrite lookup_insert_ne // lookup_insert_eq in HPC.
       simplify_eq.
-      iExists sb.
+      iExists o, sb.
       rewrite (insert_insert_ne _ _ PC) //.
       rewrite (insert_insert_ne _ _ r1) //.
       rewrite !insert_insert_eq.
@@ -608,9 +611,8 @@ Section wp_interp.
       iDestruct (big_sepM_insert with "Hmap") as "[HPC Hmap]"; first by simplify_map_eq.
       iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
       iDestruct (big_sepM_insert with "Hmap") as "[Hr2 Hmap]"; first by simplify_map_eq.
-      match goal with Hinvalid : _ && withinBounds ?bb ?ee ?aa && _ = false |- _ =>
-        assert (Hwithin : withinBounds bb ee aa = true) by (rewrite /withinBounds; solve_addr);
-        rewrite Hpsr Hwithin !andb_true_r /= in Hinvalid
+      match goal with Hinvalid : _ && withinBounds _ _ _ = false |- _ =>
+        rewrite Hpsr !andb_true_r /= in Hinvalid
       end.
       iFrame; done.
     }

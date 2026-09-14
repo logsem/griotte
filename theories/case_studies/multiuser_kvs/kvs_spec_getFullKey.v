@@ -161,7 +161,7 @@ Section KVS_getFullKey.
     wp_instr.
     iApply (wp_unseal_unknown' with "[$HPC $Hi $Hrdst $Hrsealkey]"); try solve_pure.
     iIntros "!>" (ret)
-      "[-> | [(% & % & % & % & % & %wsb & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec & %Htag)
+      "[-> | [(% & % & % & % & % & %o & %wsb & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec & %Htag & %Hrange)
       | (%tsr & %psr & %gsr & %bsr & %esr & %asr & %ot & %sb
          & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & %Hsealed & %Hinvalid)]]".
     { wp_pure; wp_end; iIntros "%Hcontr";done. }
@@ -170,6 +170,8 @@ Section KVS_getFullKey.
     2: { rewrite spec /= Htag in Hclear; done. }
     rewrite spec in Hnot_sealed_with_kvs_otype.
     rewrite /kvs_service_unsealing_key /load_word //= in Heq; simplify_eq.
+    apply withinBounds_le_addr in Hrange.
+    assert (o = KVS_OTYPE) as -> by solve_addr.
     cbn in Hnot_sealed_with_kvs_otype.
     by rewrite Z.eqb_neq in Hnot_sealed_with_kvs_otype.
     }
