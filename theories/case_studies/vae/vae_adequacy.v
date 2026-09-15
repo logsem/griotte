@@ -437,8 +437,8 @@ Section Adequacy.
       + solve_ndisj.
       + solve_addr+H0 H1 H2.
       + solve_addr+H3 H4.
-      + rewrite app_length.
-        rewrite /vae_main_code !app_length in H4.
+      + rewrite length_app.
+        rewrite /vae_main_code !length_app in H4.
         solve_addr+H3 H4.
     }
 

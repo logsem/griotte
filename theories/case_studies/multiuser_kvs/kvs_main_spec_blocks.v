@@ -642,7 +642,7 @@ Section KVS_Main_Blocks.
     { rewrite /kvs_read_nargs; lia. }
     { pose proof KVS_size_imports as Himports.
       pose proof KVS_size_code as Hcode.
-      rewrite /kvs_service_instrs !app_length in Hcode.
+      rewrite /kvs_service_instrs !length_app in Hcode.
       rewrite /kvs_read_pcc_off; solve_addr.
     }
     {  subst rmap_read_call.

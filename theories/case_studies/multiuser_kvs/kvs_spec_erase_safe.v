@@ -188,7 +188,7 @@ Section KVS_spec_erase.
     { iPureIntro.
       pose proof KVS_size_imports as Himports.
       pose proof KVS_size_code as Hcode.
-      rewrite /kvs_service_instrs !app_length in Hcode.
+      rewrite /kvs_service_instrs !length_app in Hcode.
       rewrite /kvs_erase_pcc_off; solve_addr.
     }
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
