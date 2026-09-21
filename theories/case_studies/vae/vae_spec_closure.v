@@ -1,3 +1,4 @@
+From griotte Require Import switcher_spec_call_callback.
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel interp_weakening monotone.
 From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
@@ -124,6 +125,7 @@ Section VAE.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
+    iSplit; first done.
     iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
@@ -248,7 +250,7 @@ Section VAE.
 
     focus_block 5 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_awkward.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
-      (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto; try done.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
@@ -355,7 +357,7 @@ Section VAE.
     }
 
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification_alt with
+    iApply (switcher_cc_specification_alt_callback with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W2 $Hcstk
@@ -366,17 +368,16 @@ Section VAE.
       rewrite /dom_arg_rmap Hrmap_init.
       set_solver+.
     }
-    { apply vae_call_adv_arg_rmap_is_arg. }
 
     iClear "Hinterp_rmap Hzeroed_rmap".
     clear dependent wct1 wct0 wct2 wct3 wcs0 wcs1 rmap stk_mem.
     iNext.
-    iIntros (W3 rmap stk_mem l')
+    iIntros (W3 rmap stk_mem l' callback1)
       "( _ & _ & _ & %Hrelated_pub_2ext_W3 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W3 & %Hstack_revoked_W3
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
-      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
+      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & %Hcallback1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK)"; clear l'.
     iEval (cbn) in "HPC".
@@ -482,7 +483,7 @@ Section VAE.
 
     focus_block 8 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_awkward.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
-      (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto; try done.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
@@ -526,10 +527,13 @@ Section VAE.
     }
 
     (* Show that the arguments are safe, when necessary *)
-    iAssert (if is_sealed_with_o wca0 ot_switcher
-             then (interp W5 C wca0)
+    iAssert (if is_sealed_with_o callback1 ot_switcher
+             then (interp W5 C callback1)
              else True)%I as "#Hinterp_W5_wca0".
-    { destruct (is_sealed_with_o wca0 ot_switcher) eqn:His_sealed_wca0; last done.
+    { destruct Hcallback1 as [Hsame | Hcleared]; last first.
+      { destruct Hcleared as [Hheap Hcleared]. rewrite Hcleared. destruct wca0; cbn in Hheap |- *; try discriminate; done. }
+      rewrite Hsame.
+      destruct (is_sealed_with_o wca0 ot_switcher) eqn:His_sealed_wca0; last done.
       destruct wca0 as [| [|] | |]; try discriminate.
       iApply (interp_monotone_sd W2 W5); eauto.
     }
@@ -553,7 +557,7 @@ Section VAE.
 
     iDestruct (world_interp_rel_loc_valid  with "Hworld_interp_C Hsts_rel") as "%Hwrel_i_W5".
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification_alt with
+    iApply (switcher_cc_specification_alt_nonheap with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
@@ -563,6 +567,7 @@ Section VAE.
       rewrite Hdom_rmap.
       set_solver+.
     }
+
     { apply vae_call_adv_arg_rmap_is_arg. }
 
     clear dependent wct1 wct0 warg0 warg1 rmap stk_mem Hcsp_bounds.

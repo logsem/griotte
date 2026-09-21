@@ -222,7 +222,7 @@ Section CMDC_Call_Phase.
     iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked")
       as "Hstack_revoked"; eauto.
 
-    iApply (switcher_cc_specification _ Wcall with
+    iApply (switcher_cc_specification_nonheap _ Wcall with
       "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
        $Hargs $Hrmap $Hstk $Hworld $Hstack_revoked $Hcstk $HK
        $Htarget_call $Hentry]").

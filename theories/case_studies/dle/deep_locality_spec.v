@@ -42,6 +42,10 @@ Section DLE.
 
     let imports := dle_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    disjoint_from_shadow cgp_b cgp_e ->
+    disjoint_from_heap cgp_b cgp_e ->
+    is_heap_address cgp_b = false ->
     Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
@@ -84,7 +88,7 @@ Section DLE.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
             )
       "(#Hassert & #Hswitcher & Hna
@@ -128,6 +132,8 @@ Section DLE.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
+    iDestruct (interp_cap_disjoint with "Hinterp_W0_csp")
+      as %[Hstk_shadow Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk".
@@ -159,14 +165,7 @@ Section DLE.
     (* Lea cgp 1%Z; *)
     iInstr "Hcode".
     (* Store cgp ct0; *)
-    (* NOTE for some reason, iInstr doesnt work here *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_store_success_reg with "[$HPC $Hi $Hct0 $Hcgp $Hcgp_a]") ; try solve_pure.
-    { rewrite /withinBounds; solve_addr. }
-    iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hcgp_a)".
-    iDestruct ("Hcode" with "Hi") as "Hcode".
-    wp_pure.
+    iInstr "Hcode".
 
     (* Mov ca0 cgp; *)
     iInstr "Hcode".
@@ -186,7 +185,8 @@ Section DLE.
     (* --------------------------------------------------- *)
 
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -230,6 +230,8 @@ Section DLE.
     (* And prove that the RW_DL capability pointing to it is safe *)
     iAssert (interp W2 C (WCap true RW_DL Local cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
     { iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
+      iSplit; last (iPureIntro; eapply (switcher_disjoint_subseg cgp_b cgp_e);
+        [solve_addr | solve_addr | split; eassumption]).
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
       iApply big_sepL_singleton.
@@ -265,6 +267,8 @@ Section DLE.
     (* And prove that the RW_DL capability pointing to it is safe *)
     iAssert (interp W3 C (WCap true RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_cgp_a".
     { iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
+      iSplit; last (iPureIntro; eapply (switcher_disjoint_subseg cgp_b cgp_e);
+        [solve_addr | solve_addr | split; eassumption]).
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
       iApply big_sepL_singleton.
@@ -347,7 +351,7 @@ Section DLE.
     }
 
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification with
+    iApply (switcher_cc_specification_nonheap with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
@@ -493,7 +497,7 @@ Section DLE.
     (* Prepare the closing resources for the switcher call spec *)
     iDestruct (StackRevokedResources_mono_priv _ W5 with "Hstack_revoked_W4") as "#Hstack_revoked_W5"; auto.
 
-    iApply (switcher_cc_specification with
+    iApply (switcher_cc_specification_nonheap with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag

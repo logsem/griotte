@@ -80,6 +80,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
@@ -130,9 +131,6 @@ Section KVS_spec_erase.
     iInstr "Hcode".
     (* store cgp ASM_NONE; *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact KVS_cgp_disjoint_from_shadow.
-      solve_addr+Hcgp_idx. }
-    { solve_addr+Hcgp_idx. }
     (* mov ca0 0; *)
     iInstr "Hcode".
     (* mov ca1 0; *)
@@ -209,6 +207,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey [wnkey Hm_nkey])
       "(#Hkvs_inv & Hna
@@ -331,6 +330,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
       "(#Hkvs_inv & #Hkvs_logical_inv & Hna
@@ -410,6 +410,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_inv & #Hkvs_logical_inv & Hna
@@ -492,6 +493,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
@@ -641,6 +643,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey)
       "(#Hkvs_inv & Hna
@@ -751,6 +754,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
       "(#Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
         & Ha_user_key & Hm & Hpost)".
@@ -827,6 +831,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
@@ -880,6 +885,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (HsubBounds Hnkey_is_uint16)
       "(HPC & Hcra & [%wca0 Hca0] & Hca1 & Hct1 & [%wcnull Hcnull] & Hcode & Hpost)".
     codefrag_facts "Hcode"; rename H into Hpc_contiguous ; clear H0.
@@ -943,6 +949,7 @@ Section KVS_spec_erase.
         )
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (HE Hnkey_is_uint16)
       "(#Hkvs_inv & Hna & HPC & Hcra & Hca0 & Hca1 & Hct1 & Hcnull & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
@@ -999,6 +1006,7 @@ Section KVS_spec_erase.
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow HsubBounds Hnkey_is_uint16 Hwca0 Hcgp_contiguous)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp
       & [%wcnull Hcnull] & Hcode & Ha_unsealing)".
@@ -1059,6 +1067,7 @@ Section KVS_spec_erase.
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow HE Hnkey_is_uint16 Hwca0)
       "(#Hkvs_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
@@ -1084,6 +1093,7 @@ Section KVS_spec_erase.
   Qed.
 
   Lemma KVS_erase_spec_known_to_known
+    (shadow : gmap Addr bool)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
     (b_stk e_stk a_stk : Addr)
     (arg_rmap : Reg) (cstk : CSTK) (E : coPset)
@@ -1112,13 +1122,14 @@ Section KVS_spec_erase.
          ⌜ wca1 = WInt 0 ⌝)
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk arg_rmap cstk kvs_erase_nargs E
-      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_erase_pcc_off.
+      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_erase_pcc_off shadow.
   Proof.
+    pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros "[ #Hkvs #Hkvs_logical ]" (arg_rmap' rmap')
        "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
-       & Hargs & Hrmap & Hstk & Hcstk
+       & Hargs & Hrmap & Hstk & Hcstk & Hshadow
        & (Huser_key & Huser_kvs & [%wold Hkey])
        & Hpost)".
     iEval (cbn) in "HPC".
@@ -1169,7 +1180,7 @@ Section KVS_spec_erase.
     set (rmap_ret := <[ct0 := WInt 0]> rmap_ret8).
     iEval (cbn) in "HPC".
 
-    iApply ("Hpost" $! (WInt 0) (WInt 0) rmap_ret
+    iApply ("Hpost" $! shadow (WInt 0) (WInt 0) rmap_ret
               (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
     iSplit.
     { iPureIntro.

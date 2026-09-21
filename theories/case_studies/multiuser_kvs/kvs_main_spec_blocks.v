@@ -159,7 +159,9 @@ Section KVS_Main_Blocks.
       (wcgp wcra wcs0 wcs1 : Word)
       (b_stk e_stk a_stk : Addr) (target : Sealable)
       (stk_mem : list Word) (rmap : Reg)
-      (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+      (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (shadow : gmap Addr bool) :
+    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_heap b_stk e_stk ->
     dom rmap =
       all_registers_s ∖
         ({[PC; cgp; cra; csp; ct1; cs0; cs1]} ∪ dom_arg_rmap 8) ->
@@ -172,6 +174,7 @@ Section KVS_Main_Blocks.
     ∗ interp W C (WSealed ot_switcher target)
     ∗ (WSealed ot_switcher target) ↦□ₑ 0
     ∗ cs0 ↦ᵣ wcs0 ∗ cs1 ↦ᵣ wcs1
+    ∗ saved_shadow [wcgp; wcra; wcs0; wcs1] shadow
     ∗ ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0 ∗ ca2 ↦ᵣ WInt 0
     ∗ ca3 ↦ᵣ WInt 0 ∗ ca4 ↦ᵣ WInt 0 ∗ ca5 ↦ᵣ WInt 0
     ∗ ct0 ↦ᵣ WInt 0
@@ -203,32 +206,35 @@ Section KVS_Main_Blocks.
              ∧ (a_stk + 4)%a = Some (a_stk ^+ 4)%a)%a⌝
         ∗ world_interp (revoke W2) C
         ∗ cstack_frag cstk
-        ∗ PC ↦ᵣ updatePcPerm wcra
-        ∗ cgp ↦ᵣ wcgp ∗ cra ↦ᵣ wcra
-        ∗ cs0 ↦ᵣ wcs0 ∗ cs1 ↦ᵣ wcs1
+        ∗ PC ↦ᵣ updatePcPerm (restore_word shadow wcra)
+        ∗ cgp ↦ᵣ restore_word shadow wcgp ∗ cra ↦ᵣ restore_word shadow wcra
+        ∗ cs0 ↦ᵣ restore_word shadow wcs0 ∗ cs1 ↦ᵣ restore_word shadow wcs1
         ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
         ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
         ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
         ∗ ([∗ map] r ↦ w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
         ∗ [[a_stk, e_stk]] ↦ₐ [[stk_mem']]
         ∗ interp_continuation cstk Ws Cs
+        ∗ saved_shadow [wcgp; wcra; wcs0; wcs1] shadow
         -∗ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hrmap)
+    iIntros (Hstk_shadow Hstk_heap Hrmap)
       "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp
-       & Hct1 & #Htarget & #Hentry & Hcs0 & Hcs1
+       & Hct1 & #Htarget & #Hentry & Hcs0 & Hcs1 & Hshadow
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0
        & Hrmap & Hstk & Hworld & Hrevoked & %Hrevoked
        & Hcstk & HK & Hpost)".
     iApply (switcher_cc_specification Nswitcher W C wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk target stk_mem kvs_main_adversary_arg_rmap
-      rmap cstk Ws Cs 0 with
+      rmap cstk Ws Cs 0 shadow with
       "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
-       $Hcs0 $Hcs1 $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
+       $Hcs0 $Hcs1 $Hshadow $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
        $Htarget $Hentry $Hpost]").
+    - exact Hstk_shadow.
+    - exact Hstk_heap.
     - exact Hrmap.
     - apply kvs_main_adversary_arg_rmap_is_arg.
     - iSplitL "Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0".
@@ -245,6 +251,11 @@ Section KVS_Main_Blocks.
       (rmap : Reg) (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert : Addr) (B_f : Sealable)
       (Nswitcher : namespace) (stk_mem : list Word) (cstk : CSTK) :
+    disjoint_from_shadow pc_b pc_e ->
+    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_heap csp_b csp_e ->
+    is_heap_address cgp_b = false ->
+    is_shadow_address static_sealed_b = false ->
     dom rmap = all_registers_s ∖ {[PC; cgp; csp]} ->
     (forall r, r ∈ dom rmap -> is_Some (rmap !! r)) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
@@ -308,7 +319,7 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hrmap_dom Hrmap_init HsubBounds Hstatic_sealed_b)
+    iIntros (Hpc_shadow Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hrmap_dom Hrmap_init HsubBounds Hstatic_sealed_b)
       "(#Hswitcher & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp
        & #Hkvs_exp_tbl_addOrUpdate
@@ -345,7 +356,9 @@ Section KVS_Main_Blocks.
 
     focus_block 2 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_main1.
-    iApply (fetch_spec with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
     { rewrite /SWITCHER_CALL_OFFSET; solve_addr. }
     replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
     iFrame "Himport_switcher".
@@ -371,6 +384,20 @@ Section KVS_Main_Blocks.
 
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
+    assert (is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false)
+      as Hunsealing_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact KVS_pcc_disjoint_from_shadow.
+      apply withinBounds_true_iff.
+      pose proof KVS_size_imports as Himports.
+      pose proof KVS_size_code as Hcode_size.
+      rewrite /length_kvs_imports in Himports.
+      rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr.
+    }
+    assert (forall a, (b_kvs_exp_tbl <= a < e_kvs_exp_tbl)%a ->
+      is_shadow_address a = false) as Hexport_shadow.
+    { intros a Ha. eapply disjoint_from_shadow_not_in;
+        [exact kvs_exp_tbl_disjoint_from_shadow | by apply withinBounds_true_iff]. }
+
     iExtractList "Hrmap" [ca3;ca4;ca5] as ["Hca3"; "Hca4"; "Hca5"].
 
     (* Use switcher call KtK *)
@@ -386,7 +413,7 @@ Section KVS_Main_Blocks.
     iInsertList "Hrmap" [ctp].
     set (rmap' := <[ctp := _]> _ ).
 
-    iPoseProof (KVS_add_spec_known_to_known
+    iPoseProof (KVS_add_spec_known_to_known ∅
                   (WCap true RW Global cgp_b cgp_e cgp_b)
                   (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
                   (WInt 0) (kvs_user_seal_key Global static_sealed_b)
@@ -395,7 +422,7 @@ Section KVS_Main_Blocks.
                  with "[Hkvs Hkvs_logical]") as "HKVS_f"; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
 
-    iApply (switcher_cc_specification_known_to_known_end_to_end
+    iApply (switcher_cc_specification_known_to_known_end_to_end_nonheap
               Nswitcher
               (WCap true RW Global cgp_b cgp_e cgp_b)
               (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
@@ -410,7 +437,9 @@ Section KVS_Main_Blocks.
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
                  $Hstk $Hcstk_frag
                  $HKVS_f
-                 ]"); auto.
+                 ]"); auto using KVS_pcc_base_not_heap, KVS_cgp_base_not_heap;
+      try (apply Hexport_shadow; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off
+        /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr).
     { rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
     { solve_addr+Hkvs_exp_tbl_size. }
     { rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
@@ -493,6 +522,11 @@ Section KVS_Main_Blocks.
       (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert a_flag : Addr) (Nassert Nswitcher : namespace)
       (stk_mem : list Word) (cstk : CSTK) :
+    disjoint_from_shadow pc_b pc_e ->
+    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_heap csp_b csp_e ->
+    is_heap_address cgp_b = false ->
+    is_shadow_address static_sealed_b = false ->
     Nswitcher ## Nassert ->
     dom rmap =
       all_registers_s ∖ {[PC; cgp; cra; csp; ca0; ca1; cs0; cs1]} ->
@@ -536,7 +570,7 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HNswitcher_assert Hdom_rmap HsubBounds Hstatic_sealed_b)
+    iIntros (Hpc_shadow Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow HNswitcher_assert Hdom_rmap HsubBounds Hstatic_sealed_b)
       "(#Hassert & #Hswitcher & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_read
        & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
@@ -547,6 +581,20 @@ Section KVS_Main_Blocks.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
+    assert (is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false)
+      as Hunsealing_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact KVS_pcc_disjoint_from_shadow.
+      apply withinBounds_true_iff.
+      pose proof KVS_size_imports as Himports.
+      pose proof KVS_size_code as Hcode_size.
+      rewrite /length_kvs_imports in Himports.
+      rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr.
+    }
+    assert (forall a, (b_kvs_exp_tbl <= a < e_kvs_exp_tbl)%a ->
+      is_shadow_address a = false) as Hexport_shadow.
+    { intros a Ha. eapply disjoint_from_shadow_not_in;
+        [exact kvs_exp_tbl_disjoint_from_shadow | by apply withinBounds_true_iff]. }
+
     iEval (cbn [kvs_main_add_phase_instrs
       kvs_main_adversary_phase_instrs]) in "HPC".
     iEval (rewrite /kvs_main_code) in "Hcode_main".
@@ -573,7 +621,9 @@ Section KVS_Main_Blocks.
     (* ----------------------------------------------------- *)
     focus_block 10 "Hcode_main" as a_fetch1  Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_blk.
-    iApply (fetch_spec with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
     { rewrite /SWITCHER_CALL_OFFSET; solve_addr. }
     replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
     iFrame "Himport_switcher".
@@ -611,7 +661,7 @@ Section KVS_Main_Blocks.
     iInsertList "Hrmap" [ctp].
     set (rmap_read_call := <[ctp := _]> _ ).
 
-    iPoseProof (KVS_read_spec_known_to_known
+    iPoseProof (KVS_read_spec_known_to_known ∅
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
       (WInt 0) (kvs_user_seal_key Global static_sealed_b)
@@ -620,7 +670,7 @@ Section KVS_Main_Blocks.
       with "[Hkvs Hkvs_logical]") as "HKVS_f"; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
 
-    iApply (switcher_cc_specification_known_to_known_end_to_end
+    iApply (switcher_cc_specification_known_to_known_end_to_end_nonheap
               Nswitcher
               (WCap true RW Global cgp_b cgp_e cgp_b)
               (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
@@ -635,7 +685,9 @@ Section KVS_Main_Blocks.
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
                  $Hrmap_arg_read $Hrmap $Hstk $Hcstk_frag
                  $HKVS_f
-                 ]"); auto.
+                 ]"); auto using KVS_pcc_base_not_heap, KVS_cgp_base_not_heap;
+      try (apply Hexport_shadow; rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off
+        /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr).
     { rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }
     { solve_addr+Hkvs_exp_tbl_size. }
     { rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off; solve_addr+Hkvs_exp_tbl_size. }

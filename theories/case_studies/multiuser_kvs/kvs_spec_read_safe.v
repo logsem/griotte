@@ -1,3 +1,4 @@
+From griotte Require Import kvs_spec_read_general.
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode map_simpl register_tactics.
 From griotte Require Import logrel rules.
@@ -116,9 +117,9 @@ Section KVS_spec_read_safe.
 
     (* Either the map key is already allocated, or it is not *)
     iDestruct "Hinterp_nkey" as "[ (%w & >Hney & #Hinterp_nkey) | >Hnkey ]".
-    - iApply KVS_read_spec_in; last iFrame "∗#"; eauto.
+    - iApply KVS_read_spec_in_general; last iFrame "∗#"; eauto.
       iNext.
-      iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull
+      iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hct1 & Hct2 & Hctp & Hcnull
                 & Ha & HLUKVS & Hnkey)".
 
       iDestruct (big_sepS_delete with "[$Hinterp Hnkey Hinterp_nkey]") as "Hinterp"; eauto.
@@ -131,6 +132,8 @@ Section KVS_spec_read_safe.
 
       iApply "Hpost"; iFrame.
       iLeft; iFrame.
+      destruct Hactual as [-> | Hcleared]; last first.
+      { destruct Hcleared as [_ ->]. iApply interp_clear_tag. }
       iApply "Hinterp_nkey".
       iPureIntro; apply related_sts_priv_refl_world.
 

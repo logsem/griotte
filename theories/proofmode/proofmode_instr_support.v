@@ -251,9 +251,18 @@ Ltac instr_auto_solve_bool :=
         apply andb_true_iff; split; instr_auto_solve_bool
     end].
 
+(* A bounded access into a region disjoint from shadow memory is nonshadow.
+   Backtrack over region hypotheses until their bounds cover the address. *)
+Ltac instr_auto_solve_nonshadow :=
+  match goal with
+  | H : disjoint_from_shadow ?b ?e |- is_shadow_address ?a = false =>
+      apply (disjoint_from_shadow_not_in b e a H);
+      solve [assumption | instr_auto_solve_within_bounds]
+  end.
+
 Ltac instr_auto_solve_premise :=
   first [ltac2:(solve_pure_iinstr ()) | instr_auto_solve_bool | solve_addr |
-    instr_auto_solve_within_bounds |
+    instr_auto_solve_within_bounds | instr_auto_solve_nonshadow |
     (rewrite le_addr_withinBounds; solve_addr) |
     (split; first [ltac2:(solve_pure_iinstr ()) | solve_addr |
                    instr_auto_solve_within_bounds]) |

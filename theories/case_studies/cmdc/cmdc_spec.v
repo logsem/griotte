@@ -190,7 +190,7 @@ Section CMDC.
 
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
-      (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto; try done.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
@@ -271,8 +271,6 @@ Section CMDC.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
-    { done. }
-    { split; [done| solve_addr]. }
     (* Mov ct1 0  *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -331,7 +329,7 @@ Section CMDC.
 
     focus_block 6 "Hcode_main" as a_fetch3 Ha_fetch3 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
-      (WSentry XSRW_ Local b_switcher e_switcher a_switcher_call)
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto; try done.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
@@ -409,8 +407,6 @@ Section CMDC.
 
     (* Load ct0 cgp  *)
     iInstr "Hcode".
-    { done. }
-    { split; [done| solve_addr]. }
     (* Mov ct1 42  *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

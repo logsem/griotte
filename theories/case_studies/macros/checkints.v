@@ -1,6 +1,63 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
-From griotte Require Import is_word_type lea_to_base.
+From griotte Require Import is_word_type lea_to_base map_simpl register_tactics.
+
+Section Load_Preserve.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
+
+  (** Without shadow ownership, a load may fail or clear the loaded tag,
+      in addition to the permission transformation performed by [load_word]. *)
+  Lemma wp_load_preserve_or_clear E pc_p pc_g pc_b pc_e pc_a pc_a'
+    dst src wi wd p g b e a raw :
+    readAllowed p = true ->
+    is_shadow_address a = false ->
+    decodeInstrW wi = Load dst src 0 ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    withinBounds b e a = true ->
+    (pc_a + 1)%a = Some pc_a' ->
+    dst ≠ cnull -> src ≠ cnull ->
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ wi ∗
+        dst ↦ᵣ wd ∗ src ↦ᵣ WCap true p g b e a ∗ a ↦ₐ raw }}}
+      Instr Executable @ E
+    {{{ retv, RET retv; ⌜retv = FailedV⌝ ∨
+        ∃ actual, ⌜retv = NextIV⌝ ∗
+        ⌜actual = load_word p raw ∨
+          (is_heap_cap raw = true ∧ actual = clear_tag (load_word p raw))⌝ ∗
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
+        dst ↦ᵣ actual ∗ src ↦ᵣ WCap true p g b e a ∗ a ↦ₐ raw }}}.
+  Proof.
+    iIntros (Hread Hshadow Hinstr Hvpc Hbounds Hpc' Hdst Hsrc φ)
+      "(HPC & Hi & Hdst & Hsrc & Ha) Hφ".
+    destruct (is_heap_cap raw) eqn:Hheap; cycle 1.
+    { iApply (wp_load_success_notinstr with "[$HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
+      iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
+      iApply "Hφ". iRight. iExists (load_word p raw). iFrame.
+      iPureIntro. split; first done. by left. }
+    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
+    iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
+    iApply (wp_load E pc_p pc_g pc_b pc_e pc_a dst src wi with "[$Hmap $Hmem]");
+      eauto; simplify_map_eq; eauto.
+    { by rewrite !dom_insert; set_solver+. }
+    { exists true, p, g, b, e, a. split.
+      - unfold read_reg_inr. by simplify_map_eq.
+      - case_decide; last done. exists raw. by simplify_map_eq. }
+    { intros p0 g0 b0 e0 a0 (Hsrc0 & _).
+      simpl_map_regs by eauto. simplify_map_eq. done. }
+    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 a0 loadv actual Hallow Hlookup Hactual Hinc|].
+    2: { iApply "Hφ". by iLeft. }
+    destruct Hallow as (Hsrc0 & _). simpl_map_regs by eauto. simplify_map_eq.
+    unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
+    rewrite (insert_insert_ne _ dst PC) // insert_insert_eq.
+    rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
+    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+    iApply "Hφ". iRight. iExists actual. iFrame.
+    iPureIntro. split; first done.
+    destruct Hactual as [-> | ->]; [by left|right; done].
+  Qed.
+
+End Load_Preserve.
 
 Section Checkints.
   Context
@@ -70,7 +127,6 @@ Section Checkints_spec.
     (b <= a < e)%a ->
     readAllowed p = true ->
     disjoint_from_shadow b e →
-    Forall (λ w, is_heap_cap w = false) ws →
     Forall (λ w,
               (∃ k, ws !! k = Some w ∧ (∃ a', l !! k = Some a' ∧ (b <= a' < a)%a ))
               ->
@@ -98,7 +154,7 @@ Section Checkints_spec.
     ⊢ WP Seq (Instr Executable) {{ v, φ v }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
-    iIntros (Hvpc Hcont Hl Hae Hra Hdisjoint Hnot_heap Hall Hrcnull Hr1cnull Hr2cnull)
+    iIntros (Hvpc Hcont Hl Hae Hra Hdisjoint Hall Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & >Hmem & Hφ & #Hfailed)".
     iLöb as "IH" forall ( a Hae Hall w1 w2).
     iDestruct (big_sepL2_length with "Hcode") as %Hlength.
@@ -147,19 +203,34 @@ Section Checkints_spec.
     assert (is_shadow_address a = false) as Hnot_shadow.
     { eapply disjoint_from_shadow_not_in; first exact Hdisjoint.
       apply withinBounds_true_iff; solve_addr. }
-    assert (is_heap_cap w = false) as Hw_not_heap.
-    { rewrite Forall_forall in Hnot_heap. apply Hnot_heap.
-      rewrite Hlw. apply elem_of_app; right. by apply elem_of_cons; left. }
-    iInstr "Hcode".
+    (* A heap load may clear a tag or fail. Neither outcome can turn a
+       noninteger into an integer accepted by the check below. *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_load_preserve_or_clear _ _ _ _ _ _ (pc_a ^+ 1)%a
+      with "[$HPC $Hi $Hr1 $Hr $Ha]"); try done; try solve_pure; try solve_addr.
+    iIntros "!>" (ret)
+      "[-> | (%actualv & -> & %Hactual & HPC & Hi & Hr1 & Hr & Ha)]".
+    { wp_pure; wp_end; iExact "Hfailed". }
+    wp_pure. iSpecialize ("Hcode" with "Hi").
     iDestruct ( big_sepL2_cons (λ _ a v, a ↦ₐ v)%I with "[$Ha $Hmem2]") as "Hmem"; auto.
     iDestruct ( big_sepL2_app (λ _ a v, a ↦ₐ v)%I with "[$Hmem1] [$Hmem]") as "Hmem"; auto.
-    rewrite - Ha' - Hlw.
+    rewrite -Ha' -Hlw.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
+    iAssert (codefrag pc_a (checkints_loop_instrs r r1 r2))
+      with "[Hcode]" as "Hcode"; first iExact "Hcode".
+    rewrite /checkints_loop_instrs.
 
     focus_block 1 "Hcode" as a_checkint Ha_checkint "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (is_int_spec with "[- $HPC $Hr1 $Hr2 $Hcode]"); eauto.
     iSplitR "Hfailed"; last (iNext; iApply "Hfailed").
     iNext; iIntros "(HPC & Hr1 & %Hz & Hr2 & Hcode)".
+    assert (∃ z, w = WInt z) as Hraw_int.
+    { destruct Hactual as [-> | Hcleared].
+      - destruct w; destruct_perm p; cbn in *; naive_solver.
+      - destruct Hcleared as [_ ->].
+        destruct w; destruct_perm p; cbn in *; naive_solver.
+    }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
     focus_block 2 "Hcode" as a_cond Ha_cond "Hcode" "Hcont"; iHide "Hcont" as hcont ; clear Ha_checkint a_checkint.
@@ -203,10 +274,8 @@ Section Checkints_spec.
         replace e with (a ^+1)%a in Hk; last solve_addr.
         apply elem_of_finz_seq_between in Hk.
         solve_addr.
-      + destruct Hz as (z & Hz); cbn in *.
-        assert ( w = WInt z) ; simplify_eq.
-        { destruct w ; destruct_perm p; done. }
-        rewrite list_lookup_middle in Hv; simplify_eq; first (eexists ; done).
+      + destruct Hraw_int as (z & Hzraw); subst w.
+        rewrite Hlw list_lookup_middle in Hv; simplify_eq; first (eexists ; done).
         rewrite Hlw1; subst la1.
         rewrite length_take_le; last (eapply Nat.lt_le_incl, lookup_lt_Some; eauto).
         done.
@@ -228,9 +297,7 @@ Section Checkints_spec.
             setoid_rewrite Hl.
             apply finz_seq_between_NoDup.
           }
-          destruct Hz as (z & Hz); cbn in *.
-          assert ( w = WInt z) ; simplify_eq.
-          { destruct w ; destruct_perm p; done. }
+          destruct Hraw_int as (z & Hzraw); subst w.
           rewrite list_lookup_middle in Hwk; simplify_eq; first (eexists ; done).
           rewrite Hlw1; subst la1.
           rewrite length_take_le; last (eapply Nat.lt_le_incl, lookup_lt_Some; eauto).
@@ -301,7 +368,6 @@ Section Checkints_spec.
     l ≡ₚ (finz.seq_between b e) ->
     readAllowed p = true ->
     disjoint_from_shadow b e →
-    Forall (λ w, is_heap_cap w = false) ws →
     r ≠ cnull ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
@@ -326,7 +392,7 @@ Section Checkints_spec.
     ⊢ WP Seq (Instr Executable) {{ φ }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
-    iIntros (Hvpc Hcont Hl Hra Hdisjoint Hnot_heap Hrcnull Hr1cnull Hr2cnull)
+    iIntros (Hvpc Hcont Hl Hra Hdisjoint Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >Hcode & >Hmem & Hφ & #Hfailed)".
     destruct (decide (t = true ∨ (e <= b)%a)) as [Htag_or_empty | Hbad].
     2: { destruct t; first (exfalso; apply Hbad; auto).

@@ -37,10 +37,15 @@ Section DROE.
     (Nassert Nswitcher : namespace)
 
     (cstk : CSTK)
+    (shadow : gmap Addr bool)
     :
 
     let imports := droe_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    disjoint_from_shadow cgp_b cgp_e ->
+    disjoint_from_heap cgp_b cgp_e ->
+    is_heap_address cgp_b = false ->
     Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
@@ -64,6 +69,8 @@ Section DROE.
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+      ∗ saved_shadow [default (WInt 0) (rmap !! cra);
+                      default (WInt 0) (rmap !! cs1)] shadow
 
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
@@ -83,11 +90,11 @@ Section DROE.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
             )
       "(#Hassert & #Hswitcher & Hna
-      & HPC & Hcgp & Hcsp & Hrmap
+      & HPC & Hcgp & Hcsp & Hrmap & Hshadow
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
       & HK
@@ -123,6 +130,7 @@ Section DROE.
     assert ( is_Some (rmap !! cra) ) as [wcra Hwcra].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
+    iEval (rewrite Hwcra Hwcs1 /=) in "Hshadow".
 
     (* Extract the addresses of b and a *)
     iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
@@ -148,6 +156,8 @@ Section DROE.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜(std W_init_C) !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_Winit_C_csp"); eauto. }
 
+    iDestruct (interp_cap_disjoint with "Hinterp_Winit_C_csp")
+      as %[Hstk_shadow Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_Winit_C_csp $Hworld_interp_C]")
         as (l) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk".
@@ -179,14 +189,7 @@ Section DROE.
     (* Lea cgp 1%Z; *)
     iInstr "Hcode".
     (* Store cgp ct0; *)
-    (* NOTE for some reason, iInstr doesnt work here lol *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_store_success_reg with "[$HPC $Hi $Hct0 $Hcgp $Hcgp_a]") ; try solve_pure.
-    { rewrite /withinBounds; solve_addr. }
-    iIntros "!> (HPC & Hi & Hct0 & Hcgp & Hcgp_a)".
-    iDestruct ("Hcode" with "Hi") as "Hcode".
-    wp_pure.
+    iInstr "Hcode".
 
     (* Mov ca0 cgp; *)
     iInstr "Hcode".
@@ -206,7 +209,8 @@ Section DROE.
     (* --------------------------------------------------- *)
 
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -291,6 +295,8 @@ Section DROE.
 
     iAssert (interp W2 C (WCap true RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
+      iSplit; last (iPureIntro; eapply (switcher_disjoint_subseg cgp_b cgp_e);
+        [solve_addr | solve_addr | split; eassumption]).
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
       iApply big_sepL_singleton.
@@ -352,6 +358,8 @@ Section DROE.
 
     iAssert (interp W3 C (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_C_a".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
+      iSplit; last (iPureIntro; eapply (switcher_disjoint_subseg cgp_b cgp_e);
+        [solve_addr | solve_addr | split; eassumption]).
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
       iApply big_sepL_singleton.
@@ -409,7 +417,7 @@ Section DROE.
     }
 
     iEval (cbn) in "Hct1".
-    iApply (switcher_cc_specification _ W3 with
+    iApply (switcher_cc_specification _ W3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ shadow with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
@@ -421,6 +429,10 @@ Section DROE.
     }
     { by rewrite /is_arg_rmap. }
 
+    iSplitL "Hshadow".
+    { iEval (rewrite /saved_shadow /saved_heap_bases /heap_cap_base /= Hcgp_nonheap).
+      iExact "Hshadow".
+    }
     iNext. subst rmap'.
     clear stk_mem.
     iIntros (W2_B rmap' stk_mem l')
@@ -431,8 +443,10 @@ Section DROE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)" ; clear l'.
+      & Hrmap & Hstk & HK & Hshadow)" ; clear l'.
+    iEval (rewrite restore_word_nonheap //) in "Hcgp".
     iEval (cbn) in "HPC".
+    iEval (cbn) in "Hcra".
 
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".

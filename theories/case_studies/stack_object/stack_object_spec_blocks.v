@@ -62,9 +62,6 @@ Section Stack_Object_Blocks.
     { solve_addr+Hcsp_size Hastk1. }
     (* --- Store csp so_secret --- *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
-      rewrite /withinBounds; solve_addr. }
-    { rewrite /withinBounds; solve_addr+Hcsp_size. }
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
     (* --- Mov ca1 csp --- *)
@@ -121,9 +118,6 @@ Section Stack_Object_Blocks.
     iInstr "Hcode".
     (* --- Store ca1 0 --- *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
-      rewrite /withinBounds; solve_addr. }
-    { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
     (* --- Lea csp 1 --- *)
     iInstr "Hcode".
 
@@ -213,10 +207,6 @@ Section Stack_Object_Blocks.
     }
     (* --- Load ct0 csp --- *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
-      rewrite /withinBounds; solve_addr. }
-    { done. }
-    { split; auto. rewrite /withinBounds. solve_addr. }
     (* --- Mov ct1 so_secret --- *)
     iInstr "Hcode".
     iApply "Hpost"; iFrame.

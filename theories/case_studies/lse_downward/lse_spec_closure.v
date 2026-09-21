@@ -40,6 +40,11 @@ Section LSE.
 
     let imports := lse_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    is_shadow_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
+    disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
+    is_heap_address pc_b = false ->
     Nswitcher ## Nassert ->
     Nswitcher ## Nlse ->
     Nassert ## Nlse ->
@@ -67,7 +72,7 @@ Section LSE.
     ot_switcher_prop W C (WCap true RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl (b_lse_exp_tbl ^+ 2)%a).
   Proof.
     intros imports.
-    iIntros (Hswitcher_assert HNswitcher_lse HNassert_lse
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexports_shadow Hpc_nonheap Hswitcher_assert HNswitcher_lse HNassert_lse
                Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher
       & #Hlse_code
@@ -84,6 +89,14 @@ Section LSE.
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; solve_addr).
     iSplit; first (iPureIntro; lia).
+    iSplit; first done.
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first (iPureIntro; eapply disjoint_from_shadow_not_in;
+      [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
+    iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
     iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
@@ -141,6 +154,8 @@ Section LSE.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
+    iDestruct (interp_cap_disjoint with "Hinterp_W0_csp")
+      as %[Hstk_shadow Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l) "(%Hl_unk & Hworld_interp_C & #Hstack_revoked_W0 & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
 

@@ -341,7 +341,8 @@ Section logrel.
         I think it should work, but the infrastructure for this case doesn't exist,
         and we don't lose anything to have the content universally quantified.
    *)
-  Program Definition interp_cont_exec (interp : V) (interp_cont : iProp Σ) :
+  Program Definition interp_cont_exec (interp : V) (interp_cont : iProp Σ)
+    (shadow : gmap Addr bool) :
     (CSTK -n> WORLD  -n> (leibnizO CmptName) -n> (leibnizO cframe) -n> iPropO Σ)
     :=
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (frm : cframe)
@@ -353,13 +354,13 @@ Section logrel.
        let astk4 := (a_stk ^+4)%a in
        let callee_stk_region := finz.seq_between (if (is_untrusted_caller_frm frm) then a_stk else astk4) e_stk in
        let callee_stk_mem := if (is_untrusted_caller_frm frm) then stk_mem_l++stk_mem_h else stk_mem_h in
-       ( PC ↦ᵣ updatePcPerm frm.(wret)
-         ∗ cra ↦ᵣ frm.(wret)
+       ( PC ↦ᵣ updatePcPerm (restore_word shadow frm.(wret))
+         ∗ cra ↦ᵣ restore_word shadow frm.(wret)
          ∗ csp ↦ᵣ (WCap true RWL Local b_stk e_stk a_stk)
          (* cgp, cs0 and cs1 are callee-saved registers *)
-         ∗ cgp ↦ᵣ frm.(wcgp)
-         ∗ cs0 ↦ᵣ frm.(wcs0)
-         ∗ cs1 ↦ᵣ frm.(wcs1)
+         ∗ cgp ↦ᵣ restore_word shadow frm.(wcgp)
+         ∗ cs0 ↦ᵣ restore_word shadow frm.(wcs0)
+         ∗ cs1 ↦ᵣ restore_word shadow frm.(wcs1)
          (* ca0 and ca1 are the return value *)
          ∗ ca0 ↦ᵣ wca0 ∗ interp W C wca0
          ∗ ca1 ↦ᵣ wca1 ∗ interp W C wca1
@@ -373,6 +374,8 @@ Section logrel.
          ∗ world_interp_open W C callee_stk_region
          (* Bookkeeping resources for the opened world *)
          ∗ StackOpenWorldResources interp W C callee_stk_region callee_stk_mem
+         ∗ (if is_untrusted_caller_frm frm then True
+            else saved_shadow (frame_saved_words frm) shadow)
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk
@@ -380,8 +383,8 @@ Section logrel.
            -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.
-  Global Instance interp_cont_exec_ne n :
-    Proper (dist n ==> dist n ==> dist n) (interp_cont_exec).
+  Global Instance interp_cont_exec_ne n shadow :
+    Proper (dist n ==> dist n ==> dist n) (fun interp cont => interp_cont_exec interp cont shadow).
   Proof. solve_proper. Qed.
 
   (** [interp_callee_part_of_the_stack] interprets the stack pointer of the caller [wstk].
@@ -438,8 +441,12 @@ Section logrel.
            ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
              interp_callee_part_of_the_stack interp Wt Ct (WCap true RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) (is_untrusted_caller_frm frm)
              (* The continuation when matching the switcher's state at return-to-caller *)
-             ∗ (∀ W', ⌜related_sts_pub_world Wt W'⌝
-                      -∗  interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs') cstk' W' Ct frm)))%I
+             ∗ (∃ shadow,
+                  (if is_untrusted_caller_frm frm then ⌜shadow = ∅⌝
+                   else saved_shadow (frame_saved_words frm) shadow) ∗
+                  (∀ W', ⌜related_sts_pub_world Wt W'⌝
+                      -∗ interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs')
+                           shadow cstk' W' Ct frm))))%I
     | _,_,_ =>  False%I
     end.
   Solve All Obligations with ( solve_proper; split; intros ; (intros [?  [] ]; done) ).

@@ -292,10 +292,7 @@ Section Switcher_preamble.
     let e_stk := frm.(e_stk) in
     a_tstk ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
     ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
-      disjoint_from_shadow b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ∧
-      (is_untrusted_caller_frm frm = false ->
-       is_heap_cap frm.(wcgp) = false ∧ is_heap_cap frm.(wret) = false ∧
-       is_heap_cap frm.(wcs0) = false ∧ is_heap_cap frm.(wcs1) = false) ⌝ ∗
+      disjoint_from_shadow b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ⌝ ∗
     cframe_stk_own frm%I.
 
   (** [cstack_interp] interprets a call-stack.

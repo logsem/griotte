@@ -2747,7 +2747,6 @@ iApply "Hφ".
   Qed.
 Lemma wp_store_fail_reg_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst src
          p g b e a w'' :
-      is_shadow_address pc_a = false →
      decodeInstrW w = Store dst (inr src) imm →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (a + imm)%a = None →
@@ -2762,12 +2761,13 @@ Lemma wp_store_fail_reg_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst 
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
     Proof.
-      iIntros (Hshadow Hinstr Hvpc Hadd ?? φ)
+      iIntros (Hinstr Hvpc Hadd ?? φ)
              "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
 
-    iApply (wp_store_imm _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
+    iApply (wp_store_imm _ pc_p pc_g pc_b pc_e pc_a dst (inr src) imm w
+      with "[$Hmap $Hmem]"); try done; try (by simplify_map_eq).
     { by rewrite !dom_insert; set_solver+. }
     { rewrite /allow_store_map_or_true_imm.
       eexists true,p,g,b,e,a,w''.
@@ -2782,6 +2782,8 @@ Lemma wp_store_fail_reg_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst 
       rewrite /reg_allows_store_imm.
       by rewrite Hadd.
       }
+    { intros p0 g0 b0 e0 a0 ea (Hdst & Haddr & _).
+      simpl_map_regs by eauto. simplify_map_eq. }
     iNext. iIntros (regs' mem' retv) "(#Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
 
@@ -2797,7 +2799,6 @@ Lemma wp_store_fail_reg_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst 
     Qed.
 Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst
          p g b e a z :
-      is_shadow_address pc_a = false →
      decodeInstrW w = Store dst (inl z) imm →
      isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
      (a + imm)%a = None →
@@ -2810,12 +2811,13 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst
        Instr Executable @ E
        {{{ RET FailedV; True}}}.
     Proof.
-      iIntros (Hshadow Hinstr Hvpc Hadd ? φ)
+      iIntros (Hinstr Hvpc Hadd ? φ)
              "(>HPC & >Hi & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem"; auto.
 
-    iApply (wp_store_imm _ pc_p pc_g with "[$Hmap $Hmem]"); eauto; simplify_map_eq; eauto.
+    iApply (wp_store_imm _ pc_p pc_g pc_b pc_e pc_a dst (inl z) imm w
+      with "[$Hmap $Hmem]"); try done; try (by simplify_map_eq).
     { by rewrite !dom_insert; set_solver+. }
     { rewrite /allow_store_map_or_true_imm.
       eexists true,p,g,b,e,a,_.
@@ -2829,6 +2831,8 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a w dst
       rewrite /reg_allows_store_imm.
       by rewrite Hadd.
       }
+    { intros p0 g0 b0 e0 a0 ea (Hdst & Haddr & _).
+      simpl_map_regs by eauto. simplify_map_eq. }
     iNext. iIntros (regs' mem' retv) "(#Hspec & Hmem & Hmap)".
     iDestruct "Hspec" as %Hspec.
 

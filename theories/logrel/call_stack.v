@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import excl_auth.
 From iris.base_logic Require Import own.
 From griotte Require Import griotte_lang.
+From griotte Require Export cerise_instance machine_parameters machine_word machine_base addresses.
 
 
 (** The relationship between the caller and the callee determines
@@ -62,6 +63,114 @@ Record cframe := MkCFrame {
       e_stk : Addr;
       ccrel : caller_callee_relation;
   }.
+
+(** The saved words of a frame, in the order used by the switcher's
+    specifications: [cgp], [cra], [cs0], and [cs1].
+    These are the original values; restoring a heap capability may clear
+    its tag if its allocation has since been quarantined.
+ **)
+Definition frame_saved_words (frm : cframe) : list Word :=
+  [frm.(wcgp); frm.(wret); frm.(wcs0); frm.(wcs1)].
+
+(** [heap_cap_base w] identifies the shadow entry needed when restoring [w].
+    An ordinary capability whose base lies in the heap uses that base to
+    identify its shadow entry. Other words do not require a shadow entry.
+
+    This follows the classification [is_heap_cap] used by [Load], which
+    includes untagged heap capabilities. In particular, being safe to share
+    does not by itself imply that a word has no heap base.
+ **)
+Definition heap_cap_base `{HeapRegion} (w : Word) : option Addr :=
+  match w with
+  | WCap _ _ _ b _ _ => if is_heap_address b then Some b else None
+  | _ => None
+  end.
+
+(** The set of heap bases mentioned by the saved words. Several registers
+    may contain capabilities with the same base; they share one shadow entry,
+    so the set records that base only once.
+ **)
+Definition saved_heap_bases `{HeapRegion} (ws : list Word) : gset Addr :=
+  list_to_set (omap heap_cap_base ws).
+
+(** The word obtained when restoring [w] using the recorded shadow bits.
+    A [true] bit means QUARANTINED: the capability's tag is cleared, while
+    its other fields are preserved. Otherwise the word is unchanged.
+
+    A missing entry also leaves the word unchanged, making this function
+    total. When used with [saved_shadow], every heap base in the saved words
+    has an entry, so restoration does not rely on this default.
+ **)
+Definition restore_word `{HeapRegion} (shadow : gmap Addr bool) (w : Word) : Word :=
+  match heap_cap_base w with
+  | Some b => if default false (shadow !! b) then clear_tag w else w
+  | None => w
+  end.
+
+Lemma restore_word_nonheap `{HeapRegion} shadow w :
+  is_heap_cap w = false -> restore_word shadow w = w.
+Proof.
+  destruct w as [|[t p g b e a|]| |]; simpl; auto.
+  rewrite /is_heap_cap /restore_word /heap_cap_base.
+  by intros ->.
+Qed.
+
+Lemma restore_word_empty `{HeapRegion} w : restore_word ∅ w = w.
+Proof. unfold restore_word. destruct (heap_cap_base w); done. Qed.
+
+Section Saved_Shadow.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
+
+  (** [saved_shadow ws shadow] owns the shadow entries needed to restore [ws].
+
+      - The domain is exactly [saved_heap_bases ws]: every saved heap
+        capability has an entry, and no unrelated entries are transferred.
+      - Each entry carries full points-to ownership. Aliases among saved
+        registers share a single entry, rather than splitting its ownership.
+
+      The map records the bits at the point where the words are restored.
+      In a known-to-known call, the call and return specifications may use
+      different maps, allowing the callee to change the shadow bits.
+   **)
+  Definition saved_shadow (ws : list Word)
+    (shadow : gmap Addr bool) : iProp Σ :=
+    ⌜dom shadow = saved_heap_bases ws⌝ ∗
+    ([∗ map] b ↦ bit ∈ shadow, b ↦ₛ bit).
+
+  (** Saved words without heap capabilities require no shadow ownership. *)
+  Lemma saved_shadow_empty ws :
+    Forall (fun w => is_heap_cap w = false) ws ->
+    ⊢ saved_shadow ws ∅.
+  Proof.
+    intros Hws. rewrite /saved_shadow big_sepM_empty dom_empty_L.
+    iSplit; last done. iPureIntro.
+    induction Hws as [|w ws Hw Hws IH]; first done.
+    rewrite /saved_heap_bases /= in IH |- *.
+    assert (heap_cap_base w = None) as ->.
+    { destruct w as [|[t p g b e a|]| |]; try done.
+      by rewrite /heap_cap_base /is_heap_cap in Hw |- *; rewrite Hw. }
+    done.
+  Qed.
+
+  (** Temporarily extract the shadow entry for one saved heap capability.
+      Returning the same points-to restores the whole [saved_shadow]
+      assertion, so the entry can also be used to restore aliased registers.
+   **)
+  Lemma saved_shadow_lookup ws shadow w b :
+    w ∈ ws -> heap_cap_base w = Some b ->
+    saved_shadow ws shadow -∗
+    ∃ bit, ⌜shadow !! b = Some bit⌝ ∗ b ↦ₛ bit ∗
+      (b ↦ₛ bit -∗ saved_shadow ws shadow).
+  Proof.
+    iIntros (Hw Hb) "[%Hdom Hshadow]".
+    assert (is_Some (shadow !! b)) as [bit Hbit].
+    { apply elem_of_dom. rewrite Hdom /saved_heap_bases elem_of_list_to_set.
+      apply list_elem_of_omap. eauto. }
+    iDestruct (big_sepM_lookup_acc with "Hshadow") as "[Hb Hclose]"; first exact Hbit.
+    iExists bit. iFrame. iSplit; first done.
+    iIntros "Hb". iSplit; first done. by iApply "Hclose".
+  Qed.
+End Saved_Shadow.
 
 Definition is_untrusted_caller_frm (frm : cframe) :=
   is_untrusted_caller frm.(ccrel).

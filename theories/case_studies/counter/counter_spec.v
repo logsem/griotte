@@ -119,6 +119,9 @@ Section Counter.
 
     let imports := counter_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    is_shadow_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
     Nswitcher ## Ncounter ->
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp ; cra]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -162,7 +165,7 @@ Section Counter.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_counter Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap HNswitcher_counter Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hframe_match Hcsp_sync
             )
       "(#Hswitcher & #Hmem & Hna
@@ -210,6 +213,8 @@ Section Counter.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
+    iDestruct (interp_cap_disjoint with "Hinterp_W0_csp")
+      as %[Hstk_shadow Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l) "(%Hl_unk & Hworld_interp_C & #Hstack_revoked_W0 & >%Hrevoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
 
@@ -230,14 +235,7 @@ Section Counter.
     iInstr "Hcode".
 
     (* Store cgp ca0; *)
-    (* NOTE for some reason, iInstr doesnt work here lol *)
-    iInstr_lookup "Hcode" as "Hi" "Hcode".
-    wp_instr.
-    iApply (wp_store_success_reg with "[$HPC $Hi $Hcs0 $Hcgp $Hcgp_b]") ; try solve_pure.
-    { rewrite /withinBounds; solve_addr. }
-    iIntros "!> (HPC & Hi & Hcs0 & Hcgp & Hcgp_b)".
-    iDestruct ("Hcode" with "Hi") as "Hcode".
-    wp_pure.
+    iInstr "Hcode".
 
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -246,7 +244,8 @@ Section Counter.
     (* --------------------------------------------------- *)
 
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -346,7 +345,7 @@ Section Counter.
       by apply Hrevoked_l in Ha.
     }
 
-    iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ rmap_arg with
+    iApply (switcher_cc_specification_nonheap _ _ _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag
@@ -493,6 +492,9 @@ Section Counter.
 
     let imports := counter_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    is_shadow_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
     Nswitcher ## Ncounter ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length counter_main_code)%a ->
     (cgp_b + length counter_main_data)%a = Some cgp_e ->
@@ -513,7 +515,7 @@ Section Counter.
       (WCap true RX Global pc_b pc_e pc_a) (WCap true RW Global cgp_b cgp_e cgp_b) 0 W0 C.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_counter HsubBounds
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap HNswitcher_counter HsubBounds
                Hcgp_contiguous Himports_contiguous)
       "(#Hswitcher & #Hmain & #Hinterp_C_f & #HentryC_f)
       % % % % % %

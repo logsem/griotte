@@ -189,7 +189,7 @@ Section fundamental.
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "[Ha_tstk (%HWF & Hcframe_interp)]".
-    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_shadow & Hstk_heap & Hsaved_nonheap).
+    destruct HWF as (Hb_a4 & He_a1 & [a_stk4 Ha_stk4] & Hstk_shadow & Hstk_heap).
     simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hccrel_known_to_known & Hfreq).
 
     (* We derive the points-to resources of the compartment's stack.
@@ -201,7 +201,7 @@ Section fundamental.
     rewrite /interp_continuation /interp_cont.
     iEval (cbn) in "Hcont_K"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     cbn.
-    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hexec_topmost_frm)".
+    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & (%shadow & Hshadow & Hexec_topmost_frm))".
     iEval (cbn) in "Hinterp_callee_wstk".
 
     assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
@@ -239,14 +239,20 @@ Section fundamental.
     iDestruct (region_pointsto_cons (a_stk ^+ 3)%a (a_stk ^+ 4)%a (a_stk ^+ 4)%a with "Hstk'")
       as "[Ha_stk3 Hstk']"; [solve_addr+Ha_stk4|solve_addr+Ha_stk4|].
 
-    iApply (switcher_return_block_12_restore_general_spec with
+    iAssert (if is_untrusted_caller ccrel then ⌜shadow = ∅⌝
+             else saved_shadow [wastk3; wastk2; wastk; wastk1] shadow)%I
+      with "[Hshadow]" as "Hshadow".
+    { destruct (is_untrusted_caller ccrel) eqn:Hcaller; first done.
+      destruct Hwastks as (-> & -> & -> & ->). done. }
+    iApply (switcher_return_block_12_restore_caller_spec
+      _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ (is_untrusted_caller ccrel) shadow with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
-        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hcode]"); eauto.
+        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hshadow $Hcode]"); eauto.
     iNext. iIntros (rstk3 rstk2 rstk1 rstk0) "%Hloaded".
     destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
     iIntros
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
-        & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc_restore)".
+        & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hshadow & Hcode & Hlc_restore)".
     iCombine "Hlc Hlc_restore" as "Hlc".
 
     iDestruct (region_pointsto_cons (a_stk ^+ 3)%a (a_stk ^+ 4)%a (a_stk ^+ 4)%a
@@ -351,8 +357,6 @@ Section fundamental.
     destruct (is_untrusted_caller ccrel) eqn:Hccrel ; cycle 1.
     - (* Case where caller is trusted, we use the continuation relation K *)
       destruct Hwastks as (-> & -> & -> & ->).
-      specialize (Hsaved_nonheap Hccrel) as (Hsaved_cgp & Hsaved_ret & Hsaved_cs0 & Hsaved_cs1).
-      apply stack_load_result_nonheap in Hr0, Hr1, Hr2, Hr3; auto.
       subst rstk0 rstk1 rstk2 rstk3.
       iEval (rewrite app_nil_r) in "Hworld_interp".
 
@@ -364,7 +368,7 @@ Section fundamental.
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
       iApply ("Hexec_topmost_frm" with
                "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]").
+      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hshadow $Hcont_K $Hcstk_frag $Hna]").
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we use the IH *)

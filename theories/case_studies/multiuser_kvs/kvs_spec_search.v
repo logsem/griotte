@@ -122,10 +122,6 @@ Section KVS_search.
     iInstr "Hcode".
     (* load rscratch cgp; *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
-      apply withinBounds_true_iff; solve_addr. }
-    { done. }
-    { split; [done | solve_addr]. }
     (* jnz (".some_index")%asm rscratch; *)
     iInstr "Hcode".
     (* mov ridx_empty ridx; *)
@@ -205,20 +201,12 @@ Section KVS_search.
     iInstr "Hcode".
     (* load rscratch cgp; *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
-      apply withinBounds_true_iff; solve_addr. }
-    { done. }
-    { split; [done | solve_addr]. }
     (* jnz (".some_index")%asm rscratch; *)
     iInstr "Hcode".
     (* lea cgp 1; *)
     iInstr "Hcode".
     (* load rscratch cgp; *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
-      apply withinBounds_true_iff; solve_addr. }
-    { done. }
-    { split; [done | solve_addr]. }
     (* sub rscratch rkey rscratch; *)
     iInstr "Hcode".
     destruct (decide (fkey = kidx)) as [-> | Hneq].

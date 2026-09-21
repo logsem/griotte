@@ -481,18 +481,18 @@ Proof.
   - apply Forall_replicate; done.
 Qed.
 
-Lemma vae_concrete_adequacy reg' sreg' mem' es :
+Lemma vae_concrete_adequacy reg' sreg' mem' sh sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (vae_initial_registers, vae_initial_sregisters, vae_initial_memory))
-    (es, (reg', sreg', mem')) ->
+      (vae_initial_registers, vae_initial_sregisters, vae_initial_memory, sh))
+    (es, (reg', sreg', mem', sh')) ->
   mem' !! vae_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
   pose proof
     (@vae_adequacy machine_parameters_instance vae_concrete_layout
       vae_initial_registers reg' vae_initial_sregisters sreg'
-      vae_initial_memory mem' es
+      vae_initial_memory mem' sh sh' es
       vae_initial_registers_correct vae_initial_sregisters_correct
       vae_initial_memory_correct Hrun) as Hadequacy.
   cbn [vae_concrete_layout vae_concrete_cmptAssert] in Hadequacy.
@@ -506,20 +506,20 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem vae_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem',
+  ∃ reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (vae_initial_registers, vae_initial_sregisters, vae_initial_memory))
-      ([Instr Halted], (reg', sreg', mem'))
+        (vae_initial_registers, vae_initial_sregisters, vae_initial_memory, ∅))
+      ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! vae_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct 15000 Executable
-      (vae_initial_registers, vae_initial_sregisters, vae_initial_memory)
+      (vae_initial_registers, vae_initial_sregisters, vae_initial_memory, ∅)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[reg' sreg'] mem'] Hrun].
-  exists reg', sreg', mem'. split.
+  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
+  exists reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply vae_concrete_adequacy; exact Hrun.
 Qed.

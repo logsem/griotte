@@ -45,6 +45,11 @@ Section LSE.
 
     let imports := lse_main_imports C_f in
 
+    disjoint_from_shadow pc_b pc_e ->
+    is_shadow_address cgp_b = false ->
+    is_heap_address cgp_b = false ->
+    disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
+    is_heap_address pc_b = false ->
     Nswitcher ## Nassert ->
     Nswitcher ## Nlse_code ->
     Nassert ## Nlse_code ->
@@ -97,7 +102,7 @@ Section LSE.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (HNswitcher_assert HNswitcher_lse HNassert_lse Hsize_lse_exp_tbl Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexports_shadow Hpc_nonheap HNswitcher_assert HNswitcher_lse HNassert_lse Hsize_lse_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hframe_match
             )
       "(#Hassert & #Hswitcher
@@ -139,6 +144,8 @@ Section LSE.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
+    iDestruct (interp_cap_disjoint with "Hinterp_W0_csp")
+      as %[Hstk_shadow Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l
            ) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hrevoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
@@ -164,7 +171,8 @@ Section LSE.
     (* --------------------------------------------------- *)
 
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -242,7 +250,7 @@ Section LSE.
     }
 
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification with
+    iApply (switcher_cc_specification_nonheap with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag

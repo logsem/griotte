@@ -420,11 +420,11 @@ Proof.
   - apply Forall_replicate; done.
 Qed.
 
-Lemma droe_concrete_adequacy reg' sreg' mem' es :
+Lemma droe_concrete_adequacy reg' sreg' mem' sh sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (droe_initial_registers, droe_initial_sregisters, droe_initial_memory))
-    (es, (reg', sreg', mem')) ->
+      (droe_initial_registers, droe_initial_sregisters, droe_initial_memory, sh))
+    (es, (reg', sreg', mem', sh')) ->
   mem' !! droe_assert_flag = Some (WInt 0%Z).
 Proof.
   intro Hrun.
@@ -432,7 +432,7 @@ Proof.
     (@droe_adequacy machine_parameters_instance droe_concrete_layout
       droe_initial_registers reg'
       droe_initial_sregisters sreg'
-      droe_initial_memory mem' es
+      droe_initial_memory mem' sh sh' es
       droe_initial_registers_correct
       droe_initial_sregisters_correct
       droe_initial_memory_correct Hrun) as Hadequacy.
@@ -448,20 +448,20 @@ Qed.
     Thus this particular adversarial execution terminates normally without
     violating the case study's assertion. *)
 Theorem droe_runs_and_gracefully_halts :
-  ∃ reg' sreg' mem',
+  ∃ reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (droe_initial_registers, droe_initial_sregisters, droe_initial_memory))
-      ([Instr Halted], (reg', sreg', mem'))
+        (droe_initial_registers, droe_initial_sregisters, droe_initial_memory, ∅))
+      ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! droe_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct 3000 Executable
-      (droe_initial_registers, droe_initial_sregisters, droe_initial_memory)
+      (droe_initial_registers, droe_initial_sregisters, droe_initial_memory, ∅)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[reg' sreg'] mem'] Hrun].
-  exists reg', sreg', mem'. split.
+  destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].
+  exists reg', sreg', mem', sh'. split.
   - exact Hrun.
   - eapply droe_concrete_adequacy; exact Hrun.
 Qed.

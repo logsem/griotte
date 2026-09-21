@@ -574,7 +574,15 @@ Section Stack_Object_Region_Resources.
       as "#Hinterp_fresh".
     { iEval (rewrite fixpoint_interp1_eq interp1_eq).
       cbn.
-      iSplit; last done.
+      iDestruct (interp_cap_disjoint with "Hinterp_stack") as %[Hshadow Hheap]; first done.
+      iSplit; last first.
+      { iPureIntro. split; first done.
+        rewrite /disjoint_from_shadow elem_of_disjoint in Hshadow |- *.
+        rewrite /disjoint_from_heap elem_of_disjoint in Hheap |- *.
+        split; intros x Hx Hregion; [eapply Hshadow | eapply Hheap];
+          try exact Hregion; apply elem_of_finz_seq_between;
+          apply elem_of_finz_seq_between in Hx; solve_addr.
+      }
       rewrite (finz_seq_between_singleton a_stk1 a_stk2);
         last solve_addr+Ha_stk2 Hastk1_stk2.
       cbn.

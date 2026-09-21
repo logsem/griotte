@@ -732,16 +732,22 @@ Section wp_interp.
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
     iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
     iApply (wp_load E pc_p pc_g pc_b pc_e pc_a rdst rsrc wi with "[$Hmap $Hmem]")
-      ; eauto; simplify_map_eq; eauto.
+      ; try done; try (by simplify_map_eq).
     { by rewrite !dom_insert; set_solver+. }
-    { exists p, g, b, e, a. split.
+    { exists true, p, g, b, e, a. split.
       - unfold read_reg_inr. by simplify_map_eq.
       - case_decide; last done. exists w. by simplify_map_eq. }
-    { intros p0 g0 b0 e0 a0 (Hsrc0 & _). simplify_map_eq. done. }
+    { intros p0 g0 b0 e0 a0 (Hsrc0 & _). simpl_map_regs by eauto. simplify_map_eq. done. }
     iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 a0 loadv actualv Hallow Hlookup Hactual Hinc|].
     2: { iApply "Hφ". by iLeft. }
-    destruct Hallow as (Hsrc0 & _). simplify_map_eq.
+    destruct Hallow as (Hsrc0 & _). simpl_map_regs by eauto.
+    rewrite lookup_insert_ne in Hsrc0; last congruence.
+    rewrite lookup_insert decide_True in Hsrc0; last done.
+    injection Hsrc0 as <- <- <- <- <-.
+    rewrite lookup_insert_ne in Hlookup; last congruence.
+    rewrite lookup_insert decide_True in Hlookup; last done.
+    injection Hlookup as ->.
     unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
     rewrite (insert_insert_ne _ rdst PC) // insert_insert_eq.
     rewrite (insert_insert_ne _ rdst rsrc) // insert_insert_eq.
@@ -850,7 +856,7 @@ Section wp_interp.
     destruct (is_cap wdst) eqn:Hcap;cycle 1.
     {
       iApply (wp_store_fail_reg_not_cap_imm _ _ _ _ _ _ _ _ rdst rsrc with "[$]")
-      ; try solve_pure; eauto.
+      ; try solve_pure; try done.
       iIntros "!> _". iApply "Hφ"; by iLeft. }
     destruct wdst; try done. destruct sb; try done.
     destruct tag; cycle 1.
@@ -864,7 +870,7 @@ Section wp_interp.
 
     destruct (a + imm)%a as [ea|] eqn:Hea; cycle 1.
     {
-      iApply (wp_store_fail_reg_overflow_imm E imm pc_p pc_g pc_b pc_e pc_a wi rdst rsrc p g b e a wsrc with "[$]"); eauto; try solve_pure; eauto.
+      iApply (wp_store_fail_reg_overflow_imm E imm pc_p pc_g pc_b pc_e pc_a wi rdst rsrc p g b e a wsrc with "[$]"); try solve_pure; try done.
       iNext; iIntros "_". iApply "Hφ"; by iLeft.
     }
 
@@ -872,7 +878,7 @@ Section wp_interp.
     {
       iApply (wp_store_fail_reg_perm_imm with "[HPC Hi Hdst Hsrc]")
       ; try iFrame
-      ; try solve_pure; eauto.
+      ; try solve_pure; try done.
       { by destruct (writeAllowed p); auto. }
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
@@ -881,7 +887,7 @@ Section wp_interp.
     {
       iApply (wp_store_fail_reg_imm with "[HPC Hi Hdst Hsrc]")
       ; try iFrame
-      ; try solve_pure; eauto.
+      ; try solve_pure; try done.
       { rewrite /withinBounds; solve_addr. }
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
@@ -890,7 +896,7 @@ Section wp_interp.
     {
       iApply (wp_store_fail_reg_imm with "[HPC Hi Hdst Hsrc]")
       ; try iFrame
-      ; try solve_pure; eauto.
+      ; try solve_pure; try done.
       { rewrite /withinBounds; solve_addr. }
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
@@ -916,9 +922,12 @@ Section wp_interp.
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
 
+    iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow.
+    { eapply writeAllowed_nonO; eauto. }
+    { apply withinBounds_true_iff; solve_addr. }
     iApply (wp_store_success_reg_store_word_imm E pc_p pc_g pc_b pc_e pc_a pc_a' wi rdst rsrc w p g b e a ea imm wsrc with "[$HPC Hi Hsrc Hdst Ha]")
     ; try iFrame
-    ; try solve_pure; eauto.
+    ; try solve_pure; try done.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hi & Hsrc & Hdst & Ha)".
 
@@ -1030,7 +1039,7 @@ Section wp_interp.
     destruct (is_cap wdst) eqn:Hcap;cycle 1.
     {
       iApply (wp_store_fail_z_not_cap_imm with "[$]")
-      ; try solve_pure; eauto.
+      ; try solve_pure; try done.
       iIntros "!> _". iApply "Hφ"; by iLeft. }
     destruct wdst; try done. destruct sb; try done.
     destruct tag; cycle 1.
@@ -1044,7 +1053,7 @@ Section wp_interp.
 
     destruct (a + imm)%a as [ea|] eqn:Hea; cycle 1.
     {
-      iApply (wp_store_fail_z_overflow_imm E imm pc_p pc_g pc_b pc_e pc_a wi rdst p g b e a z with "[$]"); eauto; try solve_pure; eauto.
+      iApply (wp_store_fail_z_overflow_imm E imm pc_p pc_g pc_b pc_e pc_a wi rdst p g b e a z with "[$]"); try solve_pure; try done.
       iNext; iIntros "_". iApply "Hφ"; by iLeft.
     }
 
@@ -1053,7 +1062,7 @@ Section wp_interp.
       iApply (wp_store_fail_z_perm_imm with "[HPC Hi Hdst]")
       ; try iFrame
       ; try solve_pure
-      ; eauto.
+      ; try done.
       { by destruct ( writeAllowed p ); auto. }
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
@@ -1063,7 +1072,7 @@ Section wp_interp.
       iApply (wp_store_fail_z_imm with "[HPC Hi Hdst]")
       ; try iFrame
       ; try solve_pure
-      ; eauto.
+      ; try done.
       { rewrite /withinBounds; solve_addr. }
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
@@ -1073,7 +1082,7 @@ Section wp_interp.
       iApply (wp_store_fail_z_imm with "[HPC Hi Hdst]")
       ; try iFrame
       ; try solve_pure
-      ; eauto.
+      ; try done.
       { rewrite /withinBounds; solve_addr. }
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
@@ -1098,15 +1107,17 @@ Section wp_interp.
     ; [|eauto|]; [ destruct ρ;auto;done|].
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
+    iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow.
+    { eapply writeAllowed_nonO; try done. }
+    { apply withinBounds_true_iff; solve_addr. }
     iApply (wp_store_success_z_imm E pc_p pc_g pc_b pc_e pc_a pc_a' wi rdst z w p g b e a ea imm with "[$HPC Hi Hdst Ha]")
     ; try iFrame
-    ; try solve_pure
-    ; eauto.
+    ; try solve_pure; try done.
     { rewrite /withinBounds; solve_addr. }
     iNext; iIntros "(HPC & Hi & Hdst & Ha)".
 
     iAssert (P W C (WInt z)) as "Hinterp'".
-    { iApply "Hwcond"; iApply interp_int. }
+    { iApply "Hwcond"; iApply interp_untagged; done. }
     iAssert (mono_invariant C p' (safeC P) (WInt z) ρ) as "Hmono'".
     {
       rewrite /monoReq Hρ mono_invariant_eq.
@@ -1118,7 +1129,7 @@ Section wp_interp.
     }
 
     iDestruct ("WorldRes" with "[$Ha $Hinterp' $Hmono']") as "WorldRes".
-    iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes") as "Hworld_interp"; eauto.
+    iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes") as "Hworld_interp"; try done.
     { destruct ρ;auto;contradiction. }
 
     iApply "Hφ"; iRight. iExists p, g, b, e, a, ea. iFrame "∗%".
@@ -1208,7 +1219,7 @@ Section wp_interp.
     {
       iApply (wp_load_fail_not_cap_imm with "[HPC Hi Hsrc Hdst]")
       ; try iFrame
-      ; try solve_pure; eauto.
+      ; try solve_pure; try done.
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
     }
@@ -1232,7 +1243,7 @@ Section wp_interp.
     {
       iApply (wp_load_fail_not_ra_imm with "[HPC Hi Hsrc Hdst]")
       ; try iFrame
-      ; try solve_pure; eauto.
+      ; try solve_pure; try done.
       { destruct p as [ [] ? ? ? ]; cbn in * ; done. }
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
@@ -1241,7 +1252,7 @@ Section wp_interp.
     {
       iApply (wp_load_fail_not_withinbounds_imm with "[HPC Hi Hsrc Hdst]")
       ; try iFrame
-      ; try solve_pure; eauto.
+      ; try solve_pure; try done.
       { rewrite /withinBounds; solve_addr. }
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
@@ -1250,7 +1261,7 @@ Section wp_interp.
     {
       iApply (wp_load_fail_not_withinbounds_imm with "[HPC Hi Hsrc Hdst]")
       ; try iFrame
-      ; try solve_pure; eauto.
+      ; try solve_pure; try done.
       { rewrite /withinBounds; solve_addr. }
       iNext; iIntros "_".
       iApply "Hφ"; by iLeft.
@@ -1275,24 +1286,48 @@ Section wp_interp.
     ; [|eauto|]; [ destruct ρ;auto;done|].
     iDestruct (WorldRes_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes ]".
 
-    iApply (wp_load_success_alt_imm with "[$HPC Hi Hsrc Hdst Ha]")
-    ; try iFrame
-    ; try solve_pure; eauto.
-    { split; auto. rewrite /withinBounds; solve_addr. }
-    iNext; iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
-    pose proof (Hpers (W, C, w)).
+    iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow.
+    { eapply readAllowed_nonO; eauto. }
+    { apply withinBounds_true_iff; solve_addr. }
+    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
+    iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
+    iApply (wp_load_memory_imm E pc_p pc_g pc_b pc_e pc_a rdst rsrc imm wi _ _ (DfracOwn 1) with "[$Hmap $Hmem]");
+      try done; try (by simplify_map_eq).
+    { by rewrite !dom_insert; set_solver+. }
+    { exists true, p, g, b, e, a. split.
+      - unfold read_reg_inr. by simplify_map_eq.
+      - rewrite /reg_allows_load_imm Hea. case_decide; last done. exists w. by simplify_map_eq. }
+    { intros p0 g0 b0 e0 a0 ea0 (Hsrc0 & Haddr & _).
+      simpl_map_regs by eauto. simplify_map_eq. done. }
+    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 a0 ea0 loadv actualv Hallow Hlookup Hactual Hinc|].
+    2: { iApply "Hφ". by iLeft. }
+    destruct Hallow as (Hsrc0 & Haddr & _). simpl_map_regs by eauto.
+    rewrite lookup_insert_ne in Hsrc0; last congruence.
+    rewrite lookup_insert decide_True in Hsrc0; last done.
+    injection Hsrc0 as <- <- <- <- <-.
+    rewrite Hea in Haddr. injection Haddr as <-.
+    rewrite lookup_insert_ne in Hlookup; last congruence.
+    rewrite lookup_insert decide_True in Hlookup; last done.
+    injection Hlookup as ->.
+    unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
+    rewrite (insert_insert_ne _ rdst PC) // insert_insert_eq.
+    rewrite (insert_insert_ne _ rdst rsrc) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
+    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+    pose proof (Hpers (W, C, loadv)).
     iDestruct "Hinterp" as "#HφV /=".
-
     iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
     iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes") as "Hworld_interp"; eauto.
     { destruct ρ;auto;contradiction. }
-
-    iApply "Hφ"; iRight. iExists p, g, b, e, a, ea, (load_word p w). iFrame "∗%".
+    iApply "Hφ"; iRight. iExists p, g, b, e, a, ea, actualv. iFrame "∗%".
     iSplit; first done.
     iSplit; first done.
     iSplit; last solve_addr.
+    destruct Hactual as [-> | ->]; last iApply interp_clear_tag.
     iDestruct ("Hwcond" with "HφV") as "H"; cbn.
     iApply interp_weakening_word_load; eauto.
+
   Qed.
 
   Lemma wp_load_interp_cap_imm (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
