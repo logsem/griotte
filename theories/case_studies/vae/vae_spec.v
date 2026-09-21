@@ -265,7 +265,7 @@ Section VAE.
     }
 
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification_nonheap with
+    iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag
@@ -277,6 +277,8 @@ Section VAE.
     }
     { by rewrite /is_arg_rmap. }
 
+    iSplitR.
+    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     clear dependent wca0 wct0 wct1 wct2 wct3 wcs0 wcs1.
     clear dependent wca1 wca2 wca3 wca4 wca5 rmap.
     clear stk_mem.
@@ -288,7 +290,7 @@ Section VAE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)"; clear l'.
+      & Hrmap & Hstk & HK & _)"; clear l'.
     iEval (cbn) in "HPC".
 
     (* Halt *)

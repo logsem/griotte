@@ -21,6 +21,11 @@ Section Switcher_KtK_Return.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
 
+  (** The [_call] bits identify the frame pushed at call time. The remaining
+      four bits describe the shadow entries owned at return and determine
+      the restored words. They need not equal the call-time bits; popping
+      the frame does not require updating its shadow metadata.
+   **)
   Lemma switcher_cc_specification_return_known_to_known
     (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wca0 wca1 : Word)
@@ -29,7 +34,8 @@ Section Switcher_KtK_Return.
     (rmap : Reg)
     (cstk : CSTK)
     (E : coPset)
-    (shadow : gmap Addr bool)
+    (scgp_call scra_call scs0_call scs1_call : option bool)
+    (scgp scra scs0 scs1 : option bool)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let frame :=
@@ -40,7 +46,11 @@ Section Switcher_KtK_Return.
               b_stk := b_stk;
               a_stk := a_stk;
               e_stk := e_stk;
-              ccrel := Known_to_Known
+              ccrel := Known_to_Known;
+              shadow_cgp := scgp_call;
+              shadow_cra := scra_call;
+              shadow_cs0 := scs0_call;
+              shadow_cs1 := scs1_call
            |}
     in
 
@@ -77,7 +87,7 @@ Section Switcher_KtK_Return.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ cstack_frag (frame::cstk)
-    ∗ saved_shadow [wcgp_caller; wcra_caller; wcs0_caller; wcs1_caller] shadow
+    ∗ saved_registers_shadow wcgp_caller wcra_caller wcs0_caller wcs1_caller scgp scra scs0 scs1
 
 
     (* POST-CONDITION *)
@@ -87,8 +97,8 @@ Section Switcher_KtK_Return.
               (* NA token*)
               ∗ na_own cerise_nais E
               (* Registers *)
-              ∗ PC ↦ᵣ updatePcPerm (restore_word shadow wcra_caller)
-              ∗ cgp ↦ᵣ restore_word shadow wcgp_caller ∗ cra ↦ᵣ restore_word shadow wcra_caller ∗ cs0 ↦ᵣ restore_word shadow wcs0_caller ∗ cs1 ↦ᵣ restore_word shadow wcs1_caller
+              ∗ PC ↦ᵣ updatePcPerm (restore_saved_word scra wcra_caller)
+              ∗ cgp ↦ᵣ restore_saved_word scgp wcgp_caller ∗ cra ↦ᵣ restore_saved_word scra wcra_caller ∗ cs0 ↦ᵣ restore_saved_word scs0 wcs0_caller ∗ cs1 ↦ᵣ restore_saved_word scs1 wcs1_caller
               (* Stack register *)
               ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
               (* Return values *)
@@ -102,7 +112,7 @@ Section Switcher_KtK_Return.
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ cstack_frag cstk
-              ∗ saved_shadow [wcgp_caller; wcra_caller; wcs0_caller; wcs1_caller] shadow
+              ∗ saved_registers_shadow wcgp_caller wcra_caller wcs0_caller wcs1_caller scgp scra scs0 scs1
 
                 -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
             )
@@ -187,12 +197,19 @@ Section Switcher_KtK_Return.
     (* --- Lea csp -1 --- *)
     iInstr "Hcode" with "Hlc".
 
+    (** The load rules use one shadow entry per heap base, including when
+          several saved registers alias the same base. **)
+    iDestruct (saved_registers_shadow_open with "Hshadow")
+      as (shadow) "[Hshadow (%Hscgp & %Hscra & %Hscs0 & %Hscs1)]".
+    subst scgp scra scs0 scs1.
     iApply (switcher_return_block_12_restore_shadow_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
         $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hshadow $Hcode]"); eauto.
     iNext. iIntros
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
         & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hshadow & Hcode & Hlc_restore)".
+    iDestruct (saved_registers_shadow_map with "Hshadow") as "Hshadow".
+    iEval (rewrite <- !restore_saved_word_map) in "Hcgp Hcra Hcs0 Hcs1".
     iCombine "Hlc Hlc_restore" as "Hlc".
     iDestruct "Hlc" as "[Hlc Hlc']".
 
@@ -279,5 +296,6 @@ Section Switcher_KtK_Return.
 
     iApply "Hpost"; iFrame "∗ # %".
   Qed.
+
 
 End Switcher_KtK_Return.

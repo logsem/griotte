@@ -185,7 +185,7 @@ Section fundamental.
     destruct Ws;[done|].
     destruct Cs;[done|].
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
-    destruct frm.
+    destruct frm as [wret wcgp0 wcs2 wcs3 b_stk a_stk e_stk ccrel scgp scra scs0 scs1].
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "[Ha_tstk (%HWF & Hcframe_interp)]".
@@ -201,8 +201,13 @@ Section fundamental.
     rewrite /interp_continuation /interp_cont.
     iEval (cbn) in "Hcont_K"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     cbn.
-    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & (%shadow & Hshadow & Hexec_topmost_frm))".
+    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & (Hshadow & Hexec_topmost_frm))".
     iEval (cbn) in "Hinterp_callee_wstk".
+
+    iDestruct (saved_registers_shadow_resources_open wcgp0 wret wcs2 wcs3
+        scgp scra scs0 scs1 (is_untrusted_caller ccrel) with "Hshadow")
+      as (shadow) "[Hshadow (%Hscgp & %Hscra & %Hscs0 & %Hscs1)]".
+    cbn in Hscgp, Hscra, Hscs0, Hscs1.
 
     assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
     { apply not_true_is_false. intros Hheap. apply withinBounds_true_iff in Hheap.
@@ -220,7 +225,7 @@ Section fundamental.
     iNext; iIntros
       "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & Hcode & Hlc)".
 
-    iDestruct (open_world_interp_cframe with "[$Hcframe_interp $Hworld_interp]")
+    iDestruct (open_world_interp_cframe _ _ _ _ _ _ _ _ _ _ _ scgp scra scs0 scs1 with "[$Hcframe_interp $Hworld_interp]")
       as "(%wastk & %wastk1 & %wastk2 & %wastk3
           & Hstk'
           & Hclose_res & %Hwastks & Hworld_interp)";
@@ -366,6 +371,10 @@ Section fundamental.
       iDestruct (StackOpenWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
 
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
+      iDestruct (saved_registers_shadow_map with "Hshadow") as "Hshadow".
+      iEval (rewrite /interp_cont_exec /frame_saved_shadow /is_untrusted_caller_frm
+        /= ?Hccrel Hscgp Hscra Hscs0 Hscs1 !restore_saved_word_map)
+        in "Hexec_topmost_frm".
       iApply ("Hexec_topmost_frm" with
                "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
       $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hshadow $Hcont_K $Hcstk_frag $Hna]").

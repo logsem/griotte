@@ -960,7 +960,11 @@ Section fundamental.
               b_stk := b ;
               a_stk := a ;
               e_stk := e ;
-              ccrel := Unknown_to_Unknown
+              ccrel := Unknown_to_Unknown;
+              shadow_cgp := None;
+              shadow_cra := None;
+              shadow_cs0 := None;
+              shadow_cs1 := None
            |}).
 
     iSpecialize ("Hexec" with "[]").
@@ -986,7 +990,7 @@ Section fundamental.
     { iFrame. simpl.
       iSplit.
       - iApply (interp_weakening with "IH Hspv");auto;solve_addr.
-      - iExists ∅. iSplit; first done.
+      - iSplit; first done.
         iIntros (W' HW' ?????) "(HPC & _)".
         rewrite /interp_conf.
         wp_instr.

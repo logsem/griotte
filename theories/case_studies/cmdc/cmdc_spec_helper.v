@@ -222,20 +222,18 @@ Section CMDC_Call_Phase.
     iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked")
       as "Hstack_revoked"; eauto.
 
-    iApply (switcher_cc_specification_nonheap _ Wcall with
+    iApply (switcher_cc_specification _ Wcall with
       "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
        $Hargs $Hrmap $Hstk $Hworld $Hstack_revoked $Hcstk $HK
        $Htarget_call $Hentry]").
     - exact Hstk_shadow.
     - exact Hstk_heap.
-    - exact Hcgp_heap.
-    - exact Hcra_heap.
-    - exact Hcs0_heap.
-    - exact Hcs1_heap.
     - exact Hrmap_dom.
     - subst arg_rmap. by rewrite /is_arg_rmap.
     - iSplit; first done.
 
+      iSplitR.
+      { iApply saved_registers_shadow_empty. repeat constructor; assumption. }
       iNext.
       iIntros (Wret rmap' stk_mem' l')
       "(%Hextract & Hrevoked_l & %Hrevoked_l_revoke
@@ -243,7 +241,7 @@ Section CMDC_Call_Phase.
       & %Hrmap'_dom & Hstack_revoked & %Hrevoked_stk_revoke
       & Hna & %Hstk_bounds & Hworld & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-      & Hca0 & Hca1 & Hrmap & Hstk & HK)".
+      & Hca0 & Hca1 & Hrmap & Hstk & HK & _)".
 
       assert (shared_addr ∉ callee_stk_region) as Hshared_addr_callee.
       { subst callee_stk_region.

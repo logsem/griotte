@@ -37,7 +37,6 @@ Section DROE.
     (Nassert Nswitcher : namespace)
 
     (cstk : CSTK)
-    (shadow : gmap Addr bool)
     :
 
     let imports := droe_main_imports C_f in
@@ -46,6 +45,11 @@ Section DROE.
     disjoint_from_shadow cgp_b cgp_e ->
     disjoint_from_heap cgp_b cgp_e ->
     is_heap_address cgp_b = false ->
+    (* [cra] is saved in [cs0], while [cs1] is left unchanged across the call.
+       Requiring these incoming words to be nonheap avoids shadow ownership;
+       the adequacy setup initializes both registers to integer zero. *)
+    is_heap_cap (default (WInt 0) (rmap !! cra)) = false ->
+    is_heap_cap (default (WInt 0) (rmap !! cs1)) = false ->
     Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
@@ -69,9 +73,6 @@ Section DROE.
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
-      ∗ saved_shadow [default (WInt 0) (rmap !! cra);
-                      default (WInt 0) (rmap !! cs1)] shadow
-
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
       ∗ codefrag pc_a droe_main_code
@@ -90,11 +91,11 @@ Section DROE.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcra_nonheap Hcs1_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
             )
       "(#Hassert & #Hswitcher & Hna
-      & HPC & Hcgp & Hcsp & Hrmap & Hshadow
+      & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
       & HK
@@ -130,7 +131,8 @@ Section DROE.
     assert ( is_Some (rmap !! cra) ) as [wcra Hwcra].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
     iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
-    iEval (rewrite Hwcra Hwcs1 /=) in "Hshadow".
+    rewrite Hwcra /= in Hcra_nonheap.
+    rewrite Hwcs1 /= in Hcs1_nonheap.
 
     (* Extract the addresses of b and a *)
     iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
@@ -417,7 +419,7 @@ Section DROE.
     }
 
     iEval (cbn) in "Hct1".
-    iApply (switcher_cc_specification _ W3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ shadow with
+    iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
@@ -429,10 +431,8 @@ Section DROE.
     }
     { by rewrite /is_arg_rmap. }
 
-    iSplitL "Hshadow".
-    { iEval (rewrite /saved_shadow /saved_heap_bases /heap_cap_base /= Hcgp_nonheap).
-      iExact "Hshadow".
-    }
+    iSplitR.
+    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     iNext. subst rmap'.
     clear stk_mem.
     iIntros (W2_B rmap' stk_mem l')
@@ -443,8 +443,8 @@ Section DROE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & Hshadow)" ; clear l'.
-    iEval (rewrite restore_word_nonheap //) in "Hcgp".
+      & Hrmap & Hstk & HK & _)" ; clear l'.
+    iEval (cbn) in "Hcgp".
     iEval (cbn) in "HPC".
     iEval (cbn) in "Hcra".
 

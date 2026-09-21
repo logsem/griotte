@@ -351,7 +351,7 @@ Section DLE.
     }
 
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification_nonheap with
+    iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
@@ -363,6 +363,8 @@ Section DLE.
     }
     { by rewrite /is_arg_rmap. }
 
+    iSplitR.
+    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     clear dependent wca0 wct0 wct1 wct2 wct3 wcs0 wcs1.
     clear dependent wca1 wca2 wca3 wca4 wca5 rmap.
     clear stk_mem.
@@ -375,7 +377,7 @@ Section DLE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)".
+      & Hrmap & Hstk & HK & _)".
     iEval (cbn) in "HPC".
 
 
@@ -497,7 +499,7 @@ Section DLE.
     (* Prepare the closing resources for the switcher call spec *)
     iDestruct (StackRevokedResources_mono_priv _ W5 with "Hstack_revoked_W4") as "#Hstack_revoked_W5"; auto.
 
-    iApply (switcher_cc_specification_nonheap with
+    iApply (switcher_cc_specification with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
@@ -509,6 +511,8 @@ Section DLE.
     }
     { by rewrite /is_arg_rmap. }
 
+    iSplitR.
+    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     iNext. subst rmap'.
     clear dependent warg0 warg1 rmap stk_mem.
     iIntros (W6 rmap stk_mem l0)
@@ -519,7 +523,7 @@ Section DLE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)"; clear l0.
+      & Hrmap & Hstk & HK & _)"; clear l0.
     iEval (cbn) in "HPC".
 
     (* -- simplify our knowledge about rmap -- *)

@@ -1093,7 +1093,7 @@ Section KVS_spec_erase.
   Qed.
 
   Lemma KVS_erase_spec_known_to_known
-    (shadow : gmap Addr bool)
+    (scgp scra scs0 scs1 : option bool)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
     (b_stk e_stk a_stk : Addr)
     (arg_rmap : Reg) (cstk : CSTK) (E : coPset)
@@ -1122,7 +1122,7 @@ Section KVS_spec_erase.
          ⌜ wca1 = WInt 0 ⌝)
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk arg_rmap cstk kvs_erase_nargs E
-      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_erase_pcc_off shadow.
+      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_erase_pcc_off scgp scra scs0 scs1.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).
@@ -1180,7 +1180,7 @@ Section KVS_spec_erase.
     set (rmap_ret := <[ct0 := WInt 0]> rmap_ret8).
     iEval (cbn) in "HPC".
 
-    iApply ("Hpost" $! shadow (WInt 0) (WInt 0) rmap_ret
+    iApply ("Hpost" $! scgp scra scs0 scs1 (WInt 0) (WInt 0) rmap_ret
               (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
     iSplit.
     { iPureIntro.

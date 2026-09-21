@@ -342,7 +342,7 @@ Section logrel.
         and we don't lose anything to have the content universally quantified.
    *)
   Program Definition interp_cont_exec (interp : V) (interp_cont : iProp Σ)
-    (shadow : gmap Addr bool) :
+    :
     (CSTK -n> WORLD  -n> (leibnizO CmptName) -n> (leibnizO cframe) -n> iPropO Σ)
     :=
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (frm : cframe)
@@ -354,13 +354,13 @@ Section logrel.
        let astk4 := (a_stk ^+4)%a in
        let callee_stk_region := finz.seq_between (if (is_untrusted_caller_frm frm) then a_stk else astk4) e_stk in
        let callee_stk_mem := if (is_untrusted_caller_frm frm) then stk_mem_l++stk_mem_h else stk_mem_h in
-       ( PC ↦ᵣ updatePcPerm (restore_word shadow frm.(wret))
-         ∗ cra ↦ᵣ restore_word shadow frm.(wret)
+       ( PC ↦ᵣ updatePcPerm (restore_saved_word frm.(shadow_cra) frm.(wret))
+         ∗ cra ↦ᵣ restore_saved_word frm.(shadow_cra) frm.(wret)
          ∗ csp ↦ᵣ (WCap true RWL Local b_stk e_stk a_stk)
          (* cgp, cs0 and cs1 are callee-saved registers *)
-         ∗ cgp ↦ᵣ restore_word shadow frm.(wcgp)
-         ∗ cs0 ↦ᵣ restore_word shadow frm.(wcs0)
-         ∗ cs1 ↦ᵣ restore_word shadow frm.(wcs1)
+         ∗ cgp ↦ᵣ restore_saved_word frm.(shadow_cgp) frm.(wcgp)
+         ∗ cs0 ↦ᵣ restore_saved_word frm.(shadow_cs0) frm.(wcs0)
+         ∗ cs1 ↦ᵣ restore_saved_word frm.(shadow_cs1) frm.(wcs1)
          (* ca0 and ca1 are the return value *)
          ∗ ca0 ↦ᵣ wca0 ∗ interp W C wca0
          ∗ ca1 ↦ᵣ wca1 ∗ interp W C wca1
@@ -375,7 +375,7 @@ Section logrel.
          (* Bookkeeping resources for the opened world *)
          ∗ StackOpenWorldResources interp W C callee_stk_region callee_stk_mem
          ∗ (if is_untrusted_caller_frm frm then True
-            else saved_shadow (frame_saved_words frm) shadow)
+            else frame_saved_shadow frm)
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk
@@ -383,8 +383,8 @@ Section logrel.
            -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.
-  Global Instance interp_cont_exec_ne n shadow :
-    Proper (dist n ==> dist n ==> dist n) (fun interp cont => interp_cont_exec interp cont shadow).
+  Global Instance interp_cont_exec_ne n :
+    Proper (dist n ==> dist n ==> dist n) (fun interp cont => interp_cont_exec interp cont).
   Proof. solve_proper. Qed.
 
   (** [interp_callee_part_of_the_stack] interprets the stack pointer of the caller [wstk].
@@ -425,6 +425,15 @@ Section logrel.
       - [interp_cont_exec], which provides a WP rule for the continuation,
         matching the machine state after the return-to-caller
 
+      The frame stores the call-time shadow bits. For a known caller calling
+      unknown code, [frame_shadow_resources] retains the full shadow ownership
+      until return. Aliased registers share their entry. Unknown callers carry
+      only the assertion that all four metadata fields are [None].
+
+      Known-to-known frames also record call-time bits, but their return bits
+      are supplied separately by the functional specification. Changing those
+      bits does not update the ghost call-stack.
+
       The "body" of continuation relation is only enforced if the caller-callee relation
       involves an unknown compartment.
    *)
@@ -441,12 +450,10 @@ Section logrel.
            ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
              interp_callee_part_of_the_stack interp Wt Ct (WCap true RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) (is_untrusted_caller_frm frm)
              (* The continuation when matching the switcher's state at return-to-caller *)
-             ∗ (∃ shadow,
-                  (if is_untrusted_caller_frm frm then ⌜shadow = ∅⌝
-                   else saved_shadow (frame_saved_words frm) shadow) ∗
+             ∗ (frame_shadow_resources frm ∗
                   (∀ W', ⌜related_sts_pub_world Wt W'⌝
                       -∗ interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs')
-                           shadow cstk' W' Ct frm))))%I
+                           cstk' W' Ct frm))))%I
     | _,_,_ =>  False%I
     end.
   Solve All Obligations with ( solve_proper; split; intros ; (intros [?  [] ]; done) ).

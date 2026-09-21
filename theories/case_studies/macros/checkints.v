@@ -2,63 +2,6 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
 From griotte Require Import is_word_type lea_to_base map_simpl register_tactics.
 
-Section Load_Preserve.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
-
-  (** Without shadow ownership, a load may fail or clear the loaded tag,
-      in addition to the permission transformation performed by [load_word]. *)
-  Lemma wp_load_preserve_or_clear E pc_p pc_g pc_b pc_e pc_a pc_a'
-    dst src wi wd p g b e a raw :
-    readAllowed p = true ->
-    is_shadow_address a = false ->
-    decodeInstrW wi = Load dst src 0 ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
-    withinBounds b e a = true ->
-    (pc_a + 1)%a = Some pc_a' ->
-    dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ WCap true p g b e a ∗ a ↦ₐ raw }}}
-      Instr Executable @ E
-    {{{ retv, RET retv; ⌜retv = FailedV⌝ ∨
-        ∃ actual, ⌜retv = NextIV⌝ ∗
-        ⌜actual = load_word p raw ∨
-          (is_heap_cap raw = true ∧ actual = clear_tag (load_word p raw))⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
-        dst ↦ᵣ actual ∗ src ↦ᵣ WCap true p g b e a ∗ a ↦ₐ raw }}}.
-  Proof.
-    iIntros (Hread Hshadow Hinstr Hvpc Hbounds Hpc' Hdst Hsrc φ)
-      "(HPC & Hi & Hdst & Hsrc & Ha) Hφ".
-    destruct (is_heap_cap raw) eqn:Hheap; cycle 1.
-    { iApply (wp_load_success_notinstr with "[$HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
-      iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
-      iApply "Hφ". iRight. iExists (load_word p raw). iFrame.
-      iPureIntro. split; first done. by left. }
-    iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
-    iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
-    iApply (wp_load E pc_p pc_g pc_b pc_e pc_a dst src wi with "[$Hmap $Hmem]");
-      eauto; simplify_map_eq; eauto.
-    { by rewrite !dom_insert; set_solver+. }
-    { exists true, p, g, b, e, a. split.
-      - unfold read_reg_inr. by simplify_map_eq.
-      - case_decide; last done. exists raw. by simplify_map_eq. }
-    { intros p0 g0 b0 e0 a0 (Hsrc0 & _).
-      simpl_map_regs by eauto. simplify_map_eq. done. }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 a0 loadv actual Hallow Hlookup Hactual Hinc|].
-    2: { iApply "Hφ". by iLeft. }
-    destruct Hallow as (Hsrc0 & _). simpl_map_regs by eauto. simplify_map_eq.
-    unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
-    rewrite (insert_insert_ne _ dst PC) // insert_insert_eq.
-    rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
-    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
-    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
-    iApply "Hφ". iRight. iExists actual. iFrame.
-    iPureIntro. split; first done.
-    destruct Hactual as [-> | ->]; [by left|right; done].
-  Qed.
-
-End Load_Preserve.
-
 Section Checkints.
   Context
       {MP: MachineParameters}

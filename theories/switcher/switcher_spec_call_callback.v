@@ -210,11 +210,13 @@ Section Switcher_Callback.
         pose proof (finz_incr_iff_dist a_stk (a_stk ^+ 4)%a 4) as [Hdist _].
         by apply Hdist in Ha4 as [? ?].
       }
-    - iApply (switcher_cc_specification_alt_nonheap with
+    - iApply (switcher_cc_specification_alt with
         "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Htarget $Hcs0 $Hcs1
           $Hargs $Hregs $Hstk $Hworld_interp_C $Hclose $Hcstk_frag $HK]");
         try assumption.
       iSplit; first done.
+      iSplitR.
+      { iApply saved_registers_shadow_empty. repeat constructor; assumption. }
       iIntros "!>" (W2 rmap' stk_mem' l') "Hres".
       iApply ("Hpost" $! W2 rmap' stk_mem' l' wct1_caller).
       repeat (iDestruct "Hres" as "[? Hres]").

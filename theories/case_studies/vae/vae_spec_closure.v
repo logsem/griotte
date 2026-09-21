@@ -557,7 +557,7 @@ Section VAE.
 
     iDestruct (world_interp_rel_loc_valid  with "Hworld_interp_C Hsts_rel") as "%Hwrel_i_W5".
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification_alt_nonheap with
+    iApply (switcher_cc_specification_alt with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
@@ -570,6 +570,8 @@ Section VAE.
 
     { apply vae_call_adv_arg_rmap_is_arg. }
 
+    iSplitR.
+    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     clear dependent wct1 wct0 warg0 warg1 rmap stk_mem Hcsp_bounds.
     iNext.
     iIntros (W6 rmap stk_mem l')
@@ -579,7 +581,7 @@ Section VAE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)"; clear l'.
+      & Hrmap & Hstk & HK & _)"; clear l'.
     iEval (cbn) in "HPC".
 
     (* Derive some information necessary later *)

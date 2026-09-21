@@ -232,15 +232,16 @@ Section KVS_main_spec.
              (WCap true RW Global cgp_b cgp_e cgp_b)
              (WSentry true RX Global pc_b pc_e (a_call ^+ 1)%a)
              (WInt 0) (kvs_user_seal_key Global static_sealed_b)
-             csp_b csp_e csp_b B_f stk_mem_B rmap_B cstk Ws Cs ∅); try assumption.
+             csp_b csp_e csp_b B_f stk_mem_B rmap_B cstk Ws Cs None None None None); try assumption.
     { subst rmap_B.
       repeat (rewrite dom_insert_L); repeat (rewrite dom_delete_L).
       rewrite Hdom_rmap_ret; set_solver. }
-    iAssert (saved_shadow
-      [WCap true RW Global cgp_b cgp_e cgp_b;
-       WSentry true RX Global pc_b pc_e (a_call ^+ 1)%a;
-       WInt 0; kvs_user_seal_key Global static_sealed_b] ∅)%I as "Hshadow".
-    { iApply saved_shadow_empty. repeat constructor; cbn; assumption. }
+    iAssert (saved_registers_shadow
+      (WCap true RW Global cgp_b cgp_e cgp_b)
+      (WSentry true RX Global pc_b pc_e (a_call ^+ 1)%a)
+      (WInt 0) (kvs_user_seal_key Global static_sealed_b)
+      None None None None)%I as "Hshadow".
+    { iApply saved_registers_shadow_empty. repeat constructor; cbn; assumption. }
     iFrame "Hshadow".
     iFrame "Hswitcher Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
       Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hworld_B Hcstk
@@ -258,7 +259,7 @@ Section KVS_main_spec.
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK & _)".
-    iEval (rewrite /restore_word /heap_cap_base /= Hcgp_nonheap) in "Hcgp".
+    iEval (cbn) in "Hcgp".
     iEval (cbn) in "HPC".
     iEval (cbn) in "Hcra".
     iEval (cbn) in "Hcs0".

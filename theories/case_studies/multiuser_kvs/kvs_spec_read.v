@@ -19,6 +19,10 @@ Section KVS_spec_read.
   .
 
   (*** KVS READ: Read key in the KVS *)
+  (** A successful read returns the stored word or, for a heap capability,
+      its tag-cleared form. The physical and logical KVS entries keep the
+      original word. Nonheap values are therefore returned unchanged.
+   **)
   Lemma KVS_read_spec_in_layer_0
     (wret : Word)
     (user_key : user_key_t) (nkey : map_key_t) (l_user_key : Locality) (user_key_addr : Addr)
@@ -30,7 +34,6 @@ Section KVS_spec_read.
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    is_heap_cap w = false ->
     SubBounds KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr (kvs_read_pcc_addr ^+ length kvs_read_instrs)%a ->
     (KVS_cgp_b + length kvs_data)%a = Some KVS_cgp_e ->
 
@@ -63,7 +66,8 @@ Section KVS_spec_read.
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
-          ca1 ↦ᵣ w ∗ (* result of the read *)
+           (∃ actual, ca1 ↦ᵣ actual ∗
+             ⌜actual = w ∨ (is_heap_cap w = true ∧ actual = clear_tag w)⌝) ∗ (* result of the read *)
           ctp ↦ᵣ - ∗ (* scratch *)
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
@@ -81,7 +85,7 @@ Section KVS_spec_read.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx)
       "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & [%wcnull Hcnull]
         & Hcode & Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
@@ -130,8 +134,17 @@ Section KVS_spec_read.
     iInstr "Hcode".
     (* Lea cgp 1 *)
     iInstr "Hcode".
-    (* Load ca1 cgp *)
-    iInstr "Hcode".
+    (* Load ca1 cgp: the heap shadow can clear the returned tag. *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_load_preserve_or_clear _ _ _ _ _ _ (a_read ^+ 7)%a with "[$HPC $Hi $Hca1 $Hcgp $Hcgp_val]");
+      try solve_pure; try solve_addr.
+    { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
+      rewrite /withinBounds; solve_addr. }
+    iIntros "!>" (ret)
+      "[-> | (%actual & -> & %Hactual & HPC & Hi & Hca1 & Hcgp & Hcgp_val)]".
+    { wp_pure; wp_end; iIntros "%Hcontr"; done. }
+    wp_pure. iSpecialize ("Hcode" with "[$]").
     (* Mov ca1 0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
@@ -155,7 +168,6 @@ Section KVS_spec_read.
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    is_heap_cap w = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
 
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -189,7 +201,8 @@ Section KVS_spec_read.
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
-          ca1 ↦ᵣ w ∗ (* result of the read *)
+           (∃ actual, ca1 ↦ᵣ actual ∗
+             ⌜actual = w ∨ (is_heap_cap w = true ∧ actual = clear_tag w)⌝) ∗ (* result of the read *)
           ctp ↦ᵣ - ∗ (* scratch *)
           ct1 ↦ᵣ - ∗ (* scratch *)
           ct2 ↦ᵣ - ∗ (* scratch *)
@@ -207,7 +220,7 @@ Section KVS_spec_read.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey)
       "(#Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
         & Ha_user_key
@@ -248,7 +261,7 @@ Section KVS_spec_read.
              "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2 $Hcnull
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); last iFrame; eauto.
-    iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
+    iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hctp & Hct1 & Hct2 & Hcnull
                      & Hcode & Ha_unsealing & Ha_user_key
                      & HPKVS )".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
@@ -274,7 +287,6 @@ Section KVS_spec_read.
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    is_heap_cap w = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
     ↑(Nkvs.@"logical") ⊆ E ->
 
@@ -307,7 +319,8 @@ Section KVS_spec_read.
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
-         ca1 ↦ᵣ w ∗ (* result of the read *)
+          (∃ actual, ca1 ↦ᵣ actual ∗
+             ⌜actual = w ∨ (is_heap_cap w = true ∧ actual = clear_tag w)⌝) ∗ (* result of the read *)
          ctp ↦ᵣ - ∗ (* scratch *)
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
@@ -323,7 +336,7 @@ Section KVS_spec_read.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey)
       "(#Hkvs_inv & #Hkvs_logical_inv & Hna
       & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
       & Ha_user_key & Hm & Hpost)".
@@ -338,7 +351,7 @@ Section KVS_spec_read.
     {  solve_ndisj. }
 
     iNext; iIntros "(Hna
-                     & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
+                     & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hctp & Hct1 & Hct2 & Hcnull
                      & Ha_user_key
                      & Hlkvs_auth & HLKVS & Hm)".
 
@@ -357,7 +370,6 @@ Section KVS_spec_read.
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    is_heap_cap w = false ->
     ↑(Nkvs.@"physical") ⊆ E ->
     ↑(Nkvs.@"logical") ⊆ E ->
 
@@ -389,7 +401,8 @@ Section KVS_spec_read.
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
-         ca1 ↦ᵣ w ∗ (* result of the read *)
+          (∃ actual, ca1 ↦ᵣ actual ∗
+             ⌜actual = w ∨ (is_heap_cap w = true ∧ actual = clear_tag w)⌝) ∗ (* result of the read *)
          ct1 ↦ᵣ - ∗ (* scratch *)
          ct2 ↦ᵣ - ∗ (* scratch *)
          ctp ↦ᵣ - ∗ (* scratch *)
@@ -406,7 +419,7 @@ Section KVS_spec_read.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key)
       "(#Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
        & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
 
@@ -418,15 +431,13 @@ Section KVS_spec_read.
                     $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2 $Hcnull
                     $Ha_user_key $Hm]"); eauto.
     iNext; iIntros "(Hna
-                    & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hctp & Hct1 & Hct2 & Hcnull
+                    & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hctp & Hct1 & Hct2 & Hcnull
                     & Ha_user_key & Hm)".
 
     iAssert (user_kvs_inv user_key)%I with "[$Hm $Hukvs_auth]" as "Hlukvs"; auto.
 
     iApply "Hpost"; iFrame; done.
   Qed.
-
-  (*** KVS READ: Read key not in the KVS *)
 
   Lemma KVS_read_spec_notin_layer_0
     (wret : Word)
@@ -1079,7 +1090,7 @@ Section KVS_spec_read.
   Qed.
 
   Lemma KVS_read_spec_known_to_known
-    (shadow : gmap Addr bool)
+    (scgp scra scs0 scs1 : option bool)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
     (b_stk e_stk a_stk : Addr)
     (arg_rmap : Reg) (cstk : CSTK) (E : coPset)
@@ -1109,7 +1120,7 @@ Section KVS_spec_read.
          ⌜ wca1 = w ⌝)
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk arg_rmap cstk kvs_read_nargs E
-      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_read_pcc_off shadow.
+      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_read_pcc_off scgp scra scs0 scs1.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).
@@ -1150,9 +1161,10 @@ Section KVS_spec_read.
        $Huser_key $Huser_kvs $Hkey]"); auto.
     iNext.
     iIntros "(Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra]
-              & Hca0 & Hca1 & [%wct1 Hct1] & [%wct2 Hct2]
+              & Hca0 & (%actual & Hca1 & %Hactual) & [%wct1 Hct1] & [%wct2 Hct2]
               & [%wctp Hctp] & [%wcnull Hcnull]
               & Huser_key & Huser_kvs & Hkey)".
+    destruct Hactual as [-> | Hcleared]; last (destruct Hcleared as [Hheap _]; congruence).
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iInsertList "Hrmap" [ctp;ct1;ct2;cnull;ca2;ca3;ca4;ca5;ct0].
     set (rmap_ret0 := delete cs1 (delete cs0 rmap')).
@@ -1167,7 +1179,7 @@ Section KVS_spec_read.
     set (rmap_ret := <[ct0 := WInt 0]> rmap_ret8).
     iEval (cbn) in "HPC".
 
-    iApply ("Hpost" $! shadow (WInt ASM_TRUE) w rmap_ret
+    iApply ("Hpost" $! scgp scra scs0 scs1 (WInt ASM_TRUE) w rmap_ret
               (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
     iSplit.
     { iPureIntro.

@@ -820,7 +820,7 @@ Section Switcher_KtK_Call.
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
     (off_tgt : Z)
-    (shadow : gmap Addr bool)
+    (scgp scra scs0 scs1 : option bool)
 
     :
     let a_stk4 := (a_stk ^+ 4)%a in
@@ -834,7 +834,11 @@ Section Switcher_KtK_Call.
               b_stk := b_stk;
               a_stk := a_stk;
               e_stk := e_stk;
-              ccrel := Known_to_Known
+              ccrel := Known_to_Known;
+              shadow_cgp := scgp;
+              shadow_cra := scra;
+              shadow_cs0 := scs0;
+              shadow_cs1 := scs1
            |}
     in
 
@@ -890,7 +894,7 @@ Section Switcher_KtK_Call.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ cstack_frag cstk
-    ∗ saved_shadow [wcgp_caller; wcra_caller; wcs0_caller; wcs1_caller] shadow
+    ∗ saved_registers_shadow wcgp_caller wcra_caller wcs0_caller wcs1_caller scgp scra scs0 scs1
 
 
     ∗ ▷ ( (∃ arg_rmap' rmap',
@@ -917,7 +921,7 @@ Section Switcher_KtK_Call.
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ cstack_frag (frame::cstk)
-              ∗ saved_shadow [wcgp_caller; wcra_caller; wcs0_caller; wcs1_caller] shadow
+              ∗ saved_registers_shadow wcgp_caller wcra_caller wcs0_caller wcs1_caller scgp scra scs0 scs1
           )
           ∨
             (
@@ -925,12 +929,12 @@ Section Switcher_KtK_Call.
                 ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
                 ∗ na_own cerise_nais E
                 (* Registers *)
-                ∗ PC ↦ᵣ updatePcPerm (restore_word shadow wcra_caller)
-                ∗ cgp ↦ᵣ restore_word shadow wcgp_caller
-                ∗ cra ↦ᵣ restore_word shadow wcra_caller
+                ∗ PC ↦ᵣ updatePcPerm (restore_saved_word scra wcra_caller)
+                ∗ cgp ↦ᵣ restore_saved_word scgp wcgp_caller
+                ∗ cra ↦ᵣ restore_saved_word scra wcra_caller
                 ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-                ∗ cs0 ↦ᵣ restore_word shadow wcs0_caller
-                ∗ cs1 ↦ᵣ restore_word shadow wcs1_caller
+                ∗ cs0 ↦ᵣ restore_saved_word scs0 wcs0_caller
+                ∗ cs1 ↦ᵣ restore_saved_word scs1 wcs1_caller
                 ∗ ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK
                 ∗ ca1 ↦ᵣ WInt 0
                 (* All the other registers *)
@@ -941,7 +945,7 @@ Section Switcher_KtK_Call.
 
                 (* Interpretation of the world and stack, at the moment of the switcher_call *)
                 ∗ cstack_frag cstk
-    ∗ saved_shadow [wcgp_caller; wcra_caller; wcs0_caller; wcs1_caller] shadow
+    ∗ saved_registers_shadow wcgp_caller wcra_caller wcs0_caller wcs1_caller scgp scra scs0 scs1
             )
          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
         )
@@ -1036,9 +1040,16 @@ Section Switcher_KtK_Call.
     { (* case not enough stack*)
       focus_block 16 "Hcode" as a_tstk_exhausted Ha_tstk_exhausted "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent a_tstack_push.
       iExtractList "Hargs" [ca0;ca1] as ["Hca0";"Hca1"].
+      (** The load rules use one shadow entry per heap base, including when
+          several saved registers alias the same base. **)
+      iDestruct (saved_registers_shadow_open with "Hshadow")
+        as (shadow) "[Hshadow (%Hscgp & %Hscra & %Hscs0 & %Hscs1)]".
+      subst scgp scra scs0 scs1.
       iApply (switcher_cc_spec_16_shadow with "[- $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hcsp $Hca0 $Hca1 $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hshadow $Hcode]"); eauto.
       { solve_addr+Ha_tstk_exhausted Hcont_switcher_region. }
       iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hshadow & Hcode)".
+      iDestruct (saved_registers_shadow_map with "Hshadow") as "Hshadow".
+      iEval (rewrite <- !restore_saved_word_map) in "Hcgp Hcra Hcs0 Hcs1".
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
       focus_block 14 "Hcode" as a7 Ha7 "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent a_tstk_exhausted.
@@ -1218,5 +1229,6 @@ Section Switcher_KtK_Call.
     rewrite Hdom Hrmap'.
     set_solver+.
   Qed.
+
 
 End Switcher_KtK_Call.

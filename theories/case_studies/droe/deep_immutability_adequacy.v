@@ -453,7 +453,7 @@ Section Adequacy.
 
     iPoseProof (Spec _ _ _ _ _
                   _ _ _ _ _
-                  [] [] assertN switcherN [] ∅
+                  [] [] assertN switcherN []
                  with "[ $Hassert $Hswitcher $Hna
                         $Hworld_interp_C
                         $HPC $Hcgp $Hcsp $Hreg
@@ -465,6 +465,8 @@ Section Adequacy.
     { exact (cmpt_cgp_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_cgp_disjoint_from_heap main_cmpt). }
     { exact (cmpt_cgp_base_not_heap main_cmpt). }
+    { rewrite !lookup_delete_ne // (Hreg cra); try (clear; set_solver). }
+    { rewrite !lookup_delete_ne // (Hreg cs1); try (clear; set_solver). }
     { solve_ndisj. }
     { rewrite !dom_delete_L.
       rewrite regmap_full_dom; first done.
@@ -577,10 +579,6 @@ Section Adequacy.
             ** rewrite /= dom_empty_L in Hcontra; set_solver+Hcontra.
     }
     { done. }
-    { iFrame "Hinterp_stack_C". iApply saved_shadow_empty.
-      rewrite !lookup_delete_ne // (Hreg cra) ?(Hreg cs1);
-        try (clear; set_solver).
-    }
 
     iModIntro.
     iExists (fun σ _ _ => (((gen_heap_interp (griotte_opsem.reg σ) ∗ gen_heap_interp (griotte_opsem.sreg σ))

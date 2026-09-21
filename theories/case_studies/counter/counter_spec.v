@@ -345,7 +345,7 @@ Section Counter.
       by apply Hrevoked_l in Ha.
     }
 
-    iApply (switcher_cc_specification_nonheap _ _ _ _ _ _ _ _ _ _ _ _ rmap_arg with
+    iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ rmap_arg with
              "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag
@@ -357,6 +357,8 @@ Section Counter.
     }
     { by rewrite /is_arg_rmap . }
 
+    iSplitR.
+    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     iNext. subst rmap'; clear stk_mem.
     iIntros (W2 rmap' stk_mem l')
       "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W2 & %Hstack_revoked_W2
@@ -365,7 +367,7 @@ Section Counter.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)"; clear l'.
+      & Hrmap & Hstk & HK & _)"; clear l'.
     iEval (cbn) in "HPC".
 
     assert (related_sts_pub_world W1 W2) as Hrelated_pub_W1_W2.

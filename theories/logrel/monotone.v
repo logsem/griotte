@@ -628,11 +628,11 @@ Proof.
   revert Ws Cs; induction cstk;intros Ws Cs; simpl;auto.
   iIntros (Hrel) "[Hic Hk]".
   destruct (is_known_to_known_frm a); first (by iFrame).
-  iDestruct "Hk" as "[Hcallee (%shadow & Hshadow & Hcont)]".
+  iDestruct "Hk" as "[Hcallee (Hshadow & Hcont)]".
   iSplitL "Hic";[|iSplitL "Hcallee"].
   - iFrame.
   - iApply (interp_monotone with "[//] [$]").
-  - iExists shadow. iFrame "Hshadow". iIntros (W'' Hrel').
+  - iFrame "Hshadow". iIntros (W'' Hrel').
     iApply "Hcont". iPureIntro.
     eapply related_sts_pub_trans_world;eauto.
 Qed.
