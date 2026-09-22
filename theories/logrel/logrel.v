@@ -32,7 +32,7 @@ Section logrel.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ}
     {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
   Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
@@ -165,9 +165,11 @@ Section logrel.
         by apply IHcstk.
   Qed.
 
+  (** Execution borrows the persistent allocator invariant. It is shared by
+      every compartment and remains available when invoking a continuation. *)
   Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
     (λne (W : WORLD) (C : CmptName) (wpc : Word),
-       ∀ cstk Ws Cs regs,
+       ∀ cstk Ws Cs regs, allocator_ctx -∗
        ( interp_reg interp W C regs
         ∗ registers_pointsto (<[PC:=wpc]> regs)
         ∗ world_interp W C
@@ -315,7 +317,7 @@ Section logrel.
       The state of the machine should:
       - [PC] points-to the caller's site
       - the callee-saved registers of the topmost call-frame [frm] are restored in their
-        original registers
+        original registers, each satisfying [load_heap] for its saved word
       - [ca0] and [ca1] contain some return values, [interp] in the current world
       - all the other registers have been clear and point to zero
       - the stack is given back, with some universally content (1) [stk_mem_l]
@@ -343,24 +345,27 @@ Section logrel.
    *)
   Program Definition interp_cont_exec (interp : V) (interp_cont : iProp Σ)
     :
-    (CSTK -n> WORLD  -n> (leibnizO CmptName) -n> (leibnizO cframe) -n> iPropO Σ)
+    (CSTK -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO cframe) -n> iPropO Σ)
     :=
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (frm : cframe)
      ,
-       ∀ wca0 wca1 regs stk_mem_l stk_mem_h,
+       ∀ rcgp rcra rcs0 rcs1 wca0 wca1 regs stk_mem_l stk_mem_h,
+       allocator_ctx -∗
+       ⌜load_heap frm.(wcgp) rcgp ∧ load_heap frm.(wret) rcra ∧
+         load_heap frm.(wcs0) rcs0 ∧ load_heap frm.(wcs1) rcs1⌝ -∗
        let b_stk := frm.(b_stk) in
        let a_stk := frm.(a_stk) in
        let e_stk := frm.(e_stk) in
        let astk4 := (a_stk ^+4)%a in
        let callee_stk_region := finz.seq_between (if (is_untrusted_caller_frm frm) then a_stk else astk4) e_stk in
        let callee_stk_mem := if (is_untrusted_caller_frm frm) then stk_mem_l++stk_mem_h else stk_mem_h in
-       ( PC ↦ᵣ updatePcPerm (restore_saved_word frm.(shadow_cra) frm.(wret))
-         ∗ cra ↦ᵣ restore_saved_word frm.(shadow_cra) frm.(wret)
+       ( PC ↦ᵣ updatePcPerm (rcra)
+         ∗ cra ↦ᵣ rcra
          ∗ csp ↦ᵣ (WCap true RWL Local b_stk e_stk a_stk)
          (* cgp, cs0 and cs1 are callee-saved registers *)
-         ∗ cgp ↦ᵣ restore_saved_word frm.(shadow_cgp) frm.(wcgp)
-         ∗ cs0 ↦ᵣ restore_saved_word frm.(shadow_cs0) frm.(wcs0)
-         ∗ cs1 ↦ᵣ restore_saved_word frm.(shadow_cs1) frm.(wcs1)
+         ∗ cgp ↦ᵣ rcgp
+         ∗ cs0 ↦ᵣ rcs0
+         ∗ cs1 ↦ᵣ rcs1
          (* ca0 and ca1 are the return value *)
          ∗ ca0 ↦ᵣ wca0 ∗ interp W C wca0
          ∗ ca1 ↦ᵣ wca1 ∗ interp W C wca1
@@ -374,8 +379,6 @@ Section logrel.
          ∗ world_interp_open W C callee_stk_region
          (* Bookkeeping resources for the opened world *)
          ∗ StackOpenWorldResources interp W C callee_stk_region callee_stk_mem
-         ∗ (if is_untrusted_caller_frm frm then True
-            else frame_saved_shadow frm)
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk
@@ -425,14 +428,14 @@ Section logrel.
       - [interp_cont_exec], which provides a WP rule for the continuation,
         matching the machine state after the return-to-caller
 
-      The frame stores the call-time shadow bits. For a known caller calling
-      unknown code, [frame_shadow_resources] retains the full shadow ownership
-      until return. Aliased registers share their entry. Unknown callers carry
-      only the assertion that all four metadata fields are [None].
+      Each known caller records only its pure machine frame. The continuation
+      accepts the four words restored by the switcher, each related to its
+      saved word by [load_heap]. The allocator invariant owns the shadow
+      entries; neither shadow bits nor restoration resources are stored here.
 
-      Known-to-known frames also record call-time bits, but their return bits
-      are supplied separately by the functional specification. Changing those
-      bits does not update the ghost call-stack.
+      Unknown callers use the logical relation on the actual words loaded
+      from their shared stack. Their frame's placeholder words do not classify
+      those saved words and carry no restoration obligation here.
 
       The "body" of continuation relation is only enforced if the caller-callee relation
       involves an unknown compartment.
@@ -450,8 +453,8 @@ Section logrel.
            ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
              interp_callee_part_of_the_stack interp Wt Ct (WCap true RWL Local frm.(b_stk) frm.(e_stk) frm.(a_stk)) (is_untrusted_caller_frm frm)
              (* The continuation when matching the switcher's state at return-to-caller *)
-             ∗ (frame_shadow_resources frm ∗
-                  (∀ W', ⌜related_sts_pub_world Wt W'⌝
+             ∗ (if is_untrusted_caller_frm frm then True else
+                    (∀ W', ⌜related_sts_pub_world Wt W'⌝
                       -∗ interp_cont_exec interp (interp_cont_aux interp cstk' Ws' Cs')
                            cstk' W' Ct frm))))%I
     | _,_,_ =>  False%I
@@ -464,9 +467,17 @@ Section logrel.
     generalize dependent W0.
     generalize dependent C0.
     induction y; intros C0 W0;[simpl;f_equiv|].
-    destruct a, W0, C0;simpl; [auto|auto|auto|].
-    f_equiv; [apply IHy|].
-    f_equiv;repeat (f_equiv; auto).
+    destruct W0 as [|Wt Ws], C0 as [|Ct Cs]; [reflexivity|reflexivity|reflexivity|].
+    cbn [interp_cont_aux].
+    apply bi.sep_ne; first apply IHy.
+    destruct (is_known_to_known_frm a); first done.
+    apply bi.sep_ne.
+    { unfold interp_callee_part_of_the_stack. apply Heq. }
+    destruct (is_untrusted_caller_frm a); first done.
+    apply bi.forall_ne; intros W'.
+    apply bi.wand_ne; first reflexivity.
+    exact (interp_cont_exec_ne n interp interp0 Heq _ _ (IHy Cs Ws)
+      y W' Ct a).
   Qed.
 
   Program Definition interp_cont (interp : V) : K :=

@@ -9,7 +9,7 @@ Section Switcher_Call_Failure.
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ}
-    {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}.
 
@@ -42,8 +42,8 @@ Section Switcher_Call_Failure.
     (a_stk ^+ 3)%a ↦ₐ wcgp ∗
     codefrag pc_a switcher_instrs_16 ∗
     ▷ (∀ rcgp rcra rcs0 rcs1,
-         ⌜stack_load_result wcgp rcgp ∧ stack_load_result wcra rcra ∧
-           stack_load_result wcs0 rcs0 ∧ stack_load_result wcs1 rcs1⌝ -∗
+         ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
+           load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝ -∗
           ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
              cs0 ↦ᵣ rcs0 ∗
              cs1 ↦ᵣ rcs1 ∗
@@ -161,8 +161,8 @@ Section Switcher_Call_Failure.
     ∗ ▷ (∀ rmap' rcgp rcra rcs0 rcs1,
         ⌜dom rmap' = all_registers_s ∖ {[PC; cgp; cra; csp; ca0; ca1; cs0; cs1]}⌝
         ∗ ⌜(b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a⌝
-        ∗ ⌜stack_load_result wcgp_caller rcgp ∧ stack_load_result wcra_caller rcra ∧
-             stack_load_result wcs0_caller rcs0 ∧ stack_load_result wcs1_caller rcs1⌝
+        ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
+             load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
         ∗ na_own cerise_nais ⊤
         ∗ PC ↦ᵣ updatePcPerm rcra
         ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1

@@ -57,7 +57,7 @@ Section Stack_Object_Region_Resources.
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Addr region_type OType Word Σ}
-    {relg : relGS Σ} {cstackg : CSTACKG Σ}
+    {relg : relGS Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP : MachineParameters}.
 
   Lemma stack_object_open_region_for_checkints

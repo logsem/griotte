@@ -13,7 +13,7 @@ Section fundamental.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
 
@@ -53,7 +53,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Restrict dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -89,7 +89,7 @@ Section fundamental.
         destruct (executeAllowed p'') eqn:Hpft.
         {
           simplify_map_eq ; map_simpl "Hmap".
-          iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+          iApply ("IH" $! _ _ _ _ _ regs with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
           iModIntro.
           iApply (PermPairFlows_interp_preserved); eauto.
           iApply (interp_next_PC with "Hinv_interp"); eauto.
@@ -110,7 +110,7 @@ Section fundamental.
 
         assert (is_Some (<[dst:=WCap t p'0 g' b0 e0 a0]> (<[PC:=WCap true p'' g'' b'' e'' a'']> regs) !! csp)) as [??].
         { destruct (decide (dst = csp)); simplify_map_eq=>//. }
-        iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+        iApply ("IH" $! _ _ _ _ _ (<[dst:=_]> _) with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
         - intros; simpl. repeat (rewrite lookup_insert_is_Some'; right); eauto.
         - iIntros (ri v Hri Hvs).
           destruct (decide (ri = dst)).
@@ -146,7 +146,7 @@ Section fundamental.
       assert (is_Some (<[dst:=WSealRange t p'0 g' b0 e0 a0]ᵣ> regs !! csp)) as [??].
       { destruct (decide (dst = csp)); simplify_map_eq=>//. }
       iApply ("IH" $! _ _ _ _ _ (<[dst:=WSealRange t p'0 g' b0 e0 a0]ᵣ> regs) with
-               "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+               "[Halloc] [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       + intros. by rewrite lookup_insert_is_Some' ; right.
       + iIntros (ri v Hri Hvs).
         destruct (decide (ri = dst)).
@@ -185,7 +185,7 @@ Section fundamental.
         { destruct ρ; auto; contradiction. }
         iApply ("IH" $! _ _ _ _ _
           (<[dst:=wout]ᵣ> (<[PC:=WCap true p g b e a]> regs)) p g b e a_next
-          with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+          with "[Halloc] [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
         * intros rr. rewrite /insert_reg !lookup_insert_is_Some'; eauto.
         * iIntros (ri wi Hri Hregs_ri).
           destruct (decide (ri = dst)) as [->|Hne].
@@ -224,7 +224,7 @@ Section fundamental.
         { destruct ρ; auto; contradiction. }
         iApply ("IH" $! _ _ _ _ _
           (<[dst:=wout]ᵣ> (<[PC:=WCap true p g b e a]> regs)) p g b e a_next
-          with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+          with "[Halloc] [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
         * intros rr. rewrite /insert_reg !lookup_insert_is_Some'; eauto.
         * iIntros (ri wi Hri Hregs_ri).
           destruct (decide (ri = dst)) as [->|Hne].

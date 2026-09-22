@@ -12,7 +12,7 @@ Section adequacy_helpers.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters} .
 
     Lemma initialise_assert_compartment

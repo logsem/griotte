@@ -11,7 +11,7 @@ Section CMDC.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -74,7 +74,7 @@ Section CMDC.
 
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -115,7 +115,7 @@ Section CMDC.
                Hstk_shadow Hstk_heap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
                Hrevoked_stack_B Hrevoked_stack_C)
-      "(#Hassert & #Hswitcher & Hna
+      "(#Hassert & #Halloc & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & Hworld_interp_B
@@ -230,7 +230,7 @@ Section CMDC.
     iEval (cbn) in "Hct1".
     iApply (cmdc_call_adv_block_spec
       Nswitcher W_init_B B cgp_b (cgp_b ^+ 1)%a B_f with
-      "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
+      "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
        $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0 $Hrmap
        $Hcgp_b $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B
        $Hcstk_frag $HK $Hinterp_Winit_B_f $HentryB_f]").
@@ -365,7 +365,7 @@ Section CMDC.
 
     iApply (cmdc_call_adv_block_spec
       Nswitcher W_init_C C cgp_c (cgp_c ^+ 1)%a C_g with
-      "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
+      "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
        $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0 $Hrmap
        $Hcgp_c $Hstk $Hworld_interp_C $Hstack_revoked_C
        $Hcstk_frag $HK $Hinterp_Winit_C_g $HentryC_g]").
@@ -484,7 +484,7 @@ Section CMDC.
 
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -525,7 +525,7 @@ Section CMDC.
                Hstk_shadow Hstk_heap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
                Hrevoked_stack_B Hrevoked_stack_C)
-      "(#Hassert & #Hswitcher & Hna
+      "(#Hassert & #Halloc & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & Hworld_interp_B

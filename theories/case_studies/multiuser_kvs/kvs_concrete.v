@@ -1,6 +1,6 @@
 From iris.program_logic Require Import adequacy.
 From griotte Require Import
-  machine_instructions machine_parameters machine_parameters_instance
+  machine_instructions machine_parameters machine_parameters_instance allocator
   registers griotte_lang machine_run switcher assert compartment_layout
   kvs kvs_main kvs_adequacy disjoint_regions_tactics.
 
@@ -585,10 +585,15 @@ Proof.
   - apply Forall_replicate; done.
 Qed.
 
-Lemma kvs_concrete_adequacy reg' sreg' mem' sh sh' es :
+(** The initialized free heap is disjoint from the concrete program. *)
+Lemma kvs_initial_heap_disjoint :
+  initial_heap_memory ##ₘ mk_initial_program_memory.
+Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
+
+Lemma kvs_concrete_adequacy reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, sh))
+      (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow))
     (es, (reg', sreg', mem', sh')) ->
   mem' !! kvs_assert_flag = Some (WInt 0%Z).
 Proof.
@@ -596,8 +601,8 @@ Proof.
   pose proof
     (@kvs_adequacy machine_parameters_instance kvs_concrete_layout
       kvs_initial_registers reg' kvs_initial_sregisters sreg'
-      kvs_initial_memory mem' sh sh' es kvs_initial_registers_correct
-      kvs_initial_sregisters_correct kvs_initial_memory_correct Hrun)
+      kvs_initial_memory mem' initial_heap_shadow sh' es kvs_initial_registers_correct
+      kvs_initial_sregisters_correct kvs_initial_memory_correct eq_refl kvs_initial_heap_disjoint Hrun)
     as Hadequacy.
   cbn [kvs_concrete_layout kvs_concrete_cmptAssert] in Hadequacy.
   exact Hadequacy.
@@ -614,13 +619,13 @@ Theorem kvs_runs_and_gracefully_halts :
     rtc erased_step
       ([Seq (Instr Executable)],
         (kvs_initial_registers, kvs_initial_sregisters,
-         kvs_initial_memory, ∅))
+         kvs_initial_memory, initial_heap_shadow))
       ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! kvs_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct 15000 Executable
-      (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, ∅)
+      (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].

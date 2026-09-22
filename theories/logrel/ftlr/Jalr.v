@@ -11,7 +11,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
@@ -40,7 +40,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -114,7 +114,7 @@ Section fundamental.
 
         rewrite !insert_reg_insert insert_reg_commute //.
         iApply ("IH" $! _ _ _ _ _ (<[rdst:=WSentry true p g b e pc_a']ᵣ> regs) with
-                 "[%] [] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$]") ; eauto.
+                 "[Halloc] [%] [] [$Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$]") ; eauto.
         - intros; cbn.
           rewrite lookup_insert_is_Some.
           destruct (decide (rdst = x)); auto; right; split; auto.
@@ -154,7 +154,7 @@ Section fundamental.
       { destruct ρ;auto;contradiction. }
 
       rewrite !insert_reg_insert insert_reg_commute //.
-      iDestruct ("Hinterp_src" with "[$Hmap $Hworld_interp $Htframe $Hown $Hcont]") as "HA"; eauto.
+      iDestruct ("Hinterp_src" with "[$Halloc] [$Hmap $Hworld_interp $Htframe $Hown $Hcont]") as "HA"; eauto.
       iNext.
       repeat (cbn; iSplit; auto).
       + iIntros (ri); cbn; iPureIntro.

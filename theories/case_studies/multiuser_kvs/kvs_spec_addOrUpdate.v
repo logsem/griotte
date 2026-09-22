@@ -13,7 +13,7 @@ Section KVS_spec_addOrUpdate.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
@@ -1257,7 +1257,6 @@ Section KVS_spec_addOrUpdate.
   Qed.
 
   Lemma KVS_add_spec_known_to_known
-    (scgp scra scs0 scs1 : option bool)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
     (b_stk e_stk a_stk : Addr)
     (arg_rmap : Reg) (cstk : CSTK) (E : coPset)
@@ -1290,14 +1289,14 @@ Section KVS_spec_addOrUpdate.
            (user_key, nkey) ↦(KVS) ⊥)))
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk arg_rmap cstk kvs_addOrUpdate_nargs E
-      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_addOrUpdate_pcc_off scgp scra scs0 scs1.
+      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_addOrUpdate_pcc_off.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg Hca2_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros "[ #Hkvs #Hkvs_logical ]" (arg_rmap' rmap')
-       "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
-       & Hargs & Hrmap & Hstk & Hcstk & Hshadow
+       "#Halloc (%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
+       & Hargs & Hrmap & Hstk & Hcstk
        & (Huser_key & Huser_kvs & Hkey)
        & Hpost)".
     iEval (cbn) in "HPC".
@@ -1350,7 +1349,7 @@ Section KVS_spec_addOrUpdate.
     iEval (cbn) in "HPC".
 
     iDestruct "Hres" as "[(Hca0 & Hkey) | (Hca0 & Hkey)]".
-    - iApply ("Hpost" $! scgp scra scs0 scs1 (WInt ASM_TRUE) (WInt 0) rmap_ret
+    - iApply ("Hpost" $! (WInt ASM_TRUE) (WInt 0) rmap_ret
                 (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit.
       { iPureIntro.
@@ -1362,7 +1361,7 @@ Section KVS_spec_addOrUpdate.
       iFrame.
       iFrame. iSplit; first done. iLeft.
       iSplit; first done. iFrame.
-    - iApply ("Hpost" $! scgp scra scs0 scs1 (WInt ASM_FALSE) (WInt 0) rmap_ret
+    - iApply ("Hpost" $! (WInt ASM_FALSE) (WInt 0) rmap_ret
                 (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit.
       { iPureIntro.

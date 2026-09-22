@@ -11,7 +11,7 @@ Section switcher_helper.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
   Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
@@ -42,7 +42,6 @@ Section switcher_helper.
   Lemma open_world_interp_cframe
     (W : WORLD) (C : CmptName) (b_stk e_stk a_stk a_stk4 : Addr)
     (wret wcgp0 wcs2 wcs3 : Word) (ccrel : caller_callee_relation)
-    (scgp scra scs0 scs1 : option bool)
     :
     (b_stk <= a_stk)%a ->
     (a_stk ^+ 3 < e_stk)%a ->
@@ -57,12 +56,8 @@ Section switcher_helper.
         b_stk := b_stk;
         a_stk := a_stk;
         e_stk := e_stk;
-        ccrel := ccrel;
-        shadow_cgp := scgp;
-        shadow_cra := scra;
-        shadow_cs0 := scs0;
-        shadow_cs1 := scs1
-      |}
+        ccrel := ccrel
+           |}
     ∗ world_interp W C
       -∗
     ∃ wastk wastk1 wastk2 wastk3,
@@ -205,7 +200,7 @@ Section switcher_helper.
     Lemma open_world_interp_cframe_gen
     (W0 Wcur : WORLD) (C : CmptName) (b_stk csp_b csp_e a_stk4 : Addr) (l : list Addr)
     (wret wcgp wcs0 wcs1 : Word) (ccrel : caller_callee_relation)
-    (scgp scra scs0 scs1 : option bool) :
+    :
       let Wfixed := close_list (l ++ finz.seq_between csp_b csp_e) Wcur in
       let a_stk := (csp_b ^+ -4)%a in
 
@@ -227,12 +222,8 @@ Section switcher_helper.
           b_stk := b_stk;
           a_stk := a_stk;
           e_stk := csp_e;
-          ccrel := ccrel;
-          shadow_cgp := scgp;
-          shadow_cra := scra;
-          shadow_cs0 := scs0;
-          shadow_cs1 := scs1
-      |}
+          ccrel := ccrel
+           |}
         -∗
         close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false -∗
         £ 1

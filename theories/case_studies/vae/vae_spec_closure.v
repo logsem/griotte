@@ -13,7 +13,7 @@ Section VAE.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -135,7 +135,7 @@ Section VAE.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "#Halloc (HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
@@ -358,7 +358,7 @@ Section VAE.
 
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification_alt_callback with
-             "[- $Hswitcher $Hna
+             "[- $Halloc $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W2 $Hcstk
               $Hinterp_W2_wct1 $HK]"); eauto; try done; iFrame "%".
@@ -557,8 +557,9 @@ Section VAE.
 
     iDestruct (world_interp_rel_loc_valid  with "Hworld_interp_C Hsts_rel") as "%Hwrel_i_W5".
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification_alt with
-             "[- $Hswitcher $Hna
+    iApply (switcher_cc_specification_alt _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+       with
+             "[- $Halloc $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
               $Hinterp_W5_wca0 $HK]"); eauto; iFrame "%".
@@ -570,18 +571,22 @@ Section VAE.
 
     { apply vae_call_adv_arg_rmap_is_arg. }
 
-    iSplitR.
-    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     clear dependent wct1 wct0 warg0 warg1 rmap stk_mem Hcsp_bounds.
     iNext.
-    iIntros (W6 rmap stk_mem l')
+    iIntros (W6 rmap stk_mem l' rcgp rcra rcs0 rcs1)
       "(_ & _ & _ & %Hrelated_pub_5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hstack_revoked_W6 & %Hstack_revoked_W6
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & _)"; clear l'.
+      & Hrmap & Hstk & HK & %Hrestored)"; clear l'.
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+    subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
 
     (* Derive some information necessary later *)
@@ -730,7 +735,7 @@ Section VAE.
 
     iApply (switcher_ret_specification _ W0 W7
              with
-             "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
+             "[ $Halloc $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
     { destruct Hl_unk as [_ ?].

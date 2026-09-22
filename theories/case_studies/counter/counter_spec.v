@@ -10,7 +10,7 @@ Section Counter.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
   .
@@ -134,7 +134,7 @@ Section Counter.
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
 
     (
-      na_inv cerise_nais Nswitcher switcher_inv
+      allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
       (* initial memory layout *)
       ∗ na_inv cerise_nais Ncounter
           ( ∃ (cnt : Z),
@@ -168,7 +168,7 @@ Section Counter.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap HNswitcher_counter Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hframe_match Hcsp_sync
             )
-      "(#Hswitcher & #Hmem & Hna
+      "(#Halloc & #Hswitcher & #Hmem & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Hworld_interp_C
       & HK
@@ -345,8 +345,9 @@ Section Counter.
       by apply Hrevoked_l in Ha.
     }
 
-    iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ rmap_arg with
-             "[- $Hswitcher $Hna
+    iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ rmap_arg _ _ _ _ _
+       with
+             "[- $Halloc $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag
               $Hinterp_W1_C_f $Hentry_C_f $HK]"); eauto; last iFrame "∗%".
@@ -357,17 +358,21 @@ Section Counter.
     }
     { by rewrite /is_arg_rmap . }
 
-    iSplitR.
-    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     iNext. subst rmap'; clear stk_mem.
-    iIntros (W2 rmap' stk_mem l')
+    iIntros (W2 rmap' stk_mem l' rcgp rcra rcs0 rcs1)
       "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W2 & %Hstack_revoked_W2
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & _)"; clear l'.
+      & Hrmap & Hstk & HK & %Hrestored)"; clear l'.
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+    subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
 
     assert (related_sts_pub_world W1 W2) as Hrelated_pub_W1_W2.
@@ -467,7 +472,7 @@ Section Counter.
     destruct Hl_unk.
     iApply (switcher_ret_specification _ W0 (revoke W2)
              with
-             "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
+             "[ $Halloc $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
     { eapply related_pub_W0_Wfixed ; eauto.
@@ -520,7 +525,7 @@ Section Counter.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap HNswitcher_counter HsubBounds
                Hcgp_contiguous Himports_contiguous)
       "(#Hswitcher & #Hmain & #Hinterp_C_f & #HentryC_f)
-      % % % % % %
+      % % % % % % #Halloc
       (HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as "(%Hfullrmap & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hinterp_rmap)".
     rewrite /interp_conf.

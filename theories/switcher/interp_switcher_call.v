@@ -16,7 +16,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -396,7 +396,7 @@ Section fundamental.
     na_inv cerise_nais Nswitcher switcher_inv
     ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
-    iIntros "#Hinv_switcher %cstk %Ws %Cs %regs [[%Hfull_rmap #Hreg] (Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
+    iIntros "#Hinv_switcher %cstk %Ws %Cs %regs #Halloc [[%Hfull_rmap #Hreg] (Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)]".
     rewrite /registers_pointsto.
     iPoseProof fundamental_ih as "IH". (* used for weakening lemma later *)
 
@@ -702,7 +702,7 @@ Section fundamental.
     all: cbn in HcorrectWret.
     all: inversion HcorrectWret; simplify_eq.
       + (* wret was a regular capability: apply the FTLR *)
-        iApply ("IH" with "[] [] [$] [$] [$] [%] [$] [$]"); eauto.
+        iApply ("IH" with "Halloc [] [] [$] [$] [$] [%] [$] [$]"); eauto.
         { iIntros (r); iPureIntro.
           clear -Hdom_rmap' Harg_rmap'.
           destruct (decide (r = PC)); simplify_map_eq; first done.
@@ -743,7 +743,7 @@ Section fundamental.
         iSpecialize ("Hinterp_wret" $! gcra (LocalityFlowsToReflexive gcra)).
         iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
         rewrite /interp_expr /=.
-        iDestruct ("Hinterp_wret" with "[$Hcont $Hrmap $Hworld_interp $Hcstk $HH]") as "HA"; eauto.
+        iDestruct ("Hinterp_wret" with "[$Halloc] [$Hcont $Hrmap $Hworld_interp $Hcstk $HH]") as "HA"; eauto.
         iSplitR; last (iPureIntro; simplify_map_eq; done).
         iSplit.
         * iIntros (r); iPureIntro.
@@ -960,11 +960,7 @@ Section fundamental.
               b_stk := b ;
               a_stk := a ;
               e_stk := e ;
-              ccrel := Unknown_to_Unknown;
-              shadow_cgp := None;
-              shadow_cra := None;
-              shadow_cs0 := None;
-              shadow_cs1 := None
+              ccrel := Unknown_to_Unknown
            |}).
 
     iSpecialize ("Hexec" with "[]").
@@ -985,18 +981,12 @@ Section fundamental.
       repeat (split;auto); try solve_addr; try (repeat f_equiv; solve_addr).
     }
 
-    iApply "Hexec".
+    iApply ("Hexec" with "Halloc").
     iSplitL "Hcont".
     { iFrame. simpl.
       iSplit.
       - iApply (interp_weakening with "IH Hspv");auto;solve_addr.
-      - iSplit; first done.
-        iIntros (W' HW' ?????) "(HPC & _)".
-        rewrite /interp_conf.
-        wp_instr.
-        iApply (wp_notCorrectPC with "[$]").
-        { intros Hcontr;inversion Hcontr. }
-        iIntros "!> HPC". wp_pure. wp_end. iIntros (Hcontr);done. }
+      - done. }
     iSplitR.
     { iPureIntro. simpl. split;auto. apply related_sts_pub_refl_world. }
     iFrame.

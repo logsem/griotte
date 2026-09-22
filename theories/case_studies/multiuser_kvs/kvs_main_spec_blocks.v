@@ -4,7 +4,7 @@ From griotte Require Import
   memory_region region_invariants_revocation wp_rules_interp interp_weakening.
 From griotte Require Import assert_spec fetch_spec.
 From griotte Require Import
-  switcher switcher_preamble switcher_spec_call switcher_spec_KtK.
+  switcher switcher_preamble switcher_spec_call switcher_spec_KtK switcher_load_spec.
 From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main.
 From griotte Require Import map_simpl register_tactics proofmode.
@@ -15,7 +15,7 @@ Section KVS_Main_Blocks.
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {kvsg : kvsG Σ} {KVS_layout : kvsLayout}
@@ -159,13 +159,13 @@ Section KVS_Main_Blocks.
       (wcgp wcra wcs0 wcs1 : Word)
       (b_stk e_stk a_stk : Addr) (target : Sealable)
       (stk_mem : list Word) (rmap : Reg)
-      (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (scgp scra scs0 scs1 : option bool) :
+      (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     disjoint_from_shadow b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     dom rmap =
       all_registers_s ∖
         ({[PC; cgp; cra; csp; ct1; cs0; cs1]} ∪ dom_arg_rmap 8) ->
-    na_inv cerise_nais Nswitcher switcher_inv
+    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_own cerise_nais ⊤
     ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp ∗ cra ↦ᵣ wcra
@@ -174,7 +174,6 @@ Section KVS_Main_Blocks.
     ∗ interp W C (WSealed ot_switcher target)
     ∗ (WSealed ot_switcher target) ↦□ₑ 0
     ∗ cs0 ↦ᵣ wcs0 ∗ cs1 ↦ᵣ wcs1
-    ∗ saved_registers_shadow wcgp wcra wcs0 wcs1 scgp scra scs0 scs1
     ∗ ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0 ∗ ca2 ↦ᵣ WInt 0
     ∗ ca3 ↦ᵣ WInt 0 ∗ ca4 ↦ᵣ WInt 0 ∗ ca5 ↦ᵣ WInt 0
     ∗ ct0 ↦ᵣ WInt 0
@@ -185,7 +184,7 @@ Section KVS_Main_Blocks.
     ∗ ⌜revoked_addresses W (finz.seq_between a_stk e_stk)⌝
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
-    ∗ ▷ (∀ (W2 : WORLD) (rmap' : Reg) (stk_mem' : list Word) l',
+    ∗ ▷ (∀ (W2 : WORLD) (rmap' : Reg) (stk_mem' : list Word) l' rcgp rcra rcs0 rcs1,
         ⌜extract_temporaries_condition
           W2 (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk)⌝
         ∗ RevokedResources W2 C l'
@@ -206,32 +205,33 @@ Section KVS_Main_Blocks.
              ∧ (a_stk + 4)%a = Some (a_stk ^+ 4)%a)%a⌝
         ∗ world_interp (revoke W2) C
         ∗ cstack_frag cstk
-        ∗ PC ↦ᵣ updatePcPerm (restore_saved_word scra wcra)
-        ∗ cgp ↦ᵣ restore_saved_word scgp wcgp ∗ cra ↦ᵣ restore_saved_word scra wcra
-        ∗ cs0 ↦ᵣ restore_saved_word scs0 wcs0 ∗ cs1 ↦ᵣ restore_saved_word scs1 wcs1
+        ∗ PC ↦ᵣ updatePcPerm (rcra)
+        ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra
+        ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
         ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
         ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
         ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
         ∗ ([∗ map] r ↦ w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
         ∗ [[a_stk, e_stk]] ↦ₐ [[stk_mem']]
         ∗ interp_continuation cstk Ws Cs
-        ∗ saved_registers_shadow wcgp wcra wcs0 wcs1 scgp scra scs0 scs1
+        ∗ ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
+             load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝
         -∗ WP Seq (Instr Executable)
           {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hstk_shadow Hstk_heap Hrmap)
-      "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp
-       & Hct1 & #Htarget & #Hentry & Hcs0 & Hcs1 & Hshadow
+      "(#Halloc & #Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp
+       & Hct1 & #Htarget & #Hentry & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0
        & Hrmap & Hstk & Hworld & Hrevoked & %Hrevoked
        & Hcstk & HK & Hpost)".
     iApply (switcher_cc_specification Nswitcher W C wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk target stk_mem kvs_main_adversary_arg_rmap
-      rmap cstk Ws Cs 0 scgp scra scs0 scs1 with
-      "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
-       $Hcs0 $Hcs1 $Hshadow $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
+      rmap cstk Ws Cs 0 with
+      "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
+       $Hcs0 $Hcs1  $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
        $Htarget $Hentry $Hpost]").
     - exact Hstk_shadow.
     - exact Hstk_heap.
@@ -261,7 +261,7 @@ Section KVS_Main_Blocks.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
     withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
       static_sealed_b = true ->
-    na_inv cerise_nais Nswitcher switcher_inv
+    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais (Nkvs.@"physical") kvs_inv
     ∗ na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
     ∗ inv (export_table_PCCN Nkvs_exp_tbl)
@@ -320,7 +320,7 @@ Section KVS_Main_Blocks.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hpc_shadow Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hrmap_dom Hrmap_init HsubBounds Hstatic_sealed_b)
-      "(#Hswitcher & #Hkvs & #Hkvs_logical
+      "(#Halloc & #Hswitcher & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp
        & #Hkvs_exp_tbl_addOrUpdate
        & Hna & HPC & Hcgp & Hcsp & Hrmap
@@ -413,7 +413,7 @@ Section KVS_Main_Blocks.
     iInsertList "Hrmap" [ctp].
     set (rmap' := <[ctp := _]> _ ).
 
-    iPoseProof (KVS_add_spec_known_to_known None None None None
+    iPoseProof (KVS_add_spec_known_to_known
                   (WCap true RW Global cgp_b cgp_e cgp_b)
                   (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
                   (WInt 0) (kvs_user_seal_key Global static_sealed_b)
@@ -433,7 +433,7 @@ Section KVS_Main_Blocks.
               KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
               kvs_addOrUpdate_pcc_off
              with
-             "[- $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
+             "[- $Halloc $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
                  $Hstk $Hcstk_frag
                  $HKVS_f
@@ -452,23 +452,28 @@ Section KVS_Main_Blocks.
        set_solver+.
     }
     { apply kvs_main_add_arg_rmap_is_arg. }
-    iSplitR.
-    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     iSplitL "Hkvs Hkvs_logical Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
     iNext.
     iIntros "[
-    (%scgp_ret & %scra_ret & %scs0_ret & %scs1_ret
+    (%rcgp & %rcra & %rcs0 & %rcs1
     & %wca0_ret & %wca1_ret & %rmap_ret & %Hdom_rmap_ret
     & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & Hshadow & HKVS_post)
+    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & %Hrestored & HKVS_post)
     |
-    (%rmap_ret & %stk_mem' & %Hdom_rmap_ret & Hna
+    (%rmap_ret & %stk_mem' & %rcgp & %rcra & %rcs0 & %rcs1 & %Hdom_rmap_ret & Hna
     & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1
-    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag & _ & HKVS_pre)
+    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag & %Hrestored & HKVS_pre)
     ]"
     ; iEval (cbn) in "HPC"
     ; cycle 1.
     {
+      destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+      apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+      subst rcgp rcra rcs0 rcs1.
+      iEval (cbn) in "HPC".
       focus_block 5 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
       ; clear dependent a_insert_kvs.
       (* Jnz 2 ca0 *)
@@ -477,9 +482,12 @@ Section KVS_Main_Blocks.
       iInstr "Hcode".
       wp_end; iIntros (_); iFrame "Hna".
     }
-    iDestruct (saved_registers_shadow_nonheap with "Hshadow")
-      as "(%Hscgp_ret & %Hscra_ret & %Hscs0_ret & %Hscs1_ret)"; try done.
-    subst scgp_ret scra_ret scs0_ret scs1_ret.
+    destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
+    apply load_heap_nonheap in Hgp; last exact Hcgp_nonheap.
+    apply load_heap_nonheap in Hra; last done.
+    apply load_heap_nonheap in Hs0; last done.
+    apply load_heap_nonheap in Hs1; last done.
+    subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
     iDestruct "HKVS_post"
       as "(Hstatic_sealed_b & HLUKVS & %Hwca1_ret
@@ -541,7 +549,7 @@ Section KVS_Main_Blocks.
     withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
       static_sealed_b = true ->
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais (Nkvs.@"physical") kvs_inv
     ∗ na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
     ∗ inv (export_table_PCCN Nkvs_exp_tbl)
@@ -578,7 +586,7 @@ Section KVS_Main_Blocks.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hpc_shadow Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow HNswitcher_assert Hdom_rmap HsubBounds Hstatic_sealed_b)
-      "(#Hassert & #Hswitcher & #Hkvs & #Hkvs_logical
+      "(#Hassert & #Halloc & #Hswitcher & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_read
        & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
        & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag
@@ -668,7 +676,7 @@ Section KVS_Main_Blocks.
     iInsertList "Hrmap" [ctp].
     set (rmap_read_call := <[ctp := _]> _ ).
 
-    iPoseProof (KVS_read_spec_known_to_known None None None None
+    iPoseProof (KVS_read_spec_known_to_known
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
       (WInt 0) (kvs_user_seal_key Global static_sealed_b)
@@ -688,7 +696,7 @@ Section KVS_Main_Blocks.
               KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e
               kvs_read_pcc_off
              with
-             "[- $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
+             "[- $Halloc $Hswitcher $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
                  $Hrmap_arg_read $Hrmap $Hstk $Hcstk_frag
                  $HKVS_f
@@ -711,23 +719,28 @@ Section KVS_Main_Blocks.
        set_solver+.
     }
     { apply kvs_main_read_arg_rmap_is_arg. }
-    iSplitR.
-    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     iSplitL "Hkvs Hkvs_logical Hstatic_sealed_b HLUKVS Hkvs_1"; first iFrame.
     iNext.
     iIntros "[
-    (%scgp_ret & %scra_ret & %scs0_ret & %scs1_ret
+    (%rcgp & %rcra & %rcs0 & %rcs1
     & %wca0_ret & %wca1_ret & %rmap_read & %Hdom_rmap_read
     & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & Hshadow & HKVS_read_post)
+    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & %Hrestored & HKVS_read_post)
     |
-    (%rmap_read & %stk_mem' & %Hdom_rmap_read & Hna
+    (%rmap_read & %stk_mem' & %rcgp & %rcra & %rcs0 & %rcs1 & %Hdom_rmap_read & Hna
     & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1
-    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag & _ & HKVS_read_pre)
+    & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag & %Hrestored & HKVS_read_pre)
     ]"
     ; iEval (cbn) in "HPC"
     ; cycle 1.
     {
+      destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+      apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+      subst rcgp rcra rcs0 rcs1.
+      iEval (cbn) in "HPC".
       focus_block 13 "Hcode_main" as a_assert1  Ha_assert1 "Hcode" "Hcont"; iHide "Hcont" as hcont
       ; clear dependent a_insert_kvs.
       (* Jnz 2 ca0 *)
@@ -736,9 +749,12 @@ Section KVS_Main_Blocks.
       iInstr "Hcode".
       wp_end; iIntros (_); iFrame "Hna".
     }
-    iDestruct (saved_registers_shadow_nonheap with "Hshadow")
-      as "(%Hscgp_ret & %Hscra_ret & %Hscs0_ret & %Hscs1_ret)"; try done.
-    subst scgp_ret scra_ret scs0_ret scs1_ret.
+    destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
+    apply load_heap_nonheap in Hgp; last exact Hcgp_nonheap.
+    apply load_heap_nonheap in Hra; last done.
+    apply load_heap_nonheap in Hs0; last done.
+    apply load_heap_nonheap in Hs1; last done.
+    subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
     iDestruct "HKVS_read_post"
       as "(Hstatic_sealed_b & HLUKVS & Hkvs_1 & %Hwca0_ret & %Hwca1_ret)".

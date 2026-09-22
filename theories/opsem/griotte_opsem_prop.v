@@ -218,6 +218,7 @@ Qed.
     all: repeat destruct (sreg _ !! _); cbn in *; repeat case_match.
     all: repeat destruct (finz.incr _ _); cbn in *; repeat case_match.
     all: repeat destruct (mem _ !! _); cbn in *; repeat case_match.
+    all: repeat destruct (shadow_to_heap _); cbn in *; repeat case_match.
     all: repeat destruct (shadowtbl _ !! _); cbn in *; repeat case_match.
     all: simplify_eq; try by exfalso.
     all: try apply updatePC_some in Heqo as [φ' Heqo]; eauto.

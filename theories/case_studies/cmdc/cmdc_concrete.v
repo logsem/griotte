@@ -1,6 +1,6 @@
 From iris.program_logic Require Import adequacy.
 From griotte Require Import
-  machine_instructions machine_parameters machine_parameters_instance
+  machine_instructions machine_parameters machine_parameters_instance allocator
   registers griotte_lang machine_run switcher assert compartment_layout
   cmdc cmdc_adequacy disjoint_regions_tactics.
 
@@ -549,10 +549,15 @@ Proof.
   - rewrite /cmdc_C_data; repeat constructor; done.
 Qed.
 
-Lemma cmdc_concrete_adequacy reg' sreg' mem' sh sh' es :
+(** The initialized free heap is disjoint from the concrete program. *)
+Lemma cmdc_initial_heap_disjoint :
+  initial_heap_memory ##ₘ mk_initial_program_memory.
+Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
+
+Lemma cmdc_concrete_adequacy reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (cmdc_initial_registers, cmdc_initial_sregisters, cmdc_initial_memory, sh))
+      (cmdc_initial_registers, cmdc_initial_sregisters, cmdc_initial_memory, initial_heap_shadow))
     (es, (reg', sreg', mem', sh')) ->
   mem' !! cmdc_assert_flag = Some (WInt 0%Z).
 Proof.
@@ -560,8 +565,8 @@ Proof.
   pose proof
     (@cmdc_adequacy machine_parameters_instance cmdc_concrete_layout
       cmdc_initial_registers reg' cmdc_initial_sregisters sreg'
-      cmdc_initial_memory mem' sh sh' es cmdc_initial_registers_correct
-      cmdc_initial_sregisters_correct cmdc_initial_memory_correct Hrun)
+      cmdc_initial_memory mem' initial_heap_shadow sh' es cmdc_initial_registers_correct
+      cmdc_initial_sregisters_correct cmdc_initial_memory_correct eq_refl cmdc_initial_heap_disjoint Hrun)
     as Hadequacy.
   cbn [cmdc_concrete_layout cmdc_concrete_cmptAssert] in Hadequacy.
   exact Hadequacy.
@@ -578,14 +583,14 @@ Theorem cmdc_runs_and_gracefully_halts :
     rtc erased_step
       ([Seq (Instr Executable)],
         (cmdc_initial_registers, cmdc_initial_sregisters,
-         cmdc_initial_memory, ∅))
+         cmdc_initial_memory, initial_heap_shadow))
       ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! cmdc_assert_flag = Some (WInt 0%Z).
 Proof.
   edestruct (
     machine_run_correct 10000 Executable
       (cmdc_initial_registers, cmdc_initial_sregisters,
-       cmdc_initial_memory, ∅)
+       cmdc_initial_memory, initial_heap_shadow)
       Halted
   ) as [[[[reg' sreg'] mem'] sh'] Hsteps].
   { vm_compute; reflexivity. }

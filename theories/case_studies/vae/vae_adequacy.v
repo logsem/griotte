@@ -68,11 +68,15 @@ Proof.
   exact (cmptAssert_assertLayout assert_cmpt).
 Defined.
 
-Definition mk_initial_memory `{memory_layout} :=
+Definition mk_initial_program_memory `{memory_layout} :=
   mk_initial_switcher switcher_cmpt ∪
     mk_initial_assert assert_cmpt ∪
     mk_initial_cmpt main_cmpt ∪
     mk_initial_cmpt C_cmpt.
+
+(** Initial allocator memory is separate from all compartment resources. *)
+Definition mk_initial_memory `{memory_layout} : Mem :=
+  initial_heap_memory ∪ mk_initial_program_memory.
 
 Definition is_initial_registers `{memory_layout} (reg: Reg) :=
   reg !! PC = Some (WCap true RX Global (cmpt_b_pcc main_cmpt) (cmpt_e_pcc main_cmpt) (cmpt_a_code main_cmpt)) ∧
@@ -164,6 +168,7 @@ Section Adequacy.
   Context {C : CmptName}.
   Context {inv_preg: invGpreS Σ}.
   Context {shadow_preg: gen_heapGpreS Addr bool Σ}.
+  Context {allocator_preg: allocator_preG Σ}.
   Context {mem_preg: gen_heapGpreS Addr Word Σ}.
   Context {reg_preg: gen_heapGpreS RegName Word Σ}.
   Context {sreg_preg: gen_heapGpreS SRegName Word Σ}.
@@ -188,10 +193,12 @@ Section Adequacy.
     is_initial_registers reg →
     is_initial_sregisters sreg →
     is_initial_memory m →
+    sh = initial_heap_shadow →
+    initial_heap_memory ##ₘ mk_initial_program_memory →
     rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
     m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
   Proof.
-    intros Hreg Hsreg Hm Hstep.
+    intros Hreg Hsreg Hm Hshadow_initial Hheap_disjoint Hstep.
     pose proof (@wp_invariance Σ griotte_lang _ NotStuck) as WPI. cbn in WPI.
     pose (fun (c: ExecConf) => mem c !! (flag_assert assert_cmpt) = Some (WInt 0%Z)) as state_is_good.
     specialize (WPI (Seq (Instr Executable)) (reg, sreg, m, sh) es (reg', sreg', m', sh')
@@ -219,7 +226,7 @@ Section Adequacy.
         ).
     iMod (gen_heap_init (reg:Reg)) as (reg_heapg) "(Hreg_ctx & Hreg & _)".
     iMod (gen_heap_init (sreg:SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
-    iMod (gen_heap_init sh) as (shadow_heapg) "(Hshadow_ctx & _ & _)".
+    iMod (gen_heap_init sh) as (shadow_heapg) "(Hshadow_ctx & Hshadow & _)".
     iMod (gen_heap_init (m:Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
     iMod (
        entry_init (
@@ -239,6 +246,12 @@ Section Adequacy.
     pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
     pose ceriseg := CeriseG Σ Hinv cerise_na_invs mem_heapg shadow_heapg reg_heapg sreg_heapg entry_g.
 
+    iEval (rewrite Hm /mk_initial_memory) in "Hmem".
+    iDestruct (big_sepM_union with "Hmem") as "[Hheap Hmem]";
+      first exact Hheap_disjoint.
+    iEval (rewrite Hshadow_initial) in "Hshadow".
+    iMod (@allocator_init_free_maps Σ ceriseg allocator_preg MP ⊤ with "Hheap Hshadow") as (allocatorg) "#Halloc".
+
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
     iMod (world_interp_init ({[ ot_switcher ]} : gset _))
       as (relg stsg seal_storeg) "[Hworld_interp Hseal_store]".
@@ -251,7 +264,7 @@ Section Adequacy.
     set (W0 := (∅, (∅, ∅), ∅)).
 
     pose proof (
-        @vae_init_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _ _ C
+        @vae_init_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _ _ _ C
       ) as Spec.
 
     assert (C_f ≠ awk_f) as Hneq_Cf_awkf.
@@ -303,8 +316,7 @@ Section Adequacy.
     iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; eauto.
 
     (* Separate all compartments *)
-    rewrite {2}Hm.
-    rewrite /mk_initial_memory.
+    rewrite /mk_initial_program_memory.
     iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_C]".
     { eapply mk_initial_cmpt_C_disjoint; eauto. }
     iDestruct (big_sepM_union with "Hmem") as "[Hmem Hcmpt_main]".
@@ -711,7 +723,7 @@ Section Adequacy.
     iPoseProof (Spec _ _ _ _ _ _ _ _
                   _ (cmpt_exp_tbl_entries_end main_cmpt)
                   _ _ [] [] assertN switcherN vaeN
-                 with "[ $Hassert $Hswitcher $Hmain_code
+                 with "[ $Halloc $Hassert $Hswitcher $Hmain_code
                          $Hinv_etbl_PCC $Hinv_etbl_CGP $Hinv_etbl_entry_awkward
                          $Hna
                          $Hworld_C
@@ -817,14 +829,16 @@ Theorem vae_adequacy `{Layout: memory_layout}
   is_initial_registers reg →
   is_initial_sregisters sreg →
   is_initial_memory m →
+    sh = initial_heap_shadow →
+    initial_heap_memory ##ₘ mk_initial_program_memory →
   rtc erased_step ([Seq (Instr Executable)], (reg, sreg, m, sh)) (es, (reg', sreg', m', sh')) →
   m' !! (flag_assert assert_cmpt) = Some (WInt 0%Z).
 Proof.
-  intros ? ? ? ?.
+  intros ? ? ? ? ? ?.
   set ( cnames := CmptNames_vae_CmptNameG ).
   set (Σ := #[invΣ
               ; gen_heapΣ Addr Word; gen_heapΣ Addr bool; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
-              ; entryPreΣ ; CSTACK_preΣ
+              ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ Addr region_type OType Word ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)

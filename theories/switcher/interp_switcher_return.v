@@ -14,7 +14,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -96,7 +96,7 @@ Section fundamental.
     na_inv cerise_nais Nswitcher switcher_inv
     ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
-    iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
+    iIntros "#Hinv_switcher %cstk %Ws %Cs %rmap #Halloc [[%Hfull_rmap #Hrmap_interp] (Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)]".
     rewrite /registers_pointsto.
 
     (* --- Extract scratch registers ct2 ctp --- *)
@@ -185,7 +185,7 @@ Section fundamental.
     destruct Ws;[done|].
     destruct Cs;[done|].
     iDestruct "Hstk_interp" as "(Hstk_interp_next & Hcframe_interp)".
-    destruct frm as [wret wcgp0 wcs2 wcs3 b_stk a_stk e_stk ccrel scgp scra scs0 scs1].
+    destruct frm as [wret wcgp0 wcs2 wcs3 b_stk a_stk e_stk ccrel].
     rewrite /cframe_interp.
     iEval (cbn) in "Hcframe_interp".
     iDestruct "Hcframe_interp" as "[Ha_tstk (%HWF & Hcframe_interp)]".
@@ -201,13 +201,10 @@ Section fundamental.
     rewrite /interp_continuation /interp_cont.
     iEval (cbn) in "Hcont_K"; rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     cbn.
-    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & (Hshadow & Hexec_topmost_frm))".
+    iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Hrestore)".
     iEval (cbn) in "Hinterp_callee_wstk".
 
-    iDestruct (saved_registers_shadow_resources_open wcgp0 wret wcs2 wcs3
-        scgp scra scs0 scs1 (is_untrusted_caller ccrel) with "Hshadow")
-      as (shadow) "[Hshadow (%Hscgp & %Hscra & %Hscs0 & %Hscs1)]".
-    cbn in Hscgp, Hscra, Hscs0, Hscs1.
+    iRename "Hrestore" into "Hexec_topmost_frm".
 
     assert (is_heap_address b_stk = false) as Hstk_base_nonheap.
     { apply not_true_is_false. intros Hheap. apply withinBounds_true_iff in Hheap.
@@ -225,7 +222,7 @@ Section fundamental.
     iNext; iIntros
       "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & Hcode & Hlc)".
 
-    iDestruct (open_world_interp_cframe _ _ _ _ _ _ _ _ _ _ _ scgp scra scs0 scs1 with "[$Hcframe_interp $Hworld_interp]")
+    iDestruct (open_world_interp_cframe _ _ _ _ _ _ _ _ _ _ _ with "[$Hcframe_interp $Hworld_interp]")
       as "(%wastk & %wastk1 & %wastk2 & %wastk3
           & Hstk'
           & Hclose_res & %Hwastks & Hworld_interp)";
@@ -244,20 +241,14 @@ Section fundamental.
     iDestruct (region_pointsto_cons (a_stk ^+ 3)%a (a_stk ^+ 4)%a (a_stk ^+ 4)%a with "Hstk'")
       as "[Ha_stk3 Hstk']"; [solve_addr+Ha_stk4|solve_addr+Ha_stk4|].
 
-    iAssert (if is_untrusted_caller ccrel then ⌜shadow = ∅⌝
-             else saved_shadow [wastk3; wastk2; wastk; wastk1] shadow)%I
-      with "[Hshadow]" as "Hshadow".
-    { destruct (is_untrusted_caller ccrel) eqn:Hcaller; first done.
-      destruct Hwastks as (-> & -> & -> & ->). done. }
-    iApply (switcher_return_block_12_restore_caller_spec
-      _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ (is_untrusted_caller ccrel) shadow with
+    iApply (switcher_return_block_12_restore_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
-        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hshadow $Hcode]"); eauto.
+        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Halloc $Hcode]"); eauto.
     iNext. iIntros (rstk3 rstk2 rstk1 rstk0) "%Hloaded".
     destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
     iIntros
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
-        & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hshadow & Hcode & Hlc_restore)".
+        & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc_restore)".
     iCombine "Hlc Hlc_restore" as "Hlc".
 
     iDestruct (region_pointsto_cons (a_stk ^+ 3)%a (a_stk ^+ 4)%a (a_stk ^+ 4)%a
@@ -291,7 +282,8 @@ Section fundamental.
 
     (* We continue the execution *)
     focus_block 13 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto; [solve_addr|].
+    iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]");
+      [reflexivity|exact H1|exact Hb_a4|solve_addr+He_a1|exact Hstk_shadow|discriminate|discriminate|].
     iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 
@@ -314,7 +306,7 @@ Section fundamental.
     focus_block 15 "Hcode" as a10 Ha10 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (switcher_return_block_15_spec with
       "[- $HPC $Hcra $Hrmap $Hcode]").
-    { solve_addr. }
+    { exact H1. }
     { apply elem_of_dom; rewrite Harg_rmap'; set_solver. }
     iNext; iIntros "(HPC & Hcra & Hrmap & Hcode & Hlc_ret)".
     iCombine "Hlc Hlc_ret" as "Hlc".
@@ -328,13 +320,13 @@ Section fundamental.
     (* Update the call-stack: depop the topmost frame *)
     iDestruct (cstack_update _ _ cstk with "[$] [$]") as ">[Hcstk_full Hcstk_frag]".
     (* Close the switcher's invariant *)
-    iDestruct (region_pointsto_cons with "[$Ha_tstk $Htstk]") as "Htstk"; [solve_addr| solve_addr| ].
+    iDestruct (region_pointsto_cons with "[$Ha_tstk $Htstk]") as "Htstk"; [solve_addr+Htstk_ae|solve_addr+Htstk_ae|].
     iMod ("Hclose_switcher_inv"
            with "[Hstk_interp_next $Hna $Hmtdc $Hcode $Hb_switcher Htstk $Hcstk_full $Hp_ot_switcher]")
       as "Hna".
     {
-      replace (a_tstk1 ^+ 1)%a with a_tstk by solve_addr.
-      replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr.
+      replace (a_tstk1 ^+ 1)%a with a_tstk by solve_addr+Ha_tstk1.
+      replace (a_tstk ^+ -1)%a with a_tstk1 by solve_addr+Ha_tstk1.
       iFrame.
       iNext.
       iSplit; first (iPureIntro; done).
@@ -362,7 +354,6 @@ Section fundamental.
     destruct (is_untrusted_caller ccrel) eqn:Hccrel ; cycle 1.
     - (* Case where caller is trusted, we use the continuation relation K *)
       destruct Hwastks as (-> & -> & -> & ->).
-      subst rstk0 rstk1 rstk2 rstk3.
       iEval (rewrite app_nil_r) in "Hworld_interp".
 
       (* We massage the context to get the necessary shape to apply the continuation relation *)
@@ -370,17 +361,17 @@ Section fundamental.
       iDestruct (big_sepL2_length with "Hstk") as "%Hlen_lv'".
       iDestruct (StackOpenWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
 
+      iEval (rewrite ?Hccrel) in "Hexec_topmost_frm".
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
-      iDestruct (saved_registers_shadow_map with "Hshadow") as "Hshadow".
-      iEval (rewrite /interp_cont_exec /frame_saved_shadow /is_untrusted_caller_frm
-        /= ?Hccrel Hscgp Hscra Hscs0 Hscs1 !restore_saved_word_map)
+      iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /= ?Hccrel)
         in "Hexec_topmost_frm".
-      iApply ("Hexec_topmost_frm" with
-               "[$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hshadow $Hcont_K $Hcstk_frag $Hna]").
+      iApply ("Hexec_topmost_frm" with "Halloc [%]
+               [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
+      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]"); first (repeat split; assumption).
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we use the IH *)
+      iClear "Hexec_topmost_frm".
 
       iDestruct (big_sepL2_length with "Hstk") as "%Hlen_lv'".
       iDestruct (StackOpenWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
@@ -561,7 +552,7 @@ Section fundamental.
       + (* wret was a regular capability: apply the FTLR *)
         iPoseProof ( fundamental W C (WCap true p g b e a) with "Hinterp_wstk2") as "IH".
         rewrite /interp_expression /=.
-        iApply ("IH" with "[- $Hworld_interp $Hcont_K $Hna $Hcstk_frag $Hrmap]"); eauto.
+        iApply ("IH" with "Halloc [- $Hworld_interp $Hcont_K $Hna $Hcstk_frag $Hrmap]"); eauto.
         repeat iSplit;auto.
         { iIntros (r); iPureIntro.
           clear -Hdom_rmap' Harg_rmap'.
@@ -605,7 +596,7 @@ Section fundamental.
         iSpecialize ("Hinterp_wret" $! g (LocalityFlowsToReflexive g)).
         iDestruct (lc_fupd_elim_later with "[$] [$Hinterp_wret]") as ">Hinterp_wret".
         rewrite /interp_expr /=.
-        iDestruct ("Hinterp_wret" with "[$Hcont_K $Hrmap $Hworld_interp $Hcstk_frag $Hna]") as "HA"; eauto.
+        iDestruct ("Hinterp_wret" with "[$Halloc] [$Hcont_K $Hrmap $Hworld_interp $Hcstk_frag $Hna]") as "HA"; eauto.
         iSplitR; last (iPureIntro; simplify_map_eq; done).
         iSplit.
         * iIntros (r); iPureIntro.

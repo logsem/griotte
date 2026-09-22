@@ -1,6 +1,6 @@
 From iris.program_logic Require Import adequacy.
 From griotte Require Import
-  machine_instructions machine_parameters machine_parameters_instance
+  machine_instructions machine_parameters machine_parameters_instance allocator
   registers griotte_lang machine_run switcher assert compartment_layout
   deep_locality deep_locality_adequacy
   disjoint_regions_tactics.
@@ -430,10 +430,15 @@ Proof.
   - apply Forall_replicate; done.
 Qed.
 
-Lemma dle_concrete_adequacy reg' sreg' mem' sh sh' es :
+(** The initialized free heap is disjoint from the concrete program. *)
+Lemma dle_initial_heap_disjoint :
+  initial_heap_memory ##ₘ mk_initial_program_memory.
+Proof. apply (bool_decide_unpack _). vm_compute. reflexivity. Qed.
+
+Lemma dle_concrete_adequacy reg' sreg' mem' sh' es :
   rtc erased_step
     ([Seq (Instr Executable)],
-      (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, sh))
+      (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow))
     (es, (reg', sreg', mem', sh')) ->
   mem' !! dle_assert_flag = Some (WInt 0%Z).
 Proof.
@@ -442,10 +447,10 @@ Proof.
     (@dle_adequacy machine_parameters_instance dle_concrete_layout
       dle_initial_registers reg'
       dle_initial_sregisters sreg'
-      dle_initial_memory mem' sh sh' es
+      dle_initial_memory mem' initial_heap_shadow sh' es
       dle_initial_registers_correct
       dle_initial_sregisters_correct
-      dle_initial_memory_correct Hrun) as Hadequacy.
+      dle_initial_memory_correct eq_refl dle_initial_heap_disjoint Hrun) as Hadequacy.
   cbn [dle_concrete_layout dle_concrete_cmptAssert] in Hadequacy.
   exact Hadequacy.
 Qed.
@@ -461,13 +466,13 @@ Theorem dle_runs_and_gracefully_halts :
   ∃ reg' sreg' mem' sh',
     rtc erased_step
       ([Seq (Instr Executable)],
-        (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, ∅))
+        (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow))
       ([Instr Halted], (reg', sreg', mem', sh'))
     ∧ mem' !! dle_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
     (machine_run_correct 5000 Executable
-      (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, ∅)
+      (dle_initial_registers, dle_initial_sregisters, dle_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [[[[reg' sreg'] mem'] sh'] Hrun].

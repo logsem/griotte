@@ -9,7 +9,7 @@ Section Switcher_Call_Blocks.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ}
-    {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -668,16 +668,15 @@ Section Switcher_Call_Blocks.
     iApply "Hpost"; iFrame.
   Qed.
 
-  Lemma switcher_call_block_16_spec
+  (** Exhausting the trusted stack restores the saved registers before
+      returning the error code. As on a regular return, each load borrows
+      its shadow entry from the allocator invariant. *)
+  Lemma switcher_call_block_16_spec_restore
     pc_b pc_e pc_a
     wcgp wcra wcs0 wcs1 b_stk e_stk a_stk :
     let switcher_instrs_16 := (switcher_instrs_n 16) in
     let len_switcher_16 := length switcher_instrs_16 in
     disjoint_from_shadow b_stk e_stk ->
-    is_heap_cap wcgp = false ->
-    is_heap_cap wcra = false ->
-    is_heap_cap wcs1 = false ->
-    is_heap_cap wcs0 = false ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
 
     (pc_a ^+ 10 + -36)%a = Some (pc_a ^+ -26)%a ->
@@ -697,12 +696,16 @@ Section Switcher_Call_Blocks.
     (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
     (a_stk ^+ 2)%a ↦ₐ wcra ∗
     (a_stk ^+ 3)%a ↦ₐ wcgp ∗
+    allocator_ctx ∗
     codefrag pc_a switcher_instrs_16 ∗
-    ▷  (( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
-             cs0 ↦ᵣ wcs0 ∗
-             cs1 ↦ᵣ wcs1 ∗
-             cgp ↦ᵣ wcgp ∗
-             cra ↦ᵣ wcra ∗
+    ▷ (∀ rcgp rcra rcs0 rcs1,
+        ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
+          load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝ -∗
+        ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
+             cs0 ↦ᵣ rcs0 ∗
+             cs1 ↦ᵣ rcs1 ∗
+             cgp ↦ᵣ rcgp ∗
+             cra ↦ᵣ rcra ∗
              ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
              ca1 ↦ᵣ WInt 0 ∗
              csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
@@ -710,88 +713,6 @@ Section Switcher_Call_Blocks.
              (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
              (a_stk ^+ 2)%a ↦ₐ wcra ∗
              (a_stk ^+ 3)%a ↦ₐ wcgp ∗
-             codefrag pc_a switcher_instrs_16 ∗
-             £ 1 -∗
-             WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-           )
-      )
-    ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    intros switcher_instrs_16 len_switcher_16; subst switcher_instrs_16 len_switcher_16.
-    iIntros (Hstk_shadow Hwcgp_nonheap Hwcra_nonheap Hwcs1_nonheap Hwcs0_nonheap Hsub_reg Hpca_next Hbstk Hbstk')
-      "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0] & [%wca1 Hca1]
-      & Hcsp & Hastk0 & Hastk1 & Hastk2 & Hastk3 & Hcode & Hpost)".
-    codefrag_facts "Hcode". clear H0.
-    rewrite /switcher_instrs_n /assembled_switcher_n.
-
-    (* Lea csp (inl (-1)%Z); *)
-    iInstr "Hcode".
-    (* Load cgp csp; *)
-    iInstr "Hcode".
-    (* Lea csp (inl (-1)%Z); *)
-    iInstr "Hcode".
-    (* Load cra csp; *)
-    iInstr "Hcode".
-    (* Lea csp (inl (-1)%Z); *)
-    iInstr "Hcode".
-    (* Load cs1 csp; *)
-    iInstr "Hcode".
-    (* Lea csp (inl (-1)%Z); *)
-    iInstr "Hcode".
-    (* Load cs0 csp; *)
-    iInstr "Hcode".
-    (* Mov ca0 (inl (-141)%Z); *)
-    iInstr "Hcode".
-    destruct (decide (ca0 = cnull))as [|_]; first done.
-    (* Mov ca1 (inl 0%Z); *)
-    iInstr "Hcode" with "Hlc".
-    (* Jmp (inl (-36)%Z) *)
-    iInstr "Hcode".
-
-    iApply "Hpost"; iFrame.
-  Qed.
-
-  Lemma switcher_call_block_16_spec_shadow
-    pc_b pc_e pc_a
-    wcgp wcra wcs0 wcs1 b_stk e_stk a_stk shadow :
-    let switcher_instrs_16 := (switcher_instrs_n 16) in
-    let len_switcher_16 := length switcher_instrs_16 in
-    disjoint_from_shadow b_stk e_stk ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
-
-    (pc_a ^+ 10 + -36)%a = Some (pc_a ^+ -26)%a ->
-
-    (b_stk <= a_stk)%a ->
-    (b_stk <= (a_stk ^+ 3)%a < e_stk)%a ->
-
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
-    (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
-    (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
-    (∃ wcgp', cgp ↦ᵣ wcgp') ∗
-    (∃ wcra', cra ↦ᵣ wcra') ∗
-    (∃ wca0, ca0 ↦ᵣ wca0) ∗
-    (∃ wca1, ca1 ↦ᵣ wca1) ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
-    a_stk ↦ₐ wcs0 ∗
-    (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
-    (a_stk ^+ 2)%a ↦ₐ wcra ∗
-    (a_stk ^+ 3)%a ↦ₐ wcgp ∗
-    saved_shadow [wcgp; wcra; wcs0; wcs1] shadow ∗
-    codefrag pc_a switcher_instrs_16 ∗
-    ▷  (( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
-             cs0 ↦ᵣ restore_word shadow wcs0 ∗
-             cs1 ↦ᵣ restore_word shadow wcs1 ∗
-             cgp ↦ᵣ restore_word shadow wcgp ∗
-             cra ↦ᵣ restore_word shadow wcra ∗
-             ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
-             ca1 ↦ᵣ WInt 0 ∗
-             csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
-             a_stk ↦ₐ wcs0 ∗
-             (a_stk ^+ 1)%a ↦ₐ wcs1 ∗
-             (a_stk ^+ 2)%a ↦ₐ wcra ∗
-             (a_stk ^+ 3)%a ↦ₐ wcgp ∗
-             saved_shadow [wcgp; wcra; wcs0; wcs1] shadow ∗
     codefrag pc_a switcher_instrs_16 ∗
              £ 1 -∗
              WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
@@ -803,7 +724,7 @@ Section Switcher_Call_Blocks.
     intros switcher_instrs_16 len_switcher_16; subst switcher_instrs_16 len_switcher_16.
     iIntros (Hstk_shadow Hsub_reg Hpca_next Hbstk Hbstk')
       "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0] & [%wca1 Hca1]
-      & Hcsp & Hastk0 & Hastk1 & Hastk2 & Hastk3 & Hshadow & Hcode & Hpost)".
+      & Hcsp & Hastk0 & Hastk1 & Hastk2 & Hastk3 & #Halloc & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
 
@@ -812,48 +733,52 @@ Section Switcher_Call_Blocks.
     (* Load cgp csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (switcher_load_stack_shadow _ _ _ _ _ _ (pc_a ^+ 2)%a cgp csp
-      with "[$HPC $Hi $Hcgp $Hcsp $Hastk3 $Hshadow]");
-      try solve_pure; try solve_addr; try set_solver.
+    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 2)%a cgp csp
+      _ _ _ _ _ _
+      with "[$HPC $Hi $Hcgp $Hcsp $Hastk3 $Halloc]");
+      [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros "(HPC & Hi & Hcgp & Hcsp & Hastk3 & Hshadow)".
+    iNext. iIntros (rcgp) "(%Hrcgp & HPC & Hi & Hcgp & Hcsp & Hastk3 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     (* Load cra csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (switcher_load_stack_shadow _ _ _ _ _ _ (pc_a ^+ 4)%a cra csp
-      with "[$HPC $Hi $Hcra $Hcsp $Hastk2 $Hshadow]");
-      try solve_pure; try solve_addr; try set_solver.
+    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 4)%a cra csp
+      _ _ _ _ _ _
+      with "[$HPC $Hi $Hcra $Hcsp $Hastk2 $Halloc]");
+      [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros "(HPC & Hi & Hcra & Hcsp & Hastk2 & Hshadow)".
+    iNext. iIntros (rcra) "(%Hrcra & HPC & Hi & Hcra & Hcsp & Hastk2 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     (* Load cs1 csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (switcher_load_stack_shadow _ _ _ _ _ _ (pc_a ^+ 6)%a cs1 csp
-      with "[$HPC $Hi $Hcs1 $Hcsp $Hastk1 $Hshadow]");
-      try solve_pure; try solve_addr; try set_solver.
+    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 6)%a cs1 csp
+      _ _ _ _ _ _
+      with "[$HPC $Hi $Hcs1 $Hcsp $Hastk1 $Halloc]");
+      [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros "(HPC & Hi & Hcs1 & Hcsp & Hastk1 & Hshadow)".
+    iNext. iIntros (rcs1) "(%Hrcs1 & HPC & Hi & Hcs1 & Hcsp & Hastk1 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     (* Load cs0 csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (switcher_load_stack_shadow _ _ _ _ _ _ (pc_a ^+ 8)%a cs0 csp
-      with "[$HPC $Hi $Hcs0 $Hcsp $Hastk0 $Hshadow]");
-      try solve_pure; try solve_addr; try set_solver.
+    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 8)%a cs0 csp
+      _ _ _ _ _ _
+      with "[$HPC $Hi $Hcs0 $Hcsp $Hastk0 $Halloc]");
+      [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros "(HPC & Hi & Hcs0 & Hcsp & Hastk0 & Hshadow)".
+    iNext. iIntros (rcs0) "(%Hrcs0 & HPC & Hi & Hcs0 & Hcsp & Hastk0 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
     (* Mov ca0 (inl (-141)%Z); *)
     iInstr "Hcode".
@@ -863,7 +788,7 @@ Section Switcher_Call_Blocks.
     (* Jmp (inl (-36)%Z) *)
     iInstr "Hcode".
 
-    iApply "Hpost"; iFrame.
+    iApply ("Hpost" $! rcgp rcra rcs0 rcs1 with "[%]"); first done. iFrame.
   Qed.
 
 End Switcher_Call_Blocks.

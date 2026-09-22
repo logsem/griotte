@@ -67,6 +67,18 @@ Local Lemma encode_word_type_correct :
   end.
 Proof. intros w w'. destruct_word w; destruct_word w'; done. Qed.
 
+Local Definition default_heap_region : HeapRegion := {|
+    heap_b := 0%a;
+    heap_e := @finz.FinZ MemNum 1%Z eq_refl eq_refl;
+    heap_valid := ltac:(solve_addr)
+  |}.
+
+Local Definition default_shadow_region : ShadowRegion := {|
+    shadow_b := @finz.FinZ MemNum 2%Z eq_refl eq_refl;
+    shadow_e := @finz.FinZ MemNum 3%Z eq_refl eq_refl;
+    shadow_valid := ltac:(solve_addr)
+  |}.
+
 Local Instance machine_parameters_instance : MachineParameters := {|
   instruction_encoding_mixin := {|
     decodeInstr := decode_countable Fail;
@@ -100,16 +112,10 @@ Local Instance machine_parameters_instance : MachineParameters := {|
     decodeWordType := decode_word_type;
     encodeWordType_correct := encode_word_type_correct
   |};
-  heap_mixin := {|
-    heap_b := 0%a;
-    heap_e := @finz.FinZ MemNum 1%Z eq_refl eq_refl;
-    heap_valid := ltac:(solve_addr)
-  |};
-  shadow_mixin := {|
-    shadow_b := @finz.FinZ MemNum 2%Z eq_refl eq_refl;
-    shadow_e := @finz.FinZ MemNum 3%Z eq_refl eq_refl;
-    shadow_valid := ltac:(solve_addr)
-  |};
+  heap_mixin := default_heap_region;
+  shadow_mixin := default_shadow_region;
+  heap_shadow_translation_mixin :=
+    @affine_heap_shadow_translation default_heap_region default_shadow_region eq_refl;
   heap_shadow_disjoint := ltac:(
     unfold disjoint; intros a Hheap Hshadow;
     rewrite !elem_of_finz_seq_between in Hheap;

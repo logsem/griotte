@@ -11,7 +11,7 @@ Section SO.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -65,7 +65,7 @@ Section SO.
     frame_match Ws Cs cstk W0 C ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ na_inv cerise_nais Nso_code
           ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
     ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
@@ -100,7 +100,7 @@ Section SO.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap HNswitcher_assert HNswitcher_so HNassert_so Hsize_so_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hframe_match)
-      "(#Hassert & #Hswitcher
+      "(#Hassert & #Halloc & #Hswitcher
       & #Hso_code
       & #Hso_exp_tbl_PCC
       & #Hso_exp_tbl_CGP
@@ -240,8 +240,9 @@ Section SO.
     }
 
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+    iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+       with
+             "[- $Halloc $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag
               $Hinterp_W1_C_f $HK]"); eauto; iFrame "%".
@@ -252,20 +253,24 @@ Section SO.
     }
     { by rewrite /is_arg_rmap. }
 
-    iSplitR.
-    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     clear dependent wca0 wct0 wct1 wct2 wct3 wcs0 wcs1.
     clear dependent wca1 wca2 wca3 wca4 wca5 rmap.
     clear stk_mem.
     iNext.
-    iIntros (W2 rmap stk_mem l')
+    iIntros (W2 rmap stk_mem l' rcgp rcra rcs0 rcs1)
       "( _ & _ & _ & %Hrelated_pub_2ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W2 & _
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & _)"; clear l'.
+      & Hrmap & Hstk & HK & %Hrestored)"; clear l'.
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+    subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
 
     (* Halt *)

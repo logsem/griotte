@@ -10,7 +10,7 @@ Section DLE.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -61,7 +61,7 @@ Section DLE.
     frame_match Ws Cs cstk W0 C ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -91,7 +91,7 @@ Section DLE.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
             )
-      "(#Hassert & #Hswitcher & Hna
+      "(#Hassert & #Halloc & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
@@ -351,8 +351,9 @@ Section DLE.
     }
 
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+    iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+       with
+             "[- $Halloc $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]"); eauto; iFrame "%".
@@ -363,13 +364,11 @@ Section DLE.
     }
     { by rewrite /is_arg_rmap. }
 
-    iSplitR.
-    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     clear dependent wca0 wct0 wct1 wct2 wct3 wcs0 wcs1.
     clear dependent wca1 wca2 wca3 wca4 wca5 rmap.
     clear stk_mem.
     iNext.
-    iIntros (W4 rmap stk_mem l')
+    iIntros (W4 rmap stk_mem l' rcgp rcra rcs0 rcs1)
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
       & %Hrelated_pub_W3ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W4 & %Hstack_revoked_W4
       & Hna & %Hcsp_bounds
@@ -377,7 +376,13 @@ Section DLE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & _)".
+      & Hrmap & Hstk & HK & %Hrestored)".
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+    subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
 
 
@@ -499,8 +504,9 @@ Section DLE.
     (* Prepare the closing resources for the switcher call spec *)
     iDestruct (StackRevokedResources_mono_priv _ W5 with "Hstack_revoked_W4") as "#Hstack_revoked_W5"; auto.
 
-    iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+    iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+       with
+             "[- $Halloc $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
               $Hinterp_W5_C_f $HentryC_f $HK]"); eauto; iFrame "%".
@@ -511,11 +517,9 @@ Section DLE.
     }
     { by rewrite /is_arg_rmap. }
 
-    iSplitR.
-    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     iNext. subst rmap'.
     clear dependent warg0 warg1 rmap stk_mem.
-    iIntros (W6 rmap stk_mem l0)
+    iIntros (W6 rmap stk_mem l0 rcgp rcra rcs0 rcs1)
       "( _ & _ & _
       & %Hrelated_pub_W5ext_W6 & Hrel_stk_C'' & %Hdom_rmap & Hstack_revoked_W6 & _
       & Hna & _
@@ -523,7 +527,13 @@ Section DLE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & _)"; clear l0.
+      & Hrmap & Hstk & HK & %Hrestored)"; clear l0.
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+    subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
 
     (* -- simplify our knowledge about rmap -- *)

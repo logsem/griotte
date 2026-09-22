@@ -10,7 +10,7 @@ Section DROE.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -65,7 +65,7 @@ Section DROE.
     frame_match Ws Cs cstk W_init_C C ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ na_own cerise_nais ⊤
 
       (* initial register file *)
@@ -94,7 +94,7 @@ Section DROE.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcra_nonheap Hcs1_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
             )
-      "(#Hassert & #Hswitcher & Hna
+      "(#Hassert & #Halloc & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
@@ -419,8 +419,9 @@ Section DROE.
     }
 
     iEval (cbn) in "Hct1".
-    iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hna
+    iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+       with
+             "[- $Halloc $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_g $HK]"); eauto; iFrame "%".
@@ -431,11 +432,9 @@ Section DROE.
     }
     { by rewrite /is_arg_rmap. }
 
-    iSplitR.
-    { iApply saved_registers_shadow_empty. repeat constructor; eauto. }
     iNext. subst rmap'.
     clear stk_mem.
-    iIntros (W2_B rmap' stk_mem l')
+    iIntros (W2_B rmap' stk_mem l' rcgp rcra rcs0 rcs1)
       "( _ & _ & _
       & %HW1_pubB_W2 & Hrel_stk_B & %Hdom_rmap' & Hclose_reg_B & %Hclose_reg_B
       & Hna & %Hcsp_bounds
@@ -443,7 +442,13 @@ Section DROE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & _)" ; clear l'.
+      & Hrmap & Hstk & HK & %Hrestored)" ; clear l'.
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+    subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "Hcgp".
     iEval (cbn) in "HPC".
     iEval (cbn) in "Hcra".

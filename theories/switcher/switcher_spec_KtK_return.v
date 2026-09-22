@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Export switcher switcher_preamble.
-From griotte Require Import switcher_macros_spec switcher_spec_return_blocks.
+From griotte Require Import switcher_macros_spec switcher_spec_return_blocks switcher_load_spec.
 From griotte Require Import map_simpl register_tactics proofmode.
 
 
@@ -11,7 +11,7 @@ Section Switcher_KtK_Return.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ}
-    {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -21,11 +21,8 @@ Section Switcher_KtK_Return.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
 
-  (** The [_call] bits identify the frame pushed at call time. The remaining
-      four bits describe the shadow entries owned at return and determine
-      the restored words. They need not equal the call-time bits; popping
-      the frame does not require updating its shadow metadata.
-   **)
+  (** Return borrows the current shadow entries from the allocator. Each
+      restored register satisfies [load_heap] for its saved word. *)
   Lemma switcher_cc_specification_return_known_to_known
     (Nswitcher : namespace)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wca0 wca1 : Word)
@@ -34,8 +31,6 @@ Section Switcher_KtK_Return.
     (rmap : Reg)
     (cstk : CSTK)
     (E : coPset)
-    (scgp_call scra_call scs0_call scs1_call : option bool)
-    (scgp scra scs0 scs1 : option bool)
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let frame :=
@@ -46,11 +41,7 @@ Section Switcher_KtK_Return.
               b_stk := b_stk;
               a_stk := a_stk;
               e_stk := e_stk;
-              ccrel := Known_to_Known;
-              shadow_cgp := scgp_call;
-              shadow_cra := scra_call;
-              shadow_cs0 := scs0_call;
-              shadow_cs1 := scs1_call
+              ccrel := Known_to_Known
            |}
     in
 
@@ -64,7 +55,7 @@ Section Switcher_KtK_Return.
     dom rmap = all_registers_s ∖ ({[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
 
     (* Switcher Invariant *)
-    na_inv cerise_nais Nswitcher switcher_inv
+    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
 
     (* PRE-CONDITION *)
     (* NA token*)
@@ -87,18 +78,19 @@ Section Switcher_KtK_Return.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ cstack_frag (frame::cstk)
-    ∗ saved_registers_shadow wcgp_caller wcra_caller wcs0_caller wcs1_caller scgp scra scs0 scs1
 
 
     (* POST-CONDITION *)
-    ∗ ▷ ( ∀ rmap',
+    ∗ ▷ ( ∀ rmap' rcgp rcra rcs0 rcs1,
             (
-              ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
+              ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
+              ∗ ⌜ dom rmap' = all_registers_s ∖ ({[ PC ; csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
               (* NA token*)
               ∗ na_own cerise_nais E
               (* Registers *)
-              ∗ PC ↦ᵣ updatePcPerm (restore_saved_word scra wcra_caller)
-              ∗ cgp ↦ᵣ restore_saved_word scgp wcgp_caller ∗ cra ↦ᵣ restore_saved_word scra wcra_caller ∗ cs0 ↦ᵣ restore_saved_word scs0 wcs0_caller ∗ cs1 ↦ᵣ restore_saved_word scs1 wcs1_caller
+              ∗ PC ↦ᵣ updatePcPerm (rcra)
+              ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
               (* Stack register *)
               ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
               (* Return values *)
@@ -112,7 +104,6 @@ Section Switcher_KtK_Return.
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ cstack_frag cstk
-              ∗ saved_registers_shadow wcgp_caller wcra_caller wcs0_caller wcs1_caller scgp scra scs0 scs1
 
                 -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
             )
@@ -122,8 +113,8 @@ Section Switcher_KtK_Return.
   Proof.
     intros astk4 frame.
     iIntros (Hstk_heap Hstk_shadow HE Hdom)
-      "(#Hswitcher & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
-      & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hshadow & Hpost)".
+      "(#Halloc & #Hswitcher & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
+      & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
 
     (* --- Extract the code from the invariant --- *)
     iMod (na_inv_acc with "Hswitcher Hna")
@@ -197,19 +188,12 @@ Section Switcher_KtK_Return.
     (* --- Lea csp -1 --- *)
     iInstr "Hcode" with "Hlc".
 
-    (** The load rules use one shadow entry per heap base, including when
-          several saved registers alias the same base. **)
-    iDestruct (saved_registers_shadow_open with "Hshadow")
-      as (shadow) "[Hshadow (%Hscgp & %Hscra & %Hscs0 & %Hscs1)]".
-    subst scgp scra scs0 scs1.
-    iApply (switcher_return_block_12_restore_shadow_spec with
+    iApply (switcher_return_block_12_restore_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
-        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hshadow $Hcode]"); eauto.
-    iNext. iIntros
-      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
-        & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hshadow & Hcode & Hlc_restore)".
-    iDestruct (saved_registers_shadow_map with "Hshadow") as "Hshadow".
-    iEval (rewrite <- !restore_saved_word_map) in "Hcgp Hcra Hcs0 Hcs1".
+        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Halloc $Hcode]"); eauto.
+    iNext. iIntros (rcgp rcra rcs1 rcs0) "%Hrestored
+      (HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
+        & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc_restore)".
     iCombine "Hlc Hlc_restore" as "Hlc".
     iDestruct "Hlc" as "[Hlc Hlc']".
 
@@ -294,7 +278,8 @@ Section Switcher_KtK_Return.
       iPureIntro; solve_addr+Hbounds_tstk_b  Hlen_cstk Ha_tstk1.
     }
 
-    iApply "Hpost"; iFrame "∗ # %".
+    iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1); iFrame "∗ # %".
+    iPureIntro. tauto.
   Qed.
 
 

@@ -12,7 +12,7 @@ Section fundamental.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
 
@@ -30,7 +30,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Jnz rimm rcond) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -57,7 +57,7 @@ Section fundamental.
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+      iApply ("IH" $! _ _ _ _ _ regs with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
@@ -70,7 +70,7 @@ Section fundamental.
     iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
     { destruct ρ;auto;contradiction. }
 
-    iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]") ; eauto.
+    iApply ("IH" $! _ _ _ _ _ regs with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]") ; eauto.
     iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity.
   Qed.
 

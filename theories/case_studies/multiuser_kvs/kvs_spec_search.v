@@ -9,7 +9,7 @@ Section KVS_search.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
   .

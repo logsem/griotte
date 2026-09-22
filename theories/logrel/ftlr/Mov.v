@@ -13,7 +13,7 @@ Section fundamental.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
 
@@ -31,7 +31,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Mov dst src) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -59,7 +59,7 @@ Section fundamental.
 
         destruct (decide (r = PC)).
         { simplify_map_eq.
-          iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+          iApply ("IH" $! _ _ _ _ _ regs with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
           iApply (interp_next_PC with "Hinv_interp"); eauto.
         }
         simplify_map_eq.
@@ -84,7 +84,7 @@ Section fundamental.
           iApply wp_value;auto.
         }
 
-        iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+        iApply ("IH" $! _ _ _ _ _ regs with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
         iApply (interp_weakening with "IH Hr0"); eauto; try reflexivity; try solve_addr.
       }
       { map_simpl "Hmap".
@@ -95,7 +95,7 @@ Section fundamental.
 
         assert (is_Some (<[dst:=w0]> regs !! csp)) as [??].
         { destruct (decide (dst = csp));simplify_map_eq =>//. }
-        iApply ("IH" $! _ _ _ _ _ (<[dst:=w0]ᵣ> _) with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
+        iApply ("IH" $! _ _ _ _ _ (<[dst:=w0]ᵣ> _) with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); eauto.
         - intros; simpl.
           rewrite lookup_insert_is_Some.
           destruct (decide (dst = x0)); auto; right; split; auto.

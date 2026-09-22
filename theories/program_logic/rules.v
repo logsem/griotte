@@ -5,7 +5,7 @@ From griotte Require Export
      rules_Lea rules_Mov rules_Restrict rules_Subseg
      rules_Jmp rules_Jnz rules_Jalr
      rules_Seal rules_UnSeal
-     rules_ReadSR rules_WriteSR.
+     rules_ReadSR rules_WriteSR rules_Allocator.
 
 (** Program specifications
 

@@ -10,7 +10,7 @@ Section Switcher_Callback.
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ}
-    {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}.
 
@@ -35,7 +35,7 @@ Section Switcher_Callback.
     is_arg_rmap arg_rmap 8 ->
 
     (* Switcher Invariant *)
-    na_inv cerise_nais Nswitcher switcher_inv
+    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
 
     (* PRE-CONDITION *)
     ∗ na_own cerise_nais ⊤
@@ -86,7 +86,7 @@ Section Switcher_Callback.
             ∗ cra ↦ᵣ wcra_caller
             ∗ cs0 ↦ᵣ wcs0_caller
             ∗ cs1 ↦ᵣ callback
-            ∗ ⌜stack_load_result wct1_caller callback⌝
+            ∗ ⌜load_heap wct1_caller callback⌝
             ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
             ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
@@ -99,7 +99,7 @@ Section Switcher_Callback.
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hcgp Hcra Hcs0 Hdom Hrdom)
-      "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget
+      "(#Halloc & #Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget
        & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp_C & Hclose
        & %Hrevoked_stk & Hcstk_frag & HK & Hpost)".
     destruct (is_heap_cap wct1_caller) eqn:Hcallback.
@@ -114,9 +114,9 @@ Section Switcher_Callback.
          & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
          & Hrmap & Hstk_l & Hstk_h & [Hlc Hlc'])".
       destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hcallback').
-      apply (stack_load_result_nonheap _ _ Hcgp) in Hrcgp; subst rcgp.
-      apply (stack_load_result_nonheap _ _ Hcra) in Hrcra; subst rcra.
-      apply (stack_load_result_nonheap _ _ Hcs0) in Hrcs0; subst rcs0.
+      apply (load_heap_nonheap _ _ Hcgp) in Hrcgp; subst rcgp.
+      apply (load_heap_nonheap _ _ Hcra) in Hrcra; subst rcra.
+      apply (load_heap_nonheap _ _ Hcs0) in Hrcs0; subst rcs0.
       set (stk_mem_l := [wcs0_caller; wct1_caller; wcra_caller; wcgp_caller]).
       set (stk_mem_h := drop 4 stk_mem).
       pose proof (extract_temps W) as [l_unk [Hlunk_nodup Hlunk] ].
@@ -210,16 +210,23 @@ Section Switcher_Callback.
         pose proof (finz_incr_iff_dist a_stk (a_stk ^+ 4)%a 4) as [Hdist _].
         by apply Hdist in Ha4 as [? ?].
       }
-    - iApply (switcher_cc_specification_alt with
-        "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Htarget $Hcs0 $Hcs1
+    - iApply (switcher_cc_specification_alt _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+         with
+        "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Htarget $Hcs0 $Hcs1
           $Hargs $Hregs $Hstk $Hworld_interp_C $Hclose $Hcstk_frag $HK]");
         try assumption.
       iSplit; first done.
-      iSplitR.
-      { iApply saved_registers_shadow_empty. repeat constructor; assumption. }
-      iIntros "!>" (W2 rmap' stk_mem' l') "Hres".
+      iIntros "!>" (W2 rmap' stk_mem' l' rcgp rcra rcs0 rcs1) "Hres".
+      iDestruct "Hres" as
+        "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ?
+         & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & %Hrestored)".
+      destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
+      apply (load_heap_nonheap _ _ Hcgp) in Hgp.
+      apply (load_heap_nonheap _ _ Hcra) in Hra.
+      apply (load_heap_nonheap _ _ Hcs0) in Hs0.
+      apply (load_heap_nonheap _ _ Hcallback) in Hs1.
+      subst rcgp rcra rcs0 rcs1.
       iApply ("Hpost" $! W2 rmap' stk_mem' l' wct1_caller).
-      repeat (iDestruct "Hres" as "[? Hres]").
       iFrame. iPureIntro. left; done.
   Qed.
 End Switcher_Callback.

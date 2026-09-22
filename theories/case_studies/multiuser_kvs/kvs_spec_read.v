@@ -12,7 +12,7 @@ Section KVS_spec_read.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
@@ -1090,7 +1090,6 @@ Section KVS_spec_read.
   Qed.
 
   Lemma KVS_read_spec_known_to_known
-    (scgp scra scs0 scs1 : option bool)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : Word)
     (b_stk e_stk a_stk : Addr)
     (arg_rmap : Reg) (cstk : CSTK) (E : coPset)
@@ -1120,14 +1119,14 @@ Section KVS_spec_read.
          ⌜ wca1 = w ⌝)
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk arg_rmap cstk kvs_read_nargs E
-      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_read_pcc_off scgp scra scs0 scs1.
+      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_read_pcc_off.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hw_nonheap Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros "[ #Hkvs #Hkvs_logical ]" (arg_rmap' rmap')
-      "(%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
-       & Hargs & Hrmap & Hstk & Hcstk & Hshadow
+      "#Halloc (%Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
+       & Hargs & Hrmap & Hstk & Hcstk
        & (Huser_key & Huser_kvs & Hkey)
        & Hpost)".
     iEval (cbn) in "HPC".
@@ -1179,7 +1178,7 @@ Section KVS_spec_read.
     set (rmap_ret := <[ct0 := WInt 0]> rmap_ret8).
     iEval (cbn) in "HPC".
 
-    iApply ("Hpost" $! scgp scra scs0 scs1 (WInt ASM_TRUE) w rmap_ret
+    iApply ("Hpost" $! (WInt ASM_TRUE) w rmap_ret
               (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
     iSplit.
     { iPureIntro.

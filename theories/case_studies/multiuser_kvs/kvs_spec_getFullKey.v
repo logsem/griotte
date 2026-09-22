@@ -13,7 +13,7 @@ Section KVS_getFullKey.
     {stsg : STSG Addr region_type OType Word Σ}
     {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}

@@ -13,7 +13,7 @@ Section fundamental.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
 
@@ -344,7 +344,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Load dst src imm) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "#IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
+    iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
 
@@ -451,7 +451,7 @@ Section fundamental.
       assert (is_Some (regs' !! csp)) as [? ?].
       { rewrite XX lookup_insert_ne//.
         destruct (decide (dst = csp));simplify_map_eq =>//. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]").
+      iApply ("IH" $! _ _ _ _ _ regs' with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]").
       { cbn. intros. subst regs'.
         rewrite lookup_insert_is_Some.
         destruct (decide (PC = x6)); [ auto | right; split; auto].

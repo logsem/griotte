@@ -10,7 +10,7 @@ Section fundamental.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
 
@@ -183,9 +183,9 @@ Section fundamental.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (W') "#Hfuture %g'' %Hflows !>".
-    iIntros (cstk Ws Cs regs) "[[Hfull Hmap] (Hreg & Hworld_interp & Hcont & Hown & Hcstk & Hframe)]".
+    iIntros (cstk Ws Cs regs) "#Halloc [[Hfull Hmap] (Hreg & Hworld_interp & Hcont & Hown & Hcstk & Hframe)]".
     rewrite /interp_conf.
-    iApply ("IH" with "Hfull Hmap Hreg Hworld_interp Hcont Hframe Hown Hcstk"); eauto.
+    iApply ("IH" with "Halloc Hfull Hmap Hreg Hworld_interp Hcont Hframe Hown Hcstk"); eauto.
     iModIntro. rewrite fixpoint_interp1_eq interp1_eq.
     destruct (isO p) eqn:HpO; auto.
     destruct (has_sreg_access p) eqn:HpXSR'; auto.

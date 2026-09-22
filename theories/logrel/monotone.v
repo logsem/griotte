@@ -10,7 +10,7 @@ Section monotone.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
 
@@ -628,13 +628,13 @@ Proof.
   revert Ws Cs; induction cstk;intros Ws Cs; simpl;auto.
   iIntros (Hrel) "[Hic Hk]".
   destruct (is_known_to_known_frm a); first (by iFrame).
-  iDestruct "Hk" as "[Hcallee (Hshadow & Hcont)]".
-  iSplitL "Hic";[|iSplitL "Hcallee"].
+  iDestruct "Hk" as "[Hcallee Hrestore]".
+  iSplitL "Hic"; [|iSplitL "Hcallee"].
   - iFrame.
   - iApply (interp_monotone with "[//] [$]").
-  - iFrame "Hshadow". iIntros (W'' Hrel').
-    iApply "Hcont". iPureIntro.
-    eapply related_sts_pub_trans_world;eauto.
+  - destruct (is_untrusted_caller_frm a); first done.
+    iIntros (W'' Hrel'). iApply "Hrestore". iPureIntro.
+    eapply related_sts_pub_trans_world; eauto.
 Qed.
 
 Lemma elem_of_mono_pub W W' a :

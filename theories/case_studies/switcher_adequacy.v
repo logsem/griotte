@@ -10,7 +10,7 @@ Section helpers_switcher_adequacy.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
   .
@@ -38,14 +38,14 @@ Section helpers_switcher_adequacy.
     iModIntro;iNext.
 
     iIntros (cstk Ws Cs ???)
-      "( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
+      "#Halloc ( Hcont & %Hfreq & ( %Hfullmap & %Hregs_pc & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
                      & Hrmap & Hworld_interp & %Hcsp_sync & Htframe & Hna)".
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental with "Hinterp_PCC") as "H_jmp".
     iSpecialize ("H_jmp" $! cstk Ws Cs regs).
     iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
-    iApply "H_jmp".
+    iApply ("H_jmp" with "Halloc").
     rewrite insert_id ; last done.
     iFrame "∗%#".
     iIntros (r v Hrpc Hr).

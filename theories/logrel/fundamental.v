@@ -12,7 +12,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
@@ -34,7 +34,7 @@ Section fundamental.
       interp_expression W C (WCap true p g b e a).
   Proof.
     iIntros "#Hinv_interp".
-    iIntros (cstk Ws Cs regs) "[[Hfull Hreg] [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]".
+    iIntros (cstk Ws Cs regs) "#Halloc [[Hfull Hreg] [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]".
     assert ( readAllowed p = true \/ readAllowed p = false )
       as [Hread_p|Hread_p] by (destruct_perm p ; naive_solver)
     ; cycle 1.
@@ -59,7 +59,7 @@ Section fundamental.
     iAssert ftlr_IH as "IH" ; [|iClear "IH'"].
     { iModIntro; iNext.
       iIntros (W_ih C_ih cstk_ih Ws_ih Cs_ih r_ih p_ig g_ih b_ih e_ih a_ih)
-        "%Hfull #Hregs Hmreg Hworld_interp Hcont %Hframe' Hown Htframe Hinterp".
+        "#Halloc_ih %Hfull #Hregs Hmreg Hworld_interp Hcont %Hframe' Hown Htframe Hinterp".
       iApply ("IH'" with "[%] [] [] [Hmreg] [$] [$] [$] [$]");eauto.
       done.
     }
@@ -133,196 +133,196 @@ Section fundamental.
     destruct (decodeInstrW w) eqn:Hi. (* proof by cases on each instruction *)
     + (* Jmp *)
       iApply (jmp_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* Jnz *)
       iApply (jnz_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* Jalr *)
       iApply (jalr_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* Mov *)
       iApply (mov_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* Load *)
       iApply (load_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* Store *)
       iApply (store_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* Lt *)
       iApply (binop_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto; naive_solver.
     + (* Add *)
       iApply (binop_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto; naive_solver.
     + (* Sub *)
       iApply (binop_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto; naive_solver.
     + (* Mul *)
       iApply (binop_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto; naive_solver.
     + (* LAnd *)
       iApply (binop_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto; naive_solver.
     + (* LOr *)
       iApply (binop_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto; naive_solver.
     + (* LShiftL *)
       iApply (binop_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto; naive_solver.
     + (* LShiftR *)
       iApply (binop_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto; naive_solver.
     + (* Lea *)
       iApply (lea_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* Restrict *)
       iApply (restrict_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* Subseg *)
       iApply (subseg_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* GetB *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ _ (GetB _ _) with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* GetE *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ _ (GetE _ _) with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* GetA *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ _ (GetA _ _) with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* GetP *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ _ (GetP _ _) with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* GetL *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ _ (GetL _ _) with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* GetWType *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ _ (GetWType _ _) with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* GetOType *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ _ (GetOType _ _) with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* Seal *)
       iApply (seal_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* UnSeal *)
       iApply (unseal_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* ReadSR *)
       iApply (readsr_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
       ;eauto.
     + (* WriteSR *)
       iApply (writesr_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]")
@@ -347,13 +347,13 @@ Section fundamental.
       iApply wp_value; auto.
     + (* GetTag *)
       iApply (get_case _ _ _ _ _ _ _ _ _ _ _ _ _ (GetTag _ _) with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]"); eauto.
     + (* ClearTag *)
       iApply (cleartag_case with
-               "[$IH] [$Hinv_interp] [$Hreg] [$Hrela]
+               "Halloc [$IH] [$Hinv_interp] [$Hreg] [$Hrela]
                [$Hrcond] [$Hwcond] [$HmonoR] [$WorldRes]
                [$Hcont] [//] [$Hworld_interp] [$Hown] [$Hframe]
                [$Hstate] [$HPC] [Hmreg]"); eauto.
@@ -364,7 +364,7 @@ Section fundamental.
   Proof.
     iIntros "Hw"; destruct w as [| [ [] c | ] | | ].
     2: { iApply fundamental_cap; done. }
-    all: iIntros (????) "(? & Hreg & ?)"; unfold interp_conf.
+    all: iIntros (????) "#Halloc (? & Hreg & ?)"; unfold interp_conf.
     all: iApply (wp_wand with "[-]"); [ | iIntros (?) "H"; iApply "H"].
     all: iApply (wp_bind (fill [SeqCtx])); cbn.
     all: unfold registers_pointsto; rewrite -insert_delete_eq.
@@ -415,9 +415,9 @@ Section fundamental.
     ⊢ ftlr_IH.
   Proof.
     iModIntro; iNext.
-    iIntros (???????????) "????????#Hv".
+    iIntros (???????????) "#Halloc????????#Hv".
     iDestruct (fundamental with "Hv") as "Hcont".
-    iApply "Hcont"; iFrame.
+    iApply "Hcont"; iFrame "∗#".
   Qed.
 
   (* updatePcPerm adds a later because of the case of E-capabilities, which *)
@@ -441,7 +441,7 @@ Section fundamental.
       iIntros (cstk Ws Cs rmap).
       iDestruct "Hw" as "#Hw".
       iSpecialize ("Hw" $! W (futureworld_refl g W) g (LocalityFlowsToReflexive g)).
-      iIntros "!> (HPC & Hr & ?)".
+      iIntros "!> #Halloc (HPC & Hr & ?)".
       iApply "Hw"; eauto. iFrame.
     }
     { iNext; iApply fundamental; eauto. }

@@ -10,7 +10,7 @@ Section CMDC_Call_Phase.
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
   .
@@ -64,7 +64,7 @@ Section CMDC_Call_Phase.
       all_registers_s ∖
         ({[ PC; cgp; cra; csp; ct1; cs0; cs1 ]} ∪ dom_arg_rmap 8) ->
 
-    (na_inv cerise_nais Nswitcher switcher_inv
+    (allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_own cerise_nais ⊤
     ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp
@@ -131,7 +131,7 @@ Section CMDC_Call_Phase.
       Hstk_lower Hrmap_dom).
     iIntros "(Hpre & Hcont)".
     iDestruct "Hpre" as
-      "(#Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp
+      "(#Halloc & #Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp
       & Hct1 & Hcs0 & Hcs1
       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0 & Hrmap
       & Hshared_addr & Hstk & Hworld & Hstack_revoked & Hcstk & HK
@@ -222,8 +222,9 @@ Section CMDC_Call_Phase.
     iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked")
       as "Hstack_revoked"; eauto.
 
-    iApply (switcher_cc_specification _ Wcall with
-      "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
+    iApply (switcher_cc_specification _ Wcall _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+       with
+      "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
        $Hargs $Hrmap $Hstk $Hworld $Hstack_revoked $Hcstk $HK
        $Htarget_call $Hentry]").
     - exact Hstk_shadow.
@@ -231,17 +232,20 @@ Section CMDC_Call_Phase.
     - exact Hrmap_dom.
     - subst arg_rmap. by rewrite /is_arg_rmap.
     - iSplit; first done.
-
-      iSplitR.
-      { iApply saved_registers_shadow_empty. repeat constructor; assumption. }
       iNext.
-      iIntros (Wret rmap' stk_mem' l')
+      iIntros (Wret rmap' stk_mem' l' rcgp rcra rcs0 rcs1)
       "(%Hextract & Hrevoked_l & %Hrevoked_l_revoke
       & %HWcall_pub_Wret & Hcallee_temporary
       & %Hrmap'_dom & Hstack_revoked & %Hrevoked_stk_revoke
       & Hna & %Hstk_bounds & Hworld & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-      & Hca0 & Hca1 & Hrmap & Hstk & HK & _)".
+      & Hca0 & Hca1 & Hrmap & Hstk & HK & %Hrestored)".
+      destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
+      apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+      subst rcgp rcra rcs0 rcs1.
 
       assert (shared_addr ∉ callee_stk_region) as Hshared_addr_callee.
       { subst callee_stk_region.

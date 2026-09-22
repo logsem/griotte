@@ -1,16 +1,10 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules_Load map_simpl register_tactics.
+From griotte Require Import rules_Allocator.
 From griotte Require Export call_stack.
 
 Section Switcher_Load.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
-
-  Definition stack_load_result (raw actual : Word) : Prop :=
-    actual = raw ∨ (is_heap_cap raw = true ∧ actual = clear_tag raw).
-
-  Lemma stack_load_result_nonheap raw actual :
-    is_heap_cap raw = false -> stack_load_result raw actual -> actual = raw.
-  Proof. intros Hheap [-> | [Hheap' ->]]; congruence. Qed.
 
   Lemma switcher_load_stack E pc_p pc_g pc_b pc_e pc_a pc_a'
     dst src wi wd b e a raw :
@@ -24,7 +18,7 @@ Section Switcher_Load.
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw }}}
       Instr Executable @ E
     {{{ retv, RET retv; ⌜retv = FailedV⌝ ∨
-        ∃ actual, ⌜retv = NextIV⌝ ∗ ⌜stack_load_result raw actual⌝ ∗
+        ∃ actual, ⌜retv = NextIV⌝ ∗ ⌜load_heap raw actual⌝ ∗
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw }}}.
   Proof.
@@ -59,10 +53,17 @@ Section Switcher_Load.
     destruct Hactual as [-> | ->]; [by left|right; done].
   Qed.
 
-  (** Precise restoration when the caller supplies the current shadow entries. *)
-  Lemma switcher_load_stack_shadow E pc_p pc_g pc_b pc_e pc_a pc_a'
-    dst src wi wd b e a raw ws shadow :
-    raw ∈ ws ->
+End Switcher_Load.
+
+Section Switcher_Restore.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{!allocatorG Σ} `{MP : MachineParameters}.
+
+  (** Restore one saved register, borrowing its shadow entry from the allocator
+      for this instruction only. Success exposes [load_heap], so subsequent
+      loads need not observe the same shadow bit, even for an aliased base. *)
+  Lemma switcher_load_stack_restore E pc_p pc_g pc_b pc_e pc_a pc_a'
+    dst src wi wd b e a raw :
+    ↑Nallocator ⊆ E ->
     is_shadow_address a = false ->
     decodeInstrW wi = Load dst src 0 ->
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
@@ -71,35 +72,26 @@ Section Switcher_Load.
     dst ≠ cnull -> src ≠ cnull ->
     {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw ∗
-        saved_shadow ws shadow }}}
+        allocator_ctx }}}
       Instr Executable @ E
-    {{{ RET NextIV;
+    {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
-        dst ↦ᵣ restore_word shadow raw ∗
-        src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw ∗
-        saved_shadow ws shadow }}}.
+        dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
+        a ↦ₐ raw }}}.
   Proof.
-    iIntros (Hraw Hshadow Hinstr Hvpc Hbounds Hpc' Hdst Hsrc φ)
-      "(HPC & Hi & Hdst & Hsrc & Ha & Hshadow) Hφ".
+    iIntros (HE Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
+      "(HPC & Hi & Hdst & Hsrc & Ha & #Halloc) HΦ".
     destruct (is_heap_cap raw) eqn:Hheap; cycle 1.
-    { rewrite restore_word_nonheap //.
-      iApply (wp_load_success_notinstr with "[$HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
+    { iApply (wp_load_success_notinstr with "[$HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
       iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
-      iApply "Hφ". iFrame. }
-    destruct raw as [|[t p g b' e' a'|]| |]; try discriminate.
-    iDestruct (saved_shadow_lookup _ _ _ b' with "Hshadow")
-      as (bit Hbit) "[Hs Hclose]"; first exact Hraw.
-    { by rewrite /heap_cap_base /is_heap_cap in Hheap |- *; rewrite Hheap. }
-    rewrite /restore_word /heap_cap_base /is_heap_cap in Hheap |- *.
-    rewrite Hheap Hbit /=.
-    destruct bit.
-    - iApply (wp_load_success_heap_revoked with "[$HPC $Hi $Hdst $Hsrc $Ha $Hs]"); eauto.
-      iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha & Hs)".
-      iDestruct ("Hclose" with "Hs") as "Hshadow".
-      iApply "Hφ". iFrame.
-    - iApply (wp_load_success_heap with "[$HPC $Hi $Hdst $Hsrc $Ha $Hs]"); eauto.
-      iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha & Hs)".
-      iDestruct ("Hclose" with "Hs") as "Hshadow".
-      iApply "Hφ". iFrame.
+      iApply ("HΦ" $! raw). iFrame. iPureIntro. by left. }
+    destruct raw as [|[t p g base e' a'|]| |]; try discriminate.
+    cbn in Hheap.
+    iDestruct (allocator_ctx_shadow_access_with base with "Halloc") as "#Haccess".
+    { by apply elem_of_heap_addresses. }
+    iApply (wp_load_heap_access with "[$Haccess $HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
+    iNext. iIntros (bit) "(_ & _ & HPC & Hdst & Hi & Hsrc & Ha)".
+    iApply ("HΦ" $! (if bit then clear_tag (WCap t p g base e' a') else WCap t p g base e' a')).
+    destruct bit; iFrame; iPureIntro; [right|left]; done.
   Qed.
-End Switcher_Load.
+End Switcher_Restore.

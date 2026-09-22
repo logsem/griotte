@@ -9,7 +9,7 @@ Section fundamental.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
 
@@ -27,7 +27,7 @@ Section fundamental.
   Definition ftlr_IH: iProp Σ :=
     (□ ▷ (∀ (W_ih : WORLD) (C_ih : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (r_ih : leibnizO Reg)
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr),
-            full_map r_ih
+            allocator_ctx -∗ full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
             -∗ registers_pointsto (<[PC:= WCap true p_ih g_ih b_ih e_ih a_ih]> r_ih)
             -∗ world_interp W_ih C_ih
@@ -52,7 +52,7 @@ Section fundamental.
     → std W !! a = Some ρ
     → ρ ≠ Revoked
     → Pinstr
-    -> ftlr_IH
+    -> allocator_ctx -∗ ftlr_IH
     -∗ fixpoint interp1 W C (WCap true p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)
     -∗ rel C a p' (safeC P)

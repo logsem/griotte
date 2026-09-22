@@ -108,7 +108,8 @@ Section opsem.
         if readAllowed p && withinBounds b e ea then
           if (is_shadow_address ea)
           then
-            b_revoked ← (shadowtbl φ) !! ea;
+            heap_a ← shadow_to_heap ea;
+            b_revoked ← (shadowtbl φ) !! heap_a;
             updatePC (update_reg φ dst (WInt (bool_to_Z b_revoked)))
           else
             asrc ← (mem φ) !! ea;
@@ -138,10 +139,11 @@ Section opsem.
         if writeAllowed p && withinBounds b e ea then
           if (is_shadow_address ea)
           then
-            (* FIXME what should be the behavior of storing not 0 or 1? *)
+            heap_a ← shadow_to_heap ea;
+            (* Only Boolean values can be stored in the shadow table. *)
             match tostore with
-            | WInt 0 => updatePC (update_shadowtbl φ ea false)
-            | WInt 1 => updatePC (update_shadowtbl φ ea true)
+            | WInt 0 => updatePC (update_shadowtbl φ heap_a false)
+            | WInt 1 => updatePC (update_shadowtbl φ heap_a true)
             | _ => None
             end
           else

@@ -320,13 +320,14 @@ Section griotte_lang_rules.
       shadow' = shadow →
       incrementPC(regs) = Some regs' ->
       Store_spec regs r1 r2 regs' mem mem' shadow shadow' NextIV
-  | Store_spec_success_shadow p g b e a revoked old_revoked :
+  | Store_spec_success_shadow p g b e a heap_a revoked old_revoked :
       word_of_argument regs r2 = Some (WInt (bool_to_Z revoked)) →
       reg_allows_store regs r1 p g b e a →
       is_shadow_address a = true →
-      shadow !! a = Some old_revoked →
+      shadow_to_heap a = Some heap_a →
+      shadow !! heap_a = Some old_revoked →
       mem' = mem →
-      shadow' = <[a := revoked]> shadow →
+      shadow' = <[heap_a := revoked]> shadow →
       incrementPC regs = Some regs' →
       Store_spec regs r1 r2 regs' mem mem' shadow shadow' NextIV
   | Store_spec_failure_store :
@@ -440,7 +441,8 @@ Section griotte_lang_rules.
       reg_allows_store regs r1 p g b e a →
       word_of_argument regs r2 = Some storev →
       if is_shadow_address a then
-        (∃ revoked, storev = WInt (bool_to_Z revoked)) → is_Some (shadow !! a)
+        (∃ revoked, storev = WInt (bool_to_Z revoked)) →
+        ∃ heap_a, shadow_to_heap a = Some heap_a ∧ is_Some (shadow !! heap_a)
       else is_Some (mem !! a).
 
    Lemma wp_store Ep
@@ -520,7 +522,10 @@ Section griotte_lang_rules.
      assert (Hallow : reg_allows_store regs r1 p g b e a) by (repeat split; auto).
      specialize (HaStore p g b e a storev Hallow HSV).
      destruct (is_shadow_address a) eqn:Hshadow.
-     - (* Shadow-table store *)
+     - (* Shadow-table store: the capability addresses the shadow region,
+          while its points-to is indexed by the corresponding heap address. *)
+       destruct (proj2 (shadow_to_heap_domain a) Hshadow) as [heap_a Htranslate].
+       rewrite Htranslate /= in Hstep.
        destruct (decide (∃ revoked, storev = WInt (bool_to_Z revoked)))
          as [[revoked ->] | Hinvalid].
        2: { (* Failure: only 0 and 1 can be stored in the shadow table *)
@@ -535,7 +540,7 @@ Section griotte_lang_rules.
          iFailWP "Hφ" Store_fail_invalid_shadow.
        }
        assert (Hshadow_step :
-         match updatePC (update_shadowtbl (r, sr, m, st) a revoked) with
+         match updatePC (update_shadowtbl (r, sr, m, st) heap_a revoked) with
          | Some conf => conf
          | None => (Failed, (r, sr, m, st))
          end = (c, σ2)).
@@ -550,16 +555,17 @@ Section griotte_lang_rules.
          inversion Hstep.
          iFailWP "Hφ" Store_fail_invalid_PC.
        }
-       destruct HaStore as [old_revoked Hshadowa]; first by eexists.
+       destruct HaStore as (heap_a' & Htranslate' & old_revoked & Hshadowa); first by eexists.
+       assert (heap_a' = heap_a) as -> by congruence.
        pose proof Hregs' as Hinc.
-       eapply (incrementPC_success_updatePC _ sr m (<[a:=revoked]> st)) in Hregs'
+       eapply (incrementPC_success_updatePC _ sr m (<[heap_a:=revoked]> st)) in Hregs'
          as (t1 & p1 & g1 & b1 & e1 & a1 & a'1 & a_pc1 & HPC'' & HuPC & ->).
        eapply updatePC_success_incl with
-         (sregs':=sr) (m':=m) (shadow':=<[a:=revoked]> st) in HuPC; last exact Hregs.
+         (sregs':=sr) (m':=m) (shadow':=<[heap_a:=revoked]> st) in HuPC; last exact Hregs.
        rewrite HuPC in Hstep. simplify_pair_eq. cbn.
-       iDestruct (big_sepM_delete _ _ a with "Hshadow") as "[Ha Hshadow]"; first exact Hshadowa.
+       iDestruct (big_sepM_delete _ _ heap_a with "Hshadow") as "[Ha Hshadow]"; first exact Hshadowa.
        iMod (gen_heap_update with "Hst Ha") as "[Hst Ha]".
-       iDestruct (big_sepM_insert _ _ a with "[$Hshadow $Ha]") as "Hshadow".
+       iDestruct (big_sepM_insert _ _ heap_a with "[$Hshadow $Ha]") as "Hshadow".
        { apply lookup_delete_eq. }
        iEval (rewrite insert_delete_eq) in "Hshadow".
        iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
@@ -618,7 +624,7 @@ Section griotte_lang_rules.
     destruct Hallow as (Hdst & Hwa & Hwb).
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 oldv0 Harg0 (Hdst0 & _) Hshadow0 Hlookup0 -> _ Hinc0
-      |p0 g0 b0 e0 a0 revoked old_revoked Harg0 (Hdst0 & _) Hshadow0
+      |p0 g0 b0 e0 a0 heap_a0 revoked old_revoked Harg0 (Hdst0 & _) Hshadow0
       | -> _ Hfail]; simplify_eq.
     - iApply "Hφ". iFrame.
     - destruct Hfail; simplify_eq; try congruence.
@@ -626,7 +632,7 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma wp_store_success_shadow E pc_p pc_g pc_b pc_e pc_a
-    dst src w regs regs' mem shadow p g b e a revoked old_revoked :
+    dst src w regs regs' mem shadow p g b e a heap_a revoked old_revoked :
     decodeInstrW w = Store dst src 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -635,7 +641,8 @@ Section griotte_lang_rules.
     reg_allows_store regs dst p g b e a →
     word_of_argument regs src = Some (WInt (bool_to_Z revoked)) →
     is_shadow_address a = true →
-    shadow !! a = Some old_revoked →
+    shadow_to_heap a = Some heap_a →
+    shadow !! heap_a = Some old_revoked →
     incrementPC regs = Some regs' →
     {{{ (▷ [∗ map] a↦w ∈ mem, a ↦ₐ w) ∗
         (▷ [∗ map] a↦revoked ∈ shadow, a ↦ₛ revoked) ∗
@@ -643,20 +650,20 @@ Section griotte_lang_rules.
       Instr Executable @ E
     {{{ RET NextIV;
         ([∗ map] a↦w ∈ mem, a ↦ₐ w) ∗
-        ([∗ map] a↦revoked ∈ <[a:=revoked]> shadow, a ↦ₛ revoked) ∗
+        ([∗ map] a↦revoked ∈ <[heap_a:=revoked]> shadow, a ↦ₛ revoked) ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hinstr Hvpc HPC Dregs Hmem Hallow Harg Hshadow Hlookup Hinc φ)
+    iIntros (Hinstr Hvpc HPC Dregs Hmem Hallow Harg Hshadow Htranslate Hlookup Hinc φ)
       "(>Hmem & >Hshadow & >Hmap) Hφ".
     iApply (wp_store with "[$Hmem $Hshadow $Hmap]"); eauto.
     { intros p0 g0 b0 e0 a0 v0 (Hdst0 & _) Harg0.
       destruct Hallow as (Hdst & _). simplify_eq.
-      rewrite Hshadow. intros _. by eexists. }
+      rewrite Hshadow. intros _. exists heap_a. split; first done. by eexists. }
     iNext. iIntros (regs0 mem0 shadow0 retv) "(%Hspec & Hmem & Hshadow & Hmap)".
     destruct Hallow as (Hdst & Hwa & Hwb).
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 oldv0 Harg0 (Hdst0 & _) Hshadow0
-      |p0 g0 b0 e0 a0 revoked0 old_revoked0 Harg0 (Hdst0 & _) Hshadow0 Hlookup0 -> -> Hinc0
+      |p0 g0 b0 e0 a0 heap_a0 revoked0 old_revoked0 Harg0 (Hdst0 & _) Hshadow0 Htranslate0 Hlookup0 -> -> Hinc0
       | -> -> Hfail]; simplify_eq.
     - congruence.
     - assert (revoked0 = revoked) as ->.
@@ -1249,7 +1256,7 @@ iApply "Hφ".
     iNext. iIntros (regs' mem' shadow' retv) "(%Hspec & _ & _ & _)".
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 oldv Harg (Hdst & Hwa & Hbounds)
-      |p0 g0 b0 e0 a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
+      |p0 g0 b0 e0 a0 heap_a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
       |]; last by iApply "Hφ".
     all: destruct (decide (dst = cnull)); simplify_map_eq;
         destruct wdst as [| [] | |]; cbn in Hnot_cap; congruence.
@@ -1283,7 +1290,7 @@ iApply "Hφ".
     iNext. iIntros (regs' mem' shadow' retv) "(%Hspec & _ & _ & _)".
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 oldv Harg (Hdst & Hwa & Hbounds)
-      |p0 g0 b0 e0 a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
+      |p0 g0 b0 e0 a0 heap_a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
       |]; last by iApply "Hφ".
     all: destruct (decide (dst = cnull)); simplify_map_eq;
         destruct wdst as [| [] | |]; cbn in Hnot_cap; congruence.
@@ -1318,7 +1325,7 @@ iApply "Hφ".
     iNext. iIntros (regs' mem' shadow' retv) "(%Hspec & _ & _ & _)".
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 oldv Harg (Hdst & Hwa & Hbounds)
-      |p0 g0 b0 e0 a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
+      |p0 g0 b0 e0 a0 heap_a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
       |]; last by iApply "Hφ".
     all: simplify_map_eq; congruence.
   Qed.
@@ -1350,7 +1357,7 @@ iApply "Hφ".
     iNext. iIntros (regs' mem' shadow' retv) "(%Hspec & _ & _ & _)".
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 oldv Harg (Hdst & Hwa & Hbounds)
-      |p0 g0 b0 e0 a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
+      |p0 g0 b0 e0 a0 heap_a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
       |]; last by iApply "Hφ".
     all: simplify_map_eq; congruence.
   Qed.
@@ -1384,7 +1391,7 @@ iApply "Hφ".
     iNext. iIntros (regs' mem' shadow' retv) "(%Hspec & _ & _ & _)".
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 oldv Harg (Hdst & Hwa & Hbounds)
-      |p0 g0 b0 e0 a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
+      |p0 g0 b0 e0 a0 heap_a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
       |]; last by iApply "Hφ".
     all: simplify_map_eq; congruence.
   Qed.
@@ -1416,14 +1423,15 @@ iApply "Hφ".
     iNext. iIntros (regs' mem' shadow' retv) "(%Hspec & _ & _ & _)".
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 oldv Harg (Hdst & Hwa & Hbounds)
-      |p0 g0 b0 e0 a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
+      |p0 g0 b0 e0 a0 heap_a0 revoked old_revoked Harg (Hdst & Hwa & Hbounds)
       |]; last by iApply "Hφ".
     all: simplify_map_eq; congruence.
   Qed.
 
   Lemma wp_store_success_shadow_z E pc_p pc_g pc_b pc_e pc_a pc_a' w
-    dst p g b e a revoked old_revoked :
+    dst p g b e a revoked old_revoked heap_a :
     is_shadow_address a = true →
+    shadow_to_heap a = Some heap_a →
     decodeInstrW w = Store dst (inl (bool_to_Z revoked)) 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -1433,19 +1441,19 @@ iApply "Hφ".
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
         ▷ pc_a ↦ₐ w ∗
         ▷ dst ↦ᵣ WCap true p g b e a ∗
-        ▷ a ↦ₛ old_revoked }}}
+        ▷ heap_a ↦ₛ old_revoked }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
         pc_a ↦ₐ w ∗
         dst ↦ᵣ WCap true p g b e a ∗
-        a ↦ₛ revoked }}}.
+        heap_a ↦ₛ revoked }}}.
   Proof.
-    iIntros (Hshadow Hinstr Hvpc Hpca' Hwa Hwb ? φ)
+    iIntros (Hshadow Htranslate Hinstr Hvpc Hpca' Hwa Hwb ? φ)
       "(>HPC & >Hi & >Hdst & >Ha) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem".
-    iAssert ([∗ map] a0↦rev ∈ {[a:=old_revoked]}, a0 ↦ₛ rev)%I
+    iAssert ([∗ map] a0↦rev ∈ {[heap_a:=old_revoked]}, a0 ↦ₛ rev)%I
       with "[Ha]" as "Hshadow".
     { by rewrite big_sepM_singleton. }
     iApply (wp_store_success_shadow _ pc_p pc_g with "[$Hmem $Hshadow $Hmap]");
@@ -1461,8 +1469,9 @@ iApply "Hφ".
   Qed.
 
   Lemma wp_store_success_shadow_reg E pc_p pc_g pc_b pc_e pc_a pc_a' w
-    dst p g b e a src revoked old_revoked :
+    dst p g b e a src revoked old_revoked heap_a :
     is_shadow_address a = true →
+    shadow_to_heap a = Some heap_a →
     decodeInstrW w = Store dst (inr src) 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -1474,20 +1483,20 @@ iApply "Hφ".
         ▷ pc_a ↦ₐ w ∗
         ▷ src ↦ᵣ WInt (bool_to_Z revoked) ∗
         ▷ dst ↦ᵣ WCap true p g b e a ∗
-        ▷ a ↦ₛ old_revoked }}}
+        ▷ heap_a ↦ₛ old_revoked }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
         pc_a ↦ₐ w ∗
         src ↦ᵣ WInt (bool_to_Z revoked) ∗
         dst ↦ᵣ WCap true p g b e a ∗
-        a ↦ₛ revoked }}}.
+        heap_a ↦ₛ revoked }}}.
   Proof.
-    iIntros (Hshadow Hinstr Hvpc Hpca' Hwa Hwb ? ? φ)
+    iIntros (Hshadow Htranslate Hinstr Hvpc Hpca' Hwa Hwb ? ? φ)
       "(>HPC & >Hi & >Hsrc & >Hdst & >Ha) Hφ".
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%&%&%)]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem".
-    iAssert ([∗ map] a0↦rev ∈ {[a:=old_revoked]}, a0 ↦ₛ rev)%I
+    iAssert ([∗ map] a0↦rev ∈ {[heap_a:=old_revoked]}, a0 ↦ₛ rev)%I
       with "[Ha]" as "Hshadow".
     { by rewrite big_sepM_singleton. }
     iApply (wp_store_success_shadow _ pc_p pc_g with "[$Hmem $Hshadow $Hmap]");
@@ -1503,26 +1512,27 @@ iApply "Hφ".
   Qed.
 
   Lemma wp_store_success_shadow_z_PC E pc_p pc_g pc_b pc_e pc_a pc_a' w
-    revoked old_revoked :
+    revoked old_revoked heap_a :
     is_shadow_address pc_a = true →
+    shadow_to_heap pc_a = Some heap_a →
     decodeInstrW w = Store PC (inl (bool_to_Z revoked)) 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     writeAllowed pc_p = true →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
         ▷ pc_a ↦ₐ w ∗
-        ▷ pc_a ↦ₛ old_revoked }}}
+        ▷ heap_a ↦ₛ old_revoked }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
         pc_a ↦ₐ w ∗
-        pc_a ↦ₛ revoked }}}.
+        heap_a ↦ₛ revoked }}}.
   Proof.
-    iIntros (Hshadow Hinstr Hvpc Hpca' Hwa φ)
+    iIntros (Hshadow Htranslate Hinstr Hvpc Hpca' Hwa φ)
       "(>HPC & >Hi & >Ha) Hφ".
     iDestruct (map_of_regs_1 with "HPC") as "Hmap".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem".
-    iAssert ([∗ map] a0↦rev ∈ {[pc_a:=old_revoked]}, a0 ↦ₛ rev)%I
+    iAssert ([∗ map] a0↦rev ∈ {[heap_a:=old_revoked]}, a0 ↦ₛ rev)%I
       with "[Ha]" as "Hshadow".
     { by rewrite big_sepM_singleton. }
     iApply (wp_store_success_shadow _ pc_p pc_g with "[$Hmem $Hshadow $Hmap]");
@@ -1539,8 +1549,9 @@ iApply "Hφ".
   Qed.
 
   Lemma wp_store_success_shadow_reg_PC E pc_p pc_g pc_b pc_e pc_a pc_a' w
-    src revoked old_revoked :
+    src revoked old_revoked heap_a :
     is_shadow_address pc_a = true →
+    shadow_to_heap pc_a = Some heap_a →
     decodeInstrW w = Store PC (inr src) 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -1549,19 +1560,19 @@ iApply "Hφ".
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗
         ▷ pc_a ↦ₐ w ∗
         ▷ src ↦ᵣ WInt (bool_to_Z revoked) ∗
-        ▷ pc_a ↦ₛ old_revoked }}}
+        ▷ heap_a ↦ₛ old_revoked }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
         pc_a ↦ₐ w ∗
         src ↦ᵣ WInt (bool_to_Z revoked) ∗
-        pc_a ↦ₛ revoked }}}.
+        heap_a ↦ₛ revoked }}}.
   Proof.
-    iIntros (Hshadow Hinstr Hvpc Hpca' Hwa ? φ)
+    iIntros (Hshadow Htranslate Hinstr Hvpc Hpca' Hwa ? φ)
       "(>HPC & >Hi & >Hsrc & >Ha) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hsrc") as "[Hmap %]".
     iDestruct (memMap_resource_1 with "Hi") as "Hmem".
-    iAssert ([∗ map] a0↦rev ∈ {[pc_a:=old_revoked]}, a0 ↦ₛ rev)%I
+    iAssert ([∗ map] a0↦rev ∈ {[heap_a:=old_revoked]}, a0 ↦ₛ rev)%I
       with "[Ha]" as "Hshadow".
     { by rewrite big_sepM_singleton. }
     iApply (wp_store_success_shadow _ pc_p pc_g with "[$Hmem $Hshadow $Hmap]");
@@ -1603,7 +1614,7 @@ iApply "Hφ".
     iNext. iIntros (regs' mem' shadow' retv) "(%Hspec & _ & _ & _)".
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 oldv Harg (Hdst & _) Hshadow0
-      |p0 g0 b0 e0 a0 revoked old_revoked Harg (Hdst & _) Hshadow0
+      |p0 g0 b0 e0 a0 heap_a0 revoked old_revoked Harg (Hdst & _) Hshadow0
       |]; last by iApply "Hφ".
     all: simplify_map_eq; try congruence.
   Qed.
@@ -1635,7 +1646,7 @@ iApply "Hφ".
     iNext. iIntros (regs' mem' shadow' retv) "(%Hspec & _ & _ & _)".
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 oldv Harg (Hdst & _) Hshadow0
-      |p0 g0 b0 e0 a0 revoked old_revoked Harg (Hdst & _) Hshadow0
+      |p0 g0 b0 e0 a0 heap_a0 revoked old_revoked Harg (Hdst & _) Hshadow0
       |]; last by iApply "Hφ".
     all: simplify_map_eq; try congruence.
   Qed.
