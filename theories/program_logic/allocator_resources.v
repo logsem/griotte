@@ -148,25 +148,6 @@ Section Allocator.
     rewrite big_sepM_insert_delete. iFrame.
   Qed.
 
-  (** A reusable read accessor borrows the entry for one atomic instruction.
-      Its bit may differ at the next use, but each use returns the same bit
-      before re-enabling [Nallocator]. All other entries remain in the closure. *)
-  Definition allocator_shadow_access (a : Addr) : iProp Σ :=
-    (□ ∀ E : coPset, ⌜↑Nallocator ⊆ E⌝ -∗
-       |={E,E ∖ ↑Nallocator}=> ∃ bit : bool,
-       ▷ (a ↦ₛ bit) ∗ (▷ (a ↦ₛ bit) ={E ∖ ↑Nallocator,E}=∗ emp))%I.
-
-  Lemma allocator_ctx_shadow_access a :
-    a ∈ heap_addresses -> allocator_ctx -∗ allocator_shadow_access a.
-  Proof.
-    iIntros (Ha) "#Halloc". iModIntro. iIntros (E) "%HE".
-    iInv Nallocator as "Hbody" "Hclose".
-    iDestruct (allocator_inv_lookup a with "Hbody") as (s) "[[Hs Hres] Hput]"; first done.
-    iModIntro. iExists (shadow_bit s). iFrame "Hs".
-    iIntros "Hs". iMod ("Hclose" with "[Hs Hres Hput]").
-    { iNext. iApply ("Hput" $! s). iFrame. }
-    done.
-  Qed.
   #[global] Instance reclaim_token_timeless a : Timeless (reclaim_token a).
   Proof. apply _. Qed.
 
@@ -183,78 +164,6 @@ Section Allocator.
   #[global] Instance allocator_inv_body_timeless : Timeless allocator_inv_body.
   Proof. apply _. Qed.
 
-  (** An evidence-carrying accessor returns its linear resource after each
-      use. Keeping memory proves that the bit is clear; keeping the reclaim
-      token proves that it is set. The accessor itself is persistent, so the
-      same evidence can serve successive loads, including aliased bases. *)
-  Definition allocator_shadow_access_with (a : Addr)
-    (saved_heap_allocated_resources : iProp Σ) (P : bool -> Prop) : iProp Σ :=
-   (□ ∀ E : coPset, ⌜↑Nallocator ⊆ E⌝ -∗
-   saved_heap_allocated_resources ={E,E ∖ ↑Nallocator}=∗ ∃ bit : bool,
-   ⌜P bit⌝ ∗ ▷ (a ↦ₛ bit) ∗
-   (▷ (a ↦ₛ bit) ={E ∖ ↑Nallocator,E}=∗ saved_heap_allocated_resources))%I.
-  Lemma allocator_ctx_shadow_access_with a :
-   a ∈ heap_addresses ->
-   allocator_ctx -∗ allocator_shadow_access_with a emp (fun _ => True%type).
-  Proof.
-   iIntros (Ha) "#Halloc".
-   iDestruct (allocator_ctx_shadow_access a with "Halloc") as "#Haccess"; first done.
-   iModIntro. iIntros (E HE) "_".
-   iMod ("Haccess" $! E HE) as (bit) "[Hs Hclose]".
-   iModIntro. iExists bit. iSplit; first done. iFrame.
-  Qed.
-
-  Lemma allocator_memory_shadow_access a v :
-   a ∈ heap_addresses ->
-   allocator_ctx -∗ allocator_shadow_access_with a (a ↦ₐ v) (fun bit => bit = false).
-  Proof.
-   iIntros (Ha) "#Halloc". iModIntro. iIntros (E HE) "Ha".
-   iInv Nallocator as ">Hbody" "Hclose".
-   iDestruct (allocator_inv_lookup a with "Hbody") as (s) "[Hentry Hput]"; first done.
-   iDestruct (allocator_entry_memory_live with "Hentry Ha") as %->.
-   iDestruct "Hentry" as "[Hs Hres]".
-   iModIntro. iExists false. iSplit; first done. iFrame "Hs".
-   iIntros "Hs". iMod ("Hclose" with "[Hs Hres Hput]").
-   { iNext. iApply ("Hput" $! Live). iFrame. }
-   iModIntro. iFrame.
-  Qed.
-  Lemma allocator_token_shadow_access a :
-   a ∈ heap_addresses ->
-   allocator_ctx -∗ allocator_shadow_access_with a (reclaim_token a) (fun bit => bit = true).
-  Proof.
-   iIntros (Ha) "#Halloc". iModIntro. iIntros (E HE) "Ha".
-   iInv Nallocator as ">Hbody" "Hclose".
-   iDestruct (allocator_inv_lookup a with "Hbody") as (s) "[Hentry Hput]"; first done.
-   iDestruct (allocator_entry_token_quarantined with "Hentry Ha") as %->.
-   iDestruct "Hentry" as "[Hs Hres]".
-   iModIntro. iExists true. iSplit; first done. iFrame "Hs".
-   iIntros "Hs". iMod ("Hclose" with "[Hs Hres Hput]").
-   { iNext. iApply ("Hput" $! Quarantined). iFrame. }
-   iModIntro. iFrame.
-  Qed.
-  Lemma allocator_free_cell_shadow_access a :
-    a ∈ heap_addresses ->
-    allocator_ctx -∗ allocator_shadow_access_with a (free_cell_token a) (fun bit => bit = false).
-  Proof.
-    iIntros (Ha) "#Halloc". iModIntro. iIntros (E HE) "Hfree".
-    iInv Nallocator as ">Hbody" "Hclose".
-    iDestruct (allocator_inv_lookup a with "Hbody") as (s) "[Hentry Hput]"; first done.
-    iDestruct (allocator_entry_free_token with "Hentry Hfree") as %->.
-    iDestruct "Hentry" as "[Hs Hres]".
-    iModIntro. iExists false. iSplit; first done. iFrame "Hs".
-    iIntros "Hs". iMod ("Hclose" with "[Hs Hres Hput]").
-    { iNext. iApply ("Hput" $! Free). iFrame. }
-    iModIntro. iFrame.
-  Qed.
-
-  Lemma allocator_shadow_access_with_frame a saved_heap_allocated_resources P S :
-   allocator_shadow_access_with a saved_heap_allocated_resources P -∗ allocator_shadow_access_with a (saved_heap_allocated_resources ∗ S) P.
-  Proof.
-   iIntros "#Haccess". iModIntro. iIntros (E HE) "[HR HS]".
-   iMod ("Haccess" $! E HE with "HR") as (bit HP) "[Hs Hclose]".
-   iModIntro. iExists bit. iSplit; first done. iFrame "Hs".
-   iIntros "Hs". iMod ("Hclose" with "Hs") as "HR". iModIntro. iFrame.
-  Qed.
   Lemma reclaim_tokens_split (A : gset Addr) :
     own allocator_name (GSet A) -∗ [∗ set] a ∈ A, reclaim_token a.
   Proof.

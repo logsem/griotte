@@ -263,12 +263,12 @@ Section AllocatorMallocBlocks.
        capability's shadow bit is clear, so the load preserves its tag. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iDestruct (allocator_free_cell_shadow_access heap_b with "Hctx") as "#Haccess".
+    iInv Nallocator as ">Hbody" "Hclose".
+    iDestruct (allocator_inv_lookup heap_b with "Hbody") as (s) "[Hentry Hput]".
     { apply elem_of_heap_addresses. apply withinBounds_true_iff.
       pose proof heap_valid. solve_addr. }
-    iApply (wp_atomic _ _ (E ∖ ↑Nallocator)).
-    iMod ("Haccess" $! E HE with "Hroot") as (bit Hbit) "[Hs Hclose]".
-    subst bit. iModIntro.
+    iDestruct (allocator_entry_free_token with "Hentry Hroot") as %->.
+    iDestruct "Hentry" as "[Hs Hres]".
     iApply (wp_load_success_heap with "[$HPC $Hi $Hct0 $Hcgp $Hslot $Hs]"); try solve_pure.
     { eapply (disjoint_from_shadow_not_in allocator_cgp_b allocator_cgp_e allocator_cgp_b).
       { pose proof (@allocator_regions_disjoint MP layout Hlayout) as Hregions.
@@ -283,7 +283,8 @@ Section AllocatorMallocBlocks.
       pose proof (@allocator_size_data MP layout Hlayout) as Hsize.
       cbn in Hsize. solve_addr. }
     iIntros "!> (HPC & Hct0 & Hi & Hcgp & Hslot & Hs)".
-    iMod ("Hclose" with "Hs") as "Hroot".
+    iMod ("Hclose" with "[Hs Hres Hput]").
+    { iNext. iApply ("Hput" $! Free). iFrame. }
     iModIntro. wp_pure.
     iSpecialize ("Hcode" with "Hi").
     codefrag_facts "Hcode".
@@ -385,12 +386,12 @@ Section AllocatorMallocBlocks.
        capability's shadow bit is clear, so the load preserves its tag. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iDestruct (allocator_free_cell_shadow_access heap_b with "Hctx") as "#Haccess".
+    iInv Nallocator as ">Hbody" "Hclose".
+    iDestruct (allocator_inv_lookup heap_b with "Hbody") as (s) "[Hentry Hput]".
     { apply elem_of_heap_addresses. apply withinBounds_true_iff.
       pose proof heap_valid. solve_addr. }
-    iApply (wp_atomic _ _ (E ∖ ↑Nallocator)).
-    iMod ("Haccess" $! E HE with "Hroot") as (bit Hbit) "[Hs Hclose]".
-    subst bit. iModIntro.
+    iDestruct (allocator_entry_free_token with "Hentry Hroot") as %->.
+    iDestruct "Hentry" as "[Hs Hres]".
     iApply (wp_load_success_heap with "[$HPC $Hi $Hct0 $Hcgp $Hslot $Hs]"); try solve_pure.
     { eapply (disjoint_from_shadow_not_in allocator_cgp_b allocator_cgp_e allocator_cgp_b).
       { pose proof (@allocator_regions_disjoint MP layout Hlayout) as Hregions.
@@ -405,7 +406,8 @@ Section AllocatorMallocBlocks.
       pose proof (@allocator_size_data MP layout Hlayout) as Hsize.
       cbn in Hsize. solve_addr. }
     iIntros "!> (HPC & Hct0 & Hi & Hcgp & Hslot & Hs)".
-    iMod ("Hclose" with "Hs") as "Hroot".
+    iMod ("Hclose" with "[Hs Hres Hput]").
+    { iNext. iApply ("Hput" $! Free). iFrame. }
     iModIntro. wp_pure.
     iSpecialize ("Hcode" with "Hi").
     codefrag_facts "Hcode".

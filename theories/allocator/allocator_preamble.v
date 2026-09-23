@@ -5,7 +5,7 @@ From griotte.allocator Require Export allocator.
 From griotte Require Import memory_region.
 
 (** Resources used by the allocator service. The shared
-    allocation states, token families, heap invariant, and load accessors come
+    allocation states, token families, and heap invariant come
     from [allocator_resources]; there is only one definition of [AllocState]. *)
 Section AllocatorRanges.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}

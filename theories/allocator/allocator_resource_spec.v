@@ -60,13 +60,6 @@ Section AllocatorResourceProofs.
     iModIntro. iFrame.
   Qed.
 
-  Lemma allocator_free_cell_shadow_access_correct (a : Addr) :
-    ⊢ (⌜a ∈ heap_addresses⌝ -∗ allocator_ctx -∗
-       allocator_shadow_access_with a (free_cell_token a) (fun bit => bit = false))%I.
-  Proof.
-    iIntros (Ha) "Halloc".
-    iApply (allocator_free_cell_shadow_access with "Halloc"); done.
-  Qed.
 End AllocatorResourceProofs.
 
 Section AllocatorInitializationProofs.

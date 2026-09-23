@@ -87,10 +87,9 @@ Section Switcher_Restore.
       iApply ("HΦ" $! raw). iFrame. iPureIntro. by left. }
     destruct raw as [|[t p g base e' a'|]| |]; try discriminate.
     cbn in Hheap.
-    iDestruct (allocator_ctx_shadow_access_with base with "Halloc") as "#Haccess".
-    { by apply elem_of_heap_addresses. }
-    iApply (wp_load_heap_access with "[$Haccess $HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
-    iNext. iIntros (bit) "(_ & _ & HPC & Hdst & Hi & Hsrc & Ha)".
+    (* Load dst src: the allocator invariant supplies the current shadow bit. *)
+    iApply (wp_load_heap_inv with "[$Halloc $HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
+    iNext. iIntros (bit) "(HPC & Hdst & Hi & Hsrc & Ha)".
     iApply ("HΦ" $! (if bit then clear_tag (WCap t p g base e' a') else WCap t p g base e' a')).
     destruct bit; iFrame; iPureIntro; [right|left]; done.
   Qed.
