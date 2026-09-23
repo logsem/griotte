@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export allocator.
+From griotte.program_logic Require Export allocator_resources.
 From griotte Require Import rules_Load rules_Store.
 
 (** Heap loads borrow the shadow entry only for the atomic instruction.
@@ -73,12 +73,12 @@ Section AllocatorRules.
     iDestruct (allocator_inv_lookup heap_a with "Hbody") as (s) "[Hentry Hput]".
     { by apply elem_of_heap_addresses. }
     iDestruct (allocator_entry_memory_live with "Hentry Ha") as %->.
-    iDestruct "Hentry" as "[Hs Htoken]".
+    iDestruct "Hentry" as "[Hs [Htoken Hfree]]".
     iModIntro.
     iApply (wp_store_success_shadow_z _ _ _ _ _ _ _ _ _ _ _ _ _ _ true false
       with "[$HPC $Hi $Hdst $Hs]"); eauto.
     iNext. iIntros "(HPC & Hi & Hdst & Hs)".
-    iMod ("Hclose" with "[Ha Hs Hput]").
+    iMod ("Hclose" with "[Ha Hs Hput Hfree]").
     { iNext. iApply ("Hput" $! Quarantined). iFrame. }
     iModIntro. iApply "HΦ". iFrame.
   Qed.

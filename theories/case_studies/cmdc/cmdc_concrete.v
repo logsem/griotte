@@ -1,6 +1,7 @@
+From griotte.program_logic Require Import allocator_resources.
 From iris.program_logic Require Import adequacy.
 From griotte Require Import
-  machine_instructions machine_parameters machine_parameters_instance allocator
+  machine_instructions machine_parameters machine_parameters_instance
   registers griotte_lang machine_run switcher assert compartment_layout
   cmdc cmdc_adequacy disjoint_regions_tactics.
 

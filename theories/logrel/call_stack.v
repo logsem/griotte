@@ -3,7 +3,7 @@ From iris.algebra Require Import excl_auth.
 From iris.base_logic Require Import own.
 From griotte Require Import griotte_lang.
 From griotte Require Export cerise_instance machine_parameters machine_word machine_base addresses.
-From griotte Require Import allocator.
+From griotte.program_logic Require Import allocator_resources.
 
 
 (** The relationship between the caller and the callee determines

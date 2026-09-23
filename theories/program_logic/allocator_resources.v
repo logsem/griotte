@@ -37,6 +37,7 @@ Class allocator_preG Σ := {
 Class allocatorG Σ := {
   allocator_preG_inG :: allocator_preG Σ;
   allocator_name : gname;
+  allocator_free_name : gname;
 }.
 
 Definition allocator_preΣ : gFunctors := #[GFunctor (gset_disjUR Addr)].
@@ -48,7 +49,8 @@ Proof. solve_inG. Qed.
 Definition Nallocator : namespace := nroot .@ "allocator".
 
 Section Allocator.
-  Context {Σ : gFunctors} `{!ceriseG Σ} `{!allocatorG Σ} `{MP : MachineParameters}.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
+    {MP : MachineParameters}.
 
   (** The token is exclusive for each heap address. Outside the allocator
       invariant, it witnesses quarantine: both other states keep it inside.
@@ -56,11 +58,16 @@ Section Allocator.
   Definition reclaim_token (a : Addr) : iProp Σ :=
     own allocator_name (GSet {[a]}).
 
+  (** Outside the shared invariant this token witnesses [Free]. The service
+      keeps these tokens for its unused suffix and the reserved first cell. *)
+  Definition free_cell_token (a : Addr) : iProp Σ :=
+    own allocator_free_name (GSet {[a]}).
+
   Definition allocator_state_resources (a : Addr) (s : AllocState) : iProp Σ :=
     match s with
     | Free => a ↦ₐ - ∗ reclaim_token a
-    | Live => reclaim_token a
-    | Quarantined => a ↦ₐ -
+    | Live => reclaim_token a ∗ free_cell_token a
+    | Quarantined => a ↦ₐ - ∗ free_cell_token a
     end%I.
 
   Definition allocator_entry (a : Addr) (s : AllocState) : iProp Σ :=
@@ -82,6 +89,13 @@ Section Allocator.
     iIntros "H1 H2". iDestruct (own_valid_2 with "H1 H2") as %Hvalid.
     rewrite gset_disj_valid_op in Hvalid. set_solver.
   Qed.
+  Lemma free_cell_token_exclusive a :
+    free_cell_token a -∗ free_cell_token a -∗ False.
+  Proof.
+    iIntros "H1 H2". iDestruct (own_valid_2 with "H1 H2") as %Hvalid.
+    rewrite gset_disj_valid_op in Hvalid. set_solver.
+  Qed.
+
   (** These observations are made while the invariant is open. They do not
       expose a persistent assertion about a mutable allocation state. *)
   Lemma allocator_entry_memory_live a s v :
@@ -91,7 +105,7 @@ Section Allocator.
     - iDestruct "Hres" as "[Hmem _]". iDestruct "Hmem" as (w) "Hmem".
       iDestruct (pointsto_valid_2 with "Ha Hmem") as %[Hbad _]. done.
     - done.
-    - iDestruct "Hres" as (w) "Hmem".
+    - iDestruct "Hres" as "[Hmem _]". iDestruct "Hmem" as (w) "Hmem".
       iDestruct (pointsto_valid_2 with "Ha Hmem") as %[Hbad _]. done.
   Qed.
 
@@ -101,9 +115,23 @@ Section Allocator.
     iIntros "[Hs Hres] Htoken". destruct s; simpl.
     - iDestruct "Hres" as "[_ Htoken']".
       iDestruct (reclaim_token_exclusive with "Htoken Htoken'") as %[].
-    - iDestruct (reclaim_token_exclusive with "Htoken Hres") as %[].
+    - iDestruct "Hres" as "[Htoken' _]".
+      iDestruct (reclaim_token_exclusive with "Htoken Htoken'") as %[].
     - done.
   Qed.
+
+  Lemma allocator_entry_free_token a s :
+    allocator_entry a s -∗ free_cell_token a -∗ ⌜s = Free⌝.
+  Proof.
+    iIntros "[_ Hres] Hfree". destruct s; simpl; first done.
+    all: iDestruct "Hres" as "[_ Hfree']";
+      iDestruct (free_cell_token_exclusive with "Hfree Hfree'") as %[].
+  Qed.
+
+  Lemma allocator_entry_allocate a :
+    allocator_entry a Free -∗ free_cell_token a -∗
+    allocator_entry a Live ∗ a ↦ₐ -.
+  Proof. iIntros "[Hs [Ha Htoken]] Hfree". iFrame. Qed.
 
   Lemma allocator_inv_lookup a :
     a ∈ heap_addresses -> allocator_inv_body -∗
@@ -140,6 +168,9 @@ Section Allocator.
     done.
   Qed.
   #[global] Instance reclaim_token_timeless a : Timeless (reclaim_token a).
+  Proof. apply _. Qed.
+
+  #[global] Instance free_cell_token_timeless a : Timeless (free_cell_token a).
   Proof. apply _. Qed.
 
   #[global] Instance allocator_state_resources_timeless a s :
@@ -201,6 +232,21 @@ Section Allocator.
    { iNext. iApply ("Hput" $! Quarantined). iFrame. }
    iModIntro. iFrame.
   Qed.
+  Lemma allocator_free_cell_shadow_access a :
+    a ∈ heap_addresses ->
+    allocator_ctx -∗ allocator_shadow_access_with a (free_cell_token a) (fun bit => bit = false).
+  Proof.
+    iIntros (Ha) "#Halloc". iModIntro. iIntros (E HE) "Hfree".
+    iInv Nallocator as ">Hbody" "Hclose".
+    iDestruct (allocator_inv_lookup a with "Hbody") as (s) "[Hentry Hput]"; first done.
+    iDestruct (allocator_entry_free_token with "Hentry Hfree") as %->.
+    iDestruct "Hentry" as "[Hs Hres]".
+    iModIntro. iExists false. iSplit; first done. iFrame "Hs".
+    iIntros "Hs". iMod ("Hclose" with "[Hs Hres Hput]").
+    { iNext. iApply ("Hput" $! Free). iFrame. }
+    iModIntro. iFrame.
+  Qed.
+
   Lemma allocator_shadow_access_with_frame a saved_heap_allocated_resources P S :
    allocator_shadow_access_with a saved_heap_allocated_resources P -∗ allocator_shadow_access_with a (saved_heap_allocated_resources ∗ S) P.
   Proof.
@@ -211,6 +257,16 @@ Section Allocator.
   Qed.
   Lemma reclaim_tokens_split (A : gset Addr) :
     own allocator_name (GSet A) -∗ [∗ set] a ∈ A, reclaim_token a.
+  Proof.
+    induction A as [|a A Ha IH] using set_ind_L.
+    - iIntros "_". done.
+    - rewrite big_sepS_union; last set_solver.
+      rewrite big_sepS_singleton.
+      rewrite -gset_disj_union; last set_solver.
+      rewrite own_op. iIntros "[Ha HA]". iFrame "Ha". by iApply IH.
+  Qed.
+  Lemma free_cell_tokens_split (A : gset Addr) :
+    own allocator_free_name (GSet A) -∗ [∗ set] a ∈ A, free_cell_token a.
   Proof.
     induction A as [|a A Ha IH] using set_ind_L.
     - iIntros "_". done.
@@ -231,7 +287,7 @@ Section Initialization.
   Definition allocator_initial_resources (m : gmap Addr (AllocState * Word)) : iProp Σ :=
     ([∗ map] a ↦ sv ∈ m, a ↦ₐ sv.2 ∗ a ↦ₛ shadow_bit sv.1)%I.
 
-  Definition allocator_client_resources `{!allocatorG Σ}
+  Definition allocator_client_resources {allocatorg : allocatorG Σ}
     (m : gmap Addr (AllocState * Word)) : iProp Σ :=
     ([∗ map] a ↦ sv ∈ m,
       match sv.1 with
@@ -240,29 +296,53 @@ Section Initialization.
       | Quarantined => reclaim_token a
       end)%I.
 
+  Definition allocator_initial_free_tokens {allocatorg : allocatorG Σ}
+    (m : gmap Addr (AllocState * Word)) : iProp Σ :=
+    ([∗ map] a ↦ sv ∈ m,
+      match sv.1 with
+      | Free => free_cell_token a
+      | Live | Quarantined => emp
+      end)%I.
+
+  Lemma allocator_init_with_free_tokens E (m : gmap Addr (AllocState * Word)) :
+    dom m = heap_addresses ->
+    allocator_initial_resources m ={E}=∗
+    ∃ ag : allocatorG Σ, @allocator_ctx Σ _ ag MP ∗ @allocator_client_resources ag m ∗
+      @allocator_initial_free_tokens ag m.
+  Proof.
+    iIntros (Hdom) "Hm".
+    iMod (own_alloc (GSet (dom m))) as (γ) "Htokens"; first done.
+    iMod (own_alloc (GSet (dom m))) as (γfree) "Hfree"; first done.
+    pose (ag := {| allocator_preG_inG := allocator_preG0; allocator_name := γ;
+                  allocator_free_name := γfree |}).
+    iExists ag.
+    iDestruct (@reclaim_tokens_split Σ ag with "Htokens") as "Htokens".
+    iDestruct (@free_cell_tokens_split Σ ag with "Hfree") as "Hfree".
+    iAssert (([∗ map] a ↦ sv ∈ m, @allocator_entry Σ ceriseG0 ag a sv.1) ∗
+      @allocator_client_resources ag m ∗ @allocator_initial_free_tokens ag m)%I
+      with "[Hm Htokens Hfree]" as "[Hinv [Hclient Hfree]]".
+    { rewrite /allocator_initial_resources /allocator_client_resources /allocator_initial_free_tokens -!big_sepM_sep.
+      rewrite -!big_sepM_dom.
+      iCombine "Hm Htokens Hfree" as "Hm". rewrite -!big_sepM_sep.
+      iApply (big_sepM_mono with "Hm").
+      iIntros (a [s v] Hlookup) "[[Ha Hs] [Htoken Hfree]]".
+      destruct s; simpl; iFrame. }
+    iMod (inv_alloc Nallocator E (@allocator_inv_body Σ ceriseG0 ag MP)
+      with "[Hinv]") as "#Halloc".
+    { iNext. iExists (fst <$> m).
+      rewrite dom_fmap_L Hdom big_sepM_fmap. iFrame. done. }
+    iModIntro. iFrame "Hclient Halloc Hfree".
+  Qed.
+
   Lemma allocator_init E (m : gmap Addr (AllocState * Word)) :
     dom m = heap_addresses ->
     allocator_initial_resources m ={E}=∗
     ∃ ag : allocatorG Σ, @allocator_ctx Σ _ ag MP ∗ @allocator_client_resources ag m.
   Proof.
     iIntros (Hdom) "Hm".
-    iMod (own_alloc (GSet (dom m))) as (γ) "Htokens"; first done.
-    pose (ag := {| allocator_preG_inG := allocator_preG0; allocator_name := γ |}).
-    iExists ag.
-    iDestruct (@reclaim_tokens_split Σ ag with "Htokens") as "Htokens".
-    iAssert (([∗ map] a ↦ sv ∈ m, @allocator_entry Σ ceriseG0 ag a sv.1) ∗
-      @allocator_client_resources ag m)%I with "[Hm Htokens]" as "[Hinv Hclient]".
-    { rewrite /allocator_initial_resources /allocator_client_resources -big_sepM_sep.
-      rewrite -big_sepM_dom.
-      iCombine "Hm Htokens" as "Hm". rewrite -big_sepM_sep.
-      iApply (big_sepM_mono with "Hm").
-      iIntros (a [s v] Hlookup) "[[Ha Hs] Htoken]".
-      destruct s; simpl; iFrame. }
-    iMod (inv_alloc Nallocator E (@allocator_inv_body Σ ceriseG0 ag MP)
-      with "[Hinv]") as "#Halloc".
-    { iNext. iExists (fst <$> m).
-      rewrite dom_fmap_L Hdom big_sepM_fmap. iFrame. done. }
-    iModIntro. iFrame "Hclient Halloc".
+    iMod (allocator_init_with_free_tokens E m with "Hm") as (ag) "[Halloc [Hclient _]]";
+      first done.
+    iModIntro. iExists ag. iFrame.
   Qed.
 
   (** In the initial all-free heap, no memory or tokens escape the invariant. *)
