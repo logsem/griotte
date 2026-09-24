@@ -7,7 +7,8 @@ From griotte.allocator Require Export allocator_malloc_spec allocator_free_spec
 
 (** Trusted calls use [allocator_malloc_valid_correct] at size one and
     [allocator_free_valid_correct] with the singleton containing [&p]. Their
-    continuations return physical ownership / reclaim tokens, respectively.
+    continuations retain an original-bounds receipt and return physical
+    ownership / reclaim tokens, respectively.
     Compose them with [switcher_cc_specification_known_to_known_function];
     neither trusted call requires the private pointer to satisfy [interp].
 
@@ -24,6 +25,7 @@ Section Heap_Temporal_Safety_Allocator.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {allocator_historyg : allocatorHistoryG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}.

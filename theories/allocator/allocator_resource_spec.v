@@ -8,11 +8,15 @@ Section AllocatorResourceProofs.
     {MP : MachineParameters}.
 
   Lemma free_cell_token_exclusive_correct (a : Addr) :
-    ⊢ (free_cell_token a -∗ free_cell_token a -∗ False)%I.
+    ⊢ (free_cell_token a -∗
+    free_cell_token a -∗
+    False)%I.
   Proof. iApply free_cell_token_exclusive. Qed.
 
   Lemma allocator_entry_free_token_correct (a : Addr) (s : AllocState) :
-    ⊢ (allocator_entry a s -∗ free_cell_token a -∗ ⌜s = Free⌝)%I.
+    ⊢ (allocator_entry a s -∗
+    free_cell_token a -∗
+    ⌜s = Free⌝)%I.
   Proof. iApply allocator_entry_free_token. Qed.
 
   Lemma free_cell_tokens_split_correct (A : gset Addr) :
@@ -21,27 +25,36 @@ Section AllocatorResourceProofs.
   Proof. iApply free_cell_tokens_split. Qed.
 
   Lemma free_cells_split_correct (b m e : Addr) :
-    ⊢ (⌜(b <= m /\ m <= e)%a⌝ -∗
-       (free_cells b e ∗-∗ free_cells b m ∗ free_cells m e))%I.
+    (b <= m /\ m <= e)%a ->
+    ⊢ (free_cells b e ∗-∗
+       free_cells b m ∗
+       free_cells m e)%I.
   Proof.
-    iIntros (Hbounds).
+    intros Hbounds.
     rewrite /free_cells (finz_seq_between_split b m e Hbounds) big_sepL_app.
     iSplit; iIntros "$".
   Qed.
 
   Lemma allocator_entry_allocate_correct (a : Addr) :
-    ⊢ (allocator_entry a Free -∗ free_cell_token a -∗
-       allocator_entry a Live ∗ a ↦ₐ -)%I.
+    ⊢ (allocator_entry a Free -∗
+    free_cell_token a -∗
+       allocator_entry a Live ∗
+       a ↦ₐ -)%I.
   Proof. iApply allocator_entry_allocate. Qed.
 
   (** There is no physical shadow update: both [Free] and [Live] are clear.
       Empty ranges are allowed. The returned words have not been zeroed. *)
+
   Lemma allocator_take_range_correct (E : coPset) (b e : Addr) :
-    ⊢ (⌜↑Nallocator ⊆ E⌝ -∗
-       ⌜(heap_b <= b /\ b <= e /\ e <= heap_e)%a⌝ -∗
-       allocator_ctx -∗ free_cells b e ={E}=∗ allocator_range_memory b e)%I.
+    ↑Nallocator ⊆ E ->
+    (heap_b <= b /\ b <= e /\ e <= heap_e)%a ->
+    ⊢ (allocator_ctx -∗
+       free_cells b e
+       ={E}=∗
+       allocator_range_memory b e)%I.
   Proof.
-    iIntros (HE Hbounds) "#Halloc Hfree".
+    intros HE Hbounds.
+    iIntros "#Halloc Hfree".
     rewrite /free_cells /allocator_range_memory.
     iApply big_sepL_fupd.
     iApply (big_sepL_impl with "Hfree").
@@ -67,24 +80,30 @@ Section AllocatorInitializationProofs.
     {MP : MachineParameters}.
 
   Lemma allocator_init_with_free_tokens_correct (E : coPset) (m : gmap Addr (AllocState * Word)) :
-    ⊢ (⌜dom m = heap_addresses⌝ -∗ allocator_initial_resources m ={E}=∗
+    dom m = heap_addresses ->
+    ⊢ (allocator_initial_resources m
+    ={E}=∗
        ∃ ag : allocatorG Σ,
          allocator_ctx (allocatorg := ag) ∗
          allocator_client_resources (allocatorg := ag) m ∗
          allocator_initial_free_tokens (allocatorg := ag) m)%I.
   Proof.
-    iIntros (Hdom) "Hm".
+    intros Hdom.
+    iIntros "Hm".
     iApply (allocator_init_with_free_tokens with "Hm"); done.
   Qed.
 
   Lemma allocator_init_free_with_tokens_correct (E : coPset) (mem : Mem) :
-    ⊢ (⌜dom mem = heap_addresses⌝ -∗
-       ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ ShadowLive) ={E}=∗
+    dom mem = heap_addresses ->
+    ⊢ (([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗
+       a ↦ₛ ShadowLive)
+       ={E}=∗
        ∃ ag : allocatorG Σ,
          allocator_ctx (allocatorg := ag) ∗
          free_cells (allocatorg := ag) heap_b heap_e)%I.
   Proof.
-    iIntros (Hdom) "Hm".
+    intros Hdom.
+    iIntros "Hm".
     iMod (allocator_init_with_free_tokens E ((fun v => (Free,v)) <$> mem)
       with "[Hm]") as (ag) "[Halloc [_ Hfree]]".
     { by rewrite dom_fmap_L. }
@@ -94,6 +113,7 @@ Section AllocatorInitializationProofs.
       /heap_addresses big_sepS_list_to_set; last apply finz_seq_between_NoDup.
     iExact "Hfree".
   Qed.
+
 End AllocatorInitializationProofs.
 
 Lemma allocator_namespaces_disjoint : Nallocator ## Nallocator_service.
@@ -101,22 +121,31 @@ Proof. unfold Nallocator, Nallocator_service. solve_ndisj. Qed.
 
 Section AllocatorServiceInitializationProofs.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocator_preg : allocator_preG Σ}
+    {allocator_history_preg : ghost_mapG Σ Addr (Addr * Z)}
     {MP : MachineParameters} {layout : allocatorLayout}.
 
   (** The initial heap may contain arbitrary words, but every shadow bit must
-      be clear. Initialization allocates both token families and both invariants.
+      be clear. Initialization allocates both token families, an empty immutable
+      header-metadata map, and both invariants. There are initially no header cells.
       Existing heap-only clients continue to use their compatibility wrappers. *)
+
   Lemma allocator_service_init_correct (E : coPset) (mem : Mem) :
-    ⊢ (⌜allocatorLayoutWf /\ dom mem = heap_addresses⌝ -∗
-       allocator_service_initial_resources -∗
-       ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ ShadowLive) ={E}=∗
-       ∃ ag : allocatorG Σ,
+    allocatorLayoutWf /\ dom mem = heap_addresses ->
+    ⊢ (allocator_service_initial_resources -∗
+       ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗
+       a ↦ₛ ShadowLive)
+       ={E}=∗
+       ∃ (ag : allocatorG Σ) (hg : allocatorHistoryG Σ),
          allocator_ctx (allocatorg := ag) ∗
-         allocator_service_ctx (allocatorg := ag))%I.
+         allocator_service_ctx (allocatorg := ag) (allocator_historyg := hg))%I.
   Proof.
-    iIntros ([Hwf Hdom]) "[Hstatic Hdata] Hheap".
-    iMod (allocator_init_free_with_tokens_correct E mem with "[] Hheap") as (ag) "[Halloc Hfree]";
-      first done.
+    intros [Hwf Hdom].
+    iIntros "[Hstatic Hdata] Hheap".
+    iMod (allocator_init_free_with_tokens_correct E mem Hdom with "Hheap") as (ag) "[Halloc Hfree]".
+    iMod (ghost_map_alloc_empty (K := Addr) (V := (Addr * Z)%type))
+      as (γ) "Hhistory".
+    pose (hg := {| allocator_history_inG := allocator_history_preg;
+                   allocator_history_gname := γ |}).
     iDestruct (region_pointsto_single with "Hdata") as (w) "[Hdata %Hword]".
     { exact (@allocator_size_data MP layout Hwf). }
     injection Hword as <-.
@@ -124,10 +153,13 @@ Section AllocatorServiceInitializationProofs.
       big_sepL_cons) in "Hfree".
     iDestruct "Hfree" as "[Hroot Hfree]".
     iMod (na_inv_alloc cerise_nais E Nallocator_service
-      (allocator_service_inv (allocatorg := ag)) with "[Hstatic Hdata Hroot Hfree]") as "#Hservice".
-    { iNext. iFrame "Hstatic". iExists (heap_b ^+ 1)%a.
-      iFrame "Hdata Hroot Hfree". iPureIntro.
+      (allocator_service_inv (allocatorg := ag) (allocator_historyg := hg))
+      with "[Hstatic Hdata Hroot Hfree Hhistory]") as "#Hservice".
+    { iNext. iFrame "Hstatic". iExists (heap_b ^+ 1)%a, [].
+      iFrame "Hdata Hroot Hfree Hhistory". iPureIntro.
+      split; last done.
       pose proof heap_valid. solve_addr. }
-    iModIntro. iExists ag. iFrame "Halloc Hservice".
+    iModIntro. iExists ag, hg. iFrame "Halloc Hservice".
   Qed.
+
 End AllocatorServiceInitializationProofs.

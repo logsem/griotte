@@ -11,12 +11,12 @@ Local Notation "'OT' z" :=
   (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
 
 (** The default machine instance has only the allocator's reserved heap cell.
-    This example gives the allocator one additional cell, with a matching
+    This example adds two header cells and one payload cell, with a matching
     shadow region. All instruction and permission encodings are reused. *)
 Definition hts_heap_region : HeapRegion :=
-  {| heap_b := A 8192; heap_e := A 8194; heap_valid := ltac:(solve_addr) |}.
+  {| heap_b := A 8192; heap_e := A 8196; heap_valid := ltac:(solve_addr) |}.
 Definition hts_shadow_region : ShadowRegion :=
-  {| shadow_b := A 12288; shadow_e := A 12290; shadow_valid := ltac:(solve_addr) |}.
+  {| shadow_b := A 12288; shadow_e := A 12292; shadow_valid := ltac:(solve_addr) |}.
 
 #[local] Instance hts_machine_parameters : MachineParameters :=
   {| instruction_encoding_mixin := @instruction_encoding_mixin machine_parameters_instance;
