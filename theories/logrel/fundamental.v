@@ -152,9 +152,9 @@ Section fundamental.
     iAssert (world_interp W C) with "[Hregion_world Hsts Hseals_world]" as "Hworld_interp".
     { rewrite world_interp_eq /world_interp_def. iFrame. }
 
-    iDestruct (open_world_interp with "[$Hrela] [$Hworld_interp]")
+    iDestruct (open_world_interp W C a p'' _ ρ with "[$Hrela] [$Hworld_interp]")
       as "(Hworld_interp & Hstate & (%w & WorldRes) )"
-    ; [|eauto|]; [ destruct ρ;auto;done|].
+    ; [exact Hpc_live | destruct ρ; auto; contradiction | exact Hρ |].
 
     rewrite /registers_pointsto ; iExtract "Hmreg" PC as "HPC".
     destruct (decodeInstrW w) eqn:Hi. (* proof by cases on each instruction *)
@@ -477,8 +477,12 @@ Section fundamental.
     { destruct Hw as (p & g & b & e & a & ->).
       rewrite fixpoint_interp1_eq /=.
       iIntros (cstk Ws Cs rmap).
-      iDestruct "Hw" as "#Hw".
-      iSpecialize ("Hw" $! W (futureworld_refl g W) g (LocalityFlowsToReflexive g)).
+      iDestruct "Hw" as "[%Hnonheap #Hw]".
+      rewrite /enter_cond.
+      iAssert (future_world g W W) as "Hfuture".
+      { iApply futureworld_refl. }
+      iSpecialize ("Hw" with "Hfuture").
+      iSpecialize ("Hw" $! g (LocalityFlowsToReflexive g)).
       iIntros "!> #Halloc (HPC & Hr & ?)".
       iApply "Hw"; eauto. iFrame.
     }
@@ -510,7 +514,8 @@ Section fundamental.
         iExists _,_,_,_,_.
         rewrite /= fixpoint_interp1_eq /=.
         iSplit;[eauto|]. iModIntro.
-        iDestruct "Hw" as "#Hw".
+        iDestruct "Hw" as "[%Hnonheap #Hw]".
+        rewrite /enter_cond.
         iIntros (W') "Hfuture".
         iSpecialize ("Hw" with "Hfuture").
         iSpecialize ("Hw" $! g0 (LocalityFlowsToReflexive g0)).
