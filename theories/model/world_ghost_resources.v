@@ -232,7 +232,7 @@ Section rel.
     -∗ ▷ future_pub_mono C φ' w.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (W0 W1 Hrelated).
+    iIntros (W0 W1 Hrelated Hwf).
     iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
     iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
     iNext; iModIntro.
@@ -260,7 +260,7 @@ Section rel.
     -∗ ▷ future_priv_mono C φ' w.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (W0 W1 Hrelated).
+    iIntros (W0 W1 Hrelated Hwf).
     iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
     iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
     iNext; iModIntro.
@@ -288,7 +288,7 @@ Section rel.
     -∗ ▷ future_pub_mono C φ' w.
   Proof.
     iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (W0 W1 Hrelated).
+    iIntros (W0 W1 Hrelated Hwf).
     iDestruct (rel_agree C _ φ φ' with "[$Hrel $Hrel']") as "[_ #Hφeq]".
     iNext; iModIntro.
     iIntros "Hφv".
@@ -317,7 +317,7 @@ Section rel.
     -∗ ▷ future_priv_mono C φ' w.
   Proof.
     iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (W0 W1 Hrelated).
+    iIntros (W0 W1 Hrelated Hwf).
     iDestruct (rel_agree _ _ φ φ' with "[$Hrel $Hrel']") as "[_ #Hφeq]".
     iNext; iModIntro.
     iIntros "Hφv".

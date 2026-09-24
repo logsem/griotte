@@ -33,32 +33,6 @@ Section fundamental.
   Instance wcond'_pers P C p g b e a r: Persistent (wcond' P C p g b e a r).
   Proof. intros. rewrite /wcond'. case_decide;apply _. Qed.
 
-  Lemma storev_interp_mono (imm : Z) W C (r : Reg) (r1 : RegName) (r2 : Z + RegName) p g b e a ea p' ρ storev:
-     PermFlowsTo p p'
-    -> word_of_argument r r2 = Some storev
-    → reg_allows_store_imm r r1 imm p g b e a ea
-    → std W !! ea = Some ρ
-    → interp W C (WCap true p g b e a)
-    -∗ monotonicity_guarantees_region C interpC p' (store_word p storev) ρ.
-  Proof.
-    iIntros (Hflp Hwoa Hras Hststd) "HInt".
-    destruct Hras as (Hrir & Hadd & Hwa & Hwb).
-    iEval (rewrite (interp_cap_cur_addr W C true p g b e a ea)) in "HInt".
-    assert ( r1 ≠ cnull ); simplify_map_eq.
-    { intros -> ; destruct (r !! cnull) eqn:? ; simplify_map_eq. }
-    rewrite /store_word.
-    destruct (canStore p storev) eqn:Hstore; cycle 1.
-    { iApply interp_monotone_general_untagged. apply get_tag_clear_tag. }
-    destruct storev as [z | sb | | ot sb ].
-    - iApply (interp_monotone_generalZ with "[HInt]" ); eauto.
-    - destruct sb ;
-        [ iApply (interp_monotone_generalW with "[HInt]" )
-        | iApply (interp_monotone_generalSr with "[HInt]" )]
-      ; eauto.
-    - iApply (interp_monotone_generalSentry with "[HInt]"); eauto.
-    - iApply (interp_monotone_generalSd with "[HInt]" ); eauto.
-  Qed.
-
   Lemma interp_hpf_eq (imm : Z) (W : WORLD) (C : CmptName) P (regs : leibnizO Reg) (r1 : RegName)
     p g b e cur_addr a pc_p pc_g pc_b pc_e pc_p':
     reg_allows_store_imm (<[PC:=WCap true pc_p pc_g pc_b pc_e a]> regs) r1 imm p g b e cur_addr a

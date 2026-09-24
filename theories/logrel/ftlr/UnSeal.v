@@ -23,41 +23,6 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
-  (* Proving the meaning of unsealing in the LR sane. Note the use of the later in the result. *)
-  Lemma unsealing_preserves_interp W C sb p0 g0 b0 e0 a0 o s:
-        permit_unseal p0 = true →
-        withinBounds b0 e0 o = true →
-        interp W C (WSealed o sb) -∗
-        interp W C (WSealRange true p0 g0 b0 e0 a0) -∗
-        world_interp_open W C s
-        -∗
-        ▷ (interp W C (WSealable (machine_word.unseal g0 sb)) ∗
-           world_interp_open W C s).
-  Proof.
-    iIntros (Hpseal Hwb) "#HVsd #HVsr Hworld_interp".
-    destruct (get_tag_sealable sb) eqn:Htag.
-    2: { iNext. iFrame. iApply interp_untagged. by rewrite /= get_tag_unseal Htag. }
-    rewrite
-      (fixpoint_interp1_eq W C (WSealRange true _ _ _ _ _))
-      (fixpoint_interp1_eq W C (WSealed _ _)) /= Htag Hpseal /interp_sb.
-    iDestruct "HVsr" as "[_ Hss]".
-    apply seq_between_dist_Some in Hwb.
-    iDestruct (big_sepL_delete with "Hss") as "[HSa0 _]"; eauto.
-    iDestruct "HSa0" as (P) "( %Hpers & HsealP & %Hdom & Hrcond)".
-    assert (∀ WCv : WORLD * CmptName * Word, Persistent (safeC P WCv)) as Hpers'.
-    { intros [ [W0 C0] w0 ]; rewrite //=; eapply (Hpers (W0, C0, w0)). }
-    iAssert (sts_seals_std C o {[WSealable sb]}) as "#HVsd'".
-    { iApply sts_seals_std_weaken; last iFrame "HVsd"; last set_solver+. }
-    iDestruct (world_interp_open_seal_pred_singleton with "HsealP HVsd' Hworld_interp") as "(Hworld_interp & #HP)".
-    iNext.
-    rewrite /=.
-    iFrame.
-    destruct g0.
-    - rewrite unseal_global. by iApply "Hrcond".
-    - rewrite unseal_local.
-      iApply (interp_borrow_word W C (WSealable sb)). by iApply "Hrcond".
-  Qed.
-
   Lemma unseal_case (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :

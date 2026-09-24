@@ -32,6 +32,7 @@ Section region_invariant_revocation.
     ={E}=∗ region (<s[a:=Temporary]s>W) C ∗ sts_full_world (<s[a:=Temporary]s>W) C.
   Proof.
     iIntros (Hheap Hlookup Hstatus Hrev) "Hsts Hreg #Hrel".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
     rewrite rel_eq /rel_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
@@ -46,7 +47,7 @@ Section region_invariant_revocation.
     iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
     assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_revoked_temp; auto. }
-    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl with "Hr") as "Hr".
+    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "Hr") as "Hr".
     assert (is_Some (M !! a)) as [x Hsome].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. done. }
     iDestruct (region_map_delete with "Hr") as "Hr".
@@ -92,6 +93,7 @@ Section region_invariant_revocation.
     { apply heap_cell_live_nonheap. exact Hnonheap. }
     intro.
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
     rewrite rel_eq /rel_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
@@ -104,7 +106,7 @@ Section region_invariant_revocation.
     iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
     assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_revoked_temp; auto. }
-    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl with "Hr") as "Hr".
+    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "Hr") as "Hr".
     assert (is_Some (M !! a)) as [x Hsome].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. done. }
     iDestruct (region_map_delete with "Hr") as "Hr".
@@ -154,6 +156,7 @@ Section region_invariant_revocation.
     { eapply heap_cell_live_lookup; eauto. }
     intro.
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
     rewrite rel_eq /rel_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
@@ -166,7 +169,7 @@ Section region_invariant_revocation.
     iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
     assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_revoked_temp; auto. }
-    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl with "Hr") as "Hr".
+    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "Hr") as "Hr".
     assert (is_Some (M !! a)) as [x Hsome].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. done. }
     iDestruct (region_map_delete with "Hr") as "Hr".
@@ -241,6 +244,7 @@ Section region_invariant_revocation.
     { apply heap_cell_live_nonheap. exact Hnonheap. }
     intro.
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
     rewrite rel_eq /rel_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
@@ -253,7 +257,7 @@ Section region_invariant_revocation.
     iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
     assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_revoked_temp; auto. }
-    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl with "Hr") as "Hr".
+    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "Hr") as "Hr".
     assert (is_Some (M !! a)) as [x Hsome].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. done. }
     iDestruct (region_map_delete with "Hr") as "Hr".
@@ -303,6 +307,7 @@ Section region_invariant_revocation.
     { eapply heap_cell_live_lookup; eauto. }
     intro.
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
     rewrite rel_eq /rel_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
@@ -315,7 +320,7 @@ Section region_invariant_revocation.
     iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
     assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_revoked_temp; auto. }
-    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl with "Hr") as "Hr".
+    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "Hr") as "Hr".
     assert (is_Some (M !! a)) as [x Hsome].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. done. }
     iDestruct (region_map_delete with "Hr") as "Hr".
@@ -388,9 +393,10 @@ Section region_invariant_revocation.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { apply heap_cell_live_nonheap. exact Hnonheap. }
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_revoked_temp; auto. }
-    iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [Hφ]") as "Hφ'"; eauto.
+    iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
     iApply (update_region_revoked_temp_pwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
   Qed.
 
@@ -417,9 +423,10 @@ Section region_invariant_revocation.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { eapply heap_cell_live_lookup; eauto. }
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_revoked_temp; auto. }
-    iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [Hφ]") as "Hφ'"; eauto.
+    iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
     iApply (update_region_revoked_temp_pwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
   Qed.
 
@@ -470,17 +477,18 @@ Section region_invariant_revocation.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { apply heap_cell_live_nonheap. exact Hnonheap. }
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     destruct (isDL p) eqn:Hpdl.
     + assert (related_sts_pub_world W (<s[ a := Temporary ]s> W)) as Hrelated.
       { apply related_sts_pub_revoked_temp; auto. }
-      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [Hφ]") as "Hφ'"; eauto.
+      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
       replace (future_pub_mono C φ v)
         with (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
       by (rewrite Hpdl;done).
       iApply (update_region_revoked_temp_nwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
     + assert (related_sts_priv_world W (<s[ a := Temporary ]s> W)) as Hrelated.
       { apply related_sts_pub_priv_world,related_sts_pub_revoked_temp; auto. }
-      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [Hφ]") as "Hφ'"; eauto.
+      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
       replace (future_priv_mono C φ v)
         with (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
       by (rewrite Hpdl;done).
@@ -510,17 +518,18 @@ Section region_invariant_revocation.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { eapply heap_cell_live_lookup; eauto. }
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     destruct (isDL p) eqn:Hpdl.
     + assert (related_sts_pub_world W (<s[ a := Temporary ]s> W)) as Hrelated.
       { apply related_sts_pub_revoked_temp; auto. }
-      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [Hφ]") as "Hφ'"; eauto.
+      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
       replace (future_pub_mono C φ v)
         with (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
       by (rewrite Hpdl;done).
       iApply (update_region_revoked_temp_nwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
     + assert (related_sts_priv_world W (<s[ a := Temporary ]s> W)) as Hrelated.
       { apply related_sts_pub_priv_world,related_sts_pub_revoked_temp; auto. }
-      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [Hφ]") as "Hφ'"; eauto.
+      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
       replace (future_priv_mono C φ v)
         with (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
       by (rewrite Hpdl;done).
@@ -566,6 +575,7 @@ Section region_invariant_revocation.
     -∗ sts_full_world (revoke W) C ∗ region_map_def (revoke W) C MC Mρ.
   Proof.
     iIntros (Hdom) "Hfull Hr".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite /revoke in Hdom |- *.
     destruct W as [ [Wstd_sta Wloc] W_heap ].
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
@@ -591,7 +601,7 @@ Section region_invariant_revocation.
     destruct ρ; cbn [region_std_interp]; first contradiction; last done.
     iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     iFrame "∗%#".
-    iNext. iApply ("HmonoV" with "[] Hφ").
+    iNext. iApply ("HmonoV" with "[] [] Hφ"); last done.
     iPureIntro. apply revoke_related_sts_priv_world.
   Qed.
 
@@ -1133,6 +1143,7 @@ Section region_invariant_revocation.
           iApply bi.False_elim. iApply (addr_dupl_false with "Hx' Hx"); auto. }
 
         iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
+        iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf_updated.
         rewrite HMeq.
         iDestruct (region_map_delete with "Hr") as "Hr".
         iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hr") as "Hr"; auto.
@@ -1145,10 +1156,10 @@ Section region_invariant_revocation.
           cbn [region_std_interp]. iExists v. iFrame "%".
           rewrite /close_list in Hrelated.
           destruct (isWL p).
-          - iFrame "∗#"; iApply ("HmonoV" with "[] Hφ"); auto.
+          - iFrame "∗#"; iApply ("HmonoV" with "[] [] Hφ"); auto.
           - destruct (isDL p).
-            + iFrame "∗#"; iApply ("HmonoV" with "[] Hφ"); auto.
-            + iFrame "∗#"; iApply ("HmonoV" with "[] Hφ"); auto.
+            + iFrame "∗#"; iApply ("HmonoV" with "[] [] Hφ"); auto.
+            + iFrame "∗#"; iApply ("HmonoV" with "[] [] Hφ"); auto.
               iPureIntro; apply related_sts_pub_priv_world; auto.
         }
         iFrame.
@@ -1228,7 +1239,8 @@ Section region_invariant_revocation.
     assert (dom (std W') = dom (std (close_list l W'))) as Heq.
     { rewrite /close_list.
       apply close_list_dom_eq. }
-    iDestruct (region_monotone with "Hr") as "Hr";[apply Heq|apply Hrelated'|symmetry; apply close_list_heap| ].
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
+    iDestruct (region_monotone with "Hr") as "Hr";[apply Heq|apply Hrelated'|symmetry; apply close_list_heap|by rewrite close_list_heap| ].
     iMod (close_list_consolidate_gen _ _ l l with "[] [] [$Hr $Hsts Htemp]") as "[Hsts Hr]"
     ;[auto|auto|eauto|iFrame;done].
   Qed.
@@ -1374,6 +1386,7 @@ Section region_invariant_revocation.
   Proof.
     intros Hheap.
     iIntros (Hrevoked Hdom Hstd Hrelated) "Hfull Hr".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite /revoke in Hdom |- *.
     destruct W as [ [ [Wstd_sta Wloc] Wseals] W_heap ].
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
@@ -1403,7 +1416,7 @@ Section region_invariant_revocation.
     destruct ρ; cbn [region_std_interp]; first contradiction; last done.
     iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     iFrame "∗%#".
-    iNext. iApply ("HmonoV" with "[] Hφ").
+    iNext. iApply ("HmonoV" with "[] [] Hφ"); last done.
     iPureIntro. apply Hrelated.
   Qed.
 
@@ -1423,6 +1436,7 @@ Section region_invariant_revocation.
     intros Hheap.
     intros Hrevoked Hstd Hrelated.
     iIntros "Hsts Hreg".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
     iDestruct (monotone_revoke_region_def_update_loc _ _ _ _ _ Hheap with "[] [] [] [] [$] [$]") as "[Hsts Hpreds]"; eauto.

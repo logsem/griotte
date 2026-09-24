@@ -99,7 +99,7 @@ Section CMDC_Call_Phase.
         ∗ ⌜related_sts_pub_world (std_update_multiple Wcall callee_stk_region Temporary) Wret⌝
         ∗ ([∗ list] a ∈ callee_stk_region, ⌜std Wret !! a = Some Temporary⌝)
         ∗ ⌜std (revoke Wret) !! shared_addr = Some Permanent⌝
-        ∗ rel C shared_addr RW interpC
+        ∗ rel C shared_addr RW interp_in_memC
         ∗ ⌜dom rmap' = all_registers_s ∖ {[ PC; cgp; cra; csp; ca0; ca1; cs0; cs1 ]}⌝
         ∗ StackRevokedResources Wret C (finz.seq_between a_stk e_stk)
         ∗ ⌜revoked_addresses (revoke Wret) (finz.seq_between a_stk e_stk)⌝
@@ -140,10 +140,10 @@ Section CMDC_Call_Phase.
     (* Relinquish [shared_addr] and prove that its capability is safe to share.
        Install the singleton as a permanent region and retain its relation for
        the caller's subsequent access through the shared address. *)
-    iDestruct (init_PermRes W0 C shared_addr RW interpC
+    iDestruct (init_PermRes W0 C shared_addr RW interp_in_memC
       with "[] [$Hshared_addr] []") as "Hshared_addr".
     { done. }
-    { iApply future_priv_mono_interp_z. }
+    { iApply future_priv_mono_interp_in_mem_z. }
     { iApply interp_int. }
     iMod (world_interp_extend_perm with "Hworld Hshared_addr")
       as "(Hworld & Hrel_shared_addr)"; auto.
@@ -167,17 +167,17 @@ Section CMDC_Call_Phase.
       rewrite (finz_seq_between_empty (shared_addr ^+ 1)%a);
         last solve_addr+Hshared_addr_e.
       iApply big_sepL_singleton.
-      iExists RW, interp.
+      iExists RW, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
-      iSplit; first (iPureIntro; by apply persistent_cond_interp).
+      iSplit; first (iPureIntro; by apply persistent_cond_interp_in_mem).
       iSplit; first iFrame "Hrel_shared_addr".
-      iSplit; first (iNext; by iApply zcond_interp).
-      iSplit; first (iNext; by iApply rcond_interp).
-      iSplit; first (iNext; by iApply wcond_interp).
+      iSplit; first (iNext; by iApply zcond_interp_in_mem).
+      iSplit; first (iNext; by iApply rcond_interp_in_mem).
+      iSplit; first (iNext; by iApply wcond_interp_in_mem).
       subst Wcall.
       iSplit.
-      - iApply (monoReq_interp _ _ _ _ Permanent); last done.
+      - iApply (monoReq_interp_in_mem _ _ _ _ Permanent); last done.
         rewrite /std_update. by rewrite lookup_insert_eq.
       - iPureIntro. by rewrite lookup_insert_eq.
     }

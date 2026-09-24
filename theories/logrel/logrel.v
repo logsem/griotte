@@ -189,8 +189,17 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
+  (** Empty bounds carry no authority, even when their base is in the heap. *)
+  Definition heap_authority_base (w : Word) : option Addr :=
+    match w with
+    | WCap _ _ _ b e _ | WSentry _ _ _ b e _
+    | WSealed _ (SCap _ _ _ b e _) =>
+        if decide (b < e)%a then heap_cap_base w else None
+    | _ => None
+    end.
+
   Definition filter_heap (W : WORLD) (w : Word) : Word :=
-    match heap_cap_base w with
+    match heap_authority_base w with
     | None => w
     | Some b =>
         match (heap_lookup_addr (heap_std W) b) with
@@ -205,17 +214,17 @@ Section logrel.
   .
 
   Lemma filter_heap_nonheap W w :
-    heap_cap_base w = None -> filter_heap W w = w.
+    heap_authority_base w = None -> filter_heap W w = w.
   Proof. intros Hw. by rewrite /filter_heap Hw. Qed.
 
   Lemma filter_heap_live W w b base obj :
-    heap_cap_base w = Some b ->
+    heap_authority_base w = Some b ->
     heap_lookup_addr (heap_std W) b = Some (base,obj) ->
     alloc_object_status obj = AllocObjectLive -> filter_heap W w = w.
   Proof. intros Hb Hlookup Hstatus. by rewrite /filter_heap Hb Hlookup /= Hstatus. Qed.
 
   Lemma filter_heap_quarantined W w b base obj :
-    heap_cap_base w = Some b ->
+    heap_authority_base w = Some b ->
     heap_lookup_addr (heap_std W) b = Some (base,obj) ->
     alloc_object_status obj = AllocObjectQuarantined -> filter_heap W w = clear_tag w.
   Proof. intros Hb Hlookup Hstatus. by rewrite /filter_heap Hb Hlookup /= Hstatus. Qed.
@@ -223,7 +232,7 @@ Section logrel.
   Lemma filter_heap_result W w :
     filter_heap W w = w ∨ filter_heap W w = clear_tag w.
   Proof.
-    rewrite /filter_heap. destruct (heap_cap_base w) as [b|]; last by left.
+    rewrite /filter_heap. destruct (heap_authority_base w) as [b|]; last by left.
     destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ]; last by left.
     cbn. destruct (alloc_object_status obj); [by left | by right].
   Qed.
@@ -235,17 +244,17 @@ Section logrel.
     by apply clear_tag_untagged.
   Qed.
 
-  Definition interp_in_mem
+  Definition interp_in_mem_pre
     (W : WORLD) (C : CmptName) (p : Perm) (interp : V) (w : Word) : iProp Σ :=
     interp W C (filter_heap W (load_word p w)).
 
-  Global Instance interp_in_mem_ne W C p w :
-    NonExpansive (λ interp, interp_in_mem W C p interp w).
+  Global Instance interp_in_mem_pre_ne W C p w :
+    NonExpansive (λ interp, interp_in_mem_pre W C p interp w).
   Proof. intros n x y Hxy. apply Hxy. Qed.
 
-  Global Instance interp_in_mem_contractive W C p w :
-    Contractive (λ interp, ▷ interp_in_mem W C p interp w)%I.
-  Proof. rewrite /interp_in_mem. solve_contractive. Qed.
+  Global Instance interp_in_mem_pre_contractive W C p w :
+    Contractive (λ interp, ▷ interp_in_mem_pre W C p interp w)%I.
+  Proof. rewrite /interp_in_mem_pre. solve_contractive. Qed.
 
   (* Condition definitions *)
   (** [zcond] states that if the safety predicate [P] is safe for some integer in some world,
@@ -267,13 +276,13 @@ Section logrel.
   (** [rcond] states that stored values satisfying [P] are safe after the
       deep-permission load filter and the current world's heap revocation filter. *)
   Definition rcond (P : V) (C : CmptName) (p : Perm) (interp : V) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : Word), P W C w -∗ interp_in_mem W C p interp w).
+    (□ ∀ (W: WORLD) (w : Word), P W C w -∗ interp_in_mem_pre W C p interp w).
   Global Instance rcond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> dist n ==> dist n) rcond.
-  Proof. rewrite /rcond /interp_in_mem. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  Proof. rewrite /rcond /interp_in_mem_pre. solve_proper_prepare. repeat f_equiv;auto. Qed.
   Global Instance rcond_contractive (P : V) (C : CmptName) (p : Perm) :
     Contractive (λ interp, ▷ rcond P C p interp)%I.
-  Proof. rewrite /rcond /interp_in_mem. solve_contractive. Qed.
+  Proof. rewrite /rcond /interp_in_mem_pre. solve_contractive. Qed.
 
   (** [wcond] states that [interp] implies the safety predicate [P].
       It comes from the fact that storing in memory consists of storing
@@ -470,6 +479,7 @@ Section logrel.
     | WCap t p g b e a =>
         let a4 := (a^+4)%a in
         let b_callee := if is_untrusted_caller then b else a4 in
+        ⌜is_heap_address b_callee = false ∧ disjoint_from_heap b_callee e⌝ ∗
         interp W C (WCap t p g b_callee e a)
     | _ => True
     end.
@@ -528,7 +538,7 @@ Section logrel.
     apply bi.sep_ne; first apply IHy.
     destruct (is_known_to_known_frm a); first done.
     apply bi.sep_ne.
-    { unfold interp_callee_part_of_the_stack. apply Heq. }
+    { unfold interp_callee_part_of_the_stack. apply bi.sep_ne; first reflexivity. apply Heq. }
     destruct (is_untrusted_caller_frm a); first done.
     apply bi.forall_ne; intros W'.
     apply bi.wand_ne; first reflexivity.
@@ -668,7 +678,7 @@ Section logrel.
 
   (** Heap authority must belong to one live allocation. Lookup uses the
       capability base, which may be narrowed inside the original allocation. *)
-  Definition heap_cap_valid (W : WORLD) (p : Perm) (b e : Addr) : Prop :=
+  Definition heap_cap_live (W : WORLD) (p : Perm) (b e : Addr) : Prop :=
     if is_heap_address b then
       match heap_lookup_addr (heap_std W) b with
       | None => False
@@ -679,6 +689,20 @@ Section logrel.
           end
       end
     else disjoint_from_heap b e.
+
+  (** Empty and reversed ordinary capabilities carry no memory authority. *)
+  Definition heap_cap_valid (W : WORLD) (p : Perm) (b e : Addr) : Prop :=
+    (b < e)%a -> heap_cap_live W p b e.
+
+  Lemma heap_cap_valid_disjoint W p b e :
+    disjoint_from_heap b e -> heap_cap_valid W p b e.
+  Proof.
+    intros Hdisjoint Hnonempty. rewrite /heap_cap_live.
+    destruct (is_heap_address b) eqn:Hheap; last done.
+    exfalso. apply withinBounds_true_iff in Hheap.
+    rewrite /disjoint_from_heap elem_of_disjoint in Hdisjoint.
+    eapply (Hdisjoint b); apply elem_of_finz_seq_between; solve_addr.
+  Qed.
 
   (** Interp for sentry in [enter_cond]. *)
   Program Definition interp_sentry (interp : V) : V :=
@@ -724,7 +748,7 @@ Section logrel.
      might not be possible.
    *)
   Definition unseal_cond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : Word), P W C (force_global w) -∗ interp W C w).
+    (□ ∀ (W: WORLD) (w : Word), P W C (force_global w) -∗ interp W C (filter_heap W w)).
   Global Instance unseal_cond_ne n :
     Proper ((=) ==> (=) ==> dist n ==> dist n) unseal_cond.
   Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
@@ -907,6 +931,13 @@ Section logrel.
 
   Program Definition interp : V := (fixpoint (interp1)).
   Solve All Obligations with solve_proper.
+  Program Definition interp_in_mem (p : Perm) : V :=
+    λne W C w, interp_in_mem_pre W C p interp w.
+  Solve All Obligations with solve_proper.
+
+  Lemma interp_in_mem_eq p W C w :
+    interp_in_mem p W C w ≡ interp W C (filter_heap W (load_word p w)).
+  Proof. reflexivity. Qed.
   Definition interp_continuation : K := interp_cont interp.
   Program Definition interp_expression : E :=
     interp_expr interp interp_continuation.
@@ -964,14 +995,40 @@ Section logrel.
         destruct t; cbn in Htag; try discriminate; apply _.
   Qed.
 
-  Global Instance interp_in_mem_persistent W C p w :
-    Persistent (interp_in_mem W C p interp w).
+  Global Instance interp_in_mem_pre_persistent W C p w :
+    Persistent (interp_in_mem_pre W C p interp w).
   Proof. apply _. Qed.
 
-  Lemma interp_load_in_mem W C p w :
-    interp W C (load_word p w) -∗ interp_in_mem W C p interp w.
+  Global Instance interp_in_mem_persistent p W C w : Persistent (interp_in_mem p W C w).
+  Proof. apply _. Qed.
+
+  Lemma interp_to_in_mem W C w : interp W C w -∗ interp_in_mem RWL W C w.
   Proof.
-    rewrite /interp_in_mem.
+    change (⊢ interp W C w -∗ interp W C (filter_heap W w))%I.
+    destruct (filter_heap_result W w) as [-> | ->].
+    - iIntros "$".
+    - iIntros "_". iApply interp_clear_tag.
+  Qed.
+
+  (** The observed load must justify retaining the tag. [load_heap] alone
+      does not supply this evidence. *)
+  Lemma interp_in_mem_load_result W C p raw actual :
+    actual = clear_tag (load_word p raw) ∨
+      (actual = load_word p raw ∧ filter_heap W (load_word p raw) = load_word p raw) ->
+    interp_in_mem p W C raw -∗ interp W C actual.
+  Proof.
+    intros [Hactual | [Hactual Hfilter] ]; subst actual.
+    - iIntros "_". iApply interp_clear_tag.
+    - change (⊢ interp W C (filter_heap W (load_word p raw)) -∗
+        interp W C (load_word p raw))%I.
+      rewrite Hfilter. iIntros "$".
+  Qed.
+
+  Lemma interp_load_in_mem W C p w :
+    interp W C (load_word p w) -∗ interp_in_mem p W C w.
+  Proof.
+    change (⊢ interp W C (load_word p w) -∗
+      interp W C (filter_heap W (load_word p w)))%I.
     destruct (filter_heap_result W (load_word p w)) as [-> | ->].
     - iIntros "$".
     - iIntros "_". iApply interp_clear_tag.
@@ -979,6 +1036,7 @@ Section logrel.
 
   (* Non-curried version of interp *)
   Notation interpC := (safeC interp).
+  Notation interp_in_memC := (safeC (interp_in_mem RWL)).
 
   Lemma interp1_eq interp (W: WORLD) (C : CmptName) p g b e a:
     ((interp1 interp W C (WCap true p g b e a)) ≡
@@ -1036,33 +1094,37 @@ Section logrel.
   Proof.
     iIntros (Hp Hbase) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap]; first done.
-    rewrite /heap_cap_valid Hbase in Hheap. done.
+    destruct (decide (b < e)%a) as [Hnonempty|Hempty].
+    - specialize (Hheap Hnonempty). rewrite /heap_cap_live Hbase in Hheap. done.
+    - iPureIntro. split; first done.
+      rewrite /disjoint_from_heap finz_seq_between_empty; [set_solver|solve_addr].
   Qed.
 
   Lemma interp_cap_live_heap (W : WORLD) (C : CmptName) p g b e a :
-    isO p = false -> is_heap_address b = true ->
+    isO p = false -> is_heap_address b = true -> (b < e)%a ->
     interp W C (WCap true p g b e a) -∗
     ⌜∃ base obj, heap_lookup_addr (heap_std W) b = Some (base,obj) ∧
       alloc_object_status obj = AllocObjectLive ∧
       (e <= alloc_object_end obj)%a ∧ executeAllowed p = false⌝.
   Proof.
-    iIntros (Hp Hbase) "Hinterp".
+    iIntros (Hp Hbase Hnonempty) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap]; first done.
-    rewrite /heap_cap_valid Hbase in Hheap.
+    specialize (Hheap Hnonempty). rewrite /heap_cap_live Hbase in Hheap.
     destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ] eqn:Hlookup; last done.
     destruct (alloc_object_status obj) eqn:Hstatus; last done.
     iPureIntro. exists base,obj. auto.
   Qed.
 
   Lemma interp_cap_quarantined_heap (W : WORLD) (C : CmptName) p g b e a base obj :
-    isO p = false -> is_heap_address b = true ->
+    isO p = false -> is_heap_address b = true -> (b < e)%a ->
     heap_lookup_addr (heap_std W) b = Some (base,obj) ->
     alloc_object_status obj = AllocObjectQuarantined ->
     interp W C (WCap true p g b e a) -∗ False.
   Proof.
-    iIntros (Hp Hbase Hlookup Hstatus) "Hinterp".
+    iIntros (Hp Hbase Hnonempty Hlookup Hstatus) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap]; first done.
-    by rewrite /heap_cap_valid Hbase Hlookup Hstatus in Hheap.
+    specialize (Hheap Hnonempty).
+    by rewrite /heap_cap_live Hbase Hlookup Hstatus in Hheap.
   Qed.
 
   Lemma interp_cap_disjoint (W : WORLD) (C : CmptName) p g b e a :
@@ -1074,7 +1136,9 @@ Section logrel.
     iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap];
       first by eapply executeAllowed_nonO.
     iPureIntro. split; first done.
-    rewrite /heap_cap_valid in Hheap.
+    destruct (decide (b < e)%a) as [Hnonempty|Hempty]; last first.
+    { rewrite /disjoint_from_heap finz_seq_between_empty; [set_solver|solve_addr]. }
+    specialize (Hheap Hnonempty). rewrite /heap_cap_live in Hheap.
     destruct (is_heap_address b); last done.
     destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ]; last done.
     destruct (alloc_object_status obj); last contradiction.
@@ -1502,3 +1566,5 @@ End logrel.
 Notation safeC P :=
   (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
 Notation interpC := (safeC interp).
+
+Notation interp_in_memC := (safeC (interp_in_mem RWL)).

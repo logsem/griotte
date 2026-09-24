@@ -102,12 +102,12 @@ Section Stack_World_Resources.
   Qed.
 
   (* Get interp *)
-  Lemma StackWorldResource_interp W C a w :
-    StackWorldResource interp W C a w -∗ interp W C w.
+  Lemma StackWorldResource_interp_in_mem W C a w :
+    StackWorldResource interp W C a w -∗ interp_in_mem RWL W C w.
   Proof.
     iIntros "(%Pa & %pa & HPa & ? & ? & (?&?&Hrcond&?&%) & %)".
     iDestruct ("Hrcond" with "HPa") as "HPa'".
-    rewrite /load_word.
+    iEval (rewrite /interp_in_mem_pre /load_word) in "HPa'".
     destruct ( isDRO pa ) eqn:Hpa.
     { eapply isDRO_flowsto in Hpa; eauto; done. }
     destruct ( isDL pa ) eqn:Hpa'.
@@ -117,27 +117,27 @@ Section Stack_World_Resources.
 
   (* Derive [StackWorldResource] from [rel] *)
   Lemma StackWorldResource_from_rel_stack W C a :
-    rel C a RWL interpC -∗ StackWorldResource interp W C a (WInt 0).
+    rel C a RWL interp_in_memC -∗ StackWorldResource interp W C a (WInt 0).
   Proof.
     iIntros "Hrel".
-    iExists interp, RWL; cbn. iFrame.
+    iExists (interp_in_mem RWL), RWL; cbn. iFrame.
     iSplit; first (iApply interp_int).
-    iSplit; first (iApply future_pub_mono_interp_z).
+    iSplit; first (iApply future_pub_mono_interp_in_mem_z).
     iSplit; last done.
     iSplit.
     { iIntros (v) "!>".
-      iIntros (W0 W1 Hrelated) "Hinterp".
+      iIntros (W0 W1 Hrelated Hwf) "Hinterp".
       rewrite /=.
-      iApply monotone.interp_monotone; eauto.
+      iApply monotone.interp_in_mem_monotone; eauto.
     }
-    iSplit; first (iApply zcond_interp).
-    iSplit; first (iApply rcond_interp).
-    iSplit; first (iApply wcond_interp).
-    iPureIntro. apply persistent_cond_interp.
+    iSplit; first (iApply zcond_interp_in_mem).
+    iSplit; first (iApply rcond_interp_in_mem).
+    iSplit; first (iApply wcond_interp_in_mem).
+    iPureIntro. apply persistent_cond_interp_in_mem.
   Qed.
 
   Lemma StackWorldResources_from_rel_stack W C la :
-    ([∗ list] a ∈ la, rel C a RWL interpC) -∗
+    ([∗ list] a ∈ la, rel C a RWL interp_in_memC) -∗
     StackWorldResources interp W C la (replicate (length la) (WInt 0)).
   Proof.
     induction la; [iIntros "H" | iIntros "[Ha H]"]; first done; cbn.

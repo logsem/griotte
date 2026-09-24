@@ -211,6 +211,7 @@ Section switcher_helper.
       (∀ a : finz MemNum, std W0 !! a = Some Temporary → a ∈ l ++ finz.seq_between csp_b csp_e) ->
       NoDup (l ++ finz.seq_between csp_b csp_e) ->
       related_sts_pub_world W0 Wfixed ->
+      heap_wf (heap_std Wfixed) ->
 
       interp W0 C (WCap true RWL Local (if is_untrusted_caller ccrel then b_stk else (a_stk ^+ 4)%a) csp_e a_stk) -∗
       cframe_stk_own
@@ -240,10 +241,10 @@ Section switcher_helper.
              else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wret ∧ wastk3 = wcgp)⌝)
           ∗ (if (is_untrusted_caller ccrel)
              then (
-                 (interp Wfixed C wastk)
-                 ∗ (interp Wfixed C wastk1)
-                 ∗ (interp Wfixed C wastk2)
-                 ∗ (interp Wfixed C wastk3)
+                 (interp_in_mem RWL Wfixed C wastk)
+                 ∗ (interp_in_mem RWL Wfixed C wastk1)
+                 ∗ (interp_in_mem RWL Wfixed C wastk2)
+                 ∗ (interp_in_mem RWL Wfixed C wastk3)
                )
              else True
             )
@@ -252,7 +253,7 @@ Section switcher_helper.
     .
     Proof.
       intros Wfixed a_stk.
-      iIntros (Hb_a4 He_a1 Ha_stk4 Htemp_revoked Hnodup_revoked Hrelated_pub_W0_Wfixed)
+      iIntros (Hb_a4 He_a1 Ha_stk4 Htemp_revoked Hnodup_revoked Hrelated_pub_W0_Wfixed Hheap_wf)
         "#Hinterp_callee_wstk Hcframe_interp Hclose_list_res Hlc".
       rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
       rewrite /CloseRes_gen.
@@ -337,10 +338,10 @@ Section switcher_helper.
                     ∗ (a_stk ^+ 1)%a ↦ₐ wastk1
                     ∗ (a_stk ^+ 2)%a ↦ₐ wastk2
                     ∗ (a_stk ^+ 3)%a ↦ₐ wastk3
-                    ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ (interp W0' C wastk))
-                    ∗ (∃ W1', ⌜ related_sts_pub_world W1' Wfixed⌝ ∗ (interp W1' C wastk1))
-                    ∗ (∃ W2', ⌜ related_sts_pub_world W2' Wfixed⌝ ∗ (interp W2' C wastk2))
-                    ∗ (∃ W3', ⌜ related_sts_pub_world W3' Wfixed⌝ ∗ (interp W3' C wastk3))
+                    ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ (interp_in_mem RWL W0' C wastk))
+                    ∗ (∃ W1', ⌜ related_sts_pub_world W1' Wfixed⌝ ∗ (interp_in_mem RWL W1' C wastk1))
+                    ∗ (∃ W2', ⌜ related_sts_pub_world W2' Wfixed⌝ ∗ (interp_in_mem RWL W2' C wastk2))
+                    ∗ (∃ W3', ⌜ related_sts_pub_world W3' Wfixed⌝ ∗ (interp_in_mem RWL W3' C wastk3))
                 )
               ∗ ([∗ list] a ∈ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a],
                    ∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
@@ -416,6 +417,7 @@ Section switcher_helper.
       iDestruct ("Hrcond_astk3" with "H3'") as "#Hinterp3"; cbn.
       iSplitR.
       {
+        iEval (rewrite /interp_in_mem_pre /load_word) in "Hinterp0 Hinterp1 Hinterp2 Hinterp3".
         rewrite /load_word.
         rewrite (notisDRO_flowsfrom RWL p_astk0 Hp_astk0 eq_refl).
         rewrite (notisDRO_flowsfrom RWL p_astk1 Hp_astk1 eq_refl).
@@ -435,7 +437,7 @@ Section switcher_helper.
         + iExists W0'; iFrame "%".
           iRewrite - ("HP0" $! (W0',C,WInt 0)).
           iApply "Hwcond_astk0"; iApply interp_int.
-        + iIntros "!> % % % _".
+        + iIntros "!> % % % % _".
           iRewrite - ("HP0" $! (W',C,WInt 0)).
           iApply "Hwcond_astk0"; iApply interp_int.
       }
@@ -446,7 +448,7 @@ Section switcher_helper.
         + iExists W1'; iFrame "%".
           iRewrite - ("HP1" $! (W1',C,WInt 0)).
           iApply "Hwcond_astk1"; iApply interp_int.
-        + iIntros "!> % % % _".
+        + iIntros "!> % % % % _".
           iRewrite - ("HP1" $! (W',C,WInt 0)).
           iApply "Hwcond_astk1"; iApply interp_int.
       }
@@ -457,7 +459,7 @@ Section switcher_helper.
         + iExists W2'; iFrame "%".
           iRewrite - ("HP2" $! (W2',C,WInt 0)).
           iApply "Hwcond_astk2"; iApply interp_int.
-        + iIntros "!> % % % _".
+        + iIntros "!> % % % % _".
           iRewrite - ("HP2" $! (W',C,WInt 0)).
           iApply "Hwcond_astk2"; iApply interp_int.
       }
@@ -467,7 +469,7 @@ Section switcher_helper.
         + iExists W3'; iFrame "%".
           iRewrite - ("HP3" $! (W3',C,WInt 0)).
           iApply "Hwcond_astk3"; iApply interp_int.
-        + iIntros "!> % % % _".
+        + iIntros "!> % % % % _".
           iRewrite - ("HP3" $! (W',C,WInt 0)).
           iApply "Hwcond_astk3"; iApply interp_int.
       }
@@ -476,10 +478,10 @@ Section switcher_helper.
     iDestruct (lc_fupd_elim_later with "[$] [$H]") as ">H".
     iModIntro.
     iDestruct "H" as (l') "($ & $ & (%&%&%&%& $&$&$&$&(%W0'&%HW0'&H0)&(%W1'&%HW1'&H1)&(%W2'&%HW2'&H2)&(%W3'&%HW3'&H3)) & ($&$&$&?))".
-    iDestruct (interp_monotone W0' Wfixed with "[] H0") as "$"; first done.
-    iDestruct (interp_monotone W1' Wfixed with "[] H1") as "$"; first done.
-    iDestruct (interp_monotone W2' Wfixed with "[] H2") as "$"; first done.
-    iDestruct (interp_monotone W3' Wfixed with "[] H3") as "$"; first done.
+    iDestruct (interp_in_mem_monotone W0' Wfixed with "H0") as "$"; [exact Hheap_wf|done|].
+    iDestruct (interp_in_mem_monotone W1' Wfixed with "H1") as "$"; [exact Hheap_wf|done|].
+    iDestruct (interp_in_mem_monotone W2' Wfixed with "H2") as "$"; [exact Hheap_wf|done|].
+    iDestruct (interp_in_mem_monotone W3' Wfixed with "H3") as "$"; [exact Hheap_wf|done|].
     iFrame.
     Qed.
 

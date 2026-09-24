@@ -384,7 +384,7 @@ Section Adequacy.
     iMod ( world_interp_extend_temp_sepL2 _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
              (stack_content switcher_cmpt)
-             RWL interpC
+             RWL interp_in_memC
            with "Hworld_C [Hstack]")
            as "(Hworld_C & #Hrel_stk_C)".
     { done. }
@@ -398,7 +398,7 @@ Section Adequacy.
       rewrite fixpoint_interp1_eq /=.
       iSplit; eauto.
       iSplit; eauto.
-      rewrite mono_temporary_eq; cbn; iApply future_pub_mono_interp_z.
+      rewrite mono_temporary_eq; cbn; iApply future_pub_mono_interp_in_mem_z.
     }
 
     match goal with
@@ -432,23 +432,23 @@ Section Adequacy.
         try apply stack_disjoint_from_shadow; try apply stack_disjoint_from_heap; done).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
-      iExists RWL, interp.
+      iExists RWL, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
-      iSplit; first (iPureIntro ; by apply persistent_cond_interp).
+      iSplit; first (iPureIntro ; by apply persistent_cond_interp_in_mem).
       rewrite (big_sepL_lookup _ (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
                  k a); eauto.
       iFrame "Hrel_stk_C".
-      iSplit; first (iNext ; by iApply zcond_interp).
-      iSplit; first (iNext ; by iApply rcond_interp).
-      iSplit; first (iNext ; by iApply wcond_interp).
+      iSplit; first (iNext ; by iApply zcond_interp_in_mem).
+      iSplit; first (iNext ; by iApply rcond_interp_in_mem).
+      iSplit; first (iNext ; by iApply wcond_interp_in_mem).
       assert ((std Winit_C) !! a = Some Temporary).
       { subst Winit_C.
         apply list_elem_of_lookup_2 in Ha.
         rewrite std_sta_update_multiple_lookup_in_i; auto.
       }
       iSplit; last done.
-      iApply (monoReq_interp _ _ _ _ Temporary); done.
+      iApply (monoReq_interp_in_mem _ _ _ _ Temporary); done.
     }
 
     iAssert ( interp Winit_C C (WSealed ot_switcher C_f)) as "#Hinterp_C_f".

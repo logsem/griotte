@@ -946,6 +946,13 @@ Qed.
     sts_full_world W C -∗ heap_std_full (heap_std W).
   Proof. iIntros "(_ & _ & _ & $)". Qed.
 
+  Lemma sts_full_world_heap_wf W C :
+    sts_full_world W C -∗ ⌜heap_wf (heap_std W)⌝.
+  Proof.
+    iIntros "Hworld".
+    iDestruct (sts_full_world_heap_full with "Hworld") as "[$ _]".
+  Qed.
+
   Lemma sts_full_world_heap_refresh W C W_heap :
     heap_std_auth W_heap -∗ sts_full_world W C ==∗
     heap_std_auth W_heap ∗ sts_full_world (heap_std_update W W_heap) C ∗

@@ -1432,7 +1432,8 @@ Section KVS_preamble.
       physical_kvs_inv.
 
   Definition safe_kvs_pointsto (W : WORLD) (C : CmptName) (uk : user_key_t) (mk : map_key_t) : iProp Σ :=
-    (∃ (w : Word), (uk,mk)↦(KVS) w ∗ (∀ W' , ⌜ related_sts_priv_world W W' ⌝ -∗ interp W' C w ))
+    (∃ (w : Word), (uk,mk)↦(KVS) w ∗ (∀ W', ⌜related_sts_priv_world W W'⌝ -∗
+          ⌜heap_wf (heap_std W')⌝ -∗ interp_in_mem RWL W' C w))
     ∨
       (uk,mk)↦(KVS) ⊥.
 
@@ -1462,7 +1463,7 @@ Section KVS_preamble.
   Lemma mono_priv_ot_kvs {KVS : kvsLayout} (C : CmptName) (w : Word) :
     ⊢ future_priv_mono C kvs_otype_propC w.
   Proof.
-    iIntros (W W' Hrelated_W_W').
+    iIntros (W W' Hrelated_W_W' Hheap_wf).
     iModIntro.
     iIntros "Hot_kvs".
     rewrite /kvs_otype_propC /= /kvs_otype_inv.
@@ -1471,8 +1472,8 @@ Section KVS_preamble.
     iApply (big_sepS_impl with "Hs").
     iModIntro; iIntros (??) "[ (%w' & H' & H) | $ ]".
     iLeft; iFrame.
-    iIntros (W'' Hrelated_W'_W'').
-    iApply "H".
+    iIntros (W'' Hrelated_W'_W'' Hheap_wf').
+    iApply ("H" with "[] []"); last done.
     iPureIntro.
     by eapply related_sts_priv_trans_world.
   Qed.

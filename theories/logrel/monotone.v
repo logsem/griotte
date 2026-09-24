@@ -216,13 +216,78 @@ Section monotone.
     - iDestruct (monoReq_mono_pub_nwl with "HmonoR") as "HmonoR'"; eauto.
   Qed.
 
-  Lemma interp_monotone_sd W W' C ot sb :
+  Lemma filter_heap_quarantined_future W W' w b base obj :
+    heap_wf (heap_std W') ->
+    related_sts_heap_std (heap_std W) (heap_std W') ->
+    heap_authority_base w = Some b ->
+    heap_lookup_addr (heap_std W) b = Some (base,obj) ->
+    alloc_object_status obj = AllocObjectQuarantined ->
+    filter_heap W' w = clear_tag w.
+  Proof.
+    intros Hwf Hfuture Hb Hlookup Hstatus.
+    destruct (heap_lookup_addr_future _ _ _ _ _ Hwf Hfuture Hlookup)
+      as (obj' & Hlookup' & _ & _ & Hstatus').
+    eapply filter_heap_quarantined; eauto.
+  Qed.
+
+  Lemma filter_heap_future W W' w :
+    heap_wf (heap_std W') ->
+    related_sts_heap_std (heap_std W) (heap_std W') ->
+    filter_heap W' (filter_heap W w) = filter_heap W' w.
+  Proof.
+    intros Hwf Hfuture.
+    destruct (heap_authority_base w) as [b|] eqn:Hb.
+    2: { by rewrite (filter_heap_nonheap W w Hb). }
+    destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ] eqn:Hlookup.
+    2: { by rewrite /filter_heap Hb Hlookup Hb. }
+    destruct (alloc_object_status obj) eqn:Hstatus.
+    - by rewrite (filter_heap_live W w b base obj Hb Hlookup Hstatus).
+    - rewrite (filter_heap_quarantined W w b base obj Hb Hlookup Hstatus).
+      rewrite filter_heap_untagged; last apply get_tag_clear_tag.
+      symmetry. eapply filter_heap_quarantined_future; eauto.
+  Qed.
+
+  Lemma heap_cap_live_future_retained W W' w p b e :
+    heap_wf (heap_std W') ->
+    related_sts_heap_std (heap_std W) (heap_std W') ->
+    (is_heap_address b = true -> heap_authority_base w = Some b) ->
+    get_tag w = true -> filter_heap W' w = w ->
+    heap_cap_live W p b e -> heap_cap_live W' p b e.
+  Proof.
+    intros Hwf Hfuture Hb Htag Hfilter.
+    rewrite /heap_cap_live.
+    destruct (is_heap_address b) eqn:Hheap; last done.
+    destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ] eqn:Hlookup;
+      last done.
+    destruct (heap_lookup_addr_future _ _ _ _ _ Hwf Hfuture Hlookup)
+      as (obj' & Hlookup' & _ & Hend & Hstatus).
+    rewrite Hlookup'.
+    destruct (alloc_object_status obj); last done.
+    destruct (alloc_object_status obj') eqn:Hstatus'; first by rewrite -Hend.
+    have Hclear := filter_heap_quarantined W' w b base obj' (Hb eq_refl) Hlookup' Hstatus'.
+    have := get_tag_clear_tag w. rewrite -Hclear Hfilter Htag. discriminate.
+  Qed.
+
+  Lemma heap_cap_valid_future_retained W W' w p b e :
+    heap_wf (heap_std W') ->
+    related_sts_heap_std (heap_std W) (heap_std W') ->
+    ((b < e)%a -> is_heap_address b = true -> heap_authority_base w = Some b) ->
+    get_tag w = true -> filter_heap W' w = w ->
+    heap_cap_valid W p b e -> heap_cap_valid W' p b e.
+  Proof.
+    intros Hwf Hfuture Hb Htag Hfilter Hvalid Hnonempty.
+    eapply heap_cap_live_future_retained; eauto.
+  Qed.
+
+  Lemma interp_monotone_sd_same_heap W W' C ot sb :
+    heap_std W = heap_std W' ->
     ⌜related_sts_priv_world W W'⌝
     -∗ interp W C (WSealed ot sb) -∗ interp W' C (WSealed ot sb).
   Proof.
-    iIntros (Hrelated) "#Hinterp".
+    iIntros (Hheap Hrelated) "#Hinterp".
     destruct sb as [t p g b e a | t p g b e a]; destruct t;
-      rewrite !fixpoint_interp1_eq /= /interp_sb; done.
+      rewrite !fixpoint_interp1_eq /= /interp_sb /heap_cap_valid /heap_cap_live; try done.
+    by rewrite -Hheap.
   Qed.
 
   Lemma interp_monotone_sentry W W' C t p g b e a :
@@ -232,6 +297,7 @@ Section monotone.
     iIntros (Hrelated) "#Hw".
     destruct t; last (iApply interp_untagged; done).
     rewrite !fixpoint_interp1_eq /=.
+    iDestruct "Hw" as "[$ Hw]".
     iModIntro. iIntros (W'').
     destruct g.
     + iIntros "#Hrelated'".
@@ -329,17 +395,18 @@ Section monotone.
     iPureIntro; exact Hstate'.
   Qed.
 
-  Lemma interp_monotone_cap (W W' : WORLD) C t p g b e a :
+  Lemma interp_monotone_cap_valid (W W' : WORLD) C t p g b e a :
+    (heap_cap_valid W p b e -> heap_cap_valid W' p b e) ->
     ⌜related_sts_pub_world W W'⌝
     -∗ interp W C (WCap t p g b e a) -∗ interp W' C (WCap t p g b e a).
   Proof.
-    iIntros (Hrelated) "#Hw".
+    iIntros (Hheap Hrelated) "#Hw".
     destruct t; last (iApply interp_untagged; done).
     rewrite !fixpoint_interp1_eq !interp1_eq.
     destruct (isO p); first done.
     destruct (has_sreg_access p); first done.
     iDestruct "Hw" as "[Hw %Hlocal]".
-    iSplit; last done.
+    iSplit; last (iPureIntro; naive_solver).
     iApply (big_sepL_mono with "Hw").
     iIntros (n y Hsome) "Hy".
     iApply (interp_addr_mono_pub W W' C p g y with "Hy").
@@ -391,18 +458,20 @@ Section monotone.
       iApply safe_to_unseal_monotone; eauto.
   Qed.
 
-  Lemma interp_monotone (W W' : WORLD) C w :
+  Lemma interp_monotone_same_heap (W W' : WORLD) C w :
+    heap_std W = heap_std W' ->
     ⌜related_sts_pub_world W W'⌝
     -∗ interp W C w -∗ interp W' C w.
   Proof.
-    iIntros (Hrelated) "#Hw".
+    iIntros (Hheap Hrelated) "#Hw".
     pose proof (related_sts_pub_priv_world _ _ Hrelated) as Hrelated'.
     destruct w; [ | destruct sb | | ].
     - rewrite !fixpoint_interp1_eq /=; auto.
-    - iApply (interp_monotone_cap with "[] [$]"); eauto.
+    - iApply (interp_monotone_cap_valid with "[] [$]"); eauto.
+      by rewrite /heap_cap_valid /heap_cap_live -Hheap.
     - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
     - iApply (interp_monotone_sentry with "[] [$]"); eauto.
-    - iApply (interp_monotone_sd with "[] [$]"); eauto.
+    - iApply (interp_monotone_sd_same_heap with "[] [$]"); eauto.
   Qed.
 
   Lemma interp_monotone_nl_sentry W W' C t p g b e a :
@@ -413,6 +482,7 @@ Section monotone.
     iIntros (Hrelated Hnl) "#Hw".
     destruct t; last (iApply interp_untagged; done).
     rewrite !fixpoint_interp1_eq /=.
+    iDestruct "Hw" as "[$ Hw]".
     destruct g ; cbn in Hnl ; try done.
     iModIntro. iIntros (W'').
     iIntros "#Hrelated'".
@@ -425,12 +495,13 @@ Section monotone.
     iApply "Hw".
   Qed.
 
-  Lemma interp_monotone_nl_cap (W W' : WORLD) C t p g b e a :
+  Lemma interp_monotone_nl_cap_valid (W W' : WORLD) C t p g b e a :
+    (heap_cap_valid W p b e -> heap_cap_valid W' p b e) ->
     ⌜related_sts_priv_world W W'⌝
     -∗ ⌜isLocalWord (WCap t p g b e a) = false⌝
     -∗ interp W C (WCap t p g b e a) -∗ interp W' C (WCap t p g b e a).
   Proof.
-    iIntros (Hrelated Hnl) "#Hw".
+    iIntros (Hheap Hrelated Hnl) "#Hw".
     destruct t; last (iApply interp_untagged; done).
     destruct g; cbn in Hnl; try done.
     rewrite !fixpoint_interp1_eq !interp1_eq.
@@ -439,185 +510,169 @@ Section monotone.
     iDestruct "Hw" as "[Hw %Hconditions]".
     pose proof (proj1 Hconditions) as Hlocal.
     destruct (isWL p) eqn:Hwl; first congruence.
-    iSplit; last done.
+    iSplit; last (iPureIntro; naive_solver).
     iApply (big_sepL_mono with "Hw").
     iIntros (n y Hsome) "Hy".
     iApply (interp_addr_mono_priv_nwl W W' C p y with "Hy").
     exact Hrelated.
   Qed.
 
- Lemma interp_monotone_nl W W' C w :
+ Lemma interp_monotone_nl_same_heap W W' C w :
+    heap_std W = heap_std W' ->
     ⌜related_sts_priv_world W W'⌝
     -∗ ⌜isLocalWord w = false⌝
     -∗ interp W C w -∗ interp W' C w.
   Proof.
-    iIntros (Hrelated Hnl) "#Hw".
+    iIntros (Hheap Hrelated Hnl) "#Hw".
     destruct w; [ | destruct sb | | ].
     - rewrite !fixpoint_interp1_eq /=; auto.
-    - iApply (interp_monotone_nl_cap with "[] [] [$]"); eauto.
+    - iApply (interp_monotone_nl_cap_valid with "[] [] [$]"); eauto.
+      by rewrite /heap_cap_valid /heap_cap_live -Hheap.
     - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
     - iApply (interp_monotone_nl_sentry with "[] [] [$]"); eauto.
-    - iApply (interp_monotone_sd with "[] [$]"); eauto.
+    - iApply (interp_monotone_sd_same_heap with "[] [$]"); eauto.
   Qed.
 
-  Lemma interp_monotone_general_untagged C p w ρ :
-    get_tag w = false →
-    ⊢ monotonicity_guarantees_region C interpC p w ρ.
+  Lemma interp_monotone_sd_retained W W' C ot sb :
+    heap_wf (heap_std W') ->
+    related_sts_priv_world W W' ->
+    get_tag (WSealed ot sb) = true ->
+    filter_heap W' (WSealed ot sb) = WSealed ot sb ->
+    interp W C (WSealed ot sb) -∗ interp W' C (WSealed ot sb).
   Proof.
-    intros Htag. unfold monotonicity_guarantees_region.
-    destruct ρ; simpl; auto.
-    - destruct (isWL p); [|destruct (isDL p)];
-        iModIntro; iIntros (W0 W1) "_ _";
-        iApply interp_untagged; done.
-    - iModIntro; iIntros (W0 W1) "_ _".
-      iApply interp_untagged; done.
+    intros Hwf Hrelated Htag Hfilter. iIntros "#Hw".
+    destruct sb as [t p g b e a | t p g b e a]; destruct t;
+      cbn in Htag; try discriminate;
+      rewrite !fixpoint_interp1_eq /= /interp_sb; last done.
+    iDestruct "Hw" as "[$ %Hvalid]". iPureIntro.
+    destruct (isO p); first done.
+    eapply (heap_cap_valid_future_retained _ _ (WSealed ot (SCap true p g b e a))); eauto.
+    - exact (proj2 (proj2 (proj2 Hrelated))).
+    - intros Hnonempty Hb. by rewrite /heap_authority_base /= decide_True // /heap_cap_base /memory_cap_base Hb.
   Qed.
 
-  (* The general monotonicity statement that interp gives you when writing a word into a
-     pointer (p0, l, a2, a1, a0) ; simply a bundling of all individual monotonicity statements *)
-Lemma interp_monotone_generalW (W : WORLD) (C : CmptName) (ρ : region_type) (t : bool)
-  (p p' p'' : Perm) (g g' : Locality) (b e a b' e' a' : Addr) :
-  std W !! a' = Some ρ →
-  withinBounds b' e' a' = true →
-  PermFlowsTo p' p'' →
-  canStore p' (WCap t p g b e a) = true →
-  interp W C (WCap true p' g' b' e' a') -∗
-  monotonicity_guarantees_region C interpC p'' (WCap t p g b e a) ρ.
-Proof.
-  unfold monotonicity_guarantees_region.
-  iIntros (Hstd Hwb Hfl' Hconds) "#Hvdst".
-  destruct t; last (iApply interp_monotone_general_untagged; done).
-  destruct ρ;simpl;auto.
-  - destruct (isWL p'') eqn: HpwlP''; [| destruct (isDL p'') eqn: HpdlP'']
-    ; iModIntro; simpl;auto
-    ; iIntros (W0 W1) "%Hrelated HIW0".
-    + iApply interp_monotone; last eauto; eauto.
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-        by eapply related_sts_pub_priv_world in Hrelated.
-    (* The below case is a contradiction, since if g is local,
-      p' must be WL and p' flows into the non-WL p''*)
-      * destruct_perm p' ; try (simpl in Hconds; by exfalso).
-      all:destruct_perm p''; (by exfalso).
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-    (* The below case is a contradiction, since if g is local,
-      p' must be WL and p' flows into the non-WL p''*)
-      * destruct_perm p' ; try (simpl in Hconds; by exfalso).
-      all:destruct_perm p''; (by exfalso).
-  - iModIntro; iIntros (W0 W1) "%Hrelated HIW0".
-    destruct g.
-    + iApply interp_monotone_nl; last eauto; eauto.
-    + iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
-      simplify_eq.
-Qed.
+  Lemma interp_monotone_retained W W' C w :
+    heap_wf (heap_std W') -> related_sts_pub_world W W' ->
+    get_tag w = true -> filter_heap W' w = w ->
+    interp W C w -∗ interp W' C w.
+  Proof.
+    intros Hwf Hrelated Htag Hfilter. iIntros "#Hw".
+    destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot sb].
+    - discriminate.
+    - iApply (interp_monotone_cap_valid with "[] Hw"); last done.
+      intros Hvalid. eapply (heap_cap_valid_future_retained _ _ (WCap t p g b e a)); eauto.
+      + exact (proj2 (proj2 (proj2 Hrelated))).
+      + intros Hnonempty Hb. by rewrite /heap_authority_base /= decide_True // /heap_cap_base /memory_cap_base Hb.
+    - iApply (interp_monotone_sealrange with "[] Hw").
+      iPureIntro. by apply related_sts_pub_priv_world.
+    - by iApply (interp_monotone_sentry with "[] Hw").
+    - iApply (interp_monotone_sd_retained with "Hw"); eauto.
+      by apply related_sts_pub_priv_world.
+  Qed.
 
-Lemma interp_monotone_generalSentry (W : WORLD) (C : CmptName) (ρ : region_type) (t : bool)
-  (p p' p'' : Perm) (g g' : Locality) (b e a b' e' a' : Addr) :
-  std W !! a' = Some ρ →
-  withinBounds b' e' a' = true →
-  PermFlowsTo p' p'' →
-  canStore p' (WSentry t p g b e a) = true →
-  interp W C (WCap true p' g' b' e' a') -∗
-  monotonicity_guarantees_region C interpC p'' (WSentry t p g b e a) ρ.
-Proof.
-  unfold monotonicity_guarantees_region.
-  iIntros (Hstd Hwb Hfl' Hconds) "#Hvdst".
-  destruct t; last (iApply interp_monotone_general_untagged; done).
-  destruct ρ;simpl;auto.
-  - destruct (isWL p'') eqn: HpwlP''; [| destruct (isDL p'') eqn: HpdlP'']
-    ;iModIntro; simpl;auto ; iIntros (W0 W1) "%Hrelated HIW0".
-    + iApply interp_monotone; last eauto; eauto.
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-        by eapply related_sts_pub_priv_world in Hrelated.
-      (* The below case is a contradiction, since if g is local,
-      p' must be WL and p' flows into the non-WL p''*)
-      * destruct_perm p' ; try (simpl in Hconds; by exfalso).
-        all:destruct_perm p''; (by exfalso).
-    + destruct g.
-      * iApply interp_monotone_nl; last eauto; eauto.
-      (* The below case is a contradiction, since if g is local,
-      p' must be WL and p' flows into the non-WL p''*)
-      * destruct_perm p' ; try (simpl in Hconds; by exfalso).
-        all:destruct_perm p''; (by exfalso).
-  - iModIntro; iIntros (W0 W1) "% HIW0".
-    destruct g.
-    * iApply interp_monotone_nl; last eauto; eauto.
-    * (*Trick here: value relation leads to a contradiction if p' is WL,
-        since then its region cannot be permanent *)
-      iDestruct ( writeLocalAllowed_valid_cap_implies with "Hvdst" ) as %Ha; eauto.
-      simplify_eq.
-Qed.
+  Lemma interp_monotone_nl_retained W W' C w :
+    heap_wf (heap_std W') -> related_sts_priv_world W W' ->
+    isLocalWord w = false -> get_tag w = true -> filter_heap W' w = w ->
+    interp W C w -∗ interp W' C w.
+  Proof.
+    intros Hwf Hrelated Hnl Htag Hfilter. iIntros "#Hw".
+    destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot sb].
+    - discriminate.
+    - iApply (interp_monotone_nl_cap_valid with "[] [] Hw"); try done.
+      intros Hvalid. eapply (heap_cap_valid_future_retained _ _ (WCap t p g b e a)); eauto.
+      + exact (proj2 (proj2 (proj2 Hrelated))).
+      + intros Hnonempty Hb. by rewrite /heap_authority_base /= decide_True // /heap_cap_base /memory_cap_base Hb.
+    - by iApply (interp_monotone_sealrange with "[] Hw").
+    - by iApply (interp_monotone_nl_sentry with "[] [] Hw").
+    - iApply (interp_monotone_sd_retained with "Hw"); eauto.
+  Qed.
 
+  Lemma filter_heap_retained_past W W' w :
+    heap_wf (heap_std W') ->
+    related_sts_heap_std (heap_std W) (heap_std W') ->
+    get_tag w = true -> filter_heap W' w = w -> filter_heap W w = w.
+  Proof.
+    intros Hwf Hrelated Htag Hfilter.
+    destruct (filter_heap_result W w) as [Hraw|Hclear]; first done.
+    have Hfuture := filter_heap_future W W' w Hwf Hrelated.
+    rewrite Hclear filter_heap_untagged in Hfuture; last apply get_tag_clear_tag.
+    rewrite Hfilter in Hfuture.
+    have := get_tag_clear_tag w. rewrite Hfuture Htag. discriminate.
+  Qed.
 
+  Lemma interp_in_mem_monotone_raw W W' C w :
+    heap_wf (heap_std W') -> related_sts_pub_world W W' ->
+    interp_in_mem RWL W C w -∗ interp_in_mem RWL W' C w.
+  Proof.
+    intros Hwf Hrelated.
+    change (⊢ interp W C (filter_heap W w) -∗ interp W' C (filter_heap W' w))%I.
+    destruct (get_tag w) eqn:Htag.
+    2: { rewrite !filter_heap_untagged //.
+         iIntros "_". by iApply interp_untagged. }
+    destruct (filter_heap_result W' w) as [Hraw|Hclear].
+    - have Hpast := filter_heap_retained_past W W' w Hwf
+        (proj2 (proj2 (proj2 Hrelated))) Htag Hraw.
+      rewrite Hpast Hraw. by apply interp_monotone_retained.
+    - rewrite Hclear. iIntros "_". iApply interp_clear_tag.
+  Qed.
 
-(* Analogous, but now we have the general monotonicity statement in case an integer z is written *)
-Lemma interp_monotone_generalZ (W : WORLD) (C : CmptName) (ρ : region_type)
-  (p p' : Perm) (g : Locality) (b e a : Addr) z:
-  std W !! a = Some ρ →
-  withinBounds b e a = true →
-  PermFlowsTo p p' →
-  interp W C (WCap true p g b e a) -∗
-  monotonicity_guarantees_region C interpC p' (WInt z) ρ.
-Proof.
-  unfold monotonicity_guarantees_region.
-  iIntros (Hstd Hwb Hfl') "#Hvdst".
-  destruct ρ;auto.
-  - destruct (isWL p') eqn: HpwlP1 ; [|destruct (isDL p') eqn:HdwlP1]
-    ; iModIntro; simpl ; iIntros (W0 W1) "%Hrelated HIW0".
-    + iApply interp_monotone; last eauto; eauto.
-    + iApply interp_monotone_nl; last eauto; eauto.
-      by eapply related_sts_pub_priv_world in Hrelated.
-    + iApply interp_monotone_nl; last eauto; eauto.
-  - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    iApply interp_monotone_nl; last eauto; eauto.
-Qed.
+  Lemma interp_in_mem_monotone_nl_raw W W' C w :
+    heap_wf (heap_std W') -> related_sts_priv_world W W' ->
+    isLocalWord w = false ->
+    interp_in_mem RWL W C w -∗ interp_in_mem RWL W' C w.
+  Proof.
+    intros Hwf Hrelated Hnl.
+    change (⊢ interp W C (filter_heap W w) -∗ interp W' C (filter_heap W' w))%I.
+    destruct (get_tag w) eqn:Htag.
+    2: { rewrite !filter_heap_untagged //.
+         iIntros "_". by iApply interp_untagged. }
+    destruct (filter_heap_result W' w) as [Hraw|Hclear].
+    - have Hpast := filter_heap_retained_past W W' w Hwf
+        (proj2 (proj2 (proj2 Hrelated))) Htag Hraw.
+      rewrite Hpast Hraw. by apply interp_monotone_nl_retained.
+    - rewrite Hclear. iIntros "_". iApply interp_clear_tag.
+  Qed.
 
-Lemma interp_monotone_generalSr (W : WORLD) (C : CmptName) (ρ : region_type) (t : bool)
-  (p p' : Perm) (g : Locality) (b e a : Addr)
-  (sp : SealPerms) (sg : Locality) (sb se sa : OType) :
-  std W !! a = Some ρ →
-  withinBounds b e a = true →
-  PermFlowsTo p p' →
-  interp W C (WCap true p g b e a) -∗
-  monotonicity_guarantees_region C interpC p' (WSealRange t sp sg sb se sa) ρ.
-Proof.
-  unfold monotonicity_guarantees_region.
-  iIntros (Hstd Hwb Hfl') "#Hvdst".
-  destruct ρ;auto.
-  - destruct (isWL p') eqn: HpwlP1 ; [|destruct (isDL p') eqn:HdwlP1]
-    ; iModIntro; simpl ; iIntros (W0 W1) "% HIW0".
-    all: rewrite /=.
-    all: iApply interp_monotone_sealrange; eauto.
-    all: iPureIntro; by apply related_sts_pub_priv_world.
-  - iModIntro; simpl; iIntros (W0 W1) "% HIW0".
-    all: rewrite /=.
-    all: iApply interp_monotone_sealrange; eauto.
-Qed.
+  Lemma interp_in_mem_monotone W W' C p w :
+    heap_wf (heap_std W') -> related_sts_pub_world W W' ->
+    interp_in_mem p W C w -∗ interp_in_mem p W' C w.
+  Proof.
+    intros Hwf Hrelated.
+    change (⊢ interp_in_mem RWL W C (load_word p w) -∗
+      interp_in_mem RWL W' C (load_word p w))%I.
+    by apply interp_in_mem_monotone_raw.
+  Qed.
 
-Lemma interp_monotone_generalSd (W : WORLD) (C : CmptName) (ρ : region_type)
-  (p p' : Perm) (g : Locality) (b e a : Addr)
-  (ot : OType) (sb : Sealable) :
-  std W !! a = Some ρ →
-  withinBounds b e a = true →
-  PermFlowsTo p p' →
-  interp W C (WCap true p g b e a) -∗
-  monotonicity_guarantees_region C interpC p' (WSealed ot sb) ρ.
-Proof.
-  unfold monotonicity_guarantees_region.
-  iIntros (Hstd Hwb Hfl') "#Hvdst".
-  destruct ρ;auto.
-  - destruct (isWL p') eqn: HpwlP1 ; [|destruct (isDL p') eqn:HdwlP1]
-    ; iModIntro; simpl ; iIntros (W0 W1) "%Hrelated HIW0".
-    * iApply interp_monotone_sd; last eauto; eauto.
-      by apply related_sts_pub_priv_world in Hrelated.
-    * iApply interp_monotone_sd; last eauto; eauto.
-      by eapply related_sts_pub_priv_world in Hrelated.
-    * iApply interp_monotone_sd; last eauto; eauto.
-  - iModIntro; simpl; iIntros (W0 W1) "%Hrelated HIW0".
-    iApply interp_monotone_sd; last eauto; eauto.
-Qed.
+  Lemma interp_in_mem_monotone_nl W W' C p w :
+    heap_wf (heap_std W') -> related_sts_priv_world W W' ->
+    isLocalWord (load_word p w) = false ->
+    interp_in_mem p W C w -∗ interp_in_mem p W' C w.
+  Proof.
+    intros Hwf Hrelated Hnl.
+    change (⊢ interp_in_mem RWL W C (load_word p w) -∗
+      interp_in_mem RWL W' C (load_word p w))%I.
+    by apply interp_in_mem_monotone_nl_raw.
+  Qed.
+
+  Lemma interp_monotone_cap_nonheap W W' C t p g b e a :
+    is_heap_address b = false -> disjoint_from_heap b e ->
+    related_sts_pub_world W W' ->
+    interp W C (WCap t p g b e a) -∗ interp W' C (WCap t p g b e a).
+  Proof.
+    intros Hb Hdisj Hrelated.
+    iApply interp_monotone_cap_valid; last done.
+    by rewrite /heap_cap_valid /heap_cap_live Hb.
+  Qed.
+
+  Lemma interp_monotone_nl_cap_nonheap W W' C t p g b e a :
+    is_heap_address b = false -> disjoint_from_heap b e ->
+    related_sts_priv_world W W' -> isLocalWord (WCap t p g b e a) = false ->
+    interp W C (WCap t p g b e a) -∗ interp W' C (WCap t p g b e a).
+  Proof.
+    intros Hb Hdisj Hrelated Hnl.
+    iApply interp_monotone_nl_cap_valid; try done.
+    by rewrite /heap_cap_valid /heap_cap_live Hb.
+  Qed.
 
 Lemma interp_monotone_continuation
   (W W' : WORLD) (C : CmptName)
@@ -631,7 +686,9 @@ Proof.
   iDestruct "Hk" as "[Hcallee Hrestore]".
   iSplitL "Hic"; [|iSplitL "Hcallee"].
   - iFrame.
-  - iApply (interp_monotone with "[//] [$]").
+  - iDestruct "Hcallee" as "[%Hheap Hcallee]".
+    iSplit; first done.
+    iApply (interp_monotone_cap_nonheap with "Hcallee"); naive_solver.
   - destruct (is_untrusted_caller_frm a); first done.
     iIntros (W'' Hrel'). iApply "Hrestore". iPureIntro.
     eapply related_sts_pub_trans_world; eauto.

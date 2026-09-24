@@ -66,19 +66,20 @@ Section sealing_interp.
   Proof. iStartProof; rewrite /sealing_map_def ; done. Qed.
 
   Local Lemma sealing_map_def_monotone (C : CmptName) (W W' : WORLD) :
+    heap_wf (heap_std W') ->
     (seal_std W) = (seal_std W') ->
     related_sts_priv_world W W' →
     sealing_map_def W C -∗
     sealing_map_def W' C.
   Proof.
-    iIntros (HWseal Hrelated) "Hr".
+    iIntros (Hheap_wf HWseal Hrelated) "Hr".
     rewrite /sealing_map_def.
     rewrite HWseal.
     iApply big_sepM_mono; iFrame.
     iIntros (o ws Hsome) "Hm".
     iDestruct "Hm" as "($ & %Po & Hpred & #Hmono & HPo)".
     iExists Po; iFrame "∗#".
-    clear -Hrelated.
+    clear -Hrelated Hheap_wf.
     iStopProof.
     move: (normalise_sealed_words ws); clear ws; intros ws.
     induction ws using set_ind_L; iIntros "[#Hmono Hs]"; first done.
@@ -101,6 +102,7 @@ Section sealing_interp.
   Proof.
     intros W'; subst W'.
     iIntros (Ho) "Hseal_Po Hmono_Po Hws_Po [Hr Hsts]".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite /sealing_map_def.
     iMod (sts_alloc_seal_std _ _ _ ws with "[] [$Hsts]") as "[Hsts #Hseal]"; eauto.
     iAssert (
@@ -117,7 +119,7 @@ Section sealing_interp.
       iIntros (o' wso' Hswo') "($ & %Po & Hspred & #Hmono & Hwso')".
       iExists Po; iFrame "∗#".
       pose proof (related_sts_priv_world_update_ot W o ws) as Hrelated.
-      clear -Hrelated.
+      clear -Hrelated Hheap_wf.
       iStopProof.
       move: (normalise_sealed_words wso'); clear wso'; intros wso'.
       induction wso' using set_ind_L; iIntros "[#Hmono Hs]"; first done.
@@ -150,6 +152,7 @@ Section sealing_interp.
   Proof.
     intros W'; subst W'.
     iIntros (Ho) "Hspred_Po Hws_Po [Hr Hsts]".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite /sealing_map_def.
     iDestruct (big_sepM_delete with "Hr") as "[(Hseal & %Po' & Hpred & #Hmono & HPo) Hr]"; eauto.
     iMod (sts_update_seal_std _ _ _ _ ws' with "[$Hsts $Hseal]") as "[Hsts #Hseal]"; eauto.
@@ -167,7 +170,7 @@ Section sealing_interp.
       iApply (big_sepS_union_2 with "[Hws_Po]")
       ; generalize Hrelated; clear Hrelated
       ; generalize (ws' ∪ ws) as ws0; intros ws0 Hrelated.
-      - clear -Hrelated; iClear "Hseal".
+      - clear -Hrelated Hheap_wf; iClear "Hseal".
         iStopProof.
         move: (normalise_sealed_words ws'); clear ws'; intros ws'.
         induction ws' using set_ind_L; iIntros "[ [#Hmono #Heq] Hs]"; first done.
@@ -176,7 +179,7 @@ Section sealing_interp.
         iDestruct "Hs" as "[Hx Hs]".
         iSplitL "Hx"; last ( iApply IHws'; eauto ).
         rewrite !big_sepS_singleton; iRewrite -("Heq" $! (<o[o:=ws0]o>W, C, x)); done.
-      - clear -Hrelated; iClear "Hseal".
+      - clear -Hrelated Hheap_wf; iClear "Hseal".
         iStopProof.
         move: (normalise_sealed_words ws); clear ws; intros ws.
         induction ws using set_ind_L; iIntros "[ [#Hmono #Heq] Hs]"; first done.
@@ -202,7 +205,7 @@ Section sealing_interp.
       iApply big_sepM_mono; last iFrame.
       iIntros (o' wso' Hswo') "($ & %Po & Hspred & #Hmono & Hwso')".
       iExists Po; iFrame "∗#".
-      clear -Hrelated.
+      clear -Hrelated Hheap_wf.
       iStopProof.
       move: (normalise_sealed_words wso'); clear wso'; intros wso'.
       induction wso' using set_ind_L; iIntros "[#Hmono Hs]"; first done.
@@ -237,6 +240,7 @@ Section sealing_interp.
   Proof.
     intros W'; subst W'.
     iIntros "Hspred_Po Hmono_Po Hws_Po [Hr Hsts]".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     destruct ((seal_std W) !! o) eqn:Ho.
     - iMod (sealing_map_def_update _ _ _ _ g ws with "[$Hspred_Po] [Hws_Po] [$Hr $Hsts]")
         as "(Hseals & Hsts & Hseal)"; eauto.
@@ -259,23 +263,25 @@ Section sealing_interp.
   Proof. rewrite sealing_map_eq; apply sealing_map_def_empty. Qed.
 
   Lemma sealing_map_monotone (C : CmptName) (W W' : WORLD) :
+    heap_wf (heap_std W') ->
     (seal_std W) = (seal_std W') ->
     related_sts_priv_world W W' →
     sealing_map W C -∗
     sealing_map W' C.
   Proof.
-    iIntros (HWseal Hrelated) "Hr".
+    iIntros (Hheap_wf HWseal Hrelated) "Hr".
     rewrite sealing_map_eq.
     iApply sealing_map_def_monotone; eauto.
   Qed.
 
   Lemma sealing_map_monotone_pub (C : CmptName) (W W' : WORLD) :
+    heap_wf (heap_std W') ->
     (seal_std W) = (seal_std W') ->
     related_sts_pub_world W W' →
     sealing_map W C -∗
     sealing_map W' C.
   Proof.
-    iIntros (HWseal Hrelated) "Hr".
+    iIntros (Hheap_wf HWseal Hrelated) "Hr".
     apply related_sts_pub_priv_world in Hrelated.
     iApply sealing_map_monotone; eauto.
   Qed.
@@ -409,7 +415,7 @@ Section sealing_interp.
     iDestruct (big_sepS_union with "Hws_Po'") as "[Hws_Po Hws'_Po]"; first set_solver+.
     iSplitR "Hws_Po".
     - iSplitR "Hws'_Po".
-      + iIntros (w W0 W1 Hrel) "!>HPo".
+      + iIntros (w W0 W1 Hrel Hwf) "!>HPo".
         iRewrite ("Heq" $! (W1, C, w)).
         iRewrite ("Heq" $! (W0, C, w)) in "HPo".
         iApply "Hmono_Po'"; eauto.

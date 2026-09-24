@@ -43,6 +43,7 @@ Section region_alloc.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { apply heap_cell_live_nonheap. exact Hnonheap. }
     iIntros (HnpO Hnone1 Hpwl) "#HmonoV Hfull Hreg Hl #Hφ".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     destruct (M !! a) eqn:HRl.
@@ -60,7 +61,7 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Temporary) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|].
+    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
@@ -109,6 +110,7 @@ Section region_alloc.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { eapply heap_cell_live_lookup; eauto. }
     iIntros (HnpO Hnone1 Hpwl) "#HmonoV Hfull Hreg Hl #Hφ".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     destruct (M !! a) eqn:HRl.
@@ -126,7 +128,7 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Temporary) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|].
+    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
@@ -199,6 +201,7 @@ Section region_alloc.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { apply heap_cell_live_nonheap. exact Hnonheap. }
     iIntros (HnpO Hnone1 Hpwl) "#HmonoV Hfull Hreg Hl #Hφ".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     destruct (M !! a) eqn:HRl.
@@ -217,7 +220,7 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Temporary) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|].
+    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
@@ -267,6 +270,7 @@ Section region_alloc.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { eapply heap_cell_live_lookup; eauto. }
     iIntros (HnpO Hnone1 Hpwl) "#HmonoV Hfull Hreg Hl #Hφ".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     destruct (M !! a) eqn:HRl.
@@ -285,7 +289,7 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Temporary) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|].
+    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
@@ -359,6 +363,7 @@ Section region_alloc.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { apply heap_cell_live_nonheap. exact Hnonheap. }
     iIntros (HnpO Hnone1) "#HmonoV Hfull Hreg Hl #Hφ".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     destruct (isWL p) eqn:Hpwl.
     + iApply (extend_region_temp_pwl with "[$] [$] [$] [$]"); eauto.
     + iApply (extend_region_temp_nwl with "[$] [$] [$] [$]"); eauto.
@@ -387,6 +392,7 @@ Section region_alloc.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { eapply heap_cell_live_lookup; eauto. }
     iIntros (HnpO Hnone1) "#HmonoV Hfull Hreg Hl #Hφ".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     destruct (isWL p) eqn:Hpwl.
     + iApply (extend_region_temp_pwl with "[$] [$] [$] [$]"); eauto.
     + iApply (extend_region_temp_nwl with "[$] [$] [$] [$]"); eauto.
@@ -438,6 +444,7 @@ Section region_alloc.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { apply heap_cell_live_nonheap. exact Hnonheap. }
     iIntros (HnpO Hnone1) "#HmonoV Hfull Hreg Hl #Hφ".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     destruct (M !! a) eqn:HRl.
@@ -456,7 +463,7 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Permanent
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Permanent) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|].
+    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
@@ -504,6 +511,7 @@ Section region_alloc.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { eapply heap_cell_live_lookup; eauto. }
     iIntros (HnpO Hnone1) "#HmonoV Hfull Hreg Hl #Hφ".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     destruct (M !! a) eqn:HRl.
@@ -522,7 +530,7 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Permanent
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Permanent) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|].
+    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
@@ -592,6 +600,7 @@ Section region_alloc.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { apply heap_cell_live_nonheap. exact Hnonheap. }
     iIntros (Hnone1) "Hfull Hreg".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     destruct (M !! a) eqn:HRl.
@@ -610,7 +619,7 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Revoked
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Revoked) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|].
+    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
@@ -650,6 +659,7 @@ Section region_alloc.
   Proof.
     intros Hheap Hlookup Hstatus.
     iIntros (Hnone1) "Hfull Hreg Htoken".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     destruct (M !! a) eqn:HRl.
@@ -668,7 +678,7 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a ρ
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a ρ) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|].
+    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
@@ -708,6 +718,7 @@ Section region_alloc.
     assert (heap_cell_live (heap_std W) a) as Hlive.
     { eapply heap_cell_live_lookup; eauto. }
     iIntros (Hnone1) "Hfull Hreg".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     destruct (M !! a) eqn:HRl.
@@ -726,7 +737,7 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Revoked
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Revoked) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|].
+    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
@@ -897,6 +908,7 @@ Section region_alloc.
       iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf) Hl]".
 
       iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto.
+      iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
       iDestruct (extend_region_temp with "Hf Hsts Hr Ha [Hφ]") as ">(? & ? & ?)"; eauto.
       {
         intro Hcontra.
@@ -907,16 +919,16 @@ Section region_alloc.
         by rewrite Hcontra in HWa.
       }
       { destruct (isWL p).
-        + iApply ("Hf" with "[] Hφ"). iPureIntro.
+        + iApply ("Hf" with "[] [] Hφ"); last by iPureIntro. iPureIntro.
           apply related_sts_pub_update_multiple.
           eapply Forall_impl; first exact Hnone_l1.
           intros. by rewrite not_elem_of_dom.
         + destruct (isDL p).
-          ++ iApply ("Hf" with "[] Hφ"). iPureIntro.
+          ++ iApply ("Hf" with "[] [] Hφ"); last by iPureIntro. iPureIntro.
              apply related_sts_pub_update_multiple.
              eapply Forall_impl; first exact Hnone_l1.
              intros. by rewrite not_elem_of_dom.
-          ++ iApply ("Hf" with "[] Hφ"). iPureIntro.
+          ++ iApply ("Hf" with "[] [] Hφ"); last by iPureIntro. iPureIntro.
              apply related_sts_pub_priv_world, related_sts_pub_update_multiple.
              eapply Forall_impl; first exact Hnone_l1.
              intros. by rewrite not_elem_of_dom.
@@ -1025,10 +1037,11 @@ Section region_alloc.
       destruct l2; [ by inversion Hlen |].
       iDestruct (big_sepL2_cons with "Hl") as "[(Ha & Hφ & #Hf) Hl]".
       iMod (IHl1 with "Hsts Hr Hl") as "(Hr & ? & Hsts)"; auto.
+      iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
       iDestruct (extend_region_perm with "Hf Hsts Hr Ha [Hφ]") as ">(? & ? & ?)"; eauto.
       { rewrite -std_update_multiple_not_in_sta; auto.
         rewrite not_elem_of_dom //. }
-      { iApply ("Hf" with "[] Hφ"). iPureIntro.
+      { iApply ("Hf" with "[] [] Hφ"); last by iPureIntro. iPureIntro.
         apply related_sts_pub_priv_world, related_sts_pub_update_multiple.
         eapply Forall_impl; first exact Hnone_l1.
         intros. by rewrite not_elem_of_dom. }
@@ -1119,6 +1132,7 @@ Section region_alloc.
     ∗ sts_full_world (std_update_multiple W (a::la1) Permanent) C.
   Proof.
     iIntros (Hnone ?) "Hfull Hreg Ha".
+    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     assert (a ∉ dom (std (std_update_multiple W la1 Permanent))) as Hnone'.
     {
       rewrite not_elem_of_dom.
@@ -1148,7 +1162,7 @@ Section region_alloc.
            with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh (std_update_multiple W la1 Permanent) a Permanent)
       in Hnone' as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|].
+    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=Permanent]> Mρ);iSplitR;[|iSplitR].
@@ -1192,6 +1206,7 @@ Section region_alloc.
     { cbn. intros. iIntros "? ? ?".
       rewrite app_nil_r. iFrame. iModIntro. done. }
     iIntros (la1 lw2 Hp HW Hnodup_l1 Hnodup_l2 Hdisj) "Hsts Hreg Hl2".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     apply NoDup_cons in Hnodup_l2 as [Hna Hnodup_l2].
     apply disjoint_cons in Hdisj as Hni'.
     apply disjoint_swap in Hdisj;auto.
@@ -1318,6 +1333,7 @@ Section region_alloc.
   Proof.
     setoid_rewrite <- heap_cells_live_cases.
     iIntros (Hlive HNoDup Hp Hl1) "Hsts Hreg Hl".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
     "(Hreg & Hl & #Hrel & Hsts)"; auto.
     { apply NoDup_nil. auto. }
@@ -1453,6 +1469,7 @@ Section region_alloc.
     intros W'; subst W'.
     setoid_rewrite <- heap_cells_live_cases.
     iIntros (Hlive HNoDup Hp Hl1) "Hsts Hreg Hseals Hl Hφ".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
     "(Hreg & Hl & #Hrel & Hsts)"; auto.
     { apply NoDup_nil. auto. }
@@ -1460,6 +1477,7 @@ Section region_alloc.
     { by rewrite -region_open_nil. }
 
     iDestruct (sealing_map_monotone_pub _ _ (std_update_multiple W l1 Permanent) with "Hseals") as "Hseals".
+    { by rewrite std_update_multiple_heap. }
     { by rewrite std_update_multiple_seals. }
     { apply related_sts_pub_update_multiple.
       eapply Forall_impl; first exact Hl1.
@@ -1474,6 +1492,7 @@ Section region_alloc.
     { auto. }
     { apply related_sts_pub_refl_world. }
     { reflexivity. }
+    { by rewrite /= std_update_multiple_heap. }
     iMod (region_close_many with "Hrel Hreg Hl Hφ'' Hmono") as "Hreg"; eauto.
     { change (Forall (heap_cell_live (heap_std (std_update_multiple W l1 Permanent))) l1).
       by rewrite std_update_multiple_heap. }

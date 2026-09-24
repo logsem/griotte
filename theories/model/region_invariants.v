@@ -120,10 +120,11 @@ Section standard_world_interp.
   Lemma region_map_monotone (C : CmptName) (W W' : WORLD) M Mρ :
     related_sts_pub_world W W' ->
     heap_std W = heap_std W'
-    → region_map_def W C M Mρ
+    → heap_wf (heap_std W') ->
+    region_map_def W C M Mρ
     -∗ region_map_def W' C M Mρ.
   Proof.
-    iIntros (Hrelated Hheap) "Hr".
+    iIntros (Hrelated Hheap Hheap_wf) "Hr".
     iApply (big_sepM_mono with "Hr").
     iIntros (a γ Hsome) "Hm".
     iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
@@ -146,10 +147,11 @@ Section standard_world_interp.
     dom (std W) = dom (std W')
     -> related_sts_pub_world W W'
     -> heap_std W = heap_std W'
-    → region W C
+    → heap_wf (heap_std W') ->
+    region W C
     -∗ region W' C.
   Proof.
-    iIntros (Hdomeq Hrelated Hheap) "HW". rewrite region_eq.
+    iIntros (Hdomeq Hrelated Hheap Hheap_wf) "HW". rewrite region_eq.
     iDestruct "HW" as (M Mρ) "(HM & % & % & Hmap)"; simplify_map_eq.
     iExists M, Mρ. iFrame.
     repeat(iSplitR; auto).
@@ -176,10 +178,11 @@ Section standard_world_interp.
     dom (std W)  = dom (std W')
     -> related_sts_pub_world W W'
     -> heap_std W = heap_std W'
-    → open_region W C a
+    → heap_wf (heap_std W') ->
+    open_region W C a
     -∗ open_region W' C a.
   Proof.
-    iIntros (Hdomeq Hrelated Hheap) "HW". rewrite open_region_eq /open_region_def.
+    iIntros (Hdomeq Hrelated Hheap Hheap_wf) "HW". rewrite open_region_eq /open_region_def.
     iDestruct "HW" as (M Mρ) "(HM & % & % & Hmap)"; simplify_map_eq.
     iExists M, Mρ. iFrame.
     repeat(iSplitR; auto).
@@ -1018,9 +1021,10 @@ Section standard_world_interp.
     dom (std W) = dom (std W')
     -> related_sts_pub_world W W'
     -> heap_std W = heap_std W'
-    -> open_region_many W C l -∗ open_region_many W' C l.
+    -> heap_wf (heap_std W') ->
+    open_region_many W C l -∗ open_region_many W' C l.
   Proof.
-    iIntros (Hdomeq Hrelated Hheap) "HW".
+    iIntros (Hdomeq Hrelated Hheap Hheap_wf) "HW".
     rewrite open_region_many_eq /open_region_many_def.
     iDestruct "HW" as (M Mρ) "(Hm & % & % & Hmap)" ; simplify_eq.
     iExists M, Mρ. iFrame.

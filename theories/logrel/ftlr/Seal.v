@@ -24,54 +24,6 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (D).
 
-  (* Proving the meaning of sealing in the LR sane *)
-  Lemma sealing_preserves_interp W C sb p g b e a :
-    permit_seal p = true ->
-    withinBounds b e a = true ->
-    interp W C (WSealable sb) -∗
-    interp W C (WSealRange true p g b e a) -∗
-    world_interp W C
-    ==∗
-    ∃ W', ⌜ related_sts_pub_world W W' ⌝ ∗
-          world_interp W' C ∗
-          interp W' C (WSealed a sb).
-  Proof.
-    iIntros (Hseal Hwb) "#HVsb #HVsr Hworld_interp".
-    destruct (get_tag_sealable sb) eqn:Htag.
-    2: { iModIntro. iExists W. iFrame.
-         iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
-         iApply interp_untagged. done. }
-    rewrite (fixpoint_interp1_eq W C (WSealRange true _ _ _ _ _)).
-    iDestruct "HVsr" as "[Hss _]"; rewrite Hseal.
-    apply seq_between_dist_Some in Hwb.
-    iDestruct (big_sepL_elem_of_acc with "Hss") as "[HSa0 _]"; eauto.
-    { rewrite list_elem_of_lookup; eauto. }
-    iDestruct "HSa0" as "(%Po & %HPo_pers & Hsealpred & %Ha0_in_Wseals & #Hwcond_Po)".
-    rewrite elem_of_dom in Ha0_in_Wseals; destruct Ha0_in_Wseals as [ws Hws].
-    set (new_seals_words := ({[WSealable sb; borrow (WSealable sb)]} : gset Word)).
-    set ( W' := <o[ a := ( new_seals_words ∪ ws) ]o> W ).
-    assert (related_sts_pub_world W W') as Hrelated.
-    { by apply related_sts_pub_world_update_ot. }
-    iAssert ([∗ set] w0 ∈ normalise_sealed_words new_seals_words, ▷ (safeC Po) (W', C, w0))%I as "Hws".
-    {
-      subst new_seals_words.
-      rewrite normalise_sealed_words_union !normalise_sealed_words_singleton; cbn.
-      rewrite force_global_borrow_sb.
-      replace ( {[WSealable (force_global_sb sb); WSealable (force_global_sb sb)]} ) with
-        ({[WSealable (force_global_sb sb)]} : gset Word) by set_solver+.
-      rewrite big_sepS_singleton -/(force_global (WSealable sb)).
-      iNext; iApply "Hwcond_Po".
-      iApply (interp_monotone with "[%] [$HVsb]"); eauto.
-    }
-    iMod (world_interp_sealing_update with "Hsealpred Hws Hworld_interp") as "(Hworld_interp & #Hstd_seals)"; eauto.
-    subst W'.
-    iModIntro.
-    iExists _; iFrame "∗%".
-    iEval (rewrite fixpoint_interp1_eq /= Htag /interp_sb).
-    iApply sts_seals_std_weaken; last iFrame "#".
-    set_solver+.
-  Qed.
-
   Lemma seal_case (W : WORLD)(C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (dst r1 r2 : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
@@ -124,7 +76,7 @@ Section fundamental.
       (* TODO can I extract a lemma from here? *)
       unshelve iDestruct ("Hreg" $! r1 _ _ Hr1) as "HVsr"; eauto.
       iMod (sealing_preserves_interp with "HVsb HVsr Hworld_interp") as
-        "(%W' & %Hrelated & Hworld_interp & #HVsb')"; auto.
+        "(%W' & %Hrelated & %Hheap & Hworld_interp & #HVsb')"; auto.
       eapply frame_match_mono in Hframe; eauto.
       iApply ("IH" $! _ _ _ _ _ (<[dst := _]> (<[PC := _]> regs))
                with "[Halloc] [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]")
@@ -137,10 +89,10 @@ Section fundamental.
           iApply interp_int.
         }
         {
-          iApply (interp_monotone with "[] []"); eauto.
+          iApply (interp_monotone_same_heap with "[] []"); eauto.
           by iApply "Hreg".
         }
-      + iApply (interp_monotone with "[] []"); eauto.
+      + iApply (interp_monotone_same_heap with "[] []"); eauto.
         iApply (interp_next_PC with "Hinv_interp"); eauto.
 
     - match type of HincrPC with

@@ -187,12 +187,12 @@ Section world_standard_sts_mono.
   Definition future_pub_mono (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
     (□ ∀ (W W' : WORLD),
         ⌜ related_sts_pub_world W W'⌝
-        → φ (W,C,v) -∗ φ (W',C,v))%I.
+        → ⌜heap_wf (heap_std W')⌝ → φ (W,C,v) -∗ φ (W',C,v))%I.
 
   Definition future_priv_mono (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
     (□ ∀ (W W' : WORLD),
         ⌜ related_sts_priv_world W W'⌝
-        → φ (W,C,v) -∗ φ (W',C,v))%I.
+        → ⌜heap_wf (heap_std W')⌝ → φ (W,C,v) -∗ φ (W',C,v))%I.
 
   Definition mono_pub (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) :=
     (∀ (w : Word), future_pub_mono C φ w)%I.
@@ -203,7 +203,7 @@ Section world_standard_sts_mono.
     future_priv_mono C φ v -∗ future_pub_mono C φ v.
   Proof.
     iIntros "#H". unfold future_pub_mono. iModIntro.
-    iIntros (W W' Hrelated) "Hφ".
+    iIntros (W W' Hrelated Hwf) "Hφ".
     iApply "H"; eauto.
     iPureIntro; eauto using related_sts_pub_priv_world.
   Qed.

@@ -498,7 +498,7 @@ Section Adequacy.
        with Revoked state because we need to keep the points-to predicates *)
     iMod ( world_interp_extend_revoked_sepL2 _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
-             RWL interpC
+             RWL interp_in_memC
            with "[$Hworld_B]")
            as "(Hworld_B & Hrel_stk_B)".
     { eapply Hstack_disjoint_B. }
@@ -634,7 +634,7 @@ Section Adequacy.
        with Revoked state because we need to keep the points-to predicates *)
     iMod ( world_interp_extend_revoked_sepL2 _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
-             RWL interpC
+             RWL interp_in_memC
            with "[$Hworld_C]")
            as "(Hworld_C & Hrel_stk_C)".
     { eapply Hstack_disjoint_C. }

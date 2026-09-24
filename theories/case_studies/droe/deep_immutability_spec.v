@@ -280,7 +280,7 @@ Section DROE.
 
     set (rmap' := (delete ca5 _)).
 
-    iDestruct ( init_PermRes W1 C cgp_b RO_DRO (safeC (interp_dro_eq (WInt 42)))
+    iDestruct ( init_PermRes W1 C cgp_b RO_DRO (safeC (interp_in_mem_dro_eq (WInt 42)))
                 with "[] [$Hcgp_b] []" ) as "PermRes_cgp_b"; auto.
     { rewrite /future_priv_mono.
       iIntros "!>" (W W' Hrelated) "H"; cbn.
@@ -304,7 +304,7 @@ Section DROE.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RO_DRO, (interp_dro_eq _).
+      iExists RO_DRO, (interp_in_mem_dro_eq _).
       iEval (cbn).
       iSplit; first done.
       iSplit.
@@ -313,7 +313,7 @@ Section DROE.
       iSplit.
       { iIntros "!>" (W1').
         iIntros "!>" (W1'' z) "[-> H]".
-        rewrite /interp_dro_eq /=.
+        rewrite /interp_in_mem_dro_eq /=.
         iSplitR; [done | by rewrite !fixpoint_interp1_eq].
       }
       iSplit.
@@ -331,7 +331,7 @@ Section DROE.
         by rewrite lookup_insert_eq.
     }
 
-    iDestruct ( init_PermRes W2 C (cgp_b ^+1)%a RO_DRO  (safeC (interp_dro_eq (WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+    iDestruct ( init_PermRes W2 C (cgp_b ^+1)%a RO_DRO  (safeC (interp_in_mem_dro_eq (WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
                 with "[] [$Hcgp_a] []" ) as "PermRes_cgp_a"; auto.
     { rewrite /future_priv_mono.
       iIntros "!>" (W W' Hrelared) "[% H]"; cbn.
@@ -367,7 +367,7 @@ Section DROE.
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RO_DRO, (interp_dro_eq _).
+      iExists RO_DRO, (interp_in_mem_dro_eq _).
       iEval (cbn).
       iSplit; first done.
       iSplit.

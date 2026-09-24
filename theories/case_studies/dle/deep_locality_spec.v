@@ -219,8 +219,8 @@ Section DLE.
     (* -- Update the world and prove interp of the the argument in `ca0` -- *)
 
     (* First, extend the world such that `cgp_b` is interp with RW_DL access *)
-    iDestruct ( init_TmpRes W1 C cgp_b RW_DL interpC with "[] [$Hcgp_b] []" ) as "TmpRes_cgp_b"; auto.
-    { iApply future_pub_mono_interp_z. }
+    iDestruct ( init_TmpRes W1 C cgp_b RW_DL interp_in_memC with "[] [$Hcgp_b] []" ) as "TmpRes_cgp_b"; auto.
+    { iApply future_pub_mono_interp_in_mem_z. }
     { iApply interp_int. }
     iMod (world_interp_extend_temp with "Hworld_interp_C TmpRes_cgp_b")
       as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
@@ -237,24 +237,24 @@ Section DLE.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RW_DL, interp.
+      iExists RW_DL, (interp_in_mem RWL).
       iEval (cbn).
       iSplit; first done.
       iSplit.
       { iPureIntro; intros WCv; tc_solve. }
       iSplit; first iFrame "Hrel_cgp_b".
-      iSplit; first iApply zcond_interp.
-      iSplit; first iApply rcond_interp.
-      iSplit; first iApply wcond_interp.
-      iSplit; first iApply monoReq_interp.
+      iSplit; first iApply zcond_interp_in_mem.
+      iSplit; first iApply rcond_interp_in_mem.
+      iSplit; first iApply wcond_interp_in_mem.
+      iSplit; first iApply monoReq_interp_in_mem.
       + by simplify_map_eq.
       + by intro.
       + by iPureIntro; right; simplify_map_eq.
     }
 
-    (* Second, extend the world such that `cgp_b+1` is interp_dl with RW_DL access *)
-    iDestruct ( init_TmpRes W2 C (cgp_b ^+ 1)%a RW_DL (safeC interp_dl) with "[] [$Hcgp_a] []" ) as "TmpRes_cgp_a"; auto.
-    { iApply future_pub_mono_interp_dl. }
+    (* Second, extend the world such that `cgp_b+1` is interp_in_mem_dl with RW_DL access *)
+    iDestruct ( init_TmpRes W2 C (cgp_b ^+ 1)%a RW_DL (safeC interp_in_mem_dl) with "[] [$Hcgp_a] []" ) as "TmpRes_cgp_a"; auto.
+    { iApply future_pub_mono_interp_in_mem_dl. }
     iMod (world_interp_extend_temp with "Hworld_interp_C TmpRes_cgp_a")
       as "(Hworld_interp_C & Hrel_cgp_a)";auto.
     { subst W2.
@@ -274,17 +274,17 @@ Section DLE.
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
       iApply big_sepL_singleton.
-      iExists RW_DL, interp_dl.
+      iExists RW_DL, interp_in_mem_dl.
       iEval (cbn).
       iSplit; first done.
-      iSplit; first (iPureIntro; apply persistent_cond_interp_dl).
+      iSplit; first (iPureIntro; apply persistent_cond_interp_in_mem_dl).
       iSplit; first iFrame "Hrel_cgp_a".
-      iSplit; first iApply zcond_interp_dl.
-      iSplit; first (iApply rcond_interp_dl; auto).
-      iSplit; first iApply wcond_interp_dl.
+      iSplit; first iApply zcond_interp_in_mem_dl.
+      iSplit; first (iApply rcond_interp_in_mem_dl; auto).
+      iSplit; first iApply wcond_interp_in_mem_dl.
       iSplit; last (by iPureIntro; right; rewrite lookup_insert_eq).
       rewrite /monoReq; rewrite lookup_insert_eq; cbn.
-      iApply mono_pub_interp_dl.
+      iApply mono_pub_interp_in_mem_dl.
     }
 
     assert (related_sts_priv_world W0 W3) as Hrelated_priv_W0_W3.
