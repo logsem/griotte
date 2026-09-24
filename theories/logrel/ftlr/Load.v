@@ -1,6 +1,7 @@
 From stdpp Require Import base.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
+From griotte Require Import world_ghost_theory.
 From griotte Require Export logrel.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import rules_Load.
@@ -350,6 +351,122 @@ Section fundamental.
       iExact "HV'".
   Qed.
 
+  Lemma heap_authority_base_heap_cap_base (raw : Word) base :
+    heap_authority_base raw = Some base → heap_cap_base raw = Some base.
+  Proof.
+    destruct raw; unfold heap_authority_base; simpl; try discriminate.
+    - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
+    - case_decide; auto; discriminate.
+    - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
+  Qed.
+
+  Lemma load_shadow_interp W C pc (p : Perm) raw actual alloc_map :
+    heap_cell_live (heap_std W) pc →
+    dom alloc_map = heap_addresses →
+    load_memory_shadow_observation (shadow_status <$> alloc_map) p raw actual →
+    world_interp_open W C [pc] -∗
+    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s) -∗
+    interp_in_mem p W C raw -∗
+    interp W C actual ∗ world_interp_open W C [pc] ∗
+    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s).
+  Proof.
+    iIntros (Hpc_live Hdom Hobs) "Hworld Hentries #Hnormal".
+    destruct (heap_cap_base raw) as [base|] eqn:Hbase; cycle 1.
+    { rewrite /load_memory_shadow_observation Hbase in Hobs. subst actual.
+      assert (heap_authority_base raw = None) as Hauth.
+      { destruct (heap_authority_base raw) as [b|] eqn:Hauth; last done.
+        apply heap_authority_base_heap_cap_base in Hauth.
+        rewrite Hbase in Hauth. discriminate. }
+      assert (filter_heap W (load_word p raw) = load_word p raw) as Hfilter.
+      { rewrite filter_heap_load_word /filter_heap Hauth. done. }
+      iSplitR "Hworld Hentries".
+      { iApply (interp_in_mem_load_result with "Hnormal").
+        right. split; done. }
+      iFrame. }
+    assert (is_heap_address base = true) as Hheap.
+    { unfold heap_cap_base in Hbase.
+      destruct (memory_cap_base raw) as [b|] eqn:Hmemory; last discriminate.
+      destruct (is_heap_address b) eqn:Hheap; last discriminate.
+      by simplify_eq. }
+    assert (is_Some (alloc_map !! base)) as [s Hlookup].
+    { apply elem_of_dom. rewrite Hdom elem_of_heap_addresses. exact Hheap. }
+    rewrite /load_memory_shadow_observation Hbase in Hobs.
+    specialize (Hobs (shadow_status s)).
+    assert ((shadow_status <$> alloc_map) !! base = Some (shadow_status s))
+      as Hshadow_lookup.
+    { by rewrite lookup_fmap Hlookup. }
+    specialize (Hobs Hshadow_lookup).
+    destruct s.
+    - simpl in Hobs. subst actual.
+      destruct (heap_authority_base raw) as [b|] eqn:Hauth.
+      2: { iSplitR "Hworld Hentries".
+           { iApply (interp_in_mem_load_result with "Hnormal").
+             right. split; first done.
+             rewrite filter_heap_load_word /filter_heap Hauth. done. }
+           iFrame. }
+      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
+      rewrite Hbase in Hcap. inversion Hcap; subst b.
+      destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup.
+      2: { iSplitR "Hworld Hentries".
+           { iApply (interp_in_mem_load_result with "Hnormal").
+             right. split; first done.
+             rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup. done. }
+           iFrame. }
+      destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
+      { iSplitR "Hworld Hentries".
+        { iApply (interp_in_mem_load_result with "Hnormal").
+          right. split; first done.
+          rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus. done. }
+        iFrame. }
+      assert (heap_cell_status (heap_std W) base = Some AllocObjectQuarantined)
+        as Hqstatus.
+      { by rewrite /heap_cell_status Hheap Hheaplookup /= Hstatus. }
+      assert (base ∉ [pc]) as Hnotpc.
+      { intros Hpc. assert (base = pc) by set_solver. subst base.
+        unfold heap_cell_live in Hpc_live. rewrite Hqstatus in Hpc_live.
+        discriminate. }
+      iDestruct (world_interp_open_quarantined_token with "Hworld")
+        as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
+      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hlookup.
+      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken")
+        as %Himpossible. discriminate Himpossible.
+    - simpl in Hobs. subst actual.
+      destruct (heap_authority_base raw) as [b|] eqn:Hauth.
+      2: { iSplitR "Hworld Hentries".
+           { iApply (interp_in_mem_load_result with "Hnormal").
+             right. split; first done.
+             rewrite filter_heap_load_word /filter_heap Hauth. done. }
+           iFrame. }
+      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
+      rewrite Hbase in Hcap. inversion Hcap; subst b.
+      destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup.
+      2: { iSplitR "Hworld Hentries".
+           { iApply (interp_in_mem_load_result with "Hnormal").
+             right. split; first done.
+             rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup. done. }
+           iFrame. }
+      destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
+      { iSplitR "Hworld Hentries".
+        { iApply (interp_in_mem_load_result with "Hnormal").
+          right. split; first done.
+          rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus. done. }
+        iFrame. }
+      assert (heap_cell_status (heap_std W) base = Some AllocObjectQuarantined)
+        as Hqstatus.
+      { by rewrite /heap_cell_status Hheap Hheaplookup /= Hstatus. }
+      assert (base ∉ [pc]) as Hnotpc.
+      { intros Hpc. assert (base = pc) by set_solver. subst base.
+        unfold heap_cell_live in Hpc_live. rewrite Hqstatus in Hpc_live.
+        discriminate. }
+      iDestruct (world_interp_open_quarantined_token with "Hworld")
+        as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
+      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hlookup.
+      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken")
+        as %Himpossible. discriminate Himpossible.
+    - simpl in Hobs. subst actual.
+      iSplitR "Hworld Hentries"; first iApply interp_clear_tag. iFrame.
+  Qed.
+
   Lemma load_case (imm : Z) (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : Word) (ρ : region_type) (dst src : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
@@ -418,24 +535,41 @@ Section fundamental.
         iApply (interp_cap_not_shadow with "[Hreg]"); eauto using readAllowed_nonO.
         by iApply "Hreg".
     }
-    iApply (wp_load_memory_imm with "[Hmap HMemRes]"); eauto.
+    iInv Nallocator as "> Halloc_body" "Halloc_close".
+    iDestruct "Halloc_body" as (alloc_map Halloc_dom) "Halloc_entries".
+    iEval (rewrite /allocator_entry big_sepM_sep) in "Halloc_entries".
+    iDestruct "Halloc_entries" as "[Hshadow Halloc_states]".
+    iAssert ([∗ map] k↦status ∈ shadow_status <$> alloc_map, k ↦ₛ status)%I
+      with "[Hshadow]" as "Hshadow".
+    { rewrite big_sepM_fmap. iExact "Hshadow". }
+    iApply (wp_load_memory_shadow_imm with "[Hmap HMemRes Hshadow]"); eauto.
     { by rewrite lookup_insert_eq. }
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. rewrite lookup_insert_is_Some'; eauto. }
-    { iSplitR "Hmap"; auto. }
-    iNext. iIntros (regs' retv). iDestruct 1 as (HSpec) "[Hmem Hmap]".
+    { iFrame "HMemRes". iSplitL "Hshadow".
+      { iNext. iExact "Hshadow". }
+      iNext. iExact "Hmap". }
+    iNext. iIntros (regs' retv) "(%HSpec & Hmem & Hshadow & Hmap)".
 
-    destruct HSpec as [p0 g0 b0 e0 a0 ea0 loadv actualv Hreg_load Hmem_a Hactual Hincr|].
+    destruct HSpec as [p0 g0 b0 e0 a0 ea0 loadv actualv
+      Hreg_load Hmem_a Hactual Hobserved Hincr|].
     { apply incrementPC_Some_inv in Hincr.
       destruct Hincr as (tpc&?&?&?&?&?&?&?&?&XX).
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
       (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)
       iDestruct (mem_map_recover_res imm with "Hinv_interp Hreg Hrcond' Hw Hmem HLoadMem") as
         "[Hworld_interp [Ha #Hnormal ] ]"; eauto.
-      iAssert (interp W C actualv) as "#HLVInterp".
-      { destruct Hactual as [-> | ->]; last by iApply interp_clear_tag.
-         }
+      iAssert ([∗ map] k↦s ∈ alloc_map, allocator_entry k s)%I
+        with "[Hshadow Halloc_states]" as "Halloc_entries".
+      { rewrite /allocator_entry big_sepM_sep big_sepM_fmap. iFrame. }
+      iDestruct (load_shadow_interp W C a p0 loadv actualv alloc_map
+        with "Hworld_interp Halloc_entries Hnormal")
+        as "(#HLVInterp & Hworld_interp & Halloc_entries)";
+        [exact Hpc_live|exact Halloc_dom|exact Hobserved|].
+      iMod ("Halloc_close" with "[Halloc_entries]") as "_".
+      { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+      iModIntro.
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
 
       (* Exceptional success case: we do not apply the induction hypothesis in case we have a faulty PC*)
       destruct tpc; cycle 1.
@@ -487,8 +621,13 @@ Section fundamental.
         + iApply (interp_weakening with "IH HLVInterp"); eauto; try solve_addr; try done.
        }
     }
-    { iApply wp_pure_step_later; auto.
-      iNext; iIntros "_".
+    { iAssert ([∗ map] k↦s ∈ alloc_map, allocator_entry k s)%I
+        with "[Hshadow Halloc_states]" as "Halloc_entries".
+      { rewrite /allocator_entry big_sepM_sep big_sepM_fmap. iFrame. }
+      iMod ("Halloc_close" with "[Halloc_entries]") as "_".
+      { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+      iApply wp_pure_step_later; auto.
+      iModIntro. iNext; iIntros "_".
       iApply wp_value; auto. }
     Unshelve. all: auto.
   Qed.

@@ -11,6 +11,29 @@ Definition heap_cell_status `{HeapRegion} (W_heap : Heap) (a : Addr) : option Al
 Definition heap_cell_live `{HeapRegion} (W_heap : Heap) (a : Addr) : Prop :=
   heap_cell_status W_heap a = Some AllocObjectLive.
 
+(** A closed compartment world records every cell of a quarantined object.
+    Live objects may remain outside this compartment's standard world. *)
+Definition heap_quarantine_covered `{HeapRegion} {B : Type}
+    (W_heap : Heap) (W_std : gmap Addr B) : Prop :=
+  ∀ a, heap_cell_status W_heap a = Some AllocObjectQuarantined →
+    a ∈ dom W_std.
+
+Lemma heap_quarantine_covered_empty `{HeapRegion} {B : Type} :
+  heap_quarantine_covered (B:=B) ∅ ∅.
+Proof.
+  intros a Hstatus.
+  rewrite /heap_cell_status /= in Hstatus.
+  destruct (is_heap_address a); last discriminate.
+  rewrite /heap_lookup_addr map_to_list_empty /= in Hstatus. discriminate.
+Qed.
+
+Lemma heap_quarantine_covered_mono `{HeapRegion} {B : Type}
+    W_heap (W_std W_std' : gmap Addr B) :
+  dom W_std ⊆ dom W_std' →
+  heap_quarantine_covered W_heap W_std →
+  heap_quarantine_covered W_heap W_std'.
+Proof. intros Hdom Hcovered a Hstatus. by apply Hdom, Hcovered. Qed.
+
 Section heap_region.
   Context {Σ : gFunctors} {allocatorg : allocatorG Σ} `{HeapRegion}.
 

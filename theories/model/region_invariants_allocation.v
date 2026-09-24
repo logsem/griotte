@@ -46,6 +46,7 @@ Section region_alloc.
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -61,14 +62,16 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Temporary) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
+    iDestruct (region_map_monotone with "[Hpreds]") as "Hpreds'";
+      [apply Hrelated|reflexivity|exact Hheap_wf|iFrame "%∗"|].
+    iDestruct "Hpreds'" as "[%Hcovered' Hpreds']".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
-    - iApply big_sepM_insert; auto.
+    - iSplit; first done. iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Temporary. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
@@ -113,6 +116,7 @@ Section region_alloc.
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -128,14 +132,16 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Temporary) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
+    iDestruct (region_map_monotone with "[Hpreds]") as "Hpreds'";
+      [apply Hrelated|reflexivity|exact Hheap_wf|iFrame "%∗"|].
+    iDestruct "Hpreds'" as "[%Hcovered' Hpreds']".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
-    - iApply big_sepM_insert; auto.
+    - iSplit; first done. iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Temporary. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
@@ -204,6 +210,7 @@ Section region_alloc.
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -220,14 +227,16 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Temporary) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
+    iDestruct (region_map_monotone with "[Hpreds]") as "Hpreds'";
+      [apply Hrelated|reflexivity|exact Hheap_wf|iFrame "%∗"|].
+    iDestruct "Hpreds'" as "[%Hcovered' Hpreds']".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
-    - iApply big_sepM_insert; auto.
+    - iSplit; first done. iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Temporary. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
@@ -273,6 +282,7 @@ Section region_alloc.
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -289,14 +299,16 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Temporary
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Temporary) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
+    iDestruct (region_map_monotone with "[Hpreds]") as "Hpreds'";
+      [apply Hrelated|reflexivity|exact Hheap_wf|iFrame "%∗"|].
+    iDestruct "Hpreds'" as "[%Hcovered' Hpreds']".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
-    - iApply big_sepM_insert; auto.
+    - iSplit; first done. iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Temporary. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
@@ -447,6 +459,7 @@ Section region_alloc.
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -463,14 +476,16 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Permanent
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Permanent) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
+    iDestruct (region_map_monotone with "[Hpreds]") as "Hpreds'";
+      [apply Hrelated|reflexivity|exact Hheap_wf|iFrame "%∗"|].
+    iDestruct "Hpreds'" as "[%Hcovered' Hpreds']".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
-    - iApply big_sepM_insert; auto.
+    - iSplit; first done. iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Permanent. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
@@ -514,6 +529,7 @@ Section region_alloc.
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -530,14 +546,16 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Permanent
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Permanent) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
+    iDestruct (region_map_monotone with "[Hpreds]") as "Hpreds'";
+      [apply Hrelated|reflexivity|exact Hheap_wf|iFrame "%∗"|].
+    iDestruct "Hpreds'" as "[%Hcovered' Hpreds']".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
-    - iApply big_sepM_insert; auto.
+    - iSplit; first done. iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Permanent. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
@@ -603,6 +621,7 @@ Section region_alloc.
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -619,14 +638,16 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Revoked
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Revoked) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
+    iDestruct (region_map_monotone with "[Hpreds]") as "Hpreds'";
+      [apply Hrelated|reflexivity|exact Hheap_wf|iFrame "%∗"|].
+    iDestruct "Hpreds'" as "[%Hcovered' Hpreds']".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
-    - iApply big_sepM_insert; auto.
+    - iSplit; first done. iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Revoked. iFrame. iSplitR.
         + iPureIntro;apply lookup_insert_eq.
@@ -662,6 +683,7 @@ Section region_alloc.
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -678,14 +700,16 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a ρ
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a ρ) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
+    iDestruct (region_map_monotone with "[Hpreds]") as "Hpreds'";
+      [apply Hrelated|reflexivity|exact Hheap_wf|iFrame "%∗"|].
+    iDestruct "Hpreds'" as "[%Hcovered' Hpreds']".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
-    - iApply big_sepM_insert; auto.
+    - iSplit; first done. iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists ρ. iFrame. iSplitR.
         + iPureIntro;apply lookup_insert_eq.
@@ -721,6 +745,7 @@ Section region_alloc.
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
@@ -737,14 +762,16 @@ Section region_alloc.
     iMod (sts_alloc_std_i W C a Revoked
             with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh W a Revoked) in Hnone1 as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
+    iDestruct (region_map_monotone with "[Hpreds]") as "Hpreds'";
+      [apply Hrelated|reflexivity|exact Hheap_wf|iFrame "%∗"|].
+    iDestruct "Hpreds'" as "[%Hcovered' Hpreds']".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
-    - iApply big_sepM_insert; auto.
+    - iSplit; first done. iApply big_sepM_insert; auto.
       iSplitR "Hpreds'".
       { iExists Revoked. iFrame. iSplitR.
         + iPureIntro;apply lookup_insert_eq.
@@ -1141,6 +1168,7 @@ Section region_alloc.
     }
     rewrite open_region_many_eq /open_region_many_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     destruct (M !! a) eqn:HRl.
     { (* The location is not in the map *)
       assert ((delete_list la1) M !! a = Some o) as HRl'.
@@ -1162,14 +1190,16 @@ Section region_alloc.
            with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh (std_update_multiple W la1 Permanent) a Permanent)
       in Hnone' as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'";[apply Hrelated|reflexivity|exact Hheap_wf|].
+    iDestruct (region_map_monotone with "[Hpreds]") as "Hpreds'";
+      [apply Hrelated|reflexivity|exact Hheap_wf|iFrame "%∗"|].
+    iDestruct "Hpreds'" as "[%Hcovered' Hpreds']".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
     iExists (<[a:=Permanent]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
-    - cbn.
+    - iSplit; first done. cbn.
       rewrite -(delete_list_delete _ (<[a:=(γpred, p)]> M)); last done.
       rewrite delete_insert_id; last done.
       rewrite -(delete_list_delete _ (<[a:=_]> Mρ)); last done.

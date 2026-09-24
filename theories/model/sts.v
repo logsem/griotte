@@ -6,14 +6,6 @@ From griotte Require Import stdpp_extra addresses.
 From griotte Require Export heap_ghost.
 Import uPred.
 
-Class CmptNameG := CmptNameS {
-  CmptName : Type;
-  CmptName_eq_dec :: EqDecision CmptName;
-  CmptName_countable :: Finite CmptName;
-}.
-
-Definition CNames `{CmptNameG} : gset CmptName := list_to_set (enum CmptName).
-
 (** The CMRA for the heap of STS.
     We distinguish between the standard and owned sts. *)
 
@@ -149,7 +141,9 @@ Section definitionsS.
   Definition sts_full_seals_std C (fs : seals_std O Wd) : iProp Σ
     := own (A := seals_stdUR O Wd) (γs_seals C) (● fs)%I.
   Definition sts_full_world (W : WORLD) (C : CmptName) : iProp Σ :=
-    (sts_full_std C (std W)) ∗ (sts_full C (loc W) (wrel W)) ∗ (sts_full_seals_std C (seal_std W)) ∗ heap_std_full (heap_std W).
+    (sts_full_std C (std W)) ∗ (sts_full C (loc W) (wrel W)) ∗
+    (sts_full_seals_std C (seal_std W)) ∗
+    (heap_std_auth C (heap_std W) ∗ heap_std_full C (heap_std W)).
 
   (* We will have two kinds of future world relation (here in subset order) :
      - public
@@ -334,26 +328,27 @@ Section pre_STS.
   Qed.
 
   Lemma gen_sts_init :
-    ⊢ |==> ∃ (stsg : STSG A B O Wd Σ), heap_std_auth ∅ ∗ ([∗ set] C ∈ CNames, sts_full_world (∅, (∅,∅), ∅, ∅) C) .
+    ⊢ |==> ∃ (stsg : STSG A B O Wd Σ),
+      [∗ set] C ∈ CNames, sts_full_world (∅, (∅,∅), ∅, ∅) C.
   Proof.
     iMod gen_sts_std_init as (γsstd) "Hstd".
     iMod gen_sts_state_init as (γs) "Hs".
     iMod gen_sts_rel_init as (γr) "Hr".
     iMod gen_sts_seals_std_init as (γseals) "Hseals".
-    iMod heap_std_init as (heapg) "[Hheap #Hheap_full]".
+    iMod heap_std_init as (heapg) "Hheap".
     iModIntro.
     iExists {| sts_state_inG := _; sts_std_state_inG := _;
                sts_seals_std_inG := _; sts_rel_inG := _; sts_heapG := heapg;
                γs_std := γsstd; γs_loc := γs; γr_loc := γr; γs_seals := γseals |}.
-    iFrame "Hheap".
     rewrite /sts_full_world /sts_full_std /sts_full /=.
     iDestruct (big_sepS_sep with "[$Hstd $Hs]") as "H".
     iDestruct (big_sepS_sep with "[$Hr $H]") as "H".
     iDestruct (big_sepS_sep with "[$Hseals $H]") as "H".
+    iDestruct (big_sepS_sep with "[$Hheap $H]") as "H".
     iApply (big_sepS_impl with "H"). iModIntro.
-    iIntros (C HC) "(Hstd & Hs & Hr)".
+    iIntros (C HC) "([Hheap_auth Hheap_full] & Hstd & Hs & Hr)".
     rewrite !fmap_empty.
-    do 2 iFrame. iFrame "Hheap_full". iExact "Hr".
+    iFrame. iExact "Hr".
   Qed.
 
 End pre_STS.
@@ -943,8 +938,12 @@ Qed.
   Proof. intros Hheap. apply related_sts_pub_priv_world, related_sts_pub_world_heap_update; done. Qed.
 
   Lemma sts_full_world_heap_full W C :
-    sts_full_world W C -∗ heap_std_full (heap_std W).
-  Proof. iIntros "(_ & _ & _ & $)". Qed.
+    sts_full_world W C -∗ heap_std_full C (heap_std W).
+  Proof. iIntros "(_ & _ & _ & [_ $])". Qed.
+
+  Lemma sts_full_world_heap_auth W C :
+    sts_full_world W C -∗ heap_std_auth C (heap_std W).
+  Proof. iIntros "(_ & _ & _ & [$ _])". Qed.
 
   Lemma sts_full_world_heap_wf W C :
     sts_full_world W C -∗ ⌜heap_wf (heap_std W)⌝.
@@ -954,13 +953,14 @@ Qed.
   Qed.
 
   Lemma sts_full_world_heap_refresh W C W_heap :
-    heap_std_auth W_heap -∗ sts_full_world W C ==∗
-    heap_std_auth W_heap ∗ sts_full_world (heap_std_update W W_heap) C ∗
+    related_sts_heap_std (heap_std W) W_heap ->
+    sts_full_world W C ==∗
+    sts_full_world (heap_std_update W W_heap) C ∗
     ⌜related_sts_pub_world W (heap_std_update W W_heap)⌝.
   Proof.
-    iIntros "Ha (Hstd & Hloc & Hseals & #Hheap)".
-    iDestruct (heap_std_auth_full_related with "Ha Hheap") as %Hrelated.
-    iMod (heap_std_auth_full with "Ha") as "[Ha Hfull]".
+    iIntros (Hrelated) "(Hstd & Hloc & Hseals & Ha & #Hheap)".
+    iMod (heap_std_auth_update C with "Ha") as "[Ha Hfull]";
+      first exact Hrelated.
     iModIntro. iFrame. iPureIntro. by apply related_sts_pub_world_heap_update.
   Qed.
 

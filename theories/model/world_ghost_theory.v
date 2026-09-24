@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import region_invariants_revocation region_invariants_allocation sealing_invariants.
 From griotte Require Export sts world_std_revocation sts_multiple_updates.
 From griotte Require Export stdpp_extra iris_extra.
+From griotte Require Import heap_region.
 
   (*** World Ghost Theory *)
 
@@ -59,6 +60,41 @@ Section world_ghost_theory.
   Definition world_interp_sopen_aux : { x | x = @world_interp_sopen_def }. by eexists. Qed.
   Definition world_interp_sopen := proj1_sig world_interp_sopen_aux.
   Definition world_interp_sopen_eq : @world_interp_sopen = @world_interp_sopen_def := proj2_sig world_interp_sopen_aux.
+
+  Lemma world_interp_quarantine_covered W C :
+    world_interp W C -∗ ⌜heap_quarantine_covered (heap_std W) (std W)⌝.
+  Proof.
+    rewrite world_interp_eq /world_interp_def region_eq /region_def.
+    iIntros "(Hr & _ & _)".
+    iDestruct "Hr" as (M Mρ) "(_ & _ & _ & [%Hcovered _])".
+    done.
+  Qed.
+
+  Lemma world_interp_open_quarantine_covered W C s :
+    world_interp_open W C s -∗
+      ⌜heap_quarantine_covered (heap_std W) (std W)⌝.
+  Proof.
+    rewrite world_interp_open_eq /world_interp_open_def
+      open_region_many_eq /open_region_many_def.
+    iIntros "(Hr & _ & _)".
+    iDestruct "Hr" as (M Mρ) "(_ & _ & _ & [%Hcovered _])".
+    done.
+  Qed.
+
+  Lemma world_interp_open_quarantined_token W C s a :
+    a ∉ s →
+    heap_cell_status (heap_std W) a = Some AllocObjectQuarantined →
+    world_interp_open W C s -∗
+      reclaim_token a ∗ (reclaim_token a -∗ world_interp_open W C s).
+  Proof.
+    iIntros (Hnotin Hquarantined) "Hworld".
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iDestruct "Hworld" as "(Hregion & Hfull & Hseal)".
+    iDestruct (open_region_many_quarantined_token with "Hregion")
+      as "[Htoken Hclose]"; [done|done|].
+    iFrame "Htoken". iIntros "Htoken".
+    iSpecialize ("Hclose" with "Htoken"). iFrame.
+  Qed.
 
   (** Definition of safety resources *)
   Definition mono_temporary (C : CmptName) (p : Perm) (Φ : Vc) (w : Word) : iProp Σ :=
@@ -282,6 +318,7 @@ Section world_ghost_theory.
     iDestruct "Hr" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     iDestruct "Hpreds" as "[(%ρ & %Hρ & Hstate & Hl) Hpreds]".
     iDestruct "Hl" as (γpred' p' φ' HH1 Hpers) "(#Hφ' & Hl)".
     simplify_eq.
@@ -323,6 +360,7 @@ Section world_ghost_theory.
     iDestruct "Hr" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
+    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
     iDestruct "Hpreds" as "[(%ρ & %Hρ & Hstate & Hl) Hpreds]".
     iDestruct "Hl" as (γpred' p' φ' HH1 Hpers) "(#Hφ' & Hl)".
     simplify_eq.
@@ -2435,20 +2473,21 @@ Section world_interp_Pre.
 
   Lemma world_interp_init (oset : gset OType) :
     ⊢ |==> (∃ (relg: relGS Σ) (stsg : STSG Addr region_type OType Word Σ) (sstoreg : sealStoreG Σ),
-            heap_std_auth ∅ ∗ ([∗ set] C ∈ CNames, world_interp (∅, (∅,∅), ∅, ∅) C) ∗
+            ([∗ set] C ∈ CNames, world_interp (∅, (∅,∅), ∅, ∅) C) ∗
             ([∗ set] o ∈ oset, can_alloc_pred o)).
   Proof.
-    iMod (gen_sts_init) as (stsg) "[Hheap Hsts]".
+    iMod (gen_sts_init) as (stsg) "Hsts".
     iMod (rel_init) as (relg) "HRELS".
     iMod (seal_store_init) as (sstoreg) "Hseals".
-    iExists relg, stsg, sstoreg; iFrame "Hheap Hseals".
+    iExists relg, stsg, sstoreg; iFrame "Hseals".
     set (Wempty := (∅, (∅,∅), ∅, ∅)).
     iAssert ([∗ set] C ∈ CNames, region Wempty C)%I with "[HRELS]" as "Hr".
     { iApply (big_sepS_impl with "HRELS").
       iModIntro; iIntros (C HC) "HRELS".
       rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
-      rewrite /region_map_def. by rewrite big_sepM_empty.
+      rewrite /region_map_def.
+      iPureIntro; apply heap_quarantine_covered_empty.
     }
     iCombine "Hr" "Hsts" as "H".
     rewrite -big_sepS_sep.
