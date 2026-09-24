@@ -180,8 +180,8 @@ Section world_standard_sts_mono.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
   Notation SEAL_STD := (leibnizO (seals_std OType Word)).
-  Notation WORLD := (prodO (prodO STS_STD STS) SEAL_STD).
-  Notation WorldT := (((STS_std_states Addr region_type) * (STS_states * STS_rels) * (seals_std OType Word)) : Type).
+  Notation WORLD := (prodO (prodO (prodO STS_STD STS) SEAL_STD) (leibnizO Heap)).
+  Notation WorldT := (((STS_std_states Addr region_type) * (STS_states * STS_rels) * (seals_std OType Word) * Heap) : Type).
   Implicit Types W : WORLD.
 
   Definition future_pub_mono (C : CmptName) (φ : (WORLD * CmptName * Word) -> iProp Σ) (v  : Word) : iProp Σ :=
@@ -224,5 +224,5 @@ End world_standard_sts_mono.
 Notation STS := (leibnizO (STS_states * STS_rels)).
 Notation STS_STD := (leibnizO (STS_std_states Addr region_type)).
 Notation SEAL_STD := (leibnizO (seals_std OType Word)).
-Notation WORLD := (prodO (prodO STS_STD STS) SEAL_STD).
-Notation WorldT := (((STS_std_states Addr region_type) * (STS_states * STS_rels) * (seals_std OType Word)) : Type).
+Notation WORLD := (prodO (prodO (prodO STS_STD STS) SEAL_STD) (leibnizO Heap)).
+Notation WorldT := (((STS_std_states Addr region_type) * (STS_states * STS_rels) * (seals_std OType Word) * Heap) : Type).

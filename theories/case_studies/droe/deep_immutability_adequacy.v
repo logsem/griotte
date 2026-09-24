@@ -226,14 +226,14 @@ Section Adequacy.
 
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
     iMod (world_interp_init ({[ ot_switcher ]} : gset _))
-      as (relg stsg seal_storeg) "[Hworld_interp Hseal_store]".
+      as (relg stsg seal_storeg) "(Hheap_auth & Hworld_interp & Hseal_store)".
 
     iDestruct (big_sepS_elements with "Hworld_interp") as "Hworld_interp_C".
     rewrite HCNames.
     pose proof (NoDup_singleton C) as HCNoDup.
     setoid_rewrite elements_list_to_set; auto.
     rewrite !big_sepL_singleton.
-    set (W0 := (∅, (∅, ∅), ∅)).
+    set (W0 := (∅, (∅,∅), ∅, ∅)).
 
     pose proof (
         @droe_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _ _ _ C
@@ -324,7 +324,7 @@ Section Adequacy.
       match goal with
       | H: _ |- context [  (world_interp_open ?W C) ] => set (Wpre := W)
       end.
-      set ( Winter := (std_update_compartment (∅, (∅, ∅), ∅) C_cmpt) ).
+      set ( Winter := (std_update_compartment (∅, (∅,∅), ∅, ∅) C_cmpt) ).
 
       iAssert (ot_switcher_prop Winter C (WSealable C_f)) as "#ot_switcher_C_f".
       {

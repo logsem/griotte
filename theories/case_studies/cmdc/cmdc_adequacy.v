@@ -312,13 +312,13 @@ Section Adequacy.
        with the otypes of interests. sealing predicates
       We only use the switcher's otype in the CMDC. *)
     iMod (world_interp_init ({[ ot_switcher ]} : gset _))
-      as (relg stsg seal_storeg) "[Hworld_interp Hseal_store]".
+      as (relg stsg seal_storeg) "(Hheap_auth & Hworld_interp & Hseal_store)".
     iDestruct (big_sepS_elements with "Hworld_interp") as "Hworld_interp".
     rewrite HCNames.
     setoid_rewrite elements_list_to_set; auto.
     iDestruct (big_sepL_cons with "Hworld_interp") as "[Hworld_B Hworld_C]".
     iDestruct (big_sepL_cons with "Hworld_C") as "[Hworld_C _]".
-    set (W0 := (∅, (∅, ∅), ∅)).
+    set (W0 := (∅, (∅,∅), ∅, ∅)).
 
     (* We already pose the CMDC specification that we well be using. *)
     pose proof (
@@ -441,7 +441,7 @@ Section Adequacy.
       match goal with
       | H: _ |- context [  (world_interp_open ?W B) ] => set (Wpre := W)
       end.
-      set ( Winter := (std_update_compartment (∅, (∅, ∅), ∅) B_cmpt) ).
+      set ( Winter := (std_update_compartment (∅, (∅,∅), ∅, ∅) B_cmpt) ).
 
       iAssert (ot_switcher_prop Winter B (WSealable B_f)) as "#ot_switcher_B_f".
       {
@@ -577,7 +577,7 @@ Section Adequacy.
       match goal with
       | H: _ |- context [  (world_interp_open ?W C) ] => set (Wpre := W)
       end.
-      set ( Winter := (std_update_compartment (∅, (∅, ∅), ∅) C_cmpt) ).
+      set ( Winter := (std_update_compartment (∅, (∅,∅), ∅, ∅) C_cmpt) ).
 
       iAssert (ot_switcher_prop Winter C (WSealable C_g)) as "#ot_switcher_C_g".
       {

@@ -288,7 +288,7 @@ Section region_alloc.
         assert (<s[a:=Revoked]s>(std_update_multiple W l1 Revoked)
                 = std_update_multiple W l1 Revoked) as ->.
         { rewrite /std_update.
-          destruct (std_update_multiple W l1 Revoked) as [ [Wstd' Wsts'] Wseal'] eqn:Heq.
+          destruct (std_update_multiple W l1 Revoked) as [ [ [Wstd' Wsts'] Wseal'] W_heap'] eqn:Heq.
           f_equiv; last done.
           simpl. rewrite insert_id//.
           assert (Wstd' = std (std_update_multiple W l1 Revoked)) as ->;[rewrite Heq//|].

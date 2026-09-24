@@ -205,7 +205,7 @@ Section region_invariant_revocation.
   Proof.
     iIntros (Hdom) "Hfull Hr".
     rewrite /revoke in Hdom |- *.
-    destruct W as [Wstd_sta Wloc].
+    destruct W as [ [Wstd_sta Wloc] W_heap ].
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
     iDestruct (big_sepM2_sep with "Hr") as "[Hstates Hr]".
@@ -255,7 +255,7 @@ Section region_invariant_revocation.
       iMod ("IH" with "[] [] Hfull Hr") as (Mρ' Hdom_new) "[Hfull Hr]"; auto.
       { iPureIntro. intros a Ha. apply Hin. apply elem_of_cons. by right. }
       rewrite /revoke_list /=.
-      destruct W as [ [Wstd_sta Wloc] Wseals].
+      destruct W as [ [ [Wstd_sta Wloc] Wseals] W_heap ].
       destruct (Wstd_sta !! x) eqn:Hsome;[|iExists _; cbn; rewrite Hsome ; by iFrame "%∗"].
       destruct r;[|iExists _; cbn; rewrite Hsome; by iFrame..].
       destruct Hin with x as [γp Hsomea];[apply list_elem_of_here|].
@@ -407,8 +407,8 @@ Section region_invariant_revocation.
            iDestruct "Ha" as (γpred0 p0 φ0 Heq0 Hpers0) "(#Hsaved & Ha)".
            iDestruct "Ha" as (v Hne0) "(Hx & #HmonoV & #Hφ0)"; simplify_eq.
            iExists v; iFrame "%∗".
-           destruct W as [ Wstd_sta Wloc].
-           iDestruct (saved_pred_agree _ _ _ _ _ (Wstd_sta, Wloc, C, v) with "Hφ Hsaved") as "#Hφeq". iFrame.
+           destruct W as [ [ Wstd_sta Wloc] W_heap ].
+           iDestruct (saved_pred_agree _ _ _ _ _ (Wstd_sta, Wloc, W_heap, C, v) with "Hφ Hsaved") as "#Hφeq". iFrame.
            iDestruct (internal_eq_iff with "Hφeq") as "Hφeq'".
            iSplitL "HmonoV";[|by iNext; iApply "Hφeq'"].
            all: destruct (isWL p0).
@@ -422,7 +422,7 @@ Section region_invariant_revocation.
         iMod ("IH" with "[] [] [] [$Hrel $Hfull $Hr]") as "(Hfull & Hr & Hl)"; auto.
         iDestruct "Hr" as (M Mρ) "(HM & #Hdom & #Hdom' & Hr)".
         iDestruct "Hdom" as %Hdom. iDestruct "Hdom'" as %Hdom'. iClear "IH".
-        rewrite /revoke_list /=. destruct W as [ [ Wstd_sta Wloc] Wseals].
+        rewrite /revoke_list /=. destruct W as [ [ [ Wstd_sta Wloc] Wseals] W_heap ].
         destruct (Wstd_sta !! x) eqn:Hsome.
         2: { iFrame. iModIntro. rewrite Hsome. iFrame. iFrame. auto. }
         rewrite Hsome.
@@ -671,7 +671,7 @@ Section region_invariant_revocation.
   Proof.
     iIntros (Hrevoked Hdom Hstd Hrelated) "Hfull Hr".
     rewrite /revoke in Hdom |- *.
-    destruct W as [ [Wstd_sta Wloc] Wseals].
+    destruct W as [ [ [Wstd_sta Wloc] Wseals] W_heap ].
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
     iDestruct (big_sepM2_sep with "Hr") as "[Hstates Hr]".

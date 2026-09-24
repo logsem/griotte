@@ -357,7 +357,7 @@ Section monotone.
     iIntros (k o Hk) "(%P & HP_pers & Hseal & %Hdom & Hwcond)".
     iExists P; iFrame.
     iPureIntro.
-    destruct Hrelated as (_ & _ & [ Hrelated_dom _ ]).
+    destruct Hrelated as (_ & _ & [ Hrelated_dom _ ] & _).
     by apply Hrelated_dom.
   Qed.
 
@@ -372,7 +372,7 @@ Section monotone.
     iIntros (k o Hk) "(%P & HP_pers & Hseal & %Hdom & Hwcond)".
     iExists P; iFrame.
     iPureIntro.
-    destruct Hrelated as (_ & _ & [ Hrelated_dom _ ]).
+    destruct Hrelated as (_ & _ & [ Hrelated_dom _ ] & _).
     by apply Hrelated_dom.
   Qed.
 

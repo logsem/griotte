@@ -37,6 +37,10 @@ Section region_alloc_cmpt.
     <o[ ot_switcher := exported_entries_words C_cmpt ]o> Wimports.
 
 
+  Lemma std_update_compartment_heap W C_cmpt :
+    heap_std (std_update_compartment W C_cmpt) = heap_std W.
+  Proof. unfold std_update_compartment. simpl. by rewrite !std_update_multiple_heap. Qed.
+
   Lemma std_update_compartment_pub (W : WORLD) (C_cmpt : cmpt) :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in

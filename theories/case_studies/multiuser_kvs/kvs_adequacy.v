@@ -326,14 +326,14 @@ Section Adequacy.
 
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
     iMod (world_interp_init ({[ ot_switcher ; ot_kvs ]} : gset _))
-      as (relg stsg seal_storeg) "[Hworld_interp Hseal_store]".
+      as (relg stsg seal_storeg) "(Hheap_auth & Hworld_interp & Hseal_store)".
 
     iDestruct (big_sepS_elements with "Hworld_interp") as "Hworld_B".
     rewrite HCNames.
     pose proof (NoDup_singleton B) as HCNoDup.
     setoid_rewrite elements_list_to_set; auto.
     rewrite !big_sepL_singleton.
-    set (W0 := (∅, (∅, ∅), ∅)).
+    set (W0 := (∅, (∅,∅), ∅, ∅)).
 
     rewrite big_sepS_insert; last (pose proof ot_kvs_disjoint as Hdis; set_solver+Hdis).
     rewrite big_sepS_singleton.

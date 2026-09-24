@@ -62,7 +62,7 @@ Section sealing_interp.
   Definition sealing_map := proj1_sig sealing_map_aux.
   Local Definition sealing_map_eq : @sealing_map = @sealing_map_def := proj2_sig sealing_map_aux.
 
-  Local Lemma sealing_map_def_empty (C : CmptName) : ⊢ (sealing_map_def (∅, (∅, ∅), ∅) C)%I.
+  Local Lemma sealing_map_def_empty (C : CmptName) : ⊢ (sealing_map_def (∅, (∅,∅), ∅, ∅) C)%I.
   Proof. iStartProof; rewrite /sealing_map_def ; done. Qed.
 
   Local Lemma sealing_map_def_monotone (C : CmptName) (W W' : WORLD) :
@@ -104,7 +104,7 @@ Section sealing_interp.
     rewrite /sealing_map_def.
     iMod (sts_alloc_seal_std _ _ _ ws with "[] [$Hsts]") as "[Hsts #Hseal]"; eauto.
     iAssert (
-        [∗ map] k↦y ∈ W.2, sts_seals_std C k y ∗
+        [∗ map] k↦y ∈ (seal_std W), sts_seals_std C k y ∗
                                     ∃ Po0 : WORLD * CmptName * Word → iProp Σ,
                                       seal_pred k Po0 ∗
                                       (∀ w : Word, future_priv_mono C Po0 w) ∗
@@ -190,7 +190,7 @@ Section sealing_interp.
         by apply related_sts_pub_priv_world.
     }
     iAssert (
-        [∗ map] k↦y ∈ delete o W.2, sts_seals_std C k y ∗
+        [∗ map] k↦y ∈ delete o (seal_std W), sts_seals_std C k y ∗
                                     ∃ Po0 : WORLD * CmptName * Word → iProp Σ,
                                       seal_pred k Po0 ∗
                                       (∀ w : Word, future_priv_mono C Po0 w) ∗
@@ -255,7 +255,7 @@ Section sealing_interp.
       by iFrame.
   Qed.
 
-  Lemma sealing_map_empty (C : CmptName) : ⊢ (sealing_map (∅, (∅, ∅), ∅) C)%I.
+  Lemma sealing_map_empty (C : CmptName) : ⊢ (sealing_map (∅, (∅,∅), ∅, ∅) C)%I.
   Proof. rewrite sealing_map_eq; apply sealing_map_def_empty. Qed.
 
   Lemma sealing_map_monotone (C : CmptName) (W W' : WORLD) :
