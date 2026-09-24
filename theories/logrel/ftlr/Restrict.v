@@ -26,13 +26,14 @@ Section fundamental.
   Implicit Types interp : (D).
 
   Lemma PermPairFlows_interp_preserved W C t p p' g g' b e a :
+    heap_wf (heap_std W) →
     PermFlowsTo p' p = true →
     LocalityFlowsTo g' g = true →
     ftlr_IH -∗
     interp W C (WCap t p g b e a) -∗
     interp W C (WCap t p' g' b e a).
   Proof.
-    intros Hp Hg. iIntros "#IH HA".
+    intros Hwf Hp Hg. iIntros "#IH HA".
     iApply (interp_weakening with "IH HA");eauto;try solve_addr.
   Qed.
 
@@ -52,7 +53,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (dst : RegName) (src : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w (Restrict dst src) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    intros Hp Hsome HcorrectPC Hpc_live Hheap_wf Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.

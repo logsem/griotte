@@ -26,13 +26,14 @@ Section fundamental.
   Implicit Types interp : (D).
 
   Lemma subseg_interp_preserved W C t p g b b' e e' a :
+      heap_wf (heap_std W) ->
       (b <= b')%a ->
       (e' <= e)%a ->
       ftlr_IH -∗
       interp W C (WCap t p g b e a) -∗
       interp W C (WCap t p g b' e' a).
   Proof.
-    intros Hb He. iIntros "#IH Hinterp".
+    intros Hwf Hb He. iIntros "#IH Hinterp".
     iApply (interp_weakening with "IH Hinterp"); eauto.
     - destruct p; reflexivity.
     - destruct g; reflexivity.
@@ -43,7 +44,7 @@ Section fundamental.
      (ρ : region_type) (dst : RegName) (r1 r2 : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w (Subseg dst r1 r2) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    intros Hp Hsome HcorrectPC Hpc_live Hheap_wf Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.

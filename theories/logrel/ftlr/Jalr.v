@@ -39,7 +39,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (rdst rsrc : RegName) (P:V)  (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName):
     ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    intros Hp Hsome HcorrectPC Hpc_live Hheap_wf Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
@@ -60,9 +60,15 @@ Section fundamental.
 
     iAssert (interp W C (WSentry true p g b e pc_a')) as "Hinterp_ret".
     {
+      destruct Hp as [Hexec _].
+      iDestruct (interp_cap_disjoint with "Hinv_interp") as %[_ Hheap]; first exact Hexec.
+      assert (is_heap_address b = false) as Hbase_nonheap.
+      { apply not_true_is_false. intros Hbase_heap.
+        apply withinBounds_true_iff in Hbase_heap.
+        rewrite /disjoint_from_heap elem_of_disjoint in Hheap.
+        eapply (Hheap b); apply elem_of_finz_seq_between; solve_addr. }
       iApply (interp_weakeningSentry with "IH Hinv_interp");eauto;try solve_addr.
-      - destruct Hp as [Hexec _].
-        by apply executeAllowed_nonO.
+      - by apply executeAllowed_nonO.
       - reflexivity.
     }
 
@@ -142,7 +148,7 @@ Section fundamental.
       iDestruct ("Hreg" $! rsrc _ HPCnrsrc Hrsrc) as "Hwsrc".
       iEval (rewrite fixpoint_interp1_eq) in "Hwsrc".
       simpl; rewrite /enter_cond.
-      iDestruct "Hwsrc" as "#Hinterp_src".
+      iDestruct "Hwsrc" as "[%Hnonheap #Hinterp_src]".
       iAssert (future_world g0 W W) as "Hfuture".
       { iApply futureworld_refl. }
       iSpecialize ("Hinterp_src" with "Hfuture").

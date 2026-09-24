@@ -32,6 +32,7 @@ Section fundamental.
     (∃ ρ,
      sts_state_std C a ρ
     ∗ ⌜ρ ≠ Revoked⌝
+    ∗ ⌜heap_cell_live (heap_std W) a⌝
     ∗ world_interp_open W C (a :: als)
     ∗ if_later_P has_later (monotonicity_guarantees_region C φ p v ρ ∗ φ (W,C, v))
     ∗ rel C a p φ)%I.
@@ -112,13 +113,14 @@ Section fundamental.
     (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (P:D):
     read_reg_inr (<[PC:=WCap true p_pc g_pc b_pc e_pc a_pc]> regs) src t p g b e a
     → PermFlowsTo p_pc p_pc'
+    → heap_wf (heap_std W)
     → (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)
     -∗ interp W C (WCap true p_pc g_pc b_pc e_pc a_pc)
     -∗ rel C a_pc p_pc' (safeC P)
     -∗ world_interp_open W C [a_pc]
     -∗ allow_load_res imm W C src (<[PC:= WCap true p_pc g_pc b_pc e_pc a_pc]> regs) a_pc p_pc'.
   Proof.
-    iIntros (HVsrc Hfl) "#Hreg #Hinterp_pc #Hinva Hworld_interp".
+    iIntros (HVsrc Hfl Hwf) "#Hreg #Hinterp_pc #Hinva Hworld_interp".
     iFrame "%".
     rewrite /reg_allows_load_imm.
     destruct (a + imm)%a as [ea|] eqn:Hadd; last by iFrame.
@@ -147,6 +149,10 @@ Section fundamental.
     iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ ea with "Hvsrc") as %HH; eauto.
     { rewrite /withinBounds Hle Hge. auto. }
     destruct HH as (ρ0 & Hstd & Hnotrevoked).
+    assert (withinBounds b e ea = true) as Hbounds.
+    { by rewrite /withinBounds Hle Hge. }
+    iDestruct (interp_cap_cell_live with "Hvsrc") as %Hlive;
+      eauto using readAllowed_nonO.
     (* We can finally frame off Hsts here,
             since it is no longer needed after opening the region*)
     iDestruct (open_world_interp_next _ _ _ ea p0 _ ρ0 with "Hrel0 Hworld_interp")
@@ -289,7 +295,7 @@ Section fundamental.
             -∗ P W C pc_w
                -∗ ([∗ map] a1↦w0 ∈ mem0, a1 ↦ₐ w0)
                   -∗ allow_load_mem imm W C src (<[PC:=WCap true p_pc g_pc b_pc e_pc a_pc]> regs) a_pc p_pc' pc_w mem0 false
-                     -∗ world_interp_open W C [a_pc] ∗ a_pc ↦ₐ pc_w ∗ interp W C (load_word p loadv).
+                     -∗ world_interp_open W C [a_pc] ∗ a_pc ↦ₐ pc_w ∗ interp_in_mem p W C loadv.
   Proof.
     intros Hflpc Hrar Ha.
     iIntros "##Hinterp_pc Hreg #Hrcond Hw Hmem HLoadMem".
@@ -314,15 +320,17 @@ Section fundamental.
            split; first done.
            cbn. congruence.
       }
+      rewrite /interp_in_mem_pre filter_heap_load_word.
       iApply interp_weakening_word_load; eauto.
-      by iApply "Hrcond".
+      rewrite -filter_heap_load_word.
+      by iApply ("Hrcond" with "Hw").
     - iDestruct "HLoadRes"
         as (w p' P' Hflp'' HpersP') "(-> & HLoadRes & #Hrcond')".
       rewrite lookup_insert_eq in Ha; inversion Ha; clear Ha; subst.
       rewrite memMap_resource_2ne; last auto.
       iDestruct "Hmem" as "[Ha Hapc]"; iFrame.
       rewrite /persistent_cond in HpersP'.
-      iDestruct "HLoadRes" as (ρ1) "(Hstate' & %Hnotrevoked & Hworld_interp & (Hfuture & #HV) & Hrel')"
+      iDestruct "HLoadRes" as (ρ1) "(Hstate' & %Hnotrevoked & %Hlive & Hworld_interp & (Hfuture & #HV) & Hrel')"
       ; cbn.
 
       assert (isO p' = false) as HpO'.
@@ -335,7 +343,11 @@ Section fundamental.
         rewrite mono_invariant_monotonicity_guarantees_region; eauto.
       }
       iDestruct ("Hrcond'" with "HV") as "HV'".
-      iApply interp_weakening_word_load; eauto.
+      iEval (rewrite /interp_in_mem_pre filter_heap_load_word).
+      iApply (interp_weakening_word_load W C p p' (filter_heap W loadv));
+        first exact Hflp''.
+      iEval (rewrite /interp_in_mem_pre filter_heap_load_word) in "HV'".
+      iExact "HV'".
   Qed.
 
   Lemma load_case (imm : Z) (W : WORLD) (C : CmptName) (regs : leibnizO Reg)
@@ -343,7 +355,7 @@ Section fundamental.
     (w : Word) (ρ : region_type) (dst src : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     ftlr_instr W C regs p p' g b e a w (Load dst src imm) ρ P cstk Ws Cs.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    intros Hp Hsome HcorrectPC Hpc_live Hheap_wf Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.
@@ -422,7 +434,8 @@ Section fundamental.
       iDestruct (mem_map_recover_res imm with "Hinv_interp Hreg Hrcond' Hw Hmem HLoadMem") as
         "[Hworld_interp [Ha #Hnormal ] ]"; eauto.
       iAssert (interp W C actualv) as "#HLVInterp".
-      { destruct Hactual as [-> | ->]; first done. iApply interp_clear_tag. }
+      { destruct Hactual as [-> | ->]; last by iApply interp_clear_tag.
+         }
 
       (* Exceptional success case: we do not apply the induction hypothesis in case we have a faulty PC*)
       destruct tpc; cycle 1.

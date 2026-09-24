@@ -67,6 +67,7 @@ Section fundamental.
         sts_state_std C l ρ
         ∗ ⌜std W !! l = Some ρ⌝
         ∗ ⌜ρ ≠ Revoked⌝
+        ∗ ⌜heap_cell_live (heap_std W) l⌝
         ∗ world_interp_open W C (l :: ls)
         ∗ if_later_P
             has_later
@@ -147,13 +148,14 @@ Section fundamental.
     read_reg_inr (<[PC:= WCap true p g b e a]> regs) r1 t0 p0 g0 b0 e0 a0
     → PermFlowsTo p p'
     → word_of_argument (<[PC:=WCap true p g b e a]> regs) r2 = Some storev
+    → heap_wf (heap_std W)
     → interp W C (WCap true p g b e a)
     -∗ (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → interp W C v)
     -∗ rel C a p' (safeC P)
     -∗ world_interp_open W C [a]
     -∗ allow_store_res imm W C r1 r2 (<[PC:=WCap true p g b e a]> regs) a p' true.
   Proof.
-    iIntros (HVr1 Hfl Hwoa) "#HVPCr #Hreg #Hinva Hworld_interp".
+    iIntros (HVr1 Hfl Hwoa Hwf) "#HVPCr #Hreg #Hinva Hworld_interp".
     iFrame "%".
     rewrite /reg_allows_store_imm.
     destruct (a0 + imm)%a as [ea0|] eqn:Hea; last by iFrame.
@@ -176,6 +178,10 @@ Section fundamental.
       { by rewrite /withinBounds Hle Hge. }
 
       destruct HH as [ρ' [Hstd' Hnotrevoked'] ].
+      assert (withinBounds b0 e0 ea0 = true) as Hbounds.
+      { by rewrite /withinBounds Hle Hge. }
+      iDestruct (interp_cap_cell_live with "Hvsrc") as %Hlive;
+        eauto using writeAllowed_nonO.
       (* We can finally frame off Hsts here, since it is no longer needed after opening the region*)
       iDestruct (open_world_interp_next _ _ _ ea0 p'' _ ρ' with "Hrel'' Hworld_interp")
         as "(Hworld & Hstate' & [%w0 (?&?&?&?)] )"; eauto.
@@ -376,7 +382,7 @@ Section fundamental.
       iDestruct "HStoreRes"
         as (p' P' w' Hflp' HpersP') "(#Hzcond' & #Hwcond' & #Hrcond' & #HmonoR' & -> & HStoreRes)".
       rewrite lookup_insert_eq in Ha0; inversion Ha0; clear Ha0; subst.
-      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & Hworld_interp & #HmonoV & Hrel')".
+      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & %Hlive & Hworld_interp & #HmonoV & Hrel')".
       rewrite insert_insert_eq memMap_resource_2ne; last auto.
       iDestruct "Hmem" as  "[Ha1 Hpc_a]".
       iFrame.
@@ -443,7 +449,7 @@ Section fundamental.
      (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
      ftlr_instr W C regs p p' g b e a w (Store dst src imm) ρ P cstk Ws Cs.
    Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    intros Hp Hsome HcorrectPC Hpc_live Hheap_wf Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "#Halloc #IH #Hinv_interp #Hreg #Hinva #Hrcond #Hwcond #Hmono WorldRes Hcont %Hframe Hworld_interp Hown Htframe".
     iIntros "Hstate HPC Hmap".
     iInsert "Hmap" PC.

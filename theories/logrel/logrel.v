@@ -704,6 +704,34 @@ Section logrel.
     eapply (Hdisjoint b); apply elem_of_finz_seq_between; solve_addr.
   Qed.
 
+  Lemma heap_cap_valid_cell_live W p b e ea :
+    heap_wf (heap_std W) ->
+    withinBounds b e ea = true ->
+    heap_cap_valid W p b e ->
+    heap_cell_live (heap_std W) ea.
+  Proof.
+    intros Hwf Hbounds Hvalid.
+    apply withinBounds_true_iff in Hbounds as [Hb He].
+    specialize (Hvalid ltac:(solve_addr)).
+    rewrite /heap_cap_live in Hvalid.
+    destruct (is_heap_address b) eqn:Hheap.
+    - destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ] eqn:Hlookup;
+        last contradiction.
+      destruct (alloc_object_status obj) eqn:Hstatus; last contradiction.
+      destruct Hvalid as [Hend _].
+      destruct (heap_lookup_addr_sound _ _ _ _ Hlookup) as [Hentry Hcontains].
+      destruct Hcontains as [Hbase _].
+      eapply heap_cell_live_lookup; last exact Hstatus.
+      eapply heap_lookup_addr_complete; eauto.
+      unfold alloc_object_contains. solve_addr.
+    - apply heap_cell_live_nonheap.
+      apply not_true_is_false. intros Hheap_ea.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hvalid.
+      eapply (Hvalid ea); apply elem_of_finz_seq_between.
+      + solve_addr.
+      + by apply withinBounds_true_iff in Hheap_ea.
+  Qed.
+
   (** Interp for sentry in [enter_cond]. *)
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
@@ -1085,6 +1113,18 @@ Section logrel.
     destruct (has_sreg_access p); first done.
     iDestruct "Hinterp" as "[_ %Hregions]".
     iPureIntro. naive_solver.
+  Qed.
+
+  Lemma interp_cap_cell_live W C p g b e a ea :
+    heap_wf (heap_std W) ->
+    isO p = false ->
+    withinBounds b e ea = true ->
+    interp W C (WCap true p g b e a) -∗
+    ⌜heap_cell_live (heap_std W) ea⌝.
+  Proof.
+    iIntros (Hwf Hp Hbounds) "Hinterp".
+    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hvalid]; first done.
+    iPureIntro. eapply heap_cap_valid_cell_live; eauto.
   Qed.
 
   Lemma interp_cap_nonheap (W : WORLD) (C : CmptName) p g b e a :

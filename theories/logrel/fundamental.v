@@ -26,6 +26,25 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
+  Lemma interp_pc_heap_cell_live W C p g b e a :
+    isCorrectPC (WCap true p g b e a) ->
+    interp W C (WCap true p g b e a) -∗
+    ⌜heap_cell_live (heap_std W) a⌝.
+  Proof.
+    iIntros (Hpc) "Hinterp".
+    iDestruct (interp_cap_disjoint with "Hinterp") as %[_ Hdisjoint].
+    { by inversion Hpc. }
+    iPureIntro.
+    apply heap_cell_live_nonheap.
+    apply not_true_is_false. intros Hheap.
+    apply withinBounds_true_iff in Hheap.
+    rewrite /disjoint_from_heap elem_of_disjoint in Hdisjoint.
+    eapply (Hdisjoint a); apply elem_of_finz_seq_between.
+    - apply withinBounds_true_iff.
+      exact (isCorrectPC_withinBounds true p g b e a Hpc).
+    - exact Hheap.
+  Qed.
+
   Theorem fundamental_cap
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality)
@@ -79,6 +98,8 @@ Section fundamental.
     }
 
     (* Correct PC *)
+    iDestruct (interp_pc_heap_cell_live with "Hinv_interp") as %Hpc_live;
+      first exact HcorrectPC.
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
     { eapply in_range_is_correctPC; eauto. solve_addr. }
 
@@ -124,6 +145,12 @@ Section fundamental.
       as [ρ [Hρ Hne ] ].
     { destruct (isWL p),g; simplify_eq ; eauto.
       destruct Hstate_a as [Htemp | Hperm];eauto. }
+
+    iEval (rewrite world_interp_eq /world_interp_def) in "Hworld_interp".
+    iDestruct "Hworld_interp" as "(Hregion_world & Hsts & Hseals_world)".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
+    iAssert (world_interp W C) with "[Hregion_world Hsts Hseals_world]" as "Hworld_interp".
+    { rewrite world_interp_eq /world_interp_def. iFrame. }
 
     iDestruct (open_world_interp with "[$Hrela] [$Hworld_interp]")
       as "(Hworld_interp & Hstate & (%w & WorldRes) )"
@@ -382,13 +409,24 @@ Section fundamental.
     iIntros (Hp) "#Hw".
     iIntros (a0 W' Hin) "#Hfuture". iModIntro.
     assert (isO p = false) by (by eapply executeAllowed_nonO).
+    iDestruct (interp_cap_disjoint with "Hw") as %[_ Hdisjoint]; first done.
+    assert (is_heap_address b = false) as Hnonheap.
+    { apply not_true_is_false. intros Hb.
+      destruct Hin as [Hba0 Ha0e].
+      apply withinBounds_true_iff in Hb.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hdisjoint.
+      eapply (Hdisjoint b); apply elem_of_finz_seq_between; solve_addr. }
     destruct g.
-    - iDestruct (interp_monotone_nl with "Hfuture [] Hw") as "Hw'";[auto|].
+    - iDestruct "Hfuture" as %Hrelated.
+      iDestruct (interp_monotone_nl_cap_nonheap with "Hw") as "Hw'";
+        [exact Hnonheap|exact Hdisjoint|exact Hrelated|done|].
       iApply (fundamental W');eauto.
-      iApply interp_weakening.interp_weakeningEO; eauto; try done.
-    - iDestruct (interp_monotone with "Hfuture Hw") as "Hw'".
+      iApply interp_lea; eauto.
+    - iDestruct "Hfuture" as %Hrelated.
+      iDestruct (interp_monotone_cap_nonheap with "Hw") as "Hw'";
+        [exact Hnonheap|exact Hdisjoint|exact Hrelated|].
       iApply (fundamental W');eauto.
-      iApply interp_weakening.interp_weakeningEO; eauto; try done.
+      iApply interp_lea; eauto.
   Qed.
 
   (* We can use the above fact to create a special "jump or fail pattern" when jumping to an unknown adversary *)
