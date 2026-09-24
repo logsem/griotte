@@ -121,7 +121,7 @@ Proof.
     cmdc_switcher_return cmdc_switcher_sealing_type
     cmdc_trusted_stack_b cmdc_trusted_stack_e _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl cmdc_stack_b cmdc_stack_e
-    (replicate 100 (WInt 0)) _ _ _ _ _ _).
+    (replicate 100 (WInt 0)) _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -137,6 +137,7 @@ Proof.
     rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - reflexivity.
+  - vm_compute; reflexivity.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
@@ -148,10 +149,11 @@ Defined.
 Program Definition cmdc_concrete_cmptAssert : cmptAssert.
 Proof.
   refine (@mkCmptAssert machine_parameters_instance cmdc_assert_b
-    cmdc_assert_e cmdc_assert_cap cmdc_assert_flag _ _ _ _).
+    cmdc_assert_e cmdc_assert_cap cmdc_assert_flag _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
+  - vm_compute; reflexivity.
   - unfold_cmdc_addresses.
     unfold disjoint, set_disjoint_instance.
     intros x Hx Hx'.
@@ -186,7 +188,7 @@ Proof.
     cmdc_main_exports_cgp cmdc_main_exports_entries_b
     cmdc_main_exports_entries_e cmdc_main_imports_concrete cmdc_main_code
     cmdc_main_data [] [] _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -215,6 +217,14 @@ Proof.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - vm_compute; reflexivity.
+  - vm_compute; reflexivity.
 Defined.
 
 Program Definition cmdc_concrete_B_cmpt : cmpt.
@@ -224,7 +234,7 @@ Proof.
     cmdc_B_exports_pcc cmdc_B_exports_cgp
     cmdc_B_exports_entries_b cmdc_B_exports_entries_e cmdc_B_imports
     cmdc_B_code cmdc_B_data [] cmdc_B_exports _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -253,6 +263,14 @@ Proof.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - vm_compute; reflexivity.
+  - vm_compute; reflexivity.
 Defined.
 
 Program Definition cmdc_concrete_C_cmpt : cmpt.
@@ -262,7 +280,7 @@ Proof.
     cmdc_C_exports_pcc cmdc_C_exports_cgp
     cmdc_C_exports_entries_b cmdc_C_exports_entries_e cmdc_C_imports
     cmdc_C_code cmdc_C_data [] cmdc_C_exports _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -291,6 +309,14 @@ Proof.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - vm_compute; reflexivity.
+  - vm_compute; reflexivity.
 Defined.
 
 (** All nonempty concrete regions, ordered by their addresses. The three
@@ -499,7 +525,7 @@ Proof.
        cmdc_concrete_switcher_cmpt_disjoints
        cmdc_concrete_assert_cmpt_disjoints
        cmdc_concrete_assert_switcher_disjoints).
-  all: vm_compute; eauto.
+  all: vm_compute; eauto; reflexivity.
 Defined.
 
 Definition cmdc_initial_registers : Reg :=

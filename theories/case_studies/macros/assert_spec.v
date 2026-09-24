@@ -41,7 +41,7 @@ Section Assert_subroutine.
   *)
 
   Definition assert_inv (b_assert e_assert a_flag : Addr) : iProp Σ :=
-    (∃ cap_addr,
+    (⌜is_heap_address b_assert = false⌝ ∗ ∃ cap_addr,
        codefrag b_assert assert_subroutine_instrs ∗
        ⌜(b_assert + length assert_subroutine_instrs)%a = Some cap_addr⌝ ∗
        ⌜(cap_addr + 1)%a = Some e_assert⌝ ∗
@@ -77,6 +77,7 @@ Section Assert_subroutine.
     iIntros (HNE Hcode_shadow Hflag_not_shadow Hflag_not_heap)
       "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hflag & Hφ)".
     iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
+    iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hpc_e & %He_flag & Hcap)".
     destruct He_flag as [e_flag He_flag].
     rewrite /assert_subroutine_instrs.
@@ -90,7 +91,7 @@ Section Assert_subroutine.
       subst n2. rewrite (_: n1 - n1 = 0)%Z; last lia.
       iGo "Hprog".
       iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
-      { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
+      { iNext. iSplit; first done. iExists _. iFrame. iPureIntro. repeat split; solve_addr. }
       iApply "Hφ". iFrame. rewrite Z.eqb_refl //. }
     { (* n1 ≠ n2 *)
       iInstr "Hprog".
@@ -101,12 +102,14 @@ Section Assert_subroutine.
       { eapply disjoint_from_shadow_not_in; first exact Hcode_shadow.
         apply withinBounds_true_iff; solve_addr. }
       assert (is_heap_cap (WCap true RW Global a_flag (a_flag ^+ 1)%a a_flag) = false)
-        as Hcap_not_heap by exact Hflag_not_heap.
+        as Hcap_not_heap.
+      { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hflag_not_heap /=.
+        reflexivity. }
       iInstr "Hprog".
       iInstr "Hprog".
       iGo "Hprog".
       iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
-      { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
+      { iNext. iSplit; first done. iExists _. iFrame. iPureIntro. repeat split; solve_addr. }
       iApply "Hφ". iFrame. rewrite (_: (n1 =? n2)%Z = false) //.
       by apply Z.eqb_neq. }
   Qed.
@@ -135,6 +138,7 @@ Section Assert_subroutine.
   Proof.
     iIntros (HNE Heq) "(#Hinv & Hna & HPC & Hrdst & Hct0 & Hct1 & Hcnull & Hφ)".
     iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
+    iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
     rewrite /assert_subroutine_instrs. codefrag_facts "Hprog".
     assert (SubBounds pc_b pc_e
@@ -144,7 +148,7 @@ Section Assert_subroutine.
     rewrite (_: n1 - n2 = 0)%Z; last lia.
     iGo "Hprog".
     iMod ("Hinv_close" with "[Hprog Hcap $Hna]") as "Hna".
-    { iExists _. iNext. iFrame. iPureIntro. repeat split; solve_addr. }
+    { iNext. iSplit; first done. iExists _. iFrame. iPureIntro. repeat split; solve_addr. }
     iApply "Hφ". iFrame.
   Qed.
 
@@ -202,6 +206,10 @@ Section Assert.
     intros assert_macro a_last; subst assert_macro a_last.
     iIntros (Hpc_exec HsubBounds Hinbounds Hcode_shadow HNE Heq)
       "(#Hinv & Hna & HPC & Hrdst & Hrscratch1 & Hrscratch2 & Hcra & Hct0 & Hct1 & Hcnull & Hcode & Hpc_bn & Hφ)".
+    iMod (na_inv_acc with "Hinv Hna") as "(>Hassert & Hna & Hinv_close)"; auto.
+    iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
+    iMod ("Hinv_close" with "[Hassert $Hna]") as "Hna".
+    { iNext. iFrame. by iPureIntro. }
     codefrag_facts "Hcode".
     rewrite /assert_instrs /assembled_assert.
     repeat (iEval (cbn [concat]) in "Hcode").
@@ -211,6 +219,8 @@ Section Assert.
     iDestruct (regname_neq with "Hrscratch2 Hcnull") as "%".
     iDestruct (regname_neq with "Hrdst Hcnull") as "%".
     iApply (fetch_spec with "[-]"); last iFrame; eauto.
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hassert_not_heap /=.
+      reflexivity. }
     iNext; iIntros "(HPC & Hrdst & Hrscratch1 & Hrscratch2 & Hfetch & Hpc_bn)".
     unfocus_block "Hfetch" "Hcont" as "Hcode".
     focus_block 1 "Hcode" as a_assert Ha_assert "Hassert" "Hcont".

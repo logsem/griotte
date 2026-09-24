@@ -50,6 +50,7 @@ Section VAE.
     disjoint_from_shadow b_vae_exp_tbl e_vae_exp_tbl ->
     is_heap_address pc_b = false ->
     is_heap_address cgp_b = false ->
+    is_heap_cap (WSealed ot_switcher C_f) = false ->
     is_shadow_address cgp_b = false ->
     Nswitcher ## Nassert ->
     Nswitcher ## Nvae_code ->
@@ -103,7 +104,7 @@ Section VAE.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hcgp_shadow HNswitcher_assert HNswitcher_vae HNassert_vae Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow HNswitcher_assert HNswitcher_vae HNassert_vae Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hloc_i_0 Hframe_match
             )
       "(#Hassert & #Halloc & #Hswitcher
@@ -186,7 +187,7 @@ Section VAE.
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -291,8 +292,10 @@ Section VAE.
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK & %Hrestored)"; clear l'.
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
-    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap; eauto].
+    apply load_heap_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
     apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
     apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
     subst rcgp rcra rcs0 rcs1.

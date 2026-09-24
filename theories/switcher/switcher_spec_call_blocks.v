@@ -643,6 +643,10 @@ Section Switcher_Call_Blocks.
     (* --- Load cra ct1 --- *)
     wp_instr.
     iInv "Hinv_exp_tbl_pcc" as ">Hb_tbl" "Hcls_tbl".
+    assert (is_heap_cap (WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt) = false)
+      as Hpcc_not_heap.
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbpcc_nonheap /=.
+      reflexivity. }
     iInstr "Hcode".
     iMod ("Hcls_tbl" with "[$]") as "_"; iModIntro.
     wp_pure.

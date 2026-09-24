@@ -47,6 +47,7 @@ Section CMDC.
     let imports := cmdc_main_imports B_f C_g in
 
     disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
     is_shadow_address cgp_b = false ->
     is_heap_address cgp_b = false ->
     is_shadow_address (cgp_b ^+ 1)%a = false ->
@@ -64,6 +65,9 @@ Section CMDC.
 
     cgp_b ∉ dom (std W_init_B) ->
     (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
+
+    is_heap_cap (WSealed ot_switcher B_f) = false ->
+    is_heap_cap (WSealed ot_switcher C_g) = false ->
 
     (* We suppose that the stack region is already revoked in each worlds.
        It's because the worlds are closed and if they we're Temporary,
@@ -111,9 +115,10 @@ Section CMDC.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
                Hstk_shadow Hstk_heap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
+               HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
       "(#Hassert & #Halloc & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
@@ -191,7 +196,7 @@ Section CMDC.
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto; try done.
+      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -239,8 +244,10 @@ Section CMDC.
     { exact Hcgp_heap. }
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
-    { exact Hcgp_heap. }
-    { done. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=.
+      reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
+      reflexivity. }
     { done. }
     { done. }
     { exact Hcgp_b. }
@@ -330,7 +337,7 @@ Section CMDC.
     focus_block 6 "Hcode_main" as a_fetch3 Ha_fetch3 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto; try done.
+      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -374,8 +381,10 @@ Section CMDC.
     { exact Hcgp1_heap. }
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
-    { exact Hcgp_heap. }
-    { done. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=.
+      reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
+      reflexivity. }
     { done. }
     { done. }
     { subst cgp_c. exact Hcgp_c. }
@@ -461,6 +470,7 @@ Section CMDC.
     let imports := cmdc_main_imports B_f C_g in
 
     disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
     is_shadow_address cgp_b = false ->
     is_heap_address cgp_b = false ->
     is_shadow_address (cgp_b ^+ 1)%a = false ->
@@ -478,6 +488,9 @@ Section CMDC.
 
     cgp_b ∉ dom (std W_init_B) ->
     (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
+
+    is_heap_cap (WSealed ot_switcher B_f) = false ->
+    is_heap_cap (WSealed ot_switcher C_g) = false ->
 
     revoked_addresses W_init_B (finz.seq_between csp_b csp_e) ->
     revoked_addresses W_init_C (finz.seq_between csp_b csp_e) ->
@@ -521,9 +534,10 @@ Section CMDC.
       ⊢ WP Seq (Instr Executable) {{ λ v, True }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
                Hstk_shadow Hstk_heap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_c
+               HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
       "(#Hassert & #Halloc & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap

@@ -515,7 +515,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
         KVS_pcc_disjoint_from_shadow : disjoint_from_shadow KVS_pcc_b KVS_pcc_e;
         kvs_exp_tbl_disjoint_from_shadow : disjoint_from_shadow b_kvs_exp_tbl e_kvs_exp_tbl;
         KVS_pcc_base_not_heap : is_heap_address KVS_pcc_b = false;
-        KVS_cgp_base_not_heap : is_heap_address KVS_cgp_b = false
+        KVS_cgp_base_not_heap : is_heap_address KVS_cgp_b = false;
+        kvs_export_base_not_heap : is_heap_address b_kvs_exp_tbl = false
       }.
 
   (* Meta information about addOrUpdate entry point *)

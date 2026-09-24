@@ -204,7 +204,7 @@ Proof.
     kvs_switcher_return kvs_switcher_sealing_type
     kvs_trusted_stack_b kvs_trusted_stack_e _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl kvs_stack_b kvs_stack_e
-    (replicate 100 (WInt 0)) _ _ _ _ _ _).
+    (replicate 100 (WInt 0)) _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -220,6 +220,7 @@ Proof.
     rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - reflexivity.
+  - vm_compute; reflexivity.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
@@ -231,10 +232,11 @@ Defined.
 Program Definition kvs_concrete_cmptAssert : cmptAssert.
 Proof.
   refine (@mkCmptAssert machine_parameters_instance kvs_assert_b
-    kvs_assert_e kvs_assert_cap kvs_assert_flag _ _ _ _).
+    kvs_assert_e kvs_assert_cap kvs_assert_flag _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
+  - vm_compute; reflexivity.
   - unfold_kvs_addresses.
     unfold disjoint, set_disjoint_instance.
     intros x Hx Hx'.
@@ -281,7 +283,7 @@ Proof.
     kvs_main_exports_entries_b kvs_main_exports_entries_e
     kvs_main_imports_concrete kvs_main_code kvs_main_data
     kvs_main_static_sealed_concrete [] _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -325,6 +327,14 @@ Proof.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - vm_compute; reflexivity.
+  - vm_compute; reflexivity.
 Defined.
 
 Program Definition kvs_concrete_B_cmpt : cmpt.
@@ -336,7 +346,7 @@ Proof.
     kvs_B_exports_entries_b kvs_B_exports_entries_e
     kvs_B_imports kvs_B_code kvs_B_data
     kvs_B_static_sealed kvs_B_exports _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -381,6 +391,14 @@ Proof.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - vm_compute; reflexivity.
+  - vm_compute; reflexivity.
 Defined.
 
 Program Definition kvs_concrete_KVS_cmpt : cmpt.
@@ -391,7 +409,7 @@ Proof.
     kvs_KVS_exports_entries_b kvs_KVS_exports_entries_e
     kvs_KVS_imports kvs_service_instrs kvs_data []
     kvs_export_table_entries _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -442,6 +460,14 @@ Proof.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - vm_compute; reflexivity.
+  - vm_compute; reflexivity.
 Defined.
 
 Ltac solve_kvs_cmpt_disjoint :=

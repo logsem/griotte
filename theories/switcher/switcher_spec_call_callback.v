@@ -102,131 +102,22 @@ Section Switcher_Callback.
       "(#Halloc & #Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget
        & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp_C & Hclose
        & %Hrevoked_stk & Hcstk_frag & HK & Hpost)".
-    destruct (is_heap_cap wct1_caller) eqn:Hcallback.
-    - assert (is_sealed_with_o wct1_caller ot_switcher = false) as Hmalformed.
-      { destruct wct1_caller; cbn in *; congruence. }
-      iDestruct (big_sepM_sep with "Hargs") as "[Hargs _]".
-      iApply (switcher_cc_specification_failure with
-        "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hargs $Hcs0 $Hcs1 $Hregs $Hstk]");
-        try assumption.
-      iIntros "!>" (rmap' rcgp rcra rcs0 callback)
-        "(%Hdom_rmap & %Hcsp_bounds & %Hrestored
-         & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
-         & Hrmap & Hstk_l & Hstk_h & [Hlc Hlc'])".
-      destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hcallback').
-      apply (load_heap_nonheap _ _ Hcgp) in Hrcgp; subst rcgp.
-      apply (load_heap_nonheap _ _ Hcra) in Hrcra; subst rcra.
-      apply (load_heap_nonheap _ _ Hcs0) in Hrcs0; subst rcs0.
-      set (stk_mem_l := [wcs0_caller; wct1_caller; wcra_caller; wcgp_caller]).
-      set (stk_mem_h := drop 4 stk_mem).
-      pose proof (extract_temps W) as [l_unk [Hlunk_nodup Hlunk] ].
-
-      iMod ( world_interp_revoke _ _ l_unk with "[$Hworld_interp_C]") as
-        "(Hworld_interp_C & Hrevoked_l & %Hrevoked_l)"; auto.
-      { split; auto. }
-      iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l]") as ">Hrevoked_l".
-
-      iSpecialize ("Hpost" $! (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk)
-                                 Temporary) rmap' (stk_mem_l++stk_mem_h) l_unk callback).
-      rewrite revoke_std_update_multiple_eq.
-      2: { apply Forall_forall.
-           intros a Ha.
-           assert (a ∈ finz.seq_between a_stk e_stk) as Ha'.
-           { rewrite elem_of_finz_seq_between.
-             rewrite elem_of_finz_seq_between in Ha.
-             solve_addr.
-           }
-           rewrite list_elem_of_lookup in Ha'; destruct Ha' as [? ?].
-           rewrite /revoked_addresses Forall_forall in Hrevoked_stk.
-           eapply Hrevoked_stk; eauto.
-           by apply list_elem_of_lookup_2 in H.
-      }
-      iApply "Hpost"; iFrame "∗%#".
-      iSplit.
-      { iPureIntro.
-        split.
-        - apply NoDup_app; split; auto.
-          split; last by apply finz_seq_between_NoDup.
-          intros a Ha. apply Hlunk in Ha.
-          intro Ha'.
-          rewrite /revoked_addresses  Forall_forall in Hrevoked_stk.
-           assert (a ∈ finz.seq_between a_stk e_stk) as Ha''.
-           { rewrite elem_of_finz_seq_between.
-             rewrite elem_of_finz_seq_between in Ha'.
-             solve_addr.
-           }
-           apply Hrevoked_stk in Ha''.
-           simplify_eq.
-        - intros a; cbn.
-          rewrite elem_of_app.
-          split; intro Ha.
-          + destruct ( decide ( a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk )); first (right; done).
-            rewrite std_sta_update_multiple_lookup_same_i in Ha; auto.
-            apply Hlunk in Ha.
-            left; done.
-          + destruct Ha as [Ha|Ha]; cycle 1.
-            * rewrite std_sta_update_multiple_lookup_in_i; auto.
-            * destruct ( decide ( a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk )); first (rewrite std_sta_update_multiple_lookup_in_i; auto).
-              rewrite std_sta_update_multiple_lookup_same_i; auto.
-              apply Hlunk in Ha; done.
-      }
-      iSplitL "Hrevoked_l".
-      {
-        iApply (RevokedResources_mono_pub with "Hrevoked_l"); auto.
-        eapply related_sts_pub_update_multiple_temp.
-        rewrite (finz_seq_between_split a_stk (a_stk^+4)%a) in Hrevoked_stk; last (split; solve_addr).
-        apply revoked_addresses_app in Hrevoked_stk as [? ?]; auto.
-      }
-      iSplit.
-      {
-        iPureIntro.
-        apply related_sts_pub_refl_world.
-      }
-      iSplit.
-      {
-        iPureIntro.
-        intros k a Ha; cbn.
-        apply std_sta_update_multiple_lookup_in_i.
-        apply list_elem_of_lookup; eauto.
-      }
-      iSplitL "Hclose".
-      { iApply (StackRevokedResources_mono_priv with "Hclose"); auto.
-        apply related_sts_pub_priv_world.
-        eapply related_sts_pub_update_multiple_temp.
-        rewrite (finz_seq_between_split a_stk (a_stk^+4)%a) in Hrevoked_stk; last (split; solve_addr).
-        apply revoked_addresses_app in Hrevoked_stk as [? ?]; auto.
-      }
-      iSplit; first iPureIntro.
-      { eapply Forall_impl; eauto.
-        cbn; intros a Ha.
-        apply revoke_lookup_Revoked; done.
-      }
-      iSplit; first iApply interp_weakening.interp_int.
-      iSplit; first iApply interp_weakening.interp_int.
-      iApply (region_pointsto_split _ _ (a_stk ^+4)%a); last iFrame.
-      { solve_addr+ Hcsp_bounds. }
-      { subst stk_mem_l. cbn.
-        destruct Hcsp_bounds as (?&?&Ha4).
-        pose proof (finz_incr_iff_dist a_stk (a_stk ^+ 4)%a 4) as [Hdist _].
-        by apply Hdist in Ha4 as [? ?].
-      }
-    - iApply (switcher_cc_specification_alt _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-         with
-        "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Htarget $Hcs0 $Hcs1
-          $Hargs $Hregs $Hstk $Hworld_interp_C $Hclose $Hcstk_frag $HK]");
-        try assumption.
-      iSplit; first done.
-      iIntros "!>" (W2 rmap' stk_mem' l' rcgp rcra rcs0 rcs1) "Hres".
-      iDestruct "Hres" as
-        "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ?
-         & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & %Hrestored)".
-      destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
-      apply (load_heap_nonheap _ _ Hcgp) in Hgp.
-      apply (load_heap_nonheap _ _ Hcra) in Hra.
-      apply (load_heap_nonheap _ _ Hcs0) in Hs0.
-      apply (load_heap_nonheap _ _ Hcallback) in Hs1.
-      subst rcgp rcra rcs0 rcs1.
-      iApply ("Hpost" $! W2 rmap' stk_mem' l' wct1_caller).
-      iFrame. iPureIntro. left; done.
+    iApply (switcher_cc_specification_alt _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+       with
+      "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Htarget $Hcs0 $Hcs1
+        $Hargs $Hregs $Hstk $Hworld_interp_C $Hclose $Hcstk_frag $HK]");
+      try assumption.
+    iSplit; first done.
+    iIntros "!>" (W2 rmap' stk_mem' l' rcgp rcra rcs0 rcs1) "Hres".
+    iDestruct "Hres" as
+      "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ?
+       & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & %Hrestored)".
+    destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
+    apply (load_heap_nonheap _ _ Hcgp) in Hgp.
+    apply (load_heap_nonheap _ _ Hcra) in Hra.
+    apply (load_heap_nonheap _ _ Hcs0) in Hs0.
+    subst rcgp rcra rcs0.
+    iApply ("Hpost" $! W2 rmap' stk_mem' l' rcs1).
+    iFrame. iPureIntro. exact Hs1.
   Qed.
 End Switcher_Callback.

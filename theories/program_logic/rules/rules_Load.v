@@ -177,7 +177,10 @@ Section griotte_lang_rules.
     assert (Hstep' :
       (match updatePC (update_reg (r, sr, m, st) r1 (load_word p loadv)) with
        | Some conf => conf | None => (Failed, (r, sr, m, st)) end) = (c, σ2)).
-    { destruct_word loadv; cbn in Hheap, Hstep |- *; rewrite ?Hheap in Hstep; exact Hstep. }
+    { unfold is_heap_cap in Hheap.
+      destruct (heap_cap_base loadv) as [base|] eqn:Hbase; cbn in Hheap;
+        first discriminate.
+      exact Hstep. }
     clear Hstep. rename Hstep' into Hstep.
     destruct (incrementPC (<[ r1 := (load_word p loadv) ]ᵣ> regs)) as  [ regs' |] eqn:Hregs'.
     2: { (* Failure: the PC could not be incremented correctly *)
@@ -267,22 +270,22 @@ Section griotte_lang_rules.
       is_shadow_address a = true →
       shadow_to_heap a = Some heap_a →
       shadow !! heap_a = Some revoked →
-      incrementPC (<[ r1 := WInt (bool_to_Z revoked) ]ᵣ> regs) = None →
+      incrementPC (<[ r1 := WInt (encodeAllocStatus revoked) ]ᵣ> regs) = None →
       Load_failure regs r1 r2 mem shadow
-  | Load_fail_invalid_PC_revoked p g b e a (t' : bool) p' g' b' e' a':
+  | Load_fail_invalid_PC_revoked p g b e a raw base:
       regs !!ᵣ r2 = Some (WCap true p g b e a) →
       is_shadow_address a = false →
-      mem !! a = Some (WCap t' p' g' b' e' a') →
-      is_heap_address b' = true →
-      shadow !! b' ≠ Some false →
-      incrementPC (<[ r1 := clear_tag (load_word p (WCap t' p' g' b' e' a')) ]ᵣ> regs) = None →
+      mem !! a = Some raw →
+      heap_cap_base raw = Some base →
+      shadow !! base ≠ Some ShadowLive →
+      incrementPC (<[ r1 := clear_tag (load_word p raw) ]ᵣ> regs) = None →
       Load_failure regs r1 r2 mem shadow
-  | Load_fail_missing_shadow p g b e a (t' : bool) p' g' b' e' a':
+  | Load_fail_missing_shadow p g b e a raw base:
       regs !!ᵣ r2 = Some (WCap true p g b e a) →
       is_shadow_address a = false →
-      mem !! a = Some (WCap t' p' g' b' e' a') →
-      is_heap_address b' = true →
-      shadow !! b' = None →
+      mem !! a = Some raw →
+      heap_cap_base raw = Some base →
+      shadow !! base = None →
       Load_failure regs r1 r2 mem shadow
   .
 
@@ -294,7 +297,7 @@ Section griotte_lang_rules.
     reg_allows_load regs r2 p g b e a →
     is_shadow_address a = false →
     mem !! a = Some loadv →
-    is_cap loadv = false →
+    is_heap_cap loadv = false →
     incrementPC
       (<[ r1 := (load_word p loadv) ]ᵣ> regs) = Some regs' ->
     Load_spec regs r1 r2 regs' mem shadow NextIV
@@ -308,23 +311,23 @@ Section griotte_lang_rules.
       (<[ r1 := (load_word p (WCap t' p' g' b' e' a')) ]ᵣ> regs) = Some regs' →
     Load_spec regs r1 r2 regs' mem shadow NextIV
 
-  | Load_spec_success_cap_heap p g b e a (t' : bool) p' g' b' e' a' :
+  | Load_spec_success_cap_heap p g b e a raw base :
     reg_allows_load regs r2 p g b e a →
     is_shadow_address a = false →
-    mem !! a = Some (WCap t' p' g' b' e' a') →
-    is_heap_address b' = true →
-    shadow !! b' ≠ Some true →
+    mem !! a = Some raw →
+    heap_cap_base raw = Some base →
+    shadow !! base ≠ Some ShadowQuarantined →
     incrementPC
-      (<[ r1 := (load_word p (WCap t' p' g' b' e' a')) ]ᵣ> regs) = Some regs' →
+      (<[ r1 := (load_word p raw) ]ᵣ> regs) = Some regs' →
     Load_spec regs r1 r2 regs' mem shadow NextIV
 
-  | Load_spec_success_cap_revoked p g b e a (t' : bool) p' g' b' e' a' :
+  | Load_spec_success_cap_revoked p g b e a raw base :
     reg_allows_load regs r2 p g b e a →
     is_shadow_address a = false →
-    mem !! a = Some (WCap t' p' g' b' e' a') →
-    is_heap_address b' = true →
-    shadow !! b' ≠ Some false →
-    incrementPC (<[ r1 := clear_tag (load_word p (WCap t' p' g' b' e' a')) ]ᵣ> regs) = Some regs' →
+    mem !! a = Some raw →
+    heap_cap_base raw = Some base →
+    shadow !! base ≠ Some ShadowLive →
+    incrementPC (<[ r1 := clear_tag (load_word p raw) ]ᵣ> regs) = Some regs' →
     Load_spec regs r1 r2 regs' mem shadow NextIV
 
   | Load_spec_success_shadow p g b e a heap_a revoked :
@@ -333,7 +336,7 @@ Section griotte_lang_rules.
     shadow_to_heap a = Some heap_a →
     shadow !! heap_a = Some revoked →
     incrementPC
-      (<[ r1 := WInt (bool_to_Z revoked) ]ᵣ> regs) = Some regs' →
+      (<[ r1 := WInt (encodeAllocStatus revoked) ]ᵣ> regs) = Some regs' →
     Load_spec regs r1 r2 regs' mem shadow NextIV
 
   | Load_spec_failure :
@@ -544,34 +547,32 @@ Section griotte_lang_rules.
       - destruct HaLoad as (heap_a & Htranslate & revoked & Hlookup).
         rewrite Htranslate /= in Hstep.
         rewrite (Hshadow_valid _ _ Hlookup) /= in Hstep.
-        right. exists (WInt (bool_to_Z revoked)).
+        right. exists (WInt (encodeAllocStatus revoked)).
         repeat split; eauto using Load_spec_failure, Load_spec_success_shadow, Load_fail_invalid_PC_shadow.
       - destruct HaLoad as (loadv & Hlookup).
         rewrite (Hmem_valid _ _ Hlookup) /= in Hstep.
-        destruct (is_cap loadv) eqn:Hcap.
-        + destruct loadv as [ | [t' p' g' b' e' a' | ] | | ]; try discriminate.
-          destruct (is_heap_address b') eqn:Hheap.
-          * destruct (st !! b') as [revoked|] eqn:Hlookup_shadow; cbn in Hstep.
+        destruct (heap_cap_base loadv) as [base|] eqn:Hbase.
+        + destruct (st !! base) as [status|] eqn:Hlookup_shadow; cbn in Hstep.
             2: {
-              assert (shadow !! b' = None) as Hmissing.
-              { destruct (shadow !! b') as [bit|] eqn:Hbit; last done.
+              assert (shadow !! base = None) as Hmissing.
+              { destruct (shadow !! base) as [status|] eqn:Hbit; last done.
                 pose proof (Hshadow_valid _ _ Hbit). congruence. }
               left. simplify_pair_eq. repeat split.
               eauto using Load_spec_failure, Load_fail_missing_shadow.
             }
-            destruct revoked.
-            -- assert (shadow !! b' ≠ Some false) as Hbit.
+            destruct status.
+            -- assert (shadow !! base ≠ Some ShadowQuarantined) as Hbit.
                { intros Hbit. pose proof (Hshadow_valid _ _ Hbit). congruence. }
-               right. exists (clear_tag (load_word p (WCap t' p' g' b' e' a'))).
-               repeat split; eauto using Load_spec_failure, Load_spec_success_cap_revoked, Load_fail_invalid_PC_revoked.
-            -- assert (shadow !! b' ≠ Some true) as Hbit.
-               { intros Hbit. pose proof (Hshadow_valid _ _ Hbit). congruence. }
-               right. exists (load_word p (WCap t' p' g' b' e' a')).
+               right. exists (load_word p loadv).
                repeat split; eauto using Load_spec_failure, Load_spec_success_cap_heap, Load_fail_invalid_PC.
-          * right. exists (load_word p (WCap t' p' g' b' e' a')).
-            repeat split; eauto using Load_spec_failure, Load_spec_success_cap_nonheap, Load_fail_invalid_PC.
-        + destruct_word loadv; cbn in Hcap; try discriminate;
-            right; eexists; repeat split; eauto using Load_spec_failure, Load_spec_success, Load_fail_invalid_PC.
+            -- assert (shadow !! base ≠ Some ShadowLive) as Hbit.
+               { intros Hbit. pose proof (Hshadow_valid _ _ Hbit). congruence. }
+               right. exists (clear_tag (load_word p loadv)).
+               repeat split; eauto using Load_spec_failure, Load_spec_success_cap_revoked, Load_fail_invalid_PC_revoked.
+        + right. exists (load_word p loadv).
+          assert (Hnonheap : is_heap_cap loadv = false).
+          { by rewrite /is_heap_cap Hbase. }
+          repeat split; eauto using Load_spec_failure, Load_spec_success, Load_fail_invalid_PC.
     }
 
     destruct Hread as [(-> & -> & Hfailure)|(loadv & Hloadstep & Hsuccess & Hfailure)].
@@ -650,16 +651,17 @@ Section griotte_lang_rules.
 
   (* Ordinary-memory loads consult the shadow table only for heap capabilities. *)
   Definition load_word_unrevoked (shadow : ShadowTbl) (loadv : Word) : Prop :=
-    if is_heap_cap loadv then
-      match loadv with
-      | WCap _ _ _ b _ _ => shadow !! b = Some false
-      | _ => True
-      end
-    else True.
+    match heap_cap_base loadv with
+    | Some base => shadow !! base = Some ShadowLive
+    | None => True
+    end.
 
   Lemma not_heap_cap_load_word_unrevoked shadow loadv :
     is_heap_cap loadv = false → load_word_unrevoked shadow loadv.
-  Proof. intros Hnonheap. by rewrite /load_word_unrevoked Hnonheap. Qed.
+  Proof.
+    rewrite /is_heap_cap /load_word_unrevoked.
+    by destruct (heap_cap_base loadv).
+  Qed.
 
   Lemma decode_load_not_heap_cap w dst src :
     decodeInstrW w = Load dst src 0 → is_heap_cap w = false.
@@ -702,12 +704,12 @@ Section griotte_lang_rules.
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 (Hsrc0 & _) Hshadow0 Hlookup0 Hcap Hinc0
       |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc0 & _) Hshadow0 Hlookup0 Hheap Hinc0
-      |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc0 & _) Hshadow0 Hlookup0 Hheap Hbit Hinc0
-      |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc0 & _) Hshadow0 Hlookup0 Hheap Hbit Hinc0
+      |p0 g0 b0 e0 a0 raw base (Hsrc0 & _) Hshadow0 Hlookup0 Hheap Hbit Hinc0
+      |p0 g0 b0 e0 a0 raw base (Hsrc0 & _) Hshadow0 Hlookup0 Hheap Hbit Hinc0
       |p0 g0 b0 e0 a0 heap_a0 revoked (Hsrc0 & _) Hshadow0
       |Hfail]; simplify_eq; try congruence.
     1-3: iApply "Hφ"; iFrame.
-    { unfold load_word_unrevoked, is_heap_cap in Hrev. rewrite Hheap in Hrev.
+    { unfold load_word_unrevoked in Hrev. rewrite Hheap in Hrev.
       congruence. }
     destruct Hfail; simplify_eq; try congruence.
     - destruct o; congruence.
@@ -1031,7 +1033,7 @@ Section griotte_lang_rules.
     { by rewrite !dom_insert; set_solver+. }
     { unfold reg_allows_load. split; first by simplify_map_eq.
       auto. }
-    { by rewrite /load_word_unrevoked /is_heap_cap Hheap. }
+    { by rewrite /load_word_unrevoked /heap_cap_base /memory_cap_base /= Hheap. }
     { rewrite create_gmap_default_dom list_to_set_elements_L. done. }
     { rewrite /incrementPC /incrementPC_gen /load_word.
       destruct (isDRO p), (isDL p); cbn; simplify_map_eq; by rewrite !insert_insert_eq. }
@@ -1162,8 +1164,8 @@ Section griotte_lang_rules.
      destruct Hspec as
        [p0 g0 b0 e0 a0 v0 (Hsrc & Hra & Hwb)
        |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc & Hra & Hwb)
-       |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc & Hra & Hwb)
-       |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc & Hra & Hwb)
+       |p0 g0 b0 e0 a0 raw base (Hsrc & Hra & Hwb)
+       |p0 g0 b0 e0 a0 raw base (Hsrc & Hra & Hwb)
        |p0 g0 b0 e0 a0 heap_a0 revoked (Hsrc & Hra & Hwb)
        |]; last by iApply "Hφ".
      all: destruct (decide (r2 = cnull)); simplify_map_eq;
@@ -1197,8 +1199,8 @@ Section griotte_lang_rules.
      destruct Hspec as
        [p0 g0 b0 e0 a0 v0 (Hsrc & Hra & Hwb)
        |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc & Hra & Hwb)
-       |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc & Hra & Hwb)
-       |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc & Hra & Hwb)
+       |p0 g0 b0 e0 a0 raw base (Hsrc & Hra & Hwb)
+       |p0 g0 b0 e0 a0 raw base (Hsrc & Hra & Hwb)
        |p0 g0 b0 e0 a0 heap_a0 revoked (Hsrc & Hra & Hwb)
        |]; last by iApply "Hφ".
      all: simplify_map_eq; congruence.
@@ -1231,8 +1233,8 @@ Section griotte_lang_rules.
      destruct Hspec as
        [p0 g0 b0 e0 a0 v0 (Hsrc & Hra & Hwb)
        |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc & Hra & Hwb)
-       |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc & Hra & Hwb)
-       |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc & Hra & Hwb)
+       |p0 g0 b0 e0 a0 raw base (Hsrc & Hra & Hwb)
+       |p0 g0 b0 e0 a0 raw base (Hsrc & Hra & Hwb)
        |p0 g0 b0 e0 a0 heap_a0 revoked (Hsrc & Hra & Hwb)
        |]; last by iApply "Hφ".
      all: simplify_map_eq; congruence.
@@ -1250,7 +1252,7 @@ Section griotte_lang_rules.
     is_shadow_address a = true →
     shadow_to_heap a = Some heap_a →
     shadow !! heap_a = Some revoked →
-    incrementPC (<[dst:=WInt (bool_to_Z revoked)]ᵣ> regs) = Some regs' →
+    incrementPC (<[dst:=WInt (encodeAllocStatus revoked)]ᵣ> regs) = Some regs' →
     {{{ (▷ [∗ map] a↦w ∈ mem, a ↦ₐ{dq} w) ∗
         (▷ [∗ map] a↦revoked ∈ shadow, a ↦ₛ{sdq} revoked) ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
@@ -1274,8 +1276,8 @@ Section griotte_lang_rules.
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 (Hsrc0 & _) Hshadow0
       |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc0 & _) Hshadow0
-      |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc0 & _) Hshadow0
-      |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc0 & _) Hshadow0
+      |p0 g0 b0 e0 a0 raw base (Hsrc0 & _) Hshadow0
+      |p0 g0 b0 e0 a0 raw base (Hsrc0 & _) Hshadow0
       |p0 g0 b0 e0 a0 heap_a0 revoked0 (Hsrc0 & _) Hshadow0 Htranslate0 Hlookup0 Hinc0
       |Hfail]; simplify_eq; try congruence.
     - rewrite Hlookup in Hlookup0. simplify_eq. iApply "Hφ". iFrame.
@@ -1301,7 +1303,7 @@ Section griotte_lang_rules.
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-        ∗ r1 ↦ᵣ WInt (bool_to_Z revoked)
+        ∗ r1 ↦ᵣ WInt (encodeAllocStatus revoked)
         ∗ pc_a ↦ₐ{dq} w
         ∗ r2 ↦ᵣ WCap true p g b e a
         ∗ heap_a ↦ₛ{sdq} revoked }}}.
@@ -1341,7 +1343,7 @@ Section griotte_lang_rules.
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
-        ∗ r1 ↦ᵣ WInt (bool_to_Z revoked)
+        ∗ r1 ↦ᵣ WInt (encodeAllocStatus revoked)
         ∗ pc_a ↦ₐ{dq} w
 
         ∗ heap_a ↦ₛ{sdq} revoked }}}.
@@ -1380,7 +1382,7 @@ Section griotte_lang_rules.
         ∗ ▷ r1 ↦ᵣ w'
         ∗ ▷ r2 ↦ᵣ WCap true p g b e a
         ∗ ▷ a ↦ₐ{dq'} WCap t' p' g' b' e' a'
-        ∗ ▷ b' ↦ₛ{sdq} false }}}
+        ∗ ▷ b' ↦ₛ{sdq} ShadowLive }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
@@ -1388,7 +1390,7 @@ Section griotte_lang_rules.
         ∗ pc_a ↦ₐ{dq} w
         ∗ r2 ↦ᵣ WCap true p g b e a
         ∗ a ↦ₐ{dq'} WCap t' p' g' b' e' a'
-        ∗ b' ↦ₛ{sdq} false }}}.
+        ∗ b' ↦ₛ{sdq} ShadowLive }}}.
   Proof.
     iIntros (Hshadow Hheap Hinstr Hvpc [Hra Hwb] Hpca' Hcnull Hcnull' φ)
       "(>HPC & >Hi & >Hr1 & >Hr2 & >Ha & >Hs) Hφ".
@@ -1400,10 +1402,10 @@ Section griotte_lang_rules.
       with "[Ha]" as "Ha"; first by rewrite Heq; iFrame.
     iDestruct (memMap_resource_2gen_clater_dq _ _ _ _ _ _ (λ a dq w, a ↦ₐ{dq} w)%I with "Hi Ha") as (mem dfracs) "[>Hmem %Hmaps]".
     destruct Hmaps as [Hmem Hdfracs].
-    iAssert ([∗ map] a0↦bit ∈ {[b':=false]}, a0 ↦ₛ{sdq} bit)%I
+    iAssert ([∗ map] a0↦bit ∈ {[b':=ShadowLive]}, a0 ↦ₛ{sdq} bit)%I
       with "[Hs]" as "Hs"; first by rewrite big_sepM_singleton.
     iApply (wp_load_success_mem E pc_p pc_g pc_b pc_e pc_a r1 r2 w _ _ mem dfracs
-      {[b':=false]} sdq p g b e a (WCap t' p' g' b' e' a')
+      {[b':=ShadowLive]} sdq p g b e a (WCap t' p' g' b' e' a')
       with "[$Hmap $Hmem $Hs]"); eauto.
     { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
@@ -1412,7 +1414,8 @@ Section griotte_lang_rules.
     { rewrite Heq in Hmem. simplify_map_eq.
       rewrite lookup_insert_ne; last by intros ->; rewrite Z.eqb_refl in Heq.
       by simplify_map_eq. }
-    { unfold load_word_unrevoked, is_heap_cap. rewrite Hheap. by simplify_map_eq. }
+    { rewrite /load_word_unrevoked /heap_cap_base /memory_cap_base /= Hheap.
+      by simplify_map_eq. }
     { rewrite Heq in Hmem, Hdfracs. simplify_eq. rewrite !dom_insert_L; set_solver+. }
     { by rewrite /incrementPC /incrementPC_gen; simplify_map_eq. }
     iNext. iIntros "(Hmem & Hs & Hmap)".
@@ -1439,7 +1442,7 @@ Section griotte_lang_rules.
 
         ∗ ▷ r1 ↦ᵣ WCap true p g b e a
         ∗ ▷ a ↦ₐ{dq'} WCap t' p' g' b' e' a'
-        ∗ ▷ b' ↦ₛ{sdq} false }}}
+        ∗ ▷ b' ↦ₛ{sdq} ShadowLive }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
@@ -1447,7 +1450,7 @@ Section griotte_lang_rules.
         ∗ pc_a ↦ₐ{dq} w
 
         ∗ a ↦ₐ{dq'} WCap t' p' g' b' e' a'
-        ∗ b' ↦ₛ{sdq} false }}}.
+        ∗ b' ↦ₛ{sdq} ShadowLive }}}.
   Proof.
     iIntros (Hshadow Hheap Hinstr Hvpc [Hra Hwb] Hpca' Hcnull φ)
       "(>HPC & >Hi & >Hr1 & >Ha & >Hs) Hφ".
@@ -1459,10 +1462,10 @@ Section griotte_lang_rules.
       with "[Ha]" as "Ha"; first by rewrite Heq; iFrame.
     iDestruct (memMap_resource_2gen_clater_dq _ _ _ _ _ _ (λ a dq w, a ↦ₐ{dq} w)%I with "Hi Ha") as (mem dfracs) "[>Hmem %Hmaps]".
     destruct Hmaps as [Hmem Hdfracs].
-    iAssert ([∗ map] a0↦bit ∈ {[b':=false]}, a0 ↦ₛ{sdq} bit)%I
+    iAssert ([∗ map] a0↦bit ∈ {[b':=ShadowLive]}, a0 ↦ₛ{sdq} bit)%I
       with "[Hs]" as "Hs"; first by rewrite big_sepM_singleton.
     iApply (wp_load_success_mem E pc_p pc_g pc_b pc_e pc_a r1 r1 w _ _ mem dfracs
-      {[b':=false]} sdq p g b e a (WCap t' p' g' b' e' a')
+      {[b':=ShadowLive]} sdq p g b e a (WCap t' p' g' b' e' a')
       with "[$Hmap $Hmem $Hs]"); eauto.
     { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
@@ -1471,7 +1474,8 @@ Section griotte_lang_rules.
     { rewrite Heq in Hmem. simplify_map_eq.
       rewrite lookup_insert_ne; last by intros ->; rewrite Z.eqb_refl in Heq.
       by simplify_map_eq. }
-    { unfold load_word_unrevoked, is_heap_cap. rewrite Hheap. by simplify_map_eq. }
+    { rewrite /load_word_unrevoked /heap_cap_base /memory_cap_base /= Hheap.
+      by simplify_map_eq. }
     { rewrite Heq in Hmem, Hdfracs. simplify_eq. rewrite !dom_insert_L; set_solver+. }
     { by rewrite /incrementPC /incrementPC_gen; simplify_map_eq. }
     iNext. iIntros "(Hmem & Hs & Hmap)".
@@ -1497,28 +1501,29 @@ Section griotte_lang_rules.
           ∗ ▷ pc_a ↦ₐ w
           ∗ ▷ r2 ↦ᵣ WCap true p g b e a
           ∗ ▷ a ↦ₐ WCap t' p' g' b' e' a'
-          ∗ ▷ b' ↦ₛ{sdq} false }}}
+          ∗ ▷ b' ↦ₛ{sdq} ShadowLive }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ᵣ load_word p (WCap t' p' g' b' e' a'')
              ∗ pc_a ↦ₐ w
              ∗ r2 ↦ᵣ WCap true p g b e a
              ∗ a ↦ₐ WCap t' p' g' b' e' a'
-             ∗ b' ↦ₛ{sdq} false }}}.
+             ∗ b' ↦ₛ{sdq} ShadowLive }}}.
   Proof.
     iIntros (Hshadow Hheap Hinstr Hvpc [Hra Hwb] Hpca' Hcnull φ)
             "(>HPC & >Hi & >Hr2 & >Hr2a & >Hs) Hφ".
     iDestruct (map_of_regs_2 with "HPC Hr2") as "[Hmap %]".
     iDestruct (memMap_resource_2ne_apply with "Hi Hr2a") as "[Hmem %]"; auto.
     iDestruct (mem_remove_dq with "Hmem") as "Hmem".
-    iAssert ([∗ map] a0↦bit ∈ {[b':=false]}, a0 ↦ₛ{sdq} bit)%I
+    iAssert ([∗ map] a0↦bit ∈ {[b':=ShadowLive]}, a0 ↦ₛ{sdq} bit)%I
       with "[Hs]" as "Hs"; first by rewrite big_sepM_singleton.
-    iApply (wp_load_success_mem E pc_p pc_g pc_b pc_e pc_a PC r2 w _ (<[PC:=load_word p (WCap t' p' g' b' e' a'')]> (<[r2:=WCap true p g b e a]> ∅)) _ _ {[b':=false]} sdq p g b e a (WCap t' p' g' b' e' a')
+    iApply (wp_load_success_mem E pc_p pc_g pc_b pc_e pc_a PC r2 w _ (<[PC:=load_word p (WCap t' p' g' b' e' a'')]> (<[r2:=WCap true p g b e a]> ∅)) _ _ {[b':=ShadowLive]} sdq p g b e a (WCap t' p' g' b' e' a')
       with "[$Hmap $Hmem $Hs]"); eauto; simplify_map_eq; eauto.
     { by rewrite !dom_insert; set_solver+. }
     { unfold reg_allows_load. split; first by simplify_map_eq.
       auto. }
-    { rewrite /load_word_unrevoked /is_heap_cap Hheap. by simplify_map_eq. }
+    { rewrite /load_word_unrevoked /heap_cap_base /memory_cap_base /= Hheap.
+      by simplify_map_eq. }
     { rewrite create_gmap_default_dom list_to_set_elements_L. done. }
     { rewrite /incrementPC /incrementPC_gen /load_word.
       destruct (isDRO p), (isDL p); cbn; simplify_map_eq; by rewrite !insert_insert_eq. }
@@ -1545,7 +1550,7 @@ Section griotte_lang_rules.
       {{{ RET NextIV;
           PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
              ∗ pc_a ↦ₐ{dq} w
-             ∗ r1 ↦ᵣ WInt (bool_to_Z revoked)
+             ∗ r1 ↦ᵣ WInt (encodeAllocStatus revoked)
              ∗ heap_a ↦ₛ{sdq} revoked }}}.
   Proof.
     iIntros (Hshadow Htranslate Hinstr Hvpc Hpca' Hcnull φ)
@@ -1581,7 +1586,7 @@ Section griotte_lang_rules.
     is_shadow_address a = false →
     mem !! a = Some (WCap t' p' g' b' e' a') →
     is_heap_address b' = true →
-    shadow !! b' = Some true →
+    shadow !! b' = Some ShadowQuarantined →
     dom mem = dom dfracs →
     incrementPC (<[dst:=clear_tag (load_word p (WCap t' p' g' b' e' a'))]ᵣ> regs) = Some regs' →
     {{{ (▷ [∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2) ∗
@@ -1604,10 +1609,14 @@ Section griotte_lang_rules.
     destruct Hspec as
       [p0 g0 b0 e0 a0 v0 (Hsrc0 & _) Hshadow0 Hlookup0 Hcap Hinc0
       |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc0 & _) Hshadow0 Hlookup0 Hheap0 Hinc0
-      |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc0 & _) Hshadow0 Hlookup0 Hheap0 Hbit0 Hinc0
-      |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc0 & _) Hshadow0 Hlookup0 Hheap0 Hbit0 Hinc0
+      |p0 g0 b0 e0 a0 raw base (Hsrc0 & _) Hshadow0 Hlookup0 Hheap0 Hbit0 Hinc0
+      |p0 g0 b0 e0 a0 raw base (Hsrc0 & _) Hshadow0 Hlookup0 Hheap0 Hbit0 Hinc0
       |p0 g0 b0 e0 a0 heap_a0 revoked (Hsrc0 & _) Hshadow0
       |Hfail]; simplify_eq; try congruence.
+    - rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hheap in Hcap.
+      discriminate.
+    - rewrite /heap_cap_base /memory_cap_base /= Hheap in Hheap0.
+      simplify_eq.
     - iApply "Hφ". iFrame.
     - destruct Hfail; simplify_eq; try congruence.
       + destruct o; congruence.
@@ -1616,7 +1625,8 @@ Section griotte_lang_rules.
         1: destruct (load_word p (WCap t' p' g' b' e' a')) as [z|[t0 p0 g0 b0 e0 a0|t0 p0 g0 b0 e0 a0]|ot sb|i];
           cbn in Hinc, e4; try discriminate; destruct (a0 + 1)%a; discriminate.
         all: destruct (pc_a + 1)%a; discriminate.
-      + rewrite Hbit in e5. discriminate.
+      + rewrite /heap_cap_base /memory_cap_base /= Hheap in e4.
+        simplify_eq. by rewrite Hbit in e5.
   Qed.
 
   Lemma wp_load_success_heap_revoked E r1 r2 pc_p pc_g pc_b pc_e pc_a w w'
@@ -1634,7 +1644,7 @@ Section griotte_lang_rules.
         ∗ ▷ r1 ↦ᵣ w'
         ∗ ▷ r2 ↦ᵣ WCap true p g b e a
         ∗ ▷ a ↦ₐ{dq'} WCap t' p' g' b' e' a'
-        ∗ ▷ b' ↦ₛ{sdq} true }}}
+        ∗ ▷ b' ↦ₛ{sdq} ShadowQuarantined }}}
       Instr Executable @ E
     {{{ RET NextIV;
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
@@ -1642,7 +1652,7 @@ Section griotte_lang_rules.
         ∗ pc_a ↦ₐ{dq} w
         ∗ r2 ↦ᵣ WCap true p g b e a
         ∗ a ↦ₐ{dq'} WCap t' p' g' b' e' a'
-        ∗ b' ↦ₛ{sdq} true }}}.
+        ∗ b' ↦ₛ{sdq} ShadowQuarantined }}}.
   Proof.
     iIntros (Hshadow Hheap Hinstr Hvpc [Hra Hwb] Hpca' Hcnull Hcnull' φ)
       "(>HPC & >Hi & >Hr1 & >Hr2 & >Ha & >Hs) Hφ".
@@ -1654,10 +1664,186 @@ Section griotte_lang_rules.
       with "[Ha]" as "Ha"; first by rewrite Heq; iFrame.
     iDestruct (memMap_resource_2gen_clater_dq _ _ _ _ _ _ (λ a dq w, a ↦ₐ{dq} w)%I with "Hi Ha") as (mem dfracs) "[>Hmem %Hmaps]".
     destruct Hmaps as [Hmem Hdfracs].
-    iAssert ([∗ map] a0↦bit ∈ {[b':=true]}, a0 ↦ₛ{sdq} bit)%I
+    iAssert ([∗ map] a0↦bit ∈ {[b':=ShadowQuarantined]}, a0 ↦ₛ{sdq} bit)%I
       with "[Hs]" as "Hs"; first by rewrite big_sepM_singleton.
     iApply (wp_load_success_mem_revoked E pc_p pc_g pc_b pc_e pc_a r1 r2 w _ _ mem dfracs
-      {[b':=true]} sdq p g b e a (t' : bool) p' g' b' e' a'
+      {[b':=ShadowQuarantined]} sdq p g b e a (t' : bool) p' g' b' e' a'
+      with "[$Hmap $Hmem $Hs]"); eauto.
+    { by simplify_map_eq. }
+    { by rewrite !dom_insert; set_solver+. }
+    { rewrite Heq in Hmem. by simplify_map_eq. }
+    { unfold reg_allows_load. split; first by simplify_map_eq. auto. }
+    { rewrite Heq in Hmem. simplify_map_eq.
+      rewrite lookup_insert_ne; last by intros ->; rewrite Z.eqb_refl in Heq.
+      by simplify_map_eq. }
+    { by simplify_map_eq. }
+    { rewrite Heq in Hmem, Hdfracs. simplify_eq. rewrite !dom_insert_L; set_solver+. }
+    { by rewrite /incrementPC /incrementPC_gen; simplify_map_eq. }
+    iNext. iIntros "(Hmem & Hs & Hmap)".
+    iDestruct (memMap_resource_2gen_d_dq with "[Hmem]") as "[Hi Ha]".
+    { iExists mem, dfracs; iSplitL; auto. }
+    rewrite Heq big_sepM_singleton.
+    rewrite (insert_insert_ne _ PC r1) // insert_insert_eq (insert_insert_ne _ r1 PC) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hr1 & Hr2)"; eauto.
+    iApply "Hφ". iFrame.
+  Qed.
+
+  Lemma wp_load_success_heap_word E r1 r2 pc_p pc_g pc_b pc_e pc_a w w'
+    p g b e a (raw : Word) (base : Addr) pc_a' dq dq' sdq :
+    is_shadow_address a = false →
+    heap_cap_base raw = Some base →
+    decodeInstrW w = Load r1 r2 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    readAllowed p = true ∧ withinBounds b e a = true →
+    (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull →
+    r2 ≠ cnull →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ{dq} w
+        ∗ ▷ r1 ↦ᵣ w'
+        ∗ ▷ r2 ↦ᵣ WCap true p g b e a
+        ∗ ▷ a ↦ₐ{dq'} raw
+        ∗ ▷ base ↦ₛ{sdq} ShadowLive }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+        ∗ r1 ↦ᵣ load_word p raw
+        ∗ pc_a ↦ₐ{dq} w
+        ∗ r2 ↦ᵣ WCap true p g b e a
+        ∗ a ↦ₐ{dq'} raw
+        ∗ base ↦ₛ{sdq} ShadowLive }}}.
+  Proof.
+    iIntros (Hshadow Hheap Hinstr Hvpc [Hra Hwb] Hpca' Hcnull Hcnull' φ)
+      "(>HPC & >Hi & >Hr1 & >Hr2 & >Ha & >Hs) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
+    destruct (a =? pc_a)%a eqn:Heq.
+    { apply Z.eqb_eq, finz_to_z_eq in Heq. subst a.
+      iDestruct (pointsto_agree with "Hi Ha") as %->.
+      destruct raw as [z | sb | ot sb | ins]; try discriminate.
+      all: by inversion Hinstr. }
+    iAssert (if (a =? pc_a)%a then emp else ▷ a ↦ₐ{dq'} raw)%I
+      with "[Ha]" as "Ha"; first by rewrite Heq; iFrame.
+    iDestruct (memMap_resource_2gen_clater_dq _ _ _ _ _ _ (λ a dq w, a ↦ₐ{dq} w)%I with "Hi Ha") as (mem dfracs) "[>Hmem %Hmaps]".
+    destruct Hmaps as [Hmem Hdfracs].
+    iAssert ([∗ map] a0↦bit ∈ {[base:=ShadowLive]}, a0 ↦ₛ{sdq} bit)%I
+      with "[Hs]" as "Hs"; first by rewrite big_sepM_singleton.
+    iApply (wp_load_success_mem E pc_p pc_g pc_b pc_e pc_a r1 r2 w _ _ mem dfracs
+      {[base:=ShadowLive]} sdq p g b e a raw
+      with "[$Hmap $Hmem $Hs]"); eauto.
+    { by simplify_map_eq. }
+    { by rewrite !dom_insert; set_solver+. }
+    { rewrite Heq in Hmem. by simplify_map_eq. }
+    { unfold reg_allows_load. split; first by simplify_map_eq. auto. }
+    { rewrite Heq in Hmem. simplify_map_eq.
+      rewrite lookup_insert_ne; last by intros ->; rewrite Z.eqb_refl in Heq.
+      by simplify_map_eq. }
+    { rewrite /load_word_unrevoked Hheap.
+      by simplify_map_eq. }
+    { rewrite Heq in Hmem, Hdfracs. simplify_eq. rewrite !dom_insert_L; set_solver+. }
+    { by rewrite /incrementPC /incrementPC_gen; simplify_map_eq. }
+    iNext. iIntros "(Hmem & Hs & Hmap)".
+    iDestruct (memMap_resource_2gen_d_dq with "[Hmem]") as "[Hi Ha]".
+    { iExists mem, dfracs; iSplitL; auto. }
+    rewrite Heq big_sepM_singleton.
+    rewrite (insert_insert_ne _ PC r1) // insert_insert_eq (insert_insert_ne _ r1 PC) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hr1 & Hr2)"; eauto.
+    iApply "Hφ". iFrame.
+  Qed.
+
+  Lemma wp_load_success_mem_word_revoked E pc_p pc_g pc_b pc_e pc_a
+    dst src w regs regs' mem dfracs shadow sdq p g b e a raw base :
+    decodeInstrW w = Load dst src 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs !! PC = Some (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    regs_of (Load dst src 0) ⊆ dom regs →
+    mem !! pc_a = Some w →
+    reg_allows_load regs src p g b e a →
+    is_shadow_address a = false →
+    mem !! a = Some raw →
+    heap_cap_base raw = Some base →
+    shadow !! base = Some ShadowQuarantined →
+    dom mem = dom dfracs →
+    incrementPC (<[dst:=clear_tag (load_word p raw)]ᵣ> regs) = Some regs' →
+    {{{ (▷ [∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2) ∗
+        (▷ [∗ map] a↦revoked ∈ shadow, a ↦ₛ{sdq} revoked) ∗
+        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        ([∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2) ∗
+        ([∗ map] a↦revoked ∈ shadow, a ↦ₛ{sdq} revoked) ∗
+        [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
+  Proof.
+    iIntros (Hinstr Hvpc HPC Dregs Hmem Hallow Hshadow Hlookup Hheap Hbit Hdom Hinc φ)
+      "(>Hmem & >Hshadow & >Hmap) Hφ".
+    iApply (wp_load_general with "[$Hmem $Hshadow $Hmap]"); eauto.
+    { intros p0 g0 b0 e0 a0 (Hsrc0 & _).
+      destruct Hallow as (Hsrc & _). simplify_eq.
+      rewrite Hshadow. by exists raw. }
+    iNext. iIntros (regs0 retv) "(%Hspec & Hmem & Hshadow & Hmap)".
+    destruct Hallow as (Hsrc & Hra & Hwb).
+    destruct Hspec as
+      [p0 g0 b0 e0 a0 v0 (Hsrc0 & _) Hshadow0 Hlookup0 Hcap Hinc0
+      |p0 g0 b0 e0 a0 t1 p1 g1 b1 e1 a1 (Hsrc0 & _) Hshadow0 Hlookup0 Hheap0 Hinc0
+      |p0 g0 b0 e0 a0 raw0 base0 (Hsrc0 & _) Hshadow0 Hlookup0 Hheap0 Hbit0 Hinc0
+      |p0 g0 b0 e0 a0 raw0 base0 (Hsrc0 & _) Hshadow0 Hlookup0 Hheap0 Hbit0 Hinc0
+      |p0 g0 b0 e0 a0 heap_a0 revoked (Hsrc0 & _) Hshadow0
+      |Hfail]; simplify_eq; try congruence.
+    - rewrite /is_heap_cap Hheap in Hcap.
+      discriminate.
+    - rewrite /heap_cap_base /memory_cap_base /= Hheap0 in Hheap.
+      discriminate.
+    - iApply "Hφ". iFrame.
+    - destruct Hfail; simplify_eq; try congruence.
+      + destruct o; congruence.
+      + unfold incrementPC, incrementPC_gen in Hinc, e4.
+        destruct (decide (dst = PC)) as [->|Hdst]; simplify_map_eq.
+        1: destruct (load_word p raw) as [z|[t0 p0 g0 b0 e0 a0|t0 p0 g0 b0 e0 a0]|ot sb|i];
+          cbn in Hinc, e4; try discriminate; destruct (a0 + 1)%a; discriminate.
+        all: destruct (pc_a + 1)%a; discriminate.
+      + by rewrite Hbit in e5.
+  Qed.
+
+  Lemma wp_load_success_heap_word_revoked E r1 r2 pc_p pc_g pc_b pc_e pc_a w w'
+    p g b e a (raw : Word) (base : Addr) pc_a' dq dq' sdq :
+    is_shadow_address a = false →
+    heap_cap_base raw = Some base →
+    decodeInstrW w = Load r1 r2 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    readAllowed p = true ∧ withinBounds b e a = true →
+    (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull →
+    r2 ≠ cnull →
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
+        ∗ ▷ pc_a ↦ₐ{dq} w
+        ∗ ▷ r1 ↦ᵣ w'
+        ∗ ▷ r2 ↦ᵣ WCap true p g b e a
+        ∗ ▷ a ↦ₐ{dq'} raw
+        ∗ ▷ base ↦ₛ{sdq} ShadowQuarantined }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a'
+        ∗ r1 ↦ᵣ clear_tag (load_word p raw)
+        ∗ pc_a ↦ₐ{dq} w
+        ∗ r2 ↦ᵣ WCap true p g b e a
+        ∗ a ↦ₐ{dq'} raw
+        ∗ base ↦ₛ{sdq} ShadowQuarantined }}}.
+  Proof.
+    iIntros (Hshadow Hheap Hinstr Hvpc [Hra Hwb] Hpca' Hcnull Hcnull' φ)
+      "(>HPC & >Hi & >Hr1 & >Hr2 & >Ha & >Hs) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
+    destruct (a =? pc_a)%a eqn:Heq.
+    { apply Z.eqb_eq, finz_to_z_eq in Heq. subst a.
+      iDestruct (pointsto_agree with "Hi Ha") as %->.
+      destruct raw as [z | sb | ot sb | ins]; try discriminate.
+      all: by inversion Hinstr. }
+    iAssert (if (a =? pc_a)%a then emp else ▷ a ↦ₐ{dq'} raw)%I
+      with "[Ha]" as "Ha"; first by rewrite Heq; iFrame.
+    iDestruct (memMap_resource_2gen_clater_dq _ _ _ _ _ _ (λ a dq w, a ↦ₐ{dq} w)%I with "Hi Ha") as (mem dfracs) "[>Hmem %Hmaps]".
+    destruct Hmaps as [Hmem Hdfracs].
+    iAssert ([∗ map] a0↦bit ∈ {[base:=ShadowQuarantined]}, a0 ↦ₛ{sdq} bit)%I
+      with "[Hs]" as "Hs"; first by rewrite big_sepM_singleton.
+    iApply (wp_load_success_mem_word_revoked E pc_p pc_g pc_b pc_e pc_a r1 r2 w _ _ mem dfracs
+      {[base:=ShadowQuarantined]} sdq p g b e a raw base
       with "[$Hmap $Hmem $Hs]"); eauto.
     { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
@@ -2638,11 +2824,9 @@ Section griotte_lang_rules.
         (match updatePC (update_reg (r, sr, m, st) r1 actualv) with
          | Some conf => conf | None => (Failed, (r, sr, m, st)) end) = (c, σ2) ∧
         (actualv = load_word p loadv ∨ actualv = clear_tag (load_word p loadv))).
-    { destruct loadv as [z | [t' p' g' b' e' a' | t' p' g' b' e' a'] | ot sb | ins];
-        try (right; eexists; split; [exact Hstep | by left]).
-      destruct (is_heap_address b') eqn:Hheap.
-      - destruct (st !! b') as [revoked|] eqn:Hbit; cbn in Hstep.
-        + destruct revoked; right; eexists; split; [exact Hstep | by right | exact Hstep | by left].
+    { destruct (heap_cap_base loadv) as [base|] eqn:Hheap.
+      - destruct (st !! base) as [status|] eqn:Hbit; cbn in Hstep.
+        + destruct status; right; eexists; split; [exact Hstep | by left | exact Hstep | by right].
         + left. by simplify_pair_eq.
       - right; eexists; split; [exact Hstep | by left]. }
     destruct Hread as [(-> & ->) | (actualv & Hread & Hactual)].

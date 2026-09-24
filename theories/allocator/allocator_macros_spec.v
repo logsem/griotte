@@ -191,12 +191,12 @@ Section AllocatorMacros.
       the one-past-end pointer reached by the final LEA but never dereferenced.
       The service layout supplies them when composing the allocator operations. *)
   Lemma allocator_paint_spec
-    (bit : bool) (rptr rcount : RegName) (E : coPset)
+    (status : AllocStatus) (rptr rcount : RegName) (E : coPset)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (b e sb se : Addr) (ws : list Word)
     (φ : language.val griotte_lang → iPropI Σ) :
 
-    let code := allocator_paint_instrs rptr rcount bit in
+    let code := allocator_paint_instrs rptr rcount status in
     let pc_end := (pc_a ^+ length code)%a in
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a pc_end ->
@@ -219,8 +219,10 @@ Section AllocatorMacros.
          ∗ rptr ↦ᵣ WCap true RW Global shadow_b shadow_e se
          ∗ rcount ↦ᵣ WInt 0
          ∗ codefrag pc_a code
-         ∗ (if bit then [∗ list] a ∈ finz.seq_between b e, reclaim_token a
-            else [[b, e]] ↦ₐ [[ws]])
+         ∗ (match status with
+            | ShadowQuarantined => [∗ list] a ∈ finz.seq_between b e, reclaim_token a
+            | ShadowLive => [[b, e]] ↦ₐ [[ws]]
+            end)
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
@@ -232,11 +234,11 @@ Section AllocatorMacros.
     assert (Hrcount : rcount ≠ cnull) by
       (clear -Hregs; repeat rewrite NoDup_cons in Hregs; set_solver).
     iLöb as "IH" forall (b sb ws Hheap Hshadow Hlen Htranslate).
-    assert (Hcode_eq : allocator_paint_instrs rptr rcount bit =
-      encodeInstrsW [Store rptr (inl (bool_to_Z bit)) 0;
+    assert (Hcode_eq : allocator_paint_instrs rptr rcount status =
+      encodeInstrsW [Store rptr (inl (encodeAllocStatus status)) 0;
                     Lea rptr (inl 1%Z);
                     Sub rcount (inr rcount) (inl 1%Z);
-                    Jnz (inl (-3)%Z) rcount]) by (destruct bit; reflexivity).
+                    Jnz (inl (-3)%Z) rcount]) by (destruct status; reflexivity).
     rewrite Hcode_eq in Hpc |- *.
     codefrag_facts "Hcode".
     iDestruct (big_sepL2_length with "Hmem") as %Hws.
@@ -253,15 +255,15 @@ Section AllocatorMacros.
       replace (sb ^+ (b - b))%a with sb in Htranslate by solve_addr.
       apply Htranslate; solve_addr. }
 
-    (* Store rptr bit writes the shadow entry, opening the shared invariant. *)
+    (* Store rptr status writes the shadow entry, opening the shared invariant. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iAssert (WP Instr Executable @ E {{ v,
       ⌜v = NextIV⌝ ∗
       PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 1)%a ∗
-      pc_a ↦ₐ encodeInstrW (Store rptr (inl (bool_to_Z bit)) 0) ∗
+      pc_a ↦ₐ encodeInstrW (Store rptr (inl (encodeAllocStatus status)) 0) ∗
       rptr ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
-      (if bit then reclaim_token b else b ↦ₐ w) }})%I
+      (match status with ShadowQuarantined => reclaim_token b | ShadowLive => b ↦ₐ w end) }})%I
       with "[HPC Hi Hptr Ha]" as "Hstore".
     { iApply (wp_atomic _ _ (E ∖ ↑Nallocator)).
       iInv Nallocator as ">Hbody" "Hclose".
@@ -270,18 +272,18 @@ Section AllocatorMacros.
       iDestruct (allocator_entry_memory_live with "Hentry Ha") as %->.
       iDestruct "Hentry" as "[Hs [Hreclaim Hfree]]".
       iModIntro.
-      iApply (wp_store_success_shadow_z _ _ _ _ _ _ _ _ _ _ _ _ _ _ bit false
+      iApply (wp_store_success_shadow_z _ _ _ _ _ _ _ _ _ _ _ _ _ _ status ShadowLive
         with "[$HPC $Hi $Hptr $Hs]"); try solve_pure.
       { unfold is_shadow_address. apply withinBounds_true_iff; solve_addr. }
       { by apply heap_shadow_inverse. }
       { apply withinBounds_true_iff; solve_addr. }
       iIntros "!> (HPC & Hi & Hptr & Hs)".
-      destruct bit.
-      - iMod ("Hclose" with "[Ha Hs Hput Hfree]").
-        { iNext. iApply ("Hput" $! Quarantined). iFrame. }
-        iModIntro; iFrame; done.
+      destruct status.
       - iMod ("Hclose" with "[Hs Hput Hfree Hreclaim]").
         { iNext. iApply ("Hput" $! Live). iFrame. }
+        iModIntro; iFrame; done.
+      - iMod ("Hclose" with "[Ha Hs Hput Hfree]").
+        { iNext. iApply ("Hput" $! Quarantined). iFrame. }
         iModIntro; iFrame; done.
     }
     iApply (wp_wand with "Hstore").
@@ -300,12 +302,12 @@ Section AllocatorMacros.
       assert (Hslast : (sb ^+ 1)%a = se) by solve_addr.
       rewrite Hslast.
       iApply "Hφ"; iFrame.
-      destruct bit.
+      destruct status.
+      + rewrite (region_pointsto_cons b (b ^+ 1)%a e w ws Hbnext Hbnext_e).
+        iFrame.
       + rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap)))
           Hlast finz_seq_between_empty; last solve_addr.
         rewrite big_sepL_cons big_sepL_nil. iFrame.
-      + rewrite (region_pointsto_cons b (b ^+ 1)%a e w ws Hbnext Hbnext_e).
-        iFrame.
     - (* Jnz .allocator_paint rcount repeats the loop. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
@@ -326,10 +328,10 @@ Section AllocatorMacros.
         f_equal. clear -Hheap Hshadow Hlen Hbnext Ha_bounds. solve_addr. }
       iNext. iIntros "(HPC & Hptr & Hcount & Hcode & Hpainted)".
       iApply "Hφ"; iFrame.
-      destruct bit.
-      + rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons.
-        iFrame.
+      destruct status.
       + rewrite (region_pointsto_cons b (b ^+ 1)%a e w ws Hbnext Hbnext_e).
+        iFrame.
+      + rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons.
         iFrame.
   Qed.
   (** Translate a heap interval to its shadow interval. The instruction list

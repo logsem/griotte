@@ -60,7 +60,8 @@ Proof.
   pose proof (switcher_return_entry_point switcher_cmpt).
   pose proof (trusted_stack_disjoint_from_shadow switcher_cmpt).
   pose proof (switcher_base_not_shadow switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _); cbn in *; auto.
+  pose proof (compartment_layout.switcher_base_not_heap switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
 Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
@@ -167,7 +168,7 @@ Section Adequacy.
   Context {cname : CmptNameG}.
   Context {C : CmptName}.
   Context {inv_preg: invGpreS Σ}.
-  Context {shadow_preg: gen_heapGpreS Addr bool Σ}.
+  Context {shadow_preg: gen_heapGpreS Addr AllocStatus Σ}.
   Context {allocator_preg: allocator_preG Σ}.
   Context {mem_preg: gen_heapGpreS Addr Word Σ}.
   Context {reg_preg: gen_heapGpreS RegName Word Σ}.
@@ -736,6 +737,8 @@ Section Adequacy.
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_base_not_heap main_cmpt). }
+    { unfold C_f. apply sealed_cap_nonheap.
+      exact (cmpt_exp_tbl_base_not_heap C_cmpt). }
     { eapply disjoint_from_shadow_not_in.
       - exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
       - apply withinBounds_true_iff.
@@ -837,7 +840,7 @@ Proof.
   intros ? ? ? ? ? ?.
   set ( cnames := CmptNames_vae_CmptNameG ).
   set (Σ := #[invΣ
-              ; gen_heapΣ Addr Word; gen_heapΣ Addr bool; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
+              ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ Addr region_type OType Word ; relPreΣ

@@ -43,6 +43,7 @@ Section DLE.
     let imports := dle_main_imports C_f in
 
     disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
     disjoint_from_shadow cgp_b cgp_e ->
     disjoint_from_heap cgp_b cgp_e ->
     is_heap_address cgp_b = false ->
@@ -58,6 +59,7 @@ Section DLE.
     (cgp_b)%a ∉ dom (std W0) ->
     (cgp_b ^+1 )%a ∉ dom (std W0) ->
 
+    is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs cstk W0 C ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
@@ -88,8 +90,8 @@ Section DLE.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hcgp_shadow Hcgp_heap Hcgp_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hframe_match
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
             )
       "(#Hassert & #Halloc & #Hswitcher & Hna
       & HPC & Hcgp & Hcsp & Hrmap
@@ -186,7 +188,7 @@ Section DLE.
 
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto.
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -378,10 +380,12 @@ Section DLE.
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK & %Hrestored)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
-    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcs0; [|exact switcher_call_sentry_not_heap].
+    apply load_heap_nonheap in Hrcs1; [|exact Hsealed_nonheap].
     subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
 
@@ -529,10 +533,12 @@ Section DLE.
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK & %Hrestored)"; clear l0.
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
-    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcs0; [|exact switcher_call_sentry_not_heap].
+    apply load_heap_nonheap in Hrcs1; [|exact Hsealed_nonheap].
     subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
 

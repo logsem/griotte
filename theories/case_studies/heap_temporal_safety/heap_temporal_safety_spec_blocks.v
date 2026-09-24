@@ -258,6 +258,9 @@ Section Heap_Temporal_Safety_Blocks.
     destruct (is_heap_address b) eqn:Hheap; cycle 1.
     { iEval (rewrite /hts_buffer) in "Hsaved".
       (* --- Load ca0 cgp 1 (nonheap base, unchanged tag) --- *)
+      assert (is_heap_cap (hts_buffer b) = false) as Hnonheap.
+      { rewrite /hts_buffer /is_heap_cap /heap_cap_base /memory_cap_base /= Hheap /=.
+        reflexivity. }
       iInstr "Hcode".
       iApply ("Hpost" $! (hts_buffer b) with "[]"); last iFrame.
       iPureIntro. left. reflexivity. }
@@ -294,6 +297,8 @@ Section Heap_Temporal_Safety_Blocks.
     iApply ("Hpost" $! actual with "[]"); last iFrame.
     iPureIntro. destruct Hactual as [-> | ->].
     - left. reflexivity.
-    - right. split; [exact Hheap|reflexivity].
+    - right. split; last reflexivity.
+      rewrite /hts_buffer /is_heap_cap /heap_cap_base /memory_cap_base /= Hheap /=.
+      reflexivity.
   Qed.
 End Heap_Temporal_Safety_Blocks.

@@ -17,6 +17,16 @@ Inductive Word: Type :=
 Notation WCap t p g b e a := (WSealable (SCap t p g b e a)).
 Notation WSealRange t p g b e a := (WSealable (SSealRange t p g b e a)).
 
+(** Base used by the memory revocation filter. Sealing ranges are keys, not
+    memory capabilities; sentries retain the base of their executable cap. *)
+Definition memory_cap_base (w : Word) : option Addr :=
+  match w with
+  | WCap _ _ _ b _ _ => Some b
+  | WSealed _ (SCap _ _ _ b _ _) => Some b
+  | WSentry _ _ _ b _ _ => Some b
+  | _ => None
+  end.
+
 (* Sealed words retain the tag of their payload. Integers carry no authority. *)
 Definition get_tag_sealable (sb : Sealable) : bool :=
   match sb with

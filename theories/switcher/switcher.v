@@ -225,7 +225,16 @@ Section Switcher.
         trusted_stack_disjoint_from_shadow :
         disjoint_from_shadow b_trusted_stack e_trusted_stack;
 
-        switcher_base_not_shadow : is_shadow_address b_switcher = false
+        switcher_base_not_shadow : is_shadow_address b_switcher = false;
+        switcher_base_not_heap : is_heap_address b_switcher = false
       }.
+
+  Lemma switcher_call_sentry_not_heap
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :
+    is_heap_cap (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) = false.
+  Proof.
+    rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=.
+    reflexivity.
+  Qed.
 
 End Switcher.

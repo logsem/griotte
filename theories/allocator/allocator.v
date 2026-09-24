@@ -51,24 +51,24 @@ Section Allocator.
     encodeInstrsW (allocator_zero rptr rend rtmp).
 
   (** Paint a positive number of consecutive shadow entries, advancing the
-      pointer and consuming the count. [false] clears; [true] quarantines. *)
-  Definition allocator_paint_asm_pre (rptr rcount : RegName) (bit : bool)
+      pointer and consuming the count. *)
+  Definition allocator_paint_asm_pre (rptr rcount : RegName) (status : AllocStatus)
     : list asm_code :=
     [ #".allocator_paint";
-      store rptr (if bit then 1%Z else 0%Z);
+      store rptr (encodeAllocStatus status);
       lea rptr 1;
       sub rcount rcount 1;
       jnz (".allocator_paint")%asm rcount
     ].
-  Definition allocator_paint_asm_env (rptr rcount : RegName) (bit : bool) :=
-    Eval vm_compute in (compute_asm_code_env (allocator_paint_asm_pre rptr rcount bit)).2.
-  Definition allocator_paint_asm (rptr rcount : RegName) (bit : bool) :=
-    Eval vm_compute in resolve_labels_macros (allocator_paint_asm_pre rptr rcount bit)
-                      (allocator_paint_asm_env rptr rcount bit).
-  Definition allocator_paint (rptr rcount : RegName) (bit : bool) :=
-    Eval vm_compute in assemble (allocator_paint_asm rptr rcount bit).
-  Definition allocator_paint_instrs (rptr rcount : RegName) (bit : bool)
-    : list Word := encodeInstrsW (allocator_paint rptr rcount bit).
+  Definition allocator_paint_asm_env (rptr rcount : RegName) (status : AllocStatus) :=
+    Eval vm_compute in (compute_asm_code_env (allocator_paint_asm_pre rptr rcount status)).2.
+  Definition allocator_paint_asm (rptr rcount : RegName) (status : AllocStatus) :=
+    Eval vm_compute in resolve_labels_macros (allocator_paint_asm_pre rptr rcount status)
+                      (allocator_paint_asm_env rptr rcount status).
+  Definition allocator_paint (rptr rcount : RegName) (status : AllocStatus) :=
+    Eval vm_compute in assemble (allocator_paint_asm rptr rcount status).
+  Definition allocator_paint_instrs (rptr rcount : RegName) (status : AllocStatus)
+    : list Word := encodeInstrsW (allocator_paint rptr rcount status).
 
   (** Register clearing belongs to the switcher return path. *)
   Definition allocator_return_asm : list asm_code := [jalr cnull cra].
@@ -108,7 +108,7 @@ Section Allocator.
         lea ctp ct3;
         sub ca2 ct2 ct1
       ];
-      allocator_paint_asm ctp ca2 false;
+      allocator_paint_asm ctp ca2 ShadowLive;
       [ (* Publish the new bump pointer only after zeroing and painting. *)
         lea ct0 ca0;
         store cgp ct0;
@@ -180,7 +180,7 @@ Section Allocator.
         lea ctp ct3;
         sub ca2 ct2 ct1
       ];
-      allocator_paint_asm ctp ca2 true;
+      allocator_paint_asm ctp ca2 ShadowQuarantined;
       [ #".free_success";
         mov ca0 0;
         mov ca1 ALLOC_OK;

@@ -79,7 +79,7 @@ Section AllocatorInitializationProofs.
 
   Lemma allocator_init_free_with_tokens_correct (E : coPset) (mem : Mem) :
     ⊢ (⌜dom mem = heap_addresses⌝ -∗
-       ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ false) ={E}=∗
+       ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ ShadowLive) ={E}=∗
        ∃ ag : allocatorG Σ,
          allocator_ctx (allocatorg := ag) ∗
          free_cells (allocatorg := ag) heap_b heap_e)%I.
@@ -109,7 +109,7 @@ Section AllocatorServiceInitializationProofs.
   Lemma allocator_service_init_correct (E : coPset) (mem : Mem) :
     ⊢ (⌜allocatorLayoutWf /\ dom mem = heap_addresses⌝ -∗
        allocator_service_initial_resources -∗
-       ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ false) ={E}=∗
+       ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ ShadowLive) ={E}=∗
        ∃ ag : allocatorG Σ,
          allocator_ctx (allocatorg := ag) ∗
          allocator_service_ctx (allocatorg := ag))%I.

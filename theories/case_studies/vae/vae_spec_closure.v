@@ -251,7 +251,7 @@ Section VAE.
     focus_block 5 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_awkward.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto; try done.
+      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -362,6 +362,12 @@ Section VAE.
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W2 $Hcstk
               $Hinterp_W2_wct1 $HK]"); eauto; try done; iFrame "%".
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=.
+      reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=.
+      reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=.
+      reflexivity. }
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       apply regmap_full_dom in Hrmap_init.
@@ -484,7 +490,7 @@ Section VAE.
     focus_block 8 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_awkward.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto; try done.
+      with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -531,7 +537,9 @@ Section VAE.
              then (interp W5 C callback1)
              else True)%I as "#Hinterp_W5_wca0".
     { destruct Hcallback1 as [Hsame | Hcleared]; last first.
-      { destruct Hcleared as [Hheap Hcleared]. rewrite Hcleared. destruct wca0; cbn in Hheap |- *; try discriminate; done. }
+      { destruct Hcleared as [_ ->].
+        destruct (is_sealed_with_o (clear_tag wca0) ot_switcher); last done.
+        iApply interp_clear_tag. }
       rewrite Hsame.
       destruct (is_sealed_with_o wca0 ot_switcher) eqn:His_sealed_wca0; last done.
       destruct wca0 as [| [|] | |]; try discriminate.
@@ -582,9 +590,12 @@ Section VAE.
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK & %Hrestored)"; clear l'.
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
-    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
+    apply load_heap_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=; reflexivity].
+    apply load_heap_nonheap in Hrcs0;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=; reflexivity].
     apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
     subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".

@@ -63,6 +63,7 @@ Section LSE.
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
+    is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs cstk W0 C ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
@@ -103,7 +104,7 @@ Section LSE.
   Proof.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexports_shadow Hpc_nonheap HNswitcher_assert HNswitcher_lse HNassert_lse Hsize_lse_exp_tbl Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hframe_match
+               Hcgp_contiguous Himports_contiguous Hsealed_nonheap Hframe_match
             )
       "(#Hassert & #Halloc & #Hswitcher
       & #Hlse
@@ -172,7 +173,7 @@ Section LSE.
 
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -276,8 +277,10 @@ Section LSE.
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK & %Hrestored)"; clear l'.
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
-    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
     apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
     apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
     subst rcgp rcra rcs0 rcs1.

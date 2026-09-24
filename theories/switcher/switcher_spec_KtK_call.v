@@ -584,6 +584,10 @@ Section Switcher_KtK_Call.
     (* --- Load cra ct1 --- *)
     wp_instr.
     iInv "Hinv_exp_tbl_pcc" as ">Hb_tbl" "Hcls_tbl".
+    assert (is_heap_cap (WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt) = false)
+      as Hpcc_not_heap.
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbpcc_nonheap /=.
+      reflexivity. }
     iInstr "Hcode".
     iMod ("Hcls_tbl" with "[$]") as "_"; iModIntro.
     wp_pure.
@@ -1034,7 +1038,10 @@ Section Switcher_KtK_Call.
     focus_block 8 "Hcode" as a_callee_load Ha_callee_load "Hcode" "Hcls"; iHide "Hcls" as hcont
     ; clear dependent Ha_unseal_entry.
     iApply (switcher_cc_spec_8 with
-             "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hcgp $Hcra $Hcode]"); eauto; iNext.
+             "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hcgp $Hcra $Hcode]"); eauto.
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_nonheap /=.
+      reflexivity. }
+    iNext.
     iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra  & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
     (* clear registers except parameters *)

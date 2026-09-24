@@ -714,8 +714,9 @@ Section AllocatorFreeProof.
     { rewrite -Hfetch_eq; exact H2. }
     { apply withinBounds_true_iff; solve_addr. }
     { exact Hdisjoint. }
-    { cbn [is_heap_cap]; unfold is_heap_address;
-      apply not_true_is_false; intro Hheap;
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
+      destruct (is_heap_address shadow_b) eqn:Hheap; last reflexivity.
+      exfalso. unfold is_heap_address in Hheap.
       apply withinBounds_true_iff in Hheap;
       pose proof heap_shadow_disjoint as Hd;
       rewrite /disjoint_from_shadow elem_of_disjoint in Hd;
@@ -793,9 +794,9 @@ Section AllocatorFreeProof.
       { apply withinBounds_true_iff. solve_addr. }
       rewrite Hxheap. unfold sb. pose proof heap_shadow_same_size. solve_addr. }
     assert (Hpaint_eq : allocator_free_instrs_n 4 =
-      allocator_paint_instrs ctp ca2 true) by reflexivity.
+      allocator_paint_instrs ctp ca2 ShadowQuarantined) by reflexivity.
     iEval (rewrite Hpaint_eq) in "Hpaint_code".
-    iApply (allocator_paint_spec true ctp ca2 E RX Global
+    iApply (allocator_paint_spec ShadowQuarantined ctp ca2 E RX Global
       allocator_pcc_b allocator_pcc_e
       (allocator_free_block_addr allocator_free_pcc_addr 4) b0 e0 sb se ws
       with "[- $Hctx $HPC $Hctp $Hca2 $Hpaint_code $Hmem]").
@@ -833,10 +834,10 @@ Section AllocatorFreeProof.
       (allocator_free_pcc_addr ^+ 32)%a) by reflexivity.
     assert (Hoff5 : allocator_free_block_addr allocator_free_pcc_addr 5 =
       (allocator_free_pcc_addr ^+ 36)%a) by reflexivity.
-    assert (Hlenpaint : length (allocator_paint_instrs ctp ca2 true) = 4)
+    assert (Hlenpaint : length (allocator_paint_instrs ctp ca2 ShadowQuarantined) = 4)
       by reflexivity.
     assert (Hpc5 : (allocator_free_block_addr allocator_free_pcc_addr 4 ^+
-       length (allocator_paint_instrs ctp ca2 true))%a =
+       length (allocator_paint_instrs ctp ca2 ShadowQuarantined))%a =
        allocator_free_block_addr allocator_free_pcc_addr 5).
     { clear -Hoff4 Hoff5 Hlenpaint.
       rewrite Hoff4 Hoff5 Hlenpaint.

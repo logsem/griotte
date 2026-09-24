@@ -166,6 +166,10 @@ Class MachineParameters := {
     instruction_encoding_mixin :: InstructionEncoding;
     permission_encoding_mixin :: PermissionEncoding;
     word_encoding_mixin :: WordEncoding;
+    encodeAllocStatus : AllocStatus -> Z;
+    decodeAllocStatus : Z -> AllocStatus;
+    decode_encode_alloc_status_inv s :
+      decodeAllocStatus (encodeAllocStatus s) = s;
     (* Machine parameters for the heap and the shadow regions *)
     heap_mixin :: HeapRegion;
     shadow_mixin :: ShadowRegion;
@@ -182,12 +186,23 @@ Definition is_heap_address `{HeapRegion} (a : Addr) : bool :=
 Definition is_shadow_address `{ShadowRegion} (a : Addr) : bool :=
   withinBounds shadow_b shadow_e a.
 
-(* Only ordinary capabilities are checked for revocation, using their base. *)
-Definition is_heap_cap `{HeapRegion} (w : Word) : bool :=
-  match w with
-  | WCap _ _ _ b _ _ => is_heap_address b
-  | _ => false
+(* Memory capabilities, including sealed ones and sentries, use their base. *)
+Definition heap_cap_base `{HeapRegion} (w : Word) : option Addr :=
+  match memory_cap_base w with
+  | Some b => if is_heap_address b then Some b else None
+  | None => None
   end.
+
+Definition is_heap_cap `{HeapRegion} (w : Word) : bool :=
+  match heap_cap_base w with Some _ => true | None => false end.
+
+Lemma sealed_cap_nonheap `{HeapRegion} o t p g b e a :
+  is_heap_address b = false ->
+  is_heap_cap (WSealed o (SCap t p g b e a)) = false.
+Proof.
+  intros Hb. rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb /=.
+  reflexivity.
+Qed.
 
 Definition disjoint_from_shadow `{ShadowRegion} (b e : Addr) : Prop :=
   finz.seq_between b e ## finz.seq_between shadow_b shadow_e.

@@ -17,7 +17,7 @@ Class ceriseG Σ :=
       cerise_invG : invGS Σ;
       cerise_nainvG :: cerise_na_invs Σ;
       mem_gen_memG :: gen_heapGS Addr Word Σ; (* memory *)
-      shadowtbl_gen_regG :: gen_heapGS Addr bool Σ; (* shadow table *)
+      shadowtbl_gen_regG :: gen_heapGS Addr AllocStatus Σ; (* shadow table *)
       reg_gen_regG :: gen_heapGS RegName Word Σ; (* register *)
       sreg_gen_regG :: gen_heapGS SRegName Word Σ; (* system register *)
       entryG :: entryGS Σ (* entry point *)
@@ -55,7 +55,7 @@ Notation "a ↦ₐ w" := (pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) w) (at lev
 Notation "a ↦ₐ -" := (∃ w, pointsto (L:=Addr) (V:=Word) a (DfracOwn 1) w)%I (at level 20) : bi_scope.
 
 (* Points to predicates for shadow table *)
-Notation "a ↦ₛ{ q } b" := (pointsto (L:=Addr) (V:=bool) a q b)
+Notation "a ↦ₛ{ q } b" := (pointsto (L:=Addr) (V:=AllocStatus) a q b)
   (at level 20, q at level 50, format "a  ↦ₛ{ q }  b") : bi_scope.
-Notation "a ↦ₛ b" := (pointsto (L:=Addr) (V:=bool) a (DfracOwn 1) b) (at level 20) : bi_scope.
-Notation "a ↦ₛ -" := (∃ b, pointsto (L:=Addr) (V:=bool) a (DfracOwn 1) b)%I (at level 20) : bi_scope.
+Notation "a ↦ₛ b" := (pointsto (L:=Addr) (V:=AllocStatus) a (DfracOwn 1) b) (at level 20) : bi_scope.
+Notation "a ↦ₛ -" := (∃ b, pointsto (L:=Addr) (V:=AllocStatus) a (DfracOwn 1) b)%I (at level 20) : bi_scope.

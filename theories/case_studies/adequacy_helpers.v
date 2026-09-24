@@ -52,7 +52,9 @@ Section adequacy_helpers.
                  (e_assert assert_cmpt)
                  (flag_assert assert_cmpt))
         with "[Hassert Hassert_cap]" as "Hassert".
-      { rewrite /assert_inv. iExists (cap_assert assert_cmpt).
+      { rewrite /assert_inv. iSplit.
+        { iPureIntro. apply (assert_code_nonheap assert_cmpt). }
+        iExists (cap_assert assert_cmpt).
         rewrite /codefrag /region_pointsto.
         replace (b_assert assert_cmpt ^+ length assert_subroutine_instrs)%a
           with (cap_assert assert_cmpt).

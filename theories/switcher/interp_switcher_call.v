@@ -874,7 +874,10 @@ Section fundamental.
     ; clear dependent Ha_unseal_entry.
     iApply (switcher_call_block_8_spec with
       "[- $Htbl1 $Htbl2 $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hcgp $Hcra $Hcode]");
-      eauto; iNext.
+      eauto.
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
+      reflexivity. }
+    iNext.
     iIntros "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hcgp & Hcra & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 

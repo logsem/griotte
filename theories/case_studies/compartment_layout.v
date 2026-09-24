@@ -53,7 +53,13 @@ Section CmptLayout.
         cmpt_pcc_base_not_heap : is_heap_address cmpt_b_pcc = false;
         cmpt_cgp_base_not_heap : is_heap_address cmpt_b_cgp = false;
         cmpt_static_sealed_disjoint_from_shadow :
-        disjoint_from_shadow cmpt_b_static_sealed cmpt_e_static_sealed
+        disjoint_from_shadow cmpt_b_static_sealed cmpt_e_static_sealed;
+        cmpt_exp_tbl_disjoint_from_heap :
+        disjoint_from_heap cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end;
+        cmpt_static_sealed_disjoint_from_heap :
+        disjoint_from_heap cmpt_b_static_sealed cmpt_e_static_sealed;
+        cmpt_exp_tbl_base_not_heap : is_heap_address cmpt_exp_tbl_pcc = false;
+        cmpt_static_sealed_base_not_heap : is_heap_address cmpt_b_static_sealed = false
       }.
 
   Definition cmpt_pcc_region (C : cmpt) : list Addr :=
@@ -146,6 +152,7 @@ Section CmptLayout.
         disjoint_from_shadow b_trusted_stack e_trusted_stack;
 
         switcher_base_not_shadow : is_shadow_address b_switcher = false;
+        switcher_base_not_heap : is_heap_address b_switcher = false;
 
         stack_disjoint_from_shadow : disjoint_from_shadow b_stack e_stack;
         stack_disjoint_from_heap : disjoint_from_heap b_stack e_stack;
@@ -216,6 +223,8 @@ Section CmptLayout.
 
         assert_flag_size :
         (flag_assert + 1)%a = Some (flag_assert ^+ 1)%a;
+
+        assert_code_nonheap : is_heap_address b_assert = false;
 
         assert_flag_disjoint :
         (finz.seq_between b_assert e_assert) ##

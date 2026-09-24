@@ -85,12 +85,14 @@ Section Switcher_Restore.
     { iApply (wp_load_success_notinstr with "[$HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
       iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
       iApply ("HΦ" $! raw). iFrame. iPureIntro. by left. }
-    destruct raw as [|[t p g base e' a'|]| |]; try discriminate.
-    cbn in Hheap.
-    (* Load dst src: the allocator invariant supplies the current shadow bit. *)
+    unfold is_heap_cap in Hheap.
+    destruct (heap_cap_base raw) as [base|] eqn:Hbase; last discriminate.
+    (* Load dst src: the allocator invariant supplies the current shadow status. *)
     iApply (wp_load_heap_inv with "[$Halloc $HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
-    iNext. iIntros (bit) "(HPC & Hdst & Hi & Hsrc & Ha)".
-    iApply ("HΦ" $! (if bit then clear_tag (WCap t p g base e' a') else WCap t p g base e' a')).
-    destruct bit; iFrame; iPureIntro; [right|left]; done.
+    iNext. iIntros (status) "(HPC & Hdst & Hi & Hsrc & Ha)".
+    iApply ("HΦ" $! (match status with ShadowLive => raw | ShadowQuarantined => clear_tag raw end)).
+    destruct status; iFrame; iPureIntro.
+    - left. reflexivity.
+    - right. split; last reflexivity. unfold is_heap_cap. by rewrite Hbase.
   Qed.
 End Switcher_Restore.

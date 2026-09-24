@@ -212,6 +212,8 @@ Section fundamental.
       eapply (Hstk_heap b_stk); apply elem_of_finz_seq_between; [solve_addr|exact Hheap]. }
     iApply (switcher_return_block_12_load_spec with
       "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]"); eauto using trusted_stack_disjoint_from_shadow.
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hstk_base_nonheap /=.
+      reflexivity. }
     iNext; iIntros "(HPC & Hctp & Hcsp & Ha_tstk & %Htstk_ae & Hcode)".
 
     iApply (switcher_return_block_12_pop_spec with

@@ -67,6 +67,16 @@ Local Lemma encode_word_type_correct :
   end.
 Proof. intros w w'. destruct_word w; destruct_word w'; done. Qed.
 
+Local Definition encode_alloc_status (s : AllocStatus) : Z :=
+  match s with ShadowLive => 0 | ShadowQuarantined => 1 end.
+
+Local Definition decode_alloc_status (z : Z) : AllocStatus :=
+  if Z.eqb z 0 then ShadowLive else ShadowQuarantined.
+
+Local Lemma decode_encode_alloc_status s :
+  decode_alloc_status (encode_alloc_status s) = s.
+Proof. by destruct s. Qed.
+
 Local Definition default_heap_region : HeapRegion := {|
     heap_b := 0%a;
     heap_e := @finz.FinZ MemNum 1%Z eq_refl eq_refl;
@@ -112,6 +122,9 @@ Local Instance machine_parameters_instance : MachineParameters := {|
     decodeWordType := decode_word_type;
     encodeWordType_correct := encode_word_type_correct
   |};
+  encodeAllocStatus := encode_alloc_status;
+  decodeAllocStatus := decode_alloc_status;
+  decode_encode_alloc_status_inv := decode_encode_alloc_status;
   heap_mixin := default_heap_region;
   shadow_mixin := default_shadow_region;
   heap_shadow_translation_mixin :=

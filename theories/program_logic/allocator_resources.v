@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Export cerise_instance machine_parameters machine_base.
 
 (** The allocator owns one shadow entry for every address of the heap.
-    [Free] and [Live] both have a clear shadow bit; only [Quarantined] causes
+    [Free] and [Live] both have a live shadow status; only [Quarantined] causes
     loading a capability based at that address to clear its tag. *)
 Inductive AllocState := Free | Live | Quarantined.
 
@@ -12,16 +12,16 @@ Inductive AllocState := Free | Live | Quarantined.
 Definition heap_addresses `{HeapRegion} : gset Addr :=
   list_to_set (finz.seq_between heap_b heap_e).
 
-(** Case studies start with zeroed free memory and a clear shadow entry for
+(** Case studies start with zeroed free memory and a live shadow entry for
     every heap address. Program memory is kept disjoint from this region. *)
 Definition initial_heap_memory `{HeapRegion} : Mem :=
   gset_to_gmap (WInt 0) heap_addresses.
 
 Definition initial_heap_shadow `{HeapRegion} : ShadowTbl :=
-  (fun _ => false) <$> initial_heap_memory.
+  (fun _ => ShadowLive) <$> initial_heap_memory.
 
-Definition shadow_bit (s : AllocState) : bool :=
-  match s with Free | Live => false | Quarantined => true end.
+Definition shadow_status (s : AllocState) : AllocStatus :=
+  match s with Free | Live => ShadowLive | Quarantined => ShadowQuarantined end.
 
 Lemma elem_of_heap_addresses `{HeapRegion} a :
   a ∈ heap_addresses <-> is_heap_address a = true.
@@ -71,7 +71,7 @@ Section Allocator.
     end%I.
 
   Definition allocator_entry (a : Addr) (s : AllocState) : iProp Σ :=
-    a ↦ₛ shadow_bit s ∗ allocator_state_resources a s.
+    a ↦ₛ shadow_status s ∗ allocator_state_resources a s.
 
   Definition allocator_inv_body : iProp Σ :=
     ∃ alloc_map : gmap Addr AllocState,
@@ -194,7 +194,7 @@ Section Initialization.
       live cells return their memory, quarantined cells return their tokens,
       and free cells keep both resources in the invariant. *)
   Definition allocator_initial_resources (m : gmap Addr (AllocState * Word)) : iProp Σ :=
-    ([∗ map] a ↦ sv ∈ m, a ↦ₐ sv.2 ∗ a ↦ₛ shadow_bit sv.1)%I.
+    ([∗ map] a ↦ sv ∈ m, a ↦ₐ sv.2 ∗ a ↦ₛ shadow_status sv.1)%I.
 
   Definition allocator_client_resources {allocatorg : allocatorG Σ}
     (m : gmap Addr (AllocState * Word)) : iProp Σ :=
@@ -257,7 +257,7 @@ Section Initialization.
   (** In the initial all-free heap, no memory or tokens escape the invariant. *)
   Lemma allocator_init_free E (mem : gmap Addr Word) :
     dom mem = heap_addresses ->
-    ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ false) ={E}=∗
+    ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗ a ↦ₛ ShadowLive) ={E}=∗
     ∃ ag : allocatorG Σ, @allocator_ctx Σ _ ag MP.
   Proof.
     iIntros (Hdom) "Hm".

@@ -889,8 +889,9 @@ Section AllocatorMallocProof.
         unfold allocator_malloc_block_addr; cbn; solve_addr. }
       { apply withinBounds_true_iff; solve_addr. }
       { exact Hdisjoint. }
-      { cbn [is_heap_cap]; unfold is_heap_address;
-        apply not_true_is_false; intro Hheap;
+      { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
+        destruct (is_heap_address shadow_b) eqn:Hheap; last reflexivity.
+        exfalso. unfold is_heap_address in Hheap.
         apply withinBounds_true_iff in Hheap;
         pose proof heap_shadow_disjoint as Hd;
         rewrite /disjoint_from_shadow elem_of_disjoint in Hd;
@@ -975,9 +976,9 @@ Section AllocatorMallocProof.
         rewrite Hxheap. unfold sb.
         pose proof heap_shadow_same_size. solve_addr. }
       assert (Hpaint_eq : allocator_malloc_instrs_n 5 =
-        allocator_paint_instrs ctp ca2 false) by reflexivity.
+        allocator_paint_instrs ctp ca2 ShadowLive) by reflexivity.
       iEval (rewrite Hpaint_eq) in "Hpaint_code".
-      iApply (allocator_paint_spec false ctp ca2 E RX Global
+      iApply (allocator_paint_spec ShadowLive ctp ca2 E RX Global
         allocator_pcc_b allocator_pcc_e
         (allocator_malloc_block_addr allocator_malloc_pcc_addr 5)
         next finish sb se
@@ -1020,10 +1021,10 @@ Section AllocatorMallocProof.
         (allocator_malloc_pcc_addr ^+ 34)%a) by reflexivity.
       assert (Hoff6 : allocator_malloc_block_addr allocator_malloc_pcc_addr 6 =
         (allocator_malloc_pcc_addr ^+ 38)%a) by reflexivity.
-      assert (Hlenpaint : length (allocator_paint_instrs ctp ca2 false) = 4)
+      assert (Hlenpaint : length (allocator_paint_instrs ctp ca2 ShadowLive) = 4)
         by reflexivity.
       assert (Hpc6 : (allocator_malloc_block_addr allocator_malloc_pcc_addr 5 ^+
-        length (allocator_paint_instrs ctp ca2 false))%a =
+        length (allocator_paint_instrs ctp ca2 ShadowLive))%a =
         allocator_malloc_block_addr allocator_malloc_pcc_addr 6).
       { clear -Hoff5 Hoff6 Hlenpaint.
         rewrite Hoff5 Hoff6 Hlenpaint.

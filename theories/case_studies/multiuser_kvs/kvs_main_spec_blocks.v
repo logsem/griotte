@@ -252,10 +252,12 @@ Section KVS_Main_Blocks.
       (b_assert e_assert : Addr) (B_f : Sealable)
       (Nswitcher : namespace) (stk_mem : list Word) (cstk : CSTK) :
     disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
     disjoint_from_shadow csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
+    is_heap_address static_sealed_b = false ->
     dom rmap = all_registers_s ∖ {[PC; cgp; csp]} ->
     (forall r, r ∈ dom rmap -> is_Some (rmap !! r)) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
@@ -319,7 +321,7 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hrmap_dom Hrmap_init HsubBounds Hstatic_sealed_b)
+    iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds Hstatic_sealed_b)
       "(#Halloc & #Hswitcher & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp
        & #Hkvs_exp_tbl_addOrUpdate
@@ -335,6 +337,9 @@ Section KVS_Main_Blocks.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hcs1 $Hct0 $Hct1 $Himport_sealed_user_key $Hcode]"); eauto.
     { rewrite /SEALED_USER_KEY_OFFSET; solve_addr. }
+    { rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
+        /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=.
+      reflexivity. }
     iNext ; iIntros "(HPC & Hcs1 & Hct0 & Hct1 & Hcode & Himport_sealed_user_key)".
     iEval (cbn) in "Hcs1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -358,7 +363,7 @@ Section KVS_Main_Blocks.
     ; clear dependent a_main1.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
+      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { rewrite /SWITCHER_CALL_OFFSET; solve_addr. }
     replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
     iFrame "Himport_switcher".
@@ -368,6 +373,10 @@ Section KVS_Main_Blocks.
 
     focus_block 3 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_fetch1.
+    assert (is_heap_cap (WSealed ot_switcher (KVS_addOrUpdate Global)) = false)
+      as Hadd_nonheap.
+    { unfold KVS_addOrUpdate. apply sealed_cap_nonheap.
+      exact kvs_export_base_not_heap. }
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_kvs_addOrUpdate]"); eauto.
     { rewrite /KVS_INSERT_OFFSET; solve_addr. }
     iNext ; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_kvs_addOrUpdate)".
@@ -468,10 +477,14 @@ Section KVS_Main_Blocks.
     ; cycle 1.
     {
       destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
-      apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
-      apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+      apply load_heap_nonheap in Hrcra;
+        [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
       apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
-      apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcs1;
+        [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
+            /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
       subst rcgp rcra rcs0 rcs1.
       iEval (cbn) in "HPC".
       focus_block 5 "Hcode_main" as a_blk_4  Ha_blk_4 "Hcode" "Hcont"; iHide "Hcont" as hcont
@@ -483,10 +496,14 @@ Section KVS_Main_Blocks.
       wp_end; iIntros (_); iFrame "Hna".
     }
     destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
-    apply load_heap_nonheap in Hgp; last exact Hcgp_nonheap.
-    apply load_heap_nonheap in Hra; last done.
+    apply load_heap_nonheap in Hgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
     apply load_heap_nonheap in Hs0; last done.
-    apply load_heap_nonheap in Hs1; last done.
+    apply load_heap_nonheap in Hs1;
+      [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
+          /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
     subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
     iDestruct "HKVS_post"
@@ -538,10 +555,12 @@ Section KVS_Main_Blocks.
       (b_assert e_assert a_flag : Addr) (Nassert Nswitcher : namespace)
       (stk_mem : list Word) (cstk : CSTK) :
     disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
     disjoint_from_shadow csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
+    is_heap_address static_sealed_b = false ->
     Nswitcher ## Nassert ->
     dom rmap =
       all_registers_s ∖ {[PC; cgp; cra; csp; ca0; ca1; cs0; cs1]} ->
@@ -585,7 +604,7 @@ Section KVS_Main_Blocks.
     ⊢ WP Seq (Instr Executable)
       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow HNswitcher_assert Hdom_rmap HsubBounds Hstatic_sealed_b)
+    iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap HNswitcher_assert Hdom_rmap HsubBounds Hstatic_sealed_b)
       "(#Hassert & #Halloc & #Hswitcher & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_read
        & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
@@ -638,7 +657,7 @@ Section KVS_Main_Blocks.
     ; clear dependent Ha_blk.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
+      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { rewrite /SWITCHER_CALL_OFFSET; solve_addr. }
     replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
     iFrame "Himport_switcher".
@@ -648,6 +667,10 @@ Section KVS_Main_Blocks.
 
     focus_block 11 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent a_fetch1.
+    assert (is_heap_cap (WSealed ot_switcher (KVS_read Global)) = false)
+      as Hread_nonheap.
+    { unfold KVS_read. apply sealed_cap_nonheap.
+      exact kvs_export_base_not_heap. }
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_kvs_read]"); eauto.
     { rewrite /KVS_READ_OFFSET; solve_addr. }
     iNext ; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_kvs_read)".
@@ -735,10 +758,14 @@ Section KVS_Main_Blocks.
     ; cycle 1.
     {
       destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
-      apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
-      apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcgp;
+        [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+      apply load_heap_nonheap in Hrcra;
+        [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
       apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
-      apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+      apply load_heap_nonheap in Hrcs1;
+        [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
+            /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
       subst rcgp rcra rcs0 rcs1.
       iEval (cbn) in "HPC".
       focus_block 13 "Hcode_main" as a_assert1  Ha_assert1 "Hcode" "Hcont"; iHide "Hcont" as hcont
@@ -750,10 +777,14 @@ Section KVS_Main_Blocks.
       wp_end; iIntros (_); iFrame "Hna".
     }
     destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
-    apply load_heap_nonheap in Hgp; last exact Hcgp_nonheap.
-    apply load_heap_nonheap in Hra; last done.
+    apply load_heap_nonheap in Hgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
     apply load_heap_nonheap in Hs0; last done.
-    apply load_heap_nonheap in Hs1; last done.
+    apply load_heap_nonheap in Hs1;
+      [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
+          /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
     subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "HPC".
     iDestruct "HKVS_read_post"

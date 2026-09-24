@@ -78,7 +78,8 @@ Proof.
   pose proof (switcher_return_entry_point switcher_cmpt).
   pose proof (trusted_stack_disjoint_from_shadow switcher_cmpt).
   pose proof (switcher_base_not_shadow switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _); cbn in *; auto.
+  pose proof (compartment_layout.switcher_base_not_heap switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
 Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
@@ -215,7 +216,7 @@ Section Adequacy.
   Context {cname : CmptNameG}.
   Context {B C : CmptName}.
   Context {inv_preg: invGpreS Σ}.
-  Context {shadow_preg: gen_heapGpreS Addr bool Σ}.
+  Context {shadow_preg: gen_heapGpreS Addr AllocStatus Σ}.
   Context {allocator_preg: allocator_preG Σ}.
   Context {mem_preg: gen_heapGpreS Addr Word Σ}.
   Context {reg_preg: gen_heapGpreS RegName Word Σ}.
@@ -710,10 +711,15 @@ Section Adequacy.
         pose proof (cmpt_data_size main_cmpt) as Hsize.
         rewrite main_data in Hsize; cbn in Hsize; solve_addr+Hsize.
       - apply elem_of_finz_seq_between. by apply withinBounds_true_iff in Hheap. }
+    assert (is_heap_cap (WSealed ot_switcher B_f) = false) as HB_f_nonheap.
+    { unfold B_f. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap B_cmpt). }
+    assert (is_heap_cap (WSealed ot_switcher C_g) = false) as HC_g_nonheap.
+    { unfold C_g. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap C_cmpt). }
     iPoseProof (Spec _ _ _ _ _ _ _
                   _ _ _ _ _
                   [] [] _ (fun _ => True)%I assertN switcherN []
                   (cmpt_pcc_disjoint_from_shadow main_cmpt)
+                  (cmpt_pcc_base_not_heap main_cmpt)
                   Hmain_shadow (cmpt_cgp_base_not_heap main_cmpt)
                   Hmain1_shadow Hmain1_heap
                   (stack_disjoint_from_shadow switcher_cmpt)
@@ -886,7 +892,7 @@ Proof.
   intros ? ? ? ? ? ?.
   set ( cnames := CmptNames_CMDC_CmptNameG ).
   set (Σ := #[invΣ
-              ; gen_heapΣ Addr Word; gen_heapΣ Addr bool; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
+              ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ Addr region_type OType Word ; relPreΣ

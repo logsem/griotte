@@ -174,6 +174,10 @@ Section Switcher_KtK_Return.
       apply withinBounds_true_iff in Hheap.
       rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
       eapply (Hstk_heap b_stk); apply elem_of_finz_seq_between; [solve_addr|exact Hheap]. }
+    assert (is_heap_cap (WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a) = false)
+      as Hstk_not_heap.
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbstk_nonheap /=.
+      reflexivity. }
     iInstr "Hcode".
 
     (* --- Lea ctp -1 --- *)

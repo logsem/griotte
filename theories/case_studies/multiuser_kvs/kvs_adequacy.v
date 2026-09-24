@@ -74,7 +74,8 @@ Proof.
   pose proof (switcher_return_entry_point switcher_cmpt).
   pose proof (trusted_stack_disjoint_from_shadow switcher_cmpt).
   pose proof (switcher_base_not_shadow switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _); cbn in *; auto.
+  pose proof (compartment_layout.switcher_base_not_heap switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
 Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
@@ -217,7 +218,7 @@ Section Adequacy.
   Context {cname : CmptNameG}.
   Context {B : CmptName}.
   Context {inv_preg: invGpreS Σ}.
-  Context {shadow_preg: gen_heapGpreS Addr bool Σ}.
+  Context {shadow_preg: gen_heapGpreS Addr AllocStatus Σ}.
   Context {allocator_preg: allocator_preG Σ}.
   Context {mem_preg: gen_heapGpreS Addr Word Σ}.
   Context {reg_preg: gen_heapGpreS RegName Word Σ}.
@@ -348,7 +349,7 @@ Section Adequacy.
       split;try solve_ndisj.
     }
     assert kvsLayoutWf as kvsLayoutWfg.
-    { refine (mkKvsLayoutWf _ _ _ _ _ _ _ _ _ _ _); cbn.
+    { refine (mkKvsLayoutWf _ _ _ _ _ _ _ _ _ _ _ _); cbn.
       - apply ot_kvs_size.
       - pose proof (cmpt_import_size kvs_cmpt) as H.
         by rewrite kvs_imports in H.
@@ -368,6 +369,7 @@ Section Adequacy.
       - exact (cmpt_exp_tbl_disjoint_from_shadow kvs_cmpt).
       - exact (cmpt_pcc_base_not_heap kvs_cmpt).
       - exact (cmpt_cgp_base_not_heap kvs_cmpt).
+      - exact (cmpt_exp_tbl_base_not_heap kvs_cmpt).
     }
 
     (* Initialise the KVS resources *)
@@ -945,6 +947,9 @@ Section Adequacy.
     replace (cmpt_exp_tbl_cgp kvs_cmpt) with (b_kvs_exp_tbl ^+ 1)%a
                                              by (pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H; cbn; solve_addr+H).
 
+    pose proof (cmpt_static_sealed_base_not_heap main_cmpt) as Hstatic_key_nonheap.
+    assert (is_heap_cap (WSealed ot_switcher B_f) = false) as HB_f_nonheap.
+    { unfold B_f. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap B_cmpt). }
     iPoseProof (Spec _ _ _ _ _ _ _ _ _ _
                   _ _ _ _ _ _
                   [] [] [] assertN switcherN
@@ -957,6 +962,7 @@ Section Adequacy.
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         ]") as "Hspec"; eauto.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
+    { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_base_not_heap main_cmpt). }
     { eapply disjoint_from_shadow_not_in.
       - exact (cmpt_static_sealed_disjoint_from_shadow main_cmpt).
@@ -1054,7 +1060,7 @@ Proof.
   intros ? ? ? ? ? ?.
   set ( cnames := CmptNames_kvs_CmptNameG ).
   set (Σ := #[invΣ
-              ; gen_heapΣ Addr Word; gen_heapΣ Addr bool; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
+              ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ Addr region_type OType Word ; relPreΣ

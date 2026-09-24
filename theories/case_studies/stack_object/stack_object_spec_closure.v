@@ -373,7 +373,7 @@ Section SO.
 
     focus_block 8 "Hcode_main" as a_fetch Ha_fetch "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_alloc_so.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { apply withinBounds_true_iff; solve_addr. }
     replace (pc_b ^+ 0)%a with pc_b by solve_addr.
     iFrame "Himport_switcher".
@@ -547,6 +547,12 @@ Section SO.
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk
               $Hinterp_W3_wct1 $HK]"); eauto; iFrame "%".
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=.
+      reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
+      reflexivity. }
+    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=.
+      reflexivity. }
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       apply regmap_full_dom in Hrmap_init.

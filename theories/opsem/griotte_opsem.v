@@ -22,8 +22,8 @@ Definition update_sreg (φ: ExecConf) (sr: SRegName) (w: Word): ExecConf :=
   (reg φ, <[sr:=w]>(sreg φ), mem φ, shadowtbl φ).
 Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
   (reg φ, sreg φ, <[a:=w]>(mem φ), shadowtbl φ).
-Definition update_shadowtbl (φ: ExecConf) (a: Addr) (b: bool): ExecConf :=
-  (reg φ, sreg φ, mem φ, <[a:=b]> (shadowtbl φ)).
+Definition update_shadowtbl (φ: ExecConf) (a: Addr) (s: AllocStatus): ExecConf :=
+  (reg φ, sreg φ, mem φ, <[a:=s]> (shadowtbl φ)).
 
 (* Note that the `None` values here also undo any previous changes that were tentatively made in the same step. This is more consistent across the board. *)
 Definition updatePC_gen (φ: ExecConf) (imm : Z): option Conf :=
@@ -109,22 +109,20 @@ Section opsem.
           if (is_shadow_address ea)
           then
             heap_a ← shadow_to_heap ea;
-            b_revoked ← (shadowtbl φ) !! heap_a;
-            updatePC (update_reg φ dst (WInt (bool_to_Z b_revoked)))
+            status ← (shadowtbl φ) !! heap_a;
+            updatePC (update_reg φ dst (WInt (encodeAllocStatus status)))
           else
             asrc ← (mem φ) !! ea;
-            match asrc with
-            | WCap t' p' g' b' e' a' =>
-                if (is_heap_address b')
-                then
-                  b_revoked ← (shadowtbl φ) !! b';
-                  let loaded_word :=
-                    if (b_revoked : bool)
-                    then (clear_tag (load_word p asrc))
-                    else (load_word p asrc)
-                  in
-                  updatePC (update_reg φ dst loaded_word)
-                else updatePC (update_reg φ dst (load_word p asrc))
+            match heap_cap_base asrc with
+            | Some base =>
+                status ← (shadowtbl φ) !! base;
+                let loaded_word :=
+                  match status with
+                  | ShadowLive => load_word p asrc
+                  | ShadowQuarantined => clear_tag (load_word p asrc)
+                  end
+                in
+                updatePC (update_reg φ dst loaded_word)
             | _ => updatePC (update_reg φ dst (load_word p asrc))
             end
         else None
@@ -140,10 +138,9 @@ Section opsem.
           if (is_shadow_address ea)
           then
             heap_a ← shadow_to_heap ea;
-            (* Only Boolean values can be stored in the shadow table. *)
+            (* Integer stores decode to an allocation status. *)
             match tostore with
-            | WInt 0 => updatePC (update_shadowtbl φ heap_a false)
-            | WInt 1 => updatePC (update_shadowtbl φ heap_a true)
+            | WInt z => updatePC (update_shadowtbl φ heap_a (decodeAllocStatus z))
             | _ => None
             end
           else

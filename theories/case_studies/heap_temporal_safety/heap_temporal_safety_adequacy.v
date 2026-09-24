@@ -51,7 +51,8 @@ Proof.
   pose proof (compartment_layout.switcher_return_entry_point hts_switcher_cmpt).
   pose proof (compartment_layout.trusted_stack_disjoint_from_shadow hts_switcher_cmpt).
   pose proof (compartment_layout.switcher_base_not_shadow hts_switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _); cbn in *; auto.
+  pose proof (compartment_layout.switcher_base_not_heap hts_switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
 Definition hts_initial_program_memory `{hts_memory_layout} : Mem :=

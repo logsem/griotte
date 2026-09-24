@@ -22,6 +22,9 @@ Definition hts_shadow_region : ShadowRegion :=
   {| instruction_encoding_mixin := @instruction_encoding_mixin machine_parameters_instance;
      permission_encoding_mixin := @permission_encoding_mixin machine_parameters_instance;
      word_encoding_mixin := @word_encoding_mixin machine_parameters_instance;
+     encodeAllocStatus := @encodeAllocStatus machine_parameters_instance;
+     decodeAllocStatus := @decodeAllocStatus machine_parameters_instance;
+     decode_encode_alloc_status_inv := @decode_encode_alloc_status_inv machine_parameters_instance;
      heap_mixin := hts_heap_region;
      shadow_mixin := hts_shadow_region;
      heap_shadow_translation_mixin :=
@@ -123,14 +126,14 @@ Proof.
     hts_switcher_b hts_switcher_e hts_switcher_call hts_switcher_return
     hts_switcher_otype hts_trusted_stack_b hts_trusted_stack_e
     _ _ _ _ (replicate 100 (WInt 0)) _ eq_refl
-    hts_stack_b hts_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _).
+    hts_stack_b hts_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _).
   all: hts_compute_layout.
 Defined.
 
 Program Definition hts_concrete_assert : cmptAssert.
 Proof.
   refine (@mkCmptAssert hts_machine_parameters
-    hts_assert_b hts_assert_e hts_assert_cap hts_assert_flag _ _ _ _).
+    hts_assert_b hts_assert_e hts_assert_cap hts_assert_flag _ _ _ _ _).
   all: hts_compute_layout.
 Defined.
 
@@ -163,7 +166,7 @@ Proof.
     hts_main_exports_b (hts_main_exports_b ^+ 1)%a
     (hts_main_exports_b ^+ 2)%a hts_main_exports_e
     (hts_main_imports hts_adv_f) hts_main_code hts_main_data [] []
-    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
   all: hts_compute_layout.
 Defined.
 
@@ -175,7 +178,7 @@ Proof.
     hts_adv_exports_b (hts_adv_exports_b ^+ 1)%a
     (hts_adv_exports_b ^+ 2)%a hts_adv_exports_e
     hts_adv_imports hts_adv_code hts_adv_data [] hts_adv_exports
-    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
   all: hts_compute_layout.
 Defined.
 
@@ -187,7 +190,7 @@ Proof.
     hts_alloc_exports_b (hts_alloc_exports_b ^+ 1)%a
     (hts_alloc_exports_b ^+ 2)%a hts_alloc_exports_e
     allocator_imports allocator_code allocator_data [] allocator_export_table_entries
-    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
   all: hts_compute_layout.
 Defined.
 

@@ -54,8 +54,10 @@ Section KVS_main_spec.
     in
 
     disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
+    is_heap_address static_sealed_b = false ->
     Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
@@ -66,6 +68,7 @@ Section KVS_main_spec.
     (cgp_b + length (kvs_main_data))%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
+    is_heap_cap (WSealed ot_switcher B_f) = false ->
     frame_match Ws Cs cstk W0 B ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
@@ -106,8 +109,8 @@ Section KVS_main_spec.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hcgp_nonheap Hstatic_shadow HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
-               Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hframe_match
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+               Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous HB_f_nonheap Hframe_match
             )
       "(#Hassert & #Halloc & #Hswitcher
       & #Hkvs & #Hkvs_logical
@@ -178,7 +181,7 @@ Section KVS_main_spec.
     changePCto a_fetch1.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto.
+      with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { rewrite /SWITCHER_CALL_OFFSET; solve_addr. }
     replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
     iFrame "Himport_switcher".
@@ -254,10 +257,14 @@ Section KVS_main_spec.
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK & %Hrestored)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
-    apply load_heap_nonheap in Hrcgp; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcra; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
     apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
-    apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
+    apply load_heap_nonheap in Hrcs1;
+      [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
+          /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
     subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "Hcgp".
     iEval (cbn) in "HPC".
