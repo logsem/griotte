@@ -145,7 +145,7 @@ Section CMDC_Call_Phase.
     { done. }
     { iApply future_priv_mono_interp_in_mem_z. }
     { iApply interp_int. }
-    iMod (world_interp_extend_perm with "Hworld Hshared_addr")
+    iMod (world_interp_extend_perm_nonheap with "Hworld Hshared_addr")
       as "(Hworld & Hrel_shared_addr)"; auto.
 
     assert (related_sts_priv_world W0 Wcall) as HW0_priv_Wcall.
@@ -155,13 +155,17 @@ Section CMDC_Call_Phase.
     { subst shared_addr_cap.
       iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
       iSplitL; last first.
-      { iPureIntro.
-        split; rewrite /disjoint_from_shadow /disjoint_from_heap elem_of_disjoint;
-          intros a Ha Hr; apply elem_of_finz_seq_between in Ha, Hr;
+      { iPureIntro. split.
+        - rewrite /disjoint_from_shadow elem_of_disjoint.
+          intros a Ha Hr; apply elem_of_finz_seq_between in Ha, Hr.
           assert (a = shared_addr) as -> by solve_addr+Ha Hshared_addr_e.
-        - apply withinBounds_true_iff in Hr.
+          apply withinBounds_true_iff in Hr.
           change (is_shadow_address shared_addr = true) in Hr; congruence.
-        - apply withinBounds_true_iff in Hr.
+        - apply heap_cap_valid_disjoint.
+          rewrite /disjoint_from_heap elem_of_disjoint.
+          intros a Ha Hr; apply elem_of_finz_seq_between in Ha, Hr.
+          assert (a = shared_addr) as -> by solve_addr+Ha Hshared_addr_e.
+          apply withinBounds_true_iff in Hr.
           change (is_heap_address shared_addr = true) in Hr; congruence. }
       rewrite (finz_seq_between_cons shared_addr); last solve_addr.
       rewrite (finz_seq_between_empty (shared_addr ^+ 1)%a);
@@ -185,7 +189,7 @@ Section CMDC_Call_Phase.
     (* Prove that the callee's entry point is safe to share. Private-world
        monotonicity preserves the sealed entry point. *)
     iAssert (interp Wcall C target_word) as "#Htarget_call".
-    { iApply interp_monotone_sd; eauto. }
+    { iApply (interp_monotone_sd_same_heap with "[] [$]"); eauto. }
 
     (* Prepare the argument registers for the call. Only [ca0] is semantically
        live for a one-argument call; the complete seven-register map is still

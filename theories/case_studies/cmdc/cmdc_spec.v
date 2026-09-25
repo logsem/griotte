@@ -309,7 +309,7 @@ Section CMDC.
 
     rewrite (open_world_interp_empty _ B).
     iDestruct (
-       open_world_interp_permanent with "[$Hworld_interp_B] [$Hrel_cgp_b]"
+       open_world_interp_permanent_nonheap with "[$Hworld_interp_B] [$Hrel_cgp_b]"
       ) as "(Hworld_interp_B & Hstd_cgp_b & [%v Hcgp_b] )"; auto.
     { set_solver+. }
     iEval (cbn) in "Hcgp_b".
