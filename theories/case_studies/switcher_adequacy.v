@@ -18,6 +18,7 @@ Section helpers_switcher_adequacy.
   Lemma fundamental_execute_entry_point
     (W : WORLD) (C : CmptName) ( b_pcc e_pcc b_cgp e_cgp : Addr )
     (args off : nat) (Nswitcher : namespace) :
+    disjoint_from_heap b_cgp e_cgp ->
     na_inv cerise_nais Nswitcher switcher_inv
     ⊢ interp W C (WCap true RX Global b_pcc e_pcc b_pcc) -∗
     interp W C (WCap true RW Global b_cgp e_cgp b_cgp) -∗
@@ -26,15 +27,17 @@ Section helpers_switcher_adequacy.
     → ▷ execute_entry_point (WCap true RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap true RW Global b_cgp e_cgp b_cgp)
         args W' C.
   Proof.
+    intros Hcgp_heap.
     iIntros "#Hinv_switcher #Hinterp_pcc #Hinterp_cgp".
     iIntros (W' Hrelated).
-    iDestruct (interp_monotone_nl with "[] [] [$Hinterp_pcc]")
-      as "Hinterp_pcc'"; eauto.
-    iDestruct (interp_monotone_nl with "[] [] [$Hinterp_cgp]")
-      as "Hinterp_cgp'"; eauto.
-    iDestruct (interp_weakeningEO W' C true
-                 RX RX Global Global b_pcc b_pcc e_pcc e_pcc b_pcc (b_pcc ^+ off%nat)%a
-                with "Hinterp_pcc'") as "Hinterp_PCC"; eauto; try solve_addr.
+    iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
+    iDestruct (interp_monotone_nl_cap_disjoint W W' C true RX Global
+                 b_pcc e_pcc b_pcc Hpcc_heap Hrelated eq_refl
+                 with "Hinterp_pcc") as "Hinterp_pcc'".
+    iDestruct (interp_monotone_nl_cap_disjoint W W' C true RW Global
+                 b_cgp e_cgp b_cgp Hcgp_heap Hrelated eq_refl
+                 with "Hinterp_cgp") as "Hinterp_cgp'".
+    iDestruct (interp_lea with "Hinterp_pcc'") as "Hinterp_PCC"; first done.
     iModIntro;iNext.
 
     iIntros (cstk Ws Cs ???)
@@ -51,7 +54,7 @@ Section helpers_switcher_adequacy.
     iIntros (r v Hrpc Hr).
     destruct (decide (r = cgp)) as [-> | Hrcgp].
     { rewrite Hregs_cgp in Hr ; simplify_eq.
-      iApply interp_monotone_nl; eauto.
+      iExact "Hinterp_cgp'".
     }
     destruct (decide (r = cra)) as [-> | Hrcra].
     { rewrite Hregs_cra in Hr ; simplify_eq.
@@ -142,7 +145,8 @@ Section helpers_switcher_adequacy.
       pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
       solve_addr.
     }
-    iApply fundamental_execute_entry_point; eauto.
+    iApply fundamental_execute_entry_point;
+      first exact (cmpt_cgp_disjoint_from_heap C_cmpt); eauto.
   Qed.
 
 End helpers_switcher_adequacy.

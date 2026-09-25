@@ -99,8 +99,8 @@ Section KVS_spec_erase.
     cbn in Hwca0_tag.
 
     (* Open sealing predicate of sealed user key *)
-    iDestruct (monotone.interp_monotone_sd with "[] Hinterp_wca0") as "Hinterp_wca0_W"; auto.
     iEval (rewrite fixpoint_interp1_eq /= /interp_sb Hwca0_tag) in "Hinterp_wca0".
+    iDestruct "Hinterp_wca0" as "[#Hinterp_wca0 %Hvalid_wca0]".
     iAssert (sts_seals_std C KVS_OTYPE {[WSealable wsb]})%I as "#Hinterp_wca0'".
     { iApply sts_seals_std_weaken; last iFrame "Hinterp_wca0"; last set_solver+. }
 

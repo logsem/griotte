@@ -11,6 +11,7 @@ Section stack_object_helpers.
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Addr region_type OType Word Σ}
     {relg : relGS Σ}
+    {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
   Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).

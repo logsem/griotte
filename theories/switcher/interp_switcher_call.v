@@ -264,6 +264,7 @@ Section fundamental.
     (pc_a ^+ 10 + (-36))%a = Some (pc_a ^+ (-26))%a ->
     (b <= a)%a ->
     (b <= (a ^+ 3)%a < e)%a ->
+    allocator_ctx ∗
     interp W C (WCap true RWL Local b e a) ∗
     PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
     cs0 ↦ᵣ wcs0_old ∗
@@ -297,7 +298,7 @@ Section fundamental.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hsub Hjmp Hb Ha)
-      "(#Hspv & HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hca1 &
+      "(#Halloc & #Hspv & HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hca0 & Hca1 &
         Hcsp & Hworld_interp & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
@@ -306,7 +307,8 @@ Section fundamental.
     iInstr "Hcode".
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcgp $Hworld_interp]"); try solve_pure.
+    iApply (wp_load_interp_cap with "[$Halloc $HPC $Hi Hcsp Hcgp $Hworld_interp]");
+      try solve_pure; try solve_ndisj.
     { iFrame. by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (%wcgp & -> & HPC & Hi & Hcsp &
         Hcgp & #Hinterp_wcgp & Hworld_interp & _ & _)] /=".
@@ -318,7 +320,8 @@ Section fundamental.
     iInstr "Hcode".
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcra $Hworld_interp]"); try solve_pure.
+    iApply (wp_load_interp_cap with "[$Halloc $HPC $Hi Hcsp Hcra $Hworld_interp]");
+      try solve_pure; try solve_ndisj.
     { iFrame. by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (%wcra & -> & HPC & Hi & Hcsp &
         Hcra & #Hinterp_wcra & Hworld_interp & _ & _)] /=".
@@ -330,7 +333,8 @@ Section fundamental.
     iInstr "Hcode".
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs1 $Hworld_interp]"); try solve_pure.
+    iApply (wp_load_interp_cap with "[$Halloc $HPC $Hi Hcsp Hcs1 $Hworld_interp]");
+      try solve_pure; try solve_ndisj.
     { iFrame. by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (%wcs1 & -> & HPC & Hi & Hcsp &
         Hcs1 & #Hinterp_wcs1 & Hworld_interp & _ & _)] /=".
@@ -342,7 +346,8 @@ Section fundamental.
     iInstr "Hcode".
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_interp_cap with "[$HPC $Hi Hcsp Hcs0 $Hworld_interp]"); try solve_pure.
+    iApply (wp_load_interp_cap with "[$Halloc $HPC $Hi Hcsp Hcs0 $Hworld_interp]");
+      try solve_pure; try solve_ndisj.
     { iFrame. by iApply (interp_lea with "Hspv"). }
     iIntros "!>" (v) "[-> | (%wcs0 & -> & HPC & Hi & Hcsp &
         Hcs0 & #Hinterp_wcs0 & Hworld_interp & _ & _)] /=".
@@ -514,7 +519,7 @@ Section fundamental.
     destruct Hstk_bounds as [Hba Hstk_bounds].
     destruct Hstk_bounds as [Hba3 Hsome4].
     destruct Hsome4 as [f2 Ha4_total].
-    iDestruct (interp_cap_disjoint with "Hspv") as %[Hstk_shadow Hstk_heap]; first done.
+    iDestruct (interp_cap_disjoint_wl with "Hspv") as %[Hstk_shadow Hstk_heap]; first done.
     assert (is_Some (a + 1)%a) as [f Ha1] by solve_addr+Ha4_total.
     assert (is_Some (f + 1)%a) as [f0 Ha2] by solve_addr+Ha4_total Ha1.
     assert (is_Some (f0 + 1)%a) as [f1 Ha3] by solve_addr+Ha4_total Ha1 Ha2.
@@ -733,7 +738,7 @@ Section fundamental.
         }
       + iAssert (interp W C (WSentry true pcra gcra bcra ecra acra)) as "#Hinterp_wret'" ; first done.
         iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wcra".
-        iDestruct "Hinterp_wcra" as "#Hinterp_wret".
+        iDestruct "Hinterp_wcra" as "[%Hret_nonheap #Hinterp_wret]".
         rewrite /enter_cond.
         iAssert (future_world gcra W W) as "-#Hfuture".
         { destruct gcra; cbn; iPureIntro
@@ -793,6 +798,7 @@ Section fundamental.
     (* ----- Clear stack -----  *)
     (* -----------------------  *)
     focus_block 5 "Hcode" as a_clear_stk1 Ha_clear_stk1 "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_stack_chop.
+    iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
     iApply (clear_stack_interp_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hworld_interp]"); try solve_pure.
     iSplit.
     { iApply interp_weakeningEO;eauto. all: solve_addr. }
@@ -847,6 +853,7 @@ Section fundamental.
     rewrite (fixpoint_interp1_eq _ _ (WSealed ot_switcher wsb)).
     iEval (cbn; rewrite Htag) in "Hct1v".
     rewrite /interp_sb.
+    iDestruct "Hct1v" as "[#Hct1v %Hct1_valid]".
     iAssert (sts_seals_std C ot_switcher {[WSealable wsb]}) as "#Hct1v'".
     { iApply sts_seals_std_weaken; last iFrame "Hct1v"; last set_solver+. }
     iDestruct (world_interp_seal_pred_singleton with "Hp_ot_switcher Hct1v' Hworld_interp")
@@ -988,7 +995,8 @@ Section fundamental.
     iSplitL "Hcont".
     { iFrame. simpl.
       iSplit.
-      - iApply (interp_weakening with "IH Hspv");auto;solve_addr.
+      - iSplit; first (iPureIntro; exact Hstk_heap).
+        iApply (interp_weakening with "IH Hspv");auto;solve_addr.
       - done. }
     iSplitR.
     { iPureIntro. simpl. split;auto. apply related_sts_pub_refl_world. }
@@ -1077,6 +1085,7 @@ Section fundamental.
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.
+    iSplit; first (iPureIntro; split; [exact switcher_base_not_heap|exact switcher_disjoint_from_heap]).
     iIntros "!> %regs %W' % %".
     destruct g'; first done.
     iNext ; iApply (interp_expr_switcher_call with "Hinv").

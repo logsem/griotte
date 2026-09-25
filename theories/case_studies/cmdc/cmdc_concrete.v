@@ -121,7 +121,7 @@ Proof.
     cmdc_switcher_return cmdc_switcher_sealing_type
     cmdc_trusted_stack_b cmdc_trusted_stack_e _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl cmdc_stack_b cmdc_stack_e
-    (replicate 100 (WInt 0)) _ _ _ _ _ _ _).
+    (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -138,6 +138,9 @@ Proof.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - reflexivity.
   - vm_compute; reflexivity.
+  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.

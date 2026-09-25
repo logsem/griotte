@@ -51,6 +51,7 @@ Section WorldInterpStack.
     NoDup la ->
     la ## la' ->
     length lv = length la ->
+    Forall (heap_cell_live (heap_std W)) la ->
 
     world_interp_open W C (la++la') ∗
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
@@ -59,7 +60,7 @@ Section WorldInterpStack.
    world_interp_open W C la'.
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (???) "([Hr [Hsts $ ] ] & Hres )"; cbn in * |- *.
+    iIntros (????) "([Hr [Hsts $ ] ] & Hres )"; cbn in * |- *.
     iDestruct (region_close_list_interp_gen with "[$Hres $Hr]") as "$"; eauto.
   Qed.
 
@@ -80,6 +81,7 @@ Section WorldInterpStack.
   Proof.
      rewrite world_interp_eq /world_interp_def.
      iIntros "(Hinterp & [Hr [Hsts Hseals ] ])".
+     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
      iMod (monotone_revoke_stack with "[$Hinterp $Hr $ Hsts]")
         as (l) "($ & $ & $ & $ & $ & $ & $ & $)"; eauto.
     iDestruct (sealing_map_monotone with "Hseals") as "$"; auto.
@@ -102,9 +104,11 @@ Section WorldInterpStack.
   Proof.
     rewrite world_interp_eq /world_interp_def.
     iIntros (???) "[Hr [Hsts Hseals ] ] Hres Hl".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (update_region_revoked_temp_pwl_multiple
            with "Hsts Hr [Hres] [Hl]") as "[$ $]"; eauto.
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
+    - by rewrite std_update_multiple_heap.
     - by rewrite std_update_multiple_seals.
     - apply related_sts_pub_update_multiple_temp; done.
   Qed.

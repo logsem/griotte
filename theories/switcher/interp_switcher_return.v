@@ -210,6 +210,13 @@ Section fundamental.
     { apply not_true_is_false. intros Hheap. apply withinBounds_true_iff in Hheap.
       rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
       eapply (Hstk_heap b_stk); apply elem_of_finz_seq_between; [solve_addr|exact Hheap]. }
+    assert (∀ a, a ∈ finz.seq_between b_stk e_stk -> is_heap_address a = false)
+      as Hstk_nonheap_addr.
+    { intros a Ha. apply not_true_is_false. intros Hheap.
+      apply withinBounds_true_iff in Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
+      eapply (Hstk_heap a); [exact Ha|].
+      apply elem_of_finz_seq_between; exact Hheap. }
     iApply (switcher_return_block_12_load_spec with
       "[- $HPC $Hctp $Hcsp $Ha_tstk $Hcode]"); eauto using trusted_stack_disjoint_from_shadow.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hstk_base_nonheap /=.
@@ -224,6 +231,7 @@ Section fundamental.
     iNext; iIntros
       "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & Hcode & Hlc)".
 
+    iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap Hinterp_callee_wstk]".
     iDestruct (open_world_interp_cframe _ _ _ _ _ _ _ _ _ _ _ with "[$Hcframe_interp $Hworld_interp]")
       as "(%wastk & %wastk1 & %wastk2 & %wastk3
           & Hstk'
@@ -233,6 +241,32 @@ Section fundamental.
     (* With the points-to in hand, we can now continue the execution of the code *)
     rewrite -/(interp_cont).
     iEval (cbn) in "Hinterp_callee_wstk".
+    iDestruct (lc_fupd_elim_later with "[$Hlc] [$Hclose_res]") as ">Hclose_res".
+    iDestruct "Hclose_res" as "[#Hsave Hstates]".
+    iCombine "Hsave Hstates" as "Hclose_res".
+    iAssert (if is_untrusted_caller ccrel then
+        interp_in_mem RWL W C wastk3 ∗
+        interp_in_mem RWL W C wastk2 ∗
+        interp_in_mem RWL W C wastk1 ∗
+        interp_in_mem RWL W C wastk
+      else True)%I as "#Hnormal".
+    { destruct (is_untrusted_caller ccrel) eqn:Huntrusted; simpl; last done.
+      rewrite /StackWorldResources.
+      do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
+      rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
+      replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
+      replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
+      iDestruct (big_sepL2_cons with "Hsave") as "[Hsave0 Hsave_tail1]".
+      iDestruct (big_sepL2_cons with "Hsave_tail1") as "[Hsave1 Hsave_tail2]".
+      iDestruct (big_sepL2_cons with "Hsave_tail2") as "[Hsave2 Hsave_tail3]".
+      iDestruct (big_sepL2_cons with "Hsave_tail3") as "[Hsave3 _]".
+      iDestruct (StackWorldResource_interp_in_mem with "Hsave3") as "#Hnormal3".
+      iDestruct (StackWorldResource_interp_in_mem with "Hsave2") as "#Hnormal2".
+      iDestruct (StackWorldResource_interp_in_mem with "Hsave1") as "#Hnormal1".
+      iDestruct (StackWorldResource_interp_in_mem with "Hsave0") as "#Hnormal0".
+      iFrame "Hnormal3 Hnormal2 Hnormal1 Hnormal0". }
+    set (saved_addrs := if is_untrusted_caller ccrel
+      then finz.seq_between a_stk (a_stk ^+ 4)%a else []).
 
     iDestruct (region_pointsto_cons a_stk (a_stk ^+ 1)%a (a_stk ^+ 4)%a with "Hstk'")
       as "[Ha_stk Hstk']"; [solve_addr+Ha_stk4|solve_addr+Ha_stk4|].
@@ -243,15 +277,33 @@ Section fundamental.
     iDestruct (region_pointsto_cons (a_stk ^+ 3)%a (a_stk ^+ 4)%a (a_stk ^+ 4)%a with "Hstk'")
       as "[Ha_stk3 Hstk']"; [solve_addr+Ha_stk4|solve_addr+Ha_stk4|].
 
-    iApply (switcher_return_block_12_restore_spec with
+    iApply (switcher_return_block_12_restore_open_cases_spec W W C saved_addrs ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
-        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Halloc $Hcode]"); eauto.
+        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld_interp $Halloc $Hcode]").
+    { reflexivity. }
+    { subst saved_addrs.
+      destruct (is_untrusted_caller ccrel); simpl; last constructor.
+      apply Forall_forall; intros a Ha.
+      apply heap_cell_live_nonheap, Hstk_nonheap_addr.
+      apply elem_of_finz_seq_between in Ha.
+      apply elem_of_finz_seq_between.
+      destruct Ha as [Ha_lo Ha_hi]. split.
+      - transitivity a_stk; [exact Hb_a4|exact Ha_lo].
+      - assert ((a_stk ^+ 4 <= e_stk)%a) as Hupper
+          by solve_addr+He_a1 Ha_stk4.
+        solve_addr+Ha_hi Hupper. }
+    { exact Hstk_shadow. }
+    { exact H1. }
+    { exact Ha_stk4. }
+    { exact Hb_a4. }
+    { exact He_a1. }
+    iSplitR; first iExact "Hnormal".
     iNext. iIntros (rstk3 rstk2 rstk1 rstk0) "%Hloaded".
     destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
     iIntros
-      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
+      "(Hworld_interp & Hinterp_loaded & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
         & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc_restore)".
-    iCombine "Hlc Hlc_restore" as "Hlc".
+    iRename "Hlc_restore" into "Hlc".
 
     iDestruct (region_pointsto_cons (a_stk ^+ 3)%a (a_stk ^+ 4)%a (a_stk ^+ 4)%a
       with "[$Ha_stk3 $Hstk']") as "Hstk'"; [solve_addr+Ha_stk4|solve_addr+Ha_stk4|].
@@ -385,37 +437,16 @@ Section fundamental.
         solve_addr.
       }
       { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
+      { apply Forall_forall; intros a Ha.
+        apply heap_cell_live_nonheap, Hstk_nonheap_addr.
+        apply elem_of_finz_seq_between in Ha.
+        apply elem_of_finz_seq_between.
+        destruct Ha as [Ha_lo Ha_hi]. split; last exact Ha_hi.
+        transitivity a_stk; first exact Hb_a4.
+        solve_addr+Ha_stk4 He_a1 Ha_lo. }
 
-      iAssert ((interp W C wastk)
-               ∗ (interp W C wastk1)
-               ∗ (interp W C wastk2)
-               ∗ (interp W C wastk3)
-              )%I with "[Hclose_res]" as "#(Hinterp_wstk0 & Hinterp_wstk1 & Hinterp_wstk2 & Hinterp_wstk3)".
-      {
-        do 4 (rewrite (finz_seq_between_cons _ (a_stk ^+ 4)%a); last solve_addr+He_a1).
-        rewrite (finz_seq_between_empty _ (a_stk ^+ 4)%a); last solve_addr+.
-        replace ((a_stk ^+ 1) ^+ 1)%a with (a_stk ^+ 2)%a by solve_addr+Ha_stk4.
-        replace ((a_stk ^+ 2) ^+ 1)%a with (a_stk ^+ 3)%a by solve_addr+Ha_stk4.
-        iDestruct "Hclose_res" as "[ Hclose_res Hstates ]".
-        iDestruct "Hclose_res" as "(Hclose_wastk & Hclose_wastk1 & Hclose_wastk2 & Hclose_wastk3 & _)".
-        iDestruct (StackWorldResource_interp with "Hclose_wastk") as "$".
-        iDestruct (StackWorldResource_interp with "Hclose_wastk1") as "$".
-        iDestruct (StackWorldResource_interp with "Hclose_wastk2") as "$".
-        iDestruct (StackWorldResource_interp with "Hclose_wastk3") as "$".
-      }
-
-      iAssert (interp W C rstk0) as "#Hinterp_rstk0".
-      { destruct Hr0 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
-      iClear "Hinterp_wstk0". iRename "Hinterp_rstk0" into "Hinterp_wstk0".
-      iAssert (interp W C rstk1) as "#Hinterp_rstk1".
-      { destruct Hr1 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
-      iClear "Hinterp_wstk1". iRename "Hinterp_rstk1" into "Hinterp_wstk1".
-      iAssert (interp W C rstk2) as "#Hinterp_rstk2".
-      { destruct Hr2 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
-      iClear "Hinterp_wstk2". iRename "Hinterp_rstk2" into "Hinterp_wstk2".
-      iAssert (interp W C rstk3) as "#Hinterp_rstk3".
-      { destruct Hr3 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
-      iClear "Hinterp_wstk3". iRename "Hinterp_rstk3" into "Hinterp_wstk3".
+      iDestruct "Hinterp_loaded" as
+        "#(Hinterp_wstk3 & Hinterp_wstk2 & Hinterp_wstk1 & Hinterp_wstk0)".
       rename wastk into raw_stk0, wastk1 into raw_stk1, wastk2 into raw_stk2, wastk3 into raw_stk3.
       rename rstk0 into wastk, rstk1 into wastk1, rstk2 into wastk2, rstk3 into wastk3.
 
@@ -431,6 +462,15 @@ Section fundamental.
       { apply finz_seq_between_NoDup. }
       { set_solver. }
       { subst lv'; by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
+      { apply Forall_forall; intros a Ha.
+        apply heap_cell_live_nonheap, Hstk_nonheap_addr.
+        apply elem_of_finz_seq_between in Ha.
+        apply elem_of_finz_seq_between.
+        destruct Ha as [Ha_lo Ha_hi]. split.
+        - transitivity a_stk; [exact Hb_a4|exact Ha_lo].
+        - assert ((a_stk ^+ 4 <= e_stk)%a) as Hupper
+            by solve_addr+He_a1 Ha_stk4.
+          solve_addr+Ha_hi Hupper. }
       rewrite -open_world_interp_empty.
 
 
@@ -588,7 +628,7 @@ Section fundamental.
       + (* wret was a sentry capability: apply the def of safe for sentry *)
         iAssert (interp W C (WSentry true p g b e a)) as "#Hinterp_wret'" ; first done.
         iEval (rewrite fixpoint_interp1_eq /=) in "Hinterp_wstk2".
-        iDestruct "Hinterp_wstk2" as "#Hinterp_wret".
+        iDestruct "Hinterp_wstk2" as "[%Hret_nonheap #Hinterp_wret]".
         rewrite /enter_cond.
         iAssert (future_world g W W) as "-#Hfuture".
         { destruct g; cbn; iPureIntro
@@ -634,6 +674,7 @@ Section fundamental.
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.
+    iSplit; first (iPureIntro; split; [exact switcher_base_not_heap|exact switcher_disjoint_from_heap]).
     iIntros "!> %regs %W' % %".
     destruct g'; first done.
     iNext ; iApply (interp_expr_switcher_return with "Hinv").

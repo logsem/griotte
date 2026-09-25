@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules_Load map_simpl register_tactics.
+From griotte Require Import rules_Load map_simpl register_tactics logrel.
 From griotte Require Import rules_Allocator.
 From griotte Require Export call_stack.
 
@@ -96,3 +96,99 @@ Section Switcher_Restore.
     - right. split; last reflexivity. unfold is_heap_cap. by rewrite Hbase.
   Qed.
 End Switcher_Restore.
+
+Section Switcher_Restore_Interp.
+  Context
+    {Σ : gFunctors} {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ}
+    {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    `{MP : MachineParameters}.
+
+  Lemma switcher_load_stack_restore_interp E Wworld Wval C opened
+    pc_p pc_g pc_b pc_e pc_a pc_a' dst src wi wd b e a raw :
+    heap_std Wworld = heap_std Wval ->
+    Forall (heap_cell_live (heap_std Wworld)) opened ->
+    ↑Nallocator ⊆ E ->
+    is_shadow_address a = false ->
+    decodeInstrW wi = Load dst src 0 ->
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    withinBounds b e a = true ->
+    (pc_a + 1)%a = Some pc_a' ->
+    dst ≠ cnull -> src ≠ cnull ->
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ wi ∗
+        dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ a ↦ₐ raw ∗
+        world_interp_open Wworld C opened ∗ interp_in_mem RWL Wval C raw ∗
+        allocator_ctx }}}
+      Instr Executable @ E
+    {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
+        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
+        dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
+        a ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
+  Proof.
+    iIntros (Hheap_eq Hlive HE Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
+      "(HPC & Hi & Hdst & Hsrc & Ha & Hworld & #Hnormal & #Halloc) HΦ".
+    destruct (heap_cap_base raw) as [base|] eqn:Hbase.
+    - iInv Nallocator as ">Halloc_body" "Halloc_close".
+      iDestruct "Halloc_body" as (alloc_map Halloc_dom) "Halloc_entries".
+      assert (is_Some (alloc_map !! base)) as [status Hlookup].
+      { apply elem_of_dom. rewrite Halloc_dom elem_of_heap_addresses.
+        unfold heap_cap_base in Hbase.
+        destruct (memory_cap_base raw) as [base'|] eqn:Hmemory; last discriminate.
+        destruct (is_heap_address base') eqn:Hheap; inversion Hbase; subst; done. }
+      iDestruct (big_sepM_delete with "Halloc_entries") as "[Hentry Halloc_entries]";
+        first exact Hlookup.
+      iDestruct "Hentry" as "[Hstatus Hstatus_res]".
+      destruct (shadow_status status) eqn:Hstatus_eq.
+      + iApply (wp_load_success_heap_word with
+          "[$HPC $Hi $Hdst $Hsrc $Ha $Hstatus]"); eauto.
+        iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha & Hstatus)".
+        iAssert ([∗ map] x↦s ∈ alloc_map, allocator_entry x s)%I
+          with "[Hstatus Hstatus_res Halloc_entries]" as "Halloc_entries".
+        { iApply big_sepM_delete; first exact Hlookup.
+          iFrame. rewrite /allocator_entry Hstatus_eq. iFrame. }
+        iDestruct (interp_in_mem_shadow_result_gen Wworld Wval C opened RWL raw raw alloc_map
+          with "Hworld Halloc_entries Hnormal")
+          as "(#Hactual & Hworld & Halloc_entries)";
+          [exact Hlive|exact Hheap_eq|exact Halloc_dom| |].
+        { unfold load_memory_shadow_observation. rewrite Hbase.
+          intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
+          inversion Hobserved; subst. by rewrite Hstatus_eq. }
+        iMod ("Halloc_close" with "[Halloc_entries]") as "_".
+        { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+        iModIntro. iApply "HΦ".
+        iFrame "∗#". iPureIntro. by left.
+      + iApply (wp_load_success_heap_word_revoked with
+          "[$HPC $Hi $Hdst $Hsrc $Ha $Hstatus]"); eauto.
+        iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha & Hstatus)".
+        iAssert ([∗ map] x↦s ∈ alloc_map, allocator_entry x s)%I
+          with "[Hstatus Hstatus_res Halloc_entries]" as "Halloc_entries".
+        { iApply big_sepM_delete; first exact Hlookup.
+          iFrame. rewrite /allocator_entry Hstatus_eq. iFrame. }
+        iDestruct (interp_in_mem_shadow_result_gen Wworld Wval C opened RWL raw
+          (clear_tag raw) alloc_map with "Hworld Halloc_entries Hnormal")
+          as "(#Hactual & Hworld & Halloc_entries)";
+          [exact Hlive|exact Hheap_eq|exact Halloc_dom| |].
+        { unfold load_memory_shadow_observation. rewrite Hbase.
+          intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
+          inversion Hobserved; subst. by rewrite Hstatus_eq. }
+        iMod ("Halloc_close" with "[Halloc_entries]") as "_".
+        { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+        iModIntro. iApply "HΦ".
+        iFrame "∗#". iPureIntro. right. split; last done.
+        unfold is_heap_cap. by rewrite Hbase.
+    - iApply (wp_load_success_notinstr with "[$HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
+      { unfold is_heap_cap. by rewrite Hbase. }
+      iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
+      iApply "HΦ". iFrame "∗#".
+      iSplit; first by iPureIntro; left.
+      iApply (interp_in_mem_load_result with "Hnormal").
+      right. split; first by rewrite /load_word.
+      rewrite /load_word.
+      assert (heap_authority_base raw = None) as Hauth.
+      { destruct (heap_authority_base raw) as [base|] eqn:Hauth; last done.
+        apply heap_authority_base_heap_cap_base_shared in Hauth.
+        rewrite Hbase in Hauth. discriminate. }
+      by apply filter_heap_nonheap.
+  Qed.
+End Switcher_Restore_Interp.

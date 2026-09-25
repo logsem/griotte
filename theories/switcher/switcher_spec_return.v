@@ -10,6 +10,7 @@ From griotte Require Import switcher_spec_return_blocks.
 From stdpp Require Import base.
 From griotte Require Import map_simpl register_tactics proofmode.
 From griotte Require Export world_ghost_theory world_interp_stack switcher_helpers.
+From griotte Require Import wp_rules_interp.
 
 
 Section Switcher.
@@ -26,7 +27,7 @@ Section Switcher.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  Lemma switcher_ret_specification_gen
+  Lemma switcher_ret_specification_mixed
     (Nswitcher : namespace)
     (W0 Wcur : WORLD)
     (C : CmptName)
@@ -56,7 +57,7 @@ Section Switcher.
     ∗ world_interp Wcur C
     ∗ na_own cerise_nais ⊤
     ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
-    ∗ close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false
+    ∗ RevokedResources Wfixed C l
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
@@ -176,18 +177,34 @@ Section Switcher.
        so the callee needs to pass the revoked addresses!
      *)
 
+    iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap Hinterp_callee_wstk]".
+    iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_interp") as %Hheap_wf_cur.
+    assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
+      by (subst Wfixed; rewrite close_list_heap; exact Hheap_wf_cur).
     iMod (
-        open_world_interp_cframe_gen _ _ _ _ _ _ _ _ _ _ _ _ _ with "Hinterp_callee_wstk Hcframe_interp Hclose_list_res Hlc")
+        open_world_interp_cframe_mixed _ _ _ _ _ _ _ _ _ _ _ _ _ with "Hinterp_callee_wstk Hcframe_interp Hclose_list_res Hlc")
       as "(%wastk & %wastk1 & %wastk2 & %wastk3 &
             Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)";eauto.
 
-    iApply (switcher_return_block_12_restore_spec with
+    iApply (switcher_return_block_12_restore_cases_spec Wcur Wfixed C ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
-        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Halloc $Hcode]"); eauto.
+        $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld_interp $Halloc $Hcode]").
+    { subst Wfixed. rewrite close_list_heap. reflexivity. }
+    { exact Hstk_shadow. }
+    { exact H3. }
+    { eauto using Ha_stk4. }
+    { exact Hb_a4. }
+    { exact He_a1. }
+    iSplitR.
+    { destruct (is_untrusted_caller ccrel) eqn:Htrust; simpl.
+      - iDestruct "Hinterp_wfrm" as "(Hw0 & Hw1 & Hw2 & Hw3)".
+        iFrame "Hw3 Hw2 Hw1 Hw0".
+      - done.
+    }
     iNext. iIntros (rstk3 rstk2 rstk1 rstk0) "%Hloaded".
     destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
     iIntros
-      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
+      "(Hworld_interp & Hinterp_loaded & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
         & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc)".
     iDestruct "Hlc" as "[Hlc Hlc']".
 
@@ -284,10 +301,12 @@ Section Switcher.
     iDestruct "Hlc" as "[Hlc Hlc'']".
 
     (* Fix the world! *)
-    iMod (world_interp_stack_fixing with "Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
+    iMod (world_interp_stack_fixing_mixed with "Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
       "(Hworld_interp & Hstk')"; eauto.
 
-    iDestruct (interp_monotone with "[] [$Hinterp_callee_wstk]") as "Hinterp_callee_wstk'" ; first done.
+    iDestruct (interp_monotone_cap_disjoint with "Hinterp_callee_wstk")
+      as "Hinterp_callee_wstk'";
+      [exact Hstk_nonheap|exact Hrelated_pub_W0_Wfixed|].
 
 
     rewrite /is_untrusted_caller_frm /=
@@ -324,19 +343,8 @@ Section Switcher.
     - (* Case where caller is untrusted, we use the IH *)
       iClear "Hexec_topmost_frm".
 
-      iDestruct "Hinterp_wfrm" as "#(Hinterp_wstk0 & Hinterp_wstk1 & Hinterp_wstk2 & Hinterp_wstk3)".
-      iAssert (interp Wfixed C rstk0) as "#Hinterp_rstk0".
-      { destruct Hr0 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
-      iClear "Hinterp_wstk0". iRename "Hinterp_rstk0" into "Hinterp_wstk0".
-      iAssert (interp Wfixed C rstk1) as "#Hinterp_rstk1".
-      { destruct Hr1 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
-      iClear "Hinterp_wstk1". iRename "Hinterp_rstk1" into "Hinterp_wstk1".
-      iAssert (interp Wfixed C rstk2) as "#Hinterp_rstk2".
-      { destruct Hr2 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
-      iClear "Hinterp_wstk2". iRename "Hinterp_rstk2" into "Hinterp_wstk2".
-      iAssert (interp Wfixed C rstk3) as "#Hinterp_rstk3".
-      { destruct Hr3 as [Hread | [Hheap Hread] ]; rewrite Hread; [done|iApply interp_clear_tag]. }
-      iClear "Hinterp_wstk3". iRename "Hinterp_rstk3" into "Hinterp_wstk3".
+      iDestruct "Hinterp_loaded" as
+        "#(Hinterp_wstk3 & Hinterp_wstk2 & Hinterp_wstk1 & Hinterp_wstk0)".
       rename wastk into raw_stk0, wastk1 into raw_stk1, wastk2 into raw_stk2, wastk3 into raw_stk3.
       rename rstk0 into wastk, rstk1 into wastk1, rstk2 into wastk2, rstk3 into wastk3.
 
@@ -411,6 +419,55 @@ Section Switcher.
       Unshelve. all: exact Wcur.
   Qed.
 
+  Lemma switcher_ret_specification_gen
+    (Nswitcher : namespace)
+    (W0 Wcur : WORLD)
+    (C : CmptName)
+    (rmap : Reg)
+    (csp_e csp_b: Addr)
+    (l : list Addr)
+    (stk_mem : list Word)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (wca0 wca1 : Word)
+    :
+    let Wfixed := (close_list (l ++ finz.seq_between csp_b csp_e) Wcur) in
+    related_sts_pub_world W0 Wfixed ->
+    dom rmap = all_registers_s ∖ ({[ PC ; csp ; ca0 ; ca1 ]} ) ->
+    frame_match Ws Cs cstk W0 C ->
+    csp_sync cstk (csp_b ^+ -4)%a csp_e ->
+    (* NOTE: there is only one side of the implication... *)
+    NoDup (l ++ finz.seq_between csp_b csp_e) ->
+    (∀ a : finz MemNum, (std W0) !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
+
+    (* Switcher Invariant *)
+    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ interp Wfixed C wca0
+    ∗ interp Wfixed C wca1
+    ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
+    ∗ cstack_frag cstk
+    ∗ interp_continuation cstk Ws Cs
+    ∗ world_interp Wcur C
+    ∗ na_own cerise_nais ⊤
+    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false
+    ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
+    ∗ ca0 ↦ᵣ wca0
+    ∗ ca1 ↦ᵣ wca1
+    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+    ⊢ WP Seq (Instr Executable)
+      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    intros Wfixed.
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
+      "(#Halloc & #Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
+       & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
+    iDestruct (world_interp_close_resources_to_RevokedResources Wcur C
+      (l ++ finz.seq_between csp_b csp_e) l with "Hworld_interp Hclose_list_res")
+      as "(Hworld_interp & Hrevoked)".
+    iApply switcher_ret_specification_mixed; eauto.
+    iFrame "∗#".
+  Qed.
+
   Lemma switcher_ret_specification
     (Nswitcher : namespace)
     (W0 Wcur : WORLD)
@@ -452,13 +509,13 @@ Section Switcher.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
       "(#Halloc & #Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
     & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
-    iApply switcher_ret_specification_gen; eauto.
+    iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_interp") as %Hheap_wf_cur.
+    assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
+      by (subst Wfixed; rewrite close_list_heap; exact Hheap_wf_cur).
+    iDestruct (RevokedResources_mono_pub W0 Wfixed C l l Hheap_wf_fixed
+      Hrelated_pub_W0_Wfixed with "Hclose_list_res") as "Hrevoked".
+    iApply switcher_ret_specification_mixed; eauto.
     iFrame "∗#".
-    iApply close_list_resources_gen_eq; eauto.
-    rewrite /close_list_resources /close_addr_resources /RevokedResources.
-    iApply (big_sepL_impl with "Hclose_list_res").
-    iModIntro; iIntros (k ka Hka) "(%pa & %Pa & $ & $ & (%va & ($ & $ & $ & ?)))".
-    by rewrite mono_temporary_eq.
   Qed.
 
 End Switcher.

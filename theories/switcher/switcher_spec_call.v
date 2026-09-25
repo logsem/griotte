@@ -89,6 +89,7 @@ Section Switcher.
               ∗ na_own cerise_nais ⊤
               ∗ interp W2 C (WCap true RWL Local a_stk4 e_stk a_stk4)
               ∗ ⌜ (b_stk <= a_stk4 ∧ a_stk4 <= e_stk ∧ (a_stk + 4) = Some a_stk4)%a ⌝
+              ∗ ⌜ disjoint_from_heap a_stk e_stk ⌝
               (* Interpretation of the world *)
               ∗ world_interp_open W2 C callee_stk_region
               ∗ StackOpenWorldResources interp W2 C callee_stk_region stk_mem_h
@@ -423,6 +424,7 @@ Section Switcher.
     iEval (rewrite /is_sealed_with_o Z.eqb_refl) in "Htarget_v".
     iEval (rewrite /interp fixpoint_interp1_eq /= Htag /interp_sb)
       in "Htarget_v".
+    iDestruct "Htarget_v" as "[#Htarget_v %Htarget_valid]".
     iAssert (sts_seals_std C ot_switcher {[WSealable w_entry_point]}) as "#Htarget_v'".
     { iApply sts_seals_std_weaken; last iFrame "Htarget_v"; last set_solver+. }
     iDestruct (world_interp_seal_pred_singleton with "Hp_ot_switcher Htarget_v' Hworld_interp")
@@ -574,8 +576,12 @@ Section Switcher.
     { iApply fixpoint_interp1_eq. iSimpl.
       iSplit; last first.
       { iPureIntro.
-        eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption].
-        solve_addr. }
+        assert (disjoint_from_shadow (a_stk ^+ 4)%a e_stk ∧
+                disjoint_from_heap (a_stk ^+ 4)%a e_stk) as [Hshadow Hheap].
+        { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption].
+          solve_addr. }
+        split; first exact Hshadow.
+        by apply heap_cap_valid_disjoint. }
       rewrite {2}/StackRevokedResources /StackWorldResources big_sepL2_replicate_r; last done.
       iApply (big_sepL_impl with "Hstk_val'").
       iIntros "!>" (k a Ha) "Hr".
@@ -596,23 +602,32 @@ Section Switcher.
       }
       iPureIntro. apply std_sta_update_multiple_lookup_in_i. apply list_elem_of_lookup. eauto.
     }
+    iDestruct (interp_cap_disjoint_wl with "Hstk4v") as %[_ Hstk4_heap]; first done.
     iSplitL "Hpost Hlc Hcont".
     { simpl.
       iFrame "Hcont".
       iEval (cbn).
       iSplitR.
-      { iFrame "Hstk4v". }
+      { iSplit; first (iPureIntro; exact Hstk4_heap).
+        iFrame "Hstk4v". }
       iIntros (W' HW' rcgp rcra rcs0 rcs1 ?????) "#Halloc_ret %Hrestored (HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
       & Hca1 & #Hv' & % & Hregs & Hstk & Hstk' & Hworld_interp & Hcls & Hcont & Hcstk & Own)".
       iApply "Hpost";iLeft. simplify_eq.
       iFrame "∗#%".
       iSplit.
       {
-        iApply interp_monotone; first done.
+        iApply interp_monotone_cap_disjoint;
+          [exact Hstk4_heap|exact HW'|].
         iApply (interp_lea with "Hstk4v"); done.
       }
       iSplit.
       { iPureIntro; repeat split; solve_addr+Hastk_bstk Hastk_bounds Hastk_some. }
+      iSplit.
+      { iPureIntro.
+        assert ((e_stk <= e_stk)%a) as He by solve_addr.
+        destruct (switcher_disjoint_subseg b_stk e_stk a_stk e_stk
+                    Hastk_bstk He (conj Hstk_shadow Hstk_heap)) as [_ Hstack_heap].
+        exact Hstack_heap. }
 
       clear -Hrev HW'.
       iPureIntro; intros k a Ha; cbn.
@@ -684,7 +699,8 @@ Section Switcher.
       destruct Hv as [Hv|Hv].
       + iDestruct (big_sepM_lookup with "Hval") as "Hv";[apply Hv|].
         destruct (decide (r ∈ _)) as [|Hcontra]; last set_solver+Hcontra Hr.
-        iApply (interp_monotone with "[] Hv").
+        iApply (interp_monotone_same_heap with "[] Hv").
+        { symmetry. apply std_update_multiple_heap. }
         iPureIntro; apply related_sts_pub_update_multiple_temp; auto.
       + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
         iApply interp_int.
@@ -813,7 +829,7 @@ Section Switcher.
     + clear stk_mem.
       iDestruct "H" as
         "(%Hrelated_pub_Wext_W2 & %Hdom_rmap
-      & Hna & #Hinterp_W2_csp & %Hcsp_bounds
+      & Hna & #Hinterp_W2_csp & %Hcsp_bounds & %Hstack_heap
       & Hworld_interp_C & Hstack_revoked_W2
       & Hcstk_frag & Hrel_stk_C
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
@@ -830,10 +846,28 @@ Section Switcher.
       { apply finz_seq_between_NoDup. }
       { set_solver+. }
       { by rewrite finz_seq_between_length in Hlen_stk_l. }
+      { apply Forall_forall; intros x Hx.
+        apply heap_cell_live_nonheap.
+        apply not_true_is_false; intros Hxheap.
+        apply withinBounds_true_iff in Hxheap.
+        rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
+        eapply (Hstk_heap x); apply elem_of_finz_seq_between.
+        - rewrite elem_of_finz_seq_between in Hx.
+          solve_addr+Hcsp_bounds Hx.
+        - exact Hxheap. }
       rewrite -open_world_interp_empty.
 
       iMod (world_interp_revoked_by_separation_many with "[$Hworld_interp_C $Hstk_l]")
         as "(Hworld_interp_C & Hstk_l & %Hstk_l_revoked)".
+      { apply Forall_forall; intros x Hx.
+        apply heap_cell_live_nonheap.
+        apply not_true_is_false; intros Hxheap.
+        apply withinBounds_true_iff in Hxheap.
+        rewrite /disjoint_from_heap elem_of_disjoint in Hstack_heap.
+        eapply (Hstack_heap x); apply elem_of_finz_seq_between.
+        - rewrite elem_of_finz_seq_between in Hx.
+          solve_addr+Hx Hcsp_bounds.
+        - exact Hxheap. }
       {
         apply Forall_forall; intros a Ha.
         eapply elem_of_mono_pub;eauto.
@@ -888,9 +922,13 @@ Section Switcher.
            & Hrmap & Hstk_l & Hstk_h
            & Hworld_interp_C & Hclose
            & Hcstk_frag & HK & %Hrestored & [Hlc Hlc'])".
+      iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_interp_C") as %Hheap_wf_W.
+      assert (heap_wf (heap_std (std_update_multiple W
+        (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary))) as Hheap_wf_Wext.
+      { rewrite std_update_multiple_heap. exact Hheap_wf_W. }
       pose proof (extract_temps W) as [l_unk [Hlunk_nodup Hlunk] ].
 
-      iMod ( world_interp_revoke _ _ l_unk with "[$Hworld_interp_C]") as
+      iMod ( world_interp_revoke_mixed _ _ l_unk with "[$Hworld_interp_C]") as
         "(Hworld_interp_C & Hrevoked_l & %Hrevoked_l)"; auto.
       { split; auto. }
       iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l]") as ">Hrevoked_l".

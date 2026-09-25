@@ -153,6 +153,7 @@ Section CmptLayout.
 
         switcher_base_not_shadow : is_shadow_address b_switcher = false;
         switcher_base_not_heap : is_heap_address b_switcher = false;
+        switcher_disjoint_from_heap : disjoint_from_heap b_switcher e_switcher;
 
         stack_disjoint_from_shadow : disjoint_from_shadow b_stack e_stack;
         stack_disjoint_from_heap : disjoint_from_heap b_stack e_stack;

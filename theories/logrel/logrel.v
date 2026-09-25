@@ -479,7 +479,7 @@ Section logrel.
     | WCap t p g b e a =>
         let a4 := (a^+4)%a in
         let b_callee := if is_untrusted_caller then b else a4 in
-        ⌜is_heap_address b_callee = false ∧ disjoint_from_heap b_callee e⌝ ∗
+        ⌜disjoint_from_heap b_callee e⌝ ∗
         interp W C (WCap t p g b_callee e a)
     | _ => True
     end.
@@ -684,7 +684,9 @@ Section logrel.
       | None => False
       | Some (_, o) =>
           match alloc_object_status o with
-          | AllocObjectLive => (e <= alloc_object_end o)%a ∧ executeAllowed p = false
+          | AllocObjectLive =>
+              (e <= alloc_object_end o)%a ∧
+              executeAllowed p = false ∧ isWL p = false
           | AllocObjectQuarantined => False
           end
       end
@@ -1152,6 +1154,8 @@ Section logrel.
     specialize (Hheap Hnonempty). rewrite /heap_cap_live Hbase in Hheap.
     destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ] eqn:Hlookup; last done.
     destruct (alloc_object_status obj) eqn:Hstatus; last done.
+    destruct Hheap as [Hend Hrest].
+    destruct Hrest as [Hexec Hwl].
     iPureIntro. exists base,obj. auto.
   Qed.
 
@@ -1182,7 +1186,27 @@ Section logrel.
     destruct (is_heap_address b); last done.
     destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ]; last done.
     destruct (alloc_object_status obj); last contradiction.
-    destruct Hheap as [_ Hnonexec]. congruence.
+    destruct Hheap as [Hend Hrest].
+    destruct Hrest as [Hnonexec Hnotwl]. congruence.
+  Qed.
+
+  Lemma interp_cap_disjoint_wl (W : WORLD) (C : CmptName) p g b e a :
+    isWL p = true →
+    interp W C (WCap true p g b e a) -∗
+    ⌜disjoint_from_shadow b e ∧ disjoint_from_heap b e⌝.
+  Proof.
+    iIntros (Hwl) "Hinterp".
+    iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap];
+      first (apply isWL_nonO; exact Hwl).
+    iPureIntro. split; first done.
+    destruct (decide (b < e)%a) as [Hnonempty|Hempty]; last first.
+    { rewrite /disjoint_from_heap finz_seq_between_empty; [set_solver|solve_addr]. }
+    specialize (Hheap Hnonempty). rewrite /heap_cap_live in Hheap.
+    destruct (is_heap_address b); last done.
+    destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ]; last done.
+    destruct (alloc_object_status obj); last contradiction.
+    destruct Hheap as [Hend Hrest].
+    destruct Hrest as [Hnonexec Hnotwl]. congruence.
   Qed.
 
   Lemma interp_cap_not_shadow (W : WORLD) (C : CmptName) p g b e a a' :
@@ -1600,6 +1624,192 @@ Section logrel.
       iDestruct (rel_agree C a _ _ p0 p1 with "[$Hrel0 $Hrel1]") as "(-> & Heq)".
       congruence.
   Qed.
+
+  Lemma filter_heap_map_shared W (f : Word -> Word) w :
+    heap_authority_base (f w) = heap_authority_base w ->
+    clear_tag (f w) = f (clear_tag w) ->
+    filter_heap W (f w) = f (filter_heap W w).
+  Proof.
+    intros Hbase Hclear. rewrite /filter_heap Hbase.
+    destruct (heap_authority_base w) as [b|]; last done.
+    destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ]; last done.
+    cbn. destruct (alloc_object_status obj); done.
+  Qed.
+
+  Lemma filter_heap_borrow_shared W w :
+    filter_heap W (borrow w) = borrow (filter_heap W w).
+  Proof.
+    apply filter_heap_map_shared;
+      destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
+      reflexivity.
+  Qed.
+
+  Lemma filter_heap_deeplocal_shared W w :
+    filter_heap W (deeplocal w) = deeplocal (filter_heap W w).
+  Proof.
+    apply filter_heap_map_shared;
+      destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
+      reflexivity.
+  Qed.
+
+  Lemma filter_heap_readonly_shared W w :
+    filter_heap W (readonly w) = readonly (filter_heap W w).
+  Proof.
+    apply filter_heap_map_shared;
+      destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
+      reflexivity.
+  Qed.
+
+  Lemma filter_heap_force_global_shared W w :
+    filter_heap W (force_global w) = force_global (filter_heap W w).
+  Proof.
+    apply filter_heap_map_shared;
+      destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
+      reflexivity.
+  Qed.
+
+  Lemma filter_heap_load_word_shared W p w :
+    filter_heap W (load_word p w) = load_word p (filter_heap W w).
+  Proof.
+    rewrite /load_word. destruct (isDRO p), (isDL p);
+      by rewrite ?filter_heap_readonly_shared ?filter_heap_deeplocal_shared ?filter_heap_borrow_shared.
+  Qed.
+
+  Lemma heap_authority_base_heap_cap_base_shared (raw : Word) base :
+    heap_authority_base raw = Some base → heap_cap_base raw = Some base.
+  Proof.
+    destruct raw; unfold heap_authority_base; simpl; try discriminate.
+    - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
+    - case_decide; auto; discriminate.
+    - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
+  Qed.
+
+  Lemma interp_in_mem_shadow_result_gen Wworld W C opened (p : Perm) raw actual alloc_map :
+    Forall (heap_cell_live (heap_std Wworld)) opened →
+    heap_std Wworld = heap_std W →
+    dom alloc_map = heap_addresses →
+    load_memory_shadow_observation (shadow_status <$> alloc_map) p raw actual →
+    world_interp_open Wworld C opened -∗
+    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s) -∗
+    interp_in_mem p W C raw -∗
+    interp W C actual ∗ world_interp_open Wworld C opened ∗
+    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s).
+  Proof.
+    iIntros (Hlive_s Hheap_eq Hdom Hobs) "Hworld Hentries #Hnormal".
+    destruct (heap_cap_base raw) as [base|] eqn:Hbase; cycle 1.
+    { rewrite /load_memory_shadow_observation Hbase in Hobs. subst actual.
+      assert (heap_authority_base raw = None) as Hauth.
+      { destruct (heap_authority_base raw) as [b|] eqn:Hauth; last done.
+        apply heap_authority_base_heap_cap_base_shared in Hauth.
+        rewrite Hbase in Hauth. discriminate. }
+      assert (filter_heap W (load_word p raw) = load_word p raw) as Hfilter.
+      { rewrite filter_heap_load_word_shared /filter_heap Hauth. done. }
+      iSplitR "Hworld Hentries".
+      { iApply (interp_in_mem_load_result with "Hnormal").
+        right. split; done. }
+      iFrame. }
+    assert (is_heap_address base = true) as Hheap.
+    { unfold heap_cap_base in Hbase.
+      destruct (memory_cap_base raw) as [b|] eqn:Hmemory; last discriminate.
+      destruct (is_heap_address b) eqn:Hheap; last discriminate.
+      by simplify_eq. }
+    assert (is_Some (alloc_map !! base)) as [s Hlookup].
+    { apply elem_of_dom. rewrite Hdom elem_of_heap_addresses. exact Hheap. }
+    rewrite /load_memory_shadow_observation Hbase in Hobs.
+    specialize (Hobs (shadow_status s)).
+    assert ((shadow_status <$> alloc_map) !! base = Some (shadow_status s))
+      as Hshadow_lookup.
+    { by rewrite lookup_fmap Hlookup. }
+    specialize (Hobs Hshadow_lookup).
+    destruct s.
+    - simpl in Hobs. subst actual.
+      destruct (heap_authority_base raw) as [b|] eqn:Hauth.
+      2: { iSplitR "Hworld Hentries".
+           { iApply (interp_in_mem_load_result with "Hnormal").
+             right. split; first done.
+             rewrite filter_heap_load_word_shared /filter_heap Hauth. done. }
+           iFrame. }
+      pose proof (heap_authority_base_heap_cap_base_shared raw b Hauth) as Hcap.
+      rewrite Hbase in Hcap. inversion Hcap; subst b.
+      destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup.
+      2: { iSplitR "Hworld Hentries".
+           { iApply (interp_in_mem_load_result with "Hnormal").
+             right. split; first done.
+             rewrite filter_heap_load_word_shared /filter_heap Hauth Hheaplookup. done. }
+           iFrame. }
+      destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
+      { iSplitR "Hworld Hentries".
+        { iApply (interp_in_mem_load_result with "Hnormal").
+          right. split; first done.
+          rewrite filter_heap_load_word_shared /filter_heap Hauth Hheaplookup /= Hstatus. done. }
+        iFrame. }
+      assert (heap_cell_status (heap_std Wworld) base = Some AllocObjectQuarantined)
+        as Hqstatus.
+      { by rewrite Hheap_eq /heap_cell_status Hheap Hheaplookup /= Hstatus. }
+      assert (base ∉ opened) as Hnotpc.
+      { intros Hbase_in.
+        rewrite Forall_forall in Hlive_s.
+        specialize (Hlive_s base Hbase_in).
+        unfold heap_cell_live in Hlive_s. rewrite Hqstatus in Hlive_s.
+        discriminate. }
+      iDestruct (world_interp_open_quarantined_token with "Hworld")
+        as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
+      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hlookup.
+      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken")
+        as %Himpossible. discriminate Himpossible.
+    - simpl in Hobs. subst actual.
+      destruct (heap_authority_base raw) as [b|] eqn:Hauth.
+      2: { iSplitR "Hworld Hentries".
+           { iApply (interp_in_mem_load_result with "Hnormal").
+             right. split; first done.
+             rewrite filter_heap_load_word_shared /filter_heap Hauth. done. }
+           iFrame. }
+      pose proof (heap_authority_base_heap_cap_base_shared raw b Hauth) as Hcap.
+      rewrite Hbase in Hcap. inversion Hcap; subst b.
+      destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup.
+      2: { iSplitR "Hworld Hentries".
+           { iApply (interp_in_mem_load_result with "Hnormal").
+             right. split; first done.
+             rewrite filter_heap_load_word_shared /filter_heap Hauth Hheaplookup. done. }
+           iFrame. }
+      destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
+      { iSplitR "Hworld Hentries".
+        { iApply (interp_in_mem_load_result with "Hnormal").
+          right. split; first done.
+          rewrite filter_heap_load_word_shared /filter_heap Hauth Hheaplookup /= Hstatus. done. }
+        iFrame. }
+      assert (heap_cell_status (heap_std Wworld) base = Some AllocObjectQuarantined)
+        as Hqstatus.
+      { by rewrite Hheap_eq /heap_cell_status Hheap Hheaplookup /= Hstatus. }
+      assert (base ∉ opened) as Hnotpc.
+      { intros Hbase_in.
+        rewrite Forall_forall in Hlive_s.
+        specialize (Hlive_s base Hbase_in).
+        unfold heap_cell_live in Hlive_s. rewrite Hqstatus in Hlive_s.
+        discriminate. }
+      iDestruct (world_interp_open_quarantined_token with "Hworld")
+        as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
+      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hlookup.
+      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken")
+        as %Himpossible. discriminate Himpossible.
+    - simpl in Hobs. subst actual.
+      iSplitR "Hworld Hentries"; first iApply interp_clear_tag. iFrame.
+  Qed.
+
+  Lemma interp_in_mem_shadow_result W C pc (p : Perm) raw actual alloc_map :
+    heap_cell_live (heap_std W) pc →
+    dom alloc_map = heap_addresses →
+    load_memory_shadow_observation (shadow_status <$> alloc_map) p raw actual →
+    world_interp_open W C [pc] -∗
+    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s) -∗
+    interp_in_mem p W C raw -∗
+    interp W C actual ∗ world_interp_open W C [pc] ∗
+    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s).
+  Proof.
+    intros Hlive Hdom Hobs.
+    iApply interp_in_mem_shadow_result_gen; auto.
+  Qed.
+
 
 End logrel.
 

@@ -236,7 +236,7 @@ Section Switcher_preamble.
   Proof.
     iIntros (W W' Hrelated_W_W').
     iModIntro.
-    iIntros "Hot_switcher".
+    iIntros (Hheap_wf) "Hot_switcher".
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
     iDestruct "Hot_switcher" as

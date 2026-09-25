@@ -25,6 +25,14 @@ Section wp_interp.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
+  Lemma world_interp_heap_wf W C :
+    world_interp W C -∗ ⌜heap_wf (heap_std W)⌝.
+  Proof.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "(_ & Hsts & _)".
+    iApply (sts_full_world_heap_wf with "Hsts").
+  Qed.
+
   Lemma wp_store_interp (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : Word)
@@ -120,9 +128,12 @@ Section wp_interp.
 
     iDestruct (write_allowed_inv _ _ a with "Hinterp_dst") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
-    iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
-      as "(Hworld_interp & Hstate & (%w & WorldRes) )"
-    ; [|eauto|]; [ destruct ρ;auto;done|].
+    iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
+    iDestruct (interp_cap_cell_live W C p g b e a a with "Hinterp_dst") as %Hlive;
+      [exact Hheap_wf|by eapply writeAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
+    iDestruct (open_world_interp W C a p' (safeC P) ρ with "Hrel Hworld_interp")
+      as "(Hworld_interp & Hstate & (%w & WorldRes))";
+      [exact Hlive|destruct ρ; auto; contradiction|exact Hρ|].
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
 
@@ -298,9 +309,12 @@ Section wp_interp.
 
     iDestruct (write_allowed_inv _ _ a with "Hinterp_dst") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
-    iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
-      as "(Hworld_interp & Hstate & (%w & WorldRes) )"
-    ; [|eauto|]; [ destruct ρ;auto;done|].
+    iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
+    iDestruct (interp_cap_cell_live W C p g b e a a with "Hinterp_dst") as %Hlive;
+      [exact Hheap_wf|by eapply writeAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
+    iDestruct (open_world_interp W C a p' (safeC P) ρ with "Hrel Hworld_interp")
+      as "(Hworld_interp & Hstate & (%w & WorldRes))";
+      [exact Hlive|destruct ρ; auto; contradiction|exact Hρ|].
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ a with "Hinterp_dst") as %Hnot_shadow.
@@ -630,12 +644,14 @@ Section wp_interp.
     (wi wsrc wdst : Word)
     :
     decodeInstrW wi = Load rdst rsrc 0 →
+    ↑Nallocator ⊆ E →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
-     {{{ interp W C wsrc
+     {{{ allocator_ctx ∗
+           interp W C wsrc
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
@@ -658,8 +674,8 @@ Section wp_interp.
           )
        }}}.
   Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ)
-      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
+    iIntros (Hdecode_wi HEalloc Hcorrect_pc Hpca' ?? φ)
+      "(#Halloc & #Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
     iIntros "Hφ".
 
     destruct (is_cap wsrc) eqn:Hcap;cycle 1.
@@ -721,9 +737,12 @@ Section wp_interp.
 
     iDestruct (read_allowed_inv _ _ a with "Hinterp_src") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
-    iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
-      as "(Hworld_interp & Hstate & (%w & WorldRes) )"
-    ; [|eauto|]; [ destruct ρ;auto;done|].
+    iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
+    iDestruct (interp_cap_cell_live W C p g b e a a with "Hinterp_src") as %Hlive;
+      [exact Hheap_wf|by eapply readAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
+    iDestruct (open_world_interp W C a p' (safeC P) ρ with "Hrel Hworld_interp")
+      as "(Hworld_interp & Hstate & (%w & WorldRes))";
+      [exact Hlive|destruct ρ; auto; contradiction|exact Hρ|].
     iDestruct (WorldRes_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes ]".
 
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ a with "Hinterp_src") as %Hnot_shadow.
@@ -731,42 +750,81 @@ Section wp_interp.
     { apply withinBounds_true_iff; solve_addr. }
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
     iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
-    iApply (wp_load E pc_p pc_g pc_b pc_e pc_a rdst rsrc wi with "[$Hmap $Hmem]")
-      ; try done; try (by simplify_map_eq).
+    iInv Nallocator as "> Halloc_body" "Halloc_close".
+    iDestruct "Halloc_body" as (alloc_map Halloc_dom) "Halloc_entries".
+    iEval (rewrite /allocator_entry big_sepM_sep) in "Halloc_entries".
+    iDestruct "Halloc_entries" as "[Hshadow Halloc_states]".
+    iAssert ([∗ map] k↦status ∈ shadow_status <$> alloc_map, k ↦ₛ status)%I
+      with "[Hshadow]" as "Hshadow".
+    { rewrite big_sepM_fmap. iExact "Hshadow". }
+    (* Load rdst rsrc 0. *)
+    iApply (wp_load_memory_shadow_imm (E ∖ ↑Nallocator)
+      pc_p pc_g pc_b pc_e pc_a rdst rsrc 0 wi
+      (<[pc_a:=wi]> (<[a:=w]> ∅))
+      (<[PC:=WCap true pc_p pc_g pc_b pc_e pc_a]>
+        (<[rsrc:=WCap true p g b e a]> (<[rdst:=wdst]> ∅)))
+      (DfracOwn 1) (shadow_status <$> alloc_map) (DfracOwn 1)
+      with "[Hmem Hshadow Hmap]"); eauto.
+    { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
+    { by rewrite lookup_insert_eq. }
     { exists true, p, g, b, e, a. split.
       - unfold read_reg_inr. by simplify_map_eq.
-      - case_decide; last done. exists w. by simplify_map_eq. }
-    { intros p0 g0 b0 e0 a0 (Hsrc0 & _). simpl_map_regs by eauto. simplify_map_eq. done. }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 a0 loadv actualv Hallow Hlookup Hactual Hinc|].
-    2: { iApply "Hφ". by iLeft. }
-    destruct Hallow as (Hsrc0 & _). simpl_map_regs by eauto.
-    rewrite lookup_insert_ne in Hsrc0; last congruence.
-    rewrite lookup_insert decide_True in Hsrc0; last done.
-    injection Hsrc0 as <- <- <- <- <-.
-    rewrite lookup_insert_ne in Hlookup; last congruence.
-    rewrite lookup_insert decide_True in Hlookup; last done.
-    injection Hlookup as ->.
-    unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
-    rewrite (insert_insert_ne _ rdst PC) // insert_insert_eq.
-    rewrite (insert_insert_ne _ rdst rsrc) // insert_insert_eq.
-    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
-    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
-    pose proof (Hpers (W, C, loadv)).
-    iDestruct "Hinterp" as "#HφV /=".
-
-    iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
-    iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes") as "Hworld_interp"; eauto.
-    { destruct ρ;auto;contradiction. }
-
-    iApply "Hφ"; iRight; iFrame "∗%".
-    iSplit; first done.
-    iSplit; first done.
-    iSplit; last solve_addr.
-    destruct Hactual as [-> | ->]; last iApply interp_clear_tag.
-    iDestruct ("Hwcond" with "HφV") as "H"; cbn.
-    iApply interp_weakening_word_load; eauto.
+      - unfold reg_allows_load_imm. rewrite addr_add_0 /=.
+        case_decide; last done. exists w. by simplify_map_eq. }
+    { intros p0 g0 b0 e0 a0 ea0 (Hsrc0 & Haddr & _).
+      simpl_map_regs by eauto. simplify_map_eq.
+      rewrite addr_add_0 in Haddr. injection Haddr as <-. exact Hnot_shadow. }
+    { iFrame "Hmem". iSplitL "Hshadow"; first (iNext; iExact "Hshadow").
+      iNext. iExact "Hmap". }
+    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hshadow & Hmap)".
+    iAssert ([∗ map] k↦s ∈ alloc_map, allocator_entry k s)%I
+      with "[Hshadow Halloc_states]" as "Halloc_entries".
+    { rewrite /allocator_entry big_sepM_sep big_sepM_fmap. iFrame. }
+    destruct Hspec as
+      [p0 g0 b0 e0 a0 ea0 loadv actualv Hallow Hlookup Hactual Hobserved Hinc|].
+    - destruct Hallow as (Hsrc0 & Haddr & _). simpl_map_regs by eauto.
+      rewrite lookup_insert_ne in Hsrc0; last congruence.
+      rewrite lookup_insert decide_True in Hsrc0; last done.
+      injection Hsrc0 as <- <- <- <- <-.
+      rewrite addr_add_0 in Haddr. injection Haddr as <-.
+      rewrite lookup_insert_ne in Hlookup; last congruence.
+      rewrite lookup_insert decide_True in Hlookup; last done.
+      injection Hlookup as ->.
+      pose proof (Hpers (W, C, loadv)).
+      iDestruct "Hinterp" as "#HφV /=".
+      iDestruct ("Hwcond" with "HφV") as "#Hnormal_p'".
+      iAssert (interp_in_mem p W C loadv)%I as "#Hnormal".
+      { rewrite interp_in_mem_eq filter_heap_load_word_shared.
+        iApply (interp_weakening_word_load W C p p' (filter_heap W loadv));
+          first exact Hflows.
+        iEval (rewrite /interp_in_mem_pre filter_heap_load_word_shared)
+          in "Hnormal_p'".
+        iExact "Hnormal_p'". }
+      iDestruct (interp_in_mem_shadow_result W C a p loadv actualv alloc_map
+        with "Hworld_interp Halloc_entries Hnormal")
+        as "(#Hload_interp & Hworld_interp & Halloc_entries)";
+        [exact Hlive|exact Halloc_dom|exact Hobserved|].
+      iMod ("Halloc_close" with "[Halloc_entries]") as "_".
+      { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+      iModIntro.
+      unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
+      rewrite (insert_insert_ne _ rdst PC) // insert_insert_eq.
+      rewrite (insert_insert_ne _ rdst rsrc) // insert_insert_eq.
+      iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
+      iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+      iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes")
+        as "Hworld_interp"; eauto.
+      { destruct ρ; auto; contradiction. }
+      iApply "Hφ"; iRight. iExists p, g, b, e, a, actualv. iFrame "∗%".
+      iSplit; first done.
+      iSplit; first done.
+      iSplit; last solve_addr.
+      iExact "Hload_interp".
+    - iMod ("Halloc_close" with "[Halloc_entries]") as "_".
+      { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+      iModIntro. iApply "Hφ". by iLeft.
   Qed.
 
   Lemma wp_load_interp_cap (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
@@ -775,12 +833,14 @@ Section wp_interp.
     (wi wdst : Word)
     :
     decodeInstrW wi = Load rdst rsrc 0 →
+    ↑Nallocator ⊆ E →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
-     {{{ interp W C (WCap true p g b e a)
+     {{{ allocator_ctx ∗
+           interp W C (WCap true p g b e a)
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ (WCap true p g b e a)
@@ -802,8 +862,8 @@ Section wp_interp.
           )
        }}}.
   Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ)
-      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
+    iIntros (Hdecode_wi HEalloc Hcorrect_pc Hpca' ?? φ)
+      "(#Halloc & #Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
     iIntros "Hφ".
     iApply (wp_load_interp with "[-Hφ]");eauto;[iFrame "∗ #"|].
     iNext. iIntros (ret) "[? | (%&%&%&%&%&%&%&?&?&?&?&?&?&?&?&%&%)]"
@@ -916,9 +976,12 @@ Section wp_interp.
 
     iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
-    iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
-      as "(Hworld_interp & Hstate & (%w & WorldRes) )"
-    ; [|eauto|]; [ destruct ρ;auto;done|].
+    iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
+    iDestruct (interp_cap_cell_live W C p g b e a ea with "Hinterp_dst") as %Hlive;
+      [exact Hheap_wf|by eapply writeAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
+    iDestruct (open_world_interp W C ea p' (safeC P) ρ with "Hrel Hworld_interp")
+      as "(Hworld_interp & Hstate & (%w & WorldRes))";
+      [exact Hlive|destruct ρ; auto; contradiction|exact Hρ|].
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
 
@@ -1102,9 +1165,12 @@ Section wp_interp.
 
     iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
-    iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
-      as "(Hworld_interp & Hstate & (%w & WorldRes) )"
-    ; [|eauto|]; [ destruct ρ;auto;done|].
+    iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
+    iDestruct (interp_cap_cell_live W C p g b e a ea with "Hinterp_dst") as %Hlive;
+      [exact Hheap_wf|by eapply writeAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
+    iDestruct (open_world_interp W C ea p' (safeC P) ρ with "Hrel Hworld_interp")
+      as "(Hworld_interp & Hstate & (%w & WorldRes))";
+      [exact Hlive|destruct ρ; auto; contradiction|exact Hρ|].
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoP) WorldRes ]".
 
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow.
@@ -1182,12 +1248,14 @@ Section wp_interp.
     (wi wsrc wdst : Word)
     :
     decodeInstrW wi = Load rdst rsrc imm →
+    ↑Nallocator ⊆ E →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
-     {{{ interp W C wsrc
+     {{{ allocator_ctx ∗
+           interp W C wsrc
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ wsrc
@@ -1211,8 +1279,8 @@ Section wp_interp.
           )
        }}}.
   Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ)
-      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
+    iIntros (Hdecode_wi HEalloc Hcorrect_pc Hpca' ?? φ)
+      "(#Halloc & #Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
     iIntros "Hφ".
 
     destruct (is_cap wsrc) eqn:Hcap;cycle 1.
@@ -1281,9 +1349,12 @@ Section wp_interp.
 
     iDestruct (read_allowed_inv _ _ ea with "Hinterp_src") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
-    iDestruct (open_world_interp with "[$Hrel] [$Hworld_interp]")
-      as "(Hworld_interp & Hstate & (%w & WorldRes) )"
-    ; [|eauto|]; [ destruct ρ;auto;done|].
+    iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
+    iDestruct (interp_cap_cell_live W C p g b e a ea with "Hinterp_src") as %Hlive;
+      [exact Hheap_wf|by eapply readAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
+    iDestruct (open_world_interp W C ea p' (safeC P) ρ with "Hrel Hworld_interp")
+      as "(Hworld_interp & Hstate & (%w & WorldRes))";
+      [exact Hlive|destruct ρ; auto; contradiction|exact Hρ|].
     iDestruct (WorldRes_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes ]".
 
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow.
@@ -1291,42 +1362,80 @@ Section wp_interp.
     { apply withinBounds_true_iff; solve_addr. }
     iDestruct (map_of_regs_3 with "HPC Hsrc Hdst") as "[Hmap (%Hpc_src & %Hpc_dst & %Hsrc_dst)]".
     iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
-    iApply (wp_load_memory_imm E pc_p pc_g pc_b pc_e pc_a rdst rsrc imm wi _ _ (DfracOwn 1) with "[$Hmap $Hmem]");
-      try done; try (by simplify_map_eq).
+    iInv Nallocator as "> Halloc_body" "Halloc_close".
+    iDestruct "Halloc_body" as (alloc_map Halloc_dom) "Halloc_entries".
+    iEval (rewrite /allocator_entry big_sepM_sep) in "Halloc_entries".
+    iDestruct "Halloc_entries" as "[Hshadow Halloc_states]".
+    iAssert ([∗ map] k↦status ∈ shadow_status <$> alloc_map, k ↦ₛ status)%I
+      with "[Hshadow]" as "Hshadow".
+    { rewrite big_sepM_fmap. iExact "Hshadow". }
+    (* Load rdst rsrc imm. *)
+    iApply (wp_load_memory_shadow_imm (E ∖ ↑Nallocator)
+      pc_p pc_g pc_b pc_e pc_a rdst rsrc imm wi
+      (<[pc_a:=wi]> (<[ea:=w]> ∅))
+      (<[PC:=WCap true pc_p pc_g pc_b pc_e pc_a]>
+        (<[rsrc:=WCap true p g b e a]> (<[rdst:=wdst]> ∅)))
+      (DfracOwn 1) (shadow_status <$> alloc_map) (DfracOwn 1)
+      with "[Hmem Hshadow Hmap]"); eauto.
+    { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
+    { by rewrite lookup_insert_eq. }
     { exists true, p, g, b, e, a. split.
       - unfold read_reg_inr. by simplify_map_eq.
-      - rewrite /reg_allows_load_imm Hea. case_decide; last done. exists w. by simplify_map_eq. }
+      - rewrite /reg_allows_load_imm Hea.
+        case_decide; last done. exists w. by simplify_map_eq. }
     { intros p0 g0 b0 e0 a0 ea0 (Hsrc0 & Haddr & _).
-      simpl_map_regs by eauto. simplify_map_eq. done. }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 a0 ea0 loadv actualv Hallow Hlookup Hactual Hinc|].
-    2: { iApply "Hφ". by iLeft. }
-    destruct Hallow as (Hsrc0 & Haddr & _). simpl_map_regs by eauto.
-    rewrite lookup_insert_ne in Hsrc0; last congruence.
-    rewrite lookup_insert decide_True in Hsrc0; last done.
-    injection Hsrc0 as <- <- <- <- <-.
-    rewrite Hea in Haddr. injection Haddr as <-.
-    rewrite lookup_insert_ne in Hlookup; last congruence.
-    rewrite lookup_insert decide_True in Hlookup; last done.
-    injection Hlookup as ->.
-    unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
-    rewrite (insert_insert_ne _ rdst PC) // insert_insert_eq.
-    rewrite (insert_insert_ne _ rdst rsrc) // insert_insert_eq.
-    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
-    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
-    pose proof (Hpers (W, C, loadv)).
-    iDestruct "Hinterp" as "#HφV /=".
-    iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
-    iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes") as "Hworld_interp"; eauto.
-    { destruct ρ;auto;contradiction. }
-    iApply "Hφ"; iRight. iExists p, g, b, e, a, ea, actualv. iFrame "∗%".
-    iSplit; first done.
-    iSplit; first done.
-    iSplit; last solve_addr.
-    destruct Hactual as [-> | ->]; last iApply interp_clear_tag.
-    iDestruct ("Hwcond" with "HφV") as "H"; cbn.
-    iApply interp_weakening_word_load; eauto.
+      simpl_map_regs by eauto. simplify_map_eq. exact Hnot_shadow. }
+    { iFrame "Hmem". iSplitL "Hshadow"; first (iNext; iExact "Hshadow").
+      iNext. iExact "Hmap". }
+    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hshadow & Hmap)".
+    iAssert ([∗ map] k↦s ∈ alloc_map, allocator_entry k s)%I
+      with "[Hshadow Halloc_states]" as "Halloc_entries".
+    { rewrite /allocator_entry big_sepM_sep big_sepM_fmap. iFrame. }
+    destruct Hspec as
+      [p0 g0 b0 e0 a0 ea0 loadv actualv Hallow Hlookup Hactual Hobserved Hinc|].
+    - destruct Hallow as (Hsrc0 & Haddr & _). simpl_map_regs by eauto.
+      rewrite lookup_insert_ne in Hsrc0; last congruence.
+      rewrite lookup_insert decide_True in Hsrc0; last done.
+      injection Hsrc0 as <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      rewrite lookup_insert_ne in Hlookup; last congruence.
+      rewrite lookup_insert decide_True in Hlookup; last done.
+      injection Hlookup as ->.
+      pose proof (Hpers (W, C, loadv)).
+      iDestruct "Hinterp" as "#HφV /=".
+      iDestruct ("Hwcond" with "HφV") as "#Hnormal_p'".
+      iAssert (interp_in_mem p W C loadv)%I as "#Hnormal".
+      { rewrite interp_in_mem_eq filter_heap_load_word_shared.
+        iApply (interp_weakening_word_load W C p p' (filter_heap W loadv));
+          first exact Hflows.
+        iEval (rewrite /interp_in_mem_pre filter_heap_load_word_shared)
+          in "Hnormal_p'".
+        iExact "Hnormal_p'". }
+      iDestruct (interp_in_mem_shadow_result W C ea p loadv actualv alloc_map
+        with "Hworld_interp Halloc_entries Hnormal")
+        as "(#Hload_interp & Hworld_interp & Halloc_entries)";
+        [exact Hlive|exact Halloc_dom|exact Hobserved|].
+      iMod ("Halloc_close" with "[Halloc_entries]") as "_".
+      { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+      iModIntro.
+      unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
+      rewrite (insert_insert_ne _ rdst PC) // insert_insert_eq.
+      rewrite (insert_insert_ne _ rdst rsrc) // insert_insert_eq.
+      iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hsrc & Hdst)"; eauto.
+      iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+      iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
+      iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes")
+        as "Hworld_interp"; eauto.
+      { destruct ρ; auto; contradiction. }
+      iApply "Hφ"; iRight. iExists p, g, b, e, a, ea, actualv. iFrame "∗%".
+      iSplit; first done.
+      iSplit; first done.
+      iSplit; last solve_addr.
+      iExact "Hload_interp".
+    - iMod ("Halloc_close" with "[Halloc_entries]") as "_".
+      { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+      iModIntro. iApply "Hφ". by iLeft.
 
   Qed.
 
@@ -1336,12 +1445,14 @@ Section wp_interp.
     (wi wdst : Word)
     :
     decodeInstrW wi = Load rdst rsrc imm →
+    ↑Nallocator ⊆ E →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
-     {{{ interp W C (WCap true p g b e a)
+     {{{ allocator_ctx ∗
+           interp W C (WCap true p g b e a)
            ∗ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ (WCap true p g b e a)
@@ -1364,8 +1475,8 @@ Section wp_interp.
           )
        }}}.
   Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ)
-      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
+    iIntros (Hdecode_wi HEalloc Hcorrect_pc Hpca' ?? φ)
+      "(#Halloc & #Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
     iIntros "Hφ".
     iApply (wp_load_interp_imm with "[-Hφ]");eauto;[iFrame "∗ #"|].
     iNext. iIntros (ret) "Hpost". iApply "Hφ".

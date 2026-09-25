@@ -111,7 +111,10 @@ Section fundamental.
     destruct (is_heap_address b); last done.
     destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ]; last done.
     destruct (alloc_object_status obj); last done.
-    intros [He Hexec]. split; eauto using notexecuteAllowed_flowsfrom.
+    intros Hparts.
+    destruct Hparts as [He Hrest].
+    destruct Hrest as [Hexec HnotWL].
+    repeat split; eauto using notexecuteAllowed_flowsfrom, notisWL_flowsfrom.
   Qed.
 
   Lemma interp_weakening_same_bounds W C t p p' g g' b e a a' :
@@ -662,13 +665,14 @@ Section fundamental.
     - destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ] eqn:Hlookup;
         last contradiction.
       destruct (alloc_object_status obj) eqn:Hstatus; last contradiction.
-      destruct Hvalid as [Hend Hexec].
+      destruct Hvalid as [Hend Hrest].
+      destruct Hrest as [Hexec HnotWL].
       destruct (is_heap_address b') eqn:Hbheap'.
       + destruct (heap_lookup_addr_sound _ _ _ _ Hlookup) as [Hobj Hcontains].
         assert (Hlookup' : heap_lookup_addr (heap_std W) b' = Some (base,obj)).
         { apply heap_lookup_addr_complete; auto.
           rewrite /alloc_object_contains in Hcontains |- *. solve_addr. }
-        rewrite Hlookup' Hstatus. split; [solve_addr|done].
+        rewrite Hlookup' Hstatus. repeat split; try solve_addr; done.
       + rewrite /disjoint_from_heap elem_of_disjoint.
         intros a Ha Hheap. apply elem_of_finz_seq_between in Ha, Hheap.
         apply withinBounds_true_iff in Hbheap.
