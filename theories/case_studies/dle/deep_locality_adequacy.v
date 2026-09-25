@@ -160,7 +160,7 @@ Section Adequacy.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {shadow_preg: gen_heapGpreS Addr AllocStatus Σ}.
   Context {allocator_preg: allocator_preG Σ}.
-  Context {na_invg: na_invG Σ}.
+  Context {na_invg: na_invariants.na_invG Σ}.
   Context {sts_preg: STS_preG Addr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
@@ -228,7 +228,7 @@ Section Adequacy.
 
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
     iMod (world_interp_init ({[ ot_switcher ]} : gset _))
-      as (relg stsg seal_storeg) "(Hheap_auth & Hworld_interp & Hseal_store)".
+      as (relg stsg seal_storeg) "(Hworld_interp & Hseal_store)".
 
     iDestruct (big_sepS_elements with "Hworld_interp") as "Hworld_C".
     rewrite HCNames.
@@ -358,14 +358,36 @@ Section Adequacy.
       iModIntro.
       iSplitR "Hseal_switcher".
       - iSplit; last done.
-        iSplit; [| iIntros (???) "!> _" ] ; iApply interp_switcher_call ; done.
+        assert (heap_authority_base
+          (WSentry true XSRW_ Local (b_switcher switcher_cmpt)
+            (e_switcher switcher_cmpt) (a_switcher_call switcher_cmpt)) = None) as Hcall_nonheap.
+        { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
+          apply heap_authority_base_heap_cap_base_shared in Hauth.
+          pose proof switcher_call_sentry_not_heap as Hnonheap.
+          unfold is_heap_cap in Hnonheap; rewrite Hauth in Hnonheap; discriminate. }
+        iEval (cbn); iSplit.
+        { iEval (rewrite /interp_in_mem_pre /=).
+          iEval (rewrite (filter_heap_nonheap _ _ Hcall_nonheap) /=).
+          iApply interp_switcher_call; done. }
+        { iIntros "!>" (W W' Hrel Hwf) "H".
+          iEval (rewrite /interp_in_mem_pre /=).
+          iEval (rewrite (filter_heap_nonheap _ _ Hcall_nonheap) /=).
+          iApply interp_switcher_call; done. }
       - rewrite Hexported_entries_sealed Hexported_entries_words.
         iApply big_sepS_insert_2.
-        { by iEval (rewrite fixpoint_interp1_eq /= /interp_sb).  }
+        { iApply interp_to_in_mem.
+          iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+          iSplit; first iFrame "Hseal_switcher".
+          iPureIntro; cbn.
+          apply heap_cap_valid_disjoint, cmpt_exp_tbl_disjoint_from_heap. }
         iApply big_sepS_singleton.
+        iApply interp_to_in_mem.
         iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
-        replace {[WSealable C_f'; borrow (WSealable C_f')]} with ({[borrow (WSealable C_f)]} : gset Word) by set_solver+.
-        iApply sts_seals_std_weaken; [|done]; set_solver+.
+        iSplit.
+        { replace {[WSealable C_f'; borrow (WSealable C_f')]} with ({[borrow (WSealable C_f)]} : gset Word) by set_solver+.
+          iApply sts_seals_std_weaken; [|done]; set_solver+. }
+        iPureIntro; cbn.
+        apply heap_cap_valid_disjoint, cmpt_exp_tbl_disjoint_from_heap.
     }
 
     match goal with
@@ -382,12 +404,22 @@ Section Adequacy.
       unshelve eapply switcher_cmpt_disjoint_std_update_compartment; eauto.
     }
 
-    iMod ( world_interp_extend_temp_sepL2 _ _
+    assert (Forall (λ a, is_heap_address a = false)
+      (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))) as Hstack_nonheap.
+    { apply Forall_forall; intros a Ha.
+      apply not_true_is_false; intros Hheap.
+      apply withinBounds_true_iff in Hheap.
+      pose proof (stack_disjoint_from_heap switcher_cmpt) as Hdisj.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hdisj.
+      eapply (Hdisj a); [exact Ha|apply elem_of_finz_seq_between; exact Hheap]. }
+
+    iMod ( world_interp_extend_temp_sepL2_nonheap _ _
              (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
              (stack_content switcher_cmpt)
              RWL interp_in_memC
            with "Hworld_C [Hstack]")
            as "(Hworld_C & #Hrel_stk_C)".
+    { exact Hstack_nonheap. }
     { done. }
     { eapply Hstack_disjoint. }
     {
@@ -396,9 +428,10 @@ Section Adequacy.
       intros k v1 v2 Hv1 Hv2. cbn. iIntros; iFrame.
       pose proof (Forall_lookup_1 _ _ _ _ Hstack Hv2) as Hncap.
       destruct v2; [| by inversion Hncap..].
-      rewrite fixpoint_interp1_eq /=.
-      iSplit; eauto.
-      iSplit; eauto.
+      iSplit; first done.
+      iSplit.
+      { iEval (rewrite /interp_in_mem_pre /=).
+        iApply interp_int. }
       rewrite mono_temporary_eq; cbn; iApply future_pub_mono_interp_in_mem_z.
     }
 
@@ -410,7 +443,7 @@ Section Adequacy.
     { subst Winit_C.
       apply related_sts_pub_priv_world.
       eapply related_sts_pub_update_multiple.
-      eapply Forall_impl; eauto.
+      eapply Forall_impl; [exact Hstack_disjoint|].
       intros a Ha; cbn in *.
       by rewrite not_elem_of_dom.
     }
@@ -418,45 +451,61 @@ Section Adequacy.
     iAssert (interp Winit_C C
                (WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a)
             )%I as "#Hinterp_pcc_C".
-    { iApply interp_monotone_nl; eauto. }
+    { iApply (interp_monotone_nl_same_heap W1 Winit_C C with "[] [] HC_code"); eauto.
+      subst Winit_C. by rewrite std_update_multiple_heap. }
 
     iAssert (interp Winit_C C
                (WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a)
             )%I as "#Hinterp_cgp_C".
-    { iApply interp_monotone_nl; eauto. }
+    { iApply (interp_monotone_nl_same_heap W1 Winit_C C with "[] [] HC_data"); eauto.
+      subst Winit_C. by rewrite std_update_multiple_heap. }
 
     iAssert (interp Winit_C C
                (WCap true RWL Local (b_stack switcher_cmpt) (e_stack switcher_cmpt) (b_stack switcher_cmpt))
             )%I as "#Hinterp_stack_C".
     { iEval (rewrite fixpoint_interp1_eq /=).
-      iSplit; last (iPureIntro; repeat split;
-        try apply stack_disjoint_from_shadow; try apply stack_disjoint_from_heap; done).
-      iApply big_sepL_intro; iModIntro.
-      iIntros (k a Ha).
-      iExists RWL, (interp_in_mem RWL).
-      iEval (cbn).
-      iSplit; first done.
-      iSplit; first (iPureIntro ; by apply persistent_cond_interp_in_mem).
-      rewrite (big_sepL_lookup _ (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
-                 k a); eauto.
-      iFrame "Hrel_stk_C".
-      iSplit; first (iNext ; by iApply zcond_interp_in_mem).
-      iSplit; first (iNext ; by iApply rcond_interp_in_mem).
-      iSplit; first (iNext ; by iApply wcond_interp_in_mem).
-      assert ((std Winit_C) !! a = Some Temporary).
-      { subst Winit_C.
-        apply list_elem_of_lookup_2 in Ha.
-        rewrite std_sta_update_multiple_lookup_in_i; auto.
-      }
-      iSplit; last done.
-      iApply (monoReq_interp_in_mem _ _ _ _ Temporary); done.
+      iSplit.
+      { iApply big_sepL_intro; iModIntro.
+        iIntros (k a Ha).
+        iExists RWL, (interp_in_mem RWL).
+        iEval (cbn).
+        iSplit; first done.
+        iSplit; first (iPureIntro ; by apply persistent_cond_interp_in_mem).
+        rewrite (big_sepL_lookup _ (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
+                   k a); eauto.
+        iFrame "Hrel_stk_C".
+        iSplit; first (iNext ; by iApply zcond_interp_in_mem).
+        iSplit; first (iNext ; by iApply rcond_interp_in_mem).
+        iSplit; first (iNext ; by iApply wcond_interp_in_mem).
+        assert ((std Winit_C) !! a = Some Temporary).
+        { subst Winit_C.
+          apply list_elem_of_lookup_2 in Ha.
+          rewrite std_sta_update_multiple_lookup_in_i; auto.
+        }
+        iSplit; last done.
+        iApply (monoReq_interp_in_mem _ _ _ _ Temporary); done. }
+      iPureIntro; split.
+      { apply stack_disjoint_from_shadow. }
+      apply heap_cap_valid_disjoint, stack_disjoint_from_heap.
     }
+
+    assert (is_heap_cap (WSealed ot_switcher C_f) = false) as Hsealed_nonheap.
+    { unfold C_f. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap C_cmpt). }
+    assert (heap_authority_base (WSealed ot_switcher C_f) = None) as Hsealed_base.
+    { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
+      apply heap_authority_base_heap_cap_base_shared in Hauth.
+      unfold is_heap_cap in Hsealed_nonheap; rewrite Hauth in Hsealed_nonheap; discriminate. }
 
     iAssert ( interp Winit_C C (WSealed ot_switcher C_f)) as "#Hinterp_C_f".
     { rewrite Hexported_entries_sealed.
       iDestruct (big_sepS_elem_of_acc _ _ (WSealed ot_switcher C_f) with "HC_exports") as "[Hinterp_C_f _]"
       ; first set_solver+.
-      iApply interp_monotone_sd; eauto.
+      iApply (interp_monotone_sd_same_heap W1 Winit_C C with "[] [Hinterp_C_f]").
+      { subst Winit_C. by rewrite std_update_multiple_heap. }
+      { iPureIntro. exact Hrelated_W1_Winit_C. }
+      iApply (interp_in_mem_load_result with "Hinterp_C_f").
+      right; split; [reflexivity|].
+      apply filter_heap_nonheap; exact Hsealed_base.
     }
     iClear "HC_etbl_pcc HC_etbl_cgp HC_code HC_data Hinterp_pcc_C Hinterp_cgp_C".
 
@@ -466,8 +515,6 @@ Section Adequacy.
     iDestruct (big_sepM_delete _ _ cgp with "Hreg") as "[Hcgp Hreg]"; first by simplify_map_eq.
     iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[Hcsp Hreg]"; first by simplify_map_eq.
 
-    assert (is_heap_cap (WSealed ot_switcher C_f) = false) as Hsealed_nonheap.
-    { unfold C_f. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap C_cmpt). }
     iPoseProof (Spec _ _ _ _ _
                   _ _ _ _ _
                   [] [] assertN switcherN []
