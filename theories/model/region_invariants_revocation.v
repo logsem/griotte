@@ -230,163 +230,6 @@ Section region_invariant_revocation.
     - eapply update_region_revoked_temp_pwl_updated_nonheap; eauto; typeclasses eauto.
   Qed.
 
-  Lemma update_region_revoked_temp_nwl_updated_nonheap E W C a p v φ `{∀ Wv, Persistent (φ Wv)}  :
-    is_heap_address a = false ->
-    let W' := (<s[ a := Temporary ]s> W) in
-    (std W) !! a = Some Revoked →
-    isO p = false → isWL p = false →
-
-    (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
-    sts_full_world W C -∗
-    region W C -∗
-    a ↦ₐ v -∗
-    φ (W',C, v) -∗
-    rel C a p φ
-
-    ={E}=∗
-
-    region W' C
-    ∗ sts_full_world W' C.
-  Proof.
-    intros Hnonheap.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { apply heap_cell_live_nonheap. exact Hnonheap. }
-    intro.
-    iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    rewrite region_eq /region_def.
-    iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
-    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
-    rewrite rel_eq /rel_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
-    iDestruct ( (reg_in C M) with "[$HREL $Hγrel]") as %HMeq;eauto.
-    rewrite /region_map_def HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
-    iDestruct "Hpreds" as "[Hl' Hr]".
-    iDestruct "Hl'" as (ρ Hl) "[Hstate Hresources]".
-    iDestruct (sts_full_state_std with "Hsts Hstate") as %Hρ.
-    rewrite Hrev in Hρ. inversion Hρ as [Hρrev]. subst.
-    iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
-    assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
-    { apply related_sts_pub_revoked_temp; auto. }
-    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "[Hr]") as "Hr".
-    { iFrame "%∗". }
-    assert (is_Some (M !! a)) as [x Hsome].
-    { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. done. }
-    iDestruct (region_map_delete with "Hr") as "Hr".
-    iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hr") as "Hr";auto.
-    iDestruct "Hr" as "[%Hcovered' Hr]".
-    iDestruct (big_sepM_delete _ _ a _ Hsome with "[Hl Hstate $Hr]") as "Hr".
-    { iExists Temporary. iFrame. iSplitR;[iPureIntro;apply lookup_insert_eq|].
-      iExists γ, p, φ. rewrite HMeq lookup_insert_eq in Hsome.
-      inversion Hsome. iSplitR; first done. iFrame "%#".
-      iApply heap_cell_resource_live_intro; first exact Hlive.
-      rewrite /region_std_interp Hpwl. iExists v. iFrame "%#∗".
-    }
-    subst W'.
-    iFrame "Hsts".
-    iExists M.
-    rewrite -HMeq.
-    iFrame "∗%".
-    iPureIntro.
-    apply insert_id in Hsome; rewrite -Hsome.
-    apply insert_id in Hl; rewrite -Hl.
-    split.
-    - repeat rewrite dom_insert_L;rewrite Hdom;set_solver.
-    - repeat rewrite insert_insert_eq dom_insert_L;rewrite Hdom';set_solver.
-  Qed.
-
-  Lemma update_region_revoked_temp_nwl_updated_live_heap E W C a p v φ `{∀ Wv, Persistent (φ Wv)}   (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    let W' := (<s[ a := Temporary ]s> W) in
-    (std W) !! a = Some Revoked →
-    isO p = false → isWL p = false →
-
-    (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
-    sts_full_world W C -∗
-    region W C -∗
-    a ↦ₐ v -∗
-    φ (W',C, v) -∗
-    rel C a p φ
-
-    ={E}=∗
-
-    region W' C
-    ∗ sts_full_world W' C.
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
-    intro.
-    iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    rewrite region_eq /region_def.
-    iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
-    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
-    rewrite rel_eq /rel_def. iDestruct "Hrel" as (γ) "[HREL Hsaved]".
-    iDestruct ( (reg_in C M) with "[$HREL $Hγrel]") as %HMeq;eauto.
-    rewrite /region_map_def HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
-    iDestruct "Hpreds" as "[Hl' Hr]".
-    iDestruct "Hl'" as (ρ Hl) "[Hstate Hresources]".
-    iDestruct (sts_full_state_std with "Hsts Hstate") as %Hρ.
-    rewrite Hrev in Hρ. inversion Hρ as [Hρrev]. subst.
-    iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
-    assert (related_sts_pub_world W (<s[a := Temporary ]s> W)) as Hrelated.
-    { apply related_sts_pub_revoked_temp; auto. }
-    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "[Hr]") as "Hr".
-    { iFrame "%∗". }
-    assert (is_Some (M !! a)) as [x Hsome].
-    { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. done. }
-    iDestruct (region_map_delete with "Hr") as "Hr".
-    iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hr") as "Hr";auto.
-    iDestruct "Hr" as "[%Hcovered' Hr]".
-    iDestruct (big_sepM_delete _ _ a _ Hsome with "[Hl Hstate $Hr]") as "Hr".
-    { iExists Temporary. iFrame. iSplitR;[iPureIntro;apply lookup_insert_eq|].
-      iExists γ, p, φ. rewrite HMeq lookup_insert_eq in Hsome.
-      inversion Hsome. iSplitR; first done. iFrame "%#".
-      iApply heap_cell_resource_live_intro; first exact Hlive.
-      rewrite /region_std_interp Hpwl. iExists v. iFrame "%#∗".
-    }
-    subst W'.
-    iFrame "Hsts".
-    iExists M.
-    rewrite -HMeq.
-    iFrame "∗%".
-    iPureIntro.
-    apply insert_id in Hsome; rewrite -Hsome.
-    apply insert_id in Hl; rewrite -Hl.
-    split.
-    - repeat rewrite dom_insert_L;rewrite Hdom;set_solver.
-    - repeat rewrite insert_insert_eq dom_insert_L;rewrite Hdom';set_solver.
-  Qed.
-
-  Lemma update_region_revoked_temp_nwl_updated E W C a p v φ `{∀ Wv, Persistent (φ Wv)}  :
-    heap_cell_live (heap_std W) a ->
-    let W' := (<s[ a := Temporary ]s> W) in
-    (std W) !! a = Some Revoked →
-    isO p = false → isWL p = false →
-
-    (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
-    sts_full_world W C -∗
-    region W C -∗
-    a ↦ₐ v -∗
-    φ (W',C, v) -∗
-    rel C a p φ
-
-    ={E}=∗
-
-    region W' C
-    ∗ sts_full_world W' C.
-  Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply update_region_revoked_temp_nwl_updated_live_heap; eauto; typeclasses eauto.
-    - eapply update_region_revoked_temp_nwl_updated_nonheap; eauto; typeclasses eauto.
-  Qed.
-
   Lemma update_region_revoked_temp_pwl_nonheap E W C a p v φ `{∀ Wv, Persistent (φ Wv)}  :
     is_heap_address a = false ->
     (std W) !! a = Some Revoked →
@@ -471,113 +314,6 @@ Section region_invariant_revocation.
     - eapply update_region_revoked_temp_pwl_nonheap; eauto; typeclasses eauto.
   Qed.
 
-  Lemma update_region_revoked_temp_nwl_nonheap E W C a p v φ `{∀ Wv, Persistent (φ Wv)}  :
-    is_heap_address a = false ->
-    (std W) !! a = Some Revoked →
-    isO p = false → isWL p = false →
-
-    (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
-    sts_full_world W C -∗
-    region W C -∗
-    a ↦ₐ v -∗
-    φ (W,C,v) -∗
-    rel C a p φ
-
-    ={E}=∗
-
-    region (<s[ a := Temporary ]s> W) C
-    ∗ sts_full_world (<s[ a := Temporary ]s> W) C.
-  Proof.
-    intros Hnonheap.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { apply heap_cell_live_nonheap. exact Hnonheap. }
-    iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    destruct (isDL p) eqn:Hpdl.
-    + assert (related_sts_pub_world W (<s[ a := Temporary ]s> W)) as Hrelated.
-      { apply related_sts_pub_revoked_temp; auto. }
-      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
-      replace (future_pub_mono C φ v)
-        with (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
-      by (rewrite Hpdl;done).
-      iApply (update_region_revoked_temp_nwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
-    + assert (related_sts_priv_world W (<s[ a := Temporary ]s> W)) as Hrelated.
-      { apply related_sts_pub_priv_world,related_sts_pub_revoked_temp; auto. }
-      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
-      replace (future_priv_mono C φ v)
-        with (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
-      by (rewrite Hpdl;done).
-      iApply (update_region_revoked_temp_nwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
-  Qed.
-
-  Lemma update_region_revoked_temp_nwl_live_heap E W C a p v φ `{∀ Wv, Persistent (φ Wv)}   (base : Addr) (obj : AllocObject) :
-    is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectLive ->
-    (std W) !! a = Some Revoked →
-    isO p = false → isWL p = false →
-
-    (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
-    sts_full_world W C -∗
-    region W C -∗
-    a ↦ₐ v -∗
-    φ (W,C,v) -∗
-    rel C a p φ
-
-    ={E}=∗
-
-    region (<s[ a := Temporary ]s> W) C
-    ∗ sts_full_world (<s[ a := Temporary ]s> W) C.
-  Proof.
-    intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
-    iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    destruct (isDL p) eqn:Hpdl.
-    + assert (related_sts_pub_world W (<s[ a := Temporary ]s> W)) as Hrelated.
-      { apply related_sts_pub_revoked_temp; auto. }
-      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
-      replace (future_pub_mono C φ v)
-        with (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
-      by (rewrite Hpdl;done).
-      iApply (update_region_revoked_temp_nwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
-    + assert (related_sts_priv_world W (<s[ a := Temporary ]s> W)) as Hrelated.
-      { apply related_sts_pub_priv_world,related_sts_pub_revoked_temp; auto. }
-      iDestruct ("HmonoV" $! W ((<s[ a := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
-      replace (future_priv_mono C φ v)
-        with (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
-      by (rewrite Hpdl;done).
-      iApply (update_region_revoked_temp_nwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
-  Qed.
-
-  Lemma update_region_revoked_temp_nwl E W C a p v φ `{∀ Wv, Persistent (φ Wv)}  :
-    heap_cell_live (heap_std W) a ->
-    (std W) !! a = Some Revoked →
-    isO p = false → isWL p = false →
-
-    (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
-    sts_full_world W C -∗
-    region W C -∗
-    a ↦ₐ v -∗
-    φ (W,C,v) -∗
-    rel C a p φ
-
-    ={E}=∗
-
-    region (<s[ a := Temporary ]s> W) C
-    ∗ sts_full_world (<s[ a := Temporary ]s> W) C.
-  Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-        last discriminate.
-      cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
-      eapply update_region_revoked_temp_nwl_live_heap; eauto; typeclasses eauto.
-    - eapply update_region_revoked_temp_nwl_nonheap; eauto; typeclasses eauto.
-  Qed.
-
-
   (* ---------------------------------------------------------------------------------------- *)
   (* ------------------- IF THΕ FULL STS IS REVOKED, WΕ CAN REVOKE REGION ------------------- *)
   (* ---------------------------------------------------------------------------------------- *)
@@ -622,101 +358,6 @@ Section region_invariant_revocation.
     iFrame "∗%#".
     iNext. iApply ("HmonoV" with "[] [] Hφ"); last done.
     iPureIntro. apply revoke_related_sts_priv_world.
-  Qed.
-
-  (* ---------------------------------------------------------------------------------------- *)
-  (* ------------------- A REVOKED W IS MONOTONE WRT PRIVATE FUTURE WORLD ------------------- *)
-  (* ---------------------------------------------------------------------------------------- *)
-
-  (* The following statements discard all the resources of temporary regions *)
-
-  Lemma monotone_revoke_list_sts_full_world W C MC Mρ l :
-    ⌜∀ (a : Addr), a ∈ l → is_Some (MC !! a)⌝ -∗
-    ⌜dom Mρ = dom MC⌝ -∗
-    ⌜NoDup l⌝ -∗
-    sts_full_world W C ∗ region_map_def W C MC Mρ
-    ==∗
-    ∃ Mρ, ⌜dom Mρ = dom MC⌝
-              ∧ (sts_full_world (revoke_list l W) C ∗ region_map_def W C MC Mρ).
-  Proof.
-    iIntros (Hin Hdom Hdup) "[Hfull Hr]".
-    iInduction (l) as [|x l] "IH".
-    - iExists _. rewrite revoke_list_empty.
-      by iFrame "%∗".
-    - apply NoDup_cons in Hdup as [Hnin Hdup].
-      iMod ("IH" with "[] [] Hfull Hr") as (Mρ' Hdom_new) "[Hfull Hr]"; auto.
-      { iPureIntro. intros a Ha. apply Hin. apply elem_of_cons. by right. }
-      rewrite /revoke_list /=.
-      destruct W as [ [ [Wstd_sta Wloc] Wseals] W_heap ].
-      destruct (Wstd_sta !! x) eqn:Hsome;[|iExists _; cbn; rewrite Hsome ; by iFrame "%∗"].
-      destruct r;[|iExists _; cbn; rewrite Hsome; by iFrame..].
-      destruct Hin with x as [γp Hsomea];[apply list_elem_of_here|].
-      iDestruct "Hr" as "[%Hcovered Hr]".
-      iDestruct (big_sepM_delete _ _ x with "Hr") as "[Hρ Hr]"; eauto.
-      iDestruct "Hρ" as (ρ' Hρ') "(Hstate & Ha)".
-      iDestruct (sts_full_state_std with "Hfull Hstate") as %Hlookup; simplify_eq.
-      simpl in Hlookup; subst.
-      rewrite revoke_list_not_elem_of_lookup in Hlookup; auto.
-      rewrite Hsome in Hlookup. inversion Hlookup as [Heq]. subst ρ'.
-      iMod (sts_update_std _ _ _ _ (Revoked) with "Hfull Hstate") as "[Hfull Hstate]".
-      iFrame.
-      iDestruct (region_map_delete with "[Hr]") as "Hr".
-      { iFrame "%∗". }
-      iDestruct (region_map_insert _ _ _ _ _ Revoked with "Hr") as "Hr";auto.
-      iDestruct "Hr" as "[%Hcovered' Hr]".
-      iExists (<[x:=Revoked]> Mρ').
-      iDestruct "Ha" as (γpred p0 φ Heq Hpers) "[#Hsaved Ha]".
-      iDestruct (big_sepM_delete _ _ x with "[$Hr Hstate Ha]") as "Hr"; eauto.
-      { iExists Revoked. iFrame.
-        iSplitR; first (iPureIntro; apply lookup_insert_eq).
-        iExists γpred,p0,φ. iFrame "%#".
-        iApply (heap_cell_resource_mono with "[] Ha"). iIntros "_". done.
-      }
-      rewrite Hsome /=.
-      iModIntro.
-      iSplit.
-      { iPureIntro. rewrite -Hdom_new dom_insert_L.
-        assert (x ∈ dom Mρ') as Hin'.
-        { apply elem_of_dom;eauto. }
-        set_solver. }
-      iFrame "%∗".
-  Qed.
-
-  Lemma monotone_revoke_sts_full_world W C :
-    sts_full_world W C ∗ region W C
-    ==∗ (sts_full_world (revoke W) C ∗ region W C).
-  Proof.
-    iIntros "[Hfull Hr]".
-    rewrite region_eq /region_def.
-    iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
-    rewrite revoke_list_dom.
-    iMod (monotone_revoke_list_sts_full_world _ _ _ _ (map_to_list (std W)).*1
-            with "[] [] [] [$Hfull $Hr]") as (Mρ' Hin) "[Hfull Hr]";auto.
-    { iPureIntro. intros i Hin. apply map_to_list_fst in Hin as [x Hin].
-      apply elem_of_dom. rewrite -Hdom. apply elem_of_map_to_list in Hin.
-      rewrite elem_of_dom. eauto.
-    }
-    { iPureIntro. apply (NoDup_fst_map_to_list (M:=gmap Addr) (A:=region_type)). }
-    iFrame.
-    iModIntro.
-    done.
-  Qed.
-
-  Lemma monotone_revoke W C :
-    sts_full_world W C ∗ region W C
-    ==∗
-    sts_full_world (revoke W) C ∗ region (revoke W) C.
-  Proof.
-    iIntros "[HW Hr]".
-    iMod (monotone_revoke_sts_full_world with "[$HW $Hr]") as "[HW Hr]".
-    rewrite region_eq /region_def.
-    iDestruct "Hr" as (M Mρ) "(HM & %Hdom & % & Hpreds)".
-    iDestruct (monotone_revoke_region_def with "[] [$HW] [$Hpreds]") as "[Hpreds HW]"; auto.
-    iModIntro. iFrame.
-    iPureIntro.
-    rewrite /revoke in Hdom |- *.
-    repeat (split;auto).
-    by rewrite -revoke_dom_eq.
   Qed.
 
   (* ---------------------------------------------------------------------------------------- *)
@@ -863,38 +504,6 @@ Section region_invariant_revocation.
         revert Hin Hdom'. clear; intros Hin Hdom. rewrite Hdom. set_solver.
   Qed.
 
-  Lemma monotone_revoke_list_sts_full_world_keep_nonheap W C (l : list Addr) (l' : list Addr) :
-    ⊢ ⌜Forall (fun a => is_heap_address a = false) l'⌝ → ⌜NoDup l'⌝ → ⌜NoDup l⌝ → ⌜l' ⊆+ l⌝ →
-    ([∗ list] a ∈ l', ⌜(std W) !! a = Some Temporary⌝)
-    ∗ sts_full_world W C ∗ region W C
-    ==∗
-    (sts_full_world (revoke_list l W) C
-     ∗ region W C
-     ∗ close_list_resources C W l' true).
-  Proof.
-    iIntros (Hcases).
-    iApply monotone_revoke_list_sts_full_world_keep_cases. iPureIntro.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. left. exact Ha.
-  Qed.
-
-  Lemma monotone_revoke_list_sts_full_world_keep_live_heap W C (l : list Addr) (l' : list Addr) :
-    ⊢ ⌜Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) l'⌝ → ⌜NoDup l'⌝ → ⌜NoDup l⌝ → ⌜l' ⊆+ l⌝ →
-    ([∗ list] a ∈ l', ⌜(std W) !! a = Some Temporary⌝)
-    ∗ sts_full_world W C ∗ region W C
-    ==∗
-    (sts_full_world (revoke_list l W) C
-     ∗ region W C
-     ∗ close_list_resources C W l' true).
-  Proof.
-    iIntros (Hcases).
-    iApply monotone_revoke_list_sts_full_world_keep_cases. iPureIntro.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
-  Qed.
-
   Lemma monotone_revoke_list_sts_full_world_keep W C (l : list Addr) (l' : list Addr) :
     ⊢ ⌜Forall (heap_cell_live (heap_std W)) l'⌝ → ⌜NoDup l'⌝ → ⌜NoDup l⌝ → ⌜l' ⊆+ l⌝ →
     ([∗ list] a ∈ l', ⌜(std W) !! a = Some Temporary⌝)
@@ -946,42 +555,6 @@ Section region_invariant_revocation.
     by iFrame.
   Qed.
 
-  Lemma monotone_revoke_sts_full_world_keep_nonheap W C (l : list Addr)
-     :
-    Forall (fun a => is_heap_address a = false) l ->
-    ⌜NoDup l⌝ -∗
-    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝)
-    ∗ sts_full_world W C ∗ region W C
-    ==∗
-    (sts_full_world (revoke W) C
-     ∗ region W C
-     ∗ close_list_resources C W l true).
-  Proof.
-    intros Hcases.
-    eapply monotone_revoke_sts_full_world_keep_cases; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. left. exact Ha.
-  Qed.
-
-  Lemma monotone_revoke_sts_full_world_keep_live_heap W C (l : list Addr)
-     :
-    Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) l ->
-    ⌜NoDup l⌝ -∗
-    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝)
-    ∗ sts_full_world W C ∗ region W C
-    ==∗
-    (sts_full_world (revoke W) C
-     ∗ region W C
-     ∗ close_list_resources C W l true).
-  Proof.
-    intros Hcases.
-    eapply monotone_revoke_sts_full_world_keep_cases; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
-  Qed.
-
   Lemma monotone_revoke_sts_full_world_keep W C (l : list Addr)
      :
     Forall (heap_cell_live (heap_std W)) l ->
@@ -1030,46 +603,6 @@ Section region_invariant_revocation.
       eapply Forall_impl; eauto; cbn.
       intros a Ha.
       by apply revoke_lookup_Monotemp.
-  Qed.
-
-  Lemma monotone_revoke_keep_nonheap W C l
-     :
-    Forall (fun a => is_heap_address a = false) l ->
-    NoDup l ->
-    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝)
-    ∗ sts_full_world W C
-    ∗ region W C
-    ==∗
-    sts_full_world (revoke W) C
-    ∗ region (revoke W) C
-    ∗ close_list_resources C W l true
-    ∗ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l⌝.
-  Proof.
-    intros Hcases.
-    eapply monotone_revoke_keep_cases; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. left. exact Ha.
-  Qed.
-
-  Lemma monotone_revoke_keep_live_heap W C l
-     :
-    Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) l ->
-    NoDup l ->
-    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝)
-    ∗ sts_full_world W C
-    ∗ region W C
-    ==∗
-    sts_full_world (revoke W) C
-    ∗ region (revoke W) C
-    ∗ close_list_resources C W l true
-    ∗ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l⌝.
-  Proof.
-    intros Hcases.
-    eapply monotone_revoke_keep_cases; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
   Qed.
 
   Lemma monotone_revoke_keep W C l
@@ -1251,40 +784,6 @@ Section region_invariant_revocation.
     iIntros (_). iApply close_list_consolidate_gen_mixed.
   Qed.
 
-  Lemma close_list_consolidate_gen_nonheap W C (l' l : list Addr) :
-    ⊢ ⌜Forall (fun a => is_heap_address a = false) l'⌝ → ⌜l' ⊆+ l⌝ →
-    (region (close_list l W) C
-     ∗ sts_full_world W C
-     ∗ close_list_resources_gen C W l l' false
-       )
-      ==∗
-      (sts_full_world (close_list l' W) C
-       ∗ region (close_list l W) C).
-  Proof.
-    iIntros (Hcases).
-    iApply close_list_consolidate_gen_cases. iPureIntro.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. left. exact Ha.
-  Qed.
-
-  Lemma close_list_consolidate_gen_live_heap W C (l' l : list Addr) :
-    ⊢ ⌜Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) l'⌝ → ⌜l' ⊆+ l⌝ →
-    (region (close_list l W) C
-     ∗ sts_full_world W C
-     ∗ close_list_resources_gen C W l l' false
-       )
-      ==∗
-      (sts_full_world (close_list l' W) C
-       ∗ region (close_list l W) C).
-  Proof.
-    iIntros (Hcases).
-    iApply close_list_consolidate_gen_cases. iPureIntro.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
-  Qed.
-
   Lemma close_list_consolidate_gen W C (l' l : list Addr) :
     ⊢ ⌜Forall (heap_cell_live (heap_std W)) l'⌝ → ⌜l' ⊆+ l⌝ →
     (region (close_list l W) C
@@ -1321,27 +820,6 @@ Section region_invariant_revocation.
     ;[auto|eauto|iFrame;done].
   Qed.
 
-  Lemma monotone_close_list_region_gen_mixed W W' C (l : list Addr)
-     :
-    ⊢ sts_full_world W' C
-     ∗ region W' C
-     ∗ close_list_resources_gen C W' l l false
-     ==∗
-     (sts_full_world (close_list l W') C
-      ∗ region (close_list l W') C
-     ).
-  Proof.
-    iIntros "(Hsts & Hr & Htemp)".
-    assert (related_sts_pub_world W' (close_list l W')) as Hrelated'.
-    { apply close_list_related_sts_pub; auto. }
-    assert (dom (std W') = dom (std (close_list l W'))) as Heq.
-    { rewrite /close_list.
-      apply close_list_dom_eq. }
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iDestruct (region_monotone with "Hr") as "Hr";[apply Heq|apply Hrelated'|symmetry; apply close_list_heap|by rewrite close_list_heap| ].
-    iMod (close_list_consolidate_gen_mixed _ _ l l with "[] [$Hr $Hsts Htemp]") as "[Hsts Hr]"
-    ;[auto|eauto|iFrame;done].
-  Qed.
 
   Lemma monotone_close_list_region_gen_cases W W' C (l : list Addr)
      :
@@ -1368,41 +846,7 @@ Section region_invariant_revocation.
     ;[auto|auto|eauto|iFrame;done].
   Qed.
 
-  Lemma monotone_close_list_region_gen_nonheap W W' C (l : list Addr)
-     :
-    Forall (fun a => is_heap_address a = false) l ->
-    ⊢ sts_full_world W' C
-     ∗ region W' C
-     ∗ close_list_resources_gen C W' l l false
-     ==∗
-     (sts_full_world (close_list l W') C
-      ∗ region (close_list l W') C
-     ).
-  Proof.
-    intros Hcases.
-    eapply (monotone_close_list_region_gen_cases W W' C l); try eassumption.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. left. exact Ha.
-  Qed.
 
-  Lemma monotone_close_list_region_gen_live_heap W W' C (l : list Addr)
-     :
-    Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W') a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) l ->
-    ⊢ sts_full_world W' C
-     ∗ region W' C
-     ∗ close_list_resources_gen C W' l l false
-     ==∗
-     (sts_full_world (close_list l W') C
-      ∗ region (close_list l W') C
-     ).
-  Proof.
-    intros Hcases.
-    eapply (monotone_close_list_region_gen_cases W W' C l); try eassumption.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
-  Qed.
 
   Lemma monotone_close_list_region_gen W W' C (l : list Addr)
      :
@@ -1438,43 +882,7 @@ Section region_invariant_revocation.
     iApply close_list_resources_gen_eq; eauto.
   Qed.
 
-  Lemma monotone_close_list_region_nonheap W W' C (l : list Addr)
-     :
-    Forall (fun a => is_heap_address a = false) l ->
-    ⊢ ⌜related_sts_pub_world W (close_list l W')⌝ -∗
-     sts_full_world W' C
-     ∗ region W' C
-     ∗ (close_list_resources C W l false)
-     ==∗
-     (sts_full_world (close_list l W') C
-      ∗ region (close_list l W') C
-     ).
-  Proof.
-    intros Hcases.
-    eapply monotone_close_list_region_cases; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. left. exact Ha.
-  Qed.
 
-  Lemma monotone_close_list_region_live_heap W W' C (l : list Addr)
-     :
-    Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W') a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) l ->
-    ⊢ ⌜related_sts_pub_world W (close_list l W')⌝ -∗
-     sts_full_world W' C
-     ∗ region W' C
-     ∗ (close_list_resources C W l false)
-     ==∗
-     (sts_full_world (close_list l W') C
-      ∗ region (close_list l W') C
-     ).
-  Proof.
-    intros Hcases.
-    eapply monotone_close_list_region_cases; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
-  Qed.
 
   Lemma monotone_close_list_region W W' C (l : list Addr)
      :
@@ -1572,123 +980,7 @@ Section region_invariant_revocation.
 
 
 
-  Lemma close_addr_resources_separation
-    (C : CmptName) (W : WORLD) (a1 a2 : Addr) (v : Word) :
-    a1 ↦ₐ v -∗
-    close_addr_resources C W a2 false -∗
-    ⌜ a1 ≠ a2 ⌝.
-  Proof.
-    iIntros "Hl1 (%&%&%&H&_)".
-    iDestruct "H" as "(%&_&H&_)".
-    iApply (address_neq with "Hl1 H"); eauto.
-  Qed.
 
-  Lemma close_addr_resources_gen_separation
-    (C : CmptName) (W : WORLD) (a1 a2 : Addr) (l : list Addr) (v : Word) :
-    a1 ↦ₐ v -∗
-    close_addr_resources_gen C W l a2 false -∗
-    ⌜ a1 ≠ a2 ⌝.
-  Proof.
-    iIntros "Hl1 (%&%&%&H&_)".
-    iDestruct "H" as (? ?) "(%&_&H&_)".
-    iApply (address_neq with "Hl1 H"); eauto.
-  Qed.
-
-  Lemma close_list_resources_separation
-    (C : CmptName) (W : WORLD) (l : list Addr) (a : Addr) (v : Word) :
-    a ↦ₐ v -∗
-    close_list_resources C W l false -∗
-    ⌜ a ∉ l ⌝.
-  Proof.
-    iIntros "Ha Hl".
-    iInduction (l) as [|x l]; cbn; first (iPureIntro;set_solver).
-    iDestruct "Hl" as "[Hx Hl]".
-    iDestruct (close_addr_resources_separation with "[$] [$]") as "%H".
-    iDestruct ("IHl" with "[$] [$]") as "%Hl".
-    iPureIntro.
-    apply not_elem_of_cons; split ; auto.
-  Qed.
-
-  Lemma close_list_resources_gen_separation
-    (C : CmptName) (W : WORLD) (l' l : list Addr) (a : Addr) (v : Word) :
-    a ↦ₐ v -∗
-    close_list_resources_gen C W l' l false -∗
-    ⌜ a ∉ l ⌝.
-  Proof.
-    iIntros "Ha Hl".
-    iInduction (l) as [|x l]; cbn; first (iPureIntro;set_solver).
-    iDestruct "Hl" as "[Hx Hl]".
-    iDestruct (close_addr_resources_gen_separation with "[$] [$]") as "%H".
-    iDestruct ("IHl" with "[$] [$]") as "%Hl".
-    iPureIntro.
-    apply not_elem_of_cons; split ; auto.
-  Qed.
-
-  Lemma close_addr_list_resources_separation
-    (C1 C2 : CmptName) (W1 W2 : WORLD) (a1 : Addr) (l2 : list Addr) :
-    close_addr_resources C1 W1 a1 false -∗
-    close_list_resources C2 W2 l2 false -∗
-    ⌜ a1 ∉ l2 ⌝.
-  Proof.
-    iIntros "(%&%&%&(%&_&H1&_)&_) H".
-    iApply (close_list_resources_separation with "[$] [$]").
-  Qed.
-
-  Lemma close_addr_list_gen_resources_separation
-    (C1 C2 : CmptName) (W1 W2 : WORLD) (a1 : Addr) (l' l2 : list Addr) :
-    close_addr_resources C1 W1 a1 false -∗
-    close_list_resources_gen C2 W2 l' l2 false -∗
-    ⌜ a1 ∉ l2 ⌝.
-  Proof.
-    iIntros "(%&%&%&(%&_&H1&_)&_) H".
-    iApply (close_list_resources_gen_separation with "[$] [$]").
-  Qed.
-
-  Lemma close_list_resources_separation_many
-    (C1 C2 : CmptName) (W1 W2 : WORLD) (la l2 : list Addr) (lv : list Word) :
-    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) -∗
-    close_list_resources C2 W2 l2 false -∗
-    ⌜ la ## l2 ⌝.
-  Proof.
-    iIntros "Hl1 Hl2".
-    iInduction (la) as [|a la] "IH" forall (lv); first (iPureIntro; set_solver+).
-    - iDestruct (big_sepL2_length with "Hl1") as "%Hl1".
-      destruct lv; simplify_eq.
-      iDestruct "Hl1" as "[Ha Hl1]".
-      iDestruct (close_list_resources_separation with "[$] [$]") as "%Ha".
-      iDestruct ("IH" with "[$] [$]") as "%Hl".
-      iPureIntro; set_solver.
-  Qed.
-
-  Lemma close_list_resources_gen_separation_many
-    (C2 : CmptName) (W2 : WORLD) (la l' l2 : list Addr) (lv : list Word) :
-    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) -∗
-    close_list_resources_gen C2 W2 l' l2 false -∗
-    ⌜ la ## l2 ⌝.
-  Proof.
-    iIntros "Hl1 Hl2".
-    iInduction (la) as [|a la] "IH" forall (lv); first (iPureIntro; set_solver+).
-    - iDestruct (big_sepL2_length with "Hl1") as "%Hl1".
-      destruct lv; simplify_eq.
-      iDestruct "Hl1" as "[Ha Hl1]".
-      iDestruct (close_list_resources_gen_separation with "[$] [$]") as "%Ha".
-      iDestruct ("IH" with "[$] [$]") as "%Hl".
-      iPureIntro; set_solver.
-  Qed.
-
-  Lemma close_list_resources_separation_many_alt
-    (C1 C2 : CmptName) (W1 W2 : WORLD) (l1 l2 : list Addr) :
-    close_list_resources C1 W1 l1 false
-    ∗ close_list_resources C2 W2 l2 false
-      -∗ ⌜ l1 ## l2 ⌝.
-  Proof.
-    iIntros "[Hl1 Hl2]".
-    iInduction (l1) as [|a1 l1]; first (iPureIntro;set_solver+).
-    iDestruct "Hl1" as "[Ha Hl1]".
-    iDestruct (close_addr_list_resources_separation with "[$] [$Hl2]") as "%Ha".
-    iDestruct ("IHl1" with "[$] [$]") as "%Hl".
-    iPureIntro; set_solver.
-  Qed.
 
 
   (** Obtain that an address is Revoked if we own the points-to *)
@@ -1865,49 +1157,7 @@ Section region_invariant_revocation.
        iFrame; done.
    Qed.
 
-   Lemma revoked_by_separation_many_nonheap
-     (W : WORLD) (C : CmptName)
-     (la : list Addr) (lw : list Word) :
-     Forall (fun a => is_heap_address a = false) la ->
-     Forall (λ a, a ∈ dom (std W)) la →
-     region W C
-     ∗ sts_full_world W C
-     ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-     ==∗
-     region W C
-     ∗ sts_full_world W C
-     ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-     ∗ ⌜ Forall (λ a, std W !! a = Some Revoked) la⌝
-   .
-   Proof.
-    intros Hcases.
-    eapply revoked_by_separation_many_cases; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. left. exact Ha.
-  Qed.
 
-   Lemma revoked_by_separation_many_live_heap
-     (W : WORLD) (C : CmptName)
-     (la : list Addr) (lw : list Word) :
-     Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W) a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) la ->
-     Forall (λ a, a ∈ dom (std W)) la →
-     region W C
-     ∗ sts_full_world W C
-     ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-     ==∗
-     region W C
-     ∗ sts_full_world W C
-     ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-     ∗ ⌜ Forall (λ a, std W !! a = Some Revoked) la⌝
-   .
-   Proof.
-    intros Hcases.
-    eapply revoked_by_separation_many_cases; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
-  Qed.
 
    Lemma revoked_by_separation_many
      (W : WORLD) (C : CmptName)
@@ -2025,43 +1275,7 @@ Section region_invariant_revocation.
       by iPureIntro; apply Forall_cons.
   Qed.
 
-  Lemma revoked_by_separation_many_with_temp_resources_nonheap W W' C la :
-     Forall (fun a => is_heap_address a = false) la ->
-    Forall (λ a, a ∈ dom (std W')) la →
-    close_list_resources C W la false
-    ∗ sts_full_world W' C
-    ∗ region W' C
-    ==∗
-    close_list_resources C W la false
-    ∗ sts_full_world W' C
-    ∗ region W' C
-    ∗ ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
-  Proof.
-    intros Hcases.
-    eapply revoked_by_separation_many_with_temp_resources_cases; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. left. exact Ha.
-  Qed.
 
-  Lemma revoked_by_separation_many_with_temp_resources_live_heap W W' C la :
-     Forall (fun a => is_heap_address a = true ∧ ∃ base obj,
-      heap_lookup_addr (heap_std W') a = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive) la ->
-    Forall (λ a, a ∈ dom (std W')) la →
-    close_list_resources C W la false
-    ∗ sts_full_world W' C
-    ∗ region W' C
-    ==∗
-    close_list_resources C W la false
-    ∗ sts_full_world W' C
-    ∗ region W' C
-    ∗ ⌜ Forall (λ a, std W' !! a = Some Revoked) la⌝.
-  Proof.
-    intros Hcases.
-    eapply revoked_by_separation_many_with_temp_resources_cases; try eassumption; try typeclasses eauto.
-    eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
-  Qed.
 
   Lemma revoked_by_separation_many_with_temp_resources W W' C la :
      Forall (heap_cell_live (heap_std W')) la ->

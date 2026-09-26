@@ -42,57 +42,8 @@ Section VAE_Return_Repair.
       iDestruct (reclaim_token_exclusive with "Htoken Htoken'") as %[].
   Qed.
 
-  Lemma vae_revoked_pointsto_disjoint
-      (W : WORLD) (C : CmptName) (l : list Addr)
-      (a : Addr) (v : Word) :
-    heap_cell_live (heap_std W) a ->
-    a ↦ₐ v -∗ RevokedResources W C l -∗ ⌜a ∉ l⌝.
-  Proof.
-    iIntros (Hlive) "Ha Hl".
-    destruct (decide (a ∈ l)) as [Hin|Hnotin]; last by iPureIntro.
-    iDestruct (big_sepL_elem_of with "Hl") as "Hcell"; first exact Hin.
-    iDestruct "Hcell" as (p φ) "(_ & _ & Hcell)".
-    rewrite /heap_cell_live in Hlive.
-    iEval (rewrite Hlive) in "Hcell".
-    iDestruct "Hcell" as (w) "(_ & Hw & _)".
-    iDestruct (pointsto_valid_2 with "Ha Hw") as %[Hbad _]. done.
-  Qed.
 
-  Lemma vae_revoked_pointsto_disjoint_frame
-      (W : WORLD) (C : CmptName) (l : list Addr)
-      (a : Addr) (v : Word) :
-    heap_cell_live (heap_std W) a ->
-    a ↦ₐ v ∗ RevokedResources W C l -∗
-    a ↦ₐ v ∗ RevokedResources W C l ∗ ⌜a ∉ l⌝.
-  Proof.
-    iIntros (Hlive) "[Ha Hl]".
-    iDestruct (vae_revoked_pointsto_disjoint W C l a v Hlive
-      with "[$Ha] [$Hl]") as %Hnot.
-    iFrame. iPureIntro. exact Hnot.
-  Qed.
 
-  Lemma vae_revoked_region_disjoint_frame
-      (W : WORLD) (C : CmptName)
-      (la l : list Addr) (lv : list Word) :
-    Forall (heap_cell_live (heap_std W)) la ->
-    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ RevokedResources W C l -∗
-    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ RevokedResources W C l ∗
-      ⌜la ## l⌝.
-  Proof.
-    iIntros (Hlive) "[Hregion Hl]".
-    iInduction (la) as [|a la] "IH" forall (lv Hlive).
-    - iFrame. iPureIntro. set_solver.
-    - apply Forall_cons in Hlive as [Ha_live Hla_live].
-      iDestruct (big_sepL2_length with "Hregion") as %Hlength.
-      destruct lv as [|v lv]; first by cbn in Hlength.
-      iDestruct "Hregion" as "[Ha Hregion]".
-      iDestruct (vae_revoked_pointsto_disjoint_frame
-        with "[$Ha $Hl]") as "(Ha & Hl & %Hnot)"; first exact Ha_live.
-      iDestruct ("IH" $! lv with "[] Hregion Hl")
-        as "(Hregion & Hl & %Hdisjoint)".
-      { iPureIntro. exact Hla_live. }
-      iFrame. iPureIntro. set_solver.
-  Qed.
 
   Lemma vae_revoked_status_some
       (W : WORLD) (C : CmptName) (l : list Addr) :

@@ -29,9 +29,6 @@ Definition is_known_to_known (r : caller_callee_relation) :=
   | Unknown_to_Unknown | Unknown_to_Known | Known_to_Unknown => false
   end.
 
-Lemma is_untrusted_caller_is_not_known_to_known (r : caller_callee_relation) :
-  is_untrusted_caller r = true -> is_known_to_known r = false.
-Proof. intros Huntrusted; destruct r; cbn in *; auto. Qed.
 
 (** A calls stack [cstack] is a list of call-frames [cframe],
     and they contain the content of the callee-saved registers,
@@ -70,14 +67,6 @@ Record cframe := MkCFrame {
       ccrel : caller_callee_relation;
   }.
 
-(** The saved words of a frame, in the order used by the switcher's
-    specifications: [cgp], [cra], [cs0], and [cs1].
-    These are the original values; restoring a heap capability may clear
-    its tag if its allocation has since been quarantined.
- **)
-Definition frame_saved_words (frm : cframe) : list Word :=
-  [frm.(wcgp); frm.(wret); frm.(wcs0); frm.(wcs1)].
-
 (** [load_heap saved actual] describes a saved register after its load.
     A heap capability may retain its tag or have it cleared, depending on
     the shadow entry at that instruction. No allocation state is retained
@@ -91,26 +80,16 @@ Lemma load_heap_nonheap `{HeapRegion} saved actual :
   is_heap_cap saved = false -> load_heap saved actual -> actual = saved.
 Proof. intros Hheap [-> | [Hheap' ->]]; congruence. Qed.
 
-Lemma load_heap_untagged `{HeapRegion} saved actual :
-  get_tag saved = false -> load_heap saved actual -> actual = saved.
-Proof. intros Htag [-> | [_ ->]]; auto using clear_tag_untagged. Qed.
 
 Definition is_untrusted_caller_frm (frm : cframe) :=
   is_untrusted_caller frm.(ccrel).
 Definition is_known_to_known_frm (frm : cframe) :=
   is_known_to_known frm.(ccrel).
 
-Lemma is_untrusted_caller_is_not_known_to_known_frm (frm : cframe) :
-  is_untrusted_caller_frm frm = true -> is_known_to_known_frm frm = false.
-Proof.
-  rewrite /is_untrusted_caller_frm /is_known_to_known_frm.
-  apply is_untrusted_caller_is_not_known_to_known.
-Qed.
 
 Notation cstack := (list cframe).
 Notation CSTK := (leibnizO cstack).
 
-Definition cstackR := excl_authR CSTK.
 Definition cstackUR := excl_authUR CSTK.
 
 Class CSTACK_preG Σ :=

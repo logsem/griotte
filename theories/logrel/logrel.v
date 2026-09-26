@@ -60,16 +60,6 @@ Section logrel.
      | Global => ⌜related_sts_priv_world W W'⌝
      end)%I.
 
-  Lemma localityflowsto_futureworld (g g' : Locality) (W W' : WORLD):
-    LocalityFlowsTo g' g ->
-    (@future_world g' W W' -∗
-     @future_world g  W W').
-  Proof.
-    intros Hflows.
-    destruct g, g'; auto.
-    rewrite /future_world; iIntros "%".
-    iPureIntro. eapply related_sts_pub_priv_world; auto.
-  Qed.
 
   Lemma futureworld_refl (g : Locality) (W : WORLD) :
     ⊢ @future_world g W W.
@@ -988,15 +978,6 @@ Section logrel.
   Lemma interp_clear_tag W C w : ⊢ interp W C (clear_tag w).
   Proof. apply interp_untagged, get_tag_clear_tag. Qed.
 
-  Lemma interp_untagged_world W W' C C' w :
-    get_tag w = false → interp W C w ⊣⊢ interp W' C' w.
-  Proof.
-    intros Htag. rewrite !interp_untagged_eq; done.
-  Qed.
-
-  Lemma interp_continuation_eq :
-    interp_continuation ≡ interp_cont (fixpoint interp1).
-  Proof. rewrite /interp_continuation /interp /= //. Qed.
 
   (** We have, and we _WANT_, [interp] to be Persistent *)
   Global Instance interp_persistent W C w : Persistent (interp W C w).
@@ -1056,15 +1037,6 @@ Section logrel.
       rewrite Hfilter. iIntros "$".
   Qed.
 
-  Lemma interp_load_in_mem W C p w :
-    interp W C (load_word p w) -∗ interp_in_mem p W C w.
-  Proof.
-    change (⊢ interp W C (load_word p w) -∗
-      interp W C (filter_heap W (load_word p w)))%I.
-    destruct (filter_heap_result W (load_word p w)) as [-> | ->].
-    - iIntros "$".
-    - iIntros "_". iApply interp_clear_tag.
-  Qed.
 
   (* Non-curried version of interp *)
   Notation interpC := (safeC interp).
@@ -1129,48 +1101,6 @@ Section logrel.
     iIntros (Hwf Hp Hbounds) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[_ Hvalid]; first done.
     iPureIntro. eapply heap_cap_valid_cell_live; eauto.
-  Qed.
-
-  Lemma interp_cap_nonheap (W : WORLD) (C : CmptName) p g b e a :
-    isO p = false -> is_heap_address b = false ->
-    interp W C (WCap true p g b e a) -∗
-    ⌜disjoint_from_shadow b e ∧ disjoint_from_heap b e⌝.
-  Proof.
-    iIntros (Hp Hbase) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap]; first done.
-    destruct (decide (b < e)%a) as [Hnonempty|Hempty].
-    - specialize (Hheap Hnonempty). rewrite /heap_cap_live Hbase in Hheap. done.
-    - iPureIntro. split; first done.
-      rewrite /disjoint_from_heap finz_seq_between_empty; [set_solver|solve_addr].
-  Qed.
-
-  Lemma interp_cap_live_heap (W : WORLD) (C : CmptName) p g b e a :
-    isO p = false -> is_heap_address b = true -> (b < e)%a ->
-    interp W C (WCap true p g b e a) -∗
-    ⌜∃ base obj, heap_lookup_addr (heap_std W) b = Some (base,obj) ∧
-      alloc_object_status obj = AllocObjectLive ∧
-      (e <= alloc_object_end obj)%a ∧ executeAllowed p = false⌝.
-  Proof.
-    iIntros (Hp Hbase Hnonempty) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap]; first done.
-    specialize (Hheap Hnonempty). rewrite /heap_cap_live Hbase in Hheap.
-    destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ] eqn:Hlookup; last done.
-    destruct (alloc_object_status obj) eqn:Hstatus; last done.
-    destruct Hheap as [Hend Hrest].
-    destruct Hrest as [Hexec Hwl].
-    iPureIntro. exists base,obj. auto.
-  Qed.
-
-  Lemma interp_cap_quarantined_heap (W : WORLD) (C : CmptName) p g b e a base obj :
-    isO p = false -> is_heap_address b = true -> (b < e)%a ->
-    heap_lookup_addr (heap_std W) b = Some (base,obj) ->
-    alloc_object_status obj = AllocObjectQuarantined ->
-    interp W C (WCap true p g b e a) -∗ False.
-  Proof.
-    iIntros (Hp Hbase Hnonempty Hlookup Hstatus) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap]; first done.
-    specialize (Hheap Hnonempty).
-    by rewrite /heap_cap_live Hbase Hlookup Hstatus in Hheap.
   Qed.
 
   Lemma interp_cap_disjoint (W : WORLD) (C : CmptName) p g b e a :
@@ -1533,13 +1463,6 @@ Section logrel.
     by apply elem_of_finz_seq_between.
   Qed.
 
-  Lemma writeLocalAllowed_implies_local (W : WORLD) (C : CmptName) p g b e a:
-    isWL p = true -> interp W C (WCap true p g b e a) -∗ ⌜ isLocal g = true ⌝.
-  Proof.
-    intros. iIntros "Hvalid".
-    unfold interp; rewrite fixpoint_interp1_eq /=.
-    destruct_perm p; simpl in H; try congruence; destruct g; auto.
-  Qed.
 
   Lemma interp_in_registers
     (W : WORLD) (C : CmptName)
@@ -1662,13 +1585,6 @@ Section logrel.
       reflexivity.
   Qed.
 
-  Lemma filter_heap_force_global_shared W w :
-    filter_heap W (force_global w) = force_global (filter_heap W w).
-  Proof.
-    apply filter_heap_map_shared;
-      destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
-      reflexivity.
-  Qed.
 
   Lemma filter_heap_load_word_shared W p w :
     filter_heap W (load_word p w) = load_word p (filter_heap W w).

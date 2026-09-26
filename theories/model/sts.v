@@ -224,13 +224,6 @@ Lemma convert_rel_of_rel {A} `{EqDecision A, Countable A} (R: A -> A -> Prop) x 
   R x y → convert_rel R (encode x) (encode y).
 Proof. rewrite /convert_rel. eauto. Qed.
 
-Lemma rel_of_convert_rel {A} `{EqDecision A, Countable A} (R: A -> A -> Prop) x y:
-  convert_rel R (encode x) (encode y) → R x y.
-Proof.
-  rewrite /convert_rel. intros (?&?&HH1&HH2&?).
-  apply encode_inj in HH1.
-  apply encode_inj in HH2. subst; eauto.
-Qed.
 
 Section pre_STS.
   Context {A B E D O Wd: Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
@@ -658,46 +651,8 @@ Qed.
       + eapply related_sts_heap_std_trans; eauto.
   Qed.
 
-  Lemma related_sts_priv_world_std_sta_is_Some W W' i :
-    related_sts_priv_world W W'
-    -> is_Some (std W !! i)
-    -> is_Some (std W' !! i).
-  Proof.
-    intros [ [Hdom1 _ ] _] Hsome.
-    rewrite -elem_of_dom.
-    rewrite -elem_of_dom in Hsome.
-    apply elem_of_subseteq in Hdom1. auto.
-  Qed.
 
-  Lemma related_sts_pub_empty_world W : heap_wf (heap_std W) -> related_sts_pub_world (∅, (∅,∅), ∅, ∅) W.
-  Proof.
-    intros Hwf. split;[|split;[|split]]; cbn.
-    - split;auto.
-      + rewrite dom_empty_L; set_solver.
-      + intros ; set_solver.
-    - split;auto.
-      + rewrite dom_empty_L; set_solver.
-      + intros ; set_solver.
-    - split;auto.
-      + rewrite dom_empty_L; set_solver.
-      + intros ; set_solver.
-    - by apply related_sts_heap_std_empty.
-  Qed.
 
-  Lemma related_sts_priv_empty_world W : heap_wf (heap_std W) -> related_sts_priv_world (∅, (∅,∅), ∅, ∅) W.
-  Proof.
-    intros Hwf. split;[|split;[|split]]; cbn.
-    - split;auto.
-      + rewrite dom_empty_L; set_solver.
-      + intros ; set_solver.
-    - split;auto.
-      + rewrite dom_empty_L; set_solver.
-      + intros ; set_solver.
-    - split;auto.
-      + rewrite dom_empty_L; set_solver.
-      + intros ; set_solver.
-    - by apply related_sts_heap_std_empty.
-  Qed.
 
   Lemma sts_full_rel_loc W C i rpub rpriv:
     sts_full_world W C
@@ -740,21 +695,6 @@ Qed.
     apply leibniz_equiv in HR; simplify_eq; eauto.
   Qed.
 
-  Lemma big_sepL_sts_full_state_std (W : WORLD) (C : CmptName) (la : list A) (b : B) :
-    sts_full_world W C  -∗
-    ([∗ list] a ∈ la, sts_state_std C a b) -∗
-    ⌜ Forall (λ a : A, std W !! a = Some b) la ⌝.
-  Proof.
-    iIntros "Hworld Hsts".
-    iInduction la as [| a l IHla].
-    - iPureIntro ; done.
-    - rewrite big_sepL_cons.
-      iDestruct "Hsts" as "[Ha Hsts]".
-      iDestruct (sts_full_state_std with "Hworld Ha") as "%Ha".
-      rewrite Forall_cons_iff.
-      iSplit ; first done.
-      iApply ("IHla" with "[$] [$]").
-  Qed.
 
   Lemma sts_full_state_loc W C i d :
     sts_full_world W C
@@ -814,7 +754,6 @@ Qed.
   (* Notation "<o[ o := s ]o> W" := (seals_std_update W o s) (at level 10, format "<o[ o := s ]o> W"). *)
   Notation "<o[ o := s ]o> W" := (seals_std_update_default W o s) (at level 10, format "<o[ o := s ]o> W").
 
-  Definition delete_std (W : WORLD) a : WORLD := (delete a (std W), cus W, seal_std W, heap_std W).
 
   Lemma sts_seals_std_weaken (C : CmptName) (o : O) (ws ws' : gset Wd) :
     ws' ⊆ ws ->
@@ -827,25 +766,6 @@ Qed.
     set_solver.
   Qed.
 
-  Lemma sts_dealloc_std W C a b :
-    sts_full_world W C ∗ sts_state_std C a b
-    ==∗
-    sts_full_world (delete_std W a) C.
-  Proof.
-    rewrite /sts_full_world /sts_full /sts_state_std /delete_std.
-    destruct W as [ [ [fs Wloc] ?] W_heap ].
-    iIntros "[ (Hsta & Hloc & Hseals & Hheap) Hstate]".
-    iCombine "Hsta" "Hstate" as "H1".
-    iMod (own_update
-            (A := sts_std_stateUR A B)
-            _ _
-            (● (Excl <$> (delete a fs)))
-            with "H1") as "H1".
-    { apply auth_update_dealloc.
-      rewrite fmap_delete /=.
-      apply: delete_singleton_local_update. }
-    iFrame. iModIntro. done.
-  Qed.
 
   Lemma sts_alloc_std_i W C (a : A) b :
     ⌜a ∉ dom (std W)⌝ -∗ sts_full_world W C ==∗
@@ -941,9 +861,6 @@ Qed.
     sts_full_world W C -∗ heap_std_full C (heap_std W).
   Proof. iIntros "(_ & _ & _ & [_ $])". Qed.
 
-  Lemma sts_full_world_heap_auth W C :
-    sts_full_world W C -∗ heap_std_auth C (heap_std W).
-  Proof. iIntros "(_ & _ & _ & [$ _])". Qed.
 
   Lemma sts_full_world_heap_wf W C :
     sts_full_world W C -∗ ⌜heap_wf (heap_std W)⌝.
@@ -951,34 +868,6 @@ Qed.
     iIntros "Hworld".
     iDestruct (sts_full_world_heap_full with "Hworld") as "[$ _]".
   Qed.
-
-  Lemma sts_full_world_heap_refresh W C W_heap :
-    related_sts_heap_std (heap_std W) W_heap ->
-    sts_full_world W C ==∗
-    sts_full_world (heap_std_update W W_heap) C ∗
-    ⌜related_sts_pub_world W (heap_std_update W W_heap)⌝.
-  Proof.
-    iIntros (Hrelated) "(Hstd & Hloc & Hseals & Ha & #Hheap)".
-    iMod (heap_std_auth_update C with "Ha") as "[Ha Hfull]";
-      first exact Hrelated.
-    iModIntro. iFrame. iPureIntro. by apply related_sts_pub_world_heap_update.
-  Qed.
-
-  Lemma heap_std_std_update W a b : heap_std (std_update W a b) = heap_std W.
-  Proof. reflexivity. Qed.
-  Lemma heap_std_loc_update W i d : heap_std (loc_update W i d) = heap_std W.
-  Proof. reflexivity. Qed.
-  Lemma heap_std_loc_alloc W i d rpub rpriv :
-    heap_std (loc_alloc W i d rpub rpriv) = heap_std W.
-  Proof. reflexivity. Qed.
-  Lemma heap_std_seals_std_update W o ws :
-    heap_std (seals_std_update W o ws) = heap_std W.
-  Proof. reflexivity. Qed.
-  Lemma heap_std_seals_std_update_default W o ws :
-    heap_std (seals_std_update_default W o ws) = heap_std W.
-  Proof. reflexivity. Qed.
-  Lemma heap_std_delete_std W a : heap_std (delete_std W a) = heap_std W.
-  Proof. reflexivity. Qed.
 
   Definition fresh_cus_name (W : WORLD) :=
     match W with | (_, (fs, fr), _, _) => fresh (dom fs ∪ dom fr) end.
@@ -1037,16 +926,6 @@ Qed.
     repeat iSplit; auto.
   Qed.
 
-  Lemma sts_alloc_loc_alt W C (d : D) (rpub rpriv : D → D → Prop):
-    sts_full_world W C ==∗
-    ∃ i, sts_full_world (<l[ i := d , (rpub,rpriv) ]l> W) C
-         ∗ ⌜i ∉ dom (loc W)⌝ ∗ ⌜i ∉ dom (wrel W)⌝
-         ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i rpub rpriv.
-  Proof.
-    iIntros "Hstd".
-    iMod (sts_alloc_loc with "Hstd") as "Hstd".
-    iModIntro; iFrame.
-  Qed.
 
   Lemma sts_update_std W C a b b' :
     sts_full_world W C
@@ -1134,28 +1013,6 @@ Qed.
         left.
   Qed.
 
-  Lemma related_sts_pub_fresh (s : STS) i k k':
-    i ∉ dom s.1 →
-    i ∉ dom s.2 →
-    related_sts_pub s.1 (<[i:=k]> s.1) s.2 (<[i:=k']> s.2).
-  Proof.
-    intros Hdom_sta Hdom_rel.
-    rewrite /related_sts_pub. split;[|split;[auto|] ].
-    - apply dom_insert_subseteq.
-    - apply dom_insert_subseteq.
-    - apply not_elem_of_dom in Hdom_sta.
-       apply not_elem_of_dom in Hdom_rel.
-       intros j rpub rpriv rpub' rpriv' Hr Hr'.
-       destruct (decide (j = i)).
-      + subst. rewrite Hr in Hdom_rel. done.
-      + rewrite lookup_insert_ne in Hr'; auto.
-        rewrite Hr in Hr'. inversion Hr'. repeat (split;auto).
-        intros x y Hx Hy.
-        rewrite lookup_insert_ne in Hy;auto.
-        rewrite Hx in Hy.
-        inversion Hy; inversion Hr'; subst.
-        left.
-  Qed.
 
   Lemma related_sts_pub_world_fresh_loc W (i x : positive) (rpub rpriv : positive -> positive -> Prop) :
     i ∉ dom (loc W) →
@@ -1196,57 +1053,6 @@ Qed.
     related_sts_priv_world W (<o[o:=ws]o>W).
   Proof.
     by apply related_sts_pub_priv_world, related_sts_pub_world_update_ot.
-  Qed.
-
-  (* Lemma related_sts_pub_world_update_ot (W : WORLD) (o : O) (ws ws' : gset Wd) : *)
-  (*   (seal_std W) !! o = Some ws -> *)
-  (*   related_sts_pub_world W (<o[o:= ws' ∪ ws]o>W). *)
-  (* Proof. *)
-  (*   intros Ho. *)
-  (*   destruct W as [ [ [Wstd Wcus] Wseals ] W_heap ]. *)
-  (*   split;[|split]; [ apply related_sts_std_pub_refl | apply related_sts_pub_refl | ]; cbn in *. *)
-  (*   split. *)
-  (*   - rewrite dom_insert_L; set_solver+. *)
-  (*   - intros o' s s' Hs Hs'. *)
-  (*     destruct (decide (o = o')); simplify_map_eq. *)
-  (*     + rewrite Ho in Hs; simplify_eq; set_solver+. *)
-  (*     + rewrite Hs in Hs'; simplify_eq; set_solver+. *)
-  (* Qed. *)
-
-  (* Lemma related_sts_priv_world_update_ot (W : WORLD) (o : O) (ws ws' : gset Wd) : *)
-  (*   (seal_std W) !! o = Some ws -> *)
-  (*   related_sts_priv_world W (<o[o:= ws' ∪ ws]o>W). *)
-  (* Proof. *)
-  (*   intros Ho. *)
-  (*   by apply related_sts_pub_priv_world, related_sts_pub_world_update_ot. *)
-  (* Qed. *)
-
-  Lemma related_sts_priv_rel
-    (W1 W2 : WORLD) (ι : positive) (R : (positive → positive → Prop) * (positive → positive → Prop) ) :
-    related_sts_priv_world W1 W2 ->
-    (wrel W1) !! ι = Some R ->
-    (wrel W2) !! ι = Some R.
-  Proof.
-    intros Hrelated HW1.
-    destruct Hrelated as (_ & [ _ [ Hdom Hrelated_rel ] ] & _).
-    destruct W1 as [ [ [ ? [ W1loc W1rel ] ] ?] W_heap1 ]; cbn in *.
-    destruct W2 as [ [ [ ? [ W2loc W2rel ] ] ?] W_heap2 ]; cbn in *.
-    assert ( ι ∈ dom W1rel ) as Hι by (by rewrite elem_of_dom).
-    apply Hdom in Hι.
-    rewrite elem_of_dom in Hι ; destruct Hι as [R' HW2].
-    destruct R as [r1 r2], R' as [r1' r2'].
-    specialize (Hrelated_rel ι _ _ _ _ HW1 HW2).
-    by destruct Hrelated_rel as ( -> & -> & _ ).
-  Qed.
-
-  Lemma related_sts_pub_rel (W1 W2 : WORLD) (ι : positive) (R : (positive → positive → Prop) * (positive → positive → Prop) ) :
-    related_sts_pub_world W1 W2 ->
-    (wrel W1) !! ι = Some R ->
-    (wrel W2) !! ι = Some R.
-  Proof.
-    intros Hrelated HW1.
-    apply related_sts_pub_priv_world in Hrelated.
-    by eapply related_sts_priv_rel.
   Qed.
 
   Lemma related_sts_priv_world_loc_update

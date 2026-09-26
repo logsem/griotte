@@ -458,37 +458,6 @@ Section fundamental.
     iApply "Hcont"; iFrame "∗#".
   Qed.
 
-  (* updatePcPerm adds a later because of the case of E-capabilities, which *)
-  (*    unfold to ▷ interp_expr *)
-  Lemma interp_updatePcPerm W C w :
-    ⊢ interp W C w -∗ ▷ (interp_expression W C (updatePcPerm w)).
-  Proof.
-    iIntros "#Hw".
-    destruct (get_tag w) eqn:Htag.
-    2: { iNext. iApply fundamental. iApply interp_untagged.
-         by rewrite get_tag_updatePcPerm Htag. }
-    assert ( ( (∃ p g b e a, w = WSentry true p g b e a))
-            ∨ updatePcPerm w = w)
-      as [ Hw | ->].
-    {
-      destruct_word w; try destruct t; cbn in Htag; try discriminate; eauto. unfold updatePcPerm.
-      eauto; try naive_solver.
-    }
-    { destruct Hw as (p & g & b & e & a & ->).
-      rewrite fixpoint_interp1_eq /=.
-      iIntros (cstk Ws Cs rmap).
-      iDestruct "Hw" as "[%Hnonheap #Hw]".
-      rewrite /enter_cond.
-      iAssert (future_world g W W) as "Hfuture".
-      { iApply futureworld_refl. }
-      iSpecialize ("Hw" with "Hfuture").
-      iSpecialize ("Hw" $! g (LocalityFlowsToReflexive g)).
-      iIntros "!> #Halloc (HPC & Hr & ?)".
-      iApply "Hw"; eauto. iFrame.
-    }
-    { iNext; iApply fundamental; eauto. }
-  Qed.
-
   Lemma jmp_or_fail_spec W C w φ :
     ⊢
     (interp W C w

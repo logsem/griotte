@@ -52,12 +52,6 @@ Section world_std_revocation.
   Definition revoke_list (l : list Addr) (W : WORLD) : WORLD
     := ((revoke_list_std_sta l (std W)), cus W, seal_std W, heap_std W).
 
-  Lemma revoke_list_empty W :
-    (revoke_list [] W) = W.
-  Proof.
-    rewrite /revoke_list.
-    by destruct W as [[[? ?] ?] ?].
-  Qed.
 
 
   (* -------------------------------------------------------------------------- *)
@@ -282,47 +276,6 @@ Section world_std_revocation.
     apply elem_of_map_to_list. done.
   Qed.
 
-  Lemma revoke_monotone_dom (Wstd_sta Wstd_sta' : gmap Addr region_type) :
-    dom Wstd_sta ⊆ dom Wstd_sta' →
-    dom (revoke_std_sta Wstd_sta) ⊆ dom (revoke_std_sta Wstd_sta').
-  Proof.
-    intros Hdom.
-    induction Wstd_sta using map_ind.
-    - rewrite /revoke_std_sta fmap_empty dom_empty.
-      apply empty_subseteq.
-    - apply elem_of_subseteq in Hdom.
-      assert (is_Some (Wstd_sta' !! i)) as Hsome.
-      { apply elem_of_dom;apply Hdom.
-        rewrite elem_of_dom. rewrite lookup_insert_eq. eauto. }
-      apply elem_of_subseteq. intros j Hj.
-      rewrite elem_of_dom in Hj; rewrite elem_of_dom.
-      destruct (decide (i=j));subst.
-      { by apply (revoke_std_sta_lookup_Some Wstd_sta'). }
-      { rewrite -revoke_std_sta_lookup_Some.
-        rewrite -elem_of_dom. apply elem_of_subseteq in Hdom. apply Hdom.
-        rewrite elem_of_dom. rewrite lookup_insert_ne;auto.
-        apply (revoke_std_sta_lookup_Some) in Hj. rewrite lookup_insert_ne in Hj;auto.
-      }
-  Qed.
-
-  Lemma revoke_monotone_lookup (Wstd_sta Wstd_sta' : gmap Addr region_type) i :
-    Wstd_sta !! i = Wstd_sta' !! i →
-    revoke_std_sta Wstd_sta !! i = revoke_std_sta Wstd_sta' !! i.
-  Proof.
-    intros Heq.
-    induction Wstd_sta using map_ind.
-    - rewrite lookup_empty in Heq.
-      rewrite /revoke_std_sta fmap_empty lookup_empty lookup_fmap.
-      destruct (Wstd_sta' !! i) eqn:Hnone; inversion Heq.
-      done.
-    - destruct (decide (i0 = i)).
-      + subst. rewrite lookup_insert_eq in Heq.
-        rewrite /revoke_std_sta fmap_insert lookup_fmap lookup_insert_eq -Heq /=.
-        done.
-      + rewrite lookup_insert_ne in Heq;auto.
-        specialize (IHWstd_sta Heq).
-        rewrite /revoke_std_sta fmap_insert lookup_insert_ne;auto.
-  Qed.
 
   Lemma revoke_monotone_lookup_same (Wstd_sta : gmap Addr region_type) i :
     Wstd_sta !! i ≠ Some Temporary →
@@ -411,52 +364,6 @@ Section world_std_revocation.
   (* --------------------------------------------------------------------------------- *)
 
 
-  Lemma std_rel_priv_monotone x y x' y' Wstd_sta Wstd_sta' i :
-    Wstd_sta !! i = Some x -> Wstd_sta' !! i = Some y ->
-    (revoke_std_sta Wstd_sta) !! i = Some x' → (revoke_std_sta Wstd_sta') !! i = Some y' →
-    rtc (std_rel_priv) x y →
-    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_pub x0 y0 ∨ std_rel_priv x0 y0) x' y'.
-  Proof.
-    intros Hx Hy Hx' Hy' Hrtc.
-    induction Hrtc as [Hrefl | j k h Hjk].
-    - simplify_eq. rewrite -Hx in Hy.
-      apply revoke_monotone_lookup in Hy.
-      rewrite Hx' Hy' in Hy. inversion Hy. left.
-    - destruct j,k; inversion Hjk; try discriminate; auto.
-      + apply std_rel_priv_rtc_Permanent in Hrtc; auto; subst.
-        apply revoke_lookup_Monotemp in Hx as Hxtemp.
-        apply revoke_lookup_Perm in Hy as Hyperm.
-        rewrite Hxtemp in Hx'. rewrite Hyperm in Hy'.
-        inversion Hx'; inversion Hy'; simplify_eq.
-        right with Permanent; [|left]. left. constructor.
-      + apply std_rel_priv_rtc_Revoked in Hrtc;auto;subst.
-        apply revoke_lookup_Monotemp in Hx as Hxtemp.
-        apply revoke_lookup_Revoked in Hy as Hyperm.
-        simplify_eq. left.
-  Qed.
-
-  Lemma std_rel_pub_monotone x y x' y' Wstd_sta Wstd_sta' i :
-    Wstd_sta !! i = Some x -> Wstd_sta' !! i = Some y ->
-    (revoke_std_sta Wstd_sta) !! i = Some x' → (revoke_std_sta Wstd_sta') !! i = Some y' →
-    rtc std_rel_pub x y →
-    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_priv x0 y0) x' y'.
-  Proof.
-    intros Hx Hy Hx' Hy' Hrtc.
-    induction Hrtc as [Hrefl | j k h Hjk].
-    - simplify_eq. rewrite -Hx in Hy.
-      apply revoke_monotone_lookup in Hy.
-      rewrite Hx' Hy' in Hy. inversion Hy. left.
-    - destruct j,k; inversion Hjk; try discriminate; auto.
-      + apply std_rel_pub_rtc_Temporary in Hrtc; auto. subst.
-        apply revoke_lookup_Revoked in Hx as Hxtemp.
-        apply revoke_lookup_Monotemp in Hy as Hyperm.
-        simplify_eq. left.
-      + apply std_rel_pub_rtc_Permanent in Hrtc; auto. subst.
-        apply revoke_lookup_Revoked in Hx as Hxtemp.
-        apply revoke_lookup_Perm in Hy as Hyperm.
-        simplify_eq. eright;[|left]. left. constructor.
-  Qed.
-
   Ltac revoke_i W1 W2 i :=
     (match goal with
      | H : W1 !! i = Some _
@@ -470,44 +377,6 @@ Section world_std_revocation.
        try (apply revoke_lookup_Perm in H' as Hytemp);
        try (apply revoke_lookup_Revoked in H' as Hytemp);simplify_eq
      end).
-
-  Lemma std_rel_monotone x y x' y' Wstd_sta Wstd_sta' i :
-    Wstd_sta !! i = Some x -> Wstd_sta' !! i = Some y ->
-    (revoke_std_sta Wstd_sta) !! i = Some x' → (revoke_std_sta Wstd_sta') !! i = Some y' →
-    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_priv x0 y0) x y →
-    rtc (λ x0 y0 : region_type, std_rel_pub x0 y0 ∨ std_rel_priv x0 y0) x' y'.
-  Proof.
-    intros Hx Hy Hx' Hy' Hrtc.
-    induction Hrtc as [Hrefl | j k h Hjk].
-    - simplify_eq. rewrite -Hx in Hy.
-      apply revoke_monotone_lookup in Hy.
-      rewrite Hx' Hy' in Hy. inversion Hy. left.
-    - destruct Hjk as [Hjk | Hjk].
-      + destruct j,k; inversion Hjk; try discriminate; auto.
-        * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left.
-          eright;[left;constructor|left].
-        * destruct h;revoke_i Wstd_sta Wstd_sta' i;try left.
-          eright;[left;constructor|left].
-      + destruct j,k,h; inversion Hjk; try discriminate; auto;
-          revoke_i Wstd_sta Wstd_sta' i; try left; try (by inversion H).
-        all: try (right with Permanent; [left;constructor|eleft; constructor]).
-  Qed.
-
-  Lemma revoke_monotone (W W' : WORLD) :
-    related_sts_priv_world W W' → related_sts_priv_world (revoke W) (revoke W').
-  Proof.
-    destruct W as [ [ [ Wstd_sta [Wloc_sta Wloc_rel] ] Wseals] W_heap ].
-    destruct W' as [ [ [ Wstd_sta' [Wloc_sta' Wloc_rel'] ] Wseals'] W_heap' ].
-    intros ((Hdom_sta & Htransition) & Hrelated_loc & Hrelated_seals).
-    split;[split;[auto|]|auto].
-    - apply revoke_monotone_dom; eauto.
-    - intros i x' y' Hx' Hy'.
-      simpl in *.
-      assert (is_Some (Wstd_sta !! i)) as [x Hx]; [apply revoke_std_sta_lookup_Some; eauto|].
-      assert (is_Some (Wstd_sta' !! i)) as [y Hy]; [apply revoke_std_sta_lookup_Some; eauto|].
-      apply std_rel_monotone with x y Wstd_sta Wstd_sta' i; auto. apply Htransition with i;auto.
-  Qed.
-
 
   (* --------------------------------------------------------------------------------- *)
   (* ----------------- REVOKED W IS A PRIVATE FUTURE WORLD TO W ---------------------- *)
@@ -554,25 +423,6 @@ Section world_std_revocation.
     rewrite revoke_list_dom. apply revoke_list_related_sts_priv_world.
   Qed.
 
-  (* Helper lemmas for reasoning about a revoked domain *)
-
-  Lemma dom_equal_revoke_list (W : WORLD) (MC : gmap Addr (gname * Perm)) l :
-    dom (std W) = dom MC →
-    dom (std (revoke_list l W)) = dom MC.
-  Proof.
-    intros Hdom.
-    induction l.
-    - done.
-    - rewrite /revoke_list /=.
-      destruct (std W !! a) eqn:Hsome; auto.
-      destruct r eqn:Htemp;auto.
-      all: rewrite dom_insert_L;rewrite IHl.
-      all: assert (a ∈ dom MC) as Hin;[rewrite -Hdom;rewrite elem_of_dom;eauto|].
-      all: try set_solver.
-  Qed.
-
-
-
   (* ---------------------------------------------------------------------------------------- *)
   (* ------------------ WE CAN UPDATE A REVOKED WORLD BACK TO TEMPORARY  -------------------- *)
   (* ---------------------------------------------------------------------------------------- *)
@@ -618,23 +468,6 @@ Section world_std_revocation.
     is_Some (Wstd_sta !! i) <-> is_Some (close_list_std_sta l Wstd_sta !! i).
   Proof.
     apply conditional_close_list_std_sta_is_Some.
-  Qed.
-
-  Lemma conditional_close_list_std_sta_None Wstd_sta ρ l i :
-    Wstd_sta !! i = None <-> conditional_close_list_std_sta ρ l Wstd_sta !! i = None.
-  Proof.
-    split.
-    - intros Hnone. apply eq_None_not_Some.
-      intros Hcontr. apply conditional_close_list_std_sta_is_Some in Hcontr.
-      apply eq_None_not_Some in Hcontr; auto.
-    - intros Hnone. apply eq_None_not_Some.
-      intros Hcontr. revert Hcontr. rewrite conditional_close_list_std_sta_is_Some =>Hcontr.
-      apply eq_None_not_Some in Hcontr; eauto.
-  Qed.
-  Lemma close_list_std_sta_None Wstd_sta l i :
-    Wstd_sta !! i = None <-> close_list_std_sta l Wstd_sta !! i = None.
-  Proof.
-    apply conditional_close_list_std_sta_None.
   Qed.
 
   Lemma conditional_close_list_dom_eq Wstd_sta l ρ :
@@ -754,37 +587,7 @@ Section world_std_revocation.
     - apply close_list_related_sts_pub_cons_world; auto.
   Qed.
 
-  Lemma close_list_related_sts_pub_insert' Wstd_sta Wloc Wseals W_heap i l :
-    i ∉ l → Wstd_sta !! i = Some Revoked ->
-    related_sts_pub_world
-      (close_list_std_sta l ((std ((Wstd_sta,Wloc,Wseals,W_heap) : WORLD))), Wloc, Wseals, W_heap)
-      (<[i:=Temporary]> (close_list_std_sta l Wstd_sta), Wloc, Wseals, W_heap).
-  Proof.
-    intros Hnin Hlookup.
-    split;[|split];[|apply related_sts_pub_refl|split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl]].
-    split;auto.
-    + apply elem_of_subseteq. intros j Hj.
-      rewrite dom_insert_L. apply elem_of_union. right.
-      apply elem_of_dom. rewrite elem_of_dom in Hj. done.
-    + intros j x y Hx Hy.
-      destruct (decide (i = j)); subst.
-      * rewrite lookup_insert_eq in Hy. rewrite -(close_list_std_sta_same _ l) in Hx; auto.
-        rewrite Hlookup in Hx. inversion Hx; inversion Hy; subst.
-        right with Temporary;[|left]. constructor.
-      * rewrite lookup_insert_ne in Hy; auto. rewrite Hx in Hy. inversion Hy. left.
-  Qed.
 
-  Lemma close_list_related_sts_pub_insert Wstd_sta Wloc Wseals W_heap i l :
-    i ∉ l → Wstd_sta !! i = Some Revoked ->
-    related_sts_pub_world
-      ( (Wstd_sta, Wloc, Wseals, W_heap) : WORLD)
-      (<[i:= Temporary]> (close_list_std_sta l Wstd_sta), Wloc, Wseals, W_heap).
-  Proof.
-    intros Hnin Hlookup.
-    apply related_sts_pub_trans_world with (close_list_std_sta l ((std (Wstd_sta, Wloc, Wseals, W_heap))), Wloc, Wseals, W_heap).
-    - apply close_list_related_sts_pub.
-    - apply close_list_related_sts_pub_insert'; auto.
-  Qed.
 
   Lemma close_revoke_iff Wstd_sta (l : list Addr) :
      (forall (i : Addr), Wstd_sta !! i = Some Temporary <-> i ∈ l) ->
@@ -825,28 +628,6 @@ Section world_std_revocation.
     destruct W as [ [ [] ] W_heap ]; apply related_sts_pub_refl_world.
   Qed.
 
-  Lemma close_list_std_sta_idemp Wstd_sta (l1 l2 : list Addr) :
-    close_list_std_sta l1 (close_list_std_sta l2 Wstd_sta) = close_list_std_sta (l1 ++ l2) Wstd_sta.
-  Proof.
-    induction l1;[done|].
-    rewrite /close_list_std_sta /=.
-    destruct (Wstd_sta !! a) eqn:Hsome.
-    - destruct (decide (Revoked = r)).
-      + subst.
-        destruct (decide (a ∈ l2)).
-        ++ apply close_list_std_sta_revoked with (l:=l2) in Hsome as Hsome'; auto.
-           rewrite Hsome'. simpl.
-           rewrite insert_id;auto.
-           apply close_list_std_sta_revoked;auto.
-           apply elem_of_app;by right.
-        ++ rewrite (close_list_std_sta_same _ l2) in Hsome;auto.
-           rewrite Hsome. simpl. f_equiv. auto.
-      + assert (Wstd_sta !! a ≠ Some Revoked) as Hnrev.
-        { intros Hcontr. congruence. }
-        rewrite (close_list_std_sta_same_alt _ l2) in Hsome;auto.
-        rewrite Hsome. rewrite decide_False;auto.
-    - apply (close_list_std_sta_None _ l2) in Hsome. rewrite Hsome. done.
-  Qed.
 
   Lemma close_list_empty W : (close_list [] W) = W.
   Proof.
@@ -905,19 +686,6 @@ Section world_std_revocation.
       by simplify_map_eq.
   Qed.
 
-  Lemma close_list_lookup_Temporary W l a :
-    std W !! a = Some Temporary -> std (close_list l W) !! a = Some Temporary.
-  Proof.
-    intros Hrevoked.
-    induction l as [|a' l]; cbn;first set_solver.
-    destruct (decide (a = a')) as [-> | Ha'].
-    + rewrite Hrevoked.
-      destruct (decide (Revoked = Temporary)); first done.
-      by rewrite IHl.
-    + destruct (std W !! a') eqn:Ha''; auto.
-      destruct (decide (Revoked = r)); auto.
-      by simplify_map_eq.
-  Qed.
 
   (* ---------------------------------------------------------------------------------------- *)
   (* ----------------- REVOKING ALL TEMPORARY REGIONS, KNOWN AND UNKNOWN  ------------------- *)
@@ -984,8 +752,7 @@ Section world_std_revocation.
 
   Lemma revoke_heap W : heap_std (revoke W) = heap_std W.
   Proof. reflexivity. Qed.
-  Lemma revoke_list_heap l W : heap_std (revoke_list l W) = heap_std W.
-  Proof. reflexivity. Qed.
+
   Lemma close_list_heap l W : heap_std (close_list l W) = heap_std W.
   Proof. reflexivity. Qed.
 

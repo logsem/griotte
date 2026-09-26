@@ -421,54 +421,6 @@ Section Switcher.
       Unshelve. all: exact Wcur.
   Qed.
 
-  Lemma switcher_ret_specification_gen
-    (Nswitcher : namespace)
-    (W0 Wcur : WORLD)
-    (C : CmptName)
-    (rmap : Reg)
-    (csp_e csp_b: Addr)
-    (l : list Addr)
-    (stk_mem : list Word)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (wca0 wca1 : Word)
-    :
-    let Wfixed := (close_list (l ++ finz.seq_between csp_b csp_e) Wcur) in
-    related_sts_pub_world W0 Wfixed ->
-    dom rmap = all_registers_s ∖ ({[ PC ; csp ; ca0 ; ca1 ]} ) ->
-    frame_match Ws Cs cstk W0 C ->
-    csp_sync cstk (csp_b ^+ -4)%a csp_e ->
-    (* NOTE: there is only one side of the implication... *)
-    NoDup (l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : finz MemNum, (std W0) !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
-
-    (* Switcher Invariant *)
-    allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
-    ∗ interp Wfixed C wca0
-    ∗ interp Wfixed C wca1
-    ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
-    ∗ cstack_frag cstk
-    ∗ interp_continuation cstk Ws Cs
-    ∗ world_interp Wcur C
-    ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
-    ∗ close_list_resources_gen C Wcur (l ++ finz.seq_between csp_b csp_e) l false
-    ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
-    ∗ ca0 ↦ᵣ wca0
-    ∗ ca1 ↦ᵣ wca1
-    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    intros Wfixed.
-    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Halloc & #Hswitcher & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
-       & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
-    iDestruct (world_interp_close_resources_to_RevokedResources Wcur C
-      (l ++ finz.seq_between csp_b csp_e) l with "Hworld_interp Hclose_list_res")
-      as "(Hworld_interp & Hrevoked)".
-    iApply switcher_ret_specification_mixed; eauto.
-    iFrame "∗#".
-  Qed.
 
   Lemma switcher_ret_specification
     (Nswitcher : namespace)

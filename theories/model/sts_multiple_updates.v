@@ -23,8 +23,6 @@ Section std_updates.
     | a :: l => std_update (std_update_multiple W l ρ) a ρ
     end.
 
-   Definition std_update_temp_multiple W l := std_update_multiple W l Temporary.
-
    Lemma std_update_multiple_loc_sta W l ρ :
      loc (std_update_multiple W l ρ) = loc W.
    Proof.
@@ -33,12 +31,6 @@ Section std_updates.
 
    Lemma std_update_multiple_loc_rel W l ρ :
      wrel (std_update_multiple W l ρ) = wrel W.
-   Proof.
-     induction l; auto.
-   Qed.
-
-   Lemma std_update_multiple_cus W l ρ :
-     cus (std_update_multiple W l ρ) = cus W.
    Proof.
      induction l; auto.
    Qed.
@@ -53,20 +45,6 @@ Section std_updates.
      heap_std (std_update_multiple W l ρ) = heap_std W.
    Proof. induction l; simpl; auto. Qed.
 
-   Lemma std_update_multiple_proj_eq W Wloc Wseals W_heap_new l ρ :
-     ( ( std (std_update_multiple W l ρ) , Wloc , Wseals, W_heap_new)) = std_update_multiple ( (std W, Wloc, Wseals, W_heap_new)) l ρ.
-   Proof.
-     destruct W as [ [Wsta Wloc'] W_heap ]. simpl. induction l; auto.
-     simpl. rewrite -IHl. auto.
-   Qed.
-
-   Lemma std_update_multiple_std_sta_eq W Wloc Wseals W_heap_new l ρ :
-     std (std_update_multiple W l ρ) = std (std_update_multiple ((std W, Wloc, Wseals, W_heap_new)) l ρ).
-   Proof.
-     destruct W as [ [Wsta Wloc'] W_heap ]. simpl. induction l; auto.
-     simpl. rewrite -IHl. auto.
-   Qed.
-
    Lemma std_update_multiple_swap_head W l a1 a2 ρ :
      std_update_multiple W (a1 :: a2 :: l) ρ = std_update_multiple W (a2 :: a1 :: l) ρ.
    Proof.
@@ -78,14 +56,6 @@ Section std_updates.
      - destruct (decide (a1 = a2)); subst;[done|].
        simpl. rewrite /std_update.
        repeat rewrite (insert_insert_ne _ a1 a2) ; auto.
-   Qed.
-
-   Lemma std_update_multiple_swap W l1 a l2 ρ :
-     std_update_multiple W (l1 ++ a :: l2) ρ = std_update_multiple W (a :: l1 ++ l2) ρ.
-   Proof.
-     induction l1; auto.
-     rewrite app_comm_cons std_update_multiple_swap_head /=.
-     f_equal;auto.
    Qed.
 
 
@@ -104,49 +74,6 @@ Section std_updates.
    Global Instance std_update_multiple_Permutation W ρ :
      Proper (Permutation ==> eq) (λ l, std_update_multiple W l ρ).
    Proof. intros y1 y2 Hperm. simpl. by apply std_update_multiple_permutation. Defined.
-
-   Lemma remove_dups_swap_head {A : Type} `{EqDecision A} (a1 a2 : A) (l : list A) :
-     remove_dups (a1 :: a2 :: l) ≡ₚ remove_dups (a2 :: a1 :: l).
-   Proof.
-     destruct (decide (a1 = a2)); subst; auto.
-     simpl. destruct (decide_rel elem_of a1 (a2 :: l)), (decide_rel elem_of a2 (a1 :: l)).
-     - apply elem_of_cons in e as [Hcontr | Hl];[subst;contradiction|].
-       apply elem_of_cons in e0 as [Hcontr | Hl0];[subst;contradiction|].
-       destruct (decide_rel elem_of a2 l);[|contradiction].
-       destruct (decide_rel elem_of a1 l);[|contradiction].
-       done.
-     - apply elem_of_cons in e as [Hcontr | Hl];[subst;contradiction|].
-       apply not_elem_of_cons in n0 as [Hcontr Hl0].
-       destruct (decide_rel elem_of a2 l);[contradiction|].
-       destruct (decide_rel elem_of a1 l);[|contradiction].
-       done.
-     - apply elem_of_cons in e as [Hcontr | Hl];[subst;contradiction|].
-       apply not_elem_of_cons in n0 as [Hcontr Hl0].
-       destruct (decide_rel elem_of a2 l);[|contradiction].
-       destruct (decide_rel elem_of a1 l);[contradiction|].
-       done.
-     - apply not_elem_of_cons in n1 as [Hcontr Hl].
-       apply not_elem_of_cons in n0 as [Hcontr0 Hl0].
-       destruct (decide_rel elem_of a2 l); [contradiction|].
-       destruct (decide_rel elem_of a1 l);[contradiction|].
-       rewrite (Permutation_swap a1 a2 (remove_dups l)). done.
-   Qed.
-
-   Lemma remove_dups_swap {A : Type} `{EqDecision A} (l1 : list A) (a : A) (l2 : list A) :
-     remove_dups (l1 ++ a :: l2) ≡ₚ remove_dups (a :: l1 ++ l2).
-   Proof.
-     induction l1; auto.
-     rewrite app_comm_cons remove_dups_swap_head (app_comm_cons l1 l2 a) /=.
-     destruct (decide_rel elem_of a0 (l1 ++ a :: l2)).
-     - rewrite decide_True;[|by rewrite Permutation_middle].
-       destruct (decide_rel elem_of a (l1 ++ l2)).
-       + rewrite IHl1. simpl. rewrite decide_True; auto.
-       + rewrite IHl1. simpl. rewrite decide_False; auto.
-     - rewrite decide_False;[|by rewrite Permutation_middle]. f_equiv.
-       destruct (decide_rel elem_of a (l1 ++ l2)).
-       + rewrite IHl1. simpl. rewrite decide_True; auto.
-       + rewrite IHl1. simpl. rewrite decide_False; auto.
-   Qed.
 
    (* --------------------------------------------------------------------------------------------------------- *)
    (* Lookup Lemmas: for each lookup lemma, we will have a version with addresses, and a version with positives *)
@@ -179,18 +106,6 @@ Section std_updates.
 
    (* ------------------------------------------------------------ *)
 
-   (* if W at a is_Some, the the updated W at a is_Some *)
-   Lemma std_sta_update_multiple_is_Some W l ρ i :
-     is_Some (std W !! i) -> is_Some (std (std_update_multiple W l ρ) !! i).
-   Proof.
-     intros Hsome.
-     destruct (decide (i ∈ l)).
-     - exists ρ. by apply std_sta_update_multiple_lookup_in_i.
-     - rewrite std_sta_update_multiple_lookup_same_i;auto.
-   Qed.
-
-   (* ------------------------------------------------------------ *)
-
    (* domains *)
    Lemma std_update_multiple_not_in_sta_i W l ρ i :
      i ∉ l → i ∈ dom (std W) ↔
@@ -200,17 +115,7 @@ Section std_updates.
      apply not_elem_of_cons in Hnin as [Hneq Hnin].
      rewrite /= dom_insert. set_solver.
    Qed.
-   Lemma std_update_multiple_in_sta_i W (l: list Addr) ρ i :
-     Forall (λ (a:Addr), is_Some (std W !! a)) l →
-     i ∈ dom (std W) ↔ i ∈ dom (std (std_update_multiple W l ρ)).
-   Proof.
-     intros Hl.
-     induction l; auto.
-     apply Forall_cons_1 in Hl as [Ha Hll].
-     cbn. rewrite dom_insert. split; [ set_solver |].
-     rewrite elem_of_union elem_of_singleton. intros [-> | Hi]; [| set_solver].
-     rewrite elem_of_dom //.
-   Qed.
+
    Lemma std_update_multiple_not_in_sta W l ρ (a : Addr) :
      a ∉ l → a ∈ dom (std W) ↔
              a ∈ dom (std (std_update_multiple W l ρ)).
@@ -243,44 +148,10 @@ Section std_updates.
        intros Hcontr. apply std_update_multiple_not_in_sta in Hcontr; auto.
    Qed.
 
-   Lemma std_update_multiple_lookup W l ρ k y :
-     l !! k = Some y ->
-     std (std_update_multiple W l ρ) !! y = Some ρ.
-   Proof.
-     intros Helem.
-     apply list_elem_of_lookup_2 in Helem.
-     apply list_elem_of_split in Helem as [l1 [l2 Heq] ].
-     rewrite Heq std_update_multiple_swap /= /std_update.
-     rewrite /=. rewrite lookup_insert_eq. auto.
-   Qed.
-
-
    (* Multiple updates does not change dom, as long as the updated elements are a subset of original dom *)
-   Lemma std_update_multiple_dom_equal W l ρ :
-     (∀ i : Addr, i ∈ l → i ∈ dom (std W)) ->
-     dom (std W) = dom (std (std_update_multiple W l ρ)).
-   Proof.
-     intros Hsub.
-     induction l; auto.
-     rewrite /= /std_update.
-     rewrite dom_insert_L.
-     assert (a ∈ a :: l) as Hin.
-     { apply elem_of_cons. by left. }
-     pose proof (Hsub _ Hin) as Hain. etrans;[apply IHl|].
-     - intros i Hi. apply Hsub. apply elem_of_cons. by right.
-     - set_solver.
-   Qed.
 
    (* In general, the domain is a subset of the updated domain *)
-   Lemma std_update_multiple_sta_dom_subseteq W l ρ :
-     dom (std W) ⊆ dom (std (std_update_multiple W l ρ)).
-   Proof.
-     apply elem_of_subseteq. intros x Hx.
-     destruct (decide (x ∈ l)).
-     - rewrite elem_of_dom. exists ρ.
-       apply std_sta_update_multiple_lookup_in_i; auto.
-     - apply std_update_multiple_not_in_sta_i; auto.
-   Qed.
+
 
    Lemma std_update_multiple_std_sta_dom_monotone W W' l ρ :
      dom (std W) ⊆ dom (std W') ->
@@ -316,131 +187,6 @@ Section std_updates.
    Qed.
 
    (* lemmas for updating a repetition of top *)
-   Lemma std_update_multiple_dom_top_sta W n ρ a :
-     a ≠ addresses.top ->
-     a ∉ dom (std W) →
-     a ∉ dom (std (std_update_multiple W (repeat addresses.top n) ρ)).
-   Proof.
-     intros Hne Hnin.
-     induction n; auto.
-     simpl. rewrite dom_insert. apply not_elem_of_union.
-     split.
-     + apply not_elem_of_singleton.
-       intros Hcontr. done.
-     + apply IHn.
-   Qed.
-
-   Lemma std_update_multiple_dom_sta_i W n ρ a i :
-     a ≠ addresses.top → (i > 0)%Z →
-     a ∉ dom (std W) →
-     a ∉ dom (std (std_update_multiple W (finz.seq ((a ^+ i)%a) n) ρ)).
-   Proof.
-     intros Hneq Hgt.
-     destruct (a + i)%a eqn:Hsome.
-     - simpl.
-       assert (a < f)%a as Hlt;[apply next_lt_i with i; auto|].
-       intros Hnin.
-       revert Hlt Hsome. generalize i f. induction n; auto; intros j a1 Hlt Hsome.
-       simpl. rewrite dom_insert. apply not_elem_of_union.
-       split.
-       + apply not_elem_of_singleton.
-         intros Hcontr. subst. solve_addr.
-       + destruct (a1 + 1)%a eqn:Ha2
-         ; simpl
-         ; replace ((a ^+ j) ^+ 1)%a with (a ^+ (j+1))%a by solve_addr.
-         ++ apply (IHn (j+1)%Z f0); solve_addr.
-         ++ replace ((a ^+ j) ^+ 1)%a with (a ^+ (j+1))%a by solve_addr.
-            apply incr_addr_one_none in Ha2.
-            replace (a ^+ (j + 1))%a with (finz.largest 0%a) by solve_addr.
-            rewrite finz_seq_top. apply std_update_multiple_dom_top_sta; auto.
-     - replace (a ^+ i)%a with (finz.largest 0%a) by solve_addr.
-       rewrite finz_seq_top. apply std_update_multiple_dom_top_sta; auto.
-   Qed.
-
-   Lemma incr_addr_is_Some_weak a n :
-     is_Some (a + S (S n))%a → is_Some (a + (S n))%a.
-   Proof.
-     intros Hsome.
-     solve_addr.
-   Qed.
-
-   Lemma std_sta_update_multiple_insert W (a b a' l : Addr) ρ i :
-     (a' < a)%a →
-     std (std_update_multiple (std_update W a' i) (finz.seq_between a b) ρ) !! l =
-     std (std_update (std_update_multiple W (finz.seq_between a b) ρ) a' i) !! l.
-   Proof.
-     intros Hlt.
-     destruct (decide (l ∈ finz.seq_between a b)) as [Hin|Hin].
-     - assert (l ≠ a') as Hne.
-       { intros ->.
-         apply elem_of_finz_seq_between in Hin.
-         solve_addr.
-       }
-       apply list_elem_of_lookup in Hin as [n Hsome].
-       assert (std (std_update_multiple W (finz.seq_between a b) ρ) !! l = Some ρ) as Hpwl.
-       { apply std_update_multiple_lookup with n; auto. }
-       assert (std (std_update_multiple (std_update W a' i) (finz.seq_between a b) ρ) !! l = Some ρ) as Hpwl'.
-       { apply std_update_multiple_lookup with n; auto. }
-       rewrite -Hpwl in Hpwl'. rewrite Hpwl'.
-       rewrite lookup_insert_ne; auto.
-     - rewrite std_sta_update_multiple_lookup_same_i; auto.
-       destruct (decide ( a' =  l)).
-       + rewrite /std_update /= e. do 2 rewrite lookup_insert_eq. done.
-       + rewrite /std_update /=. rewrite lookup_insert_ne;auto. rewrite lookup_insert_ne; auto.
-         rewrite std_sta_update_multiple_lookup_same_i; auto.
-   Qed.
-
-   Lemma std_update_multiple_dom_insert W (a b a' : Addr) i :
-     (a' < a)%a →
-     Forall (λ a : Addr,
-                   (a ∉ dom (std W))) (finz.seq_between a b) →
-     Forall (λ a : Addr,
-                   (a ∉ dom (<[ a' := i]> (std W)))) (finz.seq_between a b).
-   Proof.
-     intros Hlt.
-     do 2 (rewrite Forall_forall). intros Hforall.
-     intros x Hin.
-     assert (x ≠ a') as Hne.
-     { intros ->.
-       apply elem_of_finz_seq_between in Hin.
-       solve_addr.
-       }
-     apply Hforall with x in Hin.
-     rewrite dom_insert. apply not_elem_of_union.
-     split;auto. apply not_elem_of_singleton.
-     intros Hcontr. contradiction.
-   Qed.
-
-   Lemma std_update_multiple_app W (l1 l2 : list Addr) ρ :
-     std_update_multiple W (l1 ++ l2) ρ = std_update_multiple (std_update_multiple W l1 ρ) l2 ρ.
-   Proof.
-     induction l2; auto.
-     - by rewrite app_nil_r /=.
-     - rewrite std_update_multiple_swap /=. f_equal. auto.
-   Qed.
-
-   Lemma std_update_multiple_app_commute W (l1 l2 : list Addr) ρ :
-     std_update_multiple W (l1 ++ l2) ρ = std_update_multiple W (l2 ++ l1) ρ.
-   Proof.
-     induction l2.
-     - by rewrite app_nil_r /=.
-     - rewrite std_update_multiple_swap /=. by rewrite IHl2.
-   Qed.
-
-   Lemma std_update_multiple_overlap W l ρ1 ρ2 :
-     std_update_multiple (std_update_multiple W l ρ1) l ρ2 = std_update_multiple W l ρ2.
-   Proof.
-     induction l;auto.
-     simpl. destruct W as [ [ [Wstd Wloc] Wseals] W_heap ]. rewrite /std_update /=.
-     rewrite !std_update_multiple_cus !std_update_multiple_seals !std_update_multiple_heap /=; do 3 f_equiv.
-     apply map_eq'. intros k v.
-     destruct (decide (a = k)).
-     + subst. rewrite !lookup_insert_eq. auto.
-     + rewrite !lookup_insert_ne//. destruct (decide (k ∈ l)).
-       * rewrite !std_sta_update_multiple_lookup_in_i//.
-       * rewrite !std_sta_update_multiple_lookup_same_i// /=.
-         rewrite lookup_insert_ne//. rewrite !std_sta_update_multiple_lookup_same_i// /=.
-   Qed.
 
    Lemma std_update_multiple_insert_commute W a (l: list Addr) ρ ρ' :
      a ∉ l →
@@ -451,48 +197,6 @@ Section std_updates.
      apply not_elem_of_cons in Hne as [Hne Hnin].
      rewrite IHl;auto.
      rewrite /std_update /=. rewrite insert_insert_ne;auto.
-   Qed.
-
-   Lemma related_sts_pub_world_revoked_permanent W a :
-    (std W) !! a = Some Revoked →
-    related_sts_pub_world W (<s[a:=Permanent]s>W).
-  Proof.
-    intros Ha.
-    rewrite /related_sts_pub_world /=.
-    split;[|split];[|apply related_sts_pub_refl|split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl]].
-    rewrite /related_sts_pub. split.
-    - rewrite dom_insert_L. set_solver.
-    - intros i x y Hx Hy.
-      destruct (decide (a = i)).
-      + subst.
-        rewrite Hx in Ha. inversion Ha.
-        rewrite lookup_insert_eq in Hy. inversion Hy.
-        right with (Permanent);[|left]. constructor.
-      + rewrite lookup_insert_ne in Hy;auto.
-        rewrite Hx in Hy.
-        inversion Hy; subst.
-        left.
-  Qed.
-
-   Lemma related_sts_pub_update_multiple_perm W l :
-     Forall (λ k, std W !! k = Some Revoked) l →
-     related_sts_pub_world W (std_update_multiple W l Permanent).
-   Proof.
-     intros Hforall. induction l.
-     - apply related_sts_pub_refl_world.
-     - simpl.
-       apply Forall_cons in Hforall as [ Ha_std Hforall].
-       eapply related_sts_pub_trans_world;[apply IHl; auto|].
-       destruct (decide (a ∈ l)).
-       { rewrite (_: <s[a:=Permanent]s>(std_update_multiple W l Permanent) = std_update_multiple W l Permanent) /=
-         ; first by apply related_sts_pub_refl_world.
-         rewrite /std_update insert_id /=; first by destruct (std_update_multiple W l Permanent) as [ [ [] ] ].
-         by apply std_sta_update_multiple_lookup_in_i.
-       }
-       destruct W as [ [Hstd Hloc] W_heap ].
-       apply related_sts_pub_world_revoked_permanent in Ha_std.
-       eapply related_sts_pub_trans_world;[apply std_update_multiple_related_monotone,Ha_std|].
-       rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.
    Qed.
 
    Lemma related_sts_pub_world_revoked_temporary W a :

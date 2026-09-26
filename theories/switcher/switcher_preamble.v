@@ -33,22 +33,6 @@ Section Switcher_preamble.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Lemma is_switcher_entry_point_call `{switcherLayout} :
-    is_switcher_entry_point (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) = true.
-  Proof.
-    rewrite /is_switcher_entry_point.
-    rewrite bool_decide_eq_true_2; first done.
-    by left.
-  Qed.
-
-  Lemma is_switcher_entry_point_return `{switcherLayout} :
-    is_switcher_entry_point (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
-  Proof.
-    rewrite /is_switcher_entry_point.
-    rewrite bool_decide_eq_true_2; first done.
-    by right.
-  Qed.
-
   Lemma encode_entry_point_eq_nargs nargs off_entry :
     (0 ≤ nargs ≤ 7)%Z -> ( (Z.land (encode_entry_point nargs off_entry) 7)) = nargs.
   Proof.
@@ -227,9 +211,6 @@ Section Switcher_preamble.
   Definition ot_switcher_propC : (WORLD * CmptName * Word) -> iPropI Σ :=
     safeC ot_switcher_prop.
 
-  Lemma persistent_cond_ot_switcher :
-    persistent_cond ot_switcher_prop.
-  Proof. intros [ [] ] ; cbn; apply _. Qed.
 
   Lemma mono_priv_ot_switcher (C : CmptName) (w : Word) :
     ⊢ future_priv_mono C ot_switcher_propC w.
@@ -254,19 +235,6 @@ Section Switcher_preamble.
     by eapply related_sts_priv_trans_world.
   Qed.
 
-  Lemma ot_switcher_prop_borrow (W : WORLD) (C : CmptName) ( w : Word ) :
-    ot_switcher_prop W C w -∗ ot_switcher_prop W C (borrow w).
-  Proof.
-    iIntros "Hot_switcher".
-    iEval (cbn) in "Hot_switcher".
-    iEval (cbn).
-    iDestruct "Hot_switcher" as
-      (g_tbl b_tbl e_tbl a_tbl bpcc epcc bcgp ecgp nargs off CNAME ->
-       Hatbl Hbtbl Hbtbl1 Hnargs Hentry_some Hatbl_shadow Hbtbl_shadow Hbtbl1_shadow Hbpcc_heap Hbcgp_heap)
-      "(Hinvpcc & Hinvcgp & Hinventry & #Hentry & #Hentry_borrow & #Hcont)".
-    iFrame "#∗%".
-    iExists Local; iPureIntro; done.
-  Qed.
 
   (** [cframe_interp] interprets a call-frame, i.e.,
       describes how the physical call-frame is linked to the logical call-frame [frm : cframe].

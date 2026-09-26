@@ -106,36 +106,6 @@ Section region.
     iDestruct "Hhi" as "[$ _]".
   Qed.
 
-  Lemma extract_from_region_inv_2 b e a ws (φ : Addr → Word → iProp Σ)
-        `{!∀ x y, Persistent (φ x y)}:
-    let n := length (finz.seq_between b a) in
-    (b <= a ∧ a < e)%a →
-    ⊢ (([∗ list] a';w' ∈ (finz.seq_between b e);ws, φ a' w') →
-     ∃ w, φ a w ∗ ⌜ws = (take n ws) ++ w :: (drop (S n) ws)⌝)%I.
-  Proof.
-    iIntros (n Ha) "#Hreg".
-    iDestruct (big_sepL2_length with "Hreg") as %Hlen.
-    rewrite (finz_seq_between_decomposition b a e) //.
-    assert (Hlnws: n = length (take n ws)).
-    { rewrite length_take. rewrite Nat.min_l; auto.
-      rewrite <- Hlen. subst n. rewrite !finz_seq_between_length /finz.dist.
-      solve_addr. }
-    generalize (take_drop n ws). intros HWS.
-    rewrite <- HWS.
-    iDestruct (big_sepL2_app_inv_l _ (finz.seq_between b a) (a :: finz.seq_between _ e)
-                 with "Hreg") as (l1 l2 Hws2) "[Hl1 Hl2]".
-    destruct l2; auto.
-    simpl. iDestruct "Hl2" as "[Ha Hl2]".
-    iExists w. iFrame "#".
-    iDestruct (big_sepL2_length with "Hl1") as %Hlenl1.
-    iDestruct (big_sepL2_length with "Hl2") as %Hlenl2.
-    iPureIntro.
-    rewrite take_app_length' //.
-    assert (drop n ws = w :: l2) as Heql2.
-    { apply app_inj_1 in Hws2 as [_ Heq]; auto.
-        by rewrite -Hlnws. }
-    rewrite (drop_S' _ (take n ws ++ drop n ws) n w (l2)); try congruence.
-  Qed.
 
   Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_pointsto b e ws)
             (at level 50, format "[[ b , e ]] ↦ₐ [[ ws ]]") : bi_scope.
@@ -192,15 +162,6 @@ Section region.
        rewrite (_: finz.dist b e - finz.dist b a = finz.dist a e)...
    Qed.
 
-   Lemma within_in_range:
-     forall a b b' e e',
-    (b <= b')%a ->
-    (e' <= e)%a ->
-    in_range a b' e' ->
-    in_range a b e.
-  Proof.
-    intros * ? ? [? ?]. split; solve_addr.
-  Qed.
 
    (*--------------------------------------------------------------------------*)
 
@@ -242,9 +203,6 @@ Section region_addrs_zeroes.
   Definition region_addrs_zeroes (b e : Addr) : list Word :=
     replicate (finz.dist b e) (WInt 0%Z).
 
-  Lemma region_addrs_zeroes_lookup (b e : Addr) i y :
-    region_addrs_zeroes b e !! i = Some y → y = WInt 0%Z.
-  Proof. apply lookup_replicate. Qed.
 
   Lemma region_addrs_zeroes_split (b a e: Addr) :
     (b <= a)%a ∧ (a <= e)%a →

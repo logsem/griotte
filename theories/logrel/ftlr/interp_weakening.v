@@ -58,13 +58,6 @@ Section fundamental.
       reflexivity.
   Qed.
 
-  Lemma filter_heap_force_global W w :
-    filter_heap W (force_global w) = force_global (filter_heap W w).
-  Proof.
-    apply filter_heap_map;
-      destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
-      reflexivity.
-  Qed.
 
   Lemma filter_heap_load_word W p w :
     filter_heap W (load_word p w) = load_word p (filter_heap W w).
@@ -364,19 +357,7 @@ Section fundamental.
     - iApply interp_untagged; done.
   Qed.
 
-  Lemma interp_in_mem_borrow_word W C w :
-    interp_in_mem RWL W C w -∗ interp_in_mem RWL W C (borrow w).
-  Proof.
-    change (⊢ interp W C (filter_heap W w) -∗ interp W C (filter_heap W (borrow w)))%I.
-    rewrite filter_heap_borrow. iIntros "H". by iApply interp_borrow_word.
-  Qed.
 
-  Lemma interp_in_mem_deeplocal_word W C w :
-    interp_in_mem RWL W C w -∗ interp_in_mem RWL W C (deeplocal w).
-  Proof.
-    change (⊢ interp W C (filter_heap W w) -∗ interp W C (filter_heap W (deeplocal w)))%I.
-    rewrite filter_heap_deeplocal. iIntros "H". by iApply interp_deeplocal_word.
-  Qed.
 
   Lemma interp_in_mem_readonly_word W C w :
     interp_in_mem RWL W C w -∗ interp_in_mem RWL W C (readonly w).
@@ -401,20 +382,6 @@ Section fundamental.
 
   Lemma interp_int W C n : ⊢ interp W C (WInt n).
   Proof. iIntros. rewrite /interp fixpoint_interp1_eq //. Qed.
-
-  Lemma persistent_cond_interp : persistent_cond interp.
-  Proof.
-    intros W; apply _.
-  Qed.
-  Lemma zcond_interp C : ⊢ zcond interp C.
-  Proof. by iModIntro; iIntros (W1 W2 w) "_"; iApply interp_int. Qed.
-
-  Lemma wcond_interp C : ⊢ wcond interp C interp.
-  Proof. by iModIntro; iIntros (W1 w) "?". Qed.
-
-  Lemma rcond_interp C p : ⊢ rcond interp C p interp.
-  Proof. iModIntro; iIntros (W1 w) "H".
-    iApply interp_load_in_mem. by iApply interp_load_word. Qed.
 
   Lemma monoReq_interp_in_mem (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (ρ : region_type) :
     (std W) !! a = Some ρ
@@ -441,24 +408,6 @@ Section fundamental.
       iIntros "Hinterp".
       iApply (interp_in_mem_monotone_nl W0 W1 C RWL w with "Hinterp"); [exact Hwf|exact Hrelated|].
       cbn. by eapply canStore_global_nonisWL.
-  Qed.
-
-  Lemma future_priv_mono_interp_z (C : CmptName) (z : Z) :
-    ⊢ future_priv_mono C interpC (WInt z).
-  Proof.
-    iModIntro.
-    iIntros (W W') "%Hrelated %Hwf Hinterp".
-    rewrite /=.
-    iEval (rewrite fixpoint_interp1_eq);done.
-  Qed.
-
-  Lemma future_pub_mono_interp_z (C : CmptName) (z : Z) :
-    ⊢ future_pub_mono C interpC (WInt z).
-  Proof.
-    iModIntro.
-    iIntros (W W') "%Hrelated %Hwf Hinterp".
-    rewrite /=.
-    iEval (rewrite fixpoint_interp1_eq); done.
   Qed.
 
   Lemma future_priv_mono_interp_in_mem_z C z :
@@ -495,9 +444,6 @@ Section fundamental.
   Lemma persistent_cond_interp_in_mem_dl : persistent_cond interp_in_mem_dl.
   Proof. intros W; apply _. Qed.
 
-  Lemma interp_in_mem_dl_int W C n : ⊢ interp_in_mem_dl W C (WInt n).
-  Proof. iIntros; cbn; iApply interp_int. Qed.
-
   Lemma zcond_interp_in_mem_dl C : ⊢ zcond interp_in_mem_dl C.
   Proof. by iModIntro; iIntros (W1 W2 w) "_"; iApply interp_int. Qed.
 
@@ -521,23 +467,6 @@ Section fundamental.
      , (⌜ v = w ⌝ ∗ interp_in_mem RWL W B (readonly w))%I).
   Solve All Obligations with solve_proper.
 
-  Lemma persistent_cond_interp_in_mem_dro_eq (w : Word) : persistent_cond (interp_in_mem_dro_eq w).
-  Proof. intros W; apply _. Qed.
-
-  Lemma zcond_interp_in_mem_dro_eq C w : ⊢ zcond (interp_in_mem_dro_eq w) C.
-  Proof. iModIntro; iIntros (W1 W2 w') "[<- ?]"; iSplit; [done | iApply interp_int]. Qed.
-
-  Lemma rcond_interp_in_mem_dro_eq C w p : isDRO p = true -> ⊢ rcond (interp_in_mem_dro_eq w) C p interp.
-  Proof.
-    iIntros (Hp) "!> %W %w' [<- H]".
-    rewrite /interp_in_mem_pre /load_word /= Hp.
-    destruct (isDL p); last done.
-    replace (readonly (deeplocal (borrow w'))) with (deeplocal (borrow (readonly w'))).
-    + by iApply interp_in_mem_deeplocal_word; iApply interp_in_mem_borrow_word.
-    + destruct w' as [| [ t [] |] | |]; auto.
-  Qed.
-
-  (* Proving the meaning of unsealing in the LR sane. Note the use of the later in the result. *)
   (* Proving the meaning of sealing in the LR sane *)
   Lemma sealing_preserves_interp W C sb p g b e a :
     permit_seal p = true ->
@@ -593,6 +522,7 @@ Section fundamental.
       done.
   Qed.
 
+  (* Proving the meaning of unsealing in the LR sane. Note the use of the later in the result. *)
   Lemma unsealing_preserves_interp W C sb p0 g0 b0 e0 a0 o s:
         permit_unseal p0 = true →
         withinBounds b0 e0 o = true →
@@ -635,24 +565,6 @@ Section fundamental.
       by iApply "Hrcond".
   Qed.
 
-
-  Local Lemma disjoint_regions_subseg b e b' e' :
-    (b <= b')%a → (e' <= e)%a →
-    disjoint_from_shadow b e ∧ disjoint_from_heap b e →
-    disjoint_from_shadow b' e' ∧ disjoint_from_heap b' e'.
-  Proof.
-    intros Hb He [Hshadow Hheap].
-    rewrite /disjoint_from_shadow elem_of_disjoint in Hshadow.
-    rewrite /disjoint_from_heap elem_of_disjoint in Hheap.
-    rewrite /disjoint_from_shadow /disjoint_from_heap !elem_of_disjoint.
-    split; intros a Ha Hregion.
-    - eapply Hshadow; last exact Hregion.
-      apply elem_of_finz_seq_between in Ha.
-      apply elem_of_finz_seq_between; solve_addr.
-    - eapply Hheap; last exact Hregion.
-      apply elem_of_finz_seq_between in Ha.
-      apply elem_of_finz_seq_between; solve_addr.
-  Qed.
 
   Lemma heap_cap_valid_subseg W p b e b' e' :
     heap_wf (heap_std W) -> (b <= b')%a -> (e' <= e)%a ->

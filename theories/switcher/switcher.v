@@ -192,13 +192,6 @@ Section Switcher.
       let blocks_call_asm := length switcher_call_asm in
       concat (firstn blocks_call_asm assembled_switcher).
 
-  Definition is_switcher_entry_point `{switcherLayout} (w : Word) :=
-    bool_decide
-      (w = (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
-           ∨
-      (w = (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
-      ))
-  .
 
   Definition encode_entry_point (nargs entry_point_offset : Z) : Z :=
     let args := Z.land nargs 7 in

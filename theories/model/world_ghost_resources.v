@@ -210,21 +210,6 @@ Section rel.
     iIntros (x). iApply (saved_pred_agree with "Hpred1 Hpred2").
   Qed.
 
-  Lemma RELS_sub C M (m : gmap Addr Word) :
-    RELS C M -∗ ([∗ map] a↦_ ∈ m, ∃ p φ, rel C a p φ) -∗
-    ⌜∀ (a : Addr), is_Some(m !! a) -> is_Some(M !! a)⌝.
-  Proof.
-    iIntros "HM Hmap".
-    iIntros (a [x Hx]).
-    iDestruct (big_sepM_delete _ _ a with "Hmap") as "[Ha _]";eauto.
-    iDestruct "Ha" as (p φ) "#Hrel".
-    rewrite rel_eq /rel_def.
-    iDestruct "Hrel" as (γpred) "#[Hown _]".
-    iDestruct (reg_in with "[$HM $Hown]") as %HMeq; eauto.
-    rewrite HMeq. rewrite lookup_insert_eq. eauto.
-  Qed.
-
-
   Lemma future_pub_mono_eq_pred C γ φ φ' w :
     saved_pred_own γ DfracDiscarded φ
     -∗ saved_pred_own γ DfracDiscarded φ'
@@ -241,18 +226,6 @@ Section rel.
     iApply "Hmono"; eauto.
   Qed.
 
-  Lemma mono_pub_eq_pred C γ φ φ' :
-    saved_pred_own γ DfracDiscarded φ
-    -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ mono_pub C φ
-    -∗ ▷ mono_pub C φ'.
-  Proof.
-    iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (w).
-    iSpecialize ("Hmono" $! w).
-    iApply (future_pub_mono_eq_pred with "Hφ Hφ' Hmono");auto.
-  Qed.
-
   Lemma future_priv_mono_eq_pred C γ φ φ' w :
     saved_pred_own γ DfracDiscarded φ
     -∗ saved_pred_own γ DfracDiscarded φ'
@@ -267,18 +240,6 @@ Section rel.
     iIntros "Hφv".
     iRewrite - "Hφeq0" in "Hφv"; iRewrite - "Hφeq1".
     iApply "Hmono"; eauto.
-  Qed.
-
-  Lemma mono_priv_eq_pred C γ p φ φ':
-    saved_pred_own γ DfracDiscarded φ
-    -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ mono_priv C φ p
-    -∗ ▷ mono_priv C φ' p.
-  Proof.
-    iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (w Hglobalw).
-    iSpecialize ("Hmono" $! w Hglobalw).
-    iApply (future_priv_mono_eq_pred with "Hφ Hφ' Hmono");auto.
   Qed.
 
   Lemma future_pub_mono_eq_pred_rel C γ p p' φ φ' w :
@@ -298,18 +259,6 @@ Section rel.
     iApply "Hmono"; eauto.
   Qed.
 
-  Lemma mono_pub_eq_pred_rel C γ p p' φ φ' :
-    rel C γ p φ
-    -∗ rel C γ p' φ'
-    -∗ ▷ mono_pub C φ
-    -∗ ▷ mono_pub C φ'.
-  Proof.
-    iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (w).
-    iSpecialize ("Hmono" $! w).
-    iApply (future_pub_mono_eq_pred_rel with "Hrel Hrel' Hmono"); eauto.
-  Qed.
-
   Lemma future_priv_mono_eq_pred_rel C γ p p' φ φ' w :
     rel C γ p φ
     -∗ rel C γ p' φ'
@@ -327,30 +276,12 @@ Section rel.
     iApply "Hmono"; eauto.
   Qed.
 
-  Lemma mono_priv_eq_pred_rel C γ p p' φ φ' :
-    rel C γ p φ
-    -∗ rel C γ p' φ'
-    -∗ ▷ mono_priv C φ p
-    -∗ ▷ mono_priv C φ' p.
-  Proof.
-    iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (w Hglobalw).
-    iSpecialize ("Hmono" $! w Hglobalw).
-    iApply (future_priv_mono_eq_pred_rel with "Hrel Hrel' Hmono"); eauto.
-  Qed.
 
 End rel.
 
 (* No Excl' here: do not want the valid option element, as this disallows us from changing the branch in the sum type *)
 Lemma csum_alter_l_r {A : cmra} {C : ofe} (a : A) (c : C) : ✓ a → Cinl (Excl c) ~~> Cinr a.
-Proof.
-  intros Hv. by apply cmra_update_exclusive.
-Qed.
-
-Lemma Excl_included_false : ∀ {A : ofe} {a b : A}, Excl a ≼ Excl b → False.
-Proof.
-  intros * Hi. by apply (exclusive_included _ _ Hi).
-Qed.
+Proof. intros Hv. by apply cmra_update_exclusive. Qed.
 
 (* resources *)
 
@@ -374,24 +305,6 @@ Global Instance subG_sealStorePreΣ {Σ}:
   sealStorePreG Σ.
 Proof. solve_inG. Qed.
 
-(* Auxiliary lemma's about gmap domains *)
-Lemma gmap_none_convert `{Countable K} {A B: Type} (g1 : gmap K A) (g2 : gmap K B) (i : K): dom g1 = dom g2 →
-    g1 !! i = None → g2 !! i = None.
-Proof.
-  intros Hdom Hnon.
-  apply not_elem_of_dom in Hnon.
-  rewrite Hdom in Hnon.
-  by apply not_elem_of_dom.
-Qed.
-
-Lemma gmap_isSome_convert `{Countable K} {A B: Type} (g1 : gmap K A) (g2 : gmap K B) (i : K): dom g1 = dom g2 →
-    is_Some (g1 !! i) → is_Some (g2 !! i).
-Proof.
-  intros Hdom Hnon.
-  apply elem_of_dom in Hnon.
-  rewrite Hdom in Hnon.
-  by apply elem_of_dom.
-Qed.
 
 Section Store.
   Context `{!sealStoreG Σ}

@@ -61,26 +61,6 @@ Section world_ghost_theory.
   Definition world_interp_sopen := proj1_sig world_interp_sopen_aux.
   Definition world_interp_sopen_eq : @world_interp_sopen = @world_interp_sopen_def := proj2_sig world_interp_sopen_aux.
 
-  Lemma world_interp_quarantine_covered W C :
-    world_interp W C -∗ ⌜heap_quarantine_covered (heap_std W) (std W)⌝.
-  Proof.
-    rewrite world_interp_eq /world_interp_def region_eq /region_def.
-    iIntros "(Hr & _ & _)".
-    iDestruct "Hr" as (M Mρ) "(_ & _ & _ & [%Hcovered _])".
-    done.
-  Qed.
-
-  Lemma world_interp_open_quarantine_covered W C s :
-    world_interp_open W C s -∗
-      ⌜heap_quarantine_covered (heap_std W) (std W)⌝.
-  Proof.
-    rewrite world_interp_open_eq /world_interp_open_def
-      open_region_many_eq /open_region_many_def.
-    iIntros "(Hr & _ & _)".
-    iDestruct "Hr" as (M Mρ) "(_ & _ & _ & [%Hcovered _])".
-    done.
-  Qed.
-
   Lemma world_interp_open_quarantined_token W C s a :
     a ∉ s →
     heap_cell_status (heap_std W) a = Some AllocObjectQuarantined →
@@ -263,17 +243,6 @@ Section world_ghost_theory.
     RevokedResources W C' (l++l') ⊣⊢ RevokedResources W C' l ∗ RevokedResources W C' l'.
   Proof. apply big_sepL_app. Qed.
 
-  Lemma RevokedResources_disjoint
-    (C1 C2 : CmptName) (W1 W2 : WORLD) (l1 l2 : list Addr) :
-    Forall (heap_cell_live (heap_std W1)) l1 ->
-    Forall (heap_cell_live (heap_std W2)) l2 ->
-    RevokedResources W1 C1 l1 ∗ RevokedResources W2 C2 l2 -∗ ⌜ l1 ## l2 ⌝.
-  Proof.
-    intros Hlive1 Hlive2.
-    rewrite (RevokedResources_eq _ _ _ Hlive1)
-      (RevokedResources_eq _ _ _ Hlive2).
-    apply close_list_resources_separation_many_alt.
-  Qed.
 
   Lemma RevokedResources_mono_pub (W W' : WORLD) (C : CmptName) (l_unk la : list Addr) :
     heap_wf (heap_std W') ->

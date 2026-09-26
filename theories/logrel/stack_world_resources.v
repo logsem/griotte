@@ -24,9 +24,6 @@ Section Stack_World_Resources.
     StackWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
   Proof. iIntros "H"; iApply (big_sepL2_length with "H"). Qed.
 
-  Lemma StackOpenWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) :
-    StackOpenWorldResources interp W C la lw -∗ ⌜ length la = length lw ⌝.
-  Proof. iIntros "[H _]"; iApply (big_sepL2_length with "H"). Qed.
 
   (* App *)
   Lemma StackWorldResources_app
@@ -41,21 +38,6 @@ Section Stack_World_Resources.
          - iApply big_sepL2_app'; last iFrame; auto.
   Qed.
 
-  Lemma StackOpenWorldResources_app
-    (W : WORLD) ( C : CmptName ) ( la la' : list Addr ) (lv lv' : list Word) :
-    length la = length lv ->
-    StackOpenWorldResources interp W C (la++la') (lv++lv') ⊣⊢
-    (StackOpenWorldResources interp W C la lv ∗
-     StackOpenWorldResources interp W C la' lv')%I.
-  Proof. rewrite /StackOpenWorldResources.
-         intros Hlen.
-         iSplit; [iIntros "[H1 H2]"| iIntros "[ [H1 H1'] [H2 H2'] ]"].
-         - iDestruct (big_sepL_app with "H2") as "[$ $]".
-           iApply StackWorldResources_app; done.
-         - iSplitR "H1' H2'".
-           + iApply StackWorldResources_app; auto.
-           + iApply big_sepL_app; auto; iFrame.
-  Qed.
 
   (* Zeroing *)
   Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :

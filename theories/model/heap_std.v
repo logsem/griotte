@@ -104,13 +104,6 @@ Proof.
   - apply (proj2 Hrel b o Hb0 Hb).
 Qed.
 
-Lemma related_sts_heap_std_empty W_heap :
-  heap_wf W_heap -> related_sts_heap_std ∅ W_heap.
-Proof.
-  intros Hwf. split.
-  - intros b o Hb. rewrite lookup_empty in Hb. discriminate.
-  - intros b o _ Hb. by apply Hwf.
-Qed.
 
 Lemma related_sts_heap_std_dom W_heap W_heap' :
   related_sts_heap_std W_heap W_heap' -> dom W_heap ⊆ dom W_heap'.

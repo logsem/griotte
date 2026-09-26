@@ -521,64 +521,6 @@ Section Switcher_Call_Blocks.
     iApply "Hpost"; iFrame.
   Qed.
 
-  Lemma switcher_call_block_7_spec
-    pc_b pc_e pc_a
-    wct2 o
-    btbl_tgt etbl_tgt atbl_tgt
-    Nexp_tbl nargs off_tgt :
-    let switcher_instrs_7 := (switcher_instrs_n 7) in
-    let len_switcher_7 := length switcher_instrs_7 in
-    let wct1 := WSealed o (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
-    is_shadow_address atbl_tgt = false ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_7)%a ->
-    (o < o ^+ 1)%ot ->
-    (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
-    0 ≤ nargs ≤ 7 ->
-
-    inv (export_table_entryN Nexp_tbl atbl_tgt)
-      (atbl_tgt ↦ₐ WInt (encode_entry_point nargs off_tgt)) ∗
-    PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
-    cs0 ↦ᵣ WSealRange true (true, true) Global o (o ^+ 1)%ot o ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    codefrag pc_a switcher_instrs_7 ∗
-    ▷ ( PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ len_switcher_7)%a ∗
-        cs0 ↦ᵣ WInt off_tgt ∗
-        ct1 ↦ᵣ WCap true RO Global btbl_tgt etbl_tgt atbl_tgt ∗
-        ct2 ↦ᵣ WInt nargs ∗
-        codefrag pc_a switcher_instrs_7 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
-      )
-    ⊢ WP Seq (Instr Executable)
-        {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
-  Proof.
-    intros switcher_instrs_7 len_switcher_7 wct1; subst switcher_instrs_7 len_switcher_7 wct1.
-    iIntros (Hatbl_shadow Hsub_reg Hot_bounds atbl_tgt_inbounds Hnargs)
-      "(#Hinv_exp_tbl_entry & HPC & Hcs0 & Hct1 & wtc2 & Hcode & Hpost)".
-    codefrag_facts "Hcode". clear H0.
-    rewrite /switcher_instrs_n /assembled_switcher_n.
-
-    (* --- UnSeal ct1 cs0 ct1 --- *)
-    iInstr "Hcode".
-
-
-    (* --- Load cs0 ct1 --- *)
-    wp_instr.
-    iInv "Hinv_exp_tbl_entry" as ">Ha_tbl" "Hcls_tbl".
-    iInstr "Hcode".
-    iMod ("Hcls_tbl" with "[$]") as "_". iModIntro.
-    wp_pure.
-
-    (* --- LAnd ct2 cs0 7 --- *)
-    iInstr "Hcode".
-
-    (* --- LShiftR cs0 cs0 3 --- *)
-    iInstr "Hcode".
-
-    rewrite encode_entry_point_eq_off.
-    rewrite encode_entry_point_eq_nargs; last lia.
-    iApply "Hpost"; iFrame.
-  Qed.
 
   Lemma switcher_call_block_8_spec
     pc_b pc_e pc_a

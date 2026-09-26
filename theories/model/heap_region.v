@@ -78,10 +78,6 @@ Section heap_region.
     heap_cell_live W_heap a -> P -∗ heap_cell_resource W_heap a P.
   Proof. intros Ha. rewrite (heap_cell_resource_live _ _ _ Ha). iIntros "$". Qed.
 
-  Lemma heap_cell_resource_quarantined W_heap a P :
-    heap_cell_status W_heap a = Some AllocObjectQuarantined ->
-    heap_cell_resource W_heap a P = reclaim_token a.
-  Proof. intros Ha. by rewrite heap_cell_resource_status Ha. Qed.
 
   Lemma heap_cell_resource_mono W_heap a P Q :
     (P -∗ Q) -∗ heap_cell_resource W_heap a P -∗ heap_cell_resource W_heap a Q.
@@ -128,67 +124,3 @@ Qed.
 Lemma heap_cells_live_cases `{HeapRegion} W_heap l :
   Forall (heap_cell_live W_heap) l ↔ Forall (heap_cell_nonheap_or_live W_heap) l.
 Proof. rewrite !Forall_forall. setoid_rewrite heap_cell_live_cases. done. Qed.
-
-(** At an untrusted execution boundary, the resources for every cell in each
-    recorded allocation establish whole-block agreement with the physical
-    allocator. This assertion is not imposed while trusted code is painting. *)
-From griotte Require Import heap_allocator.
-
-Section heap_region_agreement.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
-    `{MP : MachineParameters}.
-
-  Definition heap_payload_resources (W_heap : Heap) : iProp Σ :=
-    [∗ map] base ↦ obj ∈ W_heap,
-      [∗ list] a ∈ finz.seq_between base (alloc_object_end obj),
-        heap_cell_resource W_heap a (a ↦ₐ -).
-
-  Lemma heap_cell_resource_allocator_agree W_heap a s :
-    is_heap_address a = true ->
-    heap_cell_resource W_heap a (a ↦ₐ -) -∗ allocator_entry a s -∗
-    ⌜∃ status, heap_cell_status W_heap a = Some status ∧
-       s = alloc_object_cell_state status⌝.
-  Proof.
-    intros Hheap. rewrite heap_cell_resource_status.
-    destruct (heap_cell_status W_heap a) as [status|] eqn:Hstatus;
-      last by iIntros "[]".
-    destruct status.
-    - iIntros "[%w Hw] Hentry".
-      iDestruct (allocator_entry_memory_live with "Hentry Hw") as %->.
-      iPureIntro. exists AllocObjectLive. done.
-    - iIntros "Htoken Hentry".
-      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken") as %->.
-      iPureIntro. exists AllocObjectQuarantined. done.
-  Qed.
-
-  Lemma heap_payload_resources_allocator_agree W_heap allocations alloc_map :
-    heap_wf W_heap ->
-    alloc_object_end <$> W_heap = fst <$> list_to_map allocations ->
-    (∀ base obj a, W_heap !! base = Some obj -> alloc_object_contains base obj a ->
-       is_heap_address a = true) ->
-    dom alloc_map = heap_addresses ->
-    heap_payload_resources W_heap -∗
-    ([∗ map] a ↦ s ∈ alloc_map, allocator_entry a s) -∗
-    ⌜heap_std_allocator_agree W_heap allocations alloc_map⌝.
-  Proof.
-    iIntros (Hwf Hbounds Hheap Hdom) "Hcells Halloc".
-    iAssert (∀ base obj a, ⌜W_heap !! base = Some obj⌝ →
-      ⌜alloc_object_contains base obj a⌝ →
-      ⌜alloc_map !! a = Some (alloc_object_cell_state (alloc_object_status obj))⌝)%I
-      as %Hagree.
-    { iIntros (base obj a Hobj Ha).
-      have Haddr := Hheap base obj a Hobj Ha.
-      have Hlookup := heap_lookup_addr_complete W_heap a base obj Hwf Hobj Ha.
-      iDestruct (big_sepM_lookup with "Hcells") as "Hobj"; first exact Hobj.
-      iDestruct (big_sepL_elem_of with "Hobj") as "Hcell".
-      { by apply elem_of_finz_seq_between. }
-      assert (is_Some (alloc_map !! a)) as [s Hs].
-      { apply elem_of_dom. rewrite Hdom elem_of_heap_addresses. done. }
-      iDestruct (big_sepM_lookup with "Halloc") as "Hentry"; first exact Hs.
-      iDestruct (heap_cell_resource_allocator_agree with "Hcell Hentry")
-        as %(status & Hstatus & ->); first exact Haddr.
-      rewrite /heap_cell_status Haddr Hlookup /= in Hstatus.
-      iPureIntro. congruence. }
-    iPureIntro. split; first exact Hwf. split; assumption.
-  Qed.
-End heap_region_agreement.

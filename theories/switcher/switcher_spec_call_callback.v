@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import switcher_spec_call switcher_spec_call_failure.
+From griotte Require Import switcher_spec_call.
 From griotte Require Import sts_multiple_updates region_invariants_revocation world_ghost_theory world_interp_stack.
 From griotte Require Import switcher_load_spec switcher_spec_call_blocks.
 From griotte Require Import logrel memory_region rules proofmode map_simpl register_tactics.
