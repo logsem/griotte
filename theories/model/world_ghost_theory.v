@@ -1369,7 +1369,7 @@ Section world_ghost_theory.
     intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
   Qed.
 
-  Lemma world_interp_revoke W C s :
+  Lemma world_interp_revoke_live W C s :
     Forall (heap_cell_live (heap_std W)) s ->
     extract_temporaries_condition W s ->
     world_interp W C
@@ -1423,7 +1423,7 @@ Section world_ghost_theory.
       split; assumption.
   Qed.
 
-  Lemma world_interp_revoke_mixed W C s :
+  Lemma world_interp_revoke W C s :
     extract_temporaries_condition W s ->
     world_interp W C
     ==∗
@@ -1449,7 +1449,7 @@ Section world_ghost_theory.
     iModIntro. done.
   Qed.
 
-  Lemma world_interp_restore_mixed W C l :
+  Lemma world_interp_restore W C l :
     world_interp W C ∗
     RevokedResources (close_list l W) C l
     ==∗

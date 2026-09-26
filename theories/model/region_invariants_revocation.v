@@ -754,7 +754,7 @@ Section region_invariant_revocation.
     iPureIntro. by apply related_sts_pub_priv_world.
   Qed.
 
-  Lemma close_list_consolidate_gen_mixed W C (l' l : list Addr) :
+  Lemma close_list_consolidate_gen W C (l' l : list Addr) :
     ⊢ ⌜l' ⊆+ l⌝ →
     (region (close_list l W) C
      ∗ sts_full_world W C
@@ -781,10 +781,10 @@ Section region_invariant_revocation.
       (sts_full_world (close_list l' W) C
        ∗ region (close_list l W) C).
   Proof.
-    iIntros (_). iApply close_list_consolidate_gen_mixed.
+    iIntros (_). iApply close_list_consolidate_gen.
   Qed.
 
-  Lemma close_list_consolidate_gen W C (l' l : list Addr) :
+  Lemma close_list_consolidate_gen_live W C (l' l : list Addr) :
     ⊢ ⌜Forall (heap_cell_live (heap_std W)) l'⌝ → ⌜l' ⊆+ l⌝ →
     (region (close_list l W) C
      ∗ sts_full_world W C
@@ -842,7 +842,7 @@ Section region_invariant_revocation.
       apply close_list_dom_eq. }
     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iDestruct (region_monotone with "Hr") as "Hr";[apply Heq|apply Hrelated'|symmetry; apply close_list_heap|by rewrite close_list_heap| ].
-    iMod (close_list_consolidate_gen _ _ l l with "[] [] [$Hr $Hsts Htemp]") as "[Hsts Hr]"
+    iMod (close_list_consolidate_gen_live _ _ l l with "[] [] [$Hr $Hsts Htemp]") as "[Hsts Hr]"
     ;[auto|auto|eauto|iFrame;done].
   Qed.
 

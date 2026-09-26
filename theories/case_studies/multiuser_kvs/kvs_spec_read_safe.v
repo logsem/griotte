@@ -290,6 +290,15 @@ Section KVS_spec_read_safe.
     map_simpl "Hrmap".
 
     destruct Hl_unk as [ Hnodup Htemps ]; auto.
+    iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_C") as %Hheap_wf_cur.
+    assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
+      by (subst Wfixed; rewrite close_list_heap; exact Hheap_wf_cur).
+    assert (related_sts_pub_world W0 Wfixed) as Hrelated_pub_W0_Wfixed.
+    { subst Wfixed. apply related_pub_revoke_close_list; exact Htemps. }
+    iDestruct (RevokedResources_mono_pub W0 Wfixed C l l Hheap_wf_fixed
+      Hrelated_pub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
+    clear Hrelated_pub_W0_Wfixed.
+
     iApply (switcher_ret_specification _ W0 (revoke W0)
              with
              "[ $Hstk $Hcstk $HK $Hworld_C $Hna $HPC $Hrevoked_l

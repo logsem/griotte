@@ -251,6 +251,17 @@ Section LSE.
     { solve_addr+Hastk1. }
     { solve_addr+Hastk1 Hcsp_size. }
 
+    set (Wfixed := close_list (l ++ finz.seq_between csp_b csp_e) W1).
+    iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_interp_C") as %Hheap_wf_cur.
+    assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
+      by (subst Wfixed; rewrite close_list_heap; exact Hheap_wf_cur).
+    assert (related_sts_pub_world W0 Wfixed) as Hrelated_pub_W0_Wfixed.
+    { subst Wfixed W1. apply related_pub_revoke_close_list.
+      destruct Hl_unk; auto. }
+    iDestruct (RevokedResources_mono_pub W0 Wfixed C l l Hheap_wf_fixed
+      Hrelated_pub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
+    clear Hrelated_pub_W0_Wfixed.
+
     iApply (switcher_ret_specification _ W0 W1
              with
              "[$Halloc $Hswitcher $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l

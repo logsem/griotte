@@ -1154,7 +1154,7 @@ Section VAE.
       with "[Hl0_fixed Hl1_fixed Hl2_fixed]" as "Hrevoked".
     { subst closing_revoked. rewrite !RevokedResources_app. iFrame. }
 
-    iApply (switcher_ret_specification_mixed _ W0 W7
+    iApply (switcher_ret_specification _ W0 W7
              with
              "[ $Halloc $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC $Hrevoked
              $Hrmap $Hca0 $Hca1 $Hcsp]"

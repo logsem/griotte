@@ -232,7 +232,7 @@ Section fundamental.
       "(%a_tstk1 & %Ha_tstk1 & HPC & Hctp & Hcsp & Hmtdc & Hcode & Hlc)".
 
     iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap Hinterp_callee_wstk]".
-    iDestruct (open_world_interp_cframe _ _ _ _ _ _ _ _ _ _ _ with "[$Hcframe_interp $Hworld_interp]")
+    iDestruct (open_world_interp_cframe_from_world_interp _ _ _ _ _ _ _ _ _ _ _ with "[$Hcframe_interp $Hworld_interp]")
       as "(%wastk & %wastk1 & %wastk2 & %wastk3
           & Hstk'
           & Hclose_res & %Hwastks & Hworld_interp)";

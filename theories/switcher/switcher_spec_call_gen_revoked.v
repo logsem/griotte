@@ -235,7 +235,7 @@ Section Switcher.
       { rewrite std_update_multiple_heap. exact Hheap_wf_W. }
       pose proof (extract_temps W) as [l_unk [Hlunk_nodup Hlunk] ].
 
-      iMod ( world_interp_revoke_mixed _ _ l_unk with "[$Hworld_interp_C]") as
+      iMod ( world_interp_revoke _ _ l_unk with "[$Hworld_interp_C]") as
         "(Hworld_interp_C & Hrevoked_l & %Hrevoked_l)"; auto.
       { split; auto. }
       iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l]") as ">Hrevoked_l".

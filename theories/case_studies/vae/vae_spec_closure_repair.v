@@ -69,7 +69,7 @@ Section VAE_Return_Repair.
     rewrite (RevokedResources_quarantined Wbase C l Hq).
     rewrite -(RevokedResources_quarantined (close_list l Wcur) C l Hq_closed).
     iIntros "[Hworld Hres]".
-    iApply (world_interp_restore_mixed with "[$Hworld $Hres]").
+    iApply (world_interp_restore with "[$Hworld $Hres]").
   Qed.
 
   Lemma vae_world_status_some

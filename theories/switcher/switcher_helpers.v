@@ -109,7 +109,7 @@ Section switcher_helper.
 
   (** Helper lemmas for switcher. *)
   (* TODO USED IN INTERP RETURN *)
-  Lemma open_world_interp_cframe
+  Lemma open_world_interp_cframe_from_world_interp
     (W : WORLD) (C : CmptName) (b_stk e_stk a_stk a_stk4 : Addr)
     (wret wcgp0 wcs2 wcs3 : Word) (ccrel : caller_callee_relation)
     :
@@ -263,7 +263,7 @@ Section switcher_helper.
     iExists v. rewrite mono_temporary_eq. iFrame.
   Qed.
 
-  Definition CloseRes_mixed (Wfixed : WORLD) (C : CmptName)
+  Definition CloseRes (Wfixed : WORLD) (C : CmptName)
     (a_stk : Addr) (l : list Addr ) ccrel : iProp Σ :=
     ( if (is_untrusted_caller ccrel)
       then
@@ -286,7 +286,7 @@ Section switcher_helper.
         (RevokedResources Wfixed C l)
     )%I.
 
-    Lemma open_world_interp_cframe_mixed
+    Lemma open_world_interp_cframe
     (W0 Wcur : WORLD) (C : CmptName) (b_stk csp_b csp_e a_stk4 : Addr) (l : list Addr)
     (wret wcgp wcs0 wcs1 : Word) (ccrel : caller_callee_relation)
     :
@@ -338,7 +338,7 @@ Section switcher_helper.
                )
              else True
             )
-          ∗ CloseRes_mixed Wfixed C a_stk l ccrel
+          ∗ CloseRes Wfixed C a_stk l ccrel
       )
     .
     Proof.
@@ -346,7 +346,7 @@ Section switcher_helper.
       iIntros (Hb_a4 He_a1 Ha_stk4 Htemp_revoked Hnodup_revoked Hrelated_pub_W0_Wfixed Hheap_wf Hstk_heap)
         "#Hinterp_callee_wstk Hcframe_interp Hclose_list_res Hlc".
       rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
-      rewrite /CloseRes_mixed.
+      rewrite /CloseRes.
       destruct (is_untrusted_caller ccrel); cycle 1.
       * iExists wcs0, wcs1, wret, wcgp.
         iDestruct "Hcframe_interp" as "($&$&$&$)". iFrame.
@@ -604,7 +604,7 @@ Section switcher_helper.
     Qed.
 
 
-    Lemma world_interp_stack_fixing_mixed
+    Lemma world_interp_stack_fixing
       (Wcur W0 : WORLD) (C : CmptName)
       (a_stk4 b_stk csp_b csp_e : Addr) (l : list Addr)
       ccrel
@@ -627,7 +627,7 @@ Section switcher_helper.
       [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]] -∗
       [[a_stk4,csp_e]]↦ₐ[[region_addrs_zeroes a_stk4 csp_e]] -∗
 
-      CloseRes_mixed Wfixed C a_stk l ccrel -∗
+      CloseRes Wfixed C a_stk l ccrel -∗
 
       £ 1 -∗
       |={⊤}=>
@@ -690,7 +690,7 @@ Section switcher_helper.
       iDestruct (world_interp_close_resources_to_RevokedResources Wcur C
         (l ++ closing_region) closing_region with "Hworld_interp Hstk")
         as "[Hworld_interp Hstk]".
-      rewrite /CloseRes_mixed.
+      rewrite /CloseRes.
       destruct (is_untrusted_caller ccrel).
       - iDestruct "Hrevoked" as (l')
           "(%Hl & Hclose_list_res & (Hrev0 & Hrev1 & Hrev2 & Hrev3 & _))".
@@ -745,7 +745,7 @@ Section switcher_helper.
           (l ++ closing_region)
           [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]
           with "Hworld_interp Hframe") as "[Hworld_interp Hframe]".
-        iMod (world_interp_restore_mixed Wcur C (l ++ closing_region)
+        iMod (world_interp_restore Wcur C (l ++ closing_region)
           with "[$Hworld_interp Hclose_list_res Hframe Hstk]") as "$"; last done.
         rewrite /RevokedResources big_sepL_app.
         iSplitR "Hstk"; last done.
@@ -754,7 +754,7 @@ Section switcher_helper.
           first (symmetry; exact Hl).
         rewrite big_sepL_app. iFrame.
       - iFrame "Hstk'".
-        iMod (world_interp_restore_mixed Wcur C (l ++ closing_region)
+        iMod (world_interp_restore Wcur C (l ++ closing_region)
           with "[$Hworld_interp Hrevoked Hstk]") as "$"; last done.
         rewrite /RevokedResources big_sepL_app. iFrame.
     Qed.

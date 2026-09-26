@@ -271,7 +271,7 @@ Section Counter.
     iAssert (RevokedResources W1q C l_q) with "[Hrevoked_q]" as "Hrevoked_q'".
     { rewrite (RevokedResources_quarantined W1q C l_q Hq_W1q)
         (RevokedResources_quarantined W0 C l_q Hq_l). iExact "Hrevoked_q". }
-    iMod (world_interp_restore_mixed W1 C l_q with "[$Hworld_interp_C $Hrevoked_q']")
+    iMod (world_interp_restore W1 C l_q with "[$Hworld_interp_C $Hrevoked_q']")
       as "Hworld_interp_C".
     assert (related_sts_priv_world W0 W1q) as Hpriv_W0_W1q.
     { eapply related_sts_priv_trans_world; [exact Hrelared_priv_W0_W1 |].
@@ -715,7 +715,7 @@ Section Counter.
     clear dependent wcs0 wcs1 wct0 wct1 a_fetch1 a_fetch2 a_callB a_ret.
     iClear "Hmem Hentry_C_f".
 
-    iApply (switcher_ret_specification_mixed _ W0 W3
+    iApply (switcher_ret_specification _ W0 W3
              with
              "[ $Halloc $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC $Hclosing_resources
              $Hrmap $Hca0 $Hca1 $Hcsp]"

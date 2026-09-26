@@ -50,7 +50,7 @@ Section SO.
     rewrite (RevokedResources_quarantined Wbase C l Hq).
     rewrite -(RevokedResources_quarantined (close_list l Wcur) C l Hq_closed).
     iIntros "[Hworld Hres]".
-    iApply (world_interp_restore_mixed with "[$Hworld $Hres]").
+    iApply (world_interp_restore with "[$Hworld $Hres]").
   Qed.
 
   Lemma stack_object_world_status_some
@@ -878,7 +878,7 @@ Section SO.
 
     (* The repair helper's postcondition is exactly the generalized switcher
        return protocol: no filtering or resource surgery remains here. *)
-    iApply (switcher_ret_specification_mixed _ W0 W5
+    iApply (switcher_ret_specification _ W0 W5
              with
              "[ $Halloc $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC
                 $Hrmap $Hca0 $Hca1 $Hcsp $Hrevoked]"); eauto.
