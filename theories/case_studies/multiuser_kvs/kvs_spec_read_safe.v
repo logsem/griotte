@@ -33,7 +33,8 @@ Section KVS_spec_read_safe.
 
     related_sts_priv_world Wca0 W ->
 
-    ( seal_pred KVS_OTYPE kvs_otype_propC ∗
+    ( allocator_ctx ∗
+      seal_pred KVS_OTYPE kvs_otype_propC ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
       na_own cerise_nais E ∗
@@ -69,7 +70,7 @@ Section KVS_spec_read_safe.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca0_W)
-      "(#Hspred & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
+      "(#Halloc & #Hspred & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
       & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Hworld & Hpost)".
 
     (* Destruct validity map key *)
@@ -116,10 +117,16 @@ Section KVS_spec_read_safe.
 
     (* Either the map key is already allocated, or it is not *)
     iDestruct "Hinterp_nkey" as "[ (%w & >Hney & #Hinterp_nkey) | >Hnkey ]".
-    - iApply KVS_read_spec_in; last iFrame "∗#"; eauto.
+    - iEval (rewrite world_interp_sopen_eq /world_interp_sopen_def) in "Hworld".
+      iDestruct "Hworld" as "(Hregion & Hsts & Hseals)".
+      iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
+      iApply KVS_read_spec_in_world; last iFrame "∗#"; eauto.
       iNext.
-      iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hct1 & Hct2 & Hctp & Hcnull
+      iIntros "(Hregion & Hna & HPC & Hgcp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hct1 & Hct2 & Hctp & Hcnull
                 & Ha & HLUKVS & Hnkey)".
+
+      iAssert (world_interp_sopen W C KVS_OTYPE) with "[Hregion Hsts Hseals]" as "Hworld".
+      { rewrite world_interp_sopen_eq /world_interp_sopen_def. iFrame. }
 
       iDestruct (big_sepS_delete with "[$Hinterp Hnkey Hinterp_nkey]") as "Hinterp"; eauto.
       { rewrite /safe_kvs_pointsto; eauto. }
@@ -131,10 +138,12 @@ Section KVS_spec_read_safe.
 
       iApply "Hpost"; iFrame.
       iLeft; iFrame.
-      destruct Hactual as [-> | Hcleared]; last first.
-      { destruct Hcleared as [_ ->]. iApply interp_clear_tag. }
-      iApply "Hinterp_nkey".
-      iPureIntro; apply related_sts_priv_refl_world.
+      iApply (interp_in_mem_load_result W C RWL w actual).
+      { destruct Hactual as [Hload Hfilter].
+        destruct Hload as [-> | [_ ->] ].
+        - right. split; [reflexivity | exact Hfilter].
+        - left. reflexivity. }
+      iApply "Hinterp_nkey"; iPureIntro; [apply related_sts_priv_refl_world | done ].
 
     - iApply KVS_read_spec_notin; last iFrame "∗#"; eauto.
       iNext.
@@ -261,7 +270,7 @@ Section KVS_spec_read_safe.
     { iDestruct "Hca0" as "[$|$]"; iApply interp_int. }
     iAssert (∃ wca1', ca1 ↦ᵣ wca1' ∗ interp Wfixed C wca1')%I with "[Hca1]" as "(%wca1' & Hca1 & #Hinterp_wca1')".
     { iDestruct "Hca1" as "[(%&?&?)|$]"; [iExists _; iFrame|iApply interp_int].
-      iApply monotone.interp_monotone; last iFrame.
+      iApply (monotone.interp_monotone_same_heap with "[] [$]"); eauto.
       iPureIntro; apply close_list_related_sts_pub ; eauto.
     }
 

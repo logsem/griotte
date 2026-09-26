@@ -141,7 +141,7 @@ Section KVS_main_spec.
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
-    iDestruct (interp_cap_disjoint with "Hinterp_W0_csp")
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_B]")
         as (l) "(%Hl_unk & Hworld_B & #Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l _])".
@@ -220,7 +220,10 @@ Section KVS_main_spec.
     set (stk_mem_B := region_addrs_zeroes csp_b csp_e).
 
     iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
-    { iApply monotone.interp_monotone_sd; eauto. }
+    { iApply (monotone.interp_monotone_sd_same_heap W0 W1 B with "[] [Hinterp_W0_B_f]").
+      { subst W1. reflexivity. }
+      { iPureIntro. exact Hrelared_priv_W0_W1. }
+      iExact "Hinterp_W0_B_f". }
 
     assert ( revoked_addresses W1 (finz.seq_between csp_b csp_e) ) as Hstack_revoked_W1.
     {

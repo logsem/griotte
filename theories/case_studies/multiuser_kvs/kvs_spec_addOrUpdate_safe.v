@@ -124,14 +124,19 @@ Section KVS_spec_addOrUpdate_safe.
                 & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hcnull
                 & Ha & HLUKVS & Hnkey)".
 
-      iAssert ( ∀ W' : WORLD, ⌜related_sts_priv_world W W'⌝ -∗ interp W' C (store_word RW wca2) )%I as "Hw_interp".
-      { cbn ; iIntros (W' Hrelated_W_W').
+      iAssert (∀ W' : WORLD,
+        ⌜related_sts_priv_world W W'⌝ -∗
+        ⌜heap_wf (heap_std W')⌝ -∗
+        interp_in_mem RWL W' C (store_word RW wca2))%I as "Hw_interp".
+      { iIntros (W' Hrelated_W_W' Hheap_wf).
         rewrite /store_word.
         destruct (canStore RW wca2) eqn:Hcan_store.
-        - iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
-          + eapply related_sts_priv_trans_world; eauto.
-          + eapply (canStore_global_nonisWL RW); done.
-        - iApply interp_clear_tag.
+        - iApply (monotone.interp_in_mem_monotone_nl Wca W' C RWL wca2 with "[]").
+          { exact Hheap_wf. }
+          { eapply related_sts_priv_trans_world; eauto. }
+          { cbn. apply (canStore_global_nonisWL RW wca2); [reflexivity|exact Hcan_store]. }
+          iApply interp_to_in_mem; iFrame "#".
+        - iApply interp_to_in_mem. iApply interp_clear_tag.
       }
       iDestruct (big_sepS_delete _ _ nkey with "[$Hinterp Hnkey Hw_interp]") as "Hinterp"; eauto.
       { rewrite /safe_kvs_pointsto; eauto. }
@@ -155,14 +160,19 @@ Section KVS_spec_addOrUpdate_safe.
         "[ (Hca0 & Hnkey)
            | (Hca0 & Hnkey)
          ]".
-      + iAssert ( ∀ W' : WORLD, ⌜related_sts_priv_world W W'⌝ -∗ interp W' C (store_word RW wca2) )%I as "Hw_interp".
-        { cbn ; iIntros (W' Hrelated_W_W').
+      + iAssert (∀ W' : WORLD,
+          ⌜related_sts_priv_world W W'⌝ -∗
+          ⌜heap_wf (heap_std W')⌝ -∗
+          interp_in_mem RWL W' C (store_word RW wca2))%I as "Hw_interp".
+        { iIntros (W' Hrelated_W_W' Hheap_wf).
           rewrite /store_word.
           destruct (canStore RW wca2) eqn:Hcan_store.
-          - iApply (monotone.interp_monotone_nl with "[] [] [$Hinterp_wca2]"); iPureIntro.
-            + eapply related_sts_priv_trans_world; eauto.
-            + eapply (canStore_global_nonisWL RW); done.
-          - iApply interp_clear_tag.
+          - iApply (monotone.interp_in_mem_monotone_nl Wca W' C RWL wca2 with "[]").
+            { exact Hheap_wf. }
+            { eapply related_sts_priv_trans_world; eauto. }
+            { cbn. apply (canStore_global_nonisWL RW wca2); [reflexivity|exact Hcan_store]. }
+            iApply interp_to_in_mem; iFrame "#".
+          - iApply interp_to_in_mem. iApply interp_clear_tag.
         }
         iDestruct ( big_sepS_delete  with "[$Hinterp Hnkey Hw_interp]") as "Hinterp"; eauto.
         { rewrite /safe_kvs_pointsto; eauto. }
