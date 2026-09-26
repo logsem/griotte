@@ -145,7 +145,7 @@ Section LSE.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
-    iDestruct (interp_cap_disjoint with "Hinterp_W0_csp")
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l
@@ -163,7 +163,7 @@ Section LSE.
     rewrite -!app_assoc.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
 
-    (* Store cgp 0%Z; *)
+    (* Store cgp 2 0. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -193,7 +193,7 @@ Section LSE.
     (* --------------------------------------------------- *)
 
     focus_block 3 "Hcode_main" as a_callB Ha_callB "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent a_fetch2.
-    (* Jalr cra ct0; *)
+    (* Jalr cra ct0. *)
     iInstr "Hcode".
 
 
@@ -220,7 +220,10 @@ Section LSE.
 
     (* Show that the entry point to C_f is still safe in W1 *)
     iAssert (interp W1 C (WSealed ot_switcher C_f)) as "#Hinterp_W1_C_f".
-    { iApply interp_monotone_sd; eauto. }
+    { iApply (interp_monotone_sd_same_heap with "[] [$]").
+      { subst W1. by rewrite revoke_heap. }
+      iPureIntro; exact Hpriv_W0_W1.
+    }
     iClear "Hinterp_W0_C_f".
 
     (* Show that the arguments are safe, when necessary *)
@@ -294,6 +297,7 @@ Section LSE.
     by auto.
     rewrite -app_assoc.
     focus_block 4 "Hcode_main" as a_callB' Ha_callB' "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Halt. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     iMod ("Hlse_close" with "[$Hna $Himports_main $Hcode_main $Hcgp_b]") as "Hna".

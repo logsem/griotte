@@ -154,7 +154,7 @@ Section LSE.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
-    iDestruct (interp_cap_disjoint with "Hinterp_W0_csp")
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l) "(%Hl_unk & Hworld_interp_C & #Hstack_revoked_W0 & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
@@ -178,15 +178,16 @@ Section LSE.
     iEval (cbn) in "HPC".
     replace (pc_b ^+ (3%nat + 21%nat))%a with a_f by solve_addr.
 
-    (* GetB cs0 cgp; *)
+    (* GetB cs0 cgp. *)
     iInstr "Hcode".
-    (* Add cs1 cs0; *)
+    (* Add cs1 cs0 1. *)
     iInstr "Hcode".
-    (* Subseg cgp cs0 cs1; *)
+    (* Subseg cgp cs0 cs1. *)
     iInstr "Hcode".
-    (* Store csp cgp; *)
+    (* Store csp cgp 0. *)
     destruct ( decide ((csp_b < csp_e)%a) ) as [Hcsp_size|Hcsp_size]; cycle 1.
     {
+      (* Store csp cgp 0. *)
       iInstr "Hcode".
       wp_end; iIntros (?); done.
     }
@@ -197,10 +198,11 @@ Section LSE.
     assert (is_Some (csp_b + 1)%a) as [a_stk1 Hastk1];[solve_addr+Hcsp_size|].
     iDestruct (region_pointsto_cons with "Hstk") as "[Ha_stk Hstk]"; eauto.
     { solve_addr+Hcsp_size Hastk1. }
+    (* Store csp cgp 0. *)
     iInstr "Hcode".
-    (* Load ct0 cgp; *)
+    (* Load ct0 cgp 0. *)
     iInstr "Hcode".
-    (* Mov ct1 2; *)
+    (* Mov ct1 2. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
@@ -225,11 +227,11 @@ Section LSE.
     (* --------------------------------------------------- *)
     focus_block 6 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont
     ; clear dependent Ha_assert_c.
-    (* Mov ca0 0%Z; *)
+    (* Mov ca0 0%Z. *)
     iInstr "Hcode".
-    (* Mov ca1 0%Z; *)
+    (* Mov ca1 0%Z. *)
     iInstr "Hcode".
-    (* Jalr cnull cra *)
+    (* Jalr cnull cra. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
