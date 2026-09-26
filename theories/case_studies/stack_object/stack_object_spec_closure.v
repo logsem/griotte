@@ -1,4 +1,3 @@
-From griotte Require Import switcher_spec_call_callback.
 From iris.proofmode Require Import proofmode.
 From griotte Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
 From griotte Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
@@ -631,17 +630,11 @@ Section SO.
     }
 
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification_alt_callback with
+    iApply (switcher_cc_specification_alt _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ with
              "[- $Halloc $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk
               $Hinterp_W3_wct1 $HK]"); eauto; iFrame "%".
-    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=.
-      reflexivity. }
-    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
-      reflexivity. }
-    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=.
-      reflexivity. }
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       apply regmap_full_dom in Hrmap_init.
@@ -653,15 +646,23 @@ Section SO.
     iClear "Hinterp_rmap Hzeroed_rmap".
     clear dependent wct1 wct0 wcs0 wcs1 rmap stk_mem.
     iNext.
-    iIntros (W4 rmap stk_mem l_revoked_W4 callback)
+    iIntros (W4 rmap stk_mem l_revoked_W4 rcgp rcra rcs0 callback)
       "( [%Hl_revoked_W4_nodup %Hl_revoked_W4_temporaries] & Hl_revoked_W4 & %Hl_revoked_W4
       & %Hrelated_pub_2ext_W4 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W4 & %Hstack_revoked_W4
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
-      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & %Hcallback & %Hcallback_retained & Hcsp
+      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)".
+      & Hrmap & Hstk & HK & %Hrestored & %Hcallback_retained)".
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hcallback).
+    apply load_heap_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcs0;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=; reflexivity].
+    subst rcgp rcra rcs0.
     iEval (cbn) in "HPC".
 
     assert (related_sts_pub_world W3 W4) as Hrelated_pub_W3_W4.

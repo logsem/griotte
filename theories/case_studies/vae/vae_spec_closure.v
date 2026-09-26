@@ -1,4 +1,3 @@
-From griotte Require Import switcher_spec_call_callback.
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel interp_weakening monotone.
 From griotte Require Import fetch_spec assert_spec switcher interp_switcher_call switcher_spec_call switcher_spec_return.
@@ -384,17 +383,11 @@ Section VAE.
     }
 
     (* Apply the spec switcher call *)
-    iApply (switcher_cc_specification_alt_callback with
+    iApply (switcher_cc_specification_alt _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ with
              "[- $Halloc $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W2q $Hcstk
               $Hinterp_W2q_wct1 $HK]"); eauto; try done; iFrame "%".
-    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=.
-      reflexivity. }
-    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=.
-      reflexivity. }
-    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=.
-      reflexivity. }
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
       apply regmap_full_dom in Hrmap_init.
@@ -405,14 +398,22 @@ Section VAE.
     iClear "Hinterp_rmap Hzeroed_rmap".
     clear dependent wct1 wct0 wct2 wct3 wcs0 wcs1 rmap stk_mem.
     iNext.
-    iIntros (W3 rmap stk_mem l1 callback1)
+    iIntros (W3 rmap stk_mem l1 rcgp rcra rcs0 callback1)
       "(%Hl1_unk & Hrevoked_l1 & %Hl1_revoked_W4 & %Hrelated_pub_2ext_W3 & Hrel_stk_C' & %Hdom_rmap & Hstack_revoked_W3 & %Hstack_revoked_W3
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
-      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & %Hcallback1 & %Hcallback_retained & Hcsp
+      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK)".
+      & Hrmap & Hstk & HK & %Hrestored & %Hcallback_retained)".
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hcallback1).
+    apply load_heap_nonheap in Hrcgp;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
+    apply load_heap_nonheap in Hrcra;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=; reflexivity].
+    apply load_heap_nonheap in Hrcs0;
+      [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=; reflexivity].
+    subst rcgp rcra rcs0.
     iEval (cbn) in "HPC".
 
     assert (related_sts_pub_world W2q W3) as Hrelated_pub_W2q_W3.

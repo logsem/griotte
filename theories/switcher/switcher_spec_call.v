@@ -7,7 +7,7 @@ From griotte Require Import sts_multiple_updates region_invariants_revocation.
 From griotte Require Export switcher switcher_preamble switcher_macros_spec switcher_helpers.
 From griotte Require Import switcher_spec_call_blocks world_ghost_theory world_interp_stack.
 From griotte Require Import map_simpl register_tactics proofmode.
-From griotte Require Import switcher_spec_call_gen_revoked.
+From griotte Require Import switcher_spec_call_gen.
 
 
 Section Switcher.
@@ -116,7 +116,7 @@ Section Switcher.
   Proof.
     iIntros (a_stk4 target callee_stk_region Hstk_shadow Hstk_heap Hdom Hrdom) "(#Halloc & #Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
-    iApply (switcher_cc_specification_gen_revoked Nswitcher W C
+    iApply (switcher_cc_specification_gen_unify Nswitcher W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller target
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true).
     1-4: eauto.
@@ -225,7 +225,7 @@ Section Switcher.
   Proof.
     iIntros (a_stk4 callee_stk_region Hstk_shadow Hstk_heap Hdom Hrdom) "(#Halloc & #Hswitcher & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
-    iApply (switcher_cc_specification_gen_revoked Nswitcher W C
+    iApply (switcher_cc_specification_gen_unify Nswitcher W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs false).
     1-4: eauto.
@@ -234,7 +234,5 @@ Section Switcher.
     iFrame "Htarget_v".
     iFrame "%".
   Qed.
-
-  (** Compatibility corollaries for callers with no saved heap capabilities. *)
 
 End Switcher.
