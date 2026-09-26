@@ -100,9 +100,8 @@ Section Heap_Temporal_Safety_Main.
     (* Allocate: use the physical malloc contract and its known-to-known
        switcher wrapper, then save the buffer in the private CGP slot.
 
-       BLOCKED at the first unknown call: [interp] currently excludes all
-       nonempty RW heap ranges. A future heap-world interpretation must
-       share the initially safe cell and track adversarial free calls.
+       BLOCKED at the first unknown call: the heap world must share the
+       initially safe cell and track adversarial free calls.
 
        After return: reload and check the tag. Quarantine leads to Halt;
        a live result needs an ownership-recovery lemma, not just a tag fact.

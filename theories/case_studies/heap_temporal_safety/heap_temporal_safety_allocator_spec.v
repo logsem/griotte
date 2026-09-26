@@ -30,20 +30,8 @@ Section Heap_Temporal_Safety_Allocator.
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}.
 
-  (** A kernel-checked description of the present blocker. A tagged RW
-      capability to even one heap cell cannot satisfy today's [interp]. *)
-  Lemma hts_heap_buffer_not_interp W C b :
-    (heap_b <= b /\ b < b ^+ 1 /\ b ^+ 1 <= heap_e)%a ->
-    interp W C (hts_buffer b) -∗ False.
-  Proof.
-    iIntros (Hbounds) "Hbuffer".
-    iDestruct (interp_cap_disjoint with "Hbuffer") as %[_ Hheap]; first done.
-    iPureIntro. apply (Hheap b); apply elem_of_finz_seq_between; solve_addr.
-  Qed.
-
   (** BLOCKED: allocation must extend the heap world and make the zeroed
-      result safe to return to an arbitrary caller. The successful branch
-      contradicts [hts_heap_buffer_not_interp] with the current relation. *)
+      result safe to return to an arbitrary caller. *)
   Lemma hts_malloc_entry_spec W C :
     allocator_ctx ∗ allocator_service_ctx ⊢
     execute_entry_point
