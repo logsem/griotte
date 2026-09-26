@@ -87,6 +87,7 @@ Section Switcher_Callback.
             ∗ cs0 ↦ᵣ wcs0_caller
             ∗ cs1 ↦ᵣ callback
             ∗ ⌜load_heap wct1_caller callback⌝
+            ∗ ⌜filter_heap W2 callback = callback⌝
             ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
             ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
@@ -111,13 +112,13 @@ Section Switcher_Callback.
     iIntros "!>" (W2 rmap' stk_mem' l' rcgp rcra rcs0 rcs1) "Hres".
     iDestruct "Hres" as
       "(? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ?
-       & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & %Hrestored)".
+       & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & ? & %Hrestored & %Hretained)".
     destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
     apply (load_heap_nonheap _ _ Hcgp) in Hgp.
     apply (load_heap_nonheap _ _ Hcra) in Hra.
     apply (load_heap_nonheap _ _ Hcs0) in Hs0.
     subst rcgp rcra rcs0.
     iApply ("Hpost" $! W2 rmap' stk_mem' l' rcs1).
-    iFrame. iPureIntro. exact Hs1.
+    iFrame "∗%".
   Qed.
 End Switcher_Callback.

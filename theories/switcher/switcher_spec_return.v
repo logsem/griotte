@@ -202,6 +202,7 @@ Section Switcher.
       - done.
     }
     iNext. iIntros (rstk3 rstk2 rstk1 rstk0) "%Hloaded".
+    iIntros "%Hretained".
     destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
     iIntros
       "(Hworld_interp & Hinterp_loaded & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
@@ -336,8 +337,9 @@ Section Switcher.
       iEval (rewrite ?Hccrel /interp_cont_exec /is_untrusted_caller_frm /= ?Hccrel)
         in "Hexec_topmost_frm".
       iApply ("Hexec_topmost_frm" with
-               "[] Halloc [%] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
-      $Hrmap $Hworld_interp $Hstk $Hstk' $Hres $Hcont_K $Hcstk_frag $Hna]"); [done|repeat split; assumption|].
+               "[] Halloc [%] [%] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
+      $Hrmap $Hworld_interp $Hstk $Hstk' $Hres $Hcont_K $Hcstk_frag $Hna]");
+        [done|repeat split; assumption|exact Hretained|].
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we use the IH *)

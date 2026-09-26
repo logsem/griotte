@@ -299,6 +299,7 @@ Section fundamental.
     { exact He_a1. }
     iSplitR; first iExact "Hnormal".
     iNext. iIntros (rstk3 rstk2 rstk1 rstk0) "%Hloaded".
+    iIntros "%Hretained".
     destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
     iIntros
       "(Hworld_interp & Hinterp_loaded & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hcsp
@@ -419,9 +420,10 @@ Section fundamental.
       iSpecialize ("Hexec_topmost_frm" $! W (related_sts_pub_refl_world W)).
       iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /= ?Hccrel)
         in "Hexec_topmost_frm".
-      iApply ("Hexec_topmost_frm" with "Halloc [%]
+      iApply ("Hexec_topmost_frm" with "Halloc [%] [%]
                [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]"); first (repeat split; assumption).
+      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]");
+        [repeat split; assumption | exact Hretained |].
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we use the IH *)

@@ -418,6 +418,8 @@ Section logrel.
        allocator_ctx -∗
        ⌜load_heap frm.(wcgp) rcgp ∧ load_heap frm.(wret) rcra ∧
          load_heap frm.(wcs0) rcs0 ∧ load_heap frm.(wcs1) rcs1⌝ -∗
+       (* TODO I think this should be generalised to all stored registers, and probably merged with the definition load_heap *)
+       ⌜filter_heap W rcs1 = rcs1⌝ -∗
        let b_stk := frm.(b_stk) in
        let a_stk := frm.(a_stk) in
        let e_stk := frm.(e_stk) in
