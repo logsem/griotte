@@ -180,10 +180,45 @@ Ltac instr_auto_address_offset bound n :=
       end
   end.
 
+(* Keep the arithmetic context small on the fast path. In particular, hidden
+   code continuations contain many irrelevant finz subterms. This is only a
+   heuristic: the caller retries with the original context if it cannot close
+   the goal. Do not change the general-purpose [solve_addr] tactic. *)
+Ltac instr_auto_arithmetic_fact P :=
+  lazymatch P with
+  | InCtx ?P => instr_auto_arithmetic_fact P
+  | ?P /\ ?Q => instr_auto_arithmetic_fact P; instr_auto_arithmetic_fact Q
+  | ~ ?P => instr_auto_arithmetic_fact P
+  | @eq Z _ _ => idtac
+  | @eq nat _ _ => idtac
+  | @eq (finz _) _ _ => idtac
+  | @eq (option (finz _)) _ _ => idtac
+  | Z.le _ _ => idtac
+  | Z.lt _ _ => idtac
+  | Nat.le _ _ => idtac
+  | Nat.lt _ _ => idtac
+  | SubBounds _ _ _ _ => idtac
+  | ContiguousRegion _ _ => idtac
+  | IncrFinZ _ _ _ => idtac
+  | withinBounds _ _ _ = _ => idtac
+  | isWithin _ _ _ _ = _ => idtac
+  end.
+
+Ltac2 instr_auto_arithmetic_context () :=
+  List.iter (fun (h, _, _) =>
+    ltac1:(h |-
+      let P := type of h in
+      first [instr_auto_arithmetic_fact P | clear h | idtac])
+      (Ltac1.of_ident h)) (List.rev (Control.hyps ())).
+
+Ltac instr_auto_solve_addr :=
+  first [solve [ltac2:(instr_auto_arithmetic_context ()); solve_addr]
+        | solve_addr].
+
 Ltac instr_auto_solve_addr_result :=
   lazymatch goal with
   | |- @finz.of_z ?bound (@finz.to_z ?bound ?a) = Some ?result =>
-      is_evar result; unify result a; solve_addr
+      is_evar result; unify result a; instr_auto_solve_addr
   | |- @finz.of_z ?bound ?n = Some ?result =>
       is_evar result; without_evars n;
       let parts := instr_auto_address_offset bound n in
@@ -191,53 +226,54 @@ Ltac instr_auto_solve_addr_result :=
         let Hincr := fresh "Hincr" in
         assert (@finz.incr bound a off = Some result) as Hincr by
           instr_auto_solve_addr_result;
-        solve_addr
+        instr_auto_solve_addr
       end
   | |- (?a + ?off)%a = Some ?result =>
       is_evar result;
       first [
         lazymatch off with
         | ((@finz.to_z MemNum ?target) - (@finz.to_z MemNum a))%Z =>
-            unify result target; solve_addr
+            unify result target; instr_auto_solve_addr
         end
       |
         match goal with
         | H : (?base + ?prior)%a = Some a |- _ =>
             let total := instr_auto_add_offsets prior off in
-            unify result (base ^+ total)%a; solve_addr
+            unify result (base ^+ total)%a; instr_auto_solve_addr
         end
       | lazymatch a with
         | (?base ^+ ?prior)%a =>
             let total := instr_auto_add_offsets prior off in
-            unify result (base ^+ total)%a; solve_addr
-        | _ => unify result (a ^+ off)%a; solve_addr
+            unify result (base ^+ total)%a; instr_auto_solve_addr
+        | _ => unify result (a ^+ off)%a; instr_auto_solve_addr
         end ]
   | |- (?a + ?off)%ot = Some ?result =>
       is_evar result;
       first [
         lazymatch off with
         | ((@finz.to_z ONum ?target) - (@finz.to_z ONum a))%Z =>
-            unify result target; solve_addr
+            unify result target; instr_auto_solve_addr
         end
       |
         match goal with
         | H : (?base + ?prior)%ot = Some a |- _ =>
             let total := instr_auto_add_offsets prior off in
-            unify result (base ^+ total)%ot; solve_addr
+            unify result (base ^+ total)%ot; instr_auto_solve_addr
         end
       | lazymatch a with
         | (?base ^+ ?prior)%ot =>
             let total := instr_auto_add_offsets prior off in
-            unify result (base ^+ total)%ot; solve_addr
-        | _ => unify result (a ^+ off)%ot; solve_addr
+            unify result (base ^+ total)%ot; instr_auto_solve_addr
+        | _ => unify result (a ^+ off)%ot; instr_auto_solve_addr
         end ]
   end.
 
 Ltac instr_auto_solve_within_bounds :=
   rewrite /withinBounds;
-  first [ltac2:(solve_pure_iinstr ()) | solve_addr |
-    (apply andb_false_iff; first [left; solve_addr | right; solve_addr]) |
-    (apply andb_true_iff; split; solve_addr)].
+  first [ltac2:(solve_pure_iinstr ()) | instr_auto_solve_addr |
+    (apply andb_false_iff;
+      first [left; instr_auto_solve_addr | right; instr_auto_solve_addr]) |
+    (apply andb_true_iff; split; instr_auto_solve_addr)].
 
 (* A known rejected factor suffices even when other authorization checks
    remain symbolic. This constructs a proof without splitting input values. *)
@@ -253,15 +289,40 @@ Ltac instr_auto_solve_bool :=
 
 (* A bounded access into a region disjoint from shadow memory is nonshadow.
    Backtrack over region hypotheses until their bounds cover the address. *)
-Ltac instr_auto_solve_nonshadow :=
+Ltac instr_auto_solve_nonshadow_general :=
   match goal with
   | H : disjoint_from_shadow ?b ?e |- is_shadow_address ?a = false =>
       apply (disjoint_from_shadow_not_in b e a H);
       solve [assumption | instr_auto_solve_within_bounds]
   end.
 
+Ltac instr_auto_addr_base a :=
+  lazymatch a with
+  | (?b ^+ _)%a => instr_auto_addr_base b
+  | _ => a
+  end.
+
+Ltac instr_auto_solve_nonshadow :=
+  first [solve [
+    lazymatch goal with
+    | |- is_shadow_address ?a = false =>
+      let base := instr_auto_addr_base a in
+      match goal with
+      | H : disjoint_from_shadow ?b ?e |- _ =>
+        constr_eq base b;
+        apply (disjoint_from_shadow_not_in b e a H);
+        solve [assumption | instr_auto_solve_within_bounds]
+      end
+    end]
+  | instr_auto_solve_nonshadow_general].
+
 Ltac instr_auto_solve_premise :=
-  first [ltac2:(solve_pure_iinstr ()) | instr_auto_solve_bool | solve_addr |
+  first [solve [instr_auto_solve_bool] |
+    solve [lazymatch goal with
+    | |- is_shadow_address _ = false => instr_auto_solve_nonshadow
+    | |- withinBounds _ _ _ = _ => instr_auto_solve_within_bounds
+    end] |
+    ltac2:(solve_pure_iinstr ()) | instr_auto_solve_bool | solve_addr |
     instr_auto_solve_within_bounds | instr_auto_solve_nonshadow |
     (rewrite le_addr_withinBounds; solve_addr) |
     (split; first [ltac2:(solve_pure_iinstr ()) | solve_addr |
