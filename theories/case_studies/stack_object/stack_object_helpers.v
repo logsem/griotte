@@ -139,6 +139,7 @@ Section stack_object_helpers.
     :
 
     let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
+    Forall (fun '(a,p,φ,ρ) => heap_cell_live (snd W) a) l ->
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
@@ -157,7 +158,7 @@ Section stack_object_helpers.
       ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
   .
   Proof.
-    intros la.
+    intros la Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros (????) "(Hrels & [Hr [Hsts Hseals] ])".
     iDestruct (region_open_list W C' l l' with "[$Hrels $Hr $Hsts]") as
@@ -171,6 +172,7 @@ Section stack_object_helpers.
     :
 
     let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
+    Forall (fun '(a,p,φ,ρ) => heap_cell_live (snd W) a) l ->
     length l = length lv ->
     NoDup la ->
     la ## l' ->
@@ -186,7 +188,7 @@ Section stack_object_helpers.
     ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
       -∗ world_interp_open W C' l'.
   Proof.
-    intros la.
+    intros la Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros (?????) "([Hr $ ] & Hstd & Hv & Hmono & Hφ & Hrel & Hp)".
     iDestruct (region_close_list with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hp]") as "$"; auto.

@@ -140,7 +140,7 @@ Section SO.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
-    iDestruct (interp_cap_disjoint with "Hinterp_W0_csp")
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
@@ -211,7 +211,7 @@ Section SO.
 
     (* Show that the entry point to C_f is still safe in W1 *)
     iAssert (interp W1 C (WSealed ot_switcher C_f)) as "#Hinterp_W1_C_f".
-    { iApply interp_monotone_sd; eauto. }
+    { iApply (interp_monotone_sd_same_heap W0 W1); eauto. }
     iClear "Hinterp_W0_C_f".
 
     (* Show that the arguments are safe, when necessary *)

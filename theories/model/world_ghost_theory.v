@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import region_invariants_revocation region_invariants_allocation sealing_invariants.
 From griotte Require Export sts world_std_revocation sts_multiple_updates.
 From griotte Require Export stdpp_extra iris_extra.
-From griotte Require Import heap_region.
+From griotte Require Import heap_region allocator_resources.
 
   (*** World Ghost Theory *)
 
@@ -497,6 +497,69 @@ Section world_ghost_theory.
     rewrite world_interp_open_eq /world_interp_open_def.
     rewrite /world_interp_open /world_interp.
     iSplit ; iIntros "[Hr $]"; iApply region_open_nil; done.
+  Qed.
+
+  Lemma counter_framed_cell_live
+      (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
+    is_Some (heap_cell_status (heap_std W) a) ->
+    allocator_ctx ∗ world_interp W C ∗ a ↦ₐ v
+    ={⊤}=∗
+      allocator_ctx ∗ world_interp W C ∗ a ↦ₐ v ∗
+      ⌜heap_cell_live (heap_std W) a⌝.
+  Proof.
+    iIntros (Hstatus) "(#Halloc & Hworld & Ha)".
+    destruct Hstatus as [s Hstatus]. destruct s.
+    - iModIntro. iFrame "∗#". iPureIntro. exact Hstatus.
+    - assert (is_heap_address a = true) as Hheap.
+      { rewrite /heap_cell_status in Hstatus.
+        destruct (is_heap_address a); first done. discriminate. }
+      iEval (rewrite open_world_interp_empty) in "Hworld".
+      iDestruct (world_interp_open_quarantined_token W C [] a with "Hworld")
+        as "[Htoken Hcloseworld]"; [set_solver|exact Hstatus|].
+      iInv Nallocator as (alloc_map) "(>%Hdom & >Hentries)" "Hclosealloc".
+      assert (is_Some (alloc_map !! a)) as [s Hs].
+      { rewrite -elem_of_dom Hdom elem_of_heap_addresses. exact Hheap. }
+      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hs.
+      iDestruct (allocator_entry_memory_live with "Hentry Ha") as %->.
+      iDestruct "Hentry" as "[_ [Htoken' _]]".
+      iDestruct (reclaim_token_exclusive with "Htoken Htoken'") as %[].
+  Qed.
+
+  Lemma counter_framed_resources_live
+      (Worig Wcur : WORLD) (C : CmptName) (l : list Addr) :
+    Forall (heap_cell_live (heap_std Worig)) l ->
+    Forall (fun a => is_Some (heap_cell_status (heap_std Wcur) a)) l ->
+    allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l
+    ={⊤}=∗
+      allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l ∗
+      ⌜Forall (heap_cell_live (heap_std Wcur)) l⌝.
+  Proof.
+    induction l as [|a l IH]; intros Hlive Hsome;
+      iIntros "(#Halloc & Hworld & Hl)".
+    - iModIntro. iFrame "∗#". iPureIntro. constructor.
+    - apply Forall_cons in Hlive as [Ha_live Hl_live].
+      apply Forall_cons in Hsome as [Ha_some Hl_some].
+      iDestruct "Hl" as "[Hitem Hl]".
+      iDestruct "Hitem" as (p φ) "(%Hpers & Hrel & Hcell)".
+      rewrite /heap_cell_live in Ha_live.
+      iEval (rewrite Ha_live) in "Hcell".
+      iDestruct "Hcell" as (v) "(%HpO & Ha & Hφ & Hmono)".
+      iMod (counter_framed_cell_live Wcur C a v Ha_some
+        with "[$Halloc $Hworld $Ha]")
+        as "(#Halloc2 & Hworld & Ha & %Ha_cur)".
+      iAssert (RevokedResources Worig C [a])%I
+        with "[Hrel Ha Hφ Hmono]" as "Hitem".
+      { rewrite /RevokedResources /= Ha_live.
+        iSplitL; last done.
+        iExists p, φ. iFrame "Hrel". iSplit; first done.
+        iExists v. rewrite /TmpRes. iFrame "Ha Hφ Hmono". done. }
+      iMod (IH Hl_live Hl_some with "[$Halloc $Hworld $Hl]")
+        as "(#Halloc3 & Hworld & Hl & %Hl_cur)".
+      iAssert (RevokedResources Worig C (a :: l))%I
+        with "[Hitem Hl]" as "Hl".
+      { replace (a :: l) with ([a] ++ l) by done.
+        rewrite RevokedResources_app. iFrame. }
+      iModIntro. iFrame "∗#". iPureIntro. constructor; assumption.
   Qed.
 
   Lemma open_world_interp_temporary_nonheap (W : WORLD) (C : CmptName) (s : list Addr) (a : Addr) (p : Perm) Φ :

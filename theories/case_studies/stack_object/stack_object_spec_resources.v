@@ -218,12 +218,48 @@ Section Stack_Object_Region_Resources.
         iPureIntro. apply Forall_cons; split; auto.
     }
 
+    iDestruct (interp_cap_regions with "Hinterp_wca0_W0") as %[_ Hheapvalid].
+    { apply readAllowed_nonO; done. }
+    iEval (rewrite world_interp_eq /world_interp_def) in "Hworld_interp_C".
+    iDestruct "Hworld_interp_C" as "(Hr & Hsts & Hseals)".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
+    iCombine "Hr Hsts Hseals" as "Hworld_interp_C".
+    iAssert (world_interp W1 C) with "[Hworld_interp_C]" as "Hworld_interp_C".
+    { rewrite world_interp_eq /world_interp_def. iExact "Hworld_interp_C". }
+    assert (Forall (heap_cell_live (heap_std W1)) object) as Hobject_live.
+    { rewrite Forall_forall.
+      intros a Ha.
+      subst object W1.
+      rewrite revoke_heap.
+      eapply heap_cap_valid_cell_live;
+        [by rewrite revoke_heap in Hheap_wf| |exact Hheapvalid].
+      apply withinBounds_true_iff.
+      apply elem_of_finz_seq_between in Ha.
+      solve_addr.
+    }
+    assert (Forall (fun '(a,_,_,_) => heap_cell_live (heap_std W1) a)
+      wca0_invs) as Hlive_wca0_invs.
+    { rewrite Forall_forall.
+      intros x Hx.
+      destruct x as [x rho].
+      destruct x as [x phi].
+      destruct x as [a p0].
+      rewrite Forall_forall in Hobject_live.
+      apply Hobject_live.
+      assert (a ∈ perms) as Ha_perms.
+      { rewrite -Hwca0_invs_perma.
+        eapply list_elem_of_fmap_2'; [exact Hx|done]. }
+      subst perms object.
+      apply list_elem_of_filter in Ha_perms as [_ Ha_obj].
+      exact Ha_obj.
+    }
     rewrite open_world_interp_empty.
     iDestruct (open_world_interp_list with
       "[$Hrels_wca0 $Hworld_interp_C]") as
       (wca0_lv_perma)
       "(Hworld_interp_C & Hsts_std_wca0 & Hperms_lv
        & Hwca0_mono & Hwca0_φs & %Hlength_wca0_lv & Hwca0_pO)".
+    { exact Hlive_wca0_invs. }
     { rewrite Hwca0_invs_perma. apply so_object_permanents_NoDup. }
     { rewrite Hwca0_invs_perma. set_solver+. }
     { rewrite !Forall_forall in Hwca0_invs_std_perma |- *.
@@ -265,6 +301,16 @@ Section Stack_Object_Region_Resources.
       apply elem_of_app; left.
       by apply Htemps_subset.
     }
+    assert (Forall (heap_cell_live (heap_std W0)) temps) as Htemps_live.
+    { rewrite Forall_forall in Hobject_live |- *.
+      apply Forall_forall.
+      intros a Ha.
+      rewrite <-revoke_heap.
+      apply Hobject_live.
+      subst object temps.
+      apply list_elem_of_filter in Ha as [_ Ha].
+      exact Ha.
+    }
 
     iAssert (
         ∃ (lp : list Perm)
@@ -288,12 +334,15 @@ Section Stack_Object_Region_Resources.
       "(%Hlen_lp & %Hlen_lφ & %Hlen_lv & Hlφ_pers
        & #Hlpφ_rels & HlpO & Htemps_lv & Hlpφ_mono & Hlφ_lv)".
     { iClear "#".
-      generalize temps. clear; intros l.
-      iInduction (l) as [|a l] "IH".
+      generalize temps, Htemps_live. clear; intros l Hl_live.
+      iInduction (l) as [|a l] "IH" forall (Hl_live).
       - iExists [], [], []; cbn; done.
-      - iDestruct "Hrevoked_temps" as "[Ha Hl]".
-        iDestruct ("IH" with "Hl") as "Hl".
+      - apply Forall_cons in Hl_live as [Ha_live Hl_live].
+        iDestruct "Hrevoked_temps" as "[Ha Hl]".
+        iDestruct ("IH" with "[%] Hl") as "Hl"; first exact Hl_live.
         iDestruct "Ha" as (p0 P HpersP) "[Hrel_a Ha]".
+        unfold heap_cell_live in Ha_live.
+        iEval (rewrite Ha_live) in "Ha".
         iDestruct "Ha" as (v) "(HpO & Hv & HP & HmonoP)".
         iDestruct "Hl" as (lp0 lP lv)
           "(% & % & % & %Hpers_lP & Hrels & HpOs & Hvs & Hmonos & HPs)".
@@ -349,6 +398,7 @@ Section Stack_Object_Region_Resources.
     iDestruct (close_world_interp_list W1 C wca0_invs [] with
       "[$Hworld_interp_C $Hsts_std_wca0 $Hperms_lv $Hwca0_mono
         $Hwca0_φs $Hrels_wca0 $Hwca0_pO]") as "Hworld_interp_C".
+    { exact Hlive_wca0_invs. }
     { by rewrite Hlength_wca0_lv length_fmap. }
     { rewrite Hwca0_invs_perma. apply so_object_permanents_NoDup. }
     { set_solver+. }
@@ -446,11 +496,27 @@ Section Stack_Object_Region_Resources.
     iMod (world_interp_restore_world W1 W1 C temps with
       "[$Hworld_interp_C] [Htemps_closing_resources]")
       as "Hworld_interp_C".
+    { rewrite /W1 revoke_heap. exact Htemps_live. }
     { apply close_list_related_sts_pub. }
     { iClear "#".
       iApply (big_sepL_impl with "Htemps_closing_resources").
-      iModIntro; iIntros (k ka Hka) "(% & % & $ & (% & $ & $ & ? & $) & $)".
-      by rewrite mono_temporary_eq.
+      iModIntro; iIntros (k ka Hka) "H".
+      assert (heap_cell_status (heap_std W1) ka = Some AllocObjectLive)
+        as Hlive_ka.
+      { rewrite /W1 revoke_heap.
+        unfold heap_cell_live in Htemps_live.
+        rewrite Forall_lookup in Htemps_live.
+        eauto.
+      }
+      iEval (rewrite Hlive_ka).
+      iDestruct "H" as (p0 phi Hpers) "(Htemp & Hrel)".
+      iExists p0, phi.
+      iFrame "Hrel".
+      iSplit; first (iPureIntro; exact Hpers).
+      iDestruct "Htemp" as (v) "(HpO & Ha & Hmono & Hphi)".
+      iExists v.
+      rewrite /TmpRes mono_temporary_eq.
+      iFrame.
     }
     set (W2 := close_list temps W1).
 
@@ -555,14 +621,41 @@ Section Stack_Object_Region_Resources.
 
     (* Reinstate the cell and package both its state transition and the safe
        singleton RWL capability needed by the adversary call. *)
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_stack") as %[_ Hstack_heap]; first done.
+    assert (is_heap_address a_stk1 = false) as Hastk1_nonheap.
+    { apply not_true_is_false. intros Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hstack_heap.
+      apply (Hstack_heap a_stk1).
+      - apply elem_of_finz_seq_between. solve_addr.
+      - apply elem_of_finz_seq_between.
+        apply withinBounds_true_iff in Hheap. solve_addr.
+    }
+    assert (Forall (heap_cell_live (heap_std W2)) [a_stk1])
+      as Hfresh_live.
+    { constructor; [apply heap_cell_live_nonheap; exact Hastk1_nonheap|constructor]. }
     iMod (world_interp_restore_world W2 W2 C [a_stk1]
       with "[$Hworld_interp] [Hclosing_resources]")
       as "Hworld_interp".
+    { exact Hfresh_live. }
     { apply close_list_related_sts_pub. }
     { iClear "#".
       iApply (big_sepL_impl with "Hclosing_resources").
-      iModIntro; iIntros (k ka Hka) "(%&%&$&(%&$&$&?&$)&$)".
-      by rewrite mono_temporary_eq.
+      iModIntro; iIntros (k ka Hka) "H".
+      assert (heap_cell_status (heap_std W2) ka = Some AllocObjectLive)
+        as Hlive_ka.
+      { unfold heap_cell_live in Hfresh_live.
+        rewrite Forall_lookup in Hfresh_live.
+        eauto.
+      }
+      iEval (rewrite Hlive_ka).
+      iDestruct "H" as (p0 phi Hpers) "(Htemp & Hrel)".
+      iExists p0, phi.
+      iFrame "Hrel".
+      iSplit; first (iPureIntro; exact Hpers).
+      iDestruct "Htemp" as (v) "(HpO & Ha & Hmono & Hphi)".
+      iExists v.
+      rewrite /TmpRes mono_temporary_eq.
+      iFrame.
     }
 
     assert (related_sts_pub_world W2 W3) as Hpub.
@@ -574,14 +667,21 @@ Section Stack_Object_Region_Resources.
       as "#Hinterp_fresh".
     { iEval (rewrite fixpoint_interp1_eq interp1_eq).
       cbn.
-      iDestruct (interp_cap_disjoint with "Hinterp_stack") as %[Hshadow Hheap]; first done.
+      iDestruct (interp_cap_disjoint_wl with "Hinterp_stack") as %[Hshadow Hheap]; first done.
       iSplit; last first.
       { iPureIntro. split; first done.
         rewrite /disjoint_from_shadow elem_of_disjoint in Hshadow |- *.
         rewrite /disjoint_from_heap elem_of_disjoint in Hheap |- *.
-        split; intros x Hx Hregion; [eapply Hshadow | eapply Hheap];
-          try exact Hregion; apply elem_of_finz_seq_between;
-          apply elem_of_finz_seq_between in Hx; solve_addr.
+        split.
+        - intros x Hx Hregion.
+          eapply Hshadow; [|exact Hregion].
+          apply elem_of_finz_seq_between.
+          apply elem_of_finz_seq_between in Hx. solve_addr.
+        - apply heap_cap_valid_disjoint.
+          intros x Hx Hregion.
+          eapply Hheap; [|exact Hregion].
+          apply elem_of_finz_seq_between.
+          apply elem_of_finz_seq_between in Hx. solve_addr.
       }
       rewrite (finz_seq_between_singleton a_stk1 a_stk2);
         last solve_addr+Ha_stk2 Hastk1_stk2.

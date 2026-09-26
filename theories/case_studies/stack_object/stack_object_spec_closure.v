@@ -9,6 +9,8 @@ From griotte Require Import world_ghost_theory stack_object_helpers world_std_re
 From griotte Require Import stack_object.
 From griotte Require Import stack_object_spec_blocks.
 From griotte Require Import stack_object_spec_resources.
+From griotte Require Import heap_region.
+From griotte Require Import switcher_preamble.
 From griotte Require Import stack_object_spec_repair.
 From griotte Require Import proofmode.
 
@@ -29,6 +31,42 @@ Section SO.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+
+  Lemma stack_object_restore_quarantined
+      (Wbase Wcur : WORLD) (l : list Addr) :
+    heap_std Wbase = heap_std Wcur ->
+    Forall
+      (fun a => heap_cell_status (heap_std Wbase) a = Some AllocObjectQuarantined)
+      l ->
+    world_interp Wcur C ∗ RevokedResources Wbase C l
+    ==∗
+    world_interp (close_list l Wcur) C.
+  Proof.
+    intros Hheap Hq.
+    assert (Forall
+      (fun a => heap_cell_status (heap_std (close_list l Wcur)) a =
+        Some AllocObjectQuarantined) l) as Hq_closed.
+    { rewrite close_list_heap -Hheap. exact Hq. }
+    rewrite (RevokedResources_quarantined Wbase C l Hq).
+    rewrite -(RevokedResources_quarantined (close_list l Wcur) C l Hq_closed).
+    iIntros "[Hworld Hres]".
+    iApply (world_interp_restore_mixed with "[$Hworld $Hres]").
+  Qed.
+
+  Lemma stack_object_world_status_some
+      (W : WORLD) (l : list Addr) :
+    Forall (fun a => a ∈ dom (std W)) l ->
+    world_interp W C -∗
+    world_interp W C ∗
+      ⌜Forall (fun a => is_Some (heap_cell_status (heap_std W) a)) l⌝.
+  Proof.
+    intros Hdom.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "(Hr & Hsts & Hseals)".
+    iDestruct (region_cells_status_some W C l Hdom with "Hr")
+      as "[Hr %Hstatuses]".
+    iFrame. iPureIntro. exact Hstatuses.
+  Qed.
 
   (** Steps of the proofs:
       - 1) Revoke the world, obtain [l] the unknown addresses being revoked.
@@ -244,7 +282,7 @@ Section SO.
     iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
-    iDestruct (interp_cap_disjoint with "Hinterp_W0_csp")
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l_revoked_W0) "([%Hl_revoked_W0_nodup %Hl_revoked_W0_temporaries]
@@ -323,7 +361,7 @@ Section SO.
 
     iAssert (⌜disjoint_from_shadow b e⌝)%I as "%Hobject_shadow".
     { destruct Htag_or_empty as [-> | Hempty].
-      - iDestruct (interp_cap_disjoint with "Hinterp_wca0_W0") as %[Hshadow _].
+      - iDestruct (interp_cap_regions with "Hinterp_wca0_W0") as %[Hshadow _].
         { eapply readAllowed_nonO; exact Hp. }
         done.
       - iPureIntro. rewrite /disjoint_from_shadow finz_seq_between_empty;
@@ -347,6 +385,37 @@ Section SO.
       as "(Hworld_interp_C & Hrevoked_l_revoked_W0_no_be
            & Hstk & #Hinterp_wca0_W2)".
     { iPureIntro. exact Hwca0_lvs_ints. }
+
+    iDestruct (stack_object_revoked_status_some with
+      "Hrevoked_l_revoked_W0_no_be")
+      as "[Hrevoked_l_revoked_W0_no_be %Hrest_statuses]".
+    destruct (heap_status_partition (heap_std W0)
+      l_revoked_W0_no_be Hrest_statuses)
+      as (l_revoked_W0_live & l_revoked_W0_quarantined
+          & Hrest_partition & Hrest_live & Hrest_quarantined).
+    assert (l_revoked_W0_quarantined ⊆ l_revoked_W0) as Hquarantined_subset.
+    { intros x Hx.
+      assert (x ∈ l_revoked_W0_no_be) as Hx_rest.
+      { rewrite Hrest_partition. apply elem_of_app; right; exact Hx. }
+      subst l_revoked_W0_no_be.
+      by apply list_elem_of_filter in Hx_rest as [_ Hx_rest]. }
+    assert (l_revoked_W0_quarantined ## finz.seq_between csp_b csp_e)
+      as Hquarantined_stack.
+    { apply NoDup_app in Hl_revoked_W0_nodup as (_ & Hdisjoint & _).
+      rewrite elem_of_disjoint in Hdisjoint |- *.
+      intros x Hxq Hxstack. eapply Hdisjoint; eauto. }
+    unfold l_revoked_W0_no_be in Hrest_partition.
+    iEval (rewrite /RevokedResources Hrest_partition big_sepL_app)
+      in "Hrevoked_l_revoked_W0_no_be".
+    iDestruct "Hrevoked_l_revoked_W0_no_be" as
+      "[Hrevoked_l_revoked_W0_live Hrevoked_l_revoked_W0_quarantined]".
+    set (W2q := close_list l_revoked_W0_quarantined W2).
+    iMod (stack_object_restore_quarantined W0 W2
+      l_revoked_W0_quarantined with
+      "[$Hworld_interp_C $Hrevoked_l_revoked_W0_quarantined]")
+      as "Hworld_interp_C".
+    { subst W2 W1. by rewrite close_list_heap revoke_heap. }
+    { exact Hrest_quarantined. }
 
     (* ------------------------------------------------------- *)
     (* ------------------ BLOCK 7: ALLOC_SO ------------------ *)
@@ -423,11 +492,14 @@ Section SO.
 
     assert (related_sts_pub_world W1 W2) as Hrelated_pub_W1_W2.
     { apply close_list_related_sts_pub. }
+    assert (related_sts_pub_world W2 W2q) as Hrelated_pub_W2_W2q.
+    { apply close_list_related_sts_pub. }
 
-    assert (related_sts_priv_world W0 W2) as Hrelated_priv_W0_W2.
-    { eapply related_sts_priv_pub_trans_world; eauto. }
-    assert (related_sts_priv_world W W2) as
-      Hrelated_priv_W_W2 by (by eapply related_sts_priv_trans_world; eauto).
+    assert (related_sts_priv_world W0 W2q) as Hrelated_priv_W0_W2q.
+    { eapply related_sts_priv_pub_trans_world; eauto.
+      eapply related_sts_pub_trans_world; eauto. }
+    assert (related_sts_priv_world W W2q) as
+      Hrelated_priv_W_W2q by (by eapply related_sts_priv_trans_world; eauto).
 
     (* Show that the arguments are safe, when necessary *)
     iAssert ( ⌜ wca2 = WInt 0 ⌝ )%I as "->".
@@ -451,8 +523,12 @@ Section SO.
       apply elem_of_app; right.
       apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'.
     }
-    assert (std W2 !! a_stk1 = Some Revoked) as Ha_stk1_W2.
-    { subst W2.
+    assert (std W2q !! a_stk1 = Some Revoked) as Ha_stk1_W2q.
+    { subst W2q W2.
+      rewrite close_list_lookup_not_in.
+      2: { rewrite elem_of_disjoint in Hquarantined_stack.
+           intros Hx. eapply Hquarantined_stack; eauto.
+           apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'. }
       rewrite close_list_lookup_not_in.
       * subst W1; cbn. apply revoke_lookup_Monotemp. exact Ha_stk1_W0.
       * subst la_be_temporaries.
@@ -462,18 +538,24 @@ Section SO.
         apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'.
     }
     (* Update the world and insert [la_be_temporaries]. *)
-    set (W3 := reinstate W2 [a_stk1]).
+    set (W3 := reinstate W2q [a_stk1]).
     (* Insert the allocated SO [a_stk1] in the world. *)
     iMod (stack_object_reinstate_fresh_object
-      W0 W2 C csp_b csp_e csp_b a_stk1 a_stk2
+      W0 W2q C csp_b csp_e csp_b a_stk1 a_stk2
       with "[$Hinterp_W0_csp $Hworld_interp_C $Hastk1 $Hlc]")
-      as "(Hworld_interp_C & %Hrelated_pub_W2_W3
+      as "(Hworld_interp_C & %Hrelated_pub_W2q_W3
            & %Ha_stk1_W3 & #Hinterp_W2_wca1)"; eauto.
     { split; first solve_addr+Hastk1.
       split; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'. }
     assert (related_sts_priv_world W0 W3) as Hrelated_priv_W0_W3.
     { eapply related_sts_priv_pub_trans_world; eauto. }
-    iDestruct (interp_monotone with "[] Hinterp_wca0_W2") as "Hinterp_wca0_W3"; eauto.
+    assert (heap_std W0 = heap_std W3) as Hheap_W0_W3.
+    { subst W3 W2q W2 W1.
+      rewrite /reinstate !close_list_heap revoke_heap. reflexivity. }
+    assert (related_sts_pub_world W2 W3) as Hrelated_pub_W2_W3.
+    { eapply related_sts_pub_trans_world; eauto. }
+    iDestruct (interp_monotone_same_heap W2 W3 C _
+      with "[] Hinterp_wca0_W2") as "Hinterp_wca0_W3"; eauto.
 
     (* The passed object is safe to share in the world [W2]. *)
     iAssert (if is_sealed_with_o wca1 ot_switcher
@@ -481,7 +563,7 @@ Section SO.
              else True)%I as "#Hinterp_W3_wct1".
     { destruct (is_sealed_with_o wca1 ot_switcher) eqn:His_sealed_wct1; last done.
       destruct wca1 as [| [|] | |]; try discriminate.
-      iApply (interp_monotone_sd W0 W3); eauto.
+      iApply (interp_monotone_sd_same_heap W0 W3); eauto.
       iApply "Hinterp_rmap"; eauto.
       iPureIntro ; set_solver.
     }
@@ -509,12 +591,19 @@ Section SO.
       ) as HW3_revoked_callee_frm.
     {
       apply Forall_forall; intros x Hx.
-      subst W3 W2 W1.
+      subst W3 W2q W2 W1.
       rewrite close_list_lookup_not_in.
       2: { intros Hx'; apply list_elem_of_singleton in Hx'; simplify_eq.
            apply elem_of_finz_seq_between in Hx.
            solve_addr+Hx Hastk2 Hcsp_size'.
       }
+      rewrite close_list_lookup_not_in.
+      2: { intro Hxq.
+           rewrite elem_of_disjoint in Hquarantined_stack.
+           eapply Hquarantined_stack; eauto.
+           apply elem_of_finz_seq_between.
+           apply elem_of_finz_seq_between in Hx.
+           solve_addr+Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size. }
       rewrite close_list_lookup_not_in.
       2: { intro Hx'.
            apply Hstack_temps_disjoint in Hx'; first done.
@@ -570,7 +659,7 @@ Section SO.
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
-      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & %Hcallback & Hcsp
+      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & %Hcallback & %Hcallback_retained & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK)".
     iEval (cbn) in "HPC".
@@ -586,41 +675,66 @@ Section SO.
     }
     (* Derive a bunch of disjointness properties that will be necessary later. *)
     set (W5 := revoke W4).
-    (* Revoke the returned world resources by separation.  The repair helper
-       later uses these state facts to reconcile the two revocation sets. *)
-    iMod (world_interp_revoked_by_separation_many_with_RevokedResources
-           with "[$Hrevoked_l_revoked_W0_no_be $Hworld_interp_C]")
-      as "(Hworld_interp_C & Hrevoked_l_revoked_W0_no_be & %Hrevoked_l_revoked_W0_no_be_W5)".
-    { apply Forall_forall.
-      intros x Hx.
-      subst l_revoked_W0_no_be.
-      apply list_elem_of_filter in Hx as [_ Hl].
-      rewrite -revoke_dom_eq.
-      eapply elem_of_mono_pub; eauto.
-      rewrite -!close_list_dom_eq.
-      rewrite -revoke_dom_eq.
-      assert ( std W0 !! x = Some Temporary).
-      { apply Hl_revoked_W0_temporaries; apply elem_of_app ; by left. }
-      rewrite elem_of_dom; done.
-    }
-    iMod (world_interp_revoked_by_separation_many_with_RevokedResources with "[$Hl_revoked_W4 $Hworld_interp_C]")
-      as "(Hworld_interp_C & Hl_revoked_W4 & %Hrevoked_l_revoked_W4_W5)".
-    { apply Forall_forall.
-      intros x Hx.
-      rewrite -revoke_dom_eq.
-      assert ( std W4 !! x = Some Temporary).
-      { apply Hl_revoked_W4_temporaries; apply elem_of_app ; by left. }
-      rewrite elem_of_dom; done.
-    }
+    assert (Forall (heap_cell_live (heap_std W5))
+      (finz.seq_between a_stk2 csp_e)) as Hstack_live_W5.
+    { apply Forall_forall. intros x Hx.
+      apply heap_cell_live_nonheap.
+      apply not_true_is_false. intros Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
+      eapply Hstk_heap.
+      - apply elem_of_finz_seq_between.
+        apply elem_of_finz_seq_between in Hx.
+        instantiate (1 := x). solve_addr+Hx Hastk1 Hastk2.
+      - apply elem_of_finz_seq_between.
+        apply withinBounds_true_iff in Hheap. exact Hheap. }
     iMod (world_interp_revoked_by_separation_many with "[$Hstk $Hworld_interp_C]")
       as "(Hworld_interp_C & Hstk & %Hstk_W5)".
-    { eapply Forall_impl; eauto; cbn.
+    { exact Hstack_live_W5. }
+    { eapply (Forall_impl (λ a, std (revoke W4) !! a = Some Revoked));
+        [exact Hstack_revoked_W4|].
       intros x Hx.
-      rewrite elem_of_dom; done.
+      rewrite elem_of_dom. exists Revoked. exact Hx.
     }
+
+    assert (Forall (fun a => a ∈ dom (std W5)) l_revoked_W0_live)
+      as Hlive_dom_W5.
+    { apply Forall_forall. intros x Hx.
+      assert (x ∈ l_revoked_W0) as Hx0.
+      { assert (x ∈ l_revoked_W0_no_be) as Hx_rest.
+        { change (x ∈ so_revoked_without_object W0 b e l_revoked_W0).
+          rewrite Hrest_partition. apply elem_of_app; left; exact Hx. }
+        subst l_revoked_W0_no_be.
+        by apply list_elem_of_filter in Hx_rest as [_ Hx_rest]. }
+      subst W5. rewrite -revoke_dom_eq.
+      eapply elem_of_mono_pub; first exact Hrelated_pub_W3_W4.
+      subst W3 W2q W2 W1.
+      rewrite -!close_list_dom_eq -revoke_dom_eq.
+      rewrite elem_of_dom.
+      exists Temporary. apply Hl_revoked_W0_temporaries.
+      apply elem_of_app; left; exact Hx0. }
+    iDestruct (stack_object_world_status_some W5 l_revoked_W0_live
+      Hlive_dom_W5 with "Hworld_interp_C")
+      as "[Hworld_interp_C %Hlive_status_W5]".
+    iMod (stack_object_framed_resources_live W0 W5 C l_revoked_W0_live
+      Hrest_live Hlive_status_W5 with
+      "[$Halloc $Hworld_interp_C $Hrevoked_l_revoked_W0_live]")
+      as "(_ & Hworld_interp_C & Hrevoked_l_revoked_W0_live
+          & %Hlive_W5)".
+    iMod (world_interp_revoked_by_separation_many_with_RevokedResources
+      with "[$Hrevoked_l_revoked_W0_live $Hworld_interp_C]")
+      as "(Hworld_interp_C & Hrevoked_l_revoked_W0_live
+          & %Hrevoked_l_revoked_W0_live_W5)"; eauto.
 
     iMod (world_interp_revoked_by_separation with "[$Hastk0 $Hworld_interp_C]")
       as "(Hworld_interp_C & Hastk0 & %Hastk0_W5)".
+    { apply heap_cell_live_nonheap.
+      apply not_true_is_false. intro Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
+      eapply (Hstk_heap csp_b).
+      - apply elem_of_finz_seq_between; done.
+      - apply elem_of_finz_seq_between.
+        apply withinBounds_true_iff; exact Hheap.
+    }
     {
       rewrite -revoke_dom_eq.
       eapply elem_of_mono_pub; eauto.
@@ -724,38 +838,47 @@ Section SO.
     set (l_revoked_W4_no_astk1_no_wca0 :=
       filter (fun a => a ∉ la_be_temporaries)
         l_revoked_W4_no_astk1).
+    set (l_revoked_W4_unique :=
+      filter (fun a => a ∉ l_revoked_W0_live)
+        l_revoked_W4_no_astk1).
     set (closing_list_revoked_addresses :=
-      l_revoked_W0 ++ l_revoked_W4_no_astk1_no_wca0).
+      l_revoked_W0_live ++ l_revoked_W4_unique).
     set (closing_list :=
       closing_list_revoked_addresses ++ finz.seq_between csp_b csp_e).
 
     iMod (stack_object_repair_world_for_return
       W0 W3 W4 C b e csp_b csp_e a_stk1 a_stk2
-      l_revoked_W0 l_revoked_W4 (WInt so_secret) stk_mem
-      with "[$Hworld_interp_C $Hrevoked_l_revoked_W0_no_be
+      l_revoked_W0 l_revoked_W0_live l_revoked_W0_quarantined
+      l_revoked_W4 (WInt so_secret) stk_mem
+      with "[$Hworld_interp_C $Hrevoked_l_revoked_W0_live
              $Hl_revoked_W4 $Hastk0 $Hstk]")
       as (w_stk1_return)
         "(Hworld_interp_C & %Hrelated_pub_W0_Wfixed & %Hclosing_list_nodup
           & %Hclosing_list_covers_W0 & Hrevoked & Hstk)".
     { split; eauto. }
     { split; eauto. }
-    { subst W3 W2 W1 la_be_temporaries. reflexivity. }
+    { subst W3 W2q W2 W1 la_be_temporaries. reflexivity. }
     { exact Ha_stk1_W3. }
     { exact Hrelated_priv_W0_W3. }
     { exact Hrelated_pub_W3_W4. }
+    { exact Hrest_partition. }
+    { exact Hrest_live. }
+    { exact Hrest_quarantined. }
+    { exact Hlive_W5. }
     { exact Hno_overlap. }
+    { exact Hstk_heap. }
     { exact Hastk1. }
     { exact Hastk2. }
     { exact Hastk2_csp_e. }
     { exact Hcsp_bounds. }
     { exact Hl_revoked_W4. }
-    { exact Hrevoked_l_revoked_W0_no_be_W5. }
+    { exact Hrevoked_l_revoked_W0_live_W5. }
     { exact Hstk_W5. }
     { exact Hastk0_W5. }
 
     (* The repair helper's postcondition is exactly the generalized switcher
        return protocol: no filtering or resource surgery remains here. *)
-    iApply (switcher_ret_specification_gen _ W0 W5
+    iApply (switcher_ret_specification_mixed _ W0 W5
              with
              "[ $Halloc $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC
                 $Hrmap $Hca0 $Hca1 $Hcsp $Hrevoked]"); eauto.
