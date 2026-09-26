@@ -468,7 +468,7 @@ Section world_ghost_theory.
     iSplit ; iIntros "[Hr $]"; iApply region_open_nil; done.
   Qed.
 
-  Lemma counter_framed_cell_live
+  Lemma framed_cell_live
       (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
     is_Some (heap_cell_status (heap_std W) a) ->
     allocator_ctx ∗ world_interp W C ∗ a ↦ₐ v
@@ -494,6 +494,23 @@ Section world_ghost_theory.
       iDestruct (reclaim_token_exclusive with "Htoken Htoken'") as %[].
   Qed.
 
+  Lemma revoked_status_some (W : WORLD) (C : CmptName) (l : list Addr) :
+    RevokedResources W C l -∗
+    RevokedResources W C l ∗
+      ⌜Forall (fun a => is_Some (heap_cell_status (heap_std W) a)) l⌝.
+  Proof.
+    iIntros "H".
+    iInduction (l) as [|a l] "IH".
+    - iFrame. iPureIntro. constructor.
+    - iDestruct "H" as "[Ha Hl]".
+      destruct (heap_cell_status (heap_std W) a) as [s|] eqn:Hstatus.
+      + iDestruct ("IH" with "Hl") as "[Hl %Hstatuses]".
+        iFrame "Hl". rewrite Hstatus. iFrame "Ha".
+        iPureIntro. constructor; eauto.
+      + iDestruct "Ha" as (p φ) "(_ & _ & Hcell)".
+        iDestruct "Hcell" as "[]".
+  Qed.
+
   Lemma counter_framed_resources_live
       (Worig Wcur : WORLD) (C : CmptName) (l : list Addr) :
     Forall (heap_cell_live (heap_std Worig)) l ->
@@ -513,7 +530,7 @@ Section world_ghost_theory.
       rewrite /heap_cell_live in Ha_live.
       iEval (rewrite Ha_live) in "Hcell".
       iDestruct "Hcell" as (v) "(%HpO & Ha & Hφ & Hmono)".
-      iMod (counter_framed_cell_live Wcur C a v Ha_some
+      iMod (framed_cell_live Wcur C a v Ha_some
         with "[$Halloc $Hworld $Ha]")
         as "(#Halloc2 & Hworld & Ha & %Ha_cur)".
       iAssert (RevokedResources Worig C [a])%I

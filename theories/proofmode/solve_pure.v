@@ -40,8 +40,6 @@ Qed.
 #[export] Hint Mode isCorrectPC + : solve_pure.
 
 #[export] Hint Resolve isCorrectPC_executeAllowed_InBounds : solve_pure.
-(* #[export] Hint Resolve isCorrectPC_ExecPCPerm_InBounds : solve_pure. *)
-
 (* Proxy lemma for DecodeInstr *)
 
 Lemma DecodeInstr_prove `{MachineParameters} w i :

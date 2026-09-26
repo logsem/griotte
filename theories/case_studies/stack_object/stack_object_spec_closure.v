@@ -386,7 +386,7 @@ Section SO.
            & Hstk & #Hinterp_wca0_W2)".
     { iPureIntro. exact Hwca0_lvs_ints. }
 
-    iDestruct (stack_object_revoked_status_some with
+    iDestruct (revoked_status_some with
       "Hrevoked_l_revoked_W0_no_be")
       as "[Hrevoked_l_revoked_W0_no_be %Hrest_statuses]".
     destruct (heap_status_partition (heap_std W0)

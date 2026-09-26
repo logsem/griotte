@@ -15,33 +15,6 @@ Section Stack_Object_Return_Repair.
     {stsg : STSG Addr region_type OType Word Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP : MachineParameters}.
-
-  Lemma stack_object_framed_cell_live
-      (W : WORLD) (C : CmptName) (a : Addr) (v : Word) :
-    is_Some (heap_cell_status (heap_std W) a) ->
-    allocator_ctx ∗ world_interp W C ∗ a ↦ₐ v
-    ={⊤}=∗
-      allocator_ctx ∗ world_interp W C ∗ a ↦ₐ v ∗
-      ⌜heap_cell_live (heap_std W) a⌝.
-  Proof.
-    iIntros (Hstatus) "(#Halloc & Hworld & Ha)".
-    destruct Hstatus as [s Hstatus]. destruct s.
-    - iModIntro. iFrame "∗#". iPureIntro. exact Hstatus.
-    - assert (is_heap_address a = true) as Hheap.
-      { rewrite /heap_cell_status in Hstatus.
-        destruct (is_heap_address a); first done. discriminate. }
-      iEval (rewrite open_world_interp_empty) in "Hworld".
-      iDestruct (world_interp_open_quarantined_token W C [] a with "Hworld")
-        as "[Htoken Hcloseworld]"; [set_solver|exact Hstatus|].
-      iInv Nallocator as (alloc_map) "(>%Hdom & >Hentries)" "Hclosealloc".
-      assert (is_Some (alloc_map !! a)) as [s Hs].
-      { rewrite -elem_of_dom Hdom elem_of_heap_addresses. exact Hheap. }
-      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hs.
-      iDestruct (allocator_entry_memory_live with "Hentry Ha") as %->.
-      iDestruct "Hentry" as "[_ [Htoken' _]]".
-      iDestruct (reclaim_token_exclusive with "Htoken Htoken'") as %[].
-  Qed.
-
   Lemma stack_object_revoked_pointsto_disjoint
       (W : WORLD) (C : CmptName) (l : list Addr)
       (a : Addr) (v : Word) :
@@ -93,25 +66,6 @@ Section Stack_Object_Return_Repair.
       { iPureIntro. exact Hla_live. }
       iFrame. iPureIntro. set_solver.
   Qed.
-
-  Lemma stack_object_revoked_status_some
-      (W : WORLD) (C : CmptName) (l : list Addr) :
-    RevokedResources W C l -∗
-    RevokedResources W C l ∗
-      ⌜Forall (fun a => is_Some (heap_cell_status (heap_std W) a)) l⌝.
-  Proof.
-    iIntros "H".
-    iInduction (l) as [|a l] "IH".
-    - iFrame. iPureIntro. constructor.
-    - iDestruct "H" as "[Ha Hl]".
-      destruct (heap_cell_status (heap_std W) a) as [s|] eqn:Hstatus.
-      + iDestruct ("IH" with "Hl") as "[Hl %Hstatuses]".
-        iFrame "Hl". rewrite Hstatus. iFrame "Ha".
-        iPureIntro. constructor; eauto.
-      + iDestruct "Ha" as (p φ) "(_ & _ & Hcell)".
-        iDestruct "Hcell" as "[]".
-  Qed.
-
   Lemma stack_object_framed_resources_live
       (Worig Wcur : WORLD) (C : CmptName) (l : list Addr) :
     Forall (heap_cell_live (heap_std Worig)) l ->
@@ -131,7 +85,7 @@ Section Stack_Object_Return_Repair.
       rewrite /heap_cell_live in Ha_live.
       iEval (rewrite Ha_live) in "Hcell".
       iDestruct "Hcell" as (v) "(%HpO & Ha & Hφ & Hmono)".
-      iMod (stack_object_framed_cell_live Wcur C a v Ha_some
+      iMod (framed_cell_live Wcur C a v Ha_some
         with "[$Halloc $Hworld $Ha]")
         as "(_ & Hworld & Ha & %Ha_cur)".
       iAssert (RevokedResources Worig C [a])%I

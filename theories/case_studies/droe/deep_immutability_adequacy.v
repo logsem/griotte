@@ -360,7 +360,7 @@ Section Adequacy.
           (WSentry true XSRW_ Local (b_switcher switcher_cmpt)
             (e_switcher switcher_cmpt) (a_switcher_call switcher_cmpt)) = None) as Hcall_nonheap.
         { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
-          apply heap_authority_base_heap_cap_base_shared in Hauth.
+          apply heap_authority_base_heap_cap_base in Hauth.
           pose proof switcher_call_sentry_not_heap as Hnonheap.
           unfold is_heap_cap in Hnonheap; rewrite Hauth in Hnonheap; discriminate. }
         iEval (cbn); iSplit.
@@ -492,7 +492,7 @@ Section Adequacy.
     { unfold C_f. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap C_cmpt). }
     assert (heap_authority_base (WSealed ot_switcher C_f) = None) as Hsealed_base.
     { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
-      apply heap_authority_base_heap_cap_base_shared in Hauth.
+      apply heap_authority_base_heap_cap_base in Hauth.
       unfold is_heap_cap in Hsealed_nonheap; rewrite Hauth in Hsealed_nonheap; discriminate. }
 
     iAssert ( interp Winit_C C (WSealed ot_switcher C_f)) as "#Hinterp_C_f".

@@ -246,7 +246,7 @@ Section VAE.
     (* A revoked heap cell may be quarantined and carry no memory resource.
        Restore that portion before the first adversary call.  The live
        portion remains framed across the calls. *)
-    iDestruct (vae_revoked_status_some with "Hrevoked_l")
+    iDestruct (revoked_status_some with "Hrevoked_l")
       as "[Hrevoked_l %Hl0_statuses]".
     destruct (heap_status_partition (heap_std W0) l Hl0_statuses)
       as (l0_live & l0_quarantined & Hl0_partition & Hl0_live & Hl0_quarantined).
@@ -511,7 +511,7 @@ Section VAE.
     (* The first callback may have allocated or freed heap cells.  Split
        its returned revoked resources at the new heap status, then
        reinstate the quarantined portion before the second callback. *)
-    iDestruct (vae_revoked_status_some with "Hrevoked_l1")
+    iDestruct (revoked_status_some with "Hrevoked_l1")
       as "[Hrevoked_l1 %Hl1_statuses]".
     destruct (heap_status_partition (heap_std W3) l1 Hl1_statuses)
       as (l1_live & l1_quarantined & Hl1_partition & Hl1_live & Hl1_quarantined).

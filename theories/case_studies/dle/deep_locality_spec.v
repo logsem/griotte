@@ -541,7 +541,7 @@ Section DLE.
     assert (heap_authority_base (WSealed ot_switcher C_f) = None) as Hsealed_heap_base.
     { destruct (heap_authority_base (WSealed ot_switcher C_f)) as [b|] eqn:Hbase;
         last done.
-      apply heap_authority_base_heap_cap_base_shared in Hbase.
+      apply heap_authority_base_heap_cap_base in Hbase.
       rewrite /is_heap_cap Hbase in Hsealed_nonheap. discriminate.
     }
     assert (filter_heap W4 (WSealed ot_switcher C_f) = WSealed ot_switcher C_f)

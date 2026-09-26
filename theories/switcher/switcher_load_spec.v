@@ -69,7 +69,7 @@ Section Switcher_Restore_Interp.
     { rewrite /load_memory_shadow_observation Hbase in Hobs. subst actual.
       assert (heap_authority_base raw = None) as Hauth.
       { destruct (heap_authority_base raw) as [base'|] eqn:Hauth; last done.
-        apply heap_authority_base_heap_cap_base_shared in Hauth.
+        apply heap_authority_base_heap_cap_base in Hauth.
         rewrite Hbase in Hauth. discriminate. }
       iFrame. iPureIntro. by apply filter_heap_nonheap. }
     assert (is_heap_address base = true) as Hheap.
@@ -88,7 +88,7 @@ Section Switcher_Restore_Interp.
     - simpl in Hobs. subst actual.
       destruct (heap_authority_base raw) as [b|] eqn:Hauth; last first.
       { iFrame. iPureIntro. by apply filter_heap_nonheap. }
-      pose proof (heap_authority_base_heap_cap_base_shared raw b Hauth) as Hcap.
+      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
       rewrite Hbase in Hcap. inversion Hcap; subst b.
       destruct (heap_lookup_addr (heap_std Wval) base) as [bo|] eqn:Hheaplookup;
         last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
@@ -109,7 +109,7 @@ Section Switcher_Restore_Interp.
     - simpl in Hobs. subst actual.
       destruct (heap_authority_base raw) as [b|] eqn:Hauth; last first.
       { iFrame. iPureIntro. by apply filter_heap_nonheap. }
-      pose proof (heap_authority_base_heap_cap_base_shared raw b Hauth) as Hcap.
+      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
       rewrite Hbase in Hcap. inversion Hcap; subst b.
       destruct (heap_lookup_addr (heap_std Wval) base) as [bo|] eqn:Hheaplookup;
         last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
@@ -210,7 +210,7 @@ Section Switcher_Restore_Interp.
       iPureIntro. split; first by left.
       assert (heap_authority_base raw = None) as Hauth.
       { destruct (heap_authority_base raw) as [base'|] eqn:Hauth; last done.
-        apply heap_authority_base_heap_cap_base_shared in Hauth.
+        apply heap_authority_base_heap_cap_base in Hauth.
         rewrite Hbase in Hauth. discriminate. }
       by apply filter_heap_nonheap.
   Qed.
@@ -297,7 +297,7 @@ Section Switcher_Restore_Interp.
       rewrite /load_word.
       assert (heap_authority_base raw = None) as Hauth.
       { destruct (heap_authority_base raw) as [base|] eqn:Hauth; last done.
-        apply heap_authority_base_heap_cap_base_shared in Hauth.
+        apply heap_authority_base_heap_cap_base in Hauth.
         rewrite Hbase in Hauth. discriminate. }
       by apply filter_heap_nonheap.
   Qed.

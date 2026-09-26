@@ -775,15 +775,6 @@ Lemma isCorrectPC_executeAllowed_InBounds p g b e a :
 Proof.
   unfold InBounds. intros. constructor; eauto.
 Qed.
-
-Lemma isCorrectPC_ExecPCPerm_InBounds p g b e a :
-  executeAllowed p = true →
-  InBounds b e a →
-  isCorrectPC (WCap true p g b e a).
-Proof.
-  unfold InBounds. intros. constructor; eauto.
-Qed.
-
 Lemma seal_capability_inj (o : OType) (c1 c2 : Word) :
   is_cap c1 ->
   is_cap c2 ->

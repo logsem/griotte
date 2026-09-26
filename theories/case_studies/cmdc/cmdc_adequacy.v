@@ -435,7 +435,7 @@ Section Adequacy.
     { destruct (heap_authority_base
         (WSentry true XSRW_ Local (b_switcher switcher_cmpt)
           (e_switcher switcher_cmpt) (a_switcher_call switcher_cmpt))) as [b|] eqn:Hauth; last done.
-      apply heap_authority_base_heap_cap_base_shared in Hauth.
+      apply heap_authority_base_heap_cap_base in Hauth.
       pose proof switcher_call_sentry_not_heap as Hnonheap.
       unfold is_heap_cap in Hnonheap; rewrite Hauth in Hnonheap; discriminate. }
     (* 8.2 Make the compartment B safe to share *)
@@ -568,7 +568,7 @@ Section Adequacy.
 
     assert (heap_authority_base (WSealed ot_switcher B_f) = None) as Hsealed_base_B.
     { destruct (heap_authority_base (WSealed ot_switcher B_f)) as [b|] eqn:Hauth; last done.
-      apply heap_authority_base_heap_cap_base_shared in Hauth.
+      apply heap_authority_base_heap_cap_base in Hauth.
       assert (is_heap_cap (WSealed ot_switcher B_f) = false) as Hsealed_nonheap.
       { unfold B_f. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap B_cmpt). }
       unfold is_heap_cap in Hsealed_nonheap; rewrite Hauth in Hsealed_nonheap; discriminate. }
@@ -743,7 +743,7 @@ Section Adequacy.
 
     assert (heap_authority_base (WSealed ot_switcher C_g) = None) as Hsealed_base_C.
     { destruct (heap_authority_base (WSealed ot_switcher C_g)) as [b|] eqn:Hauth; last done.
-      apply heap_authority_base_heap_cap_base_shared in Hauth.
+      apply heap_authority_base_heap_cap_base in Hauth.
       assert (is_heap_cap (WSealed ot_switcher C_g) = false) as Hsealed_nonheap.
       { unfold C_g. apply sealed_cap_nonheap. exact (cmpt_exp_tbl_base_not_heap C_cmpt). }
       unfold is_heap_cap in Hsealed_nonheap; rewrite Hauth in Hsealed_nonheap; discriminate. }

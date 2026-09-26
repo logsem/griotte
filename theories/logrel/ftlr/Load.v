@@ -350,16 +350,6 @@ Section fundamental.
       iEval (rewrite /interp_in_mem_pre filter_heap_load_word) in "HV'".
       iExact "HV'".
   Qed.
-
-  Lemma heap_authority_base_heap_cap_base (raw : Word) base :
-    heap_authority_base raw = Some base → heap_cap_base raw = Some base.
-  Proof.
-    destruct raw; unfold heap_authority_base; simpl; try discriminate.
-    - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
-    - case_decide; auto; discriminate.
-    - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
-  Qed.
-
   Lemma load_shadow_interp W C pc (p : Perm) raw actual alloc_map :
     heap_cell_live (heap_std W) pc →
     dom alloc_map = heap_addresses →

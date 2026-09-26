@@ -1550,7 +1550,7 @@ Section logrel.
       congruence.
   Qed.
 
-  Lemma filter_heap_map_shared W (f : Word -> Word) w :
+  Lemma filter_heap_map W (f : Word -> Word) w :
     heap_authority_base (f w) = heap_authority_base w ->
     clear_tag (f w) = f (clear_tag w) ->
     filter_heap W (f w) = f (filter_heap W w).
@@ -1564,7 +1564,7 @@ Section logrel.
   Lemma filter_heap_borrow_shared W w :
     filter_heap W (borrow w) = borrow (filter_heap W w).
   Proof.
-    apply filter_heap_map_shared;
+    apply filter_heap_map;
       destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
       reflexivity.
   Qed.
@@ -1572,7 +1572,7 @@ Section logrel.
   Lemma filter_heap_deeplocal_shared W w :
     filter_heap W (deeplocal w) = deeplocal (filter_heap W w).
   Proof.
-    apply filter_heap_map_shared;
+    apply filter_heap_map;
       destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
       reflexivity.
   Qed.
@@ -1580,7 +1580,7 @@ Section logrel.
   Lemma filter_heap_readonly_shared W w :
     filter_heap W (readonly w) = readonly (filter_heap W w).
   Proof.
-    apply filter_heap_map_shared;
+    apply filter_heap_map;
       destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
       reflexivity.
   Qed.
@@ -1593,7 +1593,7 @@ Section logrel.
       by rewrite ?filter_heap_readonly_shared ?filter_heap_deeplocal_shared ?filter_heap_borrow_shared.
   Qed.
 
-  Lemma heap_authority_base_heap_cap_base_shared (raw : Word) base :
+  Lemma heap_authority_base_heap_cap_base (raw : Word) base :
     heap_authority_base raw = Some base → heap_cap_base raw = Some base.
   Proof.
     destruct raw; unfold heap_authority_base; simpl; try discriminate.
@@ -1618,7 +1618,7 @@ Section logrel.
     { rewrite /load_memory_shadow_observation Hbase in Hobs. subst actual.
       assert (heap_authority_base raw = None) as Hauth.
       { destruct (heap_authority_base raw) as [b|] eqn:Hauth; last done.
-        apply heap_authority_base_heap_cap_base_shared in Hauth.
+        apply heap_authority_base_heap_cap_base in Hauth.
         rewrite Hbase in Hauth. discriminate. }
       assert (filter_heap W (load_word p raw) = load_word p raw) as Hfilter.
       { rewrite filter_heap_load_word_shared /filter_heap Hauth. done. }
@@ -1647,7 +1647,7 @@ Section logrel.
              right. split; first done.
              rewrite filter_heap_load_word_shared /filter_heap Hauth. done. }
            iFrame. }
-      pose proof (heap_authority_base_heap_cap_base_shared raw b Hauth) as Hcap.
+      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
       rewrite Hbase in Hcap. inversion Hcap; subst b.
       destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup.
       2: { iSplitR "Hworld Hentries".
@@ -1682,7 +1682,7 @@ Section logrel.
              right. split; first done.
              rewrite filter_heap_load_word_shared /filter_heap Hauth. done. }
            iFrame. }
-      pose proof (heap_authority_base_heap_cap_base_shared raw b Hauth) as Hcap.
+      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
       rewrite Hbase in Hcap. inversion Hcap; subst b.
       destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup.
       2: { iSplitR "Hworld Hentries".

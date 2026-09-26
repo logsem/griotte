@@ -22,18 +22,6 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
-
-  Lemma filter_heap_map W (f : Word -> Word) w :
-    heap_authority_base (f w) = heap_authority_base w ->
-    clear_tag (f w) = f (clear_tag w) ->
-    filter_heap W (f w) = f (filter_heap W w).
-  Proof.
-    intros Hbase Hclear. rewrite /filter_heap Hbase.
-    destruct (heap_authority_base w) as [b|]; last done.
-    destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ]; last done.
-    cbn. destruct (alloc_object_status obj); done.
-  Qed.
-
   Lemma filter_heap_borrow W w :
     filter_heap W (borrow w) = borrow (filter_heap W w).
   Proof.
