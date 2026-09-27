@@ -661,7 +661,7 @@ Section fundamental.
   Qed.
 
   Lemma interp_weakeningSentry W C t p g g' b b' e e' a a' :
-      is_heap_address b' = false ∧ disjoint_from_heap b' e' ->
+      not_heap_range b' e' ->
       isO p = false ->
       (b <= b')%a ->
       (e' <= e)%a ->

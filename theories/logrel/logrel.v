@@ -741,7 +741,7 @@ Section logrel.
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
                 | WSentry t p g b e a =>
-                    ⌜is_heap_address b = false ∧ disjoint_from_heap b e⌝ ∗
+                    ⌜not_heap_range b e⌝ ∗
                     □ enter_cond W C p g b e a interp
                 | _ => False
                 end)%I.
@@ -906,9 +906,9 @@ Section logrel.
     intros n x y Hdist W C w.
     destruct_word w; cbn [interp_sentry]; try reflexivity.
     change (dist n
-      (⌜is_heap_address b = false ∧ disjoint_from_heap b e⌝ ∗
+      (⌜not_heap_range b e⌝ ∗
         □ enter_cond W C sd g b e a x)%I
-      (⌜is_heap_address b = false ∧ disjoint_from_heap b e⌝ ∗
+      (⌜not_heap_range b e⌝ ∗
         □ enter_cond W C sd g b e a y)%I).
     f_equiv. f_equiv. by apply enter_cond_contractive.
   Qed.

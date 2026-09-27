@@ -45,22 +45,43 @@ Section CmptLayout.
           ];
 
         cmpt_pcc_disjoint_from_shadow : disjoint_from_shadow cmpt_b_pcc cmpt_e_pcc;
-        cmpt_pcc_disjoint_from_heap : disjoint_from_heap cmpt_b_pcc cmpt_e_pcc;
+        cmpt_pcc_not_heap_range : not_heap_range cmpt_b_pcc cmpt_e_pcc;
         cmpt_cgp_disjoint_from_shadow : disjoint_from_shadow cmpt_b_cgp cmpt_e_cgp;
-        cmpt_cgp_disjoint_from_heap : disjoint_from_heap cmpt_b_cgp cmpt_e_cgp;
+        cmpt_cgp_not_heap_range : not_heap_range cmpt_b_cgp cmpt_e_cgp;
         cmpt_exp_tbl_disjoint_from_shadow :
         disjoint_from_shadow cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end;
-        cmpt_pcc_base_not_heap : is_heap_address cmpt_b_pcc = false;
-        cmpt_cgp_base_not_heap : is_heap_address cmpt_b_cgp = false;
         cmpt_static_sealed_disjoint_from_shadow :
         disjoint_from_shadow cmpt_b_static_sealed cmpt_e_static_sealed;
-        cmpt_exp_tbl_disjoint_from_heap :
-        disjoint_from_heap cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end;
-        cmpt_static_sealed_disjoint_from_heap :
-        disjoint_from_heap cmpt_b_static_sealed cmpt_e_static_sealed;
-        cmpt_exp_tbl_base_not_heap : is_heap_address cmpt_exp_tbl_pcc = false;
-        cmpt_static_sealed_base_not_heap : is_heap_address cmpt_b_static_sealed = false
+        cmpt_exp_tbl_not_heap_range :
+        not_heap_range cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end;
+        cmpt_static_sealed_not_heap_range :
+        not_heap_range cmpt_b_static_sealed cmpt_e_static_sealed
       }.
+
+  Definition cmpt_pcc_disjoint_from_heap (C : cmpt) :
+    disjoint_from_heap (cmpt_b_pcc C) (cmpt_e_pcc C) :=
+    proj2 (cmpt_pcc_not_heap_range C).
+  Definition cmpt_cgp_disjoint_from_heap (C : cmpt) :
+    disjoint_from_heap (cmpt_b_cgp C) (cmpt_e_cgp C) :=
+    proj2 (cmpt_cgp_not_heap_range C).
+  Definition cmpt_exp_tbl_disjoint_from_heap (C : cmpt) :
+    disjoint_from_heap (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C) :=
+    proj2 (cmpt_exp_tbl_not_heap_range C).
+  Definition cmpt_static_sealed_disjoint_from_heap (C : cmpt) :
+    disjoint_from_heap (cmpt_b_static_sealed C) (cmpt_e_static_sealed C) :=
+    proj2 (cmpt_static_sealed_not_heap_range C).
+  Definition cmpt_pcc_base_not_heap (C : cmpt) :
+    is_heap_address (cmpt_b_pcc C) = false :=
+    proj1 (cmpt_pcc_not_heap_range C).
+  Definition cmpt_cgp_base_not_heap (C : cmpt) :
+    is_heap_address (cmpt_b_cgp C) = false :=
+    proj1 (cmpt_cgp_not_heap_range C).
+  Definition cmpt_exp_tbl_base_not_heap (C : cmpt) :
+    is_heap_address (cmpt_exp_tbl_pcc C) = false :=
+    proj1 (cmpt_exp_tbl_not_heap_range C).
+  Definition cmpt_static_sealed_base_not_heap (C : cmpt) :
+    is_heap_address (cmpt_b_static_sealed C) = false :=
+    proj1 (cmpt_static_sealed_not_heap_range C).
 
   Definition cmpt_pcc_region (C : cmpt) : list Addr :=
     (finz.seq_between (cmpt_b_pcc C) (cmpt_e_pcc C)).
@@ -152,13 +173,19 @@ Section CmptLayout.
         disjoint_from_shadow b_trusted_stack e_trusted_stack;
 
         switcher_base_not_shadow : is_shadow_address b_switcher = false;
-        switcher_base_not_heap : is_heap_address b_switcher = false;
-        switcher_disjoint_from_heap : disjoint_from_heap b_switcher e_switcher;
+        switcher_not_heap_range : not_heap_range b_switcher e_switcher;
 
         stack_disjoint_from_shadow : disjoint_from_shadow b_stack e_stack;
         stack_disjoint_from_heap : disjoint_from_heap b_stack e_stack;
 
       }.
+
+  Definition switcher_base_not_heap (C : cmptSwitcher) :
+    is_heap_address (b_switcher C) = false :=
+    proj1 (switcher_not_heap_range C).
+  Definition switcher_disjoint_from_heap (C : cmptSwitcher) :
+    disjoint_from_heap (b_switcher C) (e_switcher C) :=
+    proj2 (switcher_not_heap_range C).
 
 
   Global Instance cmptSwitcher_switcherLayout (switcher_cmpt : cmptSwitcher) : switcherLayout.

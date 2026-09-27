@@ -107,7 +107,7 @@ Proof.
     dle_trusted_stack_b dle_trusted_stack_e
     _ _ _ _
     (replicate 100 (WInt 0)) _ eq_refl
-    dle_stack_b dle_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
+    dle_stack_b dle_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -123,10 +123,11 @@ Proof.
     rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - reflexivity.
-  - vm_compute; reflexivity.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
@@ -176,7 +177,7 @@ Proof.
     dle_main_exports_entries_b dle_main_exports_entries_e
     dle_main_imports_concrete dle_main_code dle_main_data [] []
     _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -188,31 +189,35 @@ Proof.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - reflexivity.
-  - reflexivity.
-  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 Program Definition dle_concrete_C_cmpt : cmpt.
@@ -224,7 +229,7 @@ Proof.
     dle_C_exports_entries_b dle_C_exports_entries_e
     dle_C_imports dle_C_code dle_C_data [] dle_C_exports
     _ _ _ _ _ _ _ _
-    _ _ _ _ _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ ).
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
   - vm_compute; solve_addr.
@@ -236,31 +241,35 @@ Proof.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
+    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
   - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
     intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
     unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - reflexivity.
-  - reflexivity.
-  - unfold disjoint_from_shadow, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - unfold disjoint_from_heap, disjoint, set_disjoint_instance.
-    intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
-    unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
-  - vm_compute; reflexivity.
-  - vm_compute; reflexivity.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
+  - unfold not_heap_range; split.
+    + vm_compute; reflexivity.
+    + unfold disjoint_from_heap, disjoint, set_disjoint_instance.
+      intros x Hx Hx'. rewrite !elem_of_finz_seq_between in Hx, Hx'.
+      unfold finz.le_lt in Hx, Hx'; cbn in Hx, Hx'; lia.
 Defined.
 
 (** All nonempty concrete regions, in increasing address order. The two

@@ -675,7 +675,7 @@ Section fundamental.
   Proof.
     iIntros "#Hinv".
     rewrite fixpoint_interp1_eq /=.
-    iSplit; first (iPureIntro; split; [exact switcher_base_not_heap|exact switcher_disjoint_from_heap]).
+    iSplit; first (iPureIntro; exact switcher_not_heap_range).
     iIntros "!> %regs %W' % %".
     destruct g'; first done.
     iNext ; iApply (interp_expr_switcher_return with "Hinv").

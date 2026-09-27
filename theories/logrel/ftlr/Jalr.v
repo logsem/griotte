@@ -62,8 +62,9 @@ Section fundamental.
     {
       destruct Hp as [Hexec _].
       iDestruct (interp_cap_disjoint with "Hinv_interp") as %[_ Hheap]; first exact Hexec.
-      assert (is_heap_address b = false) as Hbase_nonheap.
-      { apply not_true_is_false. intros Hbase_heap.
+      assert (not_heap_range b e) as Hsentry.
+      { split; last exact Hheap.
+        apply not_true_is_false. intros Hbase_heap.
         apply withinBounds_true_iff in Hbase_heap.
         rewrite /disjoint_from_heap elem_of_disjoint in Hheap.
         eapply (Hheap b); apply elem_of_finz_seq_between; solve_addr. }

@@ -48,8 +48,7 @@ Section Heap_Temporal_Safety_Main.
 
     disjoint_from_shadow pc_b pc_e ->
     disjoint_from_shadow cgp_b cgp_e ->
-    disjoint_from_heap cgp_b cgp_e ->
-    is_heap_address cgp_b = false ->
+    not_heap_range cgp_b cgp_e ->
     (* Incoming saved registers are nonheap; the buffer itself is kept in
        the private data slot and explicitly reloaded after the first call. *)
     is_heap_cap (default (WInt 0) (rmap !! cra)) = false ->

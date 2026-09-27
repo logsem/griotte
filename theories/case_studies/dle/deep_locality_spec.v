@@ -25,8 +25,7 @@ Section DLE.
       (W : WORLD) (b e : Addr) (z : Z) :
     (b + 2)%a = Some e ->
     disjoint_from_shadow b e ->
-    disjoint_from_heap b e ->
-    is_heap_address b = false ->
+    not_heap_range b e ->
     b ∉ dom (std W) ->
     (b ^+ 1)%a ∉ dom (std W) ->
     world_interp (revoke W) C ∗
@@ -40,8 +39,9 @@ Section DLE.
     world_interp W3 C ∗
     interp W3 C (WCap true RW_DL Local (b ^+ 1)%a (b ^+ 2)%a (b ^+ 1)%a).
   Proof.
-    iIntros (Hcgp_contiguous Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcgp_b Hcgp_a)
+    iIntros (Hcgp_contiguous Hcgp_shadow Hcgp_range Hcgp_b Hcgp_a)
       "(Hworld_interp_C & Hcgp_b & Hcgp_a)".
+    destruct Hcgp_range as [Hcgp_nonheap Hcgp_heap].
     set (W1 := revoke W).
     iDestruct (init_TmpRes W1 C b RW_DL interp_in_memC
       with "[] [$Hcgp_b] []") as "TmpRes_cgp_b"; auto.
@@ -176,8 +176,7 @@ Section DLE.
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_shadow cgp_b cgp_e ->
-    disjoint_from_heap cgp_b cgp_e ->
-    is_heap_address cgp_b = false ->
+    not_heap_range cgp_b cgp_e ->
     Nswitcher ## Nassert ->
 
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
@@ -221,7 +220,7 @@ Section DLE.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
             )
       "(#Hassert & #Halloc & #Hswitcher & Hna
@@ -234,6 +233,7 @@ Section DLE.
       & #HentryC_f
       & #Hinterp_W0_csp
       )".
+    destruct Hcgp_range as [Hcgp_nonheap Hcgp_heap].
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
     (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
@@ -351,7 +351,7 @@ Section DLE.
 
     (* Extend the world with the two temporary data addresses. *)
     iMod (dle_prepare_world W0 cgp_b cgp_e 0%Z
-      Hcgp_contiguous Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcgp_b Hcgp_a
+      Hcgp_contiguous Hcgp_shadow (conj Hcgp_nonheap Hcgp_heap) Hcgp_b Hcgp_a
       with "[$Hworld_interp_C $Hcgp_b $Hcgp_a]")
       as "(%Hrelated_priv_W0_W3 & Hworld_interp_C & #Hinterp_W3_cgp_a)".
     set (W2 := <s[cgp_b := Temporary]s> W1) in *.

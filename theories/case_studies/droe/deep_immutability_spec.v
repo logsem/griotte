@@ -24,8 +24,7 @@ Section DROE.
       (W_init_C : WORLD) (cgp_b cgp_e : Addr) :
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_shadow cgp_b cgp_e ->
-    disjoint_from_heap cgp_b cgp_e ->
-    is_heap_address cgp_b = false ->
+    not_heap_range cgp_b cgp_e ->
     cgp_b ∉ dom (std W_init_C) ->
     (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
     world_interp (revoke W_init_C) C ∗
@@ -44,8 +43,9 @@ Section DROE.
       (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a
         (cgp_b ^+ 1)%a).
   Proof.
-    iIntros (Hcgp_contiguous Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcgp_b Hcgp_a)
+    iIntros (Hcgp_contiguous Hcgp_shadow Hcgp_range Hcgp_b Hcgp_a)
       "(Hworld_interp_C & Hcgp_b & Hcgp_a)".
+    destruct Hcgp_range as [Hcgp_nonheap Hcgp_heap].
     set (W1 := revoke W_init_C).
     iDestruct ( init_PermRes W1 C cgp_b RO_DRO (safeC (interp_in_mem_dro_eq (WInt 42)))
                 with "[] [$Hcgp_b] []" ) as "PermRes_cgp_b"; auto.
@@ -229,8 +229,7 @@ Section DROE.
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_shadow cgp_b cgp_e ->
-    disjoint_from_heap cgp_b cgp_e ->
-    is_heap_address cgp_b = false ->
+    not_heap_range cgp_b cgp_e ->
     (* [cra] is saved in [cs0], while [cs1] is left unchanged across the call.
        Requiring these incoming words to be nonheap avoids shadow ownership;
        the adequacy setup initializes both registers to integer zero. *)
@@ -278,7 +277,7 @@ Section DROE.
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     intros imports; subst imports.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcra_nonheap Hcs1_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hcra_nonheap Hcs1_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
             )
       "(#Hassert & #Halloc & #Hswitcher & Hna
@@ -291,6 +290,7 @@ Section DROE.
       & #HentryC_g
       & #Hinterp_Winit_C_csp
       )".
+    destruct Hcgp_range as [Hcgp_nonheap Hcgp_heap].
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
     (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
@@ -466,7 +466,7 @@ Section DROE.
     set (rmap' := (delete ca5 _)).
 
     iMod (droe_extend_data_world W_init_C cgp_b cgp_e
-      Hcgp_contiguous Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcgp_b Hcgp_a
+      Hcgp_contiguous Hcgp_shadow (conj Hcgp_nonheap Hcgp_heap) Hcgp_b Hcgp_a
       with "[$Hworld_interp_C $Hcgp_b $Hcgp_a]")
       as "(%HWinit_privC_W3 & Hworld_interp_C & #Hrel_cgp_b & #Hrel_cgp_a & #Hinterp_W3_C_a)".
     set (W2 := <s[cgp_b := Permanent]s> W1) in *.

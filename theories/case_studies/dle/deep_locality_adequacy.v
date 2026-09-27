@@ -54,9 +54,8 @@ Proof.
   pose proof (switcher_return_entry_point switcher_cmpt).
   pose proof (trusted_stack_disjoint_from_shadow switcher_cmpt).
   pose proof (switcher_base_not_shadow switcher_cmpt).
-  pose proof (compartment_layout.switcher_base_not_heap switcher_cmpt).
-  pose proof (compartment_layout.switcher_disjoint_from_heap switcher_cmpt).
-  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _ _); cbn in *; auto.
+  pose proof (compartment_layout.switcher_not_heap_range switcher_cmpt).
+  refine (mkSwitcherLayoutWf _ _ _ _ _ _ _ _); cbn in *; auto.
 Defined.
 
 Local Instance memory_layout_assertLayout `{memory_layout} : assertLayout.
@@ -528,8 +527,7 @@ Section Adequacy.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_disjoint_from_shadow main_cmpt). }
-    { exact (cmpt_cgp_disjoint_from_heap main_cmpt). }
-    { exact (cmpt_cgp_base_not_heap main_cmpt). }
+    { exact (cmpt_cgp_not_heap_range main_cmpt). }
     { solve_ndisj. }
     { rewrite !dom_delete_L.
       rewrite regmap_full_dom; first done.

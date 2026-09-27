@@ -219,9 +219,18 @@ Section Switcher.
         disjoint_from_shadow b_trusted_stack e_trusted_stack;
 
         switcher_base_not_shadow : is_shadow_address b_switcher = false;
-        switcher_base_not_heap : is_heap_address b_switcher = false;
-        switcher_disjoint_from_heap : disjoint_from_heap b_switcher e_switcher
+        switcher_not_heap_range : not_heap_range b_switcher e_switcher
       }.
+
+  Lemma switcher_base_not_heap
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :
+    is_heap_address b_switcher = false.
+  Proof. exact (proj1 switcher_not_heap_range). Qed.
+
+  Lemma switcher_disjoint_from_heap
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :
+    disjoint_from_heap b_switcher e_switcher.
+  Proof. exact (proj2 switcher_not_heap_range). Qed.
 
   Lemma switcher_call_sentry_not_heap
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :

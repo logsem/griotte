@@ -210,6 +210,11 @@ Definition disjoint_from_shadow `{ShadowRegion} (b e : Addr) : Prop :=
 Definition disjoint_from_heap `{HeapRegion} (b e : Addr) : Prop :=
   finz.seq_between b e ## finz.seq_between heap_b heap_e.
 
+(* An empty range is disjoint from the heap regardless of its base.  Keep the
+   base check as well so that even an empty range cannot start in the heap. *)
+Definition not_heap_range `{HeapRegion} (b e : Addr) : Prop :=
+  is_heap_address b = false ∧ disjoint_from_heap b e.
+
 Lemma disjoint_from_shadow_not_in `{ShadowRegion} (b e a : Addr) :
   disjoint_from_shadow b e →
   withinBounds b e a = true →
