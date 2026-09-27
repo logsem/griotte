@@ -144,4 +144,102 @@ Section VAE_Return_Repair.
           apply rtc_once; constructor.
   Qed.
 
+  (** Keep earlier live addresses first, adding only fresh addresses from
+      each subsequent revocation list before the stack. *)
+  Lemma vae_closing_lists (l0 l1 l2 stk : list Addr) :
+    let l1_unique := filter (fun a => a ∉ l0 ++ stk) l1 in
+    let l2_unique := filter (fun a => a ∉ l0 ++ l1_unique ++ stk) l2 in
+    let closing := (l0 ++ l1_unique ++ l2_unique) ++ stk in
+    NoDup (l0 ++ stk) ->
+    NoDup l1 ->
+    NoDup l2 ->
+    NoDup closing ∧ l1 ⊆ closing ∧ l2 ⊆ closing.
+  Proof.
+    intros l1_unique l2_unique closing Hnodup0 Hnodup1 Hnodup2.
+    apply NoDup_app in Hnodup0 as (Hnodup0 & Hdisj0 & Hnodup_stack).
+    split.
+    - subst closing.
+      apply NoDup_app. split.
+      + apply NoDup_app. split; first exact Hnodup0.
+        split.
+        * intros a Ha0 Ha12.
+          apply elem_of_app in Ha12 as [Ha1|Ha2].
+          { subst l1_unique.
+            apply list_elem_of_filter in Ha1 as [Hnot _].
+            apply Hnot. apply elem_of_app; left; exact Ha0. }
+          { subst l2_unique.
+            apply list_elem_of_filter in Ha2 as [Hnot _].
+            apply Hnot. apply elem_of_app; left; exact Ha0. }
+        * apply NoDup_app. split.
+          { subst l1_unique. apply NoDup_filter. exact Hnodup1. }
+          split.
+          { intros a Ha1 Ha2.
+            subst l2_unique.
+            apply list_elem_of_filter in Ha2 as [Hnot _].
+            apply Hnot. apply elem_of_app; right.
+            apply elem_of_app; left; exact Ha1. }
+          { subst l2_unique. apply NoDup_filter. exact Hnodup2. }
+      + split.
+        * intros a Ha_rev Ha_stack.
+          apply elem_of_app in Ha_rev as [Ha0|Ha12].
+          { exact (Hdisj0 a Ha0 Ha_stack). }
+          apply elem_of_app in Ha12 as [Ha1|Ha2].
+          { subst l1_unique.
+            apply list_elem_of_filter in Ha1 as [Hnot _].
+            apply Hnot. apply elem_of_app; right; exact Ha_stack. }
+          { subst l2_unique.
+            apply list_elem_of_filter in Ha2 as [Hnot _].
+            apply Hnot. apply elem_of_app; right.
+            apply elem_of_app; right; exact Ha_stack. }
+        * exact Hnodup_stack.
+    - split; intros a Ha.
+      + destruct (decide (a ∈ l0 ++ stk)) as [Hin|Hnot].
+        * subst closing. set_solver.
+        * assert (a ∈ l1_unique) as Hin.
+          { subst l1_unique. apply list_elem_of_filter. auto. }
+          subst closing. set_solver.
+      + destruct (decide (a ∈ l0 ++ l1_unique ++ stk)) as [Hin|Hnot].
+        * subst closing. set_solver.
+        * assert (a ∈ l2_unique) as Hin.
+          { subst l2_unique. apply list_elem_of_filter. auto. }
+          subst closing. set_solver.
+  Qed.
+
+  (** Discard resources for addresses already covered by a framed list. *)
+  Lemma vae_revoked_resources_filter (W : WORLD) (C : CmptName)
+      (l excluded : list Addr) :
+    RevokedResources W C l -∗
+    RevokedResources W C (filter (fun a => a ∉ excluded) l).
+  Proof.
+    induction l as [|a l IH]; simpl; first (iIntros "$").
+    rewrite filter_cons. case_decide; simpl; iIntros "[Ha Hl]".
+    - iFrame "Ha". by iApply IH.
+    - by iApply IH.
+  Qed.
+
+  (** Framed live resources force their current world entries to be revoked. *)
+  Lemma vae_framed_resources_revoked
+      (Worig Wcur : WORLD) (C : CmptName) (l : list Addr) :
+    Forall (heap_cell_live (heap_std Worig)) l ->
+    Forall (fun a => a ∈ dom (std Wcur)) l ->
+    allocator_ctx ∗
+    world_interp Wcur C ∗
+    RevokedResources Worig C l
+    ={⊤}=∗
+    world_interp Wcur C ∗
+    RevokedResources Worig C l ∗
+    ⌜Forall (fun a => std Wcur !! a = Some Revoked) l⌝.
+  Proof.
+    intros Hlive Hdom.
+    iIntros "(#Halloc & Hworld & Hl)".
+    iDestruct (vae_world_status_some Wcur C l Hdom with "Hworld")
+      as "[Hworld %Hstatuses]".
+    iMod (vae_framed_resources_live Worig Wcur C l Hlive Hstatuses
+      with "[$Halloc $Hworld $Hl]") as "(_ & Hworld & Hl & %Hlive_cur)".
+    iMod (world_interp_revoked_by_separation_many_with_RevokedResources
+      Worig Wcur C l Hlive Hlive_cur Hdom with "[$Hworld $Hl]")
+      as "(Hworld & Hl & %Hrevoked)".
+    iModIntro. iFrame. done.
+  Qed.
+
 End VAE_Return_Repair.

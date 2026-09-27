@@ -151,10 +151,14 @@ Section VAE.
       destruct Hpriv as [? ->]. eexists; done.
     }
 
-    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]"; first by simplify_map_eq.
-    iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ PC with "Hrmap") as "[HPC Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact HPC).
+    iDestruct (big_sepM_delete _ _ cgp with "Hrmap") as "[Hcgp Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hcgp).
+    iDestruct (big_sepM_delete _ _ csp with "Hrmap") as "[Hcsp Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hcsp).
+    iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hcra).
 
     iMod (na_inv_acc with "Hvae_code Hna")
       as "(( >Himports_main & >Hcode_main) & Hna & Hvae_code_close)"; auto.
@@ -163,33 +167,39 @@ Section VAE.
     (* --- Extract registers ca0  --- *)
     assert ( is_Some (rmap !! ct0) ) as [wct0 Hwct0].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwct0).
     assert ( is_Some (rmap !! cs0) ) as [wcs0 Hwcs0].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwcs0).
     assert ( is_Some (rmap !! cs1) ) as [wcs1 Hwcs1].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwcs1).
     assert ( is_Some (rmap !! ct1) ) as [wct1 Hwct1].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwct1).
     assert ( is_Some (rmap !! ct2) ) as [wct2 Hwct2].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwct2).
     assert ( is_Some (rmap !! ct3) ) as [wct3 Hwct3].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwct3).
 
     (* Extract the imports *)
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr + Hvae_imports. }
+    { solve_addr + Hvae_imports. }
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_assert Himports_main]".
-    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr + Hvae_imports. }
+    { solve_addr + Hvae_imports. }
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_C_f Himports_main]".
-    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr + Hvae_imports. }
+    { solve_addr + Hvae_imports. }
 
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
@@ -218,6 +228,7 @@ Section VAE.
               (pc_a ^+ length vae_main_code)%a).
     { solve_addr. }
     focus_block_nochangePC 4 "Hcode_main" as a_awkward Ha_awkward "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iEval (cbn) in "HPC".
     replace (pc_b ^+ 24%nat)%a with a_awkward by solve_addr.
 
     (* Store false and update the matching custom-world location. *)
@@ -273,7 +284,7 @@ Section VAE.
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { apply withinBounds_true_iff; solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0)%a with pc_b by solve_addr+.
     iFrame "Himport_switcher".
     iNext ; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & Hcode & Himport_switcher)".
     iEval (cbn) in "Hct0".
@@ -286,26 +297,32 @@ Section VAE.
     (* -- separate argument registers -- *)
     assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwca0).
     assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwca1).
     assert ( is_Some (rmap !! ca2) ) as [wca2 Hwca2].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwca2).
     assert ( is_Some (rmap !! ca3) ) as [wca3 Hwca3].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwca3).
     assert ( is_Some (rmap !! ca4) ) as [wca4 Hwca4].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca4 with "Hrmap") as "[Hca4 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ca4 with "Hrmap") as "[Hca4 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwca4).
     assert ( is_Some (rmap !! ca5) ) as [wca5 Hwca5].
     { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]";
+      first (repeat (rewrite lookup_delete_ne; last done); exact Hwca5).
 
     focus_block 6 "Hcode_main" as a_call_g1 Ha_call_g1 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_fetch1.
     assert ((a_call_g1 + 5)%a = Some (a_call_g1 ^+ 5)%a)
-      as Hcall_g1_end by solve_addr.
+      as Hcall_g1_end by solve_addr + Hpc_contiguous Ha_call_g1.
     iApply (vae_awkward_call1_prep_spec
       with "[- $HPC $Hcra $Hca0 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcode]"); eauto.
     iNext; iIntros
@@ -327,7 +344,7 @@ Section VAE.
         first (subst W2q W2 W1; rewrite close_list_heap; cbn; by rewrite ?revoke_heap).
       { iPureIntro. exact Hrelated_priv_W0_W2q. }
       iApply "Hinterp_rmap"; eauto.
-      iPureIntro ; set_solver.
+      iPureIntro; set_solver+.
     }
     iAssert ( ⌜ wca1 = WInt 0 ⌝ )%I as "->".
     { iApply "Hzeroed_rmap"; eauto.
@@ -376,10 +393,10 @@ Section VAE.
       as "Hna".
     { iNext.
       iDestruct (region_pointsto_cons with "[$Himport_C_f $Himports_main]") as "Himports_main"
-      ; [solve_addr|solve_addr|].
+      ; [solve_addr + Hvae_imports|solve_addr + Hvae_imports|].
       iDestruct (region_pointsto_cons with "[$Himport_assert $Himports_main]") as "Himports_main"
-      ; [solve_addr|solve_addr|].
-      iDestruct (region_pointsto_cons with "[$Himport_switcher $Himports_main]") as "$" ;solve_addr.
+      ; [solve_addr + Hvae_imports|solve_addr + Hvae_imports|].
+      iDestruct (region_pointsto_cons with "[$Himport_switcher $Himports_main]") as "$" ; solve_addr + Hvae_imports.
     }
 
     (* Apply the spec switcher call *)
@@ -451,8 +468,8 @@ Section VAE.
 
     (* Extract the imports *)
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr + Hvae_imports. }
+    { solve_addr + Hvae_imports. }
 
     clear a_awkward.
     focus_block_nochangePC 7 "Hcode_main" as a_awkward Ha_awkward "Hcode" "Hcont"; iHide "Hcont" as hcont.
@@ -550,7 +567,7 @@ Section VAE.
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hct0 $Hcs0 $Hcs1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { apply withinBounds_true_iff; solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0)%a with pc_b by solve_addr+.
     iFrame "Himport_switcher".
     iNext ; iIntros "(HPC & Hct0 & Hcs0 & Hcs1 & Hcode & Himport_switcher)".
     iEval (cbn) in "Hct0".
@@ -638,7 +655,7 @@ Section VAE.
     iMod ("Hvae_code_close" with "[$Hna Himport_switcher Himports_main $Hcode_main]")
       as "Hna".
     { iNext.
-      iDestruct (region_pointsto_cons with "[$Himport_switcher $Himports_main]") as "$" ;solve_addr.
+      iDestruct (region_pointsto_cons with "[$Himport_switcher $Himports_main]") as "$" ; solve_addr + Hvae_imports.
     }
 
     iDestruct (world_interp_rel_loc_valid  with "Hworld_interp_C Hsts_rel") as "%Hwrel_i_W5q".
@@ -772,43 +789,14 @@ Section VAE.
 
     set (l1_unique :=
       filter (fun a => a ∉ l0_live ++ stk_frame_addrs) l1_live).
-    set (l1_overlap :=
-      filter (fun a => a ∈ l0_live ++ stk_frame_addrs) l1_live).
-    assert (l1_live ≡ₚ l1_unique ++ l1_overlap) as Hl1_unique_partition.
-    { subst l1_unique l1_overlap.
-      transitivity
-        (filter (fun a => a ∈ l0_live ++ stk_frame_addrs) l1_live ++
-         filter (fun a => a ∉ l0_live ++ stk_frame_addrs) l1_live).
-      - apply filter_complement_list.
-      - apply Permutation_app_comm. }
-    iAssert (RevokedResources W3 C (l1_unique ++ l1_overlap))%I
-      with "[Hl1_live]" as "Hl1_split".
-    { rewrite /RevokedResources.
-      iApply (big_opL_permutation with "Hl1_live").
-      symmetry. exact Hl1_unique_partition. }
-    iDestruct (RevokedResources_app with "Hl1_split")
-      as "[Hl1_unique Hl1_overlap]".
-    iClear "Hl1_overlap".
+    iDestruct (vae_revoked_resources_filter W3 C l1_live
+      (l0_live ++ stk_frame_addrs) with "Hl1_live") as "Hl1_unique".
 
     set (l2_unique :=
       filter (fun a => a ∉ l0_live ++ l1_unique ++ stk_frame_addrs) l2).
-    set (l2_overlap :=
-      filter (fun a => a ∈ l0_live ++ l1_unique ++ stk_frame_addrs) l2).
-    assert (l2 ≡ₚ l2_unique ++ l2_overlap) as Hl2_unique_partition.
-    { subst l2_unique l2_overlap.
-      transitivity
-        (filter (fun a => a ∈ l0_live ++ l1_unique ++ stk_frame_addrs) l2 ++
-         filter (fun a => a ∉ l0_live ++ l1_unique ++ stk_frame_addrs) l2).
-      - apply filter_complement_list.
-      - apply Permutation_app_comm. }
-    iAssert (RevokedResources W6 C (l2_unique ++ l2_overlap))%I
-      with "[Hrevoked_l2]" as "Hl2_split".
-    { rewrite /RevokedResources.
-      iApply (big_opL_permutation with "Hrevoked_l2").
-      symmetry. exact Hl2_unique_partition. }
-    iDestruct (RevokedResources_app with "Hl2_split")
-      as "[Hl2_unique Hl2_overlap]".
-    iClear "Hl2_overlap".
+    iDestruct (vae_revoked_resources_filter W6 C l2
+      (l0_live ++ l1_unique ++ stk_frame_addrs)
+      with "Hrevoked_l2") as "Hl2_unique".
 
     set (closing_revoked := l0_live ++ l1_unique ++ l2_unique).
     set (closing := closing_revoked ++ stk_frame_addrs).
@@ -819,18 +807,9 @@ Section VAE.
       rewrite Forall_forall in Hl_revoked_W6.
       apply Hl_revoked_W6.
       rewrite Hl0_partition. apply elem_of_app; left; exact Ha. }
-    iDestruct (vae_world_status_some W7 C l0_live Hl0_dom_W7
-      with "Hworld_interp_C") as "[Hworld_interp_C %Hl0_statuses_W7]".
-    iMod (vae_framed_resources_live W0 W7 C l0_live
-      Hl0_live Hl0_statuses_W7
-      with "[$Halloc $Hworld_interp_C $Hl0_live]")
-      as "(_ & Hworld_interp_C & Hl0_live & %Hl0_live_W7)".
-    iMod (
-       world_interp_revoked_by_separation_many_with_RevokedResources with "[$Hworld_interp_C $Hl0_live]"
-      ) as "(Hworld_interp_C & Hl0_live & %Hl0_live_revoked_W7)".
-    { exact Hl0_live. }
-    { exact Hl0_live_W7. }
-    { exact Hl0_dom_W7. }
+    iMod (vae_framed_resources_revoked W0 W7 C l0_live
+      Hl0_live Hl0_dom_W7 with "[$Halloc $Hworld_interp_C $Hl0_live]")
+      as "(Hworld_interp_C & Hl0_live & %Hl0_live_revoked_W7)".
 
     assert (Forall (heap_cell_live (heap_std W3)) l1_unique)
       as Hl1_unique_live_W3.
@@ -852,19 +831,10 @@ Section VAE.
       apply Htemp1. apply elem_of_app; left.
       rewrite Hl1_partition. apply elem_of_app; left.
       subst l1_unique. by apply list_elem_of_filter in Ha as [_ Ha]. }
-    iDestruct (vae_world_status_some W7 C l1_unique
-      Hl1_unique_dom_W7 with "Hworld_interp_C")
-      as "[Hworld_interp_C %Hl1_unique_statuses_W7]".
-    iMod (vae_framed_resources_live W3 W7 C l1_unique
-      Hl1_unique_live_W3 Hl1_unique_statuses_W7
+    iMod (vae_framed_resources_revoked W3 W7 C l1_unique
+      Hl1_unique_live_W3 Hl1_unique_dom_W7
       with "[$Halloc $Hworld_interp_C $Hl1_unique]")
-      as "(_ & Hworld_interp_C & Hl1_unique & %Hl1_unique_live_W7)".
-    iMod (world_interp_revoked_by_separation_many_with_RevokedResources
-      with "[$Hworld_interp_C $Hl1_unique]")
       as "(Hworld_interp_C & Hl1_unique & %Hl1_unique_revoked_W7)".
-    { exact Hl1_unique_live_W3. }
-    { exact Hl1_unique_live_W7. }
-    { exact Hl1_unique_dom_W7. }
 
     assert (Forall (fun a => std W7 !! a = Some Revoked) closing)
       as Hclosing_revoked_W7.
@@ -878,69 +848,23 @@ Section VAE.
         subst l2_unique. by apply list_elem_of_filter in Ha as [_ Ha].
       - exact Hstack_revoked_W6. }
 
-    assert (NoDup closing) as Hclosing_nodup.
-    { destruct Hl_unk as [Hnodup0 _].
-      apply NoDup_app in Hnodup0 as (Hnodup_l & Hdisj0 & Hnodup_stack).
-      rewrite Hl0_partition in Hnodup_l.
-      apply NoDup_app in Hnodup_l as [Hnodup0_live _].
-      destruct Hl1_unk as [Hnodup1 _].
-      apply NoDup_app in Hnodup1 as [Hnodup_l1 _].
-      rewrite Hl1_partition in Hnodup_l1.
-      apply NoDup_app in Hnodup_l1 as [Hnodup1_live _].
-      destruct Hl2_unk as [Hnodup2 _].
-      apply NoDup_app in Hnodup2 as [Hnodup_l2 _].
-      subst closing closing_revoked.
-      apply NoDup_app. split.
-      - apply NoDup_app. split; first exact Hnodup0_live.
-        split.
-        + intros a Ha0 Ha12.
-          apply elem_of_app in Ha12 as [Ha1|Ha2].
-          * subst l1_unique.
-            apply list_elem_of_filter in Ha1 as [Hnot _].
-            apply Hnot. apply elem_of_app; left; exact Ha0.
-          * subst l2_unique.
-            apply list_elem_of_filter in Ha2 as [Hnot _].
-            apply Hnot. apply elem_of_app; left; exact Ha0.
-        + apply NoDup_app. split.
-          * subst l1_unique. apply NoDup_filter. exact Hnodup1_live.
-          * split.
-            { intros a Ha1 Ha2.
-              subst l2_unique.
-              apply list_elem_of_filter in Ha2 as [Hnot _].
-              apply Hnot. apply elem_of_app; right.
-              apply elem_of_app; left; exact Ha1. }
-            { subst l2_unique. apply NoDup_filter. exact Hnodup_l2. }
-      - split.
-        + intros a Ha_rev Ha_stack.
-          apply elem_of_app in Ha_rev as [Ha0|Ha12].
-          * apply (Hdisj0 a); [|exact Ha_stack].
-            rewrite Hl0_partition. apply elem_of_app; left; exact Ha0.
-          * apply elem_of_app in Ha12 as [Ha1|Ha2].
-            { subst l1_unique.
-              apply list_elem_of_filter in Ha1 as [Hnot _].
-              apply Hnot. apply elem_of_app; right; exact Ha_stack. }
-            { subst l2_unique.
-              apply list_elem_of_filter in Ha2 as [Hnot _].
-              apply Hnot. apply elem_of_app; right.
-              apply elem_of_app; right; exact Ha_stack. }
-        + exact Hnodup_stack. }
-
-    assert (l1_live ⊆ closing) as Hl1_closing.
-    { intros a Ha.
-      rewrite Hl1_unique_partition in Ha.
-      apply elem_of_app in Ha as [Ha|Ha].
-      - subst closing closing_revoked. set_solver.
-      - subst l1_overlap.
-        apply list_elem_of_filter in Ha as [Ha _].
-        subst closing closing_revoked stk_frame_addrs. set_solver. }
-    assert (l2 ⊆ closing) as Hl2_closing.
-    { intros a Ha.
-      rewrite Hl2_unique_partition in Ha.
-      apply elem_of_app in Ha as [Ha|Ha].
-      - subst closing closing_revoked. set_solver.
-      - subst l2_overlap.
-        apply list_elem_of_filter in Ha as [Ha _].
-        subst closing closing_revoked stk_frame_addrs. set_solver. }
+    assert (NoDup closing ∧ l1_live ⊆ closing ∧ l2 ⊆ closing)
+      as (Hclosing_nodup & Hl1_closing & Hl2_closing).
+    { apply (vae_closing_lists l0_live l1_live l2 stk_frame_addrs).
+      - destruct Hl_unk as [Hnodup0 _].
+        apply NoDup_app in Hnodup0 as (Hnodup_l & Hdisj & Hnodup_stack).
+        rewrite Hl0_partition in Hnodup_l.
+        apply NoDup_app in Hnodup_l as [Hnodup_live _].
+        apply NoDup_app. split; first exact Hnodup_live.
+        split; last exact Hnodup_stack.
+        intros a Ha Hstack. apply (Hdisj a); last exact Hstack.
+        rewrite Hl0_partition. apply elem_of_app; left; exact Ha.
+      - destruct Hl1_unk as [Hnodup1 _].
+        apply NoDup_app in Hnodup1 as [Hnodup_l1 _].
+        rewrite Hl1_partition in Hnodup_l1.
+        by apply NoDup_app in Hnodup_l1 as [Hnodup_live _].
+      - destruct Hl2_unk as [Hnodup2 _].
+        by apply NoDup_app in Hnodup2 as [Hnodup_l2 _]. }
     assert (forall a, std W0 !! a = Some Temporary -> a ∈ closing)
       as Hclosing_covers_W0.
     { intros a Htemp.
@@ -949,13 +873,13 @@ Section VAE.
       apply elem_of_app in Htemp as [Ha|Ha].
       - rewrite Hl0_partition in Ha.
         apply elem_of_app in Ha as [Ha|Ha].
-        + subst closing closing_revoked. set_solver.
+        + subst closing closing_revoked. set_solver + Ha.
         + apply Hq0_l1 in Ha.
           rewrite Hl1_partition in Ha.
           apply elem_of_app in Ha as [Ha|Ha].
           * apply Hl1_closing; exact Ha.
           * apply Hl2_closing, Hq1_l2; exact Ha.
-      - subst closing stk_frame_addrs. set_solver. }
+      - subst closing stk_frame_addrs. set_solver + Ha. }
     assert (forall a, std W3 !! a = Some Temporary -> a ∈ closing)
       as Hclosing_covers_W3.
     { intros a Htemp.
@@ -1007,17 +931,17 @@ Section VAE.
 
     (* Extract the imports *)
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr + Hvae_imports. }
+    { solve_addr + Hvae_imports. }
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_assert Himports_main]".
-    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr + Hvae_imports. }
+    { solve_addr + Hvae_imports. }
 
     focus_block_nochangePC 9 "Hcode_main" as a_ret Ha_ret "Hcode" "Hcont"; iHide "Hcont" as hcont.
     assert (a_call_g2 = a_ret) as Hcall2_ret by solve_addr.
     iEval (rewrite Hcall2_ret) in "HPC".
     assert (loc W5 !! i = Some (encode true)) as Hwst_i_W5.
-    { subst W5. by simplify_map_eq. }
+    { subst W5. cbn. apply lookup_insert_eq. }
     assert (SubBounds pc_b pc_e a_ret (a_ret ^+ 6)%a)
       as Hload_subbounds by solve_addr.
     iApply (vae_awkward_flag_load_spec W5 W6 C i awkN
@@ -1069,8 +993,8 @@ Section VAE.
       as "Hna".
     { iNext.
       iDestruct (region_pointsto_cons with "[$Himport_assert $Himports_main]") as "Himports_main"
-      ; [solve_addr|solve_addr|].
-      iDestruct (region_pointsto_cons with "[$Himport_switcher $Himports_main]") as "$" ;solve_addr.
+      ; [solve_addr + Hvae_imports|solve_addr + Hvae_imports|].
+      iDestruct (region_pointsto_cons with "[$Himport_switcher $Himports_main]") as "$" ; solve_addr + Hvae_imports.
     }
 
     (* Put all the registers under the same map *)
