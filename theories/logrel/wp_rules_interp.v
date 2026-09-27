@@ -795,10 +795,10 @@ Section wp_interp.
       iDestruct "Hinterp" as "#HφV /=".
       iDestruct ("Hwcond" with "HφV") as "#Hnormal_p'".
       iAssert (interp_in_mem p W C loadv)%I as "#Hnormal".
-      { rewrite interp_in_mem_eq filter_heap_load_word_shared.
+      { rewrite interp_in_mem_eq filter_heap_load_word.
         iApply (interp_weakening_word_load W C p p' (filter_heap W loadv));
           first exact Hflows.
-        iEval (rewrite /interp_in_mem_pre filter_heap_load_word_shared)
+        iEval (rewrite /interp_in_mem_pre filter_heap_load_word)
           in "Hnormal_p'".
         iExact "Hnormal_p'". }
       iDestruct (interp_in_mem_shadow_result W C a p loadv actualv alloc_map
@@ -1406,10 +1406,10 @@ Section wp_interp.
       iDestruct "Hinterp" as "#HφV /=".
       iDestruct ("Hwcond" with "HφV") as "#Hnormal_p'".
       iAssert (interp_in_mem p W C loadv)%I as "#Hnormal".
-      { rewrite interp_in_mem_eq filter_heap_load_word_shared.
+      { rewrite interp_in_mem_eq filter_heap_load_word.
         iApply (interp_weakening_word_load W C p p' (filter_heap W loadv));
           first exact Hflows.
-        iEval (rewrite /interp_in_mem_pre filter_heap_load_word_shared)
+        iEval (rewrite /interp_in_mem_pre filter_heap_load_word)
           in "Hnormal_p'".
         iExact "Hnormal_p'". }
       iDestruct (interp_in_mem_shadow_result W C ea p loadv actualv alloc_map

@@ -22,38 +22,6 @@ Section fundamental.
   Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Reg) -n> iPropO Σ).
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
-  Lemma filter_heap_borrow W w :
-    filter_heap W (borrow w) = borrow (filter_heap W w).
-  Proof.
-    apply filter_heap_map;
-      destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
-      reflexivity.
-  Qed.
-
-  Lemma filter_heap_deeplocal W w :
-    filter_heap W (deeplocal w) = deeplocal (filter_heap W w).
-  Proof.
-    apply filter_heap_map;
-      destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
-      reflexivity.
-  Qed.
-
-  Lemma filter_heap_readonly W w :
-    filter_heap W (readonly w) = readonly (filter_heap W w).
-  Proof.
-    apply filter_heap_map;
-      destruct w as [z|[t p g b e a|t p g b e a]|t p g b e a|ot [t p g b e a|t p g b e a] ];
-      reflexivity.
-  Qed.
-
-
-  Lemma filter_heap_load_word W p w :
-    filter_heap W (load_word p w) = load_word p (filter_heap W w).
-  Proof.
-    rewrite /load_word. destruct (isDRO p), (isDL p);
-      by rewrite ?filter_heap_readonly ?filter_heap_deeplocal ?filter_heap_borrow.
-  Qed.
-
   Lemma enter_cond_weakening W C p b e a :
     (□ enter_cond W C p Global b e a (fixpoint interp1)) -∗
      □ enter_cond W C p Local b e a (fixpoint interp1).

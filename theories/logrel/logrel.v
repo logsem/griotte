@@ -1561,7 +1561,7 @@ Section logrel.
     cbn. destruct (alloc_object_status obj); done.
   Qed.
 
-  Lemma filter_heap_borrow_shared W w :
+  Lemma filter_heap_borrow W w :
     filter_heap W (borrow w) = borrow (filter_heap W w).
   Proof.
     apply filter_heap_map;
@@ -1569,7 +1569,7 @@ Section logrel.
       reflexivity.
   Qed.
 
-  Lemma filter_heap_deeplocal_shared W w :
+  Lemma filter_heap_deeplocal W w :
     filter_heap W (deeplocal w) = deeplocal (filter_heap W w).
   Proof.
     apply filter_heap_map;
@@ -1577,7 +1577,7 @@ Section logrel.
       reflexivity.
   Qed.
 
-  Lemma filter_heap_readonly_shared W w :
+  Lemma filter_heap_readonly W w :
     filter_heap W (readonly w) = readonly (filter_heap W w).
   Proof.
     apply filter_heap_map;
@@ -1586,11 +1586,11 @@ Section logrel.
   Qed.
 
 
-  Lemma filter_heap_load_word_shared W p w :
+  Lemma filter_heap_load_word W p w :
     filter_heap W (load_word p w) = load_word p (filter_heap W w).
   Proof.
     rewrite /load_word. destruct (isDRO p), (isDL p);
-      by rewrite ?filter_heap_readonly_shared ?filter_heap_deeplocal_shared ?filter_heap_borrow_shared.
+      by rewrite ?filter_heap_readonly ?filter_heap_deeplocal ?filter_heap_borrow.
   Qed.
 
   Lemma heap_authority_base_heap_cap_base (raw : Word) base :
@@ -1621,7 +1621,7 @@ Section logrel.
         apply heap_authority_base_heap_cap_base in Hauth.
         rewrite Hbase in Hauth. discriminate. }
       assert (filter_heap W (load_word p raw) = load_word p raw) as Hfilter.
-      { rewrite filter_heap_load_word_shared /filter_heap Hauth. done. }
+      { rewrite filter_heap_load_word /filter_heap Hauth. done. }
       iSplitR "Hworld Hentries".
       { iApply (interp_in_mem_load_result with "Hnormal").
         right. split; done. }
@@ -1645,7 +1645,7 @@ Section logrel.
       2: { iSplitR "Hworld Hentries".
            { iApply (interp_in_mem_load_result with "Hnormal").
              right. split; first done.
-             rewrite filter_heap_load_word_shared /filter_heap Hauth. done. }
+             rewrite filter_heap_load_word /filter_heap Hauth. done. }
            iFrame. }
       pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
       rewrite Hbase in Hcap. inversion Hcap; subst b.
@@ -1653,13 +1653,13 @@ Section logrel.
       2: { iSplitR "Hworld Hentries".
            { iApply (interp_in_mem_load_result with "Hnormal").
              right. split; first done.
-             rewrite filter_heap_load_word_shared /filter_heap Hauth Hheaplookup. done. }
+             rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup. done. }
            iFrame. }
       destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
       { iSplitR "Hworld Hentries".
         { iApply (interp_in_mem_load_result with "Hnormal").
           right. split; first done.
-          rewrite filter_heap_load_word_shared /filter_heap Hauth Hheaplookup /= Hstatus. done. }
+          rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus. done. }
         iFrame. }
       assert (heap_cell_status (heap_std Wworld) base = Some AllocObjectQuarantined)
         as Hqstatus.
@@ -1680,7 +1680,7 @@ Section logrel.
       2: { iSplitR "Hworld Hentries".
            { iApply (interp_in_mem_load_result with "Hnormal").
              right. split; first done.
-             rewrite filter_heap_load_word_shared /filter_heap Hauth. done. }
+             rewrite filter_heap_load_word /filter_heap Hauth. done. }
            iFrame. }
       pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
       rewrite Hbase in Hcap. inversion Hcap; subst b.
@@ -1688,13 +1688,13 @@ Section logrel.
       2: { iSplitR "Hworld Hentries".
            { iApply (interp_in_mem_load_result with "Hnormal").
              right. split; first done.
-             rewrite filter_heap_load_word_shared /filter_heap Hauth Hheaplookup. done. }
+             rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup. done. }
            iFrame. }
       destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
       { iSplitR "Hworld Hentries".
         { iApply (interp_in_mem_load_result with "Hnormal").
           right. split; first done.
-          rewrite filter_heap_load_word_shared /filter_heap Hauth Hheaplookup /= Hstatus. done. }
+          rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus. done. }
         iFrame. }
       assert (heap_cell_status (heap_std Wworld) base = Some AllocObjectQuarantined)
         as Hqstatus.
