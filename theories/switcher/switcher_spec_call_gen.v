@@ -626,7 +626,7 @@ Section Switcher.
       iFrame "∗#%".
       iSplit.
       {
-        iApply interp_monotone_cap_disjoint;
+        iApply interp_monotone_cap_nonheap;
           [exact Hstk4_heap|exact HW'|].
         iApply (interp_lea with "Hstk4v"); done.
       }

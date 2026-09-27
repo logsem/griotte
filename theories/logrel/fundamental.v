@@ -410,21 +410,15 @@ Section fundamental.
     iIntros (a0 W' Hin) "#Hfuture". iModIntro.
     assert (isO p = false) by (by eapply executeAllowed_nonO).
     iDestruct (interp_cap_disjoint with "Hw") as %[_ Hdisjoint]; first done.
-    assert (is_heap_address b = false) as Hnonheap.
-    { apply not_true_is_false. intros Hb.
-      destruct Hin as [Hba0 Ha0e].
-      apply withinBounds_true_iff in Hb.
-      rewrite /disjoint_from_heap elem_of_disjoint in Hdisjoint.
-      eapply (Hdisjoint b); apply elem_of_finz_seq_between; solve_addr. }
     destruct g.
     - iDestruct "Hfuture" as %Hrelated.
       iDestruct (interp_monotone_nl_cap_nonheap with "Hw") as "Hw'";
-        [exact Hnonheap|exact Hdisjoint|exact Hrelated|done|].
+        [exact Hdisjoint|exact Hrelated|done|].
       iApply (fundamental W');eauto.
       iApply interp_lea; eauto.
     - iDestruct "Hfuture" as %Hrelated.
       iDestruct (interp_monotone_cap_nonheap with "Hw") as "Hw'";
-        [exact Hnonheap|exact Hdisjoint|exact Hrelated|].
+        [exact Hdisjoint|exact Hrelated|].
       iApply (fundamental W');eauto.
       iApply interp_lea; eauto.
   Qed.

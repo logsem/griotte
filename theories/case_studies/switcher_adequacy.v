@@ -31,10 +31,10 @@ Section helpers_switcher_adequacy.
     iIntros "#Hinv_switcher #Hinterp_pcc #Hinterp_cgp".
     iIntros (W' Hrelated).
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
-    iDestruct (interp_monotone_nl_cap_disjoint W W' C true RX Global
+    iDestruct (interp_monotone_nl_cap_nonheap W W' C true RX Global
                  b_pcc e_pcc b_pcc Hpcc_heap Hrelated eq_refl
                  with "Hinterp_pcc") as "Hinterp_pcc'".
-    iDestruct (interp_monotone_nl_cap_disjoint W W' C true RW Global
+    iDestruct (interp_monotone_nl_cap_nonheap W W' C true RW Global
                  b_cgp e_cgp b_cgp Hcgp_heap Hrelated eq_refl
                  with "Hinterp_cgp") as "Hinterp_cgp'".
     iDestruct (interp_lea with "Hinterp_pcc'") as "Hinterp_PCC"; first done.

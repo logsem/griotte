@@ -597,16 +597,6 @@ Section monotone.
   Qed.
 
   Lemma interp_monotone_cap_nonheap W W' C t p g b e a :
-    is_heap_address b = false -> disjoint_from_heap b e ->
-    related_sts_pub_world W W' ->
-    interp W C (WCap t p g b e a) -∗ interp W' C (WCap t p g b e a).
-  Proof.
-    intros Hb Hdisj Hrelated.
-    iApply interp_monotone_cap_valid; last done.
-    by rewrite /heap_cap_valid /heap_cap_live Hb.
-  Qed.
-
-  Lemma interp_monotone_cap_disjoint W W' C t p g b e a :
     disjoint_from_heap b e ->
     related_sts_pub_world W W' ->
     interp W C (WCap t p g b e a) -∗ interp W' C (WCap t p g b e a).
@@ -617,16 +607,6 @@ Section monotone.
   Qed.
 
   Lemma interp_monotone_nl_cap_nonheap W W' C t p g b e a :
-    is_heap_address b = false -> disjoint_from_heap b e ->
-    related_sts_priv_world W W' -> isLocalWord (WCap t p g b e a) = false ->
-    interp W C (WCap t p g b e a) -∗ interp W' C (WCap t p g b e a).
-  Proof.
-    intros Hb Hdisj Hrelated Hnl.
-    iApply interp_monotone_nl_cap_valid; try done.
-    by rewrite /heap_cap_valid /heap_cap_live Hb.
-  Qed.
-
-  Lemma interp_monotone_nl_cap_disjoint W W' C t p g b e a :
     disjoint_from_heap b e ->
     related_sts_priv_world W W' ->
     isLocalWord (WCap t p g b e a) = false ->
@@ -651,7 +631,7 @@ Proof.
   - iFrame.
   - iDestruct "Hcallee" as "[%Hheap Hcallee]".
     iSplit; first done.
-    iApply (interp_monotone_cap_disjoint with "Hcallee"); naive_solver.
+    iApply (interp_monotone_cap_nonheap with "Hcallee"); naive_solver.
   - destruct (is_untrusted_caller_frm a); first done.
     iIntros (W'' Hrel'). iApply "Hrestore". iPureIntro.
     eapply related_sts_pub_trans_world; eauto.

@@ -304,7 +304,7 @@ Section Switcher.
     iMod (world_interp_stack_fixing with "Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
       "(Hworld_interp & Hstk')"; eauto.
 
-    iDestruct (interp_monotone_cap_disjoint with "Hinterp_callee_wstk")
+    iDestruct (interp_monotone_cap_nonheap with "Hinterp_callee_wstk")
       as "Hinterp_callee_wstk'";
       [exact Hstk_nonheap|exact Hrelated_pub_W0_Wfixed|].
 

@@ -137,7 +137,6 @@ Section DROE.
       iEval (rewrite /interp_in_mem_pre /load_word /= HfilterW').
       iApply (interp_monotone_nl_cap_nonheap W W' C true RO_DRO Global
         cgp_b (cgp_b ^+ 1)%a cgp_b with "H").
-      - exact Hcgp_nonheap.
       - pose proof (switcher_disjoint_subseg cgp_b cgp_e cgp_b
           (cgp_b ^+ 1)%a ltac:(solve_addr) ltac:(solve_addr)
           (conj Hcgp_shadow Hcgp_heap)) as [_ Hdisj].
