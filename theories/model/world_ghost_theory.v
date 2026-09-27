@@ -190,9 +190,44 @@ Section world_ghost_theory.
       iModIntro; iIntros (k ka Hka) "H";
       specialize (Hlive k ka Hka);
       rewrite /heap_cell_live in Hlive;
-      rewrite Hlive.
+      rewrite /close_addr_resources Hlive.
     + iDestruct "H" as "(% &% & $ & $ & [% ($&$&$&?)])"; by rewrite mono_temporary_eq.
     + iDestruct "H" as "(% &% & $ & [% ($&$&?&$)] & $)"; by rewrite mono_temporary_eq.
+  Qed.
+
+  Lemma RevokedResources_eq_all (W : WORLD) (C : CmptName) (l : list Addr) :
+    RevokedResources W C l ⊣⊢ close_list_resources C W l false.
+  Proof.
+    rewrite /RevokedResources /close_list_resources.
+    iSplit.
+    - iIntros "H". iApply (big_sepL_impl with "H").
+      iIntros "!> %k %a %Ha H".
+      destruct (heap_cell_status (heap_std W) a) as [status|] eqn:Hstatus;
+        last by iDestruct "H" as (p φ Hpers) "(_ & Hcell)"; iDestruct "Hcell" as "[]".
+      destruct status.
+      + iDestruct "H" as (p φ Hpers) "(Hrel & Hcell)".
+        iExists p, φ. iFrame "Hrel". iSplit; first done.
+        rewrite Hstatus.
+        iDestruct "Hcell" as (v) "(%Hp & Ha & Hφ & #Hmono)".
+        iExists v. rewrite mono_temporary_eq. iFrame "Ha Hmono Hφ %".
+      + iDestruct "H" as (p φ Hpers) "(Hrel & _)".
+        iExists p, φ. rewrite Hstatus. iFrame "Hrel %".
+    - iIntros "H". iApply (big_sepL_impl with "H").
+      iIntros "!> %k %a %Ha H".
+      destruct (heap_cell_status (heap_std W) a) as [status|] eqn:Hstatus;
+        last by iDestruct "H" as (p φ Hpers) "(Hcell & _)";
+          iEval (rewrite Hstatus) in "Hcell"; iDestruct "Hcell" as "[]".
+      destruct status.
+      + iDestruct "H" as (p φ Hpers) "(Hcell & Hrel)".
+        iExists p, φ. iFrame "Hrel". iSplit; first done.
+        iEval (rewrite Hstatus) in "Hcell".
+        iDestruct "Hcell" as (v) "(%Hp & Ha & #Hmono & Hφ)".
+        iExists v. rewrite /TmpRes mono_temporary_eq.
+        iFrame "Ha Hmono Hφ %".
+      + iDestruct "H" as (p φ Hpers) "(Hcell & Hrel)".
+        iEval (rewrite Hstatus) in "Hcell".
+        iDestruct "Hcell" as "_".
+        iExists p, φ. iFrame "Hrel %".
   Qed.
 
   Lemma RevokedResources_quarantined (W : WORLD) (C : CmptName) (l : list Addr) :
@@ -1332,7 +1367,18 @@ Section world_ghost_theory.
     iMod ( monotone_revoke_keep _ _ s with "[$Hr $Hsts]") as "($ & $ & Hres & $)"; auto.
     { iPureIntro; intros k a Ha; apply HaS; apply list_elem_of_lookup; eauto. }
     iDestruct (sealing_map_monotone with "Hseals") as "$"; auto.
-    apply revoke_related_sts_priv_world.
+    - apply revoke_related_sts_priv_world.
+    - iModIntro.
+      rewrite /close_list_resources big_sepL_later.
+      iApply (big_sepL_impl with "Hres").
+      iIntros "!> %k %a %Ha H".
+      assert (heap_cell_live (heap_std W) a) as Hlive_a
+        by (rewrite Forall_lookup in Hlive; eauto).
+      unfold heap_cell_live in Hlive_a.
+      rewrite /close_addr_resources Hlive_a.
+      iDestruct "H" as (p φ Hpers) "(Htemp & #Hrel)".
+      iNext. iExists p, φ. iFrame "Hrel". iSplit; first done.
+      iExact "Htemp".
   Qed.
 
   Lemma world_interp_revoke_nonheap W C s :
@@ -1401,6 +1447,17 @@ Section world_ghost_theory.
     { iPureIntro. rewrite Forall_lookup in Htemps_live. exact Htemps_live. }
     iDestruct (sealing_map_monotone C W (revoke W) with "Hseals") as "Hseals";
       [exact Hheap_wf|done|apply revoke_related_sts_priv_world|].
+    iAssert (▷ close_list_resources C W s_live false)%I with "[Hres]" as "Hres".
+    { rewrite /close_list_resources big_sepL_later.
+      iApply (big_sepL_impl with "Hres").
+      iIntros "!> %k %a %Ha H".
+      assert (heap_cell_live (heap_std W) a) as Hlive_a
+        by (rewrite Forall_lookup in Hlive; eauto).
+      unfold heap_cell_live in Hlive_a.
+      rewrite /close_addr_resources Hlive_a.
+      iDestruct "H" as (p φ Hpers) "(Htemp & #Hrel)".
+      iNext. iExists p, φ. iFrame "Hrel". iSplit; first done.
+      iExact "Htemp". }
     iModIntro. iFrame "Hr Hsts Hseals".
     iSplitL "Hres Hq".
     - iNext.
@@ -1442,26 +1499,11 @@ Section world_ghost_theory.
     ==∗
     world_interp (close_list l W) C.
   Proof.
-    rewrite world_interp_eq /world_interp_def.
+    rewrite world_interp_eq /world_interp_def (RevokedResources_eq_all _ _ _).
     iIntros "((Hr & Hsts & Hseals) & Hres)".
     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iAssert (close_list_cell_updates (close_list l W) C l) with "[Hres]" as "Hupdates".
-    { iApply (big_sepL_impl with "Hres").
-      iIntros "!> %k %a %Ha (%p & %φ & %Hpers & Hrel & Hcell)".
-      iExists p, φ. iFrame "Hrel %".
-      iIntros (P). rewrite !heap_cell_resource_status.
-      destruct (heap_cell_status (heap_std (close_list l W)) a) as [status|] eqn:Hstatus;
-        last by iDestruct "Hcell" as "[]".
-      destruct status.
-      - iIntros "_".
-        iDestruct "Hcell" as (v) "(%Hp & Ha & Hφ & Hmono)".
-        cbn [region_std_interp]. iExists v.
-        rewrite -mono_temporary_eq. iFrame "Ha Hmono %".
-        iNext. iExact "Hφ".
-      - iIntros "$".
-    }
-    iMod (monotone_close_list_region_cell_updates W W C l
-      with "[$Hsts $Hr $Hupdates]") as "[$ $]".
+    iMod (monotone_close_list_region_resources W W C l
+      with "[$Hsts $Hr $Hres]") as "[$ $]".
     iModIntro.
     iApply (sealing_map_monotone_pub with "Hseals").
     - by rewrite close_list_heap.
@@ -1488,43 +1530,7 @@ Section world_ghost_theory.
     iIntros (Hpub) "[Hr [Hsts Hseals] ] HrevokedRes".
     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iAssert (close_list_resources C W s false) with "[HrevokedRes]" as "H".
-    { iFrame.
-      iApply (big_sepL_impl with "HrevokedRes").
-      iIntros "!> %k %a %Hk H".
-      iDestruct "H" as (p Φ) "(%Hpers & Hrel & Hcell)".
-      assert (heap_cell_live (heap_std W') a) as Hlive_a.
-      { rewrite Forall_lookup in Hlive. eauto. }
-      assert (related_sts_heap_std (heap_std W) (heap_std W')) as Hheaprel.
-      { exact (proj2 (proj2 (proj2 Hpub))). }
-      destruct (heap_cell_status (heap_std W) a) as [status|] eqn:Hstatus; last first.
-      { iDestruct "Hcell" as "[]". }
-      destruct status.
-      - iDestruct "Hcell" as (wa) "(%HpO & Ha & HΦ & Hmono)".
-        iExists p, Φ. iFrame "Hrel". iFrame "%".
-        iExists wa. iFrame "Ha HΦ".
-        rewrite /mono_temporary.
-        destruct (isWL p) eqn:Hp_WL.
-        + destruct (decide (true = true ∨ isDL p = true)) as [Hdec | Hdec]; auto.
-          exfalso; apply Hdec; left; done.
-        + destruct (isDL p) eqn:Hp_DL.
-          * destruct (decide (false = true ∨ true = true)) as [Hdec | Hdec]; auto.
-            exfalso; apply Hdec; right; done.
-          * destruct (decide (false = true ∨ false = true)) as [Hdec | Hdec]; auto.
-            destruct Hdec as []; done.
-      - unfold heap_cell_status in Hstatus.
-        destruct (is_heap_address a) eqn:Hheap; last discriminate.
-        destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
-          last discriminate.
-        simpl in Hstatus. injection Hstatus as Hobj.
-        destruct (heap_lookup_addr_future (heap_std W) (heap_std W') a base obj
-          Hheap_wf Hheaprel Hlookup) as (obj' & Hlookup' & Hfuture_obj).
-        unfold heap_cell_live, heap_cell_status in Hlive_a.
-        rewrite Hheap Hlookup' in Hlive_a. simpl in Hlive_a.
-        destruct Hfuture_obj as (_ & _ & Hstatus_future).
-        rewrite <- Hobj in Hstatus_future.
-        specialize (Hstatus_future eq_refl).
-        rewrite Hstatus_future Hobj in Hlive_a. discriminate.
-    }
+    { rewrite -(RevokedResources_eq_all W C s). iExact "HrevokedRes". }
     iMod (monotone_close_list_region with "[%] [$Hsts $Hr $H]") as "[$ $]"; eauto.
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
     apply close_list_related_sts_pub.
@@ -1729,6 +1735,7 @@ Section world_ghost_theory.
     rewrite world_interp_eq /world_interp_def (RevokedResources_eq _ _ _ Hlive_W).
     iIntros (Hin) "([Hr [Hsts Hseals] ] & Hl)"; cbn.
     iMod (revoked_by_separation_many_with_temp_resources with "[$Hsts $Hr Hl]") as "(H & $ & $ & $)"; auto.
+    { exact Hlive_W. }
     by iFrame.
   Qed.
 

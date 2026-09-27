@@ -181,6 +181,7 @@ Section WorldInterpStack.
    *)
 
   Local Lemma revoked_stack_revoked W C l' :
+    Forall (heap_cell_live (heap_std W)) l' ->
     ([∗ list] a' ∈ l',
        ⌜ std W !! a' = Some Temporary ⌝ ∗
        (
@@ -198,12 +199,14 @@ Section WorldInterpStack.
     ([∗ list] a' ∈ l', ▷ (∃ v , StackWorldResource interp W C a' v ∗ a' ↦ₐ v))
   .
     Proof.
-      induction l'; iIntros "Hinterp Hrevoked"; first done.
+      induction l'; intros Hlive; iIntros "Hinterp Hrevoked"; first done.
+      apply Forall_cons in Hlive as [Hlive_a Hlive_tail].
       iDestruct "Hinterp" as "[Hinterp_a Hinterp]".
       iDestruct "Hrevoked" as "[Hrevoked_a Hrevoked]".
-      iDestruct (IHl' with "Hinterp Hrevoked") as "$".
+      iDestruct (IHl' Hlive_tail with "Hinterp Hrevoked") as "$".
       iDestruct "Hinterp_a" as "(%Ha & %p1 & %P1 & %Hp1 & %Hpers_P1 & #Hrel_1 & #Hzcond & #Hrcond & #Hwcond & #HmonoReq)".
-      rewrite /close_addr_resources /temp_resources /=.
+      unfold heap_cell_live in Hlive_a.
+      rewrite /close_addr_resources Hlive_a /temp_resources /=.
       iDestruct "Hrevoked_a" as "(%p2 & %P2 & %Hpers_P2  & [ %va H ] & #Hrel_2 )".
       iDestruct (rel_agree C a (safeC P1) P2 with "[$Hrel_1 $Hrel_2]") as "[<- Heq]".
       iDestruct "H" as "(Hp2 & Ha & #HP2 & #Hmono)".
@@ -335,6 +338,18 @@ Section WorldInterpStack.
     { iPureIntro. rewrite Forall_lookup in Htemp_rev. exact Htemp_rev. }
     rewrite /close_list_resources.
     iDestruct (big_sepL_app with "Hres") as "[Hres_unk Hres_stk]".
+    iAssert (▷ close_list_resources C W l_live false)%I
+      with "[Hres_unk]" as "Hres_unk".
+    { rewrite /close_list_resources big_sepL_later.
+      iApply (big_sepL_impl with "Hres_unk").
+      iIntros "!> %k %a0 %Ha H".
+      assert (heap_cell_live (heap_std W) a0) as Hlive_a
+        by (rewrite Forall_lookup in Hlive; eauto).
+      unfold heap_cell_live in Hlive_a.
+      rewrite /close_addr_resources Hlive_a.
+      iDestruct "H" as (p φ Hpers) "(Htemp & #Hrel)".
+      iExists p, φ. iFrame "Hrel". iSplit; first done.
+      iExact "Htemp". }
     iAssert (▷ RevokedResources W C l_tmp_unk)%I with "[Hres_unk Hq]" as "Hunk".
     { iNext.
       rewrite (RevokedResources_partition W C l_tmp_unk l_live l_q Hperm Hlive Hqstatus).
@@ -343,7 +358,7 @@ Section WorldInterpStack.
     iFrame "Hsts Hr Hunk". iFrame "%".
     iSplit.
     { iPureIntro; split; auto. }
-    iDestruct (revoked_stack_revoked _ _ la with "[$Hl] [$Hres_stk]") as "H".
+    iDestruct (revoked_stack_revoked _ _ la Hla_live with "[$Hl] [$Hres_stk]") as "H".
      rewrite -big_sepL_later.
      iAssert ( ∃ lv, ▷ ([∗ list] x;v ∈ la;lv, StackWorldResource interp W C x v ∗ x ↦ₐ v) )%I
                with "[H]" as "[% H]".
