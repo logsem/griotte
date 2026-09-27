@@ -483,10 +483,6 @@ Qed.
 
 (* Lemmas about store_word *)
 
-Lemma store_word_cases p w :
-  store_word p w = w ∨ store_word p w = clear_tag w.
-Proof. rewrite /store_word. destruct (canStore p w); auto. Qed.
-
 Lemma store_word_isWL p w :
   isWL p = true → store_word p w = w.
 Proof.
@@ -512,13 +508,6 @@ Lemma store_word_canStore p w :
   canStore p w = true → store_word p w = w.
 Proof.
   intros Hstore. by rewrite /store_word Hstore.
-Qed.
-
-Lemma get_tag_store_word p w :
-  get_tag (store_word p w) = true → get_tag w = true.
-Proof.
-  destruct (store_word_cases p w) as [-> | ->]; first done.
-  by rewrite get_tag_clear_tag.
 Qed.
 
 Lemma canStore_store_word p w :

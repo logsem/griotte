@@ -808,9 +808,9 @@ Section region_alloc.
     - eapply extend_region_revoked_nonheap; eauto; typeclasses eauto.
   Qed.
 
-  Lemma extend_region_revoked_sepL2_cases E W C l1 p φ `{∀ Wv, Persistent (φ Wv)}:
+  Lemma extend_region_revoked_sepL2 E W C l1 p φ `{∀ Wv, Persistent (φ Wv)}:
     Forall (λ k, std W !! k = None) l1 →
-    Forall (heap_cell_nonheap_or_live (heap_std W)) l1 →
+    Forall (heap_cell_live (heap_std W)) l1 →
     sts_full_world W C
     -∗ region W C
 
@@ -820,7 +820,6 @@ Section region_alloc.
      ∗ ([∗ list] k ∈ l1, rel C k p φ)
      ∗ sts_full_world (std_update_multiple W l1 Revoked) C.
   Proof.
-    setoid_rewrite <- heap_cells_live_cases.
     induction l1.
     - cbn. intros. iIntros "? ?". iFrame. eauto.
     - intros [? ?]%Forall_cons_1 [Hlive_a Hlive_tail]%Forall_cons_1. iIntros "Hsts Hr".
@@ -850,26 +849,10 @@ Section region_alloc.
         by iFrame "#∗".
   Qed.
 
-  Lemma extend_region_revoked_sepL2 E W C l1 p φ `{∀ Wv, Persistent (φ Wv)}:
-    Forall (λ k, std W !! k = None) l1 →
-    Forall (heap_cell_live (heap_std W)) l1 →
-    sts_full_world W C
-    -∗ region W C
-
-     ={E}=∗
-
-     region (std_update_multiple W l1 Revoked) C
-     ∗ ([∗ list] k ∈ l1, rel C k p φ)
-     ∗ sts_full_world (std_update_multiple W l1 Revoked) C.
-  Proof.
-    setoid_rewrite heap_cells_live_cases.
-    apply extend_region_revoked_sepL2_cases; typeclasses eauto.
-  Qed.
-
-  Lemma extend_region_temp_sepL2_cases E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
+  Lemma extend_region_temp_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
     Forall (λ k, std W !! k = None) l1 →
-    Forall (heap_cell_nonheap_or_live (heap_std W)) l1 →
+    Forall (heap_cell_live (heap_std W)) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2,
@@ -884,7 +867,6 @@ Section region_alloc.
     ∗ ([∗ list] k ∈ l1, rel C k p φ)
     ∗ sts_full_world (std_update_multiple W l1 Temporary) C.
   Proof.
-    setoid_rewrite <- heap_cells_live_cases.
     revert l2. induction l1.
     - cbn. intros. iIntros "? ?". iFrame. eauto.
     - intros l2 HneqO [HWa Hnone_l1]%Forall_cons_1 [Hlive_a Hlive_tail]%Forall_cons_1. iIntros "Hsts Hr Hl".
@@ -925,33 +907,10 @@ Section region_alloc.
       iModIntro. cbn. iFrame.
   Qed.
 
-  Lemma extend_region_temp_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
+  Lemma extend_region_perm_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
     Forall (λ k, std W !! k = None) l1 →
     Forall (heap_cell_live (heap_std W)) l1 →
-    sts_full_world W C
-    -∗ region W C
-    -∗ ([∗ list] k;v ∈ l1;l2,
-          k ↦ₐ v
-          ∗ φ (W, C, v)
-          ∗ (if isWL p then future_pub_mono C φ v else
-               (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)) )
-
-    ={E}=∗
-
-    region (std_update_multiple W l1 Temporary) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
-    ∗ sts_full_world (std_update_multiple W l1 Temporary) C.
-  Proof.
-    setoid_rewrite heap_cells_live_cases.
-    apply extend_region_temp_sepL2_cases; typeclasses eauto.
-  Qed.
-
-
-  Lemma extend_region_perm_sepL2_cases E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
-    Forall (heap_cell_nonheap_or_live (heap_std W)) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2,
@@ -965,7 +924,6 @@ Section region_alloc.
     ∗ ([∗ list] k ∈ l1, rel C k p φ)
     ∗ sts_full_world (std_update_multiple W l1 Permanent) C.
   Proof.
-    setoid_rewrite <- heap_cells_live_cases.
     revert l2. induction l1.
     { cbn. intros. iIntros "? ? ?". iFrame. eauto. }
     { intros ? ? [HWa Hnone_l1]%Forall_cons_1 [Hlive_a Hlive_tail]%Forall_cons_1. iIntros "Hsts Hr Hl".
@@ -985,27 +943,6 @@ Section region_alloc.
         eapply Forall_impl; first exact Hnone_l1.
         intros. by rewrite not_elem_of_dom. }
       iModIntro. cbn. iFrame. }
-  Qed.
-
-  Lemma extend_region_perm_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
-    Forall (heap_cell_live (heap_std W)) l1 →
-    sts_full_world W C
-    -∗ region W C
-    -∗ ([∗ list] k;v ∈ l1;l2,
-          k ↦ₐ v
-          ∗ φ (W, C, v)
-          ∗ future_priv_mono C φ v)
-
-    ={E}=∗
-
-    region (std_update_multiple W l1 Permanent) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
-    ∗ sts_full_world (std_update_multiple W l1 Permanent) C.
-  Proof.
-    setoid_rewrite heap_cells_live_cases.
-    apply extend_region_perm_sepL2_cases; typeclasses eauto.
   Qed.
 
 
@@ -1123,8 +1060,8 @@ Section region_alloc.
     done.
   Qed.
 
-  Lemma region_close_many_cases E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} :
-    Forall (heap_cell_nonheap_or_live (heap_std W)) l1 ->
+  Lemma region_close_many E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} :
+    Forall (heap_cell_live (heap_std W)) l1 ->
     NoDup l1 ->
     isO p = false ->
     ([∗ list] k ∈ l1, rel C k p φ) -∗
@@ -1134,7 +1071,6 @@ Section region_alloc.
     ([∗ list] v ∈ l2, future_priv_mono C φ v)
     ={E}=∗ region W C.
   Proof.
-    setoid_rewrite <- heap_cells_live_cases.
     revert l2.
     induction l1; iIntros (l2 Hlive HNoDup Hp) "#Hrel Hreg Hl Hφ Hmono".
     {by rewrite region_open_nil. }
@@ -1164,9 +1100,9 @@ Section region_alloc.
     ={E}=∗ region W C.
   Proof.
     intros Hcases.
-    eapply region_close_many_cases; try eassumption; try typeclasses eauto.
+    eapply region_close_many; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. left. exact Ha.
+    intros a Ha. apply heap_cell_live_nonheap. exact Ha.
   Qed.
 
   Lemma region_close_many_live_heap E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} :
@@ -1183,28 +1119,14 @@ Section region_alloc.
     ={E}=∗ region W C.
   Proof.
     intros Hcases.
-    eapply region_close_many_cases; try eassumption; try typeclasses eauto.
+    eapply region_close_many; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
+    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
+      eapply heap_cell_live_lookup; eauto.
   Qed.
 
-  Lemma region_close_many E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} :
+  Lemma extend_region_perm_sepL2_open E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     Forall (heap_cell_live (heap_std W)) l1 ->
-    NoDup l1 ->
-    isO p = false ->
-    ([∗ list] k ∈ l1, rel C k p φ) -∗
-    open_region_many W C l1 -∗
-    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ sts_state_std C k Permanent) -∗
-    ([∗ list] v ∈ l2, φ (W, C, v)) -∗
-    ([∗ list] v ∈ l2, future_priv_mono C φ v)
-    ={E}=∗ region W C.
-  Proof.
-    setoid_rewrite heap_cells_live_cases.
-    apply region_close_many_cases; typeclasses eauto.
-  Qed.
-
-  Lemma extend_region_perm_sepL2_open_cases E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    Forall (heap_cell_nonheap_or_live (heap_std W)) l1 ->
     NoDup l1 ->
     isO p = false ->
     Forall (λ k, std W !! k = None) l1 →
@@ -1225,7 +1147,6 @@ Section region_alloc.
     ∗ ([∗ list] v ∈ l2,
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
   Proof.
-    setoid_rewrite <- heap_cells_live_cases.
     iIntros (Hlive HNoDup Hp Hl1) "Hsts Hreg Hl".
     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
@@ -1265,9 +1186,9 @@ Section region_alloc.
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
   Proof.
     intros Hcases.
-    eapply extend_region_perm_sepL2_open_cases; try eassumption; try typeclasses eauto.
+    eapply extend_region_perm_sepL2_open; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. left. exact Ha.
+    intros a Ha. apply heap_cell_live_nonheap. exact Ha.
   Qed.
 
   Lemma extend_region_perm_sepL2_open_live_heap E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
@@ -1295,102 +1216,10 @@ Section region_alloc.
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
   Proof.
     intros Hcases.
-    eapply extend_region_perm_sepL2_open_cases; try eassumption; try typeclasses eauto.
+    eapply extend_region_perm_sepL2_open; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. rewrite /heap_cell_nonheap_or_live. right. exact Ha.
-  Qed.
-
-  Lemma extend_region_perm_sepL2_open E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    Forall (heap_cell_live (heap_std W)) l1 ->
-    NoDup l1 ->
-    isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
-    sts_full_world W C
-    -∗ region W C
-    -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
-    -∗ (
-         ([∗ list] k ∈ l1, rel C k p φ)
-         -∗ ([∗ list] v ∈ l2,
-               (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v)
-       )
-
-    ={E}=∗
-
-    region (std_update_multiple W l1 Permanent) C
-    ∗ sts_full_world (std_update_multiple W l1 Permanent) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
-    ∗ ([∗ list] v ∈ l2,
-               (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
-  Proof.
-    setoid_rewrite heap_cells_live_cases.
-    apply extend_region_perm_sepL2_open_cases; typeclasses eauto.
-  Qed.
-
-  Lemma extend_region_perm_sepL2_open'_cases
-    {sealsg: sealStoreG Σ} E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} o ws ws_sealed:
-    let W' := (<o[ o := ws ]o> (std_update_multiple W l1 Permanent)) in
-    Forall (heap_cell_nonheap_or_live (heap_std W)) l1 ->
-    NoDup l1 ->
-    isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
-    sts_full_world W C
-    -∗ region W C
-    -∗ sealing_map W C
-    -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
-    -∗ (
-         ([∗ list] k ∈ l1, rel C k p φ)
-         ∗ sts_full_world (std_update_multiple W l1 Permanent) C
-         ∗ sealing_map (std_update_multiple W l1 Permanent) C
-         ∗ open_region_many (std_update_multiple W l1 Permanent) C l1
-         ==∗
-         sts_full_world W' C ∗
-         sealing_map W' C ∗
-         open_region_many W' C l1 ∗
-         ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
-         ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
-       )
-
-    ={E}=∗
-
-    region W' C
-    ∗ sts_full_world W' C
-    ∗ sealing_map W' C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
-    ∗ ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v)
-    ∗ ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
-.
-  Proof.
-    intros W'; subst W'.
-    setoid_rewrite <- heap_cells_live_cases.
-    iIntros (Hlive HNoDup Hp Hl1) "Hsts Hreg Hseals Hl Hφ".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
-    "(Hreg & Hl & #Hrel & Hsts)"; auto.
-    { apply NoDup_nil. auto. }
-    { eapply disjoint_nil_r. }
-    { by rewrite -region_open_nil. }
-
-    iDestruct (sealing_map_monotone_pub _ _ (std_update_multiple W l1 Permanent) with "Hseals") as "Hseals".
-    { by rewrite std_update_multiple_heap. }
-    { by rewrite std_update_multiple_seals. }
-    { apply related_sts_pub_update_multiple.
-      eapply Forall_impl; first exact Hl1.
-      intros a Ha; cbn in *.
-      by rewrite not_elem_of_dom.
-    }
-    iMod ("Hφ" with "[$Hrel $Hsts $Hseals $Hreg]") as "(Hsts & Hseals & Hreg & #Hφ & #Hφ')".
-    cbn; iFrame "Hrel Hsts".
-    iFrame "#".
-    iDestruct (big_sepL_sep with "Hφ") as "[Hφ'' Hmono]".
-    iDestruct (open_region_many_monotone _ _ (<o[o:=ws]o>(std_update_multiple W l1 Permanent)) with "Hreg") as "Hreg".
-    { auto. }
-    { apply related_sts_pub_refl_world. }
-    { reflexivity. }
-    { by rewrite /= std_update_multiple_heap. }
-    iMod (region_close_many with "Hrel Hreg Hl Hφ'' Hmono") as "Hreg"; eauto.
-    { change (Forall (heap_cell_live (heap_std (std_update_multiple W l1 Permanent))) l1).
-      by rewrite std_update_multiple_heap. }
-    by iFrame.
+    intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
+      eapply heap_cell_live_lookup; eauto.
   Qed.
 
 
@@ -1429,9 +1258,37 @@ Section region_alloc.
     ∗ ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
 .
   Proof.
-    intros W' Hlive.
-    apply (extend_region_perm_sepL2_open'_cases E W C l1 l2 p φ o ws ws_sealed).
-    by apply heap_cells_live_cases.
+    intros W'; subst W'.
+
+    iIntros (Hlive HNoDup Hp Hl1) "Hsts Hreg Hseals Hl Hφ".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
+    iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
+    "(Hreg & Hl & #Hrel & Hsts)"; auto.
+    { apply NoDup_nil. auto. }
+    { eapply disjoint_nil_r. }
+    { by rewrite -region_open_nil. }
+
+    iDestruct (sealing_map_monotone_pub _ _ (std_update_multiple W l1 Permanent) with "Hseals") as "Hseals".
+    { by rewrite std_update_multiple_heap. }
+    { by rewrite std_update_multiple_seals. }
+    { apply related_sts_pub_update_multiple.
+      eapply Forall_impl; first exact Hl1.
+      intros a Ha; cbn in *.
+      by rewrite not_elem_of_dom.
+    }
+    iMod ("Hφ" with "[$Hrel $Hsts $Hseals $Hreg]") as "(Hsts & Hseals & Hreg & #Hφ & #Hφ')".
+    cbn; iFrame "Hrel Hsts".
+    iFrame "#".
+    iDestruct (big_sepL_sep with "Hφ") as "[Hφ'' Hmono]".
+    iDestruct (open_region_many_monotone _ _ (<o[o:=ws]o>(std_update_multiple W l1 Permanent)) with "Hreg") as "Hreg".
+    { auto. }
+    { apply related_sts_pub_refl_world. }
+    { reflexivity. }
+    { by rewrite /= std_update_multiple_heap. }
+    iMod (region_close_many with "Hrel Hreg Hl Hφ'' Hmono") as "Hreg"; eauto.
+    { change (Forall (heap_cell_live (heap_std (std_update_multiple W l1 Permanent))) l1).
+      by rewrite std_update_multiple_heap. }
+    by iFrame.
   Qed.
 
 End region_alloc.

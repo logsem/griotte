@@ -98,29 +98,3 @@ Proof.
   intros Ha Ho. rewrite /heap_cell_live /heap_cell_status.
   destruct (is_heap_address a); last done. by rewrite Ha /= Ho.
 Qed.
-
-(** The explicit cases used by list interfaces allow non-heap and live-heap
-    addresses to occur together. *)
-Definition heap_cell_nonheap_or_live `{HeapRegion} (W_heap : Heap) (a : Addr) : Prop :=
-  is_heap_address a = false ∨
-  (is_heap_address a = true ∧ ∃ base obj,
-    heap_lookup_addr W_heap a = Some (base,obj) ∧
-    alloc_object_status obj = AllocObjectLive).
-
-Lemma heap_cell_live_cases `{HeapRegion} W_heap a :
-  heap_cell_live W_heap a ↔ heap_cell_nonheap_or_live W_heap a.
-Proof.
-  rewrite /heap_cell_live /heap_cell_status /heap_cell_nonheap_or_live.
-  destruct (is_heap_address a) eqn:Hheap; last naive_solver.
-  destruct (heap_lookup_addr W_heap a) as [[base obj]|] eqn:Hlookup;
-    last naive_solver.
-  cbn. destruct (alloc_object_status obj) eqn:Hstatus.
-  - split; last done. intros _. right. split; first done. exists base,obj. done.
-  - split; first discriminate. intros [Hfalse|[_ (base' & obj' & Heq & Hlive)]].
-    + discriminate.
-    + simplify_eq. congruence.
-Qed.
-
-Lemma heap_cells_live_cases `{HeapRegion} W_heap l :
-  Forall (heap_cell_live W_heap) l ↔ Forall (heap_cell_nonheap_or_live W_heap) l.
-Proof. rewrite !Forall_forall. setoid_rewrite heap_cell_live_cases. done. Qed.
