@@ -21,6 +21,137 @@ Section DLE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
+  Local Lemma dle_prepare_world {E : coPset}
+      (W : WORLD) (b e : Addr) (z : Z) :
+    (b + 2)%a = Some e ->
+    disjoint_from_shadow b e ->
+    disjoint_from_heap b e ->
+    is_heap_address b = false ->
+    b ∉ dom (std W) ->
+    (b ^+ 1)%a ∉ dom (std W) ->
+    world_interp (revoke W) C ∗
+    b ↦ₐ WInt z ∗
+    (b ^+ 1)%a ↦ₐ WCap true RW Global b (b ^+ 1)%a b
+    ={E}=∗
+    let W1 := revoke W in
+    let W2 := <s[b := Temporary]s> W1 in
+    let W3 := <s[(b ^+ 1)%a := Temporary]s> W2 in
+    ⌜related_sts_priv_world W W3⌝ ∗
+    world_interp W3 C ∗
+    interp W3 C (WCap true RW_DL Local (b ^+ 1)%a (b ^+ 2)%a (b ^+ 1)%a).
+  Proof.
+    iIntros (Hcgp_contiguous Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcgp_b Hcgp_a)
+      "(Hworld_interp_C & Hcgp_b & Hcgp_a)".
+    set (W1 := revoke W).
+    iDestruct (init_TmpRes W1 C b RW_DL interp_in_memC
+      with "[] [$Hcgp_b] []") as "TmpRes_cgp_b"; auto.
+    { iApply future_pub_mono_interp_in_mem_z. }
+    { iApply interp_int. }
+    iMod (world_interp_extend_temp_nonheap
+      with "Hworld_interp_C TmpRes_cgp_b")
+      as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
+    { by rewrite -revoke_dom_eq. }
+    match goal with
+    | _ : _ |- context [ world_interp ?W' ] => set (W2 := W')
+    end.
+
+    iAssert (interp W2 C (WCap true RW_DL Local b (b ^+ 1)%a b))
+      as "#Hinterp_cgp_b".
+    { iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
+      iSplit; cycle 1.
+      { iPureIntro.
+        pose proof (switcher_disjoint_subseg b e b (b ^+ 1)%a)
+          as [Hsub_shadow Hsub_heap];
+          [solve_addr + Hcgp_contiguous | solve_addr + Hcgp_contiguous | split; auto |].
+        split; first done.
+        apply heap_cap_valid_disjoint; done.
+      }
+      rewrite (finz_seq_between_cons b); last solve_addr + Hcgp_contiguous.
+      rewrite (finz_seq_between_empty _ (b ^+ 1)%a); last solve_addr + Hcgp_contiguous.
+      iApply big_sepL_singleton.
+      iExists RW_DL, (interp_in_mem RWL).
+      iEval (cbn).
+      iSplit; first done.
+      iSplit.
+      { iPureIntro; intros WCv; tc_solve. }
+      iSplit; first iFrame "Hrel_cgp_b".
+      iSplit; first iApply zcond_interp_in_mem.
+      iSplit; first iApply rcond_interp_in_mem.
+      iSplit; first iApply wcond_interp_in_mem.
+      iSplit; first iApply monoReq_interp_in_mem.
+      + by simplify_map_eq.
+      + by intro.
+      + by iPureIntro; right; simplify_map_eq.
+    }
+
+    assert (is_heap_address (b ^+ 1)%a = false) as Hcgp1_nonheap.
+    { apply not_true_is_false; intros Hheap.
+      apply withinBounds_true_iff in Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hcgp_heap.
+      eapply (Hcgp_heap (b ^+ 1)%a); apply elem_of_finz_seq_between;
+        [solve_addr + Hcgp_contiguous | exact Hheap]. }
+
+    iDestruct (init_TmpRes W2 C (b ^+ 1)%a RW_DL (safeC interp_in_mem_dl)
+      with "[] [$Hcgp_a] []") as "TmpRes_cgp_a"; auto.
+    { iApply future_pub_mono_interp_in_mem_dl. }
+    { cbn; iApply interp_to_in_mem; iExact "Hinterp_cgp_b". }
+    iMod (world_interp_extend_temp_nonheap
+      with "Hworld_interp_C TmpRes_cgp_a")
+      as "(Hworld_interp_C & Hrel_cgp_a)"; auto.
+    { subst W2.
+      cbn; rewrite dom_insert_L not_elem_of_union; split.
+      + rewrite not_elem_of_singleton; solve_addr + Hcgp_contiguous.
+      + by rewrite -revoke_dom_eq.
+    }
+    match goal with
+    | _ : _ |- context [ world_interp ?W' ] => set (W3 := W')
+    end.
+
+    iAssert (interp W3 C
+      (WCap true RW_DL Local (b ^+ 1)%a (b ^+ 2)%a (b ^+ 1)%a))
+      as "#Hinterp_W3_cgp_a".
+    { iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
+      iSplit; cycle 1.
+      { iPureIntro.
+        pose proof (switcher_disjoint_subseg b e (b ^+ 1)%a (b ^+ 2)%a)
+          as [Hsub_shadow Hsub_heap];
+          [solve_addr + Hcgp_contiguous | solve_addr + Hcgp_contiguous | split; auto |].
+        split; first done.
+        apply heap_cap_valid_disjoint; done.
+      }
+      rewrite (finz_seq_between_cons (b ^+ 1)%a); last solve_addr + Hcgp_contiguous.
+      rewrite (finz_seq_between_empty _ (b ^+ 2)%a); last solve_addr + Hcgp_contiguous.
+      iApply big_sepL_singleton.
+      iExists RW_DL, interp_in_mem_dl.
+      iEval (cbn).
+      iSplit; first done.
+      iSplit; first (iPureIntro; apply persistent_cond_interp_in_mem_dl).
+      iSplit; first iFrame "Hrel_cgp_a".
+      iSplit; first iApply zcond_interp_in_mem_dl.
+      iSplit; first (iApply rcond_interp_in_mem_dl; auto).
+      iSplit; first iApply wcond_interp_in_mem_dl.
+      iSplit; last (by iPureIntro; right; rewrite lookup_insert_eq).
+      rewrite /monoReq; rewrite lookup_insert_eq; cbn.
+      iApply mono_pub_interp_in_mem_dl.
+    }
+
+    assert (related_sts_priv_world W W3) as Hrelated_priv_W_W3.
+    { eapply related_sts_priv_trans_world with (W' := W1); eauto
+      ; first eapply revoke_related_sts_priv_world.
+      eapply related_sts_pub_priv_trans_world with (W' := W2); eauto.
+      { eapply related_sts_pub_world_revoked_temporary'.
+        by rewrite -revoke_lookup_None -not_elem_of_dom.
+      }
+      apply related_sts_pub_priv_world.
+      eapply related_sts_pub_world_revoked_temporary'.
+      rewrite lookup_insert_ne; last solve_addr + Hcgp_contiguous.
+      by rewrite -revoke_lookup_None -not_elem_of_dom.
+    }
+    iModIntro.
+    iSplit; first by iPureIntro.
+    iFrame "Hworld_interp_C Hinterp_W3_cgp_a".
+  Qed.
+
   Lemma dle_spec
 
     (pc_b pc_e pc_a : Addr)
@@ -111,22 +242,22 @@ Section DLE.
 
     (* Extract the addresses of b and a *)
     iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr + Hcgp_contiguous. }
+    { solve_addr + Hcgp_contiguous. }
     iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_a _]".
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr + Hcgp_contiguous. }
+    { solve_addr + Hcgp_contiguous. }
 
     (* Extract the imports *)
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr + Himports_contiguous. }
+    { solve_addr + Himports_contiguous. }
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_assert Himports_main]".
-    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr + Himports_contiguous. }
+    { solve_addr + Himports_contiguous. }
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_C_f _]".
-    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr + Himports_contiguous. }
+    { solve_addr + Himports_contiguous. }
 
 
     (* Revoke the world to get the stack frame *)
@@ -152,7 +283,7 @@ Section DLE.
 
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
 
-    (* Store cgp 42%Z; *)
+    (* Store cgp 0%Z 0. *)
     iInstr "Hcode".
     (* Mov ct0 cgp; *)
     iInstr "Hcode".
@@ -189,8 +320,8 @@ Section DLE.
     focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto using switcher_call_sentry_not_heap.
-    { solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    { solve_addr + HsubBounds Hpc_contiguous Himports_contiguous Ha_fetch1. }
+    replace (pc_b ^+ 0)%a with pc_b by (clear; solve_addr).
     iFrame "Himport_switcher".
     iNext ; iIntros "(HPC & Hct0 & Hct1 & Hct2 & Hcode & Himport_switcher)".
     iEval (cbn) in "Hct0".
@@ -198,7 +329,7 @@ Section DLE.
 
     focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent a_fetch1.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct2 $Hct3 $Hcode $Himport_C_f]"); eauto.
-    { solve_addr. }
+    { solve_addr + HsubBounds Hpc_contiguous Himports_contiguous Ha_fetch2. }
     iNext ; iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hcode & Himport_C_f)".
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -218,105 +349,13 @@ Section DLE.
 
     (* -- Update the world and prove interp of the the argument in `ca0` -- *)
 
-    (* First, extend the world such that `cgp_b` is interp with RW_DL access *)
-    iDestruct ( init_TmpRes W1 C cgp_b RW_DL interp_in_memC with "[] [$Hcgp_b] []" ) as "TmpRes_cgp_b"; auto.
-    { iApply future_pub_mono_interp_in_mem_z. }
-    { iApply interp_int. }
-    iMod (world_interp_extend_temp_nonheap with "Hworld_interp_C TmpRes_cgp_b")
-      as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
-    { by rewrite -revoke_dom_eq. }
-    match goal with
-    | _ : _ |- context [ world_interp ?W' ] => set (W2 := W')
-    end.
-
-    (* And prove that the RW_DL capability pointing to it is safe *)
-    iAssert (interp W2 C (WCap true RW_DL Local cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
-    { iEval (rewrite fixpoint_interp1_eq); iEval (cbn).
-      iSplit; cycle 1.
-      { iPureIntro.
-        pose proof (switcher_disjoint_subseg cgp_b cgp_e cgp_b (cgp_b ^+ 1)%a)
-          as [Hsub_shadow Hsub_heap]; [ solve_addr | solve_addr | split;auto | ].
-        split; first done.
-        apply heap_cap_valid_disjoint; done.
-      }
-      rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
-      rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
-      iApply big_sepL_singleton.
-      iExists RW_DL, (interp_in_mem RWL).
-      iEval (cbn).
-      iSplit; first done.
-      iSplit.
-      { iPureIntro; intros WCv; tc_solve. }
-      iSplit; first iFrame "Hrel_cgp_b".
-      iSplit; first iApply zcond_interp_in_mem.
-      iSplit; first iApply rcond_interp_in_mem.
-      iSplit; first iApply wcond_interp_in_mem.
-      iSplit; first iApply monoReq_interp_in_mem.
-      + by simplify_map_eq.
-      + by intro.
-      + by iPureIntro; right; simplify_map_eq.
-    }
-
-    assert (is_heap_address (cgp_b ^+ 1)%a = false) as Hcgp1_nonheap.
-    { apply not_true_is_false; intros Hheap.
-      apply withinBounds_true_iff in Hheap.
-      rewrite /disjoint_from_heap elem_of_disjoint in Hcgp_heap.
-      eapply (Hcgp_heap (cgp_b ^+ 1)%a); apply elem_of_finz_seq_between;
-        [solve_addr+Hcgp_contiguous|exact Hheap]. }
-
-    (* Second, extend the world such that `cgp_b+1` is interp_in_mem_dl with RW_DL access *)
-    iDestruct ( init_TmpRes W2 C (cgp_b ^+ 1)%a RW_DL (safeC interp_in_mem_dl) with "[] [$Hcgp_a] []" ) as "TmpRes_cgp_a"; auto.
-    { iApply future_pub_mono_interp_in_mem_dl. }
-    { cbn; iApply interp_to_in_mem; iExact "Hinterp_cgp_b". }
-    iMod (world_interp_extend_temp_nonheap with "Hworld_interp_C TmpRes_cgp_a")
-      as "(Hworld_interp_C & Hrel_cgp_a)";auto.
-    { subst W2.
-      cbn; rewrite dom_insert_L not_elem_of_union; split.
-      + rewrite not_elem_of_singleton; solve_addr+Hcgp_contiguous.
-      + by rewrite -revoke_dom_eq.
-    }
-    match goal with
-    | _ : _ |- context [ world_interp ?W' ] => set (W3 := W')
-    end.
-
-    (* And prove that the RW_DL capability pointing to it is safe *)
-    iAssert (interp W3 C (WCap true RW_DL Local (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_cgp_a".
-    { iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
-      iSplit; cycle 1.
-      { iPureIntro.
-        pose proof (switcher_disjoint_subseg cgp_b cgp_e (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a)
-          as [Hsub_shadow Hsub_heap]; [ solve_addr | solve_addr | split;auto | ].
-        split; first done.
-        apply heap_cap_valid_disjoint; done.
-      }
-      rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
-      rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
-      iApply big_sepL_singleton.
-      iExists RW_DL, interp_in_mem_dl.
-      iEval (cbn).
-      iSplit; first done.
-      iSplit; first (iPureIntro; apply persistent_cond_interp_in_mem_dl).
-      iSplit; first iFrame "Hrel_cgp_a".
-      iSplit; first iApply zcond_interp_in_mem_dl.
-      iSplit; first (iApply rcond_interp_in_mem_dl; auto).
-      iSplit; first iApply wcond_interp_in_mem_dl.
-      iSplit; last (by iPureIntro; right; rewrite lookup_insert_eq).
-      rewrite /monoReq; rewrite lookup_insert_eq; cbn.
-      iApply mono_pub_interp_in_mem_dl.
-    }
-
-    assert (related_sts_priv_world W0 W3) as Hrelated_priv_W0_W3.
-    { eapply related_sts_priv_trans_world with (W' := W1) ; eauto
-      ; first eapply revoke_related_sts_priv_world.
-      eapply related_sts_pub_priv_trans_world with (W' := W2) ; eauto.
-      { eapply related_sts_pub_world_revoked_temporary'.
-        by rewrite -revoke_lookup_None -not_elem_of_dom.
-      }
-      apply related_sts_pub_priv_world.
-      eapply related_sts_pub_world_revoked_temporary'.
-      rewrite lookup_insert_ne; last solve_addr.
-      by rewrite -revoke_lookup_None -not_elem_of_dom.
-    }
+    (* Extend the world with the two temporary data cells. *)
+    iMod (dle_prepare_world W0 cgp_b cgp_e 0%Z
+      Hcgp_contiguous Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcgp_b Hcgp_a
+      with "[$Hworld_interp_C $Hcgp_b $Hcgp_a]")
+      as "(%Hrelated_priv_W0_W3 & Hworld_interp_C & #Hinterp_W3_cgp_a)".
+    set (W2 := <s[cgp_b := Temporary]s> W1) in *.
+    set (W3 := <s[(cgp_b ^+ 1)%a := Temporary]s> W2) in *.
 
     (* -- separate argument registers -- *)
     iExtractList "Hrmap" [ca1;ca2;ca3;ca4;ca5]
@@ -446,7 +485,7 @@ Section DLE.
     {
       assert ( std W4 !! cgp_b = Some Temporary ) as HW4.
       { eapply region_state_pub_temp; eauto.
-        rewrite lookup_insert_ne; last solve_addr.
+        rewrite lookup_insert_ne; last solve_addr + Hcgp_contiguous.
         by rewrite lookup_insert_eq.
       }
       destruct Hl_unk' as [_ Hl_unk'].
@@ -611,7 +650,9 @@ Section DLE.
     (* ---- extract the needed registers ct0 ct1 ----  *)
     iExtractList "Hrmap" [ct0;ct1;ct2;ct3;ct4;cnull] as ["Hct0"; "Hct1"; "Hct2"; "Hct3"; "Hct4"; "Hcnull"].
 
-    (* Load ct0 cgp  *)
+    assert (readAllowed RW = true /\ withinBounds cgp_b cgp_e cgp_b = true) as Hcgp_read by
+      (split; [reflexivity | solve_addr + Hcgp_contiguous]).
+    (* Load ct0 cgp 0. *)
     iInstr "Hcode".
     (* Mov ct1 42  *)
     iInstr "Hcode".
@@ -625,7 +666,7 @@ Section DLE.
     iApply (assert_success_spec with
              "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
               $Hcode $Himport_assert]"); auto.
-    { solve_addr. }
+    { solve_addr + HsubBounds Hpc_contiguous Himports_contiguous Ha_assert_c. }
     iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
                     & Hcode & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

@@ -136,31 +136,31 @@ Section CMDC.
 
     (* Extract the needed registers from the register map *)
     assert (rmap !! cs1 = Some (WInt 0)) as Hcs1_init.
-    { apply Hrmap_init. rewrite Hrmap_dom; set_solver. }
+    { apply Hrmap_init. rewrite Hrmap_dom; set_solver+. }
     iExtractList "Hrmap" [ca0;ctp;ct0;ct1;cs0;cs1;cra]
       as ["Hca0";"Hctp";"Hct0";"Hct1";"Hcs0";"Hcs1";"Hcra"].
 
     (* Extract the addresses of b and c *)
     iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr + Hcgp_contiguous. }
+    { solve_addr + Hcgp_contiguous. }
     iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_c _]".
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr + Hcgp_contiguous. }
+    { solve_addr + Hcgp_contiguous. }
 
     (* Extract the imports *)
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr + Himports_contiguous. }
+    { solve_addr + Himports_contiguous. }
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_assert Himports_main]".
-    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr + Himports_contiguous. }
+    { solve_addr + Himports_contiguous. }
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_B_f Himports_main]".
-    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr + Himports_contiguous. }
+    { solve_addr + Himports_contiguous. }
     iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_C_g _]".
-    { transitivity (Some (pc_b ^+ 4)%a); auto; solve_addr. }
-    { solve_addr. }
+    { transitivity (Some (pc_b ^+ 4)%a); auto; solve_addr + Himports_contiguous. }
+    { solve_addr + Himports_contiguous. }
 
 
     (* --------------------------------------------------- *)
@@ -197,8 +197,8 @@ Section CMDC.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
-    { solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    { solve_addr + Himports_contiguous HsubBounds. }
+    replace (pc_b ^+ 0)%a with pc_b by solve_addr+.
     iFrame "Himport_switcher".
     iNext ; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hcode & Himport_switcher)".
     iEval (cbn) in "Hctp".
@@ -206,7 +206,7 @@ Section CMDC.
 
     focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_B_f]"); eauto; try done.
-    { solve_addr. }
+    { solve_addr + Himports_contiguous HsubBounds. }
     iNext ; iIntros "(HPC & Hct1 & Hct0 & Hcs0 & Hcode & Himport_B_f)".
     iEval (cbn) in "Hcs0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -218,6 +218,7 @@ Section CMDC.
 
     (* ---- call B ---- *)
     focus_block 3 "Hcode_main" as a_callB Ha_callB "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Jalr cra ctp. *)
     iInstr "Hcode".
 
 
@@ -230,8 +231,6 @@ Section CMDC.
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hcsp_stk $Hcgp_b]") as "%Hcgp_b_stk".
     iExtractList "Hrmap" [ca1;ca2;ca3;ca4;ca5] as ["Hca1";"Hca2";"Hca3";"Hca4";"Hca5"].
     iInsertList "Hrmap" [ctp].
-    repeat (rewrite -delete_insert_ne //).
-    set (rmap_call_B := (delete ca5 _)).
     iEval (cbn) in "Hct1".
     iApply (cmdc_call_adv_block_spec
       Nswitcher W_init_B B cgp_b (cgp_b ^+ 1)%a B_f with
@@ -239,7 +238,7 @@ Section CMDC.
        $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0 $Hrmap
        $Hcgp_b $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B
        $Hcstk_frag $HK $Hinterp_Winit_B_f $HentryB_f]").
-    { solve_addr. }
+    { solve_addr + Hcgp_contiguous. }
     { exact Hcgp_shadow. }
     { exact Hcgp_heap. }
     { exact Hstk_shadow. }
@@ -253,13 +252,12 @@ Section CMDC.
     { exact Hcgp_b. }
     { exact Hcgp_b_stk. }
     { exact Hrevoked_stack_B. }
-    { solve_addr. }
-    { subst rmap_call_B.
-      repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
-      rewrite Hrmap_dom; set_solver.
+    { solve_addr+. }
+    { repeat first [rewrite dom_delete_L | rewrite dom_insert_L].
+      rewrite Hrmap_dom; set_solver+.
     }
 
-    iNext. subst rmap_call_B.
+    iNext.
     iIntros (W2_B rmap' stk_mem l)
       "( _ & _ & _ & _ & _
       & %HW2_B_cgp_b & #Hrel_cgp_b & %Hdom_rmap' & Hstack_revoked_B & _
@@ -276,7 +274,10 @@ Section CMDC.
     iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ct3;ct4;cnull]
       as ["Hctp";"Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hcnull"].
 
-    (* Load ct0 cgp  *)
+    assert (readAllowed RW = true /\
+      withinBounds cgp_b cgp_e (cgp_b ^+ 1)%a = true) as Hload_c by
+      (split; [reflexivity | solve_addr + Hcgp_contiguous]).
+    (* Load ct0 cgp 0. *)
     iInstr "Hcode".
     (* Mov ct1 0  *)
     iInstr "Hcode".
@@ -290,7 +291,7 @@ Section CMDC.
     iApply (assert_success_spec with
              "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hct0 $Hct1 $Hcnull $Hcra
               $Hcode $Himport_assert]"); auto.
-    { solve_addr. }
+    { solve_addr + Himports_contiguous HsubBounds. }
     iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
                     & Hcode & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -327,7 +328,7 @@ Section CMDC.
     (* Subseg ca0 ct0 ct1 *)
     iInstr "Hcode".
     set (cgp_c := (cgp_b ^+ 1)%a).
-    replace (cgp_b ^+ 2)%a with (cgp_c ^+ 1)%a by (subst cgp_c; solve_addr).
+    replace (cgp_b ^+ 2)%a with (cgp_c ^+ 1)%a by (subst cgp_c; solve_addr + Hcgp_contiguous).
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* --------------------------------------------------- *)
@@ -338,8 +339,8 @@ Section CMDC.
     iApply (fetch_spec _ _ _ _ _ _ _ _ _
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       with "[- $HPC $Hctp $Hct0 $Hct1 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
-    { solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    { solve_addr + Himports_contiguous HsubBounds. }
+    replace (pc_b ^+ 0)%a with pc_b by solve_addr+.
     iFrame "Himport_switcher".
     iNext ; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hcode & Himport_switcher)".
     iEval (cbn) in "Hctp".
@@ -347,7 +348,7 @@ Section CMDC.
 
     focus_block 7 "Hcode_main" as a_fetch4 Ha_fetch4 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (fetch_spec with "[- $HPC $Hct1 $Hct0 $Hcs0 $Hcode $Himport_C_g]"); eauto; try done.
-    { solve_addr. }
+    { solve_addr + Himports_contiguous HsubBounds. }
     iNext ; iIntros "(HPC & Hcs0 & Hct0 & Hct1 & Hcode & Himport_C_g)".
     iEval (cbn) in "Hcs0".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -357,6 +358,7 @@ Section CMDC.
     (* --------------------------------------------------- *)
 
     focus_block 8 "Hcode_main" as a_callC Ha_callC "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Jalr cra ctp. *)
     iInstr "Hcode".
 
     (* As for call B, the caller establishes separation first. Then
@@ -367,8 +369,6 @@ Section CMDC.
     clear wca0 wca1 wca2 wca3 wca4 wca5.
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as ["Hca2";"Hca3";"Hca4";"Hca5"].
     iInsertList "Hrmap" [cnull;ct4;ct3;ct2;ctp].
-    repeat (rewrite -delete_insert_ne //).
-    set (rmap_call_C := (delete ca5 _)).
 
     iApply (cmdc_call_adv_block_spec
       Nswitcher W_init_C C cgp_c (cgp_c ^+ 1)%a C_g with
@@ -376,7 +376,7 @@ Section CMDC.
        $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0 $Hrmap
        $Hcgp_c $Hstk $Hworld_interp_C $Hstack_revoked_C
        $Hcstk_frag $HK $Hinterp_Winit_C_g $HentryC_g]").
-    { subst cgp_c. solve_addr. }
+    { subst cgp_c. solve_addr + Hcgp_contiguous. }
     { exact Hcgp1_shadow. }
     { exact Hcgp1_heap. }
     { exact Hstk_shadow. }
@@ -390,13 +390,12 @@ Section CMDC.
     { subst cgp_c. exact Hcgp_c. }
     { exact Hcgp_c_stk. }
     { exact Hrevoked_stack_C. }
-    { solve_addr. }
-    { subst rmap_call_C.
-      repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
-      rewrite Hdom_rmap'; set_solver.
+    { solve_addr + Hcsp_bounds. }
+    { repeat first [rewrite dom_delete_L | rewrite dom_insert_L].
+      rewrite Hdom_rmap'; set_solver+.
     }
 
-    iNext. subst rmap_call_C. clear dependent stk_mem.
+    iNext. clear dependent stk_mem.
     iIntros (W4_C rmap'' stk_mem l)
       "( _ & _ & _ & _ & _ & _ & _
       & %Hdom_rmap'' & Hstack_revoked_C & _
@@ -414,7 +413,10 @@ Section CMDC.
     iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ct3;ct4;cnull]
       as ["Hctp";"Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hcnull"].
 
-    (* Load ct0 cgp  *)
+    assert (readAllowed RW = true /\
+      withinBounds cgp_b cgp_e cgp_b = true) as Hload_b by
+      (split; [reflexivity | solve_addr + Hcgp_contiguous]).
+    (* Load ct0 cgp 0. *)
     iInstr "Hcode".
     (* Mov ct1 42  *)
     iInstr "Hcode".
@@ -428,7 +430,7 @@ Section CMDC.
     iApply (assert_success_spec with
              "[- $Hassert $Hna $HPC $Hct2 $Hct3 $Hct4 $Hcra $Hct0 $Hct1 $Hcnull
               $Hcode $Himport_assert]"); auto.
-    { solve_addr. }
+    { solve_addr + Himports_contiguous HsubBounds. }
     iNext; iIntros "(Hna & HPC & Hct2 & Hct3 & Hct4 & Hcra & Hct0 & Hct1 & Hcnull
                     & Hcode & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
@@ -438,6 +440,7 @@ Section CMDC.
     (* --------------------------------------------------- *)
 
     focus_block 10 "Hcode_main" as a_halt Ha_halt "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Halt. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

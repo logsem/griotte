@@ -20,266 +20,33 @@ Section DROE.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
-  Lemma droe_spec
-
-    (pc_b pc_e pc_a : Addr)
-    (cgp_b cgp_e : Addr)
-    (csp_b csp_e : Addr)
-    (rmap : Reg)
-
-    (C_f : Sealable)
-
-    (W_init_C : WORLD)
-
-    (Ws : list WORLD)
-    (Cs : list CmptName)
-
-    (Nassert Nswitcher : namespace)
-
-    (cstk : CSTK)
-    :
-
-    let imports := droe_main_imports C_f in
-
-    disjoint_from_shadow pc_b pc_e ->
-    is_heap_address pc_b = false ->
+  Local Lemma droe_extend_data_world {E : coPset}
+      (W_init_C : WORLD) (cgp_b cgp_e : Addr) :
+    (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_shadow cgp_b cgp_e ->
     disjoint_from_heap cgp_b cgp_e ->
     is_heap_address cgp_b = false ->
-    (* [cra] is saved in [cs0], while [cs1] is left unchanged across the call.
-       Requiring these incoming words to be nonheap avoids shadow ownership;
-       the adequacy setup initializes both registers to integer zero. *)
-    is_heap_cap (default (WInt 0) (rmap !! cra)) = false ->
-    is_heap_cap (default (WInt 0) (rmap !! cs1)) = false ->
-    Nswitcher ## Nassert ->
-
-    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
-    (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ->
-
-    (cgp_b + length droe_main_data)%a = Some cgp_e ->
-    (pc_b + length imports)%a = Some pc_a ->
-
-    (cgp_b)%a ∉ dom (std W_init_C) ->
-    (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
-
-    is_heap_cap (WSealed ot_switcher C_f) = false ->
-    frame_match Ws Cs cstk W_init_C C ->
-    (
-      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
-      ∗ na_own cerise_nais ⊤
-
-      (* initial register file *)
-      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
-      (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
-      ∗ codefrag pc_a droe_main_code
-      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ droe_main_data ]]
-
-      ∗ world_interp W_init_C C
-
-      ∗ interp_continuation cstk Ws Cs
-
-      ∗ cstack_frag cstk
-
-      ∗ interp W_init_C C (WSealed ot_switcher C_f)
-      ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
-      ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e csp_b)
-
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+    cgp_b ∉ dom (std W_init_C) ->
+    (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
+    world_interp (revoke W_init_C) C ∗
+    cgp_b ↦ₐ WInt 42 ∗
+    (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b
+    ={E}=∗
+    let W3 := <s[(cgp_b ^+ 1)%a := Permanent]s>
+      (<s[cgp_b := Permanent]s> (revoke W_init_C)) in
+    ⌜related_sts_priv_world W_init_C W3⌝ ∗
+    world_interp W3 C ∗
+    rel C cgp_b RO_DRO (safeC (interp_in_mem_dro_eq (WInt 42))) ∗
+    rel C (cgp_b ^+ 1)%a RO_DRO
+      (safeC (interp_in_mem_dro_eq
+        (WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b))) ∗
+    interp W3 C
+      (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a
+        (cgp_b ^+ 1)%a).
   Proof.
-    intros imports; subst imports.
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcra_nonheap Hcs1_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
-            )
-      "(#Hassert & #Halloc & #Hswitcher & Hna
-      & HPC & Hcgp & Hcsp & Hrmap
-      & Himports_main & Hcode_main & Hcgp_main
-      & Hworld_interp_C
-      & HK
-      & Hcstk_frag
-      & #Hinterp_Winit_C_g
-      & #HentryC_g
-      & #Hinterp_Winit_C_csp
-      )".
-    codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
-
-    (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
-    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct0) ) as [wct0 Hwct0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct1) ) as [wct1 Hwct1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct2) ) as [wct2 Hwct2].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ct3) ) as [wct3 Hwct3].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! cs0) ) as [wcs0 Hwcs0].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! cs1) ) as [wcs1 Hwcs1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! cra) ) as [wcra Hwcra].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by simplify_map_eq.
-    rewrite Hwcra /= in Hcra_nonheap.
-    rewrite Hwcs1 /= in Hcs1_nonheap.
-
-    (* Extract the addresses of b and a *)
-    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_a _]".
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
-
-    (* Extract the imports *)
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
-    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_assert Himports_main]".
-    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_C_f _]".
-    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
-    { solve_addr. }
-
-    (* Revoke the world to get the stack frame *)
-    set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜(std W_init_C) !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
-    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_Winit_C_csp"); eauto. }
-
-    iDestruct (interp_cap_disjoint_wl with "Hinterp_Winit_C_csp")
-      as %[Hstk_shadow Hstk_heap]; first done.
-    iMod (world_interp_revoke_stack with "[$Hinterp_Winit_C_csp $Hworld_interp_C]")
-        as (l) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk".
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_a]") as "%Hcgp_a_stk".
+    iIntros (Hcgp_contiguous Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcgp_b Hcgp_a)
+      "(Hworld_interp_C & Hcgp_b & Hcgp_a)".
     set (W1 := revoke W_init_C).
-
-    (* --------------------------------------------------- *)
-    (* ----------------- Start the proof ----------------- *)
-    (* --------------------------------------------------- *)
-
-    (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 0 : INIT ------------------ *)
-    (* --------------------------------------------------- *)
-
-    focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
-
-    (* Store cgp 42%Z; *)
-    iInstr "Hcode".
-    (* Mov ct0 cgp; *)
-    iInstr "Hcode".
-
-    (* GetB ct1 cgp; *)
-    iInstr "Hcode".
-    (* Add ct2 ct1 1%Z; *)
-    iInstr "Hcode".
-    (* Subseg ct0 ct1 ct2; *)
-    iInstr "Hcode".
-
-    (* Lea cgp 1%Z; *)
-    iInstr "Hcode".
-    (* Store cgp ct0; *)
-    iInstr "Hcode".
-
-    (* Mov ca0 cgp; *)
-    iInstr "Hcode".
-    (* Lea cgp (-1)%Z; *)
-    iInstr "Hcode".
-    (* Add ct1 ct2 1%Z; *)
-    iInstr "Hcode".
-    (* Subseg ca0 ct2 ct1; *)
-    iInstr "Hcode".
-    (* Restrict ca0 ro_dro *)
-    iInstr "Hcode".
-
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    (* --------------------------------------------------- *)
-    (* -------------- BLOCK 1 and 2 : FETCH -------------- *)
-    (* --------------------------------------------------- *)
-
-    focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec _ _ _ _ _ _ _ _ _
-      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto using switcher_call_sentry_not_heap.
-    { solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
-    iFrame "Himport_switcher".
-    iNext ; iIntros "(HPC & Hct0 & Hct1 & Hct2 & Hcode & Himport_switcher)".
-    iEval (cbn) in "Hct0".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-    focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (fetch_spec with "[- $HPC $Hct1 $Hct2 $Hct3 $Hcode $Himport_C_f]"); eauto.
-    { solve_addr. }
-    iNext ; iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hcode & Himport_C_f)".
-    iEval (cbn) in "Hct1".
-    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-
-
-    (* --------------------------------------------------- *)
-    (* ----------------- BLOCK 3: CALL B ----------------- *)
-    (* --------------------------------------------------- *)
-
-    focus_block 3 "Hcode_main" as a_callB Ha_callB "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    (* Mov cs0 cra; *)
-    iInstr "Hcode".
-
-    (* Jalr cra ct0; *)
-    iInstr "Hcode" with "Hlc".
-
-    (* -- separate argument registers -- *)
-    assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca2) ) as [wca2 Hwca2].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca3) ) as [wca3 Hwca3].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca4) ) as [wca4 Hwca4].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca4 with "Hrmap") as "[Hca4 Hrmap]"; first by simplify_map_eq.
-    assert ( is_Some (rmap !! ca5) ) as [wca5 Hwca5].
-    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
-    iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by simplify_map_eq.
-
-    set ( rmap_arg :=
-           {[ ca0 := WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
-              ca1 := wca1;
-              ca2 := wca2;
-              ca3 := wca3;
-              ca4 := wca4;
-              ca5 := wca5;
-              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
-           ]} : Reg
-        ).
-
-    rewrite !(delete_delete _ _ ct2).
-    iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_eq.
-    repeat (rewrite -delete_insert_ne //).
-    rewrite !(delete_delete _ _ ct3).
-    iDestruct (big_sepM_insert _ _ ct3 with "[$Hrmap $Hct3]") as "Hrmap"; first by simplify_map_eq.
-    rewrite insert_delete_eq.
-    repeat (rewrite -delete_insert_ne //).
-
-    set (rmap' := (delete ca5 _)).
-
     iDestruct ( init_PermRes W1 C cgp_b RO_DRO (safeC (interp_in_mem_dro_eq (WInt 42)))
                 with "[] [$Hcgp_b] []" ) as "PermRes_cgp_b"; auto.
     { rewrite /future_priv_mono.
@@ -399,9 +166,6 @@ Section DROE.
       eapply related_sts_priv_trans_world with (W' := W2) ; eauto; apply related_sts_priv_world_fresh_Permanent.
     }
 
-    iAssert (interp W3 C (WSealed ot_switcher C_f)) as "#Hinterp_W3_C_f".
-    { iApply (interp_monotone_sd_same_heap with "[] [$]"); eauto. }
-
     iAssert (interp W3 C (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_C_a".
     { iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
       iSplit; last (iPureIntro;
@@ -436,6 +200,281 @@ Section DROE.
       + iPureIntro.
         by rewrite lookup_insert_eq.
     }
+
+    iModIntro.
+    iSplit; first by iPureIntro.
+    iFrame "Hworld_interp_C Hrel_cgp_b Hrel_cgp_a Hinterp_W3_C_a".
+  Qed.
+
+  Lemma droe_spec
+
+    (pc_b pc_e pc_a : Addr)
+    (cgp_b cgp_e : Addr)
+    (csp_b csp_e : Addr)
+    (rmap : Reg)
+
+    (C_f : Sealable)
+
+    (W_init_C : WORLD)
+
+    (Ws : list WORLD)
+    (Cs : list CmptName)
+
+    (Nassert Nswitcher : namespace)
+
+    (cstk : CSTK)
+    :
+
+    let imports := droe_main_imports C_f in
+
+    disjoint_from_shadow pc_b pc_e ->
+    is_heap_address pc_b = false ->
+    disjoint_from_shadow cgp_b cgp_e ->
+    disjoint_from_heap cgp_b cgp_e ->
+    is_heap_address cgp_b = false ->
+    (* [cra] is saved in [cs0], while [cs1] is left unchanged across the call.
+       Requiring these incoming words to be nonheap avoids shadow ownership;
+       the adequacy setup initializes both registers to integer zero. *)
+    is_heap_cap (default (WInt 0) (rmap !! cra)) = false ->
+    is_heap_cap (default (WInt 0) (rmap !! cs1)) = false ->
+    Nswitcher ## Nassert ->
+
+    dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
+    (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ->
+
+    (cgp_b + length droe_main_data)%a = Some cgp_e ->
+    (pc_b + length imports)%a = Some pc_a ->
+
+    (cgp_b)%a ∉ dom (std W_init_C) ->
+    (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
+
+    is_heap_cap (WSealed ot_switcher C_f) = false ->
+    frame_match Ws Cs cstk W_init_C C ->
+    (
+      na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
+      ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_own cerise_nais ⊤
+
+      (* initial register file *)
+      ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
+      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+      (* initial memory layout *)
+      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
+      ∗ codefrag pc_a droe_main_code
+      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ droe_main_data ]]
+
+      ∗ world_interp W_init_C C
+
+      ∗ interp_continuation cstk Ws Cs
+
+      ∗ cstack_frag cstk
+
+      ∗ interp W_init_C C (WSealed ot_switcher C_f)
+      ∗ (WSealed ot_switcher C_f) ↦□ₑ 1
+      ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e csp_b)
+
+      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+  Proof.
+    intros imports; subst imports.
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcra_nonheap Hcs1_nonheap HNswitcher_assert Hrmap_dom Hrmap_init HsubBounds
+               Hcgp_contiguous Himports_contiguous Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
+            )
+      "(#Hassert & #Halloc & #Hswitcher & Hna
+      & HPC & Hcgp & Hcsp & Hrmap
+      & Himports_main & Hcode_main & Hcgp_main
+      & Hworld_interp_C
+      & HK
+      & Hcstk_frag
+      & #Hinterp_Winit_C_g
+      & #HentryC_g
+      & #Hinterp_Winit_C_csp
+      )".
+    codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
+
+    (* --- Extract registers ca0 ct0 ct1 ct2 ct3 cs0 cs1 --- *)
+    assert ( is_Some (rmap !! ca0) ) as [wca0 Hwca0].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ca0 with "Hrmap") as "[Hca0 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! ct0) ) as [wct0 Hwct0].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! ct1) ) as [wct1 Hwct1].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! ct2) ) as [wct2 Hwct2].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! ct3) ) as [wct3 Hwct3].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! cs0) ) as [wcs0 Hwcs0].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ cs0 with "Hrmap") as "[Hcs0 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! cs1) ) as [wcs1 Hwcs1].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ cs1 with "Hrmap") as "[Hcs1 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! cra) ) as [wcra Hwcra].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ cra with "Hrmap") as "[Hcra Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    rewrite Hwcra /= in Hcra_nonheap.
+    rewrite Hwcs1 /= in Hcs1_nonheap.
+
+    (* Extract the addresses of b and a *)
+    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_b Hcgp_main]".
+    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Hcgp_main") as "[Hcgp_a _]".
+    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
+    { solve_addr. }
+
+    (* Extract the imports *)
+    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_switcher Himports_main]".
+    { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_assert Himports_main]".
+    { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
+    { solve_addr. }
+    iDestruct (region_pointsto_cons with "Himports_main") as "[Himport_C_f _]".
+    { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
+    { solve_addr. }
+
+    (* Revoke the world to get the stack frame *)
+    set (stk_frame_addrs := finz.seq_between csp_b csp_e).
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜(std W_init_C) !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_Winit_C_csp"); eauto. }
+
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_Winit_C_csp")
+      as %[Hstk_shadow Hstk_heap]; first done.
+    iMod (world_interp_revoke_stack with "[$Hinterp_Winit_C_csp $Hworld_interp_C]")
+        as (l) "(%Hl_unk & Hworld_interp_C & Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l %Hrevoked_l])".
+    iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_b]") as "%Hcgp_b_stk".
+    iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Hcgp_a]") as "%Hcgp_a_stk".
+    set (W1 := revoke W_init_C).
+
+    (* --------------------------------------------------- *)
+    (* ----------------- Start the proof ----------------- *)
+    (* --------------------------------------------------- *)
+
+    (* --------------------------------------------------- *)
+    (* ----------------- BLOCK 0 : INIT ------------------ *)
+    (* --------------------------------------------------- *)
+
+    focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+
+    (* Store cgp 42%Z; *)
+    iInstr "Hcode".
+    (* Mov ct0 cgp; *)
+    iInstr "Hcode".
+
+    (* GetB ct1 cgp; *)
+    iInstr "Hcode".
+    (* Add ct2 ct1 1%Z; *)
+    iInstr "Hcode".
+    (* Subseg ct0 ct1 ct2; *)
+    iInstr "Hcode".
+
+    (* Lea cgp 1%Z; *)
+    iInstr "Hcode".
+    (* Store cgp ct0; *)
+    iInstr "Hcode".
+
+    (* Mov ca0 cgp; *)
+    iInstr "Hcode".
+    (* Lea cgp (-1)%Z; *)
+    iInstr "Hcode".
+    (* Add ct1 ct2 1%Z; *)
+    iInstr "Hcode".
+    (* Subseg ca0 ct2 ct1; *)
+    iInstr "Hcode".
+    (* Restrict ca0 ro_dro *)
+    iInstr "Hcode".
+
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    (* --------------------------------------------------- *)
+    (* -------------- BLOCK 1 and 2 : FETCH -------------- *)
+    (* --------------------------------------------------- *)
+
+    focus_block 1 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (fetch_spec _ _ _ _ _ _ _ _ _
+      (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call) with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcode]"); eauto using switcher_call_sentry_not_heap.
+    { solve_addr. }
+    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    iFrame "Himport_switcher".
+    iNext ; iIntros "(HPC & Hct0 & Hct1 & Hct2 & Hcode & Himport_switcher)".
+    iEval (cbn) in "Hct0".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+    focus_block 2 "Hcode_main" as a_fetch2 Ha_fetch2 "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    iApply (fetch_spec with "[- $HPC $Hct1 $Hct2 $Hct3 $Hcode $Himport_C_f]"); eauto.
+    { solve_addr. }
+    iNext ; iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hcode & Himport_C_f)".
+    iEval (cbn) in "Hct1".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+
+
+    (* --------------------------------------------------- *)
+    (* ----------------- BLOCK 3: CALL B ----------------- *)
+    (* --------------------------------------------------- *)
+
+    focus_block 3 "Hcode_main" as a_callB Ha_callB "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Mov cs0 cra; *)
+    iInstr "Hcode".
+
+    (* Jalr cra ct0; *)
+    iInstr "Hcode" with "Hlc".
+
+    (* -- separate argument registers -- *)
+    assert ( is_Some (rmap !! ca1) ) as [wca1 Hwca1].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ca1 with "Hrmap") as "[Hca1 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! ca2) ) as [wca2 Hwca2].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! ca3) ) as [wca3 Hwca3].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! ca4) ) as [wca4 Hwca4].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ca4 with "Hrmap") as "[Hca4 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+    assert ( is_Some (rmap !! ca5) ) as [wca5 Hwca5].
+    { apply Hrmap_init; rewrite Hrmap_dom ; done. }
+    iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by rewrite ?lookup_delete_ne //.
+
+    set ( rmap_arg :=
+           {[ ca0 := WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a;
+              ca1 := wca1;
+              ca2 := wca2;
+              ca3 := wca3;
+              ca4 := wca4;
+              ca5 := wca5;
+              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
+           ]} : Reg
+        ).
+
+    rewrite !(delete_delete _ _ ct2).
+    iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap"; first by simplify_map_eq.
+    rewrite insert_delete_eq.
+    repeat (rewrite -delete_insert_ne //).
+    rewrite !(delete_delete _ _ ct3).
+    iDestruct (big_sepM_insert _ _ ct3 with "[$Hrmap $Hct3]") as "Hrmap"; first by simplify_map_eq.
+    rewrite insert_delete_eq.
+    repeat (rewrite -delete_insert_ne //).
+
+    set (rmap' := (delete ca5 _)).
+
+    iMod (droe_extend_data_world W_init_C cgp_b cgp_e
+      Hcgp_contiguous Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcgp_b Hcgp_a
+      with "[$Hworld_interp_C $Hcgp_b $Hcgp_a]")
+      as "(%HWinit_privC_W3 & Hworld_interp_C & #Hrel_cgp_b & #Hrel_cgp_a & #Hinterp_W3_C_a)".
+    set (W2 := <s[cgp_b := Permanent]s> W1) in *.
+    set (W3 := <s[(cgp_b ^+ 1)%a := Permanent]s> W2) in *.
+
+    iAssert (interp W3 C (WSealed ot_switcher C_f)) as "#Hinterp_W3_C_f".
+    { iApply (interp_monotone_sd_same_heap with "[] [$]"); eauto. }
 
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg
                                            ∗ (if decide (rarg ∈ dom_arg_rmap 1)
@@ -516,34 +555,34 @@ Section DROE.
     (* ---- extract the needed registers ct0 ct1 ct2 ct3 ct4 ----  *)
     assert ( rmap' !! ct0 = Some (WInt 0) ) as Hwct0'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
-    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first by rewrite ?lookup_delete_ne //.
     assert ( rmap' !! ct1 = Some (WInt 0) ) as Hwct1'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
-    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ct1 with "Hrmap") as "[Hct1 Hrmap]"; first by rewrite ?lookup_delete_ne //.
     assert ( rmap' !! ct2 = Some (WInt 0) ) as Hwct2'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
-    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first by rewrite ?lookup_delete_ne //.
     assert ( rmap' !! ct3 = Some (WInt 0) ) as Hwct3'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
-    iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ct3 with "Hrmap") as "[Hct3 Hrmap]"; first by rewrite ?lookup_delete_ne //.
     assert ( rmap' !! ct4 = Some (WInt 0) ) as Hwct4'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
-    iDestruct (big_sepM_delete _ _ ct4 with "Hrmap") as "[Hct4 Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ ct4 with "Hrmap") as "[Hct4 Hrmap]"; first by rewrite ?lookup_delete_ne //.
     assert ( rmap' !! cnull = Some (WInt 0) ) as Hwcnull'.
     { apply Hrmap_init'. rewrite Hdom_rmap'.
-      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver].
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver+].
     }
-    iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by simplify_map_eq.
+    iDestruct (big_sepM_delete _ _ cnull with "Hrmap") as "[Hcnull Hrmap]"; first by rewrite ?lookup_delete_ne //.
 
     assert ( cgp_b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e ) as Hcgp_b_stk'.
     { clear -Hcgp_b_stk.
@@ -571,7 +610,9 @@ Section DROE.
     iInstr "Hcode".
     iDestruct (PermRes_acc with "PermRes_cgp_b") as "[ [Hcgp_b Hcgp_b_interp] PermRes_cgp_b]".
     iEval (cbn) in "Hcgp_b_interp"; iDestruct "Hcgp_b_interp" as "[ % Hcgp_b_interp ]"; simplify_eq.
-    (* Load ct0 cgp  *)
+    assert (readAllowed RW = true /\ withinBounds cgp_b cgp_e cgp_b = true) as Hcgp_read.
+    { split; first done. apply withinBounds_true_iff. solve_addr + Hcgp_contiguous. }
+    (* Load ct0 cgp 0. *)
     iInstr "Hcode".
     iDestruct ("PermRes_cgp_b" with "[$Hcgp_b $Hcgp_b_interp]") as "PermRes_cgp_b"; auto.
     (* Mov ct1 42  *)
