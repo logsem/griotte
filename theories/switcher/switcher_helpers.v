@@ -38,20 +38,33 @@ Section switcher_helper.
     - unfold alloc_object_contains in *. by rewrite -Hendc.
   Qed.
 
-  (* This lemma is a more general version of [world_interp_restore_world]. *)
+  Lemma temp_resources_mono_pub W W' C φ a p :
+    heap_wf (heap_std W') ->
+    related_sts_pub_world W W' ->
+    temp_resources W C φ a p -∗
+    temp_resources W' C φ a p.
+  Proof.
+    iIntros (Hheap_wf Hrelated) "Htemp".
+    iDestruct "Htemp" as (v) "(%Hp & Ha & #Hmono & Hφ)".
+    iExists v. iFrame "Ha Hmono %".
+    destruct (isWL p); last destruct (isDL p);
+      iApply ("Hmono" with "[] [] Hφ").
+    all: try (iPureIntro; exact Hrelated).
+    all: try (iPureIntro; exact Hheap_wf).
+    iPureIntro. by apply related_sts_pub_priv_world.
+  Qed.
 
-
-  Lemma close_list_resources_gen_to_RevokedResources Wcur C lfull l :
+  Lemma close_list_resources_to_RevokedResources Wcur Wsrc C lfull l :
     heap_wf (heap_std (close_list lfull Wcur)) ->
+    related_sts_pub_world Wsrc (close_list lfull Wcur) ->
     Forall (λ a, is_Some (heap_cell_status (heap_std Wcur) a)) l ->
-    close_list_resources_gen C Wcur lfull l false -∗
+    close_list_resources C Wsrc l false -∗
     RevokedResources (close_list lfull Wcur) C l.
   Proof.
-    iIntros (Hheap_wf Hstatuses) "Hres".
-    rewrite /close_list_resources_gen /close_addr_resources_gen /RevokedResources.
+    iIntros (Hheap_wf Hrelated Hstatuses) "Hres".
+    rewrite /close_list_resources /close_addr_resources /RevokedResources.
     iApply (big_sepL_impl with "Hres").
     iIntros "!> %k %a %Ha (%p & %φ & %Hpers & Htemp & #Hrel)".
-    iDestruct "Htemp" as (W') "(%Hrelated & Htemp)".
     iExists p, φ. iFrame "Hrel". iSplit; first done.
     assert (is_Some (heap_cell_status (heap_std Wcur) a)) as Hstatus_some.
     { rewrite Forall_lookup in Hstatuses. eauto. }
@@ -69,17 +82,17 @@ Section switcher_helper.
         iPureIntro. apply related_sts_pub_priv_world. exact Hrelated.
   Qed.
 
-  Lemma close_list_resources_gen_status_some Wcur C lfull l :
+  Lemma close_list_resources_status_some Wcur Wsrc C l :
     region Wcur C -∗
-    close_list_resources_gen C Wcur lfull l false -∗
+    close_list_resources C Wsrc l false -∗
     region Wcur C ∗
-    close_list_resources_gen C Wcur lfull l false ∗
+    close_list_resources C Wsrc l false ∗
     ⌜Forall (λ a, is_Some (heap_cell_status (heap_std Wcur) a)) l⌝.
   Proof.
     iIntros "Hr Hres".
     iInduction l as [|a l] "IH".
     - iFrame. iPureIntro. constructor.
-    - rewrite /close_list_resources_gen /=.
+    - rewrite /close_list_resources /=.
       iDestruct "Hres" as "[Ha Hres]".
       iDestruct "Ha" as (p φ Hpers) "(Htemp & #Hrel)".
       iDestruct (region_rel_dom with "Hr Hrel") as "[Hr %Hdom]".
@@ -89,20 +102,22 @@ Section switcher_helper.
       iPureIntro. constructor; assumption.
   Qed.
 
-  Lemma world_interp_close_resources_to_RevokedResources Wcur C lfull l :
+  Lemma world_interp_close_resources_to_RevokedResources Wcur Wsrc C lfull l :
+    related_sts_pub_world Wsrc (close_list lfull Wcur) ->
     world_interp Wcur C -∗
-    close_list_resources_gen C Wcur lfull l false -∗
+    close_list_resources C Wsrc l false -∗
     world_interp Wcur C ∗
     RevokedResources (close_list lfull Wcur) C l.
   Proof.
     rewrite world_interp_eq /world_interp_def.
-    iIntros "(Hr & Hsts & Hseals) Hres".
+    iIntros (Hrelated) "(Hr & Hsts & Hseals) Hres".
     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iDestruct (close_list_resources_gen_status_some with "Hr Hres")
+    iDestruct (close_list_resources_status_some with "Hr Hres")
       as "(Hr & Hres & %Hstatuses)".
     iSplitL "Hr Hsts Hseals"; first by iFrame.
-    iApply close_list_resources_gen_to_RevokedResources.
+    iApply close_list_resources_to_RevokedResources.
     - by rewrite close_list_heap.
+    - exact Hrelated.
     - exact Hstatuses.
     - iExact "Hres".
   Qed.
@@ -244,24 +259,6 @@ Section switcher_helper.
   Qed.
 
 
-
-  Lemma RevokedResources_nonheap_to_close_list_resources_gen Wcur C lfull l :
-    Forall (λ a, is_heap_address a = false) l ->
-    RevokedResources (close_list lfull Wcur) C l -∗
-    close_list_resources_gen C Wcur lfull l false.
-  Proof.
-    iIntros (Hnonheap) "Hres".
-    iApply (big_sepL_impl with "Hres").
-    iIntros "!> %k %a %Ha (%p & %φ & %Hpers & Hrel & Hcell)".
-    assert (is_heap_address a = false) as Hnonheap_a.
-    { rewrite Forall_lookup in Hnonheap. eauto. }
-    iEval (rewrite /heap_cell_status Hnonheap_a) in "Hcell".
-    iDestruct "Hcell" as (v) "(%Hp & Ha & Hφ & Hmono)".
-    iExists p, φ. iFrame "Hrel %".
-    iExists (close_list lfull Wcur). iSplit.
-    { iPureIntro. apply related_sts_pub_refl_world. }
-    iExists v. rewrite mono_temporary_eq. iFrame.
-  Qed.
 
   Definition CloseRes (Wfixed : WORLD) (C : CmptName)
     (a_stk : Addr) (l : list Addr ) ccrel : iProp Σ :=
@@ -476,10 +473,8 @@ Section switcher_helper.
       rewrite /RevokedResources.
       iDestruct (big_opL_permutation with "Hclose_list_res") as "Hclose_list_res"; first (symmetry; done).
       iDestruct (big_sepL_app _ [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a] l3 with "Hclose_list_res") as "[Hframe $]".
-      iDestruct (RevokedResources_nonheap_to_close_list_resources_gen Wcur C
-        (l ++ finz.seq_between csp_b csp_e)
-        [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]
-        with "Hframe") as "Hframe".
+      assert (Forall (λ a, is_heap_address a = false)
+        [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]) as Hnonheap.
       { apply Forall_forall. intros a Ha.
         apply not_true_is_false. intros Hheap.
         apply withinBounds_true_iff in Hheap.
@@ -489,20 +484,33 @@ Section switcher_helper.
         repeat (destruct Ha as [->|Ha]); try contradiction;
           subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4.
       }
-      rewrite /close_list_resources_gen /close_addr_resources_gen.
+      apply Forall_cons in Hnonheap as [Hnonheap0 Hnonheap].
+      apply Forall_cons in Hnonheap as [Hnonheap1 Hnonheap].
+      apply Forall_cons in Hnonheap as [Hnonheap2 Hnonheap].
+      apply Forall_cons in Hnonheap as [Hnonheap3 _].
       cbn.
       iDestruct "Hframe" as "(Hv0 & Hv1 & Hv2 & Hv3 & _)".
-      iDestruct "Hv0" as (? P0 ?) "[Hv0 #Hrel0]".
-      iDestruct "Hv1" as (? P1 ?) "[Hv1 #Hrel1]".
-      iDestruct "Hv2" as (? P2 ?) "[Hv2 #Hrel2]".
-      iDestruct "Hv3" as (? P3 ?) "[Hv3 #Hrel3]".
+      iEval (rewrite /heap_cell_status Hnonheap0) in "Hv0".
+      iEval (rewrite /heap_cell_status Hnonheap1) in "Hv1".
+      iEval (rewrite /heap_cell_status Hnonheap2) in "Hv2".
+      iEval (rewrite /heap_cell_status Hnonheap3) in "Hv3".
+      iDestruct "Hv0" as (? P0 ?) "(#Hrel0 & Hv0)".
+      iDestruct "Hv1" as (? P1 ?) "(#Hrel1 & Hv1)".
+      iDestruct "Hv2" as (? P2 ?) "(#Hrel2 & Hv2)".
+      iDestruct "Hv3" as (? P3 ?) "(#Hrel3 & Hv3)".
       iClear "Hinterp_callee_wstk".
       iFrame "Hrel0". iFrame "Hrel1". iFrame "Hrel2". iFrame "Hrel3".
-      iDestruct "Hv0" as (W0') "[%HW0' (%v0 & % & [$ [#H0 H0']])]".
-      iDestruct "Hv1" as (W1') "[%HW1' (%v1 & % & [$ [#H1 H1']])]".
-      iDestruct "Hv2" as (W2') "[%HW2' (%v2 & % & [$ [#H2 H2']])]".
-      iDestruct "Hv3" as (W3') "[%HW3' (%v3 & % & [$ [#H3 H3']])]".
-      (* iFrame "%". *)
+      iDestruct "Hv0" as (v0) "(% & $ & H0' & #H0)".
+      iDestruct "Hv1" as (v1) "(% & $ & H1' & #H1)".
+      iDestruct "Hv2" as (v2) "(% & $ & H2' & #H2)".
+      iDestruct "Hv3" as (v3) "(% & $ & H3' & #H3)".
+      iEval (rewrite !mono_temporary_eq) in "H0 H1 H2 H3".
+      pose (W0' := Wfixed). pose (W1' := Wfixed).
+      pose (W2' := Wfixed). pose (W3' := Wfixed).
+      assert (related_sts_pub_world W0' Wfixed) as HW0' by apply related_sts_pub_refl_world.
+      assert (related_sts_pub_world W1' Wfixed) as HW1' by apply related_sts_pub_refl_world.
+      assert (related_sts_pub_world W2' Wfixed) as HW2' by apply related_sts_pub_refl_world.
+      assert (related_sts_pub_world W3' Wfixed) as HW3' by apply related_sts_pub_refl_world.
       iDestruct (rel_agree _ _ (safeC φ_astk0) P0 with "[$Hrel_astk0 $Hrel0]") as "[<- HP0]".
       iDestruct (rel_agree _ _ (safeC φ_astk1) P1 with "[$Hrel_astk1 $Hrel1]") as "[<- HP1]".
       iDestruct (rel_agree _ _ (safeC φ_astk2) P2 with "[$Hrel_astk2 $Hrel2]") as "[<- HP2]".
@@ -516,10 +524,10 @@ Section switcher_helper.
         (isWL_flowsto RWL p_astk2 Hp_astk2 eq_refl)
         (isWL_flowsto RWL p_astk3 Hp_astk3 eq_refl).
       iNext.
-      iRewrite - ("HP0" $! (W0',C,v0)) in "H0'".
-      iRewrite - ("HP1" $! (W1',C,v1)) in "H1'".
-      iRewrite - ("HP2" $! (W2',C,v2)) in "H2'".
-      iRewrite - ("HP3" $! (W3',C,v3)) in "H3'".
+      iRewrite - ("HP0" $! (Wfixed,C,v0)) in "H0'".
+      iRewrite - ("HP1" $! (Wfixed,C,v1)) in "H1'".
+      iRewrite - ("HP2" $! (Wfixed,C,v2)) in "H2'".
+      iRewrite - ("HP3" $! (Wfixed,C,v3)) in "H3'".
       iDestruct ("Hrcond_astk0" with "H0'") as "#Hinterp0"; cbn.
       iDestruct ("Hrcond_astk1" with "H1'") as "#Hinterp1"; cbn.
       iDestruct ("Hrcond_astk2" with "H2'") as "#Hinterp2"; cbn.
@@ -643,12 +651,13 @@ Section switcher_helper.
         "#Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''".
 
       iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf_cur.
-      assert (heap_wf (heap_std W0)) as Hheap_wf_W0.
-      { eapply related_sts_heap_std_wf_back.
-        - exact (proj2 (proj2 (proj2 Hrelated_pub_W0_Wfixed))).
-        - subst Wfixed. rewrite close_list_heap. exact Hheap_wf_cur. }
+      assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed.
+      { subst Wfixed. rewrite close_list_heap. exact Hheap_wf_cur. }
+      assert (heap_wf (heap_std W0)) as Hheap_wf_0.
+      { eapply related_sts_heap_std_wf_back; [exact (proj2 (proj2 (proj2 Hrelated_pub_W0_Wfixed)))|exact Hheap_wf_fixed]. }
 
-      iAssert ( ▷( close_list_resources_gen C Wcur (l++(finz.seq_between csp_b csp_e)) (finz.seq_between csp_b csp_e) false) )%I with "[Hstk]" as "Hstk".
+      iAssert (▷ close_list_resources C W0 (finz.seq_between csp_b csp_e) false)%I
+        with "[Hstk]" as "Hstk".
       {
         replace a_stk4 with (a_stk ^+4)%a by (subst a_stk; solve_addr+Ha_stk4 He_a1).
         replace (a_stk ^+4)%a with csp_b by (subst a_stk; solve_addr+Ha_stk4 He_a1).
@@ -675,7 +684,6 @@ Section switcher_helper.
           specialize (H1 W).
           apply _.
         }
-        iFrame "%".
         iSplit; first (iPureIntro; eapply notisO_flowsfrom; eauto).
         iSplit.
         { erewrite isWL_flowsto;eauto.
@@ -687,14 +695,15 @@ Section switcher_helper.
       }
       iDestruct (lc_fupd_elim_later with "[$] [$Hstk]") as ">Hstk".
 
-      iDestruct (world_interp_close_resources_to_RevokedResources Wcur C
-        (l ++ closing_region) closing_region with "Hworld_interp Hstk")
+      iDestruct (world_interp_close_resources_to_RevokedResources Wcur W0 C
+        (l ++ closing_region) closing_region Hrelated_pub_W0_Wfixed
+        with "Hworld_interp Hstk")
         as "[Hworld_interp Hstk]".
       rewrite /CloseRes.
       destruct (is_untrusted_caller ccrel).
       - iDestruct "Hrevoked" as (l')
           "(%Hl & Hclose_list_res & (Hrev0 & Hrev1 & Hrev2 & Hrev3 & _))".
-        iAssert (close_list_resources_gen C Wcur (l ++ closing_region)
+        iAssert (close_list_resources C Wfixed
           [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a] false)
           with "[Hstk' Hrev0 Hrev1 Hrev2 Hrev3]" as "Hframe".
         {
@@ -722,29 +731,47 @@ Section switcher_helper.
         ; [ transitivity ( Some (a_stk ^+ 4)%a ); subst a_stk; solve_addr+Ha_stk4
           | subst a_stk; solve_addr+Ha_stk4 He_a1
           |].
-        rewrite /close_addr_resources_gen.
+        rewrite /close_list_resources /= /close_addr_resources.
         iSplitL "Hrev0 Ha_stk0".
-        { iFrame "Ha_stk0".
-          iDestruct "Hrev0" as " (%p & %P & $ & ($ & $ & $) & $)".
+        { iDestruct "Hrev0" as (p P Hpers) "((%Hp & #Hmono & Hsrc) & #Hrel)".
+          iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
+          iExists p, P. iFrame "Hrel". iSplit; first done.
+          iApply (temp_resources_mono_pub Wsrc Wfixed C P a_stk p
+            Hheap_wf_fixed Hrelated with "[Ha_stk0 Hφ]").
+          iExists (WInt 0). iFrame "Ha_stk0 Hmono Hφ %".
         }
         iSplitL "Hrev1 Ha_stk1".
-        { iFrame "Ha_stk1".
-          iDestruct "Hrev1" as " (%p & %P & $ & ($ & $ & $) & $)".
+        { iDestruct "Hrev1" as (p P Hpers) "((%Hp & #Hmono & Hsrc) & #Hrel)".
+          iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
+          iExists p, P. iFrame "Hrel". iSplit; first done.
+          iApply (temp_resources_mono_pub Wsrc Wfixed C P (a_stk ^+ 1)%a p
+            Hheap_wf_fixed Hrelated with "[Ha_stk1 Hφ]").
+          iExists (WInt 0). iFrame "Ha_stk1 Hmono Hφ %".
         }
         iSplitL "Hrev2 Ha_stk2".
-        { iFrame "Ha_stk2".
-          iDestruct "Hrev2" as " (%p & %P & $ & ($ & $ & $) & $)".
+        { iDestruct "Hrev2" as (p P Hpers) "((%Hp & #Hmono & Hsrc) & #Hrel)".
+          iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
+          iExists p, P. iFrame "Hrel". iSplit; first done.
+          iApply (temp_resources_mono_pub Wsrc Wfixed C P (a_stk ^+ 2)%a p
+            Hheap_wf_fixed Hrelated with "[Ha_stk2 Hφ]").
+          iExists (WInt 0). iFrame "Ha_stk2 Hmono Hφ %".
         }
         iSplitL "Hrev3 Ha_stk3".
-        { iFrame "Ha_stk3".
-          iDestruct "Hrev3" as " (%p & %P & $ & ($ & $ & $) & $)".
+        { iDestruct "Hrev3" as (p P Hpers) "((%Hp & #Hmono & Hsrc) & #Hrel)".
+          iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
+          iExists p, P. iFrame "Hrel". iSplit; first done.
+          iApply (temp_resources_mono_pub Wsrc Wfixed C P (a_stk ^+ 3)%a p
+            Hheap_wf_fixed Hrelated with "[Ha_stk3 Hφ]").
+          iExists (WInt 0). iFrame "Ha_stk3 Hmono Hφ %".
         }
         done.
         }
-        iDestruct (world_interp_close_resources_to_RevokedResources Wcur C
+        assert (related_sts_pub_world Wfixed Wfixed) as Hrelated_refl
+          by apply related_sts_pub_refl_world.
+        iDestruct (world_interp_close_resources_to_RevokedResources Wcur Wfixed C
           (l ++ closing_region)
           [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]
-          with "Hworld_interp Hframe") as "[Hworld_interp Hframe]".
+          Hrelated_refl with "Hworld_interp Hframe") as "[Hworld_interp Hframe]".
         iMod (world_interp_restore Wcur C (l ++ closing_region)
           with "[$Hworld_interp Hclose_list_res Hframe Hstk]") as "$"; last done.
         rewrite /RevokedResources big_sepL_app.

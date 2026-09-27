@@ -586,25 +586,6 @@ Section region_invariant_revocation.
      in a public future world close l W' ! This is slightly more tricky: we must first update the region monotonically,
      after which it will be possible to consolidate the full_sts and region *)
 
-  Definition close_addr_resources_gen C W (l : list Addr) (a : Addr) (is_later: bool) :=
-    (∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝
-                       ∗ (∃ W', ⌜related_sts_pub_world W' (close_list l W)⌝
-                                 ∗ if_later_P is_later (temp_resources W' C φ a p))
-                       ∗ rel C a p φ)%I.
-
-  Definition close_list_resources_gen C W (l l' : list Addr) (is_later : bool) :=
-   ([∗ list] a ∈ l', close_addr_resources_gen C W l a is_later)%I.
-
-  Lemma close_list_resources_gen_eq C W W' (l l' : list Addr) (is_later : bool) :
-    related_sts_pub_world W (close_list l W') ->
-    close_list_resources C W l' is_later -∗
-    close_list_resources_gen C W' l l' is_later.
-  Proof.
-    iIntros (Hrelated) "Htemps".
-    iApply (big_sepL_impl with "Htemps"); auto.
-    iIntros "!> %k %a %Ha (%p & %φ & %Hpers & Htemps & Hrel)"; iFrame "∗%".
-  Qed.
-
   Lemma region_rel_dom W C a p φ :
     region W C -∗
     rel C a p φ -∗
@@ -687,15 +668,16 @@ Section region_invariant_revocation.
       + iFrame; done.
   Qed.
 
-  Lemma close_list_resources_gen_cell_updates W C l l' :
-    heap_wf (heap_std W) ->
-    close_list_resources_gen C W l l' false -∗
-    close_list_cell_updates (close_list l W) C l'.
+  Lemma close_list_resources_cell_updates Wsrc Wbase C l l' :
+    heap_wf (heap_std Wbase) ->
+    related_sts_pub_world Wsrc (close_list l Wbase) ->
+    close_list_resources C Wsrc l' false -∗
+    close_list_cell_updates (close_list l Wbase) C l'.
   Proof.
-    iIntros (Hheap_wf) "Hres".
+    iIntros (Hheap_wf Hrelated) "Hres".
     iApply (big_sepL_impl with "Hres").
     iIntros "!> %k %a %Ha (%p & %φ & %Hpers & Htemp & Hrel)".
-    iDestruct "Htemp" as (W' Hrelated v) "(%Hp & Ha & #Hmono & Hφ)".
+    iDestruct "Htemp" as (v) "(%Hp & Ha & #Hmono & Hφ)".
     iExists p, φ. iFrame "Hrel %".
     iIntros (P) "Hcell".
     iApply (heap_cell_resource_mono with "[Ha Hφ] Hcell").
@@ -705,36 +687,6 @@ Section region_invariant_revocation.
     all: try (iPureIntro; exact Hrelated).
     all: try (iPureIntro; by rewrite close_list_heap).
     iPureIntro. by apply related_sts_pub_priv_world.
-  Qed.
-
-  Lemma close_list_consolidate_gen W C (l' l : list Addr) :
-    ⊢ ⌜l' ⊆+ l⌝ →
-    (region (close_list l W) C
-     ∗ sts_full_world W C
-     ∗ close_list_resources_gen C W l l' false
-       )
-      ==∗
-      (sts_full_world (close_list l' W) C
-       ∗ region (close_list l W) C).
-
-  Proof.
-    iIntros (Hsub) "(Hr & Hsts & Hres)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iDestruct (close_list_resources_gen_cell_updates W C l l' Hheap_wf with "Hres") as "Hres".
-    iApply (close_list_consolidate_cell_updates with "[] [$Hr $Hsts $Hres]"); done.
-  Qed.
-
-  Lemma close_list_consolidate_gen_live W C (l' l : list Addr) :
-    ⊢ ⌜Forall (heap_cell_live (heap_std W)) l'⌝ → ⌜l' ⊆+ l⌝ →
-    (region (close_list l W) C
-     ∗ sts_full_world W C
-     ∗ close_list_resources_gen C W l l' false
-       )
-      ==∗
-      (sts_full_world (close_list l' W) C
-       ∗ region (close_list l W) C).
-  Proof.
-    iIntros (_). iApply close_list_consolidate_gen.
   Qed.
 
   Lemma monotone_close_list_region_cell_updates W W' C (l : list Addr)
@@ -761,32 +713,6 @@ Section region_invariant_revocation.
 
 
 
-  Lemma monotone_close_list_region_gen W W' C (l : list Addr)
-     :
-    Forall (heap_cell_live (heap_std W')) l ->
-    ⊢ sts_full_world W' C
-     ∗ region W' C
-     ∗ close_list_resources_gen C W' l l false
-     ==∗
-     (sts_full_world (close_list l W') C
-      ∗ region (close_list l W') C
-     ).
-  Proof.
-    intros Hlive.
-    iIntros "(Hsts & Hr & Htemp)".
-    assert (related_sts_pub_world W' (close_list l W')) as Hrelated'.
-    { apply close_list_related_sts_pub; auto. }
-    assert (dom (std W') = dom (std (close_list l W'))) as Heq.
-    { rewrite /close_list.
-      apply close_list_dom_eq. }
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iDestruct (region_monotone with "Hr") as "Hr";[apply Heq|apply Hrelated'|symmetry; apply close_list_heap|by rewrite close_list_heap| ].
-    iMod (close_list_consolidate_gen_live _ _ l l with "[] [] [$Hr $Hsts Htemp]") as "[Hsts Hr]"
-    ;[auto|auto|eauto|iFrame;done].
-  Qed.
-
-
-
   Lemma monotone_close_list_region W W' C (l : list Addr)
      :
     Forall (heap_cell_live (heap_std W')) l ->
@@ -801,8 +727,9 @@ Section region_invariant_revocation.
   Proof.
     intros Hlive.
     iIntros (Hrelated) "(Hsts & Hr & Htemp)".
-    iApply monotone_close_list_region_gen; eauto; iFrame.
-    iApply close_list_resources_gen_eq; eauto.
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
+    iApply (monotone_close_list_region_cell_updates W W' C l); iFrame.
+    iApply (close_list_resources_cell_updates W W' C l l Hheap_wf Hrelated with "Htemp").
   Qed.
 
 
