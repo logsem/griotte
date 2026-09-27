@@ -101,12 +101,12 @@ Section Heap_Temporal_Safety_Main.
        switcher wrapper, then save the buffer in the private CGP slot.
 
        BLOCKED at the first unknown call: the heap world must share the
-       initially safe cell and track adversarial free calls.
+       initially safe address and track adversarial free calls.
 
        After return: reload and check the tag. Quarantine leads to Halt;
        a live result needs an ownership-recovery lemma, not just a tag fact.
        Overwrite its arbitrary contents with the private capability, then
-       call the known allocator to quarantine the cell before any unknown
+       call the known allocator to quarantine the address before any unknown
        code runs again. Restore the world with dangling aliases harmless.
 
        The second unknown call uses the integer argument zero. Finally apply

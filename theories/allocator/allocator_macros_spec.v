@@ -140,7 +140,7 @@ Section AllocatorMacros.
       (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons) in "Hmem".
     iDestruct "Hmem" as "[[%w Ha] Hmem]".
 
-    (* Store rptr 0 writes zero to the current heap cell. *)
+    (* Store rptr 0 writes zero to the current heap address. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_store_success_z with "[$HPC $Hi $Hptr $Ha]"); try solve_pure.
@@ -159,7 +159,7 @@ Section AllocatorMacros.
     iInstr "Hcode".
     destruct (decide ((b ^+ 1)%a = e)) as [Hlast | Hmore].
     - rewrite Hlast Z.sub_diag.
-      (* Jnz .allocator_zero rtmp falls through after the last cell. *)
+      (* Jnz .allocator_zero rtmp falls through after the last address. *)
       iInstr "Hcode".
       iApply "Hφ"; iFrame.
       rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap)))
@@ -185,7 +185,7 @@ Section AllocatorMacros.
 
   (** Clear painting preserves the exact words supplied by the caller.
       Quarantine painting gives up those words and returns one reclaim token
-      per cell. In either case, memory ownership witnesses that the entire
+      per address. In either case, memory ownership witnesses that the entire
       input range is live; repeated runtime frees are outside this contract.
 
       The translation and length premises identify the shadow interval, including
@@ -299,7 +299,7 @@ Section AllocatorMacros.
     iInstr "Hcode".
     destruct (decide ((b ^+ 1)%a = e)) as [Hlast | Hmore].
     - replace (e - b - 1)%Z with 0%Z by solve_addr.
-      (* Jnz .allocator_paint rcount falls through after the last cell. *)
+      (* Jnz .allocator_paint rcount falls through after the last address. *)
       iInstr "Hcode".
       assert (Hslast : (sb ^+ 1)%a = se) by solve_addr.
       rewrite Hslast.

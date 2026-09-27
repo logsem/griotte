@@ -1,7 +1,7 @@
 From stdpp Require Import gmap list.
 From griotte Require Export addresses.
 
-(** Allocation objects describe payloads, not allocator headers or free cells.
+(** Allocation objects describe payloads, not allocator headers or free addresses.
     The original base is the identity and is never reused. The map key agrees
     with the base recorded in the object. *)
 Inductive AllocObjectStatus := AllocObjectLive | AllocObjectQuarantined.

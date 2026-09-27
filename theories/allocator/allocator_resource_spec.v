@@ -7,37 +7,37 @@ Section AllocatorResourceProofs.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
     {MP : MachineParameters}.
 
-  Lemma free_cell_token_exclusive_correct (a : Addr) :
-    ⊢ (free_cell_token a -∗
-    free_cell_token a -∗
+  Lemma free_addr_token_exclusive_correct (a : Addr) :
+    ⊢ (free_addr_token a -∗
+    free_addr_token a -∗
     False)%I.
-  Proof. iApply free_cell_token_exclusive. Qed.
+  Proof. iApply free_addr_token_exclusive. Qed.
 
   Lemma allocator_entry_free_token_correct (a : Addr) (s : AllocState) :
     ⊢ (allocator_entry a s -∗
-    free_cell_token a -∗
+    free_addr_token a -∗
     ⌜s = Free⌝)%I.
   Proof. iApply allocator_entry_free_token. Qed.
 
-  Lemma free_cell_tokens_split_correct (A : gset Addr) :
+  Lemma free_addr_tokens_split_correct (A : gset Addr) :
     ⊢ (own allocator_free_name (GSet A) -∗
-       [∗ set] a ∈ A, free_cell_token a)%I.
-  Proof. iApply free_cell_tokens_split. Qed.
+       [∗ set] a ∈ A, free_addr_token a)%I.
+  Proof. iApply free_addr_tokens_split. Qed.
 
-  Lemma free_cells_split_correct (b m e : Addr) :
+  Lemma free_addrs_split_correct (b m e : Addr) :
     (b <= m /\ m <= e)%a ->
-    ⊢ (free_cells b e ∗-∗
-       free_cells b m ∗
-       free_cells m e)%I.
+    ⊢ (free_addrs b e ∗-∗
+       free_addrs b m ∗
+       free_addrs m e)%I.
   Proof.
     intros Hbounds.
-    rewrite /free_cells (finz_seq_between_split b m e Hbounds) big_sepL_app.
+    rewrite /free_addrs (finz_seq_between_split b m e Hbounds) big_sepL_app.
     iSplit; iIntros "$".
   Qed.
 
   Lemma allocator_entry_allocate_correct (a : Addr) :
     ⊢ (allocator_entry a Free -∗
-    free_cell_token a -∗
+    free_addr_token a -∗
        allocator_entry a Live ∗
        a ↦ₐ -)%I.
   Proof. iApply allocator_entry_allocate. Qed.
@@ -49,13 +49,13 @@ Section AllocatorResourceProofs.
     ↑Nallocator ⊆ E ->
     (heap_b <= b /\ b <= e /\ e <= heap_e)%a ->
     ⊢ (allocator_ctx -∗
-       free_cells b e
+       free_addrs b e
        ={E}=∗
        allocator_range_memory b e)%I.
   Proof.
     intros HE Hbounds.
     iIntros "#Halloc Hfree".
-    rewrite /free_cells /allocator_range_memory.
+    rewrite /free_addrs /allocator_range_memory.
     iApply big_sepL_fupd.
     iApply (big_sepL_impl with "Hfree").
     iIntros "!#" (k a Hlookup) "Hfree".
@@ -100,7 +100,7 @@ Section AllocatorInitializationProofs.
        ={E}=∗
        ∃ ag : allocatorG Σ,
          allocator_ctx (allocatorg := ag) ∗
-         free_cells (allocatorg := ag) heap_b heap_e)%I.
+         free_addrs (allocatorg := ag) heap_b heap_e)%I.
   Proof.
     intros Hdom.
     iIntros "Hm".
@@ -126,7 +126,7 @@ Section AllocatorServiceInitializationProofs.
 
   (** The initial heap may contain arbitrary words, but every shadow bit must
       be clear. Initialization allocates both token families, an empty immutable
-      header-metadata map, and both invariants. There are initially no header cells.
+      header-metadata map, and both invariants. There are initially no header addresses.
       Existing heap-only clients continue to use their compatibility wrappers. *)
 
   Lemma allocator_service_init_correct (E : coPset) (mem : Mem) :
@@ -149,7 +149,7 @@ Section AllocatorServiceInitializationProofs.
     iDestruct (region_pointsto_single with "Hdata") as (w) "[Hdata %Hword]".
     { exact (@allocator_size_data MP layout Hwf). }
     injection Hword as <-.
-    iEval (rewrite /free_cells (finz_seq_between_cons heap_b heap_e (heap_valid))
+    iEval (rewrite /free_addrs (finz_seq_between_cons heap_b heap_e (heap_valid))
       big_sepL_cons) in "Hfree".
     iDestruct "Hfree" as "[Hroot Hfree]".
     iMod (na_inv_alloc cerise_nais E Nallocator_service

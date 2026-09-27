@@ -709,11 +709,11 @@ Section logrel.
     eapply (Hdisjoint b); apply elem_of_finz_seq_between; solve_addr.
   Qed.
 
-  Lemma heap_cap_valid_cell_live W p b e ea :
+  Lemma heap_cap_valid_addr_live W p b e ea :
     heap_wf (heap_std W) ->
     withinBounds b e ea = true ->
     heap_cap_valid W p b e ->
-    heap_cell_live (heap_std W) ea.
+    heap_addr_live (heap_std W) ea.
   Proof.
     intros Hwf Hbounds Hvalid.
     apply withinBounds_true_iff in Hbounds as [Hb He].
@@ -726,10 +726,10 @@ Section logrel.
       destruct Hvalid as [Hend _].
       destruct (heap_lookup_addr_sound _ _ _ _ Hlookup) as [Hentry Hcontains].
       destruct Hcontains as [Hbase _].
-      eapply heap_cell_live_lookup; last exact Hstatus.
+      eapply heap_addr_live_lookup; last exact Hstatus.
       eapply heap_lookup_addr_complete; eauto.
       unfold alloc_object_contains. solve_addr.
-    - apply heap_cell_live_nonheap.
+    - apply heap_addr_live_nonheap.
       apply not_true_is_false. intros Hheap_ea.
       rewrite /disjoint_from_heap elem_of_disjoint in Hvalid.
       eapply (Hvalid ea); apply elem_of_finz_seq_between.
@@ -1102,16 +1102,16 @@ Section logrel.
     iPureIntro. naive_solver.
   Qed.
 
-  Lemma interp_cap_cell_live W C p g b e a ea :
+  Lemma interp_cap_addr_live W C p g b e a ea :
     heap_wf (heap_std W) ->
     isO p = false ->
     withinBounds b e ea = true ->
     interp W C (WCap true p g b e a) -∗
-    ⌜heap_cell_live (heap_std W) ea⌝.
+    ⌜heap_addr_live (heap_std W) ea⌝.
   Proof.
     iIntros (Hwf Hp Hbounds) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[_ Hvalid]; first done.
-    iPureIntro. eapply heap_cap_valid_cell_live; eauto.
+    iPureIntro. eapply heap_cap_valid_addr_live; eauto.
   Qed.
 
   Lemma interp_cap_disjoint (W : WORLD) (C : CmptName) p g b e a :
@@ -1614,7 +1614,7 @@ Section logrel.
   Qed.
 
   Lemma interp_in_mem_shadow_result_gen Wworld W C opened (p : Perm) raw actual alloc_map :
-    Forall (heap_cell_live (heap_std Wworld)) opened →
+    Forall (heap_addr_live (heap_std Wworld)) opened →
     heap_std Wworld = heap_std W →
     dom alloc_map = heap_addresses →
     load_memory_shadow_observation (shadow_status <$> alloc_map) p raw actual →
@@ -1672,14 +1672,14 @@ Section logrel.
           right. split; first done.
           rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus. done. }
         iFrame. }
-      assert (heap_cell_status (heap_std Wworld) base = Some AllocObjectQuarantined)
+      assert (heap_addr_status (heap_std Wworld) base = Some AllocObjectQuarantined)
         as Hqstatus.
-      { by rewrite Hheap_eq /heap_cell_status Hheap Hheaplookup /= Hstatus. }
+      { by rewrite Hheap_eq /heap_addr_status Hheap Hheaplookup /= Hstatus. }
       assert (base ∉ opened) as Hnotpc.
       { intros Hbase_in.
         rewrite Forall_forall in Hlive_s.
         specialize (Hlive_s base Hbase_in).
-        unfold heap_cell_live in Hlive_s. rewrite Hqstatus in Hlive_s.
+        unfold heap_addr_live in Hlive_s. rewrite Hqstatus in Hlive_s.
         discriminate. }
       iDestruct (world_interp_open_quarantined_token with "Hworld")
         as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
@@ -1707,14 +1707,14 @@ Section logrel.
           right. split; first done.
           rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus. done. }
         iFrame. }
-      assert (heap_cell_status (heap_std Wworld) base = Some AllocObjectQuarantined)
+      assert (heap_addr_status (heap_std Wworld) base = Some AllocObjectQuarantined)
         as Hqstatus.
-      { by rewrite Hheap_eq /heap_cell_status Hheap Hheaplookup /= Hstatus. }
+      { by rewrite Hheap_eq /heap_addr_status Hheap Hheaplookup /= Hstatus. }
       assert (base ∉ opened) as Hnotpc.
       { intros Hbase_in.
         rewrite Forall_forall in Hlive_s.
         specialize (Hlive_s base Hbase_in).
-        unfold heap_cell_live in Hlive_s. rewrite Hqstatus in Hlive_s.
+        unfold heap_addr_live in Hlive_s. rewrite Hqstatus in Hlive_s.
         discriminate. }
       iDestruct (world_interp_open_quarantined_token with "Hworld")
         as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
@@ -1726,7 +1726,7 @@ Section logrel.
   Qed.
 
   Lemma interp_in_mem_shadow_result W C pc (p : Perm) raw actual alloc_map :
-    heap_cell_live (heap_std W) pc →
+    heap_addr_live (heap_std W) pc →
     dom alloc_map = heap_addresses →
     load_memory_shadow_observation (shadow_status <$> alloc_map) p raw actual →
     world_interp_open W C [pc] -∗

@@ -67,7 +67,7 @@ Section fundamental.
         sts_state_std C l ρ
         ∗ ⌜std W !! l = Some ρ⌝
         ∗ ⌜ρ ≠ Revoked⌝
-        ∗ ⌜heap_cell_live (heap_std W) l⌝
+        ∗ ⌜heap_addr_live (heap_std W) l⌝
         ∗ world_interp_open W C (l :: ls)
         ∗ if_later_P
             has_later
@@ -180,7 +180,7 @@ Section fundamental.
       destruct HH as [ρ' [Hstd' Hnotrevoked'] ].
       assert (withinBounds b0 e0 ea0 = true) as Hbounds.
       { by rewrite /withinBounds Hle Hge. }
-      iDestruct (interp_cap_cell_live with "Hvsrc") as %Hlive;
+      iDestruct (interp_cap_addr_live with "Hvsrc") as %Hlive;
         eauto using writeAllowed_nonO.
       (* We can finally frame off Hsts here, since it is no longer needed after opening the region*)
       iDestruct (open_world_interp_next _ _ _ ea0 p'' _ ρ' with "Hrel'' Hworld_interp")

@@ -70,7 +70,7 @@ Section WorldInterpStack.
       assert (isWL p' = true) as Hwl_p'; simplify_eq.
       { destruct p' as [ [] [] ]; cbn in *; auto. }
       iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-      iDestruct (interp_cap_cell_live W C RWL g b e a a0 with "Hinterp") as %Hlive;
+      iDestruct (interp_cap_addr_live W C RWL g b e a a0 with "Hinterp") as %Hlive;
         [exact Hheap_wf|done|apply withinBounds_true_iff; solve_addr|].
       iDestruct (region_open_next_temp_pwl with "[$Hr $Hrel_P $Hsts]") as "Ha"; eauto.
       {
@@ -101,7 +101,7 @@ Section WorldInterpStack.
     NoDup la ->
     la ## la' ->
     length lv = length la ->
-    Forall (heap_cell_live (heap_std W)) la ->
+    Forall (heap_addr_live (heap_std W)) la ->
 
     open_region_many W C (la++la') ∗
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
@@ -181,7 +181,7 @@ Section WorldInterpStack.
    *)
 
   Local Lemma revoked_stack_revoked W C l' :
-    Forall (heap_cell_live (heap_std W)) l' ->
+    Forall (heap_addr_live (heap_std W)) l' ->
     ([∗ list] a' ∈ l',
        ⌜ std W !! a' = Some Temporary ⌝ ∗
        (
@@ -205,7 +205,7 @@ Section WorldInterpStack.
       iDestruct "Hrevoked" as "[Hrevoked_a Hrevoked]".
       iDestruct (IHl' Hlive_tail with "Hinterp Hrevoked") as "$".
       iDestruct "Hinterp_a" as "(%Ha & %p1 & %P1 & %Hp1 & %Hpers_P1 & #Hrel_1 & #Hzcond & #Hrcond & #Hwcond & #HmonoReq)".
-      unfold heap_cell_live in Hlive_a.
+      unfold heap_addr_live in Hlive_a.
       rewrite /close_addr_resources Hlive_a /temp_resources /=.
       iDestruct "Hrevoked_a" as "(%p2 & %P2 & %Hpers_P2  & [ %va H ] & #Hrel_2 )".
       iDestruct (rel_agree C a (safeC P1) P2 with "[$Hrel_1 $Hrel_2]") as "[<- Heq]".
@@ -289,9 +289,9 @@ Section WorldInterpStack.
 
     iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iDestruct (interp_cap_regions with "Hinterp") as %[_ Hcap_valid]; first done.
-    assert (Forall (heap_cell_live (heap_std W)) la) as Hla_live.
+    assert (Forall (heap_addr_live (heap_std W)) la) as Hla_live.
     { apply Forall_forall. intros x Hx.
-      eapply heap_cap_valid_cell_live; eauto.
+      eapply heap_cap_valid_addr_live; eauto.
       apply withinBounds_true_iff.
       apply elem_of_finz_seq_between in Hx. solve_addr. }
 
@@ -301,7 +301,7 @@ Section WorldInterpStack.
     { apply Forall_forall. intros x Hx.
       rewrite elem_of_dom. exists Temporary.
       apply Hall_l. apply elem_of_app. left. exact Hx. }
-    iDestruct (region_cells_status_some W C l_tmp_unk Hunk_dom with "Hr")
+    iDestruct (region_addrs_status_some W C l_tmp_unk Hunk_dom with "Hr")
       as "[Hr %Hstatuses]".
     destruct (heap_status_partition (heap_std W) l_tmp_unk Hstatuses)
       as (l_live & l_q & Hperm & Hlive & Hqstatus).
@@ -321,7 +321,7 @@ Section WorldInterpStack.
           apply (Hdisj x);
             [rewrite Hperm; apply elem_of_app; left; exact Hx|exact Hxla].
         + exact Hla_nodup. }
-    assert (Forall (heap_cell_live (heap_std W)) (l_live ++ la)) as Hlive_rev.
+    assert (Forall (heap_addr_live (heap_std W)) (l_live ++ la)) as Hlive_rev.
     { apply Forall_app. split; assumption. }
     assert (Forall (λ x, std W !! x = Some Temporary) (l_live ++ la)) as Htemp_rev.
     { apply Forall_app. split; last assumption.
@@ -343,9 +343,9 @@ Section WorldInterpStack.
     { rewrite /close_list_resources big_sepL_later.
       iApply (big_sepL_impl with "Hres_unk").
       iIntros "!> %k %a0 %Ha H".
-      assert (heap_cell_live (heap_std W) a0) as Hlive_a
+      assert (heap_addr_live (heap_std W) a0) as Hlive_a
         by (rewrite Forall_lookup in Hlive; eauto).
-      unfold heap_cell_live in Hlive_a.
+      unfold heap_addr_live in Hlive_a.
       rewrite /close_addr_resources Hlive_a.
       iDestruct "H" as (p φ Hpers) "(Htemp & #Hrel)".
       iExists p, φ. iFrame "Hrel". iSplit; first done.
@@ -415,7 +415,7 @@ Section WorldInterpStack.
        rewrite Hp'.
        assert (a ∈ dom (std W)) as Hdom_a.
        { rewrite elem_of_dom. eexists. exact Hrev_a. }
-       iDestruct (region_cell_status_some W C a Hdom_a with "Hregion")
+       iDestruct (region_addr_status_some W C a Hdom_a with "Hregion")
          as "[Hregion %Hstatus_some]".
        iMod (IHla with "Hworld Hregion Hres Hl") as "[Hregion Hworld]"; eauto.
        destruct Hstatus_some as [status Hstatus]. destruct status.
@@ -432,7 +432,7 @@ Section WorldInterpStack.
          { eapply notisO_flowsfrom; eauto. }
          { exact Hp'. }
          by iFrame.
-       + unfold heap_cell_status in Hstatus.
+       + unfold heap_addr_status in Hstatus.
          destruct (is_heap_address a) eqn:Hheap; last discriminate.
          destruct (heap_lookup_addr (heap_std W) a) as [bo|] eqn:Hlookup;
            last discriminate.

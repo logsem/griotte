@@ -11,9 +11,9 @@ Section region_alloc.
     `{MP: MachineParameters}.
 
   Local Hint Rewrite std_update_multiple_heap : heap.
-  Local Hint Extern 2 (heap_cell_live _ _) =>
+  Local Hint Extern 2 (heap_addr_live _ _) =>
     progress autorewrite with heap; assumption : core.
-  Local Hint Extern 2 (Forall (heap_cell_live _) _) =>
+  Local Hint Extern 2 (Forall (heap_addr_live _) _) =>
     progress autorewrite with heap; assumption : core.
   Local Hint Extern 2 (heap_std _ = heap_std _) =>
     progress autorewrite with heap; reflexivity : core.
@@ -40,8 +40,8 @@ Section region_alloc.
      ∗ sts_full_world (<s[ a := Temporary ]s>W) C.
   Proof.
     intros Hnonheap.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { apply heap_cell_live_nonheap. exact Hnonheap. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { apply heap_addr_live_nonheap. exact Hnonheap. }
     iIntros (HnpO Hnone1 Hpwl) "#HmonoV Hfull Hreg Hl #Hφ".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -76,7 +76,7 @@ Section region_alloc.
       { iExists Temporary. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. iSplitR; first done. iFrame "%#".
-        iApply heap_cell_resource_live_intro; first exact Hlive.
+        iApply heap_addr_resource_live_intro; first exact Hlive.
         rewrite /region_std_interp Hpwl.
         iFrame "∗ #".
         repeat(iSplitR;auto).
@@ -110,8 +110,8 @@ Section region_alloc.
      ∗ sts_full_world (<s[ a := Temporary ]s>W) C.
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     iIntros (HnpO Hnone1 Hpwl) "#HmonoV Hfull Hreg Hl #Hφ".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -146,7 +146,7 @@ Section region_alloc.
       { iExists Temporary. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. iSplitR; first done. iFrame "%#".
-        iApply heap_cell_resource_live_intro; first exact Hlive.
+        iApply heap_addr_resource_live_intro; first exact Hlive.
         rewrite /region_std_interp Hpwl.
         iFrame "∗ #".
         repeat(iSplitR;auto).
@@ -161,7 +161,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_temp_pwl E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     isO p = false ->
      a ∉ dom (std W) →
      (isWL p) = true →
@@ -178,7 +178,7 @@ Section region_alloc.
      ∗ sts_full_world (<s[ a := Temporary ]s>W) C.
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -204,8 +204,8 @@ Section region_alloc.
      ∗ sts_full_world (<s[a := Temporary ]s>W) C.
   Proof.
     intros Hnonheap.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { apply heap_cell_live_nonheap. exact Hnonheap. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { apply heap_addr_live_nonheap. exact Hnonheap. }
     iIntros (HnpO Hnone1 Hpwl) "#HmonoV Hfull Hreg Hl #Hφ".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -241,7 +241,7 @@ Section region_alloc.
       { iExists Temporary. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. iSplitR; first done. iFrame "%#".
-        iApply heap_cell_resource_live_intro; first exact Hlive.
+        iApply heap_addr_resource_live_intro; first exact Hlive.
         rewrite /region_std_interp Hpwl.
         iFrame "∗ #".
         repeat(iSplitR;[auto|]).
@@ -276,8 +276,8 @@ Section region_alloc.
      ∗ sts_full_world (<s[a := Temporary ]s>W) C.
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     iIntros (HnpO Hnone1 Hpwl) "#HmonoV Hfull Hreg Hl #Hφ".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -313,7 +313,7 @@ Section region_alloc.
       { iExists Temporary. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. iSplitR; first done. iFrame "%#".
-        iApply heap_cell_resource_live_intro; first exact Hlive.
+        iApply heap_addr_resource_live_intro; first exact Hlive.
         rewrite /region_std_interp Hpwl.
         iFrame "∗ #".
         repeat(iSplitR;[auto|]).
@@ -329,7 +329,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_temp_nwl E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     isO p = false ->
      a ∉ dom (std W) →
      (isWL p) = false →
@@ -346,7 +346,7 @@ Section region_alloc.
      ∗ sts_full_world (<s[a := Temporary ]s>W) C.
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -372,8 +372,8 @@ Section region_alloc.
     ∗ sts_full_world (<s[a := Temporary ]s>W) C.
   Proof.
     intros Hnonheap.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { apply heap_cell_live_nonheap. exact Hnonheap. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { apply heap_addr_live_nonheap. exact Hnonheap. }
     iIntros (HnpO Hnone1) "#HmonoV Hfull Hreg Hl #Hφ".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     destruct (isWL p) eqn:Hpwl.
@@ -401,8 +401,8 @@ Section region_alloc.
     ∗ sts_full_world (<s[a := Temporary ]s>W) C.
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     iIntros (HnpO Hnone1) "#HmonoV Hfull Hreg Hl #Hφ".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     destruct (isWL p) eqn:Hpwl.
@@ -411,7 +411,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_temp E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     isO p = false ->
     a ∉ dom (std W) →
     (if isWL p then future_pub_mono C φ v else
@@ -428,7 +428,7 @@ Section region_alloc.
     ∗ sts_full_world (<s[a := Temporary ]s>W) C.
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -453,8 +453,8 @@ Section region_alloc.
      ∗ sts_full_world (<s[a := Permanent ]s>W) C.
   Proof.
     intros Hnonheap.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { apply heap_cell_live_nonheap. exact Hnonheap. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { apply heap_addr_live_nonheap. exact Hnonheap. }
     iIntros (HnpO Hnone1) "#HmonoV Hfull Hreg Hl #Hφ".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -490,7 +490,7 @@ Section region_alloc.
       { iExists Permanent. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. iSplitR; first done. iFrame "%#".
-        iApply heap_cell_resource_live_intro; first exact Hlive.
+        iApply heap_addr_resource_live_intro; first exact Hlive.
         cbn [region_std_interp]. iFrame "∗ #".
         repeat (iSplitR;[done|]).
         iNext. iApply "HmonoV"; eauto.
@@ -523,8 +523,8 @@ Section region_alloc.
      ∗ sts_full_world (<s[a := Permanent ]s>W) C.
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     iIntros (HnpO Hnone1) "#HmonoV Hfull Hreg Hl #Hφ".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -560,7 +560,7 @@ Section region_alloc.
       { iExists Permanent. iFrame.
         iSplitR;[iPureIntro;apply lookup_insert_eq|].
         iExists γpred,p,φ. iSplitR; first done. iFrame "%#".
-        iApply heap_cell_resource_live_intro; first exact Hlive.
+        iApply heap_addr_resource_live_intro; first exact Hlive.
         cbn [region_std_interp]. iFrame "∗ #".
         repeat (iSplitR;[done|]).
         iNext. iApply "HmonoV"; eauto.
@@ -575,7 +575,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_perm E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     isO p = false ->
      a ∉ dom (std W) →
      future_priv_mono C φ v -∗
@@ -591,7 +591,7 @@ Section region_alloc.
      ∗ sts_full_world (<s[a := Permanent ]s>W) C.
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -615,8 +615,8 @@ Section region_alloc.
      ∗ sts_full_world (<s[a := Revoked ]s>W) C.
   Proof.
     intros Hnonheap.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { apply heap_cell_live_nonheap. exact Hnonheap. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { apply heap_addr_live_nonheap. exact Hnonheap. }
     iIntros (Hnone1) "Hfull Hreg".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -652,7 +652,7 @@ Section region_alloc.
       { iExists Revoked. iFrame. iSplitR.
         + iPureIntro;apply lookup_insert_eq.
         + iExists γpred,p,φ. iSplitR; first done. iFrame "%#".
-          iApply heap_cell_resource_live_intro; first exact Hlive.
+          iApply heap_addr_resource_live_intro; first exact Hlive.
           done.
       }
       iApply (big_sepM_mono with "Hpreds'").
@@ -739,8 +739,8 @@ Section region_alloc.
      ∗ sts_full_world (<s[a := Revoked ]s>W) C.
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     iIntros (Hnone1) "Hfull Hreg".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite region_eq rel_eq /region_def /rel_def.
@@ -776,7 +776,7 @@ Section region_alloc.
       { iExists Revoked. iFrame. iSplitR.
         + iPureIntro;apply lookup_insert_eq.
         + iExists γpred,p,φ. iSplitR; first done. iFrame "%#".
-          iApply heap_cell_resource_live_intro; first exact Hlive.
+          iApply heap_addr_resource_live_intro; first exact Hlive.
           done.
       }
       iApply (big_sepM_mono with "Hpreds'").
@@ -788,7 +788,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_revoked E W C a p φ `{∀ Wv, Persistent (φ Wv)}  :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
      a ∉ dom (std W) →
      sts_full_world W C
      -∗ region W C
@@ -800,7 +800,7 @@ Section region_alloc.
      ∗ sts_full_world (<s[a := Revoked ]s>W) C.
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -810,7 +810,7 @@ Section region_alloc.
 
   Lemma extend_region_revoked_sepL2 E W C l1 p φ `{∀ Wv, Persistent (φ Wv)}:
     Forall (λ k, std W !! k = None) l1 →
-    Forall (heap_cell_live (heap_std W)) l1 →
+    Forall (heap_addr_live (heap_std W)) l1 →
     sts_full_world W C
     -∗ region W C
 
@@ -852,7 +852,7 @@ Section region_alloc.
   Lemma extend_region_temp_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
     Forall (λ k, std W !! k = None) l1 →
-    Forall (heap_cell_live (heap_std W)) l1 →
+    Forall (heap_addr_live (heap_std W)) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2,
@@ -910,7 +910,7 @@ Section region_alloc.
   Lemma extend_region_perm_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
     Forall (λ k, std W !! k = None) l1 →
-    Forall (heap_cell_live (heap_std W)) l1 →
+    Forall (heap_addr_live (heap_std W)) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2,
@@ -1061,7 +1061,7 @@ Section region_alloc.
   Qed.
 
   Lemma region_close_many E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} :
-    Forall (heap_cell_live (heap_std W)) l1 ->
+    Forall (heap_addr_live (heap_std W)) l1 ->
     NoDup l1 ->
     isO p = false ->
     ([∗ list] k ∈ l1, rel C k p φ) -∗
@@ -1102,7 +1102,7 @@ Section region_alloc.
     intros Hcases.
     eapply region_close_many; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. apply heap_cell_live_nonheap. exact Ha.
+    intros a Ha. apply heap_addr_live_nonheap. exact Ha.
   Qed.
 
   Lemma region_close_many_live_heap E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} :
@@ -1122,11 +1122,11 @@ Section region_alloc.
     eapply region_close_many; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
     intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_cell_live_lookup; eauto.
+      eapply heap_addr_live_lookup; eauto.
   Qed.
 
   Lemma extend_region_perm_sepL2_open E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    Forall (heap_cell_live (heap_std W)) l1 ->
+    Forall (heap_addr_live (heap_std W)) l1 ->
     NoDup l1 ->
     isO p = false ->
     Forall (λ k, std W !! k = None) l1 →
@@ -1188,7 +1188,7 @@ Section region_alloc.
     intros Hcases.
     eapply extend_region_perm_sepL2_open; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. apply heap_cell_live_nonheap. exact Ha.
+    intros a Ha. apply heap_addr_live_nonheap. exact Ha.
   Qed.
 
   Lemma extend_region_perm_sepL2_open_live_heap E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
@@ -1219,7 +1219,7 @@ Section region_alloc.
     eapply extend_region_perm_sepL2_open; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
     intros a Ha. destruct Ha as (Hheap & base & obj & Hlookup & Hstatus).
-      eapply heap_cell_live_lookup; eauto.
+      eapply heap_addr_live_lookup; eauto.
   Qed.
 
 
@@ -1227,7 +1227,7 @@ Section region_alloc.
   Lemma extend_region_perm_sepL2_open'
     {sealsg: sealStoreG Σ} E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} o ws ws_sealed:
     let W' := (<o[ o := ws ]o> (std_update_multiple W l1 Permanent)) in
-    Forall (heap_cell_live (heap_std W)) l1 ->
+    Forall (heap_addr_live (heap_std W)) l1 ->
     NoDup l1 ->
     isO p = false ->
     Forall (λ k, std W !! k = None) l1 →
@@ -1286,7 +1286,7 @@ Section region_alloc.
     { reflexivity. }
     { by rewrite /= std_update_multiple_heap. }
     iMod (region_close_many with "Hrel Hreg Hl Hφ'' Hmono") as "Hreg"; eauto.
-    { change (Forall (heap_cell_live (heap_std (std_update_multiple W l1 Permanent))) l1).
+    { change (Forall (heap_addr_live (heap_std (std_update_multiple W l1 Permanent))) l1).
       by rewrite std_update_multiple_heap. }
     by iFrame.
   Qed.

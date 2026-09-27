@@ -284,7 +284,7 @@ Section fundamental.
     { subst saved_addrs.
       destruct (is_untrusted_caller ccrel); simpl; last constructor.
       apply Forall_forall; intros a Ha.
-      apply heap_cell_live_nonheap, Hstk_nonheap_addr.
+      apply heap_addr_live_nonheap, Hstk_nonheap_addr.
       apply elem_of_finz_seq_between in Ha.
       apply elem_of_finz_seq_between.
       destruct Ha as [Ha_lo Ha_hi]. split.
@@ -439,7 +439,7 @@ Section fundamental.
       }
       { subst lv'. by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
       { apply Forall_forall; intros a Ha.
-        apply heap_cell_live_nonheap, Hstk_nonheap_addr.
+        apply heap_addr_live_nonheap, Hstk_nonheap_addr.
         apply elem_of_finz_seq_between in Ha.
         apply elem_of_finz_seq_between.
         destruct Ha as [Ha_lo Ha_hi]. split; last exact Ha_hi.
@@ -464,7 +464,7 @@ Section fundamental.
       { set_solver. }
       { subst lv'; by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
       { apply Forall_forall; intros a Ha.
-        apply heap_cell_live_nonheap, Hstk_nonheap_addr.
+        apply heap_addr_live_nonheap, Hstk_nonheap_addr.
         apply elem_of_finz_seq_between in Ha.
         apply elem_of_finz_seq_between.
         destruct Ha as [Ha_lo Ha_hi]. split.

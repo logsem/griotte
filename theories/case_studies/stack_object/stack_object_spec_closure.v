@@ -35,7 +35,7 @@ Section SO.
       (Wbase Wcur : WORLD) (l : list Addr) :
     heap_std Wbase = heap_std Wcur ->
     Forall
-      (fun a => heap_cell_status (heap_std Wbase) a = Some AllocObjectQuarantined)
+      (fun a => heap_addr_status (heap_std Wbase) a = Some AllocObjectQuarantined)
       l ->
     world_interp Wcur C ∗ RevokedResources Wbase C l
     ==∗
@@ -43,7 +43,7 @@ Section SO.
   Proof.
     intros Hheap Hq.
     assert (Forall
-      (fun a => heap_cell_status (heap_std (close_list l Wcur)) a =
+      (fun a => heap_addr_status (heap_std (close_list l Wcur)) a =
         Some AllocObjectQuarantined) l) as Hq_closed.
     { rewrite close_list_heap -Hheap. exact Hq. }
     rewrite (RevokedResources_quarantined Wbase C l Hq).
@@ -57,12 +57,12 @@ Section SO.
     Forall (fun a => a ∈ dom (std W)) l ->
     world_interp W C -∗
     world_interp W C ∗
-      ⌜Forall (fun a => is_Some (heap_cell_status (heap_std W) a)) l⌝.
+      ⌜Forall (fun a => is_Some (heap_addr_status (heap_std W) a)) l⌝.
   Proof.
     intros Hdom.
     rewrite world_interp_eq /world_interp_def.
     iIntros "(Hr & Hsts & Hseals)".
-    iDestruct (region_cells_status_some W C l Hdom with "Hr")
+    iDestruct (region_addrs_status_some W C l Hdom with "Hr")
       as "[Hr %Hstatuses]".
     iFrame. iPureIntro. exact Hstatuses.
   Qed.
@@ -676,10 +676,10 @@ Section SO.
     }
     (* Derive a bunch of disjointness properties that will be necessary later. *)
     set (W5 := revoke W4).
-    assert (Forall (heap_cell_live (heap_std W5))
+    assert (Forall (heap_addr_live (heap_std W5))
       (finz.seq_between a_stk2 csp_e)) as Hstack_live_W5.
     { apply Forall_forall. intros x Hx.
-      apply heap_cell_live_nonheap.
+      apply heap_addr_live_nonheap.
       apply not_true_is_false. intros Hheap.
       rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
       eapply Hstk_heap.
@@ -728,7 +728,7 @@ Section SO.
 
     iMod (world_interp_revoked_by_separation with "[$Hastk0 $Hworld_interp_C]")
       as "(Hworld_interp_C & Hastk0 & %Hastk0_W5)".
-    { apply heap_cell_live_nonheap.
+    { apply heap_addr_live_nonheap.
       apply not_true_is_false. intro Hheap.
       rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
       eapply (Hstk_heap csp_b).
@@ -829,7 +829,7 @@ Section SO.
     { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; rewrite Hdom_rmap ; set_solver+. }
 
     (* Repair the initial and returned revocation sets together.  The helper
-       removes the fresh cell and the incoming object overlap, closes the
+       removes the fresh address and the incoming object overlap, closes the
        repaired world, and reconstructs the complete stack region. *)
     set (l_revoked_W4_no_astk1 :=
       filter (fun a => a <> a_stk1) l_revoked_W4).

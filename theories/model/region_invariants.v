@@ -138,7 +138,7 @@ Section standard_world_interp.
     iExists ρ. iFrame. iSplitR; first done.
     iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
     iExists γpred, p, φ. iFrame "%#". rewrite -Hheap.
-    iApply (heap_cell_resource_mono with "[] Hl"). iIntros "Hl".
+    iApply (heap_addr_resource_mono with "[] Hl"). iIntros "Hl".
     destruct ρ; cbn [region_std_interp]; last done.
     - iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
       iFrame "%#∗".
@@ -256,7 +256,7 @@ Section standard_world_interp.
 
   Lemma open_region_many_quarantined_token W C l a :
     a ∉ l →
-    heap_cell_status (heap_std W) a = Some AllocObjectQuarantined →
+    heap_addr_status (heap_std W) a = Some AllocObjectQuarantined →
     open_region_many W C l -∗
       reclaim_token a ∗ (reclaim_token a -∗ open_region_many W C l).
   Proof.
@@ -270,7 +270,7 @@ Section standard_world_interp.
     { rewrite lookup_delete_list_notin //; exact Hγp. }
     iDestruct "Ha" as (ρ Hρ) "[Hstate Ha]".
     iDestruct "Ha" as (γpred p φ Heq Hpers) "[#Hsaved Ha]".
-    rewrite /heap_cell_status in Hquarantined.
+    rewrite /heap_addr_status in Hquarantined.
     destruct (is_heap_address a) eqn:Hheap; last discriminate.
     destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
       last discriminate.
@@ -326,7 +326,7 @@ Section standard_world_interp.
          ∗ ▷ φ (W,C,v).
   Proof.
     intros Hnonheap.
-    have Hlive := heap_cell_live_nonheap (heap_std W) a Hnonheap.
+    have Hlive := heap_addr_live_nonheap (heap_std W) a Hnonheap.
     rewrite open_region_many_eq .
     iIntros (Hnin Htemp Hpwl) "(Hopen & #Hrel & Hfull)".
     rewrite /open_region_many_def /region_map_def /=.
@@ -343,7 +343,7 @@ Section standard_world_interp.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct (heap_cell_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
+    iDestruct (heap_addr_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
@@ -376,8 +376,8 @@ Section standard_world_interp.
          ∗ ▷ φ (W,C,v).
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     rewrite open_region_many_eq .
     iIntros (Hnin Htemp Hpwl) "(Hopen & #Hrel & Hfull)".
     rewrite /open_region_many_def /region_map_def /=.
@@ -394,7 +394,7 @@ Section standard_world_interp.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct (heap_cell_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
+    iDestruct (heap_addr_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
@@ -411,7 +411,7 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_open_next_temp_pwl W C φ als a p :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     a ∉ als →
     (std W) !! a = Some Temporary ->
     isWL p = true →
@@ -425,7 +425,7 @@ Section standard_world_interp.
          ∗ ▷ φ (W,C,v).
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -448,7 +448,7 @@ Section standard_world_interp.
          ∗ ▷ φ (W,C,v).
   Proof.
     intros Hnonheap.
-    have Hlive := heap_cell_live_nonheap (heap_std W) a Hnonheap.
+    have Hlive := heap_addr_live_nonheap (heap_std W) a Hnonheap.
     rewrite open_region_many_eq .
     iIntros (Hnin Htemp Hpwl) "(Hopen & #Hrel & Hfull)".
     rewrite /open_region_many_def /region_map_def /=.
@@ -465,7 +465,7 @@ Section standard_world_interp.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct (heap_cell_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
+    iDestruct (heap_addr_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
@@ -500,8 +500,8 @@ Section standard_world_interp.
          ∗ ▷ φ (W,C,v).
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     rewrite open_region_many_eq .
     iIntros (Hnin Htemp Hpwl) "(Hopen & #Hrel & Hfull)".
     rewrite /open_region_many_def /region_map_def /=.
@@ -518,7 +518,7 @@ Section standard_world_interp.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct (heap_cell_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
+    iDestruct (heap_addr_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
@@ -537,7 +537,7 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_open_next_temp_nwl W C φ als a p :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     a ∉ als →
     (std W) !! a = Some Temporary ->
     isWL p = false →
@@ -551,7 +551,7 @@ Section standard_world_interp.
          ∗ ▷ φ (W,C,v).
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -575,7 +575,7 @@ Section standard_world_interp.
         ∗ ▷ φ (W,C,v).
   Proof.
     intros Hnonheap.
-    have Hlive := heap_cell_live_nonheap (heap_std W) a Hnonheap.
+    have Hlive := heap_addr_live_nonheap (heap_std W) a Hnonheap.
     rewrite open_region_many_eq .
     iIntros (Hnin Htemp) "(Hopen & #Hrel & Hfull)".
     rewrite /open_region_many_def /= /region_map_def.
@@ -592,7 +592,7 @@ Section standard_world_interp.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct (heap_cell_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
+    iDestruct (heap_addr_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inv HH.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
@@ -627,8 +627,8 @@ Section standard_world_interp.
         ∗ ▷ φ (W,C,v).
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     rewrite open_region_many_eq .
     iIntros (Hnin Htemp) "(Hopen & #Hrel & Hfull)".
     rewrite /open_region_many_def /= /region_map_def.
@@ -645,7 +645,7 @@ Section standard_world_interp.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct (heap_cell_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
+    iDestruct (heap_addr_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inv HH.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
@@ -663,7 +663,7 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_open_next_perm W C φ als a p :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     a ∉ als → (std W) !! a = Some Permanent ->
     open_region_many W C als
     ∗ rel C a p φ
@@ -678,7 +678,7 @@ Section standard_world_interp.
         ∗ ▷ φ (W,C,v).
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -700,7 +700,7 @@ Section standard_world_interp.
     -∗ open_region_many W C als.
   Proof.
     intros Hnonheap.
-    have Hlive := heap_cell_live_nonheap (heap_std W) a Hnonheap.
+    have Hlive := heap_addr_live_nonheap (heap_std W) a Hnonheap.
     rewrite open_region_many_eq /open_region_many_def.
     iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
@@ -712,7 +712,7 @@ Section standard_world_interp.
     iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
-      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_cell_resource_live_intro; first exact Hlive.
+      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_addr_resource_live_intro; first exact Hlive.
       rewrite /region_std_interp Hpwl. iFrame "∗ #%". }
     rewrite -(delete_list_delete _ M) //.
     rewrite -(delete_list_insert _ (delete a M)) //.
@@ -741,8 +741,8 @@ Section standard_world_interp.
     -∗ open_region_many W C als.
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     rewrite open_region_many_eq /open_region_many_def.
     iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
@@ -754,7 +754,7 @@ Section standard_world_interp.
     iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
-      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_cell_resource_live_intro; first exact Hlive.
+      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_addr_resource_live_intro; first exact Hlive.
       rewrite /region_std_interp Hpwl. iFrame "∗ #%". }
     rewrite -(delete_list_delete _ M) //.
     rewrite -(delete_list_insert _ (delete a M)) //.
@@ -768,7 +768,7 @@ Section standard_world_interp.
   Qed.
 
    Lemma region_close_next_temp_pwl W C φ als a p v `{forall Wv, Persistent (φ Wv)} :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     a ∉ als ->
     isWL p = true →
     sts_state_std C a Temporary
@@ -781,7 +781,7 @@ Section standard_world_interp.
     -∗ open_region_many W C als.
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -803,7 +803,7 @@ Section standard_world_interp.
       -∗ open_region_many W C als.
   Proof.
     intros Hnonheap.
-    have Hlive := heap_cell_live_nonheap (heap_std W) a Hnonheap.
+    have Hlive := heap_addr_live_nonheap (heap_std W) a Hnonheap.
     rewrite open_region_many_eq /open_region_many_def.
     iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
@@ -815,7 +815,7 @@ Section standard_world_interp.
     iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
-      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_cell_resource_live_intro; first exact Hlive.
+      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_addr_resource_live_intro; first exact Hlive.
       rewrite /region_std_interp Hpwl. iFrame "∗ #%". }
     rewrite -(delete_list_delete _ M) //.
     rewrite -(delete_list_insert _ (delete a M)) //.
@@ -844,8 +844,8 @@ Section standard_world_interp.
       -∗ open_region_many W C als.
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     rewrite open_region_many_eq /open_region_many_def.
     iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
@@ -857,7 +857,7 @@ Section standard_world_interp.
     iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
-      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_cell_resource_live_intro; first exact Hlive.
+      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_addr_resource_live_intro; first exact Hlive.
       rewrite /region_std_interp Hpwl. iFrame "∗ #%". }
     rewrite -(delete_list_delete _ M) //.
     rewrite -(delete_list_insert _ (delete a M)) //.
@@ -871,7 +871,7 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_close_next_temp_nwl W C φ als a p v `{forall Wv, Persistent (φ Wv)} :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     a ∉ als ->
     isWL p = false →
     sts_state_std C a Temporary
@@ -884,7 +884,7 @@ Section standard_world_interp.
       -∗ open_region_many W C als.
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -905,7 +905,7 @@ Section standard_world_interp.
       -∗ open_region_many W C als.
   Proof.
     intros Hnonheap.
-    have Hlive := heap_cell_live_nonheap (heap_std W) a Hnonheap.
+    have Hlive := heap_addr_live_nonheap (heap_std W) a Hnonheap.
     rewrite open_region_many_eq /open_region_many_def.
     iIntros (Hnin) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
@@ -917,7 +917,7 @@ Section standard_world_interp.
       first by rewrite lookup_delete_eq.
     { iFrame.
       iSplitR; [by simplify_map_eq|].
-      iExists _,_,_. iSplitR; first done. iFrame "%#". iApply heap_cell_resource_live_intro; first exact Hlive. cbn [region_std_interp]. iFrame "∗ #%".
+      iExists _,_,_. iSplitR; first done. iFrame "%#". iApply heap_addr_resource_live_intro; first exact Hlive. cbn [region_std_interp]. iFrame "∗ #%".
     }
     rewrite -(delete_list_delete _ M) // -(delete_list_insert _ (delete _ M)) //.
     rewrite -(delete_list_insert _ Mρ) //.
@@ -944,8 +944,8 @@ Section standard_world_interp.
       -∗ open_region_many W C als.
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     rewrite open_region_many_eq /open_region_many_def.
     iIntros (Hnin) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
@@ -957,7 +957,7 @@ Section standard_world_interp.
       first by rewrite lookup_delete_eq.
     { iFrame.
       iSplitR; [by simplify_map_eq|].
-      iExists _,_,_. iSplitR; first done. iFrame "%#". iApply heap_cell_resource_live_intro; first exact Hlive. cbn [region_std_interp]. iFrame "∗ #%".
+      iExists _,_,_. iSplitR; first done. iFrame "%#". iApply heap_addr_resource_live_intro; first exact Hlive. cbn [region_std_interp]. iFrame "∗ #%".
     }
     rewrite -(delete_list_delete _ M) // -(delete_list_insert _ (delete _ M)) //.
     rewrite -(delete_list_insert _ Mρ) //.
@@ -970,7 +970,7 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_close_next_perm W C φ als a p v `{forall Wv, Persistent (φ Wv)} :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     a ∉ als ->
     ⊢ sts_state_std C a Permanent
     ∗ open_region_many W C (a::als)
@@ -982,7 +982,7 @@ Section standard_world_interp.
       -∗ open_region_many W C als.
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -1050,7 +1050,7 @@ Section standard_world_interp.
         ∗ ⌜isO p = false⌝.
   Proof.
     intros Hnonheap.
-    have Hlive := heap_cell_live_nonheap (heap_std W) a Hnonheap.
+    have Hlive := heap_addr_live_nonheap (heap_std W) a Hnonheap.
     rewrite /monotonicity_guarantees_region.
     intros. iIntros "H".
     destruct ρ; try congruence.
@@ -1087,8 +1087,8 @@ Section standard_world_interp.
         ∗ ⌜isO p = false⌝.
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     rewrite /monotonicity_guarantees_region.
     intros. iIntros "H".
     destruct ρ; try congruence.
@@ -1107,7 +1107,7 @@ Section standard_world_interp.
     (φ : WORLD * CmptName * Word → iProp Σ)
     (als : list Addr) (a : Addr) (p : Perm) (ρ : region_type)
     (Hρnotrevoked : ρ <> Revoked) :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     a ∉ als →
     std W !! a = Some ρ →
     ⊢ open_region_many W C als
@@ -1123,7 +1123,7 @@ Section standard_world_interp.
         ∗ ⌜isO p = false⌝.
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -1137,7 +1137,7 @@ Section standard_world_interp.
    :
 
     let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
-    Forall (fun '(a,p,φ,ρ) => heap_cell_live (heap_std W) a) l ->
+    Forall (fun '(a,p,φ,ρ) => heap_addr_live (heap_std W) a) l ->
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
@@ -1208,7 +1208,7 @@ Section standard_world_interp.
       -∗ open_region_many W C als.
   Proof.
     intros Hnonheap.
-    have Hlive := heap_cell_live_nonheap (heap_std W) a Hnonheap.
+    have Hlive := heap_addr_live_nonheap (heap_std W) a Hnonheap.
     rewrite /monotonicity_guarantees_region.
     intros. iIntros "[A [B [C [D [E [F G]]]]]]".
     destruct ρ; try congruence.
@@ -1239,8 +1239,8 @@ Section standard_world_interp.
       -∗ open_region_many W C als.
   Proof.
     intros Hheap Hlookup Hstatus.
-    assert (heap_cell_live (heap_std W) a) as Hlive.
-    { eapply heap_cell_live_lookup; eauto. }
+    assert (heap_addr_live (heap_std W) a) as Hlive.
+    { eapply heap_addr_live_lookup; eauto. }
     rewrite /monotonicity_guarantees_region.
     intros. iIntros "[A [B [C [D [E [F G]]]]]]".
     destruct ρ; try congruence.
@@ -1257,7 +1257,7 @@ Section standard_world_interp.
     `{forall Wv, Persistent (φ Wv)}
     (als : list Addr) (a : Addr) (p : Perm) (v : Word) (ρ : region_type)
     (Hρnotrevoked : ρ <> Revoked) :
-    heap_cell_live (heap_std W) a ->
+    heap_addr_live (heap_std W) a ->
     a ∉ als
     → sts_state_std C a ρ
     ∗ open_region_many W C (a :: als)
@@ -1269,7 +1269,7 @@ Section standard_world_interp.
       -∗ open_region_many W C als.
   Proof.
     intros Hlive. destruct (is_heap_address a) eqn:Hheap.
-    - rewrite /heap_cell_live /heap_cell_status Hheap in Hlive.
+    - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
       destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
@@ -1285,7 +1285,7 @@ Section standard_world_interp.
 
     let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
     length l = length lv ->
-    Forall (fun '(a,p,φ,ρ) => heap_cell_live (heap_std W) a) l ->
+    Forall (fun '(a,p,φ,ρ) => heap_addr_live (heap_std W) a) l ->
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->

@@ -73,7 +73,7 @@ Ltac unfold_droe_addresses_in H :=
 
 (** The concrete adversary follows the outer read-only capability in [ca0],
     reads through the nested capability, and stores the observed word in its
-    own data cell before returning. It therefore directly tests whether the
+    own data address before returning. It therefore directly tests whether the
     supposedly deeply immutable value can be observed through the nesting. *)
 Definition droe_C_code : list Word :=
   encodeInstrsW [

@@ -253,7 +253,7 @@ Section Checkints_spec.
   Qed.
 
   (* A nonempty untagged range fails at the first Load; no ownership of
-     the claimed object cells is needed. *)
+     the claimed object addresses is needed. *)
   Lemma checkints_fail_untagged
     (r r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)

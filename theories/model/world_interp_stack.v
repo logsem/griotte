@@ -51,7 +51,7 @@ Section WorldInterpStack.
     NoDup la ->
     la ## la' ->
     length lv = length la ->
-    Forall (heap_cell_live (heap_std W)) la ->
+    Forall (heap_addr_live (heap_std W)) la ->
 
     world_interp_open W C (la++la') ∗
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗

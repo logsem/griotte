@@ -26,16 +26,16 @@ Section fundamental.
   Implicit Types w : (leibnizO Word).
   Implicit Types interp : (V).
 
-  Lemma interp_pc_heap_cell_live W C p g b e a :
+  Lemma interp_pc_heap_addr_live W C p g b e a :
     isCorrectPC (WCap true p g b e a) ->
     interp W C (WCap true p g b e a) -∗
-    ⌜heap_cell_live (heap_std W) a⌝.
+    ⌜heap_addr_live (heap_std W) a⌝.
   Proof.
     iIntros (Hpc) "Hinterp".
     iDestruct (interp_cap_disjoint with "Hinterp") as %[_ Hdisjoint].
     { by inversion Hpc. }
     iPureIntro.
-    apply heap_cell_live_nonheap.
+    apply heap_addr_live_nonheap.
     apply not_true_is_false. intros Hheap.
     apply withinBounds_true_iff in Hheap.
     rewrite /disjoint_from_heap elem_of_disjoint in Hdisjoint.
@@ -98,7 +98,7 @@ Section fundamental.
     }
 
     (* Correct PC *)
-    iDestruct (interp_pc_heap_cell_live with "Hinv_interp") as %Hpc_live;
+    iDestruct (interp_pc_heap_addr_live with "Hinv_interp") as %Hpc_live;
       first exact HcorrectPC.
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
     { eapply in_range_is_correctPC; eauto. solve_addr. }

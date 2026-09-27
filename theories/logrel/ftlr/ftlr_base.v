@@ -45,7 +45,7 @@ Section fundamental.
     validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
     → isCorrectPC (WCap true p g b e a)
-    → heap_cell_live (heap_std W) a
+    → heap_addr_live (heap_std W) a
     → heap_wf (heap_std W)
     → (b <= a)%a ∧ (a < e)%a
     → PermFlowsTo p p'

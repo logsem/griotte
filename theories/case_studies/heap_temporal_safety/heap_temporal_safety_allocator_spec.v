@@ -42,7 +42,7 @@ Section Heap_Temporal_Safety_Allocator.
   Abort.
 
   (** BLOCKED: free from an unknown caller needs the shared heap protocol to
-      recover live cells or handle already quarantined cells, then reestablish
+      recover live addresses or handle already quarantined addresses, then reestablish
       the world while invalidating retained aliases. Do not assume exclusive
       points-to ownership merely because the argument is safe to share. *)
   Lemma hts_free_entry_spec W C :

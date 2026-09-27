@@ -290,7 +290,7 @@ Section Switcher_Return_Blocks.
     let switcher_instrs_12 := switcher_instrs_n 12 in
     let len_switcher_12 := length switcher_instrs_12 in
     heap_std Wworld = heap_std Wval ->
-    Forall (heap_cell_live (heap_std Wworld)) opened ->
+    Forall (heap_addr_live (heap_std Wworld)) opened ->
     disjoint_from_shadow b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
@@ -427,7 +427,7 @@ Section Switcher_Return_Blocks.
     let switcher_instrs_12 := switcher_instrs_n 12 in
     let len_switcher_12 := length switcher_instrs_12 in
     heap_std Wworld = heap_std Wval ->
-    Forall (heap_cell_live (heap_std Wworld)) opened ->
+    Forall (heap_addr_live (heap_std Wworld)) opened ->
     disjoint_from_shadow b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (a_stk + 4)%a = Some a_stk4 ->

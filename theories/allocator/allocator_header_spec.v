@@ -187,8 +187,8 @@ Section AllocatorServiceContracts.
       (heap_b < next)%a ->
       allocator_header_bounds next heap_e b e ->
       allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e e -∗
-      free_cell_token heap_b -∗
-      free_cells e heap_e -∗
+      free_addr_token heap_b -∗
+      free_addrs e heap_e -∗
       allocator_headers (heap_b ^+ 1)%a next allocations -∗
       allocator_history allocations -∗
       allocator_header next b e reserved

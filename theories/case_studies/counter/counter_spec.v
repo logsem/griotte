@@ -257,7 +257,7 @@ Section Counter.
       apply Htemp. apply elem_of_app. by left. }
     iEval (rewrite world_interp_eq /world_interp_def) in "Hworld_interp_C".
     iDestruct "Hworld_interp_C" as "(Hr & Hsts & Hseals)".
-    iDestruct (region_cells_status_some W1 C l Hdom_l with "Hr") as "[Hr %Hstatuses_l]".
+    iDestruct (region_addrs_status_some W1 C l Hdom_l with "Hr") as "[Hr %Hstatuses_l]".
     rewrite /W1 revoke_heap in Hstatuses_l.
     destruct (heap_status_partition (heap_std W0) l Hstatuses_l)
       as (l_live & l_q & Hperm_l & Hlive_l & Hq_l).
@@ -266,7 +266,7 @@ Section Counter.
     iEval (rewrite Hperm_l RevokedResources_app) in "Hrevoked_l".
     iDestruct "Hrevoked_l" as "[Hrevoked_live Hrevoked_q]".
     set (W1q := close_list l_q W1).
-    assert (Forall (fun a => heap_cell_status (heap_std W1q) a = Some AllocObjectQuarantined) l_q) as Hq_W1q.
+    assert (Forall (fun a => heap_addr_status (heap_std W1q) a = Some AllocObjectQuarantined) l_q) as Hq_W1q.
     { rewrite /W1q close_list_heap /W1 revoke_heap. exact Hq_l. }
     iAssert (RevokedResources W1q C l_q) with "[Hrevoked_q]" as "Hrevoked_q'".
     { rewrite (RevokedResources_quarantined W1q C l_q Hq_W1q)
@@ -473,7 +473,7 @@ Section Counter.
       apply elem_of_app. by left. }
     iEval (rewrite world_interp_eq /world_interp_def) in "Hworld_interp_C".
     iDestruct "Hworld_interp_C" as "(Hr & Hsts & Hseals)".
-    iDestruct (region_cells_status_some W3 C l_live Hdom_live_W3 with "Hr")
+    iDestruct (region_addrs_status_some W3 C l_live Hdom_live_W3 with "Hr")
       as "[Hr %Hstatuses_live_W3]".
     iAssert (world_interp W3 C) with "[Hr Hsts Hseals]" as "Hworld_interp_C".
     { rewrite world_interp_eq /world_interp_def. iFrame. }
@@ -488,7 +488,7 @@ Section Counter.
     iMod (world_interp_revoked_by_separation_many with "[$Hworld_interp_C $Hstk]")
       as "(Hworld_interp_C & Hstk & %Hrevoked_stk_W3)".
     { apply Forall_forall; intros x Hx.
-      rewrite revoke_heap. apply heap_cell_live_nonheap.
+      rewrite revoke_heap. apply heap_addr_live_nonheap.
       apply not_true_is_false. intro Hheap.
       rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
       eapply Hstk_heap; [exact Hx|].

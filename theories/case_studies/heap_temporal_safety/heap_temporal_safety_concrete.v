@@ -10,8 +10,8 @@ Local Notation "'A' z" :=
 Local Notation "'OT' z" :=
   (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
 
-(** The default machine instance has only the allocator's reserved heap cell.
-    This example adds two header cells and one payload cell, with a matching
+(** The default machine instance has only the allocator's reserved heap address.
+    This example adds two header addresses and one payload address, with a matching
     shadow region. All instruction and permission encodings are reused. *)
 Definition hts_heap_region : HeapRegion :=
   {| heap_b := A 8192; heap_e := A 8196; heap_valid := ltac:(solve_addr) |}.

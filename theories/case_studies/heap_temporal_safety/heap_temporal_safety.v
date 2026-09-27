@@ -22,7 +22,7 @@ Section Heap_Temporal_Safety.
       assert(p == 0);
       halt;
 
-      Only [buf] is shared. Both [p] and [saved_buf] are private CGP cells.
+      Only [buf] is shared. Both [p] and [saved_buf] are private CGP addresses.
       There is no claim operation: the tag check handles early quarantine,
       and no adversary executes between this check and our call to free.
       Quarantine clears tags on subsequent capability loads, not on values
@@ -92,7 +92,7 @@ Section Heap_Temporal_Safety.
         #".hts_check_buffer_end"
       ];
       [
-        (* buf[0] = &p; narrow cgp to its private first cell. *)
+        (* buf[0] = &p; narrow cgp to its private first address. *)
         mov ct0 cgp;
         getb ct1 ct0;
         add ct2 ct1 (1)%asm;

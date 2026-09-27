@@ -54,7 +54,7 @@ Section Switcher_Restore_Interp.
     `{MP : MachineParameters}.
 
   Lemma switcher_shadow_restore_retained Wworld Wval C opened raw actual alloc_map :
-    Forall (heap_cell_live (heap_std Wworld)) opened ->
+    Forall (heap_addr_live (heap_std Wworld)) opened ->
     heap_std Wworld = heap_std Wval ->
     dom alloc_map = heap_addresses ->
     load_memory_shadow_observation (shadow_status <$> alloc_map) RWL raw actual ->
@@ -94,12 +94,12 @@ Section Switcher_Restore_Interp.
         last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
       destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
       { iFrame. iPureIntro. by rewrite /filter_heap Hauth Hheaplookup /= Hstatus. }
-      assert (heap_cell_status (heap_std Wworld) base = Some AllocObjectQuarantined)
-        as Hqstatus by (rewrite Hheap_eq /heap_cell_status Hheap Hheaplookup /= Hstatus; reflexivity).
+      assert (heap_addr_status (heap_std Wworld) base = Some AllocObjectQuarantined)
+        as Hqstatus by (rewrite Hheap_eq /heap_addr_status Hheap Hheaplookup /= Hstatus; reflexivity).
       assert (base ∉ opened) as Hnotpc.
       { intros Hbase_in. apply list_elem_of_In in Hbase_in.
         rewrite Forall_forall in Hlive.
-        specialize (Hlive base Hbase_in). unfold heap_cell_live in Hlive.
+        specialize (Hlive base Hbase_in). unfold heap_addr_live in Hlive.
         rewrite Hqstatus in Hlive. discriminate. }
       iDestruct (world_interp_open_quarantined_token with "Hworld")
         as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
@@ -115,12 +115,12 @@ Section Switcher_Restore_Interp.
         last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
       destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
       { iFrame. iPureIntro. by rewrite /filter_heap Hauth Hheaplookup /= Hstatus. }
-      assert (heap_cell_status (heap_std Wworld) base = Some AllocObjectQuarantined)
-        as Hqstatus by (rewrite Hheap_eq /heap_cell_status Hheap Hheaplookup /= Hstatus; reflexivity).
+      assert (heap_addr_status (heap_std Wworld) base = Some AllocObjectQuarantined)
+        as Hqstatus by (rewrite Hheap_eq /heap_addr_status Hheap Hheaplookup /= Hstatus; reflexivity).
       assert (base ∉ opened) as Hnotpc.
       { intros Hbase_in. apply list_elem_of_In in Hbase_in.
         rewrite Forall_forall in Hlive.
-        specialize (Hlive base Hbase_in). unfold heap_cell_live in Hlive.
+        specialize (Hlive base Hbase_in). unfold heap_addr_live in Hlive.
         rewrite Hqstatus in Hlive. discriminate. }
       iDestruct (world_interp_open_quarantined_token with "Hworld")
         as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
@@ -134,7 +134,7 @@ Section Switcher_Restore_Interp.
   Lemma switcher_load_stack_restore_world E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src wi wd b e a raw :
     heap_std Wworld = heap_std Wval ->
-    Forall (heap_cell_live (heap_std Wworld)) opened ->
+    Forall (heap_addr_live (heap_std Wworld)) opened ->
     ↑Nallocator ⊆ E ->
     is_shadow_address a = false ->
     decodeInstrW wi = Load dst src 0 ->
@@ -218,7 +218,7 @@ Section Switcher_Restore_Interp.
   Lemma switcher_load_stack_restore_interp E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src wi wd b e a raw :
     heap_std Wworld = heap_std Wval ->
-    Forall (heap_cell_live (heap_std Wworld)) opened ->
+    Forall (heap_addr_live (heap_std Wworld)) opened ->
     ↑Nallocator ⊆ E ->
     is_shadow_address a = false ->
     decodeInstrW wi = Load dst src 0 ->

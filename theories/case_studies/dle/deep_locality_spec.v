@@ -349,7 +349,7 @@ Section DLE.
 
     (* -- Update the world and prove interp of the the argument in `ca0` -- *)
 
-    (* Extend the world with the two temporary data cells. *)
+    (* Extend the world with the two temporary data addresses. *)
     iMod (dle_prepare_world W0 cgp_b cgp_e 0%Z
       Hcgp_contiguous Hcgp_shadow Hcgp_heap Hcgp_nonheap Hcgp_b Hcgp_a
       with "[$Hworld_interp_C $Hcgp_b $Hcgp_a]")
@@ -496,9 +496,9 @@ Section DLE.
     { by destruct Hl_unk' as [Hl_unk' _]; apply NoDup_app in Hl_unk' as (? & _ & _). }
     {
       iClear "#"; clear; cbn.
-      iIntros (a) "(%&%&% & _ & Hcell) %Hnonheap".
-      iEval (rewrite /heap_cell_status Hnonheap /=) in "Hcell".
-      iDestruct "Hcell" as (wa) "(_ & Ha & _)".
+      iIntros (a) "(%&%&% & _ & Haddr) %Hnonheap".
+      iEval (rewrite /heap_addr_status Hnonheap /=) in "Haddr".
+      iDestruct "Haddr" as (wa) "(_ & Ha & _)".
       iNext. iExists wa. iExact "Ha".
     }
     iDestruct ("Hcgp_b_nonheap" with "[%]") as ">[%wcgpb Hcgp_b]".

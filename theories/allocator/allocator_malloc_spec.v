@@ -337,7 +337,7 @@ Section AllocatorMallocBlocks.
     iInstr "Hcode".
     (* Take the header and payload from the free suffix before writing. *)
     assert (Hsplit_range : (next <= finish /\ finish <= heap_e)%a) by solve_addr.
-    iEval (rewrite /free_cells
+    iEval (rewrite /free_addrs
       (finz_seq_between_split next finish heap_e Hsplit_range)
       big_sepL_app) in "Hfree".
     iDestruct "Hfree" as "[Hchunk Hfree]".
@@ -498,7 +498,7 @@ Section AllocatorMallocBlocks.
     iInstr "Hcode".
     (* Sub ct3 ct2 ct1. *)
     iInstr "Hcode".
-    (* Reserve the two header cells. *)
+    (* Reserve the two header addresses. *)
     (* Sub ct3 ct3 allocator_header_words. *)
     iInstr "Hcode".
     unfold allocator_header_words in Hoom.
@@ -885,7 +885,7 @@ Section AllocatorMallocBlocks.
       iEval (rewrite -Hsplit1) in "Hmalloc_code".
       iDestruct "Hpending" as (allocations)
         "(%Hnext & %Hchunk & Hslot & Hroot & Hfree & Hheaders & Hhistory & Hhead)".
-      (* Zero the newly allocated cells. *)
+      (* Zero the newly allocated addresses. *)
       assert (Hsplit2 : allocator_malloc_instrs =
         concat (encodeInstrsW <$> take 2 assembled_allocator_malloc) ++
         (allocator_malloc_instrs_n 2 ++

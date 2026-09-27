@@ -737,7 +737,7 @@ Section Switcher_Call_Blocks.
     iApply ("Hpost" $! rcgp rcra rcs0 rcs1 with "[%]"); first done. iFrame.
   Qed.
 
-  (** Saved words may become stale if their heap cells are freed during a
+  (** Saved words may become stale if their heap addresses are freed during a
       callback. Each restored register records its actual load result and
       whether that result retains authority in the current world. *)
   Lemma switcher_call_block_16_spec_restore_world

@@ -76,12 +76,12 @@ Section switcher_helper.
     world_interp W C -∗
     rel C a p φ -∗
     world_interp W C ∗
-    ⌜is_Some (heap_cell_status (heap_std W) a)⌝.
+    ⌜is_Some (heap_addr_status (heap_std W) a)⌝.
   Proof.
     rewrite world_interp_eq /world_interp_def.
     iIntros "(Hr & Hsts & Hseals) Hrel".
     iDestruct (region_rel_dom with "Hr Hrel") as "[Hr %Hdom]".
-    iDestruct (region_cell_status_some W C a Hdom with "Hr") as "[Hr %Hstatus]".
+    iDestruct (region_addr_status_some W C a Hdom with "Hr") as "[Hr %Hstatus]".
     iFrame. iPureIntro. exact Hstatus.
   Qed.
 
@@ -453,10 +453,10 @@ Section switcher_helper.
       apply Forall_cons in Hnonheap as [Hnonheap3 _].
       cbn.
       iDestruct "Hframe" as "(Hv0 & Hv1 & Hv2 & Hv3 & _)".
-      iEval (rewrite /heap_cell_status Hnonheap0) in "Hv0".
-      iEval (rewrite /heap_cell_status Hnonheap1) in "Hv1".
-      iEval (rewrite /heap_cell_status Hnonheap2) in "Hv2".
-      iEval (rewrite /heap_cell_status Hnonheap3) in "Hv3".
+      iEval (rewrite /heap_addr_status Hnonheap0) in "Hv0".
+      iEval (rewrite /heap_addr_status Hnonheap1) in "Hv1".
+      iEval (rewrite /heap_addr_status Hnonheap2) in "Hv2".
+      iEval (rewrite /heap_addr_status Hnonheap3) in "Hv3".
       iDestruct "Hv0" as (? P0 ?) "(#Hrel0 & Hv0)".
       iDestruct "Hv1" as (? P1 ?) "(#Hrel1 & Hv1)".
       iDestruct "Hv2" as (? P2 ?) "(#Hrel2 & Hv2)".
@@ -634,10 +634,10 @@ Section switcher_helper.
         }
 
         iDestruct (interp_cap_regions with "Hvalid") as %[_ Hcap_valid]; first done.
-        assert (Forall (heap_cell_live (heap_std W0))
+        assert (Forall (heap_addr_live (heap_std W0))
           (finz.seq_between csp_b csp_e)) as Hlive_stk.
         { apply Forall_forall. intros x Hx.
-          eapply heap_cap_valid_cell_live; eauto.
+          eapply heap_cap_valid_addr_live; eauto.
           apply withinBounds_true_iff.
           apply elem_of_finz_seq_between in Hx. solve_addr. }
         iDestruct (write_allowed_inv_full_cap with "Hvalid") as "-#H"; auto.
@@ -648,9 +648,9 @@ Section switcher_helper.
         iNext.
         iApply (big_sepL_impl with "H").
         iIntros "!> %%% [Hv (%&%&%&%&Hrel&#Hzcond&#Hrcond&#Hwcond&Hmono)]".
-        assert (heap_cell_live (heap_std W0) x) as Hlive_x.
+        assert (heap_addr_live (heap_std W0) x) as Hlive_x.
         { rewrite Forall_lookup in Hlive_stk. eauto. }
-        unfold heap_cell_live in Hlive_x.
+        unfold heap_addr_live in Hlive_x.
         iExists x0, (safeC x1). iFrame.
         iSplit.
         { iPureIntro; intros W. rewrite /persistent_cond in H1.

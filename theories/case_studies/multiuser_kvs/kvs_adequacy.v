@@ -934,7 +934,7 @@ Section Adequacy.
            with "Hworld_B [Hstack]")
            as "(Hworld_B & #Hrel_stk_B)".
     { apply Forall_forall; intros a Ha.
-      apply heap_cell_live_nonheap.
+      apply heap_addr_live_nonheap.
       apply not_true_is_false; intros Hheap.
       apply withinBounds_true_iff in Hheap.
       pose proof (stack_disjoint_from_heap switcher_cmpt) as Hdisj.

@@ -48,7 +48,7 @@ Section Heap_Temporal_Safety_Blocks.
   Qed.
 
   (** This block is purely local: it assumes physical ownership of a live
-      cell, rather than pretending that a tag check recovers that ownership. *)
+      address, rather than pretending that a tag check recovers that ownership. *)
   Lemma hts_store_private_spec pc_b pc_e pc_a p e b be (w w0 w1 w2 : Word) :
     disjoint_from_shadow b be ->
     (p + 1)%a = Some (p ^+ 1)%a ->

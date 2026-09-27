@@ -2,7 +2,7 @@ From griotte Require Import machine_parameters assembler switcher fetch.
 
 (** A compartment providing a bump allocator and range quarantine.
     The data capability retains authority over the whole heap; its cursor
-    records the first unused address. The first heap cell is never allocated
+    records the first unused address. The first heap address is never allocated
     or quarantined, so loading this capability always sees a clear shadow bit.
 
     [malloc] takes a positive number of words in [ca0]. It zeroes the new
@@ -151,7 +151,7 @@ Section Allocator.
         lea ct4 allocator_header_words;
         subseg ct4 ct1 ct2;
         (* Record the immutable end and initialize the reserved address.
-           Header cells retain their initially clear shadow bits. *)
+           Header addresses retain their initially clear shadow bits. *)
         store ct0 ct2;
         store_imm ct0 0 1;
         mov ca2 ct4
@@ -201,7 +201,7 @@ Section Allocator.
     concat (encodeInstrsW <$> assembled_allocator_malloc).
 
   (** [free] accepts a tagged ordinary capability whose base and end exactly
-      match an original payload. Starting after the reserved root cell, it
+      match an original payload. Starting after the reserved root address, it
       walks protected headers by their recorded ends, stopping at the bump
       pointer. It never interprets payload contents as headers. Its cursor
       and permissions do not determine which allocation is freed.
@@ -224,7 +224,7 @@ Section Allocator.
        if (!(base(root) < b && b < e && e <= next))
          return { 0, ALLOC_INVALID };
 
-       address_t h = base(root) + 1;    // Skip the permanently reserved root cell.
+       address_t h = base(root) + 1;    // Skip the permanently reserved root address.
        while (h < next) {
          word_t *__capability header = set_address(root, h);
          address_t recorded_end = header[0];

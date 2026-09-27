@@ -13,8 +13,8 @@ Section AllocatorRanges.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
     {MP : MachineParameters}.
 
-  Definition free_cells (b e : Addr) : iProp Σ :=
-    [∗ list] a ∈ finz.seq_between b e, free_cell_token a.
+  Definition free_addrs (b e : Addr) : iProp Σ :=
+    [∗ list] a ∈ finz.seq_between b e, free_addr_token a.
 
   Definition allocator_range_memory (b e : Addr) : iProp Σ :=
     [∗ list] a ∈ finz.seq_between b e, a ↦ₐ -.
@@ -160,8 +160,8 @@ Section AllocatorService.
 
   Context {allocator_historyg : allocatorHistoryG Σ}.
 
-  (** The reserved first cell is never allocated or quarantined. Keeping its
-      free-cell token proves that the heap capability's base has a clear bit.
+  (** The reserved first address is never allocated or quarantined. Keeping its
+      free-address token proves that the heap capability's base has a clear bit.
       The other tokens identify the unused suffix; the shared invariant owns
       its memory. [next = heap_e] represents an exhausted heap. *)
 
@@ -169,8 +169,8 @@ Section AllocatorService.
     (∃ allocations : list allocator_header_entry,
      ⌜(heap_b < next /\ next <= heap_e)%a⌝ ∗ (* Bump bounds. *)
      allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗ (* Bump slot. *)
-     free_cell_token heap_b ∗ (* Root stays unquarantined. *)
-     free_cells next heap_e ∗ (* Unused suffix. *)
+     free_addr_token heap_b ∗ (* Root stays unquarantined. *)
+     free_addrs next heap_e ∗ (* Unused suffix. *)
      allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Physical header chain. *)
      allocator_history allocations)%I. (* Matching ghost map. *)
 
@@ -185,8 +185,8 @@ Section AllocatorService.
      ⌜(heap_b < next /\ next <= heap_e)%a⌝ ∗ (* Old bump bounds. *)
      ⌜allocator_header_bounds next heap_e b e⌝ ∗ (* New chunk bounds. *)
      allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗ (* Old bump slot. *)
-     free_cell_token heap_b ∗ (* Root stays unquarantined. *)
-     free_cells e heap_e ∗ (* Remaining unused suffix. *)
+     free_addr_token heap_b ∗ (* Root stays unquarantined. *)
+     free_addrs e heap_e ∗ (* Remaining unused suffix. *)
      allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Published header chain. *)
      allocator_history allocations ∗ (* Published ghost map. *)
      allocator_header next b e 0)%I. (* New, unpublished header. *)

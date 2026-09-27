@@ -16,12 +16,12 @@ Section VAE_Return_Repair.
     `{MP : MachineParameters}.
   Lemma vae_framed_resources_live
       (Worig Wcur : WORLD) (C : CmptName) (l : list Addr) :
-    Forall (heap_cell_live (heap_std Worig)) l ->
-    Forall (fun a => is_Some (heap_cell_status (heap_std Wcur) a)) l ->
+    Forall (heap_addr_live (heap_std Worig)) l ->
+    Forall (fun a => is_Some (heap_addr_status (heap_std Wcur) a)) l ->
     allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l
     ={⊤}=∗
       allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l ∗
-      ⌜Forall (heap_cell_live (heap_std Wcur)) l⌝.
+      ⌜Forall (heap_addr_live (heap_std Wcur)) l⌝.
   Proof.
     induction l as [|a l IH]; intros Hlive Hsome;
       iIntros "(#Halloc & Hworld & Hl)".
@@ -29,11 +29,11 @@ Section VAE_Return_Repair.
     - apply Forall_cons in Hlive as [Ha_live Hl_live].
       apply Forall_cons in Hsome as [Ha_some Hl_some].
       iDestruct "Hl" as "[Hitem Hl]".
-      iDestruct "Hitem" as (p φ) "(%Hpers & Hrel & Hcell)".
-      rewrite /heap_cell_live in Ha_live.
-      iEval (rewrite Ha_live) in "Hcell".
-      iDestruct "Hcell" as (v) "(%HpO & Ha & Hφ & Hmono)".
-      iMod (framed_cell_live Wcur C a v Ha_some
+      iDestruct "Hitem" as (p φ) "(%Hpers & Hrel & Haddr)".
+      rewrite /heap_addr_live in Ha_live.
+      iEval (rewrite Ha_live) in "Haddr".
+      iDestruct "Haddr" as (v) "(%HpO & Ha & Hφ & Hmono)".
+      iMod (framed_addr_live Wcur C a v Ha_some
         with "[$Halloc $Hworld $Ha]")
         as "(_ & Hworld & Ha & %Ha_cur)".
       iAssert (RevokedResources Worig C [a])%I
@@ -55,7 +55,7 @@ Section VAE_Return_Repair.
       (Wbase Wcur : WORLD) (C : CmptName) (l : list Addr) :
     heap_std Wbase = heap_std Wcur ->
     Forall
-      (fun a => heap_cell_status (heap_std Wbase) a = Some AllocObjectQuarantined)
+      (fun a => heap_addr_status (heap_std Wbase) a = Some AllocObjectQuarantined)
       l ->
     world_interp Wcur C ∗ RevokedResources Wbase C l
     ==∗
@@ -63,7 +63,7 @@ Section VAE_Return_Repair.
   Proof.
     intros Hheap Hq.
     assert (Forall
-      (fun a => heap_cell_status (heap_std (close_list l Wcur)) a =
+      (fun a => heap_addr_status (heap_std (close_list l Wcur)) a =
         Some AllocObjectQuarantined) l) as Hq_closed.
     { rewrite close_list_heap -Hheap. exact Hq. }
     rewrite (RevokedResources_quarantined Wbase C l Hq).
@@ -77,12 +77,12 @@ Section VAE_Return_Repair.
     Forall (fun a => a ∈ dom (std W)) l ->
     world_interp W C -∗
     world_interp W C ∗
-      ⌜Forall (fun a => is_Some (heap_cell_status (heap_std W) a)) l⌝.
+      ⌜Forall (fun a => is_Some (heap_addr_status (heap_std W) a)) l⌝.
   Proof.
     intros Hdom.
     rewrite world_interp_eq /world_interp_def.
     iIntros "(Hr & Hsts & Hseals)".
-    iDestruct (region_cells_status_some W C l Hdom with "Hr")
+    iDestruct (region_addrs_status_some W C l Hdom with "Hr")
       as "[Hr %Hstatuses]".
     iFrame. iPureIntro. exact Hstatuses.
   Qed.
@@ -91,7 +91,7 @@ Section VAE_Return_Repair.
       (W : WORLD) (l : list Addr) (b e : Addr) :
     disjoint_from_heap b e ->
     Forall
-      (fun a => heap_cell_status (heap_std W) a = Some AllocObjectQuarantined)
+      (fun a => heap_addr_status (heap_std W) a = Some AllocObjectQuarantined)
       l ->
     l ## finz.seq_between b e.
   Proof.
@@ -99,7 +99,7 @@ Section VAE_Return_Repair.
     rewrite elem_of_disjoint. intros a Ha Hstack_a.
     rewrite Forall_forall in Hq.
     specialize (Hq a Ha).
-    unfold heap_cell_status in Hq.
+    unfold heap_addr_status in Hq.
     destruct (is_heap_address a) eqn:Hheap; last discriminate.
     rewrite /disjoint_from_heap elem_of_disjoint in Hstack.
     eapply (Hstack a); first exact Hstack_a.
@@ -220,7 +220,7 @@ Section VAE_Return_Repair.
   (** Framed live resources force their current world entries to be revoked. *)
   Lemma vae_framed_resources_revoked
       (Worig Wcur : WORLD) (C : CmptName) (l : list Addr) :
-    Forall (heap_cell_live (heap_std Worig)) l ->
+    Forall (heap_addr_live (heap_std Worig)) l ->
     Forall (fun a => a ∈ dom (std Wcur)) l ->
     allocator_ctx ∗
     world_interp Wcur C ∗

@@ -59,15 +59,15 @@ Section Allocator.
     own allocator_name (GSet {[a]}).
 
   (** Outside the shared invariant this token witnesses [Free]. The service
-      keeps these tokens for its unused suffix and the reserved first cell. *)
-  Definition free_cell_token (a : Addr) : iProp Σ :=
+      keeps these tokens for its unused suffix and the reserved first address. *)
+  Definition free_addr_token (a : Addr) : iProp Σ :=
     own allocator_free_name (GSet {[a]}).
 
   Definition allocator_state_resources (a : Addr) (s : AllocState) : iProp Σ :=
     match s with
     | Free => a ↦ₐ - ∗ reclaim_token a
-    | Live => reclaim_token a ∗ free_cell_token a
-    | Quarantined => a ↦ₐ - ∗ free_cell_token a
+    | Live => reclaim_token a ∗ free_addr_token a
+    | Quarantined => a ↦ₐ - ∗ free_addr_token a
     end%I.
 
   Definition allocator_entry (a : Addr) (s : AllocState) : iProp Σ :=
@@ -89,8 +89,8 @@ Section Allocator.
     iIntros "H1 H2". iDestruct (own_valid_2 with "H1 H2") as %Hvalid.
     rewrite gset_disj_valid_op in Hvalid. set_solver.
   Qed.
-  Lemma free_cell_token_exclusive a :
-    free_cell_token a -∗ free_cell_token a -∗ False.
+  Lemma free_addr_token_exclusive a :
+    free_addr_token a -∗ free_addr_token a -∗ False.
   Proof.
     iIntros "H1 H2". iDestruct (own_valid_2 with "H1 H2") as %Hvalid.
     rewrite gset_disj_valid_op in Hvalid. set_solver.
@@ -121,15 +121,15 @@ Section Allocator.
   Qed.
 
   Lemma allocator_entry_free_token a s :
-    allocator_entry a s -∗ free_cell_token a -∗ ⌜s = Free⌝.
+    allocator_entry a s -∗ free_addr_token a -∗ ⌜s = Free⌝.
   Proof.
     iIntros "[_ Hres] Hfree". destruct s; simpl; first done.
     all: iDestruct "Hres" as "[_ Hfree']";
-      iDestruct (free_cell_token_exclusive with "Hfree Hfree'") as %[].
+      iDestruct (free_addr_token_exclusive with "Hfree Hfree'") as %[].
   Qed.
 
   Lemma allocator_entry_allocate a :
-    allocator_entry a Free -∗ free_cell_token a -∗
+    allocator_entry a Free -∗ free_addr_token a -∗
     allocator_entry a Live ∗ a ↦ₐ -.
   Proof. iIntros "[Hs [Ha Htoken]] Hfree". iFrame. Qed.
 
@@ -151,7 +151,7 @@ Section Allocator.
   #[global] Instance reclaim_token_timeless a : Timeless (reclaim_token a).
   Proof. apply _. Qed.
 
-  #[global] Instance free_cell_token_timeless a : Timeless (free_cell_token a).
+  #[global] Instance free_addr_token_timeless a : Timeless (free_addr_token a).
   Proof. apply _. Qed.
 
   #[global] Instance allocator_state_resources_timeless a s :
@@ -174,8 +174,8 @@ Section Allocator.
       rewrite -gset_disj_union; last set_solver.
       rewrite own_op. iIntros "[Ha HA]". iFrame "Ha". by iApply IH.
   Qed.
-  Lemma free_cell_tokens_split (A : gset Addr) :
-    own allocator_free_name (GSet A) -∗ [∗ set] a ∈ A, free_cell_token a.
+  Lemma free_addr_tokens_split (A : gset Addr) :
+    own allocator_free_name (GSet A) -∗ [∗ set] a ∈ A, free_addr_token a.
   Proof.
     induction A as [|a A Ha IH] using set_ind_L.
     - iIntros "_". done.
@@ -189,10 +189,10 @@ End Allocator.
 Section Initialization.
   Context {Σ : gFunctors} `{!ceriseG Σ} `{!allocator_preG Σ} `{MP : MachineParameters}.
 
-  (** Initialization supplies every heap cell and its corresponding shadow
+  (** Initialization supplies every heap address and its corresponding shadow
       entry. The state map determines which resources remain with the client:
-      live cells return their memory, quarantined cells return their tokens,
-      and free cells keep both resources in the invariant. *)
+      live addresses return their memory, quarantined addresses return their tokens,
+      and free addresses keep both resources in the invariant. *)
   Definition allocator_initial_resources (m : gmap Addr (AllocState * Word)) : iProp Σ :=
     ([∗ map] a ↦ sv ∈ m, a ↦ₐ sv.2 ∗ a ↦ₛ shadow_status sv.1)%I.
 
@@ -209,7 +209,7 @@ Section Initialization.
     (m : gmap Addr (AllocState * Word)) : iProp Σ :=
     ([∗ map] a ↦ sv ∈ m,
       match sv.1 with
-      | Free => free_cell_token a
+      | Free => free_addr_token a
       | Live | Quarantined => emp
       end)%I.
 
@@ -226,7 +226,7 @@ Section Initialization.
                   allocator_free_name := γfree |}).
     iExists ag.
     iDestruct (@reclaim_tokens_split Σ ag with "Htokens") as "Htokens".
-    iDestruct (@free_cell_tokens_split Σ ag with "Hfree") as "Hfree".
+    iDestruct (@free_addr_tokens_split Σ ag with "Hfree") as "Hfree".
     iAssert (([∗ map] a ↦ sv ∈ m, @allocator_entry Σ ceriseG0 ag a sv.1) ∗
       @allocator_client_resources ag m ∗ @allocator_initial_free_tokens ag m)%I
       with "[Hm Htokens Hfree]" as "[Hinv [Hclient Hfree]]".

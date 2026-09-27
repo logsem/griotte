@@ -526,7 +526,7 @@ Section AllocatorFreeTraversal.
     | ShadowQuarantined => reclaim_token b
     end%I.
 
-  (** This block only reads the shadow bit: ownership of a live cell or a
+  (** This block only reads the shadow bit: ownership of a live address or a
       reclaim token connects the observation to the shared allocator invariant.
       All resources survive either branch; painting starts at block 8. *)
 
@@ -1016,12 +1016,12 @@ Section AllocatorFreeTraversal.
 
 
 
-  Lemma allocator_memory_not_free_cell E a w :
+  Lemma allocator_memory_not_free_addr E a w :
     ↑Nallocator ⊆ E ->
     a ∈ heap_addresses ->
     allocator_ctx -∗
     a ↦ₐ w -∗
-    free_cell_token a
+    free_addr_token a
     ={E}=∗
     False.
   Proof.
@@ -1041,7 +1041,7 @@ Section AllocatorFreeTraversal.
     length ws = length (finz.seq_between b e) ->
     allocator_ctx -∗
     [[b,e]] ↦ₐ [[ws]] -∗
-    free_cells next heap_e
+    free_addrs next heap_e
     ={E}=∗
     False.
   Proof.
@@ -1049,9 +1049,9 @@ Section AllocatorFreeTraversal.
     destruct (list_elem_of_lookup_1 _ _ Hmem_in) as [i Hi].
     assert (i < length ws) as Hlt by (rewrite Hlen; eapply lookup_lt_Some; eauto).
     destruct (lookup_lt_is_Some_2 ws i Hlt) as [w Hw].
-    iDestruct (big_sepL2_lookup_acc with "Hmem") as "[Hcell Hmemclose]"; eauto.
+    iDestruct (big_sepL2_lookup_acc with "Hmem") as "[Haddr Hmemclose]"; eauto.
     iDestruct (big_sepL_elem_of with "Hfree") as "Htoken"; eauto.
-    iMod (allocator_memory_not_free_cell E a w HE Ha with "Hctx Hcell Htoken") as %[].
+    iMod (allocator_memory_not_free_addr E a w HE Ha with "Hctx Haddr Htoken") as %[].
   Qed.
 
   Lemma allocator_owned_range_below_cursor E b e next ws :
@@ -1061,11 +1061,11 @@ Section AllocatorFreeTraversal.
     length ws = length (finz.seq_between b e) ->
     allocator_ctx -∗
     [[b,e]] ↦ₐ [[ws]] -∗
-    free_cells next heap_e
+    free_addrs next heap_e
       ={E}=∗
       ⌜(e <= next)%a⌝ ∗
       [[b,e]] ↦ₐ [[ws]] ∗
-      free_cells next heap_e.
+      free_addrs next heap_e.
   Proof.
     iIntros (HE Hb Hnext Hlen) "#Hctx Hmem Hfree".
     destruct (decide (e <= next)%a) as [Hbound|Hbad].
@@ -1414,9 +1414,9 @@ Section AllocatorFreeTraversal.
     iApply Hcorrect.
   Qed.
 
-  (** The receipt fixes both original bounds; ownership of every payload cell
+  (** The receipt fixes both original bounds; ownership of every payload address
       witnesses liveness. A successful call relinquishes that memory and
-      returns one reclaim token per cell. Permissions and cursor may vary. *)
+      returns one reclaim token per address. Permissions and cursor may vary. *)
 
   Lemma allocator_free_valid_correct
     (E : coPset) (p : Perm) (g : Locality) (b e a : Addr) (reserved : Z)
@@ -1756,7 +1756,7 @@ Section AllocatorFreeTraversal.
   Qed.
 
   (** A still-tagged alias with exact original bounds reaches the shadow
-      check and is rejected. Only the first payload cell's reclaim token is
+      check and is rejected. Only the first payload address's reclaim token is
       needed to justify that observation; the remaining tokens can be framed. *)
 
   Lemma allocator_free_repeated_spec

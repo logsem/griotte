@@ -57,8 +57,8 @@ Section KVS_spec_read.
         last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
       destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
       { iFrame. iPureIntro. by rewrite /filter_heap Hauth Hheaplookup /= Hstatus. }
-      assert (heap_cell_status (heap_std W) base = Some AllocObjectQuarantined)
-        as Hqstatus by (rewrite /heap_cell_status Hheap Hheaplookup /= Hstatus; reflexivity).
+      assert (heap_addr_status (heap_std W) base = Some AllocObjectQuarantined)
+        as Hqstatus by (rewrite /heap_addr_status Hheap Hheaplookup /= Hstatus; reflexivity).
       iEval (rewrite region_open_nil) in "Hregion".
       iDestruct (open_region_many_quarantined_token W C [] base with "Hregion")
         as "[Htoken Hrestore]"; [set_solver|exact Hqstatus|].
@@ -74,8 +74,8 @@ Section KVS_spec_read.
         last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
       destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
       { iFrame. iPureIntro. by rewrite /filter_heap Hauth Hheaplookup /= Hstatus. }
-      assert (heap_cell_status (heap_std W) base = Some AllocObjectQuarantined)
-        as Hqstatus by (rewrite /heap_cell_status Hheap Hheaplookup /= Hstatus; reflexivity).
+      assert (heap_addr_status (heap_std W) base = Some AllocObjectQuarantined)
+        as Hqstatus by (rewrite /heap_addr_status Hheap Hheaplookup /= Hstatus; reflexivity).
       iEval (rewrite region_open_nil) in "Hregion".
       iDestruct (open_region_many_quarantined_token W C [] base with "Hregion")
         as "[Htoken Hrestore]"; [set_solver|exact Hqstatus|].

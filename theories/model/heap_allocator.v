@@ -1,14 +1,14 @@
 From griotte Require Export heap_std.
 From griotte.allocator Require Import allocator_preamble.
 
-Definition alloc_object_cell_state (s : AllocObjectStatus) : AllocState :=
+Definition alloc_object_addr_state (s : AllocObjectStatus) : AllocState :=
   match s with
   | AllocObjectLive => Live
   | AllocObjectQuarantined => Quarantined
   end.
 
-(** Agreement at allocator operation boundaries. Headers and free cells are
-    outside object payloads. During trusted painting, the per-cell states may
+(** Agreement at allocator operation boundaries. Headers and free addresses are
+    outside object payloads. During trusted painting, the per-address states may
     temporarily disagree with the indivisible logical object transition. *)
 Definition heap_std_allocator_agree
   (W_heap : Heap) (allocations : list allocator_header_entry)
@@ -16,14 +16,14 @@ Definition heap_std_allocator_agree
   heap_wf W_heap /\
   alloc_object_end <$> W_heap = fst <$> list_to_map allocations /\
   ∀ b o a, W_heap !! b = Some o -> alloc_object_contains b o a ->
-    alloc_map !! a = Some (alloc_object_cell_state (alloc_object_status o)).
+    alloc_map !! a = Some (alloc_object_addr_state (alloc_object_status o)).
 
 Lemma heap_std_allocator_agree_lookup W_heap allocations alloc_map a b o :
   heap_std_allocator_agree W_heap allocations alloc_map ->
   heap_lookup_addr W_heap a = Some (b,o) ->
-  alloc_map !! a = Some (alloc_object_cell_state (alloc_object_status o)).
+  alloc_map !! a = Some (alloc_object_addr_state (alloc_object_status o)).
 Proof.
-  intros (_ & _ & Hcells) Hfind.
+  intros (_ & _ & Haddrs) Hfind.
   apply heap_lookup_addr_sound in Hfind as [Hb Ha]. eauto.
 Qed.
 

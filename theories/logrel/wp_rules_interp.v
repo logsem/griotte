@@ -129,7 +129,7 @@ Section wp_interp.
     iDestruct (write_allowed_inv _ _ a with "Hinterp_dst") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
     iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
-    iDestruct (interp_cap_cell_live W C p g b e a a with "Hinterp_dst") as %Hlive;
+    iDestruct (interp_cap_addr_live W C p g b e a a with "Hinterp_dst") as %Hlive;
       [exact Hheap_wf|by eapply writeAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
     iDestruct (open_world_interp W C a p' (safeC P) ρ with "Hrel Hworld_interp")
       as "(Hworld_interp & Hstate & (%w & WorldRes))";
@@ -310,7 +310,7 @@ Section wp_interp.
     iDestruct (write_allowed_inv _ _ a with "Hinterp_dst") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
     iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
-    iDestruct (interp_cap_cell_live W C p g b e a a with "Hinterp_dst") as %Hlive;
+    iDestruct (interp_cap_addr_live W C p g b e a a with "Hinterp_dst") as %Hlive;
       [exact Hheap_wf|by eapply writeAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
     iDestruct (open_world_interp W C a p' (safeC P) ρ with "Hrel Hworld_interp")
       as "(Hworld_interp & Hstate & (%w & WorldRes))";
@@ -738,7 +738,7 @@ Section wp_interp.
     iDestruct (read_allowed_inv _ _ a with "Hinterp_src") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
     iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
-    iDestruct (interp_cap_cell_live W C p g b e a a with "Hinterp_src") as %Hlive;
+    iDestruct (interp_cap_addr_live W C p g b e a a with "Hinterp_src") as %Hlive;
       [exact Hheap_wf|by eapply readAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
     iDestruct (open_world_interp W C a p' (safeC P) ρ with "Hrel Hworld_interp")
       as "(Hworld_interp & Hstate & (%w & WorldRes))";
@@ -977,7 +977,7 @@ Section wp_interp.
     iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
     iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
-    iDestruct (interp_cap_cell_live W C p g b e a ea with "Hinterp_dst") as %Hlive;
+    iDestruct (interp_cap_addr_live W C p g b e a ea with "Hinterp_dst") as %Hlive;
       [exact Hheap_wf|by eapply writeAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
     iDestruct (open_world_interp W C ea p' (safeC P) ρ with "Hrel Hworld_interp")
       as "(Hworld_interp & Hstate & (%w & WorldRes))";
@@ -1166,7 +1166,7 @@ Section wp_interp.
     iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
     iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
-    iDestruct (interp_cap_cell_live W C p g b e a ea with "Hinterp_dst") as %Hlive;
+    iDestruct (interp_cap_addr_live W C p g b e a ea with "Hinterp_dst") as %Hlive;
       [exact Hheap_wf|by eapply writeAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
     iDestruct (open_world_interp W C ea p' (safeC P) ρ with "Hrel Hworld_interp")
       as "(Hworld_interp & Hstate & (%w & WorldRes))";
@@ -1350,7 +1350,7 @@ Section wp_interp.
     iDestruct (read_allowed_inv _ _ ea with "Hinterp_src") as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
 
     iDestruct (world_interp_heap_wf with "Hworld_interp") as %Hheap_wf.
-    iDestruct (interp_cap_cell_live W C p g b e a ea with "Hinterp_src") as %Hlive;
+    iDestruct (interp_cap_addr_live W C p g b e a ea with "Hinterp_src") as %Hlive;
       [exact Hheap_wf|by eapply readAllowed_nonO|apply withinBounds_true_iff; solve_addr|].
     iDestruct (open_world_interp W C ea p' (safeC P) ρ with "Hrel Hworld_interp")
       as "(Hworld_interp & Hstate & (%w & WorldRes))";

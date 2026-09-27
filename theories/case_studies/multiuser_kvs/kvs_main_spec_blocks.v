@@ -24,7 +24,7 @@ Section KVS_Main_Blocks.
 
   Context {B : CmptName}.
 
-  (** Exact seven-cell import layout of the KVS main compartment.  The final
+  (** Exact layout of seven import addresses in the KVS main compartment.  The final
       empty region is retained explicitly, so consumers cannot accidentally
       drop the unused erase import or change the public layout. *)
   Lemma kvs_main_imports_pointsto

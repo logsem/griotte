@@ -74,7 +74,7 @@ Ltac unfold_vae_addresses_in H :=
     vae_stack_b, vae_stack_e in H.
 
 (** The concrete adversary's first entry calls [awkward] with its second entry
-    [g]. The callback [g] uses the adversary data cell as a one-shot flag: on
+    [g]. The callback [g] uses the adversary data address as a one-shot flag: on
     its first invocation it sets the flag and makes one nested call to
     [awkward], while later invocations return immediately. Both entries save
     and restore their outer return capabilities around nested calls. *)

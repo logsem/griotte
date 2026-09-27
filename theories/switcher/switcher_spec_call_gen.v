@@ -859,7 +859,7 @@ Section Switcher.
       { set_solver+. }
       { by rewrite finz_seq_between_length in Hlen_stk_l. }
       { apply Forall_forall; intros x Hx.
-        apply heap_cell_live_nonheap.
+        apply heap_addr_live_nonheap.
         apply not_true_is_false; intros Hxheap.
         apply withinBounds_true_iff in Hxheap.
         rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
@@ -872,7 +872,7 @@ Section Switcher.
       iMod (world_interp_revoked_by_separation_many with "[$Hworld_interp_C $Hstk_l]")
         as "(Hworld_interp_C & Hstk_l & %Hstk_l_revoked)".
       { apply Forall_forall; intros x Hx.
-        apply heap_cell_live_nonheap.
+        apply heap_addr_live_nonheap.
         apply not_true_is_false; intros Hxheap.
         apply withinBounds_true_iff in Hxheap.
         rewrite /disjoint_from_heap elem_of_disjoint in Hstack_heap.

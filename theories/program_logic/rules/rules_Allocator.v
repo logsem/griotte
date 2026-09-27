@@ -57,7 +57,7 @@ Section AllocatorRules.
       iModIntro. iApply ("HΦ" $! ShadowQuarantined). iFrame.
   Qed.
 
-  (** Quarantining a live cell performs the physical shadow store before
+  (** Quarantining a live address performs the physical shadow store before
        transferring its memory to the allocator. Only then does the client
        receive the reclaim token; opening the invariant alone cannot mint it. *)
   Lemma wp_store_quarantine E pc_p pc_g pc_b pc_e pc_a pc_a' w dst p g b e a heap_a v :

@@ -124,7 +124,7 @@ Section Stack_Object_Region_Resources.
     destruct Hextract as [Hrevoked_nodup Hrevoked_temps].
 
     (* Classify the readable object region, then partition it into permanent
-       cells and temporary cells that were revoked with the current frame. *)
+       addresses and temporary addresses that were revoked with the current frame. *)
     iAssert (⌜Forall
       (fun a => std W0 !! a = Some Permanent \/
                 std W0 !! a = Some Temporary) object⌝)%I
@@ -226,18 +226,18 @@ Section Stack_Object_Region_Resources.
     iCombine "Hr Hsts Hseals" as "Hworld_interp_C".
     iAssert (world_interp W1 C) with "[Hworld_interp_C]" as "Hworld_interp_C".
     { rewrite world_interp_eq /world_interp_def. iExact "Hworld_interp_C". }
-    assert (Forall (heap_cell_live (heap_std W1)) object) as Hobject_live.
+    assert (Forall (heap_addr_live (heap_std W1)) object) as Hobject_live.
     { rewrite Forall_forall.
       intros a Ha.
       subst object W1.
       rewrite revoke_heap.
-      eapply heap_cap_valid_cell_live;
+      eapply heap_cap_valid_addr_live;
         [by rewrite revoke_heap in Hheap_wf| |exact Hheapvalid].
       apply withinBounds_true_iff.
       apply elem_of_finz_seq_between in Ha.
       solve_addr.
     }
-    assert (Forall (fun '(a,_,_,_) => heap_cell_live (heap_std W1) a)
+    assert (Forall (fun '(a,_,_,_) => heap_addr_live (heap_std W1) a)
       wca0_invs) as Hlive_wca0_invs.
     { rewrite Forall_forall.
       intros x Hx.
@@ -301,7 +301,7 @@ Section Stack_Object_Region_Resources.
       apply elem_of_app; left.
       by apply Htemps_subset.
     }
-    assert (Forall (heap_cell_live (heap_std W0)) temps) as Htemps_live.
+    assert (Forall (heap_addr_live (heap_std W0)) temps) as Htemps_live.
     { rewrite Forall_forall in Hobject_live |- *.
       apply Forall_forall.
       intros a Ha.
@@ -341,7 +341,7 @@ Section Stack_Object_Region_Resources.
         iDestruct "Hrevoked_temps" as "[Ha Hl]".
         iDestruct ("IH" with "[%] Hl") as "Hl"; first exact Hl_live.
         iDestruct "Ha" as (p0 P HpersP) "[Hrel_a Ha]".
-        unfold heap_cell_live in Ha_live.
+        unfold heap_addr_live in Ha_live.
         iEval (rewrite Ha_live) in "Ha".
         iDestruct "Ha" as (v) "(HpO & Hv & HP & HmonoP)".
         iDestruct "Hl" as (lp0 lP lv)
@@ -394,7 +394,7 @@ Section Stack_Object_Region_Resources.
     }
 
     (* The continuation first closes permanent resources back into [W1], then
-       uses the integer-valued temporary cells to reinstate the object. *)
+       uses the integer-valued temporary addresses to reinstate the object. *)
     iDestruct (close_world_interp_list W1 C wca0_invs [] with
       "[$Hworld_interp_C $Hsts_std_wca0 $Hperms_lv $Hwca0_mono
         $Hwca0_φs $Hrels_wca0 $Hwca0_pO]") as "Hworld_interp_C".
@@ -501,10 +501,10 @@ Section Stack_Object_Region_Resources.
     { iClear "#".
       iApply (big_sepL_impl with "Htemps_closing_resources").
       iModIntro; iIntros (k ka Hka) "H".
-      assert (heap_cell_status (heap_std W1) ka = Some AllocObjectLive)
+      assert (heap_addr_status (heap_std W1) ka = Some AllocObjectLive)
         as Hlive_ka.
       { rewrite /W1 revoke_heap.
-        unfold heap_cell_live in Htemps_live.
+        unfold heap_addr_live in Htemps_live.
         rewrite Forall_lookup in Htemps_live.
         eauto.
       }
@@ -584,7 +584,7 @@ Section Stack_Object_Region_Resources.
     iIntros "(#Hinterp_stack & Hworld_interp & Ha_stk1 & Hlc)".
     destruct Hbounds as (Hstack_b_stk1 & Hastk1_stk2 & Hastk2_stack_e).
 
-    (* Turn the freshly zeroed stack cell into the closing resource required
+    (* Turn the freshly zeroed stack address into the closing resource required
        by [world_interp_restore_world], consuming exactly one later credit. *)
     iAssert (
         |={⊤}=> ([∗ list] a ∈ [a_stk1],
@@ -619,7 +619,7 @@ Section Stack_Object_Region_Resources.
       iApply interp_int.
     }
 
-    (* Reinstate the cell and package both its state transition and the safe
+    (* Reinstate the address and package both its state transition and the safe
        singleton RWL capability needed by the adversary call. *)
     iDestruct (interp_cap_disjoint_wl with "Hinterp_stack") as %[_ Hstack_heap]; first done.
     assert (is_heap_address a_stk1 = false) as Hastk1_nonheap.
@@ -630,9 +630,9 @@ Section Stack_Object_Region_Resources.
       - apply elem_of_finz_seq_between.
         apply withinBounds_true_iff in Hheap. solve_addr.
     }
-    assert (Forall (heap_cell_live (heap_std W2)) [a_stk1])
+    assert (Forall (heap_addr_live (heap_std W2)) [a_stk1])
       as Hfresh_live.
-    { constructor; [apply heap_cell_live_nonheap; exact Hastk1_nonheap|constructor]. }
+    { constructor; [apply heap_addr_live_nonheap; exact Hastk1_nonheap|constructor]. }
     iMod (world_interp_restore_world W2 W2 C [a_stk1]
       with "[$Hworld_interp] [Hclosing_resources]")
       as "Hworld_interp".
@@ -641,9 +641,9 @@ Section Stack_Object_Region_Resources.
     { iClear "#".
       iApply (big_sepL_impl with "Hclosing_resources").
       iModIntro; iIntros (k ka Hka) "H".
-      assert (heap_cell_status (heap_std W2) ka = Some AllocObjectLive)
+      assert (heap_addr_status (heap_std W2) ka = Some AllocObjectLive)
         as Hlive_ka.
-      { unfold heap_cell_live in Hfresh_live.
+      { unfold heap_addr_live in Hfresh_live.
         rewrite Forall_lookup in Hfresh_live.
         eauto.
       }

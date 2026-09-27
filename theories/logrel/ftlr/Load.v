@@ -33,7 +33,7 @@ Section fundamental.
     (∃ ρ,
      sts_state_std C a ρ
     ∗ ⌜ρ ≠ Revoked⌝
-    ∗ ⌜heap_cell_live (heap_std W) a⌝
+    ∗ ⌜heap_addr_live (heap_std W) a⌝
     ∗ world_interp_open W C (a :: als)
     ∗ if_later_P has_later (monotonicity_guarantees_region C φ p v ρ ∗ φ (W,C, v))
     ∗ rel C a p φ)%I.
@@ -152,7 +152,7 @@ Section fundamental.
     destruct HH as (ρ0 & Hstd & Hnotrevoked).
     assert (withinBounds b e ea = true) as Hbounds.
     { by rewrite /withinBounds Hle Hge. }
-    iDestruct (interp_cap_cell_live with "Hvsrc") as %Hlive;
+    iDestruct (interp_cap_addr_live with "Hvsrc") as %Hlive;
       eauto using readAllowed_nonO.
     (* We can finally frame off Hsts here,
             since it is no longer needed after opening the region*)
@@ -351,7 +351,7 @@ Section fundamental.
       iExact "HV'".
   Qed.
   Lemma load_shadow_interp W C pc (p : Perm) raw actual alloc_map :
-    heap_cell_live (heap_std W) pc →
+    heap_addr_live (heap_std W) pc →
     dom alloc_map = heap_addresses →
     load_memory_shadow_observation (shadow_status <$> alloc_map) p raw actual →
     world_interp_open W C [pc] -∗
@@ -408,12 +408,12 @@ Section fundamental.
           right. split; first done.
           rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus. done. }
         iFrame. }
-      assert (heap_cell_status (heap_std W) base = Some AllocObjectQuarantined)
+      assert (heap_addr_status (heap_std W) base = Some AllocObjectQuarantined)
         as Hqstatus.
-      { by rewrite /heap_cell_status Hheap Hheaplookup /= Hstatus. }
+      { by rewrite /heap_addr_status Hheap Hheaplookup /= Hstatus. }
       assert (base ∉ [pc]) as Hnotpc.
       { intros Hpc. assert (base = pc) by set_solver. subst base.
-        unfold heap_cell_live in Hpc_live. rewrite Hqstatus in Hpc_live.
+        unfold heap_addr_live in Hpc_live. rewrite Hqstatus in Hpc_live.
         discriminate. }
       iDestruct (world_interp_open_quarantined_token with "Hworld")
         as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].
@@ -441,12 +441,12 @@ Section fundamental.
           right. split; first done.
           rewrite filter_heap_load_word /filter_heap Hauth Hheaplookup /= Hstatus. done. }
         iFrame. }
-      assert (heap_cell_status (heap_std W) base = Some AllocObjectQuarantined)
+      assert (heap_addr_status (heap_std W) base = Some AllocObjectQuarantined)
         as Hqstatus.
-      { by rewrite /heap_cell_status Hheap Hheaplookup /= Hstatus. }
+      { by rewrite /heap_addr_status Hheap Hheaplookup /= Hstatus. }
       assert (base ∉ [pc]) as Hnotpc.
       { intros Hpc. assert (base = pc) by set_solver. subst base.
-        unfold heap_cell_live in Hpc_live. rewrite Hqstatus in Hpc_live.
+        unfold heap_addr_live in Hpc_live. rewrite Hqstatus in Hpc_live.
         discriminate. }
       iDestruct (world_interp_open_quarantined_token with "Hworld")
         as "[Htoken Hrestore]"; [exact Hnotpc|exact Hqstatus|].

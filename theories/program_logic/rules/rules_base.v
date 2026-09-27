@@ -1004,7 +1004,7 @@ Section instruction_outcomes.
 
   (* A failed instruction rolls back every tentative write. The premise is
      about all extensions of the owned registers, so no absent register or
-     memory cell can be mistaken for evidence of runtime failure. *)
+     memory address can be mistaken for evidence of runtime failure. *)
   Local Lemma wp_instr_failed_map E pc_p pc_g pc_b pc_e pc_a w i (regs : Reg) :
     decodeInstrW w = i →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →

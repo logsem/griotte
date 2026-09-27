@@ -253,7 +253,7 @@ Section VAE.
     iFrame "#∗".
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcode)".
 
-    (* A revoked heap cell may be quarantined and carry no memory resource.
+    (* A revoked heap address may be quarantined and carry no memory resource.
        Restore that portion before the first adversary call.  The live
        portion remains framed across the calls. *)
     iDestruct (revoked_status_some with "Hrevoked_l")
@@ -527,7 +527,7 @@ Section VAE.
     iFrame "#∗".
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcode)".
 
-    (* The first callback may have allocated or freed heap cells.  Split
+    (* The first callback may have allocated or freed heap addresses.  Split
        its returned revoked resources at the new heap status, then
        reinstate the quarantined portion before the second callback. *)
     iDestruct (revoked_status_some with "Hrevoked_l1")
@@ -641,7 +641,7 @@ Section VAE.
       - intro Hq.
         rewrite Forall_forall in Hl1_quarantined.
         specialize (Hl1_quarantined a Hq).
-        unfold heap_cell_status in Hl1_quarantined.
+        unfold heap_addr_status in Hl1_quarantined.
         destruct (is_heap_address a) eqn:Hheap_a; last discriminate.
         rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
         eapply (Hstk_heap a).
@@ -812,7 +812,7 @@ Section VAE.
       Hl0_live Hl0_dom_W7 with "[$Halloc $Hworld_interp_C $Hl0_live]")
       as "(Hworld_interp_C & Hl0_live & %Hl0_live_revoked_W7)".
 
-    assert (Forall (heap_cell_live (heap_std W3)) l1_unique)
+    assert (Forall (heap_addr_live (heap_std W3)) l1_unique)
       as Hl1_unique_live_W3.
     { apply Forall_forall; intros a Ha.
       subst l1_unique.

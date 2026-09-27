@@ -79,7 +79,7 @@ Ltac unfold_dle_addresses_in H :=
 
 (** The concrete adversary examines the argument passed in [ca0]. If it is a
     capability, the adversary follows it to the nested capability and attempts
-    to overwrite the nested cell with [7]; otherwise it simply returns. This
+    to overwrite the nested address with [7]; otherwise it simply returns. This
     instantiates the unknown compartment with a direct attack on deep locality. *)
 Definition dle_C_code : list Word :=
   encodeInstrsW [

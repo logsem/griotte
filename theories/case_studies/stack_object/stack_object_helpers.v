@@ -139,7 +139,7 @@ Section stack_object_helpers.
     :
 
     let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
-    Forall (fun '(a,p,φ,ρ) => heap_cell_live (snd W) a) l ->
+    Forall (fun '(a,p,φ,ρ) => heap_addr_live (snd W) a) l ->
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
@@ -172,7 +172,7 @@ Section stack_object_helpers.
     :
 
     let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
-    Forall (fun '(a,p,φ,ρ) => heap_cell_live (snd W) a) l ->
+    Forall (fun '(a,p,φ,ρ) => heap_addr_live (snd W) a) l ->
     length l = length lv ->
     NoDup la ->
     la ## l' ->
