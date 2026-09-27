@@ -526,7 +526,7 @@ Theorem lse_runs_and_gracefully_halts :
     ∧ mem' !! lse_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
-    (machine_run_correct 7500 Executable
+    (machine_run_correct (N.to_nat (7500%N)) Executable
       (lse_initial_registers, lse_initial_sregisters, lse_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).

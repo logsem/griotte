@@ -654,7 +654,7 @@ Theorem kvs_runs_and_gracefully_halts :
     ∧ mem' !! kvs_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
-    (machine_run_correct 15000 Executable
+    (machine_run_correct (N.to_nat (15000%N)) Executable
       (kvs_initial_registers, kvs_initial_sregisters, kvs_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).

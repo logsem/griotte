@@ -618,7 +618,7 @@ Theorem cmdc_runs_and_gracefully_halts :
     ∧ mem' !! cmdc_assert_flag = Some (WInt 0%Z).
 Proof.
   edestruct (
-    machine_run_correct 10000 Executable
+    machine_run_correct (N.to_nat (10000%N)) Executable
       (cmdc_initial_registers, cmdc_initial_sregisters,
        cmdc_initial_memory, initial_heap_shadow)
       Halted

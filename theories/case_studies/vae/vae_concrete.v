@@ -541,7 +541,7 @@ Theorem vae_runs_and_gracefully_halts :
     ∧ mem' !! vae_assert_flag = Some (WInt 0%Z).
 Proof.
   pose proof
-    (machine_run_correct 15000 Executable
+    (machine_run_correct (N.to_nat (15000%N)) Executable
       (vae_initial_registers, vae_initial_sregisters, vae_initial_memory, initial_heap_shadow)
       Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).

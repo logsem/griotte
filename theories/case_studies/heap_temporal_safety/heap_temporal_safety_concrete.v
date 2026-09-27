@@ -37,7 +37,8 @@ Definition hts_shadow_region : ShadowRegion :=
 
 (** The concrete adversary counts calls. Its imports remain exactly those
     allowed by general adequacy; it does not need an assert entry point. *)
-Import Asm_Griotte.
+(* The explicit assembly injectors below avoid ambiguous sum coercions. *)
+#[warning="-ambiguous-paths"] Import Asm_Griotte.
 Definition hts_adv_asm : list (list Asm_Griotte.asm_code) :=
   let first := ".hts_first" in
   let second := ".hts_second" in
@@ -47,12 +48,12 @@ Definition hts_adv_asm : list (list Asm_Griotte.asm_code) :=
   let saved := 1%Z in
   let observed := 2%Z in
   [ [load_imm ct0 cgp count; add ct0 (asmr ct0) (asmz 1);
-     store_imm cgp (asmr ct0) count;
+     store_imm cgp (asmr ct0) (asmexprz count);
      sub ct1 (asmr ct0) (asmz 1); jnz (asms second) ct1;
-     #first; store_imm cgp (asmr ca0) saved; jmp (asms return_)];
+     #first; store_imm cgp (asmr ca0) (asmexprz saved); jmp (asms return_)];
     [ #second; sub ct1 (asmr ct0) (asmz 2); jnz (asms bad) ct1;
      load_imm ct0 cgp saved; gettag ct1 ct0;
-     store_imm cgp (asmr ct1) observed; jnz (asms bad) ct1];
+     store_imm cgp (asmr ct1) (asmexprz observed); jnz (asms bad) ct1];
     [ #return_; mov ca0 (asmz 0); mov ca1 (asmz 0); ret];
     [ #bad; fail] ].
 
@@ -420,7 +421,7 @@ Proof.
 Qed.
 
 Local Notation hts_execution :=
-  (hts_run 10000 (Executable, hts_concrete_initial_state)).
+  (hts_run (N.to_nat (10000%N)) (Executable, hts_concrete_initial_state)).
 Definition hts_final_state : ExecConf :=
   default hts_concrete_initial_state (snd <$> hts_execution).
 
@@ -466,5 +467,5 @@ Theorem hts_runs_and_gracefully_halts :
 Proof.
   destruct hts_execution_observations as (reg & sr & mem & sh & Hrun & Hobs).
   exists reg, sr, mem, sh. split; last exact Hobs.
-  apply (hts_run_correct 10000). exact Hrun.
+  apply (hts_run_correct (N.to_nat (10000%N))). exact Hrun.
 Qed.
