@@ -5,6 +5,7 @@ From griotte.allocator Require Export allocator_preamble.
 Definition htsN : namespace := nroot .@ "heap_temporal_safety".
 Definition hts_assertN : namespace := htsN .@ "assert".
 Definition hts_switcherN : namespace := htsN .@ "switcher".
+Definition hts_allocator_exp_tblN : namespace := htsN .@ "allocator_exports".
 
 Section Heap_Temporal_Safety_Resources.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
