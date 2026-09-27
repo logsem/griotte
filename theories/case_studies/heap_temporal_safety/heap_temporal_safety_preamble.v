@@ -23,11 +23,11 @@ Section Heap_Temporal_Safety_Resources.
       particular, [hts_live_buffer] is not a persistent safe-to-share
       interpretation and cannot survive an
       arbitrary call without a future heap-world protocol. *)
-  Definition hts_live_buffer (b : Addr) (reserved : Z) (w : Word) : iProp Σ :=
+  Definition hts_live_buffer (b : Addr) (reserved : Z * Z) (w : Word) : iProp Σ :=
     ⌜(heap_b < b /\ b < b ^+ 1 /\ b ^+ 1 <= heap_e)%a⌝ ∗
     allocator_allocation b (b ^+ 1)%a reserved ∗ b ↦ₐ w.
 
-  Definition hts_quarantined_buffer (b : Addr) (reserved : Z) : iProp Σ :=
+  Definition hts_quarantined_buffer (b : Addr) (reserved : Z * Z) : iProp Σ :=
     allocator_allocation b (b ^+ 1)%a reserved ∗ reclaim_token b.
 
   Lemma hts_private_data_initial p e :

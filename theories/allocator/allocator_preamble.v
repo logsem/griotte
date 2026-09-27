@@ -42,11 +42,11 @@ Definition allocator_free_in_prefix {MP : MachineParameters}
     [(base, (end, reserved))]. The stored end is also the next header address.
     Checked addition excludes address wraparound when recovering the base. *)
 
-Definition allocator_header_entry : Type := (Addr * (Addr * Z))%type.
+Definition allocator_header_entry : Type := (Addr * (Addr * (Z * Z)))%type.
 
 Definition allocator_has_bounds (allocations : list allocator_header_entry)
   (b e : Addr) : Prop :=
-  ∃ reserved : Z, (b, (e, reserved)) ∈ allocations.
+  ∃ reserved : Z * Z, (b, (e, reserved)) ∈ allocations.
 
 Definition allocator_header_bounds (h stop b e : Addr) : Prop :=
   (h + allocator_header_words)%a = Some b ∧ (b < e /\ e <= stop)%a.
@@ -74,11 +74,11 @@ Definition allocator_free_valid {MP : MachineParameters}
     liveness or authority to access the payload. *)
 
 Class allocatorHistoryG Σ := {
-  allocator_history_inG :: ghost_mapG Σ Addr (Addr * Z);
+  allocator_history_inG :: ghost_mapG Σ Addr (Addr * (Z * Z));
   allocator_history_gname : gname;
 }.
 
-Definition allocator_historyΣ : gFunctors := ghost_mapΣ Addr (Addr * Z).
+Definition allocator_historyΣ : gFunctors := ghost_mapΣ Addr (Addr * (Z * Z)).
 
 Section AllocatorHeaders.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
@@ -86,10 +86,11 @@ Section AllocatorHeaders.
   (** Own both header words with the values named by the logical entry.
       [reserved] is an explicit integer parameter; malloc initializes it to zero. *)
 
-  Definition allocator_header (h b e : Addr) (reserved : Z) : iProp Σ :=
+  Definition allocator_header (h b e : Addr) (reserved : Z * Z) : iProp Σ :=
     (⌜(h + allocator_header_words)%a = Some b⌝ ∗
      h ↦ₐ WInt e ∗
-     (h ^+ 1)%a ↦ₐ WInt reserved)%I.
+     ((h ^+ 1)%a ↦ₐ WInt reserved.1 ∗
+      (h ^+ 2)%a ↦ₐ WInt reserved.2))%I.
 
   (** A list segment ending at [stop], following the recursive [isList]
       convention in Cerise's [examples/keylist.v]. The empty segment owns no
@@ -139,7 +140,7 @@ Section AllocatorHistory.
   Definition allocator_history (allocations : list allocator_header_entry) : iProp Σ :=
     ghost_map_auth allocator_history_gname 1 (list_to_map allocations).
 
-  Definition allocator_allocation (b e : Addr) (reserved : Z) : iProp Σ :=
+  Definition allocator_allocation (b e : Addr) (reserved : Z * Z) : iProp Σ :=
     ghost_map_elem allocator_history_gname b DfracDiscarded (e, reserved).
 
 End AllocatorHistory.
@@ -189,7 +190,7 @@ Section AllocatorService.
      free_addrs e heap_e ∗ (* Remaining unused suffix. *)
      allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Published header chain. *)
      allocator_history allocations ∗ (* Published ghost map. *)
-     allocator_header next b e 0)%I. (* New, unpublished header. *)
+     allocator_header next b e (0%Z, 0%Z))%I. (* New, unpublished header. *)
 
   Definition allocator_service_inv : iProp Σ :=
     allocator_service_static ∗ ∃ next : Addr, allocator_service_data next.

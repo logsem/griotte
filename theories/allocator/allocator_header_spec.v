@@ -45,7 +45,7 @@ Qed.
 Lemma allocator_chain_lookup_spec :
   ∀ h stop allocations b e reserved,
     allocator_chain h stop allocations ->
-    ((list_to_map allocations : gmap Addr (Addr * Z)) !! b = Some (e, reserved) <->
+    ((list_to_map allocations : gmap Addr (Addr * (Z * Z))) !! b = Some (e, reserved) <->
      (b, (e, reserved)) ∈ allocations).
 Proof.
   intros h stop allocations b e reserved Hchain. split.
@@ -150,14 +150,14 @@ Section AllocatorHistoryContracts.
     ∀ allocations b e reserved,
       allocator_history allocations -∗
       allocator_allocation b e reserved -∗
-      ⌜(list_to_map allocations : gmap Addr (Addr * Z)) !! b = Some (e, reserved)⌝.
+      ⌜(list_to_map allocations : gmap Addr (Addr * (Z * Z))) !! b = Some (e, reserved)⌝.
   Proof.
     intros allocations b e reserved. apply ghost_map_lookup.
   Qed.
 
   Lemma allocator_history_insert_spec :
     ∀ allocations b e reserved,
-      (list_to_map allocations : gmap Addr (Addr * Z)) !! b = None ->
+      (list_to_map allocations : gmap Addr (Addr * (Z * Z))) !! b = None ->
       allocator_history allocations
       ==∗
       allocator_history (allocations ++ [(b, (e, reserved))]) ∗
@@ -199,7 +199,7 @@ Section AllocatorServiceContracts.
     intros next b e reserved allocations Hnext [Hbase Hbounds].
     iIntros "Hslot Hroot Hfree Hheaders Hhistory Hhead".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
-    assert (Hfresh : (list_to_map allocations : gmap Addr (Addr * Z)) !! b = None).
+    assert (Hfresh : (list_to_map allocations : gmap Addr (Addr * (Z * Z))) !! b = None).
     { apply eq_None_not_Some. intros ((e' & r') & Hlookup).
       apply elem_of_list_to_map_2 in Hlookup.
       pose proof (allocator_chain_member_bounds (heap_b ^+ 1)%a next

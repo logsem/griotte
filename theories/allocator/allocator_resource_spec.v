@@ -121,7 +121,7 @@ Proof. unfold Nallocator, Nallocator_service. solve_ndisj. Qed.
 
 Section AllocatorServiceInitializationProofs.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocator_preg : allocator_preG Σ}
-    {allocator_history_preg : ghost_mapG Σ Addr (Addr * Z)}
+    {allocator_history_preg : ghost_mapG Σ Addr (Addr * (Z * Z))}
     {MP : MachineParameters} {layout : allocatorLayout}.
 
   (** The initial heap may contain arbitrary words, but every shadow bit must
@@ -142,7 +142,7 @@ Section AllocatorServiceInitializationProofs.
     intros [Hwf Hdom].
     iIntros "[Hstatic Hdata] Hheap".
     iMod (allocator_init_free_with_tokens_correct E mem Hdom with "Hheap") as (ag) "[Halloc Hfree]".
-    iMod (ghost_map_alloc_empty (K := Addr) (V := (Addr * Z)%type))
+    iMod (ghost_map_alloc_empty (K := Addr) (V := (Addr * (Z * Z))%type))
       as (γ) "Hhistory".
     pose (hg := {| allocator_history_inG := allocator_history_preg;
                    allocator_history_gname := γ |}).

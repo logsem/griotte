@@ -157,7 +157,7 @@ Section AllocatorFreeTraversal.
     (* Sub ct3 ct3 ct1. *)
     iInstr "Hcode".
     destruct (decide (base = b)) as [->|Hbase_ne].
-    + replace (h + 2 - b)%Z with 0%Z by solve_addr.
+    + replace (h + 3 - b)%Z with 0%Z by solve_addr.
       (* Jnz .free_next ct3. *)
       iInstr "Hcode".
       (* Sub ct3 ca2 ct2. *)
@@ -199,7 +199,7 @@ Section AllocatorFreeTraversal.
         iRight.
         iFrame.
         done.
-    + assert (Hneq : WInt (h + 2 - b) ≠ WInt 0) by (intros Heq; injection Heq as Heq; apply Hbase_ne; solve_addr).
+    + assert (Hneq : WInt (h + 3 - b) ≠ WInt 0) by (intros Heq; injection Heq as Heq; apply Hbase_ne; solve_addr).
       (* Jnz .free_next ct3. *)
       iInstr "Hcode".
       (* GetA ct3 ct4. *)
@@ -1144,7 +1144,8 @@ Section AllocatorFreeTraversal.
     focus_block_nochangePC 1 "Hcode" as a_free Ha_free "Hfreecode" "Hcode_cont".
     assert (Ha_eq : a_free = allocator_free_pcc_addr).
     { pose proof allocator_size_imports as Himports_size.
-      unfold allocator_free_pcc_addr, allocator_free_pcc_off in *.
+      rewrite allocator_imports_length in Himports_size.
+      unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
       solve_addr. }
     subst a_free.
     (* Check the capability and its bounds. *)
@@ -1157,7 +1158,7 @@ Section AllocatorFreeTraversal.
       allocator_free_pcc_addr (allocator_free_pcc_addr ^+ length allocator_free_instrs)%a).
     { pose proof allocator_size_code as Hsize_code.
       rewrite /allocator_code length_app in Hsize_code.
-      unfold allocator_free_pcc_addr, allocator_free_pcc_off in *.
+      unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
       solve_addr. }
     assert (Hdisjoint : disjoint_from_shadow allocator_pcc_b allocator_pcc_e).
     { pose proof allocator_regions_disjoint as Hregions.
@@ -1285,7 +1286,7 @@ Section AllocatorFreeTraversal.
 
   Lemma allocator_free_narrowed_spec
     (E : coPset) (p : Perm) (g : Locality)
-    (b e : Addr) (reserved : Z) (b' e' a : Addr) (wret : Word)
+    (b e : Addr) (reserved : Z * Z) (b' e' a : Addr) (wret : Word)
     (φ : language.val griotte_lang → iPropI Σ) :
     (b <= b' /\ b' < e' /\ e' <= e)%a ->
     (b', e') ≠ (b, e) ->
@@ -1419,7 +1420,7 @@ Section AllocatorFreeTraversal.
       returns one reclaim token per address. Permissions and cursor may vary. *)
 
   Lemma allocator_free_valid_correct
-    (E : coPset) (p : Perm) (g : Locality) (b e a : Addr) (reserved : Z)
+    (E : coPset) (p : Perm) (g : Locality) (b e a : Addr) (reserved : Z * Z)
     (ws : list Word) (wret : Word)
     (φ : language.val griotte_lang → iPropI Σ) :
 
@@ -1491,7 +1492,8 @@ Section AllocatorFreeTraversal.
     focus_block_nochangePC 1 "Hcode" as a_free Ha_free "Hfreecode" "Hcode_cont".
     assert (Ha_eq : a_free = allocator_free_pcc_addr).
     { pose proof allocator_size_imports as Himports_size.
-      unfold allocator_free_pcc_addr, allocator_free_pcc_off in *. solve_addr. }
+      rewrite allocator_imports_length in Himports_size.
+      unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *. solve_addr. }
     subst a_free.
     (* Check the capability and its bounds. *)
     assert (Hsplit : allocator_free_instrs =
@@ -1503,7 +1505,7 @@ Section AllocatorFreeTraversal.
       allocator_free_pcc_addr (allocator_free_pcc_addr ^+ length allocator_free_instrs)%a).
     { pose proof allocator_size_code as Hsize_code.
       rewrite /allocator_code length_app in Hsize_code.
-      unfold allocator_free_pcc_addr, allocator_free_pcc_off in *.
+      unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
       solve_addr. }
     assert (Hdisjoint : disjoint_from_shadow allocator_pcc_b allocator_pcc_e).
     { pose proof allocator_regions_disjoint as Hregions.
@@ -1563,9 +1565,13 @@ Section AllocatorFreeTraversal.
     { unfold allocator_free_block_addr in *. solve_addr. }
     subst a_fetch.
     pose proof allocator_size_imports as Himports_size.
-    iDestruct (region_pointsto_single with "Himports") as (v)
-      "[Himport %Hentry]"; first exact Himports_size.
-    cbn in Hentry. inversion Hentry; subst v.
+    assert (Himpnext : (allocator_pcc_b + 1)%a = Some (allocator_pcc_b ^+ 1)%a) by solve_addr.
+    assert (Himpend : (allocator_pcc_b ^+ 1 <= allocator_code_b)%a).
+    { unfold allocator_imports in Himports_size; simpl in Himports_size; solve_addr. }
+    iEval (rewrite /allocator_imports
+      (region_pointsto_cons allocator_pcc_b (allocator_pcc_b ^+ 1)%a
+        allocator_code_b _ _ Himpnext Himpend)) in "Himports".
+    iDestruct "Himports" as "[Himport Hkey]".
     assert (Hfetch_eq : allocator_free_instrs_n 6 =
       fetch.fetch_instrs allocator_shadow_import_off ctp ct3 ca2)
       by reflexivity.
@@ -1596,9 +1602,10 @@ Section AllocatorFreeTraversal.
     iEval (cbn) in "Hctp".
     iEval (rewrite Himpaddr) in "Himport".
     iAssert ([[allocator_pcc_b,allocator_code_b]] ↦ₐ [[allocator_imports]])%I
-      with "[Himport]" as "Himports".
-    { rewrite /allocator_imports /region_pointsto
-        (finz_seq_between_singleton allocator_pcc_b allocator_code_b Himports_size) /=.
+      with "[Himport Hkey]" as "Himports".
+    { rewrite /allocator_imports
+        (region_pointsto_cons allocator_pcc_b (allocator_pcc_b ^+ 1)%a
+          allocator_code_b _ _ Himpnext Himpend).
       iFrame. }
     iEval (rewrite -Hfetch_eq) in "Hfetch_code".
     iDestruct ("Hfreecode_cont" with "Hfetch_code") as "Hfreecode".
@@ -1761,7 +1768,7 @@ Section AllocatorFreeTraversal.
 
   Lemma allocator_free_repeated_spec
     (E : coPset) (p : Perm) (g : Locality)
-    (b e a : Addr) (reserved : Z) (wret : Word)
+    (b e a : Addr) (reserved : Z * Z) (wret : Word)
     (φ : language.val griotte_lang → iPropI Σ) :
     ↑Nallocator ⊆ E ->
     ↑Nallocator_service ⊆ E ->
@@ -1828,7 +1835,8 @@ Section AllocatorFreeTraversal.
     focus_block_nochangePC 1 "Hcode" as a_free Ha_free "Hfreecode" "Hcode_cont".
     assert (Ha_eq : a_free = allocator_free_pcc_addr).
     { pose proof allocator_size_imports as Himports_size.
-      unfold allocator_free_pcc_addr, allocator_free_pcc_off in *. solve_addr. }
+      rewrite allocator_imports_length in Himports_size.
+      unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *. solve_addr. }
     subst a_free.
     (* Check the capability and its bounds. *)
     assert (Hsplit : allocator_free_instrs =
@@ -1840,7 +1848,7 @@ Section AllocatorFreeTraversal.
       allocator_free_pcc_addr (allocator_free_pcc_addr ^+ length allocator_free_instrs)%a).
     { pose proof allocator_size_code as Hsize_code.
       rewrite /allocator_code length_app in Hsize_code.
-      unfold allocator_free_pcc_addr, allocator_free_pcc_off in *.
+      unfold allocator_free_pcc_addr, allocator_free_pcc_off, allocator_malloc_pcc_off in *.
       solve_addr. }
     assert (Hdisjoint : disjoint_from_shadow allocator_pcc_b allocator_pcc_e).
     { pose proof allocator_regions_disjoint as Hregions.
@@ -1900,9 +1908,13 @@ Section AllocatorFreeTraversal.
     { unfold allocator_free_block_addr in *. solve_addr. }
     subst a_fetch.
     pose proof allocator_size_imports as Himports_size.
-    iDestruct (region_pointsto_single with "Himports") as (v)
-      "[Himport %Hentry]"; first exact Himports_size.
-    cbn in Hentry. inversion Hentry; subst v.
+    assert (Himpnext : (allocator_pcc_b + 1)%a = Some (allocator_pcc_b ^+ 1)%a) by solve_addr.
+    assert (Himpend : (allocator_pcc_b ^+ 1 <= allocator_code_b)%a).
+    { unfold allocator_imports in Himports_size; simpl in Himports_size; solve_addr. }
+    iEval (rewrite /allocator_imports
+      (region_pointsto_cons allocator_pcc_b (allocator_pcc_b ^+ 1)%a
+        allocator_code_b _ _ Himpnext Himpend)) in "Himports".
+    iDestruct "Himports" as "[Himport Hkey]".
     assert (Hfetch_eq : allocator_free_instrs_n 6 =
       fetch.fetch_instrs allocator_shadow_import_off ctp ct3 ca2)
       by reflexivity.
@@ -1933,9 +1945,10 @@ Section AllocatorFreeTraversal.
     iEval (cbn) in "Hctp".
     iEval (rewrite Himpaddr) in "Himport".
     iAssert ([[allocator_pcc_b,allocator_code_b]] ↦ₐ [[allocator_imports]])%I
-      with "[Himport]" as "Himports".
-    { rewrite /allocator_imports /region_pointsto
-        (finz_seq_between_singleton allocator_pcc_b allocator_code_b Himports_size) /=.
+      with "[Himport Hkey]" as "Himports".
+    { rewrite /allocator_imports
+        (region_pointsto_cons allocator_pcc_b (allocator_pcc_b ^+ 1)%a
+          allocator_code_b _ _ Himpnext Himpend).
       iFrame. }
     iEval (rewrite -Hfetch_eq) in "Hfetch_code".
     iDestruct ("Hfreecode_cont" with "Hfetch_code") as "Hfreecode".

@@ -30,7 +30,7 @@ Qed.
 Lemma heap_std_allocator_agree_bounds W_heap allocations alloc_map b o :
   heap_std_allocator_agree W_heap allocations alloc_map ->
   W_heap !! b = Some o ->
-  ∃ reserved : Z, (list_to_map allocations : gmap Addr (Addr * Z)) !! b = Some (alloc_object_end o, reserved).
+  ∃ reserved : Z * Z, (list_to_map allocations : gmap Addr (Addr * (Z * Z))) !! b = Some (alloc_object_end o, reserved).
 Proof.
   intros (_ & Hbounds & _) Hb.
   assert (((alloc_object_end <$> W_heap) : gmap Addr Addr) !! b =

@@ -6,8 +6,10 @@ From griotte.allocator Require Import allocator allocator_preamble allocator_res
 (** The allocator is an ordinary switcher compartment. Its special authority
     is in its imports (shadow) and data (heap root), not a new calling ABI. *)
 Definition hts_cmpt_allocator_layout `{MP : MachineParameters} (C : cmpt)
+    (otype : OType)
     : allocatorLayout :=
-  {| allocator_pcc_b := cmpt_b_pcc C;
+  {| AllocOtype := otype;
+     allocator_pcc_b := cmpt_b_pcc C;
      allocator_code_b := cmpt_a_code C;
      allocator_pcc_e := cmpt_e_pcc C;
      allocator_cgp_b := cmpt_b_cgp C;
@@ -21,11 +23,12 @@ Class hts_memory_layout `{MP : MachineParameters} := {
     hts_main_cmpt : cmpt;
     hts_adv_cmpt : cmpt;
     hts_allocator_cmpt : cmpt;
+    hts_allocator_otype : OType;
     hts_adv_entry_offset : nat;
     hts_adv_entry_valid :
       is_Some (cmpt_b_pcc hts_adv_cmpt + hts_adv_entry_offset)%a;
     hts_allocator_wf :
-      @allocatorLayoutWf MP (hts_cmpt_allocator_layout hts_allocator_cmpt);
+      @allocatorLayoutWf MP (hts_cmpt_allocator_layout hts_allocator_cmpt hts_allocator_otype);
     hts_regions_disjoint :
       ## [cmpt_region hts_main_cmpt; cmpt_region hts_adv_cmpt;
           cmpt_region hts_allocator_cmpt; cmpt_switcher_region hts_switcher_cmpt;
@@ -38,7 +41,7 @@ Class hts_memory_layout `{MP : MachineParameters} := {
 #[local] Instance hts_memory_assert_layout `{hts_memory_layout} : assertLayout :=
   cmptAssert_assertLayout hts_assert_cmpt.
 #[local] Instance hts_memory_allocator_layout `{hts_memory_layout} : allocatorLayout :=
-  hts_cmpt_allocator_layout hts_allocator_cmpt.
+  hts_cmpt_allocator_layout hts_allocator_cmpt hts_allocator_otype.
 
 #[local] Instance hts_memory_allocator_wf `{hts_memory_layout} : allocatorLayoutWf :=
   hts_allocator_wf.
@@ -134,4 +137,4 @@ Theorem hts_adequacy `{hts_memory_layout}
     (es, (reg', sreg', mem', sh')) ->
   mem' !! flag_assert hts_assert_cmpt = Some (WInt 0).
 Proof.
-Abort.
+Admitted.

@@ -7,8 +7,8 @@ From griotte Require Import machine_parameters assembler switcher fetch.
 
     [malloc] takes a positive number of words in [ca0]. It zeroes the new
     allocation, clears its shadow entries, and returns an exactly bounded
-    [RW Global] capability in [ca0]. Each allocation has two protected header
-    words before its payload: the original end and a reserved address,
+    [RW Global] capability in [ca0]. Each allocation has three protected header
+    words before its payload: the original end and two reserved addresses,
     initialized to zero. [free] traverses these headers from the first one
     and requires both supplied bounds to match an original payload. It rejects
     already quarantined allocations. Neither operation reuses memory.
@@ -31,7 +31,9 @@ Section Allocator.
 
   Definition allocator_shadow_import_off : Z := 0.
 
-  Definition allocator_header_words : Z := 2.
+  Definition allocator_unsealing_key_import_off : Z := 1.
+
+  Definition allocator_header_words : Z := 3.
 
   (** These loops resolve their local labels before being embedded into a
       larger block, so their assembled code is independent of its placement.
@@ -92,12 +94,12 @@ Section Allocator.
 
   (** [ct0] holds the full heap capability with its cursor at the new header,
       [ct1] the payload base, [ct2] its end, and [ct4] the result capability.
-      Capacity includes both header words. Bounds are checked
+      Capacity includes all three header words. Bounds are checked
       using integer subtraction before any capability address is advanced.
       The memory is zeroed before its shadow entries are cleared, and the
       bump pointer is published only after both loops complete. *)
   (* CHERI-C-style overview (schematic; addresses and sizes count machine words).
-     HEADER_WORDS is 2; [integer] denotes the machine's mathematical integers.
+     HEADER_WORDS is 3; [integer] denotes the machine's mathematical integers.
      [set_address] changes only a capability's cursor; [set_bounds(c, n)]
      bounds it to the n words starting at that cursor. [base], [end], and
      [address] inspect capability fields. Shadow access uses the private import.
@@ -116,7 +118,8 @@ Section Allocator.
        address_t e = b + n;
        word_t *__capability payload = set_bounds(set_address(root, b), n);
        root[0] = e;                    // Header: original payload end.
-       root[1] = 0;                    // Header: reserved address for later use.
+       root[1] = 0;                    // Header: first reserved address.
+       root[2] = 0;                    // Header: second reserved address.
        for (integer i = 0; i < n; ++i)
          payload[i] = 0;
        paint_shadow(b, e, ShadowLive);
@@ -135,7 +138,7 @@ Section Allocator.
         jmp (".malloc_invalid")%asm
       ];
       [ #".malloc_size_ok";
-        (* Leave room for both header words before checking the payload size.
+        (* Leave room for all three header words before checking the payload size.
            A negative remaining capacity also takes the no-memory branch. *)
         load ct0 cgp;
         geta ct1 ct0;
@@ -154,6 +157,7 @@ Section Allocator.
            Header addresses retain their initially clear shadow bits. *)
         store ct0 ct2;
         store_imm ct0 0 1;
+        store_imm ct0 0 2;
         mov ca2 ct4
       ];
       allocator_zero_asm ca2 ct2 ct3;
@@ -286,7 +290,7 @@ Section Allocator.
         jmp (".free_invalid")%asm
       ];
       [ #".free_header";
-        (* Both payload bounds must match; the reserved address is unused. *)
+        (* Both payload bounds must match; the reserved addresses are unused. *)
         load ca2 ct4;
         geta ct3 ct4;
         add ct3 ct3 allocator_header_words;
@@ -351,27 +355,8 @@ Section Allocator.
   Definition allocator_data : list Word :=
     [WCap true RW Global heap_b heap_e (heap_b ^+ 1)%a].
 
-  Definition allocator_imports : list Word :=
-    [WCap true RW Global shadow_b shadow_e shadow_b].
-
-  Definition allocator_malloc_nargs : nat := 1.
-
-  Definition allocator_free_nargs : nat := 1.
-
-  Definition allocator_malloc_pcc_off : nat := length allocator_imports.
-
-  Definition allocator_free_pcc_off : nat :=
-    length allocator_imports + length allocator_malloc_instrs.
-
-  Definition allocator_malloc_exp_tbl_off : nat := 2.
-
-  Definition allocator_free_exp_tbl_off : nat := 3.
-
-  Definition allocator_export_table_entries : list Word :=
-    [WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off);
-     WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off)].
-
   Class allocatorLayout : Type := mkAllocatorLayout {
+    AllocOtype : OType;
     allocator_pcc_b : Addr;
     allocator_code_b : Addr;
     allocator_pcc_e : Addr;
@@ -381,12 +366,38 @@ Section Allocator.
     allocator_exp_tbl_e : Addr;
   }.
 
+  Definition allocator_imports `{allocatorLayout} : list Word :=
+    [WCap true RW Global shadow_b shadow_e shadow_b;
+     WSealRange true (false, true) Global AllocOtype
+       (AllocOtype ^+ 1)%ot AllocOtype].
+
+  Lemma allocator_imports_length `{allocatorLayout} : length allocator_imports = 2.
+  Proof. reflexivity. Qed.
+
+  Definition allocator_malloc_nargs : nat := 1.
+
+  Definition allocator_free_nargs : nat := 1.
+
+  Definition allocator_malloc_pcc_off : nat := 2.
+
+  Definition allocator_free_pcc_off : nat :=
+    allocator_malloc_pcc_off + length allocator_malloc_instrs.
+
+  Definition allocator_malloc_exp_tbl_off : nat := 2.
+
+  Definition allocator_free_exp_tbl_off : nat := 3.
+
+  Definition allocator_export_table_entries : list Word :=
+    [WInt (encode_entry_point allocator_malloc_nargs allocator_malloc_pcc_off);
+     WInt (encode_entry_point allocator_free_nargs allocator_free_pcc_off)].
+
   (** This executable implementation uses affine translation, without
       restricting other instances of the parameterized machine model.
       Initialization must provide the whole heap and its clear shadow table;
       in particular, the reserved root bit must remain clear. *)
 
   Class allocatorLayoutWf `{allocatorLayout} : Prop := mkAllocatorLayoutWf {
+    allocator_otype_size : (AllocOtype < AllocOtype ^+ 1)%ot;
     allocator_translation_affine : forall a,
       heap_to_shadow a = translate_region heap_b heap_e shadow_b a;
     allocator_size_imports :

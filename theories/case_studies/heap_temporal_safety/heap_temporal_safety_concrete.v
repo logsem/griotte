@@ -11,12 +11,12 @@ Local Notation "'OT' z" :=
   (@finz.FinZ ONum z%Z eq_refl eq_refl) (at level 10).
 
 (** The default machine instance has only the allocator's reserved heap address.
-    This example adds two header addresses and one payload address, with a matching
+    This example adds three header addresses and one payload address, with a matching
     shadow region. All instruction and permission encodings are reused. *)
 Definition hts_heap_region : HeapRegion :=
-  {| heap_b := A 8192; heap_e := A 8196; heap_valid := ltac:(solve_addr) |}.
+  {| heap_b := A 8192; heap_e := A 8197; heap_valid := ltac:(solve_addr) |}.
 Definition hts_shadow_region : ShadowRegion :=
-  {| shadow_b := A 12288; shadow_e := A 12292; shadow_valid := ltac:(solve_addr) |}.
+  {| shadow_b := A 12288; shadow_e := A 12293; shadow_valid := ltac:(solve_addr) |}.
 
 #[local] Instance hts_machine_parameters : MachineParameters :=
   {| instruction_encoding_mixin := @instruction_encoding_mixin machine_parameters_instance;
@@ -72,7 +72,7 @@ Definition hts_adv_pcc_b : Addr := hts_main_pcc_e.
 Definition hts_adv_code_a : Addr := (hts_adv_pcc_b ^+ 3)%a.
 Definition hts_adv_pcc_e : Addr := (hts_adv_code_a ^+ length hts_adv_code)%a.
 Definition hts_alloc_pcc_b : Addr := hts_adv_pcc_e.
-Definition hts_alloc_code_a : Addr := (hts_alloc_pcc_b ^+ length allocator_imports)%a.
+Definition hts_alloc_code_a : Addr := (hts_alloc_pcc_b ^+ allocator_malloc_pcc_off)%a.
 Definition hts_alloc_pcc_e : Addr := (hts_alloc_code_a ^+ length allocator_code)%a.
 Definition hts_main_cgp_b : Addr := hts_alloc_pcc_e.
 Definition hts_main_cgp_e : Addr := (hts_main_cgp_b ^+ 2)%a.
@@ -100,6 +100,7 @@ Definition hts_stack_e : Addr := A 1124.
 Definition hts_trusted_stack_b : Addr := A 4096.
 Definition hts_trusted_stack_e : Addr := A 4196.
 Definition hts_switcher_otype : OType := OT 9.
+Definition hts_alloc_otype : OType := OT 10.
 
 (** These are finite, closed layout obligations; the decision procedures
     produce ordinary kernel-checked proofs. *)
@@ -143,7 +144,8 @@ Defined.
 #[local] Instance hts_concrete_assert_layout : assertLayout :=
   cmptAssert_assertLayout hts_concrete_assert.
 #[local] Instance hts_concrete_allocator_layout : allocatorLayout :=
-  {| allocator_pcc_b := hts_alloc_pcc_b;
+  {| AllocOtype := hts_alloc_otype;
+     allocator_pcc_b := hts_alloc_pcc_b;
      allocator_code_b := hts_alloc_code_a;
      allocator_pcc_e := hts_alloc_pcc_e;
      allocator_cgp_b := hts_alloc_cgp_b;
@@ -232,6 +234,7 @@ Proof.
             hts_main_cmpt := hts_concrete_main;
             hts_adv_cmpt := hts_concrete_adv;
             hts_allocator_cmpt := hts_concrete_alloc;
+            hts_allocator_otype := hts_alloc_otype;
             hts_adv_entry_offset := 3 |}.
   - eexists. reflexivity.
   - unfold cmpt_region, cmpt_pcc_region, cmpt_cgp_region,
@@ -285,187 +288,60 @@ Proof.
     cmpt_static_sealed cmpt_exp_tbl_entries stack_content
     hts_concrete_main hts_concrete_alloc hts_concrete_adv hts_concrete_switcher].
   repeat match goal with |- _ /\ _ => split end.
-  { reflexivity. }
-  { unfold hts_adv_f.
-    cbv beta iota zeta delta [hts_memory_switcher_layout hts_memory_assert_layout
-      hts_memory_allocator_layout hts_switcher_cmpt hts_assert_cmpt
-      hts_allocator_cmpt hts_concrete_layout hts_cmpt_allocator_layout
-      hts_concrete_alloc cmpt_b_pcc cmpt_a_code cmpt_e_pcc cmpt_b_cgp cmpt_e_cgp
-      cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end hts_concrete_switcher_layout
-      hts_concrete_assert_layout hts_concrete_allocator_layout].
-    reflexivity. }
-  1-9: reflexivity.
-  - unfold hts_adv_imports.
-    cbv beta iota zeta delta [hts_memory_switcher_layout hts_memory_allocator_layout
-      hts_switcher_cmpt hts_allocator_cmpt hts_concrete_layout
-      hts_cmpt_allocator_layout hts_concrete_alloc cmpt_b_pcc cmpt_a_code cmpt_e_pcc
-      cmpt_b_cgp cmpt_e_cgp cmpt_exp_tbl_pcc cmpt_exp_tbl_entries_end
-      hts_concrete_allocator_layout cmptSwitcher_switcherLayout
-      switcher.b_switcher switcher.e_switcher switcher.a_switcher_call
-      switcher.ot_switcher hts_concrete_switcher
-      b_switcher e_switcher a_switcher_call ot_switcher].
-    reflexivity.
+  { exact eq_refl. }
+  { assert (Hadv : hts_adv_f =
+        SCap true RO Global hts_adv_exports_b hts_adv_exports_e
+          (hts_adv_exports_b ^+ 2)%a) by reflexivity.
+    rewrite Hadv. exact eq_refl. }
+  1-9: exact eq_refl.
+  - exact eq_refl.
   - vm_compute. repeat constructor.
   - rewrite /hts_adv_data. repeat constructor; done.
-  - reflexivity.
-  - reflexivity.
+  - exact eq_refl.
+  - exact eq_refl.
   - apply Forall_replicate. done.
 Qed.
 
 Lemma hts_concrete_heap_disjoint : initial_heap_memory ##ₘ hts_initial_program_memory.
 Proof. hts_compute_layout. Qed.
 
-(** [machine_run] reports only a flag. This local counterpart also retains the
-    final state, allowing us to check the counter, observed tag and private p.
-    Its simulation proof is the state-preserving version of machine_run_correct. *)
-Fixpoint hts_run (fuel: nat) (c: Conf): option Conf :=
-  match fuel with
-  | 0 => None
-  | S fuel =>
-    match c with
-    | (Failed, φ) => Some (Failed, φ)
-    | (Halted, φ) => Some (Halted, φ)
-    | (NextI, φ) => hts_run fuel (Executable, φ)
-    | (Executable, (r, sr, m, st)) =>
-      match r !! PC with
-      | None => Some (Failed, (r, sr, m, st))
-      | Some pc =>
-        if isCorrectPCb pc
-        then (
-            let a := match pc with
-                     | WCap _ _ _ _ _ a => a
-                     | _ => addresses.top (* dummy *)
-                     end
-            in
-            let p := match pc with
-                     | WCap _ p _ _ _ _ => p
-                     | _ => RWX (* dummy *)
-                     end
-            in
-            match m !! a with
-            | None => Some (Failed, (r, sr, m, st))
-            | Some wa =>
-                let i := decodeInstrW wa in
-                let c' := exec i p (r, sr, m, st) in
-                hts_run fuel (c'.1,  c'.2)
-            end
-          ) else (
-          Some (Failed, (r, sr, m, st))
-        )
-      end
-    end
-  end.
-
-Lemma hts_run_correct fuel cf (φ : ExecConf) cf' (φ' : ExecConf) :
-  hts_run fuel (cf, φ) = Some (cf', φ') ->
-  rtc erased_step ([Seq (Instr cf)], φ) ([Instr cf'], φ').
+(** The concrete initial state satisfies the general safety theorem. *)
+Lemma hts_concrete_adequacy reg' sreg' mem' sh' es :
+  rtc erased_step
+    ([Seq (Instr Executable)], hts_concrete_initial_state)
+    (es, (reg', sreg', mem', sh')) ->
+  mem' !! hts_assert_flag = Some (WInt 0).
 Proof.
-  revert cf cf' φ φ'. induction fuel; first (cbn; done).
-  cbn. intros ? ? [ [ [r sr] m] st] φ' Hc.
-  destruct cf; simplify_eq.
-  - destruct (r !! PC) as [wpc | ] eqn:HePC; cycle 1.
-    + simplify_eq. eapply rtc_l.
-      * unfold erased_step. exists [].
-        eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-        eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-        constructor. constructor; auto.
-      * eapply rtc_once. exists []. simplify_eq.
-        eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-        eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-        constructor.
-    + destruct (isCorrectPCb wpc) eqn:HPC.
-      * apply isCorrectPCb_isCorrectPC in HPC.
-        destruct wpc eqn:Hr; [by inversion HPC| | by inversion HPC | by inversion HPC]. destruct sb as [t p g b e a | ]; last by inversion HPC.
-        destruct t; last by inversion HPC.
-        destruct (m !! a) as [wa | ] eqn:HeMem.
-        ** eapply IHfuel in Hc.
-           eapply rtc_l; last eapply Hc.
-           unfold erased_step. exists [].
-           eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-           eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity.
-           constructor. eapply step_exec_instr; eauto.
-        ** simplify_eq. eapply rtc_l.
-           *** unfold erased_step. exists [].
-               eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-               eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-               constructor. eapply step_exec_memfail; eauto.
-           *** eapply rtc_once. exists []. simplify_eq.
-               eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-               eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-               constructor.
-      * simplify_eq. apply isCorrectPCb_nisCorrectPC in HPC.
-        eapply rtc_l.
-        ** unfold erased_step. exists [].
-           eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-           eapply ectx_language.Ectx_step with (K:=[SeqCtx]). 1,2: reflexivity. cbn.
-           constructor. eapply step_exec_corrfail; eauto.
-        ** eapply rtc_once. exists [].
-           eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-           eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-           constructor.
-  - eapply rtc_once. exists [].
-    eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-    eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-    econstructor.
-  - eapply rtc_once. exists [].
-    eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-    eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-    econstructor.
-  - apply IHfuel in Hc.
-    eapply rtc_l.
-    + exists [].
-      eapply step_atomic with (t1:=[]). 1,2: reflexivity. cbn.
-      eapply ectx_language.Ectx_step with (K:=[]). 1,2: reflexivity. cbn.
-      econstructor.
-    + cbn. apply Hc.
+  intro Hrun.
+  pose proof
+    (@hts_adequacy hts_machine_parameters hts_concrete_layout
+      hts_concrete_registers reg' hts_concrete_sregisters sreg'
+      hts_concrete_memory mem' initial_heap_shadow sh' es
+      hts_concrete_registers_correct hts_concrete_sregisters_correct
+      hts_concrete_memory_correct eq_refl hts_concrete_heap_disjoint Hrun)
+    as Hadequacy.
+  assert (Hflag_addr : flag_assert hts_assert_cmpt = hts_assert_flag)
+    by reflexivity.
+  rewrite <- Hflag_addr.
+  exact Hadequacy.
 Qed.
 
-Local Notation hts_execution :=
-  (hts_run (N.to_nat (10000%N)) (Executable, hts_concrete_initial_state)).
-Definition hts_final_state : ExecConf :=
-  default hts_concrete_initial_state (snd <$> hts_execution).
-
-(** Compute only observations; materializing the entire final memory as a
-    normalized definition would produce a needlessly large proof term. *)
-Lemma hts_execution_flag : fst <$> hts_execution = Some Halted.
-Proof. vm_compute. reflexivity. Qed.
-
-Lemma hts_execution_memory :
-  hts_final_state.1.2 !! hts_adv_cgp_b = Some (WInt 2) /\
-  hts_final_state.1.2 !! (hts_adv_cgp_b ^+ 2)%a = Some (WInt 0) /\
-  hts_final_state.1.2 !! hts_main_cgp_b = Some (WInt 0) /\
-  hts_final_state.1.2 !! hts_assert_flag = Some (WInt 0).
-Proof. vm_compute. repeat split; reflexivity. Qed.
-
-(** Computing these observations also rules out allocation failure, an early
-    halt at the trusted tag check, and a failed concrete adversary tag check. *)
-Lemma hts_execution_observations :
-  ∃ reg sr mem sh,
-    hts_execution = Some (Halted, (reg, sr, mem, sh)) ∧
-    mem !! hts_adv_cgp_b = Some (WInt 2) ∧
-    mem !! (hts_adv_cgp_b ^+ 2)%a = Some (WInt 0) ∧
-    mem !! hts_main_cgp_b = Some (WInt 0) ∧
-    mem !! hts_assert_flag = Some (WInt 0).
-Proof.
-  generalize hts_execution_flag hts_execution_memory.
-  unfold hts_final_state. generalize hts_execution.
-  intros result Hflag Hmem.
-  destruct result as [ [cf φ] | ]; last discriminate.
-  destruct φ as [ [ [reg sr] mem] sh].
-  cbn in Hflag, Hmem. injection Hflag as ->.
-  exists reg, sr, mem, sh. split; [reflexivity|exact Hmem].
-Qed.
-
+(** The concrete execution halts, and adequacy preserves the assertion flag. *)
 Theorem hts_runs_and_gracefully_halts :
-  ∃ reg sr mem sh,
+  ∃ reg' sreg' mem' sh',
     rtc erased_step ([Seq (Instr Executable)], hts_concrete_initial_state)
-      ([Instr Halted], (reg, sr, mem, sh)) ∧
-    mem !! hts_adv_cgp_b = Some (WInt 2) ∧
-    mem !! (hts_adv_cgp_b ^+ 2)%a = Some (WInt 0) ∧
-    mem !! hts_main_cgp_b = Some (WInt 0) ∧
-    mem !! hts_assert_flag = Some (WInt 0).
+      ([Instr Halted], (reg', sreg', mem', sh')) ∧
+    mem' !! hts_assert_flag = Some (WInt 0).
 Proof.
-  destruct hts_execution_observations as (reg & sr & mem & sh & Hrun & Hobs).
-  exists reg, sr, mem, sh. split; last exact Hobs.
-  apply (hts_run_correct (N.to_nat (10000%N))). exact Hrun.
+  pose proof
+    (machine_run_correct (N.to_nat (10000%N)) Executable
+      hts_concrete_initial_state Halted) as Hrun.
+  specialize (Hrun ltac:(vm_compute; reflexivity)).
+  destruct Hrun as [state Hrun].
+  destruct state as [state sh_final].
+  destruct state as [state mem_final].
+  destruct state as [reg_final sreg_final].
+  exists reg_final, sreg_final, mem_final, sh_final. split.
+  - exact Hrun.
+  - eapply hts_concrete_adequacy; exact Hrun.
 Qed.
