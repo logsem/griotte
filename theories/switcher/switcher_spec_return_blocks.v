@@ -317,8 +317,10 @@ Section Switcher_Return_Blocks.
     allocator_ctx ∗
     codefrag pc_a switcher_instrs_12 ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
-        ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧ load_heap wcs1 rcs1 ∧ load_heap wcs0 rcs0⌝ -∗
-        ⌜filter_heap Wval rcs1 = rcs1⌝ -∗
+        ⌜load_heap_in_world Wval wcgp rcgp ∧
+          load_heap_in_world Wval wcra rcra ∧
+          load_heap_in_world Wval wcs1 rcs1 ∧
+          load_heap_in_world Wval wcs0 rcs0⌝ -∗
         world_interp_open Wworld C opened ∗
         (interp Wval C rcgp ∗
          interp Wval C rcra ∗
@@ -382,20 +384,12 @@ Section Switcher_Return_Blocks.
     (* --- Load cs1 csp --- *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (switcher_load_stack_restore_world _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp
-      _ _ _ _ _ _ with "[$HPC $Hi $Hcs1 $Hcsp $Ha_stk1 $Hworld $Halloc]");
+    iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp
+      _ _ _ _ _ _ with "[$HPC $Hi $Hcs1 $Hcsp $Ha_stk1 $Hworld $Halloc $Hnormal_s1]");
       [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcs1) "(%HPs1 & HPC & Hi & Hcs1 & Hcsp & Ha_stk1 & Hworld)".
-    destruct HPs1 as [HPs1 HPs1_retained].
-    iAssert (interp Wval C rcs1)%I with "[]" as "#Hactual_s1".
-    { iApply (interp_in_mem_load_result with "Hnormal_s1").
-      destruct HPs1 as [Hactual | Hcleared].
-      - subst rcs1. right. split; first by rewrite /load_word.
-        by rewrite /load_word.
-      - destruct Hcleared as [Hheap Hactual]. subst rcs1.
-        left. by rewrite /load_word. }
+    iNext. iIntros (rcs1) "(%HPs1 & HPC & Hi & Hcs1 & Hcsp & Ha_stk1 & Hworld & #Hactual_s1)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
 
     (* --- Lea csp (-1)%Z --- *)
@@ -420,7 +414,6 @@ Section Switcher_Return_Blocks.
 
     iCombine "Hlc Hlc'" as "Hlc".
     iSpecialize ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
-    iSpecialize ("Hpost" with "[%]"); first exact HPs1_retained.
     iApply "Hpost". iFrame.
     iFrame "Hactual_gp Hactual_ra Hactual_s1 Hactual_s0".
   Qed.
@@ -463,8 +456,10 @@ Section Switcher_Return_Blocks.
     allocator_ctx ∗
     codefrag pc_a switcher_instrs_12 ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
-        ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧ load_heap wcs1 rcs1 ∧ load_heap wcs0 rcs0⌝ -∗
-        ⌜filter_heap Wval rcs1 = rcs1⌝ -∗
+        ⌜load_heap_in_world Wval wcgp rcgp ∧
+          load_heap_in_world Wval wcra rcra ∧
+          load_heap_in_world Wval wcs1 rcs1 ∧
+          load_heap_in_world Wval wcs0 rcs0⌝ -∗
         world_interp_open Wworld C opened ∗
         (if is_untrusted_caller ccrel then
            interp Wval C rcgp ∗
@@ -515,12 +510,13 @@ Section Switcher_Return_Blocks.
       (* Load cgp csp. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 6)%a cgp csp
-        _ _ _ _ _ _ with "[$HPC $Hi $Hcgp $Hcsp $Ha_stk3 $Halloc]");
-        [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      iApply (switcher_load_stack_restore_world _ Wworld Wval C opened
+        _ _ _ _ _ (pc_a ^+ 6)%a cgp csp _ _ _ _ _ _
+        with "[$HPC $Hi $Hcgp $Hcsp $Ha_stk3 $Hworld $Halloc]");
+        [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
       { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
         rewrite /withinBounds; solve_addr. }
-      iNext. iIntros (rcgp) "(%HPg & HPC & Hi & Hcgp & Hcsp & Ha_stk3)".
+      iNext. iIntros (rcgp) "(%HPg & HPC & Hi & Hcgp & Hcsp & Ha_stk3 & Hworld)".
       wp_pure. iSpecialize ("Hcode" with "[$]").
 
       (* Lea csp (-1)%Z. *)
@@ -529,12 +525,13 @@ Section Switcher_Return_Blocks.
       (* Load cra csp. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 8)%a cra csp
-        _ _ _ _ _ _ with "[$HPC $Hi $Hcra $Hcsp $Ha_stk2 $Halloc]");
-        [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      iApply (switcher_load_stack_restore_world _ Wworld Wval C opened
+        _ _ _ _ _ (pc_a ^+ 8)%a cra csp _ _ _ _ _ _
+        with "[$HPC $Hi $Hcra $Hcsp $Ha_stk2 $Hworld $Halloc]");
+        [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
       { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
         rewrite /withinBounds; solve_addr. }
-      iNext. iIntros (rcra) "(%HPra & HPC & Hi & Hcra & Hcsp & Ha_stk2)".
+      iNext. iIntros (rcra) "(%HPra & HPC & Hi & Hcra & Hcsp & Ha_stk2 & Hworld)".
       wp_pure. iSpecialize ("Hcode" with "[$]").
 
       (* Lea csp (-1)%Z. *)
@@ -550,7 +547,6 @@ Section Switcher_Return_Blocks.
       { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
         rewrite /withinBounds; solve_addr. }
       iNext. iIntros (rcs1) "(%HPs1 & HPC & Hi & Hcs1 & Hcsp & Ha_stk1 & Hworld)".
-      destruct HPs1 as [HPs1 HPs1_retained].
       wp_pure. iSpecialize ("Hcode" with "[$]").
 
       (* Lea csp (-1)%Z. *)
@@ -559,12 +555,13 @@ Section Switcher_Return_Blocks.
       (* Load cs0 csp. *)
       iInstr_lookup "Hcode" as "Hi" "Hcode".
       wp_instr.
-      iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp
-        _ _ _ _ _ _ with "[$HPC $Hi $Hcs0 $Hcsp $Ha_stk $Halloc]");
-        [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      iApply (switcher_load_stack_restore_world _ Wworld Wval C opened
+        _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp _ _ _ _ _ _
+        with "[$HPC $Hi $Hcs0 $Hcsp $Ha_stk $Hworld $Halloc]");
+        [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
       { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
         rewrite /withinBounds; solve_addr. }
-      iNext. iIntros (rcs0) "(%HPs0 & HPC & Hi & Hcs0 & Hcsp & Ha_stk)".
+      iNext. iIntros (rcs0) "(%HPs0 & HPC & Hi & Hcs0 & Hcsp & Ha_stk & Hworld)".
       wp_pure. iSpecialize ("Hcode" with "[$]").
 
       (* GetE ct0 csp. *)
@@ -575,7 +572,6 @@ Section Switcher_Return_Blocks.
 
       iCombine "Hlc Hlc'" as "Hlc".
       iSpecialize ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
-      iSpecialize ("Hpost" with "[%]"); first exact HPs1_retained.
       iApply "Hpost". iFrame.
   Qed.
 
@@ -616,8 +612,10 @@ Section Switcher_Return_Blocks.
     allocator_ctx ∗
     codefrag pc_a switcher_instrs_12 ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
-        ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧ load_heap wcs1 rcs1 ∧ load_heap wcs0 rcs0⌝ -∗
-        ⌜filter_heap Wval rcs1 = rcs1⌝ -∗
+        ⌜load_heap_in_world Wval wcgp rcgp ∧
+          load_heap_in_world Wval wcra rcra ∧
+          load_heap_in_world Wval wcs1 rcs1 ∧
+          load_heap_in_world Wval wcs0 rcs0⌝ -∗
         world_interp Wworld C ∗
         (if is_untrusted_caller ccrel then
            interp Wval C rcgp ∗
@@ -654,10 +652,10 @@ Section Switcher_Return_Blocks.
       with "[Hpost $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hcsp
       $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld $Hmem $Halloc $Hcode]");
       eauto using Forall_nil.
-    iNext. iIntros (rcgp rcra rcs1 rcs0) "Hloaded Hretained Hargs".
+    iNext. iIntros (rcgp rcra rcs1 rcs0) "Hloaded Hargs".
     iDestruct "Hargs" as "(Hworld & Hrest)".
     iEval (rewrite -open_world_interp_empty) in "Hworld".
-    iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "Hloaded Hretained").
+    iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "Hloaded").
     iFrame "Hworld Hrest".
   Qed.
 

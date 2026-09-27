@@ -105,9 +105,10 @@ Section Switcher.
               ∗ [[ a_stk , (a_stk ^+ 4)%a ]] ↦ₐ [[ stk_mem_l ]]
               ∗ [[ (a_stk ^+ 4)%a , e_stk ]] ↦ₐ [[ stk_mem_h ]]
               ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
-                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
-              ∗ ⌜filter_heap W2 rcs1 = rcs1⌝
+              ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
+                load_heap_in_world W2 wcra_caller rcra ∧
+                load_heap_in_world W2 wcs0_caller rcs0 ∧
+                load_heap_in_world W2 wcs1_caller rcs1⌝
               ∗ £ 2
           )
           ∨
@@ -134,9 +135,10 @@ Section Switcher.
               ∗ StackRevokedResources W C (finz.seq_between a_stk e_stk)
               ∗ cstack_frag cstk
               ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
-                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
-              ∗ ⌜filter_heap W rcs1 = rcs1⌝
+              ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
+                load_heap_in_world W wcra_caller rcra ∧
+                load_heap_in_world W wcs0_caller rcs0 ∧
+                load_heap_in_world W wcs1_caller rcs1⌝
               ∗ £ 2
             )
           )
@@ -266,7 +268,6 @@ Section Switcher.
           $Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3 $Hworld_interp $Halloc $Hcode]"); eauto.
       { solve_addr+Ha_tstk_exhausted Hcont_switcher_region. }
       iNext. iIntros (rcgp rcra rcs0 rcs1) "%Hrestored".
-      iIntros "%Hretained".
       iIntros "(Hworld_interp & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
         & Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & Hcode & Hlc)".
       unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
@@ -613,8 +614,14 @@ Section Switcher.
       iSplitR.
       { iSplit; first (iPureIntro; exact Hstk4_heap).
         iFrame "Hstk4v". }
-      iIntros (W' HW' rcgp rcra rcs0 rcs1 ?????) "#Halloc_ret %Hrestored %Hretained (HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
+      iIntros (W' HW' rcgp rcra rcs0 rcs1 ?????)
+        "%Hrcgp %Hrcra %Hrcs0 %Hrcs1 #Halloc_ret (HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
       & Hca1 & #Hv' & % & Hregs & Hstk & Hstk' & Hworld_interp & Hcls & Hcont & Hcstk & Own)".
+      assert (load_heap_in_world W' wcgp_caller rcgp ∧
+              load_heap_in_world W' wcra_caller rcra ∧
+              load_heap_in_world W' wcs0_caller rcs0 ∧
+              load_heap_in_world W' wcs1_caller rcs1) as Hrestored
+        by exact (conj Hrcgp (conj Hrcra (conj Hrcs0 Hrcs1))).
       iApply "Hpost";iLeft. simplify_eq.
       iFrame "∗#%".
       iSplit.
@@ -811,9 +818,10 @@ Section Switcher.
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
             ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
-                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
-              ∗ ⌜filter_heap W2 rcs1 = rcs1⌝
+              ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
+                load_heap_in_world W2 wcra_caller rcra ∧
+                load_heap_in_world W2 wcs0_caller rcs0 ∧
+                load_heap_in_world W2 wcs1_caller rcs1⌝
               -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
 
 
@@ -838,7 +846,7 @@ Section Switcher.
       & Hcstk_frag & Hrel_stk_C
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 #Hinterp_wca0] ] & [%warg1 [Hca1 #Hinterp_wca1] ]
-      & Hrmap & Hstk_l & Hstk_h & HK & %Hrestored & %Hretained & [Hlc Hlc'])".
+      & Hrmap & Hstk_l & Hstk_h & HK & %Hrestored & [Hlc Hlc'])".
 
       iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
       iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
@@ -925,7 +933,7 @@ Section Switcher.
            & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
            & Hrmap & Hstk_l & Hstk_h
            & Hworld_interp_C & Hclose
-           & Hcstk_frag & HK & %Hrestored & %Hretained & [Hlc Hlc'])".
+           & Hcstk_frag & HK & %Hrestored & [Hlc Hlc'])".
       iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_interp_C") as %Hheap_wf_W.
       assert (heap_wf (heap_std (std_update_multiple W
         (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary))) as Hheap_wf_Wext.
@@ -952,10 +960,24 @@ Section Switcher.
            eapply Hrevoked_stk; eauto.
            by apply list_elem_of_lookup_2 in H.
       }
-      assert (filter_heap (std_update_multiple W
-        (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) rcs1 = rcs1)
-        as Hretained_Wext.
-      { rewrite /filter_heap std_update_multiple_heap. exact Hretained. }
+      assert (load_heap_in_world
+        (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary)
+        wcgp_caller rcgp ∧
+        load_heap_in_world
+        (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary)
+        wcra_caller rcra ∧
+        load_heap_in_world
+        (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary)
+        wcs0_caller rcs0 ∧
+        load_heap_in_world
+        (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary)
+        wcs1_caller rcs1) as Hrestored_Wext.
+      { destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
+        unfold load_heap_in_world in *.
+        destruct Hgp as [Hgp Hgpfilter], Hra as [Hra Hrafilter],
+          Hs0 as [Hs0 Hs0filter], Hs1 as [Hs1 Hs1filter].
+        repeat split; try assumption;
+          rewrite /filter_heap std_update_multiple_heap; assumption. }
       iApply "Hpost"; iFrame "∗%#".
       iSplit.
       { iPureIntro.

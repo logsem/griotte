@@ -133,7 +133,11 @@ Section Switcher.
       "(%Hextract & Hrev & %Hrevoked & %Hrelated & Hstd & %Hdom_ret
       & Hstack & %Hrevstack & Hna & %Hbounds & Hworld & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Harg0 & Harg1
-      & Hrmap & Hstk & Hcont & %Hloaded & %Hretained)".
+      & Hrmap & Hstk & Hcont & %Hloaded)".
+    destruct Hloaded as ([Hgp _] & [Hra _] & [Hs0 _] & [Hs1 _]).
+    assert (load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
+            load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1)
+      as Hloaded by (repeat split; assumption).
     iApply ("Hpost" $! W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1 with
       "[$Hrev $Hstd $Hstack $Hna $Hworld $Hcstk $HPC $Hcgp $Hcra
         $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hcont]").
@@ -215,9 +219,10 @@ Section Switcher.
             ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
             ∗ [[ a_stk , e_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
-                load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
-              ∗ ⌜filter_heap W2 rcs1 = rcs1⌝
+              ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
+                load_heap_in_world W2 wcra_caller rcra ∧
+                load_heap_in_world W2 wcs0_caller rcs0 ∧
+                load_heap_in_world W2 wcs1_caller rcs1⌝
               -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
 
     ⊢ WP Seq (Instr Executable)

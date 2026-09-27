@@ -147,7 +147,7 @@ Section Switcher_Restore_Interp.
         world_interp_open Wworld C opened ∗ allocator_ctx }}}
       Instr Executable @ E
     {{{ actual, RET NextIV;
-        ⌜load_heap raw actual ∧ filter_heap Wval actual = actual⌝ ∗
+        ⌜load_heap_in_world Wval raw actual⌝ ∗
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw ∗ world_interp_open Wworld C opened }}}.
@@ -231,7 +231,7 @@ Section Switcher_Restore_Interp.
         world_interp_open Wworld C opened ∗ interp_in_mem RWL Wval C raw ∗
         allocator_ctx }}}
       Instr Executable @ E
-    {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
+    {{{ actual, RET NextIV; ⌜load_heap_in_world Wval raw actual⌝ ∗
         PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
         a ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
@@ -264,10 +264,17 @@ Section Switcher_Restore_Interp.
         { unfold load_memory_shadow_observation. rewrite Hbase.
           intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
           inversion Hobserved; subst. by rewrite Hstatus_eq. }
+        iDestruct (switcher_shadow_restore_retained Wworld Wval C opened raw raw alloc_map
+          with "Hworld Halloc_entries")
+          as "(%Hfilter & Hworld & Halloc_entries)";
+          [exact Hlive|exact Hheap_eq|exact Halloc_dom| |].
+        { unfold load_memory_shadow_observation. rewrite Hbase.
+          intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
+          inversion Hobserved; subst. by rewrite Hstatus_eq. }
         iMod ("Halloc_close" with "[Halloc_entries]") as "_".
         { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
         iModIntro. iApply "HΦ".
-        iFrame "∗#". iPureIntro. by left.
+        iFrame "∗#". iPureIntro. split; first by left. exact Hfilter.
       + iApply (wp_load_success_heap_word_revoked with
           "[$HPC $Hi $Hdst $Hsrc $Ha $Hstatus]"); eauto.
         iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha & Hstatus)".
@@ -282,16 +289,30 @@ Section Switcher_Restore_Interp.
         { unfold load_memory_shadow_observation. rewrite Hbase.
           intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
           inversion Hobserved; subst. by rewrite Hstatus_eq. }
+        iDestruct (switcher_shadow_restore_retained Wworld Wval C opened raw
+          (clear_tag raw) alloc_map with "Hworld Halloc_entries")
+          as "(%Hfilter & Hworld & Halloc_entries)";
+          [exact Hlive|exact Hheap_eq|exact Halloc_dom| |].
+        { unfold load_memory_shadow_observation. rewrite Hbase.
+          intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
+          inversion Hobserved; subst. by rewrite Hstatus_eq. }
         iMod ("Halloc_close" with "[Halloc_entries]") as "_".
         { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
         iModIntro. iApply "HΦ".
-        iFrame "∗#". iPureIntro. right. split; last done.
-        unfold is_heap_cap. by rewrite Hbase.
+        iFrame "∗#". iPureIntro. split; last exact Hfilter.
+        right. split; last done. unfold is_heap_cap. by rewrite Hbase.
     - iApply (wp_load_success_notinstr with "[$HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
       { unfold is_heap_cap. by rewrite Hbase. }
       iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
       iApply "HΦ". iFrame "∗#".
-      iSplit; first by iPureIntro; left.
+      iSplit.
+      { iPureIntro. split; first by left.
+        rewrite /load_word.
+        assert (heap_authority_base raw = None) as Hauth.
+        { destruct (heap_authority_base raw) as [base|] eqn:Hauth; last done.
+          apply heap_authority_base_heap_cap_base in Hauth.
+          rewrite Hbase in Hauth. discriminate. }
+        by apply filter_heap_nonheap. }
       iApply (interp_in_mem_load_result with "Hnormal").
       right. split; first by rewrite /load_word.
       rewrite /load_word.

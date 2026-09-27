@@ -234,6 +234,17 @@ Section logrel.
     by apply clear_tag_untagged.
   Qed.
 
+  (** A saved register has the result of a Load in the current world.
+      The load outcome depends on the allocator shadow, while the second
+      conjunct records the world fact needed when its tag is retained. *)
+  Definition load_heap_in_world (W : WORLD) (saved actual : Word) : Prop :=
+    load_heap saved actual ∧ filter_heap W actual = actual.
+
+  Lemma load_heap_in_world_nonheap W saved actual :
+    is_heap_cap saved = false ->
+    load_heap_in_world W saved actual -> actual = saved.
+  Proof. intros Hnonheap [Hloaded _]. exact (load_heap_nonheap saved actual Hnonheap Hloaded). Qed.
+
   Definition interp_in_mem_pre
     (W : WORLD) (C : CmptName) (p : Perm) (interp : V) (w : Word) : iProp Σ :=
     interp W C (filter_heap W (load_word p w)).
@@ -372,7 +383,7 @@ Section logrel.
       The state of the machine should:
       - [PC] points-to the caller's site
       - the callee-saved registers of the topmost call-frame [frm] are restored in their
-        original registers, each satisfying [load_heap] for its saved word
+        original registers, each satisfying [load_heap_in_world] for its saved word
       - [ca0] and [ca1] contain some return values, [interp] in the current world
       - all the other registers have been clear and point to zero
       - the stack is given back, with some universally content (1) [stk_mem_l]
@@ -405,17 +416,17 @@ Section logrel.
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (frm : cframe)
      ,
        ∀ rcgp rcra rcs0 rcs1 wca0 wca1 regs stk_mem_l stk_mem_h,
-       allocator_ctx -∗
-       ⌜load_heap frm.(wcgp) rcgp ∧ load_heap frm.(wret) rcra ∧
-         load_heap frm.(wcs0) rcs0 ∧ load_heap frm.(wcs1) rcs1⌝ -∗
-       (* TODO I think this should be generalised to all stored registers, and probably merged with the definition load_heap *)
-       ⌜filter_heap W rcs1 = rcs1⌝ -∗
        let b_stk := frm.(b_stk) in
        let a_stk := frm.(a_stk) in
        let e_stk := frm.(e_stk) in
        let astk4 := (a_stk ^+4)%a in
        let callee_stk_region := finz.seq_between (if (is_untrusted_caller_frm frm) then a_stk else astk4) e_stk in
        let callee_stk_mem := if (is_untrusted_caller_frm frm) then stk_mem_l++stk_mem_h else stk_mem_h in
+       ⌜load_heap_in_world W frm.(wcgp) rcgp⌝ -∗
+       ⌜load_heap_in_world W frm.(wret) rcra⌝ -∗
+       ⌜load_heap_in_world W frm.(wcs0) rcs0⌝ -∗
+       ⌜load_heap_in_world W frm.(wcs1) rcs1⌝ -∗
+       allocator_ctx -∗
        ( PC ↦ᵣ updatePcPerm (rcra)
          ∗ cra ↦ᵣ rcra
          ∗ csp ↦ᵣ (WCap true RWL Local b_stk e_stk a_stk)
@@ -488,7 +499,7 @@ Section logrel.
 
       Each known caller records only its pure machine frame. The continuation
       accepts the four words restored by the switcher, each related to its
-      saved word by [load_heap]. The allocator invariant owns the shadow
+      saved word by [load_heap_in_world]. The allocator invariant owns the shadow
       entries; neither shadow bits nor restoration resources are stored here.
 
       Unknown callers use the logical relation on the actual words loaded

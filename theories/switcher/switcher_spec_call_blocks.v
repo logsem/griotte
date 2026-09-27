@@ -737,9 +737,9 @@ Section Switcher_Call_Blocks.
     iApply ("Hpost" $! rcgp rcra rcs0 rcs1 with "[%]"); first done. iFrame.
   Qed.
 
-  (** The saved cs1 word may become stale if its heap cell is freed during a
-      callback. Retention concerns the actual rcs1 after the restore Load:
-      the allocator shadow clears its tag when that cell is quarantined. *)
+  (** Saved words may become stale if their heap cells are freed during a
+      callback. Each restored register records its actual load result and
+      whether that result retains authority in the current world. *)
   Lemma switcher_call_block_16_spec_restore_world
     W C
     pc_b pc_e pc_a
@@ -770,9 +770,10 @@ Section Switcher_Call_Blocks.
     allocator_ctx ∗
     codefrag pc_a switcher_instrs_16 ∗
     ▷ (∀ rcgp rcra rcs0 rcs1,
-        ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
-          load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝ -∗
-        ⌜filter_heap W rcs1 = rcs1⌝ -∗
+        ⌜load_heap_in_world W wcgp rcgp ∧
+          load_heap_in_world W wcra rcra ∧
+          load_heap_in_world W wcs0 rcs0 ∧
+          load_heap_in_world W wcs1 rcs1⌝ -∗
         ( world_interp W C ∗
              PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e (pc_a ^+ -26)%a ∗
              cs0 ↦ᵣ rcs0 ∗
@@ -806,33 +807,33 @@ Section Switcher_Call_Blocks.
     (* Load cgp csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 2)%a cgp csp
+    iEval (rewrite open_world_interp_empty) in "Hworld".
+    iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 2)%a cgp csp
       _ _ _ _ _ _
-      with "[$HPC $Hi $Hcgp $Hcsp $Hastk3 $Halloc]");
-      [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      with "[$HPC $Hi $Hcgp $Hcsp $Hastk3 $Hworld $Halloc]");
+      [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcgp) "(%Hrcgp & HPC & Hi & Hcgp & Hcsp & Hastk3 )".
+    iNext. iIntros (rcgp) "(%Hrcgp & HPC & Hi & Hcgp & Hcsp & Hastk3 & Hworld)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     (* Load cra csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 4)%a cra csp
+    iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 4)%a cra csp
       _ _ _ _ _ _
-      with "[$HPC $Hi $Hcra $Hcsp $Hastk2 $Halloc]");
-      [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      with "[$HPC $Hi $Hcra $Hcsp $Hastk2 $Hworld $Halloc]");
+      [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcra) "(%Hrcra & HPC & Hi & Hcra & Hcsp & Hastk2 )".
+    iNext. iIntros (rcra) "(%Hrcra & HPC & Hi & Hcra & Hcsp & Hastk2 & Hworld)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     (* Load cs1 csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iEval (rewrite open_world_interp_empty) in "Hworld".
     iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 6)%a cs1 csp
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcs1 $Hcsp $Hastk1 $Hworld $Halloc]");
@@ -840,21 +841,19 @@ Section Switcher_Call_Blocks.
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs1) "(%Hrcs1 & HPC & Hi & Hcs1 & Hcsp & Hastk1 & Hworld)".
-    destruct Hrcs1 as [Hrcs1 Hretained].
-    iEval (rewrite -open_world_interp_empty) in "Hworld".
     wp_pure. iSpecialize ("Hcode" with "[$]").
     (* Lea csp (inl (-1)%Z); *)
     iInstr "Hcode".
     (* Load cs0 csp; *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 8)%a cs0 csp
+    iApply (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ (pc_a ^+ 8)%a cs0 csp
       _ _ _ _ _ _
-      with "[$HPC $Hi $Hcs0 $Hcsp $Hastk0 $Halloc]");
-      [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
+      with "[$HPC $Hi $Hcs0 $Hcsp $Hastk0 $Hworld $Halloc]");
+      [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
-    iNext. iIntros (rcs0) "(%Hrcs0 & HPC & Hi & Hcs0 & Hcsp & Hastk0 )".
+    iNext. iIntros (rcs0) "(%Hrcs0 & HPC & Hi & Hcs0 & Hcsp & Hastk0 & Hworld)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
     (* Mov ca0 (inl (-141)%Z); *)
     iInstr "Hcode".
@@ -864,8 +863,8 @@ Section Switcher_Call_Blocks.
     (* Jmp (inl (-36)%Z) *)
     iInstr "Hcode".
 
+    iEval (rewrite -open_world_interp_empty) in "Hworld".
     iSpecialize ("Hpost" $! rcgp rcra rcs0 rcs1 with "[%]"); first done.
-    iSpecialize ("Hpost" with "[%]"); first exact Hretained.
     iApply "Hpost". iFrame.
   Qed.
 

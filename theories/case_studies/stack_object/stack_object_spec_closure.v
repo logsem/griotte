@@ -654,13 +654,13 @@ Section SO.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & %Hrestored & %Hcallback_retained)".
+      & Hrmap & Hstk & HK & %Hrestored)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hcallback).
-    apply load_heap_nonheap in Hrcgp;
+    apply load_heap_in_world_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
-    apply load_heap_nonheap in Hrcra;
+    apply load_heap_in_world_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
-    apply load_heap_nonheap in Hrcs0;
+    apply load_heap_in_world_nonheap in Hrcs0;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=; reflexivity].
     subst rcgp rcra rcs0.
     iEval (cbn) in "HPC".
