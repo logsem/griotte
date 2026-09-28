@@ -55,7 +55,85 @@ Section Heap_Temporal_Safety_Interp.
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a).
   Proof.
-  Admitted.
+    iIntros "(#Halloc & #Hservice & #Hswitcher & #HPCC & #HCGP & #Hentry & #Hsealed & #Hsealed_local)".
+    iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
+      (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a,
+      allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,
+      allocator_malloc_nargs, allocator_malloc_pcc_off, hts_allocator_exp_tblN.
+    iFrame "#".
+    iSplit; first done.
+    iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;
+      rewrite /allocator_export_table_entries /allocator_malloc_exp_tbl_off in Hsize |- *;
+      solve_addr).
+    iSplit; first (iPureIntro; pose proof allocator_size_exports as Hsize;
+      rewrite /allocator_export_table_entries in Hsize; solve_addr).
+    iSplit; first (iPureIntro; rewrite /allocator_malloc_exp_tbl_off;
+      pose proof allocator_size_exports as Hsize;
+      rewrite /allocator_export_table_entries in Hsize; solve_addr).
+    iSplit; first (iPureIntro; rewrite /allocator_malloc_nargs; lia).
+    iSplit; first (iPureIntro; pose proof allocator_size_imports as Himports;
+      rewrite /allocator_malloc_pcc_off -allocator_imports_length; eauto).
+
+    assert (forall a, (allocator_exp_tbl_b <= a < allocator_exp_tbl_e)%a ->
+      is_shadow_address a = false) as Hexport_shadow.
+    { intros a Ha. apply not_true_is_false; intros Hshadow.
+      pose proof allocator_regions_disjoint as Hregions.
+      rewrite !disjoint_list_cons in Hregions.
+      cbn [union_list] in Hregions.
+      apply withinBounds_true_iff in Hshadow.
+      clear - Hregions Ha Hshadow.
+      assert (a ∈ finz.seq_between allocator_exp_tbl_b allocator_exp_tbl_e)
+        as Htbl by (apply elem_of_finz_seq_between; solve_addr).
+      assert (a ∈ finz.seq_between shadow_b shadow_e)
+        as Hsh by (apply elem_of_finz_seq_between; solve_addr).
+      set_solver. }
+    iSplit; first (iPureIntro; apply Hexport_shadow;
+      pose proof allocator_size_exports as Hsize;
+      rewrite /allocator_export_table_entries /allocator_malloc_exp_tbl_off in Hsize |- *;
+      solve_addr).
+    iSplit; first (iPureIntro; apply Hexport_shadow;
+      pose proof allocator_size_exports as Hsize;
+      rewrite /allocator_export_table_entries in Hsize; solve_addr).
+    iSplit; first (iPureIntro; apply Hexport_shadow;
+      pose proof allocator_size_exports as Hsize;
+      rewrite /allocator_export_table_entries in Hsize; solve_addr).
+
+    iSplit.
+    { iPureIntro.
+      apply not_true_is_false; intros Hheap.
+      pose proof allocator_regions_disjoint as Hregions.
+      rewrite !disjoint_list_cons in Hregions.
+      cbn [union_list] in Hregions.
+      apply withinBounds_true_iff in Hheap.
+      pose proof allocator_size_imports as Himports_size.
+      pose proof allocator_size_code as Hcode_size.
+      clear - Hregions Hheap Himports_size Hcode_size.
+      assert (allocator_pcc_b ∈ finz.seq_between allocator_pcc_b allocator_pcc_e)
+        as Hpcc by (apply elem_of_finz_seq_between; solve_addr).
+      assert (allocator_pcc_b ∈ finz.seq_between heap_b heap_e)
+        as Hhelem by (apply elem_of_finz_seq_between; solve_addr).
+      set_solver. }
+    iSplit.
+    { iPureIntro.
+      apply not_true_is_false; intros Hheap.
+      pose proof allocator_regions_disjoint as Hregions.
+      rewrite !disjoint_list_cons in Hregions.
+      cbn [union_list] in Hregions.
+      apply withinBounds_true_iff in Hheap.
+      pose proof allocator_size_data as Hdata_size.
+      clear - Hregions Hheap Hdata_size.
+      assert (allocator_cgp_b ∈ finz.seq_between allocator_cgp_b allocator_cgp_e)
+        as Hcgp by (apply elem_of_finz_seq_between; solve_addr).
+      assert (allocator_cgp_b ∈ finz.seq_between heap_b heap_e)
+        as Hhelem by (apply elem_of_finz_seq_between; solve_addr).
+      set_solver. }
+    iModIntro.
+    iIntros (W') "%Hpriv".
+    iNext.
+    change (allocator_pcc_b ^+ allocator_malloc_pcc_off)%a with allocator_malloc_pcc_addr.
+    iApply (malloc_exec_entry_point W' C).
+    iFrame "#".
+  Qed.
 
 
 End Heap_Temporal_Safety_Interp.
