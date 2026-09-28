@@ -4,7 +4,7 @@ From stdpp Require Import base.
 From griotte Require Export logrel region_invariants.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import rules proofmode monotone.
-From griotte Require Import map_simpl register_tactics proofmode load_constructor.
+From griotte Require Import map_simpl register_tactics proofmode.
 
 Section wp_interp.
   Context
@@ -643,7 +643,7 @@ Section wp_interp.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : Word)
     :
-    decodeInstrW wi = cload rdst rsrc 0 →
+    decodeInstrW wi = Load rdst rsrc 0 →
     ↑Nallocator ⊆ E →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -832,7 +832,7 @@ Section wp_interp.
     (p : Perm) (g : Locality) (b e a : Addr)
     (wi wdst : Word)
     :
-    decodeInstrW wi = cload rdst rsrc 0 →
+    decodeInstrW wi = Load rdst rsrc 0 →
     ↑Nallocator ⊆ E →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -1247,7 +1247,7 @@ Section wp_interp.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : Word)
     :
-    decodeInstrW wi = cload rdst rsrc imm →
+    decodeInstrW wi = Load rdst rsrc imm →
     ↑Nallocator ⊆ E →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -1444,7 +1444,7 @@ Section wp_interp.
     (p : Perm) (g : Locality) (b e a : Addr)
     (wi wdst : Word)
     :
-    decodeInstrW wi = cload rdst rsrc imm →
+    decodeInstrW wi = Load rdst rsrc imm →
     ↑Nallocator ⊆ E →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
@@ -1563,13 +1563,13 @@ Section wp_interp.
     (allocator_ctx ∗
      PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
      cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ w0 ∗
-     a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (cload ca0 cgp imm)] ∗
+     a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (Load ca0 cgp imm)] ∗
      region W C ∗
      ▷ (∀ actual,
        ⌜load_heap_in_world W raw actual⌝ -∗
        PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ 1)%a ∗
        cgp ↦ᵣ WCap true RW Global p e p ∗ ca0 ↦ᵣ actual ∗
-       a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (cload ca0 cgp imm)] ∗
+       a ↦ₐ raw ∗ codefrag pc_a [encodeInstrW (Load ca0 cgp imm)] ∗
        region W C -∗
        WP Seq (Instr Executable)
          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -1595,8 +1595,8 @@ Section wp_interp.
     { rewrite big_sepM_fmap. iExact "Hshadow". }
     iApply (wp_load_memory_shadow_imm (⊤ ∖ ↑Nallocator)
       RX Global pc_b pc_e pc_a ca0 cgp imm
-      (encodeInstrW (cload ca0 cgp imm))
-      (<[pc_a:=encodeInstrW (cload ca0 cgp imm)]> (<[a:=raw]> ∅))
+      (encodeInstrW (Load ca0 cgp imm))
+      (<[pc_a:=encodeInstrW (Load ca0 cgp imm)]> (<[a:=raw]> ∅))
       (<[PC:=WCap true RX Global pc_b pc_e pc_a]>
         (<[cgp:=WCap true RW Global p e p]> (<[ca0:=w0]> ∅)))
       (DfracOwn 1) (shadow_status <$> alloc_map) (DfracOwn 1)
@@ -1670,7 +1670,7 @@ Section wp_interp.
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src wi wd b e a raw :
     ↑Nallocator ⊆ E →
     is_shadow_address a = false →
-    decodeInstrW wi = cload dst src 0 →
+    decodeInstrW wi = Load dst src 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →

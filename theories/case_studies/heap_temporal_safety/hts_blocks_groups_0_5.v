@@ -4,7 +4,7 @@ From griotte Require Import fetch_spec assert_spec switcher_spec_call
   heap_temporal_safety heap_temporal_safety_preamble heap_temporal_safety_spec_blocks.
 From griotte Require Import switcher_spec_KtK.
 From griotte.allocator Require Import allocator allocator_preamble.
-From griotte Require Import heap_temporal_safety_allocator_spec hts_temporary_helper.
+From griotte Require Import heap_temporal_safety_allocator_spec world_ghost_theory heap_region wp_rules_interp.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import region_invariants heap_ghost logrel rules.
 From griotte Require Import proofmode register_tactics map_simpl.

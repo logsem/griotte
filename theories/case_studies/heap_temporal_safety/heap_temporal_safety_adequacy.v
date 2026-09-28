@@ -3,7 +3,8 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import griotte_lang logrel interp_weakening monotone.
 From griotte Require Import compartment_layout adequacy_helpers switcher assert
   assert_spec heap_temporal_safety heap_temporal_safety_preamble
-  heap_temporal_safety_spec hts_temporary_alloc_interp.
+  heap_temporal_safety_spec.
+From griotte.allocator Require Import allocator_malloc_safe allocator_free_safe.
 From griotte Require Import mkregion_helpers disjoint_regions_tactics
   region_invariants_revocation region_invariants_allocation
   world_interp_allocation_compartments switcher_preamble
