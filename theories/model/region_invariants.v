@@ -62,6 +62,7 @@ Section standard_world_interp.
     (MC : gmap Addr (gname * Perm))
     (Mρ: gmap Addr region_type) :=
     (⌜heap_quarantine_covered (heap_std W) (std W)⌝ ∗
+     heap_std_fragments C (heap_std W) ∗
      [∗ map] a↦γp ∈ MC,
        ∃ ρ, ⌜Mρ !! a = Some ρ⌝
             ∗ sts_state_std C a ρ
@@ -99,6 +100,7 @@ Section standard_world_interp.
     rewrite region_eq /region_def.
     iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hr)".
     iDestruct "Hr" as "[%Hcovered Hr]".
+    iDestruct "Hr" as "[Hheap Hr]".
     assert (is_Some (M !! a)) as [ [γ p] Hγp].
     { apply elem_of_dom.
       rewrite -Hdom. rewrite elem_of_dom; eauto.
@@ -111,7 +113,7 @@ Section standard_world_interp.
     all: iDestruct (big_sepM_delete _ _ a with "[Hρ Ha $Hr]") as "Hr";[eauto| |].
     { iExists Temporary. iFrame "∗#%". }
     all: iModIntro.
-    all: iSplitL "HM Hr".
+    all: iSplitL "HM Hr Hheap".
     { iExists M. iFrame "∗#%". }
     all: iFrame; iExists p,φ; iSplit;auto; rewrite rel_eq /rel_def; iExists γpred.
     all: simplify_eq; iFrame "Hsaved Hrel".
@@ -128,10 +130,13 @@ Section standard_world_interp.
   Proof.
     iIntros (Hrelated Hheap Hheap_wf) "Hr".
     iDestruct "Hr" as "[%Hcovered Hr]".
+    iDestruct "Hr" as "[Hheap Hr]".
     iSplit.
     { iPureIntro. eapply heap_quarantine_covered_mono.
       { exact (proj1 (proj1 Hrelated)). }
       by rewrite -Hheap. }
+    iSplitL "Hheap".
+    { rewrite -Hheap. iFrame. }
     iApply (big_sepM_mono with "Hr").
     iIntros (a γ Hsome) "Hm".
     iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
@@ -193,7 +198,9 @@ Section standard_world_interp.
     region_map_def W C (delete a M) (delete a Mρ).
   Proof.
     iIntros "Hr". iDestruct "Hr" as "[%Hcovered Hr]".
+    iDestruct "Hr" as "[Hheap Hr]".
     iSplit; first done.
+    iFrame "Hheap".
     iApply (big_sepM_mono with "Hr").
     iIntros (a' γr Ha') "HH".
     iDestruct "HH" as (ρ Hρ) "(Hsts & HH)".
@@ -212,7 +219,9 @@ Section standard_world_interp.
     region_map_def W C (delete a M) Mρ.
   Proof.
     iIntros "Hr". iDestruct "Hr" as "[%Hcovered Hr]".
+    iDestruct "Hr" as "[Hheap Hr]".
     iSplit; first done.
+    iFrame "Hheap".
     iApply (big_sepM_mono with "Hr").
     iIntros (a' γr Ha) "HH". iDestruct "HH" as (ρ Hρ) "(Hsts & HH)".
     iExists ρ.
@@ -262,7 +271,7 @@ Section standard_world_interp.
   Proof.
     iIntros (Hnotin Hquarantined) "Hopen".
     rewrite open_region_many_eq /open_region_many_def /region_map_def.
-    iDestruct "Hopen" as (M Mρ) "(HM & %Hdom & %Hdomρ & %Hcovered & Hpreds)".
+    iDestruct "Hopen" as (M Mρ) "(HM & %Hdom & %Hdomρ & %Hcovered & Hheap & Hpreds)".
     have Ha_std : a ∈ dom (std W) := Hcovered a Hquarantined.
     assert (is_Some (M !! a)) as [γp Hγp].
     { apply elem_of_dom. rewrite -Hdom. exact Ha_std. }
@@ -282,7 +291,7 @@ Section standard_world_interp.
     { iExists ρ. iSplit; first done. iFrame "Hstate".
       iExists γpred, p, φ. iSplit; first done. iSplit; first done.
       iFrame "Hsaved". iEval (rewrite Hlookup Hstatus). iFrame "Ha". }
-    iExists M, Mρ. iFrame "HM Hrestore". iPureIntro; repeat split; done.
+    iExists M, Mρ. iFrame "HM Hheap Hrestore". iPureIntro; repeat split; done.
   Qed.
 
   Lemma open_region_many_monotone (C : CmptName) (W W' : WORLD) l:
@@ -334,6 +343,7 @@ Section standard_world_interp.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iDestruct "Hopen" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_eq.
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -347,7 +357,7 @@ Section standard_world_interp.
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
-    iFrame.
+    iFrame "HM Hfull Hstate Hl".
     iSplitR "Hφv".
     - iExists Mρ. repeat (rewrite -HMeq).
       iSplitR; first eauto.
@@ -385,6 +395,7 @@ Section standard_world_interp.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iDestruct "Hopen" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_eq.
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -398,7 +409,7 @@ Section standard_world_interp.
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
-    iFrame.
+    iFrame "HM Hfull Hstate Hl".
     iSplitR "Hφv".
     - iExists Mρ. repeat (rewrite -HMeq).
       iSplitR; first eauto.
@@ -456,6 +467,7 @@ Section standard_world_interp.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iDestruct "Hopen" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_eq.
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -469,7 +481,7 @@ Section standard_world_interp.
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
-    iFrame.
+    iFrame "HM Hfull Hstate Hl".
     iSplitR "Hφv".
     - iExists Mρ. repeat (rewrite -HMeq).
       iSplitR; first eauto.
@@ -509,6 +521,7 @@ Section standard_world_interp.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iDestruct "Hopen" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_eq.
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -522,7 +535,7 @@ Section standard_world_interp.
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inversion HH; subst. rewrite Hpwl.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
-    iFrame.
+    iFrame "HM Hfull Hstate Hl".
     iSplitR "Hφv".
     - iExists Mρ. repeat (rewrite -HMeq).
       iSplitR; first eauto.
@@ -583,6 +596,7 @@ Section standard_world_interp.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iDestruct "Hopen" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_eq.
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -596,7 +610,7 @@ Section standard_world_interp.
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inv HH.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
-    iExists _. iFrame.
+    iExists _. iFrame "HM Hfull Hstate Hl".
     iSplitR "Hφv".
     - rewrite /open_region.
       iExists Mρ. repeat (rewrite -HMeq).
@@ -636,6 +650,7 @@ Section standard_world_interp.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iDestruct "Hopen" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_eq.
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -649,7 +664,7 @@ Section standard_world_interp.
     iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inv HH.
     iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
-    iExists _. iFrame.
+    iExists _. iFrame "HM Hfull Hstate Hl".
     iSplitR "Hφv".
     - rewrite /open_region.
       iExists Mρ. repeat (rewrite -HMeq).
@@ -708,8 +723,9 @@ Section standard_world_interp.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hpreds") as "Hpreds".
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
-    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
+    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM Hheap]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
       iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_addr_resource_live_intro; first exact Hlive.
@@ -722,7 +738,8 @@ Section standard_world_interp.
     rewrite -HMeq.
     iFrame "∗ # %".
     repeat(iSplitR; eauto).
-    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
+    all: try (by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ).
+    all: iFrame "∗#%".
   Qed.
 
   Lemma region_close_next_temp_pwl_live_heap W C φ als a p v `{forall Wv, Persistent (φ Wv)}  (base : Addr) (obj : AllocObject) :
@@ -750,8 +767,9 @@ Section standard_world_interp.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hpreds") as "Hpreds".
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
-    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
+    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM Hheap]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
       iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_addr_resource_live_intro; first exact Hlive.
@@ -764,7 +782,8 @@ Section standard_world_interp.
     rewrite -HMeq.
     iFrame "∗ # %".
     repeat(iSplitR; eauto).
-    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
+    all: try (by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ).
+    all: iFrame "∗#%".
   Qed.
 
    Lemma region_close_next_temp_pwl W C φ als a p v `{forall Wv, Persistent (φ Wv)} :
@@ -811,8 +830,9 @@ Section standard_world_interp.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hpreds") as "Hpreds".
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
-    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
+    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM Hheap]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
       iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_addr_resource_live_intro; first exact Hlive.
@@ -825,7 +845,8 @@ Section standard_world_interp.
     rewrite -HMeq.
     iFrame "∗ # %".
     repeat(iSplitR; eauto).
-    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
+    all: try (by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ).
+    all: iFrame "∗#%".
   Qed.
 
   Lemma region_close_next_temp_nwl_live_heap W C φ als a p v `{forall Wv, Persistent (φ Wv)}  (base : Addr) (obj : AllocObject) :
@@ -853,8 +874,9 @@ Section standard_world_interp.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hpreds") as "Hpreds".
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
-    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
+    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM Hheap]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
       iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_addr_resource_live_intro; first exact Hlive.
@@ -867,7 +889,8 @@ Section standard_world_interp.
     rewrite -HMeq.
     iFrame "∗ # %".
     repeat(iSplitR; eauto).
-    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
+    all: try (by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ).
+    all: iFrame "∗#%".
   Qed.
 
   Lemma region_close_next_temp_nwl W C φ als a p v `{forall Wv, Persistent (φ Wv)} :
@@ -913,7 +936,8 @@ Section standard_world_interp.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Permanent with "Hpreds") as "Hpreds".
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
-    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
+    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM Hheap]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame.
       iSplitR; [by simplify_map_eq|].
@@ -926,7 +950,8 @@ Section standard_world_interp.
     rewrite -HMeq.
     iFrame "∗ # %".
     repeat(iSplitR; eauto).
-    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
+    all: try (by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ).
+    all: iFrame "∗#%".
   Qed.
 
   Lemma region_close_next_perm_live_heap W C φ als a p v `{forall Wv, Persistent (φ Wv)}  (base : Addr) (obj : AllocObject) :
@@ -953,7 +978,8 @@ Section standard_world_interp.
     iDestruct "Hreg_open" as (M Mρ) "(HM & % & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ Permanent with "Hpreds") as "Hpreds".
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
-    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM]") as "test";
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
+    iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a with "[-HM Hheap]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame.
       iSplitR; [by simplify_map_eq|].
@@ -966,7 +992,8 @@ Section standard_world_interp.
     rewrite -HMeq.
     iFrame "∗ # %".
     repeat(iSplitR; eauto).
-    by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
+    all: try (by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ).
+    all: iFrame "∗#%".
   Qed.
 
   Lemma region_close_next_perm W C φ als a p v `{forall Wv, Persistent (φ Wv)} :
@@ -1346,6 +1373,7 @@ Section standard_world_interp.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iDestruct "Hopen" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct (reg_in with "[$HM $Hγpred]") as %HMeq.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -1358,7 +1386,8 @@ Section standard_world_interp.
     iEval (rewrite Hheap Hlookup Hstatus) in "Ha".
     rewrite -!HMeq. iFrame "Hfull Hstate Ha".
     iExists M,Mρ. iFrame "HM %".
-    iDestruct (region_map_delete with "[Hpreds]") as "[%Hcovered' Hpreds]".
+    iDestruct (region_map_delete with "[Hpreds Hheap]") as
+      "[%Hcovered' [Hheap Hpreds]]".
     { iFrame "%∗". }
     iFrame.
   Qed.
@@ -1379,6 +1408,7 @@ Section standard_world_interp.
     iDestruct "Hopen" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hpreds)".
     iDestruct (region_map_insert _ _ _ _ _ ρ with "Hpreds") as "Hpreds".
     iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
     iDestruct (big_sepM_insert _ (delete a (delete_list als M)) a
       with "[Hstate Htoken $Hpreds]") as "Hpreds";
       first by rewrite lookup_delete_eq.

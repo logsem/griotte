@@ -409,7 +409,7 @@ Section world_ghost_theory.
     iDestruct "Hr" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
-    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[%Hcovered [Hheapfrag Hpreds]]".
     iDestruct "Hpreds" as "[(%ρ & %Hρ & Hstate & Hl) Hpreds]".
     iDestruct "Hl" as (γpred' p' φ' HH1 Hpers) "(#Hφ' & Hl)".
     simplify_eq.
@@ -451,7 +451,7 @@ Section world_ghost_theory.
     iDestruct "Hr" as (M Mρ) "(HM & % & % & Hpreds)"; simplify_map_eq.
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
-    iDestruct "Hpreds" as "[%Hcovered Hpreds]".
+    iDestruct "Hpreds" as "[%Hcovered [Hheapfrag Hpreds]]".
     iDestruct "Hpreds" as "[(%ρ & %Hρ & Hstate & Hl) Hpreds]".
     iDestruct "Hl" as (γpred' p' φ' HH1 Hpers) "(#Hφ' & Hl)".
     simplify_eq.
@@ -1291,7 +1291,7 @@ Section world_ghost_theory.
     rewrite region_eq /region_def.
     iIntros (Hin) "Hr".
     iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdom' & Hmap)".
-    iDestruct "Hmap" as "[%Hcovered Hmap]".
+    iDestruct "Hmap" as "[%Hcovered [Hheapfrag Hmap]]".
     assert (is_Some (M !! a)) as [[γ p] Hlookup].
     { apply elem_of_dom. rewrite -Hdom. exact Hin. }
     iDestruct (big_sepM_lookup_acc _ _ a with "Hmap") as "[Hentry Hput]";
@@ -1299,8 +1299,9 @@ Section world_ghost_theory.
     iDestruct "Hentry" as (ρ Hρ) "[Hstate Hresource]".
     iDestruct "Hresource" as (γpred p' φ Heq Hpers) "[Hsaved Haddr]".
     destruct (heap_addr_status (heap_std W) a) as [status|] eqn:Hstatus.
-    - iAssert (region_map_def W C M Mρ) with "[Hstate Hsaved Haddr Hput]" as "Hmap".
+    - iAssert (region_map_def W C M Mρ) with "[Hheapfrag Hstate Hsaved Haddr Hput]" as "Hmap".
       { iSplit; first done.
+        iFrame "Hheapfrag".
         iApply "Hput". iExists ρ. iFrame "Hstate". iFrame "%". iFrame. }
       iSplitL "HM Hmap".
       { iExists M, Mρ. iFrame "HM Hmap". iFrame "%". }
@@ -2660,14 +2661,15 @@ Section world_ghost_theory.
       apply heap_allocate_future. exact Hfresh. }
     rewrite world_interp_eq /world_interp_def.
     iIntros "(Hr & Hsts & Hseal)".
-    iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap & _)".
+    iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
     iEval (rewrite Hempty) in "Hheap".
-    iMod (heap_std_auth_allocate _ _ b e Hfresh with "Hheap")
-      as "[Hheap #Hfull]".
+    iMod (heap_std_full_allocate _ _ b e Hfresh with "Hheap")
+      as "[Hheap Hnewfrag]".
     iModIntro.
-    iSplitL "Hr".
+    iSplitL "Hr Hnewfrag".
     { rewrite region_eq /region_def /region_map_def.
-      iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdomρ & _ & Hr)".
+      iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
+      iDestruct "Hmap" as "[%Hcovered [_ Hr]]".
       iExists M, Mρ. iFrame "HM".
       iSplit; first done. iSplit; first done.
       iSplit.
@@ -2680,6 +2682,10 @@ Section world_ghost_theory.
         rewrite /heap_allocate lookup_insert_Some in Hentry.
         destruct Hentry as [ [-> <-] | [_ Hbad] ]; first discriminate.
         rewrite lookup_empty in Hbad. discriminate. }
+      iSplitL "Hnewfrag".
+      { rewrite /heap_std_fragments /heap_allocate big_sepM_insert;
+          last apply lookup_empty.
+        rewrite big_sepM_empty. iFrame. }
       iApply (big_sepM_mono with "Hr").
       iIntros (a γ Hsome) "Hm".
       iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
@@ -2716,6 +2722,7 @@ Section world_ghost_theory.
       region_eq /region_def /region_map_def.
     iDestruct "Hworld" as
       "((%M & %Mρ & HM & %Hdom & _ & _ & Hr) & _)".
+    iDestruct "Hr" as "[_ Hr]".
     iIntros (Hin).
     assert (is_Some (M !! a)) as [γ Hγ].
     { apply elem_of_dom. rewrite -Hdom. exact Hin. }
@@ -2744,20 +2751,20 @@ Section world_ghost_theory.
     rewrite open_region_many_eq /open_region_many_def.
     iDestruct "Hregion" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
     iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
-    iDestruct "Hheap" as "[Hheap_auth _]".
-    iMod (heap_std_auth_update C (heap_std W) h' Hheap_future
-      with "Hheap_auth") as "[Hheap_auth #Hheap_full]".
+    iDestruct "Hmap" as "[%Hcovered_old [Hfrags Hentries]]".
+    iMod (heap_std_full_update C (heap_std W) h' Hheap_future
+      with "Hheap Hfrags") as "[Hheap Hfrags]".
     iModIntro.
-    iSplitL "HM Hmap".
+    iSplitL "HM Hfrags Hentries".
     { iExists M, Mρ. iFrame "HM".
       iSplit; first done. iSplit; first done.
       rewrite /region_map_def.
-      iDestruct "Hmap" as "[%Hcovered_old Hentries]".
       iSplit.
       { iPureIntro. intros a Hquarantined.
         destruct (decide (a = b)) as [->|Hne]; first exact Hb_dom.
         apply Hcovered_old. rewrite (Hstatus a Hne).
         exact Hquarantined. }
+      iFrame "Hfrags".
       iApply (big_sepM_mono with "Hentries").
       iIntros (a γ Hsome) "Hentry".
       assert (a <> b) as Hne.
@@ -2795,7 +2802,7 @@ Section world_ghost_theory.
         - iExact "Hl".
         - iExact "Hl". }
       iExact "Hnew". }
-    iSplitL "Hstd Hloc Hseals Hheap_auth".
+    iSplitL "Hstd Hloc Hseals Hheap".
     { rewrite /sts_full_world /heap_std_update /=. iFrame "∗#". }
     iApply (sealing_map_monotone_pub with "Hseal"); eauto.
   Qed.
@@ -2827,8 +2834,8 @@ Section world_interp_Pre.
       iModIntro; iIntros (C HC) "HRELS".
       rewrite region_eq /region_def. iExists ∅, ∅. iFrame.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
-      rewrite /region_map_def.
-      iPureIntro; apply heap_quarantine_covered_empty.
+      - iPureIntro; apply heap_quarantine_covered_empty.
+      - rewrite /heap_std_fragments /= big_sepM_empty. done.
     }
     iCombine "Hr" "Hsts" as "H".
     rewrite -big_sepS_sep.

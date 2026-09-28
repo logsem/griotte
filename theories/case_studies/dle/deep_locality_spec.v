@@ -565,16 +565,16 @@ Section DLE.
     assert (related_sts_priv_world W4 W5) as Hrelated_priv_W4_W5 by apply revoke_related_sts_priv_world.
 
     (* Show that the entry point to C_f is still safe in W5 *)
-    iEval (rewrite world_interp_eq /world_interp_def /sts_full_world /heap_std_auth)
+    iEval (rewrite world_interp_eq /world_interp_def /sts_full_world /heap_std_full)
       in "Hworld_interp_C".
     iDestruct "Hworld_interp_C" as "[Hregion [Hsts Hsealing]]".
-    iDestruct "Hsts" as "[Hstd [Hloc [Hseals [[%Hwf_W5 Hheapauth] Hheapfull]]]]".
+    iDestruct "Hsts" as "[Hstd [Hloc [Hseals [%Hwf_W5 Hheapfull]]]]".
     assert (heap_wf (heap_std W4)) as Hwf_W4.
     { rewrite /W5 revoke_heap in Hwf_W5. exact Hwf_W5. }
     iAssert (world_interp W5 C) with
-      "[Hregion Hstd Hloc Hseals Hheapauth Hheapfull Hsealing]" as "Hworld_interp_C".
-    { rewrite world_interp_eq /world_interp_def /sts_full_world /heap_std_auth.
-      iFrame "Hregion Hstd Hloc Hseals Hheapauth Hheapfull Hsealing".
+      "[Hregion Hstd Hloc Hseals Hheapfull Hsealing]" as "Hworld_interp_C".
+    { rewrite world_interp_eq /world_interp_def /sts_full_world /heap_std_full.
+      iFrame "Hregion Hstd Hloc Hseals Hheapfull Hsealing".
       iPureIntro. exact Hwf_W5.
     }
     assert (heap_authority_base (WSealed ot_switcher C_f) = None) as Hsealed_heap_base.

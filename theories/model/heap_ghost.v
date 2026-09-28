@@ -1,18 +1,41 @@
 From griotte Require Export heap_std compartment_names.
-From iris.algebra Require Import auth agree gmap gset.
+From iris.algebra Require Import auth excl gmap.
 From iris.base_logic Require Export invariants.
 From iris.proofmode Require Import proofmode.
 
-Definition heap_bounds (W_heap : Heap) : gmap Addr (Addr * Addr) :=
-  (λ o, (alloc_object_base o, alloc_object_end o)) <$> W_heap.
-Definition heap_quarantined (W_heap : Heap) : gset Addr :=
-  dom (filter (λ bo : Addr * AllocObject,
-    alloc_object_status bo.2 = AllocObjectQuarantined) W_heap).
-
-Definition heapUR : ucmra := prodUR (gmapUR Addr (agreeR (leibnizO (Addr * Addr)))) (gsetUR Addr).
+(** An authoritative map of exclusive allocation objects, with one fragment
+    per object, mirrors the standard-state ghost map. *)
+Definition heapUR : ucmra := gmapUR Addr (exclR (leibnizO AllocObject)).
 Definition heap_authUR : ucmra := authUR heapUR.
-Definition heap_encode (W_heap : Heap) : heapUR :=
-  (to_agree <$> heap_bounds W_heap, heap_quarantined W_heap).
+
+Lemma heap_local_update (h h' : Heap) :
+  dom h ⊆ dom h' ->
+  ((Excl <$> h : heapUR), (Excl <$> h : heapUR))
+    ~l~> (Excl <$> h', Excl <$> h').
+Proof.
+  intros Hdom. apply gmap_local_update. intros i.
+  rewrite !lookup_fmap.
+  destruct (h !! i) as [o|] eqn:Ho;
+    destruct (h' !! i) as [o'|] eqn:Ho'.
+  - have Hf' : (Excl <$> h' : heapUR) !! i = Some (Excl o')
+      by rewrite lookup_fmap Ho'.
+    rewrite Ho /= Hf'.
+    apply (@option_local_update _ (exclR (leibnizO AllocObject))
+      (Excl o) (Excl o) (Excl o') (Excl o')).
+    apply exclusive_local_update. done.
+  - rewrite Ho /=. exfalso.
+    have Hi : i ∈ dom h by apply elem_of_dom; eauto.
+    apply Hdom in Hi. apply elem_of_dom in Hi.
+    rewrite Ho' in Hi. destruct Hi as [x Hx]. discriminate.
+  - have Hf' : (Excl <$> h' : heapUR) !! i = Some (Excl o')
+      by rewrite lookup_fmap Ho'.
+    rewrite Ho /= Hf'.
+    apply (@alloc_option_local_update _ (exclR (leibnizO AllocObject))
+      (Excl o') None). done.
+  - have Hf' : (Excl <$> h' : heapUR) !! i = None
+      by rewrite lookup_fmap Ho'.
+    rewrite Ho /= Hf'. reflexivity.
+Qed.
 
 Class heap_preG Σ := { heap_inG :: inG Σ heap_authUR }.
 Class heapG Σ `{CmptNameG} := {
@@ -23,148 +46,144 @@ Definition heapΣ := #[GFunctor heap_authUR].
 Global Instance subG_heapΣ Σ : subG heapΣ Σ -> heap_preG Σ.
 Proof. solve_inG. Qed.
 
-Lemma heap_quarantined_lookup W_heap b :
-  b ∈ heap_quarantined W_heap <->
-  ∃ o, W_heap !! b = Some o /\ alloc_object_status o = AllocObjectQuarantined.
-Proof.
-  rewrite /heap_quarantined elem_of_dom.
-  split.
-  - intros [o Ho]. apply map_lookup_filter_Some in Ho as [Hs Hb].
-    exists o. auto.
-  - intros (o & Hb & Hs). exists o. apply map_lookup_filter_Some. auto.
-Qed.
-
-Global Instance heap_encode_core_id W_heap : CoreId (heap_encode W_heap).
-Proof. apply _. Qed.
-
-Lemma heap_encode_valid W_heap : ✓ heap_encode W_heap.
-Proof.
-  split; last done. intros b. rewrite /heap_encode /= !lookup_fmap.
-  destruct (W_heap !! b) eqn:Hb; rewrite Hb /=; done.
-Qed.
-
-Lemma heap_encode_mono W_heap W_heap' :
-  related_sts_heap_std W_heap W_heap' -> heap_encode W_heap ≼ heap_encode W_heap'.
-Proof.
-  intros [Hkeep _]. apply prod_included. split.
-  - apply lookup_included. intros b.
-    rewrite /heap_encode /heap_bounds /= !lookup_fmap.
-    destruct (W_heap !! b) as [o|] eqn:Hb; rewrite Hb /=; last by apply option_included; left.
-    destruct (Hkeep b o Hb) as (o' & Hb' & Hbase & He & _).
-    rewrite Hb' /= Some_included_total to_agree_included. by rewrite Hbase He.
-  - apply gset_included. intros b.
-    rewrite /heap_encode /= !heap_quarantined_lookup.
-    intros (o & Hb & Hs). destruct (Hkeep b o Hb) as (o' & Hb' & _ & _ & Hs').
-    exists o'. auto.
-Qed.
-
-Lemma heap_encode_future W_heap W_heap' :
-  heap_wf W_heap' -> heap_encode W_heap ≼ heap_encode W_heap' -> related_sts_heap_std W_heap W_heap'.
-Proof.
-  intros Hwf [Hbounds Hquarantine]%prod_included. split.
-  - intros b o Hb.
-    change ((to_agree <$> heap_bounds W_heap : gmapUR Addr (agreeR (leibnizO (Addr * Addr)))) ≼ to_agree <$> heap_bounds W_heap') in Hbounds.
-    pose proof (proj1 (lookup_included
-      (to_agree <$> heap_bounds W_heap : gmapUR Addr (agreeR (leibnizO (Addr * Addr))))
-      (to_agree <$> heap_bounds W_heap')) Hbounds b) as Hlookup.
-    clear Hbounds. rename Hlookup into Hbounds.
-    rewrite /heap_encode /heap_bounds /= !lookup_fmap Hb /= in Hbounds.
-    destruct (W_heap' !! b) as [o'|] eqn:Hb'; rewrite Hb' /= in Hbounds.
-    + exists o'. split; first done.
-      move: Hbounds; rewrite Some_included_total to_agree_included leibniz_equiv_iff.
-      intros Heq. injection Heq as Hbase Hend.
-      split; first done. split; first done.
-      intros Hs. change (heap_quarantined W_heap ≼ heap_quarantined W_heap') in Hquarantine.
-        apply gset_included in Hquarantine.
-        assert (b ∈ heap_quarantined W_heap') as Hq.
-        { apply Hquarantine. apply heap_quarantined_lookup. eauto. }
-        apply heap_quarantined_lookup in Hq as (oq & Hq & Hsq).
-        rewrite Hb' in Hq. by simplify_eq.
-    + apply option_included in Hbounds as [Hbad|(? & ? & Hbad & Hbad' & _)]; discriminate.
-  - intros b o _ Hb. by apply Hwf.
-Qed.
-
 Section heap_ghost.
   Context {Σ : gFunctors} {Cname : CmptNameG} {heapg : heapG Σ}.
 
-  (** Each compartment owns its heap authority. Snapshots are lower bounds:
-      a live snapshot records bounds but makes no assertion of current liveness. *)
-  Definition heap_std_auth (C : CmptName) (W_heap : Heap) : iProp Σ :=
-    ⌜heap_wf W_heap⌝ ∗ own (heap_name C) (● heap_encode W_heap).
-  Definition heap_std_full (C : CmptName) (W_heap : Heap) : iProp Σ :=
-    ⌜heap_wf W_heap⌝ ∗ own (heap_name C) (◯ heap_encode W_heap).
+  Definition heap_std_full (C : CmptName) (h : Heap) : iProp Σ :=
+    ⌜heap_wf h⌝ ∗ own (heap_name C) (● (Excl <$> h : heapUR)).
+  Definition heap_std_auth (C : CmptName) (b : Addr) (o : AllocObject) : iProp Σ :=
+    own (heap_name C) (◯ ({[b := Excl o]} : heapUR)).
+  Definition heap_std_fragments (C : CmptName) (h : Heap) : iProp Σ :=
+    [∗ map] b ↦ o ∈ h, heap_std_auth C b o.
 
-  Global Instance heap_std_auth_timeless C W_heap : Timeless (heap_std_auth C W_heap).
+  Global Instance heap_std_full_timeless C h : Timeless (heap_std_full C h).
   Proof. apply _. Qed.
-  Global Instance heap_std_full_timeless C W_heap : Timeless (heap_std_full C W_heap).
-  Proof. apply _. Qed.
-  Global Instance heap_std_full_persistent C W_heap : Persistent (heap_std_full C W_heap).
+  Global Instance heap_std_auth_timeless C b o : Timeless (heap_std_auth C b o).
   Proof. apply _. Qed.
 
-  Lemma heap_std_auth_full C W_heap :
-    heap_std_auth C W_heap ==∗ heap_std_auth C W_heap ∗ heap_std_full C W_heap.
+  Lemma heap_auth_fragments_pack γ (a : heapUR) h :
+    own γ (● a) ∗
+    ([∗ map] b ↦ o ∈ h, own γ (◯ ({[b := Excl o]} : heapUR)))
+    ⊣⊢ own γ (● a ⋅ ◯ (Excl <$> h)).
   Proof.
-    iIntros "[%Hwf Ha]". iMod (own_update _ _ (● heap_encode W_heap ⋅ ◯ heap_encode W_heap) with "Ha") as "[Ha Hs]".
-    { apply auth_update_dfrac_alloc; [apply _|reflexivity]. }
-    iModIntro. iFrame. auto.
+    induction h as [|b o h Hb IH] using map_ind.
+    - rewrite big_sepM_empty fmap_empty bi.sep_emp.
+      change (own γ (● a) ⊣⊢ own γ (● a ⋅ ε)).
+      by rewrite right_id.
+    - rewrite big_sepM_insert // fmap_insert.
+      rewrite (bi.sep_comm (own γ (◯ ({[b := Excl o]} : heapUR)))).
+      rewrite bi.sep_assoc IH -own_op.
+      rewrite -assoc -auth_frag_op.
+      rewrite insert_singleton_op; last by rewrite lookup_fmap Hb.
+      by rewrite (comm _ (Excl <$> h)).
   Qed.
 
-  Lemma heap_std_full_weaken C W_heap W_heap' :
-    heap_wf W_heap -> related_sts_heap_std W_heap W_heap' ->
-    heap_std_full C W_heap' -∗ heap_std_full C W_heap.
+  Lemma heap_std_full_auth C h b o :
+    heap_std_full C h -∗ heap_std_auth C b o -∗ ⌜h !! b = Some o⌝.
   Proof.
-    iIntros (Hwf Hrel) "[_ Hs]". iSplit; first done.
-    iApply (own_mono with "Hs"). apply auth_frag_mono, heap_encode_mono; done.
+    iIntros "[_ Ha] Hs".
+    iDestruct (own_valid_2 with "Ha Hs") as %[Hi Hv]%auth_both_valid_discrete.
+    iPureIntro.
+    apply (singleton_included_exclusive_l _ _ _ _ Hv) in Hi.
+    rewrite lookup_fmap in Hi.
+    apply leibniz_equiv in Hi.
+    destruct (h !! b) eqn:Hb; cbn in Hi;
+      rewrite Hb /= in Hi; congruence.
   Qed.
 
-  Lemma heap_std_auth_full_related C W_heap W_heap_old :
-    heap_std_auth C W_heap -∗ heap_std_full C W_heap_old -∗ ⌜related_sts_heap_std W_heap_old W_heap⌝.
+  Lemma heap_std_full_allocate C h b e :
+    heap_fresh h b e ->
+    heap_std_full C h ==∗
+    heap_std_full C (heap_allocate h b e) ∗
+    heap_std_auth C b (MkAllocObject b e AllocObjectLive).
   Proof.
-    iIntros "[%Hwf Ha] [_ Hs]".
-    iDestruct (own_valid_2 with "Ha Hs") as %[Hincl _]%auth_both_valid_discrete.
-    iPureIntro. by apply heap_encode_future.
+    iIntros (Hfresh) "[%Hwf Ha]".
+    iMod (own_update _ _
+      (● (Excl <$> heap_allocate h b e : heapUR) ⋅
+       ◯ {[b := Excl (MkAllocObject b e AllocObjectLive)]})
+      with "Ha") as "[Ha Hs]".
+    { apply auth_update_alloc. rewrite /heap_allocate fmap_insert.
+      apply alloc_singleton_local_update.
+      - rewrite lookup_fmap (proj1 Hfresh). done.
+      - done. }
+    iModIntro. iFrame. iPureIntro. by apply heap_allocate_wf.
   Qed.
 
-  Lemma heap_std_auth_update C W_heap W_heap' :
-    related_sts_heap_std W_heap W_heap' ->
-    heap_std_auth C W_heap ==∗ heap_std_auth C W_heap' ∗ heap_std_full C W_heap'.
+  Lemma heap_std_full_update_one C h b o o' :
+    heap_wf (<[b := o']> h) ->
+    heap_std_full C h -∗ heap_std_auth C b o ==∗
+    heap_std_full C (<[b := o']> h) ∗ heap_std_auth C b o'.
   Proof.
-    iIntros (Hrel) "[%Hwf Ha]".
-    have Hincl := heap_encode_mono W_heap W_heap' Hrel.
-    have Hwf' := related_sts_heap_std_wf W_heap W_heap' Hrel Hwf.
-    iMod (own_update _ _ (● heap_encode W_heap' ⋅ ◯ heap_encode W_heap') with "Ha") as "[Ha Hs]".
-    { apply auth_update_alloc.
-      rewrite {1}(core_id_extract (heap_encode W_heap) (heap_encode W_heap') Hincl).
-      rewrite -{2}(right_id ε op (heap_encode W_heap')).
-      apply op_local_update_discrete. intros _.
-      rewrite -(core_id_extract (heap_encode W_heap) (heap_encode W_heap') Hincl).
-      apply heap_encode_valid. }
-    iModIntro. iFrame. auto.
+    iIntros (Hwf') "Ha Hs".
+    iDestruct (heap_std_full_auth with "Ha Hs") as %Hb.
+    iDestruct "Ha" as "[_ Ha]".
+    iCombine "Ha Hs" as "H".
+    iMod (own_update _ _
+      (● (Excl <$> <[b := o']> h : heapUR) ⋅ ◯ {[b := Excl o']})
+      with "H") as "[Ha Hs]".
+    { apply auth_update. rewrite fmap_insert.
+      apply singleton_local_update with (x := Excl o).
+      - rewrite lookup_fmap Hb. done.
+      - apply exclusive_local_update. done. }
+    iModIntro. iFrame. iPureIntro. exact Hwf'.
   Qed.
 
-  Lemma heap_std_auth_allocate C W_heap b e :
-    heap_fresh W_heap b e ->
-    heap_std_auth C W_heap ==∗ heap_std_auth C (heap_allocate W_heap b e) ∗
-      heap_std_full C (heap_allocate W_heap b e).
-  Proof. intros Hfresh. apply heap_std_auth_update, heap_allocate_future; done. Qed.
+  Lemma heap_std_full_quarantine C h b o :
+    h !! b = Some o ->
+    heap_std_full C h -∗ heap_std_auth C b o ==∗
+    heap_std_full C (heap_quarantine h b) ∗
+    heap_std_auth C b
+      (MkAllocObject (alloc_object_base o) (alloc_object_end o)
+        AllocObjectQuarantined).
+  Proof.
+    iIntros (Hb) "Ha Hs".
+    iDestruct "Ha" as "[%Hwf Ha]".
+    iAssert (heap_std_full C h) with "[Ha]" as "Ha"; first by iFrame.
+    assert (heap_quarantine h b =
+      <[b := MkAllocObject (alloc_object_base o) (alloc_object_end o)
+        AllocObjectQuarantined]> h) as Hq.
+    { rewrite /heap_quarantine -(insert_id h b o Hb) alter_insert.
+      case_decide; last congruence.
+      rewrite insert_insert. case_decide; [done|congruence]. }
+    rewrite Hq.
+    iApply (heap_std_full_update_one with "Ha Hs").
+    rewrite -Hq. apply heap_quarantine_wf. exact Hwf.
+  Qed.
 
-  Lemma heap_std_auth_quarantine C W_heap b :
-    heap_std_auth C W_heap ==∗ heap_std_auth C (heap_quarantine W_heap b) ∗
-      heap_std_full C (heap_quarantine W_heap b).
-  Proof. apply heap_std_auth_update, heap_quarantine_future. Qed.
+  Lemma heap_std_full_update C h h' :
+    related_sts_heap_std h h' ->
+    heap_std_full C h -∗ heap_std_fragments C h ==∗
+    heap_std_full C h' ∗ heap_std_fragments C h'.
+  Proof.
+    iIntros (Hrel) "[%Hwf Ha] Hfrags".
+    have Hwf' := related_sts_heap_std_wf h h' Hrel Hwf.
+    have Hdom := related_sts_heap_std_dom h h' Hrel.
+    iAssert (own (heap_name C)
+      (● (Excl <$> h : heapUR) ⋅ ◯ (Excl <$> h : heapUR)))%I
+      with "[Ha Hfrags]" as "H".
+    { rewrite -(heap_auth_fragments_pack (heap_name C) (Excl <$> h) h)
+        /heap_std_fragments. iFrame. }
+    iMod (own_update _ _
+      (● (Excl <$> h' : heapUR) ⋅ ◯ (Excl <$> h' : heapUR))
+      with "H") as "H".
+    { apply auth_update. by apply heap_local_update. }
+    iDestruct (heap_auth_fragments_pack (heap_name C) (Excl <$> h') h'
+      with "H") as "[Ha Hfrags]".
+    iModIntro. iFrame. iPureIntro. exact Hwf'.
+  Qed.
 End heap_ghost.
 
 Lemma heap_std_init {Σ : gFunctors} {Cname : CmptNameG} {heappreg : heap_preG Σ} :
   ⊢ |==> ∃ heapg : heapG Σ,
-    [∗ set] C ∈ CNames, heap_std_auth C ∅ ∗ heap_std_full C ∅.
+    [∗ set] C ∈ CNames, heap_std_full C ∅.
 Proof.
   assert (⊢ |==> ∃ γ : CmptName -> gname,
-    [∗ set] C ∈ CNames, own (γ C) (● heap_encode ∅ ⋅ ◯ heap_encode ∅))%I as Hinit.
+    [∗ set] C ∈ CNames, own (γ C) (● (∅ : heapUR)))%I as Hinit.
   { induction CNames as [|C Cs HC IH] using set_ind_L.
     - iModIntro. iExists (λ C, encode C). by iApply big_sepS_empty.
     - iMod IH as (γ) "Hnames".
-      iMod (own_alloc (● heap_encode ∅ ⋅ ◯ heap_encode ∅)) as (γC) "Hnew".
-      { apply auth_both_valid_discrete. split; first done. apply heap_encode_valid. }
+      iMod (own_alloc (● (∅ : heapUR))) as (γC) "Hnew".
+      { apply auth_auth_valid. done. }
       iModIntro.
       iExists (λ C', if bool_decide (C' = C) then γC else γ C').
       iApply (big_sepS_union_2 with "[Hnew]").
@@ -175,7 +194,7 @@ Proof.
   iMod Hinit as (γ) "Hnames".
   iExists (Build_heapG Σ Cname heappreg γ). iModIntro.
   iApply (big_sepS_mono with "Hnames").
-  iIntros (C HC) "[Ha Hs]".
-  rewrite /heap_std_auth /heap_std_full /=. iFrame.
-  iSplit; iPureIntro; apply heap_wf_empty.
+  iIntros (C HC) "Ha".
+  rewrite /heap_std_full /= fmap_empty. iFrame.
+  iPureIntro. apply heap_wf_empty.
 Qed.

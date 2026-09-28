@@ -143,7 +143,7 @@ Section definitionsS.
   Definition sts_full_world (W : WORLD) (C : CmptName) : iProp Σ :=
     (sts_full_std C (std W)) ∗ (sts_full C (loc W) (wrel W)) ∗
     (sts_full_seals_std C (seal_std W)) ∗
-    (heap_std_auth C (heap_std W) ∗ heap_std_full C (heap_std W)).
+    heap_std_full C (heap_std W).
 
   (* We will have two kinds of future world relation (here in subset order) :
      - public
@@ -339,7 +339,7 @@ Section pre_STS.
     iDestruct (big_sepS_sep with "[$Hseals $H]") as "H".
     iDestruct (big_sepS_sep with "[$Hheap $H]") as "H".
     iApply (big_sepS_impl with "H"). iModIntro.
-    iIntros (C HC) "([Hheap_auth Hheap_full] & Hstd & Hs & Hr)".
+    iIntros (C HC) "(Hheap_full & Hstd & Hs & Hr)".
     rewrite !fmap_empty.
     iFrame. iExact "Hr".
   Qed.
@@ -857,16 +857,10 @@ Qed.
     related_sts_priv_world W (heap_std_update W W_heap).
   Proof. intros Hheap. apply related_sts_pub_priv_world, related_sts_pub_world_heap_update; done. Qed.
 
-  Lemma sts_full_world_heap_full W C :
-    sts_full_world W C -∗ heap_std_full C (heap_std W).
-  Proof. iIntros "(_ & _ & _ & [_ $])". Qed.
-
-
   Lemma sts_full_world_heap_wf W C :
     sts_full_world W C -∗ ⌜heap_wf (heap_std W)⌝.
   Proof.
-    iIntros "Hworld".
-    iDestruct (sts_full_world_heap_full with "Hworld") as "[$ _]".
+    iIntros "(_ & _ & _ & [%Hwf _])". done.
   Qed.
 
   Definition fresh_cus_name (W : WORLD) :=
