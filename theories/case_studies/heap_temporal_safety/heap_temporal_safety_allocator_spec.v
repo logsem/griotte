@@ -119,6 +119,87 @@ Section Heap_Temporal_Safety_Allocator.
       iPureIntro. split; [exact Hbounds|done].
   Qed.
 
+  Definition hts_free_result (b e : Addr) (reserved : Z * Z) : Word -> Word -> iProp Σ :=
+    λ w0 w1, (allocator_allocation b e reserved ∗
+      allocator_reclaimed b e ∗
+      ⌜w0 = WInt 0 ∧ w1 = WInt ALLOC_OK⌝)%I.
+
+  Lemma hts_free_known_function
+    (wcgp wcra wcs0 wcs1 : Word)
+    (b_stk e_stk a_stk b e a : Addr) (arg_rmap : Reg) (cstk : CSTK)
+    (p : Perm) (g : Locality) (reserved : Z * Z) (ws : list Word) :
+    (heap_b < b /\ b < e /\ e <= heap_e)%a ->
+    length ws = length (finz.seq_between b e) ->
+    arg_rmap !! ca0 = Some (WCap true p g b e a) ->
+    allocator_service_ctx ⊢
+    switcher_cc_specification_known_to_known_function
+      (allocator_allocation b e reserved ∗ [[b,e]] ↦ₐ [[ws]])
+      (hts_free_result b e reserved) wcgp wcra wcs0 wcs1
+      b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs ⊤
+      allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
+      allocator_free_pcc_off%I.
+  Proof.
+    iIntros (Hbounds Hlen Harg) "#Hservice".
+    rewrite /switcher_cc_specification_known_to_known_function.
+    iIntros (arg_rmap' rmap')
+      "#Halloc (%Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
+        & Hargs & Hrmap & Hstk & Hcstk & (Hreceipt & Hmem) & Hpost)".
+    iEval (cbn) in "HPC".
+    iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0] as
+      ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
+       "[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]";
+       "[Hct0 %Hwct0]"].
+    iClear "Hargs".
+    rewrite Harg in Hwca0. simplify_eq.
+    iExtractList "Hrmap" [ct1;ct2;ct3;ct4;ctp;cnull] as
+      ["Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
+    iDestruct "Hct1" as "[Hct1 %Hct1]".
+    iDestruct "Hct2" as "[Hct2 %Hct2]".
+    iDestruct "Hct3" as "[Hct3 %Hct3]".
+    iDestruct "Hct4" as "[Hct4 %Hct4]".
+    iDestruct "Hctp" as "[Hctp %Hctp]".
+    iDestruct "Hcnull" as "[Hcnull %Hcnull]".
+    simplify_eq.
+    iApply (allocator_free_valid_correct ⊤ p g b e a reserved ws _ with
+      "[- $Halloc $Hservice $Hna $Hreceipt $HPC $Hcgp $Hcra
+       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hctp $Hcnull $Hmem]");
+      eauto.
+    iNext.
+    iIntros "(Hna & Hreceipt & HPC & Hcgp & Hcra & Hca0 & Hca1
+      & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hreclaimed)".
+    iEval (cbn) in "HPC".
+    iExtractList "Hrmap" [cs0;cs1] as
+      ["[Hcs0 %Hcs0]";"[Hcs1 %Hcs1]"].
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+    iDestruct "Hca2" as (wca2_ret) "Hca2".
+    iDestruct "Hct0" as (wct0_ret) "Hct0".
+    iDestruct "Hct1" as (wct1_ret) "Hct1".
+    iDestruct "Hct2" as (wct2_ret) "Hct2".
+    iDestruct "Hct3" as (wct3_ret) "Hct3".
+    iDestruct "Hct4" as (wct4_ret) "Hct4".
+    iDestruct "Hctp" as (wctp_ret) "Hctp".
+    iInsertList "Hrmap" [ca2;ca3;ca4;ca5].
+    iInsertList "Hrmap" [ct0;ct1;ct2;ct3;ct4;ctp;cnull].
+    set (rmap_ret := <[cnull:=WInt 0]>
+      (<[ctp:=wctp_ret]> (<[ct4:=wct4_ret]> (<[ct3:=wct3_ret]>
+      (<[ct2:=wct2_ret]> (<[ct1:=wct1_ret]> (<[ct0:=wct0_ret]>
+      (<[ca5:=WInt 0]> (<[ca4:=WInt 0]> (<[ca3:=WInt 0]>
+      (<[ca2:=wca2_ret]> (delete cs1 (delete cs0 rmap'))))))))))))).
+    assert (dom rmap_ret =
+      all_registers_s ∖ {[PC; csp; cgp; cra; cs0; cs1; ca0; ca1]})
+      as Hdom_ret.
+    { subst rmap_ret. repeat (rewrite dom_insert_L).
+      repeat (rewrite dom_delete_L).
+      rewrite Hrmapdom /dom_arg_rmap /allocator_free_nargs /=.
+      set_solver+. }
+    iApply ("Hpost" $! (WInt 0) (WInt ALLOC_OK) rmap_ret
+      (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
+    iSplit; first (iPureIntro; exact Hdom_ret).
+    iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
+    rewrite /hts_free_result. iFrame "Hreceipt Hreclaimed".
+    iPureIntro. auto.
+  Qed.
+
   (** BLOCKED: allocation must extend the heap world and make the zeroed
       result safe to return to an arbitrary caller. *)
   Lemma hts_malloc_entry_spec W C :

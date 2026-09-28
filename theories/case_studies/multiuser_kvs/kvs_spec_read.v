@@ -18,6 +18,8 @@ Section KVS_spec_read.
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
+  (* TODO: move the retained shadow-read lemmas below to
+     theories/logrel/wp_rules_interp.v under generic names. *)
   Lemma kvs_shadow_read_retained W C raw actual alloc_map :
     dom alloc_map = heap_addresses →
     load_memory_shadow_observation (shadow_status <$> alloc_map) RW raw actual →
