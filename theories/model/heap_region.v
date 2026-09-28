@@ -98,3 +98,40 @@ Proof.
   intros Ha Ho. rewrite /heap_addr_live /heap_addr_status.
   destruct (is_heap_address a); last done. by rewrite Ha /= Ho.
 Qed.
+
+Lemma hts_heap_quarantine_single_status `{HeapRegion} h b e :
+    heap_wf h ->
+    (b + 1)%a = Some e ->
+    h !! b = Some (MkAllocObject b e AllocObjectLive) ->
+    forall a, a <> b ->
+      heap_addr_status h a = heap_addr_status (heap_quarantine h b) a.
+Proof.
+  intros Hwf Hsucc Hb a Hne.
+    rewrite /heap_addr_status.
+    destruct (is_heap_address a) eqn:Ha; last reflexivity.
+    destruct (heap_lookup_addr h a) as [ [c o] |] eqn:Hlookup.
+    - apply heap_lookup_addr_sound in Hlookup as [Hc Hcontains].
+      assert (c <> b) as Hcne.
+      { intro Heq. subst c. rewrite Hb in Hc. injection Hc as <-.
+        apply Hne. unfold alloc_object_contains in Hcontains.
+        simpl in Hcontains. solve_addr. }
+      assert (heap_lookup_addr (heap_quarantine h b) a = Some (c,o))
+        as Hnew.
+      { eapply heap_lookup_addr_complete.
+        - apply heap_quarantine_wf. exact Hwf.
+        - rewrite heap_quarantine_lookup_ne; [exact Hc|congruence].
+        - exact Hcontains. }
+      rewrite Hnew. reflexivity.
+    - pose proof (proj1 (heap_lookup_addr_none h a Hwf) Hlookup) as Hnone.
+      destruct (heap_lookup_addr (heap_quarantine h b) a)
+        as [ [c o] |] eqn:Hnew; last reflexivity.
+      apply heap_lookup_addr_sound in Hnew as [Hc Hcontains].
+      destruct (decide (c = b)) as [->|Hcne].
+      + rewrite (heap_quarantine_lookup h b _ Hb) in Hc.
+        injection Hc as <-. exfalso. apply Hne.
+        unfold alloc_object_contains in Hcontains.
+        simpl in Hcontains. solve_addr.
+      + rewrite heap_quarantine_lookup_ne in Hc; [|congruence].
+        exfalso. exact (Hnone c o Hc Hcontains).
+  Qed.
+

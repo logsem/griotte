@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode.
-From griotte Require Import logrel rules.
+From griotte Require Import logrel rules wp_rules_interp.
 From griotte Require Import
   switcher switcher_spec_KtK kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16
   map_simpl register_tactics.
@@ -18,157 +18,7 @@ Section KVS_spec_read.
     {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
   .
 
-  (* TODO: move the retained shadow-read lemmas below to
-     theories/logrel/wp_rules_interp.v under generic names. *)
-  Lemma kvs_shadow_read_retained W C raw actual alloc_map :
-    dom alloc_map = heap_addresses →
-    load_memory_shadow_observation (shadow_status <$> alloc_map) RW raw actual →
-    region W C -∗
-    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s) -∗
-    ⌜filter_heap W actual = actual⌝ ∗
-    region W C ∗
-    ([∗ map] a↦s ∈ alloc_map, allocator_entry a s).
-  Proof.
-    iIntros (Hdom Hobs) "Hregion Hentries".
-    destruct (heap_cap_base raw) as [base|] eqn:Hbase; cycle 1.
-    { rewrite /load_memory_shadow_observation Hbase in Hobs. subst actual.
-      assert (heap_authority_base raw = None) as Hauth.
-      { destruct (heap_authority_base raw) as [base'|] eqn:Hauth; last done.
-        apply heap_authority_base_heap_cap_base in Hauth.
-        rewrite Hbase in Hauth. discriminate. }
-      iFrame. iPureIntro. by apply filter_heap_nonheap. }
-    assert (is_heap_address base = true) as Hheap.
-    { unfold heap_cap_base in Hbase.
-      destruct (memory_cap_base raw) as [b|] eqn:Hmemory; last discriminate.
-      destruct (is_heap_address b) eqn:Hheap; last discriminate.
-      by simplify_eq. }
-    assert (is_Some (alloc_map !! base)) as [s Hlookup].
-    { apply elem_of_dom. rewrite Hdom elem_of_heap_addresses. exact Hheap. }
-    rewrite /load_memory_shadow_observation Hbase in Hobs.
-    specialize (Hobs (shadow_status s)).
-    assert ((shadow_status <$> alloc_map) !! base = Some (shadow_status s))
-      as Hshadow_lookup by (rewrite lookup_fmap Hlookup; reflexivity).
-    specialize (Hobs Hshadow_lookup).
-    destruct s.
-    - simpl in Hobs. subst actual.
-      destruct (heap_authority_base raw) as [b|] eqn:Hauth; last first.
-      { iFrame. iPureIntro. by apply filter_heap_nonheap. }
-      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
-      rewrite Hbase in Hcap. inversion Hcap; subst b.
-      destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup;
-        last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
-      destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
-      { iFrame. iPureIntro. by rewrite /filter_heap Hauth Hheaplookup /= Hstatus. }
-      assert (heap_addr_status (heap_std W) base = Some AllocObjectQuarantined)
-        as Hqstatus by (rewrite /heap_addr_status Hheap Hheaplookup /= Hstatus; reflexivity).
-      iEval (rewrite region_open_nil) in "Hregion".
-      iDestruct (open_region_many_quarantined_token W C [] base with "Hregion")
-        as "[Htoken Hrestore]"; [set_solver|exact Hqstatus|].
-      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hlookup.
-      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken")
-        as %Himpossible. discriminate Himpossible.
-    - simpl in Hobs. subst actual.
-      destruct (heap_authority_base raw) as [b|] eqn:Hauth; last first.
-      { iFrame. iPureIntro. by apply filter_heap_nonheap. }
-      pose proof (heap_authority_base_heap_cap_base raw b Hauth) as Hcap.
-      rewrite Hbase in Hcap. inversion Hcap; subst b.
-      destruct (heap_lookup_addr (heap_std W) base) as [bo|] eqn:Hheaplookup;
-        last (iFrame; iPureIntro; by rewrite /filter_heap Hauth Hheaplookup).
-      destruct bo as [bb obj]. destruct (alloc_object_status obj) eqn:Hstatus.
-      { iFrame. iPureIntro. by rewrite /filter_heap Hauth Hheaplookup /= Hstatus. }
-      assert (heap_addr_status (heap_std W) base = Some AllocObjectQuarantined)
-        as Hqstatus by (rewrite /heap_addr_status Hheap Hheaplookup /= Hstatus; reflexivity).
-      iEval (rewrite region_open_nil) in "Hregion".
-      iDestruct (open_region_many_quarantined_token W C [] base with "Hregion")
-        as "[Htoken Hrestore]"; [set_solver|exact Hqstatus|].
-      iDestruct (big_sepM_lookup with "Hentries") as "Hentry"; first exact Hlookup.
-      iDestruct (allocator_entry_token_quarantined with "Hentry Htoken")
-        as %Himpossible. discriminate Himpossible.
-    - simpl in Hobs. subst actual.
-      iFrame. iPureIntro. apply filter_heap_untagged, get_tag_clear_tag.
-  Qed.
 
-  Lemma kvs_load_read_retained E W C
-    pc_p pc_g pc_b pc_e pc_a pc_a' dst src wi wd b e a raw :
-    ↑Nallocator ⊆ E →
-    is_shadow_address a = false →
-    decodeInstrW wi = machine_instructions.Load dst src 0 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    withinBounds b e a = true →
-    (pc_a + 1)%a = Some pc_a' →
-    dst ≠ cnull → src ≠ cnull →
-    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RW Global b e a ∗ a ↦ₐ raw ∗
-        region W C ∗ allocator_ctx }}}
-      Instr Executable @ E
-    {{{ actual, RET NextIV;
-        ⌜load_heap raw actual ∧ filter_heap W actual = actual⌝ ∗
-        PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ wi ∗
-        dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RW Global b e a ∗
-        a ↦ₐ raw ∗ region W C }}}.
-  Proof.
-    iIntros (HE Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
-      "(HPC & Hi & Hdst & Hsrc & Ha & Hregion & #Halloc) HΦ".
-    destruct (heap_cap_base raw) as [base|] eqn:Hbase.
-    - iInv Nallocator as ">Halloc_body" "Halloc_close".
-      iDestruct "Halloc_body" as (alloc_map Halloc_dom) "Halloc_entries".
-      assert (is_Some (alloc_map !! base)) as [status Hlookup].
-      { apply elem_of_dom. rewrite Halloc_dom elem_of_heap_addresses.
-        unfold heap_cap_base in Hbase.
-        destruct (memory_cap_base raw) as [base'|] eqn:Hmemory; last discriminate.
-        destruct (is_heap_address base') eqn:Hheap; inversion Hbase; subst; done. }
-      iDestruct (big_sepM_delete with "Halloc_entries") as "[Hentry Halloc_entries]";
-        first exact Hlookup.
-      iDestruct "Hentry" as "[Hstatus Hstatus_res]".
-      destruct (shadow_status status) eqn:Hstatus_eq.
-      + iApply (wp_load_success_heap_word with
-          "[$HPC $Hi $Hdst $Hsrc $Ha $Hstatus]"); eauto.
-        iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha & Hstatus)".
-        iAssert ([∗ map] x↦s ∈ alloc_map, allocator_entry x s)%I
-          with "[Hstatus Hstatus_res Halloc_entries]" as "Halloc_entries".
-        { iApply big_sepM_delete; first exact Hlookup.
-          iFrame. rewrite /allocator_entry Hstatus_eq. iFrame. }
-        iDestruct (kvs_shadow_read_retained W C raw raw alloc_map
-          with "Hregion Halloc_entries")
-          as "(%Hretained & Hregion & Halloc_entries)";
-          [exact Halloc_dom| |].
-        { unfold load_memory_shadow_observation. rewrite Hbase.
-          intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
-          inversion Hobserved; subst. by rewrite Hstatus_eq. }
-        iMod ("Halloc_close" with "[Halloc_entries]") as "_".
-        { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
-        iModIntro. iApply "HΦ". iFrame.
-        iPureIntro. split; first by left. exact Hretained.
-      + iApply (wp_load_success_heap_word_revoked with
-          "[$HPC $Hi $Hdst $Hsrc $Ha $Hstatus]"); eauto.
-        iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha & Hstatus)".
-        iAssert ([∗ map] x↦s ∈ alloc_map, allocator_entry x s)%I
-          with "[Hstatus Hstatus_res Halloc_entries]" as "Halloc_entries".
-        { iApply big_sepM_delete; first exact Hlookup.
-          iFrame. rewrite /allocator_entry Hstatus_eq. iFrame. }
-        iDestruct (kvs_shadow_read_retained W C raw
-          (clear_tag raw) alloc_map with "Hregion Halloc_entries")
-          as "(%Hretained & Hregion & Halloc_entries)";
-          [exact Halloc_dom| |].
-        { unfold load_memory_shadow_observation. rewrite Hbase.
-          intros observed Hobserved. rewrite lookup_fmap Hlookup in Hobserved.
-          inversion Hobserved; subst. by rewrite Hstatus_eq. }
-        iMod ("Halloc_close" with "[Halloc_entries]") as "_".
-        { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
-        iModIntro. iApply "HΦ". iFrame.
-        iPureIntro. split; last exact Hretained.
-        right. split; last done. unfold is_heap_cap. by rewrite Hbase.
-    - iApply (wp_load_success_notinstr with "[$HPC $Hi $Hdst $Hsrc $Ha]"); eauto.
-      { unfold is_heap_cap. by rewrite Hbase. }
-      iNext. iIntros "(HPC & Hdst & Hi & Hsrc & Ha)".
-      iApply "HΦ". iFrame.
-      iPureIntro. split; first by left.
-      assert (heap_authority_base raw = None) as Hauth.
-      { destruct (heap_authority_base raw) as [base'|] eqn:Hauth; last done.
-        apply heap_authority_base_heap_cap_base in Hauth.
-        rewrite Hbase in Hauth. discriminate. }
-      by apply filter_heap_nonheap.
-  Qed.
 
   (*** KVS READ: Read key in the KVS *)
   (** A successful read returns the stored word or, for a heap capability,
@@ -712,7 +562,7 @@ Section KVS_spec_read.
     (* Load ca1 cgp 0: the heap shadow can clear the returned tag. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (kvs_load_read_retained _ W C with
+    iApply (load_read_retained _ W C with
       "[$HPC $Hi $Hca1 $Hcgp $Hcgp_val $Hregion $Halloc]");
       try solve_pure; try solve_addr.
     { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
