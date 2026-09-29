@@ -164,3 +164,41 @@ Proof.
       + rewrite heap_quarantine_lookup_ne in Hc; [|congruence].
         exfalso. exact (Hnone c o Hc Hcontains).
   Qed.
+
+Lemma free_heap_quarantine_status_outside `{HeapRegion} h b e :
+  heap_wf h ->
+  h !! b = Some (MkAllocObject b e AllocObjectLive) ->
+  ∀ a, a ∉ finz.seq_between b e ->
+    heap_addr_status h a =
+    heap_addr_status (heap_quarantine h b) a.
+Proof.
+  intros Hwf Hb a Houtside.
+  rewrite /heap_addr_status.
+  destruct (is_heap_address a) eqn:Ha; last reflexivity.
+  destruct (heap_lookup_addr h a) as [ [c o] |] eqn:Hlookup.
+  - apply heap_lookup_addr_sound in Hlookup as [Hc Hcontains].
+    assert (c <> b) as Hcne.
+    { intro Heq. subst c. rewrite Hb in Hc. injection Hc as <-.
+      apply Houtside. apply elem_of_finz_seq_between.
+      unfold alloc_object_contains in Hcontains. simpl in Hcontains.
+      exact Hcontains. }
+    assert (heap_lookup_addr (heap_quarantine h b) a = Some (c,o))
+      as Hnew.
+    { eapply heap_lookup_addr_complete.
+      - apply heap_quarantine_wf. exact Hwf.
+      - rewrite heap_quarantine_lookup_ne; [exact Hc|congruence].
+      - exact Hcontains. }
+    rewrite Hnew. reflexivity.
+  - pose proof (proj1 (heap_lookup_addr_none h a Hwf) Hlookup) as Hnone.
+    destruct (heap_lookup_addr (heap_quarantine h b) a)
+      as [ [c o] |] eqn:Hnew; last reflexivity.
+    apply heap_lookup_addr_sound in Hnew as [Hc Hcontains].
+    destruct (decide (c = b)) as [->|Hcne].
+    + rewrite (heap_quarantine_lookup h b _ Hb) in Hc.
+      injection Hc as <-. exfalso. apply Houtside.
+      apply elem_of_finz_seq_between.
+      unfold alloc_object_contains in Hcontains. simpl in Hcontains.
+      exact Hcontains.
+    + rewrite heap_quarantine_lookup_ne in Hc; [|congruence].
+      exfalso. exact (Hnone c o Hc Hcontains).
+Qed.

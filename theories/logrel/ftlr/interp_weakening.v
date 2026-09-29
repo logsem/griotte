@@ -66,25 +66,6 @@ Section fundamental.
     repeat split; eauto using notexecuteAllowed_flowsfrom, notisWL_flowsfrom.
   Qed.
 
-  (* TODO: move to logrel.v. *)
-  Lemma interp_cap_heap_conditions W C p g b e a :
-    interp W C (WCap true p g b e a) -∗
-    ⌜heap_cap_O_valid W p g b e⌝.
-  Proof.
-    rewrite fixpoint_interp1_eq interp1_eq.
-    destruct (isO p); first by iIntros "$".
-    destruct (has_sreg_access p); first by iIntros "H".
-    iIntros "[#Hlist %Hconditions]".
-    rewrite /heap_cap_O_valid.
-    iSplit; first (iPureIntro; exact (proj2 (proj2 Hconditions))).
-    iIntros (x Hx Hheap).
-    iDestruct (big_sepL_elem_of with "Hlist") as (q P)
-      "(Hflow & Hpers & Hrel & Hz & Hr & Hw & Hmono & %Hstate)";
-      first exact Hx.
-    iPureIntro. destruct (isWL p) eqn:Hwl; last done.
-    destruct Hconditions as [Hlocal _]. subst g. by right.
-  Qed.
-
   Lemma interp_weakening_O_same_bounds W C t p p' g g' b e a a' :
     isO p' = true ->
     PermFlowsTo p' p ->

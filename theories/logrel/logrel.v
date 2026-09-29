@@ -749,6 +749,42 @@ Section logrel.
       + by apply withinBounds_true_iff in Hheap_ea.
   Qed.
 
+  Lemma free_heap_cap_payload W p g b e :
+    heap_wf (heap_std W) ->
+    (heap_b < b ∧ b < e ∧ e <= heap_e)%a ->
+    heap_cap_O_valid W p g b e ->
+    (∃ base obj, heap_lookup_addr (heap_std W) b = Some (base,obj) ∧
+      alloc_object_status obj = AllocObjectLive ∧ (e <= alloc_object_end obj)%a) ∧
+    Forall (λ x, heap_addr_live (heap_std W) x ∧
+      ∃ ρ, ρ ≠ Revoked ∧ std W !! x = Some ρ) (finz.seq_between b e).
+  Proof.
+    intros Hwf (Hb & Hbe & He) (Hvalid & Hcoverage).
+    assert (Hbheap : is_heap_address b = true).
+    { apply withinBounds_true_iff. solve_addr. }
+    pose proof (Hvalid Hbe) as Hlive.
+    rewrite /heap_cap_live Hbheap in Hlive.
+    destruct (heap_lookup_addr (heap_std W) b) as [ [base obj] | ] eqn:Hlookup.
+    2: { contradiction. }
+    destruct (alloc_object_status obj) eqn:Hstatus.
+    2: { contradiction. }
+    destruct Hlive as (Hend & Hexec & Hwl).
+    split.
+    { exists base,obj. repeat split; eauto. }
+    apply Forall_forall. intros x Hx. split.
+    { eapply heap_cap_valid_addr_live; [exact Hwf| |exact Hvalid].
+      apply withinBounds_true_iff.
+      apply elem_of_finz_seq_between in Hx. solve_addr. }
+    assert (Hxheap : is_heap_address x = true).
+    { apply withinBounds_true_iff.
+      apply elem_of_finz_seq_between in Hx. solve_addr. }
+    specialize (Hcoverage x Hx Hxheap).
+    destruct g.
+    - exists Permanent. split; first discriminate. exact Hcoverage.
+    - destruct Hcoverage as [Hperm|Htemp].
+      + exists Permanent; split; first discriminate. exact Hperm.
+      + exists Temporary; split; first discriminate. exact Htemp.
+  Qed.
+
   (** Interp for sentry in [enter_cond]. *)
   Program Definition interp_sentry (interp : V) : V :=
     λne W C w, (match w with
@@ -1120,6 +1156,24 @@ Section logrel.
     iIntros (Hwf Hp Hbounds) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[_ Hvalid]; first done.
     iPureIntro. eapply heap_cap_valid_addr_live; eauto.
+  Qed.
+
+  Lemma interp_cap_heap_conditions W C p g b e a :
+    interp W C (WCap true p g b e a) -∗
+    ⌜heap_cap_O_valid W p g b e⌝.
+  Proof.
+    rewrite fixpoint_interp1_eq interp1_eq.
+    destruct (isO p); first by iIntros "$".
+    destruct (has_sreg_access p); first by iIntros "H".
+    iIntros "[#Hlist %Hconditions]".
+    rewrite /heap_cap_O_valid.
+    iSplit; first (iPureIntro; exact (proj2 (proj2 Hconditions))).
+    iIntros (x Hx Hheap).
+    iDestruct (big_sepL_elem_of with "Hlist") as (q P)
+      "(Hflow & Hpers & Hrel & Hz & Hr & Hw & Hmono & %Hstate)";
+      first exact Hx.
+    iPureIntro. destruct (isWL p) eqn:Hwl; last done.
+    destruct Hconditions as [Hlocal _]. subst g. by right.
   Qed.
 
   Lemma interp_cap_disjoint (W : WORLD) (C : CmptName) p g b e a :
