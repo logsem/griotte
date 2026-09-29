@@ -541,9 +541,10 @@ Section fundamental.
       iNext. iExact "Hmap". }
     iNext. iIntros (regs' retv) "(%HSpec & Hmem & Hshadow & Hmap)".
 
-    destruct HSpec as [p0 g0 b0 e0 a0 ea0 loadv actualv
-      Hreg_load Hmem_a Hactual Hobserved Hincr|].
-    { apply incrementPC_Some_inv in Hincr.
+    destruct retv; simpl in HSpec; [contradiction| |]; cycle 1.
+    { destruct HSpec as (p0 & g0 & b0 & e0 & a0 & ea0 & loadv & actualv &
+        Hreg_load & Hmem_a & Hactual & Hobserved & Hincr).
+      apply incrementPC_Some_inv in Hincr.
       destruct Hincr as (tpc&?&?&?&?&?&?&?&?&XX).
 
       (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)

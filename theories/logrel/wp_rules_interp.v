@@ -781,9 +781,11 @@ Section wp_interp.
     iAssert ([∗ map] k↦s ∈ alloc_map, allocator_entry k s)%I
       with "[Hshadow Halloc_states]" as "Halloc_entries".
     { rewrite /allocator_entry big_sepM_sep big_sepM_fmap. iFrame. }
-    destruct Hspec as
-      [p0 g0 b0 e0 a0 ea0 loadv actualv Hallow Hlookup Hactual Hobserved Hinc|].
-    - destruct Hallow as (Hsrc0 & Haddr & _). simpl_map_regs by eauto.
+    destruct retv; simpl in Hspec; [contradiction| |]; cycle 1.
+    - destruct Hspec as
+        (p0 & g0 & b0 & e0 & a0 & ea0 & loadv & actualv &
+         Hallow & Hlookup & Hactual & Hobserved & Hinc).
+      destruct Hallow as (Hsrc0 & Haddr & _). simpl_map_regs by eauto.
       rewrite lookup_insert_ne in Hsrc0; last congruence.
       rewrite lookup_insert decide_True in Hsrc0; last done.
       injection Hsrc0 as <- <- <- <- <-.
@@ -1392,9 +1394,11 @@ Section wp_interp.
     iAssert ([∗ map] k↦s ∈ alloc_map, allocator_entry k s)%I
       with "[Hshadow Halloc_states]" as "Halloc_entries".
     { rewrite /allocator_entry big_sepM_sep big_sepM_fmap. iFrame. }
-    destruct Hspec as
-      [p0 g0 b0 e0 a0 ea0 loadv actualv Hallow Hlookup Hactual Hobserved Hinc|].
-    - destruct Hallow as (Hsrc0 & Haddr & _). simpl_map_regs by eauto.
+    destruct retv; simpl in Hspec; [contradiction| |]; cycle 1.
+    - destruct Hspec as
+        (p0 & g0 & b0 & e0 & a0 & ea0 & loadv & actualv &
+         Hallow & Hlookup & Hactual & Hobserved & Hinc).
+      destruct Hallow as (Hsrc0 & Haddr & _). simpl_map_regs by eauto.
       rewrite lookup_insert_ne in Hsrc0; last congruence.
       rewrite lookup_insert decide_True in Hsrc0; last done.
       injection Hsrc0 as <- <- <- <- <-.

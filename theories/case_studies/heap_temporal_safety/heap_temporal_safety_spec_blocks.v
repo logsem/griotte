@@ -281,8 +281,10 @@ Section Heap_Temporal_Safety_Blocks.
       simpl_map_regs by eauto. simplify_map_eq.
       apply (disjoint_from_shadow_not_in _ _ _ Hshadow). apply withinBounds_true_iff. solve_addr. }
     iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 a0 ea raw actual Hallow Hlookup Hactual Hinc|].
-    2: { wp_pure. wp_end. by iIntros (?). }
+    destruct retv; simpl in Hspec; [contradiction| |].
+    { wp_pure. wp_end. by iIntros (?). }
+    destruct Hspec as (p0 & g0 & b0 & e0 & a0 & ea & raw & actual &
+      Hallow & Hlookup & Hactual & Hinc).
     destruct Hallow as (Hsrc & Hea & _).
     simpl_map_regs by eauto. simplify_map_eq.
     unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.

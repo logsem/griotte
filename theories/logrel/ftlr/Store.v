@@ -530,7 +530,10 @@ Section fundamental.
 
     iNext. iIntros (regs' mem' retv). iDestruct 1 as (HSpec) "[Hmem Hmap]".
 
-    destruct HSpec as [* ? ? ? -> Hincr|].
+    destruct HSpec as [p1 g1 b1 e1 a1 ea1 storev1 oldv1
+        Harg1 Hallow1 Hshadow1 Hlookup1 -> Hshadow_eq1 Hincr
+      |p0 g0 b0 e0 a0 ea0 heap_a0 z0 old_status0 Harg0 Hallow0 Hshadow0 Htranslate0
+        Hold0 Hmem_eq0 Hshadow_eq0 Hincr0|].
     { apply incrementPC_Some_inv in Hincr.
       destruct Hincr as (?&?&?&?&?&?&?&?&?&?).
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
@@ -557,6 +560,7 @@ Section fundamental.
       iApply ("IH" with "Halloc [%] [] [Hmap] [$Hworld_interp] [$Hcont] [//] [$Hown] [$Htframe]"); auto.
       iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
+    { exfalso. pose proof (Hnonshadow p0 g0 b0 e0 a0 ea0 Hallow0). congruence. }
     { iApply wp_pure_step_later; auto. iNext; iIntros "_". iApply wp_value; auto.  }
     Unshelve. all: auto.
   Qed.
