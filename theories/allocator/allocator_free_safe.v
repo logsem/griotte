@@ -484,7 +484,7 @@ Section Heap_Temporal_Safety_Interp.
       iIntros "(Hna_post & Hreceipt_post & HPCr_post & Hcgpr_post &
         Hcrar_post & Hca0_post & Hca1_post & Hca2_post & Hct0_post &
         Hct1_post & Hct2_post & Hct3_post & Hct4_post & Hctp_post &
-        Hcnull_post & Htokens)".
+        Hcnull_post & Htokens & Hlc)".
       iEval (rewrite /allocator_reclaimed) in "Htokens".
       iDestruct (world_interp_open_heap_provenance W C
         (finz.seq_between base objend) with "Hworld_open")
@@ -525,24 +525,24 @@ Section Heap_Temporal_Safety_Interp.
         Hheap_range) as Hquarantined.
       iAssert (world_interp (heap_std_update W h') C)
         with "[Hworld_open_q Hhandles Htokens]" as "Hworld_q".
-      assert (Hquarantined_close : Forall
-          (fun x => is_heap_address x=true /\
-            exists b0 obj',
-              heap_lookup_addr (heap_std (heap_std_update W h')) x =
-                Some (b0,obj') /\
-              alloc_object_status obj'=AllocObjectQuarantined)
-          (finz.seq_between base objend))
-        by (apply Forall_forall; intros x Hx;
-            apply Forall_forall with (x:=x) in Hquarantined;
-            last exact Hx;
-            destruct Hquarantined as
-              [Hheap (obj' & Hlookup' & Hstatus)];
-            split; first exact Hheap;
-            exists base,obj'; split; first exact Hlookup'; exact Hstatus).
-      iApply (free_world_close_quarantined_list
-        (heap_std_update W h') C (finz.seq_between base objend)
-        (finz_seq_between_NoDup base objend) Hquarantined_close).
-      iFrame "Hworld_open_q Hhandles Htokens".
+      { assert (Hquarantined_close : Forall
+            (fun x => is_heap_address x=true /\
+              exists b0 obj',
+                heap_lookup_addr (heap_std (heap_std_update W h')) x =
+                  Some (b0,obj') /\
+                alloc_object_status obj'=AllocObjectQuarantined)
+            (finz.seq_between base objend))
+          by (apply Forall_forall; intros x Hx;
+              apply Forall_forall with (x:=x) in Hquarantined;
+              last exact Hx;
+              destruct Hquarantined as
+                [Hheap (obj' & Hlookup' & Hstatus)];
+              split; first exact Hheap;
+              exists base,obj'; split; first exact Hlookup'; exact Hstatus).
+        iApply (free_world_close_quarantined_list
+          (heap_std_update W h') C (finz.seq_between base objend)
+          (finz_seq_between_NoDup base objend) Hquarantined_close).
+        iFrame "Hworld_open_q Hhandles Htokens". }
       iDestruct (interp_cap_disjoint_wl W C RWL Local
         (a_stk ^+ 4)%a e_stk (a_stk ^+ 4)%a eq_refl
         with "Hinterp_csp") as %[_ Hstack_disjoint].
@@ -559,15 +559,93 @@ Section Heap_Temporal_Safety_Interp.
           with "[$Hinterp_csp_q $Hworld_q]")
         as (l) "(%Htemps & Hworld_rev & Hstack_revoked &
           Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
-      (* CHECKPOINT: a fresh interactive MCP session replayed and accepted the
-         proof script through the world_interp_revoke_stack call above, then
-         stopped at the resulting WP goal. No full-mode compile of this file
-         was completed. Everything still needed after this point is
-         UNVERIFIED and INCOMPLETE: the exact-allocation branch's switcher
-         return, the narrowed-capability branch, and the remainder of this
-         theorem. The Admitted below marks this boundary; free_exec_entry_point
-         is not proved. *)
-  Admitted.
+      iMod (lc_fupd_elim_later with "Hlc Hrevoked") as "Hrevoked".
+      iMod "Hstack_mem" as (stk_mem) "Hstk".
+      iEval (cbn) in "HPCr_post".
+      iDestruct "Hca2_post" as (wca2') "Hca2_post".
+      iDestruct "Hct0_post" as (wct0') "Hct0_post".
+      iDestruct "Hct1_post" as (wct1') "Hct1_post".
+      iDestruct "Hct2_post" as (wct2') "Hct2_post".
+      iDestruct "Hct3_post" as (wct3') "Hct3_post".
+      iDestruct "Hct4_post" as (wct4') "Hct4_post".
+      iDestruct "Hctp_post" as (wctp') "Hctp_post".
+      iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
+      set (Wq := heap_std_update W h').
+      set (Wfixed := close_list
+        (l ++ finz.seq_between (a_stk ^+ 4)%a e_stk) (revoke Wq)).
+      destruct Htemps as [Hnodup Htemps].
+      assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
+        by (subst Wfixed; rewrite close_list_heap revoke_heap; exact Hheap_wf_q).
+      assert (related_sts_pub_world Wq Wfixed) as Hrelated_q_fixed.
+      { subst Wfixed. apply related_pub_revoke_close_list. exact Htemps. }
+      assert (related_sts_pub_world W Wfixed) as Hrelated_pub
+        by (eapply related_sts_pub_trans_world; eauto).
+      iDestruct (RevokedResources_mono_pub Wq Wfixed C l l
+        Hheap_wf_fixed Hrelated_q_fixed with "Hrevoked") as "Hrevoked".
+      iAssert (interp Wfixed C (WInt 0)) as "#Hinterp0".
+      { iApply interp_weakening.interp_int. }
+      iApply (switcher_ret_specification Nswitcher W (revoke Wq) C _
+        e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
+        (WInt 0) (WInt ALLOC_OK)
+        with "[$Halloc $Hswitcher $Hinterp0 $Hstk $Hcstk $Hcont $Hworld_rev $Hna_post $HPCr_post $Hrevoked $Hrmap $Hca0_post $Hca1_post $Hcspr]").
+      { exact Hrelated_pub. }
+      { apply regmap_full_dom in Hfull_rmap.
+        repeat rewrite dom_insert_L.
+        repeat rewrite dom_delete_L.
+        rewrite Hfull_rmap. set_solver+. }
+      { exact Hframe. }
+      { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
+      { exact Hnodup. }
+      { intros x Hx. apply Htemps. exact Hx. }
+    - (* A strict subrange of the allocation is rejected. *)
+      iDestruct "Hreceipt" as (reserved) "#Hreceipt".
+      iMod (world_interp_revoke_stack W C (a_stk ^+ 4)%a e_stk
+        (a_stk ^+ 4)%a with "[$Hinterp_csp $Hworld]") as (l)
+        "(%Htemps & Hworld & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
+      iApply (allocator_free_narrowed_spec ⊤ p g base objend reserved b e a
+        (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
+        with "[-]"); try solve_ndisj; try exact Hsubrange; try exact Hnarrow.
+      iFrame "Halloc Hservice Hna Hreceipt HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
+      iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
+      iNext.
+      iIntros "(Hna & _ & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
+      iDestruct "Hstack_mem" as (stk_mem) "Hstk".
+      iDestruct "Hca2" as (wca2') "Hca2".
+      iDestruct "Hct0" as (wct0') "Hct0".
+      iDestruct "Hct1" as (wct1') "Hct1".
+      iDestruct "Hct2" as (wct2') "Hct2".
+      iDestruct "Hct3" as (wct3') "Hct3".
+      iDestruct "Hct4" as (wct4') "Hct4".
+      iDestruct "Hctp" as (wctp') "Hctp".
+      iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
+      set (Wfixed := close_list
+        (l ++ finz.seq_between (a_stk ^+ 4)%a e_stk) (revoke W)).
+      destruct Htemps as [Hnodup Htemps].
+      assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
+        by (subst Wfixed; rewrite close_list_heap; exact Hheap_wf).
+      assert (related_sts_pub_world W Wfixed) as Hrelated_pub.
+      { subst Wfixed. apply related_pub_revoke_close_list. exact Htemps. }
+      iDestruct (RevokedResources_mono_pub W Wfixed C l l
+        Hheap_wf_fixed Hrelated_pub with "Hrevoked") as "Hrevoked".
+      iAssert (interp Wfixed C (WInt 0)) as "#Hinterp0".
+      { iApply interp_weakening.interp_int. }
+      iAssert (interp Wfixed C (WInt ALLOC_INVALID))
+        as "#Hinterp_status".
+      { iApply interp_weakening.interp_int. }
+      iApply (switcher_ret_specification Nswitcher W (revoke W) C _
+        e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
+        (WInt 0) (WInt ALLOC_INVALID)
+        with "[$Halloc $Hswitcher $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
+      { exact Hrelated_pub. }
+      { apply regmap_full_dom in Hfull_rmap.
+        repeat rewrite dom_insert_L.
+        repeat rewrite dom_delete_L.
+        rewrite Hfull_rmap. set_solver+. }
+      { exact Hframe. }
+      { destruct Hsync as [Hsync Heq]. rewrite <- Heq. exact Hsync. }
+      { exact Hnodup. }
+      { intros x Hx. apply Htemps in Hx. exact Hx. }
+  Qed.
 
 
   Lemma free_entry_point_spec

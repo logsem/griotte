@@ -143,7 +143,6 @@ Section Heap_Temporal_Safety_Blocks.
         + rewrite !fixpoint_interp1_eq /= /interp_sb.
           iDestruct "Hadv" as "[$ %Hvalid]".
           iPureIntro.
-          destruct (isO p); first done.
           rewrite /heap_cap_valid in Hvalid |- *.
           intros Hlt.
           specialize (Hvalid Hlt).

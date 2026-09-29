@@ -1469,7 +1469,8 @@ Section AllocatorFreeTraversal.
           ct4 ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0 ∗
-          allocator_reclaimed b e
+          allocator_reclaimed b e ∗
+          £ 1
 
           -∗ WP Seq (Instr Executable) @ E {{ φ }})
        -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
@@ -1748,7 +1749,7 @@ Section AllocatorFreeTraversal.
     iDestruct "Hcnull" as (wnull) "Hcnull".
     iApply (allocator_return_spec with
       "[- $HPC $Hcra $Hcnull $Hret_code]"); eauto.
-    iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code)".
+    iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code & Hlc)".
     iEval (rewrite -Hret_eq) in "Hret_code".
     iDestruct ("Hfreecode_cont" with "Hret_code") as "Hfreecode".
     iEval (rewrite -Hsplit7) in "Hfreecode".

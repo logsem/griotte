@@ -753,7 +753,7 @@ Section AllocatorMallocBlocks.
     iApply (allocator_return_spec with
       "[- $HPC $Hcra $Hcnull $Hret_code]"); eauto.
     { unfold allocator_malloc_block_addr in *. cbn. solve_addr. }
-    iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code)".
+    iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code & _)".
     iEval (rewrite -Hret_eq) in "Hret_code".
     iDestruct ("Hmalloc_cont" with "Hret_code") as "Hmalloc_code".
     iEval (rewrite -Hsplit9) in "Hmalloc_code".
@@ -1171,7 +1171,7 @@ Section AllocatorMallocBlocks.
         "[- $HPC $Hcra $Hcnull $Hret_code]").
       { unfold allocator_malloc_block_addr in *; cbn; solve_addr. }
       { exact Hdisjoint. }
-      iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code)".
+      iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code & _)".
       iEval (rewrite -Hret_eq) in "Hret_code".
       iDestruct ("Hmalloc_cont" with "Hret_code") as "Hmalloc_code".
       iEval (rewrite -Hsplit9) in "Hmalloc_code".
@@ -1244,7 +1244,7 @@ Section AllocatorMallocBlocks.
         "[- $HPC $Hcra $Hcnull $Hret_code]").
       { unfold allocator_malloc_block_addr in *; cbn; solve_addr. }
       { exact Hdisjoint. }
-      iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code)".
+      iNext. iIntros "(HPC & Hcra & Hcnull & Hret_code & _)".
       iEval (rewrite -Hret_eq) in "Hret_code".
       iDestruct ("Hmalloc_cont" with "Hret_code") as "Hmalloc_code".
       iEval (rewrite -Hsplit9) in "Hmalloc_code".

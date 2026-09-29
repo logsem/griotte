@@ -165,7 +165,7 @@ Section Heap_Temporal_Safety_Allocator.
       eauto.
     iNext.
     iIntros "(Hna & Hreceipt & HPC & Hcgp & Hcra & Hca0 & Hca1
-      & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hreclaimed)".
+      & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hreclaimed & _)".
     iEval (cbn) in "HPC".
     iExtractList "Hrmap" [cs0;cs1] as
       ["[Hcs0 %Hcs0]";"[Hcs1 %Hcs1]"].

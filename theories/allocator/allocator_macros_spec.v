@@ -76,7 +76,8 @@ Section AllocatorMacros.
     ▷ (PC ↦ᵣ updatePcPerm wret ∗
          cra ↦ᵣ wret ∗
          cnull ↦ᵣ WInt 0 ∗
-         codefrag pc_a code
+         codefrag pc_a code ∗
+         £ 1
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
   Proof.
@@ -84,7 +85,7 @@ Section AllocatorMacros.
     iIntros "(HPC & Hcra & Hcnull & Hcode & Hφ)".
     codefrag_facts "Hcode".
     (* Jalr cnull cra. *)
-    iInstr "Hcode".
+    iInstr "Hcode" with "Hlc".
     iApply "Hφ". iFrame.
   Qed.
 

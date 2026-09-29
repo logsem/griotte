@@ -229,7 +229,7 @@ Section Heap_Temporal_Safety_Blocks.
         & Himport_adv & Himport_free & Himports_tail & Hp
         & Himport_switcher & Himport_malloc & Hworld & Hrevoked_l
         & Hna & Hcra & Hcs0 & Hcs1 & Hcsp & Hstk & Hcstk
-        & Hallocation & Hrmap & Hca1 & Hct0 & Hcgp & Hsaved
+        & #Hallocation & Hrmap & Hca1 & Hct0 & Hcgp & Hsaved
         & HPC & Hca0 & Hb & Hcode)".
     change ((pc_a + length
       (concat (take 5 (encodeInstrsW <$> assembled_hts_main))))%a = Some a_store)
