@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte.allocator Require Import allocator_preamble.
 
-From griotte Require Import proofmode.
+From griotte Require Import proofmode heap_region.
 
 Lemma allocator_chain_bounds h stop allocations :
   allocator_chain h stop allocations -> (h <= stop)%a.
@@ -176,8 +176,60 @@ End AllocatorHistoryContracts.
 
 Section AllocatorServiceContracts.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
-    {allocator_historyg : allocatorHistoryG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
+
+  Lemma allocator_history_heap_bounds h allocations next :
+    allocator_chain (heap_b ^+ 1)%a next allocations ->
+    allocator_history allocations -∗
+    heap_provenance h -∗
+    ⌜∀ c o, h !! c = Some o ->
+      (c < alloc_object_end o /\ alloc_object_end o <= next)%a⌝.
+  Proof.
+    revert allocations next.
+    induction h as [|c o h Hnone IH] using map_ind;
+      intros allocations next Hchain; iIntros "Hhistory #Hprovenance".
+    - iPureIntro. intros c o Hlookup. rewrite lookup_empty in Hlookup. discriminate.
+    - iEval (rewrite /heap_provenance big_sepM_insert //) in "Hprovenance".
+      iDestruct "Hprovenance" as "[#Hreceipt #Hrest]".
+      iDestruct "Hreceipt" as (reserved) "#Hreceipt".
+      iDestruct (allocator_history_lookup_spec with "Hhistory Hreceipt")
+        as %Hhist_lookup.
+      apply (proj1 (allocator_chain_lookup_spec _ _ _ _ _ _ Hchain)) in Hhist_lookup.
+      pose proof (allocator_chain_member_bounds (heap_b ^+ 1)%a next
+        allocations c (alloc_object_end o) reserved Hchain Hhist_lookup)
+        as (_ & Hbe & Hend).
+      iDestruct (IH allocations next Hchain with "Hhistory Hrest") as %Hrest_bounds.
+      iPureIntro. intros c' o' Hlookup.
+      rewrite lookup_insert_Some in Hlookup.
+      naive_solver.
+  Qed.
+
+  Lemma allocator_history_heap_fresh h allocations next b e :
+    allocator_chain (heap_b ^+ 1)%a next allocations ->
+    allocator_header_bounds next heap_e b e ->
+    allocator_history allocations -∗
+    heap_provenance h -∗
+    ⌜heap_fresh h b e⌝.
+  Proof.
+    iIntros (Hchain Hchunk) "Hhistory Hprovenance".
+    iDestruct (allocator_history_heap_bounds h allocations next Hchain
+      with "Hhistory Hprovenance") as %Hbounds.
+    destruct Hchunk as [Hbase Hrest].
+    destruct Hrest as [Hbe Hend].
+    iPureIntro. unfold heap_fresh.
+    split.
+    { destruct (h !! b) as [o|] eqn:Hlookup; last done.
+      pose proof (Hbounds b o Hlookup) as [_ Hoend].
+      unfold allocator_header_words in Hbase.
+      exfalso.
+      pose proof (proj1 (Hbounds b o Hlookup)) as Hb_end.
+      solve_addr. }
+    split; first exact Hbe.
+    intros c o a Hlookup Hnew Hold.
+    pose proof (Hbounds c o Hlookup) as [_ Hoend].
+    unfold alloc_object_contains in Hold.
+    unfold allocator_header_words in Hbase. solve_addr.
+  Qed.
 
   (** The bump slot already contains [e]: the executable store must precede
       this logical publication. This update neither writes memory nor paints. *)

@@ -53,6 +53,23 @@ Section world_ghost_theory.
   Definition world_interp_open := proj1_sig world_interp_open_aux.
   Definition world_interp_open_eq : @world_interp_open = @world_interp_open_def := proj2_sig world_interp_open_aux.
 
+  Lemma world_interp_open_heap_provenance W C s :
+    world_interp_open W C s -∗
+      world_interp_open W C s ∗ heap_provenance (heap_std W).
+  Proof.
+    iIntros "Hworld".
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iDestruct "Hworld" as "(Hregion & Hsts & Hseal)".
+    rewrite open_region_many_eq /open_region_many_def.
+    iDestruct "Hregion" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
+    rewrite /region_map_def.
+    iDestruct "Hmap" as "[%Hcovered [[Hfrags #Hprovenance] Hentries]]".
+    iFrame "Hprovenance".
+    iFrame "Hsts Hseal".
+    iExists M, Mρ. iFrame "HM Hfrags Hentries".
+    iFrame "%".
+  Qed.
+
   (** Definition of [world_interp_sopen].
       The sealing resources of the otype [o] are not owned by the world interpretation. *)
   Definition world_interp_sopen_def (W : WORLD) (C : CmptName) (o : OType) : iProp Σ :=
@@ -2643,9 +2660,108 @@ Section world_ghost_theory.
       rewrite mono_invariant_monotonicity_guarantees_region; eauto.
     Qed.
 
-  Lemma hts_world_heap_allocate_empty W C b e :
+  Lemma hts_world_heap_allocate W C b e reserved :
+    heap_fresh (heap_std W) b e ->
+    allocator_allocation b e reserved -∗
+    world_interp W C
+    ==∗
+    world_interp (heap_std_update W
+      (heap_allocate (heap_std W) b e)) C.
+  Proof.
+    intros Hfresh.
+    assert (related_sts_pub_world W
+      (heap_std_update W (heap_allocate (heap_std W) b e))) as Hrelated.
+    { apply related_sts_pub_world_heap_update.
+      apply heap_allocate_future. exact Hfresh. }
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "#Hreceipt (Hr & Hsts & Hseal)".
+    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hwf_old.
+    pose proof (heap_allocate_wf (heap_std W) b e Hwf_old Hfresh)
+      as Hwf_new.
+    iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
+    iMod (heap_std_full_allocate _ _ b e Hfresh with "Hheap")
+      as "[Hheap Hnewfrag]".
+    iModIntro.
+    iSplitL "Hr Hnewfrag".
+    { rewrite region_eq /region_def /region_map_def.
+      iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
+      iDestruct "Hmap" as "[%Hcovered [[Hfrags #Hprov] Hentries]]".
+      iExists M, Mρ. iFrame "HM".
+      iSplit; first done. iSplit; first done.
+      iSplit.
+      { iPureIntro. intros a Ha.
+        rewrite /heap_addr_status /heap_std_update /= in Ha.
+        destruct (is_heap_address a) eqn:Ha_heap; last discriminate.
+        destruct (heap_lookup_addr (heap_allocate (heap_std W) b e) a)
+          as [[c o]|] eqn:Hlookup; last discriminate.
+        apply heap_lookup_addr_sound in Hlookup as [Hentry Hcontains].
+        rewrite /heap_allocate lookup_insert_Some in Hentry.
+        destruct Hentry as [[-> <-]|[Hne Hold]]; first discriminate.
+        assert (heap_lookup_addr (heap_std W) a = Some (c, o))
+          as Hlookup_old by (apply heap_lookup_addr_complete; auto).
+        apply Hcovered. rewrite /heap_addr_status Ha_heap Hlookup_old.
+        exact Ha. }
+      iSplitL "Hnewfrag Hfrags".
+      { iSplitL "Hnewfrag Hfrags".
+        { rewrite /heap_std_fragments /heap_allocate big_sepM_insert;
+            last exact (proj1 Hfresh).
+          iFrame. }
+        rewrite /heap_provenance /heap_allocate big_sepM_insert;
+          last exact (proj1 Hfresh).
+        iSplitL; last iExact "Hprov".
+        iExists reserved. iFrame "#". }
+      iApply (big_sepM_mono with "Hentries").
+      iIntros (a γ Hsome) "Hm".
+      iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
+      iExists ρ. iFrame. iSplitR; first done.
+      iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
+      iExists γpred, p, φ. iFrame "%#".
+      destruct (is_heap_address a) eqn:Ha_heap.
+      { destruct (heap_lookup_addr (heap_std W) a) as [[c o]|]
+          eqn:Hlookup_old; last done.
+        apply heap_lookup_addr_sound in Hlookup_old as [Hentry Hcontains].
+        assert (c ≠ b) as Hne.
+        { intros ->. rewrite (proj1 Hfresh) in Hentry. discriminate. }
+        assert (heap_lookup_addr (heap_allocate (heap_std W) b e) a =
+          Some (c, o)) as Hlookup_new.
+        { apply heap_lookup_addr_complete; auto.
+          rewrite /heap_allocate lookup_insert_ne; auto. }
+        rewrite /heap_std_update /= Hlookup_new.
+        destruct (alloc_object_status o).
+        - destruct ρ; cbn [region_std_interp]; last done.
+          + iDestruct "Hl" as (v HneO) "(Hl & #HmonoV & Hφ)".
+            iFrame "%#∗". iNext.
+            destruct (isWL p); [| destruct (isDL p)].
+            * iApply ("HmonoV" with "[] [] Hφ"); done.
+            * iApply ("HmonoV" with "[] [] Hφ"); done.
+            * iApply ("HmonoV" with "[] [] Hφ"); last done.
+              iPureIntro. by apply related_sts_pub_priv_world.
+          + iDestruct "Hl" as (v HneO) "(Hl & #HmonoV & Hφ)".
+            iExists v. iFrame "Hl HmonoV". iSplit; first done.
+            iNext. iApply ("HmonoV" with "[] [] Hφ"); last done.
+            iPureIntro. by apply related_sts_pub_priv_world.
+        - iExact "Hl". }
+      destruct ρ; cbn [region_std_interp]; last done.
+      - iDestruct "Hl" as (v HneO) "(Hl & #HmonoV & Hφ)".
+        iFrame "%#∗". iNext.
+        destruct (isWL p); [| destruct (isDL p)].
+        + iApply ("HmonoV" with "[] [] Hφ"); done.
+        + iApply ("HmonoV" with "[] [] Hφ"); done.
+        + iApply ("HmonoV" with "[] [] Hφ"); last done.
+          iPureIntro. by apply related_sts_pub_priv_world.
+      - iDestruct "Hl" as (v HneO) "(Hl & #HmonoV & Hφ)".
+        iExists v. iFrame "Hl HmonoV". iSplit; first done.
+        iNext. iApply ("HmonoV" with "[] [] Hφ"); last done.
+        iPureIntro. by apply related_sts_pub_priv_world. }
+    iSplitL "Hstd Hloc Hseals Hheap".
+    { rewrite /sts_full_world /heap_std_update /=. iFrame "∗#". }
+    iApply (sealing_map_monotone_pub with "Hseal"); done.
+  Qed.
+
+  Lemma hts_world_heap_allocate_empty W C b e reserved :
     heap_std W = ∅ ->
     (b < e)%a ->
+    allocator_allocation b e reserved -∗
     world_interp W C
     ==∗
     world_interp (heap_std_update W (heap_allocate ∅ b e)) C.
@@ -2660,7 +2776,7 @@ Section world_ghost_theory.
     { apply related_sts_pub_world_heap_update. rewrite Hempty.
       apply heap_allocate_future. exact Hfresh. }
     rewrite world_interp_eq /world_interp_def.
-    iIntros "(Hr & Hsts & Hseal)".
+    iIntros "#Hreceipt (Hr & Hsts & Hseal)".
     iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
     iEval (rewrite Hempty) in "Hheap".
     iMod (heap_std_full_allocate _ _ b e Hfresh with "Hheap")
@@ -2683,9 +2799,14 @@ Section world_ghost_theory.
         destruct Hentry as [ [-> <-] | [_ Hbad] ]; first discriminate.
         rewrite lookup_empty in Hbad. discriminate. }
       iSplitL "Hnewfrag".
-      { rewrite /heap_std_fragments /heap_allocate big_sepM_insert;
+      { iSplitL "Hnewfrag".
+        { rewrite /heap_std_fragments /heap_allocate big_sepM_insert;
+            last apply lookup_empty.
+          rewrite big_sepM_empty. iFrame. }
+        rewrite /heap_provenance /heap_allocate big_sepM_insert;
           last apply lookup_empty.
-        rewrite big_sepM_empty. iFrame. }
+        rewrite big_sepM_empty. iSplit; last done.
+        iExists reserved. iFrame "#". }
       iApply (big_sepM_mono with "Hr").
       iIntros (a γ Hsome) "Hm".
       iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
@@ -2740,10 +2861,11 @@ Section world_ghost_theory.
     (forall a, a <> b ->
       heap_addr_status (heap_std W) a = heap_addr_status h' a) ->
     b ∈ dom (std W) ->
+    heap_provenance h' -∗
     world_interp_open W C [b]
     ==∗ world_interp_open (heap_std_update W h') C [b].
   Proof.
-    iIntros (Hheap_future Hwf_new Hstatus Hb_dom) "Hworld".
+    iIntros (Hheap_future Hwf_new Hstatus Hb_dom) "#Hprovenance Hworld".
     pose proof (related_sts_pub_world_heap_update W h' Hheap_future)
       as Hrelated.
     rewrite world_interp_open_eq /world_interp_open_def.
@@ -2751,7 +2873,7 @@ Section world_ghost_theory.
     rewrite open_region_many_eq /open_region_many_def.
     iDestruct "Hregion" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
     iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
-    iDestruct "Hmap" as "[%Hcovered_old [Hfrags Hentries]]".
+    iDestruct "Hmap" as "[%Hcovered_old [[Hfrags _] Hentries]]".
     iMod (heap_std_full_update C (heap_std W) h' Hheap_future
       with "Hheap Hfrags") as "[Hheap Hfrags]".
     iModIntro.
@@ -2764,7 +2886,7 @@ Section world_ghost_theory.
         destruct (decide (a = b)) as [->|Hne]; first exact Hb_dom.
         apply Hcovered_old. rewrite (Hstatus a Hne).
         exact Hquarantined. }
-      iFrame "Hfrags".
+      iFrame "Hfrags Hprovenance".
       iApply (big_sepM_mono with "Hentries").
       iIntros (a γ Hsome) "Hentry".
       assert (a <> b) as Hne.
@@ -2836,6 +2958,7 @@ Section world_interp_Pre.
       rewrite /= !dom_empty_L //. repeat iSplit; eauto.
       - iPureIntro; apply heap_quarantine_covered_empty.
       - rewrite /heap_std_fragments /= big_sepM_empty. done.
+      - rewrite /heap_provenance /= big_sepM_empty. done.
     }
     iCombine "Hr" "Hsts" as "H".
     rewrite -big_sepS_sep.

@@ -62,7 +62,8 @@ Section standard_world_interp.
     (MC : gmap Addr (gname * Perm))
     (Mρ: gmap Addr region_type) :=
     (⌜heap_quarantine_covered (heap_std W) (std W)⌝ ∗
-     heap_std_fragments C (heap_std W) ∗
+     (heap_std_fragments C (heap_std W) ∗
+      heap_provenance (heap_std W)) ∗
      [∗ map] a↦γp ∈ MC,
        ∃ ρ, ⌜Mρ !! a = Some ρ⌝
             ∗ sts_state_std C a ρ

@@ -31,7 +31,6 @@ Section AllocatorFreeTraversal.
   Context {Σ : gFunctors}
     {ceriseg : ceriseG Σ}
     {allocatorg : allocatorG Σ}
-    {allocator_historyg : allocatorHistoryG Σ}
     {MP : MachineParameters}
     {layout : allocatorLayout}.
 

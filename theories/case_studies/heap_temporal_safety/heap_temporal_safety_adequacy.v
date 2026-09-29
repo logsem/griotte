@@ -187,7 +187,6 @@ Section Adequacy.
   Context {inv_preg : invGpreS Σ}.
   Context {shadow_preg : gen_heapGpreS Addr AllocStatus Σ}.
   Context {allocator_preg : allocator_preG Σ}.
-  Context {allocator_history_preg : ghost_mapG Σ Addr (Addr * (Z * Z))}.
   Context {mem_preg : gen_heapGpreS Addr Word Σ}.
   Context {reg_preg : gen_heapGpreS RegName Word Σ}.
   Context {sreg_preg : gen_heapGpreS SRegName Word Σ}.
@@ -300,7 +299,7 @@ Section Adequacy.
     iDestruct (big_sepM_sep with "Hheap") as "Hheap".
     iMod (allocator_service_init_correct ⊤ initial_heap_memory
       with "Hservice_initial Hheap")
-      as (allocatorg allocator_historyg) "[#Halloc #Hservice]".
+      as (allocatorg) "[#Halloc #Hservice]".
     { split; first exact hts_allocator_wf.
       by rewrite /initial_heap_memory dom_gset_to_gmap. }
 

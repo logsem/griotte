@@ -73,13 +73,6 @@ Definition allocator_free_valid {MP : MachineParameters}
     preserves both fields after initialization. Receipts record metadata, not
     liveness or authority to access the payload. *)
 
-Class allocatorHistoryG Σ := {
-  allocator_history_inG :: ghost_mapG Σ Addr (Addr * (Z * Z));
-  allocator_history_gname : gname;
-}.
-
-Definition allocator_historyΣ : gFunctors := ghost_mapΣ Addr (Addr * (Z * Z)).
-
 Section AllocatorHeaders.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
 
@@ -138,10 +131,8 @@ Section AllocatorHistory.
   Context {Σ : gFunctors} {allocator_historyg : allocatorHistoryG Σ}.
 
   Definition allocator_history (allocations : list allocator_header_entry) : iProp Σ :=
-    ghost_map_auth allocator_history_gname 1 (list_to_map allocations).
-
-  Definition allocator_allocation (b e : Addr) (reserved : Z * Z) : iProp Σ :=
-    ghost_map_elem allocator_history_gname b DfracDiscarded (e, reserved).
+    @ghost_map_auth Σ Addr (Addr * (Z * Z)) _ _ allocator_history_inG
+      allocator_history_gname 1 (list_to_map allocations).
 
 End AllocatorHistory.
 
@@ -158,8 +149,6 @@ Section AllocatorService.
   Definition allocator_service_static : iProp Σ :=
     ([[allocator_pcc_b, allocator_code_b]] ↦ₐ [[allocator_imports]] ∗
      codefrag allocator_code_b allocator_code)%I.
-
-  Context {allocator_historyg : allocatorHistoryG Σ}.
 
   (** The reserved first address is never allocated or quarantined. Keeping its
       free-address token proves that the heap capability's base has a clear bit.

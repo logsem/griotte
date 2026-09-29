@@ -26,7 +26,6 @@ Section Heap_Temporal_Safety_Allocator.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
-    {allocator_historyg : allocatorHistoryG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}.

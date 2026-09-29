@@ -16,7 +16,6 @@ Section Heap_Temporal_Safety_Blocks.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
-    {allocator_historyg : allocatorHistoryG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -297,7 +296,7 @@ Section Heap_Temporal_Safety_Blocks.
     iDestruct (hts_world_empty_heap_fresh (revoke W_init_C) C b
       Hb_heap Hheap_revoke with "Hworld") as %Hb_fresh.
     iMod (hts_world_heap_allocate_empty (revoke W_init_C) C b (b ^+ 1)%a
-      with "Hworld") as "Hworld".
+      (0%Z, 0%Z) with "Hallocation Hworld") as "Hworld".
     { exact Hheap_revoke. }
     { exact (proj1 (proj2 (proj1 Hbounds))). }
 

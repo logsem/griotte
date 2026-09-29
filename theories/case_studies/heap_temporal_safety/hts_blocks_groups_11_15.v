@@ -17,7 +17,6 @@ Section Heap_Temporal_Safety_Blocks.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
-    {allocator_historyg : allocatorHistoryG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -352,9 +351,13 @@ Section Heap_Temporal_Safety_Blocks.
       as Hstatus_other.
     assert (b ∈ dom (std (revoke Wret))) as Hb_dom_rev.
     { rewrite elem_of_dom. eexists. exact Hstd_rev. }
+    iDestruct (world_interp_open_heap_provenance with "Hworld_open")
+      as "[Hworld_open #Hprovenance]".
+    iDestruct (heap_provenance_quarantine with "Hprovenance")
+      as "#Hprovenance_free".
     iMod (hts_world_open_heap_transition (revoke Wret) C b
       (heap_quarantine (heap_std (revoke Wret)) b)
-      with "Hworld_open") as "Hworld_open".
+      with "Hprovenance_free Hworld_open") as "Hworld_open".
     { apply heap_quarantine_future. }
     { apply heap_quarantine_wf. exact Hwf_rev. }
     { exact Hstatus_other. }

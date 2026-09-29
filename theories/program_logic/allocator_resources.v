@@ -1,4 +1,5 @@
 From iris.algebra Require Import gset.
+From iris.base_logic.lib Require Import ghost_map.
 From iris.proofmode Require Import proofmode.
 From griotte Require Export cerise_instance machine_parameters machine_base.
 
@@ -30,17 +31,37 @@ Proof.
   symmetry. apply withinBounds_true_iff.
 Qed.
 
+Class allocatorHistoryG Σ := {
+  allocator_history_inG :: ghost_mapG Σ Addr (Addr * (Z * Z));
+  allocator_history_gname : gname;
+}.
+
+Definition allocator_historyΣ : gFunctors := ghost_mapΣ Addr (Addr * (Z * Z)).
+
+Definition allocator_allocation {Σ : gFunctors} {allocator_historyg : allocatorHistoryG Σ}
+    (b e : Addr) (reserved : Z * Z) : iProp Σ :=
+  @ghost_map_elem Σ Addr (Addr * (Z * Z)) _ _ allocator_history_inG
+    allocator_history_gname b DfracDiscarded (e, reserved).
+
 Class allocator_preG Σ := {
   allocator_token_inG :: inG Σ (gset_disjUR Addr);
+  allocator_history_preG :: ghost_mapG Σ Addr (Addr * (Z * Z));
 }.
 
 Class allocatorG Σ := {
   allocator_preG_inG :: allocator_preG Σ;
   allocator_name : gname;
   allocator_free_name : gname;
+  allocator_historyG_instance :: allocatorHistoryG Σ;
 }.
 
-Definition allocator_preΣ : gFunctors := #[GFunctor (gset_disjUR Addr)].
+Definition allocator_history_empty {Σ : gFunctors} {allocatorg : allocatorG Σ} : iProp Σ :=
+  @ghost_map_auth Σ Addr (Addr * (Z * Z)) _ _
+    (@allocator_history_inG Σ (@allocator_historyG_instance Σ allocatorg))
+    (@allocator_history_gname Σ (@allocator_historyG_instance Σ allocatorg))
+    1 (∅ : gmap Addr (Addr * (Z * Z))).
+
+Definition allocator_preΣ : gFunctors := #[GFunctor (gset_disjUR Addr); allocator_historyΣ].
 
 #[global] Instance subG_allocator_preΣ {Σ} :
   subG allocator_preΣ Σ -> allocator_preG Σ.
@@ -217,13 +238,19 @@ Section Initialization.
     dom m = heap_addresses ->
     allocator_initial_resources m ={E}=∗
     ∃ ag : allocatorG Σ, @allocator_ctx Σ _ ag MP ∗ @allocator_client_resources ag m ∗
-      @allocator_initial_free_tokens ag m.
+      @allocator_initial_free_tokens ag m ∗
+      @allocator_history_empty Σ ag.
   Proof.
     iIntros (Hdom) "Hm".
     iMod (own_alloc (GSet (dom m))) as (γ) "Htokens"; first done.
     iMod (own_alloc (GSet (dom m))) as (γfree) "Hfree"; first done.
+    iMod (ghost_map_alloc_empty (K := Addr) (V := (Addr * (Z * Z))%type))
+      as (γhistory) "Hhistory".
+    pose (hg := {| allocator_history_inG := allocator_history_preG;
+                   allocator_history_gname := γhistory |}).
     pose (ag := {| allocator_preG_inG := allocator_preG0; allocator_name := γ;
-                  allocator_free_name := γfree |}).
+                  allocator_free_name := γfree;
+                  allocator_historyG_instance := hg |}).
     iExists ag.
     iDestruct (@reclaim_tokens_split Σ ag with "Htokens") as "Htokens".
     iDestruct (@free_addr_tokens_split Σ ag with "Hfree") as "Hfree".
@@ -240,7 +267,7 @@ Section Initialization.
       with "[Hinv]") as "#Halloc".
     { iNext. iExists (fst <$> m).
       rewrite dom_fmap_L Hdom big_sepM_fmap. iFrame. done. }
-    iModIntro. iFrame "Hclient Halloc Hfree".
+    iModIntro. iFrame "Hclient Halloc Hfree Hhistory".
   Qed.
 
   Lemma allocator_init E (m : gmap Addr (AllocState * Word)) :
@@ -249,7 +276,7 @@ Section Initialization.
     ∃ ag : allocatorG Σ, @allocator_ctx Σ _ ag MP ∗ @allocator_client_resources ag m.
   Proof.
     iIntros (Hdom) "Hm".
-    iMod (allocator_init_with_free_tokens E m with "Hm") as (ag) "[Halloc [Hclient _]]";
+    iMod (allocator_init_with_free_tokens E m with "Hm") as (ag) "[Halloc [Hclient [_ _]]]";
       first done.
     iModIntro. iExists ag. iFrame.
   Qed.

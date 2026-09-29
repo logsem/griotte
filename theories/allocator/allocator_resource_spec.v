@@ -86,7 +86,8 @@ Section AllocatorInitializationProofs.
        ∃ ag : allocatorG Σ,
          allocator_ctx (allocatorg := ag) ∗
          allocator_client_resources (allocatorg := ag) m ∗
-         allocator_initial_free_tokens (allocatorg := ag) m)%I.
+         allocator_initial_free_tokens (allocatorg := ag) m ∗
+         allocator_history_empty (allocatorg := ag))%I.
   Proof.
     intros Hdom.
     iIntros "Hm".
@@ -100,15 +101,16 @@ Section AllocatorInitializationProofs.
        ={E}=∗
        ∃ ag : allocatorG Σ,
          allocator_ctx (allocatorg := ag) ∗
-         free_addrs (allocatorg := ag) heap_b heap_e)%I.
+         free_addrs (allocatorg := ag) heap_b heap_e ∗
+         allocator_history_empty (allocatorg := ag))%I.
   Proof.
     intros Hdom.
     iIntros "Hm".
     iMod (allocator_init_with_free_tokens E ((fun v => (Free,v)) <$> mem)
-      with "[Hm]") as (ag) "[Halloc [_ Hfree]]".
+      with "[Hm]") as (ag) "[Halloc [_ [Hfree Hhistory]]]".
     { by rewrite dom_fmap_L. }
     { rewrite /allocator_initial_resources big_sepM_fmap. iExact "Hm". }
-    iModIntro. iExists ag. iFrame "Halloc".
+    iModIntro. iExists ag. iFrame "Halloc Hhistory".
     rewrite /allocator_initial_free_tokens big_sepM_fmap /= big_sepM_dom Hdom
       /heap_addresses big_sepS_list_to_set; last apply finz_seq_between_NoDup.
     iExact "Hfree".
@@ -135,17 +137,14 @@ Section AllocatorServiceInitializationProofs.
        ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗
        a ↦ₛ ShadowLive)
        ={E}=∗
-       ∃ (ag : allocatorG Σ) (hg : allocatorHistoryG Σ),
+       ∃ (ag : allocatorG Σ),
          allocator_ctx (allocatorg := ag) ∗
-         allocator_service_ctx (allocatorg := ag) (allocator_historyg := hg))%I.
+         allocator_service_ctx (allocatorg := ag))%I.
   Proof.
     intros [Hwf Hdom].
     iIntros "[Hstatic Hdata] Hheap".
-    iMod (allocator_init_free_with_tokens_correct E mem Hdom with "Hheap") as (ag) "[Halloc Hfree]".
-    iMod (ghost_map_alloc_empty (K := Addr) (V := (Addr * (Z * Z))%type))
-      as (γ) "Hhistory".
-    pose (hg := {| allocator_history_inG := allocator_history_preg;
-                   allocator_history_gname := γ |}).
+    iMod (allocator_init_free_with_tokens_correct E mem Hdom with "Hheap")
+      as (ag) "[Halloc [Hfree Hhistory]]".
     iDestruct (region_pointsto_single with "Hdata") as (w) "[Hdata %Hword]".
     { exact (@allocator_size_data MP layout Hwf). }
     injection Hword as <-.
@@ -153,13 +152,15 @@ Section AllocatorServiceInitializationProofs.
       big_sepL_cons) in "Hfree".
     iDestruct "Hfree" as "[Hroot Hfree]".
     iMod (na_inv_alloc cerise_nais E Nallocator_service
-      (allocator_service_inv (allocatorg := ag) (allocator_historyg := hg))
+      (allocator_service_inv (allocatorg := ag))
       with "[Hstatic Hdata Hroot Hfree Hhistory]") as "#Hservice".
     { iNext. iFrame "Hstatic". iExists (heap_b ^+ 1)%a, [].
-      iFrame "Hdata Hroot Hfree Hhistory". iPureIntro.
+      iEval (rewrite /allocator_history_empty /allocator_history /=) in "Hhistory".
+      iFrame "Hdata Hroot Hfree Hhistory".
+      iPureIntro.
       split; last done.
       pose proof heap_valid. solve_addr. }
-    iModIntro. iExists ag, hg. iFrame "Halloc Hservice".
+    iModIntro. iExists ag. iFrame "Halloc Hservice".
   Qed.
 
 End AllocatorServiceInitializationProofs.

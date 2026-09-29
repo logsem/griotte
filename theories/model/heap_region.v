@@ -37,6 +37,36 @@ Proof. intros Hdom Hcovered a Hstatus. by apply Hdom, Hcovered. Qed.
 Section heap_region.
   Context {Σ : gFunctors} {allocatorg : allocatorG Σ} `{HeapRegion}.
 
+  (** Every logical object is backed by an immutable physical allocation
+      receipt. The receipt remains available after the object is quarantined. *)
+  Definition heap_provenance (h : Heap) : iProp Σ :=
+    [∗ map] b ↦ o ∈ h,
+      ∃ reserved : Z * Z, allocator_allocation b (alloc_object_end o) reserved.
+
+  Global Instance heap_provenance_persistent h : Persistent (heap_provenance h).
+  Proof. apply _. Qed.
+
+  Lemma heap_provenance_quarantine h b :
+    heap_provenance h -∗ heap_provenance (heap_quarantine h b).
+  Proof.
+    iIntros "#Hprovenance".
+    iApply big_sepM_intro.
+    iIntros (c o' Hlookup). iModIntro.
+    destruct (decide (c = b)) as [->|Hne].
+    - destruct (h !! b) as [o|] eqn:Hb.
+      + rewrite (heap_quarantine_lookup h b o Hb) in Hlookup.
+        injection Hlookup as <-.
+        iDestruct (big_sepM_lookup with "Hprovenance") as (reserved) "#Hreceipt";
+          first exact Hb.
+        iExists reserved. simpl. iFrame "#".
+      + rewrite /heap_quarantine fin_maps.lookup_alter_eq Hb in Hlookup.
+        discriminate.
+    - rewrite (heap_quarantine_lookup_ne h b c (λ Heq, Hne (eq_sym Heq))) in Hlookup.
+      iDestruct (big_sepM_lookup with "Hprovenance") as (reserved) "#Hreceipt";
+        first exact Hlookup.
+      iExists reserved. iFrame "#".
+  Qed.
+
   Definition heap_addr_resource (W_heap : Heap) (a : Addr) (P : iProp Σ) : iProp Σ :=
     (if is_heap_address a then
        match heap_lookup_addr W_heap a with
@@ -134,4 +164,3 @@ Proof.
       + rewrite heap_quarantine_lookup_ne in Hc; [|congruence].
         exfalso. exact (Hnone c o Hc Hcontains).
   Qed.
-

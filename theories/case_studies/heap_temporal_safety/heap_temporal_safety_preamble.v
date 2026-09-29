@@ -9,7 +9,6 @@ Definition hts_allocator_exp_tblN : namespace := htsN .@ "allocator_exports".
 
 Section Heap_Temporal_Safety_Resources.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
-    {allocator_historyg : allocatorHistoryG Σ}
     `{MP : MachineParameters}.
 
   Definition hts_buffer (b : Addr) : Word :=
