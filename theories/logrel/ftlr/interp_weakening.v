@@ -66,6 +66,41 @@ Section fundamental.
     repeat split; eauto using notexecuteAllowed_flowsfrom, notisWL_flowsfrom.
   Qed.
 
+  (* TODO: move to logrel.v. *)
+  Lemma interp_cap_heap_conditions W C p g b e a :
+    interp W C (WCap true p g b e a) -∗
+    ⌜heap_cap_O_valid W p g b e⌝.
+  Proof.
+    rewrite fixpoint_interp1_eq interp1_eq.
+    destruct (isO p); first by iIntros "$".
+    destruct (has_sreg_access p); first by iIntros "H".
+    iIntros "[#Hlist %Hconditions]".
+    rewrite /heap_cap_O_valid.
+    iSplit; first (iPureIntro; exact (proj2 (proj2 Hconditions))).
+    iIntros (x Hx Hheap).
+    iDestruct (big_sepL_elem_of with "Hlist") as (q P)
+      "(Hflow & Hpers & Hrel & Hz & Hr & Hw & Hmono & %Hstate)";
+      first exact Hx.
+    iPureIntro. destruct (isWL p) eqn:Hwl; last done.
+    destruct Hconditions as [Hlocal _]. subst g. by right.
+  Qed.
+
+  Lemma interp_weakening_O_same_bounds W C t p p' g g' b e a a' :
+    isO p' = true ->
+    PermFlowsTo p' p ->
+    LocalityFlowsTo g' g ->
+    interp W C (WCap t p g b e a) -∗
+    interp W C (WCap t p' g' b e a').
+  Proof.
+    intros HpO Hp Hg. iIntros "Hinterp".
+    destruct t; last (iApply interp_untagged; done).
+    iDestruct (interp_cap_heap_conditions with "Hinterp") as %[Hvalid Hcoverage].
+    iEval (rewrite fixpoint_interp1_eq interp1_eq HpO).
+    iPureIntro. split; first (eapply heap_cap_valid_perm; eauto).
+    intros x Hx Hheap. specialize (Hcoverage x Hx Hheap).
+    destruct g, g'; cbn in Hg; try done. by left.
+  Qed.
+
   Lemma interp_weakening_same_bounds W C t p p' g g' b e a a' :
     isO p = false →
     isO p' = false →
@@ -240,7 +275,11 @@ Section fundamental.
         destruct p.
         destruct (isO (BPerm rx w dl dro)) eqn:HpO.
         { destruct rx,w; cbn in *; try done.
-          rewrite !fixpoint_interp1_eq //=.
+          rewrite !fixpoint_interp1_eq /=.
+          iDestruct "Hw" as %[Hvalid Hcoverage].
+          iPureIntro. split; first done.
+          intros x Hx Hheap. specialize (Hcoverage x Hx Hheap).
+          destruct g; [by left|done].
         }
         iApply interp_weakening_same_bounds; eauto; try done; try solve_addr.
       }
@@ -262,8 +301,9 @@ Section fundamental.
       rewrite !fixpoint_interp1_eq //=.
     }
     destruct (isO (BPerm rx Ow dl DRO)) eqn:HpO'.
-    { destruct rx,w; cbn in *; try done.
-      all: rewrite !fixpoint_interp1_eq //=.
+    { iApply (interp_weakening_O_same_bounds with "Hw"); auto.
+      - apply DRO_flowsto.
+      - by destruct g.
     }
     iApply (interp_weakening_same_bounds with "Hw"); eauto; try done; try solve_addr.
     apply DRO_flowsto.
@@ -294,9 +334,7 @@ Section fundamental.
   Proof.
     iIntros "#Hsealed Hmem".
     destruct sb as [t p g b e a|t p g b e a]; destruct t.
-    - destruct (isO p) eqn:Hp.
-      { iEval (rewrite fixpoint_interp1_eq interp1_eq Hp). done. }
-      iEval (rewrite fixpoint_interp1_eq /= /interp_sb Hp) in "Hsealed".
+    - iEval (rewrite fixpoint_interp1_eq /= /interp_sb) in "Hsealed".
       iDestruct "Hsealed" as "[_ %Hvalid]".
       iEval (rewrite interp_in_mem_eq /load_word /= /filter_heap
         /heap_authority_base /=) in "Hmem".
@@ -473,8 +511,7 @@ Section fundamental.
     - iApply sts_seals_std_weaken; last iFrame "#". set_solver+.
     - destruct sb as [t q l b' e' a'|t q l b' e' a']; destruct t;
         cbn in Htag; try discriminate; last done.
-      destruct (isO q) eqn:Hq; first done.
-      iDestruct (interp_cap_regions with "HVsb") as %[_ Hvalid]; first done.
+      iDestruct (interp_cap_heap_conditions with "HVsb") as %[Hvalid _].
       done.
   Qed.
 
@@ -654,7 +691,17 @@ Section fundamental.
     intros Hwf Hb He Hp Hl. iIntros "#IH HA".
     destruct t; last (iApply interp_untagged; done).
     destruct (isO p') eqn:HpO'.
-    { iEval (rewrite fixpoint_interp1_eq interp1_eq HpO'). done. }
+    { iDestruct (interp_cap_heap_conditions with "HA") as %[Hvalid Hcoverage].
+      iEval (rewrite fixpoint_interp1_eq interp1_eq HpO').
+      iPureIntro. split.
+      - eapply heap_cap_valid_perm; first exact Hp.
+        eapply heap_cap_valid_subseg; eauto.
+      - intros x Hx Hheap.
+        assert (Hxold : x ∈ finz.seq_between b e).
+        { apply elem_of_finz_seq_between in Hx.
+          apply elem_of_finz_seq_between. solve_addr. }
+        specialize (Hcoverage x Hxold Hheap).
+        destruct g, g'; cbn in Hl; try done. by left. }
     destruct (isO p) eqn:HpO.
     { eapply notisO_flowsfrom in Hp ; eauto; congruence. }
     { iApply (interp_weakeningEO _ _ true p p' g g'); eauto. }
@@ -757,8 +804,11 @@ Section fundamental.
 
       rewrite !load_word_cap.
       destruct (isO (load_word_perm p (BPerm rx0 w0 dl0 dro0))) eqn:HnO.
-      { rewrite !fixpoint_interp1_eq !interp1_eq.
-        by rewrite HnO.
+      { iApply (interp_weakening_O_same_bounds with "Hinterp"); auto.
+        - apply load_word_perm_load_flows; auto.
+        - destruct (isDL p) eqn:Hdl; auto.
+          eapply notisDL_flowsfrom in Hfl; eauto.
+          by rewrite Hfl.
       }
       iApply (interp_weakening_same_bounds with "Hinterp"); auto; try solve_addr.
       + eapply notisO_flowsfrom ; eauto.

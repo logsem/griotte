@@ -312,7 +312,20 @@ Section region_alloc_cmpt.
         destruct tag; last (iApply interp_untagged; done).
         rewrite fixpoint_interp1_eq interp1_eq.
         destruct Hw as (Hp & Hb & He).
-        destruct (isO p) eqn:HpO; first done.
+        destruct (isO p) eqn:HpO.
+        { assert (Hsub : finz.seq_between b e ⊆
+              finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)).
+          { intros x Hx. apply elem_of_finz_seq_between in Hx.
+            apply elem_of_finz_seq_between. solve_addr. }
+          assert (Hdisjoint : disjoint_from_heap b e).
+          { rewrite /disjoint_from_heap in Hcgp_heap |- *.
+            set_solver+Hsub Hcgp_heap. }
+          iPureIntro. split; first by apply heap_cap_valid_disjoint.
+          intros x Hx Hheap.
+          rewrite /disjoint_from_heap elem_of_disjoint in Hdisjoint.
+          exfalso. eapply Hdisjoint; first exact Hx.
+          apply withinBounds_true_iff in Hheap.
+          apply elem_of_finz_seq_between. solve_addr. }
         destruct (has_sreg_access p) eqn:HpXSR.
         { destruct p as [ [] w dl dro ]; cbn in *; done. }
         replace (isWL p) with false; cycle 1.

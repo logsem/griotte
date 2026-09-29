@@ -524,7 +524,30 @@ Section Stack_Object_Region_Resources.
       as "#Hinterp_wca0_W2".
     { iEval (rewrite fixpoint_interp1_eq interp1_eq).
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_wca0_W0".
-      destruct (isO p); first done.
+      destruct (isO p) eqn:HpO.
+      { iDestruct "Hinterp_wca0_W0" as %[Hvalid Hcoverage].
+        iPureIntro. split.
+        - assert (Hheap_eq : heap_std W2 = heap_std W0)
+            by (subst W2 W1; by rewrite close_list_heap revoke_heap).
+          rewrite /heap_cap_valid /heap_cap_live Hheap_eq.
+          exact Hvalid.
+        - intros x Hx Hheap.
+          specialize (Hcoverage x Hx Hheap).
+          rewrite /region_state_nwl in Hcoverage |- *.
+          assert (Hxeq : std W0 !! x = std W2 !! x).
+          { rewrite Forall_forall in Hobject_states.
+            assert (Hobj : x ∈ object)
+              by (unfold object, so_object_addresses; exact Hx).
+            destruct (Hobject_states x Hobj) as [Hx'|Hx']; rewrite Hx'; symmetry.
+            - rewrite close_list_lookup_not_in.
+              { cbn. by apply revoke_lookup_Perm. }
+              intro Hcontra.
+              apply list_elem_of_filter in Hcontra as [Hcontra _].
+              by rewrite Hcontra in Hx'.
+            - apply close_list_lookup_in; auto.
+              + cbn; apply revoke_lookup_Monotemp; auto.
+              + apply list_elem_of_filter; split; done. }
+          rewrite -Hxeq. exact Hcoverage. }
       destruct (has_sreg_access p); first done.
       iDestruct "Hinterp_wca0_W0" as "[Hinterp $]".
       iClear "∗".

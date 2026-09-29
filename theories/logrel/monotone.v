@@ -345,7 +345,11 @@ Section monotone.
     iIntros (Hheap Hrelated) "#Hw".
     destruct t; last (iApply interp_untagged; done).
     rewrite !fixpoint_interp1_eq !interp1_eq.
-    destruct (isO p); first done.
+    destruct (isO p).
+    { iDestruct "Hw" as %[Hvalid Hcoverage].
+      iPureIntro. split; first by apply Hheap.
+      intros x Hx Hxheap.
+      eapply region_state_nwl_monotone; eauto. }
     destruct (has_sreg_access p); first done.
     iDestruct "Hw" as "[Hw %Hlocal]".
     iSplit; last (iPureIntro; naive_solver).
@@ -447,7 +451,11 @@ Section monotone.
     destruct t; last (iApply interp_untagged; done).
     destruct g; cbn in Hnl; try done.
     rewrite !fixpoint_interp1_eq !interp1_eq.
-    destruct (isO p); first done.
+    destruct (isO p).
+    { iDestruct "Hw" as %[Hvalid Hcoverage].
+      iPureIntro. split; first by apply Hheap.
+      intros x Hx Hxheap.
+      eapply region_state_nwl_monotone_nl; eauto. }
     destruct (has_sreg_access p); first done.
     iDestruct "Hw" as "[Hw %Hconditions]".
     pose proof (proj1 Hconditions) as Hlocal.
@@ -487,7 +495,6 @@ Section monotone.
       cbn in Htag; try discriminate;
       rewrite !fixpoint_interp1_eq /= /interp_sb; last done.
     iDestruct "Hw" as "[$ %Hvalid]". iPureIntro.
-    destruct (isO p); first done.
     eapply (heap_cap_valid_future_retained _ _ (WSealed ot (SCap true p g b e a))); eauto.
     - exact (proj2 (proj2 (proj2 Hrelated))).
     - intros Hnonempty Hb. by rewrite /heap_authority_base /= decide_True // /heap_cap_base /memory_cap_base Hb.

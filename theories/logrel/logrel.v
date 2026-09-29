@@ -676,9 +676,6 @@ Section logrel.
 
   (** Interp trivially holds for integers. *)
   Definition interp_z : V := λne _ _ w, ⌜match w with WInt z => True | _ => False end⌝%I.
-  (** Interp trivially holds for O-permission capability. *)
-  Definition interp_cap_O : V := λne _ _ _, True%I.
-
   (** Heap authority must belong to one live allocation. Lookup uses the
       capability base, which may be narrowed inside the original allocation. *)
   Definition heap_cap_live (W : WORLD) (p : Perm) (b e : Addr) : Prop :=
@@ -698,6 +695,21 @@ Section logrel.
   (** Empty and reversed ordinary capabilities carry no memory authority. *)
   Definition heap_cap_valid (W : WORLD) (p : Perm) (b e : Addr) : Prop :=
     (b < e)%a -> heap_cap_live W p b e.
+
+  (** Tagged O capabilities retain authority to free their heap payload.
+      Nonheap ranges must stay disjoint from the heap under narrowing. *)
+  Definition heap_cap_O_valid (W : WORLD) (p : Perm) (g : Locality)
+      (b e : Addr) : Prop :=
+    heap_cap_valid W p b e ∧
+    ∀ a, a ∈ finz.seq_between b e ->
+      is_heap_address a = true -> region_state_nwl W a g.
+
+  Program Definition interp_cap_O : V := λne W _ w,
+    ⌜match w with
+      | WCap true p g b e a => heap_cap_O_valid W p g b e
+      | _ => True
+      end⌝%I.
+  Solve All Obligations with solve_proper.
 
   Lemma heap_cap_valid_disjoint W p b e :
     disjoint_from_heap b e -> heap_cap_valid W p b e.
@@ -826,7 +838,7 @@ Section logrel.
   Program Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (w : Word) : iPropO Σ :=
     (sts_seals_std C o {[w ; borrow w ]} ∗
      ⌜match w with
-       | WCap true p g b e a => if isO p then True else heap_cap_valid W p b e
+       | WCap true p g b e a => heap_cap_valid W p b e
        | _ => True
        end⌝)%I.
   Solve All Obligations with solve_proper.
@@ -896,10 +908,6 @@ Section logrel.
 
   (** To be able to use the fixpoint combinator to define [interp],
       we need to show that all case of [interp] are contractive. *)
-  Global Instance interp_cap_O_contractive :
-    Contractive (interp_cap_O).
-  Proof. solve_contractive. Qed.
-
   Global Instance interp_sentry_contractive :
     Contractive (interp_sentry).
   Proof.
@@ -1056,7 +1064,7 @@ Section logrel.
   Lemma interp1_eq interp (W: WORLD) (C : CmptName) p g b e a:
     ((interp1 interp W C (WCap true p g b e a)) ≡
        (if (isO p)
-        then True
+        then interp_cap_O W C (WCap true p g b e a)
         else
           if (has_sreg_access p)
           then False
