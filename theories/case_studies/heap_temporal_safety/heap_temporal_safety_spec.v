@@ -53,11 +53,6 @@ Section Heap_Temporal_Safety_Main.
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     disjoint_from_shadow cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
-    (* Incoming saved registers are nonheap; the buffer itself is kept in
-       the private data slot and explicitly reloaded after the first call. *)
-    is_heap_cap (default (WInt 0) (rmap !! cra)) = false ->
-    is_heap_cap (default (WInt 0) (rmap !! cs1)) = false ->
-    is_heap_cap (default (WInt 0) (rmap !! cs0)) = false ->
     Nswitcher ## Nassert ->
     Nswitcher ## Nallocator_service ->
     Nassert ## Nallocator_service ->
@@ -70,7 +65,6 @@ Section Heap_Temporal_Safety_Main.
     (pc_b + length imports)%a = Some pc_a ->
 
     (cgp_b)%a ∉ dom (std W_init_C) ->
-    (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
     heap_std W_init_C = ∅ ->
 
     frame_match Ws Cs cstk W_init_C C ->
@@ -121,13 +115,14 @@ Section Heap_Temporal_Safety_Main.
        2: fetch malloc entry.
        3: call malloc.
        4: validate malloc result.
-       5: save and initialize buffer.
+       5: save the buffer in the stack slot below the callee frames,
+         and initialize it.
        6: fetch switcher for first adversary call.
        7: fetch adversary entry.
        8: call adversary with buffer.
-       9: reload saved buffer.
+       9: reload the saved buffer from the stack slot.
       10: check reloaded buffer tag.
-      11: store private p capability in buffer.
+      11: store the p capability (cgp) in the buffer.
       12: fetch switcher for free.
       13: fetch free entry.
       14: call free.
@@ -141,16 +136,16 @@ Section Heap_Temporal_Safety_Main.
       22: halt. *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
-      Hcra_heap Hcs1_heap Hcs0_heap HNswitcher_assert HNswitcher_service
+      HNswitcher_assert HNswitcher_service
       HNassert_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
-      Himports_contiguous Hp_fresh Hsaved_fresh Hheap_empty Hframe_match)
+      Himports_contiguous Hp_fresh Hheap_empty Hframe_match)
       "Hinitial".
     iPoseProof (hts_phase_0_5 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
       rmap C_f W_init_C Ws Cs Nassert Nswitcher cstk
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
-      Hcra_heap Hcs1_heap Hcs0_heap HNswitcher_assert HNswitcher_service
+      HNswitcher_assert HNswitcher_service
       HNassert_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
-      Himports_contiguous Hp_fresh Hsaved_fresh Hheap_empty Hframe_match
+      Himports_contiguous Hp_fresh Hheap_empty Hframe_match
       with "Hinitial") as "Hphase".
     iApply "Hphase".
     iIntros "Hphase6".

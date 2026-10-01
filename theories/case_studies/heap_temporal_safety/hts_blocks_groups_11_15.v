@@ -53,7 +53,7 @@ Section Heap_Temporal_Safety_Blocks.
         & %Hrelated_share_ext_ret & %Hwf_ret & %Hlookup_rev
         & %Hobj_future & %Hlive_ret & %Hstd_rev & %Hb_heap & Hphase11)".
     iDestruct "Hphase11" as
-      "(%Hdom_rmap_after & %Hcs0_nonheap & %Hcs1_nonheap
+      "(%Hdom_rmap_after & %Hstk_nonempty
         & %Hstk_shadow & %Hstk_heap & %Hstack_revoked_W0
         & %Hexport_shadow & %Hstack_revoked_ret & %Hrevoked_lret
         & Hphase11)".
@@ -71,33 +71,29 @@ Section Heap_Temporal_Safety_Blocks.
       "(Hworld_open & Hstate_b & #Hrel_b & Hb_phys
         & Hrevoked_l & Hrevoked_lret & Hna & Hcra & Hcs0 & Hcs1
         & Hcsp & Hstk & Hcstk & Hallocation & Hrmap & Hca1
-        & Hcgp & Hsaved & HPC & Hca0 & Hct0 & Hcode)".
+        & Hcgp & Hslot & HPC & Hca0 & Hct0 & Hcode)".
     iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
     iEval (cbv [fmap list_fmap concat]) in "Hcode".
-    (* Block 11: store the narrowed private-data capability in live b.
+    (* Block 11: store cgp, which covers exactly p, in live b.
        Keep the world entry open and retain physical ownership for free. *)
     focus_block 11 "Hcode" as a_private Ha_private "Hblock" "Hcont";
       iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1;ct2] as
       ["[Hct1 %Hwct1_after]";"[Hct2 %Hwct2_after]"].
-    iApply (hts_store_private_spec pc_b pc_e a_private
-      cgp_b cgp_e b (b ^+ 1)%a v_b _ _ _ with
-      "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hct2 $Hb_phys $Hblock]").
-    { rewrite /disjoint_from_shadow elem_of_disjoint.
-      intros a Ha Hsh.
-      pose proof heap_shadow_disjoint as Hdisj.
-      rewrite elem_of_disjoint in Hdisj.
-      eapply Hdisj; last exact Hsh.
-      apply elem_of_finz_seq_between.
-      apply elem_of_finz_seq_between in Ha.
-      clear -Ha Hbounds. solve_addr. }
-    { rewrite /hts_main_data in Hcgp_contiguous.
-      clear -Hcgp_contiguous. solve_addr. }
-    { rewrite /hts_main_data in Hcgp_contiguous.
-      clear -Hcgp_contiguous Hbounds. solve_addr. }
-    { clear -HsubBounds Ha_private. solve_addr. }
-    iNext.
-    iIntros "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hb_phys & Hblock)".
+    (* Store ca0 cgp 0. *)
+    iInstr_success "Hblock".
+    { apply not_true_is_false; intros Hshadow.
+      pose proof allocator_regions_disjoint as Hregions.
+      rewrite !disjoint_list_cons in Hregions.
+      cbn [union_list] in Hregions.
+      apply withinBounds_true_iff in Hshadow.
+      clear - Hregions Hshadow Hbounds.
+      assert (b ∈ finz.seq_between heap_b heap_e) as Hheap
+        by (apply elem_of_finz_seq_between; solve_addr).
+      assert (b ∈ finz.seq_between shadow_b shadow_e) as Hsh
+        by (apply elem_of_finz_seq_between; solve_addr).
+      set_solver. }
+    { apply withinBounds_true_iff; solve_addr. }
     subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
     (* Block 12: fetch the switcher entry for free. *)
     focus_block 12 "Hcode" as a_fetch12 Ha_fetch12 "Hfetch" "Hcont";
@@ -167,7 +163,7 @@ Section Heap_Temporal_Safety_Blocks.
     iInstr "Hblock".
     subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
     iAssert ([[b,(b ^+ 1)%a]] ↦ₐ
-      [[ [WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b] ]])%I
+      [[ [WCap true RW Global cgp_b cgp_e cgp_b] ]])%I
       with "[Hb_phys]" as "Hfree_mem".
     { rewrite /region_pointsto
         (finz_seq_between_singleton b (b ^+ 1)%a Hsucc) /=.
@@ -192,9 +188,9 @@ Section Heap_Temporal_Safety_Blocks.
     iPoseProof (hts_free_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_freecall ^+ 1)%a)
-      wcs0 wcs1 csp_b csp_e csp_b b (b ^+ 1)%a b
+      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a b (b ^+ 1)%a b
       free_arg cstk RW Global (0%Z,0%Z)
-      [WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b]
+      [WCap true RW Global cgp_b cgp_e cgp_b]
       with "Hservice") as "Hfree_fun".
     { exact (proj1 Hbounds). }
     { rewrite (finz_seq_between_singleton b (b ^+ 1)%a Hsucc).
@@ -202,13 +198,13 @@ Section Heap_Temporal_Safety_Blocks.
     { subst free_arg. reflexivity. }
     iAssert (allocator_allocation b (b ^+ 1)%a (0%Z,0%Z) ∗
       [[b,(b ^+ 1)%a]] ↦ₐ
-        [[ [WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b] ]])%I
+        [[ [WCap true RW Global cgp_b cgp_e cgp_b] ]])%I
       with "[$Hallocation $Hfree_mem]" as "Hfree_P".
     iApply (switcher_cc_specification_known_to_known_end_to_end
       Nswitcher
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_freecall ^+ 1)%a)
-      wcs0 wcs1 csp_b csp_e csp_b stk_after free_arg free_other cstk
+      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a stk_after free_arg free_other cstk
       allocator_free_nargs ⊤ hts_allocator_exp_tblN
       allocator_exp_tbl_b
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a
@@ -293,9 +289,7 @@ Section Heap_Temporal_Safety_Blocks.
       apply load_heap_nonheap in Hra_free.
       2: { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=
              Hpc_nonheap /=. reflexivity. }
-      apply load_heap_nonheap in Hs0_free; [|exact Hcs0_nonheap].
-      apply load_heap_nonheap in Hs1_free; [|exact Hcs1_nonheap].
-      subst rcgp rcra rcs0 rcs1.
+      subst rcgp rcra.
       iEval (cbn) in "HPC".
       (* Block 15: halt on trusted-stack exhaustion. *)
       focus_block 15 "Hcode" as a_free_result Ha_free_result "Hblock" "Hcont";
@@ -319,9 +313,7 @@ Section Heap_Temporal_Safety_Blocks.
       apply load_heap_nonheap in Hra_free.
       2: { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=
              Hpc_nonheap /=. reflexivity. }
-      apply load_heap_nonheap in Hs0_free; [|exact Hcs0_nonheap].
-      apply load_heap_nonheap in Hs1_free; [|exact Hcs1_nonheap].
-      subst rcgp rcra rcs0 rcs1.
+      subst rcgp rcra.
       iEval (cbn) in "HPC".
       iEval (rewrite /hts_free_result) in "Hfree_post".
       iDestruct "Hfree_post" as
@@ -387,7 +379,7 @@ Section Heap_Temporal_Safety_Blocks.
     iApply "Hcontinue".
     rewrite /hts_phase16_pre.
     iExists b, a_freecall, a_free_result, Wshare, Wret, Wfree,
-      wcs0, wcs1, free_rmap_ret, stk_after, l, lret.
+      rcs0, rcs1, free_rmap_ret, stk_after, l, lret.
     iSplit; first (iPureIntro; exact Hbounds).
     iSplit; first (iPureIntro; exact Hsucc).
     iSplit; first (iPureIntro; change ((pc_a + length
@@ -397,8 +389,7 @@ Section Heap_Temporal_Safety_Blocks.
     iSplit; first (iPureIntro; exact Hrelated_share_ext_ret).
     iSplit; first (iPureIntro; reflexivity).
     iSplit; first (iPureIntro; exact Hdom_free_rmap_ret).
-    iSplit; first (iPureIntro; exact Hcs0_nonheap).
-    iSplit; first (iPureIntro; exact Hcs1_nonheap).
+    iSplit; first (iPureIntro; exact Hstk_nonempty).
     iSplit; first (iPureIntro; exact Hstk_shadow).
     iSplit; first (iPureIntro; exact Hstk_heap).
     iSplit; first (iPureIntro; exact Hstack_revoked_W0).

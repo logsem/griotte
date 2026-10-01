@@ -49,7 +49,7 @@ Section Heap_Temporal_Safety_Blocks.
     iDestruct "Hphase16" as
       "(%Hbounds & %Hsucc & %Ha_free_result & %Hrelated_init_share
         & %Hrelated_share_ext_ret & %HWfree
-        & %Hdom_rmap_free & %Hcs0_nonheap & %Hcs1_nonheap
+        & %Hdom_rmap_free & %Hstk_nonempty
         & %Hstk_shadow & %Hstk_heap & %Hstack_revoked_W0
         & #Hstack_revoked_W0 & Hstack_revoked_ret
         & %Hstack_revoked_ret & #Hassert & #Halloc & #Hservice
@@ -60,7 +60,7 @@ Section Heap_Temporal_Safety_Blocks.
         & Himports_tail & Hp & Himport_switcher & Himport_malloc
         & Hworld & Hrevoked_l & Hrevoked_lret & Hna & Hcra
         & Hcs0 & Hcs1 & Hcsp & Hstk & Hcstk & Hallocation
-        & Hrmap & Hca1 & Hcgp & Hsaved & HPC & Hca0 & Hcode)".
+        & Hrmap & Hca1 & Hcgp & Hslot & HPC & Hca0 & Hcode)".
     iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
     iEval (cbv [fmap list_fmap concat]) in "Hcode".
     (* Block 16: clear the second adversary argument. *)
@@ -129,9 +129,9 @@ Section Heap_Temporal_Safety_Blocks.
       - apply related_sts_pub_world_heap_update.
         apply heap_quarantine_future. }
     iDestruct (StackRevokedResources_mono_priv Wret Wfree C
-      (finz.seq_between csp_b csp_e) Hrelated_ret_free
+      (finz.seq_between (csp_b ^+ 1)%a csp_e) Hrelated_ret_free
       with "Hstack_revoked_ret") as "Hstack_revoked_free".
-    assert (revoked_addresses Wfree (finz.seq_between csp_b csp_e))
+    assert (revoked_addresses Wfree (finz.seq_between (csp_b ^+ 1)%a csp_e))
       as Hstack_revoked_free.
     { rewrite HWfree /revoked_addresses /=.
       exact Hstack_revoked_ret. }
@@ -182,8 +182,8 @@ Section Heap_Temporal_Safety_Blocks.
     iApply (switcher_cc_specification Nswitcher Wfree C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_advcall2 ^+ 1)%a)
-      wcs0 wcs1 csp_b csp_e csp_b C_f
-      (region_addrs_zeroes csp_b csp_e)
+      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f
+      (region_addrs_zeroes (csp_b ^+ 1)%a csp_e)
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
@@ -212,9 +212,7 @@ Section Heap_Temporal_Safety_Blocks.
     apply load_heap_nonheap in Hra_ret2.
     2: { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=
            Hpc_nonheap /=. reflexivity. }
-    apply load_heap_nonheap in Hs0_ret2; [|exact Hcs0_nonheap].
-    apply load_heap_nonheap in Hs1_ret2; [|exact Hcs1_nonheap].
-    subst rcgp rcra rcs0 rcs1.
+    subst rcgp rcra.
     iEval (cbn) in "HPC".
 
     (* Block 20: load the private p cell and prepare zero for assertion. *)

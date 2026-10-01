@@ -14,9 +14,6 @@ Section Heap_Temporal_Safety_Resources.
   Definition hts_buffer (b : Addr) : Word :=
     WCap true RW Global b (b ^+ 1)%a b.
 
-  Definition hts_private_data (p : Addr) (saved : Word) : iProp Σ :=
-    p ↦ₐ WInt 0 ∗ (p ^+ 1)%a ↦ₐ saved.
-
   (** The receipt records original bounds and the reserved header integer,
       but grants no payload access.
       These predicates still require exclusive physical resources. In
@@ -31,13 +28,12 @@ Section Heap_Temporal_Safety_Resources.
     allocator_allocation b (b ^+ 1)%a reserved ∗ reclaim_token b.
 
   Lemma hts_private_data_initial p e :
-    (p + 2)%a = Some e ->
-    [[p, e]] ↦ₐ [[hts_main_data]] ⊣⊢ hts_private_data p (WInt 0).
+    (p + 1)%a = Some e ->
+    [[p, e]] ↦ₐ [[hts_main_data]] ⊣⊢ p ↦ₐ WInt 0.
   Proof.
     intros Hsize.
-    rewrite /hts_main_data /hts_private_data.
-    rewrite (region_pointsto_cons p (p ^+ 1)%a e); [|solve_addr|solve_addr].
-    rewrite (region_pointsto_cons (p ^+ 1)%a e e); [|solve_addr|solve_addr].
+    rewrite /hts_main_data.
+    rewrite (region_pointsto_cons p e e); [|solve_addr|solve_addr].
     rewrite /region_pointsto finz_seq_between_empty; last solve_addr.
     simpl. by rewrite right_id.
   Qed.

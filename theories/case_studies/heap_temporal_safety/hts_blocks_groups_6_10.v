@@ -22,6 +22,123 @@ Section Heap_Temporal_Safety_Blocks.
   .
   Context {C : CmptName}.
 
+  (** Reload of the saved buffer from the stack slot [s], just below the
+      current stack pointer. The load may clear the tag of the saved
+      capability; in both cases, the loaded word is unchanged by the filter
+      of the current world. *)
+  Lemma hts_reload_retained_buffer_spec W C'
+    pc_b pc_e pc_a s e raw w0 :
+    disjoint_from_shadow s e ->
+    is_heap_cap raw = true ->
+    (s + 1)%a = Some (s ^+ 1)%a ->
+    (s < e)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_reload_buffer_instrs)%a ->
+    (allocator_ctx ∗
+     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+     csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
+     ca0 ↦ᵣ w0 ∗
+     s ↦ₐ raw ∗
+     codefrag pc_a hts_reload_buffer_instrs ∗
+     region W C' ∗
+     ▷ (∀ actual,
+       ⌜load_heap_in_world W raw actual⌝ -∗
+       PC ↦ᵣ WCap true RX Global pc_b pc_e
+         (pc_a ^+ length hts_reload_buffer_instrs)%a ∗
+       csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
+       ca0 ↦ᵣ actual ∗
+       s ↦ₐ raw ∗
+       codefrag pc_a hts_reload_buffer_instrs ∗
+       region W C' -∗
+       WP Seq (Instr Executable)
+         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+     ⊢ WP Seq (Instr Executable)
+         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+  Proof.
+    iIntros (Hshadow Hheap_raw Hs1 Hbounds Hsub)
+      "(#Halloc & HPC & Hcsp & Hca0 & Ha & Hcode & Hregion & Hpost)".
+    codefrag_facts "Hcode". clear H0.
+    rewrite /hts_reload_buffer_instrs.
+    (* Load ca0 csp (-1). *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iDestruct (map_of_regs_3 with "HPC Hcsp Hca0")
+      as "[Hmap (%Hpc_csp & %Hpc_ca0 & %Hcsp_ca0)]".
+    iDestruct (memMap_resource_2ne_apply with "Hi Ha")
+      as "[Hmem %Hpc_a]".
+    iInv Nallocator as ">Halloc_body" "Halloc_close".
+    iDestruct "Halloc_body" as (alloc_map Halloc_dom) "Halloc_entries".
+    iEval (rewrite /allocator_entry big_sepM_sep) in "Halloc_entries".
+    iDestruct "Halloc_entries" as "[Hshadow Halloc_states]".
+    iAssert ([∗ map] k↦status ∈ shadow_status <$> alloc_map,
+      k ↦ₛ status)%I with "[Hshadow]" as "Hshadow".
+    { rewrite big_sepM_fmap. iExact "Hshadow". }
+    iApply (wp_load_memory_shadow_imm (⊤ ∖ ↑Nallocator)
+      RX Global pc_b pc_e pc_a ca0 csp (-1) _
+      (<[pc_a:=_]> (<[s:=raw]> ∅))
+      (<[PC:=WCap true RX Global pc_b pc_e pc_a]>
+        (<[csp:=WCap true RWL Local s e (s ^+ 1)%a]> (<[ca0:=w0]> ∅)))
+      (DfracOwn 1) (shadow_status <$> alloc_map) (DfracOwn 1)
+      with "[Hmem Hshadow Hmap]").
+    { apply decode_encode_instrW_inv. }
+    { solve_pure. }
+    { by simplify_map_eq. }
+    { by rewrite !dom_insert; set_solver+. }
+    { by simplify_map_eq. }
+    { exists true, RWL, Local, s, e, (s ^+ 1)%a. split.
+      - unfold read_reg_inr. by simplify_map_eq.
+      - rewrite /reg_allows_load_imm.
+        assert (((s ^+ 1)%a + -1)%a = Some s) as -> by solve_addr.
+        case_decide; last done. exists raw. by simplify_map_eq. }
+    { intros p0 g0 b0 e0 a0 ea0 (Hsrc0 & Haddr & _).
+      simpl_map_regs by eauto. simplify_map_eq.
+      apply (disjoint_from_shadow_not_in _ _ _ Hshadow).
+      apply withinBounds_true_iff. solve_addr. }
+    { iFrame "Hmem". iSplitL "Hshadow"; first (iNext; iExact "Hshadow").
+      iNext. iExact "Hmap". }
+    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hshadow & Hmap)".
+    iAssert ([∗ map] k↦s ∈ alloc_map, allocator_entry k s)%I
+      with "[Hshadow Halloc_states]" as "Halloc_entries".
+    { rewrite /allocator_entry big_sepM_sep big_sepM_fmap. iFrame. }
+    destruct retv; simpl in Hspec; [contradiction| |]; cycle 1.
+    2: { iMod ("Halloc_close" with "[Halloc_entries]") as "_".
+      { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+      iModIntro. wp_pure. wp_end. by iIntros (?). }
+    destruct Hspec as
+      (p0 & g0 & b0 & e0 & a0 & ea0 & loadv & actual &
+       Hallow & Hlookup & Hactual & Hobserved & Hinc).
+    destruct Hallow as (Hsrc0 & Haddr & _).
+    simpl_map_regs by eauto.
+    rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0.
+    injection Hsrc0 as <- <- <- <- <-.
+    assert (ea0 = s) as -> by solve_addr.
+    rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
+    injection Hlookup as <-.
+    change (load_word RWL raw) with raw in Hactual.
+    change (load_memory_shadow_observation
+      (shadow_status <$> alloc_map) RW raw actual) in Hobserved.
+    iDestruct (shadow_read_retained W C' raw actual alloc_map
+      with "Hregion Halloc_entries")
+      as "(%Hfilter & Hregion & Halloc_entries)";
+      [exact Halloc_dom|exact Hobserved|].
+    iMod ("Halloc_close" with "[Halloc_entries]") as "_".
+    { iNext. iExists alloc_map. iFrame. iPureIntro. exact Halloc_dom. }
+    iModIntro.
+    unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
+    assert ((pc_a + 1)%a = Some (pc_a ^+ 1)%a) as Hpc by solve_addr.
+    rewrite Hpc in Hinc. simplify_eq.
+    rewrite (insert_insert_ne _ ca0 PC) // insert_insert_eq.
+    rewrite (insert_insert_ne _ ca0 csp) // insert_insert_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hcsp & Hca0)"; eauto.
+    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+    wp_pure.
+    iSpecialize ("Hcode" with "Hi").
+    iApply ("Hpost" $! actual with "[]"); last iFrame.
+    iPureIntro. split; last exact Hfilter.
+    destruct Hactual as [Hsame|Hclear].
+    - subst actual. left. reflexivity.
+    - subst actual. right. split; [exact Hheap_raw|reflexivity].
+  Qed.
+
   (* Boundary after the successful free result and quarantine transition. *)
   Definition hts_phase16_pre
     (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr)
@@ -40,20 +157,19 @@ Section Heap_Temporal_Safety_Blocks.
       ⌜related_sts_priv_world W_init_C Wshare⌝ ∗
       ⌜related_sts_pub_world
         (std_update_multiple Wshare
-          (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) Wret⌝ ∗
+          (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) Wret⌝ ∗
       ⌜Wfree = heap_std_update (revoke Wret)
         (heap_quarantine (heap_std (revoke Wret)) b)⌝ ∗
       ⌜dom rmap_free = all_registers_s ∖
         {[ PC; csp; cgp; cra; cs0; cs1; ca0; ca1 ]}⌝ ∗
-      ⌜is_heap_cap wcs0 = false⌝ ∗
-      ⌜is_heap_cap wcs1 = false⌝ ∗
+      ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜disjoint_from_shadow csp_b csp_e⌝ ∗
       ⌜disjoint_from_heap csp_b csp_e⌝ ∗
       ⌜Forall (λ a, std (revoke W_init_C) !! a = Some Revoked)
-        (finz.seq_between csp_b csp_e)⌝ ∗
-      StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e) ∗
-      StackRevokedResources Wret C (finz.seq_between csp_b csp_e) ∗
-      ⌜revoked_addresses (revoke Wret) (finz.seq_between csp_b csp_e)⌝ ∗
+        (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
+      StackRevokedResources W_init_C C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
+      StackRevokedResources Wret C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
+      ⌜revoked_addresses (revoke Wret) (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
       allocator_ctx ∗ allocator_service_ctx ∗
       na_inv cerise_nais Nswitcher switcher_inv ∗
@@ -88,14 +204,14 @@ Section Heap_Temporal_Safety_Blocks.
       na_own cerise_nais ⊤ ∗
       cra ↦ᵣ WSentry true RX Global pc_b pc_e (a_freecall ^+ 1)%a ∗
       cs0 ↦ᵣ wcs0 ∗ cs1 ↦ᵣ wcs1 ∗
-      csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
-      [[csp_b,csp_e]] ↦ₐ [[region_addrs_zeroes csp_b csp_e]] ∗
+      csp ↦ᵣ WCap true RWL Local csp_b csp_e (csp_b ^+ 1)%a ∗
+      [[(csp_b ^+ 1)%a,csp_e]] ↦ₐ [[region_addrs_zeroes (csp_b ^+ 1)%a csp_e]] ∗
       cstack_frag cstk ∗
       allocator_allocation b (b ^+ 1)%a (0%Z, 0%Z) ∗
       ([∗ map] k↦y ∈ rmap_free, k ↦ᵣ y ∗ ⌜y = WInt 0⌝) ∗
       ca1 ↦ᵣ WInt 0 ∗
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-      (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global b (b ^+ 1)%a b ∗
+      csp_b ↦ₐ WCap true RW Global b (b ^+ 1)%a b ∗
       PC ↦ᵣ WCap true RX Global pc_b pc_e
         (a_free_result ^+ length hts_free_result_instrs)%a ∗
       ca0 ↦ᵣ WInt 0 ∗
@@ -119,7 +235,7 @@ Section Heap_Temporal_Safety_Blocks.
       ⌜related_sts_priv_world W_init_C Wshare⌝ ∗
       ⌜related_sts_pub_world
         (std_update_multiple Wshare
-          (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) Wret⌝ ∗
+          (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) Wret⌝ ∗
       ⌜heap_wf (heap_std Wret)⌝ ∗
       ⌜heap_lookup_addr (heap_std (revoke Wret)) b = Some (b,obj_ret)⌝ ∗
       ⌜alloc_object_future
@@ -129,18 +245,17 @@ Section Heap_Temporal_Safety_Blocks.
       ⌜is_heap_address b = true⌝ ∗
       ⌜dom rmap_after = all_registers_s ∖
         {[ PC; cgp; cra; csp; ca0; ca1; cs0; cs1 ]}⌝ ∗
-      ⌜is_heap_cap wcs0 = false⌝ ∗
-      ⌜is_heap_cap wcs1 = false⌝ ∗
+      ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜disjoint_from_shadow csp_b csp_e⌝ ∗
       ⌜disjoint_from_heap csp_b csp_e⌝ ∗
       ⌜Forall (λ a, std (revoke W_init_C) !! a = Some Revoked)
-        (finz.seq_between csp_b csp_e)⌝ ∗
+        (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
       ⌜∀ a, (allocator_exp_tbl_b <= a < allocator_exp_tbl_e)%a →
         is_shadow_address a = false⌝ ∗
-      ⌜revoked_addresses (revoke Wret) (finz.seq_between csp_b csp_e)⌝ ∗
+      ⌜revoked_addresses (revoke Wret) (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
       ⌜revoked_addresses (revoke Wret) lret⌝ ∗
-      StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e) ∗
-      StackRevokedResources Wret C (finz.seq_between csp_b csp_e) ∗
+      StackRevokedResources W_init_C C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
+      StackRevokedResources Wret C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
       allocator_ctx ∗ allocator_service_ctx ∗
       na_inv cerise_nais Nswitcher switcher_inv ∗
@@ -179,14 +294,14 @@ Section Heap_Temporal_Safety_Blocks.
       na_own cerise_nais ⊤ ∗
       cra ↦ᵣ WSentry true RX Global pc_b pc_e a_reload ∗
       cs0 ↦ᵣ wcs0 ∗ cs1 ↦ᵣ wcs1 ∗
-      csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b ∗
-      [[csp_b,csp_e]] ↦ₐ [[stk_after]] ∗
+      csp ↦ᵣ WCap true RWL Local csp_b csp_e (csp_b ^+ 1)%a ∗
+      [[(csp_b ^+ 1)%a,csp_e]] ↦ₐ [[stk_after]] ∗
       cstack_frag cstk ∗
       allocator_allocation b (b ^+ 1)%a (0%Z, 0%Z) ∗
       ([∗ map] k↦y ∈ delete ct0 rmap_after, k ↦ᵣ y ∗ ⌜y = WInt 0⌝) ∗
       ca1 ↦ᵣ warg1 ∗
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-      (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global b (b ^+ 1)%a b ∗
+      csp_b ↦ₐ WCap true RW Global b (b ^+ 1)%a b ∗
       PC ↦ᵣ WCap true RX Global pc_b pc_e
         (a_check ^+ length hts_check_buffer_instrs)%a ∗
       ca0 ↦ᵣ WCap true RW Global b (b ^+ 1)%a b ∗
@@ -216,20 +331,20 @@ Section Heap_Temporal_Safety_Blocks.
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       HsubBounds Hcgp_contiguous Hheap_empty) "[Hphase6 Hcontinue]".
-    set (stk_frame_addrs := finz.seq_between csp_b csp_e).
+    set (stk_frame_addrs := finz.seq_between (csp_b ^+ 1)%a csp_e).
     rewrite /hts_phase6_pre.
     iDestruct "Hphase6" as
       (b a_result a_store wcs0 wcs1 rmap_ret l)
       "(%Hbounds & %Ha_store & %Hsucc & %Hdom_rmap_ret
-        & %Hcs0_nonheap & %Hcs1_nonheap & %Hstk_shadow & %Hstk_heap
+        & %Hstk_nonempty & %Hstk_shadow & %Hstk_heap
         & %Hstack_revoked_W0 & %Hexport_shadow & #Hstack_revoked_W0
         & #Hassert & #Halloc & #Hservice & #Hswitcher
         & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
         & #Hadv & #Hentry & #Hinterp_csp & HK & Himport_assert
         & Himport_adv & Himport_free & Himports_tail & Hp
         & Himport_switcher & Himport_malloc & Hworld & Hrevoked_l
-        & Hna & Hcra & Hcs0 & Hcs1 & Hcsp & Hstk & Hcstk
-        & #Hallocation & Hrmap & Hca1 & Hct0 & Hcgp & Hsaved
+        & Hna & Hcra & Hcs0 & Hcs1 & Hcsp & Hslot & Hstk & Hcstk
+        & #Hallocation & Hrmap & Hca1 & Hct0 & Hcgp
         & HPC & Hca0 & Hb & Hcode)".
     change ((pc_a + length
       (concat (take 5 (encodeInstrsW <$> assembled_hts_main))))%a = Some a_store)
@@ -403,9 +518,11 @@ Section Heap_Temporal_Safety_Blocks.
       as "Hstack_revoked_share".
     assert (b ∉ stk_frame_addrs) as Hb_not_stack.
     { rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
-      intros Hb_stk. eapply (Hstk_heap b Hb_stk).
-      apply elem_of_finz_seq_between.
-      apply withinBounds_true_iff in Hb_heap. exact Hb_heap. }
+      intros Hb_stk. eapply (Hstk_heap b).
+      - apply elem_of_finz_seq_between.
+        apply elem_of_finz_seq_between in Hb_stk. solve_addr.
+      - apply elem_of_finz_seq_between.
+        apply withinBounds_true_iff in Hb_heap. exact Hb_heap. }
     assert (revoked_addresses Wshare stk_frame_addrs)
       as Hstack_revoked_share.
     { rewrite /revoked_addresses Forall_forall. intros a Ha.
@@ -440,8 +557,8 @@ Section Heap_Temporal_Safety_Blocks.
     iApply (switcher_cc_specification Nswitcher Wshare C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_advcall ^+ 1)%a)
-      wcs0 wcs1 csp_b csp_e csp_b C_f
-      (region_addrs_zeroes csp_b csp_e)
+      wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f
+      (region_addrs_zeroes (csp_b ^+ 1)%a csp_e)
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
@@ -455,8 +572,9 @@ Section Heap_Temporal_Safety_Blocks.
     iSplitR; first (iPureIntro; exact Hstack_revoked_share).
     iNext.
     (* First unknown-call return: the switcher gives a public future Wret and
-       revokes its temporaries. Keep Hp and Hsaved outside the call frame;
-       the adversary may quarantine b, so Hrel_b alone cannot supply Hb. *)
+       revokes its temporaries. Hp and the stack slot Hslot stay outside
+       the call frame; the adversary may quarantine b, so Hrel_b alone
+       cannot supply Hb. *)
     iIntros (Wret rmap_after stk_after lret rcgp rcra rcs0 rcs1)
       "(%Hlret_unk & Hrevoked_lret & %Hrevoked_lret
        & %Hrelated_share_ext_ret & Hrel_stk_ret & %Hdom_rmap_after
@@ -473,9 +591,7 @@ Section Heap_Temporal_Safety_Blocks.
     apply load_heap_nonheap in Hra_ret.
     2: { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=
            Hpc_nonheap /=. reflexivity. }
-    apply load_heap_nonheap in Hs0_ret; [|exact Hcs0_nonheap].
-    apply load_heap_nonheap in Hs1_ret; [|exact Hcs1_nonheap].
-    subst rcgp rcra rcs0 rcs1.
+    subst rcgp rcra.
     iEval (cbn) in "HPC".
 
     (* Block 9: reload the saved buffer, allowing the heap load to clear its
@@ -484,19 +600,18 @@ Section Heap_Temporal_Safety_Blocks.
       iHide "Hcont" as hcont.
     rewrite world_interp_eq /world_interp_def.
     iDestruct "Hworld" as "(Hregion & Hsts & Hseals)".
-    (* Load ca0 cgp 1. *)
-    iApply (load_read_retained_imm (revoke Wret) C pc_b pc_e a_reload
-      cgp_b cgp_e (cgp_b ^+ 1)%a (hts_buffer b) _ 1
-      with "[- $Halloc $HPC $Hcgp $Hca0 $Hsaved $Hblock $Hregion]").
-    { exact Hcgp_shadow. }
+    (* Load ca0 csp (-1). *)
+    iApply (hts_reload_retained_buffer_spec (revoke Wret) C pc_b pc_e a_reload
+      csp_b csp_e (hts_buffer b) _
+      with "[- $Halloc $HPC $Hcsp $Hca0 $Hslot $Hblock $Hregion]").
+    { exact Hstk_shadow. }
     { rewrite /hts_buffer /is_heap_cap /heap_cap_base
         /memory_cap_base /= Hb_heap. reflexivity. }
-    { rewrite /hts_main_data in Hcgp_contiguous. solve_addr. }
-    { apply withinBounds_true_iff.
-      rewrite /hts_main_data in Hcgp_contiguous. solve_addr. }
+    { solve_addr. }
+    { exact Hstk_nonempty. }
     { solve_addr. }
     iNext. iIntros (actual Hloaded)
-      "(HPC & Hcgp & Hca0 & Hsaved & Hblock & Hregion)".
+      "(HPC & Hcsp & Hca0 & Hslot & Hblock & Hregion)".
     iAssert (world_interp (revoke Wret) C) with "[Hregion Hsts Hseals]"
       as "Hworld".
     { rewrite world_interp_eq /world_interp_def. iFrame. }
@@ -536,7 +651,7 @@ Section Heap_Temporal_Safety_Blocks.
     assert (related_sts_heap_std (heap_std Wshare) (heap_std Wret))
       as Hheap_future.
     { rewrite -(std_update_multiple_heap Wshare
-        (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary).
+        (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary).
       exact (proj2 (proj2 (proj2 Hrelated_share_ext_ret))). }
     destruct (heap_lookup_addr_future (heap_std Wshare) (heap_std Wret)
       b b (MkAllocObject b (b ^+ 1)%a AllocObjectLive)
@@ -559,7 +674,7 @@ Section Heap_Temporal_Safety_Blocks.
       rewrite Hqu in Hfilter.
       apply (f_equal get_tag) in Hfilter.
       rewrite /hts_buffer /= in Hfilter. discriminate. }
-    assert (b ∉ finz.seq_between (csp_b ^+ 4)%a csp_e) as Hb_not_callstk.
+    assert (b ∉ finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) as Hb_not_callstk.
     { intros Hin. apply Hb_not_stack.
       apply elem_of_finz_seq_between in Hin.
       apply elem_of_finz_seq_between. solve_addr. }
@@ -567,12 +682,12 @@ Section Heap_Temporal_Safety_Blocks.
     { rewrite /Wshare lookup_insert.
       case_decide; [reflexivity|congruence]. }
     assert (std (std_update_multiple Wshare
-      (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary) !! b =
+      (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) !! b =
       Some Permanent) as Hstd_source.
     { rewrite std_sta_update_multiple_lookup_same_i;
         [exact Hstd_share|exact Hb_not_callstk]. }
     assert (b ∈ dom (std (std_update_multiple Wshare
-      (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary))) as Hb_dom_source.
+      (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary))) as Hb_dom_source.
     { rewrite elem_of_dom. eexists. exact Hstd_source. }
     assert (b ∈ dom (std Wret)) as Hb_dom_ret.
     { apply (proj1 (proj1 Hrelated_share_ext_ret)).
@@ -604,7 +719,7 @@ Section Heap_Temporal_Safety_Blocks.
     iApply "Hcontinue".
     rewrite /hts_phase11_pre.
     iExists b, a_reload, a_check, Wshare, Wret, obj_ret,
-      wcs0, wcs1, warg1, v_b, rmap_after, stk_after, l, lret.
+      rcs0, rcs1, warg1, v_b, rmap_after, stk_after, l, lret.
     iSplit; first (iPureIntro; exact Hbounds).
     iSplit; first (iPureIntro; exact Hsucc).
     iSplit; first (iPureIntro; change ((pc_a + length
@@ -619,8 +734,7 @@ Section Heap_Temporal_Safety_Blocks.
     iSplit; first (iPureIntro; exact Hstd_rev).
     iSplit; first (iPureIntro; exact Hb_heap).
     iSplit; first (iPureIntro; exact Hdom_rmap_after).
-    iSplit; first (iPureIntro; exact Hcs0_nonheap).
-    iSplit; first (iPureIntro; exact Hcs1_nonheap).
+    iSplit; first (iPureIntro; exact Hstk_nonempty).
     iSplit; first (iPureIntro; exact Hstk_shadow).
     iSplit; first (iPureIntro; exact Hstk_heap).
     iSplit; first (iPureIntro; exact Hstack_revoked_W0).

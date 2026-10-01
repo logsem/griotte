@@ -22,7 +22,10 @@ Section Heap_Temporal_Safety.
       assert(p == 0);
       halt;
 
-      Only [buf] is shared. Both [p] and [saved_buf] are private CGP addresses.
+      Only [buf] is shared. [p] is the only word of the compartment's CGP
+      data. [saved_buf] is a stack slot, the first word of main's stack: it
+      lies below the frame that the switcher pushes and hands to the callees,
+      so no callee can reach it.
       There is no claim operation: the tag check handles early quarantine,
       and no adversary executes between this check and our call to free.
       Quarantine clears tags on subsequent capability loads, not on values
@@ -58,8 +61,9 @@ Section Heap_Temporal_Safety.
         #".hts_malloc_result_end"
       ];
       [
-        (* saved_buf = buf; buf[0] = 0; *)
-        store_imm cgp ca0 1;
+        (* saved_buf = buf (stack slot below the callee frame); buf[0] = 0; *)
+        store_imm csp ca0 0;
+        lea csp 1;
         store_imm ca0 (0)%asm 0
       ];
       fetch_asm hts_switcher_offset ctp ct0 ct2;
@@ -70,7 +74,7 @@ Section Heap_Temporal_Safety.
       ];
       [
         (* buf = saved_buf; the load consults the shadow table. *)
-        load_imm ca0 cgp 1
+        load_imm ca0 csp (-1)%Z
       ];
       [
         (* if (!tag(buf)) halt; the adversary may have freed it. *)
@@ -80,12 +84,8 @@ Section Heap_Temporal_Safety.
         #".hts_check_buffer_end"
       ];
       [
-        (* buf[0] = &p; narrow cgp to its private first address. *)
-        mov ct0 cgp;
-        getb ct1 ct0;
-        add ct2 ct1 (1)%asm;
-        subseg ct0 ct1 ct2;
-        store_imm ca0 ct0 0
+        (* buf[0] = &p; cgp covers exactly p. *)
+        store_imm ca0 cgp 0
       ];
       fetch_asm hts_switcher_offset ctp ct0 ct2;
       fetch_asm hts_free_offset ct1 ct0 ct2;
@@ -135,7 +135,7 @@ Section Heap_Temporal_Safety.
   Definition hts_main_code : list Word :=
     concat (encodeInstrsW <$> assembled_hts_main).
 
-  Definition hts_main_data : list Word := [WInt 0; WInt 0].
+  Definition hts_main_data : list Word := [WInt 0].
 
   Definition hts_main_imports `{!switcherLayout} `{!assertLayout}
       `{!allocatorLayout} (adv_f : Sealable) : list Word :=

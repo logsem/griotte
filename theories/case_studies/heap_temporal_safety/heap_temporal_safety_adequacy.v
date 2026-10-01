@@ -816,9 +816,6 @@ Section Adequacy.
     { exact (cmpt_pcc_base_not_heap hts_main_cmpt). }
     { exact (cmpt_cgp_disjoint_from_shadow hts_main_cmpt). }
     { exact (cmpt_cgp_not_heap_range hts_main_cmpt). }
-    { rewrite !lookup_delete_ne //; rewrite Hreg; [done|set_solver]. }
-    { rewrite !lookup_delete_ne //; rewrite Hreg; [done|set_solver]. }
-    { rewrite !lookup_delete_ne //; rewrite Hreg; [done|set_solver]. }
     { solve_ndisj. }
     { solve_ndisj. }
     { solve_ndisj. }
@@ -853,12 +850,6 @@ Section Adequacy.
       by rewrite Hmain_data in Hsize. }
     { pose proof (cmpt_import_size hts_main_cmpt) as Hsize.
       by rewrite Hmain_imports in Hsize. }
-    { rewrite not_elem_of_dom.
-      apply Hcgp_fresh.
-      apply elem_of_finz_seq_between.
-      pose proof (cmpt_data_size hts_main_cmpt) as Hsize.
-      rewrite Hmain_data in Hsize.
-      solve_addr+Hsize. }
     { rewrite not_elem_of_dom.
       apply Hcgp_fresh.
       apply elem_of_finz_seq_between.
