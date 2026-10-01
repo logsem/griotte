@@ -1,14 +1,13 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules logrel monotone interp_weakening.
-From griotte Require Import fetch_spec assert_spec switcher_spec_call
-  heap_temporal_safety heap_temporal_safety_preamble heap_temporal_safety_spec_blocks.
-From griotte Require Import switcher_spec_KtK.
+From griotte Require Import rules logrel.
+From griotte Require Import assert_spec switcher_spec_call
+  heap_temporal_safety heap_temporal_safety_preamble.
 From griotte.allocator Require Import allocator allocator_preamble.
-From griotte Require Import heap_temporal_safety_allocator_spec world_ghost_theory heap_region wp_rules_interp hts_blocks_groups_0_5 hts_blocks_groups_6_10
-  hts_blocks_groups_11_15 hts_blocks_groups_16_22.
-From griotte Require Import world_ghost_theory world_interp_stack.
-From griotte Require Import region_invariants heap_ghost logrel rules.
+From griotte Require Import world_interp_stack.
 From griotte Require Import proofmode register_tactics map_simpl.
+From griotte Require Import hts_spec_states hts_spec_malloc_blocks
+  hts_spec_share_blocks hts_spec_free_blocks hts_spec_dangling_blocks
+  hts_spec_assert_blocks.
 
 Section Heap_Temporal_Safety_Main.
   Context
@@ -109,59 +108,63 @@ Section Heap_Temporal_Safety_Main.
 
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    (* Block map for hts_main_asm:
-       0: initialize p and malloc size.
-       1: fetch switcher for malloc.
-       2: fetch malloc entry.
-       3: call malloc.
-       4: validate malloc result.
-       5: save the buffer in the stack slot below the callee frames,
-         and initialize it.
-       6: fetch switcher for first adversary call.
-       7: fetch adversary entry.
-       8: call adversary with buffer.
-       9: reload the saved buffer from the stack slot.
-      10: check reloaded buffer tag.
-      11: store the p capability (cgp) in the buffer.
-      12: fetch switcher for free.
-      13: fetch free entry.
-      14: call free.
-      15: validate free result.
-      16: clear adversary argument.
-      17: fetch switcher for second adversary call.
-      18: fetch adversary entry.
-      19: call adversary with zero.
-      20: prepare p assertion.
-      21: fetch and call assert service.
-      22: halt. *)
+    (* The proof follows the control flow of [hts_main_asm]; each segment
+       ends at a switcher call or at [halt]:
+       (a) blocks 0-3: initialization and call to malloc
+           ([hts_spec_malloc], returning [hts_malloc_ret]);
+       (b) blocks 4-8: malloc result check, saving the buffer, sharing it
+           and first adversary call ([hts_spec_share], [hts_adv1_ret]);
+       (c) blocks 9-14: reload, tag check, store of [&p] and call to free
+           ([hts_spec_free], [hts_free_ret]);
+       (d) blocks 15-19: free result check, quarantine and second
+           adversary call ([hts_spec_dangling], [hts_adv2_ret]);
+       (e) blocks 20-22: assertion and halt ([hts_spec_assert]). *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       HNswitcher_assert HNswitcher_service
       HNassert_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
       Himports_contiguous Hp_fresh Hheap_empty Hframe_match)
-      "Hinitial".
-    iPoseProof (hts_phase_0_5 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      rmap C_f W_init_C Ws Cs Nassert Nswitcher cstk
-      Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
-      HNswitcher_assert HNswitcher_service
-      HNassert_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
-      Himports_contiguous Hp_fresh Hheap_empty Hframe_match
-      with "Hinitial") as "Hphase".
-    iApply "Hphase".
-    iIntros "Hphase6".
-    iApply (hts_phase_6_10 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      rmap C_f W_init_C Ws Cs Nassert Nswitcher cstk
-      Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
-      HsubBounds Hcgp_contiguous Hheap_empty with "[$Hphase6]").
-    iNext. iIntros "Hphase11".
-    iApply (hts_phase_11_15 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
+      "(#Hassert & #Halloc & #Hservice & #Hswitcher
+       & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
+       & HPC & Hcgp & Hcsp & Hrmap & Himports & Hcode & Hdata
+       & Hworld & HK & Hcstk & #Hadv & #Hentry
+       & #Hinterp_csp)".
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_csp")
+      as %[Hstk_shadow Hstk_heap]; first done.
+    iDestruct (hts_main_imports_pointsto pc_b pc_a C_f Himports_contiguous
+      with "Himports") as
+      "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
+       & Himport_free & _)".
+    iDestruct (hts_private_data_initial cgp_b cgp_e Hcgp_contiguous
+      with "Hdata") as "Hp".
+    iAssert (hts_main_ctx C C_f W_init_C Nassert Nswitcher) as "#Hctx".
+    { iFrame "#". }
+    (* (a) *)
+    iApply (hts_spec_malloc C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
+      C_f W_init_C Ws Cs Nassert Nswitcher cstk rmap
+      with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hrmap $Hworld
+        $Hinterp_csp $HK $Hcstk $Himport_switcher $Himport_assert
+        $Himport_adv $Himport_malloc $Himport_free
+        $Hcode $Hp]"); try done.
+    iIntros "Hmalloc_ret".
+    (* (b) *)
+    iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
       C_f W_init_C Ws Cs Nassert Nswitcher cstk
-      Hpc_shadow Hpc_nonheap Hcgp_heap HsubBounds Hcgp_contiguous
-      with "[$Hphase11]").
-    iNext. iIntros "Hphase16".
-    iApply (hts_phase_16_22 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
+      with "[$Hctx $Hmalloc_ret]"); try done.
+    iIntros "Hadv1_ret".
+    (* (c) *)
+    iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
       C_f W_init_C Ws Cs Nassert Nswitcher cstk
-      Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
-      HsubBounds Hcgp_contiguous with "Hphase16").
+      with "[$Hctx $Hadv1_ret]"); try done.
+    iIntros "Hfree_ret".
+    (* (d) *)
+    iApply (hts_spec_dangling C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
+      C_f W_init_C Ws Cs Nassert Nswitcher cstk
+      with "[$Hctx $Hfree_ret]"); try done.
+    iIntros "Hadv2_ret".
+    (* (e) *)
+    iApply (hts_spec_assert C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
+      C_f W_init_C Nassert Nswitcher cstk
+      with "[$Hctx $Hadv2_ret]"); done.
   Qed.
 End Heap_Temporal_Safety_Main.
