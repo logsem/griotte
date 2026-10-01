@@ -63,7 +63,8 @@ Section standard_world_interp.
     (Mρ: gmap Addr region_type) :=
     (⌜heap_quarantine_covered (heap_std W) (std W)⌝ ∗
      (heap_std_fragments C (heap_std W) ∗
-      heap_provenance (heap_std W)) ∗
+      heap_provenance (heap_std W) ∗
+      heap_quarantine_rights (heap_std W)) ∗
      [∗ map] a↦γp ∈ MC,
        ∃ ρ, ⌜Mρ !! a = Some ρ⌝
             ∗ sts_state_std C a ρ
@@ -119,6 +120,41 @@ Section standard_world_interp.
     all: iFrame; iExists p,φ; iSplit;auto; rewrite rel_eq /rel_def; iExists γpred.
     all: simplify_eq; iFrame "Hsaved Hrel".
   Qed.
+  Lemma region_rel_get_state W C a ρ :
+    std W !! a = Some ρ ->
+    region W C ∗ sts_full_world W C
+    ==∗
+    region W C ∗ sts_full_world W C ∗
+    ∃ p φ, ⌜∀ WCv, Persistent (φ WCv)⌝ ∗ rel C a p φ.
+  Proof.
+    iIntros (Hlookup) "[Hr Hsts]".
+    rewrite region_eq /region_def.
+    iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
+    rewrite /region_map_def.
+    iDestruct "Hmap" as "(%Hcovered & Hheap & Hentries)".
+    assert (is_Some (M !! a)) as [γp Hγp].
+    { apply elem_of_dom. rewrite -Hdom elem_of_dom. eauto. }
+    destruct γp as [γ p].
+    iMod (reg_get with "[$HM]") as "[HM Hrel]";
+      first (iPureIntro; exact Hγp).
+    iDestruct (big_sepM_delete _ _ a with "Hentries") as "[Hentry Hentries]";
+      first exact Hγp.
+    iDestruct "Hentry" as (ρ' Hρ') "[Hstate Hentry]".
+    iDestruct (sts_full_state_std with "Hsts Hstate") as %Hρeq.
+    rewrite Hlookup in Hρeq. injection Hρeq as <-.
+    iDestruct "Hentry" as (γpred p' φ Heq Hpers) "(#Hsaved & Haddr)".
+    iDestruct (big_sepM_delete _ _ a with "[Hstate Haddr $Hentries]")
+      as "Hentries"; [exact Hγp| |].
+    { iExists ρ. iFrame "∗#%". }
+    iModIntro. iSplitL "HM Hheap Hentries".
+    { iExists M, Mρ. iFrame "HM".
+      iFrame "%". rewrite /region_map_def. iFrame "Hheap Hentries". }
+    iFrame "Hsts".
+    iExists p', φ. iSplit; first done.
+    rewrite rel_eq /rel_def. iExists γpred.
+    simplify_eq. iFrame "Hsaved Hrel".
+  Qed.
+
 
   (* ------------------------------------------------------------------- *)
   (* region_map is monotone with regards to public future world relation *)

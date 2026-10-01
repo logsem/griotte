@@ -87,7 +87,8 @@ Section AllocatorInitializationProofs.
          allocator_ctx (allocatorg := ag) ∗
          allocator_client_resources (allocatorg := ag) m ∗
          allocator_initial_free_tokens (allocatorg := ag) m ∗
-         allocator_history_empty (allocatorg := ag))%I.
+         allocator_history_empty (allocatorg := ag) ∗
+         free_rights_pool (allocatorg := ag) heap_addresses)%I.
   Proof.
     intros Hdom.
     iIntros "Hm".
@@ -102,15 +103,16 @@ Section AllocatorInitializationProofs.
        ∃ ag : allocatorG Σ,
          allocator_ctx (allocatorg := ag) ∗
          free_addrs (allocatorg := ag) heap_b heap_e ∗
-         allocator_history_empty (allocatorg := ag))%I.
+         allocator_history_empty (allocatorg := ag) ∗
+         free_rights_pool (allocatorg := ag) heap_addresses)%I.
   Proof.
     intros Hdom.
     iIntros "Hm".
     iMod (allocator_init_with_free_tokens E ((fun v => (Free,v)) <$> mem)
-      with "[Hm]") as (ag) "[Halloc [_ [Hfree Hhistory]]]".
+      with "[Hm]") as (ag) "(Halloc & _ & Hfree & Hhistory & Hpool)".
     { by rewrite dom_fmap_L. }
     { rewrite /allocator_initial_resources big_sepM_fmap. iExact "Hm". }
-    iModIntro. iExists ag. iFrame "Halloc Hhistory".
+    iModIntro. iExists ag. iFrame "Halloc Hhistory Hpool".
     rewrite /allocator_initial_free_tokens big_sepM_fmap /= big_sepM_dom Hdom
       /heap_addresses big_sepS_list_to_set; last apply finz_seq_between_NoDup.
     iExact "Hfree".
@@ -124,6 +126,7 @@ Proof. unfold Nallocator, Nallocator_service. solve_ndisj. Qed.
 Section AllocatorServiceInitializationProofs.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocator_preg : allocator_preG Σ}
     {allocator_history_preg : ghost_mapG Σ Addr (Addr * (Z * Z))}
+    {allocator_ownerg : allocatorOwnerG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
 
   (** The initial heap may contain arbitrary words, but every shadow bit must
@@ -131,9 +134,10 @@ Section AllocatorServiceInitializationProofs.
       header-metadata map, and both invariants. There are initially no header addresses.
       Existing heap-only clients continue to use their compatibility wrappers. *)
 
-  Lemma allocator_service_init_correct (E : coPset) (mem : Mem) :
+  Lemma allocator_service_init_correct (E : coPset) (mem : Mem) (ids : gset Z) :
     allocatorLayoutWf /\ dom mem = heap_addresses ->
     ⊢ (allocator_service_initial_resources -∗
+       allocator_owners (gset_to_gmap ∅ ids) -∗
        ([∗ map] a ↦ v ∈ mem, a ↦ₐ v ∗
        a ↦ₛ ShadowLive)
        ={E}=∗
@@ -142,9 +146,9 @@ Section AllocatorServiceInitializationProofs.
          allocator_service_ctx (allocatorg := ag))%I.
   Proof.
     intros [Hwf Hdom].
-    iIntros "[Hstatic Hdata] Hheap".
+    iIntros "[Hstatic Hdata] Howners Hheap".
     iMod (allocator_init_free_with_tokens_correct E mem Hdom with "Hheap")
-      as (ag) "[Halloc [Hfree Hhistory]]".
+      as (ag) "(Halloc & Hfree & Hhistory & Hpool)".
     iDestruct (region_pointsto_single with "Hdata") as (w) "[Hdata %Hword]".
     { exact (@allocator_size_data MP layout Hwf). }
     injection Hword as <-.
@@ -153,13 +157,16 @@ Section AllocatorServiceInitializationProofs.
     iDestruct "Hfree" as "[Hroot Hfree]".
     iMod (na_inv_alloc cerise_nais E Nallocator_service
       (allocator_service_inv (allocatorg := ag))
-      with "[Hstatic Hdata Hroot Hfree Hhistory]") as "#Hservice".
+      with "[Hstatic Hdata Hroot Hfree Hhistory Howners Hpool]") as "#Hservice".
     { iNext. iFrame "Hstatic". iExists (heap_b ^+ 1)%a, [].
       iEval (rewrite /allocator_history_empty /allocator_history /=) in "Hhistory".
       iFrame "Hdata Hroot Hfree Hhistory".
-      iPureIntro.
-      split; last done.
-      pose proof heap_valid. solve_addr. }
+      iSplit.
+      { iPureIntro. pose proof heap_valid. solve_addr. }
+      iSplitR; first done.
+      iExists _. iFrame "Howners".
+      iSplit; first (iPureIntro; apply allocator_owners_wf_empty).
+      rewrite /allocation_bases /= difference_empty_L. iExact "Hpool". }
     iModIntro. iExists ag. iFrame "Halloc Hservice".
   Qed.
 

@@ -67,6 +67,77 @@ Section heap_region.
       iExists reserved. iFrame "#".
   Qed.
 
+  (** The world holds the right to free of every quarantined object. *)
+  Definition heap_quarantine_rights (h : Heap) : iProp Σ :=
+    [∗ map] b ↦ o ∈ h,
+      match alloc_object_status o with
+      | AllocObjectQuarantined => free_right b
+      | AllocObjectLive => emp
+      end.
+
+  Global Instance heap_quarantine_rights_timeless h :
+    Timeless (heap_quarantine_rights h).
+  Proof.
+    apply big_sepM_timeless. intros b o. destruct (alloc_object_status o); apply _.
+  Qed.
+
+  Lemma heap_quarantine_rights_empty : ⊢ heap_quarantine_rights ∅.
+  Proof. by rewrite /heap_quarantine_rights big_sepM_empty. Qed.
+
+  (** A freshly allocated object is live: the rights are unchanged. *)
+  Lemma heap_quarantine_rights_allocate h b e :
+    h !! b = None ->
+    heap_quarantine_rights h ⊣⊢ heap_quarantine_rights (heap_allocate h b e).
+  Proof.
+    intros Hb. rewrite /heap_quarantine_rights /heap_allocate big_sepM_insert //=.
+    by rewrite left_id.
+  Qed.
+
+  (** Quarantining a live object moves its right to free into the world. *)
+  Lemma heap_quarantine_rights_quarantine h b o :
+    h !! b = Some o ->
+    alloc_object_status o = AllocObjectLive ->
+    heap_quarantine_rights h ∗ free_right b ⊣⊢
+    heap_quarantine_rights (heap_quarantine h b).
+  Proof.
+    intros Hb Hlive.
+    rewrite /heap_quarantine_rights /heap_quarantine.
+    rewrite (big_sepM_delete _ h b o) //.
+    rewrite (big_sepM_delete _ (alter _ b h) b); last first.
+    { by rewrite fin_maps.lookup_alter_eq Hb. }
+    rewrite delete_alter Hlive /= left_id decide_True // comm //.
+  Qed.
+
+  (** Quarantining any base with its right to free: the right is either moved
+      into the world (live object), contradicts the world (already quarantined)
+      or is dropped (no object). *)
+  Lemma heap_quarantine_rights_quarantine_right h b :
+    heap_quarantine_rights h -∗ free_right b -∗
+    heap_quarantine_rights (heap_quarantine h b).
+  Proof.
+    iIntros "Hrights Hright".
+    destruct (h !! b) as [o|] eqn:Hb.
+    - destruct (alloc_object_status o) eqn:Hstatus.
+      + iApply (heap_quarantine_rights_quarantine h b o Hb Hstatus). iFrame.
+      + iDestruct (big_sepM_lookup with "Hrights") as "Hb"; first exact Hb.
+        rewrite Hstatus.
+        iDestruct (free_right_exclusive with "Hb Hright") as %[].
+    - rewrite /heap_quarantine fin_maps.alter_id; first iExact "Hrights".
+      intros o Ho. by rewrite Hb in Ho.
+  Qed.
+
+  (** A right to free held outside the world belongs to a live object. *)
+  Lemma heap_quarantine_rights_free_right_live h b o :
+    h !! b = Some o ->
+    heap_quarantine_rights h -∗ free_right b -∗
+    ⌜alloc_object_status o = AllocObjectLive⌝.
+  Proof.
+    iIntros (Hb) "Hrights Hright".
+    iDestruct (big_sepM_lookup with "Hrights") as "Hb"; first exact Hb.
+    destruct (alloc_object_status o); first done.
+    iDestruct (free_right_exclusive with "Hb Hright") as %[].
+  Qed.
+
   Definition heap_addr_resource (W_heap : Heap) (a : Addr) (P : iProp Σ) : iProp Σ :=
     (if is_heap_address a then
        match heap_lookup_addr W_heap a with

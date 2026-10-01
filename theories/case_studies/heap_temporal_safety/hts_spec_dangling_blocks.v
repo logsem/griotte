@@ -8,7 +8,7 @@ From griotte Require Import world_interp_stack region_invariants heap_ghost.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte Require Import hts_spec_states hts_spec_world.
 
-(** * Segment (d): blocks 15-19
+(** * Segment (d): blocks 16-20
 
     Check the free result (halting on failure), quarantine the buffer in the
     world, and call [adv(0)]: the saved alias of the buffer is dangling. *)
@@ -20,21 +20,22 @@ Section HTS_Spec_Dangling.
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
   Context (C : CmptName).
   Context (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr).
-  Context (C_f : Sealable) (W_init_C : WORLD).
+  Context (C_f : Sealable) (owner_a : Addr) (W_init_C : WORLD).
   Context (Ws : list WORLD) (Cs : list CmptName).
   Context (Nassert Nswitcher : namespace) (cstk : CSTK).
 
   Local Notation hts_ctx := (hts_main_ctx C C_f W_init_C Nassert Nswitcher).
   Local Notation free_ret := (hts_free_ret C pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f Ws Cs cstk).
+    csp_b csp_e C_f owner_a Ws Cs cstk).
   Local Notation adv2_ret := (hts_adv2_ret pc_b pc_e pc_a cgp_b cgp_e
-    csp_b csp_e C_f cstk).
+    csp_b csp_e C_f owner_a cstk).
 
   Lemma hts_spec_dangling :
     disjoint_from_shadow pc_b pc_e ->
@@ -56,12 +57,12 @@ Section HTS_Spec_Dangling.
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hret" as (a_ret Ha_ret) "[Herr|Hok]".
-    { (* Block 15: halt when free failed. *)
+    { (* Block 16: halt when free failed. *)
       iDestruct "Herr" as (z) "(%Hz & Hna & HPC & Hca0 & _ & Hcode)".
       codefrag_facts "Hcode". clear H0.
       iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
       iEval (cbv [fmap list_fmap concat]) in "Hcode".
-      hts_focus_entry_block 15 "Hcode" as a_free_result Ha_free_result
+      hts_focus_entry_block 16 "Hcode" as a_free_result Ha_free_result
         "Hblock" "Hcont" from Ha_ret.
       (* Jnz 2 ca0. *)
       iInstr "Hblock".
@@ -71,19 +72,19 @@ Section HTS_Spec_Dangling.
     iDestruct "Hok" as (b Wret) "(%Hbounds & %Hstk_nonempty & %Hwf_rev
       & %Hb_lookup & %Hstd_rev & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
       & [%stk Hstk] & Hworld_open & Hstate_b & Hstack_revoked_ret
-      & %Hstack_revoked_ret & HK & Hreclaimed)".
+      & %Hstack_revoked_ret & HK & Hright & Hreclaimed)".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
-      & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp)".
+      & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
-       & Himport_free)".
+       & Himport_free & Himport_alloc_cap)".
     iDestruct "Hregs" as (rmap Hdom_rmap) "Hrmap".
     codefrag_facts "Hcode". clear H0.
     iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
     iEval (cbv [fmap list_fmap concat]) in "Hcode".
 
-    (* Block 15: the free result is ALLOC_OK. *)
-    hts_focus_entry_block 15 "Hcode" as a_free_result Ha_free_result
+    (* Block 16: the free result is ALLOC_OK. *)
+    hts_focus_entry_block 16 "Hcode" as a_free_result Ha_free_result
       "Hblock" "Hcont" from Ha_ret.
     iHide "Hcont" as hcont.
     (* Jnz 2 ca0. *)
@@ -95,7 +96,7 @@ Section HTS_Spec_Dangling.
     (* Quarantine b in the world and close its world entry. The dangling
        saved alias remains private. *)
     iMod (hts_world_quarantine C _ b Wret Hbounds Hwf_rev Hb_lookup Hstd_rev
-      with "Hrel_b Hstate_b Hreclaimed Hworld_open") as "Hworld".
+      with "Hrel_b Hstate_b Hright Hreclaimed Hworld_open") as "Hworld".
     iDestruct (StackRevokedResources_mono_priv Wret (hts_Wfree Wret b) C
       (finz.seq_between (csp_b ^+ 1)%a csp_e) (hts_Wfree_related Wret b)
       with "Hstack_revoked_ret") as "Hstack_revoked_free".
@@ -105,20 +106,20 @@ Section HTS_Spec_Dangling.
     iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wfree Wret b)
       Hadv_nonheap with "Hadv") as "#Hinterp_adv_free".
 
-    (* Block 16: clear the second adversary argument. *)
-    focus_block 16 "Hcode" as a_zero Ha_zero "Hblock" "Hcont";
+    (* Block 17: clear the second adversary argument. *)
+    focus_block 17 "Hcode" as a_zero Ha_zero "Hblock" "Hcont";
       iHide "Hcont" as hcont.
     (* Mov ca0 0. *)
     iInstr "Hblock".
     subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
 
-    (* Block 17: fetch the switcher entry. *)
-    focus_block 17 "Hcode" as a_fetch17 Ha_fetch17 "Hfetch" "Hcont";
+    (* Block 18: fetch the switcher entry. *)
+    focus_block 18 "Hcode" as a_fetch18 Ha_fetch18 "Hfetch" "Hcont";
       iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ctp;ct2] as ["[Hctp _]";"[Hct2 _]"].
     iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
     iApply (fetch_spec hts_switcher_offset ctp ct0 ct2 RX Global
-      pc_b pc_e a_fetch17
+      pc_b pc_e a_fetch18
       (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
       _ _ _ _ with "[- $HPC $Hctp $Hct0 $Hct2 $Hfetch]").
     { reflexivity. }
@@ -136,12 +137,12 @@ Section HTS_Spec_Dangling.
     iEval (cbn) in "Hctp".
     subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
 
-    (* Block 18: fetch the adversary entry. *)
-    focus_block 18 "Hcode" as a_fetch18 Ha_fetch18 "Hfetch" "Hcont";
+    (* Block 19: fetch the adversary entry. *)
+    focus_block 19 "Hcode" as a_fetch19 Ha_fetch19 "Hfetch" "Hcont";
       iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct1] as ["[Hct1 _]"].
     iApply (fetch_spec hts_adv_offset ct1 ct0 ct2 RX Global
-      pc_b pc_e a_fetch18 (WSealed ot_switcher C_f)
+      pc_b pc_e a_fetch19 (WSealed ot_switcher C_f)
       _ _ _ _ with "[- $HPC $Hct1 $Hct0 $Hct2 $Hfetch]").
     { reflexivity. }
     { solve_addr. }
@@ -157,15 +158,15 @@ Section HTS_Spec_Dangling.
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hfetch" "Hcont" as "Hcode".
 
-    (* Block 19: call the adversary with zero. *)
-    focus_block 19 "Hcode" as a_advcall2 Ha_advcall2 "Hblock" "Hcont";
+    (* Block 20: call the adversary with zero. *)
+    focus_block 20 "Hcode" as a_advcall2 Ha_advcall2 "Hblock" "Hcont";
       iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
     iInstr_success "Hblock".
     subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
-    assert (hts_block_addr pc_a 20 (a_advcall2 ^+ 1)%a) as Ha_next.
+    assert (hts_block_addr pc_a 21 (a_advcall2 ^+ 1)%a) as Ha_next.
     { rewrite /hts_block_addr. solve_addr. }
-    clear Ha_free_result Ha_zero Ha_fetch17 Ha_fetch18.
+    clear Ha_free_result Ha_zero Ha_fetch18 Ha_fetch19.
 
     iAssert (interp (hts_Wfree Wret b) C (WInt 0)) as "#Hinterp_zero".
     { iApply interp_int. }

@@ -32,6 +32,8 @@ Class hts_memory_layout `{MP : MachineParameters} := {
     hts_adv_cmpt : cmpt;
     hts_allocator_cmpt : cmpt;
     hts_allocator_otype : OType;
+    hts_allocator_otype_disjoint :
+      hts_allocator_otype ≠ compartment_layout.ot_switcher hts_switcher_cmpt;
     hts_adv_entry_offset : nat;
     hts_adv_entry_valid :
       is_Some (cmpt_b_pcc hts_adv_cmpt + hts_adv_entry_offset)%a;
@@ -96,25 +98,26 @@ Definition hts_is_initial_memory `{hts_memory_layout} (mem : Mem) :=
     (cmpt_exp_tbl_pcc hts_adv_cmpt) (cmpt_exp_tbl_entries_end hts_adv_cmpt)
     (cmpt_exp_tbl_entries_start hts_adv_cmpt) in
   mem = hts_initial_memory ∧
-  cmpt_imports hts_main_cmpt = hts_main_imports adv_f ∧
+  (* The allocator capability of main points to its static sealed region,
+     which holds its owner identifier. *)
+  cmpt_imports hts_main_cmpt =
+    hts_main_imports (cmpt_b_static_sealed hts_main_cmpt) adv_f ∧
   cmpt_code hts_main_cmpt = hts_main_code ∧
   cmpt_data hts_main_cmpt = hts_main_data ∧
-  cmpt_static_sealed hts_main_cmpt = [] ∧
+  cmpt_static_sealed hts_main_cmpt = hts_main_static_sealed ∧
   cmpt_exp_tbl_entries hts_main_cmpt = [] ∧
   cmpt_imports hts_allocator_cmpt = allocator_imports ∧
   cmpt_code hts_allocator_cmpt = allocator_code ∧
   cmpt_data hts_allocator_cmpt = allocator_data ∧
   cmpt_static_sealed hts_allocator_cmpt = [] ∧
   cmpt_exp_tbl_entries hts_allocator_cmpt = allocator_export_table_entries ∧
-  (* The adversary is arbitrary and may call malloc and free. In particular,
-     it may quarantine the buffer during the first call. *)
+  (* The adversary is arbitrary and may call malloc and free with its own
+     allocator capability, whose owner differs from main's. *)
   cmpt_imports hts_adv_cmpt =
-    [WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call;
-     WSealed ot_switcher (allocator_malloc Global);
-     WSealed ot_switcher (allocator_free Global)] ∧
+    hts_adv_imports (cmpt_b_static_sealed hts_adv_cmpt) ∧
   Forall is_z (cmpt_code hts_adv_cmpt) ∧
   Forall (is_initial_data_word hts_adv_cmpt) (cmpt_data hts_adv_cmpt) ∧
-  cmpt_static_sealed hts_adv_cmpt = [] ∧
+  cmpt_static_sealed hts_adv_cmpt = hts_adv_static_sealed ∧
   cmpt_exp_tbl_entries hts_adv_cmpt =
     [WInt (encode_entry_point 1 hts_adv_entry_offset)] ∧
   Forall is_z (stack_content hts_switcher_cmpt).
@@ -196,6 +199,7 @@ Section Adequacy.
   Context {sts_preg : STS_preG Addr region_type OType Word Σ}.
   Context {cstack_preg : CSTACK_preG Σ}.
   Context {relpreg : relGpreS Σ}.
+  Context {allocator_owner_preg : allocatorOwnerPreG Σ}.
   Context `{MP : MachineParameters} {Layout : hts_memory_layout}.
   Lemma hts_adequacy'
       (reg reg' : Reg) (sreg sreg' : SReg) (mem mem' : Mem)
@@ -236,15 +240,45 @@ Section Adequacy.
     iMod (gen_heap_init (sreg : SReg)) as (sreg_heapg) "(Hsreg_ctx & Hsreg & _)".
     iMod (gen_heap_init sh) as (shadow_heapg) "(Hshadow_ctx & Hshadow & _)".
     iMod (gen_heap_init (mem : Mem)) as (mem_heapg) "(Hmem_ctx & Hmem & _)".
-    set (entry_keys :=
+    (* The adversary's entry takes one argument; malloc and free take the
+       allocator capability and the request. *)
+    set (adv_entry_keys :=
       {[ seal_capability (WSealable adv_f) ot_switcher;
-         borrow (seal_capability (WSealable adv_f) ot_switcher);
-         seal_capability (WSealable malloc_f) ot_switcher;
+         borrow (seal_capability (WSealable adv_f) ot_switcher) ]}
+      : gset Word).
+    set (alloc_entry_keys :=
+      {[ seal_capability (WSealable malloc_f) ot_switcher;
          borrow (seal_capability (WSealable malloc_f) ot_switcher);
          seal_capability (WSealable free_f) ot_switcher;
          borrow (seal_capability (WSealable free_f) ot_switcher) ]}
       : gset Word).
-    iMod (entry_init (gset_to_gmap 1 entry_keys)) as (entry_g) "Hentries".
+    assert (cmpt_exp_tbl_pcc hts_adv_cmpt ≠ cmpt_exp_tbl_pcc hts_allocator_cmpt)
+      as Hetbl_ne.
+    { assert (cmpt_region hts_adv_cmpt ## cmpt_region hts_allocator_cmpt)
+        as Hdis.
+      { eapply (addr_disjoint_list_lookup _ 1 2);
+          [exact hts_regions_disjoint|reflexivity..|lia]. }
+      assert (∀ C, cmpt_exp_tbl_pcc C ∈ cmpt_region C) as Hin.
+      { intros C.
+        assert (cmpt_exp_tbl_pcc C ∈
+          finz.seq_between (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C))
+          as HC.
+        { apply elem_of_finz_seq_between.
+          pose proof (cmpt_exp_tbl_pcc_size C).
+          pose proof (cmpt_exp_tbl_cgp_size C).
+          pose proof (cmpt_exp_tbl_entries_size C).
+          solve_addr. }
+        unfold cmpt_region, cmpt_exp_tbl_region. set_solver+HC. }
+      intros Heq.
+      apply (Hdis (cmpt_exp_tbl_pcc hts_adv_cmpt)); first apply Hin.
+      rewrite Heq. apply Hin. }
+    assert (∀ w, w ∈ alloc_entry_keys → w ∉ adv_entry_keys) as Hkeys_disjoint.
+    { intros w Hw Hw'. subst alloc_entry_keys adv_entry_keys.
+      set_unfold in Hw. set_unfold in Hw'.
+      destruct_or! Hw; destruct_or! Hw'; subst w; subst malloc_f free_f adv_f;
+        cbn in *; simplify_eq; congruence. }
+    iMod (entry_init (gset_to_gmap 1 adv_entry_keys ∪
+      gset_to_gmap 2 alloc_entry_keys)) as (entry_g) "Hentries".
     iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
     pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
     pose ceriseg := CeriseG Σ Hinv cerise_na_invs mem_heapg
@@ -297,14 +331,21 @@ Section Adequacy.
     iEval (rewrite /initial_heap_shadow big_sepM_fmap) in "Hshadow".
     iCombine "Hheap Hshadow" as "Hheap".
     iDestruct (big_sepM_sep with "Hheap") as "Hheap".
+    (* One owner identifier for main, one for the adversary. *)
+    iMod (allocator_owners_init {[hts_main_owner_id; hts_adv_owner_id]})
+      as (allocator_ownerg) "[Howners Hids]".
     iMod (allocator_service_init_correct ⊤ initial_heap_memory
-      with "Hservice_initial Hheap")
+      {[hts_main_owner_id; hts_adv_owner_id]}
+      with "Hservice_initial Howners Hheap")
       as (allocatorg) "[#Halloc #Hservice]".
     { split; first exact hts_allocator_wf.
       by rewrite /initial_heap_memory dom_gset_to_gmap. }
 
     iMod (gen_cstack_init []) as (cstackg) "[Hcstk_full Hcstk_frag]".
-    iMod (world_interp_init ({[ ot_switcher ]} : gset OType))
+    iDestruct (big_sepS_insert with "Hids") as "[Hid_main Hid_adv]".
+    { rewrite /hts_main_owner_id /hts_adv_owner_id. set_solver. }
+    iEval (rewrite big_sepS_singleton) in "Hid_adv".
+    iMod (world_interp_init ({[ ot_switcher ; AllocOtype ]} : gset OType))
       as (relg stsg seal_storeg) "(Hworld & Hseal_store)".
     iDestruct (big_sepS_elements with "Hworld") as "Hworld_adv".
     rewrite HCNames.
@@ -312,15 +353,22 @@ Section Adequacy.
     setoid_rewrite elements_list_to_set; auto.
     rewrite !big_sepL_singleton.
     set (W0 := (∅, (∅, ∅), ∅, ∅)).
+    pose proof hts_allocator_otype_disjoint as Hotype_disjoint.
 
     iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc"; first exact Hsreg.
     iMod (initialise_assert_compartment (Σ := Σ) hts_assert_cmpt
       hts_assertN (htsN .@ "flag") with "Hcmpt_assert")
       as "[#Hassert_flag #Hassert]".
-    rewrite big_sepS_singleton.
+    iDestruct (big_sepS_insert with "Hseal_store")
+      as "[Hseal_store Hseal_store_alloc]".
+    { apply not_elem_of_singleton. intros Heq. apply Hotype_disjoint.
+      symmetry. exact Heq. }
+    iEval (rewrite big_sepS_singleton) in "Hseal_store_alloc".
     iMod (initialise_switcher_compartment (Σ := Σ) hts_switcher_cmpt
       hts_switcherN with "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc")
       as "(#Hsealed_pred_ot_switcher & #Hswitcher & Hstack_mem)".
+    iMod (seal_store_update_alloc AllocOtype allocator_otype_propC
+      with "Hseal_store_alloc") as "#Hsealed_pred_alloc".
 
     (* Keep the allocator export cells outside the service invariant. *)
     iEval (rewrite /cmpt_exp_tbl_mregion) in "Halloc_etbl".
@@ -401,6 +449,25 @@ Section Adequacy.
       "(Hmain_imports_mem & Hmain_code_mem & Hmain_data_mem
         & Hmain_static_mem & Hmain_etbl_pcc & Hmain_etbl_cgp
         & Hmain_etbl_entries)".
+    (* The owner words, in the static sealed regions. *)
+    set (adv_owner_a := cmpt_b_static_sealed hts_adv_cmpt).
+    set (main_owner_a := cmpt_b_static_sealed hts_main_cmpt).
+    assert ((adv_owner_a + 1)%a = Some (cmpt_e_static_sealed hts_adv_cmpt))
+      as Hadv_owner_size.
+    { pose proof (cmpt_static_sealed_size hts_adv_cmpt) as Hsize.
+      rewrite Hadv_static in Hsize. exact Hsize. }
+    assert ((main_owner_a + 1)%a = Some (cmpt_e_static_sealed hts_main_cmpt))
+      as Hmain_owner_size.
+    { pose proof (cmpt_static_sealed_size hts_main_cmpt) as Hsize.
+      rewrite Hmain_static in Hsize. exact Hsize. }
+    iEval (rewrite Hadv_static) in "Hadv_static_mem".
+    iDestruct (region_pointsto_single with "Hadv_static_mem")
+      as (w_adv_owner) "[Hadv_owner %Hw_adv_owner]"; first exact Hadv_owner_size.
+    injection Hw_adv_owner as <-.
+    iEval (rewrite Hmain_static) in "Hmain_static_mem".
+    iDestruct (region_pointsto_single with "Hmain_static_mem")
+      as (w_main_owner) "[Hmain_owner %Hw_main_owner]"; first exact Hmain_owner_size.
+    injection Hw_main_owner as <-.
     iEval (rewrite Hadv_exports) in "Hadv_etbl_entries".
     rewrite (finz_seq_between_singleton
       (cmpt_exp_tbl_entries_start hts_adv_cmpt)).
@@ -424,33 +491,45 @@ Section Adequacy.
     iDestruct (big_sepM_lookup _ _
       (seal_capability (WSealable adv_f) ot_switcher) with "Hentries")
       as "#Hentry_adv".
-    { apply lookup_gset_to_gmap_Some. split; last reflexivity.
-      subst entry_keys; set_solver. }
+    { apply lookup_union_Some_l, lookup_gset_to_gmap_Some.
+      split; last reflexivity. subst adv_entry_keys; set_solver. }
     iDestruct (big_sepM_lookup _ _
       (borrow (seal_capability (WSealable adv_f) ot_switcher))
       with "Hentries") as "#Hentry_adv_borrow".
-    { apply lookup_gset_to_gmap_Some. split; last reflexivity.
-      subst entry_keys; set_solver. }
+    { apply lookup_union_Some_l, lookup_gset_to_gmap_Some.
+      split; last reflexivity. subst adv_entry_keys; set_solver. }
     iDestruct (big_sepM_lookup _ _
       (seal_capability (WSealable malloc_f) ot_switcher) with "Hentries")
       as "#Hentry_malloc".
-    { apply lookup_gset_to_gmap_Some. split; last reflexivity.
-      subst entry_keys; set_solver. }
+    { rewrite lookup_union_r.
+      - apply lookup_gset_to_gmap_Some. split; last reflexivity.
+        subst alloc_entry_keys; set_solver.
+      - apply lookup_gset_to_gmap_None. apply Hkeys_disjoint.
+        subst alloc_entry_keys; set_solver. }
     iDestruct (big_sepM_lookup _ _
       (borrow (seal_capability (WSealable malloc_f) ot_switcher))
       with "Hentries") as "#Hentry_malloc_borrow".
-    { apply lookup_gset_to_gmap_Some. split; last reflexivity.
-      subst entry_keys; set_solver. }
+    { rewrite lookup_union_r.
+      - apply lookup_gset_to_gmap_Some. split; last reflexivity.
+        subst alloc_entry_keys; set_solver.
+      - apply lookup_gset_to_gmap_None. apply Hkeys_disjoint.
+        subst alloc_entry_keys; set_solver. }
     iDestruct (big_sepM_lookup _ _
       (seal_capability (WSealable free_f) ot_switcher) with "Hentries")
       as "#Hentry_free".
-    { apply lookup_gset_to_gmap_Some. split; last reflexivity.
-      subst entry_keys; set_solver. }
+    { rewrite lookup_union_r.
+      - apply lookup_gset_to_gmap_Some. split; last reflexivity.
+        subst alloc_entry_keys; set_solver.
+      - apply lookup_gset_to_gmap_None. apply Hkeys_disjoint.
+        subst alloc_entry_keys; set_solver. }
     iDestruct (big_sepM_lookup _ _
       (borrow (seal_capability (WSealable free_f) ot_switcher))
       with "Hentries") as "#Hentry_free_borrow".
-    { apply lookup_gset_to_gmap_Some. split; last reflexivity.
-      subst entry_keys; set_solver. }
+    { rewrite lookup_union_r.
+      - apply lookup_gset_to_gmap_Some. split; last reflexivity.
+        subst alloc_entry_keys; set_solver.
+      - apply lookup_gset_to_gmap_None. apply Hkeys_disjoint.
+        subst alloc_entry_keys; set_solver. }
 
     set (alloc_import_words :=
       ({[WSealable malloc_f; borrow (WSealable malloc_f)]} ∪
@@ -476,14 +555,54 @@ Section Adequacy.
       iApply big_sepS_insert_2; first iExact "Hmalloc_prop".
       rewrite big_sepS_singleton; iExact "Hfree_prop". }
 
-    iAssert (interp W1 Adv (WSealed ot_switcher malloc_f))
+    (* The adversary's allocator capability satisfies the sealing predicate
+       of the allocator's otype, with the adversary's owner identifier. *)
+    set (adv_alloc_sb := allocator_capability_scap Global adv_owner_a).
+    set (adv_alloc_words :=
+      ({[WSealable adv_alloc_sb; borrow (WSealable adv_alloc_sb)]} : gset Word)).
+    set (W1' := <o[AllocOtype := adv_alloc_words]o> W1).
+    iAssert (allocator_otype_propC (W1', Adv, WSealable adv_alloc_sb))
+      with "[Hadv_owner Hid_adv]" as "Hadv_alloc_prop".
+    { iExists hts_adv_owner_id, adv_owner_a, ∅. iFrame "Hadv_owner Hid_adv".
+      rewrite /allocator_owned_rights big_sepS_empty.
+      iPureIntro. split; first reflexivity. split.
+      - apply withinBounds_true_iff. solve_addr+Hadv_owner_size.
+      - split; last done.
+        eapply disjoint_from_shadow_not_in.
+        + exact (cmpt_static_sealed_disjoint_from_shadow hts_adv_cmpt).
+        + apply withinBounds_true_iff. subst adv_owner_a.
+          solve_addr+Hadv_owner_size. }
+    assert (AllocOtype ∉ dom (seal_std W1)) as Halloc_fresh.
+    { subst W1 W0. rewrite dom_insert_L dom_empty_L.
+      apply not_elem_of_union. split; last set_solver+.
+      apply not_elem_of_singleton. intros Heq. apply Hotype_disjoint.
+      exact Heq. }
+    iMod (world_interp_salloc W1 Adv allocator_otype_propC AllocOtype
+      adv_alloc_words
+      with "[$Hsealed_pred_alloc] [] [Hadv_alloc_prop] [$Hworld_adv]")
+      as "(Hworld_adv & #Hseal_alloc_adv)"; first exact Halloc_fresh.
+    { iIntros (w); iApply mono_priv_ot_allocator. }
+    { rewrite normalise_sealed_words_borrow big_sepS_singleton.
+      iNext. iExact "Hadv_alloc_prop". }
+    iAssert (interp W1' Adv (allocator_capability Global adv_owner_a))
+      as "#Hinterp_alloc_adv".
+    { iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
+      iSplit; first (iApply (sts_seals_std_weaken with "Hseal_alloc_adv");
+        last set_solver+).
+      iPureIntro; cbn.
+      apply heap_cap_valid_disjoint.
+      replace (adv_owner_a ^+ 1)%a with (cmpt_e_static_sealed hts_adv_cmpt)
+        by solve_addr+Hadv_owner_size.
+      apply cmpt_static_sealed_disjoint_from_heap. }
+
+    iAssert (interp W1' Adv (WSealed ot_switcher malloc_f))
       as "#Hinterp_malloc".
     { iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_alloc");
         last set_solver+).
       iPureIntro; cbn.
       apply heap_cap_valid_disjoint, cmpt_exp_tbl_disjoint_from_heap. }
-    iAssert (interp W1 Adv (WSealed ot_switcher free_f))
+    iAssert (interp W1' Adv (WSealed ot_switcher free_f))
       as "#Hinterp_free".
     { iEval (rewrite fixpoint_interp1_eq /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_alloc");
@@ -522,7 +641,7 @@ Section Adequacy.
       match goal with
       | H : _ |- context [world_interp_open ?W Adv] => set (Wpre := W)
       end.
-      set (Winter := std_update_compartment W1 hts_adv_cmpt).
+      set (Winter := std_update_compartment W1' hts_adv_cmpt).
       iAssert (ot_switcher_prop Winter Adv (WSealable adv_f))
         as "#Hadv_prop".
       { iApply (ot_switcher_interp _ _ _ _ _ 1 hts_adv_entry_offset
@@ -557,7 +676,7 @@ Section Adequacy.
       iFrame.
       iModIntro.
       rewrite Hexported_entries_sealed Hexported_entries_words.
-      assert (related_sts_priv_world W1 Winter) as Hrelated_W1_Winter.
+      assert (related_sts_priv_world W1' Winter) as Hrelated_W1_Winter.
       { apply related_sts_pub_priv_world.
         subst Winter.
         eapply std_update_compartment_pub; eauto;
@@ -584,7 +703,7 @@ Section Adequacy.
         iApply big_sepL_cons; iSplitL.
         { iSplit.
           - iApply interp_to_in_mem.
-            iApply (interp_monotone_sd_same_heap W1 Winter with "[]").
+            iApply (interp_monotone_sd_same_heap W1' Winter with "[]").
             { subst Winter. by rewrite std_update_compartment_heap. }
             { iPureIntro; exact Hrelated_W1_Winter. }
             iFrame "Hinterp_malloc".
@@ -596,7 +715,7 @@ Section Adequacy.
         iApply big_sepL_cons; iSplitL.
         { iSplit.
           - iApply interp_to_in_mem.
-            iApply (interp_monotone_sd_same_heap W1 Winter with "[]").
+            iApply (interp_monotone_sd_same_heap W1' Winter with "[]").
             { subst Winter. by rewrite std_update_compartment_heap. }
             { iPureIntro; exact Hrelated_W1_Winter. }
             iFrame "Hinterp_free".
@@ -605,6 +724,18 @@ Section Adequacy.
             iApply (interp_in_mem_monotone_nl W2 W3 Adv RWL
               (WSealed ot_switcher free_f) with "Hinterp");
               [exact Hwf|exact Hrelated|by unfold free_f; cbn]. }
+        iApply big_sepL_cons; iSplitL.
+        { iSplit.
+          - iApply interp_to_in_mem.
+            iApply (interp_monotone_sd_same_heap W1' Winter with "[]").
+            { subst Winter. by rewrite std_update_compartment_heap. }
+            { iPureIntro; exact Hrelated_W1_Winter. }
+            iFrame "Hinterp_alloc_adv".
+          - iIntros (W2 W3) "!> %Hrelated %Hwf Hinterp".
+            iEval (cbn) in "Hinterp".
+            iApply (interp_in_mem_monotone_nl W2 W3 Adv RWL
+              (allocator_capability Global adv_owner_a) with "Hinterp");
+              [exact Hwf|exact Hrelated|by cbn]. }
         done.
       - iEval (rewrite union_comm_L).
         iApply big_sepS_insert_2.
@@ -758,7 +889,7 @@ Section Adequacy.
       std Winit !! a = None) as Hcgp_fresh.
     { intros a Ha.
       destruct (Hcgp_outside a Ha) as [Hnotadv Hnotsw].
-      subst Winit W2 W1 W0.
+      subst Winit W2 W1' W1 W0.
       unfold std_update_compartment; cbn [std].
       assert (a ∉ finz.seq_between (cmpt_a_code hts_adv_cmpt)
         (cmpt_e_pcc hts_adv_cmpt)) as Hnotcode.
@@ -803,15 +934,22 @@ Section Adequacy.
       rewrite std_sta_update_multiple_lookup_same_i; [|exact Hnotcode].
       reflexivity. }
 
-    iPoseProof (hts_main_spec _ _ _ _ _ _ _ _ adv_f Winit
+    iPoseProof (hts_main_spec _ _ _ _ _ _ _ _ adv_f main_owner_a Winit
       [] [] hts_assertN hts_switcherN []
       with "[$Hassert $Halloc $Hservice $Hswitcher
              $Hexport_pcc $Hexport_cgp $Hexport_malloc $Hexport_free
              $Hna $HPC $Hcgp $Hcsp $Hreg
              $Hmain_imports_mem $Hmain_codefrag $Hmain_data_mem
+             $Hid_main $Hmain_owner
              $Hworld_adv $Hcstk_frag
              $Hinterp_adv $Hentry_adv $Hinterp_stack]")
       as "Hspec"; eauto.
+    { eapply disjoint_from_shadow_not_in.
+      - exact (cmpt_static_sealed_disjoint_from_shadow hts_main_cmpt).
+      - apply withinBounds_true_iff. subst main_owner_a.
+        solve_addr+Hmain_owner_size. }
+    { apply withinBounds_true_iff. solve_addr+Hmain_owner_size. }
+    { exact (proj1 (cmpt_static_sealed_not_heap_range hts_main_cmpt)). }
     { exact (cmpt_pcc_disjoint_from_shadow hts_main_cmpt). }
     { exact (cmpt_pcc_base_not_heap hts_main_cmpt). }
     { exact (cmpt_cgp_disjoint_from_shadow hts_main_cmpt). }
@@ -856,7 +994,7 @@ Section Adequacy.
       pose proof (cmpt_data_size hts_main_cmpt) as Hsize.
       rewrite Hmain_data in Hsize.
       solve_addr+Hsize. }
-    { subst Winit W2 W1 W0.
+    { subst Winit W2 W1' W1 W0.
       rewrite std_update_multiple_heap std_update_compartment_heap.
       done. }
     { done. }
@@ -909,7 +1047,7 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus
               ; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ; CSTACK_preΣ; allocator_preΣ
-              ; ghost_mapΣ Addr (Addr * (Z * Z))
+              ; ghost_mapΣ Addr (Addr * (Z * Z)); allocator_ownerΣ
               ; na_invΣ; sealStorePreΣ
               ; STS_preΣ Addr region_type OType Word; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)

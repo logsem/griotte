@@ -5,13 +5,22 @@ From griotte Require Import machine_parameters assembler switcher fetch.
     records the first unused address. The first heap address is never allocated
     or quarantined, so loading this capability always sees a clear shadow bit.
 
-    [malloc] takes a positive number of words in [ca0]. It zeroes the new
+    Both entries take an allocator capability in [ca0], in the style of
+    CHERIoT-RTOS: a capability sealed with [AllocOtype] (see
+    [allocator_capability]) pointing to a static word that holds its owner
+    identifier. Only the allocator can unseal it, with its imported unsealing
+    key. A malformed allocator capability is not checked dynamically: the
+    machine traps on [unseal] or on the following [load], as in the KVS.
+
+    [malloc] takes a positive number of words in [ca1]. It zeroes the new
     allocation, clears its shadow entries, and returns an exactly bounded
     [RW Global] capability in [ca0]. Each allocation has three protected header
-    words before its payload: the original end and two reserved addresses,
-    initialized to zero. [free] traverses these headers from the first one
-    and requires both supplied bounds to match an original payload. It rejects
-    already quarantined allocations. Neither operation reuses memory.
+    words before its payload: the original end, the owner identifier of the
+    allocator capability, and a reserved address initialized to zero. [free]
+    takes the capability to free in [ca1]. It traverses the headers from the
+    first one and requires both supplied bounds to match an original payload
+    and the owner identifier to match the header. It rejects already
+    quarantined allocations. Neither operation reuses memory.
 
     Both entries return normally through [cra] with a single result in [ca0]
     and zero in [ca1], following the CHERIoT convention: as for
@@ -21,6 +30,14 @@ From griotte Require Import machine_parameters assembler switcher fetch.
     Invalid requests leave memory, the shadow table, and the bump pointer
     unchanged. The compartment preserves [cgp], [csp], [cra], [cs0], [cs1]
     and clobbers its scratch registers. The switcher handles register clearing. *)
+
+(* Notes for specifications. [allocator_owner_asm] runs first in both entries
+   and leaves the owner identifier in [ctp], zeroing [ct3] and [ct4]. The only
+   new invalid path is an owner mismatch in [free]; a non-integer owner word
+   traps on the comparison. Invariants must ensure that every capability
+   sealed with [AllocOtype] reachable by callers is an [allocator_capability]
+   on a read-only owner word, that the unsealing key does not leak, and that
+   the second header word of every allocation stores its owner. *)
 
 Section Allocator.
   Import Asm_Griotte.
@@ -96,7 +113,28 @@ Section Allocator.
 
   Definition allocator_return_asm : list asm_code := [jalr cnull cra].
 
-  (** [ct0] holds the full heap capability with its cursor at the new header,
+  (** Load the owner identifier of the allocator capability [rsealed] into
+      [rdst], using the imported unsealing key. The scratch registers are
+      zeroed by the fetch. An allocator capability that is not sealed traps
+      on [unseal]; one sealed with another otype unseals to an untagged
+      capability and traps on [load]. *)
+
+  Definition allocator_owner_asm (rdst rsealed rscratch1 rscratch2 : RegName)
+    : list asm_code :=
+    fetch_asm allocator_unsealing_key_import_off rdst rscratch1 rscratch2 ++
+    [ unseal rdst rdst rsealed;
+      load rdst rdst
+    ].
+
+  Definition allocator_owner (rdst rsealed rscratch1 rscratch2 : RegName) :=
+    Eval vm_compute in assemble (allocator_owner_asm rdst rsealed rscratch1 rscratch2).
+
+  Definition allocator_owner_instrs (rdst rsealed rscratch1 rscratch2 : RegName)
+    : list Word := encodeInstrsW (allocator_owner rdst rsealed rscratch1 rscratch2).
+
+  (** [ctp] holds the owner identifier until it is stored in the header,
+      [ca1] the requested size,
+      [ct0] the full heap capability with its cursor at the new header,
       [ct1] the payload base, [ct2] its end, and [ct4] the result capability.
       Capacity includes all three header words. Bounds are checked
       using integer subtraction before any capability address is advanced.
@@ -108,7 +146,8 @@ Section Allocator.
      bounds it to the n words starting at that cursor. [base], [end], and
      [address] inspect capability fields. Shadow access uses the private import.
 
-     malloc(request) {
+     malloc(sealed_alloc, request) {
+       owner_t owner = *token_unseal(alloc_key, sealed_alloc); // Traps if invalid.
        if (!is_integer(request) || integer(request) <= 0)
          return ALLOC_INVALID;
 
@@ -122,8 +161,8 @@ Section Allocator.
        address_t e = b + n;
        word_t *__capability payload = set_bounds(set_address(root, b), n);
        root[0] = e;                    // Header: original payload end.
-       root[1] = 0;                    // Header: first reserved address.
-       root[2] = 0;                    // Header: second reserved address.
+       root[1] = owner;                // Header: owner identifier.
+       root[2] = 0;                    // Header: reserved address.
        for (integer i = 0; i < n; ++i)
          payload[i] = 0;
        paint_shadow(b, e, ShadowLive);
@@ -133,11 +172,12 @@ Section Allocator.
   *)
 
   Definition allocator_malloc_asm : list (list asm_code) :=
-    [ [ (* Reject noninteger and nonpositive sizes before touching the heap. *)
-        getwtype ct3 ca0;
+    [ allocator_owner_asm ctp ca0 ct3 ct4;
+      [ (* Reject noninteger and nonpositive sizes before touching the heap. *)
+        getwtype ct3 ca1;
         sub ct3 ct3 (encodeWordType wt_int);
         jnz (".malloc_invalid")%asm ct3;
-        lt ct3 0 ca0;
+        lt ct3 0 ca1;
         jnz (".malloc_size_ok")%asm ct3;
         jmp (".malloc_invalid")%asm
       ];
@@ -149,18 +189,18 @@ Section Allocator.
         gete ct2 ct0;
         sub ct3 ct2 ct1;
         sub ct3 ct3 allocator_header_words;
-        lt ct3 ct3 ca0;
+        lt ct3 ct3 ca1;
         jnz (".malloc_no_memory")%asm ct3;
         (* Bound the returned capability to the payload, excluding its header. *)
         add ct1 ct1 allocator_header_words;
-        add ct2 ct1 ca0;
+        add ct2 ct1 ca1;
         mov ct4 ct0;
         lea ct4 allocator_header_words;
         subseg ct4 ct1 ct2;
-        (* Record the immutable end and initialize the reserved address.
-           Header addresses retain their initially clear shadow bits. *)
+        (* Record the immutable end and owner, and initialize the reserved
+           address. Header addresses retain their initially clear shadow bits. *)
         store ct0 ct2;
-        store_imm ct0 0 1;
+        store_imm ct0 ctp 1;
         store_imm ct0 0 2;
         mov ca2 ct4
       ];
@@ -175,7 +215,7 @@ Section Allocator.
       allocator_paint_asm ctp ca2 ShadowLive;
       [ (* Skip the header and payload, publishing only after initialization. *)
         lea ct0 allocator_header_words;
-        lea ct0 ca0;
+        lea ct0 ca1;
         store cgp ct0;
         mov ca0 ct4;
         mov ca1 0;
@@ -208,8 +248,10 @@ Section Allocator.
   Definition allocator_malloc_instrs : list Word :=
     concat (encodeInstrsW <$> assembled_allocator_malloc).
 
-  (** [free] accepts a tagged ordinary capability whose base and end exactly
-      match an original payload. Starting after the reserved root address, it
+  (** [free] accepts, in [ca1], a tagged ordinary capability whose base and
+      end exactly match an original payload, whose header records the owner
+      identifier of the allocator capability in [ca0], kept in [ctp].
+      Starting after the reserved root address, it
       walks protected headers by their recorded ends, stopping at the bump
       pointer. It never interprets payload contents as headers. Its cursor
       and permissions do not determine which allocation is freed.
@@ -222,7 +264,8 @@ Section Allocator.
      The root retains authority over headers and payloads. Returned allocation
      capabilities cover only payloads, so callers cannot modify the header chain.
 
-     free(request) {
+     free(sealed_alloc, request) {
+       owner_t owner = *token_unseal(alloc_key, sealed_alloc); // Traps if invalid.
        if (!is_tagged_ordinary_capability(request))
          return ALLOC_INVALID;
 
@@ -239,6 +282,8 @@ Section Allocator.
          if (b == h + HEADER_WORDS) {
            if (e != recorded_end)
              return ALLOC_INVALID;
+           if (header[1] != owner)
+             return ALLOC_INVALID;  // Owned by another allocator capability.
            if (read_shadow(b) != ShadowLive)
              return ALLOC_INVALID;  // Repeated free, even with a valid tag.
            paint_shadow(b, e, ShadowQuarantined);
@@ -251,18 +296,19 @@ Section Allocator.
   *)
 
   Definition allocator_free_asm : list (list asm_code) :=
-    [ [ (* Reject every non-capability word, including null. *)
-        getwtype ct3 ca0;
+    [ allocator_owner_asm ctp ca0 ct3 ct4;
+      [ (* Reject every non-capability word, including null. *)
+        getwtype ct3 ca1;
         sub ct3 ct3 (encodeWordType wt_cap);
         jnz (".free_invalid")%asm ct3
       ];
-      [ gettag ct3 ca0;
+      [ gettag ct3 ca1;
         sub ct3 ct3 1;
         jnz (".free_invalid")%asm ct3;
         (* Check bounds against the allocated prefix, ignoring the cursor. *)
         load ct0 cgp;
-        getb ct1 ca0;
-        gete ct2 ca0;
+        getb ct1 ca1;
+        gete ct2 ca1;
         getb ct3 ct0;
         lt ct3 ct3 ct1;
         jnz (".free_base_ok")%asm ct3;
@@ -294,13 +340,17 @@ Section Allocator.
         jmp (".free_invalid")%asm
       ];
       [ #".free_header";
-        (* Both payload bounds must match; the reserved addresses are unused. *)
+        (* Both payload bounds and the owner must match; the last reserved
+           address is unused. *)
         load ca2 ct4;
         geta ct3 ct4;
         add ct3 ct3 allocator_header_words;
         sub ct3 ct3 ct1;
         jnz (".free_next")%asm ct3;
         sub ct3 ca2 ct2;
+        jnz (".free_invalid")%asm ct3;
+        load_imm ct3 ct4 1;
+        sub ct3 ct3 ctp;
         jnz (".free_invalid")%asm ct3;
         jmp (".free_found")%asm
       ];
@@ -378,9 +428,9 @@ Section Allocator.
   Lemma allocator_imports_length `{allocatorLayout} : length allocator_imports = 2.
   Proof. reflexivity. Qed.
 
-  Definition allocator_malloc_nargs : nat := 1.
+  Definition allocator_malloc_nargs : nat := 2.
 
-  Definition allocator_free_nargs : nat := 1.
+  Definition allocator_free_nargs : nat := 2.
 
   Definition allocator_malloc_pcc_off : nat := 2.
 
@@ -445,7 +495,8 @@ Section Allocator.
     (allocator_pcc_b ^+ allocator_free_pcc_off)%a.
 
   (** These export descriptors can be sealed with the switcher's ordinary
-      entry key. There is no allocator-specific seal or authorization token. *)
+      entry key. Authorization is carried by the allocator capability
+      argument instead. *)
 
   Definition allocator_malloc `{allocatorLayout} (g : Locality) : Sealable :=
     SCap true RO g allocator_exp_tbl_b allocator_exp_tbl_e
@@ -454,5 +505,14 @@ Section Allocator.
   Definition allocator_free `{allocatorLayout} (g : Locality) : Sealable :=
     SCap true RO g allocator_exp_tbl_b allocator_exp_tbl_e
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a.
+
+  (** An allocator capability: a read-only capability on the static word [a],
+      which holds the owner identifier, sealed with the allocator's otype. *)
+
+  Definition allocator_capability_scap (g : Locality) (a : Addr) : Sealable :=
+    SCap true RO g a (a ^+ 1)%a a.
+
+  Definition allocator_capability `{allocatorLayout} (g : Locality) (a : Addr) : Word :=
+    WSealed AllocOtype (allocator_capability_scap g a).
 
 End Allocator.

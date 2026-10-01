@@ -38,15 +38,22 @@ Definition allocator_free_in_prefix {MP : MachineParameters}
   ∃ (p : Perm) (g : Locality) (b e a : Addr),
     w = WCap true p g b e a ∧ (heap_b < b /\ b < e /\ e <= next)%a.
 
-(** Logical entries contain the payload base and both header values:
-    [(base, (end, reserved))]. The stored end is also the next header address.
-    Checked addition excludes address wraparound when recovering the base. *)
+(** Logical entries contain the payload base and the header values:
+    [(base, (end, (owner, reserved)))]. The stored end is also the next header
+    address. Checked addition excludes address wraparound when recovering the
+    base. *)
 
 Definition allocator_header_entry : Type := (Addr * (Addr * (Z * Z)))%type.
 
 Definition allocator_has_bounds (allocations : list allocator_header_entry)
   (b e : Addr) : Prop :=
   ∃ reserved : Z * Z, (b, (e, reserved)) ∈ allocations.
+
+(** The allocation [(b, e)] exists and its header records the owner [o]. *)
+
+Definition allocator_owned_bounds (allocations : list allocator_header_entry)
+  (o : Z) (b e : Addr) : Prop :=
+  ∃ reserved : Z, (b, (e, (o, reserved))) ∈ allocations.
 
 Definition allocator_header_bounds (h stop b e : Addr) : Prop :=
   (h + allocator_header_words)%a = Some b ∧ (b < e /\ e <= stop)%a.
@@ -59,25 +66,94 @@ Fixpoint allocator_chain (h stop : Addr)
       allocator_header_bounds h stop b e ∧ allocator_chain e stop rest
   end.
 
-(** Whole-allocation bounds validity. Successful free additionally requires a
-    live shadow observation; this historical predicate also holds after free. *)
+(** Whole-allocation bounds validity for the owner [o]. Successful free
+    additionally requires a live shadow observation; this historical predicate
+    also holds after free. *)
 
 Definition allocator_free_valid {MP : MachineParameters}
-  (next : Addr) (allocations : list allocator_header_entry) (w : Word) : Prop :=
+  (next : Addr) (allocations : list allocator_header_entry) (o : Z) (w : Word) : Prop :=
   ∃ (p : Perm) (g : Locality) (b e a : Addr),
     w = WCap true p g b e a ∧
-    (heap_b < b /\ b < e /\ e <= next)%a ∧ allocator_has_bounds allocations b e.
+    (heap_b < b /\ b < e /\ e <= next)%a ∧ allocator_owned_bounds allocations o b e.
+
+(** Bases of the recorded allocations, and bases recorded with owner [id]. *)
+
+Definition allocation_bases (allocations : list allocator_header_entry) : gset Addr :=
+  list_to_set allocations.*1.
+
+Definition allocator_owner_bases (allocations : list allocator_header_entry)
+  (id : Z) : gset Addr :=
+  list_to_set (filter (λ entry : allocator_header_entry, entry.2.2.1 = id)
+    allocations).*1.
+
+(** The authoritative owner map [O] is an exact view of the header history:
+    each owner's set holds every base it has ever allocated, freed ones
+    included, and every recorded owner has an entry. *)
+
+Definition allocator_owners_wf (O : gmap Z (gset Addr))
+  (allocations : list allocator_header_entry) : Prop :=
+  (∀ id S, O !! id = Some S -> S = allocator_owner_bases allocations id) ∧
+  (∀ b e id r, (b, (e, (id, r))) ∈ allocations -> id ∈ dom O).
+
+Lemma allocation_bases_snoc allocations b x :
+  allocation_bases (allocations ++ [(b, x)]) = allocation_bases allocations ∪ {[b]}.
+Proof.
+  rewrite /allocation_bases fmap_app list_to_set_app_L /=. set_solver.
+Qed.
+
+Lemma allocator_owners_wf_empty (ids : gset Z) :
+  allocator_owners_wf (gset_to_gmap ∅ ids) [].
+Proof.
+  split.
+  - intros id S Hlookup. apply lookup_gset_to_gmap_Some in Hlookup as [_ <-].
+    done.
+  - intros b e id r Hin. set_solver.
+Qed.
+
+Lemma allocator_owners_wf_snoc O allocations id S b e r :
+  allocator_owners_wf O allocations ->
+  O !! id = Some S ->
+  allocator_owners_wf (<[id := S ∪ {[b]}]> O) (allocations ++ [(b, (e, (id, r)))]).
+Proof.
+  intros [Hexact Hdom] HS. split.
+  - intros id' S' Hlookup.
+    rewrite /allocator_owner_bases filter_app fmap_app list_to_set_app_L.
+    rewrite -/(allocator_owner_bases allocations id').
+    rewrite lookup_insert_Some in Hlookup.
+    destruct Hlookup as [ [<- <-]|[Hne Hlookup] ].
+    + rewrite filter_cons_True //= (Hexact _ _ HS). set_solver.
+    + rewrite filter_cons_False /=; last done.
+      rewrite (Hexact _ _ Hlookup). set_solver.
+  - intros b' e' id' r' Hin. rewrite dom_insert_L elem_of_union elem_of_singleton.
+    apply elem_of_app in Hin as [Hin|Hin].
+    + right. by eapply Hdom.
+    + left. apply list_elem_of_singleton in Hin. by simplify_eq.
+Qed.
+
+Lemma allocator_owners_wf_lookup O allocations b e id r S :
+  allocator_owners_wf O allocations ->
+  (list_to_map allocations : gmap Addr (Addr * (Z * Z))) !! b = Some (e, (id, r)) ->
+  O !! id = Some S ->
+  b ∈ S.
+Proof.
+  intros [Hexact _] Hlookup HS.
+  apply elem_of_list_to_map_2 in Hlookup.
+  rewrite (Hexact _ _ HS) /allocator_owner_bases elem_of_list_to_set.
+  apply list_elem_of_fmap. exists (b, (e, (id, r))). split; first done.
+  by apply list_elem_of_filter.
+Qed.
 
 (** Immutable header receipts use service-specific ghost state. Each base maps
-    to both the original end and the reserved integer. The current allocator
-    preserves both fields after initialization. Receipts record metadata, not
+    to the original end, the owner identifier, and the reserved integer. The
+    current allocator preserves these fields after initialization. Receipts record metadata, not
     liveness or authority to access the payload. *)
 
 Section AllocatorHeaders.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
 
-  (** Own both header words with the values named by the logical entry.
-      [reserved] is an explicit integer parameter; malloc initializes it to zero. *)
+  (** Own the header words with the values named by the logical entry.
+      [reserved] holds the owner identifier and the reserved word; malloc
+      initializes them to the caller's owner and zero. *)
 
   Definition allocator_header (h b e : Addr) (reserved : Z * Z) : iProp Σ :=
     (⌜(h + allocator_header_words)%a = Some b⌝ ∗
@@ -94,7 +170,7 @@ Section AllocatorHeaders.
       The link is the first header word: [h ↦ₐ WInt e]. The recursive call
       [allocator_headers e stop rest] starts the next node at that very [e].
       Thus [e] serves as both this payload's exclusive end and the next
-      header's address. The reserved second word is carried as node data.
+      header's address. The owner and reserved words are carried as node data.
       The empty case [h = stop] terminates the chain at the bump pointer.
 
       For example, with two payloads of lengths four and three:
@@ -144,7 +220,18 @@ Definition Nallocator_service : namespace := nroot .@ "allocator_service".
 
 Section AllocatorService.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
+    {allocator_ownerg : allocatorOwnerG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
+
+  (** The authoritative owner map, an exact view of the header history, and
+      the rights to free of the addresses that were never allocated. *)
+
+  Definition allocator_service_owners
+    (allocations : list allocator_header_entry) : iProp Σ :=
+    (∃ O : gmap Z (gset Addr),
+     allocator_owners O ∗
+     ⌜allocator_owners_wf O allocations⌝ ∗
+     free_rights_pool (heap_addresses ∖ allocation_bases allocations))%I.
 
   Definition allocator_service_static : iProp Σ :=
     ([[allocator_pcc_b, allocator_code_b]] ↦ₐ [[allocator_imports]] ∗
@@ -162,7 +249,8 @@ Section AllocatorService.
      free_addr_token heap_b ∗ (* Root stays unquarantined. *)
      free_addrs next heap_e ∗ (* Unused suffix. *)
      allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Physical header chain. *)
-     allocator_history allocations)%I. (* Matching ghost map. *)
+     allocator_history allocations ∗ (* Matching ghost map. *)
+     allocator_service_owners allocations)%I. (* Owner map and rights pool. *)
 
   (** After malloc's prepare block, the new header has been written and the
       whole chunk has been taken from the free suffix. The bump slot and
@@ -170,7 +258,7 @@ Section AllocatorService.
       separately for zeroing; publishing appends the header and issues a receipt.
       This predicate is held while the service invariant is open. *)
 
-  Definition allocator_service_pending (next b e : Addr) : iProp Σ :=
+  Definition allocator_service_pending (next b e : Addr) (o : Z) : iProp Σ :=
     (∃ allocations : list allocator_header_entry,
      ⌜(heap_b < next /\ next <= heap_e)%a⌝ ∗ (* Old bump bounds. *)
      ⌜allocator_header_bounds next heap_e b e⌝ ∗ (* New chunk bounds. *)
@@ -179,7 +267,8 @@ Section AllocatorService.
      free_addrs e heap_e ∗ (* Remaining unused suffix. *)
      allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Published header chain. *)
      allocator_history allocations ∗ (* Published ghost map. *)
-     allocator_header next b e (0%Z, 0%Z))%I. (* New, unpublished header. *)
+     allocator_service_owners allocations ∗ (* Published owner map and rights pool. *)
+     allocator_header next b e (o, 0%Z))%I. (* New, unpublished header. *)
 
   Definition allocator_service_inv : iProp Σ :=
     allocator_service_static ∗ ∃ next : Addr, allocator_service_data next.

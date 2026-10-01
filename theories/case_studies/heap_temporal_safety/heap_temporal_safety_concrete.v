@@ -66,19 +66,23 @@ Definition hts_adv_data : list Word := [WInt 0; WInt 0; WInt (-1)].
 (** Regions are adjacent, with boundaries derived from the actual code.
     The ordinary and trusted stacks are kept away from code, heap and shadow. *)
 Definition hts_main_pcc_b : Addr := A 9.
-Definition hts_main_code_a : Addr := (hts_main_pcc_b ^+ 5)%a.
+Definition hts_main_code_a : Addr := (hts_main_pcc_b ^+ 6)%a.
 Definition hts_main_pcc_e : Addr := (hts_main_code_a ^+ length hts_main_code)%a.
 Definition hts_adv_pcc_b : Addr := hts_main_pcc_e.
-Definition hts_adv_code_a : Addr := (hts_adv_pcc_b ^+ 3)%a.
+Definition hts_adv_code_a : Addr := (hts_adv_pcc_b ^+ 4)%a.
 Definition hts_adv_pcc_e : Addr := (hts_adv_code_a ^+ length hts_adv_code)%a.
 Definition hts_alloc_pcc_b : Addr := hts_adv_pcc_e.
 Definition hts_alloc_code_a : Addr := (hts_alloc_pcc_b ^+ allocator_malloc_pcc_off)%a.
 Definition hts_alloc_pcc_e : Addr := (hts_alloc_code_a ^+ length allocator_code)%a.
 Definition hts_main_cgp_b : Addr := hts_alloc_pcc_e.
 Definition hts_main_cgp_e : Addr := (hts_main_cgp_b ^+ 1)%a.
-Definition hts_adv_cgp_b : Addr := hts_main_cgp_e.
+Definition hts_main_static_sealed_b : Addr := hts_main_cgp_e.
+Definition hts_main_static_sealed_e : Addr := (hts_main_static_sealed_b ^+ 1)%a.
+Definition hts_adv_cgp_b : Addr := hts_main_static_sealed_e.
 Definition hts_adv_cgp_e : Addr := (hts_adv_cgp_b ^+ 3)%a.
-Definition hts_alloc_cgp_b : Addr := hts_adv_cgp_e.
+Definition hts_adv_static_sealed_b : Addr := hts_adv_cgp_e.
+Definition hts_adv_static_sealed_e : Addr := (hts_adv_static_sealed_b ^+ 1)%a.
+Definition hts_alloc_cgp_b : Addr := hts_adv_static_sealed_e.
 Definition hts_alloc_cgp_e : Addr := (hts_alloc_cgp_b ^+ 1)%a.
 Definition hts_main_exports_b : Addr := hts_alloc_cgp_e.
 Definition hts_main_exports_e : Addr := (hts_main_exports_b ^+ 2)%a.
@@ -160,20 +164,17 @@ Defined.
 
 Definition hts_adv_f : Sealable :=
   SCap true RO Global hts_adv_exports_b hts_adv_exports_e (hts_adv_exports_b ^+ 2)%a.
-Definition hts_adv_imports : list Word :=
-  [WSentry true XSRW_ Local hts_switcher_b hts_switcher_e hts_switcher_call;
-   WSealed hts_switcher_otype (allocator_malloc Global);
-   WSealed hts_switcher_otype (allocator_free Global)].
-Definition hts_adv_exports : list Word := [WInt (encode_entry_point 1 3)].
+Definition hts_adv_exports : list Word := [WInt (encode_entry_point 1 4)].
 
 Program Definition hts_concrete_main : cmpt.
 Proof.
   refine (@mkCmpt hts_machine_parameters
     hts_main_pcc_b hts_main_code_a hts_main_pcc_e
-    hts_main_cgp_b hts_main_cgp_e hts_main_cgp_e hts_main_cgp_e
+    hts_main_cgp_b hts_main_cgp_e hts_main_static_sealed_b hts_main_static_sealed_e
     hts_main_exports_b (hts_main_exports_b ^+ 1)%a
     (hts_main_exports_b ^+ 2)%a hts_main_exports_e
-    (hts_main_imports hts_adv_f) hts_main_code hts_main_data [] []
+    (hts_main_imports hts_main_static_sealed_b hts_adv_f) hts_main_code
+    hts_main_data hts_main_static_sealed []
     _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ).
   all: hts_compute_layout.
 Defined.
@@ -182,10 +183,11 @@ Program Definition hts_concrete_adv : cmpt.
 Proof.
   refine (@mkCmpt hts_machine_parameters
     hts_adv_pcc_b hts_adv_code_a hts_adv_pcc_e
-    hts_adv_cgp_b hts_adv_cgp_e hts_adv_cgp_e hts_adv_cgp_e
+    hts_adv_cgp_b hts_adv_cgp_e hts_adv_static_sealed_b hts_adv_static_sealed_e
     hts_adv_exports_b (hts_adv_exports_b ^+ 1)%a
     (hts_adv_exports_b ^+ 2)%a hts_adv_exports_e
-    hts_adv_imports hts_adv_code hts_adv_data [] hts_adv_exports
+    (hts_adv_imports hts_adv_static_sealed_b) hts_adv_code hts_adv_data
+    hts_adv_static_sealed hts_adv_exports
     _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ).
   all: hts_compute_layout.
 Defined.
@@ -240,7 +242,8 @@ Proof.
             hts_adv_cmpt := hts_concrete_adv;
             hts_allocator_cmpt := hts_concrete_alloc;
             hts_allocator_otype := hts_alloc_otype;
-            hts_adv_entry_offset := 3 |}.
+            hts_adv_entry_offset := 4 |}.
+  - done.
   - eexists. reflexivity.
   - unfold cmpt_region, cmpt_pcc_region, cmpt_cgp_region,
       cmpt_static_sealed_region, cmpt_exp_tbl_region, cmpt_switcher_region,

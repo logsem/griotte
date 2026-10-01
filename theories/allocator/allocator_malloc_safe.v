@@ -6,7 +6,7 @@ From griotte Require Import heap_temporal_safety_preamble.
 From griotte.allocator Require Import allocator allocator_preamble.
 From griotte.allocator Require Import allocator_header_spec.
 From griotte.allocator Require Export allocator_malloc_spec allocator_free_spec
-  allocator_resource_spec.
+  allocator_resource_spec allocator_otype.
 
 Section Heap_Temporal_Safety_Interp.
   Context
@@ -14,6 +14,7 @@ Section Heap_Temporal_Safety_Interp.
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
@@ -23,6 +24,7 @@ Section Heap_Temporal_Safety_Interp.
   Lemma malloc_exec_entry_point (W : WORLD) (C : CmptName)
     (Nswitcher : namespace) :
     allocator_ctx ∗ allocator_service_ctx ∗
+    seal_pred AllocOtype allocator_otype_propC ∗
     na_inv cerise_nais Nswitcher switcher_inv ⊢
     execute_entry_point
       (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr)
@@ -30,7 +32,7 @@ Section Heap_Temporal_Safety_Interp.
       allocator_malloc_nargs W C.
   Proof.
     (* Unpack the entry register map and the caller's continuation. *)
-    iIntros "(#Halloc & #Hservice & #Hswitcher)".
+    iIntros "(#Halloc & #Hservice & #Hspred & #Hswitcher)".
     iIntros (cstk Ws Cs regs a_stk e_stk)
       "#Halloc' (Hcont & %Hframe & Hregister & Hrmap & Hworld & %Hsync & Hcstk & Hna)".
     rewrite /interp_conf.
@@ -44,8 +46,18 @@ Section Heap_Temporal_Safety_Interp.
       [PC;cgp;cra;csp;ca0;ca1;ca2;ct0;ct1;ct2;ct3;ct4;ctp;cnull]
       as ["HPCr";"Hcgpr";"Hcrar";"Hcspr";"Hca0";"Hca1";"Hca2";
           "Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
-    (* Prepare the caller stack and the switcher return state. *)
     rewrite HwPC in HPC. injection HPC as HeqPC. subst wPC.
+    (* A malformed allocator capability traps in the owner macro. *)
+    destruct (get_tag wca0 && is_sealed_with_o wca0 AllocOtype) eqn:Hcap_valid;
+      cycle 1.
+    { iApply (allocator_malloc_invalid_capability_spec ⊤ wca0
+        with "[$Hservice $Hna $HPCr $Hca0 $Hctp $Hct3 $Hct4]"); first solve_ndisj.
+      apply andb_false_iff in Hcap_valid as [?|?]; auto. }
+    apply andb_true_iff in Hcap_valid as [Hwca0_tag Hwca0_sealed].
+    iDestruct ("Hargs" $! ca0 wca0 with "[] []") as "#Hinterp_ca0".
+    { iPureIntro. rewrite /allocator_malloc_nargs /dom_arg_rmap. set_solver. }
+    { iPureIntro. exact Hwca0. }
+    (* Prepare the caller stack and the switcher return state. *)
     rewrite Hwcgp in Hcgp. injection Hcgp as Heqcgp. subst wcgp.
     rewrite Hwcra in Hcra. injection Hcra as Heqcra. subst wcra.
     rewrite Hwcsp in Hcsp. injection Hcsp as Heqcsp. subst wcsp.
@@ -59,9 +71,9 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hworld" as
         "((%M & %Mρ & HM & %Hdom & %Hdomρ & Hmap) & Hsts & Hseal)".
       rewrite /region_map_def.
-      iDestruct "Hmap" as "[%Hcovered [[Hfrags #Hprov] Hentries]]".
+      iDestruct "Hmap" as "[%Hcovered [(Hfrags & #Hprov & Hrights) Hentries]]".
       iFrame "Hprov Hsts Hseal".
-      iExists M, Mρ. iFrame "HM Hfrags Hentries". iFrame "%". }
+      iExists M, Mρ. iFrame "HM Hfrags Hrights Hentries". iFrame "%". }
     iAssert (□ (∀ next b e allocations,
       ⌜allocator_chain (heap_b ^+ 1)%a next allocations⌝ -∗
       ⌜allocator_header_bounds next heap_e b e⌝ -∗
@@ -74,10 +86,15 @@ Section Heap_Temporal_Safety_Interp.
         allocations next b e Hchain Hchunk with "Hhistory Hprovenance")
         as %Hfresh.
       iFrame. done. }
+    (* Take the owner word and identifier out of the sealing predicate. *)
+    iMod (allocator_otype_open W (revoke W) C wca0 Hwca0_tag Hwca0_sealed
+      with "Hspred Hinterp_ca0 Hworld")
+      as (g_owner a_owner id S)
+      "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hclose)".
     (* Split the requested size into the physical allocator's two cases. *)
     assert (Hsize_dec :
-      allocator_positive_size wca0 \/ ~ allocator_positive_size wca0).
-    { destruct wca0 as [n|s|tag p g b e a|ot s].
+      allocator_positive_size wca1 \/ ~ allocator_positive_size wca1).
+    { destruct wca1 as [n|s|tag p g b e a|ot s].
       - destruct (decide (0 < n)%Z) as [Hn|Hn].
         + left. exists n. auto.
         + right. intros (m & Heq & Hm). inversion Heq; lia.
@@ -86,13 +103,15 @@ Section Heap_Temporal_Safety_Interp.
       - right. intros (m & Heq & Hm). discriminate. }
     destruct Hsize_dec as [Hvalid|Hinvalid].
     2: { (* Reject an invalid size and return ALLOC_INVALID. *)
-      iApply (allocator_malloc_invalid_correct ⊤ wca0
+      iApply (allocator_malloc_invalid_correct ⊤ g_owner a_owner id S wca1
         (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
-        with "[-]"); try solve_ndisj; try exact Hinvalid.
-      iFrame "Halloc Hservice Hna HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
+        with "[-]"); try solve_ndisj; try exact Hinvalid; try assumption.
+      iFrame "Halloc Hservice Hna Hid Ha_owner HPCr Hcgpr Hcrar Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
       iNext.
-      iIntros "(Hna & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
+      iIntros "(Hna & Hid & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull)".
+      (* Close the sealing predicate of the allocator capability. *)
+      iDestruct ("Hclose" $! S with "[$Ha_owner $Hid $Hrights]") as "Hworld".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".
       iDestruct "Hca2" as (wca2') "Hca2".
       iDestruct "Hct0" as (wct0') "Hct0".
@@ -134,16 +153,18 @@ Section Heap_Temporal_Safety_Interp.
     - (* For a valid size, run the allocation blocks or the out-of-memory block. *)
       destruct Hvalid as (n & -> & Hpositive).
       iApply (allocator_malloc_valid_observe_correct
-        (heap_fresh (heap_std (revoke W))) ⊤ n
+        (heap_fresh (heap_std (revoke W))) ⊤ g_owner a_owner n id S
         (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_return)
-        with "[-]"); try solve_ndisj; try exact Hpositive.
-      iFrame "Hobserver Halloc Hservice Hna HPCr Hcgpr Hcrar Hca0".
+        with "[-]"); try solve_ndisj; try exact Hpositive; try assumption.
+      iFrame "Hobserver Halloc Hservice Hna Hid Ha_owner HPCr Hcgpr Hcrar Hca0".
       iFrame "Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull".
       iNext.
-      iIntros "(Hna & HPCr & Hcgpr & Hcrar & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hresult)".
+      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hresult)".
       iDestruct "Hresult" as "[Hoom|Hsuccess]".
       + (* Capacity exhausted: restore the caller and return ALLOC_NO_MEMORY. *)
-        iDestruct "Hoom" as "[Hca0 Hca1]".
+        iDestruct "Hoom" as "(Hid & Hca0 & Hca1)".
+        (* Close the sealing predicate of the allocator capability. *)
+        iDestruct ("Hclose" $! S with "[$Ha_owner $Hid $Hrights]") as "Hworld".
         iDestruct "Hstack_mem" as (stk_mem) "Hstk".
         iDestruct "Hca2" as (wca2') "Hca2".
         iDestruct "Hct0" as (wct0') "Hct0".
@@ -184,7 +205,13 @@ Section Heap_Temporal_Safety_Interp.
         { intros a Ha. apply Htemps in Ha. exact Ha. }
       + (* Allocate the fresh heap object and install its zeroed payload. *)
         iDestruct "Hsuccess" as (b e)
-          "(%Hbounds_size & Hca0 & Hca1 & %Hfresh & #Hreceipt & Hzeroed)".
+          "(%Hbounds_size & Hca0 & Hca1 & %Hfresh & Hid & Hright & #Hreceipt & Hzeroed)".
+        (* Close the sealing predicate, which now also holds the right to
+           free the new allocation. *)
+        iDestruct (allocator_owned_rights_insert with "Hrights Hright")
+          as "Hrights".
+        iDestruct ("Hclose" $! (S ∪ {[b]}) with "[$Ha_owner $Hid $Hrights]")
+          as "Hworld".
         destruct Hbounds_size as [Hbounds Hsize].
         iDestruct (malloc_heap_unused_range (revoke W) C b e Hfresh
           with "Hworld") as %Hstd_none.
@@ -213,7 +240,7 @@ Section Heap_Temporal_Safety_Interp.
           exfalso. apply Hstd_none.
           apply (proj2 (elem_of_dom (std (revoke W)) a)).
           exists r. exact Hlook. }
-        iMod (hts_world_heap_allocate (revoke W) C b e (0%Z, 0%Z)
+        iMod (hts_world_heap_allocate (revoke W) C b e (id, 0%Z)
           Hfresh with "Hreceipt Hworld") as "Hworld".
         set (Wshare := std_update_multiple Walloc
           (finz.seq_between b e) Permanent).
@@ -341,6 +368,7 @@ Section Heap_Temporal_Safety_Interp.
     (Nswitcher : namespace) :
     allocator_ctx ∗
     allocator_service_ctx ∗
+    seal_pred AllocOtype allocator_otype_propC ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
     inv (export_table_PCCN hts_allocator_exp_tblN)
       (allocator_exp_tbl_b ↦ₐ WCap true RX Global
@@ -360,7 +388,7 @@ Section Heap_Temporal_Safety_Interp.
       (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a).
   Proof.
-    iIntros "(#Halloc & #Hservice & #Hswitcher & #HPCC & #HCGP & #Hentry & #Hsealed & #Hsealed_local)".
+    iIntros "(#Halloc & #Hservice & #Hspred & #Hswitcher & #HPCC & #HCGP & #Hentry & #Hsealed & #Hsealed_local)".
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a,
       allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,

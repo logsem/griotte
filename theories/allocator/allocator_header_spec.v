@@ -53,6 +53,10 @@ Proof.
   - apply elem_of_list_to_map_1. eapply allocator_chain_nodup_spec; eauto.
 Qed.
 
+Lemma allocator_owned_has_bounds allocations o b e :
+  allocator_owned_bounds allocations o b e -> allocator_has_bounds allocations b e.
+Proof. intros [r Hin]. by exists (o, r). Qed.
+
 Lemma allocator_chain_subrange_spec :
   ∀ h stop allocations b e b' e',
     allocator_chain h stop allocations ->
@@ -76,6 +80,26 @@ Proof.
       pose proof (allocator_chain_member_bounds e0 stop rest b e r Htail Hin).
       solve_addr.
     + eapply (IH e0 b e b' e' Htail); eauto; eexists; eassumption.
+Qed.
+
+(** A new chunk at the bump pointer has a base that is a fresh heap address. *)
+
+Lemma allocator_chain_fresh_base {MP : MachineParameters} next allocations b e :
+  allocator_chain (heap_b ^+ 1)%a next allocations ->
+  (heap_b < next)%a ->
+  allocator_header_bounds next heap_e b e ->
+  b ∈ heap_addresses ∖ allocation_bases allocations.
+Proof.
+  intros Hchain Hnext [Hbase Hbounds].
+  unfold allocator_header_words in Hbase.
+  apply elem_of_difference. split.
+  - rewrite /heap_addresses elem_of_list_to_set elem_of_finz_seq_between.
+    solve_addr.
+  - rewrite /allocation_bases elem_of_list_to_set list_elem_of_fmap.
+    intros ((b' & e' & r') & Heq & Hin). simpl in Heq. subst b'.
+    pose proof (allocator_chain_member_bounds (heap_b ^+ 1)%a next
+      allocations b e' r' Hchain Hin).
+    solve_addr.
 Qed.
 
 Section AllocatorHeaderContracts.
@@ -176,7 +200,38 @@ End AllocatorHistoryContracts.
 
 Section AllocatorServiceContracts.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
+    {allocator_ownerg : allocatorOwnerG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
+
+  (** Owner and rights update when publishing the allocation [b] of [o]. *)
+
+  Lemma allocator_service_owners_publish_spec :
+    ∀ next b e o r allocations S,
+      (heap_b < next)%a ->
+      allocator_chain (heap_b ^+ 1)%a next allocations ->
+      allocator_header_bounds next heap_e b e ->
+      allocator_service_owners allocations -∗
+      allocator_owner_id o S
+      ==∗
+      allocator_service_owners (allocations ++ [(b, (e, (o, r)))]) ∗
+      allocator_owner_id o (S ∪ {[b]}) ∗
+      free_right b.
+  Proof.
+    intros next b e o r allocations S Hnext Hchain Hchunk.
+    iIntros "(%O & HO & %Hwf & Hpool) Howner".
+    iDestruct (allocator_owners_agree with "HO Howner") as %HS.
+    iMod (allocator_owners_update with "[$HO $Howner]") as "[HO Howner]".
+    pose proof (allocator_chain_fresh_base next allocations b e Hchain Hnext Hchunk)
+      as Hfresh.
+    iDestruct (free_rights_pool_split _ b Hfresh with "Hpool") as "[Hright Hpool]".
+    iModIntro. iFrame "Howner Hright".
+    iExists _. iFrame "HO".
+    iSplit; first (iPureIntro; by apply allocator_owners_wf_snoc).
+    rewrite allocation_bases_snoc.
+    replace (heap_addresses ∖ (allocation_bases allocations ∪ {[b]}))
+      with (heap_addresses ∖ allocation_bases allocations ∖ {[b]}) by set_solver.
+    iExact "Hpool".
+  Qed.
 
   Lemma allocator_history_heap_bounds h allocations next :
     allocator_chain (heap_b ^+ 1)%a next allocations ->
@@ -235,7 +290,7 @@ Section AllocatorServiceContracts.
       this logical publication. This update neither writes memory nor paints. *)
 
   Lemma allocator_service_commit_spec :
-    ∀ next b e reserved allocations,
+    ∀ next b e o r allocations S,
       (heap_b < next)%a ->
       allocator_header_bounds next heap_e b e ->
       allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e e -∗
@@ -243,14 +298,23 @@ Section AllocatorServiceContracts.
       free_addrs e heap_e -∗
       allocator_headers (heap_b ^+ 1)%a next allocations -∗
       allocator_history allocations -∗
-      allocator_header next b e reserved
+      allocator_service_owners allocations -∗
+      allocator_owner_id o S -∗
+      allocator_header next b e (o, r)
       ==∗
       allocator_service_data e ∗
-      allocator_allocation b e reserved.
+      allocator_allocation b e (o, r) ∗
+      allocator_owner_id o (S ∪ {[b]}) ∗
+      free_right b.
   Proof.
-    intros next b e reserved allocations Hnext [Hbase Hbounds].
-    iIntros "Hslot Hroot Hfree Hheaders Hhistory Hhead".
+    intros next b e o r allocations S Hnext Hchunk.
+    iIntros "Hslot Hroot Hfree Hheaders Hhistory Howners Howner Hhead".
     iDestruct (allocator_headers_chain_spec with "Hheaders") as %Hchain.
+    iMod (allocator_service_owners_publish_spec next b e o r allocations S
+      Hnext Hchain Hchunk with "Howners Howner") as "(Howners & Howner & Hright)".
+    iFrame "Howner Hright".
+    set (reserved := (o, r)).
+    destruct Hchunk as [Hbase Hbounds].
     assert (Hfresh : (list_to_map allocations : gmap Addr (Addr * (Z * Z))) !! b = None).
     { apply eq_None_not_Some. intros ((e' & r') & Hlookup).
       apply elem_of_list_to_map_2 in Hlookup.
@@ -261,7 +325,7 @@ Section AllocatorServiceContracts.
       first exact Hfresh.
     iModIntro. iFrame "Hreceipt".
     iExists (allocations ++ [(b, (e, reserved))]).
-    iFrame "Hslot Hroot Hfree Hhistory".
+    iFrame "Hslot Hroot Hfree Hhistory Howners".
     iSplit; first (iPureIntro; unfold allocator_header_words in Hbase; solve_addr).
     iApply (allocator_headers_snoc_spec with "Hheaders Hhead").
     split; [exact Hbase|solve_addr].

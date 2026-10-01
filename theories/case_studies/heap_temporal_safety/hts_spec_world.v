@@ -139,7 +139,7 @@ Section HTS_World.
     hts_buffer_bounds b ->
     disjoint_from_heap csp_b csp_e ->
     revoked_addresses (revoke W_init_C) (finz.seq_between (csp_b ^+ 1)%a csp_e) ->
-    allocator_allocation b (b ^+ 1)%a (0%Z, 0%Z) -∗
+    allocator_allocation b (b ^+ 1)%a (hts_main_owner_id, 0%Z) -∗
     b ↦ₐ WInt 0 -∗
     world_interp (revoke W_init_C) C -∗
     StackRevokedResources W_init_C C (finz.seq_between (csp_b ^+ 1)%a csp_e)
@@ -163,7 +163,7 @@ Section HTS_World.
     iDestruct (hts_world_empty_heap_fresh (revoke W_init_C) C b
       Hb_heap Hheap_revoke with "Hworld") as %Hb_fresh.
     iMod (hts_world_heap_allocate_empty (revoke W_init_C) C b (b ^+ 1)%a
-      (0%Z, 0%Z) with "Hallocation Hworld") as "Hworld".
+      (hts_main_owner_id, 0%Z) with "Hallocation Hworld") as "Hworld".
     { exact Hheap_revoke. }
     { exact (proj1 (proj2 Hbounds)). }
     set (Wbuf := heap_std_update (revoke W_init_C)
@@ -229,17 +229,17 @@ Section HTS_World.
       apply elem_of_finz_seq_between in Ha. rewrite ?Heq. solve_addr.
   Qed.
 
-  (** After the first adversary call: the reload of the saved buffer kept
-      its tag, so [b] is still live, and [Permanent] in [revoke Wret]. Open
-      its world entry to get its memory back. *)
+  (** After the first adversary call: main still holds the free right of
+      [b], so [b] is still live, and [Permanent] in [revoke Wret]. Open its
+      world entry to get its memory back. *)
   Lemma hts_world_reopen_live E b Wret :
     hts_buffer_bounds b ->
     disjoint_from_heap csp_b csp_e ->
     related_sts_pub_world
       (std_update_multiple (hts_Wshare W_init_C b)
         (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) Wret ->
-    filter_heap (revoke Wret) (hts_buffer b) = hts_buffer b ->
     rel C b RW interp_in_memC -∗
+    free_right b -∗
     world_interp (revoke Wret) C
     ={E}=∗
     ∃ v_b : Word,
@@ -249,9 +249,10 @@ Section HTS_World.
       ⌜std (revoke Wret) !! b = Some Permanent⌝ ∗
       world_interp_open (revoke Wret) C [b] ∗
       sts_state_std C b Permanent ∗
+      free_right b ∗
       b ↦ₐ v_b.
   Proof.
-    iIntros (Hbounds Hstk_heap Hrelated_share_ret Hfilter) "#Hrel_b Hworld".
+    iIntros (Hbounds Hstk_heap Hrelated_share_ret) "#Hrel_b Hright Hworld".
     pose proof (hts_buffer_heap_address b Hbounds) as Hb_heap.
     rewrite world_interp_eq /world_interp_def.
     iDestruct "Hworld" as "(Hregion & Hsts & Hseals)".
@@ -272,20 +273,9 @@ Section HTS_World.
     assert (heap_lookup_addr (heap_std (revoke Wret)) b =
       Some (b,obj_ret)) as Hlookup_rev
       by (rewrite revoke_heap; exact Hlookup_ret).
-    assert (heap_authority_base (hts_buffer b) = Some b) as Hauth_buf.
-    { rewrite /hts_buffer /heap_authority_base.
-      case_decide.
-      - rewrite /heap_cap_base /memory_cap_base /= Hb_heap. reflexivity.
-      - rewrite /hts_buffer_bounds in Hbounds. solve_addr. }
-    assert (alloc_object_status obj_ret = AllocObjectLive) as Hlive_ret.
-    { destruct (alloc_object_status obj_ret) eqn:Hstatus;
-        first reflexivity.
-      exfalso.
-      pose proof (filter_heap_quarantined (revoke Wret)
-        (hts_buffer b) b b obj_ret Hauth_buf Hlookup_rev Hstatus) as Hqu.
-      rewrite Hqu in Hfilter.
-      apply (f_equal get_tag) in Hfilter.
-      rewrite /hts_buffer /= in Hfilter. discriminate. }
+    iDestruct (world_interp_free_right_live (revoke Wret) C b obj_ret
+      (proj1 (heap_lookup_addr_sound _ _ _ _ Hlookup_rev))
+      with "Hright Hworld") as "(Hworld & Hright & %Hlive_ret)".
     assert (b ∉ finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) as Hb_not_callstk.
     { intros Hin. apply (hts_buffer_not_stack b Hbounds Hstk_heap).
       apply elem_of_finz_seq_between in Hin.
@@ -357,13 +347,14 @@ Section HTS_World_Free.
     std (revoke Wret) !! b = Some Permanent ->
     rel C b RW interp_in_memC -∗
     sts_state_std C b Permanent -∗
+    free_right b -∗
     allocator_reclaimed b (b ^+ 1)%a -∗
     world_interp_open (revoke Wret) C [b]
     ={E}=∗
     world_interp (hts_Wfree Wret b) C.
   Proof.
     iIntros (Hbounds Hwf_rev Hb_lookup Hstd_rev)
-      "#Hrel_b Hstate_b Hreclaimed Hworld_open".
+      "#Hrel_b Hstate_b Hright Hreclaimed Hworld_open".
     pose proof (hts_buffer_heap_address b Hbounds) as Hb_heap.
     assert ((b + 1)%a = Some (b ^+ 1)%a) as Hsucc
       by (rewrite /hts_buffer_bounds in Hbounds; solve_addr).
@@ -378,11 +369,12 @@ Section HTS_World_Free.
       as "#Hprovenance_free".
     iMod (hts_world_open_heap_transition (revoke Wret) C b
       (heap_quarantine (heap_std (revoke Wret)) b)
-      with "Hprovenance_free Hworld_open") as "Hworld_open".
+      with "Hprovenance_free Hright Hworld_open") as "Hworld_open".
     { apply heap_quarantine_future. }
     { apply heap_quarantine_wf. exact Hwf_rev. }
     { exact Hstatus_other. }
     { exact Hb_dom_rev. }
+    { reflexivity. }
     assert (heap_lookup_addr (heap_std (hts_Wfree Wret b)) b =
       Some (b, MkAllocObject b (b ^+ 1)%a AllocObjectQuarantined))
       as Hlookup_free.
