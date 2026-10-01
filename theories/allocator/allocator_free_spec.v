@@ -670,8 +670,8 @@ Section AllocatorFreeTraversal.
     codefrag start code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e
            (allocator_free_block_addr pc_a 11) ∗
-         ca0 ↦ᵣ WInt 0 ∗
-         ca1 ↦ᵣ WInt ALLOC_OK ∗
+         ca0 ↦ᵣ WInt ALLOC_OK ∗
+         ca1 ↦ᵣ WInt 0 ∗
          codefrag start code
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
@@ -679,13 +679,13 @@ Section AllocatorFreeTraversal.
     intros start code Hcont Hpc Hshadow; subst start code.
     iIntros "(HPC & Hca0 & Hca1 & Hcode & Hφ)".
     codefrag_facts "Hcode".
-    (* Mov ca0 0. *)
+    (* Mov ca0 ALLOC_OK. *)
     iInstr "Hcode".
     assert (Hstep : (pc_a ^+ 63)%a =
       ((allocator_free_block_addr pc_a 9) ^+ 1)%a).
     { unfold allocator_free_block_addr. solve_addr. }
     iEval (rewrite Hstep) in "HPC".
-    (* Mov ca1 ALLOC_OK. *)
+    (* Mov ca1 0. *)
     iInstr "Hcode".
     (* Jmp .free_return. *)
     iInstr "Hcode".
@@ -1119,8 +1119,8 @@ Section AllocatorFreeTraversal.
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ WInt ALLOC_INVALID ∗
+          ca0 ↦ᵣ WInt ALLOC_INVALID ∗
+          ca1 ↦ᵣ WInt 0 ∗
           ca2 ↦ᵣ - ∗
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
@@ -1198,19 +1198,19 @@ Section AllocatorFreeTraversal.
     assert (Haddr : a_invalid = allocator_free_block_addr allocator_free_pcc_addr 10).
     { unfold allocator_free_block_addr in *. solve_addr. }
     subst a_invalid.
-    (* Mov ca0 0. *)
-    iInstr "Hinvalid_code".
+    (* Mov ca0 ALLOC_INVALID. *)
+    iInstr_lookup "Hinvalid_code" as "Hi" "Hinvalid_code".
+    wp_instr.
+    iApply (wp_move_success_z with "[$HPC $Hi $Hca0]"); try solve_pure.
+    iIntros "!> (HPC & Hi & Hca0)". wp_pure.
+    iSpecialize ("Hinvalid_code" with "Hi").
     iDestruct "Hca1" as (wca1) "Hca1".
     assert (Hstep : (allocator_free_pcc_addr ^+ 66)%a =
       (allocator_free_block_addr allocator_free_pcc_addr 10 ^+ 1)%a)
       by (unfold allocator_free_block_addr; solve_addr).
     iEval (rewrite Hstep) in "HPC".
-    (* Mov ca1 ALLOC_INVALID. *)
-    iInstr_lookup "Hinvalid_code" as "Hi" "Hinvalid_code".
-    wp_instr.
-    iApply (wp_move_success_z with "[$HPC $Hi $Hca1]"); try solve_pure.
-    iIntros "!> (HPC & Hi & Hca1)". wp_pure.
-    iSpecialize ("Hinvalid_code" with "Hi").
+    (* Mov ca1 0. *)
+    iInstr "Hinvalid_code".
     iDestruct ("Hfreecode_cont" with "Hinvalid_code") as "Hfreecode".
     iEval (rewrite -Hsplit6) in "Hfreecode".
     (* Return to the caller and restore the service invariant. *)
@@ -1317,8 +1317,8 @@ Section AllocatorFreeTraversal.
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ WInt ALLOC_INVALID ∗
+          ca0 ↦ᵣ WInt ALLOC_INVALID ∗
+          ca1 ↦ᵣ WInt 0 ∗
           ca2 ↦ᵣ - ∗
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
@@ -1385,8 +1385,8 @@ Section AllocatorFreeTraversal.
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ WInt ALLOC_INVALID ∗
+          ca0 ↦ᵣ WInt ALLOC_INVALID ∗
+          ca1 ↦ᵣ WInt 0 ∗
           ca2 ↦ᵣ - ∗
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
@@ -1459,8 +1459,8 @@ Section AllocatorFreeTraversal.
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ WInt ALLOC_OK ∗
+          ca0 ↦ᵣ WInt ALLOC_OK ∗
+          ca1 ↦ᵣ WInt 0 ∗
           ca2 ↦ᵣ - ∗
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
@@ -1799,8 +1799,8 @@ Section AllocatorFreeTraversal.
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ WInt ALLOC_INVALID ∗
+          ca0 ↦ᵣ WInt ALLOC_INVALID ∗
+          ca1 ↦ᵣ WInt 0 ∗
           ca2 ↦ᵣ - ∗
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
@@ -1992,19 +1992,19 @@ Section AllocatorFreeTraversal.
     assert (Haddr : a_invalid = allocator_free_block_addr allocator_free_pcc_addr 10).
     { unfold allocator_free_block_addr in *. solve_addr. }
     subst a_invalid.
-    (* Mov ca0 0. *)
-    iInstr "Hinvalid_code".
+    (* Mov ca0 ALLOC_INVALID. *)
+    iInstr_lookup "Hinvalid_code" as "Hi" "Hinvalid_code".
+    wp_instr.
+    iApply (wp_move_success_z with "[$HPC $Hi $Hca0]"); try solve_pure.
+    iIntros "!> (HPC & Hi & Hca0)". wp_pure.
+    iSpecialize ("Hinvalid_code" with "Hi").
     iDestruct "Hca1" as (wca1) "Hca1".
     assert (Hstep : (allocator_free_pcc_addr ^+ 66)%a =
       (allocator_free_block_addr allocator_free_pcc_addr 10 ^+ 1)%a)
       by (unfold allocator_free_block_addr; solve_addr).
     iEval (rewrite Hstep) in "HPC".
-    (* Mov ca1 ALLOC_INVALID. *)
-    iInstr_lookup "Hinvalid_code" as "Hi" "Hinvalid_code".
-    wp_instr.
-    iApply (wp_move_success_z with "[$HPC $Hi $Hca1]"); try solve_pure.
-    iIntros "!> (HPC & Hi & Hca1)". wp_pure.
-    iSpecialize ("Hinvalid_code" with "Hi").
+    (* Mov ca1 0. *)
+    iInstr "Hinvalid_code".
     iDestruct ("Hfreecode_cont" with "Hinvalid_code") as "Hfreecode".
     iEval (rewrite -Hsplit6) in "Hfreecode".
     (* Return to the caller and restore the service invariant. *)

@@ -135,96 +135,66 @@ Section Heap_Temporal_Safety_Blocks.
   Lemma hts_free_result_success_spec pc_b pc_e pc_a :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_free_result_instrs)%a ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
-    ∗ ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0
+    ∗ ca0 ↦ᵣ WInt 0
     ∗ codefrag pc_a hts_free_result_instrs
     ∗ ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length hts_free_result_instrs)%a
-         ∗ ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0
+         ∗ ca0 ↦ᵣ WInt 0
          ∗ codefrag pc_a hts_free_result_instrs
          -∗ WP Seq (Instr Executable)
              {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hsub) "(HPC & Hca0 & Hca1 & Hcode & Hpost)".
+    iIntros (Hsub) "(HPC & Hca0 & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /hts_free_result_instrs.
-    (* --- Jnz 2 ca0 (successful return value) --- *)
+    (* Jnz 2 ca0. *)
     iInstr "Hcode".
-    (* --- Jmp 2 (skip Halt) --- *)
-    iInstr "Hcode".
-    (* --- Jnz 2 ca1 (successful allocator status) --- *)
-    iInstr "Hcode".
-    (* --- Jmp 2 (skip Halt) --- *)
+    (* Jmp 2. *)
     iInstr "Hcode".
     iApply "Hpost". iFrame.
   Qed.
 
-  Lemma hts_free_result_failure_spec pc_b pc_e pc_a (result status : Z) :
-    result ≠ 0 ∨ status ≠ 0 ->
+  Lemma hts_free_result_failure_spec pc_b pc_e pc_a (result : Z) :
+    result ≠ 0 ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_free_result_instrs)%a ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
-    ∗ ca0 ↦ᵣ WInt result ∗ ca1 ↦ᵣ WInt status
+    ∗ ca0 ↦ᵣ WInt result
     ∗ codefrag pc_a hts_free_result_instrs ∗ na_own cerise_nais ⊤
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hfailure Hsub) "(HPC & Hca0 & Hca1 & Hcode & Hna)".
+    iIntros (Hresult Hsub) "(HPC & Hca0 & Hcode & Hna)".
     codefrag_facts "Hcode". clear H0.
     rewrite /hts_free_result_instrs.
-    destruct (decide (result = 0)) as [->|Hresult].
-    - assert (status ≠ 0) by naive_solver.
-      (* --- Jnz 2 ca0 (zero return value) --- *)
-      iInstr "Hcode".
-      (* --- Jmp 2 (skip first Halt) --- *)
-      iInstr "Hcode".
-      (* --- Jnz 2 ca1 (nonzero allocator status) --- *)
-      iInstr "Hcode".
-      (* --- Halt --- *)
-      iInstr "Hcode".
-      wp_end. by iIntros (?).
-    - (* --- Jnz 2 ca0 (switcher failure) --- *)
-      iInstr "Hcode".
-      (* --- Halt --- *)
-      iInstr "Hcode".
-      wp_end. by iIntros (?).
+    (* Jnz 2 ca0. *)
+    iInstr "Hcode".
+    (* Halt. *)
+    iInstr "Hcode".
+    wp_end. by iIntros (?).
   Qed.
 
   Lemma hts_malloc_result_success_spec pc_b pc_e pc_a b e a (w0 : Word) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_malloc_result_instrs)%a ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
     ∗ ca0 ↦ᵣ WCap true RW Global b e a
-    ∗ ca1 ↦ᵣ WInt 0 ∗ ct0 ↦ᵣ w0
+    ∗ ct0 ↦ᵣ w0
     ∗ codefrag pc_a hts_malloc_result_instrs
     ∗ ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length hts_malloc_result_instrs)%a
          ∗ ca0 ↦ᵣ WCap true RW Global b e a
-         ∗ ca1 ↦ᵣ WInt 0 ∗ ct0 ↦ᵣ WInt 1
+         ∗ ct0 ↦ᵣ WInt 1
          ∗ codefrag pc_a hts_malloc_result_instrs
          -∗ WP Seq (Instr Executable)
              {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable)
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hsub) "(HPC & Hca0 & Hca1 & Hct0 & Hcode & Hpost)".
+    iIntros (Hsub) "(HPC & Hca0 & Hct0 & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /hts_malloc_result_instrs.
-    (* --- Jnz 2 ca1 --- *)
+    (* GetTag ct0 ca0. *)
     iInstr "Hcode".
-    (* --- Jmp 2 --- *)
-    iInstr "Hcode".
-    (* --- GetWType ct0 ca0 --- *)
-    iInstr "Hcode".
-    (* --- Sub ct0 ct0 (encodeWordType wt_cap) --- *)
-    iInstr "Hcode".
-    assert (encodeWordType (WCap true RW Global b e a) = encodeWordType wt_cap)
-      as Htype by solve_encodeWordType.
-    iEval (rewrite Htype Z.sub_diag) in "Hct0".
-    (* --- Jnz 2 ct0 --- *)
-    iInstr "Hcode".
-    (* --- Jmp 2 --- *)
-    iInstr "Hcode".
-    (* --- GetTag ct0 ca0 --- *)
-    iInstr "Hcode".
-    (* --- Jnz 2 ct0 --- *)
+    (* Jnz 2 ct0. *)
     iInstr "Hcode".
     iApply "Hpost". iFrame.
   Qed.

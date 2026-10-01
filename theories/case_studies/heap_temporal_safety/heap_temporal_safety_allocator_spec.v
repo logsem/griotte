@@ -31,10 +31,10 @@ Section Heap_Temporal_Safety_Allocator.
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}.
 
   Definition hts_malloc_result (w0 w1 : Word) : iProp Σ :=
-    (⌜w0 = WInt 0 ∧ w1 = WInt ALLOC_NO_MEMORY⌝ ∨
+    (⌜w0 = WInt ALLOC_NO_MEMORY ∧ w1 = WInt 0⌝ ∨
      (∃ b e : Addr,
        ⌜(heap_b < b /\ b < e /\ e <= heap_e)%a ∧ (e - b = 1)%Z⌝ ∗
-       ⌜w0 = WCap true RW Global b e b ∧ w1 = WInt ALLOC_OK⌝ ∗
+       ⌜w0 = WCap true RW Global b e b ∧ w1 = WInt 0⌝ ∗
        allocator_allocation b e (0%Z, 0%Z) ∗
        allocator_zeroed b e))%I.
 
@@ -103,14 +103,14 @@ Section Heap_Temporal_Safety_Allocator.
       rewrite Hrmapdom /dom_arg_rmap /allocator_malloc_nargs /=.
       set_solver+. }
     iDestruct "Hres" as "[[Hca0 Hca1] | Hres]".
-    - iApply ("Hpost" $! (WInt 0) (WInt ALLOC_NO_MEMORY) rmap_ret
+    - iApply ("Hpost" $! (WInt ALLOC_NO_MEMORY) (WInt 0) rmap_ret
         (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit; first (iPureIntro; exact Hdom_ret).
       iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
       iLeft. iPureIntro. auto.
     - iDestruct "Hres" as (b e)
         "(%Hbounds & Hca0 & Hca1 & #Hreceipt & Hzero)".
-      iApply ("Hpost" $! (WCap true RW Global b e b) (WInt ALLOC_OK)
+      iApply ("Hpost" $! (WCap true RW Global b e b) (WInt 0)
         rmap_ret (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
       iSplit; first (iPureIntro; exact Hdom_ret).
       iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
@@ -121,7 +121,7 @@ Section Heap_Temporal_Safety_Allocator.
   Definition hts_free_result (b e : Addr) (reserved : Z * Z) : Word -> Word -> iProp Σ :=
     λ w0 w1, (allocator_allocation b e reserved ∗
       allocator_reclaimed b e ∗
-      ⌜w0 = WInt 0 ∧ w1 = WInt ALLOC_OK⌝)%I.
+      ⌜w0 = WInt ALLOC_OK ∧ w1 = WInt 0⌝)%I.
 
   Lemma hts_free_known_function
     (wcgp wcra wcs0 wcs1 : Word)
@@ -191,7 +191,7 @@ Section Heap_Temporal_Safety_Allocator.
       repeat (rewrite dom_delete_L).
       rewrite Hrmapdom /dom_arg_rmap /allocator_free_nargs /=.
       set_solver+. }
-    iApply ("Hpost" $! (WInt 0) (WInt ALLOC_OK) rmap_ret
+    iApply ("Hpost" $! (WInt ALLOC_OK) (WInt 0) rmap_ret
       (region_addrs_zeroes (a_stk ^+ 4)%a e_stk)).
     iSplit; first (iPureIntro; exact Hdom_ret).
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".

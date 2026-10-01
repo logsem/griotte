@@ -120,7 +120,7 @@ Section Heap_Temporal_Safety_Interp.
       { iApply interp_weakening.interp_int. }
       iApply (switcher_ret_specification Nswitcher W (revoke W) C _
         e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
-        (WInt 0) (WInt ALLOC_INVALID)
+        (WInt ALLOC_INVALID) (WInt 0)
         with "[$Halloc $Hswitcher $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
       { apply regmap_full_dom in Hfull_rmap.
@@ -171,7 +171,7 @@ Section Heap_Temporal_Safety_Interp.
         { iApply interp_weakening.interp_int. }
         iApply (switcher_ret_specification Nswitcher W (revoke W) C _
           e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
-          (WInt 0) (WInt ALLOC_NO_MEMORY)
+          (WInt ALLOC_NO_MEMORY) (WInt 0)
           with "[$Halloc $Hswitcher $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
         { exact Hrelated_pub. }
         { apply regmap_full_dom in Hfull_rmap.
@@ -316,12 +316,12 @@ Section Heap_Temporal_Safety_Interp.
         iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
         iDestruct (RevokedResources_mono_pub W Wfixed C l l
           Hwf_fixed Hrelated_pub with "Hrevoked") as "Hrevoked".
-        iAssert (interp Wfixed C (WInt ALLOC_OK))
+        iAssert (interp Wfixed C (WInt 0))
           with "[]" as "#Hinterp_status".
         { iApply interp_weakening.interp_int. }
         iApply (switcher_ret_specification Nswitcher W Wshare C _
           e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
-          (WCap true RW Global b e b) (WInt ALLOC_OK)
+          (WCap true RW Global b e b) (WInt 0)
           with "[$Halloc $Hswitcher $Hinterp_fixed $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
         { exact Hrelated_pub. }
         { apply regmap_full_dom in Hfull_rmap.

@@ -229,7 +229,7 @@ Section Heap_Temporal_Safety_Interp.
       { iApply interp_weakening.interp_int. }
       iApply (switcher_ret_specification Nswitcher W (revoke W) C _
         e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
-        (WInt 0) (WInt ALLOC_INVALID)
+        (WInt ALLOC_INVALID) (WInt 0)
         with "[$Halloc $Hswitcher $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
       { apply regmap_full_dom in Hfull_rmap.
@@ -383,7 +383,7 @@ Section Heap_Temporal_Safety_Interp.
       { iApply interp_weakening.interp_int. }
       iApply (switcher_ret_specification Nswitcher W (revoke Wq) C _
         e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
-        (WInt 0) (WInt ALLOC_OK)
+        (WInt ALLOC_OK) (WInt 0)
         with "[$Halloc $Hswitcher $Hinterp0 $Hstk $Hcstk $Hcont $Hworld_rev $Hna_post $HPCr_post $Hrevoked $Hrmap $Hca0_post $Hca1_post $Hcspr]").
       { exact Hrelated_pub. }
       { apply regmap_full_dom in Hfull_rmap.
@@ -431,7 +431,7 @@ Section Heap_Temporal_Safety_Interp.
       { iApply interp_weakening.interp_int. }
       iApply (switcher_ret_specification Nswitcher W (revoke W) C _
         e_stk (a_stk ^+ 4)%a l stk_mem cstk Ws Cs
-        (WInt 0) (WInt ALLOC_INVALID)
+        (WInt ALLOC_INVALID) (WInt 0)
         with "[$Halloc $Hswitcher $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
       { apply regmap_full_dom in Hfull_rmap.

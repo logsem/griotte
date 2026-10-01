@@ -13,7 +13,11 @@ From griotte Require Import machine_parameters assembler switcher fetch.
     and requires both supplied bounds to match an original payload. It rejects
     already quarantined allocations. Neither operation reuses memory.
 
-    Both entries return normally through [cra], with a status in [ca1].
+    Both entries return normally through [cra] with a single result in [ca0]
+    and zero in [ca1], following the CHERIoT convention: as for
+    [heap_allocate], [malloc] returns a tagged capability on success and an
+    untagged error code otherwise, so callers check the tag. [free] returns
+    [ALLOC_OK] on success and [ALLOC_INVALID] otherwise.
     Invalid requests leave memory, the shadow table, and the bump pointer
     unchanged. The compartment preserves [cgp], [csp], [cra], [cs0], [cs1]
     and clobbers its scratch registers. The switcher handles register clearing. *)
@@ -106,13 +110,13 @@ Section Allocator.
 
      malloc(request) {
        if (!is_integer(request) || integer(request) <= 0)
-         return { 0, ALLOC_INVALID };
+         return ALLOC_INVALID;
 
        integer n = integer(request);
        word_t *__capability root = *bump_slot;
        address_t h = address(root);
        if ((integer)end(root) - (integer)h - HEADER_WORDS < n)
-         return { 0, ALLOC_NO_MEMORY };
+         return ALLOC_NO_MEMORY;
 
        address_t b = h + HEADER_WORDS;
        address_t e = b + n;
@@ -124,7 +128,7 @@ Section Allocator.
          payload[i] = 0;
        paint_shadow(b, e, ShadowLive);
        *bump_slot = set_address(root, e);
-       return { payload, ALLOC_OK };
+       return payload;
      }
   *)
 
@@ -174,17 +178,17 @@ Section Allocator.
         lea ct0 ca0;
         store cgp ct0;
         mov ca0 ct4;
-        mov ca1 ALLOC_OK;
+        mov ca1 0;
         jmp (".malloc_return")%asm
       ];
       [ #".malloc_invalid";
-        mov ca0 0;
-        mov ca1 ALLOC_INVALID;
+        mov ca0 ALLOC_INVALID;
+        mov ca1 0;
         jmp (".malloc_return")%asm
       ];
       [ #".malloc_no_memory";
-        mov ca0 0;
-        mov ca1 ALLOC_NO_MEMORY
+        mov ca0 ALLOC_NO_MEMORY;
+        mov ca1 0
       ];
       ASM_Label ".malloc_return" :: allocator_return_asm
     ].
@@ -220,13 +224,13 @@ Section Allocator.
 
      free(request) {
        if (!is_tagged_ordinary_capability(request))
-         return { 0, ALLOC_INVALID };
+         return ALLOC_INVALID;
 
        word_t *__capability root = *bump_slot;
        address_t next = address(root);
        address_t b = base(request), e = end(request);
        if (!(base(root) < b && b < e && e <= next))
-         return { 0, ALLOC_INVALID };
+         return ALLOC_INVALID;
 
        address_t h = base(root) + 1;    // Skip the permanently reserved root address.
        while (h < next) {
@@ -234,15 +238,15 @@ Section Allocator.
          address_t recorded_end = header[0];
          if (b == h + HEADER_WORDS) {
            if (e != recorded_end)
-             return { 0, ALLOC_INVALID };
+             return ALLOC_INVALID;
            if (read_shadow(b) != ShadowLive)
-             return { 0, ALLOC_INVALID };  // Repeated free, even with a valid tag.
+             return ALLOC_INVALID;  // Repeated free, even with a valid tag.
            paint_shadow(b, e, ShadowQuarantined);
-           return { 0, ALLOC_OK };
+           return ALLOC_OK;
          }
          h = recorded_end;             // Follow the protected chain, not payloads.
        }
-       return { 0, ALLOC_INVALID };
+       return ALLOC_INVALID;
      }
   *)
 
@@ -323,13 +327,13 @@ Section Allocator.
       ];
       allocator_paint_asm ctp ca2 ShadowQuarantined;
       [ #".free_success";
-        mov ca0 0;
-        mov ca1 ALLOC_OK;
+        mov ca0 ALLOC_OK;
+        mov ca1 0;
         jmp (".free_return")%asm
       ];
       [ #".free_invalid";
-        mov ca0 0;
-        mov ca1 ALLOC_INVALID
+        mov ca0 ALLOC_INVALID;
+        mov ca1 0
       ];
       ASM_Label ".free_return" :: allocator_return_asm
     ].

@@ -301,8 +301,8 @@ Section Heap_Temporal_Safety_Blocks.
       focus_block 15 "Hcode" as a_free_result Ha_free_result "Hblock" "Hcont";
         iHide "Hcont" as hcont.
       iApply (hts_free_result_failure_spec pc_b pc_e a_free_result
-        ENOTENOUGHTRUSTEDSTACK 0 with "[- $HPC $Hca0 $Hca1 $Hblock $Hna]").
-      { left. unfold ENOTENOUGHTRUSTEDSTACK. lia. }
+        ENOTENOUGHTRUSTEDSTACK with "[- $HPC $Hca0 $Hblock $Hna]").
+      { unfold ENOTENOUGHTRUSTEDSTACK. lia. }
       { solve_addr. }
     }
     iDestruct "Hcall" as
@@ -327,13 +327,13 @@ Section Heap_Temporal_Safety_Blocks.
       iDestruct "Hfree_post" as
         "(Hallocation & Hreclaimed & %Hfree_values)".
       destruct Hfree_values as [-> ->].
-      (* Block 15: validate the zero result and allocator status. *)
+      (* Block 15: validate the ALLOC_OK result. *)
       focus_block 15 "Hcode" as a_free_result Ha_free_result "Hblock" "Hcont";
         iHide "Hcont" as hcont.
       iApply (hts_free_result_success_spec pc_b pc_e a_free_result
-        with "[- $HPC $Hca0 $Hca1 $Hblock]").
+        with "[- $HPC $Hca0 $Hblock]").
       { solve_addr. }
-      iNext. iIntros "(HPC & Hca0 & Hca1 & Hblock)".
+      iNext. iIntros "(HPC & Hca0 & Hblock)".
       subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
     (* Free-world transition: quarantine b and relinquish its reclaim token.
        The dangling saved alias remains private. *)

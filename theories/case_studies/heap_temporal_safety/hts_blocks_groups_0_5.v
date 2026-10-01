@@ -403,7 +403,7 @@ Section Heap_Temporal_Safety_Blocks.
     { subst rmap_arg. by rewrite /is_arg_rmap /dom_arg_rmap /=. }
     iNext.
     (* The second branch is trusted-stack exhaustion: ca0 is an integer
-       error and ca1 is zero. Block 4's type check must reach Halt. *)
+       error, so it is untagged and Block 4's tag check must reach Halt. *)
     iIntros "[Hcall|Hcall]".
     - iDestruct "Hcall" as
       (rcgp rcra rcs0 rcs1 wca0_ret wca1_ret rmap_ret Hdom_rmap_ret)
@@ -428,7 +428,10 @@ Section Heap_Temporal_Safety_Blocks.
       (* Block 4: halt on malloc failure. *)
       focus_block 4 "Hcode" as a_result Ha_result "Hblock" "Hcont";
         iHide "Hcont" as hcont.
-      (* Jnz 2 ca1. *)
+      iExtractList "Hrmap" [ct0] as ["[Hct0 %Hwct0]"].
+      (* GetTag ct0 ca0. *)
+      iInstr "Hblock".
+      (* Jnz 2 ct0. *)
       iInstr "Hblock".
       (* Halt. *)
       iInstr "Hblock".
@@ -440,10 +443,10 @@ Section Heap_Temporal_Safety_Blocks.
       iHide "Hcont" as hcont.
     iExtractList "Hrmap" [ct0] as ["[Hct0 %Hwct0]"].
     iApply (hts_malloc_result_success_spec pc_b pc_e a_result b e b _
-      with "[- $HPC $Hca0 $Hca1 $Hct0 $Hblock]").
+      with "[- $HPC $Hca0 $Hct0 $Hblock]").
     { solve_addr. }
     iNext.
-    iIntros "(HPC & Hca0 & Hca1 & Hct0 & Hblock)".
+    iIntros "(HPC & Hca0 & Hct0 & Hblock)".
     iEval (cbn) in "HPC".
     subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
 
@@ -535,25 +538,11 @@ Section Heap_Temporal_Safety_Blocks.
       (* Block 4: halt on trusted-stack exhaustion. *)
       focus_block 4 "Hcode" as a_result Ha_result "Hblock" "Hcont";
         iHide "Hcont" as hcont.
-      (* Jnz 2 ca1. *)
-      iInstr "Hblock".
-      (* Jmp 2. *)
-      iInstr "Hblock".
       iExtractList "Hrmap" [ct0] as ["[Hct0 %Hwct0]"].
-      (* GetWType ct0 ca0. *)
+      (* GetTag ct0 ca0. *)
       iInstr "Hblock".
-      (* Sub ct0 ct0 (encodeWordType wt_cap). *)
-      iInstr "Hblock".
-      iEval (cbn) in "Hct0".
       (* Jnz 2 ct0. *)
-      iInstr_success "Hblock".
-      { intro Hzero. injection Hzero as Hzero.
-        apply (encodeWordType_correct (WInt ENOTENOUGHTRUSTEDSTACK) wt_cap).
-        unfold wt_cap in *.
-        change ((encodeWordType (WInt ENOTENOUGHTRUSTEDSTACK) -
-          encodeWordType (WCap true (O LG LM) Global 0%a 0%a 0%a))%Z = 0%Z)
-          in Hzero.
-        lia. }
+      iInstr "Hblock".
       (* Halt. *)
       iInstr "Hblock".
       wp_end. iIntros (_). iFrame "Hna".

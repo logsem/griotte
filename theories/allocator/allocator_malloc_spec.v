@@ -126,8 +126,8 @@ Section AllocatorMallocBlocks.
     codefrag start code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e
            (allocator_malloc_block_addr pc_a 9) ∗
-         ca0 ↦ᵣ WInt 0 ∗
-         ca1 ↦ᵣ WInt ALLOC_INVALID ∗
+         ca0 ↦ᵣ WInt ALLOC_INVALID ∗
+         ca1 ↦ᵣ WInt 0 ∗
          codefrag start code
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
@@ -135,22 +135,21 @@ Section AllocatorMallocBlocks.
     intros start code Hcont Hpc Hshadow; subst start code.
     iIntros "(HPC & Hca0 & Hca1 & Hcode & Hφ)".
     codefrag_facts "Hcode".
-    (* Mov ca0 0. *)
+    (* Mov ca0 ALLOC_INVALID. *)
     iInstr "Hcode".
     assert (Hstep : (pc_a ^+ 51)%a =
       ((allocator_malloc_block_addr pc_a 7) ^+ 1)%a).
     { unfold allocator_malloc_block_addr. solve_addr. }
     iEval (rewrite Hstep) in "HPC".
-    (* Mov ca1 ALLOC_INVALID. *)
+    (* Mov ca1 0. *)
     iInstr "Hcode".
-    iEval (simpl) in "Hca1".
     (* Jmp .malloc_return. *)
     iInstr "Hcode".
-    assert (Hca1val :
-      (if decide (ca1 = cnull) then 0%Z else (-1)%Z) = ALLOC_INVALID).
+    assert (Hca0val :
+      (if decide (ca0 = cnull) then 0%Z else (-1)%Z) = ALLOC_INVALID).
     { unfold ALLOC_INVALID.
-      destruct (decide (ca1 = cnull)); [discriminate|done]. }
-    iEval (rewrite Hca1val) in "Hca1".
+      destruct (decide (ca0 = cnull)); [discriminate|done]. }
+    iEval (rewrite Hca0val) in "Hca0".
     assert (Hret : (allocator_malloc_block_addr pc_a 7 ^+ 5)%a =
       allocator_malloc_block_addr pc_a 9).
     { unfold allocator_malloc_block_addr. solve_addr. }
@@ -174,8 +173,8 @@ Section AllocatorMallocBlocks.
     codefrag start code ∗
     ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e
            (allocator_malloc_block_addr pc_a 9) ∗
-         ca0 ↦ᵣ WInt 0 ∗
-         ca1 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
+         ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
+         ca1 ↦ᵣ WInt 0 ∗
          codefrag start code
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
     ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
@@ -183,19 +182,19 @@ Section AllocatorMallocBlocks.
     intros start code Hcont Hpc Hshadow; subst start code.
     iIntros "(HPC & Hca0 & Hca1 & Hcode & Hφ)".
     codefrag_facts "Hcode".
-    (* Mov ca0 0. *)
+    (* Mov ca0 ALLOC_NO_MEMORY. *)
     iInstr "Hcode".
     assert (Hstep : (pc_a ^+ 54)%a =
       ((allocator_malloc_block_addr pc_a 8) ^+ 1)%a).
     { unfold allocator_malloc_block_addr. solve_addr. }
     iEval (rewrite Hstep) in "HPC".
-    (* Mov ca1 ALLOC_NO_MEMORY. *)
+    (* Mov ca1 0. *)
     iInstr "Hcode".
-    assert (Hca1val :
-      (if decide (ca1 = cnull) then 0%Z else (-2)%Z) = ALLOC_NO_MEMORY).
+    assert (Hca0val :
+      (if decide (ca0 = cnull) then 0%Z else (-2)%Z) = ALLOC_NO_MEMORY).
     { unfold ALLOC_NO_MEMORY.
-      destruct (decide (ca1 = cnull)); [discriminate|done]. }
-    iEval (rewrite Hca1val) in "Hca1".
+      destruct (decide (ca0 = cnull)); [discriminate|done]. }
+    iEval (rewrite Hca0val) in "Hca0".
     assert (Hret : (allocator_malloc_block_addr pc_a 8 ^+ 2)%a =
       allocator_malloc_block_addr pc_a 9).
     { unfold allocator_malloc_block_addr. solve_addr. }
@@ -566,7 +565,7 @@ Section AllocatorMallocBlocks.
          ct0 ↦ᵣ WCap true RW Global heap_b heap_e finish ∗
          ct4 ↦ᵣ WCap true RW Global b finish b ∗
          ca0 ↦ᵣ WCap true RW Global b finish b ∗
-         ca1 ↦ᵣ WInt ALLOC_OK ∗
+         ca1 ↦ᵣ WInt 0 ∗
          allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e finish ∗
          codefrag start code
          -∗ WP Seq (Instr Executable) @ E {{ φ }})
@@ -608,7 +607,7 @@ Section AllocatorMallocBlocks.
     iSpecialize ("Hcode" with "Hi").
     (* Mov ca0 ct4. *)
     iInstr "Hcode".
-    (* Mov ca1 ALLOC_OK. *)
+    (* Mov ca1 0. *)
     iInstr "Hcode".
     (* Jmp .malloc_return. *)
     iInstr "Hcode".
@@ -659,8 +658,8 @@ Section AllocatorMallocBlocks.
           cgp ↦ᵣ WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ wret ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ WInt ALLOC_INVALID ∗
+          ca0 ↦ᵣ WInt ALLOC_INVALID ∗
+          ca1 ↦ᵣ WInt 0 ∗
           ca2 ↦ᵣ - ∗
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
@@ -821,13 +820,13 @@ Section AllocatorMallocBlocks.
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0 ∗
 
-          ((ca0 ↦ᵣ WInt 0 ∗
-            ca1 ↦ᵣ WInt ALLOC_NO_MEMORY)
+          ((ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
+            ca1 ↦ᵣ WInt 0)
            ∨ (∃ (b e : Addr),
                 ⌜(heap_b < b /\ b < e /\ e <= heap_e)%a ∧
                   (e - b = n)%Z⌝ ∗
                 ca0 ↦ᵣ WCap true RW Global b e b ∗
-                ca1 ↦ᵣ WInt ALLOC_OK ∗
+                ca1 ↦ᵣ WInt 0 ∗
                 ⌜P b e⌝ ∗
                 allocator_allocation b e (0%Z, 0%Z) ∗
                 allocator_zeroed b e))
@@ -1190,7 +1189,7 @@ Section AllocatorMallocBlocks.
       { iPureIntro. split.
         { solve_addr. }
         { clear -Hfinish. solve_addr. } }
-      iFrame "Hca0 Hca1 Hreceipt".
+      iFrame "Hca0 Hreceipt".
       iSplit; first (iPureIntro; exact HP).
       rewrite /allocator_zeroed /region_pointsto big_sepL2_replicate_r;
         last reflexivity.
@@ -1254,7 +1253,7 @@ Section AllocatorMallocBlocks.
       { iSplitR "Hna"; last iFrame.
         iNext. iSplitL "Himports Hcode"; first iFrame.
         iExists next. iFrame. }
-      iApply "Hpost". iFrame "∗". iLeft. iFrame.
+      iApply "Hpost". iFrame "∗".
   Qed.
 
   Lemma allocator_malloc_valid_correct
@@ -1302,13 +1301,13 @@ Section AllocatorMallocBlocks.
           ctp ↦ᵣ - ∗
           cnull ↦ᵣ WInt 0 ∗
 
-          ((ca0 ↦ᵣ WInt 0 ∗
-            ca1 ↦ᵣ WInt ALLOC_NO_MEMORY)
+          ((ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
+            ca1 ↦ᵣ WInt 0)
            ∨ (∃ (b e : Addr),
                 ⌜(heap_b < b /\ b < e /\ e <= heap_e)%a ∧
                   (e - b = n)%Z⌝ ∗
                 ca0 ↦ᵣ WCap true RW Global b e b ∗
-                ca1 ↦ᵣ WInt ALLOC_OK ∗
+                ca1 ↦ᵣ WInt 0 ∗
                 allocator_allocation b e (0%Z, 0%Z) ∗
                 allocator_zeroed b e))
 

@@ -50,20 +50,8 @@ Section Heap_Temporal_Safety.
         jalr cra ctp
       ];
       [
-        (* if (malloc failed) halt; a switcher failure has ca1 = 0,
-           so also check the result's type and tag. *)
-        jnz (".hts_malloc_status_bad")%asm ca1;
-        jmp (".hts_malloc_type")%asm;
-        #".hts_malloc_status_bad";
-        halt;
-        #".hts_malloc_type";
-        getwtype ct0 ca0;
-        sub ct0 ct0 (encodeWordType wt_cap)%asm;
-        jnz (".hts_malloc_type_bad")%asm ct0;
-        jmp (".hts_malloc_tag")%asm;
-        #".hts_malloc_type_bad";
-        halt;
-        #".hts_malloc_tag";
+        (* if (malloc failed) halt; the result is tagged only on success:
+           allocator errors and switcher failures return an integer in ca0. *)
         gettag ct0 ca0;
         jnz (".hts_malloc_result_end")%asm ct0;
         halt;
@@ -106,15 +94,12 @@ Section Heap_Temporal_Safety.
         jalr cra ctp
       ];
       [
-        (* Both result words are zero only after a successful free. *)
+        (* ca0 is ALLOC_OK = 0 only after a successful free. A nonzero value
+           is a switcher failure: buf is then still live and holds &p, so we
+           must halt. *)
         jnz (".hts_free_result_bad")%asm ca0;
-        jmp (".hts_free_status")%asm;
-        #".hts_free_result_bad";
-        halt;
-        #".hts_free_status";
-        jnz (".hts_free_status_bad")%asm ca1;
         jmp (".hts_free_result_end")%asm;
-        #".hts_free_status_bad";
+        #".hts_free_result_bad";
         halt;
         #".hts_free_result_end"
       ];
