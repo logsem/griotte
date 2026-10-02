@@ -122,7 +122,7 @@ Section HTS_States.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
@@ -262,7 +262,7 @@ Section HTS_States.
       ⌜related_sts_pub_world
         (std_update_multiple (hts_Wshare b)
           (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) Wret⌝ ∗
-      rel C b RW interp_in_memC ∗
+      rel C (LNonHeap b) RW interp_in_memC ∗
       hts_frame a_ret (csp_b ^+ 1)%a ∗
       (∃ w, ca0 ↦ᵣ w) ∗
       (∃ w, ca1 ↦ᵣ w) ∗
@@ -284,15 +284,15 @@ Section HTS_States.
       ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜heap_wf (heap_std (revoke Wret))⌝ ∗
       ⌜heap_std (revoke Wret) !! b = Some (MkAllocObject b (b ^+ 1)%a AllocObjectLive)⌝ ∗
-      ⌜std (revoke Wret) !! b = Some Permanent⌝ ∗
-      rel C b RW interp_in_memC ∗
+      ⌜std (revoke Wret) !! LNonHeap b = Some Permanent⌝ ∗
+      rel C (LNonHeap b) RW interp_in_memC ∗
       hts_frame a_ret (csp_b ^+ 1)%a ∗
       ca0 ↦ᵣ WInt 0 ∗
       ca1 ↦ᵣ WInt 0 ∗
       hts_zero_regs ∗
       (∃ stk, [[(csp_b ^+ 1)%a, csp_e]] ↦ₐ [[stk]]) ∗
       world_interp_open (revoke Wret) C [b] ∗
-      sts_state_std C b Permanent ∗
+      sts_state_std C (LNonHeap b) Permanent ∗
       StackRevokedResources Wret C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
       ⌜revoked_addresses (revoke Wret) (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
       interp_continuation cstk Ws Cs ∗

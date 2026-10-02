@@ -13,7 +13,7 @@ Section HTS_World_Buffer.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
@@ -88,7 +88,7 @@ Section HTS_World.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
@@ -112,7 +112,7 @@ Section HTS_World.
   Qed.
 
   Lemma hts_Wshare_std b :
-    std (hts_Wshare W_init_C b) !! b = Some Permanent.
+    std (hts_Wshare W_init_C b) !! LNonHeap b = Some Permanent.
   Proof.
     rewrite /hts_Wshare lookup_insert.
     case_decide; [reflexivity|congruence].
@@ -145,7 +145,7 @@ Section HTS_World.
     StackRevokedResources W_init_C C (finz.seq_between (csp_b ^+ 1)%a csp_e)
     ={E}=∗
     world_interp (hts_Wshare W_init_C b) C ∗
-    rel C b RW interp_in_memC ∗
+    rel C (LNonHeap b) RW interp_in_memC ∗
     interp (hts_Wshare W_init_C b) C (hts_buffer b) ∗
     StackRevokedResources (hts_Wshare W_init_C b) C
       (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
@@ -230,7 +230,7 @@ Section HTS_World.
     rewrite /hts_Wshare lookup_insert_ne.
     - cbn. rewrite /revoked_addresses Forall_forall in Hstack_revoked.
       apply Hstack_revoked. exact Ha.
-    - intros Heq. apply (hts_buffer_not_stack b Hbounds Hstk_heap).
+    - intros [= Heq]. apply (hts_buffer_not_stack b Hbounds Hstk_heap).
       apply elem_of_finz_seq_between.
       apply elem_of_finz_seq_between in Ha. rewrite ?Heq. solve_addr.
   Qed.
@@ -244,7 +244,7 @@ Section HTS_World.
     related_sts_pub_world
       (std_update_multiple (hts_Wshare W_init_C b)
         (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) Wret ->
-    rel C b RW interp_in_memC -∗
+    rel C (LNonHeap b) RW interp_in_memC -∗
     free_right b -∗
     world_interp (revoke Wret) C
     ={E}=∗
@@ -252,9 +252,9 @@ Section HTS_World.
       ⌜heap_wf (heap_std (revoke Wret))⌝ ∗
       ⌜heap_std (revoke Wret) !! b =
         Some (MkAllocObject b (b ^+ 1)%a AllocObjectLive)⌝ ∗
-      ⌜std (revoke Wret) !! b = Some Permanent⌝ ∗
+      ⌜std (revoke Wret) !! LNonHeap b = Some Permanent⌝ ∗
       world_interp_open (revoke Wret) C [b] ∗
-      sts_state_std C b Permanent ∗
+      sts_state_std C (LNonHeap b) Permanent ∗
       free_right b ∗
       b ↦ₐ v_b.
   Proof.
@@ -287,11 +287,11 @@ Section HTS_World.
       apply elem_of_finz_seq_between in Hin.
       apply elem_of_finz_seq_between. solve_addr. }
     assert (std (std_update_multiple (hts_Wshare W_init_C b)
-      (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) !! b =
+      (finz.seq_between ((csp_b ^+ 1) ^+ 4)%a csp_e) Temporary) !! LNonHeap b =
       Some Permanent) as Hstd_source.
     { rewrite std_sta_update_multiple_lookup_same_i;
         [exact (hts_Wshare_std b)|exact Hb_not_callstk]. }
-    assert (b ∈ dom (std Wret)) as Hb_dom_ret.
+    assert (LNonHeap b ∈ dom (std Wret)) as Hb_dom_ret.
     { apply (proj1 (proj1 Hrelated_share_ret)).
       rewrite elem_of_dom. eexists. exact Hstd_source. }
     rewrite elem_of_dom in Hb_dom_ret.
@@ -301,7 +301,7 @@ Section HTS_World.
     assert (ρ = Permanent) as Hperm
       by (eapply std_rel_pub_rtc_Permanent; eauto).
     subst ρ.
-    assert (std (revoke Wret) !! b = Some Permanent) as Hstd_rev.
+    assert (std (revoke Wret) !! LNonHeap b = Some Permanent) as Hstd_rev.
     { apply revoke_lookup_Perm. exact Hρ. }
     iDestruct (open_world_interp_live_heap (revoke Wret) C b RW
       interp_in_memC Permanent b obj_ret Hb_heap Hlookup_rev Hlive_ret
@@ -326,7 +326,7 @@ Section HTS_World_Free.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
@@ -350,9 +350,9 @@ Section HTS_World_Free.
     heap_wf (heap_std (revoke Wret)) ->
     heap_std (revoke Wret) !! b =
       Some (MkAllocObject b (b ^+ 1)%a AllocObjectLive) ->
-    std (revoke Wret) !! b = Some Permanent ->
-    rel C b RW interp_in_memC -∗
-    sts_state_std C b Permanent -∗
+    std (revoke Wret) !! LNonHeap b = Some Permanent ->
+    rel C (LNonHeap b) RW interp_in_memC -∗
+    sts_state_std C (LNonHeap b) Permanent -∗
     free_right b -∗
     allocator_reclaimed b (b ^+ 1)%a -∗
     world_interp_open (revoke Wret) C [b]
@@ -367,7 +367,7 @@ Section HTS_World_Free.
     pose proof (hts_heap_quarantine_single_status
       (heap_std (revoke Wret)) b (b ^+ 1)%a Hwf_rev Hsucc Hb_lookup)
       as Hstatus_other.
-    assert (b ∈ dom (std (revoke Wret))) as Hb_dom_rev.
+    assert (LNonHeap b ∈ dom (std (revoke Wret))) as Hb_dom_rev.
     { rewrite elem_of_dom. eexists. exact Hstd_rev. }
     iDestruct (world_interp_open_heap_provenance with "Hworld_open")
       as "[Hworld_open #Hprovenance]".

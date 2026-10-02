@@ -8,7 +8,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
@@ -51,13 +51,13 @@ Section fundamental.
     → PermFlowsTo p p'
     → (persistent_cond P)
     → (if isWL p then region_state_pwl W a else region_state_nwl W a g)
-    → std W !! a = Some ρ
+    → std W !! LNonHeap a = Some ρ
     → ρ ≠ Revoked
     → Pinstr
     -> allocator_ctx -∗ ftlr_IH
     -∗ fixpoint interp1 W C (WCap true p g b e a)
     -∗ (∀ (r : RegName) v, ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)
-    -∗ rel C a p' (safeC P)
+    -∗ rel C (LNonHeap a) p' (safeC P)
     -∗ □ (if decide (readAllowed_a_in_regs (<[PC:=WCap true p g b e a]> regs) a)
             then ▷ (rcond P C p' interp)
             else emp)
@@ -71,7 +71,7 @@ Section fundamental.
     -∗ world_interp_open W C [a]
     -∗ na_own cerise_nais ⊤
     -∗ cstack_frag cstk
-    -∗ sts_state_std C a ρ
+    -∗ sts_state_std C (LNonHeap a) ρ
     -∗ PC ↦ᵣ (WCap true p g b e a)
     -∗ ([∗ map] k↦y ∈ delete PC regs, k ↦ᵣ y)
     -∗ WP Instr Executable

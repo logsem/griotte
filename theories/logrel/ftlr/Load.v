@@ -13,7 +13,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
@@ -31,12 +31,12 @@ Section fundamental.
      The boolean bl can be used to keep track of whether or not we have applied a wp lemma *)
   Definition region_open_resources W C a als p φ v (has_later : bool): iProp Σ :=
     (∃ ρ,
-     sts_state_std C a ρ
+     sts_state_std C (LNonHeap a) ρ
     ∗ ⌜ρ ≠ Revoked⌝
     ∗ ⌜heap_addr_live (heap_std W) a⌝
     ∗ world_interp_open W C (a :: als)
     ∗ if_later_P has_later (monotonicity_guarantees_region C φ p v ρ ∗ φ (W,C, v))
-    ∗ rel C a p φ)%I.
+    ∗ rel C (LNonHeap a) p φ)%I.
 
   Lemma load_inr_eq (imm : Z) {regs r p0 g0 b0 e0 a0 ea t1 p1 g1 b1 e1 a1}:
     reg_allows_load_imm regs r imm p0 g0 b0 e0 a0 ea →
@@ -74,7 +74,7 @@ Section fundamental.
     reg_allows_load_imm (<[PC:=WCap true pc_p pc_g pc_b pc_e pc_a]> regs) r1 imm p g b e a pc_a
     → PermFlowsTo pc_p pc_p'
     → (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → (interp W C v))
-    -∗ rel C pc_a pc_p' P
+    -∗ rel C (LNonHeap pc_a) pc_p' P
     -∗ ⌜PermFlowsTo p pc_p'⌝.
   Proof.
     destruct (decide (r1 = PC)).
@@ -117,7 +117,7 @@ Section fundamental.
     → heap_wf (heap_std W)
     → (∀ (r : RegName) (v : Word), ⌜r ≠ PC⌝ → ⌜regs !! r = Some v⌝ → interp W C v)
     -∗ interp W C (WCap true p_pc g_pc b_pc e_pc a_pc)
-    -∗ rel C a_pc p_pc' (safeC P)
+    -∗ rel C (LNonHeap a_pc) p_pc' (safeC P)
     -∗ world_interp_open W C [a_pc]
     -∗ allow_load_res imm W C src (<[PC:= WCap true p_pc g_pc b_pc e_pc a_pc]> regs) a_pc p_pc'.
   Proof.

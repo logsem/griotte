@@ -18,7 +18,7 @@ Section Switcher.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -33,19 +33,19 @@ Section Switcher.
     (C : CmptName)
     (rmap : Reg)
     (csp_e csp_b: Addr)
-    (l : list Addr)
+    (l : list LAddr)
     (stk_mem : list Word)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (wca0 wca1 : Word)
     :
-    let Wfixed := (close_list (l ++ finz.seq_between csp_b csp_e) Wcur) in
+    let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
     dom rmap = all_registers_s ∖ ({[ PC ; csp ; ca0 ; ca1 ]} ) ->
     frame_match Ws Cs cstk W0 C ->
     csp_sync cstk (csp_b ^+ -4)%a csp_e ->
     (* NOTE: there is only one side of the implication... *)
-    NoDup (l ++ finz.seq_between csp_b csp_e) ->
-    (∀ a : finz MemNum, (std W0) !! a = Some Temporary -> a ∈ l ++ finz.seq_between csp_b csp_e) ->
+    NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+    (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
 
     (* Switcher Invariant *)
     allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv

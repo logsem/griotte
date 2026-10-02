@@ -30,7 +30,7 @@ Section logrel.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType Word Σ}
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
@@ -309,7 +309,7 @@ Section logrel.
     ∃ (φ : V) (p : Perm),
       φ W C w ∗
       mono_temporary C p (safeC φ) w ∗
-      rel C a p (safeC φ) ∗
+      rel C (LNonHeap a) p (safeC φ) ∗
       valid_stk_interp interp C φ p ∗
       ⌜ PermFlowsTo RWL p ⌝.
   Global Instance StackWorldResource_ne n :
@@ -325,7 +325,7 @@ Section logrel.
                    (∃ (φ : V) (p : Perm) (_ : Persistent (φ W C v)),
                        ((φ W C v)
                         ∗ (mono_temporary C p (safeC φ) v)
-                        ∗ rel C a p (safeC φ)
+                        ∗ rel C (LNonHeap a) p (safeC φ)
                         ∗ valid_stk_interp interp C φ p
                         ∗ ⌜ PermFlowsTo RWL p ⌝
                        )%I
@@ -359,7 +359,7 @@ Section logrel.
       This is mostly bookkeeping resources, and the user would usually only passes it around.
    *)
   Definition StackOpenWorldResources (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) : iProp Σ :=
-    StackWorldResources interp W C la lw ∗ ([∗ list] a ∈ la, sts_state_std C a Temporary).
+    StackWorldResources interp W C la lw ∗ ([∗ list] a ∈ la, sts_state_std C (LNonHeap a) Temporary).
   Global Instance StackOpenWorldResources_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n) StackOpenWorldResources.
   Proof. rewrite /StackOpenWorldResources; solve_proper. Qed.
@@ -628,12 +628,12 @@ Section logrel.
    *)
 
   Definition region_state_pwl (W : WORLD) (a : Addr) : Prop :=
-    (std W) !! a = Some Temporary.
+    (std W) !! LNonHeap a = Some Temporary.
 
   Definition region_state_nwl (W : WORLD) (a : Addr) (l : Locality) : Prop :=
     match l with
-     | Local => (std W) !! a = Some Permanent ∨ (std W) !! a = Some Temporary
-     | Global => (std W) !! a = Some Permanent
+     | Local => (std W) !! LNonHeap a = Some Permanent ∨ (std W) !! LNonHeap a = Some Temporary
+     | Global => (std W) !! LNonHeap a = Some Permanent
     end.
 
   (* For simplicity we might want to have the following statement in validity of caps.
@@ -656,7 +656,7 @@ Section logrel.
      with the capability. *)
 
   Definition monoReq (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (P : V) :=
-    (match (std W) !! a with
+    (match (std W) !! LNonHeap a with
         | Some Temporary =>
             (if isWL p
              then mono_pub C (safeC P)
@@ -747,7 +747,7 @@ Section logrel.
     (∃ base obj, heap_lookup_addr (heap_std W) b = Some (base,obj) ∧
       alloc_object_status obj = AllocObjectLive ∧ (e <= alloc_object_end obj)%a) ∧
     Forall (λ x, heap_addr_live (heap_std W) x ∧
-      ∃ ρ, ρ ≠ Revoked ∧ std W !! x = Some ρ) (finz.seq_between b e).
+      ∃ ρ, ρ ≠ Revoked ∧ std W !! LNonHeap x = Some ρ) (finz.seq_between b e).
   Proof.
     intros Hwf (Hb & Hbe & He) (Hvalid & Hcoverage).
     assert (Hbheap : is_heap_address b = true).
@@ -798,7 +798,7 @@ Section logrel.
                     ∃ (p' : Perm) (P:V),
                       ⌜PermFlowsTo p p'⌝
                       ∧ ⌜persistent_cond P⌝
-                      ∧ rel C a p' (safeC P)
+                      ∧ rel C (LNonHeap a) p' (safeC P)
                       ∧ ▷ zcond P C
                       ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
                       ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
@@ -893,7 +893,7 @@ Section logrel.
         (P : WORLD -n> leibnizO CmptName -n> leibnizO Word -n> iPropO Σ),
         ⌜PermFlowsTo p p'⌝
         ∧ ⌜persistent_cond P⌝
-        ∧ rel C a p' (safeC P)
+        ∧ rel C (LNonHeap a) p' (safeC P)
         ∧ ▷ zcond P C
         ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
         ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
@@ -919,7 +919,7 @@ Section logrel.
         (P : WORLD -n> leibnizO CmptName -n> leibnizO Word -n> iPropO Σ),
         ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
-        ∗ rel C a p' (safeC P)
+        ∗ rel C (LNonHeap a) p' (safeC P)
         ∗ ▷ zcond P C
         ∗ (if readAllowed p' then ▷ rcond P C p' interp else True)
         ∗ (if writeAllowed p' then ▷ wcond P C interp else True)
@@ -1099,7 +1099,7 @@ Section logrel.
                   ∃ (p' : Perm) (P:V),
                     ⌜PermFlowsTo p p'⌝
                     ∗ ⌜persistent_cond P⌝
-                    ∗ rel C a p' (safeC P)
+                    ∗ rel C (LNonHeap a) p' (safeC P)
                     ∗ ▷ zcond P C
                     ∗ (if readAllowed p' then ▷ (rcond P C p' interp) else True)
                     ∗ (if writeAllowed p' then ▷ (wcond P C interp) else True)
@@ -1234,7 +1234,7 @@ Section logrel.
   Lemma readAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a':
     readAllowed p = true ->
     interp W C (WCap true p g b e a') -∗
-    ⌜Forall (fun a => ∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
+    ⌜Forall (fun a => ∃ ρ, std W !! LNonHeap a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
   Proof.
     iIntros (Hwa) "Hinterp".
     rewrite Forall_forall.
@@ -1261,7 +1261,7 @@ Section logrel.
     ∃ (p' : Perm) (P:V),
       ⌜ PermFlowsTo p p'⌝
       ∗ ⌜persistent_cond P⌝
-      ∗ rel C a' p' (safeC P)
+      ∗ rel C (LNonHeap a') p' (safeC P)
       ∗ ▷ zcond P C
       ∗ ▷ rcond P C p' interp
       ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
@@ -1292,7 +1292,7 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
+              ∗ rel C (LNonHeap a') p' (safeC P)
               ∗ ▷ zcond P C
               ∗ ▷ rcond P C p' interp
               ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
@@ -1317,7 +1317,7 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
+              ∗ rel C (LNonHeap a') p' (safeC P)
               ∗ ▷ zcond P C
               ∗ ▷ rcond P C p' interp
               ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
@@ -1335,7 +1335,7 @@ Section logrel.
     readAllowed p = true ->
     withinBounds b e a' = true ->
     interp W C (WCap true p g b e a) -∗
-    ⌜∃ ρ, std W !! a' = Some ρ ∧ ρ <> Revoked⌝.
+    ⌜∃ ρ, std W !! LNonHeap a' = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -1361,7 +1361,7 @@ Section logrel.
     ∃ (p' : Perm) (P:V),
       ⌜ PermFlowsTo p p'⌝
       ∗ ⌜persistent_cond P⌝
-      ∗ rel C a' p' (safeC P)
+      ∗ rel C (LNonHeap a') p' (safeC P)
       ∗ ▷ zcond P C
       ∗ ▷ wcond P C interp
       ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
@@ -1392,7 +1392,7 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
+              ∗ rel C (LNonHeap a') p' (safeC P)
               ∗ ▷ zcond P C
               ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
               ∗ (▷ wcond P C interp)
@@ -1417,7 +1417,7 @@ Section logrel.
             ∃ (p' : Perm) (P:V),
               ⌜ PermFlowsTo p p'⌝
               ∗ ⌜persistent_cond P⌝
-              ∗ rel C a' p' (safeC P)
+              ∗ rel C (LNonHeap a') p' (safeC P)
               ∗ ▷ zcond P C
               ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
               ∗ (▷ wcond P C interp)
@@ -1444,7 +1444,7 @@ Section logrel.
     writeAllowed p = true ->
     withinBounds b e a = true ->
     interp W C (WCap true p g b e a) -∗
-    ⌜∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked⌝.
+    ⌜∃ ρ, std W !! LNonHeap a = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -1466,7 +1466,7 @@ Section logrel.
     writeAllowed p = true →
     withinBounds b e ea = true →
     interp W C (WCap true p g b e a) -∗
-    ⌜∃ ρ, std W !! ea = Some ρ ∧ ρ <> Revoked⌝.
+    ⌜∃ ρ, std W !! LNonHeap ea = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hwa Hb.
     rewrite (interp_cap_cur_addr W C true p g b e a ea).
@@ -1476,7 +1476,7 @@ Section logrel.
   Lemma writeAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a':
     writeAllowed p = true ->
     interp W C (WCap true p g b e a') -∗
-    ⌜Forall (fun a => ∃ ρ, std W !! a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
+    ⌜Forall (fun a => ∃ ρ, std W !! LNonHeap a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
   Proof.
     iIntros (Hwa) "Hinterp".
     rewrite Forall_forall.
@@ -1501,7 +1501,7 @@ Section logrel.
     isWL p = true ->
     withinBounds b e a = true ->
     interp W C (WCap true p g b e a') -∗
-    ⌜std W !! a = Some Temporary⌝.
+    ⌜std W !! LNonHeap a = Some Temporary⌝.
   Proof.
     intros Hp Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
@@ -1519,7 +1519,7 @@ Section logrel.
     isWL p = true ->
     Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
     ⊢ (interp W C (WCap true p g b e a)) →
-    [∗ list] a' ∈ l, ⌜std W !! a' = Some Temporary⌝.
+    [∗ list] a' ∈ l, ⌜std W !! LNonHeap a' = Some Temporary⌝.
   Proof.
     induction l; iIntros (Hra Hin) "#Hinterp"; first done.
     simpl.
@@ -1532,7 +1532,7 @@ Section logrel.
   Lemma writeLocalAllowed_valid_cap_implies_full_cap (W : WORLD) (C : CmptName) p g b e a:
     isWL p = true ->
     ⊢ (interp W C (WCap true p g b e a)) →
-    [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! a' = Some Temporary⌝.
+    [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! LNonHeap a' = Some Temporary⌝.
   Proof.
     iIntros (Hwl) "Hinterp".
     iApply (writeLocalAllowed_valid_cap_implies_many with "Hinterp"); eauto.
@@ -1549,7 +1549,7 @@ Section logrel.
     -∗ (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
-        ∗ rel C a p' (safeC P)
+        ∗ rel C (LNonHeap a) p' (safeC P)
         ∗ ▷ zcond P C
         ∗ (if readAllowed p' then ▷ rcond P C p' interp else True)
         ∗ (if writeAllowed p' then ▷ wcond P C interp else True)
@@ -1559,7 +1559,7 @@ Section logrel.
     -∗ (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
-        ∗ rel C a p' (safeC P)
+        ∗ rel C (LNonHeap a) p' (safeC P)
         ∗ ▷ zcond P C
         ∗ (if decide (readAllowed_a_in_regs (<[PC:=WCap true p g b e a]> regs) a)
             then ▷ (rcond P C p' interp)

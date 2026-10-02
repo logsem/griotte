@@ -15,7 +15,7 @@ Section region_invariant_revocation.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType Word Σ}
     {relg : relGS Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
@@ -27,7 +27,7 @@ Section region_invariant_revocation.
     is_heap_address a = true ->
     heap_lookup_addr (heap_std W) a = Some (base,obj) ->
     alloc_object_status obj = AllocObjectQuarantined ->
-    std W !! a = Some Revoked ->
+    std W !! LNonHeap a = Some Revoked ->
     sts_full_world W C -∗ region W C -∗ rel C a p φ
     ={E}=∗ region (<s[a:=Temporary]s>W) C ∗ sts_full_world (<s[a:=Temporary]s>W) C.
   Proof.
@@ -50,12 +50,12 @@ Section region_invariant_revocation.
     { apply related_sts_pub_revoked_temp; auto. }
     iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "[Hr Hheapfrag]") as "Hr".
     { iFrame "%∗". }
-    assert (is_Some (M !! a)) as [x Hsome].
+    assert (is_Some (M !! LNonHeap a)) as [x Hsome].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. done. }
     iDestruct (region_map_delete with "Hr") as "Hr".
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hr") as "Hr";auto.
     iDestruct "Hr" as "[%Hcovered' [Hheapfrag Hr]]".
-    iDestruct (big_sepM_delete _ _ a _ Hsome with "[Htoken Hstate $Hr]") as "Hr".
+    iDestruct (big_sepM_delete _ _ (LNonHeap a) _ Hsome with "[Htoken Hstate $Hr]") as "Hr".
     { iExists Temporary. iFrame. iSplitR;[iPureIntro;apply lookup_insert_eq|].
       iExists γ0,p0,φ0. iSplitR.
       { iPureIntro. rewrite HMeq lookup_insert_eq in Hsome. congruence. }
@@ -76,7 +76,7 @@ Section region_invariant_revocation.
   Lemma update_region_revoked_temp_pwl_updated_nonheap E W C a p v φ `{∀ Wv, Persistent (φ Wv)}  :
     is_heap_address a = false ->
     let W' := (<s[ a := Temporary ]s> W) in
-    (std W) !! a = Some Revoked →
+    (std W) !! LNonHeap a = Some Revoked →
     isO p = false → isWL p = true →
 
     future_pub_mono C φ v -∗
@@ -112,12 +112,12 @@ Section region_invariant_revocation.
     { apply related_sts_pub_revoked_temp; auto. }
     iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "[Hr Hheapfrag]") as "Hr".
     { iFrame "%∗". }
-    assert (is_Some (M !! a)) as [x Hsome].
+    assert (is_Some (M !! LNonHeap a)) as [x Hsome].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. done. }
     iDestruct (region_map_delete with "Hr") as "Hr".
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hr") as "Hr";auto.
     iDestruct "Hr" as "[%Hcovered' [Hheapfrag Hr]]".
-    iDestruct (big_sepM_delete _ _ a _ Hsome with "[Hl Hstate $Hr]") as "Hr".
+    iDestruct (big_sepM_delete _ _ (LNonHeap a) _ Hsome with "[Hl Hstate $Hr]") as "Hr".
     { iExists Temporary. iFrame. iSplitR;[iPureIntro;apply lookup_insert_eq|].
       iExists γ, p, φ. rewrite HMeq lookup_insert_eq in Hsome.
       inversion Hsome. iSplitR; first done. iFrame "%#".
@@ -142,7 +142,7 @@ Section region_invariant_revocation.
     heap_lookup_addr (heap_std W) a = Some (base,obj) ->
     alloc_object_status obj = AllocObjectLive ->
     let W' := (<s[ a := Temporary ]s> W) in
-    (std W) !! a = Some Revoked →
+    (std W) !! LNonHeap a = Some Revoked →
     isO p = false → isWL p = true →
 
     future_pub_mono C φ v -∗
@@ -178,12 +178,12 @@ Section region_invariant_revocation.
     { apply related_sts_pub_revoked_temp; auto. }
     iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "[Hr Hheapfrag]") as "Hr".
     { iFrame "%∗". }
-    assert (is_Some (M !! a)) as [x Hsome].
+    assert (is_Some (M !! LNonHeap a)) as [x Hsome].
     { apply elem_of_dom. rewrite -Hdom. rewrite elem_of_dom. done. }
     iDestruct (region_map_delete with "Hr") as "Hr".
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hr") as "Hr";auto.
     iDestruct "Hr" as "[%Hcovered' [Hheapfrag Hr]]".
-    iDestruct (big_sepM_delete _ _ a _ Hsome with "[Hl Hstate $Hr]") as "Hr".
+    iDestruct (big_sepM_delete _ _ (LNonHeap a) _ Hsome with "[Hl Hstate $Hr]") as "Hr".
     { iExists Temporary. iFrame. iSplitR;[iPureIntro;apply lookup_insert_eq|].
       iExists γ, p, φ. rewrite HMeq lookup_insert_eq in Hsome.
       inversion Hsome. iSplitR; first done. iFrame "%#".
@@ -206,7 +206,7 @@ Section region_invariant_revocation.
   Lemma update_region_revoked_temp_pwl_updated E W C a p v φ `{∀ Wv, Persistent (φ Wv)}  :
     heap_addr_live (heap_std W) a ->
     let W' := (<s[ a := Temporary ]s> W) in
-    (std W) !! a = Some Revoked →
+    (std W) !! LNonHeap a = Some Revoked →
     isO p = false → isWL p = true →
 
     future_pub_mono C φ v -∗
@@ -232,7 +232,7 @@ Section region_invariant_revocation.
 
   Lemma update_region_revoked_temp_pwl_nonheap E W C a p v φ `{∀ Wv, Persistent (φ Wv)}  :
     is_heap_address a = false ->
-    (std W) !! a = Some Revoked →
+    (std W) !! LNonHeap a = Some Revoked →
     isO p = false → isWL p = true →
 
     future_pub_mono C φ v -∗
@@ -262,7 +262,7 @@ Section region_invariant_revocation.
     is_heap_address a = true ->
     heap_lookup_addr (heap_std W) a = Some (base,obj) ->
     alloc_object_status obj = AllocObjectLive ->
-    (std W) !! a = Some Revoked →
+    (std W) !! LNonHeap a = Some Revoked →
     isO p = false → isWL p = true →
 
     future_pub_mono C φ v -∗
@@ -290,7 +290,7 @@ Section region_invariant_revocation.
 
   Lemma update_region_revoked_temp_pwl E W C a p v φ `{∀ Wv, Persistent (φ Wv)}  :
     heap_addr_live (heap_std W) a ->
-    (std W) !! a = Some Revoked →
+    (std W) !! LNonHeap a = Some Revoked →
     isO p = false → isWL p = true →
 
     future_pub_mono C φ v -∗
@@ -352,6 +352,7 @@ Section region_invariant_revocation.
     specialize (Hmonotemp a ρ Hm').
     iDestruct "Ha" as (γpred p φ) "(%Hγp & %Hpers & #Hpred & Ha)".
     iFrame "Hstate". iExists γpred,p,φ. iFrame "%#".
+    destruct a as [a|]; last done.
     iApply (heap_addr_resource_mono with "[] Ha"). iIntros "Ha".
     destruct ρ; cbn [region_std_interp]; first contradiction; last done.
     iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
@@ -374,20 +375,20 @@ Section region_invariant_revocation.
              else (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v))
           ∗ φ (W,C,v))%I.
 
-  Definition close_addr_resources C W (a : Addr) (is_later: bool) :=
+  Definition close_addr_resources C W (a : LAddr) (is_later: bool) :=
     (∃ p φ, ⌜forall Wv, Persistent (φ Wv)⌝
-                       ∗ (match heap_addr_status (heap_std W) a with
+                       ∗ (match heap_addr_status (heap_std W) (laddr_addr a) with
                           | Some AllocObjectLive =>
-                              if_later_P is_later (temp_resources W C φ a p)
+                              if_later_P is_later (temp_resources W C φ (laddr_addr a) p)
                           | Some AllocObjectQuarantined => emp
                           | None => False
                           end)
                        ∗ rel C a p φ)%I.
-  Definition close_list_resources C W (l : list Addr) (is_later: bool) :=
+  Definition close_list_resources C W (l : list LAddr) (is_later: bool) :=
    ([∗ list] a ∈ l, close_addr_resources C W a is_later)%I.
 
-  Lemma monotone_revoke_list_sts_full_world_keep W C (l : list Addr) (l' : list Addr) :
-    ⊢ ⌜Forall (heap_addr_live (heap_std W)) l'⌝ → ⌜NoDup l'⌝ → ⌜NoDup l⌝ → ⌜l' ⊆+ l⌝ →
+  Lemma monotone_revoke_list_sts_full_world_keep W C (l : list LAddr) (l' : list LAddr) :
+    ⊢ ⌜Forall (λ a, heap_addr_live (heap_std W) (laddr_addr a)) l'⌝ → ⌜NoDup l'⌝ → ⌜NoDup l⌝ → ⌜l' ⊆+ l⌝ →
     ([∗ list] a ∈ l', ⌜(std W) !! a = Some Temporary⌝)
     ∗ sts_full_world W C ∗ region W C
     ==∗
@@ -430,6 +431,8 @@ Section region_invariant_revocation.
         rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
         iDestruct "Hpreds" as "[Ha Hpreds]".
         iDestruct "Ha" as (ρ Ha) "[Hstate Ha]".
+        destruct x as [xa|]; last by iDestruct "Ha" as (???) "(_ & _ & _ & [])".
+        set (x := LNonHeap xa).
         iDestruct (sts_full_state_std with "Hfull Hstate") as %Hlookup.
         simpl in Hlookup.
         simpl in Hlookup. subst. rewrite revoke_list_not_elem_of_lookup in Hlookup; auto.
@@ -499,6 +502,7 @@ Section region_invariant_revocation.
           iFrame.
           iDestruct "Hρ" as (γpred p φ Hγp Hpers) "[#Hsaved Haddr]".
           iExists γpred,p,φ. iFrame "%#".
+          destruct x as [x|]; last done.
           iApply (heap_addr_resource_mono with "[] Haddr"). iIntros "_". done.
         }
         iModIntro. iFrame.
@@ -509,9 +513,9 @@ Section region_invariant_revocation.
         revert Hin Hdom'. clear; intros Hin Hdom. rewrite Hdom. set_solver.
   Qed.
 
-  Lemma monotone_revoke_sts_full_world_keep W C (l : list Addr)
+  Lemma monotone_revoke_sts_full_world_keep W C (l : list LAddr)
      :
-    Forall (heap_addr_live (heap_std W)) l ->
+    Forall (λ a, heap_addr_live (heap_std W) (laddr_addr a)) l ->
     ⌜NoDup l⌝ -∗
     ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝)
     ∗ sts_full_world W C ∗ region W C
@@ -542,14 +546,14 @@ Section region_invariant_revocation.
     }
     iMod (monotone_revoke_list_sts_full_world_keep _ _ (map_to_list (std W)).*1 l
             with "[] [] [] [] [$Hl $Hfull $Hr]") as "(Hfull & Hr & Hi)"; auto.
-    { iPureIntro. apply (NoDup_fst_map_to_list (M:=gmap Addr) (A:=region_type)). }
+    { iPureIntro. apply (NoDup_fst_map_to_list (M:=gmap LAddr) (A:=region_type)). }
     by iFrame.
   Qed.
 
   (* revoke and keep temp resources in list l, with unknown p and φ *)
   Lemma monotone_revoke_keep W C l
      :
-    Forall (heap_addr_live (heap_std W)) l ->
+    Forall (λ a, heap_addr_live (heap_std W) (laddr_addr a)) l ->
     NoDup l ->
     ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝)
     ∗ sts_full_world W C
@@ -604,7 +608,7 @@ Section region_invariant_revocation.
     iPureIntro. rewrite Hdom HMeq dom_insert_L. set_solver.
   Qed.
 
-  Lemma close_list_consolidate_resources W C (l' l : list Addr) :
+  Lemma close_list_consolidate_resources W C (l' l : list LAddr) :
     ⊢ ⌜l' ⊆+ l⌝ →
     (region (close_list l W) C
      ∗ sts_full_world W C
@@ -627,13 +631,13 @@ Section region_invariant_revocation.
       rewrite /close_list /close_list /close_list_std_sta /=.
       iDestruct "Hx" as (p φ Hpers) "(Hres & #Hrel)".
       iAssert (∀ P : iProp Σ,
-        heap_addr_resource (heap_std (close_list l W)) x P -∗
-        heap_addr_resource (heap_std (close_list l W)) x
-          (region_std_interp (close_list l W) C x p φ Temporary))%I
+        heap_addr_resource (heap_std (close_list l W)) (laddr_addr x) P -∗
+        heap_addr_resource (heap_std (close_list l W)) (laddr_addr x)
+          (region_std_interp (close_list l W) C (laddr_addr x) p φ Temporary))%I
         with "[Hres]" as "Hrestore".
       { iIntros (P) "Haddr".
         rewrite !heap_addr_resource_status.
-        destruct (heap_addr_status (heap_std (close_list l W)) x) as [status|] eqn:Hstatus.
+        destruct (heap_addr_status (heap_std (close_list l W)) (laddr_addr x)) as [status|] eqn:Hstatus.
         - iEval (rewrite Hstatus) in "Hres".
           destruct status.
           + iClear "Haddr".
@@ -657,6 +661,8 @@ Section region_invariant_revocation.
         iDestruct (big_sepM_delete _ _ x with "Hr") as "[Hx Hr]";[apply lookup_insert_eq|].
         rewrite delete_insert_id;[|apply lookup_delete_eq].
         iDestruct "Hx" as (ρ Hx) "[Hstate Hx]".
+        destruct x as [xa|]; last by iDestruct "Hx" as (???) "(_ & _ & _ & [])".
+        set (x := LNonHeap xa).
         iDestruct "Hx" as (γpred' p' φ' Heq Hpers') "(_ & Haddr)".
         iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
         iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf_updated.
@@ -704,7 +710,7 @@ Section region_invariant_revocation.
   Lemma close_list_resources_mono_pub_live W W' C l :
     heap_wf (heap_std W') ->
     related_sts_pub_world W W' ->
-    Forall (heap_addr_live (heap_std W')) l ->
+    Forall (λ a, heap_addr_live (heap_std W') (laddr_addr a)) l ->
     close_list_resources C W l false -∗
     close_list_resources C W' l false.
   Proof.
@@ -713,10 +719,10 @@ Section region_invariant_revocation.
     iApply (big_sepL_impl with "Hres").
     iIntros "!> %k %a %Ha (%p & %φ & %Hpers & Htemp & Hrel)".
     iExists p, φ. iFrame "Hrel". iSplit; first done.
-    assert (heap_addr_live (heap_std W') a) as Hlive_a.
+    assert (heap_addr_live (heap_std W') (laddr_addr a)) as Hlive_a.
     { rewrite Forall_lookup in Hlive. eauto. }
     unfold heap_addr_live in Hlive_a. rewrite Hlive_a.
-    destruct (heap_addr_status (heap_std W) a) as [status|] eqn:Hstatus.
+    destruct (heap_addr_status (heap_std W) (laddr_addr a)) as [status|] eqn:Hstatus.
     - destruct status; last first.
       { exfalso. eapply heap_addr_live_back_quarantined;
           [exact Hheap_wf|exact (proj2 (proj2 (proj2 Hrelated)))|exact Hstatus|exact Hlive_a]. }
@@ -730,7 +736,7 @@ Section region_invariant_revocation.
     - iDestruct "Htemp" as "[]".
   Qed.
 
-  Lemma monotone_close_list_region_resources W W' C (l : list Addr)
+  Lemma monotone_close_list_region_resources W W' C (l : list LAddr)
      :
     ⊢ sts_full_world W' C
      ∗ region W' C
@@ -754,9 +760,9 @@ Section region_invariant_revocation.
 
 
 
-  Lemma monotone_close_list_region W W' C (l : list Addr)
+  Lemma monotone_close_list_region W W' C (l : list LAddr)
      :
-    Forall (heap_addr_live (heap_std W')) l ->
+    Forall (λ a, heap_addr_live (heap_std W') (laddr_addr a)) l ->
     ⊢ ⌜related_sts_pub_world W (close_list l W')⌝ -∗
      sts_full_world W' C
      ∗ region W' C
@@ -824,6 +830,7 @@ Section region_invariant_revocation.
     iDestruct "Ha" as (γpred p φ) "(%Hγp & %Hpers & #Hpred & Ha)".
     iFrame "Hstate". iExists γpred,p,φ. iFrame "%#".
     rewrite -Hheap.
+    destruct a as [a|]; last done.
     iApply (heap_addr_resource_mono with "[] Ha"). iIntros "Ha".
     destruct ρ; cbn [region_std_interp]; first contradiction; last done.
     iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
@@ -868,13 +875,13 @@ Section region_invariant_revocation.
     is_heap_address a = true ->
     heap_lookup_addr (heap_std W) a = Some (base,obj) ->
     alloc_object_status obj = AllocObjectQuarantined ->
-    region W C -∗ reclaim_token a -∗ ⌜a ∉ dom (std W)⌝.
+    region W C -∗ reclaim_token a -∗ ⌜LNonHeap a ∉ dom (std W)⌝.
   Proof.
     iIntros (Hheap Hlookup Hstatus) "Hr Htoken".
     rewrite region_eq /region_def /region_map_def.
     iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheapfrag Hpreds]]".
-    destruct (decide (a ∈ dom (std W))) as [Hin|Hout]; last done.
+    destruct (decide (LNonHeap a ∈ dom (std W))) as [Hin|Hout]; last done.
     rewrite Hdom elem_of_dom in Hin. destruct Hin as [γp Hγp].
     iDestruct (big_sepM_lookup with "Hpreds") as "Ha"; first exact Hγp.
     iDestruct "Ha" as (ρ Hρ) "(_ & Ha)".
@@ -885,21 +892,21 @@ Section region_invariant_revocation.
 
    Lemma revoked_by_separation_nonheap
      (W : WORLD) (C : CmptName)
-     (a : Addr) (w : Word) :
-     is_heap_address a = false ->
+     (a : LAddr) (w : Word) :
+     is_heap_address (laddr_addr a) = false ->
      a ∈ dom (std W) →
      region W C
      ∗ sts_full_world W C
-     ∗ a ↦ₐ w
+     ∗ laddr_addr a ↦ₐ w
      ==∗
      region W C
      ∗ sts_full_world W C
-     ∗ a ↦ₐ w
+     ∗ laddr_addr a ↦ₐ w
      ∗ ⌜ std W !! a = Some Revoked ⌝
    .
    Proof.
      intros Hnonheap.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
+    assert (heap_addr_live (heap_std W) (laddr_addr a)) as Hlive.
     { apply heap_addr_live_nonheap. exact Hnonheap. }
      iIntros (Hstd_a) "(Hregion & Hworld & Ha)".
      rewrite region_eq /region_def.
@@ -913,6 +920,8 @@ Section region_invariant_revocation.
      iDestruct "Hstate" as (ρ Ha) "[Hρ Hstate]".
      iDestruct (sts_full_state_std with "Hworld Hρ") as %Hx''; simplify_eq.
      iDestruct "Hstate" as (γ' p' φ) "(% & % & Hφ & Hstate)"; simplify_eq.
+     destruct a as [a'|]; last by iDestruct "Hstate" as "[]".
+     set (a := LNonHeap a').
      iFrame "Hworld".
      iAssert ( ⌜ ρ = Revoked ⌝ )%I as "%" ; last iFrame "%".
      {
@@ -931,23 +940,23 @@ Section region_invariant_revocation.
 
    Lemma revoked_by_separation_live_heap
      (W : WORLD) (C : CmptName)
-     (a : Addr) (w : Word)  (base : Addr) (obj : AllocObject) :
-     is_heap_address a = true ->
-    heap_lookup_addr (heap_std W) a = Some (base,obj) ->
+     (a : LAddr) (w : Word)  (base : Addr) (obj : AllocObject) :
+     is_heap_address (laddr_addr a) = true ->
+    heap_lookup_addr (heap_std W) (laddr_addr a) = Some (base,obj) ->
     alloc_object_status obj = AllocObjectLive ->
      a ∈ dom (std W) →
      region W C
      ∗ sts_full_world W C
-     ∗ a ↦ₐ w
+     ∗ laddr_addr a ↦ₐ w
      ==∗
      region W C
      ∗ sts_full_world W C
-     ∗ a ↦ₐ w
+     ∗ laddr_addr a ↦ₐ w
      ∗ ⌜ std W !! a = Some Revoked ⌝
    .
    Proof.
      intros Hheap Hlookup Hstatus.
-    assert (heap_addr_live (heap_std W) a) as Hlive.
+    assert (heap_addr_live (heap_std W) (laddr_addr a)) as Hlive.
     { eapply heap_addr_live_lookup; eauto. }
      iIntros (Hstd_a) "(Hregion & Hworld & Ha)".
      rewrite region_eq /region_def.
@@ -961,6 +970,8 @@ Section region_invariant_revocation.
      iDestruct "Hstate" as (ρ Ha) "[Hρ Hstate]".
      iDestruct (sts_full_state_std with "Hworld Hρ") as %Hx''; simplify_eq.
      iDestruct "Hstate" as (γ' p' φ) "(% & % & Hφ & Hstate)"; simplify_eq.
+     destruct a as [a'|]; last by iDestruct "Hstate" as "[]".
+     set (a := LNonHeap a').
      iFrame "Hworld".
      iAssert ( ⌜ ρ = Revoked ⌝ )%I as "%" ; last iFrame "%".
      {
@@ -979,22 +990,22 @@ Section region_invariant_revocation.
 
    Lemma revoked_by_separation
      (W : WORLD) (C : CmptName)
-     (a : Addr) (w : Word) :
-     heap_addr_live (heap_std W) a ->
+     (a : LAddr) (w : Word) :
+     heap_addr_live (heap_std W) (laddr_addr a) ->
      a ∈ dom (std W) →
      region W C
      ∗ sts_full_world W C
-     ∗ a ↦ₐ w
+     ∗ laddr_addr a ↦ₐ w
      ==∗
      region W C
      ∗ sts_full_world W C
-     ∗ a ↦ₐ w
+     ∗ laddr_addr a ↦ₐ w
      ∗ ⌜ std W !! a = Some Revoked ⌝
    .
    Proof.
-    intros Hlive. destruct (is_heap_address a) eqn:Hheap.
+    intros Hlive. destruct (is_heap_address (laddr_addr a)) eqn:Hheap.
     - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W) a) as [[base obj]|] eqn:Hlookup;
+      destruct (heap_lookup_addr (heap_std W) (laddr_addr a)) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
       eapply revoked_by_separation_live_heap; eauto; typeclasses eauto.
@@ -1007,7 +1018,7 @@ Section region_invariant_revocation.
      (W : WORLD) (C : CmptName)
      (la : list Addr) (lw : list Word) :
      Forall (heap_addr_live (heap_std W)) la ->
-     Forall (λ a, a ∈ dom (std W)) la →
+     Forall (λ a, LNonHeap a ∈ dom (std W)) la →
      region W C
      ∗ sts_full_world W C
      ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
@@ -1015,7 +1026,7 @@ Section region_invariant_revocation.
      region W C
      ∗ sts_full_world W C
      ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
-     ∗ ⌜ Forall (λ a, std W !! a = Some Revoked) la⌝
+     ∗ ⌜ Forall (λ a, std W !! LNonHeap a = Some Revoked) la⌝
    .
    Proof.
      generalize dependent lw.
@@ -1030,14 +1041,14 @@ Section region_invariant_revocation.
        destruct Hla as [Ha Hla].
        iMod (IHla with "[$Hregion $Hworld $Hla]")
          as "(Hregion & Hworld & Hla & %Hforall_la)"; eauto.
-       iMod (revoked_by_separation with "[$Hregion $Hworld $Ha]")
+       iMod (revoked_by_separation _ _ (LNonHeap a) with "[$Hregion $Hworld $Ha]")
          as "(Hregion & Hworld & Ha & %Hforall_a)"; eauto; simplify_eq.
        rewrite Forall_cons_iff.
        iFrame; done.
    Qed.
 
   Lemma revoked_by_separation_with_temp_resources_nonheap W W' C a :
-     is_heap_address a = false ->
+     is_heap_address (laddr_addr a) = false ->
     a ∈ dom (std W') ->
     close_addr_resources C W a false
     ∗ sts_full_world W' C
@@ -1049,7 +1060,7 @@ Section region_invariant_revocation.
     ∗ ⌜ std W' !! a = Some Revoked ⌝.
   Proof.
      intros Hnonheap.
-    assert (heap_addr_live (heap_std W') a) as Hlive.
+    assert (heap_addr_live (heap_std W') (laddr_addr a)) as Hlive.
     { apply heap_addr_live_nonheap. exact Hnonheap. }
     rewrite /close_addr_resources /heap_addr_status Hnonheap.
     iIntros (Hin) "( (%&%&%& (%&%&Hv&Hmono&Hφ) &Hrel) & Hsts & Hr )".
@@ -1062,10 +1073,10 @@ Section region_invariant_revocation.
   Qed.
 
   Lemma revoked_by_separation_with_temp_resources_live_heap W W' C a  (base : Addr) (obj : AllocObject) :
-     is_heap_address a = true ->
-    heap_lookup_addr (heap_std W') a = Some (base,obj) ->
+     is_heap_address (laddr_addr a) = true ->
+    heap_lookup_addr (heap_std W') (laddr_addr a) = Some (base,obj) ->
     alloc_object_status obj = AllocObjectLive ->
-    heap_addr_live (heap_std W) a ->
+    heap_addr_live (heap_std W) (laddr_addr a) ->
     a ∈ dom (std W') ->
     close_addr_resources C W a false
     ∗ sts_full_world W' C
@@ -1077,7 +1088,7 @@ Section region_invariant_revocation.
     ∗ ⌜ std W' !! a = Some Revoked ⌝.
   Proof.
      intros Hheap Hlookup Hstatus Hlive_W.
-    assert (heap_addr_live (heap_std W') a) as Hlive.
+    assert (heap_addr_live (heap_std W') (laddr_addr a)) as Hlive.
     { eapply heap_addr_live_lookup; eauto. }
     unfold heap_addr_live in Hlive_W.
     rewrite /close_addr_resources Hlive_W.
@@ -1091,8 +1102,8 @@ Section region_invariant_revocation.
   Qed.
 
   Lemma revoked_by_separation_with_temp_resources W W' C a :
-     heap_addr_live (heap_std W) a ->
-     heap_addr_live (heap_std W') a ->
+     heap_addr_live (heap_std W) (laddr_addr a) ->
+     heap_addr_live (heap_std W') (laddr_addr a) ->
     a ∈ dom (std W') ->
     close_addr_resources C W a false
     ∗ sts_full_world W' C
@@ -1103,9 +1114,9 @@ Section region_invariant_revocation.
     ∗ region W' C
     ∗ ⌜ std W' !! a = Some Revoked ⌝.
   Proof.
-    intros Hlive_W Hlive. destruct (is_heap_address a) eqn:Hheap.
+    intros Hlive_W Hlive. destruct (is_heap_address (laddr_addr a)) eqn:Hheap.
     - rewrite /heap_addr_live /heap_addr_status Hheap in Hlive.
-      destruct (heap_lookup_addr (heap_std W') a) as [[base obj]|] eqn:Hlookup;
+      destruct (heap_lookup_addr (heap_std W') (laddr_addr a)) as [[base obj]|] eqn:Hlookup;
         last discriminate.
       cbn in Hlive. destruct (alloc_object_status obj) eqn:Hstatus; last discriminate.
       eapply revoked_by_separation_with_temp_resources_live_heap; eauto; typeclasses eauto.
@@ -1115,8 +1126,8 @@ Section region_invariant_revocation.
 
 
   Lemma revoked_by_separation_many_with_temp_resources W W' C la :
-     Forall (heap_addr_live (heap_std W)) la ->
-     Forall (heap_addr_live (heap_std W')) la ->
+     Forall (λ a, heap_addr_live (heap_std W) (laddr_addr a)) la ->
+     Forall (λ a, heap_addr_live (heap_std W') (laddr_addr a)) la ->
     Forall (λ a, a ∈ dom (std W')) la →
     close_list_resources C W la false
     ∗ sts_full_world W' C

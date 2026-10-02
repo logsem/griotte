@@ -19,7 +19,7 @@ Section SO.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -32,10 +32,10 @@ Section SO.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
   Lemma stack_object_restore_quarantined
-      (Wbase Wcur : WORLD) (l : list Addr) :
+      (Wbase Wcur : WORLD) (l : list LAddr) :
     heap_std Wbase = heap_std Wcur ->
     Forall
-      (fun a => heap_addr_status (heap_std Wbase) a = Some AllocObjectQuarantined)
+      (fun a => heap_addr_status (heap_std Wbase) (laddr_addr a) = Some AllocObjectQuarantined)
       l ->
     world_interp Wcur C ∗ RevokedResources Wbase C l
     ==∗
@@ -43,7 +43,7 @@ Section SO.
   Proof.
     intros Hheap Hq.
     assert (Forall
-      (fun a => heap_addr_status (heap_std (close_list l Wcur)) a =
+      (fun a => heap_addr_status (heap_std (close_list l Wcur)) (laddr_addr a) =
         Some AllocObjectQuarantined) l) as Hq_closed.
     { rewrite close_list_heap -Hheap. exact Hq. }
     rewrite (RevokedResources_quarantined Wbase C l Hq).
@@ -53,11 +53,11 @@ Section SO.
   Qed.
 
   Lemma stack_object_world_status_some
-      (W : WORLD) (l : list Addr) :
+      (W : WORLD) (l : list LAddr) :
     Forall (fun a => a ∈ dom (std W)) l ->
     world_interp W C -∗
     world_interp W C ∗
-      ⌜Forall (fun a => is_Some (heap_addr_status (heap_std W) a)) l⌝.
+      ⌜Forall (fun a => is_Some (heap_addr_status (heap_std W) (laddr_addr a))) l⌝.
   Proof.
     intros Hdom.
     rewrite world_interp_eq /world_interp_def.
@@ -278,7 +278,7 @@ Section SO.
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
@@ -300,26 +300,28 @@ Section SO.
     set (l_revoked_W0_no_be :=
       so_revoked_without_object W0 b e l_revoked_W0).
 
-    assert (la_be_temporaries ⊆ l_revoked_W0) as Htemps_subset.
+    assert (LNonHeap <$> la_be_temporaries ⊆ l_revoked_W0) as Htemps_subset.
     { intros x Hx.
+      apply list_elem_of_fmap in Hx as [x' [-> Hx] ].
       subst la_be_temporaries.
       apply list_elem_of_filter in Hx as [Hx Hx_be].
-      apply (Hl_revoked_W0_temporaries x) in Hx.
+      apply (Hl_revoked_W0_temporaries (LNonHeap x')) in Hx.
       apply elem_of_app in Hx as [Hx|Hx]; first done.
+      apply elem_of_LNonHeap_fmap in Hx.
       rewrite elem_of_disjoint in Hno_overlap.
       exfalso; eapply Hno_overlap; eauto.
     }
     assert (
-      la_be_temporaries
-        ≡ₚ filter (fun a => a ∈ la_be_temporaries) l_revoked_W0
+      LNonHeap <$> la_be_temporaries
+        ≡ₚ filter (fun a => a ∈ LNonHeap <$> la_be_temporaries) l_revoked_W0
     ) as Hla_be_temporaries_l.
     { apply NoDup_subset_filter_membership.
-      - apply so_object_temporaries_NoDup.
+      - apply NoDup_LNonHeap_fmap, so_object_temporaries_NoDup.
       - apply NoDup_app in Hl_revoked_W0_nodup as [? _]. done.
       - exact Htemps_subset.
     }
     assert (
-      l_revoked_W0 ≡ₚ la_be_temporaries ++ l_revoked_W0_no_be
+      l_revoked_W0 ≡ₚ (LNonHeap <$> la_be_temporaries) ++ l_revoked_W0_no_be
     ) as Hl_wca0_l'.
     { subst l_revoked_W0_no_be.
       rewrite {1}Hla_be_temporaries_l.
@@ -327,7 +329,7 @@ Section SO.
     }
     assert (
       Forall
-        (fun a => std (revoke W0) !! a = Some Revoked)
+        (fun a => std (revoke W0) !! LNonHeap a = Some Revoked)
         la_be_temporaries
     ) as Hrevoked_la_be_temporaries.
     { apply Forall_forall. intros x Hx.
@@ -378,7 +380,7 @@ Section SO.
               & %Hwca0_lvs_ints & Hcode & Hlc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    set (W2 := close_list la_be_temporaries W1).
+    set (W2 := close_list (LNonHeap <$> la_be_temporaries) W1).
     iDestruct "Hlc" as "[Hlc_restore Hlc]".
     (* Close the world from the opened addresses [la_be_permanents]. *)
     iMod ("Hrestore_wca0" with "[$Hwca0_lvs $Hlc_restore]")
@@ -399,7 +401,7 @@ Section SO.
       { rewrite Hrest_partition. apply elem_of_app; right; exact Hx. }
       subst l_revoked_W0_no_be.
       by apply list_elem_of_filter in Hx_rest as [_ Hx_rest]. }
-    assert (l_revoked_W0_quarantined ## finz.seq_between csp_b csp_e)
+    assert (l_revoked_W0_quarantined ## (LNonHeap <$> finz.seq_between csp_b csp_e))
       as Hquarantined_stack.
     { apply NoDup_app in Hl_revoked_W0_nodup as (_ & Hdisjoint & _).
       rewrite elem_of_disjoint in Hdisjoint |- *.
@@ -518,27 +520,28 @@ Section SO.
     { iApply "Hzeroed_rmap"; eauto.
       set_solver+.
     }
-    assert (std W0 !! a_stk1 = Some Temporary) as Ha_stk1_W0.
+    assert (std W0 !! LNonHeap a_stk1 = Some Temporary) as Ha_stk1_W0.
     { apply Hl_revoked_W0_temporaries.
       apply elem_of_app; right.
-      apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'.
+      apply elem_of_LNonHeap_fmap, elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'.
     }
-    assert (std W2q !! a_stk1 = Some Revoked) as Ha_stk1_W2q.
+    assert (std W2q !! LNonHeap a_stk1 = Some Revoked) as Ha_stk1_W2q.
     { subst W2q W2.
       rewrite close_list_lookup_not_in.
       2: { rewrite elem_of_disjoint in Hquarantined_stack.
            intros Hx. eapply Hquarantined_stack; eauto.
-           apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'. }
+           apply elem_of_LNonHeap_fmap, elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'. }
       rewrite close_list_lookup_not_in.
       * subst W1; cbn. apply revoke_lookup_Monotemp. exact Ha_stk1_W0.
       * subst la_be_temporaries.
         intro Ha'.
+        apply elem_of_LNonHeap_fmap in Ha'.
         rewrite elem_of_disjoint in Hstack_temps_disjoint.
         eapply Hstack_temps_disjoint; eauto.
         apply elem_of_finz_seq_between; solve_addr+Hastk1 Hastk2 Hcsp_size Hcsp_size'.
     }
     (* Update the world and insert [la_be_temporaries]. *)
-    set (W3 := reinstate W2q [a_stk1]).
+    set (W3 := reinstate W2q [LNonHeap a_stk1]).
     (* Insert the allocated SO [a_stk1] in the world. *)
     iMod (stack_object_reinstate_fresh_object
       W0 W2q C csp_b csp_e csp_b a_stk1 a_stk2
@@ -587,7 +590,7 @@ Section SO.
     iDestruct "Hstack_revoked_W0" as "[Hstack_revoked_W0_a_stk2 Hstack_revoked_W0]".
     (* Prepare the closing resources for the switcher call spec *)
     assert (
-        Forall (λ k : finz MemNum, std W3 !! k = Some Revoked) (finz.seq_between a_stk2 csp_e)
+        Forall (λ k : finz MemNum, std W3 !! LNonHeap k = Some Revoked) (finz.seq_between a_stk2 csp_e)
       ) as HW3_revoked_callee_frm.
     {
       apply Forall_forall; intros x Hx.
@@ -601,11 +604,12 @@ Section SO.
       2: { intro Hxq.
            rewrite elem_of_disjoint in Hquarantined_stack.
            eapply Hquarantined_stack; eauto.
-           apply elem_of_finz_seq_between.
+           apply elem_of_LNonHeap_fmap, elem_of_finz_seq_between.
            apply elem_of_finz_seq_between in Hx.
            solve_addr+Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size. }
       rewrite close_list_lookup_not_in.
       2: { intro Hx'.
+           apply elem_of_LNonHeap_fmap in Hx'.
            apply Hstack_temps_disjoint in Hx'; first done.
            apply elem_of_finz_seq_between in Hx.
            apply elem_of_finz_seq_between.
@@ -613,8 +617,9 @@ Section SO.
       }
       apply revoke_lookup_Monotemp.
       clear -Hl_revoked_W0_nodup Hl_revoked_W0_temporaries Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size.
-      specialize (Hl_revoked_W0_temporaries x) ; apply Hl_revoked_W0_temporaries.
+      specialize (Hl_revoked_W0_temporaries (LNonHeap x)) ; apply Hl_revoked_W0_temporaries.
       apply elem_of_app; right.
+      apply elem_of_LNonHeap_fmap.
       apply elem_of_finz_seq_between in Hx.
       apply elem_of_finz_seq_between.
       solve_addr+Hx Hastk2 Hcsp_size' Hastk1 Hcsp_size.
@@ -692,7 +697,7 @@ Section SO.
     iMod (world_interp_revoked_by_separation_many with "[$Hstk $Hworld_interp_C]")
       as "(Hworld_interp_C & Hstk & %Hstk_W5)".
     { exact Hstack_live_W5. }
-    { eapply (Forall_impl (λ a, std (revoke W4) !! a = Some Revoked));
+    { eapply (Forall_impl (λ a, std (revoke W4) !! LNonHeap a = Some Revoked));
         [exact Hstack_revoked_W4|].
       intros x Hx.
       rewrite elem_of_dom. exists Revoked. exact Hx.
@@ -742,9 +747,9 @@ Section SO.
       eapply elem_of_mono_pub; eauto.
       rewrite -!close_list_dom_eq.
       rewrite -revoke_dom_eq.
-      assert ( std W0 !! csp_b = Some Temporary).
+      assert ( std W0 !! LNonHeap csp_b = Some Temporary).
       { apply Hl_revoked_W0_temporaries; apply elem_of_app ; right.
-        apply elem_of_finz_seq_between; done.
+        apply elem_of_LNonHeap_fmap, elem_of_finz_seq_between; done.
       }
       rewrite elem_of_dom; done.
     }
@@ -833,12 +838,12 @@ Section SO.
        removes the fresh address and the incoming object overlap, closes the
        repaired world, and reconstructs the complete stack region. *)
     set (l_revoked_W4_no_astk1 :=
-      filter (fun a => a <> a_stk1) l_revoked_W4).
+      filter (fun a => a <> LNonHeap a_stk1) l_revoked_W4).
     set (l_revoked_W4_no_astk1_wca0 :=
-      filter (fun a => a ∈ la_be_temporaries)
+      filter (fun a => a ∈ LNonHeap <$> la_be_temporaries)
         l_revoked_W4_no_astk1).
     set (l_revoked_W4_no_astk1_no_wca0 :=
-      filter (fun a => a ∉ la_be_temporaries)
+      filter (fun a => a ∉ LNonHeap <$> la_be_temporaries)
         l_revoked_W4_no_astk1).
     set (l_revoked_W4_unique :=
       filter (fun a => a ∉ l_revoked_W0_live)
@@ -846,7 +851,7 @@ Section SO.
     set (closing_list_revoked_addresses :=
       l_revoked_W0_live ++ l_revoked_W4_unique).
     set (closing_list :=
-      closing_list_revoked_addresses ++ finz.seq_between csp_b csp_e).
+      closing_list_revoked_addresses ++ (LNonHeap <$> finz.seq_between csp_b csp_e)).
 
     iMod (stack_object_repair_world_for_return
       W0 W3 W4 C b e csp_b csp_e a_stk1 a_stk2

@@ -6,7 +6,7 @@ Section region_alloc.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType Word Σ}
     {relg : relGS Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}.
 
@@ -25,7 +25,7 @@ Section region_alloc.
   Lemma extend_region_temp_pwl_nonheap E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
     is_heap_address a = false ->
     isO p = false ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      (isWL p) = true →
      future_pub_mono C φ v -∗
      sts_full_world W C -∗
@@ -47,12 +47,12 @@ Section region_alloc.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheap Hpreds]]".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      apply (not_elem_of_dom (std W) a) in Hnone1.
+      apply (not_elem_of_dom (std W) (LNonHeap a)) in Hnone1.
       rewrite Hcontr in Hnone1; done.
     }
     (* if not, we need to allocate a new saved pred using φ,
@@ -67,7 +67,7 @@ Section region_alloc.
     iDestruct "Hpreds'" as "[%Hcovered' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
@@ -95,7 +95,7 @@ Section region_alloc.
     heap_lookup_addr (heap_std W) a = Some (base,obj) ->
     alloc_object_status obj = AllocObjectLive ->
     isO p = false ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      (isWL p) = true →
      future_pub_mono C φ v -∗
      sts_full_world W C -∗
@@ -117,12 +117,12 @@ Section region_alloc.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheap Hpreds]]".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      apply (not_elem_of_dom (std W) a) in Hnone1.
+      apply (not_elem_of_dom (std W) (LNonHeap a)) in Hnone1.
       rewrite Hcontr in Hnone1; done.
     }
     (* if not, we need to allocate a new saved pred using φ,
@@ -137,7 +137,7 @@ Section region_alloc.
     iDestruct "Hpreds'" as "[%Hcovered' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
@@ -163,7 +163,7 @@ Section region_alloc.
   Lemma extend_region_temp_pwl E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
     heap_addr_live (heap_std W) a ->
     isO p = false ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      (isWL p) = true →
      future_pub_mono C φ v -∗
      sts_full_world W C -∗
@@ -189,7 +189,7 @@ Section region_alloc.
   Lemma extend_region_temp_nwl_nonheap E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
     is_heap_address a = false ->
     isO p = false ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      (isWL p) = false →
      (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
      sts_full_world W C -∗
@@ -211,12 +211,12 @@ Section region_alloc.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheap Hpreds]]".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      apply (not_elem_of_dom (std W) a) in Hnone1.
+      apply (not_elem_of_dom (std W) (LNonHeap a)) in Hnone1.
       rewrite Hcontr in Hnone1. done.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
@@ -232,7 +232,7 @@ Section region_alloc.
     iDestruct "Hpreds'" as "[%Hcovered' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
@@ -261,7 +261,7 @@ Section region_alloc.
     heap_lookup_addr (heap_std W) a = Some (base,obj) ->
     alloc_object_status obj = AllocObjectLive ->
     isO p = false ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      (isWL p) = false →
      (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
      sts_full_world W C -∗
@@ -283,12 +283,12 @@ Section region_alloc.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheap Hpreds]]".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      apply (not_elem_of_dom (std W) a) in Hnone1.
+      apply (not_elem_of_dom (std W) (LNonHeap a)) in Hnone1.
       rewrite Hcontr in Hnone1. done.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
@@ -304,7 +304,7 @@ Section region_alloc.
     iDestruct "Hpreds'" as "[%Hcovered' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
@@ -331,7 +331,7 @@ Section region_alloc.
   Lemma extend_region_temp_nwl E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
     heap_addr_live (heap_std W) a ->
     isO p = false ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      (isWL p) = false →
      (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v) -∗
      sts_full_world W C -∗
@@ -357,7 +357,7 @@ Section region_alloc.
   Lemma extend_region_temp_nonheap E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
     is_heap_address a = false ->
     isO p = false ->
-    a ∉ dom (std W) →
+    LNonHeap a ∉ dom (std W) →
     (if isWL p then future_pub_mono C φ v else
        (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)) -∗
     sts_full_world W C -∗
@@ -386,7 +386,7 @@ Section region_alloc.
     heap_lookup_addr (heap_std W) a = Some (base,obj) ->
     alloc_object_status obj = AllocObjectLive ->
     isO p = false ->
-    a ∉ dom (std W) →
+    LNonHeap a ∉ dom (std W) →
     (if isWL p then future_pub_mono C φ v else
        (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)) -∗
     sts_full_world W C -∗
@@ -413,7 +413,7 @@ Section region_alloc.
   Lemma extend_region_temp E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
     heap_addr_live (heap_std W) a ->
     isO p = false ->
-    a ∉ dom (std W) →
+    LNonHeap a ∉ dom (std W) →
     (if isWL p then future_pub_mono C φ v else
        (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)) -∗
     sts_full_world W C -∗
@@ -439,7 +439,7 @@ Section region_alloc.
   Lemma extend_region_perm_nonheap E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
     is_heap_address a = false ->
     isO p = false ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      future_priv_mono C φ v -∗
      sts_full_world W C -∗
      region W C -∗
@@ -460,12 +460,12 @@ Section region_alloc.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheap Hpreds]]".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      apply (not_elem_of_dom (std W) a) in Hnone1.
+      apply (not_elem_of_dom (std W) (LNonHeap a)) in Hnone1.
       rewrite Hcontr in Hnone1. done.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
@@ -481,7 +481,7 @@ Section region_alloc.
     iDestruct "Hpreds'" as "[%Hcovered' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
@@ -509,7 +509,7 @@ Section region_alloc.
     heap_lookup_addr (heap_std W) a = Some (base,obj) ->
     alloc_object_status obj = AllocObjectLive ->
     isO p = false ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      future_priv_mono C φ v -∗
      sts_full_world W C -∗
      region W C -∗
@@ -530,12 +530,12 @@ Section region_alloc.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheap Hpreds]]".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      apply (not_elem_of_dom (std W) a) in Hnone1.
+      apply (not_elem_of_dom (std W) (LNonHeap a)) in Hnone1.
       rewrite Hcontr in Hnone1. done.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
@@ -551,7 +551,7 @@ Section region_alloc.
     iDestruct "Hpreds'" as "[%Hcovered' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
@@ -577,7 +577,7 @@ Section region_alloc.
   Lemma extend_region_perm E W C a v p φ `{∀ Wv, Persistent (φ Wv)} :
     heap_addr_live (heap_std W) a ->
     isO p = false ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      future_priv_mono C φ v -∗
      sts_full_world W C -∗
      region W C -∗
@@ -604,7 +604,7 @@ Section region_alloc.
 
   Lemma extend_region_revoked_nonheap E W C a p φ `{∀ Wv, Persistent (φ Wv)}  :
     is_heap_address a = false ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      sts_full_world W C
      -∗ region W C
 
@@ -622,12 +622,12 @@ Section region_alloc.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheap Hpreds]]".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      apply (not_elem_of_dom (std W) a) in Hnone1.
+      apply (not_elem_of_dom (std W) (LNonHeap a)) in Hnone1.
       rewrite Hcontr in Hnone1. done.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
@@ -643,7 +643,7 @@ Section region_alloc.
     iDestruct "Hpreds'" as "[%Hcovered' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
@@ -659,7 +659,7 @@ Section region_alloc.
       iIntros (a' x Ha') "Hρ".
       iDestruct "Hρ" as (ρ Hρ) "[Hstate Hρ]".
       iExists ρ.
-      assert (a' ≠ a) as Hne;[intros Hcontr;subst a;rewrite HRl in Ha'; inversion Ha'|].
+      assert (a' ≠ LNonHeap a) as Hne;[intros Hcontr;subst a';rewrite HRl in Ha'; inversion Ha'|].
       rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame.
   Qed.
 
@@ -667,7 +667,7 @@ Section region_alloc.
     is_heap_address a = true ->
     heap_lookup_addr (heap_std W) a = Some (base,obj) ->
     alloc_object_status obj = AllocObjectQuarantined ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      sts_full_world W C
      -∗ region W C
      -∗ reclaim_token a
@@ -684,12 +684,12 @@ Section region_alloc.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheap Hpreds]]".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      apply (not_elem_of_dom (std W) a) in Hnone1.
+      apply (not_elem_of_dom (std W) (LNonHeap a)) in Hnone1.
       rewrite Hcontr in Hnone1. done.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
@@ -705,7 +705,7 @@ Section region_alloc.
     iDestruct "Hpreds'" as "[%Hcovered' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
@@ -720,7 +720,7 @@ Section region_alloc.
       iIntros (a' x Ha') "Hρ".
       iDestruct "Hρ" as (ρ0 Hρ) "[Hstate Hρ]".
       iExists ρ0.
-      assert (a' ≠ a) as Hne;[intros Hcontr;subst a;rewrite HRl in Ha'; inversion Ha'|].
+      assert (a' ≠ LNonHeap a) as Hne;[intros Hcontr;subst a';rewrite HRl in Ha'; inversion Ha'|].
       rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame.
   Qed.
 
@@ -728,7 +728,7 @@ Section region_alloc.
     is_heap_address a = true ->
     heap_lookup_addr (heap_std W) a = Some (base,obj) ->
     alloc_object_status obj = AllocObjectLive ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      sts_full_world W C
      -∗ region W C
 
@@ -746,12 +746,12 @@ Section region_alloc.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheap Hpreds]]".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
       iDestruct (big_sepM_delete _ _ _ _ HRl with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      apply (not_elem_of_dom (std W) a) in Hnone1.
+      apply (not_elem_of_dom (std W) (LNonHeap a)) in Hnone1.
       rewrite Hcontr in Hnone1. done.
     }
     (* if not, we need to allocate a new saved pred using φ, *)
@@ -767,7 +767,7 @@ Section region_alloc.
     iDestruct "Hpreds'" as "[%Hcovered' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=_]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=_]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
@@ -783,13 +783,13 @@ Section region_alloc.
       iIntros (a' x Ha') "Hρ".
       iDestruct "Hρ" as (ρ Hρ) "[Hstate Hρ]".
       iExists ρ.
-      assert (a' ≠ a) as Hne;[intros Hcontr;subst a;rewrite HRl in Ha'; inversion Ha'|].
+      assert (a' ≠ LNonHeap a) as Hne;[intros Hcontr;subst a';rewrite HRl in Ha'; inversion Ha'|].
       rewrite lookup_insert_ne;auto. iSplitR;[auto|]. iFrame.
   Qed.
 
   Lemma extend_region_revoked E W C a p φ `{∀ Wv, Persistent (φ Wv)}  :
     heap_addr_live (heap_std W) a ->
-     a ∉ dom (std W) →
+     LNonHeap a ∉ dom (std W) →
      sts_full_world W C
      -∗ region W C
 
@@ -809,7 +809,7 @@ Section region_alloc.
   Qed.
 
   Lemma extend_region_revoked_sepL2 E W C l1 p φ `{∀ Wv, Persistent (φ Wv)}:
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     Forall (heap_addr_live (heap_std W)) l1 →
     sts_full_world W C
     -∗ region W C
@@ -817,7 +817,7 @@ Section region_alloc.
      ={E}=∗
 
      region (std_update_multiple W l1 Revoked) C
-     ∗ ([∗ list] k ∈ l1, rel C k p φ)
+     ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
      ∗ sts_full_world (std_update_multiple W l1 Revoked) C.
   Proof.
     induction l1.
@@ -851,7 +851,7 @@ Section region_alloc.
 
   Lemma extend_region_temp_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     Forall (heap_addr_live (heap_std W)) l1 →
     sts_full_world W C
     -∗ region W C
@@ -864,7 +864,7 @@ Section region_alloc.
     ={E}=∗
 
     region (std_update_multiple W l1 Temporary) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
     ∗ sts_full_world (std_update_multiple W l1 Temporary) C.
   Proof.
     revert l2. induction l1.
@@ -909,7 +909,7 @@ Section region_alloc.
 
   Lemma extend_region_perm_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     Forall (heap_addr_live (heap_std W)) l1 →
     sts_full_world W C
     -∗ region W C
@@ -921,7 +921,7 @@ Section region_alloc.
     ={E}=∗
 
     region (std_update_multiple W l1 Permanent) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
     ∗ sts_full_world (std_update_multiple W l1 Permanent) C.
   Proof.
     revert l2. induction l1.
@@ -947,7 +947,7 @@ Section region_alloc.
 
 
   Lemma extend_region_perm_open E W C a w p la1 φ `{∀ Wv, Persistent (φ Wv)} :
-    a ∉ dom (std W) →
+    LNonHeap a ∉ dom (std W) →
     a ∉ la1 ->
     sts_full_world (std_update_multiple W la1 Permanent) C -∗
     open_region_many (std_update_multiple W la1 Permanent) C la1 -∗
@@ -956,28 +956,28 @@ Section region_alloc.
     open_region_many (std_update_multiple W (a::la1) Permanent) C (a::la1)
     ∗ rel C a p φ
     ∗ a ↦ₐ w
-    ∗ sts_state_std C a Permanent
+    ∗ sts_state_std C (LNonHeap a) Permanent
     ∗ sts_full_world (std_update_multiple W (a::la1) Permanent) C.
   Proof.
     iIntros (Hnone ?) "Hfull Hreg Ha".
     iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
-    assert (a ∉ dom (std (std_update_multiple W la1 Permanent))) as Hnone'.
+    assert (LNonHeap a ∉ dom (std (std_update_multiple W la1 Permanent))) as Hnone'.
     {
       rewrite not_elem_of_dom.
       rewrite std_sta_update_multiple_lookup_same_i; eauto.
       by rewrite -not_elem_of_dom.
     }
-    rewrite open_region_many_eq /open_region_many_def.
+    rewrite open_region_many_eq /open_region_many_def ?fmap_cons.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
     iDestruct "Hpreds" as "[%Hcovered [Hheap Hpreds]]".
-    destruct (M !! a) eqn:HRl.
+    destruct (M !! LNonHeap a) eqn:HRl.
     { (* The location is not in the map *)
-      assert ((delete_list la1) M !! a = Some o) as HRl'.
+      assert ((delete_list (LNonHeap <$> la1)) M !! LNonHeap a = Some o) as HRl'.
       { rewrite lookup_delete_list_notin; auto. }
       iDestruct (big_sepM_delete _ _ _ _ HRl' with "Hpreds") as "[Hl' _]".
       iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
       iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      rewrite (not_elem_of_dom _ a) in Hnone'.
+      rewrite (not_elem_of_dom _ (LNonHeap a)) in Hnone'.
       by rewrite Hcontr in Hnone'.
     }
     rewrite /region_map_def.
@@ -987,7 +987,7 @@ Section region_alloc.
     iMod (update_RELS _ _ _ a γpred p with "Hγrel") as "[HR #Hγrel]"; auto.
     iAssert (rel C a p φ) as "Ha_rel".
     { rewrite rel_eq /rel_def; iFrame "#". }
-    iMod (sts_alloc_std_i _ C a Permanent
+    iMod (sts_alloc_std_i _ C (LNonHeap a) Permanent
            with "[] Hfull") as "(Hfull & Hstate)"; auto.
     apply (related_sts_pub_world_fresh (std_update_multiple W la1 Permanent) a Permanent)
       in Hnone' as Hrelated; auto.
@@ -996,14 +996,14 @@ Section region_alloc.
     iDestruct "Hpreds'" as "[%Hcovered' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
-    iExists (<[a:=Permanent]> Mρ);iSplitR;[|iSplitR].
+    iExists (<[LNonHeap a :=Permanent]> Mρ);iSplitR;[|iSplitR].
     - iPureIntro. rewrite /std_update in HMW |- *.
       repeat rewrite dom_insert_L; rewrite HMW; auto.
     - iPureIntro. repeat rewrite dom_insert_L. rewrite HMρ. auto.
     - iSplit; first done. cbn.
-      rewrite -(delete_list_delete _ (<[a:=(γpred, p)]> M)); last done.
+      rewrite -(delete_list_delete _ (<[LNonHeap a :=(γpred, p)]> M)); last done.
       rewrite delete_insert_id; last done.
-      rewrite -(delete_list_delete _ (<[a:=_]> Mρ)); last done.
+      rewrite -(delete_list_delete _ (<[LNonHeap a :=_]> Mρ)); last done.
       rewrite delete_insert_id; last (rewrite -not_elem_of_dom HMρ not_elem_of_dom; done).
       iApply (big_sepM_mono with "Hpreds'").
       iIntros (a' x Ha) "Hρ".
@@ -1015,7 +1015,7 @@ Section region_alloc.
 
   Lemma extend_region_perm_sepL2_open_ind E W C la1 la2 lw2 p φ `{∀ Wv, Persistent (φ Wv)}:
     isO p = false ->
-    Forall (λ k, std W !! k = None) la2 →
+    Forall (λ k, std W !! LNonHeap k = None) la2 →
     NoDup la1 ->
     NoDup la2 ->
     la2 ## la1 ->
@@ -1028,8 +1028,8 @@ Section region_alloc.
     open_region_many (std_update_multiple W (la1++la2) Permanent) C (la1++la2)
     ∗ ([∗ list] k;v ∈ la2;lw2,
           k ↦ₐ v
-          ∗ sts_state_std C k Permanent)
-    ∗ ([∗ list] k ∈ la2, rel C k p φ)
+          ∗ sts_state_std C (LNonHeap k) Permanent)
+    ∗ ([∗ list] k ∈ la2, rel C (LNonHeap k) p φ)
     ∗ sts_full_world (std_update_multiple W (la1++la2) Permanent) C.
   Proof.
     revert la1 lw2.
@@ -1064,9 +1064,9 @@ Section region_alloc.
     Forall (heap_addr_live (heap_std W)) l1 ->
     NoDup l1 ->
     isO p = false ->
-    ([∗ list] k ∈ l1, rel C k p φ) -∗
+    ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ) -∗
     open_region_many W C l1 -∗
-    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ sts_state_std C k Permanent) -∗
+    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ sts_state_std C (LNonHeap k) Permanent) -∗
     ([∗ list] v ∈ l2, φ (W, C, v)) -∗
     ([∗ list] v ∈ l2, future_priv_mono C φ v)
     ={E}=∗ region W C.
@@ -1092,9 +1092,9 @@ Section region_alloc.
     Forall (fun a => is_heap_address a = false) l1 ->
     NoDup l1 ->
     isO p = false ->
-    ([∗ list] k ∈ l1, rel C k p φ) -∗
+    ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ) -∗
     open_region_many W C l1 -∗
-    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ sts_state_std C k Permanent) -∗
+    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ sts_state_std C (LNonHeap k) Permanent) -∗
     ([∗ list] v ∈ l2, φ (W, C, v)) -∗
     ([∗ list] v ∈ l2, future_priv_mono C φ v)
     ={E}=∗ region W C.
@@ -1111,9 +1111,9 @@ Section region_alloc.
       alloc_object_status obj = AllocObjectLive) l1 ->
     NoDup l1 ->
     isO p = false ->
-    ([∗ list] k ∈ l1, rel C k p φ) -∗
+    ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ) -∗
     open_region_many W C l1 -∗
-    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ sts_state_std C k Permanent) -∗
+    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ sts_state_std C (LNonHeap k) Permanent) -∗
     ([∗ list] v ∈ l2, φ (W, C, v)) -∗
     ([∗ list] v ∈ l2, future_priv_mono C φ v)
     ={E}=∗ region W C.
@@ -1129,12 +1129,12 @@ Section region_alloc.
     Forall (heap_addr_live (heap_std W)) l1 ->
     NoDup l1 ->
     isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
     -∗ (
-         ([∗ list] k ∈ l1, rel C k p φ)
+         ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
          -∗ ([∗ list] v ∈ l2,
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v)
        )
@@ -1143,7 +1143,7 @@ Section region_alloc.
 
     region (std_update_multiple W l1 Permanent) C
     ∗ sts_full_world (std_update_multiple W l1 Permanent) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
     ∗ ([∗ list] v ∈ l2,
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
   Proof.
@@ -1167,12 +1167,12 @@ Section region_alloc.
     Forall (fun a => is_heap_address a = false) l1 ->
     NoDup l1 ->
     isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
     -∗ (
-         ([∗ list] k ∈ l1, rel C k p φ)
+         ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
          -∗ ([∗ list] v ∈ l2,
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v)
        )
@@ -1181,7 +1181,7 @@ Section region_alloc.
 
     region (std_update_multiple W l1 Permanent) C
     ∗ sts_full_world (std_update_multiple W l1 Permanent) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
     ∗ ([∗ list] v ∈ l2,
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
   Proof.
@@ -1197,12 +1197,12 @@ Section region_alloc.
       alloc_object_status obj = AllocObjectLive) l1 ->
     NoDup l1 ->
     isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
     -∗ (
-         ([∗ list] k ∈ l1, rel C k p φ)
+         ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
          -∗ ([∗ list] v ∈ l2,
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v)
        )
@@ -1211,7 +1211,7 @@ Section region_alloc.
 
     region (std_update_multiple W l1 Permanent) C
     ∗ sts_full_world (std_update_multiple W l1 Permanent) C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
     ∗ ([∗ list] v ∈ l2,
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
   Proof.
@@ -1230,13 +1230,13 @@ Section region_alloc.
     Forall (heap_addr_live (heap_std W)) l1 ->
     NoDup l1 ->
     isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
+    Forall (λ k, std W !! LNonHeap k = None) l1 →
     sts_full_world W C
     -∗ region W C
     -∗ sealing_map W C
     -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
     -∗ (
-         ([∗ list] k ∈ l1, rel C k p φ)
+         ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
          ∗ sts_full_world (std_update_multiple W l1 Permanent) C
          ∗ sealing_map (std_update_multiple W l1 Permanent) C
          ∗ open_region_many (std_update_multiple W l1 Permanent) C l1
@@ -1253,7 +1253,7 @@ Section region_alloc.
     region W' C
     ∗ sts_full_world W' C
     ∗ sealing_map W' C
-    ∗ ([∗ list] k ∈ l1, rel C k p φ)
+    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
     ∗ ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v)
     ∗ ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
 .

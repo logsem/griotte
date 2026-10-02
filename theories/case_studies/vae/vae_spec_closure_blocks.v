@@ -9,7 +9,7 @@ Section VAE_Awkward_Blocks.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
@@ -72,7 +72,7 @@ Section VAE_Awkward_Blocks.
       Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
 
     inv awkN (awk_inv C i cgp_b)
-    ∗ sts_rel_loc (A := Addr) C i awk_rel_pub awk_rel_priv
+    ∗ sts_rel_loc (A := LAddr) C i awk_rel_pub awk_rel_priv
     ∗ world_interp W C
     ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
     ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
@@ -225,7 +225,7 @@ Section VAE_Awkward_Blocks.
     wrel Wtrue !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
 
     inv awkN (awk_inv C i cgp_b)
-    ∗ sts_rel_loc (A := Addr) C i awk_rel_pub awk_rel_priv
+    ∗ sts_rel_loc (A := LAddr) C i awk_rel_pub awk_rel_priv
     ∗ world_interp (revoke Wbase) C
     ∗ PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_code ^+ 4)%a
     ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b

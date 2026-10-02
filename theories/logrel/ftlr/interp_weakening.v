@@ -9,7 +9,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
@@ -359,7 +359,7 @@ Section fundamental.
   Proof. iIntros. rewrite /interp fixpoint_interp1_eq //. Qed.
 
   Lemma monoReq_interp_in_mem (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (ρ : region_type) :
-    (std W) !! a = Some ρ
+    (std W) !! LNonHeap a = Some ρ
     -> (ρ = Permanent -> isWL p = false)
     -> ⊢ monoReq W C a p (interp_in_mem RWL).
   Proof.

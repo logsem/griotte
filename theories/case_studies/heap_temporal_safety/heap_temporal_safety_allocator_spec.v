@@ -26,7 +26,7 @@ Section Heap_Temporal_Safety_Allocator.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     {allocator_ownerg : allocatorOwnerG Σ}
     `{MP : MachineParameters}

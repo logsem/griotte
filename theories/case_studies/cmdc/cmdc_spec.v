@@ -10,7 +10,7 @@ Section CMDC.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -63,8 +63,8 @@ Section CMDC.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    cgp_b ∉ dom (std W_init_B) ->
-    (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
+    LNonHeap cgp_b ∉ dom (std W_init_B) ->
+    LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     is_heap_cap (WSealed ot_switcher C_g) = false ->
@@ -492,8 +492,8 @@ Section CMDC.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    cgp_b ∉ dom (std W_init_B) ->
-    (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
+    LNonHeap cgp_b ∉ dom (std W_init_B) ->
+    LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     is_heap_cap (WSealed ot_switcher C_g) = false ->

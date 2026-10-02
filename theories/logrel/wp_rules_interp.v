@@ -11,7 +11,7 @@ Section wp_interp.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
 
@@ -115,7 +115,7 @@ Section wp_interp.
     }
 
     iDestruct (writeAllowed_valid_cap with "Hinterp_dst") as "%Hdst_in_region"; auto.
-    assert ( ∃ ρ, std W !! a = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
+    assert ( ∃ ρ, std W !! LNonHeap a = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
     {
       rewrite Forall_lookup in Hdst_in_region.
       assert ( a ∈ finz.seq_between b e) as Ha.
@@ -296,7 +296,7 @@ Section wp_interp.
     }
 
     iDestruct (writeAllowed_valid_cap with "Hinterp_dst") as "%Hdst_in_region"; auto.
-    assert ( ∃ ρ, std W !! a = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
+    assert ( ∃ ρ, std W !! LNonHeap a = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
     {
       rewrite Forall_lookup in Hdst_in_region.
       assert ( a ∈ finz.seq_between b e) as Ha.
@@ -724,7 +724,7 @@ Section wp_interp.
     }
 
     iDestruct (readAllowed_valid_cap with "Hinterp_src") as "%Hsrc_in_region"; auto.
-    assert ( ∃ ρ, std W !! a = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
+    assert ( ∃ ρ, std W !! LNonHeap a = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
     {
       rewrite Forall_lookup in Hsrc_in_region.
       assert ( a ∈ finz.seq_between b e) as Ha.
@@ -965,7 +965,7 @@ Section wp_interp.
     }
 
     iDestruct (writeAllowed_valid_cap with "Hinterp_dst") as "%Hdst_in_region"; auto.
-    assert ( ∃ ρ, std W !! ea = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
+    assert ( ∃ ρ, std W !! LNonHeap ea = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
     {
       rewrite Forall_lookup in Hdst_in_region.
       assert ( ea ∈ finz.seq_between b e) as Ha.
@@ -1154,7 +1154,7 @@ Section wp_interp.
     }
 
     iDestruct (writeAllowed_valid_cap with "Hinterp_dst") as "%Hdst_in_region"; auto.
-    assert ( ∃ ρ, std W !! ea = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
+    assert ( ∃ ρ, std W !! LNonHeap ea = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
     {
       rewrite Forall_lookup in Hdst_in_region.
       assert ( ea ∈ finz.seq_between b e) as Ha.
@@ -1338,7 +1338,7 @@ Section wp_interp.
     }
 
     iDestruct (readAllowed_valid_cap with "Hinterp_src") as "%Hsrc_in_region"; auto.
-    assert ( ∃ ρ, std W !! ea = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
+    assert ( ∃ ρ, std W !! LNonHeap ea = Some ρ ∧ ρ ≠ Revoked) as ( ρ & Hρ & Hρ_not_revoked).
     {
       rewrite Forall_lookup in Hsrc_in_region.
       assert ( ea ∈ finz.seq_between b e) as Ha.

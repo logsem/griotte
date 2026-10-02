@@ -14,7 +14,7 @@ Section Heap_Temporal_Safety_Main.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
@@ -68,7 +68,7 @@ Section Heap_Temporal_Safety_Main.
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    (cgp_b)%a ∉ dom (std W_init_C) ->
+    LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
     heap_std W_init_C = ∅ ->
 
     frame_match Ws Cs cstk W_init_C C ->

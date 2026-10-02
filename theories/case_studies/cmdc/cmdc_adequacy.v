@@ -224,7 +224,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_invg: na_invariants.na_invG Σ}.
-  Context {sts_preg: STS_preG Addr region_type OType Word Σ}.
+  Context {sts_preg: STS_preG LAddr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -513,7 +513,7 @@ Section Adequacy.
 
     assert (
         Forall
-          (λ k : finz MemNum, std W1 !! k = None)
+          (λ k : finz MemNum, std W1 !! LNonHeap k = None)
           (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
       ) as Hstack_disjoint_B.
     { apply Forall_forall; intros a Ha; cbn.
@@ -688,7 +688,7 @@ Section Adequacy.
 
    assert (
         Forall
-          (λ k : finz MemNum, std W2 !! k = None)
+          (λ k : finz MemNum, std W2 !! LNonHeap k = None)
           (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
       ) as Hstack_disjoint_C.
     { apply Forall_forall; intros a Ha; cbn.
@@ -986,7 +986,7 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type OType Word ; relPreΣ
+              ; STS_preΣ LAddr region_type OType Word ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)
       ]).
   eapply (@cmdc_adequacy' Σ cnames B C); eauto; try typeclasses eauto.

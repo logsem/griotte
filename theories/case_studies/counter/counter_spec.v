@@ -17,7 +17,7 @@ Section Counter.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -29,13 +29,13 @@ Section Counter.
 
   Context {C : CmptName}.
 
-  Lemma related_pub_W0_Wfixed (W0 W2 : WORLD) (csp_b csp_e : Addr ) (l : list Addr):
+  Lemma related_pub_W0_Wfixed (W0 W2 : WORLD) (csp_b csp_e : Addr ) (l : list LAddr):
     let W1 := revoke W0 in
     let W3 := revoke W2 in
-    (∀ a : finz MemNum, std W0 !! a = Some Temporary ↔ a ∈ l ++ finz.seq_between csp_b csp_e) ->
-    Forall (λ a : finz MemNum, std W3 !! a = Some Revoked) (l++finz.seq_between csp_b csp_e) ->
+    (∀ a : LAddr, std W0 !! a = Some Temporary ↔ a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+    Forall (λ a : LAddr, std W3 !! a = Some Revoked) (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     related_sts_pub_world W1 W2 ->
-    related_sts_pub_world W0 (close_list (l ++ finz.seq_between csp_b csp_e) W3).
+    related_sts_pub_world W0 (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) W3).
   Proof.
     intros * Htemporaries_W0 Hrevoked_W3 Hrelated_pub_W1_W2.
 
@@ -57,17 +57,19 @@ Section Counter.
     intros a ρ0 ρ2 Ha0 Ha2.
     destruct ρ0; cycle 1.
     - (* the initial a was in the Permanent state *)
-      assert (a ∉ l ++ finz.seq_between csp_b csp_e) as Ha_notin.
+      assert (a ∉ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) as Ha_notin.
       { destruct (Htemporaries_W0 a) as [_ ?].
         intro Hcontra; apply H in Hcontra. by rewrite Ha0 in Hcontra.
       }
       apply revoke_lookup_Perm in Ha0.
       assert (std (revoke ((W0_std, W0_cus, W0_seals, W_heap0))) !! a = Some Permanent) as Ha0' by done.
-      rewrite -(std_sta_update_multiple_lookup_same_i _ (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary)
+      rewrite -(std_sta_update_multiple_lookup_same_k _ (finz.seq_between (csp_b ^+ 4)%a csp_e) Temporary)
         in Ha0'.
       2: {
         intro Hcontra; apply Ha_notin.
         rewrite elem_of_app; right.
+        apply list_elem_of_fmap in Hcontra as [a' [-> Hcontra] ].
+        apply elem_of_LNonHeap_fmap.
         rewrite !elem_of_finz_seq_between in Hcontra |- *.
         solve_addr.
       }
@@ -83,21 +85,21 @@ Section Counter.
     - (* the initial a was in the Revoked state *)
       destruct ρ2; last apply rtc_refl; apply rtc_once; constructor.
     - (* the initial a was in the Temporary state *)
-      assert (a ∈ l ++ finz.seq_between csp_b csp_e) as Ha_in.
+      assert (a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) as Ha_in.
       { destruct (Htemporaries_W0 a) as [? _]; by apply Htemporaries_W0. }
       apply revoke_lookup_Monotemp in Ha0.
       assert (std (revoke ((W0_std, W0_cus, W0_seals, W_heap0))) !! a = Some Revoked) as Ha0' by done.
       assert (
           std ((std_update_multiple (revoke (W0_std, W0_cus, W0_seals, W_heap0)) (finz.seq_between (csp_b ^+ 4)%a csp_e)
                   Temporary)) !! a =
-          Some (if (decide (a ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e)))
+          Some (if (decide (a ∈ LNonHeap <$> (finz.seq_between (csp_b ^+ 4)%a csp_e)))
                 then Temporary
                 else Revoked
         )).
       {
-        destruct (decide (a ∈ (finz.seq_between (csp_b ^+ 4)%a csp_e))) as [Ha_in_stk | Ha_in_stk].
-        + apply std_sta_update_multiple_lookup_in_i; eauto.
-        + rewrite std_sta_update_multiple_lookup_same_i; eauto.
+        destruct (decide (a ∈ LNonHeap <$> (finz.seq_between (csp_b ^+ 4)%a csp_e))) as [Ha_in_stk | Ha_in_stk].
+        + apply std_sta_update_multiple_lookup_in_k; eauto.
+        + rewrite std_sta_update_multiple_lookup_same_k; eauto.
       }
       pose proof Ha_in as Ha_in'.
       rewrite Forall_forall in Hrevoked_W3.
@@ -220,7 +222,7 @@ Section Counter.
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
@@ -251,7 +253,7 @@ Section Counter.
 
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    assert (Forall (fun x : Addr => x ∈ dom (std W1)) l) as Hdom_l.
+    assert (Forall (fun x : LAddr => x ∈ dom (std W1)) l) as Hdom_l.
     { apply Forall_forall. intros x Hx. subst W1. rewrite -revoke_dom_eq.
       rewrite elem_of_dom. exists Temporary. destruct Hl_unk as [_ Htemp].
       apply Htemp. apply elem_of_app. by left. }
@@ -266,7 +268,7 @@ Section Counter.
     iEval (rewrite Hperm_l RevokedResources_app) in "Hrevoked_l".
     iDestruct "Hrevoked_l" as "[Hrevoked_live Hrevoked_q]".
     set (W1q := close_list l_q W1).
-    assert (Forall (fun a => heap_addr_status (heap_std W1q) a = Some AllocObjectQuarantined) l_q) as Hq_W1q.
+    assert (Forall (fun a => heap_addr_status (heap_std W1q) (laddr_addr a) = Some AllocObjectQuarantined) l_q) as Hq_W1q.
     { rewrite /W1q close_list_heap /W1 revoke_heap. exact Hq_l. }
     iAssert (RevokedResources W1q C l_q) with "[Hrevoked_q]" as "Hrevoked_q'".
     { rewrite (RevokedResources_quarantined W1q C l_q Hq_W1q)
@@ -276,7 +278,7 @@ Section Counter.
     assert (related_sts_priv_world W0 W1q) as Hpriv_W0_W1q.
     { eapply related_sts_priv_trans_world; [exact Hrelared_priv_W0_W1 |].
       apply related_sts_pub_priv_world, close_list_related_sts_pub. }
-    assert (l_q ## finz.seq_between csp_b csp_e) as Hq_stack.
+    assert (l_q ## (LNonHeap <$> finz.seq_between csp_b csp_e)) as Hq_stack.
     { destruct Hl_unk as [Hnd _]. apply NoDup_app in Hnd.
       destruct Hnd as (_ & Hdisj & _).
       intros x Hx Hxs. apply (Hdisj x);
@@ -284,7 +286,7 @@ Section Counter.
     assert (revoked_addresses W1q (finz.seq_between csp_b csp_e)) as Hrevoked_stk_W1q.
     { apply Forall_forall. intros x Hx.
       rewrite /W1q /close_list /= -close_list_std_sta_same;
-        [|set_solver+Hq_stack Hx].
+        [|intros Hq; apply (Hq_stack (LNonHeap x) Hq); by apply elem_of_LNonHeap_fmap].
       rewrite /revoked_addresses Forall_forall in Hrevoked_W0.
       by apply Hrevoked_W0. }
 
@@ -401,10 +403,10 @@ Section Counter.
 
     (* Prepare the closing resources for the switcher call spec *)
     iDestruct (StackRevokedResources_mono_priv _ W1q with "Hstack_revoked_W0") as "Hstack_revoked_W1"; auto.
-    iAssert (⌜ revoked_addresses W1 l ⌝)%I as "%Hrevoked_l_W".
+    iAssert (⌜ revoked_keys W1 l ⌝)%I as "%Hrevoked_l_W".
     {
       iPureIntro; apply Forall_forall; intros a Ha.
-      rewrite /revoked_addresses Forall_forall in Hrevoked_l.
+      rewrite Forall_forall in Hrevoked_l.
       by apply Hrevoked_l in Ha.
     }
 
@@ -509,13 +511,15 @@ Section Counter.
       destruct Hl_unk' as [_ Htemp2]. apply Htemp2 in Hx_temp.
       apply elem_of_app in Hx_temp as [Hxl'|Hxtail]; first exact Hxl'.
       exfalso. apply (Hq_stack x Hx).
+      apply list_elem_of_fmap in Hxtail as [x' [-> Hxtail] ].
+      apply elem_of_LNonHeap_fmap.
       apply elem_of_finz_seq_between in Hxtail.
       apply elem_of_finz_seq_between. solve_addr+Hxtail Hcsp_bounds. }
     assert (l_live ## l_q) as Hlive_q_disjoint.
     { destruct Hl_unk as [Hnd _]. rewrite Hperm_l in Hnd.
       apply NoDup_app in Hnd as [Hnd_l _].
       apply NoDup_app in Hnd_l as (_ & Hdisj & _). exact Hdisj. }
-    assert (l_live ## finz.seq_between csp_b csp_e) as Hlive_stack.
+    assert (l_live ## (LNonHeap <$> finz.seq_between csp_b csp_e)) as Hlive_stack.
     { destruct Hl_unk as [Hnd _]. apply NoDup_app in Hnd as (_ & Hdisj & _).
       intros x Hx Hxs. apply (Hdisj x);
         [rewrite Hperm_l; apply elem_of_app; by left | exact Hxs]. }
@@ -524,17 +528,18 @@ Section Counter.
       apply revoke_lookup_Monotemp.
       rewrite Forall_forall in Hq_temp_W2. by apply Hq_temp_W2. }
     assert (Forall (fun a => std W3 !! a = Some Revoked)
-      (l ++ finz.seq_between csp_b csp_e)) as Hrevoked_initial_W3.
+      (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e))) as Hrevoked_initial_W3.
     { apply Forall_forall. intros x Hx. apply elem_of_app in Hx as [Hx|Hx].
       - rewrite Hperm_l in Hx. apply elem_of_app in Hx as [Hx|Hx].
         + rewrite Forall_forall in Hrevoked_live_W3. by apply Hrevoked_live_W3.
         + rewrite Forall_forall in Hrevoked_q_W3. by apply Hrevoked_q_W3.
-      - rewrite Forall_forall in Hrevoked_stk_W3. by apply Hrevoked_stk_W3. }
+      - apply list_elem_of_fmap in Hx as [x' [-> Hx] ].
+        rewrite Forall_forall in Hrevoked_stk_W3. by apply Hrevoked_stk_W3. }
 
     set (l'_fresh := filter
-      (fun a => a ∉ l_live ∧ a ∉ finz.seq_between csp_b csp_e) l').
+      (fun a => a ∉ l_live ∧ a ∉ LNonHeap <$> finz.seq_between csp_b csp_e) l').
     set (closing_revoked := l_live ++ l'_fresh).
-    set (closing := closing_revoked ++ finz.seq_between csp_b csp_e).
+    set (closing := closing_revoked ++ (LNonHeap <$> finz.seq_between csp_b csp_e)).
     assert (l ⊆ closing_revoked) as Hinitial_in_closing.
     { intros x Hx. subst closing_revoked. apply elem_of_app.
       rewrite Hperm_l in Hx. apply elem_of_app in Hx as [Hlive|Hq]; first by left.
@@ -543,17 +548,19 @@ Section Counter.
         + intros Hlive. apply (Hlive_q_disjoint x Hlive Hq).
         + intros Hstack. apply (Hq_stack x Hq Hstack).
       - by apply Hq_in_l'. }
-    assert (l' ++ finz.seq_between (csp_b ^+ 4)%a csp_e ⊆ closing)
+    assert (l' ++ (LNonHeap <$> finz.seq_between (csp_b ^+ 4)%a csp_e) ⊆ closing)
       as Hreturned_in_closing.
     { intros x Hx. subst closing closing_revoked.
       apply elem_of_app in Hx as [Hxl'|Hxtail].
-      - destruct (decide (x ∈ finz.seq_between csp_b csp_e)) as [Hstack|Hnotstack].
+      - destruct (decide (x ∈ LNonHeap <$> finz.seq_between csp_b csp_e)) as [Hstack|Hnotstack].
         + apply elem_of_app. by right.
         + apply elem_of_app. left. apply elem_of_app.
           destruct (decide (x ∈ l_live)) as [Hlive|Hnotlive]; first by left.
           right. subst l'_fresh. apply list_elem_of_filter.
           split; [split; assumption|assumption].
       - apply elem_of_app. right.
+        apply list_elem_of_fmap in Hxtail as [x' [-> Hxtail] ].
+        apply elem_of_LNonHeap_fmap.
         apply elem_of_finz_seq_between in Hxtail.
         apply elem_of_finz_seq_between. solve_addr+Hxtail Hcsp_bounds. }
     assert (NoDup closing) as Hclosing_nodup.
@@ -571,7 +578,7 @@ Section Counter.
         + by apply (Hlive_stack x Hlive Hstack).
         + subst l'_fresh. apply list_elem_of_filter in Hfresh as [Hpred _].
           destruct Hpred as [_ Hnotstack]. contradiction.
-      - apply finz_seq_between_NoDup. }
+      - apply NoDup_LNonHeap_fmap, finz_seq_between_NoDup. }
     assert (∀ x, std W0 !! x = Some Temporary -> x ∈ closing) as Htemp0_cover.
     { intros x Hx. destruct Hl_unk as [_ Htemp]. apply Htemp in Hx.
       apply elem_of_app in Hx as [Hxl|Hxstack].
@@ -588,7 +595,7 @@ Section Counter.
           setoid_rewrite <- revoke_dom_eq. done.
         + intros x ρ2 ρf Hx2 Hxf.
           destruct ρ2.
-          * assert (x ∈ l' ++ finz.seq_between (csp_b ^+ 4)%a csp_e) as Hx_close.
+          * assert (x ∈ l' ++ (LNonHeap <$> finz.seq_between (csp_b ^+ 4)%a csp_e)) as Hx_close.
             { destruct Hl_unk' as [_ Htemp]. apply Htemp. exact Hx2. }
             rewrite close_list_std_sta_revoked in Hxf; auto.
             { simplify_eq; apply rtc_refl. }
@@ -612,7 +619,7 @@ Section Counter.
           setoid_rewrite <- revoke_dom_eq. exact Hdom02.
         + intros x ρ0 ρf Hx0 Hxf.
           destruct ρ0.
-          * assert (x ∈ l ++ finz.seq_between csp_b csp_e) as Hx_close.
+          * assert (x ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) as Hx_close.
             { destruct Hl_unk as [_ Htemp]. apply Htemp. exact Hx0. }
             rewrite close_list_std_sta_revoked in Hxf; auto.
             { simplify_eq; apply rtc_refl. }
@@ -634,7 +641,7 @@ Section Counter.
         split; assumption. }
 
     set (l'_dropped := filter
-      (fun a => ¬(a ∉ l_live ∧ a ∉ finz.seq_between csp_b csp_e)) l').
+      (fun a => ¬(a ∉ l_live ∧ a ∉ LNonHeap <$> finz.seq_between csp_b csp_e)) l').
     assert (l' ≡ₚ l'_fresh ++ l'_dropped) as Hl'_partition.
     { subst l'_fresh l'_dropped. apply filter_complement_list. }
     iAssert (RevokedResources W2 C (l'_fresh ++ l'_dropped))%I

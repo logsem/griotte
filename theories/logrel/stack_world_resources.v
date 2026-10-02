@@ -9,7 +9,7 @@ Section Stack_World_Resources.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
   Implicit Types W : WORLD.
@@ -99,7 +99,7 @@ Section Stack_World_Resources.
 
   (* Derive [StackWorldResource] from [rel] *)
   Lemma StackWorldResource_from_rel_stack W C a :
-    rel C a RWL interp_in_memC -∗ StackWorldResource interp W C a (WInt 0).
+    rel C (LNonHeap a) RWL interp_in_memC -∗ StackWorldResource interp W C a (WInt 0).
   Proof.
     iIntros "Hrel".
     iExists (interp_in_mem RWL), RWL; cbn. iFrame.
@@ -119,7 +119,7 @@ Section Stack_World_Resources.
   Qed.
 
   Lemma StackWorldResources_from_rel_stack W C la :
-    ([∗ list] a ∈ la, rel C a RWL interp_in_memC) -∗
+    ([∗ list] a ∈ la, rel C (LNonHeap a) RWL interp_in_memC) -∗
     StackWorldResources interp W C la (replicate (length la) (WInt 0)).
   Proof.
     induction la; [iIntros "H" | iIntros "[Ha H]"]; first done; cbn.
@@ -174,7 +174,11 @@ Section Stack_World_Resources.
 
   (** Interface for revoked addresses *)
   Definition revoked_addresses (W : WORLD) (la : list Addr) :=
-    Forall (λ a, std W !! a = Some Revoked) la.
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la.
+
+  (** Region keys revoked in a world, e.g. the unknown temporary regions of a revocation. *)
+  Definition revoked_keys (W : WORLD) (l : list LAddr) :=
+    Forall (λ k, std W !! k = Some Revoked) l.
 
   Lemma revoked_addresses_app (W : WORLD) (la la' : list Addr) :
     revoked_addresses W (la++la') <-> revoked_addresses W la ∧ revoked_addresses W la'.
@@ -182,8 +186,8 @@ Section Stack_World_Resources.
 
   Lemma revoked_addresses_weaken (W : WORLD) (la la' : list Addr) :
     la' ⊆ la ->
-    Forall (λ a, std W !! a = Some Revoked) la ->
-    Forall (λ a, std W !! a = Some Revoked) la'.
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la ->
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la'.
   Proof.
     intros Hl Hla.
     rewrite Forall_forall in Hla; apply Forall_forall.

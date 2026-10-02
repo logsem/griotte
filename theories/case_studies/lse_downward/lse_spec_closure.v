@@ -10,7 +10,7 @@ Section LSE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -151,7 +151,7 @@ Section LSE.
     (* Revoke the world to get the stack frame *)
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
@@ -251,7 +251,7 @@ Section LSE.
     { solve_addr+Hastk1. }
     { solve_addr+Hastk1 Hcsp_size. }
 
-    set (Wfixed := close_list (l ++ finz.seq_between csp_b csp_e) W1).
+    set (Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) W1).
     iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_interp_C") as %Hheap_wf_cur.
     assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
       by (subst Wfixed; rewrite close_list_heap; exact Hheap_wf_cur).

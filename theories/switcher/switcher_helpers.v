@@ -10,7 +10,7 @@ Section switcher_helper.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
@@ -74,7 +74,7 @@ Section switcher_helper.
 
   Lemma world_interp_rel_status_some W C a p φ :
     world_interp W C -∗
-    rel C a p φ -∗
+    rel C (LNonHeap a) p φ -∗
     world_interp W C ∗
     ⌜is_Some (heap_addr_status (heap_std W) a)⌝.
   Proof.
@@ -224,11 +224,11 @@ Section switcher_helper.
 
 
   Definition CloseRes (Wfixed : WORLD) (C : CmptName)
-    (a_stk : Addr) (l : list Addr ) ccrel : iProp Σ :=
+    (a_stk : Addr) (l : list LAddr ) ccrel : iProp Σ :=
     ( if (is_untrusted_caller ccrel)
       then
         ( ∃ l',
-            ⌜ l ≡ₚ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a]++l' ⌝
+            ⌜ l ≡ₚ (LNonHeap <$> [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a])++l' ⌝
             ∗ RevokedResources Wfixed C l'
             ∗ ([∗ list] a ∈ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a],
                  ∃ (p : Perm) (φ : WORLD * CmptName * Word → iPropI Σ),
@@ -239,7 +239,7 @@ Section switcher_helper.
                                                           else if isDL p then future_pub_mono C φ (WInt 0) else future_priv_mono C φ (WInt 0)
                                                          )
                                                        ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ φ (W0', C, WInt 0)))
-                                                    ∗ rel C a p φ
+                                                    ∗ rel C (LNonHeap a) p φ
               )
         )
       else
@@ -247,18 +247,18 @@ Section switcher_helper.
     )%I.
 
     Lemma open_world_interp_cframe
-    (W0 Wcur : WORLD) (C : CmptName) (b_stk csp_b csp_e a_stk4 : Addr) (l : list Addr)
+    (W0 Wcur : WORLD) (C : CmptName) (b_stk csp_b csp_e a_stk4 : Addr) (l : list LAddr)
     (wret wcgp wcs0 wcs1 : Word) (ccrel : caller_callee_relation)
     :
-      let Wfixed := close_list (l ++ finz.seq_between csp_b csp_e) Wcur in
+      let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur in
       let a_stk := (csp_b ^+ -4)%a in
 
       (b_stk <= csp_b ^+ -4)%a ->
       ((csp_b ^+ -4) ^+ 3 < csp_e)%a ->
       (csp_b ^+ -4 + 4)%a = Some a_stk4 ->
 
-      (∀ a : finz MemNum, std W0 !! a = Some Temporary → a ∈ l ++ finz.seq_between csp_b csp_e) ->
-      NoDup (l ++ finz.seq_between csp_b csp_e) ->
+      (∀ a : LAddr, std W0 !! a = Some Temporary → a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+      NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
       related_sts_pub_world W0 Wfixed ->
       heap_wf (heap_std Wfixed) ->
       disjoint_from_heap b_stk csp_e ->
@@ -313,7 +313,7 @@ Section switcher_helper.
         done.
       * cbn.
         iAssert
-          (⌜ ∀ (a : Addr), a ∈ (finz.seq_between b_stk csp_e) → (std W0 !! a) = Some Temporary ⌝)%I
+          (⌜ ∀ (a : Addr), a ∈ (finz.seq_between b_stk csp_e) → (std W0 !! LNonHeap a) = Some Temporary ⌝)%I
           as "%Hstk_tmp".
         {
           iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_callee_wstk") as "%Hstk_tmp" ; auto.
@@ -322,43 +322,43 @@ Section switcher_helper.
           by eapply Hstk_tmp.
         }
 
-        iAssert ( ⌜ a_stk ∈ l ⌝)%I as "%Hastk_unk".
+        iAssert ( ⌜ LNonHeap a_stk ∈ l ⌝)%I as "%Hastk_unk".
         {
           opose proof (Hstk_tmp a_stk _) as Hastk_tmp.
           { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
           apply Htemp_revoked in Hastk_tmp.
           apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
-          rewrite elem_of_finz_seq_between in Hcontra.
+          rewrite elem_of_LNonHeap_fmap elem_of_finz_seq_between in Hcontra.
           subst a_stk.
           solve_addr+Hcontra.
         }
-        iAssert ( ⌜ (a_stk ^+1)%a ∈ l ⌝)%I as "%Hastk1_unk".
+        iAssert ( ⌜ LNonHeap (a_stk ^+1)%a ∈ l ⌝)%I as "%Hastk1_unk".
         {
           opose proof (Hstk_tmp (a_stk ^+1)%a _) as Hastk_tmp.
           { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
           apply Htemp_revoked in Hastk_tmp.
           apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
-          rewrite elem_of_finz_seq_between in Hcontra.
+          rewrite elem_of_LNonHeap_fmap elem_of_finz_seq_between in Hcontra.
           subst a_stk.
           solve_addr+Hcontra.
         }
-        iAssert ( ⌜ (a_stk ^+2)%a ∈ l ⌝)%I as "%Hastk2_unk".
+        iAssert ( ⌜ LNonHeap (a_stk ^+2)%a ∈ l ⌝)%I as "%Hastk2_unk".
         {
           opose proof (Hstk_tmp (a_stk ^+2)%a _) as Hastk_tmp.
           { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
           apply Htemp_revoked in Hastk_tmp.
           apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
-          rewrite elem_of_finz_seq_between in Hcontra.
+          rewrite elem_of_LNonHeap_fmap elem_of_finz_seq_between in Hcontra.
           subst a_stk.
           solve_addr+Hcontra.
         }
-        iAssert ( ⌜ (a_stk ^+3)%a ∈ l ⌝)%I as "%Hastk3_unk".
+        iAssert ( ⌜ LNonHeap (a_stk ^+3)%a ∈ l ⌝)%I as "%Hastk3_unk".
         {
           opose proof (Hstk_tmp (a_stk ^+3)%a _) as Hastk_tmp.
           { rewrite elem_of_finz_seq_between; subst a_stk; solve_addr+Hb_a4 He_a1 Ha_stk4. }
           apply Htemp_revoked in Hastk_tmp.
           apply elem_of_app in Hastk_tmp as [?|Hcontra]; first done.
-          rewrite elem_of_finz_seq_between in Hcontra.
+          rewrite elem_of_LNonHeap_fmap elem_of_finz_seq_between in Hcontra.
           subst a_stk.
           solve_addr+Hcontra.
         }
@@ -385,7 +385,7 @@ Section switcher_helper.
 
         iAssert
           ( ▷ (∃ l',
-              ⌜ l ≡ₚ [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a]++l' ⌝
+              ⌜ l ≡ₚ (LNonHeap <$> [a_stk;(a_stk ^+ 1)%a;(a_stk ^+ 2)%a;(a_stk ^+ 3)%a])++l' ⌝
               ∗ RevokedResources Wfixed C l'
               ∗ (∃ wastk wastk1 wastk2 wastk3,
                     a_stk ↦ₐ wastk
@@ -407,24 +407,24 @@ Section switcher_helper.
                                                            )
                                                          ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ φ (W0', C, WInt 0))
                                                         )
-                                                      ∗ rel C a p φ
+                                                      ∗ rel C (LNonHeap a) p φ
                 )
           ))%I with "[Hclose_list_res]" as "H".
     { apply NoDup_app in Hnodup_revoked as (Hnodup_revoked & ? & ?).
       apply elem_of_Permutation in Hastk_unk as [l0 Hl0].
       rewrite Hl0 in Hastk1_unk,Hastk2_unk,Hastk3_unk.
-      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
-      apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
-      apply elem_of_cons in Hastk1_unk as [Hcontra | Hastk1_unk]; first (subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
+      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
+      apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
+      apply elem_of_cons in Hastk1_unk as [Hcontra | Hastk1_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
 
       apply elem_of_Permutation in Hastk1_unk as [l1 Hl1].
       rewrite Hl1 in Hastk2_unk,Hastk3_unk.
-      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
-      apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
+      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
+      apply elem_of_cons in Hastk2_unk as [Hcontra | Hastk2_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
 
       apply elem_of_Permutation in Hastk2_unk as [l2 Hl2].
       rewrite Hl2 in Hastk3_unk.
-      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
+      apply elem_of_cons in Hastk3_unk as [Hcontra | Hastk3_unk]; first (injection Hcontra as Hcontra; subst a_stk; exfalso; clear -Hcontra He_a1; solve_addr).
 
       apply elem_of_Permutation in Hastk3_unk as [l3 Hl3].
 
@@ -432,10 +432,10 @@ Section switcher_helper.
       clear Hl3 Hl2 Hl1.
 
       iExists l3.
-      iSplit; first iFrame "%".
+      iSplit; first (iPureIntro; exact Hl0).
       rewrite /RevokedResources.
       iDestruct (big_opL_permutation with "Hclose_list_res") as "Hclose_list_res"; first (symmetry; done).
-      iDestruct (big_sepL_app _ [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a] l3 with "Hclose_list_res") as "[Hframe $]".
+      iDestruct (big_sepL_app _ (LNonHeap <$> [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]) l3 with "Hclose_list_res") as "[Hframe $]".
       assert (Forall (λ a, is_heap_address a = false)
         [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]) as Hnonheap.
       { apply Forall_forall. intros a Ha.
@@ -577,13 +577,13 @@ Section switcher_helper.
 
     Lemma world_interp_stack_fixing
       (Wcur W0 : WORLD) (C : CmptName)
-      (a_stk4 b_stk csp_b csp_e : Addr) (l : list Addr)
+      (a_stk4 b_stk csp_b csp_e : Addr) (l : list LAddr)
       ccrel
       :
 
       let a_stk := (csp_b ^+ -4)%a in
-      let Wfixed := close_list (l ++ finz.seq_between csp_b csp_e) Wcur in
-      let closing_region := finz.seq_between csp_b csp_e in
+      let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur in
+      let closing_region := LNonHeap <$> finz.seq_between csp_b csp_e in
 
       ((csp_b ^+ -4) ^+ 3 < csp_e)%a ->
       (b_stk <= csp_b ^+ -4)%a ->
@@ -619,7 +619,7 @@ Section switcher_helper.
       assert (heap_wf (heap_std W0)) as Hheap_wf_0.
       { eapply related_sts_heap_std_wf_back; [exact (proj2 (proj2 (proj2 Hrelated_pub_W0_Wfixed)))|exact Hheap_wf_fixed]. }
 
-      iAssert (▷ close_list_resources C W0 (finz.seq_between csp_b csp_e) false)%I
+      iAssert (▷ close_list_resources C W0 (LNonHeap <$> finz.seq_between csp_b csp_e) false)%I
         with "[Hstk]" as "Hstk".
       {
         replace a_stk4 with (a_stk ^+4)%a by (subst a_stk; solve_addr+Ha_stk4 He_a1).
@@ -642,7 +642,7 @@ Section switcher_helper.
           apply elem_of_finz_seq_between in Hx. solve_addr. }
         iDestruct (write_allowed_inv_full_cap with "Hvalid") as "-#H"; auto.
         iClear "#"; clear -Hrelated_pub_W0_Wfixed Hlive_stk.
-        rewrite /region_pointsto.
+        rewrite /region_pointsto /close_list_resources big_sepL_fmap.
         rewrite big_sepL2_replicate_r; last by rewrite finz_seq_between_length.
         iDestruct (big_sepL_sep with "[$Hstk $H]") as "H".
         iNext.
@@ -691,7 +691,7 @@ Section switcher_helper.
         iDestruct (world_interp_rel_status_some with "Hworld_interp Hrel3")
           as "[Hworld_interp %Hstatus3]".
         iAssert (close_list_resources C Wfixed
-          [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a] false)
+          (LNonHeap <$> [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]) false)
           with "[Hstk' Hdata0 Hdata1 Hdata2 Hdata3]" as "Hframe".
         {
         cbn in *.
@@ -769,14 +769,14 @@ Section switcher_helper.
           by apply related_sts_pub_refl_world.
         iDestruct (world_interp_close_resources_to_RevokedResources Wcur Wfixed C
           (l ++ closing_region)
-          [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]
+          (LNonHeap <$> [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a])
           Hrelated_refl with "Hworld_interp Hframe") as "[Hworld_interp Hframe]".
         iMod (world_interp_restore Wcur C (l ++ closing_region)
           with "[$Hworld_interp Hclose_list_res Hframe Hstk]") as "$"; last done.
         rewrite /RevokedResources big_sepL_app.
         iSplitR "Hstk"; last done.
         iApply (big_opL_permutation (o := bi_sep) _
-          ([a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a] ++ l') l);
+          ((LNonHeap <$> [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]) ++ l') l);
           first (symmetry; exact Hl).
         rewrite big_sepL_app. iFrame.
       - iFrame "Hstk'".

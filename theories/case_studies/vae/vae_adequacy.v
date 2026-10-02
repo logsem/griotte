@@ -176,7 +176,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_invg: na_invariants.na_invG Σ}.
-  Context {sts_preg: STS_preG Addr region_type OType Word Σ}.
+  Context {sts_preg: STS_preG LAddr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -654,7 +654,7 @@ Section Adequacy.
     | H: _ |- context [  (world_interp ?W C) ] => set (W2 := W)
     end.
 
-    assert (Forall (fun a => a ∉ dom (std W2))
+    assert (Forall (fun a => LNonHeap a ∉ dom (std W2))
               (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))) as Hswitcher_W4.
     { apply Forall_forall; intros a Ha; cbn.
       pose proof switcher_cmpt_disjoints as (_ & Hc).
@@ -729,7 +729,7 @@ Section Adequacy.
       iSplit; first (iNext ; by iApply zcond_interp_in_mem).
       iSplit; first (iNext ; by iApply rcond_interp_in_mem).
       iSplit; first (iNext ; by iApply wcond_interp_in_mem).
-      assert ((std Winit_C) !! a = Some Temporary).
+      assert ((std Winit_C) !! LNonHeap a = Some Temporary).
       { subst Winit_C.
         apply list_elem_of_lookup_2 in Ha.
         rewrite std_sta_update_multiple_lookup_in_i; auto.
@@ -907,7 +907,7 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type OType Word ; relPreΣ
+              ; STS_preΣ LAddr region_type OType Word ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)
       ]).
   eapply (@vae_adequacy' Σ cnames B); eauto; try typeclasses eauto.

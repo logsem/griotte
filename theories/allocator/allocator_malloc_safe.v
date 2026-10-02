@@ -13,7 +13,7 @@ Section Heap_Temporal_Safety_Interp.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -122,7 +122,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hctp" as (wctp') "Hctp".
       iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wfixed := close_list
-        (l ++ finz.seq_between (a_stk ^+ 4)%a e_stk) (revoke W)).
+        (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
       destruct Htemps as [Hnodup Htemps].
       iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld")
         as %Hheap_wf_cur.
@@ -175,7 +175,7 @@ Section Heap_Temporal_Safety_Interp.
         iDestruct "Hctp" as (wctp') "Hctp".
         iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
         set (Wfixed := close_list
-          (l ++ finz.seq_between (a_stk ^+ 4)%a e_stk) (revoke W)).
+          (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
         destruct Htemps as [Hnodup Htemps].
         iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld")
           as %Hheap_wf_cur.
@@ -232,13 +232,13 @@ Section Heap_Temporal_Safety_Interp.
               case_decide; [reflexivity|congruence].
             + apply elem_of_finz_seq_between in Ha. exact Ha.
           - reflexivity. }
-        assert (Forall (λ a, std Walloc !! a = None)
+        assert (Forall (λ a, std Walloc !! LNonHeap a = None)
           (finz.seq_between b e)) as Hstd_none_alloc.
         { apply Forall_forall. intros a Ha.
           apply Forall_forall with (x := a) in Hstd_none; last exact Ha.
-          destruct (std Walloc !! a) eqn:Hlook; last reflexivity.
+          destruct (std Walloc !! LNonHeap a) eqn:Hlook; last reflexivity.
           exfalso. apply Hstd_none.
-          apply (proj2 (elem_of_dom (std (revoke W)) a)).
+          apply (proj2 (elem_of_dom (std (revoke W)) (LNonHeap a))).
           exists r. exact Hlook. }
         iMod (hts_world_heap_allocate (revoke W) C b e (id, 0%Z)
           Hfresh with "Hreceipt Hworld") as "Hworld".
@@ -319,7 +319,7 @@ Section Heap_Temporal_Safety_Interp.
           iPureIntro. apply std_sta_update_multiple_lookup_in_i.
           exact (list_elem_of_lookup_2 _ _ _ Ha). }
         (* Close the caller's temporary regions in the extended world. *)
-        set (closing := l ++ finz.seq_between (a_stk ^+ 4)%a e_stk).
+        set (closing := l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)).
         set (Wfixed := close_list closing Wshare).
         assert (related_sts_pub_world Wshare Wfixed) as Hshare_fixed.
         { subst Wfixed. apply close_list_related_sts_pub. }

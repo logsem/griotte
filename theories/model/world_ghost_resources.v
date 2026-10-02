@@ -2,7 +2,7 @@ From iris.algebra Require Import gmap agree auth excl csum excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From griotte Require Export stdpp_extra griotte_lang.
-From griotte Require Export sts world_std_sts.
+From griotte Require Export sts world_std_sts region_keys.
 Import uPred.
 
 (** CMRA for heap and its predicates. Contains: *)
@@ -12,9 +12,9 @@ Import uPred.
 
 (** REL: saved predicates associating Address to gname and permission *)
 Definition relUR : ucmra :=
-  (gmapUR Addr (agreeR (leibnizO (gname * Perm)))).
+  (gmapUR LAddr (agreeR (leibnizO (gname * Perm)))).
 Definition relT :=
-  (gmap Addr (leibnizO (gname * Perm))).
+  (gmap LAddr (leibnizO (gname * Perm))).
 
 Class relGpreS Σ {Cname : CmptNameG} :=
   RelGpreS {
@@ -43,7 +43,7 @@ Proof. solve_inG. Qed.
 Section REL_defs.
   Context {Σ:gFunctors} {Cname : CmptNameG} {relg : relGS Σ}.
 
-  Definition REL_def (C : CmptName) (a : Addr) (γ : gname) (p : Perm) : iProp Σ :=
+  Definition REL_def (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) : iProp Σ :=
     own (γrel C) (◯ {[ a := to_agree (γ,p) ]}).
   Definition REL_aux : { x | x = @REL_def }. by eexists. Qed.
   Definition REL := proj1_sig REL_aux.
@@ -55,7 +55,7 @@ Section REL_defs.
   Definition RELS := proj1_sig RELS_aux.
   Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
 
-  Definition rel_def (C : CmptName) (a : Addr) (p : Perm)
+  Definition rel_def (C : CmptName) (a : LAddr) (p : Perm)
     (φ : (WorldT * CmptName * Word) -> iProp Σ)
     : iProp Σ :=
     (∃ (γpred : gnameO), REL C a γpred p ∗ saved_pred_own γpred DfracDiscarded φ)%I.
@@ -101,18 +101,18 @@ Section rel.
 
   Context {Σ:gFunctors}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType Word Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
 
-  Global Instance REL_persistent (C : CmptName) (a : Addr) (γ : gname) (p : Perm) :
+  Global Instance REL_persistent (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) :
     Persistent (REL C a γ p).
   Proof. rewrite REL_eq /REL_def.
          apply _.
   Qed.
 
-  Global Instance rel_persistent (C : CmptName) (a : Addr) (p : Perm)
+  Global Instance rel_persistent (C : CmptName) (a : LAddr) (p : Perm)
     (φ : (WORLD * CmptName * Word) -> iProp Σ) :
     Persistent (rel C a p φ).
   Proof. rewrite rel_eq /rel_def REL_eq /REL_def.
@@ -122,7 +122,7 @@ Section rel.
 
   Lemma reg_in
     (C : CmptName) (M : relT)
-    (a : Addr) (γ : gnameO) (p : leibnizO Perm) :
+    (a : LAddr) (γ : gnameO) (p : leibnizO Perm) :
     RELS C M ∗ REL C a γ p
     -∗ ⌜M = <[a := (γ,p)]>(delete a M)⌝.
   Proof.
@@ -147,7 +147,7 @@ Section rel.
     done.
   Qed.
 
-  Lemma reg_get (C : CmptName) (M : relT) (a : Addr)
+  Lemma reg_get (C : CmptName) (M : relT) (a : LAddr)
     (γ : gnameO) (p : leibnizO Perm) :
     RELS C M ∧ ⌜M !! a = Some (γ,p)⌝
     ==∗
@@ -169,7 +169,7 @@ Section rel.
 
   Lemma update_RELS {invg: invGS Σ}
     (E : coPset) (C : CmptName) (M : relT)
-    (a : Addr) (γ : gname) (p : Perm) :
+    (a : LAddr) (γ : gname) (p : Perm) :
     M !! a = None ->
     RELS C M ={E}=∗
     RELS C (<[a := (γ,p)]> M) ∗ REL C a γ p.
@@ -309,7 +309,7 @@ Proof. solve_inG. Qed.
 Section Store.
   Context `{!sealStoreG Σ}
       {Cname : CmptNameG}
-      {stsg : STSG Addr region_type OType Word Σ}
+      {stsg : STSG LAddr region_type OType Word Σ}
       {relg : relGS Σ}.
   Implicit Types W : WORLD.
 
