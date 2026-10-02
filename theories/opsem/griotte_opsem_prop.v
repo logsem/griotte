@@ -225,4 +225,58 @@ Qed.
     all: try apply updatePC_gen_some in Heqo as [φ' Heqo]; eauto.
   Qed.
 
+  (*--- The revoker's sweep ---*)
+
+  (* The sweep untags a word iff the Load filter strips it. *)
+  Lemma sweep_word_quarantined shadow w base :
+    heap_cap_base w = Some base →
+    shadow !! base = Some ShadowQuarantined →
+    sweep_word shadow w = clear_tag w.
+  Proof. rewrite /sweep_word. by intros -> ->. Qed.
+
+  Lemma sweep_word_unchanged shadow w :
+    (∀ base, heap_cap_base w = Some base → shadow !! base ≠ Some ShadowQuarantined) →
+    sweep_word shadow w = w.
+  Proof.
+    rewrite /sweep_word. intros Hnq.
+    destruct (heap_cap_base w) as [base|] eqn:Hbase; last done.
+    specialize (Hnq base eq_refl).
+    destruct (shadow !! base) as [[]|]; done.
+  Qed.
+
+  Lemma sweep_word_nonheap shadow w :
+    heap_cap_base w = None → sweep_word shadow w = w.
+  Proof. rewrite /sweep_word. by intros ->. Qed.
+
+  Lemma sweep_word_cases shadow w :
+    sweep_word shadow w = w ∨ sweep_word shadow w = clear_tag w.
+  Proof.
+    rewrite /sweep_word.
+    destruct (heap_cap_base w); last by left.
+    destruct (shadow !! _) as [[]|]; auto.
+  Qed.
+
+  Lemma lookup_sweep_mem shadow m a :
+    sweep_mem shadow m !! a = sweep_word shadow <$> (m !! a).
+  Proof. by rewrite /sweep_mem lookup_fmap. Qed.
+
+  Lemma dom_sweep_mem shadow m :
+    dom (sweep_mem shadow m) = dom m.
+  Proof. by rewrite /sweep_mem dom_fmap_L. Qed.
+
+  Lemma revoker_sweep_reg φ : reg (revoker_sweep φ) = reg φ.
+  Proof. done. Qed.
+
+  Lemma revoker_sweep_sreg φ : sreg (revoker_sweep φ) = sreg φ.
+  Proof. done. Qed.
+
+  Lemma revoker_sweep_mem φ : mem (revoker_sweep φ) = sweep_mem (shadowtbl φ) (mem φ).
+  Proof. done. Qed.
+
+  Lemma revoker_sweep_shadowtbl φ : shadowtbl (revoker_sweep φ) = shadowtbl φ.
+  Proof. done. Qed.
+
+  Lemma dom_revoker_sweep_mem φ : dom (mem (revoker_sweep φ)) = dom (mem φ).
+  Proof. apply dom_sweep_mem. Qed.
+
 End opsem_prop.

@@ -42,7 +42,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [ [Hr Hsr] Hm] Hst] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[ [ [ [Hr Hsr] Hm] Hst] Hmmio] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.

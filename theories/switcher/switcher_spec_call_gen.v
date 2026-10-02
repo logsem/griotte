@@ -36,7 +36,7 @@ Section Switcher.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
@@ -382,8 +382,9 @@ Section Switcher.
     iApply (clear_stack_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hstk]"); try solve_pure.
     { solve_addr+. }
     { solve_addr. }
-    { rewrite /disjoint_from_shadow elem_of_disjoint in Hstk_shadow |- *.
-      intros x Hx HR. eapply Hstk_shadow; last exact HR.
+    { pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
+      rewrite /disjoint_from_shadow elem_of_disjoint in Hstk_shadow' |- *.
+      intros x Hx HR. eapply Hstk_shadow'; last exact HR.
       apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.
       solve_addr. }
     iIntros "!> (HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
@@ -573,7 +574,7 @@ Section Switcher.
       iSplit;[iPureIntro; solve_addr+Ha_tstk2 Hlen_cstk|].
       iFrame; cbn.
       iFrame. iPureIntro.
-      rewrite Hastk_some. repeat split; auto; solve_addr. }
+      rewrite Hastk_some. repeat split; auto; try solve_addr; by destruct Hstk_shadow. }
 
     iApply ("Hexec" with "Halloc").
     iAssert (interp (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) C
@@ -581,7 +582,7 @@ Section Switcher.
     { iApply fixpoint_interp1_eq. iSimpl.
       iSplit; last first.
       { iPureIntro.
-        assert (disjoint_from_shadow (a_stk ^+ 4)%a e_stk ∧
+        assert (disjoint_from_mmio (a_stk ^+ 4)%a e_stk ∧
                 disjoint_from_heap (a_stk ^+ 4)%a e_stk) as [Hshadow Hheap].
         { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption].
           solve_addr. }
@@ -746,7 +747,7 @@ Section Switcher.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->

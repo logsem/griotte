@@ -325,7 +325,7 @@ Section Switcher_KtK_Call.
            |}
     in
 
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     is_shadow_address atbl_tgt = false ->
     is_shadow_address btbl_tgt = false ->
     is_shadow_address (btbl_tgt ^+ 1)%a = false ->
@@ -605,8 +605,9 @@ Section Switcher_KtK_Call.
     iApply (clear_stack_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hstk]"); try solve_pure.
     { solve_addr+. }
     { solve_addr. }
-    { rewrite /disjoint_from_shadow elem_of_disjoint in Hstk_shadow |- *.
-      intros x Hx HR. eapply Hstk_shadow; last exact HR.
+    { pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
+      rewrite /disjoint_from_shadow elem_of_disjoint in Hstk_shadow' |- *.
+      intros x Hx HR. eapply Hstk_shadow'; last exact HR.
       apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.
       solve_addr. }
     iIntros "!> (HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
@@ -702,8 +703,7 @@ Section Switcher_KtK_Call.
       iSplit;[iPureIntro;solve_addr+Ha_tstk1 Hlen_cstk|].
       iFrame; cbn.
       iPureIntro.
-      repeat split; auto.
-      solve_addr+Hastk_bounds.
+      repeat split; auto; try solve_addr+Hastk_bounds; by destruct Hstk_shadow.
     }
     pose proof switcher_return_entry_point as Ha_return.
     replace (a_callee_call ^+ 1)%a with a_switcher_return by solve_addr+Ha_return Ha_callee_call Hcall.

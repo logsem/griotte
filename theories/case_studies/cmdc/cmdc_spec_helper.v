@@ -48,9 +48,9 @@ Section CMDC_Call_Phase.
          ct0 := WInt 0 ]} in
     let callee_stk_region := finz.seq_between (a_stk ^+ 4)%a e_stk in
     (shared_addr + 1)%a = Some shared_addr_e ->
-    is_shadow_address shared_addr = false ->
+    is_mmio_address shared_addr = false ->
     is_heap_address shared_addr = false ->
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     is_heap_cap wcgp = false ->
     is_heap_cap wcra = false ->
@@ -156,11 +156,18 @@ Section CMDC_Call_Phase.
       iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
       iSplitL; last first.
       { iPureIntro. split.
-        - rewrite /disjoint_from_shadow elem_of_disjoint.
-          intros a Ha Hr; apply elem_of_finz_seq_between in Ha, Hr.
-          assert (a = shared_addr) as -> by solve_addr+Ha Hshared_addr_e.
-          apply withinBounds_true_iff in Hr.
-          change (is_shadow_address shared_addr = true) in Hr; congruence.
+        - split.
+          + pose proof (not_mmio_not_shadow _ Hshared_shadow) as Hshared_shadow'.
+            rewrite /disjoint_from_shadow elem_of_disjoint.
+            intros a Ha Hr; apply elem_of_finz_seq_between in Ha, Hr.
+            assert (a = shared_addr) as -> by solve_addr+Ha Hshared_addr_e.
+            apply withinBounds_true_iff in Hr.
+            change (is_shadow_address shared_addr = true) in Hr; congruence.
+          + pose proof (not_mmio_not_revoker _ Hshared_shadow) as Hshared_rev.
+            intros Ha; apply elem_of_finz_seq_between in Ha.
+            assert (revoker_addr = shared_addr) as Heq by solve_addr+Ha Hshared_addr_e.
+            rewrite -Heq /is_revoker_address bool_decide_eq_false in Hshared_rev.
+            by apply Hshared_rev.
         - apply heap_cap_valid_disjoint.
           rewrite /disjoint_from_heap elem_of_disjoint.
           intros a Ha Hr; apply elem_of_finz_seq_between in Ha, Hr.

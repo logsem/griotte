@@ -42,7 +42,7 @@ Section HTS_Spec_Dangling.
     is_heap_address pc_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     not_heap_range cgp_b cgp_e ->
-    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     hts_ctx ∗

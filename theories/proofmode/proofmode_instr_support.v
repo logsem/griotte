@@ -294,6 +294,9 @@ Ltac instr_auto_solve_nonshadow_general :=
   | H : disjoint_from_shadow ?b ?e |- is_shadow_address ?a = false =>
       apply (disjoint_from_shadow_not_in b e a H);
       solve [assumption | instr_auto_solve_within_bounds]
+  | H : disjoint_from_mmio ?b ?e |- is_shadow_address ?a = false =>
+      apply (disjoint_from_shadow_not_in b e a (disjoint_from_mmio_shadow b e H));
+      solve [assumption | instr_auto_solve_within_bounds]
   end.
 
 Ltac instr_auto_addr_base a :=
@@ -311,6 +314,10 @@ Ltac instr_auto_solve_nonshadow :=
       | H : disjoint_from_shadow ?b ?e |- _ =>
         constr_eq base b;
         apply (disjoint_from_shadow_not_in b e a H);
+        solve [assumption | instr_auto_solve_within_bounds]
+      | H : disjoint_from_mmio ?b ?e |- _ =>
+        constr_eq base b;
+        apply (disjoint_from_shadow_not_in b e a (disjoint_from_mmio_shadow b e H));
         solve [assumption | instr_auto_solve_within_bounds]
       end
     end]

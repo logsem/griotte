@@ -41,7 +41,7 @@ Section Switcher.
     let a_stk4 := (a_stk ^+ 4)%a in
     let wct1_caller := WSealed ot_switcher w_entry_point in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
@@ -156,7 +156,7 @@ Section Switcher.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->

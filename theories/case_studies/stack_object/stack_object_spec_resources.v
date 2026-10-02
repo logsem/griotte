@@ -693,13 +693,9 @@ Section Stack_Object_Region_Resources.
       iDestruct (interp_cap_disjoint_wl with "Hinterp_stack") as %[Hshadow Hheap]; first done.
       iSplit; last first.
       { iPureIntro. split; first done.
-        rewrite /disjoint_from_shadow elem_of_disjoint in Hshadow |- *.
         rewrite /disjoint_from_heap elem_of_disjoint in Hheap |- *.
         split.
-        - intros x Hx Hregion.
-          eapply Hshadow; [|exact Hregion].
-          apply elem_of_finz_seq_between.
-          apply elem_of_finz_seq_between in Hx. solve_addr.
+        - eapply disjoint_from_mmio_weaken; last exact Hshadow; solve_addr.
         - apply heap_cap_valid_disjoint.
           intros x Hx Hregion.
           eapply Hheap; [|exact Hregion].

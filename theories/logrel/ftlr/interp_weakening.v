@@ -597,11 +597,8 @@ Section fundamental.
     iDestruct "HA" as "[A %Hconditions]".
     destruct Hconditions as [Hpwl_cond Hregions].
     destruct Hregions as [Hshadow Hheap].
-    assert (Hshadow' : disjoint_from_shadow b' e').
-    { rewrite /disjoint_from_shadow elem_of_disjoint in Hshadow |- *.
-      intros x Hx Hshadowx. eapply Hshadow; last exact Hshadowx.
-      apply elem_of_finz_seq_between in Hx.
-      apply elem_of_finz_seq_between. solve_addr. }
+    assert (Hshadow' : disjoint_from_mmio b' e').
+    { eapply (disjoint_from_mmio_weaken b e); [solve_addr | solve_addr | exact Hshadow]. }
     have Hheap' := heap_cap_valid_perm W p p' b' e' Hp
       (heap_cap_valid_subseg W p b e b' e' Hwf Hb He Hheap).
     have Hregions' := conj Hshadow' Hheap'.
@@ -708,12 +705,9 @@ Section fundamental.
     iDestruct "HA" as "[A %Hconditions]".
     destruct Hconditions as [Hpwl_cond Hregions].
     destruct Hregions as [Hshadow Hheap].
-    assert (Hregions' : disjoint_from_shadow b' e' ∧ disjoint_from_heap b' e').
+    assert (Hregions' : disjoint_from_mmio b' e' ∧ disjoint_from_heap b' e').
     { split; last exact (proj2 Hsentry).
-      rewrite /disjoint_from_shadow elem_of_disjoint in Hshadow |- *.
-      intros x Hx Hshadowx. eapply Hshadow; last exact Hshadowx.
-      apply elem_of_finz_seq_between in Hx.
-      apply elem_of_finz_seq_between. solve_addr. }
+      eapply (disjoint_from_mmio_weaken b e); [solve_addr | solve_addr | exact Hshadow]. }
     iSplit; first done.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.

@@ -196,13 +196,19 @@ Section HTS_World.
         - by intro.
         - iPureIntro. rewrite hts_Wshare_std. reflexivity. }
       iPureIntro. split.
-      { rewrite /disjoint_from_shadow elem_of_disjoint.
-        intros a Ha Hsh.
-        pose proof heap_shadow_disjoint as Hdisj.
-        rewrite elem_of_disjoint in Hdisj.
-        eapply Hdisj; last exact Hsh.
-        apply elem_of_finz_seq_between.
-        apply elem_of_finz_seq_between in Ha.
+      { split.
+        { rewrite /disjoint_from_shadow elem_of_disjoint.
+          intros a Ha Hsh.
+          pose proof heap_shadow_disjoint as Hdisj.
+          rewrite elem_of_disjoint in Hdisj.
+          eapply Hdisj; last exact Hsh.
+          apply elem_of_finz_seq_between.
+          apply elem_of_finz_seq_between in Ha.
+          rewrite /hts_buffer_bounds in Hbounds. solve_addr. }
+        intros Hrev%elem_of_finz_seq_between.
+        pose proof revoker_not_heap as Hrev_heap.
+        apply not_true_iff_false in Hrev_heap.
+        apply Hrev_heap, withinBounds_true_iff.
         rewrite /hts_buffer_bounds in Hbounds. solve_addr. }
       intros _. rewrite /heap_cap_live Hb_heap hts_Wshare_heap_lookup //. }
     assert (related_sts_priv_world W_init_C (hts_Wshare W_init_C b))

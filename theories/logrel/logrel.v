@@ -179,15 +179,6 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
-  (** Empty bounds carry no authority, even when their base is in the heap. *)
-  Definition heap_authority_base (w : Word) : option Addr :=
-    match w with
-    | WCap _ _ _ b e _ | WSentry _ _ _ b e _
-    | WSealed _ (SCap _ _ _ b e _) =>
-        if decide (b < e)%a then heap_cap_base w else None
-    | _ => None
-    end.
-
   Definition filter_heap (W : WORLD) (w : Word) : Word :=
     match heap_authority_base w with
     | None => w
@@ -813,7 +804,7 @@ Section logrel.
                       ∧ (if writeAllowed p' then ▷ wcond P C interp else True)
                       ∧ monoReq W C a p' P
                       ∧ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
-                  ∗ ⌜disjoint_from_shadow b e ∧ heap_cap_valid W p b e⌝
+                  ∗ ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e⌝
               | _ => False
               end)%I.
   Solve All Obligations with auto;solve_proper.
@@ -968,9 +959,9 @@ Section logrel.
     | |- context [WCap _ ?p ?g _ _ _] =>
         change (dist n
           (interp_cap_body x W C p g b e ∗
-            ⌜disjoint_from_shadow b e ∧ heap_cap_valid W p b e⌝)%I
+            ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e⌝)%I
           (interp_cap_body y W C p g b e ∗
-            ⌜disjoint_from_shadow b e ∧ heap_cap_valid W p b e⌝)%I);
+            ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e⌝)%I);
         f_equiv; exact (interp_cap_body_contractive W C p g b e n x y Hdist)
     end.
   Qed.
@@ -1048,7 +1039,7 @@ Section logrel.
                 | |- context [WCap _ ?p ?g _ _ _] =>
                     change (Persistent
                       (interp_cap_body (fixpoint interp1) W C p g b e ∗
-                        ⌜disjoint_from_shadow b e ∧ heap_cap_valid W p b e⌝)%I);
+                        ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e⌝)%I);
                     apply _
                 end ].
     - change (Persistent
@@ -1115,7 +1106,7 @@ Section logrel.
                     ∗ monoReq W C a p' P
                     ∗ ⌜ if isWL p then region_state_pwl W a else region_state_nwl W a g⌝)
                ∗ ⌜(if isWL p then g = Local else True) ∧
-                    disjoint_from_shadow b e ∧ heap_cap_valid W p b e⌝)%I).
+                    disjoint_from_mmio b e ∧ heap_cap_valid W p b e⌝)%I).
   Proof.
     pose proof (interp_cap_body_eq interp W C p g b e) as Hbody.
     destruct p as [rx wp dl dro].
@@ -1129,6 +1120,9 @@ Section logrel.
     all: try (rewrite (comm bi_sep _ False%I) bi.sep_False).
     all: rewrite ?bi.sep_False ?bi.False_sep.
     all: rewrite -?(bi.persistent_and_sep ⌜disjoint_from_shadow b e⌝
+      ⌜revoker_addr ∉ finz.seq_between b e⌝) -?bi.pure_and.
+    all: rewrite -?(bi.persistent_and_sep
+      ⌜disjoint_from_shadow b e ∧ revoker_addr ∉ finz.seq_between b e⌝
       ⌜heap_cap_valid W _ b e⌝) -?bi.pure_and.
     all: reflexivity.
   Qed.
@@ -1137,7 +1131,7 @@ Section logrel.
   Lemma interp_cap_regions (W : WORLD) (C : CmptName) p g b e a :
     isO p = false →
     interp W C (WCap true p g b e a) -∗
-    ⌜disjoint_from_shadow b e ∧ heap_cap_valid W p b e⌝.
+    ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e⌝.
   Proof.
     iIntros (HnonO) "Hinterp".
     rewrite fixpoint_interp1_eq interp1_eq HnonO.
@@ -1179,7 +1173,7 @@ Section logrel.
   Lemma interp_cap_disjoint (W : WORLD) (C : CmptName) p g b e a :
     executeAllowed p = true →
     interp W C (WCap true p g b e a) -∗
-    ⌜disjoint_from_shadow b e ∧ disjoint_from_heap b e⌝.
+    ⌜disjoint_from_mmio b e ∧ disjoint_from_heap b e⌝.
   Proof.
     iIntros (Hexec) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap];
@@ -1198,7 +1192,7 @@ Section logrel.
   Lemma interp_cap_disjoint_wl (W : WORLD) (C : CmptName) p g b e a :
     isWL p = true →
     interp W C (WCap true p g b e a) -∗
-    ⌜disjoint_from_shadow b e ∧ disjoint_from_heap b e⌝.
+    ⌜disjoint_from_mmio b e ∧ disjoint_from_heap b e⌝.
   Proof.
     iIntros (Hwl) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap];
@@ -1221,7 +1215,18 @@ Section logrel.
   Proof.
     iIntros (HnonO Hbounds) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap]; auto.
-    iPureIntro. eapply disjoint_from_shadow_not_in; eauto.
+    iPureIntro. eapply disjoint_from_shadow_not_in; last eauto.
+    by apply disjoint_from_mmio_shadow.
+  Qed.
+
+  Lemma interp_cap_not_mmio (W : WORLD) (C : CmptName) p g b e a a' :
+    isO p = false →
+    withinBounds b e a' = true →
+    interp W C (WCap true p g b e a) -∗ ⌜is_mmio_address a' = false⌝.
+  Proof.
+    iIntros (HnonO Hbounds) "Hinterp".
+    iDestruct (interp_cap_regions with "Hinterp") as %[Hmmio Hheap]; auto.
+    iPureIntro. eapply disjoint_from_mmio_not_in; eauto.
   Qed.
 
   (* Inversion lemmas about interp  *)
@@ -1664,15 +1669,6 @@ Section logrel.
   Proof.
     rewrite /load_word. destruct (isDRO p), (isDL p);
       by rewrite ?filter_heap_readonly ?filter_heap_deeplocal ?filter_heap_borrow.
-  Qed.
-
-  Lemma heap_authority_base_heap_cap_base (raw : Word) base :
-    heap_authority_base raw = Some base → heap_cap_base raw = Some base.
-  Proof.
-    destruct raw; unfold heap_authority_base; simpl; try discriminate.
-    - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
-    - case_decide; auto; discriminate.
-    - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
   Qed.
 
   Lemma interp_in_mem_shadow_result_gen Wworld W C opened (p : Perm) raw actual alloc_map :

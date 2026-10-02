@@ -115,7 +115,7 @@ Section Switcher_KtK.
     let wct1_caller :=
       WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     disjoint_from_heap b_stk e_stk ->
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     is_shadow_address atbl_tgt = false ->
     is_shadow_address btbl_tgt = false ->
     is_shadow_address (btbl_tgt ^+ 1)%a = false ->

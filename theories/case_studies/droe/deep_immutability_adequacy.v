@@ -195,6 +195,9 @@ Section Adequacy.
                     & C_imports & C_code & C_data & C_exp_tbl
                     & Hstack
                    ).
+    assert (mem_avoids_mmio m) as Hmmio_init.
+    { rewrite Hm /mk_initial_memory /mk_initial_program_memory.
+      solve_mem_avoids_mmio_initial. }
     set (
         C_f :=
        (WCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
@@ -483,7 +486,7 @@ Section Adequacy.
         iSplit; last done.
         iApply (monoReq_interp_in_mem _ _ _ _ Temporary); done. }
       iPureIntro; split.
-      { apply stack_disjoint_from_shadow. }
+      { apply stack_disjoint_from_mmio. }
       apply heap_cap_valid_disjoint, stack_disjoint_from_heap.
     }
 
@@ -525,7 +528,7 @@ Section Adequacy.
                         ]") as "Hspec"; eauto.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
-    { exact (cmpt_cgp_disjoint_from_shadow main_cmpt). }
+    { exact (cmpt_cgp_disjoint_from_mmio main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
     { rewrite !lookup_delete_ne // (Hreg cra); try (clear; set_solver). }
     { rewrite !lookup_delete_ne // (Hreg cs1); try (clear; set_solver). }
@@ -643,13 +646,14 @@ Section Adequacy.
     { done. }
 
     iModIntro.
-    iExists (fun σ _ _ => (((gen_heap_interp (griotte_opsem.reg σ) ∗ gen_heap_interp (griotte_opsem.sreg σ))
-      ∗ gen_heap_interp (mem σ)) ∗ gen_heap_interp (shadowtbl σ)))%I.
-    iExists (fun _ => True)%I. cbn. iFrame.
+    iExists (fun σ _ _ => ((((gen_heap_interp (griotte_opsem.reg σ) ∗ gen_heap_interp (griotte_opsem.sreg σ))
+      ∗ gen_heap_interp (mem σ)) ∗ gen_heap_interp (shadowtbl σ)))
+      ∗ ⌜mem_avoids_mmio (griotte_opsem.mem σ)⌝)%I.
+    iExists (fun _ => True)%I. cbn. iFrame "% ∗".
     iSplitL "Hspec".
     { iApply (wp_mono with "Hspec"); iIntros (?) "?"; done. }
 
-    iIntros "[[[Hreg' Hsreg'] Hmem'] Hshadow']". iExists (⊤ ∖ ↑flagN).
+    iIntros "[[[[Hreg' Hsreg'] Hmem'] Hshadow'] _]". iExists (⊤ ∖ ↑flagN).
     iInv flagN as ">Hflag" "Hclose".
     iDestruct (gen_heap_valid with "Hmem' Hflag") as %Hm'_flag.
     iModIntro. iPureIntro. rewrite /state_is_good //=.

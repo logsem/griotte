@@ -337,7 +337,7 @@ Section fundamental.
     (* We continue the execution *)
     focus_block 13 "Hcode" as a7 Ha7 "Hcode" "Hcont"; iHide "Hcont" as hcont.
     iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]");
-      [reflexivity|exact H1|exact Hb_a4|solve_addr+He_a1|exact Hstk_shadow|discriminate|discriminate|].
+      [reflexivity|exact H1|exact Hb_a4|solve_addr+He_a1|exact (disjoint_from_mmio_shadow _ _ Hstk_shadow)|discriminate|discriminate|].
     iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.
 

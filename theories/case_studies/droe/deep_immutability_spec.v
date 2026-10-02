@@ -23,7 +23,7 @@ Section DROE.
   Local Lemma droe_extend_data_world {E : coPset}
       (W_init_C : WORLD) (cgp_b cgp_e : Addr) :
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
-    disjoint_from_shadow cgp_b cgp_e ->
+    disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
     cgp_b ∉ dom (std W_init_C) ->
     (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
@@ -228,7 +228,7 @@ Section DROE.
 
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
-    disjoint_from_shadow cgp_b cgp_e ->
+    disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
     (* [cra] is saved in [cs0], while [cs1] is left unchanged across the call.
        Requiring these incoming words to be nonheap avoids shadow ownership;

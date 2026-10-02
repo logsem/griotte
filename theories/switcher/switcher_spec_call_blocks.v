@@ -120,7 +120,7 @@ Section Switcher_Call_Blocks.
     stk_mem :
     let switcher_instrs_2 := (switcher_instrs_n 2) in
     let len_switcher_2 := length switcher_instrs_2 in
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_2)%a ->
 
     PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
@@ -623,7 +623,7 @@ Section Switcher_Call_Blocks.
     wcgp wcra wcs0 wcs1 b_stk e_stk a_stk :
     let switcher_instrs_16 := (switcher_instrs_n 16) in
     let len_switcher_16 := length switcher_instrs_16 in
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
 
     (pc_a ^+ 10 + -36)%a = Some (pc_a ^+ -26)%a ->
@@ -684,7 +684,7 @@ Section Switcher_Call_Blocks.
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcgp $Hcsp $Hastk3 $Halloc]");
       [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcgp) "(%Hrcgp & HPC & Hi & Hcgp & Hcsp & Hastk3 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -697,7 +697,7 @@ Section Switcher_Call_Blocks.
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcra $Hcsp $Hastk2 $Halloc]");
       [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcra) "(%Hrcra & HPC & Hi & Hcra & Hcsp & Hastk2 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -710,7 +710,7 @@ Section Switcher_Call_Blocks.
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcs1 $Hcsp $Hastk1 $Halloc]");
       [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs1) "(%Hrcs1 & HPC & Hi & Hcs1 & Hcsp & Hastk1 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -723,7 +723,7 @@ Section Switcher_Call_Blocks.
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcs0 $Hcsp $Hastk0 $Halloc]");
       [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs0) "(%Hrcs0 & HPC & Hi & Hcs0 & Hcsp & Hastk0 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -747,7 +747,7 @@ Section Switcher_Call_Blocks.
     wcgp wcra wcs0 wcs1 b_stk e_stk a_stk :
     let switcher_instrs_16 := (switcher_instrs_n 16) in
     let len_switcher_16 := length switcher_instrs_16 in
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_16)%a ->
 
     (pc_a ^+ 10 + -36)%a = Some (pc_a ^+ -26)%a ->
@@ -813,7 +813,7 @@ Section Switcher_Call_Blocks.
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcgp $Hcsp $Hastk3 $Hworld $Halloc]");
       [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcgp) "(%Hrcgp & HPC & Hi & Hcgp & Hcsp & Hastk3 & Hworld)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -826,7 +826,7 @@ Section Switcher_Call_Blocks.
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcra $Hcsp $Hastk2 $Hworld $Halloc]");
       [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcra) "(%Hrcra & HPC & Hi & Hcra & Hcsp & Hastk2 & Hworld)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -839,7 +839,7 @@ Section Switcher_Call_Blocks.
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcs1 $Hcsp $Hastk1 $Hworld $Halloc]");
       [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs1) "(%Hrcs1 & HPC & Hi & Hcs1 & Hcsp & Hastk1 & Hworld)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -852,7 +852,7 @@ Section Switcher_Call_Blocks.
       _ _ _ _ _ _
       with "[$HPC $Hi $Hcs0 $Hcsp $Hastk0 $Hworld $Halloc]");
       [reflexivity|apply Forall_nil|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs0) "(%Hrcs0 & HPC & Hi & Hcs0 & Hcsp & Hastk0 & Hworld)".
     wp_pure. iSpecialize ("Hcode" with "[$]").

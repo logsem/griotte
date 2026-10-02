@@ -24,7 +24,7 @@ Section DLE.
   Local Lemma dle_prepare_world {E : coPset}
       (W : WORLD) (b e : Addr) (z : Z) :
     (b + 2)%a = Some e ->
-    disjoint_from_shadow b e ->
+    disjoint_from_mmio b e ->
     not_heap_range b e ->
     b ∉ dom (std W) ->
     (b ^+ 1)%a ∉ dom (std W) ->
@@ -175,7 +175,7 @@ Section DLE.
 
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
-    disjoint_from_shadow cgp_b cgp_e ->
+    disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
     Nswitcher ## Nassert ->
 

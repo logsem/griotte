@@ -796,9 +796,10 @@ Ltac instr_using dispatch hprog hlc :=
 
 (* Automatic selection treats every owned machine resource as input. This is
    deliberately conservative: an unrelated unresolved machine-word evar makes
-   automatic selection fail rather than allowing rule unification to choose it. *)
-Ltac instr_auto_ground x :=
-  let x' := eval cbv in x in without_evars x'.
+   automatic selection fail rather than allowing rule unification to choose it.
+   Evars occur syntactically, so the check does not normalise [x]: [cbv] on a
+   nested address such as [((a ^+ 1) ^+ 1) ^+ 1] grows exponentially. *)
+Ltac instr_auto_ground x := without_evars x.
 
 Ltac instr_auto_guard_env env :=
   lazymatch env with

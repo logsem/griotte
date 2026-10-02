@@ -280,12 +280,18 @@ Section Heap_Temporal_Safety_Interp.
           destruct Hbounds as (Hb & Hbe & He).
           intros Hbe'. rewrite Hb_heap Hlookup_b. cbn.
           repeat split; try reflexivity; solve_addr. }
-        assert (disjoint_from_shadow b e) as Hshadow.
-        { unfold disjoint_from_shadow. intros a Ha Hsa.
-          apply (heap_shadow_disjoint a); last exact Hsa.
-          apply elem_of_finz_seq_between in Ha.
-          apply elem_of_finz_seq_between.
-          destruct Hbounds as (Hb & Hbe & He). solve_addr. }
+        assert (disjoint_from_mmio b e) as Hshadow.
+        { split.
+          - unfold disjoint_from_shadow. intros a Ha Hsa.
+            apply (heap_shadow_disjoint a); last exact Hsa.
+            apply elem_of_finz_seq_between in Ha.
+            apply elem_of_finz_seq_between.
+            destruct Hbounds as (Hb & Hbe & He). solve_addr.
+          - intros Hrev%elem_of_finz_seq_between.
+            pose proof revoker_not_heap as Hrev_heap.
+            apply not_true_iff_false in Hrev_heap.
+            apply Hrev_heap, withinBounds_true_iff.
+            destruct Hbounds as (Hb & Hbe & He). solve_addr. }
         iAssert (interp Wshare C (WCap true RW Global b e b))
           with "[]" as "#Hinterp_result".
         { iEval (rewrite fixpoint_interp1_eq interp1_eq /=).

@@ -225,6 +225,7 @@ Section Switcher.
       iFrame.
     }
 
+    pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     iApply (clear_stack_spec with "[ - $HPC $Hcsp $Hct0 $Hct1 $Hcode $Hstk]"); eauto; [solve_addr+Hb_a4 He_a1|].
     iNext ; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hcode & Hstk)".
     unfocus_block "Hcode" "Hcont" as "Hcode"; subst hcont.

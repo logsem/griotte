@@ -223,9 +223,9 @@ Section region_alloc_cmpt.
   .
   Proof.
     intros * Himports Hcode Hdata C_code C_data.
-    pose proof (cmpt_pcc_disjoint_from_shadow C_cmpt) as Hpcc_shadow.
+    pose proof (cmpt_pcc_disjoint_from_mmio C_cmpt) as Hpcc_shadow.
     pose proof (cmpt_pcc_disjoint_from_heap C_cmpt) as Hpcc_heap.
-    pose proof (cmpt_cgp_disjoint_from_shadow C_cmpt) as Hcgp_shadow.
+    pose proof (cmpt_cgp_disjoint_from_mmio C_cmpt) as Hcgp_shadow.
     pose proof (cmpt_cgp_disjoint_from_heap C_cmpt) as Hcgp_heap.
     assert (∀ b e, disjoint_from_heap b e ->
       Forall (fun a => is_heap_address a = false) (finz.seq_between b e)) as Hnonheap.
@@ -340,8 +340,10 @@ Section region_alloc_cmpt.
           { intros a' Ha'. apply elem_of_finz_seq_between in Ha'.
             apply elem_of_finz_seq_between; solve_addr. }
           split.
-          - rewrite /disjoint_from_shadow in Hcgp_shadow |- *.
-            set_solver+Hbounds Hcgp_shadow.
+          - pose proof Hcgp_shadow as [Hcgp_sh Hcgp_rev]. split.
+            + rewrite /disjoint_from_shadow in Hcgp_sh |- *.
+              set_solver+Hbounds Hcgp_sh.
+            + set_solver+Hbounds Hcgp_rev.
           - apply heap_cap_valid_disjoint.
             rewrite /disjoint_from_heap in Hcgp_heap |- *.
             set_solver+Hbounds Hcgp_heap.
@@ -568,9 +570,9 @@ Section region_alloc_cmpt.
   .
   Proof.
     intros * Himports Hcode Hdata C_code C_data.
-    pose proof (cmpt_pcc_disjoint_from_shadow C_cmpt) as Hpcc_shadow.
+    pose proof (cmpt_pcc_disjoint_from_mmio C_cmpt) as Hpcc_shadow.
     pose proof (cmpt_pcc_disjoint_from_heap C_cmpt) as Hpcc_heap.
-    pose proof (cmpt_cgp_disjoint_from_shadow C_cmpt) as Hcgp_shadow.
+    pose proof (cmpt_cgp_disjoint_from_mmio C_cmpt) as Hcgp_shadow.
     pose proof (cmpt_cgp_disjoint_from_heap C_cmpt) as Hcgp_heap.
     iIntros "HC_imports HC_code HC_data Himport_interp Hworld_C".
     iApply (alloc_compartment_interp_rel W C_cmpt C Himports Hcode Hdata C_code C_data

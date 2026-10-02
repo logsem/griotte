@@ -46,7 +46,7 @@ Section HTS_Spec_Malloc.
     disjoint_from_shadow cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
-    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     dom rmap = all_registers_s ∖ {[ PC ; cgp ; csp]} ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->

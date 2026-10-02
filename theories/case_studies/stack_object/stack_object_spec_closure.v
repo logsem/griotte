@@ -283,6 +283,7 @@ Section SO.
 
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
+    pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_interp_C]")
         as (l_revoked_W0) "([%Hl_revoked_W0_nodup %Hl_revoked_W0_temporaries]
                  & Hworld_interp_C
@@ -362,7 +363,7 @@ Section SO.
     { destruct Htag_or_empty as [-> | Hempty].
       - iDestruct (interp_cap_regions with "Hinterp_wca0_W0") as %[Hshadow _].
         { eapply readAllowed_nonO; exact Hp. }
-        done.
+        iPureIntro. by apply disjoint_from_mmio_shadow.
       - iPureIntro. rewrite /disjoint_from_shadow finz_seq_between_empty;
           [apply disjoint_nil_l | solve_addr].
     }
@@ -776,7 +777,7 @@ Section SO.
 
     iApply (stack_object_assert_prep_block_spec
               with "[- $HPC $Hcsp $Hct0 $Hct1 $Hastk0 $Hcode]").
-    { exact Hstk_shadow. }
+    { exact Hstk_shadow'. }
     { solve_addr+Hastk1 Hastk2. }
     { eauto. }
     iNext.

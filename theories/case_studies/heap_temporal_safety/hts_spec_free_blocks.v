@@ -139,7 +139,7 @@ Section HTS_Spec_Free.
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     not_heap_range cgp_b cgp_e ->
-    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     hts_ctx ∗
@@ -185,7 +185,7 @@ Section HTS_Spec_Free.
     iApply (hts_reload_live_buffer_spec pc_b pc_e a_reload
       csp_b csp_e b _ v_b
       with "[- $Halloc $HPC $Hcsp $Hca0 $Hslot $Hb $Hblock]").
-    { exact Hstk_shadow. }
+    { exact (disjoint_from_mmio_shadow _ _ Hstk_shadow). }
     { solve_addr. }
     { exact Hstk_nonempty. }
     { by apply hts_buffer_heap_address. }

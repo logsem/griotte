@@ -230,6 +230,9 @@ Section Adequacy.
       & Hmain_static & Hmain_exports & Halloc_imports & Halloc_code
       & Halloc_data & Halloc_static & Halloc_exports & Hadv_imports
       & Hadv_code & Hadv_data & Hadv_static & Hadv_exports & Hstack).
+    assert (mem_avoids_mmio mem) as Hmmio_init.
+    { rewrite Hmem /hts_initial_memory /hts_initial_program_memory.
+      solve_mem_avoids_mmio_initial. }
     set (adv_f := SCap true RO Global
       (cmpt_exp_tbl_pcc hts_adv_cmpt)
       (cmpt_exp_tbl_entries_end hts_adv_cmpt)
@@ -831,7 +834,7 @@ Section Adequacy.
         iSplit; last done.
         iApply (monoReq_interp_in_mem _ _ _ _ Temporary); done. }
       iPureIntro; split.
-      { apply stack_disjoint_from_shadow. }
+      { apply stack_disjoint_from_mmio. }
       apply heap_cap_valid_disjoint, stack_disjoint_from_heap. }
 
     assert (is_heap_cap (WSealed ot_switcher adv_f) = false)
@@ -1000,14 +1003,15 @@ Section Adequacy.
     { done. }
 
     iModIntro.
-    iExists (fun σ _ _ => (((gen_heap_interp (griotte_opsem.reg σ) ∗
+    iExists (fun σ _ _ => ((((gen_heap_interp (griotte_opsem.reg σ) ∗
       gen_heap_interp (griotte_opsem.sreg σ)) ∗
       gen_heap_interp (griotte_opsem.mem σ)) ∗
-      gen_heap_interp (shadowtbl σ)))%I.
-    iExists (fun _ => True)%I. cbn. iFrame.
+      gen_heap_interp (shadowtbl σ)))
+      ∗ ⌜mem_avoids_mmio (griotte_opsem.mem σ)⌝)%I.
+    iExists (fun _ => True)%I. cbn. iFrame "% ∗".
     iSplitL "Hspec".
     { iApply (wp_mono with "Hspec"); iIntros (?) "?"; done. }
-    iIntros "[[[Hreg' Hsreg'] Hmem'] Hshadow']".
+    iIntros "[[[[Hreg' Hsreg'] Hmem'] Hshadow'] _]".
     iExists (⊤ ∖ ↑(htsN .@ "flag")).
     iInv (htsN .@ "flag") as ">Hflag" "Hclose".
     iDestruct (gen_heap_valid with "Hmem' Hflag") as %Hm_flag.
