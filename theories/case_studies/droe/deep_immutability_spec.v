@@ -9,7 +9,7 @@ Section DROE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -23,10 +23,10 @@ Section DROE.
   Local Lemma droe_extend_data_world {E : coPset}
       (W_init_C : WORLD) (cgp_b cgp_e : Addr) :
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
-    disjoint_from_shadow cgp_b cgp_e ->
+    disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
-    cgp_b ∉ dom (std W_init_C) ->
-    (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
+    LNonHeap cgp_b ∉ dom (std W_init_C) ->
+    LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
     world_interp (revoke W_init_C) C ∗
     cgp_b ↦ₐ WInt 42 ∗
     (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b
@@ -35,7 +35,7 @@ Section DROE.
       (<s[cgp_b := Permanent]s> (revoke W_init_C)) in
     ⌜related_sts_priv_world W_init_C W3⌝ ∗
     world_interp W3 C ∗
-    rel C cgp_b RO_DRO (safeC (interp_in_mem_dro_eq (WInt 42))) ∗
+    rel C (LNonHeap cgp_b) RO_DRO (safeC (interp_in_mem_dro_eq (WInt 42))) ∗
     rel C (cgp_b ^+ 1)%a RO_DRO
       (safeC (interp_in_mem_dro_eq
         (WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b))) ∗
@@ -151,7 +151,7 @@ Section DROE.
       as "(Hworld_interp_C & #Hrel_cgp_a)"; auto.
     { subst W1.
       cbn; rewrite dom_insert_L not_elem_of_union; split.
-      + rewrite not_elem_of_singleton; solve_addr+Hcgp_contiguous.
+      + rewrite not_elem_of_singleton; apply LNonHeap_ne; solve_addr+Hcgp_contiguous.
       + by rewrite -revoke_dom_eq.
     }
 
@@ -228,7 +228,7 @@ Section DROE.
 
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
-    disjoint_from_shadow cgp_b cgp_e ->
+    disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
     (* [cra] is saved in [cs0], while [cs1] is left unchanged across the call.
        Requiring these incoming words to be nonheap avoids shadow ownership;
@@ -244,8 +244,8 @@ Section DROE.
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    (cgp_b)%a ∉ dom (std W_init_C) ->
-    (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
+    LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
+    LNonHeap (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs cstk W_init_C C ->
@@ -342,7 +342,7 @@ Section DROE.
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜(std W_init_C) !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜(std W_init_C) !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_Winit_C_csp"); eauto. }
 
     iDestruct (interp_cap_disjoint_wl with "Hinterp_Winit_C_csp")
@@ -600,7 +600,7 @@ Section DROE.
       eapply region_state_pub_perm; eauto.
       rewrite std_sta_update_multiple_lookup_same_i; auto.
       subst W2 W1.
-      rewrite lookup_insert_ne; last solve_addr+Hcgp_contiguous.
+      rewrite lookup_insert_ne; last (apply LNonHeap_ne; solve_addr + Hcgp_contiguous).
       by rewrite lookup_insert_eq.
     }
     iEval (cbn) in "PermRes_cgp_b".

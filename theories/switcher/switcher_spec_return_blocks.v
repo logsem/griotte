@@ -9,7 +9,7 @@ Section Switcher_Return_Blocks.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType Word Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -169,7 +169,7 @@ Section Switcher_Return_Blocks.
     wcgp_old wcra_old wcs1_old wcs0_old wct0 wct1 :
     let switcher_instrs_12 := switcher_instrs_n 12 in
     let len_switcher_12 := length switcher_instrs_12 in
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
     (b_stk <= a_stk)%a ->
@@ -224,7 +224,7 @@ Section Switcher_Return_Blocks.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 6)%a cgp csp
       _ _ _ _ _ _ with "[$HPC $Hi $Hcgp $Hcsp $Ha_stk3 $Halloc]");
       [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcgp) "(%HPg & HPC & Hi & Hcgp & Hcsp & Ha_stk3 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -238,7 +238,7 @@ Section Switcher_Return_Blocks.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 8)%a cra csp
       _ _ _ _ _ _ with "[$HPC $Hi $Hcra $Hcsp $Ha_stk2 $Halloc]");
       [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcra) "(%HPra & HPC & Hi & Hcra & Hcsp & Ha_stk2 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -252,7 +252,7 @@ Section Switcher_Return_Blocks.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp
       _ _ _ _ _ _ with "[$HPC $Hi $Hcs1 $Hcsp $Ha_stk1 $Halloc]");
       [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs1) "(%HPs1 & HPC & Hi & Hcs1 & Hcsp & Ha_stk1 )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -266,7 +266,7 @@ Section Switcher_Return_Blocks.
     iApply (switcher_load_stack_restore _ _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp
       _ _ _ _ _ _ with "[$HPC $Hi $Hcs0 $Hcsp $Ha_stk $Halloc]");
       [set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs0) "(%HPs0 & HPC & Hi & Hcs0 & Hcsp & Ha_stk )".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -291,7 +291,7 @@ Section Switcher_Return_Blocks.
     let len_switcher_12 := length switcher_instrs_12 in
     heap_std Wworld = heap_std Wval ->
     Forall (heap_addr_live (heap_std Wworld)) opened ->
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
     (b_stk <= a_stk)%a ->
@@ -359,7 +359,7 @@ Section Switcher_Return_Blocks.
     iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 6)%a cgp csp
       _ _ _ _ _ _ with "[$HPC $Hi $Hcgp $Hcsp $Ha_stk3 $Hworld $Halloc $Hnormal_gp]");
       [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcgp) "(%HPg & HPC & Hi & Hcgp & Hcsp & Ha_stk3 & Hworld & #Hactual_gp)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -373,7 +373,7 @@ Section Switcher_Return_Blocks.
     iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 8)%a cra csp
       _ _ _ _ _ _ with "[$HPC $Hi $Hcra $Hcsp $Ha_stk2 $Hworld $Halloc $Hnormal_ra]");
       [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcra) "(%HPra & HPC & Hi & Hcra & Hcsp & Ha_stk2 & Hworld & #Hactual_ra)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -387,7 +387,7 @@ Section Switcher_Return_Blocks.
     iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp
       _ _ _ _ _ _ with "[$HPC $Hi $Hcs1 $Hcsp $Ha_stk1 $Hworld $Halloc $Hnormal_s1]");
       [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs1) "(%HPs1 & HPC & Hi & Hcs1 & Hcsp & Ha_stk1 & Hworld & #Hactual_s1)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -401,7 +401,7 @@ Section Switcher_Return_Blocks.
     iApply (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp
       _ _ _ _ _ _ with "[$HPC $Hi $Hcs0 $Hcsp $Ha_stk $Hworld $Halloc $Hnormal_s0]");
       [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-    { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+    { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
       rewrite /withinBounds; solve_addr. }
     iNext. iIntros (rcs0) "(%HPs0 & HPC & Hi & Hcs0 & Hcsp & Ha_stk & Hworld & #Hactual_s0)".
     wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -428,7 +428,7 @@ Section Switcher_Return_Blocks.
     let len_switcher_12 := length switcher_instrs_12 in
     heap_std Wworld = heap_std Wval ->
     Forall (heap_addr_live (heap_std Wworld)) opened ->
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
     (b_stk <= a_stk)%a ->
@@ -514,7 +514,7 @@ Section Switcher_Return_Blocks.
         _ _ _ _ _ (pc_a ^+ 6)%a cgp csp _ _ _ _ _ _
         with "[$HPC $Hi $Hcgp $Hcsp $Ha_stk3 $Hworld $Halloc]");
         [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-      { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
         rewrite /withinBounds; solve_addr. }
       iNext. iIntros (rcgp) "(%HPg & HPC & Hi & Hcgp & Hcsp & Ha_stk3 & Hworld)".
       wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -529,7 +529,7 @@ Section Switcher_Return_Blocks.
         _ _ _ _ _ (pc_a ^+ 8)%a cra csp _ _ _ _ _ _
         with "[$HPC $Hi $Hcra $Hcsp $Ha_stk2 $Hworld $Halloc]");
         [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-      { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
         rewrite /withinBounds; solve_addr. }
       iNext. iIntros (rcra) "(%HPra & HPC & Hi & Hcra & Hcsp & Ha_stk2 & Hworld)".
       wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -544,7 +544,7 @@ Section Switcher_Return_Blocks.
         _ _ _ _ _ (pc_a ^+ 10)%a cs1 csp _ _ _ _ _ _
         with "[$HPC $Hi $Hcs1 $Hcsp $Ha_stk1 $Hworld $Halloc]");
         [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-      { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
         rewrite /withinBounds; solve_addr. }
       iNext. iIntros (rcs1) "(%HPs1 & HPC & Hi & Hcs1 & Hcsp & Ha_stk1 & Hworld)".
       wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -559,7 +559,7 @@ Section Switcher_Return_Blocks.
         _ _ _ _ _ (pc_a ^+ 12)%a cs0 csp _ _ _ _ _ _
         with "[$HPC $Hi $Hcs0 $Hcsp $Ha_stk $Hworld $Halloc]");
         [exact Hheap_eq|exact Hlive|set_solver+| |solve_pure|solve_pure|rewrite /withinBounds; solve_addr|solve_addr|discriminate|discriminate|].
-      { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
+      { eapply disjoint_from_shadow_not_in; first exact (disjoint_from_mmio_shadow _ _ Hstk_shadow).
         rewrite /withinBounds; solve_addr. }
       iNext. iIntros (rcs0) "(%HPs0 & HPC & Hi & Hcs0 & Hcsp & Ha_stk & Hworld)".
       wp_pure. iSpecialize ("Hcode" with "[$]").
@@ -584,7 +584,7 @@ Section Switcher_Return_Blocks.
     let switcher_instrs_12 := switcher_instrs_n 12 in
     let len_switcher_12 := length switcher_instrs_12 in
     heap_std Wworld = heap_std Wval ->
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_12)%a ->
     (a_stk + 4)%a = Some a_stk4 ->
     (b_stk <= a_stk)%a ->

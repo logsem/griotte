@@ -8,14 +8,14 @@ From griotte Require Export clear_stack_spec clear_registers_spec.
 
 Lemma switcher_disjoint_subseg `{MP : MachineParameters} b e b' e' :
   (b <= b')%a -> (e' <= e)%a ->
-  disjoint_from_shadow b e ∧ disjoint_from_heap b e ->
-  disjoint_from_shadow b' e' ∧ disjoint_from_heap b' e'.
+  disjoint_from_mmio b e ∧ disjoint_from_heap b e ->
+  disjoint_from_mmio b' e' ∧ disjoint_from_heap b' e'.
 Proof.
-  intros Hb He [Hs Hh].
-  rewrite /disjoint_from_shadow elem_of_disjoint in Hs |- *.
-  rewrite /disjoint_from_heap elem_of_disjoint in Hh |- *.
-  split; intros x Hx Hregion; [eapply Hs|eapply Hh]; try exact Hregion;
-    apply elem_of_finz_seq_between; apply elem_of_finz_seq_between in Hx;
+  intros Hb He [Hs Hh]. split.
+  - by eapply disjoint_from_mmio_weaken.
+  - rewrite /disjoint_from_heap elem_of_disjoint in Hh |- *.
+    intros x Hx Hregion; eapply Hh; try exact Hregion.
+    apply elem_of_finz_seq_between; apply elem_of_finz_seq_between in Hx.
     solve_addr.
 Qed.
 
@@ -24,7 +24,7 @@ Section Switcher_preamble.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -261,7 +261,7 @@ Section Switcher_preamble.
     let e_stk := frm.(e_stk) in
     a_tstk ↦ₐ WCap true RWL Local b_stk e_stk (a_stk ^+ 4)%a ∗
     ⌜ (b_stk <= a_stk)%a ∧ (a_stk ^+ 3 < e_stk)%a ∧ is_Some (a_stk + 4)%a ∧
-      disjoint_from_shadow b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ⌝ ∗
+      disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ⌝ ∗
     cframe_stk_own frm%I.
 
   (** [cstack_interp] interprets a call-stack.

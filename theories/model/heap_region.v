@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export heap_std allocator_resources.
+From griotte Require Export heap_std region_keys allocator_resources.
 
 (** Outside the physical heap, ordinary region resources are unchanged.
     An unrecorded heap address cannot have an active shared resource. *)
@@ -14,9 +14,9 @@ Definition heap_addr_live `{HeapRegion} (W_heap : Heap) (a : Addr) : Prop :=
 (** A closed compartment world records every address of a quarantined object.
     Live objects may remain outside this compartment's standard world. *)
 Definition heap_quarantine_covered `{HeapRegion} {B : Type}
-    (W_heap : Heap) (W_std : gmap Addr B) : Prop :=
+    (W_heap : Heap) (W_std : gmap LAddr B) : Prop :=
   ∀ a, heap_addr_status W_heap a = Some AllocObjectQuarantined →
-    a ∈ dom W_std.
+    LNonHeap a ∈ dom W_std.
 
 Lemma heap_quarantine_covered_empty `{HeapRegion} {B : Type} :
   heap_quarantine_covered (B:=B) ∅ ∅.
@@ -28,7 +28,7 @@ Proof.
 Qed.
 
 Lemma heap_quarantine_covered_mono `{HeapRegion} {B : Type}
-    W_heap (W_std W_std' : gmap Addr B) :
+    W_heap (W_std W_std' : gmap LAddr B) :
   dom W_std ⊆ dom W_std' →
   heap_quarantine_covered W_heap W_std →
   heap_quarantine_covered W_heap W_std'.

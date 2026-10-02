@@ -89,6 +89,10 @@ Local Definition default_shadow_region : ShadowRegion := {|
     shadow_valid := ltac:(solve_addr)
   |}.
 
+Local Definition default_revoker_region : RevokerRegion := {|
+    revoker_addr := @finz.FinZ MemNum 4%Z eq_refl eq_refl
+  |}.
+
 Local Instance machine_parameters_instance : MachineParameters := {|
   instruction_encoding_mixin := {|
     decodeInstr := decode_countable Fail;
@@ -134,5 +138,8 @@ Local Instance machine_parameters_instance : MachineParameters := {|
     rewrite !elem_of_finz_seq_between in Hheap;
     rewrite !elem_of_finz_seq_between in Hshadow;
     unfold finz.le_lt in Hheap; unfold finz.le_lt in Hshadow;
-    cbn in Hheap; cbn in Hshadow; lia)
+    cbn in Hheap; cbn in Hshadow; lia);
+  revoker_mixin := default_revoker_region;
+  revoker_not_heap := eq_refl;
+  revoker_not_shadow := eq_refl
 |}.

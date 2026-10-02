@@ -33,7 +33,10 @@ Definition hts_shadow_region : ShadowRegion :=
        intros x Hheap Hshadow;
        rewrite !elem_of_finz_seq_between in Hheap, Hshadow;
        unfold finz.le_lt in Hheap, Hshadow;
-       cbn in Hheap, Hshadow; lia) |}.
+       cbn in Hheap, Hshadow; lia);
+     revoker_mixin := @revoker_mixin machine_parameters_instance;
+     revoker_not_heap := eq_refl;
+     revoker_not_shadow := eq_refl |}.
 
 (** The concrete adversary counts calls. Its imports remain exactly those
     allowed by general adequacy; it does not need an assert entry point. *)
@@ -105,7 +108,17 @@ Definition hts_alloc_otype : OType := OT 10.
 (** These are finite, closed layout obligations; the decision procedures
     produce ordinary kernel-checked proofs. *)
 Ltac hts_compute_layout :=
-  first [reflexivity | apply (bool_decide_unpack _); vm_compute; reflexivity |
+  first [
+    lazymatch goal with
+    | |- disjoint_from_mmio ?b ?e =>
+        split; [hts_compute_layout
+               | let r := eval vm_compute in (revoker_addr : Addr) in
+                 let b' := eval vm_compute in b in
+                 let e' := eval vm_compute in e in
+                 change revoker_addr with r; change b with b'; change e with e';
+                 rewrite elem_of_finz_seq_between; unfold finz.le_lt; cbn; lia]
+    end |
+    reflexivity | apply (bool_decide_unpack _); vm_compute; reflexivity |
     match goal with
     | |- not_heap_range _ _ =>
         unfold not_heap_range; split;
@@ -133,14 +146,14 @@ Proof.
     hts_switcher_b hts_switcher_e hts_switcher_call hts_switcher_return
     hts_switcher_otype hts_trusted_stack_b hts_trusted_stack_e
     _ _ _ _ (replicate 100 (WInt 0)) _ eq_refl
-    hts_stack_b hts_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _).
+    hts_stack_b hts_stack_e (replicate 100 (WInt 0)) _ _ _ _ _ _ _ _).
   all: hts_compute_layout.
 Defined.
 
 Program Definition hts_concrete_assert : cmptAssert.
 Proof.
   refine (@mkCmptAssert hts_machine_parameters
-    hts_assert_b hts_assert_e hts_assert_cap hts_assert_flag _ _ _ _ _).
+    hts_assert_b hts_assert_e hts_assert_cap hts_assert_flag _ _ _ _ _ _ _).
   all: hts_compute_layout.
 Defined.
 

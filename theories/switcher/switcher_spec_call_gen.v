@@ -14,7 +14,7 @@ Section Switcher.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -36,7 +36,7 @@ Section Switcher.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
@@ -94,7 +94,7 @@ Section Switcher.
               ∗ world_interp_open W2 C callee_stk_region
               ∗ StackOpenWorldResources interp W2 C callee_stk_region stk_mem_h
               ∗ cstack_frag cstk
-              ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+              ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
               ∗ PC ↦ᵣ updatePcPerm (rcra)
               (* cgp is restored, cra points to the next  *)
               ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
@@ -369,8 +369,9 @@ Section Switcher.
     (* ------------------------------  *)
     focus_block 4 "Hcode" as a_stack_chop Ha_stack_chop "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_tstack_push.
     iApply (switcher_call_block_4_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto; [|iNext].
+      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto; [| |iNext].
     { rewrite /isWithin; solve_addr+Hastk_bounds. }
+    { solve_addr+Hastk_bounds. }
     iIntros "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 
@@ -381,8 +382,9 @@ Section Switcher.
     iApply (clear_stack_spec with "[- $HPC $Hcode $Hcsp $Hcs0 $Hcs1 $Hstk]"); try solve_pure.
     { solve_addr+. }
     { solve_addr. }
-    { rewrite /disjoint_from_shadow elem_of_disjoint in Hstk_shadow |- *.
-      intros x Hx HR. eapply Hstk_shadow; last exact HR.
+    { pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
+      rewrite /disjoint_from_shadow elem_of_disjoint in Hstk_shadow' |- *.
+      intros x Hx HR. eapply Hstk_shadow'; last exact HR.
       apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.
       solve_addr. }
     iIntros "!> (HPC & Hcsp & Hcs0 & Hcs1 & Hcode & Hstk)".
@@ -572,7 +574,7 @@ Section Switcher.
       iSplit;[iPureIntro; solve_addr+Ha_tstk2 Hlen_cstk|].
       iFrame; cbn.
       iFrame. iPureIntro.
-      rewrite Hastk_some. repeat split; auto; solve_addr. }
+      rewrite Hastk_some. repeat split; auto; try solve_addr; by destruct Hstk_shadow. }
 
     iApply ("Hexec" with "Halloc").
     iAssert (interp (std_update_multiple W (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) C
@@ -580,7 +582,7 @@ Section Switcher.
     { iApply fixpoint_interp1_eq. iSimpl.
       iSplit; last first.
       { iPureIntro.
-        assert (disjoint_from_shadow (a_stk ^+ 4)%a e_stk ∧
+        assert (disjoint_from_mmio (a_stk ^+ 4)%a e_stk ∧
                 disjoint_from_heap (a_stk ^+ 4)%a e_stk) as [Hshadow Hheap].
         { eapply switcher_disjoint_subseg; [|reflexivity|split; eassumption].
           solve_addr. }
@@ -745,7 +747,7 @@ Section Switcher.
     :
     let a_stk4 := (a_stk ^+ 4)%a in
     let callee_stk_region := finz.seq_between a_stk4 e_stk in
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     dom rmap = all_registers_s ∖ ({[ PC ; cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
@@ -793,11 +795,11 @@ Section Switcher.
     (* POST-CONDITION *)
     ∗ ▷ ( ∀ (W2 : WORLD) (rmap' : Reg) (stk_mem : list Word) l' rcgp rcra rcs0 rcs1,
               (* We receive a public future world of the world pre switcher call *)
-            ⌜ extract_temporaries_condition W2 (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk) ⌝
+            ⌜ extract_temporaries_condition W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) ⌝
             ∗ RevokedResources W2 C l'
-            ∗ ⌜ revoked_addresses (revoke W2) l' ⌝
+            ∗ ⌜ revoked_keys (revoke W2) l' ⌝
             ∗ ⌜ related_sts_pub_world (std_update_multiple W callee_stk_region Temporary) W2 ⌝
-            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! a = Some Temporary ⌝ )
+            ∗ ([∗ list] a ∈ callee_stk_region, ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ PC ; cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (finz.seq_between a_stk e_stk) ⌝
@@ -983,11 +985,12 @@ Section Switcher.
       { iPureIntro.
         split.
         - apply NoDup_app; split; auto.
-          split; last by apply finz_seq_between_NoDup.
+          split; last by apply NoDup_LNonHeap_fmap, finz_seq_between_NoDup.
           intros a Ha. apply Hlunk in Ha.
           intro Ha'.
+          apply list_elem_of_fmap in Ha' as [a' [-> Ha'] ].
           rewrite /revoked_addresses  Forall_forall in Hrevoked_stk.
-           assert (a ∈ finz.seq_between a_stk e_stk) as Ha''.
+           assert (a' ∈ finz.seq_between a_stk e_stk) as Ha''.
            { rewrite elem_of_finz_seq_between.
              rewrite elem_of_finz_seq_between in Ha'.
              solve_addr.
@@ -997,14 +1000,14 @@ Section Switcher.
         - intros a; cbn.
           rewrite elem_of_app.
           split; intro Ha.
-          + destruct ( decide ( a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk )); first (right; done).
-            rewrite std_sta_update_multiple_lookup_same_i in Ha; auto.
+          + destruct ( decide ( a ∈ LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk )); first (right; done).
+            rewrite std_sta_update_multiple_lookup_same_k in Ha; auto.
             apply Hlunk in Ha.
             left; done.
           + destruct Ha as [Ha|Ha]; cycle 1.
-            * rewrite std_sta_update_multiple_lookup_in_i; auto.
-            * destruct ( decide ( a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk )); first (rewrite std_sta_update_multiple_lookup_in_i; auto).
-              rewrite std_sta_update_multiple_lookup_same_i; auto.
+            * rewrite std_sta_update_multiple_lookup_in_k; auto.
+            * destruct ( decide ( a ∈ LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk )); first (rewrite std_sta_update_multiple_lookup_in_k; auto).
+              rewrite std_sta_update_multiple_lookup_same_k; auto.
               apply Hlunk in Ha; done.
       }
       iSplitL "Hrevoked_l".

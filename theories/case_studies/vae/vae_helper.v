@@ -6,7 +6,7 @@ Section VAE_helper.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
@@ -19,7 +19,7 @@ Section VAE_helper.
 
   Definition awkN : namespace := nroot .@ "awkN".
   Definition awk_inv C i a :=
-    (∃ x:bool, sts_state_loc (A:=Addr) C i x
+    (∃ x:bool, sts_state_loc (A:=LAddr) C i x
             ∗ if x
               then a ↦ₐ WInt 1%Z
               else a ↦ₐ WInt 0%Z)%I.
@@ -196,15 +196,15 @@ Section VAE_helper.
       parameter keeps this pure repair independent of any concrete stack
       layout used by the VAE closure theorem. *)
   Lemma awk_two_call_world_repair
-      (W0 W3 W6 : WORLD) (closing : list Addr)
+      (W0 W3 W6 : WORLD) (closing : list LAddr)
       (b : bool) (i : positive) :
     let W1 := revoke W0 in
     let W2 := <l[i:=false]l>W1 in
     let W4 := revoke W3 in
     let W5 := <l[i:=true]l>W4 in
     let W7 := revoke W6 in
-    (forall a : Addr, std W0 !! a = Some Temporary <-> a ∈ closing) ->
-    Forall (fun a : Addr => std W7 !! a = Some Revoked) closing ->
+    (forall a : LAddr, std W0 !! a = Some Temporary <-> a ∈ closing) ->
+    Forall (fun a : LAddr => std W7 !! a = Some Revoked) closing ->
     related_sts_pub_world W2 W3 ->
     related_sts_pub_world W5 W6 ->
     loc W1 !! i = Some (encode b) ->

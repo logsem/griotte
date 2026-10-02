@@ -9,7 +9,7 @@ Section stack_object_helpers.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType Word Σ}
     {relg : relGS Σ}
     {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
@@ -24,18 +24,18 @@ Section stack_object_helpers.
 
   Definition so_object_temporaries (W : WORLD) (b e : Addr) :=
     filter
-      (fun a => std W !! a = Some Temporary)
+      (fun a => std W !! LNonHeap a = Some Temporary)
       (so_object_addresses b e).
 
   Definition so_object_permanents (W : WORLD) (b e : Addr) :=
     filter
-      (fun a => std W !! a = Some Permanent)
+      (fun a => std W !! LNonHeap a = Some Permanent)
       (so_object_addresses b e).
 
   Definition so_revoked_without_object
-      (W : WORLD) (b e : Addr) (l : list Addr) :=
+      (W : WORLD) (b e : Addr) (l : list LAddr) :=
     filter
-      (fun a => a ∉ so_object_temporaries W b e)
+      (fun a => a ∉ LNonHeap <$> so_object_temporaries W b e)
       l.
 
   Lemma NoDup_subset_filter_membership
@@ -93,8 +93,8 @@ Section stack_object_helpers.
   Lemma so_object_addresses_partition W b e :
     Forall
       (fun a =>
-         std W !! a = Some Permanent \/
-         std W !! a = Some Temporary)
+         std W !! LNonHeap a = Some Permanent \/
+         std W !! LNonHeap a = Some Temporary)
       (so_object_addresses b e) ->
     so_object_addresses b e
       ≡ₚ so_object_permanents W b e ++
@@ -109,12 +109,12 @@ Section stack_object_helpers.
     apply Forall_cons in Hl as [Ha Hl].
     apply IHl in Hl.
     destruct Ha as [Ha | Ha].
-    - assert (std W !! a <> Some Temporary) as Ha'
+    - assert (std W !! LNonHeap a <> Some Temporary) as Ha'
         by (intro; simplify_map_eq).
       rewrite (decide_True _ _ Ha); auto.
       rewrite (decide_False _ _ Ha'); auto.
       cbn. rewrite -Hl. done.
-    - assert (std W !! a <> Some Permanent) as Ha'
+    - assert (std W !! LNonHeap a <> Some Permanent) as Ha'
         by (intro; simplify_map_eq).
       rewrite (decide_True _ _ Ha); auto.
       rewrite (decide_False _ _ Ha'); auto.
@@ -143,14 +143,14 @@ Section stack_object_helpers.
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
-    Forall (fun '(a,p,φ,ρ) => (std W) !! a = Some ρ) l ->
+    Forall (fun '(a,p,φ,ρ) => (std W) !! LNonHeap a = Some ρ) l ->
 
-    ([∗ list] '(a,p,φ,ρ) ∈ l, rel C' a p φ)
+    ([∗ list] '(a,p,φ,ρ) ∈ l, rel C' (LNonHeap a) p φ)
     ∗ world_interp_open W C' l' -∗
 
     ∃ lv,
       world_interp_open W C' (la++l')
-      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C' a ρ)
+      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C' (LNonHeap a) ρ)
       ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v)
       ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C' φ p v ρ)
       ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C',v))
@@ -180,11 +180,11 @@ Section stack_object_helpers.
     Forall (fun '(a,p,φ,ρ) => ∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)) l ->
 
     world_interp_open W C' (la++l')
-    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C' a ρ)
+    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C' (LNonHeap a) ρ)
     ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₐ v)
     ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C' φ p v ρ)
     ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C',v))
-    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, rel C' a p φ)
+    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, rel C' (LNonHeap a) p φ)
     ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
       -∗ world_interp_open W C' l'.
   Proof.

@@ -72,6 +72,24 @@ Section opsem.
   Context `{MachineParameters}.
   Definition get_shadow_address (a : Addr) : Addr := a.
 
+  (** The revoker's atomic sweep clears the tag of exactly the words that the
+      Load filter strips: those whose heap base is quarantined. *)
+  Definition sweep_word (shadow : ShadowTbl) (w : Word) : Word :=
+    match heap_cap_base w with
+    | Some base =>
+        match shadow !! base with
+        | Some ShadowQuarantined => clear_tag w
+        | _ => w
+        end
+    | None => w
+    end.
+
+  Definition sweep_mem (shadow : ShadowTbl) (m : Mem) : Mem :=
+    sweep_word shadow <$> m.
+
+  Definition revoker_sweep (φ : ExecConf) : ExecConf :=
+    (reg φ, sreg φ, sweep_mem (shadowtbl φ) (mem φ), shadowtbl φ).
+
   Definition exec_opt (i: instr) (plevel : Perm) (φ: ExecConf): option Conf :=
     match i with
     | Fail => Some (Failed, φ)
@@ -111,6 +129,10 @@ Section opsem.
             heap_a ← shadow_to_heap ea;
             status ← (shadowtbl φ) !! heap_a;
             updatePC (update_reg φ dst (WInt (encodeAllocStatus status)))
+          else if (is_revoker_address ea)
+          then
+            (* The revoker reads as zero. *)
+            updatePC (update_reg φ dst (WInt 0))
           else
             asrc ← (mem φ) !! ea;
             match heap_cap_base asrc with
@@ -143,6 +165,10 @@ Section opsem.
             | WInt z => updatePC (update_shadowtbl φ heap_a (decodeAllocStatus z))
             | _ => None
             end
+          else if (is_revoker_address ea)
+          then
+            (* Any store to the revoker sweeps memory; the value is ignored. *)
+            updatePC (revoker_sweep φ)
           else
             updatePC (update_mem φ ea (store_word p tostore))
         else None
@@ -221,7 +247,7 @@ Section opsem.
       n2 ← z_of_argument (reg φ) ρ2;
       match z_to_addr n1, z_to_addr n2 with
       | Some a1, Some a2 =>
-        let new_tag := t && isWithin a1 a2 b e in
+        let new_tag := t && isWithin a1 a2 b e && (a1 <=? a2)%a in
         updatePC (update_reg φ dst (WCap new_tag p g a1 a2 a))
       | _, _ => updatePC (update_reg φ dst (WCap false p g b e a))
       end

@@ -19,7 +19,7 @@ Section HTS_Spec_Share.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
@@ -42,7 +42,7 @@ Section HTS_Spec_Share.
     is_heap_address pc_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     not_heap_range cgp_b cgp_e ->
-    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     heap_std W_init_C = ∅ ->

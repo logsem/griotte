@@ -8,7 +8,7 @@ Section sealing_interp.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType Word Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
@@ -504,4 +504,39 @@ Section sealing_interp.
     iDestruct (close_sealing_map with "Hspred Hseal HPo Hseals") as "$".
   Qed.
 
+
+  Lemma sealing_map_open_monotone (C : CmptName) (o : OType) (W W' : WORLD) :
+    heap_wf (heap_std W') ->
+    seal_std W = seal_std W' ->
+    related_sts_priv_world W W' ->
+    sealing_map_open W C o -∗
+    sealing_map_open W' C o.
+  Proof.
+    iIntros (Hheap_wf HWseal Hrelated) "Hseals".
+    rewrite sealing_map_open_eq /sealing_map_open_def.
+    rewrite HWseal.
+    iApply (big_sepM_mono with "Hseals").
+    iIntros (o' ws Hsome) "($ & %Po & Hpred & #Hmono & HPo)".
+    iExists Po. iFrame "Hpred Hmono".
+    iApply (big_sepS_impl with "HPo").
+    iIntros "!>" (w Hw) "HP". iNext.
+    iApply ("Hmono" with "[] [] HP"); done.
+  Qed.
+
+  Lemma sealing_map_resource_open_monotone
+    (C : CmptName) (o : OType) Po ws (W W' : WORLD) :
+    heap_wf (heap_std W') ->
+    seal_std W = seal_std W' ->
+    related_sts_priv_world W W' ->
+    sealing_map_resource_open W C o Po ws -∗
+    sealing_map_resource_open W' C o Po ws.
+  Proof.
+    iIntros (Hheap_wf HWseal Hrelated) "Hres".
+    iDestruct "Hres" as (ws') "(%Hws' & %Hsub & Hseal & #Hmono & HPo)".
+    iExists ws'. rewrite -HWseal. iFrame "Hseal Hmono".
+    iSplit; first done. iSplit; first done.
+    iApply (big_sepS_impl with "HPo").
+    iIntros "!>" (w Hw) "HP".
+    iApply ("Hmono" with "[] [] HP"); done.
+  Qed.
 End sealing_interp.

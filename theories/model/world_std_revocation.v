@@ -4,7 +4,7 @@ From griotte Require Export stdpp_extra.
 Section world_std_revocation.
   Context {Σ:gFunctors}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType Word Σ}
     `{MP: MachineParameters}.
 
   Implicit Types W : WORLD.
@@ -38,7 +38,7 @@ Section world_std_revocation.
   Definition revoke (W : WORLD) : WORLD := (revoke_std_sta (std W), cus W, seal_std W, heap_std W).
 
   (* A weaker revocation which only revokes elements from a list *)
-  Fixpoint revoke_list_std_sta (l : list Addr) (fs : STS_STD) : STS_STD :=
+  Fixpoint revoke_list_std_sta (l : list LAddr) (fs : STS_STD) : STS_STD :=
     match l with
     | [] => fs
     | i :: l' => match fs !! i with
@@ -49,7 +49,7 @@ Section world_std_revocation.
                | None => (revoke_list_std_sta l' fs)
                end
     end.
-  Definition revoke_list (l : list Addr) (W : WORLD) : WORLD
+  Definition revoke_list (l : list LAddr) (W : WORLD) : WORLD
     := ((revoke_list_std_sta l (std W)), cus W, seal_std W, heap_std W).
 
 
@@ -64,48 +64,48 @@ Section world_std_revocation.
     | _ => i
     end.
 
-  Lemma revoke_list_std_sta_spec (l : list Addr) :
-    forall (Wstd_sta : STS_STD) (i : Addr),
+  Lemma revoke_list_std_sta_spec (l : list LAddr) :
+    forall (Wstd_sta : STS_STD) (i : LAddr),
       (revoke_list_std_sta l Wstd_sta) !! i =
       match Wstd_sta !! i with
       | None => None
-      | Some j => Some (if List.In_dec finz_eq_dec i l
+      | Some j => Some (if List.In_dec LAddr_eq_dec i l
                        then revoke_i j else j)
       end.
   Proof.
     induction l; intros.
     - simpl. destruct (Wstd_sta !! i); auto.
     - case_eq (Wstd_sta !! i); [intros j H3 | intros H3].
-      { destruct (in_dec finz_eq_dec i (a :: l)).
+      { destruct (in_dec LAddr_eq_dec i (a :: l)).
         + destruct i0 as [A | A].
           * subst i. simpl. rewrite H3.
-            destruct j;[rewrite lookup_insert_eq;auto|rewrite IHl H3; destruct (in_dec finz_eq_dec a l);auto..].
+            destruct j;[rewrite lookup_insert_eq;auto|rewrite IHl H3; destruct (in_dec LAddr_eq_dec a l);auto..].
           * simpl.
             case_eq (Wstd_sta !! a); intros.
             { destruct (decide (Temporary = r)).
               { subst. destruct (decide (i = a)).
                 - subst. rewrite lookup_insert_eq. by simplify_map_eq.
                 - rewrite lookup_insert_ne//. rewrite IHl H3.
-                  destruct (in_dec finz_eq_dec i l);[auto|contradiction]. }
+                  destruct (in_dec LAddr_eq_dec i l);[auto|contradiction]. }
               destruct r; try contradiction; rewrite IHl H3;
-                destruct (in_dec finz_eq_dec i l); tauto. }
+                destruct (in_dec LAddr_eq_dec i l); tauto. }
             { rewrite IHl H3.
-              destruct (in_dec finz_eq_dec i l); tauto. }
+              destruct (in_dec LAddr_eq_dec i l); tauto. }
         + simpl. case_eq (Wstd_sta !! a); intros.
           * destruct (decide (Temporary = r)).
             { subst. destruct (decide (a = i)).
               - subst. elim n. left; auto.
               - rewrite lookup_insert_ne//.
-                rewrite IHl H3. destruct (in_dec finz_eq_dec i l); auto.
+                rewrite IHl H3. destruct (in_dec LAddr_eq_dec i l); auto.
                 elim n. right. auto. }
             destruct r; try contradiction; rewrite IHl H3;
-              destruct (in_dec finz_eq_dec i l); auto;
+              destruct (in_dec LAddr_eq_dec i l); auto;
                 elim n; right; auto.
           * rewrite IHl H3.
-            destruct (in_dec finz_eq_dec i l); auto.
+            destruct (in_dec LAddr_eq_dec i l); auto.
             elim n; right; auto. }
       { simpl. case_eq (Wstd_sta !! a); intros.
-        - destruct (finz_eq_dec i a); try congruence.
+        - destruct (LAddr_eq_dec i a); try congruence.
           destruct (decide (Temporary = r)); intros.
           + subst. rewrite lookup_insert_ne; auto.
             rewrite IHl H3; auto.
@@ -119,26 +119,26 @@ Section world_std_revocation.
   Proof.
     rewrite revoke_list_std_sta_spec.
     intros; destruct (m !! i) as [x|] eqn:Hm; auto.
-    destruct (in_dec finz_eq_dec i l); auto.
+    destruct (in_dec LAddr_eq_dec i l); auto.
     eapply list_elem_of_In in i0. by simplify_map_eq.
   Qed.
 
-  Lemma revoke_list_dom_std_sta (Wstd_sta : gmap Addr region_type) :
+  Lemma revoke_list_dom_std_sta (Wstd_sta : gmap LAddr region_type) :
     revoke_std_sta Wstd_sta = revoke_list_std_sta (map_to_list Wstd_sta).*1 Wstd_sta.
   Proof.
-    eapply (map_leibniz (M:=gmap Addr)). red. red. intros.
+    eapply (map_leibniz (M:=gmap LAddr)). red. red. intros.
     rewrite revoke_list_std_sta_spec /revoke_std_sta lookup_fmap /revoke_i /=.
     destruct (Wstd_sta !! i) as [x|] eqn:Hwstd; rewrite Hwstd /=; auto.
     2: { eapply leibniz_equiv_iff; auto. }
     destruct (decide (Temporary = x)).
     - subst x.
       eapply elem_of_map_to_list in Hwstd as Hx.
-      destruct (in_dec finz_eq_dec i (map_to_list Wstd_sta).*1); auto.
+      destruct (in_dec LAddr_eq_dec i (map_to_list Wstd_sta).*1); auto.
       + eapply leibniz_equiv_iff; auto.
       + elim n. eapply list_elem_of_In.
         eapply list_elem_of_fmap. exists (i, Temporary).
         split; auto.
-    - destruct (in_dec finz_eq_dec i (map_to_list Wstd_sta).*1); auto.
+    - destruct (in_dec LAddr_eq_dec i (map_to_list Wstd_sta).*1); auto.
       + destruct x;auto; try contradiction.
         all: try eapply leibniz_equiv_iff; auto.
       + destruct x;auto; try contradiction.
@@ -157,14 +157,14 @@ Section world_std_revocation.
     by rewrite /revoke_list /= -revoke_list_dom_std_sta /revoke.
   Qed.
 
-  Lemma revoke_list_lookup_Some Wstd_sta l (a : Addr) :
+  Lemma revoke_list_lookup_Some Wstd_sta l (a : LAddr) :
     is_Some (Wstd_sta !! a) ↔ is_Some ((revoke_list_std_sta l Wstd_sta) !! a).
   Proof.
     rewrite revoke_list_std_sta_spec.
     destruct (Wstd_sta !! a); split; eauto.
   Qed.
 
-  Lemma revoke_lookup_Some W (i : Addr) :
+  Lemma revoke_lookup_Some W (i : LAddr) :
     is_Some ((std W) !! i) ↔ is_Some ((std (revoke W)) !! i).
   Proof.
     rewrite revoke_list_dom /revoke_list /=.
@@ -173,7 +173,7 @@ Section world_std_revocation.
     rewrite !is_Some_alt; auto.
   Qed.
 
-  Lemma revoke_lookup_None W (i : Addr) :
+  Lemma revoke_lookup_None W (i : LAddr) :
     (std W) !! i = None ↔ (std (revoke W)) !! i = None.
   Proof.
     split.
@@ -185,7 +185,7 @@ Section world_std_revocation.
       apply eq_None_not_Some in Hcontr; auto.
   Qed.
 
-  Lemma revoke_std_sta_lookup_Some Wstd_sta (i : Addr) :
+  Lemma revoke_std_sta_lookup_Some Wstd_sta (i : LAddr) :
     is_Some (Wstd_sta !! i) ↔ is_Some (revoke_std_sta Wstd_sta !! i).
   Proof.
     split; intros Hi.
@@ -204,7 +204,7 @@ Section world_std_revocation.
   Proof.
     rewrite revoke_list_dom_std_sta. intros Hsome.
     rewrite revoke_list_std_sta_spec Hsome.
-    destruct (in_dec finz_eq_dec i (map_to_list Wstd_sta).*1) eqn:HH.
+    destruct (in_dec LAddr_eq_dec i (map_to_list Wstd_sta).*1) eqn:HH.
     - rewrite /revoke_i HH. auto.
     - elim n. eapply list_elem_of_In.
       eapply map_to_list_fst. eexists; by apply elem_of_map_to_list.
@@ -216,7 +216,7 @@ Section world_std_revocation.
   Proof.
     rewrite revoke_list_dom_std_sta. intros Hsome.
     rewrite revoke_list_std_sta_spec Hsome.
-    destruct (in_dec finz_eq_dec i (map_to_list Wstd_sta).*1) eqn:HH.
+    destruct (in_dec LAddr_eq_dec i (map_to_list Wstd_sta).*1) eqn:HH.
     - rewrite /revoke_i HH. auto.
     - elim n. eapply list_elem_of_In.
       eapply map_to_list_fst. eexists; by apply elem_of_map_to_list.
@@ -228,13 +228,13 @@ Section world_std_revocation.
   Proof.
     rewrite revoke_list_dom_std_sta. intros Hsome.
     rewrite revoke_list_std_sta_spec Hsome.
-    destruct (in_dec finz_eq_dec i (map_to_list Wstd_sta).*1) eqn:HH.
+    destruct (in_dec LAddr_eq_dec i (map_to_list Wstd_sta).*1) eqn:HH.
     - rewrite /revoke_i HH. auto.
     - elim n. eapply list_elem_of_In.
       eapply map_to_list_fst. eexists; by apply elem_of_map_to_list.
   Qed.
 
-  Lemma revoke_list_lookup_non_temp (Wstd_sta : STS_STD) (l : list Addr) (i : Addr) (ρ : region_type) :
+  Lemma revoke_list_lookup_non_temp (Wstd_sta : STS_STD) (l : list LAddr) (i : LAddr) (ρ : region_type) :
     i ∈ l →
     (revoke_list_std_sta l Wstd_sta) !! i = Some ρ → ρ ≠ Temporary.
   Proof.
@@ -242,14 +242,14 @@ Section world_std_revocation.
     rewrite revoke_list_std_sta_spec in Hsome.
     destruct (Wstd_sta !! i); try congruence.
     eapply list_elem_of_In in Hin.
-    destruct (in_dec finz_eq_dec i l); try tauto.
+    destruct (in_dec LAddr_eq_dec i l); try tauto.
     inv Hsome. rewrite /revoke_i.
     destruct (decide (Temporary = r)).
     - destruct r;auto;contradiction.
     - destruct r;[contradiction|auto..].
   Qed.
 
-  Lemma revoke_std_sta_lookup_non_temp Wstd_sta (i : Addr) (ρ : region_type) :
+  Lemma revoke_std_sta_lookup_non_temp Wstd_sta (i : LAddr) (ρ : region_type) :
     (revoke_std_sta Wstd_sta) !! i = Some ρ → ρ ≠ Temporary.
   Proof.
     intros Hin.
@@ -263,7 +263,7 @@ Section world_std_revocation.
     apply elem_of_map_to_list. done.
   Qed.
 
-  Lemma revoke_lookup_non_temp W (i : Addr) (ρ : region_type) :
+  Lemma revoke_lookup_non_temp W (i : LAddr) (ρ : region_type) :
     (std (revoke W)) !! i = Some ρ → ρ ≠ Temporary.
   Proof.
     intros Hin.
@@ -277,7 +277,7 @@ Section world_std_revocation.
   Qed.
 
 
-  Lemma revoke_monotone_lookup_same (Wstd_sta : gmap Addr region_type) i :
+  Lemma revoke_monotone_lookup_same (Wstd_sta : gmap LAddr region_type) i :
     Wstd_sta !! i ≠ Some Temporary →
     revoke_std_sta Wstd_sta !! i = Wstd_sta !! i.
   Proof.
@@ -294,7 +294,7 @@ Section world_std_revocation.
         rewrite /revoke_std_sta fmap_insert lookup_insert_ne;auto.
   Qed.
 
-  Lemma revoke_monotone_lookup_same' (W:WORLD) (i: Addr) :
+  Lemma revoke_monotone_lookup_same' (W:WORLD) (i: LAddr) :
     std W !! i ≠ Some Temporary ->
     std (revoke W) !! i = std W !! i.
   Proof. cbn. eauto using revoke_monotone_lookup_same. Qed.
@@ -427,7 +427,7 @@ Section world_std_revocation.
   (* ------------------ WE CAN UPDATE A REVOKED WORLD BACK TO TEMPORARY  -------------------- *)
   (* ---------------------------------------------------------------------------------------- *)
 
-  Fixpoint conditional_close_list_std_sta (ρ : region_type) (l : list Addr) (fs : STS_STD) : STS_STD :=
+  Fixpoint conditional_close_list_std_sta (ρ : region_type) (l : list LAddr) (fs : STS_STD) : STS_STD :=
     match l with
     | [] => fs
     | i :: l' => match fs !! i with
@@ -437,8 +437,8 @@ Section world_std_revocation.
                | None => (conditional_close_list_std_sta ρ l' fs)
                end
     end.
-  Definition close_list_std_sta (l : list Addr) (fs : STS_STD) : STS_STD := conditional_close_list_std_sta Revoked l fs.
-  Definition close_list (l : list Addr) (W : WORLD) : WORLD := (close_list_std_sta l (std W), cus W, seal_std W, heap_std W).
+  Definition close_list_std_sta (l : list LAddr) (fs : STS_STD) : STS_STD := conditional_close_list_std_sta Revoked l fs.
+  Definition close_list (l : list LAddr) (W : WORLD) : WORLD := (close_list_std_sta l (std W), cus W, seal_std W, heap_std W).
 
   Lemma conditional_close_list_std_sta_is_Some Wstd_sta ρ l i :
     is_Some (Wstd_sta !! i) <-> is_Some (conditional_close_list_std_sta ρ l Wstd_sta !! i).
@@ -589,8 +589,8 @@ Section world_std_revocation.
 
 
 
-  Lemma close_revoke_iff Wstd_sta (l : list Addr) :
-     (forall (i : Addr), Wstd_sta !! i = Some Temporary <-> i ∈ l) ->
+  Lemma close_revoke_iff Wstd_sta (l : list LAddr) :
+     (forall (i : LAddr), Wstd_sta !! i = Some Temporary <-> i ∈ l) ->
      ∀ i, (close_list_std_sta l (revoke_std_sta Wstd_sta)) !! i =
           Wstd_sta !! i.
   Proof.
@@ -604,12 +604,12 @@ Section world_std_revocation.
       intros Hcontr. apply Hiff in Hcontr. contradiction.
   Qed.
 
-  Lemma close_revoke_eq Wstd_sta (l : list Addr) :
-    (forall (i : Addr), Wstd_sta !! i = Some Temporary <-> i ∈ l) ->
+  Lemma close_revoke_eq Wstd_sta (l : list LAddr) :
+    (forall (i : LAddr), Wstd_sta !! i = Some Temporary <-> i ∈ l) ->
     (close_list_std_sta l (revoke_std_sta Wstd_sta)) = Wstd_sta.
   Proof.
     intros Hiff.
-    eapply (map_leibniz (M:=gmap Addr) (A:=region_type)).
+    eapply (map_leibniz (M:=gmap LAddr) (A:=region_type)).
     intros i.
     eapply leibniz_equiv_iff.
     apply close_revoke_iff. auto.
@@ -618,8 +618,8 @@ Section world_std_revocation.
     + apply option_leibniz.
   Qed.
 
-  Lemma related_pub_revoke_close_list (W : WORLD) (l : list Addr) :
-    (∀ a : finz MemNum, std W !! a = Some Temporary ↔ a ∈ l) ->
+  Lemma related_pub_revoke_close_list (W : WORLD) (l : list LAddr) :
+    (∀ a : LAddr, std W !! a = Some Temporary ↔ a ∈ l) ->
     related_sts_pub_world W (close_list l (revoke W)).
   Proof.
     intros Htemporaries.
@@ -638,7 +638,7 @@ Section world_std_revocation.
    (* commuting updates and revoke *)
 
    Lemma revoke_std_update_multiple_eq W l :
-     Forall (fun a => std W !! a = Some Revoked) l ->
+     Forall (fun a => std W !! LNonHeap a = Some Revoked) l ->
      (revoke (std_update_multiple W l Temporary)) = (revoke W).
    Proof.
      induction l; intros Hl; cbn; first done.
@@ -693,10 +693,10 @@ Section world_std_revocation.
 
   (* Extract all the Temporary addresses from W *)
   Lemma extract_temps W :
-    ∃ l, NoDup l ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ l).
+    ∃ l, NoDup l ∧ (forall (a : LAddr), (std W) !! a = Some Temporary <-> a ∈ l).
   Proof.
     destruct W as [ [ [Wstd_sta Wloc] Wseals] W_heap ].
-    induction Wstd_sta using (map_ind (M:=gmap Addr) (A:=region_type)).
+    induction Wstd_sta using (map_ind (M:=gmap LAddr) (A:=region_type)).
     - exists []. split;[by apply NoDup_nil|]. intros a. split; intros Hcontr; inversion Hcontr.
     - destruct IHWstd_sta as [l [Hdup Hiff] ].
       assert (i ∈ dom (<[i:=x]> m)) as Hin.
@@ -724,8 +724,8 @@ Section world_std_revocation.
   (* We also want to be able to split the extracted temporary regions into known and unknown *)
   Lemma extract_temps_split_world W l :
     NoDup l ->
-    Forall (λ (a : Addr), (std W) !! a = Some Temporary) l ->
-    ∃ l', NoDup (l' ++ l) ∧ (forall (a : Addr), (std W) !! a = Some Temporary <-> a ∈ (l' ++ l)).
+    Forall (λ (a : LAddr), (std W) !! a = Some Temporary) l ->
+    ∃ l', NoDup (l' ++ l) ∧ (forall (a : LAddr), (std W) !! a = Some Temporary <-> a ∈ (l' ++ l)).
   Proof.
     intros Hdup HForall.
     pose proof (extract_temps W) as [l' [Hdup' Hl'] ].

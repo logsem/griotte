@@ -11,7 +11,7 @@ Section Switcher_KtK.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType Word Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -115,7 +115,7 @@ Section Switcher_KtK.
     let wct1_caller :=
       WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
     disjoint_from_heap b_stk e_stk ->
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     is_shadow_address atbl_tgt = false ->
     is_shadow_address btbl_tgt = false ->
     is_shadow_address (btbl_tgt ^+ 1)%a = false ->

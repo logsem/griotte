@@ -20,7 +20,7 @@ Section HTS_Reload.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}.
 
@@ -196,7 +196,7 @@ Section HTS_Spec_Free.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
@@ -218,7 +218,7 @@ Section HTS_Spec_Free.
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     not_heap_range cgp_b cgp_e ->
-    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     hts_ctx ∗
@@ -261,7 +261,7 @@ Section HTS_Spec_Free.
     iApply (hts_reload_retained_buffer_spec (revoke Wret) C pc_b pc_e a_reload
       csp_b csp_e (hts_buffer b) _
       with "[- $Halloc $HPC $Hcsp $Hca0 $Hslot $Hblock $Hregion]").
-    { exact Hstk_shadow. }
+    { exact (disjoint_from_mmio_shadow _ _ Hstk_shadow). }
     { rewrite /hts_buffer /is_heap_cap /heap_cap_base
         /memory_cap_base /= Hb_heap. reflexivity. }
     { solve_addr. }

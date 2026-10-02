@@ -353,8 +353,10 @@ Section griotte_lang_rules.
    Proof.
      iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaStore φ) "(>Hmem & >Hshadow & >Hmap) Hφ".
      iApply wp_lift_atomic_base_step_no_fork; auto.
-     iIntros (σ1 ns l1 l2 nt) "[ [ [Hr Hsr] Hm ] Hst ] /=".
+     iIntros (σ1 ns l1 l2 nt) "[ [ [ [Hr Hsr] Hm ] Hst ] Hmmio ] /=".
      destruct σ1 as [ [ [r sr] m] st]; cbn.
+     iDestruct "Hmmio" as %Hmmio.
+     iAssert (⌜mem_avoids_mmio m⌝)%I as "-#Hmmio"; first by iPureIntro.
      iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
 
      (* Derive necessary register values in r *)
@@ -460,6 +462,8 @@ Section griotte_lang_rules.
        iPureIntro. eapply Store_spec_success_shadow; eauto.
      - (* Ordinary-memory store *)
        destruct HaStore as [oldv Hmema].
+       iDestruct (gen_mem_valid_inSepM mem m ea oldv with "Hm Hmem") as %Hmea; first done.
+       rewrite (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hmea) in Hstep.
        rewrite /update_mem /= in Hstep.
        destruct (incrementPC regs) as [regs'|] eqn:Hregs'.
        2: { (* Failure: the PC could not be incremented correctly *)
@@ -476,6 +480,9 @@ Section griotte_lang_rules.
          (sregs':=sr) (m':=<[ea:=store_word p storev]> m) (shadow':=st) in HuPC; last exact Hregs.
        rewrite HuPC in Hstep. simplify_pair_eq. cbn.
        iMod ((gen_mem_update_inSepM _ _ ea) with "Hm Hmem") as "[Hm Hmem]"; eauto.
+       iClear "Hmmio".
+       iAssert (⌜mem_avoids_mmio (<[ea:=store_word p storev]> m)⌝)%I as "-#Hmmio".
+       { iPureIntro. by eapply mem_avoids_mmio_update. }
        iMod ((gen_heap_update_inSepM _ _ PC) with "Hr Hmap") as "[Hr Hmap]"; eauto.
        iFrame. iModIntro. iApply "Hφ". iFrame.
        iPureIntro. eapply Store_spec_success; eauto.
@@ -1449,7 +1456,7 @@ iApply "Hφ".
   Proof.
     iIntros (Hinstr Hvpc HPC Hsrc Htag φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[[[Hr Hsr] Hm] Hst] /=".
+    iIntros (σ1 ns l1 l2 nt) "[[[[Hr Hsr] Hm] Hst] Hmmio] /=".
     destruct σ1 as [[[r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.

@@ -10,7 +10,7 @@ Section CMDC.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -48,11 +48,11 @@ Section CMDC.
 
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
-    is_shadow_address cgp_b = false ->
+    is_mmio_address cgp_b = false ->
     is_heap_address cgp_b = false ->
-    is_shadow_address (cgp_b ^+ 1)%a = false ->
+    is_mmio_address (cgp_b ^+ 1)%a = false ->
     is_heap_address (cgp_b ^+ 1)%a = false ->
-    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     Nswitcher ## Nassert ->
 
@@ -63,8 +63,8 @@ Section CMDC.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    cgp_b ∉ dom (std W_init_B) ->
-    (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
+    LNonHeap cgp_b ∉ dom (std W_init_B) ->
+    LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     is_heap_cap (WSealed ot_switcher C_g) = false ->
@@ -131,6 +131,9 @@ Section CMDC.
       & #HentryB_f & #HentryC_g
       & Hstack_revoked_B & Hstack_revoked_C
       & Hφ)".
+    pose proof (not_mmio_not_shadow _ Hcgp_shadow) as Hcgp_shadow'.
+    pose proof (not_mmio_not_shadow _ Hcgp1_shadow) as Hcgp1_shadow'.
+    pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
     iDestruct (big_sepL2_length with "Hcsp_stk") as "%Hlen_stack".
 
@@ -474,11 +477,11 @@ Section CMDC.
 
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
-    is_shadow_address cgp_b = false ->
+    is_mmio_address cgp_b = false ->
     is_heap_address cgp_b = false ->
-    is_shadow_address (cgp_b ^+ 1)%a = false ->
+    is_mmio_address (cgp_b ^+ 1)%a = false ->
     is_heap_address (cgp_b ^+ 1)%a = false ->
-    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     Nswitcher ## Nassert ->
 
@@ -489,8 +492,8 @@ Section CMDC.
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    cgp_b ∉ dom (std W_init_B) ->
-    (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
+    LNonHeap cgp_b ∉ dom (std W_init_B) ->
+    LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     is_heap_cap (WSealed ot_switcher C_g) = false ->
@@ -553,6 +556,9 @@ Section CMDC.
       & #HentryB_f & #HentryC_g
       & Hstack_revoked_B & Hstack_revoked_C
       & Hφ)".
+    pose proof (not_mmio_not_shadow _ Hcgp_shadow) as Hcgp_shadow'.
+    pose proof (not_mmio_not_shadow _ Hcgp1_shadow) as Hcgp1_shadow'.
+    pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     iApply (wp_wand with "[-]").
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap

@@ -11,7 +11,7 @@ Section KVS_spec_read_safe.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
@@ -247,7 +247,7 @@ Section KVS_spec_read_safe.
 
     set ( csp_b := (csp_b' ^+ 4)%a ).
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
     iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_C]")
         as (l) "(%Hl_unk & Hworld_C & #Hstack_revoked_W0 & _ & >[%stk_mem Hstk] & [Hrevoked_l _])".
@@ -265,7 +265,7 @@ Section KVS_spec_read_safe.
     iApply (KVS_read_spec_safe W0 (revoke W0) _ _ _ _ _ Hunsealing_shadow);
       try solve_ndisj; iFrame "∗#".
     iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp & Hcnull & Hworld_C)".
-    set (Wfixed := (close_list (l ++ finz.seq_between csp_b csp_e) (revoke W0))).
+    set (Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) (revoke W0))).
     iAssert (∃ wca0', ca0 ↦ᵣ wca0' ∗ interp Wfixed C wca0')%I with "[Hca0]" as "(%wca0' & Hca0 & #Hinterp_wca0')".
     { iDestruct "Hca0" as "[$|$]"; iApply interp_int. }
     iAssert (∃ wca1', ca1 ↦ᵣ wca1' ∗ interp Wfixed C wca1')%I with "[Hca1]" as "(%wca1' & Hca1 & #Hinterp_wca1')".

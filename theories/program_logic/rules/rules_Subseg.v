@@ -32,7 +32,7 @@ Section griotte_lang_rules.
       z_of_argument regs src2 = Some n2 →
       z_to_addr n1 = Some a1 →
       z_to_addr n2 = Some a2 →
-      incrementPC (<[ dst := WCap (t && isWithin a1 a2 b e) p g a1 a2 a ]ᵣ> regs) = None →
+      incrementPC (<[ dst := WCap (t && isWithin a1 a2 b e && (a1 <=? a2)%a) p g a1 a2 a ]ᵣ> regs) = None →
       Subseg_failure regs dst src1 src2 regs
   | Subseg_fail_incrPC_unrepresentable_cap (t : bool) p g b e a n1 n2 :
       regs !!ᵣ dst = Some (WCap t p g b e a) →
@@ -67,7 +67,7 @@ Section griotte_lang_rules.
       z_of_argument regs src2 = Some n2 →
       z_to_addr n1 = Some a1 →
       z_to_addr n2 = Some a2 →
-      incrementPC (<[ dst := WCap (t && isWithin a1 a2 b e) p g a1 a2 a ]ᵣ> regs) = Some regs' →
+      incrementPC (<[ dst := WCap (t && isWithin a1 a2 b e && (a1 <=? a2)%a) p g a1 a2 a ]ᵣ> regs) = Some regs' →
       Subseg_spec regs dst src1 src2 regs' NextIV
   | Subseg_spec_unrepresentable_cap (t : bool) p g b e a n1 n2 :
       regs !!ᵣ dst = Some (WCap t p g b e a) →
@@ -111,7 +111,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [ [Hr Hsr] Hm] Hst] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[ [ [ [Hr Hsr] Hm] Hst] Hmmio] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
     iDestruct (@gen_heap_valid with "Hm Hpc_a") as %Hpc_a; auto.
@@ -209,6 +209,7 @@ Section griotte_lang_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r1 ≠ cnull ->
@@ -228,7 +229,8 @@ Section griotte_lang_rules.
           ∗ dst ↦ᵣ WCap t p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' Hcnull Hcnull' Hcnull'' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' Hcnull Hcnull' Hcnull'' ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1 & >Hr2) Hφ".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -244,14 +246,14 @@ Section griotte_lang_rules.
         destruct Hbad; congruence
       end.
       match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
     iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
@@ -283,6 +285,7 @@ Section griotte_lang_rules.
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    assert (Hle' : (a1 <=? a1)%a = true) by solve_addr.
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -298,14 +301,14 @@ Section griotte_lang_rules.
         destruct Hbad; congruence
       end.
       match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
     iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
@@ -320,6 +323,7 @@ Section griotte_lang_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r2 ≠ cnull ->
@@ -336,7 +340,8 @@ Section griotte_lang_rules.
           ∗ dst ↦ᵣ WCap t p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr2) Hφ".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -352,14 +357,14 @@ Section griotte_lang_rules.
         destruct Hbad; congruence
       end.
       match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
     iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
@@ -374,6 +379,7 @@ Section griotte_lang_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
     r1 ≠ cnull ->
@@ -390,7 +396,8 @@ Section griotte_lang_rules.
           ∗ dst ↦ᵣ WCap t p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hdst & >Hr1) Hφ".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -406,14 +413,14 @@ Section griotte_lang_rules.
         destruct Hbad; congruence
       end.
       match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
     iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r1 dst) //
@@ -428,6 +435,7 @@ Section griotte_lang_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 b e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
 
@@ -441,7 +449,8 @@ Section griotte_lang_rules.
           ∗ dst ↦ᵣ WCap t p g a1 a2 a
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hdst) Hφ".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -457,14 +466,14 @@ Section griotte_lang_rules.
         destruct Hbad; congruence
       end.
       match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
     iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC dst) // insert_insert_eq insert_insert_ne // insert_insert_eq.
@@ -478,6 +487,7 @@ Section griotte_lang_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     r2 ≠ cnull ->
@@ -494,7 +504,8 @@ Section griotte_lang_rules.
           ∗ r2 ↦ᵣ WInt n2
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ?? ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) Hφ".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_3 with "HPC Hr1 Hr2") as "[Hmap (%&%&%)]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -510,14 +521,14 @@ Section griotte_lang_rules.
         destruct Hbad; congruence
       end.
       match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
     iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite !insert_insert_eq.
@@ -545,6 +556,7 @@ Section griotte_lang_rules.
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hn1 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    assert (Hle' : (a1 <=? a1)%a = true) by solve_addr.
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -560,14 +572,14 @@ Section griotte_lang_rules.
         destruct Hbad; congruence
       end.
       match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
     iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
@@ -581,6 +593,7 @@ Section griotte_lang_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     r2 ≠ cnull ->
 
@@ -594,7 +607,8 @@ Section griotte_lang_rules.
           ∗ r2 ↦ᵣ WInt n2
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr2) Hφ".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_2 with "HPC Hr2") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -610,14 +624,14 @@ Section griotte_lang_rules.
         destruct Hbad; congruence
       end.
       match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
     iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC r2) // insert_insert_eq insert_insert_ne // insert_insert_eq.
@@ -631,6 +645,7 @@ Section griotte_lang_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
 
@@ -644,7 +659,8 @@ Section griotte_lang_rules.
           ∗ r1 ↦ᵣ WInt n1
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ? ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_2 with "HPC Hr1") as "[Hmap %]".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     { by unfold regs_of; rewrite !dom_insert; set_solver+. }
@@ -660,14 +676,14 @@ Section griotte_lang_rules.
         destruct Hbad; congruence
       end.
       match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
     iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite (insert_insert_ne _ PC r1) // insert_insert_eq insert_insert_ne // insert_insert_eq.
@@ -681,6 +697,7 @@ Section griotte_lang_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     z_to_addr n1 = Some a1 → z_to_addr n2 = Some a2 →
     isWithin a1 a2 pc_b pc_e = true →
+    (a1 <= a2)%a →
     (pc_a + 1)%a = Some pc_a' →
 
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
@@ -691,7 +708,8 @@ Section griotte_lang_rules.
           ∗ pc_a ↦ₐ w
       }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hpc_a' ϕ) "(>HPC & >Hpc_a) Hφ".
+    iIntros (Hinstr Hvpc Hn1 Hn2 Hwb Hle Hpc_a' ϕ) "(>HPC & >Hpc_a) Hφ".
+    assert (Hle' : (a1 <=? a2)%a = true) by solve_addr.
     iDestruct (map_of_regs_1 with "HPC") as "Hmap".
     iApply (wp_Subseg with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
     iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
@@ -706,14 +724,14 @@ Section griotte_lang_rules.
         destruct Hbad; congruence
       end.
       match goal with Hincr : incrementPC _ = None |- _ =>
-        rewrite Hwb ?andb_true_r in Hincr
+        rewrite Hwb Hle' ?andb_true_r in Hincr
       end.
       incrementPC_inv; simplify_map_eq; eauto. congruence. }
     all: unfold z_of_argument in *; simplify_map_eq.
     all: try match goal with Hbad : _ = None ∨ _ = None |- _ =>
       destruct Hbad; congruence
     end.
-    rewrite Hwb ?andb_true_r in Hincr.
+    rewrite Hwb Hle' ?andb_true_r in Hincr.
     iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
     unfold addr_of_argument, z_of_argument in *. simplify_map_eq.
     rewrite !insert_insert_eq.
@@ -1011,7 +1029,7 @@ Section instruction_outcomes.
     z_of_argument regs src2 = Some n2 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
+    isWithin a1 a2 b e && (a1 <=? a2)%a = false →
     incrementPC (<[ dst := WCap false p g a1 a2 a ]ᵣ> regs) = Some regs' →
     {{{ ▷ pc_a ↦ₐ w ∗ ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
@@ -1023,8 +1041,8 @@ Section instruction_outcomes.
     destruct Hspec as [ | | | | Hfail]; simplify_eq.
     all: try (destruct Hfail; simplify_eq).
     all: repeat match goal with
-    | H : context [_ && isWithin _ _ _ _] |- _ =>
-      rewrite Hwithin andb_false_r in H
+    | H : context [_ && isWithin _ _ _ _ && _] |- _ =>
+      rewrite -andb_assoc Hwithin andb_false_r in H
     end.
     all: try match goal with H : _ ∨ _ |- _ => destruct H; congruence end.
     all: try (cbn in *; congruence).
@@ -1122,7 +1140,7 @@ Section instruction_outcomes.
     dst ≠ cnull →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
+    isWithin a1 a2 b e && (a1 <=? a2)%a = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a }}}
@@ -1188,7 +1206,7 @@ Section instruction_outcomes.
     (if decide (r2 = cnull) then WInt 0 else w2) = WInt n2 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
+    isWithin a1 a2 b e && (a1 <=? a2)%a = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a
@@ -1262,7 +1280,7 @@ Section instruction_outcomes.
     (if decide (r1 = cnull) then WInt 0 else w1) = WInt n1 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
+    isWithin a1 a2 b e && (a1 <=? a2)%a = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a
@@ -1337,7 +1355,7 @@ Section instruction_outcomes.
     (if decide (r2 = cnull) then WInt 0 else w2) = WInt n2 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 b e = false →
+    isWithin a1 a2 b e && (a1 <=? a2)%a = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a
@@ -1435,7 +1453,8 @@ Section instruction_outcomes.
         a1 with "[$Hmem $Hmap]"); eauto;
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
-                 repeat case_decide; simplify_eq; cbn; eauto].
+                 repeat case_decide; simplify_eq; cbn; eauto];
+      try solve [by rewrite Hreject].
     - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;
@@ -1851,7 +1870,7 @@ Section instruction_outcomes.
     (pc_a + 1)%a = Some pc_a' →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 pc_b pc_e = false →
+    isWithin a1 a2 pc_b pc_e && (a1 <=? a2)%a = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w }}}
       Instr Executable @ E
@@ -1908,7 +1927,7 @@ Section instruction_outcomes.
     (if decide (r2 = cnull) then WInt 0 else w2) = WInt n2 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 pc_b pc_e = false →
+    isWithin a1 a2 pc_b pc_e && (a1 <=? a2)%a = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ r2 ↦ᵣ w2 }}}
@@ -1972,7 +1991,7 @@ Section instruction_outcomes.
     (if decide (r1 = cnull) then WInt 0 else w1) = WInt n1 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 pc_b pc_e = false →
+    isWithin a1 a2 pc_b pc_e && (a1 <=? a2)%a = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ r1 ↦ᵣ w1 }}}
@@ -2038,7 +2057,7 @@ Section instruction_outcomes.
     (if decide (r2 = cnull) then WInt 0 else w2) = WInt n2 →
     z_to_addr n1 = Some a1 →
     z_to_addr n2 = Some a2 →
-    isWithin a1 a2 pc_b pc_e = false →
+    isWithin a1 a2 pc_b pc_e && (a1 <=? a2)%a = false →
     {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
         ∗ ▷ pc_a ↦ₐ w
         ∗ ▷ r1 ↦ᵣ w1
@@ -2125,7 +2144,8 @@ Section instruction_outcomes.
         $Hmap]"); eauto;
       try solve [rewrite /regs_of /regs_of_argument !dom_insert dom_empty_L; set_solver];
       try solve [rewrite /z_of_argument /lookup_reg ?lookup_insert;
-                 repeat case_decide; simplify_eq; cbn; eauto].
+                 repeat case_decide; simplify_eq; cbn; eauto];
+      try solve [by rewrite Hreject].
     - rewrite /incrementPC /incrementPC_gen /insert_reg ?lookup_insert.
       repeat case_decide; simplify_eq; cbn; rewrite Hincr;
       apply f_equal; apply map_eq; intros;

@@ -14,7 +14,7 @@ Section KVS_Main_Blocks.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -160,7 +160,7 @@ Section KVS_Main_Blocks.
       (b_stk e_stk a_stk : Addr) (target : Sealable)
       (stk_mem : list Word) (rmap : Reg)
       (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     dom rmap =
       all_registers_s ∖
@@ -186,14 +186,14 @@ Section KVS_Main_Blocks.
     ∗ interp_continuation cstk Ws Cs
     ∗ ▷ (∀ (W2 : WORLD) (rmap' : Reg) (stk_mem' : list Word) l' rcgp rcra rcs0 rcs1,
         ⌜extract_temporaries_condition
-          W2 (l' ++ finz.seq_between (a_stk ^+ 4)%a e_stk)⌝
+          W2 (l' ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk))⌝
         ∗ RevokedResources W2 C l'
-        ∗ ⌜revoked_addresses (revoke W2) l'⌝
+        ∗ ⌜revoked_keys (revoke W2) l'⌝
         ∗ ⌜related_sts_pub_world
             (std_update_multiple W
               (finz.seq_between (a_stk ^+ 4)%a e_stk) Temporary) W2⌝
         ∗ ([∗ list] a ∈ finz.seq_between (a_stk ^+ 4)%a e_stk,
-            ⌜std W2 !! a = Some Temporary⌝)
+            ⌜std W2 !! LNonHeap a = Some Temporary⌝)
         ∗ ⌜dom rmap' =
             all_registers_s ∖ {[PC; cgp; cra; csp; ca0; ca1; cs0; cs1]}⌝
         ∗ StackRevokedResources W2 C (finz.seq_between a_stk e_stk)
@@ -253,7 +253,7 @@ Section KVS_Main_Blocks.
       (Nswitcher : namespace) (stk_mem : list Word) (cstk : CSTK) :
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
-    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
@@ -330,6 +330,7 @@ Section KVS_Main_Blocks.
        & Himport_sealed_user_key & Hcode_main
        & Hstatic_sealed_b & HLUKVS & Hkvs_1
        & Hstk & Hcstk_frag & Hpost)".
+    pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     iExtractList "Hrmap" [cra;ca0;ca1;ca2;ctp;ct0;ct1;cs0;cs1]
       as ["Hcra"; "Hca0"; "Hca1"; "Hca2"; "Hctp"; "Hct0";
@@ -556,7 +557,7 @@ Section KVS_Main_Blocks.
       (stk_mem : list Word) (cstk : CSTK) :
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
-    disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
@@ -612,6 +613,7 @@ Section KVS_Main_Blocks.
        & Hstatic_sealed_b & HLUKVS & Hkvs_1
        & Himport_switcher & Himport_kvs_read & Himport_assert
        & Hcode_main)".
+    pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.

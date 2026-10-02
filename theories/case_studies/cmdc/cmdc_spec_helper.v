@@ -9,7 +9,7 @@ Section CMDC_Call_Phase.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -48,15 +48,15 @@ Section CMDC_Call_Phase.
          ct0 := WInt 0 ]} in
     let callee_stk_region := finz.seq_between (a_stk ^+ 4)%a e_stk in
     (shared_addr + 1)%a = Some shared_addr_e ->
-    is_shadow_address shared_addr = false ->
+    is_mmio_address shared_addr = false ->
     is_heap_address shared_addr = false ->
-    disjoint_from_shadow b_stk e_stk ->
+    disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     is_heap_cap wcgp = false ->
     is_heap_cap wcra = false ->
     is_heap_cap wcs0 = false ->
     is_heap_cap wcs1 = false ->
-    shared_addr ∉ dom (std W0) ->
+    LNonHeap shared_addr ∉ dom (std W0) ->
     shared_addr ∉ finz.seq_between b_stk e_stk ->
     revoked_addresses W0 (finz.seq_between b_stk e_stk) ->
     (b_stk <= a_stk)%a ->
@@ -92,14 +92,14 @@ Section CMDC_Call_Phase.
 
     ∗ ▷ (∀
           (Wret : WORLD) (rmap' : Reg)
-          (stk_mem' : list Word) (l' : list Addr),
-        (⌜extract_temporaries_condition Wret (l' ++ callee_stk_region)⌝
+          (stk_mem' : list Word) (l' : list LAddr),
+        (⌜extract_temporaries_condition Wret (l' ++ (LNonHeap <$> callee_stk_region))⌝
         ∗ RevokedResources Wret C l'
-        ∗ ⌜revoked_addresses (revoke Wret) l'⌝
+        ∗ ⌜revoked_keys (revoke Wret) l'⌝
         ∗ ⌜related_sts_pub_world (std_update_multiple Wcall callee_stk_region Temporary) Wret⌝
-        ∗ ([∗ list] a ∈ callee_stk_region, ⌜std Wret !! a = Some Temporary⌝)
-        ∗ ⌜std (revoke Wret) !! shared_addr = Some Permanent⌝
-        ∗ rel C shared_addr RW interp_in_memC
+        ∗ ([∗ list] a ∈ callee_stk_region, ⌜std Wret !! LNonHeap a = Some Temporary⌝)
+        ∗ ⌜std (revoke Wret) !! LNonHeap shared_addr = Some Permanent⌝
+        ∗ rel C (LNonHeap shared_addr) RW interp_in_memC
         ∗ ⌜dom rmap' = all_registers_s ∖ {[ PC; cgp; cra; csp; ca0; ca1; cs0; cs1 ]}⌝
         ∗ StackRevokedResources Wret C (finz.seq_between a_stk e_stk)
         ∗ ⌜revoked_addresses (revoke Wret) (finz.seq_between a_stk e_stk)⌝
@@ -156,11 +156,18 @@ Section CMDC_Call_Phase.
       iEval (cbn). iEval (rewrite fixpoint_interp1_eq). iEval (cbn).
       iSplitL; last first.
       { iPureIntro. split.
-        - rewrite /disjoint_from_shadow elem_of_disjoint.
-          intros a Ha Hr; apply elem_of_finz_seq_between in Ha, Hr.
-          assert (a = shared_addr) as -> by solve_addr+Ha Hshared_addr_e.
-          apply withinBounds_true_iff in Hr.
-          change (is_shadow_address shared_addr = true) in Hr; congruence.
+        - split.
+          + pose proof (not_mmio_not_shadow _ Hshared_shadow) as Hshared_shadow'.
+            rewrite /disjoint_from_shadow elem_of_disjoint.
+            intros a Ha Hr; apply elem_of_finz_seq_between in Ha, Hr.
+            assert (a = shared_addr) as -> by solve_addr+Ha Hshared_addr_e.
+            apply withinBounds_true_iff in Hr.
+            change (is_shadow_address shared_addr = true) in Hr; congruence.
+          + pose proof (not_mmio_not_revoker _ Hshared_shadow) as Hshared_rev.
+            intros Ha; apply elem_of_finz_seq_between in Ha.
+            assert (revoker_addr = shared_addr) as Heq by solve_addr+Ha Hshared_addr_e.
+            rewrite -Heq /is_revoker_address bool_decide_eq_false in Hshared_rev.
+            by apply Hshared_rev.
         - apply heap_cap_valid_disjoint.
           rewrite /disjoint_from_heap elem_of_disjoint.
           intros a Ha Hr; apply elem_of_finz_seq_between in Ha, Hr.
@@ -213,7 +220,7 @@ Section CMDC_Call_Phase.
       rewrite /revoked_addresses Forall_forall in Hrevoked_stk.
       intros a Ha. subst Wcall. cbn.
       rewrite lookup_insert_ne;
-        last (intros ->; set_solver+Hshared_addr_stk Ha).
+        last (intros [= ->]; set_solver+Hshared_addr_stk Ha).
       by apply Hrevoked_stk.
     }
     assert (revoked_addresses Wcall (finz.seq_between a_stk e_stk))
@@ -257,7 +264,7 @@ Section CMDC_Call_Phase.
         rewrite !elem_of_finz_seq_between in Hshared_addr_range |- *.
         solve_addr+Hstk_lower Hshared_addr_range.
       }
-      assert (std Wret !! shared_addr = Some Permanent)
+      assert (std Wret !! LNonHeap shared_addr = Some Permanent)
         as Hshared_addr_perm.
       { eapply region_state_pub_perm; first exact HWcall_pub_Wret.
         subst Wcall callee_stk_region.
@@ -265,7 +272,7 @@ Section CMDC_Call_Phase.
           last exact Hshared_addr_callee.
         by rewrite lookup_insert_eq.
       }
-      assert (std (revoke Wret) !! shared_addr = Some Permanent)
+      assert (std (revoke Wret) !! LNonHeap shared_addr = Some Permanent)
         as Hshared_addr_perm_revoke.
       { by apply revoke_lookup_Perm. }
 

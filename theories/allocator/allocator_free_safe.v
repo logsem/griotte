@@ -13,7 +13,7 @@ Section Heap_Temporal_Safety_Interp.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     {allocator_historyg : allocatorHistoryG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -63,7 +63,7 @@ Section Heap_Temporal_Safety_Interp.
     NoDup la ->
     Forall (λ a,
       heap_addr_live (heap_std W) a ∧
-      ∃ ρ, ρ ≠ Revoked ∧ std W !! a = Some ρ) la ->
+      ∃ ρ, ρ ≠ Revoked ∧ std W !! LNonHeap a = Some ρ) la ->
     world_interp W C
     ==∗
     ∃ ws,
@@ -72,8 +72,8 @@ Section Heap_Temporal_Safety_Interp.
       ([∗ list] a ∈ la,
         ∃ p φ ρ,
           ⌜∀ WCv, Persistent (φ WCv)⌝ ∗
-          rel C a p φ ∗
-          sts_state_std C a ρ).
+          rel C (LNonHeap a) p φ ∗
+          sts_state_std C (LNonHeap a) ρ).
   Proof.
     intros Hnodup Hstates.
     induction la as [|a la IH].
@@ -111,8 +111,8 @@ Section Heap_Temporal_Safety_Interp.
     ([∗ list] a ∈ la,
       ∃ p φ ρ,
         ⌜∀ WCv, Persistent (φ WCv)⌝ ∗
-        rel C a p φ ∗
-        sts_state_std C a ρ) ∗
+        rel C (LNonHeap a) p φ ∗
+        sts_state_std C (LNonHeap a) ρ) ∗
     ([∗ list] a ∈ la, reclaim_token a)
     -∗
     world_interp W C.
@@ -212,7 +212,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hctp" as (wctp') "Hctp".
       iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wfixed := close_list
-        (l ++ finz.seq_between (a_stk ^+ 4)%a e_stk) (revoke W)).
+        (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
       destruct Htemps as [Hnodup Htemps].
       iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld")
         as %Hheap_wf_cur.
@@ -300,7 +300,7 @@ Section Heap_Temporal_Safety_Interp.
         by (intros x Hnotin; unfold h';
             eapply free_heap_quarantine_status_outside; eauto).
       assert (Hdom_l : Forall
-          (fun x => x ∈ dom (std W)) (finz.seq_between base objend))
+          (fun x => LNonHeap x ∈ dom (std W)) (finz.seq_between base objend))
         by (apply Forall_forall; intros x Hx;
             apply Forall_forall with (x := x) in Hpayload;
             last exact Hx;
@@ -369,7 +369,7 @@ Section Heap_Temporal_Safety_Interp.
       iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wq := heap_std_update W h').
       set (Wfixed := close_list
-        (l ++ finz.seq_between (a_stk ^+ 4)%a e_stk) (revoke Wq)).
+        (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke Wq)).
       destruct Htemps as [Hnodup Htemps].
       assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
         by (subst Wfixed; rewrite close_list_heap revoke_heap; exact Hheap_wf_q).
@@ -416,7 +416,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hctp" as (wctp') "Hctp".
       iInsertList "Hrmap" [cnull;ctp;ct4;ct3;ct2;ct1;ct0;ca2;cra;cgp].
       set (Wfixed := close_list
-        (l ++ finz.seq_between (a_stk ^+ 4)%a e_stk) (revoke W)).
+        (l ++ (LNonHeap <$> finz.seq_between (a_stk ^+ 4)%a e_stk)) (revoke W)).
       destruct Htemps as [Hnodup Htemps].
       assert (heap_wf (heap_std Wfixed)) as Hheap_wf_fixed
         by (subst Wfixed; rewrite close_list_heap; exact Hheap_wf).

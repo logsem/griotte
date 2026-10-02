@@ -13,7 +13,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
@@ -38,7 +38,7 @@ Section fundamental.
     reg_allows_store_imm (<[PC:=WCap true pc_p pc_g pc_b pc_e a]> regs) r1 imm p g b e cur_addr a
     → PermFlowsTo pc_p pc_p'
     → (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → interp W C v)
-    -∗ rel C a pc_p' P
+    -∗ rel C (LNonHeap a) pc_p' P
     -∗ ⌜PermFlowsTo p pc_p'⌝.
   Proof.
     destruct (decide (r1 = PC)).
@@ -64,15 +64,15 @@ Section fundamental.
     (l : Addr) (ls : list Addr) (p : Perm) (φ: _ -> iProp Σ)
     (v : Word) (P : D) (has_later : bool): iProp Σ :=
     (∃ ρ,
-        sts_state_std C l ρ
-        ∗ ⌜std W !! l = Some ρ⌝
+        sts_state_std C (LNonHeap l) ρ
+        ∗ ⌜std W !! LNonHeap l = Some ρ⌝
         ∗ ⌜ρ ≠ Revoked⌝
         ∗ ⌜heap_addr_live (heap_std W) l⌝
         ∗ world_interp_open W C (l :: ls)
         ∗ if_later_P
             has_later
             (monotonicity_guarantees_region C (safeC P) p v ρ )
-        ∗ rel C l p φ)%I.
+        ∗ rel C (LNonHeap l) p φ)%I.
 
   Lemma store_inr_eq (imm : Z) {regs r p0 g0 b0 e0 a0 ea t1 p1 g1 b1 e1 a1}:
     reg_allows_store_imm regs r imm p0 g0 b0 e0 a0 ea →
@@ -151,7 +151,7 @@ Section fundamental.
     → heap_wf (heap_std W)
     → interp W C (WCap true p g b e a)
     -∗ (∀ (r1 : RegName) v, ⌜r1 ≠ PC⌝ → ⌜regs !! r1 = Some v⌝ → interp W C v)
-    -∗ rel C a p' (safeC P)
+    -∗ rel C (LNonHeap a) p' (safeC P)
     -∗ world_interp_open W C [a]
     -∗ allow_store_res imm W C r1 r2 (<[PC:=WCap true p g b e a]> regs) a p' true.
   Proof.
@@ -283,7 +283,7 @@ Section fundamental.
     (W : WORLD) (C : CmptName)
     (p : Perm) (w : Word) (P : D)
     (a : Addr) (ρ : region_type) :
-    std W !! a = Some ρ
+    std W !! LNonHeap a = Some ρ
     -> ρ ≠ Revoked
     -> canStore p w = true
     -> monoReq W C a p P
@@ -303,7 +303,7 @@ Section fundamental.
      (mem0 : Mem) (oldv storev : Word) (ρ : region_type) (P:D):
      word_of_argument (<[PC:= WCap true pc_p pc_g pc_b pc_e pc_a]> regs) r2 = Some storev
     → reg_allows_store_imm (<[PC:= WCap true pc_p pc_g pc_b pc_e pc_a]> regs) r1 imm p0 g0 b0 e0 a0 ea0
-    → std W !! pc_a = Some ρ
+    → std W !! LNonHeap pc_a = Some ρ
     → mem0 !! ea0 = Some oldv
     -> ρ ≠ Revoked
     → allow_store_mem imm W C r1 r2 (<[PC:=WCap true pc_p pc_g pc_b pc_e pc_a]> regs) pc_a pc_p'  pc_w mem0 false

@@ -193,7 +193,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg : sealStorePreG Σ}.
   Context {na_invg : na_invariants.na_invG Σ}.
-  Context {sts_preg : STS_preG Addr region_type OType Word Σ}.
+  Context {sts_preg : STS_preG LAddr region_type OType Word Σ}.
   Context {cstack_preg : CSTACK_preG Σ}.
   Context {relpreg : relGpreS Σ}.
   Context `{MP : MachineParameters} {Layout : hts_memory_layout}.
@@ -226,6 +226,9 @@ Section Adequacy.
       & Hmain_static & Hmain_exports & Halloc_imports & Halloc_code
       & Halloc_data & Halloc_static & Halloc_exports & Hadv_imports
       & Hadv_code & Hadv_data & Hadv_static & Hadv_exports & Hstack).
+    assert (mem_avoids_mmio mem) as Hmmio_init.
+    { rewrite Hmem /hts_initial_memory /hts_initial_program_memory.
+      solve_mem_avoids_mmio_initial. }
     set (adv_f := SCap true RO Global
       (cmpt_exp_tbl_pcc hts_adv_cmpt)
       (cmpt_exp_tbl_entries_end hts_adv_cmpt)
@@ -630,7 +633,7 @@ Section Adequacy.
     { unfold switcher_cmpt_disjoint.
       eapply (addr_disjoint_list_lookup _ 3 1);
         [exact hts_regions_disjoint|reflexivity..|lia]. }
-    assert (Forall (fun a => a ∉ dom (std W2))
+    assert (Forall (fun a => LNonHeap a ∉ dom (std W2))
       (finz.seq_between (b_stack hts_switcher_cmpt)
         (e_stack hts_switcher_cmpt))) as Hstack_fresh.
     { apply Forall_forall; intros a Ha.
@@ -693,14 +696,14 @@ Section Adequacy.
         iSplit; first (iNext; by iApply zcond_interp_in_mem).
         iSplit; first (iNext; by iApply rcond_interp_in_mem).
         iSplit; first (iNext; by iApply wcond_interp_in_mem).
-        assert (std Winit !! a = Some Temporary).
+        assert (std Winit !! LNonHeap a = Some Temporary).
         { subst Winit.
           apply list_elem_of_lookup_2 in Ha.
           rewrite std_sta_update_multiple_lookup_in_i; auto. }
         iSplit; last done.
         iApply (monoReq_interp_in_mem _ _ _ _ Temporary); done. }
       iPureIntro; split.
-      { apply stack_disjoint_from_shadow. }
+      { apply stack_disjoint_from_mmio. }
       apply heap_cap_valid_disjoint, stack_disjoint_from_heap. }
 
     assert (is_heap_cap (WSealed ot_switcher adv_f) = false)
@@ -755,7 +758,7 @@ Section Adequacy.
         rewrite elem_of_disjoint in Hdis.
         eapply Hdis; eauto. }
     assert (forall a, a ∈ cmpt_cgp_region hts_main_cmpt ->
-      std Winit !! a = None) as Hcgp_fresh.
+      std Winit !! LNonHeap a = None) as Hcgp_fresh.
     { intros a Ha.
       destruct (Hcgp_outside a Ha) as [Hnotadv Hnotsw].
       subst Winit W2 W1 W0.
@@ -862,14 +865,15 @@ Section Adequacy.
     { done. }
 
     iModIntro.
-    iExists (fun σ _ _ => (((gen_heap_interp (griotte_opsem.reg σ) ∗
+    iExists (fun σ _ _ => ((((gen_heap_interp (griotte_opsem.reg σ) ∗
       gen_heap_interp (griotte_opsem.sreg σ)) ∗
       gen_heap_interp (griotte_opsem.mem σ)) ∗
-      gen_heap_interp (shadowtbl σ)))%I.
-    iExists (fun _ => True)%I. cbn. iFrame.
+      gen_heap_interp (shadowtbl σ)))
+      ∗ ⌜mem_avoids_mmio (griotte_opsem.mem σ)⌝)%I.
+    iExists (fun _ => True)%I. cbn. iFrame "% ∗".
     iSplitL "Hspec".
     { iApply (wp_mono with "Hspec"); iIntros (?) "?"; done. }
-    iIntros "[[[Hreg' Hsreg'] Hmem'] Hshadow']".
+    iIntros "[[[[Hreg' Hsreg'] Hmem'] Hshadow'] _]".
     iExists (⊤ ∖ ↑(htsN .@ "flag")).
     iInv (htsN .@ "flag") as ">Hflag" "Hclose".
     iDestruct (gen_heap_valid with "Hmem' Hflag") as %Hm_flag.
@@ -911,7 +915,7 @@ Proof.
               ; entryPreΣ; CSTACK_preΣ; allocator_preΣ
               ; ghost_mapΣ Addr (Addr * (Z * Z))
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type OType Word; relPreΣ
+              ; STS_preΣ LAddr region_type OType Word; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)
       ]).
   eapply (@hts_adequacy' Σ cnames B); eauto; try typeclasses eauto.

@@ -9,7 +9,7 @@ Section monotone.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
@@ -265,7 +265,7 @@ Section monotone.
     related_sts_pub_world W W' ->
     (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝ ∗ ⌜persistent_cond P⌝ ∗
-        rel C a p' (safeC P) ∗ ▷ zcond P C ∗
+        rel C (LNonHeap a) p' (safeC P) ∗ ▷ zcond P C ∗
         (if readAllowed p' then ▷ rcond P C p' interp else True) ∗
         (if writeAllowed p' then ▷ wcond P C interp else True) ∗
         monoReq W C a p' P ∗
@@ -273,7 +273,7 @@ Section monotone.
     -∗
     (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝ ∗ ⌜persistent_cond P⌝ ∗
-        rel C a p' (safeC P) ∗ ▷ zcond P C ∗
+        rel C (LNonHeap a) p' (safeC P) ∗ ▷ zcond P C ∗
         (if readAllowed p' then ▷ rcond P C p' interp else True) ∗
         (if writeAllowed p' then ▷ wcond P C interp else True) ∗
         monoReq W' C a p' P ∗
@@ -310,14 +310,14 @@ Section monotone.
     related_sts_priv_world W W' ->
     (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝ ∗ ⌜persistent_cond P⌝ ∗
-        rel C a p' (safeC P) ∗ ▷ zcond P C ∗
+        rel C (LNonHeap a) p' (safeC P) ∗ ▷ zcond P C ∗
         (if readAllowed p' then ▷ rcond P C p' interp else True) ∗
         (if writeAllowed p' then ▷ wcond P C interp else True) ∗
         monoReq W C a p' P ∗ ⌜region_state_nwl W a Global⌝)
     -∗
     (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝ ∗ ⌜persistent_cond P⌝ ∗
-        rel C a p' (safeC P) ∗ ▷ zcond P C ∗
+        rel C (LNonHeap a) p' (safeC P) ∗ ▷ zcond P C ∗
         (if readAllowed p' then ▷ rcond P C p' interp else True) ∗
         (if writeAllowed p' then ▷ wcond P C interp else True) ∗
         monoReq W' C a p' P ∗ ⌜region_state_nwl W' a Global⌝).

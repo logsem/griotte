@@ -11,13 +11,13 @@ Section std_updates.
 
   Context {Σ:gFunctors}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType Word Σ}
     `{MP: MachineParameters}.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Fixpoint std_update_multiple W l ρ :=
+  Fixpoint std_update_multiple W (l : list Addr) ρ :=
     match l with
     | [] => W
     | a :: l => std_update (std_update_multiple W l ρ) a ρ
@@ -52,10 +52,10 @@ Section std_updates.
      - simpl. destruct (decide (a1 = a2)); subst.
        + done.
        + rewrite /std_update.
-         repeat rewrite (insert_insert_ne _ a1 a2); auto.
+         repeat rewrite (insert_insert_ne _ (LNonHeap a1) (LNonHeap a2)); auto.
      - destruct (decide (a1 = a2)); subst;[done|].
        simpl. rewrite /std_update.
-       repeat rewrite (insert_insert_ne _ a1 a2) ; auto.
+       repeat rewrite (insert_insert_ne _ (LNonHeap a1) (LNonHeap a2)) ; auto.
    Qed.
 
 
@@ -80,36 +80,53 @@ Section std_updates.
    (* --------------------------------------------------------------------------------------------------------- *)
 
    (* If an element is not in the update list, the state lookup is the same *)
-   Lemma std_sta_update_multiple_lookup_same_i W l ρ i :
-     i ∉ l -> (std (std_update_multiple W l ρ)) !! i =
-             (std W) !! i.
+   Lemma std_sta_update_multiple_lookup_same_k W l ρ (k : LAddr) :
+     k ∉ LNonHeap <$> l -> (std (std_update_multiple W l ρ)) !! k =
+             (std W) !! k.
    Proof.
      intros Hnin.
      induction l; auto.
+     rewrite fmap_cons in Hnin.
      apply not_elem_of_cons in Hnin as [Hne Hnin].
      rewrite lookup_insert_ne; auto.
+   Qed.
+
+   Lemma std_sta_update_multiple_lookup_same_i W l ρ i :
+     i ∉ l -> (std (std_update_multiple W l ρ)) !! LNonHeap i =
+             (std W) !! LNonHeap i.
+   Proof.
+     intros Hnin. apply std_sta_update_multiple_lookup_same_k.
+     by rewrite not_elem_of_LNonHeap_fmap.
    Qed.
 
    (* ------------------------------------------------------------ *)
 
    (* If an element is in the update list, the state lookup corresponds to the update value *)
-   Lemma std_sta_update_multiple_lookup_in_i W l ρ i :
-     i ∈ l -> (std (std_update_multiple W l ρ)) !! i = Some ρ.
+   Lemma std_sta_update_multiple_lookup_in_k W l ρ (k : LAddr) :
+     k ∈ LNonHeap <$> l -> (std (std_update_multiple W l ρ)) !! k = Some ρ.
    Proof.
      intros Hnin.
      induction l; auto; first inversion Hnin.
+     rewrite fmap_cons in Hnin.
      apply elem_of_cons in Hnin as [Hne | Hnin].
-     - subst i. rewrite lookup_insert_eq; auto.
-     - destruct (decide (a = i));[subst i; rewrite lookup_insert_eq; auto|].
+     - subst k. rewrite lookup_insert_eq; auto.
+     - destruct (decide (LNonHeap a = k));[subst k; rewrite lookup_insert_eq; auto|].
        rewrite lookup_insert_ne;auto.
+   Qed.
+
+   Lemma std_sta_update_multiple_lookup_in_i W l ρ i :
+     i ∈ l -> (std (std_update_multiple W l ρ)) !! LNonHeap i = Some ρ.
+   Proof.
+     intros Hin. apply std_sta_update_multiple_lookup_in_k.
+     by rewrite elem_of_LNonHeap_fmap.
    Qed.
 
    (* ------------------------------------------------------------ *)
 
    (* domains *)
    Lemma std_update_multiple_not_in_sta_i W l ρ i :
-     i ∉ l → i ∈ dom (std W) ↔
-               i ∈ dom (std (std_update_multiple W l ρ)).
+     i ∉ l → LNonHeap i ∈ dom (std W) ↔
+               LNonHeap i ∈ dom (std (std_update_multiple W l ρ)).
    Proof.
      intros Hnin. induction l; auto.
      apply not_elem_of_cons in Hnin as [Hneq Hnin].
@@ -117,8 +134,8 @@ Section std_updates.
    Qed.
 
    Lemma std_update_multiple_not_in_sta W l ρ (a : Addr) :
-     a ∉ l → a ∈ dom (std W) ↔
-             a ∈ dom (std (std_update_multiple W l ρ)).
+     a ∉ l → LNonHeap a ∈ dom (std W) ↔
+             LNonHeap a ∈ dom (std (std_update_multiple W l ρ)).
    Proof.
      intros Hnin.
      apply std_update_multiple_not_in_sta_i.
@@ -129,7 +146,7 @@ Section std_updates.
    (* Some helper lemmas for various lemmas about using multiple updates in region *)
 
    Lemma related_sts_pub_update_multiple W l ρ :
-     Forall (λ a, a ∉ dom (std W)) l →
+     Forall (λ a, LNonHeap a ∉ dom (std W)) l →
      related_sts_pub_world W (std_update_multiple W l ρ).
    Proof.
      intros Hforall. induction l.
@@ -177,18 +194,18 @@ Section std_updates.
      split.
      - apply std_update_multiple_std_sta_dom_monotone. auto.
      - intros i x y Hx Hy.
-       destruct (decide (i ∈ l)).
-       + rewrite std_sta_update_multiple_lookup_in_i in Hx;auto.
-         rewrite std_sta_update_multiple_lookup_in_i in Hy;auto.
+       destruct (decide (i ∈ LNonHeap <$> l)).
+       + rewrite std_sta_update_multiple_lookup_in_k in Hx;auto.
+         rewrite std_sta_update_multiple_lookup_in_k in Hy;auto.
          inversion Hx; inversion Hy; subst. left.
-       + rewrite std_sta_update_multiple_lookup_same_i /= in Hx;auto.
-         rewrite std_sta_update_multiple_lookup_same_i /= in Hy;auto.
+       + rewrite std_sta_update_multiple_lookup_same_k /= in Hx;auto.
+         rewrite std_sta_update_multiple_lookup_same_k /= in Hy;auto.
          apply Hstd_related with i; auto.
    Qed.
 
    (* lemmas for updating a repetition of top *)
 
-   Lemma std_update_multiple_insert_commute W a (l: list Addr) ρ ρ' :
+   Lemma std_update_multiple_insert_commute W (a : Addr) (l: list Addr) ρ ρ' :
      a ∉ l →
      std_update_multiple (<s[a:=ρ']s> W) l ρ = <s[a:=ρ']s> (std_update_multiple W l ρ).
    Proof.
@@ -240,7 +257,7 @@ Section std_updates.
    Qed.
 
    Lemma related_sts_pub_update_multiple_temp W l :
-     Forall (λ k, std W !! k = Some Revoked) l →
+     Forall (λ k, std W !! LNonHeap k = Some Revoked) l →
      related_sts_pub_world W (std_update_multiple W l Temporary).
    Proof.
      intros Hforall. induction l.
@@ -262,8 +279,8 @@ Section std_updates.
 
    Lemma elem_of_dom_std_multiple_update (W : WORLD) (a : Addr) (l : list Addr)
      (ρ: region_type) :
-     a ∈ (dom (std (std_update_multiple W l ρ))) ->
-     a ∈ l \/ a ∈ (dom (std W)).
+     LNonHeap a ∈ (dom (std (std_update_multiple W l ρ))) ->
+     a ∈ l \/ LNonHeap a ∈ (dom (std W)).
    Proof.
      induction l as [|a' l] ; intros Ha; first naive_solver.
      destruct (decide (a = a')) as [|Hna]; simplify_eq; first (left; set_solver).

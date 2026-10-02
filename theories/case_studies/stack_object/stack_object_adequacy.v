@@ -177,7 +177,7 @@ Section Adequacy.
   Context {shadow_preg: gen_heapGpreS Addr AllocStatus Σ}.
   Context {allocator_preg: allocator_preG Σ}.
   Context {na_invg: na_invariants.na_invG Σ}.
-  Context {sts_preg: STS_preG Addr region_type OType Word Σ}.
+  Context {sts_preg: STS_preG LAddr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -213,6 +213,9 @@ Section Adequacy.
                     & C_imports & C_code & C_data & C_exp_tbl
                     & Hstack
                    ).
+    assert (mem_avoids_mmio m) as Hmmio_init.
+    { rewrite Hm /mk_initial_memory /mk_initial_program_memory.
+      solve_mem_avoids_mmio_initial. }
     set (C_f :=
        (WCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
          (cmpt_exp_tbl_entries_start C_cmpt))
@@ -629,7 +632,7 @@ Section Adequacy.
     | H: _ |- context [  (world_interp ?W C) ] => set (W1 := W)
     end.
 
-    assert (Forall (fun a => a ∉ dom (std W1))
+    assert (Forall (fun a => LNonHeap a ∉ dom (std W1))
               (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))) as Hswitcher_W4.
     { apply Forall_forall; intros a Ha; cbn.
       pose proof switcher_cmpt_disjoints as (_ & Hc).
@@ -703,7 +706,7 @@ Section Adequacy.
         iSplit; first (iNext ; by iApply zcond_interp_in_mem).
         iSplit; first (iNext ; by iApply rcond_interp_in_mem).
         iSplit; first (iNext ; by iApply wcond_interp_in_mem).
-        assert ((std Winit_C) !! a = Some Temporary).
+        assert ((std Winit_C) !! LNonHeap a = Some Temporary).
         { subst Winit_C.
           apply list_elem_of_lookup_2 in Ha.
           rewrite std_sta_update_multiple_lookup_in_i; auto.
@@ -712,7 +715,7 @@ Section Adequacy.
         iApply (monoReq_interp_in_mem _ _ _ _ Temporary); done.
       }
       iPureIntro; split.
-      { apply stack_disjoint_from_shadow. }
+      { apply stack_disjoint_from_mmio. }
       apply heap_cap_valid_disjoint, stack_disjoint_from_heap.
     }
 
@@ -826,13 +829,14 @@ Section Adequacy.
     { done. }
 
     iModIntro.
-    iExists (fun σ _ _ => (((gen_heap_interp (griotte_opsem.reg σ) ∗ gen_heap_interp (griotte_opsem.sreg σ))
-      ∗ gen_heap_interp (mem σ)) ∗ gen_heap_interp (shadowtbl σ)))%I.
-    iExists (fun _ => True)%I. cbn. iFrame.
+    iExists (fun σ _ _ => ((((gen_heap_interp (griotte_opsem.reg σ) ∗ gen_heap_interp (griotte_opsem.sreg σ))
+      ∗ gen_heap_interp (mem σ)) ∗ gen_heap_interp (shadowtbl σ)))
+      ∗ ⌜mem_avoids_mmio (griotte_opsem.mem σ)⌝)%I.
+    iExists (fun _ => True)%I. cbn. iFrame "% ∗".
     iSplitL "Hspec".
     { iApply (wp_mono with "Hspec"); iIntros (?) "?"; done. }
 
-    iIntros "[[[Hreg' Hsreg'] Hmem'] Hshadow']". iExists (⊤ ∖ ↑flagN).
+    iIntros "[[[[Hreg' Hsreg'] Hmem'] Hshadow'] _]". iExists (⊤ ∖ ↑flagN).
     iInv flagN as ">Hflag" "Hclose".
     iDestruct (gen_heap_valid with "Hmem' Hflag") as %Hm'_flag.
     iModIntro. iPureIntro. rewrite /state_is_good //=.
@@ -871,7 +875,7 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type OType Word ; relPreΣ
+              ; STS_preΣ LAddr region_type OType Word ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)
       ]).
   eapply (@so_adequacy' Σ cnames B); eauto; try typeclasses eauto.

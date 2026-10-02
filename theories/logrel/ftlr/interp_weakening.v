@@ -9,7 +9,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
   .
@@ -359,7 +359,7 @@ Section fundamental.
   Proof. iIntros. rewrite /interp fixpoint_interp1_eq //. Qed.
 
   Lemma monoReq_interp_in_mem (W : WORLD) (C : CmptName) (a : Addr) (p : Perm) (ρ : region_type) :
-    (std W) !! a = Some ρ
+    (std W) !! LNonHeap a = Some ρ
     -> (ρ = Permanent -> isWL p = false)
     -> ⊢ monoReq W C a p (interp_in_mem RWL).
   Proof.
@@ -597,11 +597,8 @@ Section fundamental.
     iDestruct "HA" as "[A %Hconditions]".
     destruct Hconditions as [Hpwl_cond Hregions].
     destruct Hregions as [Hshadow Hheap].
-    assert (Hshadow' : disjoint_from_shadow b' e').
-    { rewrite /disjoint_from_shadow elem_of_disjoint in Hshadow |- *.
-      intros x Hx Hshadowx. eapply Hshadow; last exact Hshadowx.
-      apply elem_of_finz_seq_between in Hx.
-      apply elem_of_finz_seq_between. solve_addr. }
+    assert (Hshadow' : disjoint_from_mmio b' e').
+    { eapply (disjoint_from_mmio_weaken b e); [solve_addr | solve_addr | exact Hshadow]. }
     have Hheap' := heap_cap_valid_perm W p p' b' e' Hp
       (heap_cap_valid_subseg W p b e b' e' Hwf Hb He Hheap).
     have Hregions' := conj Hshadow' Hheap'.
@@ -708,12 +705,9 @@ Section fundamental.
     iDestruct "HA" as "[A %Hconditions]".
     destruct Hconditions as [Hpwl_cond Hregions].
     destruct Hregions as [Hshadow Hheap].
-    assert (Hregions' : disjoint_from_shadow b' e' ∧ disjoint_from_heap b' e').
+    assert (Hregions' : disjoint_from_mmio b' e' ∧ disjoint_from_heap b' e').
     { split; last exact (proj2 Hsentry).
-      rewrite /disjoint_from_shadow elem_of_disjoint in Hshadow |- *.
-      intros x Hx Hshadowx. eapply Hshadow; last exact Hshadowx.
-      apply elem_of_finz_seq_between in Hx.
-      apply elem_of_finz_seq_between. solve_addr. }
+      eapply (disjoint_from_mmio_weaken b e); [solve_addr | solve_addr | exact Hshadow]. }
     iSplit; first done.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.

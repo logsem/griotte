@@ -9,7 +9,7 @@ Section DLE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -24,10 +24,10 @@ Section DLE.
   Local Lemma dle_prepare_world {E : coPset}
       (W : WORLD) (b e : Addr) (z : Z) :
     (b + 2)%a = Some e ->
-    disjoint_from_shadow b e ->
+    disjoint_from_mmio b e ->
     not_heap_range b e ->
-    b ∉ dom (std W) ->
-    (b ^+ 1)%a ∉ dom (std W) ->
+    LNonHeap b ∉ dom (std W) ->
+    LNonHeap (b ^+ 1)%a ∉ dom (std W) ->
     world_interp (revoke W) C ∗
     b ↦ₐ WInt z ∗
     (b ^+ 1)%a ↦ₐ WCap true RW Global b (b ^+ 1)%a b
@@ -100,7 +100,7 @@ Section DLE.
       as "(Hworld_interp_C & Hrel_cgp_a)"; auto.
     { subst W2.
       cbn; rewrite dom_insert_L not_elem_of_union; split.
-      + rewrite not_elem_of_singleton; solve_addr + Hcgp_contiguous.
+      + rewrite not_elem_of_singleton; intros [= Heq]; solve_addr + Heq Hcgp_contiguous.
       + by rewrite -revoke_dom_eq.
     }
     match goal with
@@ -144,7 +144,7 @@ Section DLE.
       }
       apply related_sts_pub_priv_world.
       eapply related_sts_pub_world_revoked_temporary'.
-      rewrite lookup_insert_ne; last solve_addr + Hcgp_contiguous.
+      rewrite lookup_insert_ne; last (apply LNonHeap_ne; solve_addr + Hcgp_contiguous).
       by rewrite -revoke_lookup_None -not_elem_of_dom.
     }
     iModIntro.
@@ -175,7 +175,7 @@ Section DLE.
 
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
-    disjoint_from_shadow cgp_b cgp_e ->
+    disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
     Nswitcher ## Nassert ->
 
@@ -186,8 +186,8 @@ Section DLE.
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     (pc_b + length imports)%a = Some pc_a ->
 
-    (cgp_b)%a ∉ dom (std W0) ->
-    (cgp_b ^+1 )%a ∉ dom (std W0) ->
+    LNonHeap (cgp_b)%a ∉ dom (std W0) ->
+    LNonHeap (cgp_b ^+1 )%a ∉ dom (std W0) ->
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs cstk W0 C ->
@@ -262,7 +262,7 @@ Section DLE.
 
     (* Revoke the world to get the stack frame *)
     set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
+    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
     { iApply (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp_W0_csp"); eauto. }
 
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
@@ -466,12 +466,12 @@ Section DLE.
       eapply related_sts_pub_trans_world ; eauto.
       apply related_sts_pub_update_multiple_temp.
       apply Forall_forall; intros a Ha.
-      rewrite lookup_insert_ne;[|intro Hcontra; subst a; set_solver+Ha Hcgp_a_stk'].
-      rewrite lookup_insert_ne;[|intro Hcontra; subst a; set_solver+Ha Hcgp_b_stk'].
+      rewrite lookup_insert_ne;[|intros [= Hcontra]; subst a; set_solver+Ha Hcgp_a_stk'].
+      rewrite lookup_insert_ne;[|intros [= Hcontra]; subst a; set_solver+Ha Hcgp_b_stk'].
       cbn.
       eapply revoke_lookup_Monotemp.
       destruct Hl_unk as [_ Htemp]; apply Htemp.
-      apply elem_of_app; right.
+      apply elem_of_app; right; apply elem_of_LNonHeap_fmap.
       rewrite !elem_of_finz_seq_between in Ha |- *; solve_addr+Ha.
     }
     set (W5 := revoke W4).
@@ -479,19 +479,20 @@ Section DLE.
     (* -- extract cgp_b out of the revoked -- *)
     (* TODO lemma *)
     iDestruct ( big_sepL_elem_of_extract _
-      (fun a => (⌜is_heap_address a = false⌝ -∗ ▷ ∃ v, a ↦ₐ v)%I) cgp_b
+      (fun k => (⌜is_heap_address (laddr_addr k) = false⌝ -∗ ▷ ∃ v, laddr_addr k ↦ₐ v)%I) (LNonHeap cgp_b)
       with "[] [$Hrevoked_l']")
       as (l'') "(%Hl_unk'' & Hrevoked_l'' & Hcgp_b_nonheap)".
     {
-      assert ( std W4 !! cgp_b = Some Temporary ) as HW4.
+      assert ( std W4 !! LNonHeap cgp_b = Some Temporary ) as HW4.
       { eapply region_state_pub_temp; eauto.
-        rewrite lookup_insert_ne; last solve_addr + Hcgp_contiguous.
+        rewrite lookup_insert_ne; last (apply LNonHeap_ne; solve_addr + Hcgp_contiguous).
         by rewrite lookup_insert_eq.
       }
       destruct Hl_unk' as [_ Hl_unk'].
-      pose proof (Hl_unk' cgp_b) as [Hl_unk'_cgp _].
+      pose proof (Hl_unk' (LNonHeap cgp_b)) as [Hl_unk'_cgp _].
       apply Hl_unk'_cgp in HW4.
-      apply elem_of_app in HW4 as [?|?]; try done.
+      apply elem_of_app in HW4 as [?|HW4]; first done.
+      rewrite elem_of_LNonHeap_fmap in HW4; done.
     }
     { by destruct Hl_unk' as [Hl_unk' _]; apply NoDup_app in Hl_unk' as (? & _ & _). }
     {
@@ -503,6 +504,7 @@ Section DLE.
     }
     iDestruct ("Hcgp_b_nonheap" with "[%]") as ">[%wcgpb Hcgp_b]".
     { exact Hcgp_nonheap. }
+    iEval (cbn [laddr_addr]) in "Hcgp_b".
 
     (* simplify the knowledge about the new rmap *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".

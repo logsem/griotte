@@ -290,7 +290,9 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaLoad Hordinary Hdomeq φ) "(>Hmem & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[[[Hr Hsr] Hm] Hst] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[[[[Hr Hsr] Hm] Hst] Hmmio] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
+    iDestruct "Hmmio" as %Hmmio.
+    iAssert (⌜mem_avoids_mmio m⌝)%I as "-#Hmmio"; first by iPureIntro.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
 
     (* Derive necessary register values in r *)
@@ -353,7 +355,7 @@ Section griotte_lang_rules.
     iDestruct (gen_mem_valid_inSepM_general (prod_merge dfracs mem) m ea loadv with "Hm Hmem" ) as %Hma' ; eauto.
 
     destruct (Hordinary p g b e a ea loadv Hallow Hmema) as [Hshadow Hheap].
-    rewrite Hshadow Hma' /= in Hstep.
+    rewrite Hshadow (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hma') Hma' /= in Hstep.
     assert (Hstep' :
       (match updatePC (update_reg (r, sr, m, st) r1 (load_word p loadv)) with
        | Some conf => conf | None => (Failed, (r, sr, m, st)) end) = (c, σ2)).
@@ -999,7 +1001,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Hsrc Htag φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[[[Hr Hsr] Hm] Hst] /=".
+    iIntros (σ1 ns l1 l2 nt) "[[[[Hr Hsr] Hm] Hst] Hmmio] /=".
     destruct σ1 as [[[r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
@@ -1177,7 +1179,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Hsrc Hadd φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[[[Hr Hsr] Hm] Hst] /=".
+    iIntros (σ1 ns l1 l2 nt) "[[[[Hr Hsr] Hm] Hst] Hmmio] /=".
     destruct σ1 as [[[r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
@@ -1206,7 +1208,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Hsrc Htag φ) "(>Hpc_a & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[[[Hr Hsr] Hm] Hst] /=".
+    iIntros (σ1 ns l1 l2 nt) "[[[[Hr Hsr] Hm] Hst] Hmmio] /=".
     destruct σ1 as [[[r sr] m] st]; cbn.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     have ? := lookup_weaken _ _ _ _ HPC Hregs.
@@ -1490,8 +1492,10 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaLoad Hdomeq φ)
       "(>Hmem & >Hshadow & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[ [ [Hr Hsr] Hm ] Hst ] /=".
+    iIntros (σ1 ns l1 l2 nt) "[ [ [ [Hr Hsr] Hm ] Hst ] Hmmio ] /=".
     destruct σ1 as [ [ [r sr] m] st]; cbn.
+    iDestruct "Hmmio" as %Hmmio.
+    iAssert (⌜mem_avoids_mmio m⌝)%I as "-#Hmmio"; first by iPureIntro.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     pose proof (lookup_weaken _ _ _ _ HPC Hregs) as HPCr.
     specialize (indom_regs_incl _ _ _ Dregs Hregs) as Hri. unfold regs_of in Hri.
@@ -1557,6 +1561,7 @@ Section griotte_lang_rules.
         right. exists (WInt (encodeAllocStatus revoked)).
         repeat split; eauto 12 using Load_spec_failure, Load_spec_success_shadow, Load_fail_invalid_PC_shadow_imm.
       - destruct HaLoad as (loadv & Hlookup).
+        rewrite (mem_avoids_mmio_not_revoker _ _ _ Hmmio (Hmem_valid _ _ Hlookup)) in Hstep.
         rewrite (Hmem_valid _ _ Hlookup) /= in Hstep.
         destruct (heap_cap_base loadv) as [base|] eqn:Hbase.
         + destruct (st !! base) as [status|] eqn:Hlookup_shadow; cbn in Hstep.
@@ -3123,7 +3128,9 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc HPC Dregs Hmem_pc HaLoad Hordinary Hdomeq φ) "(>Hmem & >Hshadow & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[[[Hr Hsr] Hm] Hst] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[[[[Hr Hsr] Hm] Hst] Hmmio] /=". destruct σ1 as [ [ [r sr] m] st]; cbn.
+    iDestruct "Hmmio" as %Hmmio.
+    iAssert (⌜mem_avoids_mmio m⌝)%I as "-#Hmmio"; first by iPureIntro.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
     iAssert (⌜∀ a status, shadow !! a = Some status → st !! a = Some status⌝)%I
       as %Hshadow_valid.
@@ -3190,7 +3197,7 @@ Section griotte_lang_rules.
     { rewrite lookup_merge Hmema Hdq' //. }
     iDestruct (gen_mem_valid_inSepM_general (prod_merge dfracs mem) m ea loadv with "Hm Hmem" ) as %Hma' ; eauto.
 
-    rewrite (Hordinary p g b e a ea Hallow) Hma' /= in Hstep.
+    rewrite (Hordinary p g b e a ea Hallow) (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hma') Hma' /= in Hstep.
     assert (Hread : (c = Failed ∧ σ2 = (r, sr, m, st)) ∨
       ∃ actualv,
         (match updatePC (update_reg (r, sr, m, st) r1 actualv) with

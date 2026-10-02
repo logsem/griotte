@@ -16,7 +16,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG Addr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
+    {stsg : STSG LAddr region_type OType Word Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -789,8 +789,9 @@ Section fundamental.
     (* ------------------------------  *)
     focus_block 4 "Hcode" as a_stack_chop Ha_stack_chop "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_tstack_push.
     iApply (switcher_call_block_4_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto; [|iNext].
+      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto; [| |iNext].
     { rewrite /isWithin. solve_addr+Hba3 Ha4_total. }
+    { solve_addr+Hba3 Ha4_total. }
     iIntros "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 

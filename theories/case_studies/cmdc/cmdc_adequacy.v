@@ -224,7 +224,7 @@ Section Adequacy.
   Context {entry_preg : entryGpreS Σ}.
   Context {seal_store_preg: sealStorePreG Σ}.
   Context {na_invg: na_invariants.na_invG Σ}.
-  Context {sts_preg: STS_preG Addr region_type OType Word Σ}.
+  Context {sts_preg: STS_preG LAddr region_type OType Word Σ}.
   Context {cstack_preg: CSTACK_preG Σ }.
   Context {relpreg: relGpreS Σ}.
   Context `{MP: MachineParameters}.
@@ -262,6 +262,9 @@ Section Adequacy.
                     & B_imports & B_code & B_data & B_exp_tbl
                     & C_imports & C_code & C_data & C_exp_tbl
                    ).
+    assert (mem_avoids_mmio m) as Hmmio_init.
+    { rewrite Hm /mk_initial_memory /mk_initial_program_memory.
+      solve_mem_avoids_mmio_initial. }
 
     (* 2 - We give a name to the exported entry points for which we want
        to know the number of arguments. *)
@@ -510,7 +513,7 @@ Section Adequacy.
 
     assert (
         Forall
-          (λ k : finz MemNum, std W1 !! k = None)
+          (λ k : finz MemNum, std W1 !! LNonHeap k = None)
           (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
       ) as Hstack_disjoint_B.
     { apply Forall_forall; intros a Ha; cbn.
@@ -685,7 +688,7 @@ Section Adequacy.
 
    assert (
         Forall
-          (λ k : finz MemNum, std W2 !! k = None)
+          (λ k : finz MemNum, std W2 !! LNonHeap k = None)
           (finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt))
       ) as Hstack_disjoint_C.
     { apply Forall_forall; intros a Ha; cbn.
@@ -777,15 +780,15 @@ Section Adequacy.
     iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[Hcsp Hreg]"; first by simplify_map_eq.
 
     (* 12 - We can apply the specification! *)
-    assert (is_shadow_address (cmpt_b_cgp main_cmpt) = false) as Hmain_shadow.
-    { eapply disjoint_from_shadow_not_in;
-        first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
+    assert (is_mmio_address (cmpt_b_cgp main_cmpt) = false) as Hmain_shadow.
+    { eapply disjoint_from_mmio_not_in;
+        first exact (cmpt_cgp_disjoint_from_mmio main_cmpt).
       apply withinBounds_true_iff.
       pose proof (cmpt_data_size main_cmpt) as Hsize.
       rewrite main_data in Hsize; cbn in Hsize; solve_addr+Hsize. }
-    assert (is_shadow_address (cmpt_b_cgp main_cmpt ^+ 1)%a = false) as Hmain1_shadow.
-    { eapply disjoint_from_shadow_not_in;
-        first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
+    assert (is_mmio_address (cmpt_b_cgp main_cmpt ^+ 1)%a = false) as Hmain1_shadow.
+    { eapply disjoint_from_mmio_not_in;
+        first exact (cmpt_cgp_disjoint_from_mmio main_cmpt).
       apply withinBounds_true_iff.
       pose proof (cmpt_data_size main_cmpt) as Hsize.
       rewrite main_data in Hsize; cbn in Hsize; solve_addr+Hsize. }
@@ -809,7 +812,7 @@ Section Adequacy.
                   (cmpt_pcc_base_not_heap main_cmpt)
                   Hmain_shadow (cmpt_cgp_base_not_heap main_cmpt)
                   Hmain1_shadow Hmain1_heap
-                  (stack_disjoint_from_shadow switcher_cmpt)
+                  (stack_disjoint_from_mmio switcher_cmpt)
                   (stack_disjoint_from_heap switcher_cmpt)
                  with "[ $Halloc $Hassert $Hswitcher $Hna
                         $Hworld_B $Hworld_C
@@ -932,14 +935,15 @@ Section Adequacy.
 
     (* We use the post-condition *)
     iModIntro.
-    iExists (fun σ _ _ =>
+    iExists (fun σ _ _ => (
       (((gen_heap_interp (griotte_opsem.reg σ) ∗ gen_heap_interp (griotte_opsem.sreg σ))
-        ∗ gen_heap_interp (mem σ)) ∗ gen_heap_interp (shadowtbl σ)))%I.
-    iExists (fun _ => True)%I. cbn. iFrame.
+        ∗ gen_heap_interp (mem σ)) ∗ gen_heap_interp (shadowtbl σ)))
+      ∗ ⌜mem_avoids_mmio (griotte_opsem.mem σ)⌝)%I.
+    iExists (fun _ => True)%I. cbn. iFrame "% ∗".
 
     (* We open the assert invariant,
        which contains the points-to predicate of the assert flag pointing to zero *)
-    iIntros "([[Hreg' Hsreg'] Hmem'] & _)". iExists (⊤ ∖ ↑flagN).
+    iIntros "([[[Hreg' Hsreg'] Hmem'] _] & _)". iExists (⊤ ∖ ↑flagN).
     iInv flagN as ">Hflag" "Hclose".
     (* By validity of the heap RA, we can deduce that the memory address,
        in the level of the opsem, is zero *)
@@ -982,7 +986,7 @@ Proof.
               ; gen_heapΣ Addr Word; gen_heapΣ Addr AllocStatus; gen_heapΣ RegName Word; gen_heapΣ SRegName Word
               ; entryPreΣ ; CSTACK_preΣ ; allocator_preΣ
               ; na_invΣ; sealStorePreΣ
-              ; STS_preΣ Addr region_type OType Word ; relPreΣ
+              ; STS_preΣ LAddr region_type OType Word ; relPreΣ
               ; savedPredΣ (WorldT * CmptName * Word)
       ]).
   eapply (@cmdc_adequacy' Σ cnames B C); eauto; try typeclasses eauto.

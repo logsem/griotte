@@ -62,6 +62,13 @@ Class ShadowRegion := {
     shadow_valid : (shadow_b < shadow_e)%a;
   }.
 
+(** The revoker is a memory-mapped device at a single address, outside the
+    heap and the shadow region. A store to it sweeps memory; a load from it
+    reads as zero. *)
+Class RevokerRegion := {
+    revoker_addr : Addr;
+  }.
+
 (** Shadow memory is addressed through a separate region, while [ShadowTbl]
     and shadow points-to are indexed by heap addresses. The machine may use
     any bijection between these equally sized regions. Translation is checked:
@@ -177,6 +184,10 @@ Class MachineParameters := {
     heap_shadow_disjoint :
     (finz.seq_between heap_b heap_e) ##
       (finz.seq_between shadow_b shadow_e);
+    (* Machine parameter for the revoker *)
+    revoker_mixin :: RevokerRegion;
+    revoker_not_heap : withinBounds heap_b heap_e revoker_addr = false;
+    revoker_not_shadow : withinBounds shadow_b shadow_e revoker_addr = false;
   }.
 
 (* Region predicates shared by the operational semantics and specifications. *)
@@ -186,12 +197,81 @@ Definition is_heap_address `{HeapRegion} (a : Addr) : bool :=
 Definition is_shadow_address `{ShadowRegion} (a : Addr) : bool :=
   withinBounds shadow_b shadow_e a.
 
+Definition is_revoker_address `{RevokerRegion} (a : Addr) : bool :=
+  bool_decide (a = revoker_addr).
+
+(* Memory-mapped addresses are never memory: the shadow region and the revoker. *)
+Definition is_mmio_address `{ShadowRegion} `{RevokerRegion} (a : Addr) : bool :=
+  is_shadow_address a || is_revoker_address a.
+
+Lemma revoker_not_heap_address `{MachineParameters} :
+  is_heap_address revoker_addr = false.
+Proof. exact revoker_not_heap. Qed.
+
+Lemma revoker_not_shadow_address `{MachineParameters} :
+  is_shadow_address revoker_addr = false.
+Proof. exact revoker_not_shadow. Qed.
+
+Lemma is_revoker_address_spec `{RevokerRegion} a :
+  is_revoker_address a = true <-> a = revoker_addr.
+Proof. rewrite /is_revoker_address. apply bool_decide_eq_true. Qed.
+
+Lemma not_mmio_not_shadow `{ShadowRegion} `{RevokerRegion} a :
+  is_mmio_address a = false -> is_shadow_address a = false.
+Proof. rewrite /is_mmio_address. by intros [? ?]%orb_false_iff. Qed.
+
+Lemma not_mmio_not_revoker `{ShadowRegion} `{RevokerRegion} a :
+  is_mmio_address a = false -> is_revoker_address a = false.
+Proof. rewrite /is_mmio_address. by intros [? ?]%orb_false_iff. Qed.
+
 (* Memory capabilities, including sealed ones and sentries, use their base. *)
 Definition heap_cap_base `{HeapRegion} (w : Word) : option Addr :=
   match memory_cap_base w with
   | Some b => if is_heap_address b then Some b else None
   | None => None
   end.
+
+(** Empty bounds carry no authority, even when their base is in the heap. *)
+Definition heap_authority_base `{HeapRegion} (w : Word) : option Addr :=
+  match w with
+  | WCap _ _ _ b e _ | WSentry _ _ _ b e _
+  | WSealed _ (SCap _ _ _ b e _) =>
+      if decide (b < e)%a then heap_cap_base w else None
+  | _ => None
+  end.
+
+Lemma heap_authority_base_heap_cap_base `{HeapRegion} (raw : Word) base :
+  heap_authority_base raw = Some base → heap_cap_base raw = Some base.
+Proof.
+  destruct raw; unfold heap_authority_base; simpl; try discriminate.
+  - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
+  - case_decide; auto; discriminate.
+  - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
+Qed.
+
+(* Bounds of memory capabilities, including sealed ones and sentries. *)
+Definition memory_cap_bounds (w : Word) : option (Addr * Addr) :=
+  match w with
+  | WCap _ _ _ b e _ | WSentry _ _ _ b e _
+  | WSealed _ (SCap _ _ _ b e _) => Some (b, e)
+  | _ => None
+  end.
+
+Lemma heap_authority_base_memory_cap_bounds `{HeapRegion} (w : Word) base :
+  heap_authority_base w = Some base <->
+  ∃ e, memory_cap_bounds w = Some (base, e) ∧ (base < e)%a ∧ is_heap_address base = true.
+Proof.
+  rewrite /heap_authority_base /heap_cap_base /memory_cap_base.
+  destruct_word w; cbn; try (split; [discriminate | intros (? & ? & _); discriminate]).
+  all: try (destruct sb; cbn; try (split; [discriminate | intros (? & ? & _); discriminate])).
+  all: case_decide; destruct (is_heap_address _) eqn:Hheap; split;
+    try (intros; simplify_eq; eauto; fail).
+  all: intros (? & ? & ? & ?); simplify_eq; solve [done | congruence].
+Qed.
+
+(* A word with authority over heap memory: tagged, non-empty, heap base. *)
+Definition has_authority `{HeapRegion} (w : Word) : Prop :=
+  get_tag w = true ∧ ∃ b, heap_authority_base w = Some b.
 
 Definition is_heap_cap `{HeapRegion} (w : Word) : bool :=
   match heap_cap_base w with Some _ => true | None => false end.
@@ -206,6 +286,10 @@ Qed.
 
 Definition disjoint_from_shadow `{ShadowRegion} (b e : Addr) : Prop :=
   finz.seq_between b e ## finz.seq_between shadow_b shadow_e.
+
+(* A range that addresses no memory-mapped device. *)
+Definition disjoint_from_mmio `{ShadowRegion} `{RevokerRegion} (b e : Addr) : Prop :=
+  disjoint_from_shadow b e ∧ revoker_addr ∉ finz.seq_between b e.
 
 Definition disjoint_from_heap `{HeapRegion} (b e : Addr) : Prop :=
   finz.seq_between b e ## finz.seq_between heap_b heap_e.
@@ -224,6 +308,33 @@ Proof.
   apply withinBounds_true_iff in Hbounds, Hshadow.
   rewrite /disjoint_from_shadow elem_of_disjoint in Hdisjoint.
   eapply Hdisjoint; apply elem_of_finz_seq_between; eauto.
+Qed.
+
+Lemma disjoint_from_mmio_shadow `{ShadowRegion} `{RevokerRegion} (b e : Addr) :
+  disjoint_from_mmio b e → disjoint_from_shadow b e.
+Proof. by intros [? _]. Qed.
+
+Lemma disjoint_from_mmio_not_in `{ShadowRegion} `{RevokerRegion} (b e a : Addr) :
+  disjoint_from_mmio b e →
+  withinBounds b e a = true →
+  is_mmio_address a = false.
+Proof.
+  intros [Hshadow Hrev] Hbounds. rewrite /is_mmio_address.
+  rewrite (disjoint_from_shadow_not_in b e a Hshadow Hbounds) /=.
+  apply bool_decide_eq_false. intros ->. apply Hrev.
+  apply elem_of_finz_seq_between. by apply withinBounds_true_iff.
+Qed.
+
+Lemma disjoint_from_mmio_weaken `{ShadowRegion} `{RevokerRegion} (b e b' e' : Addr) :
+  (b <= b')%a → (e' <= e)%a →
+  disjoint_from_mmio b e → disjoint_from_mmio b' e'.
+Proof.
+  intros Hb He [Hshadow Hrev]. split.
+  - rewrite /disjoint_from_shadow in Hshadow |- *.
+    intros x Hx Hx'. apply (Hshadow x); last done.
+    apply elem_of_finz_seq_between in Hx. apply elem_of_finz_seq_between. solve_addr.
+  - intros Hx. apply Hrev.
+    apply elem_of_finz_seq_between in Hx. apply elem_of_finz_seq_between. solve_addr.
 Qed.
 
 (* Lift the encoding / decoding between Z and instructions on Words: simplify
