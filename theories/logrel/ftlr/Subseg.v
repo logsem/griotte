@@ -63,8 +63,10 @@ Section fundamental.
                       | * Hdst Hz1 Hz2 Hunrep HincrPC
                       | t p0 g0 b0 e0 a0 n1 n2 a1 a2 Hdst Hz1 Hz2 Hoo1 Hoo2 HincrPC
                       | * Hdst Hz1 Hz2 Hunrep HincrPC | ].
-    { destruct (isWithin a1 a2 b0 e0) eqn:Hwi.
+    { rewrite -andb_assoc in HincrPC.
+      destruct (isWithin a1 a2 b0 e0 && (a1 <=? a2)%a) eqn:Hwi.
       { rewrite andb_true_r in HincrPC.
+        apply andb_true_iff in Hwi as [Hwi Hle].
         apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& ? & HPC & Z & Hregs') .
 
         assert (t'' = true ∧ a'' = a ∧ p'' = p∧ g'' = g) as (-> & -> & -> & ->).

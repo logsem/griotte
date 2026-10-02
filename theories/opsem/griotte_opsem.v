@@ -221,7 +221,7 @@ Section opsem.
       n2 ← z_of_argument (reg φ) ρ2;
       match z_to_addr n1, z_to_addr n2 with
       | Some a1, Some a2 =>
-        let new_tag := t && isWithin a1 a2 b e in
+        let new_tag := t && isWithin a1 a2 b e && (a1 <=? a2)%a in
         updatePC (update_reg φ dst (WCap new_tag p g a1 a2 a))
       | _, _ => updatePC (update_reg φ dst (WCap false p g b e a))
       end

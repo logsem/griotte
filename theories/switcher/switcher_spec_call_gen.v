@@ -369,8 +369,9 @@ Section Switcher.
     (* ------------------------------  *)
     focus_block 4 "Hcode" as a_stack_chop Ha_stack_chop "Hcode" "Hcls"; iHide "Hcls" as hcont; clear dependent Ha_tstack_push.
     iApply (switcher_call_block_4_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto; [|iNext].
+      "[- $HPC $Hcs0 $Hcs1 $Hcsp $Hcode]"); eauto; [| |iNext].
     { rewrite /isWithin; solve_addr+Hastk_bounds. }
+    { solve_addr+Hastk_bounds. }
     iIntros "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode)".
     unfocus_block "Hcode" "Hcls" as "Hcode"; subst hcont.
 

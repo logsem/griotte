@@ -371,6 +371,7 @@ Section Switcher_Call_Blocks.
     let len_switcher_4 := length switcher_instrs_4 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len_switcher_4)%a ->
     (isWithin a_stk e_stk b_stk e_stk = true) ->
+    (a_stk <= e_stk)%a ->
 
     PC ↦ᵣ WCap true XSRW_ Local pc_b pc_e pc_a ∗
     cs0 ↦ᵣ wcs0 ∗
@@ -388,7 +389,7 @@ Section Switcher_Call_Blocks.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros switcher_instrs_4 len_switcher_4; subst switcher_instrs_4 len_switcher_4.
-    iIntros (Hsub_reg Hastk) "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode & Hpost)".
+    iIntros (Hsub_reg Hastk Hastk_le) "(HPC & Hcs0 & Hcs1 & Hcsp & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /switcher_instrs_n /assembled_switcher_n.
     (* --- GetE cs0 csp --- *)
