@@ -9,21 +9,21 @@ Section VAE_Awkward_Blocks.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
 
   (** Both calls to the adversary's entry point use this seven arguments registers. *)
-  Definition vae_call_adv_arg_rmap : Reg :=
-    {[ ca0 := WInt 0;
-       ca1 := WInt 0;
-       ca2 := WInt 0;
-       ca3 := WInt 0;
-       ca4 := WInt 0;
-       ca5 := WInt 0;
-       ct0 := WSentry true XSRW_ Local
-         b_switcher e_switcher a_switcher_call ]}.
+  Definition vae_call_adv_arg_rmap : LReg :=
+    {[ ca0 := lword_of_word (WInt 0);
+       ca1 := lword_of_word (WInt 0);
+       ca2 := lword_of_word (WInt 0);
+       ca3 := lword_of_word (WInt 0);
+       ca4 := lword_of_word (WInt 0);
+       ca5 := lword_of_word (WInt 0);
+       ct0 := lword_of_word (WSentry true XSRW_ Local
+         b_switcher e_switcher a_switcher_call) ]}.
 
   Lemma vae_call_adv_arg_rmap_is_arg :
     is_arg_rmap vae_call_adv_arg_rmap 8.
@@ -124,7 +124,7 @@ Section VAE_Awkward_Blocks.
       [cs1] and [ct1] for the post-call restoration. *)
   Lemma vae_awkward_call1_prep_spec
       pc_b pc_e pc_a
-      (wra wcallback wcs0 wcs1 wct1 : Word) :
+      (wra wcallback wcs0 wcs1 wct1 : LWord) :
     let instrs := encodeInstrsW [
       Mov cs0 cra; Mov cs1 ca0; Mov ct1 ca0; Mov ca0 0; Jalr cra ct0] in
     let len := length instrs in
@@ -171,7 +171,7 @@ Section VAE_Awkward_Blocks.
   (** The second call has no callback to preserve, so its preparation block
       exposes only the registers used by the switcher call contract. *)
   Lemma vae_awkward_call2_prep_spec
-      pc_b pc_e pc_a (wra wca0 wca1 wcs0 : Word) (tail : list instr) :
+      pc_b pc_e pc_a (wra wca0 wca1 wcs0 : LWord) (tail : list instr) :
     let prefix := [Mov cs0 cra; Mov ca0 0; Mov ca1 0; Jalr cra ct0] in
     let instrs := encodeInstrsW (prefix ++ tail) in
     let len := length (encodeInstrsW prefix) in
@@ -216,7 +216,7 @@ Section VAE_Awkward_Blocks.
   Lemma vae_awkward_flag_load_spec
       (Wtrue Wbase : WORLD) (C : CmptName) (i : positive)
       (awkN : namespace) pc_b pc_e pc_code cgp_b cgp_e
-      (wct0 wct1 : Word) :
+      (wct0 wct1 : LWord) :
     SubBounds pc_b pc_e pc_code (pc_code ^+ 6)%a ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
@@ -273,7 +273,7 @@ Section VAE_Awkward_Blocks.
   (** Restore the saved return sentry, clear argument registers, and jump to
       the switcher return protocol. *)
   Lemma vae_awkward_return_prep_spec
-      pc_b pc_e pc_a (wret wcra wca0 wca1 : Word) :
+      pc_b pc_e pc_a (wret wcra wca0 wca1 : LWord) :
     let instrs := encodeInstrsW [
       Mov cra cs0; Mov ca0 0; Mov ca1 0; Jalr cnull cra] in
     let len := length instrs in
@@ -287,7 +287,7 @@ Section VAE_Awkward_Blocks.
     ∗ cnull ↦ᵣ WInt 0
     ∗ codefrag pc_a instrs
 
-    ∗ ▷ (PC ↦ᵣ updatePcPerm wret
+    ∗ ▷ (PC ↦ᵣ lupdatePcPerm wret
         ∗ cra ↦ᵣ wret
         ∗ cs0 ↦ᵣ wret
         ∗ ca0 ↦ᵣ WInt 0

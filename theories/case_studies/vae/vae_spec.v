@@ -10,8 +10,8 @@ Section VAE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -20,14 +20,14 @@ Section VAE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Lemma vae_init_spec
 
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
-    (rmap : Reg)
+    (rmap : LReg)
 
     (b_vae_exp_tbl e_vae_exp_tbl : Addr)
 
@@ -69,9 +69,9 @@ Section VAE.
     frame_match Ws Cs cstk W0 C ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ allocator_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ na_inv cerise_nais Nvae_code
-          ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a vae_main_code)
+          ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗ codefrag pc_a vae_main_code)
       ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
       ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
       ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
@@ -107,7 +107,7 @@ Section VAE.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow HNswitcher_assert HNswitcher_vae HNassert_vae Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hloc_i_0 Hframe_match
             )
-      "(#Hassert & #Halloc & #Hswitcher
+      "(#Hassert & #Hswitcher
       & #Hvae
       & #Hvae_exp_tbl_PCC
       & #Hvae_exp_tbl_CGP
@@ -224,8 +224,8 @@ Section VAE.
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
-           ]} : Reg
+              ct0 := lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+           ]} : LReg
         ).
 
     iInsertList "Hrmap" [ct2;ct3].
@@ -270,7 +270,7 @@ Section VAE.
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
        with
-             "[- $Halloc $Hswitcher $Hna
+             "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W1 $Hcstk_frag
               $Hinterp_W1_C_f $HK]"); eauto; iFrame "%".
@@ -301,7 +301,7 @@ Section VAE.
     apply load_heap_nonheap in Hrcs0; [|cbn; eauto].
     apply load_heap_nonheap in Hrcs1; [|cbn; eauto].
     subst rcgp rcra rcs0 rcs1.
-    iEval (cbn) in "HPC".
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* Halt *)
     iMod (na_inv_acc with "Hvae Hna")

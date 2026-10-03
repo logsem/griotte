@@ -6,8 +6,8 @@ Section VAE_helper.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
 
@@ -15,7 +15,7 @@ Section VAE_helper.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Definition awkN : namespace := nroot .@ "awkN".
   Definition awk_inv C i a :=

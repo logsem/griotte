@@ -12,8 +12,8 @@ Section VAE.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -22,7 +22,7 @@ Section VAE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Lemma related_pub_W0_Wfixed (W0 W3 W6 : WORLD) (l : list LAddr) (csp_b csp_e : Addr)
     (b : bool) (i : positive) :
@@ -91,7 +91,7 @@ Section VAE.
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais Nvae
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a vae_main_code)
+        ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗ codefrag pc_a vae_main_code)
     ∗ inv (export_table_PCCN VAEN) (b_vae_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN VAEN) ((b_vae_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN VAEN (b_vae_exp_tbl ^+ 2)%a)
@@ -135,7 +135,7 @@ Section VAE.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "#Halloc (HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
@@ -335,11 +335,11 @@ Section VAE.
     set (rmap' := (delete ca5 _)).
 
     (* Show that the arguments are safe, when necessary *)
-    iAssert (if is_sealed_with_o wca0 ot_switcher
+    iAssert (if is_sealed_with_o wca0.(lw) ot_switcher
              then (interp W2q C wca0)
              else True)%I as "#Hinterp_W2q_wct1".
-    { destruct (is_sealed_with_o wca0 ot_switcher) eqn:His_sealed_wct1; last done.
-      destruct wca0 as [| [|] | |]; try discriminate.
+    { destruct (is_sealed_with_o wca0.(lw) ot_switcher) eqn:His_sealed_wct1; last done.
+      destruct wca0 as [ [| [|] | |] π]; try discriminate.
       iApply (interp_monotone_sd_same_heap W0 W2q);
         first (subst W2q W2 W1; rewrite close_list_heap; cbn; by rewrite ?revoke_heap).
       { iPureIntro. exact Hrelated_priv_W0_W2q. }
@@ -401,13 +401,13 @@ Section VAE.
 
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification_alt _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ with
-             "[- $Halloc $Hswitcher $Hna
+             "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W2q $Hcstk
               $Hinterp_W2q_wct1 $HK]"); eauto; try done; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
-      apply regmap_full_dom in Hrmap_init.
+      apply lregmap_full_dom in Hrmap_init.
       rewrite /dom_arg_rmap Hrmap_init.
       set_solver+.
     }
@@ -450,7 +450,7 @@ Section VAE.
     (* simplify the knowledge about the new rmap *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
-    assert (∀ r : RegName, r ∈ dom rmap → rmap !! r = Some (WInt 0)) as Hrmap_init.
+    assert (∀ r : RegName, r ∈ dom rmap → rmap !! r = Some (lword_of_word (WInt 0))) as Hrmap_init.
     { intros r Hr.
       rewrite elem_of_dom in Hr. destruct Hr as [wr Hr].
       pose proof Hr as Hr'.
@@ -585,13 +585,13 @@ Section VAE.
     iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct0 & Hcs0 & Hcode)".
 
     (* -- separate argument registers -- *)
-    assert ( rmap !! ca2 = Some (WInt 0)) as Hwca2.
+    assert ( rmap !! ca2 = Some (lword_of_word (WInt 0))) as Hwca2.
     { apply Hrmap_init; rewrite Hdom_rmap; set_solver+. }
-    assert ( rmap !! ca3 = Some (WInt 0)) as Hwca3.
+    assert ( rmap !! ca3 = Some (lword_of_word (WInt 0))) as Hwca3.
     { apply Hrmap_init; rewrite Hdom_rmap; set_solver+. }
-    assert ( rmap !! ca4 = Some (WInt 0)) as Hwca4.
+    assert ( rmap !! ca4 = Some (lword_of_word (WInt 0))) as Hwca4.
     { apply Hrmap_init; rewrite Hdom_rmap; set_solver+. }
-    assert ( rmap !! ca5 = Some (WInt 0)) as Hwca5.
+    assert ( rmap !! ca5 = Some (lword_of_word (WInt 0))) as Hwca5.
     { apply Hrmap_init; rewrite Hdom_rmap; set_solver+. }
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as ["Hca2"; "Hca3"; "Hca4"; "Hca5"].
 
@@ -609,21 +609,19 @@ Section VAE.
     }
 
     (* Show that the arguments are safe, when necessary *)
-    iAssert (if is_sealed_with_o callback1 ot_switcher
+    iAssert (if is_sealed_with_o callback1.(lw) ot_switcher
              then (interp W5q C callback1)
              else True)%I as "#Hinterp_W5q_wca0".
-    { iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_interp_C")
-        as %Hheap_wf_W5q.
-      destruct Hcallback1 as [Hsame | Hcleared]; last first.
+    { destruct Hcallback1 as [Hsame | Hcleared]; last first.
       { destruct Hcleared as [_ ->].
-        destruct (is_sealed_with_o (clear_tag wca0) ot_switcher); last done.
+        destruct (is_sealed_with_o (lclear_tag wca0).(lw) ot_switcher); last done.
         iApply interp_clear_tag. }
       rewrite Hsame.
-      destruct (is_sealed_with_o wca0 ot_switcher) eqn:His_sealed_wca0; last done.
-      destruct (get_tag wca0) eqn:Htag; last by iApply interp_untagged.
-      destruct wca0 as [| [|] | |]; try discriminate.
+      destruct (is_sealed_with_o wca0.(lw) ot_switcher) eqn:His_sealed_wca0; last done.
+      destruct (get_tag wca0.(lw)) eqn:Htag; last by iApply interp_untagged.
+      destruct wca0 as [ [| [|] | |] π]; try discriminate.
       iApply (interp_monotone_sd_retained W2q W5q C);
-        [exact Hheap_wf_W5q|exact Hrelated_priv_W2q_W5q|exact Htag| |].
+        [exact Hrelated_priv_W2q_W5q|exact Htag| |].
       - rewrite Hsame in Hcallback_retained.
         rewrite /filter_heap Hheap_W5q_W3. exact Hcallback_retained.
       - iExact "Hinterp_W2q_wct1".
@@ -654,7 +652,7 @@ Section VAE.
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification_alt _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
        with
-             "[- $Halloc $Hswitcher $Hna
+             "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5q $Hcstk_frag
               $Hinterp_W5q_wca0 $HK]"); eauto; iFrame "%".
@@ -804,7 +802,7 @@ Section VAE.
       apply Hl_revoked_W6.
       rewrite Hl0_partition. apply elem_of_app; left; exact Ha. }
     iMod (vae_framed_resources_revoked W0 W7 C l0_live
-      Hl0_live Hl0_dom_W7 with "[$Halloc $Hworld_interp_C $Hl0_live]")
+      Hl0_live Hl0_dom_W7 with "[$Hworld_interp_C $Hl0_live]")
       as "(Hworld_interp_C & Hl0_live & %Hl0_live_revoked_W7)".
 
     assert (Forall (λ a, heap_key_live (heap_std W3) a) l1_unique)
@@ -829,7 +827,7 @@ Section VAE.
       subst l1_unique. by apply list_elem_of_filter in Ha as [_ Ha]. }
     iMod (vae_framed_resources_revoked W3 W7 C l1_unique
       Hl1_unique_live_W3 Hl1_unique_dom_W7
-      with "[$Halloc $Hworld_interp_C $Hl1_unique]")
+      with "[$Hworld_interp_C $Hl1_unique]")
       as "(Hworld_interp_C & Hl1_unique & %Hl1_unique_revoked_W7)".
 
     assert (Forall (fun a => std W7 !! a = Some Revoked) closing)
@@ -912,7 +910,7 @@ Section VAE.
     (* simplify the knowledge about the new rmap *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
-    assert (∀ r : RegName, r ∈ dom rmap → rmap !! r = Some (WInt 0)) as Hrmap_init.
+    assert (∀ r : RegName, r ∈ dom rmap → rmap !! r = Some (lword_of_word (WInt 0))) as Hrmap_init.
     { intros r Hr.
       rewrite elem_of_dom in Hr. destruct Hr as [wr Hr].
       pose proof Hr as Hr'.
@@ -1061,19 +1059,14 @@ Section VAE.
       - apply related_sts_pub_refl.
       - exact Hclosing_covers_W6.
       - exact Hclosing_revoked_W7. }
-    iDestruct (wp_rules_interp.world_interp_heap_wf with "Hworld_interp_C")
-      as %Hheap_wf_W7.
-    assert (heap_wf (heap_std (close_list closing W7)))
-      as Hheap_wf_fixed.
-    { by rewrite close_list_heap. }
     iDestruct (RevokedResources_mono_pub W0 (close_list closing W7)
-      C l0_live [] Hheap_wf_fixed Hpub0_fixed with "Hl0_live")
+      C l0_live [] Hpub0_fixed with "Hl0_live")
       as "Hl0_fixed".
     iDestruct (RevokedResources_mono_pub W3 (close_list closing W7)
-      C l1_unique [] Hheap_wf_fixed Hpub3_fixed with "Hl1_unique")
+      C l1_unique [] Hpub3_fixed with "Hl1_unique")
       as "Hl1_fixed".
     iDestruct (RevokedResources_mono_pub W6 (close_list closing W7)
-      C l2_unique [] Hheap_wf_fixed Hpub6_fixed with "Hl2_unique")
+      C l2_unique [] Hpub6_fixed with "Hl2_unique")
       as "Hl2_fixed".
     iAssert (RevokedResources (close_list closing W7) C closing_revoked)%I
       with "[Hl0_fixed Hl1_fixed Hl2_fixed]" as "Hrevoked".
@@ -1081,7 +1074,7 @@ Section VAE.
 
     iApply (switcher_ret_specification _ W0 W7
              with
-             "[ $Halloc $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC $Hrevoked
+             "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC $Hrevoked
              $Hrmap $Hca0 $Hca1 $Hcsp]"
            ); auto.
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }

@@ -11,19 +11,19 @@ Section VAE_Return_Repair.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ}
-    {relg : relGS Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
+    {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
   Lemma vae_framed_resources_live
       (Worig Wcur : WORLD) (C : CmptName) (l : list LAddr) :
     Forall (λ a, heap_key_live (heap_std Worig) a) l ->
     Forall (fun a => is_Some (heap_key_status (heap_std Wcur) a)) l ->
-    allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l
+    world_interp Wcur C ∗ RevokedResources Worig C l
     ={⊤}=∗
-      allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l ∗
+      world_interp Wcur C ∗ RevokedResources Worig C l ∗
       ⌜Forall (λ a, heap_key_live (heap_std Wcur) a) l⌝.
   Proof.
-    intros Hlive Hsome. iIntros "(#Halloc & Hworld & Hl)".
+    intros Hlive Hsome. iIntros "(Hworld & Hl)".
     iDestruct (counter_framed_resources_live Worig Wcur C l Hlive Hsome
       with "[$Hworld $Hl]") as "(Hworld & Hl & %Hcur)".
     by iFrame "∗#%".
@@ -195,7 +195,6 @@ Section VAE_Return_Repair.
       (Worig Wcur : WORLD) (C : CmptName) (l : list LAddr) :
     Forall (λ a, heap_key_live (heap_std Worig) a) l ->
     Forall (fun a => a ∈ dom (std Wcur)) l ->
-    allocator_ctx ∗
     world_interp Wcur C ∗
     RevokedResources Worig C l
     ={⊤}=∗
@@ -204,11 +203,11 @@ Section VAE_Return_Repair.
     ⌜Forall (fun a => std Wcur !! a = Some Revoked) l⌝.
   Proof.
     intros Hlive Hdom.
-    iIntros "(#Halloc & Hworld & Hl)".
+    iIntros "(Hworld & Hl)".
     iDestruct (vae_world_status_some Wcur C l Hdom with "Hworld")
       as "[Hworld %Hstatuses]".
     iMod (vae_framed_resources_live Worig Wcur C l Hlive Hstatuses
-      with "[$Halloc $Hworld $Hl]") as "(_ & Hworld & Hl & %Hlive_cur)".
+      with "[$Hworld $Hl]") as "(Hworld & Hl & %Hlive_cur)".
     iMod (world_interp_revoked_by_separation_many_with_RevokedResources
       Worig Wcur C l Hlive Hlive_cur Hdom with "[$Hworld $Hl]")
       as "(Hworld & Hl & %Hrevoked)".

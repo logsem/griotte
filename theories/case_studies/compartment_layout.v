@@ -915,6 +915,10 @@ Section CmptLayout.
     by destruct (heap_cap_base w).
   Qed.
 
+  Lemma word_rooted_not_heap_caps H (ws : list Word) :
+    Forall (λ w, is_heap_cap w = false) ws → Forall (word_rooted H) ws.
+  Proof. intros Hws. eapply Forall_impl; first exact Hws. apply word_rooted_not_heap_cap. Qed.
+
   Lemma word_rooted_int H z : word_rooted H (WInt z).
   Proof. by apply word_rooted_nonheap. Qed.
 
