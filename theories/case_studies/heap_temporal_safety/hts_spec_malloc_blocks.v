@@ -19,8 +19,8 @@ Section HTS_Spec_Malloc.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -36,7 +36,7 @@ Section HTS_Spec_Malloc.
   Local Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f W_init_C Ws Cs cstk).
 
-  Lemma hts_spec_malloc (rmap : Reg) :
+  Lemma hts_spec_malloc (rmap : LReg) :
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_shadow cgp_b cgp_e ->
@@ -64,7 +64,7 @@ Section HTS_Spec_Malloc.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hrmap_dom HsubBounds)
       "(#Hctx & Hna & HPC & Hcgp & Hcsp & Hrmap & Hstatic & Hworld
        & #Hinterp_csp & HK & Hcstk & Hcontinue)".
-    iDestruct "Hctx" as "(#Hassert & #Halloc & #Hservice & #Hswitcher
+    iDestruct "Hctx" as "(#Hassert & #Hservice & #Hswitcher
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hstatic" as "(Himports & Hcode & Hp)".
@@ -155,15 +155,15 @@ Section HTS_Spec_Malloc.
     iExtractList "Hrmap" [cs0] as ["Hcs0"].
     iExtractList "Hrmap" [cs1] as ["Hcs1"].
     iInsertList "Hrmap" [ctp;ct2].
-    set (rmap_arg := ({[ ca0 := WInt 1; ca1 := wca1; ca2 := wca2;
-      ca3 := wca3; ca4 := wca4; ca5 := wca5; ct0 := WInt 0 ]} : Reg)).
+    set (rmap_arg := ({[ ca0 := lword_of_word (WInt 1); ca1 := wca1; ca2 := wca2;
+      ca3 := wca3; ca4 := wca4; ca5 := wca5; ct0 := lword_of_word (WInt 0) ]} : LReg)).
     iAssert ([∗ map] rarg↦warg ∈ rmap_arg, rarg ↦ᵣ warg)%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hrmap_arg".
     { subst rmap_arg.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
       done. }
-    set (rmap_other := <[ct2:=WInt 0]>
-      (<[ctp:=WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call]>
+    set (rmap_other := <[ct2:=lword_of_word (WInt 0)]>
+      (<[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete cs1 (delete cs0 (delete ca5 (delete ca4 (delete ca3
          (delete ca2 (delete ca1 (delete cra (delete ct1
            (delete ct0 (delete ca0 rmap))))))))))))).
@@ -185,7 +185,7 @@ Section HTS_Spec_Malloc.
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
       allocator_cgp_b allocator_cgp_e allocator_malloc_pcc_off
-      with "[- $Halloc $Hswitcher $Hexport_pcc $Hexport_cgp $Hexport_malloc
+      with "[- $Hswitcher $Hexport_pcc $Hexport_cgp $Hexport_malloc
          $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
          $Hstk $Hcstk $Hmalloc_fun]").
     { exact Hstk_heap. }
@@ -237,7 +237,7 @@ Section HTS_Spec_Malloc.
         iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
         by iExists _.
       + iDestruct "Hok" as (ι b e)
-          "(%Hbounds & %Hret & #Hobj & #Hallocation & Hfree_auth & Hzeroed)".
+          "(%Hbounds & _ & %Hret & #Hobj & Hfree_auth & Hzeroed)".
         destruct Hret as [-> ->].
         assert (e = (b ^+ 1)%a) as -> by solve_addr.
         assert ((b + 1)%a = Some (b ^+ 1)%a) as Hsucc by solve_addr.

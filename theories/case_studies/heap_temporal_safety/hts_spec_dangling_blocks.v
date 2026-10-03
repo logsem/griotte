@@ -18,8 +18,8 @@ Section HTS_Spec_Dangling.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -52,7 +52,7 @@ Section HTS_Spec_Dangling.
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap
       HsubBounds) "(#Hctx & Hret & Hcontinue)".
-    iDestruct "Hctx" as "(#Hassert & #Halloc & #Hservice & #Hswitcher
+    iDestruct "Hctx" as "(#Hassert & #Hservice & #Hswitcher
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hret" as (a_ret Ha_ret) "[Herr|Hok]".
@@ -68,7 +68,7 @@ Section HTS_Spec_Dangling.
       (* Halt. *)
       iInstr "Hblock".
       wp_end. by iIntros (?). }
-    iDestruct "Hok" as (ι b Wret) "(%Hbounds & %Hstk_nonempty & %Hwf_rev
+    iDestruct "Hok" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
       & %Hb_lookup & %Hstd_rev & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
       & [%stk Hstk] & Hworld_open & Hstate_b & Hstack_revoked_ret
       & %Hstack_revoked_ret & HK & #Hquar)".
@@ -94,7 +94,7 @@ Section HTS_Spec_Dangling.
 
     (* Quarantine b in the world and close its world entry. The dangling
        saved alias remains private. *)
-    iMod (hts_world_quarantine C _ ι b Wret Hbounds Hwf_rev Hb_lookup Hstd_rev
+    iMod (hts_world_quarantine C _ ι b Wret Hbounds Hb_lookup Hstd_rev
       with "Hrel_b Hstate_b Hquar Hworld_open") as "Hworld".
     iDestruct (StackRevokedResources_mono_priv Wret (hts_Wfree Wret ι) C
       (finz.seq_between (csp_b ^+ 1)%a csp_e) (hts_Wfree_related Wret ι)
@@ -172,9 +172,10 @@ Section HTS_Spec_Dangling.
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as
       ["[Hca2 %Hwca2]";"[Hca3 %Hwca3]";"[Hca4 %Hwca4]";"[Hca5 %Hwca5]"].
     subst wca2 wca3 wca4 wca5.
-    set (adv_arg := ({[ca0 := WInt 0; ca1 := WInt 0;
-      ca2 := WInt 0; ca3 := WInt 0; ca4 := WInt 0;
-      ca5 := WInt 0; ct0 := WInt 0]} : Reg)).
+    set (adv_arg := ({[ca0 := lword_of_word (WInt 0); ca1 := lword_of_word (WInt 0);
+      ca2 := lword_of_word (WInt 0); ca3 := lword_of_word (WInt 0);
+      ca4 := lword_of_word (WInt 0); ca5 := lword_of_word (WInt 0);
+      ct0 := lword_of_word (WInt 0)]} : LReg)).
     iAssert ([∗ map] rarg↦warg ∈ adv_arg,
       rarg ↦ᵣ warg ∗ if decide (rarg ∈ dom_arg_rmap 1)
         then interp (hts_Wfree Wret ι) C warg else True)%I
@@ -184,8 +185,8 @@ Section HTS_Spec_Dangling.
       done. }
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iInsertList "Hrmap" [ctp;ct2].
-    set (adv_other := <[ct2:=WInt 0]>
-      (<[ctp:=WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call]>
+    set (adv_other := <[ct2:=lword_of_word (WInt 0)]>
+      (<[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap)))))))).
     iApply (switcher_cc_specification Nswitcher (hts_Wfree Wret ι) C
@@ -193,7 +194,7 @@ Section HTS_Spec_Dangling.
       (WSentry true RX Global pc_b pc_e (a_advcall2 ^+ 1)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f stk
       adv_arg adv_other cstk Ws Cs 1
-      with "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp
+      with "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
         $Hworld $Hstack_revoked_free $Hcstk $HK $Hinterp_adv_free]").
     { exact Hstk_shadow. }

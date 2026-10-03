@@ -19,8 +19,8 @@ Section HTS_Spec_Share.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -54,7 +54,7 @@ Section HTS_Spec_Share.
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap
       HsubBounds Hheap_empty) "(#Hctx & Hret & Hcontinue)".
-    iDestruct "Hctx" as "(#Hassert & #Halloc & #Hservice & #Hswitcher
+    iDestruct "Hctx" as "(#Hassert & #Hservice & #Hswitcher
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hret" as (a_ret Ha_ret) "[Herr|Hok]".
@@ -73,7 +73,7 @@ Section HTS_Spec_Share.
       iInstr "Hblock".
       wp_end. iIntros (_). iFrame "Hna". }
     iDestruct "Hok" as (ι b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
-      & Hworld & #Hstack_revoked & %Hstack_revoked & HK & #Hobj & #Hallocation
+      & Hworld & #Hstack_revoked & %Hstack_revoked & HK & #Hobj
       & Hfree_auth & Hb)".
     iDestruct "Hb" as "[Hb Hb_share]".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
@@ -107,7 +107,7 @@ Section HTS_Spec_Share.
     { (* Empty stack: the store to the stack slot faults. *)
       iInstr_lookup "Hblock" as "Hi" "Hblock".
       wp_instr.
-      iApply (wp_store_fail_reg_imm _ 0 RX Global pc_b pc_e a_store _ csp ca0
+      iApply (wp_store_fail_reg_imm _ 0 RX Global pc_b pc_e a_store None None _ csp ca0
         RWL Local csp_b csp_e csp_b csp_b with "[$HPC $Hi $Hca0 $Hcsp]").
       { rewrite decode_encode_instrW_inv. reflexivity. }
       { solve_pure. }
@@ -118,7 +118,7 @@ Section HTS_Spec_Share.
       { done. }
       iNext. iIntros "_". wp_pure. wp_end. by iIntros (?). }
     assert (region_addrs_zeroes csp_b csp_e =
-      WInt 0 :: region_addrs_zeroes (csp_b ^+ 1)%a csp_e) as Hzeroes.
+      lword_of_word (WInt 0) :: region_addrs_zeroes (csp_b ^+ 1)%a csp_e) as Hzeroes.
     { rewrite (region_addrs_zeroes_split csp_b (csp_b ^+ 1)%a csp_e); last solve_addr.
       pose proof (proj1 (finz_incr_iff_dist csp_b (csp_b ^+ 1)%a 1)
         ltac:(solve_addr)) as [_ Hdist].
@@ -202,7 +202,7 @@ Section HTS_Spec_Share.
     iDestruct "Hstack_revoked" as "[_ Hstack_revoked_W0]".
     iAssert (b ↦ₕ[ι] WInt 0)%I with "[Hb Hb_share]" as "Hb"; first iFrame.
     iMod (hts_world_share_buffer C csp_b csp_e W_init_C _ ι b
-      with "Hobj Hallocation Hb Hworld Hstack_revoked_W0")
+      with "Hobj Hb Hworld Hstack_revoked_W0")
       as "(Hworld & #Hrel_b & #Hinterp_buf & Hstack_revoked_share
         & %Hstack_revoked_share)".
     { exact Hheap_empty. }
@@ -215,9 +215,10 @@ Section HTS_Spec_Share.
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as
       ["[Hca2 %Hca2]";"[Hca3 %Hca3]";"[Hca4 %Hca4]";"[Hca5 %Hca5]"].
     subst wca2 wca3 wca4 wca5.
-    set (adv_arg := ({[ca0 := hts_buffer b; ca1 := WInt 0;
-      ca2 := WInt 0; ca3 := WInt 0; ca4 := WInt 0;
-      ca5 := WInt 0; ct0 := WInt 0]} : Reg)).
+    set (adv_arg := ({[ca0 := hts_buffer b @@ ι; ca1 := lword_of_word (WInt 0);
+      ca2 := lword_of_word (WInt 0); ca3 := lword_of_word (WInt 0);
+      ca4 := lword_of_word (WInt 0); ca5 := lword_of_word (WInt 0);
+      ct0 := lword_of_word (WInt 0)]} : LReg)).
     iAssert ([∗ map] rarg↦warg ∈ adv_arg,
       rarg ↦ᵣ warg ∗ if decide (rarg ∈ dom_arg_rmap 1)
         then interp (hts_Wshare W_init_C ι b) C warg else True)%I
@@ -227,8 +228,8 @@ Section HTS_Spec_Share.
       done. }
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iInsertList "Hrmap" [ctp;ct2].
-    set (adv_other := <[ct2:=WInt 0]>
-      (<[ctp:=WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call]>
+    set (adv_other := <[ct2:=lword_of_word (WInt 0)]>
+      (<[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap)))))))).
     iApply (switcher_cc_specification Nswitcher (hts_Wshare W_init_C ι b) C
@@ -237,7 +238,7 @@ Section HTS_Spec_Share.
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a C_f
       (region_addrs_zeroes (csp_b ^+ 1)%a csp_e)
       adv_arg adv_other cstk Ws Cs 1
-      with "[- $Halloc $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp
+      with "[- $Hswitcher $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
         $Hworld $Hstack_revoked_share $Hcstk $HK $Hinterp_adv_share]").
     { exact Hstk_shadow. }

@@ -7,41 +7,20 @@ Definition hts_assertN : namespace := htsN .@ "assert".
 Definition hts_switcherN : namespace := htsN .@ "switcher".
 
 Section Heap_Temporal_Safety_Resources.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {allocatorg : allocatorG Σ}
-    `{MP : MachineParameters}.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
 
   Definition hts_buffer (b : Addr) : Word :=
     WCap true RW Global b (b ^+ 1)%a b.
 
-  (** The receipt records original bounds and the reserved header integer,
-      but grants no payload access.
-      These predicates still require exclusive physical resources. In
-      particular, [hts_live_buffer] is not a persistent safe-to-share
-      interpretation and cannot survive an
-      arbitrary call without a future heap-world protocol. *)
-  Definition hts_live_buffer (ι : AId) (b : Addr) (reserved : Z * Z) (w : Word) : iProp Σ :=
-    ⌜(heap_b < b /\ b < b ^+ 1 /\ b ^+ 1 <= heap_e)%a⌝ ∗
-    allocator_allocation ι b (b ^+ 1)%a reserved ∗ b ↦ₕ[ι] w.
-
-  Definition hts_quarantined_buffer (ι : AId) (b : Addr) (reserved : Z * Z) : iProp Σ :=
-    allocator_allocation ι b (b ^+ 1)%a reserved ∗ ι ⊒ AQuar.
-
   Lemma hts_private_data_initial p e :
     (p + 1)%a = Some e ->
-    [[p, e]] ↦ₐ [[hts_main_data]] ⊣⊢ p ↦ₐ WInt 0.
+    [[p, e]] ↦ₐ [[lword_of_word <$> hts_main_data]] ⊣⊢ p ↦ₐ WInt 0.
   Proof.
     intros Hsize.
     rewrite /hts_main_data.
     rewrite (region_pointsto_cons p e e); [|solve_addr|solve_addr].
     rewrite /region_pointsto finz_seq_between_empty; last solve_addr.
     simpl. by rewrite right_id.
-  Qed.
-
-  Lemma hts_live_buffer_bounds ι b reserved w :
-    hts_live_buffer ι b reserved w -∗ ⌜is_heap_address b = true⌝.
-  Proof.
-    iIntros "[%Hbounds _]". iPureIntro.
-    apply withinBounds_true_iff. solve_addr.
   Qed.
 
 End Heap_Temporal_Safety_Resources.
@@ -55,7 +34,7 @@ Section Heap_Temporal_Safety_Imports.
 
   Lemma hts_main_imports_pointsto b e adv_f :
     (b + 5)%a = Some e ->
-    [[b, e]] ↦ₐ [[hts_main_imports adv_f]] ⊣⊢
+    [[b, e]] ↦ₐ [[lword_of_word <$> hts_main_imports adv_f]] ⊣⊢
       b ↦ₐ WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
       ∗ (b ^+ 1)%a ↦ₐ WSentry true RX Global b_assert e_assert b_assert
       ∗ (b ^+ 2)%a ↦ₐ WSealed ot_switcher adv_f

@@ -14,8 +14,8 @@ Section Heap_Temporal_Safety_Main.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -31,7 +31,7 @@ Section Heap_Temporal_Safety_Main.
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
     (csp_b csp_e : Addr)
-    (rmap : Reg)
+    (rmap : LReg)
 
     (C_f : Sealable)
 
@@ -69,7 +69,7 @@ Section Heap_Temporal_Safety_Main.
     frame_match Ws Cs cstk W_init_C C ->
     (
       na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
-      ∗ allocator_ctx ∗ allocator_service_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ allocator_service_ctx ∗ na_inv cerise_nais Nswitcher switcher_inv
       ∗ inv (export_table_PCCN allocator_exp_tblN)
           (allocator_exp_tbl_b ↦ₐ WCap true RX Global
             allocator_pcc_b allocator_pcc_e allocator_pcc_b)
@@ -92,9 +92,9 @@ Section Heap_Temporal_Safety_Main.
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       (* initial memory layout *)
-      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ imports ]]
+      ∗ [[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]]
       ∗ codefrag pc_a hts_main_code
-      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ hts_main_data ]]
+      ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> hts_main_data ]]
 
       ∗ world_interp W_init_C C
 
@@ -124,7 +124,7 @@ Section Heap_Temporal_Safety_Main.
       HNswitcher_assert HNswitcher_service
       HNassert_service Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
       Himports_contiguous Hp_fresh Hheap_empty Hframe_match)
-      "(#Hassert & #Halloc & #Hservice & #Hswitcher
+      "(#Hassert & #Hservice & #Hswitcher
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
        & HPC & Hcgp & Hcsp & Hrmap & Himports & Hcode & Hdata
        & Hworld & HK & Hcstk & #Hadv & #Hentry

@@ -122,8 +122,8 @@ Section HTS_States.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -140,7 +140,6 @@ Section HTS_States.
   (** The persistent invariants and facts used by every segment. *)
   Definition hts_main_ctx : iProp Σ :=
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag) ∗
-    allocator_ctx ∗
     allocator_service_ctx ∗
     na_inv cerise_nais Nswitcher switcher_inv ∗
     inv (export_table_PCCN allocator_exp_tblN)
@@ -200,7 +199,7 @@ Section HTS_States.
 
   (** The registers cleared by the switcher. *)
   Definition hts_zero_regs : iProp Σ :=
-    ∃ rmap : Reg,
+    ∃ rmap : LReg,
       ⌜dom rmap = all_registers_s ∖ {[PC; csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝ ∗
       ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝).
 
@@ -228,7 +227,7 @@ Section HTS_States.
     ∃ (ι : AId) (b : Addr),
       ⌜hts_buffer_bounds b⌝ ∗
       hts_frame a_ret csp_b ∗
-      ca0 ↦ᵣ hts_buffer b ∗
+      ca0 ↦ᵣ hts_buffer b @@ ι ∗
       ca1 ↦ᵣ WInt 0 ∗
       hts_zero_regs ∗
       [[csp_b, csp_e]] ↦ₐ [[region_addrs_zeroes csp_b csp_e]] ∗
@@ -237,7 +236,6 @@ Section HTS_States.
       ⌜revoked_addresses (revoke W_init_C) (finz.seq_between csp_b csp_e)⌝ ∗
       interp_continuation cstk Ws Cs ∗
       alloc_obj ι b (b ^+ 1)%a ∗
-      allocator_allocation ι b (b ^+ 1)%a (0%Z, 0%Z) ∗
       free_auth_held ι ∗
       b ↦ₕ[ι] WInt 0.
 
@@ -266,14 +264,13 @@ Section HTS_States.
       (∃ w, ca0 ↦ᵣ w) ∗
       (∃ w, ca1 ↦ᵣ w) ∗
       hts_zero_regs ∗
-      csp_b ↦ₐ hts_buffer b ∗
+      csp_b ↦ₐ hts_buffer b @@ ι ∗
       (∃ stk, [[(csp_b ^+ 1)%a, csp_e]] ↦ₐ [[stk]]) ∗
       world_interp (revoke Wret) C ∗
       StackRevokedResources Wret C (finz.seq_between (csp_b ^+ 1)%a csp_e) ∗
       ⌜revoked_addresses (revoke Wret) (finz.seq_between (csp_b ^+ 1)%a csp_e)⌝ ∗
       interp_continuation cstk Ws Cs ∗
       alloc_obj ι b (b ^+ 1)%a ∗
-      allocator_allocation ι b (b ^+ 1)%a (0%Z, 0%Z) ∗
       free_auth_held ι.
 
   (** Successful free: [ι] is quarantined, its world entry is still open. *)
@@ -281,7 +278,6 @@ Section HTS_States.
     ∃ (ι : AId) (b : Addr) (Wret : WORLD),
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
-      ⌜heap_wf (heap_std (revoke Wret))⌝ ∗
       ⌜heap_std (revoke Wret) !! ι = Some (MkAllocObject b (b ^+ 1)%a AllocObjectLive)⌝ ∗
       ⌜std (revoke Wret) !! LHeap b ι = Some Permanent⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗

@@ -5,7 +5,7 @@ From griotte Require Import fetch_spec assert_spec switcher_spec_call
 From griotte Require Import switcher_spec_KtK.
 From griotte.allocator Require Import allocator allocator_preamble.
 From griotte Require Import heap_temporal_safety_allocator_spec world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants heap_ghost wp_rules_interp.
+From griotte Require Import world_interp_stack region_invariants heap_ghost.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte Require Import hts_spec_states hts_spec_world.
 
@@ -20,8 +20,7 @@ Section HTS_Reload.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     `{MP: MachineParameters}.
 
   Definition hts_reload_buffer_instrs : list Word :=
@@ -30,39 +29,37 @@ Section HTS_Reload.
     hts_main_instrs_n 10.
 
   (** Reload of the saved buffer from the stack slot [s], just below the
-      current stack pointer. The load may clear the tag of the saved
-      capability; in both cases, the loaded word is unchanged by the filter
-      of the current world. *)
-  Lemma hts_reload_retained_buffer_spec W C'
-    pc_b pc_e pc_a s e raw w0 :
+      current stack pointer, with the load witness [wit] (D41): the plain
+      post (variant 1) for [LoadPlain], the untagged word (variant 2) for
+      [LoadQuar ι]. *)
+  Lemma hts_reload_retained_buffer_spec
+    pc_b pc_e pc_a s e (raw w0 : LWord) wit :
     disjoint_from_shadow s e ->
-    is_heap_cap raw = true ->
     (s + 1)%a = Some (s ^+ 1)%a ->
     (s < e)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_reload_buffer_instrs)%a ->
-    (allocator_ctx ∗
-     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
+    (PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a ∗
      csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
      ca0 ↦ᵣ w0 ∗
      s ↦ₐ raw ∗
      codefrag pc_a hts_reload_buffer_instrs ∗
-     region W C' ∗
+     load_witness_res wit ∗
      ▷ (∀ actual,
-       ⌜load_heap_in_world W raw actual⌝ -∗
+       ⌜load_post wit RWL raw actual⌝ -∗
        PC ↦ᵣ WCap true RX Global pc_b pc_e
          (pc_a ^+ length hts_reload_buffer_instrs)%a ∗
        csp ↦ᵣ WCap true RWL Local s e (s ^+ 1)%a ∗
        ca0 ↦ᵣ actual ∗
        s ↦ₐ raw ∗
        codefrag pc_a hts_reload_buffer_instrs ∗
-       region W C' -∗
+       load_witness_res wit -∗
        WP Seq (Instr Executable)
          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
      ⊢ WP Seq (Instr Executable)
          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
-    iIntros (Hshadow Hheap_raw Hs1 Hbounds Hsub)
-      "(#Halloc & HPC & Hcsp & Hca0 & Ha & Hcode & Hregion & Hpost)".
+    iIntros (Hshadow Hs1 Hbounds Hsub)
+      "(HPC & Hcsp & Hca0 & Ha & Hcode & Hwit & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /hts_reload_buffer_instrs.
     (* Load ca0 csp (-1). *)
@@ -72,87 +69,67 @@ Section HTS_Reload.
       as "[Hmap (%Hpc_csp & %Hpc_ca0 & %Hcsp_ca0)]".
     iDestruct (memMap_resource_2ne_apply with "Hi Ha")
       as "[Hmem %Hpc_a]".
-    iInv Nallocator as ">Halloc_body" "Halloc_close".
-    iDestruct "Halloc_body" as (alloc_map R Halloc_dom Hcoh) "[Halloc_entries HR]".
-    iEval (rewrite /allocator_entry big_sepM_sep) in "Halloc_entries".
-    iDestruct "Halloc_entries" as "[Hshadow Halloc_states]".
-    iAssert ([∗ map] k↦status ∈ shadow_status <$> alloc_map,
-      k ↦ₛ status)%I with "[Hshadow]" as "Hshadow".
-    { rewrite big_sepM_fmap. iExact "Hshadow". }
-    iApply (wp_load_memory_shadow_imm (⊤ ∖ ↑Nallocator)
-      RX Global pc_b pc_e pc_a ca0 csp (-1) _
-      (<[pc_a:=_]> (<[s:=raw]> ∅))
-      (<[PC:=WCap true RX Global pc_b pc_e pc_a]>
-        (<[csp:=WCap true RWL Local s e (s ^+ 1)%a]> (<[ca0:=w0]> ∅)))
-      (DfracOwn 1) (shadow_status <$> alloc_map) (DfracOwn 1)
-      with "[Hmem Hshadow Hmap]").
+    iDestruct (mem_remove_dq with "Hmem") as "Hmem".
+    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
+      as "Hshadow".
+    { by rewrite big_sepM_empty. }
+    iApply (wp_load_general_shadow_imm ⊤ RX Global pc_b pc_e pc_a None
+      ca0 csp (-1) (lword_of_word (encodeInstrW _))
+      (<[pc_a:=lword_of_word (encodeInstrW _)]> (<[s:=raw]> ∅)) _ _ ∅ DfracDiscarded wit
+      with "[$Hmem $Hshadow $Hmap $Hwit]").
     { apply decode_encode_instrW_inv. }
     { solve_pure. }
     { by simplify_map_eq. }
     { by rewrite !dom_insert; set_solver+. }
     { by simplify_map_eq. }
-    { exists true, RWL, Local, s, e, (s ^+ 1)%a. split.
-      - unfold read_reg_inr. by simplify_map_eq.
-      - rewrite /reg_allows_load_imm.
-        assert (((s ^+ 1)%a + -1)%a = Some s) as -> by solve_addr.
-        case_decide; last done. exists raw. by simplify_map_eq. }
-    { intros p0 g0 b0 e0 a0 ea0 (Hsrc0 & Haddr & _).
+    { intros p0 g0 b0 e0 ea0 Hallow.
+      destruct Hallow as (a0 & Hsrc0 & Haddr & _ & _).
       simpl_map_regs by eauto. simplify_map_eq.
-      apply (disjoint_from_shadow_not_in _ _ _ Hshadow).
-      apply withinBounds_true_iff. solve_addr. }
-    { iFrame "Hmem". iSplitL "Hshadow"; first (iNext; iExact "Hshadow").
-      iNext. iExact "Hmap". }
-    iNext. iIntros (regs' retv) "(%Hspec & Hmem & Hshadow & Hmap)".
-    iAssert ([∗ map] k↦s ∈ alloc_map, allocator_entry k s)%I
-      with "[Hshadow Halloc_states]" as "Halloc_entries".
-    { rewrite /allocator_entry big_sepM_sep big_sepM_fmap. iFrame. }
-    destruct retv; simpl in Hspec; [contradiction| |]; cycle 1.
-    2: { iMod ("Halloc_close" with "[Halloc_entries HR]") as "_".
-      { iNext. iExists alloc_map, R. by iFrame "∗%". }
-      iModIntro. wp_pure. wp_end. by iIntros (?). }
-    destruct Hspec as
-      (p0 & g0 & b0 & e0 & a0 & ea0 & loadv & actual &
-       Hallow & Hlookup & Hactual & Hobserved & Hinc).
-    destruct Hallow as (Hsrc0 & Haddr & _).
-    simpl_map_regs by eauto.
-    rewrite lookup_insert_ne // lookup_insert_eq in Hsrc0.
-    injection Hsrc0 as <- <- <- <- <-.
-    assert (ea0 = s) as -> by solve_addr.
-    rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
-    injection Hlookup as <-.
-    change (load_word RWL raw) with raw in Hactual.
-    change (load_memory_shadow_observation
-      (shadow_status <$> alloc_map) RW raw actual) in Hobserved.
-    iDestruct (shadow_read_retained W C' raw actual alloc_map R
-      with "Hregion HR")
-      as "(%Hfilter & Hregion & HR)";
-      [exact Halloc_dom|exact Hcoh|exact Hobserved|].
-    iMod ("Halloc_close" with "[Halloc_entries HR]") as "_".
-    { iNext. iExists alloc_map, R. by iFrame "∗%". }
-    iModIntro.
-    unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
-    assert ((pc_a + 1)%a = Some (pc_a ^+ 1)%a) as Hpc by solve_addr.
-    rewrite Hpc in Hinc. simplify_eq.
-    rewrite (insert_insert_ne _ ca0 PC) // insert_insert_eq.
-    rewrite (insert_insert_ne _ ca0 csp) // insert_insert_eq.
-    iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hcsp & Hca0)"; eauto.
-    iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
-    wp_pure.
-    iSpecialize ("Hcode" with "Hi").
-    iApply ("Hpost" $! actual with "[]"); last iFrame.
-    iPureIntro. split; last exact Hfilter.
-    destruct Hactual as [Hsame|Hclear].
-    - subst actual. left. reflexivity.
-    - subst actual. right. split; [exact Hheap_raw|reflexivity].
+      match type of Haddr with ((?x ^+ 1) + -1)%a = Some _ =>
+        assert (ea0 = x) as -> by solve_addr end.
+      rewrite (disjoint_from_shadow_not_in _ _ _ Hshadow);
+        last (apply withinBounds_true_iff; solve_addr).
+      case_match; first done.
+      eexists. by simplify_map_eq. }
+    { by rewrite create_gmap_default_dom list_to_set_elements_L. }
+    iNext. iIntros (regs' retv) "(%Hspec & Hmem & _ & Hwit & Hmap)".
+    iDestruct (mem_remove_dq with "Hmem") as "Hmem".
+    destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc
+                      |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
+                      |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |Hfail].
+    - destruct Hallow as (a0 & Hsrc0 & Haddr & _ & _).
+      simpl_map_regs by eauto. simplify_map_eq.
+      match type of Haddr with ((?x ^+ 1) + -1)%a = Some _ =>
+        assert (ea0 = x) as -> by solve_addr end.
+      rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
+      injection Hlookup as <-.
+      unfold incrementPC, incrementPC_gen in Hinc. simplify_map_eq.
+      assert ((pc_a + 1)%a = Some (pc_a ^+ 1)%a) as Hpc by solve_addr.
+      rewrite Hpc in Hinc. simplify_eq.
+      rewrite (insert_insert_ne _ ca0 PC) // insert_insert_eq.
+      rewrite (insert_insert_ne _ ca0 csp) // insert_insert_eq.
+      iDestruct (regs_of_map_3 with "Hmap") as "(HPC & Hcsp & Hca0)"; eauto.
+      iDestruct (memMap_resource_2ne with "Hmem") as "[Hi Ha]"; auto.
+      wp_pure.
+      iSpecialize ("Hcode" with "Hi").
+      iApply ("Hpost" $! actual with "[//]"). iFrame.
+    - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso. destruct Hallow as (a0 & Hsrc0 & Haddr & _ & _).
+      simpl_map_regs by eauto. simplify_map_eq.
+      match type of Haddr with ((?x ^+ 1) + -1)%a = Some _ =>
+        assert (ea0 = x) as -> by solve_addr end.
+      by rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
+    - wp_pure. wp_end. by iIntros (?).
   Qed.
 
-  Lemma hts_check_live_buffer_spec pc_b pc_e pc_a b e a (w0 : Word) :
+  Lemma hts_check_live_buffer_spec pc_b pc_e pc_a b e a π (w0 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_check_buffer_instrs)%a ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
-    ∗ ca0 ↦ᵣ WCap true RW Global b e a ∗ ct0 ↦ᵣ w0
+    ∗ ca0 ↦ᵣ WCap true RW Global b e a @@? π ∗ ct0 ↦ᵣ w0
     ∗ codefrag pc_a hts_check_buffer_instrs
     ∗ ▷ (PC ↦ᵣ WCap true RX Global pc_b pc_e (pc_a ^+ length hts_check_buffer_instrs)%a
-         ∗ ca0 ↦ᵣ WCap true RW Global b e a ∗ ct0 ↦ᵣ WInt 1
+         ∗ ca0 ↦ᵣ WCap true RW Global b e a @@? π ∗ ct0 ↦ᵣ WInt 1
          ∗ codefrag pc_a hts_check_buffer_instrs
          -∗ WP Seq (Instr Executable)
              {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -169,10 +146,10 @@ Section HTS_Reload.
     iApply "Hpost". iFrame.
   Qed.
 
-  Lemma hts_check_quarantined_buffer_spec pc_b pc_e pc_a b e a (w0 : Word) :
+  Lemma hts_check_quarantined_buffer_spec pc_b pc_e pc_a b e a π (w0 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_check_buffer_instrs)%a ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
-    ∗ ca0 ↦ᵣ WCap false RW Global b e a ∗ ct0 ↦ᵣ w0
+    ∗ ca0 ↦ᵣ WCap false RW Global b e a @@? π ∗ ct0 ↦ᵣ w0
     ∗ codefrag pc_a hts_check_buffer_instrs
     ∗ na_own cerise_nais ⊤
     ⊢ WP Seq (Instr Executable)
@@ -196,8 +173,8 @@ Section HTS_Spec_Free.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ} {FA : FreeAuth Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {FA : FreeAuth Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -229,13 +206,13 @@ Section HTS_Spec_Free.
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_heap Hstk_shadow Hstk_heap HsubBounds)
       "(#Hctx & Hret & Hcontinue)".
-    iDestruct "Hctx" as "(#Hassert & #Halloc & #Hservice & #Hswitcher
+    iDestruct "Hctx" as "(#Hassert & #Hservice & #Hswitcher
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hret" as (ι b a_ret Wret) "(%Ha_ret & %Hbounds & %Hstk_nonempty
       & %Hrelated_share_ret & #Hrel_b & Hframe & [%w0 Hca0] & [%w1 Hca1]
       & Hregs & Hslot & [%stk Hstk] & Hworld & Hstack_revoked_ret
-      & %Hstack_revoked_ret & HK & #Hobj & #Hallocation & Hfree_auth)".
+      & %Hstack_revoked_ret & HK & #Hobj & Hfree_auth)".
     iDestruct "Hframe" as "(Hna & HPC & Hcra & Hcgp & Hcsp & [%wcs0 Hcs0]
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode & Hp)".
     iDestruct "Himports" as
@@ -250,52 +227,70 @@ Section HTS_Spec_Free.
     iEval (rewrite /hts_main_code /assembled_hts_main /assembled_hts_main') in "Hcode".
     iEval (cbv [fmap list_fmap concat]) in "Hcode".
 
-    (* Block 9: reload the saved buffer, allowing the heap load to clear its
-       tag when the adversary has quarantined it. *)
+    (* Block 9: reload the saved buffer. The world's entry for ι after the
+       adversary call decides the load witness (D41). *)
     hts_focus_entry_block 9 "Hcode" as a_reload Ha_reload "Hblock" "Hcont"
       from Ha_ret.
     iHide "Hcont" as hcont.
-    rewrite world_interp_eq /world_interp_def.
-    iDestruct "Hworld" as "(Hregion & Hsts & Hseals)".
+    iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
+    destruct (hts_Wret_heap_lookup csp_b csp_e W_init_C ι b Wret
+      Hrelated_share_ret) as [status Hι_ret].
+    destruct status; cycle 1.
+    { (* Quarantined: the reload clears the tag (variant 2), and the tag
+         check halts. *)
+      iDestruct (hts_world_quarantined_witness C ι b Wret Hι_ret with "Hworld")
+        as "[Hworld #Hquar]".
+      (* Load ca0 csp (-1). *)
+      iApply (hts_reload_retained_buffer_spec pc_b pc_e a_reload
+        csp_b csp_e (hts_buffer b @@ ι) _ (LoadQuar ι)
+        with "[- $HPC $Hcsp $Hca0 $Hslot $Hblock $Hquar]").
+      { exact (disjoint_from_mmio_shadow _ _ Hstk_shadow). }
+      { solve_addr. }
+      { exact Hstk_nonempty. }
+      { solve_addr. }
+      iNext. iIntros (actual (_ & _ & _ & Hquarpost))
+        "(HPC & Hcsp & Hca0 & Hslot & Hblock & _)".
+      rewrite (Hquarpost eq_refl); last first.
+      { intros _. cbn. split; first done. exists b.
+        rewrite /heap_authority_base decide_True; last solve_addr.
+        by rewrite /heap_cap_base /= Hb_heap. }
+      subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
+      focus_block 10 "Hcode" as a_check Ha_check "Hblock" "Hcont".
+      iApply (hts_check_quarantined_buffer_spec pc_b pc_e a_check
+        b (b ^+ 1)%a b (Some ι) _ with "[- $HPC $Hca0 $Hct0 $Hblock $Hna]").
+      solve_addr. }
+    (* Live: the plain reload (variant 1) returns the saved buffer or its
+       untagged copy. *)
     (* Load ca0 csp (-1). *)
-    iApply (hts_reload_retained_buffer_spec (revoke Wret) C pc_b pc_e a_reload
-      csp_b csp_e (hts_buffer b) _
-      with "[- $Halloc $HPC $Hcsp $Hca0 $Hslot $Hblock $Hregion]").
+    iApply (hts_reload_retained_buffer_spec pc_b pc_e a_reload
+      csp_b csp_e (hts_buffer b @@ ι) _ LoadPlain
+      with "[- $HPC $Hcsp $Hca0 $Hslot $Hblock]").
     { exact (disjoint_from_mmio_shadow _ _ Hstk_shadow). }
-    { rewrite /hts_buffer /is_heap_cap /heap_cap_base
-        /memory_cap_base /= Hb_heap. reflexivity. }
     { solve_addr. }
     { exact Hstk_nonempty. }
     { solve_addr. }
-    iNext. iIntros (actual Hloaded)
-      "(HPC & Hcsp & Hca0 & Hslot & Hblock & Hregion)".
-    iAssert (world_interp (revoke Wret) C) with "[Hregion Hsts Hseals]"
-      as "Hworld".
-    { rewrite world_interp_eq /world_interp_def. iFrame. }
-    destruct Hloaded as [Hloaded Hfilter].
+    iSplitR; first done.
+    iNext. iIntros (actual (Hloaded & _))
+      "(HPC & Hcsp & Hca0 & Hslot & Hblock & _)".
     subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
 
     (* Block 10: check the tag of the reloaded buffer. *)
-    iExtractList "Hrmap" [ct0] as ["[Hct0 _]"].
-    destruct Hloaded as [Hsame|Hcleared].
-    2: { (* The adversary freed b: the tag is cleared, halt. *)
-      destruct Hcleared as [_ Hclear]. subst actual.
-      focus_block 10 "Hcode" as a_check Ha_check "Hblock" "Hcont";
-        iHide "Hcont" as hcont.
+    destruct Hloaded as [Hsame|[_ Hcleared] ].
+    2: { (* The tag was cleared: halt. *)
+      subst actual.
+      focus_block 10 "Hcode" as a_check Ha_check "Hblock" "Hcont".
       iApply (hts_check_quarantined_buffer_spec pc_b pc_e a_check
-        b (b ^+ 1)%a b _ with "[- $HPC $Hca0 $Hct0 $Hblock $Hna]").
-      { solve_addr. } }
+        b (b ^+ 1)%a b (Some ι) _ with "[- $HPC $Hca0 $Hct0 $Hblock $Hna]").
+      solve_addr. }
     subst actual.
-    (* The retained tag shows that the adversary left b live: open its
-       world entry. *)
+    (* The exact reload continues with ι live: open its world entry. *)
     iMod (hts_world_reopen_live C csp_b csp_e W_init_C _ ι b Wret
-      Hbounds Hrelated_share_ret Hfilter with "Hrel_b Hworld")
-      as (v_b) "(%Hwf_rev & %Hb_lookup & %Hstd_rev & Hworld_open & Hstate_b
-        & [Hb Hb_share])".
+      Hbounds Hrelated_share_ret Hι_ret with "Hrel_b Hworld")
+      as (v_b) "(%Hstd_rev & Hworld_open & Hstate_b & [Hb Hb_share])".
     focus_block 10 "Hcode" as a_check Ha_check "Hblock" "Hcont";
       iHide "Hcont" as hcont.
     iApply (hts_check_live_buffer_spec pc_b pc_e a_check
-      b (b ^+ 1)%a b _ with "[- $HPC $Hca0 $Hct0 $Hblock]").
+      b (b ^+ 1)%a b (Some ι) _ with "[- $HPC $Hca0 $Hct0 $Hblock]").
     { solve_addr. }
     iNext. iIntros "(HPC & Hca0 & Hct0 & Hblock)".
     subst hcont; unfocus_block "Hblock" "Hcont" as "Hcode".
@@ -366,7 +361,7 @@ Section HTS_Spec_Free.
     clear Ha_reload Ha_check Ha_private Ha_fetch12 Ha_fetch13.
 
     iAssert ([[b,(b ^+ 1)%a]] ↦ₕ[ι]
-      [[ [WCap true RW Global cgp_b cgp_e cgp_b] ]])%I
+      [[ [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)] ]])%I
       with "[Hb Hb_share]" as "Hfree_mem".
     { rewrite /heap_region_pointsto
         (finz_seq_between_singleton b (b ^+ 1)%a Hsucc) big_sepL2_singleton.
@@ -375,24 +370,25 @@ Section HTS_Spec_Free.
       ["[Hca2 %Hca2]";"[Hca3 %Hca3]";"[Hca4 %Hca4]";"[Hca5 %Hca5]"].
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     subst wca2 wca3 wca4 wca5.
-    set (free_arg := ({[ca0 := hts_buffer b; ca1 := w1;
-      ca2 := WInt 0; ca3 := WInt 0; ca4 := WInt 0;
-      ca5 := WInt 0; ct0 := WInt 0]} : Reg)).
+    set (free_arg := ({[ca0 := hts_buffer b @@ ι; ca1 := w1;
+      ca2 := lword_of_word (WInt 0); ca3 := lword_of_word (WInt 0);
+      ca4 := lword_of_word (WInt 0); ca5 := lword_of_word (WInt 0);
+      ct0 := lword_of_word (WInt 0)]} : LReg)).
     iAssert ([∗ map] rarg↦warg ∈ free_arg, rarg ↦ᵣ warg)%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hfree_arg".
     { subst free_arg.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]). done. }
     iInsertList "Hrmap" [ctp;ct2].
-    set (free_other := <[ct2:=WInt 0]>
-      (<[ctp:=WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call]>
+    set (free_other := <[ct2:=lword_of_word (WInt 0)]>
+      (<[ctp:=lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap)))))))).
     iPoseProof (hts_free_known_function
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry true RX Global pc_b pc_e (a_freecall ^+ 1)%a)
       wcs0 wcs1 csp_b csp_e (csp_b ^+ 1)%a b (b ^+ 1)%a b
-      free_arg cstk RW Global ι (0%Z, 0%Z)
-      [WCap true RW Global cgp_b cgp_e cgp_b]
+      free_arg cstk RW Global ι
+      [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)]
       with "Hservice") as "Hfree_fun".
     { exact Hbounds. }
     { rewrite (finz_seq_between_singleton b (b ^+ 1)%a Hsucc).
@@ -410,7 +406,7 @@ Section HTS_Spec_Free.
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
       allocator_cgp_b allocator_cgp_e allocator_free_pcc_off
-      with "[- $Halloc $Hswitcher $Hexport_pcc $Hexport_cgp $Hexport_free
+      with "[- $Hswitcher $Hexport_pcc $Hexport_cgp $Hexport_free
         $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
         $Hfree_arg $Hrmap $Hstk $Hcstk $Hfree_fun]").
     { exact Hstk_heap. }
@@ -438,7 +434,7 @@ Section HTS_Spec_Free.
       rewrite Hdom_rmap /dom_arg_rmap /=. set_solver+. }
     { subst free_arg. rewrite /is_arg_rmap /dom_arg_rmap /=.
       reflexivity. }
-    iFrame "Hallocation Hobj Hfree_auth Hfree_mem".
+    iFrame "Hobj Hfree_auth Hfree_mem".
     iNext.
     iIntros "[Hcall|Hcall]".
     - iDestruct "Hcall" as
@@ -456,9 +452,9 @@ Section HTS_Spec_Free.
              Hpc_nonheap /=. reflexivity. }
       subst rcgp rcra.
       iEval (cbn) in "HPC".
-      iEval (rewrite /hts_free_result) in "Hfree_post".
+      iEval (rewrite /hts_free_result /allocator_free_result) in "Hfree_post".
       iDestruct "Hfree_post" as
-        "(_ & #Hquar & %Hfree_values)".
+        "(#Hquar & %Hfree_values)".
       destruct Hfree_values as [-> ->].
       iApply "Hcontinue".
       iExists (a_freecall ^+ 1)%a.
