@@ -272,4 +272,57 @@ Section adequacy_ghost_init.
     - exact Hmmio.
     - intros w Hw. rewrite Hnull in Hw. by injection Hw as <-.
   Qed.
+
+  (** Program memory disjoint from the initial heap holds no heap address. *)
+  Lemma not_heap_of_disjoint_dom (pm : Mem) a :
+    initial_heap_memory ##ₘ pm → a ∈ dom pm → is_heap_address a = false.
+  Proof.
+    intros Hdisj Ha. apply not_true_is_false. intros Hheap.
+    apply elem_of_dom in Ha as [w Hw].
+    eapply map_disjoint_spec; [exact Hdisj| |exact Hw].
+    rewrite /initial_heap_memory lookup_gset_to_gmap option_guard_True //.
+    by apply elem_of_heap_addresses.
+  Qed.
+
+  Lemma disjoint_from_heap_of_disjoint_dom (pm : Mem) b e :
+    initial_heap_memory ##ₘ pm →
+    list_to_set (finz.seq_between b e) ⊆ dom pm →
+    disjoint_from_heap b e.
+  Proof.
+    intros Hdisj Hdom. rewrite /disjoint_from_heap elem_of_disjoint.
+    intros x Hx Hheap.
+    assert (x ∈ dom pm) as Hx_dom by (apply Hdom; set_solver).
+    pose proof (not_heap_of_disjoint_dom pm x Hdisj Hx_dom) as Hnot.
+    apply elem_of_finz_seq_between in Hheap.
+    assert (is_heap_address x = true) as Hyes by (apply withinBounds_true_iff; solve_addr).
+    congruence.
+  Qed.
+
+  (** The switcher's trusted stack lies outside the heap. *)
+  Lemma trusted_stack_disjoint_from_heap_of_disjoint_dom
+    (Cswitcher : cmptSwitcher) (pm : Mem) :
+    initial_heap_memory ##ₘ pm →
+    dom (mk_initial_switcher Cswitcher) ⊆ dom pm →
+    disjoint_from_heap (b_trusted_stack Cswitcher) (e_trusted_stack Cswitcher).
+  Proof.
+    intros Hdisj Hdom. apply (disjoint_from_heap_of_disjoint_dom pm); first done.
+    etrans; last exact Hdom.
+    rewrite /mk_initial_switcher !dom_union_L dom_switcher_trusted_stack_mregion.
+    set_solver.
+  Qed.
+
+  (** The assert flag lies outside the heap. *)
+  Lemma assert_flag_not_heap_of_disjoint_dom (Cassert : cmptAssert) (pm : Mem) :
+    initial_heap_memory ##ₘ pm →
+    dom (mk_initial_assert Cassert) ⊆ dom pm →
+    is_heap_address (flag_assert Cassert) = false.
+  Proof.
+    intros Hdisj Hdom. apply (not_heap_of_disjoint_dom pm); first done.
+    apply Hdom.
+    rewrite /mk_initial_assert !dom_union_L dom_assert_flag_mregion
+      /cmpt_assert_flag_region.
+    pose proof (assert_flag_size Cassert).
+    rewrite (finz_seq_between_singleton (flag_assert Cassert)); last solve_addr.
+    set_solver.
+  Qed.
 End adequacy_ghost_init.
