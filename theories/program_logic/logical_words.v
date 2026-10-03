@@ -121,6 +121,9 @@ Proof.
   by rewrite clear_tag_untagged.
 Qed.
 
+Lemma lforce_global_lborrow (w : LWord) : lforce_global (lborrow w) = lforce_global w.
+Proof. by rewrite /lforce_global /lborrow /lift_word /= force_global_borrow. Qed.
+
 Lemma lstore_word_canStore p w :
   canStore p w.(lw) = true → lstore_word p w = w.
 Proof.

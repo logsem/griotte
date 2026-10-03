@@ -6,8 +6,8 @@ Section region_alloc.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ}
-    {relg : relGS Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
+    {relg : relGS Σ}
     `{MP: MachineParameters}.
 
   Local Hint Rewrite std_update_multiple_heap std_update_keys_heap : heap.
@@ -47,7 +47,6 @@ Section region_alloc.
     sts_full_world (<s[k := ρ]s>W) C.
   Proof.
     iIntros (Hnone) "Hfull Hreg Hk".
-    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     iDestruct (heap_key_resource_known with "Hk") as %Hknown_k.
     rewrite region_eq rel_eq /region_def /rel_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %HMW & %HMρ & Hpreds)".
@@ -69,7 +68,7 @@ Section region_alloc.
       destruct k as [a|a ι]; first done.
       destruct Hknown_k as (o & Ho & _). by apply elem_of_dom_2 in Ho. }
     iDestruct (region_map_monotone with "[Hpreds Hheap]") as "Hpreds'";
-      [exact Hrelated|reflexivity|exact Hheap_wf|exact Hknown'|iFrame "%∗"|].
+      [exact Hrelated|reflexivity|exact Hknown'|iFrame "%∗"|].
     iDestruct "Hpreds'" as "[_ [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
     iFrame "HR ∗ #".
@@ -107,7 +106,6 @@ Section region_alloc.
     sts_full_world (<s[k := Temporary ]s>W) C.
   Proof.
     iIntros (Hlive HnpO Hnone) "#HmonoV Hfull Hreg Hk Hφ".
-    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     iApply (extend_region_key with "Hfull Hreg"); first done.
     iApply heap_key_resource_live_intro; first done.
     rewrite /region_std_interp. iExists v. iFrame "Hk HmonoV".
@@ -116,7 +114,7 @@ Section region_alloc.
         by by apply related_sts_pub_world_fresh.
     iNext.
     destruct (isWL p); [|destruct (isDL p)].
-    all: iApply ("HmonoV" with "[] [] Hφ"); iPureIntro; [|done].
+    all: iApply ("HmonoV" with "[] Hφ"); iPureIntro.
     1,2: done.
     by apply related_sts_pub_priv_world.
   Qed.
@@ -138,12 +136,11 @@ Section region_alloc.
     sts_full_world (<s[k := Permanent ]s>W) C.
   Proof.
     iIntros (Hlive HnpO Hnone) "#HmonoV Hfull Hreg Hk Hφ".
-    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     iApply (extend_region_key with "Hfull Hreg"); first done.
     iApply heap_key_resource_live_intro; first done.
     rewrite /region_std_interp. iExists v. iFrame "Hk HmonoV".
     iSplit; first done.
-    iNext. iApply ("HmonoV" with "[] [] Hφ"); iPureIntro; [|done].
+    iNext. iApply ("HmonoV" with "[] Hφ"); iPureIntro.
     by apply related_sts_pub_priv_world, related_sts_pub_world_fresh.
   Qed.
 
@@ -247,7 +244,6 @@ Section region_alloc.
       destruct l2 as [|v l2]; [by inversion Hlen|].
       iDestruct (big_sepL2_cons with "Hl") as "[(Hk & Hφ & #Hf) Hl]".
       iMod (IH with "Hsts Hr Hl") as "(Hr & Hrels & Hsts)"; [done|done|done|].
-      iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
       assert (related_sts_pub_world W (std_update_keys W l1 Temporary)) as Hrelated.
       { apply related_sts_pub_update_keys.
         eapply Forall_impl; first exact Hl1. intros. by rewrite not_elem_of_dom. }
@@ -258,7 +254,7 @@ Section region_alloc.
       iMod (extend_region_temp _ _ _ k v p φ Hlive HnpO Hnone
              with "Hf Hsts Hr Hk [Hφ]") as "(Hr & Hrel & Hsts)".
       { destruct (isWL p); [|destruct (isDL p)].
-        all: iApply ("Hf" with "[] [] Hφ"); iPureIntro; [|done].
+        all: iApply ("Hf" with "[] Hφ"); iPureIntro.
         1,2: done.
         by apply related_sts_pub_priv_world. }
       iModIntro. cbn. iFrame.
@@ -292,7 +288,6 @@ Section region_alloc.
       destruct l2 as [|v l2]; [by inversion Hlen|].
       iDestruct (big_sepL2_cons with "Hl") as "[(Hk & Hφ & #Hf) Hl]".
       iMod (IH with "Hsts Hr Hl") as "(Hr & Hrels & Hsts)"; [done|done|done|].
-      iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
       assert (related_sts_pub_world W (std_update_keys W l1 Permanent)) as Hrelated.
       { apply related_sts_pub_update_keys.
         eapply Forall_impl; first exact Hl1. intros. by rewrite not_elem_of_dom. }
@@ -302,7 +297,7 @@ Section region_alloc.
       { by rewrite std_update_keys_heap. }
       iMod (extend_region_perm _ _ _ k v p φ Hlive HnpO Hnone
              with "Hf Hsts Hr Hk [Hφ]") as "(Hr & Hrel & Hsts)".
-      { iApply ("Hf" with "[] [] Hφ"); iPureIntro; [|done].
+      { iApply ("Hf" with "[] Hφ"); iPureIntro.
         by apply related_sts_pub_priv_world. }
       iModIntro. cbn. iFrame.
   Qed.
@@ -398,7 +393,6 @@ Section region_alloc.
     ∗ sts_full_world (std_update_multiple W (a::la1) Permanent) C.
   Proof.
     iIntros (Hnone ?) "Hfull Hreg Ha".
-    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     assert (LNonHeap a ∉ dom (std (std_update_multiple W la1 Permanent))) as Hnone'.
     {
       rewrite not_elem_of_dom.
@@ -430,7 +424,7 @@ Section region_alloc.
     apply (related_sts_pub_world_fresh (std_update_multiple W la1 Permanent) a Permanent)
       in Hnone' as Hrelated; auto.
     iDestruct (region_map_monotone with "[Hpreds Hheap]") as "Hpreds'";
-      [apply Hrelated|reflexivity|exact Hheap_wf| |iFrame "%∗"|].
+      [apply Hrelated|reflexivity| |iFrame "%∗"|].
     { rewrite /std_update /= dom_insert_L. by apply heap_keys_known_insert_new. }
     iDestruct "Hpreds'" as "[%Hknown' [Hheap Hpreds']]".
     iModIntro. rewrite bi.sep_exist_r. iExists _.
@@ -476,7 +470,6 @@ Section region_alloc.
     { cbn. intros. iIntros "? ? ?".
       rewrite app_nil_r. iFrame. iModIntro. done. }
     iIntros (la1 lw2 Hp HW Hnodup_l1 Hnodup_l2 Hdisj) "Hsts Hreg Hl2".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     apply NoDup_cons in Hnodup_l2 as [Hna Hnodup_l2].
     apply disjoint_cons in Hdisj as Hni'.
     apply disjoint_swap in Hdisj;auto.
@@ -548,7 +541,6 @@ Section region_alloc.
                (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
   Proof.
     iIntros (HNoDup Hp Hl1) "Hsts Hreg Hl".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
     "(Hreg & Hl & #Hrel & Hsts)"; auto.
     { apply NoDup_nil. auto. }
@@ -599,7 +591,6 @@ Section region_alloc.
     intros W'; subst W'.
 
     iIntros (HNoDup Hp Hl1) "Hsts Hreg Hseals Hl Hφ".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
     "(Hreg & Hl & #Hrel & Hsts)"; auto.
     { apply NoDup_nil. auto. }
@@ -607,7 +598,6 @@ Section region_alloc.
     { by rewrite -region_open_nil. }
 
     iDestruct (sealing_map_monotone_pub _ _ (std_update_multiple W l1 Permanent) with "Hseals") as "Hseals".
-    { by rewrite std_update_multiple_heap. }
     { by rewrite std_update_multiple_seals. }
     { apply related_sts_pub_update_multiple.
       eapply Forall_impl; first exact Hl1.
@@ -622,7 +612,6 @@ Section region_alloc.
     { auto. }
     { apply related_sts_pub_refl_world. }
     { reflexivity. }
-    { by rewrite /= std_update_multiple_heap. }
     iMod (region_close_many with "Hrel Hreg Hl Hφ'' Hmono") as "Hreg"; eauto.
     by iFrame.
   Qed.

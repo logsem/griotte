@@ -50,7 +50,7 @@ Section heap_ghost.
   Context {Σ : gFunctors} {Cname : CmptNameG} {heapg : heapG Σ}.
 
   Definition heap_std_full (C : CmptName) (h : Heap) : iProp Σ :=
-    ⌜heap_wf h⌝ ∗ own (heap_name C) (● (Excl <$> h : heapUR)).
+    own (heap_name C) (● (Excl <$> h : heapUR)).
   Definition heap_std_auth (C : CmptName) (ι : AId) (o : AllocObject) : iProp Σ :=
     own (heap_name C) (◯ ({[ι := Excl o]} : heapUR)).
   Definition heap_std_fragments (C : CmptName) (h : Heap) : iProp Σ :=
@@ -81,7 +81,7 @@ Section heap_ghost.
   Lemma heap_std_full_auth C h b o :
     heap_std_full C h -∗ heap_std_auth C b o -∗ ⌜h !! b = Some o⌝.
   Proof.
-    iIntros "[_ Ha] Hs".
+    iIntros "Ha Hs".
     iDestruct (own_valid_2 with "Ha Hs") as %[Hi Hv]%auth_both_valid_discrete.
     iPureIntro.
     apply (singleton_included_exclusive_l _ _ _ _ Hv) in Hi.
@@ -97,7 +97,7 @@ Section heap_ghost.
     heap_std_full C (heap_allocate h ι b e) ∗
     heap_std_auth C ι (MkAllocObject b e AllocObjectLive).
   Proof.
-    iIntros (Hfresh) "[%Hwf Ha]".
+    iIntros (Hfresh) "Ha".
     iMod (own_update _ _
       (● (Excl <$> heap_allocate h ι b e : heapUR) ⋅
        ◯ {[ι := Excl (MkAllocObject b e AllocObjectLive)]})
@@ -106,17 +106,15 @@ Section heap_ghost.
       apply alloc_singleton_local_update.
       - rewrite lookup_fmap (proj1 Hfresh). done.
       - done. }
-    iModIntro. iFrame. iPureIntro. by apply heap_allocate_wf.
+    by iFrame.
   Qed.
 
   Lemma heap_std_full_update_one C h b o o' :
-    heap_wf (<[b := o']> h) ->
     heap_std_full C h -∗ heap_std_auth C b o ==∗
     heap_std_full C (<[b := o']> h) ∗ heap_std_auth C b o'.
   Proof.
-    iIntros (Hwf') "Ha Hs".
+    iIntros "Ha Hs".
     iDestruct (heap_std_full_auth with "Ha Hs") as %Hb.
-    iDestruct "Ha" as "[_ Ha]".
     iCombine "Ha Hs" as "H".
     iMod (own_update _ _
       (● (Excl <$> <[b := o']> h : heapUR) ⋅ ◯ {[b := Excl o']})
@@ -125,7 +123,7 @@ Section heap_ghost.
       apply singleton_local_update with (x := Excl o).
       - rewrite lookup_fmap Hb. done.
       - apply exclusive_local_update. done. }
-    iModIntro. iFrame. iPureIntro. exact Hwf'.
+    by iFrame.
   Qed.
 
   Lemma heap_std_full_quarantine C h b o :
@@ -137,8 +135,6 @@ Section heap_ghost.
         AllocObjectQuarantined).
   Proof.
     iIntros (Hb) "Ha Hs".
-    iDestruct "Ha" as "[%Hwf Ha]".
-    iAssert (heap_std_full C h) with "[Ha]" as "Ha"; first by iFrame.
     assert (heap_quarantine h b =
       <[b := MkAllocObject (alloc_object_base o) (alloc_object_end o)
         AllocObjectQuarantined]> h) as Hq.
@@ -147,7 +143,6 @@ Section heap_ghost.
       rewrite insert_insert. case_decide; [done|congruence]. }
     rewrite Hq.
     iApply (heap_std_full_update_one with "Ha Hs").
-    rewrite -Hq. apply heap_quarantine_wf. exact Hwf.
   Qed.
 
   Lemma heap_std_full_update C h h' :
@@ -155,8 +150,7 @@ Section heap_ghost.
     heap_std_full C h -∗ heap_std_fragments C h ==∗
     heap_std_full C h' ∗ heap_std_fragments C h'.
   Proof.
-    iIntros (Hrel) "[%Hwf Ha] Hfrags".
-    have Hwf' := related_sts_heap_std_wf h h' Hrel Hwf.
+    iIntros (Hrel) "Ha Hfrags".
     have Hdom := related_sts_heap_std_dom h h' Hrel.
     iAssert (own (heap_name C)
       (● (Excl <$> h : heapUR) ⋅ ◯ (Excl <$> h : heapUR)))%I
@@ -169,7 +163,7 @@ Section heap_ghost.
     { apply auth_update. by apply heap_local_update. }
     iDestruct (heap_auth_fragments_pack (heap_name C) (Excl <$> h') h'
       with "H") as "[Ha Hfrags]".
-    iModIntro. iFrame. iPureIntro. exact Hwf'.
+    by iFrame.
   Qed.
 End heap_ghost.
 
@@ -196,5 +190,4 @@ Proof.
   iApply (big_sepS_mono with "Hnames").
   iIntros (C HC) "Ha".
   rewrite /heap_std_full /= fmap_empty. iFrame.
-  iPureIntro. apply heap_wf_empty.
 Qed.

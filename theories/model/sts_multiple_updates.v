@@ -11,7 +11,7 @@ Section std_updates.
 
   Context {Σ:gFunctors}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     `{MP: MachineParameters}.
 
   Implicit Types W : WORLD.

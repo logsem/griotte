@@ -19,14 +19,14 @@ Definition relT :=
 Class relGpreS Σ {Cname : CmptNameG} :=
   RelGpreS {
       relPreG_invPreG : invGpreS Σ;
-      relPreG_saved_pred :: savedPredG Σ (WorldT * CmptName * Word);
+      relPreG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
       relPreG_rel :: inG Σ (authR relUR);
     }.
 
 Class relGS Σ {Cname : CmptNameG} :=
   RelGS {
       relG_rel :: inG Σ (authR relUR);
-      relG_saved_pred :: savedPredG Σ (WorldT * CmptName * Word);
+      relG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
       γrel : CmptName -> gname
     }.
 
@@ -36,7 +36,7 @@ Definition relPreΣ {Cname : CmptNameG} :=
 Instance subG_relPreΣ {Σ} {Cname : CmptNameG}:
   subG relPreΣ Σ →
   invGpreS Σ →
-  subG (savedPredΣ (WorldT * CmptName * Word)) Σ →
+  subG (savedPredΣ (WorldT * CmptName * LWord)) Σ →
   relGpreS Σ.
 Proof. solve_inG. Qed.
 
@@ -56,7 +56,7 @@ Section REL_defs.
   Definition RELS_eq : @RELS = @RELS_def := proj2_sig RELS_aux.
 
   Definition rel_def (C : CmptName) (a : LAddr) (p : Perm)
-    (φ : (WorldT * CmptName * Word) -> iProp Σ)
+    (φ : (WorldT * CmptName * LWord) -> iProp Σ)
     : iProp Σ :=
     (∃ (γpred : gnameO), REL C a γpred p ∗ saved_pred_own γpred DfracDiscarded φ)%I.
   Definition rel_aux : { x | x = @rel_def }. by eexists. Qed.
@@ -101,7 +101,7 @@ Section rel.
 
   Context {Σ:gFunctors}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG LAddr region_type OType Word Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
@@ -113,7 +113,7 @@ Section rel.
   Qed.
 
   Global Instance rel_persistent (C : CmptName) (a : LAddr) (p : Perm)
-    (φ : (WORLD * CmptName * Word) -> iProp Σ) :
+    (φ : (WORLD * CmptName * LWord) -> iProp Σ) :
     Persistent (rel C a p φ).
   Proof. rewrite rel_eq /rel_def REL_eq /REL_def.
          apply _.
@@ -217,7 +217,7 @@ Section rel.
     -∗ ▷ future_pub_mono C φ' w.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (W0 W1 Hrelated Hwf).
+    iIntros (W0 W1 Hrelated).
     iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
     iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
     iNext; iModIntro.
@@ -233,7 +233,7 @@ Section rel.
     -∗ ▷ future_priv_mono C φ' w.
   Proof.
     iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (W0 W1 Hrelated Hwf).
+    iIntros (W0 W1 Hrelated).
     iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
     iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
     iNext; iModIntro.
@@ -249,7 +249,7 @@ Section rel.
     -∗ ▷ future_pub_mono C φ' w.
   Proof.
     iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (W0 W1 Hrelated Hwf).
+    iIntros (W0 W1 Hrelated).
     iDestruct (rel_agree C _ φ φ' with "[$Hrel $Hrel']") as "[_ #Hφeq]".
     iNext; iModIntro.
     iIntros "Hφv".
@@ -266,7 +266,7 @@ Section rel.
     -∗ ▷ future_priv_mono C φ' w.
   Proof.
     iIntros "#Hrel #Hrel' #Hmono".
-    iIntros (W0 W1 Hrelated Hwf).
+    iIntros (W0 W1 Hrelated).
     iDestruct (rel_agree _ _ φ φ' with "[$Hrel $Hrel']") as "[_ #Hφeq]".
     iNext; iModIntro.
     iIntros "Hφv".
@@ -309,11 +309,11 @@ Proof. solve_inG. Qed.
 Section Store.
   Context `{!sealStoreG Σ}
       {Cname : CmptNameG}
-      {stsg : STSG LAddr region_type OType Word Σ}
+      {stsg : STSG LAddr region_type OType LWord Σ}
       {relg : relGS Σ}.
   Implicit Types W : WORLD.
 
-  Definition seal_pred (o : OType) (P : WORLD * CmptName * Word → iProp Σ) :=
+  Definition seal_pred (o : OType) (P : WORLD * CmptName * LWord → iProp Σ) :=
     (∃ γpred: gname, own SG_sealN ({[o := Cinr (to_agree γpred)]})
                      ∗ saved_pred_own γpred DfracDiscarded P)%I.
   Global Instance seal_pred_persistent i P : Persistent (seal_pred i P).
@@ -333,7 +333,7 @@ Section Store.
     iIntros (x). iApply (saved_pred_agree with "Hpred1 Hpred2").
   Qed.
 
-  Lemma seal_store_update_alloc (o : OType) (P : WORLD * CmptName * Word → iProp Σ):
+  Lemma seal_store_update_alloc (o : OType) (P : WORLD * CmptName * LWord → iProp Σ):
    can_alloc_pred o ==∗ seal_pred o P.
   Proof.
     rewrite /seal_pred /can_alloc_pred.

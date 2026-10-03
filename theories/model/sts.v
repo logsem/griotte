@@ -857,12 +857,6 @@ Qed.
     related_sts_priv_world W (heap_std_update W W_heap).
   Proof. intros Hheap. apply related_sts_pub_priv_world, related_sts_pub_world_heap_update; done. Qed.
 
-  Lemma sts_full_world_heap_wf W C :
-    sts_full_world W C -∗ ⌜heap_wf (heap_std W)⌝.
-  Proof.
-    iIntros "(_ & _ & _ & [%Hwf _])". done.
-  Qed.
-
   Definition fresh_cus_name (W : WORLD) :=
     match W with | (_, (fs, fr), _, _) => fresh (dom fs ∪ dom fr) end.
 

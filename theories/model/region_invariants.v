@@ -28,8 +28,8 @@ Section standard_world_interp.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG LAddr region_type OType Word Σ}
-    {relg : relGS Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
+    {relg : relGS Σ}
     `{MP: MachineParameters}.
 
   (* ----------------------------------------------------------------------------------------------- *)
@@ -39,17 +39,17 @@ Section standard_world_interp.
   (** The standard-world state interpretation, independently of physical
       heap quarantine. *)
   Definition region_std_interp (W : WORLD) (C : CmptName) (k : LAddr)
-    (p : Perm) (φ : WORLD * CmptName * Word → iProp Σ) (ρ : region_type) : iProp Σ :=
+    (p : Perm) (φ : WORLD * CmptName * LWord → iProp Σ) (ρ : region_type) : iProp Σ :=
     (match ρ with
      | Temporary =>
-         ∃ (v : Word), ⌜isO p = false⌝
+         ∃ (v : LWord), ⌜isO p = false⌝
                        ∗ k ↦ₖ v
                        ∗ (if isWL p then future_pub_mono C φ v
                           else if isDL p then future_pub_mono C φ v
                           else future_priv_mono C φ v)
                        ∗ ▷ φ (W,C,v)
      | Permanent =>
-         ∃ (v : Word), ⌜isO p = false⌝
+         ∃ (v : LWord), ⌜isO p = false⌝
                        ∗ k ↦ₖ v
                        ∗ future_priv_mono C φ v
                        ∗ ▷ φ (W,C,v)
@@ -150,13 +150,12 @@ Section standard_world_interp.
   (* region_map is monotone with regards to public future world relation *)
   Lemma region_map_monotone (C : CmptName) (W W' : WORLD) M Mρ :
     related_sts_pub_world W W' ->
-    heap_std W = heap_std W'
-    → heap_wf (heap_std W') ->
+    heap_std W = heap_std W' ->
     heap_keys_known (heap_std W') (dom (std W')) ->
     region_map_def W C M Mρ
     -∗ region_map_def W' C M Mρ.
   Proof.
-    iIntros (Hrelated Hheap Hheap_wf Hknown') "Hr".
+    iIntros (Hrelated Hheap Hknown') "Hr".
     iDestruct "Hr" as "[%Hknown Hr]".
     iDestruct "Hr" as "[Hheap Hr]".
     iSplit; first done.
@@ -183,12 +182,11 @@ Section standard_world_interp.
   Lemma region_monotone C W W':
     dom (std W) = dom (std W')
     -> related_sts_pub_world W W'
-    -> heap_std W = heap_std W'
-    → heap_wf (heap_std W') ->
+    -> heap_std W = heap_std W' ->
     region W C
     -∗ region W' C.
   Proof.
-    iIntros (Hdomeq Hrelated Hheap Hheap_wf) "HW". rewrite region_eq.
+    iIntros (Hdomeq Hrelated Hheap) "HW". rewrite region_eq.
     iDestruct "HW" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)"; simplify_map_eq.
     iExists M, Mρ. iFrame "HM".
     iSplitR.
@@ -291,11 +289,10 @@ Section standard_world_interp.
   Lemma open_region_many_monotone (C : CmptName) (W W' : WORLD) l:
     dom (std W) = dom (std W')
     -> related_sts_pub_world W W'
-    -> heap_std W = heap_std W'
-    -> heap_wf (heap_std W') ->
+    -> heap_std W = heap_std W' ->
     open_region_many W C l -∗ open_region_many W' C l.
   Proof.
-    iIntros (Hdomeq Hrelated Hheap Hheap_wf) "HW".
+    iIntros (Hdomeq Hrelated Hheap) "HW".
     rewrite open_region_many_eq /open_region_many_def.
     iDestruct "HW" as (M Mρ) "(Hm & %Hdom & %Hdomρ & Hmap)" ; simplify_eq.
     iExists M, Mρ. iFrame "Hm".
@@ -591,8 +588,8 @@ Section standard_world_interp.
   Qed.
 
   Definition monotonicity_guarantees_region
-    (C : CmptName) (φ : WORLD * CmptName * Word → iProp Σ)
-    (p : Perm) (w : Word) (ρ : region_type) :=
+    (C : CmptName) (φ : WORLD * CmptName * LWord → iProp Σ)
+    (p : Perm) (w : LWord) (ρ : region_type) :=
     (match ρ with
      | Temporary => (if isWL p then future_pub_mono else (if isDL p then future_pub_mono else future_priv_mono))
      | Permanent => future_priv_mono
@@ -600,16 +597,16 @@ Section standard_world_interp.
      end C φ w)%I.
 
   Definition monotonicity_guarantees_decide
-    (C : CmptName) (φ : WORLD * CmptName * Word → iProp Σ)
-    (p : Perm) (w : Word) (ρ : region_type) :=
+    (C : CmptName) (φ : WORLD * CmptName * LWord → iProp Σ)
+    (p : Perm) (w : LWord) (ρ : region_type) :=
     (if decide (ρ = Temporary)
      then (if isWL p then future_pub_mono C φ w else (if isDL p then future_pub_mono C φ w else future_priv_mono C φ w))
      else future_priv_mono C φ w )%I.
 
   (*Lemma that allows switching between the two different formulations of monotonicity, to alleviate the effects of inconsistencies*)
   Lemma switch_monotonicity_formulation
-    (C : CmptName) (φ : WORLD * CmptName * Word → iProp Σ)
-    (p : Perm) (w : Word) (ρ : region_type) :
+    (C : CmptName) (φ : WORLD * CmptName * LWord → iProp Σ)
+    (p : Perm) (w : LWord) (ρ : region_type) :
     ρ ≠ Revoked →
     monotonicity_guarantees_region C φ p w ρ  ≡ monotonicity_guarantees_decide C φ p w ρ.
   Proof.
@@ -631,7 +628,7 @@ Section standard_world_interp.
 
   Lemma region_open_next
     (W : WORLD) (C : CmptName)
-    (φ : WORLD * CmptName * Word → iProp Σ)
+    (φ : WORLD * CmptName * LWord → iProp Σ)
     (als : list LAddr) (k : LAddr) (p : Perm) (ρ : region_type)
     (Hρnotrevoked : ρ <> Revoked) :
     heap_key_live (heap_std W) k ->
@@ -640,7 +637,7 @@ Section standard_world_interp.
     ⊢ open_region_many W C als
     ∗ rel C k p φ
     ∗ sts_full_world W C
-    -∗ ∃ v : Word,
+    -∗ ∃ v : LWord,
         sts_full_world W C
         ∗ sts_state_std C k ρ
         ∗ open_region_many W C (k :: als)
@@ -664,7 +661,7 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_open_list (W : WORLD) (C : CmptName)
-    (l : list (LAddr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
+    (l : list (LAddr * Perm * (WORLD * CmptName * LWord → iProp Σ) * region_type))
     (l' : list LAddr)
    :
 
@@ -724,9 +721,9 @@ Section standard_world_interp.
 
   Lemma region_close_next
     (W : WORLD) (C : CmptName)
-    (φ : WORLD * CmptName * Word → iProp Σ)
+    (φ : WORLD * CmptName * LWord → iProp Σ)
     `{forall Wv, Persistent (φ Wv)}
-    (als : list LAddr) (k : LAddr) (p : Perm) (v : Word) (ρ : region_type)
+    (als : list LAddr) (k : LAddr) (p : Perm) (v : LWord) (ρ : region_type)
     (Hρnotrevoked : ρ <> Revoked) :
     heap_key_live (heap_std W) k ->
     k ∉ als
@@ -751,9 +748,9 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_close_list (W : WORLD) (C : CmptName)
-    (l : list (LAddr * Perm * (WORLD * CmptName * Word → iProp Σ) * region_type))
+    (l : list (LAddr * Perm * (WORLD * CmptName * LWord → iProp Σ) * region_type))
     (l' : list LAddr)
-    (lv : list Word)
+    (lv : list LWord)
    :
 
     let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
@@ -762,7 +759,7 @@ Section standard_world_interp.
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
-    Forall (fun '(a,p,φ,ρ) => ∀ Wv : WORLD * CmptName * Word, Persistent (φ Wv)) l ->
+    Forall (fun '(a,p,φ,ρ) => ∀ Wv : WORLD * CmptName * LWord, Persistent (φ Wv)) l ->
 
     open_region_many W C (la++l')
     ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C a ρ)
@@ -873,13 +870,12 @@ Section standard_world_interp.
   Lemma region_map_def_heap_future C W W' M Mρ (R : iProp Σ) :
     related_sts_pub_world W W' ->
     std W = std W' ->
-    heap_wf (heap_std W') ->
     (heap_std_fragments C (heap_std W) ∗ heap_provenance (heap_std W) ==∗
        heap_std_fragments C (heap_std W') ∗ heap_provenance (heap_std W') ∗ R) -∗
     region_map_def W C M Mρ ==∗
     region_map_def W' C M Mρ ∗ R.
   Proof.
-    iIntros (Hrelated Hstd Hheap_wf) "Hupd Hr".
+    iIntros (Hrelated Hstd) "Hupd Hr".
     iDestruct "Hr" as "[%Hknown [Hheap Hr]]".
     iMod ("Hupd" with "Hheap") as "(Hfrags & Hprov & $)".
     iModIntro. iSplit.

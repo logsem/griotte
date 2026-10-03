@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import region_invariants_revocation region_invariants_allocation sealing_invariants.
 From griotte Require Export sts world_std_revocation sts_multiple_updates.
 From griotte Require Export stdpp_extra iris_extra.
-From griotte Require Import heap_region allocator_resources.
+From griotte Require Import heap_region.
 
   (*** World Ghost Theory *)
 
@@ -26,14 +26,14 @@ Section world_ghost_theory.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG LAddr region_type OType Word Σ}
-    {relg : relGS Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
+    {relg : relGS Σ}
     `{MP: MachineParameters}
   .
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
-  Notation Vc := (WORLD * CmptName * Word → iProp Σ).
-  Notation safeC P := (λ WCv : WORLD * CmptName * (leibnizO Word), P WCv.1.1 WCv.1.2 WCv.2).
+  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  Notation Vc := (WORLD * CmptName * LWord → iProp Σ).
+  Notation safeC P := (λ WCv : WORLD * CmptName * (leibnizO LWord), P WCv.1.1 WCv.1.2 WCv.2).
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
@@ -82,13 +82,13 @@ Section world_ghost_theory.
   Definition world_interp_sopen_eq : @world_interp_sopen = @world_interp_sopen_def := proj2_sig world_interp_sopen_aux.
 
   (** Definition of safety resources *)
-  Definition mono_temporary (C : CmptName) (p : Perm) (Φ : Vc) (w : Word) : iProp Σ :=
+  Definition mono_temporary (C : CmptName) (p : Perm) (Φ : Vc) (w : LWord) : iProp Σ :=
     if (decide ( isWL p = true ∨ isDL p = true )) then future_pub_mono C Φ w else future_priv_mono C Φ w.
 
-  Definition mono_permanent (C : CmptName) (Φ : Vc) (w : Word) : iProp Σ :=
+  Definition mono_permanent (C : CmptName) (Φ : Vc) (w : LWord) : iProp Σ :=
     future_priv_mono C Φ w.
 
-  Definition mono_invariant (C : CmptName) (p : Perm) (Φ : Vc) (w : Word) (ρ : region_type) : iProp Σ :=
+  Definition mono_invariant (C : CmptName) (p : Perm) (Φ : Vc) (w : LWord) (ρ : region_type) : iProp Σ :=
     (if (decide (ρ = Temporary))
      then mono_temporary C p Φ w
      else mono_permanent C Φ w).
@@ -96,17 +96,17 @@ Section world_ghost_theory.
   (** ** Definitions of safety resources *)
 
   (** Temporary Safety Resources *)
-  Definition TmpRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) Φ (w : Word) : iProp Σ :=
+  Definition TmpRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) Φ (w : LWord) : iProp Σ :=
     ⌜ isO p = false ⌝ ∗ a ↦ₖ w ∗ Φ (W,C,w) ∗ mono_temporary C p Φ w.
 
   (** Permanent Safety Resources *)
-  Definition PermRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) Φ (w : Word) : iProp Σ :=
+  Definition PermRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) Φ (w : LWord) : iProp Σ :=
     ⌜ isO p = false ⌝ ∗ a ↦ₖ w ∗ Φ (W,C,w) ∗ mono_permanent C Φ w.
 
   (** Unknown Safety Resources *)
   Definition WorldRes
     (W : WORLD) (C : CmptName)
-    (a : LAddr) (p : Perm) Φ (w : Word) (ρ : region_type) : iProp Σ :=
+    (a : LAddr) (p : Perm) Φ (w : LWord) (ρ : region_type) : iProp Σ :=
     ⌜ isO p = false ⌝ ∗ a ↦ₖ w ∗ Φ (W,C,w) ∗ mono_invariant C p Φ w ρ.
 
   (** Revoked Safety Resources *)
@@ -137,7 +137,7 @@ Section world_ghost_theory.
     Persistent (mono_invariant C p Φ w ρ).
   Proof. rewrite /mono_invariant; destruct ( decide (ρ = Temporary) ); apply _. Qed.
 
-  Lemma mono_temporary_eq (C : CmptName) (p : Perm) (Φ : Vc) (w : Word) :
+  Lemma mono_temporary_eq (C : CmptName) (p : Perm) (Φ : Vc) (w : LWord) :
     mono_temporary C p Φ w
     ⊣⊢ (if isWL p
         then future_pub_mono C Φ w
@@ -154,7 +154,7 @@ Section world_ghost_theory.
         destruct H; done.
   Qed.
 
-  Lemma mono_invariant_eq (C : CmptName) (p : Perm) (Φ : Vc) (w : Word) (ρ : region_type) :
+  Lemma mono_invariant_eq (C : CmptName) (p : Perm) (Φ : Vc) (w : LWord) (ρ : region_type) :
     mono_invariant C p Φ w ρ
     ⊣⊢
       (if decide (ρ = Temporary)
@@ -170,7 +170,7 @@ Section world_ghost_theory.
   Qed.
 
   Lemma mono_invariant_monotonicity_guarantees_region
-    (C : CmptName) (Φ : Vc) (p : Perm) (w : Word) (ρ : region_type) :
+    (C : CmptName) (Φ : Vc) (p : Perm) (w : LWord) (ρ : region_type) :
     ρ ≠ Revoked ->
     mono_invariant C p Φ w ρ ⊣⊢ monotonicity_guarantees_region C Φ p w ρ.
   Proof.
@@ -285,12 +285,11 @@ Section world_ghost_theory.
 
 
   Lemma RevokedResources_mono_pub (W W' : WORLD) (C : CmptName) (l_unk la : list LAddr) :
-    heap_wf (heap_std W') ->
     related_sts_pub_world W W' ->
     RevokedResources W C l_unk -∗
     RevokedResources W' C l_unk.
   Proof.
-    iIntros (Hheap_wf Hrelated) "H".
+    iIntros (Hrelated) "H".
     rewrite /RevokedResources.
     iApply (big_sepL_impl with "H").
     iIntros "!> %k %a %Ha H".
@@ -318,7 +317,7 @@ Section world_ghost_theory.
 
   (* [PermRes] can give access to the current points-to.
      We have to relinquish it to get [PermRes] again. *)
-  Lemma PermRes_acc (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) :
+  Lemma PermRes_acc (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : LWord) :
     PermRes W C a p Φ w -∗
     ( a ↦ₖ w ∗ Φ (W,C,w) ) ∗
     ( ( a ↦ₖ w ∗ Φ (W,C,w) ) -∗ PermRes W C a p Φ w ).
@@ -331,7 +330,7 @@ Section world_ghost_theory.
   (* [PermRes] can give access to the current points-to.
      If we mutate the value of the points-to, we have to show that the new value respects the safety predicate,
      before getting [PermRes] again. *)
-  Lemma PermRes_acc_forall (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) :
+  Lemma PermRes_acc_forall (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : LWord) :
     PermRes W C a p Φ w -∗
     ( a ↦ₖ w ∗ Φ (W,C,w) ∗ mono_permanent C Φ w ) ∗
     ( ∀ w', ( a ↦ₖ w' ∗ Φ (W,C,w') ∗ mono_permanent C Φ w' ) -∗ PermRes W C a p Φ w' ).
@@ -344,7 +343,7 @@ Section world_ghost_theory.
   (* [WorldRes] can give access to the current points-to.
      If we mutate the value of the points-to, we have to show that the new value respects the safety predicate,
      before getting [WorldRes] again. *)
-  Lemma WorldRes_acc (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) ρ :
+  Lemma WorldRes_acc (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : LWord) ρ :
     WorldRes W C a p Φ w ρ -∗
     ( a ↦ₖ w ∗ Φ (W,C,w) ) ∗
     ( ( a ↦ₖ w ∗ Φ (W,C,w) ) -∗ WorldRes W C a p Φ w ρ ).
@@ -357,7 +356,7 @@ Section world_ghost_theory.
   (* [WorldRes] can give access to the current points-to.
      If we mutate the value of the points-to, we have to show that the new value respects the safety predicate,
      before getting [WorldRes] again. *)
-  Lemma WorldRes_acc_forall (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) ρ :
+  Lemma WorldRes_acc_forall (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : LWord) ρ :
     WorldRes W C a p Φ w ρ -∗
     ( a ↦ₖ w ∗ Φ (W,C,w) ∗ mono_invariant C p Φ w ρ ) ∗
     ( ∀ w', ( a ↦ₖ w' ∗ Φ (W,C,w') ∗ mono_invariant C p Φ w' ρ ) -∗ WorldRes W C a p Φ w' ρ ).
@@ -439,7 +438,7 @@ Section world_ghost_theory.
   Proof.
     iIntros (Hι) "Hs Hworld".
     iDestruct (world_interp_open_heap_provenance with "Hworld") as "[Hworld #Hprov]".
-    iDestruct (heap_provenance_lookup with "Hprov") as "(_ & _ & Hq)"; first done.
+    iDestruct (heap_provenance_lookup with "Hprov") as "(_ & Hq)"; first done.
     destruct (alloc_object_status o) eqn:Hstatus; first by iFrame.
     iDestruct (live_quar_false with "Hs Hq") as %[].
   Qed.
@@ -456,7 +455,7 @@ Section world_ghost_theory.
   Qed.
 
   (* A framed cell share shows that its key is live in the world. *)
-  Lemma framed_addr_live (W : WORLD) (C : CmptName) (k : LAddr) (v : Word) :
+  Lemma framed_addr_live (W : WORLD) (C : CmptName) (k : LAddr) (v : LWord) :
     is_Some (heap_key_status (heap_std W) k) ->
     world_interp W C ∗ k ↦ₖ v -∗
     world_interp W C ∗ k ↦ₖ v ∗ ⌜heap_key_live (heap_std W) k⌝.
@@ -546,7 +545,7 @@ Section world_ghost_theory.
   Qed.
 
   Lemma close_world_interp_temporary
-    (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) Φ (w : Word)
+    (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) Φ (w : LWord)
     `{forall WCv, Persistent (Φ WCv)}:
     heap_key_live (heap_std W) a ->
     a ∉ s ->
@@ -606,7 +605,7 @@ Section world_ghost_theory.
   Qed.
 
   Lemma close_world_interp_permanent (W : WORLD) (C : CmptName)
-    (s : list LAddr) (a : LAddr) (p : Perm) Φ (w : Word) `{forall WCv, Persistent (Φ WCv)}:
+    (s : list LAddr) (a : LAddr) (p : Perm) Φ (w : LWord) `{forall WCv, Persistent (Φ WCv)}:
     heap_key_live (heap_std W) a ->
     a ∉ s ->
     world_interp_open W C ({[ a ]} ∪ s) -∗
@@ -648,7 +647,7 @@ Section world_ghost_theory.
   Qed.
 
   Lemma close_world_interp_next
-    (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) (φ : Vc) (v : Word)
+    (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) (φ : Vc) (v : LWord)
     (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
     heap_key_live (heap_std W) a ->
     a ∉ s ->
@@ -689,7 +688,7 @@ Section world_ghost_theory.
   Qed.
 
   Lemma close_world_interp
-    (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (φ : Vc) (v : Word)
+    (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (φ : Vc) (v : LWord)
     (ρ : region_type) `{forall Wv, Persistent (φ Wv)} :
     heap_key_live (heap_std W) a ->
     ρ = Temporary ∨ ρ = Permanent →
@@ -780,9 +779,8 @@ Section world_ghost_theory.
     intros Hquar Hfresh.
     rewrite world_interp_eq /world_interp_def.
     iIntros "(Hr & Hsts & Hseals)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_quarantined_heap with "Hsts Hr") as "($ & $ & $)"; eauto.
-    iApply (sealing_map_monotone_pub with "Hseals"); [exact Hheap_wf|done|].
+    iApply (sealing_map_monotone_pub with "Hseals"); [done|].
     apply related_sts_pub_world_fresh. done.
   Qed.
 
@@ -796,9 +794,8 @@ Section world_ghost_theory.
     intros Hι Hstatus Hrev.
     rewrite world_interp_eq /world_interp_def.
     iIntros "(Hr & Hsts & Hseals) Hrel".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (update_region_revoked_temp_quarantined_heap with "Hsts Hr Hrel") as "($ & $)"; eauto.
-    iApply (sealing_map_monotone_pub with "Hseals"); [exact Hheap_wf|done|].
+    iApply (sealing_map_monotone_pub with "Hseals"); [done|].
     apply related_sts_pub_revoked_temp. left. exact Hrev.
   Qed.
 
@@ -917,7 +914,6 @@ Section world_ghost_theory.
     rewrite world_interp_eq /world_interp_def (RevokedResources_eq _ _ _ Hlive).
     intros [Hnodup HaS].
     iIntros "[Hr [Hsts Hseals] ]".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod ( monotone_revoke_keep _ _ s with "[$Hr $Hsts]") as "($ & $ & Hres & $)"; auto.
     { iPureIntro; intros k a Ha; apply HaS; apply list_elem_of_lookup; eauto. }
     iDestruct (sealing_map_monotone with "Hseals") as "$"; auto.
@@ -958,14 +954,13 @@ Section world_ghost_theory.
       exact Hnodup_live. }
     rewrite world_interp_eq /world_interp_def.
     iIntros "[Hr [Hsts Hseals]]".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (region_rels_get _ _ _ Htemps_quarantined with "[$Hr $Hsts]")
       as "(Hr & Hsts & Hq)".
     iMod (monotone_revoke_keep _ _ s_live Hlive Hnodup_live with "[$Hr $Hsts]")
       as "(Hsts & Hr & Hres & %Hrevoked_live)".
     { iPureIntro. rewrite Forall_lookup in Htemps_live. exact Htemps_live. }
     iDestruct (sealing_map_monotone C W (revoke W) with "Hseals") as "Hseals";
-      [exact Hheap_wf|done|apply revoke_related_sts_priv_world|].
+      [done|apply revoke_related_sts_priv_world|].
     iAssert (▷ close_list_resources C W s_live false)%I with "[Hres]" as "Hres".
     { rewrite /close_list_resources big_sepL_later.
       iApply (big_sepL_impl with "Hres").
@@ -1020,12 +1015,10 @@ Section world_ghost_theory.
   Proof.
     rewrite world_interp_eq /world_interp_def (RevokedResources_eq_all _ _ _).
     iIntros "((Hr & Hsts & Hseals) & Hres)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (monotone_close_list_region_resources W W C l
       with "[$Hsts $Hr $Hres]") as "[$ $]".
     iModIntro.
     iApply (sealing_map_monotone_pub with "Hseals").
-    - by rewrite close_list_heap.
     - apply close_list_std_seal_eq.
     - apply close_list_related_sts_pub.
   Qed.
@@ -1047,7 +1040,6 @@ Section world_ghost_theory.
     rewrite world_interp_eq /world_interp_def.
     rewrite /reinstate.
     iIntros (Hpub) "[Hr [Hsts Hseals] ] HrevokedRes".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iAssert (close_list_resources C W s false) with "[HrevokedRes]" as "H".
     { rewrite -(RevokedResources_eq_all W C s). iExact "HrevokedRes". }
     iMod (monotone_close_list_region with "[%] [$Hsts $Hr $H]") as "[$ $]"; eauto.
@@ -1067,7 +1059,7 @@ Section world_ghost_theory.
 
   Lemma world_interp_revoked_by_separation
     (W : WORLD) (C' : CmptName)
-    (k : LAddr) (w : Word) :
+    (k : LAddr) (w : LWord) :
     heap_key_live (heap_std W) k ->
     k ∈ dom (std W) →
     world_interp W C'
@@ -1086,8 +1078,8 @@ Section world_ghost_theory.
 
   Lemma world_interp_revoked_by_separation_many
     (W : WORLD) (C : CmptName)
-    (la : list Addr) (lw : list Word) :
-    Forall (heap_addr_live (heap_std W)) la ->
+    (la : list Addr) (lw : list LWord) :
+    Forall (λ a, heap_key_live (heap_std W) (LNonHeap a)) la ->
     Forall (λ a, LNonHeap a ∈ dom (std W)) la →
     world_interp W C
     ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
@@ -1136,7 +1128,7 @@ Section world_ghost_theory.
   (* Extend the world with a permanent safety invariant. *)
   Lemma world_interp_extend_perm
     {E : coPset}
-    (W : WORLD) (C : CmptName) (a : LAddr) (v : Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (a : LAddr) (v : LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
     heap_key_live (heap_std W) a ->
     a ∉ dom (std W) →
@@ -1151,7 +1143,6 @@ Section world_ghost_theory.
     intros Hlive.
     rewrite world_interp_eq /world_interp_def.
     iIntros (?) "[Hr [Hsts Hseals] ] (%&?&?&?)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_perm with "[$] [$] [$] [$] [$]") as "($ & $ & $)"; auto.
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
     apply related_sts_pub_world_fresh; auto.
@@ -1159,7 +1150,7 @@ Section world_ghost_theory.
 
   Lemma world_interp_extend_perm_nonheap
     {E : coPset}
-    (W : WORLD) (C : CmptName) (a : Addr) (v : Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (a : Addr) (v : LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
     is_heap_address a = false ->
     LNonHeap a ∉ dom (std W) →
@@ -1178,7 +1169,7 @@ Section world_ghost_theory.
   (* Extend the world with a temporary safety invariant. *)
   Lemma world_interp_extend_temp
     {E : coPset}
-    (W : WORLD) (C : CmptName) (a : LAddr) (v : Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (a : LAddr) (v : LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
     heap_key_live (heap_std W) a ->
     a ∉ dom (std W) →
@@ -1193,7 +1184,6 @@ Section world_ghost_theory.
     intros Hlive.
     rewrite world_interp_eq /world_interp_def.
     iIntros (?) "[Hr [Hsts Hseals] ] (%&?&?&?)"; rewrite  mono_temporary_eq.
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_temp with "[$] [$] [$] [$] [$]") as "($ & $ & $)"; auto.
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
     apply related_sts_pub_world_fresh; auto.
@@ -1202,7 +1192,7 @@ Section world_ghost_theory.
   (* Extend the world with the permanent safety invariants of a list of keys. *)
   Lemma world_interp_extend_perm_keys
     {E : coPset}
-    (W : WORLD) (C : CmptName) (lk : list LAddr) (lw : list Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (lk : list LAddr) (lw : list LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
     Forall (heap_key_live (heap_std W)) lk ->
     isO p = false ->
@@ -1218,12 +1208,10 @@ Section world_ghost_theory.
     intros Hlive.
     rewrite world_interp_eq /world_interp_def.
     iIntros (Hp Hfresh) "[Hr [Hsts Hseals] ] Hres".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_perm_keys with "Hsts Hr [Hres]") as "($&$&$)"; eauto.
     { iApply (big_sepL2_impl with "Hres").
       iModIntro; iIntros (k a v Ha Hv) "(%&?&?&?)"; iFrame. }
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
-    - by rewrite std_update_keys_heap.
     - by rewrite std_update_keys_seals.
     - apply related_sts_pub_update_keys.
       eapply Forall_impl; first exact Hfresh.
@@ -1233,7 +1221,7 @@ Section world_ghost_theory.
 
   Lemma world_interp_extend_temp_nonheap
     {E : coPset}
-    (W : WORLD) (C : CmptName) (a : Addr) (v : Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (a : Addr) (v : LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
     is_heap_address a = false ->
     LNonHeap a ∉ dom (std W) →
@@ -1253,9 +1241,9 @@ Section world_ghost_theory.
 
   Lemma world_interp_extend_perm_sepL2
     {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
-    Forall (heap_addr_live (heap_std W)) la ->
+    Forall (λ a, heap_key_live (heap_std W) (LNonHeap a)) la ->
     isO p = false ->
     Forall (λ k, std W !! LNonHeap k = None) la →
     world_interp W C -∗
@@ -1269,12 +1257,10 @@ Section world_ghost_theory.
     intros Hlive.
     rewrite world_interp_eq /world_interp_def.
     iIntros (Hp Hfresh) "[Hr [Hsts Hseals] ] Hres".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_perm_sepL2 with "Hsts Hr [Hres]") as "($&$&$)"; eauto.
     { iApply (big_sepL2_impl with "Hres").
       iModIntro; iIntros (k a v Ha Hv) "(%&?&?&?)"; iFrame. }
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
-    - by rewrite std_update_multiple_heap.
     - by rewrite std_update_multiple_seals.
     - apply related_sts_pub_update_multiple.
       eapply Forall_impl; first exact Hfresh.
@@ -1284,7 +1270,7 @@ Section world_ghost_theory.
 
   Lemma world_interp_extend_perm_sepL2_nonheap
     {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
     Forall (fun a => is_heap_address a = false) la ->
     isO p = false ->
@@ -1300,16 +1286,16 @@ Section world_ghost_theory.
     intros Hcases.
     eapply world_interp_extend_perm_sepL2; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. apply heap_addr_live_nonheap. exact Ha.
+    intros a _. apply heap_key_live_nonheap.
   Qed.
 
   (* Extend the world with several temporary safety invariants. *)
 
   Lemma world_interp_extend_temp_sepL2
     {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
-    Forall (heap_addr_live (heap_std W)) la ->
+    Forall (λ a, heap_key_live (heap_std W) (LNonHeap a)) la ->
     isO p = false ->
     Forall (λ k, std W !! LNonHeap k = None) la →
     world_interp W C -∗
@@ -1323,14 +1309,12 @@ Section world_ghost_theory.
     intros Hlive.
     rewrite world_interp_eq /world_interp_def.
     iIntros (Hp Hfresh) "[Hr [Hsts Hseals] ] Hres".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_temp_sepL2 with "Hsts Hr [Hres]") as "($&$&$)"; auto.
     { iApply (big_sepL2_impl with "Hres").
       iModIntro; iIntros (k a v Ha Hv) "(%&?&?&?)"; iFrame.
       by rewrite mono_temporary_eq.
     }
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
-    - by rewrite std_update_multiple_heap.
     - by rewrite std_update_multiple_seals.
     - apply related_sts_pub_update_multiple.
       eapply Forall_impl; first exact Hfresh.
@@ -1340,7 +1324,7 @@ Section world_ghost_theory.
 
   Lemma world_interp_extend_temp_sepL2_nonheap
     {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
     Forall (fun a => is_heap_address a = false) la ->
     isO p = false ->
@@ -1356,7 +1340,7 @@ Section world_ghost_theory.
     intros Hcases.
     eapply world_interp_extend_temp_sepL2; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. apply heap_addr_live_nonheap. exact Ha.
+    intros a _. apply heap_key_live_nonheap.
   Qed.
 
   (* Pre-allocate safety invariant: extend the world with several Revoked safety invariants. *)
@@ -1365,7 +1349,7 @@ Section world_ghost_theory.
     {E : coPset}
     (W : WORLD) (C : CmptName) (la : list Addr) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)}:
-    Forall (heap_addr_live (heap_std W)) la ->
+    Forall (λ a, heap_key_live (heap_std W) (LNonHeap a)) la ->
     Forall (λ k, std W !! LNonHeap k = None) la →
     world_interp W C
 
@@ -1377,10 +1361,8 @@ Section world_ghost_theory.
     intros Hlive.
     rewrite world_interp_eq /world_interp_def.
     iIntros (Hfresh) "[Hr [Hsts Hseals] ]".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_revoked_sepL2 with "Hsts Hr") as "($&$&$)"; auto.
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
-    - by rewrite std_update_multiple_heap.
     - by rewrite std_update_multiple_seals.
     - apply related_sts_pub_update_multiple.
       eapply Forall_impl; first exact Hfresh.
@@ -1404,7 +1386,7 @@ Section world_ghost_theory.
     intros Hcases.
     eapply world_interp_extend_revoked_sepL2; try eassumption; try typeclasses eauto.
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. apply heap_addr_live_nonheap. exact Ha.
+    intros a _. apply heap_key_live_nonheap.
   Qed.
 
 
@@ -1414,9 +1396,9 @@ Section world_ghost_theory.
 
   Lemma world_interp_extend_perm_sepL2_open
     {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
-    Forall (heap_addr_live (heap_std W)) la ->
+    Forall (λ a, heap_key_live (heap_std W) (LNonHeap a)) la ->
     let W' := (std_update_multiple W la Permanent) in
     NoDup la ->
     isO p = false ->
@@ -1438,10 +1420,8 @@ Section world_ghost_theory.
     intros Hlive.
     rewrite world_interp_eq /world_interp_def.
     iIntros (HNoDup Hp Hla) "[Hr [Hsts Hseals] ] Hreg Hl".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (extend_region_perm_sepL2_open with "Hsts Hr Hreg Hl") as "($&$&$)"; auto.
     iDestruct (sealing_map_monotone_pub with "Hseals") as "$"; auto.
-    - by rewrite std_update_multiple_heap.
     - by rewrite std_update_multiple_seals.
     - apply related_sts_pub_update_multiple.
       eapply Forall_impl; first exact Hla.
@@ -1451,7 +1431,7 @@ Section world_ghost_theory.
 
   Lemma world_interp_extend_perm_sepL2_open_nonheap
     {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
+    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : Vc)
     `{∀ Wv, Persistent (φ Wv)} :
     Forall (fun a => is_heap_address a = false) la ->
     let W' := (std_update_multiple W la Permanent) in
@@ -1475,15 +1455,15 @@ Section world_ghost_theory.
     intros Hcases.
     apply (world_interp_extend_perm_sepL2_open W C la lw p φ).
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. apply heap_addr_live_nonheap. exact Ha.
+    intros a _. apply heap_key_live_nonheap.
   Qed.
 
   Lemma world_interp_extend_perm_sepL2_open'
     {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
-    (o : OType) (ws ws_sealed : gset Word)
+    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : Vc)
+    (o : OType) (ws ws_sealed : gset LWord)
     `{∀ Wv, Persistent (φ Wv)} :
-    Forall (heap_addr_live (heap_std W)) la ->
+    Forall (λ a, heap_key_live (heap_std W) (LNonHeap a)) la ->
     let W' := (<o[ o := ws ]o> (std_update_multiple W la Permanent)) in
     NoDup la ->
     isO p = false ->
@@ -1519,8 +1499,8 @@ Section world_ghost_theory.
 
   Lemma world_interp_extend_perm_sepL2_open'_nonheap
     {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list Word) (p : Perm) (φ : Vc)
-    (o : OType) (ws ws_sealed : gset Word)
+    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : Vc)
+    (o : OType) (ws ws_sealed : gset LWord)
     `{∀ Wv, Persistent (φ Wv)} :
     Forall (fun a => is_heap_address a = false) la ->
     let W' := (<o[ o := ws ]o> (std_update_multiple W la Permanent)) in
@@ -1549,7 +1529,7 @@ Section world_ghost_theory.
     intros Hcases.
     apply (world_interp_extend_perm_sepL2_open' W C la lw p φ o ws ws_sealed).
     eapply Forall_impl; first exact Hcases.
-    intros a Ha. apply heap_addr_live_nonheap. exact Ha.
+    intros a _. apply heap_key_live_nonheap.
   Qed.
 
 
@@ -1572,7 +1552,6 @@ Section world_ghost_theory.
     rewrite world_interp_eq /world_interp_def.
 
     iIntros "[Hr [Hsts Hseals] ]".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iDestruct (sts_alloc_loc W C d rpub rpriv with "Hsts") as ">($ & $ & $ & $ & $)"; auto.
     iDestruct (region_monotone with "Hr") as "$"; auto.
     - subst i.
@@ -1601,7 +1580,6 @@ Section world_ghost_theory.
   Proof.
     rewrite world_interp_eq /world_interp_def.
     iIntros (Hrevoke_conditions Hrelated) "[Hr [Hsts Hseals] ] Hst_i".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (sts_update_loc _ _ _ _ d' with "Hsts Hst_i") as "[Hsts Hst_i]".
     iMod (update_region_revoked_update_loc with "Hsts Hr" ) as "[Hr Hsts]"; auto.
     iFrame.
@@ -1640,11 +1618,11 @@ Section world_ghost_theory.
   (** ** Interface with sealing map *)
 
   (* Access the sealing resources, for free if it is persistent *)
-  Lemma world_interp_seal_pred_singleton (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : Word) :
+  Lemma world_interp_seal_pred_singleton (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : LWord) :
     seal_pred o Po -∗
     sts_seals_std C o {[ w ]} -∗
     world_interp W C -∗
-    ▷ (world_interp W C ∗ Po (W, C, force_global w)).
+    ▷ (world_interp W C ∗ Po (W, C, lforce_global w)).
   Proof.
     rewrite world_interp_eq /world_interp_def.
     iIntros "#Hspred Hseal ($ & Hsts & Hseals)".
@@ -1654,11 +1632,11 @@ Section world_ghost_theory.
 
   (* Access the sealing resources when the world is open (memory), for free if it is persistent *)
   Lemma world_interp_open_seal_pred_singleton
-    (W : WORLD) (C : CmptName) (s : list LAddr) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : Word) :
+    (W : WORLD) (C : CmptName) (s : list LAddr) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : LWord) :
     seal_pred o Po -∗
     sts_seals_std C o {[ w ]} -∗
     world_interp_open W C s -∗
-    ▷ (world_interp_open W C s ∗ Po (W, C, force_global w)).
+    ▷ (world_interp_open W C s ∗ Po (W, C, lforce_global w)).
   Proof.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros "#Hspred Hseal ($ & Hsts & Hseals)".
@@ -1667,8 +1645,8 @@ Section world_ghost_theory.
   Qed.
 
   (* Update a sealing predicate in the world *)
-  Lemma world_interp_sealing_update (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
-    (o : OType) (ws ws' : gset Word)  :
+  Lemma world_interp_sealing_update (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * LWord → iProp Σ)
+    (o : OType) (ws ws' : gset LWord)  :
     let W' := (<o[ o := ws' ∪ ws ]o> W) in
     (seal_std W) !! o = Some ws ->
     seal_pred o Po -∗
@@ -1680,7 +1658,6 @@ Section world_ghost_theory.
     intros W' HWo.
     rewrite world_interp_eq /world_interp_def.
     iIntros "Hpred Hs (Hr & Hsts & Hseals)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (sealing_map_update with "Hpred Hs [$Hseals $Hsts]") as "($&$&$)"; eauto.
     iApply (region_monotone with "Hr"); auto.
     subst W'.
@@ -1688,11 +1665,11 @@ Section world_ghost_theory.
   Qed.
 
   (* Update a sealing predicate in the world *)
-  Lemma world_interp_sealing_update' (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ)
-    (o : OType) (ws : gset Word)  :
+  Lemma world_interp_sealing_update' (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * LWord → iProp Σ)
+    (o : OType) (ws : gset LWord)  :
     let W' := (<o[ o := ws ]o> W) in
     seal_pred o Po -∗
-    (∀ w : Word, future_priv_mono C Po w) -∗
+    (∀ w : LWord, future_priv_mono C Po w) -∗
     ([∗ set] w ∈ (normalise_sealed_words ws), ▷ Po (W', C, w)) -∗
     world_interp W C
     ==∗
@@ -1701,7 +1678,6 @@ Section world_ghost_theory.
     intros W'.
     rewrite world_interp_eq /world_interp_def.
     iIntros "Hpred Hmono Hs (Hr & Hsts & Hseals)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (sealing_map_update' with "Hpred Hmono Hs [$Hseals $Hsts]") as "($&$&$)"; eauto.
     iApply (region_monotone with "Hr"); auto.
     subst W'.
@@ -1710,11 +1686,11 @@ Section world_ghost_theory.
 
   (* Update a sealing predicate in an open world (memory) *)
   Lemma world_interp_open_sealing_update'
-    (W : WORLD) (C : CmptName) (s : list LAddr) (Po : WORLD * CmptName * Word → iProp Σ)
-    (o : OType) (ws : gset Word)  :
+    (W : WORLD) (C : CmptName) (s : list LAddr) (Po : WORLD * CmptName * LWord → iProp Σ)
+    (o : OType) (ws : gset LWord)  :
     let W' := (<o[ o := ws ]o> W) in
     seal_pred o Po -∗
-    (∀ w : Word, future_priv_mono C Po w) -∗
+    (∀ w : LWord, future_priv_mono C Po w) -∗
     ([∗ set] w ∈ (normalise_sealed_words ws), ▷ Po (W', C, w)) -∗
     world_interp_open W C s
     ==∗
@@ -1723,7 +1699,6 @@ Section world_ghost_theory.
     intros W'.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros "Hpred Hmono Hs (Hr & Hsts & Hseals)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (sealing_map_update' with "Hpred Hmono Hs [$Hseals $Hsts]") as "($&$&$)"; eauto.
     iApply (open_region_many_monotone with "Hr"); auto.
     subst W'.
@@ -1732,11 +1707,11 @@ Section world_ghost_theory.
 
   (* Allocate a new sealing predicate in the world *)
   Lemma world_interp_salloc
-    (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * Word → iProp Σ) (o : OType) (ws : gset Word)  :
+    (W : WORLD) (C : CmptName) (Po : WORLD * CmptName * LWord → iProp Σ) (o : OType) (ws : gset LWord)  :
     let W' := (<o[ o := ws ]o> W) in
     o ∉ dom (seal_std W) ->
     seal_pred o Po -∗
-    (∀ w : Word, future_priv_mono C Po w) -∗
+    (∀ w : LWord, future_priv_mono C Po w) -∗
     ([∗ set] w ∈ (normalise_sealed_words ws), ▷ Po (W', C, w)) -∗
     world_interp W C ==∗
     world_interp W' C ∗ sts_seals_std C o ws.
@@ -1744,20 +1719,19 @@ Section world_ghost_theory.
     intros.
     rewrite world_interp_eq /world_interp_def.
     iIntros "Hpred Hmono Hs [Hr [Hsts Hseals] ]".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iMod (sealing_map_alloc with "Hpred Hmono Hs [$Hsts $Hseals]") as "($&$&$)"; auto.
     iApply (region_monotone with "Hr"); auto.
     apply related_sts_pub_world_update_ot.
   Qed.
 
   (* Open the world on a sealing predicate to obtain the sealing resources. *)
-  Lemma sopen_world_interp_singleton (W : WORLD) (C : CmptName) (o : OType) (Po : Vc) (w : Word) :
+  Lemma sopen_world_interp_singleton (W : WORLD) (C : CmptName) (o : OType) (Po : Vc) (w : LWord) :
     seal_pred o Po -∗
     sts_seals_std C o {[w]} -∗
     world_interp W C
     -∗
     world_interp_sopen W C o ∗
-    ▷ (sealing_map_resource_open W C o Po {[w]} ∗ (Po (W, C, force_global w))).
+    ▷ (sealing_map_resource_open W C o Po {[w]} ∗ (Po (W, C, lforce_global w))).
   Proof.
     rewrite world_interp_eq /world_interp_def.
     rewrite world_interp_sopen_eq /world_interp_sopen_def.
@@ -1766,10 +1740,10 @@ Section world_ghost_theory.
   Qed.
 
   (* Close the world on a sealing predicate and relinquish the sealing resources. *)
-  Lemma sclose_world_interp_singleton (W : WORLD) (C : CmptName) (o : OType) (Po : Vc) (w : Word) :
+  Lemma sclose_world_interp_singleton (W : WORLD) (C : CmptName) (o : OType) (Po : Vc) (w : LWord) :
     seal_pred o Po -∗
     sealing_map_resource_open W C o Po {[w]} -∗
-    Po (W, C, force_global w) -∗
+    Po (W, C, lforce_global w) -∗
     world_interp_sopen W C o
     -∗
     world_interp W C.
@@ -1783,7 +1757,7 @@ Section world_ghost_theory.
   (** ** Initialisation of the world interpretation and resources. *)
 
   (* Initialise the permanent resources *)
-  Definition init_PermRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) :
+  Definition init_PermRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : LWord) :
     isO p = false ->
     future_priv_mono C Φ w -∗
     a ↦ₖ w -∗
@@ -1793,7 +1767,7 @@ Section world_ghost_theory.
     Proof. iIntros (HpO) "Hmono Ha HΦ"; iFrame; done. Qed.
 
     (* Initialise the temporary resources *)
-    Definition init_TmpRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) :
+    Definition init_TmpRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : LWord) :
       isO p = false ->
       (if isWL p then future_pub_mono C Φ w else
          (if isDL p then future_pub_mono C Φ w else future_priv_mono C Φ w))-∗
@@ -1803,7 +1777,7 @@ Section world_ghost_theory.
       TmpRes W C a p Φ w.
     Proof. rewrite -mono_temporary_eq; iIntros (HpO) "Hmono Ha HΦ"; iFrame; done. Qed.
 
-    Definition init_WorldRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : Word) (ρ: region_type) :
+    Definition init_WorldRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vc) (w : LWord) (ρ: region_type) :
       ρ ≠ Revoked ->
       isO p = false ->
       monotonicity_guarantees_region C Φ p w ρ -∗
@@ -1816,10 +1790,9 @@ Section world_ghost_theory.
       rewrite mono_invariant_monotonicity_guarantees_region; eauto.
     Qed.
 
-  Lemma hts_world_heap_allocate W C ι b e reserved :
+  Lemma hts_world_heap_allocate W C ι b e :
     heap_fresh (heap_std W) ι b e ->
     alloc_obj ι b e -∗
-    allocator_allocation ι b e reserved -∗
     world_interp W C
     ==∗
     world_interp (heap_std_update W
@@ -1831,10 +1804,7 @@ Section world_ghost_theory.
     { apply related_sts_pub_world_heap_update.
       apply heap_allocate_future. exact Hfresh. }
     rewrite world_interp_eq /world_interp_def.
-    iIntros "#Hobj #Hreceipt (Hr & Hsts & Hseal)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hwf_old.
-    pose proof (heap_allocate_wf (heap_std W) ι b e Hwf_old Hfresh)
-      as Hwf_new.
+    iIntros "#Hobj (Hr & Hsts & Hseal)".
     iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
     iMod (heap_std_full_allocate _ _ ι b e Hfresh with "Hheap")
       as "[Hheap Hnewfrag]".
@@ -1842,13 +1812,13 @@ Section world_ghost_theory.
     iDestruct "Hr" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
     iMod (region_map_def_heap_future C W
       (heap_std_update W (heap_allocate (heap_std W) ι b e)) M Mρ True
-      Hrelated eq_refl Hwf_new with "[Hnewfrag] Hmap") as "[Hmap _]".
+      Hrelated eq_refl with "[Hnewfrag] Hmap") as "[Hmap _]".
     { iIntros "[Hfrags #Hprov]". iModIntro.
       iSplitL; last iSplit; last done.
       - rewrite /heap_std_fragments /heap_std_update /= /heap_allocate big_sepM_insert;
           last exact (proj1 Hfresh).
         iFrame.
-      - by iApply (heap_provenance_allocate with "Hprov Hobj Hreceipt"). }
+      - by iApply (heap_provenance_allocate with "Hprov Hobj"). }
     iModIntro. iSplitL "HM Hmap".
     { iExists M, Mρ. by iFrame. }
     iSplitL "Hstd Hloc Hseals Hheap".
@@ -1856,20 +1826,18 @@ Section world_ghost_theory.
     iApply (sealing_map_monotone_pub with "Hseal"); done.
   Qed.
 
-  Lemma hts_world_heap_allocate_empty W C ι b e reserved :
+  Lemma hts_world_heap_allocate_empty W C ι b e :
     heap_std W = ∅ ->
     (b < e)%a ->
     alloc_obj ι b e -∗
-    allocator_allocation ι b e reserved -∗
     world_interp W C
     ==∗
     world_interp (heap_std_update W (heap_allocate ∅ ι b e)) C.
   Proof.
-    intros Hempty Hbe. iIntros "#Hobj #Hreceipt Hworld".
+    intros Hempty Hbe. iIntros "#Hobj Hworld".
     rewrite -Hempty.
-    iApply (hts_world_heap_allocate with "Hobj Hreceipt Hworld").
-    rewrite Hempty. split; first by rewrite lookup_empty. split; first done.
-    intros κ o a Hκ. by rewrite lookup_empty in Hκ.
+    iApply (hts_world_heap_allocate with "Hobj Hworld").
+    rewrite Hempty. split; first by rewrite lookup_empty. done.
   Qed.
 
   Lemma world_interp_keys_known W C :
@@ -1904,13 +1872,11 @@ Section world_ghost_theory.
     pose proof (heap_quarantine_future (heap_std W) ι) as Hheap_future.
     pose proof (related_sts_pub_world_heap_update W h' Hheap_future)
       as Hrelated.
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hwf_old.
-    pose proof (heap_quarantine_wf (heap_std W) ι Hwf_old) as Hwf_new.
     rewrite open_region_many_eq /open_region_many_def.
     iDestruct "Hregion" as (M Mρ) "(HM & %Hdom & %Hdomρ & Hmap)".
     iDestruct "Hsts" as "(Hstd & Hloc & Hseals & Hheap)".
     iMod (region_map_def_heap_future C W (heap_std_update W h') _ _
-      (heap_std_full C h') Hrelated eq_refl Hwf_new with "[Hheap] Hmap")
+      (heap_std_full C h') Hrelated eq_refl with "[Hheap] Hmap")
       as "[Hmap Hheap]".
     { iIntros "[Hfrags #Hprov]".
       iMod (heap_std_full_update C (heap_std W) h' Hheap_future
@@ -1930,23 +1896,20 @@ Section world_ghost_theory.
     iIntros "#Hq Hworld".
     rewrite world_interp_open_eq /world_interp_open_def.
     iDestruct "Hworld" as "(Hregion & Hsts & Hseal)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hwf_old.
     iMod (region_open_sync_quarantine with "Hq [$Hregion $Hsts]") as "[$ $]".
     iModIntro.
     iApply (sealing_map_monotone_pub with "Hseal").
-    - by apply heap_quarantine_wf.
     - done.
     - apply related_sts_pub_world_heap_update, heap_quarantine_future.
   Qed.
 
   Lemma hts_world_open_heap_transition W C k ι :
-    heap_wf (heap_quarantine (heap_std W) ι) ->
     k ∈ dom (std W) ->
     ι ⊒ AQuar -∗
     world_interp_open W C [k]
     ==∗ world_interp_open (heap_std_update W (heap_quarantine (heap_std W) ι)) C [k].
   Proof.
-    iIntros (_ _) "#Hq Hworld".
+    iIntros (_) "#Hq Hworld".
     by iApply (world_interp_open_sync_quarantine with "Hq Hworld").
   Qed.
 
@@ -2065,9 +2028,8 @@ Section world_ghost_theory.
   Qed.
 
   Lemma free_region_open_heap_transition_range W C (l : list LAddr) ι :
-    heap_wf (heap_quarantine (heap_std W) ι) ->
-    (∀ a, a ∉ laddr_addr <$> l ->
-      heap_addr_status (heap_std W) a = heap_addr_status (heap_quarantine (heap_std W) ι) a) ->
+    (∀ k, k ∉ l ->
+      heap_key_status (heap_std W) k = heap_key_status (heap_quarantine (heap_std W) ι) k) ->
     Forall (λ k, k ∈ dom (std W)) l ->
     ι ⊒ AQuar -∗
     open_region_many W C l ∗
@@ -2076,24 +2038,23 @@ Section world_ghost_theory.
     open_region_many (heap_std_update W (heap_quarantine (heap_std W) ι)) C l ∗
     sts_full_world (heap_std_update W (heap_quarantine (heap_std W) ι)) C.
   Proof.
-    iIntros (_ _ _) "#Hq Hworld".
+    iIntros (_ _) "#Hq Hworld".
     by iApply (region_open_sync_quarantine with "Hq Hworld").
   Qed.
 
   Lemma free_world_open_heap_transition_range W C (l : list LAddr) ι :
-    heap_wf (heap_quarantine (heap_std W) ι) ->
-    (∀ a, a ∉ laddr_addr <$> l ->
-      heap_addr_status (heap_std W) a = heap_addr_status (heap_quarantine (heap_std W) ι) a) ->
+    (∀ k, k ∉ l ->
+      heap_key_status (heap_std W) k = heap_key_status (heap_quarantine (heap_std W) ι) k) ->
     Forall (λ k, k ∈ dom (std W)) l ->
     ι ⊒ AQuar -∗
     world_interp_open W C l
     ==∗
     world_interp_open (heap_std_update W (heap_quarantine (heap_std W) ι)) C l.
   Proof.
-    iIntros (Hwf_new Hstatus Hdom_l) "#Hq Hworld".
+    iIntros (Hstatus Hdom_l) "#Hq Hworld".
     rewrite world_interp_open_eq /world_interp_open_def.
     iDestruct "Hworld" as "(Hregion & Hsts & Hseal)".
-    iMod (free_region_open_heap_transition_range W C l ι Hwf_new Hstatus Hdom_l
+    iMod (free_region_open_heap_transition_range W C l ι Hstatus Hdom_l
       with "Hq [$Hregion $Hsts]") as "[$ $]".
     iModIntro.
     iApply (sealing_map_monotone_pub with "Hseal"); eauto.
@@ -2113,16 +2074,16 @@ End world_ghost_theory.
 
 (** ** Initialise the world in the adequacy theorem *)
 Section world_interp_Pre.
-  Context {Σ:gFunctors} {allocatorg : allocatorG Σ} `{MP : MachineParameters}
+  Context {Σ:gFunctors} `{MP : MachineParameters}
           {Cname : CmptNameG}
           {ceriseg : ceriseG Σ}
-          {sts_preg: STS_preG LAddr region_type OType Word Σ}
+          {sts_preg: STS_preG LAddr region_type OType LWord Σ}
           {relpreg : relGpreS Σ}
           {sealstorepreg: sealStorePreG Σ}
 .
 
   Lemma world_interp_init (oset : gset OType) :
-    ⊢ |==> (∃ (relg: relGS Σ) (stsg : STSG LAddr region_type OType Word Σ) (sstoreg : sealStoreG Σ),
+    ⊢ |==> (∃ (relg: relGS Σ) (stsg : STSG LAddr region_type OType LWord Σ) (sstoreg : sealStoreG Σ),
             ([∗ set] C ∈ CNames, world_interp (∅, (∅,∅), ∅, ∅) C) ∗
             ([∗ set] o ∈ oset, can_alloc_pred o)).
   Proof.

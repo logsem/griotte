@@ -15,8 +15,8 @@ Section region_invariant_revocation.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ}
-    {relg : relGS Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
+    {relg : relGS Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
 
@@ -31,7 +31,6 @@ Section region_invariant_revocation.
     ={E}=∗ region (<s[LHeap a ι:=Temporary]s>W) C ∗ sts_full_world (<s[LHeap a ι:=Temporary]s>W) C.
   Proof.
     iIntros (Hι Hstatus Hrev) "Hsts Hreg #Hrel".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
     iDestruct "Hpreds" as "[%Hknown [Hheapfrag Hpreds]]".
@@ -49,7 +48,7 @@ Section region_invariant_revocation.
     assert (related_sts_pub_world W (<s[LHeap a ι := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_revoked_temp; auto. }
     assert (LHeap a ι ∈ dom (std W)) as Hin by (rewrite elem_of_dom Hrev; eauto).
-    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "[Hr Hheapfrag]") as "Hr".
+    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl with "[Hr Hheapfrag]") as "Hr".
     { rewrite /std_update /= dom_insert_L. by apply heap_keys_known_insert. }
     { iFrame "%∗". }
     assert (is_Some (M !! LHeap a ι)) as [x Hsome].
@@ -96,7 +95,6 @@ Section region_invariant_revocation.
     intros Hlive.
     intro.
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
     iDestruct "Hpreds" as "[%Hknown [Hheapfrag Hpreds]]".
@@ -111,7 +109,7 @@ Section region_invariant_revocation.
     assert (related_sts_pub_world W (<s[k := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_revoked_temp; auto. }
     assert (k ∈ dom (std W)) as Hin by (rewrite elem_of_dom Hrev; eauto).
-    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl Hheap_wf with "[Hr Hheapfrag]") as "Hr".
+    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl with "[Hr Hheapfrag]") as "Hr".
     { rewrite /std_update /= dom_insert_L. by apply heap_keys_known_insert. }
     { iFrame "%∗". }
     assert (is_Some (M !! k)) as [x Hsome].
@@ -158,10 +156,9 @@ Section region_invariant_revocation.
   Proof.
     intros Hlive.
     iIntros (Hrev Hne Hpwl) "#HmonoV Hsts Hreg Hl #Hφ #Hrel".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     assert (related_sts_pub_world W (<s[k := Temporary ]s> W)) as Hrelated.
     { apply related_sts_pub_revoked_temp; auto. }
-    iDestruct ("HmonoV" $! W ((<s[ k := Temporary ]s> W)) with "[] [] Hφ") as "Hφ'"; [done|by iPureIntro|].
+    iDestruct ("HmonoV" $! W ((<s[ k := Temporary ]s> W)) with "[] Hφ") as "Hφ'"; [done|].
     iApply (update_region_revoked_temp_pwl_updated with "HmonoV Hsts Hreg Hl Hφ' Hrel");auto.
   Qed.
 
@@ -177,7 +174,6 @@ Section region_invariant_revocation.
     -∗ sts_full_world (revoke W) C ∗ region_map_def (revoke W) C MC Mρ.
   Proof.
     iIntros (Hdom) "Hfull Hr".
-    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite /revoke in Hdom |- *.
     destruct W as [ [Wstd_sta Wloc] W_heap ].
     iDestruct "Hr" as "[%Hknown [Hheapfrag Hr]]".
@@ -207,7 +203,7 @@ Section region_invariant_revocation.
     destruct ρ; cbn [region_std_interp]; first contradiction; last done.
     iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     iFrame "∗%#".
-    iNext. iApply ("HmonoV" with "[] [] Hφ"); last done.
+    iNext. iApply ("HmonoV" with "[] Hφ").
     iPureIntro. apply revoke_related_sts_priv_world.
   Qed.
 
@@ -217,7 +213,7 @@ Section region_invariant_revocation.
 
   (* This matches the temprary resources in the map *)
   Definition temp_resources (W : WORLD) (C : CmptName) φ (a : LAddr) (p : Perm) : iProp Σ :=
-    (∃ (v : Word),
+    (∃ (v : LWord),
            ⌜isO p = false⌝
           ∗ a ↦ₖ v
           ∗ (if isWL p
@@ -510,7 +506,6 @@ Section region_invariant_revocation.
         iDestruct "Hx" as (ρ Hx) "[Hstate Hx]".
         iDestruct "Hx" as (γpred' p' φ' Heq Hpers') "(_ & Haddr)".
         iMod (sts_update_std _ _ _ _ Temporary with "Hsts Hstate") as "[Hsts Hstate]".
-        iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf_updated.
         rewrite HMeq.
         iDestruct (region_map_delete with "[Hr Hheapfrag]") as "Hr".
         { iFrame "%∗". }
@@ -544,13 +539,12 @@ Section region_invariant_revocation.
   Qed.
 
   Lemma close_list_resources_mono_pub_live W W' C l :
-    heap_wf (heap_std W') ->
     related_sts_pub_world W W' ->
     Forall (λ a, heap_key_live (heap_std W') a) l ->
     close_list_resources C W l false -∗
     close_list_resources C W' l false.
   Proof.
-    iIntros (Hheap_wf Hrelated Hlive) "Hres".
+    iIntros (Hrelated Hlive) "Hres".
     rewrite /close_list_resources.
     iApply (big_sepL_impl with "Hres").
     iIntros "!> %k %a %Ha (%p & %φ & %Hpers & Htemp & Hrel)".
@@ -565,9 +559,8 @@ Section region_invariant_revocation.
       iDestruct "Htemp" as (v) "(%Hp & Ha & #Hmono & Hφ)".
       iExists v. iFrame "Ha Hmono %".
       destruct (isWL p); last destruct (isDL p);
-      iApply ("Hmono" with "[] [] Hφ").
+      iApply ("Hmono" with "[] Hφ").
     all: try (iPureIntro; exact Hrelated).
-    all: try (iPureIntro; exact Hheap_wf).
     iPureIntro. by apply related_sts_pub_priv_world.
     - iDestruct "Htemp" as "[]".
   Qed.
@@ -588,8 +581,7 @@ Section region_invariant_revocation.
     assert (dom (std W') = dom (std (close_list l W'))) as Heq.
     { rewrite /close_list.
       apply close_list_dom_eq. }
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iDestruct (region_monotone with "Hr") as "Hr";[apply Heq|apply Hrelated'|symmetry; apply close_list_heap|by rewrite close_list_heap| ].
+    iDestruct (region_monotone with "Hr") as "Hr";[apply Heq|apply Hrelated'|symmetry; apply close_list_heap| ].
     iMod (close_list_consolidate_resources _ _ l l with "[] [$Hr $Hsts Htemp]") as "[Hsts Hr]"
     ;[auto|eauto|iFrame;done].
   Qed.
@@ -610,11 +602,9 @@ Section region_invariant_revocation.
   Proof.
     intros Hlive.
     iIntros (Hrelated) "(Hsts & Hr & Htemp)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     iApply (monotone_close_list_region_resources W W' C l); iFrame.
     iApply (close_list_resources_mono_pub_live W (close_list l W') C l
       with "Htemp").
-    - by rewrite close_list_heap.
     - exact Hrelated.
     - by rewrite close_list_heap.
   Qed.
@@ -636,7 +626,6 @@ Section region_invariant_revocation.
   Proof.
     intros Hheap.
     iIntros (Hrevoked Hdom Hstd Hrelated) "Hfull Hr".
-    iDestruct (sts_full_world_heap_wf with "Hfull") as %Hheap_wf.
     rewrite /revoke in Hdom |- *.
     destruct W as [ [ [Wstd_sta Wloc] Wseals] W_heap ].
     iDestruct "Hr" as "[%Hknown [Hheapfrag Hr]]".
@@ -670,7 +659,7 @@ Section region_invariant_revocation.
     destruct ρ; cbn [region_std_interp]; first contradiction; last done.
     iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     iFrame "∗%#".
-    iNext. iApply ("HmonoV" with "[] [] Hφ"); last done.
+    iNext. iApply ("HmonoV" with "[] Hφ").
     iPureIntro. apply Hrelated.
   Qed.
 
@@ -690,7 +679,6 @@ Section region_invariant_revocation.
     intros Hheap.
     intros Hrevoked Hstd Hrelated.
     iIntros "Hsts Hreg".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
     rewrite region_eq /region_def.
     iDestruct "Hreg" as (M Mρ) "(Hγrel & %Hdom & %Hdom' & Hpreds)";simplify_eq.
     iDestruct (monotone_revoke_region_def_update_loc _ _ _ _ _ Hheap with "[] [] [] [] [$] [$]") as "[Hsts Hpreds]"; eauto.
@@ -706,7 +694,7 @@ Section region_invariant_revocation.
   (** Obtain that an address is Revoked if we own the points-to *)
    Lemma revoked_by_separation
      (W : WORLD) (C : CmptName)
-     (a : LAddr) (w : Word) :
+     (a : LAddr) (w : LWord) :
      heap_key_live (heap_std W) a ->
      a ∈ dom (std W) →
      region W C
@@ -752,7 +740,7 @@ Section region_invariant_revocation.
 
    Lemma revoked_by_separation_many
      (W : WORLD) (C : CmptName)
-     (la : list LAddr) (lw : list Word) :
+     (la : list LAddr) (lw : list LWord) :
      Forall (heap_key_live (heap_std W)) la ->
      Forall (λ a, a ∈ dom (std W)) la →
      region W C

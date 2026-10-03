@@ -1,13 +1,11 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export heap_std region_keys allocator_resources.
+From griotte Require Export heap_std region_keys cerise_instance machine_parameters machine_base alloc_registry.
 
 (** * Status APIs
 
     The key-level API reads the status of the object a region key belongs to:
     a non-heap key is always live, and a heap key [LHeap a ι] reads the
-    world's entry for [ι]. The address-keyed API goes through the address
-    lookup; it serves the logical relation until words carry their
-    allocation identifier. *)
+    world's entry for [ι]. *)
 
 Definition heap_key_status (W_heap : Heap) (k : LAddr) : option AllocObjectStatus :=
   match k with
@@ -56,86 +54,6 @@ Proof.
     exists (alloc_object_status o'). rewrite (heap_key_status_lookup _ _ _ o') //.
     unfold alloc_object_contains in *. by rewrite -Hb -He.
 Qed.
-
-Definition heap_addr_status `{HeapRegion} (W_heap : Heap) (a : Addr) : option AllocObjectStatus :=
-  if is_heap_address a then
-    alloc_object_status ∘ snd <$> heap_lookup_addr W_heap a
-  else Some AllocObjectLive.
-
-Definition heap_addr_live `{HeapRegion} (W_heap : Heap) (a : Addr) : Prop :=
-  heap_addr_status W_heap a = Some AllocObjectLive.
-
-(** The region key of an address, as the logical relation chooses it: a heap
-    address recorded in the world is keyed by the identifier of the object
-    containing it. *)
-Definition heap_addr_key `{HeapRegion} (W_heap : Heap) (a : Addr) : LAddr :=
-  if is_heap_address a then
-    match heap_lookup_addr W_heap a with
-    | Some (ι, _) => LHeap a ι
-    | None => LNonHeap a
-    end
-  else LNonHeap a.
-
-Section heap_addr_key.
-  Context `{HeapRegion}.
-
-  Lemma heap_addr_key_addr W_heap a : laddr_addr (heap_addr_key W_heap a) = a.
-  Proof.
-    rewrite /heap_addr_key. destruct (is_heap_address a); last done.
-    by destruct (heap_lookup_addr W_heap a) as [[ι o]|].
-  Qed.
-
-  Lemma heap_addr_key_nonheap W_heap a :
-    is_heap_address a = false -> heap_addr_key W_heap a = LNonHeap a.
-  Proof. intros Ha. by rewrite /heap_addr_key Ha. Qed.
-
-  Lemma heap_addr_key_lookup W_heap a ι o :
-    is_heap_address a = true -> heap_lookup_addr W_heap a = Some (ι,o) ->
-    heap_addr_key W_heap a = LHeap a ι.
-  Proof. intros Ha Hl. by rewrite /heap_addr_key Ha Hl. Qed.
-
-  Lemma heap_addr_key_status W_heap a s :
-    heap_addr_status W_heap a = Some s ->
-    heap_key_status W_heap (heap_addr_key W_heap a) = Some s.
-  Proof.
-    rewrite /heap_addr_status /heap_addr_key.
-    destruct (is_heap_address a); last done.
-    destruct (heap_lookup_addr W_heap a) as [[ι o]|] eqn:Hl; last done.
-    intros Hs. apply heap_lookup_addr_sound in Hl as [Hι Ha].
-    by rewrite (heap_key_status_lookup _ _ _ o).
-  Qed.
-
-  Lemma heap_addr_key_live W_heap a :
-    heap_addr_live W_heap a -> heap_key_live W_heap (heap_addr_key W_heap a).
-  Proof. apply heap_addr_key_status. Qed.
-
-  (** Keys are stable in futures, for addresses the world knows. *)
-  Lemma heap_addr_key_future W_heap W_heap' a :
-    heap_wf W_heap' -> related_sts_heap_std W_heap W_heap' ->
-    is_Some (heap_addr_status W_heap a) ->
-    heap_addr_key W_heap' a = heap_addr_key W_heap a.
-  Proof.
-    intros Hwf Hrel [s Hs]. rewrite /heap_addr_status in Hs. rewrite /heap_addr_key.
-    destruct (is_heap_address a); last done.
-    destruct (heap_lookup_addr W_heap a) as [[ι o]|] eqn:Hl; last discriminate.
-    destruct (heap_lookup_addr_future _ _ _ _ _ Hwf Hrel Hl) as (o' & Hl' & _).
-    by rewrite Hl'.
-  Qed.
-
-  Lemma heap_addr_status_future W_heap W_heap' a s :
-    heap_wf W_heap' -> related_sts_heap_std W_heap W_heap' ->
-    heap_addr_status W_heap a = Some s ->
-    ∃ s', heap_addr_status W_heap' a = Some s' ∧
-          (s = AllocObjectQuarantined → s' = AllocObjectQuarantined).
-  Proof.
-    intros Hwf Hrel Hs. rewrite /heap_addr_status in Hs |- *.
-    destruct (is_heap_address a); last (simplify_eq; eauto).
-    destruct (heap_lookup_addr W_heap a) as [[ι o]|] eqn:Hl; last discriminate.
-    destruct (heap_lookup_addr_future _ _ _ _ _ Hwf Hrel Hl) as (o' & Hl' & _ & _ & Hq).
-    simplify_eq/=. rewrite Hl' /=. eauto.
-  Qed.
-
-End heap_addr_key.
 
 (** Every heap key of a world names an identifier the world's heap knows,
     even for regions that are currently open. *)
@@ -320,15 +238,13 @@ Section heap_key_resource.
 End heap_key_resource.
 
 Section heap_region.
-  Context {Σ : gFunctors} {allocatorg : allocatorG Σ} `{!allocRegistryG Σ} `{HeapRegion}.
+  Context {Σ : gFunctors} `{!allocRegistryG Σ}.
 
   (** Each entry of a world's heap carries the registry's record of its range
-      (D18) and, temporarily, the allocator's receipt for it. A quarantined
-      entry carries the registry's witness that its object reached [AQuar]. *)
+      (D18). A quarantined entry carries the registry's witness that its
+      object reached [AQuar]. *)
   Definition heap_entry_provenance (ι : AId) (o : AllocObject) : iProp Σ :=
     alloc_obj ι (alloc_object_base o) (alloc_object_end o) ∗
-    (∃ reserved : Z * Z,
-       allocator_allocation ι (alloc_object_base o) (alloc_object_end o) reserved) ∗
     (if alloc_object_status o is AllocObjectQuarantined then ι ⊒ AQuar else True).
 
   Definition heap_provenance (h : Heap) : iProp Σ :=
@@ -357,7 +273,7 @@ Section heap_region.
     h !! ι = Some o -> alloc_object_status o = AllocObjectQuarantined ->
     heap_provenance h -∗ ι ⊒ AQuar.
   Proof.
-    iIntros (Hι Ho) "Hprov". iDestruct (heap_provenance_lookup with "Hprov") as "(_ & _ & Hq)";
+    iIntros (Hι Ho) "Hprov". iDestruct (heap_provenance_lookup with "Hprov") as "(_ & Hq)";
       first done.
     by rewrite Ho.
   Qed.
@@ -372,7 +288,7 @@ Section heap_region.
     - destruct (h !! ι) as [o|] eqn:Hι.
       + rewrite (heap_quarantine_lookup h ι o Hι) in Hlookup.
         injection Hlookup as <-.
-        iDestruct (heap_provenance_lookup with "Hprovenance") as "(Hobj & Hreceipt & _)";
+        iDestruct (heap_provenance_lookup with "Hprovenance") as "(Hobj & _)";
           first exact Hι.
         rewrite /heap_entry_provenance /=. iFrame "#".
       + rewrite /heap_quarantine fin_maps.lookup_alter_eq Hι in Hlookup.
@@ -381,13 +297,12 @@ Section heap_region.
       by iApply (heap_provenance_lookup with "Hprovenance").
   Qed.
 
-  Lemma heap_provenance_allocate h ι b e reserved :
+  Lemma heap_provenance_allocate h ι b e :
     heap_provenance h -∗
     alloc_obj ι b e -∗
-    allocator_allocation ι b e reserved -∗
     heap_provenance (heap_allocate h ι b e).
   Proof.
-    iIntros "#Hprov #Hobj #Hreceipt".
+    iIntros "#Hprov #Hobj".
     rewrite /heap_provenance /heap_allocate.
     iApply big_sepM_insert_2; last done.
     rewrite /heap_entry_provenance /=. iFrame "#".
@@ -406,64 +321,3 @@ Section heap_region.
   Qed.
 
 End heap_region.
-
-Lemma heap_addr_live_nonheap `{HeapRegion} W_heap a :
-  is_heap_address a = false -> heap_addr_live W_heap a.
-Proof. intros Ha. by rewrite /heap_addr_live /heap_addr_status Ha. Qed.
-
-Lemma heap_addr_live_lookup `{HeapRegion} W_heap a ι o :
-  heap_lookup_addr W_heap a = Some (ι,o) ->
-  alloc_object_status o = AllocObjectLive -> heap_addr_live W_heap a.
-Proof.
-  intros Ha Ho. rewrite /heap_addr_live /heap_addr_status.
-  destruct (is_heap_address a); last done. by rewrite Ha /= Ho.
-Qed.
-
-Lemma free_heap_quarantine_status_outside `{HeapRegion} h ι b e :
-  heap_wf h ->
-  h !! ι = Some (MkAllocObject b e AllocObjectLive) ->
-  ∀ a, a ∉ finz.seq_between b e ->
-    heap_addr_status h a =
-    heap_addr_status (heap_quarantine h ι) a.
-Proof.
-  intros Hwf Hι a Houtside.
-  rewrite /heap_addr_status.
-  destruct (is_heap_address a) eqn:Ha; last reflexivity.
-  destruct (heap_lookup_addr h a) as [ [κ o] |] eqn:Hlookup.
-  - apply heap_lookup_addr_sound in Hlookup as [Hκ Hcontains].
-    assert (κ <> ι) as Hκne.
-    { intro Heq. subst κ. rewrite Hι in Hκ. injection Hκ as <-.
-      apply Houtside. apply elem_of_finz_seq_between.
-      unfold alloc_object_contains in Hcontains. simpl in Hcontains.
-      exact Hcontains. }
-    assert (heap_lookup_addr (heap_quarantine h ι) a = Some (κ,o))
-      as Hnew.
-    { eapply heap_lookup_addr_complete.
-      - apply heap_quarantine_wf. exact Hwf.
-      - rewrite heap_quarantine_lookup_ne; [exact Hκ|congruence].
-      - exact Hcontains. }
-    rewrite Hnew. reflexivity.
-  - pose proof (proj1 (heap_lookup_addr_none h a Hwf) Hlookup) as Hnone.
-    destruct (heap_lookup_addr (heap_quarantine h ι) a)
-      as [ [κ o] |] eqn:Hnew; last reflexivity.
-    apply heap_lookup_addr_sound in Hnew as [Hκ Hcontains].
-    destruct (decide (κ = ι)) as [->|Hκne].
-    + rewrite (heap_quarantine_lookup h ι _ Hι) in Hκ.
-      injection Hκ as <-. exfalso. apply Houtside.
-      apply elem_of_finz_seq_between.
-      unfold alloc_object_contains in Hcontains. simpl in Hcontains.
-      exact Hcontains.
-    + rewrite heap_quarantine_lookup_ne in Hκ; [|congruence].
-      exfalso. exact (Hnone κ o Hκ Hcontains).
-Qed.
-
-Lemma hts_heap_quarantine_single_status `{HeapRegion} h ι b e :
-    heap_wf h ->
-    (b + 1)%a = Some e ->
-    h !! ι = Some (MkAllocObject b e AllocObjectLive) ->
-    forall a, a <> b ->
-      heap_addr_status h a = heap_addr_status (heap_quarantine h ι) a.
-Proof.
-  intros Hwf Hsucc Hι a Hne. apply (free_heap_quarantine_status_outside h ι b e Hwf Hι).
-  rewrite elem_of_finz_seq_between. solve_addr.
-Qed.
