@@ -13,6 +13,125 @@ Definition allocator_malloc_block_addr {MP : MachineParameters}
   (pc_a : Addr) (n : nat) : Addr :=
   (pc_a ^+ length (concat (take n assembled_allocator_malloc)))%a.
 
+Section binop_lea_prov.
+  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ}.
+
+  (* TODO: move to rules_BinOp *)
+  (** [wp_binop_success_dst_r] for an integer register with any identifier. *)
+  Lemma wp_binop_success_dst_r_prov E dst pc_p pc_g pc_b pc_e pc_a pc_π w ins n1 r2 n2 π2
+      pc_a' :
+    decodeInstrW w.(lw) = ins →
+    is_BinOp ins dst (inr dst) (inr r2) →
+    (pc_a + 1)%a = Some pc_a' →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    dst ≠ cnull ->
+    r2 ≠ cnull ->
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+        ∗ pc_a ↦ₐ w
+        ∗ r2 ↦ᵣ WInt n2 @@? π2
+        ∗ dst ↦ᵣ WInt n1
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          ∗ pc_a ↦ₐ w
+          ∗ r2 ↦ᵣ WInt n2 @@? π2
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
+      }}}.
+  Proof.
+    iIntros (Hdecode Hinstr Hpc_a Hvpc Hcnull Hcnull' ϕ) "(HPC & Hpc_a & Hr2 & Hdst) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    destruct Hspec as [| * Hfail].
+    { iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
+              (insert_insert_ne _ PC dst) // insert_insert_eq.
+      iDestruct (regs_of_map_3 with "Hmap") as "(?&?&?)"; eauto; iFrame. }
+    { destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
+  Qed.
+
+  (* TODO: move to rules_BinOp *)
+  (** [wp_binop_success_r_r] for a second integer register with any identifier. *)
+  Lemma wp_binop_success_r_r_prov E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst ins r1 n1 r2 n2 π2
+      pc_a' :
+    decodeInstrW w.(lw) = ins →
+    is_BinOp ins dst (inr r1) (inr r2) →
+    (pc_a + 1)%a = Some pc_a' →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    dst ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
+    {{{ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+        ∗ pc_a ↦ₐ w
+        ∗ r1 ↦ᵣ WInt n1
+        ∗ r2 ↦ᵣ WInt n2 @@? π2
+        ∗ dst ↦ᵣ wdst
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          ∗ pc_a ↦ₐ w
+          ∗ r1 ↦ᵣ WInt n1
+          ∗ r2 ↦ᵣ WInt n2 @@? π2
+          ∗ dst ↦ᵣ WInt (denote ins n1 n2)
+      }}}.
+  Proof.
+    iIntros (Hdecode Hinstr Hpc_a Hvpc Hcnull Hncull' Hncull'' ϕ) "(HPC & Hpc_a & Hr1 & Hr2 & Hdst) Hφ".
+    iDestruct (map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
+    iApply (wp_BinOp with "[$Hmap Hpc_a]"); eauto; simplify_map_eq; eauto.
+    { by erewrite regs_of_is_BinOp; eauto; rewrite !dom_insert; set_solver+. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)". iDestruct "Hspec" as %Hspec.
+    destruct Hspec as [| * Hfail].
+    { iApply "Hφ". iFrame. incrementPC_inv; simplify_map_eq.
+      rewrite (insert_insert_ne _ PC dst) // insert_insert_eq (insert_insert_ne _ r2 dst) //
+              (insert_insert_ne _ r1 dst) // (insert_insert_ne _ PC dst) // insert_insert_eq.
+      iDestruct (regs_of_map_4 with "Hmap") as "(?&?&?&?)"; eauto; iFrame. }
+    { destruct Hfail; try incrementPC_inv; simplify_map_eq; eauto. congruence. }
+  Qed.
+
+  (* TODO: move to rules_Lea *)
+  (** [wp_lea_success_reg] for an offset register with any identifier. *)
+  Lemma wp_lea_success_reg_prov Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool)
+      p g b e a z πz a' π :
+    decodeInstrW w.(lw) = Lea r1 (inr rv) →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    (a + z)%a = Some a' →
+    rv ≠ cnull ->
+    r1 ≠ cnull ->
+    {{{ ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+          ∗ ▷ pc_a ↦ₐ w
+          ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π
+          ∗ ▷ rv ↦ᵣ WInt z @@? πz }}}
+      Instr Executable @ Ep
+      {{{ RET NextIV;
+          PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+             ∗ pc_a ↦ₐ w
+             ∗ rv ↦ᵣ WInt z @@? πz
+             ∗ r1 ↦ᵣ WCap t p g b e a' @@? π }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
+    iDestruct (map_of_regs_3 with "HPC Hrv Hr1") as "[Hmap (%&%&%)]".
+    iApply (wp_lea with "[$Hmap Hpc_a]"); eauto; simplify_lmap_eq; eauto.
+    { by rewrite !dom_insert; set_solver+. }
+    iNext. iIntros (regs' retv) "(#Hspec & Hpc_a & Hmap)".
+    iDestruct "Hspec" as %Hspec.
+    destruct Hspec as [ | | | | * Hfail ].
+    3,4: by simplify_lmap_eq.
+    { iApply "Hφ". iFrame. incrementPC_inv; simplify_lmap_eq.
+      rewrite (insert_insert_ne _ PC r1) // insert_insert_eq.
+      rewrite (insert_insert_ne _ r1 PC) // (insert_insert_ne _ r1 rv) // insert_insert_eq.
+      iApply (regs_of_map_3 with "Hmap"); eauto. }
+    { simplify_lmap_eq. }
+    { destruct Hfail; try incrementPC_inv; simplify_lmap_eq; eauto.
+      all: try destruct p; cbn in * ; congruence. }
+    Unshelve. all: auto.
+  Qed.
+
+End binop_lea_prov.
+
 Section AllocatorMallocBlocks.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
@@ -223,7 +342,7 @@ Section AllocatorMallocBlocks.
       fresh identifier [ι ∉ S], which the payload capability carries. *)
   Lemma allocator_malloc_prepare_success_spec
     (E : coPset)
-    (pc_b pc_e pc_a next b finish : Addr) (n : Z) (S : gset AId)
+    (pc_b pc_e pc_a next b finish : Addr) (n : Z) (πn : option AId) (S : gset AId)
     (w0 w1 w2 w3 w4 wa2 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
@@ -243,7 +362,7 @@ Section AllocatorMallocBlocks.
     PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
     cgp ↦ᵣ WCap true RW Global
         allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-    ca0 ↦ᵣ WInt n ∗
+    ca0 ↦ᵣ WInt n @@? πn ∗
     ct0 ↦ᵣ w0 ∗
     ct1 ↦ᵣ w1 ∗
     ct2 ↦ᵣ w2 ∗
@@ -264,7 +383,7 @@ Section AllocatorMallocBlocks.
          allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
          cgp ↦ᵣ WCap true RW Global
              allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-         ca0 ↦ᵣ WInt n ∗
+         ca0 ↦ᵣ WInt n @@? πn ∗
          ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
          ct1 ↦ᵣ WInt b ∗
          ct2 ↦ᵣ WInt finish ∗
@@ -324,7 +443,12 @@ Section AllocatorMallocBlocks.
     (* Sub ct3 ct3 allocator_header_words. *)
     iInstr "Hcode".
     (* Lt ct3 ct3 ca0. *)
-    iInstr "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_binop_success_dst_r_prov with "[$HPC $Hi $Hca0 $Hct3]"); try solve_pure.
+    { apply isCorrectPC_intro; [solve_addr | auto]. }
+    iIntros "!> (HPC & Hi & Hca0 & Hct3)". wp_pure.
+    iSpecialize ("Hcode" with "Hi"). cbn [denote].
     replace (heap_e - next - 3 <? n)%Z with false
       by (symmetry; apply Z.ltb_ge; solve_addr).
     (* Jnz .malloc_no_memory ct3. *)
@@ -335,7 +459,12 @@ Section AllocatorMallocBlocks.
     assert (Hbword : (next + 3)%Z = b) by solve_addr.
     rewrite Hbword.
     (* Add ct2 ct1 ca0. *)
-    iInstr "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_binop_success_r_r_prov with "[$HPC $Hi $Hct1 $Hca0 $Hct2]"); try solve_pure.
+    { apply isCorrectPC_intro; [solve_addr | auto]. }
+    iIntros "!> (HPC & Hi & Hct1 & Hca0 & Hct2)". wp_pure.
+    iSpecialize ("Hcode" with "Hi"). cbn [denote].
     assert (Heword : (b + n)%Z = finish) by solve_addr.
     rewrite Heword.
     (* Mov ct4 ct0. *)
@@ -418,7 +547,7 @@ Section AllocatorMallocBlocks.
 
   Lemma allocator_malloc_prepare_oom_spec
     (E : coPset)
-    (pc_b pc_e pc_a next : Addr) (n : Z)
+    (pc_b pc_e pc_a next : Addr) (n : Z) (πn : option AId)
     (w0 w1 w2 w3 w4 wa2 : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
@@ -436,7 +565,7 @@ Section AllocatorMallocBlocks.
     PC ↦ᵣ WCap true RX Global pc_b pc_e start ∗
     cgp ↦ᵣ WCap true RW Global
         allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-    ca0 ↦ᵣ WInt n ∗
+    ca0 ↦ᵣ WInt n @@? πn ∗
     ct0 ↦ᵣ w0 ∗
     ct1 ↦ᵣ w1 ∗
     ct2 ↦ᵣ w2 ∗
@@ -448,7 +577,7 @@ Section AllocatorMallocBlocks.
     ▷ (allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
          cgp ↦ᵣ WCap true RW Global
              allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-         ca0 ↦ᵣ WInt n ∗
+         ca0 ↦ᵣ WInt n @@? πn ∗
          ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
          ct1 ↦ᵣ WInt next ∗
          codefrag start code ∗
@@ -503,7 +632,12 @@ Section AllocatorMallocBlocks.
     iInstr "Hcode".
     unfold allocator_header_words in Hoom.
     (* Lt ct3 ct3 ca0. *)
-    iInstr "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_binop_success_dst_r_prov with "[$HPC $Hi $Hca0 $Hct3]"); try solve_pure.
+    { apply isCorrectPC_intro; [solve_addr | auto]. }
+    iIntros "!> (HPC & Hi & Hca0 & Hct3)". wp_pure.
+    iSpecialize ("Hcode" with "Hi"). cbn [denote].
     replace (heap_e - next - 3 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
     (* Jnz .malloc_no_memory ct3. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
@@ -518,7 +652,7 @@ Section AllocatorMallocBlocks.
 
   Lemma allocator_malloc_publish_spec
     (E : coPset)
-    (pc_b pc_e pc_a next b finish : Addr) (n : Z) (π : option AId) (wstatus : LWord)
+    (pc_b pc_e pc_a next b finish : Addr) (n : Z) (πn : option AId) (π : option AId) (wstatus : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let start := allocator_malloc_block_addr pc_a 6 in
@@ -536,7 +670,7 @@ Section AllocatorMallocBlocks.
         allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
     ct4 ↦ᵣ WCap true RW Global b finish b @@? π ∗
-    ca0 ↦ᵣ WInt n ∗
+    ca0 ↦ᵣ WInt n @@? πn ∗
     ca1 ↦ᵣ wstatus ∗
     allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
     codefrag start code ∗
@@ -565,7 +699,12 @@ Section AllocatorMallocBlocks.
     assert (Hstep1 : (pc_a ^+ 45)%a = ((pc_a ^+ 44)%a ^+ 1)%a) by solve_addr.
     iEval (rewrite Hstep1) in "HPC".
     (* Lea ct0 ca0. *)
-    iInstr "Hcode".
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iApply (wp_lea_success_reg_prov with "[$HPC $Hi $Hct0 $Hca0]"); try solve_pure.
+    { apply isCorrectPC_intro; [solve_addr | auto]. }
+    iIntros "!> (HPC & Hi & Hca0 & Hct0)". wp_pure.
+    iSpecialize ("Hcode" with "Hi").
     (* Store cgp ct0. *)
     iInstr_success "Hcode".
     { eapply (disjoint_from_shadow_not_in allocator_cgp_b allocator_cgp_e allocator_cgp_b).

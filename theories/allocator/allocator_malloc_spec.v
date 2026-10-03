@@ -166,7 +166,7 @@ Section AllocatorMalloc.
       the service invariant. *)
 
   Lemma allocator_malloc_valid_correct
-    (S : gset AId) (E : coPset) (n : Z) (wret : LWord)
+    (S : gset AId) (E : coPset) (n : Z) (πn : option AId) (wret : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     ↑Nallocator_service ⊆ E ->
@@ -183,7 +183,7 @@ Section AllocatorMalloc.
        cgp ↦ᵣ WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
-       ca0 ↦ᵣ WInt n ∗
+       ca0 ↦ᵣ WInt n @@? πn ∗
        ca1 ↦ᵣ - ∗
        ca2 ↦ᵣ - ∗
        ct0 ↦ᵣ - ∗
@@ -334,7 +334,7 @@ Section AllocatorMalloc.
       iCombine "Hpay_shadow Hpay_claims" as "Hpayload".
       rewrite -big_sepL_sep.
       (* Allocate a fresh [ι ∉ S ∪ issued] and write the header. *)
-      iApply (allocator_malloc_prepare_success_spec _ _ _ _ next b finish n (S ∪ issued) with
+      iApply (allocator_malloc_prepare_success_spec _ _ _ _ next b finish n πn (S ∪ issued) with
         "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hct2 $Hct3 $Hct4 $Hca2 $Hslot $Hhdr_mem $Hpayload
             $Hprepare_code]"); eauto.
       { rewrite -Hstart. exact H. }
