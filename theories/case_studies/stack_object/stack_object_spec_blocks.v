@@ -11,10 +11,11 @@ Section Stack_Object_Blocks.
 
   Lemma stack_object_alloc_block_spec
       pc_b pc_e pc_a csp_b csp_e
-      (wca1 wcs0 wcs1 : Word) (stk_mem : list Word) :
+      (wca1 wcs0 wcs1 : LWord) (stk_mem : list LWord) :
     let instrs := so_f_alloc_instrs in
     let len := length instrs in
     disjoint_from_shadow csp_b csp_e ->
+    disjoint_from_heap csp_b csp_e ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
     PC ↦ᵣ WCap true RX Global pc_b pc_e pc_a
     ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e csp_b
@@ -44,7 +45,7 @@ Section Stack_Object_Blocks.
         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     intros instrs len. subst instrs len.
-    iIntros (Hstk_shadow Hsub) "(HPC & Hcsp & Hca1 & Hcs0 & Hcs1 & Hstk & Hcode & Hpost)".
+    iIntros (Hstk_shadow Hstk_heap Hsub) "(HPC & Hcsp & Hca1 & Hcs0 & Hcs1 & Hstk & Hcode & Hpost)".
     codefrag_facts "Hcode". clear H0.
     rewrite /so_f_alloc_instrs.
 
@@ -79,7 +80,12 @@ Section Stack_Object_Blocks.
       iApply (wp_Subseg with "[$Hi $Hmap]"); try solve_pure; try (by simplify_map_eq).
       { constructor; auto; solve_addr. }
       { unfold regs_of; rewrite !dom_insert; set_solver+. }
-      iNext; iIntros (regs' retv) "(%Hspec & Hi & Hmap)".
+      { iNext. instantiate (1 := None). iPureIntro.
+        intros t p g b e a a1 a2 Hdst Ha1 Ha2 Hwithin Hlt.
+        simplify_map_eq. rewrite /isWithin in Hwithin. exfalso.
+        rewrite !andb_true_iff in Hwithin. destruct Hwithin as [ [_ Hwithin] _].
+        apply Z.leb_le in Hwithin. solve_addr. }
+      iNext; iIntros (regs' retv) "(%Hspec & Hi & _ & Hmap)".
       destruct Hspec as [* Hdst Hz1 Hz2 Ha1 Ha2 Hincr
                         | * Hdst Hz1 Hz2 Hbounds Hincr
                         | * Hdst Hz1 Hz2 Ha1 Ha2 Hincr
@@ -114,6 +120,13 @@ Section Stack_Object_Blocks.
     assert (is_Some (a_stk1 + 1)%a) as [a_stk2 Hastk2];[solve_addr+Hcsp_size'|].
     iDestruct (region_pointsto_cons with "Hstk") as "[Hastk1 Hstk]"; eauto.
     { solve_addr+Hcsp_size Hastk1 Hcsp_size' Hastk2. }
+    assert (is_heap_address a_stk1 = false) as Hastk1_nonheap.
+    { apply not_true_is_false. intros Hheap.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
+      apply (Hstk_heap a_stk1).
+      - apply elem_of_finz_seq_between. solve_addr.
+      - apply elem_of_finz_seq_between.
+        apply withinBounds_true_iff in Hheap. solve_addr. }
     (* --- Subseg ca1 cs0 cs1 --- *)
     iInstr "Hcode".
     (* --- Store ca1 0 --- *)
@@ -131,7 +144,7 @@ Section Stack_Object_Blocks.
   Qed.
 
   Lemma stack_object_call_block_spec
-      pc_b pc_e pc_a (wra wcallback : Word) :
+      pc_b pc_e pc_a (wra wcallback : LWord) :
     let instrs := so_f_call_instrs in
     let len := length instrs in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
@@ -170,7 +183,7 @@ Section Stack_Object_Blocks.
 
   Lemma stack_object_assert_prep_block_spec
       pc_b pc_e pc_a csp_b csp_e a_stk2
-      (wct0 wct1 : Word) :
+      (wct0 wct1 : LWord) :
     let instrs := so_f_assert_prep_instrs in
     let len := length instrs in
     disjoint_from_shadow csp_b csp_e ->
@@ -213,7 +226,7 @@ Section Stack_Object_Blocks.
   Qed.
 
   Lemma stack_object_return_block_spec
-      pc_b pc_e pc_a (wret wcra wca0 wca1 : Word) :
+      pc_b pc_e pc_a (wret wcra wca0 wca1 : LWord) :
     let instrs := so_f_return_instrs in
     let len := length instrs in
     SubBounds pc_b pc_e pc_a (pc_a ^+ len)%a ->
@@ -225,7 +238,7 @@ Section Stack_Object_Blocks.
     ∗ cnull ↦ᵣ WInt 0
     ∗ codefrag pc_a instrs
     ∗ ▷ (
-        PC ↦ᵣ updatePcPerm wret
+        PC ↦ᵣ lupdatePcPerm wret
         ∗ cra ↦ᵣ wret
         ∗ cs0 ↦ᵣ wret
         ∗ ca0 ↦ᵣ WInt 0

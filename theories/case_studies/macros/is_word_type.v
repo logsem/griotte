@@ -38,7 +38,7 @@ Section Is_WordType_spec.
   Lemma is_int_spec
     (r r1 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (w w1 wtype : Word)
+    (w w1 : LWord) (wtype : Word)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let is_int := (is_int_instrs r r1) in
@@ -53,7 +53,7 @@ Section Is_WordType_spec.
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ codefrag pc_a is_int
     ∗ ▷ ( ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
-            ∗ r ↦ᵣ w ∗ ⌜ ∃ z, w = WInt z ⌝
+            ∗ r ↦ᵣ w ∗ ⌜ ∃ z, w.(lw) = WInt z ⌝
             ∗ r1 ↦ᵣ WInt 0%Z
             ∗ codefrag pc_a is_int)
               -∗ WP Seq (Instr Executable) {{ φ }}
@@ -67,6 +67,7 @@ Section Is_WordType_spec.
     iDestruct (big_sepL2_length with "Hprog") as %Hlength.
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.
+    destruct w as [w π].
     destruct (is_z w) eqn:Hw_z.
     - destruct w; cbn in *; try done.
       iInstr "Hprog".

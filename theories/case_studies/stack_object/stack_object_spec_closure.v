@@ -19,8 +19,8 @@ Section SO.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
@@ -29,7 +29,7 @@ Section SO.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
+  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
   Lemma stack_object_restore_quarantined
       (Wbase Wcur : WORLD) (l : list LAddr) :
@@ -143,7 +143,7 @@ Section SO.
     na_inv cerise_nais Nassert (assert_inv b_assert e_assert a_flag)
     ∗ na_inv cerise_nais Nswitcher switcher_inv
     ∗ na_inv cerise_nais Nso
-        ([[ pc_b , pc_a ]] ↦ₐ [[ imports ]] ∗ codefrag pc_a so_main_code)
+        ([[ pc_b , pc_a ]] ↦ₐ [[ lword_of_word <$> imports ]] ∗ codefrag pc_a so_main_code)
     ∗ inv (export_table_PCCN SON) (b_so_exp_tbl ↦ₐ WCap true RX Global pc_b pc_e pc_b)
     ∗ inv (export_table_CGPN SON) ((b_so_exp_tbl ^+ 1)%a ↦ₐ WCap true RW Global cgp_b cgp_e cgp_b)
     ∗ inv (export_table_entryN SON (b_so_exp_tbl ^+ 2)%a)
@@ -182,7 +182,7 @@ Section SO.
     iSplit; first done.
     iSplit; first done.
     iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b' %csp_e".
-    iIntros "#Halloc (HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
+    iIntros "(HK & %Hframe_match & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %HPC & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /interp_conf.
@@ -250,7 +250,7 @@ Section SO.
     focus_block 4 "Hcode_main" as a_checkra Ha_checkra "Hcode" "Hcont"; iHide "Hcont" as hcont; clear dependent Ha_f.
     iApply (checkra_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
     iSplitL; last ( iModIntro; iNext ; iIntros (?); done).
-    iNext ; iIntros "H"; iDestruct "H" as (t p g b e a) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
+    iNext ; iIntros "H"; iDestruct "H" as (t p g b e a π) "([%Hp ->] & HPC & Hca0 & Hcs0 & Hcs1 & Hcode)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* ------------------------------------------------------ *)
@@ -294,26 +294,26 @@ Section SO.
     assert (related_sts_priv_world W0 W1) as
       Hrelated_priv_W0_W1 by eapply revoke_related_sts_priv_world.
 
-    set (la_be_temporaries := so_object_temporaries W0 b e).
-    set (la_be_permanents := so_object_permanents W0 b e).
+    set (la_be_temporaries := so_object_temporaries W0 π b e).
+    set (la_be_permanents := so_object_permanents W0 π b e).
     (* Filter the addresses that are in Temporary state in [la_be_temporaries]. *)
     set (l_revoked_W0_no_be :=
-      so_revoked_without_object W0 b e l_revoked_W0).
+      so_revoked_without_object W0 π b e l_revoked_W0).
 
-    assert (addr_key W0 <$> la_be_temporaries ⊆ l_revoked_W0) as Htemps_subset.
+    assert (addr_key π <$> la_be_temporaries ⊆ l_revoked_W0) as Htemps_subset.
     { intros x Hx.
       apply list_elem_of_fmap in Hx as [x' [-> Hx] ].
       subst la_be_temporaries.
       apply list_elem_of_filter in Hx as [Hx Hx_be].
-      apply (Hl_revoked_W0_temporaries (addr_key W0 x')) in Hx.
+      apply (Hl_revoked_W0_temporaries (addr_key π x')) in Hx.
       apply elem_of_app in Hx as [Hx|Hx]; first done.
       apply addr_key_elem_of_LNonHeap_fmap in Hx.
       rewrite elem_of_disjoint in Hno_overlap.
       exfalso; eapply Hno_overlap; eauto.
     }
     assert (
-      addr_key W0 <$> la_be_temporaries
-        ≡ₚ filter (fun a => a ∈ addr_key W0 <$> la_be_temporaries) l_revoked_W0
+      addr_key π <$> la_be_temporaries
+        ≡ₚ filter (fun a => a ∈ addr_key π <$> la_be_temporaries) l_revoked_W0
     ) as Hla_be_temporaries_l.
     { apply NoDup_subset_filter_membership.
       - apply NoDup_addr_key_fmap, so_object_temporaries_NoDup.
@@ -321,7 +321,7 @@ Section SO.
       - exact Htemps_subset.
     }
     assert (
-      l_revoked_W0 ≡ₚ (addr_key W0 <$> la_be_temporaries) ++ l_revoked_W0_no_be
+      l_revoked_W0 ≡ₚ (addr_key π <$> la_be_temporaries) ++ l_revoked_W0_no_be
     ) as Hl_wca0_l'.
     { subst l_revoked_W0_no_be.
       rewrite {1}Hla_be_temporaries_l.
@@ -329,7 +329,7 @@ Section SO.
     }
     assert (
       Forall
-        (fun a => std (revoke W0) !! addr_key W0 a = Some Revoked)
+        (fun a => std (revoke W0) !! addr_key π a = Some Revoked)
         la_be_temporaries
     ) as Hrevoked_la_be_temporaries.
     { apply Forall_forall. intros x Hx.
@@ -352,7 +352,7 @@ Section SO.
 
     (* Get the list of permissions, predicates and words for the [la_be_temporaries]. *)
     iMod (stack_object_open_region_for_checkints
-      W0 C t p g b e a csp_b csp_e l_revoked_W0 stk_mem
+      W0 C t p g b e a π csp_b csp_e l_revoked_W0 stk_mem
       with "[$Hinterp_wca0_W0 $Hworld_interp_C $Hl_revoked_W0 $Hstk $Hlc]")
       as (wca0_lvs)
         "(%Hwca0_lvs_length & %Hwca0_range & Hwca0_lvs & Hrestore_wca0)".
@@ -380,7 +380,7 @@ Section SO.
               & %Hwca0_lvs_ints & Hcode & Hlc)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    set (W2 := close_list (addr_key W0 <$> la_be_temporaries) W1).
+    set (W2 := close_list (addr_key π <$> la_be_temporaries) W1).
     iDestruct "Hlc" as "[Hlc_restore Hlc]".
     (* Close the world from the opened addresses [la_be_permanents]. *)
     iMod ("Hrestore_wca0" with "[$Hwca0_lvs $Hlc_restore]")
@@ -480,14 +480,14 @@ Section SO.
     iDestruct (big_sepM_delete _ _ ca5 with "Hrmap") as "[Hca5 Hrmap]"; first by simplify_map_eq.
 
     set ( rmap_arg :=
-           {[ ca0 := WCap t p g b e (finz.max b e);
-              ca1 := WCap true RWL Local a_stk1 a_stk2 a_stk1;
+           {[ ca0 := WCap t p g b e (finz.max b e) @@? π;
+              ca1 := lword_of_word (WCap true RWL Local a_stk1 a_stk2 a_stk1);
               ca2 := wca2;
               ca3 := wca3;
               ca4 := wca4;
               ca5 := wca5;
-              ct0 := WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
-           ]} : Reg
+              ct0 := lword_of_word (WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call)
+           ]} : LReg
         ).
 
     set (rmap' := (delete ca5 _)).
@@ -561,11 +561,11 @@ Section SO.
       with "[] Hinterp_wca0_W2") as "Hinterp_wca0_W3"; eauto.
 
     (* The passed object is safe to share in the world [W2]. *)
-    iAssert (if is_sealed_with_o wca1 ot_switcher
+    iAssert (if is_sealed_with_o wca1.(lw) ot_switcher
              then (interp W3 C wca1)
              else True)%I as "#Hinterp_W3_wct1".
-    { destruct (is_sealed_with_o wca1 ot_switcher) eqn:His_sealed_wct1; last done.
-      destruct wca1 as [| [|] | |]; try discriminate.
+    { destruct (is_sealed_with_o wca1.(lw) ot_switcher) eqn:His_sealed_wct1; last done.
+      destruct wca1 as [ [| [|] | |] π1]; try discriminate.
       iApply (interp_monotone_sd_same_heap W0 W3); eauto.
       iApply "Hinterp_rmap"; eauto.
       iPureIntro ; set_solver.
@@ -637,13 +637,13 @@ Section SO.
 
     (* Apply the spec switcher call *)
     iApply (switcher_cc_specification_alt _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ with
-             "[- $Halloc $Hswitcher $Hna
+             "[- $Hswitcher $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3 $Hcstk
               $Hinterp_W3_wct1 $HK]"); eauto; iFrame "%".
     { subst rmap'.
       repeat (rewrite dom_delete_L); repeat (rewrite dom_insert_L).
-      apply regmap_full_dom in Hrmap_init.
+      apply lregmap_full_dom in Hrmap_init.
       rewrite /dom_arg_rmap Hrmap_init.
       set_solver+.
     }
@@ -669,7 +669,7 @@ Section SO.
     apply load_heap_in_world_nonheap in Hrcs0;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=; reflexivity].
     subst rcgp rcra rcs0.
-    iEval (cbn) in "HPC".
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     assert (related_sts_pub_world W3 W4) as Hrelated_pub_W3_W4.
     {
@@ -682,18 +682,10 @@ Section SO.
     }
     (* Derive a bunch of disjointness properties that will be necessary later. *)
     set (W5 := revoke W4).
-    assert (Forall (heap_addr_live (heap_std W5))
+    assert (Forall (λ a, heap_key_live (heap_std W5) (LNonHeap a))
       (finz.seq_between a_stk2 csp_e)) as Hstack_live_W5.
     { apply Forall_forall. intros x Hx.
-      apply heap_addr_live_nonheap.
-      apply not_true_is_false. intros Hheap.
-      rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
-      eapply Hstk_heap.
-      - apply elem_of_finz_seq_between.
-        apply elem_of_finz_seq_between in Hx.
-        instantiate (1 := x). solve_addr+Hx Hastk1 Hastk2.
-      - apply elem_of_finz_seq_between.
-        apply withinBounds_true_iff in Hheap. exact Hheap. }
+      apply heap_key_live_nonheap. }
     iMod (world_interp_revoked_by_separation_many with "[$Hstk $Hworld_interp_C]")
       as "(Hworld_interp_C & Hstk & %Hstk_W5)".
     { exact Hstack_live_W5. }
@@ -708,7 +700,7 @@ Section SO.
     { apply Forall_forall. intros x Hx.
       assert (x ∈ l_revoked_W0) as Hx0.
       { assert (x ∈ l_revoked_W0_no_be) as Hx_rest.
-        { change (x ∈ so_revoked_without_object W0 b e l_revoked_W0).
+        { change (x ∈ so_revoked_without_object W0 π b e l_revoked_W0).
           rewrite Hrest_partition. apply elem_of_app; left; exact Hx. }
         subst l_revoked_W0_no_be.
         by apply list_elem_of_filter in Hx_rest as [_ Hx_rest]. }
@@ -724,8 +716,8 @@ Section SO.
       as "[Hworld_interp_C %Hlive_status_W5]".
     iMod (stack_object_framed_resources_live W0 W5 C l_revoked_W0_live
       Hrest_live Hlive_status_W5 with
-      "[$Halloc $Hworld_interp_C $Hrevoked_l_revoked_W0_live]")
-      as "(_ & Hworld_interp_C & Hrevoked_l_revoked_W0_live
+      "[$Hworld_interp_C $Hrevoked_l_revoked_W0_live]")
+      as "(Hworld_interp_C & Hrevoked_l_revoked_W0_live
           & %Hlive_W5)".
     iMod (world_interp_revoked_by_separation_many_with_RevokedResources
       with "[$Hrevoked_l_revoked_W0_live $Hworld_interp_C]")
@@ -751,7 +743,7 @@ Section SO.
     (* simplify the knowledge about the new rmap *)
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap Hrmap_zero]".
     iDestruct (big_sepM_pure with "Hrmap_zero") as "%Hrmap_zero".
-    assert (∀ r : RegName, r ∈ dom rmap → rmap !! r = Some (WInt 0)) as Hrmap_init.
+    assert (∀ r : RegName, r ∈ dom rmap → rmap !! r = Some (lword_of_word (WInt 0))) as Hrmap_init.
     { intros r Hr.
       rewrite elem_of_dom in Hr. destruct Hr as [wr Hr].
       pose proof Hr as Hr'.
@@ -848,7 +840,7 @@ Section SO.
       closing_list_revoked_addresses ++ (LNonHeap <$> finz.seq_between csp_b csp_e)).
 
     iMod (stack_object_repair_world_for_return
-      W0 W3 W4 C b e csp_b csp_e a_stk1 a_stk2
+      W0 W3 W4 C b e csp_b csp_e a_stk1 a_stk2 π
       l_revoked_W0 l_revoked_W0_live l_revoked_W0_quarantined
       l_revoked_W4 (WInt so_secret) stk_mem
       with "[$Hworld_interp_C $Hrevoked_l_revoked_W0_live
@@ -881,7 +873,7 @@ Section SO.
        return protocol: no filtering or resource surgery remains here. *)
     iApply (switcher_ret_specification _ W0 W5
              with
-             "[ $Halloc $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC
+             "[ $Hswitcher $Hstk $Hcstk_frag $HK $Hworld_interp_C $Hna $HPC
                 $Hrmap $Hca0 $Hca1 $Hcsp $Hrevoked]"); eauto.
     { repeat (rewrite dom_insert_L); rewrite Hdom_rmap; set_solver+. }
     { subst csp_b.

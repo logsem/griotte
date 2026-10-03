@@ -12,13 +12,13 @@ Section Stack_Object_Return_Repair.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType Word Σ}
-    {relg : relGS Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
+    {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
   Lemma stack_object_revoked_pointsto_disjoint
       (W : WORLD) (C : CmptName) (l : list LAddr)
-      (a : Addr) (v : Word) :
-    heap_addr_live (heap_std W) a ->
+      (a : Addr) (v : LWord) :
+    heap_key_live (heap_std W) (LNonHeap a) ->
     a ↦ₐ v -∗ RevokedResources W C l -∗ ⌜LNonHeap a ∉ l⌝.
   Proof.
     iIntros (Hlive) "Ha Hl".
@@ -32,8 +32,8 @@ Section Stack_Object_Return_Repair.
 
   Lemma stack_object_revoked_pointsto_disjoint_frame
       (W : WORLD) (C : CmptName) (l : list LAddr)
-      (a : Addr) (v : Word) :
-    heap_addr_live (heap_std W) a ->
+      (a : Addr) (v : LWord) :
+    heap_key_live (heap_std W) (LNonHeap a) ->
     a ↦ₐ v ∗ RevokedResources W C l -∗
     a ↦ₐ v ∗ RevokedResources W C l ∗ ⌜LNonHeap a ∉ l⌝.
   Proof.
@@ -45,8 +45,8 @@ Section Stack_Object_Return_Repair.
 
   Lemma stack_object_revoked_region_disjoint_frame
       (W : WORLD) (C : CmptName)
-      (la : list Addr) (l : list LAddr) (lv : list Word) :
-    Forall (heap_addr_live (heap_std W)) la ->
+      (la : list Addr) (l : list LAddr) (lv : list LWord) :
+    Forall (λ a, heap_key_live (heap_std W) (LNonHeap a)) la ->
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ RevokedResources W C l -∗
     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ RevokedResources W C l ∗
       ⌜(LNonHeap <$> la) ## l⌝.
@@ -69,12 +69,12 @@ Section Stack_Object_Return_Repair.
       (Worig Wcur : WORLD) (C : CmptName) (l : list LAddr) :
     Forall (λ a, heap_key_live (heap_std Worig) a) l ->
     Forall (fun a => is_Some (heap_key_status (heap_std Wcur) a)) l ->
-    allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l
+    world_interp Wcur C ∗ RevokedResources Worig C l
     ={⊤}=∗
-      allocator_ctx ∗ world_interp Wcur C ∗ RevokedResources Worig C l ∗
+      world_interp Wcur C ∗ RevokedResources Worig C l ∗
       ⌜Forall (λ a, heap_key_live (heap_std Wcur) a) l⌝.
   Proof.
-    intros Hlive Hsome. iIntros "(#Halloc & Hworld & Hl)".
+    intros Hlive Hsome. iIntros "(Hworld & Hl)".
     iDestruct (counter_framed_resources_live Worig Wcur C l Hlive Hsome
       with "[$Hworld $Hl]") as "(Hworld & Hl & %Hcur)".
     by iFrame "∗#%".
@@ -82,12 +82,12 @@ Section Stack_Object_Return_Repair.
 
   Lemma stack_object_repair_world_for_return
       (W0 W3 W4 : WORLD) (C : CmptName)
-      (object_b object_e csp_b csp_e a_stk1 a_stk2 : Addr)
+      (object_b object_e csp_b csp_e a_stk1 a_stk2 : Addr) (π : option AId)
       (l0 l0_live l0_quarantined l4 : list LAddr)
-      (stk_head0 : Word) (stk_tail : list Word) :
+      (stk_head0 : LWord) (stk_tail : list LWord) :
     let W5 := revoke W4 in
-    let object_temps : list LAddr := addr_key W0 <$> so_object_temporaries W0 object_b object_e in
-    let l0_rest := so_revoked_without_object W0 object_b object_e l0 in
+    let object_temps : list LAddr := addr_key π <$> so_object_temporaries W0 π object_b object_e in
+    let l0_rest := so_revoked_without_object W0 π object_b object_e l0 in
     let l4_no_fresh := filter (fun a => a <> LNonHeap a_stk1) l4 in
     let l4_object := filter (fun a => a ∈ object_temps) l4_no_fresh in
     let l4_rest := filter (fun a => a ∉ object_temps) l4_no_fresh in
@@ -165,9 +165,7 @@ Section Stack_Object_Return_Repair.
       apply elem_of_app in Hx_temp as [Hx_temp|Hx_temp]; first done.
       apply list_elem_of_fmap in Hx_temp as [x'' [Heq Hx''] ].
       assert (x' = x'') as <-.
-      { rewrite -(heap_addr_key_addr (heap_std W0) x').
-        change (heap_addr_key (heap_std W0) x') with (addr_key W0 x').
-        by rewrite Heq. }
+      { by apply addr_key_LNonHeap_eq in Heq. }
       rewrite elem_of_disjoint in Hobject_stack.
       exfalso; eapply Hobject_stack; eauto.
     }
@@ -298,7 +296,7 @@ Section Stack_Object_Return_Repair.
             { by apply list_elem_of_filter in Hx_obj as [_ ?]. }
             apply elem_of_finz_seq_between.
             solve_addr+Hfresh Hnext Hnext_end.
-          * assert (std W4 !! addr_key W0 x' = Some Temporary) as Hx_temp.
+          * assert (std W4 !! addr_key π x' = Some Temporary) as Hx_temp.
             { rewrite Forall_forall in Hobject_temps_W4.
               by apply Hobject_temps_W4. }
             apply Hl4_temporaries in Hx_temp.
@@ -490,22 +488,17 @@ Section Stack_Object_Return_Repair.
     }
     (* Every stack address is outside the heap.  The mixed revoked resources
        therefore carry physical ownership at any stack address. *)
-    assert (Forall (heap_addr_live (heap_std W4))
+    assert (Forall (λ a, heap_key_live (heap_std W4) (LNonHeap a))
       (finz.seq_between csp_b csp_e)) as Hstack_live4.
     { apply Forall_forall. intros x Hx.
-      apply heap_addr_live_nonheap.
-      apply not_true_is_false. intros Hheap_x.
-      rewrite /disjoint_from_heap elem_of_disjoint in Hstack_heap.
-      eapply Hstack_heap; first exact Hx.
-      apply elem_of_finz_seq_between.
-      by apply withinBounds_true_iff in Hheap_x. }
-    assert (heap_addr_live (heap_std W4) a_stk1) as Hfresh_live4.
+      apply heap_key_live_nonheap. }
+    assert (heap_key_live (heap_std W4) (LNonHeap a_stk1)) as Hfresh_live4.
     { rewrite Forall_forall in Hstack_live4. apply Hstack_live4.
       apply elem_of_finz_seq_between. solve_addr+Hfresh Hnext Hnext_end. }
-    assert (heap_addr_live (heap_std W4) csp_b) as Hhead_live4.
+    assert (heap_key_live (heap_std W4) (LNonHeap csp_b)) as Hhead_live4.
     { rewrite Forall_forall in Hstack_live4. apply Hstack_live4.
       apply elem_of_finz_seq_between. solve_addr+Hfresh Hnext Hnext_end. }
-    assert (Forall (heap_addr_live (heap_std W4))
+    assert (Forall (λ a, heap_key_live (heap_std W4) (LNonHeap a))
       (finz.seq_between a_stk2 csp_e)) as Htail_live4.
     { apply Forall_forall. intros x Hx.
       rewrite Forall_forall in Hstack_live4. apply Hstack_live4.
@@ -592,13 +585,10 @@ Section Stack_Object_Return_Repair.
       -/RevokedResources) in "Hl4".
     iDestruct "Hl4" as "[Hl4_unique Hl4_overlap]".
     iClear "Hl4_overlap".
-    iDestruct (world_interp_heap_wf with "Hworld") as %Hheap_wf5.
-    assert (heap_wf (heap_std (close_list closing W5)))
-      as Hheap_wf_fixed by (rewrite close_list_heap; exact Hheap_wf5).
     iDestruct (RevokedResources_mono_pub W0 (close_list closing W5)
-      C l0_live [] Hheap_wf_fixed Hpub0 with "Hl0_rest") as "Hl0_fixed".
+      C l0_live [] Hpub0 with "Hl0_rest") as "Hl0_fixed".
     iDestruct (RevokedResources_mono_pub W4 (close_list closing W5)
-      C l4_unique [] Hheap_wf_fixed Hpub4 with "Hl4_unique") as "Hl4_fixed".
+      C l4_unique [] Hpub4 with "Hl4_unique") as "Hl4_fixed".
     iAssert (RevokedResources (close_list closing W5) C closing_revoked)%I
       with "[Hl0_fixed Hl4_fixed]" as "Hclosing".
     { subst closing_revoked. rewrite RevokedResources_app. iFrame. }

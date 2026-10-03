@@ -16,7 +16,7 @@ Section Stack_Object_Resources.
   Lemma so_main_imports_pointsto
       pc_b pc_a (C_f : Sealable) :
     (pc_b + length (so_main_imports C_f))%a = Some pc_a ->
-    [[pc_b, pc_a]] ↦ₐ [[so_main_imports C_f]]
+    [[pc_b, pc_a]] ↦ₐ [[lword_of_word <$> so_main_imports C_f]]
     ⊣⊢
       pc_b ↦ₐ
         WSentry true XSRW_ Local b_switcher e_switcher a_switcher_call
@@ -27,7 +27,7 @@ Section Stack_Object_Resources.
   Proof.
     intros Himports.
     cbn in Himports.
-    rewrite /so_main_imports.
+    rewrite /so_main_imports /=.
     iSplit.
     - iIntros "Himports".
       iDestruct (region_pointsto_cons with "Himports") as "[Hswitcher Himports]".
@@ -56,26 +56,26 @@ Section Stack_Object_Region_Resources.
     {Σ : gFunctors}
     {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG LAddr region_type OType Word Σ}
-    {relg : relGS Σ} {cstackg : CSTACKG Σ} {allocatorg : allocatorG Σ}
+    {stsg : STSG LAddr region_type OType LWord Σ}
+    {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
 
   Lemma stack_object_open_region_for_checkints
       (W0 : WORLD) (C : CmptName)
-      (t : bool) (p : Perm) (g : Locality) (b e cur : Addr)
+      (t : bool) (p : Perm) (g : Locality) (b e cur : Addr) (π : option AId)
       (csp_b csp_e : Addr)
-      (l_revoked : list LAddr) (stk_mem : list Word) :
+      (l_revoked : list LAddr) (stk_mem : list LWord) :
     let W1 := revoke W0 in
     let object := so_object_addresses b e in
-    let temps := so_object_temporaries W0 b e in
-    let perms := so_object_permanents W0 b e in
-    let rest := so_revoked_without_object W0 b e l_revoked in
+    let temps := so_object_temporaries W0 π b e in
+    let perms := so_object_permanents W0 π b e in
+    let rest := so_revoked_without_object W0 π b e l_revoked in
     extract_temporaries_condition
       W0 (l_revoked ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     object ## finz.seq_between csp_b csp_e ->
     readAllowed p = true ->
     (t = true ∨ (e <= b)%a) ->
-    interp W0 C (WCap t p g b e cur)
+    interp W0 C (WCap t p g b e cur @@? π)
     ∗ world_interp W1 C
     ∗ ▷ RevokedResources W0 C l_revoked
     ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
@@ -86,16 +86,16 @@ Section Stack_Object_Region_Resources.
       ∗ ⌜object ≡ₚ perms ++ temps⌝
       ∗ ([∗ list] a;v ∈ perms ++ temps;object_mem, a ↦ₐ v)
       ∗ ▷ (
-          ⌜Forall (fun w => exists z : Z, w = WInt z) object_mem⌝
+          ⌜Forall (fun w => exists z : Z, w.(lw) = WInt z) object_mem⌝
           ∗ ([∗ list] a;v ∈ perms ++ temps;object_mem, a ↦ₐ v)
           ∗ £ 1
           ={⊤}=∗
-          world_interp (close_list (addr_key W0 <$> temps) W1) C
+          world_interp (close_list (addr_key π <$> temps) W1) C
           ∗ RevokedResources W0 C rest
           ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
           ∗ interp
-              (close_list (addr_key W0 <$> temps) W1) C
-              (WCap t p g b e (finz.max b e))).
+              (close_list (addr_key π <$> temps) W1) C
+              (WCap t p g b e (finz.max b e) @@? π)).
   Proof.
     intros W1 object temps perms rest.
     iIntros (Hextract Hobject_stack Hread Htag_or_empty)
@@ -126,8 +126,8 @@ Section Stack_Object_Region_Resources.
     (* Classify the readable object region, then partition it into permanent
        addresses and temporary addresses that were revoked with the current frame. *)
     iAssert (⌜Forall
-      (fun a => std W0 !! addr_key W0 a = Some Permanent \/
-                std W0 !! addr_key W0 a = Some Temporary) object⌝)%I
+      (fun a => std W0 !! addr_key π a = Some Permanent \/
+                std W0 !! addr_key π a = Some Temporary) object⌝)%I
       as %Hobject_states.
     { iDestruct (readAllowed_valid_cap with "Hinterp_wca0_W0") as %Hvalid; auto.
       iPureIntro.
@@ -139,7 +139,7 @@ Section Stack_Object_Region_Resources.
     { apply so_object_addresses_partition. exact Hobject_states. }
     change (finz.seq_between b e ≡ₚ perms ++ temps) in Hobject_partition.
 
-    assert (addr_key W0 <$> temps ⊆ l_revoked) as Htemps_subset.
+    assert (addr_key π <$> temps ⊆ l_revoked) as Htemps_subset.
     { intros k Hk.
       apply list_elem_of_fmap in Hk as [a' [-> Ha] ].
       subst temps object.
@@ -148,19 +148,17 @@ Section Stack_Object_Region_Resources.
       apply elem_of_app in Ha as [Ha|Ha]; first done.
       apply list_elem_of_fmap in Ha as [a'' [Heq Ha''] ].
       assert (a' = a'') as <-.
-      { rewrite -(heap_addr_key_addr (heap_std W0) a').
-        change (heap_addr_key (heap_std W0) a') with (addr_key W0 a').
-        by rewrite Heq. }
+      { by apply addr_key_LNonHeap_eq in Heq. }
       rewrite elem_of_disjoint in Hobject_stack.
       exfalso. eapply Hobject_stack; eauto.
     }
     apply NoDup_app in Hrevoked_nodup as (Hl_revoked_nodup & _ & _).
-    assert (addr_key W0 <$> temps ≡ₚ filter (fun a => a ∈ addr_key W0 <$> temps) l_revoked)
+    assert (addr_key π <$> temps ≡ₚ filter (fun a => a ∈ addr_key π <$> temps) l_revoked)
       as Htemps_filter.
     { apply NoDup_subset_filter_membership; auto.
       apply NoDup_addr_key_fmap, so_object_temporaries_NoDup.
     }
-    assert (l_revoked ≡ₚ (addr_key W0 <$> temps) ++ rest) as Hl_revoked_partition.
+    assert (l_revoked ≡ₚ (addr_key π <$> temps) ++ rest) as Hl_revoked_partition.
     { subst rest.
       rewrite {1}Htemps_filter.
       apply filter_complement_list.
@@ -177,8 +175,8 @@ Section Stack_Object_Region_Resources.
       as "Hinterp_wca0_invs"; auto.
     iAssert (
         ∃ (wca0_invs : list
-             (LAddr * Perm * (WORLD * CmptName * Word -> iProp Σ) * region_type)),
-          ⌜(fun '(a, _, _, _) => a) <$> wca0_invs = addr_key W0 <$> perms⌝ ∗
+             (LAddr * Perm * (WORLD * CmptName * LWord -> iProp Σ) * region_type)),
+          ⌜(fun '(a, _, _, _) => a) <$> wca0_invs = addr_key π <$> perms⌝ ∗
           ⌜Forall
               (fun '(a, _, _, ρ) =>
                  std W0 !! a = Some ρ /\ ρ = Permanent)
@@ -186,7 +184,7 @@ Section Stack_Object_Region_Resources.
           ([∗ list] '(a, p0, φ, _) ∈ wca0_invs, rel C a p0 φ) ∗
           ⌜Forall
               (fun '(_, _, φ, _) =>
-                 forall Wv : WORLD * CmptName * Word, Persistent (φ Wv))
+                 forall Wv : WORLD * CmptName * LWord, Persistent (φ Wv))
               wca0_invs⌝)%I
       as (wca0_invs)
         "(%Hwca0_invs_perma & %Hwca0_invs_std_perma
@@ -196,14 +194,14 @@ Section Stack_Object_Region_Resources.
       setoid_rewrite Hobject_partition.
       iDestruct (big_sepL_app with "Hinterp_wca0_invs") as "[H _]".
       iDestruct "H" as "#H".
-      assert (Forall (fun a => std W0 !! addr_key W0 a = Some Permanent) perms)
+      assert (Forall (fun a => std W0 !! addr_key π a = Some Permanent) perms)
         as Hperms.
       { subst perms.
         rewrite /so_object_permanents /so_object_addresses.
         clear.
         induction (finz.seq_between b e); first done.
         cbn.
-        destruct (decide (std W0 !! addr_key W0 a = Some Permanent)); last done.
+        destruct (decide (std W0 !! addr_key π a = Some Permanent)); last done.
         apply Forall_cons; split; auto.
       }
       generalize perms, Hperms.
@@ -218,7 +216,7 @@ Section Stack_Object_Region_Resources.
              & Hzcond & Hrcond & Hwcond & Hmono) H]".
         iDestruct ("IH" with "[%] [$]") as
           (invs) "(%Hl_ & %Hperma & #Hrels & %Hpers)"; auto.
-        iExists (((addr_key W0 a, p', safeC P'), Permanent) :: invs).
+        iExists (((addr_key π a, p', safeC P'), Permanent) :: invs).
         iSplit; first (iPureIntro; cbn; by rewrite Hl_).
         iSplit; first (iPureIntro; apply Forall_cons; split; auto).
         iSplit; first (cbn; iFrame "#").
@@ -227,19 +225,12 @@ Section Stack_Object_Region_Resources.
 
     iDestruct (interp_cap_regions with "Hinterp_wca0_W0") as %[_ Hheapvalid].
     { apply readAllowed_nonO; done. }
-    iEval (rewrite world_interp_eq /world_interp_def) in "Hworld_interp_C".
-    iDestruct "Hworld_interp_C" as "(Hr & Hsts & Hseals)".
-    iDestruct (sts_full_world_heap_wf with "Hsts") as %Hheap_wf.
-    iCombine "Hr Hsts Hseals" as "Hworld_interp_C".
-    iAssert (world_interp W1 C) with "[Hworld_interp_C]" as "Hworld_interp_C".
-    { rewrite world_interp_eq /world_interp_def. iExact "Hworld_interp_C". }
-    assert (Forall (heap_addr_live (heap_std W1)) object) as Hobject_live.
+    assert (Forall (λ a, heap_key_live (heap_std W1) (addr_key π a)) object) as Hobject_live.
     { rewrite Forall_forall.
       intros a Ha.
       subst object W1.
       rewrite revoke_heap.
-      eapply heap_cap_valid_addr_live;
-        [by rewrite revoke_heap in Hheap_wf| |exact Hheapvalid].
+      eapply heap_cap_valid_addr_live; last exact Hheapvalid.
       apply withinBounds_true_iff.
       apply elem_of_finz_seq_between in Ha.
       solve_addr.
@@ -251,13 +242,11 @@ Section Stack_Object_Region_Resources.
       destruct x as [x rho].
       destruct x as [x phi].
       destruct x as [k p0].
-      assert (k ∈ addr_key W0 <$> perms) as Hk_perms.
+      assert (k ∈ addr_key π <$> perms) as Hk_perms.
       { rewrite -Hwca0_invs_perma.
         eapply list_elem_of_fmap_2'; [exact Hx|done]. }
       apply list_elem_of_fmap in Hk_perms as [a [-> Ha_perms] ].
       rewrite Forall_forall in Hobject_live.
-      assert (heap_std W1 = heap_std W0) as Hheap_W1 by (subst W1; apply revoke_heap).
-      rewrite Hheap_W1. apply heap_addr_key_live. rewrite -Hheap_W1.
       apply Hobject_live.
       subst perms object.
       apply list_elem_of_filter in Ha_perms as [_ Ha_obj].
@@ -285,11 +274,11 @@ Section Stack_Object_Region_Resources.
       by apply revoke_lookup_Perm.
     }
     iAssert (([∗ list] a;v ∈ perms;wca0_lv_perma, a ↦ₐ v) ∗
-      ([∗ list] a ∈ perms, key_share (addr_key W0 a)))%I
+      ([∗ list] a ∈ perms, key_share (addr_key π a)))%I
       with "[Hperms_lv]" as "[Hperms_lv Hperms_shares]".
     { by rewrite (so_invs_pointsto _ _ _ Hwca0_invs_perma) addr_key_pointsto_list. }
     assert (Forall
-      (fun a => std (revoke W0) !! addr_key W0 a = Some Revoked) temps)
+      (fun a => std (revoke W0) !! addr_key π a = Some Revoked) temps)
       as Hrevoked_temps_pure.
     { apply Forall_forall. intros a Ha.
       apply revoke_lookup_Monotemp.
@@ -297,7 +286,7 @@ Section Stack_Object_Region_Resources.
       apply elem_of_app; left.
       apply Htemps_subset. by apply list_elem_of_fmap_2.
     }
-    assert (Forall (heap_addr_live (heap_std W0)) temps) as Htemps_live.
+    assert (Forall (λ a, heap_key_live (heap_std W0) (addr_key π a)) temps) as Htemps_live.
     { rewrite Forall_forall in Hobject_live |- *.
       apply Forall_forall.
       intros a Ha.
@@ -310,17 +299,17 @@ Section Stack_Object_Region_Resources.
 
     iAssert (
         ∃ (lp : list Perm)
-          (lφ : list (WORLD * CmptName * Word -> iPropI Σ))
-          (lv : list Word),
+          (lφ : list (WORLD * CmptName * LWord -> iPropI Σ))
+          (lv : list LWord),
           ⌜length lp = length temps⌝
           ∗ ⌜length lφ = length temps⌝
           ∗ ⌜length lv = length temps⌝
           ∗ ([∗ list] φ ∈ lφ,
-               ⌜forall Wv : WORLD * CmptName * Word, Persistent (φ Wv)⌝)
-          ∗ ([∗ list] a;pφ ∈ temps;(zip lp lφ), rel C (addr_key W0 a) pφ.1 pφ.2)
+               ⌜forall Wv : WORLD * CmptName * LWord, Persistent (φ Wv)⌝)
+          ∗ ([∗ list] a;pφ ∈ temps;(zip lp lφ), rel C (addr_key π a) pφ.1 pφ.2)
           ∗ ([∗ list] p0 ∈ lp, ⌜isO p0 = false⌝)
           ∗ ([∗ list] a;v ∈ temps;lv, a ↦ₐ v)
-          ∗ ([∗ list] a ∈ temps, key_share (addr_key W0 a))
+          ∗ ([∗ list] a ∈ temps, key_share (addr_key π a))
           ∗ ([∗ list] lpφ;v ∈ (zip lp lφ);lv,
                if isWL lpφ.1 then future_pub_mono C lpφ.2 v
                else if isDL lpφ.1 then future_pub_mono C lpφ.2 v
@@ -338,7 +327,6 @@ Section Stack_Object_Region_Resources.
         iDestruct "Hrevoked_temps" as "[Ha Hl]".
         iDestruct ("IH" with "[%] Hl") as "Hl"; first exact Hl_live.
         iDestruct "Ha" as (p0 P HpersP) "[Hrel_a Ha]".
-        apply heap_addr_key_live in Ha_live.
         unfold heap_key_live in Ha_live.
         iEval (rewrite Ha_live) in "Ha".
         iDestruct "Ha" as (v) "(HpO & Hv & HP & HmonoP)".
@@ -414,9 +402,9 @@ Section Stack_Object_Region_Resources.
         iDestruct "Hrels" as "[Hrel #Hrels]".
         iDestruct (rel_agree with "[$Hrel $Hrel']") as "[_ #Heq]".
         iSplitL "Heq"; last (iApply "IH"; eauto).
-        iNext. iIntros (???) "!> H"; cbn.
-        iDestruct ("Heq" $! (W1, C, WInt z)) as "-#Heq0".
-        iDestruct ("Heq" $! (W2, C, WInt z)) as "-#Heq1".
+        iNext. iIntros (????) "!> H"; cbn.
+        iDestruct ("Heq" $! (W1, C, WInt z @@? π0)) as "-#Heq0".
+        iDestruct ("Heq" $! (W2, C, WInt z @@? π0)) as "-#Heq1".
         iDestruct (internal_eq_iff with "Heq1") as "[_ Heq1]".
         iDestruct (internal_eq_iff with "Heq0") as "[Heq0 _]".
         iApply "Heq1".
@@ -440,11 +428,12 @@ Section Stack_Object_Region_Resources.
       - cbn.
         iDestruct "Hlφ_lv" as "[Hb Hlb]".
         iDestruct "Hzcond_lφ'" as "[#Hz Hzl]".
-        apply Forall_cons in Hl_ints as [ [z ->] Hl_ints].
+        apply Forall_cons in Hl_ints as [ [z Hz] Hl_ints].
         iSplitL "Hb Hz";
           last (iApply ("IH" with "[] [] [] [] [$] [$]"); eauto).
         rewrite /zcond.
-        iSpecialize ("Hz" $! W0 W1 z). cbn.
+        destruct l as [w0 π0]; cbn in Hz; subst w0.
+        iSpecialize ("Hz" $! W0 W1 z π0). cbn.
         iApply "Hz"; auto.
     }
     iDestruct (big_sepL2_disjoint with "[$Hstk $Htemps_lv]") as %Htemps_stack.
@@ -452,7 +441,7 @@ Section Stack_Object_Region_Resources.
       ([∗ list] a ∈ temps,
          ∃ p0 φ,
            ⌜forall Wv, Persistent (φ Wv)⌝ ∗
-           temp_resources W1 C φ (addr_key W0 a) p0 ∗ rel C (addr_key W0 a) p0 φ)%I
+           temp_resources W1 C φ (addr_key π a) p0 ∗ rel C (addr_key π a) p0 φ)%I
       with "[Hlφ_pers HlpO Hlpφ_mono Htemps_lv Htemps_shares Hlφ_lv]"
       as "Htemps_closing_resources".
     { iDestruct "Hlpφ_rels" as "-#Hlpφ_rels".
@@ -480,23 +469,21 @@ Section Stack_Object_Region_Resources.
       iApply ("IH" $! lφ lp lv with
         "[%] [%] [%] [$] [$] [$] [$] [$] [$] [$]"); eauto.
     }
-    iMod (world_interp_restore_world W1 W1 C (addr_key W0 <$> temps) with
+    iMod (world_interp_restore_world W1 W1 C (addr_key π <$> temps) with
       "[$Hworld_interp_C] [Htemps_closing_resources]")
       as "Hworld_interp_C".
     { rewrite /W1 revoke_heap. apply Forall_fmap.
-      eapply Forall_impl; first exact Htemps_live.
-      intros a Ha. by apply heap_addr_key_live. }
+      exact Htemps_live. }
     { apply close_list_related_sts_pub. }
     { iClear "#".
       rewrite /RevokedResources big_sepL_fmap.
       iApply (big_sepL_impl with "Htemps_closing_resources").
       iModIntro; iIntros (k ka Hka) "H".
-      assert (heap_key_status (heap_std W1) (addr_key W0 ka) = Some AllocObjectLive)
+      assert (heap_key_status (heap_std W1) (addr_key π ka) = Some AllocObjectLive)
         as Hlive_ka.
       { rewrite /W1 revoke_heap.
-        apply heap_addr_key_live.
         rewrite Forall_lookup in Htemps_live.
-        eauto.
+        by eapply Htemps_live.
       }
       iEval (rewrite Hlive_ka).
       iDestruct "H" as (p0 phi Hpers) "(Htemp & Hrel)".
@@ -508,9 +495,9 @@ Section Stack_Object_Region_Resources.
       rewrite /TmpRes mono_temporary_eq.
       iFrame.
     }
-    set (W2 := close_list (addr_key W0 <$> temps) W1).
+    set (W2 := close_list (addr_key π <$> temps) W1).
 
-    iAssert (interp W2 C (WCap true p g b e (finz.max b e)))%I
+    iAssert (interp W2 C (WCap true p g b e (finz.max b e) @@? π))%I
       as "#Hinterp_wca0_W2".
     { iEval (rewrite fixpoint_interp1_eq interp1_eq).
       iEval (rewrite fixpoint_interp1_eq interp1_eq) in "Hinterp_wca0_W0".
@@ -524,10 +511,7 @@ Section Stack_Object_Region_Resources.
         - intros x Hx Hheap.
           specialize (Hcoverage x Hx Hheap).
           rewrite /region_state_nwl in Hcoverage |- *.
-          assert (addr_key W2 = addr_key W0) as Hkey2.
-          { apply addr_key_heap_eq. subst W2 W1. by rewrite close_list_heap revoke_heap. }
-          rewrite Hkey2.
-          assert (Hxeq : std W0 !! addr_key W0 x = std W2 !! addr_key W0 x).
+          assert (Hxeq : std W0 !! addr_key π x = std W2 !! addr_key π x).
           { rewrite Forall_forall in Hobject_states.
             assert (Hobj : x ∈ object)
               by (unfold object, so_object_addresses; exact Hx).
@@ -545,9 +529,6 @@ Section Stack_Object_Region_Resources.
       destruct (has_sreg_access p); first done.
       iDestruct "Hinterp_wca0_W0" as "[Hinterp $]".
       iClear "∗".
-      assert (addr_key W2 = addr_key W0) as Hkey2.
-      { apply addr_key_heap_eq. subst W2 W1. by rewrite close_list_heap revoke_heap. }
-      rewrite Hkey2.
       iApply (big_sepL_impl with "Hinterp").
       iModIntro.
       iIntros (k x Hx)
@@ -556,7 +537,7 @@ Section Stack_Object_Region_Resources.
       iFrame "∗%".
       apply list_elem_of_lookup_2 in Hx.
       rewrite Forall_forall in Hobject_states.
-      assert (std W0 !! addr_key W0 x = std W2 !! addr_key W0 x) as Hxeq.
+      assert (std W0 !! addr_key π x = std W2 !! addr_key π x) as Hxeq.
       { destruct (Hobject_states x Hx) as [Hx'|Hx']; rewrite Hx'; symmetry.
         - rewrite close_list_lookup_not_in.
           { cbn. by apply revoke_lookup_Perm. }
@@ -604,11 +585,7 @@ Section Stack_Object_Region_Resources.
     intros W3 Ha_stk2 Hbounds Ha_stk1_W0 Ha_stk1_W2 Hpriv.
     iIntros "(#Hinterp_stack & Hworld_interp & Ha_stk1 & Hlc)".
     destruct Hbounds as (Hstack_b_stk1 & Hastk1_stk2 & Hastk2_stack_e).
-    iDestruct (interp_cap_disjoint_wl with "Hinterp_stack") as %[_ Hstack_heap0]; first done.
-    assert (∀ W, addr_key W a_stk1 = LNonHeap a_stk1) as Hkey_stk1.
-    { intros W. apply (addr_key_disjoint W stack_b stack_e a_stk1 Hstack_heap0).
-      apply elem_of_finz_seq_between.
-      solve_addr+Ha_stk2 Hstack_b_stk1 Hastk1_stk2 Hastk2_stack_e. }
+    assert (addr_key None a_stk1 = LNonHeap a_stk1) as Hkey_stk1 by done.
 
     (* Turn the freshly zeroed stack address into the closing resource required
        by [world_interp_restore_world], consuming exactly one later credit. *)
@@ -657,9 +634,9 @@ Section Stack_Object_Region_Resources.
       - apply elem_of_finz_seq_between.
         apply withinBounds_true_iff in Hheap. solve_addr.
     }
-    assert (Forall (heap_addr_live (heap_std W2)) [a_stk1])
+    assert (Forall (λ a, heap_key_live (heap_std W2) (LNonHeap a)) [a_stk1])
       as Hfresh_live.
-    { constructor; [apply heap_addr_live_nonheap; exact Hastk1_nonheap|constructor]. }
+    { constructor; [apply heap_key_live_nonheap|constructor]. }
     iMod (world_interp_restore_world W2 W2 C [LNonHeap a_stk1]
       with "[$Hworld_interp] [Hclosing_resources]")
       as "Hworld_interp".
@@ -705,7 +682,7 @@ Section Stack_Object_Region_Resources.
       }
       rewrite (finz_seq_between_singleton a_stk1 a_stk2);
         last solve_addr+Ha_stk2 Hastk1_stk2.
-      cbn. rewrite !Hkey_stk1.
+      cbn.
       iSplit; last done.
       iClear "∗".
       iDestruct "Hinterp_stack" as "-#Hinterp"; iClear "#".

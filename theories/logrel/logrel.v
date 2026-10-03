@@ -283,8 +283,8 @@ Section logrel.
       we might not have [P W C (WInt z)] !
    *)
   Definition zcond (P : V) (C : CmptName) : iProp Σ :=
-    (□ ∀ (W1 W2: WORLD) (z : Z), P W1 C (WInt z) -∗ P W2 C (WInt z)).
-    (* (□ ∀ (W1 W2: WORLD) (z : Z), P W1 C (WInt z) -∗ P W2 C (WInt z)). *)
+    (□ ∀ (W1 W2: WORLD) (z : Z) (π : option AId),
+       P W1 C (WInt z @@? π) -∗ P W2 C (WInt z @@? π)).
   Global Instance zcond_ne n :
     Proper ((=) ==> (=) ==> dist n) zcond.
   Proof. solve_proper_prepare.

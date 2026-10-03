@@ -374,7 +374,7 @@ Section fundamental.
   Proof. intros WCw; apply _. Qed.
 
   Lemma zcond_interp_in_mem C : ⊢ zcond (interp_in_mem RWL) C.
-  Proof. iIntros "!> %W1 %W2 %z _". iApply interp_untagged; done. Qed.
+  Proof. iIntros "!> %W1 %W2 %z %π _". iApply interp_untagged; done. Qed.
 
   Lemma wcond_interp_in_mem C : ⊢ wcond (interp_in_mem RWL) C interp.
   Proof. iIntros "!> %W %w H". by iApply interp_to_in_mem. Qed.
@@ -446,7 +446,7 @@ Section fundamental.
   Proof. intros W; apply _. Qed.
 
   Lemma zcond_interp_in_mem_dl C : ⊢ zcond interp_in_mem_dl C.
-  Proof. by iModIntro; iIntros (W1 W2 w) "_"; iApply interp_int. Qed.
+  Proof. by iModIntro; iIntros (W1 W2 w π) "_"; iApply interp_int. Qed.
 
   Lemma wcond_interp_in_mem_dl C : ⊢ wcond interp_in_mem_dl C interp.
   Proof. iIntros "!> %W %w H". iApply interp_to_in_mem. by iApply interp_deeplocal_word; iApply interp_borrow_word. Qed.

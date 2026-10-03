@@ -58,8 +58,8 @@ Section Checkints_spec.
   Lemma checkints_loop_spec
     (r r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (w1 w2 : Word) (l : list Addr) (ws : list Word)
-    (p : Perm) (g : Locality) (b e a : Addr)
+    (w1 w2 : LWord) (l : list Addr) (ws : list LWord)
+    (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let checkints_loop := (checkints_loop_instrs r r1 r2) in
@@ -73,23 +73,23 @@ Section Checkints_spec.
     Forall (λ w,
               (∃ k, ws !! k = Some w ∧ (∃ a', l !! k = Some a' ∧ (b <= a' < a)%a ))
               ->
-              ∃ z, w = WInt z) ws ->
+              ∃ z, w.(lw) = WInt z) ws ->
     r ≠ cnull ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-    ∗ ▷ r ↦ᵣ (WCap true p g b e a)
+    ∗ ▷ r ↦ᵣ (WCap true p g b e a @@? π)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag pc_a checkints_loop
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
     ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
-         ∗ r ↦ᵣ WCap true p g b e (finz.max b e)
+         ∗ r ↦ᵣ WCap true p g b e (finz.max b e) @@? π
          ∗ r1 ↦ᵣ WInt 0%Z
          ∗ r2 ↦ᵣ WInt e%Z
          ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-         ∗ ⌜ Forall (λ w, ∃ z, w = WInt z) ws ⌝
+         ∗ ⌜ Forall (λ w, ∃ z, w.(lw) = WInt z) ws ⌝
          ∗ codefrag pc_a checkints_loop
          -∗ WP Seq (Instr Executable) {{ φ }}
         )
@@ -150,7 +150,7 @@ Section Checkints_spec.
        noninteger into an integer accepted by the check below. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
-    iApply (wp_load_preserve_or_clear _ _ _ _ _ _ (pc_a ^+ 1)%a
+    iApply (wp_load_preserve_or_clear _ _ _ _ _ _ _ (pc_a ^+ 1)%a
       with "[$HPC $Hi $Hr1 $Hr $Ha]"); try done; try solve_pure; try solve_addr.
     iIntros "!>" (ret)
       "[-> | (%actualv & -> & %Hactual & HPC & Hi & Hr1 & Hr & Ha)]".
@@ -165,14 +165,14 @@ Section Checkints_spec.
     rewrite /checkints_loop_instrs.
 
     focus_block 1 "Hcode" as a_checkint Ha_checkint "Hcode" "Hcont"; iHide "Hcont" as hcont.
-    iApply (is_int_spec with "[- $HPC $Hr1 $Hr2 $Hcode]"); eauto.
+    iApply (is_int_spec _ _ _ _ _ _ _ _ _ (WInt 0) with "[- $HPC $Hr1 $Hr2 $Hcode]"); eauto.
     iSplitR "Hfailed"; last (iNext; iApply "Hfailed").
     iNext; iIntros "(HPC & Hr1 & %Hz & Hr2 & Hcode)".
-    assert (∃ z, w = WInt z) as Hraw_int.
+    assert (∃ z, w.(lw) = WInt z) as Hraw_int.
     { destruct Hactual as [-> | Hcleared].
-      - destruct w; destruct_perm p; cbn in *; naive_solver.
+      - destruct w as [w' πw]; destruct w'; destruct_perm p; cbn in *; naive_solver.
       - destruct Hcleared as [_ ->].
-        destruct w; destruct_perm p; cbn in *; naive_solver.
+        destruct w as [w' πw]; destruct w'; destruct_perm p; cbn in *; naive_solver.
     }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode".
 
@@ -217,8 +217,8 @@ Section Checkints_spec.
         replace e with (a ^+1)%a in Hk; last solve_addr.
         apply elem_of_finz_seq_between in Hk.
         solve_addr.
-      + destruct Hraw_int as (z & Hzraw); subst w.
-        rewrite Hlw list_lookup_middle in Hv; simplify_eq; first (eexists ; done).
+      + destruct Hraw_int as (z & Hzraw).
+        rewrite Hlw list_lookup_middle in Hv; simplify_eq; first (eexists ; eassumption).
         rewrite Hlw1; subst la1.
         rewrite length_take_le; last (eapply Nat.lt_le_incl, lookup_lt_Some; eauto).
         done.
@@ -240,8 +240,8 @@ Section Checkints_spec.
             setoid_rewrite Hl.
             apply finz_seq_between_NoDup.
           }
-          destruct Hraw_int as (z & Hzraw); subst w.
-          rewrite list_lookup_middle in Hwk; simplify_eq; first (eexists ; done).
+          destruct Hraw_int as (z & Hzraw).
+          rewrite list_lookup_middle in Hwk; simplify_eq; first (eexists ; eassumption).
           rewrite Hlw1; subst la1.
           rewrite length_take_le; last (eapply Nat.lt_le_incl, lookup_lt_Some; eauto).
           done.
@@ -257,14 +257,14 @@ Section Checkints_spec.
   Lemma checkints_fail_untagged
     (r r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (w1 w2 : Word) (p : Perm) (g : Locality) (b e a : Addr)
+    (w1 w2 : LWord) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (φ : language.val griotte_lang → iPropI Σ) :
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (checkints_instrs r r1 r2))%a →
     (b < e)%a →
     r ≠ cnull → r1 ≠ cnull → r2 ≠ cnull →
     ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-    ∗ ▷ r ↦ᵣ WCap false p g b e a
+    ∗ ▷ r ↦ᵣ WCap false p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag pc_a (checkints_instrs r r1 r2)
     ∗ □ (▷ φ FailedV)
@@ -293,15 +293,20 @@ Section Checkints_spec.
     focus_block 2 "Hcode" as a_loop Ha_loop "Hcode" "Hcont".
     rewrite /checkints_loop_instrs.
     focus_block_0 "Hcode" as "Hcode" "Hcont_loop".
-    iInstr "Hcode".
-    wp_end. iApply "Hfailed".
+    (* Load r1 r 0 *)
+    iInstr_lookup "Hcode" as "Hi" "Hcode".
+    wp_instr.
+    iDestruct (map_of_regs_2 with "HPC Hr") as "[Hmap %]".
+    iApply (wp_load_fail_tag_imm with "[$Hi $Hmap]"); try solve_pure; try by simplify_map_eq.
+    { apply isCorrectPC_intro; [solve_addr|done]. }
+    iIntros "!> _". wp_pure. wp_end. iApply "Hfailed".
   Qed.
 
   Lemma checkints_spec
     (r r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (w1 w2 : Word) (l : list Addr) (ws : list Word)
-    (t : bool) (p : Perm) (g : Locality) (b e a : Addr)
+    (w1 w2 : LWord) (l : list Addr) (ws : list LWord)
+    (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let checkints := (checkints_instrs r r1 r2) in
@@ -316,17 +321,17 @@ Section Checkints_spec.
     r2 ≠ cnull ->
 
     ▷ PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e pc_a
-    ∗ ▷ r ↦ᵣ (WCap t p g b e a)
+    ∗ ▷ r ↦ᵣ (WCap t p g b e a @@? π)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag pc_a checkints
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
     ∗ ▷ ( PC ↦ᵣ WCap true pc_p pc_g pc_b pc_e a_last
-         ∗ r ↦ᵣ WCap t p g b e (finz.max b e)
+         ∗ r ↦ᵣ WCap t p g b e (finz.max b e) @@? π
          ∗ r1 ↦ᵣ WInt 0%Z
          ∗ r2 ↦ᵣ WInt 0%Z
          ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-         ∗ ⌜ Forall (λ w, ∃ z, w = WInt z) ws ⌝
+         ∗ ⌜ Forall (λ w, ∃ z, w.(lw) = WInt z) ws ⌝
          ∗ codefrag pc_a checkints
          ∗ £ 2
          -∗ WP Seq (Instr Executable) {{ φ }}
