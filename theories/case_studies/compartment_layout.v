@@ -922,6 +922,15 @@ Section CmptLayout.
     is_heap_address b = false → word_rooted H (WCap t p g b e a).
   Proof. intros Hb. apply word_rooted_nonheap. by rewrite /heap_cap_base /= Hb. Qed.
 
+  Lemma word_rooted_cap_disjoint H t p g b e a :
+    disjoint_from_heap b e → word_rooted H (WCap t p g b e a).
+  Proof.
+    intros Hbe b' _ Hb'. rewrite /heap_authority_base in Hb'.
+    case_decide; last done.
+    rewrite /heap_cap_base /= (disjoint_from_heap_not_in b e b Hbe) in Hb'; first done.
+    apply withinBounds_true_iff. solve_addr.
+  Qed.
+
   Lemma word_rooted_ints H (ws : list Word) :
     Forall is_z ws → Forall (word_rooted H) ws.
   Proof.

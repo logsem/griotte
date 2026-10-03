@@ -4,6 +4,7 @@ From griotte Require Import switcher_preamble assert_spec.
 From griotte Require Import rules call_stack.
 From griotte Require Import mkregion_helpers memory_region disjoint_regions_tactics.
 From griotte Require Import switcher_adequacy compartment_layout.
+From griotte Require Import allocator_resources.
 
 
 Section adequacy_helpers.
@@ -233,3 +234,42 @@ Section adequacy_helpers.
     Qed.
 
 End adequacy_helpers.
+
+(** ** Ghost initialisation (§4.2) *)
+Section adequacy_ghost_init.
+  Context `{MP : MachineParameters}.
+
+  (** With zero in [cnull], the initial logical registers are the physical
+      ones without identifiers. *)
+  Lemma init_lregs_cnull (reg : Reg) :
+    reg !! cnull = Some (WInt 0) → init_lregs reg = lword_of_word <$> reg.
+  Proof.
+    intros Hnull. rewrite /init_lregs Hnull insert_id //.
+    by rewrite lookup_fmap Hnull.
+  Qed.
+
+  (** The initial condition without heap roots, for a system without an
+      allocator: no initial word carries heap authority. *)
+  Lemma ghost_init_cond_no_roots (reg : Reg) (sreg : SReg) (m : Mem) :
+    mem_rooted ∅ m →
+    (∀ r w, reg !! r = Some w → word_rooted ∅ w) →
+    (∀ sr w, sreg !! sr = Some w → word_rooted ∅ w) →
+    mem_avoids_mmio m →
+    reg !! cnull = Some (WInt 0) →
+    ghost_init_cond (reg, sreg, m, initial_heap_shadow) ∅.
+  Proof.
+    intros Hm Hreg Hsreg Hmmio Hnull.
+    constructor; cbn.
+    - set_solver.
+    - set_solver.
+    - intros a Ha. eexists.
+      rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
+        lookup_gset_to_gmap option_guard_True //.
+      by apply elem_of_heap_addresses.
+    - intros a w b Ha. by eapply Hm.
+    - intros r w b _ Hw. by eapply Hreg.
+    - intros sr w b Hw. by eapply Hsreg.
+    - exact Hmmio.
+    - intros w Hw. rewrite Hnull in Hw. by injection Hw as <-.
+  Qed.
+End adequacy_ghost_init.
